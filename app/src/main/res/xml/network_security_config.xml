@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    맥미니 Ollama 서버 (Tailnet IP 100.86.114.49:11434) 호출용 cleartext 허용.
+    Tailscale 내부망이라 HTTPS 불필요. 일반 인터넷에선 도달 불가.
+    다른 도메인의 cleartext 는 기본값(차단) 유지.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">100.86.114.49</domain>
+    </domain-config>
+</network-security-config>

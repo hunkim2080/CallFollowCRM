@@ -1,0 +1,47 @@
+# Android 표준 ignore (Android Studio Project Template 기준)
+*.iml
+.gradle
+/local.properties
+/.idea
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Kotlin / Gradle
+.kotlin/
+*.hprof
+
+# 빌드 산출물
+**/build/
+**/out/
+
+# 환경별 키 / 비밀
+*.keystore
+*.jks
+keystore.properties
+secrets.properties
+
+# Logs
+*.log
+
+# OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# IDE / Editor
+.vscode/
+*.swp
+*.swo
+
+# Claude Code 산출물 (다른 PC 에서 다시 빌드되거나 별도 동기화)
+.claude/
