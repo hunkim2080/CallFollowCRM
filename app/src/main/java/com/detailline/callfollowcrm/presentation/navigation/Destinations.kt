@@ -33,6 +33,8 @@ object Destinations {
 
     const val SETTINGS = "settings"
     const val SCHEDULE = "schedule"
+    const val AI_MESSAGE = "ai_message"
+    const val STYLE_LEARNING = "style_learning"
 
     const val PIPELINE_WITH_ARG = "pipeline/{statusName}"
     /** statusName 은 CustomerStatus enum name (예: ESTIMATE_PENDING). 한글 라벨이 아니라서 URL 경로 안전. */

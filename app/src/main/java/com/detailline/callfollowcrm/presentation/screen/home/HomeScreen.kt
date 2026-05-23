@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
@@ -68,6 +69,8 @@ fun HomeScreen(
     onOpenPipeline: (statusName: String) -> Unit,
     onOpenSchedule: () -> Unit,
     onOpenTemplates: () -> Unit,
+    onOpenAiMessage: () -> Unit,
+    onOpenStyleLearning: () -> Unit,
     onOpenSettings: () -> Unit
 ) {
     val timeline by viewModel.timeline.collectAsState()
@@ -95,6 +98,9 @@ fun HomeScreen(
                     }
                     IconButton(onClick = onOpenTemplates) {
                         Icon(Icons.Default.Description, "템플릿", tint = TossTextSecondary)
+                    }
+                    IconButton(onClick = onOpenAiMessage) {
+                        Icon(Icons.Default.Sms, "AI 문자함", tint = TossTextSecondary)
                     }
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Default.Settings, "설정", tint = TossTextSecondary)
@@ -169,6 +175,13 @@ fun HomeScreen(
                 contentPadding = PaddingValues(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                item {
+                    TossChip(
+                        text = "내 말투 학습",
+                        selected = false,
+                        onClick = onOpenStyleLearning
+                    )
+                }
                 items(HomeFilter.values().toList()) { f ->
                     TossChip(
                         text = f.label,
@@ -419,4 +432,3 @@ private fun callTypeLabel(raw: String): String = when (raw) {
     "MANUAL" -> "수동 등록"
     else -> "통화"
 }
-

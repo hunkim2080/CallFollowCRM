@@ -4,6 +4,7 @@ import android.content.Context
 import com.detailline.callfollowcrm.ai.AiSummaryRepository
 import com.detailline.callfollowcrm.ai.NoOpAiSummaryRepository
 import com.detailline.callfollowcrm.ai.OllamaRefineRepository
+import com.detailline.callfollowcrm.ai.PhaseOneApiRepository
 import com.detailline.callfollowcrm.ai.RefineRepository
 import com.detailline.callfollowcrm.ai.ServerSuggestionRepository
 import com.detailline.callfollowcrm.ai.SuggestionRepository
@@ -54,6 +55,7 @@ class AppContainer(context: Context) {
     // 답변 추천 (Phase 1). 맥미니 자체 서버 (포트 8000) — RINGGO_SERVER_SPEC.md 참조.
     // SmsReceiver 가 prepare 트리거, ChatViewModel 이 fetch.
     val suggestionRepository: SuggestionRepository = ServerSuggestionRepository()
+    val phaseOneApiRepository = PhaseOneApiRepository()
 
     val navEvents = NavEvents()
 }

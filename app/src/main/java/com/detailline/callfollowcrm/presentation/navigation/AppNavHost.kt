@@ -11,6 +11,8 @@ import com.detailline.callfollowcrm.data.AppContainer
 import com.detailline.callfollowcrm.domain.model.CustomerStatus
 import com.detailline.callfollowcrm.presentation.screen.chat.ChatScreen
 import com.detailline.callfollowcrm.presentation.screen.chat.ChatViewModel
+import com.detailline.callfollowcrm.presentation.screen.aimessage.AiMessageScreen
+import com.detailline.callfollowcrm.presentation.screen.aimessage.AiMessageViewModel
 import com.detailline.callfollowcrm.presentation.screen.customer.CustomerDetailScreen
 import com.detailline.callfollowcrm.presentation.screen.customer.CustomerDetailViewModel
 import com.detailline.callfollowcrm.presentation.screen.followup.FollowUpScreen
@@ -24,6 +26,8 @@ import com.detailline.callfollowcrm.presentation.screen.schedule.ScheduleScreen
 import com.detailline.callfollowcrm.presentation.screen.schedule.ScheduleViewModel
 import com.detailline.callfollowcrm.presentation.screen.settings.SettingsScreen
 import com.detailline.callfollowcrm.presentation.screen.settings.SettingsViewModel
+import com.detailline.callfollowcrm.presentation.screen.stylelearning.StyleLearningScreen
+import com.detailline.callfollowcrm.presentation.screen.stylelearning.StyleLearningViewModel
 import com.detailline.callfollowcrm.presentation.screen.template.TemplateEditScreen
 import com.detailline.callfollowcrm.presentation.screen.template.TemplateEditViewModel
 import com.detailline.callfollowcrm.presentation.screen.template.TemplateListScreen
@@ -62,7 +66,27 @@ fun AppNavHost(
                 onOpenPipeline = { statusName -> navController.navigate(Destinations.pipeline(statusName)) },
                 onOpenSchedule = { navController.navigate(Destinations.SCHEDULE) },
                 onOpenTemplates = { navController.navigate(Destinations.TEMPLATE_LIST) },
+                onOpenAiMessage = { navController.navigate(Destinations.AI_MESSAGE) },
+                onOpenStyleLearning = { navController.navigate(Destinations.STYLE_LEARNING) },
                 onOpenSettings = { navController.navigate(Destinations.SETTINGS) }
+            )
+        }
+
+        composable(Destinations.AI_MESSAGE) {
+            val vm: AiMessageViewModel = viewModel(factory = viewModelFactory { AiMessageViewModel(container) })
+            AiMessageScreen(
+                viewModel = vm,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Destinations.STYLE_LEARNING) {
+            val vm: StyleLearningViewModel = viewModel(
+                factory = viewModelFactory { StyleLearningViewModel(container) }
+            )
+            StyleLearningScreen(
+                viewModel = vm,
+                onBack = { navController.popBackStack() }
             )
         }
 
