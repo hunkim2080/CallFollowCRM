@@ -6,10 +6,12 @@ import com.detailline.callfollowcrm.ai.NoOpAiSummaryRepository
 import com.detailline.callfollowcrm.ai.OllamaRefineRepository
 import com.detailline.callfollowcrm.ai.PhaseOneApiRepository
 import com.detailline.callfollowcrm.ai.RefineRepository
+import com.detailline.callfollowcrm.ai.ServerHealthMonitor
 import com.detailline.callfollowcrm.ai.ServerSuggestionRepository
 import com.detailline.callfollowcrm.ai.SuggestionRepository
 import com.detailline.callfollowcrm.data.local.AppDatabase
 import com.detailline.callfollowcrm.data.preferences.AppPreferences
+import com.detailline.callfollowcrm.data.repository.CachedMessageRepository
 import com.detailline.callfollowcrm.data.repository.CallRecordRepository
 import com.detailline.callfollowcrm.data.repository.CallSummaryRepository
 import com.detailline.callfollowcrm.data.repository.CustomerRepository
@@ -42,6 +44,7 @@ class AppContainer(context: Context) {
     val templateAttachmentRepository = TemplateAttachmentRepository(db.templateAttachmentDao())
     val smsRepository = SmsRepository(context.applicationContext)
     val importantMessageRepository = ImportantMessageRepository(db.importantMessageDao())
+    val cachedMessageRepository = CachedMessageRepository(db.cachedMessageDao())
 
     val preferences = AppPreferences(context)
 
@@ -56,6 +59,9 @@ class AppContainer(context: Context) {
     // SmsReceiver 가 prepare 트리거, ChatViewModel 이 fetch.
     val suggestionRepository: SuggestionRepository = ServerSuggestionRepository()
     val phaseOneApiRepository = PhaseOneApiRepository()
+
+    // 서버 살아있음 모니터 — HomeScreen 상단 ● indicator 가 구독.
+    val serverHealth = ServerHealthMonitor(phaseOneApiRepository).also { it.start() }
 
     val navEvents = NavEvents()
 }

@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.detailline.callfollowcrm.data.local.dao.CachedMessageDao
 import com.detailline.callfollowcrm.data.local.dao.CallRecordDao
 import com.detailline.callfollowcrm.data.local.dao.CallSummaryDao
 import com.detailline.callfollowcrm.data.local.dao.CustomerDao
@@ -14,6 +15,7 @@ import com.detailline.callfollowcrm.data.local.dao.MessageHistoryDao
 import com.detailline.callfollowcrm.data.local.dao.MessageTemplateDao
 import com.detailline.callfollowcrm.data.local.dao.RecordingAttachmentDao
 import com.detailline.callfollowcrm.data.local.dao.TemplateAttachmentDao
+import com.detailline.callfollowcrm.data.local.entity.CachedMessageEntity
 import com.detailline.callfollowcrm.data.local.entity.CallRecordEntity
 import com.detailline.callfollowcrm.data.local.entity.CallSummaryEntity
 import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
@@ -32,9 +34,10 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         RecordingAttachmentEntity::class,
         CallSummaryEntity::class,
         TemplateAttachmentEntity::class,
-        ImportantMessageEntity::class
+        ImportantMessageEntity::class,
+        CachedMessageEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -46,6 +49,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun callSummaryDao(): CallSummaryDao
     abstract fun templateAttachmentDao(): TemplateAttachmentDao
     abstract fun importantMessageDao(): ImportantMessageDao
+    abstract fun cachedMessageDao(): CachedMessageDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -120,13 +124,38 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v8 -> v9: cached_messages 테이블 신설.
+         * 시스템 SMS/MMS 의 로컬 캐시. ChatScreen 진입 시 즉시 표시 + 백그라운드 동기화 용도.
+         */
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS cached_messages (
+                        localId INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        systemId INTEGER NOT NULL,
+                        isMms INTEGER NOT NULL,
+                        phoneSuffix TEXT NOT NULL,
+                        address TEXT,
+                        body TEXT NOT NULL,
+                        dateMs INTEGER NOT NULL,
+                        sent INTEGER NOT NULL,
+                        imageUrisCsv TEXT NOT NULL,
+                        cachedAtMs INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_cached_messages_phoneSuffix ON cached_messages(phoneSuffix)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_cached_messages_systemId_isMms ON cached_messages(systemId, isMms)")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
                 AppDatabase::class.java,
                 "call_follow_crm.db"
             )
-                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                 .fallbackToDestructiveMigration()   // migration 실패 시 안전망 (개발 단계)
                 .build()
                 .also { instance = it }

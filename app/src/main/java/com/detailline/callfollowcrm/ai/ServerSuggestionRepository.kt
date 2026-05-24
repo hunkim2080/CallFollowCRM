@@ -55,6 +55,11 @@ class ServerSuggestionRepository(
                             put("depositPaid", c.depositPaid)
                         })
                     }
+                    if (context.ownerToneSamples.isNotEmpty()) {
+                        put("ownerToneSamples", JSONArray().apply {
+                            context.ownerToneSamples.forEach { put(it) }
+                        })
+                    }
                 }
                 val req = Request.Builder()
                     .url("$baseUrl/prepare-reply")

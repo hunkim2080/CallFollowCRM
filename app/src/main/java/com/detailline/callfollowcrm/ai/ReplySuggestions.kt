@@ -34,7 +34,13 @@ data class PrepareContext(
     val latestMessage: String,
     val latestMessageReceivedAtMs: Long,
     val recentHistory: List<HistoryMessage>,
-    val customer: CustomerHint?
+    val customer: CustomerHint?,
+    /**
+     * 사장님 톤 코퍼스 — 사장님이 다른 고객들에게 보낸 최근 메시지들 (sent=true 만).
+     * 서버가 시스템 프롬프트의 "사장님 톤 예시" 섹션에 few-shot 으로 박는다.
+     * recentHistory 와 별개. 이 고객과의 대화가 아닌, 사장님 톤 학습용 일반 샘플.
+     */
+    val ownerToneSamples: List<String> = emptyList()
 )
 
 data class HistoryMessage(

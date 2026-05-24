@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -36,13 +37,16 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.detailline.callfollowcrm.CallFollowCrmApplication
 import com.detailline.callfollowcrm.domain.model.CustomerStatus
 import com.detailline.callfollowcrm.presentation.component.TossBadge
 import com.detailline.callfollowcrm.presentation.component.TossCard
@@ -80,17 +84,45 @@ fun HomeScreen(
     val weekScheduled by viewModel.thisWeekScheduledCount.collectAsState()
     val estimateSent by viewModel.estimateSentCount.collectAsState()
 
+    // 서버 상태 indicator — AppContainer 의 ServerHealthMonitor 를 직접 구독.
+    // 30초마다 GET /health 호출 → 결과 반영. 사장님만 알아볼 작은 동그라미. tap = Toast 안내.
+    val context = LocalContext.current
+    val serverHealth = remember {
+        (context.applicationContext as CallFollowCrmApplication).container.serverHealth
+    }
+    val serverAlive by serverHealth.alive.collectAsState()
+    val lastOkAtMs by serverHealth.lastOkAtMs.collectAsState()
+
     Scaffold(
         containerColor = TossGrayBg,
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        "RING-GO",
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TossTextPrimary
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "RING-GO",
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TossTextPrimary
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        ServerStatusDot(
+                            alive = serverAlive,
+                            onClick = {
+                                val msg = when (serverAlive) {
+                                    true -> {
+                                        val secs = lastOkAtMs?.let { (System.currentTimeMillis() - it) / 1000 } ?: 0L
+                                        "서버 연결 정상 (${secs}초 전)"
+                                    }
+                                    false -> "서버 연결 실패 — Tailscale 확인하세요"
+                                    null -> "서버 상태 체크 중..."
+                                }
+                                android.widget.Toast.makeText(
+                                    context, msg, android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        )
+                    }
                 },
                 actions = {
                     IconButton(onClick = onOpenSchedule) {
@@ -431,4 +463,25 @@ private fun callTypeLabel(raw: String): String = when (raw) {
     "REJECTED" -> "거절"
     "MANUAL" -> "수동 등록"
     else -> "통화"
+}
+
+/**
+ * 서버 살아있음 indicator — 작은 동그라미.
+ * alive == null = 첫 체크 전(회색) / true = 초록 / false = 빨강.
+ * tap 시 onClick (상위에서 다이얼로그 띄움).
+ */
+@Composable
+private fun ServerStatusDot(alive: Boolean?, onClick: () -> Unit) {
+    val color = when (alive) {
+        true -> TossSuccess
+        false -> TossError
+        null -> TossTextTertiary
+    }
+    Box(
+        modifier = Modifier
+            .size(10.dp)
+            .clip(androidx.compose.foundation.shape.CircleShape)
+            .background(color)
+            .clickable { onClick() }
+    )
 }

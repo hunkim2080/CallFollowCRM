@@ -54,7 +54,7 @@ class SmsRepository(private val context: Context) {
      * @param scanLimit 가져올 최대 row 수 (최신순). 기본 1000.
      * @return 매칭된 문자 목록 (date DESC).
      */
-    fun queryByPhone(phoneNumber: String, scanLimit: Int = 1000): List<SmsMessage> {
+    fun queryByPhone(phoneNumber: String, scanLimit: Int = 500): List<SmsMessage> {
         if (!hasReadPermission()) return emptyList()
         val targetDigits = phoneNumber.filter { it.isDigit() }
         if (targetDigits.length < 7) return emptyList()
@@ -62,7 +62,9 @@ class SmsRepository(private val context: Context) {
 
         val smsList = querySmsByPhone(targetSuffix, scanLimit)
         // MMS 는 사진 첨부 + 자동 변환된 긴 문자 모두 여기로 들어옴.
-        val mmsList = runCatching { queryMmsByPhone(targetSuffix, scanLimit) }.getOrDefault(emptyList())
+        // 각 MMS 마다 addr/parts 추가 쿼리가 들어가서 무거움 → scanLimit 별도로 (200) 축소.
+        // 한 번호당 MMS 200건이면 충분 (사장님 사용 패턴 기준).
+        val mmsList = runCatching { queryMmsByPhone(targetSuffix, 200) }.getOrDefault(emptyList())
         return (smsList + mmsList).sortedByDescending { it.dateMs }
     }
 
@@ -293,6 +295,30 @@ class SmsRepository(private val context: Context) {
                 )
             }
             seen.values.toList()
+        }
+    }
+
+    /**
+     * 사장님이 보낸(sent=true) 메시지 본문 최근 N건. 톤 학습 코퍼스 용도.
+     * type=2 selection 대신 content://sms/sent path 사용 — 더 빠르고 단순.
+     * 너무 짧은 메시지 (5자 미만) 는 톤 학습 가치 낮아 제외.
+     */
+    fun querySentMessages(limit: Int = 50): List<String> {
+        if (!hasReadPermission()) return emptyList()
+        val uri = Uri.parse("content://sms/sent")
+        val projection = arrayOf(COL_BODY)
+        val cursor = runCatching {
+            context.contentResolver.query(uri, projection, dateDescSortArgs(limit * 2), null)
+        }.getOrNull() ?: return emptyList()
+        return cursor.use { c ->
+            val bodyIdx = c.getColumnIndex(COL_BODY)
+            if (bodyIdx < 0) return@use emptyList()
+            val out = mutableListOf<String>()
+            while (c.moveToNext() && out.size < limit) {
+                val body = c.getString(bodyIdx).orEmpty().trim()
+                if (body.length >= 5) out += body
+            }
+            out
         }
     }
 

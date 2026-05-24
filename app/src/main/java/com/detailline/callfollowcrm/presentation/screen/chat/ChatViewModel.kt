@@ -112,18 +112,48 @@ class ChatViewModel(
     private val _suggestionsLoading = MutableStateFlow(false)
     val suggestionsLoading = _suggestionsLoading.asStateFlow()
 
-    /** 화면 진입 또는 새로고침 시 호출. READ_SMS 권한 + 토글 모두 OK 여야 실제 조회. */
+    /**
+     * 화면 진입 또는 새로고침 시 호출. READ_SMS 권한 + 토글 모두 OK 여야 실제 조회.
+     *
+     * 2-stage 로드 (체감 즉시 표시):
+     *   1) Room 캐시 즉시 표시 — UI 즉시 떠야 사장님이 안 답답함
+     *   2) 백그라운드에서 시스템 SMS/MMS 조회 → 캐시 갱신 → UI 다시 emit
+     *
+     * MMS 쿼리 자체는 여전히 무거움 (각 MMS 마다 addr/parts 추가 호출). 백그라운드에서 처리되므로
+     * 사장님 입장에선 "처음엔 캐시가 뜨고, 좀 있다 최신화" 로 보임.
+     */
     fun loadMessages() {
         val enabled = container.preferences.receivedSmsEnabled
         if (!enabled || !container.smsRepository.hasReadPermission()) {
             _messages.value = emptyList()
             return
         }
+        val digits = phoneNumber.filter { it.isDigit() }
+        if (digits.length < 7) {
+            _messages.value = emptyList()
+            return
+        }
+        val suffix = digits.takeLast(8)
+
         viewModelScope.launch(Dispatchers.IO) {
-            val list = runCatching {
+            // 1) 캐시 즉시 표시
+            val cached = runCatching {
+                container.cachedMessageRepository.load(suffix)
+            }.getOrDefault(emptyList())
+            if (cached.isNotEmpty()) {
+                _messages.value = cached
+            }
+
+            // 2) 시스템 DB 백그라운드 동기화 → 캐시 교체 → UI 갱신
+            val fresh = runCatching {
                 container.smsRepository.queryByPhone(phoneNumber)
             }.getOrDefault(emptyList())
-            _messages.value = list
+            if (fresh.isNotEmpty() || cached.isNotEmpty()) {
+                _messages.value = fresh
+                runCatching {
+                    container.cachedMessageRepository.replaceForSuffix(suffix, fresh)
+                }
+            }
         }
     }
 
@@ -339,12 +369,18 @@ class ChatViewModel(
                         depositPaid = (it.depositAmount ?: 0L) > 0L
                     )
                 }
+                val ownerToneSamples = withContext(Dispatchers.IO) {
+                    runCatching {
+                        container.smsRepository.querySentMessages(limit = 50)
+                    }.getOrDefault(emptyList())
+                }
                 val ctx = PrepareContext(
                     phone = phoneNumber,
                     latestMessage = latestReceived.body,
                     latestMessageReceivedAtMs = latestReceived.dateMs,
                     recentHistory = history,
-                    customer = hint
+                    customer = hint,
+                    ownerToneSamples = ownerToneSamples
                 )
                 val prep = container.suggestionRepository.requestPrepare(ctx)
                 if (prep.isFailure) {

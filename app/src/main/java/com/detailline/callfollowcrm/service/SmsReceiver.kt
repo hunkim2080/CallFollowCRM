@@ -47,7 +47,8 @@ class SmsReceiver : BroadcastReceiver() {
             try {
                 val container = app.container
 
-                val history = if (container.smsRepository.hasReadPermission()) {
+                val canReadSms = container.smsRepository.hasReadPermission()
+                val history = if (canReadSms) {
                     container.smsRepository.queryByPhone(sender, scanLimit = 100)
                         .take(20)
                         .map { sms ->
@@ -58,6 +59,13 @@ class SmsReceiver : BroadcastReceiver() {
                             )
                         }
                         .reversed()
+                } else {
+                    emptyList()
+                }
+                // 사장님 톤 코퍼스 — 다른 고객에게 보낸 최근 메시지 50건.
+                // 서버가 시스템 프롬프트에 few-shot 으로 박아서 "사장님 톤" 학습.
+                val ownerToneSamples = if (canReadSms) {
+                    container.smsRepository.querySentMessages(limit = 50)
                 } else {
                     emptyList()
                 }
@@ -79,7 +87,8 @@ class SmsReceiver : BroadcastReceiver() {
                     latestMessage = combinedBody,
                     latestMessageReceivedAtMs = receivedAtMs,
                     recentHistory = history,
-                    customer = customerHint
+                    customer = customerHint,
+                    ownerToneSamples = ownerToneSamples
                 )
 
                 container.suggestionRepository.requestPrepare(ctx)
