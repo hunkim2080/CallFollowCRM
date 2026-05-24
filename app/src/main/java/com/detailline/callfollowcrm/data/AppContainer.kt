@@ -2,6 +2,7 @@ package com.detailline.callfollowcrm.data
 
 import android.content.Context
 import com.detailline.callfollowcrm.ai.AiSummaryRepository
+import com.detailline.callfollowcrm.ai.ConversationAiRepository
 import com.detailline.callfollowcrm.ai.NoOpAiSummaryRepository
 import com.detailline.callfollowcrm.ai.OllamaRefineRepository
 import com.detailline.callfollowcrm.ai.PhaseOneApiRepository
@@ -45,6 +46,7 @@ class AppContainer(context: Context) {
     val smsRepository = SmsRepository(context.applicationContext)
     val importantMessageRepository = ImportantMessageRepository(db.importantMessageDao())
     val cachedMessageRepository = CachedMessageRepository(db.cachedMessageDao())
+    val conversationAiRepository = ConversationAiRepository(db.aiSummaryDao())
 
     val preferences = AppPreferences(context)
 

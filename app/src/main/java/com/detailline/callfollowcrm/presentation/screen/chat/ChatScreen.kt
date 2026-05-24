@@ -114,7 +114,6 @@ fun ChatScreen(
 
     val customer by viewModel.customer.collectAsState()
     val messages by viewModel.messages.collectAsState()
-    val debug by viewModel.debug.collectAsState()
     val templates by viewModel.templates.collectAsState()
     val toast by viewModel.toast.collectAsState()
     val starred by viewModel.starred.collectAsState()
@@ -153,6 +152,7 @@ fun ChatScreen(
     LaunchedEffect(Unit) {
         viewModel.loadMessages()
         viewModel.loadSuggestions()
+        viewModel.loadFullSummary()
     }
 
     LaunchedEffect(toast) {
@@ -231,6 +231,13 @@ fun ChatScreen(
                 .imePadding()
                 .navigationBarsPadding()
         ) {
+            // P0/P1/P2 — 상단 AI 요약 박스 + AI 제안 박스 (서버 응답 있을 때만 표시).
+            val aiSummary by viewModel.aiSummary.collectAsState()
+            aiSummary?.let { s ->
+                ConversationSummaryBox(entity = s)
+                NextActionBox(json = s.nextActionJson)
+            }
+
             // 메시지 채팅 영역 — 풀 카톡 스타일. reverseLayout=true 라 newest 가 아래에 표시.
             // 그래서 messages 도 dateMs DESC 그대로 넘기면 됨 (LazyColumn 이 뒤집어 렌더).
             val listState = rememberLazyListState()
@@ -243,53 +250,6 @@ fun ChatScreen(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
                 state = listState
             ) {
-                // 임시 디버그 박스 — 항상 표시 (messages.isEmpty 와 무관).
-                // reverseLayout=true 라 item 순서가 위→아래 = 화면 아래→위. 이 item 이 첫번째라 화면 맨 아래에 뜸.
-                // 사장님이 매칭 결과 vs 보이는 메시지 수 차이를 즉시 비교 가능.
-                item {
-                    debug?.let { d ->
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp)
-                                .background(
-                                    androidx.compose.ui.graphics.Color(0xFFFFF7E0),
-                                    androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
-                                )
-                                .padding(12.dp)
-                        ) {
-                            Text(
-                                "🔍 디버그 정보 (배포 전 제거)",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = androidx.compose.ui.graphics.Color(0xFF8B5A00)
-                            )
-                            Spacer(Modifier.height(6.dp))
-                            val sysAddrSuffix = d.firstSystemAddress
-                                ?.filter { it.isDigit() }
-                                ?.takeLast(8) ?: "-"
-                            val text = buildString {
-                                appendLine("권한 (READ_SMS): ${if (d.permission) "✅" else "❌"}")
-                                appendLine("토글 (받은 문자 보기): ${if (d.toggleOn) "✅" else "❌"}")
-                                appendLine("이 번호 끝8자리: ${d.suffix}")
-                                appendLine("현재 화면 메시지: ${messages.size}건")
-                                appendLine("캐시 결과: ${d.cachedCount}건")
-                                appendLine("시스템 SMS 매칭: ${d.freshSmsCount}건")
-                                appendLine("시스템 MMS 매칭: ${d.freshMmsCount}건")
-                                append("시스템 전체 SMS 연락처: ${d.systemContactCount}명")
-                                if (d.firstSystemAddress != null) {
-                                    append("\n→ 첫번째 address: ${d.firstSystemAddress}")
-                                    append("\n→ 그 끝8자리: $sysAddrSuffix")
-                                }
-                            }
-                            Text(
-                                text,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = androidx.compose.ui.graphics.Color(0xFF5A4500)
-                            )
-                        }
-                    }
-                }
-
                 if (messages.isEmpty()) {
                     item {
                         Box(
@@ -884,5 +844,111 @@ private fun dialPhone(context: android.content.Context, phoneNumber: String) {
             data = android.net.Uri.parse("tel:$phoneNumber")
         }
         context.startActivity(intent)
+    }
+}
+
+/**
+ * P1 — ChatScreen 상단 대화 요약 박스. 에이닷 벤치마킹.
+ * conversationSummaryJson (List<String>) 표시. 박스 없으면 null 받아서 호출 측이 안 그림.
+ */
+@Composable
+private fun ConversationSummaryBox(
+    entity: com.detailline.callfollowcrm.data.local.entity.AiSummaryEntity
+) {
+    val lines = com.detailline.callfollowcrm.ai.parseConversationLines(entity.conversationSummaryJson)
+    if (lines.isEmpty()) return
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 8.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White)
+            .padding(14.dp)
+    ) {
+        Text(
+            "✨ 대화 요약",
+            style = MaterialTheme.typography.labelMedium,
+            color = TossBlue,
+            fontWeight = FontWeight.SemiBold
+        )
+        Spacer(Modifier.height(8.dp))
+        lines.forEach { line ->
+            Text(
+                line,
+                style = MaterialTheme.typography.bodyMedium,
+                color = TossTextPrimary,
+                modifier = Modifier.padding(vertical = 2.dp)
+            )
+        }
+    }
+}
+
+/**
+ * P2 — AI 제안 박스. nextActionJson 파싱해서 표시. 박스 없으면 안 그림.
+ * urgency 별 색상: high=빨강 / medium=노랑 / low=파랑.
+ */
+@Composable
+private fun NextActionBox(json: String?) {
+    val action = com.detailline.callfollowcrm.ai.NextAction.parse(json) ?: return
+    val accent = when (action.urgency) {
+        "high" -> Color(0xFFEF4444)
+        "medium" -> Color(0xFFF59E0B)
+        else -> TossBlue
+    }
+    val bg = when (action.urgency) {
+        "high" -> Color(0xFFFEF2F2)
+        "medium" -> Color(0xFFFFF7ED)
+        else -> Color(0xFFEEF4FF)
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp)
+            .padding(bottom = 8.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(bg)
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                "✨ AI 제안",
+                style = MaterialTheme.typography.labelSmall,
+                color = accent,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                action.title,
+                style = MaterialTheme.typography.titleMedium,
+                color = TossTextPrimary,
+                fontWeight = FontWeight.SemiBold
+            )
+            action.subtitle?.let { sub ->
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    sub,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TossTextSecondary
+                )
+            }
+        }
+        action.primaryLabel?.let { label ->
+            Spacer(Modifier.width(8.dp))
+            Surface(
+                shape = RoundedCornerShape(999.dp),
+                color = accent,
+                onClick = { /* P3 — primary_action 별 분기. 지금은 placeholder. */ }
+            ) {
+                Box(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+                    Text(
+                        label,
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp
+                    )
+                }
+            }
+        }
     }
 }

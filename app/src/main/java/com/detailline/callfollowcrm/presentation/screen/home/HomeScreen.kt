@@ -84,6 +84,7 @@ fun HomeScreen(
 ) {
     val timeline by viewModel.timeline.collectAsState()
     val filter by viewModel.filterState.collectAsState()
+    val aiCardSummaries by viewModel.cardSummariesByPhoneSuffix.collectAsState()
     val todayNew by viewModel.todayNewInquiryCount.collectAsState()
     val unhandled by viewModel.unhandledCount.collectAsState()
     val weekScheduled by viewModel.thisWeekScheduledCount.collectAsState()
@@ -334,8 +335,12 @@ fun HomeScreen(
                             //   id 만으론 충돌 가능. phone 까지 묶어 unique 보장.
                             key = { "row-${it.record.id}-${it.record.phoneNumber}" }
                         ) { item ->
+                            val suffix = item.record.phoneNumber
+                                .filter { c -> c.isDigit() }
+                                .takeLast(8)
                             HomeRow(
                                 item = item,
+                                aiCardSummary = aiCardSummaries[suffix],
                                 onClick = { onOpenChat(item.record.phoneNumber, item.customer?.id) }
                             )
                         }
@@ -401,6 +406,7 @@ private fun KpiCard(
 @Composable
 private fun HomeRow(
     item: HomeItem,
+    aiCardSummary: String?,
     onClick: () -> Unit
 ) {
     val isUnhandled = item.anyUnhandled
@@ -422,6 +428,18 @@ private fun HomeRow(
                     val label = if (item.unhandledCount > 1) "미처리 ${item.unhandledCount}건" else "미처리"
                     TossBadge(label, color = TossError, background = Color(0xFFFEECEE))
                 }
+            }
+            // AI 카드 요약 — 이름 바로 아래 (가장 중요한 정보). 에이닷 벤치마킹.
+            // server 미구현 또는 캐시 미생성이면 null → 아무것도 안 보임 (조용히 숨김).
+            if (!aiCardSummary.isNullOrBlank()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "✨ $aiCardSummary",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TossBlue,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1
+                )
             }
             Spacer(Modifier.height(4.dp))
             Text(

@@ -2,6 +2,8 @@ package com.detailline.callfollowcrm.presentation.screen.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.detailline.callfollowcrm.ai.HistoryMessage
+import com.detailline.callfollowcrm.ai.SummaryContext
 import com.detailline.callfollowcrm.data.AppContainer
 import com.detailline.callfollowcrm.data.local.entity.CallRecordEntity
 import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
@@ -15,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -103,8 +106,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             val list = runCatching {
                 if (container.smsRepository.hasReadPermission()) {
-                    // scanLimit 1000 = 시스템 SMS 최근 1000건 스캔, contactLimit 500 = 고유 번호 최대 500명.
-                    container.smsRepository.queryRecentContacts(scanLimit = 1000, contactLimit = 500)
+                    // scanLimit 10000 = 사장님처럼 SMS 17000+ 건 폰에서 옛 사람도 잡히도록 크게.
+                    // contactLimit 500 = 고유 번호 최대 500명 표시.
+                    container.smsRepository.queryRecentContacts(scanLimit = 10000, contactLimit = 500)
                 } else emptyList()
             }.getOrDefault(emptyList())
             smsContactsState.value = list
@@ -141,7 +145,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                     duration = 0L,
                     startedAt = null,
                     endedAt = sms.lastDateMs,
-                    handledStatus = HandledStatus.HANDLED.name, // SMS-only 는 미처리 표시 안 함
+                    handledStatus = HandledStatus.SAVED.name, // SMS-only 는 미처리 표시 안 함
                     linkedCustomerId = byPhone[sms.address]?.id
                 )
                 HomeItem(
@@ -171,13 +175,77 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     fun setFilter(f: HomeFilter) { filter.value = f }
 
     /**
-     * HomeScreen 의 가시 카드 변경 알림 — 그 번호들의 SMS 캐시를 백그라운드 prefetch.
-     * 이미 prefetch 된 번호는 SmsCachePrefetcher 내부 dedup 으로 중복 작업 방지.
+     * HomeScreen 의 가시 카드 변경 알림.
+     *  - SMS 캐시 백그라운드 prefetch (기존)
+     *  - AI 카드 요약 백그라운드 ensure (P0 — server 미구현이면 silent fail, 캐시는 그대로)
      */
     fun onVisiblePhones(phoneNumbers: Collection<String>) {
         if (phoneNumbers.isEmpty()) return
         container.smsCachePrefetcher.prefetchForNumbers(phoneNumbers)
+
+        viewModelScope.launch(Dispatchers.IO) {
+            for (phone in phoneNumbers) {
+                val ctx = buildCardSummaryContext(phone) ?: continue
+                runCatching { container.conversationAiRepository.ensureCardSummary(ctx) }
+            }
+        }
     }
+
+    /**
+     * AI 카드 요약 호출용 SummaryContext 구성. 시스템 SMS 캐시에서 최근 20건 + 사장님 톤 코퍼스.
+     * 캐시에 메시지 1건도 없으면 null (서버 호출해도 의미 없음).
+     */
+    private suspend fun buildCardSummaryContext(phoneNumber: String): SummaryContext? {
+        val digits = phoneNumber.filter { it.isDigit() }
+        if (digits.length < 7) return null
+        val suffix = digits.takeLast(8)
+
+        val cached = runCatching { container.cachedMessageRepository.load(suffix, limit = 20) }
+            .getOrDefault(emptyList())
+        if (cached.isEmpty()) return null
+
+        val latestTs = cached.maxOf { it.dateMs }
+        val customer = runCatching { container.customerRepository.findByPhone(phoneNumber) }.getOrNull()
+        val tone = runCatching { container.smsRepository.querySentMessages(limit = 50) }.getOrDefault(emptyList())
+
+        return SummaryContext(
+            phone = phoneNumber,
+            phoneSuffix = suffix,
+            customerName = customer?.name,
+            customerStatus = customer?.status,
+            customerMemo = customer?.memo?.takeIf { it.isNotBlank() },
+            leadHeat = customer?.leadHeat,
+            depositPaid = (customer?.depositAmount ?: 0L) > 0L,
+            scheduledWorkDate = customer?.scheduledWorkDate,
+            recentMessages = cached.map { sms ->
+                HistoryMessage(
+                    role = if (sms.sent) "owner" else "customer",
+                    body = sms.body,
+                    timestampMs = sms.dateMs
+                )
+            }.reversed(),
+            ownerToneSamples = tone,
+            latestMessageTimestampMs = latestTs
+        )
+    }
+
+    /**
+     * HomeRow 가 카드별 AI 요약을 표시하려면 phone → cardSummary 매핑이 필요.
+     * combine 으로 전체 카드의 summary 한 번에 구독 (Dao 가 List<Entity> 반환).
+     * 실시간 — 서버 응답이 dao.upsert 되면 자동 emit.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val cardSummariesByPhoneSuffix: kotlinx.coroutines.flow.StateFlow<Map<String, String>> =
+        timeline.flatMapLatest { dayGroups ->
+            val suffixes = dayGroups.flatMap { it.items }.map { phoneSuffix(it.record.phoneNumber) }.distinct()
+            if (suffixes.isEmpty()) {
+                kotlinx.coroutines.flow.flowOf(emptyMap())
+            } else {
+                container.conversationAiRepository.observeMany(suffixes).map { list ->
+                    list.mapNotNull { e -> e.cardSummary?.let { e.phoneSuffix to it } }.toMap()
+                }
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     companion object {
         /** 한 페이지 = 20개. 사장님 요청 (2026-05-24). */

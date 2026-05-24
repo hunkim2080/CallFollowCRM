@@ -62,9 +62,8 @@ class SmsRepository(private val context: Context) {
 
         val smsList = querySmsByPhone(targetSuffix, scanLimit)
         // MMS 는 사진 첨부 + 자동 변환된 긴 문자 모두 여기로 들어옴.
-        // 각 MMS 마다 addr/parts 추가 쿼리가 들어가서 무거움 → scanLimit 별도로 (200) 축소.
-        // 한 번호당 MMS 200건이면 충분 (사장님 사용 패턴 기준).
-        val mmsList = runCatching { queryMmsByPhone(targetSuffix, 200) }.getOrDefault(emptyList())
+        // 각 MMS 마다 addr/parts 추가 쿼리가 들어가서 무거움. 사장님 MMS 8900건 폰에서 옛 사진 잡으려면 2000 으로 키움.
+        val mmsList = runCatching { queryMmsByPhone(targetSuffix, 2000) }.getOrDefault(emptyList())
         return (smsList + mmsList).sortedByDescending { it.dateMs }
     }
 
@@ -83,8 +82,9 @@ class SmsRepository(private val context: Context) {
     /**
      * MMS 만 — ChatViewModel 의 stage 3 (무거움, 백그라운드 마지막 단계).
      * 각 MMS 마다 addr/parts 부속 쿼리가 있어 시간 걸림. SMS 가 이미 표시된 상태에서 합쳐짐.
+     * default 2000 = 사장님처럼 MMS 8900건 폰에서 옛 사진 잡히도록.
      */
-    fun queryMmsOnly(phoneNumber: String, scanLimit: Int = 200): List<SmsMessage> {
+    fun queryMmsOnly(phoneNumber: String, scanLimit: Int = 2000): List<SmsMessage> {
         if (!hasReadPermission()) return emptyList()
         val targetDigits = phoneNumber.filter { it.isDigit() }
         if (targetDigits.length < 7) return emptyList()
@@ -97,10 +97,23 @@ class SmsRepository(private val context: Context) {
     private fun querySmsByPhone(targetSuffix: String, scanLimit: Int): List<SmsMessage> {
         val uri = Uri.parse("content://sms/")
         val projection = arrayOf(COL_ID, COL_ADDRESS, COL_BODY, COL_DATE, COL_TYPE)
-        // Galaxy S24(OneUI 6.1) 등 일부 단말은 sortOrder 에 "LIMIT" 끼우면 쿼리가 무시된다.
-        // API 26+ 표준 Bundle 인자로 전달.
+
+        // SQL selection 으로 address 에 끝 8자리 포함된 row 만 받음.
+        //   - 시스템 SMS 가 17,000 건 넘는 사장님 폰에서 scanLimit 으로 자르면 옛 메시지가 잘려나감 (2026-05-24 진단).
+        //   - LIKE '%suffix%' 는 한국 번호 끝 8자리 unique 가정 → 노이즈 거의 없음.
+        //   - 한 번 더 Kotlin 에서 정확 끝 8자리 매칭 + type 필터로 안전망.
+        // sortOrder = date DESC. LIMIT 은 selection 으로 이미 좁아져서 굳이 안 줌 (한 사람당 보통 수십~수백건).
+        val queryArgs = Bundle().apply {
+            putString(ContentResolver.QUERY_ARG_SQL_SELECTION, "$COL_ADDRESS LIKE ?")
+            putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, arrayOf("%$targetSuffix%"))
+            putStringArray(ContentResolver.QUERY_ARG_SORT_COLUMNS, arrayOf(COL_DATE))
+            putInt(
+                ContentResolver.QUERY_ARG_SORT_DIRECTION,
+                ContentResolver.QUERY_SORT_DIRECTION_DESCENDING
+            )
+        }
         val cursor = runCatching {
-            context.contentResolver.query(uri, projection, dateDescSortArgs(scanLimit), null)
+            context.contentResolver.query(uri, projection, queryArgs, null)
         }.getOrNull() ?: return emptyList()
 
         return cursor.use { c ->
@@ -112,11 +125,8 @@ class SmsRepository(private val context: Context) {
             if (idIdx < 0 || addrIdx < 0 || bodyIdx < 0 || dateIdx < 0 || typeIdx < 0) return@use emptyList()
 
             val result = mutableListOf<SmsMessage>()
-            var scanned = 0
-            while (c.moveToNext() && scanned < scanLimit) {
-                scanned++
+            while (c.moveToNext()) {
                 val type = c.getInt(typeIdx)
-                // inbox(1) / sent(2) 만 표시 대상. 초안/실패/대기 등은 노이즈라 제외.
                 if (type != TYPE_INBOX && type != TYPE_SENT) continue
 
                 val address = c.getString(addrIdx).orEmpty()
@@ -279,12 +289,15 @@ class SmsRepository(private val context: Context) {
 
     /**
      * 시스템 SMS 에서 최근 주고받은 사람들의 목록을 반환 (번호별 중복 제거, 최근 1통 미리보기).
-     * "수동 입력 → 최근 문자에서 가져오기" 다이얼로그용.
+     * "수동 입력 → 최근 문자에서 가져오기" + HomeScreen SMS-only 카드 통합용.
      *
-     * @param scanLimit  SMS 프로바이더에서 가져올 row 수 상한 (최신순).
+     * scanLimit 가 작으면 사장님처럼 SMS 가 17000+ 건인 경우 옛 연락처 누락됨.
+     * default 를 10000 으로 크게 잡음 — cursor streaming 이라 메모리 부담 적고, dedup 으로 contactLimit 까지만 보관.
+     *
+     * @param scanLimit  SMS 프로바이더에서 가져올 row 수 상한 (최신순). default 10000.
      * @param contactLimit 결과로 반환할 고유 연락처 수 상한.
      */
-    fun queryRecentContacts(scanLimit: Int = 500, contactLimit: Int = 30): List<SmsContact> {
+    fun queryRecentContacts(scanLimit: Int = 10000, contactLimit: Int = 30): List<SmsContact> {
         if (!hasReadPermission()) return emptyList()
 
         val uri = Uri.parse("content://sms/")
@@ -346,6 +359,99 @@ class SmsRepository(private val context: Context) {
             }
             out
         }
+    }
+
+    /**
+     * 디버그 진단 — 시스템 DB 가 진짜 어떻게 보이는지 한 번에 측정.
+     * 갤S24/OneUI 6.1 에서 query 가 의심될 때 화면에 표시.
+     *
+     * @param suffix 특정 끝 8자리가 시스템 SMS/MMS 의 address 에 등장하는지 검색용
+     */
+    data class SystemDiagnosis(
+        val smsTotalRows: Int,
+        val smsInboxRows: Int,
+        val smsSentRows: Int,
+        val mmsTotalRows: Int,
+        val suffixInSms: Boolean,
+        val suffixInMms: Boolean,
+        val sampleSmsAddresses: List<String>
+    )
+
+    fun diagnose(suffix: String?): SystemDiagnosis {
+        if (!hasReadPermission()) return SystemDiagnosis(0, 0, 0, 0, false, false, emptyList())
+
+        // 카운트는 SELECT count(_id) row 만 받기 — cursor.count 가 거의 즉시.
+        fun countRows(uri: Uri, where: String? = null, args: Array<String>? = null): Int = runCatching {
+            context.contentResolver.query(uri, arrayOf("_id"), where, args, null)?.use { it.count } ?: 0
+        }.getOrDefault(0)
+
+        val smsTotal = countRows(Uri.parse("content://sms/"))
+        val smsInbox = countRows(Uri.parse("content://sms/"), "type=?", arrayOf(TYPE_INBOX.toString()))
+        val smsSent = countRows(Uri.parse("content://sms/"), "type=?", arrayOf(TYPE_SENT.toString()))
+        val mmsTotal = countRows(Uri.parse("content://mms"))
+
+        // 샘플 address — sortOrder Bundle 로 최신 10개만.
+        val sampleAddrs = runCatching {
+            val cursor = context.contentResolver.query(
+                Uri.parse("content://sms/"),
+                arrayOf(COL_ADDRESS),
+                dateDescSortArgs(10),
+                null
+            )
+            cursor?.use { c ->
+                val idx = c.getColumnIndex(COL_ADDRESS)
+                val out = mutableListOf<String>()
+                while (c.moveToNext() && out.size < 10) {
+                    if (idx >= 0) {
+                        val a = c.getString(idx).orEmpty()
+                        if (a.isNotBlank()) out += a
+                    }
+                }
+                out
+            } ?: emptyList()
+        }.getOrDefault(emptyList())
+
+        // suffix 검색 — SQL LIKE 로 직접. address 가 다양한 포맷이라 끝 8자리 매칭이 SQL LIKE 로 안전.
+        val foundSuffix = if (suffix != null) {
+            countRows(Uri.parse("content://sms/"), "address LIKE ?", arrayOf("%$suffix%")) > 0
+        } else false
+
+        // MMS suffix 검색은 mms/addr 별도 테이블 — 최근 2000건만 보고 매칭. 8900건 폰에서도 1~2초.
+        val foundSuffixMms = if (suffix != null && mmsTotal > 0) {
+            runCatching {
+                var hit = false
+                val c = context.contentResolver.query(
+                    Uri.parse("content://mms"),
+                    arrayOf("_id"),
+                    Bundle().apply {
+                        putStringArray(ContentResolver.QUERY_ARG_SORT_COLUMNS, arrayOf("date"))
+                        putInt(ContentResolver.QUERY_ARG_SORT_DIRECTION, ContentResolver.QUERY_SORT_DIRECTION_DESCENDING)
+                        putInt(ContentResolver.QUERY_ARG_LIMIT, 2000)
+                    },
+                    null
+                )
+                c?.use { cur ->
+                    while (cur.moveToNext() && !hit) {
+                        val mmsId = cur.getLong(0)
+                        runCatching {
+                            val addrs = getMmsAddresses(mmsId)
+                            if (addrs.any { (a, _) -> matchesSuffix(a, suffix) }) hit = true
+                        }
+                    }
+                }
+                hit
+            }.getOrDefault(false)
+        } else false
+
+        return SystemDiagnosis(
+            smsTotalRows = smsTotal,
+            smsInboxRows = smsInbox,
+            smsSentRows = smsSent,
+            mmsTotalRows = mmsTotal,
+            suffixInSms = foundSuffix,
+            suffixInMms = foundSuffixMms,
+            sampleSmsAddresses = sampleAddrs
+        )
     }
 
     private fun dateDescSortArgs(limit: Int): Bundle = Bundle().apply {

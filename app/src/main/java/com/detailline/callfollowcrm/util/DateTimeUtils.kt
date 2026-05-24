@@ -8,12 +8,25 @@ import java.util.Locale
 object DateTimeUtils {
     private val timeFormat by lazy { SimpleDateFormat("HH:mm", Locale.getDefault()) }
     private val dateTimeFormat by lazy { SimpleDateFormat("M/d HH:mm", Locale.getDefault()) }
+    private val dateTimeFormatWithYear by lazy { SimpleDateFormat("yyyy.M.d HH:mm", Locale.getDefault()) }
     private val fullFormat by lazy { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
     private val dateOnly by lazy { SimpleDateFormat("M/d", Locale.getDefault()) }
     private val koreanDate by lazy { SimpleDateFormat("yyyy년 M월 d일 (E)", Locale.KOREAN) }
     private val monthHeader by lazy { SimpleDateFormat("yyyy년 M월", Locale.KOREAN) }
 
-    fun formatShort(epoch: Long): String = dateTimeFormat.format(Date(epoch))
+    /**
+     * 채팅/통화 시각 표시.
+     * - 올해 메시지: "5/24 13:46" (간결)
+     * - 다른 해 메시지: "2025.10.3 09:25" (년도 포함 — 옛 메시지인지 즉판)
+     */
+    fun formatShort(epoch: Long): String {
+        val cal = Calendar.getInstance()
+        val currentYear = cal.get(Calendar.YEAR)
+        cal.timeInMillis = epoch
+        val msgYear = cal.get(Calendar.YEAR)
+        return if (msgYear == currentYear) dateTimeFormat.format(Date(epoch))
+        else dateTimeFormatWithYear.format(Date(epoch))
+    }
     fun formatTime(epoch: Long): String = timeFormat.format(Date(epoch))
     fun formatFull(epoch: Long): String = fullFormat.format(Date(epoch))
     fun formatDateOnly(epoch: Long): String = dateOnly.format(Date(epoch))
@@ -56,6 +69,7 @@ object DateTimeUtils {
 
     private val weekdayKor by lazy { SimpleDateFormat("EEEE", Locale.KOREAN) }
     private val dateWithWeekday by lazy { SimpleDateFormat("M월 d일 (E)", Locale.KOREAN) }
+    private val dateWithWeekdayYear by lazy { SimpleDateFormat("yyyy년 M월 d일 (E)", Locale.KOREAN) }
 
     /**
      * 대시보드 타임라인의 날짜 그룹 헤더 라벨.
@@ -69,12 +83,17 @@ object DateTimeUtils {
         val today = startOfDay(now)
         val target = startOfDay(dayStartMs)
         val diff = ((today - target) / (24L * 60 * 60 * 1000)).toInt()
+        // 다른 해면 "2025년 10월 3일 (금)" / 올해면 "10월 3일 (금)" — 옛 메시지 헤더가 즉판 가능하도록.
+        val nowCal = Calendar.getInstance().apply { timeInMillis = now }
+        val targetCal = Calendar.getInstance().apply { timeInMillis = target }
+        val differentYear = nowCal.get(Calendar.YEAR) != targetCal.get(Calendar.YEAR)
         return when (diff) {
             0 -> "오늘"
             1 -> "어제"
             2 -> "그저께"
             in 3..6 -> weekdayKor.format(Date(target))
-            else -> dateWithWeekday.format(Date(target))
+            else -> if (differentYear) dateWithWeekdayYear.format(Date(target))
+                    else dateWithWeekday.format(Date(target))
         }
     }
 

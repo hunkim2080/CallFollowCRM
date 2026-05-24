@@ -84,21 +84,18 @@ class ChatViewModel(
     val messages = _messages.asStateFlow()
 
     /**
-     * 디버그 — ChatScreen 빈 상태 표시용. 사장님이 logcat 못 보니까 화면에 직접 띄움.
-     * 메시지가 한 건도 없을 때 어디서 막혔는지 (권한 / 토글 / 캐시 / 시스템 쿼리) 한눈에 보이게.
+     * P0/P1/P2 AI 요약 — ChatScreen 상단 박스와 AI 제안 박스가 구독.
+     * Room observe — 서버 응답이 캐시되면 자동 emit.
+     * 서버 미구현이면 영구히 null → 화면에 아무 박스도 안 보임 (조용히 숨김).
      */
-    data class LoadDebug(
-        val permission: Boolean,
-        val toggleOn: Boolean,
-        val suffix: String,
-        val cachedCount: Int,
-        val freshSmsCount: Int,
-        val freshMmsCount: Int,
-        val systemContactCount: Int,
-        val firstSystemAddress: String?
-    )
-    private val _debug = MutableStateFlow<LoadDebug?>(null)
-    val debug = _debug.asStateFlow()
+    val aiSummary: StateFlow<com.detailline.callfollowcrm.data.local.entity.AiSummaryEntity?> = run {
+        val suffix = phoneNumber.filter { it.isDigit() }.takeLast(8)
+        if (suffix.length < 7) {
+            kotlinx.coroutines.flow.flowOf(null)
+        } else {
+            container.conversationAiRepository.observe(suffix)
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _toast = MutableStateFlow<String?>(null)
     val toast = _toast.asStateFlow()
@@ -143,24 +140,13 @@ class ChatViewModel(
      */
     fun loadMessages() {
         val enabled = container.preferences.receivedSmsEnabled
-        val perm = container.smsRepository.hasReadPermission()
-        if (!enabled || !perm) {
+        if (!enabled || !container.smsRepository.hasReadPermission()) {
             _messages.value = emptyList()
-            _debug.value = LoadDebug(
-                permission = perm, toggleOn = enabled, suffix = "",
-                cachedCount = 0, freshSmsCount = 0, freshMmsCount = 0,
-                systemContactCount = 0, firstSystemAddress = null
-            )
             return
         }
         val digits = phoneNumber.filter { it.isDigit() }
         if (digits.length < 7) {
             _messages.value = emptyList()
-            _debug.value = LoadDebug(
-                permission = perm, toggleOn = enabled, suffix = digits,
-                cachedCount = 0, freshSmsCount = 0, freshMmsCount = 0,
-                systemContactCount = 0, firstSystemAddress = null
-            )
             return
         }
         val suffix = digits.takeLast(8)
@@ -196,23 +182,6 @@ class ChatViewModel(
             runCatching {
                 container.cachedMessageRepository.replaceMmsOnlyForSuffix(suffix, freshMms)
             }
-
-            // 디버그: 매칭이 안 됐을 가능성을 진단하기 위해 시스템 전체에서 최근 SMS 한 명만 뽑아 비교.
-            // 사장님이 ChatScreen 빈 상태일 때 화면에 표시. 매칭 suffix 와 시스템 address 끝자리를 같이 보면
-            // "끝 8자리 매칭 룰이 안 맞는 케이스" 가 보임.
-            val recent = runCatching {
-                container.smsRepository.queryRecentContacts(scanLimit = 500, contactLimit = 50)
-            }.getOrDefault(emptyList())
-            _debug.value = LoadDebug(
-                permission = true,
-                toggleOn = true,
-                suffix = suffix,
-                cachedCount = cached.size,
-                freshSmsCount = freshSms.size,
-                freshMmsCount = freshMms.size,
-                systemContactCount = recent.size,
-                firstSystemAddress = recent.firstOrNull()?.address
-            )
         }
     }
 
@@ -393,6 +362,46 @@ class ChatViewModel(
         if (result.status == SuggestionStatus.READY) {
             _suggestions.value = result.suggestions
         }
+    }
+
+    /**
+     * ChatScreen 진입 시 호출 — 상단 요약 박스 + AI 제안 박스 데이터 ensure.
+     * 서버 (RINGGO_SERVER_P0P1P2_UPGRADE.md) 가 구현되어야 실제 결과 옴.
+     * 미구현 시 silent — 박스 안 보임. 기존 캐시 있으면 그대로 표시.
+     */
+    fun loadFullSummary() = viewModelScope.launch(Dispatchers.IO) {
+        val digits = phoneNumber.filter { it.isDigit() }
+        if (digits.length < 7) return@launch
+        val suffix = digits.takeLast(8)
+
+        val msgs = runCatching { container.cachedMessageRepository.load(suffix, limit = 20) }
+            .getOrDefault(emptyList())
+        if (msgs.isEmpty()) return@launch
+
+        val latestTs = msgs.maxOf { it.dateMs }
+        val c = runCatching { container.customerRepository.findByPhone(phoneNumber) }.getOrNull()
+        val tone = runCatching { container.smsRepository.querySentMessages(limit = 50) }.getOrDefault(emptyList())
+
+        val ctx = com.detailline.callfollowcrm.ai.SummaryContext(
+            phone = phoneNumber,
+            phoneSuffix = suffix,
+            customerName = c?.name,
+            customerStatus = c?.status,
+            customerMemo = c?.memo?.takeIf { it.isNotBlank() },
+            leadHeat = c?.leadHeat,
+            depositPaid = (c?.depositAmount ?: 0L) > 0L,
+            scheduledWorkDate = c?.scheduledWorkDate,
+            recentMessages = msgs.map { sms ->
+                HistoryMessage(
+                    role = if (sms.sent) "owner" else "customer",
+                    body = sms.body,
+                    timestampMs = sms.dateMs
+                )
+            }.reversed(),
+            ownerToneSamples = tone,
+            latestMessageTimestampMs = latestTs
+        )
+        runCatching { container.conversationAiRepository.ensureFullSummary(ctx) }
     }
 
     /**

@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.detailline.callfollowcrm.data.local.dao.AiSummaryDao
 import com.detailline.callfollowcrm.data.local.dao.CachedMessageDao
 import com.detailline.callfollowcrm.data.local.dao.CallRecordDao
 import com.detailline.callfollowcrm.data.local.dao.CallSummaryDao
@@ -15,6 +16,7 @@ import com.detailline.callfollowcrm.data.local.dao.MessageHistoryDao
 import com.detailline.callfollowcrm.data.local.dao.MessageTemplateDao
 import com.detailline.callfollowcrm.data.local.dao.RecordingAttachmentDao
 import com.detailline.callfollowcrm.data.local.dao.TemplateAttachmentDao
+import com.detailline.callfollowcrm.data.local.entity.AiSummaryEntity
 import com.detailline.callfollowcrm.data.local.entity.CachedMessageEntity
 import com.detailline.callfollowcrm.data.local.entity.CallRecordEntity
 import com.detailline.callfollowcrm.data.local.entity.CallSummaryEntity
@@ -35,9 +37,10 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         CallSummaryEntity::class,
         TemplateAttachmentEntity::class,
         ImportantMessageEntity::class,
-        CachedMessageEntity::class
+        CachedMessageEntity::class,
+        AiSummaryEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -50,6 +53,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun templateAttachmentDao(): TemplateAttachmentDao
     abstract fun importantMessageDao(): ImportantMessageDao
     abstract fun cachedMessageDao(): CachedMessageDao
+    abstract fun aiSummaryDao(): AiSummaryDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -149,13 +153,37 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v9 -> v10: ai_summary_cache 테이블 신설.
+         * P0+P1+P2 서버 endpoint 3개 (card-summary, conversation-summary, next-action-suggest) 의 결과 통합 캐시.
+         * 키 = phoneSuffix (한국 번호 끝 8자리 unique 가정).
+         */
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS ai_summary_cache (
+                        phoneSuffix TEXT PRIMARY KEY NOT NULL,
+                        cardSummary TEXT,
+                        conversationSummaryJson TEXT,
+                        conversationStage TEXT,
+                        nextActionJson TEXT,
+                        latestMessageTimestampMs INTEGER NOT NULL DEFAULT 0,
+                        generatedAtMs INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
                 AppDatabase::class.java,
                 "call_follow_crm.db"
             )
-                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                .addMigrations(
+                    MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
+                    MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10
+                )
                 .fallbackToDestructiveMigration()   // migration 실패 시 안전망 (개발 단계)
                 .build()
                 .also { instance = it }
