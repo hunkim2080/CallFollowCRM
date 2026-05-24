@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -35,9 +36,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -256,13 +261,50 @@ fun HomeScreen(
                     }
                 }
             } else {
+                // 플랫 리스트: 각 카드의 stable key 를 row index 로 잡고, 가시 인덱스 변화 감지해서
+                //   (1) 가시 카드 번호 prefetch
+                //   (2) 끝에 근접하면 loadMore (페이지네이션)
+                val flatItems = remember(timeline) {
+                    timeline.flatMap { it.items }
+                }
+                val listState = rememberLazyListState()
+
+                // (1) 가시 카드 phone 추출 → ViewModel.onVisiblePhones. prefetcher 가 dedup 처리.
+                LaunchedEffect(listState, flatItems) {
+                    snapshotFlow {
+                        listState.layoutInfo.visibleItemsInfo
+                            .mapNotNull { info ->
+                                val key = info.key as? String ?: return@mapNotNull null
+                                if (!key.startsWith("row-")) return@mapNotNull null
+                                val recordId = key.removePrefix("row-").toLongOrNull() ?: return@mapNotNull null
+                                flatItems.firstOrNull { it.record.id == recordId }?.record?.phoneNumber
+                            }
+                            .toSet()
+                    }
+                        .distinctUntilChanged()
+                        .collect { phones -> viewModel.onVisiblePhones(phones) }
+                }
+
+                // (2) 끝에서 5개 안쪽으로 보이면 loadMore.
+                val shouldLoadMore by remember {
+                    derivedStateOf {
+                        val info = listState.layoutInfo
+                        val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: return@derivedStateOf false
+                        val total = info.totalItemsCount
+                        total > 0 && lastVisible >= total - 5
+                    }
+                }
+                LaunchedEffect(shouldLoadMore, flatItems.size) {
+                    if (shouldLoadMore) viewModel.loadMore()
+                }
+
                 LazyColumn(
+                    state = listState,
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     timeline.forEach { group ->
                         stickyHeader(key = "day-${group.dayStartMs}") {
-                            // sticky 헤더 — 스크롤 시 상단에 날짜 고정. 배경 = TossGrayBg 라서 시각적 분리.
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()

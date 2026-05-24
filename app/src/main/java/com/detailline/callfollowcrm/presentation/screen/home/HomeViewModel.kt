@@ -8,12 +8,15 @@ import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
 import com.detailline.callfollowcrm.domain.model.CustomerStatus
 import com.detailline.callfollowcrm.domain.model.HandledStatus
 import com.detailline.callfollowcrm.util.DateTimeUtils
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
     private val bounds = DateTimeUtils.todayBounds()
@@ -61,12 +64,24 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     // ────────────────────────────────────────────────────────
 
     /**
-     * 메인 타임라인 — 최근 N개 통화 기록을 (번호, 날짜) 단위로 묶어서 날짜별 그룹화.
-     * 갤럭시 통화 기록처럼 위에서 아래로 오늘 → 어제 → ... 순서.
-     *
-     * 같은 번호로 오늘 1통, 어제 2통 통화한 경우 두 row 로 분리 (날짜별).
+     * 페이지네이션 — 처음엔 [PAGE_SIZE] 개만 로드. 스크롤 내리면 [loadMore] 가 incrementing.
+     * Room 의 Flow 는 query 인자 변하면 다시 emit 되므로 flatMapLatest 로 limit 갈아끼움.
      */
-    private val recentRecords = container.callRecordRepository.observeRecent(limit = 500)
+    private val recordsLimit = MutableStateFlow(PAGE_SIZE)
+    val recordsLimitState = recordsLimit
+
+    /** UI 가 "더 이상 위로 안 늘어남" 을 판단하려면 현재 row 수가 limit 에 닿았는지 비교. */
+    fun loadMore() {
+        recordsLimit.value = recordsLimit.value + PAGE_SIZE
+    }
+
+    /**
+     * 메인 타임라인 — 페이지 크기에 맞춰 통화 기록을 (번호, 날짜) 단위로 묶어 그룹화.
+     * 갤럭시 통화 기록처럼 위에서 아래로 오늘 → 어제 → ... 순서.
+     */
+    private val recentRecords = recordsLimit.flatMapLatest { lim ->
+        container.callRecordRepository.observeRecent(limit = lim)
+    }
 
     val timeline = combine(recentRecords, customers, filter) { records, custs, f ->
         val byPhone = custs.associateBy { it.phoneNumber }
@@ -93,6 +108,20 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun setFilter(f: HomeFilter) { filter.value = f }
+
+    /**
+     * HomeScreen 의 가시 카드 변경 알림 — 그 번호들의 SMS 캐시를 백그라운드 prefetch.
+     * 이미 prefetch 된 번호는 SmsCachePrefetcher 내부 dedup 으로 중복 작업 방지.
+     */
+    fun onVisiblePhones(phoneNumbers: Collection<String>) {
+        if (phoneNumbers.isEmpty()) return
+        container.smsCachePrefetcher.prefetchForNumbers(phoneNumbers)
+    }
+
+    companion object {
+        /** 한 페이지 = 20개. 사장님 요청 (2026-05-24). */
+        const val PAGE_SIZE = 20
+    }
 }
 
 /** 날짜별 그룹 — 헤더 라벨용 dayStartMs + 그 날 통화 묶음 items. */
