@@ -114,6 +114,7 @@ fun ChatScreen(
 
     val customer by viewModel.customer.collectAsState()
     val messages by viewModel.messages.collectAsState()
+    val debug by viewModel.debug.collectAsState()
     val templates by viewModel.templates.collectAsState()
     val toast by viewModel.toast.collectAsState()
     val starred by viewModel.starred.collectAsState()
@@ -244,17 +245,58 @@ fun ChatScreen(
             ) {
                 if (messages.isEmpty()) {
                     item {
-                        Box(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 32.dp),
-                            contentAlignment = Alignment.Center
+                                .padding(vertical = 32.dp, horizontal = 20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
                                 "주고받은 문자가 없어요",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TossTextTertiary
                             )
+                            // 임시 디버그 — SMS 로드가 왜 비었는지 진단. 사장님이 logcat 못 보니까 화면에.
+                            debug?.let { d ->
+                                Spacer(Modifier.height(16.dp))
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(
+                                            androidx.compose.ui.graphics.Color(0xFFFFF7E0),
+                                            androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                                        )
+                                        .padding(12.dp)
+                                ) {
+                                    Text(
+                                        "🔍 디버그 정보",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = androidx.compose.ui.graphics.Color(0xFF8B5A00)
+                                    )
+                                    Spacer(Modifier.height(6.dp))
+                                    val sysAddrSuffix = d.firstSystemAddress
+                                        ?.filter { it.isDigit() }
+                                        ?.takeLast(8) ?: "-"
+                                    val text = buildString {
+                                        appendLine("권한 (READ_SMS): ${if (d.permission) "✅" else "❌"}")
+                                        appendLine("토글 (받은 문자 보기): ${if (d.toggleOn) "✅" else "❌"}")
+                                        appendLine("이 번호 끝8자리: ${d.suffix}")
+                                        appendLine("캐시 결과: ${d.cachedCount}건")
+                                        appendLine("시스템 SMS 매칭: ${d.freshSmsCount}건")
+                                        appendLine("시스템 MMS 매칭: ${d.freshMmsCount}건")
+                                        append("시스템 전체 SMS 연락처: ${d.systemContactCount}명")
+                                        if (d.firstSystemAddress != null) {
+                                            append("\n→ 첫번째 address: ${d.firstSystemAddress}")
+                                            append("\n→ 그 끝8자리: $sysAddrSuffix")
+                                        }
+                                    }
+                                    Text(
+                                        text,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = androidx.compose.ui.graphics.Color(0xFF5A4500)
+                                    )
+                                }
+                            }
                         }
                     }
                 } else {

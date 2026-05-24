@@ -83,6 +83,23 @@ class ChatViewModel(
     private val _messages = MutableStateFlow<List<SmsRepository.SmsMessage>>(emptyList())
     val messages = _messages.asStateFlow()
 
+    /**
+     * 디버그 — ChatScreen 빈 상태 표시용. 사장님이 logcat 못 보니까 화면에 직접 띄움.
+     * 메시지가 한 건도 없을 때 어디서 막혔는지 (권한 / 토글 / 캐시 / 시스템 쿼리) 한눈에 보이게.
+     */
+    data class LoadDebug(
+        val permission: Boolean,
+        val toggleOn: Boolean,
+        val suffix: String,
+        val cachedCount: Int,
+        val freshSmsCount: Int,
+        val freshMmsCount: Int,
+        val systemContactCount: Int,
+        val firstSystemAddress: String?
+    )
+    private val _debug = MutableStateFlow<LoadDebug?>(null)
+    val debug = _debug.asStateFlow()
+
     private val _toast = MutableStateFlow<String?>(null)
     val toast = _toast.asStateFlow()
     fun consumeToast() { _toast.value = null }
@@ -126,13 +143,24 @@ class ChatViewModel(
      */
     fun loadMessages() {
         val enabled = container.preferences.receivedSmsEnabled
-        if (!enabled || !container.smsRepository.hasReadPermission()) {
+        val perm = container.smsRepository.hasReadPermission()
+        if (!enabled || !perm) {
             _messages.value = emptyList()
+            _debug.value = LoadDebug(
+                permission = perm, toggleOn = enabled, suffix = "",
+                cachedCount = 0, freshSmsCount = 0, freshMmsCount = 0,
+                systemContactCount = 0, firstSystemAddress = null
+            )
             return
         }
         val digits = phoneNumber.filter { it.isDigit() }
         if (digits.length < 7) {
             _messages.value = emptyList()
+            _debug.value = LoadDebug(
+                permission = perm, toggleOn = enabled, suffix = digits,
+                cachedCount = 0, freshSmsCount = 0, freshMmsCount = 0,
+                systemContactCount = 0, firstSystemAddress = null
+            )
             return
         }
         val suffix = digits.takeLast(8)
@@ -168,6 +196,23 @@ class ChatViewModel(
             runCatching {
                 container.cachedMessageRepository.replaceMmsOnlyForSuffix(suffix, freshMms)
             }
+
+            // 디버그: 매칭이 안 됐을 가능성을 진단하기 위해 시스템 전체에서 최근 SMS 한 명만 뽑아 비교.
+            // 사장님이 ChatScreen 빈 상태일 때 화면에 표시. 매칭 suffix 와 시스템 address 끝자리를 같이 보면
+            // "끝 8자리 매칭 룰이 안 맞는 케이스" 가 보임.
+            val recent = runCatching {
+                container.smsRepository.queryRecentContacts(scanLimit = 500, contactLimit = 50)
+            }.getOrDefault(emptyList())
+            _debug.value = LoadDebug(
+                permission = true,
+                toggleOn = true,
+                suffix = suffix,
+                cachedCount = cached.size,
+                freshSmsCount = freshSms.size,
+                freshMmsCount = freshMms.size,
+                systemContactCount = recent.size,
+                firstSystemAddress = recent.firstOrNull()?.address
+            )
         }
     }
 
