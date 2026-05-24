@@ -63,5 +63,8 @@ class AppContainer(context: Context) {
     // 서버 살아있음 모니터 — HomeScreen 상단 ● indicator 가 구독.
     val serverHealth = ServerHealthMonitor(phaseOneApiRepository).also { it.start() }
 
+    // SMS/MMS 캐시 백그라운드 prefetcher. Application.onCreate 에서 prefetchRecentContacts() 트리거.
+    val smsCachePrefetcher = SmsCachePrefetcher(smsRepository, cachedMessageRepository)
+
     val navEvents = NavEvents()
 }

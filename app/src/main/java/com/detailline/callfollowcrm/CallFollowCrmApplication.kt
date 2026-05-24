@@ -30,5 +30,9 @@ class CallFollowCrmApplication : Application() {
         if (AdotFolderScanner.isConnected(this)) {
             AdotFolderScanner.scanIfConnected(this, container) { /* silent */ }
         }
+
+        // SMS/MMS 캐시 prefetch — 최근 20개 번호. ChatScreen 첫 진입을 즉시 보이게 하는 토대.
+        // READ_SMS 권한 없으면 silent skip.
+        container.smsCachePrefetcher.prefetchRecentContacts(contactLimit = 20)
     }
 }

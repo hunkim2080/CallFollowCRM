@@ -115,12 +115,14 @@ class ChatViewModel(
     /**
      * 화면 진입 또는 새로고침 시 호출. READ_SMS 권한 + 토글 모두 OK 여야 실제 조회.
      *
-     * 2-stage 로드 (체감 즉시 표시):
-     *   1) Room 캐시 즉시 표시 — UI 즉시 떠야 사장님이 안 답답함
-     *   2) 백그라운드에서 시스템 SMS/MMS 조회 → 캐시 갱신 → UI 다시 emit
+     * 3-stage 로드 (체감 즉시 + 점진 최신화):
+     *   stage 1: Room 캐시 통째 즉시 표시 — prefetch 가 돌고 있어 보통 채워져 있음
+     *   stage 2: 시스템 SMS 만 빠르게 (~100ms) → SMS 부분 캐시 교체 + UI emit (기존 MMS 유지)
+     *   stage 3: 시스템 MMS 백그라운드 (~수초) → MMS 부분 캐시 교체 + UI emit (전체 합쳐서)
      *
-     * MMS 쿼리 자체는 여전히 무거움 (각 MMS 마다 addr/parts 추가 호출). 백그라운드에서 처리되므로
-     * 사장님 입장에선 "처음엔 캐시가 뜨고, 좀 있다 최신화" 로 보임.
+     * 효과:
+     *  - 첫 진입 (prefetch 안 끝났으면 빈 캐시) → stage 2 의 SMS 가 가장 먼저 보임 (사진은 늦게)
+     *  - 두 번째 진입 → stage 1 캐시로 즉시 모두 보임 → stage 2/3 가 조용히 갱신
      */
     fun loadMessages() {
         val enabled = container.preferences.receivedSmsEnabled
@@ -136,7 +138,7 @@ class ChatViewModel(
         val suffix = digits.takeLast(8)
 
         viewModelScope.launch(Dispatchers.IO) {
-            // 1) 캐시 즉시 표시
+            // stage 1: 캐시 즉시 표시 (SMS + MMS 모두 포함)
             val cached = runCatching {
                 container.cachedMessageRepository.load(suffix)
             }.getOrDefault(emptyList())
@@ -144,15 +146,27 @@ class ChatViewModel(
                 _messages.value = cached
             }
 
-            // 2) 시스템 DB 백그라운드 동기화 → 캐시 교체 → UI 갱신
-            val fresh = runCatching {
-                container.smsRepository.queryByPhone(phoneNumber)
+            // stage 2: SMS 만 빠르게 새로고침. MMS 는 캐시값(정확) 그대로 유지하고 합쳐서 emit.
+            val freshSms = runCatching {
+                container.smsRepository.querySmsOnly(phoneNumber)
             }.getOrDefault(emptyList())
-            if (fresh.isNotEmpty() || cached.isNotEmpty()) {
-                _messages.value = fresh
+            val cachedMmsOnly = runCatching {
+                container.cachedMessageRepository.loadMmsOnly(suffix)
+            }.getOrDefault(emptyList())
+            if (freshSms.isNotEmpty() || cached.isNotEmpty()) {
+                _messages.value = (freshSms + cachedMmsOnly).sortedByDescending { it.dateMs }
                 runCatching {
-                    container.cachedMessageRepository.replaceForSuffix(suffix, fresh)
+                    container.cachedMessageRepository.replaceSmsOnlyForSuffix(suffix, freshSms)
                 }
+            }
+
+            // stage 3: MMS 백그라운드. 끝나면 SMS + MMS 합쳐서 다시 emit + MMS 캐시 교체.
+            val freshMms = runCatching {
+                container.smsRepository.queryMmsOnly(phoneNumber)
+            }.getOrDefault(emptyList())
+            _messages.value = (freshSms + freshMms).sortedByDescending { it.dateMs }
+            runCatching {
+                container.cachedMessageRepository.replaceMmsOnlyForSuffix(suffix, freshMms)
             }
         }
     }

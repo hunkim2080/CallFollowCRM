@@ -93,6 +93,10 @@ class SmsReceiver : BroadcastReceiver() {
 
                 container.suggestionRepository.requestPrepare(ctx)
                 // 결과 무시 — fire-and-forget. 실패해도 ChatScreen ↻ fallback 있음.
+
+                // 캐시 prefetch — 사장님이 알림 보고 들어가기 전에 미리 채움.
+                // (방금 도착한 새 SMS 포함해서) 즉시 표시되도록.
+                container.smsCachePrefetcher.prefetchForNumber(sender)
             } finally {
                 pending.finish()
             }

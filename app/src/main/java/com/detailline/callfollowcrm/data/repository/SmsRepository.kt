@@ -68,6 +68,32 @@ class SmsRepository(private val context: Context) {
         return (smsList + mmsList).sortedByDescending { it.dateMs }
     }
 
+    /**
+     * SMS 만 빠르게 — ChatViewModel 의 stage 2 (가벼움).
+     * 보통 100ms 내. MMS 풀스캔 없이 텍스트 대화를 먼저 띄울 때 사용.
+     */
+    fun querySmsOnly(phoneNumber: String, scanLimit: Int = 500): List<SmsMessage> {
+        if (!hasReadPermission()) return emptyList()
+        val targetDigits = phoneNumber.filter { it.isDigit() }
+        if (targetDigits.length < 7) return emptyList()
+        val targetSuffix = targetDigits.takeLast(8)
+        return querySmsByPhone(targetSuffix, scanLimit).sortedByDescending { it.dateMs }
+    }
+
+    /**
+     * MMS 만 — ChatViewModel 의 stage 3 (무거움, 백그라운드 마지막 단계).
+     * 각 MMS 마다 addr/parts 부속 쿼리가 있어 시간 걸림. SMS 가 이미 표시된 상태에서 합쳐짐.
+     */
+    fun queryMmsOnly(phoneNumber: String, scanLimit: Int = 200): List<SmsMessage> {
+        if (!hasReadPermission()) return emptyList()
+        val targetDigits = phoneNumber.filter { it.isDigit() }
+        if (targetDigits.length < 7) return emptyList()
+        val targetSuffix = targetDigits.takeLast(8)
+        return runCatching { queryMmsByPhone(targetSuffix, scanLimit) }
+            .getOrDefault(emptyList())
+            .sortedByDescending { it.dateMs }
+    }
+
     private fun querySmsByPhone(targetSuffix: String, scanLimit: Int): List<SmsMessage> {
         val uri = Uri.parse("content://sms/")
         val projection = arrayOf(COL_ID, COL_ADDRESS, COL_BODY, COL_DATE, COL_TYPE)
