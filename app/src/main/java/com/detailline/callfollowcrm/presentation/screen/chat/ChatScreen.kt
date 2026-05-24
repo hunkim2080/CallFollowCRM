@@ -243,60 +243,66 @@ fun ChatScreen(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
                 state = listState
             ) {
-                if (messages.isEmpty()) {
-                    item {
+                // 임시 디버그 박스 — 항상 표시 (messages.isEmpty 와 무관).
+                // reverseLayout=true 라 item 순서가 위→아래 = 화면 아래→위. 이 item 이 첫번째라 화면 맨 아래에 뜸.
+                // 사장님이 매칭 결과 vs 보이는 메시지 수 차이를 즉시 비교 가능.
+                item {
+                    debug?.let { d ->
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 32.dp, horizontal = 20.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                                .padding(vertical = 8.dp)
+                                .background(
+                                    androidx.compose.ui.graphics.Color(0xFFFFF7E0),
+                                    androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                                )
+                                .padding(12.dp)
+                        ) {
+                            Text(
+                                "🔍 디버그 정보 (배포 전 제거)",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = androidx.compose.ui.graphics.Color(0xFF8B5A00)
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            val sysAddrSuffix = d.firstSystemAddress
+                                ?.filter { it.isDigit() }
+                                ?.takeLast(8) ?: "-"
+                            val text = buildString {
+                                appendLine("권한 (READ_SMS): ${if (d.permission) "✅" else "❌"}")
+                                appendLine("토글 (받은 문자 보기): ${if (d.toggleOn) "✅" else "❌"}")
+                                appendLine("이 번호 끝8자리: ${d.suffix}")
+                                appendLine("현재 화면 메시지: ${messages.size}건")
+                                appendLine("캐시 결과: ${d.cachedCount}건")
+                                appendLine("시스템 SMS 매칭: ${d.freshSmsCount}건")
+                                appendLine("시스템 MMS 매칭: ${d.freshMmsCount}건")
+                                append("시스템 전체 SMS 연락처: ${d.systemContactCount}명")
+                                if (d.firstSystemAddress != null) {
+                                    append("\n→ 첫번째 address: ${d.firstSystemAddress}")
+                                    append("\n→ 그 끝8자리: $sysAddrSuffix")
+                                }
+                            }
+                            Text(
+                                text,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = androidx.compose.ui.graphics.Color(0xFF5A4500)
+                            )
+                        }
+                    }
+                }
+
+                if (messages.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 32.dp),
+                            contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 "주고받은 문자가 없어요",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TossTextTertiary
                             )
-                            // 임시 디버그 — SMS 로드가 왜 비었는지 진단. 사장님이 logcat 못 보니까 화면에.
-                            debug?.let { d ->
-                                Spacer(Modifier.height(16.dp))
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(
-                                            androidx.compose.ui.graphics.Color(0xFFFFF7E0),
-                                            androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
-                                        )
-                                        .padding(12.dp)
-                                ) {
-                                    Text(
-                                        "🔍 디버그 정보",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = androidx.compose.ui.graphics.Color(0xFF8B5A00)
-                                    )
-                                    Spacer(Modifier.height(6.dp))
-                                    val sysAddrSuffix = d.firstSystemAddress
-                                        ?.filter { it.isDigit() }
-                                        ?.takeLast(8) ?: "-"
-                                    val text = buildString {
-                                        appendLine("권한 (READ_SMS): ${if (d.permission) "✅" else "❌"}")
-                                        appendLine("토글 (받은 문자 보기): ${if (d.toggleOn) "✅" else "❌"}")
-                                        appendLine("이 번호 끝8자리: ${d.suffix}")
-                                        appendLine("캐시 결과: ${d.cachedCount}건")
-                                        appendLine("시스템 SMS 매칭: ${d.freshSmsCount}건")
-                                        appendLine("시스템 MMS 매칭: ${d.freshMmsCount}건")
-                                        append("시스템 전체 SMS 연락처: ${d.systemContactCount}명")
-                                        if (d.firstSystemAddress != null) {
-                                            append("\n→ 첫번째 address: ${d.firstSystemAddress}")
-                                            append("\n→ 그 끝8자리: $sysAddrSuffix")
-                                        }
-                                    }
-                                    Text(
-                                        text,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = androidx.compose.ui.graphics.Color(0xFF5A4500)
-                                    )
-                                }
-                            }
                         }
                     }
                 } else {

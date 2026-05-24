@@ -98,6 +98,11 @@ fun HomeScreen(
     val serverAlive by serverHealth.alive.collectAsState()
     val lastOkAtMs by serverHealth.lastOkAtMs.collectAsState()
 
+    // 화면 진입 시 SMS 연락처 새로고침 — Settings 토글 켜고 돌아왔거나 새 SMS 받았을 수 있어서.
+    LaunchedEffect(Unit) {
+        viewModel.refreshSmsContacts()
+    }
+
     Scaffold(
         containerColor = TossGrayBg,
         topBar = {
@@ -270,14 +275,18 @@ fun HomeScreen(
                 val listState = rememberLazyListState()
 
                 // (1) 가시 카드 phone 추출 → ViewModel.onVisiblePhones. prefetcher 가 dedup 처리.
+                //     key 포맷 = "row-{id}-{phone}". phone 부분만 떼면 됨.
                 LaunchedEffect(listState, flatItems) {
                     snapshotFlow {
                         listState.layoutInfo.visibleItemsInfo
                             .mapNotNull { info ->
                                 val key = info.key as? String ?: return@mapNotNull null
                                 if (!key.startsWith("row-")) return@mapNotNull null
-                                val recordId = key.removePrefix("row-").toLongOrNull() ?: return@mapNotNull null
-                                flatItems.firstOrNull { it.record.id == recordId }?.record?.phoneNumber
+                                // "row-{id}-{phone}" → 두번째 "-" 이후가 phone
+                                val rest = key.removePrefix("row-")
+                                val dash = rest.indexOf('-')
+                                if (dash < 0) return@mapNotNull null
+                                rest.substring(dash + 1).takeIf { it.isNotBlank() }
                             }
                             .toSet()
                     }
@@ -319,7 +328,12 @@ fun HomeScreen(
                                 )
                             }
                         }
-                        items(group.items, key = { "row-${it.record.id}" }) { item ->
+                        items(
+                            group.items,
+                            // key = id + phone — SMS-only 가짜 record 는 id=-lastDateMs 라 같은 시각에 두 번호 들어오면
+                            //   id 만으론 충돌 가능. phone 까지 묶어 unique 보장.
+                            key = { "row-${it.record.id}-${it.record.phoneNumber}" }
+                        ) { item ->
                             HomeRow(
                                 item = item,
                                 onClick = { onOpenChat(item.record.phoneNumber, item.customer?.id) }
@@ -504,6 +518,7 @@ private fun callTypeLabel(raw: String): String = when (raw) {
     "MISSED" -> "부재중"
     "REJECTED" -> "거절"
     "MANUAL" -> "수동 등록"
+    HomeViewModel.CALL_TYPE_SMS_ONLY -> "문자만"
     else -> "통화"
 }
 

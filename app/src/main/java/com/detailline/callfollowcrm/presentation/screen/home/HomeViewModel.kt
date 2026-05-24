@@ -5,9 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.detailline.callfollowcrm.data.AppContainer
 import com.detailline.callfollowcrm.data.local.entity.CallRecordEntity
 import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
+import com.detailline.callfollowcrm.data.repository.SmsRepository
 import com.detailline.callfollowcrm.domain.model.CustomerStatus
 import com.detailline.callfollowcrm.domain.model.HandledStatus
 import com.detailline.callfollowcrm.util.DateTimeUtils
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -15,6 +17,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModel(private val container: AppContainer) : ViewModel() {
@@ -83,10 +86,37 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         container.callRecordRepository.observeRecent(limit = lim)
     }
 
-    val timeline = combine(recentRecords, customers, filter) { records, custs, f ->
+    /**
+     * SMS 만 주고받은 연락처도 HomeScreen 카드로 표시 (2026-05-24 사장님 요청).
+     * 통화 기록 없는 SMS-only 번호도 갤럭시 메시지처럼 다 보여야 함.
+     *
+     * Flow 가 아님 — content provider 는 push 안 보냄. 화면 진입 시 [refreshSmsContacts] 호출.
+     * SMS 수신 broadcast 받으면 SmsReceiver 가 이 함수 호출하도록 별도 hook 가능 (지금은 화면 진입만).
+     */
+    private val smsContactsState = MutableStateFlow<List<SmsRepository.SmsContact>>(emptyList())
+
+    init {
+        refreshSmsContacts()
+    }
+
+    fun refreshSmsContacts() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val list = runCatching {
+                if (container.smsRepository.hasReadPermission()) {
+                    // scanLimit 1000 = 시스템 SMS 최근 1000건 스캔, contactLimit 500 = 고유 번호 최대 500명.
+                    container.smsRepository.queryRecentContacts(scanLimit = 1000, contactLimit = 500)
+                } else emptyList()
+            }.getOrDefault(emptyList())
+            smsContactsState.value = list
+        }
+    }
+
+    val timeline = combine(recentRecords, customers, filter, smsContactsState) { records, custs, f, smsContacts ->
         val byPhone = custs.associateBy { it.phoneNumber }
-        records
-            // (번호, 그날 자정) 키로 묶기 → 같은 번호도 다른 날이면 row 분리
+        val callPhonesNormalized = records.map { phoneSuffix(it.phoneNumber) }.toHashSet()
+
+        // 1) CallRecord 기반 HomeItem (기존 로직 — 번호+날짜 묶음)
+        val callItems = records
             .groupBy { it.phoneNumber to DateTimeUtils.startOfDay(it.endedAt) }
             .map { (key, list) ->
                 val (phone, _) = key
@@ -98,14 +128,45 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                     unhandledCount = list.count { it.handledStatus == HandledStatus.UNHANDLED.name }
                 )
             }
+
+        // 2) SMS-only HomeItem — CallRecord 에 없는 SMS 연락처들. fake CallRecord 만들어 통일된 UI 사용.
+        //    fake id 는 음수 (lastDateMs 부정) — Room insert 안 함, in-memory 표시용. 충돌 방지.
+        val smsOnlyItems = smsContacts
+            .filter { phoneSuffix(it.address) !in callPhonesNormalized }
+            .map { sms ->
+                val fakeRecord = CallRecordEntity(
+                    id = -sms.lastDateMs,
+                    phoneNumber = sms.address,
+                    callType = CALL_TYPE_SMS_ONLY,
+                    duration = 0L,
+                    startedAt = null,
+                    endedAt = sms.lastDateMs,
+                    handledStatus = HandledStatus.HANDLED.name, // SMS-only 는 미처리 표시 안 함
+                    linkedCustomerId = byPhone[sms.address]?.id
+                )
+                HomeItem(
+                    record = fakeRecord,
+                    customer = byPhone[sms.address]
+                        ?: byPhone.values.firstOrNull { phoneSuffix(it.phoneNumber) == sms.normalizedSuffix },
+                    callCount = 0,
+                    unhandledCount = 0
+                )
+            }
+
+        // 3) 합쳐서 필터 → 날짜 그룹화 → 정렬
+        (callItems + smsOnlyItems)
             .filter { f.accept(it) }
-            // 날짜별 그룹화 (자정 normalize 키), 최신 날짜 먼저
             .groupBy { DateTimeUtils.startOfDay(it.record.endedAt) }
             .toSortedMap(compareByDescending { it })
             .map { (dayStart, items) ->
                 DayGroup(dayStartMs = dayStart, items = items.sortedByDescending { it.record.endedAt })
             }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    private fun phoneSuffix(phone: String): String {
+        val digits = phone.filter { it.isDigit() }
+        return if (digits.length >= 8) digits.takeLast(8) else digits
+    }
 
     fun setFilter(f: HomeFilter) { filter.value = f }
 
@@ -121,6 +182,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     companion object {
         /** 한 페이지 = 20개. 사장님 요청 (2026-05-24). */
         const val PAGE_SIZE = 20
+
+        /** SMS 만 주고받은 가짜 CallRecord 의 callType 마커. HomeScreen 의 callTypeLabel 분기에 사용. */
+        const val CALL_TYPE_SMS_ONLY = "SMS_ONLY"
     }
 }
 
