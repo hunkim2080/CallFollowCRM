@@ -30,6 +30,7 @@ from typing import Optional
 
 import anthropic
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 # ============================================================================
@@ -897,6 +898,331 @@ async def usage_stats(period: str = "all") -> dict:
         "by_model":    {r["model"]:    _row_to_dict(r) for r in model_rows},
         "total":       _row_to_dict(total_row),
     }
+
+
+# ============================================================================
+# /admin — HTML 대시보드
+# ─────────────────────────────────────────────────────────────────────────────
+# /admin/usage 와 /api/usage-stats 의 JSON 을 fetch 해서 사람이 보기 좋게 렌더.
+# 폰(Tailnet) 에서도 보이도록 mobile-first.
+# 외부 CDN 의존 X, 인라인 CSS+JS. 30초 자동 새로고침.
+# ============================================================================
+# ─── v2: 한글화 + 모델별 사용량 카드 ───
+_ADMIN_DASHBOARD_HTML = r"""<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#0a84ff" />
+<title>RING-GO 사용량</title>
+<style>
+  :root {
+    --bg: #f5f5f7;
+    --card: #ffffff;
+    --text: #1d1d1f;
+    --muted: #86868b;
+    --accent: #0a84ff;
+    --hot: #ff3b30;
+    --warn: #ff9500;
+    --ok: #34c759;
+    --line: #e5e5ea;
+    --shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.06);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+                 "Pretendard", "Apple SD Gothic Neo", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    padding: max(env(safe-area-inset-top), 16px) 16px 32px;
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    padding: 8px 4px 16px; gap: 12px;
+  }
+  header h1 { font-size: 20px; margin: 0; font-weight: 700; letter-spacing: -0.3px; }
+  header .meta { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .refresh {
+    background: var(--accent); color: white; border: 0; border-radius: 999px;
+    padding: 6px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .refresh:active { transform: scale(0.97); }
+
+  .row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  @media (max-width: 480px) { .row { grid-template-columns: 1fr 1fr; } .row > .all { grid-column: span 2; } }
+
+  .hero {
+    background: var(--card); border-radius: 14px; padding: 14px 14px 16px;
+    box-shadow: var(--shadow);
+  }
+  .hero .label { font-size: 12px; color: var(--muted); font-weight: 600; letter-spacing: 0.2px; }
+  .hero .price { font-size: 26px; font-weight: 700; margin-top: 4px; letter-spacing: -0.5px; font-variant-numeric: tabular-nums; }
+  .hero .sub { font-size: 12px; color: var(--muted); margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+  .card {
+    background: var(--card); border-radius: 14px; padding: 16px;
+    box-shadow: var(--shadow); margin-bottom: 14px;
+  }
+  .card h2 { font-size: 13px; font-weight: 700; margin: 0 0 12px; color: var(--muted); letter-spacing: 0.3px; text-transform: uppercase; }
+
+  /* 모델 카드 */
+  .model-card {
+    border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+    display: grid; grid-template-columns: 1fr auto auto auto; gap: 12px; align-items: center;
+  }
+  @media (max-width: 480px) {
+    .model-card { grid-template-columns: 1fr 1fr; row-gap: 8px; }
+    .model-card .model-name { grid-column: span 2; }
+  }
+  .model-card + .model-card { margin-top: 8px; }
+  .model-card.empty { background: #fafafc; color: var(--muted); }
+  .model-card .model-name { font-size: 14px; font-weight: 700; }
+  .model-card .model-tier { font-size: 11px; color: var(--muted); margin-top: 2px; font-weight: 500; }
+  .model-card .stat { text-align: right; font-variant-numeric: tabular-nums; }
+  .model-card .stat .v { font-size: 14px; font-weight: 700; }
+  .model-card .stat .k { font-size: 10px; color: var(--muted); display: block; }
+
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 8px 0; font-size: 14px; vertical-align: middle; }
+  th { font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--line); font-size: 12px; }
+  td { border-bottom: 1px solid var(--line); }
+  tr:last-child td { border-bottom: 0; }
+  td.num, th.num { text-align: right; }
+  td.ep { font-weight: 600; }
+  td.ep .ep-en { font-size: 10.5px; color: var(--muted); font-weight: 400; margin-top: 2px; }
+
+  .bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin-top: 4px; }
+  .bar > span { display: block; height: 100%; background: var(--accent); transition: width .3s; }
+  .bar.warn > span { background: var(--warn); }
+  .bar.hot  > span { background: var(--hot); }
+
+  .kv { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; }
+  .kv + .kv { border-top: 1px solid var(--line); }
+  .kv .k { color: var(--muted); }
+  .kv .v { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  .err {
+    background: #fee; color: var(--hot); border-radius: 10px; padding: 10px 12px;
+    font-size: 13px; margin-bottom: 14px; display: none;
+  }
+  .footer { color: var(--muted); font-size: 11px; text-align: center; margin-top: 18px; line-height: 1.5; }
+  .footer code { background: var(--line); padding: 1px 5px; border-radius: 4px; font-size: 10.5px; }
+</style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>🛠 RING-GO 사용량</h1>
+      <div class="meta" id="meta">마지막 업데이트 -</div>
+    </div>
+    <button class="refresh" id="refreshBtn" onclick="loadAll()">↻ 새로고침</button>
+  </header>
+
+  <div class="err" id="err"></div>
+
+  <!-- 오늘 / 이번 달 / 전체 누적 비용 -->
+  <div class="row">
+    <div class="hero"><div class="label">오늘</div>
+      <div class="price" id="todayCost">—</div><div class="sub" id="todayCalls">— 건</div></div>
+    <div class="hero"><div class="label">이번 달</div>
+      <div class="price" id="monthCost">—</div><div class="sub" id="monthCalls">— 건</div></div>
+    <div class="hero all"><div class="label">전체 누적</div>
+      <div class="price" id="allCost">—</div><div class="sub" id="allCalls">— 건</div></div>
+  </div>
+
+  <!-- 모델별 사용량 (이번 달) -->
+  <div class="card">
+    <h2>🤖 모델별 사용량 (이번 달)</h2>
+    <div id="modelCards">
+      <div style="text-align:center;color:var(--muted);padding:12px 0">로딩 중…</div>
+    </div>
+    <div style="margin-top:12px;font-size:11px;color:var(--muted);line-height:1.6;">
+      💡 단가 안내 (1만 토큰 ≈ 한글 약 7천 자):<br/>
+      · <b>소넷 4.6 (고급)</b> — 입력 ₩41 / 캐시 적중 시 ₩4 / 출력 ₩207 (1만 토큰 기준)<br/>
+      · <b>하이쿠 4.5 (경량)</b> — 입력 ₩14 / 캐시 적중 시 ₩1.4 / 출력 ₩69 (소넷의 1/3 가격)
+    </div>
+  </div>
+
+  <!-- 기능별 사용량 (이번 달) -->
+  <div class="card">
+    <h2>📊 기능별 사용량 (이번 달)</h2>
+    <table id="epTable">
+      <thead><tr><th>기능</th><th class="num">호출</th><th class="num">비용 (₩)</th></tr></thead>
+      <tbody id="epBody"><tr><td colspan="3" style="text-align:center;color:var(--muted);padding:12px 0">로딩 중…</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- Rate limit / 캐시 -->
+  <div class="card">
+    <h2>⚙️ 시스템 상태 (24시간 기준)</h2>
+    <div class="kv"><span class="k">최근 24시간 전체 호출</span>
+      <span class="v"><span id="rl24">—</span> / <span id="rlMax">—</span></span></div>
+    <div class="bar" id="rlBar"><span style="width:0%"></span></div>
+    <div class="kv"><span class="k">요약 캐시 행수 (호출 절약량 가늠)</span><span class="v" id="cacheRows">—</span></div>
+    <div class="kv"><span class="k">한 번호당 일일 한도</span><span class="v" id="perPhone">—</span></div>
+  </div>
+
+  <div class="footer">
+    JSON 원본: <code>/admin/usage</code> · <code>/api/usage-stats?period=today</code><br/>
+    30초마다 자동 새로고침
+  </div>
+
+<script>
+// ─── 영어 → 한글 매핑 ───
+const EP_NAMES_KO = {
+  'prepare-reply':         '답장 추천 (3개 후보)',
+  'card-summary':          '카드 한 줄 요약',
+  'conversation-summary':  '대화 상세 요약',
+  'next-action-suggest':   '다음 액션 제안',
+  'intent-classify':       '의도 분류',
+  'style-profile-learn':   '말투 학습',
+  'reply-suggest':         '답변 추천 (보조)',
+};
+
+const MODEL_NAMES_KO = {
+  'claude-sonnet-4-6':            { name: '소넷 4.6',  tier: '고급 — 정확도 우선' },
+  'claude-opus-4-6':              { name: '오푸스 4.6', tier: '최고급 — 매우 어려운 작업용' },
+  'claude-haiku-4-5-20251001':    { name: '하이쿠 4.5', tier: '경량 — 단순 작업 + 비용 1/3' },
+};
+
+const fmt    = n => (n == null ? '—' : new Intl.NumberFormat('ko-KR').format(Math.round(n)));
+const fmtKRW = n => '₩' + fmt(n);
+const fmtKRW2 = n => {  // 소수점 둘째 자리까지 (한 건당 평균 단가용)
+  if (n == null) return '—';
+  if (n >= 10) return '₩' + fmt(n);
+  return '₩' + Number(n).toFixed(2);
+};
+
+async function fetchJSON(url) {
+  const r = await fetch(url, { cache: 'no-store' });
+  if (!r.ok) throw new Error(url + ' → HTTP ' + r.status);
+  return r.json();
+}
+
+async function loadAll() {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  document.getElementById('err').style.display = 'none';
+  try {
+    const [today, month, allp, ad] = await Promise.all([
+      fetchJSON('/api/usage-stats?period=today'),
+      fetchJSON('/api/usage-stats?period=month'),
+      fetchJSON('/api/usage-stats?period=all'),
+      fetchJSON('/admin/usage'),
+    ]);
+
+    // ─── 오늘/이번달/전체 hero card ───
+    document.getElementById('todayCost').textContent  = fmtKRW(today.total.cost_krw);
+    document.getElementById('todayCalls').textContent = fmt(today.total.calls) + ' 건';
+    document.getElementById('monthCost').textContent  = fmtKRW(month.total.cost_krw);
+    document.getElementById('monthCalls').textContent = fmt(month.total.calls) + ' 건';
+    document.getElementById('allCost').textContent    = fmtKRW(allp.total.cost_krw);
+    document.getElementById('allCalls').textContent   = fmt(allp.total.calls) + ' 건';
+
+    // ─── 모델별 사용량 카드 ───
+    // 1) 서버에서 실제 호출한 모델 목록
+    const usedModels = Object.entries(month.by_model);
+    // 2) 현재 코드가 호출하도록 설정된 모델 (시스템 카드의 model 필드)
+    const configuredModel = ad.model || 'claude-sonnet-4-6';
+    // 3) 표시할 모델 집합 — 사용된 모델 + (사용 안 됐어도 'configured' 모델은 항상 한 줄 보여줌)
+    //    + 하이쿠 (미래 hybrid 대비, 0건이면 회색으로 표시)
+    const shownModelIds = new Set(usedModels.map(([id]) => id));
+    shownModelIds.add(configuredModel);
+    shownModelIds.add('claude-haiku-4-5-20251001');  // 미래 hybrid 대비 자리
+
+    const modelStats = {};
+    usedModels.forEach(([id, s]) => modelStats[id] = s);
+
+    const sortedIds = [...shownModelIds].sort((a, b) => {
+      const ca = modelStats[a]?.cost_krw || 0;
+      const cb = modelStats[b]?.cost_krw || 0;
+      return cb - ca;
+    });
+
+    const cards = sortedIds.map(id => {
+      const meta = MODEL_NAMES_KO[id] || { name: id, tier: '' };
+      const s = modelStats[id];
+      const empty = !s || s.calls === 0;
+      const calls = s ? s.calls : 0;
+      const cost  = s ? s.cost_krw : 0;
+      const avg   = (s && s.calls > 0) ? (s.cost_krw / s.calls) : 0;
+      return `
+        <div class="model-card ${empty ? 'empty' : ''}">
+          <div class="model-name">
+            ${meta.name}${empty ? ' (현재 사용 안 함)' : (id === configuredModel ? ' · <span style="color:var(--accent)">사용 중</span>' : '')}
+            <div class="model-tier">${meta.tier}</div>
+          </div>
+          <div class="stat"><span class="v">${fmt(calls)}</span><span class="k">호출</span></div>
+          <div class="stat"><span class="v">${fmtKRW(cost)}</span><span class="k">총 비용</span></div>
+          <div class="stat"><span class="v">${empty ? '—' : fmtKRW2(avg)}</span><span class="k">건당 평균</span></div>
+        </div>
+      `;
+    }).join('');
+    document.getElementById('modelCards').innerHTML = cards;
+
+    // ─── 기능별 사용량 표 (한글명 + 영어 보조) ───
+    const eps = Object.entries(month.by_endpoint).sort((a,b) => b[1].cost_krw - a[1].cost_krw);
+    const body = document.getElementById('epBody');
+    if (eps.length === 0) {
+      body.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:12px 0">이번 달 호출 없음</td></tr>';
+    } else {
+      body.innerHTML = eps.map(([name, s]) => {
+        const nameKo = EP_NAMES_KO[name] || name;
+        return `
+          <tr>
+            <td class="ep">${nameKo}<div class="ep-en">${name}</div></td>
+            <td class="num">${fmt(s.calls)}</td>
+            <td class="num">${fmtKRW(s.cost_krw)}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // ─── 시스템 카드 ───
+    document.getElementById('rl24').textContent      = fmt(ad.calls);
+    document.getElementById('rlMax').textContent     = fmt(ad.dailyTotalLimit);
+    document.getElementById('perPhone').textContent  = fmt(ad.perPhoneDailyLimit) + ' 건/일';
+    document.getElementById('cacheRows').textContent = fmt(ad.summaryCacheRows);
+
+    const pct = ad.dailyTotalLimit > 0 ? (ad.calls / ad.dailyTotalLimit) * 100 : 0;
+    const bar = document.getElementById('rlBar');
+    bar.querySelector('span').style.width = Math.min(100, pct).toFixed(1) + '%';
+    bar.classList.toggle('warn', pct >= 60 && pct < 85);
+    bar.classList.toggle('hot',  pct >= 85);
+
+    const now = new Date();
+    document.getElementById('meta').textContent = '마지막 업데이트 ' +
+      now.toLocaleString('ko-KR', { hour12: false });
+  } catch (e) {
+    const err = document.getElementById('err');
+    err.textContent = '데이터 로딩 실패: ' + e.message;
+    err.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+loadAll();
+setInterval(loadAll, 30 * 1000);  // 30초 자동 새로고침
+</script>
+</body>
+</html>
+"""
+
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_dashboard() -> HTMLResponse:
+    """사람이 보기 좋은 사용량 대시보드.
+
+    데이터는 /api/usage-stats 와 /admin/usage 의 JSON 을 fetch 해서 렌더.
+    Tailnet 안의 폰 브라우저에서도 잘 보이도록 mobile-first.
+    """
+    return HTMLResponse(content=_ADMIN_DASHBOARD_HTML)
 
 
 @app.get("/admin/usage")
