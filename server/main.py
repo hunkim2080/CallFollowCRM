@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Optional
 
 import anthropic
+import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
@@ -46,6 +47,11 @@ if not CLAUDE_API_KEY:
         "CLAUDE_API_KEY env var not set. "
         "launchd plist 의 EnvironmentVariables 에 박혀 있는지 확인하세요."
     )
+
+# §13 — 카카오 로컬 API 키 (선택 — 없으면 /api/address-resolve 는 항상 null 반환)
+# launchd plist 의 EnvironmentVariables 또는 .env 로 설정 가능.
+KAKAO_REST_API_KEY = os.environ.get("KAKAO_REST_API_KEY")
+KAKAO_TIMEOUT_SEC = 5.0
 
 CLAUDE_MODEL = "claude-sonnet-4-6"
 CLAUDE_MAX_TOKENS = 800
@@ -335,7 +341,15 @@ def log_usage(phone: str, endpoint: str, response: "anthropic.types.Message") ->
 # - cache_write: ephemeral 캐시 생성 시 입력 (정가의 1.25x — 5분 TTL)
 # - output: 출력
 # 출처: https://www.anthropic.com/pricing  (2026-05 기준)
+#
+# §12.3 보강 — Anthropic API 의 response.model 은 정식 ID (예: "claude-haiku-4-5-20251001")
+# 로 오므로, 단축형 key 의 dict.get() 매칭은 fail 가능. prefix 매칭을 쓴다.
+# dict 는 단축형 prefix 로 둠.
+# 추가로 "kakao-local" (§13 의 비-LLM 카운트용) 도 단가 0 으로 등록 — log_llm_usage
+# 가 kakao 호출도 카운트하되 비용은 0 으로 박히게.
+#
 MODEL_PRICING_USD_PER_M = {
+    # Claude 계열 — prefix 매칭으로 정식 ID(...-YYYYMMDD) 도 같이 잡힘
     "claude-sonnet-4-6": {
         "input":       3.00,
         "cache_read":  0.30,
@@ -348,13 +362,39 @@ MODEL_PRICING_USD_PER_M = {
         "cache_write": 18.75,
         "output":     75.00,
     },
-    "claude-haiku-4-5-20251001": {
+    "claude-haiku-4-5": {
         "input":       1.00,
         "cache_read":  0.10,
         "cache_write": 1.25,
         "output":      5.00,
     },
+    # §13 — 카카오 로컬 API (LLM 아니지만 endpoint 호출수 잡기 위해 0원으로 등록)
+    "kakao-local": {
+        "input":       0.0,
+        "cache_read":  0.0,
+        "cache_write": 0.0,
+        "output":      0.0,
+    },
 }
+
+
+def _resolve_pricing(model: str) -> dict:
+    """§12.3 — model ID 를 단축형 prefix 로 매칭.
+
+    Anthropic API 의 response.model 은 보통 정식 ID 형태 (예:
+    "claude-haiku-4-5-20251001") 로 오기 때문에, 단축형 키 (예: "claude-haiku-4-5")
+    로 박힌 dict 와 정확 일치(dict.get)로만 매칭하면 fail → cost_krw=0 박혀 모니터링
+    무용해지는 위험이 있다. 그래서 key 길이 내림차순으로 prefix 매칭.
+
+    매칭 실패 시 sonnet-4-6 단가로 over-estimate (안전).
+    """
+    if not model:
+        return MODEL_PRICING_USD_PER_M["claude-sonnet-4-6"]
+    for key in sorted(MODEL_PRICING_USD_PER_M.keys(), key=len, reverse=True):
+        if model.startswith(key):
+            return MODEL_PRICING_USD_PER_M[key]
+    # 어떤 prefix 와도 매칭 안 되면 가장 보수적 (sonnet) 단가
+    return MODEL_PRICING_USD_PER_M["claude-sonnet-4-6"]
 
 
 def calculate_cost_krw(
@@ -370,10 +410,7 @@ def calculate_cost_krw(
     cache_creation_input_tokens / output_tokens 4개 카테고리를 따로 보고한다.
     prompt_tokens 는 그중 '비캐시 정가' 분량만 의미한다 (cache_read/write 제외).
     """
-    pricing = MODEL_PRICING_USD_PER_M.get(model)
-    if pricing is None:
-        # 모르는 모델이면 sonnet-4-6 단가로 대체 (안전한 over-estimate).
-        pricing = MODEL_PRICING_USD_PER_M["claude-sonnet-4-6"]
+    pricing = _resolve_pricing(model)
 
     cost_usd = (
         (prompt_tokens      * pricing["input"]      / 1_000_000)
@@ -1678,6 +1715,96 @@ async def next_action_suggest(ctx: ConversationContext) -> dict:
         coerce_fn=_coerce_next_action,
         max_tokens=400,
     )
+
+
+# ============================================================================
+# §13 — POST /api/address-resolve  (아파트명 → 풀 주소, 카카오 로컬 API)
+# ─────────────────────────────────────────────────────────────────────────────
+# 고객 메시지에서 추출된 아파트명 후보를 카카오 keyword.json (category_group_code=AP1)
+# 로 검색해서 풀 주소 + 좌표 반환.
+#
+# KAKAO_REST_API_KEY 미설정 시 — {resolved: null, confidence: 0.0} 반환 (500 X).
+# 모든 후보 실패 시 — 동일.
+#
+# log_llm_usage 도 호출 (model="kakao-local", 단가 0) — endpoint 호출수 모니터링용.
+# ============================================================================
+
+class AddressResolveRequest(BaseModel):
+    candidate_keywords: list[str] = Field(default_factory=list)
+    context_text: Optional[str] = None
+
+
+async def _search_kakao_local(query: str) -> Optional[dict]:
+    """카카오 키워드 검색 (아파트 그룹 AP1). 첫 hit 반환.
+
+    실패(키 없음 / 네트워크 오류 / 200 아님 / docs 빈 배열) 시 None.
+    """
+    if not KAKAO_REST_API_KEY:
+        return None
+    url = "https://dapi.kakao.com/v2/local/search/keyword.json"
+    headers = {"Authorization": f"KakaoAK {KAKAO_REST_API_KEY}"}
+    params = {"query": query, "category_group_code": "AP1", "size": 5}
+    try:
+        async with httpx.AsyncClient(timeout=KAKAO_TIMEOUT_SEC) as client:
+            resp = await client.get(url, headers=headers, params=params)
+        if resp.status_code != 200:
+            print(f"[address-resolve] kakao status={resp.status_code} query={query!r}")
+            return None
+        docs = resp.json().get("documents", [])
+        return docs[0] if docs else None
+    except Exception as e:
+        print(f"[address-resolve] kakao error: {type(e).__name__}: {e} (query={query!r})")
+        return None
+
+
+def _log_address_resolve_call() -> None:
+    """endpoint 호출 카운트만 잡고 비용은 0 (kakao-local 단가 0)."""
+    log_llm_usage(
+        endpoint="address-resolve",
+        model="kakao-local",
+        prompt_tokens=0,
+        completion_tokens=0,
+        cache_read_tokens=0,
+        cache_write_tokens=0,
+    )
+
+
+@app.post("/api/address-resolve")
+async def address_resolve(req: AddressResolveRequest) -> dict:
+    """§13 — 아파트명 후보 → 풀 주소.
+
+    입력: { candidate_keywords: [...], context_text: "..." }
+    출력 (성공): { resolved, road_address, place_name, lat, lng, confidence }
+    출력 (실패): { resolved: null, confidence: 0.0 }
+    """
+    # 1) 키 미설정 시 — 검증 §13 #2 ("키 없을 때 null") 케이스
+    if not KAKAO_REST_API_KEY:
+        print("[address-resolve] KAKAO_REST_API_KEY 미설정 — resolved=null 반환")
+        _log_address_resolve_call()
+        return {"resolved": None, "confidence": 0.0}
+
+    # 2) 후보 keyword 별 순차 검색 — 첫 hit 사용
+    for kw in (req.candidate_keywords or []):
+        kw_clean = (kw or "").strip()
+        if not kw_clean:
+            continue
+        hit = await _search_kakao_local(kw_clean)
+        if hit:
+            _log_address_resolve_call()
+            return {
+                "resolved":      hit.get("address_name"),
+                "road_address":  hit.get("road_address_name"),
+                "place_name":    hit.get("place_name"),
+                "lat":           float(hit.get("y") or 0),
+                "lng":           float(hit.get("x") or 0),
+                "confidence":    0.9,
+            }
+
+    # 3) 모든 후보 실패 — context_text LLM fallback 은 사양서 §13.2 에서 "옵션" 으로
+    #    표기되어 있고 비용/지연 trade-off 가 있어 일단 미구현. 미래 sprint 에서 추가.
+    print(f"[address-resolve] all candidates failed: {req.candidate_keywords}")
+    _log_address_resolve_call()
+    return {"resolved": None, "confidence": 0.0}
 
 
 # ============================================================================
