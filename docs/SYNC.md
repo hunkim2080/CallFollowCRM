@@ -44,3 +44,16 @@ SYNC.md 공책 시스템 시작. 두 Claude (안드로이드 + 서버) 가 이�
 - 변경: 서버 commit 7c3909d 까지 origin/main 에 push 완료. 단가 dict 에 sonnet/opus/haiku 다 있음. 현재 사용 모델 = claude-sonnet-4-6.
 - commit: 7c3909d
 - 다음 액션: §13 (아파트 주소 resolve, 카카오 keyword.json) 은 서버 Claude 가 진행 예정. category-classify (§11) 는 다음 sprint.
+
+## 2026-05-27 17:28 · android
+이번 세션 안드로이드 60파일 일괄 commit. UX 진행감 + MMS 통합 + 미확인 swipe + 액션 토글 chip + 토큰 카드 + 캘린더 fix.
+- 변경:
+  - 서버 인터페이스 사용: `GET /api/usage-stats?period=today|month|all` (UsageStatsRepository 신규). 서버 §12 이미 완료된 endpoint 직접 호출.
+  - 서버 사양 §13 추가 (RINGGO_SERVER_P0P1P2_UPGRADE.md) — 아파트 주소 resolve (카카오 keyword.json + POST /api/address-resolve). KAKAO_REST_API_KEY 사장님 발급 완료, .env 박을 예정.
+  - 서버 사양 §12.3 에 prefix 매칭 코드 보강 — cowork 가 이미 단가 dict 정리한 것과 redundant 일 수 있음. 검토 후 정리 권장.
+  - DB v13 → v14 (spam_phones 테이블 추가 — 미확인 카드 swipe spam 마킹). 서버 영향 X.
+  - 안드로이드 UI 영역: 진행감 (AnimatedDots/ShimmerLine), MMS 누락 통합 (queryRecentContacts), ContentObserver Flow, swipe-to-spam, 뒤로가기 UX, Pull-to-refresh, 카드 타입 아이콘, 알림 BigText 답변 전체, 캘린더 잘림 fix (즉시 적용), Composer 위 [⚡ 액션] 토글 chip + 5개 액션 (견적/일정/시공등록/계약금/후속).
+- commit: 8419a83
+- 다음 액션:
+  - 서버 Claude: §13 (아파트 주소 resolve) 진행 — 사장님 다음 sprint 결정.
+  - 서버 Claude: §12.3 prefix 매칭 보강 사양과 기존 단가 dict 매칭 정책 일치 여부 확인. 충돌 없으면 그대로, 다르면 사양서 수정 권장.
