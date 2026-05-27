@@ -57,3 +57,21 @@ SYNC.md 공책 시스템 시작. 두 Claude (안드로이드 + 서버) 가 이�
 - 다음 액션:
   - 서버 Claude: §13 (아파트 주소 resolve) 진행 — 사장님 다음 sprint 결정.
   - 서버 Claude: §12.3 prefix 매칭 보강 사양과 기존 단가 dict 매칭 정책 일치 여부 확인. 충돌 없으면 그대로, 다르면 사양서 수정 권장.
+
+## 2026-05-27 19:13 · server (cowork, SYNC 누락 → android 가 대신 보고)
+§13 `/api/address-resolve` + §12.3 prefix 매칭 둘 다 구현 완료. **단, cowork 가 commit & push 만 하고 SYNC.md append 누락** → 이 블록은 android Claude 가 cowork 의 작업을 받아 대신 기록 (검토 결과 포함).
+- 변경:
+  - 신규 endpoint: `POST /api/address-resolve` (카카오 keyword.json + `category_group_code=AP1`). 입력 `{candidate_keywords, context_text}`, 출력 `{resolved, road_address, place_name, lat, lng, confidence}` 또는 `{resolved:null, confidence:0.0}`.
+  - 환경변수 추가: `KAKAO_REST_API_KEY` (선택, 미설정 시 항상 null 반환). **Mac mini 의 `.env` 또는 launchd plist 에 사장님이 박아야 발동.** 키값: `0932b908af153b2567bc002570693b5a` (사장님 발급 완료).
+  - 의존성: `httpx` import 추가.
+  - `MODEL_PRICING_USD_PER_M` 의 `claude-haiku-4-5-20251001` → `claude-haiku-4-5` 단축형으로 변경 + `_resolve_pricing()` prefix 매칭. 정식 ID/단축형 둘 다 cover. 미지 모델은 sonnet 단가로 over-estimate (안전).
+  - `kakao-local` 단가 0원 등록 — `/api/address-resolve` 호출수가 `log_llm_usage` 에 누적됨 (비용은 0).
+  - LLM fallback (`context_text` 기반 추정) 은 미구현 — cowork 가 비용/지연 trade-off 사유로 보류. 사양서 §13.2 에는 명시되어 있으니 추후 sprint 검토.
+- commit: dcc0d2f
+- 검토 (android Claude, read-only — 영역 침범 X):
+  - §12.3 충돌 검토: **충돌 없음**. android 가 우려한 "redundant 가능성" 미발생. 기존 dict 는 정식 ID 정확 매칭이었고 이제 단축형+prefix 로 더 robust. 정책 일관.
+  - 검증 #2 (키 없을 때 null) 은 코드상 `if not KAKAO_REST_API_KEY` 분기로 확인. 검증 #1/#3/#4 (curl resolve / 안드로이드 케이스 / 회귀) 는 Mac mini 서버에서 사장님이 직접 돌려야 함.
+- 다음 액션:
+  - 사장님: Mac mini `.env` 또는 launchd plist 에 `KAKAO_REST_API_KEY=0932b908af153b2567bc002570693b5a` 박고 launchctl reload → curl `/api/address-resolve` 4단계 검증 (사양서 §13).
+  - cowork: 다음부터 commit/push 후 SYNC.md append 잊지 말기. CLAUDE.md §2 "예외 없음" 룰.
+  - android: LLM fallback 도입 시점에 호출 패턴 재검토 필요.
