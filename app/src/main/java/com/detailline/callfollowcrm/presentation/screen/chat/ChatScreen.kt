@@ -167,7 +167,10 @@ fun ChatScreen(
     //   사장님 피드백 2026-05-25: 카드 4-5줄에 말풍선이 가려져서 접기 필요.
     var summaryManualCollapsed by remember { mutableStateOf(false) }
 
-    var input by remember { mutableStateOf("") }
+    // Composer 임시저장 (2026-05-27 사장님 통점) — phone 별 in-memory draft 복원.
+    //   init = ChatDraftStore.get(phone), 변경 시 자동 save, 전송 후 input="" = 자동 clear (set 이 empty 면 remove).
+    var input by remember { mutableStateOf(viewModel.loadDraft()) }
+    LaunchedEffect(input) { viewModel.saveDraft(input) }
     var fullscreenImageUri by remember { mutableStateOf<android.net.Uri?>(null) }
     // 권한 요청 직후 자동 재시도용 — 입력 본문을 기억.
     var pendingSend by remember { mutableStateOf<String?>(null) }

@@ -75,3 +75,19 @@ SYNC.md 공책 시스템 시작. 두 Claude (안드로이드 + 서버) 가 이�
   - 사장님: Mac mini `.env` 또는 launchd plist 에 `KAKAO_REST_API_KEY=0932b908af153b2567bc002570693b5a` 박고 launchctl reload → curl `/api/address-resolve` 4단계 검증 (사양서 §13).
   - cowork: 다음부터 commit/push 후 SYNC.md append 잊지 말기. CLAUDE.md §2 "예외 없음" 룰.
   - android: LLM fallback 도입 시점에 호출 패턴 재검토 필요.
+
+## 2026-05-27 20:52 · android
+세 가지 UX 작업 묶음: 카드 [📍 길찾기] 도입 / Composer 임시저장 / CustomerDetail 문자 접이식 섹션.
+- 변경:
+  - **카드 펼침 액션 재구성** ([📍 길찾기] 신규, [✨ AI] 제거): 순서 = [ⓘ 고객정보] [📞 전화] [📍 길찾기] [💬 메시지]. 사장님 결정 = "정보→이동→소통" 흐름. AI 자리는 ChatScreen 의 NextActionBox 와 중복이라 폐기.
+  - **NavApp 유틸 신규** (`util/NavApp.kt`): 카카오내비/네이버지도/티맵 3개 enum + URL scheme builder + NavLauncher (좌표/주소 fallback, 미설치 시 Play 스토어). geo: URI 폴백.
+  - **Preferences `defaultNavAppKey` 추가** + **SettingsScreen "🧭 기본 네비 앱" 카드** (3개 chip 가로). 첫 [📍 길찾기] 탭 시 자동 선택 다이얼로그도 띄움.
+  - **HomeViewModel.resolveAddressForPhone(phone)**: 메시지(50건) → memo → name 순 fallback 으로 destinationName 추출. 좌표 없이 search 모드용. §13 검증 끝나면 ResolvedDestination(name, lat?, lng?) 으로 확장 예정.
+  - **AndroidManifest `<queries>`** 에 카카오내비/네이버지도/티맵 package + geo intent 추가 (Android 11+ package visibility).
+  - **Composer 임시저장** (`data/draft/ChatDraftStore.kt` + ChatViewModel.loadDraft/saveDraft/clearDraft + ChatScreen 의 `var input` 초기값 = loadDraft, LaunchedEffect(input) = saveDraft). 사장님 통점: 메시지 치다가 [뒤로] → 재진입 시 입력 날아감 → AppContainer 의 in-memory Map 으로 phone 별 보관. 앱 살아있는 동안만 (재시작 시 비움).
+  - **CustomerDetail "📩 주고받은 문자" 접이식 섹션** (대화 요약 아래, 일정 위). 기본 접힘 + 카드 탭 = 토글. 최근 20건 표시, 초과분은 [💬 메시지] 안내. `CustomerDetailViewModel.mergedMessages` (systemSms+cachedSms combine + distinct + 최신순) 신규.
+  - 서버 영향 X (전부 클라이언트). 신규 endpoint 호출 없음.
+- commit: (이번 커밋)
+- 다음 액션:
+  - 사장님: 폰 검증 (1) [📍 길찾기] 첫 탭 → 다이얼로그 → 네비 앱 선택 → 실제 launch 까지 / (2) 메시지 치다가 [뒤로] → 재진입 시 복원 / (3) CustomerDetail 의 "📩 문자" 카드 펼침/접힘.
+  - 안드로이드 §13 클라이언트 hookup (AddressExtractor 의 APT_NAME_PATTERN 보강 + ChatViewModel/CustomerDetailViewModel 에서 `/api/address-resolve` 호출 → resolveAddressForPhone 에 lat/lng 반환 확장)는 사장님 §13 서버 검증 끝나면 진행.

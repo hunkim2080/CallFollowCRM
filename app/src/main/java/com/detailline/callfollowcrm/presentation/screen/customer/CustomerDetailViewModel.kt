@@ -97,6 +97,18 @@ class CustomerDetailViewModel(
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    /**
+     * 주고받은 문자 — CustomerDetail 의 "📩 문자" 접이식 섹션이 구독 (2026-05-27 사장님 요청).
+     *   시스템 SMS + cached_messages 합쳐서 중복 제거 + 최신순. ChatScreen 진입 안 해도
+     *   사장님이 대화 흐름 빠르게 검토.
+     */
+    val mergedMessages: kotlinx.coroutines.flow.StateFlow<List<SmsRepository.SmsMessage>> =
+        kotlinx.coroutines.flow.combine(_systemSms, _cachedSms) { sys, cached ->
+            (sys + cached)
+                .distinctBy { it.dateMs to it.body }
+                .sortedByDescending { it.dateMs }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     // ─────────────────────────────────────────────────────────────────────
     // 저장 메서드들은 모두 NonCancellable 로 감싼다. 이유:
     //   사용자가 저장 버튼 누른 직후 뒤로가기 등으로 화면이 닫히면 viewModelScope 가 cancel 되어

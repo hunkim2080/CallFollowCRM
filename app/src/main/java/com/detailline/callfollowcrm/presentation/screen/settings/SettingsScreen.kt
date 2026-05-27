@@ -165,6 +165,13 @@ fun SettingsScreen(
                 onToggle = viewModel::setIncomingSmsNotifyEnabled
             )
 
+            // 2.55 기본 네비 앱 — 카드 펼침 [📍 길찾기] 가 사용 (2026-05-27).
+            //   카카오내비/네이버지도/티맵 3개. 첫 길찾기 탭 시 자동 다이얼로그도 띄움.
+            NavAppPreferenceCard(
+                selectedKey = state.defaultNavAppKey,
+                onSelect = viewModel::setDefaultNavApp
+            )
+
             // 2.6 알림 진단 — 사장님 보고 (2026-05-25): RING-GO 알림이 안 뜬다.
             //   권한/채널 상태 한눈에 + Fix 버튼.
             NotificationDiagnosticCard()
@@ -750,6 +757,71 @@ private fun IncomingSmsNotifyCard(enabled: Boolean, onToggle: (Boolean) -> Unit)
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * 기본 네비 앱 선택 — 카드 펼침 [📍 길찾기] 가 1탭으로 launch 할 외부 앱.
+ * 2026-05-27 사장님 결정: 사용자마다 손에 익은 네비가 다르므로 3개 옵션 (카카오내비/네이버지도/티맵).
+ * 미선택 상태로 두면 첫 길찾기 탭 시 동일 다이얼로그가 자동으로 뜸.
+ */
+@Composable
+private fun NavAppPreferenceCard(
+    selectedKey: String?,
+    onSelect: (String?) -> Unit
+) {
+    TossCard {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("🧭", fontSize = 16.sp)
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "기본 네비 앱",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = TossTextPrimary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "고객 카드를 펼치면 [📍 길찾기] 가 보여요. 누르면 여기서 고른 앱으로 바로 안내가 시작돼요.",
+                style = MaterialTheme.typography.bodySmall,
+                color = TossTextSecondary
+            )
+            Spacer(Modifier.height(12.dp))
+
+            // 3개 옵션 가로 chip — 토스 식 선택.
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                com.detailline.callfollowcrm.util.NavApp.values().forEach { app ->
+                    val selected = selectedKey == app.key
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (selected) TossBlue else Color(0xFFEEF1F4))
+                            .clickable { onSelect(app.key) }
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            app.label,
+                            color = if (selected) Color.White else TossTextPrimary,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp
+                        )
+                    }
+                }
+            }
+
+            if (selectedKey == null) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "아직 미선택 — 첫 길찾기 탭하면 같은 선택지가 떠요.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TossTextTertiary
+                )
             }
         }
     }

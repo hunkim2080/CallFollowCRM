@@ -109,6 +109,15 @@ class ChatViewModel(
     val toast = _toast.asStateFlow()
     fun consumeToast() { _toast.value = null }
 
+    /**
+     * Composer 임시저장 (2026-05-27 사장님 통점 — 뒤로갔다 재진입 시 입력 날아감).
+     *   AppContainer 의 ChatDraftStore 에 phone 별 보관. 앱 살아있는 동안만.
+     *   ChatScreen 이 init 시 loadDraft(), 입력 변경마다 saveDraft(), 전송 성공 시 clearDraft().
+     */
+    fun loadDraft(): String = container.chatDraftStore.get(phoneNumber)
+    fun saveDraft(text: String) { container.chatDraftStore.set(phoneNumber, text) }
+    fun clearDraft() { container.chatDraftStore.clear(phoneNumber) }
+
     // AI 다듬기 ✨ 진행 중 여부. ChatScreen 의 ✨ 버튼이 이 값을 구독해서 로딩 인디케이터 표시.
     // 첫 호출은 모델 로드 ~10초 + 추론 3~5초까지 걸릴 수 있어 시각 피드백 필수.
     private val _aiPolishing = MutableStateFlow(false)

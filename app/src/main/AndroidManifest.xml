@@ -52,6 +52,18 @@
             <action android:name="android.intent.action.SEND" />
             <data android:mimeType="image/*" />
         </intent>
+        <!--
+            카드 펼침 [📍 길찾기] → 외부 네비 앱 launch (Android 11+ package visibility).
+            사장님이 설정에서 고른 앱 1개만 호출하지만 deeplink 안정성을 위해 3개 다 declare.
+            geo: 스키마 (좌표 없을 때 시스템 chooser fallback) 도 포함.
+        -->
+        <package android:name="com.locnall.KimGiSa" />      <!-- 카카오내비 -->
+        <package android:name="com.nhn.android.nmap" />     <!-- 네이버지도 -->
+        <package android:name="com.skt.tmap.ku" />          <!-- 티맵 -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="geo" />
+        </intent>
     </queries>
 
     <application

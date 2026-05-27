@@ -315,6 +315,49 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             container.customerRepository.upsertByPhone(phoneNumber).id
         }
 
+    /**
+     * [📍 길찾기] 가 사용 — phone 에 묶인 목적지 destinationName 추출.
+     *
+     * 우선순위 (먼저 매칭되는 것 반환):
+     *   1) cached SMS 50건에서 AddressExtractor 정규식 매칭 → "서울 강서구 마곡동 740" 같은 풀 주소
+     *   2) customer.memo 안의 주소 패턴
+     *   3) customer.name 자체 (예: "엘테라스" / "윤성이파트" — 사장님이 현장명을 name 으로 박는 패턴)
+     *   4) 다 없음 → null (UI 가 "주소 정보 없음" 토스트 띄움)
+     *
+     * 현재는 좌표 없이 destinationName 만 반환 → NavApp 의 search 모드.
+     * §13 (서버 아파트 주소 resolve) 끝나면 ResolvedDestination(name, lat?, lng?) 으로 확장 예정.
+     */
+    suspend fun resolveAddressForPhone(phoneNumber: String): String? =
+        withContext(Dispatchers.IO) {
+            val digits = phoneNumber.filter { it.isDigit() }
+            if (digits.length < 7) return@withContext null
+            val suffix = digits.takeLast(8)
+
+            // 1) cached 메시지에서 추출 — 최신순.
+            val cached = runCatching {
+                container.cachedMessageRepository.load(suffix, limit = 50)
+            }.getOrDefault(emptyList())
+            com.detailline.callfollowcrm.util.AddressExtractor.extractFromMessages(
+                cached.sortedByDescending { it.dateMs }.map { it.body }
+            )?.let { return@withContext it }
+
+            val customer = runCatching {
+                container.customerRepository.findByPhone(phoneNumber)
+            }.getOrNull()
+
+            // 2) memo 에서 추출
+            customer?.memo?.takeIf { it.isNotBlank() }?.let { memo ->
+                com.detailline.callfollowcrm.util.AddressExtractor.extractOne(memo)
+                    ?.let { return@withContext it }
+            }
+
+            // 3) name 자체 fallback — 사람 이름이면 검색 결과 이상하겠지만 비용 0.
+            //    "엘테라스 담당자 ✏️" 같은 케이스에 가치 (사장님 패턴).
+            customer?.name?.takeIf { it.isNotBlank() }?.let { return@withContext it }
+
+            return@withContext null
+        }
+
     /** + 버튼 다이얼로그에서 사장님이 카테고리 추가. 추가 후 자동 선택. */
     fun addCategory(name: String, emoji: String?) {
         if (name.isBlank()) return

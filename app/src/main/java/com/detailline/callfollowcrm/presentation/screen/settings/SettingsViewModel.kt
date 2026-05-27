@@ -24,7 +24,8 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
             quickActionTemplateId1 = container.preferences.quickActionTemplateId1,
             quickActionTemplateId2 = container.preferences.quickActionTemplateId2,
             quickActionTemplateId3 = container.preferences.quickActionTemplateId3,
-            incomingSmsNotifyEnabled = container.preferences.incomingSmsNotifyEnabled
+            incomingSmsNotifyEnabled = container.preferences.incomingSmsNotifyEnabled,
+            defaultNavAppKey = container.preferences.defaultNavAppKey
         )
     )
     val state = _state.asStateFlow()
@@ -93,6 +94,16 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         _state.value = _state.value.copy(incomingSmsNotifyEnabled = enabled)
     }
 
+    /**
+     * 카드 펼침 [📍 길찾기] 가 사용할 외부 네비 앱.
+     * 사장님이 처음 길찾기 탭할 때 자동 다이얼로그 → 여기 저장 → 다음부터 1탭.
+     * key 는 com.detailline.callfollowcrm.util.NavApp.key 문자열.
+     */
+    fun setDefaultNavApp(key: String?) {
+        container.preferences.defaultNavAppKey = key
+        _state.value = _state.value.copy(defaultNavAppKey = key)
+    }
+
     fun setQuickAction(slot: Int, id: Long) {
         when (slot) {
             1 -> { container.preferences.quickActionTemplateId1 = id
@@ -113,7 +124,9 @@ data class SettingsUiState(
     val quickActionTemplateId1: Long = -1L,
     val quickActionTemplateId2: Long = -1L,
     val quickActionTemplateId3: Long = -1L,
-    val incomingSmsNotifyEnabled: Boolean = true
+    val incomingSmsNotifyEnabled: Boolean = true,
+    /** NavApp.key 문자열. null = 미선택 (첫 길찾기 탭 시 다이얼로그). */
+    val defaultNavAppKey: String? = null
 )
 
 enum class AfterCallBehavior(val label: String) {

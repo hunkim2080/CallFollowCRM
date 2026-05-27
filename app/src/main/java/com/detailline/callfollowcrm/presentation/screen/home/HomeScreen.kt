@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material3.SnackbarDuration
@@ -292,6 +293,40 @@ fun HomeScreen(
             // 회전/recompose 살아남게 rememberSaveable. null = 모두 접힘.
             var expandedKey by rememberSaveable { mutableStateOf<String?>(null) }
 
+            // [📍 길찾기] 첫 사용 시 네비 앱 선택 다이얼로그 (2026-05-27).
+            //   non-null = 다이얼로그 떠 있는 상태. 어떤 phone 에 대해 띄웠는지 기억 → 선택 후 그 phone 의 주소 resolve + launch.
+            //   사장님이 SettingsScreen 에서 미리 골랐으면 prefs.defaultNavAppKey != null → 다이얼로그 X, 즉시 launch.
+            var navDialogPhone by remember { mutableStateOf<String?>(null) }
+            val prefs = remember(context) {
+                (context.applicationContext as CallFollowCrmApplication).container.preferences
+            }
+            fun launchNavigationFor(phone: String) {
+                val navApp = com.detailline.callfollowcrm.util.NavApp.fromKey(prefs.defaultNavAppKey)
+                if (navApp == null) {
+                    navDialogPhone = phone
+                } else {
+                    scope.launch {
+                        val addr = viewModel.resolveAddressForPhone(phone)
+                        com.detailline.callfollowcrm.util.NavLauncher.launch(context, navApp, addr)
+                    }
+                }
+            }
+            // 다이얼로그 — 사장님이 [📍 길찾기] 첫 탭한 phone 에 대해서만 표시.
+            //   선택 즉시 prefs 저장 + 그 phone 의 주소 resolve + launch.
+            navDialogPhone?.let { pendingPhone ->
+                NavAppPickerDialog(
+                    onPick = { picked ->
+                        prefs.defaultNavAppKey = picked.key
+                        navDialogPhone = null
+                        scope.launch {
+                            val addr = viewModel.resolveAddressForPhone(pendingPhone)
+                            com.detailline.callfollowcrm.util.NavLauncher.launch(context, picked, addr)
+                        }
+                    },
+                    onDismiss = { navDialogPhone = null }
+                )
+            }
+
             // (1) 가시 카드 phone 추출 → ViewModel.onVisiblePhones. prefetcher 가 dedup 처리.
             //     key 포맷 = "row-{id}-{phone}". 다른 item (kpi/empty/spacer) 은 starts with "row-" X → 자동 필터.
             //     마우스 휠 / 빠른 fling 으로 가시 카드가 폭주성으로 토글될 때 onVisiblePhones 호출이
@@ -466,6 +501,10 @@ fun HomeScreen(
                                                 onOpenCustomerDetail(newId)
                                             }
                                         }
+                                    },
+                                    onOpenNavigation = {
+                                        // [📍 길찾기] — 설정 안 됐으면 선택 다이얼로그, 됐으면 즉시 launch.
+                                        launchNavigationFor(item.record.phoneNumber)
                                     }
                                 )
                             }
@@ -600,7 +639,9 @@ private fun HomeRow(
     expanded: Boolean,
     onToggle: () -> Unit,
     onOpenChat: () -> Unit,
-    onOpenCustomerDetail: () -> Unit
+    onOpenCustomerDetail: () -> Unit,
+    /** [📍 길찾기] — phone 의 주소 resolve + 사장님 선택 네비 앱 launch. 2026-05-27 신규. */
+    onOpenNavigation: () -> Unit
 ) {
     val isUnconfirmed = item.isUnconfirmed
     val context = LocalContext.current
@@ -712,10 +753,12 @@ private fun HomeRow(
             }
 
             // 인라인 액션 4개 — 에이닷 벤치마킹. 카드 탭으로 토글.
-            // [💬 메시지] [📞 전화] [✨ AI] [ⓘ 고객 카드]
-            //   - 메시지/AI → ChatScreen (AI 는 진입 후 답변 추천 칩으로 시선 유도)
+            // 순서 (2026-05-27 사장님 결정): [ⓘ 고객정보] [📞 전화] [📍 길찾기] [💬 메시지]
+            //   = 정보 확인 → 전화/이동 → 소통. 시공자 워크플로우 순서.
+            //   - 고객정보 → CustomerDetail (Customer 없으면 호출처가 자동 생성 후 진입)
             //   - 전화 → 시스템 다이얼러 (ACTION_DIAL — 권한 없이 사용자 한 번 더 탭하게)
-            //   - 고객 카드 → CustomerDetail (customer 없으면 disabled)
+            //   - 길찾기 → 사장님이 설정에서 고른 네비 앱으로 launch (NavLauncher). [✨ AI] 자리 대체.
+            //   - 메시지 → ChatScreen
             AnimatedVisibility(
                 visible = expanded,
                 enter = expandVertically() + fadeIn(),
@@ -735,10 +778,10 @@ private fun HomeRow(
                         horizontalArrangement = Arrangement.SpaceAround
                     ) {
                         InlineActionButton(
-                            icon = Icons.AutoMirrored.Filled.Chat,
-                            label = "메시지",
+                            icon = Icons.Default.Info,
+                            label = "고객정보",
                             enabled = true,
-                            onClick = onOpenChat
+                            onClick = onOpenCustomerDetail
                         )
                         InlineActionButton(
                             icon = Icons.Default.Call,
@@ -758,19 +801,80 @@ private fun HomeRow(
                             }
                         )
                         InlineActionButton(
-                            icon = Icons.Default.AutoAwesome,
-                            label = "AI",
+                            icon = Icons.Default.Place,
+                            label = "길찾기",
+                            enabled = true,
+                            onClick = onOpenNavigation
+                        )
+                        InlineActionButton(
+                            icon = Icons.AutoMirrored.Filled.Chat,
+                            label = "메시지",
                             enabled = true,
                             onClick = onOpenChat
                         )
-                        InlineActionButton(
-                            icon = Icons.Default.Info,
-                            label = "고객 카드",
-                            // 2026-05-25: 항상 활성화. Customer 없으면 호출처가 자동 생성 후 진입.
-                            enabled = true,
-                            onClick = onOpenCustomerDetail
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 첫 [📍 길찾기] 탭 시 사장님이 어느 네비 앱 쓸지 고르는 다이얼로그.
+ *   탭 = 즉시 선택 + dismiss + launch (확인 버튼 따로 X = 1탭).
+ *   이후엔 prefs.defaultNavAppKey 가 박혀서 같은 화면 안 뜨고 바로 launch.
+ *   설정 화면에서 언제든 변경 가능.
+ */
+@Composable
+private fun NavAppPickerDialog(
+    onPick: (com.detailline.callfollowcrm.util.NavApp) -> Unit,
+    onDismiss: () -> Unit
+) {
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        androidx.compose.material3.Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = Color.White,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    "어느 네비 앱을 쓰세요?",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = TossTextPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "선택한 앱이 다음부터 1탭으로 열려요. 설정 → 기본 네비 앱 에서 언제든 변경 가능.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TossTextSecondary
+                )
+                Spacer(Modifier.height(16.dp))
+                com.detailline.callfollowcrm.util.NavApp.values().forEach { app ->
+                    androidx.compose.foundation.layout.Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFFEEF1F4))
+                            .clickable { onPick(app) }
+                            .padding(vertical = 14.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            app.label,
+                            color = TossTextPrimary,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 15.sp
                         )
                     }
+                    Spacer(Modifier.height(8.dp))
+                }
+                Spacer(Modifier.height(4.dp))
+                androidx.compose.material3.TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text("닫기", color = TossTextSecondary)
                 }
             }
         }

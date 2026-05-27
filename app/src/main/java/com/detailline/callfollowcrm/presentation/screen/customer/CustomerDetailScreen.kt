@@ -37,6 +37,8 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.ui.graphics.SolidColor
@@ -94,6 +96,7 @@ import com.detailline.callfollowcrm.presentation.component.TossPrimaryButton
 import com.detailline.callfollowcrm.presentation.component.TossSecondaryButton
 import com.detailline.callfollowcrm.presentation.component.vibrateCelebration
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
+import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
@@ -389,6 +392,68 @@ fun CustomerDetailScreen(
                                     color = TossTextPrimary,
                                     modifier = Modifier.padding(vertical = 2.dp)
                                 )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 1.7 주고받은 문자 — 사장님 요청 (2026-05-27): 대화 요약 아래에 접이식으로.
+            //   기본 접힘 → 헤더 탭하면 펼침/닫힘. 최근 20건만, 그 이상은 [💬 메시지에서 더 보기].
+            val mergedMessages by viewModel.mergedMessages.collectAsState()
+            if (mergedMessages.isNotEmpty()) {
+                var messagesExpanded by remember { mutableStateOf(false) }
+                TossCard(onClick = { messagesExpanded = !messagesExpanded }) {
+                    Column {
+                        androidx.compose.foundation.layout.Row(
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            Text("📩", fontSize = 16.sp)
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                "주고받은 문자",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = TossTextPrimary,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                "${mergedMessages.size}건",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = TossTextTertiary
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Icon(
+                                if (messagesExpanded) androidx.compose.material.icons.Icons.Filled.KeyboardArrowUp
+                                else androidx.compose.material.icons.Icons.Filled.KeyboardArrowDown,
+                                contentDescription = if (messagesExpanded) "접기" else "펼치기",
+                                tint = TossTextSecondary
+                            )
+                        }
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = messagesExpanded,
+                            enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+                            exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut()
+                        ) {
+                            Column {
+                                Spacer(Modifier.height(10.dp))
+                                // 최근 20건만 표시. 그 이상은 ChatScreen 에서 풀 스크롤.
+                                val visible = mergedMessages.take(20)
+                                visible.forEachIndexed { idx, msg ->
+                                    MessagePreviewRow(msg)
+                                    if (idx < visible.lastIndex) {
+                                        Spacer(Modifier.height(6.dp))
+                                    }
+                                }
+                                if (mergedMessages.size > 20) {
+                                    Spacer(Modifier.height(10.dp))
+                                    Text(
+                                        "+ ${mergedMessages.size - 20}건 더 — [💬 메시지] 에서 전체 보기",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TossTextTertiary,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
                             }
                         }
                     }
@@ -1613,5 +1678,56 @@ private fun CategoryChoiceChip(label: String, selected: Boolean, onClick: () -> 
             style = MaterialTheme.typography.labelMedium,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
         )
+    }
+}
+
+/**
+ * "📩 주고받은 문자" 접이식 섹션의 단일 메시지 행 (2026-05-27).
+ *   - 발신 (sent=true) = 사장님이 보낸 = 파란 칩 + 우측 정렬 톤
+ *   - 수신 (sent=false) = 고객이 보낸 = 회색 칩 + 좌측 정렬 톤
+ *   - 본문 + 시각 (2줄 max truncate)
+ * ChatScreen 의 ChatBubble 보다 간소화. 대화 흐름 빠르게 훑기 용도.
+ */
+@Composable
+private fun MessagePreviewRow(msg: com.detailline.callfollowcrm.data.repository.SmsRepository.SmsMessage) {
+    val sent = msg.sent
+    val bgColor = if (sent) TossBlueSoft else Color(0xFFF3F4F6)
+    val labelText = if (sent) "보냄" else "받음"
+    val labelColor = if (sent) TossBlue else TossTextSecondary
+
+    androidx.compose.foundation.layout.Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+            .background(bgColor)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.Top
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            androidx.compose.foundation.layout.Row(
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            ) {
+                Text(
+                    labelText,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = labelColor,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    com.detailline.callfollowcrm.util.DateTimeUtils.formatShort(msg.dateMs),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TossTextTertiary
+                )
+            }
+            Spacer(Modifier.height(2.dp))
+            Text(
+                msg.body,
+                style = MaterialTheme.typography.bodySmall,
+                color = TossTextPrimary,
+                maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+        }
     }
 }

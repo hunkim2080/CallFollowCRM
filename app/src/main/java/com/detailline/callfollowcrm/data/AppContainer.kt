@@ -56,6 +56,14 @@ class AppContainer(context: Context) {
 
     val preferences = AppPreferences(context)
 
+    /**
+     * ChatScreen composer 의 phone 별 임시저장 (2026-05-27 사장님 통점).
+     *   ChatViewModel 는 navigation pop/push 마다 새 인스턴스라 local state 가 날아간다.
+     *   AppContainer 는 Application 수명 = 앱 실행 동안만 보관 (재시작 시 비움).
+     *   사장님 통점은 "뒤로가기 → 재진입 시 사라짐" 이므로 in-memory 로 충분.
+     */
+    val chatDraftStore = com.detailline.callfollowcrm.data.draft.ChatDraftStore()
+
     // Phase 4: 인터페이스만. 실제 호출 없음.
     val aiSummaryRepository: AiSummaryRepository = NoOpAiSummaryRepository()
     val serverUploadRepository: ServerUploadRepository = NoOpServerUploadRepository()
