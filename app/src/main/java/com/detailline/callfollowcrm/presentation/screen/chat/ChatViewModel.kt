@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
@@ -75,6 +76,13 @@ class ChatViewModel(
     val templates = container.messageTemplateRepository.observeActive()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList<MessageTemplateEntity>())
 
+    /** 견적서 작성기용 가격표. 사장님이 설정 → 가격표 관리 에서 CRUD 한 결과. */
+    val pricingItems = container.pricingItemRepository.observeActive()
+        .stateIn(
+            viewModelScope, SharingStarted.WhileSubscribed(5_000),
+            emptyList<com.detailline.callfollowcrm.data.local.entity.PricingItemEntity>()
+        )
+
     /** ⭐ 별표된 메시지 목록 (이 번호 한정). */
     val starred: kotlinx.coroutines.flow.StateFlow<List<ImportantMessageEntity>> =
         container.importantMessageRepository.observeByPhone(phoneNumber)
@@ -105,6 +113,21 @@ class ChatViewModel(
     // 첫 호출은 모델 로드 ~10초 + 추론 3~5초까지 걸릴 수 있어 시각 피드백 필수.
     private val _aiPolishing = MutableStateFlow(false)
     val aiPolishing = _aiPolishing.asStateFlow()
+
+    /**
+     * SMS/MMS 발송 중 — Composer 의 ▶ 자리에 spinner 표시.
+     *   2026-05-27 진행감 fix: 사장님이 ▶ 누른 후 "보내는 중" 시각 피드백.
+     */
+    private val _isSending = MutableStateFlow(false)
+    val isSending = _isSending.asStateFlow()
+
+    /**
+     * 대화 요약 / 카드 요약 갱신 중 — 헤더에 spinner 표시.
+     *   2026-05-27 사장님 보고 fix: aiSummary 가 옛 cache 면서 새 LLM 호출 중일 때
+     *   "갱신 중" 시각 표시 없어 사장님이 헤더 먹통으로 오인 → spinner 추가.
+     */
+    private val _isSummaryRefreshing = MutableStateFlow(false)
+    val isSummaryRefreshing = _isSummaryRefreshing.asStateFlow()
 
     // 답변 추천 (Phase 1). 맥미니 캐시에서 가져온 마지막 ReplySuggestions.
     // ChatScreen 진입 시 loadSuggestions 로 채워짐. ↻ 누르면 regenerateSuggestions.
@@ -139,8 +162,9 @@ class ChatViewModel(
      *  - 두 번째 진입 → stage 1 캐시로 즉시 모두 보임 → stage 2/3 가 조용히 갱신
      */
     fun loadMessages() {
-        val enabled = container.preferences.receivedSmsEnabled
-        if (!enabled || !container.smsRepository.hasReadPermission()) {
+        // SMS 권한은 onboarding 에서 기본 승인 (PermissionHelper.requiredPermissions()).
+        // 그래도 시스템 설정에서 사장님이 끄면 silent skip.
+        if (!container.smsRepository.hasReadPermission()) {
             _messages.value = emptyList()
             return
         }
@@ -201,6 +225,8 @@ class ChatViewModel(
             onResult(false); return
         }
         viewModelScope.launch {
+            _isSending.value = true
+            try {
             // 1) Customer 보장. status 인자 생략 → 기존 customer 면 보존, 신규면 NEW_INQUIRY 기본.
             val c = withContext(Dispatchers.IO + NonCancellable) {
                 container.customerRepository.upsertByPhone(phoneNumber = phoneNumber)
@@ -239,6 +265,9 @@ class ChatViewModel(
 
             _toast.value = if (ok) "보냈어요" else "발송 실패"
             onResult(ok)
+            } finally {
+                _isSending.value = false
+            }
         }
     }
 
@@ -355,12 +384,34 @@ class ChatViewModel(
     /**
      * ChatScreen 진입 시 한 번 호출. 맥미니 캐시에서 기존 추천 답변 가져옴.
      * SMS 수신 즉시 SmsReceiver 가 prepare 트리거했으면 보통 READY 상태.
-     * 실패/MISSING/GENERATING 은 silent — 사장님이 ↻ 누르면 재생성.
+     *
+     * 2026-05-26 사장님 보고 fix:
+     *   사장님이 알림 polling 완료 전에 ChatScreen 진입하면 server cache 가 GENERATING →
+     *   기존엔 한 번 fetch 실패 후 끝 → "↻ 눌러서 받기" placeholder.
+     *   이제 polling (2초 × 5회 = 10초) 으로 자동 wait → READY 되면 즉시 채움.
+     *   사장님이 ↻ 안 눌러도 됨. _suggestionsLoading=true 가 ChatScreen 의 스피너 트리거.
      */
     fun loadSuggestions() = viewModelScope.launch {
-        val result = container.suggestionRepository.fetch(phoneNumber).getOrNull() ?: return@launch
-        if (result.status == SuggestionStatus.READY) {
-            _suggestions.value = result.suggestions
+        // 첫 fetch 즉시 — 이미 READY 면 polling skip.
+        val first = container.suggestionRepository.fetch(phoneNumber).getOrNull()
+        if (first?.status == SuggestionStatus.READY && first.suggestions != null) {
+            _suggestions.value = first.suggestions
+            return@launch
+        }
+        // GENERATING / MISSING 이면 polling — 알림 polling 끝나기 기다림.
+        _suggestionsLoading.value = true
+        try {
+            repeat(5) {
+                delay(2_000)
+                val fetch = container.suggestionRepository.fetch(phoneNumber).getOrNull()
+                if (fetch?.status == SuggestionStatus.READY && fetch.suggestions != null) {
+                    _suggestions.value = fetch.suggestions
+                    return@launch
+                }
+            }
+            // 10초 안에 안 오면 silent give up — 사장님이 ↻ 로 재시도.
+        } finally {
+            _suggestionsLoading.value = false
         }
     }
 
@@ -378,15 +429,21 @@ class ChatViewModel(
             .getOrDefault(emptyList())
         if (msgs.isEmpty()) return@launch
 
+        _isSummaryRefreshing.value = true
+        try {
         val latestTs = msgs.maxOf { it.dateMs }
         val c = runCatching { container.customerRepository.findByPhone(phoneNumber) }.getOrNull()
         val tone = runCatching { container.smsRepository.querySentMessages(limit = 50) }.getOrDefault(emptyList())
+
+        // P3 — 다른 시공 일정 (현재 고객 제외, 14일 내). 일정 답변 + AI 제안 근거.
+        val otherSchedules = runCatching {
+            container.customerRepository.getOtherUpcomingScheduleDates(phoneNumber)
+        }.getOrDefault(emptyList())
 
         val ctx = com.detailline.callfollowcrm.ai.SummaryContext(
             phone = phoneNumber,
             phoneSuffix = suffix,
             customerName = c?.name,
-            customerStatus = c?.status,
             customerMemo = c?.memo?.takeIf { it.isNotBlank() },
             leadHeat = c?.leadHeat,
             depositPaid = (c?.depositAmount ?: 0L) > 0L,
@@ -399,9 +456,31 @@ class ChatViewModel(
                 )
             }.reversed(),
             ownerToneSamples = tone,
+            otherUpcomingSchedulesMs = otherSchedules,
             latestMessageTimestampMs = latestTs
         )
         runCatching { container.conversationAiRepository.ensureFullSummary(ctx) }
+
+        // 갤메시지 식 카테고리 자동 분류 (휴리스틱 1차) — 사장님이 이미 분류한 고객은 보존.
+        //   서버 endpoint 정식 도입 전 임시 substring 매칭. 점수 0 이면 미분류 유지.
+        if (c != null && c.categoryId == null) {
+            val cats = runCatching {
+                container.categoryRepository.observeAll().first()
+            }.getOrDefault(emptyList())
+            if (cats.isNotEmpty()) {
+                val text = msgs.joinToString(" ") { it.body }
+                val matched = com.detailline.callfollowcrm.category.CategoryAutoClassifier
+                    .classify(text, cats)
+                if (matched != null) {
+                    runCatching {
+                        container.categoryRepository.assignCustomer(c.id, matched.id)
+                    }
+                }
+            }
+        }
+        } finally {
+            _isSummaryRefreshing.value = false
+        }
     }
 
     /**
@@ -434,12 +513,19 @@ class ChatViewModel(
                         name = it.name,
                         memo = it.memo.takeIf { m -> m.isNotBlank() },
                         leadHeat = it.leadHeat,
-                        depositPaid = (it.depositAmount ?: 0L) > 0L
+                        depositPaid = (it.depositAmount ?: 0L) > 0L,
+                        scheduledWorkDateMs = it.scheduledWorkDate
                     )
                 }
                 val ownerToneSamples = withContext(Dispatchers.IO) {
                     runCatching {
                         container.smsRepository.querySentMessages(limit = 50)
+                    }.getOrDefault(emptyList())
+                }
+                // P3 — 다른 시공 일정. 일정 질문 답변 근거.
+                val otherSchedules = withContext(Dispatchers.IO) {
+                    runCatching {
+                        container.customerRepository.getOtherUpcomingScheduleDates(phoneNumber)
                     }.getOrDefault(emptyList())
                 }
                 val ctx = PrepareContext(
@@ -448,7 +534,8 @@ class ChatViewModel(
                     latestMessageReceivedAtMs = latestReceived.dateMs,
                     recentHistory = history,
                     customer = hint,
-                    ownerToneSamples = ownerToneSamples
+                    ownerToneSamples = ownerToneSamples,
+                    otherUpcomingSchedulesMs = otherSchedules
                 )
                 val prep = container.suggestionRepository.requestPrepare(ctx)
                 if (prep.isFailure) {
@@ -478,5 +565,19 @@ class ChatViewModel(
         }
         _customerId.value = c.id
         return c.id
+    }
+
+    /**
+     * AI 제안 박스의 [시공일 등록] 액션 (action_type=register_schedule) hookup.
+     * Customer 없으면 upsert 후 등록. 다음 캐시 갱신 때 nextActionJson 도 다음 단계로 자동 전환됨.
+     */
+    fun setScheduledWorkDate(timestampMs: Long) = viewModelScope.launch {
+        val id = ensureCustomerId()
+        withContext(Dispatchers.IO + NonCancellable) {
+            runCatching {
+                container.customerRepository.updateScheduledWorkDate(id, timestampMs)
+            }
+        }
+        _toast.value = "시공일을 등록했어요"
     }
 }

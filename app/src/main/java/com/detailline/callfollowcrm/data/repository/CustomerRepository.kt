@@ -4,9 +4,9 @@ import com.detailline.callfollowcrm.data.local.dao.CallSummaryDao
 import com.detailline.callfollowcrm.data.local.dao.CustomerDao
 import com.detailline.callfollowcrm.data.local.dao.RecordingAttachmentDao
 import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
-import com.detailline.callfollowcrm.domain.model.CustomerStatus
 import com.detailline.callfollowcrm.domain.model.LeadHeat
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 
 class CustomerRepository(
     private val dao: CustomerDao,
@@ -18,23 +18,43 @@ class CustomerRepository(
 
     fun observeAll(): Flow<List<CustomerEntity>> = dao.observeAll()
     fun observeById(id: Long): Flow<CustomerEntity?> = dao.observeById(id)
-    fun observeByStatus(status: CustomerStatus): Flow<List<CustomerEntity>> =
-        dao.observeByStatus(status.label)
-    fun observeByStatusLabel(label: String): Flow<List<CustomerEntity>> =
-        dao.observeByStatus(label)
+
+    // 2026-05-25: observeByStatusLabel 제거 — PipelineScreen 폐기 + status enum 폐기.
 
     /** 시공 예약일이 설정된 모든 고객을 예약일 오름차순으로. */
     fun observeScheduled(): Flow<List<CustomerEntity>> = dao.observeScheduled()
+
+    /**
+     * P3 — 사장님의 다른 시공 일정 (현재 고객 제외, 오늘부터 N일 내) 만 epoch ms 로.
+     * AI 답변 추천 / 대화 요약의 일정 응답 근거.
+     * 다른 고객 이름은 leak 금지 → ms 만 반환. 서버가 요일/오전오후로 가공.
+     */
+    suspend fun getOtherUpcomingScheduleDates(
+        excludePhone: String,
+        daysAhead: Int = 14
+    ): List<Long> {
+        val now = System.currentTimeMillis()
+        val cutoff = now + daysAhead * 24L * 3600L * 1000L
+        return runCatching {
+            observeScheduled().first()
+                .asSequence()
+                .filter { it.phoneNumber != excludePhone }
+                .mapNotNull { it.scheduledWorkDate }
+                .filter { it in now..cutoff }
+                .sorted()
+                .toList()
+        }.getOrDefault(emptyList())
+    }
 
     suspend fun findByPhone(phoneNumber: String): CustomerEntity? = dao.findByPhone(phoneNumber)
     suspend fun findById(id: Long): CustomerEntity? = dao.findById(id)
 
     /**
      * 같은 전화번호로 들어오면 기존 Customer를 재사용한다.
+     * 2026-05-25: status 컬럼 v13 마이그레이션에서 drop — 카테고리 시스템으로 통일.
      */
     suspend fun upsertByPhone(
         phoneNumber: String,
-        status: CustomerStatus? = null,
         name: String? = null,
         memo: String? = null,
         leadHeat: LeadHeat? = null
@@ -45,7 +65,6 @@ class CustomerRepository(
             val entity = CustomerEntity(
                 phoneNumber = phoneNumber,
                 name = name,
-                status = (status ?: CustomerStatus.NEW_INQUIRY).label,
                 memo = memo.orEmpty(),
                 leadHeat = leadHeat?.name,
                 createdAt = now,
@@ -65,7 +84,6 @@ class CustomerRepository(
             }
             val updated = existing.copy(
                 name = name ?: existing.name,
-                status = status?.label ?: existing.status,
                 memo = mergedMemo,
                 leadHeat = leadHeat?.name ?: existing.leadHeat,
                 updatedAt = now
@@ -75,10 +93,7 @@ class CustomerRepository(
         }
     }
 
-    suspend fun updateStatus(id: Long, status: CustomerStatus) {
-        val c = dao.findById(id) ?: return
-        dao.update(c.copy(status = status.label, updatedAt = System.currentTimeMillis()))
-    }
+    // 2026-05-25: updateStatus 제거 — 카테고리 시스템으로 통일.
 
     suspend fun updateMemo(id: Long, memo: String) {
         val c = dao.findById(id) ?: return

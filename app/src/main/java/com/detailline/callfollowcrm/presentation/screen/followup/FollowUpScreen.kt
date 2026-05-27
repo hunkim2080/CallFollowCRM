@@ -66,7 +66,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.detailline.callfollowcrm.domain.model.CustomerStatus
 import com.detailline.callfollowcrm.presentation.component.SectionLabel
 import com.detailline.callfollowcrm.presentation.component.TossCard
 import com.detailline.callfollowcrm.presentation.component.TossChip
@@ -328,22 +327,7 @@ fun FollowUpScreen(
                 }
             }
 
-            // 상태 카드
-            TossCard {
-                Column {
-                    SectionLabel("고객 상태")
-                    Spacer(Modifier.height(10.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(CustomerStatus.values().toList()) { status ->
-                            TossChip(
-                                text = status.label,
-                                selected = state.status == status,
-                                onClick = { viewModel.setStatus(status) }
-                            )
-                        }
-                    }
-                }
-            }
+            // 2026-05-25: 고객 상태 카드 제거 — 갤메시지 식 사장님 카테고리 시스템으로 통일.
 
             // 템플릿 + 본문 카드
             TossCard {

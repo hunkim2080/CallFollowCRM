@@ -131,5 +131,18 @@
             </intent-filter>
         </receiver>
 
+        <!--
+            Step 2 (2026-05-25): 알림창 빠른 답장 RemoteInput 수신 → SmsManager 직접 발송.
+            android:exported="false" — 우리 앱 자체 PendingIntent 만 호출. 외부 트리거 X.
+        -->
+        <receiver
+            android:name=".service.SmsReplyReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.detailline.callfollowcrm.ACTION_SMS_REPLY" />
+                <action android:name="com.detailline.callfollowcrm.ACTION_SMS_SEND_SUGGESTION" />
+            </intent-filter>
+        </receiver>
+
     </application>
 </manifest>

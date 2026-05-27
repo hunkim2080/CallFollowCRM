@@ -29,6 +29,45 @@ class SmsReceiver : BroadcastReceiver() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    /**
+     * 알림 표시 후 서버 추천 답변 polling — 3초 간격 4번 (최대 12초).
+     * READY 면 같은 알림 ID 로 update (suggestions 칩 3개 박힘).
+     * 그 안에 안 오면 silent give up (사장님이 ChatScreen 에서 ↻ 가능).
+     */
+    private suspend fun pollAndUpdateSuggestions(
+        context: Context,
+        container: com.detailline.callfollowcrm.data.AppContainer,
+        phone: String,
+        displayName: String?,
+        body: String,
+        receivedAtMs: Long,
+        categoryLabel: String?
+    ) {
+        // 3 × 2.5초 = 7.5초. BroadcastReceiver goAsync 제한 (~10초) 안에 안전 마감.
+        //   더 긴 polling 이 필요하면 ForegroundService 또는 WorkManager 로 분리 (다음 step).
+        repeat(3) { attempt ->
+            kotlinx.coroutines.delay(2500L)
+            val result = runCatching {
+                container.suggestionRepository.fetch(phone).getOrNull()
+            }.getOrNull()
+            if (result?.status == com.detailline.callfollowcrm.ai.SuggestionStatus.READY) {
+                val sugs = result.suggestions?.suggestions.orEmpty()
+                if (sugs.isNotEmpty()) {
+                    NotificationHelper.showIncomingSms(
+                        context = context,
+                        phone = phone,
+                        displayName = displayName,
+                        body = body,
+                        receivedAtMs = receivedAtMs,
+                        categoryLabel = categoryLabel,
+                        suggestions = sugs
+                    )
+                }
+                return
+            }
+        }
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
         val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent) ?: return
@@ -46,6 +85,27 @@ class SmsReceiver : BroadcastReceiver() {
         scope.launch {
             try {
                 val container = app.container
+
+                // 2026-05-25 사장님 보고 fix: 알림 표시를 prepare/prefetch 네트워크 호출 앞으로.
+                //   서버 timeout (최대 ~9초) 이 길어지면 goAsync 시간 초과로 알림이 못 떠는 케이스 방지.
+                //   사장님이 알림은 즉시 보고, AI 추천 답변은 후속 polling 으로 update.
+                if (container.preferences.incomingSmsNotifyEnabled) {
+                    val customerForNotif = runCatching {
+                        container.customerRepository.findByPhone(sender)
+                    }.getOrNull()
+                    val categoryLabel = customerForNotif?.categoryId?.let { cid ->
+                        runCatching { container.categoryRepository.findById(cid)?.name }.getOrNull()
+                    }
+                    NotificationHelper.showIncomingSms(
+                        context = context.applicationContext,
+                        phone = sender,
+                        displayName = customerForNotif?.name,
+                        body = combinedBody,
+                        receivedAtMs = receivedAtMs,
+                        categoryLabel = categoryLabel,
+                        suggestions = null
+                    )
+                }
 
                 val canReadSms = container.smsRepository.hasReadPermission()
                 val history = if (canReadSms) {
@@ -78,9 +138,16 @@ class SmsReceiver : BroadcastReceiver() {
                         name = it.name,
                         memo = it.memo.takeIf { m -> m.isNotBlank() },
                         leadHeat = it.leadHeat,
-                        depositPaid = (it.depositAmount ?: 0L) > 0L
+                        depositPaid = (it.depositAmount ?: 0L) > 0L,
+                        scheduledWorkDateMs = it.scheduledWorkDate
                     )
                 }
+
+                // P3 — 사장님의 다른 시공 일정 (현재 sender 제외, 14일 내).
+                //   서버가 "토요일 가능?" 같은 일정 질문에 이걸 근거로 답변.
+                val otherSchedules = runCatching {
+                    container.customerRepository.getOtherUpcomingScheduleDates(sender)
+                }.getOrDefault(emptyList())
 
                 val ctx = PrepareContext(
                     phone = sender,
@@ -88,7 +155,8 @@ class SmsReceiver : BroadcastReceiver() {
                     latestMessageReceivedAtMs = receivedAtMs,
                     recentHistory = history,
                     customer = customerHint,
-                    ownerToneSamples = ownerToneSamples
+                    ownerToneSamples = ownerToneSamples,
+                    otherUpcomingSchedulesMs = otherSchedules
                 )
 
                 container.suggestionRepository.requestPrepare(ctx)
@@ -97,6 +165,24 @@ class SmsReceiver : BroadcastReceiver() {
                 // 캐시 prefetch — 사장님이 알림 보고 들어가기 전에 미리 채움.
                 // (방금 도착한 새 SMS 포함해서) 즉시 표시되도록.
                 container.smsCachePrefetcher.prefetchForNumber(sender)
+
+                // Step 3: AI 추천 답변 polling — 알림 토글 ON 일 때만.
+                //   서버 prepare → LLM 호출 → 캐시 박힘 → fetch 가 ready 반환.
+                //   안에 안 되면 포기 (사장님이 ChatScreen 진입해서 ↻ 가능).
+                if (container.preferences.incomingSmsNotifyEnabled) {
+                    val categoryLabel = customer?.categoryId?.let { cid ->
+                        runCatching { container.categoryRepository.findById(cid)?.name }.getOrNull()
+                    }
+                    pollAndUpdateSuggestions(
+                        context = context.applicationContext,
+                        container = container,
+                        phone = sender,
+                        displayName = customer?.name,
+                        body = combinedBody,
+                        receivedAtMs = receivedAtMs,
+                        categoryLabel = categoryLabel
+                    )
+                }
             } finally {
                 pending.finish()
             }

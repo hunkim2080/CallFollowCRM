@@ -15,6 +15,8 @@ class CallRecordRepository(private val dao: CallRecordDao) {
     fun observeByPhone(phone: String): Flow<List<CallRecordEntity>> = dao.observeByPhone(phone)
     fun countUnhandled(from: Long, to: Long): Flow<Int> = dao.countUnhandled(from, to)
     fun countHandled(from: Long, to: Long): Flow<Int> = dao.countHandled(from, to)
+    fun observeMissedSince(from: Long): Flow<List<CallRecordEntity>> = dao.observeMissedSince(from)
+    fun observeDistinctPhonesBefore(before: Long): Flow<List<String>> = dao.observeDistinctPhonesBefore(before)
 
     suspend fun findById(id: Long): CallRecordEntity? = dao.findById(id)
 

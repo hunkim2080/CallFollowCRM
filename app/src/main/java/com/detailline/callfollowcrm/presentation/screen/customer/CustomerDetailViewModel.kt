@@ -13,7 +13,6 @@ import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
 import com.detailline.callfollowcrm.data.local.entity.MessageHistoryEntity
 import com.detailline.callfollowcrm.data.local.entity.RecordingAttachmentEntity
 import com.detailline.callfollowcrm.data.repository.SmsRepository
-import com.detailline.callfollowcrm.domain.model.CustomerStatus
 import com.detailline.callfollowcrm.domain.model.RecordingSourceType
 import com.detailline.callfollowcrm.recording.AdotSummaryImporter
 import kotlinx.coroutines.Dispatchers
@@ -24,6 +23,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -56,6 +56,21 @@ class CustomerDetailViewModel(
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
+     * P1/P2 AI 대화 요약 — ChatScreen 의 박스와 같은 데이터 (server 응답이 캐시되면 자동 emit).
+     * 사장님 요청 (2026-05-24): "고객 상세에 대화 요약 있으면 문자 다시 검토 안 해도 됨".
+     * Room observe — phoneNumber 가 바뀌면 (보통은 안 바뀜) 새 suffix 로 자동 재구독.
+     * 서버 미구현이면 영구 null → 박스 안 보임 (silent).
+     */
+    val aiSummary: kotlinx.coroutines.flow.StateFlow<com.detailline.callfollowcrm.data.local.entity.AiSummaryEntity?> =
+        container.customerRepository.observeById(customerId)
+            .flatMapLatest { c ->
+                val phone = c?.phoneNumber.orEmpty()
+                val suffix = phone.filter { it.isDigit() }.takeLast(8)
+                if (suffix.length < 7) kotlinx.coroutines.flow.flowOf(null)
+                else container.conversationAiRepository.observe(suffix)
+            }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /**
      * 시스템 SMS 에서 이 고객 번호와 주고받은 모든 문자 (송+수신).
      * Settings 토글이 켜져 있고 READ_SMS 권한이 있을 때만 채워짐.
      * 실시간 observe 는 안 함 — 화면 진입 시 / 새로고침 시 로드.
@@ -66,6 +81,22 @@ class CustomerDetailViewModel(
     private val _systemSms = MutableStateFlow<List<SmsRepository.SmsMessage>>(emptyList())
     val systemSms = _systemSms.asStateFlow()
 
+    /**
+     * 추출된 시공 현장 주소 — 사장님 통점 (2026-05-25): 시공자는 주소를 가장 자주 복사.
+     * 시스템 SMS + cached_messages 둘 다 보고 한국 주소 패턴 추출 ([AddressExtractor]).
+     * 다음 세션: 서버 conversation-summary endpoint 가 LLM 으로 정확도 ↑ 추출 예정.
+     *
+     * 최신 메시지부터 훑어 첫 매칭. 없으면 null → UI 측에서 "아직 인식 X" 빈 상태 표시.
+     */
+    private val _cachedSms = MutableStateFlow<List<com.detailline.callfollowcrm.data.repository.SmsRepository.SmsMessage>>(emptyList())
+    val extractedAddress: kotlinx.coroutines.flow.StateFlow<String?> =
+        kotlinx.coroutines.flow.combine(_systemSms, _cachedSms) { sys, cached ->
+            val all = (sys + cached).distinctBy { it.dateMs to it.body }
+            com.detailline.callfollowcrm.util.AddressExtractor.extractFromMessages(
+                all.sortedByDescending { it.dateMs }.map { it.body }
+            )
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
     // ─────────────────────────────────────────────────────────────────────
     // 저장 메서드들은 모두 NonCancellable 로 감싼다. 이유:
     //   사용자가 저장 버튼 누른 직후 뒤로가기 등으로 화면이 닫히면 viewModelScope 가 cancel 되어
@@ -73,12 +104,34 @@ class CustomerDetailViewModel(
     //   parent scope cancel 후에도 끝까지 완료된다.
     // ─────────────────────────────────────────────────────────────────────
 
-    fun updateStatus(status: CustomerStatus) = viewModelScope.launch {
+    // 2026-05-25: updateStatus 제거 — 갤메시지 식 카테고리 시스템으로 통일.
+
+    /** 사장님이 직접 카테고리 박음. null = 미분류로 돌림. */
+    fun setCategory(categoryId: Long?) = viewModelScope.launch {
         withContext(NonCancellable) {
-            container.customerRepository.updateStatus(customerId, status)
+            container.categoryRepository.assignCustomer(customerId, categoryId)
             markTodayCallsAsHandled()
         }
     }
+
+    /**
+     * CustomerDetail picker 에서 "+ 새 카테고리" 누름 → 이름 받아서 생성 + 이 고객에게 즉시 할당.
+     * 같은 이름이 이미 있으면 그 카테고리에 박음 (upsert idempotent).
+     */
+    fun addCategoryAndAssign(name: String) = viewModelScope.launch {
+        if (name.isBlank()) return@launch
+        withContext(NonCancellable) {
+            val entity = runCatching {
+                container.categoryRepository.upsert(name.trim())
+            }.getOrNull() ?: return@withContext
+            container.categoryRepository.assignCustomer(customerId, entity.id)
+            markTodayCallsAsHandled()
+        }
+    }
+
+    /** 카테고리 목록 — pill 선택 다이얼로그 표시. */
+    val categories = container.categoryRepository.observeAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun updateMemo(memo: String) = viewModelScope.launch {
         withContext(NonCancellable) {
@@ -149,18 +202,12 @@ class CustomerDetailViewModel(
 
     /**
      * 시공 예약일 설정. epoch ms (자정으로 정규화). 취소는 null.
-     *
-     * 정책: 날짜가 설정되면 (= null 이 아니면) 상태도 자동으로 RESERVATION_CONFIRMED 로 전환.
-     * 사장님이 "시공 예약일이 잡혔다 == 예약 확정" 으로 보길 원해서. 취소(null) 일 때는
-     * 상태를 건드리지 않는다 (의도치 않은 강등 방지).
+     * 2026-05-25: 자동 status RESERVATION_CONFIRMED 전환 제거 — 카테고리 시스템으로 이관.
      */
     fun updateScheduledWorkDate(epochMs: Long?) = viewModelScope.launch {
         val normalized = epochMs?.let { com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(it) }
         withContext(NonCancellable) {
             container.customerRepository.updateScheduledWorkDate(customerId, normalized)
-            if (normalized != null) {
-                container.customerRepository.updateStatus(customerId, CustomerStatus.RESERVATION_CONFIRMED)
-            }
             markTodayCallsAsHandled()
         }
     }
@@ -329,13 +376,21 @@ class CustomerDetailViewModel(
 
     /**
      * 시스템 SMS 에서 이 고객 번호와 주고받은 모든 문자 로드 (송+수신).
-     * Settings 의 receivedSmsEnabled 가 켜져 있고 READ_SMS 권한이 있을 때만 실제 조회.
-     * 조건 불만족 시 빈 리스트로 초기화 (이전 화면에서 누적된 값이 남지 않도록).
+     * READ_SMS 권한 = onboarding 에서 기본 승인됨. 시스템 설정에서 사장님이 끄면 silent skip.
      */
     fun loadSystemSms() {
         val c = customer.value ?: return
-        val enabled = container.preferences.receivedSmsEnabled
-        if (!enabled || !container.smsRepository.hasReadPermission()) {
+        // cached_messages 는 권한 무관하게 우리 DB → 항상 로드. systemSms 는 권한 필요.
+        viewModelScope.launch(Dispatchers.IO) {
+            val suffix = c.phoneNumber.filter { it.isDigit() }.takeLast(8)
+            if (suffix.length >= 7) {
+                val cached = runCatching {
+                    container.cachedMessageRepository.load(suffix, limit = 500)
+                }.getOrDefault(emptyList())
+                _cachedSms.value = cached
+            }
+        }
+        if (!container.smsRepository.hasReadPermission()) {
             _systemSms.value = emptyList()
             return
         }

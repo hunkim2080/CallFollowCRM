@@ -29,8 +29,18 @@ interface CustomerDao {
     @Query("SELECT * FROM customers ORDER BY updatedAt DESC")
     fun observeAll(): Flow<List<CustomerEntity>>
 
-    @Query("SELECT * FROM customers WHERE status = :status ORDER BY updatedAt DESC")
-    fun observeByStatus(status: String): Flow<List<CustomerEntity>>
+    // 2026-05-25: observeByStatus 제거 — status 컬럼 v13 마이그레이션에서 drop.
+
+    /** 사장님 카테고리 별 고객 목록. */
+    @Query("SELECT * FROM customers WHERE categoryId = :categoryId ORDER BY updatedAt DESC")
+    fun observeByCategoryId(categoryId: Long): Flow<List<CustomerEntity>>
+
+    /** categoryId 일괄 갱신 — 카테고리 삭제 시 그 카테고리에 속한 고객들을 미분류로 되돌림. */
+    @Query("UPDATE customers SET categoryId = NULL, updatedAt = :now WHERE categoryId = :categoryId")
+    suspend fun clearCategoryAssignment(categoryId: Long, now: Long)
+
+    @Query("UPDATE customers SET categoryId = :categoryId, updatedAt = :now WHERE id = :customerId")
+    suspend fun setCategoryId(customerId: Long, categoryId: Long?, now: Long)
 
     @Query("SELECT * FROM customers WHERE scheduledWorkDate IS NOT NULL ORDER BY scheduledWorkDate ASC")
     fun observeScheduled(): Flow<List<CustomerEntity>>

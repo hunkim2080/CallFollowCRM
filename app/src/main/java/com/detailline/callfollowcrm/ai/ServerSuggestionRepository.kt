@@ -53,11 +53,20 @@ class ServerSuggestionRepository(
                             put("memo", c.memo ?: JSONObject.NULL)
                             put("leadHeat", c.leadHeat ?: JSONObject.NULL)
                             put("depositPaid", c.depositPaid)
+                            // P3 — 이 고객의 시공 예약일 (있으면). 일정 관련 답변 근거.
+                            c.scheduledWorkDateMs?.let { put("scheduledWorkDateMs", it) }
                         })
                     }
                     if (context.ownerToneSamples.isNotEmpty()) {
                         put("ownerToneSamples", JSONArray().apply {
                             context.ownerToneSamples.forEach { put(it) }
+                        })
+                    }
+                    // P3 — 다른 시공 일정 (현재 고객 제외, 14일 내). 다른 고객 이름은 leak 금지 → ms 만.
+                    //   서버가 요일/오전오후로 가공해서 prompt 에 주입.
+                    if (context.otherUpcomingSchedulesMs.isNotEmpty()) {
+                        put("otherUpcomingSchedulesMs", JSONArray().apply {
+                            context.otherUpcomingSchedulesMs.forEach { put(it) }
                         })
                     }
                 }

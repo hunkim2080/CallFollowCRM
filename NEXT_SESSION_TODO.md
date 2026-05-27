@@ -5,9 +5,23 @@
 
 ---
 
-## 🎯 핵심 작업: 카드 탭 인라인 액션 4개 (에이닷 벤치마킹)
+## 🎯 핵심 작업: 카드 탭 인라인 액션 4개 (에이닷 벤치마킹) ✅ 2026-05-24 완료
 
-### 무엇
+> 빌드 통과 (`./gradlew :app:compileDebugKotlin` BUILD SUCCESSFUL). 다음 세션 = 폰에서 동작 확인 + (시간 남으면) 보조 작업 진입.
+>
+> 변경 파일:
+> - [HomeScreen.kt](app/src/main/java/com/detailline/callfollowcrm/presentation/screen/home/HomeScreen.kt) — `onOpenCustomerDetail` 파라미터 추가, `expandedKey` rememberSaveable, HomeRow 의 onClick → 토글, AnimatedVisibility 펼침 영역, InlineActionButton 컴포넌트 신규.
+> - [AppNavHost.kt](app/src/main/java/com/detailline/callfollowcrm/presentation/navigation/AppNavHost.kt) — HomeScreen 호출부에 `onOpenCustomerDetail` 콜백 연결.
+>
+> 동작:
+> - 카드 탭 = 펼침/접힘 토글. 한 번에 하나만 펼침 (다른 카드 탭하면 이전 거 접힘).
+> - 펼침 영역 = 회색 구분선 + 액션 4개 가로 균등 배치 (아이콘 + 라벨).
+> - [💬 메시지] = 기존 ChatScreen 진입
+> - [📞 전화] = `Intent.ACTION_DIAL` (다이얼러만 띄움 — 권한 없이 안전)
+> - [✨ AI] = ChatScreen 진입 (P3 = 진입 시 AI 박스로 스크롤 / 답변 추천 칩 강조)
+> - [ⓘ 고객 카드] = CustomerDetail. customer 없는 SMS-only 카드면 disabled (회색 + 클릭 무시).
+
+### 원본 사양 (참고용 — 위에서 완료)
 HomeScreen 카드를 탭하면 **지금처럼 ChatScreen 으로 바로 가는 대신**, 같은 자리에 액션 4개가 펼쳐짐. 사장님이 원하는 액션을 골라서 누름.
 
 ### 에이닷 참조
@@ -58,7 +72,26 @@ HomeScreen 카드를 탭하면 **지금처럼 ChatScreen 으로 바로 가는 �
 
 ---
 
-## 🔧 보조 작업 2: AI 제안 버튼 액션 hookup
+## 🔧 보조 작업 2: AI 제안 버튼 액션 hookup ✅ 2026-05-24 완료
+
+> 빌드 통과. P2 완성 → 다음 = P3 (시공 흐름 자동화) 진입 가능.
+>
+> 변경 파일:
+> - [ChatViewModel.kt](app/src/main/java/com/detailline/callfollowcrm/presentation/screen/chat/ChatViewModel.kt) — `setScheduledWorkDate(timestampMs)` 함수 추가 (CustomerRepository.updateScheduledWorkDate + ensureCustomerId 자동 보장)
+> - [ChatScreen.kt](app/src/main/java/com/detailline/callfollowcrm/presentation/screen/chat/ChatScreen.kt) — `NextActionBox` 의 onClick = action_type 별 분기, `TemplatePickerDialog` 컴포넌트 신규, Material3 `DatePickerDialog` 추가
+>
+> 분기:
+> - `send_estimate` → ESTIMATE 카테고리 템플릿 다이얼로그
+> - `request_deposit` → RESERVATION 카테고리 (계약금 = 예약 흐름)
+> - `send_followup` → 전체 템플릿 (전용 카테고리 없음 → 사장님 직접 선택)
+> - `confirm_schedule` → `viewModel.regenerateSuggestions()` (답변 추천 일정 키워드)
+> - `register_schedule` → Material3 DatePicker → `viewModel.setScheduledWorkDate(timestamp)`
+> - 카테고리 매칭 결과 비어있으면 전체로 fallback (UX 안전망)
+>
+> ## 🐛 함께 fix — Sent MMS 누락 (2026-05-24 사장님 보고)
+> [SmsRepository.kt](app/src/main/java/com/detailline/callfollowcrm/data/repository/SmsRepository.kt) `queryMmsByPhone` — OneUI(갤S9) 이 사장님 발신 MMS 의 addr 테이블에 `"insert-address-token"` placeholder 만 저장하는 동작 → address 매칭 통째로 실패 → sent MMS 누락. **thread_id 기반 3-pass fallback** 추가 (SMS 시드 + inbox MMS 매칭 thread_id → address 매칭 실패한 sent MMS 복구). 사장님 확인 = "이제 잘 보임".
+
+### 원본 사양 (참고용 — 위에서 완료)
 
 ### 무엇
 지금 ChatScreen 의 AI 제안 박스에서 [버튼] 눌러도 아무 일 안 일어남. placeholder 상태. 진짜 동작 연결.
@@ -95,6 +128,32 @@ HomeScreen 카드를 탭하면 **지금처럼 ChatScreen 으로 바로 가는 �
 - [ ] [session_next_kickoff.md](file:///C:/Users/admin/.claude/projects/d--dev-CallFollowCRM/memory/session_next_kickoff.md) 메모리 read
 - [ ] 이 파일 (`NEXT_SESSION_TODO.md`) read
 - [ ] 사장님께 "핵심 작업 (카드 탭 인라인 액션) 부터 갈까요?" 확인
+
+---
+
+## 📦 이번 세션 (2026-05-24 이어진 작업) 추가 완료
+
+9. **카드 탭 인라인 액션 4개** — HomeScreen 카드 탭 = [메시지/전화/AI/고객카드] 펼침
+10. **AI 제안 버튼 hookup** — NextActionBox 의 action_type 별 분기 (템플릿/DatePicker/regenerate)
+11. **▶ 보내기 확인 다이얼로그** — composer ▶ = 즉시 발송 X, 미리보기 후 한 번 더 탭
+12. **Sent MMS 누락 fix** — OneUI 의 `insert-address-token` 문제 → thread_id 시드 기반 3-pass 매칭
+13. **HomeScreen UX 개편** — KPI 를 LazyColumn 첫 item 으로 (스크롤 시 사라짐), AI 문자함 + 내 말투 학습 칩 숨김
+14. **ScheduleScreen 캘린더 그리드** — 월별 7×6 그리드, 시공 있는 날 점 표시, 셀 탭 = 시공 카드, ◀▶ + 가로 swipe 월 이동
+15. **CustomerDetail 대화 요약 박스** — ChatScreen 과 같은 ✨ 대화 요약 데이터, 일정 카드 직전
+16. **ScheduleCustomerCard 에 ✨ cardSummary** — 캘린더 셀 탭 시공 카드에 "어떤 내용인지" 한 줄
+17. **P3 일정 후보 추천 데이터 흐름** — CustomerRepository.getOtherUpcomingScheduleDates / PrepareContext+SummaryContext+CustomerHint 의 새 필드 / ServerSuggestionRepository+ConversationAiRepository JSON 직렬화 / SmsReceiver+ChatViewModel.regenerateSuggestions+loadFullSummary 호출 / 서버 사양서 2개 update
+
+### 다음 세션 시작점
+
+**사장님 맥미니 서버 작업 필요** — 서버 사양서 (RINGGO_SERVER_PHASE1_UPGRADE.md §1.4-1.5, RINGGO_SERVER_P0P1P2_UPGRADE.md §1, §4) 의 새 필드 (`scheduledWorkDateMs` / `otherUpcomingSchedulesMs` / `other_upcoming_schedules_ms`) Pydantic 모델에 추가 + system prompt 에 SCHEDULE_CONTEXT inject 로직 추가.
+
+사장님이 맥미니 Claude Code 에 줄 프롬프트:
+> "RINGGO_SERVER_PHASE1_UPGRADE.md §1.4-1.5 와 RINGGO_SERVER_P0P1P2_UPGRADE.md §1·§4 의 P3 (2026-05-24 추가) 변경사항을 server/main.py 에 반영해줘. Pydantic 모델에 새 필드 + prompt template 에 SCHEDULE_CONTEXT inject."
+
+서버 끝나면 검증:
+- 캘린더에 사장님 시공 예약 2-3건 등록
+- 그 중 한 고객이 "이번 주 토요일 가능?" 같은 SMS 보내는 척
+- 답변 추천이 일정 근거로 정확히 답하는지
 
 ---
 

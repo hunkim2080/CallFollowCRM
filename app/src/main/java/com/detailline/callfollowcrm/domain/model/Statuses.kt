@@ -1,23 +1,10 @@
 package com.detailline.callfollowcrm.domain.model
 
-enum class CustomerStatus(val label: String) {
-    NEW_INQUIRY("신규 문의"),
-    ESTIMATE_PENDING("견적 대기"),
-    ESTIMATE_SENT("견적 발송"),
-    RESERVATION_PENDING("예약 대기"),
-    RESERVATION_CONFIRMED("예약 확정"),
-    WORK_DONE("시공 완료"),
-    ON_HOLD("보류"),
-    LOST("이탈");
-
-    companion object {
-        fun fromLabelOrDefault(label: String?): CustomerStatus =
-            values().firstOrNull { it.label == label } ?: NEW_INQUIRY
-    }
-}
+// 2026-05-25: CustomerStatus enum 폐기 — 갤메시지 식 사장님 카테고리 시스템으로 통일.
+//   DB 의 status 컬럼은 v11 까지 살아있고 다음 마이그레이션에서 정리. 새 코드는 절대 사용 X.
 
 /**
- * 영업 funnel 상태(CustomerStatus) 와 직교하는 "리드 온도" 축.
+ * "리드 온도" 축 — 통화 직후 사장님이 빠르게 분류하는 한 가지 차원.
  * 통화 직후 사장님이 빠르게 분류하는 한 가지 차원 — 사장님이 보낸 메시지의 강도,
  * 후속 follow-up 우선순위에 영향. null 이면 미분류.
  */

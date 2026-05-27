@@ -40,4 +40,16 @@ class ServerHealthMonitor(
             }
         }
     }
+
+    /**
+     * 강제 health check — pull-to-refresh 등 사용자 트리거 용.
+     *   30초 polling 안 기다리고 즉시 ping.
+     */
+    fun refresh() {
+        scope.launch {
+            val ok = phaseOneApiRepository.warmup().isSuccess
+            _alive.value = ok
+            if (ok) _lastOkAtMs.value = System.currentTimeMillis()
+        }
+    }
 }

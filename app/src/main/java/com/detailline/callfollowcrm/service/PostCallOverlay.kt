@@ -24,7 +24,6 @@ import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.detailline.callfollowcrm.CallFollowCrmApplication
 import com.detailline.callfollowcrm.data.local.entity.MessageTemplateEntity
-import com.detailline.callfollowcrm.domain.model.CustomerStatus
 import com.detailline.callfollowcrm.domain.model.LeadHeat
 import com.detailline.callfollowcrm.domain.model.MessageStatus
 import com.detailline.callfollowcrm.presentation.overlay.PostCallCard
@@ -301,11 +300,9 @@ object PostCallOverlayManager {
         val app = appOrNull() ?: return
         val ctx = currentView?.context ?: return
 
+        // 2026-05-25: status 인자 제거 — 카테고리 시스템으로 통일.
         val customer = runCatching {
-            app.container.customerRepository.upsertByPhone(
-                phoneNumber = phone,
-                status = CustomerStatus.NEW_INQUIRY
-            )
+            app.container.customerRepository.upsertByPhone(phoneNumber = phone)
         }.getOrNull()
 
         val ok = SmsSender.sendDirect(ctx.applicationContext, phone, body)

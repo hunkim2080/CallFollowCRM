@@ -71,30 +71,33 @@ object DateTimeUtils {
     private val dateWithWeekday by lazy { SimpleDateFormat("M월 d일 (E)", Locale.KOREAN) }
     private val dateWithWeekdayYear by lazy { SimpleDateFormat("yyyy년 M월 d일 (E)", Locale.KOREAN) }
 
+    /** 갤메시지/에이닷 통화기록 헤더 형식 — 명시 날짜 + 요일. "5. 22. 금요일" / 다른 해 "2025. 10. 3. 금요일". */
+    private val dayHeaderKor by lazy { SimpleDateFormat("M. d. EEEE", Locale.KOREAN) }
+    private val dayHeaderKorYear by lazy { SimpleDateFormat("yyyy. M. d. EEEE", Locale.KOREAN) }
+
+    /** 시공 예약일 — 안내문/다이얼로그 본문용. 다른 해면 yyyy 포함. 예: "5월 26일 (수)" */
+    fun formatScheduledDate(epoch: Long, now: Long = System.currentTimeMillis()): String {
+        val nowCal = Calendar.getInstance().apply { timeInMillis = now }
+        val targetCal = Calendar.getInstance().apply { timeInMillis = epoch }
+        val differentYear = nowCal.get(Calendar.YEAR) != targetCal.get(Calendar.YEAR)
+        return if (differentYear) dateWithWeekdayYear.format(Date(epoch))
+        else dateWithWeekday.format(Date(epoch))
+    }
+
     /**
-     * 대시보드 타임라인의 날짜 그룹 헤더 라벨.
-     *   오늘 → "오늘"
-     *   어제 → "어제"
-     *   그저께 → "그저께"
-     *   이번 주 (3~6일 전) → "수요일"
-     *   그 외 → "5월 12일 (수)"
+     * 대시보드 타임라인의 날짜 그룹 헤더 라벨 — 갤메시지/에이닷 통화기록 벤치마킹 (사장님 결정 2026-05-25).
+     *   기본 형식: "5. 22. 금요일"
+     *   다른 해:  "2025. 10. 3. 금요일"
+     *
+     * 이전 ("오늘"/"어제"/"그저께"/요일) 자연어 형식 제거 — 사장님이 명시 날짜를 더 직관 인식.
      */
     fun dayGroupLabel(dayStartMs: Long, now: Long = System.currentTimeMillis()): String {
-        val today = startOfDay(now)
         val target = startOfDay(dayStartMs)
-        val diff = ((today - target) / (24L * 60 * 60 * 1000)).toInt()
-        // 다른 해면 "2025년 10월 3일 (금)" / 올해면 "10월 3일 (금)" — 옛 메시지 헤더가 즉판 가능하도록.
         val nowCal = Calendar.getInstance().apply { timeInMillis = now }
         val targetCal = Calendar.getInstance().apply { timeInMillis = target }
         val differentYear = nowCal.get(Calendar.YEAR) != targetCal.get(Calendar.YEAR)
-        return when (diff) {
-            0 -> "오늘"
-            1 -> "어제"
-            2 -> "그저께"
-            in 3..6 -> weekdayKor.format(Date(target))
-            else -> if (differentYear) dateWithWeekdayYear.format(Date(target))
-                    else dateWithWeekday.format(Date(target))
-        }
+        return if (differentYear) dayHeaderKorYear.format(Date(target))
+        else dayHeaderKor.format(Date(target))
     }
 
     fun durationLabel(seconds: Long): String {

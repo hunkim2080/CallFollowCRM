@@ -43,7 +43,7 @@ CLAUDE_MODEL = "claude-sonnet-4-6"
 - 다음 단계 가서 트래픽 늘면 `claude-haiku-4-5-20251001` 로 다운그레이드 검토
 
 ### 1.4 새 클라이언트 필드
-안드로이드 측에서 `POST /prepare-reply` 의 JSON body 에 **`ownerToneSamples`** 추가됨 (string[]):
+안드로이드 측에서 `POST /prepare-reply` 의 JSON body 에 **`ownerToneSamples`** + **P3 일정 필드** 추가됨:
 
 ```json
 {
@@ -51,16 +51,44 @@ CLAUDE_MODEL = "claude-sonnet-4-6"
   "latestMessage": "...",
   "latestMessageReceivedAtMs": 1716234567000,
   "recentHistory": [...],
-  "customer": {...},
+  "customer": {
+    "name": "홍길동",
+    "memo": "...",
+    "leadHeat": "HOT",
+    "depositPaid": false,
+    "scheduledWorkDateMs": 1716988800000   // P3 — 이 고객의 시공 예약일 (있으면)
+  },
   "ownerToneSamples": [
     "내일 오전 10시에 방문드리겠습니다.",
     "잔금 입금 부탁드립니다. 계좌는 신한 ...",
     "오늘 시공 마무리됐습니다. 좋은 하루 되세요."
+  ],
+  "otherUpcomingSchedulesMs": [             // P3 — 사장님 다른 시공 일정 (14일 내, ms 만)
+    1716988800000,
+    1717248000000
   ]
 }
 ```
 
-→ Pydantic 모델 `PrepareReplyRequest` 에 `ownerToneSamples: list[str] = Field(default_factory=list)` 추가.
+→ Pydantic 모델 `PrepareReplyRequest`:
+- `ownerToneSamples: list[str] = Field(default_factory=list)`
+- `customer.scheduledWorkDateMs: int | None = None`
+- `otherUpcomingSchedulesMs: list[int] = Field(default_factory=list)`
+
+### 1.5 P3 — 일정 prompt inject (2026-05-24)
+
+`otherUpcomingSchedulesMs` 가 비어있지 않으면 시스템 프롬프트의 `{SCHEDULE_CONTEXT}` 슬롯에 가공해서 inject:
+
+```
+────── 사장님 시공 일정 (앞으로 14일) ──────
+- 5/26(수): 다른 시공 1건
+- 5/28(금): 다른 시공 1건
+- 5/30(일): 비어있음 ← 가능
+- 5/31(월): 비어있음 ← 가능
+(이 고객 본인 예약: 5/27(목) — customer.scheduledWorkDateMs 가 있을 때만)
+```
+
+고객이 일정 질문 → 위 정보 근거로 정확히 답변. 14일 밖 또는 데이터 없는 시점 = "확인 후 안내드릴게요". **추측 금지.**
 
 ## 2. 시스템 프롬프트 재작성
 

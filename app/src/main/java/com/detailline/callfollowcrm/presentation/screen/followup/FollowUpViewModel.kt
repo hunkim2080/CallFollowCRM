@@ -8,7 +8,6 @@ import com.detailline.callfollowcrm.data.AppContainer
 import com.detailline.callfollowcrm.data.local.entity.MessageTemplateEntity
 import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
 import com.detailline.callfollowcrm.domain.model.CallType
-import com.detailline.callfollowcrm.domain.model.CustomerStatus
 import com.detailline.callfollowcrm.domain.model.HandledStatus
 import com.detailline.callfollowcrm.recording.CustomerBackfiller
 import com.detailline.callfollowcrm.service.NotificationHelper
@@ -42,7 +41,6 @@ class FollowUpViewModel(
         FollowUpUiState(
             phoneNumber = initialPhone,
             customerName = "",
-            status = CustomerStatus.NEW_INQUIRY,
             memo = "",
             selectedTemplateId = null,
             messageBody = ""
@@ -115,7 +113,6 @@ class FollowUpViewModel(
 
     fun setPhone(value: String) = _state.update { it.copy(phoneNumber = value) }
     fun setName(value: String) = _state.update { it.copy(customerName = value) }
-    fun setStatus(value: CustomerStatus) = _state.update { it.copy(status = value) }
     fun setMemo(value: String) = _state.update { it.copy(memo = value) }
     fun setBody(value: String) = _state.update { it.copy(messageBody = value) }
     fun setFirstMetAt(value: Long?) = _state.update { it.copy(firstMetAt = value) }
@@ -133,7 +130,6 @@ class FollowUpViewModel(
         viewModelScope.launch {
             val customer = container.customerRepository.upsertByPhone(
                 phoneNumber = s.phoneNumber,
-                status = s.status,
                 name = s.customerName.ifBlank { null },  // 빈 값이면 기존 이름 보존
                 memo = s.memo.takeIf { it.isNotBlank() }
             )
@@ -190,7 +186,6 @@ class FollowUpViewModel(
         viewModelScope.launch {
             val customer = container.customerRepository.upsertByPhone(
                 phoneNumber = s.phoneNumber,
-                status = s.status,
                 name = s.customerName.ifBlank { null },
                 memo = s.memo.takeIf { it.isNotBlank() }
             )
@@ -266,7 +261,6 @@ class FollowUpViewModel(
 data class FollowUpUiState(
     val phoneNumber: String,
     val customerName: String,
-    val status: CustomerStatus,
     val memo: String,
     val selectedTemplateId: Long?,
     val messageBody: String,

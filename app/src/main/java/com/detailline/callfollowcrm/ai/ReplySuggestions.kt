@@ -40,7 +40,13 @@ data class PrepareContext(
      * 서버가 시스템 프롬프트의 "사장님 톤 예시" 섹션에 few-shot 으로 박는다.
      * recentHistory 와 별개. 이 고객과의 대화가 아닌, 사장님 톤 학습용 일반 샘플.
      */
-    val ownerToneSamples: List<String> = emptyList()
+    val ownerToneSamples: List<String> = emptyList(),
+    /**
+     * P3 — 사장님의 다른 시공 일정 (현재 고객 제외, 앞으로 14일 내).
+     * 고객 이름은 leak 되면 안 되므로 epoch ms 만 보냄.
+     * 서버는 "토요일 가능?" 같은 일정 질문에 이 정보를 근거로 답변.
+     */
+    val otherUpcomingSchedulesMs: List<Long> = emptyList()
 )
 
 data class HistoryMessage(
@@ -55,5 +61,7 @@ data class CustomerHint(
     val memo: String?,
     /** "HOT" | "WARM" | "COLD" 등 leadHeat enum name */
     val leadHeat: String?,
-    val depositPaid: Boolean
+    val depositPaid: Boolean,
+    /** P3 — 이 고객의 시공 예약일 (있으면). 일정 관련 답변 추천에서 "확정된 일정 기준" 으로 사용. */
+    val scheduledWorkDateMs: Long? = null
 )

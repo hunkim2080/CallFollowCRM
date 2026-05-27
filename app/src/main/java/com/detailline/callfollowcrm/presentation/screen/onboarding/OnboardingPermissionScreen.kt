@@ -65,7 +65,7 @@ fun OnboardingPermissionScreen(onContinue: () -> Unit) {
             ) {
                 Spacer(Modifier.height(24.dp))
 
-                // 히어로
+                // 히어로 — RING-GO 정체성. 사장님 톤 학습 + 딸깍(원탭) + 자연스러운 상담.
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                     Box(
                         Modifier
@@ -73,31 +73,49 @@ fun OnboardingPermissionScreen(onContinue: () -> Unit) {
                             .background(TossBlueSoft, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("📞", fontSize = 36.sp)
+                        Text("✨", fontSize = 36.sp)
                     }
                     Spacer(Modifier.height(16.dp))
                     Text(
-                        "통화 후 후속을\n놓치지 않게",
-                        fontSize = 26.sp,
+                        "딸깍의 시대",
+                        fontSize = 28.sp,
                         fontWeight = FontWeight.Bold,
                         color = TossTextPrimary,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(10.dp))
                     Text(
-                        "통화가 끝나면 알림을 띄워서\n후속 문자와 메모를 빠르게 정리해요",
+                        "사장님 말투를 학습하는 AI 가\n가장 자연스러운 답장을 미리 만들어요.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = TossTextSecondary,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "봇 같은 답장은 그만, 사장님 본인이 쓴 것처럼.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TossBlue,
+                        fontWeight = FontWeight.SemiBold,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                 }
 
                 Spacer(Modifier.height(8.dp))
 
+                // 통화 후속 처리 권한 — RING-GO 의 부가 기능. 작은 sub-header 로 연결.
+                Text(
+                    "통화 후속도 함께 챙겨요",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = TossTextSecondary,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(start = 4.dp)
+                )
+
                 TossCard {
                     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         PermRow("📱", "전화 상태", "통화 종료를 감지하기 위해 필요해요")
                         PermRow("📋", "통화 기록", "방금 통화한 번호를 자동으로 채워줘요")
+                        PermRow("💬", "주고받은 문자", "고객 대화를 한 화면에서 보고 답장 추천을 받기 위해 필요해요")
                         PermRow("🔔", "알림", "통화 후 후속 안내 알림을 표시해요")
                     }
                 }

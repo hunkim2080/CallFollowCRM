@@ -4,11 +4,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.detailline.callfollowcrm.data.AppContainer
 import com.detailline.callfollowcrm.data.local.entity.MessageTemplateEntity
-import com.detailline.callfollowcrm.domain.model.CustomerStatus
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 class SettingsViewModel(private val container: AppContainer) : ViewModel() {
 
@@ -16,14 +18,13 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     private val _state = MutableStateFlow(
         SettingsUiState(
             afterCallBehavior = AfterCallBehavior.NOTIFY,
-            defaultStatus = CustomerStatus.NEW_INQUIRY,
-            receivedSmsEnabled = container.preferences.receivedSmsEnabled,
             autoFirstReplyEnabled = container.preferences.autoFirstReplyEnabled,
             firstReplyIncomingTemplateId = container.preferences.firstReplyIncomingTemplateId,
             firstReplyMissedTemplateId = container.preferences.firstReplyMissedTemplateId,
             quickActionTemplateId1 = container.preferences.quickActionTemplateId1,
             quickActionTemplateId2 = container.preferences.quickActionTemplateId2,
-            quickActionTemplateId3 = container.preferences.quickActionTemplateId3
+            quickActionTemplateId3 = container.preferences.quickActionTemplateId3,
+            incomingSmsNotifyEnabled = container.preferences.incomingSmsNotifyEnabled
         )
     )
     val state = _state.asStateFlow()
@@ -32,13 +33,45 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     val templates = container.messageTemplateRepository.observeActive()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList<MessageTemplateEntity>())
 
-    fun setBehavior(b: AfterCallBehavior) { _state.value = _state.value.copy(afterCallBehavior = b) }
-    fun setDefaultStatus(s: CustomerStatus) { _state.value = _state.value.copy(defaultStatus = s) }
+    /** AI 서버 살아있음 표시 (●). null=아직 모름, true=정상, false=죽음. */
+    val serverAlive: StateFlow<Boolean?> = container.serverHealth.alive
 
-    fun setReceivedSmsEnabled(enabled: Boolean) {
-        container.preferences.receivedSmsEnabled = enabled
-        _state.value = _state.value.copy(receivedSmsEnabled = enabled)
+    /** 사장님 톤 학습용 보낸 SMS 샘플 개수. 설정 진입 시 한 번 계산. */
+    private val _ownerToneSampleCount = MutableStateFlow(0)
+    val ownerToneSampleCount: StateFlow<Int> = _ownerToneSampleCount.asStateFlow()
+
+    /**
+     * 토큰 사용량 통계 (2026-05-27). 서버 §12 endpoint 결과.
+     *   null = 아직 fetch 안 함 / Result.failure = 서버 미구현/오류
+     *   사장님이 새로고침 버튼 누르면 다시 fetch.
+     */
+    private val _usageStats = MutableStateFlow<Result<com.detailline.callfollowcrm.ai.UsageStatsRepository.UsageStats>?>(null)
+    val usageStats: StateFlow<Result<com.detailline.callfollowcrm.ai.UsageStatsRepository.UsageStats>?> = _usageStats.asStateFlow()
+
+    private val _usageLoading = MutableStateFlow(false)
+    val usageLoading: StateFlow<Boolean> = _usageLoading.asStateFlow()
+
+    init {
+        viewModelScope.launch(Dispatchers.IO) {
+            val n = runCatching {
+                container.smsRepository.querySentMessages(limit = 50).size
+            }.getOrDefault(0)
+            _ownerToneSampleCount.value = n
+        }
+        // 설정 진입 시 자동으로 한 번 fetch — 사장님이 토큰 상황 즉시 확인.
+        loadUsageStats(com.detailline.callfollowcrm.ai.UsageStatsRepository.Period.TODAY)
     }
+
+    fun loadUsageStats(period: com.detailline.callfollowcrm.ai.UsageStatsRepository.Period) {
+        if (_usageLoading.value) return
+        viewModelScope.launch(Dispatchers.IO) {
+            _usageLoading.value = true
+            _usageStats.value = container.usageStatsRepository.fetch(period)
+            _usageLoading.value = false
+        }
+    }
+
+    fun setBehavior(b: AfterCallBehavior) { _state.value = _state.value.copy(afterCallBehavior = b) }
 
     fun setAutoFirstReplyEnabled(enabled: Boolean) {
         container.preferences.autoFirstReplyEnabled = enabled
@@ -55,6 +88,11 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         _state.value = _state.value.copy(firstReplyMissedTemplateId = id)
     }
 
+    fun setIncomingSmsNotifyEnabled(enabled: Boolean) {
+        container.preferences.incomingSmsNotifyEnabled = enabled
+        _state.value = _state.value.copy(incomingSmsNotifyEnabled = enabled)
+    }
+
     fun setQuickAction(slot: Int, id: Long) {
         when (slot) {
             1 -> { container.preferences.quickActionTemplateId1 = id
@@ -69,14 +107,13 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
 
 data class SettingsUiState(
     val afterCallBehavior: AfterCallBehavior,
-    val defaultStatus: CustomerStatus,
-    val receivedSmsEnabled: Boolean = false,
     val autoFirstReplyEnabled: Boolean = false,
     val firstReplyIncomingTemplateId: Long = -1L,
     val firstReplyMissedTemplateId: Long = -1L,
     val quickActionTemplateId1: Long = -1L,
     val quickActionTemplateId2: Long = -1L,
-    val quickActionTemplateId3: Long = -1L
+    val quickActionTemplateId3: Long = -1L,
+    val incomingSmsNotifyEnabled: Boolean = true
 )
 
 enum class AfterCallBehavior(val label: String) {

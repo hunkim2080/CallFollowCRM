@@ -32,11 +32,10 @@ object Destinations {
     fun templateEdit(id: Long?) = if (id == null) "template_edit" else "template_edit?id=$id"
 
     const val SETTINGS = "settings"
+    const val PRICING_ITEMS = "pricing_items"
     const val SCHEDULE = "schedule"
     const val AI_MESSAGE = "ai_message"
     const val STYLE_LEARNING = "style_learning"
 
-    const val PIPELINE_WITH_ARG = "pipeline/{statusName}"
-    /** statusName 은 CustomerStatus enum name (예: ESTIMATE_PENDING). 한글 라벨이 아니라서 URL 경로 안전. */
-    fun pipeline(statusName: String): String = "pipeline/$statusName"
+    // 2026-05-25: PIPELINE 라우트 폐기 — CustomerStatus enum 제거 + 카테고리 시스템으로 통일.
 }

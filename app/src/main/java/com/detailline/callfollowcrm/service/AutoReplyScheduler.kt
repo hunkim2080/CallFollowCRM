@@ -8,7 +8,6 @@ import android.telephony.SmsManager
 import androidx.core.content.ContextCompat
 import com.detailline.callfollowcrm.CallFollowCrmApplication
 import com.detailline.callfollowcrm.data.AppContainer
-import com.detailline.callfollowcrm.domain.model.CustomerStatus
 import com.detailline.callfollowcrm.domain.model.MessageStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -98,11 +97,9 @@ object AutoReplyScheduler {
             }
 
             // 발송 — 정책상 첫 응대는 Customer 도 자동 생성 (영업 시작 신호).
+            // 2026-05-25: status 박는 부분 제거 — 카테고리 시스템으로 통일.
             val customer = runCatching {
-                container.customerRepository.upsertByPhone(
-                    phoneNumber = phoneNumber,
-                    status = CustomerStatus.NEW_INQUIRY
-                )
+                container.customerRepository.upsertByPhone(phoneNumber = phoneNumber)
             }.getOrNull()
 
             val sendOk = sendSmsSafely(context, phoneNumber, body)

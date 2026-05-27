@@ -129,6 +129,8 @@ data class SummaryContext(
     val scheduledWorkDate: Long? = null,
     val recentMessages: List<HistoryMessage> = emptyList(),
     val ownerToneSamples: List<String> = emptyList(),
+    /** P3 — 사장님의 다른 시공 일정 (현재 고객 제외, 앞으로 14일 내). 일정 답변 근거. */
+    val otherUpcomingSchedulesMs: List<Long> = emptyList(),
     /** 무효화 기준. 0 이면 메시지 없어도 호출 가능. */
     val latestMessageTimestampMs: Long = 0L
 ) {
@@ -152,6 +154,10 @@ data class SummaryContext(
         put("call_summaries", JSONArray()) // 추후 — 에이닷 통화 요약 연동 시
         put("owner_tone_samples", JSONArray().apply {
             ownerToneSamples.forEach { put(it) }
+        })
+        // P3 — 다른 고객 이름은 leak 금지. ms 만 전달, 서버가 요일/오전오후로 가공해서 prompt 에 주입.
+        put("other_upcoming_schedules_ms", JSONArray().apply {
+            otherUpcomingSchedulesMs.forEach { put(it) }
         })
     }.toString()
 }

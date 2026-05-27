@@ -15,10 +15,12 @@ import com.detailline.callfollowcrm.data.preferences.AppPreferences
 import com.detailline.callfollowcrm.data.repository.CachedMessageRepository
 import com.detailline.callfollowcrm.data.repository.CallRecordRepository
 import com.detailline.callfollowcrm.data.repository.CallSummaryRepository
+import com.detailline.callfollowcrm.data.repository.CategoryRepository
 import com.detailline.callfollowcrm.data.repository.CustomerRepository
 import com.detailline.callfollowcrm.data.repository.ImportantMessageRepository
 import com.detailline.callfollowcrm.data.repository.MessageHistoryRepository
 import com.detailline.callfollowcrm.data.repository.MessageTemplateRepository
+import com.detailline.callfollowcrm.data.repository.PricingItemRepository
 import com.detailline.callfollowcrm.data.repository.RecordingRepository
 import com.detailline.callfollowcrm.data.repository.SmsRepository
 import com.detailline.callfollowcrm.data.repository.TemplateAttachmentRepository
@@ -47,6 +49,10 @@ class AppContainer(context: Context) {
     val importantMessageRepository = ImportantMessageRepository(db.importantMessageDao())
     val cachedMessageRepository = CachedMessageRepository(db.cachedMessageDao())
     val conversationAiRepository = ConversationAiRepository(db.aiSummaryDao())
+    val pricingItemRepository = PricingItemRepository(db.pricingItemDao())
+    val categoryRepository = CategoryRepository(db.categoryDao(), db.customerDao())
+    val spamPhoneRepository = com.detailline.callfollowcrm.data.repository.SpamPhoneRepository(db.spamPhoneDao())
+    val usageStatsRepository = com.detailline.callfollowcrm.ai.UsageStatsRepository()
 
     val preferences = AppPreferences(context)
 

@@ -9,11 +9,19 @@ import androidx.core.content.ContextCompat
 
 object PermissionHelper {
 
-    /** v1 필수: 통화 종료 감지/번호 조회/알림 표시. SEND_SMS는 절대 포함하지 않음. */
+    /**
+     * v1 필수: 통화 종료 감지 / 번호 조회 / 알림 표시 / 주고받은 문자 표시.
+     * SEND_SMS 는 절대 포함하지 않음 (사장님 명시 발송 액션에서만 별도 요청).
+     *
+     * 2026-05-24: READ_SMS + RECEIVE_SMS 도 초기 설치 시 무조건 받음 (사장님 결정).
+     *   대화/카드 표시의 핵심 데이터라 토글로 끄는 게 의미 없음.
+     */
     fun requiredPermissions(): Array<String> {
         val list = mutableListOf(
             Manifest.permission.READ_PHONE_STATE,
-            Manifest.permission.READ_CALL_LOG
+            Manifest.permission.READ_CALL_LOG,
+            Manifest.permission.READ_SMS,
+            Manifest.permission.RECEIVE_SMS
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             list += Manifest.permission.POST_NOTIFICATIONS

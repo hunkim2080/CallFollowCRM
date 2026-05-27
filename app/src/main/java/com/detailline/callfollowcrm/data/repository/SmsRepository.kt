@@ -4,9 +4,15 @@ import android.Manifest
 import android.content.ContentResolver
 import android.content.Context
 import android.content.pm.PackageManager
+import android.database.ContentObserver
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 
 /**
  * 갤럭시 메시지(또는 다른 기본 SMS 앱)가 시스템 SMS 프로바이더에 적재한
@@ -160,44 +166,121 @@ class SmsRepository(private val context: Context) {
      */
     private fun queryMmsByPhone(targetSuffix: String, scanLimit: Int): List<SmsMessage> {
         val mmsUri = Uri.parse("content://mms")
-        val proj = arrayOf("_id", "date", "msg_box")
+        // thread_id 추가 — 사장님이 갤럭시 메시지 앱으로 보낸 MMS 는 OneUI 가 addr 테이블의
+        //   type=151(TO) 행에 실제 번호 대신 "insert-address-token" placeholder 만 저장하는 경우가 흔하다.
+        //   그러면 address 매칭만으론 sent MMS 가 통째로 누락됨 (사장님 2026-05-24 보고).
+        //   → SMS 에서 같은 번호와 주고받은 thread_id 시드 + MMS 자체 inbox 매칭 thread_id 를 모아
+        //     address 매칭 실패한 sent MMS 라도 같은 thread_id 면 포함시킨다.
+        val proj = arrayOf("_id", "date", "msg_box", "thread_id")
         val cursor = runCatching {
             context.contentResolver.query(mmsUri, proj, dateDescSortArgs(scanLimit), null)
         }.getOrNull() ?: return emptyList()
+
+        // 시드 = SMS 에서 같은 suffix 의 thread_id 들. 인덱스 LIKE 라 빠름.
+        val smsSeedThreadIds = runCatching { collectSmsThreadIds(targetSuffix) }
+            .getOrDefault(emptySet())
+
+        data class MmsRow(val id: Long, val dateMs: Long, val box: Int, val threadId: Long)
 
         return cursor.use { c ->
             val idIdx = c.getColumnIndex("_id")
             val dateIdx = c.getColumnIndex("date")
             val boxIdx = c.getColumnIndex("msg_box")
+            val threadIdx = c.getColumnIndex("thread_id")
             if (idIdx < 0 || dateIdx < 0 || boxIdx < 0) return@use emptyList()
 
-            val result = mutableListOf<SmsMessage>()
-            while (c.moveToNext() && result.size < scanLimit) {
-                val mmsId = c.getLong(idIdx)
+            // Pass 1: 후보 row 메타데이터 수집 (INBOX / SENT 만)
+            val rows = mutableListOf<MmsRow>()
+            while (c.moveToNext() && rows.size < scanLimit) {
                 val box = c.getInt(boxIdx)
                 if (box != MMS_BOX_INBOX && box != MMS_BOX_SENT) continue
-                val dateSeconds = c.getLong(dateIdx)
-                val dateMs = dateSeconds * 1000L
+                rows += MmsRow(
+                    id = c.getLong(idIdx),
+                    dateMs = c.getLong(dateIdx) * 1000L,
+                    box = box,
+                    threadId = if (threadIdx >= 0) c.getLong(threadIdx) else -1L
+                )
+            }
 
-                val addresses = runCatching { getMmsAddresses(mmsId) }.getOrDefault(emptyList())
+            // addresses 캐시 — Pass 2 와 최종 변환에서 두 번 부르지 않게.
+            val addressesById = HashMap<Long, List<Pair<String, Int>>>(rows.size)
+            fun addressesOf(id: Long): List<Pair<String, Int>> = addressesById.getOrPut(id) {
+                runCatching { getMmsAddresses(id) }.getOrDefault(emptyList())
+            }
+
+            // Pass 2: address 매칭 + 매칭된 row 의 thread_id 수집 (SMS 시드와 합쳐 확장)
+            val pickedById = LinkedHashMap<Long, MmsRow>()
+            val matchedThreadIds = HashSet<Long>(smsSeedThreadIds.size + 4).apply {
+                addAll(smsSeedThreadIds)
+            }
+            for (row in rows) {
+                val addresses = addressesOf(row.id)
                 val matched = addresses.any { (addr, _) -> matchesSuffix(addr, targetSuffix) }
-                if (!matched) continue
+                if (matched) {
+                    pickedById[row.id] = row
+                    if (row.threadId > 0) matchedThreadIds += row.threadId
+                }
+            }
 
-                val (text, imageUris) = runCatching { getMmsParts(mmsId) }.getOrDefault("" to emptyList())
+            // Pass 3: address 매칭 실패했지만 thread_id 가 매칭 set 에 있는 sent MMS 추가.
+            //   (OneUI 의 sent MMS placeholder 케이스 + 같은 대화의 누락된 MMS 복구)
+            for (row in rows) {
+                if (pickedById.containsKey(row.id)) continue
+                if (row.threadId > 0 && row.threadId in matchedThreadIds) {
+                    pickedById[row.id] = row
+                }
+            }
+
+            // 최종 SmsMessage 변환 — parts 가져와서 body/imageUris 채움.
+            val result = mutableListOf<SmsMessage>()
+            for (row in pickedById.values) {
+                val (text, imageUris) = runCatching { getMmsParts(row.id) }
+                    .getOrDefault("" to emptyList())
                 if (text.isBlank() && imageUris.isEmpty()) continue
-
-                val displayAddress = pickRelevantAddress(addresses, box) ?: ""
-
+                val displayAddress = pickRelevantAddress(addressesOf(row.id), row.box) ?: ""
                 result += SmsMessage(
-                    id = mmsId,
+                    id = row.id,
                     address = displayAddress,
                     body = text,
-                    dateMs = dateMs,
-                    sent = box == MMS_BOX_SENT,
+                    dateMs = row.dateMs,
+                    sent = row.box == MMS_BOX_SENT,
                     imageUris = imageUris
                 )
             }
             result
+        }
+    }
+
+    /**
+     * SMS LIKE selection 으로 해당 suffix 의 thread_id 들 빠르게 수집 (queryMmsByPhone 시드용).
+     * 같은 번호로 한 번이라도 SMS 주고받았으면 그 thread_id 가 sent MMS 의 thread_id 와도 일치
+     *   → address 매칭 실패한 sent MMS 를 복구하는 핵심 근거.
+     */
+    private fun collectSmsThreadIds(targetSuffix: String): Set<Long> {
+        val uri = Uri.parse("content://sms/")
+        val proj = arrayOf("thread_id", COL_ADDRESS)
+        val queryArgs = Bundle().apply {
+            putString(ContentResolver.QUERY_ARG_SQL_SELECTION, "$COL_ADDRESS LIKE ?")
+            putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, arrayOf("%$targetSuffix%"))
+        }
+        val cursor = runCatching {
+            context.contentResolver.query(uri, proj, queryArgs, null)
+        }.getOrNull() ?: return emptySet()
+        return cursor.use { c ->
+            val tIdx = c.getColumnIndex("thread_id")
+            val aIdx = c.getColumnIndex(COL_ADDRESS)
+            if (tIdx < 0 || aIdx < 0) return@use emptySet()
+            val out = HashSet<Long>()
+            while (c.moveToNext()) {
+                val addr = c.getString(aIdx).orEmpty()
+                val addrDigits = addr.filter { it.isDigit() }
+                val shortest = minOf(targetSuffix.length, addrDigits.length, 8)
+                if (shortest < 7) continue
+                if (addrDigits.takeLast(shortest) != targetSuffix.takeLast(shortest)) continue
+                val t = c.getLong(tIdx)
+                if (t > 0) out += t
+            }
+            out
         }
     }
 
@@ -284,7 +367,18 @@ class SmsRepository(private val context: Context) {
         val normalizedSuffix: String,
         val lastBody: String,
         val lastDateMs: Long,
-        val lastSent: Boolean
+        val lastSent: Boolean,
+        /**
+         * 스캔 범위 안에서 이 번호로 사장님이 보낸 sent SMS 가 1건이라도 있는지.
+         * "미확인" 판정의 핵심 — 한 번이라도 답장했으면 미확인 아님.
+         * scanLimit 밖 (옛날) 의 sent 는 false 로 잡힐 수 있는 한계 있음 (사장님 폰 17000건 환경에선 보통 OK).
+         */
+        val hasOwnerReply: Boolean,
+        /**
+         * 스캔 범위 안에서 이 번호의 가장 오래된 dateMs.
+         * "오늘 신규" 판정용 — todayStart 이상이면 = 오늘 이전 기록 없음 = 진짜 신규 후보.
+         */
+        val firstDateMsInScan: Long
     )
 
     /**
@@ -300,22 +394,38 @@ class SmsRepository(private val context: Context) {
     fun queryRecentContacts(scanLimit: Int = 10000, contactLimit: Int = 30): List<SmsContact> {
         if (!hasReadPermission()) return emptyList()
 
+        val seen = LinkedHashMap<String, SmsContact>()
+        fillFromSms(seen, scanLimit, contactLimit)
+        // 2026-05-26 사장님 보고 fix — MMS (사진/첨부 문자) 누락 해결.
+        //   갤메시지의 "📎 첨부파일 N개" = MMS. queryRecentContacts 가 sms/ 만 쿼리해서 누락됐었음.
+        //   MMS 의 phone 매핑은 mms/{id}/addr 별도 쿼리 필요해 mmsScanLimit 작게 (성능 보호).
+        //   200건이면 사장님 폰의 최근 활동 충분히 커버.
+        fillFromMms(seen, mmsScanLimit = 200, contactLimit)
+        // SMS + MMS 합쳐서 최신순 재정렬 (LinkedHashMap 삽입 순서 깨짐).
+        return seen.values
+            .sortedByDescending { it.lastDateMs }
+            .take(contactLimit)
+    }
+
+    private fun fillFromSms(
+        seen: LinkedHashMap<String, SmsContact>,
+        scanLimit: Int,
+        contactLimit: Int
+    ) {
         val uri = Uri.parse("content://sms/")
         val projection = arrayOf(COL_ADDRESS, COL_BODY, COL_DATE, COL_TYPE)
         val cursor = runCatching {
             context.contentResolver.query(uri, projection, dateDescSortArgs(scanLimit), null)
-        }.getOrNull() ?: return emptyList()
+        }.getOrNull() ?: return
 
-        return cursor.use { c ->
+        cursor.use { c ->
             val addrIdx = c.getColumnIndex(COL_ADDRESS)
             val bodyIdx = c.getColumnIndex(COL_BODY)
             val dateIdx = c.getColumnIndex(COL_DATE)
             val typeIdx = c.getColumnIndex(COL_TYPE)
-            if (addrIdx < 0 || bodyIdx < 0 || dateIdx < 0 || typeIdx < 0) return@use emptyList()
+            if (addrIdx < 0 || bodyIdx < 0 || dateIdx < 0 || typeIdx < 0) return@use
 
-            // LinkedHashMap 으로 삽입 순서(=최신순) 유지.
-            val seen = LinkedHashMap<String, SmsContact>()
-            while (c.moveToNext() && seen.size < contactLimit) {
+            while (c.moveToNext()) {
                 val type = c.getInt(typeIdx)
                 if (type != TYPE_INBOX && type != TYPE_SENT) continue
 
@@ -323,17 +433,100 @@ class SmsRepository(private val context: Context) {
                 val addrDigits = address.filter { it.isDigit() }
                 if (addrDigits.length < 7) continue
                 val suffix = addrDigits.takeLast(8)
-                if (seen.containsKey(suffix)) continue
+                val dateMs = c.getLong(dateIdx)
+                val isSent = type == TYPE_SENT
 
-                seen[suffix] = SmsContact(
-                    address = address,
-                    normalizedSuffix = suffix,
-                    lastBody = c.getString(bodyIdx).orEmpty(),
-                    lastDateMs = c.getLong(dateIdx),
-                    lastSent = type == TYPE_SENT
-                )
+                val existing = seen[suffix]
+                if (existing == null) {
+                    if (seen.size >= contactLimit) continue
+                    seen[suffix] = SmsContact(
+                        address = address,
+                        normalizedSuffix = suffix,
+                        lastBody = c.getString(bodyIdx).orEmpty(),
+                        lastDateMs = dateMs,
+                        lastSent = isSent,
+                        hasOwnerReply = isSent,
+                        firstDateMsInScan = dateMs
+                    )
+                } else {
+                    // DESC 순회라 dateMs 는 항상 existing.firstDateMsInScan 이하 → 덮어쓰면 가장 오래된 값.
+                    seen[suffix] = existing.copy(
+                        hasOwnerReply = existing.hasOwnerReply || isSent,
+                        firstDateMsInScan = dateMs
+                    )
+                }
             }
-            seen.values.toList()
+        }
+    }
+
+    /**
+     * MMS row 를 훑어 SMS-only seen 맵에 머지.
+     *   - MMS date 는 초 단위 → ms 변환 (× 1000)
+     *   - MMS phone = addr 서브테이블 별도 조회 (137=from / 151=to). 비용 비싸 mmsScanLimit 으로 cap.
+     *   - 본문은 "📎 사진/첨부 N장" placeholder — part 본문까지 읽으면 성능 더 떨어져 표시용으로만.
+     *   - 같은 phone 이 SMS+MMS 둘 다 있으면 dateMs 더 큰 쪽이 lastBody/lastSent 결정.
+     */
+    private fun fillFromMms(
+        seen: LinkedHashMap<String, SmsContact>,
+        mmsScanLimit: Int,
+        contactLimit: Int
+    ) {
+        val mmsUri = Uri.parse("content://mms")
+        val proj = arrayOf("_id", "date", "msg_box")
+        val cursor = runCatching {
+            context.contentResolver.query(mmsUri, proj, dateDescSortArgs(mmsScanLimit), null)
+        }.getOrNull() ?: return
+
+        cursor.use { c ->
+            val idIdx = c.getColumnIndex("_id")
+            val dateIdx = c.getColumnIndex("date")
+            val boxIdx = c.getColumnIndex("msg_box")
+            if (idIdx < 0 || dateIdx < 0 || boxIdx < 0) return@use
+
+            while (c.moveToNext()) {
+                val mmsId = c.getLong(idIdx)
+                val dateSec = c.getLong(dateIdx)
+                val dateMs = dateSec * 1000L
+                val box = c.getInt(boxIdx)
+                if (box != MMS_BOX_INBOX && box != MMS_BOX_SENT) continue
+                val isSent = box == MMS_BOX_SENT
+
+                val addrs = runCatching { getMmsAddresses(mmsId) }.getOrDefault(emptyList())
+                // 받은 MMS = type=137 (from), 보낸 MMS = type=151 (to). 다른 type 은 그룹/cc.
+                val phone = if (isSent) {
+                    addrs.firstOrNull { (_, type) -> type == MMS_ADDR_TO }?.first
+                } else {
+                    addrs.firstOrNull { (_, type) -> type == MMS_ADDR_FROM }?.first
+                }?.takeIf { it.isNotBlank() } ?: continue
+
+                val digits = phone.filter { it.isDigit() }
+                if (digits.length < 7) continue
+                val suffix = digits.takeLast(8)
+
+                val existing = seen[suffix]
+                if (existing == null) {
+                    if (seen.size >= contactLimit) continue
+                    seen[suffix] = SmsContact(
+                        address = phone,
+                        normalizedSuffix = suffix,
+                        lastBody = "📎 사진/첨부 메시지",
+                        lastDateMs = dateMs,
+                        lastSent = isSent,
+                        hasOwnerReply = isSent,
+                        firstDateMsInScan = dateMs
+                    )
+                } else {
+                    // MMS dateMs 가 SMS lastDateMs 보다 더 최신이면 본문/방향 갱신.
+                    val isNewer = dateMs > existing.lastDateMs
+                    seen[suffix] = existing.copy(
+                        lastBody = if (isNewer) "📎 사진/첨부 메시지" else existing.lastBody,
+                        lastDateMs = maxOf(existing.lastDateMs, dateMs),
+                        lastSent = if (isNewer) isSent else existing.lastSent,
+                        hasOwnerReply = existing.hasOwnerReply || isSent,
+                        firstDateMsInScan = minOf(existing.firstDateMsInScan, dateMs)
+                    )
+                }
+            }
         }
     }
 
@@ -453,6 +646,45 @@ class SmsRepository(private val context: Context) {
             sampleSmsAddresses = sampleAddrs
         )
     }
+
+    /**
+     * SMS/MMS provider 변경 시 emit 하는 Flow. 새 메시지 도착 / 발송 시 Android 가 자동 통지.
+     *   - 최초 1회 즉시 emit (initial load)
+     *   - onChange 마다 재쿼리 후 emit (debounce 책임은 호출자)
+     *   - 본 Flow 는 ContentObserver 만 등록; 권한 체크는 호출자가 또는 [hasReadPermission] 으로.
+     *
+     * 갤메시지 (default SMS app) 가 SMS 받을 때 content://sms 에 INSERT → observer 트리거.
+     * RING-GO 가 default 아니어도 통지 받음 — "갤메시지처럼 즉시 최신화" 가 가능해진 이유.
+     */
+    fun observeContacts(scanLimit: Int = 10000, contactLimit: Int = 500): Flow<List<SmsContact>> =
+        callbackFlow {
+            val handler = Handler(Looper.getMainLooper())
+            val observer = object : ContentObserver(handler) {
+                override fun onChange(selfChange: Boolean) {
+                    trySend(safeQueryContacts(scanLimit, contactLimit))
+                }
+            }
+            // content://sms 와 content://mms 둘 다 — MMS 도 갤럭시 메시지 목록에 섞임.
+            //   notifyForDescendants=true 로 sub-uri (sent, inbox) 변경도 포착.
+            val smsUri = Uri.parse("content://sms")
+            val mmsUri = Uri.parse("content://mms")
+            val cr = context.contentResolver
+            runCatching { cr.registerContentObserver(smsUri, true, observer) }
+            runCatching { cr.registerContentObserver(mmsUri, true, observer) }
+
+            // 초기 emit — 화면 진입 즉시 데이터 채움.
+            trySend(safeQueryContacts(scanLimit, contactLimit))
+
+            awaitClose {
+                runCatching { cr.unregisterContentObserver(observer) }
+            }
+        }
+
+    private fun safeQueryContacts(scanLimit: Int, contactLimit: Int): List<SmsContact> =
+        runCatching {
+            if (hasReadPermission()) queryRecentContacts(scanLimit, contactLimit)
+            else emptyList()
+        }.getOrDefault(emptyList())
 
     private fun dateDescSortArgs(limit: Int): Bundle = Bundle().apply {
         putStringArray(ContentResolver.QUERY_ARG_SORT_COLUMNS, arrayOf(COL_DATE))

@@ -9,7 +9,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import com.detailline.callfollowcrm.presentation.AppRoot
-import com.detailline.callfollowcrm.recording.AdotFolderScanner
 import com.detailline.callfollowcrm.recording.AdotSummaryImporter
 import com.detailline.callfollowcrm.recording.RecordingShareHandler
 
@@ -19,11 +18,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 2026-05-24: setDecorFitsSystemWindows(false) 박았다가 다른 화면들의 bottomBar 가
+        // nav bar 영역에 잘리는 문제 발생 → 롤백. manifest 의 adjustResize 가 시스템 측에서
+        // 키보드 처리. 각 화면은 Scaffold inner padding + 필요 시 imePadding 으로 대응.
         handleIncoming(intent)
 
-        // 앱 켤 때마다 에이닷 폴더 자동 스캔 (권한 받은 경우에만)
         val container = (application as CallFollowCrmApplication).container
-        AdotFolderScanner.scanIfConnected(applicationContext, container)
 
         setContent {
             val pending = remember { pendingIntentState }

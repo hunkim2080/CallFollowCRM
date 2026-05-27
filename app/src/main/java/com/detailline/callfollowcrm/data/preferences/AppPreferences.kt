@@ -64,6 +64,14 @@ class AppPreferences(context: Context) {
         get() = prefs.getLong(KEY_QUICK_ACTION_TPL_3, -1L)
         set(value) = prefs.edit().putLong(KEY_QUICK_ACTION_TPL_3, value).apply()
 
+    /**
+     * 수신 SMS 가 오면 RING-GO 자체 알림 표시 (갤메시지 대체 시도).
+     * 기본 ON — 사장님 결정 2026-05-25. 사장님이 갤메시지 알림은 시스템 설정에서 따로 끔.
+     */
+    var incomingSmsNotifyEnabled: Boolean
+        get() = prefs.getBoolean(KEY_INCOMING_SMS_NOTIFY, true)
+        set(value) = prefs.edit().putBoolean(KEY_INCOMING_SMS_NOTIFY, value).apply()
+
     companion object {
         private const val KEY_ADOT_FOLDER_URI = "adot_folder_uri"
         private const val KEY_LAST_SCAN_AT = "last_scan_at"
@@ -74,5 +82,6 @@ class AppPreferences(context: Context) {
         private const val KEY_QUICK_ACTION_TPL_1 = "quick_action_tpl_id_1"
         private const val KEY_QUICK_ACTION_TPL_2 = "quick_action_tpl_id_2"
         private const val KEY_QUICK_ACTION_TPL_3 = "quick_action_tpl_id_3"
+        private const val KEY_INCOMING_SMS_NOTIFY = "incoming_sms_notify_enabled"
     }
 }

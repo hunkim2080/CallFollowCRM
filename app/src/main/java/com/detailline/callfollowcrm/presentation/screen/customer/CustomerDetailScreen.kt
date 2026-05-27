@@ -86,8 +86,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.data.local.entity.RecordingAttachmentEntity
-import com.detailline.callfollowcrm.domain.model.CustomerStatus
-import com.detailline.callfollowcrm.domain.model.LeadHeat
 import com.detailline.callfollowcrm.presentation.component.CelebrationOverlay
 import com.detailline.callfollowcrm.presentation.component.SectionLabel
 import com.detailline.callfollowcrm.presentation.component.TossCard
@@ -126,10 +124,9 @@ fun CustomerDetailScreen(
     var memoInput by remember(customer?.id) { mutableStateOf(customer?.memo.orEmpty()) }
     var datePickerOpen by remember { mutableStateOf(false) }
     var callsExpanded by remember(customer?.id) { mutableStateOf(false) }
-    var statusDialogOpen by remember { mutableStateOf(false) }
     var orphanRecsExpanded by remember(customer?.id) { mutableStateOf(false) }
     var nameDialogOpen by remember { mutableStateOf(false) }
-    var leadHeatDialogOpen by remember { mutableStateOf(false) }
+    var categoryDialogOpen by remember { mutableStateOf(false) }
     // MMS 사진 풀스크린 뷰어 — 썸네일 탭하면 set, 다이얼로그가 보여줌. null 이면 닫힘.
     var fullscreenImageUri by remember { mutableStateOf<android.net.Uri?>(null) }
     var celebrationVisible by remember { mutableStateOf(false) }
@@ -266,10 +263,13 @@ fun CustomerDetailScreen(
                         Spacer(Modifier.width(8.dp))
                         CallIconButton(phoneNumber = c.phoneNumber)
                         Spacer(Modifier.weight(1f))
-                        // 상태는 멀리 우측에 분리 — 시선 충돌 방지.
-                        StatusPill(
-                            label = c.status,
-                            onClick = { statusDialogOpen = true }
+                        // 2026-05-25: 카테고리 pill — 사장님 정의 카테고리 (1:1). 탭 시 선택 다이얼로그.
+                        val categories by viewModel.categories.collectAsState()
+                        val currentCat = categories.firstOrNull { it.id == c.categoryId }
+                        CategoryPill(
+                            label = currentCat?.let { (it.emoji?.let { e -> "$e " } ?: "") + it.name } ?: "+ 카테고리",
+                            assigned = currentCat != null,
+                            onClick = { categoryDialogOpen = true }
                         )
                     }
                     Spacer(Modifier.height(8.dp))
@@ -277,13 +277,121 @@ fun CustomerDetailScreen(
                         currentName = c.name.orEmpty(),
                         onEdit = { nameDialogOpen = true }
                     )
-                    // 리드 온도 배지 — status 와 다른 축. 통화 직후 카드에서 분류된 값 표시,
-                    // 미분류면 작은 회색 배지로 노출 + 탭하면 변경 다이얼로그.
-                    Spacer(Modifier.height(8.dp))
-                    LeadHeatRow(
-                        current = LeadHeat.fromNameOrNull(c.leadHeat),
-                        onClick = { leadHeatDialogOpen = true }
-                    )
+                }
+            }
+
+            // 1.3 추출된 시공 현장 주소 — 사장님 요청 (2026-05-25): 시공자는 주소 복사가 가장 자주.
+            //   대화 본문에서 한국 주소 패턴 자동 추출. 한 탭 = 클립보드 복사.
+            //   추출 실패 시에도 카드 표시 (사장님이 기능 인지). 다음 세션 서버 LLM 정확도 ↑.
+            val extractedAddress by viewModel.extractedAddress.collectAsState()
+            val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+            val ctx = LocalContext.current
+            val addr = extractedAddress
+            if (addr != null) {
+                TossCard(
+                    onClick = {
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(addr))
+                        android.widget.Toast.makeText(
+                            ctx, "주소가 복사됐어요", android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                ) {
+                    androidx.compose.foundation.layout.Row(
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        Text("📍", fontSize = 22.sp)
+                        Spacer(Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "현장 주소",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TossTextTertiary
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                addr,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = TossTextPrimary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        Text(
+                            "탭하면 복사",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TossBlue,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            } else {
+                // 빈 상태 — 사장님이 기능 인지 + 미발견 안내. 대화에 주소 박히면 자동 채워짐.
+                TossCard {
+                    androidx.compose.foundation.layout.Row(
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        Text("📍", fontSize = 22.sp)
+                        Spacer(Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "현장 주소",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TossTextTertiary
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                "아직 인식된 주소가 없어요",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TossTextSecondary
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                "고객이 보낸 메시지에 주소가 있으면 자동으로 채워져요.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TossTextTertiary
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 1.5 AI 대화 요약 — 사장님 요청 (2026-05-24): 고객상세에서 문자 다시 검토 안 해도 흐름 파악.
+            //   ChatScreen 의 ConversationSummaryBox 와 같은 데이터 (AiSummaryEntity.conversationSummaryJson).
+            //   서버 미구현 또는 데이터 없으면 silent 숨김.
+            val aiSummary by viewModel.aiSummary.collectAsState()
+            aiSummary?.let { s ->
+                val lines = com.detailline.callfollowcrm.ai.parseConversationLines(s.conversationSummaryJson)
+                if (lines.isNotEmpty()) {
+                    TossCard {
+                        Column {
+                            // 헤더 + 어디까지의 메시지를 본 요약인지 — 사장님이 최신화 여부 판단.
+                            androidx.compose.foundation.layout.Row(
+                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "✨ 대화 요약",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = TossBlue,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                if (s.latestMessageTimestampMs > 0) {
+                                    Text(
+                                        " · ${com.detailline.callfollowcrm.util.DateTimeUtils.formatShort(s.latestMessageTimestampMs)} 까지",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TossTextTertiary
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            lines.forEach { line ->
+                                Text(
+                                    line,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = TossTextPrimary,
+                                    modifier = Modifier.padding(vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -614,11 +722,10 @@ fun CustomerDetailScreen(
                                 onClick = {
                                     val picked = datePickerState.selectedDateMillis
                                     if (picked != null) {
-                                        // ViewModel 측에서 예약 확정으로 자동 전환됨. UI 측은 "새로 전환"되는
-                                        // 케이스에서만 축하 (이미 예약 확정 상태에서 날짜만 바꾸는 케이스는 X).
-                                        val wasAlreadyConfirmed = customer?.status == CustomerStatus.RESERVATION_CONFIRMED.label
+                                        // 일정 신규 등록/변경 모두 축하. 자동 status 전환은 폐기됨 (카테고리 시스템).
+                                        val wasAlreadyScheduled = customer?.scheduledWorkDate != null
                                         viewModel.updateScheduledWorkDate(picked)
-                                        if (!wasAlreadyConfirmed) {
+                                        if (!wasAlreadyScheduled) {
                                             celebrationVisible = true
                                             vibrateCelebration(context)
                                         }
@@ -688,91 +795,20 @@ fun CustomerDetailScreen(
         )
     }
 
-    if (leadHeatDialogOpen && customer != null) {
-        val currentHeat = LeadHeat.fromNameOrNull(customer?.leadHeat)
-        AlertDialog(
-            onDismissRequest = { leadHeatDialogOpen = false },
-            title = { Text("리드 온도", color = TossTextPrimary, fontWeight = FontWeight.Bold) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        "이 고객의 전환 가능성",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TossTextSecondary
-                    )
-                    LeadHeat.values().forEach { heat ->
-                        val selected = currentHeat == heat
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    viewModel.updateLeadHeat(heat)
-                                    leadHeatDialogOpen = false
-                                },
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-                            color = if (selected) com.detailline.callfollowcrm.presentation.theme.TossBlueSoft else Color.White,
-                            border = BorderStroke(1.dp, if (selected) TossBlue else TossDivider)
-                        ) {
-                            androidx.compose.foundation.layout.Row(
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                            ) {
-                                Text(heat.emoji, fontSize = 18.sp)
-                                Spacer(Modifier.width(10.dp))
-                                Text(
-                                    heat.label,
-                                    color = if (selected) TossBlue else TossTextPrimary,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        }
-                    }
-                    if (currentHeat != null) {
-                        TextButton(onClick = {
-                            viewModel.updateLeadHeat(null)
-                            leadHeatDialogOpen = false
-                        }) {
-                            Text("분류 해제", color = TossTextSecondary)
-                        }
-                    }
-                }
+    if (categoryDialogOpen && customer != null) {
+        val categories by viewModel.categories.collectAsState()
+        CategoryPickerDialog(
+            categories = categories,
+            selectedId = customer?.categoryId,
+            onPick = { id ->
+                viewModel.setCategory(id)
+                categoryDialogOpen = false
             },
-            confirmButton = {
-                TextButton(onClick = { leadHeatDialogOpen = false }) {
-                    Text("닫기", color = TossTextSecondary)
-                }
+            onAddNew = { name ->
+                viewModel.addCategoryAndAssign(name)
+                categoryDialogOpen = false
             },
-            containerColor = Color.White
-        )
-    }
-
-    if (statusDialogOpen && customer != null) {
-        val current = customer?.status.orEmpty()
-        AlertDialog(
-            onDismissRequest = { statusDialogOpen = false },
-            title = { Text("상태 변경", color = TossTextPrimary, fontWeight = FontWeight.Bold) },
-            text = {
-                StatusDialogContent(
-                    currentLabel = current,
-                    onPick = { picked ->
-                        // 예약 확정으로 새로 전환되는 순간에만 축하 (이미 예약 확정인 채로 재선택 시엔 X)
-                        val justBookedConfirmed = picked == CustomerStatus.RESERVATION_CONFIRMED &&
-                            current != CustomerStatus.RESERVATION_CONFIRMED.label
-                        viewModel.updateStatus(picked)
-                        statusDialogOpen = false
-                        if (justBookedConfirmed) {
-                            celebrationVisible = true
-                            vibrateCelebration(context)
-                        }
-                    }
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { statusDialogOpen = false }) {
-                    Text("닫기", color = TossTextSecondary)
-                }
-            },
-            containerColor = Color.White
+            onDismiss = { categoryDialogOpen = false }
         )
     }
 
@@ -1046,258 +1082,10 @@ private fun tossFieldColors() = OutlinedTextFieldDefaults.colors(
     unfocusedContainerColor = Color.White
 )
 
-/** 영업 진행 흐름의 6단계 순서. 보류/이탈은 본 흐름 바깥(예외)으로 분리. */
-private val PIPELINE_STAGES = listOf(
-    CustomerStatus.NEW_INQUIRY,
-    CustomerStatus.ESTIMATE_PENDING,
-    CustomerStatus.ESTIMATE_SENT,
-    CustomerStatus.RESERVATION_PENDING,
-    CustomerStatus.RESERVATION_CONFIRMED,
-    CustomerStatus.WORK_DONE
-)
-private val OFF_FLOW_STATUSES = listOf(CustomerStatus.ON_HOLD, CustomerStatus.LOST)
-
-/** 현재 상태의 다음 단계. 본 흐름 안에서만 의미 있음. 시공 완료/보류/이탈에선 null. */
-private fun nextStageOf(label: String): CustomerStatus? {
-    val idx = PIPELINE_STAGES.indexOfFirst { it.label == label }
-    if (idx < 0 || idx >= PIPELINE_STAGES.lastIndex) return null
-    return PIPELINE_STAGES[idx + 1]
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun StatusDialogContent(
-    currentLabel: String,
-    onPick: (CustomerStatus) -> Unit
-) {
-    val currentIdx = PIPELINE_STAGES.indexOfFirst { it.label == currentLabel }
-    val next = nextStageOf(currentLabel)
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        // 1. 현재 상태 표시 (색 톤 일관)
-        Column {
-            Text(
-                "현재 상태",
-                style = MaterialTheme.typography.labelSmall,
-                color = TossTextTertiary
-            )
-            Spacer(Modifier.height(4.dp))
-            CurrentStatusBadge(currentLabel)
-        }
-
-        // 2. 진행 단계 시각화 (6단계 dot + line)
-        if (currentIdx >= 0) {
-            PipelineProgress(currentIdx)
-        }
-
-        // 3. 다음 단계 빠른 버튼
-        if (next != null) {
-            androidx.compose.foundation.layout.Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
-                    .background(TossBlue)
-                    .clickable { onPick(next) }
-                    .padding(vertical = 14.dp),
-                contentAlignment = androidx.compose.ui.Alignment.Center
-            ) {
-                Text(
-                    "다음 단계로 → ${next.label}",
-                    color = Color.White,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-
-        // 4. 직접 선택 (진행 단계)
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                "직접 선택",
-                style = MaterialTheme.typography.labelMedium,
-                color = TossTextSecondary,
-                fontWeight = FontWeight.SemiBold
-            )
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                PIPELINE_STAGES.forEachIndexed { idx, s ->
-                    StatusChoiceChip(
-                        status = s,
-                        state = when {
-                            s.label == currentLabel -> ChoiceState.CURRENT
-                            currentIdx >= 0 && idx < currentIdx -> ChoiceState.PAST
-                            else -> ChoiceState.FUTURE
-                        },
-                        onClick = { onPick(s) }
-                    )
-                }
-            }
-        }
-
-        // 5. 기타 (보류 / 이탈)
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                "기타",
-                style = MaterialTheme.typography.labelMedium,
-                color = TossTextSecondary,
-                fontWeight = FontWeight.SemiBold
-            )
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                OFF_FLOW_STATUSES.forEach { s ->
-                    StatusChoiceChip(
-                        status = s,
-                        state = if (s.label == currentLabel) ChoiceState.CURRENT else ChoiceState.FUTURE,
-                        onClick = { onPick(s) }
-                    )
-                }
-            }
-        }
-    }
-}
-
-/** 다이얼로그 상단의 큰 현재 상태 표시. 색은 statusColors 와 일관. */
-@Composable
-private fun CurrentStatusBadge(label: String) {
-    val (fg, bg) = statusColors(label)
-    androidx.compose.foundation.layout.Box(
-        modifier = Modifier
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
-            .background(bg)
-            .padding(horizontal = 14.dp, vertical = 8.dp)
-    ) {
-        Text(
-            label,
-            color = fg,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
-        )
-    }
-}
-
-/** 6단계 가로 stepper. 현재까지 채워진 progress bar + 단계별 dot + 라벨. */
-@Composable
-private fun PipelineProgress(currentIdx: Int) {
-    Column {
-        androidx.compose.foundation.layout.Row(
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            PIPELINE_STAGES.forEachIndexed { idx, _ ->
-                val passed = idx <= currentIdx
-                androidx.compose.foundation.layout.Box(
-                    modifier = Modifier
-                        .size(if (idx == currentIdx) 14.dp else 10.dp)
-                        .clip(androidx.compose.foundation.shape.CircleShape)
-                        .background(
-                            if (passed) TossBlue
-                            else com.detailline.callfollowcrm.presentation.theme.TossDivider
-                        )
-                )
-                if (idx < PIPELINE_STAGES.lastIndex) {
-                    androidx.compose.foundation.layout.Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(2.dp)
-                            .background(
-                                if (idx < currentIdx) TossBlue
-                                else com.detailline.callfollowcrm.presentation.theme.TossDivider
-                            )
-                    )
-                }
-            }
-        }
-        Spacer(Modifier.height(6.dp))
-        androidx.compose.foundation.layout.Row(modifier = Modifier.fillMaxWidth()) {
-            PIPELINE_STAGES.forEachIndexed { idx, s ->
-                val passed = idx <= currentIdx
-                Text(
-                    s.label.replace(" ", "\n"),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (idx == currentIdx) TossBlue
-                        else if (passed) TossTextSecondary
-                        else TossTextTertiary,
-                    fontWeight = if (idx == currentIdx) FontWeight.Bold else FontWeight.Normal,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    modifier = Modifier.weight(1f),
-                    fontSize = 10.sp,
-                    lineHeight = 12.sp
-                )
-            }
-        }
-    }
-}
-
-private enum class ChoiceState { PAST, CURRENT, FUTURE }
-
-/**
- * 다이얼로그 안의 상태 칩.
- *  - CURRENT: 색 채워진 강조 (statusColors 의 fg/bg)
- *  - PAST: ✓ 아이콘 + 회색 톤 (이미 지나간 단계)
- *  - FUTURE: 흰 배경 + 옅은 테두리 (선택 가능)
- */
-@Composable
-private fun StatusChoiceChip(
-    status: CustomerStatus,
-    state: ChoiceState,
-    onClick: () -> Unit
-) {
-    val (fg, bg, border) = when (state) {
-        ChoiceState.CURRENT -> {
-            val (f, b) = statusColors(status.label)
-            Triple(f, b, f)
-        }
-        ChoiceState.PAST -> Triple(
-            TossTextSecondary,
-            Color(0xFFF1F3F5),
-            Color(0xFFE5E8EB)
-        )
-        ChoiceState.FUTURE -> Triple(
-            TossTextPrimary,
-            Color.White,
-            com.detailline.callfollowcrm.presentation.theme.TossDivider
-        )
-    }
-    androidx.compose.foundation.layout.Row(
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-        modifier = Modifier
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
-            .background(bg)
-            .border(
-                width = 1.dp,
-                color = border,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)
-            )
-            .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-    ) {
-        if (state == ChoiceState.PAST) {
-            Text(
-                "✓ ",
-                color = fg,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold
-            )
-        }
-        Text(
-            status.label,
-            color = fg,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = if (state == ChoiceState.CURRENT) FontWeight.Bold else FontWeight.Medium
-        )
-    }
-}
+// 2026-05-25: status 다이얼로그/pill/단계 시각화 함수 모두 제거 —
+//   PIPELINE_STAGES, OFF_FLOW_STATUSES, nextStageOf, StatusDialogContent,
+//   CurrentStatusBadge, PipelineProgress, ChoiceState, StatusChoiceChip
+//   갤메시지 식 사장님 카테고리 시스템으로 통일 (P2 카테고리 시스템에서 대체).
 
 /**
  * 기본 정보 카드 안의 이름 표시/편집 행.
@@ -1600,76 +1388,8 @@ private val ThousandsSeparatorTransformation = androidx.compose.ui.text.input.Vi
     )
 }
 
-@Composable
-private fun LeadHeatRow(current: LeadHeat?, onClick: () -> Unit) {
-    androidx.compose.foundation.layout.Row(
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-    ) {
-        Text(
-            "리드 온도",
-            style = MaterialTheme.typography.labelMedium,
-            color = TossTextSecondary,
-            fontWeight = FontWeight.SemiBold
-        )
-        Spacer(Modifier.width(8.dp))
-        val (label, fg, bg) = when (current) {
-            LeadHeat.COLD -> Triple("${LeadHeat.COLD.emoji} ${LeadHeat.COLD.label}", TossBlue, com.detailline.callfollowcrm.presentation.theme.TossBlueSoft)
-            LeadHeat.WARM -> Triple("${LeadHeat.WARM.emoji} ${LeadHeat.WARM.label}", Color(0xFFD03A1A), Color(0xFFFFE9E1))
-            null -> Triple("미분류", TossTextTertiary, TossGrayBg)
-        }
-        androidx.compose.foundation.layout.Row(
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            modifier = Modifier
-                .background(bg, androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
-                .clickable(onClick = onClick)
-                .padding(horizontal = 10.dp, vertical = 5.dp)
-        ) {
-            Text(label, color = fg, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.width(4.dp))
-            Text("▾", color = fg, style = MaterialTheme.typography.labelMedium)
-        }
-    }
-}
-
-/**
- * 작은 상태 알약. 현재 상태 라벨 + ▾ 화살표. 탭하면 변경 다이얼로그.
- * 색은 상태별 의미에 맞게 4가지 톤으로 그룹화 (영업 흐름 시각화).
- */
-@Composable
-private fun StatusPill(label: String, onClick: () -> Unit) {
-    val (fg, bg) = statusColors(label)
-    androidx.compose.foundation.layout.Row(
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-        modifier = Modifier
-            .background(bg, androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp)
-    ) {
-        Text(
-            label,
-            color = fg,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold
-        )
-        Spacer(Modifier.width(4.dp))
-        Text("▾", color = fg, style = MaterialTheme.typography.labelMedium)
-    }
-}
-
-/** 상태 라벨 → (글자색, 배경색). 톤만 4가지로 묶어 직관성 ↑. */
-private fun statusColors(label: String): Pair<Color, Color> {
-    val blue = TossBlue to com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
-    val green = com.detailline.callfollowcrm.presentation.theme.TossSuccess to Color(0xFFE6F7EC)
-    val gray = com.detailline.callfollowcrm.presentation.theme.TossTextSecondary to Color(0xFFF1F3F5)
-    val red = com.detailline.callfollowcrm.presentation.theme.TossError to Color(0xFFFEEBEC)
-    return when (label) {
-        "신규 문의", "견적 대기", "견적 발송" -> blue
-        "예약 대기", "예약 확정" -> green
-        "시공 완료" -> gray
-        "보류", "이탈" -> red
-        else -> blue
-    }
-}
+// 2026-05-25: StatusPill / statusColors 제거 — status pill UI 폐기.
+//   카테고리 chip 으로 대체 예정 (Phase 2).
 
 private fun callTypeLabel(raw: String): String = when (raw) {
     "INCOMING" -> "수신"
@@ -1738,5 +1458,160 @@ private fun playRecording(context: android.content.Context, fileUri: String) {
             addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         context.startActivity(intent)
+    }
+}
+
+/**
+ * 카테고리 알약. 할당 = 파랑 톤, 미할당 = "+ 카테고리" 회색.
+ * 탭하면 [CategoryPickerDialog].
+ */
+@Composable
+private fun CategoryPill(label: String, assigned: Boolean, onClick: () -> Unit) {
+    val fg = if (assigned) TossBlue else TossTextSecondary
+    val bg = if (assigned) com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
+        else Color(0xFFF1F3F5)
+    androidx.compose.foundation.layout.Row(
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        modifier = Modifier
+            .background(bg, androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+    ) {
+        Text(
+            label,
+            color = fg,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+/**
+ * 사장님 정의 카테고리 중 1개 선택. 빈 상태든 아니든 [+ 새 카테고리] 칩 항상 존재.
+ * 2026-05-25: "홈에서 추가하세요" 안내문 제거 — 사장님이 여기서 바로 추가 가능.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CategoryPickerDialog(
+    categories: List<com.detailline.callfollowcrm.data.local.entity.CategoryEntity>,
+    selectedId: Long?,
+    onPick: (Long?) -> Unit,
+    onAddNew: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var addDialogOpen by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("카테고리 선택", color = TossTextPrimary, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    CategoryChoiceChip(
+                        label = "미분류",
+                        selected = selectedId == null,
+                        onClick = { onPick(null) }
+                    )
+                    categories.forEach { c ->
+                        val txt = if (c.emoji != null) "${c.emoji} ${c.name}" else c.name
+                        CategoryChoiceChip(
+                            label = txt,
+                            selected = selectedId == c.id,
+                            onClick = { onPick(c.id) }
+                        )
+                    }
+                    // 항상 표시 — 빈 상태든 카테고리 N개든 사장님이 여기서 바로 추가.
+                    CategoryChoiceChip(
+                        label = "+ 새 카테고리",
+                        selected = false,
+                        onClick = { addDialogOpen = true }
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("닫기", color = TossTextSecondary)
+            }
+        },
+        containerColor = Color.White
+    )
+    if (addDialogOpen) {
+        CategoryNameInputDialog(
+            onDismiss = { addDialogOpen = false },
+            onConfirm = { name ->
+                onAddNew(name)
+                addDialogOpen = false
+            }
+        )
+    }
+}
+
+/**
+ * 카테고리 이름만 받는 input 다이얼로그. HomeScreen 의 CategoryAddDialog 와 동일 톤.
+ *   이모지 입력란 X (사장님 결정 2026-05-25 — 한글 단어로 충분).
+ */
+@Composable
+private fun CategoryNameInputDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("카테고리 추가", color = TossTextPrimary, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "이름만 적으면 AI 가 대화 내용 보고 알아서 분류해드려요.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TossTextSecondary
+                )
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    placeholder = { Text("예: AS 고객, 일당, 아르바이트", color = TossTextTertiary) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = tossFieldColors()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                if (name.isNotBlank()) onConfirm(name.trim())
+            }) { Text("추가", color = TossBlue, fontWeight = FontWeight.SemiBold) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("취소", color = TossTextSecondary)
+            }
+        },
+        containerColor = Color.White
+    )
+}
+
+@Composable
+private fun CategoryChoiceChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    val fg = if (selected) Color.White else TossTextPrimary
+    val bg = if (selected) TossBlue else Color.White
+    val border = if (selected) TossBlue else com.detailline.callfollowcrm.presentation.theme.TossDivider
+    androidx.compose.foundation.layout.Box(
+        modifier = Modifier
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
+            .background(bg)
+            .border(1.dp, border, androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        Text(
+            label,
+            color = fg,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+        )
     }
 }

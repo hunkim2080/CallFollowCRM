@@ -18,6 +18,10 @@ object NotificationHelper {
     private const val CHANNEL_FOLLOW_UP = "call_follow_up"
     private const val CHANNEL_FOLLOW_UP_QUIET = "call_follow_up_quiet"
     private const val CHANNEL_AUTO_REPLY = "auto_reply"
+    /** 2026-05-25 사장님 결정 — RING-GO 가 갤메시지보다 더 좋은 알림창. 풍부한 정보 + AI 추천 답변. */
+    private const val CHANNEL_INCOMING_SMS = "incoming_sms"
+    /** SMS 알림 ID = 발신번호 hash + offset. 같은 번호 새 SMS = 같은 알림 update. */
+    private const val SMS_ID_OFFSET = 10_000_000
 
     // 알림 배너 배경 — 파스텔 블루 (Material Blue 100).
     // setColorized(true) 와 함께 쓰면 OneUI 등 일부 시스템이 배너 전체 배경으로 사용.
@@ -64,6 +68,169 @@ object NotificationHelper {
                 }
                 manager.createNotificationChannel(channel)
             }
+            // 신규 SMS 수신 — 갤메시지 대체 알림. 본문 + AI 추천 답변 + 빠른 답장 RemoteInput.
+            if (manager.getNotificationChannel(CHANNEL_INCOMING_SMS) == null) {
+                val channel = NotificationChannel(
+                    CHANNEL_INCOMING_SMS,
+                    "📩 새 문자",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "고객 SMS 가 오면 AI 추천 답변과 함께 표시 — 갤메시지 알림은 끄고 사용하세요"
+                    setShowBadge(true)
+                }
+                manager.createNotificationChannel(channel)
+            }
+        }
+    }
+
+    /** 같은 번호의 알림은 같은 ID 로 update — 새 메시지 도착 시 같은 자리 갱신. */
+    fun smsNotificationId(phone: String): Int =
+        SMS_ID_OFFSET + (phone.filter { it.isDigit() }.takeLast(8).hashCode() and 0x7FFFFFF)
+
+    /**
+     * 갤메시지 대체 풍부한 SMS 수신 알림. Step 1 — 기본 표시.
+     *   - 헤더: 이름(있으면) 또는 포맷팅된 번호 + 카테고리
+     *   - 본문: BigText 확장형
+     *   - 탭 = ChatScreen 진입
+     *   - 액션은 후속 Step 에서 (RemoteInput / AI 추천 답변 / 전화)
+     */
+    fun showIncomingSms(
+        context: Context,
+        phone: String,
+        displayName: String?,
+        body: String,
+        receivedAtMs: Long,
+        categoryLabel: String? = null,
+        /** AI 추천 답변 — null 이면 칩 X. 준비되면 같은 알림 ID 로 update 호출. */
+        suggestions: List<String>? = null
+    ) {
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
+
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            action = MainActivity.ACTION_CHAT
+            putExtra(MainActivity.EXTRA_PHONE_NUMBER, phone)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val openPending = PendingIntent.getActivity(
+            context,
+            phone.hashCode(),
+            openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val title = buildString {
+            append(displayName?.takeIf { it.isNotBlank() } ?: formatPhone(phone))
+            if (!categoryLabel.isNullOrBlank()) append(" · 🔖 $categoryLabel")
+        }
+
+        // 빠른 답장 RemoteInput — 사장님이 알림창에서 직접 타이핑 → SmsManager 발송.
+        //   AI 추천이 안 맞을 때 fallback. 추천 슬롯이 다 차면 빠짐 (본체 탭 → ChatScreen).
+        val remoteInput = androidx.core.app.RemoteInput.Builder(SmsReplyReceiver.KEY_REPLY_TEXT)
+            .setLabel("답장 보내기")
+            .build()
+        val replyIntent = Intent(context, SmsReplyReceiver::class.java).apply {
+            action = SmsReplyReceiver.ACTION_REPLY
+            putExtra(SmsReplyReceiver.EXTRA_PHONE, phone)
+        }
+        val replyPending = PendingIntent.getBroadcast(
+            context,
+            smsNotificationId(phone),
+            replyIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+        )
+        val replyAction = NotificationCompat.Action.Builder(
+            R.drawable.ic_notification,
+            "💬 직접 답장",
+            replyPending
+        )
+            .addRemoteInput(remoteInput)
+            .setAllowGeneratedReplies(false)
+            .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY)
+            .setShowsUserInterface(false)
+            .build()
+
+        // BigText = 받은 메시지 + AI 추천 답변 전체 (액션 라벨이 짧아 잘려서, 본문에서 풀로 노출).
+        //   2026-05-26 사장님 보고 fix:
+        //     - 액션 라벨 "✨ 신축 욕..." 처럼 짤려서 어떤 답변인지 모름
+        //     - BigText 안에 답변 전체 + 번호 → 사장님이 펼쳐서 읽고 → 짧은 액션 "✨ 1번 보내기" 한 탭
+        //   suggestions 아직 없으면 "AI 답변 준비 중..." 진행감.
+        val bigText = buildString {
+            append(body)
+            if (suggestions.isNullOrEmpty()) {
+                append("\n\n✨ AI 추천 답변 준비 중...")
+            } else {
+                // 2026-05-26 사장님 보고 fix:
+                //   - 안내 문구 "(아래 ✨ 버튼 = 즉시 발송)" 제거 — 액션 라벨로 충분.
+                //   - 각 답변 사이 빈 줄 (\n\n) 추가 → 1·2·3 경계 명확.
+                append("\n\n✨ AI 추천 답변")
+                suggestions.take(3).forEachIndexed { idx, sug ->
+                    val num = listOf("1️⃣", "2️⃣", "3️⃣")[idx]
+                    append("\n\n$num $sug")
+                }
+            }
+        }
+
+        val builder = NotificationCompat.Builder(context, CHANNEL_INCOMING_SMS)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(title)
+            .setContentText(body.take(60))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
+            .setColor(NOTIFICATION_BG_COLOR)
+            .setColorized(true)
+            .setWhen(receivedAtMs)
+            .setShowWhen(true)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setContentIntent(openPending)
+            // 같은 알림 id 의 후속 update (AI 추천 채워질 때) 가 소리/진동 두 번 울리지 않게.
+            //   첫 알림만 사장님께 알리고, AI 추천은 조용히 보강.
+            .setOnlyAlertOnce(true)
+            .setAutoCancel(true)
+
+        // 액션 우선순위: AI 추천 (한 탭 발송) → 직접 답장 (RemoteInput).
+        //   전화는 본체 탭 → ChatScreen 에서 가능 (알림 슬롯 낭비 X).
+        //   Android 알림 액션 최대 3개 — 추천 3개면 답장 빠짐, 추천 2개면 답장 포함.
+        val notifId = smsNotificationId(phone)
+        val sugList = suggestions?.take(3).orEmpty()
+        sugList.forEachIndexed { idx, sug ->
+            val sendIntent = Intent(context, SmsReplyReceiver::class.java).apply {
+                action = SmsReplyReceiver.ACTION_SEND_SUGGESTION
+                putExtra(SmsReplyReceiver.EXTRA_PHONE, phone)
+                putExtra(SmsReplyReceiver.EXTRA_SUGGESTION_BODY, sug)
+            }
+            val sendPending = PendingIntent.getBroadcast(
+                context,
+                // 같은 알림 안에서 칩별로 unique requestCode.
+                notifId * 10 + idx + 1,
+                sendIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            // 라벨은 짧게 "✨ 1번 보내기" — 답변 본문은 BigText 에서 미리 읽기.
+            //   2026-05-26 사장님 보고 fix: 라벨에 본문 넣으면 잘려서 어떤 답변인지 모름.
+            val label = "✨ ${idx + 1}번 보내기"
+            builder.addAction(
+                NotificationCompat.Action.Builder(R.drawable.ic_notification, label, sendPending)
+                    .setShowsUserInterface(false)
+                    .build()
+            )
+        }
+        // 액션 슬롯 남으면 직접 답장 추가. (추천 3개면 빠짐 — 본체 탭으로 직접 타이핑 유도.)
+        if (sugList.size < 3) {
+            builder.addAction(replyAction)
+        }
+
+        runCatching {
+            NotificationManagerCompat.from(context)
+                .notify(smsNotificationId(phone), builder.build())
+        }
+    }
+
+    /** "010-1234-5678" 식 포맷 — 알림 제목용 단순 포맷터. */
+    private fun formatPhone(raw: String): String {
+        val digits = raw.filter { it.isDigit() }
+        return when (digits.length) {
+            11 -> "${digits.substring(0,3)}-${digits.substring(3,7)}-${digits.substring(7)}"
+            10 -> "${digits.substring(0,3)}-${digits.substring(3,6)}-${digits.substring(6)}"
+            else -> raw
         }
     }
 

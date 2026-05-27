@@ -21,11 +21,31 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.activity.compose.BackHandler
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.CallMade
+import androidx.compose.material.icons.filled.CallMissed
+import androidx.compose.material.icons.filled.CallReceived
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sms
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
@@ -35,14 +55,24 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,7 +82,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.CallFollowCrmApplication
-import com.detailline.callfollowcrm.domain.model.CustomerStatus
 import com.detailline.callfollowcrm.presentation.component.TossBadge
 import com.detailline.callfollowcrm.presentation.component.TossCard
 import com.detailline.callfollowcrm.presentation.component.TossChip
@@ -71,11 +100,12 @@ import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
-    /** 메인 진입: 번호 클릭하면 ChatScreen 으로. customerId 있으면 빠른 로드용. */
+    /** 카드 탭 인라인 액션의 [💬 메시지] / [✨ AI] → ChatScreen. customerId 있으면 빠른 로드용. */
     onOpenChat: (phone: String, customerId: Long?) -> Unit,
+    /** 카드 탭 인라인 액션의 [ⓘ 고객 카드] → CustomerDetail. */
+    onOpenCustomerDetail: (customerId: Long) -> Unit,
     /** FAB "수동 입력" 전용 — 번호 직접 타이핑하는 FollowUp 화면. */
     onOpenManualEntry: () -> Unit,
-    onOpenPipeline: (statusName: String) -> Unit,
     onOpenSchedule: () -> Unit,
     onOpenTemplates: () -> Unit,
     onOpenAiMessage: () -> Unit,
@@ -84,11 +114,12 @@ fun HomeScreen(
 ) {
     val timeline by viewModel.timeline.collectAsState()
     val filter by viewModel.filterState.collectAsState()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val aiCardSummaries by viewModel.cardSummariesByPhoneSuffix.collectAsState()
+    val categoriesById by viewModel.categories.collectAsState()
     val todayNew by viewModel.todayNewInquiryCount.collectAsState()
     val unhandled by viewModel.unhandledCount.collectAsState()
     val weekScheduled by viewModel.thisWeekScheduledCount.collectAsState()
-    val estimateSent by viewModel.estimateSentCount.collectAsState()
 
     // 서버 상태 indicator — AppContainer 의 ServerHealthMonitor 를 직접 구독.
     // 30초마다 GET /health 호출 → 결과 반영. 사장님만 알아볼 작은 동그라미. tap = Toast 안내.
@@ -103,6 +134,29 @@ fun HomeScreen(
     LaunchedEffect(Unit) {
         viewModel.refreshSmsContacts()
     }
+
+    // 뒤로가기 UX (2026-05-25 사장님 결정):
+    //   1) 필터 != 전체 → 전체로 복귀 (consume)
+    //   2) 필터 == 전체 → "한 번 더 누르면 종료" Toast → 2초 안 두 번째 = 앱 종료
+    val activity = remember(context) { context.findHomeActivityOrNull() }
+    var lastBackAt by remember { mutableStateOf(0L) }
+    BackHandler(enabled = filter !is HomeFilter.All) {
+        viewModel.setFilter(HomeFilter.All)
+    }
+    BackHandler(enabled = filter is HomeFilter.All) {
+        val now = System.currentTimeMillis()
+        if (now - lastBackAt < 2000) {
+            activity?.finish()
+        } else {
+            lastBackAt = now
+            android.widget.Toast.makeText(
+                context, "한 번 더 누르면 종료됩니다", android.widget.Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    // 미확인 swipe-to-spam Snackbar Undo.
+    val snackbarHostState = remember { SnackbarHostState() }
 
     Scaffold(
         containerColor = TossGrayBg,
@@ -142,9 +196,9 @@ fun HomeScreen(
                     IconButton(onClick = onOpenTemplates) {
                         Icon(Icons.Default.Description, "템플릿", tint = TossTextSecondary)
                     }
-                    IconButton(onClick = onOpenAiMessage) {
-                        Icon(Icons.Default.Sms, "AI 문자함", tint = TossTextSecondary)
-                    }
+                    // AI 문자함 — 2026-05-24 사장님 요청으로 일단 숨김 (사용법 모호 + 거슬림).
+                    //   네비/ViewModel/Screen 은 살아있음 (Destinations.AI_MESSAGE). 다음 reactivation 시
+                    //   여기 IconButton 한 줄만 복원하면 됨.
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Default.Settings, "설정", tint = TossTextSecondary)
                     }
@@ -160,7 +214,8 @@ fun HomeScreen(
                 containerColor = TossBlue,
                 contentColor = Color.White
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { inner ->
         Column(
             Modifier
@@ -168,153 +223,199 @@ fun HomeScreen(
                 .fillMaxSize()
                 .background(TossGrayBg)
         ) {
-            // KPI 4장 (2x2 그리드). 탭하면 해당 작업 화면 또는 필터로.
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    KpiCard(
-                        emoji = "🆕",
-                        label = "오늘 신규",
-                        count = todayNew,
-                        accent = TossBlue,
-                        modifier = Modifier.weight(1f),
-                        onClick = { viewModel.setFilter(HomeFilter.NEW_INQUIRY) }
-                    )
-                    KpiCard(
-                        emoji = "⚠️",
-                        label = "미처리",
-                        count = unhandled,
-                        accent = TossError,
-                        modifier = Modifier.weight(1f),
-                        onClick = { viewModel.setFilter(HomeFilter.UNHANDLED) }
-                    )
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    KpiCard(
-                        emoji = "📅",
-                        label = "이번주 시공",
-                        count = weekScheduled,
-                        accent = TossSuccess,
-                        modifier = Modifier.weight(1f),
-                        onClick = onOpenSchedule
-                    )
-                    KpiCard(
-                        emoji = "💰",
-                        label = "견적 답대기",
-                        count = estimateSent,
-                        accent = TossBlue,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onOpenPipeline(CustomerStatus.ESTIMATE_SENT.name) }
-                    )
-                }
-            }
-
-            // 필터 칩 — KPI 와 연동되는 3개만. 다른 상태별 보기는 KPI / "모든 고객" 으로.
+            // 필터 칩 — 항상 위에 고정 (사장님이 언제든 필터 변경 가능).
+            // KPI 와 달리 필터칩은 사용 빈도 높아 스크롤 의존 X.
+            //   "내 말투 학습" 칩 = 2026-05-24 사장님 요청으로 일단 숨김.
+            //   ViewModel/Screen 코드 살아있음. 다음 reactivation 시 onOpenStyleLearning 칩 한 줄 복원.
+            // 2026-05-25: 갤메시지 식 카테고리 chip row.
+            //   [전체][미확인] + 사장님 정의 카테고리들 + [+]
+            //   + 누르면 다이얼로그 (직접 추가 + AI 제안 — TODO).
+            val categories by viewModel.categories.collectAsState()
+            var addDialogOpen by remember { mutableStateOf(false) }
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(top = 8.dp, bottom = 12.dp)
             ) {
-                item {
+                item(key = "all") {
                     TossChip(
-                        text = "내 말투 학습",
-                        selected = false,
-                        onClick = onOpenStyleLearning
+                        text = HomeFilter.All.label,
+                        selected = filter is HomeFilter.All,
+                        onClick = { viewModel.setFilter(HomeFilter.All) }
                     )
                 }
-                items(HomeFilter.values().toList()) { f ->
+                item(key = "unconfirmed") {
                     TossChip(
-                        text = f.label,
-                        selected = f == filter,
-                        onClick = { viewModel.setFilter(f) }
+                        text = HomeFilter.Unconfirmed.label,
+                        selected = filter is HomeFilter.Unconfirmed,
+                        onClick = { viewModel.setFilter(HomeFilter.Unconfirmed) }
+                    )
+                }
+                items(categories, key = { "cat-${it.id}" }) { cat ->
+                    val display = if (cat.emoji != null) "${cat.emoji} ${cat.name}" else cat.name
+                    TossChip(
+                        text = display,
+                        selected = (filter as? HomeFilter.Category)?.id == cat.id,
+                        onClick = {
+                            viewModel.setFilter(HomeFilter.Category(cat.id, cat.name, cat.emoji))
+                        }
+                    )
+                }
+                item(key = "add") {
+                    TossChip(
+                        text = "+",
+                        selected = false,
+                        onClick = { addDialogOpen = true }
                     )
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            if (addDialogOpen) {
+                CategoryAddDialog(
+                    onDismiss = { addDialogOpen = false },
+                    onAdd = { name, emoji ->
+                        viewModel.addCategory(name, emoji)
+                        addDialogOpen = false
+                    }
+                )
+            }
 
-            // 메인 타임라인 (날짜 그룹 + sticky 헤더) — 갤럭시 통화 기록 같은 느낌
-            if (timeline.isEmpty()) {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .padding(bottom = 80.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("📭", fontSize = 40.sp)
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            when (filter) {
-                                HomeFilter.ALL -> "기록된 통화가 없어요"
-                                HomeFilter.UNHANDLED -> "미처리 통화 없음 — 모두 후속 완료"
-                                HomeFilter.NEW_INQUIRY -> "신규 문의 없음"
-                            },
-                            style = MaterialTheme.typography.titleMedium,
-                            color = TossTextPrimary
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            "옛 고객은 우측 하단 ‘+ 수동 입력’ 으로 첫 만난 날짜와 함께 등록할 수 있어요",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TossTextTertiary,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 24.dp)
-                        )
+            // 메인 LazyColumn — KPI + 타임라인 모두 안쪽.
+            //   휠 내리면 KPI 가 자연스럽게 사라짐 (사장님 2026-05-24 UX 요청, 갤메시지 패턴 벤치마킹).
+            //   timeline 빈 상태도 LazyColumn item 으로 → KPI 항상 함께 보임.
+            val flatItems = remember(timeline) {
+                timeline.flatMap { it.items }
+            }
+            val listState = rememberLazyListState()
+
+            // 카드 탭 인라인 액션 — 한 번에 하나만 펼침. key 포맷은 LazyColumn key 와 동일.
+            // 회전/recompose 살아남게 rememberSaveable. null = 모두 접힘.
+            var expandedKey by rememberSaveable { mutableStateOf<String?>(null) }
+
+            // (1) 가시 카드 phone 추출 → ViewModel.onVisiblePhones. prefetcher 가 dedup 처리.
+            //     key 포맷 = "row-{id}-{phone}". 다른 item (kpi/empty/spacer) 은 starts with "row-" X → 자동 필터.
+            //     마우스 휠 / 빠른 fling 으로 가시 카드가 폭주성으로 토글될 때 onVisiblePhones 호출이
+            //     쌓여서 ANR 가능 → debounce 250ms 로 안정화. 스크롤 멈춘 직후 한 번만 prefetch.
+            @OptIn(kotlinx.coroutines.FlowPreview::class)
+            LaunchedEffect(listState, flatItems) {
+                snapshotFlow {
+                    listState.layoutInfo.visibleItemsInfo
+                        .mapNotNull { info ->
+                            val key = info.key as? String ?: return@mapNotNull null
+                            if (!key.startsWith("row-")) return@mapNotNull null
+                            val rest = key.removePrefix("row-")
+                            val dash = rest.indexOf('-')
+                            if (dash < 0) return@mapNotNull null
+                            rest.substring(dash + 1).takeIf { it.isNotBlank() }
+                        }
+                        .toSet()
+                }
+                    .debounce(250)
+                    .distinctUntilChanged()
+                    .collect { phones -> viewModel.onVisiblePhones(phones) }
+            }
+
+            // (2) 끝에서 5개 안쪽으로 보이면 loadMore. (KPI/Spacer 도 totalItemsCount 에 들어가지만 영향 미미)
+            //     마우스 휠 / 빠른 fling 에서 짧은 시간에 여러 번 호출되지 않도록 lastLoadMs 가드 + 스크롤 멈춘 후 트리거.
+            val shouldLoadMore by remember {
+                derivedStateOf {
+                    val info = listState.layoutInfo
+                    val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: return@derivedStateOf false
+                    val total = info.totalItemsCount
+                    total > 0 && lastVisible >= total - 5
+                }
+            }
+            var lastLoadMoreMs by remember { mutableStateOf(0L) }
+            LaunchedEffect(shouldLoadMore, flatItems.size) {
+                if (!shouldLoadMore) return@LaunchedEffect
+                // 스크롤 멈춘 후 한 박자 쉬고 → 짧은 시간 안 중복 호출 방지 (500ms throttle)
+                kotlinx.coroutines.delay(150)
+                if (!listState.isScrollInProgress) {
+                    val now = System.currentTimeMillis()
+                    if (now - lastLoadMoreMs > 500) {
+                        lastLoadMoreMs = now
+                        viewModel.loadMore()
                     }
                 }
-            } else {
-                // 플랫 리스트: 각 카드의 stable key 를 row index 로 잡고, 가시 인덱스 변화 감지해서
-                //   (1) 가시 카드 번호 prefetch
-                //   (2) 끝에 근접하면 loadMore (페이지네이션)
-                val flatItems = remember(timeline) {
-                    timeline.flatMap { it.items }
-                }
-                val listState = rememberLazyListState()
+            }
 
-                // (1) 가시 카드 phone 추출 → ViewModel.onVisiblePhones. prefetcher 가 dedup 처리.
-                //     key 포맷 = "row-{id}-{phone}". phone 부분만 떼면 됨.
-                LaunchedEffect(listState, flatItems) {
-                    snapshotFlow {
-                        listState.layoutInfo.visibleItemsInfo
-                            .mapNotNull { info ->
-                                val key = info.key as? String ?: return@mapNotNull null
-                                if (!key.startsWith("row-")) return@mapNotNull null
-                                // "row-{id}-{phone}" → 두번째 "-" 이후가 phone
-                                val rest = key.removePrefix("row-")
-                                val dash = rest.indexOf('-')
-                                if (dash < 0) return@mapNotNull null
-                                rest.substring(dash + 1).takeIf { it.isNotBlank() }
+            // 2026-05-26 사장님 보고 fix:
+            //   "메인 화면에서 휠을 쭉 떙기면 모든 정보가 최신화" — pull-to-refresh 추가.
+            //   Material3 1.2.x 패턴 (PullToRefreshContainer + nestedScrollConnection).
+            val pullState = rememberPullToRefreshState()
+            if (pullState.isRefreshing) {
+                LaunchedEffect(Unit) {
+                    runCatching { viewModel.refreshSmsContacts() }
+                    runCatching { serverHealth.refresh() }
+                    // 시각 피드백 — 너무 빨리 끝나면 사장님이 "동작했나?" 헷갈림.
+                    kotlinx.coroutines.delay(600)
+                    pullState.endRefresh()
+                }
+            }
+            // 2026-05-27 사장님 보고 fix:
+            //   .fillMaxSize() 는 Column 의 chip row 영역까지 침범 → PullToRefreshContainer 의
+            //   TopCenter indicator 가 chip row 와 겹쳐 회색 원처럼 보임 (디자인 깨짐).
+            //   .weight(1f) + .fillMaxWidth() = Column 의 남은 공간만 차지 → indicator 가 KPI 위에 정상.
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .nestedScroll(pullState.nestedScrollConnection)
+            ) {
+            LazyColumn(
+                state = listState,
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // KPI 3장 — 첫 item. 스크롤 시 위로 사라짐 (갤메시지 알림 박스 패턴).
+                //   2026-05-25: "견적 답대기" 카드 제거 — CustomerStatus enum 폐기 후 의미 X.
+                item(key = "kpi-section") {
+                    KpiSection(
+                        todayNew = todayNew,
+                        unhandled = unhandled,
+                        weekScheduled = weekScheduled,
+                        onFilterUnhandled = { viewModel.setFilter(HomeFilter.Unconfirmed) },
+                        onOpenSchedule = onOpenSchedule
+                    )
+                }
+
+                if (timeline.isEmpty()) {
+                    item(key = "empty-state") {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(top = 60.dp, bottom = 80.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("📭", fontSize = 40.sp)
+                                Spacer(Modifier.height(12.dp))
+                                Text(
+                                    when (val f = filter) {
+                                        is HomeFilter.All -> "기록된 통화가 없어요"
+                                        is HomeFilter.Unconfirmed -> "미확인 없음 — 7일 내 문의 모두 답장 완료"
+                                        is HomeFilter.Category -> "‘${f.name}’ 카테고리에 고객이 아직 없어요"
+                                    },
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = TossTextPrimary
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    "옛 고객은 우측 하단 ‘+ 수동 입력’ 으로 첫 만난 날짜와 함께 등록할 수 있어요",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TossTextTertiary,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                    modifier = Modifier.padding(horizontal = 24.dp)
+                                )
                             }
-                            .toSet()
+                        }
                     }
-                        .distinctUntilChanged()
-                        .collect { phones -> viewModel.onVisiblePhones(phones) }
-                }
-
-                // (2) 끝에서 5개 안쪽으로 보이면 loadMore.
-                val shouldLoadMore by remember {
-                    derivedStateOf {
-                        val info = listState.layoutInfo
-                        val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: return@derivedStateOf false
-                        val total = info.totalItemsCount
-                        total > 0 && lastVisible >= total - 5
-                    }
-                }
-                LaunchedEffect(shouldLoadMore, flatItems.size) {
-                    if (shouldLoadMore) viewModel.loadMore()
-                }
-
-                LazyColumn(
-                    state = listState,
-                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+                } else {
                     timeline.forEach { group ->
-                        stickyHeader(key = "day-${group.dayStartMs}") {
+                        // 2026-05-24: 마우스 휠 fling crash 의심 후보 — stickyHeader 를 일반 item 으로 변경.
+                        // Compose 의 stickyHeader 는 매우 빠른 fling 에서 일부 환경 crash 알려져 있음.
+                        // 사장님 입장 차이 = 헤더가 스크롤 시 함께 위로 흘러감 (sticky 안 됨). UX 손해 작음.
+                        item(key = "day-${group.dayStartMs}") {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -335,19 +436,107 @@ fun HomeScreen(
                             //   id 만으론 충돌 가능. phone 까지 묶어 unique 보장.
                             key = { "row-${it.record.id}-${it.record.phoneNumber}" }
                         ) { item ->
+                            val rowKey = "row-${item.record.id}-${item.record.phoneNumber}"
                             val suffix = item.record.phoneNumber
                                 .filter { c -> c.isDigit() }
                                 .takeLast(8)
-                            HomeRow(
-                                item = item,
-                                aiCardSummary = aiCardSummaries[suffix],
-                                onClick = { onOpenChat(item.record.phoneNumber, item.customer?.id) }
-                            )
+                            val rowCategory = item.customer?.categoryId?.let { cid ->
+                                categoriesById.firstOrNull { it.id == cid }
+                            }
+                            val rowContent: @Composable () -> Unit = {
+                                HomeRow(
+                                    item = item,
+                                    aiCardSummary = aiCardSummaries[suffix],
+                                    category = rowCategory,
+                                    expanded = expandedKey == rowKey,
+                                    onToggle = {
+                                        expandedKey = if (expandedKey == rowKey) null else rowKey
+                                    },
+                                    onOpenChat = {
+                                        onOpenChat(item.record.phoneNumber, item.customer?.id)
+                                    },
+                                    onOpenCustomerDetail = {
+                                        // 2026-05-25 사장님 결정: [ⓘ] 항상 활성화. Customer 없으면 자동 생성 후 진입.
+                                        val existingId = item.customer?.id
+                                        if (existingId != null) {
+                                            onOpenCustomerDetail(existingId)
+                                        } else {
+                                            scope.launch {
+                                                val newId = viewModel.ensureCustomerForPhone(item.record.phoneNumber)
+                                                onOpenCustomerDetail(newId)
+                                            }
+                                        }
+                                    }
+                                )
+                            }
+
+                            // 미확인 필터에서만 swipe-to-spam 활성. 다른 탭에선 단순 HomeRow.
+                            //   사장님 의도: 광고 번호를 미확인 카테고리에서만 영구 제외.
+                            //   우→좌 swipe → SpamPhone 영구 마킹 + Snackbar Undo (5초).
+                            if (filter is HomeFilter.Unconfirmed) {
+                                SpamSwipeBox(
+                                    onSpam = {
+                                        viewModel.markSpam(item.record.phoneNumber)
+                                        scope.launch {
+                                            val result = snackbarHostState.showSnackbar(
+                                                message = "광고/스팸으로 처리됨",
+                                                actionLabel = "되돌리기",
+                                                duration = SnackbarDuration.Short
+                                            )
+                                            if (result == SnackbarResult.ActionPerformed) {
+                                                viewModel.unmarkSpam(item.record.phoneNumber)
+                                            }
+                                        }
+                                    },
+                                    content = rowContent
+                                )
+                            } else {
+                                rowContent()
+                            }
                         }
                     }
-                    item { Spacer(Modifier.height(80.dp)) } // FAB 공간
                 }
+
+                item(key = "fab-spacer") { Spacer(Modifier.height(80.dp)) } // FAB 공간
             }
+            // 2026-05-27 사장님 보고 fix:
+            //   Material3 1.2.x PullToRefreshContainer 가 idle 일 때도 작은 회색 원으로 보이는 버그.
+            //   chip row 와 겹쳐 디자인 깨짐 → 당기는 중/refreshing 일 때만 그림.
+            if (pullState.isRefreshing || pullState.progress > 0f) {
+                PullToRefreshContainer(
+                    state = pullState,
+                    modifier = Modifier.align(Alignment.TopCenter)
+                )
+            }
+            } // end Box(nestedScroll)
+        }
+    }
+}
+
+/**
+ * KPI 4장 (2×2 그리드). LazyColumn 첫 item 으로 들어가서 스크롤 시 사라짐.
+ * horizontal padding 은 LazyColumn 의 contentPadding 으로 들어가므로 안에서 X.
+ */
+@Composable
+private fun KpiSection(
+    todayNew: Int,
+    unhandled: Int,
+    weekScheduled: Int,
+    onFilterUnhandled: () -> Unit,
+    onOpenSchedule: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        // 2026-05-25: 4장 → 3장으로 축소. "견적 답대기" 는 status enum 기반이라 폐기.
+        //   🆕 카드는 정보 표시만 (탭 동작 X). ⚠️ 미확인 / 📅 이번주 시공 만 진입 가능.
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            KpiCard("🆕", "오늘 신규", todayNew, TossBlue, Modifier.weight(1f)) {}
+            KpiCard("⚠️", "미확인", unhandled, TossError, Modifier.weight(1f), onFilterUnhandled)
+            KpiCard("📅", "이번주 시공", weekScheduled, TossSuccess, Modifier.weight(1f), onOpenSchedule)
         }
     }
 }
@@ -407,30 +596,59 @@ private fun KpiCard(
 private fun HomeRow(
     item: HomeItem,
     aiCardSummary: String?,
-    onClick: () -> Unit
+    category: com.detailline.callfollowcrm.data.local.entity.CategoryEntity?,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    onOpenChat: () -> Unit,
+    onOpenCustomerDetail: () -> Unit
 ) {
-    val isUnhandled = item.anyUnhandled
-    val statusLabel = item.customer?.status
-    TossCard(onClick = onClick) {
+    val isUnconfirmed = item.isUnconfirmed
+    val context = LocalContext.current
+    TossCard(onClick = onToggle) {
         Column {
-            // 헤더: 이름 + 영업 상태 알약 (우측). 미처리는 더 이상 헤더에 두지 않음.
+            // 헤더: [타입 아이콘] 이름 + 카테고리 badge + 📞. 2026-05-25 갤메시지 벤치마킹.
+            //   IconButton 은 자체 click 영역 — 카드 펼침 (onToggle) 과 충돌 X.
+            //   좌측 라운드 아이콘 = 통화/문자/부재중 한 눈에 식별 (2026-05-25 사장님 피드백).
             Row(verticalAlignment = Alignment.CenterVertically) {
+                CallTypeIndicator(callType = item.record.callType)
+                Spacer(Modifier.width(10.dp))
                 Text(
                     item.customer?.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(item.record.phoneNumber),
                     style = MaterialTheme.typography.titleLarge,
                     color = TossTextPrimary,
                     modifier = Modifier.weight(1f)
                 )
-                if (statusLabel != null) {
-                    StatusBadgeSmall(statusLabel)
-                } else if (isUnhandled) {
-                    // 아직 customer 가 없는 (= 처음 들어온 통화) 케이스만 미처리 배지 노출.
-                    val label = if (item.unhandledCount > 1) "미처리 ${item.unhandledCount}건" else "미처리"
-                    TossBadge(label, color = TossError, background = Color(0xFFFEECEE))
+                if (category != null) {
+                    val display = if (category.emoji != null) "${category.emoji} ${category.name}" else category.name
+                    TossBadge(display, color = TossBlue, background = TossBlueSoft)
+                    Spacer(Modifier.width(6.dp))
+                } else if (isUnconfirmed) {
+                    TossBadge("미확인", color = TossError, background = Color(0xFFFEECEE))
+                    Spacer(Modifier.width(6.dp))
+                }
+                IconButton(
+                    onClick = {
+                        runCatching {
+                            val intent = android.content.Intent(android.content.Intent.ACTION_DIAL).apply {
+                                data = android.net.Uri.parse("tel:${item.record.phoneNumber}")
+                            }
+                            context.startActivity(intent)
+                        }
+                    },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Call,
+                        contentDescription = "전화 걸기",
+                        tint = TossBlue,
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
             // AI 카드 요약 — 이름 바로 아래 (가장 중요한 정보). 에이닷 벤치마킹.
-            // server 미구현 또는 캐시 미생성이면 null → 아무것도 안 보임 (조용히 숨김).
+            //   2026-05-27 사장님 보고 fix: null + SMS 카드면 "요약 작성 중..." 진행감 표시.
+            //   통화 only (SMS_ONLY 아님) 는 요약 거리 적어 표시 안 함 (잘못된 영원 spinner 방지).
+            val isSmsCard = item.record.callType == HomeViewModel.CALL_TYPE_SMS_ONLY
             if (!aiCardSummary.isNullOrBlank()) {
                 Spacer(Modifier.height(4.dp))
                 Text(
@@ -440,20 +658,21 @@ private fun HomeRow(
                     fontWeight = FontWeight.Medium,
                     maxLines = 1
                 )
+            } else if (isSmsCard) {
+                Spacer(Modifier.height(4.dp))
+                com.detailline.callfollowcrm.presentation.theme.AnimatedDots(
+                    text = "✨ 요약 작성 중",
+                    color = TossBlue.copy(alpha = 0.7f)
+                )
             }
+            // 2026-05-25: 번호 두 번 표시 제거 (사장님 피드백). 헤더가 이름 또는 번호이고,
+            //   번호 확인은 우측 [📞] 다이얼러 또는 펼침 [ⓘ 고객 카드] 로.
             Spacer(Modifier.height(4.dp))
-            Text(
-                PhoneNumberFormatter.format(item.record.phoneNumber),
-                style = MaterialTheme.typography.bodyMedium,
-                color = TossTextSecondary
-            )
-            Spacer(Modifier.height(2.dp))
-            // 시간 줄 + (미처리 있으면) 작은 빨간 인디케이터를 같은 줄 끝에.
+            // 시간 줄 — 타입은 좌측 라운드 아이콘이 이미 표현. 라벨 텍스트는 통화 횟수만.
+            //   (이전엔 "발신/수신/문자만" 라벨 박혀있었으나 아이콘과 중복되어 제거.)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val timeLine = buildString {
                     append(DateTimeUtils.formatShort(item.record.endedAt))
-                    append(" · ")
-                    append(callTypeLabel(item.record.callType))
                     if (item.callCount > 1) append(" · 오늘 ${item.callCount}통")
                 }
                 Text(
@@ -462,9 +681,10 @@ private fun HomeRow(
                     color = TossTextTertiary,
                     modifier = Modifier.weight(1f)
                 )
-                if (isUnhandled && statusLabel != null) {
+                // 카테고리 있는데 미확인이기도 한 경우 — 카드 헤더는 카테고리만 표시되니 보조로 표시.
+                if (isUnconfirmed && category != null) {
                     Text(
-                        if (item.unhandledCount > 1) "• 후속 ${item.unhandledCount}건 미처리" else "• 후속 미처리",
+                        "• 미확인",
                         style = MaterialTheme.typography.labelSmall,
                         color = TossError
                     )
@@ -490,7 +710,101 @@ private fun HomeRow(
                     )
                 }
             }
+
+            // 인라인 액션 4개 — 에이닷 벤치마킹. 카드 탭으로 토글.
+            // [💬 메시지] [📞 전화] [✨ AI] [ⓘ 고객 카드]
+            //   - 메시지/AI → ChatScreen (AI 는 진입 후 답변 추천 칩으로 시선 유도)
+            //   - 전화 → 시스템 다이얼러 (ACTION_DIAL — 권한 없이 사용자 한 번 더 탭하게)
+            //   - 고객 카드 → CustomerDetail (customer 없으면 disabled)
+            AnimatedVisibility(
+                visible = expanded,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column {
+                    Spacer(Modifier.height(12.dp))
+                    androidx.compose.foundation.layout.Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(Color(0xFFEEF1F4))
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceAround
+                    ) {
+                        InlineActionButton(
+                            icon = Icons.AutoMirrored.Filled.Chat,
+                            label = "메시지",
+                            enabled = true,
+                            onClick = onOpenChat
+                        )
+                        InlineActionButton(
+                            icon = Icons.Default.Call,
+                            label = "전화",
+                            enabled = true,
+                            onClick = {
+                                val intent = android.content.Intent(
+                                    android.content.Intent.ACTION_DIAL,
+                                    android.net.Uri.parse("tel:${item.record.phoneNumber}")
+                                )
+                                runCatching { context.startActivity(intent) }
+                                    .onFailure {
+                                        android.widget.Toast.makeText(
+                                            context, "다이얼러를 열 수 없어요", android.widget.Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                            }
+                        )
+                        InlineActionButton(
+                            icon = Icons.Default.AutoAwesome,
+                            label = "AI",
+                            enabled = true,
+                            onClick = onOpenChat
+                        )
+                        InlineActionButton(
+                            icon = Icons.Default.Info,
+                            label = "고객 카드",
+                            // 2026-05-25: 항상 활성화. Customer 없으면 호출처가 자동 생성 후 진입.
+                            enabled = true,
+                            onClick = onOpenCustomerDetail
+                        )
+                    }
+                }
+            }
         }
+    }
+}
+
+/**
+ * 카드 펼침 영역의 액션 버튼 — 아이콘 + 라벨 세로 배치. 에이닷 벤치마킹.
+ * disabled 면 회색 + 클릭 무시.
+ */
+@Composable
+private fun InlineActionButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    val tint = if (enabled) TossBlue else TossTextTertiary
+    val labelColor = if (enabled) TossTextPrimary else TossTextTertiary
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        Icon(icon, contentDescription = label, tint = tint)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium,
+            color = labelColor,
+            fontWeight = FontWeight.Medium
+        )
     }
 }
 
@@ -530,6 +844,74 @@ private fun statusColors(label: String): Pair<Color, Color> {
     }
 }
 
+/**
+ * 미확인 카드 우→좌 swipe → "광고/스팸" 영구 마킹.
+ *   배경: 빨강 + 🚫 차단 아이콘 — swipe 중 드러나는 affordance.
+ *   threshold 60% (Material 표준보다 살짝 높게) — 실수 swipe 방지.
+ *   사장님 결정 2026-05-25: 좌→우 방향은 비활성 (다른 의미와 충돌 방지).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SpamSwipeBox(onSpam: () -> Unit, content: @Composable () -> Unit) {
+    val state = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value == SwipeToDismissBoxValue.EndToStart) {
+                onSpam()
+                true
+            } else false
+        },
+        positionalThreshold = { totalDistance -> totalDistance * 0.6f }
+    )
+    SwipeToDismissBox(
+        state = state,
+        enableDismissFromStartToEnd = false,
+        enableDismissFromEndToStart = true,
+        backgroundContent = {
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp)
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                    .background(TossError.copy(alpha = 0.12f))
+                    .padding(horizontal = 20.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                androidx.compose.foundation.layout.Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Block,
+                        contentDescription = "광고 차단",
+                        tint = TossError,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "광고로 처리",
+                        color = TossError,
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+        },
+        content = { content() }
+    )
+}
+
+/**
+ * Compose LocalContext 는 ContextThemeWrapper 일 수 있어 직접 cast 실패.
+ *   baseContext 따라가서 Activity 추출 — 뒤로가기 종료용.
+ */
+private fun android.content.Context.findHomeActivityOrNull(): android.app.Activity? {
+    var c: android.content.Context? = this
+    while (c is android.content.ContextWrapper) {
+        if (c is android.app.Activity) return c
+        c = c.baseContext
+    }
+    return null
+}
+
 private fun callTypeLabel(raw: String): String = when (raw) {
     "INCOMING" -> "수신"
     "OUTGOING" -> "발신"
@@ -538,6 +920,113 @@ private fun callTypeLabel(raw: String): String = when (raw) {
     "MANUAL" -> "수동 등록"
     HomeViewModel.CALL_TYPE_SMS_ONLY -> "문자만"
     else -> "통화"
+}
+
+/**
+ * 카드 좌측 36dp 라운드 아이콘 — 통화/문자/부재중 한 눈에 식별.
+ *  - 문자만 = 파랑 배경 + 💬 (TossBlue)
+ *  - 부재중/거절 = 빨강 배경 + 부재중 아이콘 (TossError)
+ *  - 수신/발신/통화 = 회색 배경 + 방향 화살표
+ *  - 수동 등록 = 회색 배경 + 편집 아이콘
+ *
+ * 토스 스타일: 절제된 컬러 + 단색 아이콘 + soft 배경.
+ * 사장님 피드백 (2026-05-25): "전화랑 문자메세지랑 구분이 잘 안 가" → 본 indicator 도입.
+ */
+@Composable
+private fun CallTypeIndicator(callType: String) {
+    val (bg, fg, icon) = when (callType) {
+        HomeViewModel.CALL_TYPE_SMS_ONLY ->
+            Triple(TossBlueSoft, TossBlue, Icons.AutoMirrored.Filled.Chat)
+        "MISSED", "REJECTED" ->
+            Triple(Color(0xFFFEECEE), TossError, Icons.Default.CallMissed)
+        "INCOMING" ->
+            Triple(Color(0xFFEEF1F4), TossTextSecondary, Icons.Default.CallReceived)
+        "OUTGOING" ->
+            Triple(Color(0xFFEEF1F4), TossTextSecondary, Icons.Default.CallMade)
+        "MANUAL" ->
+            Triple(Color(0xFFEEF1F4), TossTextSecondary, Icons.Default.Edit)
+        else ->
+            Triple(Color(0xFFEEF1F4), TossTextSecondary, Icons.Default.Call)
+    }
+    androidx.compose.foundation.layout.Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clip(androidx.compose.foundation.shape.CircleShape)
+            .background(bg),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = callTypeLabel(callType),
+            tint = fg,
+            modifier = Modifier.size(18.dp)
+        )
+    }
+}
+
+/**
+ * 갤메시지 식 "카테고리 추가" 다이얼로그.
+ *  - 입력칸: 카테고리 이름 한 줄만.
+ *  - placeholder 예시는 사장님 도메인 (AS 고객 / 일당 / 아르바이트 등) 기반.
+ *
+ * 2026-05-25: 이모지 입력란 제거 — 한글 단어로 충분히 구별됨. 사장님 인지 부담 X.
+ *   CategoryEntity.emoji 필드는 유지 (legacy + 추후 AI 자동 매핑 여지).
+ */
+@Composable
+private fun CategoryAddDialog(
+    onDismiss: () -> Unit,
+    onAdd: (name: String, emoji: String?) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    val fieldColors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = TossBlue,
+        unfocusedBorderColor = com.detailline.callfollowcrm.presentation.theme.TossDivider,
+        focusedTextColor = TossTextPrimary,
+        unfocusedTextColor = TossTextPrimary,
+        cursorColor = TossBlue,
+        focusedContainerColor = Color.White,
+        unfocusedContainerColor = Color.White
+    )
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                "카테고리 추가",
+                color = TossTextPrimary,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "이름만 적으면 AI 가 대화 내용 보고 알아서 분류해드려요.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TossTextSecondary
+                )
+                androidx.compose.material3.OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    placeholder = { Text("예: AS 고객, 일당, 아르바이트", color = TossTextTertiary) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = fieldColors
+                )
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(
+                onClick = {
+                    if (name.isNotBlank()) onAdd(name.trim(), null)
+                }
+            ) { Text("추가", color = TossBlue, fontWeight = FontWeight.SemiBold) }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text("취소", color = TossTextSecondary)
+            }
+        },
+        containerColor = Color.White
+    )
 }
 
 /**

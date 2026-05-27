@@ -1,6 +1,5 @@
 package com.detailline.callfollowcrm.data.local.entity
 
-import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -9,21 +8,22 @@ import androidx.room.PrimaryKey
     tableName = "customers",
     indices = [
         Index(value = ["phoneNumber"], unique = true),
-        Index("scheduledWorkDate")
+        Index("scheduledWorkDate"),
+        Index("categoryId")
     ]
 )
 data class CustomerEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val phoneNumber: String,
     val name: String? = null,
-    @ColumnInfo(name = "status") val status: String,
+    /** 사장님 정의 카테고리 (1:1). null = 미분류. AI 자동 분류 + 사장님 수동. */
+    val categoryId: Long? = null,
     val memo: String = "",
     /** 시공 예약 날짜. 그 날 00:00 시점의 epoch ms. 미정이면 null. */
     val scheduledWorkDate: Long? = null,
     /**
      * 리드 온도 (LeadHeat enum name). 통화 직후 사장님이 빠르게 분류.
-     * status 와는 다른 축 (status = funnel 위치, leadHeat = 전환 가능성).
-     * null = 미분류.
+     * categoryId 와 직교 (categoryId = 카테고리, leadHeat = 전환 가능성). null = 미분류.
      */
     val leadHeat: String? = null,
     /**

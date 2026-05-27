@@ -8,49 +8,108 @@ import com.detailline.callfollowcrm.data.AppContainer
 import com.detailline.callfollowcrm.data.local.entity.CallRecordEntity
 import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
 import com.detailline.callfollowcrm.data.repository.SmsRepository
-import com.detailline.callfollowcrm.domain.model.CustomerStatus
 import com.detailline.callfollowcrm.domain.model.HandledStatus
 import com.detailline.callfollowcrm.util.DateTimeUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
-@OptIn(ExperimentalCoroutinesApi::class)
+@OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
     private val bounds = DateTimeUtils.todayBounds()
     private val todayStart = bounds.first
     private val todayEnd = bounds.second
 
-    private val filter = MutableStateFlow(HomeFilter.ALL)
+    /** "미확인" 7일 윈도우 시작점 (사장님 결정 2026-05-24). 오늘 포함 7일 = 어제 -6일 + 오늘. */
+    private val sevenDayWindowStart = todayStart - 6L * 24 * 60 * 60 * 1000
+
+    private val filter = MutableStateFlow<HomeFilter>(HomeFilter.All)
     val filterState = filter
 
-    private val todayRecords = container.callRecordRepository.observeBetween(todayStart, todayEnd)
+    /** 사장님 정의 카테고리 목록 — 필터 chip row 에 동적 표시. */
+    val categories = container.categoryRepository.observeAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     private val customers = container.customerRepository.observeAll()
+
+    /**
+     * SMS 만 주고받은 연락처도 HomeScreen 카드로 표시 (2026-05-24 사장님 요청).
+     * 통화 기록 없는 SMS-only 번호도 갤럭시 메시지처럼 다 보여야 함.
+     *
+     * 2026-05-25: ContentObserver 기반 Flow 로 전환 — 갤메시지가 SMS provider 에 INSERT 하면
+     *   즉시 새 데이터 emit → HomeScreen 자동 최신화. 화면 진입만으로는 reload 안 잡히던 문제 해결.
+     * debounce 300ms — 여러 PDU 가 연속 도착해도 한 번만 재쿼리.
+     */
+    private val smsContactsState: StateFlow<List<SmsRepository.SmsContact>> = container.smsRepository
+        .observeContacts(scanLimit = 10000, contactLimit = 500)
+        .debounce(300)
+        .flowOn(Dispatchers.IO)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** 최근 7일 내 부재중 통화. 미확인 KPI 의 통화 측 입력. */
+    private val missedRecent = container.callRecordRepository.observeMissedSince(sevenDayWindowStart)
+
+    /**
+     * 사장님이 미확인 카드 swipe 로 "광고/스팸" 마킹한 phone suffix set.
+     *   미확인 판정 / KPI 카운트에서 제외 — 다른 탭 (전체/카테고리) 에는 그대로 표시.
+     *   2026-05-25 사장님 결정.
+     */
+    private val spamSuffixes: StateFlow<Set<String>> = container.spamPhoneRepository.suffixes
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
+    /** 오늘 이전에 통화 기록이 있는 phone suffix set. "오늘 신규" 판정 negative side. */
+    private val phonesWithCallsBeforeToday: StateFlow<Set<String>> = container.callRecordRepository
+        .observeDistinctPhonesBefore(todayStart)
+        .map { list -> list.map { phoneSuffix(it) }.toHashSet() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
+    /**
+     * 화면 진입 시 즉시 한 번 강제 갱신용 (Pull-to-refresh 등). ContentObserver 가 못 잡는
+     *   edge case (앱 cold start 후 첫 진입) 보강. observeContacts 가 초기 emit 도 하니
+     *   대부분 케이스에선 no-op 이지만 안전망.
+     */
+    fun refreshSmsContacts() {
+        // observeContacts 가 초기 + onChange emit 책임. 별도 manual 갱신 필요 없음.
+        // 호환을 위해 함수는 유지 — caller 들이 변경 없이 작동.
+    }
 
     // ────────────────────────────────────────────────────────
     // 4 KPI Flows
     // ────────────────────────────────────────────────────────
 
-    /** 오늘 통화한 사람 중 customer.status == "신규 문의" 인 고객 수 (오늘 들어온 새 문의). */
-    val todayNewInquiryCount = combine(todayRecords, customers) { records, custs ->
-        val byPhone = custs.associateBy { it.phoneNumber }
-        records
-            .map { it.phoneNumber }
-            .distinct()
-            .count { phone -> byPhone[phone]?.status == CustomerStatus.NEW_INQUIRY.label }
+    /**
+     * 오늘 신규 KPI = 오늘 처음 연락온 번호 수 (당일 첫 문의).
+     * 판정: SMS 의 lastDateMs ∈ today AND firstDateMsInScan ∈ today AND 그 phone 이 어제 이전 통화 기록 없음.
+     * 또는 부재중 통화가 오늘이고 그 phone 의 어제 이전 통화/SMS 기록 없음.
+     */
+    val todayNewInquiryCount: StateFlow<Int> = combine(
+        smsContactsState, missedRecent, phonesWithCallsBeforeToday
+    ) { smsContacts, missed, callsBefore ->
+        newTodaySuffixes(smsContacts, missed, callsBefore).size
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
-    /** 오늘 통화 중 후속 처리 안 한 건수. */
-    val unhandledCount = container.callRecordRepository.countUnhandled(todayStart, todayEnd)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+    /**
+     * 미확인 KPI = 최근 7일 내 문의 (SMS 수신 또는 부재중 통화) 받았는데 사장님이 답장 한 번도 안 한 번호 수.
+     * 사장님 결정 (2026-05-24) — 이전엔 CallRecord.handledStatus 기반이었으나 정의 변경.
+     */
+    val unhandledCount: StateFlow<Int> = combine(
+        smsContactsState, missedRecent, spamSuffixes
+    ) { smsContacts, missed, spam ->
+        unconfirmedSuffixes(smsContacts, missed, spam).size
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     /** 오늘 ~ 오늘+6일(7일 윈도우) 시공 예약된 고객 수. */
     val thisWeekScheduledCount = customers.map { list ->
@@ -60,10 +119,68 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         list.count { c -> c.scheduledWorkDate?.let { it in from until to } == true }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
-    /** customer.status == "견적 발송" 인 고객 누적 수 (답 기다리는 견적). */
-    val estimateSentCount = customers.map { list ->
-        list.count { it.status == CustomerStatus.ESTIMATE_SENT.label }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+    // 2026-05-25: estimateSentCount 제거 — KPI "견적 답대기" 카드 폐기.
+
+    /**
+     * "미확인" 판정 = phone suffix set.
+     *   - SMS: 7일 윈도우 안 받은 SMS (lastSent=false 이고 lastDateMs ∈ 윈도우) + hasOwnerReply=false
+     *   - 부재중 통화: 7일 윈도우 안 MISSED + 그 phone 의 sent SMS 가 1건도 없음
+     */
+    private fun unconfirmedSuffixes(
+        smsContacts: List<SmsRepository.SmsContact>,
+        missed: List<CallRecordEntity>,
+        spam: Set<String> = emptySet()
+    ): Set<String> {
+        val bySuffix = smsContacts.associateBy { it.normalizedSuffix }
+        val result = HashSet<String>()
+        for (c in smsContacts) {
+            if (c.normalizedSuffix in spam) continue
+            if (!c.hasOwnerReply &&
+                !c.lastSent &&
+                c.lastDateMs >= sevenDayWindowStart
+            ) {
+                result += c.normalizedSuffix
+            }
+        }
+        for (m in missed) {
+            if (m.endedAt < sevenDayWindowStart) continue
+            val suffix = phoneSuffix(m.phoneNumber)
+            if (suffix in spam) continue
+            val sms = bySuffix[suffix]
+            if (sms == null || !sms.hasOwnerReply) result += suffix
+        }
+        return result
+    }
+
+    /**
+     * "오늘 신규" 판정 = phone suffix set.
+     *   - SMS: lastDateMs ∈ today AND firstDateMsInScan ∈ today (스캔 안 첫 등장 = 오늘) AND 어제 이전 통화 기록 없음
+     *   - 부재중 통화: endedAt ∈ today AND 어제 이전 통화 기록 없음 AND SMS 도 어제 이전 기록 없음
+     */
+    private fun newTodaySuffixes(
+        smsContacts: List<SmsRepository.SmsContact>,
+        missed: List<CallRecordEntity>,
+        callsBefore: Set<String>
+    ): Set<String> {
+        val bySuffix = smsContacts.associateBy { it.normalizedSuffix }
+        val result = HashSet<String>()
+        for (c in smsContacts) {
+            if (c.lastDateMs in todayStart..todayEnd &&
+                c.firstDateMsInScan >= todayStart &&
+                c.normalizedSuffix !in callsBefore
+            ) {
+                result += c.normalizedSuffix
+            }
+        }
+        for (m in missed) {
+            if (m.endedAt !in todayStart..todayEnd) continue
+            val suffix = phoneSuffix(m.phoneNumber)
+            if (suffix in callsBefore) continue
+            val sms = bySuffix[suffix]
+            if (sms == null || sms.firstDateMsInScan >= todayStart) result += suffix
+        }
+        return result
+    }
 
     // ────────────────────────────────────────────────────────
     // Today list (메인 리스트)
@@ -90,32 +207,26 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     /**
-     * SMS 만 주고받은 연락처도 HomeScreen 카드로 표시 (2026-05-24 사장님 요청).
-     * 통화 기록 없는 SMS-only 번호도 갤럭시 메시지처럼 다 보여야 함.
-     *
-     * Flow 가 아님 — content provider 는 push 안 보냄. 화면 진입 시 [refreshSmsContacts] 호출.
-     * SMS 수신 broadcast 받으면 SmsReceiver 가 이 함수 호출하도록 별도 hook 가능 (지금은 화면 진입만).
+     * 미확인/신규 plus 다른 타임라인 입력을 한 번에 묶기 위해 derived state 로 미리 묶음.
+     * combine 의 인자 수 제한 회피 + 한 번 계산해 캐시.
      */
-    private val smsContactsState = MutableStateFlow<List<SmsRepository.SmsContact>>(emptyList())
+    private data class TimelineFlags(
+        val unconfirmedSuffixes: Set<String>,
+        val newTodaySuffixes: Set<String>
+    )
 
-    init {
-        refreshSmsContacts()
-    }
+    private val timelineFlags: StateFlow<TimelineFlags> = combine(
+        smsContactsState, missedRecent, phonesWithCallsBeforeToday, spamSuffixes
+    ) { smsContacts, missed, callsBefore, spam ->
+        TimelineFlags(
+            unconfirmedSuffixes = unconfirmedSuffixes(smsContacts, missed, spam),
+            newTodaySuffixes = newTodaySuffixes(smsContacts, missed, callsBefore)
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TimelineFlags(emptySet(), emptySet()))
 
-    fun refreshSmsContacts() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val list = runCatching {
-                if (container.smsRepository.hasReadPermission()) {
-                    // scanLimit 10000 = 사장님처럼 SMS 17000+ 건 폰에서 옛 사람도 잡히도록 크게.
-                    // contactLimit 500 = 고유 번호 최대 500명 표시.
-                    container.smsRepository.queryRecentContacts(scanLimit = 10000, contactLimit = 500)
-                } else emptyList()
-            }.getOrDefault(emptyList())
-            smsContactsState.value = list
-        }
-    }
-
-    val timeline = combine(recentRecords, customers, filter, smsContactsState) { records, custs, f, smsContacts ->
+    val timeline = combine(
+        recentRecords, customers, filter, smsContactsState, timelineFlags
+    ) { records, custs, f, smsContacts, flags ->
         val byPhone = custs.associateBy { it.phoneNumber }
         val callPhonesNormalized = records.map { phoneSuffix(it.phoneNumber) }.toHashSet()
 
@@ -124,12 +235,14 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             .groupBy { it.phoneNumber to DateTimeUtils.startOfDay(it.endedAt) }
             .map { (key, list) ->
                 val (phone, _) = key
+                val suffix = phoneSuffix(phone)
                 val sorted = list.sortedByDescending { it.endedAt }
                 HomeItem(
                     record = sorted.first(),
                     customer = byPhone[phone],
                     callCount = list.size,
-                    unhandledCount = list.count { it.handledStatus == HandledStatus.UNHANDLED.name }
+                    isUnconfirmed = suffix in flags.unconfirmedSuffixes,
+                    isNewToday = suffix in flags.newTodaySuffixes
                 )
             }
 
@@ -145,7 +258,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                     duration = 0L,
                     startedAt = null,
                     endedAt = sms.lastDateMs,
-                    handledStatus = HandledStatus.SAVED.name, // SMS-only 는 미처리 표시 안 함
+                    handledStatus = HandledStatus.SAVED.name,
                     linkedCustomerId = byPhone[sms.address]?.id
                 )
                 HomeItem(
@@ -153,7 +266,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                     customer = byPhone[sms.address]
                         ?: byPhone.values.firstOrNull { phoneSuffix(it.phoneNumber) == sms.normalizedSuffix },
                     callCount = 0,
-                    unhandledCount = 0
+                    isUnconfirmed = sms.normalizedSuffix in flags.unconfirmedSuffixes,
+                    isNewToday = sms.normalizedSuffix in flags.newTodaySuffixes
                 )
             }
 
@@ -175,15 +289,64 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     fun setFilter(f: HomeFilter) { filter.value = f }
 
     /**
+     * 미확인 카드 swipe → "광고/스팸" 으로 영구 마킹. 미확인 카테고리에서 제외.
+     *   suffix 정규화는 ViewModel 안에서 — 호출자는 raw phone 만 넘김.
+     *   Snackbar Undo 가 [unmarkSpam] 호출.
+     */
+    fun markSpam(phoneNumber: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            container.spamPhoneRepository.mark(phoneSuffix(phoneNumber))
+        }
+    }
+
+    fun unmarkSpam(phoneNumber: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            container.spamPhoneRepository.unmark(phoneSuffix(phoneNumber))
+        }
+    }
+
+    /**
+     * [ⓘ 고객 카드] 진입용 — Customer entity 없으면 자동 생성하고 id 반환.
+     *   사장님 결정 2026-05-25: 카드 펼침의 [ⓘ] 액션 항상 활성화. 빈 Customer 자동 정리는
+     *   기존 deleteOrphans (이름/메모/메시지 기록 없는 고아 고객) 가 처리.
+     */
+    suspend fun ensureCustomerForPhone(phoneNumber: String): Long =
+        withContext(Dispatchers.IO) {
+            container.customerRepository.upsertByPhone(phoneNumber).id
+        }
+
+    /** + 버튼 다이얼로그에서 사장님이 카테고리 추가. 추가 후 자동 선택. */
+    fun addCategory(name: String, emoji: String?) {
+        if (name.isBlank()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val entity = runCatching {
+                container.categoryRepository.upsert(name, emoji)
+            }.getOrNull() ?: return@launch
+            filter.value = HomeFilter.Category(entity.id, entity.name, entity.emoji)
+        }
+    }
+
+    /**
      * HomeScreen 의 가시 카드 변경 알림.
      *  - SMS 캐시 백그라운드 prefetch (기존)
      *  - AI 카드 요약 백그라운드 ensure (P0 — server 미구현이면 silent fail, 캐시는 그대로)
+     *
+     * 마우스 휠 / 빠른 fling 으로 짧은 시간 안 폭주성 호출 방지:
+     *  - 같은 set 으로 호출 시 skip (lastVisibleHash)
+     *  - 직전 ensure job 이 아직 도는 중이면 cancel + 새 job
      */
+    private var lastVisibleHash: Int = 0
+    private var ensureJob: kotlinx.coroutines.Job? = null
     fun onVisiblePhones(phoneNumbers: Collection<String>) {
         if (phoneNumbers.isEmpty()) return
+        val hash = phoneNumbers.toSet().hashCode()
+        if (hash == lastVisibleHash) return
+        lastVisibleHash = hash
+
         container.smsCachePrefetcher.prefetchForNumbers(phoneNumbers)
 
-        viewModelScope.launch(Dispatchers.IO) {
+        ensureJob?.cancel()
+        ensureJob = viewModelScope.launch(Dispatchers.IO) {
             for (phone in phoneNumbers) {
                 val ctx = buildCardSummaryContext(phone) ?: continue
                 runCatching { container.conversationAiRepository.ensureCardSummary(ctx) }
@@ -212,7 +375,6 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             phone = phoneNumber,
             phoneSuffix = suffix,
             customerName = customer?.name,
-            customerStatus = customer?.status,
             customerMemo = customer?.memo?.takeIf { it.isNotBlank() },
             leadHeat = customer?.leadHeat,
             depositPaid = (customer?.depositAmount ?: 0L) > 0L,
@@ -239,7 +401,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         timeline.flatMapLatest { dayGroups ->
             val suffixes = dayGroups.flatMap { it.items }.map { phoneSuffix(it.record.phoneNumber) }.distinct()
             if (suffixes.isEmpty()) {
-                kotlinx.coroutines.flow.flowOf(emptyMap())
+                flowOf(emptyMap())
             } else {
                 container.conversationAiRepository.observeMany(suffixes).map { list ->
                     list.mapNotNull { e -> e.cardSummary?.let { e.phoneSuffix to it } }.toMap()
@@ -267,29 +429,32 @@ data class DayGroup(
  *
  *  - record: 가장 최근 통화 (시간/타입 표시용)
  *  - callCount: 묶인 통화 건수
- *  - unhandledCount: 그 중 미처리(아직 후속 안 한) 건수
+ *  - isUnconfirmed: 미확인 (7일 내 문의 + 답장 0) — 사장님 결정 2026-05-24
+ *  - isNewToday: 오늘 신규 (당일 첫 문의 + 어제 이전 기록 없음)
  */
 data class HomeItem(
     val record: CallRecordEntity,
     val customer: CustomerEntity?,
     val callCount: Int = 1,
-    val unhandledCount: Int = 0
-) {
-    val anyUnhandled: Boolean get() = unhandledCount > 0
-}
+    val isUnconfirmed: Boolean = false,
+    val isNewToday: Boolean = false
+)
 
 /**
- * 홈 메인 리스트(오늘 통화)에 적용되는 필터. KPI 카드 탭으로 자동 설정되거나,
- * 사용자가 칩으로 직접 선택. 칩은 [전체]/[미처리]/[신규] 3개로 축소.
+ * 홈 메인 리스트에 적용되는 필터.
+ *
+ * 2026-05-25: 갤메시지 식 — 시스템 필터 (전체/미확인) + 사장님 정의 카테고리.
+ *   미확인 = 7일 내 처음 연락 + 답장 X (자동 계산, 사장님이 못 지움).
+ *   카테고리 = AI 자동 분류 + 수동.
  */
-enum class HomeFilter(val label: String) {
-    ALL("전체"),
-    UNHANDLED("미처리"),
-    NEW_INQUIRY("신규");
+sealed class HomeFilter(val label: String) {
+    object All : HomeFilter("전체")
+    object Unconfirmed : HomeFilter("미확인")
+    data class Category(val id: Long, val name: String, val emoji: String?) : HomeFilter(name)
 
     fun accept(item: HomeItem): Boolean = when (this) {
-        ALL -> true
-        UNHANDLED -> item.anyUnhandled
-        NEW_INQUIRY -> item.customer?.status == CustomerStatus.NEW_INQUIRY.label
+        is All -> true
+        is Unconfirmed -> item.isUnconfirmed
+        is Category -> item.customer?.categoryId == id
     }
 }

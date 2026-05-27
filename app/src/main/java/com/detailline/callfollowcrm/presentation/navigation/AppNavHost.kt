@@ -8,7 +8,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.detailline.callfollowcrm.data.AppContainer
-import com.detailline.callfollowcrm.domain.model.CustomerStatus
 import com.detailline.callfollowcrm.presentation.screen.chat.ChatScreen
 import com.detailline.callfollowcrm.presentation.screen.chat.ChatViewModel
 import com.detailline.callfollowcrm.presentation.screen.aimessage.AiMessageScreen
@@ -20,8 +19,8 @@ import com.detailline.callfollowcrm.presentation.screen.followup.FollowUpViewMod
 import com.detailline.callfollowcrm.presentation.screen.home.HomeScreen
 import com.detailline.callfollowcrm.presentation.screen.home.HomeViewModel
 import com.detailline.callfollowcrm.presentation.screen.onboarding.OnboardingPermissionScreen
-import com.detailline.callfollowcrm.presentation.screen.pipeline.PipelineScreen
-import com.detailline.callfollowcrm.presentation.screen.pipeline.PipelineViewModel
+import com.detailline.callfollowcrm.presentation.screen.pricing.PricingItemsScreen
+import com.detailline.callfollowcrm.presentation.screen.pricing.PricingItemsViewModel
 import com.detailline.callfollowcrm.presentation.screen.schedule.ScheduleScreen
 import com.detailline.callfollowcrm.presentation.screen.schedule.ScheduleViewModel
 import com.detailline.callfollowcrm.presentation.screen.settings.SettingsScreen
@@ -56,14 +55,14 @@ fun AppNavHost(
             val vm: HomeViewModel = viewModel(factory = viewModelFactory { HomeViewModel(container) })
             HomeScreen(
                 viewModel = vm,
-                // 대시보드의 모든 번호/카드 클릭은 ChatScreen 으로 통일 (메인 진입점).
-                // customerId 없으면 ChatViewModel 이 phone 으로 lookup, 발송/[ⓘ] 시 upsert.
+                // 카드 탭 [💬 메시지] 인라인 액션. customerId 없으면 ChatViewModel 이 phone lookup.
                 onOpenChat = { phone, customerId ->
                     navController.navigate(Destinations.chat(phone, customerId))
                 },
+                // 카드 탭 [ⓘ 고객 카드] 인라인 액션. customerId 없는 카드(SMS-only 등)는 호출부에서 차단.
+                onOpenCustomerDetail = { id -> navController.navigate(Destinations.customerDetail(id)) },
                 // FAB "수동 입력" 은 기존 FollowUp 화면 유지 (번호 직접 입력 + 상태/메모 한 번에).
                 onOpenManualEntry = { navController.navigate(Destinations.followUp()) },
-                onOpenPipeline = { statusName -> navController.navigate(Destinations.pipeline(statusName)) },
                 onOpenSchedule = { navController.navigate(Destinations.SCHEDULE) },
                 onOpenTemplates = { navController.navigate(Destinations.TEMPLATE_LIST) },
                 onOpenAiMessage = { navController.navigate(Destinations.AI_MESSAGE) },
@@ -118,22 +117,7 @@ fun AppNavHost(
             )
         }
 
-        composable(
-            route = Destinations.PIPELINE_WITH_ARG,
-            arguments = listOf(navArgument("statusName") { type = NavType.StringType })
-        ) { backStack ->
-            val statusName = backStack.arguments?.getString("statusName").orEmpty()
-            val statusLabel = runCatching { CustomerStatus.valueOf(statusName).label }.getOrDefault(statusName)
-            val vm: PipelineViewModel = viewModel(
-                factory = viewModelFactory { PipelineViewModel(container, statusLabel) }
-            )
-            PipelineScreen(
-                viewModel = vm,
-                statusLabel = statusLabel,
-                onBack = { navController.popBackStack() },
-                onOpenCustomer = { id -> navController.navigate(Destinations.customerDetail(id)) }
-            )
-        }
+        // 2026-05-25: PIPELINE 라우트 폐기 — CustomerStatus enum 제거 + 카테고리 시스템 통일.
 
         composable(
             route = Destinations.FOLLOW_UP_WITH_ARG,
@@ -199,7 +183,16 @@ fun AppNavHost(
                 viewModel = vm,
                 container = container,
                 onBack = { navController.popBackStack() },
-                onOpenTemplates = { navController.navigate(Destinations.TEMPLATE_LIST) }
+                onOpenTemplates = { navController.navigate(Destinations.TEMPLATE_LIST) },
+                onOpenPricingItems = { navController.navigate(Destinations.PRICING_ITEMS) }
+            )
+        }
+
+        composable(Destinations.PRICING_ITEMS) {
+            val vm: PricingItemsViewModel = viewModel(factory = viewModelFactory { PricingItemsViewModel(container) })
+            PricingItemsScreen(
+                viewModel = vm,
+                onBack = { navController.popBackStack() }
             )
         }
     }

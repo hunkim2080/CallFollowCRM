@@ -44,6 +44,20 @@ interface CallRecordDao {
     suspend fun countByPhone(phone: String): Int
 
     /**
+     * 지정 시점 이후 부재중 통화. "미확인" KPI 의 통화 측 입력.
+     * (수신/발신 = 이미 통화한 거라 미확인 아님. 거절도 사장님이 의식적으로 안 받은 거라 제외.)
+     */
+    @Query("SELECT * FROM call_records WHERE endedAt >= :from AND callType = 'MISSED' ORDER BY endedAt DESC")
+    fun observeMissedSince(from: Long): Flow<List<CallRecordEntity>>
+
+    /**
+     * 지정 시점 이전에 통화 기록이 있는 phone 들 (distinct).
+     * "오늘 신규" 판정용 — 오늘 통화/SMS 받은 번호 중 이 set 에 없으면 = 진짜 신규.
+     */
+    @Query("SELECT DISTINCT phoneNumber FROM call_records WHERE endedAt < :before")
+    fun observeDistinctPhonesBefore(before: Long): Flow<List<String>>
+
+    /**
      * 특정 번호의 [from~to] 윈도우 안의 UNHANDLED 통화들을 SAVED 로 일괄 표시.
      * 사용 시점: CustomerDetail 에서 상태/메모/이름/예약일을 변경했을 때.
      * 의미: 사장님이 그 고객에게 후속을 했음 → 통화별 알림 단위 처리도 클리어.
