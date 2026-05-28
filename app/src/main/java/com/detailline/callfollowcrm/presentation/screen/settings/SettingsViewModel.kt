@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class SettingsViewModel(private val container: AppContainer) : ViewModel() {
 
@@ -64,6 +65,26 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     private val _suggestionStatsPeriodDays = MutableStateFlow(7)
     val suggestionStatsPeriodDays: StateFlow<Int> = _suggestionStatsPeriodDays.asStateFlow()
 
+    // 2026-05-29 킬러콘텐츠 4단계 — Tone RAG upload 상태.
+    private val _toneRagUploading = MutableStateFlow(false)
+    val toneRagUploading: StateFlow<Boolean> = _toneRagUploading.asStateFlow()
+
+    private val _toneRagProgress = MutableStateFlow<Pair<Int, Int>?>(null)  // sent / total
+    val toneRagProgress: StateFlow<Pair<Int, Int>?> = _toneRagProgress.asStateFlow()
+
+    private val _toneRagAvailable = MutableStateFlow(0)  // 폰에 있는 sent SMS 개수 (학습 가능 대상)
+    val toneRagAvailable: StateFlow<Int> = _toneRagAvailable.asStateFlow()
+
+    // pref-mirrored (구독자 가 read 가능하게 StateFlow 로 래핑)
+    private val _toneRagConsented = MutableStateFlow(container.preferences.toneUploadConsented)
+    val toneRagConsented: StateFlow<Boolean> = _toneRagConsented.asStateFlow()
+
+    private val _toneRagUploadedCount = MutableStateFlow(container.preferences.toneTotalUploadedCount)
+    val toneRagUploadedCount: StateFlow<Int> = _toneRagUploadedCount.asStateFlow()
+
+    private val _toneRagLastUploadedAt = MutableStateFlow(container.preferences.toneLastUploadedAtMs)
+    val toneRagLastUploadedAt: StateFlow<Long> = _toneRagLastUploadedAt.asStateFlow()
+
     init {
         viewModelScope.launch(Dispatchers.IO) {
             val n = runCatching {
@@ -75,6 +96,71 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         loadUsageStats(com.detailline.callfollowcrm.ai.UsageStatsRepository.Period.TODAY)
         // 추천 답변 채택률 — 이번 주 default.
         loadSuggestionStats(days = 7)
+        // Tone RAG 가용 메시지 수 카운트 (폰에 있는 sent SMS — 학습 후보 풀).
+        viewModelScope.launch(Dispatchers.IO) {
+            val available = runCatching {
+                container.smsRepository.querySentMessagesWithTimestamp(limit = 50000).size
+            }.getOrDefault(0)
+            _toneRagAvailable.value = available
+        }
+    }
+
+    /**
+     * 2026-05-29 킬러콘텐츠 4단계 — 사장님 sent SMS 풀 batch upload.
+     *
+     * consent=true 이면 동의 + upload, false 면 동의 없이 upload (이미 동의된 상태에서 재동기화).
+     * 성공 시 prefs 에 lastUploaded / totalCount 박음 (서버 응답 기준).
+     */
+    fun uploadOwnerTone(consentNow: Boolean) {
+        if (_toneRagUploading.value) return
+        viewModelScope.launch {
+            _toneRagUploading.value = true
+            _toneRagProgress.value = 0 to 0
+            try {
+                if (consentNow) {
+                    container.preferences.toneUploadConsented = true
+                    _toneRagConsented.value = true
+                }
+                // 폰의 sent SMS 풀 가져오기 (최대 50000건 — 그 이상은 의미 없음).
+                val messages = withContext(Dispatchers.IO) {
+                    runCatching {
+                        container.smsRepository.querySentMessagesWithTimestamp(limit = 50000)
+                            .map {
+                                com.detailline.callfollowcrm.ai.OwnerToneUploadRepository.TimestampedText(
+                                    text = it.body,
+                                    timestampMs = it.dateMs
+                                )
+                            }
+                    }.getOrDefault(emptyList())
+                }
+                if (messages.isEmpty()) return@launch
+                val deviceId = "owner-anon"  // multi-device 대응은 다음 sprint
+                val result = container.ownerToneUploadRepository.batchUpload(
+                    deviceId = deviceId,
+                    messages = messages,
+                    chunkSize = 500,
+                    onProgress = { sent, total ->
+                        _toneRagProgress.value = sent to total
+                    }
+                )
+                result.fold(
+                    onSuccess = { ok ->
+                        val totalCount = if (ok.totalInPool > 0) ok.totalInPool else ok.stored
+                        container.preferences.toneTotalUploadedCount = totalCount
+                        container.preferences.toneLastUploadedAtMs = System.currentTimeMillis()
+                        _toneRagUploadedCount.value = totalCount
+                        _toneRagLastUploadedAt.value = container.preferences.toneLastUploadedAtMs
+                    },
+                    onFailure = {
+                        // 사장님은 토스트로 안내 — UI 가 SettingsScreen 의 LocalContext 라 별도 트리거.
+                        // 단순화 — 사장님이 다음번에 재시도. 진행 상태만 reset.
+                    }
+                )
+            } finally {
+                _toneRagUploading.value = false
+                _toneRagProgress.value = null
+            }
+        }
     }
 
     /**

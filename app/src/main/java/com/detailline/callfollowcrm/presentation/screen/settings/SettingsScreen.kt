@@ -167,6 +167,25 @@ fun SettingsScreen(
             // 2. 사장님 톤 학습 — RING-GO 정체성이라 상단 노출 (2026-05-25 사장님 결정).
             OwnerToneCard(sampleCount = toneSampleCount)
 
+            // 2.05 Tone RAG (깊이 학습) — 2026-05-29 킬러콘텐츠 4단계.
+            //   사장님 sent SMS 풀 batch upload → Mac mini 임베딩 + sqlite-vec → prepare-reply RAG.
+            val toneRagConsented by viewModel.toneRagConsented.collectAsState()
+            val toneRagUploadedCount by viewModel.toneRagUploadedCount.collectAsState()
+            val toneRagLastUploadedAt by viewModel.toneRagLastUploadedAt.collectAsState()
+            val toneRagAvailable by viewModel.toneRagAvailable.collectAsState()
+            val toneRagUploading by viewModel.toneRagUploading.collectAsState()
+            val toneRagProgress by viewModel.toneRagProgress.collectAsState()
+            OwnerToneRagCard(
+                consented = toneRagConsented,
+                uploadedCount = toneRagUploadedCount,
+                lastUploadedAtMs = toneRagLastUploadedAt,
+                available = toneRagAvailable,
+                inProgress = toneRagUploading,
+                progress = toneRagProgress,
+                onConsentAndUpload = { viewModel.uploadOwnerTone(consentNow = true) },
+                onUpload = { viewModel.uploadOwnerTone(consentNow = false) }
+            )
+
             // 2.1 추천 답변 채택률 — 2026-05-29 킬러콘텐츠 3단계 후속.
             //   "수정 거리 0" 목표를 사장님이 직접 확인. 데이터 쌓일수록 RING-GO 가 진화하는 모습 시각화.
             val suggestionStats by viewModel.suggestionStats.collectAsState()
@@ -1015,6 +1034,146 @@ private fun OwnerToneCard(sampleCount: Int) {
                 style = MaterialTheme.typography.labelSmall,
                 color = TossTextTertiary
             )
+        }
+    }
+}
+
+/**
+ * 2026-05-29 킬러콘텐츠 4단계 (Tone RAG) — 사장님 sent SMS 풀 batch upload 카드.
+ *
+ * 동의 → batch upload → 진행 표시 → 완료 후 "학습됨 N건" 표시 + 마지막 동기화 시각.
+ * Mac mini 가 RAG endpoint 박혀야 실제 검색 활성화 — 그 전에 upload 만 해도 데이터 누적은 안전.
+ *
+ * 사장님 카피:
+ *   메인: "✨ 깊이 학습 (Tone RAG)"
+ *   설명: "사장님이 평소 보낸 모든 메시지를 자체 서버에 임베딩해서, AI 가 비슷한 상황의 사장님 말투를 직접 찾아 흉내냅니다."
+ *   동의 안 함: "[동의 후 시작]" 버튼
+ *   동의 했으나 안 함: "[지금 동기화] N건 대기"
+ *   진행 중: progress bar + "x / y 건 학습 중"
+ *   완료: "✅ 학습됨 N건 (오늘 14:30)"
+ */
+@Composable
+private fun OwnerToneRagCard(
+    consented: Boolean,
+    uploadedCount: Int,
+    lastUploadedAtMs: Long,
+    available: Int,
+    inProgress: Boolean,
+    progress: Pair<Int, Int>?,
+    onConsentAndUpload: () -> Unit,
+    onUpload: () -> Unit
+) {
+    TossCard {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("🧠", fontSize = 16.sp)
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "깊이 학습 (Tone RAG)",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = TossTextPrimary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "사장님이 평소 보낸 모든 메시지를 자체 서버에 임베딩해서, AI 가 비슷한 상황의 사장님 말투를 직접 찾아 흉내냅니다. 더 사장님답게.",
+                style = MaterialTheme.typography.bodySmall,
+                color = TossTextSecondary
+            )
+            Spacer(Modifier.height(12.dp))
+
+            if (inProgress) {
+                // 진행 중 — progress bar + "x / y"
+                val (sent, total) = progress ?: (0 to 0)
+                val frac = if (total <= 0) 0f else (sent.toFloat() / total).coerceIn(0f, 1f)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(TossGrayBg)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(frac)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(TossBlue)
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "$sent / $total 건 학습 중...",
+                    fontSize = 11.sp,
+                    color = TossTextSecondary
+                )
+            } else if (uploadedCount > 0) {
+                // 완료 — 학습됨 표시
+                val lastTime = if (lastUploadedAtMs > 0) {
+                    val sdf = java.text.SimpleDateFormat("M월 d일 HH:mm", java.util.Locale.KOREAN)
+                    sdf.format(java.util.Date(lastUploadedAtMs))
+                } else "—"
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(TossBlueSoft)
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                ) {
+                    Column {
+                        Text(
+                            "✅ 학습됨 ${formatThousands(uploadedCount)}건",
+                            color = TossBlue,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "마지막 동기화 $lastTime",
+                            color = TossTextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+                if (available > uploadedCount) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "새 메시지 ${available - uploadedCount}건 대기",
+                        fontSize = 11.sp,
+                        color = TossTextSecondary
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    TossPrimaryButton(
+                        text = "지금 동기화",
+                        onClick = onUpload
+                    )
+                }
+            } else if (consented) {
+                // 동의 했지만 한 번도 안 함
+                Text(
+                    "${formatThousands(available)}건 학습 대기 중",
+                    fontSize = 12.sp,
+                    color = TossTextSecondary,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(Modifier.height(8.dp))
+                TossPrimaryButton(
+                    text = "지금 학습 시작",
+                    onClick = onUpload
+                )
+            } else {
+                // 동의 전 — 첫 진입
+                Text(
+                    "동의하면 사장님이 보낸 메시지 ${formatThousands(available)}건이 자체 Mac mini 서버 (사장님 본인 데이터, 외부 전송 X) 로 전송돼요.",
+                    fontSize = 11.sp,
+                    color = TossTextTertiary
+                )
+                Spacer(Modifier.height(10.dp))
+                TossPrimaryButton(
+                    text = "동의하고 학습 시작",
+                    onClick = onConsentAndUpload
+                )
+            }
         }
     }
 }

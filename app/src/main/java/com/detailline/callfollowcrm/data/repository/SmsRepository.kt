@@ -599,6 +599,33 @@ class SmsRepository(private val context: Context) {
     }
 
     /**
+     * 2026-05-29 킬러콘텐츠 4단계 (Tone RAG) — 사장님 sent SMS 풀 batch upload 용.
+     * 본문 + timestamp 함께 반환. 너무 짧은 (< 5자) 또는 너무 긴 (> 500자) 메시지 제외.
+     */
+    data class SentMessage(val body: String, val dateMs: Long)
+
+    fun querySentMessagesWithTimestamp(limit: Int = 10000): List<SentMessage> {
+        if (!hasReadPermission()) return emptyList()
+        val uri = Uri.parse("content://sms/sent")
+        val projection = arrayOf(COL_BODY, COL_DATE)
+        val cursor = runCatching {
+            context.contentResolver.query(uri, projection, dateDescSortArgs(limit), null)
+        }.getOrNull() ?: return emptyList()
+        return cursor.use { c ->
+            val bodyIdx = c.getColumnIndex(COL_BODY)
+            val dateIdx = c.getColumnIndex(COL_DATE)
+            if (bodyIdx < 0 || dateIdx < 0) return@use emptyList()
+            val out = mutableListOf<SentMessage>()
+            while (c.moveToNext() && out.size < limit) {
+                val body = c.getString(bodyIdx).orEmpty().trim()
+                if (body.length < 5 || body.length > 500) continue
+                out += SentMessage(body = body, dateMs = c.getLong(dateIdx))
+            }
+            out
+        }
+    }
+
+    /**
      * 디버그 진단 — 시스템 DB 가 진짜 어떻게 보이는지 한 번에 측정.
      * 갤S24/OneUI 6.1 에서 query 가 의심될 때 화면에 표시.
      *

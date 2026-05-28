@@ -92,6 +92,9 @@ class AppContainer(context: Context) {
     val suggestionRepository: SuggestionRepository = ServerSuggestionRepository()
     val phaseOneApiRepository = PhaseOneApiRepository()
 
+    // 2026-05-29 킬러콘텐츠 4단계 (Tone RAG) — 사장님 sent SMS 풀 batch upload (Mac mini).
+    val ownerToneUploadRepository = com.detailline.callfollowcrm.ai.OwnerToneUploadRepository()
+
     // 서버 살아있음 모니터 — HomeScreen 상단 ● indicator 가 구독.
     val serverHealth = ServerHealthMonitor(phaseOneApiRepository).also { it.start() }
 

@@ -602,3 +602,99 @@ prepare-reply 응답 스키마 v2 박음. android 의 19:00 요청 100% 반영. 
   - cowork: 변동 없음.
   - 사장님: 채팅 화면에서 AI 답변 사용 → Settings 열면 채택률 시각 확인. 며칠 사용 후 "수정 거리" 가 줄어들면 RING-GO 가 진화 중이라는 뜻 (Tone RAG 후).
   - android: 다음 sprint — (a) 4단계 Tone RAG (Mac mini bge-m3 + sqlite-vec) / (b) batch upload (cowork endpoint 박힌 후) / (c) 카드의 시간 기준 정밀화 (한국 시각 자정 align).
+
+## 2026-05-29 19:30 · android
+**킬러콘텐츠 4단계 (Tone RAG) — 안드로이드 측 upload 인프라 박음.** 본질은 cowork (서버) 작업이지만 안드 측에서 사장님 sent SMS 풀을 batch upload + Settings UI + cowork 사양 박기 까지. cowork 가 endpoint + 임베딩 박은 순간 자동 활성화.
+- 변경 (안드로이드):
+  - **AppPreferences** 3 필드 추가: `toneUploadConsented` (사장님 명시 동의) / `toneLastUploadedAtMs` / `toneTotalUploadedCount`.
+  - **SmsRepository.querySentMessagesWithTimestamp(limit)** 신규 — body + timestamp 함께. 5자 미만 / 500자 초과 제외 (학습 가치 낮은 자동 답장/스팸/뉴스레터 등).
+  - **OwnerToneUploadRepository** 신규 (`ai/OwnerToneUploadRepository.kt`):
+    - `batchUpload(deviceId, messages, chunkSize=500, onProgress)` — POST `/api/owner-tone/batch-upload` chunked.
+    - 진행 콜백 (sent, total) — UI progress bar 용.
+    - 실패 시 부분 성공도 반환 (chunk 일부 실패 안전망).
+    - timeout: read 60초 (서버 측 임베딩 시간 고려).
+  - **AppContainer DI**: `ownerToneUploadRepository`.
+  - **SettingsViewModel** state: `toneRagConsented` / `toneRagUploadedCount` / `toneRagLastUploadedAt` / `toneRagAvailable` (폰 sent SMS 풀 카운트) / `toneRagUploading` / `toneRagProgress` (Pair<sent, total>).
+    - `uploadOwnerTone(consentNow)` — 동의 + upload 또는 재동기화 (consent 이미 됨).
+    - init 시 querySentMessagesWithTimestamp(limit=50000).size 로 available 계산.
+  - **OwnerToneRagCard Composable** 신규 — 사장님 톤 학습 카드 바로 아래 (RING-GO 정체성):
+    - 동의 전: "동의하면 사장님이 보낸 메시지 N건이 자체 Mac mini 서버 (사장님 본인 데이터, 외부 전송 X) 로 전송돼요." + [동의하고 학습 시작] 버튼
+    - 동의 후 첫 사용: "N건 학습 대기 중" + [지금 학습 시작]
+    - 진행 중: progress bar + "x / y 건 학습 중..."
+    - 완료: "✅ 학습됨 N건 (마지막 동기화: M월 d일 HH:mm)"
+    - 새 메시지 대기: "새 메시지 N건 대기" + [지금 동기화]
+- 사장님 체감: 동의하고 학습 버튼 누르면 진행 bar + 완료 후 "✅ 학습됨" 시각 확인. RING-GO 가 깊이 진화하는 모습.
+- commit: (이번 커밋)
+
+### 🚨 cowork 작업 요청 — Tone RAG 인프라 (서버 영역 본질 작업)
+이게 본 4단계 핵심. cowork 가 박은 후 안드 upload 가 의미 가짐.
+
+**1. 임베딩 모델 결정 + install**:
+- 추천: **bge-m3** (BAAI / FlagEmbedding). 한국어 강함 + multilingual + 1024 dim + 8K context (긴 답변도 OK).
+- 대안: `KoSimCSE-roberta-multitask` (한국어 specialized). 768 dim. 짧은 SMS 에 충분.
+- 사장님 결정 받기 (기본 추천 = bge-m3 우선 시도, 메모리/속도 이슈 시 KoSimCSE 로).
+- install: `pip install FlagEmbedding` 또는 `sentence-transformers`.
+
+**2. SQLite + sqlite-vec extension**:
+- `pip install sqlite-vec` 또는 native build.
+- 기존 `cache.db` 에 신규 테이블 `owner_tone` 추가 (또는 별도 DB).
+- 스키마:
+  ```sql
+  CREATE TABLE owner_tone (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      device_id TEXT NOT NULL,
+      text TEXT NOT NULL,
+      text_hash TEXT NOT NULL,   -- dedup 용 sha256(text), UNIQUE
+      timestamp_ms INTEGER NOT NULL,
+      created_at_ms INTEGER NOT NULL,
+      embedding BLOB NOT NULL    -- vec0 column 또는 별도 vec 테이블 join
+  );
+  CREATE UNIQUE INDEX idx_owner_tone_hash ON owner_tone(device_id, text_hash);
+  ```
+- sqlite-vec `vec0` virtual table 활용 (또는 별도 vec 테이블 + JOIN).
+
+**3. 신규 endpoint — `POST /api/owner-tone/batch-upload`**:
+- Request:
+  ```json
+  {
+    "device_id": "owner-anon",
+    "messages": [
+      {"text": "안녕하세요 줄눈 시공 비용 문의주셔서 감사합니다.", "timestamp_ms": 1748541234567},
+      ...
+    ]
+  }
+  ```
+- 처리:
+  1. messages 각각 text_hash 계산 → 중복 SKIP (dedup)
+  2. 새 text 들을 batch 로 모델에 inference → embedding 받음
+  3. INSERT 트랜잭션
+  4. owner_tone 풀 total count 반환
+- Response: `{"received": N, "stored": M (new only), "total_in_pool": K}` (200).
+- chunk 단위로 안드가 보냄 (500건 default) — 서버 부담 최소화.
+
+**4. prepare-reply RAG 통합** (가장 중요):
+- 새 고객 메시지 (`latestMessage`) 가 들어오면:
+  1. 임베딩 (같은 bge-m3 모델 reuse)
+  2. `SELECT text FROM owner_tone WHERE device_id=? ORDER BY vec_distance_cosine(embedding, ?) LIMIT 10`
+  3. retrieved top-10 텍스트를 build_system_blocks 의 **block C (사장님 톤 샘플)** 위치에 inject (옛 랜덤 50개 대체 또는 결합).
+- block C 가 cache_control 박힌 cache 라 같은 phone+같은 메시지면 cache hit. 다른 메시지면 cache miss + 새 retrieval.
+- 효과: "사장님이 비슷한 상황에서 친 진짜 답변" 을 inject → 답변 품질 ↑↑ → 채택률 카드의 % 가 오름.
+
+**5. (선택, 다음 sprint) — incremental event endpoint `POST /api/owner-tone/event`**:
+- ChatViewModel.sendMessage 성공마다 1건 incremental upload.
+- 또는 prepare-reply 호출 시 anchor 옛 ownerToneSamples 50개를 dedup 누적 → 자동 incremental.
+- 둘 다 가능. 단순화 = ownerToneSamples 누적 (안드 변경 없음).
+
+**6. 익명화 / 멀티유저**:
+- 현재 device_id = "owner-anon" 하드코딩. 향후 14명 테스터 / paid 확장 시 sub_id (admin/subscribers 테이블 phone hash 또는 별도 uuid).
+- 사장님 본인 데이터라 현재 단계는 hash 없이 raw text 저장 OK.
+
+### 다음 액션
+- cowork: 위 6가지 박기. **이게 RING-GO 가 진짜 사장님답게 답하는 본질**. 우선순위 최고.
+- 사장님:
+  1. cowork 박힌 후 Settings 의 [동의하고 학습 시작] 버튼 → progress 끝나면 "✅ 학습됨 N건"
+  2. 며칠 사용 후 "💡 추천 답변 채택률" 카드 % 가 오르는지 확인 (RAG 효과 측정)
+  3. (옵션) 임베딩 모델 결정 — bge-m3 (기본 추천) vs KoSimCSE (한국어 특화)
+- android (다음 sprint):
+  - (a) cowork 박힌 후 사장님 검증 — 첫 upload + retrieve 동작 확인
+  - (b) 가능하면 5단계 (페르소나) 시작 — 고객별 자동 요약 카드. Haiku 4.5 로 저렴하게.

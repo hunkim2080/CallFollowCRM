@@ -103,6 +103,25 @@ class AppPreferences(context: Context) {
         get() = prefs.getInt(KEY_MANUAL_MMSC_PORT, 0)
         set(value) = prefs.edit().putInt(KEY_MANUAL_MMSC_PORT, value).apply()
 
+    /**
+     * 2026-05-29 킬러콘텐츠 4단계 — 사장님 톤 RAG.
+     * 사장님이 Settings 에서 명시 동의 = 사장님 보낸 SMS 풀을 Mac mini 에 batch upload → 임베딩 → retrieval.
+     * 본인 폰 본인 데이터라 자체 서버라 안전. 그래도 명시 동의 필수.
+     */
+    var toneUploadConsented: Boolean
+        get() = prefs.getBoolean(KEY_TONE_UPLOAD_CONSENTED, false)
+        set(value) = prefs.edit().putBoolean(KEY_TONE_UPLOAD_CONSENTED, value).apply()
+
+    /** 마지막 batch upload 완료 시각. 0 = 한 번도 안 함. */
+    var toneLastUploadedAtMs: Long
+        get() = prefs.getLong(KEY_TONE_LAST_UPLOADED_AT, 0L)
+        set(value) = prefs.edit().putLong(KEY_TONE_LAST_UPLOADED_AT, value).apply()
+
+    /** 누적 upload 된 SMS 개수 (서버 응답 기준). */
+    var toneTotalUploadedCount: Int
+        get() = prefs.getInt(KEY_TONE_TOTAL_UPLOADED, 0)
+        set(value) = prefs.edit().putInt(KEY_TONE_TOTAL_UPLOADED, value).apply()
+
     companion object {
         private const val KEY_ADOT_FOLDER_URI = "adot_folder_uri"
         private const val KEY_LAST_SCAN_AT = "last_scan_at"
@@ -118,5 +137,8 @@ class AppPreferences(context: Context) {
         private const val KEY_MANUAL_MMSC_URL = "manual_mmsc_url"
         private const val KEY_MANUAL_MMSC_PROXY = "manual_mmsc_proxy"
         private const val KEY_MANUAL_MMSC_PORT = "manual_mmsc_port"
+        private const val KEY_TONE_UPLOAD_CONSENTED = "tone_upload_consented"
+        private const val KEY_TONE_LAST_UPLOADED_AT = "tone_last_uploaded_at"
+        private const val KEY_TONE_TOTAL_UPLOADED = "tone_total_uploaded"
     }
 }
