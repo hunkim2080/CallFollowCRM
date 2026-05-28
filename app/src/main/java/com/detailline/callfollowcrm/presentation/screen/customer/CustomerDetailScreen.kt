@@ -603,33 +603,9 @@ fun CustomerDetailScreen(
                 }
             }
 
-            // 4. 문자 — 시스템 SMS/MMS(받음 + 보냄, 갤럭시 메시지/RING-GO 무관) 합쳐 시간순.
-            //    여기는 정보 표시 전용. 대화/발송은 메인 ChatScreen 에서 (하단 "문자 보내기" 또는 대시보드).
-            TossCard {
-                Column {
-                    SectionLabel(text = "문자")
-                    Spacer(Modifier.height(8.dp))
-                    val items = remember(systemSms) {
-                        systemSms
-                            .map { MessageRow(timeMs = it.dateMs, sent = it.sent, body = it.body, imageUris = it.imageUris) }
-                            .sortedByDescending { it.timeMs }
-                    }
-                    if (items.isEmpty()) {
-                        Text(
-                            if (systemSms.isEmpty())
-                                "문자 기록이 없어요. (설정에서 \"받은 문자 함께 보기\"를 켜야 보여요)"
-                            else "문자 기록이 없어요",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TossTextTertiary
-                        )
-                    } else items.take(80).forEach { m ->
-                        MessageRowView(m, onImageTap = { fullscreenImageUri = it })
-                        Spacer(Modifier.height(8.dp))
-                    }
-
-                    // composer 는 bottomBar 로 이동됨 (스크롤 영향 X). 여기엔 아무것도 없음.
-                }
-            }
+            // 4. 옛 "문자" 카드 제거 (2026-05-28 사장님 보고):
+            //    "📩 주고받은 문자" 접이식 섹션이 대화요약 아래로 올라옴 → 여기 중복.
+            //    MessageRow/MessageRowView 는 dead code 가능성 → 다른 사용처 없으면 추후 정리.
 
             // 5. 통화 기록 — 헤더 탭으로 펼침/접힘. 기본 접힘 (공간 절약).
             //    펼친 상태에서 각 통화에 매칭된 녹음은 인라인 ▶ 버튼. 별도 "녹음 파일" 섹션 없음.
