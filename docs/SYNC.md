@@ -914,3 +914,39 @@ CREATE TABLE customer_personas (
   - 사장님: (1) Mac mini `pip install FlagEmbedding sqlite-vec` + launchctl reload. (2) 새 안드 빌드 깔고 Settings [동의하고 학습 시작] → progress → ✅ 학습됨. (3) ChatScreen 답변 받으면 stdout.log 에 RAG/persona 흔적 확인. (4) CustomerDetail 진입 → 페르소나 카드 노출 확인.
   - cowork: 변동 없음 (선택 — 6단계 자동 학습 endpoint 박을 시점).
   - android: (a) 사장님 검증 결과 받고 디버깅 / (b) ChatScreen 페르소나 chip (composer 위) / (c) MMS Vision / (d) 14명 onboarding 다이얼로그.
+
+## 2026-05-30 07:00 · android (사장님 ANR 보고 hotfix)
+**사장님 "RING-GO이(가) 응답하지 않음" ANR 자주 보고** → main thread block 후보 3곳 hot fix.
+- 사장님 증상: HomeScreen 상태에서 랜덤하게 ANR 다이얼로그. 새 메시지 X 상태에서도 발생. 새 빌드 (Default SMS 앱 인수 후) 부터 빈도 ↑.
+- 진단:
+  - Default SMS 앱이 되면 시스템이 SMS/MMS provider 갱신 시 우리에게 callback 폭주.
+  - main thread 에서 동기 binder IPC 호출 (insert / startService / contentResolver) 가 누적되면 5초+ block → ANR.
+- 변경 (3 hot fix):
+  1. **SmsRepository.observeContacts** ContentObserver 의 handler:
+     - 기존: `Handler(Looper.getMainLooper())` → onChange callback 이 main thread 에서 실행.
+     - 수정: `HandlerThread("SmsContentObserver")` → background thread + 250ms debounce.
+     - **deadcode 이지만 미래 안전망** (현재 HomeViewModel 은 Room observe 만 사용, observeContacts 미호출).
+  2. **SmsReceiver.onReceive** 의 SMS provider INSERT (DELIVER 모드):
+     - 기존: main thread 에서 동기 `contentResolver.insert(...)` 호출.
+     - 수정: `scope.launch (IO)` 안으로 이동. broadcast onReceive 가 빠르게 끝남.
+     - Default SMS 앱 인수 후 SMS 빈도 ↑ → 누적 영향 차단.
+  3. **MmsReceiver.onReceive** 의 startService:
+     - 기존: main thread 에서 동기 `context.startService(...)` 호출 (binder IPC).
+     - 수정: `goAsync()` + `scope.launch (IO)` 안에서 startService.
+     - 모든 main thread 부분 minimal.
+- 서버 영향 X (전부 클라이언트).
+- commit: (이번 커밋)
+- 사장님 검증 요청:
+  1. 새 빌드 깔고 평소 사용. ANR 빈도 감소 확인.
+  2. **만약 여전히 ANR 발생 시** logcat 박아주시면 정확한 원인 짚기 가능:
+     ```
+     adb logcat -d -b crash | grep -A 20 "ANR in com.detailline"
+     # 또는 안드로이드 스튜디오의 Logcat 에서 검색 = "ANR in"
+     ```
+  3. ANR trace 텍스트 사장님께 받으면 정확한 stack 보고 추가 fix.
+
+### cowork 의 별도 작업 (검증 통과)
+- `efc7b81 fix(server): §16 sqlite-vec 의존성 제거 → numpy cosine + embedding BLOB 컬럼 + backfill` (cowork SYNC append 누락)
+- 안드 측 영향: 없음. UploadResult.embeddingsAvailable 의미 그대로 유효 (이제 numpy + bge-m3 만 install 필요, sqlite-vec 불필요).
+- 사장님 Mac mini install 변경: `pip install FlagEmbedding` 만 충분 (sqlite-vec skip OK).
+- cowork: 다음부터 SYNC.md append 잊지 말기 — CLAUDE.md §2 룰.

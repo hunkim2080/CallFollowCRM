@@ -8,6 +8,7 @@ import android.database.ContentObserver
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.Looper
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.channels.awaitClose
@@ -729,10 +730,24 @@ class SmsRepository(private val context: Context) {
      */
     fun observeContacts(scanLimit: Int = 10000, contactLimit: Int = 500): Flow<List<SmsContact>> =
         callbackFlow {
-            val handler = Handler(Looper.getMainLooper())
-            val observer = object : ContentObserver(handler) {
-                override fun onChange(selfChange: Boolean) {
+            // 2026-05-30 사장님 ANR 보고 fix:
+            //   기존 Handler(Looper.getMainLooper()) 이면 ContentObserver.onChange 가 main thread 에서 실행.
+            //   그 안에서 safeQueryContacts (10000건 SMS+MMS 풀스캔) 호출 → main thread 5초+ block.
+            //   Default SMS 앱 인수 후 provider 변경 폭주 → ANR 폭증.
+            //   해결: HandlerThread (background) 로 observer 의 callback 격리. main thread 영향 0.
+            //   추가 안전망: 짧은 시간 안 폭주하는 onChange 를 debounce — 마지막 호출 후 250ms 만 query.
+            val ht = HandlerThread("SmsContentObserver").apply { start() }
+            val bgHandler = Handler(ht.looper)
+            val pendingRunnable = object : Runnable {
+                override fun run() {
                     trySend(safeQueryContacts(scanLimit, contactLimit))
+                }
+            }
+            val observer = object : ContentObserver(bgHandler) {
+                override fun onChange(selfChange: Boolean) {
+                    // debounce — 짧은 시간 안 다발 변경 (default SMS 앱일 때 폭주) 흡수.
+                    bgHandler.removeCallbacks(pendingRunnable)
+                    bgHandler.postDelayed(pendingRunnable, 250L)
                 }
             }
             // content://sms 와 content://mms 둘 다 — MMS 도 갤럭시 메시지 목록에 섞임.
@@ -743,11 +758,13 @@ class SmsRepository(private val context: Context) {
             runCatching { cr.registerContentObserver(smsUri, true, observer) }
             runCatching { cr.registerContentObserver(mmsUri, true, observer) }
 
-            // 초기 emit — 화면 진입 즉시 데이터 채움.
-            trySend(safeQueryContacts(scanLimit, contactLimit))
+            // 초기 emit — 화면 진입 즉시 데이터 채움. background thread 에서 query → 비차단.
+            bgHandler.post { trySend(safeQueryContacts(scanLimit, contactLimit)) }
 
             awaitClose {
                 runCatching { cr.unregisterContentObserver(observer) }
+                runCatching { bgHandler.removeCallbacksAndMessages(null) }
+                runCatching { ht.quitSafely() }
             }
         }
 

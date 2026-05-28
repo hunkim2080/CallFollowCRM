@@ -128,24 +128,26 @@ class SmsReceiver : BroadcastReceiver() {
 
         val app = context.applicationContext as? CallFollowCrmApplication ?: return
 
-        // 2026-05-29 Phase A 1단계 — DELIVER 일 때만 시스템 SMS provider 에 INSERT.
-        //   default SMS 앱이면 시스템이 자동 INSERT 안 함 → 우리가 책임. 누락 시 사장님 갤메시지/RING-GO 양쪽에서 메시지 영영 안 보임.
-        //   RECEIVED 분기일 땐 시스템 갤메시지가 이미 INSERT 함 → 우리가 또 하면 중복.
+        // 2026-05-30 사장님 ANR 보고 fix: SMS provider INSERT 를 main thread 에서 호출하면 binder IPC
+        //   동기 대기로 ANR 위험. default SMS 앱 인수 후 SMS 빈도 ↑ → 누적 영향.
+        //   해결: scope.launch (IO) 안으로 이동. broadcast onReceive 자체는 빠르게 끝남.
+        //   주의: INSERT 가 후속 작업과 race 가능하나 우리 cache upsert / prepare-reply 와 무관.
         if (isDeliver) {
-            runCatching {
-                val values = ContentValues().apply {
-                    put(Telephony.Sms.ADDRESS, sender)
-                    put(Telephony.Sms.BODY, combinedBody)
-                    put(Telephony.Sms.DATE, receivedAtMs)
-                    put(Telephony.Sms.DATE_SENT, receivedAtMs)
-                    put(Telephony.Sms.READ, 0)
-                    put(Telephony.Sms.SEEN, 0)
-                    put(Telephony.Sms.TYPE, Telephony.Sms.MESSAGE_TYPE_INBOX)
+            scope.launch {
+                runCatching {
+                    val values = ContentValues().apply {
+                        put(Telephony.Sms.ADDRESS, sender)
+                        put(Telephony.Sms.BODY, combinedBody)
+                        put(Telephony.Sms.DATE, receivedAtMs)
+                        put(Telephony.Sms.DATE_SENT, receivedAtMs)
+                        put(Telephony.Sms.READ, 0)
+                        put(Telephony.Sms.SEEN, 0)
+                        put(Telephony.Sms.TYPE, Telephony.Sms.MESSAGE_TYPE_INBOX)
+                    }
+                    context.contentResolver.insert(Telephony.Sms.Inbox.CONTENT_URI, values)
+                }.onFailure { e ->
+                    Log.e(TAG, "SMS provider INSERT failed (default app responsibility)", e)
                 }
-                context.contentResolver.insert(Telephony.Sms.Inbox.CONTENT_URI, values)
-            }.onFailure { e ->
-                // INSERT 실패해도 알림/prepare-reply 는 계속 — 사장님이 메시지 자체는 받았다고 인지해야 함.
-                Log.e(TAG, "SMS provider INSERT failed (default app responsibility)", e)
             }
         }
 
