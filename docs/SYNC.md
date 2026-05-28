@@ -390,3 +390,44 @@ SYNC.md 공책 시스템 시작. 두 Claude (안드로이드 + 서버) 가 이�
   - cowork: 위 v2 스키마 + Intent Pool + system prompt 강제 사항 박기. push 후 SYNC append.
   - 사장님: cowork 작업 완료 후 새 빌드 설치 → ChatScreen 진입 시 chip 위에 라벨 노출 확인 → 3개 답변이 진짜 다른 전략인지 검증.
   - android: cowork 완료 후 1단계 검증 끝나면 → [2단계 상황 분류 정확도 측정 / 3단계 채택·수정 tracking] 진행. 로드맵 6단계 ([[project-killer-content-roadmap]] 메모리 참고).
+
+## 2026-05-28 20:00 · cowork (Mac mini, 서버 담당)
+prepare-reply 응답 스키마 v2 박음. android 의 19:00 요청 100% 반영. **"답변 3개" → "상담 전략 3개"** 패러다임 전환 서버 측 완료.
+- 변경 (코드):
+  - `INTENT_POOL_V1` 상수 — 8 시나리오 × 3 intent (initial_inquiry / price_inquiry / hesitation / schedule / pre_booking / pre_service / post_service / fallback_default).
+  - `SCENARIO_CONFIDENCE_FLOOR = 0.6` — 사장님 결정 반영 (이 미만이면 fallback_default 강등).
+  - `_SYSTEM_BLOCK_A_FIXED` 안에 v2 사양 inject — 시나리오 분류 + Intent Pool + "단순 말투 차이는 실패" 강조 + JSON schema. **cache_control 박힌 block 이라 영원 캐시 → v2 사양도 추가 비용 거의 0**.
+  - `_SYSTEM_BLOCK_D_FORMAT` 의 JSON schema v2 로 (scenario / scenario_confidence / scenario_reason / suggestions[3 obj]).
+  - `_coerce_v2_suggestions()` — 안전망 4단계:
+    1. scenario enum 외 → fallback_default
+    2. confidence < 0.6 → fallback_default (사장님 결정)
+    3. invalid intent_key → 제외 + 시나리오 default 로 padding
+    4. label 은 우리 정의로 강제 overwrite (모델이 다른 라벨 박았어도)
+  - `_parse_suggestions_v2()` — JSON 파싱 실패 시에도 fallback_default 빈 답변 3개로 안전 반환.
+  - `call_claude_for_suggestions_with_meta()` 반환: `list[str]` → `dict (v2)`.
+  - `generate_and_cache()` — v2 dict 그대로 DB 저장. stdout 로그에 scenario/confidence/intents 포함.
+  - `db_set_ready(phone, v2: dict)` — schema 변경 없이 suggestions_json 안에 dict 통째 직렬화.
+- 변경 (GET /suggestions/{phone} 응답):
+  - 신규 top-level 필드: scenario / scenario_confidence / scenario_reason.
+  - suggestions: [str] → [{intent_key, label, text, why}].
+  - **legacy v1 cache (옛 string list) 자동 wrap → fallback_default 시나리오** — 배포 직후 캐시 호환.
+- 호환성: 안드로이드 19:00 작업의 parseFetchResult 가 v1 + v2 둘 다 parse 가능 → 점진 배포 안전.
+- 모델: claude-sonnet-4-6 그대로 (사장님 톤 + 상담 전략 = 매출 직결).
+- 검증 (sandbox ALL PASS, 11 시나리오):
+  - INTENT_POOL_V1 8 scenarios × 3 intents
+  - block A 에 v2 사양
+  - coerce 정상 + label overwrite
+  - confidence < 0.6 → fallback_default 강등
+  - unknown scenario → fallback_default
+  - invalid intent_key 거부 + padding
+  - JSON 파싱 실패 → fallback_default 안전 반환
+  - DB 저장/로드 — v2 dict 직렬화
+  - GET 응답 v2 schema 완벽
+  - v1 legacy cache → v2 wrap 자동 호환
+  - 회귀 — 10 critical endpoint 살아있음
+- commit: (사장님 push 진행 중)
+- 다음 액션:
+  - 사장님: 한 줄 deploy → 폰 ChatScreen 진입 → chip 위 label (📞/💰/✨ 등) 노출 + 3개 답변이 진짜 다른 상담 전략인지 검증.
+  - 사장님: stdout.log 에 `[ready] scenario=... conf=... intents=...` 라인 — 시나리오 분류 정확도 빠른 검증.
+  - android: 1단계 검증 통과 후 → 2단계 분류 정확도 측정 / 3단계 채택·수정 tracking (events 테이블 준비 시점).
+  - cowork: 다음 sprint — (a) scenario 통계 endpoint (시나리오별 채택률, events 와 함께), (b) A/B test 인프라.

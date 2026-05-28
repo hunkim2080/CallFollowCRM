@@ -252,7 +252,12 @@ def db_set_generating(phone: str, latest_msg: str, received_at_ms: int) -> None:
         con.commit()
 
 
-def db_set_ready(phone: str, suggestions: list[str]) -> None:
+def db_set_ready(phone: str, v2: dict) -> None:
+    """v2 dict 통째로 suggestions_json 에 저장.
+
+    v2 = {scenario, scenario_confidence, scenario_reason, suggestions:[3 obj]}
+    suggestions_cache 테이블의 schema 는 안 만짐 — suggestions_json (TEXT) 안에 dict 직렬화.
+    """
     now = _now_ms()
     with sqlite3.connect(DB_PATH) as con:
         con.execute(
@@ -264,7 +269,7 @@ def db_set_ready(phone: str, suggestions: list[str]) -> None:
                 updated_at_ms=?
             WHERE phone=?
             """,
-            (json.dumps(suggestions, ensure_ascii=False), now, now, phone),
+            (json.dumps(v2, ensure_ascii=False), now, now, phone),
         )
         con.commit()
 
@@ -609,6 +614,61 @@ def build_system_prompt(owner_tone_samples: list[str]) -> str:
     )
 
 
+# ─── v2 (SYNC 2026-05-28 19:00 android 요청) Intent Pool v1 ───
+# 8개 시나리오 × 3종 intent. fallback_default 는 분류 신뢰도 < 0.6 일 때.
+# 사장님 결정 (2026-05-28): "답변 3개의 말투 차이" → "상담 전략 3개의 의도 차이" 패러다임 전환.
+INTENT_POOL_V1: dict[str, list[dict]] = {
+    "initial_inquiry": [
+        {"intent_key": "quick",        "label": "📞 빠른 답변"},
+        {"intent_key": "info",         "label": "❓ 정보 요청"},
+        {"intent_key": "assure",       "label": "🤝 안심 설명"},
+    ],
+    "price_inquiry": [
+        {"intent_key": "quote",        "label": "💰 견적 안내"},
+        {"intent_key": "condition",    "label": "✅ 조건 확인"},
+        {"intent_key": "booking",      "label": "📅 예약 유도"},
+    ],
+    "hesitation": [
+        {"intent_key": "price_explain", "label": "💬 가격 설명"},
+        {"intent_key": "case",          "label": "📷 사례 제시"},
+        {"intent_key": "nudge",         "label": "➡️ 결정 유도"},
+    ],
+    "schedule": [
+        {"intent_key": "date_confirm",  "label": "🗓️ 날짜 확정"},
+        {"intent_key": "alternative",   "label": "🔄 대안 제시"},
+        {"intent_key": "prep",          "label": "📋 준비 안내"},
+    ],
+    "pre_booking": [
+        {"intent_key": "deposit",       "label": "💵 계약금 안내"},
+        {"intent_key": "final_check",   "label": "✔️ 최종 확인"},
+        {"intent_key": "caution",       "label": "⚠️ 주의사항 안내"},
+    ],
+    "pre_service": [
+        {"intent_key": "visit",         "label": "🚪 방문 안내"},
+        {"intent_key": "prep_req",      "label": "📝 준비 요청"},
+        {"intent_key": "assure_pre",    "label": "🛡️ 안심 안내"},
+    ],
+    "post_service": [
+        {"intent_key": "usage",         "label": "📖 사용 안내"},
+        {"intent_key": "review",        "label": "⭐ 후기 요청"},
+        {"intent_key": "upsell",        "label": "🎁 추가 제안"},
+    ],
+    # 분류 신뢰도 < 0.6 일 때 사용 — initial_inquiry 가 아닌 별도 fallback (사장님 결정 19:00)
+    "fallback_default": [
+        {"intent_key": "general",       "label": "💬 무난 답변"},
+        {"intent_key": "clarify",       "label": "❓ 추가 확인"},
+        {"intent_key": "manual",        "label": "✍️ 직접 확인"},
+    ],
+}
+VALID_SCENARIOS = set(INTENT_POOL_V1.keys())
+# {scenario: {intent_key: label}} — 빠른 lookup 용
+_INTENT_LABEL_MAP: dict[str, dict[str, str]] = {
+    sc: {it["intent_key"]: it["label"] for it in items}
+    for sc, items in INTENT_POOL_V1.items()
+}
+SCENARIO_CONFIDENCE_FLOOR = 0.6  # 이 미만이면 fallback_default 로 강등
+
+
 # ─── prompt caching 최적화 — system 을 4 block 으로 분리 ───
 # Anthropic prompt caching: 각 block 에 cache_control 박으면 breakpoint 생성.
 # 같은 block 이 5분 내 재호출 시 cache_read 단가 (입력의 1/10) 적용.
@@ -627,22 +687,84 @@ _SYSTEM_BLOCK_A_FIXED = """너는 줄눈 시공 사장님이 고객 문자에 �
 어휘·문장 길이·반말/존댓말 비율·이모지 사용·인사 방식·문장 끝 처리를
 모방해야 한다. 절대 사장님이 안 쓸 법한 단어/문체로 답하지 말 것.
 
-────── 답변 후보 3개의 차별화 (반드시 다른 방향) ──────
-세 후보는 명확히 다른 방향성을 가진다:
+──────────────────────────────────────────────
+[v2 — 상담 전략 분화 (사장님 결정 2026-05-28)]
+──────────────────────────────────────────────
 
-1번 = 짧은 답변
-- 한 문장. 즉답. 사장님이 바쁠 때 그대로 보낼 수 있어야.
-- 예: "내일 오전 10시 가능합니다."
+══════ 답변 패러다임 ══════
+"답변 3개의 말투 차이" 가 아니라 **"상담 전략 3개의 의도 차이"** 다.
+세 후보는 명확히 서로 다른 상담 방향을 가진다.
+**단순 말투/길이/친절도 차이는 실패다.**
 
-2번 = 친절한 답변
-- 두 문장. 추가 안내/배려 한 줄 더.
-- 예: "내일 오전 10시 방문드리겠습니다. 시공 시 1시간 정도 비워두시면 좋아요."
+══════ 1단계: 시나리오 분류 ══════
+최근 대화 (recent_messages + 방금 받은 메시지) 를 보고
+다음 8개 중 정확히 하나를 골라 `scenario` 에 박는다.
+신뢰도를 0.0~1.0 으로 측정해서 `scenario_confidence` 에 박는다.
+신뢰도 < 0.6 이면 반드시 `fallback_default` 로 분류한다.
 
-3번 = 전환 유도 답변
-- 두 문장. 다음 단계로 자연스럽게 유도 (사진 요청 / 일정 확정 / 견적 안내 / 입금 안내).
-- 예: "내일 가능합니다. 정확한 견적을 위해 시공 부위 사진 한 장만 보내주실 수 있나요?"
+  - `initial_inquiry`   : 초기 문의 (첫 접촉, 막연한 관심)
+  - `price_inquiry`     : 가격 문의 (구체적 가격 질문 또는 견적 요청)
+  - `hesitation`        : 고객 망설임 (가격 보고 멈칫, 비교 검토 중)
+  - `schedule`          : 일정 조율 (시공 날짜·시간 조율 중)
+  - `pre_booking`       : 예약 확정 전 (일정 합의됐고 계약금 단계)
+  - `pre_service`       : 시공 전 (계약금 받음, 시공일 임박)
+  - `post_service`      : 시공 후 (시공 완료, AS·후기 단계)
+  - `fallback_default`  : 신뢰도 부족 또는 위 7개 어디에도 안 맞음
 
-세 후보가 비슷비슷하면 실패. 사장님이 상황 따라 골라 쓸 수 있도록 다양해야 함.
+`scenario_reason` 에 한 줄로 왜 그 시나리오로 분류했는지 적는다 (사장님 디버그용).
+
+══════ 2단계: 시나리오 별 정의된 3종 intent ══════
+각 시나리오의 3종 intent_key 와 label 은 정해져 있다. **다른 키 사용 금지.**
+
+`initial_inquiry`:
+  - "quick"   / "📞 빠른 답변"    — 한 문장 즉답. 사장님이 바쁠 때 그대로
+  - "info"    / "❓ 정보 요청"    — 고객 정보 한 가지 물어보기 (평수, 위치, 사진 등)
+  - "assure"  / "🤝 안심 설명"    — 시공 절차·일정·품질 간단 안내로 신뢰감
+
+`price_inquiry`:
+  - "quote"     / "💰 견적 안내"   — 가격표 기반 견적 (정확한 금액 또는 범위)
+  - "condition" / "✅ 조건 확인"   — 가격 산정에 필요한 추가 정보 물어보기 (신축/구축, 타일 종류 등)
+  - "booking"   / "📅 예약 유도"   — 가격 안내하면서 동시에 시공일 잡으러 nudge
+
+`hesitation`:
+  - "price_explain" / "💬 가격 설명"  — 왜 그 가격인지 가치 풀어 설명
+  - "case"          / "📷 사례 제시"  — 비슷한 시공 사례·사진 보여주기 (사장님 직접 첨부 안내)
+  - "nudge"         / "➡️ 결정 유도"  — 망설임 끊고 결정 push (한정·할인 X — 자연스러운 push)
+
+`schedule`:
+  - "date_confirm" / "🗓️ 날짜 확정"  — 특정 날짜 제안 + 확정 요청
+  - "alternative"  / "🔄 대안 제시"  — 대안 날짜 2-3 개 제시
+  - "prep"         / "📋 준비 안내"  — 시공 당일 고객 준비사항 (가구 이동, 청소 등)
+
+`pre_booking`:
+  - "deposit"     / "💵 계약금 안내"  — 계약금 금액·입금 방법
+  - "final_check" / "✔️ 최종 확인"   — 시공 내용·일정·비용 최종 확인
+  - "caution"     / "⚠️ 주의사항 안내" — 시공 전 알아둘 점 (먼지, 소음, 환기 등)
+
+`pre_service`:
+  - "visit"     / "🚪 방문 안내"     — 방문 시간·연락 방식
+  - "prep_req"  / "📝 준비 요청"     — 고객이 미리 할 일 (자리 비우기, 가구 이동 등)
+  - "assure_pre"/ "🛡️ 안심 안내"     — 시공 품질·안전 관련 안심 메시지
+
+`post_service`:
+  - "usage"   / "📖 사용 안내"      — 시공 후 사용·관리법 (건조 시간, 청소법 등)
+  - "review"  / "⭐ 후기 요청"       — 만족도 + 후기·사진 요청
+  - "upsell"  / "🎁 추가 제안"      — 다른 시공 제안 (욕실, 주방 등)
+
+`fallback_default` (신뢰도 부족 시 — 분류가 애매할 때 안전한 default):
+  - "general" / "💬 무난 답변"      — 정중하고 무난한 일반 답변
+  - "clarify" / "❓ 추가 확인"      — 고객 의도 추가로 물어보기
+  - "manual"  / "✍️ 직접 확인"      — "사장님이 직접 확인 후 답변드릴게요" 류 안전 답변
+
+══════ 3단계: 각 답변에 why 필드 ══════
+각 답변(suggestions[i]) 의 `why` 에 한 줄로 "왜 이 답변을 추천했는지" 적는다 (사장님 UI 미노출, 로깅·품질 개선용).
+
+══════ 결정적 룰 ══════
+1. 정확히 3개. 시나리오의 3 intent 모두 사용. 같은 intent_key 두 번 X.
+2. label 은 위 표 그대로 (이모지 + 텍스트 정확 일치).
+3. text 는 실제 사장님이 고객에게 보낼 문장. 사장님 톤 모방.
+4. 가격/날짜/시간은 대화 또는 가격표에서만. 추측 X.
+5. 시나리오의 의도가 다르므로 3개 답변은 자연스럽게 다른 전략이 됨.
 """
 
 _SYSTEM_BLOCK_D_FORMAT = """────── 기본 규칙 ──────
@@ -658,10 +780,22 @@ _SYSTEM_BLOCK_D_FORMAT = """────── 기본 규칙 ──────
 - 답변 형식: 표 금지. 항목별 줄바꿈 나열 + 합계.
 - 실리콘 제거/셀프줄눈/누수 가능성 = "현장 확인 후 추가될 수 있어요" 한 문장 덧붙임.
 
-답 형식 — 반드시 지켜라:
-- 응답 첫 글자는 무조건 '{' 로 시작. 인사·설명·코드블럭·백틱 절대 X.
+══════ 답 형식 — 반드시 지켜라 (v2) ══════
+- 응답 첫 글자는 무조건 '{' 로 시작. 인사·설명·코드블럭·백틱·tag 절대 X.
 - 정확히 하나의 JSON 객체만 반환. 그 외 텍스트(앞·뒤 어디든) 완전 금지.
-- 형태: {"suggestions": ["답변1", "답변2", "답변3"]}
+- 형태 (필수 필드 모두):
+{
+  "scenario": "<위 8개 enum 중 하나>",
+  "scenario_confidence": <0.0 ~ 1.0 사이 float>,
+  "scenario_reason": "<왜 이 시나리오로 분류했는지 한 줄>",
+  "suggestions": [
+    {"intent_key":"<위 시나리오의 정의된 키>","label":"<위 시나리오의 정의된 라벨 그대로>","text":"<실제 답변>","why":"<왜 이걸 추천했는지 한 줄>"},
+    {"intent_key":"...","label":"...","text":"...","why":"..."},
+    {"intent_key":"...","label":"...","text":"...","why":"..."}
+  ]
+}
+- 정확히 3개. 시나리오의 3 intent 모두 사용. intent_key 중복 X.
+- scenario_confidence < 0.6 이면 "scenario":"fallback_default" 사용 (강제).
 """
 
 
@@ -819,23 +953,109 @@ def _parse_json_object(raw_text: str) -> dict:
     return parsed
 
 
-def _parse_suggestions(raw_text: str) -> list[str]:
-    """Claude 응답에서 suggestions 리스트 추출. 정확히 3개로 보정."""
-    parsed = _parse_json_object(raw_text)
-    suggestions = parsed.get("suggestions")
-    if not isinstance(suggestions, list) or len(suggestions) == 0:
-        raise ValueError(f"Bad suggestions shape: {parsed!r}")
+def _coerce_v2_suggestions(parsed: dict) -> dict:
+    """v2 응답 검증 + coerce. 항상 정상적인 v2 dict 반환 — fallback_default 로 안전 강등.
 
-    suggs = [str(s).strip() for s in suggestions[:3]]
-    while len(suggs) < 3:
-        suggs.append("")
-    return suggs
+    입력: Claude 가 반환한 JSON dict (이상적으로 v2 schema)
+    출력: {scenario, scenario_confidence, scenario_reason, suggestions:[3 obj]}
+
+    안전망:
+      - scenario 가 enum 아님 → fallback_default
+      - confidence < 0.6 → fallback_default (사장님 결정 19:00)
+      - intent_key 가 해당 시나리오에 정의 안 됨 → fallback_default 로 전체 강등
+      - suggestions 3개 미만 → fallback_default 의 3 intent 로 padding
+    """
+    # 1) scenario
+    scenario = str(parsed.get("scenario", "")).strip()
+    if scenario not in VALID_SCENARIOS:
+        scenario = "fallback_default"
+
+    # 2) confidence
+    try:
+        confidence = float(parsed.get("scenario_confidence", 0))
+    except (TypeError, ValueError):
+        confidence = 0.0
+    confidence = max(0.0, min(1.0, confidence))
+
+    # 3) confidence floor — < 0.6 면 fallback_default 로 강등
+    if confidence < SCENARIO_CONFIDENCE_FLOOR and scenario != "fallback_default":
+        print(f"[prepare-reply] confidence {confidence:.2f} < {SCENARIO_CONFIDENCE_FLOOR} → fallback_default 강등 (원래 scenario={scenario})")
+        scenario = "fallback_default"
+
+    reason = str(parsed.get("scenario_reason", "")).strip()[:200]
+
+    # 4) suggestions 추출 + 검증
+    raw_suggs = parsed.get("suggestions")
+    valid_intents = _INTENT_LABEL_MAP[scenario]  # {intent_key: label}
+
+    coerced: list[dict] = []
+    if isinstance(raw_suggs, list):
+        seen_keys: set[str] = set()
+        for s in raw_suggs[:3]:
+            if not isinstance(s, dict):
+                continue
+            intent_key = str(s.get("intent_key", "")).strip()
+            if intent_key not in valid_intents or intent_key in seen_keys:
+                continue
+            seen_keys.add(intent_key)
+            text = str(s.get("text", "")).strip()
+            why  = str(s.get("why", "")).strip()[:200]
+            coerced.append({
+                "intent_key": intent_key,
+                "label":      valid_intents[intent_key],   # ← 우리 정의로 강제 overwrite (모델이 다른 라벨 박았어도)
+                "text":       text,
+                "why":        why,
+            })
+
+    # 5) 3개 미만이면 — 시나리오의 누락 intent 로 padding (text 비움)
+    if len(coerced) < 3:
+        seen_keys = {s["intent_key"] for s in coerced}
+        for intent in INTENT_POOL_V1[scenario]:
+            if intent["intent_key"] not in seen_keys:
+                coerced.append({
+                    "intent_key": intent["intent_key"],
+                    "label":      intent["label"],
+                    "text":       "",  # 빈 답변 — 안드로이드가 표시 안 함
+                    "why":        "padded — model 이 이 intent 답변 안 만듦",
+                })
+                if len(coerced) >= 3:
+                    break
+
+    return {
+        "scenario":            scenario,
+        "scenario_confidence": round(confidence, 3),
+        "scenario_reason":     reason,
+        "suggestions":         coerced[:3],
+    }
+
+
+def _parse_suggestions_v2(raw_text: str) -> dict:
+    """v2 응답 파싱 — Claude 의 raw text → v2 dict (coerce 포함).
+
+    실패 케이스에서도 fallback_default 의 빈 답변 3개로 안전 반환.
+    """
+    try:
+        parsed = _parse_json_object(raw_text)
+    except ValueError as e:
+        print(f"[prepare-reply] v2 JSON 파싱 실패: {e}. fallback_default 반환.")
+        return {
+            "scenario":            "fallback_default",
+            "scenario_confidence": 0.0,
+            "scenario_reason":     "model output not parseable as JSON",
+            "suggestions": [
+                {"intent_key": it["intent_key"], "label": it["label"], "text": "", "why": "parse error fallback"}
+                for it in INTENT_POOL_V1["fallback_default"]
+            ],
+        }
+    return _coerce_v2_suggestions(parsed)
 
 
 async def call_claude_for_suggestions_with_meta(
     req: PrepareReplyRequest,
-) -> tuple[list[str], "anthropic.types.Message"]:
-    """Claude Sonnet 4.6 호출 → (suggestions 3개, raw response) 반환.
+) -> tuple[dict, "anthropic.types.Message"]:
+    """Claude Sonnet 4.6 호출 → (v2 dict, raw response) 반환.
+
+    v2 dict 구조: {scenario, scenario_confidence, scenario_reason, suggestions:[3 obj]}
 
     system 을 4 block 으로 분리 + 각 block 에 cache_control 박아서 prompt caching
     적극 활용. 같은 사장님이 5분 내 재호출 시 ~90% cache 적중 (입력 비용 1/10).
@@ -862,8 +1082,8 @@ async def call_claude_for_suggestions_with_meta(
         if getattr(block, "type", None) == "text"
     ]
     raw_text = "".join(text_parts)
-    suggestions = _parse_suggestions(raw_text)
-    return suggestions, response
+    v2 = _parse_suggestions_v2(raw_text)
+    return v2, response
 
 
 # ============================================================================
@@ -874,16 +1094,17 @@ async def generate_and_cache(req: PrepareReplyRequest) -> None:
     try:
         # 1) rate limit (초과면 HTTPException → 아래에서 missing 처리)
         check_rate_limit(phone)
-        # 2) Claude 호출
-        suggestions, response = await call_claude_for_suggestions_with_meta(req)
+        # 2) Claude 호출 — v2 dict 반환
+        v2, response = await call_claude_for_suggestions_with_meta(req)
         # 3) 사용량 기록 (성공한 호출만)
         log_usage(phone, "prepare-reply", response)
         _log_llm_usage_from_response("prepare-reply", response)  # §12.2
-        # 4) 결과 캐싱
-        db_set_ready(phone, suggestions)
+        # 4) 결과 캐싱 — v2 dict 통째로 (scenario + suggestions[3 obj])
+        db_set_ready(phone, v2)
         usage = response.usage
         print(
-            f"[ready] {phone} → 3 suggestions "
+            f"[ready] {phone} scenario={v2['scenario']} conf={v2['scenario_confidence']} "
+            f"intents={[s['intent_key'] for s in v2['suggestions']]} "
             f"(in={getattr(usage,'input_tokens',0)} "
             f"cache_read={getattr(usage,'cache_read_input_tokens',0)} "
             f"out={getattr(usage,'output_tokens',0)})"
@@ -935,6 +1156,26 @@ async def prepare_reply(req: PrepareReplyRequest):
 
 @app.get("/suggestions/{phone}")
 async def get_suggestions(phone: str):
+    """안드로이드 ChatScreen 이 호출. v2 schema (scenario + 의도 분화).
+
+    응답 (READY 상태):
+    {
+      "status": "ready",
+      "phone": "...",
+      "basedOnMessage": "...",
+      "basedOnReceivedAtMs": 0,
+      "generatedAtMs": 0,
+      "scenario": "price_inquiry",
+      "scenario_confidence": 0.78,
+      "scenario_reason": "...",
+      "suggestions": [
+        {"intent_key":"quote","label":"💰 견적 안내","text":"...","why":"..."},
+        ...3개
+      ]
+    }
+
+    안드로이드 19:00 작업에서 v1 (suggestions:[str]) + v2 (suggestions:[obj]) 둘 다 parse 가능.
+    """
     row = db_get(phone)
     if row is None:
         return {"status": "missing"}
@@ -943,14 +1184,44 @@ async def get_suggestions(phone: str):
     if status in ("generating", "missing"):
         return {"status": status}
 
-    # ready
+    # ready — v2 dict 을 suggestions_json 안에 박아둠
+    stored = row["suggestions"] or {}
+
+    # 옛 데이터(v1: list[str]) 와의 호환 — 이전에 박힌 캐시
+    if isinstance(stored, list):
+        # 옛 string list 였으면 v2 모양으로 wrap (fallback_default 시나리오)
+        v2_suggs = []
+        for i, s in enumerate(stored[:3]):
+            it = INTENT_POOL_V1["fallback_default"][i]
+            v2_suggs.append({
+                "intent_key": it["intent_key"],
+                "label":      it["label"],
+                "text":       str(s),
+                "why":        "legacy v1 cache",
+            })
+        return {
+            "status":              "ready",
+            "phone":               phone,
+            "basedOnMessage":      row["basedOnMessage"],
+            "basedOnReceivedAtMs": row["basedOnReceivedAtMs"],
+            "generatedAtMs":       row["generatedAtMs"],
+            "scenario":            "fallback_default",
+            "scenario_confidence": 0.0,
+            "scenario_reason":     "v1 legacy cache (cowork 가 v2 로 박기 전 데이터)",
+            "suggestions":         v2_suggs,
+        }
+
+    # v2 dict — 정상 케이스
     return {
-        "status": "ready",
-        "phone": phone,
-        "basedOnMessage": row["basedOnMessage"],
+        "status":              "ready",
+        "phone":               phone,
+        "basedOnMessage":      row["basedOnMessage"],
         "basedOnReceivedAtMs": row["basedOnReceivedAtMs"],
-        "generatedAtMs": row["generatedAtMs"],
-        "suggestions": row["suggestions"] or [],
+        "generatedAtMs":       row["generatedAtMs"],
+        "scenario":            stored.get("scenario", "fallback_default"),
+        "scenario_confidence": stored.get("scenario_confidence", 0.0),
+        "scenario_reason":     stored.get("scenario_reason", ""),
+        "suggestions":         stored.get("suggestions", []),
     }
 
 
