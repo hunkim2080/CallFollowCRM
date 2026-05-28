@@ -153,19 +153,29 @@ object NotificationHelper {
         //   2026-05-26 사장님 보고 fix:
         //     - 액션 라벨 "✨ 신축 욕..." 처럼 짤려서 어떤 답변인지 모름
         //     - BigText 안에 답변 전체 + 번호 → 사장님이 펼쳐서 읽고 → 짧은 액션 "✨ 1번 보내기" 한 탭
-        //   suggestions 아직 없으면 "AI 답변 준비 중..." 진행감.
+        //   suggestions == null  → 첫 알림, polling 시작 전 ("준비 중..." 진행감)
+        //   suggestions == []    → polling 끝났는데 응답 없음 ("서버 응답 없음 — 직접 답장")
+        //   suggestions == [...] → 정상 답변 표시
         val bigText = buildString {
             append(body)
-            if (suggestions.isNullOrEmpty()) {
-                append("\n\n✨ AI 추천 답변 준비 중...")
-            } else {
-                // 2026-05-26 사장님 보고 fix:
-                //   - 안내 문구 "(아래 ✨ 버튼 = 즉시 발송)" 제거 — 액션 라벨로 충분.
-                //   - 각 답변 사이 빈 줄 (\n\n) 추가 → 1·2·3 경계 명확.
-                append("\n\n✨ AI 추천 답변")
-                suggestions.take(3).forEachIndexed { idx, sug ->
-                    val num = listOf("1️⃣", "2️⃣", "3️⃣")[idx]
-                    append("\n\n$num $sug")
+            when {
+                suggestions == null -> {
+                    append("\n\n✨ AI 추천 답변 준비 중...")
+                }
+                suggestions.isEmpty() -> {
+                    // 2026-05-28 사장님 보고 fix: 2분째 "준비 중..." 멈춤 차단.
+                    //   서버 죽음/Tailscale 끊김 가능성. 사장님이 [💬 직접 답장] 으로 즉시 답할 수 있게.
+                    append("\n\n🔌 AI 서버 응답 없음 — 직접 답장하거나 RING-GO 에서 확인하세요")
+                }
+                else -> {
+                    // 2026-05-26 사장님 보고 fix:
+                    //   - 안내 문구 "(아래 ✨ 버튼 = 즉시 발송)" 제거 — 액션 라벨로 충분.
+                    //   - 각 답변 사이 빈 줄 (\n\n) 추가 → 1·2·3 경계 명확.
+                    append("\n\n✨ AI 추천 답변")
+                    suggestions.take(3).forEachIndexed { idx, sug ->
+                        val num = listOf("1️⃣", "2️⃣", "3️⃣")[idx]
+                        append("\n\n$num $sug")
+                    }
                 }
             }
         }

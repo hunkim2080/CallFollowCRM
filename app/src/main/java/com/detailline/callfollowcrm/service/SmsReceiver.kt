@@ -75,7 +75,9 @@ class SmsReceiver : BroadcastReceiver() {
                 if (sugs.isNotEmpty()) lastPartialSugs = sugs
             }
         }
-        // 마지막 시도까지 3개 못 받음 — 부분이라도 있으면 update.
+        // 2026-05-28 사장님 보고 fix: polling 끝났는데 응답 없으면 알림이 "준비 중..." 영원히 멈춤.
+        //   서버 죽었거나 Tailscale 끊겼을 가능성. 사장님이 ChatScreen 안 들어가면 영영 모름.
+        //   해결: 부분이라도 있으면 update / 없으면 "서버 응답 없음" 상태로 update → "준비 중..." 정리.
         if (lastPartialSugs.isNotEmpty()) {
             NotificationHelper.showIncomingSms(
                 context = context,
@@ -85,6 +87,18 @@ class SmsReceiver : BroadcastReceiver() {
                 receivedAtMs = receivedAtMs,
                 categoryLabel = categoryLabel,
                 suggestions = lastPartialSugs
+            )
+        } else {
+            // 빈 list 전달 → NotificationHelper 가 "서버 응답 없음 — 직접 답장" 분기로 처리.
+            //   "준비 중..." placeholder 잔존 차단 + 사장님이 [💬 직접 답장] 으로 즉시 답 가능.
+            NotificationHelper.showIncomingSms(
+                context = context,
+                phone = phone,
+                displayName = displayName,
+                body = body,
+                receivedAtMs = receivedAtMs,
+                categoryLabel = categoryLabel,
+                suggestions = emptyList()
             )
         }
     }
