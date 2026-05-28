@@ -232,6 +232,13 @@ def db_init() -> None:
             "CREATE INDEX IF NOT EXISTS idx_owner_tone_device "
             "ON owner_tone(device_id, created_at_ms)"
         )
+        # §16 patch — embedding BLOB 을 owner_tone 컬럼에 저장 (sqlite-vec 의존성 제거)
+        # Mac 의 system Python 은 enable_load_extension 비활성화라 sqlite-vec 못 씀.
+        # numpy 로 application 단 cosine 검색 — 50,000 건 미만이면 ~수십ms 응답.
+        try:
+            con.execute("ALTER TABLE owner_tone ADD COLUMN embedding BLOB")
+        except sqlite3.OperationalError:
+            pass  # 이미 컬럼 있음 (재시작 시)
         # §17 — Customer Personas (5단계 킬러콘텐츠) — phone 별 한두 줄 요약
         # 24h cache + 만료 시 백그라운드 Haiku 자동 생성.
         # prepare-reply 의 [고객 정보] 영역에 inject → 사장님 톤 + 고객 맞춤 답변.
@@ -2327,52 +2334,18 @@ async def encode_texts_async(texts: list[str]) -> Optional[list[list[float]]]:
         return None
 
 
-# sqlite-vec — lazy load
-_vec_available = True
+# sqlite-vec extension 의존성 제거 — Mac system Python 이 enable_load_extension
+# 비활성화 빌드라 사용 불가. numpy 로 application 단 cosine 검색 (50K row 미만
+# 이면 ~수십ms). numpy 는 FlagEmbedding 의존성으로 이미 install 됨.
+_numpy_available = True
+try:
+    import numpy as _np
+except ImportError:
+    _numpy_available = False
+    print("[tone-rag] numpy 없음 — RAG 비활성화")
 
-
-def _vec_init_for_conn(conn: sqlite3.Connection) -> bool:
-    """connection 에 sqlite-vec extension 로딩. 성공 시 True."""
-    global _vec_available
-    if not _vec_available:
-        return False
-    try:
-        import sqlite_vec
-        conn.enable_load_extension(True)
-        sqlite_vec.load(conn)
-        conn.enable_load_extension(False)
-        return True
-    except Exception as e:
-        _vec_available = False
-        print(f"[tone-rag] sqlite-vec load 실패 (RAG 비활성화): {type(e).__name__}: {e}")
-        return False
-
-
-def _ensure_vec_table() -> bool:
-    """sqlite-vec virtual table 생성 (한 번만). 성공 시 True."""
-    global _vec_available
-    if not _vec_available:
-        return False
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        try:
-            if not _vec_init_for_conn(conn):
-                return False
-            conn.execute(
-                f"""
-                CREATE VIRTUAL TABLE IF NOT EXISTS owner_tone_vec USING vec0(
-                    embedding float[{_bge_dim}]
-                )
-                """
-            )
-            conn.commit()
-            return True
-        finally:
-            conn.close()
-    except Exception as e:
-        _vec_available = False
-        print(f"[tone-rag] vec0 virtual table 생성 실패 (RAG 비활성화): {type(e).__name__}: {e}")
-        return False
+# _vec_available 은 하위 호환용 alias — 실질적으로 _numpy_available 과 동일
+_vec_available = _numpy_available
 
 
 def _text_hash(text: str) -> str:
@@ -2380,9 +2353,18 @@ def _text_hash(text: str) -> str:
 
 
 def _vec_to_blob(vec: list[float]) -> bytes:
-    """list[float] → bytes (sqlite-vec 의 float32 blob 포맷)."""
+    """list[float] → float32 BLOB (owner_tone.embedding 컬럼에 저장용)."""
     import struct
     return struct.pack(f"{len(vec)}f", *vec)
+
+
+def _blob_to_vec(blob: bytes):
+    """float32 BLOB → numpy array (cosine 검색용)."""
+    if not _numpy_available:
+        return None
+    import struct
+    n = len(blob) // 4
+    return _np.array(struct.unpack(f"{n}f", blob), dtype=_np.float32)
 
 
 def _filter_tone_text(text: str) -> Optional[str]:
@@ -2407,12 +2389,14 @@ def count_owner_tone_pool(device_id: str) -> int:
 async def retrieve_rag_tone_samples(
     device_id: str, query_text: str, top_k: int = 10
 ) -> Optional[list[str]]:
-    """latest_msg 를 bge-m3 로 임베딩 + cosine KNN top-k retrieve.
+    """latest_msg 를 bge-m3 로 임베딩 + numpy cosine top-k retrieve.
 
     None 반환 = RAG 비활성화 (의존성 없음 / 모델 load 실패 / pool 비어있음 등).
     이 경우 caller 가 기존 ownerToneSamples 로 fallback.
+
+    50K row 미만이면 ~수십ms (numpy 벡터 연산). 그 이상이면 hnswlib 이나 별도 인덱스 도입.
     """
-    if not _bge_available or not _vec_available:
+    if not _bge_available or not _numpy_available:
         return None
     if not query_text or count_owner_tone_pool(device_id) == 0:
         return None
@@ -2421,46 +2405,68 @@ async def retrieve_rag_tone_samples(
     vecs = await encode_texts_async([query_text])
     if not vecs:
         return None
-    query_blob = _vec_to_blob(vecs[0])
 
-    # 2) sqlite-vec KNN — vec0 의 MATCH 연산자
+    query_vec = _np.array(vecs[0], dtype=_np.float32)
+    query_norm = _np.linalg.norm(query_vec)
+    if query_norm < 1e-8:
+        return None
+    query_unit = query_vec / query_norm
+
+    # 2) DB 에서 embedding 가진 row 전부 (device 필터)
     try:
-        conn = sqlite3.connect(DB_PATH)
-        try:
-            if not _vec_init_for_conn(conn):
-                return None
-            conn.row_factory = sqlite3.Row
-            # MATCH KNN → rowid 받음 → owner_tone 메타테이블 JOIN
+        with db_conn() as conn:
             rows = conn.execute(
                 """
-                SELECT t.text, v.distance
-                FROM owner_tone_vec v
-                JOIN owner_tone t ON t.id = v.rowid
-                WHERE v.embedding MATCH ?
-                  AND v.k = ?
-                  AND t.device_id = ?
-                ORDER BY v.distance ASC
+                SELECT text, embedding
+                FROM owner_tone
+                WHERE device_id=? AND embedding IS NOT NULL
                 """,
-                (query_blob, top_k * 3, device_id),  # device 필터 후 top_k 채우려 여유 retrieve
+                (device_id,),
             ).fetchall()
-        finally:
-            conn.close()
     except Exception as e:
-        print(f"[tone-rag] KNN retrieve 실패: {type(e).__name__}: {e}")
+        print(f"[tone-rag] DB 조회 실패: {type(e).__name__}: {e}")
         return None
 
-    # 3) top_k 추출 + dedup (혹시 같은 text 가 vec table 에 중복 박혔어도 unique)
-    seen: set[str] = set()
-    out: list[str] = []
-    for r in rows:
-        t = r["text"]
-        if t in seen:
-            continue
-        seen.add(t)
-        out.append(t)
-        if len(out) >= top_k:
-            break
-    return out if out else None
+    if not rows:
+        return None
+
+    # 3) numpy cosine — batched matrix 곱셈으로 빠름
+    try:
+        all_vecs = []
+        all_texts = []
+        for r in rows:
+            v = _blob_to_vec(r["embedding"])
+            if v is None or v.shape[0] != _bge_dim:
+                continue
+            n = _np.linalg.norm(v)
+            if n < 1e-8:
+                continue
+            all_vecs.append(v / n)
+            all_texts.append(r["text"])
+
+        if not all_vecs:
+            return None
+
+        # matrix (N, dim) @ unit (dim,) = (N,) similarity
+        mat = _np.stack(all_vecs)
+        sims = mat @ query_unit  # higher = more similar (cosine)
+
+        # top-k indices
+        top_idx = _np.argsort(-sims)[:top_k]
+        seen: set[str] = set()
+        out: list[str] = []
+        for i in top_idx:
+            t = all_texts[int(i)]
+            if t in seen:
+                continue
+            seen.add(t)
+            out.append(t)
+            if len(out) >= top_k:
+                break
+        return out if out else None
+    except Exception as e:
+        print(f"[tone-rag] numpy cosine 계산 실패: {type(e).__name__}: {e}")
+        return None
 
 
 class ToneUploadMessage(BaseModel):
@@ -2509,77 +2515,97 @@ async def owner_tone_batch_upload(req: ToneBatchUploadRequest) -> dict:
             "embeddings_available":  _bge_available and _vec_available,
         }
 
-    # 1) 이미 있는 hash 조회 (dedup)
+    # 1) 이미 있는 hash + embedding 상태 조회 (dedup + backfill 판정)
     hashes = [_text_hash(m.text) for m in filtered]
+    existing: dict[str, dict] = {}  # text_hash → {id, has_embedding}
     with db_conn() as conn:
-        existing_hashes: set[str] = set()
-        # SQLite IN 절 chunked (변수 한도 999)
         for i in range(0, len(hashes), 500):
             chunk = hashes[i:i + 500]
             placeholders = ",".join("?" * len(chunk))
             rows = conn.execute(
-                f"SELECT text_hash FROM owner_tone WHERE device_id=? AND text_hash IN ({placeholders})",
+                f"""
+                SELECT id, text_hash,
+                       (embedding IS NOT NULL) AS has_emb
+                FROM owner_tone
+                WHERE device_id=? AND text_hash IN ({placeholders})
+                """,
                 [device_id, *chunk],
             ).fetchall()
-            existing_hashes.update(r["text_hash"] for r in rows)
+            for r in rows:
+                existing[r["text_hash"]] = {
+                    "id": r["id"],
+                    "has_emb": bool(r["has_emb"]),
+                }
 
-    new_msgs: list[tuple[str, str, int]] = []
+    # 2) 새 INSERT 후보 vs backfill 후보 (이미 있지만 embedding NULL) 분리
+    new_msgs: list[tuple[str, str, int]] = []      # (text, hash, ts)
+    backfill_rows: list[tuple[int, str]] = []      # (id, text)
     for m, h in zip(filtered, hashes):
-        if h not in existing_hashes:
+        if h in existing:
+            if not existing[h]["has_emb"]:
+                backfill_rows.append((existing[h]["id"], m.text))
+        else:
             new_msgs.append((m.text, h, m.timestamp_ms))
 
-    if not new_msgs:
+    if not new_msgs and not backfill_rows:
         return {
             "received":              received,
             "stored":                0,
+            "backfilled":            0,
             "total_in_pool":         count_owner_tone_pool(device_id),
-            "embeddings_available":  _bge_available and _vec_available,
+            "embeddings_available":  _bge_available and _numpy_available,
         }
 
-    # 2) 새 text 들 batch embedding
-    texts = [t[0] for t in new_msgs]
-    embeddings = await encode_texts_async(texts)
-    embeddings_available = _bge_available and _vec_available and (embeddings is not None)
+    # 3) batch embedding — 새 + backfill 합쳐서 한 번에
+    all_texts = [t[0] for t in new_msgs] + [t[1] for t in backfill_rows]
+    embeddings = await encode_texts_async(all_texts) if all_texts else None
+    embeddings_available = _bge_available and _numpy_available and (embeddings is not None)
 
-    # 3) INSERT 트랜잭션 — vec 가용 시만 vec table 도 같이
+    # 4) INSERT 새 row + UPDATE backfill
     now = _now_ms()
     stored = 0
+    backfilled = 0
     try:
-        vec_ok = embeddings_available and _ensure_vec_table()
-        conn = sqlite3.connect(DB_PATH)
-        try:
-            if vec_ok:
-                _vec_init_for_conn(conn)
+        with db_conn() as conn:
             conn.execute("BEGIN")
+            # 4a) 새 row INSERT (embedding 같이)
             for idx, (text, h, ts) in enumerate(new_msgs):
                 try:
-                    cur = conn.execute(
+                    emb_blob = (
+                        _vec_to_blob(embeddings[idx]) if embeddings else None
+                    )
+                    conn.execute(
                         """
                         INSERT INTO owner_tone
-                            (device_id, text, text_hash, timestamp_ms, created_at_ms)
-                        VALUES (?, ?, ?, ?, ?)
+                            (device_id, text, text_hash, timestamp_ms, created_at_ms, embedding)
+                        VALUES (?, ?, ?, ?, ?, ?)
                         """,
-                        (device_id, text, h, ts, now),
+                        (device_id, text, h, ts, now, emb_blob),
                     )
-                    rowid = cur.lastrowid
-                    if vec_ok and embeddings is not None:
-                        conn.execute(
-                            "INSERT INTO owner_tone_vec (rowid, embedding) VALUES (?, ?)",
-                            (rowid, _vec_to_blob(embeddings[idx])),
-                        )
                     stored += 1
                 except sqlite3.IntegrityError:
-                    # 동시성 race — 다른 호출이 먼저 INSERT (UNIQUE constraint)
-                    pass
+                    pass  # race condition
+
+            # 4b) backfill (기존 row 의 embedding NULL → UPDATE)
+            if embeddings:
+                offset = len(new_msgs)
+                for j, (row_id, _text) in enumerate(backfill_rows):
+                    try:
+                        conn.execute(
+                            "UPDATE owner_tone SET embedding=? WHERE id=?",
+                            (_vec_to_blob(embeddings[offset + j]), row_id),
+                        )
+                        backfilled += 1
+                    except Exception:
+                        pass
             conn.commit()
-        finally:
-            conn.close()
     except Exception as e:
-        print(f"[tone-rag] batch-upload INSERT 실패: {type(e).__name__}: {e}")
+        print(f"[tone-rag] batch-upload INSERT/UPDATE 실패: {type(e).__name__}: {e}")
 
     return {
         "received":              received,
         "stored":                stored,
+        "backfilled":            backfilled,
         "total_in_pool":         count_owner_tone_pool(device_id),
         "embeddings_available":  embeddings_available,
     }
@@ -2588,10 +2614,19 @@ async def owner_tone_batch_upload(req: ToneBatchUploadRequest) -> dict:
 @app.get("/api/owner-tone/pool-stats")
 async def owner_tone_pool_stats(device_id: str = "owner-anon") -> dict:
     """풀 통계 (안드 Settings 카드의 카운트 표시용)."""
+    # embedding 가진 row 수 (RAG 실효 카운트)
+    with db_conn() as conn:
+        emb_row = conn.execute(
+            "SELECT COUNT(*) AS c FROM owner_tone WHERE device_id=? AND embedding IS NOT NULL",
+            (device_id,),
+        ).fetchone()
+    embedded_count = emb_row["c"] if emb_row else 0
+
     return {
         "device_id":            device_id,
         "total_in_pool":        count_owner_tone_pool(device_id),
-        "embeddings_available": _bge_available and _vec_available,
+        "embedded_count":       embedded_count,
+        "embeddings_available": _bge_available and _numpy_available,
     }
 
 
