@@ -121,6 +121,7 @@ fun HomeScreen(
     val todayNew by viewModel.todayNewInquiryCount.collectAsState()
     val unhandled by viewModel.unhandledCount.collectAsState()
     val weekScheduled by viewModel.thisWeekScheduledCount.collectAsState()
+    val isInitialSmsLoading by viewModel.isInitialSmsLoading.collectAsState()
 
     // 서버 상태 indicator — AppContainer 의 ServerHealthMonitor 를 직접 구독.
     // 30초마다 GET /health 호출 → 결과 반영. 사장님만 알아볼 작은 동그라미. tap = Toast 안내.
@@ -227,6 +228,18 @@ fun HomeScreen(
                 .fillMaxSize()
                 .background(TossGrayBg)
         ) {
+            // 2026-05-28 사장님 통점 fix: 앱 첫 진입 시 SMS 풀스캔 (10000건) 가 수 초 걸려
+            //   "처음엔 옛 통화만, 잠시 후 SMS 카드 스르륵 추가" 깜빡임 인지.
+            //   해결: 첫 풀스캔 emit 전까지 얇은 LinearProgressIndicator 표시. 풀스캔 끝나면 사라짐.
+            //   scanLimit 자체는 NEXT_SESSION_TODO 🚫 룰로 줄이지 않음 (17000건 환경 검증).
+            if (isInitialSmsLoading) {
+                androidx.compose.material3.LinearProgressIndicator(
+                    color = TossBlue,
+                    trackColor = TossBlueSoft,
+                    modifier = Modifier.fillMaxWidth().height(2.dp)
+                )
+            }
+
             // 필터 칩 — 항상 위에 고정 (사장님이 언제든 필터 변경 가능).
             // KPI 와 달리 필터칩은 사용 빈도 높아 스크롤 의존 X.
             //   "내 말투 학습" 칩 = 2026-05-24 사장님 요청으로 일단 숨김.

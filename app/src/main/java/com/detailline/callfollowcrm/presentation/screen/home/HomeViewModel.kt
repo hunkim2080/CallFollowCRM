@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -58,11 +59,14 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     //   observeContacts 풀스캔 (10000건) 이 17000건 환경에서 무거움.
     //   해결: pendingNewSmsContacts (SmsReceiver 가 즉시 prepend) 합쳐서 0ms 표시.
     //   풀스캔 결과 emit 되면 같은 suffix 는 풀스캔 결과 우선 (정확 데이터) + pending 자동 비움.
+    private val smsContactsRaw = container.smsRepository
+        .observeContacts(scanLimit = 10000, contactLimit = 500)
+        .debounce(300)
+        .flowOn(Dispatchers.IO)
+        .shareIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
+
     private val smsContactsState: StateFlow<List<SmsRepository.SmsContact>> = combine(
-        container.smsRepository
-            .observeContacts(scanLimit = 10000, contactLimit = 500)
-            .debounce(300)
-            .flowOn(Dispatchers.IO),
+        smsContactsRaw,
         container.pendingNewSmsContacts
     ) { fromObserve, pending ->
         if (pending.isEmpty()) return@combine fromObserve
@@ -78,6 +82,19 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         if (notYetInObserve.isEmpty()) fromObserve
         else (notYetInObserve + fromObserve).sortedByDescending { it.lastDateMs }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
+     * 2026-05-28 사장님 통점 fix: 앱 첫 진입 시 옛 통화 기록만 보이다가 SMS 풀스캔 끝나면
+     * "스르륵" SMS-only 카드 추가됨 = 캐시 깜빡임 인지.
+     *
+     * 해결: 첫 smsContactsRaw emit 전까지 true → HomeScreen 이 상단에 작은 progress bar 표시.
+     * 풀스캔 끝나면 false → bar 사라짐. 사장님이 "지금 SMS 로드 중" 명확히 인지.
+     *
+     * scanLimit 줄이는 것은 NEXT_SESSION_TODO.md 의 🚫 룰 (17000건 환경 검증됨) — 안 함.
+     */
+    val isInitialSmsLoading: StateFlow<Boolean> = smsContactsRaw
+        .map { false }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
 
     /** 최근 7일 내 부재중 통화. 미확인 KPI 의 통화 측 입력. */
     private val missedRecent = container.callRecordRepository.observeMissedSince(sevenDayWindowStart)
