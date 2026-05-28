@@ -45,6 +45,12 @@ class SmsReceiver : BroadcastReceiver() {
     ) {
         // 3 × 2.5초 = 7.5초. BroadcastReceiver goAsync 제한 (~10초) 안에 안전 마감.
         //   더 긴 polling 이 필요하면 ForegroundService 또는 WorkManager 로 분리 (다음 step).
+        //
+        // 2026-05-28 사장님 보고 fix:
+        //   기존 = READY + isNotEmpty 면 첫 hit 으로 update → LLM 이 점진 생성하면 2개만 받기도.
+        //   사장님 통점 = "3번이 안 보임". 알림에 2개, ChatScreen 들어가면 3개.
+        //   새 정책: size >= 3 일 때만 update. 단 마지막 시도엔 부분이라도 update (답변 없음 알림 방지).
+        var lastPartialSugs: List<String> = emptyList()
         repeat(3) { attempt ->
             kotlinx.coroutines.delay(2500L)
             val result = runCatching {
@@ -52,7 +58,8 @@ class SmsReceiver : BroadcastReceiver() {
             }.getOrNull()
             if (result?.status == com.detailline.callfollowcrm.ai.SuggestionStatus.READY) {
                 val sugs = result.suggestions?.suggestions.orEmpty()
-                if (sugs.isNotEmpty()) {
+                if (sugs.size >= 3) {
+                    // 3개 다 받음 — 즉시 update + 종료.
                     NotificationHelper.showIncomingSms(
                         context = context,
                         phone = phone,
@@ -62,9 +69,23 @@ class SmsReceiver : BroadcastReceiver() {
                         categoryLabel = categoryLabel,
                         suggestions = sugs
                     )
+                    return
                 }
-                return
+                // 2개 이하 — 더 기다림. 마지막 attempt 면 부분이라도 보냄 (아래 처리).
+                if (sugs.isNotEmpty()) lastPartialSugs = sugs
             }
+        }
+        // 마지막 시도까지 3개 못 받음 — 부분이라도 있으면 update.
+        if (lastPartialSugs.isNotEmpty()) {
+            NotificationHelper.showIncomingSms(
+                context = context,
+                phone = phone,
+                displayName = displayName,
+                body = body,
+                receivedAtMs = receivedAtMs,
+                categoryLabel = categoryLabel,
+                suggestions = lastPartialSugs
+            )
         }
     }
 

@@ -437,24 +437,36 @@ class ChatViewModel(
      *   사장님이 ↻ 안 눌러도 됨. _suggestionsLoading=true 가 ChatScreen 의 스피너 트리거.
      */
     fun loadSuggestions() = viewModelScope.launch {
-        // 첫 fetch 즉시 — 이미 READY 면 polling skip.
+        // 2026-05-28 사장님 통점: "알림엔 2개, ChatScreen 들어가면 3개" = LLM 점진 생성 race.
+        //   첫 fetch 가 size >= 3 면 그대로. 부족하면 polling 으로 더 기다림. 알림 정책과 일관.
         val first = container.suggestionRepository.fetch(phoneNumber).getOrNull()
-        if (first?.status == SuggestionStatus.READY && first.suggestions != null) {
+        if (first?.status == SuggestionStatus.READY && (first.suggestions?.suggestions?.size ?: 0) >= 3) {
             _suggestions.value = first.suggestions
             return@launch
         }
-        // GENERATING / MISSING 이면 polling — 알림 polling 끝나기 기다림.
+        // 부족 (0/1/2개) 또는 GENERATING / MISSING — polling 으로 3개 채워질 때까지 대기.
         _suggestionsLoading.value = true
+        // 마지막 fallback: 5번 polling 후에도 3개 못 받으면 부분이라도 사용.
+        var lastPartial: com.detailline.callfollowcrm.ai.ReplySuggestions? =
+            first?.suggestions?.takeIf { (it.suggestions?.size ?: 0) > 0 }
         try {
             repeat(5) {
                 delay(2_000)
                 val fetch = container.suggestionRepository.fetch(phoneNumber).getOrNull()
                 if (fetch?.status == SuggestionStatus.READY && fetch.suggestions != null) {
-                    _suggestions.value = fetch.suggestions
-                    return@launch
+                    val size = fetch.suggestions.suggestions?.size ?: 0
+                    if (size >= 3) {
+                        _suggestions.value = fetch.suggestions
+                        return@launch
+                    }
+                    // 부분 결과 기억 — fallback 용
+                    if (size > 0) lastPartial = fetch.suggestions
                 }
             }
-            // 10초 안에 안 오면 silent give up — 사장님이 ↻ 로 재시도.
+            // 10초 안에 3개 못 받음 → 부분이라도 있으면 표시 (없는 것보단 나음).
+            if (lastPartial != null) {
+                _suggestions.value = lastPartial
+            }
         } finally {
             _suggestionsLoading.value = false
         }
