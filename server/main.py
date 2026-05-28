@@ -31,7 +31,7 @@ from typing import Optional
 import anthropic
 import httpx
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse, Response
 from pydantic import BaseModel, Field
 
 # ============================================================================
@@ -1054,8 +1054,18 @@ _ADMIN_DASHBOARD_HTML = r"""<!DOCTYPE html>
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<meta name="theme-color" content="#0a84ff" />
+<meta name="theme-color" content="#1d2746" />
 <title>RING-GO 사용량</title>
+<!-- 폰 홈화면 추가용 아이콘 (iOS / Android) -->
+<link rel="apple-touch-icon" sizes="180x180" href="/icon-180.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+<link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
+<link rel="icon" type="image/svg+xml" href="/icon.svg" />
+<link rel="manifest" href="/manifest.json" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="RING-GO" />
+<meta name="mobile-web-app-capable" content="yes" />
 <style>
   :root {
     --bg: #f5f5f7;
@@ -1721,6 +1731,80 @@ async def admin_dashboard() -> HTMLResponse:
     Tailnet 안의 폰 브라우저에서도 잘 보이도록 mobile-first.
     """
     return HTMLResponse(content=_ADMIN_DASHBOARD_HTML)
+
+
+# ============================================================================
+# 앱 아이콘 + manifest (폰 홈화면 추가용 PWA-ish 메타)
+# ─────────────────────────────────────────────────────────────────────────────
+# - apple-touch-icon (iOS): /icon-180.png
+# - Android maskable: /icon-192.png, /icon-512.png
+# - SVG (모던 브라우저 fallback): /icon.svg
+# - manifest.json: Android PWA 친화 메타
+# ============================================================================
+
+_RINGGO_ICON_SVG = """<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="112" fill="#1d2746"/>
+  <circle cx="256" cy="256" r="180" fill="none" stroke="#ffffff" stroke-width="26"/>
+  <circle cx="192" cy="256" r="17" fill="#ffffff"/>
+  <circle cx="256" cy="256" r="17" fill="#ffffff"/>
+  <circle cx="320" cy="256" r="17" fill="#ffffff"/>
+</svg>"""
+
+
+def _icon_file(filename: str) -> FileResponse:
+    """static/ 폴더의 PNG 반환. 파일 없으면 404."""
+    path = BASE_DIR / "static" / filename
+    if not path.exists():
+        raise HTTPException(404, f"icon {filename} not found")
+    return FileResponse(
+        path,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},  # 1일 캐시
+    )
+
+
+@app.get("/icon.svg")
+async def icon_svg() -> Response:
+    return Response(
+        content=_RINGGO_ICON_SVG,
+        media_type="image/svg+xml",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+@app.get("/icon-180.png")
+async def icon_180() -> FileResponse:
+    return _icon_file("icon-180.png")
+
+
+@app.get("/icon-192.png")
+async def icon_192() -> FileResponse:
+    return _icon_file("icon-192.png")
+
+
+@app.get("/icon-512.png")
+async def icon_512() -> FileResponse:
+    return _icon_file("icon-512.png")
+
+
+@app.get("/manifest.json")
+async def manifest() -> dict:
+    """Android Chrome 의 PWA manifest. iOS 는 거의 무시하지만 표준이라 박아둠."""
+    return {
+        "name":             "RING-GO 사용량",
+        "short_name":       "RING-GO",
+        "description":      "줄눈/타일 시공 사장님의 SMS 답장 추천 AI 사용량 대시보드",
+        "start_url":        "/admin",
+        "display":          "standalone",
+        "orientation":      "portrait",
+        "background_color": "#f5f5f7",
+        "theme_color":      "#1d2746",
+        "icons": [
+            {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+            {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
+        ],
+    }
 
 
 # ============================================================================
