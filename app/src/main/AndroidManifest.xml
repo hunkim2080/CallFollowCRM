@@ -235,5 +235,16 @@
             </intent-filter>
         </service>
 
+        <!--
+            2026-05-29 Phase A 2단계 — MMS 다운로드 IntentService.
+            MmsReceiver (WAP_PUSH_DELIVER) → 여기로 forward → klinker MmsReceivedService 위임.
+            MMSC HTTP GET 이 수 초~수십 초 라 broadcast receiver scope 안에서 못 함 → IntentService 가 정석.
+
+            exported=false — 우리 MmsReceiver 만 trigger. 외부 앱이 직접 호출 못 함.
+        -->
+        <service
+            android:name=".service.MmsDownloadService"
+            android:exported="false" />
+
     </application>
 </manifest>

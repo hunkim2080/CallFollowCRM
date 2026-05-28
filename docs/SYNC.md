@@ -459,3 +459,31 @@ prepare-reply 응답 스키마 v2 박음. android 의 19:00 요청 100% 반영. 
   - cowork: 변동 없음. MMS 작업은 안드로이드 영역.
   - 사장님: 새 빌드 깔아도 동작 변화 0 — 안정성 확인만 (앱 진입 / 메시지 수신 / 기존 SMS 알림 정상).
   - android (다음 세션): **Phase A 2단계 — MMS 본격 구현**. (1) WAP_PUSH PDU 파싱 (M-Notification.ind), (2) MMSC HTTP GET (APN 의존, 통신사별 디버깅), (3) M-Retrieve.conf 파싱 → 본문 + 첨부 파트 분리, (4) content://mms 및 mms/part 에 INSERT, (5) 첨부 이미지 다운로드, (6) NotificationHelper.showIncomingMms() 트리거, (7) PrepareContext 에 첨부 메타 추가 (Vision 호출). 2단계 끝나면 DefaultSmsAppCard 의 `enabled = true` 한 줄 fix.
+
+## 2026-05-29 15:30 · android
+**Phase A 2단계 Day 1~3 = MMS 다운로드 인프라.** 사장님 통점 (사장님 폰만 위한 게 아니라 14명 테스터 + 향후 paid 모두를 위한 product) 반영해서 **통신사 hardcoding 0**. klinker library (이미 deps 박혀있던 5.2.5) 수신측 wrap 활용해서 작업 양 대폭 단축.
+- klinker 5.2.5 수신측 발견:
+  - `com.klinker.android.send_message.MmsReceivedService extends IntentService` — onHandleIntent 만 override 하면 전체 다운로드 + persist 자동.
+  - `com.google.android.mms.pdu_alt.PduParser/PduPersister` — WAP_PUSH M-Notification.ind / RetrieveConf 파싱 + content://mms 및 mms/part INSERT 전부 wrap.
+  - `com.android.mms.transaction.RetrieveTransaction` — MMSC HTTP GET + ConnectivityManager.requestNetwork(TYPE_MOBILE_MMS) + proxy 적용 다 자동.
+  - `com.android.mms.service_alt.MmsConfigManager` + `com.klinker.android.send_message.ApnUtils.initDefaultApns` — APN 자동 추출 (통신사 hardcoding 없이). KT/SKT/LGU+/알뜰 다 자동.
+- 변경 (안드로이드):
+  - 신규 `MmsDownloadService extends klinker MmsReceivedService` — onHandleIntent 에서 super 호출 → klinker 가 PDU 파싱 + APN 자동 추출 + MMSC HTTP GET + 응답 파싱 + content://mms 및 mms/part INSERT 다 처리. 우리 hook (NotificationHelper / prepare-reply / 첨부 메타) 은 placeholder — 다음 세션 (Day 4~5) 본격 구현.
+  - **MmsReceiver 본격화** (1단계 stub → 2단계 본격): WAP_PUSH_DELIVER 받으면 MmsDownloadService 에 intent forward (action/extras/type 전부 보존). broadcast scope 안에서 MMSC HTTP GET 안 함 (수 초~수십 초 소요 → goAsync 한도 초과). IntentService 위임 = 안드로이드 표준.
+  - **AndroidManifest** — `MmsDownloadService` 등록 (exported=false, 내부 MmsReceiver 만 trigger).
+- 통신사 대응:
+  - APN 자동 추출 chain — klinker ApnUtils → MmsConfigManager → CarrierConfigManager (klinker 가 모두 내부 wrap).
+  - 사용자 수동 입력 fallback UI — 다음 세션. 사장님 결정: "MMS 수동 입력 칸 + 자동 감지 결과 레이블" (Settings 에 노출, 자동 추출 결과 미리보기).
+- 서버 영향 X.
+- 사장님 체감: **여전히 변화 0**. Settings 토글 disabled 라 MmsReceiver onReceive 호출 자체 안 됨. 1단계 + 2단계 Day 1~3 = 전부 인프라.
+- commit: (이번 커밋)
+- 다음 세션 (Day 4~5) 작업:
+  1. MmsDownloadService hook 본격: super 호출 후 content://mms/inbox 최근 row 추출 → sender + body + 첨부 파트 → NotificationHelper.showIncomingMms 트리거 → PrepareContext 구성 → suggestionRepository.requestPrepare.
+  2. Settings 에 "MMS 서버 수동 입력 (선택)" UI + 자동 감지 결과 레이블 ("자동 감지: KT (MMSC: http://mmsc.ktfwing.com:9082)" 식).
+  3. **DefaultSmsAppCard.enabled = true** (한 줄 fix) — 토글 활성화.
+  4. 사장님 폰 (S9/Android 10) + 14명 테스터 폰에서 default 토글 켜고 실제 MMS 수신 검증. 통신사별 케이스.
+  5. 향후 — 첨부 사진을 서버 Vision 으로 보내서 견적/주소/평수 자동 추출 (PrepareContext 의 attachments 메타).
+- 다음 액션:
+  - cowork: 변동 없음.
+  - 사장님: 새 빌드 깔아도 동작 변화 0 — 안정성 확인 (앱 진입 / 기존 SMS 수신/알림 / 빌드 자체 ok).
+  - android (다음 세션): 위 5가지 작업 + 사장님 폰 검증.
