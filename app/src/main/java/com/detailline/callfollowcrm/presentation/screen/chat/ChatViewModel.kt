@@ -123,6 +123,17 @@ class ChatViewModel(
     private val _aiPolishing = MutableStateFlow(false)
     val aiPolishing = _aiPolishing.asStateFlow()
 
+    // ─── 2026-05-29 킬러콘텐츠 3단계 — chip 행동 시그널 capture ────────────────────
+    // 사장님 chip 탭 → set. send 성공 시 SENT_AS_IS/EDITED/REFINED_THEN_SENT 판정 기준.
+    // onCleared 시 picked != null && !pickedActioned 면 DISMISSED.
+    private var pickedChoice: com.detailline.callfollowcrm.ai.ReplyChoice? = null
+    // chip 탭 직후 ✨ 다듬기 호출 했는지 (pickedRefined → REFINED_THEN_SENT 판정).
+    private var pickedRefined: Boolean = false
+    // chip 탭 후 send 됐는지 (true 면 onCleared 에서 DISMISSED 안 박음).
+    private var pickedActioned: Boolean = false
+    // chip 탭 시점의 ReplySuggestions snapshot (scenario / scenario_confidence 추출용).
+    private var pickedSuggestionsSnapshot: ReplySuggestions? = null
+
     /**
      * SMS/MMS 발송 중 — Composer 의 ▶ 자리에 spinner 표시.
      *   2026-05-27 진행감 fix: 사장님이 ▶ 누른 후 "보내는 중" 시각 피드백.
@@ -318,12 +329,124 @@ class ChatViewModel(
                 }
             }
 
+            // 2026-05-29 킬러콘텐츠 3단계 — 사장님 행동 시그널 capture.
+            //   ok 든 ok 아니든 user intent (보내려 했음) 자체는 발생 → 발송 실패면 안 박음 (잡음).
+            if (ok) {
+                captureSendSignal(trimmed)
+            }
+
             _toast.value = if (ok) "보냈어요" else "발송 실패"
             onResult(ok)
             } finally {
                 _isSending.value = false
             }
         }
+    }
+
+    /**
+     * 2026-05-29 킬러콘텐츠 3단계 — chip 행동 시그널 DB record.
+     *
+     * 호출 시점: sendMessage 성공 직후.
+     * 분류:
+     *   - pickedChoice != null:
+     *       sentText == picked.text → SENT_AS_IS
+     *       pickedRefined           → REFINED_THEN_SENT
+     *       else                    → EDITED + Levenshtein 거리
+     *   - pickedChoice == null + suggestions 노출됐었음 → IGNORED
+     *   - 둘 다 아님 → 시그널 안 박음 (잡음)
+     *
+     * DB 박은 후 pickedActioned = true 로 set → onCleared 에서 DISMISSED 중복 차단.
+     */
+    private fun captureSendSignal(sentText: String) {
+        val picked = pickedChoice
+        val sugs = pickedSuggestionsSnapshot ?: _suggestions.value
+        val phoneSuffix = phoneNumber.filter { it.isDigit() }.takeLast(8)
+        val nowMs = System.currentTimeMillis()
+        val event = when {
+            picked != null -> {
+                val action = when {
+                    sentText == picked.text -> com.detailline.callfollowcrm.data.local.entity.SuggestionEventAction.SENT_AS_IS
+                    pickedRefined -> com.detailline.callfollowcrm.data.local.entity.SuggestionEventAction.REFINED_THEN_SENT
+                    else -> com.detailline.callfollowcrm.data.local.entity.SuggestionEventAction.EDITED
+                }
+                val editDist = if (action == com.detailline.callfollowcrm.data.local.entity.SuggestionEventAction.EDITED) {
+                    levenshtein(picked.text, sentText)
+                } else null
+                com.detailline.callfollowcrm.data.local.entity.SuggestionEventEntity(
+                    phoneSuffix = phoneSuffix,
+                    scenario = sugs?.scenario,
+                    scenarioConfidence = sugs?.scenarioConfidence,
+                    intentKey = picked.intentKey,
+                    intentLabel = picked.label,
+                    suggestionText = picked.text,
+                    action = action,
+                    finalSentText = if (action == com.detailline.callfollowcrm.data.local.entity.SuggestionEventAction.SENT_AS_IS) null else sentText,
+                    editDistance = editDist,
+                    createdAtMs = nowMs
+                )
+            }
+            sugs != null && sugs.suggestions.isNotEmpty() -> {
+                // IGNORED — chip 보였지만 사장님이 안 누르고 직접 typing → 전송.
+                com.detailline.callfollowcrm.data.local.entity.SuggestionEventEntity(
+                    phoneSuffix = phoneSuffix,
+                    scenario = sugs.scenario,
+                    scenarioConfidence = sugs.scenarioConfidence,
+                    intentKey = null,
+                    intentLabel = null,
+                    suggestionText = null,
+                    action = com.detailline.callfollowcrm.data.local.entity.SuggestionEventAction.IGNORED,
+                    finalSentText = sentText,
+                    editDistance = null,
+                    createdAtMs = nowMs
+                )
+            }
+            else -> null
+        }
+        if (event != null) {
+            viewModelScope.launch(Dispatchers.IO) {
+                runCatching { container.suggestionEventRepository.record(event) }
+            }
+        }
+        if (picked != null) {
+            pickedActioned = true
+        }
+    }
+
+    /**
+     * 2026-05-29 킬러콘텐츠 3단계 — Levenshtein 거리 (편집 거리).
+     * 짧은 SMS 문장 (< 200자) 기준이라 단순 DP 충분. 길이 max 1000 cutoff 안전망.
+     */
+    private fun levenshtein(a: String, b: String): Int {
+        val s1 = a.take(1000)
+        val s2 = b.take(1000)
+        if (s1.isEmpty()) return s2.length
+        if (s2.isEmpty()) return s1.length
+        val prev = IntArray(s2.length + 1) { it }
+        val curr = IntArray(s2.length + 1)
+        for (i in 1..s1.length) {
+            curr[0] = i
+            for (j in 1..s2.length) {
+                val cost = if (s1[i - 1] == s2[j - 1]) 0 else 1
+                curr[j] = minOf(
+                    curr[j - 1] + 1,        // insertion
+                    prev[j] + 1,            // deletion
+                    prev[j - 1] + cost      // substitution
+                )
+            }
+            System.arraycopy(curr, 0, prev, 0, curr.size)
+        }
+        return prev[s2.length]
+    }
+
+    /**
+     * 2026-05-29 킬러콘텐츠 3단계 — ChatScreen 의 chip 탭 콜백.
+     * chip 의 ReplyChoice 와 현재 suggestions snapshot 저장. composer 채움은 호출자 책임.
+     */
+    fun onSuggestionTapped(choice: com.detailline.callfollowcrm.ai.ReplyChoice) {
+        pickedChoice = choice
+        pickedRefined = false
+        pickedActioned = false
+        pickedSuggestionsSnapshot = _suggestions.value
     }
 
     /**
@@ -425,6 +548,9 @@ class ChatViewModel(
             return
         }
         if (_aiPolishing.value) return
+        // 2026-05-29 킬러콘텐츠 3단계 — picked 가 set 된 상태에서 다듬기 호출 →
+        //   send 시 REFINED_THEN_SENT 로 분류. picked 가 null 이면 사장님이 직접 친 거 다듬는 거라 무관.
+        if (pickedChoice != null) pickedRefined = true
         _aiPolishing.value = true
         viewModelScope.launch {
             // 2026-05-28 사장님 결정: ✨ 다듬기에도 컨텍스트 전송 → "사장님 톤 + 흐름 맞춤".
@@ -671,5 +797,35 @@ class ChatViewModel(
             }
         }
         _toast.value = "시공일을 등록했어요"
+    }
+
+    /**
+     * 2026-05-29 킬러콘텐츠 3단계 — 화면 떠날 때 DISMISSED 시그널.
+     *
+     * pickedChoice 있고 사장님이 send 안 하고 떠남 → 그 답변 가치 없다고 판단했다는 시그널.
+     * viewModelScope 가 cancel 된 시점이라 applicationScope 로 비동기 박기.
+     */
+    override fun onCleared() {
+        super.onCleared()
+        val picked = pickedChoice
+        if (picked != null && !pickedActioned) {
+            val sugs = pickedSuggestionsSnapshot ?: _suggestions.value
+            val phoneSuffix = phoneNumber.filter { it.isDigit() }.takeLast(8)
+            val event = com.detailline.callfollowcrm.data.local.entity.SuggestionEventEntity(
+                phoneSuffix = phoneSuffix,
+                scenario = sugs?.scenario,
+                scenarioConfidence = sugs?.scenarioConfidence,
+                intentKey = picked.intentKey,
+                intentLabel = picked.label,
+                suggestionText = picked.text,
+                action = com.detailline.callfollowcrm.data.local.entity.SuggestionEventAction.DISMISSED,
+                finalSentText = null,
+                editDistance = null,
+                createdAtMs = System.currentTimeMillis()
+            )
+            container.applicationScope.launch {
+                runCatching { container.suggestionEventRepository.record(event) }
+            }
+        }
     }
 }

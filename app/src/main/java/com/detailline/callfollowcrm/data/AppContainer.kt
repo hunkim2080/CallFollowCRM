@@ -54,6 +54,8 @@ class AppContainer(context: Context) {
     val categoryRepository = CategoryRepository(db.categoryDao(), db.customerDao())
     val spamPhoneRepository = com.detailline.callfollowcrm.data.repository.SpamPhoneRepository(db.spamPhoneDao())
     val smsContactCacheRepository = com.detailline.callfollowcrm.data.repository.SmsContactCacheRepository(db.smsContactCacheDao())
+    // 2026-05-29 킬러콘텐츠 3단계 — chip 행동 시그널 저장 (DB v17).
+    val suggestionEventRepository = com.detailline.callfollowcrm.data.repository.SuggestionEventRepository(db.suggestionEventDao())
     val usageStatsRepository = com.detailline.callfollowcrm.ai.UsageStatsRepository()
 
     val preferences = AppPreferences(context)
@@ -97,4 +99,13 @@ class AppContainer(context: Context) {
     val smsCachePrefetcher = SmsCachePrefetcher(smsRepository, cachedMessageRepository)
 
     val navEvents = NavEvents()
+
+    /**
+     * 2026-05-29 — ViewModel scope 가 cancel 된 후 (onCleared) 박는 비동기 작업용.
+     * 예: ChatViewModel onCleared 에서 DISMISSED 시그널 DB 박기.
+     * Application 수명과 동일. supervisorJob 이라 한 작업 실패가 다른 거 영향 X.
+     */
+    val applicationScope = kotlinx.coroutines.CoroutineScope(
+        kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO
+    )
 }

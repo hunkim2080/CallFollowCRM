@@ -525,3 +525,61 @@ prepare-reply 응답 스키마 v2 박음. android 의 19:00 요청 100% 반영. 
   - cowork: 변동 없음 (다음 sprint 의 Vision 호출 시점에 prepare-reply prompt 확장).
   - 사장님: 위 검증 3단계 + 14명 테스터 결과 수집.
   - android: 사장님 검증 결과 받고 — (1) 안 되는 통신사 디버깅 / (2) 자동 추출 결과 레이블 / (3) Vision 메타 확장.
+
+## 2026-05-29 18:00 · android
+**킬러콘텐츠 3단계 = 채택/수정 데이터 수집.** "수정 거리 0" 이 product 목표 — 사장님이 추천 답변을 그대로 보낼수록 우리 품질 ↑. 사장님 행동 5가지 시그널을 자동으로 백그라운드 capture. 4/5/6단계 (Tone RAG / 페르소나 / 학습 루프) 의 기반 인프라.
+- 변경 (안드로이드):
+  - **DB v16 → v17** — `suggestion_events` 테이블 신규 (id / phoneSuffix / scenario / scenarioConfidence / intentKey / intentLabel / suggestionText / action / finalSentText / editDistance / createdAtMs / reportedToServer). 2개 인덱스 (createdAtMs, reportedToServer).
+  - 신규 `SuggestionEventEntity` + `SuggestionEventDao` + `SuggestionEventRepository` (DB write + pending pickup + 통계).
+  - `SuggestionEventAction` 상수 5종: SENT_AS_IS / EDITED / REFINED_THEN_SENT / IGNORED / DISMISSED.
+  - **ChatViewModel hook**:
+    - 신규 state: `pickedChoice` / `pickedRefined` / `pickedActioned` / `pickedSuggestionsSnapshot`.
+    - `onSuggestionTapped(ReplyChoice)` — chip 탭 시 호출 → picked snapshot 저장.
+    - `aiPolish` — picked 가 set 된 상태에서 다듬기 호출 → `pickedRefined = true` (REFINED_THEN_SENT 판정 기준).
+    - `sendMessage` 성공 시 `captureSendSignal(sentText)` 자동 호출:
+      - picked 있고 sentText == picked.text → **SENT_AS_IS** (editDistance=null)
+      - picked 있고 pickedRefined → **REFINED_THEN_SENT** (editDistance=null)
+      - picked 있고 다른 경우 → **EDITED** + Levenshtein 거리 계산
+      - picked 없고 suggestions 노출됐었으면 → **IGNORED** (사장님이 chip 보고 직접 typing)
+      - 둘 다 아니면 시그널 안 박음 (잡음)
+    - `onCleared()` override — picked 있고 actioned 안 됨 → **DISMISSED** (applicationScope 로 비동기 박음).
+  - **AppContainer** — `suggestionEventRepository` DI + `applicationScope` 신규 (onCleared 후 비동기 작업용).
+  - **ChatScreen** — `SuggestionArea.onPickSuggestion: (String)` → `onPickChoice: (ReplyChoice)` 시그니처 확장. 호출처에서 viewModel.onSuggestionTapped(picked) → input = picked.text.
+  - Levenshtein 거리 = 단순 DP (max 1000자 cutoff 안전망). SMS 짧아 충분.
+- 서버 영향 X (전부 클라이언트).
+- 사장님 체감 0 — 백그라운드 capture, UI 노출 없음. 다음 sprint 에 Settings 카드로 채택률 표시.
+- commit: (이번 커밋)
+- **🚨 cowork 작업 요청 — `POST /api/suggestion-events` batch endpoint 신규** (선택, 다음 sprint 도 가능):
+  - **목표**: 안드로이드가 쌓아둔 pending event 들을 batch upload → 서버에서 시나리오별 채택률 / 평균 수정 거리 / intent_key 별 ranking 등 분석. 사장님 multi-user (14명 테스터 / paid) 확장 시 cohort 분석 핵심.
+  - **요청 스키마**:
+    ```json
+    {
+      "device_id": "anonymous-uuid",
+      "events": [
+        {
+          "phone_suffix_hash": "sha256(phone)",
+          "scenario": "price_inquiry",
+          "scenario_confidence": 0.78,
+          "intent_key": "quote",
+          "intent_label": "💰 견적 안내",
+          "suggestion_text": "...",
+          "action": "EDITED",
+          "final_sent_text": "...",
+          "edit_distance": 12,
+          "created_at_ms": 1748541234567
+        }
+      ]
+    }
+    ```
+  - **응답**: `{"received": N, "stored": N}` (200).
+  - **server-side DB**: 신규 테이블 `suggestion_events` (위 필드 그대로 + uploaded_at_ms + device_id).
+  - **활용 sprint** (4단계 Tone RAG 시점):
+    - EDITED 의 (suggestion vs final_sent) 페어 → 사장님 톤 high-quality sample.
+    - 시나리오별 채택률 → fallback_default 빈도 / scenario_confidence 분포 분석.
+    - intent_key 별 ranking → "사장님이 어떤 intent 를 가장 자주 그대로 보내는지" 측정.
+  - **익명화**: phone 자체 보내지 않음. phone_suffix_hash 만. cowork 가 hash key 정책 결정 가능 (안드로이드는 plain suffix → 서버가 hash).
+  - 이번 commit 의 안드로이드는 record 만. upload 로직 (HTTP POST + reportedToServer 마킹) 은 다음 sprint 에 박음.
+- 다음 액션:
+  - cowork: 위 endpoint **선택** — 다음 sprint 에 박아도 OK. android 가 우선 capture 만.
+  - 사장님: ChatScreen 에서 답변 chip 탭 / 수정 / 다듬기 / 무시 자연스럽게 사용. 백그라운드 capture 만, 사장님 동선 영향 0.
+  - android (다음 sprint): (1) Settings 의 "💡 추천 답변 통계" 카드 — 채택률 / 평균 수정 거리 노출. (2) batch upload 로직 (서버 endpoint 박힌 후). (3) 4단계 Tone RAG 시작 — Mac mini 에 bge-m3 임베딩 모델.

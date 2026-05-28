@@ -550,8 +550,11 @@ fun ChatScreen(
                     expanded = suggestionsExpanded,
                     isStale = suggestionsStale,
                     onToggleExpand = { suggestionsExpanded = !suggestionsExpanded },
-                    onPickSuggestion = { picked ->
-                        input = picked
+                    onPickChoice = { picked ->
+                        // 2026-05-29 킬러콘텐츠 3단계 — chip 탭 시그널 capture.
+                        //   ViewModel 이 picked snapshot 보관 → send 후 SENT_AS_IS/EDITED/REFINED 판정.
+                        viewModel.onSuggestionTapped(picked)
+                        input = picked.text
                         // 답변 추천 사용 직후 = 자동 접힘 (사장님이 보낼 본문에 집중)
                         suggestionsExpanded = false
                     },
@@ -1034,7 +1037,7 @@ private fun SuggestionArea(
     expanded: Boolean,
     isStale: Boolean,
     onToggleExpand: () -> Unit,
-    onPickSuggestion: (String) -> Unit,
+    onPickChoice: (com.detailline.callfollowcrm.ai.ReplyChoice) -> Unit,
     onRegenerate: () -> Unit
 ) {
     val hasSuggestions = suggestion != null && suggestion.suggestions.isNotEmpty()
@@ -1113,7 +1116,7 @@ private fun SuggestionArea(
                                 index = idx + 1,
                                 label = choice.label,
                                 text = choice.text,
-                                onTap = { onPickSuggestion(choice.text) }
+                                onTap = { onPickChoice(choice) }
                             )
                         }
                     }

@@ -50,9 +50,10 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         PricingItemEntity::class,
         CategoryEntity::class,
         SpamPhoneEntity::class,
-        SmsContactCacheEntity::class
+        SmsContactCacheEntity::class,
+        com.detailline.callfollowcrm.data.local.entity.SuggestionEventEntity::class
     ],
-    version = 16,
+    version = 17,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -70,6 +71,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
     abstract fun spamPhoneDao(): SpamPhoneDao
     abstract fun smsContactCacheDao(): SmsContactCacheDao
+    abstract fun suggestionEventDao(): com.detailline.callfollowcrm.data.local.dao.SuggestionEventDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -333,6 +335,41 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v16 -> v17: suggestion_events 테이블 (킬러콘텐츠 3단계 — 채택/수정 데이터 수집).
+         *   사장님 chip 행동 시그널 (SENT_AS_IS / EDITED / REFINED_THEN_SENT / IGNORED / DISMISSED)
+         *   을 phone × suggestion 단위로 기록. 4/5/6단계 (Tone RAG / 페르소나 / 학습 루프) 기반.
+         *   reportedToServer 플래그로 batch 보고 (cowork 의 POST /api/suggestion-events 예정).
+         */
+        private val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS suggestion_events (
+                        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        phoneSuffix TEXT NOT NULL,
+                        scenario TEXT,
+                        scenarioConfidence REAL,
+                        intentKey TEXT,
+                        intentLabel TEXT,
+                        suggestionText TEXT,
+                        action TEXT NOT NULL,
+                        finalSentText TEXT,
+                        editDistance INTEGER,
+                        createdAtMs INTEGER NOT NULL,
+                        reportedToServer INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS idx_suggestion_events_createdAtMs " +
+                        "ON suggestion_events(createdAtMs)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS idx_suggestion_events_reportedToServer " +
+                        "ON suggestion_events(reportedToServer)"
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
@@ -343,7 +380,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
                     MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                     MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15,
-                    MIGRATION_15_16
+                    MIGRATION_15_16, MIGRATION_16_17
                 )
                 .fallbackToDestructiveMigration()   // migration 실패 시 안전망 (개발 단계)
                 .build()
