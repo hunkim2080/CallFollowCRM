@@ -158,3 +158,40 @@ SYNC.md 공책 시스템 시작. 두 Claude (안드로이드 + 서버) 가 이�
 - 다음 액션:
   - cowork: `POST /api/refine` (Gemini 호출 버전) endpoint 신규.
   - 사장님: (1) Gemini API 키 발급 후 Mac mini 에 박기. (2) 폰 검증 = 미확인 KPI 동작, swipe-undo, 입금 카드 4상태, 현장 주소 등록.
+
+## 2026-05-28 15:28 · android (세션 종료)
+이번 세션 안드로이드 작업 23건 일괄 묶음. 핵심 = **DB v16 Summary Cache** (HomeScreen 풀스캔 통점 본격 해결).
+- 추가 변경 (위 블록 이후 일부 누락분 정리):
+  - **DB v15 → v16**: `sms_contacts_cache` 테이블 신규 (PRIMARY KEY=normalizedSuffix + lastDateMs index). 첫 실행 시 풀스캔 → cache rebuild. 그 후 Room observe 만.
+  - 신규 파일: `data/local/entity/SmsContactCacheEntity.kt`, `data/local/dao/SmsContactCacheDao.kt`, `data/repository/SmsContactCacheRepository.kt`
+  - `SmsRepository.queryContactsOnce(scanLimit, contactLimit)` suspend 추가 (Application 첫 실행 풀스캔 용)
+  - `CallFollowCrmApplication.onCreate`: 캐시 count==0 일 때만 풀스캔 → rebuild
+  - `HomeViewModel.smsContactsState`: 풀스캔 Flow → `smsContactCacheRepository.observeAll(500)` 로 전환
+  - `SmsReceiver`: 새 SMS 도착 시 `cacheRepository.upsertOne(newContact)` 비동기 (hasOwnerReply=false)
+  - `ChatViewModel.sendMessage`: 사장님 발신 성공 시 `cacheRepository.upsertOne` (lastSent=true, hasOwnerReply=true)
+  - `AppContainer.pendingNewSmsContacts` 제거 (cache upsert 로 대체, 영속)
+  - `HomeViewModel.isInitialSmsLoading`: 첫 cache emit 전까지 true → HomeScreen 상단 얇은 LinearProgressIndicator (2dp)
+  - 통화 종료 → 목록 표시 3중 안전망: Pull-to-refresh + HomeScreen 진입 sync + Application TelephonyCallback 동적 등록
+  - 알림 small icon: `drawable/ic_notification.xml` (Material 종, fillColor=#FFFFFF) + 옛 PNG 삭제
+  - SpamSwipeBox 광고 처리 → 되돌리기 화면 멈춤 fix (confirmValueChange { false })
+  - AI 추천 답변 효과:
+    - 알림 3번 안 보임 fix (size>=3 우선 + 부분 fallback)
+    - 알림 "준비 중..." 무한 멈춤 fix (timeout 시 "🔌 서버 응답 없음")
+    - effectiveSuggestions stale 차단 제거 + suggestionsAreStale 별도 노출 (chip 그대로 보이고 "📨 새 메시지가 왔어요" 안내)
+  - DatePicker proposal 재선택 시 이전 proposal 자동 교체 (정규식)
+  - ChatScreen composer padding 보강 (vertical 2dp → 8dp)
+  - 현장 주소 수동 등록 (DB v15, CustomerEntity.address, AddressEditDialog rememberSaveable)
+  - resolveAddressForPhone name fallback 제거 (인명 검색 위험 차단)
+  - 미확인 KPI: hasOwnerReply 조건 제거 (답장 후 새 메시지도 다시 미확인)
+  - 입금 카드 UI 재설계 (4상태 + 인플레이스 펼침)
+  - CustomerDetail 옛 "문자" 카드 제거
+  - ChatScreen composer 임시저장 (ChatDraftStore)
+  - AI chips 재진입 시 보존 (SuggestionsCacheStore)
+  - 카드 펼침 [📍 길찾기] 도입 + NavApp util + Settings 네비 앱 선택
+  - ✨ AI 다듬기 = Gemini + 컨텍스트 전송 교체 (서버 endpoint 작업 대기)
+- commit: 마지막 = `0c45cc1` (Summary Cache). 그 외 이번 세션 commits = 8419a83 → ... → 0c45cc1
+- **🚨 cowork 작업 요청 (변동 없음)**: `POST /api/refine` (Gemini 2.5 Flash) endpoint. 사양은 위 12:30 블록 참고. **사장님이 GEMINI_API_KEY 발급 → Mac mini 에 박기 → cowork 가 endpoint 박기** 흐름.
+- 다음 액션:
+  - cowork: `/api/refine` 박기. + (선택) prepare-reply 가 LLM 완성 후 한 번에 READY 반환 (부분 응답 시 GENERATING 유지) — 알림 3번 안 보임 근본 fix.
+  - 사장님: 새 빌드 설치 → DB v15+v16 migration 자동 → Summary Cache 첫 풀스캔 (5초) → 그 후 instant 동작 확인. 메모리 [[session-next-kickoff]] 의 20개 검증 항목 시도.
+  - android: 사장님 검증 피드백 받고 다음 결정 — (1) `/api/refine` 도착 시 ✨ 동작 / (2) 본질 방향성 align / (3) 차기 비즈니스 대시보드 진입.
