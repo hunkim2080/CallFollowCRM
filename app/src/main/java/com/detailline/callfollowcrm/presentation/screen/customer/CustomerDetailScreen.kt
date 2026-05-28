@@ -408,6 +408,13 @@ fun CustomerDetailScreen(
                 }
             }
 
+            // 1.6 고객 페르소나 — 2026-05-29 킬러콘텐츠 5단계.
+            //   cowork 의 prepare-reply 가 자동 생성/갱신 (Haiku 4.5, 24h cache).
+            //   안드는 GET /api/customer-persona/{phone} 으로 cache 만 조회.
+            //   없으면 silent 숨김 (사장님이 ChatScreen 진입 → prepare-reply 호출 → 페르소나 생성됨).
+            val persona by viewModel.persona.collectAsState()
+            persona?.let { p -> if (!p.isEmpty) PersonaCard(p) }
+
             // 1.7 주고받은 문자 — 사장님 요청 (2026-05-27): 대화 요약 아래에 접이식으로.
             //   기본 접힘 → 헤더 탭하면 펼침/닫힘. 최근 20건만, 그 이상은 [💬 메시지에서 더 보기].
             val mergedMessages by viewModel.mergedMessages.collectAsState()
@@ -971,6 +978,67 @@ private fun ImageThumbnailRow(uris: List<android.net.Uri>, onTap: (android.net.U
                 }
             }
         }
+    }
+}
+
+/**
+ * 2026-05-29 킬러콘텐츠 5단계 — 고객 페르소나 카드.
+ *
+ * cowork 의 prepare-reply 가 Haiku 4.5 로 자동 생성/24h 캐시. 안드는 GET 으로 표시만.
+ * null 또는 isEmpty 면 호출처에서 숨김.
+ *
+ * 사장님 가치: 고객 다시 안 만나도 "어떤 사람" 한눈에 — 답변/응대 톤 맞추기 용이.
+ */
+@Composable
+private fun PersonaCard(persona: com.detailline.callfollowcrm.ai.CustomerPersona) {
+    TossCard {
+        Column {
+            androidx.compose.foundation.layout.Row(
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            ) {
+                Text("🧠", fontSize = 16.sp)
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "고객 페르소나",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = TossBlue,
+                    fontWeight = FontWeight.SemiBold
+                )
+                if (persona.generatedAtMs > 0) {
+                    Text(
+                        " · ${com.detailline.callfollowcrm.util.DateTimeUtils.formatShort(persona.generatedAtMs)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TossTextTertiary
+                    )
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            PersonaLine("💬", persona.communicationStyle)
+            PersonaLine("💰", persona.budgetSignal)
+            PersonaLine("🏠", persona.location)
+            PersonaLine("⏰", persona.schedulePattern)
+            PersonaLine("📝", persona.ownerMemo)
+        }
+    }
+}
+
+@Composable
+private fun PersonaLine(emoji: String, text: String?) {
+    if (text.isNullOrBlank()) return
+    androidx.compose.foundation.layout.Row(
+        modifier = Modifier.padding(vertical = 2.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.Top
+    ) {
+        Text(
+            emoji,
+            fontSize = 13.sp,
+            modifier = Modifier.padding(end = 8.dp, top = 1.dp)
+        )
+        Text(
+            text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = TossTextPrimary
+        )
     }
 }
 

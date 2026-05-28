@@ -95,6 +95,9 @@ class AppContainer(context: Context) {
     // 2026-05-29 킬러콘텐츠 4단계 (Tone RAG) — 사장님 sent SMS 풀 batch upload (Mac mini).
     val ownerToneUploadRepository = com.detailline.callfollowcrm.ai.OwnerToneUploadRepository()
 
+    // 2026-05-29 킬러콘텐츠 5단계 — 고객 페르소나 (Haiku 자동 생성, cowork prepare-reply 가 책임).
+    val customerPersonaRepository = com.detailline.callfollowcrm.ai.CustomerPersonaRepository()
+
     // 서버 살아있음 모니터 — HomeScreen 상단 ● indicator 가 구독.
     val serverHealth = ServerHealthMonitor(phaseOneApiRepository).also { it.start() }
 

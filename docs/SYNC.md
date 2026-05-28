@@ -698,3 +698,80 @@ prepare-reply 응답 스키마 v2 박음. android 의 19:00 요청 100% 반영. 
 - android (다음 sprint):
   - (a) cowork 박힌 후 사장님 검증 — 첫 upload + retrieve 동작 확인
   - (b) 가능하면 5단계 (페르소나) 시작 — 고객별 자동 요약 카드. Haiku 4.5 로 저렴하게.
+
+## 2026-05-29 20:30 · android
+**킬러콘텐츠 5단계 (고객 페르소나) — 안드 측 fetch + CustomerDetail UI 박음.** 4단계 (cowork Tone RAG) 와 병렬 진행. cowork 가 페르소나 endpoint + Haiku 호출 박는 순간 자동 활성화.
+- 변경 (안드로이드):
+  - **CustomerPersonaRepository** 신규 (`ai/CustomerPersonaRepository.kt`):
+    - `fetch(phone)` — GET `/api/customer-persona/{phone}` cache 조회만. 404 → null 반환. 새로 생성은 cowork 의 prepare-reply 가 책임.
+    - timeout 짧음 (read 5초) — CustomerDetail 진입 직후 응답 빠르게.
+  - **CustomerPersona** data class — communicationStyle / budgetSignal / location / schedulePattern / ownerMemo / generatedAtMs / model. 모두 nullable.
+  - **AppContainer DI**: `customerPersonaRepository`.
+  - **CustomerDetailViewModel**: `persona: StateFlow<CustomerPersona?>` + init 에서 customer flow 받아 자동 fetch (phone 변경 시 재호출).
+  - **CustomerDetailScreen** "AI 대화 요약" 카드 바로 아래에 PersonaCard 노출. null 또는 isEmpty 면 silent 숨김 (사장님이 ChatScreen 한 번 진입 → prepare-reply → 페르소나 생성됨).
+  - **PersonaCard composable** — 5줄 (이모지 + 텍스트):
+    - 💬 communicationStyle ("단답형, 답장 느림 (평균 4시간)")
+    - 💰 budgetSignal ("비싸지 않으면 OK")
+    - 🏠 location ("송파구 잠실엘스 32평")
+    - ⏰ schedulePattern ("주말 오전 선호")
+    - 📝 ownerMemo ("아이 어림, 무독성 강조 필요")
+    - 헤더에 "🧠 고객 페르소나 · 시각" 갱신 시각.
+- 사장님 체감: CustomerDetail 진입 시 자동으로 페르소나 카드 노출 (서버 endpoint 박힌 후). "고객 다시 안 만나도 어떤 사람" 한눈에.
+- commit: (이번 커밋)
+
+### 🚨 cowork 작업 요청 — 고객 페르소나 (서버 영역)
+
+**1. 신규 DB 테이블 `customer_personas`** (기존 cache.db 에 추가):
+```sql
+CREATE TABLE customer_personas (
+    phone TEXT NOT NULL PRIMARY KEY,
+    communication_style TEXT,
+    budget_signal TEXT,
+    location TEXT,
+    schedule_pattern TEXT,
+    owner_memo TEXT,
+    generated_at_ms INTEGER NOT NULL,
+    model TEXT NOT NULL
+);
+```
+
+**2. prepare-reply 통합 — 자동 생성/캐시** (가장 중요):
+- prepare-reply 호출 시점에:
+  1. `SELECT * FROM customer_personas WHERE phone=?` 조회
+  2. 없거나 `generated_at_ms < now() - 24h` (24h cache TTL) 이면 → 새로 생성:
+     - 입력: recent_messages (전체) + customer hint (name, memo, leadHeat 등) + customer 의 sent 답변까지 흐름
+     - 모델: **claude-haiku-4-5** (저렴, 페르소나 생성 = 정형 분류라 Haiku 충분)
+     - prompt: 5개 필드 (communication_style / budget_signal / location / schedule_pattern / owner_memo) 추출 강제. JSON schema.
+     - DB INSERT or UPSERT (UPDATE)
+  3. **prepare-reply prompt 의 customer hint 영역에 페르소나 inject** — 옛 단순 name/memo 대신 페르소나 풀세트.
+- 결과: 페르소나가 prepare-reply 의 답변 추천 품질에 즉시 영향 + GET endpoint 도 자동 캐시.
+
+**3. 신규 endpoint `GET /api/customer-persona/{phone}`**:
+- Response 200 (있을 때):
+  ```json
+  {
+    "phone": "01012345678",
+    "communication_style": "단답형, 답장 느림 (평균 4시간)",
+    "budget_signal": "비싸지 않으면 OK (2025-05-15 언급)",
+    "location": "송파구 잠실엘스 32평 화이트 톤 선호",
+    "schedule_pattern": "주말 오전 선호",
+    "owner_memo": "아이 어림, 무독성 강조 필요",
+    "generated_at_ms": 1748541234567,
+    "model": "claude-haiku-4-5"
+  }
+  ```
+- Response 404 — 페르소나 없음 (cache miss). 안드는 silent 숨김. 사장님이 ChatScreen 진입 → prepare-reply → 생성됨.
+
+**4. Haiku prompt 사양 (페르소나 생성)**:
+- system: "고객의 메시지/메모를 보고 5개 필드 추출. 추출 못 한 필드는 빈 값. 한국어 정중한 표현."
+- user: recent_messages + customer.name + customer.memo + 사장님 답변 흐름
+- output: JSON schema 강제 (위 5 필드)
+- 비용: Haiku 1회 ~₩3. 24h 캐시라 고객 1명당 하루 1회. 사용자당 월 ~₩90 (고객 1000명).
+
+**5. 로깅**:
+- `log_llm_usage(endpoint="customer-persona", model="claude-haiku-4-5", ...)` — Settings 카드에 노출됨.
+
+### 다음 액션
+- cowork: 위 5가지 박기. RAG (4단계) 와 함께 박으면 좋음 — 둘 다 Haiku 사용.
+- 사장님: cowork 박힌 후 CustomerDetail 한 번 진입 → 페르소나 카드 표시 확인. 며칠 후 다시 진입 시 최신화 자동.
+- android (다음 sprint): (a) cowork 검증 / (b) ChatScreen 에도 페르소나 표시 (composer 위 작은 chip) / (c) 6단계 자동 학습 루프 (채택률 기반 prompt 자동 개선) 시작.

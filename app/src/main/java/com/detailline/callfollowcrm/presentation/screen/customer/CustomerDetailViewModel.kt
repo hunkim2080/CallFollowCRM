@@ -55,6 +55,26 @@ class CustomerDetailViewModel(
         container.callSummaryRepository.observeByCustomer(customerId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    // 2026-05-29 킬러콘텐츠 5단계 — 고객 페르소나 (cowork prepare-reply 가 자동 생성).
+    //   안드는 GET /api/customer-persona/{phone} 으로 cache 조회만.
+    //   customer flow 받으면 phone 으로 fetch — 자동 갱신.
+    private val _persona = kotlinx.coroutines.flow.MutableStateFlow<com.detailline.callfollowcrm.ai.CustomerPersona?>(null)
+    val persona: kotlinx.coroutines.flow.StateFlow<com.detailline.callfollowcrm.ai.CustomerPersona?> = _persona
+
+    init {
+        // customer 의 phone 이 들어오면 (보통 즉시) persona fetch. 서버 404 면 null 그대로.
+        viewModelScope.launch {
+            customer.collect { c ->
+                if (c?.phoneNumber.isNullOrBlank()) {
+                    _persona.value = null
+                    return@collect
+                }
+                val phone = c?.phoneNumber ?: return@collect
+                _persona.value = container.customerPersonaRepository.fetch(phone).getOrNull()
+            }
+        }
+    }
+
     /**
      * P1/P2 AI 대화 요약 — ChatScreen 의 박스와 같은 데이터 (server 응답이 캐시되면 자동 emit).
      * 사장님 요청 (2026-05-24): "고객 상세에 대화 요약 있으면 문자 다시 검토 안 해도 됨".
