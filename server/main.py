@@ -61,6 +61,11 @@ GEMINI_MODEL = "gemini-2.5-flash"
 GEMINI_TIMEOUT_SEC = 30.0
 GEMINI_MAX_OUTPUT_TOKENS = 500
 
+# §15 — Admin token (사업 metric endpoint 보호용. /api/admin/* 호출 시 X-Admin-Token 헤더 필요)
+# 미설정 시 admin endpoint 는 503 (인증 비활성화).
+# 사장님이 launchd plist EnvironmentVariables 에 ADMIN_TOKEN=<랜덤 문자열> 박아야 활성화.
+ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN")
+
 CLAUDE_MODEL = "claude-sonnet-4-6"
 CLAUDE_MAX_TOKENS = 800
 CLAUDE_TIMEOUT = 60.0  # 초. 한 호출이 60초 넘으면 끊는다.
@@ -182,6 +187,29 @@ def db_init() -> None:
         con.execute(
             "CREATE INDEX IF NOT EXISTS idx_llm_usage_log_endpoint_ts "
             "ON llm_usage_log(endpoint, timestamp_ms)"
+        )
+        # §15 — subscribers 테이블 (사업 metric 의 기반)
+        # 한 사용자 = 한 phone. plan 별 가격 정책 + lifecycle (started/churned) 추적.
+        # MRR / ARPU / Margin / Churn 계산의 source of truth.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS subscribers (
+                phone               TEXT PRIMARY KEY,
+                plan_tier           TEXT NOT NULL DEFAULT 'beta',
+                monthly_price_krw   INTEGER NOT NULL DEFAULT 0,
+                name                TEXT,
+                company             TEXT,
+                started_at_ms       INTEGER NOT NULL,
+                churned_at_ms       INTEGER,
+                notes               TEXT,
+                created_at_ms       INTEGER NOT NULL,
+                updated_at_ms       INTEGER NOT NULL
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_subscribers_active "
+            "ON subscribers(churned_at_ms) WHERE churned_at_ms IS NULL"
         )
         con.commit()
 
@@ -1138,6 +1166,20 @@ _ADMIN_DASHBOARD_HTML = r"""<!DOCTYPE html>
 
   <div class="err" id="err"></div>
 
+  <!-- Admin token (사장님 전용 사업 metric 잠금 해제) -->
+  <div class="card" id="adminLockCard" style="display:none;">
+    <h2>🔒 관리자 모드</h2>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:10px;line-height:1.5;">
+      💼 사업 건강도 / 👥 사용자 분석 / 📊 시간 heatmap 을 보려면 관리자 토큰 입력.<br/>
+      토큰은 plist 의 <code>ADMIN_TOKEN</code> 값과 일치해야 함. 입력하면 이 브라우저에 저장됨.
+    </div>
+    <div style="display:flex;gap:8px;">
+      <input id="adminTokenInput" type="password" placeholder="ADMIN_TOKEN 입력"
+        style="flex:1;padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;" />
+      <button class="refresh" onclick="saveAdminToken()">잠금 해제</button>
+    </div>
+  </div>
+
   <!-- 오늘 / 이번 달 / 전체 누적 비용 -->
   <div class="row">
     <div class="hero"><div class="label">오늘</div>
@@ -1146,6 +1188,72 @@ _ADMIN_DASHBOARD_HTML = r"""<!DOCTYPE html>
       <div class="price" id="monthCost">—</div><div class="sub" id="monthCalls">— 건</div></div>
     <div class="hero all"><div class="label">전체 누적</div>
       <div class="price" id="allCost">—</div><div class="sub" id="allCalls">— 건</div></div>
+  </div>
+
+  <!-- 💼 사업 건강도 (관리자만) -->
+  <div class="card admin-only" id="businessHealthCard" style="display:none;">
+    <h2>💼 사업 건강도 (이번 달)</h2>
+    <div class="row" style="grid-template-columns:1fr 1fr 1fr;">
+      <div class="hero" style="padding:10px;">
+        <div class="label">MRR</div>
+        <div class="price" id="bizMrr" style="font-size:20px;">—</div>
+        <div class="sub"><span id="bizActiveCount">—</span>명 활성</div>
+      </div>
+      <div class="hero" style="padding:10px;">
+        <div class="label">COGS (LLM 비용)</div>
+        <div class="price" id="bizCogs" style="font-size:20px;">—</div>
+        <div class="sub" id="bizCallsMonth">— 건</div>
+      </div>
+      <div class="hero" style="padding:10px;">
+        <div class="label">Gross Margin</div>
+        <div class="price" id="bizMargin" style="font-size:20px;">—</div>
+        <div class="sub" id="bizMarginStatus">—</div>
+      </div>
+    </div>
+    <div style="margin-top:14px;">
+      <div class="kv"><span class="k">ARPU (사용자당 매출)</span><span class="v" id="bizArpu">—</span></div>
+      <div class="kv"><span class="k">Cost per user (사용자당 비용)</span><span class="v" id="bizCostPerUser">—</span></div>
+      <div class="kv"><span class="k">Churned (해지)</span><span class="v" id="bizChurned">—</span></div>
+    </div>
+    <div style="margin-top:12px;font-size:11px;color:var(--muted);line-height:1.6;">
+      💡 SaaS 건강 기준선: Gross Margin <b>80%+</b> = 좋음, 50-80% = 주의, 50% 미만 = 단가 인상 또는 모델 다운그레이드 검토.
+    </div>
+  </div>
+
+  <!-- 👥 Top 사용자 (관리자만) -->
+  <div class="card admin-only" id="topUsersCard" style="display:none;">
+    <h2>👥 Top 사용자 (이번 달, 호출수 내림차순)</h2>
+    <div style="overflow-x:auto;">
+      <table id="topUsersTable" style="min-width:100%;font-size:12px;">
+        <thead>
+          <tr>
+            <th style="text-align:left;">사용자</th>
+            <th class="num">호출</th>
+            <th class="num">비용</th>
+            <th class="num">구독료</th>
+            <th class="num">유저 마진</th>
+          </tr>
+        </thead>
+        <tbody id="topUsersBody"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:12px 0">로딩 중…</td></tr></tbody>
+      </table>
+    </div>
+    <div style="margin-top:8px;font-size:11px;color:var(--muted);line-height:1.5;">
+      🔥 빨강 = heavy user (비용이 구독료의 50% 넘음 또는 미등록 사용자가 비용 ₩1k 초과). 정책 검토 필요.
+    </div>
+  </div>
+
+  <!-- 📊 시간 × 요일 heatmap (관리자만) -->
+  <div class="card admin-only" id="heatmapCard" style="display:none;">
+    <h2>📊 사용 패턴 — 요일 × 시간대 (최근 7일, KST)</h2>
+    <div style="overflow-x:auto;">
+      <table id="heatmapTable" style="border-collapse:collapse;font-size:10px;width:100%;">
+        <thead id="heatmapHead"></thead>
+        <tbody id="heatmapBody"></tbody>
+      </table>
+    </div>
+    <div style="margin-top:8px;font-size:11px;color:var(--muted);line-height:1.5;">
+      셀 색이 진할수록 호출 많음. 사장님들이 언제 가장 많이 쓰나 = 인프라 scale 결정에 핵심.
+    </div>
   </div>
 
   <!-- 모델별 사용량 (이번 달) -->
@@ -1254,10 +1362,32 @@ const fmtKRW2 = n => {  // 소수점 둘째 자리까지 (한 건당 평균 단�
   return '₩' + Number(n).toFixed(2);
 };
 
-async function fetchJSON(url) {
-  const r = await fetch(url, { cache: 'no-store' });
+async function fetchJSON(url, opts) {
+  const r = await fetch(url, Object.assign({ cache: 'no-store' }, opts || {}));
   if (!r.ok) throw new Error(url + ' → HTTP ' + r.status);
   return r.json();
+}
+
+// ─── Admin token (localStorage) ───
+function getAdminToken() {
+  try { return localStorage.getItem('ringgo_admin_token') || ''; } catch (e) { return ''; }
+}
+function saveAdminToken() {
+  const v = document.getElementById('adminTokenInput').value.trim();
+  try { localStorage.setItem('ringgo_admin_token', v); } catch (e) {}
+  loadAll();
+}
+
+// ─── Heatmap 색 강도 (호출수 → 0~1 → CSS color) ───
+const DOW_KO = ['일','월','화','수','목','금','토'];
+function heatmapCellColor(value, maxValue) {
+  if (!value || maxValue === 0) return '#fafafc';
+  const ratio = Math.min(1, value / maxValue);
+  // 흰색 → 파란색 그라데이션
+  const r = Math.round(255 - ratio * (255 - 10));
+  const g = Math.round(255 - ratio * (255 - 132));
+  const b = Math.round(255 - ratio * (255 - 255));
+  return `rgb(${r},${g},${b})`;
 }
 
 async function loadAll() {
@@ -1449,6 +1579,9 @@ async function loadAll() {
     const now = new Date();
     document.getElementById('meta').textContent = '마지막 업데이트 ' +
       now.toLocaleString('ko-KR', { hour12: false });
+
+    // ─── Admin section (사장님 전용) ───
+    await loadAdminSection();
   } catch (e) {
     const err = document.getElementById('err');
     err.textContent = '데이터 로딩 실패: ' + e.message;
@@ -1456,6 +1589,120 @@ async function loadAll() {
   } finally {
     btn.disabled = false;
   }
+}
+
+// ─── Admin section 로딩 (사업 건강도 + Top users + heatmap) ───
+async function loadAdminSection() {
+  const token = getAdminToken();
+  const lockCard = document.getElementById('adminLockCard');
+  const adminCards = document.querySelectorAll('.admin-only');
+
+  if (!token) {
+    // 토큰 없으면 lock card 보이고 admin-only 숨김
+    lockCard.style.display = 'block';
+    adminCards.forEach(c => c.style.display = 'none');
+    return;
+  }
+
+  // 토큰으로 business-stats 호출 시도
+  let stats;
+  try {
+    stats = await fetchJSON('/api/admin/business-stats', {
+      headers: { 'X-Admin-Token': token },
+    });
+  } catch (e) {
+    // 토큰 잘못됨 또는 ADMIN_TOKEN 미설정
+    lockCard.style.display = 'block';
+    adminCards.forEach(c => c.style.display = 'none');
+    const ti = document.getElementById('adminTokenInput');
+    if (ti) ti.placeholder = '토큰 잘못됨 — 다시 입력';
+    return;
+  }
+
+  // 인증 성공 → admin 카드들 보이게
+  lockCard.style.display = 'none';
+  adminCards.forEach(c => c.style.display = 'block');
+
+  // 💼 사업 건강도
+  document.getElementById('bizMrr').textContent = fmtKRW(stats.mrr_krw);
+  document.getElementById('bizActiveCount').textContent = fmt(stats.active_subscribers);
+  document.getElementById('bizCogs').textContent = fmtKRW(stats.month_cogs_krw);
+  document.getElementById('bizCallsMonth').textContent = fmt(stats.month_calls) + ' 건';
+  document.getElementById('bizChurned').textContent = fmt(stats.churned_subscribers) + ' 명';
+  document.getElementById('bizArpu').textContent = fmtKRW(stats.arpu_krw);
+  document.getElementById('bizCostPerUser').textContent = fmtKRW2(stats.cost_per_user_krw);
+
+  const marginEl = document.getElementById('bizMargin');
+  const marginStatus = document.getElementById('bizMarginStatus');
+  if (stats.gross_margin_pct == null) {
+    marginEl.textContent = '—';
+    marginStatus.textContent = '활성 사용자 없음';
+  } else {
+    marginEl.textContent = stats.gross_margin_pct.toFixed(1) + '%';
+    if (stats.gross_margin_pct >= 80) {
+      marginEl.style.color = 'var(--ok)';
+      marginStatus.textContent = '✓ 건강 (80%+)';
+    } else if (stats.gross_margin_pct >= 50) {
+      marginEl.style.color = 'var(--warn)';
+      marginStatus.textContent = '⚠ 주의 (50-80%)';
+    } else {
+      marginEl.style.color = 'var(--hot)';
+      marginStatus.textContent = '🔥 적자 위험 (< 50%)';
+    }
+  }
+
+  // 👥 Top 사용자
+  const topBody = document.getElementById('topUsersBody');
+  if (!stats.top_users || stats.top_users.length === 0) {
+    topBody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:12px 0">이번 달 사용 기록 없음</td></tr>';
+  } else {
+    topBody.innerHTML = stats.top_users.map(u => {
+      const heavy = u.heavy_user;
+      const phoneDisp = u.name ? `${u.name}<div style="font-size:10px;color:var(--muted);">${u.phone}</div>` : u.phone;
+      const marginDisp = u.user_margin_pct == null
+        ? '<span style="color:var(--muted);">—</span>'
+        : (u.user_margin_pct >= 50
+            ? `<span style="color:var(--ok);">${u.user_margin_pct}%</span>`
+            : `<span style="color:var(--hot);">${u.user_margin_pct}%</span>`);
+      const rowStyle = heavy ? 'background:rgba(255,59,48,0.06);' : '';
+      return `
+        <tr style="${rowStyle}">
+          <td class="ep" style="padding:6px 4px;">${heavy ? '🔥 ' : ''}${phoneDisp}<div style="font-size:10px;color:var(--muted);">${u.plan_tier}</div></td>
+          <td class="num">${fmt(u.calls)}</td>
+          <td class="num">${fmtKRW2(u.cost_krw)}</td>
+          <td class="num">${u.monthly_price_krw > 0 ? fmtKRW(u.monthly_price_krw) : '—'}</td>
+          <td class="num">${marginDisp}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  // 📊 시간 × 요일 heatmap
+  const heatmap = stats.heatmap || [];
+  const maxValue = Math.max(...heatmap.flat(), 1);
+  const head = document.getElementById('heatmapHead');
+  const body = document.getElementById('heatmapBody');
+  head.innerHTML = `
+    <tr>
+      <th style="padding:4px;text-align:left;width:32px;"></th>
+      ${Array.from({length: 24}, (_, h) =>
+        `<th style="padding:2px 1px;font-size:9px;color:var(--muted);font-weight:400;text-align:center;">${h}</th>`
+      ).join('')}
+    </tr>
+  `;
+  body.innerHTML = heatmap.map((row, dow) => `
+    <tr>
+      <td style="padding:2px 4px;font-weight:600;color:${dow===0||dow===6?'var(--hot)':'var(--text)'};">${DOW_KO[dow]}</td>
+      ${row.map((v, h) => `
+        <td style="padding:0;border:1px solid var(--bg);">
+          <div title="${DOW_KO[dow]} ${h}시: ${v}건"
+               style="width:100%;aspect-ratio:1;background:${heatmapCellColor(v, maxValue)};display:flex;align-items:center;justify-content:center;font-size:8px;color:#444;min-height:14px;">
+            ${v > 0 && v >= maxValue * 0.5 ? v : ''}
+          </div>
+        </td>
+      `).join('')}
+    </tr>
+  `).join('');
 }
 
 loadAll();
@@ -1474,6 +1721,304 @@ async def admin_dashboard() -> HTMLResponse:
     Tailnet 안의 폰 브라우저에서도 잘 보이도록 mobile-first.
     """
     return HTMLResponse(content=_ADMIN_DASHBOARD_HTML)
+
+
+# ============================================================================
+# §15 — Admin endpoints (사업 metric: MRR, COGS, Margin, Top users, heatmap)
+# ─────────────────────────────────────────────────────────────────────────────
+# 인증: X-Admin-Token 헤더 = ADMIN_TOKEN 환경변수 일치 필요.
+# ADMIN_TOKEN 미설정 시 endpoint 는 503 — 사장님이 plist 에 박아야 활성화.
+# ============================================================================
+from fastapi import Header  # noqa: E402  (다른 import 와 분리해도 OK)
+
+
+def _admin_auth(x_admin_token: Optional[str]) -> None:
+    """X-Admin-Token 헤더 검증. 실패 시 HTTPException."""
+    if not ADMIN_TOKEN:
+        raise HTTPException(
+            503,
+            "ADMIN_TOKEN 미설정. plist EnvironmentVariables 에 박아주세요."
+        )
+    if not x_admin_token or x_admin_token != ADMIN_TOKEN:
+        raise HTTPException(401, "invalid admin token")
+
+
+class SubscriberUpsertRequest(BaseModel):
+    phone: str
+    plan_tier: str = "beta"      # "founder" | "beta" | "pro" | "enterprise"
+    monthly_price_krw: int = 0
+    name: Optional[str] = None
+    company: Optional[str] = None
+    notes: Optional[str] = None
+    churned: bool = False        # True 면 churned_at_ms 박음 (해지 처리)
+
+
+VALID_PLAN_TIERS = {"founder", "beta", "pro", "enterprise"}
+
+
+@app.post("/api/admin/subscribers/upsert")
+async def admin_upsert_subscriber(
+    req: SubscriberUpsertRequest,
+    x_admin_token: Optional[str] = Header(None),
+) -> dict:
+    """사용자 등록/수정. 같은 phone 이면 update, 처음이면 insert.
+
+    churned=True 면 해지 처리 (churned_at_ms 박음). 다시 활성화 하려면 churned=False 로 호출.
+    """
+    _admin_auth(x_admin_token)
+    if req.plan_tier not in VALID_PLAN_TIERS:
+        raise HTTPException(400, f"plan_tier must be one of {VALID_PLAN_TIERS}")
+    if req.monthly_price_krw < 0:
+        raise HTTPException(400, "monthly_price_krw must be >= 0")
+
+    now = _now_ms()
+    with db_conn() as conn:
+        existing = conn.execute(
+            "SELECT phone, churned_at_ms FROM subscribers WHERE phone=?",
+            (req.phone,),
+        ).fetchone()
+
+        if existing:
+            churned_at_ms = now if req.churned else None
+            conn.execute(
+                """
+                UPDATE subscribers SET
+                    plan_tier         = ?,
+                    monthly_price_krw = ?,
+                    name              = ?,
+                    company           = ?,
+                    notes             = ?,
+                    churned_at_ms     = ?,
+                    updated_at_ms     = ?
+                WHERE phone = ?
+                """,
+                (
+                    req.plan_tier, req.monthly_price_krw,
+                    req.name, req.company, req.notes,
+                    churned_at_ms, now, req.phone,
+                ),
+            )
+            action = "updated"
+        else:
+            conn.execute(
+                """
+                INSERT INTO subscribers
+                  (phone, plan_tier, monthly_price_krw, name, company, notes,
+                   started_at_ms, churned_at_ms, created_at_ms, updated_at_ms)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    req.phone, req.plan_tier, req.monthly_price_krw,
+                    req.name, req.company, req.notes,
+                    now, (now if req.churned else None),
+                    now, now,
+                ),
+            )
+            action = "created"
+
+    print(f"[admin] subscriber {action}: {req.phone} plan={req.plan_tier} price={req.monthly_price_krw}")
+    return {"ok": True, "action": action, "phone": req.phone}
+
+
+@app.get("/api/admin/subscribers")
+async def admin_list_subscribers(
+    x_admin_token: Optional[str] = Header(None),
+    include_churned: bool = False,
+) -> dict:
+    """전체 사용자 목록 (관리용)."""
+    _admin_auth(x_admin_token)
+    where = "" if include_churned else " WHERE churned_at_ms IS NULL"
+    with db_conn() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT phone, plan_tier, monthly_price_krw, name, company, notes,
+                   started_at_ms, churned_at_ms
+            FROM subscribers{where}
+            ORDER BY monthly_price_krw DESC, started_at_ms ASC
+            """
+        ).fetchall()
+    return {
+        "count": len(rows),
+        "subscribers": [
+            {
+                "phone":             r["phone"],
+                "plan_tier":         r["plan_tier"],
+                "monthly_price_krw": r["monthly_price_krw"],
+                "name":              r["name"],
+                "company":           r["company"],
+                "notes":             r["notes"],
+                "started_at_ms":     r["started_at_ms"],
+                "churned_at_ms":     r["churned_at_ms"],
+            }
+            for r in rows
+        ],
+    }
+
+
+@app.get("/api/admin/business-stats")
+async def admin_business_stats(
+    x_admin_token: Optional[str] = Header(None),
+) -> dict:
+    """사업 건강도 metric — MRR, COGS, Margin, Top users, 시간 heatmap.
+
+    응답:
+      {
+        "mrr_krw":               (활성 사용자의 monthly_price_krw 합)
+        "active_subscribers":    int
+        "churned_subscribers":   int
+        "month_cogs_krw":        (이번 달 LLM 비용 합 — usage-stats month total)
+        "month_calls":           int
+        "gross_margin_pct":      (MRR - COGS) / MRR * 100  (MRR=0 이면 null)
+        "arpu_krw":              MRR / active_subscribers
+        "cost_per_user_krw":     month_cogs / active_subscribers
+        "top_users": [
+          {phone, name, calls, cost_krw, plan_tier, monthly_price_krw,
+           user_margin_pct (= (price - cost) / price * 100), heavy_user (bool)}
+        ],
+        "heatmap": [[24개]×7,  요일×시간 호출수 매트릭스 (KST, 최근 7일)],
+        "by_plan": {plan_tier: {count, mrr_krw}},
+      }
+    """
+    _admin_auth(x_admin_token)
+    now = _now_ms()
+
+    # 이번 달 시작 (KST)
+    kst = _KST
+    nowdt = _dt.datetime.now(kst)
+    month_start = nowdt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    month_start_ms = int(month_start.timestamp() * 1000)
+    week_ago_ms = int((nowdt - _dt.timedelta(days=6)).replace(
+        hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000)
+
+    with db_conn() as conn:
+        # 1) MRR — 활성 사용자의 monthly_price_krw 합
+        mrr_row = conn.execute(
+            """
+            SELECT COUNT(*)                                AS active_count,
+                   COALESCE(SUM(monthly_price_krw), 0)     AS mrr_krw
+            FROM subscribers WHERE churned_at_ms IS NULL
+            """
+        ).fetchone()
+        active = mrr_row["active_count"]
+        mrr = mrr_row["mrr_krw"]
+
+        churned_row = conn.execute(
+            "SELECT COUNT(*) AS c FROM subscribers WHERE churned_at_ms IS NOT NULL"
+        ).fetchone()
+        churned = churned_row["c"]
+
+        # 2) Plan 별 분포
+        plan_rows = conn.execute(
+            """
+            SELECT plan_tier,
+                   COUNT(*)                                AS count,
+                   COALESCE(SUM(monthly_price_krw), 0)     AS mrr_krw
+            FROM subscribers WHERE churned_at_ms IS NULL
+            GROUP BY plan_tier
+            """
+        ).fetchall()
+        by_plan = {
+            r["plan_tier"]: {"count": r["count"], "mrr_krw": r["mrr_krw"]}
+            for r in plan_rows
+        }
+
+        # 3) 이번 달 COGS — llm_usage_log 의 cost_krw 합
+        cogs_row = conn.execute(
+            """
+            SELECT COUNT(*)                                AS calls,
+                   COALESCE(SUM(cost_krw), 0)              AS cost_krw
+            FROM llm_usage_log WHERE timestamp_ms >= ?
+            """,
+            (month_start_ms,),
+        ).fetchone()
+        month_cogs = round(cogs_row["cost_krw"], 4)
+        month_calls = cogs_row["calls"]
+
+        # 4) Top users — 이번 달 호출수 가장 많은 10명 (subscribers 와 join)
+        #    llm_usage_log 에 phone 컬럼 없으니 api_usage 로 join (phone 있음).
+        top_user_rows = conn.execute(
+            """
+            SELECT au.phone                                AS phone,
+                   COUNT(*)                                AS calls,
+                   COALESCE(SUM(au.cost_usd), 0) * ?       AS cost_krw,
+                   s.name                                  AS name,
+                   s.plan_tier                             AS plan_tier,
+                   COALESCE(s.monthly_price_krw, 0)        AS monthly_price_krw
+            FROM api_usage au
+            LEFT JOIN subscribers s ON s.phone = au.phone
+            WHERE au.created_at_ms >= ?
+            GROUP BY au.phone
+            ORDER BY calls DESC
+            LIMIT 10
+            """,
+            (KRW_PER_USD, month_start_ms),
+        ).fetchall()
+        top_users = []
+        for r in top_user_rows:
+            cost_k = round(r["cost_krw"], 2)
+            price_k = r["monthly_price_krw"] or 0
+            # heavy user = 월 비용이 구독료의 50% 넘으면. 무료 사용자(price=0) 는 비용 > 1000원이면 heavy.
+            if price_k > 0:
+                user_margin = ((price_k - cost_k) / price_k * 100) if price_k > 0 else None
+                heavy = cost_k > (price_k * 0.5)
+            else:
+                user_margin = None
+                heavy = cost_k > 1000
+            top_users.append({
+                "phone":             r["phone"],
+                "name":              r["name"],
+                "plan_tier":         r["plan_tier"] or "(미등록)",
+                "monthly_price_krw": price_k,
+                "calls":             r["calls"],
+                "cost_krw":          cost_k,
+                "user_margin_pct":   None if user_margin is None else round(user_margin, 1),
+                "heavy_user":        heavy,
+            })
+
+        # 5) 시간×요일 heatmap (최근 7일, KST 기준)
+        heatmap_rows = conn.execute(
+            """
+            SELECT
+                CAST(strftime('%w',
+                    datetime((timestamp_ms + 9*3600*1000)/1000, 'unixepoch')
+                ) AS INTEGER) AS dow,
+                CAST(strftime('%H',
+                    datetime((timestamp_ms + 9*3600*1000)/1000, 'unixepoch')
+                ) AS INTEGER) AS hour,
+                COUNT(*)      AS calls
+            FROM llm_usage_log
+            WHERE timestamp_ms >= ?
+            GROUP BY dow, hour
+            """,
+            (week_ago_ms,),
+        ).fetchall()
+        # heatmap[dow][hour] = calls. KST 기준. dow: 0=일, 1=월, ..., 6=토 (sqlite strftime %w)
+        heatmap = [[0] * 24 for _ in range(7)]
+        for r in heatmap_rows:
+            d, h = r["dow"], r["hour"]
+            if 0 <= d <= 6 and 0 <= h <= 23:
+                heatmap[d][h] = r["calls"]
+
+    # 계산
+    gross_margin_pct = ((mrr - month_cogs) / mrr * 100) if mrr > 0 else None
+    arpu = (mrr / active) if active > 0 else 0
+    cost_per_user = (month_cogs / active) if active > 0 else 0
+
+    return {
+        "mrr_krw":              mrr,
+        "active_subscribers":   active,
+        "churned_subscribers":  churned,
+        "month_cogs_krw":       month_cogs,
+        "month_calls":          month_calls,
+        "gross_margin_pct":     None if gross_margin_pct is None else round(gross_margin_pct, 1),
+        "arpu_krw":             round(arpu),
+        "cost_per_user_krw":    round(cost_per_user, 2),
+        "top_users":            top_users,
+        "heatmap":              heatmap,
+        "by_plan":              by_plan,
+        "month_start_ms":       month_start_ms,
+        "now_ms":               now,
+    }
 
 
 @app.get("/admin/usage")

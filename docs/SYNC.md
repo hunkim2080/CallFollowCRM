@@ -249,3 +249,39 @@ SYNC.md 공책 시스템 시작. 두 Claude (안드로이드 + 서버) 가 이�
   - 사장님: (1) https://aistudio.google.com/apikey 에서 Gemini API 키 발급 (paid tier 권장 — 무료 tier 는 prompt 학습 데이터로 쓰일 수 있음). (2) Mac mini plist 에 `GEMINI_API_KEY` 박기 + launchctl reload. (3) 폰에서 ChatScreen [✨ 다듬기] 실측.
   - android: refine 실측 통과 후 — (선택) prepare-reply 가 LLM 완성 후 한 번에 READY 반환 (알림 3번 안 보임 근본 fix).
   - cowork: 다음 sprint — category-classify (§11), 또는 §13 LLM fallback (옵션).
+
+## 2026-05-28 17:00 · cowork (Mac mini, 서버 담당)
+§15 (사업 건강도 인프라) 구축 완료. "스타트업으로서 가치있게 자라기" 위한 첫 step — Cost 추적기 → 사업 건강 진단기로 진화.
+- 변경:
+  - 신규 DB 테이블 `subscribers` (phone, plan_tier ['founder'|'beta'|'pro'|'enterprise'], monthly_price_krw, name, company, started_at_ms, churned_at_ms, notes). MRR/Margin/ARPU 계산의 source of truth.
+  - 신규 endpoint 3개:
+    - POST /api/admin/subscribers/upsert — 사용자 등록/수정/해지 (X-Admin-Token 헤더 필수)
+    - GET  /api/admin/subscribers — 전체 목록 (include_churned 옵션)
+    - GET  /api/admin/business-stats — MRR + COGS + Margin + ARPU + Top users + 시간×요일 heatmap (7×24)
+  - 신규 환경변수: `ADMIN_TOKEN` (plist EnvironmentVariables 에 박힘. 미설정 시 admin endpoint 503).
+  - 신규 dashboard 카드 3개 (관리자 토큰 필요):
+    - 💼 사업 건강도 — MRR / COGS / Gross Margin (80%+=초록, 50-80%=노랑, <50%=빨강), ARPU, cost per user, churn
+    - 👥 Top 사용자 — 호출수/비용/구독료/유저 마진 (heavy user 빨강 마킹)
+    - 📊 시간 × 요일 heatmap — 사장님들이 언제 가장 많이 쓰나 패턴 분석
+  - 관리자 토큰 입력 UI — 첫 진입 시 password 입력 → localStorage 저장 → 다음부터 자동 unlock
+  - 매일 아침 8시 자동 보고 — `server/ringgo_daily_report.sh` + `com.detailline.ringgo-daily-report.plist.template` (launchd StartCalendarInterval Hour=8). Cost spike 자동 알림 (어제 비용 > 임계값 시 stdout log + 추후 Gmail 발송).
+- commit: (사장님 push 진행 중)
+- 검증 (sandbox ALL PASS):
+  - admin endpoint 3개 등록 OK
+  - subscribers 테이블 생성 OK
+  - ADMIN_TOKEN 미설정 → 503, 잘못된 토큰 → 401, 정확한 토큰 → 정상 응답
+  - upsert create/update/churn/재활성화 4가지 시나리오 정상
+  - MRR/ARPU/Margin/by_plan 계산 정확 (가짜 데이터로 검증)
+  - heatmap shape 7×24
+  - invalid plan_tier → 400
+  - 회귀 — 기존 7개 critical endpoint (prepare-reply, refine, address-resolve, usage-stats, card/conversation/next-action) 모두 살아있음
+- 사용 시나리오:
+  1. 사장님 본인 등록 — POST /api/admin/subscribers/upsert {phone, plan_tier="founder", monthly_price_krw=0, name, company}
+  2. 베타 사용자 추가 — plan_tier="beta", monthly_price_krw=0
+  3. 정식 사용자 — plan_tier="pro", monthly_price_krw=29000 (또는 39000)
+  4. 해지 — 같은 phone 으로 upsert + churned=True
+- 다음 액션:
+  - 사장님: (1) ADMIN_TOKEN 랜덤 발급 (예: `openssl rand -hex 24`). (2) plist 에 박기 + launchctl reload. (3) /admin 페이지에서 토큰 입력. (4) 사장님 본인 founder plan 으로 등록. (5) 베타 사용자 받기 시작 — 새 phone 마다 upsert.
+  - 사장님 (선택): launchd plist 도 ~/Library/LaunchAgents/ 에 설치 → 매일 아침 8시 자동 보고 활성화.
+  - android: 사장님이 RING-GO 앱 안에 사용자 관리 UI 만들 시점 — POST /api/admin/subscribers/upsert 호출하면 됨.
+  - cowork: 다음 sprint — (a) Cohort retention grid (M0/M1/M3/M6 잔존율), (b) A/B test 인프라 (Sonnet vs Haiku 다듬기 품질), (c) Anomaly detection 자동화 (어제 대비 +50% 알림 메일).

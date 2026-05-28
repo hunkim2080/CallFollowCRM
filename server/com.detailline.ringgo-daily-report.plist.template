@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- =============================================================================
+     RING-GO 매일 아침 8시 (KST) 자동 보고 launchd job
+     -----------------------------------------------------------------------------
+     설치:
+       cp ~/paperclip-company/workspaces/CallFollowCRM/server/com.detailline.ringgo-daily-report.plist.template \
+          ~/Library/LaunchAgents/com.detailline.ringgo-daily-report.plist
+       # ADMIN_TOKEN 부분만 실제 토큰으로 교체
+       launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.detailline.ringgo-daily-report.plist
+     ============================================================================= -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.detailline.ringgo-daily-report</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/hun/paperclip-company/workspaces/CallFollowCRM/server/ringgo_daily_report.sh</string>
+    </array>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>8</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/hun/ringgo-server/daily_report_stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/hun/ringgo-server/daily_report_stderr.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>SERVER_URL</key>
+        <string>http://localhost:8000</string>
+        <key>ADMIN_TOKEN</key>
+        <string>REPLACE_WITH_YOUR_ADMIN_TOKEN</string>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>
