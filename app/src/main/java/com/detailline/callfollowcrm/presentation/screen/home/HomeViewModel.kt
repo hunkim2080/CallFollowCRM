@@ -123,8 +123,16 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
     /**
      * "미확인" 판정 = phone suffix set.
-     *   - SMS: 7일 윈도우 안 받은 SMS (lastSent=false 이고 lastDateMs ∈ 윈도우) + hasOwnerReply=false
+     *
+     * 정의 (2026-05-28 사장님 결정):
+     *   - SMS: lastSent=false (= 고객 메시지가 마지막) + lastDateMs 7일 윈도우 안 = 미확인
+     *     → **답장 보낸 적 있는 phone 도, 그 후 새 메시지가 오면 다시 미확인**.
+     *     hasOwnerReply 조건 제거: 사장님이 "새 메시지 올 때마다 알 수 있어야" 한다는 의도.
      *   - 부재중 통화: 7일 윈도우 안 MISSED + 그 phone 의 sent SMS 가 1건도 없음
+     *     → 답장한 적 있는 단골 고객의 부재중은 미확인 X (전화 한 통은 알림으로 충분).
+     *     필요 시 사장님 추가 보고 받아 SMS 와 동일한 정책으로 일관시킬 수 있음.
+     *
+     * 스팸 마킹된 phone 은 swipe-to-spam 결과로 영구 제외.
      */
     private fun unconfirmedSuffixes(
         smsContacts: List<SmsRepository.SmsContact>,
@@ -135,10 +143,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         val result = HashSet<String>()
         for (c in smsContacts) {
             if (c.normalizedSuffix in spam) continue
-            if (!c.hasOwnerReply &&
-                !c.lastSent &&
-                c.lastDateMs >= sevenDayWindowStart
-            ) {
+            // 사장님 의도: 마지막 메시지가 고객 수신이면 미확인. 이전에 답장 보낸 적은 무관.
+            if (!c.lastSent && c.lastDateMs >= sevenDayWindowStart) {
                 result += c.normalizedSuffix
             }
         }
