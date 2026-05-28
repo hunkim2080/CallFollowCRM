@@ -155,15 +155,28 @@ class ChatViewModel(
 
     // 표시용 effective suggestions:
     //  - 가장 최신 메시지가 고객 수신 메시지여야 함 (사장님이 마지막 발신 = 추천 숨김)
-    //  - suggestions 의 basedOnReceivedAtMs 가 그 메시지보다 오래되지 않아야 함 (stale 차단)
+    //  - 2026-05-28 사장님 통점 fix: 기존 stale 차단 (basedOnReceivedAtMs < latest.dateMs) 제거.
+    //    이유: 알림에서 본 답변이 ChatScreen 진입 시 사라짐. "왜 사라지냐" 일관성 통점.
+    //    대안: stale 여부를 별도 [suggestionsAreStale] 로 노출 → ChatScreen 에서 "📨 새 메시지 도착,
+    //    ↻ 갱신" 안내. 사장님이 보고 직접 ↻ 결정 (자동 호출 X = 사장님 명시 의도 존중).
     val effectiveSuggestions: StateFlow<ReplySuggestions?> =
         combine(_suggestions, _messages) { sug, msgs ->
             val latest = msgs.firstOrNull() ?: return@combine null
             if (latest.sent) return@combine null
-            if (sug == null) return@combine null
-            if (sug.basedOnReceivedAtMs < latest.dateMs) return@combine null
             sug
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /**
+     * 답변 추천이 stale 인지 — 마지막 고객 메시지 시각보다 추천이 더 오래된 경우.
+     * UI 는 chip 자체는 그대로 보여주되 작은 인디케이터로 "📨 새 메시지 도착" 안내.
+     */
+    val suggestionsAreStale: StateFlow<Boolean> =
+        combine(_suggestions, _messages) { sug, msgs ->
+            val latest = msgs.firstOrNull() ?: return@combine false
+            if (latest.sent) return@combine false
+            if (sug == null) return@combine false
+            sug.basedOnReceivedAtMs < latest.dateMs
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     // ↻ 재생성 진행 중. ChatScreen 이 ↻ 버튼 자리 로딩 인디케이터에 사용.
     private val _suggestionsLoading = MutableStateFlow(false)

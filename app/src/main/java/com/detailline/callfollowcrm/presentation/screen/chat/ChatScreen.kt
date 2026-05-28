@@ -152,6 +152,7 @@ fun ChatScreen(
     val polishing by viewModel.aiPolishing.collectAsState()
     val isSending by viewModel.isSending.collectAsState()
     val suggestion by viewModel.effectiveSuggestions.collectAsState()
+    val suggestionsStale by viewModel.suggestionsAreStale.collectAsState()
     val suggestionsLoading by viewModel.suggestionsLoading.collectAsState()
     // 별표된 메시지 식별 키 set — ChatBubble 의 isStarred 여부 빠르게 판정
     val starredKeys = remember(starred) {
@@ -547,6 +548,7 @@ fun ChatScreen(
                     suggestion = suggestion,
                     loading = suggestionsLoading,
                     expanded = suggestionsExpanded,
+                    isStale = suggestionsStale,
                     onToggleExpand = { suggestionsExpanded = !suggestionsExpanded },
                     onPickSuggestion = { picked ->
                         input = picked
@@ -1030,6 +1032,7 @@ private fun SuggestionArea(
     suggestion: ReplySuggestions?,
     loading: Boolean,
     expanded: Boolean,
+    isStale: Boolean,
     onToggleExpand: () -> Unit,
     onPickSuggestion: (String) -> Unit,
     onRegenerate: () -> Unit
@@ -1083,6 +1086,17 @@ private fun SuggestionArea(
                     )
                 }
             }
+        }
+        // stale 안내 — 새 메시지 도착했으나 추천은 옛 메시지 기준 (2026-05-28).
+        //   chip 은 그대로 보임. 사장님이 보고 직접 ↻ 누를지 옛 답변 보낼지 결정.
+        if (isStale && hasSuggestions && expanded) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "📨 새 메시지가 왔어요 — ↻ 누르면 새 답변 받아요",
+                color = TossTextSecondary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium
+            )
         }
         // 칩 영역 — expanded 일 때만 표시
         if (expanded) {
