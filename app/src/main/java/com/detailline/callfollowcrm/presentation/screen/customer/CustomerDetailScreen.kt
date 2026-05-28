@@ -1298,106 +1298,216 @@ private fun PaymentRow(
     onAmountChange: (Long?) -> Unit,
     onPaidAtChange: (Long) -> Unit
 ) {
-    val initialAmountText = remember(amount) { amount?.toString().orEmpty() }
-    var amountText by remember(amount) { mutableStateOf(initialAmountText) }
-    val paid = paidAt != null
+    // 2026-05-28 UI 개편 (사장님 "초보 기획자 느낌" 보고):
+    //   4가지 상태 시각 분리 + 인플레이스 펼침. 빈 상태 = 큰 액션 1개, 완료 상태 = ✅ 자랑.
+    //   상태:
+    //     EMPTY    : amount == null && paidAt == null         → [💸 받았어요] 버튼 + [건너뛰기] 링크
+    //     PROMISED : amount > 0 && paidAt == null              → 💵 약속됨 + [받음 확정] / [수정] / [지움]
+    //     RECEIVED : amount > 0 && paidAt != null              → ✅ 큰 금액 + 날짜 + [수정]
+    //     SKIPPED  : amount == 0 && paidAt != null             → 🚫 안 받는 거래 + [되돌리기]
+    //   편집 모드는 AnimatedVisibility 로 그 자리에 펼침 — 다이얼로그 X.
+    val state = when {
+        paidAt != null && amount == 0L -> PaymentState.SKIPPED
+        paidAt != null -> PaymentState.RECEIVED
+        amount != null && amount > 0L -> PaymentState.PROMISED
+        else -> PaymentState.EMPTY
+    }
+    var editing by remember(amount, paidAt) { mutableStateOf(false) }
     var datePickerOpen by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        // 1행 — 라벨 + 받음 체크
-        androidx.compose.foundation.layout.Row(
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-        ) {
-            Text(
-                label,
-                style = MaterialTheme.typography.bodyMedium,
-                color = TossTextPrimary,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(1f)
-            )
-            androidx.compose.material3.Checkbox(
-                checked = paid,
-                onCheckedChange = { onPaidChange(it) },
-                colors = androidx.compose.material3.CheckboxDefaults.colors(
-                    checkedColor = com.detailline.callfollowcrm.presentation.theme.TossSuccess,
-                    uncheckedColor = TossDivider
-                )
-            )
-            Text(
-                if (paid) "받음" else "안 받음",
-                style = MaterialTheme.typography.labelMedium,
-                color = if (paid) com.detailline.callfollowcrm.presentation.theme.TossSuccess else TossTextTertiary,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-
-        Spacer(Modifier.height(6.dp))
-
-        // 2행 — 금액 입력 (천단위 콤마 visualtransform)
-        OutlinedTextField(
-            value = amountText,
-            onValueChange = { raw ->
-                val digits = raw.filter { it.isDigit() }.take(10)
-                amountText = digits
-                onAmountChange(digits.toLongOrNull())
-            },
-            placeholder = { Text("금액 (원)", color = TossTextTertiary, fontSize = 13.sp) },
-            singleLine = true,
-            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
-            ),
-            visualTransformation = ThousandsSeparatorTransformation,
-            modifier = Modifier.fillMaxWidth(),
-            colors = tossFieldColors(),
-            textStyle = TextStyle(fontSize = 15.sp, color = TossTextPrimary, fontWeight = FontWeight.Medium)
+        // 라벨 — 모든 상태 공통
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = TossTextPrimary,
+            fontWeight = FontWeight.SemiBold
         )
+        Spacer(Modifier.height(8.dp))
 
-        Spacer(Modifier.height(6.dp))
-
-        // 3행 — 단위 칩 가산 + 지움
-        androidx.compose.foundation.layout.Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.fillMaxWidth()
+        // 상태별 표시 — 편집 중이 아닐 때만
+        androidx.compose.animation.AnimatedVisibility(
+            visible = !editing,
+            enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut()
         ) {
-            AmountChip("+1만") { addToAmount(10_000L, amountText) { newText -> amountText = newText; onAmountChange(newText.toLongOrNull()) } }
-            AmountChip("+5만") { addToAmount(50_000L, amountText) { newText -> amountText = newText; onAmountChange(newText.toLongOrNull()) } }
-            AmountChip("+10만") { addToAmount(100_000L, amountText) { newText -> amountText = newText; onAmountChange(newText.toLongOrNull()) } }
-            AmountChip("+100만") { addToAmount(1_000_000L, amountText) { newText -> amountText = newText; onAmountChange(newText.toLongOrNull()) } }
-            Spacer(Modifier.weight(1f))
-            AmountChip("지움", danger = true) {
-                amountText = ""
-                onAmountChange(null)
+            Column {
+                when (state) {
+                    PaymentState.EMPTY -> {
+                        // 빈 상태 — 큰 액션 1개. "받았어요" 가 메인. 안 받는 거래면 회색 링크.
+                        androidx.compose.foundation.layout.Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                                .background(com.detailline.callfollowcrm.presentation.theme.TossBlueSoft)
+                                .clickable { editing = true }
+                                .padding(vertical = 14.dp),
+                            contentAlignment = androidx.compose.ui.Alignment.Center
+                        ) {
+                            Text(
+                                "💸 입금 받았어요",
+                                color = TossBlue,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 15.sp
+                            )
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        androidx.compose.foundation.layout.Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            androidx.compose.material3.TextButton(
+                                onClick = {
+                                    // SKIPPED 처리: amount=0 + paidAt=now. "안 받기로 한 거래" 의 영구 표현.
+                                    onAmountChange(0L)
+                                    onPaidChange(true)
+                                }
+                            ) {
+                                Text(
+                                    "이 거래는 $label 없음",
+                                    color = TossTextTertiary,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                    }
+                    PaymentState.PROMISED -> {
+                        // 금액만 정해진 상태 — "약속됨". 받은 즉시 [확정] 으로 RECEIVED 전환.
+                        androidx.compose.foundation.layout.Row(
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "💵 약속됨",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = TossTextSecondary
+                                )
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    "₩${formatThousands(amount ?: 0L)}",
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    color = TossTextPrimary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            androidx.compose.foundation.layout.Box(
+                                modifier = Modifier
+                                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+                                    .background(com.detailline.callfollowcrm.presentation.theme.TossSuccess)
+                                    .clickable { onPaidChange(true) }
+                                    .padding(horizontal = 14.dp, vertical = 10.dp)
+                            ) {
+                                Text(
+                                    "✓ 받음 확정",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        androidx.compose.foundation.layout.Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            androidx.compose.material3.TextButton(onClick = { editing = true }) {
+                                Text("금액 수정", color = TossTextSecondary, fontSize = 12.sp)
+                            }
+                            androidx.compose.material3.TextButton(
+                                onClick = { onAmountChange(null); onPaidChange(false) }
+                            ) {
+                                Text("지움", color = TossTextTertiary, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                    PaymentState.RECEIVED -> {
+                        // 완료 — ✅ 큰 금액 + 날짜 자랑. 수정 작게.
+                        androidx.compose.foundation.layout.Row(
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            Text("✅", fontSize = 22.sp)
+                            Spacer(Modifier.width(8.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "₩${formatThousands(amount ?: 0L)}",
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    color = TossTextPrimary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(Modifier.height(2.dp))
+                                androidx.compose.foundation.layout.Row(
+                                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .clickable { datePickerOpen = true }
+                                        .padding(vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        "📅 ${paidAt?.let { DateTimeUtils.formatKoreanDate(it) } ?: ""}",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = com.detailline.callfollowcrm.presentation.theme.TossSuccess,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        "탭해서 수정",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TossTextTertiary
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(2.dp))
+                        androidx.compose.foundation.layout.Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            androidx.compose.material3.TextButton(onClick = { editing = true }) {
+                                Text("금액 수정", color = TossTextSecondary, fontSize = 12.sp)
+                            }
+                            androidx.compose.material3.TextButton(
+                                onClick = { onAmountChange(null); onPaidChange(false) }
+                            ) {
+                                Text("지움", color = TossTextTertiary, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                    PaymentState.SKIPPED -> {
+                        // 안 받기로 한 거래 — 회색 처리. 되돌리기.
+                        androidx.compose.foundation.layout.Row(
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            Text("🚫", fontSize = 18.sp)
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "이 거래엔 $label 없음",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TossTextSecondary,
+                                modifier = Modifier.weight(1f)
+                            )
+                            androidx.compose.material3.TextButton(
+                                onClick = { onAmountChange(null); onPaidChange(false) }
+                            ) {
+                                Text("되돌리기", color = TossBlue, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
             }
         }
 
-        // 4행 — 받은 날짜 (paid 상태에서만). 탭 → DatePicker
-        if (paidAt != null) {
-            Spacer(Modifier.height(8.dp))
-            androidx.compose.foundation.layout.Row(
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                modifier = Modifier
-                    .clickable { datePickerOpen = true }
-                    .padding(vertical = 4.dp)
-            ) {
-                Text(
-                    "📅 받은 날짜: ${DateTimeUtils.formatKoreanDate(paidAt)}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = com.detailline.callfollowcrm.presentation.theme.TossSuccess,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    "(탭해서 수정)",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = TossTextTertiary
-                )
-            }
-        } else if (amount != null && amount > 0) {
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "금액만 정해두고 아직 안 받음",
-                style = MaterialTheme.typography.labelSmall,
-                color = TossTextTertiary
+        // 편집 모드 — 같은 자리에 입력란 + 칩 펼침
+        androidx.compose.animation.AnimatedVisibility(
+            visible = editing,
+            enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut()
+        ) {
+            PaymentInlineEditor(
+                initialAmount = amount?.takeIf { it > 0L },
+                onCancel = { editing = false },
+                onSave = { newAmount ->
+                    onAmountChange(newAmount)
+                    // EMPTY → RECEIVED: 저장 즉시 받음 처리. PROMISED 단계 거치려면 별개 흐름.
+                    if (paidAt == null) onPaidChange(true)
+                    editing = false
+                }
             )
         }
     }
@@ -1423,6 +1533,73 @@ private fun PaymentRow(
         }
     }
 }
+
+/** PaymentRow 의 4가지 상태 — 시각 분리용 enum. */
+private enum class PaymentState { EMPTY, PROMISED, RECEIVED, SKIPPED }
+
+/**
+ * 인플레이스 입력 모드 — 펼침 시 카드 안 같은 자리에 등장 (다이얼로그 X).
+ *   초기값은 기존 금액 (있으면) 시드. +1만/+5만/+10만/+100만 가산 + [취소][저장].
+ *   저장 시 trim 후 0 이상 Long. 빈 입력 = onSave(null) 안 호출 — 저장 비활성.
+ */
+@Composable
+private fun PaymentInlineEditor(
+    initialAmount: Long?,
+    onCancel: () -> Unit,
+    onSave: (Long) -> Unit
+) {
+    var amountText by androidx.compose.runtime.saveable.rememberSaveable(initialAmount) {
+        mutableStateOf(initialAmount?.toString().orEmpty())
+    }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = amountText,
+            onValueChange = { raw ->
+                amountText = raw.filter { it.isDigit() }.take(10)
+            },
+            placeholder = { Text("금액 (원)", color = TossTextTertiary, fontSize = 13.sp) },
+            singleLine = true,
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+            ),
+            visualTransformation = ThousandsSeparatorTransformation,
+            modifier = Modifier.fillMaxWidth(),
+            colors = tossFieldColors(),
+            textStyle = TextStyle(fontSize = 17.sp, color = TossTextPrimary, fontWeight = FontWeight.SemiBold)
+        )
+        Spacer(Modifier.height(8.dp))
+        androidx.compose.foundation.layout.Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            AmountChip("+1만") { addToAmount(10_000L, amountText) { amountText = it } }
+            AmountChip("+5만") { addToAmount(50_000L, amountText) { amountText = it } }
+            AmountChip("+10만") { addToAmount(100_000L, amountText) { amountText = it } }
+            AmountChip("+100만") { addToAmount(1_000_000L, amountText) { amountText = it } }
+        }
+        Spacer(Modifier.height(10.dp))
+        androidx.compose.foundation.layout.Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
+        ) {
+            androidx.compose.material3.TextButton(onClick = onCancel) {
+                Text("취소", color = TossTextSecondary)
+            }
+            androidx.compose.material3.TextButton(
+                onClick = {
+                    val n = amountText.toLongOrNull()
+                    if (n != null && n > 0L) onSave(n)
+                },
+                enabled = (amountText.toLongOrNull() ?: 0L) > 0L
+            ) {
+                Text("저장", color = TossBlue, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+/** 천단위 콤마 포맷. ViewModel/UI 양쪽 헬퍼. */
+private fun formatThousands(n: Long): String = "%,d".format(n)
 
 /** 가산 칩 — 현재 금액 텍스트에 amount 만큼 더해 새 텍스트 반환. */
 private fun addToAmount(delta: Long, current: String, set: (String) -> Unit) {
