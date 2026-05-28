@@ -118,3 +118,43 @@ SYNC.md 공책 시스템 시작. 두 Claude (안드로이드 + 서버) 가 이�
 - 다음 액션:
   - cowork: `POST /api/refine` endpoint 신규 + commit/push 후 SYNC append.
   - 사장님: 폰 검증 (1) ChatScreen 에서 [✨ 다듬기] 동작 / (2) [고객한테 제안할 날짜] 다이얼로그 닫기 버튼 보이는지 / (3) chip 보다가 [뒤로] → 재진입 시 chip 즉시 복원.
+
+## 2026-05-28 12:30 · android
+사장님 직접 검증 통점 6건 묶음 fix.
+- 변경:
+  - **현장 주소 수동 등록** (DB v15) — CustomerEntity.address 컬럼 + CustomerDetail 카드 탭 = AddressEditDialog. 자동 추출 칩 prefill, 수동 우선. 길찾기/§13 가 1순위로 활용. AddressEditDialog text 는 rememberSaveable (뒤로/회전 살아남음).
+  - **resolveAddressForPhone 의 name fallback 제거** — "김철수" 같은 인명이 네비 검색에 들어가 엉뚱한 곳 표시되는 위험 차단. 토스트로 등록 동선 안내.
+  - **미확인 KPI 정의 변경** — `!hasOwnerReply` 조건 제거. lastSent=false (마지막이 고객 메시지) + 7일 이내 = 미확인. **답장한 적 있는 phone 도 그 후 새 메시지가 오면 다시 미확인** (사장님 의도). 부재중 부분은 그대로.
+  - **입금 카드 UI 재설계** — 4상태 (EMPTY/PROMISED/RECEIVED/SKIPPED) 시각 분리 + 인플레이스 펼침 (다이얼로그 X). EMPTY=큰 [💸 받았어요] 버튼 1개 + 작은 [건너뛰기]. RECEIVED=✅ 큰 금액 + 날짜 + 작은 [수정/지움]. SKIPPED=🚫 회색 + [되돌리기]. SKIPPED 표현 = amount=0 && paidAt!=null 컨벤션 (DB 컬럼 X).
+  - **CustomerDetail 옛 "문자" 카드 제거** — "📩 주고받은 문자" 접이식이 대화요약 아래로 올라오면서 중복.
+  - **ChatScreen composer padding 보강** — vertical 2dp → 8dp, end 2dp → 6dp, start 12dp → 14dp. 토스/카톡 톤.
+  - **DatePicker proposal 재선택 시 이전 proposal 자동 교체** — 정규식으로 `M월 d일 (E) 시공 가능하실까요...` 패턴 모두 제거 후 새 proposal append. 사장님이 친 인사말 등 다른 텍스트는 보존.
+  - **[버그 fix] SpamSwipeBox 광고 처리 → 되돌리기 시 화면 멈춤** — confirmValueChange { true } → dismiss 확정 → SwipeBox state stuck. 같은 LazyColumn key 라 composable 재사용 → 빈 칸 + "광고로 처리" 잔상. fix: false 반환. spam 처리는 markSpam 이 unconfirmedSuffixes 에서 제거 → 카드 자연 사라짐. undo = 새 SwipeBox = 정상.
+  - **✨ AI 다듬기 = Gemini 2.5 Flash + 컨텍스트 전송으로 교체** (사장님 결정):
+    - 클라이언트: `ClaudeRefineRepository` → `RemoteRefineRepository` rename. `RefineRepository.refine(input, context)` 시그니처 확장 (RefineContext = recent_messages + owner_tone_samples + customer_name + customer_memo). refineStream dead code 제거.
+    - ChatViewModel.aiPolish 가 최근 메시지 20건 + 사장님 톤 50건 + customer hint 함께 전송.
+    - 서버 endpoint 사양 (cowork 가 박을 것) — 아래 🚨 cowork 요청 참고.
+- commit: (이번 커밋들)
+- **🚨 cowork 작업 요청 update** — `POST /api/refine` endpoint:
+  - **변경된 사양**:
+    ```
+    POST /api/refine
+    Request:
+    {
+      "raw": "사장님이 친 문장",
+      "recent_messages": [ {"role":"owner|customer","body":"...","timestamp_ms":0}, ... ],
+      "owner_tone_samples": ["...", ...],
+      "customer_name": "김철수" or null,
+      "customer_memo": "..." or null
+    }
+    Response 200: { "polished": "..." }
+    ```
+  - **LLM = Gemini 2.5 Flash** (Claude 가 아님 — 사장님 결정 2026-05-28).
+    - 이유: 다듬기는 단순 작업 → Flash 가 가성비 굿. 한국어 자연스러움도 양호.
+    - API 키: Mac mini .env 또는 launchd plist 에 `GEMINI_API_KEY` 추가 필요 (사장님이 발급).
+  - **System prompt**: 사장님 톤 + 흐름 맞춤. owner_tone_samples 를 few-shot 으로 inject. recent_messages 마지막 고객 메시지가 있으면 그 흐름에 맞는 답변으로 다듬기.
+  - `log_llm_usage(endpoint="refine", model="gemini-2.5-flash", ...)` 로 카운트. Gemini 단가도 `MODEL_PRICING_USD_PER_M` 에 추가 필요.
+  - endpoint 미구현 시 현재 안드로이드 동작: Result.failure → 토스트 "AI 서버 연결 실패 — Tailscale 확인하세요".
+- 다음 액션:
+  - cowork: `POST /api/refine` (Gemini 호출 버전) endpoint 신규.
+  - 사장님: (1) Gemini API 키 발급 후 Mac mini 에 박기. (2) 폰 검증 = 미확인 KPI 동작, swipe-undo, 입금 카드 4상태, 현장 주소 등록.

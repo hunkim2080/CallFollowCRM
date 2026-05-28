@@ -2,10 +2,10 @@ package com.detailline.callfollowcrm.data
 
 import android.content.Context
 import com.detailline.callfollowcrm.ai.AiSummaryRepository
-import com.detailline.callfollowcrm.ai.ClaudeRefineRepository
 import com.detailline.callfollowcrm.ai.ConversationAiRepository
 import com.detailline.callfollowcrm.ai.NoOpAiSummaryRepository
 import com.detailline.callfollowcrm.ai.OllamaRefineRepository
+import com.detailline.callfollowcrm.ai.RemoteRefineRepository
 import com.detailline.callfollowcrm.ai.PhaseOneApiRepository
 import com.detailline.callfollowcrm.ai.RefineRepository
 import com.detailline.callfollowcrm.ai.ServerHealthMonitor
@@ -77,10 +77,10 @@ class AppContainer(context: Context) {
     val serverUploadRepository: ServerUploadRepository = NoOpServerUploadRepository()
 
     // 한국어 문장 다듬기 (✨ 버튼).
-    //   2026-05-27 사장님 결정: Ollama (gpt-oss:20b) 품질 부족 + 별개 프로세스 불안정 → Claude Sonnet 교체.
-    //   서버 endpoint `POST /api/refine` (cowork 가 박을 것) 호출.
-    //   OllamaRefineRepository 는 코드 유지 (rollback 용) — import 만 안 함.
-    val refineRepository: RefineRepository = ClaudeRefineRepository()
+    //   2026-05-28 사장님 결정: Gemini 2.5 Flash + 컨텍스트 전송 (recent_messages + tone + customer hint).
+    //   서버 endpoint `POST /api/refine` (cowork 가 박을 것) 안에서 Gemini 호출. API 키는 Mac mini 만.
+    //   OllamaRefineRepository 는 rollback 용 코드 유지.
+    val refineRepository: RefineRepository = RemoteRefineRepository()
 
     // 답변 추천 (Phase 1). 맥미니 자체 서버 (포트 8000) — RINGGO_SERVER_SPEC.md 참조.
     // SmsReceiver 가 prepare 트리거, ChatViewModel 이 fetch.

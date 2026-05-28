@@ -957,12 +957,18 @@ private fun statusColors(label: String): Pair<Color, Color> {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SpamSwipeBox(onSpam: () -> Unit, content: @Composable () -> Unit) {
+    // 2026-05-28 사장님 보고 버그 fix:
+    //   기존 confirmValueChange { true } → dismiss 확정 → SwipeBox state stuck.
+    //   unmarkSpam (undo) 후 같은 LazyColumn key 라 composable 재사용 → dismissed state 그대로 → 빈 칸 + "광고로 처리" 잔상.
+    //   해결: false 반환 → SwipeBox 는 원위치 복귀 애니. spam 처리는 onSpam → markSpam 이
+    //   unconfirmedSuffixes 에서 그 phone 을 제거 → 카드가 LazyColumn 에서 자연 사라짐.
+    //   undo 시 카드가 다시 등장 → 새 SwipeBox = 정상 state.
     val state = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
             if (value == SwipeToDismissBoxValue.EndToStart) {
                 onSpam()
-                true
-            } else false
+            }
+            false   // 항상 false — dismiss 안 시킴. 카드 제거는 데이터 흐름이 처리.
         },
         positionalThreshold = { totalDistance -> totalDistance * 0.6f }
     )

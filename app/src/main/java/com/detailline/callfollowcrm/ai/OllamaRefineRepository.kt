@@ -1,9 +1,6 @@
 package com.detailline.callfollowcrm.ai
 
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -35,16 +32,18 @@ class OllamaRefineRepository(
         .writeTimeout(10, TimeUnit.SECONDS)
         .build()
 
-    override suspend fun refine(input: String, system: String?): Result<String> =
+    override suspend fun refine(input: String, context: RefineContext): Result<String> =
         withContext(Dispatchers.IO) {
             runCatching {
+                // 2026-05-28: context 무시. Ollama 는 rollback 전용으로 코드만 유지 — 컨텍스트 활용은
+                //   RemoteRefineRepository (Gemini) 전담. 필요 시 system 안에 inject 하면 됨.
                 val payload = JSONObject().apply {
                     put("model", model)
                     put("stream", false)
                     put("messages", JSONArray().apply {
                         put(JSONObject().apply {
                             put("role", "system")
-                            put("content", system ?: DEFAULT_SYSTEM)
+                            put("content", DEFAULT_SYSTEM)
                         })
                         put(JSONObject().apply {
                             put("role", "user")
@@ -70,9 +69,6 @@ class OllamaRefineRepository(
             }
         }
 
-    override fun refineStream(input: String, system: String?): Flow<String> = flow {
-        refine(input, system).onSuccess { emit(it) }
-    }.flowOn(Dispatchers.IO)
 
     companion object {
         private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()

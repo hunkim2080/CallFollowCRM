@@ -392,7 +392,32 @@ class ChatViewModel(
         if (_aiPolishing.value) return
         _aiPolishing.value = true
         viewModelScope.launch {
-            val result = container.refineRepository.refine(rawBody)
+            // 2026-05-28 사장님 결정: ✨ 다듬기에도 컨텍스트 전송 → "사장님 톤 + 흐름 맞춤".
+            //   - recent_messages: 최근 20건 (AI chips 와 동일 규모)
+            //   - owner_tone_samples: 다른 고객들에게 보낸 SMS 50건 (톤 학습 코퍼스)
+            //   - customer: 이름 + 메모 (호칭 + 맥락)
+            //   서버 endpoint (/api/refine, cowork 작업) 가 Gemini 2.5 Flash 로 처리.
+            val history = _messages.value
+                .take(20)
+                .map { sms ->
+                    com.detailline.callfollowcrm.ai.HistoryMessage(
+                        role = if (sms.sent) "owner" else "customer",
+                        body = sms.body,
+                        timestampMs = sms.dateMs
+                    )
+                }
+                .reversed()
+            val tone = runCatching {
+                container.smsRepository.querySentMessages(limit = 50)
+            }.getOrDefault(emptyList())
+            val c = customer.value
+            val ctx = com.detailline.callfollowcrm.ai.RefineContext(
+                recentMessages = history,
+                ownerToneSamples = tone,
+                customerName = c?.name,
+                customerMemo = c?.memo?.takeIf { it.isNotBlank() }
+            )
+            val result = container.refineRepository.refine(rawBody, ctx)
             _aiPolishing.value = false
             result.fold(
                 onSuccess = { polished -> onPolished(polished) },
