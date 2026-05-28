@@ -938,6 +938,39 @@ async def usage_stats(period: str = "all") -> dict:
             (since_ms,),
         ).fetchone()
 
+        # endpoint × model 매트릭스 — 대시보드 "기능×모델" 카드 용
+        ep_model_rows = conn.execute(
+            """
+            SELECT endpoint, model,
+                   COUNT(*)                            AS calls,
+                   COALESCE(SUM(cost_krw), 0)          AS cost_krw
+            FROM llm_usage_log
+            WHERE timestamp_ms >= ?
+            GROUP BY endpoint, model
+            """,
+            (since_ms,),
+        ).fetchall()
+
+        # 일별 추이 (최근 7일) — 대시보드 mini bar chart 용
+        # KST 자정 기준 day bucket
+        seven_days_ago_ms = since_ms if period == "today" else max(
+            since_ms, int((_dt.datetime.now(_KST) - _dt.timedelta(days=6))
+                          .replace(hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000)
+        )
+        daily_rows = conn.execute(
+            """
+            SELECT
+                CAST((timestamp_ms + 9*3600*1000) / (24*3600*1000) AS INTEGER) AS day_kst,
+                COUNT(*)                                                       AS calls,
+                COALESCE(SUM(cost_krw), 0)                                     AS cost_krw
+            FROM llm_usage_log
+            WHERE timestamp_ms >= ?
+            GROUP BY day_kst
+            ORDER BY day_kst ASC
+            """,
+            (seven_days_ago_ms,),
+        ).fetchall()
+
     def _row_to_dict(r) -> dict:
         return {
             "calls":               r["calls"],
@@ -948,13 +981,35 @@ async def usage_stats(period: str = "all") -> dict:
             "cost_krw":            round(r["cost_krw"], 4),
         }
 
+    # endpoint × model 매트릭스: { endpoint: { model: {calls, cost_krw} } }
+    by_endpoint_model: dict = {}
+    for r in ep_model_rows:
+        by_endpoint_model.setdefault(r["endpoint"], {})[r["model"]] = {
+            "calls":     r["calls"],
+            "cost_krw":  round(r["cost_krw"], 4),
+        }
+
+    # 일별 추이: [{date: "YYYY-MM-DD", calls, cost_krw}, ...] KST 기준
+    daily_trend = []
+    for r in daily_rows:
+        # day_kst = KST 자정부터의 일수
+        day_ms = r["day_kst"] * 24 * 3600 * 1000 - 9 * 3600 * 1000
+        date_str = _dt.datetime.fromtimestamp(day_ms / 1000, tz=_KST).strftime("%Y-%m-%d")
+        daily_trend.append({
+            "date":      date_str,
+            "calls":     r["calls"],
+            "cost_krw":  round(r["cost_krw"], 4),
+        })
+
     return {
-        "period":      period,
-        "since_ms":    since_ms,
-        "krw_per_usd": KRW_PER_USD,
-        "by_endpoint": {r["endpoint"]: _row_to_dict(r) for r in ep_rows},
-        "by_model":    {r["model"]:    _row_to_dict(r) for r in model_rows},
-        "total":       _row_to_dict(total_row),
+        "period":            period,
+        "since_ms":          since_ms,
+        "krw_per_usd":       KRW_PER_USD,
+        "by_endpoint":       {r["endpoint"]: _row_to_dict(r) for r in ep_rows},
+        "by_model":          {r["model"]:    _row_to_dict(r) for r in model_rows},
+        "by_endpoint_model": by_endpoint_model,
+        "daily_trend":       daily_trend,
+        "total":             _row_to_dict(total_row),
     }
 
 
@@ -1101,8 +1156,10 @@ _ADMIN_DASHBOARD_HTML = r"""<!DOCTYPE html>
     </div>
     <div style="margin-top:12px;font-size:11px;color:var(--muted);line-height:1.6;">
       💡 단가 안내 (1만 토큰 ≈ 한글 약 7천 자):<br/>
-      · <b>소넷 4.6 (고급)</b> — 입력 ₩41 / 캐시 적중 시 ₩4 / 출력 ₩207 (1만 토큰 기준)<br/>
-      · <b>하이쿠 4.5 (경량)</b> — 입력 ₩14 / 캐시 적중 시 ₩1.4 / 출력 ₩69 (소넷의 1/3 가격)
+      · <b>소넷 4.6 (고급, Claude)</b> — 입력 ₩41 / 캐시 적중 ₩4 / 출력 ₩207 (1만 토큰)<br/>
+      · <b>하이쿠 4.5 (경량, Claude)</b> — 입력 ₩14 / 캐시 적중 ₩1.4 / 출력 ₩69 (소넷의 1/3)<br/>
+      · <b>제미나이 2.5 Flash (Google)</b> — 입력 ₩1.0 / 캐시 적중 ₩0.26 / 출력 ₩4.1 (소넷의 1/40, ✨ 다듬기용)<br/>
+      · <b>카카오 로컬</b> — 무료 (호출 카운트만 잡힘, 📍 주소 resolve)
     </div>
   </div>
 
@@ -1113,6 +1170,32 @@ _ADMIN_DASHBOARD_HTML = r"""<!DOCTYPE html>
       <thead><tr><th>기능</th><th class="num">호출</th><th class="num">비용 (₩)</th></tr></thead>
       <tbody id="epBody"><tr><td colspan="3" style="text-align:center;color:var(--muted);padding:12px 0">로딩 중…</td></tr></tbody>
     </table>
+  </div>
+
+  <!-- 기능 × 모델 매트릭스 (이번 달) — 어느 기능이 어느 모델 쓰나 한눈에 -->
+  <div class="card">
+    <h2>🧩 기능 × 모델 매트릭스 (이번 달)</h2>
+    <div style="overflow-x:auto;">
+      <table id="matrixTable" style="min-width:100%;font-size:12px;">
+        <thead id="matrixHead"></thead>
+        <tbody id="matrixBody"><tr><td style="text-align:center;color:var(--muted);padding:12px 0">로딩 중…</td></tr></tbody>
+      </table>
+    </div>
+    <div style="margin-top:8px;font-size:11px;color:var(--muted);">
+      셀 = 호출수 (회색은 0건). 같은 기능이 여러 모델 쓰면 hybrid 운영 중.
+    </div>
+  </div>
+
+  <!-- 최근 7일 추이 + 월말 예상 -->
+  <div class="card">
+    <h2>📈 최근 7일 추이 + 월말 예상</h2>
+    <div class="kv"><span class="k">이번 달 누적</span>
+      <span class="v"><span id="monthCostNow">—</span> · <span id="monthCallsNow">— 건</span></span></div>
+    <div class="kv"><span class="k">현재 페이스 기준 월말 예상</span>
+      <span class="v" id="monthForecast">—</span></div>
+    <div style="margin-top:10px;font-size:11px;color:var(--muted);margin-bottom:4px;">최근 7일 일별 비용 (KST)</div>
+    <svg id="trendChart" viewBox="0 0 700 100" style="width:100%;height:auto;" preserveAspectRatio="none"></svg>
+    <div id="trendLabels" style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:2px;"></div>
   </div>
 
   <!-- Rate limit / 캐시 -->
@@ -1137,16 +1220,31 @@ const EP_NAMES_KO = {
   'card-summary':          '카드 한 줄 요약',
   'conversation-summary':  '대화 상세 요약',
   'next-action-suggest':   '다음 액션 제안',
+  'refine':                '✨ 다듬기',
+  'address-resolve':       '📍 주소 resolve',
   'intent-classify':       '의도 분류',
   'style-profile-learn':   '말투 학습',
   'reply-suggest':         '답변 추천 (보조)',
 };
 
+// prefix 매칭용 — model ID prefix 별 한글명 + 설명
 const MODEL_NAMES_KO = {
-  'claude-sonnet-4-6':            { name: '소넷 4.6',  tier: '고급 — 정확도 우선' },
-  'claude-opus-4-6':              { name: '오푸스 4.6', tier: '최고급 — 매우 어려운 작업용' },
-  'claude-haiku-4-5-20251001':    { name: '하이쿠 4.5', tier: '경량 — 단순 작업 + 비용 1/3' },
+  'claude-sonnet-4-6':            { name: '소넷 4.6',         tier: '고급 — 정확도 우선 (Claude)' },
+  'claude-opus-4-6':              { name: '오푸스 4.6',        tier: '최고급 — 매우 어려운 작업용 (Claude)' },
+  'claude-haiku-4-5':             { name: '하이쿠 4.5',        tier: '경량 — 단순 작업 + 비용 1/3 (Claude)' },
+  'gemini-2.5-flash':             { name: '제미나이 2.5 Flash', tier: '경량/저가 — ✨ 다듬기 전용 (Google, Sonnet 의 1/40 비용)' },
+  'kakao-local':                  { name: '카카오 로컬',        tier: '비-LLM — 📍 주소 resolve (무료, 호출 카운트만 잡음)' },
 };
+
+// model id 가 정식 ID (예: claude-haiku-4-5-20251001) 면 prefix 매칭
+function resolveModelMeta(modelId) {
+  if (!modelId) return { name: 'unknown', tier: '' };
+  const keys = Object.keys(MODEL_NAMES_KO).sort((a, b) => b.length - a.length);
+  for (const key of keys) {
+    if (modelId.startsWith(key)) return MODEL_NAMES_KO[key];
+  }
+  return { name: modelId, tier: '(미등록 모델)' };
+}
 
 const fmt    = n => (n == null ? '—' : new Intl.NumberFormat('ko-KR').format(Math.round(n)));
 const fmtKRW = n => '₩' + fmt(n);
@@ -1183,36 +1281,42 @@ async function loadAll() {
     document.getElementById('allCalls').textContent   = fmt(allp.total.calls) + ' 건';
 
     // ─── 모델별 사용량 카드 ───
-    // 1) 서버에서 실제 호출한 모델 목록
-    const usedModels = Object.entries(month.by_model);
-    // 2) 현재 코드가 호출하도록 설정된 모델 (시스템 카드의 model 필드)
-    const configuredModel = ad.model || 'claude-sonnet-4-6';
-    // 3) 표시할 모델 집합 — 사용된 모델 + (사용 안 됐어도 'configured' 모델은 항상 한 줄 보여줌)
-    //    + 하이쿠 (미래 hybrid 대비, 0건이면 회색으로 표시)
-    const shownModelIds = new Set(usedModels.map(([id]) => id));
-    shownModelIds.add(configuredModel);
-    shownModelIds.add('claude-haiku-4-5-20251001');  // 미래 hybrid 대비 자리
-
+    // "사용 중" 판단 — 이번 달 호출수 > 0 인 모델은 모두 사용 중 (multi-model 지원)
+    // configured (사양상 default) 모델만 표시했던 옛 로직을 호출수 기반으로 변경.
+    const usedModels = Object.entries(month.by_model);  // [ [id, stats], ... ]
     const modelStats = {};
     usedModels.forEach(([id, s]) => modelStats[id] = s);
+
+    // 표시할 모델 — 사용된 모델 + (자리 마련용) hybrid 후보들
+    const shownModelIds = new Set(usedModels.map(([id]) => id));
+    shownModelIds.add('claude-sonnet-4-6');           // 기본 LLM
+    shownModelIds.add('gemini-2.5-flash');            // ✨ 다듬기
+    shownModelIds.add('claude-haiku-4-5');            // 미래 hybrid 후보
+    shownModelIds.add('kakao-local');                 // 📍 주소 resolve
 
     const sortedIds = [...shownModelIds].sort((a, b) => {
       const ca = modelStats[a]?.cost_krw || 0;
       const cb = modelStats[b]?.cost_krw || 0;
-      return cb - ca;
+      if (cb !== ca) return cb - ca;
+      // 비용 같으면 호출수 많은 순
+      return (modelStats[b]?.calls || 0) - (modelStats[a]?.calls || 0);
     });
 
     const cards = sortedIds.map(id => {
-      const meta = MODEL_NAMES_KO[id] || { name: id, tier: '' };
+      const meta = resolveModelMeta(id);
       const s = modelStats[id];
-      const empty = !s || s.calls === 0;
       const calls = s ? s.calls : 0;
       const cost  = s ? s.cost_krw : 0;
+      const empty = !s || calls === 0;
       const avg   = (s && s.calls > 0) ? (s.cost_krw / s.calls) : 0;
+      // "사용 중" badge — 이번 달 1건이라도 호출 있으면
+      const badge = empty
+        ? ' (현재 사용 안 함)'
+        : ' · <span style="color:var(--accent)">사용 중</span>';
       return `
         <div class="model-card ${empty ? 'empty' : ''}">
           <div class="model-name">
-            ${meta.name}${empty ? ' (현재 사용 안 함)' : (id === configuredModel ? ' · <span style="color:var(--accent)">사용 중</span>' : '')}
+            ${meta.name}${badge}
             <div class="model-tier">${meta.tier}</div>
           </div>
           <div class="stat"><span class="v">${fmt(calls)}</span><span class="k">호출</span></div>
@@ -1238,6 +1342,95 @@ async function loadAll() {
             <td class="num">${fmtKRW(s.cost_krw)}</td>
           </tr>
         `;
+      }).join('');
+    }
+
+    // ─── 기능 × 모델 매트릭스 ───
+    const matrixData = month.by_endpoint_model || {};
+    // 행 = endpoint (호출수 내림차순), 열 = model (호출수 내림차순)
+    const matrixEps = Object.keys(matrixData).sort((a, b) => {
+      const aSum = Object.values(matrixData[a]).reduce((acc, v) => acc + v.calls, 0);
+      const bSum = Object.values(matrixData[b]).reduce((acc, v) => acc + v.calls, 0);
+      return bSum - aSum;
+    });
+    const matrixModels = [...new Set(
+      matrixEps.flatMap(ep => Object.keys(matrixData[ep]))
+    )].sort((a, b) => {
+      const aSum = matrixEps.reduce((acc, ep) => acc + (matrixData[ep][a]?.calls || 0), 0);
+      const bSum = matrixEps.reduce((acc, ep) => acc + (matrixData[ep][b]?.calls || 0), 0);
+      return bSum - aSum;
+    });
+
+    const matrixHead = document.getElementById('matrixHead');
+    const matrixBody = document.getElementById('matrixBody');
+    if (matrixEps.length === 0 || matrixModels.length === 0) {
+      matrixHead.innerHTML = '';
+      matrixBody.innerHTML = '<tr><td style="text-align:center;color:var(--muted);padding:12px 0">이번 달 호출 없음</td></tr>';
+    } else {
+      // 헤더 row
+      matrixHead.innerHTML = `
+        <tr>
+          <th style="text-align:left;">기능 \\ 모델</th>
+          ${matrixModels.map(m => {
+            const meta = resolveModelMeta(m);
+            return `<th class="num" style="font-size:11px;padding:4px 6px;">${meta.name}</th>`;
+          }).join('')}
+        </tr>
+      `;
+      // body rows
+      matrixBody.innerHTML = matrixEps.map(ep => {
+        const epKo = EP_NAMES_KO[ep] || ep;
+        return `
+          <tr>
+            <td class="ep" style="padding:6px 4px;">${epKo}</td>
+            ${matrixModels.map(m => {
+              const cell = matrixData[ep][m];
+              const calls = cell ? cell.calls : 0;
+              const styleEmpty = calls === 0 ? 'color:var(--line);' : '';
+              return `<td class="num" style="padding:6px 6px;${styleEmpty}">${fmt(calls)}</td>`;
+            }).join('')}
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // ─── 월말 예상 + 일별 추이 ───
+    document.getElementById('monthCostNow').textContent  = fmtKRW(month.total.cost_krw);
+    document.getElementById('monthCallsNow').textContent = fmt(month.total.calls) + ' 건';
+
+    // 월말 예상 = 이번 달 누적 / 경과 일수 * 이번 달 총 일수
+    const nowDate = new Date();
+    const monthStart = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1);
+    const monthEnd = new Date(nowDate.getFullYear(), nowDate.getMonth() + 1, 0);
+    const daysElapsed = Math.max(1, Math.ceil((nowDate - monthStart) / (24 * 3600 * 1000)));
+    const daysInMonth = monthEnd.getDate();
+    const projectedCost = month.total.cost_krw / daysElapsed * daysInMonth;
+    document.getElementById('monthForecast').textContent =
+      fmtKRW(projectedCost) + ' (경과 ' + daysElapsed + '/' + daysInMonth + '일)';
+
+    // 일별 추이 SVG bar chart
+    const trend = today.daily_trend || month.daily_trend || [];
+    const chart = document.getElementById('trendChart');
+    const labels = document.getElementById('trendLabels');
+    if (trend.length === 0) {
+      chart.innerHTML = '<text x="350" y="50" text-anchor="middle" font-size="12" fill="#86868b">데이터 없음</text>';
+      labels.innerHTML = '';
+    } else {
+      const maxCost = Math.max(...trend.map(d => d.cost_krw), 1);
+      const barWidth = 700 / Math.max(7, trend.length);
+      const barGap = barWidth * 0.2;
+      chart.innerHTML = trend.map((d, i) => {
+        const h = (d.cost_krw / maxCost) * 80;
+        const x = i * barWidth + barGap / 2;
+        const y = 90 - h;
+        return `
+          <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${(barWidth - barGap).toFixed(1)}" height="${h.toFixed(1)}" fill="var(--accent)" rx="2"/>
+          <text x="${(x + (barWidth - barGap) / 2).toFixed(1)}" y="${(y - 3).toFixed(1)}" text-anchor="middle" font-size="9" fill="#1d1d1f">₩${Math.round(d.cost_krw)}</text>
+        `;
+      }).join('');
+      labels.innerHTML = trend.map(d => {
+        const dd = d.date.slice(5).replace('-', '/');  // "05/28"
+        return `<span style="flex:1;text-align:center;">${dd}</span>`;
       }).join('');
     }
 
