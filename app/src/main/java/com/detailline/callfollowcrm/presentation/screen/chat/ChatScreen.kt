@@ -835,7 +835,19 @@ fun ChatScreen(
             val ts = datePickerState.selectedDateMillis ?: return@LaunchedEffect
             val dateLabel = com.detailline.callfollowcrm.util.DateTimeUtils.formatScheduledDate(ts)
             val proposal = "$dateLabel 시공 가능하실까요? 괜찮으시면 그날로 잡아드릴게요."
-            input = if (input.isBlank()) proposal else "${input.trimEnd()}\n$proposal"
+            // 2026-05-28 사장님 보고 fix:
+            //   날짜 잘못 눌렀다가 다시 누르면 이전 제안이 그대로 남고 새 제안이 아래에 추가됨 → 두 줄 다 보임.
+            //   사장님 의도 = "잘못 누른 이전 제안은 교체". 다만 사장님이 직접 친 인사말 같은 다른 텍스트는 보존.
+            //   해결: formatScheduledDate 출력 형식과 일치하는 정규식으로 input 안의 모든 기존 proposal 제거 후 append.
+            //   - formatScheduledDate: 같은 해 = "M월 d일 (E)", 다른 해 = "yyyy년 M월 d일 (E)" → 패턴에 yyyy 옵션 포함.
+            //   - 사장님이 proposal 텍스트 직접 수정한 경우 = 정규식 안 매칭 → 그 부분 그대로 남고 새 것 append (의도 보존).
+            val proposalPattern = Regex(
+                """(\d{4}년 )?\d{1,2}월 \d{1,2}일 \([일월화수목금토]\) 시공 가능하실까요\? 괜찮으시면 그날로 잡아드릴게요\."""
+            )
+            val cleaned = input.replace(proposalPattern, "").lines()
+                .joinToString("\n") { it.trimEnd() }
+                .trimEnd('\n', ' ')
+            input = if (cleaned.isBlank()) proposal else "$cleaned\n$proposal"
             showProposalDatePicker = false
         }
         val screenHeightDp = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
