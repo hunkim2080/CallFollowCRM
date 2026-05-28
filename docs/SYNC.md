@@ -195,3 +195,23 @@ SYNC.md 공책 시스템 시작. 두 Claude (안드로이드 + 서버) 가 이�
   - cowork: `/api/refine` 박기. + (선택) prepare-reply 가 LLM 완성 후 한 번에 READY 반환 (부분 응답 시 GENERATING 유지) — 알림 3번 안 보임 근본 fix.
   - 사장님: 새 빌드 설치 → DB v15+v16 migration 자동 → Summary Cache 첫 풀스캔 (5초) → 그 후 instant 동작 확인. 메모리 [[session-next-kickoff]] 의 20개 검증 항목 시도.
   - android: 사장님 검증 피드백 받고 다음 결정 — (1) `/api/refine` 도착 시 ✨ 동작 / (2) 본질 방향성 align / (3) 차기 비즈니스 대시보드 진입.
+
+## 2026-05-28 15:50 · android
+사장님 폰 (Galaxy S9, Android 10) 새 빌드 첫 실행 crash 2건 fix. adb logcat -d -b crash 로 stack trace 잡고 둘 다 신규 코드 원인 — 같은 사장님 검증 세션에서 발견 + fix.
+
+- **crash 1: `NoClassDefFoundError: Landroid/telephony/TelephonyCallback`** (앱 시작 0초)
+  - 원인: `CallFollowCrmApplication.callStateCallback` 을 멤버 필드 (object expression) 로 박아둠. Android 10 (API 29) ART verifier 가 Application 인스턴스화 시점에 멤버 필드 type 들을 미리 resolve 시도 → TelephonyCallback (API 31+) 없음 → crash. SDK_INT 런타임 분기는 이미 too late.
+  - fix: 멤버 필드 제거 → `@RequiresApi(S)` 가 달린 `registerTelephonyCallbackS()` 함수 안의 local val 로 격리. 함수는 호출 시점에만 verify 되므로 Android 10 에선 그 클래스를 아예 안 본다. PhoneStateListener fallback 은 그대로.
+  - 회귀 방지 메모리: `reference_android_min_sdk_class_load.md` 박음.
+
+- **crash 2: `IllegalStateException: Migration didn't properly handle: sms_contacts_cache`** (DB 첫 query 시점)
+  - 원인: `SmsContactCacheEntity` 에 index 선언 없는데 `MIGRATION_15_16` SQL 은 `CREATE INDEX idx_sms_contacts_cache_lastDateMs` 박음. Room schema validator: Expected indices=[] vs Found indices=[Index{...}] → crash.
+  - fix: Entity 에 `indices = [Index("lastDateMs", name = "idx_sms_contacts_cache_lastDateMs")]` 추가. 이름까지 정확히 일치.
+  - 회귀 방지 메모리: `reference_room_entity_index_must_match_migration.md` 박음.
+
+- 변경: 서버 영향 X (전부 클라이언트). 데이터 모델 동일.
+- commit: (이번 커밋)
+- 다음 액션:
+  - cowork: 변동 없음. `/api/refine` (Gemini) 요청 그대로 대기. 사장님 결정 = endpoint 만 먼저 박고 GEMINI_API_KEY 는 나중 발급.
+  - 사장님: 폰 풀스캔 (5~30초, 17000건이라 좀 길 수 있음) 끝나면 카드 보이는지 확인. session_next_kickoff 의 20개 검증 항목 진행.
+  - android: 검증 피드백 받고 다음 — 본질/방향성 align 또는 비즈니스 대시보드 진입.

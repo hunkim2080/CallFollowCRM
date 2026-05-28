@@ -7,6 +7,7 @@ import android.os.Build
 import android.telephony.PhoneStateListener
 import android.telephony.TelephonyCallback
 import android.telephony.TelephonyManager
+import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import com.detailline.callfollowcrm.data.AppContainer
 import com.detailline.callfollowcrm.data.local.seed.DefaultPricingItems
@@ -84,15 +85,29 @@ class CallFollowCrmApplication : Application() {
 
         val tm = getSystemService(TELEPHONY_SERVICE) as? TelephonyManager ?: return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            // Android 12+ — TelephonyCallback (PhoneStateListener 는 deprecated)
-            try {
-                tm.registerTelephonyCallback(mainExecutor, callStateCallback)
-            } catch (_: SecurityException) {
-                // 일부 OEM 정책 — silent skip
-            }
+            // Android 12+ — TelephonyCallback (PhoneStateListener 는 deprecated).
+            // ⚠️ TelephonyCallback 참조/생성은 반드시 SDK_INT >= S 인 별도 함수 안에서만.
+            //   Application 클래스의 멤버 필드로 두면 Android 11 이하 ART verifier 가
+            //   Application 인스턴스화 시점에 그 클래스를 미리 resolve 하다가
+            //   NoClassDefFoundError 로 앱이 시작도 못 한다 (2026-05-28 S9/Android10 crash).
+            registerTelephonyCallbackS(tm)
         } else {
             @Suppress("DEPRECATION")
             tm.listen(phoneStateListener, PhoneStateListener.LISTEN_CALL_STATE)
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.S)
+    private fun registerTelephonyCallbackS(tm: TelephonyManager) {
+        val cb = object : TelephonyCallback(), TelephonyCallback.CallStateListener {
+            override fun onCallStateChanged(state: Int) {
+                handleCallState(state)
+            }
+        }
+        try {
+            tm.registerTelephonyCallback(mainExecutor, cb)
+        } catch (_: SecurityException) {
+            // 일부 OEM 정책 — silent skip
         }
     }
 
@@ -116,12 +131,6 @@ class CallFollowCrmApplication : Application() {
     @Suppress("DEPRECATION")
     private val phoneStateListener = object : PhoneStateListener() {
         override fun onCallStateChanged(state: Int, phoneNumber: String?) {
-            handleCallState(state)
-        }
-    }
-
-    private val callStateCallback = object : TelephonyCallback(), TelephonyCallback.CallStateListener {
-        override fun onCallStateChanged(state: Int) {
             handleCallState(state)
         }
     }

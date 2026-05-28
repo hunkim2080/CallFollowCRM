@@ -1,6 +1,7 @@
 package com.detailline.callfollowcrm.data.local.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
@@ -20,7 +21,12 @@ import androidx.room.PrimaryKey
  *
  * 이 테이블 자체는 빠른 표시 용도. 진짜 SMS 본문/이력은 시스템 provider 가 정본.
  */
-@Entity(tableName = "sms_contacts_cache")
+@Entity(
+    tableName = "sms_contacts_cache",
+    // MIGRATION_15_16 의 CREATE INDEX 와 일치해야 함. 안 그러면 Room schema validator 가
+    // "Migration didn't properly handle" 로 죽는다 (2026-05-28 S9 crash).
+    indices = [Index(value = ["lastDateMs"], name = "idx_sms_contacts_cache_lastDateMs")]
+)
 data class SmsContactCacheEntity(
     @PrimaryKey val normalizedSuffix: String,
     /** 표시용 raw phone (예: "010-1234-5678"). */
