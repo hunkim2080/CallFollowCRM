@@ -583,3 +583,22 @@ prepare-reply 응답 스키마 v2 박음. android 의 19:00 요청 100% 반영. 
   - cowork: 위 endpoint **선택** — 다음 sprint 에 박아도 OK. android 가 우선 capture 만.
   - 사장님: ChatScreen 에서 답변 chip 탭 / 수정 / 다듬기 / 무시 자연스럽게 사용. 백그라운드 capture 만, 사장님 동선 영향 0.
   - android (다음 sprint): (1) Settings 의 "💡 추천 답변 통계" 카드 — 채택률 / 평균 수정 거리 노출. (2) batch upload 로직 (서버 endpoint 박힌 후). (3) 4단계 Tone RAG 시작 — Mac mini 에 bge-m3 임베딩 모델.
+
+## 2026-05-29 18:30 · android
+**Settings "💡 추천 답변 채택률" 카드 추가** — 킬러콘텐츠 3단계 데이터를 사장님이 직접 확인. "수정 거리 0" 진화 모습 시각화 = 동기부여.
+- 변경 (안드로이드):
+  - **SettingsViewModel**: `suggestionStats` StateFlow + `suggestionStatsPeriodDays` + `loadSuggestionStats(days)`. 초기 load = 이번 주 (7일).
+  - **SuggestionStatsCard Composable** 신규 (사장님 톤 학습 카드 바로 아래 = RING-GO 정체성 일관):
+    - 상단 — 기간 chip (오늘 / 이번 주 / 이번 달) 선택 가능
+    - 채택률 — 큰 % 숫자 (Toss Blue) + "{total}건 중 {adopted}건 그대로 보냈어요"
+    - 평균 수정 거리 (EDITED 가 있을 때만) — "✏️ 수정한 답변 평균 N자 고침"
+    - 4 분포 막대 (StatsBar) — ✅ 그대로 / ✏️ 수정 / 🤷 무시 / 👋 떠남
+    - 데이터 없으면 — "아직 데이터가 없어요. 채팅 화면에서 AI 추천 답변을 사용해보세요." 안내
+  - `Surface`, `fillMaxHeight` import 추가.
+- 서버 영향 X. 카드 = 로컬 DB v17 의 suggestion_events 집계.
+- 사장님 체감: Settings 열면 "RING-GO 가 얼마나 나답게 답하는지" 한눈에. 매일 보고 싶어질 카드.
+- commit: (이번 커밋)
+- 다음 액션:
+  - cowork: 변동 없음.
+  - 사장님: 채팅 화면에서 AI 답변 사용 → Settings 열면 채택률 시각 확인. 며칠 사용 후 "수정 거리" 가 줄어들면 RING-GO 가 진화 중이라는 뜻 (Tone RAG 후).
+  - android: 다음 sprint — (a) 4단계 Tone RAG (Mac mini bge-m3 + sqlite-vec) / (b) batch upload (cowork endpoint 박힌 후) / (c) 카드의 시간 기준 정밀화 (한국 시각 자정 align).

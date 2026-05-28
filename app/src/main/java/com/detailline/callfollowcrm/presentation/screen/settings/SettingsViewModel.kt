@@ -52,6 +52,18 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     private val _usageLoading = MutableStateFlow(false)
     val usageLoading: StateFlow<Boolean> = _usageLoading.asStateFlow()
 
+    /**
+     * 2026-05-29 킬러콘텐츠 3단계 후속 — 추천 답변 채택률 통계.
+     * suggestion_events 테이블 (DB v17) 에서 기간별 집계.
+     * null = 아직 load 안 함, total=0 = 데이터 없음 (사용자가 chip 한 번도 안 봤거나 아직 안 보냄).
+     */
+    private val _suggestionStats = MutableStateFlow<com.detailline.callfollowcrm.data.repository.SuggestionEventRepository.Stats?>(null)
+    val suggestionStats: StateFlow<com.detailline.callfollowcrm.data.repository.SuggestionEventRepository.Stats?> = _suggestionStats.asStateFlow()
+
+    /** 기간 = 이번 주 (default). 한국 시각 자정 기준은 다음 sprint, 일단 millis 7일. */
+    private val _suggestionStatsPeriodDays = MutableStateFlow(7)
+    val suggestionStatsPeriodDays: StateFlow<Int> = _suggestionStatsPeriodDays.asStateFlow()
+
     init {
         viewModelScope.launch(Dispatchers.IO) {
             val n = runCatching {
@@ -61,6 +73,21 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         }
         // 설정 진입 시 자동으로 한 번 fetch — 사장님이 토큰 상황 즉시 확인.
         loadUsageStats(com.detailline.callfollowcrm.ai.UsageStatsRepository.Period.TODAY)
+        // 추천 답변 채택률 — 이번 주 default.
+        loadSuggestionStats(days = 7)
+    }
+
+    /**
+     * 추천 답변 채택률 통계 load. days=1 (오늘) / 7 (이번 주) / 30 (이번 달) 등.
+     */
+    fun loadSuggestionStats(days: Int) {
+        _suggestionStatsPeriodDays.value = days
+        viewModelScope.launch(Dispatchers.IO) {
+            val sinceMs = System.currentTimeMillis() - days * 24L * 60 * 60 * 1000
+            _suggestionStats.value = runCatching {
+                container.suggestionEventRepository.statsSince(sinceMs)
+            }.getOrNull()
+        }
     }
 
     fun loadUsageStats(period: com.detailline.callfollowcrm.ai.UsageStatsRepository.Period) {

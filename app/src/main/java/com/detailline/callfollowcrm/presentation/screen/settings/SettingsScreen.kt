@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -42,6 +43,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -164,6 +166,16 @@ fun SettingsScreen(
 
             // 2. 사장님 톤 학습 — RING-GO 정체성이라 상단 노출 (2026-05-25 사장님 결정).
             OwnerToneCard(sampleCount = toneSampleCount)
+
+            // 2.1 추천 답변 채택률 — 2026-05-29 킬러콘텐츠 3단계 후속.
+            //   "수정 거리 0" 목표를 사장님이 직접 확인. 데이터 쌓일수록 RING-GO 가 진화하는 모습 시각화.
+            val suggestionStats by viewModel.suggestionStats.collectAsState()
+            val suggestionStatsPeriodDays by viewModel.suggestionStatsPeriodDays.collectAsState()
+            SuggestionStatsCard(
+                stats = suggestionStats,
+                periodDays = suggestionStatsPeriodDays,
+                onPeriodChange = { viewModel.loadSuggestionStats(it) }
+            )
 
             // 2.5 수신 SMS 알림 — RING-GO 가 갤메시지 대체 (옵션 A, 2026-05-25)
             IncomingSmsNotifyCard(
@@ -575,6 +587,173 @@ private fun DefaultSmsAppCard(
                 )
             }
         }
+    }
+}
+
+/**
+ * 2026-05-29 킬러콘텐츠 3단계 후속 — 추천 답변 채택률 카드.
+ *
+ * 사장님이 "수정 거리 0" 향해 진화하는 모습 직접 확인. 데이터 쌓일수록 동기부여.
+ *
+ * 디자인:
+ *   상단: 기간 (오늘 / 이번 주 / 이번 달) chip 선택
+ *   채택률 % + (N건 중 M건 그대로)
+ *   평균 수정 거리
+ *   4가지 action 분포 (가로 막대)
+ *   데이터 없으면 "아직 데이터 없어요" placeholder.
+ */
+@Composable
+private fun SuggestionStatsCard(
+    stats: com.detailline.callfollowcrm.data.repository.SuggestionEventRepository.Stats?,
+    periodDays: Int,
+    onPeriodChange: (Int) -> Unit
+) {
+    TossCard {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "💡 추천 답변 채택률",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TossTextPrimary,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "사장님이 그대로 보낸 비율. 100% 에 가까울수록 추천 품질 ↑",
+                fontSize = 11.sp,
+                color = TossTextSecondary
+            )
+            Spacer(Modifier.height(10.dp))
+            // 기간 chip
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf(1 to "오늘", 7 to "이번 주", 30 to "이번 달").forEach { (days, label) ->
+                    val selected = days == periodDays
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = if (selected) TossBlue else TossGrayBg,
+                        modifier = Modifier.clickable { onPeriodChange(days) }
+                    ) {
+                        Text(
+                            label,
+                            fontSize = 11.sp,
+                            color = if (selected) Color.White else TossTextSecondary,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+
+            if (stats == null || stats.total == 0) {
+                // 데이터 없음 — 첫 사용 안내
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(TossGrayBg)
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        "아직 데이터가 없어요.\n채팅 화면에서 AI 추천 답변을 사용해보세요.",
+                        fontSize = 12.sp,
+                        color = TossTextTertiary
+                    )
+                }
+            } else {
+                // 채택률 — 큰 숫자
+                val ratePct = (stats.adoptionRate * 100).toInt()
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        "$ratePct",
+                        fontSize = 36.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TossBlue
+                    )
+                    Text(
+                        "%",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TossBlue,
+                        modifier = Modifier.padding(start = 2.dp, bottom = 6.dp)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Column(modifier = Modifier.padding(bottom = 8.dp)) {
+                        Text(
+                            "${stats.total}건 중 ${stats.adopted}건",
+                            fontSize = 12.sp,
+                            color = TossTextSecondary,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            "그대로 보냈어요",
+                            fontSize = 11.sp,
+                            color = TossTextTertiary
+                        )
+                    }
+                }
+                if (stats.edited > 0) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "✏️ 수정한 답변 평균 ${stats.averageEditDistance.toInt()}자 고침",
+                        fontSize = 11.sp,
+                        color = TossTextSecondary,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                Spacer(Modifier.height(14.dp))
+
+                // 4가지 action 분포
+                StatsBar(label = "✅ 그대로", count = stats.adopted, total = stats.total, color = TossSuccess)
+                Spacer(Modifier.height(6.dp))
+                StatsBar(label = "✏️ 수정", count = stats.edited, total = stats.total, color = TossBlue)
+                Spacer(Modifier.height(6.dp))
+                StatsBar(label = "🤷 무시", count = stats.ignored, total = stats.total, color = TossTextTertiary)
+                Spacer(Modifier.height(6.dp))
+                StatsBar(label = "👋 떠남", count = stats.dismissed, total = stats.total, color = TossTextTertiary)
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatsBar(label: String, count: Int, total: Int, color: Color) {
+    val frac = if (total <= 0) 0f else (count.toFloat() / total).coerceIn(0f, 1f)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            label,
+            fontSize = 11.sp,
+            color = TossTextSecondary,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.width(64.dp)
+        )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(10.dp)
+                .clip(RoundedCornerShape(5.dp))
+                .background(TossGrayBg)
+        ) {
+            if (frac > 0f) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(frac)
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(color)
+                )
+            }
+        }
+        Text(
+            "${count}건",
+            fontSize = 11.sp,
+            color = TossTextTertiary,
+            modifier = Modifier
+                .padding(start = 8.dp)
+                .width(40.dp)
+        )
     }
 }
 
