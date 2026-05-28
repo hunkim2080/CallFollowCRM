@@ -116,6 +116,27 @@ class SmsReceiver : BroadcastReceiver() {
         if (sender.isBlank() || combinedBody.isBlank()) return
 
         val app = context.applicationContext as? CallFollowCrmApplication ?: return
+
+        // 2026-05-28 사장님 통점 fix: 새 SMS 가 HomeScreen 카드로 5초+ 늦게 들어옴.
+        //   원인: observeContacts 풀스캔 (scanLimit=10000) 이 17000건 환경에서 무거움.
+        //   해결: pendingNewSmsContacts 에 즉시 prepend → HomeViewModel 이 합쳐서 0ms 표시.
+        //   풀스캔 끝나면 dedup 자동 (HomeViewModel 의 combine 로직).
+        val digits = sender.filter { it.isDigit() }
+        val suffix = if (digits.length >= 8) digits.takeLast(8) else digits
+        val newContact = com.detailline.callfollowcrm.data.repository.SmsRepository.SmsContact(
+            address = sender,
+            normalizedSuffix = suffix,
+            lastBody = combinedBody,
+            lastDateMs = receivedAtMs,
+            lastSent = false,
+            hasOwnerReply = false,  // 사장님이 답장 보낼 때 자연 갱신
+            firstDateMsInScan = receivedAtMs
+        )
+        val existing = app.container.pendingNewSmsContacts.value
+        // 같은 suffix 가 이미 pending 에 있으면 최신만 유지.
+        app.container.pendingNewSmsContacts.value =
+            listOf(newContact) + existing.filter { it.normalizedSuffix != suffix }
+
         val pending = goAsync()
         scope.launch {
             try {
