@@ -212,6 +212,45 @@ def db_init() -> None:
             "CREATE INDEX IF NOT EXISTS idx_subscribers_active "
             "ON subscribers(churned_at_ms) WHERE churned_at_ms IS NULL"
         )
+        # §16 — Tone RAG (4단계 킬러콘텐츠) — owner_tone 메타테이블
+        # 사장님이 보낸 sent SMS 풀. RAG retrieval 의 source.
+        # 같은 device_id 안에서 text_hash 중복 INSERT 차단 (dedup).
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS owner_tone (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                device_id       TEXT NOT NULL,
+                text            TEXT NOT NULL,
+                text_hash       TEXT NOT NULL,
+                timestamp_ms    INTEGER NOT NULL,
+                created_at_ms   INTEGER NOT NULL,
+                UNIQUE(device_id, text_hash)
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_owner_tone_device "
+            "ON owner_tone(device_id, created_at_ms)"
+        )
+        # §17 — Customer Personas (5단계 킬러콘텐츠) — phone 별 한두 줄 요약
+        # 24h cache + 만료 시 백그라운드 Haiku 자동 생성.
+        # prepare-reply 의 [고객 정보] 영역에 inject → 사장님 톤 + 고객 맞춤 답변.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS customer_personas (
+                phone                   TEXT PRIMARY KEY,
+                persona_text            TEXT NOT NULL,
+                model_used              TEXT NOT NULL,
+                source_message_count    INTEGER NOT NULL DEFAULT 0,
+                generated_at_ms         INTEGER NOT NULL,
+                last_refresh_started_ms INTEGER
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_customer_personas_age "
+            "ON customer_personas(generated_at_ms)"
+        )
         con.commit()
 
 
@@ -800,9 +839,9 @@ _SYSTEM_BLOCK_D_FORMAT = """────── 기본 규칙 ──────
 
 
 def build_system_blocks(owner_tone_samples: list[str]) -> list[dict]:
-    """prepare-reply 의 system 을 4 block 으로 분리 — 각각 cache_control 박음.
+    """레거시 동기 버전 — RAG 없이 ownerToneSamples 만 사용.
 
-    Returns Anthropic API system 배열 그대로 (list of {type, text, cache_control?}).
+    Tone RAG 비활성화 (의존성 없음) 시 fallback. 또는 단순 호출자가 async 못 쓸 때.
     """
     pricing_block = "────── 가격표 ──────\n" + load_pricing()
     tone_block = (
@@ -810,31 +849,59 @@ def build_system_blocks(owner_tone_samples: list[str]) -> list[dict]:
         + format_owner_tone(owner_tone_samples)
     )
     return [
-        {
-            "type": "text",
-            "text": _SYSTEM_BLOCK_A_FIXED,
-            "cache_control": {"type": "ephemeral"},  # 가장 큰 hit 률 — 영원히 안 변함
-        },
-        {
-            "type": "text",
-            "text": pricing_block,
-            "cache_control": {"type": "ephemeral"},  # pricing.md 변경 시만 invalidate
-        },
-        {
-            "type": "text",
-            "text": tone_block,
-            "cache_control": {"type": "ephemeral"},  # 같은 사장님이면 hit
-        },
-        {
-            "type": "text",
-            "text": _SYSTEM_BLOCK_D_FORMAT,
-            # 마지막 block 은 cache_control 안 박아도 앞 3개가 cache hit 되면
-            # 자동으로 prefix matching 으로 같이 잡힘.
-        },
+        {"type": "text", "text": _SYSTEM_BLOCK_A_FIXED, "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": pricing_block,        "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": tone_block,           "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": _SYSTEM_BLOCK_D_FORMAT},
     ]
 
 
-def build_user_message(req: "PrepareReplyRequest") -> str:
+async def build_system_blocks_async(
+    owner_tone_samples: list[str],
+    latest_msg: str,
+    device_id: str = "owner-anon",
+) -> list[dict]:
+    """§16 — Tone RAG 통합 system 빌더.
+
+    block C (사장님 톤) 위치에 RAG 로 retrieved top-10 inject.
+    RAG 비활성화 또는 풀 비어있으면 기존 ownerToneSamples 로 fallback.
+
+    block C 가 cache_control 박혀있어서:
+      - 같은 device + 같은 query → 같은 retrieved set → cache hit
+      - 다른 query → cache miss + 새 retrieval
+    """
+    pricing_block = "────── 가격표 ──────\n" + load_pricing()
+
+    # RAG retrieve 시도 — 실패 시 None
+    rag_samples = None
+    try:
+        rag_samples = await retrieve_rag_tone_samples(device_id, latest_msg, top_k=10)
+    except Exception as e:
+        print(f"[prepare-reply] RAG retrieve 예외 (fallback to ownerToneSamples): {type(e).__name__}: {e}")
+
+    if rag_samples:
+        # RAG 적중 — 의미적으로 가까운 사장님 답변 top-10
+        tone_block = (
+            "────── 사장님 톤 샘플 (RAG: 유사 답변 top-10) ──────\n"
+            + format_owner_tone(rag_samples)
+        )
+    else:
+        # fallback — 안드가 보낸 ownerToneSamples 50건
+        tone_block = (
+            "────── 사장님 톤 샘플 (모방 대상) ──────\n"
+            + format_owner_tone(owner_tone_samples or [])
+        )
+
+    return [
+        {"type": "text", "text": _SYSTEM_BLOCK_A_FIXED, "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": pricing_block,        "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": tone_block,           "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": _SYSTEM_BLOCK_D_FORMAT},
+    ]
+
+
+def build_user_message(req: "PrepareReplyRequest", persona_hint: Optional[str] = None) -> str:
+    """user message 빌더 — 페르소나 hint 가 있으면 [고객 정보] 영역에 inject (§17)."""
     c = req.customer
     lines: list[str] = []
     lines.append("[고객 정보]")
@@ -843,6 +910,9 @@ def build_user_message(req: "PrepareReplyRequest") -> str:
     lines.append(f"리드 온도: {c.leadHeat if (c and c.leadHeat) else '없음'}")
     deposit = "받음" if (c and c.depositPaid) else "안 받음"
     lines.append(f"계약금 입금: {deposit}")
+    if persona_hint:
+        # §17 — Haiku 가 만든 한두 줄 페르소나. 사장님이 다음 답장 만들 때 컨텍스트.
+        lines.append(f"AI 분석: {persona_hint}")
     lines.append("")
     lines.append("[최근 대화]")
     for turn in (req.recentHistory or []):
@@ -1060,8 +1130,18 @@ async def call_claude_for_suggestions_with_meta(
     system 을 4 block 으로 분리 + 각 block 에 cache_control 박아서 prompt caching
     적극 활용. 같은 사장님이 5분 내 재호출 시 ~90% cache 적중 (입력 비용 1/10).
     """
-    system_blocks = build_system_blocks(req.ownerToneSamples or [])
-    user_msg = build_user_message(req)
+    # §16 — Tone RAG 통합. block C 가 RAG retrieved 또는 ownerToneSamples fallback.
+    system_blocks = await build_system_blocks_async(
+        owner_tone_samples=req.ownerToneSamples or [],
+        latest_msg=req.latestMessage or "",
+        device_id="owner-anon",  # 사장님 1인 운영. 멀티유저 시 안드가 device_id 보낼 것.
+    )
+
+    # §17 — 페르소나 hint. 캐시된 게 있으면 user msg 의 [고객 정보] 영역에 inject.
+    # 없거나 stale 이면 백그라운드 Haiku 생성 트리거 (다음 호출부터 활용).
+    persona_ctx = _persona_ctx_from_prepare_req(req)
+    persona_hint = trigger_persona_refresh_if_needed(req.phone, persona_ctx)
+    user_msg = build_user_message(req, persona_hint=persona_hint)
 
     response = await claude_client.messages.create(
         model=CLAUDE_MODEL,
@@ -2166,6 +2246,611 @@ async def manifest() -> dict:
             {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
         ],
     }
+
+
+# ============================================================================
+# §16 — Tone RAG (4단계 킬러콘텐츠) — 사장님 sent SMS 풀에서 의미 유사한 답변 retrieval
+# ─────────────────────────────────────────────────────────────────────────────
+# 핵심:
+#   - 안드로이드가 사장님 sent SMS 들을 batch upload → 서버가 임베딩 + 저장
+#   - prepare-reply 호출 시 latestMessage 를 임베딩 → cosine top-10 retrieve
+#   - retrieved top-10 을 build_system_blocks 의 block C 위치에 inject
+#   - 효과: "사장님이 비슷한 상황에서 친 진짜 답변" 을 LLM 에 컨텍스트로 → 톤 정확도 ↑
+#
+# 의존성 (graceful degrade — 없으면 RAG 비활성화, 기존 ownerToneSamples 사용):
+#   - FlagEmbedding (BAAI/bge-m3, 1024 dim, multilingual, 한국어 강함)
+#   - sqlite-vec (vec0 virtual table, cosine 거리 KNN)
+#
+# 안드 19:30 사양:
+#   - text 5자 미만 / 500자 초과 제외 (학습 가치 낮은 자동 답장/스팸 등)
+#   - dedup: (device_id, text_hash) UNIQUE (text_hash = sha256(text))
+#   - device_id = "owner-anon" 하드코딩 (사장님 1인 운영 단계)
+# ============================================================================
+import hashlib  # noqa: E402
+
+# 임베딩 모델 — lazy load. 첫 호출 시 ~2GB download (HuggingFace cache).
+_bge_model = None
+_bge_lock: Optional[asyncio.Lock] = None  # event loop 안에서만 생성
+_bge_dim = 1024  # bge-m3 dense vector dim
+_bge_available = True  # graceful degrade flag
+
+
+def _get_bge_lock() -> asyncio.Lock:
+    global _bge_lock
+    if _bge_lock is None:
+        _bge_lock = asyncio.Lock()
+    return _bge_lock
+
+
+async def get_bge_model():
+    """bge-m3 lazy load. 실패 시 None 반환 + _bge_available=False."""
+    global _bge_model, _bge_available
+    if _bge_model is not None or not _bge_available:
+        return _bge_model
+    async with _get_bge_lock():
+        if _bge_model is not None:
+            return _bge_model
+        try:
+            # FlagEmbedding 의 BGEM3FlagModel — bge-m3 공식 wrapper
+            from FlagEmbedding import BGEM3FlagModel
+            print("[tone-rag] loading bge-m3 (첫 로딩은 1~2분 — 모델 download)...")
+            # CPU only (Mac mini 는 GPU 없음). use_fp16=False → 정확도 우선.
+            model = await asyncio.to_thread(
+                BGEM3FlagModel, "BAAI/bge-m3", use_fp16=False, device="cpu"
+            )
+            _bge_model = model
+            print("[tone-rag] bge-m3 loaded ✓")
+        except Exception as e:
+            _bge_available = False
+            print(f"[tone-rag] bge-m3 load 실패 (RAG 비활성화): {type(e).__name__}: {e}")
+            return None
+    return _bge_model
+
+
+async def encode_texts_async(texts: list[str]) -> Optional[list[list[float]]]:
+    """texts 를 bge-m3 dense vector list 로 encode. 실패 시 None."""
+    model = await get_bge_model()
+    if model is None:
+        return None
+    try:
+        # BGEM3FlagModel.encode 는 {"dense_vecs": np.array, ...} 반환
+        result = await asyncio.to_thread(
+            model.encode, texts, batch_size=16, max_length=512, return_dense=True
+        )
+        vecs = result.get("dense_vecs") if isinstance(result, dict) else result
+        if vecs is None:
+            return None
+        # numpy → list[list[float]]
+        return [list(map(float, v)) for v in vecs]
+    except Exception as e:
+        print(f"[tone-rag] encode 실패: {type(e).__name__}: {e}")
+        return None
+
+
+# sqlite-vec — lazy load
+_vec_available = True
+
+
+def _vec_init_for_conn(conn: sqlite3.Connection) -> bool:
+    """connection 에 sqlite-vec extension 로딩. 성공 시 True."""
+    global _vec_available
+    if not _vec_available:
+        return False
+    try:
+        import sqlite_vec
+        conn.enable_load_extension(True)
+        sqlite_vec.load(conn)
+        conn.enable_load_extension(False)
+        return True
+    except Exception as e:
+        _vec_available = False
+        print(f"[tone-rag] sqlite-vec load 실패 (RAG 비활성화): {type(e).__name__}: {e}")
+        return False
+
+
+def _ensure_vec_table() -> bool:
+    """sqlite-vec virtual table 생성 (한 번만). 성공 시 True."""
+    global _vec_available
+    if not _vec_available:
+        return False
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        try:
+            if not _vec_init_for_conn(conn):
+                return False
+            conn.execute(
+                f"""
+                CREATE VIRTUAL TABLE IF NOT EXISTS owner_tone_vec USING vec0(
+                    embedding float[{_bge_dim}]
+                )
+                """
+            )
+            conn.commit()
+            return True
+        finally:
+            conn.close()
+    except Exception as e:
+        _vec_available = False
+        print(f"[tone-rag] vec0 virtual table 생성 실패 (RAG 비활성화): {type(e).__name__}: {e}")
+        return False
+
+
+def _text_hash(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _vec_to_blob(vec: list[float]) -> bytes:
+    """list[float] → bytes (sqlite-vec 의 float32 blob 포맷)."""
+    import struct
+    return struct.pack(f"{len(vec)}f", *vec)
+
+
+def _filter_tone_text(text: str) -> Optional[str]:
+    """학습 가치 있는 텍스트만 통과. 안드 사양: 5자 미만 / 500자 초과 제외."""
+    if not text:
+        return None
+    t = text.strip()
+    if len(t) < 5 or len(t) > 500:
+        return None
+    return t
+
+
+def count_owner_tone_pool(device_id: str) -> int:
+    with db_conn() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS c FROM owner_tone WHERE device_id=?",
+            (device_id,),
+        ).fetchone()
+    return row["c"] if row else 0
+
+
+async def retrieve_rag_tone_samples(
+    device_id: str, query_text: str, top_k: int = 10
+) -> Optional[list[str]]:
+    """latest_msg 를 bge-m3 로 임베딩 + cosine KNN top-k retrieve.
+
+    None 반환 = RAG 비활성화 (의존성 없음 / 모델 load 실패 / pool 비어있음 등).
+    이 경우 caller 가 기존 ownerToneSamples 로 fallback.
+    """
+    if not _bge_available or not _vec_available:
+        return None
+    if not query_text or count_owner_tone_pool(device_id) == 0:
+        return None
+
+    # 1) query 임베딩
+    vecs = await encode_texts_async([query_text])
+    if not vecs:
+        return None
+    query_blob = _vec_to_blob(vecs[0])
+
+    # 2) sqlite-vec KNN — vec0 의 MATCH 연산자
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        try:
+            if not _vec_init_for_conn(conn):
+                return None
+            conn.row_factory = sqlite3.Row
+            # MATCH KNN → rowid 받음 → owner_tone 메타테이블 JOIN
+            rows = conn.execute(
+                """
+                SELECT t.text, v.distance
+                FROM owner_tone_vec v
+                JOIN owner_tone t ON t.id = v.rowid
+                WHERE v.embedding MATCH ?
+                  AND v.k = ?
+                  AND t.device_id = ?
+                ORDER BY v.distance ASC
+                """,
+                (query_blob, top_k * 3, device_id),  # device 필터 후 top_k 채우려 여유 retrieve
+            ).fetchall()
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[tone-rag] KNN retrieve 실패: {type(e).__name__}: {e}")
+        return None
+
+    # 3) top_k 추출 + dedup (혹시 같은 text 가 vec table 에 중복 박혔어도 unique)
+    seen: set[str] = set()
+    out: list[str] = []
+    for r in rows:
+        t = r["text"]
+        if t in seen:
+            continue
+        seen.add(t)
+        out.append(t)
+        if len(out) >= top_k:
+            break
+    return out if out else None
+
+
+class ToneUploadMessage(BaseModel):
+    text: str
+    timestamp_ms: int = 0
+
+
+class ToneBatchUploadRequest(BaseModel):
+    device_id: str = "owner-anon"
+    messages: list[ToneUploadMessage] = Field(default_factory=list)
+
+
+@app.post("/api/owner-tone/batch-upload")
+async def owner_tone_batch_upload(req: ToneBatchUploadRequest) -> dict:
+    """§16 — 사장님 sent SMS 풀 batch upload.
+
+    Request:
+      {device_id: "owner-anon", messages: [{text, timestamp_ms}, ...]}
+
+    처리:
+      1. 5자 미만 / 500자 초과 / 빈 텍스트 제외
+      2. 동일 (device_id, text_hash) 중복 SKIP
+      3. 새 text 들 batch embedding (bge-m3)
+      4. INSERT owner_tone + owner_tone_vec 트랜잭션
+      5. 전체 풀 count 반환
+
+    Response:
+      {received, stored, total_in_pool, embeddings_available: bool}
+    """
+    device_id = (req.device_id or "owner-anon").strip()
+
+    # 0) 필터링 + dedup 후보 추출
+    filtered: list[ToneUploadMessage] = []
+    for m in (req.messages or []):
+        t = _filter_tone_text(m.text)
+        if t is not None:
+            filtered.append(ToneUploadMessage(text=t, timestamp_ms=m.timestamp_ms))
+
+    received = len(req.messages or [])
+
+    if not filtered:
+        return {
+            "received":              received,
+            "stored":                0,
+            "total_in_pool":         count_owner_tone_pool(device_id),
+            "embeddings_available":  _bge_available and _vec_available,
+        }
+
+    # 1) 이미 있는 hash 조회 (dedup)
+    hashes = [_text_hash(m.text) for m in filtered]
+    with db_conn() as conn:
+        existing_hashes: set[str] = set()
+        # SQLite IN 절 chunked (변수 한도 999)
+        for i in range(0, len(hashes), 500):
+            chunk = hashes[i:i + 500]
+            placeholders = ",".join("?" * len(chunk))
+            rows = conn.execute(
+                f"SELECT text_hash FROM owner_tone WHERE device_id=? AND text_hash IN ({placeholders})",
+                [device_id, *chunk],
+            ).fetchall()
+            existing_hashes.update(r["text_hash"] for r in rows)
+
+    new_msgs: list[tuple[str, str, int]] = []
+    for m, h in zip(filtered, hashes):
+        if h not in existing_hashes:
+            new_msgs.append((m.text, h, m.timestamp_ms))
+
+    if not new_msgs:
+        return {
+            "received":              received,
+            "stored":                0,
+            "total_in_pool":         count_owner_tone_pool(device_id),
+            "embeddings_available":  _bge_available and _vec_available,
+        }
+
+    # 2) 새 text 들 batch embedding
+    texts = [t[0] for t in new_msgs]
+    embeddings = await encode_texts_async(texts)
+    embeddings_available = _bge_available and _vec_available and (embeddings is not None)
+
+    # 3) INSERT 트랜잭션 — vec 가용 시만 vec table 도 같이
+    now = _now_ms()
+    stored = 0
+    try:
+        vec_ok = embeddings_available and _ensure_vec_table()
+        conn = sqlite3.connect(DB_PATH)
+        try:
+            if vec_ok:
+                _vec_init_for_conn(conn)
+            conn.execute("BEGIN")
+            for idx, (text, h, ts) in enumerate(new_msgs):
+                try:
+                    cur = conn.execute(
+                        """
+                        INSERT INTO owner_tone
+                            (device_id, text, text_hash, timestamp_ms, created_at_ms)
+                        VALUES (?, ?, ?, ?, ?)
+                        """,
+                        (device_id, text, h, ts, now),
+                    )
+                    rowid = cur.lastrowid
+                    if vec_ok and embeddings is not None:
+                        conn.execute(
+                            "INSERT INTO owner_tone_vec (rowid, embedding) VALUES (?, ?)",
+                            (rowid, _vec_to_blob(embeddings[idx])),
+                        )
+                    stored += 1
+                except sqlite3.IntegrityError:
+                    # 동시성 race — 다른 호출이 먼저 INSERT (UNIQUE constraint)
+                    pass
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[tone-rag] batch-upload INSERT 실패: {type(e).__name__}: {e}")
+
+    return {
+        "received":              received,
+        "stored":                stored,
+        "total_in_pool":         count_owner_tone_pool(device_id),
+        "embeddings_available":  embeddings_available,
+    }
+
+
+@app.get("/api/owner-tone/pool-stats")
+async def owner_tone_pool_stats(device_id: str = "owner-anon") -> dict:
+    """풀 통계 (안드 Settings 카드의 카운트 표시용)."""
+    return {
+        "device_id":            device_id,
+        "total_in_pool":        count_owner_tone_pool(device_id),
+        "embeddings_available": _bge_available and _vec_available,
+    }
+
+
+# ============================================================================
+# §17 — Customer Personas (5단계 킬러콘텐츠)
+# ─────────────────────────────────────────────────────────────────────────────
+# phone 별 한두 줄 요약 ("이 고객은 ...") 을 Haiku 로 자동 생성 + 24h cache.
+# prepare-reply 호출 시 build_user_message 의 [고객 정보] 영역에 inject.
+# stale (24h 지남) 시 백그라운드 refresh — 사장님 요청 차단 X.
+# 사장님이 명시한 사양 그대로:
+#   - customer_personas 테이블 + 24h cache + Haiku 자동 생성
+#   - GET /api/customer-persona/{phone}
+#   - prepare-reply prompt 의 customer hint 영역에 페르소나 inject
+# ============================================================================
+
+PERSONA_CACHE_TTL_MS = 24 * 60 * 60 * 1000   # 24h
+PERSONA_MIN_MESSAGES = 3                      # 메시지 3건 미만이면 페르소나 생성 안 함
+PERSONA_GENERATION_TIMEOUT = 60.0
+PERSONA_MAX_TOKENS = 200                      # 한두 줄 출력이라 짧게
+
+# 백그라운드 페르소나 생성 태스크 — phone 당 1개 (중복 방지)
+_persona_inflight: dict[str, asyncio.Task] = {}
+
+
+PERSONA_SYSTEM_PROMPT = """너는 줄눈/타일 시공 사장님의 비서다. 주어진 고객과의 대화·메모·통화 기록을 보고
+"이 고객은 누구이고 어떤 상태인가" 를 한두 문장으로 요약한다.
+
+규칙:
+- 정보 우선순위: 거주지/시공 부위 → 시공 관심도 → 현재 단계(문의/견적/예약/시공/완료) → 특이사항(예산 민감/타사 비교/긴급 등)
+- 명시되지 않은 정보 추측 X
+- 가격·날짜·시간은 대화에 명시된 것만
+- 너무 일반적 형용사 ("친절하다", "좋은 분") X — 구체적 사실만
+- 사장님이 다음 답장 만들 때 도움이 되는 "한 줄 요약" 이어야 함
+
+답 형식 — 반드시 지켜라:
+- 정확히 1~2 문장
+- "이 고객은 ..." 로 시작
+- 출력은 다듬어진 문장만. JSON·따옴표·코드블럭·태그 절대 X
+"""
+
+
+def _persona_get_cached(phone: str) -> Optional[dict]:
+    """캐시된 페르소나 조회. stale 여부 포함 반환. 없으면 None."""
+    with db_conn() as conn:
+        row = conn.execute(
+            """
+            SELECT persona_text, model_used, source_message_count,
+                   generated_at_ms, last_refresh_started_ms
+            FROM customer_personas WHERE phone=?
+            """,
+            (phone,),
+        ).fetchone()
+    if not row:
+        return None
+    age_ms = _now_ms() - row["generated_at_ms"]
+    return {
+        "phone":                phone,
+        "persona_text":         row["persona_text"],
+        "model_used":           row["model_used"],
+        "source_message_count": row["source_message_count"],
+        "generated_at_ms":      row["generated_at_ms"],
+        "age_ms":               age_ms,
+        "stale":                age_ms > PERSONA_CACHE_TTL_MS,
+        "last_refresh_started_ms": row["last_refresh_started_ms"],
+    }
+
+
+def _persona_save(
+    phone: str, persona_text: str, model: str, source_count: int
+) -> None:
+    now = _now_ms()
+    with db_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO customer_personas
+                (phone, persona_text, model_used, source_message_count, generated_at_ms)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(phone) DO UPDATE SET
+                persona_text         = excluded.persona_text,
+                model_used           = excluded.model_used,
+                source_message_count = excluded.source_message_count,
+                generated_at_ms      = excluded.generated_at_ms,
+                last_refresh_started_ms = NULL
+            """,
+            (phone, persona_text, model, source_count, now),
+        )
+
+
+def _persona_mark_refresh_started(phone: str) -> None:
+    """백그라운드 생성 시작 마킹 — 다른 호출이 중복 생성 안 하게."""
+    with db_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO customer_personas
+                (phone, persona_text, model_used, source_message_count, generated_at_ms, last_refresh_started_ms)
+            VALUES (?, '', '', 0, 0, ?)
+            ON CONFLICT(phone) DO UPDATE SET
+                last_refresh_started_ms = excluded.last_refresh_started_ms
+            """,
+            (phone, _now_ms()),
+        )
+
+
+def _persona_build_user_input(ctx: "ConversationContext") -> Optional[str]:
+    """페르소나 생성용 user message. 메시지 너무 적으면 None (skip)."""
+    msg_count = len(ctx.recent_messages or [])
+    if msg_count < PERSONA_MIN_MESSAGES:
+        return None
+
+    lines: list[str] = []
+    if ctx.customer_name or ctx.customer_memo or ctx.customer_status:
+        lines.append("[고객 메타 정보]")
+        if ctx.customer_name:    lines.append(f"이름: {ctx.customer_name}")
+        if ctx.customer_status:  lines.append(f"상태: {ctx.customer_status}")
+        if ctx.customer_memo:    lines.append(f"메모: {ctx.customer_memo}")
+        if ctx.lead_heat:        lines.append(f"리드 온도: {ctx.lead_heat}")
+        lines.append(f"계약금: {'받음' if ctx.deposit_paid else '안 받음'}")
+        lines.append("")
+
+    lines.append("[최근 대화 — 시간순]")
+    for m in (ctx.recent_messages or [])[-30:]:
+        role = "사장님" if m.role == "owner" else "고객"
+        lines.append(f"({role}): {(m.body or '').strip()}")
+    lines.append("")
+
+    if ctx.call_summaries:
+        lines.append("[통화 요약]")
+        for c in ctx.call_summaries[-5:]:
+            lines.append(f"({c.direction} {c.duration_sec}초): {c.summary}")
+        lines.append("")
+
+    lines.append('위 정보를 보고 이 고객을 한두 문장으로 요약하라. "이 고객은 ..." 로 시작.')
+    return "\n".join(lines)
+
+
+async def _persona_generate(phone: str, ctx: "ConversationContext") -> None:
+    """백그라운드 페르소나 생성 — Haiku 호출 + DB 저장. 실패는 silent."""
+    user_input = _persona_build_user_input(ctx)
+    if user_input is None:
+        print(f"[persona] {phone} — 메시지 {len(ctx.recent_messages or [])} 건 < {PERSONA_MIN_MESSAGES}, skip")
+        return
+
+    try:
+        response = await claude_client.messages.create(
+            model=HAIKU_MODEL,
+            max_tokens=PERSONA_MAX_TOKENS,
+            timeout=PERSONA_GENERATION_TIMEOUT,
+            system=[
+                {
+                    "type": "text",
+                    "text": PERSONA_SYSTEM_PROMPT,
+                    "cache_control": {"type": "ephemeral"},  # 사장님 1인이면 cache hit
+                }
+            ],
+            messages=[{"role": "user", "content": user_input}],
+        )
+
+        text_parts = [
+            getattr(b, "text", "") for b in response.content
+            if getattr(b, "type", None) == "text"
+        ]
+        persona_text = "".join(text_parts).strip()
+
+        # 안전망: 빈 응답 또는 너무 길면 잘라냄
+        if not persona_text:
+            print(f"[persona] {phone} — Haiku empty response, skip")
+            return
+        persona_text = persona_text[:500]
+
+        _persona_save(phone, persona_text, HAIKU_MODEL, len(ctx.recent_messages or []))
+        _log_llm_usage_from_response("customer-persona", response)
+        print(f"[persona] {phone} → {persona_text[:60]}...")
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        print(f"[persona] {phone} 생성 실패: {type(e).__name__}: {e}")
+    finally:
+        cur = _persona_inflight.pop(phone, None)
+        if cur and not cur.done():
+            cur.cancel()
+
+
+def trigger_persona_refresh_if_needed(
+    phone: str, ctx: "ConversationContext"
+) -> Optional[str]:
+    """페르소나 캐시 조회. stale 시 백그라운드 refresh 트리거.
+
+    Returns: 현재 캐시된 persona_text (stale 여부 무관) 또는 None.
+    """
+    cached = _persona_get_cached(phone)
+
+    # stale 또는 없으면 백그라운드 생성 (중복 차단)
+    need_refresh = cached is None or cached["stale"]
+    if need_refresh:
+        # 다른 호출이 이미 생성 중이면 skip
+        if phone in _persona_inflight and not _persona_inflight[phone].done():
+            pass
+        else:
+            _persona_mark_refresh_started(phone)
+            task = asyncio.create_task(_persona_generate(phone, ctx))
+            _persona_inflight[phone] = task
+
+    return cached["persona_text"] if cached and cached["persona_text"] else None
+
+
+def _persona_ctx_from_prepare_req(req: "PrepareReplyRequest") -> "ConversationContext":
+    """PrepareReplyRequest → ConversationContext 어댑터 (페르소나 생성용).
+
+    PrepareReplyRequest.recentHistory (HistoryTurn) → recent_messages (Message)
+    PrepareReplyRequest.customer (CustomerInfo) → customer_name/memo/lead_heat 등
+    latestMessage 도 customer role 로 마지막에 추가.
+    """
+    msgs: list[Message] = []
+    for turn in (req.recentHistory or []):
+        msgs.append(Message(
+            role=turn.role if turn.role in ("owner", "customer") else "customer",
+            body=turn.body or "",
+            timestamp_ms=turn.timestampMs,
+        ))
+    # 방금 받은 메시지도 마지막에 (페르소나 생성에 포함)
+    if req.latestMessage:
+        msgs.append(Message(
+            role="customer",
+            body=req.latestMessage,
+            timestamp_ms=req.latestMessageReceivedAtMs,
+        ))
+
+    c = req.customer
+    return ConversationContext(
+        phone=req.phone,
+        customer_name=(c.name if c else None),
+        customer_memo=(c.memo if c else None),
+        lead_heat=(c.leadHeat if c else None),
+        deposit_paid=bool(c.depositPaid) if c else False,
+        recent_messages=msgs,
+        call_summaries=[],
+        owner_tone_samples=[],
+    )
+
+
+@app.get("/api/customer-persona/{phone}")
+async def get_customer_persona(phone: str) -> dict:
+    """페르소나 조회 — 단순 lookup. 생성은 prepare-reply 호출 시 자동.
+
+    Response:
+      {
+        phone,
+        persona_text or null,
+        model_used,
+        source_message_count,
+        generated_at_ms,
+        age_ms,
+        stale (24h 지났나)
+      }
+    """
+    cached = _persona_get_cached(phone)
+    if cached is None or not cached.get("persona_text"):
+        return {"phone": phone, "persona_text": None, "stale": True}
+    return cached
 
 
 # ============================================================================

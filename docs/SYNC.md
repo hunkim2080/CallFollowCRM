@@ -840,3 +840,52 @@ CREATE TABLE customer_personas (
   2. "개선 후보 X개" 노랑 박스 보이면 → cowork 한테 "auto-learning analyze 돌려서 prompt 개선해줘" 시키기
   3. 적용 후 다음 주 채택률 카드의 % 가 오르는지 확인 (학습 루프 동작 검증)
 - android: **6단계 로드맵 안드 측 모두 완성**. 다음 sprint = (a) ChatScreen 페르소나 chip / (b) batch upload 활성화 (cowork 의 3단계 events endpoint 박힌 후) / (c) MMS Vision (PrepareContext 첨부 메타) / (d) 14명 onboarding UI.
+
+## 2026-05-29 21:00 · cowork (Mac mini, 서버 담당)
+§16 (Tone RAG, 4단계) + §17 (Customer Personas, 5단계) **두 sprint 통합 박음**. 안드 19:30 요청 + 사장님 명시 페르소나 사양 100% 반영.
+- 변경 (§16 — Tone RAG):
+  - `requirements.txt` 에 `FlagEmbedding`, `sqlite-vec` 추가.
+  - DB `owner_tone` 테이블 — (device_id, text, text_hash, timestamp_ms, created_at_ms) + UNIQUE(device_id, text_hash) dedup.
+  - 임베딩 모델 lazy load: `BAAI/bge-m3` (1024 dim, multilingual, CPU). `get_bge_model()` async. 실패 시 `_bge_available=False` graceful degrade.
+  - `sqlite-vec` lazy load: `_vec_init_for_conn()` + `owner_tone_vec` virtual table (`vec0(embedding float[1024])`). 실패 시 `_vec_available=False`.
+  - `_text_hash()` sha256, `_filter_tone_text()` (5~500자 사양).
+  - `POST /api/owner-tone/batch-upload` — { device_id, messages:[{text, timestamp_ms}] } → dedup → batch embedding → INSERT 트랜잭션. response: `{received, stored, total_in_pool, embeddings_available}`.
+  - `GET /api/owner-tone/pool-stats` — 안드 Settings 카드 카운트 표시용.
+  - `retrieve_rag_tone_samples()` — query 임베딩 → `vec_distance_cosine` KNN top-10 (device 필터).
+  - `build_system_blocks_async()` 신규 — block C 위치에 RAG retrieved (없으면 ownerToneSamples fallback) inject. block C 가 cache_control 박혀있어 같은 query 면 cache hit.
+  - `call_claude_for_suggestions_with_meta` 가 새 async 빌더 사용.
+- 변경 (§17 — Customer Personas):
+  - DB `customer_personas` 테이블 — (phone PK, persona_text, model_used, source_message_count, generated_at_ms, last_refresh_started_ms). 24h TTL.
+  - `PERSONA_SYSTEM_PROMPT` — Haiku 가 한두 문장으로 요약 ("이 고객은 ...").
+  - `_persona_get_cached()` / `_persona_save()` / `_persona_mark_refresh_started()`.
+  - `_persona_build_user_input()` — recent_messages (30건 cap) + customer 메타 + call_summaries.
+  - `_persona_generate()` 백그라운드 Haiku 호출 + log_llm_usage("customer-persona") 기록.
+  - `trigger_persona_refresh_if_needed()` — 캐시 조회 + stale 시 asyncio.create_task 백그라운드 refresh (phone 당 1개, 중복 차단). 사장님 prepare-reply 호출은 즉시 진행.
+  - `_persona_ctx_from_prepare_req()` 어댑터 — PrepareReplyRequest → ConversationContext.
+  - `GET /api/customer-persona/{phone}` — 캐시 lookup. 없으면 `{persona_text:null, stale:true}`.
+  - `build_user_message(req, persona_hint=...)` — [고객 정보] 영역에 "AI 분석: 이 고객은 ..." 한 줄 inject (백워드 호환).
+  - `call_claude_for_suggestions_with_meta` 가 trigger_persona_refresh_if_needed 호출 + persona_hint 적용.
+- 모델 배치 정책 (18:30 효율화 일치):
+  - 페르소나 생성 = Haiku 4.5 (단순 요약 워크로드, Sonnet 의 1/3 비용).
+  - prepare-reply 본체 = Sonnet 4.6 그대로 (사장님 톤 + 상담 전략 = 매출 직결).
+- Graceful degrade — 의존성 (FlagEmbedding/sqlite-vec) 없으면:
+  - RAG retrieve = None → ownerToneSamples 로 fallback (현재 동작 그대로)
+  - batch-upload 는 여전히 INSERT 진행 (embedding 만 skip) → 추후 의존성 install 시 재처리 가능
+- 검증 (sandbox ALL PASS, 12개 시나리오):
+  - 신규 테이블 owner_tone + customer_personas
+  - §16/§17 endpoint 등록
+  - batch-upload graceful degrade (dedup + 5~500자 필터 + INSERT)
+  - RAG 비활성화 → None → ownerToneSamples fallback
+  - 페르소나 save/load + 24h stale + GET endpoint
+  - build_user_message persona inject + 백워드 호환
+  - text hash sha256 / 텍스트 필터
+  - 회귀 — 13개 critical endpoint 모두 살아있음
+- 의존성 install (사장님 Mac mini 에서):
+  - `cd ~/ringgo-server && source venv/bin/activate && pip install FlagEmbedding sqlite-vec` (~3분 + 첫 호출 시 bge-m3 ~2GB download)
+  - 첫 사용 시 launchctl reload — stdout.log 에 "[tone-rag] loading bge-m3..." → "loaded ✓" 확인
+- commit: (사장님 push 진행 중)
+- 다음 액션:
+  - 사장님: (1) Mac mini 에 pip install. (2) 안드 [동의하고 학습 시작] 누르면 batch upload 진행. (3) 폰에서 ChatScreen 답변 받으면 stdout.log 에 "[ready]" 옆에 RAG retrieve 흔적 + 다음 호출부터 [persona] 흔적.
+  - 사장님 (1주 후): 추천 답변 채택률 카드 (안드 18:30 작업) 의 % 가 오르는지 확인 — RAG + 페르소나 효과 측정.
+  - android: cowork 완료 후 검증 — Settings 의 [동의하고 학습 시작] 버튼 동작. 다음 sprint = 6단계 (학습 루프) 시작.
+  - cowork: 다음 sprint — (a) A/B test 인프라 (Sonnet vs Haiku 다듬기 품질 + RAG on/off 효과 측정), (b) scenario 통계 endpoint (events 와 함께).

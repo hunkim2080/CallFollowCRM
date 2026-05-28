@@ -2,3 +2,10 @@ fastapi
 uvicorn
 httpx
 pydantic
+anthropic
+# §16 — Tone RAG (4단계 킬러콘텐츠)
+# bge-m3 (BAAI) 임베딩 모델 — 한국어 강함 + multilingual + 1024 dim.
+# FlagEmbedding 이 안 깔리면 sentence-transformers 로 대체 가능.
+FlagEmbedding
+# sqlite-vec — sqlite KNN 벡터 검색. vec0 virtual table 제공.
+sqlite-vec
