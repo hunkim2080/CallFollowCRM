@@ -285,3 +285,49 @@ SYNC.md 공책 시스템 시작. 두 Claude (안드로이드 + 서버) 가 이�
   - 사장님 (선택): launchd plist 도 ~/Library/LaunchAgents/ 에 설치 → 매일 아침 8시 자동 보고 활성화.
   - android: 사장님이 RING-GO 앱 안에 사용자 관리 UI 만들 시점 — POST /api/admin/subscribers/upsert 호출하면 됨.
   - cowork: 다음 sprint — (a) Cohort retention grid (M0/M1/M3/M6 잔존율), (b) A/B test 인프라 (Sonnet vs Haiku 다듬기 품질), (c) Anomaly detection 자동화 (어제 대비 +50% 알림 메일).
+
+## 2026-05-28 18:30 · cowork (Mac mini, 서버 담당)
+모델 배치 효율화 완료. 원칙: Sonnet 의 자리는 "사장님 톤이 매출 직결" 인 자리만. 나머지는 Haiku 4.5 로 내려서 ~63% 비용 절감.
+- 변경 (모델 배치):
+  - `/api/card-summary`         → **claude-haiku-4-5** (Sonnet 의 1/3 가격, 단순 한 줄 요약)
+  - `/api/conversation-summary` → **claude-haiku-4-5** (정형 요약 + enum 분류, Haiku 충분)
+  - `/api/next-action-suggest`  → **claude-haiku-4-5** (분류 워크로드)
+  - `/prepare-reply`            → **Sonnet 4.6 유지** (사장님 톤 = 매출 직결, 품질 우선)
+  - `/api/refine`               → Gemini 2.5 Flash (그대로)
+  - `/api/address-resolve`      → 카카오 (그대로)
+- 변경 (코드):
+  - `HAIKU_MODEL` 상수 추가 ("claude-haiku-4-5", alias — Anthropic API 가 정식 ID 로 자동 매핑)
+  - `call_claude_json` 에 `model` 파라미터 추가 (default = Sonnet)
+  - `_handle_summary_endpoint` 도 `model` 받음
+  - 3 endpoint 가 `model=HAIKU_MODEL` 명시
+- 변경 (prepare-reply prompt caching 강화):
+  - `build_system_blocks()` 신규 — system 을 4 block 으로 분리:
+    - A. 고정 규칙 (사장님 톤 학습 + 답변 3개 차별화) — 영원히 안 변함, cache_control
+    - B. 가격표 — pricing.md mtime 변경 시만, cache_control
+    - C. 사장님 톤 샘플 50건 — 같은 사장님이면 거의 동일, cache_control
+    - D. 답 형식 강제 — 영원히 안 변함, prefix 매칭으로 자동 hit
+  - 같은 사장님 5분 내 재호출 시 ~90% cache 적중 (입력 비용 1/10)
+- 비용 임팩트 (현 데이터 215건/월 기준):
+  - 직전: ₩4,148/월 (전부 Sonnet)
+  - 예상: ~₩1,537/월 (Haiku 전환 + caching 강화)
+  - 절감: **~₩2,615/월 (63% 절감)**
+- 검증 (sandbox ALL PASS):
+  - syntax/import clean
+  - CLAUDE_MODEL=sonnet-4-6 / HAIKU_MODEL=haiku-4-5 상수 박힘
+  - call_claude_json + _handle_summary_endpoint 둘 다 model 받음
+  - 3 summary endpoint 가 model=HAIKU_MODEL 명시
+  - build_system_blocks — 4 blocks, 그중 3 개 cache_control 박힘
+  - 각 block 의 의도 정확 (A 고정/B 가격표/C 톤/D 형식)
+  - Sonnet ₩14.49 > Haiku ₩4.83 단가 비율 1:3
+  - 회귀 — 23개 endpoint 모두 등록
+  - prepare-reply 가 build_system_blocks 사용 (multi-block + cache_control)
+- 자동 모니터링:
+  - 단가 dict 의 prefix 매칭 덕분에 by_model 응답에 모델별 비용 자동 분리
+  - 대시보드 "기능 × 모델 매트릭스" 카드에 변경분 자동 반영 (card/conversation/next-action 의 모델 column 이 sonnet → haiku 로 자동 이동)
+  - prompt cache 적중률 = /api/usage-stats by_endpoint 의 cache_read_tokens vs prompt_tokens 비율 (대시보드에 노출됨)
+- commit: (사장님 push 진행 중)
+- 다음 액션:
+  - 사장님: 한 줄 deploy → 폰에서 card-summary 호출 (메인 홈화면) → 응답 품질 체감 비교 (Sonnet 시절 vs Haiku 시절). 차이 못 느끼면 성공 — 같은 품질에 1/3 비용.
+  - 사장님 (1주 후): /api/usage-stats?period=month 확인 → 비용 그래프 ₩4k → ₩1.5k 떨어졌는지 검증.
+  - android: 변동 없음. 서버 model 만 바뀌어서 응답 형식 동일 — 클라이언트 영향 X.
+  - cowork: A/B test 인프라 (다음 sprint) — Haiku 응답 품질이 진짜 Sonnet 만큼인지 데이터로 검증. 만약 quality 떨어지면 일부 endpoint Sonnet 으로 복구.

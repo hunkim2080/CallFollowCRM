@@ -66,7 +66,8 @@ GEMINI_MAX_OUTPUT_TOKENS = 500
 # 사장님이 launchd plist EnvironmentVariables 에 ADMIN_TOKEN=<랜덤 문자열> 박아야 활성화.
 ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN")
 
-CLAUDE_MODEL = "claude-sonnet-4-6"
+CLAUDE_MODEL = "claude-sonnet-4-6"        # 매출 직결 워크로드 (prepare-reply)
+HAIKU_MODEL  = "claude-haiku-4-5"         # 단순 요약/분류 워크로드 (card/conversation/next-action). Sonnet 의 ~1/3 비용.
 CLAUDE_MAX_TOKENS = 800
 CLAUDE_TIMEOUT = 60.0  # 초. 한 호출이 60초 넘으면 끊는다.
 
@@ -600,11 +601,103 @@ def format_owner_tone(samples: list[str]) -> str:
 
 
 def build_system_prompt(owner_tone_samples: list[str]) -> str:
+    """레거시 호환용 — 단일 string. 새 코드는 build_system_blocks 권장."""
     return (
         SYSTEM_PROMPT_TEMPLATE
         .replace("__PRICING__", load_pricing())
         .replace("__OWNER_TONE_SAMPLES__", format_owner_tone(owner_tone_samples))
     )
+
+
+# ─── prompt caching 최적화 — system 을 4 block 으로 분리 ───
+# Anthropic prompt caching: 각 block 에 cache_control 박으면 breakpoint 생성.
+# 같은 block 이 5분 내 재호출 시 cache_read 단가 (입력의 1/10) 적용.
+#
+# 분리 전략:
+#   A. 고정 규칙        — 영원히 안 변함. 가장 큰 cache 적중률
+#   B. 가격표           — pricing.md mtime 변경 시만 갱신
+#   C. 사장님 톤 샘플   — 같은 사장님이면 거의 동일 (앱이 보낸 50건)
+#   D. 답 형식 강제     — 영원히 안 변함. 마지막 위치
+#
+# Anthropic 의 prompt caching breakpoint 최대 4개 — 정확히 4 block.
+_SYSTEM_BLOCK_A_FIXED = """너는 줄눈 시공 사장님이 고객 문자에 답장할 때 도와주는 비서다.
+
+────── 사장님 톤 학습 (반드시 모방할 것) ──────
+다음은 사장님이 평소 고객에게 보낸 실제 메시지들이다.
+어휘·문장 길이·반말/존댓말 비율·이모지 사용·인사 방식·문장 끝 처리를
+모방해야 한다. 절대 사장님이 안 쓸 법한 단어/문체로 답하지 말 것.
+
+────── 답변 후보 3개의 차별화 (반드시 다른 방향) ──────
+세 후보는 명확히 다른 방향성을 가진다:
+
+1번 = 짧은 답변
+- 한 문장. 즉답. 사장님이 바쁠 때 그대로 보낼 수 있어야.
+- 예: "내일 오전 10시 가능합니다."
+
+2번 = 친절한 답변
+- 두 문장. 추가 안내/배려 한 줄 더.
+- 예: "내일 오전 10시 방문드리겠습니다. 시공 시 1시간 정도 비워두시면 좋아요."
+
+3번 = 전환 유도 답변
+- 두 문장. 다음 단계로 자연스럽게 유도 (사진 요청 / 일정 확정 / 견적 안내 / 입금 안내).
+- 예: "내일 가능합니다. 정확한 견적을 위해 시공 부위 사진 한 장만 보내주실 수 있나요?"
+
+세 후보가 비슷비슷하면 실패. 사장님이 상황 따라 골라 쓸 수 있도록 다양해야 함.
+"""
+
+_SYSTEM_BLOCK_D_FORMAT = """────── 기본 규칙 ──────
+- 정확히 3개 답변을 JSON 으로 답하라.
+- 고객에게 보낼 메시지이므로 존댓말.
+- 이모지·따옴표를 임의로 새로 넣지 마라 (사장님 톤 샘플에 있으면 OK).
+- 가격·날짜·시간은 대화 또는 가격표에서만 추출. 추측하지 마라.
+- 금기어: "급하면" 계열, "싸다" 계열 → 변형 표현도 피하라.
+
+가격 문의 케이스 처리:
+- 신축/구축 미확정 → 한 후보는 "신축이세요 구축이세요?" 물어보기.
+- 타일 크기 미언급 → 한 후보는 "타일 사진 보내주시면 정확히 견적 드려요" 안내.
+- 답변 형식: 표 금지. 항목별 줄바꿈 나열 + 합계.
+- 실리콘 제거/셀프줄눈/누수 가능성 = "현장 확인 후 추가될 수 있어요" 한 문장 덧붙임.
+
+답 형식 — 반드시 지켜라:
+- 응답 첫 글자는 무조건 '{' 로 시작. 인사·설명·코드블럭·백틱 절대 X.
+- 정확히 하나의 JSON 객체만 반환. 그 외 텍스트(앞·뒤 어디든) 완전 금지.
+- 형태: {"suggestions": ["답변1", "답변2", "답변3"]}
+"""
+
+
+def build_system_blocks(owner_tone_samples: list[str]) -> list[dict]:
+    """prepare-reply 의 system 을 4 block 으로 분리 — 각각 cache_control 박음.
+
+    Returns Anthropic API system 배열 그대로 (list of {type, text, cache_control?}).
+    """
+    pricing_block = "────── 가격표 ──────\n" + load_pricing()
+    tone_block = (
+        "────── 사장님 톤 샘플 (모방 대상) ──────\n"
+        + format_owner_tone(owner_tone_samples)
+    )
+    return [
+        {
+            "type": "text",
+            "text": _SYSTEM_BLOCK_A_FIXED,
+            "cache_control": {"type": "ephemeral"},  # 가장 큰 hit 률 — 영원히 안 변함
+        },
+        {
+            "type": "text",
+            "text": pricing_block,
+            "cache_control": {"type": "ephemeral"},  # pricing.md 변경 시만 invalidate
+        },
+        {
+            "type": "text",
+            "text": tone_block,
+            "cache_control": {"type": "ephemeral"},  # 같은 사장님이면 hit
+        },
+        {
+            "type": "text",
+            "text": _SYSTEM_BLOCK_D_FORMAT,
+            # 마지막 block 은 cache_control 안 박아도 앞 3개가 cache hit 되면
+            # 자동으로 prefix matching 으로 같이 잡힘.
+        },
+    ]
 
 
 def build_user_message(req: "PrepareReplyRequest") -> str:
@@ -742,22 +835,19 @@ def _parse_suggestions(raw_text: str) -> list[str]:
 async def call_claude_for_suggestions_with_meta(
     req: PrepareReplyRequest,
 ) -> tuple[list[str], "anthropic.types.Message"]:
-    """Claude Sonnet 4.6 호출 → (suggestions 3개, raw response) 반환."""
-    system_text = build_system_prompt(req.ownerToneSamples or [])
+    """Claude Sonnet 4.6 호출 → (suggestions 3개, raw response) 반환.
+
+    system 을 4 block 으로 분리 + 각 block 에 cache_control 박아서 prompt caching
+    적극 활용. 같은 사장님이 5분 내 재호출 시 ~90% cache 적중 (입력 비용 1/10).
+    """
+    system_blocks = build_system_blocks(req.ownerToneSamples or [])
     user_msg = build_user_message(req)
 
     response = await claude_client.messages.create(
         model=CLAUDE_MODEL,
         max_tokens=CLAUDE_MAX_TOKENS,
         timeout=CLAUDE_TIMEOUT,
-        system=[
-            {
-                "type": "text",
-                "text": system_text,
-                # prompt caching — 동일 system prompt 5분 내 재호출 시 입력 비용 1/10
-                "cache_control": {"type": "ephemeral"},
-            }
-        ],
+        system=system_blocks,
         messages=[
             # Sonnet 4.6 은 assistant prefill 미지원. user 메시지로만 끝낸다.
             # JSON 강제는 시스템 프롬프트의 "응답 첫 글자는 무조건 {" 지시 + 파서가 책임.
@@ -2261,13 +2351,19 @@ def build_context_user_message(ctx: "ConversationContext") -> str:
 
 
 async def call_claude_json(
-    *, system_prompt: str, user_msg: str, max_tokens: int = 600
+    *, system_prompt: str, user_msg: str, max_tokens: int = 600,
+    model: str = CLAUDE_MODEL,
 ) -> tuple[dict, "anthropic.types.Message"]:
     """공통 Claude JSON 호출 (사양서 §6 prompt caching 적용).
+
+    `model` 파라미터 — 기본은 Sonnet (CLAUDE_MODEL). 단순 요약/분류 endpoint 는
+    HAIKU_MODEL 명시해서 비용 ~1/3 로 내림. Anthropic API 가 단축형/정식ID 둘 다
+    받음 — 우리 단가 dict 는 prefix 매칭이라 어느 쪽 박혀도 정확 계산.
+
     Returns: (parsed JSON dict, raw response).
     """
     response = await claude_client.messages.create(
-        model=CLAUDE_MODEL,
+        model=model,
         max_tokens=max_tokens,
         timeout=CLAUDE_TIMEOUT,
         system=[
@@ -2465,9 +2561,13 @@ async def _handle_summary_endpoint(
     system_template: str,
     coerce_fn,
     max_tokens: int,
+    model: str = CLAUDE_MODEL,
     extra_response_fields: Optional[dict] = None,
 ) -> dict:
-    """3개 endpoint 가 공유하는 처리 흐름: cache → rate-limit → Claude → coerce → cache set."""
+    """3개 endpoint 가 공유하는 처리 흐름: cache → rate-limit → Claude → coerce → cache set.
+
+    `model` — 기본은 Sonnet, 단순 요약/분류는 HAIKU_MODEL 권장 (비용 ~1/3).
+    """
     latest_ts = _compute_latest_msg_ts(ctx)
 
     # 1) 캐시 hit
@@ -2482,15 +2582,16 @@ async def _handle_summary_endpoint(
     except HTTPException:
         raise
 
-    # 3) Claude 호출
+    # 3) Claude 호출 (model 명시 — Haiku 등으로 비용 최적화 가능)
     system_prompt = _build_summary_system_prompt(system_template, ctx.owner_tone_samples or [])
     user_msg = build_context_user_message(ctx)
     try:
         parsed, response = await call_claude_json(
-            system_prompt=system_prompt, user_msg=user_msg, max_tokens=max_tokens
+            system_prompt=system_prompt, user_msg=user_msg, max_tokens=max_tokens,
+            model=model,
         )
     except Exception as e:
-        print(f"[{endpoint_label}] {ctx.phone} Claude 호출 실패: {type(e).__name__}: {e}")
+        print(f"[{endpoint_label}] {ctx.phone} Claude 호출 실패 (model={model}): {type(e).__name__}: {e}")
         raise HTTPException(502, f"LLM 호출 실패: {type(e).__name__}")
 
     # 4) 사용량 로그
@@ -2525,38 +2626,50 @@ async def _handle_summary_endpoint(
 
 @app.post("/api/card-summary")
 async def card_summary(ctx: ConversationContext) -> dict:
-    """HomeScreen 카드에 표시할 한 줄 요약 (15~25자)."""
+    """HomeScreen 카드에 표시할 한 줄 요약 (15~25자).
+
+    모델: Haiku 4.5 — 단순 요약 워크로드, Sonnet 대비 1/3 비용.
+    """
     return await _handle_summary_endpoint(
         ctx=ctx,
         endpoint_label="card-summary",
         system_template=CARD_SUMMARY_SYSTEM,
         coerce_fn=_coerce_card_summary,
         max_tokens=200,
+        model=HAIKU_MODEL,
         extra_response_fields={"based_on_message_count": len(ctx.recent_messages)},
     )
 
 
 @app.post("/api/conversation-summary")
 async def conversation_summary(ctx: ConversationContext) -> dict:
-    """ChatScreen 진입 시 표시할 3~5줄 상세 요약 + current_stage."""
+    """ChatScreen 진입 시 표시할 3~5줄 상세 요약 + current_stage.
+
+    모델: Haiku 4.5 — 정형 요약 + enum 분류, Haiku 면 충분.
+    """
     return await _handle_summary_endpoint(
         ctx=ctx,
         endpoint_label="conversation-summary",
         system_template=CONVERSATION_SUMMARY_SYSTEM,
         coerce_fn=_coerce_conversation_summary,
         max_tokens=600,
+        model=HAIKU_MODEL,
     )
 
 
 @app.post("/api/next-action-suggest")
 async def next_action_suggest(ctx: ConversationContext) -> dict:
-    """다음 액션 1개 + urgency."""
+    """다음 액션 1개 + urgency.
+
+    모델: Haiku 4.5 — 분류 워크로드. Sonnet 의 미세한 톤 보다 빠르고 싸게.
+    """
     return await _handle_summary_endpoint(
         ctx=ctx,
         endpoint_label="next-action-suggest",
         system_template=NEXT_ACTION_SUGGEST_SYSTEM,
         coerce_fn=_coerce_next_action,
         max_tokens=400,
+        model=HAIKU_MODEL,
     )
 
 
