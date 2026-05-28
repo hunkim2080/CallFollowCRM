@@ -2,6 +2,7 @@ package com.detailline.callfollowcrm.data
 
 import android.content.Context
 import com.detailline.callfollowcrm.ai.AiSummaryRepository
+import com.detailline.callfollowcrm.ai.ClaudeRefineRepository
 import com.detailline.callfollowcrm.ai.ConversationAiRepository
 import com.detailline.callfollowcrm.ai.NoOpAiSummaryRepository
 import com.detailline.callfollowcrm.ai.OllamaRefineRepository
@@ -64,12 +65,22 @@ class AppContainer(context: Context) {
      */
     val chatDraftStore = com.detailline.callfollowcrm.data.draft.ChatDraftStore()
 
+    /**
+     * AI 추천 답변 chips 의 phone 별 in-memory 캐시 (2026-05-28 사장님 통점).
+     *   ChatScreen 재진입 시 chips 가 잠시 사라졌다 다시 채워지는 끊김을 0ms 로 단축.
+     *   stale 차단은 ChatViewModel.effectiveSuggestions 의 기존 로직이 책임.
+     */
+    val suggestionsCacheStore = com.detailline.callfollowcrm.data.draft.SuggestionsCacheStore()
+
     // Phase 4: 인터페이스만. 실제 호출 없음.
     val aiSummaryRepository: AiSummaryRepository = NoOpAiSummaryRepository()
     val serverUploadRepository: ServerUploadRepository = NoOpServerUploadRepository()
 
-    // 한국어 문장 다듬기 (✨ 버튼). 맥미니 Ollama Tailnet 호출 — RINGGO_BACKEND_BRIEF.md 참조.
-    val refineRepository: RefineRepository = OllamaRefineRepository()
+    // 한국어 문장 다듬기 (✨ 버튼).
+    //   2026-05-27 사장님 결정: Ollama (gpt-oss:20b) 품질 부족 + 별개 프로세스 불안정 → Claude Sonnet 교체.
+    //   서버 endpoint `POST /api/refine` (cowork 가 박을 것) 호출.
+    //   OllamaRefineRepository 는 코드 유지 (rollback 용) — import 만 안 함.
+    val refineRepository: RefineRepository = ClaudeRefineRepository()
 
     // 답변 추천 (Phase 1). 맥미니 자체 서버 (포트 8000) — RINGGO_SERVER_SPEC.md 참조.
     // SmsReceiver 가 prepare 트리거, ChatViewModel 이 fetch.

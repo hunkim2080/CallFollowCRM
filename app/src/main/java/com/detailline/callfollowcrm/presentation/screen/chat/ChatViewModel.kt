@@ -140,7 +140,18 @@ class ChatViewModel(
 
     // 답변 추천 (Phase 1). 맥미니 캐시에서 가져온 마지막 ReplySuggestions.
     // ChatScreen 진입 시 loadSuggestions 로 채워짐. ↻ 누르면 regenerateSuggestions.
-    private val _suggestions = MutableStateFlow<ReplySuggestions?>(null)
+    //
+    // 초기값 = AppContainer 의 SuggestionsCacheStore 에서 phone 으로 즉시 복원 (2026-05-28).
+    //   재진입 시 chips 가 잠시 사라졌다 다시 채워지는 끊김을 0ms 로 단축.
+    //   낡은 chips 위험은 effectiveSuggestions 의 stale 차단 (basedOnReceivedAtMs < latest.dateMs) 이 처리.
+    private val _suggestions = MutableStateFlow<ReplySuggestions?>(
+        container.suggestionsCacheStore.get(phoneNumber)
+    )
+
+    // _suggestions 변경 → 자동 cache put. 다음 재진입 때 instant 복원.
+    private val cachePersistJob = viewModelScope.launch {
+        _suggestions.collect { container.suggestionsCacheStore.put(phoneNumber, it) }
+    }
 
     // 표시용 effective suggestions:
     //  - 가장 최신 메시지가 고객 수신 메시지여야 함 (사장님이 마지막 발신 = 추천 숨김)

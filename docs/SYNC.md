@@ -91,3 +91,30 @@ SYNC.md 공책 시스템 시작. 두 Claude (안드로이드 + 서버) 가 이�
 - 다음 액션:
   - 사장님: 폰 검증 (1) [📍 길찾기] 첫 탭 → 다이얼로그 → 네비 앱 선택 → 실제 launch 까지 / (2) 메시지 치다가 [뒤로] → 재진입 시 복원 / (3) CustomerDetail 의 "📩 문자" 카드 펼침/접힘.
   - 안드로이드 §13 클라이언트 hookup (AddressExtractor 의 APT_NAME_PATTERN 보강 + ChatViewModel/CustomerDetailViewModel 에서 `/api/address-resolve` 호출 → resolveAddressForPhone 에 lat/lng 반환 확장)는 사장님 §13 서버 검증 끝나면 진행.
+
+## 2026-05-28 00:30 · android
+사장님 즉시 보고 3건 묶음 fix: DatePicker 잘림 / ✨ 다듬기 작동 안 함 / AI 추천 답변 재진입 시 사라짐.
+- 변경:
+  - **ChatScreen DatePicker 잘림 재fix** (showProposalDatePicker): Material3 DatePickerDialog wrapper 가 contents+버튼 합산 사이즈를 통제 못 해 작은 폰에서 닫기 버튼 화면 밖. → 직접 `Dialog + Surface` 로 wrap, 닫기 버튼을 fixed bottom 으로 빼고 캘린더 영역만 `weight(1f, fill=false).verticalScroll` + `heightIn(max = screenHeight * 0.88f)` 강제.
+  - **✨ AI 다듬기 = Ollama → Claude 교체** (사장님 결정 [memory project_ai_polish_hookup] 의 timing).
+    - 신규 `ClaudeRefineRepository` (FastAPI `POST /api/refine` 호출)
+    - `AppContainer.refineRepository` = ClaudeRefineRepository (OllamaRefineRepository 는 코드 유지, rollback 용)
+    - 사장님 보고 원인 진단: 폰에서 작동 X. 데스크탑 Tailscale 미연결이라 직접 ping 불가. 가장 가능성 큰 원인 = Mac mini Ollama 서버 죽음 (5/27 cowork 의 launchctl 재기동 영향 가능). 근본 fix = Claude 교체로 양쪽 (불안정 + 품질) 동시 해결.
+  - **AI 추천 답변 chips 재진입 시 보존** (composer draft 와 같은 원칙): 사장님 통점 = 뒤로갔다 재진입 시 chips 가 잠시 사라졌다 다시 채워짐. → 신규 `SuggestionsCacheStore` (AppContainer in-memory Map<phone, ReplySuggestions>) + ChatViewModel.`_suggestions` 초기값 = cache get(phoneNumber) + cachePersistJob 으로 변경 시 자동 cache put. **낡은 chips 위험은 기존 `effectiveSuggestions` 의 stale 차단 (basedOnReceivedAtMs < latest.dateMs) 이 처리** — 새 메시지 들어오면 캐시된 chips 자동 hidden + 백그라운드 fetch 가 새 chips 받아 교체.
+- commit: (이번 커밋)
+- **🚨 cowork 작업 요청 (서버 영역) — `POST /api/refine` endpoint 신규**:
+  - 사양:
+    ```
+    POST /api/refine
+    Request:  { "raw": "다듬을 원문", "owner_tone_samples": [], "system": null }
+    Response (200): { "polished": "다듬어진 문장" }
+    Response (5xx 또는 빈 응답): 클라이언트가 Result.failure → "AI 서버 연결 실패" 토스트
+    ```
+  - System prompt: OllamaRefineRepository.DEFAULT_SYSTEM 참고 (줄눈 시공 사장님 톤, 원문 의미 유지, 정중한 한국어, 가격/날짜 추가 금지, 길이 비슷).
+  - 모델: claude-sonnet-4-6 (기존 사용 모델 일관성).
+  - 캐시: 같은 raw → 같은 결과 short-cache 가능 (옵션). prompt caching ON 권장.
+  - 호출 카운트: 기존 `log_llm_usage(endpoint="refine", ...)` 패턴 따르기.
+  - **endpoint 미구현 시 현재 안드로이드 동작**: `Result.failure` → 토스트 "AI 서버 연결 실패 — Tailscale 확인하세요". 사장님이 ✨ 누르면 매번 실패 토스트. cowork 작업 우선순위 높음.
+- 다음 액션:
+  - cowork: `POST /api/refine` endpoint 신규 + commit/push 후 SYNC append.
+  - 사장님: 폰 검증 (1) ChatScreen 에서 [✨ 다듬기] 동작 / (2) [고객한테 제안할 날짜] 다이얼로그 닫기 버튼 보이는지 / (3) chip 보다가 [뒤로] → 재진입 시 chip 즉시 복원.

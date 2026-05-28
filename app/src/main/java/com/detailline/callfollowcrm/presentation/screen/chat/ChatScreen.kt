@@ -823,49 +823,68 @@ fun ChatScreen(
     //   register_schedule 과 별개. 이건 고객 동의 받기 전 단계 — scheduledWorkDate 안 박음.
     //   사장님 톤: "5월 28일 (수) 괜찮으세요?" 입력란 자동. 사장님 검토 후 전송.
     if (showProposalDatePicker) {
-        // 2026-05-27 사장님 보고 fix:
-        //   1) 작은 폰에서 confirm/dismiss 버튼이 잘려 안 보임 → scroll + max height 제한
-        //   2) 우측 연필 아이콘 (DisplayMode toggle) 을 "다음 진행" 으로 오인 → showModeToggle=false 로 숨김
-        //   3) "날짜 클릭 = 즉시 진행" 사장님 의도 → LaunchedEffect 로 selectedDateMillis 감지 → 즉시 apply + close
-        //      (initialSelectedDateMillis=null 로 시작해서 사장님이 명시적으로 누른 첫 클릭만 trigger)
+        // 2026-05-27 사장님 보고 재fix:
+        //   직전 시도 (Material3 DatePickerDialog wrapper + verticalScroll + heightIn) 로도 작은 폰
+        //   (갤S9 등) 에서 confirm/dismiss 버튼이 화면 밖. wrapper 가 contents+버튼 합산 사이즈를
+        //   제어 못 함. 직접 Dialog+Surface 로 짜서 닫기 버튼을 fixed bottom 으로 빼고, DatePicker
+        //   영역만 weight 로 남는 공간 채우면서 verticalScroll. 화면 height 의 88% 로 max 강제.
+        //   - 우측 연필 아이콘 = showModeToggle=false 유지
+        //   - 날짜 탭 = 즉시 진행 + 자동 닫힘 = LaunchedEffect 유지
         val datePickerState = rememberDatePickerState(initialSelectedDateMillis = null)
         LaunchedEffect(datePickerState.selectedDateMillis) {
             val ts = datePickerState.selectedDateMillis ?: return@LaunchedEffect
             val dateLabel = com.detailline.callfollowcrm.util.DateTimeUtils.formatScheduledDate(ts)
-            // 사장님 톤 — 사장님이 추가 편집 가능.
             val proposal = "$dateLabel 시공 가능하실까요? 괜찮으시면 그날로 잡아드릴게요."
             input = if (input.isBlank()) proposal else "${input.trimEnd()}\n$proposal"
             showProposalDatePicker = false
         }
-        DatePickerDialog(
+        val screenHeightDp = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
+        Dialog(
             onDismissRequest = { showProposalDatePicker = false },
-            // confirm 버튼 없음 — 날짜 클릭 = 즉시 진행 (위 LaunchedEffect). 닫기만 남김.
-            confirmButton = {
-                TextButton(onClick = { showProposalDatePicker = false }) {
-                    Text("닫기", color = TossTextSecondary)
-                }
-            },
-            dismissButton = null
+            properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
-            Column(
+            androidx.compose.material3.Surface(
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+                color = Color.White,
                 modifier = Modifier
-                    .verticalScroll(rememberScrollState())
-                    .heightIn(max = 560.dp)
+                    .fillMaxWidth(0.95f)
+                    .heightIn(max = screenHeightDp * 0.88f)
             ) {
-                Text(
-                    "고객한테 제안할 날짜",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = TossTextPrimary,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(start = 24.dp, top = 16.dp)
-                )
-                Text(
-                    "날짜를 탭하면 메시지 입력란에 자동으로 박혀요. 검토 후 ▶ 전송하세요.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TossTextSecondary,
-                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 4.dp, bottom = 8.dp)
-                )
-                DatePicker(state = datePickerState, showModeToggle = false)
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // 헤더
+                    Text(
+                        "고객한테 제안할 날짜",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = TossTextPrimary,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp)
+                    )
+                    Text(
+                        "날짜를 탭하면 메시지 입력란에 자동으로 박혀요. 검토 후 ▶ 전송하세요.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TossTextSecondary,
+                        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 4.dp)
+                    )
+                    // 캘린더 영역 — 남는 공간 weight + scroll (작은 폰에서 캘린더 자체가 길어도 scroll)
+                    Column(
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        DatePicker(state = datePickerState, showModeToggle = false)
+                    }
+                    // 닫기 버튼 — fixed bottom. 화면 height 와 무관하게 항상 보임.
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = { showProposalDatePicker = false }) {
+                            Text("닫기", color = TossTextSecondary)
+                        }
+                    }
+                }
             }
         }
     }
