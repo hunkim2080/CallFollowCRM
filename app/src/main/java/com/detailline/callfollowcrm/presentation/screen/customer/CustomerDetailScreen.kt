@@ -1011,13 +1011,40 @@ private fun PersonaCard(persona: com.detailline.callfollowcrm.ai.CustomerPersona
                         color = TossTextTertiary
                     )
                 }
+                if (persona.stale) {
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "· 갱신 중",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TossBlue
+                    )
+                }
             }
             Spacer(Modifier.height(10.dp))
-            PersonaLine("💬", persona.communicationStyle)
-            PersonaLine("💰", persona.budgetSignal)
-            PersonaLine("🏠", persona.location)
-            PersonaLine("⏰", persona.schedulePattern)
-            PersonaLine("📝", persona.ownerMemo)
+            if (!persona.personaText.isNullOrBlank()) {
+                // 2026-05-29 cowork §17 — 한 줄 자유 텍스트 우선 표시.
+                Text(
+                    persona.personaText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TossTextPrimary,
+                    lineHeight = 22.sp
+                )
+            } else {
+                // 옛 5 필드 fallback (cowork 미래 분리 모드 도입 시 자동 활성화).
+                PersonaLine("💬", persona.communicationStyle)
+                PersonaLine("💰", persona.budgetSignal)
+                PersonaLine("🏠", persona.location)
+                PersonaLine("⏰", persona.schedulePattern)
+                PersonaLine("📝", persona.ownerMemo)
+            }
+            if (persona.sourceMessageCount > 0) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "${persona.sourceMessageCount}건의 대화 분석 기반",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TossTextTertiary
+                )
+            }
         }
     }
 }

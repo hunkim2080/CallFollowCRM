@@ -57,6 +57,7 @@ class OwnerToneUploadRepository(
         runCatching {
             var stored = 0
             var totalInPool = 0
+            var embeddingsAvailable = true   // cowork 응답으로 덮어쓰기
             val total = messages.size
             messages.chunked(chunkSize).forEachIndexed { idx, chunk ->
                 val payload = JSONObject().apply {
@@ -84,6 +85,10 @@ class OwnerToneUploadRepository(
                             val obj = JSONObject(body)
                             stored += obj.optInt("stored", chunk.size)
                             totalInPool = obj.optInt("total_in_pool", totalInPool)
+                            // cowork §16 추가: pip install 안 됐으면 false → 안드 UI 가 안내.
+                            if (obj.has("embeddings_available")) {
+                                embeddingsAvailable = obj.optBoolean("embeddings_available", true)
+                            }
                         }
                     } else {
                         stored += chunk.size
@@ -91,12 +96,21 @@ class OwnerToneUploadRepository(
                 }
                 onProgress?.invoke(minOf((idx + 1) * chunkSize, total), total)
             }
-            UploadResult(stored = stored, totalInPool = totalInPool)
+            UploadResult(stored = stored, totalInPool = totalInPool, embeddingsAvailable = embeddingsAvailable)
         }
     }
 
     data class TimestampedText(val text: String, val timestampMs: Long)
-    data class UploadResult(val stored: Int, val totalInPool: Int)
+    data class UploadResult(
+        val stored: Int,
+        val totalInPool: Int,
+        /**
+         * cowork §16 — bge-m3 + sqlite-vec 정상 로드 여부.
+         * false 면 RAG retrieval 비활성. INSERT 는 진행 (embedding 만 skip).
+         * Mac mini 에 `pip install FlagEmbedding sqlite-vec` 후 launchctl reload 하면 자동 활성화.
+         */
+        val embeddingsAvailable: Boolean = true
+    )
 
     companion object {
         private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()

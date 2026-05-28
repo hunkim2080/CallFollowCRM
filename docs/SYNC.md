@@ -889,3 +889,28 @@ CREATE TABLE customer_personas (
   - 사장님 (1주 후): 추천 답변 채택률 카드 (안드 18:30 작업) 의 % 가 오르는지 확인 — RAG + 페르소나 효과 측정.
   - android: cowork 완료 후 검증 — Settings 의 [동의하고 학습 시작] 버튼 동작. 다음 sprint = 6단계 (학습 루프) 시작.
   - cowork: 다음 sprint — (a) A/B test 인프라 (Sonnet vs Haiku 다듬기 품질 + RAG on/off 효과 측정), (b) scenario 통계 endpoint (events 와 함께).
+
+## 2026-05-29 22:00 · android
+**cowork §16 + §17 검증 + 호환성 패치 적용.** cowork 21:00 작업이 안드 19:30 / 20:30 요청 90% 반영. §17 페르소나 응답 스키마 불일치 1건 발견 → 안드 양방향 호환 패치.
+- 검증 결과:
+  - ✅ **§16 Tone RAG** 100% 호환. cowork 추가 `embeddings_available` 도 안드 UI 에 활용.
+  - ⚠️ **§17 Customer Personas — 응답 스키마 불일치**:
+    - cowork 결정: 단일 `persona_text` 자유 텍스트 한 줄 ("이 고객은 ...") + `model_used`, `source_message_count`, `last_refresh_started_ms`, `stale`. 없으면 200 + `persona_text=null`, `stale=true` (404 아님).
+    - 안드 사양: 5 필드 분리 (communication_style / budget_signal / ...) + 404.
+    - 결과: 옛 안드 그대로면 5 필드 모두 null → isEmpty → 카드 영영 표시 X.
+- 안드 패치 (양방향 호환 — cowork 결정 존중):
+  - **CustomerPersonaRepository.parsePersona** — cowork 응답 우선 (`persona_text`, `model_used`, `source_message_count`, `last_refresh_started_ms`, `stale`). 5 필드 fallback 도 유지 (cowork 가 향후 분리 모드 도입 시 자동 활성화).
+  - **CustomerPersona** data class 확장 — `personaText`, `sourceMessageCount`, `stale`, `refreshStartedAtMs` 추가. 옛 5 필드 nullable 그대로 보존.
+  - **PersonaCard UI** — `personaText` 있으면 한 줄 표시, 없으면 5 필드 fallback. 헤더 "갱신 중" (stale=true). 하단 "{N}건의 대화 분석 기반".
+- §16 보너스:
+  - **OwnerToneUploadRepository.UploadResult.embeddingsAvailable** 추가 — cowork 응답 파싱.
+  - **SettingsViewModel.toneRagEmbeddingsAvailable: StateFlow<Boolean?>**.
+  - **OwnerToneRagCard** — 완료 박스 아래에 `embeddingsAvailable=false` 시 노랑 안내 박스 자동 노출 ("⚠️ pip install FlagEmbedding sqlite-vec 필요").
+- 호환성 결정 (옵션 B — 양방향 호환):
+  - cowork 결정 (자유 텍스트) 존중 — Haiku prompt 단순 + UI 한 줄 깔끔.
+  - 안드 5 필드 fallback 유지 — cowork 가 RAG 효과 보고 향후 분리 모드 도입 가능성 대비.
+- commit: (이번 커밋)
+- 다음 액션:
+  - 사장님: (1) Mac mini `pip install FlagEmbedding sqlite-vec` + launchctl reload. (2) 새 안드 빌드 깔고 Settings [동의하고 학습 시작] → progress → ✅ 학습됨. (3) ChatScreen 답변 받으면 stdout.log 에 RAG/persona 흔적 확인. (4) CustomerDetail 진입 → 페르소나 카드 노출 확인.
+  - cowork: 변동 없음 (선택 — 6단계 자동 학습 endpoint 박을 시점).
+  - android: (a) 사장님 검증 결과 받고 디버깅 / (b) ChatScreen 페르소나 chip (composer 위) / (c) MMS Vision / (d) 14명 onboarding 다이얼로그.

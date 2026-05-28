@@ -175,6 +175,7 @@ fun SettingsScreen(
             val toneRagAvailable by viewModel.toneRagAvailable.collectAsState()
             val toneRagUploading by viewModel.toneRagUploading.collectAsState()
             val toneRagProgress by viewModel.toneRagProgress.collectAsState()
+            val toneRagEmbeddingsAvailable by viewModel.toneRagEmbeddingsAvailable.collectAsState()
             OwnerToneRagCard(
                 consented = toneRagConsented,
                 uploadedCount = toneRagUploadedCount,
@@ -182,6 +183,7 @@ fun SettingsScreen(
                 available = toneRagAvailable,
                 inProgress = toneRagUploading,
                 progress = toneRagProgress,
+                embeddingsAvailable = toneRagEmbeddingsAvailable,
                 onConsentAndUpload = { viewModel.uploadOwnerTone(consentNow = true) },
                 onUpload = { viewModel.uploadOwnerTone(consentNow = false) }
             )
@@ -1263,6 +1265,8 @@ private fun OwnerToneRagCard(
     available: Int,
     inProgress: Boolean,
     progress: Pair<Int, Int>?,
+    /** cowork §16 — bge-m3 + sqlite-vec install 여부. null = 한 번도 upload 안 함, false = 설치 필요. */
+    embeddingsAvailable: Boolean?,
     onConsentAndUpload: () -> Unit,
     onUpload: () -> Unit
 ) {
@@ -1335,6 +1339,24 @@ private fun OwnerToneRagCard(
                             "마지막 동기화 $lastTime",
                             color = TossTextSecondary,
                             fontSize = 11.sp
+                        )
+                    }
+                }
+                if (embeddingsAvailable == false) {
+                    // cowork §16 — Mac mini 에 의존성 install 안 됐을 때 사장님 안내.
+                    Spacer(Modifier.height(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFFFFF8E1))
+                            .padding(12.dp)
+                    ) {
+                        Text(
+                            "⚠️ 임베딩 검색 비활성 — Mac mini 에 'pip install FlagEmbedding sqlite-vec' 후 launchctl reload 필요. " +
+                                "메시지는 저장되어 있어 install 후 자동 활성화됩니다.",
+                            fontSize = 11.sp,
+                            color = Color(0xFF8B6F00)
                         )
                     }
                 }

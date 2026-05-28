@@ -92,6 +92,13 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     private val _toneRagLastUploadedAt = MutableStateFlow(container.preferences.toneLastUploadedAtMs)
     val toneRagLastUploadedAt: StateFlow<Long> = _toneRagLastUploadedAt.asStateFlow()
 
+    /**
+     * cowork §16 — bge-m3 + sqlite-vec install 여부. false 면 사장님 안내 표시
+     * ("Mac mini 에 pip install 필요"). null = 한 번도 upload 안 함.
+     */
+    private val _toneRagEmbeddingsAvailable = MutableStateFlow<Boolean?>(null)
+    val toneRagEmbeddingsAvailable: StateFlow<Boolean?> = _toneRagEmbeddingsAvailable.asStateFlow()
+
     init {
         viewModelScope.launch(Dispatchers.IO) {
             val n = runCatching {
@@ -157,6 +164,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
                         container.preferences.toneLastUploadedAtMs = System.currentTimeMillis()
                         _toneRagUploadedCount.value = totalCount
                         _toneRagLastUploadedAt.value = container.preferences.toneLastUploadedAtMs
+                        _toneRagEmbeddingsAvailable.value = ok.embeddingsAvailable
                     },
                     onFailure = {
                         // 사장님은 토스트로 안내 — UI 가 SettingsScreen 의 LocalContext 라 별도 트리거.
