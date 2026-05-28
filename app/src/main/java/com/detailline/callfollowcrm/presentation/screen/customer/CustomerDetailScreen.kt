@@ -1706,7 +1706,12 @@ private fun AddressEditDialog(
     onCopyExisting: (() -> Unit)?,
     onDismiss: () -> Unit
 ) {
-    var text by remember { mutableStateOf(currentAddress.orEmpty()) }
+    // 2026-05-28 사장님 통점: 다이얼로그 입력 도중 [뒤로]/홈/잠금/전화 → 입력 날아감.
+    //   composer 임시저장과 같은 원칙. remember → rememberSaveable 로 변경 → Bundle 저장 → recompose/destroy 살아남음.
+    //   currentAddress 가 바뀌면 (다른 고객의 다이얼로그) 시드 새로 = key 로 분리.
+    var text by androidx.compose.runtime.saveable.rememberSaveable(currentAddress) {
+        mutableStateOf(currentAddress.orEmpty())
+    }
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
         androidx.compose.material3.Surface(
             shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),

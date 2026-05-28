@@ -322,8 +322,12 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      *   1) customer.address (사장님 수동 등록, DB v15, 2026-05-28) — **신뢰 최우선**
      *   2) cached SMS 50건에서 AddressExtractor 정규식 매칭 → "서울 강서구 마곡동 740" 같은 풀 주소
      *   3) customer.memo 안의 주소 패턴
-     *   4) customer.name 자체 (예: "엘테라스" / "윤성이파트" — 사장님이 현장명을 name 으로 박는 패턴)
-     *   5) 다 없음 → null (UI 가 "주소 정보 없음" 토스트 띄움)
+     *   4) 다 없음 → null (UI 가 "주소 정보 없음 + 등록 안내" 토스트 + AddressEditDialog 유도)
+     *
+     * customer.name 은 fallback 에서 **제외** (2026-05-28 결정):
+     *   - "김철수" 같은 인명이 destinationName 으로 넘어가면 카카오맵/네이버지도에서 엉뚱한 곳 검색됨
+     *   - 사장님이 길찾기 신뢰 잃으면 RING-GO 전체 평가 낮아짐
+     *   - "엘테라스" 같은 현장명 케이스는 사장님이 수동 등록(#1) 로 흡수
      *
      * 현재는 좌표 없이 destinationName 만 반환 → NavApp 의 search 모드.
      * §13 (서버 아파트 주소 resolve) 끝나면 ResolvedDestination(name, lat?, lng?) 으로 확장 예정.
@@ -354,10 +358,6 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 com.detailline.callfollowcrm.util.AddressExtractor.extractOne(memo)
                     ?.let { return@withContext it }
             }
-
-            // 4) name 자체 fallback — 사람 이름이면 검색 결과 이상하겠지만 비용 0.
-            //    "엘테라스 담당자 ✏️" 같은 케이스에 가치 (사장님 패턴).
-            customer?.name?.takeIf { it.isNotBlank() }?.let { return@withContext it }
 
             return@withContext null
         }

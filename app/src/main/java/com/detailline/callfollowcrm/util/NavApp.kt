@@ -53,7 +53,12 @@ object NavLauncher {
         val hasCoord = lat != null && lng != null
         val hasName = !destinationName.isNullOrBlank()
         if (!hasCoord && !hasName) {
-            Toast.makeText(context, "주소 정보가 없어요", Toast.LENGTH_SHORT).show()
+            // 2026-05-28: name fallback 제거 후 더 빈번해진 케이스. 사장님이 등록 동선 알게 안내.
+            Toast.makeText(
+                context,
+                "주소 정보가 없어요. 고객 카드 → 📍 현장 주소에서 등록해주세요",
+                Toast.LENGTH_LONG
+            ).show()
             return
         }
 
