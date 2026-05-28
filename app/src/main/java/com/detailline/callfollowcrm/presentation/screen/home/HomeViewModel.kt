@@ -319,10 +319,11 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      * [📍 길찾기] 가 사용 — phone 에 묶인 목적지 destinationName 추출.
      *
      * 우선순위 (먼저 매칭되는 것 반환):
-     *   1) cached SMS 50건에서 AddressExtractor 정규식 매칭 → "서울 강서구 마곡동 740" 같은 풀 주소
-     *   2) customer.memo 안의 주소 패턴
-     *   3) customer.name 자체 (예: "엘테라스" / "윤성이파트" — 사장님이 현장명을 name 으로 박는 패턴)
-     *   4) 다 없음 → null (UI 가 "주소 정보 없음" 토스트 띄움)
+     *   1) customer.address (사장님 수동 등록, DB v15, 2026-05-28) — **신뢰 최우선**
+     *   2) cached SMS 50건에서 AddressExtractor 정규식 매칭 → "서울 강서구 마곡동 740" 같은 풀 주소
+     *   3) customer.memo 안의 주소 패턴
+     *   4) customer.name 자체 (예: "엘테라스" / "윤성이파트" — 사장님이 현장명을 name 으로 박는 패턴)
+     *   5) 다 없음 → null (UI 가 "주소 정보 없음" 토스트 띄움)
      *
      * 현재는 좌표 없이 destinationName 만 반환 → NavApp 의 search 모드.
      * §13 (서버 아파트 주소 resolve) 끝나면 ResolvedDestination(name, lat?, lng?) 으로 확장 예정.
@@ -333,7 +334,14 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             if (digits.length < 7) return@withContext null
             val suffix = digits.takeLast(8)
 
-            // 1) cached 메시지에서 추출 — 최신순.
+            val customer = runCatching {
+                container.customerRepository.findByPhone(phoneNumber)
+            }.getOrNull()
+
+            // 1) 사장님 수동 등록 — 최우선 (자동 추출이 부정확해도 사장님이 박은 게 정답)
+            customer?.address?.takeIf { it.isNotBlank() }?.let { return@withContext it }
+
+            // 2) cached 메시지에서 추출 — 최신순.
             val cached = runCatching {
                 container.cachedMessageRepository.load(suffix, limit = 50)
             }.getOrDefault(emptyList())
@@ -341,17 +349,13 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 cached.sortedByDescending { it.dateMs }.map { it.body }
             )?.let { return@withContext it }
 
-            val customer = runCatching {
-                container.customerRepository.findByPhone(phoneNumber)
-            }.getOrNull()
-
-            // 2) memo 에서 추출
+            // 3) memo 에서 추출
             customer?.memo?.takeIf { it.isNotBlank() }?.let { memo ->
                 com.detailline.callfollowcrm.util.AddressExtractor.extractOne(memo)
                     ?.let { return@withContext it }
             }
 
-            // 3) name 자체 fallback — 사람 이름이면 검색 결과 이상하겠지만 비용 0.
+            // 4) name 자체 fallback — 사람 이름이면 검색 결과 이상하겠지만 비용 0.
             //    "엘테라스 담당자 ✏️" 같은 케이스에 가치 (사장님 패턴).
             customer?.name?.takeIf { it.isNotBlank() }?.let { return@withContext it }
 

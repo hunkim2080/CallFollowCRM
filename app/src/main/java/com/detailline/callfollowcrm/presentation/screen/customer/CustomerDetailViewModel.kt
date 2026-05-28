@@ -225,6 +225,17 @@ class CustomerDetailViewModel(
     }
 
     /**
+     * 현장 주소 수동 등록 (2026-05-28, DB v15).
+     *   사장님이 "📍 현장 주소" 카드 탭 → AddressEditDialog → 저장.
+     *   null/빈 문자열 = 미등록 (자동 추출이 fallback). repository 에서 trim 처리.
+     */
+    fun updateManualAddress(address: String?) = viewModelScope.launch {
+        withContext(NonCancellable) {
+            container.customerRepository.updateAddress(customerId, address)
+        }
+    }
+
+    /**
      * 사장님이 CustomerDetail 에서 명시 액션(상태/메모/이름/예약일 변경)을 하면
      * 그 번호의 오늘자 UNHANDLED 통화들을 모두 SAVED 로 정리.
      * 의미: 통화 단위 알림 처리도 함께 클리어 → 홈에서 "후속 N건 미처리" 노이즈 사라짐.

@@ -283,78 +283,88 @@ fun CustomerDetailScreen(
                 }
             }
 
-            // 1.3 추출된 시공 현장 주소 — 사장님 요청 (2026-05-25): 시공자는 주소 복사가 가장 자주.
-            //   대화 본문에서 한국 주소 패턴 자동 추출. 한 탭 = 클립보드 복사.
-            //   추출 실패 시에도 카드 표시 (사장님이 기능 인지). 다음 세션 서버 LLM 정확도 ↑.
+            // 1.3 현장 주소 — 표시 우선순위 (2026-05-28 사장님 결정):
+            //   1) customer.address (사장님 수동 등록, DB v15) — 신뢰 최우선
+            //   2) extractedAddress (메시지 자동 추출) — fallback
+            //   3) 빈 상태 — "탭해서 등록" 안내
+            //   탭 동작: 어느 상태든 AddressEditDialog 띄움 (입력/수정 가능).
+            //   탭 길게 누름 = 복사 (기존 UX 보존) — 추후 BottomSheet 로 전환 가능.
             val extractedAddress by viewModel.extractedAddress.collectAsState()
             val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
             val ctx = LocalContext.current
-            val addr = extractedAddress
-            if (addr != null) {
-                TossCard(
-                    onClick = {
-                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(addr))
-                        android.widget.Toast.makeText(
-                            ctx, "주소가 복사됐어요", android.widget.Toast.LENGTH_SHORT
-                        ).show()
-                    }
+            val manualAddress = c.address?.takeIf { it.isNotBlank() }
+            val displayAddr = manualAddress ?: extractedAddress
+            var showAddressDialog by remember { mutableStateOf(false) }
+
+            TossCard(onClick = { showAddressDialog = true }) {
+                androidx.compose.foundation.layout.Row(
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                 ) {
-                    androidx.compose.foundation.layout.Row(
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                    ) {
-                        Text("📍", fontSize = 22.sp)
-                        Spacer(Modifier.width(10.dp))
-                        Column(modifier = Modifier.weight(1f)) {
+                    Text("📍", fontSize = 22.sp)
+                    Spacer(Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "현장 주소",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TossTextTertiary
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        if (displayAddr != null) {
                             Text(
-                                "현장 주소",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = TossTextTertiary
-                            )
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                addr,
+                                displayAddr,
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = TossTextPrimary,
                                 fontWeight = FontWeight.SemiBold
                             )
-                        }
-                        Text(
-                            "탭하면 복사",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = TossBlue,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-            } else {
-                // 빈 상태 — 사장님이 기능 인지 + 미발견 안내. 대화에 주소 박히면 자동 채워짐.
-                TossCard {
-                    androidx.compose.foundation.layout.Row(
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                    ) {
-                        Text("📍", fontSize = 22.sp)
-                        Spacer(Modifier.width(10.dp))
-                        Column(modifier = Modifier.weight(1f)) {
+                            if (manualAddress == null) {
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    "메시지에서 자동 인식 · 탭해서 확정/수정",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TossTextTertiary
+                                )
+                            }
+                        } else {
                             Text(
-                                "현장 주소",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = TossTextTertiary
-                            )
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                "아직 인식된 주소가 없어요",
+                                "아직 등록된 주소가 없어요",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = TossTextSecondary
                             )
                             Spacer(Modifier.height(2.dp))
                             Text(
-                                "고객이 보낸 메시지에 주소가 있으면 자동으로 채워져요.",
+                                "탭해서 직접 등록하거나, 고객 메시지에 주소가 있으면 자동 채워져요.",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = TossTextTertiary
                             )
                         }
                     }
+                    Text(
+                        if (manualAddress != null) "✏️" else "＋",
+                        fontSize = 16.sp,
+                        color = TossBlue
+                    )
                 }
+            }
+
+            if (showAddressDialog) {
+                AddressEditDialog(
+                    currentAddress = manualAddress,
+                    extractedSuggestion = extractedAddress?.takeIf { it != manualAddress },
+                    onSave = { addr ->
+                        viewModel.updateManualAddress(addr)
+                        showAddressDialog = false
+                    },
+                    onCopyExisting = displayAddr?.let { existing ->
+                        {
+                            clipboard.setText(androidx.compose.ui.text.AnnotatedString(existing))
+                            android.widget.Toast.makeText(
+                                ctx, "주소가 복사됐어요", android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                            showAddressDialog = false
+                        }
+                    },
+                    onDismiss = { showAddressDialog = false }
+                )
             }
 
             // 1.5 AI 대화 요약 — 사장님 요청 (2026-05-24): 고객상세에서 문자 다시 검토 안 해도 흐름 파악.
@@ -1678,6 +1688,105 @@ private fun CategoryChoiceChip(label: String, selected: Boolean, onClick: () -> 
             style = MaterialTheme.typography.labelMedium,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
         )
+    }
+}
+
+/**
+ * "📍 현장 주소" 카드 탭 시 뜨는 입력 다이얼로그 (2026-05-28, DB v15).
+ *   - currentAddress: 현재 저장된 수동 주소 (있으면 초기값으로 prefill)
+ *   - extractedSuggestion: 메시지 자동 추출 결과 (currentAddress 와 다르면 칩으로 제안 — 한 탭에 input 박힘)
+ *   - onCopyExisting: 기존 표시 주소 복사 (옛 UX 보존, displayAddr 있을 때만)
+ *   사장님 의도: 자동 추출이 부정확할 때 사장님이 직접 박을 수 있게. 신뢰 데이터는 사장님이.
+ */
+@Composable
+private fun AddressEditDialog(
+    currentAddress: String?,
+    extractedSuggestion: String?,
+    onSave: (String?) -> Unit,
+    onCopyExisting: (() -> Unit)?,
+    onDismiss: () -> Unit
+) {
+    var text by remember { mutableStateOf(currentAddress.orEmpty()) }
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        androidx.compose.material3.Surface(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+            color = Color.White,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    "현장 주소 등록",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = TossTextPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "직접 입력한 주소가 메시지 자동 인식보다 우선해요. 길찾기에도 이 주소를 써요.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TossTextSecondary
+                )
+                Spacer(Modifier.height(14.dp))
+                androidx.compose.material3.OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    placeholder = { Text("예: 서울 강서구 마곡중앙8로 60", color = TossTextTertiary) },
+                    singleLine = false,
+                    maxLines = 3,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                // 자동 추출 후보 — 사장님 한 탭에 input 박힘.
+                if (extractedSuggestion != null) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "메시지에서 인식된 주소",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TossTextTertiary
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    androidx.compose.foundation.layout.Box(
+                        modifier = Modifier
+                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+                            .background(TossBlueSoft)
+                            .clickable { text = extractedSuggestion }
+                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                    ) {
+                        Text(
+                            "📩 $extractedSuggestion",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TossBlue,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+                androidx.compose.foundation.layout.Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                ) {
+                    if (onCopyExisting != null) {
+                        androidx.compose.material3.TextButton(onClick = onCopyExisting) {
+                            Text("📋 복사", color = TossTextSecondary)
+                        }
+                    }
+                    Spacer(Modifier.weight(1f))
+                    androidx.compose.material3.TextButton(onClick = onDismiss) {
+                        Text("취소", color = TossTextSecondary)
+                    }
+                    if (!currentAddress.isNullOrBlank()) {
+                        androidx.compose.material3.TextButton(onClick = { onSave(null) }) {
+                            Text("삭제", color = TossTextSecondary)
+                        }
+                    }
+                    androidx.compose.material3.TextButton(
+                        onClick = { onSave(text.trim().takeIf { it.isNotEmpty() }) },
+                        enabled = text.trim() != currentAddress.orEmpty().trim()
+                    ) {
+                        Text("저장", color = TossBlue, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
     }
 }
 

@@ -49,7 +49,7 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         CategoryEntity::class,
         SpamPhoneEntity::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -291,6 +291,17 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v14 -> v15: customers 에 address 컬럼 추가. 사장님이 현장 주소를 직접 등록.
+         *   AddressExtractor 자동 추출보다 우선 — 사장님 신뢰 데이터.
+         *   카드 펼침 [📍 길찾기] 가 이 값을 1순위로 활용.
+         */
+        private val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE customers ADD COLUMN address TEXT")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
@@ -300,7 +311,7 @@ abstract class AppDatabase : RoomDatabase() {
                 .addMigrations(
                     MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
                     MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
-                    MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14
+                    MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15
                 )
                 .fallbackToDestructiveMigration()   // migration 실패 시 안전망 (개발 단계)
                 .build()

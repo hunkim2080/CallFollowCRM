@@ -19,6 +19,12 @@ data class CustomerEntity(
     /** 사장님 정의 카테고리 (1:1). null = 미분류. AI 자동 분류 + 사장님 수동. */
     val categoryId: Long? = null,
     val memo: String = "",
+    /**
+     * 현장 주소 — 사장님이 직접 등록 (2026-05-28). DB v15.
+     *   메시지 자동 추출 (AddressExtractor) 보다 우선. null = 미등록 (자동 추출이 fallback).
+     *   카드 펼침 [📍 길찾기] 가 1순위로 활용. §13 끝나면 좌표(lat/lng) 까지 같이 저장 예정.
+     */
+    val address: String? = null,
     /** 시공 예약 날짜. 그 날 00:00 시점의 epoch ms. 미정이면 null. */
     val scheduledWorkDate: Long? = null,
     /**

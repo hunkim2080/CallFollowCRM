@@ -142,6 +142,16 @@ class CustomerRepository(
         dao.update(c.copy(scheduledWorkDate = scheduledWorkDate, updatedAt = System.currentTimeMillis()))
     }
 
+    /**
+     * 현장 주소 설정/변경/지움(null) — 사장님 수동 등록 (2026-05-28, DB v15).
+     *   AddressExtractor 자동 추출보다 우선. 길찾기/§13 가 이 값을 1순위로 활용.
+     */
+    suspend fun updateAddress(id: Long, address: String?) {
+        val c = dao.findById(id) ?: return
+        val trimmed = address?.trim()?.takeIf { it.isNotEmpty() }
+        dao.update(c.copy(address = trimmed, updatedAt = System.currentTimeMillis()))
+    }
+
     /** 자동 생성된 미사용 고객만 정리 (이름/메모/문자기록 없음). */
     suspend fun deleteOrphans(): Int = dao.deleteOrphans()
 }
