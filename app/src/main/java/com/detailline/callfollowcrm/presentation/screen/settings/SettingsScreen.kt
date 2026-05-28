@@ -141,10 +141,11 @@ fun SettingsScreen(
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // 0. 기본 메시지 앱 — 2026-05-29 Phase A 1단계. **현재 disabled** (회색).
-            //    인프라는 다 깔렸지만 MMS 처리가 stub 이라 토글 켜면 silent fail 위험 → 막아둠.
-            //    2단계 (MMS PDU 파싱 + 첨부 다운로드) 끝나면 enabled = true 로 한 줄 fix.
-            DefaultSmsAppCard()
+            // 0. 기본 메시지 앱 — 2026-05-29 Phase A 2단계 Day 5 enable.
+            //    1단계 (자격 인프라) + 2단계 Day 1~4 (klinker 수신 + hook) 다 박혀서 이제 활성화 OK.
+            //    토글 ON → RoleManager 다이얼로그 → 사장님 동의 → default 됨.
+            //    수동 입력 (선택) = 자동 추출 실패 시 안전망.
+            DefaultSmsAppCard(preferences = container.preferences)
 
             // 1. AI 서버 상태
             ServerStatusCard(alive = serverAlive)
@@ -413,18 +414,40 @@ private fun formatThousands(n: Long): String =
 private fun formatThousands(n: Int): String = formatThousands(n.toLong())
 
 /**
- * 2026-05-29 Phase A 1단계 — RING-GO 를 기본 메시지 앱으로 전환하는 카드.
+ * 2026-05-29 Phase A 2단계 Day 5 — RING-GO 를 기본 메시지 앱으로 전환하는 카드.
  *
- * 현재 disabled (회색). 인프라는 다 깔렸지만 MMS 처리 stub 단계 → 켜면 MMS silent fail.
- * 2단계 (MMS PDU 파싱 + 첨부 다운로드 본격 구현) 끝나면 enabled = true 로 한 줄 fix.
+ * **활성화됨** (Day 1~4 의 자격 인프라 + klinker hook 다 박힘).
+ * 토글 ON → RoleManager 다이얼로그 → 사장님 동의 → default. OFF → 시스템 default-apps Settings.
  *
- * 사장님 카피 (2026-05-29 결정):
+ * 사장님 카피 변경 (Day 5):
  *   메인: "📱 RING-GO를 기본 메시지 앱으로 사용하기"
- *   설명: "SMS/MMS 수신을 RING-GO에서 관리합니다. 현재는 준비 중이며, MMS 안정화 후 활성화됩니다."
- *   안내: "🚧 2단계 MMS 처리 완료 후 사용할 수 있습니다."
+ *   설명 (default 일 때): "✅ RING-GO 가 SMS/MMS 를 받고 있어요. 갤메시지 알림은 시스템 설정에서 끄세요."
+ *   설명 (default 아닐 때): "SMS/MMS 수신을 RING-GO 에서 관리합니다. 토글 켜면 시스템이 동의를 요청합니다."
+ *   수동 입력 expander: "🔧 MMS 서버 수동 입력 (선택)" — 자동 추출 실패 시 안전망.
  */
 @Composable
-private fun DefaultSmsAppCard() {
+private fun DefaultSmsAppCard(
+    preferences: com.detailline.callfollowcrm.data.preferences.AppPreferences
+) {
+    val context = LocalContext.current
+    val activity = context as? android.app.Activity
+    var isDefault by remember {
+        mutableStateOf(
+            com.detailline.callfollowcrm.util.DefaultSmsAppHelper.isCurrentDefault(context)
+        )
+    }
+    val roleLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        // 결과 코드 무관 — 사용자가 동의했든 거부했든 재조회.
+        isDefault = com.detailline.callfollowcrm.util.DefaultSmsAppHelper.isCurrentDefault(context)
+    }
+
+    var manualExpanded by remember { mutableStateOf(false) }
+    var manualUrl by remember { mutableStateOf(preferences.manualMmscUrl.orEmpty()) }
+    var manualProxy by remember { mutableStateOf(preferences.manualMmscProxy.orEmpty()) }
+    var manualPort by remember { mutableStateOf(preferences.manualMmscPort.takeIf { it > 0 }?.toString().orEmpty()) }
+
     TossCard {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -437,32 +460,118 @@ private fun DefaultSmsAppCard() {
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "SMS/MMS 수신을 RING-GO에서 관리합니다. 현재는 준비 중이며, MMS 안정화 후 활성화됩니다.",
+                        if (isDefault)
+                            "✅ RING-GO 가 SMS/MMS 를 받고 있어요. 갤메시지 알림은 시스템 설정에서 끄세요."
+                        else
+                            "SMS/MMS 수신을 RING-GO 에서 관리합니다. 토글 켜면 시스템이 동의를 요청합니다.",
                         fontSize = 12.sp,
                         color = TossTextSecondary
                     )
                 }
                 Spacer(Modifier.width(12.dp))
                 Switch(
-                    checked = false,
-                    onCheckedChange = null,
-                    enabled = false
+                    checked = isDefault,
+                    onCheckedChange = onCheck@{ wantOn ->
+                        if (activity == null) {
+                            Toast.makeText(context, "잠시 후 다시 시도해주세요", Toast.LENGTH_SHORT).show()
+                            return@onCheck
+                        }
+                        if (wantOn && !isDefault) {
+                            val intent = com.detailline.callfollowcrm.util.DefaultSmsAppHelper
+                                .createRequestIntent(activity)
+                            if (intent != null) {
+                                runCatching { roleLauncher.launch(intent) }
+                                    .onFailure {
+                                        Toast.makeText(
+                                            context,
+                                            "기본 메시지 앱 다이얼로그를 열 수 없어요",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    "이 기기는 기본 SMS 앱 전환을 지원하지 않아요",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        } else if (!wantOn && isDefault) {
+                            // 안드로이드는 직접 해제 API 없음 → 시스템 default-apps 화면으로.
+                            val intent = com.detailline.callfollowcrm.util.DefaultSmsAppHelper
+                                .createReleaseIntent(activity)
+                            runCatching { roleLauncher.launch(intent) }
+                        }
+                    }
                 )
             }
+
+            // 수동 입력 expander — 자동 추출 실패 시 안전망. 14명 중 알뜰/특수 SIM 케이스용.
             Spacer(Modifier.height(10.dp))
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(8.dp))
+                    .clickable { manualExpanded = !manualExpanded }
                     .background(TossGrayBg)
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "🚧 2단계 MMS 처리 완료 후 사용할 수 있습니다",
+                    "🔧 MMS 서버 수동 입력 (선택)",
                     fontSize = 12.sp,
-                    color = TossTextTertiary,
-                    fontWeight = FontWeight.Medium
+                    color = TossTextSecondary,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    if (manualExpanded) "▾" else "▸",
+                    fontSize = 12.sp,
+                    color = TossTextSecondary
+                )
+            }
+            if (manualExpanded) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "보통은 자동으로 잡혀요. 알뜰폰 등 일부 SIM 에서 MMS 가 안 오면 직접 박으세요.\n빈 칸으로 두면 자동 사용.",
+                    fontSize = 11.sp,
+                    color = TossTextTertiary
+                )
+                Spacer(Modifier.height(8.dp))
+                androidx.compose.material3.OutlinedTextField(
+                    value = manualUrl,
+                    onValueChange = { manualUrl = it },
+                    label = { Text("MMSC URL") },
+                    placeholder = { Text("예: http://mmsc.ktfwing.com:9082") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(6.dp))
+                androidx.compose.material3.OutlinedTextField(
+                    value = manualProxy,
+                    onValueChange = { manualProxy = it },
+                    label = { Text("Proxy 호스트 (선택)") },
+                    placeholder = { Text("예: smtmms.nate.com") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(6.dp))
+                androidx.compose.material3.OutlinedTextField(
+                    value = manualPort,
+                    onValueChange = { newValue -> manualPort = newValue.filter { it.isDigit() } },
+                    label = { Text("Proxy 포트 (선택)") },
+                    placeholder = { Text("예: 9093") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(10.dp))
+                TossPrimaryButton(
+                    text = "저장",
+                    onClick = {
+                        preferences.manualMmscUrl = manualUrl.trim().takeIf { it.isNotBlank() }
+                        preferences.manualMmscProxy = manualProxy.trim().takeIf { it.isNotBlank() }
+                        preferences.manualMmscPort = manualPort.toIntOrNull() ?: 0
+                        Toast.makeText(context, "저장됐어요", Toast.LENGTH_SHORT).show()
+                    }
                 )
             }
         }

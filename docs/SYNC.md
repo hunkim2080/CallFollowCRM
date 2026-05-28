@@ -487,3 +487,41 @@ prepare-reply 응답 스키마 v2 박음. android 의 19:00 요청 100% 반영. 
   - cowork: 변동 없음.
   - 사장님: 새 빌드 깔아도 동작 변화 0 — 안정성 확인 (앱 진입 / 기존 SMS 수신/알림 / 빌드 자체 ok).
   - android (다음 세션): 위 5가지 작업 + 사장님 폰 검증.
+
+## 2026-05-29 16:30 · android
+**Phase A 2단계 Day 4~5 = MMS hook 본격 + Settings 토글 활성화.** 사장님 통점 (MMS 알림 안 옴) 해결까지 한 발 더. 이제 사장님이 토글 켜면 진짜로 MMS 알림이 RING-GO 로 옴.
+- 변경 (안드로이드):
+  - **SmsRepository.queryLatestInboxMms()** public 신규 — content://mms inbox 가장 최근 row 추출. addresses + parts (text + 첨부 URI) 통째 반환. MmsDownloadService 가 hook 에서 사용.
+  - **MmsDownloadService hook 본격화**:
+    1. super.onHandleIntent — klinker 가 download + persist 완료
+    2. queryLatestInboxMms (3회 polling, klinker INSERT 비동기 안전망)
+    3. body = `📎 사진 N장\n\n{원본}` (첨부 prefix)
+    4. NotificationHelper.showIncomingSms 재사용 (같은 채널·ID 통합 UX)
+    5. SmsContactCacheRepository.upsertOne → HomeScreen 즉시 갱신
+    6. PrepareContext 구성 (history/customer/tone/schedules) + suggestionRepository.requestPrepare (fire-and-forget)
+    7. smsCachePrefetcher.prefetchForNumber
+    - IntentService worker thread 에서 runBlocking 으로 suspend 함수 호출 (alive 한 동안)
+    - polling/algo 는 SmsReceiver 와 일관
+  - **AppPreferences** 신규 3 필드: `manualMmscUrl`, `manualMmscProxy`, `manualMmscPort` — 자동 추출 실패 시 안전망. 알뜰폰/특수 SIM 14명 중 1명 케이스.
+  - **DefaultSmsAppCard 본격 활성화** (Day 5 약속 한 줄 fix 그 이상):
+    - `enabled = true`
+    - Switch onCheckedChange — RoleManager.createRequestRoleIntent / createReleaseIntent launch via ActivityResultContracts
+    - 동적 설명 문구 (default 일 때 vs 아닐 때)
+    - **🔧 MMS 서버 수동 입력 (선택)** expander — MMSC URL / proxy / port 3 필드 + 저장 버튼
+    - 자동 추출 결과 레이블 = 다음 sprint (klinker ApnUtils 비동기 콜백 + 결과 표시)
+- 서버 영향 X (전부 클라이언트). PrepareContext 의 첨부 메타 (Vision 호출용) 는 다음 sprint.
+- 사장님 체감: **드디어 변화 있음**. 사장님이 Settings 의 토글 켜고 시스템 다이얼로그 동의 → RING-GO 가 default → MMS 받으면 RING-GO 알림 (사진 N장 표시) + ChatScreen 진입 시 AI 추천 답변.
+- commit: (이번 커밋)
+- **🚨 사장님 폰 + 14명 테스터 폰 실제 검증 필요** — 본격 product 검증의 첫 단추:
+  1. 사장님: Settings 진입 → 토글 ON → 시스템 다이얼로그 동의 → 폰에 본인 또는 다른 폰으로 MMS (사진 첨부) 보내서 RING-GO 알림 뜨는지 확인.
+  2. 안 뜨면 → Settings → 🔧 MMS 서버 수동 입력 expander → MMSC URL 박기 (KT: `http://mmsc.ktfwing.com:9082`, SKT: `http://omms.nate.com:9082`, LGU+: `http://omms.uplus.co.kr:9084`).
+  3. 14명 테스터 (KT/SKT/LGU+/알뜰 케이스 모두) — 첫 사용자가 MMS 받았는지 사장님께 보고 받기.
+- 다음 sprint 후보:
+  - (a) 자동 추출 결과 레이블 — klinker ApnUtils 비동기 콜백 → "자동 감지: KT (MMSC: http://mmsc.ktfwing.com:9082)" 표시.
+  - (b) 첨부 사진 → 서버 Vision (PrepareContext 의 attachments 메타 + cowork 의 prepare-reply 가 Vision 호출).
+  - (c) 알림 BigPictureStyle — 첫 첨부 사진 thumbnail.
+  - (d) 14명 테스터 onboarding UI — 첫 진입 시 default 앱 전환 안내 다이얼로그.
+- 다음 액션:
+  - cowork: 변동 없음 (다음 sprint 의 Vision 호출 시점에 prepare-reply prompt 확장).
+  - 사장님: 위 검증 3단계 + 14명 테스터 결과 수집.
+  - android: 사장님 검증 결과 받고 — (1) 안 되는 통신사 디버깅 / (2) 자동 추출 결과 레이블 / (3) Vision 메타 확장.

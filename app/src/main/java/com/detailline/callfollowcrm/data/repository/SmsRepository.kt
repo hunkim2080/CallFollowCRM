@@ -90,6 +90,50 @@ class SmsRepository(private val context: Context) {
      * 각 MMS 마다 addr/parts 부속 쿼리가 있어 시간 걸림. SMS 가 이미 표시된 상태에서 합쳐짐.
      * default 2000 = 사장님처럼 MMS 8900건 폰에서 옛 사진 잡히도록.
      */
+    /**
+     * 2026-05-29 Phase A 2단계 Day 4 — MmsDownloadService 가 klinker 위임 끝낸 직후 호출.
+     * content://mms 의 가장 최근 INBOX row 를 반환 (sender + 본문 + 첨부 URI).
+     *
+     * 동시에 여러 MMS 들어오는 race 는 거의 없음 — 보통 1건 단위. 만약 race 가능성을
+     * 차단하려면 super 호출 *전* max(_id) 저장 후 그 이후 row 만 선택하는 방식이 정공.
+     * 여기선 단순화 — 사장님 검증 시 race 안 나오면 OK.
+     *
+     * @return 없거나 권한 없으면 null.
+     */
+    fun queryLatestInboxMms(): SmsMessage? {
+        if (!hasReadPermission()) return null
+        val mmsUri = Uri.parse("content://mms")
+        val proj = arrayOf("_id", "date", "msg_box")
+        val cursor = runCatching {
+            context.contentResolver.query(mmsUri, proj, dateDescSortArgs(20), null)
+        }.getOrNull() ?: return null
+        return cursor.use { c ->
+            val idIdx = c.getColumnIndex("_id")
+            val dateIdx = c.getColumnIndex("date")
+            val boxIdx = c.getColumnIndex("msg_box")
+            if (idIdx < 0 || dateIdx < 0 || boxIdx < 0) return@use null
+            while (c.moveToNext()) {
+                if (c.getInt(boxIdx) != MMS_BOX_INBOX) continue
+                val id = c.getLong(idIdx)
+                val dateMs = c.getLong(dateIdx) * 1000L
+                val addresses = runCatching { getMmsAddresses(id) }.getOrDefault(emptyList())
+                val sender = pickRelevantAddress(addresses, MMS_BOX_INBOX) ?: continue
+                val (text, imageUris) = runCatching { getMmsParts(id) }
+                    .getOrDefault("" to emptyList())
+                if (text.isBlank() && imageUris.isEmpty()) continue
+                return@use SmsMessage(
+                    id = id,
+                    address = sender,
+                    body = text,
+                    dateMs = dateMs,
+                    sent = false,
+                    imageUris = imageUris
+                )
+            }
+            null
+        }
+    }
+
     fun queryMmsOnly(phoneNumber: String, scanLimit: Int = 2000): List<SmsMessage> {
         if (!hasReadPermission()) return emptyList()
         val targetDigits = phoneNumber.filter { it.isDigit() }

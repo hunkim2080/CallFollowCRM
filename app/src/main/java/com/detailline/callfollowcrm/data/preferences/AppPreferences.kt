@@ -81,6 +81,28 @@ class AppPreferences(context: Context) {
         get() = prefs.getString(KEY_DEFAULT_NAV_APP, null)
         set(value) = prefs.edit().putString(KEY_DEFAULT_NAV_APP, value).apply()
 
+    /**
+     * 2026-05-29 Phase A 2단계 Day 5 — MMS 자동 추출 실패 시 사장님이 직접 박는 MMSC URL.
+     * 예: http://mmsc.ktfwing.com:9082 (KT). null = 자동 추출 사용 (기본). 14명 중 알뜰/특수 SIM 1명 안전망.
+     */
+    var manualMmscUrl: String?
+        get() = prefs.getString(KEY_MANUAL_MMSC_URL, null)?.takeIf { it.isNotBlank() }
+        set(value) = prefs.edit().putString(KEY_MANUAL_MMSC_URL, value?.trim()).apply()
+
+    /**
+     * MMSC proxy 호스트 (옵션, SKT 일부 케이스). null = proxy 없음.
+     */
+    var manualMmscProxy: String?
+        get() = prefs.getString(KEY_MANUAL_MMSC_PROXY, null)?.takeIf { it.isNotBlank() }
+        set(value) = prefs.edit().putString(KEY_MANUAL_MMSC_PROXY, value?.trim()).apply()
+
+    /**
+     * MMSC proxy port (옵션). null 또는 0 이하 = 기본 (80).
+     */
+    var manualMmscPort: Int
+        get() = prefs.getInt(KEY_MANUAL_MMSC_PORT, 0)
+        set(value) = prefs.edit().putInt(KEY_MANUAL_MMSC_PORT, value).apply()
+
     companion object {
         private const val KEY_ADOT_FOLDER_URI = "adot_folder_uri"
         private const val KEY_LAST_SCAN_AT = "last_scan_at"
@@ -93,5 +115,8 @@ class AppPreferences(context: Context) {
         private const val KEY_QUICK_ACTION_TPL_3 = "quick_action_tpl_id_3"
         private const val KEY_INCOMING_SMS_NOTIFY = "incoming_sms_notify_enabled"
         private const val KEY_DEFAULT_NAV_APP = "default_nav_app_key"
+        private const val KEY_MANUAL_MMSC_URL = "manual_mmsc_url"
+        private const val KEY_MANUAL_MMSC_PROXY = "manual_mmsc_proxy"
+        private const val KEY_MANUAL_MMSC_PORT = "manual_mmsc_port"
     }
 }
