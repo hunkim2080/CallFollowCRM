@@ -21,6 +21,15 @@
         READ_SMS 와 같은 SMS 권한 그룹이라 한 번 허용 시 동반 허용 가능하지만 명시 선언 필요.
     -->
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <!--
+        2026-05-29 킬러콘텐츠 (MMS 알림) Phase A 1단계 — 기본 SMS 앱 자격 인프라.
+        WRITE_SMS: default SMS 앱일 때 시스템 SMS provider 에 INSERT 책임.
+        RECEIVE_MMS / RECEIVE_WAP_PUSH: MMS 수신 broadcast 수신. 1단계는 stub.
+        실제 default 전환은 2단계 (MMS 본격) 끝난 후 Settings 토글로 (현재 토글 disabled 회색 표시).
+    -->
+    <uses-permission android:name="android.permission.WRITE_SMS" />
+    <uses-permission android:name="android.permission.RECEIVE_MMS" />
+    <uses-permission android:name="android.permission.RECEIVE_WAP_PUSH" />
     <!-- 예약 확정 시 축하 진동 (normal permission, 런타임 요청 불필요) -->
     <uses-permission android:name="android.permission.VIBRATE" />
     <!--
@@ -106,6 +115,29 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
+
+            <!--
+                2026-05-29 Default SMS 앱 자격 컴포넌트 (4/4) — ACTION_SENDTO.
+                외부 앱 (연락처/다이얼러) 이 "sms:01012345678" 으로 launch 할 때 RING-GO 가 candidate 로 뜨려면 필요.
+                Default 일 때 자동으로 이게 호출됨. MainActivity 가 EXTRA_PHONE_NUMBER 받아 ChatScreen 으로 trampoline.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.SENDTO" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="sms" />
+                <data android:scheme="smsto" />
+                <data android:scheme="mms" />
+                <data android:scheme="mmsto" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="sms" />
+                <data android:scheme="smsto" />
+                <data android:scheme="mms" />
+                <data android:scheme="mmsto" />
+            </intent-filter>
         </activity>
 
         <!--
@@ -130,8 +162,11 @@
 
         <!--
             고객 SMS 수신 즉시 맥미니 서버에 답변 추천 준비 요청 (Phase 1).
-            기본 SMS 앱 아니어도 SMS_RECEIVED broadcast 수신 가능 (Android 7+).
-            RECEIVE_SMS 권한 필요.
+
+            2개 액션 listen:
+              - SMS_RECEIVED : default 가 아닐 때 받음 (현재 동작, 시스템 갤메시지가 DB INSERT 책임).
+              - SMS_DELIVER  : default 일 때만 받음. 받으면 RING-GO 가 SMS provider DB INSERT 책임.
+                               2026-05-29 1단계 인프라. 사장님이 Settings 토글 켜야 default 됨 (토글은 2단계 끝까지 disabled 회색).
         -->
         <receiver
             android:name=".service.SmsReceiver"
@@ -140,6 +175,28 @@
             android:permission="android.permission.BROADCAST_SMS">
             <intent-filter>
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SMS_DELIVER" />
+            </intent-filter>
+        </receiver>
+
+        <!--
+            2026-05-29 Default SMS 앱 자격 컴포넌트 (2/4) — MMS WAP_PUSH receiver.
+            Default 가 아닐 때는 안 받음. Default 일 때만 WAP_PUSH_DELIVER 받음.
+
+            1단계 (Phase A): stub — PDU 파싱/첨부 다운로드 안 함. ContentObserver 가 system mms-sms provider 변경 감지로 fallback.
+            2단계 (Phase B): 본격 구현 — PDU 파싱 + MMSC 첨부 다운로드 + DB INSERT 직접.
+            ⚠️ Default 토글이 hidden 인 동안엔 이 receiver 가 호출 안 됨 → MMS 침묵 위험 없음.
+        -->
+        <receiver
+            android:name=".service.MmsReceiver"
+            android:exported="true"
+            android:enabled="true"
+            android:permission="android.permission.BROADCAST_WAP_PUSH">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.WAP_PUSH_DELIVER" />
+                <data android:mimeType="application/vnd.wap.mms-message" />
             </intent-filter>
         </receiver>
 
@@ -155,6 +212,28 @@
                 <action android:name="com.detailline.callfollowcrm.ACTION_SMS_SEND_SUGGESTION" />
             </intent-filter>
         </receiver>
+
+        <!--
+            2026-05-29 Default SMS 앱 자격 컴포넌트 (3/4) — RESPOND_VIA_MESSAGE service.
+            자동차/스마트워치/시스템 빠른 답장 UI 가 호출하는 headless 서비스.
+            schemes: sms, smsto, mms, mmsto — 사용자가 "Can't talk, I'll text" 같은 빠른 응답 보낼 때.
+
+            1단계 (Phase A): stub — 호출 받아도 무동작. 사장님 동선엔 영향 0 (사장님은 RING-GO 안에서 답장).
+            존재 자체가 default 자격 요건이라 박아둠.
+        -->
+        <service
+            android:name=".service.SmsHeadlessSendService"
+            android:exported="true"
+            android:permission="android.permission.SEND_RESPOND_VIA_MESSAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.RESPOND_VIA_MESSAGE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="sms" />
+                <data android:scheme="smsto" />
+                <data android:scheme="mms" />
+                <data android:scheme="mmsto" />
+            </intent-filter>
+        </service>
 
     </application>
 </manifest>

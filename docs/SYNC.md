@@ -431,3 +431,31 @@ prepare-reply 응답 스키마 v2 박음. android 의 19:00 요청 100% 반영. 
   - 사장님: stdout.log 에 `[ready] scenario=... conf=... intents=...` 라인 — 시나리오 분류 정확도 빠른 검증.
   - android: 1단계 검증 통과 후 → 2단계 분류 정확도 측정 / 3단계 채택·수정 tracking (events 테이블 준비 시점).
   - cowork: 다음 sprint — (a) scenario 통계 endpoint (시나리오별 채택률, events 와 함께), (b) A/B test 인프라.
+
+## 2026-05-29 14:00 · android
+**MMS 알림 통점 해결 Phase A 1단계 = 기본 SMS 앱 자격 인프라 박음.** 사장님 통점 = "MMS 가 RING-GO 로 알람이 안 옴". 원인 = WAP_PUSH_DELIVER 는 default SMS 앱만 받는데 RING-GO 가 default 아님. 사장님 결정 (2026-05-29) = 옵션 A "RING-GO 를 default SMS 앱으로 만들기". 단계 분할 — 1단계는 자격 인프라만, 실제 전환은 2단계 (MMS 본격 구현) 끝난 후.
+- 변경 (안드로이드):
+  - **AndroidManifest** — Default SMS 앱 자격 4개 컴포넌트 박음:
+    1. SmsReceiver 에 `SMS_DELIVER_ACTION` intent-filter 추가 (RECEIVED 와 병기).
+    2. 신규 MmsReceiver — `WAP_PUSH_DELIVER` + mimeType `application/vnd.wap.mms-message` + `BROADCAST_WAP_PUSH` permission.
+    3. 신규 SmsHeadlessSendService — `RESPOND_VIA_MESSAGE` + `SEND_RESPOND_VIA_MESSAGE` permission + sms/smsto/mms/mmsto schemes.
+    4. MainActivity 에 SENDTO + VIEW intent-filter + sms/smsto/mms/mmsto schemes.
+  - 권한 추가: `WRITE_SMS`, `RECEIVE_MMS`, `RECEIVE_WAP_PUSH`.
+  - **SmsReceiver** — onReceive 가 SMS_DELIVER 분기 처리:
+    - DELIVER 일 때 (default 만): 시스템 SMS provider Inbox 에 `ContentValues` INSERT 책임 (Telephony.Sms.MESSAGE_TYPE_INBOX, read=0, seen=0). INSERT 실패해도 알림/prepare-reply 는 그대로 진행.
+    - RECEIVED 일 때 (default 아닐 때, 현재 상태): 시스템이 INSERT 책임 → 우리는 prepare-reply 만 (지금이랑 동일).
+  - **MmsReceiver stub** — 1단계는 WAP_PUSH_DELIVER 받기만 받고 처리 X. 호출 시 `Log.w` 로 "premature toggle warning" 출력. **default 토글 disabled 인 동안엔 호출 자체 안 됨.**
+  - **SmsHeadlessSendService stub** — RESPOND_VIA_MESSAGE 호출 받아도 stopSelf 만. 사장님은 RING-GO 안에서 답장하므로 1단계 무동작 OK.
+  - **MainActivity SENDTO trampoline** — sms:01012345678[?body=hi] / smsto:/mms:/mmsto: 받으면 phone 추출 → ChatScreen 으로 navigate. body 가 있고 ChatDraftStore 가 비어있으면 prefill (사장님 작성 draft 안 덮어쓰기 안전망).
+  - **DefaultSmsAppHelper util 신규** — RoleManager (Q+) / Telephony.Sms.getDefaultSmsPackage (P 이하) 분기. isCurrentDefault / createRequestIntent / createReleaseIntent.
+  - **SettingsScreen 최상단 DefaultSmsAppCard 추가** — disabled (회색) Switch + 사장님 카피 그대로:
+    - 메인: "📱 RING-GO를 기본 메시지 앱으로 사용하기"
+    - 설명: "SMS/MMS 수신을 RING-GO에서 관리합니다. 현재는 준비 중이며, MMS 안정화 후 활성화됩니다."
+    - 안내: "🚧 2단계 MMS 처리 완료 후 사용할 수 있습니다"
+- 서버 영향 X (전부 클라이언트). 신규 endpoint 호출 없음.
+- 사장님 체감: **1단계는 변화 0**. 토글 disabled 라 default 전환 안 일어남. SMS_RECEIVED 그대로 받고 prepare-reply 그대로 돔.
+- commit: (이번 커밋)
+- 다음 액션:
+  - cowork: 변동 없음. MMS 작업은 안드로이드 영역.
+  - 사장님: 새 빌드 깔아도 동작 변화 0 — 안정성 확인만 (앱 진입 / 메시지 수신 / 기존 SMS 알림 정상).
+  - android (다음 세션): **Phase A 2단계 — MMS 본격 구현**. (1) WAP_PUSH PDU 파싱 (M-Notification.ind), (2) MMSC HTTP GET (APN 의존, 통신사별 디버깅), (3) M-Retrieve.conf 파싱 → 본문 + 첨부 파트 분리, (4) content://mms 및 mms/part 에 INSERT, (5) 첨부 이미지 다운로드, (6) NotificationHelper.showIncomingMms() 트리거, (7) PrepareContext 에 첨부 메타 추가 (Vision 호출). 2단계 끝나면 DefaultSmsAppCard 의 `enabled = true` 한 줄 fix.

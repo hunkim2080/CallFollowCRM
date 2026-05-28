@@ -1,9 +1,11 @@
 package com.detailline.callfollowcrm.service
 
 import android.content.BroadcastReceiver
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
+import android.util.Log
 import com.detailline.callfollowcrm.CallFollowCrmApplication
 import com.detailline.callfollowcrm.ai.CustomerHint
 import com.detailline.callfollowcrm.ai.HistoryMessage
@@ -107,7 +109,13 @@ class SmsReceiver : BroadcastReceiver() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
+        // 2026-05-29 Phase A 1단계 — 두 액션 분기:
+        //   SMS_RECEIVED : default 가 아닐 때 (현재 상태). 시스템 갤메시지가 DB INSERT 책임.
+        //   SMS_DELIVER  : default 일 때만. RING-GO 가 SMS provider DB INSERT 책임 + 기존 prepare-reply.
+        // 두 액션 다 메시지 본문 추출은 동일 — getMessagesFromIntent 가 양쪽 다 처리.
+        val action = intent.action
+        val isDeliver = action == Telephony.Sms.Intents.SMS_DELIVER_ACTION
+        if (action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION && !isDeliver) return
         val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent) ?: return
         if (messages.isEmpty()) return
 
@@ -119,6 +127,27 @@ class SmsReceiver : BroadcastReceiver() {
         if (sender.isBlank() || combinedBody.isBlank()) return
 
         val app = context.applicationContext as? CallFollowCrmApplication ?: return
+
+        // 2026-05-29 Phase A 1단계 — DELIVER 일 때만 시스템 SMS provider 에 INSERT.
+        //   default SMS 앱이면 시스템이 자동 INSERT 안 함 → 우리가 책임. 누락 시 사장님 갤메시지/RING-GO 양쪽에서 메시지 영영 안 보임.
+        //   RECEIVED 분기일 땐 시스템 갤메시지가 이미 INSERT 함 → 우리가 또 하면 중복.
+        if (isDeliver) {
+            runCatching {
+                val values = ContentValues().apply {
+                    put(Telephony.Sms.ADDRESS, sender)
+                    put(Telephony.Sms.BODY, combinedBody)
+                    put(Telephony.Sms.DATE, receivedAtMs)
+                    put(Telephony.Sms.DATE_SENT, receivedAtMs)
+                    put(Telephony.Sms.READ, 0)
+                    put(Telephony.Sms.SEEN, 0)
+                    put(Telephony.Sms.TYPE, Telephony.Sms.MESSAGE_TYPE_INBOX)
+                }
+                context.contentResolver.insert(Telephony.Sms.Inbox.CONTENT_URI, values)
+            }.onFailure { e ->
+                // INSERT 실패해도 알림/prepare-reply 는 계속 — 사장님이 메시지 자체는 받았다고 인지해야 함.
+                Log.e(TAG, "SMS provider INSERT failed (default app responsibility)", e)
+            }
+        }
 
         // 2026-05-28 본격 fix: sms_contacts_cache (Room) 즉시 upsert → HomeScreen Room observe 자동 emit.
         //   pendingNewSmsContacts in-memory 는 더 이상 필요 X (Room upsert → emit 이 ms 단위).
@@ -246,5 +275,9 @@ class SmsReceiver : BroadcastReceiver() {
                 pending.finish()
             }
         }
+    }
+
+    companion object {
+        private const val TAG = "SmsReceiver"
     }
 }

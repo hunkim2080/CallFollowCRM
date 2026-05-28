@@ -141,6 +141,11 @@ fun SettingsScreen(
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // 0. 기본 메시지 앱 — 2026-05-29 Phase A 1단계. **현재 disabled** (회색).
+            //    인프라는 다 깔렸지만 MMS 처리가 stub 이라 토글 켜면 silent fail 위험 → 막아둠.
+            //    2단계 (MMS PDU 파싱 + 첨부 다운로드) 끝나면 enabled = true 로 한 줄 fix.
+            DefaultSmsAppCard()
+
             // 1. AI 서버 상태
             ServerStatusCard(alive = serverAlive)
 
@@ -406,6 +411,63 @@ private fun formatThousands(n: Long): String =
     else "%,d".format(n)
 
 private fun formatThousands(n: Int): String = formatThousands(n.toLong())
+
+/**
+ * 2026-05-29 Phase A 1단계 — RING-GO 를 기본 메시지 앱으로 전환하는 카드.
+ *
+ * 현재 disabled (회색). 인프라는 다 깔렸지만 MMS 처리 stub 단계 → 켜면 MMS silent fail.
+ * 2단계 (MMS PDU 파싱 + 첨부 다운로드 본격 구현) 끝나면 enabled = true 로 한 줄 fix.
+ *
+ * 사장님 카피 (2026-05-29 결정):
+ *   메인: "📱 RING-GO를 기본 메시지 앱으로 사용하기"
+ *   설명: "SMS/MMS 수신을 RING-GO에서 관리합니다. 현재는 준비 중이며, MMS 안정화 후 활성화됩니다."
+ *   안내: "🚧 2단계 MMS 처리 완료 후 사용할 수 있습니다."
+ */
+@Composable
+private fun DefaultSmsAppCard() {
+    TossCard {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "📱 RING-GO를 기본 메시지 앱으로 사용하기",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TossTextPrimary
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "SMS/MMS 수신을 RING-GO에서 관리합니다. 현재는 준비 중이며, MMS 안정화 후 활성화됩니다.",
+                        fontSize = 12.sp,
+                        color = TossTextSecondary
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                Switch(
+                    checked = false,
+                    onCheckedChange = null,
+                    enabled = false
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(TossGrayBg)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "🚧 2단계 MMS 처리 완료 후 사용할 수 있습니다",
+                    fontSize = 12.sp,
+                    color = TossTextTertiary,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+    }
+}
 
 /** AI 서버 연결 상태 — ● 색깔 + 사용량 placeholder. */
 @Composable

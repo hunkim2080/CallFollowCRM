@@ -102,6 +102,31 @@ class MainActivity : ComponentActivity() {
                     pendingIntentState.value = IncomingIntent.SharedAudio(uris.toList(), null)
                 }
             }
+            Intent.ACTION_SENDTO, Intent.ACTION_VIEW -> {
+                // 2026-05-29 Phase A 1단계 — Default SMS 자격 4/4: 외부 앱이 "sms:번호" 로 launch.
+                //   예: 연락처 앱 → 문자 보내기 → RING-GO 선택 → 여기로 옴.
+                //   data uri: sms:01012345678[?body=hi], smsto:..., mms:..., mmsto:...
+                //   phone 만 추출해 ChatScreen 으로 trampoline. body 가 있고 draft 비어있으면 prefill.
+                val uri = intent.data ?: return
+                val scheme = uri.scheme?.lowercase()
+                if (scheme !in setOf("sms", "smsto", "mms", "mmsto")) return
+                val phone = uri.schemeSpecificPart
+                    ?.substringBefore('?')
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() } ?: return
+                // body: query param "body" 또는 EXTRA_TEXT (앱마다 다름).
+                val bodyFromQuery = runCatching { uri.getQueryParameter("body") }.getOrNull()
+                val bodyFromExtra = intent.getStringExtra(Intent.EXTRA_TEXT)
+                val body = (bodyFromQuery ?: bodyFromExtra)?.takeIf { it.isNotBlank() }
+                if (body != null) {
+                    val container = (application as CallFollowCrmApplication).container
+                    // 사장님 작성 draft 안 덮어쓰기 — 빈 draft 일 때만 prefill.
+                    if (container.chatDraftStore.get(phone).isEmpty()) {
+                        container.chatDraftStore.set(phone, body)
+                    }
+                }
+                pendingIntentState.value = IncomingIntent.Chat(phone, null)
+            }
         }
     }
 
