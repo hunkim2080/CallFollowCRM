@@ -117,10 +117,9 @@ class SmsReceiver : BroadcastReceiver() {
 
         val app = context.applicationContext as? CallFollowCrmApplication ?: return
 
-        // 2026-05-28 사장님 통점 fix: 새 SMS 가 HomeScreen 카드로 5초+ 늦게 들어옴.
-        //   원인: observeContacts 풀스캔 (scanLimit=10000) 이 17000건 환경에서 무거움.
-        //   해결: pendingNewSmsContacts 에 즉시 prepend → HomeViewModel 이 합쳐서 0ms 표시.
-        //   풀스캔 끝나면 dedup 자동 (HomeViewModel 의 combine 로직).
+        // 2026-05-28 본격 fix: sms_contacts_cache (Room) 즉시 upsert → HomeScreen Room observe 자동 emit.
+        //   pendingNewSmsContacts in-memory 는 더 이상 필요 X (Room upsert → emit 이 ms 단위).
+        //   재시작 후에도 데이터 영속 → cold start 도 instant.
         val digits = sender.filter { it.isDigit() }
         val suffix = if (digits.length >= 8) digits.takeLast(8) else digits
         val newContact = com.detailline.callfollowcrm.data.repository.SmsRepository.SmsContact(
@@ -129,13 +128,14 @@ class SmsReceiver : BroadcastReceiver() {
             lastBody = combinedBody,
             lastDateMs = receivedAtMs,
             lastSent = false,
-            hasOwnerReply = false,  // 사장님이 답장 보낼 때 자연 갱신
+            hasOwnerReply = false,
             firstDateMsInScan = receivedAtMs
         )
-        val existing = app.container.pendingNewSmsContacts.value
-        // 같은 suffix 가 이미 pending 에 있으면 최신만 유지.
-        app.container.pendingNewSmsContacts.value =
-            listOf(newContact) + existing.filter { it.normalizedSuffix != suffix }
+        // 비동기 upsert — onReceive 가 빨리 끝나야 PHONE_STATE 다음 broadcast 안 막힘.
+        //   주의: 이 launch 는 goAsync 와 별개 scope 라 BroadcastReceiver 생명주기 무관 — Application scope.
+        scope.launch {
+            runCatching { app.container.smsContactCacheRepository.upsertOne(newContact) }
+        }
 
         val pending = goAsync()
         scope.launch {

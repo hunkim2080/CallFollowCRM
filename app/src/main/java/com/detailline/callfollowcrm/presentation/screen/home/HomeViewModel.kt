@@ -55,44 +55,23 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      *   즉시 새 데이터 emit → HomeScreen 자동 최신화. 화면 진입만으로는 reload 안 잡히던 문제 해결.
      * debounce 300ms — 여러 PDU 가 연속 도착해도 한 번만 재쿼리.
      */
-    // 2026-05-28 사장님 통점 fix: 새 SMS HomeScreen 5초+ 지연.
-    //   observeContacts 풀스캔 (10000건) 이 17000건 환경에서 무거움.
-    //   해결: pendingNewSmsContacts (SmsReceiver 가 즉시 prepend) 합쳐서 0ms 표시.
-    //   풀스캔 결과 emit 되면 같은 suffix 는 풀스캔 결과 우선 (정확 데이터) + pending 자동 비움.
-    private val smsContactsRaw = container.smsRepository
-        .observeContacts(scanLimit = 10000, contactLimit = 500)
-        .debounce(300)
-        .flowOn(Dispatchers.IO)
-        .shareIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
-
-    private val smsContactsState: StateFlow<List<SmsRepository.SmsContact>> = combine(
-        smsContactsRaw,
-        container.pendingNewSmsContacts
-    ) { fromObserve, pending ->
-        if (pending.isEmpty()) return@combine fromObserve
-        val existingSuffixes = fromObserve.map { it.normalizedSuffix }.toHashSet()
-        val notYetInObserve = pending.filter { it.normalizedSuffix !in existingSuffixes }
-        // 풀스캔에 이미 있는 phone 은 pending 에서 제거 — 메모리 leak 방지.
-        //   백그라운드 launch 로 비동기 cleanup.
-        if (notYetInObserve.size < pending.size) {
-            viewModelScope.launch {
-                container.pendingNewSmsContacts.value = notYetInObserve
-            }
-        }
-        if (notYetInObserve.isEmpty()) fromObserve
-        else (notYetInObserve + fromObserve).sortedByDescending { it.lastDateMs }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    // 2026-05-28 본격 fix: SmsRepository.observeContacts (매번 17000건 풀스캔) → Room 캐시 observe.
+    //   첫 실행 시 Application 이 풀스캔 → sms_contacts_cache 채움. 그 후 instant Room observe.
+    //   새 SMS = SmsReceiver 가 upsertOne 으로 즉시 캐시 update → HomeScreen 도 자동 emit.
+    //   재시작 후엔 캐시 비어있지 않으면 풀스캔 skip → cold start 도 즉시 표시.
+    //   pendingNewSmsContacts 는 그대로 두되 SmsReceiver 가 캐시 upsert 도 하므로 사실상 자연 dedup.
+    private val smsContactsState: StateFlow<List<SmsRepository.SmsContact>> =
+        container.smsContactCacheRepository
+            .observeAll(limit = 500)
+            .flowOn(Dispatchers.IO)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
-     * 2026-05-28 사장님 통점 fix: 앱 첫 진입 시 옛 통화 기록만 보이다가 SMS 풀스캔 끝나면
-     * "스르륵" SMS-only 카드 추가됨 = 캐시 깜빡임 인지.
-     *
-     * 해결: 첫 smsContactsRaw emit 전까지 true → HomeScreen 이 상단에 작은 progress bar 표시.
-     * 풀스캔 끝나면 false → bar 사라짐. 사장님이 "지금 SMS 로드 중" 명확히 인지.
-     *
-     * scanLimit 줄이는 것은 NEXT_SESSION_TODO.md 의 🚫 룰 (17000건 환경 검증됨) — 안 함.
+     * 첫 캐시 emit 전까지 true → HomeScreen 이 상단에 작은 progress bar 표시.
+     *   대부분 케이스에서 캐시는 채워져 있어 빠른 emit. 첫 실행 시만 짧게 보임.
      */
-    val isInitialSmsLoading: StateFlow<Boolean> = smsContactsRaw
+    val isInitialSmsLoading: StateFlow<Boolean> = container.smsContactCacheRepository
+        .observeAll(limit = 500)
         .map { false }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
 

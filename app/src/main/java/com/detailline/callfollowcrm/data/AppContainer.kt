@@ -53,6 +53,7 @@ class AppContainer(context: Context) {
     val pricingItemRepository = PricingItemRepository(db.pricingItemDao())
     val categoryRepository = CategoryRepository(db.categoryDao(), db.customerDao())
     val spamPhoneRepository = com.detailline.callfollowcrm.data.repository.SpamPhoneRepository(db.spamPhoneDao())
+    val smsContactCacheRepository = com.detailline.callfollowcrm.data.repository.SmsContactCacheRepository(db.smsContactCacheDao())
     val usageStatsRepository = com.detailline.callfollowcrm.ai.UsageStatsRepository()
 
     val preferences = AppPreferences(context)
@@ -72,18 +73,7 @@ class AppContainer(context: Context) {
      */
     val suggestionsCacheStore = com.detailline.callfollowcrm.data.draft.SuggestionsCacheStore()
 
-    /**
-     * SmsReceiver 가 받은 새 SMS 를 HomeScreen 에 즉시 보이게 하는 in-memory bridge (2026-05-28).
-     *
-     * 사장님 통점: 새 SMS 오면 HomeScreen 카드가 5초 이상 늦게 들어옴.
-     *   원인: observeContacts 의 scanLimit=10000 풀스캔이 17000건 환경에서 무거움.
-     *
-     * 해결: SmsReceiver onReceive 즉시 여기 prepend → HomeViewModel.smsContactsState 가 합쳐서 표시.
-     *   ContentObserver 가 풀스캔 emit 하면 dedup (같은 suffix 는 observeContacts 결과 우선).
-     */
-    val pendingNewSmsContacts = kotlinx.coroutines.flow.MutableStateFlow<List<com.detailline.callfollowcrm.data.repository.SmsRepository.SmsContact>>(
-        emptyList()
-    )
+    // pendingNewSmsContacts 는 2026-05-28 본격 fix (sms_contacts_cache) 로 대체. 제거됨.
 
     // Phase 4: 인터페이스만. 실제 호출 없음.
     val aiSummaryRepository: AiSummaryRepository = NoOpAiSummaryRepository()

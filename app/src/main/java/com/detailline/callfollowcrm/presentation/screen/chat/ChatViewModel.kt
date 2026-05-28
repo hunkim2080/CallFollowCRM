@@ -296,6 +296,28 @@ class ChatViewModel(
                 }
             }
 
+            // 5) 2026-05-28: sms_contacts_cache 즉시 upsert → HomeScreen 카드 lastBody/lastSent/hasOwnerReply 즉시 갱신.
+            if (ok) {
+                val digits = phoneNumber.filter { it.isDigit() }
+                val suffix = if (digits.length >= 8) digits.takeLast(8) else digits
+                val nowMs = System.currentTimeMillis()
+                withContext(Dispatchers.IO + NonCancellable) {
+                    runCatching {
+                        container.smsContactCacheRepository.upsertOne(
+                            SmsRepository.SmsContact(
+                                address = phoneNumber,
+                                normalizedSuffix = suffix,
+                                lastBody = trimmed,
+                                lastDateMs = nowMs,
+                                lastSent = true,
+                                hasOwnerReply = true,  // 사장님 발신 = 답장한 적 있음 true
+                                firstDateMsInScan = nowMs
+                            )
+                        )
+                    }
+                }
+            }
+
             _toast.value = if (ok) "보냈어요" else "발송 실패"
             onResult(ok)
             } finally {

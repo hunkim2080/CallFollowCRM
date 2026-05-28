@@ -27,9 +27,11 @@ import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
 import com.detailline.callfollowcrm.data.local.entity.ImportantMessageEntity
 import com.detailline.callfollowcrm.data.local.entity.MessageHistoryEntity
 import com.detailline.callfollowcrm.data.local.entity.MessageTemplateEntity
+import com.detailline.callfollowcrm.data.local.dao.SmsContactCacheDao
 import com.detailline.callfollowcrm.data.local.dao.SpamPhoneDao
 import com.detailline.callfollowcrm.data.local.entity.PricingItemEntity
 import com.detailline.callfollowcrm.data.local.entity.RecordingAttachmentEntity
+import com.detailline.callfollowcrm.data.local.entity.SmsContactCacheEntity
 import com.detailline.callfollowcrm.data.local.entity.SpamPhoneEntity
 import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
 
@@ -47,9 +49,10 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         AiSummaryEntity::class,
         PricingItemEntity::class,
         CategoryEntity::class,
-        SpamPhoneEntity::class
+        SpamPhoneEntity::class,
+        SmsContactCacheEntity::class
     ],
-    version = 15,
+    version = 16,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -66,6 +69,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun pricingItemDao(): PricingItemDao
     abstract fun categoryDao(): CategoryDao
     abstract fun spamPhoneDao(): SpamPhoneDao
+    abstract fun smsContactCacheDao(): SmsContactCacheDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -302,6 +306,33 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v15 -> v16: sms_contacts_cache 테이블 추가 (2026-05-28).
+         *   HomeScreen 풀스캔 (17000건) 통점 fix 의 토대.
+         *   첫 실행 시 풀스캔 → 캐시. 그 후 SmsReceiver 가 phone 별 incremental upsert.
+         *   HomeViewModel 은 이 테이블 observe → instant 갱신 (재시작 후에도 빠름).
+         */
+        private val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS sms_contacts_cache (
+                        normalizedSuffix TEXT NOT NULL PRIMARY KEY,
+                        address TEXT NOT NULL,
+                        lastBody TEXT NOT NULL,
+                        lastDateMs INTEGER NOT NULL,
+                        lastSent INTEGER NOT NULL,
+                        hasOwnerReply INTEGER NOT NULL,
+                        firstDateMsInScan INTEGER NOT NULL,
+                        updatedAt INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS idx_sms_contacts_cache_lastDateMs " +
+                        "ON sms_contacts_cache(lastDateMs)"
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
@@ -311,7 +342,8 @@ abstract class AppDatabase : RoomDatabase() {
                 .addMigrations(
                     MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
                     MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
-                    MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15
+                    MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15,
+                    MIGRATION_15_16
                 )
                 .fallbackToDestructiveMigration()   // migration 실패 시 안전망 (개발 단계)
                 .build()

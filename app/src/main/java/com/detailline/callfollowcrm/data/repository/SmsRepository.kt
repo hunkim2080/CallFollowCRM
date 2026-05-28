@@ -686,6 +686,15 @@ class SmsRepository(private val context: Context) {
             else emptyList()
         }.getOrDefault(emptyList())
 
+    /**
+     * 풀스캔 1회 (2026-05-28) — Application 첫 실행 시 SmsContactCacheRepository.rebuildFromFullScan 용.
+     *   Flow 가 아닌 suspend. 권한 없으면 emptyList. Dispatchers.IO 에서 실행.
+     */
+    suspend fun queryContactsOnce(scanLimit: Int = 10000, contactLimit: Int = 500): List<SmsContact> =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            safeQueryContacts(scanLimit, contactLimit)
+        }
+
     private fun dateDescSortArgs(limit: Int): Bundle = Bundle().apply {
         putStringArray(ContentResolver.QUERY_ARG_SORT_COLUMNS, arrayOf(COL_DATE))
         putInt(

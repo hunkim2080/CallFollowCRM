@@ -41,6 +41,25 @@ class CallFollowCrmApplication : Application() {
         // READ_SMS 권한 없으면 silent skip.
         container.smsCachePrefetcher.prefetchRecentContacts(contactLimit = 20)
 
+        // 2026-05-28 사장님 통점 fix: SMS 풀스캔 (17000건) 가 매번 느림.
+        //   해결: sms_contacts_cache 테이블 (DB v16). 첫 실행 시 풀스캔 → 캐시 채움.
+        //   그 후 HomeScreen 은 Room observe 만 → instant 갱신 (재시작 후에도 빠름).
+        //   새 SMS 도착 = SmsReceiver 가 upsertOne 으로 incremental update.
+        appScope.launch {
+            // 캐시 비어있을 때만 풀스캔 (재시작 후엔 skip — 기존 데이터 유효).
+            val cached = runCatching { container.smsContactCacheRepository.count() }.getOrDefault(0)
+            if (cached == 0) {
+                val contacts = runCatching {
+                    container.smsRepository.queryContactsOnce(scanLimit = 10000, contactLimit = 500)
+                }.getOrDefault(emptyList())
+                if (contacts.isNotEmpty()) {
+                    runCatching {
+                        container.smsContactCacheRepository.rebuildFromFullScan(contacts)
+                    }
+                }
+            }
+        }
+
         // 2026-05-28 사장님 통점 fix: 정적 BroadcastReceiver (CallStateReceiver) 가
         //   Android 12+ / OneUI 에서 누락되는 케이스 多 → 통화 종료 감지 실패.
         //   Application 에서 TelephonyCallback (Android 12+) / PhoneStateListener (이하) 동적 등록 →
