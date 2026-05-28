@@ -53,6 +53,14 @@ if not CLAUDE_API_KEY:
 KAKAO_REST_API_KEY = os.environ.get("KAKAO_REST_API_KEY")
 KAKAO_TIMEOUT_SEC = 5.0
 
+# §14 (SYNC 2026-05-28 12:30 안드로이드 요청) — Gemini 2.5 Flash 키 (✨ 다듬기 endpoint 용)
+# launchd plist EnvironmentVariables 에 GEMINI_API_KEY 박혀있어야 /api/refine 동작.
+# 미설정 시 endpoint 가 503 응답 → 안드로이드는 "AI 서버 연결 실패" 토스트.
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_TIMEOUT_SEC = 30.0
+GEMINI_MAX_OUTPUT_TOKENS = 500
+
 CLAUDE_MODEL = "claude-sonnet-4-6"
 CLAUDE_MAX_TOKENS = 800
 CLAUDE_TIMEOUT = 60.0  # 초. 한 호출이 60초 넘으면 끊는다.
@@ -374,6 +382,19 @@ MODEL_PRICING_USD_PER_M = {
         "cache_read":  0.0,
         "cache_write": 0.0,
         "output":      0.0,
+    },
+    # §14 — Google Gemini 2.5 Flash (✨ 다듬기 endpoint)
+    # 단가 출처: https://ai.google.dev/pricing (2026 기준, per 1M tokens, USD)
+    # · input          $0.075 / 1M tokens
+    # · cached input   $0.01875 / 1M tokens  (= 입력의 1/4)
+    # · output         $0.30 / 1M tokens
+    # cache_write 는 별도 가격표 없음 → input 단가와 동일 적용 (보수적).
+    # prefix 매칭으로 "gemini-2.5-flash-001" 같은 정식 ID 도 같이 잡힘.
+    "gemini-2.5-flash": {
+        "input":       0.075,
+        "cache_read":  0.01875,
+        "cache_write": 0.075,
+        "output":      0.30,
     },
 }
 
@@ -1805,6 +1826,212 @@ async def address_resolve(req: AddressResolveRequest) -> dict:
     print(f"[address-resolve] all candidates failed: {req.candidate_keywords}")
     _log_address_resolve_call()
     return {"resolved": None, "confidence": 0.0}
+
+
+# ============================================================================
+# §14 — POST /api/refine  (✨ 다듬기, Google Gemini 2.5 Flash)
+# ─────────────────────────────────────────────────────────────────────────────
+# 안드로이드 ChatScreen 의 [✨ 다듬기] 버튼이 호출.
+# 사장님이 친 원문 + 컨텍스트 (사장님 톤 + 최근 대화 + 고객 정보) 를 받아
+# 자연스럽게 다듬어 한 줄로 반환.
+#
+# 모델은 Gemini 2.5 Flash — 다듬기는 단순 변환이라 Flash 가성비 최적.
+# Claude (Sonnet) 대비 1/40 비용 (input $0.075 / output $0.30 per 1M).
+#
+# GEMINI_API_KEY 미설정 시 — HTTP 503. 안드로이드는 토스트 "AI 서버 연결 실패".
+# Gemini API 호출 실패 시 — HTTP 502. 안드로이드는 같은 토스트.
+#
+# SYNC.md 2026-05-28 12:30 안드로이드 블록의 사양 그대로.
+# ============================================================================
+
+class RefineMessage(BaseModel):
+    role: str          # "owner" | "customer"
+    body: str
+    timestamp_ms: int = 0
+
+
+class RefineRequest(BaseModel):
+    raw: str
+    recent_messages: list[RefineMessage] = Field(default_factory=list)
+    owner_tone_samples: list[str] = Field(default_factory=list)
+    customer_name: Optional[str] = None
+    customer_memo: Optional[str] = None
+
+
+def _build_refine_system_prompt(owner_tone_samples: list[str]) -> str:
+    """사장님 톤 few-shot 까지 포함한 system prompt."""
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for s in (owner_tone_samples or []):
+        s = (s or "").strip()
+        if len(s) < 5 or len(s) > 300:
+            continue
+        if s in seen:
+            continue
+        seen.add(s)
+        cleaned.append(s)
+        if len(cleaned) >= 50:
+            break
+    tone_block = "\n".join(f"- {s}" for s in cleaned) if cleaned else "(샘플 없음 — 기본 정중한 한국어로)"
+
+    return f"""너는 줄눈/타일 시공 사장님이 고객에게 보낼 문장을 자연스럽게 다듬어주는 비서다.
+
+────── 규칙 (절대 지킬 것) ──────
+- 원문의 의미를 절대 바꾸지 마라
+- 정중하고 자연스러운 한국어 (존댓말)
+- 가격·날짜·시간·시공 종류 등 사장님이 원문에 안 쓴 정보는 절대 추가 금지
+- 길이는 원문과 비슷하게 유지 (한두 글자 차이 OK, 두 배 X)
+- 사장님 톤 샘플의 어휘·문장 길이·존댓말 비율·이모지 사용을 모방
+- 사장님이 안 쓸 법한 단어/문체로 답하지 마라
+- 금기어: "급하면" 계열, "싸다" 계열 → 변형 표현도 피하라
+
+────── 사장님 톤 샘플 (이 문체를 따라라) ──────
+{tone_block}
+
+────── 답 형식 — 반드시 지켜라 ──────
+- 출력은 다듬어진 문장 한 줄 (또는 짧은 단락) 만
+- 인사·설명·따옴표·코드블럭·백틱·JSON·태그 절대 X
+- 첫 글자부터 다듬어진 문장으로 시작
+"""
+
+
+def _build_refine_user_message(req: RefineRequest) -> str:
+    """Gemini 에 보낼 user 메시지. 고객 정보 → 최근 대화 → 다듬을 원문 순."""
+    lines: list[str] = []
+
+    # 고객 정보 (있으면)
+    has_customer = bool((req.customer_name and req.customer_name.strip())
+                        or (req.customer_memo and req.customer_memo.strip()))
+    if has_customer:
+        lines.append("[고객 정보]")
+        if req.customer_name and req.customer_name.strip():
+            lines.append(f"이름: {req.customer_name.strip()}")
+        if req.customer_memo and req.customer_memo.strip():
+            lines.append(f"메모: {req.customer_memo.strip()}")
+        lines.append("")
+
+    # 최근 대화 (있으면)
+    recent = req.recent_messages or []
+    if recent:
+        lines.append("[최근 대화 (시간순, 흐름 참고용)]")
+        for m in recent[-20:]:
+            role_ko = "사장님" if m.role == "owner" else "고객"
+            body = (m.body or "").strip()
+            if body:
+                lines.append(f"({role_ko}): {body}")
+        lines.append("")
+
+    # 다듬을 원문
+    lines.append("[다듬을 원문]")
+    lines.append(req.raw)
+    lines.append("")
+    lines.append("위 원문을 위 흐름과 사장님 톤에 맞게 자연스럽게 다듬어, 한 줄로만 답하라.")
+    return "\n".join(lines)
+
+
+async def _call_gemini_refine(
+    system_prompt: str, user_msg: str
+) -> tuple[str, dict]:
+    """Gemini 2.5 Flash 호출. (polished_text, usage_metadata dict) 반환.
+
+    실패 시 RuntimeError raise.
+    """
+    if not GEMINI_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY env var not set")
+
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
+    )
+    payload = {
+        "systemInstruction": {"parts": [{"text": system_prompt}]},
+        "contents": [
+            {"role": "user", "parts": [{"text": user_msg}]},
+        ],
+        "generationConfig": {
+            "temperature": 0.7,
+            "maxOutputTokens": GEMINI_MAX_OUTPUT_TOKENS,
+            "topP": 0.95,
+        },
+    }
+
+    async with httpx.AsyncClient(timeout=GEMINI_TIMEOUT_SEC) as client:
+        resp = await client.post(
+            url, json=payload, headers={"Content-Type": "application/json"}
+        )
+
+    if resp.status_code != 200:
+        raise RuntimeError(
+            f"Gemini API status {resp.status_code}: {resp.text[:300]}"
+        )
+
+    data = resp.json()
+    candidates = data.get("candidates") or []
+    if not candidates:
+        raise RuntimeError(f"Gemini empty candidates: {str(data)[:300]}")
+
+    content = candidates[0].get("content") or {}
+    parts = content.get("parts") or []
+    polished = "".join(p.get("text", "") for p in parts).strip()
+    if not polished:
+        # finishReason 이 SAFETY 같은 경우 candidates 는 있지만 text 가 비어있음
+        finish = candidates[0].get("finishReason", "?")
+        raise RuntimeError(f"Gemini empty polished (finishReason={finish}): {str(data)[:300]}")
+
+    usage_meta = data.get("usageMetadata") or {}
+    return polished, usage_meta
+
+
+@app.post("/api/refine")
+async def refine_endpoint(req: RefineRequest) -> dict:
+    """§14 — 사장님 원문을 Gemini 2.5 Flash 로 다듬어 polished 한 줄 반환.
+
+    입력: { raw, recent_messages, owner_tone_samples, customer_name?, customer_memo? }
+    출력: { polished: "..." }
+
+    실패 시:
+      - GEMINI_API_KEY 미설정 → 503
+      - Gemini API 호출 실패 → 502
+      - raw 비어있음 → 400
+    """
+    raw = (req.raw or "").strip()
+    if not raw:
+        raise HTTPException(400, "raw 가 비어있음")
+
+    if not GEMINI_API_KEY:
+        print("[refine] GEMINI_API_KEY 미설정 — 503 반환")
+        raise HTTPException(
+            503,
+            "GEMINI_API_KEY 미설정. Mac mini 의 launchd plist EnvironmentVariables 에 박아주세요."
+        )
+
+    system_prompt = _build_refine_system_prompt(req.owner_tone_samples or [])
+    user_msg = _build_refine_user_message(req)
+
+    try:
+        polished, usage_meta = await _call_gemini_refine(system_prompt, user_msg)
+    except Exception as e:
+        print(f"[refine] Gemini 호출 실패: {type(e).__name__}: {e}")
+        raise HTTPException(502, f"Gemini 호출 실패: {type(e).__name__}")
+
+    # log_llm_usage — endpoint 카운트 + 비용 계산 (단가 dict 의 gemini-2.5-flash)
+    prompt_tokens = int(usage_meta.get("promptTokenCount", 0) or 0)
+    completion_tokens = int(usage_meta.get("candidatesTokenCount", 0) or 0)
+    cache_read_tokens = int(usage_meta.get("cachedContentTokenCount", 0) or 0)
+    log_llm_usage(
+        endpoint="refine",
+        model=GEMINI_MODEL,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        cache_read_tokens=cache_read_tokens,
+        cache_write_tokens=0,
+    )
+    print(
+        f"[refine] OK in={prompt_tokens} out={completion_tokens} "
+        f"cache_read={cache_read_tokens} polished_len={len(polished)}"
+    )
+
+    return {"polished": polished}
 
 
 # ============================================================================

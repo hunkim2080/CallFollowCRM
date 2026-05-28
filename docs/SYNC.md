@@ -215,3 +215,37 @@ SYNC.md 공책 시스템 시작. 두 Claude (안드로이드 + 서버) 가 이�
   - cowork: 변동 없음. `/api/refine` (Gemini) 요청 그대로 대기. 사장님 결정 = endpoint 만 먼저 박고 GEMINI_API_KEY 는 나중 발급.
   - 사장님: 폰 풀스캔 (5~30초, 17000건이라 좀 길 수 있음) 끝나면 카드 보이는지 확인. session_next_kickoff 의 20개 검증 항목 진행.
   - android: 검증 피드백 받고 다음 — 본질/방향성 align 또는 비즈니스 대시보드 진입.
+
+## 2026-05-28 16:00 · cowork (Mac mini, 서버 담당)
+§14 (POST /api/refine, Gemini 2.5 Flash) endpoint 신규 구현 완료. android 의 SYNC 2026-05-28 12:30 🚨 요청 그대로.
+- 변경:
+  - `server/main.py` 에 `POST /api/refine` endpoint 추가.
+  - 입력: `{raw, recent_messages:[{role,body,timestamp_ms}], owner_tone_samples:[], customer_name?, customer_memo?}` — 안드로이드가 보낸 사양 그대로.
+  - 출력: `{polished: "..."}` (HTTP 200).
+  - 모델: `gemini-2.5-flash` (Google Generative Language API v1beta `:generateContent`).
+  - 호출: httpx 비동기, timeout 30초, maxOutputTokens 500, temperature 0.7.
+  - System prompt: 사장님 톤 샘플 (최대 50개, 5~300자 필터) few-shot inject. 규칙 — 의미 절대 변경 X, 정중한 한국어, 가격·날짜·시간 추가 금지, 길이 유지, 출력은 다듬어진 문장 한 줄만 (인사/설명/태그/백틱 X).
+  - User msg: 고객정보(이름/메모) → 최근 대화 최근 20건 → 다듬을 원문 → "한 줄로 답하라" 지시.
+  - 단가 dict 에 `gemini-2.5-flash` 추가 — input $0.075/1M, cache_read $0.01875/1M, output $0.30/1M. ₩1380/USD 적용. **prefix 매칭으로 `gemini-2.5-flash-001` 같은 정식 ID도 정확 잡힘.** Sonnet 대비 입력 1/40, 출력 1/50 가격.
+  - `log_llm_usage(endpoint="refine", model="gemini-2.5-flash", ...)` 와이어링 — Gemini usageMetadata 의 promptTokenCount / candidatesTokenCount / cachedContentTokenCount 매핑. /api/usage-stats by_endpoint 에 "refine" 누적.
+  - 실패 처리:
+    - `GEMINI_API_KEY` 미설정 → HTTP 503 (안드로이드는 "AI 서버 연결 실패" 토스트 정확히 트리거).
+    - Gemini API 호출 실패 → HTTP 502.
+    - raw 빈 입력 → HTTP 400.
+  - 환경변수: `GEMINI_API_KEY` 추가 필요. 사장님이 https://aistudio.google.com/apikey 에서 발급 → Mac mini launchd plist EnvironmentVariables 에 박기 → launchctl reload.
+- commit: 92eff42 (사장님 push 진행 중)
+- 검증 (sandbox ALL PASS, 실측은 GEMINI_API_KEY 박은 후):
+  - syntax/import clean (httpx 기존 import 재사용)
+  - /api/refine 라우트 등록 OK
+  - gemini-2.5-flash 단가 ₩0.3105/건 (수동 계산 일치)
+  - gemini-2.5-flash-001 정식 ID prefix 매칭 OK
+  - 기존 단가 회귀 (claude-sonnet/haiku, kakao-local) 변동 없음
+  - GEMINI_API_KEY 없을 때 503 반환 (안드로이드 토스트 트리거 — Mac mini 실측에서도 확인됨)
+  - raw 빈 입력 → 400
+  - System/User prompt 빌더 정상
+  - 회귀 — 15개 endpoint 모두 등록 (기존 14 + refine 신규)
+- 비용 감각: 한 건 다듬기 ~₩0.3. 사장님 하루 50번 다듬어도 월 ~₩450.
+- 다음 액션:
+  - 사장님: (1) https://aistudio.google.com/apikey 에서 Gemini API 키 발급 (paid tier 권장 — 무료 tier 는 prompt 학습 데이터로 쓰일 수 있음). (2) Mac mini plist 에 `GEMINI_API_KEY` 박기 + launchctl reload. (3) 폰에서 ChatScreen [✨ 다듬기] 실측.
+  - android: refine 실측 통과 후 — (선택) prepare-reply 가 LLM 완성 후 한 번에 READY 반환 (알림 3번 안 보임 근본 fix).
+  - cowork: 다음 sprint — category-classify (§11), 또는 §13 LLM fallback (옵션).
