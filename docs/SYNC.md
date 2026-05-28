@@ -331,3 +331,62 @@ SYNC.md 공책 시스템 시작. 두 Claude (안드로이드 + 서버) 가 이�
   - 사장님 (1주 후): /api/usage-stats?period=month 확인 → 비용 그래프 ₩4k → ₩1.5k 떨어졌는지 검증.
   - android: 변동 없음. 서버 model 만 바뀌어서 응답 형식 동일 — 클라이언트 영향 X.
   - cowork: A/B test 인프라 (다음 sprint) — Haiku 응답 품질이 진짜 Sonnet 만큼인지 데이터로 검증. 만약 quality 떨어지면 일부 endpoint Sonnet 으로 복구.
+
+## 2026-05-28 19:00 · android
+**킬러 콘텐츠 1단계 = AI 추천 답변 의도 분화** 안드로이드 측 박음. 사장님 결정 (2026-05-28): 유료 앱 정당화의 핵심 = "내가 수정할 부분이 없는 AI 추천 답변" → 패러다임 전환 = "답변 3개" → **"상담 전략 3개"**.
+
+- 변경 (안드로이드):
+  - `ReplySuggestions.suggestions: List<String>` → `List<ReplyChoice>` 로 확장.
+  - 신규 `ReplyChoice(text, label?, intentKey?, why?)` data class. label = "💰 견적 안내" 형식. why = 로그용 미노출.
+  - `ReplySuggestions` 에 scenario / scenarioConfidence / scenarioReason 필드 추가 (UI 미노출, 로깅용).
+  - `ServerSuggestionRepository.parseFetchResult` — 새 스키마 (객체 list) + 옛 스키마 (string list) 둘 다 지원. **서버 배포 전이어도 안드로이드 안 깨짐.**
+  - `ChatScreen.SuggestionChip` — label != null 이면 카드 상단에 작은 라벨 줄 (이모지 + 텍스트) + 본문, label == null 이면 기존 모양 (번호 + 본문).
+  - `SmsReceiver` — fetch 결과 `.map { it.text }` 로 변환해서 NotificationHelper 에 전달 (알림은 chip UI 없어 라벨 불필요).
+- 서버 영향 X (아직 옛 스키마 받는 중). cowork 가 새 스키마 박는 순간 자동 활성화.
+- commit: (이번 커밋)
+- **🚨 cowork 작업 요청 — `POST /api/prepare-reply` + `GET /suggestions/{phone}` 응답 스키마 v2**:
+  - **목표**: 3개 답변을 단순 string list 가 아니라 **서로 다른 상담 전략 3개** 로 강제. 시나리오 분류도 함께.
+  - **응답 스키마 (GET /suggestions/{phone}) — 필드 추가**:
+    ```json
+    {
+      "status": "READY",
+      "phone": "...",
+      "basedOnMessage": "...",
+      "basedOnReceivedAtMs": 0,
+      "generatedAtMs": 0,
+      "scenario": "price_inquiry",
+      "scenario_confidence": 0.78,
+      "scenario_reason": "고객이 평수 공유 후 가격 문의",
+      "suggestions": [
+        {"intent_key":"quote","label":"💰 견적 안내","text":"...","why":"..."},
+        {"intent_key":"condition","label":"✅ 조건 확인","text":"...","why":"..."},
+        {"intent_key":"booking","label":"📅 예약 유도","text":"...","why":"..."}
+      ]
+    }
+    ```
+  - **Intent Pool v1 (사장님 시안 그대로)** — 7개 시나리오 + 1개 fallback:
+    | scenario | 3종 intent (intent_key / label) |
+    |---|---|
+    | `initial_inquiry` (초기 문의) | `quick`/📞 빠른 답변, `info`/❓ 정보 요청, `assure`/🤝 안심 설명 |
+    | `price_inquiry` (가격 문의) | `quote`/💰 견적 안내, `condition`/✅ 조건 확인, `booking`/📅 예약 유도 |
+    | `hesitation` (고객 망설임) | `price_explain`/💬 가격 설명, `case`/📷 사례 제시, `nudge`/➡️ 결정 유도 |
+    | `schedule` (일정 조율) | `date_confirm`/🗓️ 날짜 확정, `alternative`/🔄 대안 제시, `prep`/📋 준비 안내 |
+    | `pre_booking` (예약 확정 전) | `deposit`/💵 계약금 안내, `final_check`/✔️ 최종 확인, `caution`/⚠️ 주의사항 안내 |
+    | `pre_service` (시공 전) | `visit`/🚪 방문 안내, `prep_req`/📝 준비 요청, `assure_pre`/🛡️ 안심 안내 |
+    | `post_service` (시공 후) | `usage`/📖 사용 안내, `review`/⭐ 후기 요청, `upsell`/🎁 추가 제안 |
+    | **`fallback_default`** (분류 신뢰도 낮음) | `general`/💬 무난 답변, `clarify`/❓ 추가 확인, `manual`/✍️ 직접 확인 |
+  - **System prompt 강제 사항**:
+    1. 최근 대화 (recent_messages) 보고 위 8개 시나리오 중 하나로 분류 (`scenario` 필드).
+    2. 신뢰도 측정 → `scenario_confidence` (0.0~1.0). 0.6 미만이면 **`fallback_default`** 로 빠짐 (사장님 결정: `initial_inquiry` 가 아닌 별도 fallback 세트 사용).
+    3. 선택된 시나리오의 정의된 3종 intent_key 만 사용. label 은 위 표 그대로.
+    4. **"suggestions 3개는 반드시 서로 다른 상담 전략. 단순 말투/길이/친절도 차이는 실패."** (사장님 명시 강조)
+    5. 각 답변에 `why` 한 줄 (왜 이 답변을 추천했는지) — UI 미노출, 로그/품질 개선용.
+    6. JSON schema 강제, 위 4개 top-level 필드 + suggestions[3] 필수.
+  - **모델**: 현재 `claude-sonnet-4-6` 그대로 (의도 분화는 답변 품질 핵심이라 Sonnet 유지). 18:30 cowork 작업의 `/prepare-reply → Sonnet 유지` 결정과 일치. 추후 [E] 2단계 분리 시점에 Haiku=분류, Sonnet=생성으로 재배치 가능.
+  - **prompt caching 통합**: 18:30 cowork 가 만든 `build_system_blocks()` 의 **block A (고정 규칙)** 안에 이번 사양 (8 시나리오 분류 + 3종 intent 강제 + JSON schema) 을 추가. block A 는 cache_control 박힌 영원 캐시 → 의도 분화 사양도 자동 캐시 수혜.
+  - **호환성**: 안드로이드는 옛 스키마 (`suggestions: ["..."]`) 도 fallback 으로 받음. 서버 배포 전엔 옛 모드 그대로 동작.
+  - **로깅**: `log_llm_usage(endpoint="prepare-reply", ...)` 에 scenario 필드 함께 기록하면 추후 시나리오별 채택률 분석 가능.
+- 다음 액션:
+  - cowork: 위 v2 스키마 + Intent Pool + system prompt 강제 사항 박기. push 후 SYNC append.
+  - 사장님: cowork 작업 완료 후 새 빌드 설치 → ChatScreen 진입 시 chip 위에 라벨 노출 확인 → 3개 답변이 진짜 다른 전략인지 검증.
+  - android: cowork 완료 후 1단계 검증 끝나면 → [2단계 상황 분류 정확도 측정 / 3단계 채택·수정 tracking] 진행. 로드맵 6단계 ([[project-killer-content-roadmap]] 메모리 참고).

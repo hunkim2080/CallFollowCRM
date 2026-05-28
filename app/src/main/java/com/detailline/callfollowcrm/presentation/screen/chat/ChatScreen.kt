@@ -1108,11 +1108,12 @@ private fun SuggestionArea(
                             .fillMaxWidth()
                             .padding(top = 4.dp)
                     ) {
-                        itemsIndexed(suggestion!!.suggestions) { idx, text ->
+                        itemsIndexed(suggestion!!.suggestions) { idx, choice ->
                             SuggestionChip(
                                 index = idx + 1,
-                                text = text,
-                                onTap = { onPickSuggestion(text) }
+                                label = choice.label,
+                                text = choice.text,
+                                onTap = { onPickSuggestion(choice.text) }
                             )
                         }
                     }
@@ -1154,8 +1155,15 @@ private fun SuggestionArea(
     }
 }
 
+/**
+ * 2026-05-28 v2 (킬러 콘텐츠 1단계 — 의도 분화):
+ *   label != null 이면 카드 상단에 작은 intent 라벨 줄 ("💰 견적 안내") 노출.
+ *   label == null (옛 스키마 fallback) 이면 기존 모양 그대로 (번호 + 본문).
+ *
+ * 사장님 결정 — 답변 카드 안 상단에 이모지 + 짧은 라벨. 본문 읽기 전에 어떤 전략의 답변인지 0.5초 안에 파악.
+ */
 @Composable
-private fun SuggestionChip(index: Int, text: String, onTap: () -> Unit) {
+private fun SuggestionChip(index: Int, label: String?, text: String, onTap: () -> Unit) {
     Surface(
         modifier = Modifier
             .widthIn(max = 280.dp)
@@ -1163,24 +1171,53 @@ private fun SuggestionChip(index: Int, text: String, onTap: () -> Unit) {
         shape = RoundedCornerShape(16.dp),
         color = TossBlue
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
         ) {
-            Text(
-                "$index",
-                color = Color.White,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(end = 8.dp)
-            )
-            Text(
-                text,
-                color = Color.White,
-                fontSize = 13.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
+            if (!label.isNullOrBlank()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "$index",
+                        color = Color.White.copy(alpha = 0.85f),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(end = 6.dp)
+                    )
+                    Text(
+                        label,
+                        color = Color.White.copy(alpha = 0.85f),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text,
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "$index",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                    Text(
+                        text,
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
         }
     }
 }

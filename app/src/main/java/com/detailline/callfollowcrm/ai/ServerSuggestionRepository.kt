@@ -98,23 +98,46 @@ class ServerSuggestionRepository(
     private fun parseFetchResult(bodyStr: String): SuggestionFetchResult {
         val json = JSONObject(bodyStr)
         val status = when (json.optString("status")) {
-            "ready" -> SuggestionStatus.READY
-            "generating" -> SuggestionStatus.GENERATING
+            "ready", "READY" -> SuggestionStatus.READY
+            "generating", "GENERATING" -> SuggestionStatus.GENERATING
             else -> SuggestionStatus.MISSING
         }
         if (status != SuggestionStatus.READY) {
             return SuggestionFetchResult(status, null)
         }
+        // 2026-05-28 v2: suggestions 가 두 가지 형태로 들어올 수 있음.
+        //   - 옛: ["답변1", "답변2", "답변3"]               (legacy string list)
+        //   - 새: [{intent_key, label, text, why}, ...]    (의도 분화)
+        // 서버 배포 전/후 어느 쪽이든 깨지지 않게 둘 다 지원.
         val arr = json.optJSONArray("suggestions") ?: JSONArray()
-        val list = (0 until arr.length()).mapNotNull { i ->
-            arr.optString(i).takeIf { it.isNotBlank() }
+        val choices = (0 until arr.length()).mapNotNull { i ->
+            when (val item = arr.opt(i)) {
+                is JSONObject -> {
+                    val text = item.optString("text").takeIf { it.isNotBlank() }
+                        ?: return@mapNotNull null
+                    ReplyChoice(
+                        text = text,
+                        label = item.optString("label").takeIf { it.isNotBlank() },
+                        intentKey = item.optString("intent_key").takeIf { it.isNotBlank() }
+                            ?: item.optString("intentKey").takeIf { it.isNotBlank() },
+                        why = item.optString("why").takeIf { it.isNotBlank() }
+                    )
+                }
+                is String -> item.takeIf { it.isNotBlank() }?.let { ReplyChoice(text = it) }
+                else -> null
+            }
         }
         val suggestions = ReplySuggestions(
             phone = json.optString("phone"),
             basedOnMessage = json.optString("basedOnMessage"),
             basedOnReceivedAtMs = json.optLong("basedOnReceivedAtMs"),
             generatedAtMs = json.optLong("generatedAtMs"),
-            suggestions = list
+            suggestions = choices,
+            scenario = json.optString("scenario").takeIf { it.isNotBlank() },
+            scenarioConfidence = if (json.has("scenario_confidence")) {
+                json.optDouble("scenario_confidence").takeIf { !it.isNaN() }
+            } else null,
+            scenarioReason = json.optString("scenario_reason").takeIf { it.isNotBlank() }
         )
         return SuggestionFetchResult(SuggestionStatus.READY, suggestions)
     }

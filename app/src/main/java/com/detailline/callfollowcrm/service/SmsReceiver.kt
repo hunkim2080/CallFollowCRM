@@ -50,6 +50,9 @@ class SmsReceiver : BroadcastReceiver() {
         //   기존 = READY + isNotEmpty 면 첫 hit 으로 update → LLM 이 점진 생성하면 2개만 받기도.
         //   사장님 통점 = "3번이 안 보임". 알림에 2개, ChatScreen 들어가면 3개.
         //   새 정책: size >= 3 일 때만 update. 단 마지막 시도엔 부분이라도 update (답변 없음 알림 방지).
+        // 2026-05-28 v2: suggestions = List<ReplyChoice> → 알림 본문엔 text 만 추출해서 전달.
+        //   NotificationHelper 시그니처 (List<String>?) 는 그대로 — BigText/액션엔 라벨 없이 답변 본문만.
+        //   알림에는 chip UI 가 없으므로 ChatScreen 처럼 라벨 노출은 불필요.
         var lastPartialSugs: List<String> = emptyList()
         repeat(3) { attempt ->
             kotlinx.coroutines.delay(2500L)
@@ -57,7 +60,7 @@ class SmsReceiver : BroadcastReceiver() {
                 container.suggestionRepository.fetch(phone).getOrNull()
             }.getOrNull()
             if (result?.status == com.detailline.callfollowcrm.ai.SuggestionStatus.READY) {
-                val sugs = result.suggestions?.suggestions.orEmpty()
+                val sugs = result.suggestions?.suggestions.orEmpty().map { it.text }
                 if (sugs.size >= 3) {
                     // 3개 다 받음 — 즉시 update + 종료.
                     NotificationHelper.showIncomingSms(
