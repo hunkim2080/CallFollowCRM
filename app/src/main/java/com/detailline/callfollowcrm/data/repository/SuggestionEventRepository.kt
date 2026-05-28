@@ -59,4 +59,56 @@ class SuggestionEventRepository(
         /** "그대로 채택" 비율 (SENT_AS_IS + REFINED_THEN_SENT) / total. */
         val adoptionRate: Double get() = if (total == 0) 0.0 else adopted.toDouble() / total
     }
+
+    // 2026-05-29 킬러콘텐츠 6단계 — 자동 학습 루프.
+
+    /**
+     * 시나리오별 채택률. 사장님이 어떤 시나리오에서 가장 만족하는지 발견.
+     * 정렬 = 채택률 오름차순 (낮은 거 먼저 — 개선 우선순위).
+     */
+    suspend fun scenarioBreakdown(sinceMs: Long): List<ScenarioBreakdown> {
+        return dao.scenarioStatsSince(sinceMs).map { row ->
+            ScenarioBreakdown(
+                scenario = row.scenario,
+                total = row.total,
+                adopted = row.adopted,
+                avgEdit = row.avgEdit ?: 0.0
+            )
+        }.sortedBy { it.adoptionRate }
+    }
+
+    /**
+     * intent_key 별 채택률 ranking. 어떤 의도를 사장님이 가장 그대로 보내는지.
+     * 정렬 = total 내림차순 (자주 쓰는 거 먼저).
+     */
+    suspend fun intentBreakdown(sinceMs: Long): List<IntentBreakdown> {
+        return dao.intentStatsSince(sinceMs).map { row ->
+            IntentBreakdown(
+                intentKey = row.intent_key,
+                intentLabel = row.intent_label,
+                total = row.total,
+                adopted = row.adopted
+            )
+        }
+    }
+
+    data class ScenarioBreakdown(
+        val scenario: String,
+        val total: Int,
+        val adopted: Int,
+        val avgEdit: Double
+    ) {
+        val adoptionRate: Double get() = if (total == 0) 0.0 else adopted.toDouble() / total
+        /** 채택률 40% 미만 = 개선 후보 (사장님 시나리오 답변에 가장 자주 수정/무시함). */
+        val needsImprovement: Boolean get() = total >= 5 && adoptionRate < 0.4
+    }
+
+    data class IntentBreakdown(
+        val intentKey: String,
+        val intentLabel: String?,
+        val total: Int,
+        val adopted: Int
+    ) {
+        val adoptionRate: Double get() = if (total == 0) 0.0 else adopted.toDouble() / total
+    }
 }

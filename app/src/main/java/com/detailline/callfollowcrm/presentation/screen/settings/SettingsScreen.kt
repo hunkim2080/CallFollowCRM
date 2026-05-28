@@ -196,6 +196,16 @@ fun SettingsScreen(
                 onPeriodChange = { viewModel.loadSuggestionStats(it) }
             )
 
+            // 2.15 자동 학습 루프 — 2026-05-29 킬러콘텐츠 6단계.
+            //   시나리오별 / intent 별 채택률 분석 → 개선 후보 자동 발견 → cowork 가 prompt 보강.
+            //   기간 = suggestionStatsPeriodDays 와 같은 값 동기 (loadSuggestionStats 가 같이 계산).
+            val scenarioBreakdown by viewModel.scenarioBreakdown.collectAsState()
+            val intentBreakdown by viewModel.intentBreakdown.collectAsState()
+            AutoLearningCard(
+                scenarios = scenarioBreakdown,
+                intents = intentBreakdown
+            )
+
             // 2.5 수신 SMS 알림 — RING-GO 가 갤메시지 대체 (옵션 A, 2026-05-25)
             IncomingSmsNotifyCard(
                 enabled = state.incomingSmsNotifyEnabled,
@@ -774,6 +784,199 @@ private fun StatsBar(label: String, count: Int, total: Int, color: Color) {
                 .width(40.dp)
         )
     }
+}
+
+/**
+ * 2026-05-29 킬러콘텐츠 6단계 — 자동 학습 루프 카드.
+ *
+ * 시나리오별 / intent_key 별 채택률 분석. 채택률 낮은 시나리오 자동 강조 (needsImprovement).
+ * 추후 cowork 가 prompt 개선 endpoint 박으면 [✏️ 개선 제안] 버튼 활성화.
+ *
+ * 사장님 가치:
+ *   - "어떤 상황에서 RING-GO 가 잘 답하고, 어떤 상황에서 못 하는지" 한눈에.
+ *   - 개선 우선순위 자동 — 사장님이 "Mac mini 한테 이 부분 개선해" 라고 말할 근거.
+ */
+@Composable
+private fun AutoLearningCard(
+    scenarios: List<com.detailline.callfollowcrm.data.repository.SuggestionEventRepository.ScenarioBreakdown>,
+    intents: List<com.detailline.callfollowcrm.data.repository.SuggestionEventRepository.IntentBreakdown>
+) {
+    if (scenarios.isEmpty() && intents.isEmpty()) return  // 데이터 없으면 카드 자체 숨김 (위 SuggestionStatsCard 가 placeholder 책임)
+
+    TossCard {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("🔄", fontSize = 16.sp)
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "자동 학습 (시나리오별 분석)",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = TossTextPrimary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "어떤 상황에서 사장님이 그대로 보내는지, 어떤 상황은 개선이 필요한지 RING-GO 가 직접 분석합니다.",
+                fontSize = 11.sp,
+                color = TossTextSecondary
+            )
+
+            if (scenarios.isNotEmpty()) {
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    "📊 시나리오별 채택률",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TossTextPrimary
+                )
+                Spacer(Modifier.height(8.dp))
+                scenarios.forEach { s ->
+                    ScenarioRow(s)
+                    Spacer(Modifier.height(8.dp))
+                }
+                // 개선 후보 (채택률 40% 미만, 5건 이상) 자동 강조.
+                val needsImprovement = scenarios.filter { it.needsImprovement }
+                if (needsImprovement.isNotEmpty()) {
+                    Spacer(Modifier.height(4.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFFFFF8E1))
+                            .padding(12.dp)
+                    ) {
+                        Column {
+                            Text(
+                                "💡 개선 후보 ${needsImprovement.size}개 시나리오",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF8B6F00)
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            needsImprovement.forEach { s ->
+                                Text(
+                                    "• ${scenarioLabel(s.scenario)} — ${(s.adoptionRate * 100).toInt()}% (${s.total}건)",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF8B6F00)
+                                )
+                            }
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                "Mac mini 의 답변 prompt 개선 가능 — cowork 한테 'AutoLearning 후보 보고 prompt 개선해줘' 라고 시키세요.",
+                                fontSize = 10.sp,
+                                color = TossTextSecondary
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (intents.isNotEmpty()) {
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    "🏷️ 의도별 채택 순위",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TossTextPrimary
+                )
+                Spacer(Modifier.height(8.dp))
+                // top 5 intent (자주 쓰는 거)
+                intents.take(5).forEach { i ->
+                    IntentRow(i)
+                    Spacer(Modifier.height(6.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScenarioRow(s: com.detailline.callfollowcrm.data.repository.SuggestionEventRepository.ScenarioBreakdown) {
+    val pct = (s.adoptionRate * 100).toInt()
+    val barColor = when {
+        s.adoptionRate >= 0.7 -> TossSuccess
+        s.adoptionRate >= 0.4 -> TossBlue
+        else -> TossError
+    }
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                scenarioLabel(s.scenario),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = TossTextPrimary,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                "$pct%",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = barColor
+            )
+            Text(
+                " · ${s.total}건",
+                fontSize = 11.sp,
+                color = TossTextTertiary
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(TossGrayBg)
+        ) {
+            if (s.adoptionRate > 0) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(s.adoptionRate.toFloat())
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(barColor)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun IntentRow(i: com.detailline.callfollowcrm.data.repository.SuggestionEventRepository.IntentBreakdown) {
+    val pct = (i.adoptionRate * 100).toInt()
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            i.intentLabel ?: i.intentKey,
+            fontSize = 11.sp,
+            color = TossTextPrimary,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            "$pct%",
+            fontSize = 11.sp,
+            color = TossBlue,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            " · ${i.total}건",
+            fontSize = 10.sp,
+            color = TossTextTertiary
+        )
+    }
+}
+
+/** scenario key → 한국어 라벨 매핑. 옛 fallback_default 등 unknown 키도 fallthrough. */
+private fun scenarioLabel(scenario: String): String = when (scenario) {
+    "initial_inquiry" -> "초기 문의"
+    "price_inquiry" -> "가격 문의"
+    "hesitation" -> "고객 망설임"
+    "schedule" -> "일정 조율"
+    "pre_booking" -> "예약 확정 전"
+    "pre_service" -> "시공 전"
+    "post_service" -> "시공 후"
+    "fallback_default" -> "기타 / 분류 신뢰도 낮음"
+    else -> scenario
 }
 
 /** AI 서버 연결 상태 — ● 색깔 + 사용량 placeholder. */

@@ -65,6 +65,13 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     private val _suggestionStatsPeriodDays = MutableStateFlow(7)
     val suggestionStatsPeriodDays: StateFlow<Int> = _suggestionStatsPeriodDays.asStateFlow()
 
+    // 2026-05-29 킬러콘텐츠 6단계 — 자동 학습 루프.
+    private val _scenarioBreakdown = MutableStateFlow<List<com.detailline.callfollowcrm.data.repository.SuggestionEventRepository.ScenarioBreakdown>>(emptyList())
+    val scenarioBreakdown: StateFlow<List<com.detailline.callfollowcrm.data.repository.SuggestionEventRepository.ScenarioBreakdown>> = _scenarioBreakdown.asStateFlow()
+
+    private val _intentBreakdown = MutableStateFlow<List<com.detailline.callfollowcrm.data.repository.SuggestionEventRepository.IntentBreakdown>>(emptyList())
+    val intentBreakdown: StateFlow<List<com.detailline.callfollowcrm.data.repository.SuggestionEventRepository.IntentBreakdown>> = _intentBreakdown.asStateFlow()
+
     // 2026-05-29 킬러콘텐츠 4단계 — Tone RAG upload 상태.
     private val _toneRagUploading = MutableStateFlow(false)
     val toneRagUploading: StateFlow<Boolean> = _toneRagUploading.asStateFlow()
@@ -173,6 +180,12 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
             _suggestionStats.value = runCatching {
                 container.suggestionEventRepository.statsSince(sinceMs)
             }.getOrNull()
+            _scenarioBreakdown.value = runCatching {
+                container.suggestionEventRepository.scenarioBreakdown(sinceMs)
+            }.getOrDefault(emptyList())
+            _intentBreakdown.value = runCatching {
+                container.suggestionEventRepository.intentBreakdown(sinceMs)
+            }.getOrDefault(emptyList())
         }
     }
 

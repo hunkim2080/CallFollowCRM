@@ -775,3 +775,68 @@ CREATE TABLE customer_personas (
 - cowork: 위 5가지 박기. RAG (4단계) 와 함께 박으면 좋음 — 둘 다 Haiku 사용.
 - 사장님: cowork 박힌 후 CustomerDetail 한 번 진입 → 페르소나 카드 표시 확인. 며칠 후 다시 진입 시 최신화 자동.
 - android (다음 sprint): (a) cowork 검증 / (b) ChatScreen 에도 페르소나 표시 (composer 위 작은 chip) / (c) 6단계 자동 학습 루프 (채택률 기반 prompt 자동 개선) 시작.
+
+## 2026-05-29 21:30 · android
+**킬러콘텐츠 6단계 (자동 학습 루프) — 안드 측 분석 카드 박음. 6단계 로드맵 안드 측 모두 완성.**
+- 변경 (안드로이드):
+  - **SuggestionEventDao** 2개 신규 query:
+    - `scenarioStatsSince(sinceMs)` — scenario / total / adopted / avgEdit GROUP BY scenario
+    - `intentStatsSince(sinceMs)` — intent_key / intent_label / total / adopted GROUP BY intent
+    - 둘 다 옛 v1 데이터 (scenario IS NULL) 제외.
+  - **SuggestionEventRepository**:
+    - `scenarioBreakdown(sinceMs)` → 채택률 오름차순 (낮은 거 = 개선 우선순위)
+    - `intentBreakdown(sinceMs)` → total 내림차순 (자주 쓰는 거 먼저)
+    - `ScenarioBreakdown.needsImprovement` = total >= 5 && adoptionRate < 0.4 (자동 발견 룰).
+  - **SettingsViewModel**: `scenarioBreakdown` / `intentBreakdown` StateFlow. loadSuggestionStats 안에서 같이 계산 (기간 일관).
+  - **AutoLearningCard Composable** 신규 ("💡 추천 답변 채택률" 카드 바로 아래):
+    - 📊 시나리오별 채택률 — ScenarioRow (한국어 라벨 + % + 막대, 채택률에 따라 빨강/파랑/초록)
+    - 💡 개선 후보 강조 박스 (노랑 배경) — needsImprovement 가 있을 때 "cowork 한테 prompt 개선해줘" 안내
+    - 🏷️ 의도별 채택 순위 — top 5 intent (자주 쓰는 거 먼저)
+  - 한국어 라벨 매핑 (initial_inquiry → "초기 문의" 등).
+- 사장님 체감: Settings 의 채택률 카드 아래에 "어떤 시나리오 잘 되고, 어떤 거 개선 필요" 한눈에. 데이터 쌓일수록 사장님이 cowork 한테 정확하게 시킬 수 있음.
+- commit: (이번 커밋)
+
+### 🚨 cowork 작업 요청 — 자동 prompt 개선 (6단계 본질)
+이번 안드 측 = 분석 표시만. 실제 학습 루프 = cowork 작업.
+
+**1. 신규 endpoint `POST /api/auto-learning/analyze`**:
+- Request: `{period_days: 7}` (안드 측 기간과 동기)
+- 서버 처리:
+  1. suggestion_events 풀에서 시나리오별 EDITED 페어 (suggestion vs final_sent) 추출
+  2. Haiku 4.5 로 패턴 분석 — "사장님이 quote intent 에서 가격 표현을 X → Y 로 바꾸는 패턴 발견"
+  3. prompt 개선 제안 텍스트 생성 (시나리오별)
+- Response:
+  ```json
+  {
+    "analyses": [
+      {
+        "scenario": "price_inquiry",
+        "intent_key": "quote",
+        "current_adoption_rate": 0.28,
+        "edit_patterns": ["가격 표현이 너무 비격식 → 사장님은 정중하게"],
+        "prompt_suggestion": "block A 에 다음 룰 추가: '견적 답변 시 ₩ 기호 + 천 단위 콤마 사용. 끝맺음은 \"...드립니다\" 톤.'",
+        "expected_adoption_lift": 0.18
+      }
+    ],
+    "generated_at_ms": 1748541234567
+  }
+  ```
+
+**2. 신규 endpoint `POST /api/auto-learning/apply`** (선택, 다음 sprint):
+- 사장님이 위 제안 [✅ 적용] 누르면 → cowork 가 prepare-reply 의 block A 에 자동 inject + cache 무효화.
+- Request: `{scenario, intent_key, prompt_addition}`.
+- Response: `{applied: true, version: 7}`.
+
+**3. A/B test 인프라** (다음 sprint):
+- 사장님 50% / 다른 50% — prompt v6 vs v7 비교. 14명 테스터 확장 시 의미.
+- DB: `prompt_versions(id, scenario, intent_key, prompt, created_at_ms, traffic_pct)`.
+
+**4. (옵션) 알림** — 매주 채택률 자동 보고 메일에 "이번 주 개선 후보 N개 발견" 포함.
+
+### 다음 액션
+- cowork: 위 4가지 박기. 가장 중요 = 1 (analyze endpoint). 2~4 는 사용자 14명 확장 후 의미 있음.
+- 사장님:
+  1. 며칠 사용하며 데이터 쌓이면 → Settings 의 자동 학습 카드에서 개선 후보 발견
+  2. "개선 후보 X개" 노랑 박스 보이면 → cowork 한테 "auto-learning analyze 돌려서 prompt 개선해줘" 시키기
+  3. 적용 후 다음 주 채택률 카드의 % 가 오르는지 확인 (학습 루프 동작 검증)
+- android: **6단계 로드맵 안드 측 모두 완성**. 다음 sprint = (a) ChatScreen 페르소나 chip / (b) batch upload 활성화 (cowork 의 3단계 events endpoint 박힌 후) / (c) MMS Vision (PrepareContext 첨부 메타) / (d) 14명 onboarding UI.
