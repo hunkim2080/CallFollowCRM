@@ -1322,7 +1322,9 @@ private fun Composer(
                 border = androidx.compose.foundation.BorderStroke(1.dp, TossDivider)
             ) {
                 Row(
-                    modifier = Modifier.padding(start = 12.dp, end = 2.dp, top = 2.dp, bottom = 2.dp),
+                    // 2026-05-28 사장님 보고: 텍스트가 박스에 빡빡하게 붙음 → 토스/카톡 톤으로 padding 보강.
+                    //   vertical 2dp → 8dp (텍스트 위·아래 숨 트임), end 2dp → 6dp (텍스트와 아이콘 간격).
+                    modifier = Modifier.padding(start = 14.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
                     // CenterVertically: 한 줄 입력에서 텍스트와 아이콘이 같은 baseline. (Bottom 은 ~3dp 어긋남.)
                     verticalAlignment = Alignment.CenterVertically
                 ) {
