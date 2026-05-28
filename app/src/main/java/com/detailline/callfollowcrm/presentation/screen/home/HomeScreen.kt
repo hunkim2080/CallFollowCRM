@@ -132,8 +132,11 @@ fun HomeScreen(
     val lastOkAtMs by serverHealth.lastOkAtMs.collectAsState()
 
     // 화면 진입 시 SMS 연락처 새로고침 — Settings 토글 켜고 돌아왔거나 새 SMS 받았을 수 있어서.
+    // + CallLog → Room sync (2026-05-28 사장님 통점):
+    //   Android 12+ / OneUI 가 정적 BroadcastReceiver 누락하면 통화 종료 감지 못 함 → 진입 시 폴링으로 보완.
     LaunchedEffect(Unit) {
         viewModel.refreshSmsContacts()
+        viewModel.syncRecentCallLog(context)
     }
 
     // 뒤로가기 UX (2026-05-25 사장님 결정):
@@ -381,6 +384,8 @@ fun HomeScreen(
             if (pullState.isRefreshing) {
                 LaunchedEffect(Unit) {
                     runCatching { viewModel.refreshSmsContacts() }
+                    // 2026-05-28: 통화 끝났는데 목록에 안 들어옴 통점 → CallLog 폴링 추가.
+                    runCatching { viewModel.syncRecentCallLog(context) }
                     runCatching { serverHealth.refresh() }
                     // 시각 피드백 — 너무 빨리 끝나면 사장님이 "동작했나?" 헷갈림.
                     kotlinx.coroutines.delay(600)

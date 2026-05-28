@@ -1,13 +1,23 @@
 package com.detailline.callfollowcrm
 
+import android.Manifest
 import android.app.Application
+import android.content.pm.PackageManager
+import android.os.Build
+import android.telephony.PhoneStateListener
+import android.telephony.TelephonyCallback
+import android.telephony.TelephonyManager
+import androidx.core.content.ContextCompat
 import com.detailline.callfollowcrm.data.AppContainer
 import com.detailline.callfollowcrm.data.local.seed.DefaultPricingItems
 import com.detailline.callfollowcrm.data.local.seed.DefaultTemplates
 import com.detailline.callfollowcrm.service.NotificationHelper
+import com.detailline.callfollowcrm.util.CallLogHelper
+import com.detailline.callfollowcrm.domain.model.HandledStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class CallFollowCrmApplication : Application() {
@@ -30,5 +40,78 @@ class CallFollowCrmApplication : Application() {
         // SMS/MMS 캐시 prefetch — 최근 20개 번호. ChatScreen 첫 진입을 즉시 보이게 하는 토대.
         // READ_SMS 권한 없으면 silent skip.
         container.smsCachePrefetcher.prefetchRecentContacts(contactLimit = 20)
+
+        // 2026-05-28 사장님 통점 fix: 정적 BroadcastReceiver (CallStateReceiver) 가
+        //   Android 12+ / OneUI 에서 누락되는 케이스 多 → 통화 종료 감지 실패.
+        //   Application 에서 TelephonyCallback (Android 12+) / PhoneStateListener (이하) 동적 등록 →
+        //   백그라운드 정책 영향 적고, BroadcastReceiver 와 이중 안전망.
+        //   권한 없으면 silent skip.
+        registerCallStateListener()
+    }
+
+    /**
+     * OFFHOOK/RINGING → IDLE 전이 = 통화 종료 시그널.
+     *   CallStateReceiver 와 동일 로직 (1.5초 대기 → CallLog 폴링 → Room INSERT).
+     *   중복 INSERT 위험은 dao.countByPhoneAndStarted 가 차단.
+     *
+     * 권한: READ_PHONE_STATE (Manifest 박혀있음, 일반적으로 onboarding 시 grant).
+     *   미부여 시 listen() 호출 자체는 안전하지만 idle 만 받음 → 의미 X. 그래서 권한 체크 후 등록.
+     */
+    private fun registerCallStateListener() {
+        val granted = ContextCompat.checkSelfPermission(
+            this, Manifest.permission.READ_PHONE_STATE
+        ) == PackageManager.PERMISSION_GRANTED
+        if (!granted) return
+
+        val tm = getSystemService(TELEPHONY_SERVICE) as? TelephonyManager ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // Android 12+ — TelephonyCallback (PhoneStateListener 는 deprecated)
+            try {
+                tm.registerTelephonyCallback(mainExecutor, callStateCallback)
+            } catch (_: SecurityException) {
+                // 일부 OEM 정책 — silent skip
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            tm.listen(phoneStateListener, PhoneStateListener.LISTEN_CALL_STATE)
+        }
+    }
+
+    // 직전 상태 — 전이 판정용. Volatile 안 써도 되지만 안전망.
+    @Volatile private var lastCallState: Int = TelephonyManager.CALL_STATE_IDLE
+
+    /** 통화 종료 시 호출 — CallStateReceiver 와 본질 동일. 중복 INSERT 는 dedup 이 차단. */
+    private fun onCallEnded() {
+        appScope.launch {
+            // CallLog 가 비동기 작성 — 짧게 대기.
+            delay(1500)
+            val ctx = this@CallFollowCrmApplication
+            val recent = CallLogHelper.queryLatest(ctx) ?: return@launch
+            val phone = recent.phoneNumber.ifBlank { return@launch }
+            // dedup — 이미 BroadcastReceiver 가 박았으면 syncFromCallLog 가 0 반환 (skip).
+            // 그 외엔 새 row INSERT → Room observe 가 자동 emit → HomeScreen 갱신.
+            runCatching { container.callRecordRepository.syncFromCallLog(ctx, phone) }
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private val phoneStateListener = object : PhoneStateListener() {
+        override fun onCallStateChanged(state: Int, phoneNumber: String?) {
+            handleCallState(state)
+        }
+    }
+
+    private val callStateCallback = object : TelephonyCallback(), TelephonyCallback.CallStateListener {
+        override fun onCallStateChanged(state: Int) {
+            handleCallState(state)
+        }
+    }
+
+    private fun handleCallState(state: Int) {
+        val prev = lastCallState
+        lastCallState = state
+        val ended = state == TelephonyManager.CALL_STATE_IDLE &&
+            (prev == TelephonyManager.CALL_STATE_OFFHOOK || prev == TelephonyManager.CALL_STATE_RINGING)
+        if (ended) onCallEnded()
     }
 }

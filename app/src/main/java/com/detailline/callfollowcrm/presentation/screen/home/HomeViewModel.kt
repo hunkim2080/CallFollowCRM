@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.presentation.screen.home
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.detailline.callfollowcrm.ai.HistoryMessage
@@ -84,6 +85,22 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     fun refreshSmsContacts() {
         // observeContacts 가 초기 + onChange emit 책임. 별도 manual 갱신 필요 없음.
         // 호환을 위해 함수는 유지 — caller 들이 변경 없이 작동.
+    }
+
+    /**
+     * 시스템 CallLog → Room sync (2026-05-28 사장님 통점):
+     *   "통화 끝났는데 RING-GO 목록에 안 들어옴".
+     *   원인 = Android 12+ / OneUI 의 정적 BroadcastReceiver 누락 (CallStateReceiver 미트리거).
+     *   해결 = HomeScreen 진입 시 + Pull-to-refresh 시 CallLog 폴링 → 누락분 INSERT.
+     *
+     *   non-blocking + dedup. Room observe 가 자동 emit 하므로 화면 갱신 별도 처리 X.
+     */
+    fun syncRecentCallLog(context: Context) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                container.callRecordRepository.syncRecentCallLog(context, limit = 30)
+            }
+        }
     }
 
     // ────────────────────────────────────────────────────────

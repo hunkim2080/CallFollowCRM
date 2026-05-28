@@ -99,4 +99,47 @@ class CallRecordRepository(private val dao: CallRecordDao) {
         }
         return inserted
     }
+
+    /**
+     * 시스템 CallLog 의 최근 N건 → Room sync (2026-05-28 사장님 통점 fix).
+     *
+     * **왜 필요한가**: Android 12+ / OneUI 에서 정적 Manifest PHONE_STATE BroadcastReceiver 가
+     * 누락되는 케이스 多. 그러면 CallStateReceiver.onReceive 가 안 불려 Room INSERT 안 됨 →
+     * RING-GO 가 통화를 못 봄. 시스템 CallLog 는 항상 정확하므로 거기서 폴링.
+     *
+     * 호출 시점:
+     *  - HomeScreen 진입 (LaunchedEffect)
+     *  - Pull-to-refresh
+     *  - 통화 끝났을 가능성 있는 어떤 시점이든
+     *
+     * dedup: (phoneNumber, startedAt) 기준. 같은 통화 중복 INSERT 안 됨.
+     *
+     * @return 새로 insert 된 row 수
+     */
+    suspend fun syncRecentCallLog(context: Context, limit: Int = 30): Int {
+        val entries = CallLogHelper.queryRecent(context, limit)
+        if (entries.isEmpty()) return 0
+
+        var inserted = 0
+        for (e in entries) {
+            val phone = e.phoneNumber
+            if (phone.isBlank()) continue
+            if (dao.countByPhoneAndStarted(phone, e.date) > 0) continue
+            dao.insert(
+                CallRecordEntity(
+                    phoneNumber = phone,
+                    callType = e.type.name,
+                    duration = e.duration,
+                    startedAt = e.date,
+                    endedAt = e.date + e.duration * 1000,
+                    // 처리 상태는 UNHANDLED (= 미확인). 사장님이 답장/메모 등 액션하면 SAVED 로 전환.
+                    // 단, 부재중/수신 외엔 UNHANDLED 의미 약함 → 기존 정책 따름.
+                    handledStatus = HandledStatus.UNHANDLED.name,
+                    linkedCustomerId = null
+                )
+            )
+            inserted++
+        }
+        return inserted
+    }
 }
