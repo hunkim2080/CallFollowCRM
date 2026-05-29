@@ -978,3 +978,36 @@ CREATE TABLE customer_personas (
 - 서버 영향 X.
 - commit: (이번)
 - 다음 작업 후보 (사장님이 정한 1순위 3개 중 #2, #3): #8 (114 무한 로딩) → #12 (오늘 신규 클릭).
+
+## 2026-05-30 (저녁) · android — 사장님 통점 #8 fix
+**사장님 통점 #8 = "114에서 문자 왔는데 요약이 계속 작성중에서 풀리질 않아. 버그인것같아."**
+- 진단 (전체 flow trace):
+  - 114 / 광고 메시지 도착 → HomeScreen 카드 표시
+  - HomeViewModel.onVisiblePhones → ensureCardSummary 호출
+  - ConversationAiRepository: cache stale 검사 → 서버 호출 → **빈 응답 시 early return (cache 미저장)**
+  - 다음 진입 시 또 stale → 또 호출 → 또 빈 → 영영 반복
+  - UI: aiCardSummary == null + isSmsCard → "✨ 요약 작성 중" 영영 표시 (HomeScreen)
+  - 같은 패턴: ChatScreen 의 SummaryLoadingPlaceholder (aiSummary == null + 2건 이상) → 영영 "✨ 대화 요약 작성 중"
+- 변경 (안드 fix):
+  - **ConversationAiRepository.ensureCardSummary**: 빈 응답이라도 cache 에 sentinel ("") 저장 + latestMessageTimestampMs 갱신.
+  - **ConversationAiRepository.ensureFullSummary**: card/convo/next 모두 sentinel ("/[]/{}") 저장.
+    - null = 시도 안 함, "" = 시도했으나 응답 없음 으로 구분.
+    - 새 메시지 오면 latestMessageTimestampMs 갱신되어 stale → 다시 시도 (재호출 정상).
+  - **HomeScreen 카드 UI**: `aiCardSummary == null && isSmsCard` 일 때만 "작성 중" 표시. 빈 sentinel 이면 표시 X.
+  - **ChatScreen UI**: `isEmptySentinel` 검사 추가 — aiSummary != null + 본문 모두 비어있음 → SummaryLoadingPlaceholder 안 보임 + UnifiedSummaryCard `takeUnless { isEmptySentinel }` 로 안 보임.
+  - **CustomerDetail aiSummary**: 이미 `lines.isNotEmpty()` 검사 → 영향 X (이미 sentinel 안전).
+- 연관 path 모두 검토 끝.
+- 서버 영향 X (안드 자체 sentinel 처리).
+- commit: (이번)
+
+### 🚨 cowork 검토 요청 (선택, 비용 효율)
+사장님 통점 #8 = 안드 측 fix 완료. 다만 **cowork 서버가 광고/통신사 메시지에도 LLM 호출 시도 = 비용 손해** 가능:
+- 광고 패턴 자동 skip 추천 (prepare-reply / card-summary / conversation-summary 등 공통):
+  - 발신번호 패턴: 114, 1588-, 1577-, 1599-, 16xx-, 1855- 등 6자리 미만 (통신사 / 광고)
+  - 본문 패턴: "(광고)", "수신거부", "무료수신거부", "스팸"
+  - skip 시 빠른 빈 응답 + `skip_reason` 필드 (선택 — 디버깅용)
+- 단가 절감 = LLM 호출 안 함. 이미 안드 fix 로 cache sentinel 박혀 무한 호출 X.
+
+### 다음 작업
+- 사장님 1순위 3개 중 마지막 = #12 (오늘 신규 카드 클릭 X)
+- 그 후 사장님 추가 결정 받고 #2, #4, #6, #9, #11 진행

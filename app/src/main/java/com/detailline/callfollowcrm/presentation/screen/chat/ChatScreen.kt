@@ -371,7 +371,16 @@ fun ChatScreen(
             //   요약 안 된 채로 진입하면 카드 자체가 안 보여서 "그냥 비어있다" 느낌.
             //   → aiSummary == null 이고 메시지가 2건 이상 (요약할 거리 있음) 이면 진행 placeholder 표시.
             //   메시지 1건 이하는 요약할 게 없어 표시 안 함.
+            // 2026-05-30 사장님 #8 통점 fix:
+            //   sentinel 처리 — ConversationAiRepository 가 빈 응답이면 cache 에 빈 sentinel ("/[]/{}") 저장.
+            //   aiSummary != null + 본문 모두 비어있음 = "시도했으나 응답 없음" → placeholder X + UnifiedSummaryCard X.
+            //   기존엔 aiSummary 영영 null → SummaryLoadingPlaceholder 무한 표시 (114 광고 메시지).
             val hasEnoughForSummary = messages.size >= 2
+            val isEmptySentinel = aiSummary?.let {
+                com.detailline.callfollowcrm.ai.parseConversationLines(it.conversationSummaryJson).isEmpty() &&
+                    it.cardSummary.isNullOrBlank() &&
+                    NextAction.parse(it.nextActionJson) == null
+            } ?: false
             if (aiSummary == null && hasEnoughForSummary) {
                 SummaryLoadingPlaceholder(
                     collapsed = composerFocused || summaryManualCollapsed,
@@ -398,7 +407,8 @@ fun ChatScreen(
                     else -> { /* unknown action_type — no-op */ }
                 }
             }
-            aiSummary?.let { s ->
+            // 2026-05-30 #8 통점 fix: 빈 sentinel = 표시 X (114 같은 광고 메시지에서 빈 카드 방지).
+            aiSummary?.takeUnless { isEmptySentinel }?.let { s ->
                 val action = remember(s.nextActionJson) { NextAction.parse(s.nextActionJson) }
                 val onActionHandler: (NextAction) -> Unit = { a -> triggerActionByType(a.actionType) }
                 val showCollapsed = composerFocused || summaryManualCollapsed

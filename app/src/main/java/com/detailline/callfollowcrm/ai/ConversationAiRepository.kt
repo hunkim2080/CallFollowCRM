@@ -52,8 +52,14 @@ class ConversationAiRepository(
                 && existing.latestMessageTimestampMs >= ctx.latestMessageTimestampMs) {
                 return@runCatching
             }
+            // 2026-05-30 사장님 #8 통점 fix:
+            //   기존: 빈 응답이면 early return → cache 미저장 → 다음 호출 시 또 stale → 또 호출 → 또 빈
+            //   → UI 가 영영 "요약 작성 중" (114 같은 광고 메시지에서 무한 로딩).
+            //   해결: 호출 후 빈 응답이라도 cache 에 빈 string ("") 저장 + latestMessageTimestampMs 갱신.
+            //   UI 는 null = 시도 안 함, "" = 시도했으나 응답 없음 으로 구분.
+            //   네트워크 실패 (예외) 는 그대로 throw — runCatching 가 try/catch.
             val resp = callServer("$baseUrl/api/card-summary", ctx.toJson())
-            val card = resp.optString("summary").takeIf { it.isNotBlank() } ?: return@runCatching
+            val card = resp.optString("summary").takeIf { it.isNotBlank() } ?: ""
             val merged = (existing ?: AiSummaryEntity(phoneSuffix = ctx.phoneSuffix)).copy(
                 cardSummary = card,
                 latestMessageTimestampMs = ctx.latestMessageTimestampMs,
@@ -79,16 +85,27 @@ class ConversationAiRepository(
 
             val body = ctx.toJson()
 
+            // 2026-05-30 사장님 #8 통점 fix:
+            //   기존: 빈 응답이면 existing 값 그대로 fallback → existing 도 null 이면 cache 의 필드들이 null →
+            //   UI 의 SummaryLoadingPlaceholder 가 영영 "대화 요약 작성 중" (114 광고 메시지에서 무한 로딩).
+            //   해결: 빈 응답이라도 "" sentinel 저장 + latestMessageTimestampMs 갱신.
+            //   UI 는 null = 시도 안 함, "" = 시도했으나 응답 없음 으로 구분.
             val card = runCatching { callServer("$baseUrl/api/card-summary", body) }
                 .getOrNull()?.optString("summary")?.takeIf { it.isNotBlank() }
                 ?: existing?.cardSummary
+                ?: ""   // 빈 응답 + existing 없음 = "시도했으나 응답 없음" sentinel
 
             val convoResp = runCatching { callServer("$baseUrl/api/conversation-summary", body) }.getOrNull()
-            val convoJson = convoResp?.optJSONArray("summary_lines")?.toString() ?: existing?.conversationSummaryJson
-            val stage = convoResp?.optString("current_stage")?.takeIf { it.isNotBlank() } ?: existing?.conversationStage
+            val convoJson = convoResp?.optJSONArray("summary_lines")?.toString()
+                ?: existing?.conversationSummaryJson
+                ?: "[]"   // 빈 응답 = "[]" sentinel
+            val stage = convoResp?.optString("current_stage")?.takeIf { it.isNotBlank() }
+                ?: existing?.conversationStage
 
             val nextResp = runCatching { callServer("$baseUrl/api/next-action-suggest", body) }.getOrNull()
-            val nextJson = nextResp?.toString() ?: existing?.nextActionJson
+            val nextJson = nextResp?.toString()
+                ?: existing?.nextActionJson
+                ?: "{}"   // 빈 응답 = "{}" sentinel
 
             val merged = (existing ?: AiSummaryEntity(phoneSuffix = ctx.phoneSuffix)).copy(
                 cardSummary = card,

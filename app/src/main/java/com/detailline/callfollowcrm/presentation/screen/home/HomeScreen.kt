@@ -706,7 +706,9 @@ private fun HomeRow(
             }
             // AI 카드 요약 — 이름 바로 아래 (가장 중요한 정보). 에이닷 벤치마킹.
             //   2026-05-27 사장님 보고 fix: null + SMS 카드면 "요약 작성 중..." 진행감 표시.
-            //   통화 only (SMS_ONLY 아님) 는 요약 거리 적어 표시 안 함 (잘못된 영원 spinner 방지).
+            //   2026-05-30 사장님 #8 통점 fix: null 일 때만 "작성 중" 표시.
+            //     ConversationAiRepository 가 빈 응답 시 "" sentinel 저장 — 시도했으나 응답 없음.
+            //     null = 시도 안 함, "" = 시도 끝 (요약 거리 없음 / 114 같은 광고 등) → 표시 X.
             val isSmsCard = item.record.callType == HomeViewModel.CALL_TYPE_SMS_ONLY
             if (!aiCardSummary.isNullOrBlank()) {
                 Spacer(Modifier.height(4.dp))
@@ -717,13 +719,14 @@ private fun HomeRow(
                     fontWeight = FontWeight.Medium,
                     maxLines = 1
                 )
-            } else if (isSmsCard) {
+            } else if (aiCardSummary == null && isSmsCard) {
                 Spacer(Modifier.height(4.dp))
                 com.detailline.callfollowcrm.presentation.theme.AnimatedDots(
                     text = "✨ 요약 작성 중",
                     color = TossBlue.copy(alpha = 0.7f)
                 )
             }
+            // aiCardSummary == "" (sentinel) = 표시 X — 시도 끝났는데 요약 거리 없음.
             // 2026-05-25: 번호 두 번 표시 제거 (사장님 피드백). 헤더가 이름 또는 번호이고,
             //   번호 확인은 우측 [📞] 다이얼러 또는 펼침 [ⓘ 고객 카드] 로.
             Spacer(Modifier.height(4.dp))
