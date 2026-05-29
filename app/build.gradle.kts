@@ -84,4 +84,10 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     testImplementation("junit:junit:4.13.2")
+    // Repository / DAO 를 가짜로 만들어 ViewModel/Repository 로직 테스트하기 위함.
+    //   2026-05-30 D 코스 — 자동 회귀 테스트 인프라 구축.
+    testImplementation("org.mockito:mockito-core:5.10.0")
+    testImplementation("org.mockito.kotlin:mockito-kotlin:5.2.1")
+    // suspend 함수 (Room DAO) 테스트용 — runTest, TestDispatcher.
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
 }

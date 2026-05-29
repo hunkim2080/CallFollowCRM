@@ -94,6 +94,8 @@ import com.detailline.callfollowcrm.presentation.theme.TossSuccess
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
+import com.detailline.callfollowcrm.presentation.theme.CallFollowCrmTheme
+import androidx.compose.ui.tooling.preview.Preview
 import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 
@@ -1197,4 +1199,77 @@ private fun ServerStatusDot(alive: Boolean?, onClick: () -> Unit) {
             .background(color)
             .clickable { onClick() }
     )
+}
+
+// ============================================================
+// @Preview — Android Studio 우측 패널 / split view 에서 빌드 없이 UI 확인.
+//   사용법: Android Studio 에서 이 파일 열면 우측 상단 "Split" / "Design" 클릭.
+//   코드 저장 시 1~3초 안에 자동 갱신. phone 빌드 안 해도 됨.
+// ============================================================
+
+@Preview(name = "KPI 카드 — 모두 0", showBackground = true, backgroundColor = 0xFFF7F8FA)
+@Composable
+private fun KpiSectionPreviewEmpty() {
+    CallFollowCrmTheme {
+        KpiSection(
+            todayNew = 0,
+            unhandled = 0,
+            weekScheduled = 0,
+            onFilterTodayNew = {},
+            onFilterUnhandled = {},
+            onOpenSchedule = {}
+        )
+    }
+}
+
+@Preview(name = "KPI 카드 — 일반 상황", showBackground = true, backgroundColor = 0xFFF7F8FA)
+@Composable
+private fun KpiSectionPreviewNormal() {
+    CallFollowCrmTheme {
+        KpiSection(
+            todayNew = 2,
+            unhandled = 5,
+            weekScheduled = 3,
+            onFilterTodayNew = {},
+            onFilterUnhandled = {},
+            onOpenSchedule = {}
+        )
+    }
+}
+
+@Preview(name = "KPI 카드 — 폭주", showBackground = true, backgroundColor = 0xFFF7F8FA)
+@Composable
+private fun KpiSectionPreviewBusy() {
+    CallFollowCrmTheme {
+        KpiSection(
+            todayNew = 12,
+            unhandled = 28,
+            weekScheduled = 9,
+            onFilterTodayNew = {},
+            onFilterUnhandled = {},
+            onOpenSchedule = {}
+        )
+    }
+}
+
+/** S9 사이즈 별도 확인 (사장님 실기기 360x740 dp). */
+@Preview(
+    name = "KPI — S9 360x740",
+    showBackground = true,
+    backgroundColor = 0xFFF7F8FA,
+    widthDp = 360,
+    heightDp = 200
+)
+@Composable
+private fun KpiSectionPreviewS9() {
+    CallFollowCrmTheme {
+        KpiSection(
+            todayNew = 1,
+            unhandled = 4,
+            weekScheduled = 2,
+            onFilterTodayNew = {},
+            onFilterUnhandled = {},
+            onOpenSchedule = {}
+        )
+    }
 }

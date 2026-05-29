@@ -45,3 +45,7 @@ Desktop.ini
 
 # Claude Code 산출물 (다른 PC 에서 다시 빌드되거나 별도 동기화)
 .claude/
+
+# RING-GO 폰 자동 확인 도구 부산물 (스크린샷 / DB dump — 개인정보 포함)
+/scripts/screens/
+/scripts/.dbpull/

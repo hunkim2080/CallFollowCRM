@@ -1206,3 +1206,48 @@ CREATE TABLE customer_personas (
 ### 남은 통점 (2개)
 - #5 페르소나 null 확인 (사장님 Mac mini deploy)
 - #10 캘린더 정보 풍부화 (결정 필요)
+
+---
+
+## 2026-05-30 (밤) · android — Phase D 완료: 자동 회귀 안전망 + 폰 자동 확인 도구
+**사장님 요청 = "기능 개발하면 우리 시나리오대로 잘 따라오는지 체크하면서 만들어야할것같아" + "내가 손과 발 . 날개를 계속 따로 따로 대중없이 붙이고 있는 느낌" 두려움 해소**
+
+### 결과물 1: 로봇 건강검진 리포트 (Phase 1)
+- Explore agent 4명 병렬 분석 (죽은 코드 / 중복 / 위험 / DB 일관성)
+- 직접 검증 결과: **감사관 false-positive 50%**. 실제 진짜 issue:
+  - OllamaRefineRepository = Gemini 교체 후 미사용 (제거 가능)
+  - 전화번호 끝 8자리 추출 패턴 9곳 중복 (PhoneNumberFormatter 통합 후보)
+  - CallStateReceiver:100 `catch (_: Throwable) { }` 로그 누락 (정보용)
+- **AppDatabase.kt:419 `fallbackToDestructiveMigration()` 활성화 경고** — 개발 단계 안전망. **production 배포 직전 제거 필수** (안 그러면 사장님 폰 옛 DB 날아갈 위험)
+- Migration 연속성 / Entity 인덱스 / FK / sentinel cache 패턴 = 전부 정상
+
+### 결과물 2: 자동 회귀 안전망 (Phase 2) — 55+ tests, 14초
+- Mockito-kotlin 5.2.1 + mockito-core 5.10.0 + coroutines-test 1.7.3 의존성 추가
+- 새 test 파일 4개 (`app/src/test/`):
+  - `util/AddressExtractorTest.kt` — 12 tests (#6 주소 동호수 회귀 + 알려진 한계 2건 baseline)
+  - `util/PhoneNumberFormatterTest.kt` — 16 tests (format / formatProgressive 전 경우)
+  - `util/DateTimeUtilsTest.kt` — 14 tests (dDayLabel / startOfDay / durationLabel)
+  - `data/repository/AutoCategoryClassifierTest.kt` — 13 tests (#7 자동 분류 분기 + 수동 우선 + reclassify DB 호출 검증)
+- HomeScreen.kt 에 `@Preview` 4개 추가 (KpiSection: 빈 / 일반 / 폭주 / S9 360x740) — 빌드 없이 UI 확인 가능
+- 회귀 발견: AddressExtractor 의 "호" 단독 매칭 + 공백 prefix 아파트 미매칭 2건 = 다음 sprint 패치 후보 (baseline 박아둠)
+
+### 결과물 3: 폰 자동 확인 도구 (Phase 3) — `scripts/ringo.ps1`
+- PowerShell 스크립트 1개 — 사장님이 폰만 USB 꽂으면 다음 작업부터 Claude 가 자동 확인
+- 서브커맨드: status / screen / log / kill / start / fakesms / db [calls|cats|customers|version|tables] / notif
+- 폰 sqlite3 부재(Android 10 제거) → `adb exec-out cat` 으로 DB 끌어와서 PC 의 platform-tools sqlite3 사용
+- 사장님 갤S9 (SM-G965N, transport_id 154) 동작 검증 완료:
+  - 화면 캡처 → 고객 페르소나 페이지 정상 (Stage 5 동작 확인)
+  - DB v19 확인, 카테고리 5개 (옛 3 + 신규 시공 대기 🔨 / 시공 완료 ✅), 통화기록 25건
+- `.gitignore` 추가: `/scripts/screens/`, `/scripts/.dbpull/` (개인정보 포함 부산물)
+
+### 새 워크플로우 (앞으로)
+- 사장님 손가락 50% → 90% 감소 목표
+- 매 작업 끝 Claude 가 자동: 안전망 55+ tests 14초 → "옛 기능 다 멀쩡함" 보고
+- 폰 동작 검증: 사장님 폰만 USB 꽂아두기 → Claude 가 화면 캡처 + DB 조회로 80% 자동 확인
+- Compose `@Preview` + Android Studio Split view = 빌드 없이 UI 반복 (사장님 검증 완료)
+
+### 새 메모리
+- `feedback_plain_language.md` 추가 — 사장님이 "지금까지 이해 안 되는데 '추천' 만 골랐다" 자가 진단. 앞으로 모든 설명/선택지를 초등학생도 이해할 수 있게 풀어쓰기. 개발 용어 금지.
+
+### 서버 영향
+- 없음. 모두 안드로이드 + PC 측 도구.
