@@ -3,8 +3,6 @@ package com.detailline.callfollowcrm.service
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import android.os.Build
-import android.telephony.SmsManager
 import androidx.core.content.ContextCompat
 import com.detailline.callfollowcrm.CallFollowCrmApplication
 import com.detailline.callfollowcrm.data.AppContainer
@@ -125,22 +123,11 @@ object AutoReplyScheduler {
         ) == PackageManager.PERMISSION_GRANTED
 
     /**
-     * SmsManager 로 SMS 발송. 본문이 길면 multipart 로 자동 분할.
-     * 실패해도 throw 안 함 — 결과는 boolean 반환.
+     * 2026-05-30 사장님 #1 통점 연관 fix:
+     *   기존엔 자체 SmsManager 호출 → default SMS 앱 일 때 시스템 provider INSERT 누락 → 발송 기록 사라짐.
+     *   SmsSender.sendDirect 로 통일 — 내부에서 발송 + Sent provider INSERT 모두 처리.
+     *   동작 동일 (multipart 분할 / 권한 / 실패 silent).
      */
-    private fun sendSmsSafely(context: Context, phone: String, body: String): Boolean = runCatching {
-        val sms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            context.getSystemService(SmsManager::class.java)
-        } else {
-            @Suppress("DEPRECATION") SmsManager.getDefault()
-        } ?: return false
-
-        val parts = sms.divideMessage(body)
-        if (parts.size <= 1) {
-            sms.sendTextMessage(phone, null, body, null, null)
-        } else {
-            sms.sendMultipartTextMessage(phone, null, parts, null, null)
-        }
-        true
-    }.getOrDefault(false)
+    private fun sendSmsSafely(context: Context, phone: String, body: String): Boolean =
+        com.detailline.callfollowcrm.util.SmsSender.sendDirect(context, phone, body)
 }

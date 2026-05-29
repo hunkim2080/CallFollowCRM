@@ -1,11 +1,14 @@
 package com.detailline.callfollowcrm.util
 
 import android.Manifest
+import android.content.ContentValues
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.provider.Telephony
 import android.telephony.SmsManager
+import android.util.Log
 import androidx.core.content.ContextCompat
 import com.klinker.android.send_message.Message
 import com.klinker.android.send_message.Settings
@@ -33,7 +36,7 @@ object SmsSender {
         if (!hasPermission(context)) return false
         if (phoneNumber.isBlank() || body.isBlank()) return false
 
-        return runCatching {
+        val sent = runCatching {
             val sms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 context.getSystemService(SmsManager::class.java)
             } else {
@@ -48,6 +51,43 @@ object SmsSender {
             }
             true
         }.getOrDefault(false)
+
+        if (sent) {
+            // 2026-05-30 사장님 #1 통점 fix:
+            //   default SMS 앱이 되면 시스템 SMS provider 의 content://sms/sent 에 INSERT 책임이 우리한테.
+            //   옛날엔 갤메시지 (기본 앱) 가 했음. 우리가 default 인데 INSERT 안 하면:
+            //     - ChatScreen.loadMessages 가 querySmsOnly 로 시스템 provider query → 안 보임
+            //     - cached_messages 도 빈 query 결과 저장 → 영영 사라짐
+            //     - 갤메시지/다른 SMS 앱도 못 봄 (모두 시스템 provider 읽음)
+            //   해결: 발송 성공 직후 Sent 테이블 INSERT.
+            //   default 아닐 때는 WRITE_SMS 권한 없어 silent fail (RuntimeException) — runCatching 안전망.
+            insertIntoSentProvider(context, phoneNumber, body)
+        }
+
+        return sent
+    }
+
+    /**
+     * 시스템 SMS provider (content://sms/sent) 에 사장님 발송 기록 INSERT.
+     * Default SMS 앱일 때만 성공. 갤메시지가 default 면 갤메시지가 INSERT 책임 — silent fail OK.
+     */
+    private fun insertIntoSentProvider(context: Context, phoneNumber: String, body: String) {
+        runCatching {
+            val nowMs = System.currentTimeMillis()
+            val values = ContentValues().apply {
+                put(Telephony.Sms.ADDRESS, phoneNumber)
+                put(Telephony.Sms.BODY, body)
+                put(Telephony.Sms.DATE, nowMs)
+                put(Telephony.Sms.DATE_SENT, nowMs)
+                put(Telephony.Sms.READ, 1)
+                put(Telephony.Sms.SEEN, 1)
+                put(Telephony.Sms.TYPE, Telephony.Sms.MESSAGE_TYPE_SENT)
+            }
+            context.contentResolver.insert(Telephony.Sms.Sent.CONTENT_URI, values)
+        }.onFailure { e ->
+            // default 아니거나 WRITE_SMS 거부 — 정상 케이스 (갤메시지가 default 책임).
+            Log.w("SmsSender", "Sent provider INSERT failed (likely not default SMS app)", e)
+        }
     }
 
     /**

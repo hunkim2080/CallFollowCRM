@@ -950,3 +950,31 @@ CREATE TABLE customer_personas (
 - 안드 측 영향: 없음. UploadResult.embeddingsAvailable 의미 그대로 유효 (이제 numpy + bge-m3 만 install 필요, sqlite-vec 불필요).
 - 사장님 Mac mini install 변경: `pip install FlagEmbedding` 만 충분 (sqlite-vec skip OK).
 - cowork: 다음부터 SYNC.md append 잊지 말기 — CLAUDE.md §2 룰.
+
+## 2026-05-30 (저녁) · android — 사장님 12개 통점 #1 fix
+**사장님 통점 #1 = "문자 발송 후 어디에도 기록 안 남음"** 전체 흐름 trace 후 단일 원인 + 5 path 일괄 fix. 사장님 지시 "연관 로직까지 살피라" 반영.
+
+- 진단:
+  - 사장님이 default SMS 앱으로 전환됨 → 시스템 SMS provider 의 `content://sms/sent` INSERT 책임이 우리에게.
+  - 옛 `SmsSender.sendDirect` 는 `SmsManager.sendTextMessage` 만 호출, **시스템 provider INSERT 누락**.
+  - 결과: ChatViewModel.loadMessages 의 `querySmsOnly(시스템 provider)` 결과 → 빈 sent → cache 도 빈 결과 저장 → ChatScreen 재진입/앱 재시작 후 사장님 발송 영영 사라짐. 갤메시지/다른 SMS 앱도 못 봄.
+- 변경:
+  - **SmsSender.sendDirect**: 발송 성공 직후 `insertIntoSentProvider()` 호출 — `Telephony.Sms.Sent.CONTENT_URI` 에 ContentValues INSERT (ADDRESS / BODY / DATE / DATE_SENT / READ=1 / SEEN=1 / TYPE=MESSAGE_TYPE_SENT).
+  - default 아닐 때 silent fail (runCatching) — 갤메시지가 default 면 갤메시지가 책임 (옛 동작 보존).
+  - **AutoReplyScheduler.sendSmsSafely**: 자체 SmsManager 호출 → `SmsSender.sendDirect` 위임. INSERT 도 자동 적용 + 동작 일관.
+- 연관 발송 path 5개 일괄 fix (`SmsSender.sendDirect` 통과 = 자동 적용):
+  1. ChatViewModel.sendMessage (사장님 직접 답장)
+  2. CustomerDetailViewModel (인라인 채팅)
+  3. PostCallOverlay (통화 후 오버레이)
+  4. SmsReplyReceiver (알림창 빠른 답장)
+  5. AutoReplyScheduler (자동 응답)
+- 검증 (이론적):
+  - 발송 후 → 시스템 provider 에 sent row → 다음 querySmsOnly 자동 가져옴 → cached_messages 도 자동 저장 → ChatScreen 재진입/앱 재시작 후 보존.
+  - 갤메시지 / 다른 SMS 앱도 시스템 provider 읽음 → 다 보임.
+  - MMS 발송 (`sendMessageWithPhotos`) 은 별개 path — `sendMms` 가 false 반환 → 갤메시지 fallback. **default 인 상태에서 사장님이 갤메시지 안 켜면 broken** — 다음 작업 후보 (12개 통점 외).
+- 사장님 검증 요청:
+  - 새 빌드 깔고 ChatScreen 에서 답장 발송 → 답장 직후 보임 → 뒤로/재진입 → 보존 확인.
+  - HomeScreen 카드 미리보기 사장님 발송 내용으로 갱신 (옛날에도 됐던 부분, 변경 없음).
+- 서버 영향 X.
+- commit: (이번)
+- 다음 작업 후보 (사장님이 정한 1순위 3개 중 #2, #3): #8 (114 무한 로딩) → #12 (오늘 신규 클릭).
