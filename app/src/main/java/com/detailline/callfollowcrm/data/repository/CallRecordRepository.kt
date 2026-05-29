@@ -32,6 +32,17 @@ class CallRecordRepository(private val dao: CallRecordDao) {
         linkedCustomerId: Long? = null,
         handledStatus: HandledStatus = HandledStatus.UNHANDLED
     ): Long {
+        // 2026-05-30 #9 통점 fix:
+        //   CallStateReceiver (정적 Manifest) + Application.TelephonyCallback (동적 등록) 둘 다
+        //   같은 통화 종료 이벤트 받음 → 각각 create() 호출 → 같은 startedAt 으로 2 row INSERT →
+        //   HomeViewModel.groupBy(phone, day) 의 list.size = 2 → "오늘 2통" 잘못 표시.
+        //   기존 syncFromCallLog 는 이미 dedup 있는데 create() 만 없었음.
+        //   해결: 같은 (phone, startedAt) 있으면 기존 id 반환 (INSERT skip).
+        //   startedAt == null 케이스 (번호없음/권한 X) 는 dedup 불가 — 그대로 INSERT (rare path).
+        if (startedAt != null) {
+            val existingId = dao.findIdByPhoneAndStarted(phoneNumber, startedAt)
+            if (existingId != null) return existingId
+        }
         val entity = CallRecordEntity(
             phoneNumber = phoneNumber,
             callType = callType.name,

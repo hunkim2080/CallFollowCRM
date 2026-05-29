@@ -1038,3 +1038,30 @@ CREATE TABLE customer_personas (
 - **#6 주소 동호수** — 사장님 의도 명확, 결정 X (regex 확장)
 - **#5 페르소나 null** — Mac mini deploy 여부 확인 (사장님)
 - **#3 시공일정 등록 시 다음액션 알림** — 사장님 메모리 [project_future_ideas] 의 시공 D-1 알람 연결
+
+## 2026-05-30 (밤) · android — 사장님 통점 #9 fix
+**사장님 통점 #9 = "통화 1번 + 문자 0건인데 카드 아래 시간 줄에 '오늘 2통'"**
+- 진단:
+  - HomeScreen 카드: `if (item.callCount > 1) " · 오늘 ${callCount}통"`
+  - callCount = `list.size` where list = `records.groupBy(phone, day)`
+  - 즉 같은 phone + 같은 날의 CallRecord row 수 ≥ 2
+- 원인: **CallStateReceiver (정적 Manifest) + Application.TelephonyCallback (동적 등록)** 둘 다 같은 통화 종료 이벤트 받음. 각각 `callRecordRepository.create()` 호출. create() 가 **dedup 없이 dao.insert** → 같은 startedAt 으로 2 row INSERT → callCount=2.
+  - syncFromCallLog 는 이미 dedup (countByPhoneAndStarted) 있는데 **create() 만 누락**.
+- 변경:
+  - **CallRecordDao**: `findIdByPhoneAndStarted` 신규 (id 반환, null = 없음).
+  - **CallRecordRepository.create**: startedAt 있으면 dedup 검사 → 기존 id 반환 (INSERT skip).
+    startedAt == null (번호없음/권한 X) 케이스만 dedup 불가 — rare path 라 그대로 INSERT.
+  - **DB v17 → v18 + MIGRATION_17_18**: 기존 중복 row cleanup. 같은 (phone, startedAt) 그룹의 MIN(id) 만 남기고 삭제. **사장님 폰의 옛 잘못된 카운트 자동 정정** (마이그레이션 한 번만).
+- 연관 검토:
+  - syncFromCallLog (line 80-101) — 이미 dedup 있음, 영향 X
+  - FollowUpViewModel.create() — create() 호출 (dedup 자동 적용)
+  - groupBy 로직 자체는 정상 — 중복 row 만 정리되면 카운트 정확
+- 서버 영향 X.
+- commit: (이번)
+
+### 다음 작업 후보
+- #11 swipe 안내문구 (짧음, 결정 받음 — 문구만 "확인함" 변경)
+- #4 입금 잔금 자동 계산 (중간, 결정 받음 — 자동 표시 수정 가능)
+- #2 MMS 분할 → 묶어 분석
+- #6 주소 동호수 (regex)
+- #7 자동 카테고리 (시공 대기 / 시공 완료)

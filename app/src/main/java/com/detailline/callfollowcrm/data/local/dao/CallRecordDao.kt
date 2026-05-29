@@ -39,6 +39,14 @@ interface CallRecordDao {
     @Query("SELECT COUNT(*) FROM call_records WHERE phoneNumber = :phone AND startedAt = :startedAt")
     suspend fun countByPhoneAndStarted(phone: String, startedAt: Long): Int
 
+    /**
+     * 2026-05-30 #9 통점 fix — create() dedup 용.
+     *   같은 (phone, startedAt) 이미 있으면 id 반환. 없으면 null.
+     *   CallStateReceiver (정적) + Application.TelephonyCallback (동적) 동시 호출 시 중복 INSERT 차단.
+     */
+    @Query("SELECT id FROM call_records WHERE phoneNumber = :phone AND startedAt = :startedAt LIMIT 1")
+    suspend fun findIdByPhoneAndStarted(phone: String, startedAt: Long): Long?
+
     /** 해당 번호의 통화 기록 총 개수. "첫 통화 감지"용 (== 1 이면 방금 만든 게 처음). */
     @Query("SELECT COUNT(*) FROM call_records WHERE phoneNumber = :phone")
     suspend fun countByPhone(phone: String): Int

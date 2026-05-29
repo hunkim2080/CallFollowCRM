@@ -53,7 +53,7 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         SmsContactCacheEntity::class,
         com.detailline.callfollowcrm.data.local.entity.SuggestionEventEntity::class
     ],
-    version = 17,
+    version = 18,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -370,6 +370,29 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v17 → v18: 2026-05-30 사장님 #9 통점 — CallStateReceiver + TelephonyCallback 동시 호출로
+         *   동일 (phoneNumber, startedAt) 의 call_records 중복 row 가 박힌 것을 정리.
+         *   각 그룹의 MIN(id) 만 유지, 나머지 삭제.
+         *   startedAt IS NULL row 는 dedup 불가라 그대로 둠 (rare path).
+         *   호출 후 정상 카운트 표시. 새 통화는 create() 가 이미 dedup 박혀 중복 방지.
+         */
+        private val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    DELETE FROM call_records
+                    WHERE startedAt IS NOT NULL
+                      AND id NOT IN (
+                          SELECT MIN(id) FROM call_records
+                          WHERE startedAt IS NOT NULL
+                          GROUP BY phoneNumber, startedAt
+                      )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
@@ -380,7 +403,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
                     MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                     MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15,
-                    MIGRATION_15_16, MIGRATION_16_17
+                    MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18
                 )
                 .fallbackToDestructiveMigration()   // migration 실패 시 안전망 (개발 단계)
                 .build()
