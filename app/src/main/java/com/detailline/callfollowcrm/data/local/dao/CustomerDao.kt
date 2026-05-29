@@ -29,6 +29,10 @@ interface CustomerDao {
     @Query("SELECT * FROM customers ORDER BY updatedAt DESC")
     fun observeAll(): Flow<List<CustomerEntity>>
 
+    /** 2026-05-30 #7 — AutoCategoryClassifier.backfillAll 용 1회 조회. */
+    @Query("SELECT * FROM customers")
+    suspend fun allOnce(): List<CustomerEntity>
+
     // 2026-05-25: observeByStatus 제거 — status 컬럼 v13 마이그레이션에서 drop.
 
     /** 사장님 카테고리 별 고객 목록. */

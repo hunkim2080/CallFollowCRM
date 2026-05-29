@@ -1144,3 +1144,35 @@ CREATE TABLE customer_personas (
 - **#5 페르소나 null 확인** (사장님 Mac mini deploy 여부)
 - **#3 시공일정 등록 시 다음액션 알림** (결정 필요)
 - **#10 캘린더 정보 풍부화** (결정 필요)
+
+## 2026-05-30 (밤) · android — 사장님 통점 #7 fix
+**사장님 통점 #7 = "잔금 받으면 자동 시공완료 카테고리 분류. 기본값 정의 필요"**
+- 사장님 결정:
+  - "시공 대기 고객" = 계약금 입금자 (depositAmount > 0, balance = 0)
+  - "시공 완료 고객" = 잔금 입금자 (balanceAmount > 0)
+  - 수동 우선 (사장님이 다른 카테고리 지정 → 자동 분류 X)
+- 변경:
+  - **DefaultCategories** (`data/local/seed/DefaultCategories.kt`) — 시공 대기 🔨 / 시공 완료 ✅ 상수 + `seedIfMissing()` (idempotent via CategoryRepository.upsert).
+  - **AutoCategoryClassifier** (`data/repository/AutoCategoryClassifier.kt`):
+    - `resolveCategoryId(customer)` — balance > 0 → 시공 완료 / deposit > 0 && balance = 0 → 시공 대기 / 둘 다 0 → 그대로.
+    - 수동 우선: 현재 categoryId 가 null / 시공 대기 / 시공 완료 일 때만 자동 분류 (사장님 다른 카테고리 → no-op).
+    - `reclassify(customerId)` — 변경 시점 호출용.
+    - `backfillAll()` — Application 첫 진입 시 1회. 옛 입금 데이터 정정.
+  - **CustomerDao.allOnce()** + **CustomerRepository.allOnce()** — backfill 용 1회 조회.
+  - **AppContainer**: `autoCategoryClassifier` DI.
+  - **AppPreferences.autoCategoryBackfilled** — 1회 backfill flag.
+  - **CallFollowCrmApplication.onCreate** appScope.launch:
+    - DefaultCategories.seedIfMissing
+    - autoCategoryBackfilled = false 면 backfillAll + true
+  - **CustomerDetailViewModel**: setDepositAmount / setBalancePaid / setBalanceAmount 후 `autoCategoryClassifier.reclassify` 호출.
+- 연관 검토:
+  - `setDepositPaidAt` 은 입금 시각 만 변경 (amount 영향 X) — reclassify hook 불필요.
+  - `setTotalAmount` 는 분류 기준 아님 — reclassify hook 불필요.
+  - HomeScreen 의 filter chip row 에 "시공 대기" / "시공 완료" 자동 노출 (CategoryRepository.observeAll → 자동 emit).
+- 서버 영향 X.
+- commit: (이번)
+
+### 남은 통점 (3개)
+- **#5 페르소나 null** — 사장님 Mac mini 측 확인만
+- **#3 시공일정 등록 시 다음액션 알림** — 결정 필요
+- **#10 캘린더 정보 풍부화** — 결정 필요

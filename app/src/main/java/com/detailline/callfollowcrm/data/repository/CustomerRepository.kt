@@ -48,6 +48,8 @@ class CustomerRepository(
 
     suspend fun findByPhone(phoneNumber: String): CustomerEntity? = dao.findByPhone(phoneNumber)
     suspend fun findById(id: Long): CustomerEntity? = dao.findById(id)
+    /** 2026-05-30 #7 — AutoCategoryClassifier.backfillAll 용. */
+    suspend fun allOnce(): List<CustomerEntity> = dao.allOnce()
 
     /**
      * 같은 전화번호로 들어오면 기존 Customer를 재사용한다.

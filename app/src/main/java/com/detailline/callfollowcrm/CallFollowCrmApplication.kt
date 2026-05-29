@@ -36,6 +36,14 @@ class CallFollowCrmApplication : Application() {
         appScope.launch {
             DefaultTemplates.seedIfEmpty(container.messageTemplateRepository)
             DefaultPricingItems.seedIfEmpty(container.pricingItemRepository)
+            // 2026-05-30 #7 — 기본 카테고리 seed + 옛 고객 1회 자동 분류.
+            com.detailline.callfollowcrm.data.local.seed.DefaultCategories.seedIfMissing(
+                container.categoryRepository
+            )
+            if (!container.preferences.autoCategoryBackfilled) {
+                runCatching { container.autoCategoryClassifier.backfillAll() }
+                container.preferences.autoCategoryBackfilled = true
+            }
         }
 
         // SMS/MMS 캐시 prefetch — 최근 20개 번호. ChatScreen 첫 진입을 즉시 보이게 하는 토대.

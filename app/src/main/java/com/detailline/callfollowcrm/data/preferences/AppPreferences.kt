@@ -122,6 +122,14 @@ class AppPreferences(context: Context) {
         get() = prefs.getInt(KEY_TONE_TOTAL_UPLOADED, 0)
         set(value) = prefs.edit().putInt(KEY_TONE_TOTAL_UPLOADED, value).apply()
 
+    /**
+     * 2026-05-30 #7 — 사장님 옛 고객들 1회 일괄 자동 분류 완료 여부.
+     * Application.onCreate 에서 false 일 때만 AutoCategoryClassifier.backfillAll 호출 후 true.
+     */
+    var autoCategoryBackfilled: Boolean
+        get() = prefs.getBoolean(KEY_AUTO_CATEGORY_BACKFILLED, false)
+        set(value) = prefs.edit().putBoolean(KEY_AUTO_CATEGORY_BACKFILLED, value).apply()
+
     companion object {
         private const val KEY_ADOT_FOLDER_URI = "adot_folder_uri"
         private const val KEY_LAST_SCAN_AT = "last_scan_at"
@@ -140,5 +148,6 @@ class AppPreferences(context: Context) {
         private const val KEY_TONE_UPLOAD_CONSENTED = "tone_upload_consented"
         private const val KEY_TONE_LAST_UPLOADED_AT = "tone_last_uploaded_at"
         private const val KEY_TONE_TOTAL_UPLOADED = "tone_total_uploaded"
+        private const val KEY_AUTO_CATEGORY_BACKFILLED = "auto_category_backfilled"
     }
 }

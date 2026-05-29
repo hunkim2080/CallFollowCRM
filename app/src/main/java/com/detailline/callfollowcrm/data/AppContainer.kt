@@ -52,6 +52,11 @@ class AppContainer(context: Context) {
     val conversationAiRepository = ConversationAiRepository(db.aiSummaryDao())
     val pricingItemRepository = PricingItemRepository(db.pricingItemDao())
     val categoryRepository = CategoryRepository(db.categoryDao(), db.customerDao())
+    // 2026-05-30 #7 — 입금 상태 기반 자동 카테고리 분류 (시공 대기 / 시공 완료).
+    val autoCategoryClassifier = com.detailline.callfollowcrm.data.repository.AutoCategoryClassifier(
+        categoryRepository = categoryRepository,
+        customerRepository = customerRepository
+    )
     val spamPhoneRepository = com.detailline.callfollowcrm.data.repository.SpamPhoneRepository(db.spamPhoneDao())
     val smsContactCacheRepository = com.detailline.callfollowcrm.data.repository.SmsContactCacheRepository(db.smsContactCacheDao())
     // 2026-05-29 킬러콘텐츠 3단계 — chip 행동 시그널 저장 (DB v17).

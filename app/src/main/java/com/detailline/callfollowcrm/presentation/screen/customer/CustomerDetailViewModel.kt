@@ -208,6 +208,8 @@ class CustomerDetailViewModel(
     fun setDepositAmount(amount: Long?) = viewModelScope.launch {
         withContext(NonCancellable) {
             container.customerRepository.updateDepositAmount(customerId, amount)
+            // 2026-05-30 #7 — 입금 변경 후 자동 카테고리 갱신.
+            container.autoCategoryClassifier.reclassify(customerId)
         }
     }
 
@@ -217,6 +219,7 @@ class CustomerDetailViewModel(
                 customerId,
                 if (paid) System.currentTimeMillis() else null
             )
+            container.autoCategoryClassifier.reclassify(customerId)
         }
     }
 
@@ -229,6 +232,7 @@ class CustomerDetailViewModel(
     fun setBalanceAmount(amount: Long?) = viewModelScope.launch {
         withContext(NonCancellable) {
             container.customerRepository.updateBalanceAmount(customerId, amount)
+            container.autoCategoryClassifier.reclassify(customerId)
         }
     }
 
