@@ -91,3 +91,36 @@ data class CustomerHint(
     /** P3 — 이 고객의 시공 예약일 (있으면). 일정 관련 답변 추천에서 "확정된 일정 기준" 으로 사용. */
     val scheduledWorkDateMs: Long? = null
 )
+
+/**
+ * 2026-05-30 사장님 #2 통점 — MMS 분할 / 짧은 SMS 다발 시 latestMessage 묶음 헬퍼.
+ *
+ * 사장님 의도: "내 말풍선 끝나고 고객 말풍선을 전부 확인하고 답변 준비".
+ * 즉 "마지막 owner 발신 이후 모든 customer 수신 메시지" 를 join 해서 latestMessage 로 보냄.
+ *
+ * 옛 동작 = latestMessage 가 마지막 받은 메시지 1개 → LLM 이 맥락 없이 답변.
+ * 새 동작 = streak 전체 묶음 → LLM 이 전체 맥락 보고 답변.
+ */
+object PrepareContextHelpers {
+    /**
+     * @param history 옛→최신 순으로 정렬된 메시지 (SmsReceiver/MmsDownloadService/ChatViewModel 패턴).
+     * @param newIncomingBody history 에 아직 안 들어간 막 도착한 메시지 본문.
+     *                        null = history 가 이미 다 포함 (regenerate 케이스).
+     * @return 마지막 owner 이후의 customer 본문들 + newIncomingBody 를 \n\n 으로 join.
+     *         streak 비어있으면 newIncomingBody, 그것도 null 이면 history 마지막 메시지 body.
+     */
+    fun joinCustomerStreakAfterLastOwner(
+        history: List<HistoryMessage>,
+        newIncomingBody: String? = null
+    ): String {
+        val streak = mutableListOf<String>()
+        for (i in history.indices.reversed()) {
+            if (history[i].role == "owner") break
+            val body = history[i].body
+            if (body.isNotBlank()) streak.add(0, body)
+        }
+        val all = if (newIncomingBody != null) streak + newIncomingBody else streak
+        val joined = all.joinToString(separator = "\n\n").trim()
+        return joined.ifBlank { newIncomingBody ?: history.lastOrNull()?.body.orEmpty() }
+    }
+}

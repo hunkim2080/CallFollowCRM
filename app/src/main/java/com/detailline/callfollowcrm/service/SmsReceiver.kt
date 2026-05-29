@@ -239,9 +239,15 @@ class SmsReceiver : BroadcastReceiver() {
                     container.customerRepository.getOtherUpcomingScheduleDates(sender)
                 }.getOrDefault(emptyList())
 
+                // 2026-05-30 사장님 #2 통점 fix: MMS 분할 / 짧은 SMS 다발 시
+                //   "마지막 사장님 발신 이후 모든 고객 수신 메시지" 묶음 → latestMessage.
+                //   옛 동작 = combinedBody (이번 PDU 1건) 만 → LLM 이 마지막 1건 보고 답변 →
+                //   사장님 통점 ("마지막 말풍선만 보고 추천").
+                val mergedLatest = com.detailline.callfollowcrm.ai.PrepareContextHelpers
+                    .joinCustomerStreakAfterLastOwner(history, newIncomingBody = combinedBody)
                 val ctx = PrepareContext(
                     phone = sender,
-                    latestMessage = combinedBody,
+                    latestMessage = mergedLatest,
                     latestMessageReceivedAtMs = receivedAtMs,
                     recentHistory = history,
                     customer = customerHint,

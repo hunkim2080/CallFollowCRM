@@ -746,9 +746,13 @@ class ChatViewModel(
                         container.customerRepository.getOtherUpcomingScheduleDates(phoneNumber)
                     }.getOrDefault(emptyList())
                 }
+                // 2026-05-30 사장님 #2 통점 fix: 마지막 사장님 발신 이후 모든 고객 메시지 묶음.
+                //   regenerate 케이스라 newIncomingBody = null (history 가 이미 모두 포함).
+                val mergedLatest = com.detailline.callfollowcrm.ai.PrepareContextHelpers
+                    .joinCustomerStreakAfterLastOwner(history, newIncomingBody = null)
                 val ctx = PrepareContext(
                     phone = phoneNumber,
-                    latestMessage = latestReceived.body,
+                    latestMessage = mergedLatest.ifBlank { latestReceived.body },
                     latestMessageReceivedAtMs = latestReceived.dateMs,
                     recentHistory = history,
                     customer = hint,

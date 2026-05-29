@@ -146,9 +146,12 @@ class MmsDownloadService : MmsReceivedService() {
                     scheduledWorkDateMs = it.scheduledWorkDate
                 )
             }
+            // 2026-05-30 사장님 #2 통점 fix: MMS 분할 시 모든 customer streak 묶음.
+            val mergedLatest = com.detailline.callfollowcrm.ai.PrepareContextHelpers
+                .joinCustomerStreakAfterLastOwner(history, newIncomingBody = displayBody)
             val ctx = PrepareContext(
                 phone = sender,
-                latestMessage = displayBody,
+                latestMessage = mergedLatest,
                 latestMessageReceivedAtMs = receivedAtMs,
                 recentHistory = history,
                 customer = customerHint,

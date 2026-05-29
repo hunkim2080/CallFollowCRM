@@ -1123,3 +1123,24 @@ CREATE TABLE customer_personas (
   - 옛 데이터 호환 — totalAmount = null 이면 자동 계산 비활성 → 옛 UX 그대로.
 - 서버 영향 X.
 - commit: (이번)
+
+## 2026-05-30 (밤) · android — 사장님 통점 #2 fix
+**사장님 통점 #2 = "MMS 가 2개 말풍선 분할 → 추천답변이 마지막 1건만 보고 답함. 내 말풍선 끝나고 고객 말풍선 전부 묶어서 분석되어야"**
+- 진단: prepare-reply 호출 3 path 모두 `latestMessage` = "이번 받은 1건" 만. recentHistory 는 전달되지만 LLM 의 prompt 가 latestMessage 중심.
+- 변경:
+  - **PrepareContextHelpers.joinCustomerStreakAfterLastOwner** 신규 (`ai/ReplySuggestions.kt` 안):
+    - 입력: history (옛→최신), newIncomingBody (history 에 안 들어간 막 도착 본문, null 가능)
+    - 출력: 마지막 owner 이후 모든 customer body + newIncomingBody → "\n\n" join
+    - streak 비어있으면 newIncomingBody 또는 history.lastOrNull().body fallback
+  - **SmsReceiver.onReceive**: prepare-reply 호출 시 `latestMessage = joinSinceLastOwner(history, combinedBody)`.
+  - **MmsDownloadService**: 동일. `joinSinceLastOwner(history, displayBody)` — displayBody 가 "📎 사진 N장\n\n본문" 형식이라 묶음 안에서도 분리.
+  - **ChatViewModel.regenerateSuggestions**: history 가 _messages 에 이미 다 들어있으므로 newIncomingBody=null. 결과가 빈 string 이면 옛 fallback (`latestReceived.body`).
+- 사장님 통점 해결: MMS 분할 2 + 짧은 SMS 다발이 모두 묶여 LLM 에 전달 → 전체 맥락 보고 추천 답변 생성.
+- 서버 영향 X (사양 변경 X). 안드 측에서 latestMessage 빌드만 변경.
+- commit: (이번)
+
+### 다음 작업 후보 (남은 4개)
+- **#7 자동 카테고리** (시공 대기 / 시공 완료, 결정 받음 — 중간 작업)
+- **#5 페르소나 null 확인** (사장님 Mac mini deploy 여부)
+- **#3 시공일정 등록 시 다음액션 알림** (결정 필요)
+- **#10 캘린더 정보 풍부화** (결정 필요)
