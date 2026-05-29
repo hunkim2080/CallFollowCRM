@@ -1011,3 +1011,30 @@ CREATE TABLE customer_personas (
 ### 다음 작업
 - 사장님 1순위 3개 중 마지막 = #12 (오늘 신규 카드 클릭 X)
 - 그 후 사장님 추가 결정 받고 #2, #4, #6, #9, #11 진행
+
+## 2026-05-30 (저녁) · android — 사장님 통점 #12 fix
+**사장님 통점 #12 = "미확인 섹션은 클릭 되는데 오늘 신규 탭은 클릭 안 됨"**
+- 진단: KpiCard("🆕", "오늘 신규", ...) 의 onClick = 빈 람다 `{}`. 옛 사장님 결정 (2026-05-25) = "정보 표시만". 사장님 의도 변경.
+- 변경 (안드):
+  - **HomeFilter.TodayNew** object 신규. accept(item) = `item.isNewToday`.
+  - **HomeScreen KpiSection** 시그니처에 `onFilterTodayNew` 추가. 호출처 wire = `viewModel.setFilter(HomeFilter.TodayNew)`.
+  - **filter chip row** 에 `[오늘 신규]` chip 추가 (KPI 카드 클릭 ↔ chip 클릭 둘 다 진입 가능, 시각 일관성).
+  - **빈 결과 메시지** 분기 추가: "오늘 신규 없음 — 새로 연락온 고객이 아직 없어요".
+  - BackHandler 는 `filter !is HomeFilter.All` 조건 → 자동 작동 (변경 X).
+- 연관: 같은 패턴 (Unconfirmed 와 동일 설계). swipe-to-spam 은 Unconfirmed 만 활성 (옛 동작 유지).
+- 서버 영향 X.
+- commit: (이번)
+
+### 1순위 3개 완료 ✅
+- #1 발송 기록 (60a8ade), #8 114 무한 로딩 (80636b7), #12 오늘 신규 클릭 (이번)
+- 사장님이 새 빌드 깔고 확인 후 다음 단계 결정.
+
+### 다음 작업 후보 (사장님 결정 필요 모음 다시)
+- **#4 입금 저장 간헐적 + 잔금 자동 계산** — 잔금 자동 표시 정책 결정 필요
+- **#7 자동 카테고리** — 이름 + 수동 vs 자동 우선순위 결정 필요
+- **#11 swipe 안내문구** — 동작 자체 변경 vs 문구만 변경 결정 필요
+- **#9 "오늘 N통" 카운트** — 사장님 스크린샷 (어느 카드)
+- **#2 MMS 분할 → 묶어 분석** — 사장님 의도 명확, 결정 X (3 path 일괄 fix)
+- **#6 주소 동호수** — 사장님 의도 명확, 결정 X (regex 확장)
+- **#5 페르소나 null** — Mac mini deploy 여부 확인 (사장님)
+- **#3 시공일정 등록 시 다음액션 알림** — 사장님 메모리 [project_future_ideas] 의 시공 D-1 알람 연결

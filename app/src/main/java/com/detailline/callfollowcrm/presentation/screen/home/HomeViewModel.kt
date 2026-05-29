@@ -535,11 +535,14 @@ data class HomeItem(
 sealed class HomeFilter(val label: String) {
     object All : HomeFilter("전체")
     object Unconfirmed : HomeFilter("미확인")
+    /** 2026-05-30 사장님 #12 통점 — 오늘 신규 KPI 카드 클릭 시 적용. */
+    object TodayNew : HomeFilter("오늘 신규")
     data class Category(val id: Long, val name: String, val emoji: String?) : HomeFilter(name)
 
     fun accept(item: HomeItem): Boolean = when (this) {
         is All -> true
         is Unconfirmed -> item.isUnconfirmed
+        is TodayNew -> item.isNewToday   // 2026-05-30 #12
         is Category -> item.customer?.categoryId == id
     }
 }

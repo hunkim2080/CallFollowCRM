@@ -268,6 +268,14 @@ fun HomeScreen(
                         onClick = { viewModel.setFilter(HomeFilter.Unconfirmed) }
                     )
                 }
+                // 2026-05-30 #12 — TodayNew chip 추가. KPI 카드 클릭 ↔ chip 클릭 둘 다 가능 (시각 일관성).
+                item(key = "today-new") {
+                    TossChip(
+                        text = HomeFilter.TodayNew.label,
+                        selected = filter is HomeFilter.TodayNew,
+                        onClick = { viewModel.setFilter(HomeFilter.TodayNew) }
+                    )
+                }
                 items(categories, key = { "cat-${it.id}" }) { cat ->
                     val display = if (cat.emoji != null) "${cat.emoji} ${cat.name}" else cat.name
                     TossChip(
@@ -427,6 +435,7 @@ fun HomeScreen(
                         todayNew = todayNew,
                         unhandled = unhandled,
                         weekScheduled = weekScheduled,
+                        onFilterTodayNew = { viewModel.setFilter(HomeFilter.TodayNew) },
                         onFilterUnhandled = { viewModel.setFilter(HomeFilter.Unconfirmed) },
                         onOpenSchedule = onOpenSchedule
                     )
@@ -447,6 +456,7 @@ fun HomeScreen(
                                     when (val f = filter) {
                                         is HomeFilter.All -> "기록된 통화가 없어요"
                                         is HomeFilter.Unconfirmed -> "미확인 없음 — 7일 내 문의 모두 답장 완료"
+                                        is HomeFilter.TodayNew -> "오늘 신규 없음 — 새로 연락온 고객이 아직 없어요"
                                         is HomeFilter.Category -> "‘${f.name}’ 카테고리에 고객이 아직 없어요"
                                     },
                                     style = MaterialTheme.typography.titleMedium,
@@ -579,6 +589,8 @@ private fun KpiSection(
     todayNew: Int,
     unhandled: Int,
     weekScheduled: Int,
+    /** 2026-05-30 #12 — 🆕 카드 클릭 시 TodayNew 필터 적용. */
+    onFilterTodayNew: () -> Unit,
     onFilterUnhandled: () -> Unit,
     onOpenSchedule: () -> Unit
 ) {
@@ -589,9 +601,10 @@ private fun KpiSection(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         // 2026-05-25: 4장 → 3장으로 축소. "견적 답대기" 는 status enum 기반이라 폐기.
-        //   🆕 카드는 정보 표시만 (탭 동작 X). ⚠️ 미확인 / 📅 이번주 시공 만 진입 가능.
+        // 2026-05-30 #12 통점 fix: 🆕 카드도 클릭 가능 (TodayNew 필터 적용).
+        //   3 카드 모두 동일 패턴 — 클릭 시 해당 필터 / 화면 진입.
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            KpiCard("🆕", "오늘 신규", todayNew, TossBlue, Modifier.weight(1f)) {}
+            KpiCard("🆕", "오늘 신규", todayNew, TossBlue, Modifier.weight(1f), onFilterTodayNew)
             KpiCard("⚠️", "미확인", unhandled, TossError, Modifier.weight(1f), onFilterUnhandled)
             KpiCard("📅", "이번주 시공", weekScheduled, TossSuccess, Modifier.weight(1f), onOpenSchedule)
         }
