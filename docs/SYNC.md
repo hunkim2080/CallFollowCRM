@@ -1251,3 +1251,32 @@ CREATE TABLE customer_personas (
 
 ### 서버 영향
 - 없음. 모두 안드로이드 + PC 측 도구.
+
+---
+
+## 2026-05-30 (밤) · android — 디자인 시스템 보강 (사장님 직접 사양)
+**사장님 직접 사양 = 1) 다크모드 / 2) 한글 폰트 / 3) 상태 색 / 4) 큰 손가락 48dp+**
+
+### 완료
+1. **Pretendard 한글 폰트 적용** — Regular/Medium/SemiBold/Bold 4종 (총 6MB). AppTheme.Typography 의 모든 TextStyle 에 fontFamily 박음. 폰 검증 완료 (홈 화면 캡처 — 한글 가독성/굵기 위계 명확).
+2. **핵심 버튼 48dp+ 보장** — ChatScreen ComposerBar:
+   - ▶ 전송 (Surface 둥근 버튼) 44 → 52dp
+   - ✨ AI 다듬기 / 📷 사진 첨부 (IconButton) 36 → 48dp
+   - ↻ 추천 답변 재생성 (IconButton) 28 → 40dp
+   - SuggestionChip 최소 높이 48dp 보장 (sizeIn + vertical padding 10→12)
+3. **다크모드 인프라** — darkColorScheme 정의 (TossBgDark #161616 / TossSurfaceDark #1F2126 등). CallFollowCrmTheme 에 isSystemInDarkTheme 분기 + darkOverride 인자. HomeScreen KpiSection 다크 Preview 추가.
+
+### 한계 (사장님 인지)
+- 다크모드는 **인프라만**. presentation/ 안에서 `TossBlue/TossSurface/TossTextPrimary/Color.White` 같은 색을 직접 박은 곳이 17개 파일 / 551군데. MaterialTheme.colorScheme 거치는 마이그레이션이 다음 sprint 큰 작업. 지금 다크모드 켜도 카드/배경은 흰색 그대로.
+- 4번째 항목 (상태 색 일관화) = **보류**. leadHeat 2단계 (COLD/WARM) 유지. 3단계 (HOT/WARM/COLD) 확장은 사양 변경이라 사장님 다음 결정 대기.
+
+### 서버 영향 X.
+
+---
+
+## 2026-05-30 (밤) · android — UX 공모전 명세서 작업 시작
+사장님 아이디어 = "다른 AI 들 (GPT / Gemini / Grok) 에게 RING-GO 명세서 주고 UI/UX 새 제안 받자".
+- 명세서: `docs/ux_contest/BRIEF.md` (자세히 — 모든 기능/화면/톤 다 담음)
+- 결과물 형식: D = HTML 데모 + 텍스트 목업 + 이미지 설명 모두
+- 비교 페이지: `docs/ux_contest/compare.html`
+- 작업 진행 중 (이번 commit 후속)

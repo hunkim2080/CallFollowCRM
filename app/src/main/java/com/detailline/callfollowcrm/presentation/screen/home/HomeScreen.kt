@@ -1273,3 +1273,19 @@ private fun KpiSectionPreviewS9() {
         )
     }
 }
+
+/** 2026-05-30 다크모드 Preview — 다크 테마 적용 시 모양 확인용. */
+@Preview(name = "KPI — 다크모드", showBackground = true, backgroundColor = 0xFF161616)
+@Composable
+private fun KpiSectionPreviewDark() {
+    CallFollowCrmTheme(darkOverride = true) {
+        KpiSection(
+            todayNew = 2,
+            unhandled = 5,
+            weekScheduled = 3,
+            onFilterTodayNew = {},
+            onFilterUnhandled = {},
+            onOpenSchedule = {}
+        )
+    }
+}

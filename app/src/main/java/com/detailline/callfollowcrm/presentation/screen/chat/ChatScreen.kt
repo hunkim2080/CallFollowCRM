@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -1084,23 +1085,24 @@ private fun SuggestionArea(
                     modifier = Modifier.padding(end = 8.dp)
                 )
             }
+            // 2026-05-30 사장님 디자인 보강 #4 — 시공 사장님 손가락 배려: 28dp → 40dp.
             IconButton(
                 onClick = onRegenerate,
                 enabled = !loading,
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(40.dp)
             ) {
                 if (loading) {
                     CircularProgressIndicator(
                         color = TossBlue,
                         strokeWidth = 2.dp,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 } else {
                     Icon(
                         Icons.Default.Refresh,
                         contentDescription = "재생성",
                         tint = TossTextSecondary,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(22.dp)
                     )
                 }
             }
@@ -1182,15 +1184,19 @@ private fun SuggestionArea(
  */
 @Composable
 private fun SuggestionChip(index: Int, label: String?, text: String, onTap: () -> Unit) {
+    // 2026-05-30 사장님 디자인 보강 #4 — 시공 사장님 손가락 배려.
+    //   sizeIn(minHeight=48dp) 으로 단일 라인 케이스도 최소 터치 보장.
+    //   vertical padding 10dp → 12dp 로 시각적 여유.
     Surface(
         modifier = Modifier
             .widthIn(max = 280.dp)
+            .sizeIn(minHeight = 48.dp)
             .clickable { onTap() },
         shape = RoundedCornerShape(16.dp),
         color = TossBlue
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
         ) {
             if (!label.isNullOrBlank()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1423,35 +1429,37 @@ private fun Composer(
                         }
                     )
                     // 📷 사진 첨부 (이모지 자리)
+                    // 2026-05-30 사장님 디자인 보강 #4 — Material3 최소 터치 48dp 보장 (36dp → 48dp).
                     IconButton(
                         onClick = onAttachPhoto,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             Icons.Default.Image,
                             contentDescription = "사진 첨부",
                             tint = TossTextSecondary,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                     // ✨ AI 다듬기 — polishing 중엔 회전 인디케이터.
+                    // 2026-05-30 디자인 보강 — 36dp → 48dp.
                     IconButton(
                         onClick = onAiPolish,
                         enabled = !isPolishing,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         if (isPolishing) {
                             CircularProgressIndicator(
                                 color = TossBlue,
                                 strokeWidth = 2.dp,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(20.dp)
                             )
                         } else {
                             Icon(
                                 Icons.Default.AutoAwesome,
                                 contentDescription = "AI 다듬기",
                                 tint = TossBlue,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(24.dp)
                             )
                         }
                     }
@@ -1460,8 +1468,9 @@ private fun Composer(
             Spacer(Modifier.width(8.dp))
             // 외부 우측 = ▶ 전송 둥근 버튼. 외부 Row 의 Bottom alignment 로 박스와 같은 라인 정렬.
             //   2026-05-27 진행감 fix: 발송 중엔 spinner 로 교체 + 재탭 방지 (canSend && !isSending).
+            // 2026-05-30 디자인 보강 — 주요 액션(전송) 강조 위해 44dp → 52dp.
             Surface(
-                modifier = Modifier.size(44.dp),
+                modifier = Modifier.size(52.dp),
                 shape = androidx.compose.foundation.shape.CircleShape,
                 color = if (canSend && !isSending) TossBlue else TossDivider,
                 onClick = { if (canSend && !isSending) onSend() }
@@ -1471,14 +1480,14 @@ private fun Composer(
                         CircularProgressIndicator(
                             color = Color.White,
                             strokeWidth = 2.dp,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     } else {
                         Icon(
                             Icons.Default.ArrowUpward,
                             contentDescription = "보내기",
                             tint = if (canSend) Color.White else TossTextTertiary,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                 }
