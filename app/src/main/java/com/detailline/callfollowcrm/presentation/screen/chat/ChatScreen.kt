@@ -409,7 +409,12 @@ fun ChatScreen(
             }
             // 2026-05-30 #8 통점 fix: 빈 sentinel = 표시 X (114 같은 광고 메시지에서 빈 카드 방지).
             aiSummary?.takeUnless { isEmptySentinel }?.let { s ->
-                val action = remember(s.nextActionJson) { NextAction.parse(s.nextActionJson) }
+                // 2026-05-30 사장님 #3 통점 — 시공일정 등록된 고객 = "상황 종료" → NextActionBox 표시 X.
+                //   사장님 결정: 일정 잡혔으니 다음 액션 권유 불필요.
+                val scheduled = (customer?.scheduledWorkDate ?: 0L) > 0L
+                val action = remember(s.nextActionJson, scheduled) {
+                    if (scheduled) null else NextAction.parse(s.nextActionJson)
+                }
                 val onActionHandler: (NextAction) -> Unit = { a -> triggerActionByType(a.actionType) }
                 val showCollapsed = composerFocused || summaryManualCollapsed
                 val isSummaryRefreshing by viewModel.isSummaryRefreshing.collectAsState()

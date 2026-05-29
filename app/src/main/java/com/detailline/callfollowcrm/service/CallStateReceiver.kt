@@ -237,7 +237,10 @@ class CallStateReceiver : BroadcastReceiver() {
         val customer = app.container.customerRepository.findByPhone(phoneNumber)
         val classified = customer?.leadHeat != null
         val replied = app.container.messageHistoryRepository.hasHandledRecord(phoneNumber)
-        if (classified || replied) return  // 처리됨 — 알림 X
+        // 2026-05-30 사장님 #3 통점 — 시공 일정 등록된 고객 = "상황 종료" → 후속 알림 X.
+        //   사장님 결정: 일정 잡혔으니 다른 고객에 집중. D-1 알림은 Phase B 에서 별도.
+        val scheduled = (customer?.scheduledWorkDate ?: 0L) > 0L
+        if (classified || replied || scheduled) return  // 처리됨 / 일정 등록 — 알림 X
 
         NotificationHelper.showQuietFollowUpNotification(
             context = context,

@@ -93,6 +93,19 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
     /**
+     * 2026-05-30 사장님 #3 통점 — 시공 일정 등록된 고객 phone suffix set.
+     *   사장님 결정: 시공 일정 등록 = "상황 종료" → 미확인 카운트 / NextActionBox / 후속 알림 모두 제외.
+     *   D-1 알림은 Phase B 에서 별도.
+     */
+    private val scheduledCustomerSuffixes: StateFlow<Set<String>> = customers
+        .map { list ->
+            list.filter { it.scheduledWorkDate != null && it.scheduledWorkDate > 0L }
+                .map { phoneSuffix(it.phoneNumber) }
+                .toHashSet()
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
+    /**
      * 화면 진입 시 즉시 한 번 강제 갱신용 (Pull-to-refresh 등). ContentObserver 가 못 잡는
      *   edge case (앱 cold start 후 첫 진입) 보강. observeContacts 가 초기 emit 도 하니
      *   대부분 케이스에선 no-op 이지만 안전망.
@@ -138,9 +151,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      * 사장님 결정 (2026-05-24) — 이전엔 CallRecord.handledStatus 기반이었으나 정의 변경.
      */
     val unhandledCount: StateFlow<Int> = combine(
-        smsContactsState, missedRecent, spamSuffixes
-    ) { smsContacts, missed, spam ->
-        unconfirmedSuffixes(smsContacts, missed, spam).size
+        smsContactsState, missedRecent, spamSuffixes, scheduledCustomerSuffixes
+    ) { smsContacts, missed, spam, scheduled ->
+        unconfirmedSuffixes(smsContacts, missed, spam, scheduled).size
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     /** 오늘 ~ 오늘+6일(7일 윈도우) 시공 예약된 고객 수. */
@@ -169,12 +182,14 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     private fun unconfirmedSuffixes(
         smsContacts: List<SmsRepository.SmsContact>,
         missed: List<CallRecordEntity>,
-        spam: Set<String> = emptySet()
+        spam: Set<String> = emptySet(),
+        scheduled: Set<String> = emptySet()
     ): Set<String> {
         val bySuffix = smsContacts.associateBy { it.normalizedSuffix }
         val result = HashSet<String>()
         for (c in smsContacts) {
             if (c.normalizedSuffix in spam) continue
+            if (c.normalizedSuffix in scheduled) continue  // 2026-05-30 #3 — 시공일정 등록자 제외
             // 사장님 의도: 마지막 메시지가 고객 수신이면 미확인. 이전에 답장 보낸 적은 무관.
             if (!c.lastSent && c.lastDateMs >= sevenDayWindowStart) {
                 result += c.normalizedSuffix
@@ -184,6 +199,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             if (m.endedAt < sevenDayWindowStart) continue
             val suffix = phoneSuffix(m.phoneNumber)
             if (suffix in spam) continue
+            if (suffix in scheduled) continue  // 2026-05-30 #3
             val sms = bySuffix[suffix]
             if (sms == null || !sms.hasOwnerReply) result += suffix
         }
@@ -254,10 +270,10 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     )
 
     private val timelineFlags: StateFlow<TimelineFlags> = combine(
-        smsContactsState, missedRecent, phonesWithCallsBeforeToday, spamSuffixes
-    ) { smsContacts, missed, callsBefore, spam ->
+        smsContactsState, missedRecent, phonesWithCallsBeforeToday, spamSuffixes, scheduledCustomerSuffixes
+    ) { smsContacts, missed, callsBefore, spam, scheduled ->
         TimelineFlags(
-            unconfirmedSuffixes = unconfirmedSuffixes(smsContacts, missed, spam),
+            unconfirmedSuffixes = unconfirmedSuffixes(smsContacts, missed, spam, scheduled),
             newTodaySuffixes = newTodaySuffixes(smsContacts, missed, callsBefore)
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TimelineFlags(emptySet(), emptySet()))

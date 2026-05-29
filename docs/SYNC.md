@@ -1176,3 +1176,33 @@ CREATE TABLE customer_personas (
 - **#5 페르소나 null** — 사장님 Mac mini 측 확인만
 - **#3 시공일정 등록 시 다음액션 알림** — 결정 필요
 - **#10 캘린더 정보 풍부화** — 결정 필요
+
+## 2026-05-30 (밤) · android — 사장님 통점 #3 Phase A fix
+**사장님 통점 #3 = "시공일정 등록한 고객인데 다음액션 알림 계속 뜸"**
+- 사장님 결정 (사양 논의 후):
+  - 미확인 카운트 / NextActionBox / 후속 알림 세 곳 모두 자동 OFF
+  - 시공 일정 등록 = "상황 종료" 처리
+  - D-1 알림 자동 전환 → Phase B (다음 sprint)
+- 변경 (Phase A):
+  - **HomeViewModel.scheduledCustomerSuffixes** StateFlow 신규 — customers 에서 scheduledWorkDate 박힌 phone suffix set 추출.
+  - **HomeViewModel.unconfirmedSuffixes**: scheduled 인자 추가 → suffix in scheduled 면 result 제외 (미확인 카운트 + 미확인 카드 표시 둘 다 영향).
+  - **HomeViewModel.unhandledCount + timelineFlags**: combine 에 scheduledCustomerSuffixes 추가 → unconfirmedSuffixes 호출 시 전달.
+  - **CallStateReceiver.dispatchRepeatCallUi**: customer.scheduledWorkDate > 0 → `showQuietFollowUpNotification` skip (옛 `classified || replied` 와 같은 패턴).
+  - **ChatScreen UnifiedSummaryCard**: scheduled=true 면 `action = null` 처리 → NextActionBox 영영 안 보임.
+- 연관 검토:
+  - HomeScreen 의 [📅 이번주 시공] KPI 카드 = 시공 일정 박힌 고객 카운트. 사장님이 거기서 진입 가능 (변경 X).
+  - 시공 일정 취소 시 자동 복귀 — scheduledWorkDate=null 되면 자동으로 미확인 / NextActionBox / 후속 알림 다시 동작 (Flow 가 자동 재평가).
+- 서버 영향 X.
+- commit: (이번)
+
+### Phase B 예정 (D-1 알림)
+- 사장님 메모리 [project_future_ideas] 의 "시공 D-1 알람 2026-05-28 사장님 명시 요청, 단독 MVP 가능" 와 연결
+- 작업:
+  - WorkManager 또는 AlarmManager 스케줄링
+  - 시공일 등록/변경/취소 시 D-1 워커 큐 등록/취소
+  - D-1 시각 트리거 → 알림 발송 ("내일 [고객] 시공이에요")
+  - 알림 채널 신규 또는 CHANNEL_FOLLOW_UP 재사용
+
+### 남은 통점 (2개)
+- #5 페르소나 null 확인 (사장님 Mac mini deploy)
+- #10 캘린더 정보 풍부화 (결정 필요)
