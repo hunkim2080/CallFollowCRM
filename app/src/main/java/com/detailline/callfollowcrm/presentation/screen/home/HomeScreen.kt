@@ -543,10 +543,12 @@ fun HomeScreen(
                             if (filter is HomeFilter.Unconfirmed) {
                                 SpamSwipeBox(
                                     onSpam = {
+                                        // 2026-05-30 #11 — Snackbar 메시지도 "확인함" 으로 통일.
+                                        //   동작은 그대로 spam 마킹 (미확인 카테고리에서 영구 제외).
                                         viewModel.markSpam(item.record.phoneNumber)
                                         scope.launch {
                                             val result = snackbarHostState.showSnackbar(
-                                                message = "광고/스팸으로 처리됨",
+                                                message = "확인함 — 미확인에서 제외돼요",
                                                 actionLabel = "되돌리기",
                                                 duration = SnackbarDuration.Short
                                             )
@@ -1020,18 +1022,21 @@ private fun SpamSwipeBox(onSpam: () -> Unit, content: @Composable () -> Unit) {
                     .padding(horizontal = 20.dp),
                 contentAlignment = Alignment.CenterEnd
             ) {
+                // 2026-05-30 사장님 #11 통점 fix:
+                //   사장님 결정 = 문구만 "확인함" 으로, 동작은 그대로 (spam DB 마킹 — 미확인 카테고리에서만 영구 제외).
+                //   아이콘 의미 (Block) 와 "확인함" 텍스트는 살짝 어긋나나 사장님 요청대로 단순 문구 변경.
                 androidx.compose.foundation.layout.Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = Icons.Default.Block,
-                        contentDescription = "광고 차단",
+                        contentDescription = "확인함",
                         tint = TossError,
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        "광고로 처리",
+                        "확인함",
                         color = TossError,
                         fontWeight = FontWeight.SemiBold,
                         style = MaterialTheme.typography.bodyMedium

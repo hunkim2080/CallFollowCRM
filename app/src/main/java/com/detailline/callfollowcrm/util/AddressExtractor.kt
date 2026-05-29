@@ -69,15 +69,37 @@ object AddressExtractor {
     )
 
     /**
+     * 2026-05-30 사장님 #6 통점 fix — 동호수 캡처.
+     *   pattern1/2 매칭 후 본문 뒤 부분에 "{N}동 {N}호" 또는 "{N}호" 가 가까이 (40자 이내) 있으면 합쳐서 반환.
+     *   예: "송파구 잠실엘스 101동 1503호" → pattern2 가 "송파구 잠실엘스..." 매칭 후 뒤에 "101동 1503호" 합침.
+     *   pattern3 (아파트) 는 이미 동호수 포함이라 후속 매칭 시도 안 함 (중복 방지).
+     */
+    private val DONG_HO_TAIL = Regex("^\\s*(?:\\d{1,4}동\\s*)?\\d{1,5}호")
+
+    /**
      * 본문에서 가장 그럴듯한 주소 1개 추출. 없으면 null.
      * 패턴 1 > 2 > 3 순으로 시도.
      */
     fun extractOne(body: String): String? {
         if (body.length < 5) return null
-        pattern1.find(body)?.let { return it.value.trim() }
-        pattern2.find(body)?.let { return it.value.trim() }
+        // 패턴 1·2 매칭 시 매칭 뒤 동호수 자동 합치기 (사장님 #6 통점).
+        pattern1.find(body)?.let { m ->
+            return appendDongHo(body, m.range, m.value.trim())
+        }
+        pattern2.find(body)?.let { m ->
+            return appendDongHo(body, m.range, m.value.trim())
+        }
+        // 패턴 3 (아파트) 는 이미 동호수 포함이라 그대로 반환.
         pattern3.find(body)?.let { return it.value.trim() }
         return null
+    }
+
+    /** 매칭 뒤 40자 안에 동호수 있으면 본문 주소에 이어붙임. */
+    private fun appendDongHo(body: String, range: IntRange, base: String): String {
+        if (range.last + 1 >= body.length) return base
+        val tail = body.substring(range.last + 1).take(40)
+        val dongHo = DONG_HO_TAIL.find(tail)?.value?.trim() ?: return base
+        return "$base $dongHo"
     }
 
     /**

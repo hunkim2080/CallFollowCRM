@@ -1065,3 +1065,35 @@ CREATE TABLE customer_personas (
 - #2 MMS 분할 → 묶어 분석
 - #6 주소 동호수 (regex)
 - #7 자동 카테고리 (시공 대기 / 시공 완료)
+
+## 2026-05-30 (밤) · android — 사장님 통점 #11 + #6 fix (짧은 거 둘)
+
+### #11 swipe 안내문구
+**사장님 결정**: "광고로 처리" → "확인함" (문구만 변경, 동작은 그대로 spam DB 마킹).
+- 변경:
+  - SpamSwipeBox overlay: "광고로 처리" → "확인함" + 아이콘 contentDescription "광고 차단" → "확인함".
+  - Snackbar 메시지: "광고/스팸으로 처리됨" → "확인함 — 미확인에서 제외돼요".
+  - 동작 자체 (markSpam → spam_phones DB INSERT, 미확인 카테고리에서 영구 제외) 그대로 보존.
+- 사장님 자율 — 문구만 의도 명확화.
+
+### #6 주소 동호수
+**사장님 통점**: "송파구 잠실엘스" 까지만 저장, "101동 1503호" 빠짐.
+- 진단: pattern1/2 의 BUNJI 패턴이 "번지" 형식 (`\d+(?:-\d+)?(?:번지?)?`) 만 매칭. "{N}동 {N}호" 또는 "{N}호" 는 빠짐.
+  - pattern3 (아파트 브랜드) 는 동호수 포함이지만 "잠실엘스" 같은 단지명이 brand list (아파트/빌라/푸르지오/...) 에 없어 fallback 안 됨.
+- 변경 (AddressExtractor):
+  - `DONG_HO_TAIL` regex 추가 — "{N}동 {N}호" 또는 "{N}호" 패턴.
+  - `appendDongHo()` helper — pattern1/2 매칭 뒤 40자 안에 동호수 있으면 base 주소에 이어붙임.
+  - pattern3 매칭은 이미 동호수 포함이라 후속 합치기 X (중복 방지).
+- 검증 (head 케이스):
+  - "송파구 잠실엘스 101동 1503호" → pattern2 매칭 ("송파구 잠실엘스101동") + 후속 "1503호" 합쳐서 "송파구 잠실엘스101동 1503호" 반환.
+  - "강서구 마곡동 740" → pattern1 매칭 + 후속 동호수 없음 → "강서구 마곡동 740".
+  - "마곡엠밸리 7단지 705동 1203호" → pattern3 매칭 그대로.
+- 호출처: HomeViewModel.resolveAddressForPhone / CustomerDetailViewModel.recentExtractedAddress 둘 다 자동 적용.
+
+### 다음 작업 후보
+- #4 입금카드 잔금 자동 (중간 작업, 사장님 결정 받음)
+- #2 MMS 분할 묶어 분석 (3 path)
+- #7 자동 카테고리 (시공 대기 / 시공 완료)
+- #3 시공일정 등록 시 다음액션 알림 (D-1 알람 연결 결정 필요)
+- #10 캘린더 정보 풍부화 (결정 필요)
+- #5 페르소나 null 확인 (사장님 Mac mini deploy 여부)
