@@ -1097,3 +1097,29 @@ CREATE TABLE customer_personas (
 - #3 시공일정 등록 시 다음액션 알림 (D-1 알람 연결 결정 필요)
 - #10 캘린더 정보 풍부화 (결정 필요)
 - #5 페르소나 null 확인 (사장님 Mac mini deploy 여부)
+
+## 2026-05-30 (밤) · android — 사장님 통점 #4 fix
+**사장님 통점 #4 = "입금 저장 간헐적 (두 번째 입력해야 저장) + 잔금 자동 계산 X"**
+- 진단:
+  - **간헐적 저장**: PaymentInlineEditor 의 `enabled = (amountText.toLongOrNull() ?: 0L) > 0L` 가 recomposition race 가능. 사장님 클릭 직전 false 상태면 클릭 무시 → "첫 번째 X, 두 번째 O" 통점.
+  - **잔금 자동 계산 X**: customers 테이블에 totalAmount 컬럼 자체 없음. UI 도 입력 칸 없음.
+- 변경:
+  - **DB v18 → v19 + MIGRATION_18_19**: `customers.totalAmount INTEGER` 컬럼 추가. 기존 row 는 null (사장님이 박을 때까지 자동 계산 X).
+  - **CustomerEntity.totalAmount**: nullable Long 필드 추가.
+  - **CustomerRepository.updateTotalAmount**: 신규.
+  - **CustomerDetailViewModel.setTotalAmount**: 신규.
+  - **CustomerDetailScreen 입금 카드** 재구성:
+    - 신규 `TotalAmountRow` 영역 (상단) — 총금액 입력. 미입력 시 "💡 총금액 입력 → 잔금 자동 계산" 안내 버튼. 입력 시 ₩금액 + [수정] [지움]. 계약금 박혀있으면 "= 잔금 자동 ₩... (총 - 계약금)" 미리보기.
+    - 계약금 `PaymentRow` 그대로.
+    - 잔금 `PaymentRow` — `c.balanceAmount ?: autoBalance` 표시. autoBalance = 총금액 - 계약금 (총금액 박혔고 balanceAmount 미박힘 시). `isAutoCalculated=true` 면 PROMISED 상태에 "💡 자동 계산 (수정 가능)" 파란 배지.
+    - 사장님이 [받음 확정] 누르면 자동값을 balanceAmount 로도 박음 → RECEIVED 상태 정상 표시.
+    - 사장님이 [금액 수정] → 직접 입력 → balanceAmount 박힘 → 자동 표시 X (수동 우선).
+  - **PaymentInlineEditor 저장 안정화** (간헐적 저장 fix):
+    - `enabled` 항상 true. onClick 안에서 `n != null && n > 0` 검사 → 빈 입력은 silent no-op.
+    - visual 차이: 빈 입력 시 저장 텍스트만 회색 (hint), 클릭은 무조건 시도.
+    - recomposition race 0 — 사장님이 한 번 누르면 무조건 onClick 호출.
+- 연관 검토:
+  - PaymentRow 호출 2곳 (계약금 / 잔금) — `isAutoCalculated` default false 라 계약금 영향 X.
+  - 옛 데이터 호환 — totalAmount = null 이면 자동 계산 비활성 → 옛 UX 그대로.
+- 서버 영향 X.
+- commit: (이번)

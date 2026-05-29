@@ -40,6 +40,12 @@ data class CustomerEntity(
     val depositPaidAt: Long? = null,
     val balanceAmount: Long? = null,
     val balancePaidAt: Long? = null,
+    /**
+     * 2026-05-30 사장님 #4 통점 — 총금액 (시공비 총액).
+     * 입금 카드의 잔금 자동 계산 기준: balance = totalAmount - depositAmount.
+     * null = 사장님 미입력. balanceAmount 가 직접 박혀있으면 그게 우선 (수동 우선).
+     */
+    val totalAmount: Long? = null,
     val createdAt: Long,
     val updatedAt: Long
 )

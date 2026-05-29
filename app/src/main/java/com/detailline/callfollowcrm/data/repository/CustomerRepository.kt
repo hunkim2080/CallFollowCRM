@@ -136,6 +136,15 @@ class CustomerRepository(
         dao.update(c.copy(balancePaidAt = paidAt, updatedAt = System.currentTimeMillis()))
     }
 
+    /**
+     * 2026-05-30 사장님 #4 — 총금액 설정. null = 미입력.
+     * 잔금 자동 계산 기준: balance = totalAmount - depositAmount.
+     */
+    suspend fun updateTotalAmount(id: Long, amount: Long?) {
+        val c = dao.findById(id) ?: return
+        dao.update(c.copy(totalAmount = amount, updatedAt = System.currentTimeMillis()))
+    }
+
     /** 시공 예약일 설정/변경/취소(null). 자정 epoch ms 권장. */
     suspend fun updateScheduledWorkDate(id: Long, scheduledWorkDate: Long?) {
         val c = dao.findById(id) ?: return

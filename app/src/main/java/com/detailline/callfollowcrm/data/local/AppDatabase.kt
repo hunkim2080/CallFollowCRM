@@ -53,7 +53,7 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         SmsContactCacheEntity::class,
         com.detailline.callfollowcrm.data.local.entity.SuggestionEventEntity::class
     ],
-    version = 18,
+    version = 19,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -377,6 +377,17 @@ abstract class AppDatabase : RoomDatabase() {
          *   startedAt IS NULL row 는 dedup 불가라 그대로 둠 (rare path).
          *   호출 후 정상 카운트 표시. 새 통화는 create() 가 이미 dedup 박혀 중복 방지.
          */
+        /**
+         * v18 → v19: 2026-05-30 사장님 #4 통점 — customers.totalAmount 컬럼 추가.
+         *   입금 카드의 잔금 자동 계산 기준 (balance = total - deposit).
+         *   기존 row 는 null 으로 추가 — 사장님이 채워야 자동 계산 동작.
+         */
+        private val MIGRATION_18_19 = object : Migration(18, 19) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE customers ADD COLUMN totalAmount INTEGER")
+            }
+        }
+
         private val MIGRATION_17_18 = object : Migration(17, 18) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
@@ -403,7 +414,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
                     MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                     MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15,
-                    MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18
+                    MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19
                 )
                 .fallbackToDestructiveMigration()   // migration 실패 시 안전망 (개발 단계)
                 .build()

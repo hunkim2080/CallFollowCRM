@@ -567,11 +567,21 @@ fun CustomerDetailScreen(
                 }
             }
 
-            // 3. 입금 카드 — 계약금/잔금 각각 체크 + 금액. 체크하면 받은 시각 자동 기록.
-            //    영업 흐름상 메모보다 위에 두는 게 한눈에 들어옴.
+            // 3. 입금 카드 — 2026-05-30 사장님 #4 통점 fix:
+            //    총금액 입력 → 잔금 자동 계산 표시 (사장님이 원하면 수동 수정 가능).
+            //    계약금: 그대로. 잔금: balanceAmount 미박힘 + totalAmount 박혀있으면 자동 = total - deposit 표시.
             TossCard {
                 Column {
                     SectionLabel("💰 입금")
+                    Spacer(Modifier.height(10.dp))
+                    TotalAmountRow(
+                        totalAmount = c.totalAmount,
+                        depositAmount = c.depositAmount,
+                        balanceAmount = c.balanceAmount,
+                        onTotalChange = { viewModel.setTotalAmount(it) }
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    androidx.compose.material3.Divider(color = TossDivider)
                     Spacer(Modifier.height(10.dp))
                     PaymentRow(
                         label = "계약금",
@@ -584,13 +594,32 @@ fun CustomerDetailScreen(
                     Spacer(Modifier.height(10.dp))
                     androidx.compose.material3.Divider(color = TossDivider)
                     Spacer(Modifier.height(10.dp))
+                    // 잔금 — totalAmount 있고 balanceAmount 미박힘이면 자동 계산값을 PROMISED 처럼 보여줌.
+                    //   사장님이 [금액 수정] 누르면 직접 입력 가능 → balanceAmount 박힘 → 그게 우선.
+                    val autoBalance = remember(c.totalAmount, c.depositAmount, c.balanceAmount) {
+                        when {
+                            c.balanceAmount != null -> null
+                            c.totalAmount != null && c.totalAmount > 0L -> {
+                                val calc = (c.totalAmount - (c.depositAmount ?: 0L))
+                                calc.coerceAtLeast(0L)
+                            }
+                            else -> null
+                        }
+                    }
                     PaymentRow(
                         label = "잔금",
-                        amount = c.balanceAmount,
+                        amount = c.balanceAmount ?: autoBalance,
                         paidAt = c.balancePaidAt,
-                        onPaidChange = { viewModel.setBalancePaid(it) },
+                        // 자동 계산값 상태에서 [받음 확정] 시 = balanceAmount 도 자동값으로 박음 → RECEIVED 정상 표시.
+                        onPaidChange = { paid ->
+                            if (paid && c.balanceAmount == null && autoBalance != null) {
+                                viewModel.setBalanceAmount(autoBalance)
+                            }
+                            viewModel.setBalancePaid(paid)
+                        },
                         onAmountChange = { viewModel.setBalanceAmount(it) },
-                        onPaidAtChange = { viewModel.setBalancePaidAt(it) }
+                        onPaidAtChange = { viewModel.setBalancePaidAt(it) },
+                        isAutoCalculated = c.balanceAmount == null && autoBalance != null
                     )
                 }
             }
@@ -1367,7 +1396,12 @@ private fun PaymentRow(
     paidAt: Long?,
     onPaidChange: (Boolean) -> Unit,
     onAmountChange: (Long?) -> Unit,
-    onPaidAtChange: (Long) -> Unit
+    onPaidAtChange: (Long) -> Unit,
+    /**
+     * 2026-05-30 사장님 #4 통점 — 자동 계산값 표시 여부.
+     * true 면 PROMISED 상태에 "💡 자동 (수정 가능)" 배지 노출. 사장님 수동 수정 시 자동 X.
+     */
+    isAutoCalculated: Boolean = false
 ) {
     // 2026-05-28 UI 개편 (사장님 "초보 기획자 느낌" 보고):
     //   4가지 상태 시각 분리 + 인플레이스 펼침. 빈 상태 = 큰 액션 1개, 완료 상태 = ✅ 자랑.
@@ -1444,14 +1478,15 @@ private fun PaymentRow(
                     }
                     PaymentState.PROMISED -> {
                         // 금액만 정해진 상태 — "약속됨". 받은 즉시 [확정] 으로 RECEIVED 전환.
+                        // 2026-05-30 #4 — 자동 계산값이면 "💡 자동" 배지 표시.
                         androidx.compose.foundation.layout.Row(
                             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    "💵 약속됨",
+                                    if (isAutoCalculated) "💡 자동 계산 (수정 가능)" else "💵 약속됨",
                                     style = MaterialTheme.typography.labelMedium,
-                                    color = TossTextSecondary
+                                    color = if (isAutoCalculated) TossBlue else TossTextSecondary
                                 )
                                 Spacer(Modifier.height(2.dp))
                                 Text(
@@ -1609,6 +1644,89 @@ private fun PaymentRow(
 private enum class PaymentState { EMPTY, PROMISED, RECEIVED, SKIPPED }
 
 /**
+ * 2026-05-30 사장님 #4 통점 — 총금액 입력 영역.
+ *
+ * 사장님이 시공비 총액을 박으면 잔금 = 총금액 - 계약금 으로 자동 계산되어 잔금 PaymentRow 에 표시됨.
+ * 사장님이 잔금을 직접 수정하면 그게 우선. 총금액 미입력이면 잔금 자동 계산 X (옛 동작).
+ *
+ * UI: EMPTY (총금액 미입력) = 작은 버튼, FILLED (입력됨) = 금액 + 수정.
+ */
+@Composable
+private fun TotalAmountRow(
+    totalAmount: Long?,
+    depositAmount: Long?,
+    balanceAmount: Long?,
+    onTotalChange: (Long?) -> Unit
+) {
+    var editing by remember(totalAmount) { mutableStateOf(false) }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            "총금액",
+            style = MaterialTheme.typography.bodyMedium,
+            color = TossTextPrimary,
+            fontWeight = FontWeight.SemiBold
+        )
+        Spacer(Modifier.height(6.dp))
+        if (editing) {
+            PaymentInlineEditor(
+                initialAmount = totalAmount?.takeIf { it > 0L },
+                onCancel = { editing = false },
+                onSave = { newAmount ->
+                    onTotalChange(newAmount)
+                    editing = false
+                }
+            )
+        } else if (totalAmount == null || totalAmount == 0L) {
+            // EMPTY — 작은 버튼
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+                    .background(TossGrayBg)
+                    .clickable { editing = true }
+                    .padding(vertical = 10.dp),
+                contentAlignment = androidx.compose.ui.Alignment.Center
+            ) {
+                Text(
+                    "💡 총금액 입력 → 잔금 자동 계산",
+                    color = TossTextSecondary,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 13.sp
+                )
+            }
+        } else {
+            androidx.compose.foundation.layout.Row(
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            ) {
+                Text(
+                    "₩${formatThousands(totalAmount)}",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = TossTextPrimary,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                androidx.compose.material3.TextButton(onClick = { editing = true }) {
+                    Text("수정", color = TossTextSecondary, fontSize = 12.sp)
+                }
+                androidx.compose.material3.TextButton(onClick = { onTotalChange(null) }) {
+                    Text("지움", color = TossTextTertiary, fontSize = 12.sp)
+                }
+            }
+            // 사장님 참고 — 자동 계산 미리보기 (사장님이 안 박았어도)
+            if (depositAmount != null && depositAmount > 0L && balanceAmount == null) {
+                val auto = (totalAmount - depositAmount).coerceAtLeast(0L)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "= 잔금 자동 ₩${formatThousands(auto)} (총 - 계약금)",
+                    color = TossBlue,
+                    fontSize = 11.sp
+                )
+            }
+        }
+    }
+}
+
+/**
  * 인플레이스 입력 모드 — 펼침 시 카드 안 같은 자리에 등장 (다이얼로그 X).
  *   초기값은 기존 금액 (있으면) 시드. +1만/+5만/+10만/+100만 가산 + [취소][저장].
  *   저장 시 trim 후 0 이상 Long. 빈 입력 = onSave(null) 안 호출 — 저장 비활성.
@@ -1656,14 +1774,23 @@ private fun PaymentInlineEditor(
             androidx.compose.material3.TextButton(onClick = onCancel) {
                 Text("취소", color = TossTextSecondary)
             }
+            // 2026-05-30 사장님 #4 통점 fix — 간헐적 저장 안 됨:
+            //   기존 `enabled = ... > 0L` 가 recomposition race 로 사장님 클릭 직전 false 상태일 때
+            //   클릭 무시 → "첫 번째는 저장 X, 두 번째는 O" 통점.
+            //   해결: enabled 항상 true. onClick 안에서 검사 → 빈 입력이면 silent no-op.
+            //   visual 약간 거짓 hint 줄지만 race 0 — 사장님이 한 번 누르면 무조건 시도.
             androidx.compose.material3.TextButton(
                 onClick = {
                     val n = amountText.toLongOrNull()
                     if (n != null && n > 0L) onSave(n)
-                },
-                enabled = (amountText.toLongOrNull() ?: 0L) > 0L
+                }
             ) {
-                Text("저장", color = TossBlue, fontWeight = FontWeight.SemiBold)
+                val hasInput = (amountText.toLongOrNull() ?: 0L) > 0L
+                Text(
+                    "저장",
+                    color = if (hasInput) TossBlue else TossTextTertiary,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         }
     }
