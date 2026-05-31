@@ -34,6 +34,7 @@ object Destinations {
     const val SETTINGS = "settings"
     const val PRICING_ITEMS = "pricing_items"
     const val SCHEDULE = "schedule"
+    const val SCHEDULE_ADD = "schedule_add"
     const val SETTLEMENT = "settlement"
     const val AI_MESSAGE = "ai_message"
     const val STYLE_LEARNING = "style_learning"

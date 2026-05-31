@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
@@ -79,7 +80,8 @@ import java.util.Calendar
 fun ScheduleScreen(
     viewModel: ScheduleViewModel,
     onBack: () -> Unit,
-    onOpenCustomer: (Long) -> Unit
+    onOpenCustomer: (Long) -> Unit,
+    onAddSchedule: () -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
     val cardSummaries by viewModel.cardSummariesByPhoneSuffix.collectAsState()
@@ -111,6 +113,15 @@ fun ScheduleScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
+            )
+        },
+        floatingActionButton = {
+            androidx.compose.material3.ExtendedFloatingActionButton(
+                onClick = onAddSchedule,
+                icon = { Icon(Icons.Default.Add, null) },
+                text = { Text("일정 등록", fontWeight = FontWeight.SemiBold) },
+                containerColor = TossBlue,
+                contentColor = androidx.compose.ui.graphics.Color.White
             )
         }
     ) { inner ->

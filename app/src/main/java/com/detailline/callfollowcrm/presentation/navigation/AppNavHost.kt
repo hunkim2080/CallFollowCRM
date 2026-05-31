@@ -23,6 +23,8 @@ import com.detailline.callfollowcrm.presentation.screen.pricing.PricingItemsScre
 import com.detailline.callfollowcrm.presentation.screen.pricing.PricingItemsViewModel
 import com.detailline.callfollowcrm.presentation.screen.schedule.ScheduleScreen
 import com.detailline.callfollowcrm.presentation.screen.schedule.ScheduleViewModel
+import com.detailline.callfollowcrm.presentation.screen.schedule.ScheduleAddScreen
+import com.detailline.callfollowcrm.presentation.screen.schedule.ScheduleAddViewModel
 import com.detailline.callfollowcrm.presentation.screen.settings.SettingsScreen
 import com.detailline.callfollowcrm.presentation.screen.settings.SettingsViewModel
 import com.detailline.callfollowcrm.presentation.screen.settlement.SettlementScreen
@@ -116,7 +118,17 @@ fun AppNavHost(
             ScheduleScreen(
                 viewModel = vm,
                 onBack = { navController.popBackStack() },
-                onOpenCustomer = { id -> navController.navigate(Destinations.customerDetail(id)) }
+                onOpenCustomer = { id -> navController.navigate(Destinations.customerDetail(id)) },
+                onAddSchedule = { navController.navigate(Destinations.SCHEDULE_ADD) }
+            )
+        }
+
+        composable(Destinations.SCHEDULE_ADD) {
+            val vm: ScheduleAddViewModel = viewModel(factory = viewModelFactory { ScheduleAddViewModel(container) })
+            ScheduleAddScreen(
+                viewModel = vm,
+                onDone = { navController.popBackStack() },
+                onBack = { navController.popBackStack() }
             )
         }
 
