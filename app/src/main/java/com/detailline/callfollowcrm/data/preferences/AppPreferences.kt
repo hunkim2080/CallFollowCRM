@@ -130,6 +130,27 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean(KEY_AUTO_CATEGORY_BACKFILLED, false)
         set(value) = prefs.edit().putBoolean(KEY_AUTO_CATEGORY_BACKFILLED, value).apply()
 
+    // ── 사업자정보 (2026-06-01) — 견적서/시공접수서 발행용. 모두 사장님 직접 입력. ──
+    var bizName: String
+        get() = prefs.getString(KEY_BIZ_NAME, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_BIZ_NAME, value.trim()).apply()
+    var bizOwner: String
+        get() = prefs.getString(KEY_BIZ_OWNER, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_BIZ_OWNER, value.trim()).apply()
+    var bizNo: String
+        get() = prefs.getString(KEY_BIZ_NO, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_BIZ_NO, value.trim()).apply()
+    var bizAddr: String
+        get() = prefs.getString(KEY_BIZ_ADDR, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_BIZ_ADDR, value.trim()).apply()
+    var bizPhone: String
+        get() = prefs.getString(KEY_BIZ_PHONE, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_BIZ_PHONE, value.trim()).apply()
+    /** 견적 유효기간 = 발행일로부터 N일. 기본 14. */
+    var bizQuoteValidDays: Int
+        get() = prefs.getInt(KEY_BIZ_VALID_DAYS, 14)
+        set(value) = prefs.edit().putInt(KEY_BIZ_VALID_DAYS, value).apply()
+
     companion object {
         private const val KEY_ADOT_FOLDER_URI = "adot_folder_uri"
         private const val KEY_LAST_SCAN_AT = "last_scan_at"
@@ -149,5 +170,11 @@ class AppPreferences(context: Context) {
         private const val KEY_TONE_LAST_UPLOADED_AT = "tone_last_uploaded_at"
         private const val KEY_TONE_TOTAL_UPLOADED = "tone_total_uploaded"
         private const val KEY_AUTO_CATEGORY_BACKFILLED = "auto_category_backfilled"
+        private const val KEY_BIZ_NAME = "biz_name"
+        private const val KEY_BIZ_OWNER = "biz_owner"
+        private const val KEY_BIZ_NO = "biz_no"
+        private const val KEY_BIZ_ADDR = "biz_addr"
+        private const val KEY_BIZ_PHONE = "biz_phone"
+        private const val KEY_BIZ_VALID_DAYS = "biz_quote_valid_days"
     }
 }

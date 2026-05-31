@@ -93,7 +93,8 @@ fun SettingsScreen(
     container: AppContainer,
     onBack: () -> Unit,
     onOpenTemplates: () -> Unit,
-    onOpenPricingItems: () -> Unit
+    onOpenPricingItems: () -> Unit,
+    onOpenBusinessInfo: () -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
     val templates by viewModel.templates.collectAsState()
@@ -272,6 +273,20 @@ fun SettingsScreen(
                     )
                     Spacer(Modifier.height(10.dp))
                     TossPrimaryButton(text = "가격표 보기 / 편집", onClick = onOpenPricingItems)
+                }
+            }
+
+            TossCard {
+                Column {
+                    SectionLabel("사업자정보")
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "상호·대표자·사업자등록번호·연락처·견적 유효기간. 견적서·시공접수서 발행에 자동으로 들어가요.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TossTextSecondary
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    TossPrimaryButton(text = "사업자정보 입력 / 수정", onClick = onOpenBusinessInfo)
                 }
             }
 

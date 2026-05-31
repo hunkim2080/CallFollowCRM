@@ -29,6 +29,7 @@ import com.detailline.callfollowcrm.presentation.screen.settings.SettingsScreen
 import com.detailline.callfollowcrm.presentation.screen.settings.SettingsViewModel
 import com.detailline.callfollowcrm.presentation.screen.settlement.SettlementScreen
 import com.detailline.callfollowcrm.presentation.screen.settlement.SettlementViewModel
+import com.detailline.callfollowcrm.presentation.screen.business.BusinessInfoScreen
 import com.detailline.callfollowcrm.presentation.screen.stylelearning.StyleLearningScreen
 import com.detailline.callfollowcrm.presentation.screen.stylelearning.StyleLearningViewModel
 import com.detailline.callfollowcrm.presentation.screen.template.TemplateEditScreen
@@ -208,7 +209,15 @@ fun AppNavHost(
                 container = container,
                 onBack = { navController.popBackStack() },
                 onOpenTemplates = { navController.navigate(Destinations.TEMPLATE_LIST) },
-                onOpenPricingItems = { navController.navigate(Destinations.PRICING_ITEMS) }
+                onOpenPricingItems = { navController.navigate(Destinations.PRICING_ITEMS) },
+                onOpenBusinessInfo = { navController.navigate(Destinations.BUSINESS_INFO) }
+            )
+        }
+
+        composable(Destinations.BUSINESS_INFO) {
+            BusinessInfoScreen(
+                prefs = container.preferences,
+                onBack = { navController.popBackStack() }
             )
         }
 
