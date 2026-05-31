@@ -98,6 +98,8 @@ import com.detailline.callfollowcrm.presentation.theme.CallFollowCrmTheme
 import androidx.compose.ui.tooling.preview.Preview
 import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
+import com.detailline.callfollowcrm.util.MoneyFormatter
+import androidx.compose.material.icons.filled.ChevronRight
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -113,7 +115,9 @@ fun HomeScreen(
     onOpenTemplates: () -> Unit,
     onOpenAiMessage: () -> Unit,
     onOpenStyleLearning: () -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    /** 홈 "미수금" 카드 탭 → 정산 화면. 정산 Phase 1 (2026-06-01). */
+    onOpenSettlement: () -> Unit
 ) {
     val timeline by viewModel.timeline.collectAsState()
     val filter by viewModel.filterState.collectAsState()
@@ -123,6 +127,8 @@ fun HomeScreen(
     val todayNew by viewModel.todayNewInquiryCount.collectAsState()
     val unhandled by viewModel.unhandledCount.collectAsState()
     val weekScheduled by viewModel.thisWeekScheduledCount.collectAsState()
+    val outstandingTotal by viewModel.outstandingTotal.collectAsState()
+    val outstandingCount by viewModel.outstandingCount.collectAsState()
     val isInitialSmsLoading by viewModel.isInitialSmsLoading.collectAsState()
 
     // 서버 상태 indicator — AppContainer 의 ServerHealthMonitor 를 직접 구독.
@@ -443,6 +449,16 @@ fun HomeScreen(
                     )
                 }
 
+                // 정산 진입 — 아직 못 받은 돈 한 줄. 정산이 핵심 가치라 홈에서 바로 보이게.
+                //   (정산 Phase 1, 2026-06-01) 사장님 추천 진입점 = "홈 미수금 카드".
+                item(key = "settlement-card") {
+                    OutstandingCard(
+                        outstandingTotal = outstandingTotal,
+                        outstandingCount = outstandingCount,
+                        onClick = onOpenSettlement
+                    )
+                }
+
                 if (timeline.isEmpty()) {
                     item(key = "empty-state") {
                         Box(
@@ -588,6 +604,62 @@ fun HomeScreen(
  * KPI 4장 (2×2 그리드). LazyColumn 첫 item 으로 들어가서 스크롤 시 사라짐.
  * horizontal padding 은 LazyColumn 의 contentPadding 으로 들어가므로 안에서 X.
  */
+/**
+ * 홈 미수금 진입 카드 — "아직 못 받은 돈 OO원 · N곳" → 탭하면 정산 화면.
+ *   미수 0 이면 긍정 프레이밍("모두 받았어요"). 정산 Phase 1 (2026-06-01).
+ */
+@Composable
+private fun OutstandingCard(
+    outstandingTotal: Long,
+    outstandingCount: Int,
+    onClick: () -> Unit
+) {
+    TossCard(onClick = onClick) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (outstandingCount > 0) TossError.copy(alpha = 0.10f) else TossSuccess.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("💰", fontSize = 18.sp)
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    if (outstandingCount > 0) "아직 못 받은 돈" else "정산 · 받을 돈 정리",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = TossTextSecondary,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(Modifier.height(2.dp))
+                if (outstandingCount > 0) {
+                    Text(
+                        MoneyFormatter.won(outstandingTotal),
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TossError
+                    )
+                    Text(
+                        "미수 ${outstandingCount}곳",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TossTextTertiary
+                    )
+                } else {
+                    Text(
+                        "못 받은 돈 없어요 👍",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TossSuccess
+                    )
+                }
+            }
+            Icon(Icons.Default.ChevronRight, "정산 열기", tint = TossTextTertiary)
+        }
+    }
+}
+
 @Composable
 private fun KpiSection(
     todayNew: Int,

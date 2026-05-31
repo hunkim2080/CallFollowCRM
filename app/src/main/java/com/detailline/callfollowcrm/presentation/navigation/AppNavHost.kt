@@ -25,6 +25,8 @@ import com.detailline.callfollowcrm.presentation.screen.schedule.ScheduleScreen
 import com.detailline.callfollowcrm.presentation.screen.schedule.ScheduleViewModel
 import com.detailline.callfollowcrm.presentation.screen.settings.SettingsScreen
 import com.detailline.callfollowcrm.presentation.screen.settings.SettingsViewModel
+import com.detailline.callfollowcrm.presentation.screen.settlement.SettlementScreen
+import com.detailline.callfollowcrm.presentation.screen.settlement.SettlementViewModel
 import com.detailline.callfollowcrm.presentation.screen.stylelearning.StyleLearningScreen
 import com.detailline.callfollowcrm.presentation.screen.stylelearning.StyleLearningViewModel
 import com.detailline.callfollowcrm.presentation.screen.template.TemplateEditScreen
@@ -67,7 +69,8 @@ fun AppNavHost(
                 onOpenTemplates = { navController.navigate(Destinations.TEMPLATE_LIST) },
                 onOpenAiMessage = { navController.navigate(Destinations.AI_MESSAGE) },
                 onOpenStyleLearning = { navController.navigate(Destinations.STYLE_LEARNING) },
-                onOpenSettings = { navController.navigate(Destinations.SETTINGS) }
+                onOpenSettings = { navController.navigate(Destinations.SETTINGS) },
+                onOpenSettlement = { navController.navigate(Destinations.SETTLEMENT) }
             )
         }
 
@@ -111,6 +114,15 @@ fun AppNavHost(
         composable(Destinations.SCHEDULE) {
             val vm: ScheduleViewModel = viewModel(factory = viewModelFactory { ScheduleViewModel(container) })
             ScheduleScreen(
+                viewModel = vm,
+                onBack = { navController.popBackStack() },
+                onOpenCustomer = { id -> navController.navigate(Destinations.customerDetail(id)) }
+            )
+        }
+
+        composable(Destinations.SETTLEMENT) {
+            val vm: SettlementViewModel = viewModel(factory = viewModelFactory { SettlementViewModel(container) })
+            SettlementScreen(
                 viewModel = vm,
                 onBack = { navController.popBackStack() },
                 onOpenCustomer = { id -> navController.navigate(Destinations.customerDetail(id)) }

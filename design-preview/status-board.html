@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RING-GO · 프로토타입 → 앱 반영 현황판</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F4F5F7; --card:#FFFFFF; --line:#ECEEF1;
+    --t1:#0B1220; --t2:#4E5968; --t3:#8B95A1;
+    --blue:#3182F6; --blue-dark:#1B64DA; --blue-tint:#EEF4FF;
+    --done:#16C172; --done-tint:#E7F8EF;
+    --review:#F59E0B; --review-tint:#FEF6E7;
+    --prog:#3182F6; --prog-tint:#EAF2FF;
+    --todo:#B0B8C1; --todo-tint:#F2F4F6;
+    --shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px rgba(20,30,55,.06);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--t1);
+    font-family:'Pretendard',-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:760px;margin:0 auto;padding:24px 16px 80px}
+
+  /* header */
+  .h-title{font-size:24px;font-weight:800;letter-spacing:-.5px;display:flex;align-items:center;gap:8px}
+  .h-sub{margin-top:8px;font-size:14px;line-height:1.6;color:var(--t2)}
+  .h-meta{margin-top:6px;font-size:12px;color:var(--t3)}
+
+  /* progress hero */
+  .hero{background:var(--card);border:1px solid var(--line);border-radius:20px;
+    padding:22px 22px 20px;margin-top:18px;box-shadow:var(--shadow)}
+  .hero-k{font-size:13px;font-weight:600;color:var(--t2)}
+  .hero-row{display:flex;align-items:flex-end;justify-content:space-between;margin-top:8px}
+  .hero-big{font-size:34px;font-weight:800;letter-spacing:-1px}
+  .hero-big small{font-size:17px;font-weight:700;color:var(--t3)}
+  .hero-pct{font-size:30px;font-weight:800;color:var(--done)}
+  .bar{margin-top:16px;height:12px;border-radius:99px;background:var(--todo-tint);
+    overflow:hidden;display:flex}
+  .bar i{height:100%;display:block;transition:width .5s cubic-bezier(.2,.8,.2,1)}
+  .bar .s-done{background:linear-gradient(90deg,#16C172,#16C99B)}
+  .bar .s-review{background:var(--review)}
+  .bar .s-prog{background:var(--blue)}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:14px}
+  .legend span{font-size:12.5px;font-weight:600;color:var(--t2);display:flex;align-items:center;gap:6px}
+  .dot{width:9px;height:9px;border-radius:99px;display:inline-block}
+  .dot.done{background:var(--done)} .dot.review{background:var(--review)}
+  .dot.prog{background:var(--blue)} .dot.todo{background:var(--todo)}
+
+  /* filters */
+  .filters{display:flex;gap:8px;margin-top:20px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+  .filters::-webkit-scrollbar{display:none}
+  .fchip{flex:0 0 auto;border:1px solid var(--line);background:var(--card);color:var(--t2);
+    font-size:13px;font-weight:700;padding:9px 15px;border-radius:99px;cursor:pointer;transition:.15s}
+  .fchip[data-on="1"]{background:var(--t1);color:#fff;border-color:var(--t1)}
+  .fchip .cnt{opacity:.55;margin-left:5px;font-weight:600}
+
+  /* area */
+  .area{margin-top:24px}
+  .area-h{display:flex;align-items:center;gap:10px;padding:0 4px 2px}
+  .area-emo{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;
+    font-size:18px;background:var(--blue-tint)}
+  .area-name{font-size:16px;font-weight:800}
+  .area-desc{font-size:12.5px;color:var(--t3);margin-top:1px}
+  .area-mini{margin-left:auto;font-size:12px;font-weight:700;color:var(--t3)}
+  .area-card{background:var(--card);border:1px solid var(--line);border-radius:18px;
+    margin-top:12px;overflow:hidden;box-shadow:var(--shadow)}
+
+  /* item */
+  .item{padding:15px 17px;border-top:1px solid var(--line);cursor:pointer;transition:background .12s}
+  .item:first-child{border-top:none}
+  .item:active{background:#FAFBFC}
+  .item-top{display:flex;align-items:center;gap:10px}
+  .item-name{font-size:14.5px;font-weight:700;flex:1;line-height:1.35}
+  .badge{flex:0 0 auto;font-size:11.5px;font-weight:800;padding:4px 10px;border-radius:99px;white-space:nowrap}
+  .b-done{background:var(--done-tint);color:#0E9D5C}
+  .b-review{background:var(--review-tint);color:#C77B05}
+  .b-prog{background:var(--prog-tint);color:var(--blue-dark)}
+  .b-todo{background:var(--todo-tint);color:#6B7684}
+  .item-body{max-height:0;overflow:hidden;transition:max-height .28s ease;}
+  .item.open .item-body{max-height:340px}
+  .item-desc{font-size:13px;line-height:1.65;color:var(--t2);padding-top:11px}
+  .item-app{margin-top:10px;background:#F8F9FB;border:1px solid var(--line);border-radius:12px;
+    padding:10px 12px;font-size:12.5px;line-height:1.6;color:var(--t2)}
+  .item-app b{color:var(--t1);font-weight:700}
+  .chev{flex:0 0 auto;color:var(--t3);transition:transform .25s;font-size:13px}
+  .item.open .chev{transform:rotate(90deg)}
+
+  .foot{margin-top:34px;text-align:center;font-size:12px;color:var(--t3);line-height:1.7}
+  .hide{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="h-title">📊 프로토타입 → 앱 반영 현황판</div>
+  <div class="h-sub">프리뷰(<b>ringgo-redesign.html</b>)에서 그린 디자인·기능이, 실제 안드로이드 앱에 <b>뭐가 들어갔고 뭐가 아직인지</b> 한눈에 봅니다.<br>전문 용어 없이 = 사장님이 직접 진행 상태를 확인할 수 있어요.</div>
+  <div class="h-meta" id="meta">마지막 갱신 · 2026-06-01</div>
+
+  <div class="hero">
+    <div class="hero-k">전체 진행</div>
+    <div class="hero-row">
+      <div class="hero-big" id="bigNum">0 <small>/ 0 완료</small></div>
+      <div class="hero-pct" id="pct">0%</div>
+    </div>
+    <div class="bar">
+      <i class="s-done" id="barDone" style="width:0"></i>
+      <i class="s-review" id="barReview" style="width:0"></i>
+      <i class="s-prog" id="barProg" style="width:0"></i>
+    </div>
+    <div class="legend">
+      <span><i class="dot todo"></i>시작 전 <b id="lgTodo">0</b></span>
+      <span><i class="dot prog"></i>진행 중 <b id="lgProg">0</b></span>
+      <span><i class="dot review"></i>검수 중 <b id="lgReview">0</b></span>
+      <span><i class="dot done"></i>완료 <b id="lgDone">0</b></span>
+    </div>
+  </div>
+
+  <div class="filters" id="filters"></div>
+  <div id="board"></div>
+
+  <div class="foot">RING-GO 내부 현황판 · 프로토 169개 기능 ↔ 실제 앱(Android, DB v19) 대조<br>항목을 누르면 자세한 설명과 "실제 앱 어디에" 가 펼쳐져요.</div>
+</div>
+
+<script>
+/* ─────────────────────────────────────────────────────────────
+   상태값: done(완료) / review(검수중) / prog(진행중) / todo(시작전)
+   각 항목: {n:이름, s:상태, d:일상어 설명, a:실제 앱 매핑}
+───────────────────────────────────────────────────────────── */
+var AREAS = [
+ {emo:'💬', name:'상담함 (홈)', desc:'앱 열면 가장 먼저 보이는 오늘 처리할 일', items:[
+   {n:'미확인·오늘신규·주간예약 카운트', s:'done',
+    d:'답장 안 한 문의, 오늘 처음 온 번호, 이번 주 시공 예약을 숫자 카드로 한눈에.',
+    a:'<b>HomeViewModel</b> KPI 3종 실제 구현. (옛 "견적 답대기"는 2026-05-25 제거)'},
+   {n:'문자·통화 타임라인 + 스팸 밀기', s:'done',
+    d:'들어온 문자/통화를 시간순으로. 광고는 옆으로 밀어서 스팸 처리.',
+    a:'<b>HomeScreen</b> 카드 목록 + swipe→spamSuffixes. 갤메시지식 카테고리 필터 칩 포함.'},
+   {n:'오늘 시공 히어로 (D-DAY)', s:'todo',
+    d:'시공 당일이면 맨 위에 다크 카드로 "오늘 OO 현장" + 주소 + 길찾기.',
+    a:'프로토에만 있음 (renderHero/heroJobHtml). 앱은 아직 일반 KPI 카드만.'},
+   {n:'다음 시공 미리보기 (1~3곳)', s:'todo',
+    d:'시공 없는 날엔 다음 예정 시공 1~3곳을 미리 보여줌.',
+    a:'프로토 nextHeroHtml. 앱 미구현.'},
+   {n:'부재중 → 자동답장 보냄 카드', s:'prog',
+    d:'전화 못 받았을 때 자동으로 보낸 문자를 카드로 알림(신규/단골 구분).',
+    a:'앱에 <b>AutoReplyScheduler</b>·CancelReceiver 코드 존재(Phase B). 홈 알림 카드 UI는 아직.'},
+   {n:'통화 요약 카드', s:'prog',
+    d:'지난 통화 내용을 AI가 한 줄로 요약해서 보여줌.',
+    a:'앱 <b>AiSummaryEntity</b> observe만(서버 응답 시 노출). 전용 홈 카드는 아직.'},
+   {n:'정기문자 발송 대기 알림', s:'todo',
+    d:'오늘 보낼 정기문자 목록을 상담함에서 알려주고 밀어서 제거.',
+    a:'프로토 renderRecurAlert. 앱 미구현.'},
+   {n:'견적 회신 대기 / 접수서 작성 리마인드', s:'todo',
+    d:'접수서 보냈는데 안 쓴 고객 추적 + 리마인드 문자.',
+    a:'프로토 renderQuoteReply/renderPendingAccepts. 앱 미구현.'},
+   {n:'팀원 현장사진 업로드 알림', s:'todo',
+    d:'팀원이 올린 현장 사진이 사장 앱에 자동 누적(파란 이름표).',
+    a:'프로토 renderTeamPhoto. 앱 미구현(클라우드 저장은 서버 영역).'},
+ ]},
+
+ {emo:'🗨️', name:'채팅', desc:'고객 한 명과의 문자 대화 + AI 도움', items:[
+   {n:'메시지 타임라인 + 사진 뷰어', s:'done',
+    d:'고객과 주고받은 문자를 위아래로. 사진은 크게 보기.',
+    a:'<b>ChatScreen</b> LazyColumn + 풀스크린 이미지 뷰어 구현.'},
+   {n:'AI 추천답변 칩 (의도 분화)', s:'done',
+    d:'상황 보고 "견적 안내/일정 잡기" 같은 답변을 칩으로 추천 → 탭하면 입력칸에 채움.',
+    a:'<b>ReplySuggestions v2</b>(ReplyChoice+scenario) 실구현. 맥미니 서버 POST /prepare-reply.'},
+   {n:'문자 템플릿 칩 넣기', s:'done',
+    d:'저장해둔 자주 쓰는 문구를 칩으로 빠르게 삽입.',
+    a:'ChatScreen 템플릿 칩(탭→composer, 즉시발송 X) 구현.'},
+   {n:'별표 중요 메시지', s:'done',
+    d:'중요한 메시지에 별표 → 나중에 모아보기.',
+    a:'ImportantMessageEntity + starred flow 구현.'},
+   {n:'다듬기 ✨ (보내기 전 정리)', s:'review',
+    d:'내가 쓴 거친 문장을 부드럽게 다듬어줌.',
+    a:'<b>OllamaRefineRepository</b>로 동작 중. 품질 부족 → Claude 교체 예정(검수 필요).'},
+   {n:'통화 구간 표시 + 요약 가져오기', s:'prog',
+    d:'문자하다 통화하면 "📞 통화 N분" 구간이 끼고, 요약/후속문자 버튼.',
+    a:'앱은 구분선 수준. 프로토 callCardHtml/chatCallSummarize 만큼은 아직.'},
+   {n:'채팅에서 견적 작성', s:'prog',
+    d:'대화 중 가격표 띄워 견적 만들어 바로 전송.',
+    a:'앱 견적 다이얼로그(pricingItems) 있음. 시공접수서/PDF 단계는 미구현.'},
+ ]},
+
+ {emo:'📅', name:'일정', desc:'시공 예약 달력 + 직접 등록', items:[
+   {n:'월 달력 + 시공일 표시', s:'done',
+    d:'달력에서 시공 있는 날 점 표시, 날짜 누르면 그날 시공 카드.',
+    a:'<b>ScheduleScreen</b> 7×6 그리드 + 월 네비 + 선택일 카드. 과거+미래 모두.'},
+   {n:'셀프 일정 등록', s:'todo',
+    d:'전화·문자 없이 직접 추가(고객·시공일·시간·주소·금액·계약금유무).',
+    a:'프로토 openAddSchedule/submitSchedule. 앱은 보기만, 등록 화면 미구현.'},
+   {n:'시공 기간(여러 날) 표시', s:'todo',
+    d:'하루~여러 날 시공을 달력에 막대로 이어서.',
+    a:'프로토 schedDaysChips/computeLanes. 앱 미구현.'},
+   {n:'시간 칩 + 미니 날짜 피커', s:'todo',
+    d:'오전8~11/오후1~4 칩, 구글식 날짜 범위 선택.',
+    a:'프로토 schedTimeChips/renderQDatePick. 앱 미구현.'},
+   {n:'내 일정 확인(채팅에서)', s:'todo',
+    d:'고객 채팅 중 "내 일정 확인" → 빈 날/시공 있는 날 바로 확인.',
+    a:'프로토 openMySchedule/myCalHtml. 앱 미구현.'},
+ ]},
+
+ {emo:'💰', name:'정산', desc:'누가 돈 안 줬나 + 현금 흐름 (핵심 요구)', items:[
+   {n:'미수금 대시보드', s:'done',
+    d:'아직 안 받은 돈 총액 + 고객별 계약금/잔금 받음 체크. 홈 "미수금" 카드 → 정산 화면.',
+    a:'<b>SettlementScreen/SettlementViewModel</b> 구현(2026-06-01 Phase 1). 미수 계산 = SettlementCalc(테스트 7케이스). 홈 OutstandingCard 진입.'},
+   {n:'계약금·잔금 받음 토글', s:'done',
+    d:'계약금/잔금 받으면 체크, 실시간 미수 변동.',
+    a:'정산 카드 [계약금][잔금] 토글 → updateDepositPaidAt/updateBalancePaidAt + 자동 카테고리 갱신.'},
+   {n:'완납 확인 + 완납 취소', s:'done',
+    d:'오탭 방지 — 잔금 체크 시 "전액 받았어요?" 확인, 완납 카드는 "완납 취소".',
+    a:'SettlementScreen confirmPayOff 다이얼로그 + 완납취소(프로토 payConfirm/payUndo 반영).'},
+   {n:'현금흐름 4색 달력', s:'todo',
+    d:'들어올(연파랑)/들어온(진파랑)/나갈(연빨강)/나간(빨강) 돈을 달력에.',
+    a:'프로토 renderCashCal/dayAgg. Phase 2 (DB v20 필요).'},
+   {n:'직접 현금 기록(+버튼/날짜 꾹)', s:'todo',
+    d:'현장 밖 현금 입·출금을 손으로 기록(예정↔완료 토글).',
+    a:'프로토 manualCash/openAddCash. 앱 미구현.'},
+   {n:'일당 자동 차감 (일정↔정산 연결)', s:'todo',
+    d:'일정에 일당 배정하면 그 사람 일당이 자동 −금액으로 잡힘.',
+    a:'프로토 crewCash/rebuildCrewCashForDay. 앱 미구현.'},
+   {n:'확정/예상 순이익 + 월 매출', s:'todo',
+    d:'실현된 순이익 vs 예상 순이익, 전월 대비 매출.',
+    a:'프로토 정산 hero. 앱 미구현.'},
+ ]},
+
+ {emo:'📓', name:'수첩', desc:'일당·거래처를 한 곳에서 관리', items:[
+   {n:'일당(알바·기공) 관리', s:'todo',
+    d:'일당 기사 추가·편집·삭제, 분류(보조/기공 등 본인 방식).',
+    a:'프로토 workers/workerRowHtml/catManage. 앱 미구현.'},
+   {n:'거래처 관리', s:'todo',
+    d:'자재상·협력사를 수첩에서 같이 관리.',
+    a:'프로토 vendors/vendorRowHtml. 앱 미구현.'},
+   {n:'함께한 현장 목록', s:'todo',
+    d:'이 사람이랑 같이 한 현장 N회 → 목록으로.',
+    a:'프로토 fullSites/openWorkerSites. 앱 미구현.'},
+   {n:'문자 작성 + 자주 쓰는 문구', s:'todo',
+    d:'일당/거래처에 바로 문자, 자주 쓰는 문구 저장·편집(일당용/거래처용 따로).',
+    a:'프로토 openSmsCompose/smsPhrases. 앱 미구현.'},
+ ]},
+
+ {emo:'🧾', name:'견적 · 시공접수서', desc:'가격표 → 견적 → 접수서/견적서', items:[
+   {n:'가격표 관리 (CRUD)', s:'done',
+    d:'시공 항목별 가격을 추가·수정·on/off.',
+    a:'<b>PricingItemsScreen</b> + PricingItemEntity 실구현(신축/구축/공통).'},
+   {n:'평당 계산 옵션', s:'prog',
+    d:'정액 말고 "평당 × 면적"으로도 계산.',
+    a:'프로토 openPriceEdit(정액/평당). 앱 가격표는 있으나 평당 모드 확인 필요.'},
+   {n:'시공접수서 (고객 자가확인)', s:'todo',
+    d:'시공일→견적→연락처→설문→동의→접수완료. 주소 재확인.',
+    a:'프로토 openQuote/submitQuote/renderQuoteSurvey. 앱 미구현.'},
+   {n:'견적서(직인) PDF', s:'todo',
+    d:'사업자정보·직인 박힌 정식 견적서 문서.',
+    a:'프로토 sendQuoteDoc/openQuoteDoc. 앱 미구현(PDF 생성 없음).'},
+   {n:'사업자정보 등록', s:'todo',
+    d:'상호·대표·사업자번호·유효기간(기본 14일) 저장.',
+    a:'프로토 bizInfo/openBizInfo. 앱 미구현.'},
+ ]},
+
+ {emo:'⚙️', name:'더보기 · 설정', desc:'템플릿·자동문자·말투학습·리포트', items:[
+   {n:'문자 템플릿 관리', s:'done',
+    d:'자주 쓰는 문구를 만들고 켜고 끄기.',
+    a:'<b>TemplateList/EditScreen</b> + MessageTemplateEntity 실구현.'},
+   {n:'사장님 톤(말투) 학습', s:'done',
+    d:'내가 보낸 문자로 AI가 내 말투를 배움.',
+    a:'<b>StyleLearningScreen</b> + OwnerToneUploadRepository 실구현.'},
+   {n:'AI 서버 상태 표시', s:'done',
+    d:'맥미니 AI 서버 연결됐는지 표시.',
+    a:'ServerHealthMonitor 30초 폴링 GET /health.'},
+   {n:'자동문자 (부재중/D-1/도착)', s:'prog',
+    d:'부재중 자동답장(즉시), 시공 하루 전·도착 안내(보낼까요 확인).',
+    a:'부재중 <b>AutoReplyScheduler</b> 존재(Phase B). D-1/도착은 미구현.'},
+   {n:'정기문자 예약', s:'todo',
+    d:'대상(전체/단골/직접)·발송시각·주기 정해 자동 발송.',
+    a:'프로토 renderRecurring 외 다수. 앱 미구현.'},
+   {n:'비즈니스 리포트(대시보드)', s:'todo',
+    d:'매출/거래처/정산을 기간별로 보는 사장님용 대시보드.',
+    a:'프로토 openReport/renderReport. 앱 미구현(사장님 1순위 기능).'},
+   {n:'팀 관리 (99k)', s:'todo',
+    d:'팀원 초대·현장 배정·출발 알림.',
+    a:'프로토 openTeam/openAssign/doDepart. 앱 미구현.'},
+ ]},
+
+ {emo:'🎒', name:'온보딩', desc:'첫 가입 흐름 + 막내 비서 탄생', items:[
+   {n:'권한 요청 화면', s:'done',
+    d:'문자·통화 권한을 받는 첫 화면.',
+    a:'<b>OnboardingPermissionScreen</b> 실구현("딸깍의 시대" 카피).'},
+   {n:'업종 선택 (다중 최대 3)', s:'todo',
+    d:'줄눈/도배/타일… 업종 선택이 AI지식·가격표를 통째로 바꿈(해자).',
+    a:'프로토 toggleTrade/selTrades. 앱 미구현.'},
+   {n:'스토리텔링 7장 슬라이드', s:'todo',
+    d:'밝은 토스풍, 슬라이드마다 포인트 컬러 시프트 + 인터랙션.',
+    a:'프로토 attachObCarousel/obPlay. 앱 미구현.'},
+   {n:'막내 비서 캐릭터 탄생 연출', s:'todo',
+    d:'"[업종] 막내 비서 탄생!" — 쓸수록 사장님 닮아가는 브랜딩 모먼트.',
+    a:'프로토 previewBorn/mascotMarkup. 앱 미구현(출시 때 전문 일러스트).'},
+ ]},
+
+ {emo:'🗄️', name:'데이터 · AI 기반', desc:'눈에 안 보이지만 모든 걸 받치는 토대', items:[
+   {n:'Room DB v19 (15개 데이터)', s:'done',
+    d:'고객·통화·문자·요약·가격표 등 모든 데이터 저장 구조.',
+    a:'<b>AppDatabase v19</b>, 엔티티 15종 구현.'},
+   {n:'맥미니 AI 서버 연동', s:'done',
+    d:'답변 추천을 위해 AI 서버(맥미니)와 통신.',
+    a:'ServerSuggestionRepository (Tailnet 100.86.114.49:8000) 실구현.'},
+   {n:'추천 이벤트 로깅', s:'done',
+    d:'어떤 추천을 골랐는지 기록(품질 개선용).',
+    a:'SuggestionEventEntity 구현.'},
+ ]},
+];
+
+var LABELS = {done:'완료', review:'검수 중', prog:'진행 중', todo:'시작 전'};
+var BADGE = {done:'b-done', review:'b-review', prog:'b-prog', todo:'b-todo'};
+var ORDER = ['todo','prog','review','done'];
+
+/* ── compute totals ── */
+var all = [];
+AREAS.forEach(function(a){ a.items.forEach(function(it){ all.push(it); }); });
+var total = all.length;
+var cnt = {done:0,review:0,prog:0,todo:0};
+all.forEach(function(it){ cnt[it.s]++; });
+
+document.getElementById('bigNum').innerHTML = cnt.done+' <small>/ '+total+' 완료</small>';
+var pct = Math.round(cnt.done/total*100);
+document.getElementById('pct').textContent = pct+'%';
+document.getElementById('barDone').style.width   = (cnt.done/total*100)+'%';
+document.getElementById('barReview').style.width = (cnt.review/total*100)+'%';
+document.getElementById('barProg').style.width   = (cnt.prog/total*100)+'%';
+document.getElementById('lgDone').textContent   = cnt.done;
+document.getElementById('lgReview').textContent = cnt.review;
+document.getElementById('lgProg').textContent   = cnt.prog;
+document.getElementById('lgTodo').textContent   = cnt.todo;
+
+/* ── filters ── */
+var FILTERS = [
+  {k:'all',   label:'전체',   c:total},
+  {k:'todo',  label:'시작 전', c:cnt.todo},
+  {k:'prog',  label:'진행 중', c:cnt.prog},
+  {k:'review',label:'검수 중', c:cnt.review},
+  {k:'done',  label:'완료',   c:cnt.done},
+];
+var curFilter = 'all';
+var fEl = document.getElementById('filters');
+FILTERS.forEach(function(f){
+  var b = document.createElement('div');
+  b.className='fchip'; b.setAttribute('data-k',f.k);
+  b.setAttribute('data-on', f.k==='all'?'1':'0');
+  b.innerHTML = f.label+'<span class="cnt">'+f.c+'</span>';
+  b.onclick=function(){ setFilter(f.k); };
+  fEl.appendChild(b);
+});
+function setFilter(k){
+  curFilter=k;
+  [].forEach.call(fEl.children,function(c){ c.setAttribute('data-on', c.getAttribute('data-k')===k?'1':'0'); });
+  render();
+}
+
+/* ── render board ── */
+var board = document.getElementById('board');
+function render(){
+  board.innerHTML='';
+  AREAS.forEach(function(a){
+    var items = a.items.filter(function(it){ return curFilter==='all' || it.s===curFilter; });
+    // sort within area by ORDER (todo first)
+    items = items.slice().sort(function(x,y){ return ORDER.indexOf(x.s)-ORDER.indexOf(y.s); });
+    if(!items.length) return;
+    var done = a.items.filter(function(it){return it.s==='done';}).length;
+
+    var area = document.createElement('div'); area.className='area';
+    var head = document.createElement('div'); head.className='area-h';
+    head.innerHTML = '<div class="area-emo">'+a.emo+'</div>'+
+      '<div><div class="area-name">'+a.name+'</div><div class="area-desc">'+a.desc+'</div></div>'+
+      '<div class="area-mini">'+done+'/'+a.items.length+'</div>';
+    area.appendChild(head);
+
+    var card = document.createElement('div'); card.className='area-card';
+    items.forEach(function(it){
+      var row = document.createElement('div'); row.className='item';
+      row.innerHTML =
+        '<div class="item-top">'+
+          '<div class="item-name">'+it.n+'</div>'+
+          '<span class="badge '+BADGE[it.s]+'">'+LABELS[it.s]+'</span>'+
+          '<span class="chev">▶</span>'+
+        '</div>'+
+        '<div class="item-body">'+
+          '<div class="item-desc">'+it.d+'</div>'+
+          '<div class="item-app"><b>실제 앱:</b> '+it.a+'</div>'+
+        '</div>';
+      row.onclick=function(){ row.classList.toggle('open'); };
+      card.appendChild(row);
+    });
+    area.appendChild(card);
+    board.appendChild(area);
+  });
+}
+render();
+</script>
+</body>
+</html>

@@ -10,6 +10,7 @@ import com.detailline.callfollowcrm.data.local.entity.CallRecordEntity
 import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
 import com.detailline.callfollowcrm.data.repository.SmsRepository
 import com.detailline.callfollowcrm.domain.model.HandledStatus
+import com.detailline.callfollowcrm.domain.settlement.SettlementCalc
 import com.detailline.callfollowcrm.util.DateTimeUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -165,6 +166,21 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     // 2026-05-25: estimateSentCount 제거 — KPI "견적 답대기" 카드 폐기.
+
+    // ────────────────────────────────────────────────────────
+    // 정산 — 홈 미수금 진입 카드 (정산 Phase 1, 2026-06-01)
+    //   계산은 SettlementScreen 과 동일한 SettlementCalc 단일 출처.
+    // ────────────────────────────────────────────────────────
+
+    /** 아직 못 받은 돈 총액 (돈 정보 있는 고객의 미수 합). */
+    val outstandingTotal: StateFlow<Long> = customers.map { list ->
+        list.filter { SettlementCalc.hasMoney(it) }.sumOf { SettlementCalc.rowOf(it).outstanding }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
+
+    /** 미수(못 받은 돈 > 0)인 고객 수. */
+    val outstandingCount: StateFlow<Int> = customers.map { list ->
+        list.filter { SettlementCalc.hasMoney(it) }.count { SettlementCalc.rowOf(it).outstanding > 0 }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     /**
      * "미확인" 판정 = phone suffix set.

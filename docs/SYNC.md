@@ -1280,3 +1280,29 @@ CREATE TABLE customer_personas (
 - 결과물 형식: D = HTML 데모 + 텍스트 목업 + 이미지 설명 모두
 - 비교 페이지: `docs/ux_contest/compare.html`
 - 작업 진행 중 (이번 commit 후속)
+
+---
+
+## 2026-06-01 · android — 구현 현황판 + 정산 Phase 1 (미수금)
+프로토(ringgo-redesign.html)와 실제 앱 대조 → 현황판 제작 + 정산 1순위 구현 시작.
+
+### 결과물 1: 구현 현황판 (프로토 ↔ 앱)
+- `design-preview/status-board.html` — 인터랙티브 대시보드(진행률/필터/영역별 카드, MOOLOO 어드민 스타일)
+- `docs/IMPLEMENTATION_STATUS.md` — **양쪽 Claude 공유 기준표(SoT)**. 상태 바뀌면 둘 다 갱신.
+- 전체 18/51 (약 35%). 영역별 완료/빈칸 정리.
+
+### 결과물 2: 정산 Phase 1 (미수금 화면) — DB 변경 없음
+- 신규: `domain/settlement/SettlementCalc.kt`(순수 계산), `util/MoneyFormatter.kt`,
+  `presentation/screen/settlement/SettlementViewModel.kt` + `SettlementScreen.kt`
+- 수정: `Destinations`(SETTLEMENT), `AppNavHost`(라우트), `HomeViewModel`(outstandingTotal/Count),
+  `HomeScreen`(홈 OutstandingCard 진입 + onOpenSettlement)
+- 기능: 미수 총액 히어로 + 전체/미수/완납 필터 + 고객 카드(계약금/잔금 토글) + 완납확인/완납취소.
+- 테스트: `SettlementCalcTest`(7케이스) 통과. `assembleDebug` 성공.
+- 진입점 "홈 미수금 카드" = 사장님 선택. 그 외 세부는 Claude 추천 → `docs/DECISIONS_2026-06-01.md`.
+
+### 서버(맥미니) 영향
+- **정산 Phase 1 은 서버 변경 없음** (로컬 CustomerEntity 데이터만 사용).
+- 서버 Claude 가 검토/진행할 내용 = `docs/SERVER_HANDOFF_2026-06-01.md` 에 별도 정리.
+
+### 다음 액션 (사장님)
+- 갤S9에서 홈 미수금 카드 → 정산 → 토글 동작 확인. OK면 정산 Phase 2(현금흐름, DB v20) 진행.
