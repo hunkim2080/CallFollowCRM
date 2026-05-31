@@ -1306,3 +1306,23 @@ CREATE TABLE customer_personas (
 
 ### 다음 액션 (사장님)
 - 갤S9에서 홈 미수금 카드 → 정산 → 토글 동작 확인. OK면 정산 Phase 2(현금흐름, DB v20) 진행.
+
+---
+
+## 2026-06-01 · android — 정산 Phase 2 (현금흐름 4색 달력 + 직접 기록, DB v20)
+사장님 "2 가자" 지시로 Phase 2 진행.
+
+### 변경
+- **DB v19→v20**: `manual_cash` 테이블 신규(additive). `ManualCashEntity`/`ManualCashDao`/`ManualCashRepository`.
+  AppDatabase 엔티티+DAO+MIGRATION_19_20 등록, AppContainer 배선.
+- 신규 순수계산 `domain/settlement/CashFlowCalc`(settle 파생 수입 + manual 합산, 4색 agg) + `CashFlowCalcTest`(5).
+- 정산 화면 상단 탭 [미수금][현금흐름]. `CashFlowSection` = 월 4색 달력(지난날 회색·범례) + 월 순이익(확정/예상) + 선택일 상세 + 직접기록 추가/토글/삭제.
+- SettlementViewModel: tab/cashItems/addManualCash/toggleManualDone/setManualAmount/deleteManualCash.
+- assembleDebug 성공. 정산 테스트 12케이스(7+5) 통과.
+
+### 서버 영향
+- 없음 (로컬 DB만). SERVER_HANDOFF_2026-06-01.md 변동 없음.
+
+### 다음 액션 (사장님)
+- 갤S9 첫 실행 = v20 마이그레이션 동작 확인(additive+fallback이라 위험 낮음). 정산→현금흐름 탭 동작 확인.
+- 이후: 수첩(일당) → 정산 Phase 3(일당 자동차감+월매출) 또는 셀프 일정 등록.

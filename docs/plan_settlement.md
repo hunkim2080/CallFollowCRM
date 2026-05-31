@@ -53,10 +53,12 @@
 
 ---
 
-## Phase 2 — 현금흐름 달력 + 직접 기록 (DB v20)
-- 신규 엔티티 `ManualCashEntity`(직접 입출금) → 마이그레이션 v19→v20.
-- 정산 income 을 settle 데이터에서 파생 + manual 합산 → 4색 달력(`renderCashCal`).
-- 직접 현금 기록(+버튼/날짜 꾹), 예정↔완료 토글.
+## Phase 2 — 현금흐름 달력 + 직접 기록 (DB v20) — 2026-06-01 완료
+- [x] `ManualCashEntity` + DAO + Repository, 마이그레이션 v19→v20(additive, index name 일치). AppContainer 배선.
+- [x] `CashFlowCalc`(순수: settle 파생 수입 + manual 합산, 4색 agg) + `CashFlowCalcTest`(5케이스).
+- [x] 정산 화면 상단 탭 [미수금][현금흐름]. `CashFlowSection` = 월 4색 달력(지난날 회색·범례) + 월 순이익(확정/예상) + 선택일 상세.
+- [x] 직접 기록 추가 다이얼로그(금액·메모·수입/지출·완료/예정) + 예정↔완료 토글 + 삭제.
+- [x] assembleDebug 성공. **마이그레이션은 폰 첫 실행 시 동작 → 검증 필요**(additive+fallback 안전망이라 위험 낮음).
 
 ## Phase 3 — 일정↔정산 연결 + 순이익/월매출
 - 일당 자동 차감(`crewCash`)은 **수첩(일당) 구현 후** 가능 → 수첩 영역과 함께.

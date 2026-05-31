@@ -3,6 +3,8 @@ package com.detailline.callfollowcrm.presentation.screen.settlement
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.detailline.callfollowcrm.data.AppContainer
+import com.detailline.callfollowcrm.domain.settlement.CashFlowCalc
+import com.detailline.callfollowcrm.domain.settlement.CashItem
 import com.detailline.callfollowcrm.domain.settlement.SettleRow
 import com.detailline.callfollowcrm.domain.settlement.SettlementCalc
 import kotlinx.coroutines.NonCancellable
@@ -28,9 +30,16 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
     private val filter = MutableStateFlow(SettleFilter.ALL)
     val filterState: StateFlow<SettleFilter> = filter
 
+    /** 미수금 목록 / 현금흐름 달력 전환. */
+    private val tab = MutableStateFlow(SettleTab.LIST)
+    val tabState: StateFlow<SettleTab> = tab
+    fun setTab(t: SettleTab) { tab.value = t }
+
+    private val customersFlow = container.customerRepository.observeAll()
+
     /** 돈 정보 있는 고객만 → 미수 큰 순 정렬. */
     private val rows: StateFlow<List<SettleItem>> =
-        container.customerRepository.observeAll()
+        customersFlow
             .map { list ->
                 list.filter { SettlementCalc.hasMoney(it) }
                     .map { c ->
@@ -68,6 +77,32 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettlementUiState())
 
+    // ── 현금흐름 (Phase 2) ───────────────────────────────────────────
+    /** settle 파생 수입 + 직접 기록 합산. 달력/일별 상세가 구독. */
+    val cashItems: StateFlow<List<CashItem>> =
+        combine(customersFlow, container.manualCashRepository.observeAll()) { cs, ms ->
+            CashFlowCalc.buildItems(cs, ms)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun addManualCash(dayMs: Long, amount: Long, isIncome: Boolean, isDone: Boolean, label: String) =
+        viewModelScope.launch {
+            withContext(NonCancellable) {
+                container.manualCashRepository.add(dayMs, amount, isIncome, isDone, label)
+            }
+        }
+
+    fun toggleManualDone(id: Long, done: Boolean) = viewModelScope.launch {
+        withContext(NonCancellable) { container.manualCashRepository.setDone(id, done) }
+    }
+
+    fun setManualAmount(id: Long, amount: Long) = viewModelScope.launch {
+        withContext(NonCancellable) { container.manualCashRepository.setAmount(id, amount) }
+    }
+
+    fun deleteManualCash(id: Long) = viewModelScope.launch {
+        withContext(NonCancellable) { container.manualCashRepository.delete(id) }
+    }
+
     fun setFilter(f: SettleFilter) { filter.value = f }
 
     /** 계약금 받음/안받음 토글. "지금" 받은 시각으로 기록, 끄면 null. */
@@ -91,6 +126,8 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 }
+
+enum class SettleTab(val label: String) { LIST("미수금"), CASHFLOW("현금흐름") }
 
 enum class SettleFilter(val label: String) {
     ALL("전체"), OUTSTANDING("미수"), PAID_OFF("완납")

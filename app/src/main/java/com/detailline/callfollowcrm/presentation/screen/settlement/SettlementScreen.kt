@@ -76,6 +76,7 @@ fun SettlementScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val filter by viewModel.filterState.collectAsState()
+    val tab by viewModel.tabState.collectAsState()
 
     // 잔금 받음 켤 때 띄우는 완납 확인 대상.
     var confirmPayOff by remember { mutableStateOf<SettleItem?>(null) }
@@ -96,49 +97,32 @@ fun SettlementScreen(
             )
         }
     ) { inner ->
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .padding(inner)
                 .fillMaxSize()
-                .background(TossGrayBg),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .background(TossGrayBg)
         ) {
-            item(key = "hero") {
-                SettleHero(
-                    outstandingTotal = state.outstandingTotal,
-                    outstandingCount = state.outstandingCount,
-                    receivedTotal = state.receivedTotal
+            SettleTabBar(current = tab, onSelect = viewModel::setTab)
+            when (tab) {
+                SettleTab.LIST -> SettleListContent(
+                    state = state,
+                    filter = filter,
+                    onSelectFilter = viewModel::setFilter,
+                    onOpenCustomer = onOpenCustomer,
+                    onToggleDeposit = { item -> viewModel.setDepositPaid(item.customerId, !item.calc.depositPaid) },
+                    onToggleBalance = { item ->
+                        if (item.calc.balancePaid) viewModel.setBalancePaid(item.customerId, false)
+                        else confirmPayOff = item
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+                SettleTab.CASHFLOW -> CashFlowContent(
+                    viewModel = viewModel,
+                    onOpenCustomer = onOpenCustomer,
+                    modifier = Modifier.weight(1f)
                 )
             }
-            item(key = "filters") {
-                FilterRow(
-                    current = filter,
-                    allCount = state.allCount,
-                    outstandingCount = state.outstandingCount,
-                    paidOffCount = state.paidOffCount,
-                    onSelect = viewModel::setFilter
-                )
-            }
-            if (state.rows.isEmpty()) {
-                item(key = "empty") { EmptyState(filter) }
-            } else {
-                items(state.rows, key = { "s-${it.customerId}" }) { item ->
-                    SettleRowCard(
-                        item = item,
-                        onOpenCustomer = { onOpenCustomer(item.customerId) },
-                        onToggleDeposit = { viewModel.setDepositPaid(item.customerId, !item.calc.depositPaid) },
-                        onToggleBalance = {
-                            if (item.calc.balancePaid) {
-                                viewModel.setBalancePaid(item.customerId, false)
-                            } else {
-                                confirmPayOff = item
-                            }
-                        }
-                    )
-                }
-            }
-            item(key = "tail") { Spacer(Modifier.height(40.dp)) }
         }
     }
 
@@ -164,6 +148,85 @@ fun SettlementScreen(
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun SettleTabBar(current: SettleTab, onSelect: (SettleTab) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        SettleTab.values().forEach { t ->
+            val selected = t == current
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (selected) TossTextPrimary else Color.White)
+                    .clickable { onSelect(t) }
+                    .padding(vertical = 11.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    t.label,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = if (selected) Color.White else TossTextSecondary,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettleListContent(
+    state: SettlementUiState,
+    filter: SettleFilter,
+    onSelectFilter: (SettleFilter) -> Unit,
+    onOpenCustomer: (Long) -> Unit,
+    onToggleDeposit: (SettleItem) -> Unit,
+    onToggleBalance: (SettleItem) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    LazyColumn(
+        modifier = modifier
+            .fillMaxSize()
+            .background(TossGrayBg),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        item(key = "hero") {
+            SettleHero(
+                outstandingTotal = state.outstandingTotal,
+                outstandingCount = state.outstandingCount,
+                receivedTotal = state.receivedTotal
+            )
+        }
+        item(key = "filters") {
+            FilterRow(
+                current = filter,
+                allCount = state.allCount,
+                outstandingCount = state.outstandingCount,
+                paidOffCount = state.paidOffCount,
+                onSelect = onSelectFilter
+            )
+        }
+        if (state.rows.isEmpty()) {
+            item(key = "empty") { EmptyState(filter) }
+        } else {
+            items(state.rows, key = { "s-${it.customerId}" }) { item ->
+                SettleRowCard(
+                    item = item,
+                    onOpenCustomer = { onOpenCustomer(item.customerId) },
+                    onToggleDeposit = { onToggleDeposit(item) },
+                    onToggleBalance = { onToggleBalance(item) }
+                )
+            }
+        }
+        item(key = "tail") { Spacer(Modifier.height(40.dp)) }
     }
 }
 

@@ -51,9 +51,10 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         CategoryEntity::class,
         SpamPhoneEntity::class,
         SmsContactCacheEntity::class,
-        com.detailline.callfollowcrm.data.local.entity.SuggestionEventEntity::class
+        com.detailline.callfollowcrm.data.local.entity.SuggestionEventEntity::class,
+        com.detailline.callfollowcrm.data.local.entity.ManualCashEntity::class
     ],
-    version = 19,
+    version = 20,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -72,6 +73,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun spamPhoneDao(): SpamPhoneDao
     abstract fun smsContactCacheDao(): SmsContactCacheDao
     abstract fun suggestionEventDao(): com.detailline.callfollowcrm.data.local.dao.SuggestionEventDao
+    abstract fun manualCashDao(): com.detailline.callfollowcrm.data.local.dao.ManualCashDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -404,6 +406,33 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v19 → v20: manual_cash 테이블 신설 (정산 Phase 2 — 직접 현금 기록).
+         *   현금흐름 달력에서 settle 파생 수입과 합쳐 보여줄 수동 입/출금.
+         *   순수 추가(additive) — 기존 데이터 영향 없음. index 이름은 Entity 의 @Index name 과 일치해야 함.
+         */
+        private val MIGRATION_19_20 = object : Migration(19, 20) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS manual_cash (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        dayStartMs INTEGER NOT NULL,
+                        amount INTEGER NOT NULL,
+                        isIncome INTEGER NOT NULL,
+                        isDone INTEGER NOT NULL,
+                        label TEXT NOT NULL DEFAULT '',
+                        createdAt INTEGER NOT NULL,
+                        updatedAt INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS idx_manual_cash_dayStartMs ON manual_cash(dayStartMs)"
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
@@ -414,7 +443,8 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
                     MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                     MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15,
-                    MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19
+                    MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19,
+                    MIGRATION_19_20
                 )
                 .fallbackToDestructiveMigration()   // migration 실패 시 안전망 (개발 단계)
                 .build()
