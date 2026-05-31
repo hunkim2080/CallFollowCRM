@@ -268,8 +268,10 @@
   .bubble.cust { align-self:flex-start; background:#fff; border-bottom-left-radius:6px; box-shadow:var(--shadow); }
   .bubble.me { align-self:flex-end; background:var(--blue); color:#fff; border-bottom-right-radius:6px; }
   .bubble.photo { padding:0; }
-  .bubble.photo .ph { width:160px; height:108px; background:linear-gradient(135deg,#cfd6df,#a9b3c1); border-radius:19px; display:flex; align-items:center; justify-content:center; color:#fff; }
-  .bubble.photo .ph .ico svg { width:30px; height:30px; }
+  .bubble.photo .ph { width:170px; height:120px; background:linear-gradient(135deg,#8AA9D6,#52708F 55%,#3D5468); border-radius:19px; display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,.92); position:relative; overflow:hidden; }
+  .bubble.photo .ph::before { content:''; position:absolute; left:0; right:0; bottom:0; height:48%; background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.28)); }
+  .bubble.photo .ph::after { content:'현장 사진'; position:absolute; left:10px; bottom:8px; font-size:11px; font-weight:800; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,.35); letter-spacing:-.2px; }
+  .bubble.photo .ph .ico { position:relative; z-index:1; opacity:.92; } .bubble.photo .ph .ico svg { width:28px; height:28px; }
   .brow { display:flex; align-items:flex-end; gap:6px; }
   .brow.me { justify-content:flex-end; }
   .brow.cust { justify-content:flex-start; }
@@ -657,6 +659,8 @@
   .login-trust { display:flex; align-items:center; justify-content:center; gap:5px; font-size:11.5px; color:#8A93A2; font-weight:700; margin-top:13px; }
   .login-trust .ico svg { width:13px; height:13px; }
   .login-skip { text-align:center; margin-top:16px; font-size:12.5px; color:#9AA3AF; font-weight:700; cursor:pointer; text-decoration:underline; }
+  .login-loading { position:absolute; inset:0; background:rgba(251,252,254,.95); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; z-index:6; }
+  .login-loading .ll-t { font-size:14.5px; font-weight:800; color:#3A4250; }
   .fullview { position:absolute; inset:0; background:var(--bg); z-index:60; display:none; flex-direction:column; }
   .fullview.show { display:flex; }
   .mv-note { background:#FFF6E6; color:#9A6B00; font-size:12px; font-weight:700; padding:10px 16px; text-align:center; line-height:1.5; }
@@ -849,6 +853,12 @@
   @keyframes thinkD { 0%,100%{opacity:.3; transform:translateY(0);} 50%{opacity:1; transform:translateY(-4px);} }
   .think-row { display:flex; align-items:center; gap:8px; padding:4px 2px; }
   .think-row .tk-t { font-size:12.5px; color:var(--t3); font-weight:700; }
+  /* 움직이는 로딩 — "." ".." "..." 자동 순환 (멈춘 느낌 방지) */
+  .dots::after { content:''; display:inline-block; width:14px; text-align:left; animation:dotsEll 1.1s steps(1,end) infinite; }
+  @keyframes dotsEll { 0%{content:'';} 25%{content:'.';} 50%{content:'..';} 75%{content:'...';} 100%{content:'';} }
+  .composer.refining .field input { opacity:.45; }
+  .composer.refining .field .ai { animation:aiPulse .8s ease-in-out infinite; color:var(--blue); }
+  @keyframes aiPulse { 0%,100%{opacity:.5; transform:scale(.88);} 50%{opacity:1; transform:scale(1.18);} }
   /* 레벨업 모달 */
   .lvlup { text-align:center; color:#fff; padding:4px 2px; }
   .lvlup .lu-glow { position:relative; }
@@ -866,6 +876,13 @@
 
   .toast { position:absolute; bottom:84px; left:50%; transform:translateX(-50%) translateY(20px); background:#14171F; color:#fff; padding:13px 18px; border-radius:14px; font-size:14px; font-weight:600; opacity:0; pointer-events:none; transition:opacity .25s,transform .25s; z-index:80; box-shadow:0 12px 30px rgba(0,0,0,.3); display:flex; align-items:center; gap:14px; max-width:330px; }
   .toast.show { opacity:1; transform:translateX(-50%) translateY(0); pointer-events:auto; }
+  /* 눌림 피드백 통일 — 탭하면 살짝 들어가요 (토스 느낌) */
+  .card, .lockcard, .recent-row, .act-chip, .team-alert, .nl-row, .classify-row, .tpl-card, .price-row, .sug-chip, .teach-btn, .tsrc, .invite, .photo-thumb, .member, .wk-card, .rc-card, .cf, .as-card.as-link, .contact-import, .ct-row, .addr-row, .srow { transition:transform .09s ease; }
+  .card:active, .lockcard:active, .recent-row:active, .act-chip:active, .team-alert:active, .nl-row:active, .classify-row:active, .tpl-card:active, .price-row:active, .sug-chip:active, .teach-btn:active, .tsrc:active, .invite:active, .photo-thumb:active, .member:active, .wk-card:active, .rc-card:active, .cf:active, .as-card.as-link:active, .contact-import:active, .ct-row:active, .addr-row:active, .srow:active { transform:scale(.98); }
+  button:active { transform:scale(.975); }
+  .toast.with-mascot { gap:10px; padding-left:11px; text-align:left; }
+  .toast .toast-mascot { width:34px; height:34px; border-radius:50%; background:radial-gradient(circle at 50% 38%, #fff, #EAF1FF); position:relative; overflow:hidden; flex:0 0 34px; box-shadow:inset 0 0 0 1px rgba(255,255,255,.15); }
+  .toast .toast-mascot .mascot { position:absolute; left:50%; top:64%; margin:0; transform:translate(-50%,-50%) scale(.32); animation:none; }
   .toast .ta { color:#7CB2FF; font-weight:800; cursor:pointer; flex:0 0 auto; }
   /* 브랜드 입력 모달 (native prompt 대체) */
   .imodal-scrim { position:absolute; inset:0; background:rgba(11,15,25,.5); opacity:0; pointer-events:none; transition:opacity .2s; z-index:90; }
@@ -944,6 +961,39 @@
   .call-acts { display:flex; gap:9px; margin-top:13px; }
   .call-acts button { flex:1; border:0; border-radius:13px; padding:14px 0; font-size:14.5px; font-weight:800; font-family:inherit; cursor:pointer; }
   .ca-edit { background:var(--bg); color:var(--t2); } .ca-send { background:var(--blue); color:#fff; }
+
+  /* ───────── 정기 문자 예약 ───────── */
+  .rc-card { background:#fff; border-radius:16px; box-shadow:var(--shadow); padding:14px 15px; margin-bottom:10px; }
+  .rc-card.off { opacity:.58; }
+  .rc-head { display:flex; align-items:center; gap:11px; }
+  .rc-ic { width:38px; height:38px; border-radius:11px; background:#E2F7F3; color:#0E9E90; display:flex; align-items:center; justify-content:center; flex:0 0 38px; }
+  .rc-ic .ico svg { width:19px; height:19px; }
+  .rc-t { flex:1; min-width:0; } .rc-name { font-size:14.5px; font-weight:800; } .rc-meta { font-size:11.5px; color:var(--t3); margin-top:2px; }
+  .rc-next { display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:800; color:#0E9E90; background:#E2F7F3; padding:5px 11px; border-radius:999px; margin-top:11px; }
+  .rc-next .ico svg { width:12px; height:12px; }
+  .rc-msg { font-size:12.5px; color:var(--t2); margin-top:9px; background:var(--bg); border-radius:11px; padding:9px 11px; line-height:1.5; }
+  .rc-foot { display:flex; align-items:center; gap:8px; margin-top:11px; }
+  .rc-mode { font-size:11px; font-weight:800; padding:3px 9px; border-radius:7px; }
+  .rc-mode.auto { background:#FFF3DF; color:#C9820B; } .rc-mode.confirm { background:var(--blue-tint); color:var(--blue-dark); }
+  .rc-edit { margin-left:auto; font-size:12.5px; font-weight:800; color:var(--t2); cursor:pointer; }
+  .rc-banner { background:linear-gradient(150deg,#0E9E90,#0B7D72); color:#fff; border-radius:16px; padding:15px 16px; margin-bottom:14px; }
+  .rc-banner .rb-t { font-size:13.5px; font-weight:800; }
+  .rc-banner .rb-s { font-size:12px; color:rgba(255,255,255,.85); margin-top:4px; line-height:1.45; }
+  .rc-preview { display:flex; align-items:center; gap:6px; background:#E2F7F3; color:#0B7D72; border-radius:11px; padding:10px 12px; font-size:12.5px; font-weight:800; margin-top:10px; line-height:1.4; }
+  .rc-preview .ico { flex:0 0 auto; } .rc-preview .ico svg { width:14px; height:14px; }
+  .rc-hint { font-size:11.5px; color:var(--t3); margin:0 2px 6px; line-height:1.45; }
+  /* 자동문자 시트 — 그룹 라벨 + 진입(drill-in) 카드 */
+  .as-group { font-size:12px; font-weight:800; color:var(--t3); margin:6px 2px 9px; }
+  .as-card.as-link { cursor:pointer; }
+  .as-card.as-link .as-tt { flex:1; }
+  .as-card.as-link .chev { margin-left:auto; color:var(--t3); flex:0 0 auto; } .as-card.as-link .chev .ico svg { width:18px; height:18px; }
+  /* 접기/펼치기 (수정할 때만 펼침) */
+  .as-card .as-head { cursor:pointer; }
+  .as-card .as-chev { color:var(--t3); flex:0 0 auto; display:flex; transition:transform .22s; }
+  .as-card .as-chev .ico svg { width:16px; height:16px; }
+  .as-card.open .as-chev { transform:rotate(90deg); }
+  .as-card .as-body { display:none; }
+  .as-card.open .as-body { display:block; margin-top:13px; }
   /* 견적/접수서 설정 (사장님) */
   .seg { display:flex; gap:5px; background:var(--bg); border-radius:12px; padding:4px; margin-top:7px; }
   .seg .sg { flex:1; text-align:center; padding:9px 3px; font-size:12.5px; font-weight:700; color:var(--t2); border-radius:9px; cursor:pointer; }
@@ -1000,6 +1050,7 @@
     &nbsp;·&nbsp;<a onclick="openQuote()" style="color:#3182F6;font-weight:700;cursor:pointer;text-decoration:underline">📄 고객 견적서 화면 보기</a>
     &nbsp;·&nbsp;<a onclick="showLogin()" style="color:#3182F6;font-weight:700;cursor:pointer;text-decoration:underline">🔑 로그인 화면 다시 보기</a>
     &nbsp;·&nbsp;<a onclick="switchTab('inbox');triggerPostCall()" style="color:#0E9E90;font-weight:700;cursor:pointer;text-decoration:underline">📞 통화 끝난 직후(반자동)→후속 문자</a>
+    &nbsp;·&nbsp;<a onclick="openRecurring()" style="color:#0E9E90;font-weight:700;cursor:pointer;text-decoration:underline">🔁 정기 문자 예약(방역 등)</a>
     <br/><br/>
     <b style="color:#0B0F19">🔔 푸시 알림 데모</b> — 폰 위에서 아래로 내려오는 배너 (밀어 올려 닫기):<br/>
     <a onclick="pushAll()" style="color:#7C5CFC;font-weight:800;cursor:pointer;text-decoration:underline">▶ 전체 흐름 재생</a>
@@ -1044,11 +1095,11 @@
         <div class="chat-scroll" id="chat-msgs"></div>
         <div class="chat-actions">
           <div class="act-chip" onclick="openEstimate()"><span class="ico" data-icon="doc"></span>견적 작성</div>
-          <div class="act-chip" onclick="toast('일정 잡기 — 캘린더에서 시공일 선택')"><span class="ico" data-icon="calendar"></span>일정 잡기</div>
-          <div class="act-chip" onclick="toast('계약금 안내문을 불러왔어요')"><span class="ico" data-icon="won"></span>계약금 안내</div>
+          <div class="act-chip" onclick="openAddSchedule()"><span class="ico" data-icon="calendar"></span>일정 잡기</div>
+          <div class="act-chip" onclick="insertDepositMsg()"><span class="ico" data-icon="won"></span>계약금 안내</div>
         </div>
         <div class="sug-area"><div class="sug-head"><span class="h"><span class="ico" data-icon="sparkle"></span>이렇게 답해보세요</span><span class="rfr" onclick="thinkSugs()"><span class="ico" data-icon="refresh"></span></span></div><div class="sug-scroll" id="sug-scroll"></div></div>
-        <div class="composer"><div class="field"><span class="ico ai" data-icon="sparkle" onclick="toast('AI가 문장을 다듬는 중…')"></span><input id="chat-input" placeholder="메시지 입력..." oninput="onType()" /><span class="ico cam" data-icon="camera"></span></div><div class="snd" onclick="sendFromComposer()"><span class="ico" data-icon="send"></span></div></div>
+        <div class="composer"><div class="field"><span class="ico ai" data-icon="sparkle" onclick="refineComposer()"></span><input id="chat-input" placeholder="메시지 입력..." oninput="onType()" /><span class="ico cam" data-icon="camera" onclick="attachChatPhoto()"></span></div><div class="snd" onclick="sendFromComposer()"><span class="ico" data-icon="send"></span></div></div>
       </div>
 
       <!-- 고객 상세 -->
@@ -1116,6 +1167,8 @@
       <div class="screen" id="s-tone"><div class="appbar"><div class="icobtn bare" onclick="switchTab('more')"><span class="ico" data-icon="back"></span></div><div class="title sm">내 말투 학습</div><span class="grow"></span><span class="tier-tag tier-pro">프로</span></div><div class="scroll" id="tone-body"></div></div>
       <!-- 일당·알바 수첩 -->
       <div class="screen" id="s-workers"><div class="appbar"><div class="icobtn bare" onclick="switchTab('more')"><span class="ico" data-icon="back"></span></div><div class="title sm">일당·알바 수첩</div><span class="grow"></span><div class="icobtn" onclick="openAddWorker()"><span class="ico" data-icon="plus"></span></div></div><div class="scroll" id="workers-body"></div></div>
+      <!-- 정기 문자 예약 -->
+      <div class="screen" id="s-recurring"><div class="appbar"><div class="icobtn bare" onclick="switchTab('more');openAutoSms()"><span class="ico" data-icon="back"></span></div><div class="title sm">정기 문자 예약</div><span class="grow"></span><div class="icobtn" onclick="openAddRecur()"><span class="ico" data-icon="plus"></span></div></div><div class="scroll" id="recurring-body"></div></div>
 
       <!-- 고객 관리 -->
       <div class="screen" id="s-customers"><div class="appbar"><div class="icobtn bare" onclick="switchTab('inbox')"><span class="ico" data-icon="back"></span></div><div class="title sm">고객 관리</div></div><div class="scroll" id="customers-body"></div></div>
@@ -1172,7 +1225,7 @@
           <div class="sec-sub">내 답장 재료</div>
           <div class="lockcard" onclick="openTemplates()"><span class="li"><span class="ico" data-icon="chat"></span></span><div class="lt"><div class="a">문자 템플릿</div><div class="b">자주 쓰는 문구 관리</div></div><span class="chev"><span class="ico" data-icon="chevright"></span></span></div>
           <div class="lockcard" onclick="openPricing()"><span class="li"><span class="ico" data-icon="won"></span></span><div class="lt"><div class="a">가격표</div><div class="b">견적 작성에 쓰이는 항목</div></div><span class="chev"><span class="ico" data-icon="chevright"></span></span></div>
-          <div class="lockcard" onclick="openAutoSms()"><span class="li"><span class="ico" data-icon="send"></span></span><div class="lt"><div class="a">자동 문자</div><div class="b">부재중 자동 응답 · 시공 D-1 · 도착 안내</div></div><span class="chev"><span class="ico" data-icon="chevright"></span></span></div>
+          <div class="lockcard" onclick="openAutoSms()"><span class="li"><span class="ico" data-icon="send"></span></span><div class="lt"><div class="a">자동 문자</div><div class="b">부재중 응답 · 시공 D-1 · 도착 안내 · 정기 문자</div></div><span class="chev"><span class="ico" data-icon="chevright"></span></span></div>
           <div class="lockcard" onclick="openToneLearn()"><span class="li" style="background:#F1ECFF;color:#7C5CFC"><span class="ico" data-icon="sparkle"></span></span><div class="lt"><div class="a">내 말투 학습</div><div class="b">나처럼 답하는 AI · 80% 학습됨</div></div><span class="tier-tag tier-pro">프로</span></div>
           <div class="sec-sub">앱 설정</div>
           <div class="lockcard" onclick="openNavSetting()"><span class="li gray"><span class="ico" data-icon="nav"></span></span><div class="lt"><div class="a">기본 네비 앱</div><div class="b" id="nav-app-sub">카카오내비</div></div><span class="chev"><span class="ico" data-icon="chevright"></span></span></div>
@@ -1380,7 +1433,25 @@ function openChat(id){ curChat=id; var c=chats[id]; document.getElementById('cha
 function renderSugs(compact){ var c=chats[curChat]; if(!c) return; document.getElementById('sug-scroll').innerHTML=c.sugs.map(function(s,i){ return '<div class="sug-chip '+(compact?'compact':'')+'" onclick="pickSug('+i+')"><div class="cl">'+s.lbl+'</div><div class="ct">'+s.t+'</div></div>'; }).join(''); }
 function pickSug(i){ var c=chats[curChat]; document.getElementById('chat-input').value=c.sugs[i].t; renderSugs(true); document.getElementById('chat-input').focus(); }
 function onType(){ renderSugs(document.getElementById('chat-input').value.trim().length>0); }
-function sendFromComposer(){ var inp=document.getElementById('chat-input'); var t=inp.value.trim(); if(!t) return; var s=document.getElementById('chat-msgs'); s.insertAdjacentHTML('beforeend','<div class="brow me"><span class="btime">방금</span><div class="bubble me">'+t+'</div></div>'); inp.value=''; renderSugs(false); s.scrollTop=s.scrollHeight; toast('보냈어요'); }
+var sendSeq=0;
+function sendFromComposer(){ var inp=document.getElementById('chat-input'); var t=inp.value.trim(); if(!t) return; var s=document.getElementById('chat-msgs'); var sid='snt'+(sendSeq++); s.insertAdjacentHTML('beforeend','<div class="brow me"><span class="btime" id="'+sid+'">보내는 중<span class="dots"></span></span><div class="bubble me">'+t+'</div></div>'); inp.value=''; renderSugs(false); s.scrollTop=s.scrollHeight; setTimeout(function(){ var el=document.getElementById(sid); if(el) el.innerHTML='전송됨 ✓'; }, 800); }
+// 채팅 입력창 — 카메라(현장사진 첨부) / AI 다듬기 / 계약금 안내문
+function attachChatPhoto(){ var s=document.getElementById('chat-msgs'); if(!s) return; s.insertAdjacentHTML('beforeend','<div class="brow me"><span class="btime">방금</span><div class="bubble me photo"><div class="ph"><span class="ico" data-icon="camera"></span></div></div></div>'); fillIcons(s); s.scrollTop=s.scrollHeight; toast('현장 사진을 첨부해 보냈어요 📷'); }
+function refineComposer(){
+  var inp=document.getElementById('chat-input'); var t=(inp.value||'').trim();
+  if(!t){ toast('먼저 보낼 메시지를 입력해주세요'); return; }
+  var comp=inp.closest('.composer'); if(comp) comp.classList.add('refining'); inp.setAttribute('readonly','readonly');
+  var box=document.getElementById('sug-scroll');
+  if(box){ box.innerHTML='<div class="think-row"><div class="mascot-xs">'+mascotMarkup()+'</div><div class="think-bubble"><span class="d"></span><span class="d"></span><span class="d"></span></div><span class="tk-t">막내가 사장님 말투로 다듬고 있어요</span></div>'; fillIcons(box); }
+  mascotToast('제가 사장님 말투로 다듬고 있어요<span class="dots"></span>', 4000);
+  setTimeout(function(){
+    var r=t; if(!/[!?~.…😊🙂👍🙏]$/.test(r)) r+=' 😊';
+    if(comp) comp.classList.remove('refining'); inp.removeAttribute('readonly');
+    inp.value=r; inp.focus(); renderSugs(true);
+    mascotToast('사장님 말투로 다듬었어요 ✨');
+  }, 1500);
+}
+function insertDepositMsg(){ var inp=document.getElementById('chat-input'); inp.value='계약금은 총 금액의 30%로, 입금 확인되면 시공일을 확정해 드려요 😊 계좌: 국민 123-45-6789 디테일라인'; renderSugs(true); inp.focus(); toast('계약금 안내문을 넣었어요 — 확인 후 보내세요'); }
 
 // 견적 시트
 function docName(t){ return t==='접수서'?'시공접수서':(t==='견적서'?'최종견적서':'시공신청서'); }
@@ -1445,7 +1516,7 @@ function sendQuoteLink(){
   var picked=estimateItems.filter(function(it){return it.on;});
   if(picked.length===0){ toast('항목을 한 개 이상 골라주세요'); return; }
   closeSheet();
-  toastAction('견적서 링크를 문자로 보냈어요 📩', '고객 화면 보기', openQuote);
+  sendingToast(1000, function(){ toastAction('견적서 링크를 문자로 보냈어요 📩', '고객 화면 보기', openQuote); });
 }
 function quotePicked(){ var p=estimateItems.filter(function(it){return it.on;}); return p.length?p:estimateItems.slice(0,3); }
 function openQuote(){
@@ -1632,7 +1703,7 @@ function openCustomer(id){
    +'<div class="cd-card"><div class="cd-label"><span class="ico" data-icon="chat"></span>대화 요약</div>'+c.sum.map(function(x){return '<div class="sum-li"><span class="sum-dot"></span>'+x+'</div>';}).join('')+'</div>'
    +'<div class="cd-card" onclick="editMemo(\''+id+'\')"><div class="cd-label"><span class="ico" data-icon="note"></span>메모<span class="memo-edit">'+(c.memo?'수정':'추가')+'</span></div><div class="memo-box'+(c.memo?'':' empty')+'">'+(c.memo||'현관 비번·주의사항·고객 특징 등을 메모해두세요')+'</div></div>'
    +(s?('<div class="cd-card"><div class="cd-label"><span class="ico" data-icon="won"></span>일정 · 정산</div><div class="kv"><span class="k">시공 예약</span><span class="v" style="color:var(--blue)">'+s.date+' (오늘) 09:00</span></div>'+(c.items?('<div class="cd-sub-label">견적 내역</div><div class="est-break">'+c.items.map(function(it){return '<div class="eb-row"><span>'+it.n+'</span><b>'+it.p+'만원</b></div>';}).join('')+'</div>'):('<div class="kv"><span class="k">시공 항목</span><span class="v">'+c.cat+'</span></div>'))+'<div class="job-pay">'+payChipsHtml(s,true)+'</div></div>'):('<div class="cd-card"><div class="cd-label"><span class="ico" data-icon="won"></span>일정 · 정산</div><div style="font-size:13.5px;color:var(--t2);line-height:1.6;margin:2px 0 13px">아직 견적·일정 전이에요.<br/>견적서를 보내 일정·계약금을 한 번에 잡아보세요.</div><button class="sheet-cta" style="margin:0" onclick="openEstimate()">견적서 보내기</button></div>'))
-   +'<div class="cd-card"><div class="cd-label"><span class="ico" data-icon="camera"></span>현장 사진</div><div class="ph-help">팀원이 올린 사진은 파란 이름표가 붙어요. 모든 사진은 사장님 계정에 저장돼요.</div><div class="photo-grid">'+photosHtml()+'</div></div>'
+   +'<div class="cd-card"><div class="cd-label"><span class="ico" data-icon="camera"></span>현장 사진</div><div class="ph-help">팀원이 올린 사진은 파란 이름표가 붙어요. 모든 사진은 사장님 계정에 저장돼요.</div><div class="photo-grid" id="photo-grid">'+photosHtml()+'</div></div>'
    +'<div class="lockcard" onclick="openBlog()"><span class="li"><span class="ico" data-icon="sparkle"></span></span><div class="lt"><div class="a">블로그 후기 글 만들기</div><div class="b">대화+사진으로 포스팅 글 자동 작성</div></div><span class="tier-tag tier-biz">비즈니스</span></div>'
    +'<div class="cd-link" onclick="openChat(\''+id+'\')"><span class="ico" data-icon="chat"></span>지난 문자 보기</div><div style="height:18px"></div>';
   document.getElementById('customer-body').innerHTML=html; showScreen('s-customer'); fillIcons();
@@ -1851,6 +1922,133 @@ function renderMissed(){
 }
 function openMissedView(){ missedAlert=false; renderMissed(); openChat(missedRec.cid); }
 
+// ───────── 정기 문자 예약 (방역·점검·안부 등 주기 발송) ─────────
+// anchor: 'visit' = 각 고객 시공/방역일 기준(각자 다른 날 발송) · 'fixed' = 고정일(다 같은 날)
+var recurMsgs=[
+  {id:'rc1', name:'월간 방역 안내', anchor:'visit', target:'방역 고객', count:24, anchorLabel:'방역일', cycle:'30일마다', todayN:3, weekN:11, time:'오전 10시',
+    msg:'{고객명}님, 디테일라인입니다 😊 방역한 지 한 달 됐어요. 이번 달 일정 잡아드릴까요? 편하신 날짜 알려주세요!', mode:'confirm', on:true},
+  {id:'rc2', name:'줄눈 안부 (분기)', anchor:'visit', target:'완료 고객', count:58, anchorLabel:'시공일', cycle:'90일마다', todayN:1, weekN:4, time:'오전 11시',
+    msg:'{고객명}님, 시공한 줄눈 잘 쓰고 계신가요? 곰팡이·들뜸 있으면 점검 도와드려요 🙂', mode:'confirm', on:true},
+  {id:'rc3', name:'명절 인사 (설·추석)', anchor:'fixed', target:'전체 고객', count:96, cycle:'명절마다', day:'명절 전날', next:'추석 9/24', dleft:null, time:'오전 9시',
+    msg:'{고객명}님, 풍성한 한가위 되세요! 올해도 깔끔하게 모시겠습니다 — 디테일라인 🙏', mode:'auto', on:true}
+];
+var recTargets=['방역 고객','완료 고객','전체 고객','직접 선택'];
+var recAnchors=['각 고객 시공일 기준','고정 날짜(다 같은 날)'];
+var recCycles=['30일마다','60일마다','90일마다','6개월마다','매년'];
+var recNew={anchor:'visit', cycle:'30일마다', mode:'confirm'};
+function openRecurring(){ renderRecurring(); showScreen('s-recurring'); }
+function recOf(id){ return recurMsgs.find(function(r){return r.id===id;}); }
+function recCardHtml(r){
+  var modeBadge = r.mode==='auto' ? '<span class="rc-mode auto">자동 발송</span>' : '<span class="rc-mode confirm">보내기 전 확인</span>';
+  var meta, nextTxt='';
+  if(r.anchor==='visit'){
+    meta = r.target+' '+r.count+'명 · 각 고객 '+r.anchorLabel+' +'+r.cycle;
+    if(r.on) nextTxt='<div class="rc-next"><span class="ico" data-icon="calendar"></span>오늘 '+r.todayN+'명 · 이번 주 '+r.weekN+'명 보낼 예정</div>';
+  } else {
+    meta = r.target+' '+r.count+'명 · '+r.cycle+' '+r.day+' '+r.time;
+    if(r.on) nextTxt='<div class="rc-next"><span class="ico" data-icon="calendar"></span>다음 발송 '+r.next+'</div>';
+  }
+  return '<div class="rc-card'+(r.on?'':' off')+'">'
+    +'<div class="rc-head"><span class="rc-ic"><span class="ico" data-icon="calendar"></span></span>'
+    +'<div class="rc-t"><div class="rc-name">'+r.name+'</div><div class="rc-meta">'+meta+'</div></div>'
+    +'<span class="tgl '+(r.on?'on':'')+'" onclick="toggleRecur(\''+r.id+'\')"></span></div>'
+    +nextTxt
+    +'<div class="rc-msg">'+r.msg+'</div>'
+    +'<div class="rc-foot">'+modeBadge+'<span class="rc-edit" onclick="editRecur(\''+r.id+'\')">문구·설정 수정</span></div></div>';
+}
+function renderRecurring(){
+  var visitOn=recurMsgs.filter(function(r){return r.on&&r.anchor==='visit';});
+  var todayTotal=visitOn.reduce(function(s,r){return s+(r.todayN||0);},0);
+  var banner = todayTotal
+    ? '<div class="rc-banner"><div class="rb-t">오늘 나갈 정기 문자 '+todayTotal+'명</div><div class="rb-s">'+visitOn.filter(function(r){return r.todayN>0;}).map(function(r){return r.name+' '+r.todayN+'명';}).join(' · ')+' · 각자 날짜에 맞춰 한 명씩 나가요</div></div>'
+    : '';
+  document.getElementById('recurring-body').innerHTML=
+    banner
+   +'<div class="info-note"><span class="ico" data-icon="calendar"></span><span>고객마다 시공·방역 날짜가 다르죠? <b>각 고객 날짜 기준</b>으로 잡으면 다 같은 날 보내는 게 아니라 <b>각자 때 맞춰 한 명씩</b> 나가요. (명절 인사처럼 다 같은 날 보낼 땐 ‘고정 날짜’) · <b>{고객명}</b> 자동 채움.</span></div>'
+   +'<div class="invite" onclick="openAddRecur()"><span class="ico" data-icon="plus"></span>정기 문자 만들기</div>'
+   +'<div class="sec-sub">예약된 정기 문자 '+recurMsgs.length+'개</div>'
+   +recurMsgs.map(recCardHtml).join('')
+   +'<div style="height:18px"></div>';
+  fillIcons(document.getElementById('recurring-body'));
+}
+function toggleRecur(id){ var r=recOf(id); r.on=!r.on; renderRecurring(); toast(r.on?'"'+r.name+'" 켰어요':'"'+r.name+'" 잠시 멈춤'); }
+function chipRow(label, items, selected, fn){
+  return '<div class="sheet-label">'+label+'</div><div class="fchips" style="flex-wrap:wrap;margin-bottom:6px">'
+    +items.map(function(it){ return '<span class="fchip '+(it===selected?'on':'')+'" onclick="'+fn+'(this,\''+it+'\')">'+it+'</span>'; }).join('')+'</div>';
+}
+function chipPick(el){ var p=el.parentNode; for(var i=0;i<p.children.length;i++) p.children[i].classList.remove('on'); el.classList.add('on'); }
+function recChips(items, sel, fn){ return '<div class="fchips" style="flex-wrap:wrap;margin-bottom:6px">'+items.map(function(it){ return '<span class="fchip '+(it===sel?'on':'')+'" onclick="'+fn+'(\''+it+'\')">'+it+'</span>'; }).join('')+'</div>'; }
+// 순서: 대상 → 기준 → 주기/발송일(구조화 + 미리보기) → 문구 → 방식
+function openAddRecur(){
+  recNew={target:'방역 고객', anchor:'visit', cycle:'30일마다', fixedType:'매월', fixedDay:'1일', fixedMonth:'1월', holiday:'추석', mode:'confirm'};
+  document.getElementById('sheet').innerHTML='<div class="grip"></div><h3>정기 문자 만들기</h3><div class="sh-sub">규칙만 정해두면 막내가 날짜를 계산해서 보내요.</div>'
+   +'<div class="sheet-label">이름</div><input class="sheet-input" id="rc-name" placeholder="예: 월간 방역 안내">'
+   +'<div class="sheet-label">보낼 대상</div><div id="rc-target">'+recChips(recTargets, recNew.target, 'recSetTarget')+'</div>'
+   +'<div class="sheet-label">언제 기준으로 보낼까요?</div><div id="rc-anchor">'+recChips(recAnchors, recAnchors[0], 'recSetAnchor')+'</div>'
+   +'<div id="rc-when">'+recWhenHtml()+'</div>'
+   +'<div class="sheet-label">보낼 문구 <span style="color:var(--t3);font-weight:600">· {고객명} 쓰면 자동 치환</span></div><textarea class="sheet-input" id="rc-msg" rows="3" placeholder="{고객명}님, 방역한 지 한 달 됐어요 😊 이번 달 일정 잡아드릴까요?"></textarea>'
+   +'<div class="sheet-label">발송 방식</div><div id="rc-mode">'+recChips(['보내기 전 확인','자동 발송'], '보내기 전 확인', 'recSetModeLabel2')+'</div>'
+   +'<button class="sheet-cta" onclick="addRecurSubmit()">예약하기</button>';
+  document.getElementById('scrim').classList.add('show'); document.getElementById('sheet').classList.add('show'); fillIcons(document.getElementById('sheet'));
+}
+function recSetTarget(v){ recNew.target=v; var t=document.getElementById('rc-target'); if(t) t.innerHTML=recChips(recTargets, v, 'recSetTarget'); }
+function recSetAnchor(v){ recNew.anchor=(v.indexOf('고정')>=0?'fixed':'visit'); var a=document.getElementById('rc-anchor'); if(a) a.innerHTML=recChips(recAnchors, v, 'recSetAnchor'); recRefreshWhen(); }
+function recSetModeLabel2(v){ recNew.mode=(v==='자동 발송'?'auto':'confirm'); var m=document.getElementById('rc-mode'); if(m) m.innerHTML=recChips(['보내기 전 확인','자동 발송'], v, 'recSetModeLabel2'); }
+function recSetModeLabel(el,v){ recNew.mode=(v==='자동 발송'?'auto':'confirm'); chipPick(el); }
+function recRefreshWhen(){ var w=document.getElementById('rc-when'); if(w){ w.innerHTML=recWhenHtml(); fillIcons(w); } }
+function recWhenHtml(){
+  var h='';
+  if(recNew.anchor==='visit'){
+    h+='<div class="sheet-label">주기 — 각 고객 날짜에서 이만큼 지나면</div>'+recChips(recCycles, recNew.cycle, 'recSetCycle');
+  } else {
+    h+='<div class="sheet-label">언제마다</div>'+recChips(['매월','매년','명절'], recNew.fixedType, 'recSetFixedType');
+    if(recNew.fixedType==='매월') h+='<div class="sheet-label">며칠에</div>'+recChips(['1일','5일','10일','15일','20일','25일','말일'], recNew.fixedDay, 'recSetFixedDay');
+    else if(recNew.fixedType==='매년') h+='<div class="sheet-label">몇 월</div>'+recChips(['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'], recNew.fixedMonth, 'recSetMonth')+'<div class="sheet-label">며칠</div>'+recChips(['1일','5일','10일','15일','20일','25일','말일'], recNew.fixedDay, 'recSetFixedDay');
+    else h+='<div class="sheet-label">어느 명절</div>'+recChips(['설날','추석','설·추석 둘 다'], recNew.holiday, 'recSetHoliday')+'<div class="rc-hint">음력이라 날짜가 매년 바뀌어요 — 앱이 양력으로 자동 계산해서 보내요.</div>';
+  }
+  h+='<div class="rc-preview"><span class="ico" data-icon="calendar"></span>'+recPreview()+'</div>';
+  return h;
+}
+function recPreview(){
+  if(recNew.anchor==='visit'){ return '각 고객 시공일에서 '+recNew.cycle.replace('마다','')+' 지난 날 오전 10시에 한 명씩 발송돼요'; }
+  if(recNew.fixedType==='매월') return '매월 '+recNew.fixedDay+' 오전 10시, 대상 고객에게 한 번에 발송돼요';
+  if(recNew.fixedType==='매년') return '매년 '+recNew.fixedMonth+' '+recNew.fixedDay+' 오전 10시에 발송돼요';
+  return recNew.holiday+' 전날 오전 9시에 발송돼요 (음력 자동 계산)';
+}
+function recSetCycle(v){ recNew.cycle=v; recRefreshWhen(); }
+function recSetFixedType(v){ recNew.fixedType=v; recRefreshWhen(); }
+function recSetFixedDay(v){ recNew.fixedDay=v; recRefreshWhen(); }
+function recSetMonth(v){ recNew.fixedMonth=v; recRefreshWhen(); }
+function recSetHoliday(v){ recNew.holiday=v; recRefreshWhen(); }
+function addRecurSubmit(){
+  var n=fval('rc-name'); if(!n){ toast('이름을 입력해주세요'); return; }
+  var msg=(document.getElementById('rc-msg').value||'').trim()||'{고객명}님, 안내 문자드려요 😊';
+  var cnt = recNew.target==='완료 고객'?58:(recNew.target==='전체 고객'?96:(recNew.target==='직접 선택'?12:24));
+  var base={id:'rc'+Date.now(), name:n, target:recNew.target, count:cnt, msg:msg, mode:recNew.mode, on:true, time:'오전 10시'};
+  if(recNew.anchor==='fixed'){
+    base.anchor='fixed'; base.dleft=null;
+    if(recNew.fixedType==='매월'){ base.cycle='매월'; base.day=recNew.fixedDay; base.next='매월 '+recNew.fixedDay; }
+    else if(recNew.fixedType==='매년'){ base.cycle='매년'; base.day=recNew.fixedMonth+' '+recNew.fixedDay; base.next=recNew.fixedMonth+' '+recNew.fixedDay; }
+    else { base.cycle='명절마다'; base.day=recNew.holiday+' 전날'; base.next=recNew.holiday; base.time='오전 9시'; }
+  } else {
+    base.anchor='visit'; base.anchorLabel='시공일'; base.cycle=recNew.cycle; base.todayN=2; base.weekN=7;
+  }
+  recurMsgs.push(base);
+  closeSheet(); renderRecurring(); toast('"'+n+'" 정기 문자를 예약했어요 ✅');
+}
+function editRecur(id){ var r=recOf(id);
+  var esub = r.anchor==='visit' ? (r.target+' '+r.count+'명 · 각 고객 '+r.anchorLabel+' +'+r.cycle) : (r.target+' '+r.count+'명 · '+r.cycle+' '+r.day);
+  document.getElementById('sheet').innerHTML='<div class="grip"></div><h3>'+r.name+'</h3><div class="sh-sub">'+esub+'</div>'
+   +'<div class="sheet-label">보낼 문구 <span style="color:var(--t3);font-weight:600">· {고객명} 자동 치환</span></div><textarea class="sheet-input" id="rc-emsg" rows="4">'+r.msg+'</textarea>'
+   +chipRow('발송 방식', ['보내기 전 확인','자동 발송'], (r.mode==='auto'?'자동 발송':'보내기 전 확인'), 'recSetModeLabel')
+   +'<button class="sheet-cta" onclick="editRecurSubmit(\''+id+'\')">저장</button>'
+   +'<div style="text-align:center;margin-top:12px;font-size:13px;color:var(--error);font-weight:700;cursor:pointer" onclick="delRecur(\''+id+'\')">이 정기 문자 삭제</div>';
+  recNew.mode=r.mode;
+  document.getElementById('scrim').classList.add('show'); document.getElementById('sheet').classList.add('show'); fillIcons(document.getElementById('sheet'));
+}
+function editRecurSubmit(id){ var r=recOf(id); r.msg=(document.getElementById('rc-emsg').value||'').trim()||r.msg; r.mode=recNew.mode; closeSheet(); renderRecurring(); toast('저장했어요'); }
+function delRecur(id){ var i=recurMsgs.findIndex(function(r){return r.id===id;}); if(i<0) return; var r=recurMsgs[i]; recurMsgs.splice(i,1); closeSheet(); renderRecurring(); toastAction('"'+r.name+'" 삭제됨','되돌리기',function(){ recurMsgs.splice(i,0,r); renderRecurring(); }); }
+
 // ── 통화 상담 정리 → 후속 문자 (에이닷 통화요약 → LLM 정리 → SMS) ──
 var callAlert=true;
 var callRec={ phone:'010-3456-7890', dur:'3분 12초', time:'방금', cid:'p3456' };
@@ -1874,7 +2072,7 @@ function openCallSummary(){
   document.getElementById('scrim').classList.add('show'); sheet.classList.add('show'); fillIcons(sheet);
 }
 function editCallDraft(){ inputSheet({title:'후속 문자 다듬기', multiline:true, value:callDraft, onSubmit:function(v){ callDraft=(v||'').trim()||callDraft; openCallSummary(); toast('수정했어요'); }}); }
-function sendCallFollow(){ callAlert=false; closeSheet(); renderCallSummary(); toast(callRec.phone+'님께 상담 정리 문자를 보냈어요 📩'); }
+function sendCallFollow(){ callAlert=false; closeSheet(); renderCallSummary(); sendingToast(1000, function(){ toast(callRec.phone+'님께 상담 정리 문자를 보냈어요 📩'); }); }
 // 통화 직후 반자동 진입 — 사장님 손은 ↑ 한 번, 나머지는 막내가
 function triggerPostCall(){
   var sheet=document.getElementById('sheet');
@@ -1894,7 +2092,7 @@ var pcTimer;
 function pullAdot(){
   var sheet=document.getElementById('sheet');
   sheet.innerHTML='<div class="grip"></div><div class="blog-gen"><div class="mascot-xs">'+mascotMarkup()+'</div><div class="think-bubble"><span class="d"></span><span class="d"></span><span class="d"></span></div></div>'
-   +'<div class="blog-gen-t">에이닷 통화 요약을 가져와<br/>상담 내용을 정리하고 있어요…</div>'
+   +'<div class="blog-gen-t">에이닷 통화 요약을 가져와<br/>상담 내용을 정리하고 있어요<span class="dots"></span></div>'
    +'<div class="blog-gen-s">통화 흐름 분석 + 후속 문자 작성 중</div>';
   fillIcons(sheet);
   clearTimeout(pcTimer); pcTimer=setTimeout(function(){ if(!sheet.classList.contains('show')) return; callAlert=true; renderCallSummary(); openCallSummary(); }, 1700);
@@ -2074,11 +2272,15 @@ var PUSH = {
   brief: { accent:'#3182F6', time:'오후 9:00', title:'오늘 하루 마감 브리핑 🌙',
     msg:'오늘 상담 8건 처리 · 새 고객 3명 · 잔금 1건 입금 완료',
     note:'내일 시공 1곳 — 강동 서사장님 09:00 · 아직 답장 못한 상담 1건',
-    btns:[{label:'오늘 정리 보기',primary:true,run:function(){switchTab('inbox');}}] }
+    btns:[{label:'오늘 정리 보기',primary:true,run:function(){switchTab('inbox');}}] },
+  // ⑨ 정기 문자 발송 전 확인 (확인 후 발송 모드)
+  recur: { accent:'#0E9E90', time:'오전 9:00', title:'오늘 방역 주기가 된 고객 3명', tag:'정기',
+    msg:'월간 방역 안내 · 오늘 한 달 된 고객 3명 · {고객명} 자동 채움 · 보내기 전에 한 번 봐주세요',
+    btns:[{label:'검토하고 보내기',primary:true,run:function(){toast('정기 문자 3명에게 보냈어요 📩');}},{label:'오늘은 건너뛰기',run:function(){}}] }
 };
 var pushQ=[], pushBusy=false, pushTimer=null, curPush=null;
 function pushKey(k){ if(PUSH[k]) pushBanner(PUSH[k]); }
-function pushAll(){ pushQ=[]; ['brief','sms','missed','quote','photo','d1','settle','level'].forEach(function(k){ pushQ.push(PUSH[k]); }); if(!pushBusy) nextPush(); }
+function pushAll(){ pushQ=[]; ['brief','sms','missed','quote','photo','d1','settle','recur','level'].forEach(function(k){ pushQ.push(PUSH[k]); }); if(!pushBusy) nextPush(); }
 function pushBanner(o){ pushQ.push(o); if(!pushBusy) nextPush(); }
 function nextPush(){
   if(!pushQ.length){ pushBusy=false; return; }
@@ -2150,17 +2352,24 @@ function openOnboard(){ obStep=0; renderOnboard(); document.getElementById('onbo
 // 로그인 → (신규면) 온보딩, (기존이면) 메인. 프리뷰는 온보딩으로 이어짐.
 function loginWith(p){
   var el=document.getElementById('login');
-  el.classList.add('hide');
-  setTimeout(function(){ el.style.display='none'; }, 440);
+  if(p==='skip'){ el.classList.add('hide'); setTimeout(function(){ el.style.display='none'; },440); return; }
+  var names={kakao:'카카오',naver:'네이버',google:'Google'};
+  el.insertAdjacentHTML('beforeend','<div class="login-loading" id="login-loading"><div class="mascot-xs">'+mascotMarkup()+'</div><div class="ll-t">'+names[p]+'(으)로 로그인 중<span class="dots"></span></div></div>');
+  fillIcons(document.getElementById('login-loading'));
+  setTimeout(function(){ el.classList.add('hide'); setTimeout(function(){ el.style.display='none'; var l=document.getElementById('login-loading'); if(l) l.remove(); },440); }, 1300);
   // 온보딩(#onboard)이 아래에 이미 떠 있어 자연스럽게 드러남.
 }
-function showLogin(){ var el=document.getElementById('login'); el.style.display='flex'; el.style.opacity=''; void el.offsetWidth; el.classList.remove('hide'); }
+function showLogin(){ var l=document.getElementById('login-loading'); if(l) l.remove(); var el=document.getElementById('login'); el.style.display='flex'; el.style.opacity=''; void el.offsetWidth; el.classList.remove('hide'); }
 
 function showScreen(id){ var ss=document.querySelectorAll('.screen'); for(var i=0;i<ss.length;i++) ss[i].classList.toggle('active', ss[i].id===id); }
 function switchTab(name){ showScreen('s-'+name); ['inbox','schedule','settle','stats','more'].forEach(function(n){ var el=document.getElementById('t-'+n); if(el) el.classList.toggle('on', n===name); }); if(name==='settle') renderSettle(); if(name==='stats') renderStats(); if(name==='inbox'){ renderTodayNew(); renderHero(); renderQuoteReply(); renderMissed(); renderCallSummary(); renderTeamPhoto(); } }
 
 var toastTimer;
-function toast(m){ var t=document.getElementById('toast'); t.innerHTML=m; t.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(function(){t.classList.remove('show');},1800); }
+function toast(m){ var t=document.getElementById('toast'); t.classList.remove('with-mascot'); t.innerHTML=m; t.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(function(){t.classList.remove('show');},1800); }
+// 막내가 직접 한 일이면 막내 얼굴이 같이 떠요
+function mascotToast(m, ms){ var t=document.getElementById('toast'); t.innerHTML='<span class="toast-mascot">'+mascotMarkup()+'</span><span>'+m+'</span>'; t.classList.add('with-mascot','show'); fillIcons(t); clearTimeout(toastTimer); toastTimer=setTimeout(function(){t.classList.remove('show');},ms||2000); }
+// "보내는 중…" 움직이는 점 → ms 뒤 done() 실행 (발송 직후 멈춤 느낌 방지)
+function sendingToast(ms, done){ var t=document.getElementById('toast'); t.classList.remove('with-mascot'); t.innerHTML='보내는 중<span class="dots"></span>'; t.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(function(){ if(done) done(); }, ms||950); }
 function toastAction(m, label, cb){ var t=document.getElementById('toast'); t.innerHTML='<span>'+m+'</span><span class="ta" id="toast-act">'+label+'</span>'; t.classList.add('show'); document.getElementById('toast-act').onclick=function(){ cb(); t.classList.remove('show'); clearTimeout(toastTimer); }; clearTimeout(toastTimer); toastTimer=setTimeout(function(){t.classList.remove('show');},4000); }
 
 // ───────── 현장 사진 / 블로그 ─────────
@@ -2170,13 +2379,14 @@ function photosHtml(){
     var badge = p.by ? '<span class="ph-by"><span class="ico" data-icon="phone"></span>'+p.by+'</span>' : '';
     return '<div class="photo-thumb"><span class="pl">'+p.label+'</span>'+badge+'</div>';
   }).join('');
-  return t + '<div class="photo-thumb add" onclick="toast(\'사진 추가 (촬영/앨범)\')"><span class="ico" data-icon="camera"></span><span style="font-size:11px">올리기</span></div>';
+  return t + '<div class="photo-thumb add" onclick="addSitePhoto()"><span class="ico" data-icon="camera"></span><span style="font-size:11px">올리기</span></div>';
 }
+function addSitePhoto(){ sitePhotos.push({label:'시공 후'}); var g=document.getElementById('photo-grid'); if(g){ g.innerHTML=photosHtml(); fillIcons(g); } toast('현장 사진을 추가했어요 📷'); }
 var blogTimer;
 function openBlog(){
   document.getElementById('sheet').innerHTML='<div class="grip"></div><h3>블로그 후기 글 만들기</h3>'
     +'<div class="blog-gen"><div class="mascot-xs">'+mascotMarkup()+'</div><div class="think-bubble"><span class="d"></span><span class="d"></span><span class="d"></span></div></div>'
-    +'<div class="blog-gen-t">사장님과 고객님의 문자 맥락으로<br/>블로그 글을 쓰고 있어요…</div>'
+    +'<div class="blog-gen-t">사장님과 고객님의 문자 맥락으로<br/>블로그 글을 쓰고 있어요<span class="dots"></span></div>'
     +'<div class="blog-gen-s">대화 흐름 + 현장 사진을 분석하는 중</div>';
   document.getElementById('scrim').classList.add('show'); document.getElementById('sheet').classList.add('show'); fillIcons(document.getElementById('sheet'));
   clearTimeout(blogTimer); blogTimer=setTimeout(renderBlogResult, 1800);
@@ -2184,7 +2394,7 @@ function openBlog(){
 function renderBlogResult(){
   var sheet=document.getElementById('sheet'); if(!sheet.classList.contains('show')) return;
   var title='[래미안강동팰리스] 줄눈 시공 후기';
-  var body='안녕하세요, 디테일라인 줄눈입니다 😊\n'
+  var body='안녕하세요, 디테일라인 줄눈입니다 😊\n'+''
     +'이번엔 강동구 천호동 래미안강동팰리스 욕실 2곳 줄눈 + 코킹 재시공을 진행했어요.\n\n'
     +'오래된 줄눈이 변색되고 곰팡이가 올라온 상태였는데요,\n'
     +'기존 줄눈을 깔끔히 제거하고 방수 코킹부터 새로 잡았습니다.\n\n'
@@ -2194,10 +2404,13 @@ function renderBlogResult(){
   sheet.innerHTML='<div class="grip"></div><h3>블로그 후기 글</h3><div class="sh-sub">대화 + 현장 사진으로 막내 비서가 초안을 썼어요. 그대로 올리거나 다듬어서 쓰세요.</div>'
     +'<div class="blog-title">'+title+'</div>'
     +'<div class="blog-body" id="blog-body">'+body+'</div>'
-    +'<div class="blog-actions"><button class="ba-copy" onclick="toast(\'제목+본문이 복사됐어요\')">복사하기</button><button class="ba-open" onclick="toast(\'네이버 블로그 앱 열기\')">블로그 앱으로</button></div>'
+    +'<div class="blog-actions"><button class="ba-copy" onclick="copyBlog()">복사하기</button><button class="ba-open" onclick="toast(\'네이버 블로그 앱 열기\')">블로그 앱으로</button></div>'
     +'<div class="q-alt" onclick="openBlog()" style="margin-top:13px">✦ 다시 생성하기</div>';
+  blogCopyText=title+'\n\n'+body;
   fillIcons(sheet);
 }
+var blogCopyText='';
+function copyBlog(){ try{ if(navigator.clipboard){ navigator.clipboard.writeText(blogCopyText); } }catch(e){} toast('제목+본문을 복사했어요 — 블로그에 붙여넣으세요'); }
 
 // ───────── 온보딩 (업종 다중선택 → 프로필 → 완료) ─────────
 var TRADES = ['줄눈','실리콘·코킹','도배','장판·마루','타일','욕실 리모델링','페인트·도색','인테리어 필름','방충망·모기장','중문·샷시','에어컨 설치·청소','입주·이사 청소','누수·방수','도어·현관','조명·전기'];
@@ -2379,16 +2592,20 @@ function openComplete(name, sid){
 function confirmComplete(name, kind){ closeModal(); toast(name+'님께 '+(kind||'문자')+' 발송 ✓ · 정산에 반영됐어요'); }
 function completeJob(name){ closeModal(); toast(name+' 시공을 완료 처리했어요 ✓'); }
 
+function toggleAutoCard(id){ var c=document.getElementById(id); if(c) c.classList.toggle('open'); }
 function openAutoSms(){
   document.getElementById('sheet').innerHTML='<div class="grip"></div><h3>자동 문자</h3><div class="sh-sub">전화·시공으로 바쁠 때 고객을 놓치지 않게 자동으로 챙겨요.</div>'
-   +'<div class="as-card"><div class="as-head"><span class="as-ic blue"><span class="ico" data-icon="phone"></span></span><div class="as-tt"><div class="as-t">부재중 자동 응답 <span class="as-badge">즉시 발송</span></div><div class="as-s">전화 못 받으면 자동으로 문자 발송</div></div><span class="tgl on" onclick="this.classList.toggle(\'on\')"></span></div>'
+   +'<div class="as-group">상황이 되면 자동으로</div>'
+   +'<div class="as-card" id="as-missed"><div class="as-head" onclick="toggleAutoCard(\'as-missed\')"><span class="as-ic blue"><span class="ico" data-icon="phone"></span></span><div class="as-tt"><div class="as-t">부재중 자동 응답 <span class="as-badge">즉시 발송</span></div><div class="as-s">전화 못 받으면 자동으로 문자 발송</div></div><span class="as-chev"><span class="ico" data-icon="chevright"></span></span><span class="tgl on" onclick="event.stopPropagation();this.classList.toggle(\'on\')"></span></div>'
      +'<div class="as-body"><div class="as-sub"><span class="dot new"></span>처음 연락한 고객 (신규)</div><textarea class="as-ta" style="height:88px">'+missedCallNew+'</textarea>'
      +'<div class="as-sub"><span class="dot ret"></span>다시 연락한 고객 (단골·기존)</div><textarea class="as-ta" style="height:78px">'+missedCallReturn+'</textarea>'
      +'<div class="as-note">전화를 못 받은 상황이라 확인 없이 바로 나가요. 같은 번호엔 하루 1번만 발송돼요.</div></div></div>'
-   +'<div class="as-card"><div class="as-head"><span class="as-ic amber"><span class="ico" data-icon="calendar"></span></span><div class="as-tt"><div class="as-t">시공 하루 전 안내 (D-1)</div><div class="as-s">보내기 전 확인받아요</div></div><span class="tgl on" onclick="this.classList.toggle(\'on\')"></span></div>'
+   +'<div class="as-card" id="as-d1"><div class="as-head" onclick="toggleAutoCard(\'as-d1\')"><span class="as-ic amber"><span class="ico" data-icon="calendar"></span></span><div class="as-tt"><div class="as-t">시공 하루 전 안내 (D-1)</div><div class="as-s">보내기 전 확인받아요</div></div><span class="as-chev"><span class="ico" data-icon="chevright"></span></span><span class="tgl on" onclick="event.stopPropagation();this.classList.toggle(\'on\')"></span></div>'
      +'<div class="as-body"><textarea class="as-ta" style="height:86px">'+autoSmsTemplate+'</textarea></div></div>'
-   +'<div class="as-card"><div class="as-head"><span class="as-ic green"><span class="ico" data-icon="pin"></span></span><div class="as-tt"><div class="as-t">현장 도착 안내 (5km)</div><div class="as-s">위치 기반 · 보내기 전 확인</div></div><span class="tgl on" onclick="this.classList.toggle(\'on\')"></span></div>'
+   +'<div class="as-card" id="as-arrival"><div class="as-head" onclick="toggleAutoCard(\'as-arrival\')"><span class="as-ic green"><span class="ico" data-icon="pin"></span></span><div class="as-tt"><div class="as-t">현장 도착 안내 (5km)</div><div class="as-s">위치 기반 · 보내기 전 확인</div></div><span class="as-chev"><span class="ico" data-icon="chevright"></span></span><span class="tgl on" onclick="event.stopPropagation();this.classList.toggle(\'on\')"></span></div>'
      +'<div class="as-body"><textarea class="as-ta" style="height:76px">'+arrivalTemplate+'</textarea><div class="as-note">위치 권한이 필요해요.</div></div></div>'
+   +'<div class="as-group">정해둔 주기로</div>'
+   +'<div class="as-card as-link" onclick="closeSheet();openRecurring()"><div class="as-head"><span class="as-ic" style="background:#E2F7F3;color:#0E9E90"><span class="ico" data-icon="calendar"></span></span><div class="as-tt"><div class="as-t">정기 문자 예약</div><div class="as-s">방역·점검·안부 — 각 고객 날짜 기준 주기 발송</div></div><span class="chev"><span class="ico" data-icon="chevright"></span></span></div></div>'
    +'<button class="sheet-cta" onclick="closeSheet();toast(\'자동 문자 설정을 저장했어요\')">저장</button>';
   document.getElementById('scrim').classList.add('show'); document.getElementById('sheet').classList.add('show'); fillIcons(document.getElementById('sheet'));
 }
@@ -2638,7 +2855,7 @@ function renderTone(){
   fillIcons(document.getElementById('tone-body'));
 }
 function toggleToneLearn(){ toneOn=!toneOn; renderTone(); toast(toneOn?'말투 학습을 켰어요 ✨ 추천이 사장님 말투로 바뀌어요':'말투 학습을 껐어요'); }
-function toneAddExample(){ inputSheet({title:'예문 추가', sub:'이런 상황엔 이렇게 답한다 — 막내가 그대로 배워요.', multiline:true, placeholder:'예: 계좌 물어보면 → "국민 123-45 디테일라인이에요 😊 입금 확인되면 바로 문자드릴게요!"', onSubmit:function(v){ v=(v||'').trim(); if(!v) return; toneExamples++; tonePct=Math.min(100,tonePct+1); renderTone(); toast('예문을 배웠어요 · 말투 학습 +1% ✨'); }}); }
+function toneAddExample(){ inputSheet({title:'예문 추가', sub:'이런 상황엔 이렇게 답한다 — 막내가 그대로 배워요.', multiline:true, placeholder:'예: 계좌 물어보면 → "국민 123-45 디테일라인이에요 😊 입금 확인되면 바로 문자드릴게요!"', onSubmit:function(v){ v=(v||'').trim(); if(!v) return; toneExamples++; tonePct=Math.min(100,tonePct+1); renderTone(); mascotToast('새 예문을 배웠어요! 말투 학습 +1% ✨'); }}); }
 function toneStyleSetting(){ inputSheet({title:'꼭 쓰는 인사말', sub:'답장 끝에 자동으로 붙일 시그니처예요.', value:'편하게 문의주세요!', onSubmit:function(v){ v=(v||'').trim(); renderTone(); toast('시그니처 인사를 저장했어요'); }}); }
 
 // ───────── 더보기: 상세 리포트 (비즈니스) ─────────
