@@ -182,6 +182,25 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         list.filter { SettlementCalc.hasMoney(it) }.count { SettlementCalc.rowOf(it).outstanding > 0 }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
+    // ────────────────────────────────────────────────────────
+    // 오늘 시공 히어로 + 다음 시공 (상담함 최상단, 2026-06-01)
+    // ────────────────────────────────────────────────────────
+
+    /** 오늘 예약된 시공들 (시간순). 비어있지 않으면 다크 히어로. */
+    val todayJobs: StateFlow<List<CustomerEntity>> = customers.map { list ->
+        list.filter { c -> c.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) == todayStart } == true }
+            .sortedBy { it.scheduledWorkDate ?: 0L }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** 다음 시공 = 오늘 이후 가장 가까운 날의 시공들 (1~3곳). 오늘 시공 없을 때 미리보기. */
+    val nextJobs: StateFlow<List<CustomerEntity>> = customers.map { list ->
+        val future = list.filter { (it.scheduledWorkDate ?: 0L) > todayEnd }
+        val minDay = future.mapNotNull { it.scheduledWorkDate }
+            .map { DateTimeUtils.startOfDay(it) }.minOrNull() ?: return@map emptyList()
+        future.filter { DateTimeUtils.startOfDay(it.scheduledWorkDate ?: 0L) == minDay }
+            .sortedBy { it.scheduledWorkDate ?: 0L }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     /**
      * "미확인" 판정 = phone suffix set.
      *

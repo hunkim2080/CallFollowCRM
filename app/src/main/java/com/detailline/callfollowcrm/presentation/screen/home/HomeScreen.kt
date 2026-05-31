@@ -129,6 +129,8 @@ fun HomeScreen(
     val weekScheduled by viewModel.thisWeekScheduledCount.collectAsState()
     val outstandingTotal by viewModel.outstandingTotal.collectAsState()
     val outstandingCount by viewModel.outstandingCount.collectAsState()
+    val todayJobs by viewModel.todayJobs.collectAsState()
+    val nextJobs by viewModel.nextJobs.collectAsState()
     val isInitialSmsLoading by viewModel.isInitialSmsLoading.collectAsState()
 
     // 서버 상태 indicator — AppContainer 의 ServerHealthMonitor 를 직접 구독.
@@ -436,6 +438,16 @@ fun HomeScreen(
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // 오늘 시공 히어로 — 시공 당일이면 맨 위 다크 카드(주소+길찾기), 없으면 다음 시공 미리보기.
+                item(key = "today-hero") {
+                    TodayHeroCard(
+                        todayJobs = todayJobs,
+                        nextJobs = nextJobs,
+                        onOpenCustomer = onOpenCustomerDetail,
+                        onNavigate = { phone -> launchNavigationFor(phone) }
+                    )
+                }
+
                 // KPI 3장 — 첫 item. 스크롤 시 위로 사라짐 (갤메시지 알림 박스 패턴).
                 //   2026-05-25: "견적 답대기" 카드 제거 — CustomerStatus enum 폐기 후 의미 X.
                 item(key = "kpi-section") {
@@ -604,6 +616,95 @@ fun HomeScreen(
  * KPI 4장 (2×2 그리드). LazyColumn 첫 item 으로 들어가서 스크롤 시 사라짐.
  * horizontal padding 은 LazyColumn 의 contentPadding 으로 들어가므로 안에서 X.
  */
+/**
+ * 오늘 시공 히어로 — 시공 당일이면 맨 위 다크 카드(고객·주소·길찾기).
+ *   없으면 "다음 시공" 미리보기(1~3곳) 또는 "오늘 없음" 긍정 카드. 2026-06-01.
+ */
+@Composable
+private fun TodayHeroCard(
+    todayJobs: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
+    nextJobs: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
+    onOpenCustomer: (Long) -> Unit,
+    onNavigate: (String) -> Unit
+) {
+    if (todayJobs.isNotEmpty()) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(TossTextPrimary)
+                .padding(18.dp)
+        ) {
+            Text(
+                "📍 오늘 시공 ${todayJobs.size}곳",
+                color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold
+            )
+            todayJobs.forEachIndexed { i, c ->
+                Spacer(Modifier.height(if (i == 0) 12.dp else 10.dp))
+                if (i > 0) {
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x22FFFFFF)))
+                    Spacer(Modifier.height(10.dp))
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(
+                        Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).clickable { onOpenCustomer(c.id) }
+                    ) {
+                        Text(
+                            c.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(c.phoneNumber),
+                            color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            c.address?.takeIf { it.isNotBlank() } ?: "주소 미등록 — 탭해서 등록",
+                            color = Color(0xFFB0B8C1), fontSize = 13.sp, maxLines = 1
+                        )
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Box(
+                        Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(TossBlue)
+                            .clickable { onNavigate(c.phoneNumber) }
+                            .padding(horizontal = 16.dp, vertical = 9.dp)
+                    ) {
+                        Text("길찾기", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    } else {
+        TossCard {
+            if (nextJobs.isNotEmpty()) {
+                val d = nextJobs.first().scheduledWorkDate ?: 0L
+                Column {
+                    Text("다음 시공", style = MaterialTheme.typography.labelMedium,
+                        color = TossTextSecondary, fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        "${DateTimeUtils.formatKoreanDate(d)} · ${DateTimeUtils.dDayLabel(d)}",
+                        fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    nextJobs.forEach { c ->
+                        Text(
+                            "· " + (c.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(c.phoneNumber)) +
+                                (c.address?.takeIf { it.isNotBlank() }?.let { " — $it" } ?: ""),
+                            style = MaterialTheme.typography.bodyMedium, color = TossTextSecondary, maxLines = 1
+                        )
+                    }
+                }
+            } else {
+                Column {
+                    Text("오늘은 예정된 시공이 없어요", style = MaterialTheme.typography.titleMedium,
+                        color = TossTextPrimary, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
+                    Text("밀린 상담·견적 챙기기 좋은 날 ☕", style = MaterialTheme.typography.bodySmall, color = TossTextTertiary)
+                }
+            }
+        }
+    }
+}
+
 /**
  * 홈 미수금 진입 카드 — "아직 못 받은 돈 OO원 · N곳" → 탭하면 정산 화면.
  *   미수 0 이면 긍정 프레이밍("모두 받았어요"). 정산 Phase 1 (2026-06-01).
