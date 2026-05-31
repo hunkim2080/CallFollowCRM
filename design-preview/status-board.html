@@ -225,18 +225,18 @@ var AREAS = [
  ]},
 
  {emo:'📓', name:'수첩', desc:'일당·거래처를 한 곳에서 관리', items:[
-   {n:'일당(알바·기공) 관리', s:'todo',
-    d:'일당 기사 추가·편집·삭제, 분류(보조/기공 등 본인 방식).',
-    a:'프로토 workers/workerRowHtml/catManage. 앱 미구현.'},
-   {n:'거래처 관리', s:'todo',
-    d:'자재상·협력사를 수첩에서 같이 관리.',
-    a:'프로토 vendors/vendorRowHtml. 앱 미구현.'},
+   {n:'일당(알바·기공) 관리', s:'done',
+    d:'일당 기사 추가·편집·삭제, 분류(보조/기공 등 자유) + 전화/문자.',
+    a:'<b>NotebookScreen</b>(설정→수첩, 2026-06-01). NotebookContactEntity(DB v21, kind=WORKER). CRUD + 전화/문자 인텐트.'},
+   {n:'거래처 관리', s:'done',
+    d:'자재상·협력사를 수첩에서 같이 관리(분류·메모·전화/문자).',
+    a:'같은 NotebookScreen [거래처] 탭(kind=VENDOR). 한 테이블에 kind로 통합.'},
    {n:'함께한 현장 목록', s:'todo',
     d:'이 사람이랑 같이 한 현장 N회 → 목록으로.',
-    a:'프로토 fullSites/openWorkerSites. 앱 미구현.'},
-   {n:'문자 작성 + 자주 쓰는 문구', s:'todo',
-    d:'일당/거래처에 바로 문자, 자주 쓰는 문구 저장·편집(일당용/거래처용 따로).',
-    a:'프로토 openSmsCompose/smsPhrases. 앱 미구현.'},
+    a:'프로토 fullSites/openWorkerSites. 일정↔수첩 연결(Phase 3 일당자동과 함께).'},
+   {n:'자주 쓰는 문구(일당/거래처)', s:'prog',
+    d:'문자는 바로 가능. 자주 쓰는 문구 저장·편집(일당용/거래처용 따로)은 아직.',
+    a:'문자=SMS 인텐트 동작. smsPhrases 저장 미구현.'},
  ]},
 
  {emo:'🧾', name:'견적 · 시공접수서', desc:'가격표 → 견적 → 접수서/견적서', items:[

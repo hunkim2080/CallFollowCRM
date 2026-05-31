@@ -52,9 +52,10 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         SpamPhoneEntity::class,
         SmsContactCacheEntity::class,
         com.detailline.callfollowcrm.data.local.entity.SuggestionEventEntity::class,
-        com.detailline.callfollowcrm.data.local.entity.ManualCashEntity::class
+        com.detailline.callfollowcrm.data.local.entity.ManualCashEntity::class,
+        com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity::class
     ],
-    version = 20,
+    version = 21,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -74,6 +75,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun smsContactCacheDao(): SmsContactCacheDao
     abstract fun suggestionEventDao(): com.detailline.callfollowcrm.data.local.dao.SuggestionEventDao
     abstract fun manualCashDao(): com.detailline.callfollowcrm.data.local.dao.ManualCashDao
+    abstract fun notebookContactDao(): com.detailline.callfollowcrm.data.local.dao.NotebookContactDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -433,6 +435,32 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v20 → v21: notebook_contacts 테이블 신설 (수첩 — 일당/거래처 통합).
+         *   순수 추가(additive). index 이름은 Entity 의 @Index name 과 일치.
+         */
+        private val MIGRATION_20_21 = object : Migration(20, 21) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS notebook_contacts (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        kind TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        phone TEXT NOT NULL DEFAULT '',
+                        tag TEXT NOT NULL DEFAULT '',
+                        memo TEXT NOT NULL DEFAULT '',
+                        createdAt INTEGER NOT NULL,
+                        updatedAt INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS idx_notebook_contacts_kind ON notebook_contacts(kind)"
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
@@ -444,7 +472,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                     MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15,
                     MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19,
-                    MIGRATION_19_20
+                    MIGRATION_19_20, MIGRATION_20_21
                 )
                 .fallbackToDestructiveMigration()   // migration 실패 시 안전망 (개발 단계)
                 .build()

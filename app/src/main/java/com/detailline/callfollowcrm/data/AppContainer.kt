@@ -60,6 +60,8 @@ class AppContainer(context: Context) {
     val spamPhoneRepository = com.detailline.callfollowcrm.data.repository.SpamPhoneRepository(db.spamPhoneDao())
     // 정산 Phase 2 (DB v20) — 직접 현금 기록.
     val manualCashRepository = com.detailline.callfollowcrm.data.repository.ManualCashRepository(db.manualCashDao())
+    // 수첩 (DB v21) — 일당/거래처.
+    val notebookRepository = com.detailline.callfollowcrm.data.repository.NotebookRepository(db.notebookContactDao())
     val smsContactCacheRepository = com.detailline.callfollowcrm.data.repository.SmsContactCacheRepository(db.smsContactCacheDao())
     // 2026-05-29 킬러콘텐츠 3단계 — chip 행동 시그널 저장 (DB v17).
     val suggestionEventRepository = com.detailline.callfollowcrm.data.repository.SuggestionEventRepository(db.suggestionEventDao())

@@ -37,6 +37,7 @@ object Destinations {
     const val SCHEDULE_ADD = "schedule_add"
     const val SETTLEMENT = "settlement"
     const val BUSINESS_INFO = "business_info"
+    const val NOTEBOOK = "notebook"
     const val AI_MESSAGE = "ai_message"
     const val STYLE_LEARNING = "style_learning"
 

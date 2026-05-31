@@ -94,7 +94,8 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onOpenTemplates: () -> Unit,
     onOpenPricingItems: () -> Unit,
-    onOpenBusinessInfo: () -> Unit = {}
+    onOpenBusinessInfo: () -> Unit = {},
+    onOpenNotebook: () -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
     val templates by viewModel.templates.collectAsState()
@@ -287,6 +288,20 @@ fun SettingsScreen(
                     )
                     Spacer(Modifier.height(10.dp))
                     TossPrimaryButton(text = "사업자정보 입력 / 수정", onClick = onOpenBusinessInfo)
+                }
+            }
+
+            TossCard {
+                Column {
+                    SectionLabel("수첩 (일당 · 거래처)")
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "같이 일하는 일당·알바, 자재상·협력 거래처를 한 곳에 모아 관리. 전화·문자 바로.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TossTextSecondary
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    TossPrimaryButton(text = "수첩 열기", onClick = onOpenNotebook)
                 }
             }
 
