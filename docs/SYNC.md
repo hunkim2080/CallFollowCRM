@@ -1363,3 +1363,12 @@ CREATE TABLE customer_personas (
 - 참고(서버): 통화 "요약 가져오기"(에이닷→요약→후속문자)는 상담함 "통화 요약 카드"=맥미니 영역으로 분리.
 - assembleDebug 성공.
 - 현황판: 채팅 4/7→5/7, 전체 41/52(79%).
+
+## 2026-06-02 01:10 · android
+정기문자 (예약 규칙 + 발송 대기 알림) — DB v25. 앱 단독.
+- 변경: 없음 (server/ 무관). DB v25 = recurring_messages + recurring_message_log (additive 2테이블).
+  - RecurringMessageEntity/LogEntity/Dao/Repository, RecurringDueCalc(순수+테스트 7).
+  - 설정→정기문자 RecurringMessagesScreen(규칙 CRUD), 홈 RecurringDueCard→RecurringDueScreen(보내기=채팅 prefill/넘기기).
+  - 정책: 자동발송 X(SEND_SMS 명시), WorkManager 미사용(포그라운드 계산=삼성 신뢰성).
+- assembleDebug + 테스트 통과.
+- 현황판: 상담함 5/9→6/9, 더보기 4/7→5/7, 전체 41/52→43/52(83%).

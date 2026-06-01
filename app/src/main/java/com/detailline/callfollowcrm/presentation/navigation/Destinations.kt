@@ -40,6 +40,8 @@ object Destinations {
     const val NOTEBOOK = "notebook"
     const val REPORT = "report"
     const val TRADE_SELECT = "trade_select"
+    const val RECURRING = "recurring"
+    const val RECURRING_DUE = "recurring_due"
     const val AI_MESSAGE = "ai_message"
     const val STYLE_LEARNING = "style_learning"
 

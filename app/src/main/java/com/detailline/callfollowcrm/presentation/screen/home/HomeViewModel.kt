@@ -210,6 +210,20 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // ────────────────────────────────────────────────────────
+    // 정기문자 "보낼 때 됐어요" 카운트 (상담함, 2026-06-01)
+    //   포그라운드 계산 (앱 열 때). 자동발송 X — 사장님이 목록에서 확인 후 보냄.
+    // ────────────────────────────────────────────────────────
+    val recurringDueCount: StateFlow<Int> = combine(
+        container.recurringMessageRepository.observeEnabledRules(),
+        customers,
+        container.recurringMessageRepository.observeLogs()
+    ) { rules, custs, logs ->
+        val keys = logs.map { Triple(it.ruleId, it.customerId, it.occurrenceDayStartMs) }.toSet()
+        com.detailline.callfollowcrm.domain.recurring.RecurringDueCalc
+            .computeDue(rules, custs, keys, todayStart).size
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    // ────────────────────────────────────────────────────────
     // 오늘 시공 히어로 + 다음 시공 (상담함 최상단, 2026-06-01)
     // ────────────────────────────────────────────────────────
 

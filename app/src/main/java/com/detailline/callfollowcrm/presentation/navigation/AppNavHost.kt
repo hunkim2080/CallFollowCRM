@@ -78,7 +78,8 @@ fun AppNavHost(
                 onOpenAiMessage = { navController.navigate(Destinations.AI_MESSAGE) },
                 onOpenStyleLearning = { navController.navigate(Destinations.STYLE_LEARNING) },
                 onOpenSettings = { navController.navigate(Destinations.SETTINGS) },
-                onOpenSettlement = { navController.navigate(Destinations.SETTLEMENT) }
+                onOpenSettlement = { navController.navigate(Destinations.SETTLEMENT) },
+                onOpenRecurringDue = { navController.navigate(Destinations.RECURRING_DUE) }
             )
         }
 
@@ -218,7 +219,8 @@ fun AppNavHost(
                 onOpenBusinessInfo = { navController.navigate(Destinations.BUSINESS_INFO) },
                 onOpenNotebook = { navController.navigate(Destinations.NOTEBOOK) },
                 onOpenReport = { navController.navigate(Destinations.REPORT) },
-                onOpenTradeSelect = { navController.navigate(Destinations.TRADE_SELECT) }
+                onOpenTradeSelect = { navController.navigate(Destinations.TRADE_SELECT) },
+                onOpenRecurring = { navController.navigate(Destinations.RECURRING) }
             )
         }
 
@@ -241,6 +243,24 @@ fun AppNavHost(
 
         composable(Destinations.TRADE_SELECT) {
             TradeSelectScreen(prefs = container.preferences, onBack = { navController.popBackStack() })
+        }
+
+        composable(Destinations.RECURRING) {
+            val vm: com.detailline.callfollowcrm.presentation.screen.recurring.RecurringMessagesViewModel =
+                viewModel(factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.recurring.RecurringMessagesViewModel(container) })
+            com.detailline.callfollowcrm.presentation.screen.recurring.RecurringMessagesScreen(
+                viewModel = vm, onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Destinations.RECURRING_DUE) {
+            val vm: com.detailline.callfollowcrm.presentation.screen.recurring.RecurringDueViewModel =
+                viewModel(factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.recurring.RecurringDueViewModel(container) })
+            com.detailline.callfollowcrm.presentation.screen.recurring.RecurringDueScreen(
+                viewModel = vm,
+                onBack = { navController.popBackStack() },
+                onOpenChat = { phone, customerId -> navController.navigate(Destinations.chat(phone, customerId)) }
+            )
         }
 
         composable(Destinations.PRICING_ITEMS) {

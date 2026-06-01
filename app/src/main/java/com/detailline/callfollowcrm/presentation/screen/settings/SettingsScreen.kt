@@ -97,7 +97,8 @@ fun SettingsScreen(
     onOpenBusinessInfo: () -> Unit = {},
     onOpenNotebook: () -> Unit = {},
     onOpenReport: () -> Unit = {},
-    onOpenTradeSelect: () -> Unit = {}
+    onOpenTradeSelect: () -> Unit = {},
+    onOpenRecurring: () -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
     val templates by viewModel.templates.collectAsState()
@@ -318,6 +319,20 @@ fun SettingsScreen(
                     )
                     Spacer(Modifier.height(10.dp))
                     TossPrimaryButton(text = "리포트 보기", onClick = onOpenReport)
+                }
+            }
+
+            TossCard {
+                Column {
+                    SectionLabel("정기문자")
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "시공 후 일정 기간마다 보낼 안부·점검 문자를 미리 정해두면, 보낼 때가 됐을 때 상담함에서 알려드려요. (자동 발송 X — 확인 후 발송)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TossTextSecondary
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    TossPrimaryButton(text = "정기문자 관리", onClick = onOpenRecurring)
                 }
             }
 

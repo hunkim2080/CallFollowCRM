@@ -117,7 +117,9 @@ fun HomeScreen(
     onOpenStyleLearning: () -> Unit,
     onOpenSettings: () -> Unit,
     /** 홈 "미수금" 카드 탭 → 정산 화면. 정산 Phase 1 (2026-06-01). */
-    onOpenSettlement: () -> Unit
+    onOpenSettlement: () -> Unit,
+    /** 홈 "정기문자 보낼 때 됐어요" 카드 탭 → 보낼 정기문자 목록. (2026-06-01) */
+    onOpenRecurringDue: () -> Unit = {}
 ) {
     val timeline by viewModel.timeline.collectAsState()
     val filter by viewModel.filterState.collectAsState()
@@ -132,6 +134,7 @@ fun HomeScreen(
     val todayJobs by viewModel.todayJobs.collectAsState()
     val nextJobs by viewModel.nextJobs.collectAsState()
     val autoReplies by viewModel.autoReplies.collectAsState()
+    val recurringDueCount by viewModel.recurringDueCount.collectAsState()
     val isInitialSmsLoading by viewModel.isInitialSmsLoading.collectAsState()
 
     // 서버 상태 indicator — AppContainer 의 ServerHealthMonitor 를 직접 구독.
@@ -483,6 +486,13 @@ fun HomeScreen(
                     }
                 }
 
+                // 정기문자 보낼 때 됐어요 — 있을 때만. 탭하면 보낼 목록으로. (2026-06-01)
+                if (recurringDueCount > 0) {
+                    item(key = "recurring-due-card") {
+                        RecurringDueCard(count = recurringDueCount, onClick = onOpenRecurringDue)
+                    }
+                }
+
                 if (timeline.isEmpty()) {
                     item(key = "empty-state") {
                         Box(
@@ -778,6 +788,38 @@ private fun OutstandingCard(
                 }
             }
             Icon(Icons.Default.ChevronRight, "정산 열기", tint = TossTextTertiary)
+        }
+    }
+}
+
+/**
+ * 정기문자 "보낼 때 됐어요" 진입 카드 — N건 있을 때만. 탭 → 보낼 정기문자 목록. (2026-06-01)
+ */
+@Composable
+private fun RecurringDueCard(count: Int, onClick: () -> Unit) {
+    TossCard(onClick = onClick) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(TossBlueSoft),
+                contentAlignment = Alignment.Center
+            ) { Text("🔁", fontSize = 18.sp) }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "정기문자 보낼 때 됐어요",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = TossTextSecondary, fontWeight = FontWeight.Medium
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "${count}건 — 확인하고 보내기",
+                    fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossBlue
+                )
+            }
+            Icon(Icons.Default.ChevronRight, "정기문자 목록", tint = TossTextTertiary)
         }
     }
 }
