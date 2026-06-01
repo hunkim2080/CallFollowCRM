@@ -42,6 +42,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
@@ -315,6 +316,20 @@ fun ChatScreen(
                     }
                 },
                 actions = {
+                    // 접수서 링크 보내기 (맥미니 §19) — 발급한 URL 을 메시지 본문에 prefill → 사장님 ▶ 직접.
+                    IconButton(onClick = {
+                        scope.launch {
+                            val body = viewModel.issueIntakeForm()
+                            if (body != null) {
+                                input = if (input.isBlank()) body else input + "\n" + body
+                                snackbar.showSnackbar("접수서 링크를 메시지에 넣었어요. ▶로 보내세요")
+                            } else {
+                                snackbar.showSnackbar("접수서 발급 실패 — 서버 연결을 확인하세요")
+                            }
+                        }
+                    }) {
+                        Icon(Icons.Default.Assignment, "접수서 링크", tint = TossTextSecondary)
+                    }
                     // 내 일정 확인 — 대화 중 빈 날/시공일 미니 달력으로 확인 (약속 잡기·현장 묶기).
                     IconButton(onClick = { myScheduleOpen = true }) {
                         Icon(Icons.Default.DateRange, "내 일정", tint = TossTextSecondary)

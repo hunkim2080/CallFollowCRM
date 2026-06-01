@@ -822,6 +822,19 @@ class ChatViewModel(
     }
 
     /**
+     * 시공접수서 링크 발급 (맥미니 §19). 성공 시 SMS 본문(안내 + URL) 반환, 실패 시 null.
+     *   자동발송 X — 호출부가 composer 에 prefill → 사장님이 ▶ 직접 발송.
+     */
+    suspend fun issueIntakeForm(): String? {
+        val name = customer.value?.name?.takeIf { it.isNotBlank() }
+        val issued = container.intakeFormRepository.issue(
+            phone = phoneNumber,
+            customerName = name
+        ).getOrNull() ?: return null
+        return "아래 링크에서 주소·시공 범위를 확인 부탁드려요 😊\n${issued.url}"
+    }
+
+    /**
      * AI 제안 박스의 [시공일 등록] 액션 (action_type=register_schedule) hookup.
      * Customer 없으면 upsert 후 등록. 다음 캐시 갱신 때 nextActionJson 도 다음 단계로 자동 전환됨.
      */
