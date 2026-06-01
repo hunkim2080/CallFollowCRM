@@ -95,7 +95,8 @@ fun SettingsScreen(
     onOpenTemplates: () -> Unit,
     onOpenPricingItems: () -> Unit,
     onOpenBusinessInfo: () -> Unit = {},
-    onOpenNotebook: () -> Unit = {}
+    onOpenNotebook: () -> Unit = {},
+    onOpenReport: () -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
     val templates by viewModel.templates.collectAsState()
@@ -302,6 +303,20 @@ fun SettingsScreen(
                     )
                     Spacer(Modifier.height(10.dp))
                     TossPrimaryButton(text = "수첩 열기", onClick = onOpenNotebook)
+                }
+            }
+
+            TossCard {
+                Column {
+                    SectionLabel("비즈니스 리포트")
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "이번 달 받은 돈·시공 현장 수·새 고객·현재 미수금을 한눈에. 기간 선택 가능.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TossTextSecondary
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    TossPrimaryButton(text = "리포트 보기", onClick = onOpenReport)
                 }
             }
 

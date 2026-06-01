@@ -32,6 +32,8 @@ import com.detailline.callfollowcrm.presentation.screen.settlement.SettlementVie
 import com.detailline.callfollowcrm.presentation.screen.business.BusinessInfoScreen
 import com.detailline.callfollowcrm.presentation.screen.notebook.NotebookScreen
 import com.detailline.callfollowcrm.presentation.screen.notebook.NotebookViewModel
+import com.detailline.callfollowcrm.presentation.screen.report.ReportScreen
+import com.detailline.callfollowcrm.presentation.screen.report.ReportViewModel
 import com.detailline.callfollowcrm.presentation.screen.stylelearning.StyleLearningScreen
 import com.detailline.callfollowcrm.presentation.screen.stylelearning.StyleLearningViewModel
 import com.detailline.callfollowcrm.presentation.screen.template.TemplateEditScreen
@@ -213,7 +215,8 @@ fun AppNavHost(
                 onOpenTemplates = { navController.navigate(Destinations.TEMPLATE_LIST) },
                 onOpenPricingItems = { navController.navigate(Destinations.PRICING_ITEMS) },
                 onOpenBusinessInfo = { navController.navigate(Destinations.BUSINESS_INFO) },
-                onOpenNotebook = { navController.navigate(Destinations.NOTEBOOK) }
+                onOpenNotebook = { navController.navigate(Destinations.NOTEBOOK) },
+                onOpenReport = { navController.navigate(Destinations.REPORT) }
             )
         }
 
@@ -227,6 +230,11 @@ fun AppNavHost(
         composable(Destinations.NOTEBOOK) {
             val vm: NotebookViewModel = viewModel(factory = viewModelFactory { NotebookViewModel(container) })
             NotebookScreen(viewModel = vm, onBack = { navController.popBackStack() })
+        }
+
+        composable(Destinations.REPORT) {
+            val vm: ReportViewModel = viewModel(factory = viewModelFactory { ReportViewModel(container) })
+            ReportScreen(viewModel = vm, onBack = { navController.popBackStack() })
         }
 
         composable(Destinations.PRICING_ITEMS) {
