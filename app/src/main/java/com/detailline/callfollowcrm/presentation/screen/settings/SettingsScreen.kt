@@ -38,6 +38,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -153,6 +162,21 @@ fun SettingsScreen(
             // 프로토 더보기 상단 — 막내 비서 카드 (캐릭터 모먼트). 학습 수치는 실제 보유값(톤 샘플) 표시.
             AgentMiniCard(toneSamples = toneSampleCount)
 
+            // 프로토 더보기 lockcard 그룹 — 주요 진입점 (아이콘 + 제목 + 부제 + 꺾쇠).
+            SettingsGroup("함께 일하는 사람") {
+                LockRow(Icons.Filled.Group, Color(0xFFFFF3DF), Color(0xFFF6A609), "수첩", "일당·알바 · 거래처 모아두기", onOpenNotebook)
+            }
+            SettingsGroup("장사 분석") {
+                LockRow(Icons.Filled.BarChart, TossBlueSoft, TossBlue, "비즈니스 리포트", "매출·시공·새 고객·미수금 한눈에", onOpenReport)
+            }
+            SettingsGroup("내 답장 재료") {
+                LockRow(Icons.AutoMirrored.Filled.Chat, TossBlueSoft, TossBlue, "문자 템플릿", "자주 쓰는 문구 관리", onOpenTemplates)
+                LockRow(Icons.Filled.Payments, TossBlueSoft, TossBlue, "가격표", "견적 작성에 쓰이는 항목", onOpenPricingItems)
+                LockRow(Icons.Filled.Description, TossBlueSoft, TossBlue, "견적서·사업자 정보", "상호·대표·사업자번호 · 견적서 자동 표시", onOpenBusinessInfo)
+                LockRow(Icons.AutoMirrored.Filled.Send, TossBlueSoft, TossBlue, "정기문자", "시공 후 안부·점검 문자 예약", onOpenRecurring)
+                LockRow(Icons.Filled.Category, TossBlueSoft, TossBlue, "내 업종", "업종에 맞춰 AI·가격표·시나리오", onOpenTradeSelect)
+            }
+
             // 0. 기본 메시지 앱 — 2026-05-29 Phase A 2단계 Day 5 enable.
             //    1단계 (자격 인프라) + 2단계 Day 1~4 (klinker 수신 + hook) 다 박혀서 이제 활성화 OK.
             //    토글 ON → RoleManager 다이얼로그 → 사장님 동의 → default 됨.
@@ -256,104 +280,7 @@ fun SettingsScreen(
                 }
             )
 
-            // 4. 문자 템플릿 / 가격표 — 진입점 2개
-            TossCard {
-                Column {
-                    SectionLabel("문자 템플릿")
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "고객에게 자주 보내는 문구 묶음. 채팅 화면 가로 알약 + AI 제안의 [후기 요청] 등에서 사용.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TossTextSecondary
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    TossPrimaryButton(text = "템플릿 보기 / 편집", onClick = onOpenTemplates)
-                }
-            }
-
-            TossCard {
-                Column {
-                    SectionLabel("가격표 관리")
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "AI 제안의 [견적 작성하기] 가 이 항목들을 체크리스트로 띄워요. 신축/구축 별로 관리.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TossTextSecondary
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    TossPrimaryButton(text = "가격표 보기 / 편집", onClick = onOpenPricingItems)
-                }
-            }
-
-            TossCard {
-                Column {
-                    SectionLabel("사업자정보")
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "상호·대표자·사업자등록번호·연락처·견적 유효기간. 견적서·시공접수서 발행에 자동으로 들어가요.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TossTextSecondary
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    TossPrimaryButton(text = "사업자정보 입력 / 수정", onClick = onOpenBusinessInfo)
-                }
-            }
-
-            TossCard {
-                Column {
-                    SectionLabel("수첩 (일당 · 거래처)")
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "같이 일하는 일당·알바, 자재상·협력 거래처를 한 곳에 모아 관리. 전화·문자 바로.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TossTextSecondary
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    TossPrimaryButton(text = "수첩 열기", onClick = onOpenNotebook)
-                }
-            }
-
-            TossCard {
-                Column {
-                    SectionLabel("비즈니스 리포트")
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "이번 달 받은 돈·시공 현장 수·새 고객·현재 미수금을 한눈에. 기간 선택 가능.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TossTextSecondary
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    TossPrimaryButton(text = "리포트 보기", onClick = onOpenReport)
-                }
-            }
-
-            TossCard {
-                Column {
-                    SectionLabel("정기문자")
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "시공 후 일정 기간마다 보낼 안부·점검 문자를 미리 정해두면, 보낼 때가 됐을 때 상담함에서 알려드려요. (자동 발송 X — 확인 후 발송)",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TossTextSecondary
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    TossPrimaryButton(text = "정기문자 관리", onClick = onOpenRecurring)
-                }
-            }
-
-            TossCard {
-                Column {
-                    SectionLabel("내 업종")
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "줄눈·도배·타일 등 내 업종(최대 3개). 업종에 맞춰 AI 답변·가격표·시나리오가 바뀌어요.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TossTextSecondary
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    TossPrimaryButton(text = "업종 선택 / 수정", onClick = onOpenTradeSelect)
-                }
-            }
+            // (위 lockcard 그룹으로 이동됨 — 문자 템플릿/가격표/사업자정보/수첩/리포트/정기문자/내 업종)
 
             // 앱 정보 footer
             AppFooter()
@@ -2063,6 +1990,50 @@ private fun AgentMiniCard(toneSamples: Int) {
                 )
             }
         }
+    }
+}
+
+/** 프로토 더보기 섹션 (라벨 + lockcard 묶음). */
+@Composable
+private fun SettingsGroup(label: String, content: @Composable () -> Unit) {
+    Column {
+        SectionLabel(label)
+        Spacer(Modifier.height(8.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { content() }
+    }
+}
+
+/** 프로토 .lockcard — 아이콘 박스 + 제목·부제 + 꺾쇠. */
+@Composable
+private fun LockRow(
+    icon: ImageVector,
+    iconBg: Color,
+    iconTint: Color,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(Color.White, RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier.size(38.dp).background(iconBg, RoundedCornerShape(11.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, null, tint = iconTint, modifier = Modifier.size(19.dp))
+        }
+        Spacer(Modifier.width(13.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+            Spacer(Modifier.height(2.dp))
+            Text(subtitle, fontSize = 12.5.sp, color = TossTextSecondary)
+        }
+        Icon(Icons.Filled.ChevronRight, null, tint = TossTextTertiary, modifier = Modifier.size(20.dp))
     }
 }
 
