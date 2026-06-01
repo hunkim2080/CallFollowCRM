@@ -59,7 +59,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.PaddingValues
 import com.detailline.callfollowcrm.data.AppContainer
+import com.detailline.callfollowcrm.presentation.component.Mascot
 import com.detailline.callfollowcrm.presentation.component.SectionLabel
 import com.detailline.callfollowcrm.presentation.component.TossCard
 import com.detailline.callfollowcrm.presentation.component.TossChip
@@ -124,7 +126,7 @@ fun SettingsScreen(
             TopAppBar(
                 title = {
                     Text(
-                        "설정",
+                        "더보기",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = TossTextPrimary
@@ -148,6 +150,9 @@ fun SettingsScreen(
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // 프로토 더보기 상단 — 막내 비서 카드 (캐릭터 모먼트). 학습 수치는 실제 보유값(톤 샘플) 표시.
+            AgentMiniCard(toneSamples = toneSampleCount)
+
             // 0. 기본 메시지 앱 — 2026-05-29 Phase A 2단계 Day 5 enable.
             //    1단계 (자격 인프라) + 2단계 Day 1~4 (klinker 수신 + hook) 다 박혀서 이제 활성화 OK.
             //    토글 ON → RoleManager 다이얼로그 → 사장님 동의 → default 됨.
@@ -2029,6 +2034,32 @@ private fun TemplateDropdown(
                         onSelect(t.id)
                         expanded = false
                     }
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 더보기 상단 막내 비서 카드 (프로토 .agent-card 간소화).
+ *   캐릭터(Mascot) + 이름 + 학습 안내. 학습 수치는 실제 보유값(사장님 톤 샘플 수).
+ */
+@Composable
+private fun AgentMiniCard(toneSamples: Int) {
+    TossCard(contentPadding = PaddingValues(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Mascot(sizeDp = 56.dp)
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text("막내 비서", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                Spacer(Modifier.height(4.dp))
+                Text("사장님 곁에서 말투를 배우고 있어요", fontSize = 13.sp, color = TossTextSecondary)
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    if (toneSamples > 0) "사장님 말투 ${toneSamples}개 학습 중" else "대화를 나눌수록 사장님처럼 답해요",
+                    fontSize = 11.5.sp,
+                    color = TossTextTertiary,
+                    fontWeight = FontWeight.SemiBold
                 )
             }
         }
