@@ -98,6 +98,17 @@ fun ReportScreen(
                         Spacer(Modifier.height(6.dp))
                         Text(MoneyFormatter.won(state.revenue), fontSize = 30.sp,
                             fontWeight = FontWeight.Bold, color = TossSuccess)
+                        state.revenueDeltaPct?.let { d ->
+                            Spacer(Modifier.height(6.dp))
+                            val up = d >= 0
+                            Text(
+                                (if (up) "▲ " else "▼ ") + "직전 대비 ${if (up) "+" else ""}$d% " +
+                                    "(${MoneyFormatter.won(state.prevRevenue)})",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (up) TossSuccess else TossError,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
                 }
             }

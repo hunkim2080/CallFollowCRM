@@ -26,15 +26,23 @@ class ReportViewModel(container: AppContainer) : ViewModel() {
     val state: StateFlow<ReportUiState> =
         combine(container.customerRepository.observeAll(), period) { customers, p ->
             val (from, to) = rangeOf(p)
+            val (prevFrom, prevTo) = prevRangeOf(p)
             var revenue = 0L
+            var prevRevenue = 0L
             var jobs = 0
             var newCustomers = 0
             var outstandingNow = 0L
             var paidOffNow = 0
             for (c in customers) {
                 val row = SettlementCalc.rowOf(c)
-                c.depositPaidAt?.let { if (it in from until to) revenue += row.depositAmount }
-                c.balancePaidAt?.let { if (it in from until to) revenue += row.balanceAmount }
+                c.depositPaidAt?.let {
+                    if (it in from until to) revenue += row.depositAmount
+                    if (it in prevFrom until prevTo) prevRevenue += row.depositAmount
+                }
+                c.balancePaidAt?.let {
+                    if (it in from until to) revenue += row.balanceAmount
+                    if (it in prevFrom until prevTo) prevRevenue += row.balanceAmount
+                }
                 c.scheduledWorkDate?.let { if (it in from until to) jobs++ }
                 if (c.createdAt in from until to) newCustomers++
                 if (SettlementCalc.hasMoney(c)) {
@@ -42,14 +50,28 @@ class ReportViewModel(container: AppContainer) : ViewModel() {
                     if (row.isPaidOff) paidOffNow++
                 }
             }
+            val deltaPct = if (prevRevenue > 0L) {
+                (((revenue - prevRevenue) * 100.0) / prevRevenue).toInt()
+            } else null
             ReportUiState(
                 revenue = revenue,
+                prevRevenue = prevRevenue,
+                revenueDeltaPct = deltaPct,
                 jobs = jobs,
                 newCustomers = newCustomers,
                 outstandingNow = outstandingNow,
                 paidOffNow = paidOffNow
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReportUiState())
+
+    /** 직전 동일 길이 기간 [from, to) — 전월/전기간 대비용. */
+    private fun prevRangeOf(p: ReportPeriod): Pair<Long, Long> {
+        val (from, to) = rangeOf(p)
+        val cal = Calendar.getInstance().apply { timeInMillis = from }
+        val months = when (p) { ReportPeriod.LAST_3M -> 3; else -> 1 }
+        val prevFrom = (cal.clone() as Calendar).apply { add(Calendar.MONTH, -months) }.timeInMillis
+        return prevFrom to from
+    }
 
     /** 기간 [from, to) epoch ms. now 기준. */
     private fun rangeOf(p: ReportPeriod): Pair<Long, Long> {
@@ -82,6 +104,9 @@ enum class ReportPeriod(val label: String) {
 
 data class ReportUiState(
     val revenue: Long = 0,
+    val prevRevenue: Long = 0,
+    /** 직전 기간 대비 매출 증감 %. 직전 매출 0 이면 null. */
+    val revenueDeltaPct: Int? = null,
     val jobs: Int = 0,
     val newCustomers: Int = 0,
     val outstandingNow: Long = 0,
