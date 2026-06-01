@@ -69,13 +69,21 @@ fun OnboardingPermissionScreen(onContinue: () -> Unit) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                     Box(
                         Modifier
-                            .size(72.dp)
+                            .size(112.dp)
                             .background(TossBlueSoft, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("✨", fontSize = 36.sp)
+                        com.detailline.callfollowcrm.presentation.component.Mascot(sizeDp = 96.dp)
                     }
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(10.dp))
+                    Box(
+                        Modifier.background(TossBlue, androidx.compose.foundation.shape.RoundedCornerShape(999.dp))
+                            .padding(horizontal = 12.dp, vertical = 5.dp)
+                    ) {
+                        Text("막내 비서 탄생!", color = androidx.compose.ui.graphics.Color.White,
+                            fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.height(14.dp))
                     Text(
                         "딸깍의 시대",
                         fontSize = 28.sp,
@@ -85,7 +93,7 @@ fun OnboardingPermissionScreen(onContinue: () -> Unit) {
                     )
                     Spacer(Modifier.height(10.dp))
                     Text(
-                        "사장님 말투를 학습하는 AI 가\n가장 자연스러운 답장을 미리 만들어요.",
+                        "사장님 말투를 배우는 막내 비서가\n가장 자연스러운 답장을 미리 만들어요.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = TossTextSecondary,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
