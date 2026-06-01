@@ -937,10 +937,28 @@ fun ChatScreen(
 
     // P3 — 견적서 작성기 (send_estimate 액션). 항목 체크 + 수량 + 자동 합산 → composer 본문 합성.
     if (showEstimateBuilder) {
+        val estCtx = androidx.compose.ui.platform.LocalContext.current
+        val estPrefs = remember {
+            (estCtx.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication).container.preferences
+        }
         EstimateBuilderDialog(
             items = pricingItems,
+            bizName = estPrefs.bizName,
+            bizOwner = estPrefs.bizOwner,
+            bizNo = estPrefs.bizNo,
+            bizPhone = estPrefs.bizPhone,
+            validDays = estPrefs.bizQuoteValidDays,
             onConfirm = { body ->
                 input = body
+                showEstimateBuilder = false
+            },
+            onShare = { body ->
+                runCatching {
+                    val send = android.content.Intent(android.content.Intent.ACTION_SEND)
+                        .setType("text/plain")
+                        .putExtra(android.content.Intent.EXTRA_TEXT, body)
+                    estCtx.startActivity(android.content.Intent.createChooser(send, "견적서 공유"))
+                }
                 showEstimateBuilder = false
             },
             onDismiss = { showEstimateBuilder = false }
@@ -2128,7 +2146,13 @@ private fun SendConfirmDialog(
 private fun EstimateBuilderDialog(
     items: List<com.detailline.callfollowcrm.data.local.entity.PricingItemEntity>,
     onConfirm: (String) -> Unit,
-    onDismiss: () -> Unit
+    onShare: (String) -> Unit,
+    onDismiss: () -> Unit,
+    bizName: String = "",
+    bizOwner: String = "",
+    bizNo: String = "",
+    bizPhone: String = "",
+    validDays: Int = 0
 ) {
     // 신축 (NEW) 기본. 구축 (OLD) 토글 가능. COMMON 항목은 둘 다.
     var buildingType by remember {
@@ -2225,23 +2249,35 @@ private fun EstimateBuilderDialog(
             }
         },
         confirmButton = {
-            TextButton(
-                onClick = {
-                    val body = buildEstimateBody(
-                        buildingType = buildingType,
-                        items = visibleItems,
-                        quantities = selectedQty.toMap(),
-                        totalSum = totalSum
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (anySelected) {
+                    TextButton(onClick = {
+                        onShare(
+                            buildEstimateBody(
+                                buildingType, visibleItems, selectedQty.toMap(), totalSum,
+                                bizName, bizOwner, bizNo, bizPhone, validDays
+                            )
+                        )
+                    }) { Text("공유", color = TossTextSecondary, fontWeight = FontWeight.Bold) }
+                    Spacer(Modifier.width(4.dp))
+                }
+                TextButton(
+                    onClick = {
+                        onConfirm(
+                            buildEstimateBody(
+                                buildingType, visibleItems, selectedQty.toMap(), totalSum,
+                                bizName, bizOwner, bizNo, bizPhone, validDays
+                            )
+                        )
+                    },
+                    enabled = anySelected
+                ) {
+                    Text(
+                        "견적서 만들기",
+                        color = if (anySelected) TossBlue else TossTextTertiary,
+                        fontWeight = FontWeight.Bold
                     )
-                    onConfirm(body)
-                },
-                enabled = anySelected
-            ) {
-                Text(
-                    "견적서 만들기",
-                    color = if (anySelected) TossBlue else TossTextTertiary,
-                    fontWeight = FontWeight.Bold
-                )
+                }
             }
         },
         dismissButton = {
@@ -2382,8 +2418,24 @@ private fun buildEstimateBody(
     buildingType: com.detailline.callfollowcrm.data.repository.PricingCategory,
     items: List<com.detailline.callfollowcrm.data.local.entity.PricingItemEntity>,
     quantities: Map<Long, Int>,
-    totalSum: Long
+    totalSum: Long,
+    bizName: String = "",
+    bizOwner: String = "",
+    bizNo: String = "",
+    bizPhone: String = "",
+    validDays: Int = 0
 ): String = buildString {
+    // 사업자정보 헤더 (설정 → 사업자정보 입력 시) — 정식 견적서.
+    if (bizName.isNotBlank()) {
+        append("[$bizName]\n")
+        val line2 = buildList {
+            if (bizOwner.isNotBlank()) add("대표 $bizOwner")
+            if (bizNo.isNotBlank()) add("사업자 $bizNo")
+        }.joinToString(" · ")
+        if (line2.isNotBlank()) append("$line2\n")
+        if (bizPhone.isNotBlank()) append("☎ $bizPhone\n")
+        append("──────────\n")
+    }
     append("${buildingType.label} 기준 견적입니다.\n")
     for (item in items) {
         val qty = quantities[item.id] ?: 0
@@ -2398,6 +2450,7 @@ private fun buildEstimateBody(
         append("\n")
     }
     append("합계 ${formatWon(totalSum)}\n")
+    if (validDays > 0 && bizName.isNotBlank()) append("\n* 견적 유효기간: 발행일로부터 ${validDays}일")
     append("\n실리콘 제거나 셀프줄눈 흔적 있으면 현장 확인 후 추가될 수 있어요.")
 }
 
