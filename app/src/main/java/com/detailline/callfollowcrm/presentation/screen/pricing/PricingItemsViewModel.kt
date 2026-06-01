@@ -18,23 +18,24 @@ class PricingItemsViewModel(private val container: AppContainer) : ViewModel() {
     val items = container.pricingItemRepository.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    fun add(title: String, price: Long, category: PricingCategory) {
+    fun add(title: String, price: Long, unit: String, category: PricingCategory) {
         if (title.isBlank() || price <= 0) return
         viewModelScope.launch {
             container.pricingItemRepository.insert(
                 title = title,
                 price = price,
                 category = category.name,
-                displayOrder = (items.value.maxOfOrNull { it.displayOrder } ?: 0) + 1
+                displayOrder = (items.value.maxOfOrNull { it.displayOrder } ?: 0) + 1,
+                unit = unit
             )
         }
     }
 
-    fun update(item: PricingItemEntity, title: String, price: Long, category: PricingCategory) {
+    fun update(item: PricingItemEntity, title: String, price: Long, unit: String, category: PricingCategory) {
         if (title.isBlank() || price <= 0) return
         viewModelScope.launch {
             container.pricingItemRepository.update(
-                item.copy(title = title.trim(), price = price, category = category.name)
+                item.copy(title = title.trim(), price = price, unit = unit, category = category.name)
             )
         }
     }

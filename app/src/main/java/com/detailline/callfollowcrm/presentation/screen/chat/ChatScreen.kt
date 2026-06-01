@@ -2189,6 +2189,7 @@ private fun EstimateBuilderDialog(
                         EstimateItemRow(
                             title = item.title,
                             price = item.price,
+                            unit = item.unit,
                             quantity = selectedQty[item.id] ?: 0,
                             onToggle = {
                                 val cur = selectedQty[item.id] ?: 0
@@ -2283,12 +2284,14 @@ private fun BuildingTypeChip(
 private fun EstimateItemRow(
     title: String,
     price: Long,
+    unit: String,
     quantity: Int,
     onToggle: () -> Unit,
     onIncrement: () -> Unit,
     onDecrement: () -> Unit
 ) {
     val checked = quantity > 0
+    val isPyeong = unit == com.detailline.callfollowcrm.data.local.entity.PricingItemEntity.UNIT_PYEONG
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -2322,15 +2325,18 @@ private fun EstimateItemRow(
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(title, color = TossTextPrimary, fontSize = 13.sp)
-            Text(formatWon(price), color = TossTextSecondary, fontSize = 11.sp)
+            Text(
+                formatWon(price) + if (isPyeong) " / 평" else "",
+                color = TossTextSecondary, fontSize = 11.sp
+            )
         }
-        // 수량 stepper (체크된 경우에만 노출)
+        // 수량(평수) stepper (체크된 경우에만 노출)
         if (checked) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 StepperButton("−", onClick = onDecrement)
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    "${quantity}",
+                    "${quantity}" + if (isPyeong) "평" else "",
                     color = TossTextPrimary,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
@@ -2382,8 +2388,13 @@ private fun buildEstimateBody(
     for (item in items) {
         val qty = quantities[item.id] ?: 0
         if (qty <= 0) continue
-        append("- ${item.title} ${formatWon(item.price)}")
-        if (qty > 1) append(" × ${qty}")
+        val isPyeong = item.unit == com.detailline.callfollowcrm.data.local.entity.PricingItemEntity.UNIT_PYEONG
+        if (isPyeong) {
+            append("- ${item.title} 평당 ${formatWon(item.price)} × ${qty}평 = ${formatWon(item.price * qty)}")
+        } else {
+            append("- ${item.title} ${formatWon(item.price)}")
+            if (qty > 1) append(" × ${qty}")
+        }
         append("\n")
     }
     append("합계 ${formatWon(totalSum)}\n")

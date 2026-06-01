@@ -178,8 +178,8 @@ fun PricingItemsScreen(
         PricingItemEditDialog(
             title = "항목 추가",
             initial = null,
-            onConfirm = { t, p, c ->
-                viewModel.add(t, p, c)
+            onConfirm = { t, p, u, c ->
+                viewModel.add(t, p, u, c)
                 showAddDialog = false
             },
             onDismiss = { showAddDialog = false }
@@ -190,8 +190,8 @@ fun PricingItemsScreen(
         PricingItemEditDialog(
             title = "항목 수정",
             initial = target,
-            onConfirm = { t, p, c ->
-                viewModel.update(target, t, p, c)
+            onConfirm = { t, p, u, c ->
+                viewModel.update(target, t, p, u, c)
                 editTarget = null
             },
             onDelete = {
@@ -258,7 +258,7 @@ private fun PricingItemRow(
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    formatWonShort(item.price),
+                    formatWonShort(item.price) + if (item.unit == PricingItemEntity.UNIT_PYEONG) " / 평" else "",
                     style = MaterialTheme.typography.bodyMedium,
                     color = TossBlue.copy(alpha = alpha)
                 )
@@ -281,7 +281,7 @@ private fun PricingItemRow(
 private fun PricingItemEditDialog(
     title: String,
     initial: PricingItemEntity?,
-    onConfirm: (String, Long, PricingCategory) -> Unit,
+    onConfirm: (String, Long, String, PricingCategory) -> Unit,
     onDelete: (() -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
@@ -289,6 +289,7 @@ private fun PricingItemEditDialog(
     var priceInput by remember(initial?.id) {
         mutableStateOf(initial?.price?.takeIf { it > 0 }?.toString().orEmpty())
     }
+    var unit by remember(initial?.id) { mutableStateOf(initial?.unit ?: PricingItemEntity.UNIT_FLAT) }
     var category by remember(initial?.id) {
         mutableStateOf(
             initial?.category?.let { name ->
@@ -311,13 +312,29 @@ private fun PricingItemEditDialog(
                         placeholder = "예: 욕조 있는 화장실 바닥 1곳"
                     )
                 }
-                LabeledField(label = "가격 (원)") {
+                LabeledField(label = if (unit == PricingItemEntity.UNIT_PYEONG) "평당 단가 (원)" else "가격 (원)") {
                     InputBox(
                         value = priceInput,
                         onValueChange = { v -> priceInput = v.filter { it.isDigit() } },
                         placeholder = "예: 400000",
                         keyboardType = KeyboardType.Number
                     )
+                }
+                LabeledField(label = "단위") {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        CategoryChip(
+                            label = "정액 (개당)",
+                            selected = unit == PricingItemEntity.UNIT_FLAT,
+                            onClick = { unit = PricingItemEntity.UNIT_FLAT },
+                            modifier = Modifier.weight(1f)
+                        )
+                        CategoryChip(
+                            label = "평당",
+                            selected = unit == PricingItemEntity.UNIT_PYEONG,
+                            onClick = { unit = PricingItemEntity.UNIT_PYEONG },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
                 LabeledField(label = "카테고리") {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -342,7 +359,7 @@ private fun PricingItemEditDialog(
         confirmButton = {
             TextButton(
                 onClick = {
-                    if (canSave) onConfirm(titleInput.trim(), priceLong, category)
+                    if (canSave) onConfirm(titleInput.trim(), priceLong, unit, category)
                 },
                 enabled = canSave
             ) {

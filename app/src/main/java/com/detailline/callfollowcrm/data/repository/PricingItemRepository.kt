@@ -16,13 +16,15 @@ class PricingItemRepository(private val dao: PricingItemDao) {
         title: String,
         price: Long,
         category: String,
-        displayOrder: Int = 0
+        displayOrder: Int = 0,
+        unit: String = PricingItemEntity.UNIT_FLAT
     ): Long {
         val now = System.currentTimeMillis()
         return dao.insert(
             PricingItemEntity(
                 title = title.trim(),
                 price = price,
+                unit = unit,
                 category = category,
                 displayOrder = displayOrder,
                 isActive = true,
