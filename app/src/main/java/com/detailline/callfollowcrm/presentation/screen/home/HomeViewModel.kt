@@ -411,8 +411,19 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         val newTodaySuffixes: Set<String>
     )
 
+    /**
+     * 대기 카드에서 홈 1탭 발송한 직후 그 suffix 를 미확인에서 즉시 제외 (낙관적).
+     *   다음 실제 SMS 스캔에서 lastSent=true 가 되면 자연히 빠지므로, 그때까지의 임시 제외.
+     */
+    private val _repliedSuffixes = MutableStateFlow<Set<String>>(emptySet())
+
+    /** 미확인에서 빼야 할 suffix = 스팸(영구) ∪ 방금 답장(임시). */
+    private val excludedForUnconfirmed: StateFlow<Set<String>> =
+        combine(spamSuffixes, _repliedSuffixes) { spam, replied -> spam + replied }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
     private val timelineFlags: StateFlow<TimelineFlags> = combine(
-        smsContactsState, missedRecent, phonesWithCallsBeforeToday, spamSuffixes, scheduledCustomerSuffixes
+        smsContactsState, missedRecent, phonesWithCallsBeforeToday, excludedForUnconfirmed, scheduledCustomerSuffixes
     ) { smsContacts, missed, callsBefore, spam, scheduled ->
         TimelineFlags(
             unconfirmedSuffixes = unconfirmedSuffixes(smsContacts, missed, spam, scheduled),
@@ -651,6 +662,59 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 }
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    // ── 대기 카드 AI 추천 답변 (프로토 sugbox + 홈 1탭 발송) ──────────────
+    /** suffix → 서버가 준비한 추천 답변 1순위 텍스트. 있으면 대기 카드에 미리보기 + 비행기 버튼. */
+    private val _waitingReplies = MutableStateFlow<Map<String, String>>(emptyMap())
+    val waitingReplies: StateFlow<Map<String, String>> = _waitingReplies
+
+    /** 이미 fetch 시도한 suffix (중복 호출 방지). */
+    private val fetchedReplySuffixes = java.util.Collections.synchronizedSet(HashSet<String>())
+
+    init {
+        // 미확인(대기) 고객마다 서버 추천 답변을 한 번씩 조회 → 준비돼 있으면 카드에 노출.
+        //   서버는 SMS 수신 시 이미 prepare 해두므로 보통 READY. MISSING 이면 조용히 스킵(채팅에서 ↻).
+        viewModelScope.launch {
+            timeline.collect { groups ->
+                val unconfirmed = groups.flatMap { it.items }.filter { it.isUnconfirmed }
+                for (item in unconfirmed) {
+                    val phone = item.record.phoneNumber
+                    val suffix = phoneSuffix(phone)
+                    if (!fetchedReplySuffixes.add(suffix)) continue
+                    launch(Dispatchers.IO) {
+                        val top = runCatching {
+                            container.suggestionRepository.fetch(phone).getOrNull()
+                                ?.suggestions?.suggestions?.firstOrNull()?.text
+                        }.getOrNull()
+                        if (!top.isNullOrBlank()) {
+                            _waitingReplies.value = _waitingReplies.value + (suffix to top)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * 대기 카드에서 추천 답변을 홈에서 바로 발송한 직후 호출 (발송 자체는 화면이 SmsSender 로).
+     *   발송 기록 남기고, 그 카드를 미확인에서 즉시 제외 + 추천 미리보기 제거.
+     */
+    fun onWaitingReplySent(phone: String, body: String, customerId: Long?) {
+        val suffix = phoneSuffix(phone)
+        _repliedSuffixes.value = _repliedSuffixes.value + suffix
+        _waitingReplies.value = _waitingReplies.value - suffix
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                container.messageHistoryRepository.recordAutoSend(
+                    phoneNumber = phone,
+                    customerId = customerId,
+                    templateId = null,
+                    body = body,
+                    status = com.detailline.callfollowcrm.domain.model.MessageStatus.INLINE_SENT
+                )
+            }
+        }
+    }
 
     companion object {
         /** 한 페이지 = 20개. 사장님 요청 (2026-05-24). */

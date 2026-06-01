@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Block
@@ -146,6 +147,7 @@ fun HomeScreen(
     val filter by viewModel.filterState.collectAsState()
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val aiCardSummaries by viewModel.cardSummariesByPhoneSuffix.collectAsState()
+    val waitingReplies by viewModel.waitingReplies.collectAsState()
     val categoriesById by viewModel.categories.collectAsState()
     val todayNew by viewModel.todayNewInquiryCount.collectAsState()
     val yesterdayNew by viewModel.yesterdayNewInquiryCount.collectAsState()
@@ -559,11 +561,33 @@ fun HomeScreen(
                                 }
                             },
                             content = {
+                                val reply = waitingReplies[suffix]
+                                val custName = item.customer?.name?.takeIf { it.isNotBlank() }
+                                    ?: PhoneNumberFormatter.format(item.record.phoneNumber)
                                 WaitingCard(
                                     item = item,
                                     aiSummary = aiCardSummaries[suffix],
+                                    suggestedReply = reply,
                                     onOpenChat = { onOpenChat(item.record.phoneNumber, item.customer?.id) },
-                                    onCall = { dialHome(context, item.record.phoneNumber) }
+                                    onCall = { dialHome(context, item.record.phoneNumber) },
+                                    onQuickSend = {
+                                        val body = reply
+                                        if (!body.isNullOrBlank()) {
+                                            val ok = com.detailline.callfollowcrm.util.SmsSender
+                                                .sendDirect(context, item.record.phoneNumber, body)
+                                            if (ok) {
+                                                viewModel.onWaitingReplySent(item.record.phoneNumber, body, item.customer?.id)
+                                                scope.launch {
+                                                    snackbarHostState.showSnackbar("$custName 님께 보냈어요 📩", duration = SnackbarDuration.Short)
+                                                }
+                                            } else {
+                                                scope.launch {
+                                                    snackbarHostState.showSnackbar("문자 권한이 없어요 — 채팅에서 보내주세요", duration = SnackbarDuration.Short)
+                                                }
+                                                onOpenChat(item.record.phoneNumber, item.customer?.id)
+                                            }
+                                        }
+                                    }
                                 )
                             }
                         )
@@ -1655,8 +1679,10 @@ private fun dialHome(context: android.content.Context, phone: String) {
 private fun WaitingCard(
     item: HomeItem,
     aiSummary: String?,
+    suggestedReply: String?,
     onOpenChat: () -> Unit,
-    onCall: () -> Unit
+    onCall: () -> Unit,
+    onQuickSend: () -> Unit
 ) {
     val isNew = item.isNewToday
     val heatColor = when {
@@ -1704,28 +1730,58 @@ private fun WaitingCard(
                 Icon(Icons.Default.Call, "전화", tint = TossTextSecondary, modifier = Modifier.size(17.dp))
             }
         }
+        // preview — 대화 요약 한 줄 (프로토 .preview).
         if (!aiSummary.isNullOrBlank()) {
             Spacer(Modifier.height(9.dp))
             Text(aiSummary, fontSize = 13.5.sp, color = TossTextSecondary, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        }
+        Spacer(Modifier.height(11.dp))
+        if (!suggestedReply.isNullOrBlank()) {
+            // 프로토 sugbox — ✨ AI 추천 답변 + 본문 + 비행기(1탭 발송).
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFFEEF4FF))
+                    .padding(12.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.AutoAwesome, null, tint = TossBlue, modifier = Modifier.size(13.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text("AI 추천 답변", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+                }
+                Spacer(Modifier.height(7.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        suggestedReply, fontSize = 13.5.sp, color = TossTextSecondary,
+                        maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Box(
+                        Modifier.size(40.dp).clip(androidx.compose.foundation.shape.CircleShape).background(TossBlue)
+                            .clickable { onQuickSend() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.Send, "보내기", tint = Color.White, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
         } else {
-            // 프로토 waitingCardHtml 의 'preparing' 변형 — 요약/추천 준비 전.
-            Spacer(Modifier.height(9.dp))
+            // 프로토 preparing — 추천 준비 전: "AI 답변 준비 중…" + [답장하기].
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.AutoAwesome, null, tint = TossTextTertiary, modifier = Modifier.size(13.dp))
                 Spacer(Modifier.width(5.dp))
                 Text("AI 답변 준비 중…", fontSize = 13.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
-            }
-        }
-        Spacer(Modifier.height(13.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Spacer(Modifier.weight(1f))
-            Box(
-                Modifier
-                    .border(1.5.dp, Color(0xFFDCE7FB), RoundedCornerShape(999.dp))
-                    .clickable { onOpenChat() }
-                    .padding(horizontal = 15.dp, vertical = 8.dp)
-            ) {
-                Text("답장하기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                Spacer(Modifier.weight(1f))
+                Box(
+                    Modifier
+                        .border(1.5.dp, Color(0xFFDCE7FB), RoundedCornerShape(999.dp))
+                        .clickable { onOpenChat() }
+                        .padding(horizontal = 15.dp, vertical = 8.dp)
+                ) {
+                    Text("답장하기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                }
             }
         }
     }

@@ -1796,3 +1796,9 @@ CREATE TABLE intake_forms (
 - 변경: SimpleDueCard(일반 파란칩) → InboxAlert(team-alert: 좌측 4px 강조선 + 아이콘박스 + 제목/태그 + 부제 + go칩). 색상별 변형(견적회신=보라/recur=앰버/시공안내=초록). 순서 = 프로토 슬롯(견적회신→자동답장→정기문자→시공안내). 대기카드 요약 없을 때 "✨ AI 답변 준비 중…" 추가(프로토 preparing 변형).
 - 보류: quote/pending(접수서)·call(통화내용)·team-photo(팀)=서버/팀 의존 → 데이터 생기면 노출. 대기카드 AI 추천답변 quick-send(send-fab)=홈에서 SMS 직발 → 발송정책상 사장님 확인 후 결정.
 - DB 변경 없음. commit: (아래)
+
+## 2026-06-02 · android (6)
+대기 카드 AI 추천 답변 홈 1탭 발송 (프로토 sugbox + send-fab) — 사장님 결정(옵션2).
+- 변경: HomeViewModel.waitingReplies(suffix→추천1순위, suggestionRepository.fetch 로 미확인 고객별 조회) + onWaitingReplySent(발송 기록 INLINE_SENT + 미확인 즉시 제외 _repliedSuffixes). WaitingCard sugbox(✨AI 추천 답변 + 본문 + 파란 비행기)·추천 없으면 "AI 답변 준비 중…"+[답장하기]. 발송 = SmsSender.sendDirect(권한 없으면 채팅 fallback). 자동발송 아님 = 사장님 탭.
+- 정책: 홈에서 SMS 직발이나 (a) 추천 본문 미리보기 노출 (b) 사장님 명시 탭 (c) 권한 없으면 채팅으로. 자동발송 X 유지.
+- DB 변경 없음. commit: (아래)
