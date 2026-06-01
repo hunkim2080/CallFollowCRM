@@ -8,9 +8,9 @@
 
 ## 0. 현재 상태 한 줄
 - 안드로이드 단독 구현 **전부 완료** (현황판 45/52, 약 87%). 이번 세션 22개 기능.
-- **남은 7개는 전부 서버 영역 또는 서버 의존** → 이제 공은 맥미니 Claude 쪽입니다.
-- 안드로이드는 DB v25 까지(additive). 모든 신규 기능은 로컬 DB + 포그라운드 계산이라 **서버 변경 없이** 동작.
-  서버가 해줘야 앱이 "조용히 숨긴 카드"가 켜지는 항목들이 아래입니다.
+- **남은 7개는 서버 영역/서버 의존.** 단, 요약·추천·다듬기 엔드포인트는 **이미 main.py 에 있음**(§2 정정 참고).
+  진짜 새로 만들 무거운 건 **시공접수서 + 팀 관리** 2개. 나머지는 점검/소규모 인입/의존 항목.
+- 안드로이드는 DB v25 까지(additive). 신규 기능은 로컬 DB + 포그라운드 계산이라 **서버 변경 없이** 동작.
 
 ## 1. 공유 기준표 (같이 관리)
 - **`docs/IMPLEMENTATION_STATUS.md`** = 프로토 ↔ 실제 앱 SoT. 보기용 = `design-preview/status-board.html`.
@@ -20,22 +20,27 @@
 
 ## 2. 남은 7개 — 서버 작업 명세 (우선순위 순)
 
-### (P1) AI 다듬기 ✨ — 품질 업 (Claude 전환) · 채팅
-- **현황:** 앱은 이미 `POST /api/refine` 를 호출 중 (`RemoteRefineRepository`). 동작은 하나 **품질 부족**(과거 Ollama).
-- **앱 측 계약(그대로 유지하면 됨):**
-  - 요청 바디: `input`(사장님 초안) + `RefineContext { recentMessages[], ownerToneSamples[], customerName, customerMemo }`.
-  - 응답: 다듬은 문장 1개(평문). 실패 시 앱이 "Tailscale 확인" 토스트.
-- **요청:** `/api/refine` 내부를 **Claude (또는 좋은 모델)** 로 + 사장님 톤 샘플 활용해 자연스럽게. 시그니처 변경 불필요.
-- 현황판: 채팅 "다듬기 ✨" 🔶→✅ 으로.
+> ⚠️ **정정(2026-06-02):** `/api/refine`·`/api/card-summary`·`/api/conversation-summary`·`/api/next-action-suggest`·
+> `/prepare-reply` 는 **이미 `server/main.py` 에 구현돼 있음**(grep 확인). 아래 "AI 다듬기"는 서버 작업이
+> 사실상 끝났고, "통화 요약"의 진짜 빈칸은 **통화 내용(에이닷) 인입** 부분입니다. 새로 만들 무거운 건
+> **시공접수서·팀 관리** 두 개입니다.
 
-### (P1) 통화 요약 카드 · 상담함 + 채팅
-- **현황:** 앱은 통화 구간(📞 카드)을 채팅 타임라인에 이미 표시(`CallSegment`). 단 **요약 본문은 비어 있음**.
-  - observe 지점: `AiSummaryEntity.conversationSummaryJson` (ChatScreen 상단 요약 박스) + `CallSummaryEntity`(callSummaryRepository).
-  - 앱은 응답 없으면 박스를 **조용히 숨김**.
-- **요청:** 에이닷 통화요약 텍스트(사장님이 공유) → 서버 LLM 정리 → 위 캐시에 채워주기.
-  - 입력 후보: 통화 transcript/에이닷 요약 + recentMessages + customer hint.
+### (이미 완료) AI 다듬기 ✨ · 채팅 — 서버 작업 없음
+- **현황:** `POST /api/refine` (§14) = **Gemini 2.5 Flash 로 이미 완성**(`_call_gemini_refine`). 앱도 `RemoteRefineRepository` 로 호출 중.
+  - 요청: `{ raw, recent_messages, owner_tone_samples, customer_name?, customer_memo? }` → 응답 `{ polished }`.
+  - 실패: GEMINI_API_KEY 미설정 503 / Gemini 실패 502.
+- **남은 건 = 사장님 품질 검수뿐**(현황판 🔶 = "검수 필요"). 불만 없으면 서버 작업 0.
+  품질 이슈 보고되면 그때 프롬프트(`_build_refine_system_prompt`) 튜닝 또는 모델 검토. (모델 배치 결정: refine=Gemini Flash)
+
+### (P1) 통화 요약 카드 · 상담함 + 채팅 — 빈칸 = "통화 내용 인입"
+- **현황:** 앱은 통화 구간(📞 카드)을 채팅 타임라인에 이미 표시(`CallSegment`). **SMS 기반 요약**은 이미 됨
+  (`/api/card-summary`, `/api/conversation-summary` 존재 → `AiSummaryEntity.cardSummary`/`conversationSummaryJson`).
+  - 진짜 빈칸: **통화 음성/내용**이 서버로 안 들어옴. 현재 요약은 문자만 본다.
+- **요청:** 에이닷 통화요약 텍스트(사장님이 공유) → 서버로 인입 → 통화 내용까지 반영한 요약.
+  - 후보 흐름: 앱이 에이닷 공유 텍스트를 받아 서버에 POST → conversation-summary 입력에 통화 turn 추가, 또는 전용 `/api/call-summary`.
+  - 앱 측 저장소는 `CallSummaryEntity`(callSummaryRepository.observeByCustomer) 존재 → 채워주면 표시 가능.
   - 출력: 불릿 몇 줄 + (선택) "후속 문자 초안".
-- 현황판: 상담함 "통화 요약 카드" 🔷→✅, 채팅 "통화 구간 표시"의 요약 부분.
+- 현황판: 상담함 "통화 요약 카드" 🔷→✅.
 
 ### (P2) 시공접수서 (고객 자가확인 폼) · 견적·접수서
 - **현황:** 앱 미구현. 프로토에 폼 흐름 있음.
@@ -58,11 +63,15 @@
 
 ---
 
-## 3. 서버가 이미 책임지는 것 (점검만)
-앱이 응답 없으면 조용히 숨기므로, 실제로 도는지 확인 부탁:
-1. **prepare-reply** (`POST /prepare-reply`, `ServerSuggestionRepository`) — AI 추천 답변 칩. 정상 동작 중으로 보임.
-2. **cardSummary** (`AiSummaryEntity.cardSummary`) — 홈/일정/고객상세 카드 ✨ 한 줄 요약. 생성·캐시 확인.
-3. **conversation summary** — 위 통화 요약 카드와 같은 캐시.
+## 3. 서버가 이미 구현한 것 (`server/main.py` 확인됨 — 점검만)
+앱이 응답 없으면 조용히 숨기므로, **엔드포인트는 있으나** 실제 end-to-end 로 채워지는지 확인 부탁:
+1. **`POST /prepare-reply`** + `GET /suggestions/{phone}` — AI 추천 답변 칩.
+2. **`POST /api/card-summary`** — 홈/일정/고객상세 카드 ✨ 한 줄 요약(`AiSummaryEntity.cardSummary`).
+3. **`POST /api/conversation-summary`** — ChatScreen 대화 요약(`conversationSummaryJson`).
+4. **`POST /api/next-action-suggest`** — ChatScreen "다음 액션" 박스.
+5. **`POST /api/refine`** — ✨ 다듬기(Gemini). **위 (이미 완료) 참고.**
+6. **`POST /api/address-resolve`** — §13 아파트 주소 resolve.
+→ 즉 요약/추천/다듬기 파이프라인은 서버에 **이미 존재**. 빈칸은 (a) 통화 내용 인입, (b) 시공접수서, (c) 팀 관리.
 
 ## 4. 앱이 이미 갖춘 "리마인드/발송 대기" 인프라 (서버가 재활용하면 좋음)
 이번 세션에 만든 **공통 패턴** — 서버 신호를 홈 카드로 띄우기 쉬움:
@@ -85,6 +94,7 @@
 ---
 
 ## 요약 한 줄
-> 안드로이드 단독 항목 **100% 소진**. 남은 7개는 전부 서버/서버 의존.
-> **1순위 = /api/refine 품질(Claude) + 통화 요약 캐시 채우기.** 그 다음 시공접수서/팀 관리(둘이 의존 항목 2개를 풂).
-> 앱엔 리마인드/발송-대기 공통 인프라가 이미 있으니, 서버는 **신호(시각/상태)만** 주면 앱이 홈 카드로 띄웁니다.
+> 안드로이드 단독 항목 **100% 소진**. 요약/추천/다듬기 엔드포인트는 **이미 main.py 에 존재**(refine=Gemini 완료).
+> **진짜 새 작업 = 시공접수서 + 팀 관리 2개**(이 둘이 의존 항목 2개도 풂). + 통화 "내용" 인입(소규모).
+> 앱엔 리마인드/발송-대기 공통 인프라(`recurring_message_log` 음수 sentinel + `SimpleDueCard`)가 이미 있으니,
+> 서버는 **신호(시각/상태)만** 주면 앱이 홈 카드로 띄웁니다. 자동발송 X 정책 유지.
