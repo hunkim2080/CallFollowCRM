@@ -826,12 +826,38 @@ class ChatViewModel(
      *   자동발송 X — 호출부가 composer 에 prefill → 사장님이 ▶ 직접 발송.
      */
     suspend fun issueIntakeForm(): String? {
-        val name = customer.value?.name?.takeIf { it.isNotBlank() }
+        val c = customer.value
+        val name = c?.name?.takeIf { it.isNotBlank() }
+        val prefs = container.preferences
+        val bizName = prefs.bizName.takeIf { it.isNotBlank() }
+        val ownerPhone = prefs.bizPhone.takeIf { it.isNotBlank() }
+
+        // 견적 데이터 (Customer.totalAmount 가 원 단위 → 만원 변환).
+        // 안드로이드는 항목 리스트 저장 X → 합계 1줄 "시공" 으로 표현 (프로토 폼이 표시만 하므로 충분).
+        val totalKrw = c?.totalAmount ?: 0L
+        val totalMan = (totalKrw / 10_000L).toInt()
+        val depositKrw = c?.depositAmount ?: 0L
+        val depositMode = if (depositKrw > 0L) "fixed" else "none"
+        val items = if (totalMan > 0) {
+            listOf(com.detailline.callfollowcrm.ai.IntakeFormRepository.EstimateItem(
+                name = "시공",
+                priceMan = totalMan
+            ))
+        } else emptyList()
+
         val issued = container.intakeFormRepository.issue(
             phone = phoneNumber,
-            customerName = name
+            customerName = name,
+            ownerPhone = ownerPhone,
+            bizName = bizName,
+            scheduledAtMs = c?.scheduledWorkDate ?: 0L,
+            scheduledDays = c?.scheduledWorkDays ?: 1,
+            estimateItems = items,
+            totalMan = totalMan,
+            depositAmountKrw = depositKrw,
+            depositMode = depositMode
         ).getOrNull() ?: return null
-        return "아래 링크에서 주소·시공 범위를 확인 부탁드려요 😊\n${issued.url}"
+        return "아래 링크에서 주소·연락처를 확인 부탁드려요 😊\n${issued.url}"
     }
 
     /**

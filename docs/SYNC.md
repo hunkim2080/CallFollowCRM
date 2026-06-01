@@ -1771,3 +1771,43 @@ CREATE TABLE intake_forms (
 - 적응(의도적 차이): "수정"·"이 시공 일정 보기"→고객상세 라우팅, 과거달은 받은돈 수치만 갱신(미수목록 라이브 유지).
 - commit: 9fa0c68
 - 다음 액션(서버): 없음 (로컬 계산만).
+
+## 2026-06-02 (밤) · android — §19 시공접수서 발급 schema 대응 (cowork 명시 요청 처리)
+cowork 의 2026-06-02 §19 1:1 재작성 블록 끝 "안드로이드 §18·§19 hookup 확인" 명시 요청 처리.
+
+### 왜
+서버는 `openQuote`/`finalizeQuote` 1:1 로 재작성되어 사장님 견적 데이터를 폼에 "표시" 하는 구조로 바뀜. 그런데 안드로이드 `IntakeFormRepository.issue()` 가 옛 schema(`phone`, `customer_name`, `device_id`, `owner_phone`, `expected_scope`) 만 보내고 있어서 → 폼이 "시공일 미정 / 견적 비어있음 / 계약금 없음 / 상호 RING-GO 시공" 으로 빈 채 발급되고 있었음.
+
+### 변경
+- **`IntakeFormRepository.issue()`** 시그니처에 인자 추가:
+  - `bizName: String?` — 사장님 상호 (subscribers fallback 위 override)
+  - `scheduledAtMs: Long`, `scheduledDays: Int` — 사장님 확정 시공일
+  - `estimateItems: List<EstimateItem>` — 견적 항목 (name + priceMan + unit? + area?). 데이터 클래스 [EstimateItem] 신규.
+  - `totalMan: Int` — 합계(만원)
+  - `depositAmountKrw: Long`, `depositMode: "none"|"fixed"|"ratio"`, `depositRatioPct: Int?` — 계약금
+  - `expected_scope` **제거** (프로토에 없음)
+- JSON 키 그대로: `biz_name`/`scheduled_at_ms`/`scheduled_days`/`estimate_items`/`total_man`/`deposit_mode`/`deposit_amount_krw`/`deposit_ratio_pct`. depositMode != "ratio" 면 ratio_pct 미전송.
+- **`ChatViewModel.issueIntakeForm()`** — 호출 시 데이터 주입:
+  - 시공일/일수 = `customer.scheduledWorkDate` / `customer.scheduledWorkDays`
+  - 총액 = `customer.totalAmount`(원) → /10000 (만원). 0 이면 items 빈 배열, 0 초과면 단일 항목 `{name:"시공", price_man:N}` 로 표현 (안드로이드는 항목별 저장 X — totalAmount 만 있음).
+  - 계약금 = `customer.depositAmount`(원). > 0 면 mode="fixed", null/0 면 mode="none". ratio 모드 미사용.
+  - 상호 = `AppPreferences.bizName`, owner_phone = `AppPreferences.bizPhone` (둘 다 onboarding/사업자정보 에서 채움. 빈 값이면 미전송 → 서버가 subscribers fallback)
+- SMS 본문 안내문도 "주소·시공 범위" → "주소·연락처" 로 변경 (프로토 폼은 시공범위 입력 칸 없음).
+
+### 의도적 한계
+- `estimate_items` 가 항목 1줄 합계로만 채워짐. 사장님이 채팅에서 견적 항목별로 입력하는 UI 가 아직 없음 → 향후 견적서 UI 들어오면 그때 항목 리스트 그대로 전송. 지금은 폼이 "시공 — N만원 / 총 N만원" 으로 표시.
+- `deposit_mode = "ratio"` 미지원 (안드로이드 데이터 모델에 비율 필드 없음). 사장님이 비율 박는 UI 들어오면 추가.
+
+### 검증
+- 빌드 (`:app:compileDebugKotlin`) 통과
+- 안전망 단위 테스트 55+ (`:app:testDebugUnitTest`) 13초 통과
+- 실제 응답 검증은 다음 사장님 폰 발급 테스트에서
+
+### 서버 영향
+없음. 서버 §19 재작성 schema 를 안드로이드가 따라간 것.
+
+### 남은 안드로이드 작업 (cowork SYNC 1671~1676 그대로)
+- §19 status polling (`/api/intake-form/status`) → 제출됨 표시 + 고객상세 payload(전화·주소·동/호·메모·유입경로) 표시
+- 미작성 N일 경과 → `recurring_message_log` 음수 sentinel `-7` 로 `IntakeFormFollowupCard`
+- §20 팀 관리 (99k) Phase 1~3
+- commit: (이번)

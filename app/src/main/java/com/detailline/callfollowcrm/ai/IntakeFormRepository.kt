@@ -12,9 +12,11 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
- * 시공접수서 (고객 자가확인 폼) — 맥미니 서버 §19 (2026-06-02).
+ * 시공접수서 (고객 자가확인 폼) — 맥미니 서버 §19 (2026-06-02 1:1 재작성).
  *
- * 서버가 발급한 링크를 사장님이 고객에게 보내면, 고객이 브라우저에서 주소·시공범위를 직접 입력.
+ * 프로토 design-preview/ringgo-redesign.html 의 openQuote/finalizeQuote 1:1.
+ * 서버 폼은 사장님 확정 시공일·견적 항목·계약금까지 "표시만" → 고객은 주소·연락처만 입력.
+ *
  *   - POST /api/intake-form/issue  → {token, url, issued_at_ms, expires_at_ms}
  *   - GET  /api/intake-form/status → 제출 여부 polling (추후)
  *
@@ -38,13 +40,33 @@ class IntakeFormRepository(
         val expiresAtMs: Long
     )
 
-    /** 접수서 발급. 성공 시 [Issued] (특히 url), 실패 시 Result.failure. */
+    /** 견적 항목 1줄 — 프로토 estimate_items[] 의 한 원소. price_man = 만원 단위. */
+    data class EstimateItem(
+        val name: String,
+        val priceMan: Int,
+        val unit: String? = null,
+        val area: Double? = null
+    )
+
+    /**
+     * 접수서 발급. 성공 시 [Issued] (특히 url), 실패 시 Result.failure.
+     *
+     *   §19 (2026-06-02) schema — 사장님 견적 데이터까지 함께 전송하면 서버 폼이 그걸 "표시"함.
+     *   견적 미입력 시(전부 null/0) 서버 폼이 "미정" 으로 노출.
+     */
     suspend fun issue(
         phone: String,
         customerName: String? = null,
         deviceId: String? = null,
         ownerPhone: String? = null,
-        expectedScope: List<String> = emptyList()
+        bizName: String? = null,
+        scheduledAtMs: Long = 0L,
+        scheduledDays: Int = 1,
+        estimateItems: List<EstimateItem> = emptyList(),
+        totalMan: Int = 0,
+        depositAmountKrw: Long = 0L,
+        depositMode: String = "none",
+        depositRatioPct: Int? = null
     ): Result<Issued> = withContext(Dispatchers.IO) {
         runCatching {
             val payload = JSONObject().apply {
@@ -52,7 +74,25 @@ class IntakeFormRepository(
                 customerName?.takeIf { it.isNotBlank() }?.let { put("customer_name", it) }
                 deviceId?.takeIf { it.isNotBlank() }?.let { put("device_id", it) }
                 ownerPhone?.takeIf { it.isNotBlank() }?.let { put("owner_phone", it) }
-                if (expectedScope.isNotEmpty()) put("expected_scope", JSONArray(expectedScope))
+                bizName?.takeIf { it.isNotBlank() }?.let { put("biz_name", it) }
+                put("scheduled_at_ms", scheduledAtMs)
+                put("scheduled_days", scheduledDays)
+                put("estimate_items", JSONArray().apply {
+                    estimateItems.forEach { item ->
+                        put(JSONObject().apply {
+                            put("name", item.name)
+                            put("price_man", item.priceMan)
+                            item.unit?.let { put("unit", it) }
+                            item.area?.let { put("area", it) }
+                        })
+                    }
+                })
+                put("total_man", totalMan)
+                put("deposit_mode", depositMode)
+                put("deposit_amount_krw", depositAmountKrw)
+                if (depositMode == "ratio" && depositRatioPct != null) {
+                    put("deposit_ratio_pct", depositRatioPct)
+                }
             }
             val req = Request.Builder()
                 .url("$baseUrl/api/intake-form/issue")
