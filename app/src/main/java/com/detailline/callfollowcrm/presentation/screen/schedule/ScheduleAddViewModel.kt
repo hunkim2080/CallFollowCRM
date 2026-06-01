@@ -3,10 +3,14 @@ package com.detailline.callfollowcrm.presentation.screen.schedule
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.detailline.callfollowcrm.data.AppContainer
+import com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity
 import com.detailline.callfollowcrm.util.DateTimeUtils
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -24,6 +28,11 @@ class ScheduleAddViewModel(private val container: AppContainer) : ViewModel() {
     private val _saving = MutableStateFlow(false)
     val saving = _saving.asStateFlow()
 
+    /** 수첩의 일당 목록 — 일정 등록 시 배정용. */
+    val workers: StateFlow<List<NotebookContactEntity>> =
+        container.notebookRepository.observeWorkers()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     fun submit(
         name: String,
         phone: String,
@@ -32,6 +41,8 @@ class ScheduleAddViewModel(private val container: AppContainer) : ViewModel() {
         totalAmount: Long?,
         depositAmount: Long?,
         depositPaid: Boolean,
+        crewWorkers: List<NotebookContactEntity>,
+        crewWage: Long,
         onDone: () -> Unit
     ) {
         val digits = phone.filter { it.isDigit() }
@@ -54,6 +65,12 @@ class ScheduleAddViewModel(private val container: AppContainer) : ViewModel() {
                 if (depositAmount != null) container.customerRepository.updateDepositAmount(id, depositAmount)
                 if (depositPaid && (depositAmount ?: 0L) > 0L) {
                     container.customerRepository.updateDepositPaidAt(id, System.currentTimeMillis())
+                }
+                // 일당 배정 — 일정↔정산 연결(자동 차감) + 함께한 현장 기록.
+                if (crewWorkers.isNotEmpty() && crewWage > 0L) {
+                    for (w in crewWorkers) {
+                        container.jobCrewRepository.assign(w.id, w.name, id, dayMs, crewWage)
+                    }
                 }
                 runCatching { container.autoCategoryClassifier.reclassify(id) }
             }

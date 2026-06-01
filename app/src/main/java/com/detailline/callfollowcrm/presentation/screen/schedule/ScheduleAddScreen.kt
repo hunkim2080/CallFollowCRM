@@ -2,7 +2,10 @@ package com.detailline.callfollowcrm.presentation.screen.schedule
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -37,6 +40,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -60,7 +64,7 @@ import com.detailline.callfollowcrm.util.DateTimeUtils
  * 셀프 일정 등록 화면 (2026-06-01). 일정 화면 FAB 에서 진입.
  *   고객명·번호·시공일·주소·총금액·계약금(+받음) 입력 → 저장.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ScheduleAddScreen(
     viewModel: ScheduleAddViewModel,
@@ -70,6 +74,9 @@ fun ScheduleAddScreen(
     val context = LocalContext.current
     val toast by viewModel.toast.collectAsState()
     val saving by viewModel.saving.collectAsState()
+    val workers by viewModel.workers.collectAsState()
+    val selectedWorkerIds = remember { mutableStateListOf<Long>() }
+    var crewWageText by remember { mutableStateOf("") }
 
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
@@ -158,6 +165,36 @@ fun ScheduleAddScreen(
                 Text("계약금 이미 받음", color = TossTextSecondary, fontWeight = FontWeight.Medium)
             }
 
+            if (workers.isNotEmpty()) {
+                Spacer(Modifier.height(16.dp))
+                FieldLabel("일당 배정 (선택) — 정산 현금흐름에 자동 −지출")
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    workers.forEach { w ->
+                        val sel = selectedWorkerIds.contains(w.id)
+                        Box(
+                            Modifier.clip(RoundedCornerShape(999.dp))
+                                .background(if (sel) TossBlue else Color.White)
+                                .clickable {
+                                    if (sel) selectedWorkerIds.remove(w.id) else selectedWorkerIds.add(w.id)
+                                }
+                                .padding(horizontal = 14.dp, vertical = 9.dp)
+                        ) {
+                            Text(w.name, color = if (sel) Color.White else TossTextSecondary,
+                                fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+                if (selectedWorkerIds.isNotEmpty()) {
+                    Spacer(Modifier.height(10.dp))
+                    FieldLabel("1인 일당 (원)")
+                    OutlinedTextField(crewWageText, { crewWageText = it.filter { c -> c.isDigit() } },
+                        singleLine = true, modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                        placeholder = { Text("예: 200000") })
+                }
+            }
+
             Spacer(Modifier.height(24.dp))
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
@@ -168,6 +205,8 @@ fun ScheduleAddScreen(
                             totalAmount = totalText.toLongOrNull(),
                             depositAmount = depositText.toLongOrNull(),
                             depositPaid = depositPaid,
+                            crewWorkers = workers.filter { selectedWorkerIds.contains(it.id) },
+                            crewWage = crewWageText.toLongOrNull() ?: 0L,
                             onDone = onDone
                         )
                     }

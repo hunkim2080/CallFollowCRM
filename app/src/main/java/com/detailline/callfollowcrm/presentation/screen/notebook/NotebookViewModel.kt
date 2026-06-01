@@ -4,10 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.detailline.callfollowcrm.data.AppContainer
 import com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity
+import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -26,6 +28,24 @@ class NotebookViewModel(private val container: AppContainer) : ViewModel() {
     val vendors: StateFlow<List<NotebookContactEntity>> =
         container.notebookRepository.observeVendors()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** 일당별 함께한 현장 (workerId → [현장]). 일당 배정(JobCrew) + 고객 조인. */
+    val sitesByWorker: StateFlow<Map<Long, List<SiteRow>>> =
+        combine(
+            container.jobCrewRepository.observeAll(),
+            container.customerRepository.observeAll()
+        ) { crew, customers ->
+            val byId = customers.associateBy { it.id }
+            crew.groupBy { it.workerId }.mapValues { (_, list) ->
+                list.sortedByDescending { it.dayStartMs }.map { jc ->
+                    val c = byId[jc.customerId]
+                    val nm = c?.name?.takeIf { it.isNotBlank() }
+                        ?: c?.let { PhoneNumberFormatter.format(it.phoneNumber) }
+                        ?: "고객"
+                    SiteRow(jc.dayStartMs, nm, jc.wage)
+                }
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     fun add(kind: String, name: String, phone: String, tag: String, memo: String) = viewModelScope.launch {
         if (name.isBlank()) return@launch
@@ -73,3 +93,6 @@ enum class NotebookTab(val label: String, val kind: String) {
     WORKER("일당", NotebookContactEntity.KIND_WORKER),
     VENDOR("거래처", NotebookContactEntity.KIND_VENDOR)
 }
+
+/** 일당이 함께한 현장 한 줄 (날짜·고객·일당). */
+data class SiteRow(val dayStartMs: Long, val customerName: String, val wage: Long)

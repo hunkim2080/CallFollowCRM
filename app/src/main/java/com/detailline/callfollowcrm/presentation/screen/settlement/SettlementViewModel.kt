@@ -78,10 +78,15 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettlementUiState())
 
     // ── 현금흐름 (Phase 2) ───────────────────────────────────────────
-    /** settle 파생 수입 + 직접 기록 합산. 달력/일별 상세가 구독. */
+    /** settle 파생 수입 + 직접 기록 + 일당 배정(자동 지출) 합산. 달력/일별 상세가 구독. */
     val cashItems: StateFlow<List<CashItem>> =
-        combine(customersFlow, container.manualCashRepository.observeAll()) { cs, ms ->
-            CashFlowCalc.buildItems(cs, ms)
+        combine(
+            customersFlow,
+            container.manualCashRepository.observeAll(),
+            container.jobCrewRepository.observeAll()
+        ) { cs, ms, crew ->
+            val today = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(System.currentTimeMillis())
+            CashFlowCalc.buildItems(cs, ms, crew, today)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun addManualCash(dayMs: Long, amount: Long, isIncome: Boolean, isDone: Boolean, label: String) =

@@ -360,7 +360,7 @@ private fun CashItemRow(
     }
     TossCard(
         contentPadding = PaddingValues(14.dp),
-        onClick = if (isManual) null else onOpenCustomer
+        onClick = if (item.refType == CashRefType.CUSTOMER) onOpenCustomer else null
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {

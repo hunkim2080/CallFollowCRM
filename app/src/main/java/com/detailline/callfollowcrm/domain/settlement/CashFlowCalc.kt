@@ -1,6 +1,7 @@
 package com.detailline.callfollowcrm.domain.settlement
 
 import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
+import com.detailline.callfollowcrm.data.local.entity.JobCrewEntity
 import com.detailline.callfollowcrm.data.local.entity.ManualCashEntity
 import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
@@ -19,7 +20,7 @@ data class CashItem(
     val refId: Long
 )
 
-enum class CashRefType { CUSTOMER, MANUAL }
+enum class CashRefType { CUSTOMER, MANUAL, WORKER }
 
 /**
  * 하루(또는 한 달) 합계 — 4색 표시용.
@@ -55,7 +56,9 @@ object CashFlowCalc {
 
     fun buildItems(
         customers: List<CustomerEntity>,
-        manual: List<ManualCashEntity>
+        manual: List<ManualCashEntity>,
+        crew: List<JobCrewEntity> = emptyList(),
+        todayStartMs: Long = 0L
     ): List<CashItem> {
         val out = ArrayList<CashItem>()
         for (c in customers) {
@@ -95,6 +98,16 @@ object CashFlowCalc {
                 amount = m.amount, isIncome = m.isIncome, isDone = m.isDone,
                 title = m.label.ifBlank { if (m.isIncome) "수입" else "지출" },
                 tag = "직접", refType = CashRefType.MANUAL, refId = m.id
+            )
+        }
+        // 일당 배정 → 자동 지출. 시공일이 지났으면 확정(나간), 미래면 예정(나갈).
+        for (jc in crew) {
+            val day = DateTimeUtils.startOfDay(jc.dayStartMs)
+            out += CashItem(
+                dayStartMs = day,
+                amount = jc.wage, isIncome = false,
+                isDone = todayStartMs > 0L && day <= todayStartMs,
+                title = jc.workerName, tag = "일당", refType = CashRefType.WORKER, refId = jc.workerId
             )
         }
         return out

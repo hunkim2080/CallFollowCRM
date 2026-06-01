@@ -53,9 +53,10 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         SmsContactCacheEntity::class,
         com.detailline.callfollowcrm.data.local.entity.SuggestionEventEntity::class,
         com.detailline.callfollowcrm.data.local.entity.ManualCashEntity::class,
-        com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity::class
+        com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity::class,
+        com.detailline.callfollowcrm.data.local.entity.JobCrewEntity::class
     ],
-    version = 22,
+    version = 23,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -76,6 +77,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun suggestionEventDao(): com.detailline.callfollowcrm.data.local.dao.SuggestionEventDao
     abstract fun manualCashDao(): com.detailline.callfollowcrm.data.local.dao.ManualCashDao
     abstract fun notebookContactDao(): com.detailline.callfollowcrm.data.local.dao.NotebookContactDao
+    abstract fun jobCrewDao(): com.detailline.callfollowcrm.data.local.dao.JobCrewDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -471,6 +473,31 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v22 → v23: job_crew 테이블 신설 (일당 배정 — 함께한 현장 + 일당 자동차감).
+         *   순수 추가(additive). index 이름은 Entity 의 @Index name 과 일치.
+         */
+        private val MIGRATION_22_23 = object : Migration(22, 23) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS job_crew (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        workerId INTEGER NOT NULL,
+                        workerName TEXT NOT NULL,
+                        customerId INTEGER NOT NULL,
+                        dayStartMs INTEGER NOT NULL,
+                        wage INTEGER NOT NULL,
+                        createdAt INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_job_crew_workerId ON job_crew(workerId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_job_crew_customerId ON job_crew(customerId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_job_crew_dayStartMs ON job_crew(dayStartMs)")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
@@ -482,7 +509,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                     MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15,
                     MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19,
-                    MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22
+                    MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23
                 )
                 .fallbackToDestructiveMigration()   // migration 실패 시 안전망 (개발 단계)
                 .build()

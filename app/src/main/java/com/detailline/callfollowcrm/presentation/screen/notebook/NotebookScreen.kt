@@ -59,6 +59,8 @@ import com.detailline.callfollowcrm.presentation.theme.TossSuccess
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
+import com.detailline.callfollowcrm.util.DateTimeUtils
+import com.detailline.callfollowcrm.util.MoneyFormatter
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 
 /**
@@ -77,12 +79,15 @@ fun NotebookScreen(
     val vendors by viewModel.vendors.collectAsState()
     val workerPhrases by viewModel.workerPhrases.collectAsState()
     val vendorPhrases by viewModel.vendorPhrases.collectAsState()
+    val sitesByWorker by viewModel.sitesByWorker.collectAsState()
     val list = if (tab == NotebookTab.WORKER) workers else vendors
 
     // 편집 대상: null=닫힘, id=0 추가, id>0 수정.
     var editing by remember { mutableStateOf<NotebookContactEntity?>(null) }
     // 문자 보낼 대상 (자주 쓰는 문구 시트).
     var smsTarget by remember { mutableStateOf<NotebookContactEntity?>(null) }
+    // 함께한 현장 보기 대상.
+    var sitesTarget by remember { mutableStateOf<NotebookContactEntity?>(null) }
 
     Scaffold(
         containerColor = TossGrayBg,
@@ -139,7 +144,13 @@ fun NotebookScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(list, key = { it.id }) { c ->
-                        ContactCard(c, onEdit = { editing = c }, onSms = { smsTarget = c })
+                        ContactCard(
+                            c,
+                            siteCount = if (c.kind == NotebookContactEntity.KIND_WORKER) sitesByWorker[c.id]?.size ?: 0 else 0,
+                            onEdit = { editing = c },
+                            onSms = { smsTarget = c },
+                            onSites = { sitesTarget = c }
+                        )
                     }
                     item { Spacer(Modifier.height(80.dp)) }
                 }
@@ -174,6 +185,38 @@ fun NotebookScreen(
             onAddPhrase = { viewModel.addPhrase(target.kind, it) },
             onDeletePhrase = { idx -> viewModel.deletePhrase(target.kind, idx) },
             onDismiss = { smsTarget = null }
+        )
+    }
+
+    sitesTarget?.let { target ->
+        val sites = sitesByWorker[target.id].orEmpty()
+        AlertDialog(
+            onDismissRequest = { sitesTarget = null },
+            title = { Text("${target.name} · 함께한 현장 ${sites.size}회", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    if (sites.isEmpty()) {
+                        Text("아직 배정 기록이 없어요", color = TossTextTertiary)
+                    } else {
+                        sites.forEach { s ->
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(s.customerName, style = MaterialTheme.typography.bodyMedium,
+                                        color = TossTextPrimary, fontWeight = FontWeight.SemiBold)
+                                    Text(DateTimeUtils.formatKoreanDate(s.dayStartMs),
+                                        style = MaterialTheme.typography.labelSmall, color = TossTextTertiary)
+                                }
+                                Text(MoneyFormatter.won(s.wage), style = MaterialTheme.typography.bodyMedium,
+                                    color = TossError, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { sitesTarget = null }) { Text("닫기", color = TossTextSecondary) } }
         )
     }
 }
@@ -247,7 +290,13 @@ private fun PhraseSheet(
 }
 
 @Composable
-private fun ContactCard(c: NotebookContactEntity, onEdit: () -> Unit, onSms: () -> Unit) {
+private fun ContactCard(
+    c: NotebookContactEntity,
+    siteCount: Int,
+    onEdit: () -> Unit,
+    onSms: () -> Unit,
+    onSites: () -> Unit
+) {
     val context = LocalContext.current
     TossCard(onClick = onEdit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -271,6 +320,16 @@ private fun ContactCard(c: NotebookContactEntity, onEdit: () -> Unit, onSms: () 
                 if (c.memo.isNotBlank()) {
                     Spacer(Modifier.height(2.dp))
                     Text(c.memo, style = MaterialTheme.typography.bodySmall, color = TossTextTertiary, maxLines = 1)
+                }
+                if (siteCount > 0) {
+                    Spacer(Modifier.height(4.dp))
+                    Box(
+                        Modifier.clip(RoundedCornerShape(999.dp)).background(TossBlueSoft)
+                            .clickable { onSites() }.padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Text("함께한 현장 ${siteCount}회 ›", style = MaterialTheme.typography.labelSmall,
+                            color = TossBlue, fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
             if (c.phone.isNotBlank()) {
