@@ -58,10 +58,12 @@ fun AppNavHost(
             com.detailline.callfollowcrm.presentation.screen.login.LoginScreen(
                 onProceed = {
                     container.preferences.hasSeenLogin = true
-                    val next = if (
+                    val next = when {
+                        !container.preferences.hasOnboarded -> Destinations.ONBOARDING
                         com.detailline.callfollowcrm.util.PermissionHelper
-                            .allMissingNonNotification(context).isNotEmpty()
-                    ) Destinations.ONBOARDING else Destinations.HOME
+                            .allMissingNonNotification(context).isNotEmpty() -> Destinations.PERMISSIONS
+                        else -> Destinations.HOME
+                    }
                     navController.navigate(next) {
                         popUpTo(Destinations.LOGIN) { inclusive = true }
                     }
@@ -69,11 +71,29 @@ fun AppNavHost(
             )
         }
 
+        // 스토리텔링 온보딩 (캐러셀 → 업종 → 상호·지역 → 막내 비서 탄생)
         composable(Destinations.ONBOARDING) {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            com.detailline.callfollowcrm.presentation.screen.onboarding.OnboardingScreen(
+                prefs = container.preferences,
+                onFinish = {
+                    val next = if (
+                        com.detailline.callfollowcrm.util.PermissionHelper
+                            .allMissingNonNotification(context).isNotEmpty()
+                    ) Destinations.PERMISSIONS else Destinations.HOME
+                    navController.navigate(next) {
+                        popUpTo(Destinations.ONBOARDING) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        // 권한 요청 (기존 화면) — 온보딩 다음 단계
+        composable(Destinations.PERMISSIONS) {
             OnboardingPermissionScreen(
                 onContinue = {
                     navController.navigate(Destinations.HOME) {
-                        popUpTo(Destinations.ONBOARDING) { inclusive = true }
+                        popUpTo(Destinations.PERMISSIONS) { inclusive = true }
                     }
                 }
             )

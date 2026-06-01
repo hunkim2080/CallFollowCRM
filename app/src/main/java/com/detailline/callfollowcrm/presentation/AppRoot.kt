@@ -29,11 +29,12 @@ fun AppRoot(container: AppContainer) {
             val navController = rememberNavController()
             val context = LocalContext.current
 
-            val showOnboarding = PermissionHelper.allMissingNonNotification(context).isNotEmpty()
+            val permsMissing = PermissionHelper.allMissingNonNotification(context).isNotEmpty()
             val startDestination = when {
-                // 전면 리뉴얼: 첫 실행 = 로그인 화면 → 권한 → 홈. 한 번 보면 hasSeenLogin=true.
+                // 전면 리뉴얼 흐름: 로그인 → 온보딩(스토리텔링/캐릭터) → 권한 → 홈. 각 단계 1회.
                 !container.preferences.hasSeenLogin -> Destinations.LOGIN
-                showOnboarding -> Destinations.ONBOARDING
+                !container.preferences.hasOnboarded -> Destinations.ONBOARDING
+                permsMissing -> Destinations.PERMISSIONS
                 else -> Destinations.HOME
             }
 

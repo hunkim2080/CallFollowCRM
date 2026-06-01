@@ -139,6 +139,16 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean(KEY_HAS_SEEN_LOGIN, false)
         set(value) = prefs.edit().putBoolean(KEY_HAS_SEEN_LOGIN, value).apply()
 
+    /** 전면 리뉴얼 온보딩(스토리텔링 + 업종 + 상호·지역 + 막내 비서 탄생) 완료 여부. */
+    var hasOnboarded: Boolean
+        get() = prefs.getBoolean(KEY_HAS_ONBOARDED, false)
+        set(value) = prefs.edit().putBoolean(KEY_HAS_ONBOARDED, value).apply()
+
+    /** 활동 지역 (온보딩에서 선택, 여러 곳). "|" join. AI 답장·길찾기 컨텍스트. */
+    var ownerRegions: List<String>
+        get() = prefs.getString(KEY_OWNER_REGIONS, "")?.split("|")?.filter { it.isNotBlank() } ?: emptyList()
+        set(value) = prefs.edit().putString(KEY_OWNER_REGIONS, value.joinToString("|")).apply()
+
     // ── 사업자정보 (2026-06-01) — 견적서/시공접수서 발행용. 모두 사장님 직접 입력. ──
     var bizName: String
         get() = prefs.getString(KEY_BIZ_NAME, "") ?: ""
@@ -203,6 +213,8 @@ class AppPreferences(context: Context) {
         private const val KEY_TONE_TOTAL_UPLOADED = "tone_total_uploaded"
         private const val KEY_AUTO_CATEGORY_BACKFILLED = "auto_category_backfilled"
         private const val KEY_HAS_SEEN_LOGIN = "has_seen_login"
+        private const val KEY_HAS_ONBOARDED = "has_onboarded"
+        private const val KEY_OWNER_REGIONS = "owner_regions"
         private const val KEY_BIZ_NAME = "biz_name"
         private const val KEY_BIZ_OWNER = "biz_owner"
         private const val KEY_BIZ_NO = "biz_no"

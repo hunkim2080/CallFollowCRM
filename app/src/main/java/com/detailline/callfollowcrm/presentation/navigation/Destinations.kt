@@ -3,6 +3,7 @@ package com.detailline.callfollowcrm.presentation.navigation
 object Destinations {
     const val LOGIN = "login"
     const val ONBOARDING = "onboarding"
+    const val PERMISSIONS = "permissions"
     const val HOME = "home"
     const val FOLLOW_UP = "follow_up"
     const val FOLLOW_UP_WITH_ARG = "follow_up?phone={phone}&callRecordId={callRecordId}&templateId={templateId}"
