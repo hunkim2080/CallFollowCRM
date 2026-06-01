@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
@@ -160,6 +161,9 @@ fun ChatScreen(
         starred.map { it.messageDateMs to it.sent }.toHashSet()
     }
     var starredViewerOpen by remember { mutableStateOf(false) }
+    // 내 일정 확인 시트 (2026-06-01) — 대화 중 빈 날/시공일 미니 달력으로 확인.
+    var myScheduleOpen by remember { mutableStateOf(false) }
+    val scheduledJobs by viewModel.scheduledJobs.collectAsState()
     // 말풍선 꾹 누름 → BottomSheet 띄울 메시지 (null = 닫힘).
     //   사장님 결정 2026-05-25: 꾹 누름 = 저장/복사 선택. 직접 토글 X.
     var bubbleActionTarget by remember {
@@ -307,6 +311,10 @@ fun ChatScreen(
                     }
                 },
                 actions = {
+                    // 내 일정 확인 — 대화 중 빈 날/시공일 미니 달력으로 확인 (약속 잡기·현장 묶기).
+                    IconButton(onClick = { myScheduleOpen = true }) {
+                        Icon(Icons.Default.DateRange, "내 일정", tint = TossTextSecondary)
+                    }
                     // 저장된 메시지 모아보기 — 별이 아닌 북마크 아이콘 (즐겨찾기 오해 방지).
                     //   카운트 0 이면 outlined, 있으면 fill + 숫자 badge.
                     //   2026-05-25: 사장님 피드백 — 별 아이콘은 "고객 즐겨찾기" 와 분간 어려움 → 북마크 채택.
@@ -759,6 +767,14 @@ fun ChatScreen(
                 Spacer(Modifier.height(8.dp))
             }
         }
+    }
+
+    // 내 일정 확인 시트 (2026-06-01) — 대화 중 시공 일정 미니 달력.
+    if (myScheduleOpen) {
+        MyScheduleSheet(
+            jobs = scheduledJobs,
+            onDismiss = { myScheduleOpen = false }
+        )
     }
 
     // 풀스크린 이미지 뷰어 (썸네일 탭 시)

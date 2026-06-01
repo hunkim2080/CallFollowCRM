@@ -1345,3 +1345,11 @@ CREATE TABLE customer_personas (
   - HomeViewModel.todayJobs 진행중 여러날 포함 + 시간순. TodayHeroCard 시간 표시.
 - assembleDebug 성공.
 - 현황판: 일정 2/5→4/5, 전체 39/52(75%).
+
+## 2026-06-02 00:05 · android
+채팅 "내 일정 확인" 미니 달력 시트 — 일정 영역 5/5 완료.
+- 변경: 없음 (앱 단독, server/ 무관, DB 변경 없음).
+  - 신규 MyScheduleSheet.kt (월 미니 달력 + 날짜 탭 → 그날 시공 이름·시간·주소). 읽기 전용.
+  - ChatViewModel.scheduledJobs(시공일 잡힌 고객 observe), ChatScreen 앱바 달력 아이콘.
+- assembleDebug 성공.
+- 현황판: 일정 4/5→5/5, 전체 40/52(77%). 4영역(정산·수첩·온보딩·일정) 100%.

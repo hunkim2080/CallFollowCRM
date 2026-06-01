@@ -195,9 +195,9 @@ var AREAS = [
    {n:'시간 칩 + 미니 날짜 피커', s:'done',
     d:'오전8~11/오후1~4 칩으로 시공 시작 시간 지정. 날짜는 기존 DatePicker.',
     a:'<b>DB v24</b> customers.scheduledWorkMinutes. ScheduleAddScreen 시간 칩(미정+8개) + 카드/홈 히어로 "🕐 오전 9시". DateTimeUtils.formatWorkMinutes.'},
-   {n:'내 일정 확인(채팅에서)', s:'todo',
-    d:'고객 채팅 중 "내 일정 확인" → 빈 날/시공 있는 날 바로 확인.',
-    a:'프로토 openMySchedule/myCalHtml. 앱 미구현.'},
+   {n:'내 일정 확인(채팅에서)', s:'done',
+    d:'고객 채팅 중 "내 일정 확인" → 미니 달력으로 빈 날/시공 있는 날 + 주소 바로 확인.',
+    a:'<b>ChatScreen 달력 아이콘 → MyScheduleSheet</b>(2026-06-01). 월 미니 달력(여러날 점) + 날짜 탭 → 그날 시공(이름·🕐시간·📍주소) 또는 "비어있어요". 읽기 전용, ChatViewModel.scheduledJobs.'},
  ]},
 
  {emo:'💰', name:'정산', desc:'누가 돈 안 줬나 + 현금 흐름 (핵심 요구)', items:[

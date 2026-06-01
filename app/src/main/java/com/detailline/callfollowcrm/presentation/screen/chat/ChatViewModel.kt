@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -75,6 +76,15 @@ class ChatViewModel(
 
     val templates = container.messageTemplateRepository.observeActive()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList<MessageTemplateEntity>())
+
+    /**
+     * 채팅 중 "내 일정 확인" 시트용 — 시공일이 잡힌 모든 고객 (여러 날 시공 포함).
+     *   고객과 대화하며 빈 날·가까운 현장을 바로 확인해 약속 잡기 좋게. (2026-06-01)
+     */
+    val scheduledJobs: StateFlow<List<CustomerEntity>> =
+        container.customerRepository.observeAll()
+            .map { list -> list.filter { it.scheduledWorkDate != null && it.scheduledWorkDate > 0L } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** 견적서 작성기용 가격표. 사장님이 설정 → 가격표 관리 에서 CRUD 한 결과. */
     val pricingItems = container.pricingItemRepository.observeActive()
