@@ -976,6 +976,8 @@ fun ChatScreen(
             validDays = estPrefs.bizQuoteValidDays,
             onConfirm = { body ->
                 input = body
+                // 견적 회신 리마인드 기준 시각 기록 (작성=composer 채움 = 곧 발송).
+                viewModel.recordEstimateSent(body)
                 showEstimateBuilder = false
             },
             onShare = { body ->
@@ -985,6 +987,7 @@ fun ChatScreen(
                         .putExtra(android.content.Intent.EXTRA_TEXT, body)
                     estCtx.startActivity(android.content.Intent.createChooser(send, "견적서 공유"))
                 }
+                viewModel.recordEstimateSent(body)
                 showEstimateBuilder = false
             },
             onDismiss = { showEstimateBuilder = false }

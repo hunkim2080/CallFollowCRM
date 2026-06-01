@@ -121,7 +121,9 @@ fun HomeScreen(
     /** 홈 "정기문자 보낼 때 됐어요" 카드 탭 → 보낼 정기문자 목록. (2026-06-01) */
     onOpenRecurringDue: () -> Unit = {},
     /** 홈 "시공 안내 문자" 카드 탭 → D-1/도착 안내 목록. (2026-06-01) */
-    onOpenScheduleReminder: () -> Unit = {}
+    onOpenScheduleReminder: () -> Unit = {},
+    /** 홈 "견적 회신 챙기기" 카드 탭 → 견적 회신 리마인드 목록. (2026-06-01) */
+    onOpenEstimateFollowup: () -> Unit = {}
 ) {
     val timeline by viewModel.timeline.collectAsState()
     val filter by viewModel.filterState.collectAsState()
@@ -138,6 +140,7 @@ fun HomeScreen(
     val autoReplies by viewModel.autoReplies.collectAsState()
     val recurringDueCount by viewModel.recurringDueCount.collectAsState()
     val scheduleReminderCount by viewModel.scheduleReminderCount.collectAsState()
+    val estimateFollowupCount by viewModel.estimateFollowupCount.collectAsState()
     val isInitialSmsLoading by viewModel.isInitialSmsLoading.collectAsState()
 
     // 서버 상태 indicator — AppContainer 의 ServerHealthMonitor 를 직접 구독.
@@ -497,6 +500,18 @@ fun HomeScreen(
                             label = "시공 안내 문자 보낼까요?",
                             value = "${scheduleReminderCount}곳 — 내일·오늘 시공",
                             onClick = onOpenScheduleReminder
+                        )
+                    }
+                }
+
+                // 견적 회신 챙기기 — 견적 보낸 지 N일 답 없는 고객. 있을 때만. (2026-06-01)
+                if (estimateFollowupCount > 0) {
+                    item(key = "estimate-followup-card") {
+                        SimpleDueCard(
+                            emoji = "📋",
+                            label = "견적 회신 챙기기",
+                            value = "${estimateFollowupCount}곳 — 답 없는 견적",
+                            onClick = onOpenEstimateFollowup
                         )
                     }
                 }

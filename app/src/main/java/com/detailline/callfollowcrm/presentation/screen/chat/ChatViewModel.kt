@@ -801,6 +801,17 @@ class ChatViewModel(
         }
     }
 
+    /**
+     * 견적 작성/공유 시점 기록 (2026-06-01) — 견적 회신 리마인드의 기준 시각.
+     *   Customer 보장 후 MessageHistory 에 ESTIMATE_SENT 마커. 발송 여부와 무관(준비=강한 의도).
+     */
+    fun recordEstimateSent(body: String) = viewModelScope.launch {
+        val cid = ensureCustomerId()
+        withContext(Dispatchers.IO + NonCancellable) {
+            runCatching { container.messageHistoryRepository.recordEstimateSent(phoneNumber, cid, body) }
+        }
+    }
+
     suspend fun ensureCustomerId(): Long {
         customer.value?.let { return it.id }
         val c = withContext(Dispatchers.IO + NonCancellable) {

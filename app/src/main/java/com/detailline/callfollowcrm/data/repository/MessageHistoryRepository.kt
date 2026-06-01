@@ -20,6 +20,29 @@ class MessageHistoryRepository(private val dao: MessageHistoryDao) {
     fun observeRecentAutoReplies(sinceMs: Long, limit: Int = 5): Flow<List<MessageHistoryEntity>> =
         dao.observeRecentAutoReplies(sinceMs, limit)
 
+    /** 견적 보낸 기록 observe (견적 회신 리마인드). status='ESTIMATE_SENT'. */
+    fun observeEstimateSends(): Flow<List<MessageHistoryEntity>> = dao.observeEstimateSends()
+
+    /**
+     * 견적 보냄 기록 — 채팅 견적 작성/공유 시 호출. status='ESTIMATE_SENT' 마커.
+     *   견적 회신 리마인드(N일째 답 없으면 한 번 더)의 기준 시각.
+     */
+    suspend fun recordEstimateSent(phoneNumber: String, customerId: Long?, body: String): Long {
+        val entity = MessageHistoryEntity(
+            phoneNumber = phoneNumber,
+            customerId = customerId,
+            templateId = null,
+            messageBody = body.take(200),
+            status = STATUS_ESTIMATE_SENT,
+            createdAt = System.currentTimeMillis()
+        )
+        return dao.insert(entity)
+    }
+
+    companion object {
+        const val STATUS_ESTIMATE_SENT = "ESTIMATE_SENT"
+    }
+
     suspend fun recordDraftOpened(
         phoneNumber: String,
         customerId: Long?,

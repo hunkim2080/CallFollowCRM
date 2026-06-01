@@ -236,6 +236,22 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             .compute(custs, keys, todayStart).size
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
+    /**
+     * 견적 회신 리마인드 카운트 (상담함, 2026-06-01) — 견적 보낸 지 N일 됐는데 시공일 미등록.
+     */
+    val estimateFollowupCount: StateFlow<Int> = combine(
+        container.messageHistoryRepository.observeEstimateSends(),
+        customers,
+        container.recurringMessageRepository.observeLogs()
+    ) { sends, custs, logs ->
+        val estDays = sends.filter { it.customerId != null }
+            .groupBy { it.customerId!! }
+            .mapValues { (_, list) -> DateTimeUtils.startOfDay(list.maxOf { it.createdAt }) }
+        val keys = logs.map { Triple(it.ruleId, it.customerId, it.occurrenceDayStartMs) }.toSet()
+        com.detailline.callfollowcrm.domain.estimate.EstimateFollowupCalc
+            .compute(estDays, custs, keys, todayStart).size
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
     // ────────────────────────────────────────────────────────
     // 오늘 시공 히어로 + 다음 시공 (상담함 최상단, 2026-06-01)
     // ────────────────────────────────────────────────────────

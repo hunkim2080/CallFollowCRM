@@ -50,4 +50,11 @@ interface MessageHistoryDao {
         LIMIT :limit
     """)
     fun observeRecentAutoReplies(sinceMs: Long, limit: Int): Flow<List<MessageHistoryEntity>>
+
+    /**
+     * 견적 보낸 기록 — 견적 회신 리마인드용 (2026-06-01). status='ESTIMATE_SENT'.
+     *   customerId 별 최신 1건을 VM 에서 추려 "N일째 답 없음" 판정.
+     */
+    @Query("SELECT * FROM message_histories WHERE status = 'ESTIMATE_SENT' ORDER BY createdAt DESC")
+    fun observeEstimateSends(): Flow<List<MessageHistoryEntity>>
 }

@@ -1381,3 +1381,13 @@ CREATE TABLE customer_personas (
   - dedupe 는 recurring_message_log 음수 sentinel ruleId(-1=D1,-2=도착) 재사용.
 - assembleDebug + 테스트 통과.
 - 현황판: 더보기 5/7→6/7, 전체 43/52→44/52(85%).
+
+## 2026-06-02 02:10 · android
+견적 회신 리마인드 — 견적 보낸 지 N일 답 없는 고객 챙기기. 앱 단독, DB 스키마 변경 0.
+- 변경: 없음 (server/ 무관).
+  - 채팅 견적 작성/공유 시 ChatViewModel.recordEstimateSent → MessageHistory status='ESTIMATE_SENT'.
+  - EstimateFollowupCalc(순수+테스트 6) + ViewModel/Screen, 홈 SimpleDueCard(📋)→EstimateFollowupScreen.
+  - dedupe 는 recurring_message_log 음수 sentinel(-4). 시공일 잡힌 고객 제외.
+- 참고(서버): "접수서 작성 리마인드"는 시공접수서(서버) 도입 후 — 이번 범위 아님.
+- assembleDebug + 테스트 통과.
+- 현황판: 상담함 6/9→7/9, 전체 44/52→45/52(87%).
