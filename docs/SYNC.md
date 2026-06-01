@@ -1353,3 +1353,13 @@ CREATE TABLE customer_personas (
   - ChatViewModel.scheduledJobs(시공일 잡힌 고객 observe), ChatScreen 앱바 달력 아이콘.
 - assembleDebug 성공.
 - 현황판: 일정 4/5→5/5, 전체 40/52(77%). 4영역(정산·수첩·온보딩·일정) 100%.
+
+## 2026-06-02 00:30 · android
+통화 구간 표시 — 채팅 타임라인에 통화 카드 시간순 병합.
+- 변경: 없음 (앱 단독, server/ 무관, DB 스키마 변경 없음).
+  - CallRecordDao.observeByPhoneSuffix(suffix LIKE) + Repository 노출.
+  - ChatViewModel.callRecords, ChatScreen buildChatTimeline(messages+calls 시간순) + CallSegment 카드.
+  - loadMessages(3-stage 캐시) 무손상 — 렌더 레이어에서만 병합.
+- 참고(서버): 통화 "요약 가져오기"(에이닷→요약→후속문자)는 상담함 "통화 요약 카드"=맥미니 영역으로 분리.
+- assembleDebug 성공.
+- 현황판: 채팅 4/7→5/7, 전체 41/52(79%).

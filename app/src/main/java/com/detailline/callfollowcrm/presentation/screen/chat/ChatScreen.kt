@@ -106,6 +106,7 @@ import com.detailline.callfollowcrm.domain.model.TemplateCategory
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
+import com.detailline.callfollowcrm.presentation.theme.TossError
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
@@ -147,6 +148,9 @@ fun ChatScreen(
 
     val customer by viewModel.customer.collectAsState()
     val messages by viewModel.messages.collectAsState()
+    // 통화 구간 — 메시지와 시간순 병합해 타임라인에 통화 카드로 표시 (loadMessages 무손상, 렌더 레이어 병합).
+    val callRecords by viewModel.callRecords.collectAsState()
+    val timelineItems = remember(messages, callRecords) { buildChatTimeline(messages, callRecords) }
     val templates by viewModel.templates.collectAsState()
     val pricingItems by viewModel.pricingItems.collectAsState()
     val toast by viewModel.toast.collectAsState()
@@ -459,8 +463,8 @@ fun ChatScreen(
             //   메시지 첫 로드 + 새 메시지 도착 (size 변경) 시 items[0] (=최신) 로 강제 스크롤.
             //   사장님이 위로 옛 메시지 보다가 새 메시지 와도 자동 점프 — 약간 거슬릴 수도 있지만
             //   "옛 메시지가 앞에 보이지 않게" 가 더 중요 (사장님 명시 우선순위).
-            LaunchedEffect(messages.size) {
-                if (messages.isNotEmpty()) {
+            LaunchedEffect(timelineItems.size) {
+                if (timelineItems.isNotEmpty()) {
                     listState.scrollToItem(0)
                 }
             }
@@ -473,7 +477,7 @@ fun ChatScreen(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
                 state = listState
             ) {
-                if (messages.isEmpty()) {
+                if (timelineItems.isEmpty()) {
                     item {
                         Box(
                             modifier = Modifier
@@ -489,20 +493,26 @@ fun ChatScreen(
                         }
                     }
                 } else {
-                    // key 안 줌 — SMS id 와 MMS id 가 별도 테이블이라 같은 값일 수 있어 충돌 위험.
-                    items(messages) { msg ->
-                        ChatBubble(
-                            body = msg.body,
-                            timeMs = msg.dateMs,
-                            sent = msg.sent,
-                            imageUris = msg.imageUris,
-                            isStarred = starredKeys.contains(msg.dateMs to msg.sent),
-                            onImageTap = { fullscreenImageUri = it },
-                            onLongPress = {
-                                // 2026-05-25: 직접 toggleStar 호출 X → BottomSheet 띄워서 저장/복사 선택.
-                                bubbleActionTarget = msg
+                    // key 안 줌 — SMS/MMS id 가 별도 테이블, 통화 id 도 별도라 충돌 위험. 인덱스 기반 렌더.
+                    items(timelineItems) { ti ->
+                        when (ti) {
+                            is ChatTimelineItem.Msg -> {
+                                val msg = ti.message
+                                ChatBubble(
+                                    body = msg.body,
+                                    timeMs = msg.dateMs,
+                                    sent = msg.sent,
+                                    imageUris = msg.imageUris,
+                                    isStarred = starredKeys.contains(msg.dateMs to msg.sent),
+                                    onImageTap = { fullscreenImageUri = it },
+                                    onLongPress = {
+                                        // 2026-05-25: 직접 toggleStar 호출 X → BottomSheet 띄워서 저장/복사 선택.
+                                        bubbleActionTarget = msg
+                                    }
+                                )
                             }
-                        )
+                            is ChatTimelineItem.Call -> CallSegment(ti.record)
+                        }
                     }
                 }
             }
@@ -980,6 +990,109 @@ fun ChatScreen(
             onDismiss = { showEstimateBuilder = false }
         )
     }
+}
+
+/** 통화 구간 카드 색 — 문자(파랑)와 구분되는 청록. 프로토 .chat-call (#0E9E90/#EAF4F1). */
+private val CallTeal = Color(0xFF0E9E90)
+private val CallTealSoft = Color(0xFFEAF4F1)
+
+/**
+ * 채팅 타임라인 한 항목 — 문자(Msg) 또는 통화(Call). 2026-06-01.
+ *   reverseLayout LazyColumn 에 시간 DESC 로 넘김. timeMs 기준 정렬.
+ */
+sealed interface ChatTimelineItem {
+    val timeMs: Long
+    data class Msg(val message: com.detailline.callfollowcrm.data.repository.SmsRepository.SmsMessage) : ChatTimelineItem {
+        override val timeMs: Long get() = message.dateMs
+    }
+    data class Call(val record: com.detailline.callfollowcrm.data.local.entity.CallRecordEntity) : ChatTimelineItem {
+        override val timeMs: Long get() = record.endedAt
+    }
+}
+
+/**
+ * 문자 + 통화를 시간 DESC 로 병합. 메시지 로딩(loadMessages) 은 그대로 두고 렌더 직전에만 합침.
+ *   같은 시각이면 통화를 먼저(아래쪽=reverseLayout) — 통화 후 문자 흐름이 자연스럽게 보이도록.
+ */
+private fun buildChatTimeline(
+    messages: List<com.detailline.callfollowcrm.data.repository.SmsRepository.SmsMessage>,
+    calls: List<com.detailline.callfollowcrm.data.local.entity.CallRecordEntity>
+): List<ChatTimelineItem> {
+    if (calls.isEmpty()) return messages.map { ChatTimelineItem.Msg(it) }
+    val merged = ArrayList<ChatTimelineItem>(messages.size + calls.size)
+    messages.forEach { merged += ChatTimelineItem.Msg(it) }
+    calls.forEach { merged += ChatTimelineItem.Call(it) }
+    return merged.sortedWith(compareByDescending<ChatTimelineItem> { it.timeMs }.thenBy { it is ChatTimelineItem.Msg })
+}
+
+/**
+ * 채팅 안 통화 구간 카드 (2026-06-01) — 프로토 .chat-call 벤치마킹.
+ *   가운데 정렬 청록 카드: [📞] 통화 유형 + 길이 + 시각. 문자 말풍선과 시각적으로 구분.
+ *   요약 가져오기(에이닷/서버)는 별개 단계 — 여기선 통화 발생 자체를 타임라인에 표시.
+ */
+@Composable
+private fun CallSegment(record: com.detailline.callfollowcrm.data.local.entity.CallRecordEntity) {
+    val type = runCatching {
+        com.detailline.callfollowcrm.domain.model.CallType.valueOf(record.callType)
+    }.getOrNull()
+    val (label, accent) = when (type) {
+        com.detailline.callfollowcrm.domain.model.CallType.INCOMING -> "수신 통화" to CallTeal
+        com.detailline.callfollowcrm.domain.model.CallType.OUTGOING -> "발신 통화" to CallTeal
+        com.detailline.callfollowcrm.domain.model.CallType.MISSED -> "부재중 전화" to TossError
+        com.detailline.callfollowcrm.domain.model.CallType.REJECTED -> "거절한 전화" to TossTextSecondary
+        com.detailline.callfollowcrm.domain.model.CallType.MANUAL -> "수동 기록 통화" to CallTeal
+        else -> "통화" to CallTeal
+    }
+    val durLabel = formatCallDuration(record.duration)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.Center
+    ) {
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(14.dp))
+                .background(CallTealSoft)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(accent),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Phone, contentDescription = null,
+                    tint = Color.White, modifier = Modifier.size(15.dp))
+            }
+            Spacer(Modifier.width(9.dp))
+            Column {
+                Text(
+                    buildString {
+                        append(label)
+                        if (durLabel != null) { append(" · "); append(durLabel) }
+                    },
+                    style = MaterialTheme.typography.labelLarge,
+                    color = accent, fontWeight = FontWeight.Bold
+                )
+                Text(
+                    DateTimeUtils.formatShort(record.endedAt),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TossTextTertiary, fontWeight = FontWeight.Medium
+                )
+            }
+        }
+    }
+}
+
+/** 통화 길이(초)를 "3분 12초"/"45초" 로. 0 이하(부재중/거절)면 null = 길이 생략. */
+private fun formatCallDuration(seconds: Long): String? {
+    if (seconds <= 0L) return null
+    val m = seconds / 60
+    val s = seconds % 60
+    return if (m > 0) "${m}분 ${s}초" else "${s}초"
 }
 
 @OptIn(ExperimentalFoundationApi::class)

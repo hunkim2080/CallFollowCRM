@@ -102,6 +102,17 @@ class ChatViewModel(
     val messages = _messages.asStateFlow()
 
     /**
+     * 채팅 통화 구간 (2026-06-01) — 이 번호와 주고받은 통화 기록. 메시지와 시간순으로 병합 표시.
+     *   suffix 매칭 (저장 포맷 차이 흡수). 통화 0건이면 빈 리스트 → 화면엔 안 보임.
+     *   요약 가져오기(에이닷/서버)는 별개 — 여기선 통화 자체(유형·시간·길이) 노출까지.
+     */
+    val callRecords: StateFlow<List<com.detailline.callfollowcrm.data.local.entity.CallRecordEntity>> = run {
+        val suffix = phoneNumber.filter { it.isDigit() }.takeLast(8)
+        if (suffix.length < 7) kotlinx.coroutines.flow.flowOf(emptyList())
+        else container.callRecordRepository.observeByPhoneSuffix(suffix)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
      * P0/P1/P2 AI 요약 — ChatScreen 상단 박스와 AI 제안 박스가 구독.
      * Room observe — 서버 응답이 캐시되면 자동 emit.
      * 서버 미구현이면 영구히 null → 화면에 아무 박스도 안 보임 (조용히 숨김).

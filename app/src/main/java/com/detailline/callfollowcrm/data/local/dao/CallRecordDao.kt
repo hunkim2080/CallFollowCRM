@@ -23,6 +23,17 @@ interface CallRecordDao {
     @Query("SELECT * FROM call_records WHERE phoneNumber = :phoneNumber ORDER BY endedAt DESC")
     fun observeByPhone(phoneNumber: String): Flow<List<CallRecordEntity>>
 
+    /**
+     * 채팅 통화 구간 표시용 — 끝 8자리(suffix)로 매칭 (저장 포맷 차이 흡수).
+     *   call_records 는 작은 테이블이라 replace+LIKE 풀스캔 비용 무시 가능.
+     */
+    @Query("""
+        SELECT * FROM call_records
+        WHERE replace(replace(phoneNumber, '-', ''), ' ', '') LIKE '%' || :suffix
+        ORDER BY endedAt DESC
+    """)
+    fun observeByPhoneSuffix(suffix: String): Flow<List<CallRecordEntity>>
+
     @Query("SELECT * FROM call_records ORDER BY endedAt DESC LIMIT :limit")
     fun observeRecent(limit: Int = 50): Flow<List<CallRecordEntity>>
 

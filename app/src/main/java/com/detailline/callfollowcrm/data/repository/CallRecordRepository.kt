@@ -13,6 +13,8 @@ class CallRecordRepository(private val dao: CallRecordDao) {
     fun observeRecent(limit: Int = 50): Flow<List<CallRecordEntity>> = dao.observeRecent(limit)
     fun observeBetween(from: Long, to: Long): Flow<List<CallRecordEntity>> = dao.observeBetween(from, to)
     fun observeByPhone(phone: String): Flow<List<CallRecordEntity>> = dao.observeByPhone(phone)
+    /** 채팅 통화 구간 표시용 — 끝 8자리 suffix 매칭. */
+    fun observeByPhoneSuffix(suffix: String): Flow<List<CallRecordEntity>> = dao.observeByPhoneSuffix(suffix)
     fun countUnhandled(from: Long, to: Long): Flow<Int> = dao.countUnhandled(from, to)
     fun countHandled(from: Long, to: Long): Flow<Int> = dao.countHandled(from, to)
     fun observeMissedSince(from: Long): Flow<List<CallRecordEntity>> = dao.observeMissedSince(from)
