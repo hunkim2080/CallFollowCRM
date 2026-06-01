@@ -130,6 +130,15 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean(KEY_AUTO_CATEGORY_BACKFILLED, false)
         set(value) = prefs.edit().putBoolean(KEY_AUTO_CATEGORY_BACKFILLED, value).apply()
 
+    /**
+     * 2026-06-01 전면 리뉴얼 — 로그인 화면을 한 번 봤는지. 첫 실행에만 로그인 화면 노출.
+     * 어떤 소셜 버튼/둘러보기든 누르면 true → 이후 바로 권한/홈으로.
+     * (실제 소셜 OAuth 연동은 서버 작업으로 별도. 지금은 화면 + 진입 흐름만.)
+     */
+    var hasSeenLogin: Boolean
+        get() = prefs.getBoolean(KEY_HAS_SEEN_LOGIN, false)
+        set(value) = prefs.edit().putBoolean(KEY_HAS_SEEN_LOGIN, value).apply()
+
     // ── 사업자정보 (2026-06-01) — 견적서/시공접수서 발행용. 모두 사장님 직접 입력. ──
     var bizName: String
         get() = prefs.getString(KEY_BIZ_NAME, "") ?: ""
@@ -193,6 +202,7 @@ class AppPreferences(context: Context) {
         private const val KEY_TONE_LAST_UPLOADED_AT = "tone_last_uploaded_at"
         private const val KEY_TONE_TOTAL_UPLOADED = "tone_total_uploaded"
         private const val KEY_AUTO_CATEGORY_BACKFILLED = "auto_category_backfilled"
+        private const val KEY_HAS_SEEN_LOGIN = "has_seen_login"
         private const val KEY_BIZ_NAME = "biz_name"
         private const val KEY_BIZ_OWNER = "biz_owner"
         private const val KEY_BIZ_NO = "biz_no"

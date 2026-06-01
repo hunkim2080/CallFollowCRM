@@ -53,6 +53,22 @@ fun AppNavHost(
 ) {
     NavHost(navController = navController, startDestination = startDestination, modifier = modifier) {
 
+        composable(Destinations.LOGIN) {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            com.detailline.callfollowcrm.presentation.screen.login.LoginScreen(
+                onProceed = {
+                    container.preferences.hasSeenLogin = true
+                    val next = if (
+                        com.detailline.callfollowcrm.util.PermissionHelper
+                            .allMissingNonNotification(context).isNotEmpty()
+                    ) Destinations.ONBOARDING else Destinations.HOME
+                    navController.navigate(next) {
+                        popUpTo(Destinations.LOGIN) { inclusive = true }
+                    }
+                }
+            )
+        }
+
         composable(Destinations.ONBOARDING) {
             OnboardingPermissionScreen(
                 onContinue = {

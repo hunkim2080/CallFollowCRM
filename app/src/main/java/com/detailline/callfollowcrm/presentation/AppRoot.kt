@@ -30,7 +30,12 @@ fun AppRoot(container: AppContainer) {
             val context = LocalContext.current
 
             val showOnboarding = PermissionHelper.allMissingNonNotification(context).isNotEmpty()
-            val startDestination = if (showOnboarding) Destinations.ONBOARDING else Destinations.HOME
+            val startDestination = when {
+                // 전면 리뉴얼: 첫 실행 = 로그인 화면 → 권한 → 홈. 한 번 보면 hasSeenLogin=true.
+                !container.preferences.hasSeenLogin -> Destinations.LOGIN
+                showOnboarding -> Destinations.ONBOARDING
+                else -> Destinations.HOME
+            }
 
             LaunchedEffect(Unit) {
                 container.navEvents.events.collect { event ->

@@ -1,6 +1,7 @@
 package com.detailline.callfollowcrm.presentation.navigation
 
 object Destinations {
+    const val LOGIN = "login"
     const val ONBOARDING = "onboarding"
     const val HOME = "home"
     const val FOLLOW_UP = "follow_up"
