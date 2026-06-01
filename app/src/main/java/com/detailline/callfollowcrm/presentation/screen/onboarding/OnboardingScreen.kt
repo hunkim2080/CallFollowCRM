@@ -26,7 +26,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -228,7 +230,44 @@ private fun TradeStep(
             }
             Spacer(Modifier.height(9.dp))
         }
-        Spacer(Modifier.height(8.dp))
+        // + 직접 입력 (프로토 addCustomTrade) — 목록에 없는 업종을 직접 추가.
+        var showCustom by remember { mutableStateOf(false) }
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .border(1.5.dp, Color(0xFFD8DEE6), RoundedCornerShape(14.dp))
+                .clickable { showCustom = true }
+                .padding(vertical = 14.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("+ 직접 입력", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
+        }
+        if (showCustom) {
+            var input by remember { mutableStateOf("") }
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { showCustom = false },
+                title = { Text("업종 직접 입력") },
+                text = {
+                    androidx.compose.material3.OutlinedTextField(
+                        value = input,
+                        onValueChange = { input = it },
+                        singleLine = true,
+                        placeholder = { Text("예: 방수·우레탄") }
+                    )
+                },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(onClick = {
+                        val v = input.trim()
+                        if (v.isNotEmpty() && !selected.contains(v)) selected.add(v)
+                        showCustom = false
+                    }) { Text("추가") }
+                },
+                dismissButton = {
+                    androidx.compose.material3.TextButton(onClick = { showCustom = false }) { Text("취소") }
+                }
+            )
+        }
+        Spacer(Modifier.height(16.dp))
         ObCta(if (selected.isEmpty()) "다음" else "다음 (${selected.size}개)", enabled = selected.isNotEmpty(), onClick = onNext)
         Spacer(Modifier.height(12.dp))
     }
@@ -493,12 +532,33 @@ private fun storySlides(): List<Slide> = listOf(
         }
     },
     Slide("05 · 홍보", "후기 글, AI가 대신 써줘요", "고객과 나눈 문자로 만든 진짜 후기,\n사장님은 사진만 넣으세요") {
-        Column(Modifier.fillMaxWidth().background(TossGrayBg, RoundedCornerShape(14.dp)).padding(13.dp)) {
-            Text("[천호동] 화장실 줄눈 시공 후기", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
-            Spacer(Modifier.height(4.dp))
-            Text("안녕하세요, 디테일라인 줄눈입니다 😊 욕실 2곳 줄눈+코킹 재시공을…", fontSize = 12.sp, color = TossTextPrimary, lineHeight = 19.sp)
-            Spacer(Modifier.height(4.dp))
-            Text("#천호동줄눈 #욕실줄눈 #디테일라인", fontSize = 12.sp, color = ObAccent, fontWeight = FontWeight.Bold)
+        Column(Modifier.fillMaxWidth()) {
+            // 프로토: 사진 ＋ 채팅 → 후기 아이콘 줄
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(Modifier.size(48.dp).background(Color(0xFFB6BECB), RoundedCornerShape(13.dp)), Alignment.Center) {
+                    Text("사진", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                }
+                Text("  ＋  ", fontSize = 13.sp, fontWeight = FontWeight.Black, color = TossTextTertiary)
+                Box(Modifier.size(48.dp).background(TossGrayBg, RoundedCornerShape(13.dp)), Alignment.Center) {
+                    Icon(Icons.AutoMirrored.Filled.Chat, null, tint = TossTextSecondary, modifier = Modifier.size(22.dp))
+                }
+                Text("  →  ", fontSize = 16.sp, fontWeight = FontWeight.Black, color = ObAccent)
+                Box(Modifier.size(48.dp).background(Color(0xFFFFF1E9), RoundedCornerShape(13.dp)), Alignment.Center) {
+                    Icon(Icons.Filled.Description, null, tint = Color(0xFFFF7847), modifier = Modifier.size(22.dp))
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            Column(Modifier.fillMaxWidth().background(TossGrayBg, RoundedCornerShape(14.dp)).padding(13.dp)) {
+                Text("[천호동] 화장실 줄눈 시공 후기", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                Spacer(Modifier.height(4.dp))
+                Text("안녕하세요, 디테일라인 줄눈입니다 😊 욕실 2곳 줄눈+코킹 재시공을…", fontSize = 12.sp, color = TossTextPrimary, lineHeight = 19.sp)
+                Spacer(Modifier.height(4.dp))
+                Text("#천호동줄눈 #욕실줄눈 #디테일라인", fontSize = 12.sp, color = ObAccent, fontWeight = FontWeight.Bold)
+            }
         }
     },
     Slide("그래서 —", "함께할수록 완벽해져요", "오늘 시작하면, 내일 더 사장님다운 비서") {
