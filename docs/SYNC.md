@@ -1802,3 +1802,10 @@ CREATE TABLE intake_forms (
 - 변경: HomeViewModel.waitingReplies(suffix→추천1순위, suggestionRepository.fetch 로 미확인 고객별 조회) + onWaitingReplySent(발송 기록 INLINE_SENT + 미확인 즉시 제외 _repliedSuffixes). WaitingCard sugbox(✨AI 추천 답변 + 본문 + 파란 비행기)·추천 없으면 "AI 답변 준비 중…"+[답장하기]. 발송 = SmsSender.sendDirect(권한 없으면 채팅 fallback). 자동발송 아님 = 사장님 탭.
 - 정책: 홈에서 SMS 직발이나 (a) 추천 본문 미리보기 노출 (b) 사장님 명시 탭 (c) 권한 없으면 채팅으로. 자동발송 X 유지.
 - DB 변경 없음. commit: (아래)
+
+## 2026-06-02 · android (7)
+사장님 폰 점검 피드백 — 상담함 카드 프로토 1:1 정정.
+- 오늘 시공 히어로: 프로토 heroJobHtml 1:1 (다크 그라데이션 + 🟢 D-DAY + 이름·시간 예정 + 📍주소 + [길찾기][전화][완료] 3버튼). 전엔 전화번호+길찾기만.
+- 시공 D-1 안내: 얇은 team-alert → 프로토 remind-card (좌측 앰버 + 라벨 + 이름·시점 + 전체 문구박스 + [건너뛰기][문자 보낼까요?]). HomeViewModel.scheduleReminders(이름·시점·문구) + markReminderSent/dismissReminder. 발송=SmsSender.sendDirect.
+- 자동답장: 리스트 카드 → 프로토 team-alert.missed 한 줄 카드(건당, 탭→대화).
+- DB 변경 없음. commit: (아래)

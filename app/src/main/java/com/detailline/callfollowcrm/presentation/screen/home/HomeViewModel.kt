@@ -270,6 +270,65 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     /**
+     * 시공 안내 리마인드 상세 (프로토 remind-card) — 이름·시점·문구까지. 홈 상단에 1건 카드로.
+     *   문구는 [ScheduleReminderViewModel.renderBody] 와 동일 규칙. 발송/건너뛰기 = 로그 재사용.
+     */
+    val scheduleReminders: StateFlow<List<HomeReminderUi>> = combine(
+        customers,
+        container.recurringMessageRepository.observeLogs()
+    ) { custs, logs ->
+        val keys = logs.map { Triple(it.ruleId, it.customerId, it.occurrenceDayStartMs) }.toSet()
+        val byId = custs.associateBy { it.id }
+        com.detailline.callfollowcrm.domain.reminder.ScheduleReminderCalc
+            .compute(custs, keys, todayStart).map { item ->
+                val c = byId[item.customerId]
+                val md = DateTimeUtils.formatDateOnly(item.scheduledDayStartMs)
+                val timeStr = c?.scheduledWorkMinutes?.let { " " + DateTimeUtils.formatWorkMinutes(it) } ?: ""
+                val d1 = item.kind == com.detailline.callfollowcrm.domain.reminder.ReminderKind.D1
+                HomeReminderUi(
+                    item = item,
+                    body = renderReminderBody(item),
+                    name = item.customerName?.takeIf { it.isNotBlank() } ?: item.phone,
+                    whenLabel = (if (d1) "내일" else "오늘") + "($md)$timeStr",
+                    kindLabel = if (d1) "내일 시공 안내 · D-1" else "오늘 시공 · 도착 안내"
+                )
+            }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    private fun renderReminderBody(item: com.detailline.callfollowcrm.domain.reminder.ReminderItem): String {
+        val name = item.customerName?.takeIf { it.isNotBlank() } ?: "고객"
+        val biz = container.preferences.bizName.takeIf { it.isNotBlank() }?.let { " $it" } ?: ""
+        return when (item.kind) {
+            com.detailline.callfollowcrm.domain.reminder.ReminderKind.D1 -> {
+                val date = DateTimeUtils.formatKoreanDate(item.scheduledDayStartMs)
+                "${name}님, 안녕하세요$biz 😊 내일 $date 시공 예정입니다. 시간 맞춰 방문드릴게요. 변동 있으시면 편히 말씀 주세요!"
+            }
+            com.detailline.callfollowcrm.domain.reminder.ReminderKind.ARRIVAL ->
+                "${name}님, 오늘 시공 위해 곧 출발합니다!$biz 도착 전 미리 연락드릴게요 😊"
+        }
+    }
+
+    /** 시공 안내 리마인드 — 보냄 처리(로그 SENT → 카드에서 제외). 실제 발송은 화면이 SmsSender 로. */
+    fun markReminderSent(item: com.detailline.callfollowcrm.domain.reminder.ReminderItem) =
+        logReminder(item, com.detailline.callfollowcrm.data.local.entity.RecurringLogEntity.STATUS_SENT)
+
+    /** 시공 안내 리마인드 — 건너뛰기(로그 DISMISSED). */
+    fun dismissReminder(item: com.detailline.callfollowcrm.domain.reminder.ReminderItem) =
+        logReminder(item, com.detailline.callfollowcrm.data.local.entity.RecurringLogEntity.STATUS_DISMISSED)
+
+    private fun logReminder(item: com.detailline.callfollowcrm.domain.reminder.ReminderItem, status: String) =
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                container.recurringMessageRepository.logOccurrence(
+                    ruleId = com.detailline.callfollowcrm.domain.reminder.ScheduleReminderCalc.ruleIdOf(item.kind),
+                    customerId = item.customerId,
+                    occurrenceDayStartMs = item.scheduledDayStartMs,
+                    status = status
+                )
+            }
+        }
+
+    /**
      * 견적 회신 리마인드 카운트 (상담함, 2026-06-01) — 견적 보낸 지 N일 됐는데 시공일 미등록.
      */
     val estimateFollowupCount: StateFlow<Int> = combine(
@@ -745,6 +804,15 @@ data class HomeItem(
     val callCount: Int = 1,
     val isUnconfirmed: Boolean = false,
     val isNewToday: Boolean = false
+)
+
+/** 홈 시공 안내 remind-card 표시 모델 (프로토 remind-card). */
+data class HomeReminderUi(
+    val item: com.detailline.callfollowcrm.domain.reminder.ReminderItem,
+    val body: String,
+    val name: String,
+    val whenLabel: String,
+    val kindLabel: String
 )
 
 /**

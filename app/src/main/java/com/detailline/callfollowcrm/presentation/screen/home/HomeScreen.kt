@@ -30,6 +30,8 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallMade
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.CallMissed
 import androidx.compose.material.icons.filled.CallReceived
 import androidx.compose.material.icons.filled.DateRange
@@ -159,7 +161,7 @@ fun HomeScreen(
     val nextJobs by viewModel.nextJobs.collectAsState()
     val autoReplies by viewModel.autoReplies.collectAsState()
     val recurringDueCount by viewModel.recurringDueCount.collectAsState()
-    val scheduleReminderCount by viewModel.scheduleReminderCount.collectAsState()
+    val scheduleReminders by viewModel.scheduleReminders.collectAsState()
     val estimateFollowupCount by viewModel.estimateFollowupCount.collectAsState()
     val isInitialSmsLoading by viewModel.isInitialSmsLoading.collectAsState()
 
@@ -468,7 +470,8 @@ fun HomeScreen(
                         todayJobs = todayJobs,
                         nextJobs = nextJobs,
                         onOpenCustomer = onOpenCustomerDetail,
-                        onNavigate = { phone -> launchNavigationFor(phone) }
+                        onNavigate = { phone -> launchNavigationFor(phone) },
+                        onCall = { phone -> dialHome(context, phone) }
                     )
                 }
 
@@ -494,12 +497,23 @@ fun HomeScreen(
                     }
                 }
 
-                // 부재중 → 자동답장 카드 — 막내가 사장님 대신 첫 인사 보낸 기록 (최근 24h, 프로토 missed).
-                if (autoReplies.isNotEmpty()) {
-                    item(key = "auto-reply-card") {
-                        AutoReplyCard(
-                            items = autoReplies,
-                            onOpenChat = onOpenChat
+                // 부재중 → 자동답장 (프로토 team-alert missed) — 한 건당 한 줄 카드. 탭 → 대화.
+                autoReplies.forEach { ar ->
+                    item(key = "auto-reply-${ar.phone}-${ar.createdAt}") {
+                        val arName = ar.customerName?.takeIf { it.isNotBlank() }
+                            ?: PhoneNumberFormatter.format(ar.phone)
+                        InboxAlert(
+                            accent = if (ar.failed) TossError else TossBlue,
+                            accentTint = if (ar.failed) Color(0xFFFDEAEF) else TossBlueSoft,
+                            icon = Icons.Default.Call,
+                            title = "부재중 전화에 자동 답장 보냄",
+                            tagText = if (ar.failed) "실패" else null,
+                            tagBg = Color(0xFFFDEAEF), tagFg = TossError,
+                            sub = "$arName · " +
+                                (if (ar.failed) "발송 실패 — 직접 보내주세요" else "자동 인사 보냄") +
+                                " · " + DateTimeUtils.formatShort(ar.createdAt),
+                            goLabel = "대화",
+                            onClick = { onOpenChat(ar.phone, ar.customerId) }
                         )
                     }
                 }
@@ -519,17 +533,27 @@ fun HomeScreen(
                     }
                 }
 
-                // 시공 D-1 / 도착 안내 (프로토 d1). 내일·오늘 시공 고객 안내 문자.
-                if (scheduleReminderCount > 0) {
-                    item(key = "schedule-reminder-card") {
-                        InboxAlert(
-                            accent = TossSuccess, accentTint = Color(0xFFE7F8EF),
-                            icon = Icons.Filled.Sms,
-                            title = "시공 안내 문자 보낼까요?",
-                            tagText = null, tagBg = Color.Transparent, tagFg = Color.Transparent,
-                            sub = "${scheduleReminderCount}곳 · 내일·오늘 시공",
-                            goLabel = "보기",
-                            onClick = onOpenScheduleReminder
+                // 시공 D-1 / 도착 안내 (프로토 remind-card) — 전체 문구 + [건너뛰기][문자 보낼까요?].
+                scheduleReminders.forEach { rem ->
+                    item(key = "reminder-${rem.item.kind}-${rem.item.customerId}") {
+                        RemindCard(
+                            reminder = rem,
+                            onSkip = { viewModel.dismissReminder(rem.item) },
+                            onSend = {
+                                val ok = com.detailline.callfollowcrm.util.SmsSender
+                                    .sendDirect(context, rem.item.phone, rem.body)
+                                if (ok) {
+                                    viewModel.markReminderSent(rem.item)
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("${rem.name} 님께 보냈어요 📩", duration = SnackbarDuration.Short)
+                                    }
+                                } else {
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("문자 권한이 없어요 — 채팅에서 보내주세요", duration = SnackbarDuration.Short)
+                                    }
+                                    onOpenChat(rem.item.phone, rem.item.customerId)
+                                }
+                            }
                         )
                     }
                 }
@@ -644,60 +668,56 @@ private fun TodayHeroCard(
     todayJobs: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
     nextJobs: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
     onOpenCustomer: (Long) -> Unit,
-    onNavigate: (String) -> Unit
+    onNavigate: (String) -> Unit,
+    onCall: (String) -> Unit
 ) {
     if (todayJobs.isNotEmpty()) {
+        // 프로토 heroJobHtml — 다크 그라데이션 + 🟢 D-DAY + 이름·시간 + 📍주소 + [길찾기][전화][완료].
+        val c = todayJobs.first()
+        val name = c.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(c.phoneNumber)
         Column(
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(TossTextPrimary)
-                .padding(18.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .background(Brush.linearGradient(listOf(Color(0xFF272D3D), Color(0xFF14171F))))
+                .clickable { onOpenCustomer(c.id) }
+                .padding(20.dp)
         ) {
-            Text(
-                "📍 오늘 시공 ${todayJobs.size}곳",
-                color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold
-            )
-            todayJobs.forEachIndexed { i, c ->
-                Spacer(Modifier.height(if (i == 0) 12.dp else 10.dp))
-                if (i > 0) {
-                    Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x22FFFFFF)))
-                    Spacer(Modifier.height(10.dp))
+            // hero-top — 초록 점 + 라벨
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(7.dp).clip(CircleShape).background(TossSuccess))
+                Spacer(Modifier.width(7.dp))
+                Text(
+                    if (todayJobs.size > 1) "오늘 시공 ${todayJobs.size}곳 · D-DAY" else "오늘 시공 · D-DAY",
+                    color = Color.White.copy(alpha = 0.62f), fontSize = 11.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp
+                )
+            }
+            // hero-name — 이름 + 시간 예정
+            Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = 11.dp)) {
+                Text(name, color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.7).sp)
+                c.scheduledWorkMinutes?.let { mins ->
+                    Text(
+                        " · ${DateTimeUtils.formatWorkMinutes(mins)} 예정",
+                        color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(bottom = 2.dp)
+                    )
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(
-                        Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).clickable { onOpenCustomer(c.id) }
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                c.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(c.phoneNumber),
-                                color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold
-                            )
-                            c.scheduledWorkMinutes?.let { mins ->
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    "🕐 " + DateTimeUtils.formatWorkMinutes(mins),
-                                    color = TossBlueSoft, fontSize = 13.sp, fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        }
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            c.address?.takeIf { it.isNotBlank() } ?: "주소 미등록 — 탭해서 등록",
-                            color = Color(0xFFB0B8C1), fontSize = 13.sp, maxLines = 1
-                        )
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    Box(
-                        Modifier
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(TossBlue)
-                            .clickable { onNavigate(c.phoneNumber) }
-                            .padding(horizontal = 16.dp, vertical = 9.dp)
-                    ) {
-                        Text("길찾기", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
+            }
+            // hero-addr
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 7.dp)) {
+                Icon(Icons.Default.Place, null, tint = Color.White.copy(alpha = 0.78f), modifier = Modifier.size(15.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    c.address?.takeIf { it.isNotBlank() } ?: "주소 미등록 — 탭해서 등록",
+                    color = Color.White.copy(alpha = 0.78f), fontSize = 13.sp, maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
+            // hero-btns — 길찾기(light) / 전화(ghost) / 완료(ghost)
+            Row(modifier = Modifier.padding(top = 17.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                HeroBtn("길찾기", Icons.Default.Navigation, light = true, modifier = Modifier.weight(1f)) { onNavigate(c.phoneNumber) }
+                HeroBtn("전화", Icons.Default.Call, light = false, modifier = Modifier.weight(1f)) { onCall(c.phoneNumber) }
+                HeroBtn("완료", Icons.Default.Check, light = false, modifier = Modifier.weight(1f)) { onOpenCustomer(c.id) }
             }
         }
     } else {
@@ -730,6 +750,23 @@ private fun TodayHeroCard(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun HeroBtn(label: String, icon: ImageVector, light: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(13.dp))
+            .background(if (light) Color.White else Color.White.copy(alpha = 0.12f))
+            .clickable { onClick() }
+            .padding(vertical = 12.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, null, tint = if (light) Color(0xFF14171F) else Color.White, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(label, color = if (light) Color(0xFF14171F) else Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -792,6 +829,64 @@ private fun OutstandingCard(
 /**
  * 홈 진입 카드 (정기문자 / 시공 안내 등) — 이모지 + 라벨 + 강조 값 + chevron. N>0 일 때만 노출. (2026-06-01)
  */
+@Composable
+private fun RemindCard(
+    reminder: com.detailline.callfollowcrm.presentation.screen.home.HomeReminderUi,
+    onSkip: () -> Unit,
+    onSend: () -> Unit
+) {
+    // 프로토 .remind-card — 흰 카드 + 좌측 3px 앰버 inset + 라벨/이름/문구박스 + [건너뛰기][문자 보낼까요?].
+    val amber = Color(0xFFF6A609)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min)
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White),
+        verticalAlignment = Alignment.Top
+    ) {
+        Box(Modifier.width(3.dp).fillMaxHeight().background(amber))
+        Column(Modifier.weight(1f).padding(16.dp)) {
+            // remind-label
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.DateRange, null, tint = Color(0xFFB8780A), modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(reminder.kindLabel, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A))
+            }
+            // remind-name
+            Text(
+                "${reminder.name} · ${reminder.whenLabel}",
+                fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
+                letterSpacing = (-0.3).sp, modifier = Modifier.padding(top = 8.dp)
+            )
+            // remind-msg
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp, bottom = 12.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(TossGrayBg)
+                    .padding(12.dp)
+            ) {
+                Text(reminder.body, fontSize = 13.5.sp, color = TossTextPrimary, lineHeight = 21.sp)
+            }
+            // remind-btns
+            Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                Box(
+                    Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
+                        .clickable { onSkip() }.padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) { Text("건너뛰기", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) }
+                Box(
+                    Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(TossBlue)
+                        .clickable { onSend() }.padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) { Text("문자 보낼까요?", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+            }
+        }
+    }
+}
+
 @Composable
 private fun InboxAlert(
     accent: Color,
