@@ -1809,3 +1809,11 @@ CREATE TABLE intake_forms (
 - 시공 D-1 안내: 얇은 team-alert → 프로토 remind-card (좌측 앰버 + 라벨 + 이름·시점 + 전체 문구박스 + [건너뛰기][문자 보낼까요?]). HomeViewModel.scheduleReminders(이름·시점·문구) + markReminderSent/dismissReminder. 발송=SmsSender.sendDirect.
 - 자동답장: 리스트 카드 → 프로토 team-alert.missed 한 줄 카드(건당, 탭→대화).
 - DB 변경 없음. commit: (아래)
+
+## 2026-06-02 · android (8)
+채팅 화면 프로토 s-chat 1:1 (사장님: 무조건 프로토 — 글씨·디자인·크기·간격까지).
+- chat-actions: ⚡토글+5칩/템플릿 인라인 제거 → 프로토 고정 3칩 [견적 작성][내 일정 확인][문구 넣기](act-chip 흰알약+파란아이콘). 문구 넣기=기존 TemplatePickerDialog 재사용.
+- sug-area: 헤더 "AI 추천 답변" → "✨ 이렇게 답해보세요". 추천칩 파란 채움 → 프로토 흰 카드(238dp, ✨파란 라벨 + 검은 본문).
+- composer: 흰 박스(48/52dp 큰 터치) → 프로토 회색 알약(radius22) + ✨왼쪽 + 📷오른쪽 + 40dp 파란 발송원.
+- 앱바 내 일정 DateRange 제거(액션칩으로 이동). 접수서·북마크는 실기능이라 유지.
+- DB 변경 없음. commit: (아래)

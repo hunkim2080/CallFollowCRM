@@ -21,7 +21,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
@@ -207,6 +212,8 @@ fun ChatScreen(
     //   focus = true → 위쪽 대화요약+AI제안 카드를 1줄 헤더로 압축. 메시지/composer 영역 확보.
     //   focus = false → 풀 카드 펼침.
     var composerFocused by remember { mutableStateOf(false) }
+    // 프로토 chat-actions [문구 넣기] → 템플릿 picker 시트.
+    var tplPickerOpen by remember { mutableStateOf(false) }
     // ▶ 보내기 확인 다이얼로그 — null 이면 안 떠 있음.
     //   사장님이 ▶ 탭하면 (body, photos) 스냅샷 저장 + 다이얼로그 표시. [보내기] 탭해야 진짜 발송.
     var sendConfirm by remember { mutableStateOf<Pair<String, List<android.net.Uri>>?>(null) }
@@ -330,10 +337,7 @@ fun ChatScreen(
                     }) {
                         Icon(Icons.Default.Assignment, "접수서 링크", tint = TossTextSecondary)
                     }
-                    // 내 일정 확인 — 대화 중 빈 날/시공일 미니 달력으로 확인 (약속 잡기·현장 묶기).
-                    IconButton(onClick = { myScheduleOpen = true }) {
-                        Icon(Icons.Default.DateRange, "내 일정", tint = TossTextSecondary)
-                    }
+                    // (내 일정 확인은 프로토 chat-actions [내 일정 확인] 칩으로 이동 — 앱바 중복 제거 2026-06-02)
                     // 저장된 메시지 모아보기 — 별이 아닌 북마크 아이콘 (즐겨찾기 오해 방지).
                     //   카운트 0 이면 outlined, 있으면 fill + 숫자 badge.
                     //   2026-05-25: 사장님 피드백 — 별 아이콘은 "고객 즐겨찾기" 와 분간 어려움 → 북마크 채택.
@@ -537,47 +541,18 @@ fun ChatScreen(
             //   답변 추천 칩 / 템플릿 알약 둘 다 둥근 칩이라 인접 시 사장님 시선 혼란.
             //   답변 추천 = 사장님 톤 학습 기반 우선. 답변 추천 없을 때만 (서버 X 또는 stale) 템플릿 노출.
             //
-            // 2026-05-27 사장님 결정: chip row 첫 자리에 [⚡ 액션] 토글.
-            //   탭하면 기존 템플릿 휙 사라지고 액션 칩 5개 (견적/일정/시공등록/계약금/후속) 노출.
-            //   다시 탭하면 템플릿 복귀. AI 자동 추천 액션 시스템과 같은 trigger 사용 (수동 진입점).
-            val suggestionAreaVisible = messages.firstOrNull()?.sent == false
-            var actionsMode by remember { mutableStateOf(false) }
-            if (!suggestionAreaVisible && (templates.isNotEmpty() || actionsMode)) {
-                LazyRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // [⚡ 액션] 토글 — 항상 좌측 sticky.
-                    item(key = "action-toggle") {
-                        ActionToggleChip(
-                            selected = actionsMode,
-                            onTap = { actionsMode = !actionsMode }
-                        )
-                    }
-                    if (actionsMode) {
-                        // 액션 모드: 5개 액션 칩 노출.
-                        items(QUICK_ACTIONS, key = { it.actionType }) { qa ->
-                            QuickActionPill(
-                                label = qa.label,
-                                emoji = qa.emoji,
-                                onTap = {
-                                    triggerActionByType(qa.actionType)
-                                    actionsMode = false  // 액션 실행 후 자동 복귀
-                                }
-                            )
-                        }
-                    } else {
-                        // 기본 모드: 사장님 템플릿.
-                        items(templates, key = { it.id }) { tpl ->
-                            TemplatePill(
-                                template = tpl,
-                                onTap = { input = tpl.body }
-                            )
-                        }
-                    }
-                }
+            // 프로토 chat-actions — 항상 보이는 고정 3칩 [견적 작성][내 일정 확인][문구 넣기].
+            //   (사장님 2026-06-02 결정: 무조건 프로토 1:1 → ⚡토글/템플릿 인라인 제거)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(start = 14.dp, end = 14.dp, top = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ActChip(Icons.Default.Description, "견적 작성") { triggerActionByType("send_estimate") }
+                ActChip(Icons.Default.DateRange, "내 일정 확인") { myScheduleOpen = true }
+                ActChip(Icons.AutoMirrored.Filled.Chat, "문구 넣기") { tplPickerOpen = true }
             }
 
             // AI 추천 답변 영역 — 가장 최신 메시지가 고객이 보낸 것일 때만 표시.
@@ -799,6 +774,16 @@ fun ChatScreen(
         MyScheduleSheet(
             jobs = scheduledJobs,
             onDismiss = { myScheduleOpen = false }
+        )
+    }
+
+    // 프로토 [문구 넣기] → 템플릿 picker (기존 TemplatePickerDialog 재사용, 전체 카테고리).
+    if (tplPickerOpen) {
+        TemplatePickerDialog(
+            category = "",
+            templates = templates,
+            onPick = { tpl -> input = if (input.isBlank()) tpl.body else input + "\n" + tpl.body; tplPickerOpen = false },
+            onDismiss = { tplPickerOpen = false }
         )
     }
 
@@ -1234,10 +1219,10 @@ private fun SuggestionArea(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                if (expanded) "✨ AI 추천 답변" else "✨ AI 추천 답변 (탭하여 펼치기)",
+                "✨ 이렇게 답해보세요",
                 color = TossBlue,
                 fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.ExtraBold
             )
             Spacer(Modifier.weight(1f))
             // 접힘/펼침 표시 + 새로고침 버튼
@@ -1352,62 +1337,58 @@ private fun SuggestionChip(index: Int, label: String?, text: String, onTap: () -
     // 2026-05-30 사장님 디자인 보강 #4 — 시공 사장님 손가락 배려.
     //   sizeIn(minHeight=48dp) 으로 단일 라인 케이스도 최소 터치 보장.
     //   vertical padding 10dp → 12dp 로 시각적 여유.
+    // 프로토 .sug-chip — 흰 카드(238px) + .cl(✨ 파란 라벨) + .ct(검은 본문).
     Surface(
         modifier = Modifier
-            .widthIn(max = 280.dp)
-            .sizeIn(minHeight = 48.dp)
+            .width(238.dp)
             .clickable { onTap() },
-        shape = RoundedCornerShape(16.dp),
-        color = TossBlue
+        shape = RoundedCornerShape(15.dp),
+        color = Color.White,
+        shadowElevation = 2.dp
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
+            modifier = Modifier.padding(horizontal = 13.dp, vertical = 12.dp)
         ) {
-            if (!label.isNullOrBlank()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "$index",
-                        color = Color.White.copy(alpha = 0.85f),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(end = 6.dp)
-                    )
-                    Text(
-                        label,
-                        color = Color.White.copy(alpha = 0.85f),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                Spacer(Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.AutoAwesome, null, tint = TossBlue, modifier = Modifier.size(12.dp))
+                Spacer(Modifier.width(4.dp))
                 Text(
-                    text,
-                    color = Color.White,
-                    fontSize = 13.sp,
-                    maxLines = 2,
+                    label?.takeIf { it.isNotBlank() } ?: "추천 $index",
+                    color = TossBlue,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-            } else {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "$index",
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(end = 8.dp)
-                    )
-                    Text(
-                        text,
-                        color = Color.White,
-                        fontSize = 13.sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
             }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text,
+                color = TossTextPrimary,
+                fontSize = 13.sp,
+                lineHeight = 19.sp,
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis
+            )
         }
+    }
+}
+
+/** 프로토 .act-chip — 흰 알약 + 파란 아이콘 + 라벨 (견적 작성 / 내 일정 확인 / 문구 넣기). */
+@Composable
+private fun ActChip(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onTap: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(Color.White)
+            .border(1.dp, com.detailline.callfollowcrm.presentation.theme.TossDivider, RoundedCornerShape(999.dp))
+            .clickable { onTap() }
+            .padding(horizontal = 13.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, null, tint = TossBlue, modifier = Modifier.size(14.dp))
+        Spacer(Modifier.width(5.dp))
+        Text(label, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
     }
 }
 
@@ -1545,114 +1526,69 @@ private fun Composer(
                 }
             }
         }
-        // composer = 카톡 메모장 패턴 (사장님 결정 2026-05-24):
-        //   [네모 박스: 입력 + 우측 📷 ✨] + 외부 우측 [▶ 전송]
-        //   단일 Row + verticalAlignment.Bottom — 한 줄 입력 시 텍스트와 아이콘이 같은 라인,
-        //   여러 줄 입력 시 텍스트는 위로 늘어나고 아이콘은 박스 bottom 고정.
+        // 프로토 .composer — 회색 알약 field [✨ 왼쪽][textarea][📷 오른쪽] + 40px 파란 발송 원.
         val canSend = input.isNotBlank() || attachments.isNotEmpty()
         Row(
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.Bottom
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.spacedBy(9.dp)
         ) {
-            // 중앙 = 입력 박스 (네모 + radius). 박스 안 단일 Row 로 입력 + 아이콘 묶음.
-            Surface(
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(14.dp),
-                color = Color.White,
-                border = androidx.compose.foundation.BorderStroke(1.dp, TossDivider)
+            // field — 회색 알약(radius22)
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(TossGrayBg)
+                    .padding(horizontal = 15.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(9.dp)
             ) {
-                Row(
-                    // 2026-05-28 사장님 보고: 텍스트가 박스에 빡빡하게 붙음 → 토스/카톡 톤으로 padding 보강.
-                    //   vertical 2dp → 8dp (텍스트 위·아래 숨 트임), end 2dp → 6dp (텍스트와 아이콘 간격).
-                    modifier = Modifier.padding(start = 14.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
-                    // CenterVertically: 한 줄 입력에서 텍스트와 아이콘이 같은 baseline. (Bottom 은 ~3dp 어긋남.)
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    BasicTextField(
-                        value = input,
-                        onValueChange = onChange,
-                        textStyle = TextStyle(
-                            color = TossTextPrimary,
-                            fontSize = 15.sp
-                        ),
-                        cursorBrush = SolidColor(TossBlue),
-                        // 카톡 패턴: 최대 5줄까지 보이고 그 이상 입력 시 박스 내부 자동 스크롤.
-                        // 견적서 본문처럼 긴 메시지 입력해도 composer 가 화면 절반 차지하는 일 X.
-                        maxLines = 5,
-                        modifier = Modifier
-                            .weight(1f)
-                            .onFocusChanged { state -> onFocusChange(state.isFocused) },
-                        decorationBox = { inner ->
-                            if (input.isEmpty()) {
-                                Text(
-                                    "메시지 입력",
-                                    color = TossTextTertiary,
-                                    fontSize = 15.sp
-                                )
-                            }
-                            inner()
-                        }
+                // ✨ AI 다듬기 (왼쪽)
+                if (isPolishing) {
+                    CircularProgressIndicator(color = TossBlue, strokeWidth = 2.dp, modifier = Modifier.size(19.dp))
+                } else {
+                    Icon(
+                        Icons.Default.AutoAwesome, "AI 다듬기", tint = TossBlue,
+                        modifier = Modifier.size(19.dp).clickable(enabled = !isPolishing) { onAiPolish() }
                     )
-                    // 📷 사진 첨부 (이모지 자리)
-                    // 2026-05-30 사장님 디자인 보강 #4 — Material3 최소 터치 48dp 보장 (36dp → 48dp).
-                    IconButton(
-                        onClick = onAttachPhoto,
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Image,
-                            contentDescription = "사진 첨부",
-                            tint = TossTextSecondary,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                    // ✨ AI 다듬기 — polishing 중엔 회전 인디케이터.
-                    // 2026-05-30 디자인 보강 — 36dp → 48dp.
-                    IconButton(
-                        onClick = onAiPolish,
-                        enabled = !isPolishing,
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        if (isPolishing) {
-                            CircularProgressIndicator(
-                                color = TossBlue,
-                                strokeWidth = 2.dp,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        } else {
-                            Icon(
-                                Icons.Default.AutoAwesome,
-                                contentDescription = "AI 다듬기",
-                                tint = TossBlue,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                    }
                 }
+                BasicTextField(
+                    value = input,
+                    onValueChange = onChange,
+                    textStyle = TextStyle(color = TossTextPrimary, fontSize = 14.sp, lineHeight = 21.sp),
+                    cursorBrush = SolidColor(TossBlue),
+                    maxLines = 5,
+                    modifier = Modifier
+                        .weight(1f)
+                        .onFocusChanged { state -> onFocusChange(state.isFocused) },
+                    decorationBox = { inner ->
+                        if (input.isEmpty()) {
+                            Text("메시지 입력...", color = TossTextTertiary, fontSize = 14.sp)
+                        }
+                        inner()
+                    }
+                )
+                // 📷 사진 첨부 (오른쪽)
+                Icon(
+                    Icons.Default.Image, "사진 첨부", tint = TossTextTertiary,
+                    modifier = Modifier.size(19.dp).clickable { onAttachPhoto() }
+                )
             }
-            Spacer(Modifier.width(8.dp))
-            // 외부 우측 = ▶ 전송 둥근 버튼. 외부 Row 의 Bottom alignment 로 박스와 같은 라인 정렬.
-            //   2026-05-27 진행감 fix: 발송 중엔 spinner 로 교체 + 재탭 방지 (canSend && !isSending).
-            // 2026-05-30 디자인 보강 — 주요 액션(전송) 강조 위해 44dp → 52dp.
+            // 40px 파란 발송 원
             Surface(
-                modifier = Modifier.size(52.dp),
+                modifier = Modifier.size(40.dp),
                 shape = androidx.compose.foundation.shape.CircleShape,
                 color = if (canSend && !isSending) TossBlue else TossDivider,
                 onClick = { if (canSend && !isSending) onSend() }
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     if (isSending) {
-                        CircularProgressIndicator(
-                            color = Color.White,
-                            strokeWidth = 2.dp,
-                            modifier = Modifier.size(24.dp)
-                        )
+                        CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
                     } else {
                         Icon(
-                            Icons.Default.ArrowUpward,
-                            contentDescription = "보내기",
+                            Icons.AutoMirrored.Filled.Send, "보내기",
                             tint = if (canSend) Color.White else TossTextTertiary,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
