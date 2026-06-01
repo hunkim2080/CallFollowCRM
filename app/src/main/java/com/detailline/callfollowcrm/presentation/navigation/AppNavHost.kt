@@ -34,6 +34,7 @@ import com.detailline.callfollowcrm.presentation.screen.notebook.NotebookScreen
 import com.detailline.callfollowcrm.presentation.screen.notebook.NotebookViewModel
 import com.detailline.callfollowcrm.presentation.screen.report.ReportScreen
 import com.detailline.callfollowcrm.presentation.screen.report.ReportViewModel
+import com.detailline.callfollowcrm.presentation.screen.stats.StatsScreen
 import com.detailline.callfollowcrm.presentation.screen.trade.TradeSelectScreen
 import com.detailline.callfollowcrm.presentation.screen.stylelearning.StyleLearningScreen
 import com.detailline.callfollowcrm.presentation.screen.stylelearning.StyleLearningViewModel
@@ -47,9 +48,10 @@ import com.detailline.callfollowcrm.presentation.util.viewModelFactory
 fun AppNavHost(
     navController: NavHostController,
     container: AppContainer,
-    startDestination: String
+    startDestination: String,
+    modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier
 ) {
-    NavHost(navController = navController, startDestination = startDestination) {
+    NavHost(navController = navController, startDestination = startDestination, modifier = modifier) {
 
         composable(Destinations.ONBOARDING) {
             OnboardingPermissionScreen(
@@ -148,6 +150,11 @@ fun AppNavHost(
                 onBack = { navController.popBackStack() },
                 onOpenCustomer = { id -> navController.navigate(Destinations.customerDetail(id)) }
             )
+        }
+
+        composable(Destinations.STATS) {
+            val vm: ReportViewModel = viewModel(factory = viewModelFactory { ReportViewModel(container) })
+            StatsScreen(viewModel = vm)
         }
 
         // 2026-05-25: PIPELINE 라우트 폐기 — CustomerStatus enum 제거 + 카테고리 시스템 통일.

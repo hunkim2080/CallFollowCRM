@@ -18,18 +18,25 @@ import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.R
 
 // Toss 팔레트 — Light
+// 2026-06-01 전면 리뉴얼: 값을 프로토타입(design-preview/ringgo-redesign.html :root)과 정확히 일치시킴.
+//   --blue #3182F6 / --blue-dark #1B64DA / --blue-tint #EEF4FF / --bg #F4F5F7
+//   --t1 #0B0F19 / --t2 #5A6472 / --t3 #9AA3AF / --line #EEF0F3
+//   --error #F0436A / --amber #F6A609 / --success #16C172 / --purple #7C5CFC
 val TossBlue = Color(0xFF3182F6)
 val TossBlueDark = Color(0xFF1B64DA)
-val TossBlueSoft = Color(0xFFE8F2FE)
-val TossGrayBg = Color(0xFFF2F4F6)
+val TossBlueSoft = Color(0xFFEEF4FF)
+val TossGrayBg = Color(0xFFF4F5F7)
 val TossSurface = Color.White
-val TossTextPrimary = Color(0xFF191F28)
-val TossTextSecondary = Color(0xFF4E5968)
-val TossTextTertiary = Color(0xFF8B95A1)
-val TossDivider = Color(0xFFEAECEE)
-val TossError = Color(0xFFF04452)
-val TossWarning = Color(0xFFFFAA00)
-val TossSuccess = Color(0xFF18BE5C)
+val TossTextPrimary = Color(0xFF0B0F19)
+val TossTextSecondary = Color(0xFF5A6472)
+val TossTextTertiary = Color(0xFF9AA3AF)
+val TossDivider = Color(0xFFEEF0F3)
+val TossError = Color(0xFFF0436A)
+val TossWarning = Color(0xFFF6A609)
+val TossSuccess = Color(0xFF16C172)
+val TossPurple = Color(0xFF7C5CFC)
+/** 프로토 하단 탭바 비활성 아이콘 색 (#AEB5BF). */
+val TossTabInactive = Color(0xFFAEB5BF)
 
 // 2026-05-30 사장님 디자인 보강 #1 — 다크 팔레트.
 //   사용 상황: 시공 현장(어두운 욕실/창고), 차 안 야간, 늦은 밤 통화 후속.

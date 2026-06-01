@@ -36,6 +36,7 @@ object Destinations {
     const val SCHEDULE = "schedule"
     const val SCHEDULE_ADD = "schedule_add"
     const val SETTLEMENT = "settlement"
+    const val STATS = "stats"
     const val BUSINESS_INFO = "business_info"
     const val NOTEBOOK = "notebook"
     const val REPORT = "report"
