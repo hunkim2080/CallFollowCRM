@@ -119,7 +119,9 @@ fun HomeScreen(
     /** 홈 "미수금" 카드 탭 → 정산 화면. 정산 Phase 1 (2026-06-01). */
     onOpenSettlement: () -> Unit,
     /** 홈 "정기문자 보낼 때 됐어요" 카드 탭 → 보낼 정기문자 목록. (2026-06-01) */
-    onOpenRecurringDue: () -> Unit = {}
+    onOpenRecurringDue: () -> Unit = {},
+    /** 홈 "시공 안내 문자" 카드 탭 → D-1/도착 안내 목록. (2026-06-01) */
+    onOpenScheduleReminder: () -> Unit = {}
 ) {
     val timeline by viewModel.timeline.collectAsState()
     val filter by viewModel.filterState.collectAsState()
@@ -135,6 +137,7 @@ fun HomeScreen(
     val nextJobs by viewModel.nextJobs.collectAsState()
     val autoReplies by viewModel.autoReplies.collectAsState()
     val recurringDueCount by viewModel.recurringDueCount.collectAsState()
+    val scheduleReminderCount by viewModel.scheduleReminderCount.collectAsState()
     val isInitialSmsLoading by viewModel.isInitialSmsLoading.collectAsState()
 
     // 서버 상태 indicator — AppContainer 의 ServerHealthMonitor 를 직접 구독.
@@ -486,10 +489,27 @@ fun HomeScreen(
                     }
                 }
 
+                // 시공 D-1 / 도착 안내 — 내일·오늘 시공 고객에게 안내 문자. 있을 때만. (2026-06-01)
+                if (scheduleReminderCount > 0) {
+                    item(key = "schedule-reminder-card") {
+                        SimpleDueCard(
+                            emoji = "🚚",
+                            label = "시공 안내 문자 보낼까요?",
+                            value = "${scheduleReminderCount}곳 — 내일·오늘 시공",
+                            onClick = onOpenScheduleReminder
+                        )
+                    }
+                }
+
                 // 정기문자 보낼 때 됐어요 — 있을 때만. 탭하면 보낼 목록으로. (2026-06-01)
                 if (recurringDueCount > 0) {
                     item(key = "recurring-due-card") {
-                        RecurringDueCard(count = recurringDueCount, onClick = onOpenRecurringDue)
+                        SimpleDueCard(
+                            emoji = "🔁",
+                            label = "정기문자 보낼 때 됐어요",
+                            value = "${recurringDueCount}건 — 확인하고 보내기",
+                            onClick = onOpenRecurringDue
+                        )
                     }
                 }
 
@@ -793,10 +813,10 @@ private fun OutstandingCard(
 }
 
 /**
- * 정기문자 "보낼 때 됐어요" 진입 카드 — N건 있을 때만. 탭 → 보낼 정기문자 목록. (2026-06-01)
+ * 홈 진입 카드 (정기문자 / 시공 안내 등) — 이모지 + 라벨 + 강조 값 + chevron. N>0 일 때만 노출. (2026-06-01)
  */
 @Composable
-private fun RecurringDueCard(count: Int, onClick: () -> Unit) {
+private fun SimpleDueCard(emoji: String, label: String, value: String, onClick: () -> Unit) {
     TossCard(onClick = onClick) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -805,21 +825,18 @@ private fun RecurringDueCard(count: Int, onClick: () -> Unit) {
                     .clip(RoundedCornerShape(12.dp))
                     .background(TossBlueSoft),
                 contentAlignment = Alignment.Center
-            ) { Text("🔁", fontSize = 18.sp) }
+            ) { Text(emoji, fontSize = 18.sp) }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    "정기문자 보낼 때 됐어요",
+                    label,
                     style = MaterialTheme.typography.labelMedium,
                     color = TossTextSecondary, fontWeight = FontWeight.Medium
                 )
                 Spacer(Modifier.height(2.dp))
-                Text(
-                    "${count}건 — 확인하고 보내기",
-                    fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossBlue
-                )
+                Text(value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossBlue)
             }
-            Icon(Icons.Default.ChevronRight, "정기문자 목록", tint = TossTextTertiary)
+            Icon(Icons.Default.ChevronRight, null, tint = TossTextTertiary)
         }
     }
 }

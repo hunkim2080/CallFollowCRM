@@ -42,6 +42,7 @@ object Destinations {
     const val TRADE_SELECT = "trade_select"
     const val RECURRING = "recurring"
     const val RECURRING_DUE = "recurring_due"
+    const val SCHEDULE_REMINDER = "schedule_reminder"
     const val AI_MESSAGE = "ai_message"
     const val STYLE_LEARNING = "style_learning"
 

@@ -79,7 +79,8 @@ fun AppNavHost(
                 onOpenStyleLearning = { navController.navigate(Destinations.STYLE_LEARNING) },
                 onOpenSettings = { navController.navigate(Destinations.SETTINGS) },
                 onOpenSettlement = { navController.navigate(Destinations.SETTLEMENT) },
-                onOpenRecurringDue = { navController.navigate(Destinations.RECURRING_DUE) }
+                onOpenRecurringDue = { navController.navigate(Destinations.RECURRING_DUE) },
+                onOpenScheduleReminder = { navController.navigate(Destinations.SCHEDULE_REMINDER) }
             )
         }
 
@@ -257,6 +258,16 @@ fun AppNavHost(
             val vm: com.detailline.callfollowcrm.presentation.screen.recurring.RecurringDueViewModel =
                 viewModel(factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.recurring.RecurringDueViewModel(container) })
             com.detailline.callfollowcrm.presentation.screen.recurring.RecurringDueScreen(
+                viewModel = vm,
+                onBack = { navController.popBackStack() },
+                onOpenChat = { phone, customerId -> navController.navigate(Destinations.chat(phone, customerId)) }
+            )
+        }
+
+        composable(Destinations.SCHEDULE_REMINDER) {
+            val vm: com.detailline.callfollowcrm.presentation.screen.reminder.ScheduleReminderViewModel =
+                viewModel(factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.reminder.ScheduleReminderViewModel(container) })
+            com.detailline.callfollowcrm.presentation.screen.reminder.ScheduleReminderScreen(
                 viewModel = vm,
                 onBack = { navController.popBackStack() },
                 onOpenChat = { phone, customerId -> navController.navigate(Destinations.chat(phone, customerId)) }

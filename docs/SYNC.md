@@ -1372,3 +1372,12 @@ CREATE TABLE customer_personas (
   - 정책: 자동발송 X(SEND_SMS 명시), WorkManager 미사용(포그라운드 계산=삼성 신뢰성).
 - assembleDebug + 테스트 통과.
 - 현황판: 상담함 5/9→6/9, 더보기 4/7→5/7, 전체 41/52→43/52(83%).
+
+## 2026-06-02 01:40 · android
+시공 D-1 / 도착 안내 리마인드 (사장님 명시 요청) — 정기문자 인프라 재사용, DB 변경 0.
+- 변경: 없음 (server/ 무관, DB 스키마 변경 없음).
+  - ScheduleReminderCalc(순수+테스트 7), ScheduleReminderViewModel/Screen.
+  - 홈 SimpleDueCard(🚚 시공 안내) → ScheduleReminderScreen. 보내기=채팅 prefill(확인 후 ▶)/넘기기.
+  - dedupe 는 recurring_message_log 음수 sentinel ruleId(-1=D1,-2=도착) 재사용.
+- assembleDebug + 테스트 통과.
+- 현황판: 더보기 5/7→6/7, 전체 43/52→44/52(85%).

@@ -223,6 +223,19 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             .computeDue(rules, custs, keys, todayStart).size
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
+    /**
+     * 시공 D-1 / 도착 안내 리마인드 카운트 (상담함, 2026-06-01) — 사장님 명시 요청.
+     *   내일/오늘 시공 고객에게 "안내 문자 보낼까요?". 정기문자와 같은 로그(음수 sentinel) 재사용.
+     */
+    val scheduleReminderCount: StateFlow<Int> = combine(
+        customers,
+        container.recurringMessageRepository.observeLogs()
+    ) { custs, logs ->
+        val keys = logs.map { Triple(it.ruleId, it.customerId, it.occurrenceDayStartMs) }.toSet()
+        com.detailline.callfollowcrm.domain.reminder.ScheduleReminderCalc
+            .compute(custs, keys, todayStart).size
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
     // ────────────────────────────────────────────────────────
     // 오늘 시공 히어로 + 다음 시공 (상담함 최상단, 2026-06-01)
     // ────────────────────────────────────────────────────────
