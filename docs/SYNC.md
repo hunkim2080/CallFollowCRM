@@ -1764,3 +1764,10 @@ CREATE TABLE intake_forms (
 
 ### 다음 작업 (서버 — 같은 sprint)
 - 99k 티어 사용자가 실제 있을 때 (~7월) Phase B: 사진 디스크 저장 (~/ringgo-server/team_photos/) + 사진 URL 응답 (현재는 base64 1MB 컷)
+
+## 2026-06-02 · android
+정산 화면 프로토 `s-settle` 1:1 재구성 — 미수금탭/현금흐름탭 분리 제거, 프로토 단일 스크롤로.
+- 변경: settle-top 다크 월매출 대시보드 신설(월 이동·이번달 받은돈·전월대비%·목표 진행률+페이스·미수 요약). 받은돈 = 그 달 depositPaidAt/balancePaidAt 금액 합, 전월대비 = 직전달 대비. 목표 = AppPreferences.monthlyGoalManwon(기본 500). 현금흐름 = CashFlowCard 인라인. sec-sub + fchips 전체/미수금/완료 + srow(.pay 블록 + "이 시공 일정 보기") + "완납 N건"/srow-done.
+- 적응(의도적 차이): "수정"·"이 시공 일정 보기"→고객상세 라우팅, 과거달은 받은돈 수치만 갱신(미수목록 라이브 유지).
+- commit: 9fa0c68
+- 다음 액션(서버): 없음 (로컬 계산만).
