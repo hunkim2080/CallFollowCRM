@@ -1784,3 +1784,9 @@ CREATE TABLE intake_forms (
 - 변경: 앱바 우측 [+](FAB 제거), cal-head 가운데+원형 nav, 캘린더를 흰 cal-card 안으로, cal-hint("길게 누르면 등록")+셀 long-press→등록, cal-day-label 연도 제거, "이 날 시공 N곳"(>1), 날짜 카드 재설계(hd점·N일차·시간·D-day/완료 태그·수정·📍주소·입금 상태[읽기]·"정산·현금흐름에서 보기"→정산탭). onOpenSettle 콜백 추가(AppNavHost).
 - 보류(미래/팀 기능): 날짜 카드 "팀원·일당 배정" line = 99k 팀 관리 의존 → 미구현. 캘린더 셀의 다일 spanning 막대(jbar)는 점(dot) 유지.
 - DB 변경 없음. commit: (아래)
+
+## 2026-06-02 · android (4)
+더보기 막내 비서 카드 프로토 agent-card 1:1 + 현황판에 "프로토 1:1 화면 이식" 축 추가.
+- 변경: AgentMiniCard = 레벨칩·말투% 진행바·상담/시공 stats(실제 카운트). SettingsViewModel.agentCard 신설(고객수·지난시공·톤업로드 기반). commit aab8a73.
+- 현황판: docs/IMPLEMENTATION_STATUS.md + design-preview/status-board.html 에 "🎨 프로토 1:1 화면 이식" 영역 추가(로그인·온보딩·홈·정산·통계·일정·더보기막내=✅, 더보기메뉴=진행중, 채팅·접수서=시작전). 기능 축과 별개.
+- 다음 액션(서버): 없음.
