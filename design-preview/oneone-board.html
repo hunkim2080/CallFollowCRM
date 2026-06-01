@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RING-GO · 프로토 1:1 이식 현황판 (요소 단위)</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F4F5F7; --card:#FFFFFF; --line:#ECEEF1;
+    --t1:#0B1220; --t2:#4E5968; --t3:#8B95A1;
+    --blue:#3182F6; --blue-dark:#1B64DA; --blue-tint:#EEF4FF;
+    --done:#16C172; --done-tint:#E7F8EF;
+    --review:#F59E0B; --review-tint:#FEF6E7;
+    --prog:#3182F6; --prog-tint:#EAF2FF;
+    --todo:#B0B8C1; --todo-tint:#F2F4F6;
+    --shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px rgba(20,30,55,.06);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--t1);
+    font-family:'Pretendard',-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:760px;margin:0 auto;padding:24px 16px 80px}
+
+  .h-title{font-size:24px;font-weight:800;letter-spacing:-.5px;display:flex;align-items:center;gap:8px}
+  .h-sub{margin-top:8px;font-size:14px;line-height:1.6;color:var(--t2)}
+  .h-meta{margin-top:6px;font-size:12px;color:var(--t3)}
+  .how{margin-top:14px;background:#FFFDF4;border:1px solid #F2E6C7;border-radius:14px;
+    padding:13px 15px;font-size:12.5px;line-height:1.7;color:#7A6320}
+  .how b{color:#5C4A12}
+
+  .hero{background:var(--card);border:1px solid var(--line);border-radius:20px;
+    padding:22px 22px 20px;margin-top:18px;box-shadow:var(--shadow)}
+  .hero-k{font-size:13px;font-weight:600;color:var(--t2)}
+  .hero-row{display:flex;align-items:flex-end;justify-content:space-between;margin-top:8px}
+  .hero-big{font-size:34px;font-weight:800;letter-spacing:-1px}
+  .hero-big small{font-size:17px;font-weight:700;color:var(--t3)}
+  .hero-pct{font-size:30px;font-weight:800;color:var(--done)}
+  .bar{margin-top:16px;height:12px;border-radius:99px;background:var(--todo-tint);overflow:hidden;display:flex}
+  .bar i{height:100%;display:block;transition:width .5s cubic-bezier(.2,.8,.2,1)}
+  .bar .s-done{background:linear-gradient(90deg,#16C172,#16C99B)}
+  .bar .s-review{background:var(--review)}
+  .bar .s-prog{background:var(--blue)}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:14px}
+  .legend span{font-size:12.5px;font-weight:600;color:var(--t2);display:flex;align-items:center;gap:6px}
+  .dot{width:9px;height:9px;border-radius:99px;display:inline-block}
+  .dot.done{background:var(--done)} .dot.review{background:var(--review)}
+  .dot.prog{background:var(--blue)} .dot.todo{background:var(--todo)}
+
+  .filters{display:flex;gap:8px;margin-top:20px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+  .filters::-webkit-scrollbar{display:none}
+  .fchip{flex:0 0 auto;border:1px solid var(--line);background:var(--card);color:var(--t2);
+    font-size:13px;font-weight:700;padding:9px 15px;border-radius:99px;cursor:pointer;transition:.15s}
+  .fchip[data-on="1"]{background:var(--t1);color:#fff;border-color:var(--t1)}
+  .fchip .cnt{opacity:.55;margin-left:5px;font-weight:600}
+
+  .area{margin-top:24px}
+  .area-h{display:flex;align-items:center;gap:10px;padding:0 4px 2px}
+  .area-emo{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;font-size:18px;background:var(--blue-tint)}
+  .area-name{font-size:16px;font-weight:800}
+  .area-desc{font-size:12.5px;color:var(--t3);margin-top:1px}
+  .area-src{font-size:11px;color:#B0B8C1;margin-top:2px;font-family:ui-monospace,Menlo,monospace}
+  .area-mini{margin-left:auto;font-size:12px;font-weight:700;color:var(--t3)}
+  .area-card{background:var(--card);border:1px solid var(--line);border-radius:18px;margin-top:12px;overflow:hidden;box-shadow:var(--shadow)}
+
+  .item{padding:15px 17px;border-top:1px solid var(--line);cursor:pointer;transition:background .12s}
+  .item:first-child{border-top:none}
+  .item:active{background:#FAFBFC}
+  .item-top{display:flex;align-items:center;gap:10px}
+  .item-name{font-size:14.5px;font-weight:700;flex:1;line-height:1.35}
+  .badge{flex:0 0 auto;font-size:11.5px;font-weight:800;padding:4px 10px;border-radius:99px;white-space:nowrap}
+  .b-done{background:var(--done-tint);color:#0E9D5C}
+  .b-review{background:var(--review-tint);color:#C77B05}
+  .b-prog{background:var(--prog-tint);color:var(--blue-dark)}
+  .b-todo{background:var(--todo-tint);color:#6B7684}
+  .item-body{max-height:0;overflow:hidden;transition:max-height .3s ease;}
+  .item.open .item-body{max-height:520px}
+  .item-desc{font-size:13px;line-height:1.65;color:var(--t2);padding-top:11px}
+  .item-app{margin-top:10px;background:#F8F9FB;border:1px solid var(--line);border-radius:12px;
+    padding:10px 12px;font-size:12.5px;line-height:1.6;color:var(--t2)}
+  .item-app b{color:var(--t1);font-weight:700}
+  .item-spec{margin-top:8px;background:#F2F7FF;border:1px solid #DCEAFE;border-radius:12px;
+    padding:10px 12px;font-size:12px;line-height:1.65;color:#39506E;font-family:ui-monospace,Menlo,monospace}
+  .item-spec b{color:#1B64DA}
+  .item-src{margin-top:8px;font-size:11.5px;color:#8B95A1;font-family:ui-monospace,Menlo,monospace}
+  .item-src b{color:#4E5968}
+  .chev{flex:0 0 auto;color:var(--t3);transition:transform .25s;font-size:13px}
+  .item.open .chev{transform:rotate(90deg)}
+
+  .foot{margin-top:34px;text-align:center;font-size:12px;color:var(--t3);line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="h-title">🎯 프로토 1:1 이식 현황판 <span style="font-size:13px;font-weight:700;color:#8B95A1">요소 단위</span></div>
+  <div class="h-sub">프리뷰(<b>ringgo-redesign.html</b>)의 화면을 <b>섹션·배너·카드·카피·디자인 값</b>까지 쪼개서,<br>실제 앱이 <b>어디까지 똑같이 옮겨졌는지</b> 요소 하나하나 추적합니다.</div>
+  <div class="h-meta" id="meta">마지막 갱신 · 2026-06-02 · android Claude</div>
+
+  <div class="how">
+    📌 <b>이 현황판 쓰는 법 (사장님·Claude 공용)</b><br>
+    • 항목을 누르면 → <b>프로토 출처 함수</b> + <b>프로토 스펙 값(글·색·크기 그대로)</b> + <b>실제 앱 상태</b>가 펼쳐져요.<br>
+    • 프로토 스펙 값을 박아둔 이유 = <b>나중에 프로토를 고치면, 그 값이 안 맞는 요소만 다시 "시작 전"으로 떨어뜨려</b> 빠진 개선을 놓치지 않으려고.<br>
+    • <b>프로토 새로 만들면</b> → Claude 가 바뀐 함수(예: <code>renderHero</code>)를 다시 읽고 → 달라진 요소를 ⬜ 로 추가/되돌림. (SoT = <code>docs/ONEONE_STATUS.md</code>)
+  </div>
+
+  <div class="hero">
+    <div class="hero-k">전체 1:1 진행 (요소 기준)</div>
+    <div class="hero-row">
+      <div class="hero-big" id="bigNum">0 <small>/ 0 똑같음</small></div>
+      <div class="hero-pct" id="pct">0%</div>
+    </div>
+    <div class="bar">
+      <i class="s-done" id="barDone" style="width:0"></i>
+      <i class="s-review" id="barReview" style="width:0"></i>
+      <i class="s-prog" id="barProg" style="width:0"></i>
+    </div>
+    <div class="legend">
+      <span><i class="dot todo"></i>아직(시작 전) <b id="lgTodo">0</b></span>
+      <span><i class="dot prog"></i>다른 부분 있음 <b id="lgProg">0</b></span>
+      <span><i class="dot review"></i>옮김·폰 확인 필요 <b id="lgReview">0</b></span>
+      <span><i class="dot done"></i>똑같음 확인 <b id="lgDone">0</b></span>
+    </div>
+  </div>
+
+  <div class="filters" id="filters"></div>
+  <div id="board"></div>
+
+  <div class="foot">RING-GO 프로토 1:1 이식 현황판 · 화면을 요소로 쪼개 verbatim 대조<br>상태: 똑같음 확인 / 옮김·폰 확인 필요 / 다른 부분 있음 / 아직</div>
+</div>
+
+<script>
+/* ──────────────────────────────────────────────────────────────
+   상태값: done(똑같음 확인) / review(옮김, 폰 확인 필요) /
+           prog(다른 부분 있음·진행중) / todo(아직 시작 전)
+   각 요소: {n:이름, s:상태, src:프로토 출처, d:이게 뭔지(일상어),
+            sp:프로토 스펙 값(verbatim), a:실제 앱 상태/메모}
+─────────────────────────────────────────────────────────────── */
+var AREAS = [
+
+ {emo:'🏠', name:'홈 — 상담함', desc:'앱 열면 첫 화면. 위→아래 순서·카드까지 프로토대로', src:"switchTab('home') · renderHero · renderTodayNew · renderWaiting · renderRecent", items:[
+   {n:'상단 앱바 (검색 · 🔔 · AI 배지)', s:'review', src:'renderAiBadge / openSearch / openNotif',
+    d:'맨 위 줄: 왼쪽 검색, 오른쪽 알림 종, "○○ AI" 파란 배지.',
+    sp:'ai-badge = ai-dot + ✨ + "{대표업종} AI" (예 "줄눈 AI"). 검색→openSearch, 종→openNotif.',
+    a:'앱에 앱바·검색·알림 있음. AI 배지 문구/위치 폰에서 1:1 재확인 필요.'},
+   {n:'오늘 신규 문의 카드 (+N통)', s:'done', src:'renderTodayNew',
+    d:'"오늘 신규 문의 N통" + "새 번호 기준 · 어제 N통" + 어제대비 ▲▼. 누르면 신규 목록.',
+    sp:'tn-ic "+" / tn-t "오늘 신규 문의 <b>N통</b>" / tn-s "새 번호 기준 · 어제 N통" / tn-delta ▲N·▼N·- (up/down/flat). onclick=openNewLeads()',
+    a:'TodayNewCard 구현 + onClick 연결(0ff9cbb). ⚠️ 현재 탭→고객관리로 임시 연결, 프로토는 전용 "신규 재연락 목록(openNewLeads)" 화면.'},
+   {n:'오늘 시공 히어로 (D-DAY)', s:'done', src:'renderHero → heroJobHtml',
+    d:'시공 당일이면 맨 위 검정 카드: 🟢 "오늘 시공·D-DAY", 큰 이름+시간, 📍주소, [길찾기][전화][완료].',
+    sp:'gradient 150deg #272D3D→#14171F, radius24, padding20. 🟢gd green 7px + "오늘 시공 · D-DAY" 11.5px white.62. hero-name 23px w800 + " · {time} 예정" 14px white.6. hero-addr 13px white.78. hbtn flex1 radius13 padding12: 길찾기=light(white/#14171F), 전화·완료=ghost(white.12/white).',
+    a:'TodayHeroCard 1:1 재작업 완료(f2357a2). 그라데이션·green dot·이름+시간·3버튼 반영. 사장님 스크린샷 확인 OK.'},
+   {n:'히어로 — 시공 없는 날(다음 시공 미리보기)', s:'prog', src:'renderHero → heroEmptyHtml',
+    d:'오늘 시공 없으면 같은 자리에 "다음 시공 미리보기"가 떠야 함.',
+    sp:'heroEmptyHtml = 다음 시공 1~3곳 미리보기(날짜·D-day·고객). (프로토 함수 재확인 필요)',
+    a:'앱 nextJobs 미리보기는 있으나 프로토 heroEmptyHtml 레이아웃과 1:1 아직. 보류 표시.'},
+   {n:'배너 — 견적 회신 대기 (보라)', s:'done', src:'renderWaiting 상단 알림군 / EstimateFollowup',
+    d:'견적 보낸 지 N일 답 없는 고객 "한 번 더 여쭤볼까요?" 보라 배너.',
+    sp:'inbox-alert 좌측 4dp 보라 accent + 아이콘박스 + 제목/태그 + 보조문 + go pill.',
+    a:'InboxAlert(purple) + EstimateFollowupScreen 진입. 1:1 OK.'},
+   {n:'배너 — 부재중 자동답장 보냄 (파랑)', s:'done', src:'renderMissed / openMissedView',
+    d:'전화 못 받아 자동 발송된 첫 인사 알림. [대화] 누르면 채팅.',
+    sp:'inbox-alert 파랑 accent + 미스콜 문구 + [대화] pill→openChat.',
+    a:'per-item InboxAlert.missed(blue, [대화]) 반영(f2357a2). 1:1 OK.'},
+   {n:'배너 — 내일 시공 안내 D-1 / 도착 (앰버 remind-card)', s:'done', src:'renderRecurAlert 계열 / openArrival',
+    d:'"내일 시공 안내 · D-1" 노란 카드. 안내 문구 박스 + [건너뛰기][문자 보낼까요?].',
+    sp:'remind-card 좌측 3dp amber, radius18 padding16. remind-label 11px w800 #B8780A "내일 시공 안내 · D-1". remind-name 16px w700. remind-msg 박스 bg radius12 padding12 13.5px line1.55. rb-skip(bg/t2) · rb-send(blue/white "문자 보낼까요?").',
+    a:'RemindCard 1:1 재작업 완료(f2357a2). 사장님 스크린샷으로 "얇은 카드 → remind-card" 교정 반영.'},
+   {n:'배너 — 정기문자 보낼 때 됐어요 (앰버)', s:'done', src:'renderRecurAlert / openRecurDue',
+    d:'시공 후 N일 된 고객 정기문자 보낼 차례 알림.',
+    sp:'inbox-alert amber + "정기문자 · N명" + [보내기]→목록.',
+    a:'InboxAlert(amber)→RecurringDueScreen. 1:1 OK.'},
+   {n:'"지금 답장 기다려요" 대기 카드 + AI 추천 즉시발송', s:'done', src:'renderWaiting',
+    d:'답장 기다리는 고객 카드. 안에 "✨ AI 추천 답변" + 본문 + 파란 발송 버튼(바로 보냄).',
+    sp:'waiting card sugbox bg #EEF4FF, "✨ AI 추천 답변" 라벨 + 추천 본문 + 40dp 파란 send-fab(Send). "AI 답변 준비 중…" preparing 변형.',
+    a:'WaitingCard + sugbox + onQuickSend(SmsSender 직발송→onWaitingReplySent) 구현(dd6b729). 1:1 OK.'},
+   {n:'"최근 대화" 목록', s:'done', src:'renderRecent / recentRowHtml',
+    d:'최근 주고받은 고객들 줄목록(아바타·이름·미리보기·시간).',
+    sp:'recent-row = avatar + 이름 + 마지막 메시지 미리보기 + 시각.',
+    a:'RecentRow 구현. 1:1 OK.'},
+   {n:'하단 탭바 (홈·일정·통계·더보기)', s:'done', src:'switchTab',
+    d:'맨 아래 4탭 네비게이션.',
+    sp:'tab 홈/일정/통계/더보기 4개 + 활성 파랑.',
+    a:'BottomNav 4탭 구현. 1:1 OK.'},
+ ]},
+
+ {emo:'🗨️', name:'채팅', desc:'고객 1명과 문자 + AI. 2026-06-02 재작업, 폰 확인 대기', src:"openChat · renderChatMsgs · renderSugs · 하단 chat-actions / composer", items:[
+   {n:'상단 — 고객 이름', s:'review', src:'openChat → chat-name',
+    d:'채팅 맨 위 고객 이름.',
+    sp:'chat-name = 고객명(없으면 아파트+호수 자동).',
+    a:'표시 중. 1:1 폰 확인.'},
+   {n:'요약 바 (chat-summary ✨ 한 줄)', s:'todo', src:'openChat → chat-summary',
+    d:'이름 아래 흰 바에 ✨ + 지난 대화 한 줄 요약(파란 글씨).',
+    sp:'chat-summary 흰 배경 padding10x18, 12.5px blue-dark, 아래 테두리, 앞에 ✨. 예 "요약: 지난 대화 기록".',
+    a:'❌ 아직 미구현. 채팅 상단 요약 바 추가 필요.'},
+   {n:'말풍선 (나/고객 · 사진 · 날짜 구분선)', s:'done', src:'renderChatMsgs / callCardHtml',
+    d:'주고받은 문자 말풍선. 사진은 썸네일, 날짜 바뀌면 가운데 구분선.',
+    sp:'bubble me/cust, photo=ph 박스+camera, chat-date 가운데 span, btime 시각.',
+    a:'ChatScreen 말풍선·사진뷰어·날짜 구분 구현. 1:1 OK(세부 폰 확인).'},
+   {n:'통화 구간 카드 (📞 청록)', s:'done', src:'callCardHtml',
+    d:'문자 사이에 통화가 시간순으로 "📞 수신/발신/부재중 · N분" 청록 카드.',
+    sp:'call card 청록, 수신/발신/부재중 + 분.',
+    a:'CallSegment + buildChatTimeline 병합 구현. 1:1 OK.'},
+   {n:'AI 추천 영역 — "✨ 이렇게 답해보세요"', s:'review', src:'renderSugs',
+    d:'입력창 위 추천 답변 영역. 제목 "✨ 이렇게 답해보세요" + 흰 카드 추천칩(가로 스크롤).',
+    sp:'sug-area bg padding 8/14/4. sug-head .h 12px w800 blue "✨ 이렇게 답해보세요". sug-chip 흰 width238 radius15 padding12x13: cl 11px w800 blue(라벨), ct 13px t1 line1.45(본문) maxLines4.',
+    a:'헤더 문구 교체 + sug-chip 파란채움→흰카드(238dp) 재작업(9b48e01). 폰 확인 필요.'},
+   {n:'하단 액션칩 3개 (견적작성·내일정·문구넣기)', s:'review', src:'chat-actions(act-chip)',
+    d:'입력창 바로 위 고정 3칩: [견적 작성][내 일정 확인][문구 넣기].',
+    sp:'act-chip 흰 border radius999 padding8x13, 라벨 12.5px w700 t2, 아이콘 blue 14px. 간격 gap8, padding start14/end14/top10. 견적작성→send_estimate, 내일정→openMySchedule, 문구넣기→openTplPicker.',
+    a:'⚡ 토글+5칩 → 프로토 고정 3칩으로 교체(9b48e01). ⚠️ 사장님 이전 ⚡결정을 "무조건 프로토대로" 지시로 덮음. 폰 확인.'},
+   {n:'입력창 (composer)', s:'review', src:'composer / field / snd',
+    d:'맨 아래 회색 알약 입력칸: ✨ 왼쪽, 입력, 📷 오른쪽, 파란 동그란 발송.',
+    sp:'composer 흰 top-border padding9/14/16 gap9. field bg #F4F5F7 radius22 padding7x15: ✨(AutoAwesome 19dp 왼쪽) + textarea 14px "메시지 입력..." + 📷(19dp 오른쪽). snd 40px 파란 원 send 18px.',
+    a:'흰박스(48/52dp) → 프로토 회색 알약 재작업(9b48e01). ⚠️ 사장님이 키웠던 터치영역을 프로토 크기로 되돌림 — 폰에서 작으면 키우기로 약속.'},
+ ]},
+
+ {emo:'📅', name:'일정', desc:'시공 달력 + 셀프 등록', src:"switchTab('schedule') · buildCalendar · renderAddSchedule · openMySchedule", items:[
+   {n:'상단 앱바 (일정 · 날짜 · [+])', s:'done', src:"switchTab('schedule')",
+    d:'제목 "일정" + 오늘 날짜 + 오른쪽 위 [+] (FAB 아님).',
+    sp:'title "일정" + today-date + 우상단 [+] Box(plus). FAB 제거.',
+    a:'앱바 + 우상단 [+] Box 반영(03a585d). 1:1 OK.'},
+   {n:'달력 헤더 (가운데 + 원형 nav)', s:'done', src:'cal-head / CalNav',
+    d:'"2026년 5월" 가운데, 좌우 원형 흰 버튼(34dp)으로 월 이동.',
+    sp:'cal-head 가운데 정렬. CalNav circular white 34dp 좌/우.',
+    a:'cal-head + CalNav 34dp 반영. 1:1 OK.'},
+   {n:'달력 카드 (흰 7×6)', s:'done', src:'buildCalendar(cal-card)',
+    d:'흰 둥근 카드 안 달력. 시공 있는 날 점·기간 선.',
+    sp:'cal-card 흰 radius20 padding10/10/16. 7×6 그리드. 시공 dot + 기간 표시.',
+    a:'cal-card 래핑 + 기간(jobCoversDay) 반영. 1:1 OK.'},
+   {n:'안내문 (📌 길게 눌러 등록)', s:'done', src:'cal-hint',
+    d:'달력 아래 "📌 날짜를 길게 누르면 직접 등록".',
+    sp:'cal-hint 문구 verbatim + 날짜 길게누름(combinedClickable)→openAddSchedule.',
+    a:'cal-hint + long-press 등록 반영. 1:1 OK.'},
+   {n:'날짜 시공 카드 (DayJobCard)', s:'done', src:'selectDay 목록',
+    d:'고른 날 시공: 점+이름+N일차+시간+D-day/완료 태그+편집+📍주소+입금상태+"정산·현금흐름에서 보기".',
+    sp:'hd dot + name + N일차 + time + D-day/완료 태그 + edit + 📍addr + PayStatus(읽기) + 정산 링크→openSettle.',
+    a:'DayJobCard 1:1(03a585d). 정산 링크 연결. 1:1 OK.'},
+   {n:'팀원 배정 라인 (99k)', s:'todo', src:'openAssign / renderAssign',
+    d:'날짜 카드에 팀원 배정 줄(99k 팀 기능).',
+    sp:'assign line = 배정 팀원 칩 + 추가.',
+    a:'⏸ 99k 팀 기능이라 의도적 보류.'},
+   {n:'셀프 일정 등록 폼', s:'done', src:'renderAddSchedule',
+    d:'직접 추가 폼(이름·번호·시공일·시간칩·기간·주소·금액·계약금·일당).',
+    sp:'폼 필드 순서·시간칩(미정+8개)·기간칩 verbatim.',
+    a:'ScheduleAddScreen 구현. 1:1 OK(세부 폰 확인).'},
+   {n:'채팅 "내 일정 확인" 시트', s:'done', src:'openMySchedule',
+    d:'채팅 칩에서 미니 달력 시트(빈 날/시공 날·주소).',
+    sp:'월 미니 달력(여러날 점) + 날짜 탭→그날 시공/"비어있어요". 읽기전용.',
+    a:'MyScheduleSheet 구현. 1:1 OK.'},
+ ]},
+
+ {emo:'💰', name:'정산', desc:'월 매출 + 현금흐름 + 미수 (한 스크롤)', src:"renderSettle · renderCashCal", items:[
+   {n:'월 매출 다크 카드 (settle-top)', s:'done', src:'renderSettle 상단',
+    d:'검정 그라데이션 카드: 월 이동, "받은 돈", 만원 단위, 전월대비, 목표 진행바 + 페이스.',
+    sp:'gradient #272D3D→#14171F. smonth 월 nav(prev pill ▲▼) + lbl/amt/만원 + sdiv + mile2 목표바 + pace. sout.',
+    a:'SettleTopCard 1:1(9fa0c68). 과거달=받은 돈만 갱신. 1:1 OK.'},
+   {n:'현금흐름 달력 (인라인)', s:'done', src:'renderCashCal',
+    d:'월 매출 카드 바로 아래 4색 현금흐름 달력.',
+    sp:'CashFlowCard(Column 인라인). 들어올/들어온/나갈/나간 4색 + 지난날 회색 + 범례.',
+    a:'CashFlowCard 인라인화(9fa0c68). 1:1 OK.'},
+   {n:'"받을 돈 · 미수 관리" 소제목 + 필터칩', s:'done', src:'renderSettle 중단',
+    d:'소제목 + [전체][미수금][완료] 필터칩.',
+    sp:'sec-sub "받을 돈 · 미수 관리" + FChips 전체/미수금/완료.',
+    a:'sec-sub + FChips 반영. 1:1 OK.'},
+   {n:'미수 고객 줄 (srow) + 완납', s:'done', src:'renderSettle 목록',
+    d:'고객별 계약금/잔금 토글 + "완납 N건" 묶음 + 완납 줄.',
+    sp:'srow active(PayBlock 계약금/잔금) + "완납 N건" + SettleDoneRow.',
+    a:'srow + PayBlock + 완납 묶음 1:1. 1:1 OK.'},
+   {n:'목표 수정 다이얼로그', s:'done', src:'(목표바 탭)',
+    d:'월 목표 금액 수정.',
+    sp:'GoalEditDialog 만원 입력.',
+    a:'GoalEditDialog 구현. 1:1 OK.'},
+ ]},
+
+ {emo:'📊', name:'통계', desc:'이번 달 성과 + 추이 + 시공 종류', src:"renderStats · renderStatsGreeting · renderStatTypes", items:[
+   {n:'히어로 (파랑 인사 + 현장 N곳 + 작년대비 + 전국 배지)', s:'done', src:'renderStats / renderStatsGreeting',
+    d:'파란 카드: 날짜별 인사말 + "현장 N곳" + 작년대비 + "🔥 전국 페이스는 데이터가 모이는 중".',
+    sp:'stats-hero 파란 그라데이션. greeting(날짜별) + 현장 N곳 + 작년대비. rank-badge "🔥 전국 페이스는 데이터가 모이는 중".',
+    a:'StatsScreen 히어로 1:1(e490c5b). 전국 비교=가짜숫자 대신 "모이는 중"(사장님 결정).'},
+   {n:'막내 한 줄 (마스코트)', s:'done', src:'renderStats',
+    d:'"부쩍 자랐어요" 막내 멘트.',
+    sp:'StatsMascot + "부쩍 자랐어요".',
+    a:'StatsMascot 반영. 1:1 OK.'},
+   {n:'2×2 그리드 (현장·문의·전환율·답장)', s:'done', src:'renderStats',
+    d:'다녀온 현장 / 받은 문의 / 시공 전환율 / 보낸 답장 4칸.',
+    sp:'StatGrid 2x2 = 다녀온 현장·받은 문의·시공 전환율·보낸 답장.',
+    a:'StatGrid 1:1. 실데이터(jobs/inquiries/conversion/sentReplies). 1:1 OK.'},
+   {n:'문의 추이 (기간 토글 + 막대 + 시장 비교)', s:'done', src:'renderStats',
+    d:'"문의 추이·전기간 비교" 7/30일 토글 + 막대 + 시장 비교 "모이는 중".',
+    sp:'TrendSection period-toggle(D7/D30) + gbars(barMax 92dp) + 시장 비교 "모이는 중".',
+    a:'TrendSection 1:1(e490c5b). GBar 고정높이 버그 수정. 1:1 OK.'},
+   {n:'이번 달 시공 종류 (막대)', s:'done', src:'renderStatTypes',
+    d:'"이번 달 시공 종류" 1등 강조 + 종류별 막대.',
+    sp:'StatTypes wt-hero(1등) + wt-row bars(categoryId 그룹).',
+    a:'StatTypes 1:1. 1:1 OK.'},
+ ]},
+
+ {emo:'⚙️', name:'더보기', desc:'막내 카드 + 메뉴 섹션', src:"openAgent · (more 화면)", items:[
+   {n:'막내 비서 카드 (레벨·말투%·stats)', s:'done', src:'openAgent / openLevelUp',
+    d:'그라데이션 카드 + 막내 + 레벨(Lv·칭호) + 말투 진행바 + "상담 N건·시공 N건·다음 레벨까지".',
+    sp:'agent-card gradient #EAF2FF→#F1ECFF border #E6EAFB radius22 + Mascot56 + Lv 칩(#3182F6→#7C5CFC) + 말투% grow-bar + "함께한 상담 N건 · 시공 완료 N건 · 다음 레벨까지 N건".',
+    a:'AgentMiniCard 1:1(aab8a73). 실제 카운트(상담=고객수, 시공=과거 시공일, 말투=업로드/500). 1:1 OK.'},
+   {n:'메뉴 섹션 재배치', s:'prog', src:'(more 본문)',
+    d:'함께 일하는 사람/장사 분석/내 답장 재료/앱 설정/도움말 순서·lockcard 정리.',
+    sp:'프로토 more 섹션 순서·LockRow(잠금 99k) 그대로.',
+    a:'막내 카드 먼저 완료. 섹션 정렬·하위화면 1:1 정리 다음 단계(사장님 결정).'},
+   {n:'하위 화면들(템플릿·가격표·말투·리포트·수첩·정기문자·사업자·업종)', s:'review', src:'openTemplates/openPricing/openTone/openReport/openWorkers/openRecurring/openBizInfo',
+    d:'더보기 안 개별 화면들. 기능은 동작, 프로토 1:1 디자인 점검은 아직.',
+    sp:'각 화면 프로토 출처 함수 대조 필요.',
+    a:'기능 구현 완료. 화면별 1:1(글·배치·디자인) 점검은 후속.'},
+ ]},
+
+ {emo:'🧾', name:'견적 · 시공접수서', desc:'견적 다이얼로그 + 접수서 폼', src:"openEstimate · openQuote · openBizInfo", items:[
+   {n:'견적 작성 다이얼로그', s:'review', src:'renderEstimate / openEstimate',
+    d:'채팅에서 가격표 띄워 견적 만들기(평당·합산·정식 견적서 헤더).',
+    sp:'estimate sheet 항목 선택 + 평 stepper + 사업자정보 헤더/유효기간 + 공유.',
+    a:'EstimateDialog 동작. 프로토 sheet 레이아웃 1:1 점검은 후속.'},
+   {n:'시공접수서 (고객 자가확인)', s:'todo', src:'openQuote / renderQuoteSurvey / submitQuote',
+    d:'시공일→견적→연락처→설문→동의→접수완료. 주소 재확인.',
+    sp:'openQuote 단계 흐름 + renderQuoteSurvey 설문 + renderPendingAccepts.',
+    a:'서버 §19(폼 URL) 완료. 앱 측 [접수서 링크 보내기]+status polling+카드 미구현.'},
+   {n:'사업자정보 등록', s:'done', src:'openBizInfo',
+    d:'상호·대표·사업자번호·주소·연락처·유효기간 저장.',
+    sp:'bizInfo 폼 필드 verbatim.',
+    a:'BusinessInfoScreen 구현. 1:1 OK(세부 폰 확인).'},
+ ]},
+
+ {emo:'🎒', name:'온보딩 · 로그인', desc:'첫 진입 흐름', src:"showLogin · renderOnboard", items:[
+   {n:'로그인 화면', s:'done', src:'showLogin / login',
+    d:'막내 캐릭터 + RINGGO 로고 + 카카오/네이버/구글 버튼.',
+    sp:'login = 막내 + 로고 + 소셜 3버튼.',
+    a:'LoginScreen 프로토 .login 1:1. OK.'},
+   {n:'온보딩 7장 (스토리텔링)', s:'done', src:'renderOnboard',
+    d:'슬라이드 문구·업종 선택·"막내 비서 탄생!"까지.',
+    sp:'OB_SLIDES verbatim + 업종 직접입력 + 홍보 아이콘줄.',
+    a:'OnboardingScreen OB_SLIDES verbatim(b6908da). OK.'},
+ ]},
+
+ {emo:'👥', name:'팀 (99k) · 알림', desc:'팀원 화면·알림센터 (서버 의존/보류)', src:"openTeam · openMemberView · openNotif", items:[
+   {n:'팀 관리 / 팀원 보기', s:'todo', src:'openTeam / renderTeam / openMemberView',
+    d:'팀원 초대·현장 배정·출발·사진(99k).',
+    sp:'openTeam + openMemberView(출발/사진/네비) 프로토 1:1.',
+    a:'⏸ 서버 §20 완료. 앱 메뉴+sheet+polling 미구현(99k 기능).'},
+   {n:'알림 센터', s:'todo', src:'openNotif',
+    d:'알림 모아보기 화면.',
+    sp:'openNotif 목록.',
+    a:'⏸ 앱 1:1 점검 전.'},
+ ]},
+];
+
+var LABELS = {done:'똑같음', review:'폰 확인', prog:'다른 부분', todo:'아직'};
+var BADGE = {done:'b-done', review:'b-review', prog:'b-prog', todo:'b-todo'};
+var ORDER = ['todo','prog','review','done'];
+
+var all=[]; AREAS.forEach(function(a){a.items.forEach(function(it){all.push(it);});});
+var total=all.length, cnt={done:0,review:0,prog:0,todo:0};
+all.forEach(function(it){cnt[it.s]++;});
+
+document.getElementById('bigNum').innerHTML = cnt.done+' <small>/ '+total+' 똑같음</small>';
+var pct=Math.round(cnt.done/total*100);
+document.getElementById('pct').textContent=pct+'%';
+document.getElementById('barDone').style.width=(cnt.done/total*100)+'%';
+document.getElementById('barReview').style.width=(cnt.review/total*100)+'%';
+document.getElementById('barProg').style.width=(cnt.prog/total*100)+'%';
+document.getElementById('lgDone').textContent=cnt.done;
+document.getElementById('lgReview').textContent=cnt.review;
+document.getElementById('lgProg').textContent=cnt.prog;
+document.getElementById('lgTodo').textContent=cnt.todo;
+
+var FILTERS=[
+  {k:'all',label:'전체',c:total},
+  {k:'todo',label:'아직',c:cnt.todo},
+  {k:'prog',label:'다른 부분',c:cnt.prog},
+  {k:'review',label:'폰 확인',c:cnt.review},
+  {k:'done',label:'똑같음',c:cnt.done},
+];
+var curFilter='all', fEl=document.getElementById('filters');
+FILTERS.forEach(function(f){
+  var b=document.createElement('div');
+  b.className='fchip'; b.setAttribute('data-k',f.k);
+  b.setAttribute('data-on',f.k==='all'?'1':'0');
+  b.innerHTML=f.label+'<span class="cnt">'+f.c+'</span>';
+  b.onclick=function(){setFilter(f.k);};
+  fEl.appendChild(b);
+});
+function setFilter(k){
+  curFilter=k;
+  [].forEach.call(fEl.children,function(c){c.setAttribute('data-on',c.getAttribute('data-k')===k?'1':'0');});
+  render();
+}
+
+var board=document.getElementById('board');
+function render(){
+  board.innerHTML='';
+  AREAS.forEach(function(a){
+    var items=a.items.filter(function(it){return curFilter==='all'||it.s===curFilter;});
+    items=items.slice().sort(function(x,y){return ORDER.indexOf(x.s)-ORDER.indexOf(y.s);});
+    if(!items.length) return;
+    var done=a.items.filter(function(it){return it.s==='done';}).length;
+
+    var area=document.createElement('div'); area.className='area';
+    var head=document.createElement('div'); head.className='area-h';
+    head.innerHTML='<div class="area-emo">'+a.emo+'</div>'+
+      '<div style="flex:1"><div class="area-name">'+a.name+'</div><div class="area-desc">'+a.desc+'</div>'+
+      (a.src?'<div class="area-src">프로토: '+a.src+'</div>':'')+'</div>'+
+      '<div class="area-mini">'+done+'/'+a.items.length+'</div>';
+    area.appendChild(head);
+
+    var card=document.createElement('div'); card.className='area-card';
+    items.forEach(function(it){
+      var row=document.createElement('div'); row.className='item';
+      row.innerHTML=
+        '<div class="item-top">'+
+          '<div class="item-name">'+it.n+'</div>'+
+          '<span class="badge '+BADGE[it.s]+'">'+LABELS[it.s]+'</span>'+
+          '<span class="chev">▶</span>'+
+        '</div>'+
+        '<div class="item-body">'+
+          '<div class="item-desc">'+it.d+'</div>'+
+          (it.sp?'<div class="item-spec"><b>📐 프로토 스펙(verbatim):</b> '+it.sp+'</div>':'')+
+          '<div class="item-app"><b>실제 앱:</b> '+it.a+'</div>'+
+          (it.src?'<div class="item-src"><b>프로토 출처:</b> '+it.src+'</div>':'')+
+        '</div>';
+      row.onclick=function(){row.classList.toggle('open');};
+      card.appendChild(row);
+    });
+    area.appendChild(card);
+    board.appendChild(area);
+  });
+}
+render();
+</script>
+</body>
+</html>

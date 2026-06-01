@@ -1817,3 +1817,10 @@ CREATE TABLE intake_forms (
 - composer: 흰 박스(48/52dp 큰 터치) → 프로토 회색 알약(radius22) + ✨왼쪽 + 📷오른쪽 + 40dp 파란 발송원.
 - 앱바 내 일정 DateRange 제거(액션칩으로 이동). 접수서·북마크는 실기능이라 유지.
 - DB 변경 없음. commit: (아래)
+
+## 2026-06-02 · android (9)
+프로토 1:1 이식 "요소 단위" 전용 현황판 신설 (사장님 요청 — 디테일하게, 프로토 바뀌면 빠진 개선 안 놓치게).
+- 신규: docs/ONEONE_STATUS.md (SoT) + design-preview/oneone-board.html (사장님 보기용, 인터랙티브). 기존 IMPLEMENTATION_STATUS/status-board(기능 축)와 별개 = 디자인 1:1 축.
+- 구조: 화면을 요소(섹션·배너·카드·카피·디자인값)로 쪼개고, 각 요소에 [프로토 출처 함수] + [프로토 스펙 verbatim(색 hex·px·카피)] + [앱 상태] 박음. 상태=똑같음/폰확인/다른부분/아직.
+- 자동화 의도: 프로토 변경 시 그 요소만 ⬜/🔵 로 떨어져 "변경→앱 반영" 체크리스트로 동작. 절차를 문서 상단에 명시.
+- 코드 변경 없음(문서·HTML만). server/ 무관. commit: (아래)
