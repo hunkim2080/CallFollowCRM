@@ -1415,3 +1415,146 @@ CREATE TABLE customer_personas (
 - 신규 pref: hasSeenLogin / hasOnboarded / ownerRegions. 신규 라우트: LOGIN/PERMISSIONS/STATS/SEARCH/CUSTOMERS
 - 참고(서버): 소셜 OAuth(카카오 등) 실제 연동은 서버 작업 — 지금 앱은 버튼/진입 흐름만.
 - 남은 UI: 더보기 항목 lockcard 그룹화, 채팅은 이미 프로토 충족(요약/추천/다듬기).
+
+---
+
+## 2026-06-02 (오후) · cowork(server) — 점검 + 통화 요약 인입 endpoint 신설
+SERVER_HANDOFF_2026-06-02 의 우선순위 1·2 처리.
+
+### Task 1 — 5개 endpoint 점검 결과 (전부 정상)
+샌드박스에서 안드로이드 측 ConversationAiRepository 와 동일한 필드명(snake_case `timestamp_ms` / camelCase `timestampMs`) 으로 직접 호출:
+- ✅ `POST /api/card-summary` (Haiku) — `{summary, generated_at_ms, based_on_message_count, _cache_hit}` 채워짐
+- ✅ `POST /api/conversation-summary` (Haiku) — `{summary_lines[3~5], current_stage, generated_at_ms, _cache_hit}` 채워짐
+- ✅ `POST /api/next-action-suggest` (Haiku) — `{action_type, title, subtitle, primary_action{label,action}, secondary_action, urgency, generated_at_ms, _cache_hit}` 채워짐
+- ✅ `POST /prepare-reply` + `GET /suggestions/{phone}` (Sonnet) — v2 스키마 (scenario + confidence + suggestions[3 obj]) 정상. cache_hit/miss 도 동작
+- ✅ `POST /api/refine` (Gemini) — `{polished}` 채워짐
+
+→ "엔드포인트는 있으나 end-to-end 채워지는가" 의문은 **모두 통과**. fix 필요 없음.
+주의: 첫 샌드박스 테스트에서 `ts_ms` 잘못 박아 422 빈 응답 나왔으나, 실제 안드로이드 호출은 정확한 필드명(`timestamp_ms` / `timestampMs`) 사용 중. ConversationAiRepository.kt L167 `put("timestamp_ms", msg.timestampMs)` 확인 완료.
+
+### Task 2 — 신규 `POST /api/call-summary` (에이닷 통화요약 인입)
+**왜:** 핸드오프 (P1) "통화 내용 인입" 빈칸. 인프라(`ConversationContext.call_summaries`, `build_context_user_message` 안 `[통화 요약]` 섹션)는 이미 있음 → 진짜 빈칸은 "에이닷 원문(긴 텍스트) → CallSummary 1줄로 압축" 단계뿐.
+
+**왜 전용 endpoint 인가:** 핸드오프가 "출력: 불릿 몇 줄 + (선택) 후속 문자 초안" 명시 → ConversationContext 스키마와 다름. CallSummaryEntity 채우려면 별도 응답 형식 필요. 또한 에이닷 원문은 길어서(평균 1~4k chars) Haiku 1회 압축 후 한 줄만 ConversationContext.call_summaries 에 넣어보내는 게 비용 효율적.
+
+**API 계약 (앱이 붙일 수 있게):**
+```
+POST /api/call-summary
+요청 (JSON):
+{
+  "phone": "+82...",
+  "raw_text": "(에이닷 통화요약 원문, 8000자 컷)",
+  "direction": "incoming"|"outgoing"|"missed",
+  "duration_sec": 0,
+  "started_at_ms": 1717200600000,   // 캐시 키
+  "customer_name": "..." (optional),
+  "customer_memo": "..." (optional),
+  "owner_tone_samples": ["...", ...] (optional, max ~10)
+}
+
+응답 (JSON, Haiku 4.5):
+{
+  "one_line": "강남구 25평 화장실 줄눈 견적 문의",          // CallSummary.summary 에 박을 1줄
+  "bullets": ["📍 ...", "🔧 ...", "📅 ..."],                // 3~5 줄, 채팅 📞 카드 안에 표시
+  "suggested_followup_sms": "안녕하세요! ..." | null,        // 후속 문자 초안 (자동발송 X)
+  "phone": "...",
+  "direction": "...",
+  "duration_sec": 0,
+  "started_at_ms": 0,
+  "generated_at_ms": ...,
+  "_cache_hit": false
+}
+```
+
+**캐시:** `summary_cache(phone, "call-summary", started_at_ms)` → 동일 통화 재호출 = DB 캐시 적중(LLM 비용 0). 안드로이드가 통화별 1회만 호출하면 됨.
+
+**자동 SMS 발송 금지 정책 유지:** `suggested_followup_sms` 는 *초안*. 발송은 앱 ChatScreen 에서 사장님이 ▶ 직접.
+
+**앱 측 권장 흐름 (안드로이드 Claude 가 붙일 작업):**
+1. 사장님이 에이닷 통화요약 텍스트를 RING-GO 로 공유(Android share intent receiver)
+2. 앱이 위 endpoint 호출 (Haiku 응답 ~2~4초)
+3. `CallSummaryEntity` 저장:
+   - `cardSummary = one_line` (또는 별도 필드)
+   - `bullets = bullets.joinToString("\n")`
+   - `followupDraft = suggested_followup_sms`
+4. ChatScreen 의 📞 `CallSegment` 카드 안에 `one_line` + `bullets` 노출
+5. 이후 conversation-summary / card-summary / next-action-suggest 호출 시 안드로이드가 `ConversationContext.call_summaries` 에 `{summary: one_line, duration_sec, started_at_ms, direction}` 형태로 추가 → 기존 시스템 프롬프트의 "통화 요약이 있으면 핵심을 한 줄에 포함" 룰이 자동 발동
+
+**검증:** `_coerce_call_summary` 단위 검증 4건 통과 (정상 / bullets 누락 fallback / one_line 누락 ValueError / 안전 컷). 실제 LLM 호출 검증은 사장님 deploy 후 curl 로.
+
+**모델 배치 결정:** Haiku 4.5 (Sonnet ~1/3 비용). 단순 압축/정형화 워크로드라 Haiku 면 충분. 추후 품질 불만 시 Sonnet 으로 승격 가능.
+
+### 변경 파일
+- `server/main.py` — §18 섹션 추가 (`CallSummaryRequest`, `CALL_SUMMARY_SYSTEM`, `_coerce_call_summary`, `_build_call_summary_user_message`, `POST /api/call-summary`). +181 lines. syntax pass, 단위 검증 4건 통과.
+- `docs/IMPLEMENTATION_STATUS.md` — 상담함 "통화 요약 카드" 🔷→🔶 (안드로이드 인입/표시 작업 대기)
+
+### 다음 작업 후보 (서버)
+- Task 3 (시공접수서) — 같은 commit 에 §19 로 구현 완료 (아래 블록).
+- Task 4 (팀 관리) — 다음 sprint.
+
+### 다음 작업 요청 (android)
+- 위 §18 endpoint 에 붙기. 에이닷 공유 인텐트 → `/api/call-summary` 호출 → `CallSummaryEntity` 저장 → 📞 카드 안에 `one_line`+`bullets` 표시 + (사장님 ▶ 시) `suggested_followup_sms` prefill.
+
+---
+
+## 2026-06-02 (오후) · cowork(server) — §19 시공접수서 (고객 자가확인 폼) 구현
+사장님 결정: 토큰 **7일** 만료 / 폼 헤더 **사업자정보 표시** / 시공범위 옵션 6개 기본.
+
+### 왜 이걸 만드는가
+SERVER_HANDOFF_2026-06-02 (P2) "시공접수서". 앱 미구현. 핸드오프 §4 의 "리마인드/발송-대기 공통 인프라"(`recurring_message_log` 음수 sentinel + `SimpleDueCard`) 가 이미 안드로이드에 있으므로, 서버가 **발급/제출 시각만** 주면 앱이 "접수서 작성 리마인드" 카드로 바로 띄움. 즉 이 §19 가 들어가면 안드로이드 **의존 항목 1개도 같이 풀림**.
+
+### API 계약 (안드로이드가 붙일 수 있게)
+
+| Method | Path | 호출자 | 요청 | 응답 |
+|---|---|---|---|---|
+| POST | `/api/intake-form/issue` | 앱(사장님) | `{phone, customer_name?, device_id?, owner_phone?, expected_scope?[]}` | `{token, url, issued_at_ms, expires_at_ms}` |
+| POST | `/api/intake-form/submit` | 고객 브라우저 | `{token, road_address, building_detail?, contact_phone?, scope_items[], pyeong?, available_time?, memo?}` | `{ok, submitted_at_ms, phone}` |
+| GET | `/api/intake-form/status?phone={phone}&device_id=` | 앱 polling | — | `{phone, intake: {token, issued_at_ms, expires_at_ms, submitted_at_ms\|null, payload\|null, url} \| null}` |
+| GET | `/api/intake-form/list?device_id=&owner_phone=&limit=30` | 앱 관리 화면 | — | `{items: [{token, phone, customer_name, issued_at_ms, expires_at_ms, submitted_at_ms\|null, url}], count}` |
+| GET | `/intake/{token}` | 고객 브라우저 | — | HTML 폼 (또는 만료/제출/유효X 상태 페이지) |
+
+### 데이터 모델
+```sql
+CREATE TABLE intake_forms (
+  token TEXT PRIMARY KEY,        -- 8자 base62 (0/O/1/I/l 제외, 62^8 ≈ 2.18e14 공간)
+  phone TEXT NOT NULL,           -- 고객 phone
+  customer_name TEXT,
+  issued_at_ms INTEGER NOT NULL,
+  expires_at_ms INTEGER NOT NULL,  -- issued + 7일
+  submitted_at_ms INTEGER,         -- NULL = 미작성
+  payload_json TEXT,               -- 제출 데이터 (주소·범위·연락처…)
+  device_id TEXT,                  -- 사장님 device (관리/필터용)
+  owner_phone TEXT,                -- 사장님 phone (사업자정보 헤더 lookup 용, subscribers 와 join)
+  created_at_ms INTEGER NOT NULL
+);
+-- 인덱스 2개: (phone, issued_at_ms), (device_id, issued_at_ms)
+```
+
+### HTML 폼 (고객 브라우저용 `/intake/{token}`)
+- 단일 HTML (인라인 CSS·JS, 7,969 chars). 모바일 친화 480px max-width, 48dp+ 손가락 영역, Pretendard 폰트 fallback
+- **헤더:** subscribers 테이블에서 `name`, `company` 끌어와 표시. 없으면 `RING-GO 시공`/사장님 phone fallback
+- **주소:** 다음(카카오) 우편번호 위젯 `postcode.v2.js` (무료, API 키 X) — `oncomplete` 에서 road_address autofill, 동/호 input focus
+- **시공 부위:** chip 6개 (욕실/주방/거실·방/베란다/타일 시공/기타). 중복 선택 OK. 미선택 시 client-side alert
+- **상태 페이지:**
+  - 토큰 미존재 → "❌ 유효하지 않은 링크" (404)
+  - 이미 제출 → "✅ 이미 제출된 접수서입니다"
+  - 7일 만료 → "⌛ 만료된 링크" (410)
+  - 제출 성공 → "✅ 제출 완료" inline 치환
+- 단일 화면, 한 페이지로 끝. 카카오 위젯만 외부 CDN
+
+### 보안·정책
+- 토큰: `secrets.choice` 로 base62 8자, 57자 알파벳(혼동 문자 제외). 충돌 시 8회 재시도 → 실패 시 500
+- 7일 만료 (사장님 결정). expires_at_ms 컬럼으로 server-side 검증, 만료 후 submit POST 410
+- HTTPS 미제공 (현재 Tailnet 평문 OK, 추후 도메인 + Cloudflare Tunnel 검토 — 별도 sprint)
+- 자동 SMS 발송 X 정책 유지: 서버는 URL 만 발급, 앱이 본문에 prefill → 사장님 ▶ 직접
+- `INTAKE_PUBLIC_BASE_URL` env (기본 `http://100.86.114.49:8000`) — 추후 외부 도메인 시 plist 에 추가
+
+### 안드로이드 의존 작업 (Windows Claude Code 가 붙일 것)
+1. 채팅 견적 영역에 `[접수서 링크 보내기]` 버튼 + `POST /api/intake-form/issue` 호출 → 응답 `url` 을 SMS 본문에 prefill ("아래 링크에서 주소·범위 확인 부탁드려요\n{url}") → 사장님 ▶ 직접 발송
+2. 홈/채팅에서 `GET /api/intake-form/status?phone=&device_id=` polling (또는 prepare-reply 응답에 신호 첨부)
+3. **접수서 작성 리마인드 카드:** 발급 + N일(기본 2일) 경과 + 미작성이면 `recurring_message_log` 음수 sentinel `-7` 로 `IntakeFormFollowupCard` (정기문자 sentinel 패턴 그대로). DB 변경 0
+4. 제출됨 (`submitted_at_ms` 비-null) 시 알림 + 고객 상세에 payload 표시 (주소·범위·평수·메모)
+
+### 변경 파일
+- `server/main.py` — db_init 에 `intake_forms` 테이블 + 인덱스 2개, §19 섹션 추가 (constants, `IntakeIssueRequest`/`IntakeSubmitRequest`, `_generate_intake_token`, `_fetch_owner_business_info`, 4 API + HTML 페이지). +586 lines. syntax pass, 단위 검증 4건 통과 (토큰 알파벳/HTML format/100토큰 중복0/SQL 흐름)
+- `docs/IMPLEMENTATION_STATUS.md` — 견적·접수서 영역 `시공접수서` ⬜→🔶 (서버 OK, android 작업 대기)

@@ -32,7 +32,7 @@
 - ✅ **오늘 시공 히어로(D-DAY)** — `TodayHeroCard` 다크 히어로 + 주소 + 길찾기 (2026-06-01)
 - ✅ **다음 시공 1~3곳 미리보기** — `HomeViewModel.nextJobs`
 - ✅ **부재중→자동답장 카드** — 막내가 자동 발송한 첫 인사 기록을 홈 상단 노출(최근 24h, AUTO_SENT/실패). 탭→대화. `HomeViewModel.autoReplies` + `AutoReplyCard`. `MessageHistoryDao.observeRecentAutoReplies`
-- 🔷 통화 요약 카드 — `AiSummaryEntity` observe만
+- 🔶 통화 요약 카드 — 서버 `POST /api/call-summary` 신설 (Haiku, 2026-06-02). 안드로이드 측 에이닷 공유 인텐트 + CallSummaryEntity 채우기 작업 대기.
 - ✅ **정기문자 발송 대기 알림** — `RecurringDueCard`→`RecurringDueScreen`. 시공 후 N일 된 고객 정기문자를 홈 카드+목록으로. [보내기]=채팅 본문 prefill, [넘기기]=회차 제외. 포그라운드 계산.
 - ✅ **견적 회신 리마인드** — `EstimateFollowupScreen`(홈 📋 카드). 채팅 견적 작성/공유 시 `ESTIMATE_SENT` 기록 → N일 후 시공일 미등록이면 "한 번 더 여쭤볼까요?". `EstimateFollowupCalc`(테스트 6). DB 변경 0. (접수서 작성 리마인드는 시공접수서=서버 후)
 - ⬜ 팀원 현장사진 알림 (팀 관리=서버 후)
@@ -73,7 +73,7 @@
 - ✅ **평당 계산 옵션** — `PricingItemEntity.unit`(DB v22) 정액/평당. 채팅 견적 다이얼로그 평수 stepper + "평당 X원 × N평" 합산.
 - ✅ **사업자정보 등록** — `BusinessInfoScreen`(설정). 상호·대표·사업자번호·주소·연락처·유효기간(prefs).
 - ✅ **정식 견적서 + 공유** — 채팅 견적에 사업자정보 헤더+유효기간 자동 삽입 + ACTION_SEND 공유(카톡/문자). (직인 이미지/PDF 파일은 추후)
-- ⬜ 시공접수서(고객 자가확인, 서버 필요)
+- 🔶 시공접수서 — 서버 §19 완료 (2026-06-02). `POST /api/intake-form/issue|submit`, `GET /api/intake-form/status|list`, `GET /intake/{token}` HTML 폼(카카오 주소 위젯 + 사업자정보 헤더, 토큰 7일 만료). 안드로이드 측 [접수서 링크 보내기] 버튼 + status polling + IntakeFormFollowupCard 작업 대기.
 
 ## 더보기 · 설정
 - ✅ 문자 템플릿 관리 / ✅ 사장님 톤(말투) 학습 / ✅ AI 서버 상태 표시

@@ -258,6 +258,34 @@ def db_init() -> None:
             "CREATE INDEX IF NOT EXISTS idx_customer_personas_age "
             "ON customer_personas(generated_at_ms)"
         )
+        # §19 — 시공접수서 (고객 자가확인 폼)
+        # 사장님이 채팅에서 [접수서 링크 보내기] 누름 → 서버 토큰 발급 → 고객 모바일
+        # 브라우저로 진입 → 폼 입력 → 제출. 앱은 status polling 으로 작성 여부 확인.
+        # 토큰 7일 만료 (사장님 결정).
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS intake_forms (
+                token           TEXT PRIMARY KEY,
+                phone           TEXT NOT NULL,
+                customer_name   TEXT,
+                issued_at_ms    INTEGER NOT NULL,
+                expires_at_ms   INTEGER NOT NULL,
+                submitted_at_ms INTEGER,
+                payload_json    TEXT,
+                device_id       TEXT,
+                owner_phone     TEXT,
+                created_at_ms   INTEGER NOT NULL
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_intake_phone "
+            "ON intake_forms(phone, issued_at_ms)"
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_intake_device "
+            "ON intake_forms(device_id, issued_at_ms)"
+        )
         con.commit()
 
 
@@ -3958,6 +3986,745 @@ async def refine_endpoint(req: RefineRequest) -> dict:
     )
 
     return {"polished": polished}
+
+
+# ============================================================================
+# §18 — POST /api/call-summary  (에이닷 통화요약 원문 → 1줄 + 불릿 + 후속 문자 초안)
+# ─────────────────────────────────────────────────────────────────────────────
+# 안드로이드 측 흐름:
+#   1) 사장님이 에이닷 통화요약 텍스트를 RING-GO 로 공유 (Android share intent)
+#   2) 앱이 raw_text + 통화 메타(direction/duration/started_at) 를 서버로 POST
+#   3) 서버: Haiku 호출 → 정제된 응답 { one_line, bullets, suggested_followup_sms }
+#   4) 앱이 CallSummaryEntity 에 저장. one_line 은 ChatScreen 의 📞 카드 안에 노출.
+#   5) 이후 conversation-summary / card-summary / next-action-suggest 호출 시 앱이
+#      ConversationContext.call_summaries 에 {summary=one_line, duration_sec,
+#      started_at_ms, direction} 형태로 포함 → 통화 내용이 자동 반영됨.
+#
+# 모델: Haiku 4.5 — 압축/정형화 워크로드 (Sonnet 의 ~1/3 비용).
+# 캐시: summary_cache (phone, endpoint="call-summary", latest_ts=started_at_ms).
+#       동일 통화 재요청은 캐시 적중 → DB 부담 0, LLM 비용 0.
+# 자동 SMS 발송 절대 금지 정책: suggested_followup_sms 는 "초안" 일 뿐, 발송은 앱
+# 측에서 사장님이 ▶ 버튼으로 직접.
+# ============================================================================
+
+class CallSummaryRequest(BaseModel):
+    phone: str
+    raw_text: str                                   # 에이닷 통화요약 원문 (길 수 있음)
+    direction: str                                  # "incoming" | "outgoing" | "missed"
+    duration_sec: int = 0
+    started_at_ms: int = 0                          # 통화 시작 epoch ms (캐시 키)
+    customer_name: Optional[str] = None
+    customer_memo: Optional[str] = None
+    owner_tone_samples: list[str] = Field(default_factory=list)
+
+
+CALL_SUMMARY_SYSTEM = """너는 1인 시공자(줄눈/타일) 사장님의 비서다.
+에이닷(또는 유사 통화기록 앱) 이 만든 긴 통화요약 텍스트를 받아서,
+사장님이 채팅 타임라인의 📞 카드 안에서 즉판할 수 있도록 정제한다.
+
+규칙:
+- one_line: 정확히 18~28 한국어 글자(공백 포함). 이 통화의 핵심 1줄.
+  반드시 통화 결과(예: "견적 요청", "일정 확정", "AS 문의") 가 보여야 함.
+- bullets: 3~5줄. 각 줄 앞 이모지 1개 (📍📷💰📅✅⏳⚠️🔧📞 중 적절히).
+  각 줄 한 문장, 30자 이내. 통화에서 나온 사실만. 추측 금지.
+- suggested_followup_sms: 통화 직후 사장님이 고객에게 보내면 좋을 문자 초안.
+  없으면 null. 있으면 1~3 문장. 사장님 톤(존댓말 + ^^/!) 유지. 200자 이내.
+  자동 발송 절대 X — 사장님이 앱에서 ▶ 직접 누르는 "초안" 일 뿐.
+- 가격·일정 등은 통화 원문에 명시된 것만. 추측·창작 금지.
+- 통화 방향(direction) 도 답에 반영. missed 면 one_line 에 "부재중" 명시.
+
+────── 가격표 (참고용) ──────
+__PRICING__
+
+────── 사장님 톤 (어휘 참고) ──────
+__OWNER_TONE_SAMPLES__
+
+답 형식 — 반드시 지켜라:
+- 응답 첫 글자는 '{' 로 시작. 다른 텍스트 일체 X.
+- 형식: {"one_line":"...","bullets":["📞 ...","📅 ..."],"suggested_followup_sms":"..." 또는 null}
+"""
+
+
+def _coerce_call_summary(parsed: dict) -> dict:
+    """LLM 응답을 안전한 dict 로 정리. 누락 필드는 기본값 채움.
+
+    one_line, bullets, suggested_followup_sms 만 통과시킴 (extra 키 무시).
+    """
+    one_line = str(parsed.get("one_line") or "").strip()
+    if not one_line:
+        raise ValueError("one_line 누락")
+    # 30자 안전 컷 (LLM 가 가끔 넘침)
+    if len(one_line) > 40:
+        one_line = one_line[:40].rstrip() + "…"
+
+    raw_bullets = parsed.get("bullets")
+    bullets: list[str] = []
+    if isinstance(raw_bullets, list):
+        for b in raw_bullets[:5]:
+            s = str(b).strip()
+            if s:
+                bullets.append(s if len(s) <= 60 else s[:60].rstrip() + "…")
+    # bullets 비어있으면 최소 one_line 한 줄이라도 — 앱 측 안전망
+    if not bullets:
+        bullets = [one_line]
+
+    fup_raw = parsed.get("suggested_followup_sms")
+    if isinstance(fup_raw, str) and fup_raw.strip():
+        fup = fup_raw.strip()
+        if len(fup) > 240:
+            fup = fup[:240].rstrip() + "…"
+    else:
+        fup = None
+
+    return {
+        "one_line": one_line,
+        "bullets": bullets,
+        "suggested_followup_sms": fup,
+    }
+
+
+def _build_call_summary_user_message(req: CallSummaryRequest) -> str:
+    lines: list[str] = []
+    lines.append("[고객 정보]")
+    lines.append(f"전화번호: {req.phone}")
+    lines.append(f"이름: {req.customer_name or '미등록'}")
+    if req.customer_memo:
+        lines.append(f"메모: {req.customer_memo}")
+    lines.append("")
+    lines.append("[통화 메타]")
+    lines.append(f"방향: {req.direction}")
+    lines.append(f"길이(초): {req.duration_sec}")
+    lines.append(f"시작 시각(epoch ms): {req.started_at_ms}")
+    lines.append("")
+    lines.append("[에이닷 통화요약 원문]")
+    # 원문 안전 컷 (Haiku context 보호. 평균 통화요약 < 4k chars 가정, 8k 컷)
+    raw = req.raw_text or ""
+    if len(raw) > 8000:
+        raw = raw[:8000] + "\n…(truncated)"
+    lines.append(raw if raw else "(원문 없음)")
+    return "\n".join(lines)
+
+
+@app.post("/api/call-summary")
+async def call_summary_endpoint(req: CallSummaryRequest) -> dict:
+    """에이닷 통화요약 텍스트 → one_line + bullets + suggested_followup_sms.
+
+    모델: Haiku 4.5. 캐시 키: phone + endpoint="call-summary" + started_at_ms.
+    """
+    if not req.raw_text or not req.raw_text.strip():
+        raise HTTPException(400, "raw_text 비어있음")
+
+    # 캐시 키 = started_at_ms (없으면 0 → 동일 phone 의 0 호출들은 함께 캐시)
+    cache_ts = req.started_at_ms or 0
+    cached = summary_cache_get(req.phone, "call-summary", cache_ts)
+    if cached is not None:
+        print(f"[call-summary] {req.phone} → cache HIT (started_at_ms={cache_ts})")
+        return cached
+
+    # rate limit (phone 기준)
+    check_rate_limit(req.phone)
+
+    # 시스템 프롬프트 빌드 (가격표 + 톤 샘플 inject)
+    system_prompt = _build_summary_system_prompt(
+        CALL_SUMMARY_SYSTEM, req.owner_tone_samples or []
+    )
+    user_msg = _build_call_summary_user_message(req)
+
+    try:
+        parsed, response = await call_claude_json(
+            system_prompt=system_prompt,
+            user_msg=user_msg,
+            max_tokens=600,
+            model=HAIKU_MODEL,
+        )
+    except Exception as e:
+        print(f"[call-summary] {req.phone} Claude 호출 실패: {type(e).__name__}: {e}")
+        raise HTTPException(502, f"LLM 호출 실패: {type(e).__name__}")
+
+    log_usage(req.phone, "call-summary", response)
+    _log_llm_usage_from_response("call-summary", response)
+    usage = response.usage
+    print(
+        f"[call-summary] {req.phone} → ready "
+        f"(in={getattr(usage,'input_tokens',0)} "
+        f"cache_read={getattr(usage,'cache_read_input_tokens',0)} "
+        f"out={getattr(usage,'output_tokens',0)})"
+    )
+
+    try:
+        coerced = _coerce_call_summary(parsed)
+    except ValueError as e:
+        raise HTTPException(502, f"LLM 응답 형식 오류: {e}")
+
+    response_payload = {
+        **coerced,
+        "phone": req.phone,
+        "direction": req.direction,
+        "duration_sec": req.duration_sec,
+        "started_at_ms": req.started_at_ms,
+        "generated_at_ms": _now_ms(),
+    }
+    summary_cache_set(req.phone, "call-summary", cache_ts, response_payload)
+    response_payload["_cache_hit"] = False
+    return response_payload
+
+
+# ============================================================================
+# §19 — 시공접수서 (고객 자가확인 폼)
+# ─────────────────────────────────────────────────────────────────────────────
+# 흐름:
+#   1) 사장님(앱)이 POST /api/intake-form/issue {phone, customer_name?, ...} 호출
+#   2) 서버 8자 base62 토큰 발급 → URL `http://<host>:8000/intake/{token}` 반환 (7일 만료)
+#   3) 앱이 SMS 본문에 URL 자동 prefill → 사장님 ▶ 직접 발송 (자동 발송 X)
+#   4) 고객 모바일 브라우저로 진입 → /intake/{token} HTML 폼 (카카오 주소 위젯 + 사업자정보 헤더)
+#   5) 고객 [제출] → POST /api/intake-form/submit {token, road_address, ...}
+#   6) 앱이 GET /api/intake-form/status?phone=... polling 또는 prepare-reply 응답 신호로
+#      "접수서 작성됨" 카드 표시. 미작성 + 발급 N일 경과 → 앱이 자체 sentinel (-7) 로
+#      "접수서 작성 리마인드" 카드 (recurring_message_log 재활용).
+#
+# 토큰: secrets.choice 로 8자 base62 (62^8 ≈ 2.18e14, 충분히 안전).
+# 헤더 사업자정보: subscribers 테이블의 name/company 끌어와 폼 상단 표시 (신뢰도 ↑).
+# 자동 SMS 발송 절대 금지 정책 유지 — 서버는 URL 만 발급, 발송은 앱 ▶.
+# ============================================================================
+
+INTAKE_TOKEN_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"  # 0/O/1/I/l 제외
+INTAKE_TOKEN_LEN = 8
+INTAKE_TTL_MS = 7 * 24 * 60 * 60 * 1000  # 7일 (사장님 결정)
+INTAKE_PUBLIC_BASE_URL = os.environ.get(
+    "INTAKE_PUBLIC_BASE_URL",
+    "http://100.86.114.49:8000",  # Tailnet 기본. 추후 외부 도메인 시 env 로 override.
+)
+INTAKE_SCOPE_OPTIONS = [
+    "욕실 줄눈",
+    "주방 줄눈",
+    "거실/방 줄눈",
+    "베란다 줄눈",
+    "타일 시공",
+    "기타",
+]
+
+
+def _generate_intake_token() -> str:
+    """8자 base62 토큰 생성. 충돌 시 재시도."""
+    import secrets
+    for _ in range(8):
+        tok = "".join(secrets.choice(INTAKE_TOKEN_ALPHABET) for _ in range(INTAKE_TOKEN_LEN))
+        with db_conn() as con:
+            row = con.execute(
+                "SELECT 1 FROM intake_forms WHERE token = ? LIMIT 1", (tok,)
+            ).fetchone()
+            if not row:
+                return tok
+    raise HTTPException(500, "토큰 생성 실패 (8회 재시도)")
+
+
+def _fetch_owner_business_info(owner_phone: Optional[str]) -> dict:
+    """subscribers 에서 사장님 사업자 정보 끌어와 폼 헤더에 표시.
+
+    Returns: {name, company, contact_phone}. 없으면 기본값.
+    """
+    if not owner_phone:
+        return {"name": "", "company": "", "contact_phone": ""}
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT name, company FROM subscribers WHERE phone = ?",
+            (owner_phone,),
+        ).fetchone()
+    if not row:
+        return {"name": "", "company": "", "contact_phone": owner_phone}
+    return {
+        "name": row[0] or "",
+        "company": row[1] or "",
+        "contact_phone": owner_phone,
+    }
+
+
+class IntakeIssueRequest(BaseModel):
+    phone: str                                      # 고객 phone
+    customer_name: Optional[str] = None
+    device_id: Optional[str] = None                 # 사장님 device (관리용)
+    owner_phone: Optional[str] = None               # 사장님 phone (사업자정보 lookup 용)
+    expected_scope: list[str] = Field(default_factory=list)  # 사전 체크 시공범위
+
+
+class IntakeSubmitRequest(BaseModel):
+    token: str
+    road_address: str                               # 도로명 주소
+    building_detail: Optional[str] = None           # 동/호/층
+    contact_phone: Optional[str] = None             # 고객이 입력하는 연락 가능 번호
+    scope_items: list[str] = Field(default_factory=list)
+    pyeong: Optional[float] = None                  # 평수
+    available_time: Optional[str] = None            # "평일 오후" 등 자유 텍스트
+    memo: Optional[str] = None
+
+
+@app.post("/api/intake-form/issue")
+async def intake_form_issue(req: IntakeIssueRequest) -> dict:
+    """접수서 토큰 발급. 7일 만료.
+
+    응답: { token, url, issued_at_ms, expires_at_ms }
+    """
+    if not req.phone or not req.phone.strip():
+        raise HTTPException(400, "phone 필수")
+    now = _now_ms()
+    token = _generate_intake_token()
+    expires_at = now + INTAKE_TTL_MS
+    with db_conn() as con:
+        con.execute(
+            """
+            INSERT INTO intake_forms
+                (token, phone, customer_name, issued_at_ms, expires_at_ms,
+                 submitted_at_ms, payload_json, device_id, owner_phone, created_at_ms)
+            VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?)
+            """,
+            (token, req.phone, req.customer_name, now, expires_at,
+             req.device_id, req.owner_phone, now),
+        )
+        con.commit()
+    url = f"{INTAKE_PUBLIC_BASE_URL.rstrip('/')}/intake/{token}"
+    print(f"[intake-form/issue] phone={req.phone} → token={token} url={url}")
+    return {
+        "token": token,
+        "url": url,
+        "issued_at_ms": now,
+        "expires_at_ms": expires_at,
+    }
+
+
+@app.post("/api/intake-form/submit")
+async def intake_form_submit(req: IntakeSubmitRequest) -> dict:
+    """고객이 폼 제출. 토큰 만료/이미 제출됨 검증.
+
+    응답: { ok, submitted_at_ms, phone } (phone 은 앱 측 매칭용)
+    """
+    now = _now_ms()
+    with db_conn() as con:
+        row = con.execute(
+            """
+            SELECT phone, expires_at_ms, submitted_at_ms FROM intake_forms
+            WHERE token = ?
+            """,
+            (req.token,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "유효하지 않은 토큰")
+        phone, expires_at, submitted_at = row
+        if submitted_at is not None:
+            raise HTTPException(409, "이미 제출된 접수서입니다")
+        if now > expires_at:
+            raise HTTPException(410, "만료된 접수서 (7일 경과)")
+
+        # 주소·범위 검증
+        road_address = (req.road_address or "").strip()
+        if not road_address:
+            raise HTTPException(400, "도로명 주소 필수")
+
+        payload = {
+            "road_address": road_address,
+            "building_detail": (req.building_detail or "").strip() or None,
+            "contact_phone": (req.contact_phone or "").strip() or None,
+            "scope_items": [s for s in (req.scope_items or []) if s],
+            "pyeong": req.pyeong,
+            "available_time": (req.available_time or "").strip() or None,
+            "memo": (req.memo or "").strip() or None,
+        }
+        con.execute(
+            """
+            UPDATE intake_forms SET submitted_at_ms = ?, payload_json = ?
+            WHERE token = ?
+            """,
+            (now, json.dumps(payload, ensure_ascii=False), req.token),
+        )
+        con.commit()
+    print(f"[intake-form/submit] token={req.token} phone={phone} → submitted")
+    return {"ok": True, "submitted_at_ms": now, "phone": phone}
+
+
+@app.get("/api/intake-form/status")
+async def intake_form_status(phone: str, device_id: Optional[str] = None) -> dict:
+    """해당 phone 의 가장 최근 intake (앱 polling 용).
+
+    응답: { phone, intake: { token, issued_at_ms, expires_at_ms,
+                             submitted_at_ms|null, payload|null } | null }
+    """
+    if not phone:
+        raise HTTPException(400, "phone 필수")
+    where = "WHERE phone = ?"
+    params: list = [phone]
+    if device_id:
+        where += " AND device_id = ?"
+        params.append(device_id)
+    with db_conn() as con:
+        row = con.execute(
+            f"""
+            SELECT token, issued_at_ms, expires_at_ms, submitted_at_ms, payload_json
+            FROM intake_forms
+            {where}
+            ORDER BY issued_at_ms DESC LIMIT 1
+            """,
+            params,
+        ).fetchone()
+    if not row:
+        return {"phone": phone, "intake": None}
+    token, issued_at, expires_at, submitted_at, payload_json = row
+    payload = None
+    if payload_json:
+        try:
+            payload = json.loads(payload_json)
+        except json.JSONDecodeError:
+            payload = None
+    return {
+        "phone": phone,
+        "intake": {
+            "token": token,
+            "issued_at_ms": issued_at,
+            "expires_at_ms": expires_at,
+            "submitted_at_ms": submitted_at,
+            "payload": payload,
+            "url": f"{INTAKE_PUBLIC_BASE_URL.rstrip('/')}/intake/{token}",
+        },
+    }
+
+
+@app.get("/api/intake-form/list")
+async def intake_form_list(
+    device_id: Optional[str] = None,
+    owner_phone: Optional[str] = None,
+    limit: int = 30,
+) -> dict:
+    """사장님 발급한 전체 목록 (관리용). device_id 또는 owner_phone 으로 필터.
+
+    응답: { items: [{ token, phone, customer_name, issued_at_ms,
+                      submitted_at_ms|null, url }] }
+    """
+    limit = max(1, min(limit, 200))
+    where_parts: list[str] = []
+    params: list = []
+    if device_id:
+        where_parts.append("device_id = ?")
+        params.append(device_id)
+    if owner_phone:
+        where_parts.append("owner_phone = ?")
+        params.append(owner_phone)
+    where = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
+    with db_conn() as con:
+        rows = con.execute(
+            f"""
+            SELECT token, phone, customer_name, issued_at_ms, expires_at_ms,
+                   submitted_at_ms
+            FROM intake_forms
+            {where}
+            ORDER BY issued_at_ms DESC LIMIT ?
+            """,
+            [*params, limit],
+        ).fetchall()
+    base = INTAKE_PUBLIC_BASE_URL.rstrip("/")
+    items = [
+        {
+            "token": r[0],
+            "phone": r[1],
+            "customer_name": r[2],
+            "issued_at_ms": r[3],
+            "expires_at_ms": r[4],
+            "submitted_at_ms": r[5],
+            "url": f"{base}/intake/{r[0]}",
+        }
+        for r in rows
+    ]
+    return {"items": items, "count": len(items)}
+
+
+# ─── /intake/{token} HTML 폼 (고객 브라우저용) ───
+
+INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=yes,maximum-scale=5">
+<title>시공 접수서</title>
+<style>
+  * {{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }}
+  html, body {{ margin:0; padding:0; }}
+  body {{
+    font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Apple SD Gothic Neo",
+                 "Noto Sans KR", sans-serif;
+    background: #F5F6F8; color: #14151A; line-height: 1.5;
+    padding: 16px;
+  }}
+  .wrap {{ max-width: 480px; margin: 0 auto; }}
+  .biz-header {{
+    background: #1A56DB; color: #fff; padding: 14px 16px;
+    border-radius: 12px; margin-bottom: 16px;
+  }}
+  .biz-header .label {{ font-size: 11px; opacity: .7; letter-spacing: .5px; }}
+  .biz-header .company {{ font-size: 18px; font-weight: 700; margin-top: 2px; }}
+  .biz-header .name {{ font-size: 13px; opacity: .9; margin-top: 4px; }}
+  .biz-header .contact {{ font-size: 13px; opacity: .9; margin-top: 2px; }}
+
+  h1 {{ font-size: 22px; font-weight: 700; margin: 8px 0 4px; }}
+  .intro {{ font-size: 14px; color: #4B5563; margin-bottom: 20px; }}
+
+  .card {{
+    background: #fff; border-radius: 12px; padding: 16px;
+    margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  }}
+  label {{
+    display:block; font-size: 13px; font-weight: 600; color: #14151A;
+    margin-bottom: 6px;
+  }}
+  .req {{ color: #DC2626; }}
+  .hint {{ font-size: 12px; color: #6B7280; margin-top: 4px; }}
+
+  input[type=text], input[type=tel], input[type=number], textarea {{
+    width: 100%; min-height: 48px; padding: 12px;
+    border: 1.5px solid #D1D5DB; border-radius: 8px;
+    font-size: 16px; font-family: inherit; background: #fff;
+  }}
+  input:focus, textarea:focus {{ outline: none; border-color: #1A56DB; }}
+  textarea {{ min-height: 80px; resize: vertical; }}
+
+  .scope-row {{ display:flex; flex-wrap: wrap; gap: 8px; }}
+  .scope-chip {{
+    flex: 1 1 calc(50% - 8px); min-height: 48px; padding: 12px;
+    border: 1.5px solid #D1D5DB; border-radius: 8px;
+    background: #fff; cursor: pointer; font-size: 14px;
+    display:flex; align-items:center; justify-content:center;
+    text-align:center; transition: .15s;
+  }}
+  .scope-chip.on {{ border-color: #1A56DB; background: #EFF4FF; color: #1A56DB; font-weight: 600; }}
+
+  .row2 {{ display:flex; gap: 10px; }}
+  .row2 > * {{ flex: 1; }}
+
+  button.submit {{
+    width: 100%; min-height: 56px; background: #1A56DB; color: #fff;
+    border: none; border-radius: 12px; font-size: 17px; font-weight: 700;
+    margin-top: 8px; cursor: pointer;
+  }}
+  button.submit:disabled {{ background: #9CA3AF; cursor: not-allowed; }}
+  button.address {{
+    width: 100%; min-height: 48px; background: #F3F4F6; color: #14151A;
+    border: 1.5px dashed #D1D5DB; border-radius: 8px; font-size: 14px;
+    cursor: pointer; margin-bottom: 8px;
+  }}
+
+  .status-ok, .status-err, .status-expired {{
+    text-align:center; padding: 40px 16px; background:#fff;
+    border-radius: 12px;
+  }}
+  .status-ok h2 {{ color: #059669; }}
+  .status-err h2, .status-expired h2 {{ color: #DC2626; }}
+
+  .footer {{ text-align:center; font-size: 11px; color: #9CA3AF; margin-top: 20px; }}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="biz-header">
+    <div class="label">시공 의뢰서</div>
+    <div class="company">{company_html}</div>
+    <div class="name">{name_html}</div>
+    <div class="contact">📞 {contact_html}</div>
+  </div>
+
+  <h1>시공 접수서</h1>
+  <p class="intro">
+    안녕하세요{customer_greeting}. 정확한 견적을 위해<br>
+    아래 정보 입력 부탁드립니다. 약 1분이면 끝나요.
+  </p>
+
+  <form id="intake-form">
+
+    <div class="card">
+      <label>주소 <span class="req">*</span></label>
+      <button type="button" class="address" id="addr-btn">🔍 주소 검색</button>
+      <input type="text" id="road_address" name="road_address"
+             placeholder="도로명 주소 (위 버튼으로 검색)" readonly required>
+      <div style="height:8px"></div>
+      <input type="text" id="building_detail" name="building_detail"
+             placeholder="동/호/층 (예: 102동 1503호)">
+    </div>
+
+    <div class="card">
+      <label>시공 부위 <span class="req">*</span></label>
+      <div class="scope-row" id="scope-row">
+        {scope_chips}
+      </div>
+      <div class="hint">중복 선택 가능</div>
+    </div>
+
+    <div class="card">
+      <label>평수 (선택)</label>
+      <input type="number" id="pyeong" name="pyeong" min="1" max="200"
+             step="0.1" placeholder="예: 25" inputmode="decimal">
+    </div>
+
+    <div class="card">
+      <label>연락 가능한 번호 (선택)</label>
+      <input type="tel" id="contact_phone" name="contact_phone"
+             placeholder="010-1234-5678">
+      <div class="hint">기존 번호와 달라도 OK</div>
+    </div>
+
+    <div class="card">
+      <label>방문/상담 가능 시간 (선택)</label>
+      <input type="text" id="available_time" name="available_time"
+             placeholder="예: 평일 오후 / 주말만">
+    </div>
+
+    <div class="card">
+      <label>요청사항 (선택)</label>
+      <textarea id="memo" name="memo"
+                placeholder="원하시는 색상, 추가 작업, 일정 등"></textarea>
+    </div>
+
+    <button type="submit" class="submit" id="submit-btn">제출하기</button>
+
+  </form>
+
+  <div class="footer">RING-GO · 안전한 1회용 링크 (7일 후 자동 만료)</div>
+</div>
+
+<script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
+<script>
+  // 카카오 주소 위젯 (다음 우편번호 API, 무료, 키 불필요)
+  document.getElementById('addr-btn').addEventListener('click', function() {{
+    new daum.Postcode({{
+      oncomplete: function(data) {{
+        document.getElementById('road_address').value =
+          data.roadAddress || data.jibunAddress || data.address;
+        document.getElementById('building_detail').focus();
+      }}
+    }}).open();
+  }});
+
+  // scope chip toggle
+  document.querySelectorAll('.scope-chip').forEach(function(chip) {{
+    chip.addEventListener('click', function() {{
+      chip.classList.toggle('on');
+    }});
+  }});
+
+  // submit
+  document.getElementById('intake-form').addEventListener('submit', async function(e) {{
+    e.preventDefault();
+    const btn = document.getElementById('submit-btn');
+    const road = document.getElementById('road_address').value.trim();
+    if (!road) {{
+      alert('주소를 검색해 입력해 주세요.');
+      return;
+    }}
+    const selected = Array.from(document.querySelectorAll('.scope-chip.on'))
+                          .map(function(c){{ return c.dataset.scope; }});
+    if (selected.length === 0) {{
+      alert('시공 부위를 1개 이상 선택해 주세요.');
+      return;
+    }}
+    const payload = {{
+      token: "{token_js}",
+      road_address: road,
+      building_detail: document.getElementById('building_detail').value.trim() || null,
+      contact_phone: document.getElementById('contact_phone').value.trim() || null,
+      scope_items: selected,
+      pyeong: parseFloat(document.getElementById('pyeong').value) || null,
+      available_time: document.getElementById('available_time').value.trim() || null,
+      memo: document.getElementById('memo').value.trim() || null,
+    }};
+    btn.disabled = true;
+    btn.textContent = '제출 중...';
+    try {{
+      const resp = await fetch('/api/intake-form/submit', {{
+        method: 'POST',
+        headers: {{ 'Content-Type': 'application/json' }},
+        body: JSON.stringify(payload),
+      }});
+      if (resp.ok) {{
+        document.querySelector('.wrap').innerHTML =
+          '<div class="status-ok"><h2>✅ 제출 완료</h2>' +
+          '<p>정확한 견적은 사장님이 직접 안내드릴 거예요.<br>잠시만 기다려 주세요!</p></div>';
+      }} else {{
+        const err = await resp.json().catch(function(){{ return {{}}; }});
+        alert('제출 실패: ' + (err.detail || resp.status));
+        btn.disabled = false;
+        btn.textContent = '제출하기';
+      }}
+    }} catch (e) {{
+      alert('네트워크 오류: ' + e.message);
+      btn.disabled = false;
+      btn.textContent = '제출하기';
+    }}
+  }});
+</script>
+</body>
+</html>
+"""
+
+
+@app.get("/intake/{token}", response_class=HTMLResponse)
+async def intake_form_page(token: str) -> HTMLResponse:
+    """고객 브라우저용 폼 HTML.
+
+    토큰 유효/만료/이미 제출 상태에 따라 다른 페이지 반환.
+    """
+    import html as _html
+    with db_conn() as con:
+        row = con.execute(
+            """
+            SELECT phone, customer_name, expires_at_ms, submitted_at_ms, owner_phone
+            FROM intake_forms WHERE token = ?
+            """,
+            (token,),
+        ).fetchone()
+    if not row:
+        return HTMLResponse(
+            content="<html><body style='font-family:sans-serif;padding:40px;text-align:center'>"
+                    "<h2 style='color:#DC2626'>❌ 유효하지 않은 링크</h2>"
+                    "<p>사장님께 다시 링크를 받아 주세요.</p></body></html>",
+            status_code=404,
+        )
+    phone, customer_name, expires_at, submitted_at, owner_phone = row
+    now = _now_ms()
+    if submitted_at is not None:
+        return HTMLResponse(
+            content="<html><body style='font-family:sans-serif;padding:40px;text-align:center'>"
+                    "<h2 style='color:#059669'>✅ 이미 제출된 접수서입니다</h2>"
+                    "<p>접수 내용 확인은 사장님께 연락 주세요.</p></body></html>",
+        )
+    if now > expires_at:
+        return HTMLResponse(
+            content="<html><body style='font-family:sans-serif;padding:40px;text-align:center'>"
+                    "<h2 style='color:#DC2626'>⌛ 만료된 링크</h2>"
+                    "<p>이 접수서 링크는 발급 7일이 지나 만료되었어요.<br>"
+                    "사장님께 새 링크를 요청해 주세요.</p></body></html>",
+            status_code=410,
+        )
+
+    biz = _fetch_owner_business_info(owner_phone)
+    company_disp = biz["company"] or biz["name"] or "RING-GO 시공"
+    name_disp = (
+        f"{biz['name']} 대표" if biz["name"] and biz["company"]
+        else (biz["name"] or "사장님")
+    )
+    contact_disp = biz["contact_phone"] or "(연락처 없음)"
+
+    scope_chips_html = "\n".join(
+        f'<div class="scope-chip" data-scope="{_html.escape(opt)}">{_html.escape(opt)}</div>'
+        for opt in INTAKE_SCOPE_OPTIONS
+    )
+    customer_greeting = (
+        f" {_html.escape(customer_name)} 고객님" if customer_name else " 고객님"
+    )
+
+    page = INTAKE_FORM_HTML_TEMPLATE.format(
+        company_html=_html.escape(company_disp),
+        name_html=_html.escape(name_disp),
+        contact_html=_html.escape(contact_disp),
+        customer_greeting=customer_greeting,
+        scope_chips=scope_chips_html,
+        token_js=_html.escape(token, quote=True),
+    )
+    return HTMLResponse(content=page)
 
 
 # ============================================================================
