@@ -40,6 +40,33 @@ class NotebookViewModel(private val container: AppContainer) : ViewModel() {
     fun delete(id: Long) = viewModelScope.launch {
         withContext(NonCancellable) { container.notebookRepository.delete(id) }
     }
+
+    // ── 자주 쓰는 문구 (일당/거래처 따로, prefs 저장) ──────────────────
+    private val prefs = container.preferences
+    private val _workerPhrases = MutableStateFlow(prefs.workerSmsPhrases)
+    private val _vendorPhrases = MutableStateFlow(prefs.vendorSmsPhrases)
+    val workerPhrases: StateFlow<List<String>> = _workerPhrases
+    val vendorPhrases: StateFlow<List<String>> = _vendorPhrases
+
+    fun addPhrase(kind: String, text: String) {
+        val t = text.trim()
+        if (t.isBlank()) return
+        if (kind == NotebookContactEntity.KIND_WORKER) {
+            val l = _workerPhrases.value + t; prefs.workerSmsPhrases = l; _workerPhrases.value = l
+        } else {
+            val l = _vendorPhrases.value + t; prefs.vendorSmsPhrases = l; _vendorPhrases.value = l
+        }
+    }
+
+    fun deletePhrase(kind: String, index: Int) {
+        if (kind == NotebookContactEntity.KIND_WORKER) {
+            val l = _workerPhrases.value.filterIndexed { i, _ -> i != index }
+            prefs.workerSmsPhrases = l; _workerPhrases.value = l
+        } else {
+            val l = _vendorPhrases.value.filterIndexed { i, _ -> i != index }
+            prefs.vendorSmsPhrases = l; _vendorPhrases.value = l
+        }
+    }
 }
 
 enum class NotebookTab(val label: String, val kind: String) {

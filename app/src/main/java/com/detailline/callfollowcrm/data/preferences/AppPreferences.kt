@@ -159,6 +159,21 @@ class AppPreferences(context: Context) {
         get() = prefs.getString(KEY_OWNER_TRADES, "")?.split("|")?.filter { it.isNotBlank() } ?: emptyList()
         set(value) = prefs.edit().putString(KEY_OWNER_TRADES, value.take(3).joinToString("|")).apply()
 
+    /** 수첩 일당/거래처용 자주 쓰는 문구. 구분자  (SMS 본문에 안 나오는 제어문자). */
+    var workerSmsPhrases: List<String>
+        get() = readPhrases(KEY_WORKER_PHRASES, DEFAULT_WORKER_PHRASES)
+        set(value) = writePhrases(KEY_WORKER_PHRASES, value)
+    var vendorSmsPhrases: List<String>
+        get() = readPhrases(KEY_VENDOR_PHRASES, DEFAULT_VENDOR_PHRASES)
+        set(value) = writePhrases(KEY_VENDOR_PHRASES, value)
+
+    private fun readPhrases(key: String, default: List<String>): List<String> {
+        val raw = prefs.getString(key, null) ?: return default
+        return raw.split(PHRASE_SEP).filter { it.isNotBlank() }
+    }
+    private fun writePhrases(key: String, value: List<String>) =
+        prefs.edit().putString(key, value.joinToString(PHRASE_SEP)).apply()
+
     companion object {
         private const val KEY_ADOT_FOLDER_URI = "adot_folder_uri"
         private const val KEY_LAST_SCAN_AT = "last_scan_at"
@@ -185,5 +200,16 @@ class AppPreferences(context: Context) {
         private const val KEY_BIZ_PHONE = "biz_phone"
         private const val KEY_BIZ_VALID_DAYS = "biz_quote_valid_days"
         private const val KEY_OWNER_TRADES = "owner_trades"
+        private const val KEY_WORKER_PHRASES = "worker_sms_phrases"
+        private const val KEY_VENDOR_PHRASES = "vendor_sms_phrases"
+        private const val PHRASE_SEP = ""
+        private val DEFAULT_WORKER_PHRASES = listOf(
+            "내일 현장 가능하세요? 시간 맞춰 연락드릴게요.",
+            "오늘 수고 많으셨어요! 일당 입금해드릴게요 😊"
+        )
+        private val DEFAULT_VENDOR_PHRASES = listOf(
+            "자재 주문 부탁드려요.",
+            "외상 잔액 확인 부탁드립니다."
+        )
     }
 }

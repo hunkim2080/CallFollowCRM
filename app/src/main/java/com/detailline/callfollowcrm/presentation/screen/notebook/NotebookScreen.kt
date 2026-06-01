@@ -71,13 +71,18 @@ fun NotebookScreen(
     viewModel: NotebookViewModel,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
     val tab by viewModel.tabState.collectAsState()
     val workers by viewModel.workers.collectAsState()
     val vendors by viewModel.vendors.collectAsState()
+    val workerPhrases by viewModel.workerPhrases.collectAsState()
+    val vendorPhrases by viewModel.vendorPhrases.collectAsState()
     val list = if (tab == NotebookTab.WORKER) workers else vendors
 
     // 편집 대상: null=닫힘, id=0 추가, id>0 수정.
     var editing by remember { mutableStateOf<NotebookContactEntity?>(null) }
+    // 문자 보낼 대상 (자주 쓰는 문구 시트).
+    var smsTarget by remember { mutableStateOf<NotebookContactEntity?>(null) }
 
     Scaffold(
         containerColor = TossGrayBg,
@@ -134,7 +139,7 @@ fun NotebookScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(list, key = { it.id }) { c ->
-                        ContactCard(c, onEdit = { editing = c })
+                        ContactCard(c, onEdit = { editing = c }, onSms = { smsTarget = c })
                     }
                     item { Spacer(Modifier.height(80.dp)) }
                 }
@@ -154,10 +159,95 @@ fun NotebookScreen(
             onDismiss = { editing = null }
         )
     }
+
+    smsTarget?.let { target ->
+        val phrases = if (target.kind == NotebookContactEntity.KIND_WORKER) workerPhrases else vendorPhrases
+        PhraseSheet(
+            target = target,
+            phrases = phrases,
+            onPick = { body ->
+                val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:${target.phone}"))
+                    .putExtra("sms_body", body)
+                runCatching { context.startActivity(intent) }
+                smsTarget = null
+            },
+            onAddPhrase = { viewModel.addPhrase(target.kind, it) },
+            onDeletePhrase = { idx -> viewModel.deletePhrase(target.kind, idx) },
+            onDismiss = { smsTarget = null }
+        )
+    }
 }
 
 @Composable
-private fun ContactCard(c: NotebookContactEntity, onEdit: () -> Unit) {
+private fun PhraseSheet(
+    target: NotebookContactEntity,
+    phrases: List<String>,
+    onPick: (String) -> Unit,
+    onAddPhrase: (String) -> Unit,
+    onDeletePhrase: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var editMode by remember { mutableStateOf(false) }
+    var newPhrase by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("${target.name}에게 문자", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text(if (editMode) "완료" else "문구 편집",
+                    style = MaterialTheme.typography.labelMedium, color = TossBlue, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable { editMode = !editMode })
+            }
+        },
+        text = {
+            Column {
+                phrases.forEachIndexed { i, p ->
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
+                        Box(
+                            Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
+                                .background(TossGrayBg)
+                                .clickable(enabled = !editMode) { onPick(p) }
+                                .padding(horizontal = 12.dp, vertical = 10.dp)
+                        ) {
+                            Text(p, style = MaterialTheme.typography.bodyMedium, color = TossTextPrimary)
+                        }
+                        if (editMode) {
+                            Spacer(Modifier.width(6.dp))
+                            Text("✕", color = TossError, fontWeight = FontWeight.Bold,
+                                modifier = Modifier.clickable { onDeletePhrase(i) }.padding(8.dp))
+                        }
+                    }
+                }
+                if (editMode) {
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = newPhrase, onValueChange = { newPhrase = it },
+                        placeholder = { Text("새 문구") }, singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        trailingIcon = {
+                            Text("추가", color = if (newPhrase.isNotBlank()) TossBlue else TossTextTertiary,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.clickable {
+                                    if (newPhrase.isNotBlank()) { onAddPhrase(newPhrase); newPhrase = "" }
+                                }.padding(horizontal = 12.dp))
+                        }
+                    )
+                } else {
+                    Spacer(Modifier.height(8.dp))
+                    Box(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                            .clickable { onPick("") }.padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) { Text("빈 문자로 열기", color = TossTextSecondary, style = MaterialTheme.typography.labelLarge) }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("닫기", color = TossTextSecondary) } }
+    )
+}
+
+@Composable
+private fun ContactCard(c: NotebookContactEntity, onEdit: () -> Unit, onSms: () -> Unit) {
     val context = LocalContext.current
     TossCard(onClick = onEdit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -190,11 +280,7 @@ private fun ContactCard(c: NotebookContactEntity, onEdit: () -> Unit) {
                     }
                 }
                 Spacer(Modifier.width(6.dp))
-                ActionPill("문자", TossBlue) {
-                    runCatching {
-                        context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:${c.phone}")))
-                    }
-                }
+                ActionPill("문자", TossBlue) { onSms() }
             }
         }
     }
