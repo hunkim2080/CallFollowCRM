@@ -344,6 +344,36 @@ fun HomeScreen(
                 )
             }
 
+            // 대기/최근 공용 행 렌더러 — 프로토 waiting-card·recent-row 의 공통 기반(HomeRow).
+            //   expandedKey/scope/콜백을 클로저로 캡처해 두 섹션에서 동일하게 호출.
+            val homeItemRow: @Composable (HomeItem) -> Unit = { item ->
+                val suffix = item.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8)
+                val rowKey = "row-${item.record.id}-${item.record.phoneNumber}"
+                val rowCategory = item.customer?.categoryId?.let { cid ->
+                    categoriesById.firstOrNull { it.id == cid }
+                }
+                HomeRow(
+                    item = item,
+                    aiCardSummary = aiCardSummaries[suffix],
+                    category = rowCategory,
+                    expanded = expandedKey == rowKey,
+                    onToggle = { expandedKey = if (expandedKey == rowKey) null else rowKey },
+                    onOpenChat = { onOpenChat(item.record.phoneNumber, item.customer?.id) },
+                    onOpenCustomerDetail = {
+                        val existingId = item.customer?.id
+                        if (existingId != null) {
+                            onOpenCustomerDetail(existingId)
+                        } else {
+                            scope.launch {
+                                val newId = viewModel.ensureCustomerForPhone(item.record.phoneNumber)
+                                onOpenCustomerDetail(newId)
+                            }
+                        }
+                    },
+                    onOpenNavigation = { launchNavigationFor(item.record.phoneNumber) }
+                )
+            }
+
             // (1) 가시 카드 phone 추출 → ViewModel.onVisiblePhones. prefetcher 가 dedup 처리.
             //     key 포맷 = "row-{id}-{phone}". 다른 item (kpi/empty/spacer) 은 starts with "row-" X → 자동 필터.
             //     마우스 휠 / 빠른 fling 으로 가시 카드가 폭주성으로 토글될 때 onVisiblePhones 호출이
@@ -486,124 +516,41 @@ fun HomeScreen(
                     }
                 }
 
-                if (timeline.isEmpty()) {
-                    // 프로토 renderWaiting 빈 상태(empty-mascot) 그대로 — 막내 비서 + 격려 문구.
-                    item(key = "empty-state") {
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(top = 50.dp, bottom = 80.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                com.detailline.callfollowcrm.presentation.component.Mascot(sizeDp = 80.dp)
-                                Spacer(Modifier.height(14.dp))
-                                Text(
-                                    "사장님, 오늘 상담 다 끝냈어요! 👏",
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = TossTextPrimary
-                                )
-                                Spacer(Modifier.height(6.dp))
-                                Text(
-                                    "새 문의가 오면 막내가 바로 알려드릴게요",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = TossTextTertiary,
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    timeline.forEach { group ->
-                        // 2026-05-24: 마우스 휠 fling crash 의심 후보 — stickyHeader 를 일반 item 으로 변경.
-                        // Compose 의 stickyHeader 는 매우 빠른 fling 에서 일부 환경 crash 알려져 있음.
-                        // 사장님 입장 차이 = 헤더가 스크롤 시 함께 위로 흘러감 (sticky 안 됨). UX 손해 작음.
-                        item(key = "day-${group.dayStartMs}") {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(TossGrayBg)
-                                    .padding(vertical = 8.dp, horizontal = 4.dp)
-                            ) {
-                                Text(
-                                    DateTimeUtils.dayGroupLabel(group.dayStartMs),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = TossTextSecondary,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                        items(
-                            group.items,
-                            // key = id + phone — SMS-only 가짜 record 는 id=-lastDateMs 라 같은 시각에 두 번호 들어오면
-                            //   id 만으론 충돌 가능. phone 까지 묶어 unique 보장.
-                            key = { "row-${it.record.id}-${it.record.phoneNumber}" }
-                        ) { item ->
-                            val rowKey = "row-${item.record.id}-${item.record.phoneNumber}"
-                            val suffix = item.record.phoneNumber
-                                .filter { c -> c.isDigit() }
-                                .takeLast(8)
-                            val rowCategory = item.customer?.categoryId?.let { cid ->
-                                categoriesById.firstOrNull { it.id == cid }
-                            }
-                            val rowContent: @Composable () -> Unit = {
-                                HomeRow(
-                                    item = item,
-                                    aiCardSummary = aiCardSummaries[suffix],
-                                    category = rowCategory,
-                                    expanded = expandedKey == rowKey,
-                                    onToggle = {
-                                        expandedKey = if (expandedKey == rowKey) null else rowKey
-                                    },
-                                    onOpenChat = {
-                                        onOpenChat(item.record.phoneNumber, item.customer?.id)
-                                    },
-                                    onOpenCustomerDetail = {
-                                        // 2026-05-25 사장님 결정: [ⓘ] 항상 활성화. Customer 없으면 자동 생성 후 진입.
-                                        val existingId = item.customer?.id
-                                        if (existingId != null) {
-                                            onOpenCustomerDetail(existingId)
-                                        } else {
-                                            scope.launch {
-                                                val newId = viewModel.ensureCustomerForPhone(item.record.phoneNumber)
-                                                onOpenCustomerDetail(newId)
-                                            }
-                                        }
-                                    },
-                                    onOpenNavigation = {
-                                        // [📍 길찾기] — 설정 안 됐으면 선택 다이얼로그, 됐으면 즉시 launch.
-                                        launchNavigationFor(item.record.phoneNumber)
-                                    }
-                                )
-                            }
+                // 프로토 상담함 본문 — "지금 답장 기다려요"(미확인) + "최근 대화"(나머지) 두 섹션.
+                val waiting = flatItems.filter { it.isUnconfirmed }
+                val recent = flatItems.filter { !it.isUnconfirmed }
 
-                            // 미확인 필터에서만 swipe-to-spam 활성. 다른 탭에선 단순 HomeRow.
-                            //   사장님 의도: 광고 번호를 미확인 카테고리에서만 영구 제외.
-                            //   우→좌 swipe → SpamPhone 영구 마킹 + Snackbar Undo (5초).
-                            if (filter is HomeFilter.Unconfirmed) {
-                                SpamSwipeBox(
-                                    onSpam = {
-                                        // 2026-05-30 #11 — Snackbar 메시지도 "확인함" 으로 통일.
-                                        //   동작은 그대로 spam 마킹 (미확인 카테고리에서 영구 제외).
-                                        viewModel.markSpam(item.record.phoneNumber)
-                                        scope.launch {
-                                            val result = snackbarHostState.showSnackbar(
-                                                message = "확인함 — 미확인에서 제외돼요",
-                                                actionLabel = "되돌리기",
-                                                duration = SnackbarDuration.Short
-                                            )
-                                            if (result == SnackbarResult.ActionPerformed) {
-                                                viewModel.unmarkSpam(item.record.phoneNumber)
-                                            }
-                                        }
-                                    },
-                                    content = rowContent
-                                )
-                            } else {
-                                rowContent()
-                            }
-                        }
+                // 지금 답장 기다려요 — waiting-head(제목+카운트+밀어서 정리) + 카드(왼쪽 밀기=정리). 비면 막내.
+                item(key = "waiting-head") { WaitingHeader(count = waiting.size) }
+                if (waiting.isEmpty()) {
+                    item(key = "waiting-empty") { WaitingEmptyMascot() }
+                } else {
+                    items(waiting, key = { "wait-${it.record.id}-${it.record.phoneNumber}" }) { item ->
+                        // 우→좌 swipe → SpamPhone 영구 마킹 + Snackbar Undo.
+                        SpamSwipeBox(
+                            onSpam = {
+                                viewModel.markSpam(item.record.phoneNumber)
+                                scope.launch {
+                                    val result = snackbarHostState.showSnackbar(
+                                        message = "확인함 — 미확인에서 제외돼요",
+                                        actionLabel = "되돌리기",
+                                        duration = SnackbarDuration.Short
+                                    )
+                                    if (result == SnackbarResult.ActionPerformed) {
+                                        viewModel.unmarkSpam(item.record.phoneNumber)
+                                    }
+                                }
+                            },
+                            content = { homeItemRow(item) }
+                        )
+                    }
+                }
+
+                // 최근 대화 — sec-sub + recent-row (flat, 날짜 그룹 없음).
+                if (recent.isNotEmpty()) {
+                    item(key = "recent-head") { SecSub("최근 대화") }
+                    items(recent, key = { "recent-${it.record.id}-${it.record.phoneNumber}" }) { item ->
+                        homeItemRow(item)
                     }
                 }
 
@@ -1588,6 +1535,61 @@ private fun TodayNewCard(todayNew: Int, yesterdayNew: Int) {
             Modifier.background(deltaBg, RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 3.dp)
         ) {
             Text(deltaText, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, color = deltaFg)
+        }
+    }
+}
+
+/** 프로토 waiting-head — "지금 답장 기다려요" + 카운트 알약 + "← 밀어서 정리". */
+@Composable
+private fun WaitingHeader(count: Int) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 10.dp, bottom = 4.dp, start = 4.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("지금 답장 기다려요", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+        Spacer(Modifier.width(8.dp))
+        Box(
+            Modifier.background(TossBlueSoft, RoundedCornerShape(999.dp)).padding(horizontal = 8.dp, vertical = 2.dp)
+        ) {
+            Text("$count", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+        }
+        Spacer(Modifier.weight(1f))
+        Text("← 밀어서 정리", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = TossTextTertiary)
+    }
+}
+
+/** 프로토 sec-sub — 작은 섹션 부제 ("최근 대화"). */
+@Composable
+private fun SecSub(text: String) {
+    Text(
+        text,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Bold,
+        color = TossTextSecondary,
+        modifier = Modifier.padding(top = 16.dp, bottom = 4.dp, start = 4.dp)
+    )
+}
+
+/** 프로토 renderWaiting 빈 상태(empty-mascot) — 막내 비서 + 격려 문구. */
+@Composable
+private fun WaitingEmptyMascot() {
+    Box(
+        Modifier.fillMaxWidth().padding(top = 30.dp, bottom = 40.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            com.detailline.callfollowcrm.presentation.component.Mascot(sizeDp = 80.dp)
+            Spacer(Modifier.height(14.dp))
+            Text("사장님, 오늘 상담 다 끝냈어요! 👏", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "새 문의가 오면 막내가 바로 알려드릴게요",
+                fontSize = 13.sp,
+                color = TossTextTertiary,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
         }
     }
 }
