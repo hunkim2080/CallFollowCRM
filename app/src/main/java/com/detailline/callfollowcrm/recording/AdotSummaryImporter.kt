@@ -104,6 +104,28 @@ object AdotSummaryImporter {
             container.callSummaryRepository.findExistingNear(parsed.phoneNumber, parsed.recordedAt)
         } else null
 
+        // §18 맥미니 통화요약 — 에이닷 원문을 Haiku 로 한 줄+불릿+후속문자 초안으로 압축 (best-effort).
+        //   실패하면 parsed.summaryText 그대로 사용 (graceful). 캐시: 같은 통화 재호출은 LLM 비용 0.
+        val serverSummary = if (!parsed.phoneNumber.isNullOrBlank() && !parsed.rawText.isNullOrBlank()) {
+            val name = runCatching { container.customerRepository.findByPhone(parsed.phoneNumber!!)?.name }.getOrNull()
+            container.callSummaryServerRepository.summarize(
+                phone = parsed.phoneNumber!!,
+                rawText = parsed.rawText!!,
+                startedAtMs = parsed.recordedAt ?: now,
+                customerName = name
+            ).getOrNull()
+        } else null
+        val enrichedSummaryText = serverSummary?.let { s ->
+            buildString {
+                s.oneLine?.let { append(it) }
+                if (s.bullets.isNotEmpty()) {
+                    if (isNotEmpty()) append("\n")
+                    append(s.bullets.joinToString("\n"))
+                }
+            }.takeIf { it.isNotBlank() }
+        } ?: parsed.summaryText
+        val enrichedFollowup = serverSummary?.followupSms
+
         val entity = if (existingNear != null) {
             existingNear.copy(
                 customerId = customerId ?: existingNear.customerId,
@@ -111,7 +133,8 @@ object AdotSummaryImporter {
                 phoneNumber = parsed.phoneNumber ?: existingNear.phoneNumber,
                 recordedAt = parsed.recordedAt ?: existingNear.recordedAt,
                 title = parsed.title ?: existingNear.title,
-                summaryText = parsed.summaryText ?: existingNear.summaryText,
+                summaryText = enrichedSummaryText ?: existingNear.summaryText,
+                recommendedMessage = enrichedFollowup ?: existingNear.recommendedMessage,
                 transcriptText = parsed.transcriptText ?: existingNear.transcriptText,
                 rawText = parsed.rawText,
                 sourceType = source.name,
@@ -124,7 +147,8 @@ object AdotSummaryImporter {
                 phoneNumber = parsed.phoneNumber,
                 recordedAt = parsed.recordedAt,
                 title = parsed.title,
-                summaryText = parsed.summaryText,
+                summaryText = enrichedSummaryText,
+                recommendedMessage = enrichedFollowup,
                 transcriptText = parsed.transcriptText,
                 rawText = parsed.rawText,
                 sourceType = source.name,

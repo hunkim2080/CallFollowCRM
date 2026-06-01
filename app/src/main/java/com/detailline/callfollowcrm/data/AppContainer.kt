@@ -114,6 +114,9 @@ class AppContainer(context: Context) {
     // 2026-06-02 맥미니 §19 — 시공접수서 발급. 채팅 [접수서 링크] → URL 발급 → SMS 본문 prefill.
     val intakeFormRepository = com.detailline.callfollowcrm.ai.IntakeFormRepository()
 
+    // 2026-06-02 맥미니 §18 — 에이닷 통화요약 → Haiku 한 줄+불릿. AdotSummaryImporter 가 best-effort 호출.
+    val callSummaryServerRepository = com.detailline.callfollowcrm.ai.CallSummaryServerRepository()
+
     // 서버 살아있음 모니터 — HomeScreen 상단 ● indicator 가 구독.
     val serverHealth = ServerHealthMonitor(phaseOneApiRepository).also { it.start() }
 
