@@ -34,6 +34,7 @@ import com.detailline.callfollowcrm.presentation.screen.notebook.NotebookScreen
 import com.detailline.callfollowcrm.presentation.screen.notebook.NotebookViewModel
 import com.detailline.callfollowcrm.presentation.screen.report.ReportScreen
 import com.detailline.callfollowcrm.presentation.screen.report.ReportViewModel
+import com.detailline.callfollowcrm.presentation.screen.trade.TradeSelectScreen
 import com.detailline.callfollowcrm.presentation.screen.stylelearning.StyleLearningScreen
 import com.detailline.callfollowcrm.presentation.screen.stylelearning.StyleLearningViewModel
 import com.detailline.callfollowcrm.presentation.screen.template.TemplateEditScreen
@@ -216,7 +217,8 @@ fun AppNavHost(
                 onOpenPricingItems = { navController.navigate(Destinations.PRICING_ITEMS) },
                 onOpenBusinessInfo = { navController.navigate(Destinations.BUSINESS_INFO) },
                 onOpenNotebook = { navController.navigate(Destinations.NOTEBOOK) },
-                onOpenReport = { navController.navigate(Destinations.REPORT) }
+                onOpenReport = { navController.navigate(Destinations.REPORT) },
+                onOpenTradeSelect = { navController.navigate(Destinations.TRADE_SELECT) }
             )
         }
 
@@ -235,6 +237,10 @@ fun AppNavHost(
         composable(Destinations.REPORT) {
             val vm: ReportViewModel = viewModel(factory = viewModelFactory { ReportViewModel(container) })
             ReportScreen(viewModel = vm, onBack = { navController.popBackStack() })
+        }
+
+        composable(Destinations.TRADE_SELECT) {
+            TradeSelectScreen(prefs = container.preferences, onBack = { navController.popBackStack() })
         }
 
         composable(Destinations.PRICING_ITEMS) {

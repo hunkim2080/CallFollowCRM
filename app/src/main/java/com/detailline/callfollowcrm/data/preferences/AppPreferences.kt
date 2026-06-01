@@ -151,6 +151,14 @@ class AppPreferences(context: Context) {
         get() = prefs.getInt(KEY_BIZ_VALID_DAYS, 14)
         set(value) = prefs.edit().putInt(KEY_BIZ_VALID_DAYS, value).apply()
 
+    /**
+     * 내 업종 (최대 3개, 첫 번째=대표). 업종이 AI지식·가격표·시나리오를 바꿈(해자).
+     * "|" 로 join 해서 한 문자열로 저장. 빈 리스트 = 미선택.
+     */
+    var ownerTrades: List<String>
+        get() = prefs.getString(KEY_OWNER_TRADES, "")?.split("|")?.filter { it.isNotBlank() } ?: emptyList()
+        set(value) = prefs.edit().putString(KEY_OWNER_TRADES, value.take(3).joinToString("|")).apply()
+
     companion object {
         private const val KEY_ADOT_FOLDER_URI = "adot_folder_uri"
         private const val KEY_LAST_SCAN_AT = "last_scan_at"
@@ -176,5 +184,6 @@ class AppPreferences(context: Context) {
         private const val KEY_BIZ_ADDR = "biz_addr"
         private const val KEY_BIZ_PHONE = "biz_phone"
         private const val KEY_BIZ_VALID_DAYS = "biz_quote_valid_days"
+        private const val KEY_OWNER_TRADES = "owner_trades"
     }
 }

@@ -39,6 +39,7 @@ object Destinations {
     const val BUSINESS_INFO = "business_info"
     const val NOTEBOOK = "notebook"
     const val REPORT = "report"
+    const val TRADE_SELECT = "trade_select"
     const val AI_MESSAGE = "ai_message"
     const val STYLE_LEARNING = "style_learning"
 

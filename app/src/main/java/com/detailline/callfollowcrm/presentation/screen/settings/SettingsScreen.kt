@@ -96,7 +96,8 @@ fun SettingsScreen(
     onOpenPricingItems: () -> Unit,
     onOpenBusinessInfo: () -> Unit = {},
     onOpenNotebook: () -> Unit = {},
-    onOpenReport: () -> Unit = {}
+    onOpenReport: () -> Unit = {},
+    onOpenTradeSelect: () -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
     val templates by viewModel.templates.collectAsState()
@@ -317,6 +318,20 @@ fun SettingsScreen(
                     )
                     Spacer(Modifier.height(10.dp))
                     TossPrimaryButton(text = "리포트 보기", onClick = onOpenReport)
+                }
+            }
+
+            TossCard {
+                Column {
+                    SectionLabel("내 업종")
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "줄눈·도배·타일 등 내 업종(최대 3개). 업종에 맞춰 AI 답변·가격표·시나리오가 바뀌어요.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TossTextSecondary
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    TossPrimaryButton(text = "업종 선택 / 수정", onClick = onOpenTradeSelect)
                 }
             }
 
