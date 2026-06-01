@@ -857,6 +857,38 @@ class ChatViewModel(
             depositAmountKrw = depositKrw,
             depositMode = depositMode
         ).getOrNull() ?: return null
+
+        // §19 1단계 — 발급 직후 DB 캐시 박음 → 홈에서 "작성 대기" 카드로 즉시 인지 가능 (2단계 UI).
+        runCatching {
+            val itemsJson = if (items.isNotEmpty()) {
+                org.json.JSONArray().apply {
+                    items.forEach { it ->
+                        put(org.json.JSONObject().apply {
+                            put("name", it.name)
+                            put("price_man", it.priceMan)
+                            it.unit?.let { u -> put("unit", u) }
+                            it.area?.let { a -> put("area", a) }
+                        })
+                    }
+                }.toString()
+            } else null
+            container.intakeFormSyncRepository.onIssued(
+                token = issued.token,
+                url = issued.url,
+                phone = phoneNumber,
+                customerName = name,
+                issuedAtMs = issued.issuedAtMs,
+                expiresAtMs = issued.expiresAtMs,
+                scheduledAtMs = c?.scheduledWorkDate ?: 0L,
+                scheduledDays = c?.scheduledWorkDays ?: 1,
+                totalMan = totalMan,
+                depositAmountKrw = depositKrw,
+                depositMode = depositMode,
+                depositRatioPct = null,
+                bizName = bizName,
+                estimateItemsJson = itemsJson
+            )
+        }
         return "아래 링크에서 주소·연락처를 확인 부탁드려요 😊\n${issued.url}"
     }
 

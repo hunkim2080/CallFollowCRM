@@ -48,6 +48,26 @@ class IntakeFormRepository(
         val area: Double? = null
     )
 
+    /** §19 status 응답의 intake 블록 — payload + 견적 데이터까지. */
+    data class IntakeStatus(
+        val token: String,
+        val url: String,
+        val issuedAtMs: Long,
+        val expiresAtMs: Long,
+        val submittedAtMs: Long?,
+        val scheduledAtMs: Long,
+        val scheduledDays: Int,
+        val totalMan: Int,
+        val depositAmountKrw: Long,
+        val depositMode: String,
+        val depositRatioPct: Int?,
+        val bizName: String?,
+        /** estimate_items JSON 배열 원문. DB 캐시에 그대로 박음. */
+        val estimateItemsJson: String?,
+        /** payload JSON 원문 ({contact_phone, road_address, building_detail, memo, source}). 미제출이면 null. */
+        val payloadJson: String?
+    )
+
     /**
      * 접수서 발급. 성공 시 [Issued] (특히 url), 실패 시 Result.failure.
      *
@@ -107,6 +127,55 @@ class IntakeFormRepository(
                     url = obj.getString("url"),
                     issuedAtMs = obj.optLong("issued_at_ms"),
                     expiresAtMs = obj.optLong("expires_at_ms")
+                )
+            }
+        }
+    }
+
+    /**
+     * 접수서 상태 폴 — phone 으로 가장 최근 발급분 + 제출 payload 받아옴.
+     *   응답 `intake` 가 null 이면 발급 이력 없음 → Result.success(null).
+     *   네트워크 실패는 Result.failure.
+     */
+    suspend fun status(
+        phone: String,
+        deviceId: String? = null
+    ): Result<IntakeStatus?> = withContext(Dispatchers.IO) {
+        runCatching {
+            val url = buildString {
+                append(baseUrl)
+                append("/api/intake-form/status?phone=")
+                append(java.net.URLEncoder.encode(phone, Charsets.UTF_8))
+                if (!deviceId.isNullOrBlank()) {
+                    append("&device_id=")
+                    append(java.net.URLEncoder.encode(deviceId, Charsets.UTF_8))
+                }
+            }
+            val req = Request.Builder().url(url).get().build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                val body = resp.body?.string().orEmpty()
+                val obj = JSONObject(body)
+                val intake = obj.optJSONObject("intake") ?: return@use null
+                val payloadObj = intake.opt("payload")
+                val payloadJson = if (payloadObj is JSONObject) payloadObj.toString() else null
+                val itemsArr = intake.opt("estimate_items")
+                val itemsJson = if (itemsArr is JSONArray) itemsArr.toString() else null
+                IntakeStatus(
+                    token = intake.getString("token"),
+                    url = intake.optString("url"),
+                    issuedAtMs = intake.optLong("issued_at_ms"),
+                    expiresAtMs = intake.optLong("expires_at_ms"),
+                    submittedAtMs = if (intake.isNull("submitted_at_ms")) null else intake.optLong("submitted_at_ms"),
+                    scheduledAtMs = intake.optLong("scheduled_at_ms"),
+                    scheduledDays = intake.optInt("scheduled_days", 1),
+                    totalMan = intake.optInt("total_man"),
+                    depositAmountKrw = intake.optLong("deposit_amount_krw"),
+                    depositMode = intake.optString("deposit_mode", "none"),
+                    depositRatioPct = if (intake.isNull("deposit_ratio_pct")) null else intake.optInt("deposit_ratio_pct"),
+                    bizName = intake.optString("biz_name").takeIf { it.isNotBlank() },
+                    estimateItemsJson = itemsJson,
+                    payloadJson = payloadJson
                 )
             }
         }

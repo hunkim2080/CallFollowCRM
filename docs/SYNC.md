@@ -1810,4 +1810,43 @@ cowork 의 2026-06-02 §19 1:1 재작성 블록 끝 "안드로이드 §18·§19 
 - §19 status polling (`/api/intake-form/status`) → 제출됨 표시 + 고객상세 payload(전화·주소·동/호·메모·유입경로) 표시
 - 미작성 N일 경과 → `recurring_message_log` 음수 sentinel `-7` 로 `IntakeFormFollowupCard`
 - §20 팀 관리 (99k) Phase 1~3
+- commit: 18727cb
+
+## 2026-06-02 (밤) · android — §19 status polling 1단계 (데이터/폴링 인프라, DB v26)
+프로토 [openQuote/finalizeQuote/renderQuoteReply/renderPendingAccepts](design-preview/ringgo-redesign.html#L1880) 의 백엔드. UI 변화 0 — 2/3단계에서 표시.
+
+### 왜 단계 쪼갰나
+프로토 한 화면 (홈) 에 §19 후속 UI 3가지 (들어왔어요 카드 / 작성 대기 카드 / 고객상세 payload / [1탭 확정] 자동 등록) 가 한 번에 들어옴 → 한 commit 으로 묶으면 너무 무거움. 1단계 = 데이터/폴링 인프라만, 2단계 = UI 카드 + payload 표시, 3단계 = `confirmQuoteBooking` 1:1 (일정/정산/고객 자동 등록).
+
+### 변경
+- **신규 entity** `IntakeFormEntity` (`intake_forms` 테이블, DB v26):
+  - PK = token, 인덱스 4 (token unique / phoneSuffix / submittedAtMs / expiresAtMs)
+  - 컬럼: token, phoneSuffix, phone, customerName?, url, issuedAtMs, expiresAtMs, submittedAtMs?, payloadJson?, scheduledAtMs, scheduledDays, totalMan, depositAmountKrw, depositMode, depositRatioPct?, bizName?, estimateItemsJson?, settledAtMs?, lastSyncedAtMs, createdAt
+  - `submittedAtMs` = 고객 폼 제출 시각 (null=미작성), `settledAtMs` = 사장님 [1탭 확정] 시각 (3단계). `payloadJson` = `{contact_phone, road_address, building_detail, memo, source}` 원문.
+- **MIGRATION_25_26** — `CREATE TABLE intake_forms` + 인덱스 4 (idempotent)
+- **IntakeFormDao** — `upsert`, `byToken`, `observeByPhoneSuffix(suffix)`, `activeOnce(nowMs)` (만료 전 + settled 안 됨), `observeSubmittedNotSettled()` (홈 "들어왔어요" 카드 후보), `observePendingNotExpired(nowMs)` (홈 "작성 대기" 카드 후보), `deleteByToken`
+- **`IntakeFormRepository.status()`** 신규 — `GET /api/intake-form/status?phone=&device_id=` 호출 후 응답 `intake` 블록 (token/url/issued/expires/submitted?/scheduled*/estimate_items/total_man/deposit_*/biz_name/payload?) 을 `IntakeStatus` 데이터클래스로 파싱. 응답 `intake=null` 이면 발급 이력 없음 → success(null).
+- **신규 data layer `IntakeFormSyncRepository`**:
+  - `onIssued(...)` — 발급 직후 ChatViewModel 에서 호출 → 즉시 DB 박음 (2단계 "작성 대기" 카드가 status() 폴 전에도 보이게)
+  - `syncActive(deviceId?)` — `dao.activeOnce(now)` 의 phone 들에 대해 best-effort `status()` 호출 + DB upsert. 네트워크 실패는 개별 무시.
+  - `observe*` Flow 3종 + `markSettled(token)` (3단계용)
+- **ChatViewModel.issueIntakeForm()** — `intakeFormRepository.issue()` 성공 직후 `intakeFormSyncRepository.onIssued()` 호출 (best-effort).
+- **HomeViewModel** — `init {}` 에서 `syncIntakeForms()` 1회 trigger. 외부에서도 호출 가능 (Pull-to-refresh 용).
+- **AppContainer** — `intakeFormSyncRepository` 등록 (`db.intakeFormDao()` + `intakeFormRepository` 주입).
+
+### 검증
+- 빌드 (`:app:compileDebugKotlin`) 통과
+- 안전망 단위 테스트 (`:app:testDebugUnitTest`) 6초 통과
+- 실제 polling/upsert 검증은 사장님 폰에서 다음 sprint 발급 → 폼 제출 시나리오로
+
+### DB 마이그레이션 안전
+- v25 → v26 = 순수 추가 (intake_forms 테이블 신설). 기존 데이터 영향 X.
+- `fallbackToDestructiveMigration()` 안전망 유지 (production 배포 직전 제거 예정 — [project_ringo] 메모리 룰).
+
+### 서버 영향
+없음. 서버 §19 1:1 재작성 schema 를 안드로이드가 따라가는 후속 작업.
+
+### 다음 작업 (안드로이드 — 2/3단계)
+- **2단계**: 홈 상단 `team-alert quote` ("시공접수서가 들어왔어요" + 시공일·총액·주소) + `pending-slot` ("작성 대기 N" + 카드별 [작성 리마인드]·[정리]) 프로토 그대로 1:1. 고객상세 화면에 payload (주소·동/호·메모·유입경로) 영역 추가.
+- **3단계**: [1탭 확정] = 프로토 `confirmQuoteBooking` 1:1 → Customer/Schedule/Settlement 자동 등록 + `markSettled(token)`.
 - commit: (이번)
