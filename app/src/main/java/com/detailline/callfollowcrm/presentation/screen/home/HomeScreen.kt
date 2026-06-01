@@ -204,6 +204,11 @@ fun HomeScreen(
                 java.text.SimpleDateFormat("M월 d일 (E)", java.util.Locale.KOREAN)
                     .format(java.util.Date())
             }
+            // 프로토 renderAiBadge: "{대표 업종} AI". 업종 미선택 시 "줄눈" fallback.
+            val ownerTrade = remember {
+                (context.applicationContext as CallFollowCrmApplication).container.preferences
+                    .ownerTrades.firstOrNull()?.takeIf { it.isNotBlank() } ?: "줄눈"
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -217,12 +222,13 @@ fun HomeScreen(
                     Text(todayLabel, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
                 }
                 AiBadge(
+                    trade = ownerTrade,
                     alive = serverAlive,
                     onClick = {
                         val msg = when (serverAlive) {
                             true -> {
                                 val secs = lastOkAtMs?.let { (System.currentTimeMillis() - it) / 1000 } ?: 0L
-                                "AI 서버 연결 정상 (${secs}초 전)"
+                                "✨ $ownerTrade 전문 AI · 서버 연결 정상 (${secs}초 전)"
                             }
                             false -> "AI 서버 연결 실패 — Tailscale 확인하세요"
                             null -> "AI 서버 상태 체크 중..."
@@ -284,69 +290,10 @@ fun HomeScreen(
                 )
             }
 
-            // 필터 칩 — 항상 위에 고정 (사장님이 언제든 필터 변경 가능).
-            // KPI 와 달리 필터칩은 사용 빈도 높아 스크롤 의존 X.
-            //   "내 말투 학습" 칩 = 2026-05-24 사장님 요청으로 일단 숨김.
-            //   ViewModel/Screen 코드 살아있음. 다음 reactivation 시 onOpenStyleLearning 칩 한 줄 복원.
-            // 2026-05-25: 갤메시지 식 카테고리 chip row.
-            //   [전체][미확인] + 사장님 정의 카테고리들 + [+]
-            //   + 누르면 다이얼로그 (직접 추가 + AI 제안 — TODO).
-            val categories by viewModel.categories.collectAsState()
-            var addDialogOpen by remember { mutableStateOf(false) }
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(top = 8.dp, bottom = 12.dp)
-            ) {
-                item(key = "all") {
-                    TossChip(
-                        text = HomeFilter.All.label,
-                        selected = filter is HomeFilter.All,
-                        onClick = { viewModel.setFilter(HomeFilter.All) }
-                    )
-                }
-                item(key = "unconfirmed") {
-                    TossChip(
-                        text = HomeFilter.Unconfirmed.label,
-                        selected = filter is HomeFilter.Unconfirmed,
-                        onClick = { viewModel.setFilter(HomeFilter.Unconfirmed) }
-                    )
-                }
-                // 2026-05-30 #12 — TodayNew chip 추가. KPI 카드 클릭 ↔ chip 클릭 둘 다 가능 (시각 일관성).
-                item(key = "today-new") {
-                    TossChip(
-                        text = HomeFilter.TodayNew.label,
-                        selected = filter is HomeFilter.TodayNew,
-                        onClick = { viewModel.setFilter(HomeFilter.TodayNew) }
-                    )
-                }
-                items(categories, key = { "cat-${it.id}" }) { cat ->
-                    val display = if (cat.emoji != null) "${cat.emoji} ${cat.name}" else cat.name
-                    TossChip(
-                        text = display,
-                        selected = (filter as? HomeFilter.Category)?.id == cat.id,
-                        onClick = {
-                            viewModel.setFilter(HomeFilter.Category(cat.id, cat.name, cat.emoji))
-                        }
-                    )
-                }
-                item(key = "add") {
-                    TossChip(
-                        text = "+",
-                        selected = false,
-                        onClick = { addDialogOpen = true }
-                    )
-                }
-            }
-
-            if (addDialogOpen) {
-                CategoryAddDialog(
-                    onDismiss = { addDialogOpen = false },
-                    onAdd = { name, emoji ->
-                        viewModel.addCategory(name, emoji)
-                        addDialogOpen = false
-                    }
-                )
+            // 2026-06-01 프로토 1:1 — 프로토 상담함엔 필터칩(전체/미확인/카테고리)이 없음 → 제거.
+            //   필터는 항상 전체. 미확인은 아래 "지금 답장 기다려요" 섹션이 담당.
+            LaunchedEffect(Unit) {
+                if (filter !is HomeFilter.All) viewModel.setFilter(HomeFilter.All)
             }
 
             // 메인 LazyColumn — KPI + 타임라인 모두 안쪽.
@@ -482,28 +429,8 @@ fun HomeScreen(
                     )
                 }
 
-                // KPI 3장 — 첫 item. 스크롤 시 위로 사라짐 (갤메시지 알림 박스 패턴).
-                //   2026-05-25: "견적 답대기" 카드 제거 — CustomerStatus enum 폐기 후 의미 X.
-                item(key = "kpi-section") {
-                    KpiSection(
-                        todayNew = todayNew,
-                        unhandled = unhandled,
-                        weekScheduled = weekScheduled,
-                        onFilterTodayNew = { viewModel.setFilter(HomeFilter.TodayNew) },
-                        onFilterUnhandled = { viewModel.setFilter(HomeFilter.Unconfirmed) },
-                        onOpenSchedule = onOpenSchedule
-                    )
-                }
-
-                // 정산 진입 — 아직 못 받은 돈 한 줄. 정산이 핵심 가치라 홈에서 바로 보이게.
-                //   (정산 Phase 1, 2026-06-01) 사장님 추천 진입점 = "홈 미수금 카드".
-                item(key = "settlement-card") {
-                    OutstandingCard(
-                        outstandingTotal = outstandingTotal,
-                        outstandingCount = outstandingCount,
-                        onClick = onOpenSettlement
-                    )
-                }
+                // 2026-06-01 프로토 1:1 — KPI 타일·미수금 카드는 프로토 상담함에 없음 → 제거.
+                //   (미수금=정산 탭, 오늘신규=아래 today-new 카드, 미확인=지금 답장 기다려요 카운트)
 
                 // 부재중 → 자동답장 카드 — 막내가 사장님 대신 첫 인사 보낸 기록 (최근 24h).
                 //   있을 때만 표시 (없으면 홈 깔끔). 탭하면 그 고객 대화로. (2026-06-01)
@@ -553,33 +480,29 @@ fun HomeScreen(
                 }
 
                 if (timeline.isEmpty()) {
+                    // 프로토 renderWaiting 빈 상태(empty-mascot) 그대로 — 막내 비서 + 격려 문구.
                     item(key = "empty-state") {
                         Box(
                             Modifier
                                 .fillMaxWidth()
-                                .padding(top = 60.dp, bottom = 80.dp),
+                                .padding(top = 50.dp, bottom = 80.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("📭", fontSize = 40.sp)
-                                Spacer(Modifier.height(12.dp))
+                                com.detailline.callfollowcrm.presentation.component.Mascot(sizeDp = 80.dp)
+                                Spacer(Modifier.height(14.dp))
                                 Text(
-                                    when (val f = filter) {
-                                        is HomeFilter.All -> "기록된 통화가 없어요"
-                                        is HomeFilter.Unconfirmed -> "미확인 없음 — 7일 내 문의 모두 답장 완료"
-                                        is HomeFilter.TodayNew -> "오늘 신규 없음 — 새로 연락온 고객이 아직 없어요"
-                                        is HomeFilter.Category -> "‘${f.name}’ 카테고리에 고객이 아직 없어요"
-                                    },
-                                    style = MaterialTheme.typography.titleMedium,
+                                    "사장님, 오늘 상담 다 끝냈어요! 👏",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.ExtraBold,
                                     color = TossTextPrimary
                                 )
-                                Spacer(Modifier.height(4.dp))
+                                Spacer(Modifier.height(6.dp))
                                 Text(
-                                    "옛 고객은 우측 하단 ‘+ 수동 입력’ 으로 첫 만난 날짜와 함께 등록할 수 있어요",
+                                    "새 문의가 오면 막내가 바로 알려드릴게요",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = TossTextTertiary,
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                    modifier = Modifier.padding(horizontal = 24.dp)
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                 )
                             }
                         }
@@ -1590,21 +1513,18 @@ private fun ServerStatusDot(alive: Boolean?, onClick: () -> Unit) {
 }
 
 /**
- * 프로토 .ai-badge — 상담함 앱바 오른쪽 AI 상태 알약.
- *   그라데이션 배경 + 상태 점 + ✨ + "AI 켜짐/연결 끊김". 탭 = 서버 상태 토스트.
+ * 프로토 .ai-badge (renderAiBadge) — 상담함 앱바 오른쪽 "{업종} AI" 알약.
+ *   그라데이션 배경 + 초록 점 + ✨ + "{업종} AI" (예: "줄눈 AI"). 탭 = AI 설명/서버 상태.
+ *   점 색으로 서버 연결 상태를 은근히 표시(정상=초록/끊김=빨강/확인중=노랑).
  */
 @Composable
-private fun AiBadge(alive: Boolean?, onClick: () -> Unit) {
+private fun AiBadge(trade: String, alive: Boolean?, onClick: () -> Unit) {
     val dot = when (alive) {
         true -> TossSuccess
         false -> TossError
         null -> TossWarning
     }
-    val label = when (alive) {
-        true -> "AI 켜짐"
-        false -> "연결 끊김"
-        null -> "확인 중"
-    }
+    val label = "$trade AI"
     Row(
         modifier = Modifier
             .background(
