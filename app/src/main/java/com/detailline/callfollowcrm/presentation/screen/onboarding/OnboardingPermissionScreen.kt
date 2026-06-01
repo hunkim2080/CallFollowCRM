@@ -38,6 +38,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 import com.detailline.callfollowcrm.util.PermissionHelper
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun OnboardingPermissionScreen(onContinue: () -> Unit) {
     val appCtx = LocalContext.current
@@ -65,47 +66,25 @@ fun OnboardingPermissionScreen(onContinue: () -> Unit) {
             ) {
                 Spacer(Modifier.height(24.dp))
 
-                // 히어로 — RING-GO 정체성. 사장님 톤 학습 + 딸깍(원탭) + 자연스러운 상담.
-                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                    Box(
-                        Modifier
-                            .size(112.dp)
-                            .background(TossBlueSoft, CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        com.detailline.callfollowcrm.presentation.component.Mascot(sizeDp = 96.dp)
+                // 스토리텔링 인트로 — 막내 비서 + 핵심 가치 4장 (swipe). 2026-06-01.
+                val storyPager = androidx.compose.foundation.pager.rememberPagerState(pageCount = { 4 })
+                androidx.compose.foundation.pager.HorizontalPager(
+                    state = storyPager,
+                    modifier = Modifier.fillMaxWidth().height(300.dp)
+                ) { page -> StorySlide(page) }
+                Spacer(Modifier.height(10.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                    repeat(4) { i ->
+                        Box(
+                            Modifier
+                                .padding(horizontal = 3.dp)
+                                .size(if (i == storyPager.currentPage) 8.dp else 6.dp)
+                                .background(
+                                    if (i == storyPager.currentPage) TossBlue else TossTextTertiary.copy(alpha = 0.4f),
+                                    CircleShape
+                                )
+                        )
                     }
-                    Spacer(Modifier.height(10.dp))
-                    Box(
-                        Modifier.background(TossBlue, androidx.compose.foundation.shape.RoundedCornerShape(999.dp))
-                            .padding(horizontal = 12.dp, vertical = 5.dp)
-                    ) {
-                        Text("막내 비서 탄생!", color = androidx.compose.ui.graphics.Color.White,
-                            fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Spacer(Modifier.height(14.dp))
-                    Text(
-                        "딸깍의 시대",
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TossTextPrimary,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    Text(
-                        "사장님 말투를 배우는 막내 비서가\n가장 자연스러운 답장을 미리 만들어요.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TossTextSecondary,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "봇 같은 답장은 그만, 사장님 본인이 쓴 것처럼.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TossBlue,
-                        fontWeight = FontWeight.SemiBold,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                    )
                 }
 
                 Spacer(Modifier.height(8.dp))
@@ -203,6 +182,47 @@ fun OnboardingPermissionScreen(onContinue: () -> Unit) {
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun StorySlide(page: Int) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+    ) {
+        if (page == 0) {
+            Box(
+                Modifier.size(112.dp).background(TossBlueSoft, CircleShape),
+                contentAlignment = Alignment.Center
+            ) { com.detailline.callfollowcrm.presentation.component.Mascot(sizeDp = 96.dp) }
+            Spacer(Modifier.height(10.dp))
+            Box(
+                Modifier.background(TossBlue, androidx.compose.foundation.shape.RoundedCornerShape(999.dp))
+                    .padding(horizontal = 12.dp, vertical = 5.dp)
+            ) {
+                Text("막내 비서 탄생!", color = androidx.compose.ui.graphics.Color.White,
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+        } else {
+            val emoji = when (page) { 1 -> "💬"; 2 -> "💰"; else -> "📅" }
+            Box(
+                Modifier.size(96.dp).background(TossBlueSoft, CircleShape),
+                contentAlignment = Alignment.Center
+            ) { Text(emoji, fontSize = 44.sp) }
+        }
+        Spacer(Modifier.height(16.dp))
+        val (title, body) = when (page) {
+            0 -> "딸깍의 시대" to "사장님 말투를 배우는 막내 비서가\n가장 자연스러운 답장을 미리 만들어요."
+            1 -> "답장, 고민 끝" to "고객 문자에 딱 맞는 답장을\nAI가 미리 만들어둬요. 탭 한 번."
+            2 -> "누가 돈 안 줬지?" to "미수금을 자동으로 추적.\n계약금·잔금 받음만 체크하면 끝."
+            else -> "일정도 현금흐름도" to "오늘 시공·받을 돈·나갈 돈을\n달력 한 장에서 한눈에."
+        }
+        Text(title, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        Spacer(Modifier.height(10.dp))
+        Text(body, style = MaterialTheme.typography.bodyMedium, color = TossTextSecondary,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center)
     }
 }
 
