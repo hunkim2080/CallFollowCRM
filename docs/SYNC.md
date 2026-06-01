@@ -1790,3 +1790,9 @@ CREATE TABLE intake_forms (
 - 변경: AgentMiniCard = 레벨칩·말투% 진행바·상담/시공 stats(실제 카운트). SettingsViewModel.agentCard 신설(고객수·지난시공·톤업로드 기반). commit aab8a73.
 - 현황판: docs/IMPLEMENTATION_STATUS.md + design-preview/status-board.html 에 "🎨 프로토 1:1 화면 이식" 영역 추가(로그인·온보딩·홈·정산·통계·일정·더보기막내=✅, 더보기메뉴=진행중, 채팅·접수서=시작전). 기능 축과 별개.
 - 다음 액션(서버): 없음.
+
+## 2026-06-02 · android (5)
+상담함(홈) UI 마무리 — 조건부 알림 카드를 프로토 'team-alert' 디자인으로 통일 + 순서 정렬.
+- 변경: SimpleDueCard(일반 파란칩) → InboxAlert(team-alert: 좌측 4px 강조선 + 아이콘박스 + 제목/태그 + 부제 + go칩). 색상별 변형(견적회신=보라/recur=앰버/시공안내=초록). 순서 = 프로토 슬롯(견적회신→자동답장→정기문자→시공안내). 대기카드 요약 없을 때 "✨ AI 답변 준비 중…" 추가(프로토 preparing 변형).
+- 보류: quote/pending(접수서)·call(통화내용)·team-photo(팀)=서버/팀 의존 → 데이터 생기면 노출. 대기카드 AI 추천답변 quick-send(send-fab)=홈에서 SMS 직발 → 발송정책상 사장님 확인 후 결정.
+- DB 변경 없음. commit: (아래)

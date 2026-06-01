@@ -101,6 +101,9 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 import com.detailline.callfollowcrm.presentation.theme.TossWarning
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.ui.graphics.Brush
@@ -470,8 +473,26 @@ fun HomeScreen(
                 // 2026-06-01 프로토 1:1 — KPI 타일·미수금 카드는 프로토 상담함에 없음 → 제거.
                 //   (미수금=정산 탭, 오늘신규=아래 today-new 카드, 미확인=지금 답장 기다려요 카운트)
 
-                // 부재중 → 자동답장 카드 — 막내가 사장님 대신 첫 인사 보낸 기록 (최근 24h).
-                //   있을 때만 표시 (없으면 홈 깔끔). 탭하면 그 고객 대화로. (2026-06-01)
+                // 프로토 상담함 조건부 알림 카드 — 전부 'team-alert' 카드 언어(좌측 강조선 + 아이콘 + 제목/태그 + 부제 + go).
+                //   순서 = 프로토 슬롯 순서: (pending) 견적회신 → (missed) 자동답장 → (recur) 정기문자 → (d1) 시공안내.
+                //   quote/pending(접수서)·call(통화내용)·team-photo(팀)는 서버/팀 의존 → 데이터 생기면 노출(지금 숨김).
+
+                // 견적 회신 챙기기 — 견적 보낸 지 N일 답 없는 고객 (프로토 pending 위치).
+                if (estimateFollowupCount > 0) {
+                    item(key = "estimate-followup-card") {
+                        InboxAlert(
+                            accent = Color(0xFF7C5CFC), accentTint = Color(0xFFF1ECFF),
+                            icon = Icons.Filled.Description,
+                            title = "견적 회신 챙기기",
+                            tagText = "미회신", tagBg = Color(0xFFFEF3E0), tagFg = Color(0xFFB8780A),
+                            sub = "${estimateFollowupCount}곳 · 답 없는 견적",
+                            goLabel = "보기",
+                            onClick = onOpenEstimateFollowup
+                        )
+                    }
+                }
+
+                // 부재중 → 자동답장 카드 — 막내가 사장님 대신 첫 인사 보낸 기록 (최근 24h, 프로토 missed).
                 if (autoReplies.isNotEmpty()) {
                     item(key = "auto-reply-card") {
                         AutoReplyCard(
@@ -481,38 +502,32 @@ fun HomeScreen(
                     }
                 }
 
-                // 시공 D-1 / 도착 안내 — 내일·오늘 시공 고객에게 안내 문자. 있을 때만. (2026-06-01)
-                if (scheduleReminderCount > 0) {
-                    item(key = "schedule-reminder-card") {
-                        SimpleDueCard(
-                            emoji = "🚚",
-                            label = "시공 안내 문자 보낼까요?",
-                            value = "${scheduleReminderCount}곳 — 내일·오늘 시공",
-                            onClick = onOpenScheduleReminder
-                        )
-                    }
-                }
-
-                // 견적 회신 챙기기 — 견적 보낸 지 N일 답 없는 고객. 있을 때만. (2026-06-01)
-                if (estimateFollowupCount > 0) {
-                    item(key = "estimate-followup-card") {
-                        SimpleDueCard(
-                            emoji = "📋",
-                            label = "견적 회신 챙기기",
-                            value = "${estimateFollowupCount}곳 — 답 없는 견적",
-                            onClick = onOpenEstimateFollowup
-                        )
-                    }
-                }
-
-                // 정기문자 보낼 때 됐어요 — 있을 때만. 탭하면 보낼 목록으로. (2026-06-01)
+                // 정기문자 보낼 때 됐어요 (프로토 recur). 탭 → 보낼 목록.
                 if (recurringDueCount > 0) {
                     item(key = "recurring-due-card") {
-                        SimpleDueCard(
-                            emoji = "🔁",
-                            label = "정기문자 보낼 때 됐어요",
-                            value = "${recurringDueCount}건 — 확인하고 보내기",
+                        InboxAlert(
+                            accent = Color(0xFFF6A609), accentTint = Color(0xFFFFF3DF),
+                            icon = Icons.Filled.DateRange,
+                            title = "오늘 보낼 정기 문자 ${recurringDueCount}건",
+                            tagText = "확인 후 발송", tagBg = Color(0xFFFFF3DF), tagFg = Color(0xFFC9820B),
+                            sub = "확인하고 한 명씩 보내기",
+                            goLabel = "보기",
                             onClick = onOpenRecurringDue
+                        )
+                    }
+                }
+
+                // 시공 D-1 / 도착 안내 (프로토 d1). 내일·오늘 시공 고객 안내 문자.
+                if (scheduleReminderCount > 0) {
+                    item(key = "schedule-reminder-card") {
+                        InboxAlert(
+                            accent = TossSuccess, accentTint = Color(0xFFE7F8EF),
+                            icon = Icons.Filled.Sms,
+                            title = "시공 안내 문자 보낼까요?",
+                            tagText = null, tagBg = Color.Transparent, tagFg = Color.Transparent,
+                            sub = "${scheduleReminderCount}곳 · 내일·오늘 시공",
+                            goLabel = "보기",
+                            onClick = onOpenScheduleReminder
                         )
                     }
                 }
@@ -754,27 +769,56 @@ private fun OutstandingCard(
  * 홈 진입 카드 (정기문자 / 시공 안내 등) — 이모지 + 라벨 + 강조 값 + chevron. N>0 일 때만 노출. (2026-06-01)
  */
 @Composable
-private fun SimpleDueCard(emoji: String, label: String, value: String, onClick: () -> Unit) {
-    TossCard(onClick = onClick) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+private fun InboxAlert(
+    accent: Color,
+    accentTint: Color,
+    icon: ImageVector,
+    title: String,
+    tagText: String?,
+    tagBg: Color,
+    tagFg: Color,
+    sub: String,
+    goLabel: String,
+    onClick: () -> Unit
+) {
+    // 프로토 .team-alert — 흰 카드 + 좌측 4px 강조선 + 아이콘박스 + 제목/태그 + 부제 + go 칩.
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.White)
+            .border(1.dp, TossDivider, RoundedCornerShape(14.dp))
+            .clickable { onClick() },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.width(4.dp).fillMaxHeight().background(accent))
+        Row(
+            modifier = Modifier.weight(1f).padding(start = 10.dp, top = 13.dp, end = 14.dp, bottom = 13.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(TossBlueSoft),
+                Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(accentTint),
                 contentAlignment = Alignment.Center
-            ) { Text(emoji, fontSize = 18.sp) }
-            Spacer(Modifier.width(12.dp))
+            ) { Icon(icon, null, tint = accent, modifier = Modifier.size(19.dp)) }
+            Spacer(Modifier.width(11.dp))
             Column(Modifier.weight(1f)) {
-                Text(
-                    label,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = TossTextSecondary, fontWeight = FontWeight.Medium
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(title, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                    if (!tagText.isNullOrEmpty()) {
+                        Spacer(Modifier.width(6.dp))
+                        Box(
+                            Modifier.clip(RoundedCornerShape(999.dp)).background(tagBg).padding(horizontal = 7.dp, vertical = 2.dp)
+                        ) { Text(tagText, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, color = tagFg) }
+                    }
+                }
                 Spacer(Modifier.height(2.dp))
-                Text(value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                Text(sub, fontSize = 12.sp, color = TossTextSecondary, maxLines = 2)
             }
-            Icon(Icons.Default.ChevronRight, null, tint = TossTextTertiary)
+            Spacer(Modifier.width(8.dp))
+            Box(
+                Modifier.clip(RoundedCornerShape(999.dp)).background(accentTint).padding(horizontal = 13.dp, vertical = 7.dp)
+            ) { Text(goLabel, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = accent) }
         }
     }
 }
@@ -1663,6 +1707,14 @@ private fun WaitingCard(
         if (!aiSummary.isNullOrBlank()) {
             Spacer(Modifier.height(9.dp))
             Text(aiSummary, fontSize = 13.5.sp, color = TossTextSecondary, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        } else {
+            // 프로토 waitingCardHtml 의 'preparing' 변형 — 요약/추천 준비 전.
+            Spacer(Modifier.height(9.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.AutoAwesome, null, tint = TossTextTertiary, modifier = Modifier.size(13.dp))
+                Spacer(Modifier.width(5.dp))
+                Text("AI 답변 준비 중…", fontSize = 13.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
+            }
         }
         Spacer(Modifier.height(13.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
