@@ -129,13 +129,11 @@ fun ScheduleScreen(
         val cells = remember(viewedMonthAnchor, state.all) {
             buildCalendarCells(viewedMonthAnchor, state.all, todayStart)
         }
-        // 선택된 날의 시공 목록
+        // 선택된 날의 시공 목록 — 여러 날 시공(scheduledWorkDays)은 기간 내 모든 날에 표시.
         val schedulesForSelected = remember(selectedDayMs, state.all) {
             val day = selectedDayMs ?: return@remember emptyList<CustomerEntity>()
-            state.all.filter {
-                val s = it.scheduledWorkDate ?: return@filter false
-                DateTimeUtils.startOfDay(s) == day
-            }.sortedBy { it.scheduledWorkDate ?: 0L }
+            state.all.filter { jobCoversDay(it, day) }
+                .sortedBy { it.scheduledWorkMinutes ?: Int.MAX_VALUE }
         }
 
         LazyColumn(
@@ -438,6 +436,22 @@ private fun ScheduleCustomerCard(
                     fontWeight = FontWeight.Bold
                 )
             }
+            // 시공 시간 + 기간 (DB v24). 시간 미정이면 생략, 당일이면 기간 생략.
+            val timeLabel = customer.scheduledWorkMinutes?.let { DateTimeUtils.formatWorkMinutes(it) }
+            val days = customer.scheduledWorkDays.coerceAtLeast(1)
+            if (timeLabel != null || days > 1) {
+                Spacer(Modifier.height(4.dp))
+                val rangeLabel = if (days > 1) {
+                    val endMs = DateTimeUtils.startOfDay(scheduled) + (days - 1) * DateTimeUtils.DAY_MS
+                    "${DateTimeUtils.formatDateOnly(scheduled)}~${DateTimeUtils.formatDateOnly(endMs)} · ${days}일간"
+                } else null
+                Text(
+                    listOfNotNull(timeLabel?.let { "🕐 $it" }, rangeLabel).joinToString("  ·  "),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (isPast) TossTextTertiary else TossTextSecondary,
+                    fontWeight = FontWeight.Medium
+                )
+            }
             // ✨ AI 한 줄 요약 — 사장님 요청 (2026-05-24): "어떤 내용으로 예약 확정인지 간략하게".
             //   HomeScreen 카드 요약과 같은 데이터. 서버 응답 없으면 silent 숨김.
             if (!cardSummary.isNullOrBlank()) {
@@ -485,6 +499,18 @@ private data class CalendarCell(
     val hasUpcomingSchedule: Boolean
 )
 
+/**
+ * 이 시공이 dayStart 날을 포함하는가 — 여러 날 시공(scheduledWorkDays) 고려.
+ *   기간 = [시공일, 시공일 + (days-1)일]. days 기본 1 = 당일만.
+ */
+private fun jobCoversDay(c: CustomerEntity, dayStart: Long): Boolean {
+    val start = c.scheduledWorkDate ?: return false
+    val s = DateTimeUtils.startOfDay(start)
+    val days = c.scheduledWorkDays.coerceAtLeast(1)
+    val end = s + (days - 1) * DateTimeUtils.DAY_MS
+    return dayStart in s..end
+}
+
 /** 어떤 ms 가 들어와도 그 달 1일의 startOfDay 로 정규화. */
 private fun monthAnchor(anyMs: Long): Long {
     val cal = Calendar.getInstance().apply {
@@ -522,17 +548,13 @@ private fun buildCalendarCells(
     val firstDow = cal.get(Calendar.DAY_OF_WEEK) // 1=SUN..7=SAT
     cal.add(Calendar.DAY_OF_MONTH, -(firstDow - 1)) // 그 주 일요일로
 
-    // 시공별 dayStartMs 그룹화 (count + past/upcoming 분류)
-    val grouped = schedules.groupBy {
-        DateTimeUtils.startOfDay(it.scheduledWorkDate ?: 0L)
-    }
-
     val cells = ArrayList<CalendarCell>(42)
     repeat(42) {
         val dayStart = DateTimeUtils.startOfDay(cal.timeInMillis)
-        val daySchedules = grouped[dayStart].orEmpty()
-        val hasPast = daySchedules.any { (it.scheduledWorkDate ?: 0L) < todayStart }
-        val hasUp = daySchedules.any { (it.scheduledWorkDate ?: 0L) >= todayStart }
+        // 여러 날 시공은 기간 내 모든 날에 점 표시 (scheduledWorkDays).
+        val daySchedules = schedules.filter { jobCoversDay(it, dayStart) }
+        val hasPast = daySchedules.isNotEmpty() && dayStart < todayStart
+        val hasUp = daySchedules.isNotEmpty() && dayStart >= todayStart
         cells += CalendarCell(
             dayStartMs = dayStart,
             dayOfMonth = cal.get(Calendar.DAY_OF_MONTH),

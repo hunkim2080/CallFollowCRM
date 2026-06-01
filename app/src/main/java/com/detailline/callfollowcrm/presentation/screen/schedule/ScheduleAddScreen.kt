@@ -86,6 +86,9 @@ fun ScheduleAddScreen(
     var depositPaid by remember { mutableStateOf(false) }
     var dayMs by remember { mutableLongStateOf(DateTimeUtils.startOfDay(System.currentTimeMillis())) }
     var showDate by remember { mutableStateOf(false) }
+    // 시공 시간(자정부터 분, null=미정) + 기간(일). DB v24.
+    var workMinutes by remember { mutableStateOf<Int?>(null) }
+    var workDays by remember { mutableStateOf(1) }
 
     toast?.let {
         android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show()
@@ -132,6 +135,23 @@ fun ScheduleAddScreen(
                     DateTimeUtils.formatKoreanDate(dayMs) + " · " + DateTimeUtils.dDayLabel(dayMs),
                     color = TossTextPrimary, fontWeight = FontWeight.SemiBold
                 )
+            }
+
+            Spacer(Modifier.height(12.dp))
+            FieldLabel("시공 시간 (선택)")
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SelectChip("미정", workMinutes == null) { workMinutes = null }
+                WORK_TIME_OPTIONS.forEach { (label, mins) ->
+                    SelectChip(label, workMinutes == mins) { workMinutes = mins }
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+            FieldLabel("시공 기간 (선택)")
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                WORK_DAYS_OPTIONS.forEach { (label, days) ->
+                    SelectChip(label, workDays == days) { workDays = days }
+                }
             }
 
             Spacer(Modifier.height(12.dp))
@@ -201,7 +221,8 @@ fun ScheduleAddScreen(
                     .background(if (saving) TossTextTertiary else TossBlue)
                     .clickable(enabled = !saving) {
                         viewModel.submit(
-                            name = name, phone = phone, dayMs = dayMs, address = address,
+                            name = name, phone = phone, dayMs = dayMs,
+                            workMinutes = workMinutes, workDays = workDays, address = address,
                             totalAmount = totalText.toLongOrNull(),
                             depositAmount = depositText.toLongOrNull(),
                             depositPaid = depositPaid,
@@ -242,3 +263,32 @@ private fun FieldLabel(text: String) {
     Text(text, style = MaterialTheme.typography.labelMedium, color = TossTextSecondary,
         fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 6.dp))
 }
+
+/** 시공 시간/기간 선택 알약 칩. 선택 시 파랑 채움. */
+@Composable
+private fun SelectChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier.clip(RoundedCornerShape(999.dp))
+            .background(if (selected) TossBlue else Color.White)
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp, vertical = 9.dp)
+    ) {
+        Text(
+            label,
+            color = if (selected) Color.White else TossTextSecondary,
+            fontWeight = FontWeight.SemiBold,
+            style = MaterialTheme.typography.bodyMedium
+        )
+    }
+}
+
+/** 시공 시작 시각 빠른 선택 (라벨 → 자정부터 분). 프로토 schedTimeChips 벤치마킹. */
+private val WORK_TIME_OPTIONS: List<Pair<String, Int>> = listOf(
+    "오전 8시" to 8 * 60, "오전 9시" to 9 * 60, "오전 10시" to 10 * 60, "오전 11시" to 11 * 60,
+    "오후 1시" to 13 * 60, "오후 2시" to 14 * 60, "오후 3시" to 15 * 60, "오후 4시" to 16 * 60
+)
+
+/** 시공 기간 빠른 선택 (라벨 → 일수). */
+private val WORK_DAYS_OPTIONS: List<Pair<String, Int>> = listOf(
+    "당일" to 1, "2일" to 2, "3일" to 3, "5일" to 5, "일주일" to 7
+)

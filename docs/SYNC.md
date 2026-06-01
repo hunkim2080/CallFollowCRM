@@ -1336,3 +1336,12 @@ CREATE TABLE customer_personas (
 - assembleDebug 성공.
 - commit: (아래 푸시)
 - 현황판: 상담함 4/9→5/9, 전체 37/52(71%).
+
+## 2026-06-01 23:58 · android
+시공 시간 칩 + 여러 날 기간 (일정 영역) — DB v24.
+- 변경: 없음 (앱 단독, server/ 무관).
+  - DB v24: customers.scheduledWorkMinutes(분,null=미정) + scheduledWorkDays(기본1). additive ALTER.
+  - ScheduleAddScreen 시간/기간 칩, ScheduleScreen jobCoversDay(여러날 점·목록), 카드 "🕐 오전9시 · M/D~M/D N일간".
+  - HomeViewModel.todayJobs 진행중 여러날 포함 + 시간순. TodayHeroCard 시간 표시.
+- assembleDebug 성공.
+- 현황판: 일정 2/5→4/5, 전체 39/52(75%).

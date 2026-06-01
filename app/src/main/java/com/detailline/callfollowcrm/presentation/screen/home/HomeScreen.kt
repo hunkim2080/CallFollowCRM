@@ -661,10 +661,19 @@ private fun TodayHeroCard(
                     Column(
                         Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).clickable { onOpenCustomer(c.id) }
                     ) {
-                        Text(
-                            c.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(c.phoneNumber),
-                            color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                c.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(c.phoneNumber),
+                                color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold
+                            )
+                            c.scheduledWorkMinutes?.let { mins ->
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    "🕐 " + DateTimeUtils.formatWorkMinutes(mins),
+                                    color = TossBlueSoft, fontSize = 13.sp, fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
                         Spacer(Modifier.height(2.dp))
                         Text(
                             c.address?.takeIf { it.isNotBlank() } ?: "주소 미등록 — 탭해서 등록",

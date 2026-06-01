@@ -46,6 +46,13 @@ data class CustomerEntity(
      * null = 사장님 미입력. balanceAmount 가 직접 박혀있으면 그게 우선 (수동 우선).
      */
     val totalAmount: Long? = null,
+    /**
+     * 시공 시작 시각 — 자정부터의 분(0~1439). null = 시간 미정/종일. DB v24 (2026-06-01).
+     * scheduledWorkDate(날짜, startOfDay 정규화) 와 분리 — 날짜 로직은 그대로 두고 시간만 별도 저장.
+     */
+    val scheduledWorkMinutes: Int? = null,
+    /** 시공 기간(며칠). 기본 1 = 당일. 여러 날 현장이면 2+. DB v24 (2026-06-01). */
+    val scheduledWorkDays: Int = 1,
     val createdAt: Long,
     val updatedAt: Long
 )

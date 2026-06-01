@@ -37,6 +37,8 @@ class ScheduleAddViewModel(private val container: AppContainer) : ViewModel() {
         name: String,
         phone: String,
         dayMs: Long,
+        workMinutes: Int?,
+        workDays: Int,
         address: String,
         totalAmount: Long?,
         depositAmount: Long?,
@@ -60,6 +62,7 @@ class ScheduleAddViewModel(private val container: AppContainer) : ViewModel() {
                 )
                 val id = customer.id
                 container.customerRepository.updateScheduledWorkDate(id, DateTimeUtils.startOfDay(dayMs))
+                container.customerRepository.updateScheduledWorkTiming(id, workMinutes, workDays)
                 if (address.isNotBlank()) container.customerRepository.updateAddress(id, address)
                 if (totalAmount != null) container.customerRepository.updateTotalAmount(id, totalAmount)
                 if (depositAmount != null) container.customerRepository.updateDepositAmount(id, depositAmount)

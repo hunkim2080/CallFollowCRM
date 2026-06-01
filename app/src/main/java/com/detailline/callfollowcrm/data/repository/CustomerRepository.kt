@@ -153,6 +153,16 @@ class CustomerRepository(
         dao.update(c.copy(scheduledWorkDate = scheduledWorkDate, updatedAt = System.currentTimeMillis()))
     }
 
+    /** 시공 시간(자정부터 분, null=미정) + 기간(일) 설정. 셀프 일정 등록/수정에서 호출. DB v24. */
+    suspend fun updateScheduledWorkTiming(id: Long, minutes: Int?, days: Int) {
+        val c = dao.findById(id) ?: return
+        dao.update(c.copy(
+            scheduledWorkMinutes = minutes,
+            scheduledWorkDays = days.coerceAtLeast(1),
+            updatedAt = System.currentTimeMillis()
+        ))
+    }
+
     /**
      * 현장 주소 설정/변경/지움(null) — 사장님 수동 등록 (2026-05-28, DB v15).
      *   AddressExtractor 자동 추출보다 우선. 길찾기/§13 가 이 값을 1순위로 활용.

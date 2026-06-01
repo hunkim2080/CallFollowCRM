@@ -33,6 +33,21 @@ object DateTimeUtils {
     fun formatKoreanDate(epoch: Long): String = koreanDate.format(Date(epoch))
     fun formatMonthHeader(epoch: Long): String = monthHeader.format(Date(epoch))
 
+    /** 하루 = 86,400,000 ms (한국은 DST 없음 → 안전). 시공 기간(여러 날) 계산에 사용. */
+    const val DAY_MS: Long = 24L * 60 * 60 * 1000
+
+    /** 시공 시작 시각(자정부터 분, 0~1439)을 "오전 9시" / "오후 1시 30분" 으로. */
+    fun formatWorkMinutes(minutes: Int): String {
+        val h = minutes / 60
+        val m = minutes % 60
+        val ap = if (h < 12) "오전" else "오후"
+        val h12 = (h % 12).let { if (it == 0) 12 else it }
+        return buildString {
+            append(ap); append(' '); append(h12); append('시')
+            if (m > 0) { append(' '); append(m); append('분') }
+        }
+    }
+
     /** 입력 시각을 그날 00:00 자정 epoch 로 정규화. 시공 예약 저장에 사용. */
     fun startOfDay(epoch: Long): Long {
         val cal = Calendar.getInstance().apply { timeInMillis = epoch }

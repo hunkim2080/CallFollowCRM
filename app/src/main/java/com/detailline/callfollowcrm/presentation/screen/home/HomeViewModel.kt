@@ -213,10 +213,14 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     // 오늘 시공 히어로 + 다음 시공 (상담함 최상단, 2026-06-01)
     // ────────────────────────────────────────────────────────
 
-    /** 오늘 예약된 시공들 (시간순). 비어있지 않으면 다크 히어로. */
+    /** 오늘 예약된 시공들 (시간순). 여러 날 시공(scheduledWorkDays)이 오늘 진행 중이면 포함. 다크 히어로. */
     val todayJobs: StateFlow<List<CustomerEntity>> = customers.map { list ->
-        list.filter { c -> c.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) == todayStart } == true }
-            .sortedBy { it.scheduledWorkDate ?: 0L }
+        list.filter { c ->
+            val s = c.scheduledWorkDate ?: return@filter false
+            val start = DateTimeUtils.startOfDay(s)
+            val end = start + (c.scheduledWorkDays.coerceAtLeast(1) - 1) * DateTimeUtils.DAY_MS
+            todayStart in start..end
+        }.sortedBy { it.scheduledWorkMinutes ?: Int.MAX_VALUE }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** 다음 시공 = 오늘 이후 가장 가까운 날의 시공들 (1~3곳). 오늘 시공 없을 때 미리보기. */
@@ -225,7 +229,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         val minDay = future.mapNotNull { it.scheduledWorkDate }
             .map { DateTimeUtils.startOfDay(it) }.minOrNull() ?: return@map emptyList()
         future.filter { DateTimeUtils.startOfDay(it.scheduledWorkDate ?: 0L) == minDay }
-            .sortedBy { it.scheduledWorkDate ?: 0L }
+            .sortedBy { it.scheduledWorkMinutes ?: Int.MAX_VALUE }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
