@@ -1558,3 +1558,10 @@ CREATE TABLE intake_forms (
 ### 변경 파일
 - `server/main.py` — db_init 에 `intake_forms` 테이블 + 인덱스 2개, §19 섹션 추가 (constants, `IntakeIssueRequest`/`IntakeSubmitRequest`, `_generate_intake_token`, `_fetch_owner_business_info`, 4 API + HTML 페이지). +586 lines. syntax pass, 단위 검증 4건 통과 (토큰 알파벳/HTML format/100토큰 중복0/SQL 흐름)
 - `docs/IMPLEMENTATION_STATUS.md` — 견적·접수서 영역 `시공접수서` ⬜→🔶 (서버 OK, android 작업 대기)
+
+## 2026-06-01 (밤) · android — §18/§19 앱 연결 완료
+맥미니 §18(call-summary)·§19(intake-form) 앱 측 hookup 완료:
+- #10 2a5a52b 시공접수서 링크: IntakeFormRepository(POST /api/intake-form/issue) + 채팅 앱바 [📋] → URL 발급 → composer prefill → 사장님 ▶. 자동발송 X.
+- #11 fc5a443 통화 요약: CallSummaryServerRepository(POST /api/call-summary) + AdotSummaryImporter 가 에이닷 원문 파싱 후 best-effort Haiku 호출 → summaryText(한줄+불릿)+recommendedMessage(후속초안). 실패 시 파싱 결과 graceful. 고객상세 SummaryItem 에 표시.
+- 남은 앱측 후속(서버 추가 작업 아님): 접수서 status polling(/api/intake-form/status) → 제출됨 표시 + 고객상세 payload 채우기 / 접수서 작성 리마인드 카드(sentinel -7, /list 필요) / 통화요약 채팅 📞 카드 인라인 표시.
+- 서버측 확인 부탁: 위 endpoint 들 실제 응답 OK 인지(앱은 graceful fallback 이라 무응답이어도 안 깨짐).
