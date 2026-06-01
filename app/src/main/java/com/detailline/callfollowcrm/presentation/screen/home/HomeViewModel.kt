@@ -120,21 +120,6 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     /**
-     * §19 시공접수서 폴링 (1단계 — 2026-06-02).
-     *   ViewModel 생성 시 1회 + Pull-to-refresh 같은 외부 trigger 에서도 호출 가능.
-     *   네트워크 실패는 무시 (best-effort). 활성 발급분 (만료 전 + 미확정) 만 폴.
-     */
-    fun syncIntakeForms() {
-        viewModelScope.launch(Dispatchers.IO) {
-            runCatching { container.intakeFormSyncRepository.syncActive() }
-        }
-    }
-
-    init {
-        syncIntakeForms()
-    }
-
-    /**
      * 시스템 CallLog → Room sync (2026-05-28 사장님 통점):
      *   "통화 끝났는데 RING-GO 목록에 안 들어옴".
      *   원인 = Android 12+ / OneUI 의 정적 BroadcastReceiver 누락 (CallStateReceiver 미트리거).
