@@ -4,11 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.detailline.callfollowcrm.data.AppContainer
 import com.detailline.callfollowcrm.data.local.entity.MessageTemplateEntity
+import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
+import com.detailline.callfollowcrm.util.DateTimeUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -98,6 +101,44 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
      */
     private val _toneRagEmbeddingsAvailable = MutableStateFlow<Boolean?>(null)
     val toneRagEmbeddingsAvailable: StateFlow<Boolean?> = _toneRagEmbeddingsAvailable.asStateFlow()
+
+    /**
+     * 더보기 상단 "막내 비서" 카드 (프로토 agent-card). 전부 실제 카운트 기반:
+     *   - 함께한 상담 = 전체 고객 수, 시공 완료 = 지난 시공일 가진 고객 수.
+     *   - 말투 % = 사장님 SMS 업로드(RAG) 진행 (목표 500건 = 100%). 게이미피케이션 임계값.
+     *   - 레벨 = 상담 건수 구간. 다음 레벨까지 = 다음 구간 경계까지.
+     */
+    val agentCard: StateFlow<AgentCardState> =
+        combine(container.customerRepository.observeAll(), _toneRagUploadedCount) { customers, toneUploaded ->
+            buildAgentCard(customers, toneUploaded)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AgentCardState())
+
+    private fun buildAgentCard(customers: List<CustomerEntity>, toneUploaded: Int): AgentCardState {
+        val todayStart = DateTimeUtils.startOfDay(System.currentTimeMillis())
+        val consult = customers.size
+        val doneJobs = customers.count { it.scheduledWorkDate?.let { d -> d < todayStart } == true }
+        val tonePct = ((toneUploaded * 100.0) / TONE_TARGET).toInt().coerceIn(0, 100)
+
+        // 레벨 = 상담 건수 구간. (idx, 다음 경계)
+        val thresholds = listOf(0, 10, 30, 60, 100, 200, 400)
+        val titles = listOf("새내기", "수습", "일잘러", "베테랑", "에이스", "능력자", "마스터")
+        var lvIdx = 0
+        for (i in thresholds.indices) if (consult >= thresholds[i]) lvIdx = i
+        val level = lvIdx + 1
+        val title = titles[lvIdx.coerceIn(0, titles.lastIndex)]
+        val toNext = if (lvIdx < thresholds.lastIndex) (thresholds[lvIdx + 1] - consult).coerceAtLeast(0) else 0
+
+        val line = when {
+            tonePct >= 80 -> "사장님 말투, 이제 거의 다 외웠어요!"
+            tonePct >= 40 -> "사장님 말투를 부지런히 배우고 있어요"
+            tonePct >= 1 -> "사장님 말투를 막 배우기 시작했어요"
+            else -> "문자를 더 주고받으면 제가 말투를 배워요"
+        }
+        return AgentCardState(
+            level = level, title = title, line = line,
+            tonePct = tonePct, consultCount = consult, doneJobs = doneJobs, toNextLevel = toNext
+        )
+    }
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
@@ -249,6 +290,19 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 }
+
+/** 더보기 막내 비서 카드 (프로토 agent-card). */
+data class AgentCardState(
+    val level: Int = 1,
+    val title: String = "새내기",
+    val line: String = "문자를 더 주고받으면 제가 말투를 배워요",
+    val tonePct: Int = 0,
+    val consultCount: Int = 0,
+    val doneJobs: Int = 0,
+    val toNextLevel: Int = 10
+)
+
+private const val TONE_TARGET = 500
 
 data class SettingsUiState(
     val afterCallBehavior: AfterCallBehavior,

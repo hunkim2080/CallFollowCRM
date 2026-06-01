@@ -10,6 +10,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
@@ -159,8 +160,9 @@ fun SettingsScreen(
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // 프로토 더보기 상단 — 막내 비서 카드 (캐릭터 모먼트). 학습 수치는 실제 보유값(톤 샘플) 표시.
-            AgentMiniCard(toneSamples = toneSampleCount)
+            // 프로토 더보기 상단 — 막내 비서 카드 (agent-card). 레벨·말투%·상담/시공 = 실제 카운트.
+            val agentCard by viewModel.agentCard.collectAsState()
+            AgentMiniCard(card = agentCard)
 
             // 프로토 더보기 lockcard 그룹 — 주요 진입점 (아이콘 + 제목 + 부제 + 꺾쇠).
             SettingsGroup("함께 일하는 사람") {
@@ -1972,24 +1974,65 @@ private fun TemplateDropdown(
  *   캐릭터(Mascot) + 이름 + 학습 안내. 학습 수치는 실제 보유값(사장님 톤 샘플 수).
  */
 @Composable
-private fun AgentMiniCard(toneSamples: Int) {
-    TossCard(contentPadding = PaddingValues(16.dp)) {
+private fun AgentMiniCard(card: AgentCardState) {
+    // 프로토 agent-card — 그라데이션 카드 + mascot + 레벨칩 + 말투 진행바 + stats.
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .background(Brush.linearGradient(listOf(Color(0xFFEAF2FF), Color(0xFFF1ECFF))))
+            .border(1.dp, Color(0xFFE6EAFB), RoundedCornerShape(22.dp))
+            .padding(horizontal = 18.dp, vertical = 15.dp)
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Mascot(sizeDp = 56.dp)
-            Spacer(Modifier.width(14.dp))
+            Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text("막내 비서", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
-                Spacer(Modifier.height(4.dp))
-                Text("사장님 곁에서 말투를 배우고 있어요", fontSize = 13.sp, color = TossTextSecondary)
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    if (toneSamples > 0) "사장님 말투 ${toneSamples}개 학습 중" else "대화를 나눌수록 사장님처럼 답해요",
-                    fontSize = 11.5.sp,
-                    color = TossTextTertiary,
-                    fontWeight = FontWeight.SemiBold
-                )
+                // agent-name + lv 칩
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("막내 비서", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                    Spacer(Modifier.width(7.dp))
+                    Box(
+                        Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(Brush.horizontalGradient(listOf(Color(0xFF3182F6), Color(0xFF7C5CFC))))
+                            .padding(horizontal = 9.dp, vertical = 2.dp)
+                    ) {
+                        Text("Lv.${card.level} · ${card.title}", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                    }
+                }
+                Spacer(Modifier.height(3.dp))
+                Text("\"${card.line}\"", fontSize = 13.sp, color = TossTextSecondary, fontWeight = FontWeight.SemiBold)
+                // grow-row (말투 진행바)
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 11.dp)) {
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(99.dp))
+                            .background(Color.White)
+                    ) {
+                        if (card.tonePct > 0) {
+                            Box(
+                                Modifier
+                                    .fillMaxWidth((card.tonePct / 100f).coerceIn(0.03f, 1f))
+                                    .height(8.dp)
+                                    .clip(RoundedCornerShape(99.dp))
+                                    .background(Brush.horizontalGradient(listOf(Color(0xFF3182F6), Color(0xFF7C5CFC))))
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text("말투 ${card.tonePct}%", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+                }
             }
         }
+        Text(
+            "함께한 상담 ${card.consultCount}건 · 시공 완료 ${card.doneJobs}건" +
+                if (card.toNextLevel > 0) " · 다음 레벨까지 ${card.toNextLevel}건" else " · 최고 레벨 🎉",
+            fontSize = 11.5.sp, color = TossTextTertiary, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(top = 9.dp)
+        )
     }
 }
 
