@@ -57,4 +57,14 @@ interface MessageHistoryDao {
      */
     @Query("SELECT * FROM message_histories WHERE status = 'ESTIMATE_SENT' ORDER BY createdAt DESC")
     fun observeEstimateSends(): Flow<List<MessageHistoryEntity>>
+
+    /**
+     * 통계 "보낸 답장" — 실제 발송한 기록만 count (DRAFT_OPENED·취소·실패 제외). 기간 [from, to).
+     */
+    @Query("""
+        SELECT COUNT(*) FROM message_histories
+        WHERE status IN ('AUTO_SENT','INLINE_SENT','MANUAL_MARK_SENT','ESTIMATE_SENT')
+          AND createdAt >= :from AND createdAt < :to
+    """)
+    fun observeSentCountBetween(from: Long, to: Long): Flow<Int>
 }

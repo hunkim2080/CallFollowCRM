@@ -23,6 +23,9 @@ class MessageHistoryRepository(private val dao: MessageHistoryDao) {
     /** 견적 보낸 기록 observe (견적 회신 리마인드). status='ESTIMATE_SENT'. */
     fun observeEstimateSends(): Flow<List<MessageHistoryEntity>> = dao.observeEstimateSends()
 
+    /** 통계 "보낸 답장" — 실제 발송 기록 수 (기간 [from, to)). */
+    fun observeSentCountBetween(from: Long, to: Long): Flow<Int> = dao.observeSentCountBetween(from, to)
+
     /**
      * 견적 보냄 기록 — 채팅 견적 작성/공유 시 호출. status='ESTIMATE_SENT' 마커.
      *   견적 회신 리마인드(N일째 답 없으면 한 번 더)의 기준 시각.

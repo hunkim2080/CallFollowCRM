@@ -191,7 +191,8 @@ fun AppNavHost(
         }
 
         composable(Destinations.STATS) {
-            val vm: ReportViewModel = viewModel(factory = viewModelFactory { ReportViewModel(container) })
+            val vm: com.detailline.callfollowcrm.presentation.screen.stats.StatsViewModel =
+                viewModel(factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.stats.StatsViewModel(container) })
             StatsScreen(viewModel = vm)
         }
 

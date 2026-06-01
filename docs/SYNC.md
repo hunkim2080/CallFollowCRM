@@ -1771,3 +1771,10 @@ CREATE TABLE intake_forms (
 - 적응(의도적 차이): "수정"·"이 시공 일정 보기"→고객상세 라우팅, 과거달은 받은돈 수치만 갱신(미수목록 라이브 유지).
 - commit: 9fa0c68
 - 다음 액션(서버): 없음 (로컬 계산만).
+
+## 2026-06-02 · android (2)
+통계 화면 프로토 `s-stats` 1:1 재구성. 사장님 결정: 내 데이터만 1:1, 전국 데이터는 "모이는 중".
+- 변경: 전용 StatsViewModel 신설(이번 달 고정 집계 + 7/30 추이 토글). stats-hero(인사·현장 N곳·작년동월 대비[데이터 있을 때만]·페이스 배지=전국 모이는 중) + stats-mascot + 2x2(다녀온 현장/받은 문의/시공 전환율/보낸 답장) + 문의 추이(period-toggle 7/30 + 막대 cur vs prev + 시장비교[전국=모이는 중]) + 이번 달 시공 종류(카테고리별 wt-hero+막대).
+- 데이터원(전부 로컬): jobs=scheduledWorkDate, 문의=createdAt, 전환율=jobs/문의, 보낸 답장=message_histories 발송기록 신규 count 쿼리(observeSentCountBetween), 시공종류=categoryId 그룹. 허위 숫자 없음.
+- 전국(상위 N% 페이스·전국 평균)은 서버 집계 나오면 채울 자리만 잡음 — SERVER_HANDOFF §6 시장 인사이트 항목과 연결.
+- DB: 변경 없음(쿼리만 추가). commit: (아래)
