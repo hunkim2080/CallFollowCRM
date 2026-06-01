@@ -1680,3 +1680,87 @@ CREATE TABLE intake_forms (
 - POST /api/intake-form/issue 응답 OK — 그러나 **요청 schema 가 변경됨** (위 §19 1:1 재작성 블록 참조). 안드로이드는 견적 데이터(`scheduled_at_ms`, `estimate_items[]`, `total_man`, `deposit_*`, `biz_name`) 까지 보내도록 IntakeFormRepository 수정 필요. 옛 schema(`expected_scope` 등) 는 무시되고 빈 값으로 발급됨.
 - POST /api/call-summary 응답 OK — 변경 없음 (§18 그대로).
 - 자동발송 X 정책 준수 ✓.
+
+---
+
+## 2026-06-02 (밤) · cowork(server) — §20 팀 관리 (99k) 프로토 1:1
+사장님 결정 (프로토 design-preview/ringgo-redesign.html team/openAddMember/openMemberView 직접 읽고): **역할 2개**(대표/팀원) / **URL 링크 방식**(접수서 패턴) / **현장 배정은 안드로이드 측 customers 테이블 컬럼**.
+
+### 정답 스펙 (프로토 line 1597~2451 그대로)
+- **`team` 배열** = `{id, name, role:'대표'|'팀원', tint, status}`. **manager/observer 없음**.
+- **`openAddMember`** = 이름 + 전화번호 2개만 입력. 토스트 "초대 링크를 보냈어요 📩" (자동발송 X, 앱이 prefill 후 사장님 ▶)
+- **`openMemberView`** = 팀원 URL 화면. "🔗 링크로 열린 화면 (앱 설치 불필요) / 대표님이 배정한 일정만 보여요 · 고객 연락처·매출은 안 보여요"
+  - 오늘 현장: 시간·주소·시공 내역·메모 + [주소 복사] [출발] + 카카오맵/카카오내비/티맵 chip
+  - 현장 사진 올리기: 시공 전/중/후 (3장)
+  - 다음 일정
+  - "🔗 이 링크는 시공 다음 날 자정에 만료돼요"
+- **`departed`** = 팀원 [출발] 누름 → 사장님 상담함 상단 `team-alert` 알림
+- **`teamPhotoAlert`** = 팀원 사진 업로드 → 사장님 알림 "{이름}님이 현장 사진을 올렸어요 · 사진 N장 · 방금"
+
+### 데이터 모델 (4 테이블 추가, additive)
+- `team_members` (member_id PK, owner_phone, phone, name, role 'owner'|'worker', tint, removed_at_ms)
+- `team_member_links` (token PK, member_id FK, owner_phone, issued/expires, schedule_snapshot_json, last_accessed_ms)
+- `team_member_events` (event_id, token, member_id, owner_phone, event_type 'departed'|'photo'|'arrived', payload_json, created_at_ms)
+- `team_site_photos` (photo_id, token, member_id, owner_phone, label '시공 전'|'시공 중'|'시공 후'|'추가 사진', image_data_url base64, image_path, note, uploaded_at_ms)
+
+### API 9개
+
+| Method | Path | 호출자 | 요약 |
+|---|---|---|---|
+| POST | `/api/team/member/invite` | 앱(사장님) | `{owner_phone, name, phone, role?, tint?}` → `{member_id, token, url, sms_draft, expires_at_ms}` |
+| GET | `/api/team/members?owner_phone=&include_removed=` | 앱 | 팀원 목록 (프로토 renderTeam) |
+| DELETE | `/api/team/member/{member_id}?owner_phone=` | 앱 | 팀원 제외 (URL 즉시 차단) |
+| POST | `/api/team/schedule-snapshot` | 앱 | `{member_id, items:[{when, customer_label, time, addr, work_summary, memo, days, is_today, scheduled_at_ms}]}` — 팀원 URL 화면에 표시될 일정 박음. 시공일 변경 시 만료 자동 갱신(시공 다음날 자정 KST). |
+| GET | `/api/team/events?owner_phone=&since_ms=&limit=30` | 앱 polling | 출발/사진/도착 이벤트 시간순 |
+| POST | `/api/team/event/depart` | 팀원 브라우저 | `{token, departed_at_ms?}` → event 기록 |
+| POST | `/api/team/event/arrive` | 팀원 브라우저 | `{token, arrived_at_ms?}` |
+| POST | `/api/team/event/photo` | 팀원 브라우저 | `{token, label, image_data_url(base64, 1MB 컷), note?}` → 사진 + event |
+| GET | `/api/team/photos?owner_phone=&member_id=&since_ms=&limit=50` | 앱 | 사진 목록 (사장님 측) |
+| GET | `/team/member/{token}` | 팀원 브라우저 | HTML 화면 (프로토 openMemberView 1:1) |
+
+### 99k 티어 게이팅
+- `_check_team_tier(owner_phone)` — `subscribers.plan_tier in {'team_99k','team','team_99000'}` + 미해지 검증
+- ENV `TEAM_TIER_BYPASS=1` 로 개발 테스트 우회 가능 (deploy plist 에는 박지 말 것)
+
+### 토큰
+- `tm_` + 8자 base62 (member_id)
+- 10자 base62 (URL 토큰 — INTAKE_TOKEN_ALPHABET 재사용, 0/O/1/I/l 제외)
+- 만료: 일정 미박힘 = 30일 / 일정 박힘 = 시공일 다음날 자정 KST (사장님이 일정 갱신할 때마다 재계산)
+
+### HTML 화면 (프로토 openMemberView 1:1)
+- CSS 변수 + 클래스명 (`appbar`, `mv-note`, `card`, `hbtn`, `mv-depart`, `nav-chip`, `mv-photos`, `photo-thumb`, `foot-link`) 프로토 그대로
+- [출발] 버튼: 한 번 누르면 disable + ✓ 표시
+- 사진 업로드: `<input type=file capture=environment>` + canvas 리사이즈 (1024px / 82% JPEG) + base64 upload
+- 네비게이션 chip: 카카오맵 `https://map.kakao.com/?q=`, 티맵 `tmap://search?name=`, 카카오내비 fallback to 카카오맵
+
+### 자동 SMS 발송 절대 금지 정책 유지
+- /invite 응답의 `sms_draft` 는 앱이 본문 prefill 용. 발송은 사장님 ▶.
+
+### 단위 검증 5건 통과
+1. HTML 템플릿 format() — 치환 안 된 placeholder 0, 필수 요소 모두 포함
+2. 빈 today (오늘 배정 없음) — "오늘 배정된 현장이 없어요"
+3. 빈 next — 빈 문자열
+4. expiry label 형식 "5/31 (일요일)"
+5. 만료 계산 — 일정 미박힘 30일 / 박힘 시 시공 다음날 자정 KST 정확
+
+### 변경 파일
+- `server/main.py` — db_init 4 테이블 추가 (CREATE IF NOT EXISTS, idempotent), §20 섹션 ~770 lines 추가. syntax pass, 단위 검증 5건 통과. main.py 총 6,014 줄.
+
+### 안드로이드 의존 작업 (Windows Claude Code 가 붙일 것 — 다음 sprint)
+**[Phase 1 — 99k 가입자만 표시되는 메뉴]**
+1. 더보기 → "팀 관리" 메뉴 (`subscribers.plan_tier` 검증, 비-99k 면 lock 카드 노출 = 프로토 `tier-tag tier-biz`)
+2. 팀 화면 = `renderTeam` 1:1 (팀원 목록 + 초대 + 미리보기 lockcard + 알림 리스트)
+3. 팀원 추가 sheet (`openAddMember`) — `/api/team/member/invite` 호출 → 응답 `sms_draft` 를 SMS 본문에 prefill → 사장님 ▶ 직접 발송
+
+**[Phase 2 — 배정 + 폴링]**
+4. `customers` 또는 시공 일정 테이블에 `assigned_member_id` 컬럼 추가 (DB migration). 배정 시 `/api/team/schedule-snapshot` 호출로 팀원 URL 화면에 표시될 데이터 박음
+5. 홈/일정 화면에 배정된 팀원 아바타 표시 (프로토 `assignHtml` 1:1)
+6. `/api/team/events?since_ms=` polling (FCM push X) → 상담함 상단 `team-alert` 카드 (출발/사진 알림)
+7. `/api/team/photos?member_id=&token=` 로 고객상세 "현장 사진" 영역에 팀원 사진 동기화
+
+**[Phase 3 — 만료 관리]**
+8. 시공일 변경 시 `/api/team/schedule-snapshot` 재호출 → 만료 자동 갱신
+9. 시공 끝난 후 자정 만료된 토큰은 자동으로 사용자에게 404/410 표시
+
+### 다음 작업 (서버 — 같은 sprint)
+- 99k 티어 사용자가 실제 있을 때 (~7월) Phase B: 사진 디스크 저장 (~/ringgo-server/team_photos/) + 사진 URL 응답 (현재는 base64 1MB 컷)

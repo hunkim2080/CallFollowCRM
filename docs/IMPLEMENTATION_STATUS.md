@@ -35,7 +35,7 @@
 - 🔶 통화 요약 카드 — 서버 `POST /api/call-summary` 신설 (Haiku, 2026-06-02). 안드로이드 측 에이닷 공유 인텐트 + CallSummaryEntity 채우기 작업 대기.
 - ✅ **정기문자 발송 대기 알림** — `RecurringDueCard`→`RecurringDueScreen`. 시공 후 N일 된 고객 정기문자를 홈 카드+목록으로. [보내기]=채팅 본문 prefill, [넘기기]=회차 제외. 포그라운드 계산.
 - ✅ **견적 회신 리마인드** — `EstimateFollowupScreen`(홈 📋 카드). 채팅 견적 작성/공유 시 `ESTIMATE_SENT` 기록 → N일 후 시공일 미등록이면 "한 번 더 여쭤볼까요?". `EstimateFollowupCalc`(테스트 6). DB 변경 0. (접수서 작성 리마인드는 시공접수서=서버 후)
-- ⬜ 팀원 현장사진 알림 (팀 관리=서버 후)
+- 🔶 팀원 현장사진 알림 — 서버 §20 완료 (`POST /api/team/event/photo`, `GET /api/team/photos`, `GET /api/team/events` polling). 안드로이드 측 `team-alert` 카드 hookup 대기.
 
 ## 채팅
 - ✅ 메시지 타임라인 + 사진 뷰어 — `ChatScreen`
@@ -80,7 +80,7 @@
 - ✅ **자동문자(부재중/D-1/도착)** — 부재중 `AutoReplyScheduler` + 시공 D-1·도착 안내 `ScheduleReminderScreen`(홈 카드→목록, 보내기=채팅 prefill). `ScheduleReminderCalc`(테스트 7). 로그는 recurring_message_log 음수 sentinel 재사용(DB 변경 0).
 - ✅ **비즈니스 리포트** — `ReportScreen`(설정). 기간별 매출(받은 돈)·시공 현장·새 고객·현재 미수금. 기존 데이터 집계.
 - ✅ **정기문자 예약** — `RecurringMessagesScreen`(설정→정기문자, DB v25 `recurring_messages`). 대상(시공전체/카테고리)·주기(N일)·시각·문구({고객명}) 규칙 CRUD + 켜기/끄기. 자동발송 X(확인 후). `RecurringDueCalc`(테스트 7).
-- ⬜ 팀 관리(99k, 서버 필요)
+- 🔶 팀 관리(99k) — 서버 §20 완료 (2026-06-02). 역할 2개(대표/팀원, 프로토 1:1). 9 API + URL HTML 화면(프로토 openMemberView 1:1, 출발/사진/네비게이션 전부). 안드로이드 측 메뉴+sheet+polling+assigned_member_id 컬럼 작업 대기.
 
 ## 온보딩
 - ✅ 권한 요청 화면 — `OnboardingPermissionScreen`

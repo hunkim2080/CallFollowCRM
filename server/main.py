@@ -286,6 +286,89 @@ def db_init() -> None:
             "CREATE INDEX IF NOT EXISTS idx_intake_device "
             "ON intake_forms(device_id, issued_at_ms)"
         )
+        # §20 — 팀 관리 (99k 티어, 프로토 1:1 — 대표/팀원 2개 역할)
+        # 프로토 design-preview/ringgo-redesign.html 의 team 배열·openMemberView·
+        # teamPhotoAlert·departed 흐름을 서버에서 재현. 팀원은 앱 설치 X, URL 링크로.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS team_members (
+                member_id       TEXT PRIMARY KEY,        -- 'tm_' + 8자 base62
+                owner_phone     TEXT NOT NULL,           -- 사장님 phone (팀 식별)
+                phone           TEXT NOT NULL,           -- 팀원 phone (대표면 == owner_phone)
+                name            TEXT NOT NULL,           -- 표시명 ('김기사' 등)
+                role            TEXT NOT NULL,           -- 'owner' | 'worker' (프로토 '대표'/'팀원')
+                tint            INTEGER NOT NULL DEFAULT 0,  -- 아바타 색
+                created_at_ms   INTEGER NOT NULL,
+                removed_at_ms   INTEGER,                 -- NULL=활성
+                UNIQUE(owner_phone, phone)
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_team_members_owner "
+            "ON team_members(owner_phone, removed_at_ms)"
+        )
+        # 팀원 화면 URL 토큰 (접수서와 동일 패턴, 시공 다음날 자정 만료)
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS team_member_links (
+                token                   TEXT PRIMARY KEY,
+                member_id               TEXT NOT NULL,
+                owner_phone             TEXT NOT NULL,
+                issued_at_ms            INTEGER NOT NULL,
+                expires_at_ms           INTEGER NOT NULL,
+                schedule_snapshot_json  TEXT,            -- 사장님이 박은 일정 데이터
+                last_accessed_ms        INTEGER,
+                FOREIGN KEY (member_id) REFERENCES team_members(member_id)
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_team_links_member "
+            "ON team_member_links(member_id, issued_at_ms)"
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_team_links_owner "
+            "ON team_member_links(owner_phone, issued_at_ms)"
+        )
+        # 팀원 이벤트 — 출발/사진/도착 (사장님 polling 으로 알림 카드 띄움)
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS team_member_events (
+                event_id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                token           TEXT,
+                member_id       TEXT NOT NULL,
+                owner_phone     TEXT NOT NULL,
+                event_type      TEXT NOT NULL,           -- 'departed'|'photo'|'arrived'
+                payload_json    TEXT,
+                created_at_ms   INTEGER NOT NULL
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_team_events_owner_created "
+            "ON team_member_events(owner_phone, created_at_ms)"
+        )
+        # 팀원 사진 업로드 (시공 전/중/후/추가)
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS team_site_photos (
+                photo_id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                token           TEXT,
+                member_id       TEXT NOT NULL,
+                owner_phone     TEXT NOT NULL,
+                label           TEXT,                    -- '시공 전'|'시공 중'|'시공 후'|'추가 사진'
+                image_data_url  TEXT,                    -- base64 (작은 썸네일)
+                image_path      TEXT,                    -- 큰 사진은 디스크 경로
+                note            TEXT,
+                uploaded_at_ms  INTEGER NOT NULL
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_team_photos_owner_uploaded "
+            "ON team_site_photos(owner_phone, uploaded_at_ms)"
+        )
         # §19 patch — 프로토타입 openQuote 1:1: 시공일·견적·계약금은 issue 때 받아서
         # 폼에 "표시만". 고객은 전화·주소·메모·유입경로만 입력.
         for col_def in [
@@ -5013,6 +5096,886 @@ async def intake_form_page(token: str) -> HTMLResponse:
         items_html=items_html,
         total_man_html=_html.escape(str(int(data["total_man"] or 0))),
         deposit_html=deposit_html,
+        token_js=_html.escape(token, quote=True),
+    )
+    return HTMLResponse(content=page)
+
+
+# ============================================================================
+# §20 — 팀 관리 (99k 티어) — 프로토 1:1
+# ─────────────────────────────────────────────────────────────────────────────
+# 정답 스펙: design-preview/ringgo-redesign.html 의
+#   - team 배열 (line 1597~), openAddMember/renderTeam (line 2371~),
+#   - openMemberView (line 2391~) "내 일정" URL 화면,
+#   - memberPhotos/teamPhotoAlert (line 2417~) 팀원 사진 업로드,
+#   - departed 출발 알림 (line 2390~).
+#
+# 핵심 결정 (사장님):
+# - 역할 2개: 'owner' (대표) / 'worker' (팀원). 프로토 그대로.
+# - 팀원 화면 = URL 링크 (접수서 패턴). 앱 설치 X. 시공 다음날 자정 만료.
+# - 현장 배정 = 안드로이드 측 customers 테이블의 assigned_member_phone (서버는 신호만).
+# - 99k 티어 (subscribers.plan_tier == 'team_99k') 검증.
+# - 자동 SMS 발송 X — 초대 URL 은 발급만, 발송은 앱 ▶.
+# ============================================================================
+
+TEAM_LINK_TOKEN_LEN = 10  # 팀원 링크는 좀 더 긴 토큰
+TEAM_TIER_NAMES = {"team_99k", "team", "team_99000"}  # 어느 식별자든 통과
+
+
+def _generate_team_token() -> str:
+    """팀원 링크용 10자 base62 토큰 (INTAKE_TOKEN_ALPHABET 재사용)."""
+    import secrets
+    for _ in range(8):
+        tok = "".join(secrets.choice(INTAKE_TOKEN_ALPHABET) for _ in range(TEAM_LINK_TOKEN_LEN))
+        with db_conn() as con:
+            row = con.execute(
+                "SELECT 1 FROM team_member_links WHERE token = ? LIMIT 1", (tok,)
+            ).fetchone()
+            if not row:
+                return tok
+    raise HTTPException(500, "팀 토큰 생성 실패")
+
+
+def _generate_member_id() -> str:
+    """팀원 ID 'tm_' + 8자 base62."""
+    import secrets
+    for _ in range(8):
+        mid = "tm_" + "".join(secrets.choice(INTAKE_TOKEN_ALPHABET) for _ in range(8))
+        with db_conn() as con:
+            row = con.execute(
+                "SELECT 1 FROM team_members WHERE member_id = ?", (mid,)
+            ).fetchone()
+            if not row:
+                return mid
+    raise HTTPException(500, "팀원 ID 생성 실패")
+
+
+def _check_team_tier(owner_phone: str) -> None:
+    """subscribers 의 plan_tier 가 team_99k 인지 검증. 미가입은 403.
+
+    개발용 우회: ENV `TEAM_TIER_BYPASS=1` 이면 무조건 통과 (사장님 테스트 편의).
+    """
+    if os.environ.get("TEAM_TIER_BYPASS") == "1":
+        return
+    if not owner_phone:
+        raise HTTPException(403, "owner_phone 필수")
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT plan_tier, churned_at_ms FROM subscribers WHERE phone = ?",
+            (owner_phone,),
+        ).fetchone()
+    if not row:
+        raise HTTPException(
+            403,
+            "subscribers 에 등록되지 않은 사장님입니다. 99k 가입 후 다시 시도해 주세요."
+        )
+    plan_tier, churned_at = row
+    if churned_at is not None:
+        raise HTTPException(403, "구독이 해지된 사장님입니다.")
+    if plan_tier not in TEAM_TIER_NAMES:
+        raise HTTPException(403, f"99k(팀) 요금제 필요. 현재 tier: {plan_tier}")
+
+
+def _team_link_expiry_default(scheduled_at_ms: int = 0) -> int:
+    """URL 만료 시각 — 시공일이 박혀있으면 시공 다음날 자정(KST), 아니면 30일 후."""
+    now = _now_ms()
+    if scheduled_at_ms and scheduled_at_ms > 0:
+        # 시공 다음날 자정 KST = 시공일 (KST 자정) + 2일 (KST 23:59:59)
+        import datetime
+        dt = datetime.datetime.utcfromtimestamp(scheduled_at_ms / 1000) + datetime.timedelta(hours=9)
+        # 시공일 다음날 자정
+        midnight_kst = (dt.replace(hour=0, minute=0, second=0, microsecond=0)
+                        + datetime.timedelta(days=2))
+        # KST → UTC ms
+        return int((midnight_kst - datetime.timedelta(hours=9)).timestamp() * 1000)
+    return now + 30 * 24 * 60 * 60 * 1000  # 30일
+
+
+# ─── 모델 (Pydantic) ───
+
+class TeamInviteRequest(BaseModel):
+    owner_phone: str                       # 사장님 phone
+    name: str                              # 팀원 이름 (예: '김기사')
+    phone: str                             # 팀원 phone
+    role: str = "worker"                   # 'owner' | 'worker' (프로토에서 사장님 자신은 명시 추가 없이도 OK)
+    tint: int = 0
+
+
+class TeamMemberOut(BaseModel):
+    member_id: str
+    owner_phone: str
+    phone: str
+    name: str
+    role: str
+    tint: int
+    created_at_ms: int
+
+
+class TeamScheduleSnapshot(BaseModel):
+    """사장님이 박는 팀원별 일정 데이터 (URL 화면에 표시될 내용)."""
+    member_id: str
+    items: list[dict] = Field(default_factory=list)
+    # 각 item: {when, customer_label, addr, time, work_summary, memo,
+    #          customer_phone_masked, days, is_today?}
+
+
+class TeamDepartEventRequest(BaseModel):
+    token: str
+    departed_at_ms: Optional[int] = None       # default = now
+
+
+class TeamArriveEventRequest(BaseModel):
+    token: str
+    arrived_at_ms: Optional[int] = None
+
+
+class TeamPhotoUploadRequest(BaseModel):
+    token: str
+    label: Optional[str] = None                # '시공 전'|'시공 중'|'시공 후'|'추가 사진'
+    image_data_url: Optional[str] = None       # base64 (작은 사진)
+    note: Optional[str] = None
+
+
+# ─── API 1: 팀원 초대 (이름 + 전화 + URL 발급) ───
+# 프로토 openAddMember/addMemberSubmit 1:1 — 자동발송 X, URL 만 반환 → 앱이 SMS prefill.
+
+@app.post("/api/team/member/invite")
+async def team_member_invite(req: TeamInviteRequest) -> dict:
+    """팀원 추가 + URL 토큰 발급.
+
+    응답: {member_id, name, role, token, url, expires_at_ms, sms_draft}
+    sms_draft = 사장님이 SMS 본문 prefill 용 문구 (자동발송 X).
+    """
+    _check_team_tier(req.owner_phone)
+    name = (req.name or "").strip()
+    phone = (req.phone or "").strip()
+    if not name or not phone:
+        raise HTTPException(400, "name, phone 필수")
+    role = req.role if req.role in ("owner", "worker") else "worker"
+
+    now = _now_ms()
+    # 이미 같은 phone 으로 등록된 팀원 있으면 재활용 (removed_at_ms 가 null 인 경우)
+    with db_conn() as con:
+        existing = con.execute(
+            "SELECT member_id FROM team_members WHERE owner_phone = ? AND phone = ? "
+            "AND removed_at_ms IS NULL",
+            (req.owner_phone, phone),
+        ).fetchone()
+        if existing:
+            member_id = existing[0]
+        else:
+            member_id = _generate_member_id()
+            con.execute(
+                """
+                INSERT INTO team_members (member_id, owner_phone, phone, name, role,
+                                          tint, created_at_ms, removed_at_ms)
+                VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
+                """,
+                (member_id, req.owner_phone, phone, name, role, int(req.tint or 0), now),
+            )
+        # 토큰 발급 (30일 default — 일정이 박힐 때 refresh-link 로 시공 다음날 자정 재발급)
+        token = _generate_team_token()
+        expires_at = _team_link_expiry_default(0)
+        con.execute(
+            """
+            INSERT INTO team_member_links
+                (token, member_id, owner_phone, issued_at_ms, expires_at_ms,
+                 schedule_snapshot_json, last_accessed_ms)
+            VALUES (?, ?, ?, ?, ?, NULL, NULL)
+            """,
+            (token, member_id, req.owner_phone, now, expires_at),
+        )
+        con.commit()
+    url = f"{INTAKE_PUBLIC_BASE_URL.rstrip('/')}/team/member/{token}"
+    sms_draft = (
+        f"{name}님 안녕하세요, RING-GO 팀원 화면 링크예요.\n"
+        f"앱 설치 없이 바로 열리고, 배정된 현장과 주소만 보여요.\n{url}"
+    )
+    print(f"[team/invite] {req.owner_phone} → member={member_id} ({name}) token={token}")
+    return {
+        "member_id": member_id,
+        "name": name,
+        "role": role,
+        "token": token,
+        "url": url,
+        "issued_at_ms": now,
+        "expires_at_ms": expires_at,
+        "sms_draft": sms_draft,
+    }
+
+
+# ─── API 2: 팀원 목록 ───
+
+@app.get("/api/team/members")
+async def team_member_list(owner_phone: str, include_removed: bool = False) -> dict:
+    """사장님 팀원 목록 (프로토 renderTeam).
+
+    응답: {items: [{member_id, name, role, tint, phone, created_at_ms, ...}]}
+    """
+    if not owner_phone:
+        raise HTTPException(400, "owner_phone 필수")
+    where = "WHERE owner_phone = ?"
+    if not include_removed:
+        where += " AND removed_at_ms IS NULL"
+    with db_conn() as con:
+        rows = con.execute(
+            f"SELECT member_id, owner_phone, phone, name, role, tint, "
+            f"created_at_ms, removed_at_ms "
+            f"FROM team_members {where} ORDER BY created_at_ms ASC",
+            (owner_phone,),
+        ).fetchall()
+    items = [
+        {
+            "member_id": r[0], "owner_phone": r[1], "phone": r[2], "name": r[3],
+            "role": r[4], "tint": r[5], "created_at_ms": r[6],
+            "removed_at_ms": r[7],
+        }
+        for r in rows
+    ]
+    return {"items": items, "count": len(items)}
+
+
+# ─── API 3: 팀원 제외 (프로토 removeMember — 링크 차단) ───
+
+@app.delete("/api/team/member/{member_id}")
+async def team_member_remove(member_id: str, owner_phone: str) -> dict:
+    """팀원 제외. 토큰들도 만료시킴 (URL 차단)."""
+    if not owner_phone:
+        raise HTTPException(400, "owner_phone 필수")
+    now = _now_ms()
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT owner_phone, name FROM team_members WHERE member_id = ?",
+            (member_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "팀원 없음")
+        if row[0] != owner_phone:
+            raise HTTPException(403, "다른 사장님의 팀원입니다")
+        con.execute(
+            "UPDATE team_members SET removed_at_ms = ? WHERE member_id = ?",
+            (now, member_id),
+        )
+        # 모든 토큰 즉시 만료
+        con.execute(
+            "UPDATE team_member_links SET expires_at_ms = ? "
+            "WHERE member_id = ? AND expires_at_ms > ?",
+            (now, member_id, now),
+        )
+        con.commit()
+    return {"ok": True, "member_id": member_id, "removed_at_ms": now}
+
+
+# ─── API 4: 사장님이 팀원 일정 snapshot 갱신 ───
+# 안드로이드는 배정 정보가 바뀔 때마다 이걸 호출. URL 화면에 표시될 내용 박는다.
+
+@app.post("/api/team/schedule-snapshot")
+async def team_schedule_snapshot(req: TeamScheduleSnapshot) -> dict:
+    """팀원의 현재 활성 토큰에 일정 데이터 박음.
+
+    items 예: [
+      {when:'오늘', customer_label:'강동 천호동 현장',
+       time:'09:00', addr:'서울 강동구 ...', work_summary:'욕실 2곳 줄눈 + 코킹',
+       memo:'현관 비번 1234#', days:1, is_today:true,
+       scheduled_at_ms: 1779840000000}
+    ]
+    """
+    with db_conn() as con:
+        # 가장 최근 활성 토큰
+        row = con.execute(
+            "SELECT token FROM team_member_links WHERE member_id = ? "
+            "AND expires_at_ms > ? ORDER BY issued_at_ms DESC LIMIT 1",
+            (req.member_id, _now_ms()),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "활성 토큰 없음 — invite 또는 refresh-link 호출")
+        token = row[0]
+        # 첫 item 의 scheduled_at_ms → 만료 자동 갱신 (시공 다음날 자정)
+        scheduled_at_ms = 0
+        for it in (req.items or []):
+            v = it.get("scheduled_at_ms") if isinstance(it, dict) else None
+            if v and (not scheduled_at_ms or v > scheduled_at_ms):
+                scheduled_at_ms = int(v)
+        new_expiry = _team_link_expiry_default(scheduled_at_ms)
+        con.execute(
+            "UPDATE team_member_links SET schedule_snapshot_json = ?, expires_at_ms = ? "
+            "WHERE token = ?",
+            (json.dumps(req.items, ensure_ascii=False), new_expiry, token),
+        )
+        con.commit()
+    return {"ok": True, "token": token, "expires_at_ms": new_expiry,
+            "items_count": len(req.items or [])}
+
+
+# ─── API 5: 사장님 polling — 팀원 이벤트 (출발/사진/도착) ───
+
+@app.get("/api/team/events")
+async def team_events_list(owner_phone: str, since_ms: int = 0, limit: int = 30) -> dict:
+    """팀원이 발생시킨 이벤트들 (출발/사진/도착) 시간순.
+
+    응답: {events: [{event_id, member_id, member_name, event_type, payload, created_at_ms}]}
+    """
+    if not owner_phone:
+        raise HTTPException(400, "owner_phone 필수")
+    limit = max(1, min(limit, 200))
+    with db_conn() as con:
+        rows = con.execute(
+            """
+            SELECT e.event_id, e.member_id, m.name, e.event_type, e.payload_json, e.created_at_ms
+            FROM team_member_events e
+            LEFT JOIN team_members m ON m.member_id = e.member_id
+            WHERE e.owner_phone = ? AND e.created_at_ms > ?
+            ORDER BY e.created_at_ms DESC LIMIT ?
+            """,
+            (owner_phone, since_ms, limit),
+        ).fetchall()
+    events = []
+    for r in rows:
+        payload = None
+        if r[4]:
+            try:
+                payload = json.loads(r[4])
+            except json.JSONDecodeError:
+                payload = None
+        events.append({
+            "event_id": r[0],
+            "member_id": r[1],
+            "member_name": r[2],
+            "event_type": r[3],
+            "payload": payload,
+            "created_at_ms": r[5],
+        })
+    return {"events": events, "count": len(events)}
+
+
+# ─── API 6: 팀원 [출발] ───
+# 프로토 doDepart() — 팀원이 URL 화면에서 [출발] 누름.
+
+@app.post("/api/team/event/depart")
+async def team_event_depart(req: TeamDepartEventRequest) -> dict:
+    """팀원이 [출발] 누름. 사장님 측 알림 카드 트리거.
+
+    응답: {ok, event_id, departed_at_ms}
+    """
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT member_id, owner_phone, expires_at_ms, schedule_snapshot_json "
+            "FROM team_member_links WHERE token = ?",
+            (req.token,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "유효하지 않은 토큰")
+        member_id, owner_phone, expires_at, snap = row
+        now = _now_ms()
+        if now > expires_at:
+            raise HTTPException(410, "만료된 링크")
+        departed_at = int(req.departed_at_ms or now)
+        # snapshot 의 첫 today item 의 customer_label·addr 끌어와 payload 에
+        payload = {"departed_at_ms": departed_at}
+        if snap:
+            try:
+                items = json.loads(snap) or []
+                today = next((it for it in items if it.get("is_today")), None) or (items[0] if items else None)
+                if today:
+                    payload["customer_label"] = today.get("customer_label")
+                    payload["addr"] = today.get("addr")
+                    payload["time"] = today.get("time")
+            except json.JSONDecodeError:
+                pass
+        cur = con.execute(
+            """
+            INSERT INTO team_member_events
+                (token, member_id, owner_phone, event_type, payload_json, created_at_ms)
+            VALUES (?, ?, ?, 'departed', ?, ?)
+            """,
+            (req.token, member_id, owner_phone,
+             json.dumps(payload, ensure_ascii=False), now),
+        )
+        event_id = cur.lastrowid
+        con.execute(
+            "UPDATE team_member_links SET last_accessed_ms = ? WHERE token = ?",
+            (now, req.token),
+        )
+        con.commit()
+    print(f"[team/depart] token={req.token} member={member_id} → event_id={event_id}")
+    return {"ok": True, "event_id": event_id, "departed_at_ms": departed_at}
+
+
+# ─── API 7: 팀원 [도착] ───
+
+@app.post("/api/team/event/arrive")
+async def team_event_arrive(req: TeamArriveEventRequest) -> dict:
+    """팀원이 현장 도착. 출발과 같은 패턴."""
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT member_id, owner_phone, expires_at_ms "
+            "FROM team_member_links WHERE token = ?",
+            (req.token,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "유효하지 않은 토큰")
+        member_id, owner_phone, expires_at = row
+        now = _now_ms()
+        if now > expires_at:
+            raise HTTPException(410, "만료된 링크")
+        arrived_at = int(req.arrived_at_ms or now)
+        cur = con.execute(
+            """
+            INSERT INTO team_member_events
+                (token, member_id, owner_phone, event_type, payload_json, created_at_ms)
+            VALUES (?, ?, ?, 'arrived', ?, ?)
+            """,
+            (req.token, member_id, owner_phone,
+             json.dumps({"arrived_at_ms": arrived_at}, ensure_ascii=False), now),
+        )
+        event_id = cur.lastrowid
+        con.commit()
+    return {"ok": True, "event_id": event_id, "arrived_at_ms": arrived_at}
+
+
+# ─── API 8: 팀원 사진 업로드 ───
+# 프로토 memberUpload() — 시공 전/중/후 라벨 + base64 이미지.
+
+@app.post("/api/team/event/photo")
+async def team_event_photo(req: TeamPhotoUploadRequest) -> dict:
+    """팀원이 현장 사진 업로드. label = 시공 전/중/후/추가.
+
+    image_data_url 은 base64 data URL (작은 사진만, 200KB 컷 권장).
+    응답: {ok, photo_id, event_id}
+    """
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT member_id, owner_phone, expires_at_ms "
+            "FROM team_member_links WHERE token = ?",
+            (req.token,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "유효하지 않은 토큰")
+        member_id, owner_phone, expires_at = row
+        now = _now_ms()
+        if now > expires_at:
+            raise HTTPException(410, "만료된 링크")
+        # base64 안전 컷 (1MB 초과 시 거부 — 디스크 저장은 Phase B)
+        data_url = req.image_data_url or ""
+        if data_url and len(data_url) > 1_400_000:  # 약 1MB base64
+            raise HTTPException(413, "사진 용량 초과 (1MB 이하만)")
+        label = (req.label or "").strip() or "추가 사진"
+        cur = con.execute(
+            """
+            INSERT INTO team_site_photos
+                (token, member_id, owner_phone, label, image_data_url, image_path,
+                 note, uploaded_at_ms)
+            VALUES (?, ?, ?, ?, ?, NULL, ?, ?)
+            """,
+            (req.token, member_id, owner_phone, label, data_url or None,
+             (req.note or "").strip() or None, now),
+        )
+        photo_id = cur.lastrowid
+        # 동시에 event 로도 기록 (사장님 polling 알림용)
+        cur2 = con.execute(
+            """
+            INSERT INTO team_member_events
+                (token, member_id, owner_phone, event_type, payload_json, created_at_ms)
+            VALUES (?, ?, ?, 'photo', ?, ?)
+            """,
+            (req.token, member_id, owner_phone,
+             json.dumps({"photo_id": photo_id, "label": label}, ensure_ascii=False), now),
+        )
+        event_id = cur2.lastrowid
+        con.commit()
+    return {"ok": True, "photo_id": photo_id, "event_id": event_id, "label": label}
+
+
+# ─── API 9: 사진 목록 (사장님이 봄) ───
+
+@app.get("/api/team/photos")
+async def team_photos_list(
+    owner_phone: str,
+    member_id: Optional[str] = None,
+    since_ms: int = 0,
+    limit: int = 50,
+) -> dict:
+    """사장님 측에서 팀원이 올린 사진 조회 (프로토 openTeamPhotoView)."""
+    if not owner_phone:
+        raise HTTPException(400, "owner_phone 필수")
+    limit = max(1, min(limit, 200))
+    where = "WHERE owner_phone = ? AND uploaded_at_ms > ?"
+    params: list = [owner_phone, since_ms]
+    if member_id:
+        where += " AND member_id = ?"
+        params.append(member_id)
+    with db_conn() as con:
+        rows = con.execute(
+            f"SELECT photo_id, member_id, label, image_data_url, image_path, "
+            f"note, uploaded_at_ms FROM team_site_photos {where} "
+            f"ORDER BY uploaded_at_ms DESC LIMIT ?",
+            [*params, limit],
+        ).fetchall()
+    photos = [
+        {
+            "photo_id": r[0], "member_id": r[1], "label": r[2],
+            "image_data_url": r[3], "image_path": r[4],
+            "note": r[5], "uploaded_at_ms": r[6],
+        }
+        for r in rows
+    ]
+    return {"photos": photos, "count": len(photos)}
+
+
+# ─── URL HTML 화면 (프로토 openMemberView 1:1) ───
+# 팀원 폰 브라우저에서 /team/member/{token} 열면 보는 화면.
+# "🔗 링크로 열린 화면 (앱 설치 불필요) / 대표님이 배정한 일정만 보여요"
+
+TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=yes,maximum-scale=5">
+<title>{member_name_html} · 내 일정</title>
+<style>
+  :root {{
+    --blue:#3182F6; --blue-dark:#1B64DA; --blue-tint:#EEF4FF;
+    --bg:#F4F5F7; --card:#FFFFFF;
+    --t1:#0B0F19; --t2:#5A6472; --t3:#9AA3AF; --line:#EEF0F3;
+    --error:#F0436A; --success:#16C172;
+    --shadow:0 1px 3px rgba(0,0,0,.04);
+  }}
+  * {{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }}
+  html, body {{ margin:0; padding:0; background:var(--bg); }}
+  body {{
+    font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+    color:var(--t1); line-height:1.5;
+  }}
+  .wrap {{ max-width:480px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column; }}
+
+  .appbar {{ display:flex; align-items:center; padding:14px 18px 12px; background:#fff; border-bottom:1px solid var(--line); }}
+  .appbar .title {{ font-size:15px; font-weight:800; color:var(--t1); }}
+  .appbar .me {{ margin-left:auto; font-size:11.5px; font-weight:700; color:var(--t3); display:inline-flex; align-items:center; gap:5px; }}
+  .appbar .me .d {{ width:7px; height:7px; border-radius:50%; background:var(--success); }}
+
+  .mv-note {{ background:#FFF8E1; color:#7A5A00; font-size:12px; padding:10px 16px; line-height:1.5; }}
+  .mv-note b {{ color:var(--blue-dark); }}
+
+  .scroll {{ flex:1; min-height:0; overflow-y:auto; padding:14px 16px 16px; }}
+  .sec-sub {{ font-size:11.5px; font-weight:800; color:var(--t3); margin:14px 2px 8px; letter-spacing:.02em; }}
+  .sec-sub:first-child {{ margin-top:4px; }}
+
+  .card {{ background:#fff; border-radius:14px; padding:15px; margin-bottom:10px; box-shadow:var(--shadow); }}
+  .card .row {{ display:flex; align-items:center; gap:8px; }}
+  .card .hd {{ width:8px; height:8px; border-radius:50%; background:var(--blue); flex-shrink:0; }}
+  .card .hd.hot {{ background:var(--error); }}
+  .card .name {{ font-size:15px; font-weight:800; color:var(--t1); }}
+  .card .time {{ margin-left:auto; font-size:12.5px; font-weight:800; color:var(--blue); background:var(--blue-tint); padding:3px 9px; border-radius:8px; }}
+  .card .preview {{ font-size:13.5px; color:var(--t2); margin-top:9px; line-height:1.55; }}
+  .card .work {{ font-size:13px; color:var(--t2); margin-top:8px; }}
+
+  .hbtn {{
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    background:var(--bg); color:var(--blue); border:0; border-radius:11px;
+    padding:11px 14px; font-size:13.5px; font-weight:800; font-family:inherit;
+    cursor:pointer; min-height:42px;
+  }}
+  .mv-depart {{
+    flex:1; background:var(--blue); color:#fff; border:0; border-radius:11px;
+    padding:12px; font-size:14.5px; font-weight:800; font-family:inherit; cursor:pointer;
+    display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:46px;
+  }}
+  .mv-depart:disabled {{ background:#9AA3AF; cursor:default; }}
+  .mv-depart.done {{ background:var(--success); }}
+  .nav-chip {{
+    background:#fff; border:1.5px solid var(--line); border-radius:999px;
+    padding:8px 14px; font-size:12.5px; font-weight:700; color:var(--t1);
+    font-family:inherit; cursor:pointer; min-height:38px;
+  }}
+  .nav-chip:active {{ background:var(--blue-tint); border-color:var(--blue); color:var(--blue); }}
+
+  .mv-photos {{ background:#fff; border-radius:14px; padding:14px; margin-top:10px; box-shadow:var(--shadow); }}
+  .mv-ph-top {{ display:flex; align-items:center; gap:7px; font-size:13.5px; font-weight:800; color:var(--t1); }}
+  .mv-ph-top .mv-ph-sub {{ margin-left:auto; font-size:11.5px; font-weight:700; color:var(--t3); }}
+  .ph-help {{ font-size:11.5px; color:var(--t3); margin-top:5px; line-height:1.5; }}
+  .photo-grid {{ display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-top:11px; }}
+  .photo-thumb {{
+    aspect-ratio:1; border-radius:10px; background:var(--bg);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    font-size:11px; color:var(--t3); cursor:pointer; position:relative;
+    border:1.5px dashed var(--line);
+  }}
+  .photo-thumb.uploaded {{ background:#E7F8EF; border:0; color:var(--success); font-weight:800; }}
+  .photo-thumb .pl {{ font-size:11px; font-weight:800; }}
+  .photo-thumb .ph-sent {{ position:absolute; top:6px; right:6px; font-size:11px; }}
+
+  .empty {{ font-size:13px; color:var(--t3); text-align:center; padding:30px 16px; line-height:1.6; }}
+
+  .foot-note {{ font-size:12px; color:var(--t3); text-align:center; margin-top:20px; line-height:1.6; }}
+  .foot-link {{ font-size:11.5px; color:var(--t3); text-align:center; margin-top:12px; background:var(--bg); border-radius:10px; padding:9px; }}
+
+  .status-page {{ padding:60px 24px; text-align:center; }}
+  .status-page h2 {{ font-size:22px; font-weight:800; }}
+  .status-page p {{ font-size:14px; color:var(--t2); line-height:1.6; margin-top:10px; }}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="appbar">
+    <div class="title">내 일정</div>
+    <span class="me"><span class="d"></span>{member_name_html}</span>
+  </div>
+
+  <div class="mv-note">
+    🔗 링크로 열린 화면 (앱 설치 불필요)<br>
+    <b>{owner_label_html}</b>이(가) 배정한 일정만 보여요 · 고객 연락처·매출은 안 보여요
+  </div>
+
+  <div class="scroll">
+    {today_block}
+    {next_block}
+    <div class="foot-note">상담·정산·통계·고객정보는 대표님만 봐요.<br>나는 내 현장만 깔끔하게 ✓</div>
+    <div class="foot-link">🔗 이 링크는 {expiry_label_html} 자정에 만료돼요</div>
+  </div>
+
+</div>
+
+<script>
+  var TOKEN = "{token_js}";
+  var DEPARTED = false;
+
+  async function doDepart() {{
+    if (DEPARTED) return;
+    var btn = document.getElementById('mv-depart');
+    btn.disabled = true;
+    btn.textContent = '전송 중...';
+    try {{
+      var resp = await fetch('/api/team/event/depart', {{
+        method:'POST',
+        headers:{{'Content-Type':'application/json'}},
+        body: JSON.stringify({{token: TOKEN}}),
+      }});
+      if (resp.ok) {{
+        DEPARTED = true;
+        btn.classList.add('done');
+        btn.disabled = true;
+        btn.innerHTML = '✓ 출발 알림 보냄';
+      }} else {{
+        var err = await resp.json().catch(function(){{return{{}};}});
+        alert('실패: ' + (err.detail || resp.status));
+        btn.disabled = false;
+        btn.innerHTML = '🚗 출발';
+      }}
+    }} catch (e) {{
+      alert('네트워크 오류');
+      btn.disabled = false;
+      btn.innerHTML = '🚗 출발';
+    }}
+  }}
+
+  function copyAddr() {{
+    var addr = (document.getElementById('today-addr')||{{}}).textContent || '';
+    addr = addr.replace(/^📍\\s*/, '');
+    if (!addr) return;
+    if (navigator.clipboard) navigator.clipboard.writeText(addr);
+    alert('주소 복사됨\\n' + addr);
+  }}
+
+  function openNav(app) {{
+    var addr = (document.getElementById('today-addr')||{{}}).textContent || '';
+    addr = encodeURIComponent(addr.replace(/^📍\\s*/, ''));
+    var url = '';
+    if (app === '카카오맵')   url = 'https://map.kakao.com/?q=' + addr;
+    else if (app === '티맵') url = 'tmap://search?name=' + addr;
+    else                      url = 'https://map.kakao.com/?q=' + addr;
+    window.location.href = url;
+  }}
+
+  async function pickPhoto(label) {{
+    var f = document.createElement('input');
+    f.type = 'file'; f.accept = 'image/*';
+    f.capture = 'environment';
+    f.onchange = async function(e) {{
+      var file = e.target.files && e.target.files[0];
+      if (!file) return;
+      // 압축: 캔버스에 1024px 너비로 리사이즈
+      var dataUrl = await resizeImage(file, 1024, 0.82);
+      var btn = document.getElementById('ph-' + label);
+      if (btn) btn.textContent = '⏳ 전송 중...';
+      try {{
+        var resp = await fetch('/api/team/event/photo', {{
+          method:'POST',
+          headers:{{'Content-Type':'application/json'}},
+          body: JSON.stringify({{token: TOKEN, label: label, image_data_url: dataUrl}}),
+        }});
+        if (resp.ok) {{
+          if (btn) btn.outerHTML = '<div class="photo-thumb uploaded"><span class="ph-sent">✓</span><span class="pl">' + label + '</span></div>';
+        }} else {{
+          var err = await resp.json().catch(function(){{return{{}};}});
+          alert('실패: ' + (err.detail || resp.status));
+          if (btn) btn.textContent = label;
+        }}
+      }} catch (e) {{
+        alert('네트워크 오류');
+      }}
+    }};
+    f.click();
+  }}
+
+  function resizeImage(file, maxW, q) {{
+    return new Promise(function(resolve) {{
+      var img = new Image();
+      img.onload = function() {{
+        var w = img.width, h = img.height;
+        if (w > maxW) {{ h = h * maxW / w; w = maxW; }}
+        var c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(c.toDataURL('image/jpeg', q));
+      }};
+      img.src = URL.createObjectURL(file);
+    }});
+  }}
+</script>
+</body>
+</html>
+"""
+
+
+def _build_today_card_html(item: dict) -> str:
+    """오늘 현장 카드 HTML (프로토 openMemberView 의 card 부분 1:1)."""
+    import html as _html
+    if not item:
+        return '<div class="sec-sub">오늘 현장</div><div class="empty">오늘 배정된 현장이 없어요</div>'
+    name = _html.escape(str(item.get("customer_label") or "현장"))
+    time = _html.escape(str(item.get("time") or "—"))
+    addr = _html.escape(str(item.get("addr") or "주소 미입력"))
+    work = _html.escape(str(item.get("work_summary") or ""))
+    memo = _html.escape(str(item.get("memo") or ""))
+    work_html = ""
+    if work or memo:
+        parts = [p for p in [work, memo] if p]
+        work_html = f'<div class="work">{" · ".join(parts)}</div>'
+    return f'''
+    <div class="sec-sub">오늘 현장</div>
+    <div class="card">
+      <div class="row">
+        <span class="hd hot"></span>
+        <span class="name">{name}</span>
+        <span class="time">{time}</span>
+      </div>
+      <div class="preview" id="today-addr">📍 {addr}</div>
+      {work_html}
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button class="hbtn" onclick="copyAddr()">📋 주소 복사</button>
+        <button class="mv-depart" id="mv-depart" onclick="doDepart()">🚗 출발</button>
+      </div>
+      <div style="display:flex;gap:7px;margin-top:9px;flex-wrap:wrap">
+        <button class="nav-chip" onclick="openNav('카카오맵')">카카오맵</button>
+        <button class="nav-chip" onclick="openNav('카카오내비')">카카오내비</button>
+        <button class="nav-chip" onclick="openNav('티맵')">티맵</button>
+      </div>
+    </div>
+    <div class="mv-photos">
+      <div class="mv-ph-top">📷 현장 사진 올리기<span class="mv-ph-sub">대표님에게 바로 전송</span></div>
+      <div class="ph-help">시공 전·후 사진을 찍어 올리면 대표님 앱에 자동으로 쌓여요.</div>
+      <div class="photo-grid">
+        <div class="photo-thumb" id="ph-시공 전" onclick="pickPhoto('시공 전')">📷<span class="pl">시공 전</span></div>
+        <div class="photo-thumb" id="ph-시공 중" onclick="pickPhoto('시공 중')">📷<span class="pl">시공 중</span></div>
+        <div class="photo-thumb" id="ph-시공 후" onclick="pickPhoto('시공 후')">📷<span class="pl">시공 후</span></div>
+      </div>
+    </div>
+    '''
+
+
+def _build_next_block_html(items: list[dict]) -> str:
+    """다음 일정 블록 (today 제외)."""
+    import html as _html
+    upcoming = [it for it in (items or []) if not it.get("is_today")]
+    if not upcoming:
+        return ""
+    rows = []
+    for it in upcoming[:5]:
+        name = _html.escape(str(it.get("customer_label") or "현장"))
+        when = _html.escape(str(it.get("when") or ""))
+        time = _html.escape(str(it.get("time") or ""))
+        addr = _html.escape(str(it.get("addr") or ""))
+        rows.append(
+            f'<div class="card">'
+            f'<div class="row"><span class="hd"></span><span class="name">{name}</span>'
+            f'<span class="time">{when} {time}</span></div>'
+            f'<div class="preview">📍 {addr}</div></div>'
+        )
+    return '<div class="sec-sub">다음 일정</div>' + "".join(rows)
+
+
+def _expiry_label(expires_at_ms: int) -> str:
+    """epoch ms → '5/31 (일요일)' 형태 (만료 안내 표시용)."""
+    import datetime
+    dt = datetime.datetime.utcfromtimestamp(expires_at_ms / 1000) + datetime.timedelta(hours=9)
+    wn = ["월","화","수","목","금","토","일"]
+    return f"{dt.month}/{dt.day} ({wn[dt.weekday()]}요일)"
+
+
+@app.get("/team/member/{token}", response_class=HTMLResponse)
+async def team_member_page(token: str) -> HTMLResponse:
+    """팀원 브라우저용 화면 (프로토 openMemberView 1:1)."""
+    import html as _html
+    with db_conn() as con:
+        row = con.execute(
+            """
+            SELECT l.member_id, l.owner_phone, l.expires_at_ms,
+                   l.schedule_snapshot_json, m.name, m.removed_at_ms
+            FROM team_member_links l
+            LEFT JOIN team_members m ON m.member_id = l.member_id
+            WHERE l.token = ?
+            """,
+            (token,),
+        ).fetchone()
+    if not row:
+        return HTMLResponse(
+            content="<html><body style='font-family:sans-serif;padding:40px;text-align:center'>"
+                    "<h2 style='color:#F0436A'>❌ 유효하지 않은 링크</h2>"
+                    "<p>대표님께 다시 링크를 받아 주세요.</p></body></html>",
+            status_code=404,
+        )
+    member_id, owner_phone, expires_at, snap_json, member_name, removed_at = row
+    if removed_at is not None:
+        return HTMLResponse(
+            content="<html><body style='font-family:sans-serif;padding:40px;text-align:center'>"
+                    "<h2 style='color:#F0436A'>🔒 링크가 차단되었어요</h2>"
+                    "<p>대표님께 문의해 주세요.</p></body></html>",
+            status_code=410,
+        )
+    now = _now_ms()
+    if now > expires_at:
+        return HTMLResponse(
+            content="<html><body style='font-family:sans-serif;padding:40px;text-align:center'>"
+                    "<h2 style='color:#F0436A'>⌛ 만료된 링크</h2>"
+                    "<p>대표님께 새 링크를 요청해 주세요.</p></body></html>",
+            status_code=410,
+        )
+
+    items = []
+    if snap_json:
+        try:
+            items = json.loads(snap_json) or []
+        except json.JSONDecodeError:
+            items = []
+    today = next((it for it in items if it.get("is_today")), None) or (items[0] if items else None)
+
+    # last_accessed 기록
+    with db_conn() as con:
+        con.execute("UPDATE team_member_links SET last_accessed_ms = ? WHERE token = ?", (now, token))
+        con.commit()
+
+    owner_label = "대표님"
+    biz = _fetch_owner_biz_name(owner_phone)
+    if biz:
+        owner_label = biz + " 대표님"
+
+    page = TEAM_MEMBER_HTML_TEMPLATE.format(
+        member_name_html=_html.escape(member_name or "팀원"),
+        owner_label_html=_html.escape(owner_label),
+        today_block=_build_today_card_html(today),
+        next_block=_build_next_block_html(items),
+        expiry_label_html=_html.escape(_expiry_label(expires_at)),
         token_js=_html.escape(token, quote=True),
     )
     return HTMLResponse(content=page)
