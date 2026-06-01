@@ -116,6 +116,7 @@ fun AppNavHost(
                 onOpenAiMessage = { navController.navigate(Destinations.AI_MESSAGE) },
                 onOpenStyleLearning = { navController.navigate(Destinations.STYLE_LEARNING) },
                 onOpenSettings = { navController.navigate(Destinations.SETTINGS) },
+                onOpenSearch = { navController.navigate(Destinations.SEARCH) },
                 onOpenSettlement = { navController.navigate(Destinations.SETTLEMENT) },
                 onOpenRecurringDue = { navController.navigate(Destinations.RECURRING_DUE) },
                 onOpenScheduleReminder = { navController.navigate(Destinations.SCHEDULE_REMINDER) },
@@ -191,6 +192,16 @@ fun AppNavHost(
         composable(Destinations.STATS) {
             val vm: ReportViewModel = viewModel(factory = viewModelFactory { ReportViewModel(container) })
             StatsScreen(viewModel = vm)
+        }
+
+        composable(Destinations.SEARCH) {
+            val vm: com.detailline.callfollowcrm.presentation.screen.search.SearchViewModel =
+                viewModel(factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.search.SearchViewModel(container) })
+            com.detailline.callfollowcrm.presentation.screen.search.SearchScreen(
+                viewModel = vm,
+                onBack = { navController.popBackStack() },
+                onOpenChat = { phone, customerId -> navController.navigate(Destinations.chat(phone, customerId)) }
+            )
         }
 
         // 2026-05-25: PIPELINE 라우트 폐기 — CustomerStatus enum 제거 + 카테고리 시스템 통일.

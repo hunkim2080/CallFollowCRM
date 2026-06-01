@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material3.SnackbarDuration
@@ -122,6 +123,8 @@ fun HomeScreen(
     onOpenAiMessage: () -> Unit,
     onOpenStyleLearning: () -> Unit,
     onOpenSettings: () -> Unit,
+    /** 상담함 앱바 🔍 → 검색 화면 (2026-06-01 전면 리뉴얼). */
+    onOpenSearch: () -> Unit = {},
     /** 홈 "미수금" 카드 탭 → 정산 화면. 정산 Phase 1 (2026-06-01). */
     onOpenSettlement: () -> Unit,
     /** 홈 "정기문자 보낼 때 됐어요" 카드 탭 → 보낼 정기문자 목록. (2026-06-01) */
@@ -224,6 +227,18 @@ fun HomeScreen(
                         android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
                     }
                 )
+                Spacer(Modifier.width(6.dp))
+                // 프로토 상담함 앱바 🔍 — 흰 원형 아이콘 버튼 → 검색 화면.
+                Box(
+                    Modifier
+                        .size(38.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(Color.White)
+                        .clickable { onOpenSearch() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Search, "검색", tint = TossTextSecondary, modifier = Modifier.size(20.dp))
+                }
             }
         },
         floatingActionButton = {
