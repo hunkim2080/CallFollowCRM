@@ -40,6 +40,7 @@ object Destinations {
     const val SETTLEMENT = "settlement"
     const val STATS = "stats"
     const val SEARCH = "search"
+    const val CUSTOMERS = "customers"
     const val BUSINESS_INFO = "business_info"
     const val NOTEBOOK = "notebook"
     const val REPORT = "report"
