@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -526,6 +527,7 @@ fun HomeScreen(
                     item(key = "waiting-empty") { WaitingEmptyMascot() }
                 } else {
                     items(waiting, key = { "wait-${it.record.id}-${it.record.phoneNumber}" }) { item ->
+                        val suffix = item.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8)
                         // 우→좌 swipe → SpamPhone 영구 마킹 + Snackbar Undo.
                         SpamSwipeBox(
                             onSpam = {
@@ -541,16 +543,36 @@ fun HomeScreen(
                                     }
                                 }
                             },
-                            content = { homeItemRow(item) }
+                            content = {
+                                WaitingCard(
+                                    item = item,
+                                    aiSummary = aiCardSummaries[suffix],
+                                    onOpenChat = { onOpenChat(item.record.phoneNumber, item.customer?.id) },
+                                    onCall = { dialHome(context, item.record.phoneNumber) }
+                                )
+                            }
                         )
                     }
                 }
 
-                // 최근 대화 — sec-sub + recent-row (flat, 날짜 그룹 없음).
+                // 최근 대화 — sec-sub + recent-row (flat, 날짜 그룹 없음, 아바타).
                 if (recent.isNotEmpty()) {
                     item(key = "recent-head") { SecSub("최근 대화") }
-                    items(recent, key = { "recent-${it.record.id}-${it.record.phoneNumber}" }) { item ->
-                        homeItemRow(item)
+                    itemsIndexed(
+                        recent,
+                        key = { _, it -> "recent-${it.record.id}-${it.record.phoneNumber}" }
+                    ) { index, item ->
+                        val suffix = item.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8)
+                        val rowCategory = item.customer?.categoryId?.let { cid ->
+                            categoriesById.firstOrNull { it.id == cid }
+                        }
+                        RecentRow(
+                            item = item,
+                            index = index,
+                            aiSummary = aiCardSummaries[suffix],
+                            category = rowCategory,
+                            onOpenChat = { onOpenChat(item.record.phoneNumber, item.customer?.id) }
+                        )
                     }
                 }
 
@@ -1570,6 +1592,169 @@ private fun SecSub(text: String) {
         color = TossTextSecondary,
         modifier = Modifier.padding(top = 16.dp, bottom = 4.dp, start = 4.dp)
     )
+}
+
+private fun dialHome(context: android.content.Context, phone: String) {
+    runCatching {
+        context.startActivity(
+            android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:$phone"))
+        )
+    }
+}
+
+/**
+ * 프로토 waitingCardHtml — 대기 고객 카드.
+ *   heat 점 + 이름(+신규칩) + 시간 + 전화 + preview(AI 요약) + [답장하기].
+ *   프로토의 "AI 추천 답변 quick-send" 는 앱에선 채팅의 추천 시스템이 담당 → 여기선 preparing 변형([답장하기]→채팅).
+ */
+@Composable
+private fun WaitingCard(
+    item: HomeItem,
+    aiSummary: String?,
+    onOpenChat: () -> Unit,
+    onCall: () -> Unit
+) {
+    val isNew = item.isNewToday
+    val heatColor = when {
+        isNew -> TossBlue
+        else -> when (item.customer?.leadHeat?.lowercase()) {
+            "hot" -> TossError
+            "warm" -> TossWarning
+            "cold" -> Color(0xFFC2C9D2)
+            else -> Color(0xFFC2C9D2)
+        }
+    }
+    val name = item.customer?.name?.takeIf { it.isNotBlank() }
+        ?: PhoneNumberFormatter.format(item.record.phoneNumber)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White)
+            .clickable { onOpenChat() }
+            .padding(16.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(9.dp).clip(androidx.compose.foundation.shape.CircleShape).background(heatColor))
+            Spacer(Modifier.width(10.dp))
+            Text(
+                name,
+                fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false)
+            )
+            if (isNew) {
+                Spacer(Modifier.width(8.dp))
+                Box(Modifier.background(TossBlueSoft, RoundedCornerShape(7.dp)).padding(horizontal = 7.dp, vertical = 2.dp)) {
+                    Text("신규", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            Text(DateTimeUtils.formatShort(item.record.endedAt), fontSize = 12.sp, color = TossTextTertiary)
+            Spacer(Modifier.width(8.dp))
+            Box(
+                Modifier.size(34.dp).clip(androidx.compose.foundation.shape.CircleShape).background(TossGrayBg)
+                    .clickable { onCall() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Call, "전화", tint = TossTextSecondary, modifier = Modifier.size(17.dp))
+            }
+        }
+        if (!aiSummary.isNullOrBlank()) {
+            Spacer(Modifier.height(9.dp))
+            Text(aiSummary, fontSize = 13.5.sp, color = TossTextSecondary, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        }
+        Spacer(Modifier.height(13.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Spacer(Modifier.weight(1f))
+            Box(
+                Modifier
+                    .border(1.5.dp, Color(0xFFDCE7FB), RoundedCornerShape(999.dp))
+                    .clickable { onOpenChat() }
+                    .padding(horizontal = 15.dp, vertical = 8.dp)
+            ) {
+                Text("답장하기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+            }
+        }
+    }
+}
+
+private val AV_TINTS = listOf(
+    Color(0xFFEAF2FE) to TossBlue,
+    Color(0xFFE5F8EE) to Color(0xFF0E9F56),
+    Color(0xFFFEF3E0) to Color(0xFFB7791F),
+    Color(0xFFF1ECFE) to Color(0xFF6B4FD8)
+)
+
+/** 프로토 avatarHtml — 이름 있으면 컬러 이니셜 원, 없으면 회색 사람 아이콘. */
+@Composable
+private fun Avatar(name: String?, index: Int) {
+    if (name.isNullOrBlank()) {
+        Box(
+            Modifier.size(44.dp).clip(androidx.compose.foundation.shape.CircleShape).background(TossGrayBg),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Default.Person, null, tint = TossTextTertiary, modifier = Modifier.size(20.dp))
+        }
+    } else {
+        val (bg, fg) = AV_TINTS[index % AV_TINTS.size]
+        Box(
+            Modifier.size(44.dp).clip(androidx.compose.foundation.shape.CircleShape).background(bg),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(name.trim().first().toString(), color = fg, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
+        }
+    }
+}
+
+/**
+ * 프로토 recentRowHtml — 최근 대화 행. 아바타 + 이름 + 태그 + 시간 + 요약 한 줄.
+ *   (LazyColumn 간격상 흰 카드 형태로 — 프로토는 한 카드 안 연속행, 시각적으로 동등.)
+ */
+@Composable
+private fun RecentRow(
+    item: HomeItem,
+    index: Int,
+    aiSummary: String?,
+    category: com.detailline.callfollowcrm.data.local.entity.CategoryEntity?,
+    onOpenChat: () -> Unit
+) {
+    val name = item.customer?.name?.takeIf { it.isNotBlank() }
+    val title = name ?: PhoneNumberFormatter.format(item.record.phoneNumber)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.White)
+            .clickable { onOpenChat() }
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Avatar(name, index)
+        Spacer(Modifier.width(13.dp))
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                if (category != null) {
+                    Spacer(Modifier.width(7.dp))
+                    val display = if (category.emoji != null) "${category.emoji} ${category.name}" else category.name
+                    Box(Modifier.background(Color(0xFFEAF2FE), RoundedCornerShape(7.dp)).padding(horizontal = 8.dp, vertical = 3.dp)) {
+                        Text(display, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                    }
+                }
+                Spacer(Modifier.weight(1f))
+                Text(DateTimeUtils.formatShort(item.record.endedAt), fontSize = 11.sp, color = TossTextTertiary)
+            }
+            if (!aiSummary.isNullOrBlank()) {
+                Spacer(Modifier.height(3.dp))
+                Text(aiSummary, fontSize = 13.sp, color = TossTextSecondary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
+        }
+    }
 }
 
 /** 프로토 renderWaiting 빈 상태(empty-mascot) — 막내 비서 + 격려 문구. */
