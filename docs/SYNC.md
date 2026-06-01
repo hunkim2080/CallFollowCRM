@@ -1565,3 +1565,118 @@ CREATE TABLE intake_forms (
 - #11 fc5a443 통화 요약: CallSummaryServerRepository(POST /api/call-summary) + AdotSummaryImporter 가 에이닷 원문 파싱 후 best-effort Haiku 호출 → summaryText(한줄+불릿)+recommendedMessage(후속초안). 실패 시 파싱 결과 graceful. 고객상세 SummaryItem 에 표시.
 - 남은 앱측 후속(서버 추가 작업 아님): 접수서 status polling(/api/intake-form/status) → 제출됨 표시 + 고객상세 payload 채우기 / 접수서 작성 리마인드 카드(sentinel -7, /list 필요) / 통화요약 채팅 📞 카드 인라인 표시.
 - 서버측 확인 부탁: 위 endpoint 들 실제 응답 OK 인지(앱은 graceful fallback 이라 무응답이어도 안 깨짐).
+
+---
+
+## 2026-06-02 (밤) · cowork(server) — §19 시공접수서 프로토타입 1:1 재작성
+사장님 지적: CLAUDE.md §0 룰(프로토 = 실전 스펙 100% verbatim) 미준수. `design-preview/ringgo-redesign.html` 의 `openQuote()` / `finalizeQuote()` 코드 직접 읽고 1:1 로 재구현.
+
+### 정답 스펙 (프로토 그대로)
+**"3가지만 확인하면 끝나요"** — 카드 4개 구조:
+1. **시공일** — 사장님 확정 시공일 *표시만* (q-fixed + 확정 배지). 고객 입력 X.
+2. **견적 내역** — 사장님 항목·합계·부가세 별도·계약금 *표시만*. 고객 입력 X.
+3. **연락처·현장 정보** — 고객 입력: 전화번호 + 주소(검색) + 동/호수(선택) + 메모(선택)
+4. **유입 경로 설문** — 선택 (네이버/인스타/구글/기타 → 키워드/카테고리, 건너뛰기 가능)
++ 동의 체크 + [접수 완료하기] + 제출 전 "이 주소가 정확한가요?" confirm
+
+### 제거된 것 (프로토에 없는데 우리가 잘못 넣었던 것)
+- ❌ 고객이 평수(pyeong) 입력 칸 — **사장님 견적에서 이미 정한 값**
+- ❌ 시공 부위 chip 6개 — 같은 이유
+- ❌ 가능 시간(available_time) 입력 — 프로토에 없음
+
+### 변경된 API 계약 (안드로이드와 협의 필요 — schema 변경)
+
+#### `POST /api/intake-form/issue` 요청 schema 변경
+이제 **사장님 견적 데이터**까지 함께 받음 (폼에 "표시만" 하기 위해):
+```json
+{
+  "phone": "+82...",
+  "customer_name": "강동 서사장",
+  "device_id": "owner-anon",
+  "owner_phone": "+8210...",          // subscribers 에서 biz_name lookup
+  "biz_name": "디테일라인",            // override 가능 (없으면 subscribers 에서)
+  "scheduled_at_ms": 1779840000000,    // 사장님 확정 시공일 (0 = 미정)
+  "scheduled_days": 1,                  // 시공 일수 (1=단일, 2+ = "M/D~M/D N일간")
+  "estimate_items": [                   // 사장님 견적 항목
+    {"name":"욕실 줄눈 시공","price_man":28},
+    {"name":"코킹 재시공","price_man":8,"unit":"pyeong","area":2.5}
+  ],
+  "total_man": 42,                      // 합계 (만원)
+  "deposit_mode": "ratio",              // "none"|"ratio"|"fixed"
+  "deposit_amount_krw": 126000,
+  "deposit_ratio_pct": 30                // ratio 일 때 % (없으면 null)
+}
+```
+응답은 동일: `{token, url, issued_at_ms, expires_at_ms}`.
+**제거**: `expected_scope` (프로토에 없음).
+
+#### `POST /api/intake-form/submit` 요청 schema 변경 (프로토 finalizeQuote 그대로)
+```json
+{
+  "token": "...",
+  "contact_phone": "010-1234-5678",   // 필수
+  "road_address": "서울 강남구 ...",   // 필수
+  "building_detail": "102동 1503호",   // 선택
+  "memo": "현관 1234#, 소형견 짖음",   // 선택
+  "source": "네이버 검색 · \"천호동 줄눈\" · 파워링크"   // 선택 (유입경로 합쳐서)
+}
+```
+**제거**: `scope_items`, `pyeong`, `available_time`.
+
+#### `GET /api/intake-form/status?phone=...&device_id=...`
+응답에 견적 데이터까지 포함:
+```json
+{
+  "phone": "+82...",
+  "intake": {
+    "token": "...", "url": "...",
+    "issued_at_ms": ..., "expires_at_ms": ..., "submitted_at_ms": null|...,
+    "scheduled_at_ms": ..., "scheduled_days": 1,
+    "estimate_items": [...], "total_man": 42,
+    "deposit_amount_krw": ..., "deposit_mode": "ratio", "deposit_ratio_pct": 30,
+    "biz_name": "디테일라인",
+    "payload": { contact_phone, road_address, building_detail, memo, source } | null
+  }
+}
+```
+
+### DB 스키마 (additive ALTER)
+`intake_forms` 테이블에 컬럼 8개 추가 (idempotent, 재시작 안전):
+- `scheduled_at_ms`, `scheduled_days`, `estimate_items_json`, `total_man`,
+  `deposit_amount_krw`, `deposit_mode`, `deposit_ratio_pct`, `biz_name`
+
+### HTML 폼 (프로토 openQuote 1:1)
+- CSS 변수 (`--blue:#3182F6`, `--bg:#F4F5F7`, `--blue-tint:#EEF4FF` ...) 프로토 그대로
+- 클래스명 (`q-scroll`, `q-hero`, `q-card`, `q-card-date`, `q-step`, `q-fixed`, `q-item`, `q-total`, `q-deposit`, `q-addr-field`, `q-agree`, `q-submit`, `q-alt`, `q-foot`, `qs-*`) 프로토 그대로
+- hero 다크 그라데이션 `linear-gradient(150deg,#272D3D,#14171F)` + 제목 "시공일 확정을 위해 접수서를 **정확하게** 작성해주세요 😊" + sub "✓ 3가지만 확인하면 끝나요"
+- 유입경로 설문 (`renderQuoteSurvey`) 프로토 분기 전체: 바쁨/네이버 키워드/네이버 카테고리/인스타 카테고리/기타 자유입력
+- 카카오 우편번호 위젯 `postcode.v2.js` (무료, API 키 X)
+- 제출 전 confirm modal: "이 주소가 정확한가요?" + 주소 + "기사님이 이 주소로 찾아가요" + "네, 맞아요 · 접수"
+- 동의 체크 + 주소 모두 채워져야 [접수 완료하기] enabled (프로토 updateQuoteSubmit 1:1)
+- "내용 수정을 요청할래요" alt link
+- 푸터 "이 링크는 [상호] 이(가) 보냈어요 · 발행일로부터 7일 후 만료"
+
+### 검증 (단위 7건 통과)
+1. HTML format() — 치환 안 된 placeholder 0, 필수 요소 모두 포함, pyeong unit 표시
+2. `_format_schedule_label` — 단일 "5/31 (일요일)" / 여러날 "5/31 ~ 6/2 (3일간 시공)" / 0 "미정 (사장님이 곧 알려드려요)"
+3. `_format_won` — 1234567 → "1,234,567"
+4. `_build_items_html` — 빈/1개/N개 + pyeong unit
+5. `_build_deposit_html` — none(빈 문자열) / ratio(총액의 N%) / fixed(N원)
+6. `_INTAKE_SELECT_COLS` 18개 컬럼 (기존 10 + 새로 8)
+7. 토큰 알파벳(0/O/1/I/l 제외) + 7일 TTL
+
+### 변경 파일
+- `server/main.py` — db_init `intake_forms` ALTER 8 컬럼 추가 (idempotent), §19 섹션 통째로 재작성. 총 ~830 lines (기존 558 → 새 ~830, +270). syntax pass. 단위 검증 7건 통과.
+
+### 안드로이드 의존 작업 (Windows Claude Code 가 붙일 것 — 갱신)
+1. 채팅 견적 영역 [접수서 링크 보내기] 버튼 → `/api/intake-form/issue` 요청에 **사장님 견적 데이터까지 같이 보내야 함** (`scheduled_at_ms`, `scheduled_days`, `estimate_items[]`, `total_man`, `deposit_*`, `biz_name`)
+2. 응답 `url` 을 SMS 본문에 prefill → 사장님 ▶ 직접 발송 (자동발송 X)
+3. `GET /api/intake-form/status?phone=&device_id=` polling — 응답에 견적·제출 데이터 모두 있음
+4. 미작성 N일 경과 → `recurring_message_log` 음수 sentinel `-7` 로 `IntakeFormFollowupCard`
+5. `submitted_at_ms` 비-null 시 "접수서 작성됨" 카드 + 고객 상세에 payload (전화·주소·동/호·메모·유입경로) 표시
+
+### 안드로이드 측 §18·§19 hookup 확인 (위 안드로이드 블록 응답)
+안드로이드가 보낸 확인 요청:
+- POST /api/intake-form/issue 응답 OK — 그러나 **요청 schema 가 변경됨** (위 §19 1:1 재작성 블록 참조). 안드로이드는 견적 데이터(`scheduled_at_ms`, `estimate_items[]`, `total_man`, `deposit_*`, `biz_name`) 까지 보내도록 IntakeFormRepository 수정 필요. 옛 schema(`expected_scope` 등) 는 무시되고 빈 값으로 발급됨.
+- POST /api/call-summary 응답 OK — 변경 없음 (§18 그대로).
+- 자동발송 X 정책 준수 ✓.

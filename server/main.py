@@ -286,6 +286,23 @@ def db_init() -> None:
             "CREATE INDEX IF NOT EXISTS idx_intake_device "
             "ON intake_forms(device_id, issued_at_ms)"
         )
+        # §19 patch — 프로토타입 openQuote 1:1: 시공일·견적·계약금은 issue 때 받아서
+        # 폼에 "표시만". 고객은 전화·주소·메모·유입경로만 입력.
+        for col_def in [
+            "scheduled_at_ms INTEGER",       # 사장님 정한 확정 시공일 (epoch ms)
+            "scheduled_days INTEGER DEFAULT 1",
+            "estimate_items_json TEXT",      # 사장님 견적 항목 [{name, price_man, unit?, area?}]
+            "total_man INTEGER DEFAULT 0",   # 합계 (만원)
+            "deposit_amount_krw INTEGER DEFAULT 0",
+            "deposit_mode TEXT DEFAULT 'none'",   # 'none'|'ratio'|'fixed'
+            "deposit_ratio_pct INTEGER",
+            "biz_name TEXT",                  # 발급 시점 사장님 사업자명 (snapshot)
+        ]:
+            col_name = col_def.split()[0]
+            try:
+                con.execute(f"ALTER TABLE intake_forms ADD COLUMN {col_def}")
+            except sqlite3.OperationalError:
+                pass  # already exists
         con.commit()
 
 
@@ -4170,21 +4187,32 @@ async def call_summary_endpoint(req: CallSummaryRequest) -> dict:
 
 
 # ============================================================================
-# §19 — 시공접수서 (고객 자가확인 폼)
+# §19 — 시공접수서 (고객 자가확인 폼) — 프로토타입 openQuote 1:1
 # ─────────────────────────────────────────────────────────────────────────────
-# 흐름:
-#   1) 사장님(앱)이 POST /api/intake-form/issue {phone, customer_name?, ...} 호출
-#   2) 서버 8자 base62 토큰 발급 → URL `http://<host>:8000/intake/{token}` 반환 (7일 만료)
-#   3) 앱이 SMS 본문에 URL 자동 prefill → 사장님 ▶ 직접 발송 (자동 발송 X)
-#   4) 고객 모바일 브라우저로 진입 → /intake/{token} HTML 폼 (카카오 주소 위젯 + 사업자정보 헤더)
-#   5) 고객 [제출] → POST /api/intake-form/submit {token, road_address, ...}
-#   6) 앱이 GET /api/intake-form/status?phone=... polling 또는 prepare-reply 응답 신호로
-#      "접수서 작성됨" 카드 표시. 미작성 + 발급 N일 경과 → 앱이 자체 sentinel (-7) 로
-#      "접수서 작성 리마인드" 카드 (recurring_message_log 재활용).
+# 정답 스펙: design-preview/ringgo-redesign.html 의 openQuote() / finalizeQuote().
+# CLAUDE.md §0 (프로토=실전 스펙, 100% verbatim).
 #
-# 토큰: secrets.choice 로 8자 base62 (62^8 ≈ 2.18e14, 충분히 안전).
-# 헤더 사업자정보: subscribers 테이블의 name/company 끌어와 폼 상단 표시 (신뢰도 ↑).
-# 자동 SMS 발송 절대 금지 정책 유지 — 서버는 URL 만 발급, 발송은 앱 ▶.
+# 흐름:
+#   1) 사장님(앱)이 POST /api/intake-form/issue 호출 시 견적 데이터까지 함께 보냄:
+#      - phone (고객), customer_name?, device_id?, owner_phone?
+#      - scheduled_at_ms (확정 시공일), scheduled_days
+#      - estimate_items [{name, price_man, unit?, area?}] (사장님 견적 항목)
+#      - total_man (합계, 만원)
+#      - deposit_mode ('none'|'ratio'|'fixed'), deposit_amount_krw, deposit_ratio_pct?
+#      - biz_name (발급 시점 사업자명 snapshot — 헤더에 표시)
+#   2) 서버 8자 base62 토큰 발급 → URL 반환 (7일 만료)
+#   3) 앱이 SMS 본문에 URL prefill → 사장님 ▶ 직접 발송 (자동 발송 X)
+#   4) 고객 모바일 브라우저로 진입 → /intake/{token} HTML 폼
+#      - 카드 1 = 시공일 (확정 배지, 표시만)
+#      - 카드 2 = 견적 내역 (항목·합계·부가세 별도·계약금, 표시만)
+#      - 카드 3 = 연락처·현장 정보 (전화·주소·동/호수·메모, 입력)
+#      - 카드 4 = 유입 경로 설문 (선택, 건너뛰기 가능)
+#      - 동의 체크 + [접수 완료하기]
+#   5) 고객 [제출] → 주소 확인 dialog → POST /api/intake-form/submit
+#      페이로드: {token, contact_phone, road_address, building_detail?, memo?, source?}
+#   6) 앱 polling: GET /api/intake-form/status?phone=... → 응답에 견적 + 제출 결과
+#
+# 자동 SMS 발송 절대 금지 정책: 서버는 URL 만 발급, 발송은 앱 ▶.
 # ============================================================================
 
 INTAKE_TOKEN_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"  # 0/O/1/I/l 제외
@@ -4192,20 +4220,12 @@ INTAKE_TOKEN_LEN = 8
 INTAKE_TTL_MS = 7 * 24 * 60 * 60 * 1000  # 7일 (사장님 결정)
 INTAKE_PUBLIC_BASE_URL = os.environ.get(
     "INTAKE_PUBLIC_BASE_URL",
-    "http://100.86.114.49:8000",  # Tailnet 기본. 추후 외부 도메인 시 env 로 override.
+    "http://100.86.114.49:8000",
 )
-INTAKE_SCOPE_OPTIONS = [
-    "욕실 줄눈",
-    "주방 줄눈",
-    "거실/방 줄눈",
-    "베란다 줄눈",
-    "타일 시공",
-    "기타",
-]
 
 
 def _generate_intake_token() -> str:
-    """8자 base62 토큰 생성. 충돌 시 재시도."""
+    """8자 base62 토큰. 충돌 시 8회 재시도."""
     import secrets
     for _ in range(8):
         tok = "".join(secrets.choice(INTAKE_TOKEN_ALPHABET) for _ in range(INTAKE_TOKEN_LEN))
@@ -4218,71 +4238,104 @@ def _generate_intake_token() -> str:
     raise HTTPException(500, "토큰 생성 실패 (8회 재시도)")
 
 
-def _fetch_owner_business_info(owner_phone: Optional[str]) -> dict:
-    """subscribers 에서 사장님 사업자 정보 끌어와 폼 헤더에 표시.
-
-    Returns: {name, company, contact_phone}. 없으면 기본값.
-    """
+def _fetch_owner_biz_name(owner_phone: Optional[str]) -> str:
+    """subscribers 테이블에서 사장님 사업자명 lookup. 없으면 빈 문자열."""
     if not owner_phone:
-        return {"name": "", "company": "", "contact_phone": ""}
+        return ""
     with db_conn() as con:
         row = con.execute(
-            "SELECT name, company FROM subscribers WHERE phone = ?",
+            "SELECT company, name FROM subscribers WHERE phone = ?",
             (owner_phone,),
         ).fetchone()
     if not row:
-        return {"name": "", "company": "", "contact_phone": owner_phone}
-    return {
-        "name": row[0] or "",
-        "company": row[1] or "",
-        "contact_phone": owner_phone,
-    }
+        return ""
+    return (row[0] or row[1] or "").strip()
+
+
+class IntakeEstimateItem(BaseModel):
+    name: str
+    price_man: int = 0       # 만원 단위 (프로토 lineTotal 결과치)
+    unit: Optional[str] = None    # "pyeong" 이면 area 도 같이 옴
+    area: Optional[float] = None  # 평수 (unit='pyeong' 일 때)
 
 
 class IntakeIssueRequest(BaseModel):
-    phone: str                                      # 고객 phone
+    phone: str                                       # 고객 phone
     customer_name: Optional[str] = None
-    device_id: Optional[str] = None                 # 사장님 device (관리용)
-    owner_phone: Optional[str] = None               # 사장님 phone (사업자정보 lookup 용)
-    expected_scope: list[str] = Field(default_factory=list)  # 사전 체크 시공범위
+    device_id: Optional[str] = None                  # 사장님 device
+    owner_phone: Optional[str] = None                # 사장님 phone (subscribers lookup)
+    # 견적 데이터 (사장님이 정한 것 — 폼에서 표시만)
+    scheduled_at_ms: int = 0                         # 확정 시공일 (0 = 미정 — 폼에 "미정" 표시)
+    scheduled_days: int = 1
+    estimate_items: list[IntakeEstimateItem] = Field(default_factory=list)
+    total_man: int = 0                               # 합계 (만원)
+    deposit_mode: str = "none"                       # 'none' | 'ratio' | 'fixed'
+    deposit_amount_krw: int = 0
+    deposit_ratio_pct: Optional[int] = None
+    biz_name: Optional[str] = None                   # 명시 override (없으면 subscribers lookup)
 
 
 class IntakeSubmitRequest(BaseModel):
+    """프로토 finalizeQuote 의 페이로드 1:1."""
     token: str
-    road_address: str                               # 도로명 주소
-    building_detail: Optional[str] = None           # 동/호/층
-    contact_phone: Optional[str] = None             # 고객이 입력하는 연락 가능 번호
-    scope_items: list[str] = Field(default_factory=list)
-    pyeong: Optional[float] = None                  # 평수
-    available_time: Optional[str] = None            # "평일 오후" 등 자유 텍스트
-    memo: Optional[str] = None
+    contact_phone: str                                # 전화번호 (필수)
+    road_address: str                                 # 도로명 주소 (필수)
+    building_detail: Optional[str] = None             # 동/호수 (선택)
+    memo: Optional[str] = None                        # 현장 메모 (선택)
+    source: Optional[str] = None                      # 유입 경로 합쳐서 (선택, finalizeQuote 의 src)
 
 
 @app.post("/api/intake-form/issue")
 async def intake_form_issue(req: IntakeIssueRequest) -> dict:
-    """접수서 토큰 발급. 7일 만료.
+    """접수서 토큰 발급 + 견적 데이터 보관 (7일 만료).
 
     응답: { token, url, issued_at_ms, expires_at_ms }
     """
     if not req.phone or not req.phone.strip():
         raise HTTPException(400, "phone 필수")
+    if req.deposit_mode not in ("none", "ratio", "fixed"):
+        raise HTTPException(400, "deposit_mode 는 none/ratio/fixed")
+
     now = _now_ms()
     token = _generate_intake_token()
     expires_at = now + INTAKE_TTL_MS
+    biz_name = (req.biz_name or "").strip() or _fetch_owner_biz_name(req.owner_phone) or ""
+
+    items_payload = [
+        {
+            "name": it.name,
+            "price_man": int(it.price_man or 0),
+            "unit": it.unit,
+            "area": it.area,
+        }
+        for it in (req.estimate_items or [])
+    ]
+
     with db_conn() as con:
         con.execute(
             """
             INSERT INTO intake_forms
                 (token, phone, customer_name, issued_at_ms, expires_at_ms,
-                 submitted_at_ms, payload_json, device_id, owner_phone, created_at_ms)
-            VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?)
+                 submitted_at_ms, payload_json, device_id, owner_phone, created_at_ms,
+                 scheduled_at_ms, scheduled_days, estimate_items_json, total_man,
+                 deposit_amount_krw, deposit_mode, deposit_ratio_pct, biz_name)
+            VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (token, req.phone, req.customer_name, now, expires_at,
-             req.device_id, req.owner_phone, now),
+            (
+                token, req.phone, req.customer_name, now, expires_at,
+                req.device_id, req.owner_phone, now,
+                req.scheduled_at_ms or 0, max(1, int(req.scheduled_days or 1)),
+                json.dumps(items_payload, ensure_ascii=False),
+                int(req.total_man or 0),
+                int(req.deposit_amount_krw or 0),
+                req.deposit_mode,
+                req.deposit_ratio_pct,
+                biz_name,
+            ),
         )
         con.commit()
     url = f"{INTAKE_PUBLIC_BASE_URL.rstrip('/')}/intake/{token}"
-    print(f"[intake-form/issue] phone={req.phone} → token={token} url={url}")
+    print(f"[intake-form/issue] phone={req.phone} biz={biz_name!r} → token={token}")
     return {
         "token": token,
         "url": url,
@@ -4293,17 +4346,21 @@ async def intake_form_issue(req: IntakeIssueRequest) -> dict:
 
 @app.post("/api/intake-form/submit")
 async def intake_form_submit(req: IntakeSubmitRequest) -> dict:
-    """고객이 폼 제출. 토큰 만료/이미 제출됨 검증.
+    """고객이 폼 제출. 프로토 finalizeQuote 페이로드.
 
-    응답: { ok, submitted_at_ms, phone } (phone 은 앱 측 매칭용)
+    응답: { ok, submitted_at_ms, phone }
     """
+    contact_phone = (req.contact_phone or "").strip()
+    road_address = (req.road_address or "").strip()
+    if not contact_phone:
+        raise HTTPException(400, "contact_phone 필수")
+    if not road_address:
+        raise HTTPException(400, "road_address 필수")
+
     now = _now_ms()
     with db_conn() as con:
         row = con.execute(
-            """
-            SELECT phone, expires_at_ms, submitted_at_ms FROM intake_forms
-            WHERE token = ?
-            """,
+            "SELECT phone, expires_at_ms, submitted_at_ms FROM intake_forms WHERE token = ?",
             (req.token,),
         ).fetchone()
         if not row:
@@ -4314,25 +4371,15 @@ async def intake_form_submit(req: IntakeSubmitRequest) -> dict:
         if now > expires_at:
             raise HTTPException(410, "만료된 접수서 (7일 경과)")
 
-        # 주소·범위 검증
-        road_address = (req.road_address or "").strip()
-        if not road_address:
-            raise HTTPException(400, "도로명 주소 필수")
-
         payload = {
+            "contact_phone": contact_phone,
             "road_address": road_address,
             "building_detail": (req.building_detail or "").strip() or None,
-            "contact_phone": (req.contact_phone or "").strip() or None,
-            "scope_items": [s for s in (req.scope_items or []) if s],
-            "pyeong": req.pyeong,
-            "available_time": (req.available_time or "").strip() or None,
             "memo": (req.memo or "").strip() or None,
+            "source": (req.source or "").strip() or None,
         }
         con.execute(
-            """
-            UPDATE intake_forms SET submitted_at_ms = ?, payload_json = ?
-            WHERE token = ?
-            """,
+            "UPDATE intake_forms SET submitted_at_ms = ?, payload_json = ? WHERE token = ?",
             (now, json.dumps(payload, ensure_ascii=False), req.token),
         )
         con.commit()
@@ -4340,13 +4387,61 @@ async def intake_form_submit(req: IntakeSubmitRequest) -> dict:
     return {"ok": True, "submitted_at_ms": now, "phone": phone}
 
 
+def _intake_row_to_dict(row: tuple) -> dict:
+    """SELECT * FROM intake_forms 결과 → API 응답 dict.
+
+    Columns order: token, phone, customer_name, issued_at_ms, expires_at_ms,
+                   submitted_at_ms, payload_json, device_id, owner_phone, created_at_ms,
+                   scheduled_at_ms, scheduled_days, estimate_items_json, total_man,
+                   deposit_amount_krw, deposit_mode, deposit_ratio_pct, biz_name
+    """
+    (token, phone, customer_name, issued_at_ms, expires_at_ms, submitted_at_ms,
+     payload_json, device_id, owner_phone, created_at_ms,
+     scheduled_at_ms, scheduled_days, estimate_items_json, total_man,
+     deposit_amount_krw, deposit_mode, deposit_ratio_pct, biz_name) = row
+    payload = None
+    if payload_json:
+        try:
+            payload = json.loads(payload_json)
+        except json.JSONDecodeError:
+            payload = None
+    items = []
+    if estimate_items_json:
+        try:
+            items = json.loads(estimate_items_json) or []
+        except json.JSONDecodeError:
+            items = []
+    return {
+        "token": token,
+        "phone": phone,
+        "customer_name": customer_name,
+        "issued_at_ms": issued_at_ms,
+        "expires_at_ms": expires_at_ms,
+        "submitted_at_ms": submitted_at_ms,
+        "payload": payload,
+        "url": f"{INTAKE_PUBLIC_BASE_URL.rstrip('/')}/intake/{token}",
+        "scheduled_at_ms": scheduled_at_ms or 0,
+        "scheduled_days": scheduled_days or 1,
+        "estimate_items": items,
+        "total_man": total_man or 0,
+        "deposit_amount_krw": deposit_amount_krw or 0,
+        "deposit_mode": deposit_mode or "none",
+        "deposit_ratio_pct": deposit_ratio_pct,
+        "biz_name": biz_name or "",
+    }
+
+
+_INTAKE_SELECT_COLS = (
+    "token, phone, customer_name, issued_at_ms, expires_at_ms, submitted_at_ms, "
+    "payload_json, device_id, owner_phone, created_at_ms, "
+    "scheduled_at_ms, scheduled_days, estimate_items_json, total_man, "
+    "deposit_amount_krw, deposit_mode, deposit_ratio_pct, biz_name"
+)
+
+
 @app.get("/api/intake-form/status")
 async def intake_form_status(phone: str, device_id: Optional[str] = None) -> dict:
-    """해당 phone 의 가장 최근 intake (앱 polling 용).
-
-    응답: { phone, intake: { token, issued_at_ms, expires_at_ms,
-                             submitted_at_ms|null, payload|null } | null }
-    """
+    """해당 phone 의 가장 최근 intake (앱 polling 용)."""
     if not phone:
         raise HTTPException(400, "phone 필수")
     where = "WHERE phone = ?"
@@ -4356,34 +4451,13 @@ async def intake_form_status(phone: str, device_id: Optional[str] = None) -> dic
         params.append(device_id)
     with db_conn() as con:
         row = con.execute(
-            f"""
-            SELECT token, issued_at_ms, expires_at_ms, submitted_at_ms, payload_json
-            FROM intake_forms
-            {where}
-            ORDER BY issued_at_ms DESC LIMIT 1
-            """,
+            f"SELECT {_INTAKE_SELECT_COLS} FROM intake_forms {where} "
+            "ORDER BY issued_at_ms DESC LIMIT 1",
             params,
         ).fetchone()
     if not row:
         return {"phone": phone, "intake": None}
-    token, issued_at, expires_at, submitted_at, payload_json = row
-    payload = None
-    if payload_json:
-        try:
-            payload = json.loads(payload_json)
-        except json.JSONDecodeError:
-            payload = None
-    return {
-        "phone": phone,
-        "intake": {
-            "token": token,
-            "issued_at_ms": issued_at,
-            "expires_at_ms": expires_at,
-            "submitted_at_ms": submitted_at,
-            "payload": payload,
-            "url": f"{INTAKE_PUBLIC_BASE_URL.rstrip('/')}/intake/{token}",
-        },
-    }
+    return {"phone": phone, "intake": _intake_row_to_dict(row)}
 
 
 @app.get("/api/intake-form/list")
@@ -4392,11 +4466,7 @@ async def intake_form_list(
     owner_phone: Optional[str] = None,
     limit: int = 30,
 ) -> dict:
-    """사장님 발급한 전체 목록 (관리용). device_id 또는 owner_phone 으로 필터.
-
-    응답: { items: [{ token, phone, customer_name, issued_at_ms,
-                      submitted_at_ms|null, url }] }
-    """
+    """사장님 발급한 전체 목록 (관리용). device_id 또는 owner_phone 으로 필터."""
     limit = max(1, min(limit, 200))
     where_parts: list[str] = []
     params: list = []
@@ -4409,32 +4479,17 @@ async def intake_form_list(
     where = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
     with db_conn() as con:
         rows = con.execute(
-            f"""
-            SELECT token, phone, customer_name, issued_at_ms, expires_at_ms,
-                   submitted_at_ms
-            FROM intake_forms
-            {where}
-            ORDER BY issued_at_ms DESC LIMIT ?
-            """,
+            f"SELECT {_INTAKE_SELECT_COLS} FROM intake_forms {where} "
+            "ORDER BY issued_at_ms DESC LIMIT ?",
             [*params, limit],
         ).fetchall()
-    base = INTAKE_PUBLIC_BASE_URL.rstrip("/")
-    items = [
-        {
-            "token": r[0],
-            "phone": r[1],
-            "customer_name": r[2],
-            "issued_at_ms": r[3],
-            "expires_at_ms": r[4],
-            "submitted_at_ms": r[5],
-            "url": f"{base}/intake/{r[0]}",
-        }
-        for r in rows
-    ]
+    items = [_intake_row_to_dict(r) for r in rows]
     return {"items": items, "count": len(items)}
 
 
-# ─── /intake/{token} HTML 폼 (고객 브라우저용) ───
+# ─── /intake/{token} HTML 폼 (프로토 openQuote 1:1) ───
+# 디자인 토큰 (--blue=#3182F6, --bg=#F4F5F7 ...) + 클래스명(q-scroll/q-hero/q-card/...)
+# + 카드 구조 (1.시공일 2.견적 3.연락처 4.설문) 모두 프로토 그대로.
 
 INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
 <html lang="ko">
@@ -4443,285 +4498,521 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=yes,maximum-scale=5">
 <title>시공 접수서</title>
 <style>
-  * {{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }}
-  html, body {{ margin:0; padding:0; }}
+  :root {{
+    --blue:#3182F6; --blue-dark:#1B64DA; --blue-tint:#EEF4FF;
+    --bg:#F4F5F7; --card:#FFFFFF;
+    --t1:#0B0F19; --t2:#5A6472; --t3:#9AA3AF; --line:#EEF0F3;
+    --error:#F0436A; --success:#16C172;
+    --shadow:0 1px 3px rgba(0,0,0,.04);
+  }}
+  * {{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }}
+  html, body {{ margin:0; padding:0; background:var(--bg); }}
   body {{
-    font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Apple SD Gothic Neo",
-                 "Noto Sans KR", sans-serif;
-    background: #F5F6F8; color: #14151A; line-height: 1.5;
-    padding: 16px;
+    font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+    color:var(--t1); line-height:1.5; min-height:100vh;
   }}
-  .wrap {{ max-width: 480px; margin: 0 auto; }}
-  .biz-header {{
-    background: #1A56DB; color: #fff; padding: 14px 16px;
-    border-radius: 12px; margin-bottom: 16px;
-  }}
-  .biz-header .label {{ font-size: 11px; opacity: .7; letter-spacing: .5px; }}
-  .biz-header .company {{ font-size: 18px; font-weight: 700; margin-top: 2px; }}
-  .biz-header .name {{ font-size: 13px; opacity: .9; margin-top: 4px; }}
-  .biz-header .contact {{ font-size: 13px; opacity: .9; margin-top: 2px; }}
+  .q-scroll {{ max-width:480px; margin:0 auto; }}
 
-  h1 {{ font-size: 22px; font-weight: 700; margin: 8px 0 4px; }}
-  .intro {{ font-size: 14px; color: #4B5563; margin-bottom: 20px; }}
+  /* hero — 다크 그라데이션 */
+  .q-hero {{ background:linear-gradient(150deg,#272D3D,#14171F); color:#fff; padding:26px 22px 24px; }}
+  .q-hero .q-biz {{ font-size:12px; font-weight:800; color:rgba(255,255,255,.7); letter-spacing:.02em; }}
+  .q-hero .q-title {{ font-size:21px; font-weight:800; letter-spacing:-.03em; margin-top:9px; line-height:1.4; }}
+  .q-hero .q-title b {{ color:#8FD6FF; }}
+  .q-hero .q-hero-sub {{ font-size:12.5px; font-weight:700; color:rgba(255,255,255,.62); margin-top:12px; display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,.1); padding:5px 12px; border-radius:999px; }}
 
-  .card {{
-    background: #fff; border-radius: 12px; padding: 16px;
-    margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.04);
-  }}
-  label {{
-    display:block; font-size: 13px; font-weight: 600; color: #14151A;
-    margin-bottom: 6px;
-  }}
-  .req {{ color: #DC2626; }}
-  .hint {{ font-size: 12px; color: #6B7280; margin-top: 4px; }}
+  /* body — 카드 */
+  .q-body {{ padding:16px; }}
+  .q-card {{ background:#fff; border-radius:18px; padding:17px; margin-bottom:12px; box-shadow:var(--shadow); }}
+  .q-card.q-card-date {{ border:1.5px solid var(--blue); background:linear-gradient(180deg,#F4F8FF,#fff); }}
+  .q-card-h {{ font-size:13px; font-weight:800; color:var(--t1); margin-bottom:12px; display:flex; align-items:center; gap:6px; }}
+  .q-step {{ display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:50%; background:var(--blue); color:#fff; font-size:11px; font-weight:800; }}
+  .q-step-ok {{ margin-left:auto; font-size:11px; font-weight:800; color:var(--blue); background:var(--blue-tint); padding:3px 9px; border-radius:999px; }}
 
-  input[type=text], input[type=tel], input[type=number], textarea {{
-    width: 100%; min-height: 48px; padding: 12px;
-    border: 1.5px solid #D1D5DB; border-radius: 8px;
-    font-size: 16px; font-family: inherit; background: #fff;
-  }}
-  input:focus, textarea:focus {{ outline: none; border-color: #1A56DB; }}
-  textarea {{ min-height: 80px; resize: vertical; }}
+  /* 카드 1 — 시공일 (q-fixed) */
+  .q-fixed {{ display:flex; align-items:center; gap:11px; background:var(--blue-tint); border-radius:12px; padding:14px; }}
+  .q-fixed .qf-ic {{ width:38px; height:38px; border-radius:50%; background:#fff; color:var(--blue); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:18px; }}
+  .q-fixed .qf-b {{ flex:1; min-width:0; }}
+  .q-fixed .qf-l {{ font-size:11.5px; font-weight:800; color:var(--blue); }}
+  .q-fixed .qf-d {{ font-size:16px; font-weight:800; color:var(--blue-dark); }}
+  .q-fixed .qf-badge {{ font-size:11px; font-weight:800; color:#0a8f44; background:#E7F8EF; padding:4px 10px; border-radius:999px; flex-shrink:0; }}
 
-  .scope-row {{ display:flex; flex-wrap: wrap; gap: 8px; }}
-  .scope-chip {{
-    flex: 1 1 calc(50% - 8px); min-height: 48px; padding: 12px;
-    border: 1.5px solid #D1D5DB; border-radius: 8px;
-    background: #fff; cursor: pointer; font-size: 14px;
-    display:flex; align-items:center; justify-content:center;
-    text-align:center; transition: .15s;
-  }}
-  .scope-chip.on {{ border-color: #1A56DB; background: #EFF4FF; color: #1A56DB; font-weight: 600; }}
+  /* 카드 2 — 견적 내역 */
+  .q-item {{ display:flex; align-items:center; padding:9px 0; border-bottom:1px solid var(--line); }}
+  .q-item:last-of-type {{ border-bottom:0; }}
+  .q-item .qi-n {{ font-size:14px; color:var(--t1); flex:1; }}
+  .q-item .qi-n .unit {{ font-size:11px; color:var(--t3); margin-left:4px; }}
+  .q-item .qi-p {{ font-size:14px; font-weight:700; color:var(--t1); }}
+  .q-total {{ display:flex; align-items:baseline; gap:8px; margin-top:13px; padding-top:13px; border-top:2px solid var(--t1); }}
+  .q-total span:first-child {{ font-size:14px; font-weight:800; color:var(--t1); }}
+  .q-total b {{ font-size:21px; font-weight:800; color:var(--blue); margin-left:auto; }}
+  .q-vat {{ text-align:right; font-size:11px; color:var(--t3); margin-top:3px; }}
+  .q-deposit {{ background:var(--blue-tint); border-radius:12px; padding:11px 13px; font-size:12.5px; color:var(--blue-dark); font-weight:700; margin-top:12px; line-height:1.5; }}
+  .q-empty {{ font-size:13px; color:var(--t3); padding:6px 0; }}
 
-  .row2 {{ display:flex; gap: 10px; }}
-  .row2 > * {{ flex: 1; }}
+  /* 카드 3 — 입력 */
+  .q-label {{ font-size:12px; font-weight:800; color:var(--t3); margin:13px 2px 6px; }}
+  .q-label:first-child {{ margin-top:0; }}
+  .q-input {{ width:100%; background:var(--bg); border:1.5px solid var(--line); border-radius:12px; padding:13px 14px; font-size:15px; font-family:inherit; color:var(--t1); outline:none; }}
+  .q-input:focus {{ border-color:var(--blue); }}
+  .q-input + .q-input {{ margin-top:8px; }}
+  .q-addr-field {{ width:100%; background:var(--bg); border:1.5px solid var(--line); border-radius:12px; padding:13px 14px; font-size:15px; color:var(--t3); cursor:pointer; display:flex; align-items:center; gap:7px; min-height:48px; }}
+  .q-addr-field.filled {{ color:var(--t1); }}
+  .q-addr-field .ico {{ color:var(--blue); }}
 
-  button.submit {{
-    width: 100%; min-height: 56px; background: #1A56DB; color: #fff;
-    border: none; border-radius: 12px; font-size: 17px; font-weight: 700;
-    margin-top: 8px; cursor: pointer;
-  }}
-  button.submit:disabled {{ background: #9CA3AF; cursor: not-allowed; }}
-  button.address {{
-    width: 100%; min-height: 48px; background: #F3F4F6; color: #14151A;
-    border: 1.5px dashed #D1D5DB; border-radius: 8px; font-size: 14px;
-    cursor: pointer; margin-bottom: 8px;
-  }}
+  /* 카드 4 — 유입경로 설문 */
+  .qs-head {{ display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:800; color:var(--blue); margin-bottom:11px; }}
+  .qs-q {{ font-size:15px; font-weight:800; color:var(--t1); letter-spacing:-.01em; }}
+  .qs-sub {{ font-size:12.5px; color:var(--t2); margin-top:5px; line-height:1.5; }}
+  .qs-btns {{ display:flex; gap:8px; margin-top:13px; }}
+  .qs-btns button {{ flex:1; }}
+  .qs-ok, .qs-skip {{ border:0; border-radius:12px; padding:13px; font-size:14px; font-weight:800; font-family:inherit; cursor:pointer; min-height:48px; }}
+  .qs-skip {{ background:var(--bg); color:var(--t2); }}
+  .qs-ok {{ background:var(--blue); color:#fff; }}
+  .qs-chips {{ display:flex; flex-wrap:wrap; gap:8px; margin-top:13px; }}
+  .qs-chip {{ background:#fff; border:1.5px solid var(--line); border-radius:999px; padding:10px 16px; font-size:13.5px; font-weight:700; color:var(--t1); cursor:pointer; min-height:42px; display:inline-flex; align-items:center; }}
+  .qs-chip.on, .qs-chip:active {{ background:var(--blue-tint); border-color:var(--blue); color:var(--blue); }}
+  .qs-done {{ display:flex; align-items:flex-start; gap:9px; font-size:14px; font-weight:700; color:var(--blue-dark); line-height:1.5; }}
+  .qs-done.muted {{ color:var(--t2); }}
+  .qs-done .ic {{ color:var(--success); flex-shrink:0; margin-top:1px; }}
+  .qs-detail {{ font-size:12px; color:var(--t3); margin-top:4px; font-weight:600; }}
 
-  .status-ok, .status-err, .status-expired {{
-    text-align:center; padding: 40px 16px; background:#fff;
-    border-radius: 12px;
-  }}
-  .status-ok h2 {{ color: #059669; }}
-  .status-err h2, .status-expired h2 {{ color: #DC2626; }}
+  /* 동의 + 제출 */
+  .q-agree {{ display:flex; align-items:center; gap:10px; background:#fff; border:1.5px solid var(--line); border-radius:14px; padding:14px; margin-bottom:12px; cursor:pointer; font-size:13.5px; font-weight:700; color:var(--t1); min-height:52px; }}
+  .q-agree.on {{ border-color:var(--blue); background:var(--blue-tint); }}
+  .q-agree .qa-box {{ width:22px; height:22px; border-radius:7px; border:2px solid var(--line); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:13px; color:transparent; }}
+  .q-agree.on .qa-box {{ background:var(--blue); border-color:var(--blue); color:#fff; }}
+  .q-submit {{ width:100%; background:var(--blue); color:#fff; border:0; border-radius:15px; padding:16px; font-size:16px; font-weight:800; font-family:inherit; cursor:pointer; box-shadow:0 10px 24px rgba(49,130,246,.28); min-height:56px; }}
+  .q-submit:disabled {{ opacity:.45; box-shadow:none; cursor:default; }}
+  .q-alt {{ text-align:center; font-size:13px; font-weight:700; color:var(--t3); margin-top:14px; cursor:pointer; text-decoration:underline; padding:8px; }}
+  .q-foot {{ text-align:center; font-size:11px; color:var(--t3); margin:16px 0 28px; line-height:1.5; padding:0 16px; }}
 
-  .footer {{ text-align:center; font-size: 11px; color: #9CA3AF; margin-top: 20px; }}
+  /* confirm modal */
+  .cm-bd {{ position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; align-items:flex-end; justify-content:center; z-index:50; }}
+  .cm-bd.show {{ display:flex; }}
+  .cm-card {{ background:#fff; border-radius:20px 20px 0 0; width:100%; max-width:480px; padding:22px 20px 18px; }}
+  .cm-t {{ font-size:18px; font-weight:800; color:var(--t1); }}
+  .cm-s {{ font-size:13.5px; color:var(--t2); margin-top:10px; line-height:1.55; white-space:pre-line; }}
+  .cm-btns {{ display:flex; gap:8px; margin-top:18px; }}
+  .cm-btns button {{ flex:1; border:0; border-radius:12px; padding:14px; font-size:14.5px; font-weight:800; font-family:inherit; cursor:pointer; min-height:50px; }}
+  .cm-cancel {{ background:var(--bg); color:var(--t2); }}
+  .cm-ok {{ background:var(--blue); color:#fff; }}
+
+  /* 상태 페이지 */
+  .status-page {{ max-width:480px; margin:0 auto; padding:60px 24px; text-align:center; }}
+  .status-page h2 {{ font-size:22px; font-weight:800; }}
+  .status-page p {{ font-size:14px; color:var(--t2); line-height:1.6; margin-top:10px; }}
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="q-scroll">
 
-  <div class="biz-header">
-    <div class="label">시공 의뢰서</div>
-    <div class="company">{company_html}</div>
-    <div class="name">{name_html}</div>
-    <div class="contact">📞 {contact_html}</div>
+  <div class="q-hero">
+    <div class="q-biz">{biz_html}</div>
+    <div class="q-title">시공일 확정을 위해<br>접수서를 <b>정확하게</b> 작성해주세요 😊</div>
+    <div class="q-hero-sub">✓ 3가지만 확인하면 끝나요</div>
   </div>
 
-  <h1>시공 접수서</h1>
-  <p class="intro">
-    안녕하세요{customer_greeting}. 정확한 견적을 위해<br>
-    아래 정보 입력 부탁드립니다. 약 1분이면 끝나요.
-  </p>
+  <div class="q-body">
 
-  <form id="intake-form">
-
-    <div class="card">
-      <label>주소 <span class="req">*</span></label>
-      <button type="button" class="address" id="addr-btn">🔍 주소 검색</button>
-      <input type="text" id="road_address" name="road_address"
-             placeholder="도로명 주소 (위 버튼으로 검색)" readonly required>
-      <div style="height:8px"></div>
-      <input type="text" id="building_detail" name="building_detail"
-             placeholder="동/호/층 (예: 102동 1503호)">
-    </div>
-
-    <div class="card">
-      <label>시공 부위 <span class="req">*</span></label>
-      <div class="scope-row" id="scope-row">
-        {scope_chips}
+    <!-- 카드 1: 시공일 (표시만) -->
+    <div class="q-card q-card-date">
+      <div class="q-card-h"><span class="q-step">1</span>시공일 <span class="q-step-ok">확정</span></div>
+      <div class="q-fixed">
+        <span class="qf-ic">📅</span>
+        <div class="qf-b">
+          <div class="qf-l">사장님과 정한 확정 시공일</div>
+          <div class="qf-d">{schedule_label_html}</div>
+        </div>
+        <span class="qf-badge">확정</span>
       </div>
-      <div class="hint">중복 선택 가능</div>
     </div>
 
-    <div class="card">
-      <label>평수 (선택)</label>
-      <input type="number" id="pyeong" name="pyeong" min="1" max="200"
-             step="0.1" placeholder="예: 25" inputmode="decimal">
+    <!-- 카드 2: 견적 내역 (표시만) -->
+    <div class="q-card">
+      <div class="q-card-h"><span class="q-step">2</span>견적 내역</div>
+      {items_html}
+      <div class="q-total"><span>합계</span><b>{total_man_html}만원</b></div>
+      <div class="q-vat">부가세 별도</div>
+      {deposit_html}
     </div>
 
-    <div class="card">
-      <label>연락 가능한 번호 (선택)</label>
-      <input type="tel" id="contact_phone" name="contact_phone"
-             placeholder="010-1234-5678">
-      <div class="hint">기존 번호와 달라도 OK</div>
+    <!-- 카드 3: 연락처·현장 정보 (고객 입력) -->
+    <div class="q-card">
+      <div class="q-card-h"><span class="q-step">3</span>연락처 · 현장 정보</div>
+      <div class="q-label">전화번호</div>
+      <input class="q-input" id="q-phone" inputmode="numeric" value="010-" autocomplete="tel">
+      <div class="q-label">현장 주소</div>
+      <div class="q-addr-field" id="q-addr-field" onclick="openAddr()"><span class="ico">🔍</span><span id="q-addr-text">주소 검색 (탭)</span></div>
+      <input class="q-input" id="q-dong" placeholder="동/호수 (선택)" style="margin-top:8px">
+      <div class="q-label">현장 메모 (선택)</div>
+      <textarea class="q-input" id="q-memo" style="height:62px;resize:none" placeholder="현관 비밀번호·주차 안내 등 편하게 남겨주세요"></textarea>
     </div>
 
-    <div class="card">
-      <label>방문/상담 가능 시간 (선택)</label>
-      <input type="text" id="available_time" name="available_time"
-             placeholder="예: 평일 오후 / 주말만">
+    <!-- 카드 4: 유입경로 설문 (선택, 건너뛰기 가능) -->
+    <div class="q-card" id="quote-survey">
+      <div class="qs-head"><span>✨</span>마케팅에 도움돼요 (선택)</div>
+      <div id="qs-body"></div>
     </div>
 
-    <div class="card">
-      <label>요청사항 (선택)</label>
-      <textarea id="memo" name="memo"
-                placeholder="원하시는 색상, 추가 작업, 일정 등"></textarea>
+    <!-- 동의 -->
+    <div class="q-agree" id="q-agree" onclick="toggleAgree()">
+      <span class="qa-box">✓</span>
+      위 내용을 모두 확인했고, 시공을 접수합니다.
     </div>
 
-    <button type="submit" class="submit" id="submit-btn">제출하기</button>
+    <!-- 제출 -->
+    <button class="q-submit" id="q-submit" disabled onclick="submitQuote()">접수 완료하기</button>
 
-  </form>
+    <div class="q-alt" onclick="requestEdit()">내용 수정을 요청할래요</div>
 
-  <div class="footer">RING-GO · 안전한 1회용 링크 (7일 후 자동 만료)</div>
+    <div class="q-foot">이 링크는 {biz_html} 이(가) 보냈어요 · 발행일로부터 7일 후 만료</div>
+
+  </div>
+</div>
+
+<!-- confirm modal -->
+<div class="cm-bd" id="cm-bd">
+  <div class="cm-card">
+    <div class="cm-t" id="cm-t">이 주소가 정확한가요?</div>
+    <div class="cm-s" id="cm-s"></div>
+    <div class="cm-btns">
+      <button class="cm-cancel" onclick="closeConfirm()">아니요, 수정</button>
+      <button class="cm-ok" onclick="confirmOk()">네, 맞아요 · 접수</button>
+    </div>
+  </div>
 </div>
 
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 <script>
-  // 카카오 주소 위젯 (다음 우편번호 API, 무료, 키 불필요)
-  document.getElementById('addr-btn').addEventListener('click', function() {{
+  var TOKEN = "{token_js}";
+  var BIZ = {biz_js};
+  var quoteSel = {{ agree:false }};
+  var quoteAddr = "";
+  var quoteSurvey = {{ asked:false, busy:false, source:null, keyword:'', category:null, etc:'', done:false }};
+  var pendingConfirm = null;
+
+  // 전화번호 입력 자동 하이픈
+  document.getElementById('q-phone').addEventListener('input', function(e) {{
+    var v = (e.target.value || '').replace(/[^0-9]/g, '');
+    if (v.length > 11) v = v.slice(0, 11);
+    var out = v;
+    if (v.length >= 7) out = v.slice(0, 3) + '-' + v.slice(3, 7) + '-' + v.slice(7);
+    else if (v.length >= 4) out = v.slice(0, 3) + '-' + v.slice(3);
+    e.target.value = out;
+    updateSubmit();
+  }});
+
+  // 주소 검색 (다음 우편번호 위젯, 무료)
+  function openAddr() {{
     new daum.Postcode({{
       oncomplete: function(data) {{
-        document.getElementById('road_address').value =
-          data.roadAddress || data.jibunAddress || data.address;
-        document.getElementById('building_detail').focus();
+        quoteAddr = data.roadAddress || data.jibunAddress || data.address || '';
+        var el = document.getElementById('q-addr-field');
+        var t = document.getElementById('q-addr-text');
+        if (t) t.textContent = '📍 ' + quoteAddr;
+        el.classList.add('filled');
+        document.getElementById('q-dong').focus();
+        updateSubmit();
       }}
     }}).open();
-  }});
+  }}
 
-  // scope chip toggle
-  document.querySelectorAll('.scope-chip').forEach(function(chip) {{
-    chip.addEventListener('click', function() {{
-      chip.classList.toggle('on');
-    }});
-  }});
+  // 동의 체크
+  function toggleAgree() {{
+    quoteSel.agree = !quoteSel.agree;
+    document.getElementById('q-agree').classList.toggle('on', quoteSel.agree);
+    updateSubmit();
+  }}
 
-  // submit
-  document.getElementById('intake-form').addEventListener('submit', async function(e) {{
-    e.preventDefault();
-    const btn = document.getElementById('submit-btn');
-    const road = document.getElementById('road_address').value.trim();
-    if (!road) {{
-      alert('주소를 검색해 입력해 주세요.');
-      return;
+  function updateSubmit() {{
+    var btn = document.getElementById('q-submit');
+    if (!btn) return;
+    btn.disabled = !(quoteSel.agree && quoteAddr);
+  }}
+
+  // 유입경로 설문 (프로토 renderQuoteSurvey 1:1)
+  function chip(label, fn) {{
+    return '<span class="qs-chip" onclick="' + fn + '">' + label + '</span>';
+  }}
+  function renderSurvey() {{
+    var s = quoteSurvey;
+    var b = document.getElementById('qs-body');
+    if (!b) return;
+    var h = '';
+    if (s.done) {{
+      var dp = [];
+      if (s.source) dp.push(s.source);
+      if (s.keyword) dp.push('"' + s.keyword + '"');
+      if (s.category && s.category !== '기타') dp.push(s.category);
+      if (s.etc) dp.push(s.etc);
+      var detail = dp.join(' · ');
+      h = '<div class="qs-done"><span class="ic">✓</span><div>알려주셔서 감사해요! 큰 도움이 됐어요 😊'
+        + (detail ? '<div class="qs-detail">' + detail + '</div>' : '')
+        + '</div></div>';
+    }} else if (s.busy) {{
+      h = '<div class="qs-done muted"><span class="ic">✓</span>괜찮아요! 바쁘신데 봐주셔서 감사합니다 🙏</div>';
+    }} else if (!s.asked) {{
+      h = '<div class="qs-q">혹시 질문 하나 드려도 될까요?</div>'
+        + '<div class="qs-sub">저희 같은 작은 업체엔 정말 큰 도움이 돼요!</div>'
+        + '<div class="qs-btns"><button class="qs-skip" onclick="surveyBusy()">지금은 바빠요</button>'
+        + '<button class="qs-ok" onclick="surveyAsk()">네, 좋아요!</button></div>';
+    }} else if (!s.source) {{
+      h = '<div class="qs-q">어떤 경로로 저희를 알게 되셨어요?</div>'
+        + '<div class="qs-chips">'
+        + chip('네이버 검색', "surveySource('네이버 검색')")
+        + chip('인스타그램', "surveySource('인스타그램')")
+        + chip('구글', "surveySource('구글')")
+        + chip('기타', "surveySource('기타')")
+        + '</div>';
+    }} else if ((s.source === '네이버 검색' || s.source === '구글') && !s.keyword) {{
+      h = '<div class="qs-q">어떤 키워드로 검색하셨어요?</div>'
+        + '<input class="q-input" id="qs-kw" placeholder="예: 천호동 줄눈">'
+        + '<button class="qs-ok" style="width:100%;margin-top:10px" onclick="surveyKeyword()">다음</button>';
+    }} else if ((s.source === '네이버 검색' || s.source === '구글') && !s.category) {{
+      h = '<div class="qs-q">어디서 저희를 보셨어요?</div>'
+        + '<div class="qs-chips">'
+        + chip('파워링크', "surveyCategory('파워링크')")
+        + chip('블로그', "surveyCategory('블로그')")
+        + chip('카페', "surveyCategory('카페')")
+        + chip('웹사이트', "surveyCategory('웹사이트')")
+        + '</div>';
+    }} else if (s.source === '인스타그램' && !s.category) {{
+      h = '<div class="qs-q">인스타그램에서 어떻게 보셨어요?</div>'
+        + '<div class="qs-chips">'
+        + chip('브랜드 계정 홍보를 보고', "surveyCategory('브랜드 계정 홍보')")
+        + chip('알고리즘으로 우연히', "surveyCategory('알고리즘 우연히')")
+        + chip('기타', "surveyCategory('기타')")
+        + '</div>';
+    }} else if ((s.source === '기타' || (s.source === '인스타그램' && s.category === '기타')) && !s.done) {{
+      h = '<div class="qs-q">어떻게 알게 되셨는지 알려주실래요?</div>'
+        + '<input class="q-input" id="qs-etc" placeholder="예: 아파트 게시판 전단, 친구 추천 등">'
+        + '<button class="qs-ok" style="width:100%;margin-top:10px" onclick="surveyEtc()">완료</button>';
     }}
-    const selected = Array.from(document.querySelectorAll('.scope-chip.on'))
-                          .map(function(c){{ return c.dataset.scope; }});
-    if (selected.length === 0) {{
-      alert('시공 부위를 1개 이상 선택해 주세요.');
-      return;
-    }}
-    const payload = {{
-      token: "{token_js}",
-      road_address: road,
-      building_detail: document.getElementById('building_detail').value.trim() || null,
-      contact_phone: document.getElementById('contact_phone').value.trim() || null,
-      scope_items: selected,
-      pyeong: parseFloat(document.getElementById('pyeong').value) || null,
-      available_time: document.getElementById('available_time').value.trim() || null,
-      memo: document.getElementById('memo').value.trim() || null,
-    }};
+    b.innerHTML = h;
+  }}
+  function surveyAsk()   {{ quoteSurvey.asked = true;  renderSurvey(); }}
+  function surveyBusy()  {{ quoteSurvey.busy  = true;  renderSurvey(); }}
+  function surveySource(src) {{ quoteSurvey.source = src; renderSurvey(); }}
+  function surveyKeyword() {{
+    var i = document.getElementById('qs-kw');
+    quoteSurvey.keyword = (i && i.value.trim()) || '(미입력)';
+    renderSurvey();
+  }}
+  function surveyCategory(cat) {{
+    quoteSurvey.category = cat;
+    if (cat !== '기타') quoteSurvey.done = true;
+    renderSurvey();
+  }}
+  function surveyEtc() {{
+    var i = document.getElementById('qs-etc');
+    quoteSurvey.etc = (i && i.value.trim()) || '(미입력)';
+    quoteSurvey.done = true;
+    renderSurvey();
+  }}
+  renderSurvey();
+
+  // 유입경로 → 합쳐서 src 문자열 (프로토 finalizeQuote 와 동일 포맷)
+  function buildSrc() {{
+    var s = quoteSurvey;
+    if (!s.done) return '';
+    var out = s.source || '';
+    if (s.keyword) out += ' · "' + s.keyword + '"';
+    if (s.category && s.category !== '기타') out += ' · ' + s.category;
+    if (s.etc) out += ' · ' + s.etc;
+    return out;
+  }}
+
+  // confirm modal
+  function openConfirm(title, sub, onOk) {{
+    document.getElementById('cm-t').textContent = title;
+    document.getElementById('cm-s').textContent = sub;
+    pendingConfirm = onOk;
+    document.getElementById('cm-bd').classList.add('show');
+  }}
+  function closeConfirm() {{
+    pendingConfirm = null;
+    document.getElementById('cm-bd').classList.remove('show');
+  }}
+  function confirmOk() {{
+    var fn = pendingConfirm;
+    closeConfirm();
+    if (fn) fn();
+  }}
+
+  // 제출 (프로토 submitQuote → finalizeQuote)
+  function submitQuote() {{
+    if (!quoteSel.agree) {{ alert('맨 아래 확인에 체크해주세요'); return; }}
+    if (!quoteAddr)      {{ alert('현장 주소를 검색해 주세요'); return; }}
+    var dong = (document.getElementById('q-dong').value || '').trim();
+    var full = quoteAddr + (dong ? (' ' + dong) : '');
+    openConfirm(
+      '이 주소가 정확한가요?',
+      '📍 ' + full + '\\n\\n기사님이 이 주소로 찾아가요. 맞으면 접수할게요.',
+      function() {{ finalize(); }}
+    );
+  }}
+
+  async function finalize() {{
+    var btn = document.getElementById('q-submit');
     btn.disabled = true;
     btn.textContent = '제출 중...';
+    var dong = (document.getElementById('q-dong').value || '').trim();
+    var memo = (document.getElementById('q-memo').value || '').trim();
+    var phone = (document.getElementById('q-phone').value || '').trim();
+    var payload = {{
+      token: TOKEN,
+      contact_phone: phone,
+      road_address: quoteAddr,
+      building_detail: dong || null,
+      memo: memo || null,
+      source: buildSrc() || null,
+    }};
     try {{
-      const resp = await fetch('/api/intake-form/submit', {{
+      var resp = await fetch('/api/intake-form/submit', {{
         method: 'POST',
         headers: {{ 'Content-Type': 'application/json' }},
         body: JSON.stringify(payload),
       }});
       if (resp.ok) {{
-        document.querySelector('.wrap').innerHTML =
-          '<div class="status-ok"><h2>✅ 제출 완료</h2>' +
-          '<p>정확한 견적은 사장님이 직접 안내드릴 거예요.<br>잠시만 기다려 주세요!</p></div>';
+        document.querySelector('.q-scroll').innerHTML =
+          '<div class="status-page"><h2 style="color:#16C172">✅ 접수 완료!</h2>'
+          + '<p>시공접수서를 제출했어요.<br>사장님이 확인 후 시공일이 최종 확정돼요 😊</p></div>';
       }} else {{
-        const err = await resp.json().catch(function(){{ return {{}}; }});
+        var err = await resp.json().catch(function() {{ return {{}}; }});
         alert('제출 실패: ' + (err.detail || resp.status));
         btn.disabled = false;
-        btn.textContent = '제출하기';
+        btn.textContent = '접수 완료하기';
       }}
     }} catch (e) {{
       alert('네트워크 오류: ' + e.message);
       btn.disabled = false;
-      btn.textContent = '제출하기';
+      btn.textContent = '접수 완료하기';
     }}
-  }});
+  }}
+
+  function requestEdit() {{
+    alert('사장님께 수정 요청 연락 부탁드려요.\\n(이 화면을 닫고 사장님께 문자/전화 주세요)');
+  }}
 </script>
 </body>
 </html>
 """
 
 
+def _format_schedule_label(scheduled_at_ms: int, scheduled_days: int) -> str:
+    """epoch ms → '5/31 (일요일)' 또는 '5/31 ~ 6/2 (3일간 시공)'.
+
+    scheduled_at_ms == 0 → '미정 (사장님이 곧 알려드려요)'.
+    """
+    if not scheduled_at_ms or scheduled_at_ms <= 0:
+        return "미정 (사장님이 곧 알려드려요)"
+    import datetime
+    # KST 변환 (UTC+9)
+    dt = datetime.datetime.utcfromtimestamp(scheduled_at_ms / 1000) + datetime.timedelta(hours=9)
+    wn = ["월", "화", "수", "목", "금", "토", "일"]
+    wd = wn[dt.weekday()]
+    if scheduled_days and scheduled_days > 1:
+        end_dt = dt + datetime.timedelta(days=scheduled_days - 1)
+        return f"{dt.month}/{dt.day} ~ {end_dt.month}/{end_dt.day} ({scheduled_days}일간 시공)"
+    return f"{dt.month}/{dt.day} ({wd}요일)"
+
+
+def _format_won(amount_krw: int) -> str:
+    """1234567 → '1,234,567' (원 단위 thousands separator)."""
+    try:
+        return f"{int(amount_krw):,}"
+    except (TypeError, ValueError):
+        return "0"
+
+
+def _build_items_html(items: list[dict]) -> str:
+    """견적 항목 → HTML <div class='q-item'> 리스트."""
+    import html as _html
+    if not items:
+        return '<div class="q-empty">견적 항목이 등록되지 않았어요.</div>'
+    rows = []
+    for it in items:
+        name = _html.escape(str(it.get("name") or ""))
+        price = int(it.get("price_man") or 0)
+        unit_html = ""
+        if (it.get("unit") == "pyeong") and it.get("area"):
+            unit_html = (
+                f' <span class="unit">({int(price)}만원/평 × '
+                f'{it.get("area")}평)</span>'
+            )
+        rows.append(
+            f'<div class="q-item"><span class="qi-n">{name}{unit_html}</span>'
+            f'<span class="qi-p">{price}만원</span></div>'
+        )
+    return "".join(rows)
+
+
+def _build_deposit_html(deposit_mode: str, deposit_amount_krw: int,
+                       deposit_ratio_pct: Optional[int]) -> str:
+    """계약금 안내 박스 HTML (프로토 q-deposit 1:1)."""
+    if deposit_mode == "none" or not deposit_amount_krw:
+        return ""
+    amount = _format_won(deposit_amount_krw)
+    suffix = ""
+    if deposit_mode == "ratio" and deposit_ratio_pct:
+        suffix = f" (총액의 {int(deposit_ratio_pct)}%)"
+    return (
+        f'<div class="q-deposit">계약금 {amount}원{suffix}'
+        f' · 입금 계좌는 확정 후 안내드려요</div>'
+    )
+
+
 @app.get("/intake/{token}", response_class=HTMLResponse)
 async def intake_form_page(token: str) -> HTMLResponse:
-    """고객 브라우저용 폼 HTML.
+    """고객 브라우저용 폼 HTML (프로토 openQuote 1:1).
 
     토큰 유효/만료/이미 제출 상태에 따라 다른 페이지 반환.
     """
     import html as _html
     with db_conn() as con:
         row = con.execute(
-            """
-            SELECT phone, customer_name, expires_at_ms, submitted_at_ms, owner_phone
-            FROM intake_forms WHERE token = ?
-            """,
+            f"SELECT {_INTAKE_SELECT_COLS} FROM intake_forms WHERE token = ?",
             (token,),
         ).fetchone()
     if not row:
         return HTMLResponse(
             content="<html><body style='font-family:sans-serif;padding:40px;text-align:center'>"
-                    "<h2 style='color:#DC2626'>❌ 유효하지 않은 링크</h2>"
+                    "<h2 style='color:#F0436A'>❌ 유효하지 않은 링크</h2>"
                     "<p>사장님께 다시 링크를 받아 주세요.</p></body></html>",
             status_code=404,
         )
-    phone, customer_name, expires_at, submitted_at, owner_phone = row
+
+    data = _intake_row_to_dict(row)
     now = _now_ms()
-    if submitted_at is not None:
+    if data["submitted_at_ms"] is not None:
         return HTMLResponse(
             content="<html><body style='font-family:sans-serif;padding:40px;text-align:center'>"
-                    "<h2 style='color:#059669'>✅ 이미 제출된 접수서입니다</h2>"
+                    "<h2 style='color:#16C172'>✅ 이미 제출된 접수서입니다</h2>"
                     "<p>접수 내용 확인은 사장님께 연락 주세요.</p></body></html>",
         )
-    if now > expires_at:
+    if now > data["expires_at_ms"]:
         return HTMLResponse(
             content="<html><body style='font-family:sans-serif;padding:40px;text-align:center'>"
-                    "<h2 style='color:#DC2626'>⌛ 만료된 링크</h2>"
+                    "<h2 style='color:#F0436A'>⌛ 만료된 링크</h2>"
                     "<p>이 접수서 링크는 발급 7일이 지나 만료되었어요.<br>"
                     "사장님께 새 링크를 요청해 주세요.</p></body></html>",
             status_code=410,
         )
 
-    biz = _fetch_owner_business_info(owner_phone)
-    company_disp = biz["company"] or biz["name"] or "RING-GO 시공"
-    name_disp = (
-        f"{biz['name']} 대표" if biz["name"] and biz["company"]
-        else (biz["name"] or "사장님")
-    )
-    contact_disp = biz["contact_phone"] or "(연락처 없음)"
-
-    scope_chips_html = "\n".join(
-        f'<div class="scope-chip" data-scope="{_html.escape(opt)}">{_html.escape(opt)}</div>'
-        for opt in INTAKE_SCOPE_OPTIONS
-    )
-    customer_greeting = (
-        f" {_html.escape(customer_name)} 고객님" if customer_name else " 고객님"
+    biz = (data["biz_name"] or "").strip() or "RING-GO 시공"
+    schedule_label = _format_schedule_label(data["scheduled_at_ms"], data["scheduled_days"])
+    items_html = _build_items_html(data["estimate_items"])
+    deposit_html = _build_deposit_html(
+        data["deposit_mode"], data["deposit_amount_krw"], data["deposit_ratio_pct"]
     )
 
     page = INTAKE_FORM_HTML_TEMPLATE.format(
-        company_html=_html.escape(company_disp),
-        name_html=_html.escape(name_disp),
-        contact_html=_html.escape(contact_disp),
-        customer_greeting=customer_greeting,
-        scope_chips=scope_chips_html,
+        biz_html=_html.escape(biz),
+        biz_js=json.dumps(biz, ensure_ascii=False),
+        schedule_label_html=_html.escape(schedule_label),
+        items_html=items_html,
+        total_man_html=_html.escape(str(int(data["total_man"] or 0))),
+        deposit_html=deposit_html,
         token_js=_html.escape(token, quote=True),
     )
     return HTMLResponse(content=page)
