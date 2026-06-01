@@ -87,6 +87,7 @@ import com.detailline.callfollowcrm.presentation.component.TossBadge
 import com.detailline.callfollowcrm.presentation.component.TossCard
 import com.detailline.callfollowcrm.presentation.component.TossChip
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
+import com.detailline.callfollowcrm.presentation.theme.TossBlueDark
 import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
 import com.detailline.callfollowcrm.presentation.theme.TossError
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
@@ -94,6 +95,11 @@ import com.detailline.callfollowcrm.presentation.theme.TossSuccess
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
+import com.detailline.callfollowcrm.presentation.theme.TossWarning
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.ui.graphics.Brush
 import com.detailline.callfollowcrm.presentation.theme.CallFollowCrmTheme
 import androidx.compose.ui.tooling.preview.Preview
 import com.detailline.callfollowcrm.util.DateTimeUtils
@@ -186,50 +192,39 @@ fun HomeScreen(
     Scaffold(
         containerColor = TossGrayBg,
         topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            "RING-GO",
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TossTextPrimary
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        ServerStatusDot(
-                            alive = serverAlive,
-                            onClick = {
-                                val msg = when (serverAlive) {
-                                    true -> {
-                                        val secs = lastOkAtMs?.let { (System.currentTimeMillis() - it) / 1000 } ?: 0L
-                                        "서버 연결 정상 (${secs}초 전)"
-                                    }
-                                    false -> "서버 연결 실패 — Tailscale 확인하세요"
-                                    null -> "서버 상태 체크 중..."
-                                }
-                                android.widget.Toast.makeText(
-                                    context, msg, android.widget.Toast.LENGTH_SHORT
-                                ).show()
+            // 프로토 .appbar — "상담함" + 오늘 날짜 + AI 배지(서버 상태 흡수).
+            //   기존 달력/문서/설정 아이콘은 하단 5탭(일정·더보기)이 대체 → 프로토대로 제거.
+            val todayLabel = remember {
+                java.text.SimpleDateFormat("M월 d일 (E)", java.util.Locale.KOREAN)
+                    .format(java.util.Date())
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(TossGrayBg)
+                    .statusBarsPadding()
+                    .padding(start = 18.dp, end = 14.dp, top = 10.dp, bottom = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("상담함", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.6).sp)
+                    Text(todayLabel, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
+                }
+                AiBadge(
+                    alive = serverAlive,
+                    onClick = {
+                        val msg = when (serverAlive) {
+                            true -> {
+                                val secs = lastOkAtMs?.let { (System.currentTimeMillis() - it) / 1000 } ?: 0L
+                                "AI 서버 연결 정상 (${secs}초 전)"
                             }
-                        )
+                            false -> "AI 서버 연결 실패 — Tailscale 확인하세요"
+                            null -> "AI 서버 상태 체크 중..."
+                        }
+                        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
                     }
-                },
-                actions = {
-                    IconButton(onClick = onOpenSchedule) {
-                        Icon(Icons.Default.DateRange, "시공 예약", tint = TossTextSecondary)
-                    }
-                    IconButton(onClick = onOpenTemplates) {
-                        Icon(Icons.Default.Description, "템플릿", tint = TossTextSecondary)
-                    }
-                    // AI 문자함 — 2026-05-24 사장님 요청으로 일단 숨김 (사용법 모호 + 거슬림).
-                    //   네비/ViewModel/Screen 은 살아있음 (Destinations.AI_MESSAGE). 다음 reactivation 시
-                    //   여기 IconButton 한 줄만 복원하면 됨.
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Default.Settings, "설정", tint = TossTextSecondary)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
-            )
+                )
+            }
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
@@ -1563,6 +1558,41 @@ private fun ServerStatusDot(alive: Boolean?, onClick: () -> Unit) {
             .background(color)
             .clickable { onClick() }
     )
+}
+
+/**
+ * 프로토 .ai-badge — 상담함 앱바 오른쪽 AI 상태 알약.
+ *   그라데이션 배경 + 상태 점 + ✨ + "AI 켜짐/연결 끊김". 탭 = 서버 상태 토스트.
+ */
+@Composable
+private fun AiBadge(alive: Boolean?, onClick: () -> Unit) {
+    val dot = when (alive) {
+        true -> TossSuccess
+        false -> TossError
+        null -> TossWarning
+    }
+    val label = when (alive) {
+        true -> "AI 켜짐"
+        false -> "연결 끊김"
+        null -> "확인 중"
+    }
+    Row(
+        modifier = Modifier
+            .background(
+                Brush.linearGradient(listOf(Color(0xFFEAF2FF), Color(0xFFF1ECFF))),
+                RoundedCornerShape(999.dp)
+            )
+            .border(1.dp, Color(0xFFE0E7FB), RoundedCornerShape(999.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(6.dp).clip(CircleShape).background(dot))
+        Spacer(Modifier.width(5.dp))
+        Icon(Icons.Default.AutoAwesome, null, tint = TossBlue, modifier = Modifier.size(13.dp))
+        Spacer(Modifier.width(4.dp))
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossBlueDark)
+    }
 }
 
 // ============================================================
