@@ -71,11 +71,12 @@ private val CashOut = Color(0xFFE0344F)    // 나간 (확정 지출) 빨강
 private val CashOutPlan = Color(0xFFF0A0B0) // 나갈 (예정 지출) 연빨강
 
 /**
- * 현금흐름 탭 — 4색 달력 + 월 순이익(확정/예상) + 선택일 상세 + 직접 기록 추가.
- * 정산 Phase 2 (2026-06-01).
+ * 현금흐름 카드 — 4색 달력 + 월 순이익(확정/예상) + 선택일 상세 + 직접 기록 추가.
+ * 정산 Phase 2 (2026-06-01). 프로토 cashcal-slot 위치 = settle-top 아래, 미수 목록 위.
+ * 자체 remember 상태(달 이동/선택일)를 들고 있어 정산 단일 스크롤에 item 하나로 끼워 넣는다.
  */
 @Composable
-fun CashFlowContent(
+fun CashFlowCard(
     viewModel: SettlementViewModel,
     onOpenCustomer: (Long) -> Unit,
     modifier: Modifier = Modifier
@@ -95,47 +96,36 @@ fun CashFlowContent(
             .sortedWith(compareByDescending<CashItem> { it.isIncome }.thenByDescending { it.amount })
     }
 
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .background(TossGrayBg),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+    Column(
+        modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        item(key = "month-summary") {
-            MonthSummaryCard(monthAgg)
-        }
-        item(key = "calendar") {
-            CashCalendar(
-                monthAnchor = monthAnchor,
-                byDay = byDay,
-                todayStart = todayStart,
-                selectedDay = selectedDay,
-                onPrev = { monthAnchor = shiftMonthMs(monthAnchor, -1) },
-                onNext = { monthAnchor = shiftMonthMs(monthAnchor, +1) },
-                onSelect = { selectedDay = it }
-            )
-        }
-        item(key = "legend") { CashLegend() }
-        item(key = "day-header") {
-            DayHeader(
-                dayMs = selectedDay,
-                isToday = selectedDay == todayStart,
-                onAdd = { selectedDay?.let { showAddFor = it } }
-            )
-        }
+        MonthSummaryCard(monthAgg)
+        CashCalendar(
+            monthAnchor = monthAnchor,
+            byDay = byDay,
+            todayStart = todayStart,
+            selectedDay = selectedDay,
+            onPrev = { monthAnchor = shiftMonthMs(monthAnchor, -1) },
+            onNext = { monthAnchor = shiftMonthMs(monthAnchor, +1) },
+            onSelect = { selectedDay = it }
+        )
+        CashLegend()
+        DayHeader(
+            dayMs = selectedDay,
+            isToday = selectedDay == todayStart,
+            onAdd = { selectedDay?.let { showAddFor = it } }
+        )
         if (dayItems.isEmpty()) {
-            item(key = "day-empty") {
-                Box(
-                    Modifier.fillMaxWidth().padding(vertical = 24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("이 날 기록된 돈이 없어요", color = TossTextTertiary,
-                        style = MaterialTheme.typography.bodyMedium)
-                }
+            Box(
+                Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("이 날 기록된 돈이 없어요", color = TossTextTertiary,
+                    style = MaterialTheme.typography.bodyMedium)
             }
         } else {
-            items(dayItems, key = { "${it.refType}-${it.refId}-${it.tag}" }) { ci ->
+            dayItems.forEach { ci ->
                 CashItemRow(
                     item = ci,
                     onToggleDone = { viewModel.toggleManualDone(ci.refId, !ci.isDone) },
@@ -144,7 +134,6 @@ fun CashFlowContent(
                 )
             }
         }
-        item(key = "tail") { Spacer(Modifier.height(40.dp)) }
     }
 
     showAddFor?.let { day ->

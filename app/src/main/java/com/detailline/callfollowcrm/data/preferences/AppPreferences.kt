@@ -171,6 +171,14 @@ class AppPreferences(context: Context) {
         set(value) = prefs.edit().putInt(KEY_BIZ_VALID_DAYS, value).apply()
 
     /**
+     * 정산 — 이번 달 목표 매출(만원). 프로토 settleGoal 기본 500.
+     * 사장님이 정산 상단 다크카드 "목표 수정" 으로 직접 변경.
+     */
+    var monthlyGoalManwon: Int
+        get() = prefs.getInt(KEY_MONTHLY_GOAL, 500)
+        set(value) = prefs.edit().putInt(KEY_MONTHLY_GOAL, value).apply()
+
+    /**
      * 내 업종 (최대 3개, 첫 번째=대표). 업종이 AI지식·가격표·시나리오를 바꿈(해자).
      * "|" 로 join 해서 한 문자열로 저장. 빈 리스트 = 미선택.
      */
@@ -221,6 +229,7 @@ class AppPreferences(context: Context) {
         private const val KEY_BIZ_ADDR = "biz_addr"
         private const val KEY_BIZ_PHONE = "biz_phone"
         private const val KEY_BIZ_VALID_DAYS = "biz_quote_valid_days"
+        private const val KEY_MONTHLY_GOAL = "monthly_goal_manwon"
         private const val KEY_OWNER_TRADES = "owner_trades"
         private const val KEY_WORKER_PHRASES = "worker_sms_phrases"
         private const val KEY_VENDOR_PHRASES = "vendor_sms_phrases"

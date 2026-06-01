@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Calendar
 
 /**
  * 정산(미수금) 화면 — 정산 Phase 1 (2026-06-01).
@@ -30,11 +31,6 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
     private val filter = MutableStateFlow(SettleFilter.ALL)
     val filterState: StateFlow<SettleFilter> = filter
 
-    /** 미수금 목록 / 현금흐름 달력 전환. */
-    private val tab = MutableStateFlow(SettleTab.LIST)
-    val tabState: StateFlow<SettleTab> = tab
-    fun setTab(t: SettleTab) { tab.value = t }
-
     private val customersFlow = container.customerRepository.observeAll()
 
     /** 돈 정보 있는 고객만 → 미수 큰 순 정렬. */
@@ -47,7 +43,9 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
                             customerId = c.id,
                             name = c.name?.takeIf { it.isNotBlank() },
                             phone = c.phoneNumber,
-                            calc = SettlementCalc.rowOf(c)
+                            calc = SettlementCalc.rowOf(c),
+                            scheduledWorkDate = c.scheduledWorkDate,
+                            address = c.address
                         )
                     }
                     .sortedWith(
@@ -76,6 +74,116 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
             paidOffCount = paidOffCount
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettlementUiState())
+
+    // ── 월매출 대시보드 (프로토 settle-top) ──────────────────────────
+    // 프로토 renderSettle: 월 이동 + "이번 달 받은 돈" + 전월 대비 + 목표 진행률 + 페이스.
+    // 받은 돈 = 그 달에 paidAt 찍힌 계약금/잔금 합. 전월 대비 = 직전 달 받은돈과 비교.
+    private val currentMonthAnchor = monthStartOf(System.currentTimeMillis())
+
+    /** 다크카드가 보여줄 달(월초 epoch). 기본 = 이번 달. */
+    private val monthAnchor = MutableStateFlow(currentMonthAnchor)
+
+    /** 이번 달 목표 매출(만원). 프로토 settleGoal 기본 500. */
+    private val goalManwon = MutableStateFlow(container.preferences.monthlyGoalManwon)
+    fun setMonthlyGoal(manwon: Int) {
+        if (manwon <= 0) return
+        container.preferences.monthlyGoalManwon = manwon
+        goalManwon.value = manwon
+    }
+
+    fun prevMonth() { monthAnchor.value = shiftMonth(monthAnchor.value, -1) }
+    fun nextMonth() {
+        val next = shiftMonth(monthAnchor.value, +1)
+        if (next <= currentMonthAnchor) monthAnchor.value = next   // 미래 달로는 못 감
+    }
+
+    val settleTop: StateFlow<SettleTopState> =
+        combine(customersFlow, monthAnchor, goalManwon, state) { customers, anchor, goal, st ->
+            buildSettleTop(customers, anchor, goal, st)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettleTopState())
+
+    private fun buildSettleTop(
+        customers: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
+        anchor: Long,
+        goalManwon: Int,
+        st: SettlementUiState
+    ): SettleTopState {
+        val monthEnd = shiftMonth(anchor, +1)
+        val prevStart = shiftMonth(anchor, -1)
+        val received = receivedInMonth(customers, anchor, monthEnd)
+        val prevReceived = receivedInMonth(customers, prevStart, anchor)
+        val prevPct = when {
+            prevReceived > 0L -> Math.round((received - prevReceived) * 100.0 / prevReceived).toInt()
+            received > 0L -> 100
+            else -> 0
+        }
+        val isLive = anchor == currentMonthAnchor
+        val goalWon = goalManwon.toLong() * 10_000L
+        val fillPct = if (goalWon > 0L) ((received * 100.0 / goalWon).toInt()).coerceIn(0, 100) else 0
+        val reached = received >= goalWon && goalWon > 0L
+
+        val m2Top: String
+        val m2Next: String
+        if (reached) {
+            m2Top = "🎉 목표 ${comma(goalManwon)}만원 달성!"
+            m2Next = "목표 초과 +${manwon(received - goalWon)}만원 · 최고예요 👑"
+        } else {
+            m2Top = "🎯 이번 달 목표 ${comma(goalManwon)}만원"
+            m2Next = "목표까지 ${manwon(goalWon - received)}만원 남았어요 · $fillPct%"
+        }
+
+        // 페이스 (이번 달만): 시간 진행률 vs 목표 진행률
+        var paceText: String? = null
+        var paceAhead = false
+        var daysLeft = 0
+        if (isLive) {
+            val cal = Calendar.getInstance()
+            val dayN = cal.get(Calendar.DAY_OF_MONTH)
+            val daysIn = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+            daysLeft = daysIn - dayN
+            val timePct = (dayN * 100.0 / daysIn).toInt().coerceIn(0, 100)
+            val gap = fillPct - timePct
+            when {
+                reached -> { paceAhead = true; paceText = "🎉 목표 달성! 남은 ${daysLeft}일은 보너스예요" }
+                gap >= -5 -> { paceAhead = true; paceText = "👍 시간보다 앞서가고 있어요 · 좋은 페이스!" }
+                daysLeft <= 3 -> { paceAhead = false; paceText = "🔥 ${daysLeft}일 남았어요 · 막판 스퍼트!" }
+                else -> { paceAhead = false; paceText = "💪 페이스를 조금만 올리면 따라잡아요" }
+            }
+        }
+
+        return SettleTopState(
+            monthLabel = monthLabelOf(anchor),
+            isLiveMonth = isLive,
+            receivedManwon = manwon(received),
+            recvLabel = if (isLive) "이번 달 받은 돈" else "받은 돈",
+            prevPct = prevPct,
+            goalReached = reached,
+            fillPct = fillPct,
+            m2Top = m2Top,
+            m2Next = m2Next,
+            paceText = paceText,
+            paceAhead = paceAhead,
+            daysLeft = daysLeft,
+            outstandingManwon = manwon(st.outstandingTotal),
+            outstandingCount = st.outstandingCount,
+            canGoNext = anchor < currentMonthAnchor
+        )
+    }
+
+    /** 그 달에 받은 돈(원) = 계약금/잔금 중 paidAt 이 [start,end) 인 것 합. */
+    private fun receivedInMonth(
+        customers: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
+        start: Long,
+        end: Long
+    ): Long {
+        var sum = 0L
+        customers.forEach { c ->
+            val row = SettlementCalc.rowOf(c)
+            c.depositPaidAt?.let { if (it in start until end) sum += row.depositAmount }
+            c.balancePaidAt?.let { if (it in start until end) sum += row.balanceAmount }
+        }
+        return sum
+    }
 
     // ── 현금흐름 (Phase 2) ───────────────────────────────────────────
     /** settle 파생 수입 + 직접 기록 + 일당 배정(자동 지출) 합산. 달력/일별 상세가 구독. */
@@ -132,7 +240,26 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
     }
 }
 
-enum class SettleTab(val label: String) { LIST("미수금"), CASHFLOW("현금흐름") }
+// ── 월 계산 헬퍼 ─────────────────────────────────────────────────
+private fun monthStartOf(anyMs: Long): Long = Calendar.getInstance().apply {
+    timeInMillis = anyMs
+    set(Calendar.DAY_OF_MONTH, 1)
+    set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+}.timeInMillis
+
+private fun shiftMonth(anchorMs: Long, delta: Int): Long = Calendar.getInstance().apply {
+    timeInMillis = anchorMs
+    add(Calendar.MONTH, delta)
+    set(Calendar.DAY_OF_MONTH, 1)
+    set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+}.timeInMillis
+
+private fun monthLabelOf(anchorMs: Long): String = Calendar.getInstance().apply { timeInMillis = anchorMs }
+    .let { "${it.get(Calendar.YEAR)}년 ${it.get(Calendar.MONTH) + 1}월" }
+
+/** 원 → 만원(반올림 내림) 정수. 프로토 amt 가 만원 단위. */
+private fun manwon(won: Long): Int = (won / 10_000L).toInt()
+private fun comma(n: Int): String = "%,d".format(n)
 
 enum class SettleFilter(val label: String) {
     ALL("전체"), OUTSTANDING("미수"), PAID_OFF("완납")
@@ -142,7 +269,9 @@ data class SettleItem(
     val customerId: Long,
     val name: String?,
     val phone: String,
-    val calc: SettleRow
+    val calc: SettleRow,
+    val scheduledWorkDate: Long? = null,
+    val address: String? = null
 )
 
 data class SettlementUiState(
@@ -152,4 +281,23 @@ data class SettlementUiState(
     val allCount: Int = 0,
     val outstandingCount: Int = 0,
     val paidOffCount: Int = 0
+)
+
+/** 정산 상단 다크카드(프로토 settle-top) 상태. 금액은 만원 단위 정수. */
+data class SettleTopState(
+    val monthLabel: String = "",
+    val isLiveMonth: Boolean = true,
+    val receivedManwon: Int = 0,
+    val recvLabel: String = "이번 달 받은 돈",
+    val prevPct: Int = 0,
+    val goalReached: Boolean = false,
+    val fillPct: Int = 0,
+    val m2Top: String = "",
+    val m2Next: String = "",
+    val paceText: String? = null,
+    val paceAhead: Boolean = false,
+    val daysLeft: Int = 0,
+    val outstandingManwon: Int = 0,
+    val outstandingCount: Int = 0,
+    val canGoNext: Boolean = false
 )
