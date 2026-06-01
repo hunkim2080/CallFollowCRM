@@ -461,7 +461,7 @@ fun HomeScreen(
             ) {
                 // 프로토 today-new-slot — 맨 위. "오늘 신규 문의 N통 / 새 번호 기준 · 어제 M통" + ▲▼.
                 item(key = "today-new") {
-                    TodayNewCard(todayNew = todayNew, yesterdayNew = yesterdayNew)
+                    TodayNewCard(todayNew = todayNew, yesterdayNew = yesterdayNew, onClick = onOpenCustomers)
                 }
 
                 // 오늘 시공 히어로 — 시공 당일이면 맨 위 다크 카드(주소+길찾기), 없으면 다음 시공 미리보기.
@@ -1688,7 +1688,7 @@ private fun AiBadge(trade: String, alive: Boolean?, onClick: () -> Unit) {
  *   ▲(초록)=어제보다 늘어남, ▼(빨강)=줄어듦, -(회색)=같음.
  */
 @Composable
-private fun TodayNewCard(todayNew: Int, yesterdayNew: Int) {
+private fun TodayNewCard(todayNew: Int, yesterdayNew: Int, onClick: () -> Unit) {
     val d = todayNew - yesterdayNew
     val deltaText = when { d > 0 -> "▲ $d"; d < 0 -> "▼ ${-d}"; else -> "-" }
     val deltaFg = when { d > 0 -> Color(0xFF0A8F44); d < 0 -> TossError; else -> TossTextTertiary }
@@ -1696,8 +1696,10 @@ private fun TodayNewCard(todayNew: Int, yesterdayNew: Int) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
             .background(Color.White, RoundedCornerShape(14.dp))
             .border(1.dp, TossDivider, RoundedCornerShape(14.dp))
+            .clickable { onClick() }
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
