@@ -91,6 +91,7 @@ import com.detailline.callfollowcrm.presentation.component.TossChip
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossBlueDark
 import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
+import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossError
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossSuccess
@@ -143,6 +144,7 @@ fun HomeScreen(
     val aiCardSummaries by viewModel.cardSummariesByPhoneSuffix.collectAsState()
     val categoriesById by viewModel.categories.collectAsState()
     val todayNew by viewModel.todayNewInquiryCount.collectAsState()
+    val yesterdayNew by viewModel.yesterdayNewInquiryCount.collectAsState()
     val unhandled by viewModel.unhandledCount.collectAsState()
     val weekScheduled by viewModel.thisWeekScheduledCount.collectAsState()
     val outstandingTotal by viewModel.outstandingTotal.collectAsState()
@@ -419,6 +421,11 @@ fun HomeScreen(
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // 프로토 today-new-slot — 맨 위. "오늘 신규 문의 N통 / 새 번호 기준 · 어제 M통" + ▲▼.
+                item(key = "today-new") {
+                    TodayNewCard(todayNew = todayNew, yesterdayNew = yesterdayNew)
+                }
+
                 // 오늘 시공 히어로 — 시공 당일이면 맨 위 다크 카드(주소+길찾기), 없으면 다음 시공 미리보기.
                 item(key = "today-hero") {
                     TodayHeroCard(
@@ -1541,6 +1548,47 @@ private fun AiBadge(trade: String, alive: Boolean?, onClick: () -> Unit) {
         Icon(Icons.Default.AutoAwesome, null, tint = TossBlue, modifier = Modifier.size(13.dp))
         Spacer(Modifier.width(4.dp))
         Text(label, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossBlueDark)
+    }
+}
+
+/**
+ * 프로토 today-new-slot (renderTodayNew) 그대로 — "오늘 신규 문의 N통 / 새 번호 기준 · 어제 M통" + ▲▼.
+ *   ▲(초록)=어제보다 늘어남, ▼(빨강)=줄어듦, -(회색)=같음.
+ */
+@Composable
+private fun TodayNewCard(todayNew: Int, yesterdayNew: Int) {
+    val d = todayNew - yesterdayNew
+    val deltaText = when { d > 0 -> "▲ $d"; d < 0 -> "▼ ${-d}"; else -> "-" }
+    val deltaFg = when { d > 0 -> Color(0xFF0A8F44); d < 0 -> TossError; else -> TossTextTertiary }
+    val deltaBg = when { d > 0 -> Color(0xFFE7F8EF); d < 0 -> Color(0xFFFDEAEF); else -> TossGrayBg }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White, RoundedCornerShape(14.dp))
+            .border(1.dp, TossDivider, RoundedCornerShape(14.dp))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier.size(36.dp).background(TossBlueSoft, RoundedCornerShape(11.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("+", color = TossBlue, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.width(11.dp))
+        Column(Modifier.weight(1f)) {
+            Row {
+                Text("오늘 신규 문의 ", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                Text("${todayNew}통", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+            }
+            Spacer(Modifier.height(2.dp))
+            Text("새 번호 기준 · 어제 ${yesterdayNew}통", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = TossTextTertiary)
+        }
+        Box(
+            Modifier.background(deltaBg, RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 3.dp)
+        ) {
+            Text(deltaText, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, color = deltaFg)
+        }
     }
 }
 

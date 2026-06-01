@@ -39,6 +39,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     /** "미확인" 7일 윈도우 시작점 (사장님 결정 2026-05-24). 오늘 포함 7일 = 어제 -6일 + 오늘. */
     private val sevenDayWindowStart = todayStart - 6L * 24 * 60 * 60 * 1000
 
+    /** 어제 0시 — 프로토 today-new 카드의 "어제 M통" 비교용. */
+    private val yesterdayStart = todayStart - 24L * 60 * 60 * 1000
+
     private val filter = MutableStateFlow<HomeFilter>(HomeFilter.All)
     val filterState = filter
 
@@ -145,6 +148,36 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         smsContactsState, missedRecent, phonesWithCallsBeforeToday
     ) { smsContacts, missed, callsBefore ->
         newTodaySuffixes(smsContacts, missed, callsBefore).size
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    /** 어제 이전에 통화 기록이 있는 phone suffix set — "어제 신규" 판정용. */
+    private val phonesWithCallsBeforeYesterday: StateFlow<Set<String>> = container.callRecordRepository
+        .observeDistinctPhonesBefore(yesterdayStart)
+        .map { list -> list.map { phoneSuffix(it) }.toHashSet() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
+    /**
+     * 어제 신규 문의 수 (프로토 today-new 카드의 "어제 M통" + ▲▼ 비교용).
+     *   판정: 스캔 안 첫 등장(firstDateMsInScan)이 어제 [yesterdayStart, todayStart) AND 어제 이전 통화 기록 없음.
+     */
+    val yesterdayNewInquiryCount: StateFlow<Int> = combine(
+        smsContactsState, missedRecent, phonesWithCallsBeforeYesterday
+    ) { smsContacts, missed, callsBefore ->
+        val bySuffix = smsContacts.associateBy { it.normalizedSuffix }
+        val result = HashSet<String>()
+        for (c in smsContacts) {
+            if (c.firstDateMsInScan in yesterdayStart until todayStart && c.normalizedSuffix !in callsBefore) {
+                result += c.normalizedSuffix
+            }
+        }
+        for (m in missed) {
+            if (m.endedAt !in yesterdayStart until todayStart) continue
+            val suffix = phoneSuffix(m.phoneNumber)
+            if (suffix in callsBefore) continue
+            val sms = bySuffix[suffix]
+            if (sms == null || sms.firstDateMsInScan >= yesterdayStart) result += suffix
+        }
+        result.size
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     /**
