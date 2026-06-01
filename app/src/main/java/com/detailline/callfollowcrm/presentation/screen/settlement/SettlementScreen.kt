@@ -84,14 +84,10 @@ fun SettlementScreen(
     Scaffold(
         containerColor = TossGrayBg,
         topBar = {
+            // 프로토 정산 앱바 — "정산". 하단 탭이므로 back 화살표 제거(시스템 뒤로는 동작).
             TopAppBar(
                 title = {
-                    Text("정산", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "뒤로", tint = TossTextPrimary)
-                    }
+                    Text("정산", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.6).sp)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
             )

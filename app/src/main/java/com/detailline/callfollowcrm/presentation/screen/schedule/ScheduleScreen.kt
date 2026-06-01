@@ -98,18 +98,18 @@ fun ScheduleScreen(
     Scaffold(
         containerColor = TossGrayBg,
         topBar = {
+            // 프로토 일정 앱바 — "일정" + 오늘 날짜. 하단 탭이므로 back 화살표 제거.
+            val todayLabel = remember {
+                java.text.SimpleDateFormat("M월 d일 (E)", java.util.Locale.KOREAN).format(java.util.Date())
+            }
             TopAppBar(
                 title = {
-                    Text(
-                        "시공 예약 · ${state.upcomingCount}건",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TossTextPrimary
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "뒤로", tint = TossTextPrimary)
+                    androidx.compose.foundation.layout.Column {
+                        Text("일정", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.6).sp)
+                        Text(
+                            "$todayLabel · 예정 ${state.upcomingCount}건",
+                            fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
