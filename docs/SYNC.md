@@ -1326,3 +1326,13 @@ CREATE TABLE customer_personas (
 ### 다음 액션 (사장님)
 - 갤S9 첫 실행 = v20 마이그레이션 동작 확인(additive+fallback이라 위험 낮음). 정산→현금흐름 탭 동작 확인.
 - 이후: 수첩(일당) → 정산 Phase 3(일당 자동차감+월매출) 또는 셀프 일정 등록.
+
+## 2026-06-01 23:50 · android
+부재중 → 자동답장 카드 (상담함 홈) — 막내가 자동 발송한 첫 인사 기록을 홈 상단 노출.
+- 변경: 없음 (앱 단독, server/ 무관). DB 변경 없음 — 기존 message_histories 재사용.
+  - 신규: MessageHistoryDao.observeRecentAutoReplies(AUTO_SENT/AUTO_FAILED, 최근 24h)
+  - HomeViewModel.autoReplies + AutoReplyItem, HomeScreen.AutoReplyCard
+  - 탭→대화. 실패 건 빨강 강조. 취소(AUTO_CANCELLED)는 안 보여줌.
+- assembleDebug 성공.
+- commit: (아래 푸시)
+- 현황판: 상담함 4/9→5/9, 전체 37/52(71%).

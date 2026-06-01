@@ -131,6 +131,7 @@ fun HomeScreen(
     val outstandingCount by viewModel.outstandingCount.collectAsState()
     val todayJobs by viewModel.todayJobs.collectAsState()
     val nextJobs by viewModel.nextJobs.collectAsState()
+    val autoReplies by viewModel.autoReplies.collectAsState()
     val isInitialSmsLoading by viewModel.isInitialSmsLoading.collectAsState()
 
     // 서버 상태 indicator — AppContainer 의 ServerHealthMonitor 를 직접 구독.
@@ -471,6 +472,17 @@ fun HomeScreen(
                     )
                 }
 
+                // 부재중 → 자동답장 카드 — 막내가 사장님 대신 첫 인사 보낸 기록 (최근 24h).
+                //   있을 때만 표시 (없으면 홈 깔끔). 탭하면 그 고객 대화로. (2026-06-01)
+                if (autoReplies.isNotEmpty()) {
+                    item(key = "auto-reply-card") {
+                        AutoReplyCard(
+                            items = autoReplies,
+                            onOpenChat = onOpenChat
+                        )
+                    }
+                }
+
                 if (timeline.isEmpty()) {
                     item(key = "empty-state") {
                         Box(
@@ -757,6 +769,102 @@ private fun OutstandingCard(
                 }
             }
             Icon(Icons.Default.ChevronRight, "정산 열기", tint = TossTextTertiary)
+        }
+    }
+}
+
+/**
+ * 부재중 → 자동답장 카드 — 막내 비서가 사장님 대신 첫 인사를 보낸 기록 (최근 24h).
+ *   프로토 'team-alert missed' 벤치마킹. 각 줄 탭 = 그 고객 대화로 진입.
+ *   실패 건은 빨강 강조 ("직접 보내주세요"). 2026-06-01.
+ */
+@Composable
+private fun AutoReplyCard(
+    items: List<AutoReplyItem>,
+    onOpenChat: (String, Long?) -> Unit
+) {
+    TossCard {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("🤖", fontSize = 16.sp)
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "막내가 자동 답장했어요",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = TossTextPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "부재중 전화에 사장님 대신 첫 인사를 보냈어요",
+                style = MaterialTheme.typography.bodySmall,
+                color = TossTextTertiary
+            )
+            items.forEach { ar ->
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { onOpenChat(ar.phone, ar.customerId) }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                if (ar.failed) TossError.copy(alpha = 0.10f)
+                                else TossSuccess.copy(alpha = 0.12f)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            if (ar.failed) Icons.Default.CallMissed else Icons.AutoMirrored.Filled.Chat,
+                            contentDescription = null,
+                            tint = if (ar.failed) TossError else TossSuccess,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            ar.customerName ?: PhoneNumberFormatter.format(ar.phone),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = TossTextPrimary,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            buildString {
+                                append(if (ar.failed) "⚠ 발송 실패 — 직접 보내주세요" else "✅ 보냄")
+                                append(" · ")
+                                append(DateTimeUtils.formatShort(ar.createdAt))
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (ar.failed) TossError else TossTextTertiary,
+                            maxLines = 1
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(TossBlueSoft)
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            "대화",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = TossBlue,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
         }
     }
 }

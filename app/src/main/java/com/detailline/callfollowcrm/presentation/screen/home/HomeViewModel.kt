@@ -183,6 +183,33 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     // ────────────────────────────────────────────────────────
+    // 부재중 → 자동답장 카드 (상담함, 2026-06-01)
+    //   AutoReplyScheduler 가 첫 통화(부재중/수신)에 자동 발송한 기록을 홈 상단에 노출.
+    //   "막내 비서가 사장님 대신 첫 인사를 보냈어요" — 투명성/신뢰. 24시간 윈도우 → 자동 만료.
+    //   AUTO_SENT(보냄)/AUTO_FAILED(실패)만. CANCELLED 는 사장님 본인 취소라 안 보여줌.
+    // ────────────────────────────────────────────────────────
+    private val autoReplySinceMs = System.currentTimeMillis() - 24L * 60 * 60 * 1000
+
+    val autoReplies: StateFlow<List<AutoReplyItem>> = combine(
+        container.messageHistoryRepository.observeRecentAutoReplies(autoReplySinceMs, limit = 5),
+        customers
+    ) { histories, custs ->
+        val bySuffix = custs.associateBy { phoneSuffix(it.phoneNumber) }
+        histories.map { h ->
+            val c = h.customerId?.let { id -> custs.firstOrNull { it.id == id } }
+                ?: bySuffix[phoneSuffix(h.phoneNumber)]
+            AutoReplyItem(
+                phone = h.phoneNumber,
+                customerId = c?.id,
+                customerName = c?.name?.takeIf { it.isNotBlank() },
+                body = h.messageBody,
+                failed = h.status == "AUTO_FAILED",
+                createdAt = h.createdAt
+            )
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    // ────────────────────────────────────────────────────────
     // 오늘 시공 히어로 + 다음 시공 (상담함 최상단, 2026-06-01)
     // ────────────────────────────────────────────────────────
 
@@ -574,6 +601,19 @@ data class HomeItem(
     val callCount: Int = 1,
     val isUnconfirmed: Boolean = false,
     val isNewToday: Boolean = false
+)
+
+/**
+ * 부재중 → 자동답장 카드 한 줄 (2026-06-01).
+ *   AutoReplyScheduler 가 자동 발송한 한 건. failed=true 면 발송 실패(사장님이 직접 보내야 함).
+ */
+data class AutoReplyItem(
+    val phone: String,
+    val customerId: Long?,
+    val customerName: String?,
+    val body: String,
+    val failed: Boolean,
+    val createdAt: Long
 )
 
 /**

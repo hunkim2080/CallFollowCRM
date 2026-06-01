@@ -36,4 +36,18 @@ interface MessageHistoryDao {
           AND status IN ('AUTO_SENT','INLINE_SENT','MANUAL_MARK_SENT','DRAFT_OPENED')
     """)
     suspend fun countHandledForPhone(phone: String): Int
+
+    /**
+     * 최근 자동답장(부재중 첫 응답) 기록 — 홈 "자동답장" 카드용 (2026-06-01).
+     *   AUTO_SENT/AUTO_FAILED 만 (AUTO_CANCELLED = 사장님 본인이 취소 → 카드로 안 보여줌).
+     *   sinceMs 이후, 최신순 limit 개.
+     */
+    @Query("""
+        SELECT * FROM message_histories
+        WHERE status IN ('AUTO_SENT','AUTO_FAILED')
+          AND createdAt >= :sinceMs
+        ORDER BY createdAt DESC
+        LIMIT :limit
+    """)
+    fun observeRecentAutoReplies(sinceMs: Long, limit: Int): Flow<List<MessageHistoryEntity>>
 }
