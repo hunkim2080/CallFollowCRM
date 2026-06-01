@@ -2,6 +2,7 @@ package com.detailline.callfollowcrm.presentation.screen.schedule
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,15 +16,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -51,7 +54,9 @@ import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
 import com.detailline.callfollowcrm.presentation.component.TossCard
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
+import com.detailline.callfollowcrm.presentation.theme.TossBlueDark
 import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
+import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossError
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossSuccess
@@ -81,7 +86,8 @@ fun ScheduleScreen(
     viewModel: ScheduleViewModel,
     onBack: () -> Unit,
     onOpenCustomer: (Long) -> Unit,
-    onAddSchedule: () -> Unit = {}
+    onAddSchedule: () -> Unit = {},
+    onOpenSettle: () -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
     val cardSummaries by viewModel.cardSummariesByPhoneSuffix.collectAsState()
@@ -98,7 +104,7 @@ fun ScheduleScreen(
     Scaffold(
         containerColor = TossGrayBg,
         topBar = {
-            // 프로토 일정 앱바 — "일정" + 오늘 날짜. 하단 탭이므로 back 화살표 제거.
+            // 프로토 일정 앱바 — "일정" + 오늘 날짜 + 우측 [+] (openAddSchedule). 프로토엔 FAB 없음.
             val todayLabel = remember {
                 java.text.SimpleDateFormat("M월 d일 (E)", java.util.Locale.KOREAN).format(java.util.Date())
             }
@@ -107,21 +113,25 @@ fun ScheduleScreen(
                     androidx.compose.foundation.layout.Column {
                         Text("일정", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.6).sp)
                         Text(
-                            "$todayLabel · 예정 ${state.upcomingCount}건",
+                            todayLabel,
                             fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary
                         )
                     }
                 },
+                actions = {
+                    Box(
+                        modifier = Modifier
+                            .padding(end = 12.dp)
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(11.dp))
+                            .background(Color.White)
+                            .clickable { onAddSchedule() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Add, "일정 등록", tint = TossBlue, modifier = Modifier.size(20.dp))
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
-            )
-        },
-        floatingActionButton = {
-            androidx.compose.material3.ExtendedFloatingActionButton(
-                onClick = onAddSchedule,
-                icon = { Icon(Icons.Default.Add, null) },
-                text = { Text("일정 등록", fontWeight = FontWeight.SemiBold) },
-                containerColor = TossBlue,
-                contentColor = androidx.compose.ui.graphics.Color.White
             )
         }
     ) { inner ->
@@ -176,41 +186,58 @@ fun ScheduleScreen(
                             selectedDayMs = todayStart
                         }
                     )
-                    DowHeader()
-                    repeat(6) { week ->
-                        CalendarWeekRow(
-                            cells = cells.subList(week * 7, week * 7 + 7),
-                            selectedDayMs = selectedDayMs,
-                            onSelect = { dayMs -> selectedDayMs = dayMs }
-                        )
+                    // cal-card — 흰 카드 안에 요일 헤더 + 6주 그리드 (프로토 .cal-card)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color.White)
+                            .padding(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 16.dp)
+                    ) {
+                        DowHeader()
+                        repeat(6) { week ->
+                            CalendarWeekRow(
+                                cells = cells.subList(week * 7, week * 7 + 7),
+                                selectedDayMs = selectedDayMs,
+                                onSelect = { dayMs -> selectedDayMs = dayMs },
+                                onLongSelect = { dayMs -> selectedDayMs = dayMs; onAddSchedule() }
+                            )
+                        }
+                    }
+                    // cal-hint
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 11.dp),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text("📌 날짜를 ", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = TossTextTertiary)
+                        Text("길게 누르면", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
+                        Text(" 그 날 일정을 바로 등록해요", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = TossTextTertiary)
                     }
                 }
             }
-            // 4) 선택된 날 헤더 + 시공 카드
-            item(key = "selected-header") {
-                SelectedDayHeader(
-                    dayMs = selectedDayMs,
-                    count = schedulesForSelected.size,
-                    isToday = selectedDayMs == todayStart
-                )
+            // 4) 선택된 날 라벨 + 시공 카드 (프로토 cal-day-label + cal-day-jobs)
+            item(key = "day-label") {
+                DayLabel(dayMs = selectedDayMs, isToday = selectedDayMs == todayStart)
             }
             if (schedulesForSelected.isEmpty()) {
-                item(key = "no-schedules") {
-                    EmptyDayMessage(
-                        dayMs = selectedDayMs,
-                        todayStart = todayStart,
-                        hasAnyScheduled = state.all.isNotEmpty()
-                    )
-                }
+                item(key = "no-schedules") { DayEmpty(onAdd = onAddSchedule) }
             } else {
+                if (schedulesForSelected.size > 1) {
+                    item(key = "day-count") { DayCount(schedulesForSelected.size) }
+                }
                 items(schedulesForSelected, key = { "c-${it.id}" }) { c ->
                     val suffix = c.phoneNumber.filter { ch -> ch.isDigit() }.takeLast(8)
-                    ScheduleCustomerCard(
+                    DayJobCard(
                         customer = c,
                         cardSummary = cardSummaries[suffix],
-                        onClick = { onOpenCustomer(c.id) }
+                        selectedDayMs = selectedDayMs,
+                        todayStart = todayStart,
+                        onClick = { onOpenCustomer(c.id) },
+                        onEdit = { onOpenCustomer(c.id) },
+                        onOpenSettle = onOpenSettle
                     )
                 }
+                item(key = "day-add") { DayAddButton("이 날 일정 더 추가", onAddSchedule) }
             }
             item { Spacer(Modifier.height(40.dp)) }
         }
@@ -224,28 +251,36 @@ private fun MonthHeader(
     onNext: () -> Unit,
     onTapToday: () -> Unit
 ) {
+    // cal-head — 가운데 정렬 + 원형 흰 nav 버튼 (프로토 .cal-head)
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 12.dp),
+        horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(onClick = onPrev) {
-            Icon(Icons.Default.ChevronLeft, "이전 달", tint = TossTextSecondary)
-        }
+        CalNav(Icons.Default.ChevronLeft, "이전 달", onPrev)
         Text(
             DateTimeUtils.formatMonthHeader(anchorMs),
-            modifier = Modifier
-                .weight(1f)
-                .clickable { onTapToday() },
-            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(horizontal = 20.dp).clickable { onTapToday() },
+            fontSize = 18.sp,
             color = TossTextPrimary,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center
+            fontWeight = FontWeight.ExtraBold,
+            letterSpacing = (-0.36).sp
         )
-        IconButton(onClick = onNext) {
-            Icon(Icons.Default.ChevronRight, "다음 달", tint = TossTextSecondary)
-        }
+        CalNav(Icons.Default.ChevronRight, "다음 달", onNext)
+    }
+}
+
+@Composable
+private fun CalNav(icon: androidx.compose.ui.graphics.vector.ImageVector, cd: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .background(Color.White)
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, cd, tint = TossTextSecondary, modifier = Modifier.size(18.dp))
     }
 }
 
@@ -277,7 +312,8 @@ private fun DowHeader() {
 private fun CalendarWeekRow(
     cells: List<CalendarCell>,
     selectedDayMs: Long?,
-    onSelect: (Long) -> Unit
+    onSelect: (Long) -> Unit,
+    onLongSelect: (Long) -> Unit
 ) {
     Row(modifier = Modifier.fillMaxWidth()) {
         cells.forEach { cell ->
@@ -285,17 +321,20 @@ private fun CalendarWeekRow(
                 cell = cell,
                 isSelected = selectedDayMs == cell.dayStartMs,
                 onClick = { onSelect(cell.dayStartMs) },
+                onLongClick = { onLongSelect(cell.dayStartMs) },
                 modifier = Modifier.weight(1f)
             )
         }
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun CalendarDay(
     cell: CalendarCell,
     isSelected: Boolean,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val bgColor = when {
@@ -321,7 +360,7 @@ private fun CalendarDay(
             .padding(2.dp)
             .clip(CircleShape)
             .background(bgColor)
-            .clickable { onClick() },
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -345,144 +384,182 @@ private fun CalendarDay(
 }
 
 @Composable
-private fun SelectedDayHeader(dayMs: Long?, count: Int, isToday: Boolean) {
+private fun DayLabel(dayMs: Long?, isToday: Boolean) {
+    // 프로토 cal-day-label "5월 29일 (금) · 오늘" (연도 없음)
     val label = if (dayMs == null) "날짜를 선택하세요"
-    else DateTimeUtils.formatKoreanDate(dayMs) + (if (isToday) " · 오늘" else "")
+    else koreanMonthDay(dayMs) + (if (isToday) " · 오늘" else "")
+    Text(
+        label,
+        fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary,
+        modifier = Modifier.padding(start = 2.dp, top = 20.dp, bottom = 11.dp)
+    )
+}
+
+@Composable
+private fun DayCount(count: Int) {
+    Text(
+        "이 날 시공 ${count}곳",
+        fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary,
+        modifier = Modifier.padding(start = 2.dp, bottom = 11.dp)
+    )
+}
+
+@Composable
+private fun DayEmpty(onAdd: () -> Unit) {
+    // 프로토 day-empty
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("이 날은 시공 예약이 없어요", fontSize = 13.sp, color = TossTextTertiary)
+        Spacer(Modifier.height(14.dp))
+        DayAddButton("이 날 일정 등록", onAdd)
+    }
+}
+
+@Composable
+private fun DayAddButton(label: String, onClick: () -> Unit) {
+    // 프로토 .day-add — blue-tint 칩
     Row(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 16.dp, bottom = 4.dp),
+            .clip(RoundedCornerShape(13.dp))
+            .background(TossBlueSoft)
+            .clickable { onClick() }
+            .padding(horizontal = 18.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            label,
-            style = MaterialTheme.typography.titleMedium,
-            color = TossTextPrimary,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.weight(1f)
-        )
-        if (count > 0) {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(TossBlueSoft)
-                    .padding(horizontal = 10.dp, vertical = 4.dp)
-            ) {
-                Text(
-                    "${count}건",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = TossBlue,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-        }
+        Icon(Icons.Default.Add, null, tint = TossBlueDark, modifier = Modifier.size(15.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(label, fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = TossBlueDark)
     }
 }
 
+/**
+ * 프로토 day-job 카드 — hd 점 + 이름 + N일차 + 시간 + D-day/완료 태그 + 수정,
+ *   📍 주소, 입금 상태(읽기), "정산·현금흐름에서 보기".
+ * (팀원·일당 배정 line 은 99k 팀 기능 — 미구현, 추후.)
+ */
 @Composable
-private fun EmptyDayMessage(dayMs: Long?, todayStart: Long, hasAnyScheduled: Boolean) {
-    val msg = when {
-        dayMs == null -> "위 캘린더에서 날짜를 탭하세요"
-        dayMs < todayStart -> "이 날 시공 없었어요"
-        dayMs == todayStart -> "오늘 시공 없음 — 여유 있는 하루"
-        else -> "이 날 비어있어요 — 새 예약 가능"
-    }
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 24.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("🗓", fontSize = 28.sp)
-            Spacer(Modifier.height(8.dp))
-            Text(msg, style = MaterialTheme.typography.bodyMedium, color = TossTextTertiary)
-            if (!hasAnyScheduled) {
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    "고객 상세 → 일정 → \"시공 예약일 설정\" 또는 ChatScreen → ✨ AI 제안 의 [시공일 등록]",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TossTextTertiary,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 24.dp)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ScheduleCustomerCard(
+private fun DayJobCard(
     customer: CustomerEntity,
     cardSummary: String?,
-    onClick: () -> Unit
+    selectedDayMs: Long?,
+    todayStart: Long,
+    onClick: () -> Unit,
+    onEdit: () -> Unit,
+    onOpenSettle: () -> Unit
 ) {
     val scheduled = customer.scheduledWorkDate ?: return
-    val isPast = scheduled < DateTimeUtils.startOfDay(System.currentTimeMillis())
+    val s = DateTimeUtils.startOfDay(scheduled)
+    val isPast = s < todayStart
+    val totalDays = customer.scheduledWorkDays.coerceAtLeast(1)
+    val dayN = selectedDayMs?.let { ((it - s) / DateTimeUtils.DAY_MS).toInt() + 1 }?.coerceIn(1, totalDays) ?: 1
+    val row = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(customer)
+    val hasMoney = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.hasMoney(customer)
+
     TossCard(onClick = onClick) {
         Column {
+            // 1행: hd 점 + 이름 + N일차 + 시간 + 태그 + 수정
             Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(9.dp).clip(CircleShape)
+                        .background(if (isPast) Color(0xFFC2C9D2) else TossError)
+                )
+                Spacer(Modifier.width(10.dp))
                 Text(
                     customer.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(customer.phoneNumber),
-                    style = MaterialTheme.typography.titleMedium,
+                    fontSize = 15.sp, fontWeight = FontWeight.Bold,
                     color = if (isPast) TossTextSecondary else TossTextPrimary,
-                    modifier = Modifier.weight(1f),
-                    fontWeight = FontWeight.SemiBold
+                    modifier = Modifier.weight(1f)
                 )
+                if (totalDays > 1) {
+                    Box(
+                        Modifier.clip(RoundedCornerShape(7.dp)).background(Color(0xFFF1ECFF)).padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Text("${totalDays}일 중 ${dayN}일차", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF7C5CFC))
+                    }
+                    Spacer(Modifier.width(7.dp))
+                }
+                customer.scheduledWorkMinutes?.let {
+                    Text(DateTimeUtils.formatWorkMinutes(it), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
+                        modifier = Modifier.padding(end = 8.dp))
+                }
+                // 태그 (완료 / D-day)
+                val tagText = if (isPast) "완료" else DateTimeUtils.dDayLabel(scheduled)
+                Box(
+                    Modifier.clip(RoundedCornerShape(8.dp))
+                        .background(if (isPast) TossGrayBg else Color(0xFFE5F8EE))
+                        .padding(horizontal = 9.dp, vertical = 4.dp)
+                ) {
+                    Text(tagText, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = if (isPast) TossTextTertiary else Color(0xFF0E9F56))
+                }
+                Box(
+                    Modifier.padding(start = 7.dp).size(30.dp).clip(RoundedCornerShape(9.dp)).clickable { onEdit() },
+                    contentAlignment = Alignment.Center
+                ) { Icon(Icons.Default.Edit, "수정", tint = TossTextTertiary, modifier = Modifier.size(16.dp)) }
+            }
+            // 📍 주소
+            Spacer(Modifier.height(9.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.LocationOn, null, tint = TossTextTertiary, modifier = Modifier.size(13.dp))
+                Spacer(Modifier.width(5.dp))
                 Text(
-                    DateTimeUtils.dDayLabel(scheduled),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = if (isPast) TossTextTertiary else TossBlue,
-                    fontWeight = FontWeight.Bold
+                    customer.address?.takeIf { it.isNotBlank() } ?: "주소 미입력",
+                    fontSize = 13.sp, color = TossTextSecondary, maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
             }
-            // 시공 시간 + 기간 (DB v24). 시간 미정이면 생략, 당일이면 기간 생략.
-            val timeLabel = customer.scheduledWorkMinutes?.let { DateTimeUtils.formatWorkMinutes(it) }
-            val days = customer.scheduledWorkDays.coerceAtLeast(1)
-            if (timeLabel != null || days > 1) {
-                Spacer(Modifier.height(4.dp))
-                val rangeLabel = if (days > 1) {
-                    val endMs = DateTimeUtils.startOfDay(scheduled) + (days - 1) * DateTimeUtils.DAY_MS
-                    "${DateTimeUtils.formatDateOnly(scheduled)}~${DateTimeUtils.formatDateOnly(endMs)} · ${days}일간"
-                } else null
-                Text(
-                    listOfNotNull(timeLabel?.let { "🕐 $it" }, rangeLabel).joinToString("  ·  "),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (isPast) TossTextTertiary else TossTextSecondary,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-            // ✨ AI 한 줄 요약 — 사장님 요청 (2026-05-24): "어떤 내용으로 예약 확정인지 간략하게".
-            //   HomeScreen 카드 요약과 같은 데이터. 서버 응답 없으면 silent 숨김.
+            // ✨ AI 요약
             if (!cardSummary.isNullOrBlank()) {
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "✨ $cardSummary",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (isPast) TossTextTertiary else TossBlue,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 2
-                )
+                Spacer(Modifier.height(6.dp))
+                Text("✨ $cardSummary", fontSize = 13.sp, color = if (isPast) TossTextTertiary else TossBlue, fontWeight = FontWeight.Medium, maxLines = 2)
             }
-            Spacer(Modifier.height(4.dp))
-            Text(
-                PhoneNumberFormatter.format(customer.phoneNumber),
-                style = MaterialTheme.typography.bodyMedium,
-                color = TossTextSecondary
-            )
-            if (customer.memo.isNotBlank()) {
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    customer.memo.lineSequence().firstOrNull().orEmpty(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TossTextSecondary,
-                    maxLines = 1
-                )
+            // 입금 상태 (읽기 전용)
+            if (hasMoney) {
+                Spacer(Modifier.height(10.dp))
+                PayStatusReadOnly(row)
             }
-            // 2026-05-25: status 라인 제거 — CustomerStatus enum 폐기. 카테고리는 별도 표시 예정.
+            // 정산·현금흐름에서 보기
+            Spacer(Modifier.height(10.dp))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().clickable { onOpenSettle() }.padding(top = 10.dp)
+            ) {
+                Text("💰", fontSize = 13.sp)
+                Spacer(Modifier.width(5.dp))
+                Text("정산·현금흐름에서 보기", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                Spacer(Modifier.weight(1f))
+                Icon(Icons.Default.ChevronRight, null, tint = TossBlue.copy(alpha = 0.6f), modifier = Modifier.size(16.dp))
+            }
         }
     }
 }
+
+@Composable
+private fun PayStatusReadOnly(row: com.detailline.callfollowcrm.domain.settlement.SettleRow) {
+    fun manwon(won: Long) = (won / 10_000L).toInt()
+    val total = "총 %,d만원".format(manwon(row.total))
+    Column {
+        Text(total, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+        Spacer(Modifier.height(3.dp))
+        val hasDeposit = row.depositAmount > 0L
+        val (plain, emphasis, emColor) = when {
+            row.isPaidOff -> Triple("", "전액 완납 ✓", TossSuccess)
+            hasDeposit && !row.depositPaid -> Triple("계약금 ${manwon(row.depositAmount)}만 · 잔금 ${manwon(row.balanceAmount)}만 ", "미수", TossError)
+            hasDeposit -> Triple("계약금 ${manwon(row.depositAmount)}만 받음 · ", "잔금 ${manwon(row.balanceAmount)}만 남음", TossError)
+            else -> Triple("계약금 없음 · ", "전액 ${manwon(row.total)}만 미수", TossError)
+        }
+        Row {
+            if (plain.isNotEmpty()) Text(plain, fontSize = 12.5.sp, color = TossTextTertiary)
+            Text(emphasis, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = emColor)
+        }
+    }
+}
+
+/** "5월 29일 (금)" — 프로토 cal-day-label 포맷 (연도 없음). */
+private fun koreanMonthDay(ms: Long): String =
+    java.text.SimpleDateFormat("M월 d일 (E)", java.util.Locale.KOREAN).format(java.util.Date(ms))
 
 // ─────────────────────────────────────────────────────────────
 // 캘린더 데이터 모델 + 빌더

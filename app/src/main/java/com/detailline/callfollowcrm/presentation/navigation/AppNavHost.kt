@@ -168,7 +168,8 @@ fun AppNavHost(
                 viewModel = vm,
                 onBack = { navController.popBackStack() },
                 onOpenCustomer = { id -> navController.navigate(Destinations.customerDetail(id)) },
-                onAddSchedule = { navController.navigate(Destinations.SCHEDULE_ADD) }
+                onAddSchedule = { navController.navigate(Destinations.SCHEDULE_ADD) },
+                onOpenSettle = { navController.navigate(Destinations.SETTLEMENT) }
             )
         }
 

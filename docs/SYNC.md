@@ -1778,3 +1778,9 @@ CREATE TABLE intake_forms (
 - 데이터원(전부 로컬): jobs=scheduledWorkDate, 문의=createdAt, 전환율=jobs/문의, 보낸 답장=message_histories 발송기록 신규 count 쿼리(observeSentCountBetween), 시공종류=categoryId 그룹. 허위 숫자 없음.
 - 전국(상위 N% 페이스·전국 평균)은 서버 집계 나오면 채울 자리만 잡음 — SERVER_HANDOFF §6 시장 인사이트 항목과 연결.
 - DB: 변경 없음(쿼리만 추가). commit: (아래)
+
+## 2026-06-02 · android (3)
+일정 화면 프로토 `s-schedule` 1:1 보강.
+- 변경: 앱바 우측 [+](FAB 제거), cal-head 가운데+원형 nav, 캘린더를 흰 cal-card 안으로, cal-hint("길게 누르면 등록")+셀 long-press→등록, cal-day-label 연도 제거, "이 날 시공 N곳"(>1), 날짜 카드 재설계(hd점·N일차·시간·D-day/완료 태그·수정·📍주소·입금 상태[읽기]·"정산·현금흐름에서 보기"→정산탭). onOpenSettle 콜백 추가(AppNavHost).
+- 보류(미래/팀 기능): 날짜 카드 "팀원·일당 배정" line = 99k 팀 관리 의존 → 미구현. 캘린더 셀의 다일 spanning 막대(jbar)는 점(dot) 유지.
+- DB 변경 없음. commit: (아래)
