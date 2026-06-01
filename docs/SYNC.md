@@ -1400,3 +1400,18 @@ CREATE TABLE customer_personas (
 - 핵심: 앱에 리마인드/발송-대기 공통 인프라(recurring_message_log 음수 sentinel + SimpleDueCard) 있음 →
   서버는 신호(시각/상태)만 주면 홈 카드로 띄움. 자동발송 X 정책 유지.
 - 안드로이드 단독 항목 100% 소진. 다음 진행은 맥미니 Claude 영역.
+
+## 2026-06-01 · android · 전면 UI 리뉴얼 (프로토타입 그대로) 시작
+사장님 지시: 실제 앱을 design-preview/ringgo-redesign.html(프로토) 모양 그대로 전면 재구성.
+첫 배치 8커밋 (전부 app/ 영역, server/ 무관, DB 변경 0):
+- #1 8847899 하단 5탭바(상담함·일정·정산·통계·더보기) + 통계 탭 신설 + 테마 토큰 프로토 정확값
+- #2 943b7cf 로그인 화면(막내 캐릭터 + 카카오/네이버/구글) + 시작 흐름(hasSeenLogin)
+- #3 30d10e5 온보딩(스토리텔링 7장 + 업종 + 상호·지역 + 막내 비서 탄생) + 권한 단계 분리
+- #4 1b02ef0 홈 앱바: RING-GO ● → "상담함" + 날짜 + AI 배지
+- #5 더보기: 제목 "더보기" + 막내 비서 카드
+- #6 9cc52ec 일정·정산 앱바 통일 + 탭 back 화살표 제거
+- #7 검색 화면(net-new, 이름·전화·메시지) + 상담함 🔍
+- #8 고객 목록 화면(net-new) + 상담함 👤
+- 신규 pref: hasSeenLogin / hasOnboarded / ownerRegions. 신규 라우트: LOGIN/PERMISSIONS/STATS/SEARCH/CUSTOMERS
+- 참고(서버): 소셜 OAuth(카카오 등) 실제 연동은 서버 작업 — 지금 앱은 버튼/진입 흐름만.
+- 남은 UI: 더보기 항목 lockcard 그룹화, 채팅은 이미 프로토 충족(요약/추천/다듬기).
