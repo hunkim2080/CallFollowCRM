@@ -1916,3 +1916,9 @@ CREATE TABLE intake_forms (
 - 하단에 블로그 후기 lockcard(비즈니스 잠금 토스트) + "지난 문자 보기" cd-link(→채팅) 추가.
 - 보류(정직): 현장 사진 카드=팀/서버 사진 의존(빈 카드 방지), 인라인 "주고받은 문자"=유용 기능이라 유지(프로토는 링크만).
 - 빌드 OK. commit: (아래)
+
+## 2026-06-02 · android (24)
+채팅 통화 카드 "에이닷 통화 내용 요약 받기 ↑" 버튼 추가 (사장님 요청, 프로토 callCardHtml).
+- CallSegment: 작은 청록 알약 → 프로토 .chat-call 전체폭 카드(bg #EAF4F1 border #CDE8E0) + cc-ch(아이콘·유형·시각 "문자하다 통화함") + cc-sum-btn(초록 #0E9E90 "에이닷 통화 내용 요약 받기 ↑").
+- 버튼 탭 → 붙여넣기 다이얼로그(에이닷 요약 텍스트 붙여넣기 + 클립보드 버튼 + 저장). 저장=AdotSummaryImporter.importPasted(customerId 있으면)/importFromShare. 기존 에이닷 연동(AdotShareTextParser/Importer) 재사용.
+- 빌드 OK. DB 변경 없음. commit: (아래)

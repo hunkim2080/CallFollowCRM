@@ -187,6 +187,9 @@ fun ChatScreen(
     //     누르면 펼쳐서 풍부한 UnifiedSummaryCard. → 기본 접힘으로 시작.
     var summaryManualCollapsed by remember { mutableStateOf(true) }
 
+    // 통화 카드 "에이닷 통화 내용 요약 받기 ↑" → 붙여넣기 다이얼로그.
+    var adotPasteOpen by remember { mutableStateOf(false) }
+
     // Composer 임시저장 (2026-05-27 사장님 통점) — phone 별 in-memory draft 복원.
     //   init = ChatDraftStore.get(phone), 변경 시 자동 save, 전송 후 input="" = 자동 clear (set 이 empty 면 remove).
     var input by remember { mutableStateOf(viewModel.loadDraft()) }
@@ -538,7 +541,7 @@ fun ChatScreen(
                                     }
                                 )
                             }
-                            is ChatTimelineItem.Call -> CallSegment(ti.record)
+                            is ChatTimelineItem.Call -> CallSegment(ti.record, onGetSummary = { adotPasteOpen = true })
                             is ChatTimelineItem.DateDivider -> ChatDateDivider(chatDateLabel(ti.dayStart))
                         }
                     }
@@ -794,6 +797,60 @@ fun ChatScreen(
             onPick = { tpl -> input = if (input.isBlank()) tpl.body else input + "\n" + tpl.body; tplPickerOpen = false },
             onDismiss = { tplPickerOpen = false }
         )
+    }
+
+    // 에이닷 통화 요약 붙여넣기 (통화 카드 "요약 받기 ↑" → 에이닷에서 복사한 요약을 붙여넣어 저장).
+    if (adotPasteOpen) {
+        val pasteCtx = LocalContext.current
+        val clip = androidx.compose.ui.platform.LocalClipboardManager.current
+        var pasteText by remember { mutableStateOf("") }
+        Dialog(onDismissRequest = { adotPasteOpen = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+            Box(Modifier.fillMaxSize().padding(horizontal = 18.dp), contentAlignment = Alignment.Center) {
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color.White).padding(20.dp)) {
+                    Text("에이닷 통화 내용 요약 받기", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "에이닷 통화요약 화면에서 ↑공유 → RING-GO 로 보내거나, 요약을 복사해서 아래에 붙여넣어 주세요.",
+                        fontSize = 12.5.sp, color = TossTextSecondary, lineHeight = 18.sp
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    BasicTextField(
+                        value = pasteText, onValueChange = { pasteText = it },
+                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, color = TossTextPrimary),
+                        modifier = Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(12.dp))
+                            .background(TossGrayBg).padding(12.dp),
+                        decorationBox = { inner ->
+                            if (pasteText.isEmpty()) Text("여기에 에이닷 통화 요약을 붙여넣기…", color = TossTextTertiary, fontSize = 13.sp)
+                            inner()
+                        }
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Box(
+                        Modifier.clip(RoundedCornerShape(8.dp)).background(TossGrayBg)
+                            .clickable { clip.getText()?.let { pasteText = it.text } }.padding(horizontal = 12.dp, vertical = 7.dp)
+                    ) { Text("📋 클립보드에서 붙여넣기", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) }
+                    Spacer(Modifier.height(14.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(
+                            Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
+                                .clickable { adotPasteOpen = false }.padding(vertical = 13.dp),
+                            contentAlignment = Alignment.Center
+                        ) { Text("취소", color = TossTextSecondary, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+                        Box(
+                            Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(TossBlue)
+                                .clickable {
+                                    val container = (pasteCtx.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication).container
+                                    val cid = customer?.id
+                                    if (cid != null) com.detailline.callfollowcrm.recording.AdotSummaryImporter.importPasted(pasteCtx, container, pasteText, cid)
+                                    else com.detailline.callfollowcrm.recording.AdotSummaryImporter.importFromShare(pasteCtx, container, pasteText)
+                                    adotPasteOpen = false
+                                }.padding(vertical = 13.dp),
+                            contentAlignment = Alignment.Center
+                        ) { Text("저장", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+                    }
+                }
+            }
+        }
     }
 
     // 풀스크린 이미지 뷰어 (썸네일 탭 시)
@@ -1095,58 +1152,58 @@ private fun ChatDateDivider(label: String) {
  *   요약 가져오기(에이닷/서버)는 별개 단계 — 여기선 통화 발생 자체를 타임라인에 표시.
  */
 @Composable
-private fun CallSegment(record: com.detailline.callfollowcrm.data.local.entity.CallRecordEntity) {
+private fun CallSegment(
+    record: com.detailline.callfollowcrm.data.local.entity.CallRecordEntity,
+    onGetSummary: () -> Unit
+) {
     val type = runCatching {
         com.detailline.callfollowcrm.domain.model.CallType.valueOf(record.callType)
     }.getOrNull()
     val (label, accent) = when (type) {
-        com.detailline.callfollowcrm.domain.model.CallType.INCOMING -> "수신 통화" to CallTeal
-        com.detailline.callfollowcrm.domain.model.CallType.OUTGOING -> "발신 통화" to CallTeal
+        com.detailline.callfollowcrm.domain.model.CallType.INCOMING -> "수신 통화" to Color(0xFF0E9E90)
+        com.detailline.callfollowcrm.domain.model.CallType.OUTGOING -> "발신 통화" to Color(0xFF0E9E90)
         com.detailline.callfollowcrm.domain.model.CallType.MISSED -> "부재중 전화" to TossError
         com.detailline.callfollowcrm.domain.model.CallType.REJECTED -> "거절한 전화" to TossTextSecondary
-        com.detailline.callfollowcrm.domain.model.CallType.MANUAL -> "수동 기록 통화" to CallTeal
-        else -> "통화" to CallTeal
+        com.detailline.callfollowcrm.domain.model.CallType.MANUAL -> "수동 기록 통화" to Color(0xFF0E9E90)
+        else -> "통화" to Color(0xFF0E9E90)
     }
     val durLabel = formatCallDuration(record.duration)
-    Row(
+    // 프로토 .chat-call — 전체폭 teal 카드 + cc-ch(아이콘·유형·시각) + 에이닷 요약 버튼.
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp),
-        horizontalArrangement = Arrangement.Center
+            .padding(vertical = 6.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(0xFFEAF4F1))
+            .border(1.dp, Color(0xFFCDE8E0), RoundedCornerShape(14.dp))
+            .padding(horizontal = 12.dp, vertical = 11.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(14.dp))
-                .background(CallTealSoft)
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(RoundedCornerShape(9.dp))
-                    .background(accent),
+                modifier = Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(accent),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Phone, contentDescription = null,
-                    tint = Color.White, modifier = Modifier.size(15.dp))
+                Icon(Icons.Default.Phone, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
             }
             Spacer(Modifier.width(9.dp))
-            Column {
+            Column(Modifier.weight(1f)) {
                 Text(
-                    buildString {
-                        append(label)
-                        if (durLabel != null) { append(" · "); append(durLabel) }
-                    },
-                    style = MaterialTheme.typography.labelLarge,
-                    color = accent, fontWeight = FontWeight.Bold
+                    buildString { append(label); if (durLabel != null) { append(" · "); append(durLabel) } },
+                    fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0A7D72)
                 )
                 Text(
-                    DateTimeUtils.formatShort(record.endedAt),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = TossTextTertiary, fontWeight = FontWeight.Medium
+                    DateTimeUtils.formatShort(record.endedAt) + " · 문자하다 통화함",
+                    fontSize = 11.sp, color = TossTextTertiary, fontWeight = FontWeight.Bold
                 )
             }
+        }
+        // cc-sum-btn — 에이닷 통화 내용 요약 받기 ↑
+        Box(
+            Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(10.dp))
+                .background(Color(0xFF0E9E90)).clickable { onGetSummary() }.padding(vertical = 10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("에이닷 통화 내용 요약 받기 ↑", color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold)
         }
     }
 }
