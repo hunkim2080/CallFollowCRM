@@ -2,7 +2,6 @@ package com.detailline.callfollowcrm.presentation.screen.search
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -15,12 +14,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.LaunchedEffect
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
+import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
@@ -108,17 +109,29 @@ fun SearchScreen(
         }
 
         when {
-            query.isBlank() -> CenterHint("이름·전화번호·메시지로\n빠르게 찾아보세요")
-            results.isEmpty() -> CenterHint("‘$query’ 검색 결과가 없어요")
+            // 프로토 doSearch 빈 쿼리 안내문 verbatim.
+            query.isBlank() -> CenterHint("이름·전화번호·메시지 내용으로\n고객을 찾아보세요")
+            results.isEmpty() -> CenterHint("검색 결과가 없어요")
+            // 프로토: box.className='recent' → 흰 카드 하나 + recent-row 들.
             else -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 18.dp)
             ) {
-                items(results, key = { it.phone }) { r ->
-                    ResultCard(r) {
-                        keyboard?.hide()
-                        onOpenChat(r.phone, r.customerId)
+                item {
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .background(Color.White, RoundedCornerShape(18.dp))
+                    ) {
+                        results.forEachIndexed { idx, r ->
+                            if (idx > 0) {
+                                Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+                            }
+                            SearchRow(r) {
+                                keyboard?.hide()
+                                onOpenChat(r.phone, r.customerId)
+                            }
+                        }
                     }
                 }
             }
@@ -126,27 +139,56 @@ fun SearchScreen(
     }
 }
 
+/** 프로토 doSearch 결과 .recent-row — 아바타 + (이름 / 메시지 요약). */
 @Composable
-private fun ResultCard(r: SearchResult, onClick: () -> Unit) {
-    val title = r.name ?: PhoneNumberFormatter.format(r.phone)
-    Column(
+private fun SearchRow(r: SearchResult, onClick: () -> Unit) {
+    val hasName = r.name?.isNotBlank() == true
+    val title = r.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(r.phone)
+    val tintIdx = (((r.customerId ?: r.phone.hashCode().toLong()) % AV_TINTS.size + AV_TINTS.size) % AV_TINTS.size).toInt()
+    Row(
         Modifier
             .fillMaxWidth()
-            .background(Color.White, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp)
+            .padding(horizontal = 16.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-        if (r.name != null) {
-            Spacer(Modifier.height(2.dp))
-            Text(PhoneNumberFormatter.format(r.phone), fontSize = 12.sp, color = TossTextTertiary)
+        Box(
+            Modifier.size(44.dp).background(
+                if (hasName) AV_TINTS[tintIdx].first else TossGrayBg, CircleShape
+            ),
+            contentAlignment = Alignment.Center
+        ) {
+            if (hasName) {
+                Text(
+                    title.replace(Regex("[\\s()]"), "").firstOrNull()?.toString() ?: "?",
+                    fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = AV_TINTS[tintIdx].second
+                )
+            } else {
+                Icon(Icons.Filled.Person, null, tint = TossTextTertiary, modifier = Modifier.size(20.dp))
+            }
         }
-        if (!r.snippet.isNullOrBlank()) {
-            Spacer(Modifier.height(4.dp))
-            Text(r.snippet, fontSize = 13.sp, color = TossTextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.size(13.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
+                maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
+            if (!r.snippet.isNullOrBlank()) {
+                Spacer(Modifier.height(3.dp))
+                Text(r.snippet, fontSize = 13.sp, color = TossTextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
     }
 }
+
+// 프로토 avatarHtml 틴트 5색 [bg, fg].
+private val AV_TINTS = listOf(
+    Color(0xFFE6EFFF) to Color(0xFF3182F6),
+    Color(0xFFE7F8EE) to Color(0xFF16A765),
+    Color(0xFFFDEAEF) to Color(0xFFF0436A),
+    Color(0xFFF1ECFE) to Color(0xFF7C5CFC),
+    Color(0xFFFEF3E0) to Color(0xFFE0920C)
+)
 
 @Composable
 private fun CenterHint(text: String) {
