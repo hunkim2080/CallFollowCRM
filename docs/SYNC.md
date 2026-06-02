@@ -1936,3 +1936,9 @@ CREATE TABLE intake_forms (
 - 데이터(totalAmount/depositAmount/balanceAmount/paidAt/scheduledWorkDate)·setter 그대로 유지 — UI만 단순화. 금액 편집=AmountInputDialog(만원). 헬퍼 CdKv/manwonLabel/payStatusLabel.
 - 보류: 현장 사진 카드 = 고객별 사진 저장 미보유(팀/서버 의존) → 빈 카드 방지 위해 미추가(사장님 확인 필요).
 - 빌드 OK. DB 변경 없음. commit: (아래)
+
+## 2026-06-02 · android (27)
+고객 상세 "현장 사진" 카드 추가 — 테스터용(보이게만, 기능은 막음).
+- 프로토 photo-grid 1:1: 📷 현장 사진 + ph-help 안내 + 3열 그리드(회색 슬롯 2 + 올리기 dashed 타일). 전부 탭 시 "현장 사진은 곧 제공돼요 🚧 (테스터 버전 준비 중)" 토스트.
+- 실제 업로드/저장 기능 없음(고객별 사진 저장 미보유) — 사장님 요청대로 "있는 것처럼 + 기능 막음".
+- 빌드 OK. DB 변경 없음. commit: (아래)

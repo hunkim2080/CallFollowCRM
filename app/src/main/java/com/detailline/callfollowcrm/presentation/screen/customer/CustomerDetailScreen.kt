@@ -4,6 +4,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.relocation.BringIntoViewRequester
@@ -713,6 +716,54 @@ fun CustomerDetailScreen(
                         summaries.forEach { s ->
                             SummaryItem(summary = s)
                             Spacer(Modifier.height(8.dp))
+                        }
+                    }
+                }
+            }
+
+            // 6.5 현장 사진 (프로토 openCustomer) — 테스터용: UI 노출, 업로드 기능은 "준비 중"으로 막음.
+            val photoCtx = androidx.compose.ui.platform.LocalContext.current
+            val photoBlocked = {
+                android.widget.Toast.makeText(photoCtx, "현장 사진은 곧 제공돼요 🚧 (테스터 버전 준비 중)", android.widget.Toast.LENGTH_SHORT).show()
+            }
+            TossCard {
+                Column {
+                    androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Text("📷", fontSize = 13.sp)
+                        Spacer(Modifier.width(6.dp))
+                        Text("현장 사진", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "팀원이 올린 사진은 파란 이름표가 붙어요. 모든 사진은 사장님 계정에 저장돼요.",
+                        fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    // photo-grid (3열) — 빈 슬롯 2 + 올리기. 전부 탭하면 "준비 중".
+                    androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        repeat(2) {
+                            androidx.compose.foundation.layout.Box(
+                                Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(12.dp))
+                                    .background(
+                                        Brush.linearGradient(listOf(Color(0xFFCFD6DF), Color(0xFFA9B3C1)))
+                                    )
+                                    .clickable { photoBlocked() }
+                            )
+                        }
+                        androidx.compose.foundation.layout.Box(
+                            Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(12.dp))
+                                .background(TossGrayBg)
+                                .border(1.5.dp, Color(0xFFC8D3E2), RoundedCornerShape(12.dp))
+                                .clickable { photoBlocked() },
+                            contentAlignment = androidx.compose.ui.Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                                androidx.compose.material3.Icon(
+                                    Icons.Default.PhotoCamera, null, tint = TossBlue, modifier = Modifier.size(22.dp)
+                                )
+                                Spacer(Modifier.height(2.dp))
+                                Text("올리기", fontSize = 11.sp, color = TossBlue, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
