@@ -1976,3 +1976,10 @@ CREATE TABLE intake_forms (
 - 결과: 카드 한 줄씩(아바타 없음) → 프로토 .recent 흰 카드 하나 + recent-row(아바타 44 틴트5색/번호만=회색+사람) + 구분선.
 - 빈 문구 verbatim: "이름·전화번호·메시지 내용으로\n고객을 찾아보세요" / 결과없음 "검색 결과가 없어요"(쿼리 끼워넣던 것 제거).
 - 빌드 OK. DB 변경 없음. commit: e37b860
+
+## 2026-06-02 · android (33)
+시공 일정 등록 프로토 renderAddSchedule 1:1 재작업 (사장님: "제대로"). 이전엔 단순화 자체 폼이었음(현황판 ✅ 잘못 표기 정정).
+- 추가: 모드토글[내고객/거래처] · 통화·문자 고객 불러오기 picker · 거래처 칩(수첩 VENDOR)+새 거래처(수첩 저장) · 인라인 미니캘린더 · 총금액/계약금 만원 단위(저장 ×10000) · 계약금 "받았어요" 체크→펼침 · 라벨 verbatim.
+- ScheduleAddViewModel: vendors(observeVendors)+recentContacts(observeAll)+addVendor 추가. submit 시그니처 그대로(원 단위) — 화면에서 만원→원 변환.
+- ⚠️ 남은 것: 현장 주소=자유입력(프로토 "주소 검색 탭"=Daum 우편번호 새기능 필요, 미구현). 폰 확인 대기.
+- 빌드 OK(EXIT=0). DB 변경 없음. commit: 2f3c4bb
