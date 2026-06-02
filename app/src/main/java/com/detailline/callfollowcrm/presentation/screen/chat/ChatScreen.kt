@@ -1407,27 +1407,10 @@ private fun SuggestionArea(
                     }
                 }
                 loading -> {
-                    // 2026-05-27 사장님 보고 fix:
-                    //   답변 추천 polling 중 칩 자리가 비어있어 "뭐 받는 중이지?" 헷갈림.
-                    //   shimmer chip 3개 + dots 텍스트 — 곧 채워질 자리임을 시각화.
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp)
-                    ) {
-                        items(3) {
-                            com.detailline.callfollowcrm.presentation.theme.ShimmerLine(
-                                modifier = Modifier.width(140.dp),
-                                height = 32.dp,
-                                cornerRadius = 16.dp
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(4.dp))
-                    com.detailline.callfollowcrm.presentation.theme.AnimatedDots(
-                        text = "답변 추천 준비 중",
-                        color = TossTextTertiary
+                    // 프로토 design-preview/ringgo-redesign.html :2810 (.think-row) 1:1.
+                    //   [막내 마스코트 44dp] [회색 말풍선 안에 파란 점 3개 통통] "막내가 답변을 준비 중이에요!"
+                    com.detailline.callfollowcrm.presentation.component.MascotThinkingRow(
+                        modifier = Modifier.padding(top = 4.dp)
                     )
                 }
                 else -> {

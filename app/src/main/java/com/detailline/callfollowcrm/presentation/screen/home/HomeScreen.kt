@@ -82,7 +82,9 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -2220,7 +2222,7 @@ private fun recentTimeLabel(ms: Long): String {
     }
 }
 
-/** 프로토 renderWaiting 빈 상태(empty-mascot) — 막내 비서 + 격려 문구. */
+/** 프로토 renderWaiting 빈 상태(.empty-mascot) — 막내 + 말풍선(em-speech) + 보조문구(em-sub). */
 @Composable
 private fun WaitingEmptyMascot() {
     Box(
@@ -2229,12 +2231,39 @@ private fun WaitingEmptyMascot() {
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             com.detailline.callfollowcrm.presentation.component.Mascot(sizeDp = 80.dp)
-            Spacer(Modifier.height(14.dp))
-            Text("사장님, 오늘 상담 다 끝냈어요! 👏", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(10.dp))
+            // .em-speech — 파란 pill + 위쪽 삼각 꼬리(::after 11x11 rotate45 top:-6).
+            //   배경 var(--blue-tint) #EEF4FF / 글자 var(--blue-dark) #1B64DA / weight 800 / 14sp.
+            //   padding 10x16, border-radius 14.
+            Box(contentAlignment = Alignment.TopCenter) {
+                // 삼각 꼬리: 11dp 정사각 45° → 윗절반만 pill 위로 노출. 같은 색이라 ▲ 만 보임.
+                Box(
+                    Modifier
+                        .offset(y = (-5).dp)
+                        .size(11.dp)
+                        .rotate(45f)
+                        .background(TossBlueSoft)
+                )
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(TossBlueSoft)
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                ) {
+                    Text(
+                        "사장님, 오늘 상담 다 끝냈어요! 👏",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = TossBlueDark
+                    )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            // .em-sub — 12.5sp / weight 600 / color t3 (#9AA3AF) / margin-top 12.
             Text(
                 "새 문의가 오면 막내가 바로 알려드릴게요",
-                fontSize = 13.sp,
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.SemiBold,
                 color = TossTextTertiary,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
