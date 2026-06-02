@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>RING-GO UX 공모전 — 비교 페이지</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@latest/dist/web/static/pretendard.css">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Pretendard', system-ui, sans-serif; background: #F2F4F6; color: #191F28; }
+
+  /* ===== 상단 헤더 ===== */
+  header {
+    background: #fff; padding: 16px 24px; border-bottom: 1px solid #EAECEE;
+    display: flex; align-items: center; gap: 16px;
+  }
+  header h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.3px; }
+  header .badge { background: #3182F6; color: #fff; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 600; }
+  header .meta { margin-left: auto; color: #8B95A1; font-size: 13px; }
+
+  /* ===== 탭 ===== */
+  .tabs {
+    display: flex; gap: 4px; padding: 12px 24px 0; background: #fff;
+    border-bottom: 1px solid #EAECEE; overflow-x: auto;
+  }
+  .tab {
+    padding: 12px 20px; cursor: pointer; border-radius: 10px 10px 0 0;
+    font-size: 14px; font-weight: 600; color: #4E5968; white-space: nowrap;
+    border: 1px solid transparent; border-bottom: none;
+    transition: all 0.15s;
+  }
+  .tab:hover { background: #F2F4F6; }
+  .tab.active { background: #F2F4F6; color: #3182F6; border-color: #EAECEE; }
+  .tab .emoji { margin-right: 6px; }
+
+  /* ===== 본문 ===== */
+  main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+
+  /* 단일 보기 */
+  .single-view { display: block; }
+  .single-view.hidden { display: none; }
+
+  /* 좌우 비교 보기 */
+  .compare-view { display: none; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .compare-view.active { display: grid; }
+  .compare-view .panel { background: #fff; border-radius: 14px; padding: 20px; min-height: 600px; }
+  .compare-view .panel h2 { font-size: 18px; margin-bottom: 12px; color: #3182F6; }
+  .compare-view select {
+    width: 100%; padding: 10px; border: 1px solid #EAECEE; border-radius: 8px;
+    font-family: inherit; font-size: 14px; margin-bottom: 12px;
+  }
+
+  /* 모드 토글 */
+  .mode-toggle {
+    display: flex; gap: 4px; padding: 8px; background: #fff; border-radius: 12px;
+    width: fit-content; margin: 0 auto 16px; border: 1px solid #EAECEE;
+  }
+  .mode-btn {
+    padding: 8px 16px; cursor: pointer; border-radius: 8px; font-size: 13px;
+    font-weight: 600; color: #4E5968; border: none; background: transparent;
+  }
+  .mode-btn.active { background: #3182F6; color: #fff; }
+
+  /* 콘텐츠 표시 */
+  .content {
+    background: #fff; border-radius: 14px; padding: 32px;
+    min-height: 600px;
+  }
+  .content h1 { font-size: 28px; font-weight: 700; margin-bottom: 16px; letter-spacing: -0.4px; }
+  .content h2 { font-size: 22px; font-weight: 700; margin: 32px 0 12px; color: #3182F6; }
+  .content h3 { font-size: 18px; font-weight: 600; margin: 24px 0 8px; }
+  .content p { margin: 8px 0; line-height: 1.7; color: #4E5968; }
+  .content ul, .content ol { margin: 8px 0 8px 24px; line-height: 1.7; color: #4E5968; }
+  .content code {
+    background: #F2F4F6; padding: 2px 6px; border-radius: 4px;
+    font-family: 'Cascadia Code', Consolas, monospace; font-size: 13px;
+  }
+  .content pre {
+    background: #191F28; color: #F2F4F6; padding: 16px; border-radius: 10px;
+    overflow-x: auto; margin: 12px 0; font-size: 13px;
+  }
+  .content pre code { background: transparent; color: inherit; padding: 0; }
+  .content blockquote {
+    border-left: 4px solid #3182F6; padding: 12px 16px; background: #E8F2FE;
+    margin: 12px 0; border-radius: 6px;
+  }
+  .content table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+  .content th, .content td { padding: 8px 12px; border: 1px solid #EAECEE; text-align: left; }
+  .content th { background: #F2F4F6; font-weight: 600; }
+
+  /* HTML 데모 iframe */
+  .demo-frame {
+    width: 360px; height: 740px; border: 8px solid #191F28;
+    border-radius: 24px; margin: 16px auto; display: block;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+  }
+
+  /* 빈 상태 */
+  .empty {
+    text-align: center; padding: 80px 32px; color: #8B95A1;
+  }
+  .empty h2 { color: #4E5968; margin-bottom: 12px; }
+  .empty .hint {
+    background: #FFF9DB; color: #191F28; padding: 16px 24px; border-radius: 10px;
+    display: inline-block; margin-top: 16px; text-align: left;
+  }
+  .empty code {
+    background: #fff; padding: 2px 6px; border-radius: 4px;
+    font-family: 'Cascadia Code', Consolas, monospace;
+  }
+
+  /* 평가 / 점수 패널 */
+  .score-panel {
+    background: #fff; border-radius: 14px; padding: 20px;
+    margin-bottom: 16px; border: 1px solid #EAECEE;
+  }
+  .score-panel h3 { font-size: 16px; margin-bottom: 12px; }
+  .score-row {
+    display: flex; align-items: center; gap: 8px; margin: 6px 0;
+    font-size: 13px;
+  }
+  .score-row .label { width: 140px; color: #4E5968; }
+  .score-row .stars { color: #FFAA00; letter-spacing: 2px; }
+  .score-row input[type=range] { flex: 1; }
+
+  /* 모바일 */
+  @media (max-width: 768px) {
+    main { padding: 12px; }
+    .compare-view { grid-template-columns: 1fr; }
+    .content { padding: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>RING-GO</h1>
+  <span class="badge">UX 공모전</span>
+  <span class="meta">2026-05-30 · 디테일라인 사장님 직접 심사</span>
+</header>
+
+<!-- 모드 토글 -->
+<div class="mode-toggle">
+  <button class="mode-btn active" data-mode="single">단일 보기</button>
+  <button class="mode-btn" data-mode="compare">좌우 비교</button>
+  <button class="mode-btn" data-mode="brief">📋 명세서 보기</button>
+</div>
+
+<!-- 탭 (단일 보기) -->
+<div class="tabs" id="tabs">
+  <div class="tab active" data-file="BRIEF.md">📋 명세서</div>
+  <div class="tab" data-file="submissions/gpt.md">🤖 GPT</div>
+  <div class="tab" data-file="submissions/gemini.md">💎 Gemini</div>
+  <div class="tab" data-file="submissions/grok.md">🤘 Grok</div>
+</div>
+
+<main>
+  <!-- 단일 보기 -->
+  <div class="single-view" id="singleView">
+    <div class="content" id="singleContent">
+      <div class="empty">
+        <h2>제출물을 불러오는 중...</h2>
+      </div>
+    </div>
+  </div>
+
+  <!-- 좌우 비교 보기 -->
+  <div class="compare-view" id="compareView">
+    <div class="panel">
+      <select id="leftSelect">
+        <option value="submissions/gpt.md">🤖 GPT</option>
+        <option value="submissions/gemini.md">💎 Gemini</option>
+        <option value="submissions/grok.md">🤘 Grok</option>
+      </select>
+      <div class="content" id="leftContent" style="min-height: 540px; box-shadow: none; padding: 0;"></div>
+    </div>
+    <div class="panel">
+      <select id="rightSelect">
+        <option value="submissions/gemini.md">💎 Gemini</option>
+        <option value="submissions/gpt.md">🤖 GPT</option>
+        <option value="submissions/grok.md">🤘 Grok</option>
+      </select>
+      <div class="content" id="rightContent" style="min-height: 540px; box-shadow: none; padding: 0;"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+const tabs = document.querySelectorAll('.tab');
+const modeBtns = document.querySelectorAll('.mode-btn');
+const singleView = document.getElementById('singleView');
+const compareView = document.getElementById('compareView');
+const singleContent = document.getElementById('singleContent');
+const leftSelect = document.getElementById('leftSelect');
+const rightSelect = document.getElementById('rightSelect');
+const leftContent = document.getElementById('leftContent');
+const rightContent = document.getElementById('rightContent');
+
+const EMPTY_HTML = (label) => `
+  <div class="empty">
+    <h2>${label} 응답이 아직 없어요</h2>
+    <p>다음 단계:</p>
+    <div class="hint">
+      1. <a href="BRIEF.md" target="_blank">명세서 (BRIEF.md)</a> 전체 복사<br>
+      2. ${label} 에 붙여넣고 응답 받기<br>
+      3. 받은 마크다운을 <code>submissions/${label.toLowerCase()}.md</code> 로 저장<br>
+      4. 페이지 새로고침
+    </div>
+  </div>
+`;
+
+async function loadMarkdown(file, container, fallbackLabel) {
+  try {
+    const res = await fetch(file);
+    if (!res.ok) throw new Error('Not found');
+    const text = await res.text();
+    // HTML 코드 블록은 marked 가 그대로 escape 하므로,
+    // ```html ... ``` 안 내용은 iframe srcdoc 으로 띄움.
+    const htmlBlockMatch = text.match(/```html\n([\s\S]+?)```/);
+    let rendered = marked.parse(text);
+    if (htmlBlockMatch) {
+      const escapedSrc = htmlBlockMatch[1]
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;');
+      rendered += `<h2>📱 HTML 데모</h2>
+        <iframe class="demo-frame" srcdoc="${escapedSrc}"></iframe>`;
+    }
+    container.innerHTML = rendered;
+  } catch (e) {
+    container.innerHTML = EMPTY_HTML(fallbackLabel);
+  }
+}
+
+// 탭 클릭
+tabs.forEach(tab => {
+  tab.addEventListener('click', () => {
+    tabs.forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const file = tab.dataset.file;
+    const label = tab.textContent.replace(/^[\s\S]*?\s/, '').trim();
+    loadMarkdown(file, singleContent, label);
+  });
+});
+
+// 모드 토글
+modeBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    modeBtns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const mode = btn.dataset.mode;
+    if (mode === 'compare') {
+      singleView.classList.add('hidden');
+      compareView.classList.add('active');
+      // 둘 다 로드
+      loadMarkdown(leftSelect.value, leftContent, 'GPT');
+      loadMarkdown(rightSelect.value, rightContent, 'Gemini');
+    } else if (mode === 'brief') {
+      singleView.classList.remove('hidden');
+      compareView.classList.remove('active');
+      tabs.forEach(t => t.classList.remove('active'));
+      tabs[0].classList.add('active');
+      loadMarkdown('BRIEF.md', singleContent, '명세서');
+    } else {
+      singleView.classList.remove('hidden');
+      compareView.classList.remove('active');
+    }
+  });
+});
+
+// 좌우 비교 셀렉트 변경
+leftSelect.addEventListener('change', () => {
+  loadMarkdown(leftSelect.value, leftContent, leftSelect.options[leftSelect.selectedIndex].text);
+});
+rightSelect.addEventListener('change', () => {
+  loadMarkdown(rightSelect.value, rightContent, rightSelect.options[rightSelect.selectedIndex].text);
+});
+
+// 초기 — 명세서 로드
+loadMarkdown('BRIEF.md', singleContent, '명세서');
+</script>
+
+</body>
+</html>

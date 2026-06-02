@@ -67,11 +67,6 @@ if (-not (Test-Path $AdbPath)) {
 
 # ----- 헬퍼 -----
 
-function Invoke-Adb {
-    param([string[]]$Args)
-    & $AdbPath @Args
-}
-
 function Test-PhoneConnected {
     $devices = & $AdbPath devices | Where-Object { $_ -match "device$" }
     return $devices.Count -gt 0
@@ -201,6 +196,25 @@ switch ($Command) {
     "notif" {
         Write-Host "🔔 현재 알림 (RING-GO 만)" -ForegroundColor Cyan
         & $AdbPath shell dumpsys notification --noredact 2>&1 | Select-String -Pattern $AppId -Context 0,5
+    }
+
+    "ux" {
+        # UX 공모전 비교 페이지 열기 (로컬 웹서버 + 브라우저 자동).
+        $uxDir = "$PSScriptRoot\..\docs\ux_contest"
+        if (-not (Test-Path $uxDir)) {
+            Write-Host "❌ docs\ux_contest 폴더가 없어요" -ForegroundColor Red; exit 1
+        }
+        $port = 8765
+        Write-Host "🌐 로컬 웹서버 시작 (port $port)..." -ForegroundColor Cyan
+        Write-Host "   브라우저 자동으로 열림. 끄려면 Ctrl+C." -ForegroundColor Gray
+        Start-Sleep -Milliseconds 500
+        Start-Process "http://localhost:$port/compare.html"
+        Push-Location $uxDir
+        try {
+            python -m http.server $port
+        } finally {
+            Pop-Location
+        }
     }
 
     "help" {
