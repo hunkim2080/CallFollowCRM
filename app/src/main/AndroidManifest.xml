@@ -246,5 +246,16 @@
             android:name=".service.MmsDownloadService"
             android:exported="false" />
 
+        <!-- 견적서(직인) 이미지를 문자/공유로 내보낼 때 캐시 파일 URI 공유용. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
     </application>
 </manifest>

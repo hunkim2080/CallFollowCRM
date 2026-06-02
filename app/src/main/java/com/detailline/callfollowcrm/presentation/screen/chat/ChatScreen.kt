@@ -210,6 +210,8 @@ fun ChatScreen(
     var showProposalDatePicker by remember { mutableStateOf(false) }
     // P3 — 견적서 작성기 (사장님 결정 2026-05-24): send_estimate 액션 시 템플릿 picker 대신 띄움.
     var showEstimateBuilder by remember { mutableStateOf(false) }
+    // 견적서(직인) 미리보기 — null 아니면 QuoteDocScreen 오버레이 표시 (견적 2단계).
+    var quoteDocData by remember { mutableStateOf<QuoteDocData?>(null) }
     // P3 — 시공일 등록 직후 "이 일정으로 계약금 안내문도 만들어드릴까요?" 다이얼로그.
     //   null 이 아니면 표시 + 그 시공일 ts 보관. 사장님이 "네" 누르면 RESERVATION picker 띄움.
     var showDepositFollowupForMs by remember { mutableStateOf<Long?>(null) }
@@ -1013,8 +1015,17 @@ fun ChatScreen(
                 viewModel.recordEstimateSent(body)
                 showEstimateBuilder = false
             },
+            onQuoteDoc = { data ->
+                quoteDocData = data
+                showEstimateBuilder = false
+            },
             onDismiss = { showEstimateBuilder = false }
         )
+    }
+
+    // 견적서(직인) 미리보기 오버레이.
+    quoteDocData?.let { data ->
+        QuoteDocScreen(data = data, onClose = { quoteDocData = null })
     }
 }
 
@@ -2295,6 +2306,7 @@ private fun EstimateBuilderDialog(
     onConfirm: (String) -> Unit,
     onShare: (String) -> Unit,
     onDismiss: () -> Unit,
+    onQuoteDoc: (QuoteDocData) -> Unit = {},
     bizName: String = "",
     bizOwner: String = "",
     bizNo: String = "",
@@ -2305,6 +2317,9 @@ private fun EstimateBuilderDialog(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     // 프로토 seg — 보내는 방식: text(문자 견적) / accept(시공접수서) / quote(견적서)
     var mode by remember { mutableStateOf("text") }
+    // 계약금 — 프로토 depMode: ratio(%)/fixed(만원)/none.
+    var depMode by remember { mutableStateOf("ratio") }
+    var depVal by remember { mutableStateOf("30") }
     // 항목 id → 수량(평당=평수, 정액=1). 0/미존재 = 미선택.
     val selectedQty = remember { mutableStateMapOf<Long, Int>() }
     // 프로토: 카테고리 없는 평탄 리스트.
@@ -2320,6 +2335,17 @@ private fun EstimateBuilderDialog(
     }
     fun composeBody() = buildEstimateBody(visibleItems, selectedQty.toMap(), totalSum, bizName)
     fun toast(msg: String) = android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_SHORT).show()
+    fun quoteDocData(): QuoteDocData {
+        val lines = visibleItems.mapNotNull { item ->
+            val qty = selectedQty[item.id] ?: 0
+            if (qty <= 0) return@mapNotNull null
+            val isPyeong = item.unit == com.detailline.callfollowcrm.data.local.entity.PricingItemEntity.UNIT_PYEONG
+            val spec = if (isPyeong) "${item.price / 10_000L}만원/평 × ${qty}평" else "1식"
+            val amount = if (isPyeong) item.price * qty else item.price
+            QuoteLine(item.title, spec, amount)
+        }
+        return QuoteDocData(lines, totalSum, depMode, depVal.toIntOrNull() ?: 0)
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -2344,6 +2370,38 @@ private fun EstimateBuilderDialog(
             Spacer(Modifier.height(9.dp))
             Text(help, fontSize = 12.sp, color = TossTextTertiary, lineHeight = 18.sp,
                 modifier = Modifier.padding(horizontal = 2.dp))
+            // 계약금 설정 (시공접수서/견적서 탭) — 프로토 depMode
+            if (mode != "text") {
+                Spacer(Modifier.height(11.dp))
+                Text("계약금", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
+                    modifier = Modifier.padding(start = 2.dp))
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    EstSegTab("비율(%)", depMode == "ratio", Modifier.weight(1f)) { depMode = "ratio" }
+                    EstSegTab("정액", depMode == "fixed", Modifier.weight(1f)) { depMode = "fixed" }
+                    EstSegTab("없음", depMode == "none", Modifier.weight(1f)) { depMode = "none" }
+                }
+                if (depMode != "none") {
+                    Spacer(Modifier.height(8.dp))
+                    com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                        depVal, { depVal = it.filter { c -> c.isDigit() } },
+                        placeholder = if (depMode == "ratio") "예: 30 (%)" else "만원 (예: 10)",
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                    )
+                    val depW = if (depMode == "ratio") totalSum * (depVal.toIntOrNull() ?: 0) / 100
+                    else (depVal.toIntOrNull() ?: 0) * 10_000L
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "계약금 ${java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(depW)}원" +
+                            (if (depMode == "ratio") " (합계의 ${depVal.ifBlank { "0" }}%)" else " (정액)"),
+                        fontSize = 12.5.sp, color = TossBlue, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(start = 2.dp)
+                    )
+                }
+            }
             Spacer(Modifier.height(6.dp))
             // 항목 리스트 (프로토 est-row + 평당 est-area)
             LazyColumn(Modifier.heightIn(max = 300.dp)) {
@@ -2387,8 +2445,9 @@ private fun EstimateBuilderDialog(
                 if (!anySelected) { toast("항목을 한 개 이상 골라주세요"); return@EstSheetCta }
                 when (mode) {
                     "text" -> onConfirm(composeBody())
-                    // 견적서(직인)·시공접수서 링크 발송은 다음 단계에서 연결 (서버/이미지). 지금은 문자 붙여넣기로 대체.
-                    else -> toast("이 방식은 다음 단계에서 연결돼요 · 지금은 아래 '문자로 붙여넣기'로 보낼 수 있어요")
+                    "quote" -> onQuoteDoc(quoteDocData())
+                    // 시공접수서 링크 발송은 서버 연결 후(3단계). 지금은 '문자로 붙여넣기'로 대체.
+                    else -> toast("시공접수서 링크는 서버 연결 후 동작해요 · 지금은 아래 '문자로 붙여넣기'로 보낼 수 있어요")
                 }
             }
             if (mode != "text") {
