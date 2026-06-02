@@ -1879,3 +1879,8 @@ CREATE TABLE intake_forms (
 - 오늘 시공 히어로 [완료] → onOpenCustomer 대신 CompletionDialog(프로토 openComplete): "🎉 시공 완료 · 고생하셨습니다!" + subtitle(잔금 N원/정산 완료) + 안내 문구 박스 + [완료처리][잔금 요청 보내기 or 후기 요청 보내기] + (잔금 시) "후기 요청도 함께 보내기".
 - 완료처리=닫기+스낵바, 요청=SmsSender.sendDirect(사장님 탭 발송, 자동 X). 잔금=customer.totalAmount/depositAmount/balanceAmount/balancePaidAt 파생. 계좌는 prefs 미보유 → 잔금액+감사만(가짜 계좌 X).
 - 빌드 OK. DB 변경 없음. commit: (아래)
+
+## 2026-06-02 · android (18)
+시공 완료 팝업 위치 프로토 .modal-card 1:1 (사장님 요청 — 위치도 동일하게).
+- Dialog usePlatformDefaultWidth=false + 좌우 18dp 여백 → 프로토 left/right:18px·세로 정중앙·넓은 카드. (기본 플랫폼 좁은 너비 해제)
+- 빌드 OK. DB 변경 없음. commit: (아래)

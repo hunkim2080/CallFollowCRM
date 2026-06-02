@@ -929,10 +929,16 @@ private fun CompletionDialog(
     val balanceMsg = "고객님, 오늘 시공 잘 마쳤습니다 😊\n잔금은 ${won}원입니다.\n맡겨주셔서 대단히 감사합니다!"
     val subtitle = if (hasBal) "$name · 잔금 ${won}원" else "$name · 정산 완료"
 
-    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+    // 프로토 .modal-card — left/right 18, top 50% translateY(-50%) = 좌우 18 여백 + 세로 정중앙.
+    //   usePlatformDefaultWidth=false 로 플랫폼 기본 좁은 너비 해제 → 프로토처럼 넓은 카드.
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         Column(
             Modifier
                 .fillMaxWidth()
+                .padding(horizontal = 18.dp)
                 .clip(RoundedCornerShape(20.dp))
                 .background(Color.White)
                 .padding(20.dp)
