@@ -1859,3 +1859,10 @@ CREATE TABLE intake_forms (
 - 프로토 1:1: lockcard 42·radius13, sec-sub, tier-tag(프로=파랑/비즈니스=보라). 팀 관리=비즈니스 잠금(토스트). "비즈니스 리포트"→"상세 리포트". 자동문자가 정기문자+부재중+D-1 통합 진입점.
 - LockRow 에 tier/locked/subtitle-nullable 옵션 추가, TierTag 컴포저블 신설. import: graphicsLayer, BackHandler, AutoAwesome, Insights, Navigation, automirrored.Message.
 - 빌드: assembleDebug OK. DB 변경 없음. commit: (아래)
+
+## 2026-06-02 · android (15)
+채팅 말풍선 프로토 .bubble/.brow 1:1 재작업.
+- ChatBubble: 고객 말풍선 연파랑(TossBlueSoft)→흰색+그림자(프로토 .bubble.cust). me=파랑 유지. radius16 균일→radius19 + 꼬리 6(me 우하/cust 좌하). padding 12x8→14x11. lineHeight 20.
+- 시각(btime): 말풍선 안 바닥→말풍선 밖 옆 아래(프로토 .brow). 10.5sp t3. 별표는 바깥쪽.
+- 발견: 날짜 구분선(chat-date)은 앱 미구현 → 현황판 ⬜ 정직 표기(다음 작업).
+- 빌드 OK. DB 변경 없음. commit: (아래)

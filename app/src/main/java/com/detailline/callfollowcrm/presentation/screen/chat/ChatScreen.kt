@@ -1115,33 +1115,43 @@ private fun ChatBubble(
     onImageTap: (android.net.Uri) -> Unit,
     onLongPress: () -> Unit
 ) {
+    // 프로토 .brow/.bubble — 시각(btime)은 말풍선 밖(옆 아래), 별표는 바깥쪽.
+    //   me=파랑/우측 꼬리, cust=흰색+그림자/좌측 꼬리. radius19 + 꼬리 6.
+    val bubbleShape = if (sent) {
+        RoundedCornerShape(topStart = 19.dp, topEnd = 19.dp, bottomStart = 19.dp, bottomEnd = 6.dp)
+    } else {
+        RoundedCornerShape(topStart = 19.dp, topEnd = 19.dp, bottomStart = 6.dp, bottomEnd = 19.dp)
+    }
+    val timeText: @Composable () -> Unit = {
+        Text(
+            DateTimeUtils.formatShort(timeMs),
+            color = TossTextTertiary,
+            fontSize = 10.5.sp,
+            modifier = Modifier.padding(bottom = 2.dp)
+        )
+    }
+    val star: @Composable () -> Unit = {
+        Icon(Icons.Default.Bookmarks, "저장된 메시지", tint = TossBlue, modifier = Modifier.size(14.dp))
+    }
     Row(
         modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Bottom,
         horizontalArrangement = if (sent) Arrangement.End else Arrangement.Start
     ) {
-        // 보낸 메시지면 별표가 왼쪽에 (말풍선 왼쪽 = 옆), 받은 메시지면 오른쪽에 (말풍선 오른쪽 = 옆).
-        // 사장님이 한눈에 어느 게 중요 표시된 건지 보이도록.
-        if (sent && isStarred) {
-            Icon(
-                Icons.Default.Bookmarks,
-                contentDescription = "저장된 메시지",
-                tint = TossBlue,
-                modifier = Modifier.size(14.dp)
-            )
-            Spacer(Modifier.width(4.dp))
+        // me: (별표) 시각 말풍선  /  cust: 말풍선 시각 (별표)
+        if (sent) {
+            if (isStarred) { star(); Spacer(Modifier.width(4.dp)) }
+            timeText(); Spacer(Modifier.width(6.dp))
         }
         Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = if (sent) TossBlue else TossBlueSoft,
+            shape = bubbleShape,
+            color = if (sent) TossBlue else Color.White,
+            shadowElevation = if (sent) 0.dp else 1.dp,
             modifier = Modifier
                 .widthIn(max = 280.dp)
-                .combinedClickable(
-                    onClick = {},
-                    onLongClick = onLongPress
-                )
+                .combinedClickable(onClick = {}, onLongClick = onLongPress)
         ) {
-            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp)) {
                 if (imageUris.isNotEmpty()) {
                     // 한 줄에 최대 3장 썸네일. 탭하면 풀스크린.
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1168,26 +1178,15 @@ private fun ChatBubble(
                     Text(
                         body,
                         color = if (sent) Color.White else TossTextPrimary,
-                        fontSize = 14.sp
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp
                     )
                 }
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    DateTimeUtils.formatShort(timeMs),
-                    color = if (sent) Color.White.copy(alpha = 0.7f) else TossTextTertiary,
-                    fontSize = 10.sp
-                )
             }
         }
-        // 받은 메시지는 별표가 오른쪽 (보낸 메시지는 왼쪽 — 위에서 처리됨)
-        if (!sent && isStarred) {
-            Spacer(Modifier.width(4.dp))
-            Icon(
-                Icons.Default.Bookmarks,
-                contentDescription = "저장된 메시지",
-                tint = TossBlue,
-                modifier = Modifier.size(14.dp)
-            )
+        if (!sent) {
+            Spacer(Modifier.width(6.dp)); timeText()
+            if (isStarred) { Spacer(Modifier.width(4.dp)); star() }
         }
     }
 }
