@@ -107,12 +107,14 @@ fun ScheduleAddScreen(
     var depositReceived by remember { mutableStateOf(false) }
     var dayMs by remember { mutableLongStateOf(DateTimeUtils.startOfDay(System.currentTimeMillis())) }
     var monthAnchor by remember { mutableLongStateOf(monthAnchorOf(System.currentTimeMillis())) }
-    var workMinutes by remember { mutableStateOf<Int?>(null) }
+    var workMinutes by remember { mutableStateOf(9 * 60) } // 프로토 기본 오전 9시 (미정 없음)
     var workDays by remember { mutableStateOf(1) }
 
     var showImport by remember { mutableStateOf(false) }
     var showNewVendor by remember { mutableStateOf(false) }
     var showAddrSearch by remember { mutableStateOf(false) }
+    var showTimeCustom by remember { mutableStateOf(false) }
+    var showDaysCustom by remember { mutableStateOf(false) }
 
     toast?.let {
         android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show()
@@ -167,7 +169,7 @@ fun ScheduleAddScreen(
                 SheetTextField(name, { name = it }, placeholder = "예: 강동 서사장")
                 Spacer(Modifier.height(12.dp))
                 FieldLabel("고객 전화번호")
-                SheetTextField(phone, { phone = it }, placeholder = "010-0000-0000",
+                SheetTextField(phone, { phone = PhoneNumberFormatter.formatProgressive(it) }, placeholder = "010-0000-0000",
                     keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone)
             } else {
                 FieldLabel("거래처 (자주 일 주는 곳)")
@@ -215,10 +217,11 @@ fun ScheduleAddScreen(
             Spacer(Modifier.height(12.dp))
             FieldLabel("시공 시간")
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SelectChip("미정", workMinutes == null) { workMinutes = null }
                 WORK_TIME_OPTIONS.forEach { (label, mins) ->
                     SelectChip(label, workMinutes == mins) { workMinutes = mins }
                 }
+                val timeCustom = WORK_TIME_OPTIONS.none { it.second == workMinutes }
+                SelectChip(if (timeCustom) DateTimeUtils.formatWorkMinutes(workMinutes) else "직접", timeCustom) { showTimeCustom = true }
             }
 
             Spacer(Modifier.height(12.dp))
@@ -227,6 +230,8 @@ fun ScheduleAddScreen(
                 WORK_DAYS_OPTIONS.forEach { (label, days) ->
                     SelectChip(label, workDays == days) { workDays = days }
                 }
+                val daysCustom = WORK_DAYS_OPTIONS.none { it.second == workDays }
+                SelectChip(if (daysCustom) "${workDays}일" else "직접", daysCustom) { showDaysCustom = true }
             }
 
             Spacer(Modifier.height(12.dp))
@@ -340,6 +345,81 @@ fun ScheduleAddScreen(
             onPicked = { address = it; showAddrSearch = false },
             onDismiss = { showAddrSearch = false }
         )
+    }
+
+    if (showTimeCustom) {
+        TimeCustomDialog(
+            initialMinutes = workMinutes,
+            onConfirm = { workMinutes = it; showTimeCustom = false },
+            onDismiss = { showTimeCustom = false }
+        )
+    }
+    if (showDaysCustom) {
+        DaysCustomDialog(
+            initialDays = workDays,
+            onConfirm = { workDays = it; showDaysCustom = false },
+            onDismiss = { showDaysCustom = false }
+        )
+    }
+}
+
+/** 프로토 schedTimeCustom — 시간 직접 입력 (HH:MM). */
+@Composable
+private fun TimeCustomDialog(initialMinutes: Int, onConfirm: (Int) -> Unit, onDismiss: () -> Unit) {
+    var txt by remember { mutableStateOf("${initialMinutes / 60}:${(initialMinutes % 60).toString().padStart(2, '0')}") }
+    var err by remember { mutableStateOf(false) }
+    Dialog(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).padding(20.dp)) {
+            Text("시간 직접 입력", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+            Spacer(Modifier.height(4.dp))
+            Text("24시 기준 · 예: 14:30", fontSize = 12.sp, color = TossTextTertiary)
+            Spacer(Modifier.height(12.dp))
+            SheetTextField(txt, { txt = it; err = false }, placeholder = "HH:MM")
+            if (err) {
+                Spacer(Modifier.height(4.dp))
+                Text("예: 14:30", fontSize = 12.sp, color = com.detailline.callfollowcrm.presentation.theme.TossError)
+            }
+            Spacer(Modifier.height(16.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Text("취소", color = TossTextSecondary, fontWeight = FontWeight.Medium,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onDismiss() }.padding(horizontal = 14.dp, vertical = 10.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("확인", color = TossBlue, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable {
+                        val m = Regex("(\\d{1,2})\\s*[:시]?\\s*(\\d{1,2})?").find(txt)
+                        val hh = m?.groupValues?.getOrNull(1)?.toIntOrNull()
+                        val mm = m?.groupValues?.getOrNull(2)?.toIntOrNull() ?: 0
+                        if (hh == null || hh !in 0..23 || mm !in 0..59) { err = true }
+                        else onConfirm(hh * 60 + mm)
+                    }.padding(horizontal = 14.dp, vertical = 10.dp))
+            }
+        }
+    }
+}
+
+/** 프로토 setSchedDaysCustom — 시공 기간 직접 입력 (일). */
+@Composable
+private fun DaysCustomDialog(initialDays: Int, onConfirm: (Int) -> Unit, onDismiss: () -> Unit) {
+    var txt by remember { mutableStateOf(initialDays.toString()) }
+    Dialog(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).padding(20.dp)) {
+            Text("시공 기간", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+            Spacer(Modifier.height(4.dp))
+            Text("며칠 동안 하나요?", fontSize = 12.sp, color = TossTextTertiary)
+            Spacer(Modifier.height(12.dp))
+            SheetTextField(txt, { txt = it.filter { c -> c.isDigit() } }, placeholder = "예: 10",
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
+            Spacer(Modifier.height(16.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Text("취소", color = TossTextSecondary, fontWeight = FontWeight.Medium,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onDismiss() }.padding(horizontal = 14.dp, vertical = 10.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("확인", color = TossBlue, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable {
+                        onConfirm((txt.toIntOrNull() ?: 1).coerceAtLeast(1))
+                    }.padding(horizontal = 14.dp, vertical = 10.dp))
+            }
+        }
     }
 }
 
@@ -562,7 +642,7 @@ private val WORK_TIME_OPTIONS: List<Pair<String, Int>> = listOf(
     "오후 1시" to 13 * 60, "오후 2시" to 14 * 60, "오후 3시" to 15 * 60, "오후 4시" to 16 * 60
 )
 
-/** 시공 기간 빠른 선택 (라벨 → 일수). */
+/** 시공 기간 빠른 선택 (라벨 → 일수). 프로토 schedDaysChips: 당일/2/3/4/5/일주일+직접. */
 private val WORK_DAYS_OPTIONS: List<Pair<String, Int>> = listOf(
-    "당일" to 1, "2일" to 2, "3일" to 3, "5일" to 5, "일주일" to 7
+    "당일" to 1, "2일" to 2, "3일" to 3, "4일" to 4, "5일" to 5, "일주일" to 7
 )
