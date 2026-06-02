@@ -1983,3 +1983,8 @@ CREATE TABLE intake_forms (
 - ScheduleAddViewModel: vendors(observeVendors)+recentContacts(observeAll)+addVendor 추가. submit 시그니처 그대로(원 단위) — 화면에서 만원→원 변환.
 - ⚠️ 남은 것: 현장 주소=자유입력(프로토 "주소 검색 탭"=Daum 우편번호 새기능 필요, 미구현). 폰 확인 대기.
 - 빌드 OK(EXIT=0). DB 변경 없음. commit: 2f3c4bb
+
+## 2026-06-02 · android (34)
+주소 검색(Daum 우편번호) 붙임 + 견적서 직인 구현 여부 점검.
+- AddressSearchDialog(WebView+Daum postcode) 신설, 일정 등록 현장 주소칸=탭→검색(프로토 openAddrSearch 1:1). commit e3f738c.
+- ⚠️ 견적서 직인 점검 결과: **앱 미구현**. 앱은 견적을 텍스트(ACTION_SEND text/plain)로만 발송. 프로토 openQuoteDoc/.qd-seal/sendQuoteDoc(직인 찍힌 견적서 이미지 MMS) 없음. 사업자정보에 직인 문구(seal) 필드도 없음. 견적 작성기 3모드 세그먼트([문자견적/접수서/견적서])도 없음. 현황판 ⬜ 로 기록.
