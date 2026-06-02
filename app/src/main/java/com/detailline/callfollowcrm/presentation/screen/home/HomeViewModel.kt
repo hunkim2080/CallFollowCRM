@@ -82,6 +82,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     /** 최근 7일 내 부재중 통화. 미확인 KPI 의 통화 측 입력. */
     private val missedRecent = container.callRecordRepository.observeMissedSince(sevenDayWindowStart)
 
+    /** 최근 7일 내 들어온 통화(수신·부재중·거절). "오늘/어제 신규 문의" 집계용 — 받은 전화도 포함. */
+    private val inboundRecent = container.callRecordRepository.observeInboundSince(sevenDayWindowStart)
+
     /**
      * 사장님이 미확인 카드 swipe 로 "광고/스팸" 마킹한 phone suffix set.
      *   미확인 판정 / KPI 카운트에서 제외 — 다른 탭 (전체/카테고리) 에는 그대로 표시.
@@ -140,14 +143,16 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     // ────────────────────────────────────────────────────────
 
     /**
-     * 오늘 신규 KPI = 오늘 처음 연락온 번호 수 (당일 첫 문의).
+     * 오늘 신규 KPI = 오늘 처음 연락온 번호 수 (당일 첫 문의, "새 번호 기준").
      * 판정: SMS 의 lastDateMs ∈ today AND firstDateMsInScan ∈ today AND 그 phone 이 어제 이전 통화 기록 없음.
-     * 또는 부재중 통화가 오늘이고 그 phone 의 어제 이전 통화/SMS 기록 없음.
+     * 또는 들어온 통화(수신·부재중·거절)가 오늘이고 그 phone 의 어제 이전 통화/SMS 기록 없음.
+     *   2026-06-02 fix: 통화 측을 부재중→들어온 통화 전체로 확장(받은 전화도 신규 문의로 집계).
+     *   주의: "신규"=처음 연락온 번호. 전에 연락온 적 있는 번호는 제외(설계 = 부제 "새 번호 기준").
      */
     val todayNewInquiryCount: StateFlow<Int> = combine(
-        smsContactsState, missedRecent, phonesWithCallsBeforeToday
-    ) { smsContacts, missed, callsBefore ->
-        newTodaySuffixes(smsContacts, missed, callsBefore).size
+        smsContactsState, inboundRecent, phonesWithCallsBeforeToday
+    ) { smsContacts, inbound, callsBefore ->
+        newTodaySuffixes(smsContacts, inbound, callsBefore).size
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     /** 어제 이전에 통화 기록이 있는 phone suffix set — "어제 신규" 판정용. */
@@ -161,8 +166,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      *   판정: 스캔 안 첫 등장(firstDateMsInScan)이 어제 [yesterdayStart, todayStart) AND 어제 이전 통화 기록 없음.
      */
     val yesterdayNewInquiryCount: StateFlow<Int> = combine(
-        smsContactsState, missedRecent, phonesWithCallsBeforeYesterday
-    ) { smsContacts, missed, callsBefore ->
+        smsContactsState, inboundRecent, phonesWithCallsBeforeYesterday
+    ) { smsContacts, inbound, callsBefore ->
         val bySuffix = smsContacts.associateBy { it.normalizedSuffix }
         val result = HashSet<String>()
         for (c in smsContacts) {
@@ -170,7 +175,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 result += c.normalizedSuffix
             }
         }
-        for (m in missed) {
+        for (m in inbound) {
             if (m.endedAt !in yesterdayStart until todayStart) continue
             val suffix = phoneSuffix(m.phoneNumber)
             if (suffix in callsBefore) continue
@@ -410,11 +415,12 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     /**
      * "오늘 신규" 판정 = phone suffix set.
      *   - SMS: lastDateMs ∈ today AND firstDateMsInScan ∈ today (스캔 안 첫 등장 = 오늘) AND 어제 이전 통화 기록 없음
-     *   - 부재중 통화: endedAt ∈ today AND 어제 이전 통화 기록 없음 AND SMS 도 어제 이전 기록 없음
+     *   - 들어온 통화(수신·부재중·거절): endedAt ∈ today AND 어제 이전 통화 기록 없음 AND SMS 도 어제 이전 기록 없음
+     *     (2026-06-02 fix: 받은 전화도 신규 문의에 포함. 전엔 부재중만 세서 받은 전화가 누락됐음.)
      */
     private fun newTodaySuffixes(
         smsContacts: List<SmsRepository.SmsContact>,
-        missed: List<CallRecordEntity>,
+        inbound: List<CallRecordEntity>,
         callsBefore: Set<String>
     ): Set<String> {
         val bySuffix = smsContacts.associateBy { it.normalizedSuffix }
@@ -427,7 +433,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 result += c.normalizedSuffix
             }
         }
-        for (m in missed) {
+        for (m in inbound) {
             if (m.endedAt !in todayStart..todayEnd) continue
             val suffix = phoneSuffix(m.phoneNumber)
             if (suffix in callsBefore) continue

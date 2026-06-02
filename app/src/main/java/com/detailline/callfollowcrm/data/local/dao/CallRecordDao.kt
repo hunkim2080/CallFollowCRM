@@ -70,6 +70,13 @@ interface CallRecordDao {
     fun observeMissedSince(from: Long): Flow<List<CallRecordEntity>>
 
     /**
+     * 지정 시점 이후 "들어온" 통화 — 수신(받음)·부재중·거절. "오늘 신규 문의" 집계용.
+     *   발신(OUTGOING)은 제외(사장님이 건 전화 = 문의 아님). 부재중만 세던 것 → 받은 전화도 포함.
+     */
+    @Query("SELECT * FROM call_records WHERE endedAt >= :from AND callType IN ('INCOMING','MISSED','REJECTED') ORDER BY endedAt DESC")
+    fun observeInboundSince(from: Long): Flow<List<CallRecordEntity>>
+
+    /**
      * 지정 시점 이전에 통화 기록이 있는 phone 들 (distinct).
      * "오늘 신규" 판정용 — 오늘 통화/SMS 받은 번호 중 이 set 에 없으면 = 진짜 신규.
      */

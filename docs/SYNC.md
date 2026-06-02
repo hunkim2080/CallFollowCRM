@@ -1888,3 +1888,10 @@ CREATE TABLE intake_forms (
 ## 2026-06-02 · android (19)
 시공 완료 팝업 세로 정렬 fix — usePlatformDefaultWidth=false 후 바닥에 깔리던 것, 전체화면 Box(contentAlignment=Center)로 감싸 프로토처럼 정중앙.
 - 빌드 OK. commit: (아래)
+
+## 2026-06-02 · android (20)
+오늘 신규 문의 집계 로직 검토·개선 (사장님: 4통+ 왔는데 2만 찍힘).
+- 원인: todayNewInquiryCount 의 통화 측이 observeMissedSince(callType='MISSED' 부재중만) → 받은 전화(INCOMING)·거절(REJECTED)이 신규 집계에서 누락.
+- fix: CallRecordDao.observeInboundSince(callType IN INCOMING/MISSED/REJECTED) 추가 + repo 노출. HomeViewModel inboundRecent 신설 → today/yesterday 신규 카운트가 missedRecent→inboundRecent 사용. (미확인 KPI 는 missedRecent 유지 = 받은 전화는 이미 응대라 미확인 아님.)
+- 남는 설계: "신규"=처음 연락온 새 번호만(부제 "새 번호 기준"). 전에 연락온 번호는 제외 — 의도된 동작. OUTGOING(사장님 발신)도 제외.
+- 빌드 OK. DB 스키마 변경 없음(쿼리만). commit: (아래)
