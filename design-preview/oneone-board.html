@@ -139,10 +139,10 @@
 var AREAS = [
 
  {emo:'🏠', name:'홈 — 상담함', desc:'앱 열면 첫 화면. 위→아래 순서·카드까지 프로토대로', src:"switchTab('home') · renderHero · renderTodayNew · renderWaiting · renderRecent", items:[
-   {n:'상단 앱바 (검색 · 🔔 · AI 배지)', s:'review', src:'renderAiBadge / openSearch / openNotif',
-    d:'맨 위 줄: 왼쪽 검색, 오른쪽 알림 종, "○○ AI" 파란 배지.',
-    sp:'ai-badge = ai-dot + ✨ + "{대표업종} AI" (예 "줄눈 AI"). 검색→openSearch, 종→openNotif.',
-    a:'앱에 앱바·검색·알림 있음. AI 배지 문구/위치 폰에서 1:1 재확인 필요.'},
+   {n:'상단 앱바 (상담함 · AI 배지 · 고객 · 검색)', s:'done', src:'renderAiBadge / openCustomers / openSearch',
+    d:'맨 위 줄: "상담함"+날짜, "✨ ○○ AI" 배지(초록 점+glow), 👤 고객, 🔍 검색.',
+    sp:'ai-badge gradient 135deg #EAF2FF→#F1ECFF, border #E0E7FB, r999, p7x12, 12px w800 blue-dark, gap5. ai-dot 6px success + box-shadow 0 0 0 3px rgba(22,193,114,.16) glow. ✨ 13px blue + "{대표업종} AI".',
+    a:'AiBadge 1:1 완성 — 그라데이션·border·padding·✨·문구 일치 + dot glow 링 추가. dot 색은 서버상태(초록/빨강/주황)로 유지(유용). 탭=서버 연결상태 토스트(프로토 aiInfo 모달과 다름, 더 실용적). 👤·🔍 흰 원형.'},
    {n:'오늘 신규 문의 카드 (+N통)', s:'done', src:'renderTodayNew',
     d:'"오늘 신규 문의 N통" + "새 번호 기준 · 어제 N통" + 어제대비 ▲▼. 누르면 신규 목록.',
     sp:'tn-ic "+" / tn-t "오늘 신규 문의 <b>N통</b>" / tn-s "새 번호 기준 · 어제 N통" / tn-delta ▲N·▼N·- (up/down/flat). onclick=openNewLeads()',

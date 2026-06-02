@@ -49,7 +49,7 @@
 
 | 요소 | 상태 | 프로토 출처 | 프로토 스펙(verbatim) / 앱 메모 |
 |---|---|---|---|
-| 상단 앱바(검색·🔔·AI배지) | 🟡 | renderAiBadge/openSearch/openNotif | ai-badge = dot+✨+"{대표업종} AI". 앱 있음, 문구·위치 폰 확인 |
+| 상단 앱바(상담함·AI배지·고객·검색) | ✅ | renderAiBadge/openCustomers/openSearch | ai-badge gradient #EAF2FF→#F1ECFF border #E0E7FB r999 p7x12 12 w800 + dot 6px success **+glow ring** + ✨13 + "{대표업종} AI". dot 색=서버상태 유지, 탭=서버상태 토스트(프로토 aiInfo와 다름·더 실용적) |
 | 오늘 신규 문의 카드 | ✅ | renderTodayNew | tn-t "오늘 신규 문의 <b>N통</b>" / tn-s "새 번호 기준 · 어제 N통" / ▲▼-. 이제 전용 "신규 고객 · 날짜별" 화면으로 연결(임시연결 해소) |
 | 신규 고객 · 날짜별 화면 | 🟡 | openNewLeads/renderNewLeads | nl-hint ✨ 안내 + cfilter(전체/미답장만) + nl-date "오늘·N통" + nl-row(nl-dot 미답장=red + nl-ph 14 w800 + nl-t + nl-memo, 답장함 태그/재연락 버튼). NewLeadsScreen+VM 신설. 실데이터(시공일 미등록 고객, 응대기록=observeRepliedCustomerIds). 줄탭→상세, 재연락→채팅. 빌드 OK, 폰 확인 |
 | 오늘 시공 히어로(D-DAY) | ✅ | renderHero→heroJobHtml | grad #272D3D→#14171F r24 p20, 🟢"오늘 시공·D-DAY" 11.5/white.62, name 23 w800+" · {time} 예정", 📍addr 13/white.78, [길찾기 light][전화][완료 ghost]. f2357a2 |

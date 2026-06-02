@@ -1795,7 +1795,13 @@ private fun AiBadge(trade: String, alive: Boolean?, onClick: () -> Unit) {
             .padding(horizontal = 12.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(6.dp).clip(CircleShape).background(dot))
+        // 프로토 ai-dot — 6px + box-shadow 0 0 0 3px rgba(.16) glow 링. (dot 색=서버상태 유지, glow 도 맞춤)
+        Box(
+            Modifier.size(12.dp).clip(CircleShape).background(dot.copy(alpha = 0.16f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(Modifier.size(6.dp).clip(CircleShape).background(dot))
+        }
         Spacer(Modifier.width(5.dp))
         Icon(Icons.Default.AutoAwesome, null, tint = TossBlue, modifier = Modifier.size(13.dp))
         Spacer(Modifier.width(4.dp))

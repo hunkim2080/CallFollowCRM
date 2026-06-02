@@ -1845,3 +1845,9 @@ CREATE TABLE intake_forms (
 - 실데이터 매핑: 신규=시공일 미등록 고객(createdAt 최신순), 답장함/미답장=messageHistory 응대기록 여부. DAO 추가 observeRepliedCustomerIds()(status IN 보냄/오픈) + repo 노출. 메모=고객메모→카테고리명→"신규 문의".
 - 배선: Destinations.NEW_LEADS + AppNavHost 라우트, HomeScreen onOpenNewLeads 파라미터, TodayNewCard onClick=onOpenCustomers→onOpenNewLeads.
 - 빌드: assembleDebug OK. DB 스키마 변경 없음(쿼리만 추가). commit: (아래)
+
+## 2026-06-02 · android (13)
+홈 앱바 AI 배지 프로토 ai-badge 픽셀 1:1 마무리 + 더보기 재배치 블로커 보고.
+- AiBadge: 이미 그라데이션·border·padding·✨·"{업종} AI" 1:1 이었음. 빠졌던 ai-dot glow 링(box-shadow 0 0 0 3px rgba .16) 추가. dot 색은 서버상태(초록/빨강/주황) 유지(유용), 탭=서버상태 토스트(프로토 aiInfo 모달과 다름·실용 우선). → 현황판 ✅.
+- 더보기 메뉴 재배치(#5) 블로커 발견: 프로토 more 메뉴엔 팀관리(99k)·자동문자 허브·기본 네비 설정·알림 미리보기 등 앱에 화면 없는 항목 + 현재 settings 하단 진단카드(서버상태/토큰/말투RAG/기본SMS) 이동 결정 필요 → 죽은 메뉴 방지 위해 사장님 결정 후 진행. ONEONE_STATUS 다음액션 5.
+- 빌드 OK. DB 변경 없음. commit: (아래)
