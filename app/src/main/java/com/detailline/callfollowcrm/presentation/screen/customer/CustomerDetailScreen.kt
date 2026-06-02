@@ -39,11 +39,13 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
@@ -250,36 +252,57 @@ fun CustomerDetailScreen(
                 .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // 1. 기본 정보 카드 (전화번호 + 상태 알약 + 이름)
-            TossCard {
-                Column {
+            // 1. 프로토 cd-card 헤더 — heat 점 + 이름(크게) + [변경] / 전화번호 + [분류 ›] + 📞.
+            val categories by viewModel.categories.collectAsState()
+            val currentCat = categories.firstOrNull { it.id == c.categoryId }
+            val headerName = c.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(c.phoneNumber)
+            val headerCtx = androidx.compose.ui.platform.LocalContext.current
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).padding(17.dp)
+            ) {
+                androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    androidx.compose.foundation.layout.Box(
+                        Modifier.size(9.dp).clip(CircleShape).background(heatDotColor(c.leadHeat))
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        headerName, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
+                        letterSpacing = (-0.6).sp, maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    Spacer(Modifier.weight(1f))
                     androidx.compose.foundation.layout.Row(
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
+                        Modifier.clip(RoundedCornerShape(999.dp)).background(TossGrayBg)
+                            .clickable { nameDialogOpen = true }.padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                     ) {
-                        // 번호 + 📞 를 한 덩어리로 묶음 (전화 액션은 번호에 귀속).
+                        androidx.compose.material3.Icon(Icons.Default.Edit, null, tint = TossTextTertiary, modifier = Modifier.size(12.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("변경", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Text(PhoneNumberFormatter.format(c.phoneNumber), fontSize = 14.sp, color = TossTextSecondary)
+                    Spacer(Modifier.weight(1f))
+                    androidx.compose.foundation.layout.Box(
+                        Modifier.clip(RoundedCornerShape(999.dp)).background(TossGrayBg)
+                            .clickable { categoryDialogOpen = true }.padding(horizontal = 13.dp, vertical = 6.dp)
+                    ) {
                         Text(
-                            PhoneNumberFormatter.format(c.phoneNumber),
-                            style = MaterialTheme.typography.headlineSmall,
-                            color = TossTextPrimary
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        CallIconButton(phoneNumber = c.phoneNumber)
-                        Spacer(Modifier.weight(1f))
-                        // 2026-05-25: 카테고리 pill — 사장님 정의 카테고리 (1:1). 탭 시 선택 다이얼로그.
-                        val categories by viewModel.categories.collectAsState()
-                        val currentCat = categories.firstOrNull { it.id == c.categoryId }
-                        CategoryPill(
-                            label = currentCat?.let { (it.emoji?.let { e -> "$e " } ?: "") + it.name } ?: "+ 카테고리",
-                            assigned = currentCat != null,
-                            onClick = { categoryDialogOpen = true }
+                            currentCat?.let { (it.emoji?.let { e -> "$e " } ?: "") + it.name + " ›" } ?: "분류 ›",
+                            fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary
                         )
                     }
-                    Spacer(Modifier.height(8.dp))
-                    NameRow(
-                        currentName = c.name.orEmpty(),
-                        onEdit = { nameDialogOpen = true }
-                    )
+                    Spacer(Modifier.width(8.dp))
+                    androidx.compose.foundation.layout.Box(
+                        Modifier.size(34.dp).clip(CircleShape).background(TossGrayBg)
+                            .clickable { dialPhone(headerCtx, c.phoneNumber) },
+                        contentAlignment = androidx.compose.ui.Alignment.Center
+                    ) {
+                        androidx.compose.material3.Icon(Icons.Default.Phone, "전화", tint = TossTextSecondary, modifier = Modifier.size(17.dp))
+                    }
                 }
             }
 
@@ -1368,6 +1391,14 @@ private fun CallIconButton(phoneNumber: String) {
             modifier = Modifier.size(18.dp)
         )
     }
+}
+
+/** 프로토 .hd heat 점 색 — hot=빨강/warm=앰버/cold=회색/그 외(미분류=신규)=파랑. */
+private fun heatDotColor(heat: String?): Color = when (heat?.uppercase()) {
+    "HOT" -> Color(0xFFF0436A)
+    "WARM" -> Color(0xFFF6A609)
+    "COLD" -> Color(0xFFC2C9D2)
+    else -> Color(0xFF3182F6)
 }
 
 /** 시스템 다이얼러를 연다. ACTION_DIAL 은 권한 불필요, 자동 발신도 안 함. */

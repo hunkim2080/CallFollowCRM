@@ -1902,3 +1902,10 @@ CREATE TABLE intake_forms (
 - 태그: 카테고리(시공 대기) → 프로토 상태태그(시공 D-N 파랑/계약금 초록/완료 회색) — recentStatusTag(고객 scheduledWorkDate/depositPaidAt/balancePaidAt 파생). 견적발송 amber 는 이력 필요 → 후속.
 - 레이아웃: 낱개 흰 카드 → 한 흰 카드 안 줄들 + 구분선(프로토 recent-row + border-top). RecentRow 에서 카드 bg 제거.
 - 빌드 OK. DB 변경 없음. commit: (아래)
+
+## 2026-06-02 · android (22)
+고객 상세 헤더 프로토 cd-card 1:1 (사장님: 고객정보 정확히 1:1).
+- 헤더: 전화번호 메인 → 프로토대로 [heat 점 + 이름(22 w800) + 변경 chip] / [전화번호 + 분류 ›chip + 📞 mini-call]. heatDotColor(hot 빨강/warm 앰버/cold 회색/미분류 파랑). 분류 chip 은 현재 카테고리 표시(있으면)+"›".
+- LeadHeat 는 앱이 COLD/WARM 만 보유, 아파트명 자동추출 없음 → "자동" 배지는 생략(앱 데이터 한계).
+- 남음(후속): 섹션 순서(페르소나 먼저)·현장 사진 카드·블로그 후기 lockcard·"지난 문자 보기" 링크 = 프로토 openCustomer 순서로 재정렬 필요.
+- 빌드 OK. DB 변경 없음. commit: (아래)
