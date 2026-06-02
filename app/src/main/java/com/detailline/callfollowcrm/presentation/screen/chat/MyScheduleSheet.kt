@@ -92,7 +92,7 @@ fun MyScheduleSheet(
                 color = TossTextPrimary, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(2.dp))
             Text(
-                "점 있는 날 = 시공. 빈 날을 골라 약속 잡기 좋아요.",
+                "점 있는 날을 누르면 바로 아래에 그 날 시공·주소가 떠요. 가까운 현장이면 같이 묶기 좋아요.",
                 style = MaterialTheme.typography.bodySmall, color = TossTextTertiary
             )
             Spacer(Modifier.height(12.dp))
@@ -138,6 +138,19 @@ fun MyScheduleSheet(
                         )
                     }
                 }
+            }
+
+            // 프로토 범례 — ● 시공 있는 날 · 눌러서 주소 확인
+            Spacer(Modifier.height(11.dp))
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(Modifier.size(6.dp).clip(CircleShape).background(TossBlue))
+                Spacer(Modifier.width(7.dp))
+                Text("시공 있는 날 · 눌러서 주소 확인", fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Bold, color = TossTextTertiary)
             }
 
             Spacer(Modifier.height(12.dp))
@@ -199,7 +212,7 @@ private fun MiniDay(
             if (cell.busy) {
                 Spacer(Modifier.height(2.dp))
                 Box(Modifier.size(4.dp).clip(CircleShape)
-                    .background(if (isSelected) Color.White else TossSuccess))
+                    .background(if (isSelected) Color.White else TossBlue))
             }
         }
     }

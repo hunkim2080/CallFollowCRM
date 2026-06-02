@@ -444,67 +444,8 @@ fun CustomerDetailScreen(
                 }
             }
 
-            // 1.7 주고받은 문자 — 사장님 요청 (2026-05-27): 대화 요약 아래에 접이식으로.
-            //   기본 접힘 → 헤더 탭하면 펼침/닫힘. 최근 20건만, 그 이상은 [💬 메시지에서 더 보기].
-            val mergedMessages by viewModel.mergedMessages.collectAsState()
-            if (mergedMessages.isNotEmpty()) {
-                var messagesExpanded by remember { mutableStateOf(false) }
-                TossCard(onClick = { messagesExpanded = !messagesExpanded }) {
-                    Column {
-                        androidx.compose.foundation.layout.Row(
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                        ) {
-                            Text("📩", fontSize = 16.sp)
-                            Spacer(Modifier.width(6.dp))
-                            Text(
-                                "주고받은 문자",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = TossTextPrimary,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Text(
-                                "${mergedMessages.size}건",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = TossTextTertiary
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Icon(
-                                if (messagesExpanded) androidx.compose.material.icons.Icons.Filled.KeyboardArrowUp
-                                else androidx.compose.material.icons.Icons.Filled.KeyboardArrowDown,
-                                contentDescription = if (messagesExpanded) "접기" else "펼치기",
-                                tint = TossTextSecondary
-                            )
-                        }
-                        androidx.compose.animation.AnimatedVisibility(
-                            visible = messagesExpanded,
-                            enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
-                            exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut()
-                        ) {
-                            Column {
-                                Spacer(Modifier.height(10.dp))
-                                // 최근 20건만 표시. 그 이상은 ChatScreen 에서 풀 스크롤.
-                                val visible = mergedMessages.take(20)
-                                visible.forEachIndexed { idx, msg ->
-                                    MessagePreviewRow(msg)
-                                    if (idx < visible.lastIndex) {
-                                        Spacer(Modifier.height(6.dp))
-                                    }
-                                }
-                                if (mergedMessages.size > 20) {
-                                    Spacer(Modifier.height(10.dp))
-                                    Text(
-                                        "+ ${mergedMessages.size - 20}건 더 — [💬 메시지] 에서 전체 보기",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = TossTextTertiary,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            // 1.7 (제거) "주고받은 문자" 접이식 섹션 — 프로토엔 없음(하단 "지난 문자 보기" 링크만).
+            //   2026-06-03 사장님 결정 "프로토대로 제거".
 
             // 메모 카드 — 프로토 순서: 대화요약 → 메모 → 일정 · 정산 (2026-06-03 프로토대로 이동).
             TossCard {
@@ -549,12 +490,8 @@ fun CustomerDetailScreen(
                             )
                             if (hasAmount) {
                                 Spacer(Modifier.height(12.dp))
-                                androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                    Text("총 ${manwonLabel(totalWon)}", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("수정", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossBlue,
-                                        modifier = Modifier.clickable { amountEditField = "total" })
-                                }
+                                // 프로토엔 금액 옆 "수정" 링크 없음 — 제거(2026-06-03 사장님 결정).
+                                Text("총 ${manwonLabel(totalWon)}", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
                                 Spacer(Modifier.height(6.dp))
                                 Text(
                                     payStatusLabel(allPaid, depositWon, balanceWon, depPaid),
@@ -586,9 +523,8 @@ fun CustomerDetailScreen(
                                 fontSize = 13.5.sp, color = TossTextSecondary, lineHeight = 21.sp
                             )
                             Spacer(Modifier.height(13.dp))
+                            // 프로토엔 "견적서 보내기" 하나만 — "📅 시공 예약일 설정" 버튼 제거(2026-06-03 사장님 결정).
                             TossPrimaryButton(text = "견적서 보내기", onClick = { onOpenChat(c.phoneNumber, c.id) })
-                            Spacer(Modifier.height(8.dp))
-                            TossSecondaryButton(text = "📅 시공 예약일 설정", onClick = { datePickerOpen = true })
                         }
                     }
                 }

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -121,28 +122,52 @@ fun ScheduleAddScreen(
         viewModel.consumeToast()
     }
 
-    Scaffold(
-        containerColor = TossGrayBg,
-        topBar = {
-            TopAppBar(
-                title = { Text("시공 일정 등록", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로", tint = TossTextPrimary) }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
-            )
-        }
-    ) { inner ->
+    // 프로토 바텀시트 — "일정" 목록 위로 올라오는 시트(손잡이+둥근 상단+제목 "일정 직접 등록").
+    //   2026-06-03: 전체화면 앱바 → 시트 모양으로 교체 (프로토 1:1). 위 빈 영역(scrim) 탭하면 닫힘.
+    val sheetSwallow = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color(0x59000000))
+    ) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .clickable(
+                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                    indication = null
+                ) { onBack() }
+        )
         Column(
             Modifier
-                .padding(inner)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .fillMaxHeight(0.94f)
+                .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                .background(Color.White)
+                .clickable(interactionSource = sheetSwallow, indication = null) {}
         ) {
-            // 프로토 sh-sub
-            Text("전화번호만, 또는 거래처를 탭 한 번으로.", fontSize = 12.5.sp, color = TossTextTertiary,
-                modifier = Modifier.padding(start = 2.dp, bottom = 12.dp))
+            // grip 손잡이
+            Box(
+                Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 2.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(Modifier.width(40.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(TossDivider))
+            }
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp)
+                    .padding(top = 8.dp)
+            ) {
+                // 프로토 시트 제목
+                Text("일정 직접 등록", fontSize = 21.sp, fontWeight = FontWeight.ExtraBold,
+                    color = TossTextPrimary, letterSpacing = (-0.4).sp)
+                Spacer(Modifier.height(4.dp))
+                // 프로토 sh-sub
+                Text("전화번호만, 또는 거래처를 탭 한 번으로.", fontSize = 12.5.sp, color = TossTextTertiary,
+                    modifier = Modifier.padding(bottom = 14.dp))
             // ── 모드 토글 (.fchips) ──
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FChip("내 고객", mode == "mine") { mode = "mine" }
@@ -318,7 +343,8 @@ fun ScheduleAddScreen(
                 Text(if (saving) "저장 중..." else "일정 등록", color = Color.White,
                     fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
-            Spacer(Modifier.height(40.dp))
+                Spacer(Modifier.height(40.dp))
+            }
         }
     }
 
@@ -475,6 +501,17 @@ private fun SelectChip(label: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
+/** 프로토 시트 달력 nav — 흰색 둥근 사각 버튼. */
+@Composable
+private fun SheetCalNav(icon: androidx.compose.ui.graphics.vector.ImageVector, cd: String, onClick: () -> Unit) {
+    Box(
+        Modifier.size(32.dp).clip(RoundedCornerShape(10.dp)).background(Color.White).clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, cd, tint = TossTextSecondary, modifier = Modifier.size(18.dp))
+    }
+}
+
 /** 프로토 .mini-cal — 인라인 월 달력(선택형). 회색 카드 + 월 nav + 6주 그리드. */
 @Composable
 private fun InlineMonthCalendar(
@@ -490,11 +527,11 @@ private fun InlineMonthCalendar(
             .padding(start = 11.dp, end = 11.dp, top = 11.dp, bottom = 9.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            IconButton(onClick = { onShiftMonth(-1) }) { Icon(Icons.Default.ChevronLeft, "이전 달", tint = TossTextSecondary) }
+            SheetCalNav(Icons.Default.ChevronLeft, "이전 달") { onShiftMonth(-1) }
             Text(DateTimeUtils.formatMonthHeader(monthAnchor), modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.titleMedium, color = TossTextPrimary,
                 fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-            IconButton(onClick = { onShiftMonth(1) }) { Icon(Icons.Default.ChevronRight, "다음 달", tint = TossTextSecondary) }
+            SheetCalNav(Icons.Default.ChevronRight, "다음 달") { onShiftMonth(1) }
         }
         Row(Modifier.fillMaxWidth()) {
             listOf("일", "월", "화", "수", "목", "금", "토").forEachIndexed { i, label ->
@@ -522,7 +559,7 @@ private fun InlineMonthCalendar(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(cell.dom.toString(), color = fg, fontSize = 13.sp,
-                            fontWeight = if (cell.isToday || isSel) FontWeight.Bold else FontWeight.Medium)
+                            fontWeight = if (cell.isToday || isSel) FontWeight.Bold else FontWeight.SemiBold)
                     }
                 }
             }
