@@ -30,6 +30,8 @@ import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,6 +60,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
 import com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity
+import com.detailline.callfollowcrm.presentation.component.AddressSearchDialog
 import com.detailline.callfollowcrm.presentation.component.SheetTextField
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossBlueDark
@@ -109,6 +112,7 @@ fun ScheduleAddScreen(
 
     var showImport by remember { mutableStateOf(false) }
     var showNewVendor by remember { mutableStateOf(false) }
+    var showAddrSearch by remember { mutableStateOf(false) }
 
     toast?.let {
         android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show()
@@ -180,7 +184,24 @@ fun ScheduleAddScreen(
 
             Spacer(Modifier.height(12.dp))
             FieldLabel("현장 주소")
-            SheetTextField(address, { address = it }, placeholder = "길찾기·확인용")
+            // 프로토 as-addr-display — 탭하면 주소 검색(Daum). 채워지면 핀+주소.
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
+                    .border(1.5.dp, TossDivider, RoundedCornerShape(12.dp))
+                    .clickable { showAddrSearch = true }
+                    .padding(horizontal = 14.dp, vertical = 13.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    if (address.isBlank()) Icons.Default.Search else Icons.Default.Place, null,
+                    tint = if (address.isBlank()) TossTextTertiary else TossBlue, modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(7.dp))
+                Text(
+                    address.ifBlank { "주소 검색 (탭)" },
+                    fontSize = 15.sp, color = if (address.isBlank()) TossTextTertiary else TossTextPrimary
+                )
+            }
 
             Spacer(Modifier.height(12.dp))
             FieldLabel("시공일")
@@ -311,6 +332,13 @@ fun ScheduleAddScreen(
         NewVendorDialog(
             onAdd = { nm, ph -> viewModel.addVendor(nm, ph) { showNewVendor = false } },
             onDismiss = { showNewVendor = false }
+        )
+    }
+
+    if (showAddrSearch) {
+        AddressSearchDialog(
+            onPicked = { address = it; showAddrSearch = false },
+            onDismiss = { showAddrSearch = false }
         )
     }
 }
