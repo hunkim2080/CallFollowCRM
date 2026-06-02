@@ -1,6 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.schedule
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,33 +10,34 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -50,21 +52,31 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.border
+import androidx.compose.ui.window.Dialog
+import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
+import com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity
 import com.detailline.callfollowcrm.presentation.component.SheetTextField
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
+import com.detailline.callfollowcrm.presentation.theme.TossBlueDark
+import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
+import com.detailline.callfollowcrm.presentation.theme.TossError
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 import com.detailline.callfollowcrm.util.DateTimeUtils
+import com.detailline.callfollowcrm.util.PhoneNumberFormatter
+import java.util.Calendar
 
 /**
- * 셀프 일정 등록 화면 (2026-06-01). 일정 화면 FAB 에서 진입.
- *   고객명·번호·시공일·주소·총금액·계약금(+받음) 입력 → 저장.
+ * 셀프 일정 등록 화면 — 프로토 renderAddSchedule 1:1.
+ *   [내 고객 / 거래처 일감] 토글 · 통화·문자 고객 불러오기 · 인라인 미니 달력 ·
+ *   시공 시간/기간 칩 · 총 금액(만원) · 계약금 "받았어요" 체크→펼침.
+ *   주소 검색은 아직 미구현 → 자유입력 유지. 금액은 만원 입력 → 저장 시 ×10000(원).
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -77,20 +89,26 @@ fun ScheduleAddScreen(
     val toast by viewModel.toast.collectAsState()
     val saving by viewModel.saving.collectAsState()
     val workers by viewModel.workers.collectAsState()
+    val vendors by viewModel.vendors.collectAsState()
+    val recentContacts by viewModel.recentContacts.collectAsState()
     val selectedWorkerIds = remember { mutableStateListOf<Long>() }
     var crewWageText by remember { mutableStateOf("") }
 
+    var mode by remember { mutableStateOf("mine") } // mine | partner
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
+    var selectedVendor by remember { mutableStateOf<NotebookContactEntity?>(null) }
     var address by remember { mutableStateOf("") }
-    var totalText by remember { mutableStateOf("") }
-    var depositText by remember { mutableStateOf("") }
-    var depositPaid by remember { mutableStateOf(false) }
+    var totalManwon by remember { mutableStateOf("") }
+    var depositManwon by remember { mutableStateOf("") }
+    var depositReceived by remember { mutableStateOf(false) }
     var dayMs by remember { mutableLongStateOf(DateTimeUtils.startOfDay(System.currentTimeMillis())) }
-    var showDate by remember { mutableStateOf(false) }
-    // 시공 시간(자정부터 분, null=미정) + 기간(일). DB v24.
+    var monthAnchor by remember { mutableLongStateOf(monthAnchorOf(System.currentTimeMillis())) }
     var workMinutes by remember { mutableStateOf<Int?>(null) }
     var workDays by remember { mutableStateOf(1) }
+
+    var showImport by remember { mutableStateOf(false) }
+    var showNewVendor by remember { mutableStateOf(false) }
 
     toast?.let {
         android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show()
@@ -103,7 +121,7 @@ fun ScheduleAddScreen(
             TopAppBar(
                 title = { Text("시공 일정 등록", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "뒤로", tint = TossTextPrimary) }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로", tint = TossTextPrimary) }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
             )
@@ -116,31 +134,65 @@ fun ScheduleAddScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            FieldLabel("고객 이름 (선택)")
-            SheetTextField(name, { name = it }, placeholder = "미입력 시 번호로 표시")
+            // ── 모드 토글 (.fchips) ──
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FChip("내 고객", mode == "mine") { mode = "mine" }
+                FChip("거래처 일감", mode == "partner") { mode = "partner" }
+            }
+            Spacer(Modifier.height(13.dp))
 
-            Spacer(Modifier.height(12.dp))
-            FieldLabel("전화번호 *")
-            SheetTextField(phone, { phone = it }, placeholder = "010-0000-0000",
-                keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone)
-
-            Spacer(Modifier.height(12.dp))
-            FieldLabel("시공일 *")
-            Box(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                    .background(TossGrayBg)
-                    .border(1.5.dp, TossDivider, RoundedCornerShape(12.dp))
-                    .clickable { showDate = true }
-                    .padding(horizontal = 14.dp, vertical = 13.dp)
-            ) {
-                Text(
-                    DateTimeUtils.formatKoreanDate(dayMs) + " · " + DateTimeUtils.dDayLabel(dayMs),
-                    color = TossTextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold
-                )
+            if (mode == "mine") {
+                // .contact-import — 통화·문자한 고객에서 불러오기
+                Row(
+                    Modifier
+                        .fillMaxWidth().height(50.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(TossBlueSoft)
+                        .clickable { showImport = true },
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.Chat, null, tint = TossBlueDark, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("통화·문자한 고객에서 불러오기", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossBlueDark)
+                }
+                // .or-div — 또는 직접 입력
+                OrDivider("또는 직접 입력")
+                Spacer(Modifier.height(4.dp))
+                FieldLabel("고객 이름 (선택)")
+                SheetTextField(name, { name = it }, placeholder = "예: 강동 서사장")
+                Spacer(Modifier.height(12.dp))
+                FieldLabel("고객 전화번호")
+                SheetTextField(phone, { phone = it }, placeholder = "010-0000-0000",
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone)
+            } else {
+                FieldLabel("거래처 (자주 일 주는 곳)")
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    vendors.forEach { v ->
+                        FChip(v.name, selectedVendor?.id == v.id) { selectedVendor = v }
+                    }
+                    FChip("+ 새 거래처", false) { showNewVendor = true }
+                }
+                Spacer(Modifier.height(4.dp))
+                Text("탭 한 번이면 번호·정산처가 자동 연결돼요.",
+                    fontSize = 12.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp))
             }
 
             Spacer(Modifier.height(12.dp))
-            FieldLabel("시공 시간 (선택)")
+            FieldLabel("현장 주소")
+            SheetTextField(address, { address = it }, placeholder = "길찾기·확인용")
+
+            Spacer(Modifier.height(12.dp))
+            FieldLabel("시공일")
+            InlineMonthCalendar(
+                monthAnchor = monthAnchor,
+                selectedDayMs = dayMs,
+                onShiftMonth = { monthAnchor = shiftMonth(monthAnchor, it) },
+                onSelect = { dayMs = it }
+            )
+
+            Spacer(Modifier.height(12.dp))
+            FieldLabel("시공 시간")
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SelectChip("미정", workMinutes == null) { workMinutes = null }
                 WORK_TIME_OPTIONS.forEach { (label, mins) ->
@@ -149,7 +201,7 @@ fun ScheduleAddScreen(
             }
 
             Spacer(Modifier.height(12.dp))
-            FieldLabel("시공 기간 (선택)")
+            FieldLabel("시공 기간")
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 WORK_DAYS_OPTIONS.forEach { (label, days) ->
                     SelectChip(label, workDays == days) { workDays = days }
@@ -157,48 +209,43 @@ fun ScheduleAddScreen(
             }
 
             Spacer(Modifier.height(12.dp))
-            FieldLabel("현장 주소 (선택)")
-            SheetTextField(address, { address = it }, placeholder = "길찾기·확인용")
-
-            Spacer(Modifier.height(12.dp))
-            FieldLabel("총 시공비 (선택)")
-            SheetTextField(totalText, { totalText = it.filter { c -> c.isDigit() } }, placeholder = "원",
+            FieldLabel("총 금액 (만원)")
+            SheetTextField(totalManwon, { totalManwon = it.filter { c -> c.isDigit() } }, placeholder = "예: 40",
                 keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
 
-            Spacer(Modifier.height(12.dp))
-            FieldLabel("계약금 (선택)")
-            SheetTextField(depositText, { depositText = it.filter { c -> c.isDigit() } }, placeholder = "원",
-                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
-            Spacer(Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { depositPaid = !depositPaid }
-                    .padding(vertical = 4.dp)) {
+            // .sheet-check — 계약금을 받았어요 → 체크 시 펼침
+            Spacer(Modifier.height(4.dp))
+            Row(
+                Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { depositReceived = !depositReceived }
+                    .padding(top = 8.dp, bottom = 12.dp, start = 2.dp, end = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Box(
-                    Modifier.size(22.dp).clip(CircleShape)
-                        .background(if (depositPaid) TossBlue else TossDivider),
+                    Modifier.size(22.dp).clip(RoundedCornerShape(7.dp))
+                        .background(if (depositReceived) TossBlue else TossGrayBg)
+                        .border(2.dp, if (depositReceived) TossBlue else TossDivider, RoundedCornerShape(7.dp)),
                     contentAlignment = Alignment.Center
-                ) { if (depositPaid) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(14.dp)) }
-                Spacer(Modifier.width(8.dp))
-                Text("계약금 이미 받음", color = TossTextSecondary, fontWeight = FontWeight.Medium)
+                ) { if (depositReceived) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(13.dp)) }
+                Spacer(Modifier.width(9.dp))
+                Text("계약금을 받았어요", fontSize = 14.sp, color = TossTextPrimary)
+            }
+            if (depositReceived) {
+                FieldLabel("계약금 (만원)")
+                SheetTextField(depositManwon, { depositManwon = it.filter { c -> c.isDigit() } }, placeholder = "예: 10",
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
             }
 
+            // 일당 배정(앱 추가 기능) — 수첩 일당 있으면.
             if (workers.isNotEmpty()) {
                 Spacer(Modifier.height(16.dp))
                 FieldLabel("일당 배정 (선택) — 정산 현금흐름에 자동 −지출")
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     workers.forEach { w ->
                         val sel = selectedWorkerIds.contains(w.id)
-                        Box(
-                            Modifier.clip(RoundedCornerShape(999.dp))
-                                .background(if (sel) TossBlue else Color.White)
-                                .clickable {
-                                    if (sel) selectedWorkerIds.remove(w.id) else selectedWorkerIds.add(w.id)
-                                }
-                                .padding(horizontal = 14.dp, vertical = 9.dp)
-                        ) {
-                            Text(w.name, color = if (sel) Color.White else TossTextSecondary,
-                                fontWeight = FontWeight.SemiBold,
-                                style = MaterialTheme.typography.bodyMedium)
+                        FChip(w.name, sel) {
+                            if (sel) selectedWorkerIds.remove(w.id) else selectedWorkerIds.add(w.id)
                         }
                     }
                 }
@@ -211,46 +258,60 @@ fun ScheduleAddScreen(
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
+            // .sheet-cta — 일정 등록
+            Spacer(Modifier.height(20.dp))
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
                     .background(if (saving) TossTextTertiary else TossBlue)
                     .clickable(enabled = !saving) {
+                        val submitName: String
+                        val submitPhone: String
+                        if (mode == "partner") {
+                            val v = selectedVendor
+                            if (v == null) { android.widget.Toast.makeText(context, "거래처를 선택해주세요", android.widget.Toast.LENGTH_SHORT).show(); return@clickable }
+                            if (v.phone.filter { it.isDigit() }.length < 8) { android.widget.Toast.makeText(context, "이 거래처는 번호가 없어요. 수첩에서 번호를 추가해주세요", android.widget.Toast.LENGTH_SHORT).show(); return@clickable }
+                            submitName = "${v.name} (거래처)"; submitPhone = v.phone
+                        } else { submitName = name; submitPhone = phone }
                         viewModel.submit(
-                            name = name, phone = phone, dayMs = dayMs,
+                            name = submitName, phone = submitPhone, dayMs = dayMs,
                             workMinutes = workMinutes, workDays = workDays, address = address,
-                            totalAmount = totalText.toLongOrNull(),
-                            depositAmount = depositText.toLongOrNull(),
-                            depositPaid = depositPaid,
+                            totalAmount = totalManwon.toLongOrNull()?.let { it * 10_000 },
+                            depositAmount = if (depositReceived) depositManwon.toLongOrNull()?.let { it * 10_000 } else null,
+                            depositPaid = depositReceived,
                             crewWorkers = workers.filter { selectedWorkerIds.contains(it.id) },
                             crewWage = crewWageText.toLongOrNull() ?: 0L,
                             onDone = onDone
                         )
                     }
-                    .padding(vertical = 16.dp),
+                    .padding(vertical = 15.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(if (saving) "저장 중..." else "일정 등록", color = Color.White,
-                    fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(40.dp))
         }
     }
 
-    if (showDate) {
-        val state = rememberDatePickerState(initialSelectedDateMillis = dayMs)
-        DatePickerDialog(
-            onDismissRequest = { showDate = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    state.selectedDateMillis?.let { dayMs = DateTimeUtils.startOfDay(it) }
-                    showDate = false
-                }) { Text("확인", color = TossBlue, fontWeight = FontWeight.Bold) }
+    if (showImport) {
+        ContactImportDialog(
+            contacts = recentContacts,
+            onPick = { c ->
+                mode = "mine"
+                name = c.name?.takeIf { it.isNotBlank() } ?: ""
+                phone = c.phoneNumber
+                c.address?.takeIf { it.isNotBlank() }?.let { address = it }
+                showImport = false
             },
-            dismissButton = { TextButton(onClick = { showDate = false }) { Text("취소", color = TossTextSecondary) } }
-        ) {
-            DatePicker(state = state)
-        }
+            onDismiss = { showImport = false }
+        )
+    }
+
+    if (showNewVendor) {
+        NewVendorDialog(
+            onAdd = { nm, ph -> viewModel.addVendor(nm, ph) { showNewVendor = false } },
+            onDismiss = { showNewVendor = false }
+        )
     }
 }
 
@@ -261,7 +322,35 @@ private fun FieldLabel(text: String) {
         modifier = Modifier.padding(start = 2.dp, bottom = 7.dp))
 }
 
-/** 시공 시간/기간 선택 알약 칩. 선택 시 파랑 채움. */
+/** 프로토 .fchip — 알약 토글/선택칩. on=파랑 채움, off=흰색+그림자 느낌(여기선 흰 배경). */
+@Composable
+private fun FChip(label: String, on: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier.clip(RoundedCornerShape(999.dp))
+            .background(if (on) TossBlue else Color.White)
+            .clickable { onClick() }
+            .padding(horizontal = 15.dp, vertical = 8.dp)
+    ) {
+        Text(label, color = if (on) Color.White else TossTextSecondary,
+            fontSize = 13.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+/** 프로토 .or-div — 가운데 글자 + 좌우 선. */
+@Composable
+private fun OrDivider(text: String) {
+    Row(
+        Modifier.fillMaxWidth().padding(top = 15.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.weight(1f).height(1.dp).background(TossDivider))
+        Text(text, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+            modifier = Modifier.padding(horizontal = 10.dp))
+        Box(Modifier.weight(1f).height(1.dp).background(TossDivider))
+    }
+}
+
+/** 시공 시간/기간 선택 알약 칩. */
 @Composable
 private fun SelectChip(label: String, selected: Boolean, onClick: () -> Unit) {
     Box(
@@ -270,16 +359,176 @@ private fun SelectChip(label: String, selected: Boolean, onClick: () -> Unit) {
             .clickable { onClick() }
             .padding(horizontal = 14.dp, vertical = 9.dp)
     ) {
-        Text(
-            label,
-            color = if (selected) Color.White else TossTextSecondary,
-            fontWeight = FontWeight.SemiBold,
-            style = MaterialTheme.typography.bodyMedium
-        )
+        Text(label, color = if (selected) Color.White else TossTextSecondary,
+            fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
     }
 }
 
-/** 시공 시작 시각 빠른 선택 (라벨 → 자정부터 분). 프로토 schedTimeChips 벤치마킹. */
+/** 프로토 .mini-cal — 인라인 월 달력(선택형). 회색 카드 + 월 nav + 6주 그리드. */
+@Composable
+private fun InlineMonthCalendar(
+    monthAnchor: Long,
+    selectedDayMs: Long,
+    onShiftMonth: (Int) -> Unit,
+    onSelect: (Long) -> Unit
+) {
+    val todayStart = remember { DateTimeUtils.startOfDay(System.currentTimeMillis()) }
+    val cells = remember(monthAnchor) { buildSelectCells(monthAnchor, todayStart) }
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(TossGrayBg)
+            .padding(start = 11.dp, end = 11.dp, top = 11.dp, bottom = 9.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            IconButton(onClick = { onShiftMonth(-1) }) { Icon(Icons.Default.ChevronLeft, "이전 달", tint = TossTextSecondary) }
+            Text(DateTimeUtils.formatMonthHeader(monthAnchor), modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleMedium, color = TossTextPrimary,
+                fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+            IconButton(onClick = { onShiftMonth(1) }) { Icon(Icons.Default.ChevronRight, "다음 달", tint = TossTextSecondary) }
+        }
+        Row(Modifier.fillMaxWidth()) {
+            listOf("일", "월", "화", "수", "목", "금", "토").forEachIndexed { i, label ->
+                Text(label, modifier = Modifier.weight(1f).padding(vertical = 4.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = when (i) { 0 -> TossError; 6 -> TossBlue; else -> TossTextSecondary },
+                    fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+            }
+        }
+        repeat(6) { week ->
+            Row(Modifier.fillMaxWidth()) {
+                cells.subList(week * 7, week * 7 + 7).forEach { cell ->
+                    val isSel = DateTimeUtils.startOfDay(selectedDayMs) == cell.dayStartMs
+                    val bg = when { isSel -> TossBlue; cell.isToday -> TossBlueSoft; else -> Color.Transparent }
+                    val fg = when {
+                        isSel -> Color.White
+                        !cell.inMonth -> TossTextTertiary
+                        cell.dow == Calendar.SUNDAY -> TossError
+                        cell.dow == Calendar.SATURDAY -> TossBlue
+                        else -> TossTextPrimary
+                    }
+                    Box(
+                        Modifier.weight(1f).aspectRatio(1f).padding(2.dp).clip(CircleShape)
+                            .background(bg).clickable { onSelect(cell.dayStartMs) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(cell.dom.toString(), color = fg, fontSize = 13.sp,
+                            fontWeight = if (cell.isToday || isSel) FontWeight.Bold else FontWeight.Medium)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 통화·문자한 고객 picker (프로토 openSchedPeoplePick). */
+@Composable
+private fun ContactImportDialog(
+    contacts: List<CustomerEntity>,
+    onPick: (CustomerEntity) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White)
+                .padding(vertical = 16.dp)
+        ) {
+            Text("통화·문자한 고객", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+            Spacer(Modifier.height(8.dp))
+            if (contacts.isEmpty()) {
+                Text("불러올 고객이 아직 없어요", fontSize = 14.sp, color = TossTextTertiary,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp))
+            } else {
+                LazyColumn(Modifier.fillMaxWidth().heightIn(max = 380.dp)) {
+                    items(contacts, key = { it.id }) { c ->
+                        Column(
+                            Modifier.fillMaxWidth().clickable { onPick(c) }
+                                .padding(horizontal = 20.dp, vertical = 12.dp)
+                        ) {
+                            Text(c.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(c.phoneNumber),
+                                fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                            if (c.name?.isNotBlank() == true) {
+                                Spacer(Modifier.height(2.dp))
+                                Text(PhoneNumberFormatter.format(c.phoneNumber), fontSize = 12.sp, color = TossTextTertiary)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 새 거래처 추가 다이얼로그 (프로토 addPartner). */
+@Composable
+private fun NewVendorDialog(
+    onAdd: (name: String, phone: String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var nm by remember { mutableStateOf("") }
+    var ph by remember { mutableStateOf("") }
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White)
+                .padding(20.dp)
+        ) {
+            Text("새 거래처", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+            Spacer(Modifier.height(14.dp))
+            FieldLabel("거래처 이름")
+            SheetTextField(nm, { nm = it }, placeholder = "예: 시흥 인테리어")
+            Spacer(Modifier.height(10.dp))
+            FieldLabel("전화번호")
+            SheetTextField(ph, { ph = it }, placeholder = "010-0000-0000",
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone)
+            Spacer(Modifier.height(18.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Text("취소", color = TossTextSecondary, fontWeight = FontWeight.Medium,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onDismiss() }.padding(horizontal = 14.dp, vertical = 10.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("추가", color = TossBlue, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { if (nm.isNotBlank()) onAdd(nm, ph) }.padding(horizontal = 14.dp, vertical = 10.dp))
+            }
+        }
+    }
+}
+
+// ── 인라인 달력 셀 ──
+private data class SelCell(val dayStartMs: Long, val dom: Int, val dow: Int, val inMonth: Boolean, val isToday: Boolean)
+
+private fun monthAnchorOf(anyMs: Long): Long {
+    val cal = Calendar.getInstance().apply {
+        timeInMillis = anyMs
+        set(Calendar.DAY_OF_MONTH, 1); set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+    }
+    return cal.timeInMillis
+}
+
+private fun shiftMonth(anchorMs: Long, delta: Int): Long {
+    val cal = Calendar.getInstance().apply { timeInMillis = anchorMs; add(Calendar.MONTH, delta); set(Calendar.DAY_OF_MONTH, 1) }
+    return cal.timeInMillis
+}
+
+private fun buildSelectCells(monthAnchor: Long, todayStart: Long): List<SelCell> {
+    val cal = Calendar.getInstance().apply { timeInMillis = monthAnchor }
+    val targetMonth = cal.get(Calendar.MONTH)
+    val firstDow = cal.get(Calendar.DAY_OF_WEEK)
+    cal.add(Calendar.DAY_OF_MONTH, -(firstDow - 1))
+    val cells = ArrayList<SelCell>(42)
+    repeat(42) {
+        val dayStart = DateTimeUtils.startOfDay(cal.timeInMillis)
+        cells += SelCell(
+            dayStartMs = dayStart,
+            dom = cal.get(Calendar.DAY_OF_MONTH),
+            dow = cal.get(Calendar.DAY_OF_WEEK),
+            inMonth = cal.get(Calendar.MONTH) == targetMonth,
+            isToday = dayStart == todayStart
+        )
+        cal.add(Calendar.DAY_OF_MONTH, 1)
+    }
+    return cells
+}
+
+/** 시공 시작 시각 빠른 선택 (라벨 → 자정부터 분). */
 private val WORK_TIME_OPTIONS: List<Pair<String, Int>> = listOf(
     "오전 8시" to 8 * 60, "오전 9시" to 9 * 60, "오전 10시" to 10 * 60, "오전 11시" to 11 * 60,
     "오후 1시" to 13 * 60, "오후 2시" to 14 * 60, "오후 3시" to 15 * 60, "오후 4시" to 16 * 60
