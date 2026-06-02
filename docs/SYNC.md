@@ -2014,3 +2014,20 @@ CREATE TABLE intake_forms (
 - 정직: 말투 '80% 학습됨'(가짜)·말투 화면(서버 의존)은 안 함.
 - **서버 Claude 에 요청**: 말투 학습 화면 1:1 하려면 서버가 [학습률%·말투 특징 traits·일반AI vs 내말투 예시] API 를 앱에 내보내줘야 함. 지금 앱엔 sampleCount(올린 문자 수)만 있음.
 - 남은 큰 것: 자동문자 재구성, 일정 편집/삭제, 견적서(직인) 이미지 발송, 멀티데이 달력 막대.
+
+## 2026-06-03 · android (38)
+견적 만들기 시트 프로토 1:1 (1단계) + 일정/내시공일정/고객상세 시트화.
+- 견적 시트(ChatScreen EstimateBuilderDialog): 신축/구축 → 프로토 .seg 탭 [문자 견적/시공접수서/견적서]. AlertDialog→바텀시트. 파란 체크박스·평수조절·합계·탭별 CTA. 문자견적 본문=프로토 makeEstimate. 가격표 카테고리 필터 제거(평탄 리스트)(1e46a22).
+- 일정 등록: 전체화면→프로토 바텀시트(7cc1dea). 내 시공 일정 시트 부제·범례·점색 1:1. 고객상세: 프로토에 없는 시공예약일버튼·금액수정링크·주고받은문자섹션 제거, 메모 카드 순서 이동.
+- 사장님 결정(2026-06-03): 가격표=프로토대로 한 줄 리스트, 비즈니스 리포트=프로토 추천채택률/전환율로 교체, 견적=시공접수서까지 전부.
+
+### ⚠️ 서버 요청 — 시공접수서(고객 셀프 접수 웹폼) [중요]
+견적 시트 "시공접수서" 탭의 핵심 = 고객이 **링크로 여는 웹 화면**(앱 설치 X). 이건 서버(맥미니) 영역.
+프로토 출처(verbatim 이식 대상): `design-preview/ringgo-redesign.html` 의 openQuote (~L1866-1896), submitQuote (~L1925), finalizeQuote (~L1932-1945), openQuoteDoc (견적서 직인 ~L1843-1863).
+앱(안드로이드)이 서버에 필요한 API 4개:
+1. POST 접수서 생성 — body: {customerName, customerPhone, items:[{name,price,unit,area}], total, workDate, workDays, depositMode(ratio|fixed|none), depositValue, biz:{name,owner,bizNo,addr,phone,seal,validDays}} → res: {token, url}. (사장님이 "링크 보내기" 누르면 앱이 호출 → 받은 url 을 고객에게 SMS)
+2. GET /q/{token} — 고객용 시공접수서 HTML 폼 렌더(프로토 openQuote 1:1: 시공일 확정 카드, 견적내역+합계+계약금, 연락처·주소검색·동호수·현장메모 입력, 약관동의, "접수 완료하기", 만료 N일).
+3. POST /q/{token}/submit — body: {phone, address, dong, memo, confirmedDate, survey} → 저장 + 사장님 알림.
+4. GET 제출 조회(폴링/푸시) — 앱이 "고객이 접수서 제출함" 받아 고객 레코드에 주소·확정시공일 반영.
++ 견적서(직인) 탭은 앱이 이미지 생성/발송 시도 예정이나, 서버에서 견적서 HTML/PDF 렌더 endpoint 를 주면 더 깔끔(선택). 사업자정보·직인문구(seal)는 앱 AppPreferences 에 이미 저장됨.
+- 앱쪽 1단계 완료. 위 API 나오면 앱이 시공접수서 탭 발송 동작 연결 + 제출 결과 임포트 구현.
