@@ -331,53 +331,9 @@ fun ChatScreen(
                     }
                 },
                 actions = {
-                    // 접수서 링크 보내기 (맥미니 §19) — 발급한 URL 을 메시지 본문에 prefill → 사장님 ▶ 직접.
-                    IconButton(onClick = {
-                        scope.launch {
-                            val body = viewModel.issueIntakeForm()
-                            if (body != null) {
-                                input = if (input.isBlank()) body else input + "\n" + body
-                                snackbar.showSnackbar("접수서 링크를 메시지에 넣었어요. ▶로 보내세요")
-                            } else {
-                                snackbar.showSnackbar("접수서 발급 실패 — 서버 연결을 확인하세요")
-                            }
-                        }
-                    }) {
-                        Icon(Icons.Default.Assignment, "접수서 링크", tint = TossTextSecondary)
-                    }
-                    // (내 일정 확인은 프로토 chat-actions [내 일정 확인] 칩으로 이동 — 앱바 중복 제거 2026-06-02)
-                    // 저장된 메시지 모아보기 — 별이 아닌 북마크 아이콘 (즐겨찾기 오해 방지).
-                    //   카운트 0 이면 outlined, 있으면 fill + 숫자 badge.
-                    //   2026-05-25: 사장님 피드백 — 별 아이콘은 "고객 즐겨찾기" 와 분간 어려움 → 북마크 채택.
-                    IconButton(onClick = { starredViewerOpen = true }) {
-                        if (starred.isEmpty()) {
-                            Icon(Icons.Outlined.BookmarkBorder, "저장된 메시지", tint = TossTextSecondary)
-                        } else {
-                            androidx.compose.foundation.layout.Box(contentAlignment = Alignment.TopEnd) {
-                                Icon(Icons.Default.Bookmarks, "저장된 메시지 ${starred.size}건", tint = TossBlue)
-                                // 카운트 badge — 우상단 작은 빨간 동그라미 + 숫자.
-                                Surface(
-                                    shape = androidx.compose.foundation.shape.CircleShape,
-                                    color = Color(0xFFEF4444),
-                                    modifier = Modifier
-                                        .offset(x = 6.dp, y = (-4).dp)
-                                        .size(16.dp)
-                                ) {
-                                    androidx.compose.foundation.layout.Box(
-                                        contentAlignment = Alignment.Center,
-                                        modifier = Modifier.fillMaxSize()
-                                    ) {
-                                        Text(
-                                            starred.size.toString().take(2),
-                                            color = Color.White,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    // 프로토 s-chat 앱바 = ← / 이름 / 📞 / ⓘ 만. (접수서·북마크는 프로토에 없어 제거 2026-06-03)
+                    //   접수서 링크는 향후 견적 작성기 3모드(문자견적/시공접수서/견적서)로 이동 예정.
+                    //   저장된 메시지(북마크) 기능 코드는 남겨둠(starredViewerOpen) — 앱바 진입만 제거.
                     IconButton(onClick = { dialPhone(context, viewModel.phoneNumber) }) {
                         Icon(Icons.Default.Phone, "전화 걸기", tint = TossBlue)
                     }
