@@ -134,6 +134,8 @@ fun CustomerDetailScreen(
     var orphanRecsExpanded by remember(customer?.id) { mutableStateOf(false) }
     var nameDialogOpen by remember { mutableStateOf(false) }
     var categoryDialogOpen by remember { mutableStateOf(false) }
+    // 일정·정산 카드 금액 편집 다이얼로그 — "total"(총금액) / "deposit"(계약금) / null(닫힘).
+    var amountEditField by remember { mutableStateOf<String?>(null) }
     // MMS 사진 풀스크린 뷰어 — 썸네일 탭하면 set, 다이얼로그가 보여줌. null 이면 닫힘.
     var fullscreenImageUri by remember { mutableStateOf<android.net.Uri?>(null) }
     var celebrationVisible by remember { mutableStateOf(false) }
@@ -500,152 +502,80 @@ fun CustomerDetailScreen(
                 }
             }
 
-            // 2. 일정 카드 — 첫 문의 / 최근 통화 / 시공 예약일 (메모보다 먼저, 액션 정보가 우선)
-            TossCard {
-                Column {
-                    SectionLabel("일정")
-                    Spacer(Modifier.height(10.dp))
-
-                    val firstContact = records.minByOrNull { it.endedAt }?.endedAt ?: c.createdAt
-                    val lastCall = records.maxByOrNull { it.endedAt }?.endedAt
-
-                    ScheduleRow(
-                        label = "첫 문의",
-                        dateLabel = DateTimeUtils.formatKoreanDate(firstContact),
-                        ddayLabel = DateTimeUtils.dDayLabel(firstContact)
-                    )
-                    if (lastCall != null && lastCall != firstContact) {
-                        Spacer(Modifier.height(8.dp))
-                        ScheduleRow(
-                            label = "최근 통화",
-                            dateLabel = DateTimeUtils.formatShort(lastCall),
-                            ddayLabel = DateTimeUtils.dDayLabel(lastCall)
-                        )
-                    }
-
-                    Spacer(Modifier.height(12.dp))
-                    androidx.compose.material3.Divider(color = TossDivider)
-                    Spacer(Modifier.height(12.dp))
-
-                    val scheduled = c.scheduledWorkDate
-                    if (scheduled == null) {
-                        Text(
-                            "시공 예약일",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TossTextSecondary,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            "아직 예약 안 됨",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = TossTextTertiary
-                        )
+            // 2. 프로토 "일정 · 정산" 카드 (사장님 결정 2026-06-02: 프로토 단순화).
+            //    데이터(예약일·금액·계약금/잔금)는 그대로, UI 만 프로토 단순형(시공예약+총금액+계약금/잔금 상태+확인).
+            run {
+                val scheduled = c.scheduledWorkDate
+                val totalWon = c.totalAmount ?: 0L
+                val hasAmount = totalWon > 0L
+                val depositWon = c.depositAmount ?: 0L
+                val balanceWon = c.balanceAmount ?: (totalWon - depositWon).coerceAtLeast(0L)
+                val depPaid = c.depositPaidAt != null
+                val balPaid = c.balancePaidAt != null
+                val allPaid = balPaid || (depPaid && balanceWon <= 0L)
+                TossCard {
+                    Column {
+                        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Text("💰", fontSize = 13.sp)
+                            Spacer(Modifier.width(6.dp))
+                            Text("일정 · 정산", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                        }
                         Spacer(Modifier.height(10.dp))
-                        TossSecondaryButton(
-                            text = "📅 시공 예약일 설정",
-                            onClick = { datePickerOpen = true }
-                        )
-                    } else {
-                        ScheduleRow(
-                            label = "시공 예약일",
-                            dateLabel = DateTimeUtils.formatKoreanDate(scheduled),
-                            ddayLabel = DateTimeUtils.dDayLabel(scheduled),
-                            emphasize = true
-                        )
-                        Spacer(Modifier.height(14.dp))
-                        // outline 버튼 두 개를 같은 너비로. 평범한 텍스트가 아니라 명확한 버튼 형태.
-                        androidx.compose.foundation.layout.Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            OutlinedButton(
-                                onClick = { datePickerOpen = true },
-                                modifier = Modifier.weight(1f).height(44.dp),
-                                shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
-                                border = BorderStroke(1.dp, TossBlue)
-                            ) {
+                        if (scheduled != null || hasAmount) {
+                            CdKv(
+                                "시공 예약",
+                                if (scheduled != null) DateTimeUtils.formatKoreanDate(scheduled) + (c.scheduledWorkMinutes?.let { " " + DateTimeUtils.formatWorkMinutes(it) } ?: "") else "아직 예약 안 됨 · 탭해서 설정",
+                                valueColor = if (scheduled != null) TossBlue else TossTextTertiary,
+                                onClick = { datePickerOpen = true }
+                            )
+                            if (hasAmount) {
+                                Spacer(Modifier.height(12.dp))
+                                androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                    Text("총 ${manwonLabel(totalWon)}", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("수정", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossBlue,
+                                        modifier = Modifier.clickable { amountEditField = "total" })
+                                }
+                                Spacer(Modifier.height(6.dp))
                                 Text(
-                                    "📅 날짜 변경",
-                                    color = TossBlue,
-                                    fontWeight = FontWeight.SemiBold,
-                                    style = MaterialTheme.typography.bodyMedium
+                                    payStatusLabel(allPaid, depositWon, balanceWon, depPaid),
+                                    fontSize = 13.sp, color = TossTextSecondary, lineHeight = 19.sp
                                 )
+                                Spacer(Modifier.height(12.dp))
+                                if (allPaid) {
+                                    TossSecondaryButton(text = "완납 취소", onClick = { viewModel.setBalancePaid(false) })
+                                } else if (depositWon > 0L && !depPaid) {
+                                    TossPrimaryButton(text = "계약금 확인", onClick = { viewModel.setDepositPaid(true) })
+                                } else if (depositWon > 0L) {
+                                    TossPrimaryButton(text = "잔금 확인", onClick = {
+                                        if (c.balanceAmount == null && balanceWon > 0L) viewModel.setBalanceAmount(balanceWon)
+                                        viewModel.setBalancePaid(true)
+                                    })
+                                } else {
+                                    TossPrimaryButton(text = "전액 확인", onClick = {
+                                        if (c.balanceAmount == null && totalWon > 0L) viewModel.setBalanceAmount(totalWon)
+                                        viewModel.setBalancePaid(true)
+                                    })
+                                }
+                            } else {
+                                Spacer(Modifier.height(12.dp))
+                                TossSecondaryButton(text = "💰 총금액 입력", onClick = { amountEditField = "total" })
                             }
-                            OutlinedButton(
-                                onClick = { viewModel.updateScheduledWorkDate(null) },
-                                modifier = Modifier.weight(1f).height(44.dp),
-                                shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
-                                border = BorderStroke(1.dp, TossDivider)
-                            ) {
-                                Text(
-                                    "예약 취소",
-                                    color = TossTextSecondary,
-                                    fontWeight = FontWeight.SemiBold,
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
+                        } else {
+                            Text(
+                                "아직 견적·일정 전이에요.\n견적서를 보내 일정·계약금을 한 번에 잡아보세요.",
+                                fontSize = 13.5.sp, color = TossTextSecondary, lineHeight = 21.sp
+                            )
+                            Spacer(Modifier.height(13.dp))
+                            TossPrimaryButton(text = "견적서 보내기", onClick = { onOpenChat(c.phoneNumber, c.id) })
+                            Spacer(Modifier.height(8.dp))
+                            TossSecondaryButton(text = "📅 시공 예약일 설정", onClick = { datePickerOpen = true })
                         }
                     }
                 }
             }
 
-            // 3. 입금 카드 — 2026-05-30 사장님 #4 통점 fix:
-            //    총금액 입력 → 잔금 자동 계산 표시 (사장님이 원하면 수동 수정 가능).
-            //    계약금: 그대로. 잔금: balanceAmount 미박힘 + totalAmount 박혀있으면 자동 = total - deposit 표시.
-            TossCard {
-                Column {
-                    SectionLabel("💰 입금")
-                    Spacer(Modifier.height(10.dp))
-                    TotalAmountRow(
-                        totalAmount = c.totalAmount,
-                        depositAmount = c.depositAmount,
-                        balanceAmount = c.balanceAmount,
-                        onTotalChange = { viewModel.setTotalAmount(it) }
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    androidx.compose.material3.Divider(color = TossDivider)
-                    Spacer(Modifier.height(10.dp))
-                    PaymentRow(
-                        label = "계약금",
-                        amount = c.depositAmount,
-                        paidAt = c.depositPaidAt,
-                        onPaidChange = { viewModel.setDepositPaid(it) },
-                        onAmountChange = { viewModel.setDepositAmount(it) },
-                        onPaidAtChange = { viewModel.setDepositPaidAt(it) }
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    androidx.compose.material3.Divider(color = TossDivider)
-                    Spacer(Modifier.height(10.dp))
-                    // 잔금 — totalAmount 있고 balanceAmount 미박힘이면 자동 계산값을 PROMISED 처럼 보여줌.
-                    //   사장님이 [금액 수정] 누르면 직접 입력 가능 → balanceAmount 박힘 → 그게 우선.
-                    val autoBalance = remember(c.totalAmount, c.depositAmount, c.balanceAmount) {
-                        when {
-                            c.balanceAmount != null -> null
-                            c.totalAmount != null && c.totalAmount > 0L -> {
-                                val calc = (c.totalAmount - (c.depositAmount ?: 0L))
-                                calc.coerceAtLeast(0L)
-                            }
-                            else -> null
-                        }
-                    }
-                    PaymentRow(
-                        label = "잔금",
-                        amount = c.balanceAmount ?: autoBalance,
-                        paidAt = c.balancePaidAt,
-                        // 자동 계산값 상태에서 [받음 확정] 시 = balanceAmount 도 자동값으로 박음 → RECEIVED 정상 표시.
-                        onPaidChange = { paid ->
-                            if (paid && c.balanceAmount == null && autoBalance != null) {
-                                viewModel.setBalanceAmount(autoBalance)
-                            }
-                            viewModel.setBalancePaid(paid)
-                        },
-                        onAmountChange = { viewModel.setBalanceAmount(it) },
-                        onPaidAtChange = { viewModel.setBalancePaidAt(it) },
-                        isAutoCalculated = c.balanceAmount == null && autoBalance != null
-                    )
-                }
-            }
+            // (입금 카드는 위 "일정 · 정산" 카드로 통합됨 — 2026-06-02 사장님 결정.)
 
             // 4. 메모 카드
             TossCard {
@@ -958,6 +888,19 @@ fun CustomerDetailScreen(
                 categoryDialogOpen = false
             },
             onDismiss = { categoryDialogOpen = false }
+        )
+    }
+
+    // 일정·정산 금액 편집 (총금액/계약금) — 만원 입력.
+    amountEditField?.let { field ->
+        AmountInputDialog(
+            title = if (field == "total") "총금액" else "계약금",
+            initialWon = if (field == "total") (customer?.totalAmount ?: 0L) else (customer?.depositAmount ?: 0L),
+            onSave = { won ->
+                if (field == "total") viewModel.setTotalAmount(won) else viewModel.setDepositAmount(won)
+                amountEditField = null
+            },
+            onDismiss = { amountEditField = null }
         )
     }
 
@@ -1438,6 +1381,57 @@ private fun heatDotColor(heat: String?): Color = when (heat?.uppercase()) {
     "WARM" -> Color(0xFFF6A609)
     "COLD" -> Color(0xFFC2C9D2)
     else -> Color(0xFF3182F6)
+}
+
+/** 프로토 .kv — 라벨(왼쪽 t2) + 값(오른쪽 w700). 탭 가능. */
+@Composable
+private fun CdKv(label: String, value: String, valueColor: Color, onClick: () -> Unit) {
+    androidx.compose.foundation.layout.Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { onClick() }.padding(vertical = 9.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+    ) {
+        Text(label, fontSize = 14.sp, color = TossTextSecondary)
+        Spacer(Modifier.weight(1f))
+        Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = valueColor)
+    }
+}
+
+/** 원 → "N만원"(만 단위로 떨어지면) / "N원". */
+private fun manwonLabel(won: Long): String =
+    if (won % 10000L == 0L) "%,d만원".format(won / 10000L) else "%,d원".format(won)
+
+/** 프로토 payChipsHtml 상태 문구. */
+private fun payStatusLabel(allPaid: Boolean, deposit: Long, balance: Long, depPaid: Boolean): String = when {
+    allPaid -> "전액 완납 ✓"
+    deposit > 0L && !depPaid -> "계약금 ${manwonLabel(deposit)} · 잔금 ${manwonLabel(balance)} 미수"
+    deposit > 0L -> "계약금 ${manwonLabel(deposit)} 받음 · 잔금 ${manwonLabel(balance)} 남음"
+    else -> "계약금 없음 · 전액 ${manwonLabel(balance)} 미수"
+}
+
+/** 금액(총금액/계약금) 입력 다이얼로그 — 만원 단위. */
+@Composable
+private fun AmountInputDialog(title: String, initialWon: Long, onSave: (Long) -> Unit, onDismiss: () -> Unit) {
+    var text by remember { mutableStateOf(if (initialWon > 0L) (initialWon / 10000L).toString() else "") }
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color.White).padding(20.dp)) {
+            Text("$title 입력", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                value = text,
+                onValueChange = { v -> text = v.filter { it.isDigit() } },
+                suffix = { Text("만원") },
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                colors = tossFieldColors()
+            )
+            Spacer(Modifier.height(14.dp))
+            androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TossSecondaryButton(text = "취소", onClick = onDismiss, modifier = Modifier.weight(1f))
+                TossPrimaryButton(text = "저장", onClick = { onSave((text.toLongOrNull() ?: 0L) * 10000L) }, modifier = Modifier.weight(1f))
+            }
+        }
+    }
 }
 
 /** 시스템 다이얼러를 연다. ACTION_DIAL 은 권한 불필요, 자동 발신도 안 함. */

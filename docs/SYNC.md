@@ -1928,3 +1928,11 @@ CREATE TABLE intake_forms (
 - 발송 버튼: 입력 없을 때 회색이던 것 → 프로토 .snd 처럼 항상 파란 원 + 흰 아이콘 + 파란 glow shadow. (클릭은 canSend 일 때만)
 - 컨테이너: 흰 바 + 상단 테두리(drawBehind) + padding 9/14/16, 가운데 정렬(Bottom→Center). 프로토 .composer.
 - 빌드 OK. commit: (아래)
+
+## 2026-06-02 · android (26)
+고객 상세 "일정 · 정산" 프로토 1:1 통합 (사장님 결정: 프로토 그대로 단순하게).
+- 일정 카드 + 입금 카드 2개 → 프로토 "일정 · 정산" 1카드. 첫문의/최근통화 제거, 상세 입금 UI(PaymentRow 체크·받은날짜·TotalAmountRow) 제거.
+- 새 카드: 💰 일정·정산 → 시공 예약 KV(탭→날짜) + 총 N만원[수정] + payStatusLabel(계약금/잔금 미수·받음·완납) + 확인 버튼([계약금 확인]/[잔금 확인]/[전액 확인]/[완납 취소]). 견적·일정 전이면 "견적서 보내기"+예약 설정.
+- 데이터(totalAmount/depositAmount/balanceAmount/paidAt/scheduledWorkDate)·setter 그대로 유지 — UI만 단순화. 금액 편집=AmountInputDialog(만원). 헬퍼 CdKv/manwonLabel/payStatusLabel.
+- 보류: 현장 사진 카드 = 고객별 사진 저장 미보유(팀/서버 의존) → 빈 카드 방지 위해 미추가(사장님 확인 필요).
+- 빌드 OK. DB 변경 없음. commit: (아래)
