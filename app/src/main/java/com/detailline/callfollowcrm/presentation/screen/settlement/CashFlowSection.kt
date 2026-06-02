@@ -100,7 +100,7 @@ fun CashFlowCard(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        MonthSummaryCard(monthAgg)
+        // 프로토 renderCashCal 순서: 달력 → 범례 → 순이익(cc-foot 맨 아래). 순이익을 위에 두지 않음.
         CashCalendar(
             monthAnchor = monthAnchor,
             byDay = byDay,
@@ -111,6 +111,7 @@ fun CashFlowCard(
             onSelect = { selectedDay = it }
         )
         CashLegend()
+        MonthSummaryCard(monthAgg)
         DayHeader(
             dayMs = selectedDay,
             isToday = selectedDay == todayStart,
@@ -161,6 +162,8 @@ private fun MonthSummaryCard(agg: CashDayAgg) {
                         fontSize = 22.sp, fontWeight = FontWeight.Bold,
                         color = if (agg.netDone >= 0) CashIn else CashOut
                     )
+                    Spacer(Modifier.height(2.dp))
+                    Text("이미 받은 돈 − 이미 낸 돈", style = MaterialTheme.typography.labelSmall, color = TossTextTertiary)
                 }
                 Column(Modifier.weight(1f)) {
                     Text("예상 순이익 (추정)", style = MaterialTheme.typography.labelMedium, color = TossTextSecondary)
@@ -170,13 +173,10 @@ private fun MonthSummaryCard(agg: CashDayAgg) {
                         fontSize = 22.sp, fontWeight = FontWeight.Bold,
                         color = TossTextTertiary
                     )
+                    Spacer(Modifier.height(2.dp))
+                    Text("들어올·나갈 예정까지 반영", style = MaterialTheme.typography.labelSmall, color = TossTextTertiary)
                 }
             }
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "들어온 ${MoneyFormatter.won(agg.inDone)} · 나간 ${MoneyFormatter.won(agg.outDone)}",
-                style = MaterialTheme.typography.bodySmall, color = TossTextTertiary
-            )
         }
     }
 }
@@ -291,10 +291,10 @@ private fun CashLegend() {
         Modifier.fillMaxWidth().padding(horizontal = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        LegendDot(CashIn, "들어온")
-        LegendDot(CashInPlan, "들어올")
-        LegendDot(CashOut, "나간")
-        LegendDot(CashOutPlan, "나갈")
+        LegendDot(CashIn, "들어온(받음)")
+        LegendDot(CashInPlan, "들어올(예정)")
+        LegendDot(CashOut, "나간(냄)")
+        LegendDot(CashOutPlan, "나갈(예정)")
     }
 }
 
