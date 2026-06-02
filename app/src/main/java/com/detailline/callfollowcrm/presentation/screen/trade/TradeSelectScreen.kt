@@ -31,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.Row
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -117,19 +118,18 @@ fun TradeSelectScreen(
             Spacer(Modifier.height(12.dp))
             Text("목록에 없으면 직접 추가", style = MaterialTheme.typography.labelMedium, color = TossTextSecondary)
             Spacer(Modifier.height(6.dp))
-            androidx.compose.material3.OutlinedTextField(
-                value = customText, onValueChange = { customText = it }, singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("예: 방역, 인테리어 필름…") },
-                trailingIcon = {
-                    Text("추가", color = if (customText.isNotBlank() && selected.size < 3) TossBlue else TossTextTertiary,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.clickable {
-                            val v = customText.trim()
-                            if (v.isNotBlank() && selected.size < 3 && v !in selected) { selected.add(v); customText = "" }
-                        }.padding(horizontal = 12.dp))
-                }
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                    value = customText, onValueChange = { customText = it },
+                    placeholder = "예: 방역, 인테리어 필름…", modifier = Modifier.weight(1f)
+                )
+                Text("추가", color = if (customText.isNotBlank() && selected.size < 3) TossBlue else TossTextTertiary,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable {
+                        val v = customText.trim()
+                        if (v.isNotBlank() && selected.size < 3 && v !in selected) { selected.add(v); customText = "" }
+                    }.padding(horizontal = 12.dp))
+            }
 
             Spacer(Modifier.height(24.dp))
             Box(

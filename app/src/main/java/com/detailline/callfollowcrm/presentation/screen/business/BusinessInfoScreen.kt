@@ -43,6 +43,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
+import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 
 /**
  * 사업자정보 등록 (2026-06-01) — 견적서/시공접수서 발행에 들어갈 사장님 정보.
@@ -118,11 +119,10 @@ fun BusinessInfoScreen(
 
 @Composable
 private fun Field(label: String, value: String, keyboard: KeyboardType = KeyboardType.Text, onChange: (String) -> Unit) {
-    Text(label, style = MaterialTheme.typography.labelMedium, color = TossTextSecondary,
-        fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 6.dp, top = 10.dp))
-    OutlinedTextField(
-        value = value, onValueChange = onChange, singleLine = true,
-        modifier = Modifier.fillMaxWidth(),
-        keyboardOptions = KeyboardOptions(keyboardType = keyboard)
+    // 프로토 .sheet-label + .sheet-input.
+    Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+        modifier = Modifier.padding(start = 2.dp, bottom = 7.dp, top = 12.dp))
+    com.detailline.callfollowcrm.presentation.component.SheetTextField(
+        value = value, onValueChange = onChange, placeholder = "", keyboardType = keyboard
     )
 }
