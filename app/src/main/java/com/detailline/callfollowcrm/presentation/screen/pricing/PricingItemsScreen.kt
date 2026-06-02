@@ -93,7 +93,7 @@ fun PricingItemsScreen(
             TopAppBar(
                 title = {
                     Text(
-                        "가격표 관리",
+                        "가격표",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = TossTextPrimary
@@ -104,17 +104,14 @@ fun PricingItemsScreen(
                         Icon(Icons.Default.ArrowBack, "뒤로", tint = TossTextPrimary)
                     }
                 },
+                actions = {
+                    // 프로토 s-pricing appbar 우상단 plus
+                    IconButton(onClick = { showAddDialog = true }) {
+                        Icon(Icons.Default.Add, "항목 추가", tint = TossTextPrimary)
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAddDialog = true },
-                containerColor = TossBlue,
-                contentColor = Color.White
-            ) {
-                Icon(Icons.Default.Add, "항목 추가")
-            }
         }
     ) { inner ->
         if (items.isEmpty()) {
@@ -148,6 +145,24 @@ fun PricingItemsScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // 프로토 renderPricing info-note — AI 안내 배너
+                item(key = "ai-note") {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(TossBlueSoft)
+                            .padding(horizontal = 13.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Text("✨", fontSize = 13.sp)
+                        Spacer(Modifier.width(7.dp))
+                        Text(
+                            "AI 견적이 이 단가로 자동 계산돼요. 항목을 탭하면 정액/평당과 금액을 수정할 수 있어요.",
+                            fontSize = 12.5.sp, color = TossBlue, fontWeight = FontWeight.Medium, lineHeight = 17.sp
+                        )
+                    }
+                }
                 // 카테고리 순서: 신축 → 구축 → 공통
                 listOf(PricingCategory.NEW, PricingCategory.OLD, PricingCategory.COMMON).forEach { cat ->
                     val group = grouped[cat.name].orEmpty()
@@ -169,7 +184,7 @@ fun PricingItemsScreen(
                         )
                     }
                 }
-                item(key = "fab-spacer") { Spacer(Modifier.height(80.dp)) }
+                item(key = "bottom-spacer") { Spacer(Modifier.height(20.dp)) }
             }
         }
     }
@@ -246,23 +261,32 @@ private fun PricingItemRow(
         color = Color.White
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            // 프로토 price-row: 이름(+평당 태그) … 가격 우측 … 토글
+            Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     item.title,
                     style = MaterialTheme.typography.bodyLarge,
                     color = TossTextPrimary.copy(alpha = alpha),
                     fontWeight = FontWeight.SemiBold
                 )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    formatWonShort(item.price) + if (item.unit == PricingItemEntity.UNIT_PYEONG) " / 평" else "",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TossBlue.copy(alpha = alpha)
-                )
+                if (item.unit == PricingItemEntity.UNIT_PYEONG) {
+                    Spacer(Modifier.width(6.dp))
+                    Box(
+                        Modifier.clip(RoundedCornerShape(6.dp)).background(TossBlueSoft)
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) { Text("평당", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossBlue) }
+                }
             }
+            Text(
+                formatWonShort(item.price),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold,
+                color = TossBlue.copy(alpha = alpha)
+            )
+            Spacer(Modifier.width(10.dp))
             Switch(
                 checked = item.isActive,
                 onCheckedChange = { onToggleActive() },
@@ -287,7 +311,8 @@ private fun PricingItemEditDialog(
 ) {
     var titleInput by remember(initial?.id) { mutableStateOf(initial?.title.orEmpty()) }
     var priceInput by remember(initial?.id) {
-        mutableStateOf(initial?.price?.takeIf { it > 0 }?.toString().orEmpty())
+        // 프로토는 만원 단위 입력. 저장은 원(×10000). 표시는 만원으로 환산.
+        mutableStateOf(initial?.price?.takeIf { it > 0 }?.let { (it / 10_000L).toString() }.orEmpty())
     }
     var unit by remember(initial?.id) { mutableStateOf(initial?.unit ?: PricingItemEntity.UNIT_FLAT) }
     var category by remember(initial?.id) {
@@ -297,7 +322,7 @@ private fun PricingItemEditDialog(
             } ?: PricingCategory.NEW
         )
     }
-    val priceLong = priceInput.toLongOrNull() ?: 0L
+    val priceLong = (priceInput.toLongOrNull() ?: 0L) * 10_000L // 만원 입력 → 원 저장
     val canSave = titleInput.isNotBlank() && priceLong > 0L
 
     AlertDialog(
@@ -312,18 +337,18 @@ private fun PricingItemEditDialog(
                         placeholder = "예: 욕조 있는 화장실 바닥 1곳"
                     )
                 }
-                LabeledField(label = if (unit == PricingItemEntity.UNIT_PYEONG) "평당 단가 (원)" else "가격 (원)") {
+                LabeledField(label = if (unit == PricingItemEntity.UNIT_PYEONG) "평당 단가 (만원)" else "가격 (만원)") {
                     InputBox(
                         value = priceInput,
                         onValueChange = { v -> priceInput = v.filter { it.isDigit() } },
-                        placeholder = "예: 400000",
+                        placeholder = "예: 30",
                         keyboardType = KeyboardType.Number
                     )
                 }
                 LabeledField(label = "단위") {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         CategoryChip(
-                            label = "정액 (개당)",
+                            label = "정액 (한 건)",
                             selected = unit == PricingItemEntity.UNIT_FLAT,
                             onClick = { unit = PricingItemEntity.UNIT_FLAT },
                             modifier = Modifier.weight(1f)
