@@ -165,6 +165,10 @@ class AppPreferences(context: Context) {
     var bizPhone: String
         get() = prefs.getString(KEY_BIZ_PHONE, "") ?: ""
         set(value) = prefs.edit().putString(KEY_BIZ_PHONE, value.trim()).apply()
+    /** 직인 문구 — 견적서 도장(.qd-seal)에 들어갈 글자. 프로토 bizInfo.seal. */
+    var bizSeal: String
+        get() = prefs.getString(KEY_BIZ_SEAL, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_BIZ_SEAL, value.trim()).apply()
     /** 견적 유효기간 = 발행일로부터 N일. 기본 14. */
     var bizQuoteValidDays: Int
         get() = prefs.getInt(KEY_BIZ_VALID_DAYS, 14)
@@ -228,6 +232,7 @@ class AppPreferences(context: Context) {
         private const val KEY_BIZ_NO = "biz_no"
         private const val KEY_BIZ_ADDR = "biz_addr"
         private const val KEY_BIZ_PHONE = "biz_phone"
+        private const val KEY_BIZ_SEAL = "biz_seal"
         private const val KEY_BIZ_VALID_DAYS = "biz_quote_valid_days"
         private const val KEY_MONTHLY_GOAL = "monthly_goal_manwon"
         private const val KEY_OWNER_TRADES = "owner_trades"

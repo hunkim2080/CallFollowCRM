@@ -589,7 +589,7 @@ fun CustomerDetailScreen(
                     OutlinedTextField(
                         value = memoInput,
                         onValueChange = { memoInput = it },
-                        placeholder = { Text("상담 내용을 적어두세요", color = TossTextTertiary) },
+                        placeholder = { Text("현관 비번·주의사항·고객 특징 등을 메모해두세요", color = TossTextTertiary) },
                         modifier = Modifier.fillMaxWidth().height(140.dp),
                         colors = tossFieldColors()
                     )

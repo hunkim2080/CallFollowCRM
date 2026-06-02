@@ -204,7 +204,7 @@ fun SettingsScreen(
                     LockRow(Icons.Filled.Payments, TossBlueSoft, TossBlue, "가격표",
                         "견적 작성에 쓰이는 항목", onClick = onOpenPricingItems)
                     LockRow(Icons.Filled.Description, TossBlueSoft, TossBlue, "견적서·사업자 정보",
-                        "상호·대표·사업자번호 · 견적서에 자동 표시", onClick = onOpenBusinessInfo)
+                        "상호·대표·사업자번호·직인 · 견적서에 자동 표시", onClick = onOpenBusinessInfo)
                     LockRow(Icons.AutoMirrored.Filled.Send, TossBlueSoft, TossBlue, "자동 문자",
                         "부재중 응답 · 시공 D-1 · 도착 안내 · 정기 문자") { subPage = "autosms" }
                     LockRow(Icons.Filled.AutoAwesome, Color(0xFFF1ECFF), Color(0xFF7C5CFC), "내 말투 학습",

@@ -1964,13 +1964,16 @@ private fun WaitingHeader(count: Int) {
     ) {
         Text("지금 답장 기다려요", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
         Spacer(Modifier.width(8.dp))
+        // 프로토 .count-pill — 빨강(bg #FDEAEF / fg error)
         Box(
-            Modifier.background(TossBlueSoft, RoundedCornerShape(999.dp)).padding(horizontal = 8.dp, vertical = 2.dp)
+            Modifier.background(Color(0xFFFDEAEF), RoundedCornerShape(999.dp)).padding(horizontal = 8.dp, vertical = 2.dp)
         ) {
-            Text("$count", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+            Text("$count", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossError)
         }
         Spacer(Modifier.weight(1f))
-        Text("← 밀어서 정리", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = TossTextTertiary)
+        // 프로토 .swipe-hint — 회색칩 배경
+        Text("← 밀어서 정리", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = TossTextTertiary,
+            modifier = Modifier.background(TossGrayBg, RoundedCornerShape(999.dp)).padding(horizontal = 9.dp, vertical = 3.dp))
     }
 }
 
