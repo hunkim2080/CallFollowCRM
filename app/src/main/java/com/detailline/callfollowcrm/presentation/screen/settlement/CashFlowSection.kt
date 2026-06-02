@@ -193,6 +193,15 @@ private fun CashCalendar(
 ) {
     TossCard(contentPadding = PaddingValues(8.dp)) {
         Column {
+            // 프로토 cc-head — "현금 흐름" + "날짜별 들어오고 나간 돈"
+            Row(
+                Modifier.fillMaxWidth().padding(start = 6.dp, end = 6.dp, top = 4.dp, bottom = 2.dp),
+                verticalAlignment = Alignment.Bottom
+            ) {
+                Text("현금 흐름", style = MaterialTheme.typography.titleSmall, color = TossTextPrimary,
+                    fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text("날짜별 들어오고 나간 돈", style = MaterialTheme.typography.labelSmall, color = TossTextTertiary)
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onPrev) { Icon(Icons.Default.ChevronLeft, "이전 달", tint = TossTextSecondary) }
                 Text(
@@ -226,6 +235,12 @@ private fun CashCalendar(
                     }
                 }
             }
+            // 프로토 cc-unit
+            Text(
+                "날짜를 탭하면 그 날 들어오고 나간 내역을 봐요 · 꾹 누르면 그 날 기록 추가",
+                style = MaterialTheme.typography.labelSmall, color = TossTextTertiary,
+                modifier = Modifier.padding(start = 6.dp, top = 6.dp, bottom = 2.dp)
+            )
         }
     }
 }

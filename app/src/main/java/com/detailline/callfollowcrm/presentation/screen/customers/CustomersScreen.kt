@@ -124,10 +124,14 @@ fun CustomersScreen(
 
             if (list.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        if (customers.isEmpty()) "아직 등록된 고객이 없어요" else "해당 고객이 없어요",
-                        fontSize = 14.sp, color = TossTextTertiary
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        com.detailline.callfollowcrm.presentation.component.Mascot(sizeDp = 64.dp)
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            if (customers.isEmpty()) "아직 등록된 고객이 없어요" else "해당 고객이 없어요",
+                            fontSize = 14.sp, color = TossTextTertiary
+                        )
+                    }
                 }
             } else {
                 LazyColumn(

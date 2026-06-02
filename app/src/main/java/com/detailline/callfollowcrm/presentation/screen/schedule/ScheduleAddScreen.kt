@@ -140,6 +140,9 @@ fun ScheduleAddScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
+            // 프로토 sh-sub
+            Text("전화번호만, 또는 거래처를 탭 한 번으로.", fontSize = 12.5.sp, color = TossTextTertiary,
+                modifier = Modifier.padding(start = 2.dp, bottom = 12.dp))
             // ── 모드 토글 (.fchips) ──
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FChip("내 고객", mode == "mine") { mode = "mine" }
