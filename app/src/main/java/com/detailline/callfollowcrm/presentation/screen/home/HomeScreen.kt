@@ -137,6 +137,7 @@ fun HomeScreen(
     onOpenSearch: () -> Unit = {},
     /** 상담함 앱바 👤 → 고객 관리 목록 (2026-06-01 전면 리뉴얼). */
     onOpenCustomers: () -> Unit = {},
+    onOpenNewLeads: () -> Unit = {},
     /** 홈 "미수금" 카드 탭 → 정산 화면. 정산 Phase 1 (2026-06-01). */
     onOpenSettlement: () -> Unit,
     /** 홈 "정기문자 보낼 때 됐어요" 카드 탭 → 보낼 정기문자 목록. (2026-06-01) */
@@ -462,7 +463,7 @@ fun HomeScreen(
             ) {
                 // 프로토 today-new-slot — 맨 위. "오늘 신규 문의 N통 / 새 번호 기준 · 어제 M통" + ▲▼.
                 item(key = "today-new") {
-                    TodayNewCard(todayNew = todayNew, yesterdayNew = yesterdayNew, onClick = onOpenCustomers)
+                    TodayNewCard(todayNew = todayNew, yesterdayNew = yesterdayNew, onClick = onOpenNewLeads)
                 }
 
                 // 오늘 시공 히어로 — 시공 당일이면 맨 위 다크 카드(주소+길찾기), 없으면 다음 시공 미리보기.

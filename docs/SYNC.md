@@ -1838,3 +1838,10 @@ CREATE TABLE intake_forms (
 - 기본 접힘 시작: summaryManualCollapsed 기본 false→true. 평소 한 줄 바, 탭하면 기존 UnifiedSummaryCard(AI 요약줄+액션+접기) 펼침. composer focus 시 자동 접힘 로직 그대로.
 - import: TossBlueDark, drawBehind. 빌드 OK(assembleDebug).
 - DB 변경 없음. commit: (아래)
+
+## 2026-06-02 · android (12)
+신규 고객·날짜별 전용 화면 신설 (프로토 s-newleads/renderNewLeads 1:1). 오늘신규 카드 임시연결(고객관리) 해소.
+- 신규: NewLeadsScreen + NewLeadsViewModel (presentation/screen/newleads/). nl-hint 안내 + cfilter(전체/미답장만) + 날짜 그룹(오늘·N통) + nl-row(미답장=빨간 점 + [재연락]). 줄탭→고객상세, [재연락]→채팅(자동발송 X = 정책).
+- 실데이터 매핑: 신규=시공일 미등록 고객(createdAt 최신순), 답장함/미답장=messageHistory 응대기록 여부. DAO 추가 observeRepliedCustomerIds()(status IN 보냄/오픈) + repo 노출. 메모=고객메모→카테고리명→"신규 문의".
+- 배선: Destinations.NEW_LEADS + AppNavHost 라우트, HomeScreen onOpenNewLeads 파라미터, TodayNewCard onClick=onOpenCustomers→onOpenNewLeads.
+- 빌드: assembleDebug OK. DB 스키마 변경 없음(쿼리만 추가). commit: (아래)

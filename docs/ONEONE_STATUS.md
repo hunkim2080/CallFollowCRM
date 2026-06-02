@@ -50,7 +50,8 @@
 | 요소 | 상태 | 프로토 출처 | 프로토 스펙(verbatim) / 앱 메모 |
 |---|---|---|---|
 | 상단 앱바(검색·🔔·AI배지) | 🟡 | renderAiBadge/openSearch/openNotif | ai-badge = dot+✨+"{대표업종} AI". 앱 있음, 문구·위치 폰 확인 |
-| 오늘 신규 문의 카드 | ✅ | renderTodayNew | tn-t "오늘 신규 문의 <b>N통</b>" / tn-s "새 번호 기준 · 어제 N통" / ▲▼-. ⚠️ 앱은 탭→고객관리 임시(프로토는 openNewLeads 전용화면) |
+| 오늘 신규 문의 카드 | ✅ | renderTodayNew | tn-t "오늘 신규 문의 <b>N통</b>" / tn-s "새 번호 기준 · 어제 N통" / ▲▼-. 이제 전용 "신규 고객 · 날짜별" 화면으로 연결(임시연결 해소) |
+| 신규 고객 · 날짜별 화면 | 🟡 | openNewLeads/renderNewLeads | nl-hint ✨ 안내 + cfilter(전체/미답장만) + nl-date "오늘·N통" + nl-row(nl-dot 미답장=red + nl-ph 14 w800 + nl-t + nl-memo, 답장함 태그/재연락 버튼). NewLeadsScreen+VM 신설. 실데이터(시공일 미등록 고객, 응대기록=observeRepliedCustomerIds). 줄탭→상세, 재연락→채팅. 빌드 OK, 폰 확인 |
 | 오늘 시공 히어로(D-DAY) | ✅ | renderHero→heroJobHtml | grad #272D3D→#14171F r24 p20, 🟢"오늘 시공·D-DAY" 11.5/white.62, name 23 w800+" · {time} 예정", 📍addr 13/white.78, [길찾기 light][전화][완료 ghost]. f2357a2 |
 | 히어로 — 시공 없는 날 | 🟡 | renderHero→heroEmptyHtml/nextHeroHtml | hero-empty 흰 r24: he-top "오늘 시공" + he-title "오늘은 예정된 시공이 없어요" + he-sub "밀린 상담·견적 챙기기 좋은 날이에요." + he-next 회색박스(nx-ic 36 + "다음 시공 · 내일(5/30) {time}" + nx-name, 여러곳=nx-line 시간칩) + he-add "+ 일정 직접 추가". 1:1 재작업(빌드 OK), 폰 확인 |
 | 배너 — 견적 회신(보라) | ✅ | EstimateFollowup | inbox-alert 보라 4dp + go pill |
@@ -144,5 +145,6 @@
 1. **채팅 폰 확인** — 9b48e01(액션칩·추천·입력창) + 요약 바(접힘 한 줄 / 탭 펼침) 사장님 검증.
 2. ✅ ~~히어로 빈 날(heroEmptyHtml) 1:1~~ — 완료(빌드 OK).
 3. ✅ ~~채팅 요약 바~~ — 사장님 "둘 다" 결정 반영(접힘=프로토 바, 탭=풍부 카드). 빌드 OK.
-4. 신규 재연락 전용화면(openNewLeads) — 현재 고객관리 임시 연결 교체.
+4. ✅ ~~신규 재연락 전용화면(openNewLeads)~~ — NewLeadsScreen 신설(빌드 OK). 빌드 OK, 폰 확인.
 5. 더보기 메뉴 섹션 재배치 + 하위화면 1:1 점검.
+6. 상단 앱바 AI 배지(renderAiBadge) 1:1 + 견적 다이얼로그/사업자정보 화면 1:1 점검.

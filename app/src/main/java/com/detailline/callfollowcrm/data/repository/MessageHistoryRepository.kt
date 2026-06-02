@@ -26,6 +26,9 @@ class MessageHistoryRepository(private val dao: MessageHistoryDao) {
     /** 통계 "보낸 답장" — 실제 발송 기록 수 (기간 [from, to)). */
     fun observeSentCountBetween(from: Long, to: Long): Flow<Int> = dao.observeSentCountBetween(from, to)
 
+    /** 신규 재연락 목록 "답장함" 판정 — 사장님이 응대한 고객 id 집합. */
+    fun observeRepliedCustomerIds(): Flow<List<Long>> = dao.observeRepliedCustomerIds()
+
     /**
      * 견적 보냄 기록 — 채팅 견적 작성/공유 시 호출. status='ESTIMATE_SENT' 마커.
      *   견적 회신 리마인드(N일째 답 없으면 한 번 더)의 기준 시각.

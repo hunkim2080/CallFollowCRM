@@ -67,4 +67,15 @@ interface MessageHistoryDao {
           AND createdAt >= :from AND createdAt < :to
     """)
     fun observeSentCountBetween(from: Long, to: Long): Flow<Int>
+
+    /**
+     * 신규 재연락 목록 "답장함" 판정 — 사장님이 한 번이라도 보낸(또는 작성한) 고객 id 집합.
+     *   AUTO_SENT(막내 자동인사) 포함 — 고객 입장에선 답이 간 상태. DRAFT_OPENED 도 "응대 시작"으로 봄.
+     */
+    @Query("""
+        SELECT DISTINCT customerId FROM message_histories
+        WHERE customerId IS NOT NULL
+          AND status IN ('AUTO_SENT','INLINE_SENT','MANUAL_MARK_SENT','ESTIMATE_SENT','DRAFT_OPENED')
+    """)
+    fun observeRepliedCustomerIds(): Flow<List<Long>>
 }

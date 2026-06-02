@@ -119,6 +119,7 @@ fun AppNavHost(
                 onOpenSettings = { navController.navigate(Destinations.SETTINGS) },
                 onOpenSearch = { navController.navigate(Destinations.SEARCH) },
                 onOpenCustomers = { navController.navigate(Destinations.CUSTOMERS) },
+                onOpenNewLeads = { navController.navigate(Destinations.NEW_LEADS) },
                 onOpenSettlement = { navController.navigate(Destinations.SETTLEMENT) },
                 onOpenRecurringDue = { navController.navigate(Destinations.RECURRING_DUE) },
                 onOpenScheduleReminder = { navController.navigate(Destinations.SCHEDULE_REMINDER) },
@@ -215,6 +216,17 @@ fun AppNavHost(
                 viewModel = vm,
                 onBack = { navController.popBackStack() },
                 onOpenCustomerDetail = { id -> navController.navigate(Destinations.customerDetail(id)) }
+            )
+        }
+
+        composable(Destinations.NEW_LEADS) {
+            val vm: com.detailline.callfollowcrm.presentation.screen.newleads.NewLeadsViewModel =
+                viewModel(factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.newleads.NewLeadsViewModel(container) })
+            com.detailline.callfollowcrm.presentation.screen.newleads.NewLeadsScreen(
+                viewModel = vm,
+                onBack = { navController.popBackStack() },
+                onOpenCustomerDetail = { id -> navController.navigate(Destinations.customerDetail(id)) },
+                onReContact = { phone, customerId -> navController.navigate(Destinations.chat(phone, customerId)) }
             )
         }
 

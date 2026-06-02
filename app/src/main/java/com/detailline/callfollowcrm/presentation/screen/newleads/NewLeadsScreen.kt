@@ -1,0 +1,212 @@
+package com.detailline.callfollowcrm.presentation.screen.newleads
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.detailline.callfollowcrm.presentation.theme.TossBlue
+import com.detailline.callfollowcrm.presentation.theme.TossBlueDark
+import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
+import com.detailline.callfollowcrm.presentation.theme.TossDivider
+import com.detailline.callfollowcrm.presentation.theme.TossError
+import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
+import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
+import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
+import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
+
+/**
+ * 신규 고객 · 날짜별 (프로토 `s-newleads` / renderNewLeads) 1:1.
+ *   상단 안내 + [전체/미답장만] 필터 + 날짜 그룹 + 고객 줄(미답장=빨간 점 + [재연락]).
+ *   줄 탭 → 고객 상세. [재연락] → 채팅(사장님이 보냄, 자동발송 X).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun NewLeadsScreen(
+    viewModel: NewLeadsViewModel,
+    onBack: () -> Unit,
+    onOpenCustomerDetail: (Long) -> Unit,
+    onReContact: (phone: String, customerId: Long) -> Unit
+) {
+    val state by viewModel.uiState.collectAsState()
+
+    Scaffold(
+        containerColor = TossGrayBg,
+        topBar = {
+            TopAppBar(
+                title = { Text("신규 고객 · 날짜별", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로", tint = TossTextPrimary)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
+            )
+        }
+    ) { inner ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(inner),
+            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 18.dp)
+        ) {
+            // nl-hint — 안내 배너
+            item {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 14.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(TossBlueSoft)
+                        .padding(horizontal = 13.dp, vertical = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.AutoAwesome, null, tint = TossBlue, modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "연락 없는 신규는 하루이틀 뒤 재연락하면 전환율이 올라가요.",
+                        color = TossBlueDark, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, lineHeight = 18.sp
+                    )
+                }
+            }
+            // cfilter — 전체 / 미답장만
+            item {
+                Row(
+                    Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    CFilterChip("전체", state.totalCount, !state.unreadOnly) { viewModel.setUnreadOnly(false) }
+                    CFilterChip("미답장만", state.unreadCount, state.unreadOnly) { viewModel.setUnreadOnly(true) }
+                }
+            }
+
+            if (state.groups.isEmpty()) {
+                item {
+                    Box(Modifier.fillMaxWidth().padding(vertical = 30.dp), contentAlignment = Alignment.Center) {
+                        Text("해당 신규가 없어요", color = TossTextTertiary, fontSize = 13.sp)
+                    }
+                }
+            } else {
+                state.groups.forEach { group ->
+                    item(key = "date-${group.dateLabel}") {
+                        Row(
+                            Modifier.padding(top = 18.dp, bottom = 10.dp).padding(horizontal = 2.dp),
+                            verticalAlignment = Alignment.Bottom
+                        ) {
+                            Text(group.dateLabel, color = TossTextPrimary, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+                            Text(" · ${group.count}통", color = TossTextTertiary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    items(group.leads, key = { it.customerId }) { lead ->
+                        NewLeadRow(
+                            lead = lead,
+                            onClick = { onOpenCustomerDetail(lead.customerId) },
+                            onReContact = { onReContact(lead.phone, lead.customerId) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CFilterChip(label: String, count: Int, on: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(if (on) TossBlue else TossGrayBg)
+            .clickable { onClick() }
+            .padding(horizontal = 15.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, color = if (on) Color.White else TossTextSecondary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        Text(
+            " $count",
+            color = if (on) Color.White.copy(alpha = 0.85f) else TossTextSecondary.copy(alpha = 0.55f),
+            fontSize = 13.sp, fontWeight = FontWeight.ExtraBold
+        )
+    }
+}
+
+@Composable
+private fun NewLeadRow(lead: NewLeadUi, onClick: () -> Unit, onReContact: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(bottom = 9.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.White)
+            .border(1.dp, TossDivider, RoundedCornerShape(14.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // nl-dot — 미답장이면 빨강
+        Box(Modifier.size(8.dp).clip(CircleShape).background(if (lead.replied) TossDivider else TossError))
+        Spacer(Modifier.width(11.dp))
+        // nl-b
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(lead.displayName, color = TossTextPrimary, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                Spacer(Modifier.width(8.dp))
+                Text(lead.timeLabel, color = TossTextTertiary, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Text(lead.memo, color = TossTextSecondary, fontSize = 12.5.sp, maxLines = 1,
+                overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
+        }
+        Spacer(Modifier.width(11.dp))
+        // right — 답장함 태그 / 재연락 버튼
+        if (lead.replied) {
+            Text(
+                "답장함",
+                color = TossTextTertiary, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp)).background(TossGrayBg)
+                    .padding(horizontal = 10.dp, vertical = 5.dp)
+            )
+        } else {
+            Text(
+                "재연락",
+                color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp)).background(TossBlue)
+                    .clickable { onReContact() }
+                    .padding(horizontal = 14.dp, vertical = 9.dp)
+            )
+        }
+    }
+}
