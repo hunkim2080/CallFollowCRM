@@ -2288,6 +2288,7 @@ private fun SendConfirmDialog(
  * AlertDialog 는 중앙 고정이라 키보드 뜨면 BasicTextField 가 가려짐.
  * 견적서 본문이 composer 에 들어가면 사장님이 거기서 비고 자유롭게 추가.
  */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun EstimateBuilderDialog(
     items: List<com.detailline.callfollowcrm.data.local.entity.PricingItemEntity>,
@@ -2300,165 +2301,134 @@ private fun EstimateBuilderDialog(
     bizPhone: String = "",
     validDays: Int = 0
 ) {
-    // 신축 (NEW) 기본. 구축 (OLD) 토글 가능. COMMON 항목은 둘 다.
-    var buildingType by remember {
-        mutableStateOf(com.detailline.callfollowcrm.data.repository.PricingCategory.NEW)
-    }
-    // 항목 id → 수량. 0 또는 미존재 = 미선택.
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    // 프로토 seg — 보내는 방식: text(문자 견적) / accept(시공접수서) / quote(견적서)
+    var mode by remember { mutableStateOf("text") }
+    // 항목 id → 수량(평당=평수, 정액=1). 0/미존재 = 미선택.
     val selectedQty = remember { mutableStateMapOf<Long, Int>() }
-
-    val visibleItems = remember(items, buildingType) {
-        items.filter { it.category == buildingType.name || it.category == "COMMON" }
-            .sortedBy { it.displayOrder }
-    }
+    // 프로토: 카테고리 없는 평탄 리스트.
+    val visibleItems = remember(items) { items.sortedBy { it.displayOrder } }
     val totalSum = remember(selectedQty.toMap(), visibleItems) {
-        visibleItems.sumOf { item ->
-            val qty = selectedQty[item.id] ?: 0
-            item.price * qty
-        }
+        visibleItems.sumOf { (selectedQty[it.id] ?: 0) * it.price }
     }
     val anySelected = selectedQty.values.any { it > 0 }
+    val help = when (mode) {
+        "accept" -> "예약금 받은 고객에게 — 정해진 시공일이 맞는지 확인하고 주소를 입력받는 셀프 접수서 링크예요."
+        "quote" -> "고객이 보고용으로 쓰는 직인 찍힌 정식 견적서를 만들어 보내요."
+        else -> "링크 없이 견적 내용만 문자로 보내요. (가볍게 견적만 물어볼 때)"
+    }
+    fun composeBody() = buildEstimateBody(visibleItems, selectedQty.toMap(), totalSum, bizName)
+    fun toast(msg: String) = android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_SHORT).show()
 
-    AlertDialog(
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = {
-            Text(
-                "✨ 견적서 작성",
-                color = TossTextPrimary,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp
-            )
-        },
-        text = {
-            Column(modifier = Modifier.heightIn(max = 480.dp)) {
-                // 신축/구축 토글
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    BuildingTypeChip(
-                        label = "신축",
-                        selected = buildingType == com.detailline.callfollowcrm.data.repository.PricingCategory.NEW,
-                        onClick = { buildingType = com.detailline.callfollowcrm.data.repository.PricingCategory.NEW },
-                        modifier = Modifier.weight(1f)
-                    )
-                    BuildingTypeChip(
-                        label = "구축",
-                        selected = buildingType == com.detailline.callfollowcrm.data.repository.PricingCategory.OLD,
-                        onClick = { buildingType = com.detailline.callfollowcrm.data.repository.PricingCategory.OLD },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                Spacer(Modifier.height(12.dp))
-                // 항목 리스트
-                LazyColumn(
-                    modifier = Modifier.weight(1f, fill = false),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    items(visibleItems, key = { it.id }) { item ->
-                        EstimateItemRow(
-                            title = item.title,
-                            price = item.price,
-                            unit = item.unit,
-                            quantity = selectedQty[item.id] ?: 0,
-                            onToggle = {
-                                val cur = selectedQty[item.id] ?: 0
-                                if (cur > 0) selectedQty.remove(item.id) else selectedQty[item.id] = 1
-                            },
-                            onIncrement = { selectedQty[item.id] = (selectedQty[item.id] ?: 0) + 1 },
-                            onDecrement = {
-                                val cur = selectedQty[item.id] ?: 0
-                                if (cur > 1) selectedQty[item.id] = cur - 1
-                                else if (cur == 1) selectedQty.remove(item.id)
-                            }
-                        )
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-                // 합계
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(TossBlueSoft, RoundedCornerShape(10.dp))
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("합계", color = TossTextSecondary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        formatWon(totalSum),
-                        color = TossBlue,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (anySelected) {
-                    TextButton(onClick = {
-                        onShare(
-                            buildEstimateBody(
-                                buildingType, visibleItems, selectedQty.toMap(), totalSum,
-                                bizName, bizOwner, bizNo, bizPhone, validDays
-                            )
-                        )
-                    }) { Text("공유", color = TossTextSecondary, fontWeight = FontWeight.Bold) }
-                    Spacer(Modifier.width(4.dp))
-                }
-                TextButton(
-                    onClick = {
-                        onConfirm(
-                            buildEstimateBody(
-                                buildingType, visibleItems, selectedQty.toMap(), totalSum,
-                                bizName, bizOwner, bizNo, bizPhone, validDays
-                            )
-                        )
-                    },
-                    enabled = anySelected
-                ) {
-                    Text(
-                        "견적서 만들기",
-                        color = if (anySelected) TossBlue else TossTextTertiary,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("취소", color = TossTextSecondary)
-            }
-        },
+        sheetState = sheetState,
         containerColor = Color.White
-    )
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(bottom = 22.dp)) {
+            Text("견적 만들기", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold,
+                color = TossTextPrimary, letterSpacing = (-0.4).sp)
+            Spacer(Modifier.height(4.dp))
+            Text("항목을 고르고, 어떻게 보낼지 정하세요", fontSize = 13.sp, color = TossTextTertiary)
+            Spacer(Modifier.height(12.dp))
+            // 프로토 .seg 탭
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                EstSegTab("문자 견적", mode == "text", Modifier.weight(1f)) { mode = "text" }
+                EstSegTab("시공접수서", mode == "accept", Modifier.weight(1f)) { mode = "accept" }
+                EstSegTab("견적서", mode == "quote", Modifier.weight(1f)) { mode = "quote" }
+            }
+            Spacer(Modifier.height(9.dp))
+            Text(help, fontSize = 12.sp, color = TossTextTertiary, lineHeight = 18.sp,
+                modifier = Modifier.padding(horizontal = 2.dp))
+            Spacer(Modifier.height(6.dp))
+            // 항목 리스트 (프로토 est-row + 평당 est-area)
+            LazyColumn(Modifier.heightIn(max = 300.dp)) {
+                itemsIndexed(visibleItems, key = { _, it -> it.id }) { idx, item ->
+                    if (idx > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+                    val isPyeong = item.unit == com.detailline.callfollowcrm.data.local.entity.PricingItemEntity.UNIT_PYEONG
+                    EstimateItemRow(
+                        title = item.title,
+                        price = item.price,
+                        unit = item.unit,
+                        quantity = selectedQty[item.id] ?: 0,
+                        onToggle = {
+                            val cur = selectedQty[item.id] ?: 0
+                            if (cur > 0) selectedQty.remove(item.id)
+                            else selectedQty[item.id] = if (isPyeong) 24 else 1
+                        },
+                        onIncrement = { selectedQty[item.id] = (selectedQty[item.id] ?: 0) + 1 },
+                        onDecrement = {
+                            val cur = selectedQty[item.id] ?: 0
+                            if (cur > 1) selectedQty[item.id] = cur - 1
+                        }
+                    )
+                }
+            }
+            // 프로토 .est-total
+            Spacer(Modifier.height(14.dp))
+            Box(Modifier.fillMaxWidth().height(1.5.dp).background(TossDivider))
+            Row(Modifier.fillMaxWidth().padding(top = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("합계", fontSize = 15.sp, color = TossTextPrimary, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.weight(1f))
+                Text(formatWon(totalSum), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+            }
+            Spacer(Modifier.height(17.dp))
+            // 프로토 .sheet-cta — 탭별 라벨/동작
+            val ctaText = when (mode) {
+                "accept" -> "시공접수서 링크 보내기"
+                "quote" -> "📜 견적서(직인) 보내기"
+                else -> "문자에 견적 넣기"
+            }
+            EstSheetCta(ctaText, enabled = anySelected, filled = true) {
+                if (!anySelected) { toast("항목을 한 개 이상 골라주세요"); return@EstSheetCta }
+                when (mode) {
+                    "text" -> onConfirm(composeBody())
+                    // 견적서(직인)·시공접수서 링크 발송은 다음 단계에서 연결 (서버/이미지). 지금은 문자 붙여넣기로 대체.
+                    else -> toast("이 방식은 다음 단계에서 연결돼요 · 지금은 아래 '문자로 붙여넣기'로 보낼 수 있어요")
+                }
+            }
+            if (mode != "text") {
+                Spacer(Modifier.height(9.dp))
+                EstSheetCta("문자로 붙여넣기", enabled = anySelected, filled = false) {
+                    if (anySelected) onConfirm(composeBody()) else toast("항목을 한 개 이상 골라주세요")
+                }
+            }
+        }
+    }
 }
 
+/** 프로토 .seg .sg — 보내는 방식 탭. */
 @Composable
-private fun BuildingTypeChip(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(10.dp),
-        color = if (selected) TossBlue else TossGrayBg,
-        onClick = onClick
+private fun EstSegTab(label: String, on: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier
+            .clip(RoundedCornerShape(9.dp))
+            .background(if (on) Color.White else Color.Transparent)
+            .clickable { onClick() }
+            .padding(vertical = 9.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier.padding(vertical = 10.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                label,
-                color = if (selected) Color.White else TossTextSecondary,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 14.sp
-            )
-        }
+        Text(label, fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
+            color = if (on) TossBlue else TossTextSecondary)
+    }
+}
+
+/** 프로토 .sheet-cta — 가득 찬 파란 버튼(filled) / 회색 보조 버튼. */
+@Composable
+private fun EstSheetCta(text: String, enabled: Boolean, filled: Boolean, onClick: () -> Unit) {
+    val bg = if (filled) (if (enabled) TossBlue else TossDivider) else TossGrayBg
+    val fg = if (filled) Color.White else TossBlue
+    Box(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(bg)
+            .clickable { onClick() }
+            .padding(vertical = 15.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text, color = fg, fontSize = 15.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -2474,58 +2444,46 @@ private fun EstimateItemRow(
 ) {
     val checked = quantity > 0
     val isPyeong = unit == com.detailline.callfollowcrm.data.local.entity.PricingItemEntity.UNIT_PYEONG
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (checked) TossBlueSoft else Color.White)
-            .clickable(onClick = onToggle)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // 체크박스
-        Box(
-            modifier = Modifier
-                .size(18.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(if (checked) TossBlue else Color.White)
-                .padding(2.dp),
-            contentAlignment = Alignment.Center
+    Column(Modifier.fillMaxWidth()) {
+        // 프로토 .est-item — [체크박스] 이름(flex) 가격(우측)
+        Row(
+            Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            if (checked) {
-                Text("✓", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            } else {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.White, RoundedCornerShape(4.dp))
-                        .padding(1.dp)
-                        .background(TossDivider, RoundedCornerShape(3.dp))
-                )
+            // 프로토 .est-box — 24dp rounded8, on=파랑 채움+체크
+            Box(
+                Modifier.size(24.dp).clip(RoundedCornerShape(8.dp))
+                    .background(if (checked) TossBlue else Color.White)
+                    .border(2.dp, if (checked) TossBlue else TossDivider, RoundedCornerShape(8.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (checked) Text("✓", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
-        }
-        Spacer(Modifier.width(10.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, color = TossTextPrimary, fontSize = 13.sp)
+            Spacer(Modifier.width(12.dp))
+            Text(title, color = TossTextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f))
             Text(
-                formatWon(price) + if (isPyeong) " / 평" else "",
-                color = TossTextSecondary, fontSize = 11.sp
+                if (isPyeong) "${formatWon(price)}/평" else formatWon(price),
+                color = TossTextSecondary, fontSize = 14.sp, fontWeight = FontWeight.Bold
             )
         }
-        // 수량(평수) stepper (체크된 경우에만 노출)
-        if (checked) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        // 프로토 .est-area — 평당 항목 선택 시 평수 조절
+        if (checked && isPyeong) {
+            Row(
+                Modifier.fillMaxWidth().padding(start = 36.dp, bottom = 11.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("평수", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
+                Spacer(Modifier.width(8.dp))
                 StepperButton("−", onClick = onDecrement)
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    "${quantity}" + if (isPyeong) "평" else "",
-                    color = TossTextPrimary,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.widthIn(min = 16.dp)
-                )
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("${quantity}평", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
+                    modifier = Modifier.widthIn(min = 40.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Spacer(Modifier.width(8.dp))
                 StepperButton("+", onClick = onIncrement)
+                Spacer(Modifier.weight(1f))
+                Text("= ${formatWon(price * quantity)}", fontSize = 12.5.sp,
+                    fontWeight = FontWeight.ExtraBold, color = TossBlueDark)
             }
         }
     }
@@ -2561,43 +2519,26 @@ private fun formatWon(amount: Long): String {
  * 비고는 사장님이 composer 에서 직접 추가 (다이얼로그 안 input 은 키보드 가림 이슈로 제거).
  */
 private fun buildEstimateBody(
-    buildingType: com.detailline.callfollowcrm.data.repository.PricingCategory,
     items: List<com.detailline.callfollowcrm.data.local.entity.PricingItemEntity>,
     quantities: Map<Long, Int>,
     totalSum: Long,
-    bizName: String = "",
-    bizOwner: String = "",
-    bizNo: String = "",
-    bizPhone: String = "",
-    validDays: Int = 0
+    bizName: String = ""
 ): String = buildString {
-    // 사업자정보 헤더 (설정 → 사업자정보 입력 시) — 정식 견적서.
-    if (bizName.isNotBlank()) {
-        append("[$bizName]\n")
-        val line2 = buildList {
-            if (bizOwner.isNotBlank()) add("대표 $bizOwner")
-            if (bizNo.isNotBlank()) add("사업자 $bizNo")
-        }.joinToString(" · ")
-        if (line2.isNotBlank()) append("$line2\n")
-        if (bizPhone.isNotBlank()) append("☎ $bizPhone\n")
-        append("──────────\n")
-    }
-    append("${buildingType.label} 기준 견적입니다.\n")
+    // 프로토 makeEstimate — 친근한 인사 + 항목 나열 + 합계(부가세 별도) + 방문 제안.
+    val greet = bizName.ifBlank { "디테일라인" }
+    append("안녕하세요, ${greet}입니다 😊\n요청주신 견적 안내드려요.\n")
     for (item in items) {
         val qty = quantities[item.id] ?: 0
         if (qty <= 0) continue
         val isPyeong = item.unit == com.detailline.callfollowcrm.data.local.entity.PricingItemEntity.UNIT_PYEONG
         if (isPyeong) {
-            append("- ${item.title} 평당 ${formatWon(item.price)} × ${qty}평 = ${formatWon(item.price * qty)}")
+            append("· ${item.title} ${formatWon(item.price)}/평 × ${qty}평 = ${formatWon(item.price * qty)}\n")
         } else {
-            append("- ${item.title} ${formatWon(item.price)}")
-            if (qty > 1) append(" × ${qty}")
+            append("· ${item.title} ${formatWon(item.price)}\n")
         }
-        append("\n")
     }
-    append("합계 ${formatWon(totalSum)}\n")
-    if (validDays > 0 && bizName.isNotBlank()) append("\n* 견적 유효기간: 발행일로부터 ${validDays}일")
-    append("\n실리콘 제거나 셀프줄눈 흔적 있으면 현장 확인 후 추가될 수 있어요.")
+    append("합계 ${formatWon(totalSum)} (부가세 별도)\n")
+    append("\n방문 일정 잡아드릴까요? 😊")
 }
 
 /**

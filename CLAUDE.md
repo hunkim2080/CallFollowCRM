@@ -116,3 +116,8 @@ RING-GO 관련 작업이 끝난 시점에 Cowork 는 자동으로 hugman2080@gma
 
 - 작업 도중 의문 생기면 **즉시 사장님께 묻기** (마음대로 추측 X)
 - 양쪽 Claude 사이 spec 충돌 의심되면 `docs/SYNC.md` 에 "의문" 블록 append 후 사장님 알림
+
+## 🔒 완료된 파일 (절대 수정 금지)
+- app/src/.../HomeFragment.kt
+- app/src/.../CustomerDetailActivity.kt
+- (완료된 파일들 계속 추가)
