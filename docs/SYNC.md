@@ -1963,3 +1963,10 @@ CREATE TABLE intake_forms (
 - SheetTextField TextFieldValue 오버로드 추가(전화 progressive 포맷용). 멀티라인 minHeightDp.
 - 변환 완료 8화면: 일정등록·사업자정보·내업종·정기문자·수첩·후속처리(FollowUp)·문자템플릿·AI메시지. 전부 Material OutlinedTextField(흰 박스/플로팅 라벨) → 프로토 .sheet-input(회색+테두리)+.sheet-label.
 - 빌드 OK. commit: (아래)
+
+## 2026-06-02 · android (31)
+고객 관리 목록(s-customers) 프로토 1:1 — 사장님 "과거로 돌아갔다" 신고 진단 결과: 되돌려진 게 아니라 이 화면이 애초에 1:1 이식 안 된 net-new(9aa15b6) 버전이었음. reflog 깨끗, 커밋 1개.
+- 제목 "고객 관리" + sec-sub "고객 N명", 상태 필터칩(전체/신규/미전환/예약/완료/단골/거래처/AS)+cf-n 카운트.
+- recent-row(아바타 틴트 5색/번호만=회색+사람아이콘, 이름+상태태그/한줄요약) + 흰 카드 구분선. custTag 색 8종.
+- 상태 = 앱 데이터 계산(시공일 미래=예약/지남=완료, 잔금=완료, 14일 이내=신규/지남=미전환). 거래처·AS·단골은 앱 데이터 없어 빈 칩(사장님 선택: 프로토 8종 글자 그대로).
+- 빌드 OK(EXIT=0). DB 변경 없음. commit: efb5c26
