@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -241,8 +242,16 @@ fun SheetTextField(
     modifier: Modifier = Modifier,
     keyboardType: KeyboardType = KeyboardType.Text,
     singleLine: Boolean = true,
+    minHeightDp: Int = 0,
     enabled: Boolean = true
 ) {
+    val boxMod = modifier
+        .fillMaxWidth()
+        .clip(RoundedCornerShape(12.dp))
+        .background(TossGrayBg)
+        .border(1.5.dp, TossDivider, RoundedCornerShape(12.dp))
+        .let { if (minHeightDp > 0) it.heightIn(min = minHeightDp.dp) else it }
+        .padding(horizontal = 14.dp, vertical = 13.dp)
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
@@ -251,12 +260,7 @@ fun SheetTextField(
         cursorBrush = SolidColor(TossBlue),
         singleLine = singleLine,
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(TossGrayBg)
-            .border(1.5.dp, TossDivider, RoundedCornerShape(12.dp))
-            .padding(horizontal = 14.dp, vertical = 13.dp),
+        modifier = boxMod,
         decorationBox = { inner ->
             if (value.isEmpty()) Text(placeholder, color = TossTextTertiary, fontSize = 15.sp)
             inner()

@@ -263,18 +263,16 @@ private fun PhraseSheet(
                 }
                 if (editMode) {
                     Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = newPhrase, onValueChange = { newPhrase = it },
-                        placeholder = { Text("새 문구") }, singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        trailingIcon = {
-                            Text("추가", color = if (newPhrase.isNotBlank()) TossBlue else TossTextTertiary,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.clickable {
-                                    if (newPhrase.isNotBlank()) { onAddPhrase(newPhrase); newPhrase = "" }
-                                }.padding(horizontal = 12.dp))
-                        }
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                            newPhrase, { newPhrase = it }, placeholder = "새 문구", modifier = Modifier.weight(1f)
+                        )
+                        Text("추가", color = if (newPhrase.isNotBlank()) TossBlue else TossTextTertiary,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clickable {
+                                if (newPhrase.isNotBlank()) { onAddPhrase(newPhrase); newPhrase = "" }
+                            }.padding(horizontal = 12.dp))
+                    }
                 } else {
                     Spacer(Modifier.height(8.dp))
                     Box(
@@ -398,9 +396,10 @@ private fun ContactDialog(
 
 @Composable
 private fun DialogField(label: String, value: String, keyboard: KeyboardType = KeyboardType.Text, onChange: (String) -> Unit) {
-    OutlinedTextField(
-        value = value, onValueChange = onChange, label = { Text(label) }, singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = keyboard),
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-    )
+    Column(Modifier.padding(vertical = 4.dp)) {
+        com.detailline.callfollowcrm.presentation.component.SheetFieldLabel(label)
+        com.detailline.callfollowcrm.presentation.component.SheetTextField(
+            value, onChange, placeholder = "", keyboardType = keyboard
+        )
+    }
 }
