@@ -224,27 +224,32 @@ private fun TrendSection(t: StatsTrendState, onSelect: (StatPeriod) -> Unit) {
                 "${t.prevLabel} ${t.prevTotal}건 → ${t.unitLabel} ${t.curTotal}건",
                 fontSize = 13.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 4.dp)
             )
-            // gbars
+            // gbars — 프로토 .gbars(height)+.pair(flex:1): 막대 영역이 위 숫자·아래 요일 빼고 남는 높이에 비례.
             val max = (t.bars.maxOfOrNull { maxOf(it.cur, it.prev) } ?: 1).coerceAtLeast(1)
             Row(
-                modifier = Modifier.fillMaxWidth().height(130.dp).padding(top = 16.dp),
+                modifier = Modifier.fillMaxWidth().height(140.dp).padding(top = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.Bottom
             ) {
                 t.bars.forEach { b ->
                     Column(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
                         verticalArrangement = Arrangement.Bottom,
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text("${b.cur}", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
-                        Spacer(Modifier.height(6.dp))
-                        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("${b.cur}", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue, maxLines = 1)
+                        Spacer(Modifier.height(4.dp))
+                        // 막대 영역 = 남는 높이(weight). 각 막대는 이 높이의 비율로 채움.
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.Bottom,
+                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
                             GBar(b.prev, max, color = TossDivider)
                             GBar(b.cur, max, brush = Brush.verticalGradient(listOf(Color(0xFF5BA0FF), TossBlue)))
                         }
                         Spacer(Modifier.height(6.dp))
-                        Text(b.label, fontSize = 11.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
+                        Text(b.label, fontSize = 11.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium, maxLines = 1)
                     }
                 }
             }
@@ -279,12 +284,12 @@ private fun TrendSection(t: StatsTrendState, onSelect: (StatPeriod) -> Unit) {
 
 @Composable
 private fun GBar(value: Int, max: Int, color: Color? = null, brush: Brush? = null) {
-    val barMax = 92.dp
-    val h = (barMax * (value.toFloat() / max).coerceIn(0f, 1f)).coerceAtLeast(3.dp)
+    // 프로토 .bp — 막대 영역(부모 Row, 높이 고정)의 비율로 채움. min 3% 로 0 값도 stub 보이게(프로토 min-height:3px).
+    val frac = (value.toFloat() / max.toFloat()).coerceIn(0.03f, 1f)
     Box(
         modifier = Modifier
             .width(10.dp)
-            .height(h)
+            .fillMaxHeight(frac)
             .clip(RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp))
             .then(if (brush != null) Modifier.background(brush) else Modifier.background(color ?: TossDivider))
     )
