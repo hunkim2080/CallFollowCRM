@@ -52,7 +52,13 @@ import androidx.compose.ui.window.Dialog
 import com.detailline.callfollowcrm.data.local.entity.CategoryEntity
 import com.detailline.callfollowcrm.data.local.entity.RecurringMessageEntity
 import com.detailline.callfollowcrm.presentation.component.TossCard
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.filled.CalendarMonth
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
+import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
+import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossError
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
@@ -83,15 +89,13 @@ fun RecurringMessagesScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "뒤로", tint = TossTextPrimary) }
                 },
+                actions = {
+                    // 프로토 s-recurring appbar 우상단 plus
+                    IconButton(onClick = { editing = null; showEditor = true }) {
+                        Icon(Icons.Default.Add, "규칙 추가", tint = TossTextPrimary)
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
-            )
-        },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { editing = null; showEditor = true },
-                icon = { Icon(Icons.Default.Add, null) },
-                text = { Text("규칙 추가", fontWeight = FontWeight.SemiBold) },
-                containerColor = TossBlue, contentColor = Color.White
             )
         }
     ) { inner ->
@@ -100,11 +104,34 @@ fun RecurringMessagesScreen(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            // 프로토 info-note — 각 고객 날짜 기준 안내
             item {
-                Text(
-                    "시공 후 일정 기간마다 보낼 안부·점검 문자를 미리 정해두면, 보낼 때가 됐을 때 상담함에서 알려드려요. (자동 발송은 안 하고 사장님이 확인 후 보냄)",
-                    style = MaterialTheme.typography.bodySmall, color = TossTextTertiary
-                )
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossBlueSoft)
+                        .padding(horizontal = 13.dp, vertical = 11.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Icon(Icons.Default.CalendarMonth, null, tint = TossBlue, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(7.dp))
+                    Text(
+                        "고객마다 시공 날짜가 다르죠? 각 고객 시공일 기준으로 다 같은 날 보내는 게 아니라 각자 때 맞춰 한 명씩 알려드려요. {고객명}은 자동으로 채워져요. (자동 발송은 안 하고 사장님이 확인 후 보냄)",
+                        fontSize = 12.5.sp, color = TossBlue, fontWeight = FontWeight.Medium, lineHeight = 17.sp
+                    )
+                }
+            }
+            // 프로토 invite — 정기 문자 만들기
+            item {
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                        .border(1.5.dp, TossDivider, RoundedCornerShape(14.dp))
+                        .clickable { editing = null; showEditor = true }
+                        .padding(vertical = 14.dp),
+                    horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Add, null, tint = TossBlue, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("정기 문자 만들기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                }
             }
             if (rules.isEmpty()) {
                 item {
@@ -119,6 +146,10 @@ fun RecurringMessagesScreen(
                     }
                 }
             } else {
+                item {
+                    Text("예약된 정기 문자 ${rules.size}개", fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                        color = TossTextTertiary, modifier = Modifier.padding(top = 2.dp, start = 2.dp))
+                }
                 items(rules, key = { it.id }) { rule ->
                     RuleCard(
                         rule = rule,
@@ -162,7 +193,7 @@ private fun RuleCard(
                     color = if (rule.enabled) TossTextPrimary else TossTextTertiary, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(3.dp))
                 Text(
-                    "시공 ${rule.intervalDays}일마다 · ${categoryName ?: "시공 전체"} · ${DateTimeUtils.formatWorkMinutes(rule.sendMinutes)}",
+                    "각 고객 시공일 +${rule.intervalDays}일 · ${categoryName ?: "전체 고객"} · ${DateTimeUtils.formatWorkMinutes(rule.sendMinutes)}",
                     style = MaterialTheme.typography.bodySmall, color = TossTextSecondary
                 )
                 Spacer(Modifier.height(4.dp))
@@ -198,8 +229,11 @@ private fun RuleEditorDialog(
         androidx.compose.material3.Surface(shape = RoundedCornerShape(20.dp), color = Color.White,
             modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
-                Text(if (initial == null) "정기문자 규칙 추가" else "규칙 수정",
+                Text(if (initial == null) "정기 문자 만들기" else "규칙 수정",
                     style = MaterialTheme.typography.titleLarge, color = TossTextPrimary, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(2.dp))
+                Text("규칙만 정해두면 막내가 날짜를 계산해서 보낼 때 알려드려요.",
+                    fontSize = 12.5.sp, color = TossTextTertiary)
                 Spacer(Modifier.height(14.dp))
 
                 EditorLabel("이름")
@@ -209,7 +243,7 @@ private fun RuleEditorDialog(
                 Spacer(Modifier.height(12.dp))
                 EditorLabel("주기 (시공일로부터)")
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("30일" to 30, "60일" to 60, "90일" to 90, "180일" to 180, "1년" to 365).forEach { (l, v) ->
+                    listOf("30일마다" to 30, "60일마다" to 60, "90일마다" to 90, "6개월마다" to 180, "매년" to 365).forEach { (l, v) ->
                         PickChip(l, interval == v) { interval = v }
                     }
                 }
@@ -217,7 +251,7 @@ private fun RuleEditorDialog(
                 Spacer(Modifier.height(12.dp))
                 EditorLabel("보낼 대상")
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PickChip("시공 전체", categoryId == null) { categoryId = null }
+                    PickChip("전체 고객", categoryId == null) { categoryId = null }
                     categories.forEach { cat ->
                         val label = if (cat.emoji != null) "${cat.emoji} ${cat.name}" else cat.name
                         PickChip(label, categoryId == cat.id) { categoryId = cat.id }
@@ -225,9 +259,12 @@ private fun RuleEditorDialog(
                 }
 
                 Spacer(Modifier.height(12.dp))
-                EditorLabel("권장 시각 (표시용)")
+                EditorLabel("발송 시각 (표시용 · 자동발송 안 함)")
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("오전 9시" to 540, "오전 10시" to 600, "오전 11시" to 660, "오후 2시" to 840).forEach { (l, v) ->
+                    listOf(
+                        "오전 8시" to 480, "오전 9시" to 540, "오전 10시" to 600,
+                        "오전 11시" to 660, "오후 1시" to 780, "오후 6시" to 1080
+                    ).forEach { (l, v) ->
                         PickChip(l, minutes == v) { minutes = v }
                     }
                 }
@@ -247,7 +284,7 @@ private fun RuleEditorDialog(
                         .clickable { onSave(name, categoryId, interval, minutes, body) }
                         .padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center
-                ) { Text("저장", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp) }
+                ) { Text("예약하기", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp) }
 
                 if (onDelete != null) {
                     Spacer(Modifier.height(6.dp))
