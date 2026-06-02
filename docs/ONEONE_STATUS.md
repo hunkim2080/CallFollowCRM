@@ -52,7 +52,7 @@
 | 상단 앱바(검색·🔔·AI배지) | 🟡 | renderAiBadge/openSearch/openNotif | ai-badge = dot+✨+"{대표업종} AI". 앱 있음, 문구·위치 폰 확인 |
 | 오늘 신규 문의 카드 | ✅ | renderTodayNew | tn-t "오늘 신규 문의 <b>N통</b>" / tn-s "새 번호 기준 · 어제 N통" / ▲▼-. ⚠️ 앱은 탭→고객관리 임시(프로토는 openNewLeads 전용화면) |
 | 오늘 시공 히어로(D-DAY) | ✅ | renderHero→heroJobHtml | grad #272D3D→#14171F r24 p20, 🟢"오늘 시공·D-DAY" 11.5/white.62, name 23 w800+" · {time} 예정", 📍addr 13/white.78, [길찾기 light][전화][완료 ghost]. f2357a2 |
-| 히어로 — 시공 없는 날 | 🔵 | renderHero→heroEmptyHtml | 다음 시공 1~3곳 미리보기. 앱 nextJobs 있으나 레이아웃 1:1 아직 |
+| 히어로 — 시공 없는 날 | 🟡 | renderHero→heroEmptyHtml/nextHeroHtml | hero-empty 흰 r24: he-top "오늘 시공" + he-title "오늘은 예정된 시공이 없어요" + he-sub "밀린 상담·견적 챙기기 좋은 날이에요." + he-next 회색박스(nx-ic 36 + "다음 시공 · 내일(5/30) {time}" + nx-name, 여러곳=nx-line 시간칩) + he-add "+ 일정 직접 추가". 1:1 재작업(빌드 OK), 폰 확인 |
 | 배너 — 견적 회신(보라) | ✅ | EstimateFollowup | inbox-alert 보라 4dp + go pill |
 | 배너 — 부재중 자동답장(파랑) | ✅ | renderMissed | inbox-alert 파랑 + [대화]. f2357a2 |
 | 배너 — 내일 시공 D-1/도착(앰버 remind-card) | ✅ | openArrival 계열 | remind-card 좌3dp amber r18 p16, label 11 w800 #B8780A "내일 시공 안내·D-1", msg박스 r12 p12 13.5/1.55, [건너뛰기][문자 보낼까요?]. f2357a2 |
@@ -67,7 +67,7 @@
 | 요소 | 상태 | 프로토 출처 | 프로토 스펙 / 앱 메모 |
 |---|---|---|---|
 | 상단 이름 | 🟡 | openChat→chat-name | 고객명(없으면 아파트+호수) |
-| **요약 바(chat-summary ✨)** | ⬜ | openChat→chat-summary | 흰 바 p10x18, 12.5 blue-dark, 아래 테두리, ✨ + "요약: …". **앱 미구현** |
+| **요약 바(chat-summary ✨)** | 🔵 | openChat→chat-summary | 흰 바 p10x18, 12.5 blue-dark, 아래 테두리, ✨ + "요약: …". ⚠️ **사장님 결정**: 앱엔 이미 더 풍부한 UnifiedSummaryCard(AI 요약줄+액션+접기, 에이닷 벤치마킹)가 있음. 프로토 단순 한 줄 바로 바꿀지 vs 풍부한 카드 유지 |
 | 말풍선(나/고객·사진·날짜선) | ✅ | renderChatMsgs | bubble me/cust, photo ph박스, chat-date 가운데, btime |
 | 통화 구간 카드(📞 청록) | ✅ | callCardHtml | 수신/발신/부재중·N분. buildChatTimeline 병합 |
 | AI 추천 "✨ 이렇게 답해보세요" | 🟡 | renderSugs | sug-area p8/14/4, head 12 w800 blue, sug-chip 흰 238 r15 p12x13(cl 11 w800 blue + ct 13 t1 1.45). 9b48e01 |
@@ -142,7 +142,7 @@
 
 ## 다음 액션 (우선순위)
 1. **채팅 폰 확인** — 9b48e01(액션칩·추천·입력창) 사장님 검증 → ✅ 또는 교정.
-2. **채팅 요약 바(chat-summary)** — 유일한 채팅 ⬜. 추가.
-3. 히어로 빈 날(heroEmptyHtml) 1:1.
+2. ✅ ~~히어로 빈 날(heroEmptyHtml) 1:1~~ — 완료(빌드 OK, 폰 확인 대기).
+3. ⚠️ **채팅 요약 바 결정** — 앱에 더 풍부한 UnifiedSummaryCard 존재. 프로토 한 줄 바로 교체 vs 유지 → 사장님 선택 대기.
 4. 신규 재연락 전용화면(openNewLeads) — 현재 고객관리 임시 연결 교체.
 5. 더보기 메뉴 섹션 재배치 + 하위화면 1:1 점검.

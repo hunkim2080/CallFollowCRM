@@ -112,6 +112,7 @@ fun AppNavHost(
                 // FAB "수동 입력" 은 기존 FollowUp 화면 유지 (번호 직접 입력 + 상태/메모 한 번에).
                 onOpenManualEntry = { navController.navigate(Destinations.followUp()) },
                 onOpenSchedule = { navController.navigate(Destinations.SCHEDULE) },
+                onAddSchedule = { navController.navigate(Destinations.SCHEDULE_ADD) },
                 onOpenTemplates = { navController.navigate(Destinations.TEMPLATE_LIST) },
                 onOpenAiMessage = { navController.navigate(Destinations.AI_MESSAGE) },
                 onOpenStyleLearning = { navController.navigate(Destinations.STYLE_LEARNING) },

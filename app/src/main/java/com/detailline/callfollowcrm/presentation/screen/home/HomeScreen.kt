@@ -128,6 +128,7 @@ fun HomeScreen(
     /** FAB "수동 입력" 전용 — 번호 직접 타이핑하는 FollowUp 화면. */
     onOpenManualEntry: () -> Unit,
     onOpenSchedule: () -> Unit,
+    onAddSchedule: () -> Unit = {},
     onOpenTemplates: () -> Unit,
     onOpenAiMessage: () -> Unit,
     onOpenStyleLearning: () -> Unit,
@@ -471,7 +472,9 @@ fun HomeScreen(
                         nextJobs = nextJobs,
                         onOpenCustomer = onOpenCustomerDetail,
                         onNavigate = { phone -> launchNavigationFor(phone) },
-                        onCall = { phone -> dialHome(context, phone) }
+                        onCall = { phone -> dialHome(context, phone) },
+                        onGoSchedule = onOpenSchedule,
+                        onAddSchedule = onAddSchedule
                     )
                 }
 
@@ -669,7 +672,9 @@ private fun TodayHeroCard(
     nextJobs: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
     onOpenCustomer: (Long) -> Unit,
     onNavigate: (String) -> Unit,
-    onCall: (String) -> Unit
+    onCall: (String) -> Unit,
+    onGoSchedule: () -> Unit,
+    onAddSchedule: () -> Unit
 ) {
     if (todayJobs.isNotEmpty()) {
         // 프로토 heroJobHtml — 다크 그라데이션 + 🟢 D-DAY + 이름·시간 + 📍주소 + [길찾기][전화][완료].
@@ -721,35 +726,149 @@ private fun TodayHeroCard(
             }
         }
     } else {
-        TossCard {
-            if (nextJobs.isNotEmpty()) {
-                val d = nextJobs.first().scheduledWorkDate ?: 0L
-                Column {
-                    Text("다음 시공", style = MaterialTheme.typography.labelMedium,
-                        color = TossTextSecondary, fontWeight = FontWeight.Medium)
-                    Spacer(Modifier.height(3.dp))
-                    Text(
-                        "${DateTimeUtils.formatKoreanDate(d)} · ${DateTimeUtils.dDayLabel(d)}",
-                        fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    nextJobs.forEach { c ->
+        // 프로토 heroEmptyHtml — 흰 카드(he-top "오늘 시공" + he-title + he-sub + he-next 회색박스 + he-add 버튼).
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(24.dp))
+                .background(Color.White)
+                .border(1.dp, TossDivider, RoundedCornerShape(24.dp))
+                .padding(20.dp)
+        ) {
+            // he-top — 📅 + "오늘 시공" (12px w800 t3)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.DateRange, null, tint = TossTextTertiary, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("오늘 시공", color = TossTextTertiary, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+            }
+            // he-title (19px w800 t1)
+            Text(
+                "오늘은 예정된 시공이 없어요",
+                color = TossTextPrimary, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold,
+                letterSpacing = (-0.4).sp, modifier = Modifier.padding(top = 9.dp)
+            )
+            // he-sub (13px t2)
+            Text(
+                "밀린 상담·견적 챙기기 좋은 날이에요.",
+                color = TossTextSecondary, fontSize = 13.sp, lineHeight = 19.sp,
+                modifier = Modifier.padding(top = 5.dp)
+            )
+            // he-next — 회색 박스 (아이콘 + 다음 시공 정보 + chevron) → 일정 이동
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 15.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(TossGrayBg)
+                    .clickable { onGoSchedule() }
+                    .padding(horizontal = 13.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // nx-ic (36x36 radius10 blue-tint)
+                Box(
+                    Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(TossBlueSoft),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.DateRange, null, tint = TossBlue, modifier = Modifier.size(18.dp))
+                }
+                Spacer(Modifier.width(11.dp))
+                Column(Modifier.weight(1f)) {
+                    if (nextJobs.isNotEmpty()) {
+                        val d = nextJobs.first().scheduledWorkDate ?: 0L
+                        val word = relativeDayWord(d)
+                        val n = nextJobs.size
+                        if (n == 1) {
+                            val j = nextJobs.first()
+                            val time = j.scheduledWorkMinutes?.let { " " + DateTimeUtils.formatWorkMinutes(it) } ?: ""
+                            // nx-when (11.5px w800 blue)
+                            Text("다음 시공 · $word$time", color = TossBlue, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold)
+                            // nx-name (14px w700 t1)
+                            Text(
+                                (j.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(j.phoneNumber)) +
+                                    " · " + shortAddr(j.address),
+                                color = TossTextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        } else {
+                            Text(
+                                "다음 시공 · $word · ${n}곳",
+                                color = TossBlue, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold
+                            )
+                            nextJobs.forEach { j ->
+                                // nx-line (13px w700) — nx-t 시간칩 + 이름·주소
+                                Row(
+                                    Modifier.padding(top = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    j.scheduledWorkMinutes?.let { mins ->
+                                        Text(
+                                            DateTimeUtils.formatWorkMinutes(mins),
+                                            color = TossBlue, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold,
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp)).background(Color.White)
+                                                .padding(horizontal = 7.dp, vertical = 1.dp)
+                                        )
+                                        Spacer(Modifier.width(7.dp))
+                                    }
+                                    Text(
+                                        (j.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(j.phoneNumber)) +
+                                            " · " + shortAddr(j.address),
+                                        color = TossTextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        Text("다음 예정된 시공이 없어요", color = TossBlue, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold)
                         Text(
-                            "· " + (c.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(c.phoneNumber)) +
-                                (c.address?.takeIf { it.isNotBlank() }?.let { " — $it" } ?: ""),
-                            style = MaterialTheme.typography.bodyMedium, color = TossTextSecondary, maxLines = 1
+                            "+ 일정 직접 추가로 잡아보세요",
+                            color = TossTextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(top = 2.dp)
                         )
                     }
                 }
-            } else {
-                Column {
-                    Text("오늘은 예정된 시공이 없어요", style = MaterialTheme.typography.titleMedium,
-                        color = TossTextPrimary, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(4.dp))
-                    Text("밀린 상담·견적 챙기기 좋은 날 ☕", style = MaterialTheme.typography.bodySmall, color = TossTextTertiary)
-                }
+                Spacer(Modifier.width(6.dp))
+                Icon(Icons.Default.ChevronRight, null, tint = TossTextTertiary, modifier = Modifier.size(18.dp))
+            }
+            // he-add — "+ 일정 직접 추가" (full width, bg gray, blue, 14px w800)
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 11.dp)
+                    .clip(RoundedCornerShape(13.dp))
+                    .background(TossGrayBg)
+                    .clickable { onAddSchedule() }
+                    .padding(vertical = 13.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("+ 일정 직접 추가", color = TossBlue, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
             }
         }
+    }
+}
+
+/** 프로토 shortAddr — 주소에서 "구/시" + "동" 만 추려 짧게. 없으면 "주소 미입력". */
+private fun shortAddr(a: String?): String {
+    if (a.isNullOrBlank()) return "주소 미입력"
+    val gu = Regex("([가-힣]+[구시])").find(a)?.value
+    val dong = Regex("([가-힣]+동)").find(a)?.value
+    val parts = listOfNotNull(gu, dong)
+    return if (parts.isNotEmpty()) parts.joinToString(" ") else a
+}
+
+/** 프로토 word — 다음 시공일이 오늘 기준 내일/모레/그 외 "M/D". */
+private fun relativeDayWord(epoch: Long, now: Long = System.currentTimeMillis()): String {
+    val today = DateTimeUtils.startOfDay(now)
+    val target = DateTimeUtils.startOfDay(epoch)
+    val diff = ((target - today) / DateTimeUtils.DAY_MS).toInt()
+    val cal = java.util.Calendar.getInstance().apply { timeInMillis = target }
+    val md = "${cal.get(java.util.Calendar.MONTH) + 1}/${cal.get(java.util.Calendar.DAY_OF_MONTH)}"
+    return when (diff) {
+        1 -> "내일($md)"
+        2 -> "모레($md)"
+        else -> md
     }
 }
 

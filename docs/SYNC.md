@@ -1824,3 +1824,10 @@ CREATE TABLE intake_forms (
 - 구조: 화면을 요소(섹션·배너·카드·카피·디자인값)로 쪼개고, 각 요소에 [프로토 출처 함수] + [프로토 스펙 verbatim(색 hex·px·카피)] + [앱 상태] 박음. 상태=똑같음/폰확인/다른부분/아직.
 - 자동화 의도: 프로토 변경 시 그 요소만 ⬜/🔵 로 떨어져 "변경→앱 반영" 체크리스트로 동작. 절차를 문서 상단에 명시.
 - 코드 변경 없음(문서·HTML만). server/ 무관. commit: (아래)
+
+## 2026-06-02 · android (10)
+홈 빈 히어로(시공 없는 날) 프로토 heroEmptyHtml 1:1 + 채팅 요약 발견 보고.
+- TodayHeroCard else 분기: 단순 카드 → 프로토 hero-empty 흰 카드 1:1. he-top "오늘 시공" + he-title "오늘은 예정된 시공이 없어요" + he-sub "밀린 상담·견적 챙기기 좋은 날이에요."(기존 "…좋은 날 ☕" verbatim 교정) + he-next 회색박스(다음 시공 nx-when/nx-name, 여러곳 nx-line 시간칩, 탭→일정) + he-add "+ 일정 직접 추가"(→일정등록폼).
+- 추가: shortAddr(구/동 축약) + relativeDayWord(내일/모레/M/D) 헬퍼. HomeScreen onAddSchedule 콜백 + AppNavHost→SCHEDULE_ADD 연결.
+- 발견(사장님 결정 대기): 채팅 chat-summary 는 "미구현"이 아니라 이미 더 풍부한 UnifiedSummaryCard(AI 요약줄+액션+접기, 에이닷 벤치마킹)가 들어가 있음. 프로토 단순 한 줄 바로 바꿀지 vs 유지할지 사장님 선택 필요 → ONEONE_STATUS.md 다음액션 3.
+- 빌드: compileDebugKotlin + assembleDebug OK. DB 변경 없음. commit: (아래)
