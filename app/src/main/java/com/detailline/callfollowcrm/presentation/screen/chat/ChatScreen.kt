@@ -112,6 +112,7 @@ import com.detailline.callfollowcrm.domain.model.TemplateCategory
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossBlueDark
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossError
@@ -1600,7 +1601,16 @@ private fun Composer(
     isSending: Boolean = false,
     onFocusChange: (Boolean) -> Unit = {}
 ) {
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
+    // 프로토 .composer — 흰 바 + 상단 테두리 + padding 9/14/16.
+    Column(
+        modifier = Modifier.fillMaxWidth()
+            .background(Color.White)
+            .drawBehind {
+                val s = 1.dp.toPx()
+                drawLine(TossDivider, androidx.compose.ui.geometry.Offset(0f, s / 2), androidx.compose.ui.geometry.Offset(size.width, s / 2), s)
+            }
+            .padding(start = 14.dp, end = 14.dp, top = 9.dp, bottom = 16.dp)
+    ) {
         // 첨부된 사진 썸네일 영역 (있을 때만)
         if (attachments.isNotEmpty()) {
             LazyRow(
@@ -1643,11 +1653,11 @@ private fun Composer(
                 }
             }
         }
-        // 프로토 .composer — 회색 알약 field [✨ 왼쪽][textarea][📷 오른쪽] + 40px 파란 발송 원.
+        // 프로토 .composer — 회색 알약 field [✨ 왼쪽][textarea][📷 오른쪽] + 40px 파란 발송 원(항상 파랑).
         val canSend = input.isNotBlank() || attachments.isNotEmpty()
         Row(
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.Bottom,
+            verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(9.dp)
         ) {
             // field — 회색 알약(radius22)
@@ -1691,11 +1701,13 @@ private fun Composer(
                     modifier = Modifier.size(19.dp).clickable { onAttachPhoto() }
                 )
             }
-            // 40px 파란 발송 원
+            // 40px 파란 발송 원 — 프로토 .snd: 항상 파랑 + 흰 아이콘 + 파란 glow.
             Surface(
-                modifier = Modifier.size(40.dp),
+                modifier = Modifier
+                    .size(40.dp)
+                    .shadow(8.dp, androidx.compose.foundation.shape.CircleShape, ambientColor = TossBlue, spotColor = TossBlue),
                 shape = androidx.compose.foundation.shape.CircleShape,
-                color = if (canSend && !isSending) TossBlue else TossDivider,
+                color = TossBlue,
                 onClick = { if (canSend && !isSending) onSend() }
             ) {
                 Box(contentAlignment = Alignment.Center) {
@@ -1704,7 +1716,7 @@ private fun Composer(
                     } else {
                         Icon(
                             Icons.AutoMirrored.Filled.Send, "보내기",
-                            tint = if (canSend) Color.White else TossTextTertiary,
+                            tint = Color.White,
                             modifier = Modifier.size(18.dp)
                         )
                     }

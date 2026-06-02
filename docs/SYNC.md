@@ -1922,3 +1922,9 @@ CREATE TABLE intake_forms (
 - CallSegment: 작은 청록 알약 → 프로토 .chat-call 전체폭 카드(bg #EAF4F1 border #CDE8E0) + cc-ch(아이콘·유형·시각 "문자하다 통화함") + cc-sum-btn(초록 #0E9E90 "에이닷 통화 내용 요약 받기 ↑").
 - 버튼 탭 → 붙여넣기 다이얼로그(에이닷 요약 텍스트 붙여넣기 + 클립보드 버튼 + 저장). 저장=AdotSummaryImporter.importPasted(customerId 있으면)/importFromShare. 기존 에이닷 연동(AdotShareTextParser/Importer) 재사용.
 - 빌드 OK. DB 변경 없음. commit: (아래)
+
+## 2026-06-02 · android (25)
+채팅 composer 프로토 .composer 1:1 마무리 (사장님: 아직 1:1 아님).
+- 발송 버튼: 입력 없을 때 회색이던 것 → 프로토 .snd 처럼 항상 파란 원 + 흰 아이콘 + 파란 glow shadow. (클릭은 canSend 일 때만)
+- 컨테이너: 흰 바 + 상단 테두리(drawBehind) + padding 9/14/16, 가운데 정렬(Bottom→Center). 프로토 .composer.
+- 빌드 OK. commit: (아래)
