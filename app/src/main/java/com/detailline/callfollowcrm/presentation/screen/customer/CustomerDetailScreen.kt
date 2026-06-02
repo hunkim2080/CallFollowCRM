@@ -41,6 +41,8 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
@@ -306,6 +308,11 @@ fun CustomerDetailScreen(
                 }
             }
 
+            // 1.2 고객 페르소나 (프로토 openCustomer #2 — 헤더 바로 아래). 킬러콘텐츠 5단계.
+            //   cowork prepare-reply 가 자동 생성(Haiku 4.5, 24h cache). 안드는 cache 조회만, 없으면 숨김.
+            val persona by viewModel.persona.collectAsState()
+            persona?.let { p -> if (!p.isEmpty) PersonaCard(p) }
+
             // 1.3 현장 주소 — 표시 우선순위 (2026-05-28 사장님 결정):
             //   1) customer.address (사장님 수동 등록, DB v15) — 신뢰 최우선
             //   2) extractedAddress (메시지 자동 추출) — fallback
@@ -430,13 +437,6 @@ fun CustomerDetailScreen(
                     }
                 }
             }
-
-            // 1.6 고객 페르소나 — 2026-05-29 킬러콘텐츠 5단계.
-            //   cowork 의 prepare-reply 가 자동 생성/갱신 (Haiku 4.5, 24h cache).
-            //   안드는 GET /api/customer-persona/{phone} 으로 cache 만 조회.
-            //   없으면 silent 숨김 (사장님이 ChatScreen 진입 → prepare-reply 호출 → 페르소나 생성됨).
-            val persona by viewModel.persona.collectAsState()
-            persona?.let { p -> if (!p.isEmpty) PersonaCard(p) }
 
             // 1.7 주고받은 문자 — 사장님 요청 (2026-05-27): 대화 요약 아래에 접이식으로.
             //   기본 접힘 → 헤더 탭하면 펼침/닫힘. 최근 20건만, 그 이상은 [💬 메시지에서 더 보기].
@@ -786,6 +786,45 @@ fun CustomerDetailScreen(
                         }
                     }
                 }
+            }
+
+            // 7. 프로토 openCustomer 하단 — 블로그 후기 lockcard(비즈니스 잠금) + "지난 문자 보기" 링크.
+            val bottomCtx = androidx.compose.ui.platform.LocalContext.current
+            androidx.compose.foundation.layout.Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White)
+                    .clickable {
+                        android.widget.Toast.makeText(bottomCtx, "블로그 후기 글 만들기는 비즈니스 요금제 기능이에요. 곧 제공돼요!", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                    .padding(16.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            ) {
+                androidx.compose.foundation.layout.Box(
+                    Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(Color(0xFFF1ECFF)),
+                    contentAlignment = androidx.compose.ui.Alignment.Center
+                ) {
+                    androidx.compose.material3.Icon(Icons.Filled.AutoAwesome, null, tint = Color(0xFF7C5CFC), modifier = Modifier.size(21.dp))
+                }
+                Spacer(Modifier.width(13.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("블로그 후기 글 만들기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                    Spacer(Modifier.height(2.dp))
+                    Text("대화+사진으로 포스팅 글 자동 작성", fontSize = 12.sp, color = TossTextTertiary)
+                }
+                Text(
+                    "비즈니스", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFF7C5CFC)).padding(horizontal = 10.dp, vertical = 4.dp)
+                )
+            }
+
+            androidx.compose.foundation.layout.Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White)
+                    .clickable { onOpenChat(c.phoneNumber, c.id) }.padding(15.dp),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            ) {
+                androidx.compose.material3.Icon(Icons.AutoMirrored.Filled.Chat, null, tint = TossBlue, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(5.dp))
+                Text("지난 문자 보기", color = TossBlue, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             }
 
             Spacer(Modifier.height(8.dp))
