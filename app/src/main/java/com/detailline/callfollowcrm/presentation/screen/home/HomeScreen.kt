@@ -207,6 +207,9 @@ fun HomeScreen(
     // 미확인 swipe-to-spam Snackbar Undo.
     val snackbarHostState = remember { SnackbarHostState() }
 
+    // 오늘 시공 히어로 [완료] → 프로토 openComplete 팝업 (시공 완료 · 고생하셨습니다).
+    var completeTarget by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.CustomerEntity?>(null) }
+
     Scaffold(
         containerColor = TossGrayBg,
         topBar = {
@@ -273,15 +276,7 @@ fun HomeScreen(
                 }
             }
         },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { onOpenManualEntry() },
-                icon = { Icon(Icons.Default.Add, null) },
-                text = { Text("수동 입력", fontWeight = FontWeight.SemiBold) },
-                containerColor = TossBlue,
-                contentColor = Color.White
-            )
-        },
+        // 프로토 상담함엔 수동 입력 FAB 없음 — 2026-06-02 사장님 요청으로 제거.
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { inner ->
         Column(
@@ -475,7 +470,8 @@ fun HomeScreen(
                         onNavigate = { phone -> launchNavigationFor(phone) },
                         onCall = { phone -> dialHome(context, phone) },
                         onGoSchedule = onOpenSchedule,
-                        onAddSchedule = onAddSchedule
+                        onAddSchedule = onAddSchedule,
+                        onComplete = { c -> completeTarget = c }
                     )
                 }
 
@@ -654,6 +650,26 @@ fun HomeScreen(
                     modifier = Modifier.align(Alignment.TopCenter)
                 )
             }
+
+            // 오늘 시공 [완료] 팝업 — 프로토 openComplete. 완료처리=닫기+스낵바, 요청=문자 발송.
+            completeTarget?.let { c ->
+                CompletionDialog(
+                    customer = c,
+                    onDismiss = { completeTarget = null },
+                    onComplete = { name ->
+                        completeTarget = null
+                        scope.launch { snackbarHostState.showSnackbar("$name 시공을 완료 처리했어요 ✓", duration = SnackbarDuration.Short) }
+                    },
+                    onSend = { phone, name, body, kind ->
+                        completeTarget = null
+                        val ok = com.detailline.callfollowcrm.util.SmsSender.sendDirect(context, phone, body)
+                        scope.launch {
+                            if (ok) snackbarHostState.showSnackbar("$name 님께 $kind 발송 ✓", duration = SnackbarDuration.Short)
+                            else snackbarHostState.showSnackbar("문자 권한이 없어요 — 채팅에서 보내주세요", duration = SnackbarDuration.Short)
+                        }
+                    }
+                )
+            }
             } // end Box(nestedScroll)
         }
     }
@@ -675,7 +691,8 @@ private fun TodayHeroCard(
     onNavigate: (String) -> Unit,
     onCall: (String) -> Unit,
     onGoSchedule: () -> Unit,
-    onAddSchedule: () -> Unit
+    onAddSchedule: () -> Unit,
+    onComplete: (com.detailline.callfollowcrm.data.local.entity.CustomerEntity) -> Unit
 ) {
     if (todayJobs.isNotEmpty()) {
         // 프로토 heroJobHtml — 다크 그라데이션 + 🟢 D-DAY + 이름·시간 + 📍주소 + [길찾기][전화][완료].
@@ -723,7 +740,7 @@ private fun TodayHeroCard(
             Row(modifier = Modifier.padding(top = 17.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 HeroBtn("길찾기", Icons.Default.Navigation, light = true, modifier = Modifier.weight(1f)) { onNavigate(c.phoneNumber) }
                 HeroBtn("전화", Icons.Default.Call, light = false, modifier = Modifier.weight(1f)) { onCall(c.phoneNumber) }
-                HeroBtn("완료", Icons.Default.Check, light = false, modifier = Modifier.weight(1f)) { onOpenCustomer(c.id) }
+                HeroBtn("완료", Icons.Default.Check, light = false, modifier = Modifier.weight(1f)) { onComplete(c) }
             }
         }
     } else {
@@ -887,6 +904,72 @@ private fun HeroBtn(label: String, icon: ImageVector, light: Boolean, modifier: 
         Icon(icon, null, tint = if (light) Color(0xFF14171F) else Color.White, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(6.dp))
         Text(label, color = if (light) Color(0xFF14171F) else Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+/**
+ * 시공 완료 팝업 (프로토 openComplete) — 오늘 시공 히어로 [완료] 탭 시.
+ *   "🎉 시공 완료 · 고생하셨습니다!" + 잔금/후기 안내 문구 + [완료처리][요청 보내기].
+ *   잔금 남았으면 잔금 요청 + "후기 요청도 함께", 정산 끝났으면 후기 요청. (계좌는 prefs 미보유 → 잔금액만)
+ */
+@Composable
+private fun CompletionDialog(
+    customer: com.detailline.callfollowcrm.data.local.entity.CustomerEntity,
+    onDismiss: () -> Unit,
+    onComplete: (name: String) -> Unit,
+    onSend: (phone: String, name: String, body: String, kind: String) -> Unit
+) {
+    val name = customer.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(customer.phoneNumber)
+    val total = customer.totalAmount ?: 0L
+    val dep = customer.depositAmount ?: 0L
+    val bal = customer.balanceAmount ?: (total - dep).coerceAtLeast(0L)
+    val hasBal = customer.balancePaidAt == null && bal > 0L
+    val won = "%,d".format(bal)
+    val reviewMsg = "고객님, 오늘 시공 잘 마쳤습니다 😊 만족스러우셨다면 후기 한 줄 부탁드려요! 또 필요하시면 언제든 연락주세요 :)"
+    val balanceMsg = "고객님, 오늘 시공 잘 마쳤습니다 😊\n잔금은 ${won}원입니다.\n맡겨주셔서 대단히 감사합니다!"
+    val subtitle = if (hasBal) "$name · 잔금 ${won}원" else "$name · 정산 완료"
+
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color.White)
+                .padding(20.dp)
+        ) {
+            Text("🎉 시공 완료 · 고생하셨습니다!", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            Spacer(Modifier.height(4.dp))
+            Text(subtitle, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossBlueDark)
+            Spacer(Modifier.height(12.dp))
+            Text(
+                if (hasBal) balanceMsg else reviewMsg,
+                fontSize = 13.5.sp, lineHeight = 21.sp, color = TossTextSecondary,
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(13.dp)
+            )
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(
+                    Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
+                        .clickable { onComplete(name) }.padding(vertical = 13.dp),
+                    contentAlignment = Alignment.Center
+                ) { Text("완료처리", color = TossTextSecondary, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+                val sendKind = if (hasBal) "잔금 요청" else "후기 요청"
+                val sendBody = if (hasBal) balanceMsg else reviewMsg
+                Box(
+                    Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(TossBlue)
+                        .clickable { onSend(customer.phoneNumber, name, sendBody, sendKind) }.padding(vertical = 13.dp),
+                    contentAlignment = Alignment.Center
+                ) { Text("$sendKind 보내기", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+            }
+            if (hasBal) {
+                Spacer(Modifier.height(6.dp))
+                Box(
+                    Modifier.fillMaxWidth().clickable { onSend(customer.phoneNumber, name, reviewMsg, "후기 요청") }
+                        .padding(vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) { Text("후기 요청도 함께 보내기", color = TossTextTertiary, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold) }
+            }
+        }
     }
 }
 

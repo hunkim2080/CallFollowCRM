@@ -52,7 +52,8 @@
 | 상단 앱바(상담함·AI배지·고객·검색) | ✅ | renderAiBadge/openCustomers/openSearch | ai-badge gradient #EAF2FF→#F1ECFF border #E0E7FB r999 p7x12 12 w800 + dot 6px success **+glow ring** + ✨13 + "{대표업종} AI". dot 색=서버상태 유지, 탭=서버상태 토스트(프로토 aiInfo와 다름·더 실용적) |
 | 오늘 신규 문의 카드 | ✅ | renderTodayNew | tn-t "오늘 신규 문의 <b>N통</b>" / tn-s "새 번호 기준 · 어제 N통" / ▲▼-. 이제 전용 "신규 고객 · 날짜별" 화면으로 연결(임시연결 해소) |
 | 신규 고객 · 날짜별 화면 | 🟡 | openNewLeads/renderNewLeads | nl-hint ✨ 안내 + cfilter(전체/미답장만) + nl-date "오늘·N통" + nl-row(nl-dot 미답장=red + nl-ph 14 w800 + nl-t + nl-memo, 답장함 태그/재연락 버튼). NewLeadsScreen+VM 신설. 실데이터(시공일 미등록 고객, 응대기록=observeRepliedCustomerIds). 줄탭→상세, 재연락→채팅. 빌드 OK, 폰 확인 |
-| 오늘 시공 히어로(D-DAY) | ✅ | renderHero→heroJobHtml | grad #272D3D→#14171F r24 p20, 🟢"오늘 시공·D-DAY" 11.5/white.62, name 23 w800+" · {time} 예정", 📍addr 13/white.78, [길찾기 light][전화][완료 ghost]. f2357a2 |
+| 오늘 시공 히어로(D-DAY) | ✅ | renderHero→heroJobHtml | grad #272D3D→#14171F r24 p20, 🟢"오늘 시공·D-DAY", name 23 w800+시간, 📍addr, [길찾기][전화][완료]. **[완료]→openComplete 팝업**("🎉 시공 완료·고생하셨습니다!"+잔금/후기 안내+[완료처리][요청 보내기], CompletionDialog) |
+| 수동 입력 FAB 제거 | ✅ | 프로토 inbox(FAB 없음) | 상담함 "+ 수동 입력" 파란 FAB 제거(사장님 요청) |
 | 히어로 — 시공 없는 날 | 🟡 | renderHero→heroEmptyHtml/nextHeroHtml | hero-empty 흰 r24: he-top "오늘 시공" + he-title "오늘은 예정된 시공이 없어요" + he-sub "밀린 상담·견적 챙기기 좋은 날이에요." + he-next 회색박스(nx-ic 36 + "다음 시공 · 내일(5/30) {time}" + nx-name, 여러곳=nx-line 시간칩) + he-add "+ 일정 직접 추가". 1:1 재작업(빌드 OK), 폰 확인 |
 | 배너 — 견적 회신(보라) | ✅ | EstimateFollowup | inbox-alert 보라 4dp + go pill |
 | 배너 — 부재중 자동답장(파랑) | ✅ | renderMissed | inbox-alert 파랑 + [대화]. f2357a2 |
