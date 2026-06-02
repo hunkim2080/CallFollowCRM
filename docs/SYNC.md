@@ -1866,3 +1866,9 @@ CREATE TABLE intake_forms (
 - 시각(btime): 말풍선 안 바닥→말풍선 밖 옆 아래(프로토 .brow). 10.5sp t3. 별표는 바깥쪽.
 - 발견: 날짜 구분선(chat-date)은 앱 미구현 → 현황판 ⬜ 정직 표기(다음 작업).
 - 빌드 OK. DB 변경 없음. commit: (아래)
+
+## 2026-06-02 · android (16)
+채팅 날짜 구분선(프로토 chat-date) 추가 — 채팅 화면 1:1 마무리.
+- ChatTimelineItem.DateDivider 변형 + withDateDividers(타임라인 날짜 경계마다 구분선 삽입, reverseLayout DESC 대응: 오름차순 삽입 후 재뒤집기) + chatDateLabel(오늘/어제/M월 D일(요일)).
+- ChatDateDivider 컴포저블: 가운데 회색 알약(rgba 11/15/25 .06, r999, 11.5sp w700 t2, padding 13x5). LazyColumn when 에 분기 추가.
+- 빌드 OK(R.jar 잠금 일시오류 후 재시도 성공). DB 변경 없음. commit: (아래)

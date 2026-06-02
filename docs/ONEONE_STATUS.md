@@ -70,7 +70,7 @@
 | 상단 이름 | 🟡 | openChat→chat-name | 고객명(없으면 아파트+호수) |
 | **요약 바(chat-summary ✨)+펼치면 상세** | 🟡 | openChat→chat-summary | 흰 바 p10x18, 12.5 #1B64DA w600, 아래 테두리, ✨ + "요약: …". 사장님 결정="둘 다": CollapsedSummaryHeader 프로토 바로 재스타일 + 기본 접힘 시작, 탭→UnifiedSummaryCard 펼침. 빌드 OK, 폰 확인 |
 | 말풍선(나/고객·사진·시각) | 🟡 | renderChatMsgs(.bubble/.brow/.btime) | bubble p11x14 r19+꼬리6. cust 흰+그림자/좌꼬리, me 파랑/우꼬리. btime 말풍선 밖 10.5 t3. ChatBubble 1:1 재작업(연파랑→흰, 시각 밖으로). 빌드 OK |
-| 날짜 구분선(chat-date) | ⬜ | renderChatMsgs | 가운데 회색 알약 11.5 w700 t2 rgba(.06) r999. **앱 미구현** |
+| 날짜 구분선(chat-date) | 🟡 | renderChatMsgs | 가운데 회색 알약 11.5 w700 t2 rgba(.06) r999. ChatDateDivider + withDateDividers(경계 삽입). 라벨 오늘/어제/M월 D일(요일). 빌드 OK |
 | 통화 구간 카드(📞 청록) | ✅ | callCardHtml | 수신/발신/부재중·N분. buildChatTimeline 병합 |
 | AI 추천 "✨ 이렇게 답해보세요" | 🟡 | renderSugs | sug-area p8/14/4, head 12 w800 blue, sug-chip 흰 238 r15 p12x13(cl 11 w800 blue + ct 13 t1 1.45). 9b48e01 |
 | 하단 액션칩 3개 | 🟡 | chat-actions(act-chip) | act-chip 흰 r999 p8x13, 12.5 w700 t2, icon blue14, gap8. [견적작성→send_estimate][내일정→openMySchedule][문구넣기→openTplPicker]. ⚠️ ⚡토글 대체(사장님 지시) |

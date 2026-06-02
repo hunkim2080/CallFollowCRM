@@ -519,7 +519,9 @@ fun ChatScreen(
                     }
                 } else {
                     // key 안 줌 — SMS/MMS id 가 별도 테이블, 통화 id 도 별도라 충돌 위험. 인덱스 기반 렌더.
-                    items(timelineItems) { ti ->
+                    //   프로토 chat-date — 날짜 경계마다 회색 알약 구분선 삽입.
+                    val renderRows = withDateDividers(timelineItems)
+                    items(renderRows) { ti ->
                         when (ti) {
                             is ChatTimelineItem.Msg -> {
                                 val msg = ti.message
@@ -537,6 +539,7 @@ fun ChatScreen(
                                 )
                             }
                             is ChatTimelineItem.Call -> CallSegment(ti.record)
+                            is ChatTimelineItem.DateDivider -> ChatDateDivider(chatDateLabel(ti.dayStart))
                         }
                     }
                 }
@@ -1017,6 +1020,41 @@ sealed interface ChatTimelineItem {
     data class Call(val record: com.detailline.callfollowcrm.data.local.entity.CallRecordEntity) : ChatTimelineItem {
         override val timeMs: Long get() = record.endedAt
     }
+    /** 프로토 chat-date — 날짜 경계 구분선. 렌더 직전에만 끼워넣음(buildChatTimeline 은 생성 X). */
+    data class DateDivider(val dayStart: Long) : ChatTimelineItem {
+        override val timeMs: Long get() = dayStart
+    }
+}
+
+/**
+ * 타임라인(시간 DESC)에 날짜 경계 구분선을 끼워넣은 렌더 행 목록.
+ *   reverseLayout=true 라 list[0]=화면 맨 아래(최신). 오름차순으로 "날짜 바뀌면 그 위에 구분선" 을
+ *   넣은 뒤 다시 뒤집어 DESC 로 돌려준다 → 각 날짜 그룹 위에 구분선이 뜸.
+ */
+private fun withDateDividers(items: List<ChatTimelineItem>): List<ChatTimelineItem> {
+    if (items.isEmpty()) return items
+    val asc = items.asReversed() // 오래된→최신
+    val out = ArrayList<ChatTimelineItem>(asc.size + 8)
+    var lastDay = Long.MIN_VALUE
+    for (ti in asc) {
+        val day = DateTimeUtils.startOfDay(ti.timeMs)
+        if (day != lastDay) {
+            out.add(ChatTimelineItem.DateDivider(day))
+            lastDay = day
+        }
+        out.add(ti)
+    }
+    return out.asReversed() // 다시 DESC
+}
+
+/** 프로토 chat-date 라벨 — 오늘/어제/그 외 "M월 D일 (요일)". */
+private fun chatDateLabel(dayStart: Long): String {
+    val today = DateTimeUtils.startOfDay(System.currentTimeMillis())
+    return when (((today - dayStart) / DateTimeUtils.DAY_MS).toInt()) {
+        0 -> "오늘"
+        1 -> "어제"
+        else -> java.text.SimpleDateFormat("M월 d일 (E)", java.util.Locale.KOREAN).format(java.util.Date(dayStart))
+    }
 }
 
 /**
@@ -1032,6 +1070,23 @@ private fun buildChatTimeline(
     messages.forEach { merged += ChatTimelineItem.Msg(it) }
     calls.forEach { merged += ChatTimelineItem.Call(it) }
     return merged.sortedWith(compareByDescending<ChatTimelineItem> { it.timeMs }.thenBy { it is ChatTimelineItem.Msg })
+}
+
+/** 프로토 .chat-date — 가운데 회색 알약 날짜 구분선. */
+@Composable
+private fun ChatDateDivider(label: String) {
+    Box(Modifier.fillMaxWidth().padding(vertical = 3.dp), contentAlignment = Alignment.Center) {
+        Text(
+            label,
+            color = TossTextSecondary,
+            fontSize = 11.5.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier
+                .clip(RoundedCornerShape(999.dp))
+                .background(TossTextPrimary.copy(alpha = 0.06f))
+                .padding(horizontal = 13.dp, vertical = 5.dp)
+        )
+    }
 }
 
 /**
