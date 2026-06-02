@@ -1831,3 +1831,10 @@ CREATE TABLE intake_forms (
 - 추가: shortAddr(구/동 축약) + relativeDayWord(내일/모레/M/D) 헬퍼. HomeScreen onAddSchedule 콜백 + AppNavHost→SCHEDULE_ADD 연결.
 - 발견(사장님 결정 대기): 채팅 chat-summary 는 "미구현"이 아니라 이미 더 풍부한 UnifiedSummaryCard(AI 요약줄+액션+접기, 에이닷 벤치마킹)가 들어가 있음. 프로토 단순 한 줄 바로 바꿀지 vs 유지할지 사장님 선택 필요 → ONEONE_STATUS.md 다음액션 3.
 - 빌드: compileDebugKotlin + assembleDebug OK. DB 변경 없음. commit: (아래)
+
+## 2026-06-02 · android (11)
+채팅 요약 = 사장님 "둘 다" 결정 반영 (프로토 한 줄 바 + 펼치면 풍부 카드).
+- CollapsedSummaryHeader 재스타일: 라운드 칩 → 프로토 chat-summary 바(흰 전체바 + ✨ + "요약: {한 줄}" #1B64DA 12.5sp w600 + drawBehind 아래 테두리 + padding 18x10). summaryLine 파라미터 추가(cardSummary ?: 첫 요약줄).
+- 기본 접힘 시작: summaryManualCollapsed 기본 false→true. 평소 한 줄 바, 탭하면 기존 UnifiedSummaryCard(AI 요약줄+액션+접기) 펼침. composer focus 시 자동 접힘 로직 그대로.
+- import: TossBlueDark, drawBehind. 빌드 OK(assembleDebug).
+- DB 변경 없음. commit: (아래)

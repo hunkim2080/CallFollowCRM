@@ -67,7 +67,7 @@
 | 요소 | 상태 | 프로토 출처 | 프로토 스펙 / 앱 메모 |
 |---|---|---|---|
 | 상단 이름 | 🟡 | openChat→chat-name | 고객명(없으면 아파트+호수) |
-| **요약 바(chat-summary ✨)** | 🔵 | openChat→chat-summary | 흰 바 p10x18, 12.5 blue-dark, 아래 테두리, ✨ + "요약: …". ⚠️ **사장님 결정**: 앱엔 이미 더 풍부한 UnifiedSummaryCard(AI 요약줄+액션+접기, 에이닷 벤치마킹)가 있음. 프로토 단순 한 줄 바로 바꿀지 vs 풍부한 카드 유지 |
+| **요약 바(chat-summary ✨)+펼치면 상세** | 🟡 | openChat→chat-summary | 흰 바 p10x18, 12.5 #1B64DA w600, 아래 테두리, ✨ + "요약: …". 사장님 결정="둘 다": CollapsedSummaryHeader 프로토 바로 재스타일 + 기본 접힘 시작, 탭→UnifiedSummaryCard 펼침. 빌드 OK, 폰 확인 |
 | 말풍선(나/고객·사진·날짜선) | ✅ | renderChatMsgs | bubble me/cust, photo ph박스, chat-date 가운데, btime |
 | 통화 구간 카드(📞 청록) | ✅ | callCardHtml | 수신/발신/부재중·N분. buildChatTimeline 병합 |
 | AI 추천 "✨ 이렇게 답해보세요" | 🟡 | renderSugs | sug-area p8/14/4, head 12 w800 blue, sug-chip 흰 238 r15 p12x13(cl 11 w800 blue + ct 13 t1 1.45). 9b48e01 |
@@ -141,8 +141,8 @@
 ---
 
 ## 다음 액션 (우선순위)
-1. **채팅 폰 확인** — 9b48e01(액션칩·추천·입력창) 사장님 검증 → ✅ 또는 교정.
-2. ✅ ~~히어로 빈 날(heroEmptyHtml) 1:1~~ — 완료(빌드 OK, 폰 확인 대기).
-3. ⚠️ **채팅 요약 바 결정** — 앱에 더 풍부한 UnifiedSummaryCard 존재. 프로토 한 줄 바로 교체 vs 유지 → 사장님 선택 대기.
+1. **채팅 폰 확인** — 9b48e01(액션칩·추천·입력창) + 요약 바(접힘 한 줄 / 탭 펼침) 사장님 검증.
+2. ✅ ~~히어로 빈 날(heroEmptyHtml) 1:1~~ — 완료(빌드 OK).
+3. ✅ ~~채팅 요약 바~~ — 사장님 "둘 다" 결정 반영(접힘=프로토 바, 탭=풍부 카드). 빌드 OK.
 4. 신규 재연락 전용화면(openNewLeads) — 현재 고객관리 임시 연결 교체.
 5. 더보기 메뉴 섹션 재배치 + 하위화면 1:1 점검.

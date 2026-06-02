@@ -110,6 +110,8 @@ import com.detailline.callfollowcrm.data.local.entity.MessageTemplateEntity
 import com.detailline.callfollowcrm.data.repository.SmsRepository
 import com.detailline.callfollowcrm.domain.model.TemplateCategory
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
+import com.detailline.callfollowcrm.presentation.theme.TossBlueDark
+import androidx.compose.ui.draw.drawBehind
 import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossError
@@ -181,7 +183,9 @@ fun ChatScreen(
     }
     // 대화 요약 카드 사장님 명시 접기 — composer focus 자동 접힘과는 별개.
     //   사장님 피드백 2026-05-25: 카드 4-5줄에 말풍선이 가려져서 접기 필요.
-    var summaryManualCollapsed by remember { mutableStateOf(false) }
+    //   2026-06-02 사장님 결정(프로토 1:1): 평소엔 프로토 chat-summary 한 줄 바(접힘),
+    //     누르면 펼쳐서 풍부한 UnifiedSummaryCard. → 기본 접힘으로 시작.
+    var summaryManualCollapsed by remember { mutableStateOf(true) }
 
     // Composer 임시저장 (2026-05-27 사장님 통점) — phone 별 in-memory draft 복원.
     //   init = ChatDraftStore.get(phone), 변경 시 자동 save, 전송 후 input="" = 자동 clear (set 이 empty 면 remove).
@@ -452,8 +456,10 @@ fun ChatScreen(
                 val isSummaryRefreshing by viewModel.isSummaryRefreshing.collectAsState()
                 val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
                 if (showCollapsed) {
+                    val collapsedLines = com.detailline.callfollowcrm.ai.parseConversationLines(s.conversationSummaryJson)
                     CollapsedSummaryHeader(
-                        summaryLineCount = com.detailline.callfollowcrm.ai.parseConversationLines(s.conversationSummaryJson).size,
+                        summaryLine = s.cardSummary?.takeIf { it.isNotBlank() } ?: collapsedLines.firstOrNull().orEmpty(),
+                        summaryLineCount = collapsedLines.size,
                         nextActionTitle = action?.title,
                         isRefreshing = isSummaryRefreshing,
                         onExpand = {
@@ -1695,35 +1701,35 @@ private fun SummaryLoadingPlaceholder(
  */
 @Composable
 private fun CollapsedSummaryHeader(
+    summaryLine: String,
     summaryLineCount: Int,
     nextActionTitle: String?,
     isRefreshing: Boolean = false,
     onExpand: () -> Unit
 ) {
-    val parts = buildList {
-        if (summaryLineCount > 0) add("대화 요약 ${summaryLineCount}줄")
-        if (!nextActionTitle.isNullOrBlank()) add(nextActionTitle)
-    }
-    if (parts.isEmpty()) return
+    // 2026-06-02 사장님 결정(프로토 1:1) — 접힘 상태 = 프로토 chat-summary 바.
+    //   흰 전체 바 + ✨ + 한 줄 요약(#1B64DA, 12.5sp w600) + 아래 테두리. 탭→펼침.
+    val line = summaryLine.takeIf { it.isNotBlank() }
+        ?: nextActionTitle?.takeIf { it.isNotBlank() }
+        ?: (if (summaryLineCount > 0) "지난 대화를 정리했어요" else return)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(8.dp))
             .background(Color.White)
+            .drawBehind {
+                val s = 1.dp.toPx()
+                drawLine(TossDivider, androidx.compose.ui.geometry.Offset(0f, size.height - s / 2),
+                    androidx.compose.ui.geometry.Offset(size.width, size.height - s / 2), s)
+            }
             .clickable { onExpand() }
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 18.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        Text("✨", fontSize = 13.sp, modifier = Modifier.padding(end = 6.dp))
         Text(
-            "✨",
-            fontSize = 13.sp,
-            modifier = Modifier.padding(end = 6.dp)
-        )
-        Text(
-            parts.joinToString(" · "),
-            color = TossBlue,
-            fontSize = 12.sp,
+            "요약: $line",
+            color = TossBlueDark,
+            fontSize = 12.5.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -1734,17 +1740,12 @@ private fun CollapsedSummaryHeader(
             CircularProgressIndicator(
                 color = TossBlue,
                 strokeWidth = 1.5.dp,
-                modifier = Modifier.size(12.dp).padding(end = 6.dp)
+                modifier = Modifier.size(12.dp).padding(start = 6.dp, end = 4.dp)
             )
         }
-        // 펼치기 신호 — 영역 어디든 탭하면 풀 박스. 화살표만으로 affordance.
-        //   2026-05-26 사장님 보고 fix: 펼침 상태와 일관성. "글 안 읽어도 토글 알 수 있게".
-        Text(
-            "▼",
-            color = TossTextSecondary,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold
-        )
+        // 펼치기 affordance — 탭하면 풍부한 요약 카드. (프로토 한 줄 바 + 펼침 = 사장님 결정)
+        Text("▾", color = TossTextTertiary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(start = 6.dp))
     }
 }
 
