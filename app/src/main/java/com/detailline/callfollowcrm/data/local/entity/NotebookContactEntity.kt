@@ -23,11 +23,17 @@ data class NotebookContactEntity(
     val phone: String = "",
     val tag: String = "",
     val memo: String = "",
+    /** 단가 (원). null=미설정. 일당(WORKER)만 사용. 입력은 만원, 저장은 원(×10000). */
+    val wage: Long? = null,
+    /** "DAILY"(일당) | "HOURLY"(시급). */
+    val wageType: String = WAGE_DAILY,
     val createdAt: Long,
     val updatedAt: Long
 ) {
     companion object {
         const val KIND_WORKER = "WORKER"
         const val KIND_VENDOR = "VENDOR"
+        const val WAGE_DAILY = "DAILY"
+        const val WAGE_HOURLY = "HOURLY"
     }
 }

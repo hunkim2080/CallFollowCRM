@@ -47,14 +47,16 @@ class NotebookViewModel(private val container: AppContainer) : ViewModel() {
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
-    fun add(kind: String, name: String, phone: String, tag: String, memo: String) = viewModelScope.launch {
+    fun add(kind: String, name: String, phone: String, tag: String, memo: String,
+            wage: Long? = null, wageType: String = NotebookContactEntity.WAGE_DAILY) = viewModelScope.launch {
         if (name.isBlank()) return@launch
-        withContext(NonCancellable) { container.notebookRepository.add(kind, name, phone, tag, memo) }
+        withContext(NonCancellable) { container.notebookRepository.add(kind, name, phone, tag, memo, wage, wageType) }
     }
 
-    fun update(id: Long, name: String, phone: String, tag: String, memo: String) = viewModelScope.launch {
+    fun update(id: Long, name: String, phone: String, tag: String, memo: String,
+               wage: Long? = null, wageType: String = NotebookContactEntity.WAGE_DAILY) = viewModelScope.launch {
         if (name.isBlank()) return@launch
-        withContext(NonCancellable) { container.notebookRepository.update(id, name, phone, tag, memo) }
+        withContext(NonCancellable) { container.notebookRepository.update(id, name, phone, tag, memo, wage, wageType) }
     }
 
     fun delete(id: Long) = viewModelScope.launch {
@@ -90,7 +92,7 @@ class NotebookViewModel(private val container: AppContainer) : ViewModel() {
 }
 
 enum class NotebookTab(val label: String, val kind: String) {
-    WORKER("일당", NotebookContactEntity.KIND_WORKER),
+    WORKER("일당·알바", NotebookContactEntity.KIND_WORKER),
     VENDOR("거래처", NotebookContactEntity.KIND_VENDOR)
 }
 

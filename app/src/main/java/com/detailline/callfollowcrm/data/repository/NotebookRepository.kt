@@ -13,21 +13,29 @@ class NotebookRepository(private val dao: NotebookContactDao) {
     fun observeVendors(): Flow<List<NotebookContactEntity>> =
         dao.observeByKind(NotebookContactEntity.KIND_VENDOR)
 
-    suspend fun add(kind: String, name: String, phone: String, tag: String, memo: String): Long {
+    suspend fun add(
+        kind: String, name: String, phone: String, tag: String, memo: String,
+        wage: Long? = null, wageType: String = NotebookContactEntity.WAGE_DAILY
+    ): Long {
         val now = System.currentTimeMillis()
         return dao.insert(
             NotebookContactEntity(
                 kind = kind, name = name.trim(), phone = phone.trim(),
-                tag = tag.trim(), memo = memo.trim(), createdAt = now, updatedAt = now
+                tag = tag.trim(), memo = memo.trim(), wage = wage, wageType = wageType,
+                createdAt = now, updatedAt = now
             )
         )
     }
 
-    suspend fun update(id: Long, name: String, phone: String, tag: String, memo: String) {
+    suspend fun update(
+        id: Long, name: String, phone: String, tag: String, memo: String,
+        wage: Long? = null, wageType: String = NotebookContactEntity.WAGE_DAILY
+    ) {
         val e = dao.findById(id) ?: return
         dao.update(
             e.copy(name = name.trim(), phone = phone.trim(), tag = tag.trim(),
-                memo = memo.trim(), updatedAt = System.currentTimeMillis())
+                memo = memo.trim(), wage = wage, wageType = wageType,
+                updatedAt = System.currentTimeMillis())
         )
     }
 
