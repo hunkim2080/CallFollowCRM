@@ -1851,3 +1851,11 @@ CREATE TABLE intake_forms (
 - AiBadge: 이미 그라데이션·border·padding·✨·"{업종} AI" 1:1 이었음. 빠졌던 ai-dot glow 링(box-shadow 0 0 0 3px rgba .16) 추가. dot 색은 서버상태(초록/빨강/주황) 유지(유용), 탭=서버상태 토스트(프로토 aiInfo 모달과 다름·실용 우선). → 현황판 ✅.
 - 더보기 메뉴 재배치(#5) 블로커 발견: 프로토 more 메뉴엔 팀관리(99k)·자동문자 허브·기본 네비 설정·알림 미리보기 등 앱에 화면 없는 항목 + 현재 settings 하단 진단카드(서버상태/토큰/말투RAG/기본SMS) 이동 결정 필요 → 죽은 메뉴 방지 위해 사장님 결정 후 진행. ONEONE_STATUS 다음액션 5.
 - 빌드 OK. DB 변경 없음. commit: (아래)
+
+## 2026-06-02 · android (14)
+더보기 "완전 깔끔하게" 재배치 (사장님 결정 — 프로토 s-more 메뉴만, 진단카드는 서브페이지로).
+- SettingsScreen 내부 subPage 상태 도입(BackHandler 포함, 자체 라우트 추가 없음). 더보기 본문 = 막내카드 + 프로토 5섹션 메뉴(함께 일하는 사람/장사 분석/내 답장 재료/앱 설정/도움말)만.
+- 인라인 진단/기능 카드 11종을 메뉴 탭→서브페이지로 이동: 내 말투 학습(OwnerTone+RAG+추천채택률+자동학습), 자동 문자(AfterCall+정기문자링크+수신알림), 기본 네비, 기본 문자앱, 알림 미리보기(진단), AI 서버 상태(서버+토큰).
+- 프로토 1:1: lockcard 42·radius13, sec-sub, tier-tag(프로=파랑/비즈니스=보라). 팀 관리=비즈니스 잠금(토스트). "비즈니스 리포트"→"상세 리포트". 자동문자가 정기문자+부재중+D-1 통합 진입점.
+- LockRow 에 tier/locked/subtitle-nullable 옵션 추가, TierTag 컴포저블 신설. import: graphicsLayer, BackHandler, AutoAwesome, Insights, Navigation, automirrored.Message.
+- 빌드: assembleDebug OK. DB 변경 없음. commit: (아래)

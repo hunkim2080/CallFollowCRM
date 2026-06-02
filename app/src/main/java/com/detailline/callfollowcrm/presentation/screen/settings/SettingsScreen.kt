@@ -14,6 +14,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.BorderStroke
@@ -41,8 +43,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.automirrored.filled.Message
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Insights
+import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Group
@@ -130,20 +136,34 @@ fun SettingsScreen(
         }
     }
 
+    // 프로토 더보기 = 깔끔한 메뉴만. 진단/기능 카드는 메뉴 탭 시 서브페이지로(자체 라우트 없이 내부 전환).
+    //   2026-06-02 사장님 결정("프로토처럼 완전 깔끔하게").
+    var subPage by remember { mutableStateOf<String?>(null) }
+    val subTitle = when (subPage) {
+        "tone" -> "내 말투 학습"
+        "autosms" -> "자동 문자"
+        "nav" -> "기본 네비 앱"
+        "smsapp" -> "기본 문자 앱"
+        "noti" -> "알림 미리보기"
+        "server" -> "AI 서버 상태"
+        else -> "더보기"
+    }
+    BackHandler(enabled = subPage != null) { subPage = null }
+
     Scaffold(
         containerColor = TossGrayBg,
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        "더보기",
+                        subTitle,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = TossTextPrimary
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = { if (subPage != null) subPage = null else onBack() }) {
                         Icon(Icons.Default.ArrowBack, "뒤로", tint = TossTextPrimary)
                     }
                 },
@@ -160,134 +180,147 @@ fun SettingsScreen(
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // 프로토 더보기 상단 — 막내 비서 카드 (agent-card). 레벨·말투%·상담/시공 = 실제 카운트.
-            val agentCard by viewModel.agentCard.collectAsState()
-            AgentMiniCard(card = agentCard)
+            if (subPage == null) {
+                // ══════════════ 프로토 s-more 메뉴 (1:1) ══════════════
+                // 막내 비서 카드 (agent-card) — 레벨·말투%·상담/시공 = 실제 카운트.
+                val agentCard by viewModel.agentCard.collectAsState()
+                AgentMiniCard(card = agentCard)
 
-            // 프로토 더보기 lockcard 그룹 — 주요 진입점 (아이콘 + 제목 + 부제 + 꺾쇠).
-            SettingsGroup("함께 일하는 사람") {
-                LockRow(Icons.Filled.Group, Color(0xFFFFF3DF), Color(0xFFF6A609), "수첩", "일당·알바 · 거래처 모아두기", onOpenNotebook)
-            }
-            SettingsGroup("장사 분석") {
-                LockRow(Icons.Filled.BarChart, TossBlueSoft, TossBlue, "비즈니스 리포트", "매출·시공·새 고객·미수금 한눈에", onOpenReport)
-            }
-            SettingsGroup("내 답장 재료") {
-                LockRow(Icons.AutoMirrored.Filled.Chat, TossBlueSoft, TossBlue, "문자 템플릿", "자주 쓰는 문구 관리", onOpenTemplates)
-                LockRow(Icons.Filled.Payments, TossBlueSoft, TossBlue, "가격표", "견적 작성에 쓰이는 항목", onOpenPricingItems)
-                LockRow(Icons.Filled.Description, TossBlueSoft, TossBlue, "견적서·사업자 정보", "상호·대표·사업자번호 · 견적서 자동 표시", onOpenBusinessInfo)
-                LockRow(Icons.AutoMirrored.Filled.Send, TossBlueSoft, TossBlue, "정기문자", "시공 후 안부·점검 문자 예약", onOpenRecurring)
-                LockRow(Icons.Filled.Category, TossBlueSoft, TossBlue, "내 업종", "업종에 맞춰 AI·가격표·시나리오", onOpenTradeSelect)
-            }
-
-            // 0. 기본 메시지 앱 — 2026-05-29 Phase A 2단계 Day 5 enable.
-            //    1단계 (자격 인프라) + 2단계 Day 1~4 (klinker 수신 + hook) 다 박혀서 이제 활성화 OK.
-            //    토글 ON → RoleManager 다이얼로그 → 사장님 동의 → default 됨.
-            //    수동 입력 (선택) = 자동 추출 실패 시 안전망.
-            DefaultSmsAppCard(preferences = container.preferences)
-
-            // 1. AI 서버 상태
-            ServerStatusCard(alive = serverAlive)
-
-            // 1.5 토큰 사용량 — 2026-05-27 사장님 결정: 진짜 토큰 낭비 파악용 모니터링.
-            //   서버 §12 endpoint 미구현 시 graceful fallback ("서버 모니터링 미구현" 표시).
-            val usageStatsResult by viewModel.usageStats.collectAsState()
-            val usageLoading by viewModel.usageLoading.collectAsState()
-            UsageStatsCard(
-                result = usageStatsResult,
-                loading = usageLoading,
-                onRefresh = { period ->
-                    viewModel.loadUsageStats(period)
-                }
-            )
-
-            // 2. 사장님 톤 학습 — RING-GO 정체성이라 상단 노출 (2026-05-25 사장님 결정).
-            OwnerToneCard(sampleCount = toneSampleCount)
-
-            // 2.05 Tone RAG (깊이 학습) — 2026-05-29 킬러콘텐츠 4단계.
-            //   사장님 sent SMS 풀 batch upload → Mac mini 임베딩 + sqlite-vec → prepare-reply RAG.
-            val toneRagConsented by viewModel.toneRagConsented.collectAsState()
-            val toneRagUploadedCount by viewModel.toneRagUploadedCount.collectAsState()
-            val toneRagLastUploadedAt by viewModel.toneRagLastUploadedAt.collectAsState()
-            val toneRagAvailable by viewModel.toneRagAvailable.collectAsState()
-            val toneRagUploading by viewModel.toneRagUploading.collectAsState()
-            val toneRagProgress by viewModel.toneRagProgress.collectAsState()
-            val toneRagEmbeddingsAvailable by viewModel.toneRagEmbeddingsAvailable.collectAsState()
-            OwnerToneRagCard(
-                consented = toneRagConsented,
-                uploadedCount = toneRagUploadedCount,
-                lastUploadedAtMs = toneRagLastUploadedAt,
-                available = toneRagAvailable,
-                inProgress = toneRagUploading,
-                progress = toneRagProgress,
-                embeddingsAvailable = toneRagEmbeddingsAvailable,
-                onConsentAndUpload = { viewModel.uploadOwnerTone(consentNow = true) },
-                onUpload = { viewModel.uploadOwnerTone(consentNow = false) }
-            )
-
-            // 2.1 추천 답변 채택률 — 2026-05-29 킬러콘텐츠 3단계 후속.
-            //   "수정 거리 0" 목표를 사장님이 직접 확인. 데이터 쌓일수록 RING-GO 가 진화하는 모습 시각화.
-            val suggestionStats by viewModel.suggestionStats.collectAsState()
-            val suggestionStatsPeriodDays by viewModel.suggestionStatsPeriodDays.collectAsState()
-            SuggestionStatsCard(
-                stats = suggestionStats,
-                periodDays = suggestionStatsPeriodDays,
-                onPeriodChange = { viewModel.loadSuggestionStats(it) }
-            )
-
-            // 2.15 자동 학습 루프 — 2026-05-29 킬러콘텐츠 6단계.
-            //   시나리오별 / intent 별 채택률 분석 → 개선 후보 자동 발견 → cowork 가 prompt 보강.
-            //   기간 = suggestionStatsPeriodDays 와 같은 값 동기 (loadSuggestionStats 가 같이 계산).
-            val scenarioBreakdown by viewModel.scenarioBreakdown.collectAsState()
-            val intentBreakdown by viewModel.intentBreakdown.collectAsState()
-            AutoLearningCard(
-                scenarios = scenarioBreakdown,
-                intents = intentBreakdown
-            )
-
-            // 2.5 수신 SMS 알림 — RING-GO 가 갤메시지 대체 (옵션 A, 2026-05-25)
-            IncomingSmsNotifyCard(
-                enabled = state.incomingSmsNotifyEnabled,
-                onToggle = viewModel::setIncomingSmsNotifyEnabled
-            )
-
-            // 2.55 기본 네비 앱 — 카드 펼침 [📍 길찾기] 가 사용 (2026-05-27).
-            //   카카오내비/네이버지도/티맵 3개. 첫 길찾기 탭 시 자동 다이얼로그도 띄움.
-            NavAppPreferenceCard(
-                selectedKey = state.defaultNavAppKey,
-                onSelect = viewModel::setDefaultNavApp
-            )
-
-            // 2.6 알림 진단 — 사장님 보고 (2026-05-25): RING-GO 알림이 안 뜬다.
-            //   권한/채널 상태 한눈에 + Fix 버튼.
-            NotificationDiagnosticCard()
-
-            // 3. 통화 종료 후 동작 — AfterCallBehavior + 후속 알림 빠른 액션 + 자동 응답 통합
-            AfterCallCard(
-                state = state,
-                templates = templates,
-                onBehaviorChange = viewModel::setBehavior,
-                onQuickActionChange = viewModel::setQuickAction,
-                onIncomingTemplateChange = viewModel::setIncomingTemplate,
-                onMissedTemplateChange = viewModel::setMissedTemplate,
-                onAutoReplyToggle = { wantOn ->
-                    if (wantOn) {
-                        val granted = ContextCompat.checkSelfPermission(
-                            context, Manifest.permission.SEND_SMS
-                        ) == PackageManager.PERMISSION_GRANTED
-                        if (granted) viewModel.setAutoFirstReplyEnabled(true)
-                        else sendSmsPermissionLauncher.launch(Manifest.permission.SEND_SMS)
-                    } else {
-                        viewModel.setAutoFirstReplyEnabled(false)
+                SettingsGroup("함께 일하는 사람") {
+                    LockRow(Icons.Filled.Group, Color(0xFFFFF3DF), Color(0xFFF6A609), "수첩",
+                        "일당·알바 · 거래처 — 자주 부르는 사람·업체 모아두기", onClick = onOpenNotebook)
+                    LockRow(Icons.Filled.Group, TossBlueSoft, TossBlue, "팀 관리",
+                        "팀원 초대 · 현장 배정 · 출발 알림", tier = "비즈니스", locked = true) {
+                        Toast.makeText(context, "팀 관리는 비즈니스 요금제 기능이에요. 곧 제공돼요!", Toast.LENGTH_SHORT).show()
                     }
                 }
-            )
+                SettingsGroup("장사 분석") {
+                    LockRow(Icons.Filled.BarChart, TossBlueSoft, TossBlue, "상세 리포트",
+                        "매출·전환율·추천 채택률 분석", tier = "비즈니스", onClick = onOpenReport)
+                }
+                SettingsGroup("내 답장 재료") {
+                    LockRow(Icons.AutoMirrored.Filled.Chat, TossBlueSoft, TossBlue, "문자 템플릿",
+                        "자주 쓰는 문구 관리", onClick = onOpenTemplates)
+                    LockRow(Icons.Filled.Payments, TossBlueSoft, TossBlue, "가격표",
+                        "견적 작성에 쓰이는 항목", onClick = onOpenPricingItems)
+                    LockRow(Icons.Filled.Description, TossBlueSoft, TossBlue, "견적서·사업자 정보",
+                        "상호·대표·사업자번호 · 견적서에 자동 표시", onClick = onOpenBusinessInfo)
+                    LockRow(Icons.AutoMirrored.Filled.Send, TossBlueSoft, TossBlue, "자동 문자",
+                        "부재중 응답 · 시공 D-1 · 도착 안내 · 정기 문자") { subPage = "autosms" }
+                    LockRow(Icons.Filled.AutoAwesome, Color(0xFFF1ECFF), Color(0xFF7C5CFC), "내 말투 학습",
+                        "나처럼 답하는 AI", tier = "프로") { subPage = "tone" }
+                }
+                SettingsGroup("앱 설정") {
+                    LockRow(Icons.Filled.Category, TossBlueSoft, TossBlue, "내 업종",
+                        "업종에 맞춰 AI·가격표·시나리오", onClick = onOpenTradeSelect)
+                    LockRow(Icons.Filled.Navigation, TossGrayBg, TossTextTertiary, "기본 네비 앱",
+                        "길찾기에 쓸 지도 앱") { subPage = "nav" }
+                    LockRow(Icons.AutoMirrored.Filled.Message, TossGrayBg, TossTextTertiary, "기본 문자 앱",
+                        "RING-GO 를 기본 문자앱으로") { subPage = "smsapp" }
+                    LockRow(Icons.Filled.Insights, TossGrayBg, TossTextTertiary, "AI 서버 상태",
+                        "연결 상태 · 토큰 사용량") { subPage = "server" }
+                }
+                SettingsGroup("도움말") {
+                    LockRow(Icons.AutoMirrored.Filled.Chat, TossGrayBg, TossTextTertiary, "알림 미리보기",
+                        "RING-GO 알림이 어떻게 오는지") { subPage = "noti" }
+                }
 
-            // (위 lockcard 그룹으로 이동됨 — 문자 템플릿/가격표/사업자정보/수첩/리포트/정기문자/내 업종)
-
-            // 앱 정보 footer
-            AppFooter()
-
-            Spacer(Modifier.height(16.dp))
+                AppFooter()
+                Spacer(Modifier.height(16.dp))
+            } else when (subPage) {
+                // ══════════════ 내 말투 학습 (프로) ══════════════
+                "tone" -> {
+                    OwnerToneCard(sampleCount = toneSampleCount)
+                    val toneRagConsented by viewModel.toneRagConsented.collectAsState()
+                    val toneRagUploadedCount by viewModel.toneRagUploadedCount.collectAsState()
+                    val toneRagLastUploadedAt by viewModel.toneRagLastUploadedAt.collectAsState()
+                    val toneRagAvailable by viewModel.toneRagAvailable.collectAsState()
+                    val toneRagUploading by viewModel.toneRagUploading.collectAsState()
+                    val toneRagProgress by viewModel.toneRagProgress.collectAsState()
+                    val toneRagEmbeddingsAvailable by viewModel.toneRagEmbeddingsAvailable.collectAsState()
+                    OwnerToneRagCard(
+                        consented = toneRagConsented,
+                        uploadedCount = toneRagUploadedCount,
+                        lastUploadedAtMs = toneRagLastUploadedAt,
+                        available = toneRagAvailable,
+                        inProgress = toneRagUploading,
+                        progress = toneRagProgress,
+                        embeddingsAvailable = toneRagEmbeddingsAvailable,
+                        onConsentAndUpload = { viewModel.uploadOwnerTone(consentNow = true) },
+                        onUpload = { viewModel.uploadOwnerTone(consentNow = false) }
+                    )
+                    val suggestionStats by viewModel.suggestionStats.collectAsState()
+                    val suggestionStatsPeriodDays by viewModel.suggestionStatsPeriodDays.collectAsState()
+                    SuggestionStatsCard(
+                        stats = suggestionStats,
+                        periodDays = suggestionStatsPeriodDays,
+                        onPeriodChange = { viewModel.loadSuggestionStats(it) }
+                    )
+                    val scenarioBreakdown by viewModel.scenarioBreakdown.collectAsState()
+                    val intentBreakdown by viewModel.intentBreakdown.collectAsState()
+                    AutoLearningCard(scenarios = scenarioBreakdown, intents = intentBreakdown)
+                    Spacer(Modifier.height(16.dp))
+                }
+                // ══════════════ 자동 문자 (부재중·D-1·도착·정기) ══════════════
+                "autosms" -> {
+                    AfterCallCard(
+                        state = state,
+                        templates = templates,
+                        onBehaviorChange = viewModel::setBehavior,
+                        onQuickActionChange = viewModel::setQuickAction,
+                        onIncomingTemplateChange = viewModel::setIncomingTemplate,
+                        onMissedTemplateChange = viewModel::setMissedTemplate,
+                        onAutoReplyToggle = { wantOn ->
+                            if (wantOn) {
+                                val granted = ContextCompat.checkSelfPermission(
+                                    context, Manifest.permission.SEND_SMS
+                                ) == PackageManager.PERMISSION_GRANTED
+                                if (granted) viewModel.setAutoFirstReplyEnabled(true)
+                                else sendSmsPermissionLauncher.launch(Manifest.permission.SEND_SMS)
+                            } else {
+                                viewModel.setAutoFirstReplyEnabled(false)
+                            }
+                        }
+                    )
+                    LockRow(Icons.AutoMirrored.Filled.Send, TossBlueSoft, TossBlue, "정기문자 예약",
+                        "시공 후 안부·점검 문자 예약", onClick = onOpenRecurring)
+                    IncomingSmsNotifyCard(
+                        enabled = state.incomingSmsNotifyEnabled,
+                        onToggle = viewModel::setIncomingSmsNotifyEnabled
+                    )
+                    Spacer(Modifier.height(16.dp))
+                }
+                // ══════════════ 기본 네비 앱 ══════════════
+                "nav" -> {
+                    NavAppPreferenceCard(
+                        selectedKey = state.defaultNavAppKey,
+                        onSelect = viewModel::setDefaultNavApp
+                    )
+                    Spacer(Modifier.height(16.dp))
+                }
+                // ══════════════ 기본 문자 앱 ══════════════
+                "smsapp" -> {
+                    DefaultSmsAppCard(preferences = container.preferences)
+                    Spacer(Modifier.height(16.dp))
+                }
+                // ══════════════ 알림 미리보기/진단 ══════════════
+                "noti" -> {
+                    NotificationDiagnosticCard()
+                    Spacer(Modifier.height(16.dp))
+                }
+                // ══════════════ AI 서버 상태 + 토큰 ══════════════
+                "server" -> {
+                    ServerStatusCard(alive = serverAlive)
+                    val usageStatsResult by viewModel.usageStats.collectAsState()
+                    val usageLoading by viewModel.usageLoading.collectAsState()
+                    UsageStatsCard(
+                        result = usageStatsResult,
+                        loading = usageLoading,
+                        onRefresh = { period -> viewModel.loadUsageStats(period) }
+                    )
+                    Spacer(Modifier.height(16.dp))
+                }
+            }
         }
     }
 }
@@ -2046,37 +2079,61 @@ private fun SettingsGroup(label: String, content: @Composable () -> Unit) {
     }
 }
 
-/** 프로토 .lockcard — 아이콘 박스 + 제목·부제 + 꺾쇠. */
+/**
+ * 프로토 .lockcard — 아이콘 박스(42·radius13) + 제목·부제 + 꺾쇠/티어태그.
+ *   tier: null=꺾쇠 / "프로"(파랑) / "비즈니스"(보라). locked=true → opacity .6.
+ */
 @Composable
 private fun LockRow(
     icon: ImageVector,
     iconBg: Color,
     iconTint: Color,
     title: String,
-    subtitle: String,
+    subtitle: String? = null,
+    tier: String? = null,
+    locked: Boolean = false,
     onClick: () -> Unit
 ) {
     Row(
         Modifier
             .fillMaxWidth()
-            .background(Color.White, RoundedCornerShape(14.dp))
+            .graphicsLayer { alpha = if (locked) 0.6f else 1f }
+            .background(Color.White, RoundedCornerShape(18.dp))
             .clickable(onClick = onClick)
-            .padding(14.dp),
+            .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            Modifier.size(38.dp).background(iconBg, RoundedCornerShape(11.dp)),
+            Modifier.size(42.dp).background(iconBg, RoundedCornerShape(13.dp)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, null, tint = iconTint, modifier = Modifier.size(19.dp))
+            Icon(icon, null, tint = iconTint, modifier = Modifier.size(21.dp))
         }
         Spacer(Modifier.width(13.dp))
         Column(Modifier.weight(1f)) {
             Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-            Spacer(Modifier.height(2.dp))
-            Text(subtitle, fontSize = 12.5.sp, color = TossTextSecondary)
+            if (!subtitle.isNullOrBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(subtitle, fontSize = 12.sp, color = TossTextTertiary)
+            }
         }
-        Icon(Icons.Filled.ChevronRight, null, tint = TossTextTertiary, modifier = Modifier.size(20.dp))
+        when (tier) {
+            "프로" -> TierTag("프로", TossBlue)
+            "비즈니스" -> TierTag("비즈니스", Color(0xFF7C5CFC))
+            else -> Icon(Icons.Filled.ChevronRight, null, tint = TossTextTertiary, modifier = Modifier.size(18.dp))
+        }
     }
+}
+
+/** 프로토 .tier-tag — 11px w800, padding 4x10, radius999. 프로=파랑/비즈니스=보라, 글자 흰색. */
+@Composable
+private fun TierTag(label: String, bg: Color) {
+    Text(
+        label,
+        color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold,
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp)).background(bg)
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+    )
 }
 
