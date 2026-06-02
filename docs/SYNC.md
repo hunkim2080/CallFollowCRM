@@ -1957,3 +1957,9 @@ CREATE TABLE intake_forms (
 - ScheduleAddScreen 전 필드(이름·전화·주소·총금액·계약금·일당·시공일 박스) sheet-input 으로 교체. FieldLabel→sheet-label.
 - 다음: 다른 폼(사업자정보·FollowUp·견적 등)도 SheetTextField 로 일괄 교체 예정.
 - 빌드 OK. commit: (아래)
+
+## 2026-06-02 · android (30)
+폼 입력창 sheet-input 전체 스윕 완료 (사장님: 입력창 전체적으로 1:1).
+- SheetTextField TextFieldValue 오버로드 추가(전화 progressive 포맷용). 멀티라인 minHeightDp.
+- 변환 완료 8화면: 일정등록·사업자정보·내업종·정기문자·수첩·후속처리(FollowUp)·문자템플릿·AI메시지. 전부 Material OutlinedTextField(흰 박스/플로팅 라벨) → 프로토 .sheet-input(회색+테두리)+.sheet-label.
+- 빌드 OK. commit: (아래)

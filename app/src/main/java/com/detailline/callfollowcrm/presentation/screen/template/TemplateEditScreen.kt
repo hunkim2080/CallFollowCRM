@@ -127,13 +127,10 @@ fun TemplateEditScreen(
                 Column {
                     SectionLabel("템플릿 이름")
                     Spacer(Modifier.height(10.dp))
-                    OutlinedTextField(
+                    com.detailline.callfollowcrm.presentation.component.SheetTextField(
                         value = state.title,
                         onValueChange = viewModel::setTitle,
-                        placeholder = { Text("예: 사진 요청", color = TossTextTertiary) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = tossFieldColors()
+                        placeholder = "예: 사진 요청"
                     )
                     Spacer(Modifier.height(6.dp))
                     Text(
@@ -149,12 +146,11 @@ fun TemplateEditScreen(
                 Column {
                     SectionLabel("문자 본문")
                     Spacer(Modifier.height(10.dp))
-                    OutlinedTextField(
+                    com.detailline.callfollowcrm.presentation.component.SheetTextField(
                         value = state.body,
                         onValueChange = viewModel::setBody,
-                        placeholder = { Text("문자에 자동 입력될 본문을 적어주세요", color = TossTextTertiary) },
-                        modifier = Modifier.fillMaxWidth().height(240.dp),
-                        colors = tossFieldColors()
+                        placeholder = "문자에 자동 입력될 본문을 적어주세요",
+                        singleLine = false, minHeightDp = 220
                     )
                 }
             }

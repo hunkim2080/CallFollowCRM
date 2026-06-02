@@ -72,19 +72,18 @@ fun AiMessageScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            OutlinedTextField(
-                value = state.customerPhone,
-                onValueChange = viewModel::onPhoneChange,
-                label = { Text("고객 번호") },
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = state.customerMessage,
-                onValueChange = viewModel::onMessageChange,
-                label = { Text("고객 문의") },
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 2
-            )
+            Column {
+                com.detailline.callfollowcrm.presentation.component.SheetFieldLabel("고객 번호")
+                com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                    state.customerPhone, viewModel::onPhoneChange, placeholder = "010-0000-0000",
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone)
+            }
+            Column {
+                com.detailline.callfollowcrm.presentation.component.SheetFieldLabel("고객 문의")
+                com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                    state.customerMessage, viewModel::onMessageChange, placeholder = "고객 문의 내용",
+                    singleLine = false, minHeightDp = 56)
+            }
             Button(onClick = viewModel::loadSuggestions, enabled = !state.loading) {
                 Text(if (state.loading) "생성 중..." else "답변 3개 생성")
             }
@@ -116,13 +115,12 @@ fun AiMessageScreen(
                 }
             }
 
-            OutlinedTextField(
-                value = state.selectedReply,
-                onValueChange = viewModel::onReplyEdit,
-                label = { Text("전송 전 편집") },
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 3
-            )
+            Column {
+                com.detailline.callfollowcrm.presentation.component.SheetFieldLabel("전송 전 편집")
+                com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                    state.selectedReply, viewModel::onReplyEdit, placeholder = "전송 전 편집",
+                    singleLine = false, minHeightDp = 76)
+            }
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Column {

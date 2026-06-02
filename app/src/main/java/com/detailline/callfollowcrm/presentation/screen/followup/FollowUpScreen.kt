@@ -259,11 +259,9 @@ fun FollowUpScreen(
                         }
                     }
                     Spacer(Modifier.height(4.dp))
-                    OutlinedTextField(
+                    com.detailline.callfollowcrm.presentation.component.SheetTextField(
                         value = phoneField,
                         onValueChange = { tfv ->
-                            // 입력 도중에도 하이픈 자동 추가. 포맷 적용 후 커서는 항상 맨 끝으로
-                            // 강제 (그렇지 않으면 끼워넣어진 '-' 뒤에 머물러 다음 입력이 잘못된 위치로 감).
                             val formatted = PhoneNumberFormatter.formatProgressive(tfv.text)
                             phoneField = androidx.compose.ui.text.input.TextFieldValue(
                                 text = formatted,
@@ -271,30 +269,17 @@ fun FollowUpScreen(
                             )
                             viewModel.setPhone(formatted)
                         },
-                        placeholder = { Text("010-1234-5678", color = TossTextTertiary) },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone),
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = tossFieldColors()
+                        placeholder = "010-1234-5678",
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone
                     )
 
                     // 이름 (선택) — 첫 통화 직후 사장님이 들은 이름을 바로 저장 가능.
-                    // 빈 값이면 기존 이름 보존 (CustomerRepository.upsertByPhone 에서 처리).
                     Spacer(Modifier.height(10.dp))
-                    Text(
-                        "이름 (선택)",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = TossTextSecondary,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    OutlinedTextField(
+                    com.detailline.callfollowcrm.presentation.component.SheetFieldLabel("이름 (선택)")
+                    com.detailline.callfollowcrm.presentation.component.SheetTextField(
                         value = state.customerName,
                         onValueChange = viewModel::setName,
-                        placeholder = { Text("김사장", color = TossTextTertiary) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = tossFieldColors()
+                        placeholder = "김사장"
                     )
 
                     // 첫 만난 날짜 — 옛 고객을 오늘 등록할 때 실제 첫 만난 날짜를 지정.
@@ -344,12 +329,11 @@ fun FollowUpScreen(
                         }
                     }
                     Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(
+                    com.detailline.callfollowcrm.presentation.component.SheetTextField(
                         value = state.messageBody,
                         onValueChange = viewModel::setBody,
-                        placeholder = { Text("문자 본문을 입력하거나 템플릿을 선택하세요", color = TossTextTertiary) },
-                        modifier = Modifier.fillMaxWidth().height(180.dp),
-                        colors = tossFieldColors()
+                        placeholder = "문자 본문을 입력하거나 템플릿을 선택하세요",
+                        singleLine = false, minHeightDp = 160
                     )
 
                     if (attachments.isNotEmpty()) {
@@ -389,12 +373,11 @@ fun FollowUpScreen(
                 Column {
                     SectionLabel("메모")
                     Spacer(Modifier.height(10.dp))
-                    OutlinedTextField(
+                    com.detailline.callfollowcrm.presentation.component.SheetTextField(
                         value = state.memo,
                         onValueChange = viewModel::setMemo,
-                        placeholder = { Text("이번 상담 메모를 적어두세요", color = TossTextTertiary) },
-                        modifier = Modifier.fillMaxWidth().height(120.dp),
-                        colors = tossFieldColors()
+                        placeholder = "이번 상담 메모를 적어두세요",
+                        singleLine = false, minHeightDp = 110
                     )
                 }
             }

@@ -230,6 +230,40 @@ fun SheetFieldLabel(text: String) {
     )
 }
 
+/** 프로토 .sheet-input 박스 modifier (공용). */
+private fun Modifier.sheetInputBox(minHeightDp: Int): Modifier = this
+    .fillMaxWidth()
+    .clip(RoundedCornerShape(12.dp))
+    .background(TossGrayBg)
+    .border(1.5.dp, TossDivider, RoundedCornerShape(12.dp))
+    .let { if (minHeightDp > 0) it.heightIn(min = minHeightDp.dp) else it }
+    .padding(horizontal = 14.dp, vertical = 13.dp)
+
+/** TextFieldValue 버전 — 커서 제어가 필요한 입력칸(전화번호 등)용. */
+@Composable
+fun SheetTextField(
+    value: androidx.compose.ui.text.input.TextFieldValue,
+    onValueChange: (androidx.compose.ui.text.input.TextFieldValue) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    keyboardType: KeyboardType = KeyboardType.Text,
+    singleLine: Boolean = true
+) {
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        textStyle = TextStyle(fontSize = 15.sp, color = TossTextPrimary),
+        cursorBrush = SolidColor(TossBlue),
+        singleLine = singleLine,
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        modifier = modifier.sheetInputBox(0),
+        decorationBox = { inner ->
+            if (value.text.isEmpty()) Text(placeholder, color = TossTextTertiary, fontSize = 15.sp)
+            inner()
+        }
+    )
+}
+
 /**
  * 프로토 .sheet-input — 폼 입력칸. 회색 채움 + 1.5dp 테두리 + radius12 + 15sp.
  *   Material OutlinedTextField(아웃라인/플로팅 라벨) 대체 — 프로토 폼 1:1.
