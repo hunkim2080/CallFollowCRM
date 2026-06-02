@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
@@ -195,7 +196,7 @@ fun CustomerDetailScreen(
             TopAppBar(
                 title = {
                     Text(
-                        "고객 상세",
+                        "고객 정보",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = TossTextPrimary
@@ -331,53 +332,58 @@ fun CustomerDetailScreen(
             val displayAddr = manualAddress ?: extractedAddress
             var showAddressDialog by remember { mutableStateOf(false) }
 
-            TossCard(onClick = { showAddressDialog = true }) {
-                androidx.compose.foundation.layout.Row(
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            if (displayAddr != null) {
+                // 프로토 .addr-card — 그라데이션 + 주소 + [길찾기 시작] 큰 파란 버튼.
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                        .background(Brush.linearGradient(listOf(Color(0xFFF5F9FF), Color.White)))
+                        .border(1.5.dp, Color(0xFFE2EDFD), RoundedCornerShape(18.dp))
+                        .clickable { showAddressDialog = true }
+                        .padding(17.dp)
                 ) {
-                    Text("📍", fontSize = 22.sp)
-                    Spacer(Modifier.width(10.dp))
-                    Column(modifier = Modifier.weight(1f)) {
+                    androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Text("📍", fontSize = 13.sp)
+                        Spacer(Modifier.width(6.dp))
                         Text(
-                            "현장 주소",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = TossTextTertiary
+                            "현장 주소" + (if (c.scheduledWorkDate != null) " · 예약 고객" else ""),
+                            fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
                         )
-                        Spacer(Modifier.height(2.dp))
-                        if (displayAddr != null) {
-                            Text(
-                                displayAddr,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = TossTextPrimary,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            if (manualAddress == null) {
-                                Spacer(Modifier.height(2.dp))
-                                Text(
-                                    "메시지에서 자동 인식 · 탭해서 확정/수정",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = TossTextTertiary
-                                )
-                            }
-                        } else {
-                            Text(
-                                "아직 등록된 주소가 없어요",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TossTextSecondary
-                            )
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                "탭해서 직접 등록하거나, 고객 메시지에 주소가 있으면 자동 채워져요.",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = TossTextTertiary
-                            )
+                        Spacer(Modifier.weight(1f))
+                        Text(if (manualAddress != null) "✏️" else "＋", fontSize = 14.sp, color = TossBlue)
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(displayAddr, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, lineHeight = 22.sp)
+                    if (manualAddress == null) {
+                        Spacer(Modifier.height(3.dp))
+                        Text("메시지에서 자동 인식 · 탭해서 확정/수정", fontSize = 11.sp, color = TossTextTertiary)
+                    }
+                    androidx.compose.foundation.layout.Box(
+                        Modifier.fillMaxWidth().padding(top = 14.dp).clip(RoundedCornerShape(13.dp))
+                            .background(TossBlue).clickable { startNavToAddress(ctx, displayAddr) }.padding(vertical = 13.dp),
+                        contentAlignment = androidx.compose.ui.Alignment.Center
+                    ) {
+                        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            androidx.compose.material3.Icon(Icons.Default.Navigation, null, tint = Color.White, modifier = Modifier.size(17.dp))
+                            Spacer(Modifier.width(7.dp))
+                            Text("길찾기 시작", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         }
                     }
-                    Text(
-                        if (manualAddress != null) "✏️" else "＋",
-                        fontSize = 16.sp,
-                        color = TossBlue
-                    )
+                }
+            } else {
+                TossCard(onClick = { showAddressDialog = true }) {
+                    androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Text("📍", fontSize = 22.sp)
+                        Spacer(Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("현장 주소", style = MaterialTheme.typography.labelSmall, color = TossTextTertiary)
+                            Spacer(Modifier.height(2.dp))
+                            Text("아직 주소가 없어요 · 상담 단계예요", style = MaterialTheme.typography.bodyMedium, color = TossTextSecondary)
+                            Spacer(Modifier.height(2.dp))
+                            Text("탭해서 직접 등록하거나, 고객 메시지에 주소가 있으면 자동 채워져요.",
+                                style = MaterialTheme.typography.labelSmall, color = TossTextTertiary)
+                        }
+                        Text("＋", fontSize = 16.sp, color = TossBlue)
+                    }
                 }
             }
 
@@ -415,12 +421,7 @@ fun CustomerDetailScreen(
                             androidx.compose.foundation.layout.Row(
                                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                             ) {
-                                Text(
-                                    "✨ 대화 요약",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = TossBlue,
-                                    fontWeight = FontWeight.SemiBold
-                                )
+                                Text("💬 대화 요약", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
                                 if (s.latestMessageTimestampMs > 0) {
                                     Text(
                                         " · ${com.detailline.callfollowcrm.util.DateTimeUtils.formatShort(s.latestMessageTimestampMs)} 까지",
@@ -1076,34 +1077,30 @@ private fun ImageThumbnailRow(uris: List<android.net.Uri>, onTap: (android.net.U
  */
 @Composable
 private fun PersonaCard(persona: com.detailline.callfollowcrm.ai.CustomerPersona) {
-    TossCard {
-        Column {
+    // 프로토 .persona-card — 연한 파란 그라데이션 + 테두리 + ✨ 고객 페르소나 + [AI 분석] 칩.
+    Column(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Brush.verticalGradient(listOf(Color(0xFFF5F9FF), Color.White)))
+            .border(1.dp, Color(0xFFE6EEFB), RoundedCornerShape(18.dp))
+            .padding(17.dp)
+    ) {
+        run {
             androidx.compose.foundation.layout.Row(
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
             ) {
-                Text("🧠", fontSize = 16.sp)
+                Text("✨", fontSize = 13.sp)
                 Spacer(Modifier.width(6.dp))
-                Text(
-                    "고객 페르소나",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = TossBlue,
-                    fontWeight = FontWeight.SemiBold
-                )
-                if (persona.generatedAtMs > 0) {
-                    Text(
-                        " · ${com.detailline.callfollowcrm.util.DateTimeUtils.formatShort(persona.generatedAtMs)}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = TossTextTertiary
-                    )
-                }
+                Text("고객 페르소나", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
                 if (persona.stale) {
                     Spacer(Modifier.width(6.dp))
-                    Text(
-                        "· 갱신 중",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = TossBlue
-                    )
+                    Text("· 갱신 중", fontSize = 11.sp, color = TossBlue)
                 }
+                Spacer(Modifier.weight(1f))
+                Text(
+                    "AI 분석", color = TossBlue, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFEEF4FF)).padding(horizontal = 8.dp, vertical = 2.dp)
+                )
             }
             Spacer(Modifier.height(10.dp))
             if (!persona.personaText.isNullOrBlank()) {
@@ -1482,6 +1479,16 @@ private fun AmountInputDialog(title: String, initialWon: Long, onSave: (Long) ->
                 TossPrimaryButton(text = "저장", onClick = { onSave((text.toLongOrNull() ?: 0L) * 10000L) }, modifier = Modifier.weight(1f))
             }
         }
+    }
+}
+
+/** 주소로 지도 앱 길찾기 — geo: 쿼리. 설치된 지도 앱(카카오내비/구글지도 등) 선택. */
+private fun startNavToAddress(context: android.content.Context, address: String) {
+    runCatching {
+        val uri = android.net.Uri.parse("geo:0,0?q=" + android.net.Uri.encode(address))
+        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri))
+    }.onFailure {
+        android.widget.Toast.makeText(context, "지도 앱을 열 수 없어요", android.widget.Toast.LENGTH_SHORT).show()
     }
 }
 
