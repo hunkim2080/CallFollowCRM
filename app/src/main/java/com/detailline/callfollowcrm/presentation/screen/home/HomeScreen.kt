@@ -930,15 +930,19 @@ private fun CompletionDialog(
     val subtitle = if (hasBal) "$name · 잔금 ${won}원" else "$name · 정산 완료"
 
     // 프로토 .modal-card — left/right 18, top 50% translateY(-50%) = 좌우 18 여백 + 세로 정중앙.
-    //   usePlatformDefaultWidth=false 로 플랫폼 기본 좁은 너비 해제 → 프로토처럼 넓은 카드.
+    //   usePlatformDefaultWidth=false 로 좁은 기본 너비 해제 후, 전체화면 Box 로 명시적 가운데 정렬
+    //   (안 그러면 세로 정렬이 풀려 바닥에 깔림).
     androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
     ) {
+      Box(
+          Modifier.fillMaxSize().padding(horizontal = 18.dp),
+          contentAlignment = Alignment.Center
+      ) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 18.dp)
                 .clip(RoundedCornerShape(20.dp))
                 .background(Color.White)
                 .padding(20.dp)
@@ -976,6 +980,7 @@ private fun CompletionDialog(
                 ) { Text("후기 요청도 함께 보내기", color = TossTextTertiary, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold) }
             }
         }
+      } // end center Box
     }
 }
 

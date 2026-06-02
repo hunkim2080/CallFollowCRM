@@ -1884,3 +1884,7 @@ CREATE TABLE intake_forms (
 시공 완료 팝업 위치 프로토 .modal-card 1:1 (사장님 요청 — 위치도 동일하게).
 - Dialog usePlatformDefaultWidth=false + 좌우 18dp 여백 → 프로토 left/right:18px·세로 정중앙·넓은 카드. (기본 플랫폼 좁은 너비 해제)
 - 빌드 OK. DB 변경 없음. commit: (아래)
+
+## 2026-06-02 · android (19)
+시공 완료 팝업 세로 정렬 fix — usePlatformDefaultWidth=false 후 바닥에 깔리던 것, 전체화면 Box(contentAlignment=Center)로 감싸 프로토처럼 정중앙.
+- 빌드 OK. commit: (아래)
