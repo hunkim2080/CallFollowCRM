@@ -1,6 +1,8 @@
 package com.detailline.callfollowcrm.presentation.screen.template
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -120,14 +122,36 @@ fun TemplateListScreen(
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    // 프로토 info-note — 채팅·자동문자에서 불러 쓰는 문구 설명.
+                    item(key = "info-note") {
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(TossBlueSoft)
+                                .padding(horizontal = 14.dp, vertical = 13.dp),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Text("💬", fontSize = 13.sp)
+                            Spacer(Modifier.padding(3.dp))
+                            Text(
+                                "채팅·자동문자에서 불러 쓰는 문구예요. 끄면 목록에 안 떠요.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TossBlue,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
                     items(templates) { t ->
+                        // 프로토: 꺼진 템플릿은 제목·본문을 흐리게(opacity .5).
+                        val dim = if (t.isActive) 1f else 0.5f
                         TossCard(onClick = { onEdit(t.id) }) {
                             Column {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
                                         t.title,
                                         style = MaterialTheme.typography.titleLarge,
-                                        color = TossTextPrimary,
+                                        color = TossTextPrimary.copy(alpha = dim),
                                         modifier = Modifier.weight(1f)
                                     )
                                     if (t.isDefault) {
@@ -148,10 +172,10 @@ fun TemplateListScreen(
                                 }
                                 Spacer(Modifier.height(6.dp))
                                 Text(
-                                    t.body.lineSequence().firstOrNull().orEmpty(),
+                                    t.body,
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = TossTextSecondary,
-                                    maxLines = 2
+                                    color = TossTextSecondary.copy(alpha = dim),
+                                    maxLines = 4
                                 )
                                 Spacer(Modifier.height(4.dp))
                                 Text(

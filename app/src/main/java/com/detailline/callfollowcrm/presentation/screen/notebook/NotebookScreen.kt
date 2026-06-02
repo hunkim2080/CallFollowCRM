@@ -391,7 +391,7 @@ private fun ActionPill(label: String, color: Color, onClick: () -> Unit) {
 }
 
 private val WORKER_TAGS = listOf("줄눈", "실리콘", "코킹", "타일", "도배", "목공", "전기", "설비", "철거", "보조", "운전")
-private val VENDOR_TAGS = listOf("자재", "협력", "장비")
+private val VENDOR_TAGS = listOf("자재", "협력", "장비", "운송", "기타")
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

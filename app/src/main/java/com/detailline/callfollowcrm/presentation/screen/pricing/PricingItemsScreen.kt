@@ -330,6 +330,11 @@ private fun PricingItemEditDialog(
         title = { Text(title, color = TossTextPrimary, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                // 프로토 sh-sub
+                Text(
+                    "AI 견적에 이 단가가 자동 반영돼요.",
+                    fontSize = 12.5.sp, color = TossTextTertiary
+                )
                 LabeledField(label = "항목명") {
                     InputBox(
                         value = titleInput,
@@ -345,19 +350,29 @@ private fun PricingItemEditDialog(
                         keyboardType = KeyboardType.Number
                     )
                 }
-                LabeledField(label = "단위") {
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        CategoryChip(
-                            label = "정액 (한 건)",
-                            selected = unit == PricingItemEntity.UNIT_FLAT,
-                            onClick = { unit = PricingItemEntity.UNIT_FLAT },
-                            modifier = Modifier.weight(1f)
-                        )
-                        CategoryChip(
-                            label = "평당",
-                            selected = unit == PricingItemEntity.UNIT_PYEONG,
-                            onClick = { unit = PricingItemEntity.UNIT_PYEONG },
-                            modifier = Modifier.weight(1f)
+                LabeledField(label = "계산 방식") {
+                    Column {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            CategoryChip(
+                                label = "정액 (한 건)",
+                                selected = unit == PricingItemEntity.UNIT_FLAT,
+                                onClick = { unit = PricingItemEntity.UNIT_FLAT },
+                                modifier = Modifier.weight(1f)
+                            )
+                            CategoryChip(
+                                label = "평당",
+                                selected = unit == PricingItemEntity.UNIT_PYEONG,
+                                onClick = { unit = PricingItemEntity.UNIT_PYEONG },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        // 프로토 wk-cat-hint — 계산 방식 설명.
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            if (unit == PricingItemEntity.UNIT_PYEONG)
+                                "평당 단가예요. 견적 만들 때 평수를 곱해 자동 계산돼요."
+                            else "한 건에 정해진 금액이에요.",
+                            fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp
                         )
                     }
                 }

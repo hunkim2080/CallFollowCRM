@@ -506,6 +506,21 @@ fun CustomerDetailScreen(
                 }
             }
 
+            // 메모 카드 — 프로토 순서: 대화요약 → 메모 → 일정 · 정산 (2026-06-03 프로토대로 이동).
+            TossCard {
+                Column {
+                    SectionLabel("메모")
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = memoInput,
+                        onValueChange = { memoInput = it },
+                        placeholder = { Text("현관 비번·주의사항·고객 특징 등을 메모해두세요", color = TossTextTertiary) },
+                        modifier = Modifier.fillMaxWidth().height(140.dp),
+                        colors = tossFieldColors()
+                    )
+                }
+            }
+
             // 2. 프로토 "일정 · 정산" 카드 (사장님 결정 2026-06-02: 프로토 단순화).
             //    데이터(예약일·금액·계약금/잔금)는 그대로, UI 만 프로토 단순형(시공예약+총금액+계약금/잔금 상태+확인).
             run {
@@ -580,21 +595,7 @@ fun CustomerDetailScreen(
             }
 
             // (입금 카드는 위 "일정 · 정산" 카드로 통합됨 — 2026-06-02 사장님 결정.)
-
-            // 4. 메모 카드
-            TossCard {
-                Column {
-                    SectionLabel("메모")
-                    Spacer(Modifier.height(10.dp))
-                    OutlinedTextField(
-                        value = memoInput,
-                        onValueChange = { memoInput = it },
-                        placeholder = { Text("현관 비번·주의사항·고객 특징 등을 메모해두세요", color = TossTextTertiary) },
-                        modifier = Modifier.fillMaxWidth().height(140.dp),
-                        colors = tossFieldColors()
-                    )
-                }
-            }
+            // (메모 카드는 프로토 순서대로 "일정 · 정산" 위로 이동 — 2026-06-03.)
 
             // 4. 옛 "문자" 카드 제거 (2026-05-28 사장님 보고):
             //    "📩 주고받은 문자" 접이식 섹션이 대화요약 아래로 올라옴 → 여기 중복.
