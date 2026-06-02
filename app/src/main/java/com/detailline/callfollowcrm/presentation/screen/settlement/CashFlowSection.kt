@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -41,7 +42,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -100,22 +105,24 @@ fun CashFlowCard(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // 프로토 renderCashCal 순서: 달력 → 범례 → 순이익(cc-foot 맨 아래). 순이익을 위에 두지 않음.
+        // 프로토 cc 카드 — 하나의 카드 안에: 달력(금액) → 점선 직접기록 → 범례 2×2 → 순이익 2줄 → 단위안내.
         CashCalendar(
             monthAnchor = monthAnchor,
             byDay = byDay,
+            monthAgg = monthAgg,
             todayStart = todayStart,
             selectedDay = selectedDay,
             onPrev = { monthAnchor = shiftMonthMs(monthAnchor, -1) },
             onNext = { monthAnchor = shiftMonthMs(monthAnchor, +1) },
-            onSelect = { selectedDay = it }
+            onSelect = { selectedDay = it },
+            onAddRecord = { showAddFor = selectedDay ?: todayStart }
         )
-        CashLegend()
-        MonthSummaryCard(monthAgg)
-        DayHeader(
-            dayMs = selectedDay,
-            isToday = selectedDay == todayStart,
-            onAdd = { selectedDay?.let { showAddFor = it } }
+        // 선택한 날 상세 (카드 밖)
+        Text(
+            (selectedDay?.let { DateTimeUtils.formatKoreanDate(it) } ?: "날짜 선택") +
+                (if (selectedDay == todayStart) " · 오늘" else ""),
+            style = MaterialTheme.typography.titleMedium, color = TossTextPrimary,
+            fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp, start = 2.dp)
         )
         if (dayItems.isEmpty()) {
             Box(
@@ -150,46 +157,16 @@ fun CashFlowCard(
 }
 
 @Composable
-private fun MonthSummaryCard(agg: CashDayAgg) {
-    TossCard {
-        Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("확정 순이익 (실현)", style = MaterialTheme.typography.labelMedium, color = TossTextSecondary)
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        signedWon(agg.netDone),
-                        fontSize = 22.sp, fontWeight = FontWeight.Bold,
-                        color = if (agg.netDone >= 0) CashIn else CashOut
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text("이미 받은 돈 − 이미 낸 돈", style = MaterialTheme.typography.labelSmall, color = TossTextTertiary)
-                }
-                Column(Modifier.weight(1f)) {
-                    Text("예상 순이익 (추정)", style = MaterialTheme.typography.labelMedium, color = TossTextSecondary)
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        signedWon(agg.netPlanned),
-                        fontSize = 22.sp, fontWeight = FontWeight.Bold,
-                        color = TossTextTertiary
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text("들어올·나갈 예정까지 반영", style = MaterialTheme.typography.labelSmall, color = TossTextTertiary)
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun CashCalendar(
     monthAnchor: Long,
     byDay: Map<Long, List<CashItem>>,
+    monthAgg: CashDayAgg,
     todayStart: Long,
     selectedDay: Long?,
     onPrev: () -> Unit,
     onNext: () -> Unit,
-    onSelect: (Long) -> Unit
+    onSelect: (Long) -> Unit,
+    onAddRecord: () -> Unit
 ) {
     TossCard(contentPadding = PaddingValues(8.dp)) {
         Column {
@@ -235,13 +212,81 @@ private fun CashCalendar(
                     }
                 }
             }
+            // 프로토 cc-add — 점선 직접기록 버튼
+            Spacer(Modifier.height(10.dp))
+            DashedRecordButton(onClick = onAddRecord)
+            // 프로토 cc-legend — 2×2 그리드
+            Spacer(Modifier.height(12.dp))
+            CashLegend()
+            // 프로토 cc-foot — 순이익 2줄 (만원)
+            Spacer(Modifier.height(14.dp))
+            MonthSummaryRows(monthAgg)
             // 프로토 cc-unit
+            Spacer(Modifier.height(10.dp))
             Text(
-                "날짜를 탭하면 그 날 들어오고 나간 내역을 봐요 · 꾹 누르면 그 날 기록 추가",
+                "단위: 만원 · 날짜 탭=내역 보기 · 꾹 누르면 그 날 기록 추가",
                 style = MaterialTheme.typography.labelSmall, color = TossTextTertiary,
-                modifier = Modifier.padding(start = 6.dp, top = 6.dp, bottom = 2.dp)
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 2.dp)
             )
         }
+    }
+}
+
+/** 프로토 cc-add — 점선 테두리 "자재·장비 등 직접 기록" 버튼. */
+@Composable
+private fun DashedRecordButton(onClick: () -> Unit) {
+    val border = TossDivider
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .drawBehind {
+                drawRoundRect(
+                    color = border,
+                    style = Stroke(
+                        width = 1.2.dp.toPx(),
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(11f, 8f), 0f)
+                    ),
+                    cornerRadius = CornerRadius(12.dp.toPx(), 12.dp.toPx())
+                )
+            }
+            .padding(vertical = 13.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Add, null, tint = TossTextSecondary, modifier = Modifier.size(15.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("자재·장비 등 들어온·나간 돈 직접 기록", color = TossTextSecondary,
+                fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+/** 프로토 cc-foot — 순이익 2줄(라벨+부제 왼쪽, 값 만원 오른쪽). */
+@Composable
+private fun MonthSummaryRows(agg: CashDayAgg) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        SummaryRow(
+            "확정 순이익 (실현)", "이미 받은 돈 − 이미 낸 돈",
+            signedManwon(agg.netDone), if (agg.netDone >= 0) CashIn else CashOut
+        )
+        SummaryRow(
+            "예상 순이익 (추정)", "들어올·나갈 예정까지 반영",
+            signedManwon(agg.netPlanned), TossTextSecondary
+        )
+    }
+}
+
+@Composable
+private fun SummaryRow(title: String, sub: String, value: String, valueColor: Color) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 13.sp, color = TossTextSecondary, fontWeight = FontWeight.SemiBold)
+            Text(sub, fontSize = 11.sp, color = TossTextTertiary)
+        }
+        Text(value, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = valueColor)
     }
 }
 
@@ -261,90 +306,62 @@ private fun CashDayCell(cell: CashCell, isSelected: Boolean, onClick: () -> Unit
     }
     Box(
         modifier = modifier
-            .aspectRatio(0.92f)
             .padding(2.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(bg)
-            .clickable { onClick() },
+            .clickable { onClick() }
+            .heightIn(min = 44.dp)
+            .padding(top = 4.dp, bottom = 3.dp),
         contentAlignment = Alignment.TopCenter
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(top = 4.dp)) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 cell.dayOfMonth.toString(),
                 color = fg, fontSize = 13.sp,
                 fontWeight = if (cell.isToday || isSelected) FontWeight.Bold else FontWeight.Medium
             )
-            Spacer(Modifier.height(2.dp))
-            // 수입 바 (있으면) — 확정 우선 진파랑, 예정만 있으면 연파랑
-            CashBar(
-                show = cell.agg.inDone > 0 || cell.agg.inPlan > 0,
-                color = if (cell.agg.inDone > 0) CashIn else CashInPlan
-            )
-            Spacer(Modifier.height(1.dp))
-            CashBar(
-                show = cell.agg.outDone > 0 || cell.agg.outPlan > 0,
-                color = if (cell.agg.outDone > 0) CashOut else CashOutPlan
-            )
+            // 프로토 cc-in/inp/out/outp — 만원 금액 (확정/예정, 색)
+            val a = cell.agg
+            if (a.inDone > 0) CashAmt("+${man(a.inDone)}", CashIn)
+            if (a.inPlan > 0) CashAmt("+${man(a.inPlan)}", CashInPlan)
+            if (a.outDone > 0) CashAmt("−${man(a.outDone)}", CashOut)
+            if (a.outPlan > 0) CashAmt("−${man(a.outPlan)}", CashOutPlan)
         }
     }
 }
 
 @Composable
-private fun CashBar(show: Boolean, color: Color) {
-    if (!show) { Spacer(Modifier.height(4.dp)); return }
-    Box(
-        Modifier
-            .width(16.dp).height(4.dp)
-            .clip(RoundedCornerShape(2.dp))
-            .background(color)
-    )
+private fun CashAmt(text: String, color: Color) {
+    Text(text, color = color, fontSize = 9.5.sp, fontWeight = FontWeight.Bold,
+        maxLines = 1, modifier = Modifier.padding(top = 1.dp))
 }
+
+/** 원 → 만원(반올림) 문자열 (달력 셀·순이익 단위 표시용). */
+private fun man(won: Long): String = Math.round(won / 10000.0).toString()
 
 @Composable
 private fun CashLegend() {
-    Row(
+    Column(
         Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        LegendDot(CashIn, "들어온(받음)")
-        LegendDot(CashInPlan, "들어올(예정)")
-        LegendDot(CashOut, "나간(냄)")
-        LegendDot(CashOutPlan, "나갈(예정)")
+        Row(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+            LegendDot(CashIn, "들어온(받음)", Modifier.weight(1f))
+            LegendDot(CashInPlan, "들어올(예정)", Modifier.weight(1f))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+            LegendDot(CashOut, "나간(냄)", Modifier.weight(1f))
+            LegendDot(CashOutPlan, "나갈(예정)", Modifier.weight(1f))
+        }
     }
 }
 
 @Composable
-private fun LegendDot(color: Color, label: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+private fun LegendDot(color: Color, label: String, modifier: Modifier = Modifier) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(8.dp).clip(CircleShape).background(color))
         Spacer(Modifier.width(4.dp))
         Text(label, style = MaterialTheme.typography.labelSmall, color = TossTextSecondary)
-    }
-}
-
-@Composable
-private fun DayHeader(dayMs: Long?, isToday: Boolean, onAdd: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().padding(top = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            (dayMs?.let { DateTimeUtils.formatKoreanDate(it) } ?: "날짜 선택") + (if (isToday) " · 오늘" else ""),
-            style = MaterialTheme.typography.titleMedium, color = TossTextPrimary,
-            fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f)
-        )
-        Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(999.dp))
-                .background(TossBlue)
-                .clickable { onAdd() }
-                .padding(horizontal = 12.dp, vertical = 7.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(Icons.Default.Add, null, tint = Color.White, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(4.dp))
-            Text("직접 기록", color = Color.White, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-        }
     }
 }
 
@@ -499,6 +516,8 @@ private fun ToggleHalf(label: String, selected: Boolean, color: Color, onClick: 
 }
 
 private fun signedWon(v: Long): String = (if (v >= 0) "+" else "−") + MoneyFormatter.won(kotlin.math.abs(v))
+
+private fun signedManwon(v: Long): String = (if (v >= 0) "+" else "−") + man(kotlin.math.abs(v)) + "만원"
 
 // ── 달력 데이터 ──────────────────────────────────────────────
 private data class CashCell(
