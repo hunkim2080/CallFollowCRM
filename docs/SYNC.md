@@ -1895,3 +1895,10 @@ CREATE TABLE intake_forms (
 - fix: CallRecordDao.observeInboundSince(callType IN INCOMING/MISSED/REJECTED) 추가 + repo 노출. HomeViewModel inboundRecent 신설 → today/yesterday 신규 카운트가 missedRecent→inboundRecent 사용. (미확인 KPI 는 missedRecent 유지 = 받은 전화는 이미 응대라 미확인 아님.)
 - 남는 설계: "신규"=처음 연락온 새 번호만(부제 "새 번호 기준"). 전에 연락온 번호는 제외 — 의도된 동작. OUTGOING(사장님 발신)도 제외.
 - 빌드 OK. DB 스키마 변경 없음(쿼리만). commit: (아래)
+
+## 2026-06-02 · android (21)
+상담함 "최근 대화" 프로토 recent-row 1:1 (사장님 스샷 피드백).
+- 시각: 절대(6/2 20:59) → 상대(오늘/어제/N일 전/M/d) — recentTimeLabel.
+- 태그: 카테고리(시공 대기) → 프로토 상태태그(시공 D-N 파랑/계약금 초록/완료 회색) — recentStatusTag(고객 scheduledWorkDate/depositPaidAt/balancePaidAt 파생). 견적발송 amber 는 이력 필요 → 후속.
+- 레이아웃: 낱개 흰 카드 → 한 흰 카드 안 줄들 + 구분선(프로토 recent-row + border-top). RecentRow 에서 카드 bg 제거.
+- 빌드 OK. DB 변경 없음. commit: (아래)

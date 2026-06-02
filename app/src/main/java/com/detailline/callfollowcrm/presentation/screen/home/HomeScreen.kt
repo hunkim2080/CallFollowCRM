@@ -618,24 +618,29 @@ fun HomeScreen(
                     }
                 }
 
-                // 최근 대화 — sec-sub + recent-row (flat, 날짜 그룹 없음, 아바타).
+                // 최근 대화 — 프로토 recent-row: 한 흰 카드 안 줄들 + 구분선(낱개 카드 X).
                 if (recent.isNotEmpty()) {
                     item(key = "recent-head") { SecSub("최근 대화") }
-                    itemsIndexed(
-                        recent,
-                        key = { _, it -> "recent-${it.record.id}-${it.record.phoneNumber}" }
-                    ) { index, item ->
-                        val suffix = item.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8)
-                        val rowCategory = item.customer?.categoryId?.let { cid ->
-                            categoriesById.firstOrNull { it.id == cid }
+                    item(key = "recent-card") {
+                        Column(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White)
+                        ) {
+                            recent.forEachIndexed { index, rItem ->
+                                if (index > 0) {
+                                    Box(
+                                        Modifier.fillMaxWidth().padding(start = 16.dp)
+                                            .height(1.dp).background(TossDivider)
+                                    )
+                                }
+                                val suffix = rItem.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8)
+                                RecentRow(
+                                    item = rItem,
+                                    index = index,
+                                    aiSummary = aiCardSummaries[suffix],
+                                    onOpenChat = { onOpenChat(rItem.record.phoneNumber, rItem.customer?.id) }
+                                )
+                            }
                         }
-                        RecentRow(
-                            item = item,
-                            index = index,
-                            aiSummary = aiCardSummaries[suffix],
-                            category = rowCategory,
-                            onOpenChat = { onOpenChat(item.record.phoneNumber, item.customer?.id) }
-                        )
                     }
                 }
 
@@ -2141,18 +2146,16 @@ private fun RecentRow(
     item: HomeItem,
     index: Int,
     aiSummary: String?,
-    category: com.detailline.callfollowcrm.data.local.entity.CategoryEntity?,
     onOpenChat: () -> Unit
 ) {
     val name = item.customer?.name?.takeIf { it.isNotBlank() }
     val title = name ?: PhoneNumberFormatter.format(item.record.phoneNumber)
+    val tag = recentStatusTag(item.customer)   // 프로토 .tag — 시공 D-N/계약금/완료
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(Color.White)
             .clickable { onOpenChat() }
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Avatar(name, index)
@@ -2164,21 +2167,56 @@ private fun RecentRow(
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false)
                 )
-                if (category != null) {
+                if (tag != null) {
                     Spacer(Modifier.width(7.dp))
-                    val display = if (category.emoji != null) "${category.emoji} ${category.name}" else category.name
-                    Box(Modifier.background(Color(0xFFEAF2FE), RoundedCornerShape(7.dp)).padding(horizontal = 8.dp, vertical = 3.dp)) {
-                        Text(display, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                    Box(Modifier.clip(RoundedCornerShape(7.dp)).background(tag.bg).padding(horizontal = 8.dp, vertical = 3.dp)) {
+                        Text(tag.text, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = tag.fg)
                     }
                 }
                 Spacer(Modifier.weight(1f))
-                Text(DateTimeUtils.formatShort(item.record.endedAt), fontSize = 11.sp, color = TossTextTertiary)
+                Text(recentTimeLabel(item.record.endedAt), fontSize = 11.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
             }
             if (!aiSummary.isNullOrBlank()) {
                 Spacer(Modifier.height(3.dp))
                 Text(aiSummary, fontSize = 13.sp, color = TossTextSecondary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             }
         }
+    }
+}
+
+private data class RecentTag(val text: String, val fg: Color, val bg: Color)
+
+/**
+ * 프로토 recent .tag — 고객 상태에서 파생. 시공일 잡힘=시공 D-N(파랑)/오늘=D-DAY/지남=완료(회색),
+ *   잔금 받음=완료(회색), 계약금만=계약금(초록), 그 외 태그 없음. (견적 발송 amber 는 이력 필요 → 후속)
+ */
+private fun recentStatusTag(c: com.detailline.callfollowcrm.data.local.entity.CustomerEntity?): RecentTag? {
+    if (c == null) return null
+    val blueFg = TossBlue; val blueBg = Color(0xFFEAF2FE)
+    val greenFg = Color(0xFF0E9F56); val greenBg = Color(0xFFE5F8EE)
+    val grayFg = TossTextTertiary; val grayBg = TossGrayBg
+    val sched = c.scheduledWorkDate
+    if (sched != null && sched > 0L) {
+        val days = ((DateTimeUtils.startOfDay(sched) - DateTimeUtils.startOfDay(System.currentTimeMillis())) / DateTimeUtils.DAY_MS).toInt()
+        return when {
+            days > 0 -> RecentTag("시공 D-$days", blueFg, blueBg)
+            days == 0 -> RecentTag("시공 D-DAY", blueFg, blueBg)
+            else -> RecentTag("완료", grayFg, grayBg)
+        }
+    }
+    if (c.balancePaidAt != null) return RecentTag("완료", grayFg, grayBg)
+    if (c.depositPaidAt != null) return RecentTag("계약금", greenFg, greenBg)
+    return null
+}
+
+/** 프로토 recent 시각 — 오늘/어제/N일 전/M/D (절대시각 X). */
+private fun recentTimeLabel(ms: Long): String {
+    val today = DateTimeUtils.startOfDay(System.currentTimeMillis())
+    return when (val days = ((today - DateTimeUtils.startOfDay(ms)) / DateTimeUtils.DAY_MS).toInt()) {
+        0 -> "오늘"
+        1 -> "어제"
+        in 2..6 -> "${days}일 전"
+        else -> java.text.SimpleDateFormat("M/d", java.util.Locale.KOREAN).format(java.util.Date(ms))
     }
 }
 
