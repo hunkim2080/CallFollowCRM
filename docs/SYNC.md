@@ -1950,3 +1950,10 @@ CREATE TABLE intake_forms (
 - 현장 주소 카드: 주소 있으면 프로토 .addr-card(그라데이션 + "현장 주소 · 예약 고객" + 주소 + 큰 파란 [길찾기 시작] 버튼=geo 인텐트). 없으면 단순 빈 상태.
 - 대화 요약 라벨 ✨(파랑) → 💬 "대화 요약"(t3) cd-label 통일.
 - 헬퍼 startNavToAddress. 빌드 OK. DB 변경 없음. commit: (아래)
+
+## 2026-06-02 · android (29)
+폼 입력창 프로토 .sheet-input 1:1 — 공용 컴포넌트 + 일정 등록 적용 (사장님: 입력창 전혀 다름).
+- 공용 SheetTextField/SheetFieldLabel 신설(TossComponents): Material OutlinedTextField(아웃라인/플로팅) → 프로토 .sheet-input(회색 #F4F5F7 + 1.5dp 테두리 + radius12 + 15sp + t3 placeholder), .sheet-label(12 w700 t3).
+- ScheduleAddScreen 전 필드(이름·전화·주소·총금액·계약금·일당·시공일 박스) sheet-input 으로 교체. FieldLabel→sheet-label.
+- 다음: 다른 폼(사업자정보·FollowUp·견적 등)도 SheetTextField 로 일괄 교체 예정.
+- 빌드 OK. commit: (아래)

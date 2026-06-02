@@ -2,7 +2,14 @@ package com.detailline.callfollowcrm.presentation.component
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -210,5 +217,49 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
         modifier = modifier,
         style = MaterialTheme.typography.titleSmall,
         color = TossTextSecondary
+    )
+}
+
+/** 프로토 .sheet-label — 입력칸 위 작은 라벨 (12px w700 t3). */
+@Composable
+fun SheetFieldLabel(text: String) {
+    Text(
+        text, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+        modifier = Modifier.padding(start = 2.dp, top = 4.dp, bottom = 7.dp)
+    )
+}
+
+/**
+ * 프로토 .sheet-input — 폼 입력칸. 회색 채움 + 1.5dp 테두리 + radius12 + 15sp.
+ *   Material OutlinedTextField(아웃라인/플로팅 라벨) 대체 — 프로토 폼 1:1.
+ */
+@Composable
+fun SheetTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    keyboardType: KeyboardType = KeyboardType.Text,
+    singleLine: Boolean = true,
+    enabled: Boolean = true
+) {
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        enabled = enabled,
+        textStyle = TextStyle(fontSize = 15.sp, color = TossTextPrimary),
+        cursorBrush = SolidColor(TossBlue),
+        singleLine = singleLine,
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(TossGrayBg)
+            .border(1.5.dp, TossDivider, RoundedCornerShape(12.dp))
+            .padding(horizontal = 14.dp, vertical = 13.dp),
+        decorationBox = { inner ->
+            if (value.isEmpty()) Text(placeholder, color = TossTextTertiary, fontSize = 15.sp)
+            inner()
+        }
     )
 }

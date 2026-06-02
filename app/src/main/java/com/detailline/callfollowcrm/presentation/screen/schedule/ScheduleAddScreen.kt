@@ -52,6 +52,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.border
+import com.detailline.callfollowcrm.presentation.component.SheetTextField
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
@@ -115,25 +117,25 @@ fun ScheduleAddScreen(
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             FieldLabel("고객 이름 (선택)")
-            OutlinedTextField(name, { name = it }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("미입력 시 번호로 표시") })
+            SheetTextField(name, { name = it }, placeholder = "미입력 시 번호로 표시")
 
             Spacer(Modifier.height(12.dp))
             FieldLabel("전화번호 *")
-            OutlinedTextField(phone, { phone = it }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone),
-                placeholder = { Text("010-0000-0000") })
+            SheetTextField(phone, { phone = it }, placeholder = "010-0000-0000",
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone)
 
             Spacer(Modifier.height(12.dp))
             FieldLabel("시공일 *")
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                    .background(Color.White).clickable { showDate = true }
-                    .padding(horizontal = 14.dp, vertical = 14.dp)
+                    .background(TossGrayBg)
+                    .border(1.5.dp, TossDivider, RoundedCornerShape(12.dp))
+                    .clickable { showDate = true }
+                    .padding(horizontal = 14.dp, vertical = 13.dp)
             ) {
                 Text(
                     DateTimeUtils.formatKoreanDate(dayMs) + " · " + DateTimeUtils.dDayLabel(dayMs),
-                    color = TossTextPrimary, fontWeight = FontWeight.SemiBold
+                    color = TossTextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold
                 )
             }
 
@@ -156,22 +158,17 @@ fun ScheduleAddScreen(
 
             Spacer(Modifier.height(12.dp))
             FieldLabel("현장 주소 (선택)")
-            OutlinedTextField(address, { address = it }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("길찾기·확인용") })
+            SheetTextField(address, { address = it }, placeholder = "길찾기·확인용")
 
             Spacer(Modifier.height(12.dp))
             FieldLabel("총 시공비 (선택)")
-            OutlinedTextField(totalText, { totalText = it.filter { c -> c.isDigit() } }, singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
-                placeholder = { Text("원") })
+            SheetTextField(totalText, { totalText = it.filter { c -> c.isDigit() } }, placeholder = "원",
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
 
             Spacer(Modifier.height(12.dp))
             FieldLabel("계약금 (선택)")
-            OutlinedTextField(depositText, { depositText = it.filter { c -> c.isDigit() } }, singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
-                placeholder = { Text("원") })
+            SheetTextField(depositText, { depositText = it.filter { c -> c.isDigit() } }, placeholder = "원",
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { depositPaid = !depositPaid }
@@ -208,10 +205,9 @@ fun ScheduleAddScreen(
                 if (selectedWorkerIds.isNotEmpty()) {
                     Spacer(Modifier.height(10.dp))
                     FieldLabel("1인 일당 (원)")
-                    OutlinedTextField(crewWageText, { crewWageText = it.filter { c -> c.isDigit() } },
-                        singleLine = true, modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
-                        placeholder = { Text("예: 200000") })
+                    SheetTextField(crewWageText, { crewWageText = it.filter { c -> c.isDigit() } },
+                        placeholder = "예: 200000",
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
                 }
             }
 
@@ -260,8 +256,9 @@ fun ScheduleAddScreen(
 
 @Composable
 private fun FieldLabel(text: String) {
-    Text(text, style = MaterialTheme.typography.labelMedium, color = TossTextSecondary,
-        fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 6.dp))
+    // 프로토 .sheet-label — 12px w700 t3.
+    Text(text, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+        modifier = Modifier.padding(start = 2.dp, bottom = 7.dp))
 }
 
 /** 시공 시간/기간 선택 알약 칩. 선택 시 파랑 채움. */
