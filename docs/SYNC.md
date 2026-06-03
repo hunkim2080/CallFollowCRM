@@ -2619,3 +2619,70 @@ launchd plist 에 추가 후 launchctl 재시작. 이 변경 없으면 issue 응
 - commit: e93dfde
 - ⚠️ 실기기 설치는 폰 미연결로 대기(어젯밤 배터리 6%). 폰 연결 시 adb install -r 예정.
 - 서버 측 후속(cowork): 시공접수서/견적서 issue 응답 url 필드가 공개 도메인으로 떨어지려면 launchd plist 에 INTAKE_PUBLIC_BASE_URL=https://api.si0in.kr 추가 필요(SYNC cowork 블록 명시). 이거 없으면 고객 폰에서 발급 링크 안 열림.
+
+---
+
+## 2026-06-04 (새벽) · cowork(server) — 📋 /admin/beta/intake HOU-128 통합 (재push, 안드로이드 작업 0 영향)
+
+Chief 리환 팀이 HOU-128 에서 만든 10 카테고리 베타 운영 셋팅 폼을 main.py inline 으로 통합. 사장님이 폼 채우고 제출하면 chief 가 깨어나 Phase 0 (3명 내부 테스트) 시작 조건 충족.
+
+### 새 엔드포인트 3개 (§22)
+| Method | Path | 인증 | 용도 |
+|---|---|---|---|
+| GET  | `/admin/beta/intake`      | client-side | 10 카테고리 폼 SPA (HTML) |
+| GET  | `/admin/beta/intake/data` | Bearer `<ADMIN_TOKEN>` | 최신 revision 데이터 반환 |
+| POST | `/admin/beta/intake`      | Bearer `<ADMIN_TOKEN>` | auto-save (draft=1) / 명시 제출 (draft=0) |
+
+→ 공개 URL: **`https://api.si0in.kr/admin/beta/intake`**  
+→ Bearer 토큰: 기존 `ADMIN_TOKEN` (plist 의 `5302`)
+
+### 어댑테이션 (chief 가정 → 우리 실제)
+- `ringgo.db` 신규 → **`cache.db`** (db_init 의 §22 자동 생성, 별도 SQL 마이그레이션 X)
+- `RINGGO_ADMIN_TOKEN` → **`ADMIN_TOKEN`** (plist `5302` 재사용)
+- `routes/admin_beta_intake.py` 별도 모듈 → **main.py inline** (§22 섹션)
+- `http://100.86.114.49:8000` → **`https://api.si0in.kr`** (공개 도메인)
+- HTML 코드: **변경 0** (chief verbatim, sessionStorage 토큰 + Bearer)
+
+### DB 테이블 (cache.db / db_init §22)
+```sql
+CREATE TABLE beta_intake_responses (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  submitted_at  TEXT,                          -- ISO-8601 UTC
+  draft         INTEGER NOT NULL DEFAULT 1,    -- 1=draft, 0=submitted
+  revision      INTEGER NOT NULL DEFAULT 1,
+  response_json TEXT NOT NULL,                 -- 10 카테고리 전체 dict
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_bir_revision ON beta_intake_responses (revision DESC);
+```
+
+### 검증
+- `python3 -m py_compile main.py` 통과
+- main.py 7,555 → 7,695 줄 (+140 라인, 이번엔 e3b2ed8 base 위에 깨끗하게)
+- HTML 1,317 줄 (chief 원본 verbatim)
+
+### 변경 파일
+- `server/main.py` (db_init §22 + admin endpoint 3개 + helper + Pydantic model)
+- `server/static/admin_beta_intake.html` (chief 원본 76 KB / 1,317 줄)
+- `docs/SYNC.md` (이 블록)
+
+### ⚠️ 이전 사고 (885fcb7 → revert e3b2ed8) 사후 노트
+- 사장님이 cowork 의 작업물을 push 하실 때 working tree 가 abed822 base 였고, `git reset --mixed origin/main` 후 `git add .` 가 origin/main 의 7 안드로이드 commits 변경을 "내가 풀어버린 변경" 으로 잘못 인식하여 함께 add. 결과 `885fcb7` 가 AppConfig.kt 삭제 + 9 Repository.kt revert + OnboardingScreen.kt revert 를 포함한 채 push.
+- 즉시 `git revert --no-edit 885fcb7` → `e3b2ed8` 로 안드로이드 작업 100% 복구 + 우리 cowork 변경도 풀림. 운영 server 영향 0 (healthz 정상).
+- 본 블록의 cowork 변경은 e3b2ed8 base 위에 깨끗하게 재적용. **안드로이드 측 작업 0 손실 확인**.
+- 재발 방지 룰 추가: cowork 가 SYNC.md edit 시 git pull --rebase 를 먼저 강제. fetch 만 한 상태에서 commit 만들지 말 것.
+
+### 다음 (사장님)
+1. `git add . && git commit -m "feat(admin): /admin/beta/intake 통합 (HOU-128 어댑테이션)" && git push origin main && launchctl kickstart -k gui/$(id -u)/com.detailline.ringgo-server && sleep 5 && curl -s https://api.si0in.kr/healthz && echo`
+2. 그 후 `https://api.si0in.kr/admin/beta/intake` 열고 Bearer `5302` 입력 → 폼 채우고 제출
+3. chief 한테 "HOU-92 인테이크 제출 완료" 한 줄 → Phase 0 자식 이슈 생성
+
+### 절대 룰 준수
+- SMS 원문 저장 X (category_* 만)
+- LLM 원문 전송 X
+- 사용자별 drill-down X
+- 토큰 URL 노출 X (Bearer 헤더 + sessionStorage)
+- admin token 환경변수 (plist `ADMIN_TOKEN`)
+
+> ⚠️ Gmail 자동 보고 메일은 Zapier MCP `gmail/message` 호출 시 `selected_api` 필수 검증 에러로 발송 실패 (그동안 잘 됐던 룰). 본 블록이 보고 대신. 다음 cycle 전 Zapier MCP 호출 형식 점검 필요.
