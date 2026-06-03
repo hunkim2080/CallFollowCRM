@@ -34,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.layout.layout
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -208,7 +209,20 @@ private fun StoryStep(onStart: () -> Unit, onPageChanged: (Int) -> Unit) {
 
         Spacer(Modifier.weight(1f))
 
-        HorizontalPager(state = pager, modifier = Modifier.fillMaxWidth()) { i ->
+        // 프로토 .ob-carousel — 좌우로 옆 슬라이드가 살짝 엿보이는(peek) 카드 캐러셀.
+        //   부모 26dp 패딩 밖으로 빼서(full-bleed) + contentPadding 26dp → 카드는 (화면-52), 양옆 26dp peek.
+        HorizontalPager(
+            state = pager,
+            modifier = Modifier
+                .fillMaxWidth()
+                .layout { measurable, constraints ->
+                    val extra = 26.dp.roundToPx() * 2
+                    val placeable = measurable.measure(constraints.copy(maxWidth = constraints.maxWidth + extra))
+                    layout(placeable.width, placeable.height) { placeable.place(-26.dp.roundToPx(), 0) }
+                },
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 26.dp),
+            pageSpacing = 12.dp
+        ) { i ->
             val s = slides[i]
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp)) {
                 KickerChip(s.kicker, accent)

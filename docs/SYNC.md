@@ -2563,3 +2563,12 @@ launchd plist 에 추가 후 launchctl 재시작. 이 변경 없으면 issue 응
 - `/admin/*` 는 admin token 강제 (이미 일부 endpoint 적용 — 전체 적용 검토)
 - `/prepare-reply` 는 phone 단위 rate limit (이미 있음) + 베타 phone 화이트리스트
 - Cloudflare Access (zero trust) 추가 검토 — 비용 X, 보안 ↑
+
+---
+
+## 2026-06-04 · android (55)
+### 온보딩 캐러셀 peek 추가 — 프로토 .ob-carousel(옆 슬라이드 엿보임)
+사장님 두 화면 비교 "같아보여?" → 프로토는 좌우로 옆 카드가 살짝 보이는 peek 캐러셀인데 앱은 꽉 찬 한 장이라 달라 보임.
+- fix: HorizontalPager full-bleed(layout 으로 부모 26dp 패딩 밖으로) + contentPadding 26dp + pageSpacing 12dp → 카드=(화면-52), 양옆 26dp peek. 프로토와 동일. 실기기 확인.
+- 온보딩 디자인 일치 작업 마무리(자동넘김#52 + 악센트색#53 + 균일카드#54 + peek#55).
+- 서버 영향 없음.
