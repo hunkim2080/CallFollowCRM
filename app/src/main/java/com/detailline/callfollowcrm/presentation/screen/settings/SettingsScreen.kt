@@ -47,9 +47,11 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.filled.Message
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.ChevronRight
@@ -57,16 +59,20 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -75,6 +81,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.core.app.NotificationManagerCompat
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -119,7 +127,8 @@ fun SettingsScreen(
     onOpenNotebook: () -> Unit = {},
     onOpenReport: () -> Unit = {},
     onOpenTradeSelect: () -> Unit = {},
-    onOpenRecurring: () -> Unit = {}
+    onOpenRecurring: () -> Unit = {},
+    onShowIntro: () -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
     val templates by viewModel.templates.collectAsState()
@@ -205,6 +214,9 @@ fun SettingsScreen(
                 val agentCard by viewModel.agentCard.collectAsState()
                 AgentMiniCard(card = agentCard)
 
+                // 프로토 setup-check — 시작 체크 (실제 권한 상태). 다 되면 한 줄로 접힘.
+                SetupCheckCard()
+
                 SettingsGroup("함께 일하는 사람") {
                     LockRow(Icons.Filled.Group, Color(0xFFFFF3DF), Color(0xFFF6A609), "수첩",
                         "일당·알바 · 거래처 — 자주 부르는 사람·업체 모아두기", onClick = onOpenNotebook)
@@ -229,55 +241,45 @@ fun SettingsScreen(
                     LockRow(Icons.Filled.AutoAwesome, Color(0xFFF1ECFF), Color(0xFF7C5CFC), "내 말투 학습",
                         "나처럼 답하는 AI", tier = "프로") { subPage = "tone" }
                 }
+                // 프로토 "앱 설정" = 기본 네비 앱 하나뿐 (사장님 결정 2026-06-03 — 프로토대로 정리).
+                //   기본 문자 앱 설정은 위 setup-check 가 커버. 내 업종/AI 서버 상태는 프로토에 없어 제거.
                 SettingsGroup("앱 설정") {
-                    LockRow(Icons.Filled.Category, TossBlueSoft, TossBlue, "내 업종",
-                        "업종에 맞춰 AI·가격표·시나리오", onClick = onOpenTradeSelect)
+                    val navLabel = com.detailline.callfollowcrm.util.NavApp.values()
+                        .find { it.key == state.defaultNavAppKey }?.label ?: "카카오내비"
                     LockRow(Icons.Filled.Navigation, TossGrayBg, TossTextTertiary, "기본 네비 앱",
-                        "길찾기에 쓸 지도 앱") { subPage = "nav" }
-                    LockRow(Icons.AutoMirrored.Filled.Message, TossGrayBg, TossTextTertiary, "기본 문자 앱",
-                        "RING-GO 를 기본 문자앱으로") { subPage = "smsapp" }
-                    LockRow(Icons.Filled.Insights, TossGrayBg, TossTextTertiary, "AI 서버 상태",
-                        "연결 상태 · 토큰 사용량") { subPage = "server" }
+                        navLabel) { subPage = "nav" }
                 }
                 SettingsGroup("도움말") {
                     LockRow(Icons.AutoMirrored.Filled.Chat, TossGrayBg, TossTextTertiary, "알림 미리보기",
                         "RING-GO 알림이 어떻게 오는지") { subPage = "noti" }
+                    LockRow(Icons.Filled.AutoAwesome, TossGrayBg, TossTextTertiary, "앱 소개 다시 보기",
+                        null, onClick = onShowIntro)
                 }
 
                 AppFooter()
                 Spacer(Modifier.height(16.dp))
             } else when (subPage) {
-                // ══════════════ 내 말투 학습 (프로) ══════════════
+                // ══════════════ 내 말투 학습 (프로) — 프로토 renderTone 1:1 ══════════════
+                //   2026-06-03 사장님 결정: 프로토 모양으로 통일 + Tone RAG 업로드는 살려서 녹임.
+                //   채택률/AutoLearning 카드는 프로토 기준 "상세 리포트" 소관 → 여기서 제거.
                 "tone" -> {
-                    OwnerToneCard(sampleCount = toneSampleCount)
+                    val agentCard by viewModel.agentCard.collectAsState()
                     val toneRagConsented by viewModel.toneRagConsented.collectAsState()
                     val toneRagUploadedCount by viewModel.toneRagUploadedCount.collectAsState()
-                    val toneRagLastUploadedAt by viewModel.toneRagLastUploadedAt.collectAsState()
                     val toneRagAvailable by viewModel.toneRagAvailable.collectAsState()
                     val toneRagUploading by viewModel.toneRagUploading.collectAsState()
                     val toneRagProgress by viewModel.toneRagProgress.collectAsState()
-                    val toneRagEmbeddingsAvailable by viewModel.toneRagEmbeddingsAvailable.collectAsState()
-                    OwnerToneRagCard(
-                        consented = toneRagConsented,
-                        uploadedCount = toneRagUploadedCount,
-                        lastUploadedAtMs = toneRagLastUploadedAt,
-                        available = toneRagAvailable,
-                        inProgress = toneRagUploading,
-                        progress = toneRagProgress,
-                        embeddingsAvailable = toneRagEmbeddingsAvailable,
+                    ToneLearnProtoSection(
+                        container = container,
+                        tonePct = agentCard.tonePct,
+                        ragUploadedCount = toneRagUploadedCount,
+                        ragAvailable = toneRagAvailable,
+                        ragConsented = toneRagConsented,
+                        ragUploading = toneRagUploading,
+                        ragProgress = toneRagProgress,
                         onConsentAndUpload = { viewModel.uploadOwnerTone(consentNow = true) },
                         onUpload = { viewModel.uploadOwnerTone(consentNow = false) }
                     )
-                    val suggestionStats by viewModel.suggestionStats.collectAsState()
-                    val suggestionStatsPeriodDays by viewModel.suggestionStatsPeriodDays.collectAsState()
-                    SuggestionStatsCard(
-                        stats = suggestionStats,
-                        periodDays = suggestionStatsPeriodDays,
-                        onPeriodChange = { viewModel.loadSuggestionStats(it) }
-                    )
-                    val scenarioBreakdown by viewModel.scenarioBreakdown.collectAsState()
-                    val intentBreakdown by viewModel.intentBreakdown.collectAsState()
-                    AutoLearningCard(scenarios = scenarioBreakdown, intents = intentBreakdown)
                     Spacer(Modifier.height(16.dp))
                 }
                 // ══════════════ 자동 문자 (부재중·D-1·도착·정기) ══════════════
@@ -2343,6 +2345,396 @@ private fun TierTag(label: String, bg: Color) {
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp)).background(bg)
             .padding(horizontal = 10.dp, vertical = 4.dp)
+    )
+}
+
+// ════════════════════════ 프로토 setup-check (시작 체크) ════════════════════════
+/**
+ * 프로토 renderSetupCheck — 시작 체크리스트. 실제 권한 상태로 채움 (가짜 done 없음).
+ *   항목: 기본 메시지 앱 / 알림 권한 / 다른 앱 위에 표시. ON_RESUME 마다 재검사.
+ *   다 되면 "시작 준비 다 됐어요" 한 줄로 접힘. (갤메시지 채팅+ 끄기는 자동 감지 불가라 제외)
+ */
+@Composable
+private fun SetupCheckCard() {
+    val context = LocalContext.current
+    val activity = context as? android.app.Activity
+    var refresh by remember { mutableStateOf(0) }
+
+    // 설정 다녀오면 반영 — ON_RESUME 마다 재검사.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) refresh++
+        }
+        lifecycleOwner.lifecycle.addObserver(obs)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
+    }
+
+    val smsDefault = remember(refresh) {
+        runCatching { com.detailline.callfollowcrm.util.DefaultSmsAppHelper.isCurrentDefault(context) }.getOrDefault(false)
+    }
+    val notiOn = remember(refresh) {
+        runCatching { NotificationManagerCompat.from(context).areNotificationsEnabled() }.getOrDefault(false)
+    }
+    val overlayOn = remember(refresh) {
+        runCatching { android.provider.Settings.canDrawOverlays(context) }.getOrDefault(false)
+    }
+    val roleLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { refresh++ }
+
+    data class SetupStep(val label: String, val done: Boolean, val action: () -> Unit)
+    val steps = listOf(
+        SetupStep("기본 메시지 앱 설정", smsDefault) {
+            activity?.let { act ->
+                com.detailline.callfollowcrm.util.DefaultSmsAppHelper.createRequestIntent(act)?.let { i ->
+                    runCatching { roleLauncher.launch(i) }
+                }
+            }
+        },
+        SetupStep("알림 권한", notiOn) {
+            runCatching {
+                val i = android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(i)
+            }
+        },
+        SetupStep("다른 앱 위에 표시", overlayOn) {
+            runCatching {
+                val i = android.content.Intent(
+                    android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    android.net.Uri.parse("package:${context.packageName}")
+                ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(i)
+            }
+        }
+    )
+    val doneN = steps.count { it.done }
+    val total = steps.size
+    val all = doneN == total
+    var collapsed by remember { mutableStateOf(true) }
+
+    if (all && collapsed) {
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFEAFBF2))
+                .clickable { collapsed = false }.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CheckDot(true)
+            Spacer(Modifier.width(8.dp))
+            Text("시작 준비 다 됐어요 ($doneN/$total)", fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                color = TossSuccess, modifier = Modifier.weight(1f))
+            Icon(Icons.Filled.ChevronRight, null, tint = TossTextTertiary, modifier = Modifier.size(18.dp))
+        }
+        return
+    }
+    TossCard {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("시작 체크 ($doneN/$total)", fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                    color = TossTextSecondary, modifier = Modifier.weight(1f))
+                if (all) Text("접기 ▲", fontSize = 12.sp, color = TossTextTertiary,
+                    modifier = Modifier.clickable { collapsed = true })
+            }
+            Spacer(Modifier.height(10.dp))
+            steps.forEach { s ->
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 5.dp)) {
+                    CheckDot(s.done)
+                    Spacer(Modifier.width(9.dp))
+                    Text(s.label, fontSize = 14.sp, color = TossTextPrimary, modifier = Modifier.weight(1f))
+                    if (!s.done) Text("설정", fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
+                        color = TossBlue, modifier = Modifier.clickable { s.action() })
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CheckDot(done: Boolean) {
+    Box(
+        Modifier.size(20.dp).clip(RoundedCornerShape(50))
+            .background(if (done) TossSuccess else Color(0xFFE5E8EB)),
+        contentAlignment = Alignment.Center
+    ) {
+        if (done) Icon(Icons.Filled.Check, null, tint = Color.White, modifier = Modifier.size(13.dp))
+        else Icon(Icons.Filled.Add, null, tint = TossTextTertiary, modifier = Modifier.size(13.dp))
+    }
+}
+
+// ════════════════════════ 프로토 renderTone (내 말투 학습) ════════════════════════
+/**
+ * 프로토 renderTone 1:1 — hero·토글·분석·비교·재료·가르치기·개인정보.
+ *   tonePct/uploadedCount = 실제 파생값 (가짜 % 없음). 분석/비교는 서버(/api/tone/profile) 연결 전까지 placeholder.
+ *   Tone RAG 업로드는 "무엇으로 배우나요 → 내가 보낸 문자" 에 녹여 동작 유지.
+ */
+@Composable
+private fun ToneLearnProtoSection(
+    container: AppContainer,
+    tonePct: Int,
+    ragUploadedCount: Int,
+    ragAvailable: Int,
+    ragConsented: Boolean,
+    ragUploading: Boolean,
+    ragProgress: Pair<Int, Int>?,
+    onConsentAndUpload: () -> Unit,
+    onUpload: () -> Unit
+) {
+    val prefs = container.preferences
+    var toneOn by remember { mutableStateOf(prefs.toneLearnEnabled) }
+    var examplesCount by remember { mutableStateOf(prefs.toneExamples.size) }
+    var signature by remember { mutableStateOf(prefs.toneSignature) }
+    var showExampleDialog by remember { mutableStateOf(false) }
+    var showSignatureDialog by remember { mutableStateOf(false) }
+    val pct = if (toneOn) tonePct else 0
+
+    // ── tone-hero (보라 그라데이션) ──
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
+            .background(Brush.linearGradient(listOf(Color(0xFF7C5CFC), Color(0xFF5B3FE0))))
+            .padding(18.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Mascot(sizeDp = 44.dp)
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text("$pct", fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                    Text("% 학습", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = Color.White,
+                        modifier = Modifier.padding(start = 1.dp, bottom = 3.dp))
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    if (toneOn) "막내 비서가 사장님 말투를 ${tonePct}% 따라 해요"
+                    else "학습이 꺼져 있어요. 켜면 다시 배우기 시작해요",
+                    fontSize = 12.5.sp, color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+        Spacer(Modifier.height(15.dp))
+        Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(99.dp)).background(Color.White.copy(alpha = 0.18f))) {
+            Box(Modifier.fillMaxWidth((pct / 100f).coerceIn(0f, 1f)).height(8.dp)
+                .clip(RoundedCornerShape(99.dp))
+                .background(Brush.horizontalGradient(listOf(Color(0xFFFFD479), Color(0xFFFFB43E)))))
+        }
+        Spacer(Modifier.height(9.dp))
+        Text("내가 보낸 문자 ${formatThousands(ragUploadedCount)}개 학습",
+            fontSize = 11.5.sp, color = Color.White.copy(alpha = 0.72f), fontWeight = FontWeight.SemiBold)
+    }
+    Spacer(Modifier.height(12.dp))
+
+    // ── 말투 학습 켜짐/꺼짐 (tone-on) ──
+    TossCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(Color(0xFFF1ECFF)),
+                contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.AutoAwesome, null, tint = Color(0xFF7C5CFC), modifier = Modifier.size(20.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("말투 학습 ${if (toneOn) "켜짐" else "꺼짐"}", fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    if (toneOn) "추천 답변이 사장님 말투로 만들어지고, 채팅에 ✨내 말투 배지가 붙어요"
+                    else "추천 답변이 일반 AI 말투로 나와요",
+                    fontSize = 12.sp, color = TossTextTertiary
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Switch(
+                checked = toneOn,
+                onCheckedChange = { toneOn = it; prefs.toneLearnEnabled = it },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF7C5CFC)
+                )
+            )
+        }
+    }
+    Spacer(Modifier.height(16.dp))
+
+    // ── AI가 분석한 사장님 말투 (서버 분석 필요) ──
+    ToneSecSub("AI가 분석한 사장님 말투")
+    TonePlaceholder("서버 말투 분석 준비 중이에요. 맥미니 업그레이드 후 사장님 말끝·이모티콘·길이·호칭을 자동으로 보여드려요.")
+    Spacer(Modifier.height(16.dp))
+
+    // ── 같은 질문, 이렇게 달라져요 (서버 분석 필요) ──
+    ToneSecSub("같은 질문, 이렇게 달라져요")
+    TonePlaceholder("일반 AI 답변 vs 사장님 말투 비교는 서버 분석이 연결되면 보여드려요.")
+    Spacer(Modifier.height(16.dp))
+
+    // ── 무엇으로 배우나요 (sources) + RAG 녹이기 ──
+    ToneSecSub("무엇으로 배우나요")
+    TossCard {
+        Column {
+            ToneSourceRow(Icons.AutoMirrored.Filled.Send, "내가 보낸 문자",
+                "실제 고객에게 보낸 답장에서 말투를 배워요", formatThousands(ragUploadedCount))
+            Spacer(Modifier.height(10.dp))
+            when {
+                ragUploading -> {
+                    val (sent, totalN) = ragProgress ?: (0 to 0)
+                    val frac = if (totalN <= 0) 0f else (sent.toFloat() / totalN).coerceIn(0f, 1f)
+                    Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(TossGrayBg)) {
+                        Box(Modifier.fillMaxHeight().fillMaxWidth(frac).clip(RoundedCornerShape(4.dp)).background(Color(0xFF7C5CFC)))
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text("$sent / $totalN 건 학습 중...", fontSize = 11.sp, color = TossTextSecondary)
+                }
+                ragUploadedCount == 0 && !ragConsented -> {
+                    Text("동의하면 보낸 메시지 ${formatThousands(ragAvailable)}건이 사장님 전용 서버로 올라가 말투를 배워요. (외부 전송 X)",
+                        fontSize = 11.sp, color = TossTextTertiary)
+                    Spacer(Modifier.height(8.dp))
+                    TossPrimaryButton(text = "동의하고 학습 시작", onClick = onConsentAndUpload)
+                }
+                ragUploadedCount == 0 && ragConsented -> {
+                    Text("${formatThousands(ragAvailable)}건 학습 대기 중", fontSize = 12.sp, color = TossTextSecondary)
+                    Spacer(Modifier.height(8.dp))
+                    TossPrimaryButton(text = "지금 학습 시작", onClick = onUpload)
+                }
+                else -> {
+                    if (ragAvailable > ragUploadedCount) {
+                        Text("새 메시지 ${ragAvailable - ragUploadedCount}건 대기", fontSize = 11.sp, color = TossTextSecondary)
+                        Spacer(Modifier.height(6.dp))
+                        Text("지금 동기화", fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                            color = Color(0xFF7C5CFC), modifier = Modifier.clickable { onUpload() })
+                    } else {
+                        Text("✅ 최신 상태로 학습됨", fontSize = 12.sp, color = TossSuccess, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+            Spacer(Modifier.height(14.dp))
+            ToneSourceRow(Icons.Filled.Description, "직접 가르친 예문",
+                "\"이렇게 답해줘\" 하고 알려준 문장", "$examplesCount")
+        }
+    }
+    Spacer(Modifier.height(16.dp))
+
+    // ── 직접 가르치기 (teach) ──
+    ToneSecSub("직접 가르치기")
+    ToneTeachButton(Icons.Filled.Add, "예문 추가하기", "\"이런 상황엔 이렇게 답해줘\" 알려주기") { showExampleDialog = true }
+    Spacer(Modifier.height(8.dp))
+    ToneTeachButton(Icons.AutoMirrored.Filled.Chat, "말투 세부 설정",
+        if (signature.isBlank()) "꼭 쓰는 인사말 등록" else "시그니처: $signature") { showSignatureDialog = true }
+    Spacer(Modifier.height(14.dp))
+
+    // ── info-note (개인정보) ──
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Text("🔒", fontSize = 13.sp)
+        Spacer(Modifier.width(8.dp))
+        Text("내 문자는 사장님 계정에서 말투 학습에만 쓰이고, 다른 곳에 공유되지 않아요.",
+            fontSize = 12.sp, color = TossTextSecondary, modifier = Modifier.weight(1f))
+    }
+    Spacer(Modifier.height(18.dp))
+
+    if (showExampleDialog) {
+        ToneInputDialog(
+            title = "예문 추가",
+            sub = "이런 상황엔 이렇게 답한다 — 막내가 그대로 배워요.",
+            placeholder = "예: 계좌 물어보면 → \"국민 123-45 디테일라인이에요 😊 입금 확인되면 바로 문자드릴게요!\"",
+            initial = "",
+            onDismiss = { showExampleDialog = false },
+            onConfirm = { v ->
+                val t = v.trim()
+                if (t.isNotBlank()) { prefs.toneExamples = prefs.toneExamples + t; examplesCount = prefs.toneExamples.size }
+                showExampleDialog = false
+            }
+        )
+    }
+    if (showSignatureDialog) {
+        ToneInputDialog(
+            title = "꼭 쓰는 인사말",
+            sub = "답장 끝에 자동으로 붙일 시그니처예요.",
+            placeholder = "편하게 문의주세요!",
+            initial = signature,
+            onDismiss = { showSignatureDialog = false },
+            onConfirm = { v -> signature = v.trim(); prefs.toneSignature = v.trim(); showSignatureDialog = false }
+        )
+    }
+}
+
+@Composable
+private fun ToneSecSub(text: String) {
+    Text(text, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
+        modifier = Modifier.padding(bottom = 8.dp))
+}
+
+@Composable
+private fun TonePlaceholder(text: String) {
+    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(14.dp)) {
+        Text(text, fontSize = 12.5.sp, color = TossTextTertiary)
+    }
+}
+
+@Composable
+private fun ToneSourceRow(icon: ImageVector, title: String, desc: String, count: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFFF1ECFF)),
+            contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = Color(0xFF7C5CFC), modifier = Modifier.size(17.dp))
+        }
+        Spacer(Modifier.width(11.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+            Text(desc, fontSize = 11.5.sp, color = TossTextTertiary)
+        }
+        Text(count, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF7C5CFC))
+    }
+}
+
+@Composable
+private fun ToneTeachButton(icon: ImageVector, title: String, desc: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White)
+            .clickable(onClick = onClick).padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFFF1ECFF)),
+            contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = Color(0xFF7C5CFC), modifier = Modifier.size(17.dp))
+        }
+        Spacer(Modifier.width(11.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+            Text(desc, fontSize = 11.5.sp, color = TossTextTertiary)
+        }
+        Icon(Icons.Filled.ChevronRight, null, tint = TossTextTertiary, modifier = Modifier.size(18.dp))
+    }
+}
+
+@Composable
+private fun ToneInputDialog(
+    title: String, sub: String, placeholder: String, initial: String,
+    onDismiss: () -> Unit, onConfirm: (String) -> Unit
+) {
+    var text by remember { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title, fontWeight = FontWeight.Bold, color = TossTextPrimary) },
+        text = {
+            Column {
+                Text(sub, fontSize = 13.sp, color = TossTextSecondary)
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = text, onValueChange = { text = it },
+                    placeholder = { Text(placeholder, fontSize = 13.sp) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(text) }) {
+                Text("저장", color = TossBlue, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("취소", color = TossTextSecondary) } },
+        containerColor = Color.White
     )
 }
 

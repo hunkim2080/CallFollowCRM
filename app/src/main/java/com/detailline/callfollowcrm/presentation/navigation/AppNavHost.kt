@@ -302,7 +302,8 @@ fun AppNavHost(
                 onOpenNotebook = { navController.navigate(Destinations.NOTEBOOK) },
                 onOpenReport = { navController.navigate(Destinations.REPORT) },
                 onOpenTradeSelect = { navController.navigate(Destinations.TRADE_SELECT) },
-                onOpenRecurring = { navController.navigate(Destinations.RECURRING) }
+                onOpenRecurring = { navController.navigate(Destinations.RECURRING) },
+                onShowIntro = { navController.navigate(Destinations.ONBOARDING) }
             )
         }
 
