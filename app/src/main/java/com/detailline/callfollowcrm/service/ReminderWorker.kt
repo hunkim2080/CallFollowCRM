@@ -22,7 +22,43 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
     override suspend fun doWork(): Result {
         val app = applicationContext as? CallFollowCrmApplication ?: return Result.success()
         runCatching { checkInstallD1(app.container) }
+        runCatching { checkBalanceDue(app.container) }
         return Result.success()
+    }
+
+    /** 시공 완료 3일 지났는데 잔금 미입금 → 잔금 미수 알림 (오전 창, 고객별 1회). */
+    private suspend fun checkBalanceDue(container: AppContainer) {
+        val now = System.currentTimeMillis()
+        val hour = Calendar.getInstance().apply { timeInMillis = now }.get(Calendar.HOUR_OF_DAY)
+        if (hour < 9 || hour >= 12) return // 프로토 settle = 오전 10시경.
+
+        val threshold = DateTimeUtils.startOfDay(now) - 3 * DateTimeUtils.DAY_MS // 시공 후 3일 경과
+        val prefs = container.preferences
+        val keys = prefs.reminderNotifiedKeys.toMutableSet()
+        var changed = false
+
+        val customers = runCatching { container.customerRepository.allOnce() }.getOrDefault(emptyList())
+        for (c in customers) {
+            val total = c.totalAmount ?: 0L
+            if (total <= 0L) continue
+            if (c.balancePaidAt != null) continue // 완납
+            val deposit = c.depositAmount ?: 0L
+            val remaining = c.balanceAmount ?: (total - deposit).coerceAtLeast(0L)
+            if (remaining <= 0L) continue
+            val scheduled = c.scheduledWorkDate ?: continue
+            if (DateTimeUtils.startOfDay(scheduled) > threshold) continue // 아직 3일 안 지남(또는 미래)
+
+            val key = "settle:${c.id}"
+            if (key in keys) continue
+            val nm = c.name?.takeIf { it.isNotBlank() } ?: c.phoneNumber
+            val daysSince = ((now - scheduled) / DateTimeUtils.DAY_MS).toInt().coerceAtLeast(0)
+            NotificationHelper.showBalanceDue(
+                applicationContext, c.id, c.phoneNumber, nm, remaining / 10_000L, daysSince
+            )
+            keys.add(key)
+            changed = true
+        }
+        if (changed) prefs.reminderNotifiedKeys = keys
     }
 
     /** 내일 시공 예약 고객 → D-1 안내 알림 (저녁 창에서만, 고객별 1회). */

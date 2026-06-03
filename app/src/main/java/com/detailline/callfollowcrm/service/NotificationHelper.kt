@@ -26,6 +26,7 @@ object NotificationHelper {
     /** 시간 기반 리마인더(시공 D-1·잔금 미수·마감 브리핑). */
     private const val CHANNEL_REMINDER = "reminder"
     private const val D1_ID_OFFSET = 9_000_000
+    private const val SETTLE_ID_OFFSET = 9_500_000
     /** SMS 알림 ID = 발신번호 hash + offset. 같은 번호 새 SMS = 같은 알림 update. */
     private const val SMS_ID_OFFSET = 10_000_000
 
@@ -138,6 +139,37 @@ object NotificationHelper {
             note = "무음 자동발송 안 해요 · 사장님이 확인하면 보내요",
             contentIntent = pending,
             actions = listOf(PushAction("안내 보내기", pending))
+        )
+    }
+
+    /**
+     * 잔금 미수 리마인더 — 프로토 PUSH.settle 형식(분홍).
+     *   탭/버튼 = 그 고객 채팅(잔금 요청 문자 작성).
+     */
+    fun showBalanceDue(
+        context: Context,
+        customerId: Long,
+        phone: String,
+        name: String,
+        balanceManwon: Long,
+        daysSince: Int
+    ) {
+        val notifId = SETTLE_ID_OFFSET + (customerId.toInt() and 0x7FFFFF)
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            action = MainActivity.ACTION_CHAT
+            putExtra(MainActivity.EXTRA_PHONE_NUMBER, phone)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pending = PendingIntent.getActivity(
+            context, notifId, openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        showProtoPush(
+            context, notifId, CHANNEL_REMINDER, ACCENT_PINK,
+            title = "아직 안 들어온 잔금이 있어요",
+            msg = "${name}님 · 잔금 ${balanceManwon}만원 · 시공 완료 후 ${daysSince}일째 미입금",
+            contentIntent = pending,
+            actions = listOf(PushAction("잔금 요청 보내기", pending))
         )
     }
 
