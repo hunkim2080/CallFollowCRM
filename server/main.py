@@ -4975,7 +4975,13 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
           + '<p>시공접수서를 제출했어요.<br>사장님이 확인 후 시공일이 최종 확정돼요 😊</p></div>';
       }} else {{
         var err = await resp.json().catch(function() {{ return {{}}; }});
-        alert('제출 실패: ' + (err.detail || resp.status));
+        var msg = err.detail;
+        if (Array.isArray(msg)) {{
+          msg = msg.map(function(d) {{
+            return (d.loc ? d.loc[d.loc.length-1] + ': ' : '') + (d.msg || JSON.stringify(d));
+          }}).join('\\n');
+        }}
+        alert('제출 실패 (' + resp.status + ')\\n' + (msg || ''));
         btn.disabled = false;
         btn.textContent = '접수 완료하기';
       }}
@@ -5137,7 +5143,7 @@ async def intake_form_page(token: str) -> HTMLResponse:
 # ─── Pydantic 모델 (camelCase, alias 패턴) ───
 # Pydantic 의 Field(alias=...) 로 camelCase 입력 받고 내부는 snake_case 로 보관.
 
-from pydantic import ConfigDict
+from pydantic import ConfigDict, AliasChoices
 
 
 def _camel_model_config() -> "ConfigDict":
@@ -5188,14 +5194,29 @@ class QuoteIssueRequest(BaseModel):
 
 
 class QuoteSubmitRequest(BaseModel):
-    """고객이 폼에서 [접수 완료하기] 누를 때 보내는 페이로드 (프로토 finalizeQuote)."""
+    """고객이 폼에서 [접수 완료하기] 누를 때 보내는 페이로드 (프로토 finalizeQuote).
+
+    호환 alias: 옛 §19 폼 + 안드로이드 IntakeFormRepository 의 snake_case 필드도 받음.
+    - phone / contact_phone
+    - address / road_address
+    - dong / building_detail
+    - survey (dict) / source (str — 자동으로 survey:{source:...} 로 wrapping)
+    """
     model_config = _camel_model_config()
-    phone: str                                         # 고객 전화
-    address: str                                       # 도로명 주소
-    dong: Optional[str] = None                         # 동/호수
+    phone: str = Field(validation_alias=AliasChoices("phone", "contact_phone"))
+    address: str = Field(validation_alias=AliasChoices("address", "road_address"))
+    dong: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("dong", "building_detail"),
+    )
     memo: Optional[str] = None
-    confirmedDate: Optional[str] = None                # 고객이 확인한 시공일 (ISO or label)
+    confirmedDate: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("confirmedDate", "confirmed_date"),
+    )
     survey: Optional[dict] = None                      # 유입경로 {source, keyword?, category?, etc?}
+    # 옛 폼 alias — source 문자열 (서버에서 survey:{source:...} 로 wrapping)
+    source: Optional[str] = None
 
 
 # ─── helper ───
@@ -5429,28 +5450,36 @@ async def quote_submit(token: str, req: QuoteSubmitRequest) -> dict:
         if now > expires_at:
             raise HTTPException(410, "만료된 접수서")
 
+        # survey 우선순위: req.survey (dict) > req.source (str) — 옛 폼 호환
+        effective_survey = req.survey
+        if not effective_survey and req.source:
+            effective_survey = {"source": req.source}
+
         payload = {
             "phone": phone,
             "address": address,
             "dong": (req.dong or "").strip() or None,
             "memo": (req.memo or "").strip() or None,
             "confirmedDate": (req.confirmedDate or "").strip() or None,
-            # 호환 alias (구 schema)
+            # 호환 alias (구 schema — 안드로이드 옛 IntakeFormRepository)
             "contact_phone": phone,
             "road_address": address,
             "building_detail": (req.dong or "").strip() or None,
         }
-        if req.survey:
-            payload["source"] = (req.survey.get("source") or "") + \
-                (' · "' + req.survey["keyword"] + '"' if req.survey.get("keyword") else "") + \
-                (" · " + req.survey["category"] if req.survey.get("category") else "") + \
-                (" · " + req.survey["etc"] if req.survey.get("etc") else "")
+        if effective_survey:
+            payload["source"] = (effective_survey.get("source") or "") + \
+                (' · "' + effective_survey["keyword"] + '"' if effective_survey.get("keyword") else "") + \
+                (" · " + effective_survey["category"] if effective_survey.get("category") else "") + \
+                (" · " + effective_survey["etc"] if effective_survey.get("etc") else "")
+        elif req.source:
+            # 옛 폼이 평탄화 source 문자열 직접 보낸 경우
+            payload["source"] = req.source.strip() or None
         con.execute(
             "UPDATE intake_forms SET submitted_at_ms = ?, payload_json = ?, "
             "confirmed_date_iso = ?, survey_json = ? WHERE token = ?",
             (now, json.dumps(payload, ensure_ascii=False),
              (req.confirmedDate or "").strip() or None,
-             json.dumps(req.survey, ensure_ascii=False) if req.survey else None,
+             json.dumps(effective_survey, ensure_ascii=False) if effective_survey else None,
              token),
         )
         con.commit()
