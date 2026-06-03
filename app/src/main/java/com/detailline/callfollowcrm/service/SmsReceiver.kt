@@ -173,30 +173,37 @@ class SmsReceiver : BroadcastReceiver() {
 
         val pending = goAsync()
         scope.launch {
-            try {
-                val container = app.container
+            val container = app.container
+            val notifyEnabled = container.preferences.incomingSmsNotifyEnabled
+            // 고객/카테고리 = 초기 알림 + 이후 prepare 둘 다 사용 → 한 번만 조회 (기존엔 findByPhone 2번).
+            val customer = runCatching { container.customerRepository.findByPhone(sender) }.getOrNull()
+            val categoryLabel = customer?.categoryId?.let { cid ->
+                runCatching { container.categoryRepository.findById(cid)?.name }.getOrNull()
+            }
 
-                // 2026-05-25 사장님 보고 fix: 알림 표시를 prepare/prefetch 네트워크 호출 앞으로.
-                //   서버 timeout (최대 ~9초) 이 길어지면 goAsync 시간 초과로 알림이 못 떠는 케이스 방지.
-                //   사장님이 알림은 즉시 보고, AI 추천 답변은 후속 polling 으로 update.
-                if (container.preferences.incomingSmsNotifyEnabled) {
-                    val customerForNotif = runCatching {
-                        container.customerRepository.findByPhone(sender)
-                    }.getOrNull()
-                    val categoryLabel = customerForNotif?.categoryId?.let { cid ->
-                        runCatching { container.categoryRepository.findById(cid)?.name }.getOrNull()
-                    }
+            // 1) 초기 알림만 띄우고 broadcast 를 즉시 종료한다.
+            //   2026-06-03 ANR fix: SMS_DELIVER 는 foreground broadcast(수신자 제한 ~10초). 기존엔 goAsync 를
+            //   prepare(최대 ~9초) + polling(7.5초) 끝까지 들고 있어 합산 >10초 → "RING-GO 응답 없음" ANR 빈발
+            //   (+ ANR 중 뒤 화면이 회색으로 굳어 다이얼로그가 미완성처럼 보임). 해결: 알림 후 pending.finish() 즉시.
+            //   이후 무거운 작업은 Application scope 에서 broadcast 수명과 무관하게 계속.
+            try {
+                if (notifyEnabled) {
                     NotificationHelper.showIncomingSms(
                         context = context.applicationContext,
                         phone = sender,
-                        displayName = customerForNotif?.name,
+                        displayName = customer?.name,
                         body = combinedBody,
                         receivedAtMs = receivedAtMs,
                         categoryLabel = categoryLabel,
                         suggestions = null
                     )
                 }
+            } finally {
+                pending.finish()
+            }
 
+            // 2) 무거운 작업 (히스토리·톤·prepare·prefetch·polling) — broadcast 종료 후 계속.
+            try {
                 val canReadSms = container.smsRepository.hasReadPermission()
                 val history = if (canReadSms) {
                     container.smsRepository.queryByPhone(sender, scanLimit = 100)
@@ -213,16 +220,12 @@ class SmsReceiver : BroadcastReceiver() {
                     emptyList()
                 }
                 // 사장님 톤 코퍼스 — 다른 고객에게 보낸 최근 메시지 50건.
-                // 서버가 시스템 프롬프트에 few-shot 으로 박아서 "사장님 톤" 학습.
                 val ownerToneSamples = if (canReadSms) {
                     container.smsRepository.querySentMessages(limit = 50)
                 } else {
                     emptyList()
                 }
 
-                val customer = runCatching {
-                    container.customerRepository.findByPhone(sender)
-                }.getOrNull()
                 val customerHint = customer?.let {
                     CustomerHint(
                         name = it.name,
@@ -234,15 +237,11 @@ class SmsReceiver : BroadcastReceiver() {
                 }
 
                 // P3 — 사장님의 다른 시공 일정 (현재 sender 제외, 14일 내).
-                //   서버가 "토요일 가능?" 같은 일정 질문에 이걸 근거로 답변.
                 val otherSchedules = runCatching {
                     container.customerRepository.getOtherUpcomingScheduleDates(sender)
                 }.getOrDefault(emptyList())
 
-                // 2026-05-30 사장님 #2 통점 fix: MMS 분할 / 짧은 SMS 다발 시
-                //   "마지막 사장님 발신 이후 모든 고객 수신 메시지" 묶음 → latestMessage.
-                //   옛 동작 = combinedBody (이번 PDU 1건) 만 → LLM 이 마지막 1건 보고 답변 →
-                //   사장님 통점 ("마지막 말풍선만 보고 추천").
+                // MMS 분할 / 짧은 SMS 다발 → "마지막 사장님 발신 이후 모든 고객 수신 메시지" 묶음.
                 val mergedLatest = com.detailline.callfollowcrm.ai.PrepareContextHelpers
                     .joinCustomerStreakAfterLastOwner(history, newIncomingBody = combinedBody)
                 val ctx = PrepareContext(
@@ -255,20 +254,11 @@ class SmsReceiver : BroadcastReceiver() {
                     otherUpcomingSchedulesMs = otherSchedules
                 )
 
-                container.suggestionRepository.requestPrepare(ctx)
-                // 결과 무시 — fire-and-forget. 실패해도 ChatScreen ↻ fallback 있음.
-
-                // 캐시 prefetch — 사장님이 알림 보고 들어가기 전에 미리 채움.
-                // (방금 도착한 새 SMS 포함해서) 즉시 표시되도록.
+                container.suggestionRepository.requestPrepare(ctx)  // fire-and-forget
                 container.smsCachePrefetcher.prefetchForNumber(sender)
 
-                // Step 3: AI 추천 답변 polling — 알림 토글 ON 일 때만.
-                //   서버 prepare → LLM 호출 → 캐시 박힘 → fetch 가 ready 반환.
-                //   안에 안 되면 포기 (사장님이 ChatScreen 진입해서 ↻ 가능).
-                if (container.preferences.incomingSmsNotifyEnabled) {
-                    val categoryLabel = customer?.categoryId?.let { cid ->
-                        runCatching { container.categoryRepository.findById(cid)?.name }.getOrNull()
-                    }
+                // AI 추천 답변 polling — 알림 토글 ON 일 때만. broadcast 는 이미 종료됨.
+                if (notifyEnabled) {
                     pollAndUpdateSuggestions(
                         context = context.applicationContext,
                         container = container,
@@ -279,8 +269,8 @@ class SmsReceiver : BroadcastReceiver() {
                         categoryLabel = categoryLabel
                     )
                 }
-            } finally {
-                pending.finish()
+            } catch (e: Throwable) {
+                Log.e(TAG, "prepare/poll failed (broadcast already finished)", e)
             }
         }
     }
