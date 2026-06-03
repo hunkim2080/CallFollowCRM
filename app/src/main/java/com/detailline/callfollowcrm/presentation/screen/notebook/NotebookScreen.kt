@@ -8,6 +8,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,7 +56,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -100,6 +106,8 @@ fun NotebookScreen(
     var smsTarget by remember { mutableStateOf<NotebookContactEntity?>(null) }
     // 함께한 현장 보기 대상.
     var sitesTarget by remember { mutableStateOf<NotebookContactEntity?>(null) }
+    // 분류 필터 (탭 바뀌면 전체로 리셋).
+    var filter by remember(tab) { mutableStateOf("all") }
 
     Scaffold(
         containerColor = TossGrayBg,
@@ -109,17 +117,16 @@ fun NotebookScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "뒤로", tint = TossTextPrimary) }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
-            )
-        },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = {
-                    editing = NotebookContactEntity(kind = tab.kind, name = "", createdAt = 0, updatedAt = 0)
+                actions = {
+                    // 프로토 우상단 + (흰 둥근 버튼)
+                    Box(
+                        Modifier.padding(end = 12.dp).size(38.dp).clip(RoundedCornerShape(11.dp))
+                            .background(Color.White)
+                            .clickable { editing = NotebookContactEntity(kind = tab.kind, name = "", createdAt = 0, updatedAt = 0) },
+                        contentAlignment = Alignment.Center
+                    ) { Icon(Icons.Default.Add, "추가", tint = TossBlue, modifier = Modifier.size(20.dp)) }
                 },
-                icon = { Icon(Icons.Default.Add, null) },
-                text = { Text("${tab.label} 추가", fontWeight = FontWeight.SemiBold) },
-                containerColor = TossBlue, contentColor = Color.White
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
             )
         }
     ) { inner ->
@@ -156,24 +163,63 @@ fun NotebookScreen(
                 Text(noteText, fontSize = 12.5.sp, color = TossBlue, fontWeight = FontWeight.Medium, lineHeight = 17.sp)
             }
             Spacer(Modifier.height(10.dp))
-            if (list.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("📓", fontSize = 32.sp)
-                        Spacer(Modifier.height(8.dp))
-                        Text("${tab.label}이 아직 없어요", color = TossTextSecondary,
-                            style = MaterialTheme.typography.titleMedium)
-                        Spacer(Modifier.height(4.dp))
-                        Text("아래 '+ ${tab.label} 추가'로 등록하세요", color = TossTextTertiary,
-                            style = MaterialTheme.typography.bodySmall)
+            // 프로토 invite — "+ 사람 추가" / "+ 거래처 추가" (점선)
+            val inviteLabel = if (tab == NotebookTab.WORKER) "사람 추가" else "거래처 추가"
+            Box(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(12.dp))
+                    .clickable { editing = NotebookContactEntity(kind = tab.kind, name = "", createdAt = 0, updatedAt = 0) }
+                    .drawBehind {
+                        drawRoundRect(
+                            color = TossDivider,
+                            style = Stroke(width = 1.2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(11f, 8f), 0f)),
+                            cornerRadius = CornerRadius(12.dp.toPx(), 12.dp.toPx())
+                        )
                     }
+                    .padding(vertical = 13.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Add, null, tint = TossBlue, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(inviteLabel, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                }
+            }
+            // 프로토 cfilter — 분류 필터 (분류 2개 이상일 때)
+            val cats = remember(list) { list.map { it.tag }.filter { it.isNotBlank() }.distinct() }
+            val shown = if (filter == "all") list else list.filter { it.tag == filter }
+            if (cats.size > 1) {
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    CFilterChip("전체", list.size, filter == "all") { filter = "all" }
+                    cats.forEach { cat ->
+                        CFilterChip(cat, list.count { it.tag == cat }, filter == cat) { filter = cat }
+                    }
+                }
+            }
+            // 프로토 sec-sub — 등록된 사람/거래처 N
+            val secSub = if (filter == "all") {
+                if (tab == NotebookTab.WORKER) "등록된 사람 ${list.size}명" else "등록된 거래처 ${list.size}곳"
+            } else "$filter ${shown.size}${if (tab == NotebookTab.WORKER) "명" else "곳"}"
+            Spacer(Modifier.height(12.dp))
+            Text(secSub, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
+                modifier = Modifier.padding(horizontal = 18.dp))
+            Spacer(Modifier.height(8.dp))
+            if (shown.isEmpty()) {
+                Box(Modifier.fillMaxWidth().padding(vertical = 30.dp), contentAlignment = Alignment.Center) {
+                    Text(
+                        if (list.isEmpty()) "${tab.label}이 아직 없어요" else "이 분류엔 아직 없어요",
+                        color = TossTextTertiary, style = MaterialTheme.typography.bodyMedium
+                    )
                 }
             } else {
                 LazyColumn(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(list, key = { it.id }) { c ->
+                    items(shown, key = { it.id }) { c ->
                         ContactCard(
                             c,
                             siteCount = if (c.kind == NotebookContactEntity.KIND_WORKER) sitesByWorker[c.id]?.size ?: 0 else 0,
@@ -317,6 +363,14 @@ private fun PhraseSheet(
     )
 }
 
+private val AV_TINTS = listOf(
+    Color(0xFFE8F0FE) to Color(0xFF3182F6),
+    Color(0xFFE6F7EE) to Color(0xFF12B886),
+    Color(0xFFFFF1E6) to Color(0xFFFB8C00),
+    Color(0xFFF3ECFF) to Color(0xFF7C5CFC),
+    Color(0xFFFFE9EF) to Color(0xFFF0436A),
+)
+
 @Composable
 private fun ContactCard(
     c: NotebookContactEntity,
@@ -326,74 +380,107 @@ private fun ContactCard(
     onSites: () -> Unit
 ) {
     val context = LocalContext.current
-    TossCard(onClick = onEdit) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(c.name, style = MaterialTheme.typography.titleMedium,
-                        color = TossTextPrimary, fontWeight = FontWeight.SemiBold)
-                    if (c.tag.isNotBlank()) {
-                        Spacer(Modifier.width(6.dp))
-                        Box(Modifier.clip(RoundedCornerShape(999.dp)).background(TossBlueSoft)
-                            .padding(horizontal = 8.dp, vertical = 2.dp)) {
-                            Text(c.tag, style = MaterialTheme.typography.labelSmall, color = TossBlue)
+    val isWorker = c.kind == NotebookContactEntity.KIND_WORKER
+    val tint = AV_TINTS[((c.id % AV_TINTS.size).toInt() + AV_TINTS.size) % AV_TINTS.size]
+    TossCard {
+        Column {
+            // 프로토 wk-head — 아바타 + 이름·분류·번호·현장 + 단가
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(40.dp).clip(CircleShape).background(tint.first), contentAlignment = Alignment.Center) {
+                    Text(c.name.take(1), color = tint.second, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+                }
+                Spacer(Modifier.width(11.dp))
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(c.name, style = MaterialTheme.typography.titleMedium,
+                            color = TossTextPrimary, fontWeight = FontWeight.Bold)
+                        if (c.tag.isNotBlank()) {
+                            Spacer(Modifier.width(6.dp))
+                            Box(Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFFFF3D6))
+                                .padding(horizontal = 8.dp, vertical = 2.dp)) {
+                                Text(c.tag, style = MaterialTheme.typography.labelSmall,
+                                    color = Color(0xFFB07D00), fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(2.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (c.phone.isNotBlank()) {
+                            Text(PhoneNumberFormatter.format(c.phone),
+                                style = MaterialTheme.typography.bodySmall, color = TossTextSecondary)
+                        }
+                        if (isWorker && siteCount > 0) {
+                            if (c.phone.isNotBlank()) {
+                                Text(" · ", style = MaterialTheme.typography.bodySmall, color = TossTextTertiary)
+                            }
+                            Text("함께한 현장 ${siteCount}회 ›", style = MaterialTheme.typography.labelSmall,
+                                color = TossBlue, fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.clickable { onSites() })
                         }
                     }
                 }
-                if (c.kind == NotebookContactEntity.KIND_WORKER && (c.wage ?: 0L) > 0L) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        "${if (c.wageType == NotebookContactEntity.WAGE_HOURLY) "시급" else "일당"} ${c.wage!! / 10_000L}만원",
-                        style = MaterialTheme.typography.labelMedium, color = TossError, fontWeight = FontWeight.Bold
-                    )
-                }
-                if (c.phone.isNotBlank()) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(PhoneNumberFormatter.format(c.phone),
-                        style = MaterialTheme.typography.bodyMedium, color = TossTextSecondary)
-                }
-                if (c.memo.isNotBlank()) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(c.memo, style = MaterialTheme.typography.bodySmall, color = TossTextTertiary, maxLines = 1)
-                }
-                if (siteCount > 0) {
-                    Spacer(Modifier.height(4.dp))
-                    Box(
-                        Modifier.clip(RoundedCornerShape(999.dp)).background(TossBlueSoft)
-                            .clickable { onSites() }.padding(horizontal = 8.dp, vertical = 3.dp)
-                    ) {
-                        Text("함께한 현장 ${siteCount}회 ›", style = MaterialTheme.typography.labelSmall,
-                            color = TossBlue, fontWeight = FontWeight.SemiBold)
+                if (isWorker && (c.wage ?: 0L) > 0L) {
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(if (c.wageType == NotebookContactEntity.WAGE_HOURLY) "시급" else "일당",
+                            style = MaterialTheme.typography.labelSmall, color = TossTextTertiary)
+                        Text("${c.wage!! / 10_000L}만원", style = MaterialTheme.typography.titleMedium,
+                            color = TossTextPrimary, fontWeight = FontWeight.ExtraBold)
                     }
                 }
             }
-            if (c.phone.isNotBlank()) {
-                ActionPill("전화", TossSuccess) {
-                    runCatching {
-                        context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${c.phone}")))
-                    }
+            // 프로토 wk-memo
+            if (c.memo.isNotBlank()) {
+                Spacer(Modifier.height(9.dp))
+                Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(TossGrayBg)
+                    .padding(horizontal = 11.dp, vertical = 9.dp)) {
+                    Text("📝 ${c.memo}", style = MaterialTheme.typography.bodySmall,
+                        color = TossTextSecondary, maxLines = 2)
                 }
-                Spacer(Modifier.width(6.dp))
-                ActionPill("문자", TossBlue) { onSms() }
+            }
+            // 프로토 wk-acts — 전화 / 문자 / 단가·메모
+            Spacer(Modifier.height(11.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                NbActBtn("전화", TossSuccess, Modifier.weight(1f), enabled = c.phone.isNotBlank()) {
+                    runCatching { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${c.phone}"))) }
+                }
+                NbActBtn("문자", TossBlue, Modifier.weight(1f), enabled = c.phone.isNotBlank()) { onSms() }
+                NbActBtn(if (isWorker) "단가·메모" else "메모·분류", TossTextSecondary, Modifier.weight(1f), enabled = true) { onEdit() }
             }
         }
     }
 }
 
 @Composable
-private fun ActionPill(label: String, color: Color, onClick: () -> Unit) {
+private fun NbActBtn(label: String, color: Color, modifier: Modifier = Modifier, enabled: Boolean, onClick: () -> Unit) {
     Box(
-        Modifier.clip(RoundedCornerShape(999.dp)).background(color.copy(alpha = 0.12f))
-            .clickable { onClick() }.padding(horizontal = 12.dp, vertical = 8.dp)
+        modifier.clip(RoundedCornerShape(10.dp)).background(TossGrayBg)
+            .clickable(enabled = enabled) { onClick() }.padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = color, fontWeight = FontWeight.Bold)
+        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+            color = if (enabled) color else TossTextTertiary)
+    }
+}
+
+@Composable
+private fun CFilterChip(label: String, count: Int, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.clip(RoundedCornerShape(999.dp)).background(if (selected) TossBlue else Color.White)
+            .clickable { onClick() }.padding(horizontal = 13.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+            color = if (selected) Color.White else TossTextSecondary)
+        Spacer(Modifier.width(5.dp))
+        Text("$count", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+            color = if (selected) Color.White else TossTextTertiary)
     }
 }
 
 private val WORKER_TAGS = listOf("줄눈", "실리콘", "코킹", "타일", "도배", "목공", "전기", "설비", "철거", "보조", "운전")
 private val VENDOR_TAGS = listOf("자재", "협력", "장비", "운송", "기타")
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun ContactDialog(
     target: NotebookContactEntity,
@@ -437,97 +524,137 @@ private fun ContactDialog(
         }
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (target.id > 0) "$kindLabel 수정" else "$kindLabel 추가", fontWeight = FontWeight.Bold) },
-        text = {
-            Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState())) {
-                // 연락처에서 불러오기 (추가일 때만)
-                if (target.id == 0L) {
-                    Row(
-                        Modifier.fillMaxWidth().height(46.dp).clip(RoundedCornerShape(12.dp))
-                            .background(TossBlueSoft)
-                            .clickable {
-                                runCatching {
-                                    pickContact.launch(Intent(Intent.ACTION_PICK, ContactsContract.CommonDataKinds.Phone.CONTENT_URI))
-                                }
-                            },
-                        horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.Person, null, tint = TossBlue, modifier = Modifier.size(17.dp))
-                        Spacer(Modifier.width(7.dp))
-                        Text("연락처에서 불러오기", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossBlue)
-                    }
-                    Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.weight(1f).height(1.dp).background(TossDivider))
-                        Text("또는 직접 입력", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
-                            modifier = Modifier.padding(horizontal = 10.dp))
-                        Box(Modifier.weight(1f).height(1.dp).background(TossDivider))
-                    }
-                }
-                DialogField("이름", name) { name = it }
-                DialogField("전화번호", phone, KeyboardType.Phone) { phone = PhoneNumberFormatter.formatProgressive(it) }
+    val isEdit = target.id > 0
+    val title = if (isEdit) (if (isWorker) "${target.name} 정보" else target.name)
+    else (if (isWorker) "일당·알바 추가" else "거래처 추가")
+    val sub = when {
+        isEdit && isWorker -> "다음에 부를 때 보고 판단할 메모예요."
+        isEdit -> "자주 쓰는 거래처 메모예요."
+        isWorker -> "번호 외울 필요 없어요. 연락처에서 골라 담으세요."
+        else -> "자재상·협력업체·장비 렌탈 — 자주 쓰는 곳을 담아요."
+    }
+    val catHint = if (isWorker) "전기·목공처럼 하는 일로, 또는 보조·기공·반장처럼 본인 방식대로 나눠도 돼요."
+    else "자재·협력·장비처럼 본인 방식대로 나눠도 돼요."
+    val showMemo = !isWorker || isEdit // 프로토: 일당 추가엔 메모 없음(편집엔 있음), 거래처는 항상 있음
+    val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-                // 분류 칩
-                Column(Modifier.padding(vertical = 4.dp)) {
-                    com.detailline.callfollowcrm.presentation.component.SheetFieldLabel("분류")
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        tagList.forEach { tg ->
-                            NbChip(tg, selected = !customTagOpen && tag == tg) { tag = tg; customTagOpen = false }
-                        }
-                        NbChip("직접", selected = customTagOpen) {
-                            customTagOpen = true
-                            if (tag in tagList) tag = ""
-                        }
-                    }
-                    if (customTagOpen) {
-                        Spacer(Modifier.height(8.dp))
-                        com.detailline.callfollowcrm.presentation.component.SheetTextField(
-                            tag, { tag = it }, placeholder = "분류 직접 입력"
-                        )
-                    }
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss, sheetState = sheetState, containerColor = Color.White
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 22.dp)
+                .heightIn(max = 560.dp).verticalScroll(rememberScrollState())
+        ) {
+            Text(title, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            Spacer(Modifier.height(4.dp))
+            Text(sub, fontSize = 13.sp, color = TossTextTertiary)
+            Spacer(Modifier.height(14.dp))
+            // 연락처에서 불러오기 (추가일 때만)
+            if (!isEdit) {
+                Row(
+                    Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(12.dp))
+                        .background(TossBlueSoft)
+                        .clickable {
+                            runCatching {
+                                pickContact.launch(Intent(Intent.ACTION_PICK, ContactsContract.CommonDataKinds.Phone.CONTENT_URI))
+                            }
+                        },
+                    horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Person, null, tint = TossBlue, modifier = Modifier.size(17.dp))
+                    Spacer(Modifier.width(7.dp))
+                    Text("연락처에서 불러오기", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossBlue)
                 }
-
-                // 단가 (일당만)
-                if (isWorker) {
-                    Column(Modifier.padding(vertical = 4.dp)) {
-                        com.detailline.callfollowcrm.presentation.component.SheetFieldLabel("단가 (선택)")
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            NbChip("일당", selected = wageType == NotebookContactEntity.WAGE_DAILY) { wageType = NotebookContactEntity.WAGE_DAILY }
-                            NbChip("시급", selected = wageType == NotebookContactEntity.WAGE_HOURLY) { wageType = NotebookContactEntity.WAGE_HOURLY }
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        com.detailline.callfollowcrm.presentation.component.SheetTextField(
-                            wageManwon, { wageManwon = it.filter { c -> c.isDigit() } },
-                            placeholder = "만원 (예: 18)", keyboardType = KeyboardType.Number
-                        )
-                    }
+                Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f).height(1.dp).background(TossDivider))
+                    Text("또는 직접 입력", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+                        modifier = Modifier.padding(horizontal = 10.dp))
+                    Box(Modifier.weight(1f).height(1.dp).background(TossDivider))
                 }
-
-                DialogField("메모", memo) { memo = it }
             }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val wage = wageManwon.toLongOrNull()?.takeIf { it > 0 }?.let { it * 10_000L }
-                    onSave(name, phone, tag, memo, wage, wageType)
-                },
-                enabled = name.isNotBlank()
+            // 이름 / 전화번호
+            com.detailline.callfollowcrm.presentation.component.SheetFieldLabel(if (isWorker) "이름" else "상호 / 이름")
+            com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                name, { name = it }, placeholder = if (isWorker) "예: 김반장" else "예: 대성 자재상"
+            )
+            Spacer(Modifier.height(10.dp))
+            com.detailline.callfollowcrm.presentation.component.SheetFieldLabel("전화번호")
+            com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                phone, { phone = PhoneNumberFormatter.formatProgressive(it) },
+                placeholder = "010-0000-0000", keyboardType = KeyboardType.Phone
+            )
+            Spacer(Modifier.height(10.dp))
+            // 분류 + 편집 + hint
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                com.detailline.callfollowcrm.presentation.component.SheetFieldLabel("분류")
+                Spacer(Modifier.width(7.dp))
+                Text("편집", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossBlue,
+                    modifier = Modifier.clickable { customTagOpen = true; if (tag in tagList) tag = "" })
+            }
+            Text(catHint, fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp,
+                modifier = Modifier.padding(bottom = 7.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                tagList.forEach { tg ->
+                    NbChip(tg, selected = !customTagOpen && tag == tg) { tag = tg; customTagOpen = false }
+                }
+                NbChip("+ 직접", selected = customTagOpen) {
+                    customTagOpen = true
+                    if (tag in tagList) tag = ""
+                }
+            }
+            if (customTagOpen) {
+                Spacer(Modifier.height(8.dp))
+                com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                    tag, { tag = it }, placeholder = "분류 직접 입력"
+                )
+            }
+            // 단가 (일당만)
+            if (isWorker) {
+                Spacer(Modifier.height(12.dp))
+                com.detailline.callfollowcrm.presentation.component.SheetFieldLabel("단가 (선택)")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    NbChip("일당", selected = wageType == NotebookContactEntity.WAGE_DAILY) { wageType = NotebookContactEntity.WAGE_DAILY }
+                    NbChip("시급", selected = wageType == NotebookContactEntity.WAGE_HOURLY) { wageType = NotebookContactEntity.WAGE_HOURLY }
+                }
+                Spacer(Modifier.height(8.dp))
+                com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                    wageManwon, { wageManwon = it.filter { c -> c.isDigit() } },
+                    placeholder = "만원 (예: 18)", keyboardType = KeyboardType.Number
+                )
+            }
+            // 메모
+            if (showMemo) {
+                Spacer(Modifier.height(12.dp))
+                com.detailline.callfollowcrm.presentation.component.SheetFieldLabel(if (isWorker) "메모" else "메모 (선택)")
+                com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                    memo, { memo = it }, placeholder = "취급 품목·단가·외상 여부 / 잘하는 일·주의할 점"
+                )
+            }
+            // CTA — 프로토 sheet-cta
+            Spacer(Modifier.height(18.dp))
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                    .background(if (name.isNotBlank()) TossBlue else TossDivider)
+                    .clickable(enabled = name.isNotBlank()) {
+                        val wage = wageManwon.toLongOrNull()?.takeIf { it > 0 }?.let { it * 10_000L }
+                        onSave(name, phone, tag, memo, wage, wageType)
+                    }
+                    .padding(vertical = 15.dp),
+                contentAlignment = Alignment.Center
             ) {
-                Text("저장", color = if (name.isNotBlank()) TossBlue else TossTextTertiary, fontWeight = FontWeight.Bold)
+                Text(if (isEdit) "저장" else "수첩에 추가", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
-        },
-        dismissButton = {
-            Row {
-                if (onDelete != null) {
-                    TextButton(onClick = onDelete) { Text("삭제", color = TossError) }
-                    Spacer(Modifier.width(4.dp))
-                }
-                TextButton(onClick = onDismiss) { Text("취소", color = TossTextSecondary) }
+            if (onDelete != null) {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    if (isWorker) "이 사람 빼기" else "이 거래처 빼기",
+                    fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossError,
+                    modifier = Modifier.fillMaxWidth().clickable { onDelete() }.padding(vertical = 2.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
             }
         }
-    )
+    }
 }
 
 /** 분류·단가 선택 칩. */
