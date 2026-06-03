@@ -2608,3 +2608,14 @@ launchd plist 에 추가 후 launchctl 재시작. 이 변경 없으면 issue 응
 - 헤더 RING-GO: 15sp/secondary → 21sp/primary, letterSpacing -0.2 (프로토 .ob-logo.big 21px t1).
 - 실기기 확인.
 - 서버 영향 없음.
+
+## 2026-06-04 · android (60)
+### baseUrl 공개 도메인 일원화 — http://100.86.114.49:8000 → https://api.si0in.kr (SYNC cowork 요청 처리)
+서버가 Cloudflare Tunnel 로 공개 노출(api.si0in.kr) → 앱 baseUrl 갱신 요청 처리 완료.
+- AppConfig.BASE_URL = "https://api.si0in.kr" 신설(한 곳 모음). 흩어진 9곳 전부 이걸 참조.
+- 교체 파일: ServerSuggestion/CallSummary/ConversationAi/CustomerPersona/IntakeForm/OwnerToneUpload/PhaseOneApi/RemoteRefine/UsageStats Repository. ServerHealthMonitor 는 PhaseOneApi.warmup 위임이라 자동 반영.
+- 유지: OllamaRefineRepository(11434) = Tailnet 전용(터널 미노출) → IP 그대로. network_security_config cleartext(100.86.114.49)도 Ollama 때문에 유지.
+- 검증: PC 에서 GET https://api.si0in.kr/healthz → 200 {"ok":true,"model":"claude-sonnet-4-6","pricing_loaded":true}. 빌드 통과.
+- commit: e93dfde
+- ⚠️ 실기기 설치는 폰 미연결로 대기(어젯밤 배터리 6%). 폰 연결 시 adb install -r 예정.
+- 서버 측 후속(cowork): 시공접수서/견적서 issue 응답 url 필드가 공개 도메인으로 떨어지려면 launchd plist 에 INTAKE_PUBLIC_BASE_URL=https://api.si0in.kr 추가 필요(SYNC cowork 블록 명시). 이거 없으면 고객 폰에서 발급 링크 안 열림.
