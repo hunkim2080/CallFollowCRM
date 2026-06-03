@@ -2356,3 +2356,25 @@ CREATE TABLE intake_forms (
 사장님 "화면 넘어가는 게 그림자 생기듯 부자연스럽다". 원인: AppNavHost 에 전환 미지정 → androidx Navigation 기본 전환.
 - fix: NavHost enter/exit/popEnter/popExit 지정. 상세화면=오른쪽에서 슬라이드 인, 뒤로가기=오른쪽으로 슬라이드 아웃(아래 화면 -1/4 패럴랙스). 하단 탭 4개(홈/일정/통계/더보기) 간은 페이드(180ms), 그 외 슬라이드(280ms).
 - 서버 영향: 없음
+
+## 2026-06-03 (저녁7) · android (48)
+### 문자 추천 답변 "거의 항상 실패" — 실기기 logcat 진단 → 원인 2겹
+사장님 "문자 알림에서 추천이 1%도 안 떠, 항상 오류". adb logcat 실기기 추적 결과:
+
+**① 타이밍 (앱) — 주범, 수정 완료**
+- 알림 폴링이 7.5초(3×2.5s)에 포기했는데, 서버 `/prepare-reply` → READY 까지 **실측 ~20초**(Sonnet 시나리오분류+답변3개). → 잘 만든 답변도 영영 못 받음.
+- fix: `SmsReceiver.pollAndUpdateSuggestions` 7.5초 → **30초(2.5s×12)**. broadcast 는 이미 pending.finish() 라 ANR 무관(Application scope). commit 077746e 계열.
+- 대부분 번호는 캐시에 풍부한 추천 있음(서버 품질 좋음) — 앱이 안 기다렸을 뿐.
+
+**② 서버가 가끔 빈 답변 (서버 = Cowork 영역, 핸드오프) ⚠️**
+- 일부 메시지에서 `/suggestions` 가 `status:ready` 인데 `suggestions[].text:""` + `scenario_reason:"model output not parseable as JSON"` + `why:"parse error fallback"`.
+- 즉 **서버 LLM 출력이 JSON 파싱 실패 → 서버가 빈 텍스트 폴백** 반환 → 앱은 빈 text 버려서 0개.
+- 요청: 서버에서 LLM JSON 파싱 견고화(재시도/repair/부분추출). 빈 text 폴백 대신 최소 1개라도 유효 답변 보장.
+
+**③ 지연 ~20초 자체가 김 (서버, 검토)**
+- 알림 추천이 20초 뒤에야 채워짐 = UX 느림. prepare-reply 속도 개선 검토(분류=Haiku 분리, 스트리밍, 병렬 등).
+
+**④ 서비스화 — Cloudflare Tunnel (서버, 사장님 요청)**
+- 현재 baseUrl `http://100.86.114.49:8000` = 테일넷 IP. 사장님 폰만 닿고 **고객(다른 시공사장님) 폰은 못 닿음** → 서비스 불가. (개발PC에서도 타임아웃 확인, 폰만 ping 됨)
+- Cloudflare Tunnel 로 공개 고정주소(예: api.ringgo.app) 노출 권장. 서버 작업.
+- 앱 측 후속: 하드코딩된 baseUrl(ServerSuggestionRepository/CallSummaryServerRepository/PhaseOneApiRepository/IntakeFormRepository 등) 한 곳으로 모아서 공개주소로 교체 — 공개주소 정해지면 진행.

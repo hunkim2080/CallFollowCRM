@@ -32,9 +32,11 @@ class SmsReceiver : BroadcastReceiver() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /**
-     * 알림 표시 후 서버 추천 답변 polling — 3초 간격 4번 (최대 12초).
+     * 알림 표시 후 서버 추천 답변 polling — 2.5초 간격 12번 (최대 30초).
      * READY 면 같은 알림 ID 로 update (suggestions 칩 3개 박힘).
      * 그 안에 안 오면 silent give up (사장님이 ChatScreen 에서 ↻ 가능).
+     *   2026-06-03: 서버 LLM 이 실제 ~20초 걸려 기존 7.5초 폴링은 거의 항상 실패였음(실기기 확인).
+     *   broadcast 는 이미 pending.finish() 됐으므로 이 polling 은 ANR 무관(Application scope).
      */
     private suspend fun pollAndUpdateSuggestions(
         context: Context,
@@ -45,8 +47,8 @@ class SmsReceiver : BroadcastReceiver() {
         receivedAtMs: Long,
         categoryLabel: String?
     ) {
-        // 3 × 2.5초 = 7.5초. BroadcastReceiver goAsync 제한 (~10초) 안에 안전 마감.
-        //   더 긴 polling 이 필요하면 ForegroundService 또는 WorkManager 로 분리 (다음 step).
+        // 2.5초 × 12 = 30초. broadcast 종료 후 Application scope 에서 도므로 ANR 무관.
+        //   더 견고하게(프로세스 kill 대비) 하려면 ForegroundService/WorkManager 로 분리 (다음 step).
         //
         // 2026-05-28 사장님 보고 fix:
         //   기존 = READY + isNotEmpty 면 첫 hit 으로 update → LLM 이 점진 생성하면 2개만 받기도.
@@ -56,7 +58,10 @@ class SmsReceiver : BroadcastReceiver() {
         //   NotificationHelper 시그니처 (List<String>?) 는 그대로 — BigText/액션엔 라벨 없이 답변 본문만.
         //   알림에는 chip UI 가 없으므로 ChatScreen 처럼 라벨 노출은 불필요.
         var lastPartialSugs: List<String> = emptyList()
-        repeat(3) { attempt ->
+        // 2026-06-03 fix(사장님 "추천 1% 성공"): 폴링이 7.5초에 포기 → 서버 LLM(Sonnet)이 실제 ~20초
+        //   걸려 아직 GENERATING 이라 거의 매번 실패(실기기 logcat 확인). broadcast 는 이미
+        //   pending.finish() 로 끝났으므로 여기서 더 기다려도 ANR 없음. 30초(2.5s×12)로 확장.
+        repeat(12) { _ ->
             kotlinx.coroutines.delay(2500L)
             val result = runCatching {
                 container.suggestionRepository.fetch(phone).getOrNull()
