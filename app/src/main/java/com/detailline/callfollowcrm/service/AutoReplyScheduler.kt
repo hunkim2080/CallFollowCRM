@@ -58,12 +58,8 @@ object AutoReplyScheduler {
         if (!container.preferences.autoFirstReplyEnabled) return
         if (!hasSendSmsPermission(context)) return
 
-        val templateId = if (isMissed) {
-            container.preferences.firstReplyMissedTemplateId
-        } else {
-            container.preferences.firstReplyIncomingTemplateId
-        }
-        if (templateId <= 0) return
+        // 수신(미부재중)인데 템플릿 미지정이면 발송 X. 부재중은 인라인 기본 문구가 있어 통과.
+        if (!isMissed && container.preferences.firstReplyIncomingTemplateId <= 0) return
 
         pending[callRecordId] = false
         NotificationHelper.showAutoReplyPending(
@@ -79,14 +75,27 @@ object AutoReplyScheduler {
             val cancelled = pending[callRecordId] == true
             pending.remove(callRecordId)
 
-            val template = container.messageTemplateRepository.findById(templateId)
-            val body = template?.body.orEmpty()
+            // 본문 해석 — 부재중: 프로토 인라인(신규/단골) 우선, 비면 템플릿ID fallback. 수신: 템플릿ID.
+            val body: String = if (isMissed) {
+                val isReturning = runCatching {
+                    container.customerRepository.findByPhone(phoneNumber)
+                }.getOrNull() != null
+                val inline = if (isReturning) container.preferences.autoMissedReturnText
+                else container.preferences.autoMissedNewText
+                inline.ifBlank {
+                    val tid = container.preferences.firstReplyMissedTemplateId
+                    if (tid > 0) container.messageTemplateRepository.findById(tid)?.body.orEmpty() else ""
+                }
+            } else {
+                val tid = container.preferences.firstReplyIncomingTemplateId
+                if (tid > 0) container.messageTemplateRepository.findById(tid)?.body.orEmpty() else ""
+            }
 
             if (cancelled || body.isBlank()) {
                 container.messageHistoryRepository.recordAutoSend(
                     phoneNumber = phoneNumber,
                     customerId = null,
-                    templateId = templateId.takeIf { it > 0 },
+                    templateId = null,
                     body = body,
                     status = MessageStatus.AUTO_CANCELLED
                 )
@@ -95,7 +104,6 @@ object AutoReplyScheduler {
             }
 
             // 발송 — 정책상 첫 응대는 Customer 도 자동 생성 (영업 시작 신호).
-            // 2026-05-25: status 박는 부분 제거 — 카테고리 시스템으로 통일.
             val customer = runCatching {
                 container.customerRepository.upsertByPhone(phoneNumber = phoneNumber)
             }.getOrNull()
@@ -104,7 +112,7 @@ object AutoReplyScheduler {
             container.messageHistoryRepository.recordAutoSend(
                 phoneNumber = phoneNumber,
                 customerId = customer?.id,
-                templateId = templateId,
+                templateId = null,
                 body = body,
                 status = if (sendOk) MessageStatus.AUTO_SENT else MessageStatus.AUTO_FAILED
             )

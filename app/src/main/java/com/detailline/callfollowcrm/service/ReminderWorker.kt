@@ -143,9 +143,10 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
 
     /** 내일 시공 예약 고객 → D-1 안내 알림 (저녁 창에서만, 고객별 1회). */
     private suspend fun checkInstallD1(container: AppContainer) {
+        if (!container.preferences.d1AutoEnabled) return // 자동문자 D-1 토글 OFF
         val now = System.currentTimeMillis()
         val hour = Calendar.getInstance().apply { timeInMillis = now }.get(Calendar.HOUR_OF_DAY)
-        if (hour < 17) return // 프로토 d1 = 오후 6시경. 저녁 창에서만 발송.
+        if (hour < container.preferences.d1SendHour) return // 설정한 시각 이후에만
 
         val tomorrowStart = DateTimeUtils.startOfDay(now) + DateTimeUtils.DAY_MS
         val tomorrowEnd = tomorrowStart + DateTimeUtils.DAY_MS

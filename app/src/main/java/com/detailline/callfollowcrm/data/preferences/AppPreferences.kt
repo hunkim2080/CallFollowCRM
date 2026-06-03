@@ -47,6 +47,39 @@ class AppPreferences(context: Context) {
         get() = prefs.getLong(KEY_FIRST_REPLY_MISSED_TPL, -1L)
         set(value) = prefs.edit().putLong(KEY_FIRST_REPLY_MISSED_TPL, value).apply()
 
+    // ── 자동 문자 — 프로토 자동문자 시트(인라인 텍스트). 비면 위 템플릿ID fallback. (2026-06-03) ──
+    /** 부재중 자동응답 — 처음 연락한 고객(신규). */
+    var autoMissedNewText: String
+        get() = prefs.getString("auto_missed_new_text",
+            "안녕하세요, 디테일라인 줄눈입니다 😊 지금 시공 중이라 전화를 못 받았어요. 어떤 시공 문의신지 문자로 남겨주시면 바로 견적 안내드릴게요!") ?: ""
+        set(value) = prefs.edit().putString("auto_missed_new_text", value).apply()
+    /** 부재중 자동응답 — 다시 연락한 고객(단골·기존). */
+    var autoMissedReturnText: String
+        get() = prefs.getString("auto_missed_return_text",
+            "고객님, 전화 못 받아 죄송해요! 지금 시공 중이라 마치는 대로 바로 연락드릴게요. 급하시면 문자로 남겨주세요 😊") ?: ""
+        set(value) = prefs.edit().putString("auto_missed_return_text", value).apply()
+    /** 시공 D-1 안내 on/off (알림으로 "보낼까요?" 물어봄). */
+    var d1AutoEnabled: Boolean
+        get() = prefs.getBoolean("d1_auto_enabled", true)
+        set(value) = prefs.edit().putBoolean("d1_auto_enabled", value).apply()
+    /** D-1 안내 묻는 시각(시, 0~23). 기본 오전 9시. */
+    var d1SendHour: Int
+        get() = prefs.getInt("d1_send_hour", 9)
+        set(value) = prefs.edit().putInt("d1_send_hour", value).apply()
+    /** D-1 안내 문자 본문. */
+    var d1AutoText: String
+        get() = prefs.getString("d1_auto_text",
+            "고객님, 내일 시공 예정입니다 😊 현장 정리(가구·물건 비움) 부탁드리고, 주차 가능 여부만 미리 알려주세요. 디테일라인 줄눈 드림.") ?: ""
+        set(value) = prefs.edit().putString("d1_auto_text", value).apply()
+    /** 현장 도착 안내(위치 기반) on/off. 트리거는 추후. */
+    var arrivalAutoEnabled: Boolean
+        get() = prefs.getBoolean("arrival_auto_enabled", false)
+        set(value) = prefs.edit().putBoolean("arrival_auto_enabled", value).apply()
+    var arrivalAutoText: String
+        get() = prefs.getString("arrival_auto_text",
+            "고객님, 30분 뒤 도착 예정입니다 😊 잠시 후 뵐게요! 디테일라인 줄눈 드림.") ?: ""
+        set(value) = prefs.edit().putString("arrival_auto_text", value).apply()
+
     /**
      * 후속 처리 알림 (두 번째 통화부터)의 빠른 액션 버튼 3개에 표시할 템플릿 ID.
      * -1L = 해당 슬롯 사용 안 함 (그 자리 액션 버튼이 안 뜸).

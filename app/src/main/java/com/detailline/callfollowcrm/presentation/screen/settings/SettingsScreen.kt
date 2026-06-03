@@ -17,6 +17,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.border
 import androidx.compose.foundation.BorderStroke
 import com.detailline.callfollowcrm.data.local.entity.MessageTemplateEntity
@@ -263,13 +264,8 @@ fun SettingsScreen(
                 }
                 // ══════════════ 자동 문자 (부재중·D-1·도착·정기) ══════════════
                 "autosms" -> {
-                    AfterCallCard(
-                        state = state,
-                        templates = templates,
-                        onBehaviorChange = viewModel::setBehavior,
-                        onQuickActionChange = viewModel::setQuickAction,
-                        onIncomingTemplateChange = viewModel::setIncomingTemplate,
-                        onMissedTemplateChange = viewModel::setMissedTemplate,
+                    AutoSmsSection(
+                        autoReplyOn = state.autoFirstReplyEnabled,
                         onAutoReplyToggle = { wantOn ->
                             if (wantOn) {
                                 val granted = ContextCompat.checkSelfPermission(
@@ -280,13 +276,10 @@ fun SettingsScreen(
                             } else {
                                 viewModel.setAutoFirstReplyEnabled(false)
                             }
-                        }
-                    )
-                    LockRow(Icons.AutoMirrored.Filled.Send, TossBlueSoft, TossBlue, "정기문자 예약",
-                        "시공 후 안부·점검 문자 예약", onClick = onOpenRecurring)
-                    IncomingSmsNotifyCard(
-                        enabled = state.incomingSmsNotifyEnabled,
-                        onToggle = viewModel::setIncomingSmsNotifyEnabled
+                        },
+                        incomingNotifyOn = state.incomingSmsNotifyEnabled,
+                        onIncomingNotifyToggle = viewModel::setIncomingSmsNotifyEnabled,
+                        onOpenRecurring = onOpenRecurring
                     )
                     Spacer(Modifier.height(16.dp))
                 }
@@ -1077,6 +1070,187 @@ private fun ServerStatusCard(alive: Boolean?) {
 }
 
 /** 통화 종료 후 동작 — AfterCallBehavior + 후속 알림 빠른 액션 + 처음 연락 자동 응답 통합. */
+/**
+ * 프로토 openAutoSms 1:1 — 자동 문자 4카드 (부재중 신규/단골 · D-1 · 도착 · 정기).
+ *   인라인 텍스트는 AppPreferences 에 즉시 저장(프로토 "저장" 없이 자동). 부재중 토글=autoFirstReplyEnabled.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun AutoSmsSection(
+    autoReplyOn: Boolean,
+    onAutoReplyToggle: (Boolean) -> Unit,
+    incomingNotifyOn: Boolean,
+    onIncomingNotifyToggle: (Boolean) -> Unit,
+    onOpenRecurring: () -> Unit
+) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember {
+        (ctx.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication).container.preferences
+    }
+    var missedNew by remember { mutableStateOf(prefs.autoMissedNewText) }
+    var missedReturn by remember { mutableStateOf(prefs.autoMissedReturnText) }
+    var d1On by remember { mutableStateOf(prefs.d1AutoEnabled) }
+    var d1Hour by remember { mutableStateOf(prefs.d1SendHour) }
+    var d1Text by remember { mutableStateOf(prefs.d1AutoText) }
+    var arrOn by remember { mutableStateOf(prefs.arrivalAutoEnabled) }
+    var arrText by remember { mutableStateOf(prefs.arrivalAutoText) }
+
+    fun hourLabel(h: Int): String = when {
+        h == 0 -> "오전 12시"; h < 12 -> "오전 ${h}시"; h == 12 -> "오후 12시"; else -> "오후 ${h - 12}시"
+    }
+
+    Text("전화·시공으로 바쁠 때 고객을 놓치지 않게 자동으로 챙겨요.",
+        fontSize = 13.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 6.dp))
+
+    Text("상황이 되면 자동으로", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
+        modifier = Modifier.padding(start = 2.dp, top = 8.dp, bottom = 6.dp))
+
+    // ① 부재중 자동 응답
+    AutoCard("📞", TossBlueSoft, "부재중 자동 응답", "즉시 발송", "전화 못 받으면 자동으로 문자 발송",
+        autoReplyOn, onAutoReplyToggle) {
+        AutoDotLabel(TossBlue, "처음 연락한 고객 (신규)")
+        AutoTextArea(missedNew) { missedNew = it; prefs.autoMissedNewText = it }
+        Spacer(Modifier.height(10.dp))
+        AutoDotLabel(Color(0xFF12B886), "다시 연락한 고객 (단골·기존)")
+        AutoTextArea(missedReturn) { missedReturn = it; prefs.autoMissedReturnText = it }
+        AutoNote("전화를 못 받은 상황이라 확인 없이 바로 나가요. 같은 번호엔 하루 1번만 발송돼요.")
+    }
+    Spacer(Modifier.height(10.dp))
+
+    // ② 시공 하루 전 안내 (D-1)
+    AutoCard("📅", Color(0xFFFFF1E6), "시공 하루 전 안내 (D-1)", null,
+        "시공 전날 ${hourLabel(d1Hour)} · 보내기 전 확인",
+        d1On, { d1On = it; prefs.d1AutoEnabled = it }) {
+        Text("전날 몇 시에 물어볼까요", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+            modifier = Modifier.padding(bottom = 6.dp))
+        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            listOf(8, 9, 10, 11, 18, 19).forEach { h ->
+                AutoChip(hourLabel(h), d1Hour == h) { d1Hour = h; prefs.d1SendHour = h }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        AutoTextArea(d1Text) { d1Text = it; prefs.d1AutoText = it }
+        AutoNote("전날 이 시각에 막내가 “보낼까요?” 하고 먼저 물어봐요. 사장님이 확인 눌러야 고객에게 나가요 — 무음 자동발송이 아니에요.")
+    }
+    Spacer(Modifier.height(10.dp))
+
+    // ③ 현장 도착 안내 (5km)
+    AutoCard("📍", Color(0xFFE6F7EE), "현장 도착 안내 (5km)", null, "위치 기반 · 보내기 전 확인",
+        arrOn, { arrOn = it; prefs.arrivalAutoEnabled = it }) {
+        AutoTextArea(arrText) { arrText = it; prefs.arrivalAutoText = it }
+        AutoNote("위치 권한이 필요해요. (위치 기반 자동 감지는 준비 중)")
+    }
+    Spacer(Modifier.height(14.dp))
+
+    Text("정해둔 주기로", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
+        modifier = Modifier.padding(start = 2.dp, bottom = 6.dp))
+
+    // ④ 정기 문자 예약 (링크)
+    TossCard(onClick = onOpenRecurring) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFFE2F7F3)),
+                contentAlignment = Alignment.Center) { Text("🔁", fontSize = 16.sp) }
+            Spacer(Modifier.width(11.dp))
+            Column(Modifier.weight(1f)) {
+                Text("정기 문자 예약", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                Text("방역·점검·안부 — 각 고객 날짜 기준 주기 발송", fontSize = 12.sp, color = TossTextTertiary)
+            }
+            Text("›", fontSize = 20.sp, color = TossTextTertiary)
+        }
+    }
+    Spacer(Modifier.height(14.dp))
+
+    // 받은 문자 알림 (보존)
+    TossCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("받은 문자 알림", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                Text("고객 문자가 오면 AI 추천 답변과 함께 알림", fontSize = 12.sp, color = TossTextTertiary)
+            }
+            Switch(checked = incomingNotifyOn, onCheckedChange = onIncomingNotifyToggle)
+        }
+    }
+}
+
+@Composable
+private fun AutoCard(
+    emoji: String,
+    iconBg: Color,
+    title: String,
+    badge: String?,
+    sub: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    body: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    TossCard {
+        Column {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded }
+            ) {
+                Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(iconBg),
+                    contentAlignment = Alignment.Center) { Text(emoji, fontSize = 16.sp) }
+                Spacer(Modifier.width(11.dp))
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                        if (badge != null) {
+                            Spacer(Modifier.width(6.dp))
+                            Box(Modifier.clip(RoundedCornerShape(6.dp)).background(TossBlueSoft)
+                                .padding(horizontal = 6.dp, vertical = 1.dp)) {
+                                Text(badge, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                            }
+                        }
+                    }
+                    Text(sub, fontSize = 12.sp, color = TossTextTertiary)
+                }
+                Switch(checked = checked, onCheckedChange = onCheckedChange)
+            }
+            androidx.compose.animation.AnimatedVisibility(visible = expanded) {
+                Column(Modifier.padding(top = 12.dp)) { body() }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AutoDotLabel(dotColor: Color, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 6.dp)) {
+        Box(Modifier.size(7.dp).clip(androidx.compose.foundation.shape.CircleShape).background(dotColor))
+        Spacer(Modifier.width(6.dp))
+        Text(label, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
+    }
+}
+
+@Composable
+private fun AutoTextArea(value: String, onChange: (String) -> Unit) {
+    androidx.compose.material3.OutlinedTextField(
+        value = value,
+        onValueChange = onChange,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 84.dp),
+        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.5.sp, color = TossTextPrimary)
+    )
+}
+
+@Composable
+private fun AutoNote(text: String) {
+    Text(text, fontSize = 11.5.sp, color = TossTextTertiary, lineHeight = 16.sp,
+        modifier = Modifier.padding(top = 8.dp))
+}
+
+@Composable
+private fun AutoChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier.clip(RoundedCornerShape(999.dp)).background(if (selected) TossBlue else TossGrayBg)
+            .clickable { onClick() }.padding(horizontal = 13.dp, vertical = 7.dp)
+    ) {
+        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+            color = if (selected) Color.White else TossTextSecondary)
+    }
+}
+
 @Composable
 private fun AfterCallCard(
     state: SettingsUiState,
