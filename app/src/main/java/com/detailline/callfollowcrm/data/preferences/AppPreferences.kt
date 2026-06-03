@@ -225,6 +225,15 @@ class AppPreferences(context: Context) {
         get() = prefs.getStringSet("dismissed_auto_reply_ids", emptySet()) ?: emptySet()
         set(value) = prefs.edit().putStringSet("dismissed_auto_reply_ids", value).apply()
 
+    /** 홈 "견적 회신 챙기기" 배너 밀어서 정리한 날(dayStart). 그 날 하루 숨김 — 다음날 다시. */
+    var estimateFollowupDismissedDay: Long
+        get() = prefs.getLong("estimate_followup_dismissed_day", 0L)
+        set(value) = prefs.edit().putLong("estimate_followup_dismissed_day", value).apply()
+    /** 홈 "오늘 보낼 정기 문자" 배너 밀어서 정리한 날(dayStart). 그 날 하루 숨김. */
+    var recurringDueDismissedDay: Long
+        get() = prefs.getLong("recurring_due_dismissed_day", 0L)
+        set(value) = prefs.edit().putLong("recurring_due_dismissed_day", value).apply()
+
     // ── 내 말투 학습 (프로토 renderTone). 학습률·before/after 는 서버 API 대기. ──
     var toneLearnEnabled: Boolean
         get() = prefs.getBoolean("tone_learn_enabled", true)

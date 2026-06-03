@@ -167,6 +167,8 @@ fun HomeScreen(
     val recurringDueCount by viewModel.recurringDueCount.collectAsState()
     val scheduleReminders by viewModel.scheduleReminders.collectAsState()
     val estimateFollowupCount by viewModel.estimateFollowupCount.collectAsState()
+    val estimateFollowupDismissed by viewModel.estimateFollowupDismissed.collectAsState()
+    val recurringDueDismissed by viewModel.recurringDueDismissed.collectAsState()
     val isInitialSmsLoading by viewModel.isInitialSmsLoading.collectAsState()
 
     // 서버 상태 indicator — AppContainer 의 ServerHealthMonitor 를 직접 구독.
@@ -484,18 +486,20 @@ fun HomeScreen(
                 //   순서 = 프로토 슬롯 순서: (pending) 견적회신 → (missed) 자동답장 → (recur) 정기문자 → (d1) 시공안내.
                 //   quote/pending(접수서)·call(통화내용)·team-photo(팀)는 서버/팀 의존 → 데이터 생기면 노출(지금 숨김).
 
-                // 견적 회신 챙기기 — 견적 보낸 지 N일 답 없는 고객 (프로토 pending 위치).
-                if (estimateFollowupCount > 0) {
+                // 견적 회신 챙기기 — 견적 보낸 지 N일 답 없는 고객 (프로토 pending 위치). 밀어서 정리=오늘 숨김.
+                if (estimateFollowupCount > 0 && !estimateFollowupDismissed) {
                     item(key = "estimate-followup-card") {
-                        InboxAlert(
-                            accent = Color(0xFF7C5CFC), accentTint = Color(0xFFF1ECFF),
-                            icon = Icons.Filled.Description,
-                            title = "견적 회신 챙기기",
-                            tagText = "미회신", tagBg = Color(0xFFFEF3E0), tagFg = Color(0xFFB8780A),
-                            sub = "${estimateFollowupCount}곳 · 답 없는 견적",
-                            goLabel = "보기",
-                            onClick = onOpenEstimateFollowup
-                        )
+                        DismissSwipeBox(onDismiss = { viewModel.dismissEstimateFollowup() }) {
+                            InboxAlert(
+                                accent = Color(0xFF7C5CFC), accentTint = Color(0xFFF1ECFF),
+                                icon = Icons.Filled.Description,
+                                title = "견적 회신 챙기기",
+                                tagText = "미회신", tagBg = Color(0xFFFEF3E0), tagFg = Color(0xFFB8780A),
+                                sub = "${estimateFollowupCount}곳 · 답 없는 견적",
+                                goLabel = "보기",
+                                onClick = onOpenEstimateFollowup
+                            )
+                        }
                     }
                 }
 
@@ -522,24 +526,27 @@ fun HomeScreen(
                     }
                 }
 
-                // 정기문자 보낼 때 됐어요 (프로토 recur). 탭 → 보낼 목록.
-                if (recurringDueCount > 0) {
+                // 정기문자 보낼 때 됐어요 (프로토 recur). 탭 → 보낼 목록. 밀어서 정리=오늘 숨김.
+                if (recurringDueCount > 0 && !recurringDueDismissed) {
                     item(key = "recurring-due-card") {
-                        InboxAlert(
-                            accent = Color(0xFFF6A609), accentTint = Color(0xFFFFF3DF),
-                            icon = Icons.Filled.DateRange,
-                            title = "오늘 보낼 정기 문자 ${recurringDueCount}건",
-                            tagText = "확인 후 발송", tagBg = Color(0xFFFFF3DF), tagFg = Color(0xFFC9820B),
-                            sub = "확인하고 한 명씩 보내기",
-                            goLabel = "보기",
-                            onClick = onOpenRecurringDue
-                        )
+                        DismissSwipeBox(onDismiss = { viewModel.dismissRecurringDue() }) {
+                            InboxAlert(
+                                accent = Color(0xFFF6A609), accentTint = Color(0xFFFFF3DF),
+                                icon = Icons.Filled.DateRange,
+                                title = "오늘 보낼 정기 문자 ${recurringDueCount}건",
+                                tagText = "확인 후 발송", tagBg = Color(0xFFFFF3DF), tagFg = Color(0xFFC9820B),
+                                sub = "확인하고 한 명씩 보내기",
+                                goLabel = "보기",
+                                onClick = onOpenRecurringDue
+                            )
+                        }
                     }
                 }
 
                 // 시공 D-1 / 도착 안내 (프로토 remind-card) — 전체 문구 + [건너뛰기][문자 보낼까요?].
                 scheduleReminders.forEach { rem ->
                     item(key = "reminder-${rem.item.kind}-${rem.item.customerId}") {
+                        DismissSwipeBox(onDismiss = { viewModel.dismissReminder(rem.item) }) {
                         RemindCard(
                             reminder = rem,
                             onSkip = { viewModel.dismissReminder(rem.item) },
@@ -559,6 +566,7 @@ fun HomeScreen(
                                 }
                             }
                         )
+                        }
                     }
                 }
 

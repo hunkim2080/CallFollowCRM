@@ -240,6 +240,27 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         container.preferences.dismissedAutoReplyIds = next.map { it.toString() }.toSet()
     }
 
+    // 카운트 배너(견적 회신·정기문자) 밀어서 정리 = 오늘 하루 숨김(다음날 다시).
+    private val estimateFollowupDismissedDay = MutableStateFlow(container.preferences.estimateFollowupDismissedDay)
+    val estimateFollowupDismissed: StateFlow<Boolean> = estimateFollowupDismissedDay
+        .map { it == todayStart }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000),
+            container.preferences.estimateFollowupDismissedDay == todayStart)
+    fun dismissEstimateFollowup() {
+        estimateFollowupDismissedDay.value = todayStart
+        container.preferences.estimateFollowupDismissedDay = todayStart
+    }
+
+    private val recurringDueDismissedDay = MutableStateFlow(container.preferences.recurringDueDismissedDay)
+    val recurringDueDismissed: StateFlow<Boolean> = recurringDueDismissedDay
+        .map { it == todayStart }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000),
+            container.preferences.recurringDueDismissedDay == todayStart)
+    fun dismissRecurringDue() {
+        recurringDueDismissedDay.value = todayStart
+        container.preferences.recurringDueDismissedDay = todayStart
+    }
+
     val autoReplies: StateFlow<List<AutoReplyItem>> = combine(
         container.messageHistoryRepository.observeRecentAutoReplies(autoReplySinceMs, limit = 5),
         customers,

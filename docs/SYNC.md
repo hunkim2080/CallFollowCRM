@@ -2482,3 +2482,11 @@ launchd plist 의 EnvironmentVariables 에 추가:
 2. **홈 "부재중 자동답장 보냄" 배너 밀어서 정리** — DismissSwipeBox(우→좌) + dismissedAutoReplyIds(prefs 영속). AutoReplyItem.id 추가.
 3. **채팅 내일정 시트 하단** 시각 정리(회색 카드 + "시공 N곳") + **주소 우선**(주소 크게 위로 2줄, 이름/번호 아래 작게) — 가까운 현장 묶기용(사장님).
 - 서버 영향: 없음(§18 기존 엔드포인트 사용)
+
+## 2026-06-04 · android (51)
+### 홈 알림 배너 전부 밀어서 정리(swipe-to-dismiss) — 사장님 "지울 수가 없네"
+DismissSwipeBox(우→좌) 를 홈 모든 inbox-alert 에 적용:
+- 견적 회신 챙기기 / 오늘 보낼 정기문자 = 카운트 카드 → 밀면 **오늘 하루 숨김**(prefs dayStart, 다음날 다시). estimateFollowupDismissed/recurringDueDismissed StateFlow.
+- 부재중 자동답장 = 이미 적용(영구, dismissedAutoReplyIds).
+- 시공 D-1/도착 RemindCard = DismissSwipeBox 로 감싸 기존 dismissReminder 재사용(건너뛰기와 동일).
+- 서버 영향 없음.
