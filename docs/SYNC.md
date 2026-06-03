@@ -2572,3 +2572,14 @@ launchd plist 에 추가 후 launchctl 재시작. 이 변경 없으면 issue 응
 - fix: HorizontalPager full-bleed(layout 으로 부모 26dp 패딩 밖으로) + contentPadding 26dp + pageSpacing 12dp → 카드=(화면-52), 양옆 26dp peek. 프로토와 동일. 실기기 확인.
 - 온보딩 디자인 일치 작업 마무리(자동넘김#52 + 악센트색#53 + 균일카드#54 + peek#55).
 - 서버 영향 없음.
+
+## 2026-06-04 · android (56)
+### 온보딩 — peek 좌우대칭 수정 + 섹션별 애니메이션(퀄리티 업)
+1. peek 비대칭(왼쪽 안 보임) 수정 — layout 보고 폭을 원래(패딩 안) 폭으로 고침 → 좌우 대칭 peek.
+2. 섹션별 애니메이션(사장님 "퀄리티 올려줘", 프로토 obPlay):
+   - 카드 depth: 중심에서 멀수록 scale 0.93·alpha 0.5 (넘길 때 팝업 느낌)
+   - 03·돈: "105만원" 카운트업(tween 900)
+   - 04·경기: 막대 4개 stagger 차오름(delay 90ms씩)
+   - 그래서: "92%" 카운트업 + 진행바 0→92% 차오름(tween 1100)
+   - Slide.visual(active) 시그니처로 현재 슬라이드일 때만 재생/재트리거.
+- 서버 영향 없음. 온보딩 프로토 일치 작업 완료(#52~#56).

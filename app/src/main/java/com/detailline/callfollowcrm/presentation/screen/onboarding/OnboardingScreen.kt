@@ -32,7 +32,12 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.util.lerp
+import kotlin.math.absoluteValue
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.layout.layout
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
@@ -86,7 +91,7 @@ private val REGIONS = listOf(
     "전라", "광주", "경상", "대구", "부산", "울산", "제주"
 )
 
-private data class Slide(val kicker: String, val title: String, val sub: String, val visual: @Composable () -> Unit)
+private data class Slide(val kicker: String, val title: String, val sub: String, val visual: @Composable (active: Boolean) -> Unit)
 
 /**
  * 온보딩 — 프로토타입 `.ob` 4단계 그대로.
@@ -214,20 +219,33 @@ private fun StoryStep(onStart: () -> Unit, onPageChanged: (Int) -> Unit) {
         HorizontalPager(
             state = pager,
             modifier = Modifier
-                .fillMaxWidth()
                 .layout { measurable, constraints ->
-                    val extra = 26.dp.roundToPx() * 2
-                    val placeable = measurable.measure(constraints.copy(maxWidth = constraints.maxWidth + extra))
-                    layout(placeable.width, placeable.height) { placeable.place(-26.dp.roundToPx(), 0) }
+                    // 부모 26dp 패딩 밖으로 확장(full-bleed)하되, 보고하는 폭은 원래(패딩 안) 폭 유지 → 좌우 대칭.
+                    val pad = 26.dp.roundToPx()
+                    val placeable = measurable.measure(constraints.copy(maxWidth = constraints.maxWidth + pad * 2))
+                    layout(constraints.maxWidth, placeable.height) { placeable.place(-pad, 0) }
                 },
             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 26.dp),
             pageSpacing = 12.dp
         ) { i ->
             val s = slides[i]
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp)) {
+            // 중심에서 멀수록 작아지고 흐려지는 depth — 넘길 때 카드가 팝업되는 느낌(프로토 obPop).
+            val pageOffset = ((pager.currentPage - i) + pager.currentPageOffsetFraction).absoluteValue.coerceIn(0f, 1f)
+            val active = pager.currentPage == i
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 2.dp)
+                    .graphicsLayer {
+                        val sc = lerp(0.93f, 1f, 1f - pageOffset)
+                        scaleX = sc; scaleY = sc
+                        alpha = lerp(0.5f, 1f, 1f - pageOffset)
+                    }
+            ) {
                 KickerChip(s.kicker, accent)
                 Spacer(Modifier.height(15.dp))
-                // 프로토 .ob-visual — 모든 슬라이드 동일한 흰 카드(고정 226dp, 내용 가운데). 슬라이드 간 정렬 일관.
+                // 프로토 .ob-visual — 모든 슬라이드 동일한 흰 카드(고정 254dp, 내용 가운데). 슬라이드 간 정렬 일관.
                 Box(
                     Modifier
                         .fillMaxWidth()
@@ -237,7 +255,7 @@ private fun StoryStep(onStart: () -> Unit, onPageChanged: (Int) -> Unit) {
                         .border(1.dp, Color(0xFFEDEFF3), RoundedCornerShape(24.dp))
                         .padding(18.dp),
                     contentAlignment = Alignment.Center
-                ) { s.visual() }
+                ) { s.visual(active) }
                 Spacer(Modifier.height(20.dp))
                 Text(s.title, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.6).sp, textAlign = TextAlign.Center)
                 Spacer(Modifier.height(8.dp))
@@ -557,12 +575,13 @@ private fun storySlides(): List<Slide> = listOf(
             }
         }
     },
-    Slide("03 · 돈", "누가 안 줬는지 한눈에", "계약금·잔금, 떼일 걱정 없게 자동 정리") {
+    Slide("03 · 돈", "누가 안 줬는지 한눈에", "계약금·잔금, 떼일 걱정 없게 자동 정리") { active ->
         Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF272D3D), Color(0xFF14171F))), RoundedCornerShape(16.dp)).padding(18.dp)) {
             Text("아직 받을 돈", fontSize = 11.sp, color = Color.White.copy(alpha = 0.6f), fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(3.dp))
+            val won by animateIntAsState(if (active) 105 else 0, tween(900), label = "won")
             Text(buildAnnotatedString {
-                withStyle(SpanStyle(fontSize = 30.sp, fontWeight = FontWeight.ExtraBold)) { append("105") }
+                withStyle(SpanStyle(fontSize = 30.sp, fontWeight = FontWeight.ExtraBold)) { append("$won") }
                 withStyle(SpanStyle(fontSize = 16.sp)) { append("만원") }
             }, color = Color.White)
             Spacer(Modifier.height(13.dp))
@@ -575,7 +594,7 @@ private fun storySlides(): List<Slide> = listOf(
             }
         }
     },
-    Slide("04 · 요즘 경기", "나만 힘든 거 아니더라고요", "전국 현장 흐름으로 요즘 경기 한눈에") {
+    Slide("04 · 요즘 경기", "나만 힘든 거 아니더라고요", "전국 현장 흐름으로 요즘 경기 한눈에") { active ->
         Column(Modifier.fillMaxWidth()) {
             Row {
                 Text("이번 주 문의 ", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
@@ -583,9 +602,10 @@ private fun storySlides(): List<Slide> = listOf(
             }
             Spacer(Modifier.height(16.dp))
             Row(Modifier.fillMaxWidth().height(80.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Bottom) {
-                listOf(0.55f, 0.85f, 0.45f, 0.40f).forEach { h ->
+                listOf(0.55f, 0.85f, 0.45f, 0.40f).forEachIndexed { idx, h ->
+                    val grow by animateFloatAsState(if (active) h else 0f, tween(650, delayMillis = idx * 90), label = "bar")
                     Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
-                        Box(Modifier.fillMaxWidth(0.5f).height((80 * h).dp).background(TossBlue, RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)))
+                        Box(Modifier.fillMaxWidth(0.5f).height((80 * grow).dp).background(TossBlue, RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)))
                     }
                 }
             }
@@ -623,17 +643,19 @@ private fun storySlides(): List<Slide> = listOf(
             }
         }
     },
-    Slide("그래서 —", "함께할수록 완벽해져요", "오늘 시작하면, 내일 더 사장님다운 비서") {
+    Slide("그래서 —", "함께할수록 완벽해져요", "오늘 시작하면, 내일 더 사장님다운 비서") { active ->
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("사장님 말투 학습", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue, letterSpacing = 0.5.sp)
             Spacer(Modifier.height(4.dp))
+            val pct by animateIntAsState(if (active) 92 else 0, tween(1100), label = "pct")
+            val barW by animateFloatAsState(if (active) 0.92f else 0f, tween(1100), label = "pctbar")
             Text(buildAnnotatedString {
-                withStyle(SpanStyle(fontSize = 42.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)) { append("92") }
+                withStyle(SpanStyle(fontSize = 42.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)) { append("$pct") }
                 withStyle(SpanStyle(fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)) { append("%") }
             })
             Spacer(Modifier.height(10.dp))
             Box(Modifier.fillMaxWidth().height(8.dp).background(TossGrayBg, RoundedCornerShape(99.dp))) {
-                Box(Modifier.fillMaxWidth(0.92f).height(8.dp).background(TossBlue, RoundedCornerShape(99.dp)))
+                Box(Modifier.fillMaxWidth(barW.coerceIn(0.001f, 1f)).height(8.dp).background(TossBlue, RoundedCornerShape(99.dp)))
             }
             Spacer(Modifier.height(14.dp))
             Text("대화를 나눌수록, 점점 더 사장님처럼", fontSize = 12.5.sp, color = TossTextSecondary, fontWeight = FontWeight.SemiBold)
