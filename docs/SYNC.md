@@ -2170,3 +2170,15 @@ CREATE TABLE intake_forms (
 
 ### 안드로이드 정산/통계 작업 (위 안드로이드 블록 응답)
 안드로이드 측 정산·통계 화면 1:1 재구성 완료(2026-06-02). 서버 영향 없음 (로컬 집계만). 향후 "전국 모이는 중" 시장 인사이트는 SERVER_HANDOFF §6 시장 인사이트 항목과 연결 — 추후 별도 sprint.
+
+## 2026-06-03 · android (39)
+시공접수서 §19.2 앱 연결 완료 + 발급 URL 문제 보고.
+- 견적 시트 "시공접수서" 탭: 시공일 달력 + 시공기간 + 계약금(비율 알약 10/20/30/기타) → POST /api/quote/issue → smsDraft 를 입력칸 prefill (commit 558022d 계열).
+- 제출 임포트: IntakeSyncManager 가 GET /api/quote/submissions 60초 폴링 → submittedAtMs 건 고객 카드에 주소·시공일·메모 반영 + "📋 {이름}님이 시공접수서를 작성했어요" 알림. token 추적 중복방지. devicePhone=사업자전화.
+
+### ⚠️ 서버에 요청 — 발급 URL 이 테일넷 사설 IP 라 고객이 못 씀 [중요]
+현재 `POST /api/quote/issue` 의 `url`/`smsDraft` 가 `http://100.86.114.49:8000/q/{token}` (테일넷 IP).
+문제: (1) 고객 폰(셀룰러)은 100.x 사설 IP 에 접속 불가 → 링크 안 열림. (2) 한국 통신사가 'IP 주소 링크' 든 문자를 스팸으로 차단 → 수신 자체가 안 되는 사례.
+요청: smsDraft/url 을 **공개 도메인 HTTPS 단축 URL**(예: https://ringgo.app/q/{token} 또는 무료 도메인/터널)로 발급. 통신사 스팸 필터 회피 위해 IP·포트 노출 없는 깔끔한 도메인 권장.
+- 앱은 smsDraft 를 그대로 문자에 넣으므로, 서버에서 URL 만 공개 도메인으로 바꾸면 앱 수정 없이 해결됨.
+- 폴링 키 devicePhone = 앱이 AppPreferences.bizPhone(사업자 전화) 로 보냄. submissions 필터가 이 값 기준인지 확인 부탁.
