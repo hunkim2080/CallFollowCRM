@@ -2600,3 +2600,11 @@ launchd plist 에 추가 후 launchctl 재시작. 이 변경 없으면 issue 응
 - 실기기 확인(타이핑 중 ▌커서 캡처).
 - 온보딩 프로토 일치 완료(#52~#58: 자동넘김·악센트·균일카드·peek대칭·depth·카운트업·막대·진행바·RiseIn·타이핑·sheen).
 - 서버 영향 없음.
+
+## 2026-06-04 · android (59)
+### 온보딩 마이크로 수정 — 슬라이드4 막대 쌍(회색+파랑) + 상단 RING-GO 헤더
+사장님 지적: ①슬라이드4 막대가 파란색만(프로토는 그룹당 회색bg+파랑 한 쌍) ②상단 RING-GO 폰트 작고 회색.
+- 슬라이드4: barPairs(bg 80/65/90/70 + col 55/85/45/40), 그룹마다 회색(0xFFDCE1EA)+파랑 두 막대 stagger 차오름. 프로토 ob-bar bg/색 1:1.
+- 헤더 RING-GO: 15sp/secondary → 21sp/primary, letterSpacing -0.2 (프로토 .ob-logo.big 21px t1).
+- 실기기 확인.
+- 서버 영향 없음.

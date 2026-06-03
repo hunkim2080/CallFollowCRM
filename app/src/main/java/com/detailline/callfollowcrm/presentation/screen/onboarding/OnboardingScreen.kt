@@ -207,7 +207,7 @@ private fun StoryStep(onStart: () -> Unit, onPageChanged: (Int) -> Unit) {
     )
 
     Column(Modifier.fillMaxSize()) {
-        Text("RING-GO", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary, letterSpacing = 0.9.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+        Text("RING-GO", fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.2).sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
         Spacer(Modifier.height(8.dp))
         Text("곁에 오래 둘수록, 나다워지는 AI 비서", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
         Spacer(Modifier.height(16.dp))
@@ -616,11 +616,15 @@ private fun storySlides(): List<Slide> = listOf(
                 Text("▼ 18%", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = TossError)
             }
             Spacer(Modifier.height(16.dp))
+            // 프로토: 그룹마다 회색(bg) 막대 + 파란 막대 한 쌍, 둘 다 stagger 로 차오름.
+            val barPairs = listOf(0.80f to 0.55f, 0.65f to 0.85f, 0.90f to 0.45f, 0.70f to 0.40f)
             Row(Modifier.fillMaxWidth().height(80.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Bottom) {
-                listOf(0.55f, 0.85f, 0.45f, 0.40f).forEachIndexed { idx, h ->
-                    val grow by animateFloatAsState(if (active) h else 0f, tween(650, delayMillis = idx * 90), label = "bar")
-                    Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
-                        Box(Modifier.fillMaxWidth(0.5f).height((80 * grow).dp).background(TossBlue, RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)))
+                barPairs.forEachIndexed { idx, pair ->
+                    val gBg by animateFloatAsState(if (active) pair.first else 0f, tween(600, delayMillis = idx * 100), label = "barBg")
+                    val gCol by animateFloatAsState(if (active) pair.second else 0f, tween(600, delayMillis = idx * 100 + 70), label = "barCol")
+                    Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.Bottom) {
+                        Box(Modifier.weight(1f).height((80 * gBg).dp).background(Color(0xFFDCE1EA), RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)))
+                        Box(Modifier.weight(1f).height((80 * gCol).dp).background(TossBlue, RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)))
                     }
                 }
             }
