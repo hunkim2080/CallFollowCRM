@@ -220,6 +220,11 @@ class AppPreferences(context: Context) {
         get() = prefs.getStringSet("reminder_notified_keys", emptySet()) ?: emptySet()
         set(value) = prefs.edit().putStringSet("reminder_notified_keys", value).apply()
 
+    /** 홈 "부재중 자동답장 보냄" 배너에서 밀어서 정리(dismiss)한 message_history id 들. */
+    var dismissedAutoReplyIds: Set<String>
+        get() = prefs.getStringSet("dismissed_auto_reply_ids", emptySet()) ?: emptySet()
+        set(value) = prefs.edit().putStringSet("dismissed_auto_reply_ids", value).apply()
+
     // ── 내 말투 학습 (프로토 renderTone). 학습률·before/after 는 서버 API 대기. ──
     var toneLearnEnabled: Boolean
         get() = prefs.getBoolean("tone_learn_enabled", true)

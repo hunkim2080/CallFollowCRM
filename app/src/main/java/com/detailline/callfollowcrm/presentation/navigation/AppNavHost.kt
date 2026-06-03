@@ -35,6 +35,7 @@ import com.detailline.callfollowcrm.presentation.screen.settings.SettingsViewMod
 import com.detailline.callfollowcrm.presentation.screen.settlement.SettlementScreen
 import com.detailline.callfollowcrm.presentation.screen.settlement.SettlementViewModel
 import com.detailline.callfollowcrm.presentation.screen.business.BusinessInfoScreen
+import com.detailline.callfollowcrm.presentation.screen.callsummary.CallSummaryScreen
 import com.detailline.callfollowcrm.presentation.screen.notebook.NotebookScreen
 import com.detailline.callfollowcrm.presentation.screen.notebook.NotebookViewModel
 import com.detailline.callfollowcrm.presentation.screen.report.ReportScreen
@@ -190,6 +191,21 @@ fun AppNavHost(
             )
             StyleLearningScreen(
                 viewModel = vm,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(
+            route = Destinations.CALL_SUMMARY_WITH_ARG,
+            arguments = listOf(
+                navArgument("phone") { type = NavType.StringType; defaultValue = "" },
+                navArgument("name") { type = NavType.StringType; nullable = true; defaultValue = null }
+            )
+        ) { entry ->
+            CallSummaryScreen(
+                container = container,
+                phone = entry.arguments?.getString("phone").orEmpty(),
+                customerName = entry.arguments?.getString("name"),
                 onBack = { navController.popBackStack() }
             )
         }

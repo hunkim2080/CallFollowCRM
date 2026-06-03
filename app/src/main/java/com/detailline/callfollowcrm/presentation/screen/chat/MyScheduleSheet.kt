@@ -154,26 +154,40 @@ fun MyScheduleSheet(
                     fontWeight = FontWeight.Bold, color = TossTextTertiary)
             }
 
-            Spacer(Modifier.height(12.dp))
-            // 선택된 날 상세
+            Spacer(Modifier.height(14.dp))
+            // 선택된 날 상세 — 깔끔한 카드 (2026-06-04 시각 정리). 기능/문구는 그대로.
             val day = selectedDayMs
             if (day != null) {
-                Text(
-                    DateTimeUtils.formatKoreanDate(day) + (if (day == todayStart) " · 오늘" else ""),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = TossTextPrimary, fontWeight = FontWeight.Bold
-                )
-                Spacer(Modifier.height(8.dp))
-                if (jobsForSelected.isEmpty()) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFFF5F7FA))
+                        .padding(horizontal = 16.dp, vertical = 14.dp)
+                ) {
                     Text(
-                        if (day < todayStart) "이 날은 시공이 없었어요" else "이 날 비어있어요 — 약속 잡기 좋아요 👍",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (day < todayStart) TossTextTertiary else TossSuccess,
-                        fontWeight = FontWeight.Medium
+                        DateTimeUtils.formatKoreanDate(day) +
+                            (if (day == todayStart) " · 오늘" else "") +
+                            (if (jobsForSelected.isNotEmpty()) " · 시공 ${jobsForSelected.size}곳" else ""),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = TossTextPrimary, fontWeight = FontWeight.Bold
                     )
-                } else {
-                    jobsForSelected.forEach { c -> MiniJobRow(c) }
+                    Spacer(Modifier.height(if (jobsForSelected.isEmpty()) 7.dp else 12.dp))
+                    if (jobsForSelected.isEmpty()) {
+                        Text(
+                            if (day < todayStart) "이 날은 시공이 없었어요" else "이 날 비어있어요 — 약속 잡기 좋아요 👍",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (day < todayStart) TossTextTertiary else TossSuccess,
+                            fontWeight = FontWeight.Medium
+                        )
+                    } else {
+                        jobsForSelected.forEachIndexed { i, c ->
+                            if (i > 0) Spacer(Modifier.height(12.dp))
+                            MiniJobRow(c)
+                        }
+                    }
                 }
+                Spacer(Modifier.height(8.dp))
             }
         }
     }
@@ -230,11 +244,22 @@ private fun MiniJobRow(c: CustomerEntity) {
         )
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
+            // 주소가 주인공 — 가까운 현장끼리 묶어보려고 보는 화면이라 주소를 크게 위로. (2026-06-04 사장님)
+            val addr = c.address?.takeIf { it.isNotBlank() }
+            Text(
+                if (addr != null) "📍 $addr" else "📍 주소 미입력",
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (addr != null) TossTextPrimary else TossTextTertiary,
+                fontWeight = FontWeight.SemiBold,
+                lineHeight = 21.sp,
+                maxLines = 2
+            )
+            Spacer(Modifier.height(3.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     c.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(c.phoneNumber),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = TossTextPrimary, fontWeight = FontWeight.SemiBold
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TossTextSecondary
                 )
                 c.scheduledWorkMinutes?.let { mins ->
                     Spacer(Modifier.width(8.dp))
@@ -242,12 +267,6 @@ private fun MiniJobRow(c: CustomerEntity) {
                         style = MaterialTheme.typography.bodySmall, color = TossBlue,
                         fontWeight = FontWeight.Medium)
                 }
-            }
-            val addr = c.address?.takeIf { it.isNotBlank() }
-            if (addr != null) {
-                Spacer(Modifier.height(2.dp))
-                Text("📍 $addr", style = MaterialTheme.typography.bodySmall,
-                    color = TossTextSecondary, maxLines = 1)
             }
         }
     }

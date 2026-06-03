@@ -499,24 +499,26 @@ fun HomeScreen(
                     }
                 }
 
-                // 부재중 → 자동답장 (프로토 team-alert missed) — 한 건당 한 줄 카드. 탭 → 대화.
+                // 부재중 → 자동답장 (프로토 team-alert missed) — 한 건당 한 줄 카드. 탭 → 대화. 밀어서 정리.
                 autoReplies.forEach { ar ->
-                    item(key = "auto-reply-${ar.phone}-${ar.createdAt}") {
+                    item(key = "auto-reply-${ar.id}") {
                         val arName = ar.customerName?.takeIf { it.isNotBlank() }
                             ?: PhoneNumberFormatter.format(ar.phone)
-                        InboxAlert(
-                            accent = if (ar.failed) TossError else TossBlue,
-                            accentTint = if (ar.failed) Color(0xFFFDEAEF) else TossBlueSoft,
-                            icon = Icons.Default.Call,
-                            title = "부재중 전화에 자동 답장 보냄",
-                            tagText = if (ar.failed) "실패" else null,
-                            tagBg = Color(0xFFFDEAEF), tagFg = TossError,
-                            sub = "$arName · " +
-                                (if (ar.failed) "발송 실패 — 직접 보내주세요" else "자동 인사 보냄") +
-                                " · " + DateTimeUtils.formatShort(ar.createdAt),
-                            goLabel = "대화",
-                            onClick = { onOpenChat(ar.phone, ar.customerId) }
-                        )
+                        DismissSwipeBox(onDismiss = { viewModel.dismissAutoReply(ar.id) }) {
+                            InboxAlert(
+                                accent = if (ar.failed) TossError else TossBlue,
+                                accentTint = if (ar.failed) Color(0xFFFDEAEF) else TossBlueSoft,
+                                icon = Icons.Default.Call,
+                                title = "부재중 전화에 자동 답장 보냄",
+                                tagText = if (ar.failed) "실패" else null,
+                                tagBg = Color(0xFFFDEAEF), tagFg = TossError,
+                                sub = "$arName · " +
+                                    (if (ar.failed) "발송 실패 — 직접 보내주세요" else "자동 인사 보냄") +
+                                    " · " + DateTimeUtils.formatShort(ar.createdAt),
+                                goLabel = "대화",
+                                onClick = { onOpenChat(ar.phone, ar.customerId) }
+                            )
+                        }
                     }
                 }
 
@@ -1714,6 +1716,51 @@ private fun SpamSwipeBox(onSpam: () -> Unit, content: @Composable () -> Unit) {
                         fontWeight = FontWeight.SemiBold,
                         style = MaterialTheme.typography.bodyMedium
                     )
+                }
+            }
+        },
+        content = { content() }
+    )
+}
+
+/**
+ * 정보성 배너(자동답장 보냄 등) 우→좌 swipe → 정리(dismiss). 회색 "정리" affordance.
+ *   SpamSwipeBox 와 동일 패턴: confirmValueChange=false 로 원위치 복귀 + 데이터 흐름(dismissed id)이 카드 제거.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DismissSwipeBox(onDismiss: () -> Unit, content: @Composable () -> Unit) {
+    val state = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value == SwipeToDismissBoxValue.EndToStart) onDismiss()
+            false
+        },
+        positionalThreshold = { totalDistance -> totalDistance * 0.5f }
+    )
+    SwipeToDismissBox(
+        state = state,
+        enableDismissFromStartToEnd = false,
+        enableDismissFromEndToStart = true,
+        backgroundContent = {
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp)
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                    .background(TossTextTertiary.copy(alpha = 0.12f))
+                    .padding(horizontal = 20.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = "정리",
+                        tint = TossTextSecondary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text("정리", color = TossTextSecondary, fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.bodyMedium)
                 }
             }
         },

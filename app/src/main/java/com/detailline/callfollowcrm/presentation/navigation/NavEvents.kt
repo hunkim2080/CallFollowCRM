@@ -17,6 +17,10 @@ class NavEvents {
     fun requestChat(phoneNumber: String, customerId: Long? = null) {
         channel.trySend(NavEvent.OpenChat(phoneNumber, customerId))
     }
+
+    fun requestCallSummary(phoneNumber: String, name: String? = null) {
+        channel.trySend(NavEvent.OpenCallSummary(phoneNumber, name))
+    }
 }
 
 sealed interface NavEvent {
@@ -29,5 +33,10 @@ sealed interface NavEvent {
     data class OpenChat(
         val phoneNumber: String,
         val customerId: Long? = null
+    ) : NavEvent
+    /** 통화 직후 카드 [통화 정리해서 보내기] → CallSummaryScreen. */
+    data class OpenCallSummary(
+        val phoneNumber: String,
+        val name: String? = null
     ) : NavEvent
 }

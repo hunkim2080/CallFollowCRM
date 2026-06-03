@@ -3,6 +3,8 @@
 package com.detailline.callfollowcrm.presentation.overlay
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -67,6 +69,7 @@ fun PostCallCard(
     onCancelAutoReply: () -> Unit,
     onPickTemplate: (MessageTemplateEntity) -> Unit,
     onCancelManualSend: () -> Unit,
+    onSummarize: () -> Unit,
     onClose: () -> Unit
 ) {
     // 오버레이는 자체 Compose 컨텍스트라 테마를 직접 감싸야 토스 색/폰트 적용된다.
@@ -88,6 +91,11 @@ fun PostCallCard(
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     HeaderRow(state, onClose)
+
+                    // 받은 통화(대화 있음) → "통화 정리해서 보내기" (A안). 부재중은 대화 없으니 미노출.
+                    if (!state.isMissed) {
+                        SummarizeButton(onSummarize)
+                    }
 
                     // 자동 발송 영역 — AUTO_REPLY 모드에서만, 그리고 발송이 끝나기 전까진 카운트다운 진행 중
                     if (state.mode == CardMode.AUTO_REPLY || state.sendStatus == SendStatus.SENT || state.sendStatus == SendStatus.FAILED) {
@@ -114,6 +122,22 @@ fun PostCallCard(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SummarizeButton(onSummarize: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(0xFF7C5CFC))
+            .clickable(onClick = onSummarize)
+            .padding(vertical = 13.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("📝 통화 정리해서 보내기", color = Color.White, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
     }
 }
 

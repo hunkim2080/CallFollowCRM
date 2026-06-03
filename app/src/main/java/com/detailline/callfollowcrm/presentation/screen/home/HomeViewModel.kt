@@ -228,15 +228,29 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     // ────────────────────────────────────────────────────────
     private val autoReplySinceMs = System.currentTimeMillis() - 24L * 60 * 60 * 1000
 
+    /** 밀어서 정리한 자동답장 배너 id (prefs 영속). 다시 안 뜨게. */
+    private val dismissedAutoReplyIds = MutableStateFlow(
+        container.preferences.dismissedAutoReplyIds.mapNotNull { it.toLongOrNull() }.toSet()
+    )
+
+    /** 홈 배너 "부재중 자동답장 보냄" 밀어서 정리. */
+    fun dismissAutoReply(id: Long) {
+        val next = dismissedAutoReplyIds.value + id
+        dismissedAutoReplyIds.value = next
+        container.preferences.dismissedAutoReplyIds = next.map { it.toString() }.toSet()
+    }
+
     val autoReplies: StateFlow<List<AutoReplyItem>> = combine(
         container.messageHistoryRepository.observeRecentAutoReplies(autoReplySinceMs, limit = 5),
-        customers
-    ) { histories, custs ->
+        customers,
+        dismissedAutoReplyIds
+    ) { histories, custs, dismissed ->
         val bySuffix = custs.associateBy { phoneSuffix(it.phoneNumber) }
-        histories.map { h ->
+        histories.filter { it.id !in dismissed }.map { h ->
             val c = h.customerId?.let { id -> custs.firstOrNull { it.id == id } }
                 ?: bySuffix[phoneSuffix(h.phoneNumber)]
             AutoReplyItem(
+                id = h.id,
                 phone = h.phoneNumber,
                 customerId = c?.id,
                 customerName = c?.name?.takeIf { it.isNotBlank() },
@@ -843,6 +857,7 @@ data class HomeReminderUi(
  *   AutoReplyScheduler 가 자동 발송한 한 건. failed=true 면 발송 실패(사장님이 직접 보내야 함).
  */
 data class AutoReplyItem(
+    val id: Long,
     val phone: String,
     val customerId: Long?,
     val customerName: String?,

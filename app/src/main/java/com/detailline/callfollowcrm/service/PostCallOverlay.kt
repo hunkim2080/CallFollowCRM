@@ -166,6 +166,21 @@ object PostCallOverlayManager {
         hide()
     }
 
+    /** [📝 통화 정리해서 보내기] → 앱의 CallSummaryScreen 열고 카드 닫음. */
+    internal fun onSummarizeTapped() {
+        val args = currentArgs ?: return
+        val view = currentView ?: return
+        val ctx = view.context.applicationContext
+        // 이름은 화면이 phone 으로 lookup — 여기선 번호만 전달.
+        val intent = android.content.Intent(ctx, com.detailline.callfollowcrm.MainActivity::class.java).apply {
+            action = com.detailline.callfollowcrm.MainActivity.ACTION_CALL_SUMMARY
+            putExtra(com.detailline.callfollowcrm.MainActivity.EXTRA_PHONE_NUMBER, args.phoneNumber)
+            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        }
+        runCatching { ctx.startActivity(intent) }
+        hide()
+    }
+
     // ----- private impl -----
 
     @SuppressLint("InflateParams")
@@ -213,6 +228,7 @@ object PostCallOverlayManager {
                         onCancelAutoReply = ::onCancelAutoReply,
                         onPickTemplate = ::onPickTemplate,
                         onCancelManualSend = ::onCancelManualSend,
+                        onSummarize = ::onSummarizeTapped,
                         onClose = ::onCloseTapped
                     )
                 }

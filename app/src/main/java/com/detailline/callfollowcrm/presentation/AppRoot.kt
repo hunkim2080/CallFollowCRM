@@ -55,6 +55,11 @@ fun AppRoot(container: AppContainer) {
                                 Destinations.chat(event.phoneNumber, event.customerId)
                             ) { launchSingleTop = true }
                         }
+                        is NavEvent.OpenCallSummary -> {
+                            navController.navigate(
+                                Destinations.callSummary(event.phoneNumber, event.name)
+                            ) { launchSingleTop = true }
+                        }
                     }
                 }
             }

@@ -53,5 +53,12 @@ object Destinations {
     const val AI_MESSAGE = "ai_message"
     const val STYLE_LEARNING = "style_learning"
 
+    /** 통화 정리해서 보내기 — 음성/붙여넣기/직접 → AI 요약 → 고객용 문자 초안 → 발송. */
+    const val CALL_SUMMARY_WITH_ARG = "call_summary?phone={phone}&name={name}"
+    fun callSummary(phone: String, name: String? = null): String {
+        val n = name?.takeIf { it.isNotBlank() }?.let { "&name=${android.net.Uri.encode(it)}" }.orEmpty()
+        return "call_summary?phone=${android.net.Uri.encode(phone)}$n"
+    }
+
     // 2026-05-25: PIPELINE 라우트 폐기 — CustomerStatus enum 제거 + 카테고리 시스템으로 통일.
 }

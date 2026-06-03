@@ -2473,3 +2473,12 @@ launchd plist 의 EnvironmentVariables 에 추가:
 
 ### 안드로이드 측 후속 (선택)
 서버 부하 분산 또는 비상 시 앱이 직접 모델 토글하고 싶으면 `?model=sonnet|gemini` 파라미터 박는 옵션 추가. 지금은 불필요 (서버 ENV 로 충분).
+
+---
+
+## 2026-06-04 · android (50)
+### 통화 정리해서 보내기 화면 + 홈 자동답장 배너 정리 + 일정시트 주소 우선
+1. **통화 정리해서 보내기**(A안, 사장님 요청) — `CallSummaryScreen` 신설. [🎤음성(시스템 STT, 에이닷 무관)/📋붙여넣기/✍️직접] → 서버 §18(/api/call-summary) 요약+고객용 후속 문자 초안 → 확인·수정 → 발송. PostCallCard(받은통화)에 보라 [📝 통화 정리해서 보내기] → MainActivity ACTION_CALL_SUMMARY 로 화면 열림. nav/Destinations/NavEvents/AppRoot 배선. 음성은 RecognizerIntent(RECORD_AUDIO 불필요).
+2. **홈 "부재중 자동답장 보냄" 배너 밀어서 정리** — DismissSwipeBox(우→좌) + dismissedAutoReplyIds(prefs 영속). AutoReplyItem.id 추가.
+3. **채팅 내일정 시트 하단** 시각 정리(회색 카드 + "시공 N곳") + **주소 우선**(주소 크게 위로 2줄, 이름/번호 아래 작게) — 가까운 현장 묶기용(사장님).
+- 서버 영향: 없음(§18 기존 엔드포인트 사용)
