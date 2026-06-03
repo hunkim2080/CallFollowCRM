@@ -2195,3 +2195,17 @@ CREATE TABLE intake_forms (
 3. **before/after 예시** — 고정 질문 1개에 대해 [일반 AI 답변] vs [내 말투 답변] 텍스트. (tone-RAG로 생성 가능하면 endpoint 하나로: req={question} → res={plain, mine})
 4. (선택) 추천 채택/수정 카운트 — "추천을 N번 고쳐주심".
 - endpoint 예: GET /api/tone/profile?devicePhone= → {learnRatePct, traits:[{k,v}], example:{question, plain, mine}, editCount}. 나오면 앱이 hero %·traits·before/after를 진짜 데이터로 교체.
+
+## 2026-06-03 · android (41)
+내 말투 학습 + 더보기 프로토 1:1 재구성 (commit 62b9aa7). + 서버 톤 프로필 프롬프트 전달.
+- 폰이 실제로 여는 화면(SettingsScreen tone subPage)을 프로토 renderTone 으로 교체. 입구 2개 버그 정리.
+- hero %·문자수 = 실제 파생값(업로드/500목표, 막내비서 카드와 동일 공식). Tone RAG 업로드는 "내가 보낸 문자"에 녹여 동작 유지.
+- 더보기: 앱설정 = 기본 네비 앱만(내업종·기본문자앱·AI서버상태 제거), 도움말에 "앱 소개 다시 보기", agent-card 아래 setup-check(권한 실제 상태).
+
+### ⚠️ 서버 작업 요청 — GET /api/tone/profile [프롬프트 문서 첨부]
+**전체 구현 프롬프트 = `docs/SERVER_TONE_PROFILE_PROMPT.md`** (계약·계산법·폴백·모델라우팅 다 적음). 요약:
+- `GET /api/tone/profile?device_id=owner-anon` → `{analyzed, sampleCount, learnRatePct, traits[5], example{question,plain,mine}, editCount}`.
+- 재료 이미 있음: owner_tone 테이블(batch-upload 로 임베딩됨, device_id='owner-anon').
+- traits=Haiku 요약 100건, example.mine=Sonnet prepare-reply(RAG), 둘 다 캐시. learnRatePct=min(100, sampleCount/500*100) (앱과 공식 통일).
+- 폴백: sampleCount<30 이면 analyzed:false 로 주되 sampleCount/learnRatePct 는 항상 채움 → 앱은 hero 만 표시, 나머지 placeholder 유지.
+- 완료되면 SYNC append → 안드로이드가 ToneLearnProtoSection placeholder 2곳 + hero % 를 실데이터로 교체.
