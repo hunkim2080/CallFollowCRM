@@ -2179,7 +2179,7 @@ private fun RecentRow(
                     }
                 }
                 Spacer(Modifier.weight(1f))
-                Text(recentTimeLabel(item.record.endedAt), fontSize = 11.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
+                Text(recentTimeLabel(item.lastActivityMs.takeIf { it > 0L } ?: item.record.endedAt), fontSize = 11.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
             }
             if (!aiSummary.isNullOrBlank()) {
                 Spacer(Modifier.height(3.dp))

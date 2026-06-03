@@ -2343,3 +2343,10 @@ CREATE TABLE intake_forms (
 
 실기기 최종 확인: callCount=7(단골)인데 AUTO 경로 → autoBodyLen=64 → 오버레이 카운트다운 표시 → 사장님 "된다!" 확인. 임시 디버그 로그/2분 쿨다운 전부 원복(24h).
 - 서버 영향: 없음 (앱 단독)
+
+## 2026-06-03 (저녁5) · android (46)
+### 최근 대화 순서가 새 문자에 늦게 반응 — 정렬 기준 fix
+사장님 "문자 오면 빨리 최신화돼야 하는데 시간 지나야 순서 바뀜". 원인: HomeViewModel `timeline` 이 통화기록 있는 번호를 `record.endedAt`(통화 시각)으로만 정렬 → SMS-only 번호만 즉시 반영, 통화 이력 있는 고객(대부분)은 새 SMS 로 안 올라옴.
+- fix: 정렬·날짜그룹·행 시각 기준을 **`lastActivityMs = max(최근 통화, 최근 SMS)`** 로. `HomeItem.lastActivityMs` 필드 추가, timeline 에서 copy 로 채움. SMS bump 는 그 번호의 '가장 최근 통화 아이템'에만 적용(과거 날짜 그룹 오염 방지). HomeScreen RecentRow 시각도 lastActivityMs 사용.
+- smsContactsState 는 이미 Room observe(SmsReceiver.upsertOne) 라 라이브 — 정렬 기준만 문제였음.
+- 서버 영향: 없음

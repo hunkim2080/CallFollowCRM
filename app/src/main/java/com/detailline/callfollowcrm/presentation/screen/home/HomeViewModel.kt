@@ -544,12 +544,27 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             }
 
         // 3) 합쳐서 필터 → 날짜 그룹화 → 정렬
+        // 2026-06-03 fix(사장님 통점 "문자 와도 순서가 늦게 바뀜"):
+        //   기존엔 통화 시각(record.endedAt)으로만 정렬 → 통화 이력 있는 번호는 새 SMS 가 와도
+        //   위로 안 올라옴(SMS-only 만 즉시 반영). 정렬·그룹 기준을 "마지막 활동 = max(통화, SMS)"로.
+        //   단 SMS bump 는 그 번호의 '가장 최근 통화 아이템'에만 적용(과거 날짜 그룹 오염 방지).
+        val smsLatestBySuffix = smsContacts.associate { it.normalizedSuffix to it.lastDateMs }
+        val latestCallMsBySuffix = callItems
+            .groupBy { phoneSuffix(it.record.phoneNumber) }
+            .mapValues { (_, items) -> items.maxOf { it.record.endedAt } }
+        fun activityMs(item: HomeItem): Long {
+            val suffix = phoneSuffix(item.record.phoneNumber)
+            val isLatestCallItem = item.record.endedAt == latestCallMsBySuffix[suffix]
+            return if (isLatestCallItem) maxOf(item.record.endedAt, smsLatestBySuffix[suffix] ?: 0L)
+            else item.record.endedAt
+        }
         (callItems + smsOnlyItems)
             .filter { f.accept(it) }
-            .groupBy { DateTimeUtils.startOfDay(it.record.endedAt) }
+            .map { it.copy(lastActivityMs = activityMs(it)) }
+            .groupBy { DateTimeUtils.startOfDay(it.lastActivityMs) }
             .toSortedMap(compareByDescending { it })
             .map { (dayStart, items) ->
-                DayGroup(dayStartMs = dayStart, items = items.sortedByDescending { it.record.endedAt })
+                DayGroup(dayStartMs = dayStart, items = items.sortedByDescending { it.lastActivityMs })
             }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -809,7 +824,9 @@ data class HomeItem(
     val customer: CustomerEntity?,
     val callCount: Int = 1,
     val isUnconfirmed: Boolean = false,
-    val isNewToday: Boolean = false
+    val isNewToday: Boolean = false,
+    /** 마지막 활동 시각 = max(최근 통화, 최근 SMS). 정렬·행 시각 표시에 사용. 0L = 미설정(record.endedAt 사용). */
+    val lastActivityMs: Long = 0L
 )
 
 /** 홈 시공 안내 remind-card 표시 모델 (프로토 remind-card). */
