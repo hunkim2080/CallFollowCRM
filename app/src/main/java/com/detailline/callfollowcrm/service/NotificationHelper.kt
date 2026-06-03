@@ -20,6 +20,9 @@ object NotificationHelper {
     private const val CHANNEL_AUTO_REPLY = "auto_reply"
     /** 2026-05-25 사장님 결정 — RING-GO 가 갤메시지보다 더 좋은 알림창. 풍부한 정보 + AI 추천 답변. */
     private const val CHANNEL_INCOMING_SMS = "incoming_sms"
+    /** 고객이 시공접수서를 작성·제출했을 때 알림. */
+    private const val CHANNEL_INTAKE = "intake_submitted"
+    private const val INTAKE_ID_OFFSET = 8_000_000
     /** SMS 알림 ID = 발신번호 hash + offset. 같은 번호 새 SMS = 같은 알림 update. */
     private const val SMS_ID_OFFSET = 10_000_000
 
@@ -80,7 +83,49 @@ object NotificationHelper {
                 }
                 manager.createNotificationChannel(channel)
             }
+            if (manager.getNotificationChannel(CHANNEL_INTAKE) == null) {
+                val channel = NotificationChannel(
+                    CHANNEL_INTAKE, "📋 접수서 작성됨", NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "고객이 시공접수서를 작성하면 알려줘요"
+                    setShowBadge(true)
+                }
+                manager.createNotificationChannel(channel)
+            }
         }
+    }
+
+    /**
+     * 고객이 시공접수서를 작성·제출했을 때 알림. 탭하면 그 고객 채팅으로.
+     */
+    fun showIntakeSubmitted(context: Context, token: String, phone: String, name: String, address: String) {
+        val notifId = INTAKE_ID_OFFSET + (token.hashCode() and 0x7FFFFF)
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            action = MainActivity.ACTION_CHAT
+            putExtra(MainActivity.EXTRA_PHONE_NUMBER, phone)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pending = PendingIntent.getActivity(
+            context, notifId, openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val builder = NotificationCompat.Builder(context, CHANNEL_INTAKE)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setColor(NOTIFICATION_BG_COLOR)
+            .setContentTitle("📋 ${name}님이 시공접수서를 작성했어요")
+            .setContentText("📍 $address")
+            .setStyle(
+                NotificationCompat.BigTextStyle().bigText(
+                    "${name}님이 주소·시공일을 확인해 제출했어요.\n📍 $address\n\nRING-GO 고객 화면에 자동 반영됐어요. 탭해서 확인하세요."
+                )
+            )
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_EVENT)
+            .setAutoCancel(true)
+            .setContentIntent(pending)
+        try {
+            NotificationManagerCompat.from(context).notify(notifId, builder.build())
+        } catch (_: SecurityException) { /* POST_NOTIFICATIONS 없음 — 무시 */ }
     }
 
     /** 같은 번호의 알림은 같은 ID 로 update — 새 메시지 도착 시 같은 자리 갱신. */

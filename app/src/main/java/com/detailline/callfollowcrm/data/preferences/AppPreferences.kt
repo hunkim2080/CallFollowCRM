@@ -174,6 +174,14 @@ class AppPreferences(context: Context) {
         get() = prefs.getInt(KEY_BIZ_VALID_DAYS, 14)
         set(value) = prefs.edit().putInt(KEY_BIZ_VALID_DAYS, value).apply()
 
+    // ── 시공접수서 제출 동기화 (2026-06-03) — 이미 임포트한 token / 마지막 동기화 시각. ──
+    var intakeImportedTokens: Set<String>
+        get() = prefs.getStringSet("intake_imported_tokens", emptySet()) ?: emptySet()
+        set(value) = prefs.edit().putStringSet("intake_imported_tokens", value).apply()
+    var intakeSyncSinceMs: Long
+        get() = prefs.getLong("intake_sync_since_ms", 0L)
+        set(value) = prefs.edit().putLong("intake_sync_since_ms", value).apply()
+
     /**
      * 정산 — 이번 달 목표 매출(만원). 프로토 settleGoal 기본 500.
      * 사장님이 정산 상단 다크카드 "목표 수정" 으로 직접 변경.

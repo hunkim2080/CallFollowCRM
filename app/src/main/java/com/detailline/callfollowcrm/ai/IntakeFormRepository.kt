@@ -141,4 +141,52 @@ class IntakeFormRepository(
             }
         }
     }
+
+    data class QuoteSubmission(
+        val token: String,
+        val customerName: String,
+        val customerPhone: String,
+        val submittedAtMs: Long?,
+        val address: String?,
+        val dong: String?,
+        val memo: String?,
+        val confirmedDateIso: String?,
+        val workYear: Int, val workMonth: Int, val workDay: Int, val workDays: Int,
+        val source: String?
+    )
+
+    /** 사장님 폴링 — GET /api/quote/submissions. submittedAtMs 비-null = 고객 제출 완료. */
+    suspend fun submissions(devicePhone: String, sinceMs: Long): Result<List<QuoteSubmission>> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val dp = java.net.URLEncoder.encode(devicePhone, "UTF-8")
+                val req = Request.Builder()
+                    .url("$baseUrl/api/quote/submissions?devicePhone=$dp&sinceMs=$sinceMs&limit=50")
+                    .get().build()
+                client.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                    val obj = JSONObject(resp.body?.string().orEmpty())
+                    val arr = obj.optJSONArray("items") ?: JSONArray()
+                    (0 until arr.length()).map { i ->
+                        val itObj = arr.getJSONObject(i)
+                        val payload = itObj.optJSONObject("payload")
+                        val survey = itObj.optJSONObject("survey")
+                        fun JSONObject?.str(k: String) = this?.optString(k)?.takeIf { s -> s.isNotBlank() && s != "null" }
+                        QuoteSubmission(
+                            token = itObj.getString("token"),
+                            customerName = itObj.optString("customerName"),
+                            customerPhone = itObj.optString("customerPhone"),
+                            submittedAtMs = itObj.optLong("submittedAtMs").takeIf { v -> v > 0 },
+                            address = payload.str("address"),
+                            dong = payload.str("dong"),
+                            memo = payload.str("memo"),
+                            confirmedDateIso = itObj.optString("confirmedDate").takeIf { s -> s.isNotBlank() && s != "null" },
+                            workYear = itObj.optInt("workYear"), workMonth = itObj.optInt("workMonth"),
+                            workDay = itObj.optInt("workDay"), workDays = itObj.optInt("workDays", 1),
+                            source = survey.str("source")
+                        )
+                    }
+                }
+            }
+        }
 }

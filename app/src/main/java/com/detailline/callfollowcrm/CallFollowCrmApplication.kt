@@ -75,6 +75,15 @@ class CallFollowCrmApplication : Application() {
         //   백그라운드 정책 영향 적고, BroadcastReceiver 와 이중 안전망.
         //   권한 없으면 silent skip.
         registerCallStateListener()
+
+        // 시공접수서 제출 폴링 — 앱이 켜져 있는 동안 60초마다 새 제출 동기화 → 고객 카드 반영 + 알림.
+        //   (완전 백그라운드(앱 종료 상태) 알림은 WorkManager/FCM 필요 — 추후.)
+        appScope.launch {
+            while (true) {
+                runCatching { container.intakeSyncManager.sync(this@CallFollowCrmApplication) }
+                delay(60_000)
+            }
+        }
     }
 
     /**
