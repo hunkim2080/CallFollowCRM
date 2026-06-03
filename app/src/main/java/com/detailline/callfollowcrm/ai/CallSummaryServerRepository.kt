@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit
  * 실패해도 앱은 에이닷 원문 파싱 결과를 그대로 쓰므로(graceful), 이 호출은 "품질 향상" 용.
  */
 class CallSummaryServerRepository(
-    private val baseUrl: String = "http://100.86.114.49:8000"
+    private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL
 ) {
     private val client = OkHttpClient.Builder()
         .connectTimeout(5, TimeUnit.SECONDS)

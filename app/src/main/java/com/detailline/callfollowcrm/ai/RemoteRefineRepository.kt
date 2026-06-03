@@ -35,7 +35,7 @@ import java.util.concurrent.TimeUnit
  * 서버 endpoint 미구현 시 graceful fallback (Result.failure).
  */
 class RemoteRefineRepository(
-    private val baseUrl: String = "http://100.86.114.49:8000"
+    private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL
 ) : RefineRepository {
 
     private val client: OkHttpClient = OkHttpClient.Builder()

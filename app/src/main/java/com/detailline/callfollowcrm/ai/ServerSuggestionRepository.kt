@@ -12,16 +12,16 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
- * 맥미니 자체 서버(Tailnet :8000) 기반 SuggestionRepository.
+ * 맥미니 자체 서버(공개 도메인 api.si0in.kr) 기반 SuggestionRepository.
  *
  * 서버 사양: RINGGO_SERVER_SPEC.md (POST /prepare-reply, GET /suggestions/{phone}).
- * Ollama 11434 와 별개 포트. 같은 Tailnet IP.
+ * Ollama 11434 는 별개 — Tailnet 전용이라 OllamaRefineRepository 가 직접 IP 사용.
  *
  * prepare 는 fire-and-forget — 서버가 즉시 200 응답하고 백그라운드에서 LLM 호출.
  * fetch 는 캐시 조회. 신선도 판정은 호출자 책임.
  */
 class ServerSuggestionRepository(
-    private val baseUrl: String = "http://100.86.114.49:8000"
+    private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL
 ) : SuggestionRepository {
 
     // prepare 는 폰이 빠르게 끊겨야 하므로 짧은 타임아웃, fetch 도 단순 GET 이라 짧게.
