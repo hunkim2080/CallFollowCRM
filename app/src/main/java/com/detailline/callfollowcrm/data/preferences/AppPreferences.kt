@@ -220,6 +220,19 @@ class AppPreferences(context: Context) {
         get() = prefs.getStringSet("reminder_notified_keys", emptySet()) ?: emptySet()
         set(value) = prefs.edit().putStringSet("reminder_notified_keys", value).apply()
 
+    // ── 내 말투 학습 (프로토 renderTone). 학습률·before/after 는 서버 API 대기. ──
+    var toneLearnEnabled: Boolean
+        get() = prefs.getBoolean("tone_learn_enabled", true)
+        set(value) = prefs.edit().putBoolean("tone_learn_enabled", value).apply()
+    /** 직접 가르친 예문 ("이런 상황엔 이렇게 답해줘"). */
+    var toneExamples: Set<String>
+        get() = prefs.getStringSet("tone_examples", emptySet()) ?: emptySet()
+        set(value) = prefs.edit().putStringSet("tone_examples", value).apply()
+    /** 답장 끝에 붙일 시그니처 인사. */
+    var toneSignature: String
+        get() = prefs.getString("tone_signature", "") ?: ""
+        set(value) = prefs.edit().putString("tone_signature", value).apply()
+
     /**
      * 정산 — 이번 달 목표 매출(만원). 프로토 settleGoal 기본 500.
      * 사장님이 정산 상단 다크카드 "목표 수정" 으로 직접 변경.

@@ -15,17 +15,50 @@ data class StyleLearningUiState(
     val avgLength: Int = 0,
     val emojiPerMessage: Double = 0.0,
     val loading: Boolean = false,
+    val enabled: Boolean = true,
+    val examplesCount: Int = 0,
+    val signature: String = "",
+    val analyzed: Boolean = false,
     val toast: String? = null
 )
 
 class StyleLearningViewModel(
     private val container: AppContainer
 ) : ViewModel() {
-    private val _state = MutableStateFlow(StyleLearningUiState())
+    private val _state = MutableStateFlow(
+        StyleLearningUiState(
+            enabled = container.preferences.toneLearnEnabled,
+            examplesCount = container.preferences.toneExamples.size,
+            signature = container.preferences.toneSignature
+        )
+    )
     val state = _state.asStateFlow()
 
     fun selectPeriod(months: Int) { _state.value = _state.value.copy(periodMonths = months) }
     fun consumeToast() { _state.value = _state.value.copy(toast = null) }
+
+    fun setEnabled(on: Boolean) {
+        container.preferences.toneLearnEnabled = on
+        _state.value = _state.value.copy(
+            enabled = on,
+            toast = if (on) "말투 학습을 켰어요 ✨" else "말투 학습을 껐어요"
+        )
+    }
+
+    fun addExample(text: String) {
+        val t = text.trim()
+        if (t.isBlank()) return
+        container.preferences.toneExamples = container.preferences.toneExamples + t
+        _state.value = _state.value.copy(
+            examplesCount = container.preferences.toneExamples.size,
+            toast = "새 예문을 배웠어요! ✨"
+        )
+    }
+
+    fun setSignature(text: String) {
+        container.preferences.toneSignature = text.trim()
+        _state.value = _state.value.copy(signature = text.trim(), toast = "시그니처 인사를 저장했어요")
+    }
 
     fun learnFromSamples() {
         viewModelScope.launch {
@@ -44,6 +77,7 @@ class StyleLearningViewModel(
                     _state.value.copy(
                         loading = false,
                         progress = 100,
+                        analyzed = true,
                         sampleCount = it.sampleCount,
                         kindness = it.kindness,
                         avgLength = it.avgLength,

@@ -2182,3 +2182,16 @@ CREATE TABLE intake_forms (
 요청: smsDraft/url 을 **공개 도메인 HTTPS 단축 URL**(예: https://ringgo.app/q/{token} 또는 무료 도메인/터널)로 발급. 통신사 스팸 필터 회피 위해 IP·포트 노출 없는 깔끔한 도메인 권장.
 - 앱은 smsDraft 를 그대로 문자에 넣으므로, 서버에서 URL 만 공개 도메인으로 바꾸면 앱 수정 없이 해결됨.
 - 폴링 키 devicePhone = 앱이 AppPreferences.bizPhone(사업자 전화) 로 보냄. submissions 필터가 이 값 기준인지 확인 부탁.
+
+## 2026-06-03 · android (40)
+알림 트리거 4종(D-1·잔금·브리핑·정기) + 도착 지오펜싱 + 자동문자/문자템플릿/내말투 프로토 1:1.
+- 알림: showProtoPush 공통 빌더 + ReminderWorker(WorkManager) D-1/잔금/브리핑/정기 + GeofenceManager 도착(5km).
+- 자동문자(SettingsScreen autosms) 프로토 4카드, 문자템플릿 프로토 1:1(이름/문구/삭제), 내 말투 학습 프로토 레이아웃.
+
+### ⚠️ 서버 재요청 — 내 말투 학습 API (전 #37 재송부)
+내 말투 학습 화면을 프로토 renderTone 1:1로 채우려면 서버가 아래를 앱에 줘야 함. 지금 앱은 분석값(친절도·평균길이·이모티콘빈도·sampleCount)만 있어 그 부분만 표시 중이고, 나머지는 "준비 중" 정직 표기:
+1. **학습률 %** — "막내가 사장님 말투를 N% 따라함" (owner_tone RAG 기반 수치). 앱은 가짜 숫자 안 넣음.
+2. **말투 특징 traits** — 말끝/이모티콘/길이/호칭/시그니처 같은 서술형 5개 (현재 앱은 숫자 3개만).
+3. **before/after 예시** — 고정 질문 1개에 대해 [일반 AI 답변] vs [내 말투 답변] 텍스트. (tone-RAG로 생성 가능하면 endpoint 하나로: req={question} → res={plain, mine})
+4. (선택) 추천 채택/수정 카운트 — "추천을 N번 고쳐주심".
+- endpoint 예: GET /api/tone/profile?devicePhone= → {learnRatePct, traits:[{k,v}], example:{question, plain, mine}, editCount}. 나오면 앱이 hero %·traits·before/after를 진짜 데이터로 교체.
