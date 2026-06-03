@@ -2287,3 +2287,10 @@ CREATE TABLE intake_forms (
 - 내 말투 학습(SettingsScreen tone): 화면 진입 시 1회 로드. hero % = learnRatePct, "말투 특징" placeholder → traits 칩 5개, "같은 질문 비교" placeholder → example(일반 AI ↔ 내 말투).
 - analyzed=false/로딩중/실패 시 정직 placeholder 유지(가짜 X). editCount 는 서버가 0 → 표시 안 함(추후 자동).
 - commit: 내 말투 학습 실데이터 연결. 서버 측 추가 작업 없음. 잘 동작 확인되면 닫힘.
+
+## 2026-06-03 (저녁2) · android (43)
+### ⚠️ 서버 §21 traits 값이 너무 김 — 짧게 재요청 [사장님 지적]
+내 말투 학습 "AI가 분석한 사장님 말투"는 프로토에서 **작은 알약 칩(한 줄 2개)**인데, 현재 서버가 traits[].v 를 **긴 문장**으로 보내서 칩이 전체폭 카드로 늘어남 → 프로토와 다름. (앱 칩 스타일/레이아웃은 프로토 1:1 맞음. 값만 길어서 깨짐.)
+- 요청: `docs/SERVER_TONE_PROFILE_PROMPT.md` §3-a [2026-06-03 수정] 반영 — 각 `v` ≤ 12~15자 짧은 명사구, 문장 금지. 목표 = 프로토 verbatim ("친근한 ~요체" / "😊 자주 (메시지당 ~1개)" / "짧고 핵심만 (2~3줄)" / "고객님" / "편하게 문의주세요!"). Haiku 프롬프트에 길이 제약 + few-shot 추가.
+- ⚠️ **기존 summary_cache(tone-profile) 무효화/강제 재생성 필요** — 안 그러면 옛 긴 값이 캐시 hit 으로 최대 24h 유지돼 사장님이 수정 확인 못 함. device_id=owner-anon 캐시 1건만 지우면 됨.
+- 앱 측 작업 없음(짧은 값 오면 자동으로 프로토처럼 한 줄 2개로 떨어짐). 값 짧아지면 닫힘.
