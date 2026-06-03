@@ -38,6 +38,19 @@ interface MessageHistoryDao {
     suspend fun countHandledForPhone(phone: String): Int
 
     /**
+     * 2026-06-03 ⓑ — 부재중 자동발송 쿨다운용.
+     * 이 번호로 "실제로 문자가 나간" 마지막 시각. (자동/인라인/수동마크/견적 발송)
+     * DRAFT_OPENED 는 초안만 연 것이라 제외 — 실제 발송 아님.
+     * 결과가 now-24h 보다 최근이면 자동발송 skip (이미 응대 중 / 직전 자동발송).
+     */
+    @Query("""
+        SELECT MAX(createdAt) FROM message_histories
+        WHERE phoneNumber = :phone
+          AND status IN ('AUTO_SENT','INLINE_SENT','MANUAL_MARK_SENT','ESTIMATE_SENT')
+    """)
+    suspend fun lastSentAtForPhone(phone: String): Long?
+
+    /**
      * 최근 자동답장(부재중 첫 응답) 기록 — 홈 "자동답장" 카드용 (2026-06-01).
      *   AUTO_SENT/AUTO_FAILED 만 (AUTO_CANCELLED = 사장님 본인이 취소 → 카드로 안 보여줌).
      *   sinceMs 이후, 최신순 limit 개.

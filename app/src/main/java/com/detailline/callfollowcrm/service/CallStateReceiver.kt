@@ -72,14 +72,25 @@ class CallStateReceiver : BroadcastReceiver() {
                             endedAt = System.currentTimeMillis()
                         )
                     }
-                    // 정책 (2026-05-19):
-                    //  - 첫 통화: 카드/알림 강하게 (dispatchFirstCallUi)
-                    //  - 2번째+ 통화: 사장님이 답장/분류 안 했으면 조용한 알림. 처리됐으면 X.
+                    // 정책 (2026-06-03, ⓑ — 사장님 결정):
+                    //  - 부재중: "첫 통화"가 아니어도, 이 번호로 최근 24h 내 보낸 문자가 없으면 자동발송 경로.
+                    //    (기존 "callCount==1 첫 통화만" → 단골/재문의 고객은 영영 자동발송 안 되던 문제 수정.)
+                    //    24h 내 발송 이력(자동/수동) 있으면 = 이미 응대 중/직전 자동발송 → 조용한 알림(스팸 방지).
+                    //  - 수신(응답): 기존대로 첫 통화만 카드(반복은 조용히).
                     val phone = recent?.phoneNumber
                     val phoneOk = phone != null && phone.isNotBlank() && phone != "(번호없음)"
                     if (phoneOk) {
                         val callCount = app.container.callRecordRepository.countByPhone(phone!!)
-                        if (callCount == 1) {
+                        val isMissedType = recent?.type == CallType.MISSED
+                        val useAutoPath = if (isMissedType) {
+                            val lastSent = app.container.messageHistoryRepository.lastSentAtForPhone(phone)
+                            val withinCooldown = lastSent != null &&
+                                (System.currentTimeMillis() - lastSent) < AUTO_REPLY_COOLDOWN_MS
+                            !withinCooldown
+                        } else {
+                            callCount == 1
+                        }
+                        if (useAutoPath) {
                             dispatchFirstCallUi(
                                 context = context,
                                 app = app,
@@ -164,9 +175,28 @@ class CallStateReceiver : BroadcastReceiver() {
         val prefs = app.container.preferences
         val autoOnPolicy = prefs.autoFirstReplyEnabled
         val autoTemplateId = if (isMissed) prefs.firstReplyMissedTemplateId else prefs.firstReplyIncomingTemplateId
-        val autoTemplate = if (autoOnPolicy && autoTemplateId > 0) {
+        val autoTemplate = if (autoTemplateId > 0) {
             app.container.messageTemplateRepository.findById(autoTemplateId)
         } else null
+
+        // 자동응답 본문 해석 — AutoReplyScheduler 와 동일 규칙으로 통일 (오버레이/알림 경로가 같은 문구를 쓰도록).
+        //  - 부재중: 프로토 자동문자 인라인 문구(신규/단골) 우선, 비면 템플릿ID fallback.
+        //  - 수신: 템플릿ID 본문.
+        // 2026-06-03 fix: 기존엔 오버레이가 템플릿ID(firstReplyMissedTemplateId)만 봤는데
+        //   자동문자 설정은 인라인 문구(autoMissedNewText)에만 저장 → 부재중 자동발송이 영영 안 나가던 버그.
+        val autoBody: String = when {
+            !autoOnPolicy -> ""
+            isMissed -> {
+                val isReturning = runCatching {
+                    app.container.customerRepository.findByPhone(phoneNumber)
+                }.getOrNull() != null
+                val inline = if (isReturning) prefs.autoMissedReturnText else prefs.autoMissedNewText
+                inline.ifBlank { autoTemplate?.body.orEmpty() }
+            }
+            else -> autoTemplate?.body.orEmpty()
+        }
+        val autoTitle: String? = autoTemplate?.title
+            ?: if (isMissed && autoBody.isNotBlank()) "부재중 자동 응답" else null
 
         // OverlayArgs 에 넣을 수동 템플릿: 사장님이 설정한 quickAction 슬롯 3개.
         val manualTemplates = listOf(
@@ -185,16 +215,16 @@ class CallStateReceiver : BroadcastReceiver() {
                 phoneNumber = phoneNumber,
                 isMissed = isMissed,
                 autoReplyTemplateId = autoTemplate?.id,
-                autoReplyTemplateTitle = autoTemplate?.title,
-                autoReplyTemplateBody = autoTemplate?.body,
+                autoReplyTemplateTitle = autoTitle,
+                autoReplyTemplateBody = autoBody.ifBlank { null },
                 manualTemplates = manualTemplates
             )
         )
         if (tryOverlay) return
 
         // ----- fallback paths (오버레이 권한 없거나 띄우기 실패) -----
-        if (autoOnPolicy && autoTemplate != null) {
-            // 기존 AutoReplyScheduler 흐름 (알림 카운트다운)
+        if (autoOnPolicy && autoBody.isNotBlank()) {
+            // 기존 AutoReplyScheduler 흐름 (알림 카운트다운). 본문은 스케줄러가 동일 규칙으로 재해석.
             AutoReplyScheduler.schedule(
                 context = context,
                 callRecordId = newRecordId,
@@ -255,5 +285,8 @@ class CallStateReceiver : BroadcastReceiver() {
         // BroadcastReceiver 인스턴스는 매번 새로 생성되므로 static 으로 직전 상태를 유지.
         @Volatile private var lastState: String = TelephonyManager.EXTRA_STATE_IDLE
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+        // ⓑ 부재중 자동발송 쿨다운 — 같은 번호엔 24h 에 1번만 (이미 응대/직전 자동발송이면 skip).
+        private const val AUTO_REPLY_COOLDOWN_MS = 24L * 60 * 60 * 1000
     }
 }

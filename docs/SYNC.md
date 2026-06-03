@@ -2327,3 +2327,19 @@ CREATE TABLE intake_forms (
 - 코드 미확인으로 보수적 유지: **정기문자 추가시트(openAddRecur)** 고정날짜/발송방식/미리보기/직접선택/앵커칩
 - 결론: **기능 이식 사실상 완료.** 남은 일 = 폰 1:1 눈 검증(🟡 다수) + 정기문자 추가시트 세부 + 팀(99k 보류)
 - 서버 영향 없음 (문서만 갱신)
+
+## 2026-06-03 (저녁4) · android (45)
+### 부재중 자동문자 안 됨 — 근본 원인 2개 수정 (사장님 폰 실기기 디버그)
+사장님 "부재중 자동문자 안 됨, 에이닷 기본전화앱 탓?" → adb logcat 실기기 추적 결과 **에이닷/배터리 무관**. 통화 감지(CallStateReceiver)는 완벽 작동(벨→끊김→번호 인식 로그 확인). 진짜 원인 2개:
+
+**버그 ① 오버레이 경로가 인라인 문구를 안 읽음**
+- 오버레이 권한 ON 이면 PostCallCard 경로를 타는데, autoOn 판정이 `autoReplyTemplateId>0` 만 봄. 그런데 자동문자 설정은 인라인 문구(`autoMissedNewText`)에만 저장 → 부재중 템플릿ID 늘 -1 → 자동발송 영영 안 됨.
+- fix: `CallStateReceiver.dispatchFirstCallUi` 가 AutoReplyScheduler 와 동일하게 인라인 문구(신규/단골) → 템플릿 fallback 으로 body 해석. `PostCallOverlay.actuallyShow` autoOn = `autoReplyTemplateBody` 유무로 판정 + tplId 없이 body 로 발송.
+
+**설계 ② "첫 통화만" → ⓑ 쿨다운 (사장님 결정)**
+- 기존: `callCount==1` 일 때만 자동발송 → 한 번이라도 통화한 번호(단골·재문의)는 영영 자동발송 안 됨. 사장님 폰들이 다 과거 통화 이력 있어 테스트조차 불가능.
+- 변경: 부재중이면 **이 번호로 최근 24h 내 보낸 문자(자동/수동) 없을 때 자동발송**. callCount 조건 제거. 같은 번호 24h 1회 제한(스팸 방지).
+- 추가: `MessageHistoryDao.lastSentAtForPhone` (MAX createdAt, status IN AUTO_SENT/INLINE_SENT/MANUAL_MARK_SENT/ESTIMATE_SENT).
+
+실기기 최종 확인: callCount=7(단골)인데 AUTO 경로 → autoBodyLen=64 → 오버레이 카운트다운 표시 → 사장님 "된다!" 확인. 임시 디버그 로그/2분 쿨다운 전부 원복(24h).
+- 서버 영향: 없음 (앱 단독)

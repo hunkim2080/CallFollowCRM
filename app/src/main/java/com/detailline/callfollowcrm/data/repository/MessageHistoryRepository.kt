@@ -16,6 +16,9 @@ class MessageHistoryRepository(private val dao: MessageHistoryDao) {
     /** 이 번호에 의미 있는 발송/오픈 기록이 있는가. CallStateReceiver 의 unhandled 알림 분기에 사용. */
     suspend fun hasHandledRecord(phone: String): Boolean = dao.countHandledForPhone(phone) > 0
 
+    /** 이 번호로 실제 문자가 나간 마지막 시각(ms). 없으면 null. 부재중 자동발송 쿨다운 판정용(ⓑ). */
+    suspend fun lastSentAtForPhone(phone: String): Long? = dao.lastSentAtForPhone(phone)
+
     /** 최근 자동답장 기록 (홈 카드). AUTO_SENT/AUTO_FAILED, sinceMs 이후 최신순 limit 개. */
     fun observeRecentAutoReplies(sinceMs: Long, limit: Int = 5): Flow<List<MessageHistoryEntity>> =
         dao.observeRecentAutoReplies(sinceMs, limit)

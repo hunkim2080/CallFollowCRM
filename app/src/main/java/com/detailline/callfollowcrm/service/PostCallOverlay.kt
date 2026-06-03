@@ -172,11 +172,13 @@ object PostCallOverlayManager {
     private fun actuallyShow(appContext: Context, args: OverlayArgs) {
         val app = appContext as? CallFollowCrmApplication ?: return
 
-        // 자동응답 ON 모드인지 판정 — 자동응답 정책 + 권한 + 해당 케이스 템플릿 모두 OK 여야.
+        // 자동응답 ON 모드인지 판정 — 자동응답 정책 + 권한 + 발송할 본문이 있으면 OK.
+        // 2026-06-03 fix: 기존엔 템플릿ID(>0)를 요구했는데, 자동문자 설정은 인라인 문구에만 저장 →
+        //   부재중은 템플릿ID 가 늘 -1 이라 자동발송이 영영 안 됐음. 이제 본문 유무로 판정.
         val autoOn = run {
             if (!app.container.preferences.autoFirstReplyEnabled) return@run false
             if (!SmsSender.hasPermission(appContext)) return@run false
-            args.autoReplyTemplateId != null && args.autoReplyTemplateId > 0
+            !args.autoReplyTemplateBody.isNullOrBlank()
         }
 
         val initialMode = if (autoOn) CardMode.AUTO_REPLY else CardMode.MANUAL_CHOOSE
@@ -239,8 +241,10 @@ object PostCallOverlayManager {
                     countdownJob = ioScope.launch {
                         tickdown(AUTO_REPLY_COUNTDOWN_MS)
                         if (_state.value?.sendStatus == SendStatus.COUNTING_DOWN) {
-                            val tplId = args.autoReplyTemplateId ?: return@launch
-                            actuallySend(args.phoneNumber, tplId, args.autoReplyTemplateBody.orEmpty())
+                            val body = args.autoReplyTemplateBody.orEmpty()
+                            if (body.isBlank()) return@launch
+                            // 템플릿ID 없이 인라인 문구만 있어도 발송 (actuallySend 는 tplId<=0 처리됨).
+                            actuallySend(args.phoneNumber, args.autoReplyTemplateId ?: -1L, body)
                         }
                     }
                 }
