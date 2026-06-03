@@ -61,6 +61,9 @@ private val TossLightColors = lightColorScheme(
     onBackground = TossTextPrimary,
     surface = TossSurface,
     onSurface = TossTextPrimary,
+    // 프로토 = 평평한 흰 surface. M3 기본 surfaceTint(=primary 파랑)를 끄지 않으면
+    //   elevation 있는 Dialog/Sheet/Card 가 퍼렇게 틴트됨 → 투명으로 전역 차단. (2026-06-03)
+    surfaceTint = Color.Transparent,
     surfaceVariant = TossGrayBg,
     onSurfaceVariant = TossTextTertiary,
     outline = TossDivider,
@@ -80,6 +83,7 @@ private val TossDarkColors = darkColorScheme(
     onBackground = TossTextPrimaryDark,
     surface = TossSurfaceDark,
     onSurface = TossTextPrimaryDark,
+    surfaceTint = Color.Transparent,   // 다크도 동일하게 틴트 차단 (위 설명 참조)
     surfaceVariant = TossSurfaceDark,
     onSurfaceVariant = TossTextTertiaryDark,
     outline = TossDividerDark,
