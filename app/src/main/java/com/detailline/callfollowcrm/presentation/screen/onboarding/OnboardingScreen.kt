@@ -528,27 +528,30 @@ private fun KickerChip(text: String, accent: Color = ObAccent) {
 // ── 슬라이드 비주얼 (프로토 OB_SLIDES 재현, 클린 버전) ──
 
 private fun storySlides(): List<Slide> = listOf(
-    Slide("이런 적, 있으시죠", "혼자라 다 떠안고 계시죠", "견적에 예약에 안내까지, 하루에도 수십 번") {
+    Slide("이런 적, 있으시죠", "혼자라 다 떠안고 계시죠", "견적에 예약에 안내까지, 하루에도 수십 번") { active ->
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
-            CustomerBubble("\"견적 얼마예요? 24평 화장실 2개요\"")
+            RiseIn(active, 0) { CustomerBubble("\"견적 얼마예요? 24평 화장실 2개요\"") }
             Spacer(Modifier.height(9.dp))
-            CustomerBubble("\"주말에 시공 가능한가요?\"")
+            RiseIn(active, 130) { CustomerBubble("\"주말에 시공 가능한가요?\"") }
             Spacer(Modifier.height(9.dp))
-            CustomerBubble("\"위치가 어디세요? 사진 보냈어요\"")
+            RiseIn(active, 260) { CustomerBubble("\"위치가 어디세요? 사진 보냈어요\"") }
             Spacer(Modifier.height(14.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.background(TossError, RoundedCornerShape(8.dp)).padding(horizontal = 9.dp, vertical = 5.dp)) {
-                    Text("읽지 않음 +12", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
+            RiseIn(active, 390) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.background(TossError, RoundedCornerShape(8.dp)).padding(horizontal = 9.dp, vertical = 5.dp)) {
+                        Text("읽지 않음 +12", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
+                    }
+                    Spacer(Modifier.width(9.dp))
+                    Text("밀린 상담…", fontSize = 12.sp, color = TossTextTertiary)
                 }
-                Spacer(Modifier.width(9.dp))
-                Text("밀린 상담…", fontSize = 12.sp, color = TossTextTertiary)
             }
         }
     },
-    Slide("01 · 답장", "사장님 말투 그대로 답장", "쓸수록 말투를 배워서, 점점 더 사장님처럼") {
+    Slide("01 · 답장", "사장님 말투 그대로 답장", "쓸수록 말투를 배워서, 점점 더 사장님처럼") { active ->
         Column(Modifier.fillMaxWidth()) {
-            CustomerBubble("견적 얼마예요? 24평 화장실 2개요")
+            RiseIn(active, 0) { CustomerBubble("견적 얼마예요? 24평 화장실 2개요") }
             Spacer(Modifier.height(12.dp))
+            RiseIn(active, 160) {
             Column(Modifier.fillMaxWidth().background(TossBlueSoft, RoundedCornerShape(14.dp)).padding(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("✨ AI 추천 답변", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
@@ -560,18 +563,23 @@ private fun storySlides(): List<Slide> = listOf(
                 Spacer(Modifier.height(6.dp))
                 Text("안녕하세요! 24평 화장실 2개는 28~32만원선이에요. 사진 주시면 정확히 알려드릴게요 😊", fontSize = 13.sp, color = TossTextPrimary, lineHeight = 19.sp)
             }
+            }
         }
     },
-    Slide("02 · 안내", "내일 가요, 미리 알려드려요", "도착 30분 전 문자, 헛걸음 없게") {
+    Slide("02 · 안내", "내일 가요, 미리 알려드려요", "도착 30분 전 문자, 헛걸음 없게") { active ->
         Column(Modifier.fillMaxWidth()) {
+            RiseIn(active, 0) {
             Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Color(0xFFEEF0F3), RoundedCornerShape(14.dp)).padding(14.dp)) {
                 Text("📍 현장 5km 진입 · 도착 30분 전", fontSize = 11.sp, color = TossSuccess, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 Text("고객님, 30분 뒤 도착 예정입니다 😊", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
             }
+            }
             Spacer(Modifier.height(12.dp))
+            RiseIn(active, 150) {
             Box(Modifier.background(Color(0xFFFEF3E0), RoundedCornerShape(8.dp)).padding(horizontal = 11.dp, vertical = 6.dp)) {
                 Text("시공 하루 전 안내도 자동", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A))
+            }
             }
         }
     },
@@ -613,9 +621,10 @@ private fun storySlides(): List<Slide> = listOf(
             Text("전국 평균 -12% · 나만 그런 게 아니에요", fontSize = 11.sp, color = TossTextTertiary)
         }
     },
-    Slide("05 · 홍보", "후기 글, AI가 대신 써줘요", "고객과 나눈 문자로 만든 진짜 후기,\n사장님은 사진만 넣으세요") {
+    Slide("05 · 홍보", "후기 글, AI가 대신 써줘요", "고객과 나눈 문자로 만든 진짜 후기,\n사장님은 사진만 넣으세요") { active ->
         Column(Modifier.fillMaxWidth()) {
             // 프로토: 사진 ＋ 채팅 → 후기 아이콘 줄
+            RiseIn(active, 0) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center,
@@ -633,13 +642,16 @@ private fun storySlides(): List<Slide> = listOf(
                     Icon(Icons.Filled.Description, null, tint = Color(0xFFFF7847), modifier = Modifier.size(22.dp))
                 }
             }
+            }
             Spacer(Modifier.height(14.dp))
+            RiseIn(active, 170) {
             Column(Modifier.fillMaxWidth().background(TossGrayBg, RoundedCornerShape(14.dp)).padding(13.dp)) {
                 Text("[천호동] 화장실 줄눈 시공 후기", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
                 Spacer(Modifier.height(4.dp))
                 Text("안녕하세요, 디테일라인 줄눈입니다 😊 욕실 2곳 줄눈+코킹 재시공을…", fontSize = 12.sp, color = TossTextPrimary, lineHeight = 19.sp)
                 Spacer(Modifier.height(4.dp))
                 Text("#천호동줄눈 #욕실줄눈 #디테일라인", fontSize = 12.sp, color = ObAccent, fontWeight = FontWeight.Bold)
+            }
             }
         }
     },
@@ -662,6 +674,20 @@ private fun storySlides(): List<Slide> = listOf(
         }
     }
 )
+
+/**
+ * 프로토 obBubble/obUp — 슬라이드가 활성화되면 요소가 아래에서 위로 페이드인.
+ *   delayMs 로 stagger(하나씩 차례로). 비활성(다른 슬라이드)일 땐 숨김 → 돌아오면 다시 재생.
+ */
+@Composable
+private fun RiseIn(active: Boolean, delayMs: Int, content: @Composable () -> Unit) {
+    val p by animateFloatAsState(
+        targetValue = if (active) 1f else 0f,
+        animationSpec = tween(durationMillis = 430, delayMillis = if (active) delayMs else 0),
+        label = "rise"
+    )
+    Box(Modifier.graphicsLayer { alpha = p; translationY = (1f - p) * 14.dp.toPx() }) { content() }
+}
 
 @Composable
 private fun CustomerBubble(text: String) {
