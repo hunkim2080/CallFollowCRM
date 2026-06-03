@@ -2378,3 +2378,21 @@ CREATE TABLE intake_forms (
 - 현재 baseUrl `http://100.86.114.49:8000` = 테일넷 IP. 사장님 폰만 닿고 **고객(다른 시공사장님) 폰은 못 닿음** → 서비스 불가. (개발PC에서도 타임아웃 확인, 폰만 ping 됨)
 - Cloudflare Tunnel 로 공개 고정주소(예: api.ringgo.app) 노출 권장. 서버 작업.
 - 앱 측 후속: 하드코딩된 baseUrl(ServerSuggestionRepository/CallSummaryServerRepository/PhaseOneApiRepository/IntakeFormRepository 등) 한 곳으로 모아서 공개주소로 교체 — 공개주소 정해지면 진행.
+
+## 2026-06-03 (저녁8) · android → server(cowork) 요청 (49)
+### [요청] prepare-reply 제미나이 2.5 Flash A/B 테스트 (사장님 직접 지시)
+사장님이 추천답변 모델로 제미나이를 체감해보고 싶어함. 목적 3가지:
+1. **속도** — 현재 Sonnet 4.6 이 prepare→READY 실측 ~20초(앱 logcat 확인). 너무 느려서 알림 추천이 20초 뒤에야 채워짐. Flash 면 체감 대폭 개선 기대.
+2. **빈답변 폴백 해결(#48 ②)** — 지금 "model output not parseable as JSON" → text:"" 폴백 발생. 제미나이 **structured output(response_schema) 강제**로 JSON 깨짐 자체를 제거 가능. 이게 핵심 기대효과.
+3. **비용** — 서비스화(10만 목표) 대비 Flash 가 Sonnet 대비 훨씬 저렴.
+
+#### 요청 사항
+- `/prepare-reply` 에 **모델 분기**(예: 요청 파라미터 `?model=gemini` 또는 env 토글)로 Gemini 2.5 Flash 경로 추가. **기존 Sonnet 경로는 유지**(A/B 비교용).
+- **출력 스키마는 동일하게** 유지 필수: `/suggestions` 응답이 `{status, scenario, scenario_confidence, scenario_reason, suggestions:[{intent_key,label,text,why}]}` 형태 그대로여야 **앱 수정 0**. (앱 파서 = ServerSuggestionRepository.parseFetchResult)
+- Gemini 는 `response_schema` 로 위 구조 강제 → text 빈값 폴백 안 나게.
+- **비교 산출물**: 사장님 실제 캐시 메시지 5~10건으로 Sonnet vs Gemini 답변을 **나란히** 볼 수 있게 (admin 페이지 한 줄 추가 or 임시 엔드포인트). 사장님이 **한국어 톤** 기준으로 직접 판정.
+- 각 모델 **응답시간 + 토큰/비용** 로깅(이미 llm_usage_log 있음 — 모델키에 gemini 추가).
+
+#### 판정 후 방향 (사장님 결정 예정)
+- 톤 OK → Gemini 전환(속도·비용·JSON 이득) / 톤 부족 → 하이브리드(빠른답변 Flash, 중요순간 Sonnet) 또는 Sonnet 유지.
+- 앱 영향: 없음(스키마 동일 유지 전제). 모델만 서버에서 교체.
