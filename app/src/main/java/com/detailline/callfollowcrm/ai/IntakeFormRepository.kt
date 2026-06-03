@@ -152,6 +152,7 @@ class IntakeFormRepository(
         val memo: String?,
         val confirmedDateIso: String?,
         val workYear: Int, val workMonth: Int, val workDay: Int, val workDays: Int,
+        val total: Int,
         val source: String?
     )
 
@@ -183,6 +184,7 @@ class IntakeFormRepository(
                             confirmedDateIso = itObj.optString("confirmedDate").takeIf { s -> s.isNotBlank() && s != "null" },
                             workYear = itObj.optInt("workYear"), workMonth = itObj.optInt("workMonth"),
                             workDay = itObj.optInt("workDay"), workDays = itObj.optInt("workDays", 1),
+                            total = itObj.optInt("total"),
                             source = survey.str("source")
                         )
                     }

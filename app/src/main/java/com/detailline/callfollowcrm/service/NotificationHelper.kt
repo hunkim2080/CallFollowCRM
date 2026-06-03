@@ -95,10 +95,22 @@ object NotificationHelper {
         }
     }
 
+    /** 프로토 PUSH.quote accent — 보라(전환 알림). small-icon 틴트 + 앱명 accent. */
+    private val INTAKE_ACCENT_PURPLE = 0xFF7C5CFC.toInt()
+
     /**
-     * 고객이 시공접수서를 작성·제출했을 때 알림. 탭하면 그 고객 채팅으로.
+     * 고객이 시공접수서를 작성·제출했을 때 알림 — 프로토 PUSH.quote 형식 1:1.
+     *   제목(이모지) + 정보형 본문(희망일·금액) + 액션 버튼. 탭/버튼 = 그 고객 채팅.
      */
-    fun showIntakeSubmitted(context: Context, token: String, phone: String, name: String, address: String) {
+    fun showIntakeSubmitted(
+        context: Context,
+        token: String,
+        phone: String,
+        name: String,
+        address: String,
+        dateLabel: String? = null,
+        totalManwon: Int = 0
+    ) {
         val notifId = INTAKE_ID_OFFSET + (token.hashCode() and 0x7FFFFF)
         val openIntent = Intent(context, MainActivity::class.java).apply {
             action = MainActivity.ACTION_CHAT
@@ -109,20 +121,32 @@ object NotificationHelper {
             context, notifId, openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+
+        // 프로토 PUSH.quote.msg 구조: "{이름}님이 ... · 시공 희망 {날짜} · {금액}만원"
+        val msg = buildString {
+            append("${name}님이 접수서를 작성했어요")
+            if (!dateLabel.isNullOrBlank()) append(" · 시공 희망 $dateLabel")
+            if (totalManwon > 0) append(" · ${totalManwon}만원")
+        }
+        val bigText = buildString {
+            append(msg)
+            append("\n📍 $address")
+            append("\n\n주소·시공일이 고객 카드에 자동 반영됐어요. 탭해서 확인하세요.")
+        }
+
         val builder = NotificationCompat.Builder(context, CHANNEL_INTAKE)
             .setSmallIcon(R.drawable.ic_notification)
-            .setColor(NOTIFICATION_BG_COLOR)
-            .setContentTitle("📋 ${name}님이 시공접수서를 작성했어요")
-            .setContentText("📍 $address")
-            .setStyle(
-                NotificationCompat.BigTextStyle().bigText(
-                    "${name}님이 주소·시공일을 확인해 제출했어요.\n📍 $address\n\nRING-GO 고객 화면에 자동 반영됐어요. 탭해서 확인하세요."
-                )
-            )
+            .setColor(INTAKE_ACCENT_PURPLE)
+            .setColorized(true)
+            .setContentTitle("시공접수서 회신 도착 🎉")
+            .setContentText(msg)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_EVENT)
             .setAutoCancel(true)
             .setContentIntent(pending)
+            // 프로토 btns[primary] "1탭으로 일정 확정" — 임포트가 이미 일정 반영 → 탭하면 그 고객 확인.
+            .addAction(R.drawable.ic_notification, "일정 확인", pending)
         try {
             NotificationManagerCompat.from(context).notify(notifId, builder.build())
         } catch (_: SecurityException) { /* POST_NOTIFICATIONS 없음 — 무시 */ }

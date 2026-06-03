@@ -34,7 +34,8 @@ class IntakeSyncManager(private val container: AppContainer) {
             val c = container.customerRepository.upsertByPhone(phoneNumber = s.customerPhone)
             val fullAddr = listOfNotNull(s.address, s.dong).joinToString(" ").trim()
             if (fullAddr.isNotBlank()) container.customerRepository.updateAddress(c.id, fullAddr)
-            workMsOf(s)?.let { container.customerRepository.updateScheduledWorkDate(c.id, it) }
+            val workMs = workMsOf(s)
+            workMs?.let { container.customerRepository.updateScheduledWorkDate(c.id, it) }
             if (!s.memo.isNullOrBlank() && c.memo.isNullOrBlank()) {
                 container.customerRepository.updateMemo(c.id, "📋 접수: ${s.memo}")
             }
@@ -42,8 +43,13 @@ class IntakeSyncManager(private val container: AppContainer) {
             imported.add(s.token)
             changed = true
             val nm = s.customerName.ifBlank { s.customerPhone }
+            val dateLabel = workMs?.let {
+                SimpleDateFormat("M/d(E)", Locale.KOREA).format(java.util.Date(it))
+            }
             NotificationHelper.showIntakeSubmitted(
-                context, s.token, s.customerPhone, nm, fullAddr.ifBlank { "주소 미입력" }
+                context, s.token, s.customerPhone, nm,
+                address = fullAddr.ifBlank { "주소 미입력" },
+                dateLabel = dateLabel, totalManwon = s.total
             )
         }
         if (changed || maxSubmitted != since) {
