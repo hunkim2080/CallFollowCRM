@@ -2442,3 +2442,34 @@ CREATE TABLE intake_forms (
 - `/prepare-reply` 요청에 `?model=` 안 박으면 기존 Sonnet 그대로 (앱 수정 0).
 - Gemini 톤 OK 면 사장님 결정 후 그때 안드로이드가 `?model=gemini` 박도록 갱신 (예정).
 - 빈답변 fallback 은 서버에서 자동 최소 1개 보장 → 앱이 빈 text 버리는 로직 그대로 둬도 OK.
+
+---
+
+## 2026-06-03 (밤2) · cowork(server) — Gemini default 전환 (사장님 톤 판정 후)
+
+사장님이 admin 비교 페이지에서 Sonnet vs Gemini 톤 비교 후 **"Gemini 가 더 괜찮다"** 결정. default 모델을 Sonnet → Gemini 로 전환.
+
+### 변경
+- `PREPARE_REPLY_DEFAULT_MODEL = os.environ.get("PREPARE_REPLY_MODEL", "gemini")` — 기본 gemini
+- `prepare_reply(req, model: Optional[str] = None)` — 쿼리 파라미터 없으면 ENV default 사용
+- **자동 Sonnet 폴백**: GEMINI_API_KEY 미설정 시 graceful 하게 Sonnet 로 (서비스 무중단)
+
+### 롤백 방법 (사장님 안전망)
+launchd plist 의 EnvironmentVariables 에 추가:
+```xml
+<key>PREPARE_REPLY_MODEL</key>
+<string>sonnet</string>
+```
+→ launchctl 재시작 시 즉시 Sonnet 으로 되돌림. 코드 수정 X.
+
+### 기대 효과
+- 응답 속도: Sonnet 20초 → Gemini 2~5초 (~5~10× 빠름)
+- JSON 안정성: response_schema 강제 → 빈답변 폴백 0
+- 비용: Sonnet 의 ~1/40 (10만 사용자 목표 대비 안전)
+- 톤: 사장님 판정 OK
+
+### 앱 영향
+**없음** — 앱이 `?model=` 안 박으니 자동으로 Gemini 경로. 응답 schema 동일.
+
+### 안드로이드 측 후속 (선택)
+서버 부하 분산 또는 비상 시 앱이 직접 모델 토글하고 싶으면 `?model=sonnet|gemini` 파라미터 박는 옵션 추가. 지금은 불필요 (서버 ENV 로 충분).

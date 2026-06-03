@@ -1636,20 +1636,30 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="RING-GO Server (Claude Sonnet 4.6)", lifespan=lifespan)
 
 
+PREPARE_REPLY_DEFAULT_MODEL = os.environ.get("PREPARE_REPLY_MODEL", "gemini").lower()
+"""prepare-reply 기본 모델. 사장님 2026-06-03 톤 비교 후 'gemini' 로 전환.
+
+ENV 토글: launchd plist 의 EnvironmentVariables 에 PREPARE_REPLY_MODEL=sonnet 박으면
+즉시 Sonnet 으로 되돌림 (롤백 안전망). 쿼리 파라미터 ?model=... 가 박히면 그게 우선.
+"""
+
+
 @app.post("/prepare-reply")
-async def prepare_reply(req: PrepareReplyRequest, model: str = "sonnet"):
+async def prepare_reply(req: PrepareReplyRequest, model: Optional[str] = None):
     """추천 답변 생성 백그라운드 트리거.
 
-    §49 A/B — 쿼리 파라미터 ?model=gemini 면 Gemini 2.5 Flash 경로. 기본은 sonnet.
-    응답 schema 는 동일 v2 (앱 수정 0).
+    §49 A/B + 사장님 톤 판정 결과 → 기본 = Gemini 2.5 Flash (속도·비용·JSON 안정성).
+    - 쿼리 파라미터 ?model=sonnet 박으면 Sonnet 경로 (수동 override)
+    - ENV PREPARE_REPLY_MODEL=sonnet 박으면 default 가 sonnet 으로 되돌림 (롤백)
+    - 응답 schema 는 동일 v2 (앱 수정 0)
     """
-    if model not in ("sonnet", "gemini"):
-        raise HTTPException(400, f"model must be 'sonnet' or 'gemini', got {model!r}")
-    if model == "gemini" and not GEMINI_API_KEY:
-        raise HTTPException(
-            503,
-            "GEMINI_API_KEY 미설정. Mac mini 의 launchd plist EnvironmentVariables 에 박아주세요."
-        )
+    chosen_model = (model or PREPARE_REPLY_DEFAULT_MODEL).lower()
+    if chosen_model not in ("sonnet", "gemini"):
+        raise HTTPException(400, f"model must be 'sonnet' or 'gemini', got {chosen_model!r}")
+    if chosen_model == "gemini" and not GEMINI_API_KEY:
+        # graceful — Gemini 키 없으면 자동 Sonnet 폴백 (서비스 무중단)
+        print(f"[prepare-reply] GEMINI_API_KEY 미설정 → Sonnet 자동 폴백")
+        chosen_model = "sonnet"
 
     db_set_generating(req.phone, req.latestMessage, req.latestMessageReceivedAtMs)
 
@@ -1658,9 +1668,9 @@ async def prepare_reply(req: PrepareReplyRequest, model: str = "sonnet"):
     if old is not None and not old.done():
         old.cancel()
 
-    task = asyncio.create_task(generate_and_cache(req, model=model))
+    task = asyncio.create_task(generate_and_cache(req, model=chosen_model))
     _inflight_tasks[req.phone] = task
-    return {"ok": True, "model": model}
+    return {"ok": True, "model": chosen_model}
 
 
 @app.get("/suggestions/{phone}")
