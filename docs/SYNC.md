@@ -2350,3 +2350,9 @@ CREATE TABLE intake_forms (
 - fix: 정렬·날짜그룹·행 시각 기준을 **`lastActivityMs = max(최근 통화, 최근 SMS)`** 로. `HomeItem.lastActivityMs` 필드 추가, timeline 에서 copy 로 채움. SMS bump 는 그 번호의 '가장 최근 통화 아이템'에만 적용(과거 날짜 그룹 오염 방지). HomeScreen RecentRow 시각도 lastActivityMs 사용.
 - smsContactsState 는 이미 Room observe(SmsReceiver.upsertOne) 라 라이브 — 정렬 기준만 문제였음.
 - 서버 영향: 없음
+
+## 2026-06-03 (저녁6) · android (47)
+### 화면 전환 애니메이션 — 기본(페이드+스케일, 그림자 스크림처럼) → 토스 스타일 수평 슬라이드
+사장님 "화면 넘어가는 게 그림자 생기듯 부자연스럽다". 원인: AppNavHost 에 전환 미지정 → androidx Navigation 기본 전환.
+- fix: NavHost enter/exit/popEnter/popExit 지정. 상세화면=오른쪽에서 슬라이드 인, 뒤로가기=오른쪽으로 슬라이드 아웃(아래 화면 -1/4 패럴랙스). 하단 탭 4개(홈/일정/통계/더보기) 간은 페이드(180ms), 그 외 슬라이드(280ms).
+- 서버 영향: 없음
