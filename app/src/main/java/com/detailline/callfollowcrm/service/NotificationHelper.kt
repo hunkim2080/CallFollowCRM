@@ -27,6 +27,8 @@ object NotificationHelper {
     private const val CHANNEL_REMINDER = "reminder"
     private const val D1_ID_OFFSET = 9_000_000
     private const val SETTLE_ID_OFFSET = 9_500_000
+    private const val BRIEF_ID = 9_700_000
+    private const val RECUR_ID = 9_800_000
     /** SMS 알림 ID = 발신번호 hash + offset. 같은 번호 새 SMS = 같은 알림 update. */
     private const val SMS_ID_OFFSET = 10_000_000
 
@@ -170,6 +172,48 @@ object NotificationHelper {
             msg = "${name}님 · 잔금 ${balanceManwon}만원 · 시공 완료 후 ${daysSince}일째 미입금",
             contentIntent = pending,
             actions = listOf(PushAction("잔금 요청 보내기", pending))
+        )
+    }
+
+    private fun appOpenPending(context: Context, id: Int): PendingIntent {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        return PendingIntent.getActivity(
+            context, id, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
+    /** 마감 브리핑 — 프로토 PUSH.brief 형식(파랑, 저녁 9시). 확실한 데이터만. */
+    fun showDailyBrief(context: Context, newCustomers: Int, deposits: Int, tomorrowJobs: Int, tomorrowLabel: String?) {
+        val parts = buildList {
+            if (newCustomers > 0) add("새 고객 ${newCustomers}명")
+            if (deposits > 0) add("입금 ${deposits}건")
+        }
+        val msg = if (parts.isEmpty()) "오늘 하루도 고생하셨어요" else "오늘 " + parts.joinToString(" · ")
+        val note = if (tomorrowJobs > 0)
+            "내일 시공 ${tomorrowJobs}곳" + (tomorrowLabel?.let { " — $it" } ?: "")
+        else null
+        val pending = appOpenPending(context, BRIEF_ID)
+        showProtoPush(
+            context, BRIEF_ID, CHANNEL_REMINDER, ACCENT_BLUE,
+            title = "오늘 하루 마감 브리핑 🌙",
+            msg = msg, note = note,
+            contentIntent = pending,
+            actions = listOf(PushAction("오늘 정리 보기", pending))
+        )
+    }
+
+    /** 정기 문자 발송 전 확인 — 프로토 PUSH.recur 형식(청록, 오전 9시). */
+    fun showRecurringDue(context: Context, count: Int, ruleNames: String) {
+        val pending = appOpenPending(context, RECUR_ID)
+        val prefix = if (ruleNames.isNotBlank()) "$ruleNames · " else ""
+        showProtoPush(
+            context, RECUR_ID, CHANNEL_REMINDER, ACCENT_TEAL,
+            title = "오늘 정기 문자 보낼 고객 ${count}명",
+            msg = "${prefix}오늘 ${count}명 · {고객명} 자동 채움 · 보내기 전에 한 번 봐주세요",
+            contentIntent = pending,
+            actions = listOf(PushAction("검토하고 보내기", pending))
         )
     }
 

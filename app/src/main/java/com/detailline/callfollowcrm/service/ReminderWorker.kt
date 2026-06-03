@@ -6,6 +6,7 @@ import androidx.work.WorkerParameters
 import com.detailline.callfollowcrm.CallFollowCrmApplication
 import com.detailline.callfollowcrm.data.AppContainer
 import com.detailline.callfollowcrm.util.DateTimeUtils
+import kotlinx.coroutines.flow.first
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -23,7 +24,86 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
         val app = applicationContext as? CallFollowCrmApplication ?: return Result.success()
         runCatching { checkInstallD1(app.container) }
         runCatching { checkBalanceDue(app.container) }
+        runCatching { checkDailyBrief(app.container) }
+        runCatching { checkRecurringDue(app.container) }
         return Result.success()
+    }
+
+    /** 마감 브리핑 — 저녁 9시경, 하루 1회. 확실한 데이터(새 고객·입금·내일 시공). */
+    private suspend fun checkDailyBrief(container: AppContainer) {
+        val now = System.currentTimeMillis()
+        val hour = Calendar.getInstance().apply { timeInMillis = now }.get(Calendar.HOUR_OF_DAY)
+        if (hour < 21 || hour >= 23) return // 프로토 brief = 오후 9시.
+
+        val todayStart = DateTimeUtils.startOfDay(now)
+        val todayEnd = todayStart + DateTimeUtils.DAY_MS
+        val tomorrowStart = todayEnd
+        val tomorrowEnd = tomorrowStart + DateTimeUtils.DAY_MS
+        val prefs = container.preferences
+        val keys = prefs.reminderNotifiedKeys.toMutableSet()
+        val key = "brief:$todayStart"
+        if (key in keys) return
+
+        val customers = runCatching { container.customerRepository.allOnce() }.getOrDefault(emptyList())
+        val newCustomers = customers.count { it.createdAt in todayStart until todayEnd }
+        val deposits = customers.count { c ->
+            (c.depositPaidAt?.let { it in todayStart until todayEnd } == true) ||
+                (c.balancePaidAt?.let { it in todayStart until todayEnd } == true)
+        }
+        val tomorrowJobs = customers.filter {
+            it.scheduledWorkDate?.let { s -> DateTimeUtils.startOfDay(s) in tomorrowStart until tomorrowEnd } == true
+        }
+        if (newCustomers == 0 && deposits == 0 && tomorrowJobs.isEmpty()) return // 조용한 날 — 안 보냄
+
+        val firstJob = tomorrowJobs.minByOrNull { it.scheduledWorkDate ?: Long.MAX_VALUE }
+        val tomorrowLabel = firstJob?.let { c ->
+            val nm = c.name?.takeIf { it.isNotBlank() } ?: c.phoneNumber
+            val t = c.scheduledWorkMinutes?.let { DateTimeUtils.formatWorkMinutes(it) }
+            nm + (t?.let { " $it" } ?: "")
+        }
+        NotificationHelper.showDailyBrief(applicationContext, newCustomers, deposits, tomorrowJobs.size, tomorrowLabel)
+        keys.add(key)
+        prefs.reminderNotifiedKeys = keys
+    }
+
+    /** 정기 문자 발송 대상 — 시공일 + 주기 배수 = 오늘. 오전 9시경, 하루 1회 집계 알림. */
+    private suspend fun checkRecurringDue(container: AppContainer) {
+        val now = System.currentTimeMillis()
+        val hour = Calendar.getInstance().apply { timeInMillis = now }.get(Calendar.HOUR_OF_DAY)
+        if (hour < 9 || hour >= 11) return // 프로토 recur = 오전 9시.
+
+        val todayStart = DateTimeUtils.startOfDay(now)
+        val prefs = container.preferences
+        val keys = prefs.reminderNotifiedKeys.toMutableSet()
+        val key = "recur:$todayStart"
+        if (key in keys) return
+
+        val rules = runCatching {
+            container.recurringMessageRepository.observeEnabledRules().first()
+        }.getOrDefault(emptyList())
+        if (rules.isEmpty()) return
+        val customers = runCatching { container.customerRepository.allOnce() }.getOrDefault(emptyList())
+
+        var due = 0
+        val ruleNames = LinkedHashSet<String>()
+        for (rule in rules) {
+            val interval = rule.intervalDays
+            if (interval <= 0) continue
+            val intervalMs = interval * DateTimeUtils.DAY_MS
+            for (c in customers) {
+                if (rule.targetCategoryId != null && c.categoryId != rule.targetCategoryId) continue
+                val s = c.scheduledWorkDate ?: continue
+                val diff = todayStart - DateTimeUtils.startOfDay(s)
+                if (diff > 0 && diff % intervalMs == 0L) {
+                    due++
+                    ruleNames.add(rule.name)
+                }
+            }
+        }
+        if (due <= 0) return
+        NotificationHelper.showRecurringDue(applicationContext, due, ruleNames.joinToString(" · "))
+        keys.add(key)
+        prefs.reminderNotifiedKeys = keys
     }
 
     /** 시공 완료 3일 지났는데 잔금 미입금 → 잔금 미수 알림 (오전 창, 고객별 1회). */
