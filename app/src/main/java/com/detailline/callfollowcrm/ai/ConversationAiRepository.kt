@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit
  */
 class ConversationAiRepository(
     private val dao: AiSummaryDao,
-    private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL
+    private val baseUrl: String = "http://100.86.114.49:8000"
 ) {
     private val client = OkHttpClient.Builder()
         .connectTimeout(3, TimeUnit.SECONDS)

@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit
  *     cowork 가 향후 5 필드 분리 모드로 바꾸거나 두 모드 공존해도 깨지지 않게.
  */
 class CustomerPersonaRepository(
-    private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL
+    private val baseUrl: String = "http://100.86.114.49:8000"
 ) {
 
     private val client: OkHttpClient = OkHttpClient.Builder()

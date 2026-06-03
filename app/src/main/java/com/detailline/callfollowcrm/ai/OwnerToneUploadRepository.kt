@@ -28,7 +28,7 @@ import java.util.concurrent.TimeUnit
  * 비용: bge-m3 임베딩 = local Mac mini → 비용 0. upload 자체는 Tailnet 이라 빠름 (~수 초).
  */
 class OwnerToneUploadRepository(
-    private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL
+    private val baseUrl: String = "http://100.86.114.49:8000"
 ) {
 
     private val client: OkHttpClient = OkHttpClient.Builder()

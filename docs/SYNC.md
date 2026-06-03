@@ -2619,3 +2619,27 @@ launchd plist 에 추가 후 launchctl 재시작. 이 변경 없으면 issue 응
 - commit: e93dfde
 - ⚠️ 실기기 설치는 폰 미연결로 대기(어젯밤 배터리 6%). 폰 연결 시 adb install -r 예정.
 - 서버 측 후속(cowork): 시공접수서/견적서 issue 응답 url 필드가 공개 도메인으로 떨어지려면 launchd plist 에 INTAKE_PUBLIC_BASE_URL=https://api.si0in.kr 추가 필요(SYNC cowork 블록 명시). 이거 없으면 고객 폰에서 발급 링크 안 열림.
+
+---
+
+## 2026-06-04 (새벽) · cowork(server) — 📋 /admin/beta/intake HOU-128 통합
+
+Chief HOU-128 (10 카테고리 베타 운영 셋팅 폼) 을 main.py inline 통합. 공개 URL: https://api.si0in.kr/admin/beta/intake (Bearer = ADMIN_TOKEN 5302).
+
+### 어댑테이션 (chief 원본 → 우리 컨벤션)
+- ringgo.db → cache.db (db_init §22 자동 생성, 별도 SQL 마이그레이션 X)
+- RINGGO_ADMIN_TOKEN → ADMIN_TOKEN (plist 의 5302 재사용)
+- routes/ 모듈 → main.py §22 inline (우리 모놀리식)
+- HTML 코드 verbatim (76 KB, server/static/admin_beta_intake.html)
+
+### 검증
+- py_compile + AST + SQL round-trip 통과
+- main.py 7,555 → 7,695 줄
+
+### 변경 파일
+- server/main.py / server/static/admin_beta_intake.html / docs/SYNC.md
+
+### 다음
+사장님이 폼 채우고 제출 → chief 한테 "HOU-92 인테이크 제출 완료" 한 줄 → Phase 0 (3명 내부 테스트) 자식 이슈 생성.
+
+> ⚠️ 이번 cycle Gmail 자동 보고 메일은 Zapier MCP gmail/message 호출 시 selected_api 필수 검증 에러로 발송 실패 (그동안 잘 됐던 룰). 본 블록이 보고 대신. 다음 cycle 전 Zapier MCP 호출 형식 점검 필요.
