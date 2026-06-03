@@ -31,4 +31,7 @@ interface MessageTemplateDao {
 
     @Query("SELECT COUNT(*) FROM message_templates")
     suspend fun count(): Int
+
+    @Query("DELETE FROM message_templates WHERE id = :id")
+    suspend fun deleteById(id: Long)
 }

@@ -16,4 +16,6 @@ class MessageTemplateRepository(private val dao: MessageTemplateDao) {
 
     suspend fun update(template: MessageTemplateEntity) =
         dao.update(template.copy(updatedAt = System.currentTimeMillis()))
+
+    suspend fun deleteById(id: Long) = dao.deleteById(id)
 }
