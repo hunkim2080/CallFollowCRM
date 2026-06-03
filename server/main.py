@@ -6632,6 +6632,312 @@ async def team_member_page(token: str) -> HTMLResponse:
 
 
 # ============================================================================
+# §21 — GET /api/tone/profile (내 말투 학습 화면 채우기)
+# ─────────────────────────────────────────────────────────────────────────────
+# 명세: docs/SERVER_TONE_PROFILE_PROMPT.md (안드로이드 Claude 작성, 2026-06-03)
+#
+# 응답 (앱이 이 JSON 그대로 파싱):
+# {
+#   "deviceId": "owner-anon",
+#   "analyzed": true,
+#   "sampleCount": 381,
+#   "learnRatePct": 76,
+#   "traits": [{"k":"말끝","v":"~요체"}, ...] (5개 고정 키),
+#   "example": {"question":"...","plain":"...","mine":"..."},
+#   "editCount": 0
+# }
+#
+# 폴백: sampleCount < 30 → analyzed:false, traits:[], example:null
+#       LLM 실패 시도 동일하게 graceful.
+# 캐시: summary_cache (device_id, "tone-profile", sampleCount) + 24h TTL +
+#       sampleCount Δ50 미만이면 동일 캐시 hit.
+# 모델: traits/plain = Haiku, mine = Sonnet (prepare-reply 라우팅과 동일).
+# learnRatePct 공식: min(100, round(sampleCount/500*100)) — 막내비서 카드와 통일.
+# ============================================================================
+
+TONE_PROFILE_LEARN_TARGET = 500   # 학습률% 계산 분모 (앱 막내비서 카드와 동일)
+TONE_PROFILE_MIN_SAMPLES = 30     # analyzed=true 임계값
+TONE_PROFILE_CACHE_TTL_MS = 24 * 60 * 60 * 1000   # 24h
+TONE_PROFILE_SAMPLE_DELTA = 50    # sampleCount 변화 임계 (이거 넘으면 재계산)
+TONE_PROFILE_EXAMPLE_QUESTION = "24평 화장실 2개 줄눈 얼마예요?"
+TONE_PROFILE_SAMPLE_PICK_N = 100  # traits 분석용 코퍼스 sample 수
+
+
+def _tone_profile_pick_samples(device_id: str, n: int = TONE_PROFILE_SAMPLE_PICK_N) -> list[str]:
+    """owner_tone 에서 최근 N건 본문 sample."""
+    with db_conn() as con:
+        rows = con.execute(
+            "SELECT text FROM owner_tone WHERE device_id = ? "
+            "ORDER BY created_at_ms DESC LIMIT ?",
+            (device_id, n),
+        ).fetchall()
+    return [r[0] for r in rows if r[0]]
+
+
+_TONE_TRAITS_KEYS = ["말끝", "이모티콘", "길이", "호칭", "시그니처"]
+
+_TONE_TRAITS_SYSTEM = """너는 한 사장님의 문자 코퍼스를 분석해 말투 특징 5개를 뽑는 비서다.
+
+아래는 한 사장님(줄눈/타일 시공자)이 고객에게 보낸 실제 문자들이다.
+이 사람의 말투를 정확히 5개 항목으로 요약하라:
+1. 말끝     — "~요", "~습니다", "~네요" 중 무엇? 친근/격식 정도
+2. 이모티콘 — 어떤 게 자주 나오나? (😊 ^^ ㅋㅋ ~ 등). 빈도(메시지당 평균 N개) 가늠
+3. 길이     — 평균 몇 줄? 짧고 핵심 / 길고 자세히 / 중간 어느 쪽
+4. 호칭     — 고객을 뭐라고 부르나? ("고객님", "사장님", 또는 호칭 없음)
+5. 시그니처 — 마무리에 자주 쓰는 인사말 ("편하게 문의주세요!" 등)
+
+각 항목은 한 줄, 실제 예시 단어를 큰따옴표로 인용.
+
+답 형식 — 반드시 지켜라:
+- 응답 첫 글자는 '{' 로 시작. 다른 텍스트 일체 X.
+- 형식: {"traits":[{"k":"말끝","v":"..."},{"k":"이모티콘","v":"..."},{"k":"길이","v":"..."},{"k":"호칭","v":"..."},{"k":"시그니처","v":"..."}]}
+"""
+
+
+async def _tone_extract_traits(samples: list[str]) -> list[dict]:
+    """Haiku 로 5개 말투 특징 추출. 실패 시 빈 리스트 반환 (graceful)."""
+    if not samples:
+        return []
+    # 코퍼스 안전 컷 (200건 × 평균 80자 = 16KB max)
+    corpus_lines = [f"- {s.strip()[:200]}" for s in samples[:TONE_PROFILE_SAMPLE_PICK_N] if s.strip()]
+    user_msg = "[사장님이 고객에게 보낸 실제 문자 코퍼스]\n" + "\n".join(corpus_lines)
+    try:
+        parsed, response = await call_claude_json(
+            system_prompt=_TONE_TRAITS_SYSTEM,
+            user_msg=user_msg,
+            max_tokens=800,
+            model=HAIKU_MODEL,
+        )
+        _log_llm_usage_from_response("tone-profile-traits", response)
+    except Exception as e:
+        print(f"[tone/profile] traits Haiku 실패: {type(e).__name__}: {e}")
+        return []
+
+    raw_traits = parsed.get("traits")
+    if not isinstance(raw_traits, list):
+        return []
+
+    # 키 5개 고정 — 빠진 키는 빈 값으로 채움, 알 수 없는 키는 무시
+    by_key = {}
+    for t in raw_traits:
+        if not isinstance(t, dict):
+            continue
+        k = str(t.get("k") or "").strip()
+        v = str(t.get("v") or "").strip()
+        if k and v:
+            by_key[k] = v
+    out = []
+    for fixed_k in _TONE_TRAITS_KEYS:
+        v = by_key.get(fixed_k, "")
+        if not v:
+            # Haiku 가 키를 살짝 다르게 쓸 수 있어 fuzzy fallback
+            for raw_k, raw_v in by_key.items():
+                if fixed_k in raw_k or raw_k in fixed_k:
+                    v = raw_v
+                    break
+        if v:
+            out.append({"k": fixed_k, "v": v[:80]})  # 안전 컷
+    return out
+
+
+_TONE_PLAIN_SYSTEM = """너는 일반 AI 답변 도우미다.
+한국어로 답하지만 특정 사장님 톤을 흉내내지 마라. 정중하지만 평이한 "~합니다" 체.
+- 이모티콘 X
+- 자기소개나 인사 길게 X
+- 견적/시공 질문에 대한 일반적이고 짧은 답 (2~3문장)
+- 정확한 가격을 모르면 "현장 사진 보내주시면 정확히 안내드리겠습니다" 같이.
+
+답 형식: 평문 한국어. JSON 아님. 텍스트 그대로.
+"""
+
+
+async def _tone_plain_answer(question: str) -> Optional[str]:
+    """Haiku 로 톤 없는 일반 답변 (RAG 미사용). 실패 시 None."""
+    try:
+        response = await claude_client.messages.create(
+            model=HAIKU_MODEL,
+            max_tokens=300,
+            timeout=CLAUDE_TIMEOUT,
+            system=[{"type": "text", "text": _TONE_PLAIN_SYSTEM,
+                     "cache_control": {"type": "ephemeral"}}],
+            messages=[{"role": "user", "content": question}],
+        )
+        _log_llm_usage_from_response("tone-profile-plain", response)
+        parts = [getattr(b, "text", "") for b in response.content
+                 if getattr(b, "type", None) == "text"]
+        return "".join(parts).strip() or None
+    except Exception as e:
+        print(f"[tone/profile] plain Haiku 실패: {type(e).__name__}: {e}")
+        return None
+
+
+_TONE_MINE_SYSTEM = """너는 1인 시공자(줄눈/타일) 사장님의 비서다.
+아래 [사장님 톤 샘플] 을 그대로 흉내내어, 사장님이 직접 답한 것처럼 답장 1개를 만든다.
+
+규칙:
+- 사장님 말끝/이모티콘/호칭/길이/시그니처를 거의 똑같이 따라해라.
+- 톤 샘플에 자주 나오는 어휘와 인사말을 적극 재사용.
+- 가격을 정확히 모르면 "현장 사진" 같이 사장님이 톤 샘플에서 쓰는 표현으로 안내.
+- 1~3문장. 너무 길게 X.
+
+답 형식: 평문 한국어. JSON 아님. 텍스트 그대로.
+"""
+
+
+async def _tone_mine_answer(question: str, samples: list[str]) -> Optional[str]:
+    """Sonnet 으로 사장님 톤 적용 답변 (RAG 샘플 inject). 실패 시 None."""
+    if not samples:
+        return None
+    tone_lines = [f"- {s.strip()[:140]}" for s in samples[:30] if s.strip()]
+    user_msg = (
+        "[사장님 톤 샘플 — 이 사람 말투를 흉내내라]\n"
+        + "\n".join(tone_lines)
+        + f"\n\n[고객 질문]\n{question}\n\n[답변 (사장님 톤으로)]"
+    )
+    try:
+        response = await claude_client.messages.create(
+            model=CLAUDE_MODEL,
+            max_tokens=300,
+            timeout=CLAUDE_TIMEOUT,
+            system=[{"type": "text", "text": _TONE_MINE_SYSTEM,
+                     "cache_control": {"type": "ephemeral"}}],
+            messages=[{"role": "user", "content": user_msg}],
+        )
+        _log_llm_usage_from_response("tone-profile-mine", response)
+        parts = [getattr(b, "text", "") for b in response.content
+                 if getattr(b, "type", None) == "text"]
+        return "".join(parts).strip() or None
+    except Exception as e:
+        print(f"[tone/profile] mine Sonnet 실패: {type(e).__name__}: {e}")
+        return None
+
+
+def _tone_profile_cache_get(device_id: str, sample_count: int) -> Optional[dict]:
+    """캐시 hit 조건: sampleCount Δ < 50 AND age < 24h.
+
+    summary_cache 재활용 — (phone=device_id, endpoint='tone-profile', latest_msg_ts=cached_sample_count).
+    가장 최근 row 1개만 보고, 두 조건 다 만족하면 그 payload 반환.
+    """
+    now = _now_ms()
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT latest_msg_ts, response_json, generated_at_ms "
+            "FROM summary_cache WHERE phone = ? AND endpoint = 'tone-profile' "
+            "ORDER BY generated_at_ms DESC LIMIT 1",
+            (device_id,),
+        ).fetchone()
+    if not row:
+        return None
+    cached_count, response_json, generated_at = row
+    if now - generated_at > TONE_PROFILE_CACHE_TTL_MS:
+        return None
+    if abs(int(sample_count) - int(cached_count or 0)) >= TONE_PROFILE_SAMPLE_DELTA:
+        return None
+    try:
+        payload = json.loads(response_json)
+    except json.JSONDecodeError:
+        return None
+    # sampleCount/learnRatePct 는 캐시 무시하고 최신값으로 갱신 (사장님 혼란 X)
+    payload["sampleCount"] = sample_count
+    payload["learnRatePct"] = min(100, round(sample_count / TONE_PROFILE_LEARN_TARGET * 100))
+    payload["_cache_hit"] = True
+    return payload
+
+
+def _tone_profile_cache_set(device_id: str, sample_count: int, payload: dict) -> None:
+    """캐시 저장. summary_cache 의 (phone, endpoint, latest_msg_ts) PK 재활용."""
+    now = _now_ms()
+    # 같은 sampleCount 면 REPLACE (PK 충돌 회피)
+    with db_conn() as con:
+        con.execute(
+            "INSERT OR REPLACE INTO summary_cache "
+            "(phone, endpoint, latest_msg_ts, response_json, generated_at_ms) "
+            "VALUES (?, 'tone-profile', ?, ?, ?)",
+            (device_id, int(sample_count),
+             json.dumps(payload, ensure_ascii=False), now),
+        )
+        con.commit()
+
+
+def _tone_profile_fallback(device_id: str, sample_count: int) -> dict:
+    """폴백 응답 (analyzed:false). hero 의 % 와 문자 수는 항상 채움."""
+    return {
+        "deviceId": device_id,
+        "analyzed": False,
+        "sampleCount": sample_count,
+        "learnRatePct": min(100, round(sample_count / TONE_PROFILE_LEARN_TARGET * 100)),
+        "traits": [],
+        "example": None,
+        "editCount": 0,
+    }
+
+
+@app.get("/api/tone/profile")
+async def tone_profile(device_id: str = "owner-anon") -> dict:
+    """내 말투 학습 화면용 — 학습률·말투 특징 5개·before/after 비교 1개."""
+    if not device_id or not device_id.strip():
+        raise HTTPException(400, "device_id 필수")
+
+    sample_count = count_owner_tone_pool(device_id)
+    learn_rate_pct = min(100, round(sample_count / TONE_PROFILE_LEARN_TARGET * 100))
+
+    # 폴백 — 30건 미만이면 LLM 호출 안 함
+    if sample_count < TONE_PROFILE_MIN_SAMPLES:
+        print(f"[tone/profile] {device_id} sampleCount={sample_count} < {TONE_PROFILE_MIN_SAMPLES} → 폴백")
+        return _tone_profile_fallback(device_id, sample_count)
+
+    # 캐시 hit?
+    cached = _tone_profile_cache_get(device_id, sample_count)
+    if cached:
+        print(f"[tone/profile] {device_id} → cache HIT (sampleCount={sample_count})")
+        return cached
+
+    # rate limit (device_id 기준 — phone 자리 대용)
+    check_rate_limit(device_id)
+
+    # 새로 생성
+    samples = _tone_profile_pick_samples(device_id)
+    print(f"[tone/profile] {device_id} sampleCount={sample_count} → 신규 분석 (samples={len(samples)})")
+
+    # 병렬 호출 (asyncio.gather)
+    traits_task = _tone_extract_traits(samples)
+    plain_task = _tone_plain_answer(TONE_PROFILE_EXAMPLE_QUESTION)
+    mine_task = _tone_mine_answer(TONE_PROFILE_EXAMPLE_QUESTION, samples)
+    traits, plain_text, mine_text = await asyncio.gather(
+        traits_task, plain_task, mine_task, return_exceptions=False,
+    )
+
+    # example — 둘 중 하나라도 빠지면 example=null (앱 placeholder 유지)
+    if plain_text and mine_text:
+        example = {
+            "question": TONE_PROFILE_EXAMPLE_QUESTION,
+            "plain": plain_text,
+            "mine": mine_text,
+        }
+    else:
+        example = None
+
+    # traits 가 비고 example 도 없으면 analyzed=false 로 (LLM 다 실패한 케이스)
+    analyzed = bool(traits) or example is not None
+
+    payload = {
+        "deviceId": device_id,
+        "analyzed": analyzed,
+        "sampleCount": sample_count,
+        "learnRatePct": learn_rate_pct,
+        "traits": traits,
+        "example": example,
+        "editCount": 0,
+    }
+
+    # 캐시 저장 (분석 성공한 경우만)
+    if analyzed:
+        _tone_profile_cache_set(device_id, sample_count, payload)
+    payload["_cache_hit"] = False
+    return payload
+
+
+# ============================================================================
 # 안드로이드 앱 호환 stub 엔드포인트 (404 방지)
 # ─────────────────────────────────────────────────────────────────────────────
 # 앱의 일부 화면이 부르는 엔드포인트들이 아직 서버에 없으면 빨간 표시·크래시 유발.

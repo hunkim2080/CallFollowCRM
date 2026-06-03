@@ -2209,3 +2209,74 @@ CREATE TABLE intake_forms (
 - traits=Haiku 요약 100건, example.mine=Sonnet prepare-reply(RAG), 둘 다 캐시. learnRatePct=min(100, sampleCount/500*100) (앱과 공식 통일).
 - 폴백: sampleCount<30 이면 analyzed:false 로 주되 sampleCount/learnRatePct 는 항상 채움 → 앱은 hero 만 표시, 나머지 placeholder 유지.
 - 완료되면 SYNC append → 안드로이드가 ToneLearnProtoSection placeholder 2곳 + hero % 를 실데이터로 교체.
+
+---
+
+## 2026-06-03 (오후) · cowork(server) — §21 GET /api/tone/profile 완료
+명세 docs/SERVER_TONE_PROFILE_PROMPT.md 그대로 1:1 구현. 안드로이드가 ToneLearnProtoSection placeholder 채울 준비 완료.
+
+### 구현 요약
+**Endpoint**: `GET /api/tone/profile?device_id=owner-anon`
+
+**응답 schema** (명세 그대로):
+```json
+{
+  "deviceId": "owner-anon",
+  "analyzed": true,
+  "sampleCount": 124,
+  "learnRatePct": 25,
+  "traits": [
+    {"k":"말끝","v":"..."},
+    {"k":"이모티콘","v":"..."},
+    {"k":"길이","v":"..."},
+    {"k":"호칭","v":"..."},
+    {"k":"시그니처","v":"..."}
+  ],
+  "example": {
+    "question":"24평 화장실 2개 줄눈 얼마예요?",
+    "plain":"(Haiku, 톤 없는 일반 답)",
+    "mine":"(Sonnet + RAG, 사장님 톤)"
+  },
+  "editCount": 0,
+  "_cache_hit": false
+}
+```
+
+### 계산법 (명세 그대로 통일)
+- `sampleCount` = `SELECT COUNT(*) FROM owner_tone WHERE device_id=?` (기존 `count_owner_tone_pool` 재활용)
+- `learnRatePct` = **`min(100, round(sampleCount/500*100))`** — 막내비서 카드와 동일 공식 ★
+- `analyzed` = `sampleCount >= 30` AND (traits 또는 example 둘 중 하나라도 성공)
+- `traits` 키 5개 고정 (말끝/이모티콘/길이/호칭/시그니처) + Haiku 가 키를 다르게 (예: "말끝 어조") 보내도 **fuzzy match** 로 정규화
+- `example.plain` = Haiku, **RAG 미사용** 톤 평이한 답
+- `example.mine` = Sonnet, **owner_tone 코퍼스 30건** 톤 샘플 inject (prepare-reply 와 동일 라우팅)
+- `editCount` = 현재 0 (추천 수정 로그 추후)
+
+### 캐시 (summary_cache 재활용)
+- 키: `(phone=device_id, endpoint='tone-profile', latest_msg_ts=sampleCount)`
+- Hit 조건: **`sampleCount Δ < 50`** AND **`age < 24h`**
+- 캐시 hit 시에도 sampleCount/learnRatePct 는 **항상 최신값으로 갱신** (사장님 혼란 X)
+- Δ≥50 또는 24h 만료 시 새 INSERT OR REPLACE
+
+### 폴백 (앱 안 깨지게)
+- `sampleCount < 30` → LLM 호출 안 함, `analyzed:false`, `traits:[]`, `example:null` 즉시 반환
+- traits Haiku 실패 → traits=[] (graceful)
+- plain/mine 중 하나라도 실패 → `example:null`
+- 둘 다 실패 → `analyzed:false`
+- `sampleCount`/`learnRatePct` 는 **항상 채움** (hero 표시용)
+
+### 모델 라우팅 (명세 따름)
+- traits = `claude-haiku-4-5`
+- example.plain = `claude-haiku-4-5`
+- example.mine = `claude-sonnet-4-6` (prepare-reply 와 동일, 사장님 톤은 매출 직결)
+- 비용 로깅: `log_llm_usage` (endpoint = `tone-profile-traits` / `tone-profile-plain` / `tone-profile-mine`)
+- 병렬 호출 (`asyncio.gather`) → 응답 시간 단축
+
+### 변경 파일
+- `server/main.py` — §21 섹션 추가 (~340 lines). 상수 7개 + helper 5개 + endpoint 1개. syntax pass. 단위 검증 9건 통과 (상수/공식/fallback/traits coerce 정상+fuzzy+empty/캐시 hit/miss/만료).
+
+### 안드로이드 측 다음 작업
+1. ToneLearnProtoSection 의 hero % = `learnRatePct` 박기 (막내비서 카드와 동일 공식이라 두 화면 % 일치)
+2. traits placeholder 5개 자리에 `traits[].v` 박기
+3. before/after 비교 placeholder 에 `example.plain` ↔ `example.mine`
+4. `analyzed:false` 면 traits/example 자리는 "서버 분석 준비 중" 유지 (가짜 X)
+5. `editCount` 는 추후 추천 수정 로그 생기면 자동 채워짐
