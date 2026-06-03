@@ -2238,6 +2238,7 @@ private fun DepositFollowupDialog(
  * 본문 미리보기 + 사진 첨부 개수 + 수신자 이름 보여주고 [보내기] 한 번 더 탭해야 진짜 발송.
  */
 @Composable
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 private fun SendConfirmDialog(
     recipient: String,
     body: String,
@@ -2245,53 +2246,48 @@ private fun SendConfirmDialog(
     onCancel: () -> Unit,
     onConfirm: () -> Unit
 ) {
-    AlertDialog(
+    // 프로토엔 발송 확인이 없지만(바로 전송), 실제 문자라 안전 확인은 유지.
+    //   2026-06-03: 가운데 AlertDialog(진한 막) → 프로토식 바텀시트(그립+미리보기+보내기/취소)로 교체.
+    androidx.compose.material3.ModalBottomSheet(
         onDismissRequest = onCancel,
-        title = {
+        containerColor = Color.White,
+        tonalElevation = 0.dp
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp)
+        ) {
             Text(
                 "$recipient 에게 보낼까요?",
-                color = TossTextPrimary,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp
+                color = TossTextPrimary, fontWeight = FontWeight.ExtraBold, fontSize = 19.sp
             )
-        },
-        text = {
-            Column {
-                if (body.isNotBlank()) {
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = TossBlueSoft
-                    ) {
-                        Text(
-                            body,
-                            color = TossTextPrimary,
-                            fontSize = 14.sp,
-                            modifier = Modifier.padding(12.dp)
-                        )
-                    }
-                }
-                if (photoCount > 0) {
-                    if (body.isNotBlank()) Spacer(Modifier.height(8.dp))
-                    Text(
-                        "📷 사진 ${photoCount}장 첨부",
-                        color = TossTextSecondary,
-                        fontSize = 13.sp
-                    )
+            Spacer(Modifier.height(14.dp))
+            if (body.isNotBlank()) {
+                Box(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp))
+                        .background(TossBlueSoft).padding(14.dp)
+                ) {
+                    Text(body, color = TossTextPrimary, fontSize = 14.sp, lineHeight = 20.sp)
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text("보내기", color = TossBlue, fontWeight = FontWeight.Bold)
+            if (photoCount > 0) {
+                if (body.isNotBlank()) Spacer(Modifier.height(8.dp))
+                Text("📷 사진 ${photoCount}장 첨부", color = TossTextSecondary, fontSize = 13.sp)
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onCancel) {
-                Text("취소", color = TossTextSecondary)
-            }
-        },
-        containerColor = Color.White
-    )
+            Spacer(Modifier.height(18.dp))
+            // sheet-cta 보내기
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(TossBlue)
+                    .clickable { onConfirm() }.padding(vertical = 15.dp),
+                contentAlignment = Alignment.Center
+            ) { Text("보내기", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
+            Spacer(Modifier.height(9.dp))
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(TossGrayBg)
+                    .clickable { onCancel() }.padding(vertical = 15.dp),
+                contentAlignment = Alignment.Center
+            ) { Text("취소", color = TossTextSecondary, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
+        }
+    }
 }
 
 /**

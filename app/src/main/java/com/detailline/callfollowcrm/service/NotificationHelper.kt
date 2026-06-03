@@ -361,9 +361,11 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        // 프로토 PUSH.sms 제목 = "{이름/번호} · 새 문자". (카테고리·🔖 이모지 안 붙임 — OneUI 에서 이모지가
+        //   엉뚱하게 렌더되고 프로토와도 달라서 제거. 2026-06-03 사장님 지적.)
         val title = buildString {
             append(displayName?.takeIf { it.isNotBlank() } ?: formatPhone(phone))
-            if (!categoryLabel.isNullOrBlank()) append(" · 🔖 $categoryLabel")
+            append(" · 새 문자")
         }
 
         // 빠른 답장 RemoteInput — 사장님이 알림창에서 직접 타이핑 → SmsManager 발송.
