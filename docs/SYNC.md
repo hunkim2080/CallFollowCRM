@@ -2031,3 +2031,142 @@ CREATE TABLE intake_forms (
 4. GET 제출 조회(폴링/푸시) — 앱이 "고객이 접수서 제출함" 받아 고객 레코드에 주소·확정시공일 반영.
 + 견적서(직인) 탭은 앱이 이미지 생성/발송 시도 예정이나, 서버에서 견적서 HTML/PDF 렌더 endpoint 를 주면 더 깔끔(선택). 사업자정보·직인문구(seal)는 앱 AppPreferences 에 이미 저장됨.
 - 앱쪽 1단계 완료. 위 API 나오면 앱이 시공접수서 탭 발송 동작 연결 + 제출 결과 임포트 구현.
+
+---
+
+## 2026-06-02 (밤) · cowork(server) — §19.2 시공접수서 v2 (camelCase + /q + 견적서 직인)
+사장님 명세 (2026-06-02): API 4개 + 견적서 직인 (선택) 명확화. CLAUDE.md §0 룰: 프로토 openQuote/finalizeQuote/openQuoteDoc/bizInfo 1:1.
+
+### 사장님 결정 (이번 응답에서 받음)
+1. **camelCase** schema (앱 Kotlin 네이티브 일치)
+2. **시공일 = month/day 분리** (프로토 quoteCfg.qmon/qday/qyear/qdays 1:1)
+3. **biz 전체 객체** + 견적서 직인 endpoint 추가
+4. **URL path = `/q/{token}`** + `/q/{token}/submit` (짧음, SMS 친화)
+
+### 확정 API 계약 (앱이 여기 맞춰 갱신)
+
+#### 1) `POST /api/quote/issue` — 접수서 생성
+**req (camelCase):**
+```json
+{
+  "customerName": "강동 서사장",
+  "customerPhone": "+821055556666",
+  "items": [
+    {"name": "욕실 줄눈 시공", "price": 28, "unit": "flat"},
+    {"name": "코킹 재시공", "price": 6, "unit": "pyeong", "area": 2.5}
+  ],
+  "total": 43,
+  "workYear": 2026, "workMonth": 5, "workDay": 31, "workDays": 1,
+  "depositMode": "ratio",
+  "depositValue": 30,
+  "biz": {
+    "name": "디테일라인",
+    "owner": "김상훈",
+    "bizNo": "123-45-67890",
+    "addr": "서울 강남구 ...",
+    "phone": "010-1234-5678",
+    "seal": "디테일라인 직인",
+    "validDays": 14
+  },
+  "devicePhone": "+82사장님폰",
+  "deviceId": "owner-anon"
+}
+```
+- **`price`/`total` 단위 = 만원** (프로토 lineTotal 결과치 그대로)
+- **`workMonth/Day` = 1~12 / 1~31** (0 = 미정)
+- **`depositMode='ratio'`** → `depositValue` 는 % (예: 30 = 30%)
+- **`depositMode='fixed'`** → `depositValue` 는 원 (예: 500000)
+- **`biz.validDays`** = 토큰 만료 일수 (없으면 7일 default)
+
+**res:**
+```json
+{
+  "token": "AbCd1234",
+  "url": "http://100.86.114.49:8000/q/AbCd1234",
+  "issuedAtMs": 1717200000000,
+  "expiresAtMs": 1718409600000,
+  "smsDraft": "안녕하세요 강동 서사장님, 디테일라인 입니다.\n시공일 확정을 위해 접수서를 작성 부탁드려요. 1분이면 끝나요 😊\n▶ http://..."
+}
+```
+**자동 SMS X**: `smsDraft` 는 앱이 SMS 본문에 prefill → 사장님 ▶.
+
+#### 2) `GET /q/{token}` — 고객용 폼 HTML
+프로토 openQuote 1:1. 토큰 없음(404) / 이미 제출(200, "이미 제출된 접수서입니다") / 만료(410) 상태 페이지.
+
+#### 3) `POST /q/{token}/submit` — 고객 제출
+**req:**
+```json
+{
+  "phone": "010-1234-5678",
+  "address": "서울 강동구 천호동 래미안...",
+  "dong": "101동 1502호",
+  "memo": "현관 비번 1234#, 소형견",
+  "confirmedDate": null,
+  "survey": {
+    "source": "네이버 검색",
+    "keyword": "천호동 줄눈",
+    "category": "파워링크"
+  }
+}
+```
+**res:** `{"ok": true, "submittedAtMs": 1717205000000, "customerPhone": "+82..."}`
+
+#### 4) `GET /api/quote/submissions?devicePhone=&sinceMs=&limit=50` — 사장님 폴링
+앱이 주기적으로 호출 → 신규 제출이나 발급 목록 동기화.
+**res:**
+```json
+{
+  "items": [{
+    "token": "AbCd1234",
+    "customerPhone": "+82...", "customerName": "강동 서사장",
+    "issuedAtMs": ..., "expiresAtMs": ..., "submittedAtMs": null|...,
+    "total": 43, "workMonth": 5, "workDay": 31, "workYear": 2026, "workDays": 1,
+    "depositMode": "ratio", "depositValue": 30,
+    "biz": {"name":"디테일라인","owner":"김상훈","bizNo":"...","addr":"...","phone":"...","seal":"...","validDays":14},
+    "estimate_items": [...],
+    "payload": { phone, address, dong, memo, source } | null,
+    "confirmedDate": null, "survey": {...} | null,
+    "url": "http://.../q/AbCd1234"
+  }],
+  "count": 1
+}
+```
+
+#### 5) `GET /q/{token}/doc` — 견적서 직인 HTML (선택)
+프로토 openQuoteDoc 1:1: "견 적 서" 제목 (자간 9px), 발행일/유효기간, 수신 고객명, qd-table (품목·단가·금액·합계·부가세별도), 사업자정보 footer + 빨강 직인 원 (rotate -12deg). 브라우저 [인쇄] 로 PDF 변환 가능.
+
+### 기존 §19 호환 (alias)
+`/api/intake-form/issue`, `/api/intake-form/submit`, `/api/intake-form/status`, `/api/intake-form/list`, `/intake/{token}` 은 **그대로 살아있음** (안드로이드 갱신 동안 호환). 같은 `intake_forms` 테이블 공유. 안드로이드는 새 API 로 이동 권장.
+
+### DB 추가 컬럼 (additive, idempotent)
+`intake_forms` 에 12개 추가:
+- `work_month`, `work_day`, `work_year`, `deposit_value` (mode 따라 % or 원)
+- `biz_owner`, `biz_no`, `biz_addr`, `biz_phone`, `biz_seal`, `biz_valid_days`
+- `confirmed_date_iso`, `survey_json`
+
+### 단위 검증 6건 통과
+1. `_workdate_to_epoch_ms` (2026,5,31) → KST 0시 정확
+2. `_deposit_resolve_krw` (ratio 42만원·30% → 126,000원 / fixed 그대로 / none → 0)
+3. `_format_quote_doc_label_won` (42만원 → "420,000")
+4. `_format_quote_doc_items_rows` (단가·평수·합계 정확)
+5. 견적서 직인 HTML format() — 치환 안 된 placeholder 0
+6. INTAKE_FORM_HTML_V2_TEMPLATE 의 `__QUOTE_SUBMIT_PATH__` 치환
+
+### 변경 파일
+- `server/main.py` — db_init 12 컬럼 추가, §19.2 섹션 +620 lines (Pydantic camelCase 모델·helper·5 endpoint·견적서 직인 HTML). syntax pass, 단위 6건 통과. main.py 총 6,635 줄.
+
+### 안드로이드 의존 작업 (Windows Claude Code 가 갱신할 것)
+**현재 안드로이드 IntakeFormRepository** = 옛 `/api/intake-form/issue` 호출. **이걸 새 `/api/quote/*` 로 교체**:
+
+1. **채팅 견적 시트 [시공접수서 보내기]** → `POST /api/quote/issue` 호출
+   - req 에 사장님 견적 데이터(`items[]`, `total`, `workMonth/Day/Year/Days`, `depositMode/Value`) + **사업자정보 객체(`biz`)** 전체 함께 보내야 함 (BusinessInfoScreen 의 데이터 가져와서)
+   - res 의 `smsDraft` 받아서 SMS 본문 prefill → 사장님 ▶
+
+2. **채팅 견적 시트 [견적서 보내기]** → 같은 `POST /api/quote/issue` 호출(같은 token 으로 둘 다 가능) → `url` 의 `/q/{token}` 을 `/q/{token}/doc` 으로 바꿔서 SMS 발송 (또는 별도 alias endpoint 제공 가능)
+
+3. **사장님 측 폴링** → `GET /api/quote/submissions?devicePhone=&sinceMs=` 주기적 호출 → `submittedAtMs` 비-null 인 신규 제출은 고객 레코드에 주소·확정 시공일 반영 (`payload.address`, `payload.dong`, `confirmedDate`, `survey.source`)
+
+4. **(이전 응답 §19 의) 옛 IntakeFormRepository** 는 deprecated 로 마킹. 위 새 schema 로 1주일 안에 마이그레이션 권장.
+
+### 안드로이드 정산/통계 작업 (위 안드로이드 블록 응답)
+안드로이드 측 정산·통계 화면 1:1 재구성 완료(2026-06-02). 서버 영향 없음 (로컬 집계만). 향후 "전국 모이는 중" 시장 인사이트는 SERVER_HANDOFF §6 시장 인사이트 항목과 연결 — 추후 별도 sprint.

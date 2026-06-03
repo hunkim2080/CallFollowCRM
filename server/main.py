@@ -380,6 +380,19 @@ def db_init() -> None:
             "deposit_mode TEXT DEFAULT 'none'",   # 'none'|'ratio'|'fixed'
             "deposit_ratio_pct INTEGER",
             "biz_name TEXT",                  # 발급 시점 사장님 사업자명 (snapshot)
+            # §19.2 — 사장님 2026-06-02 명세 (프로토 bizInfo/quoteCfg 1:1)
+            "work_month INTEGER",             # 프로토 qmon
+            "work_day INTEGER",               # 프로토 qday
+            "work_year INTEGER",              # 프로토 qyear (없으면 2026 default — 추후 +1)
+            "deposit_value INTEGER",          # 프로토 c.depVal (mode==ratio: %, fixed: krw)
+            "biz_owner TEXT",                 # 프로토 bizInfo.owner (대표자명)
+            "biz_no TEXT",                    # 프로토 bizInfo.bizNo (사업자등록번호)
+            "biz_addr TEXT",                  # 프로토 bizInfo.addr
+            "biz_phone TEXT",                 # 프로토 bizInfo.phone
+            "biz_seal TEXT",                  # 프로토 bizInfo.seal (직인 문구 "디테일라인 직인" 등)
+            "biz_valid_days INTEGER",         # 프로토 bizInfo.validDays (견적서 유효기간)
+            "confirmed_date_iso TEXT",        # 고객이 확인한 시공일 ISO (있으면)
+            "survey_json TEXT",               # 고객 제출 시 유입경로 등 (finalizeQuote.src 구조)
         ]:
             col_name = col_def.split()[0]
             try:
@@ -5097,6 +5110,614 @@ async def intake_form_page(token: str) -> HTMLResponse:
         total_man_html=_html.escape(str(int(data["total_man"] or 0))),
         deposit_html=deposit_html,
         token_js=_html.escape(token, quote=True),
+    )
+    return HTMLResponse(content=page)
+
+
+# ============================================================================
+# §19.2 — 시공접수서 v2 (사장님 2026-06-02 명세, 프로토 openQuote/openQuoteDoc 1:1)
+# ─────────────────────────────────────────────────────────────────────────────
+# 결정 (사장님 답):
+#   1. camelCase API (앱 Kotlin 네이티브 일치)
+#   2. 시공일 = month/day 분리 (프로토 quoteCfg.qmon/qday 그대로)
+#   3. biz 전체 객체 + 견적서 직인 endpoint 추가
+#   4. URL path = /q/{token}, /q/{token}/submit (짧음, SMS 친화)
+#
+# 5 endpoint:
+#   - POST /api/quote/issue         (생성)
+#   - GET  /q/{token}               (고객용 접수서 폼 — 프로토 openQuote 1:1)
+#   - POST /q/{token}/submit        (고객 제출)
+#   - GET  /api/quote/submissions   (사장님 폴링)
+#   - GET  /q/{token}/doc           (견적서 직인 HTML — 프로토 openQuoteDoc 1:1)
+#
+# 기존 §19 의 /api/intake-form/* + /intake/{token} 은 alias 로 같은 DB 행 사용.
+# 안드로이드가 새 path 로 옮길 동안 호환 유지.
+# ============================================================================
+
+# ─── Pydantic 모델 (camelCase, alias 패턴) ───
+# Pydantic 의 Field(alias=...) 로 camelCase 입력 받고 내부는 snake_case 로 보관.
+
+from pydantic import ConfigDict
+
+
+def _camel_model_config() -> "ConfigDict":
+    return ConfigDict(populate_by_name=True)
+
+
+class QuoteItemReq(BaseModel):
+    """프로토 quoteItems 의 한 줄. price 는 만원 단위 (프로토 lineTotal 결과)."""
+    model_config = _camel_model_config()
+    name: str
+    price: int = 0
+    unit: Optional[str] = None       # 'flat' | 'pyeong'
+    area: Optional[float] = None     # unit='pyeong' 일 때 평수
+
+
+class QuoteBizInfo(BaseModel):
+    """프로토 bizInfo (line 1781 부근) 1:1."""
+    model_config = _camel_model_config()
+    name: Optional[str] = None
+    owner: Optional[str] = None
+    bizNo: Optional[str] = None
+    addr: Optional[str] = None
+    phone: Optional[str] = None
+    seal: Optional[str] = None       # 직인 문구 ("디테일라인 직인" 등)
+    validDays: Optional[int] = None  # 견적서 유효기간
+
+
+class QuoteIssueRequest(BaseModel):
+    """프로토 finalizeQuote 가 보내는 quotePending 구조 + 발급 시점 데이터.
+
+    한 줄로 보내면 서버가 토큰 발급 + DB 저장 + URL 반환.
+    """
+    model_config = _camel_model_config()
+    customerName: Optional[str] = None
+    customerPhone: str                                 # 고객 phone (필수)
+    items: list[QuoteItemReq] = Field(default_factory=list)
+    total: int = 0                                     # 합계 (만원)
+    workMonth: int = 0                                 # 프로토 qmon (0 = 미정)
+    workDay: int = 0                                   # 프로토 qday
+    workYear: int = 2026                               # 프로토 qyear (default = 올해)
+    workDays: int = 1                                  # 프로토 qdays (1=단일, 2+ = 기간)
+    depositMode: str = "none"                          # 'none' | 'ratio' | 'fixed'
+    depositValue: int = 0                              # ratio 면 %, fixed 면 원
+    biz: Optional[QuoteBizInfo] = None
+    # 메타
+    devicePhone: Optional[str] = None                  # 사장님 phone (앱 식별/티어 검증)
+    deviceId: Optional[str] = None
+
+
+class QuoteSubmitRequest(BaseModel):
+    """고객이 폼에서 [접수 완료하기] 누를 때 보내는 페이로드 (프로토 finalizeQuote)."""
+    model_config = _camel_model_config()
+    phone: str                                         # 고객 전화
+    address: str                                       # 도로명 주소
+    dong: Optional[str] = None                         # 동/호수
+    memo: Optional[str] = None
+    confirmedDate: Optional[str] = None                # 고객이 확인한 시공일 (ISO or label)
+    survey: Optional[dict] = None                      # 유입경로 {source, keyword?, category?, etc?}
+
+
+# ─── helper ───
+
+def _workdate_to_epoch_ms(year: int, month: int, day: int) -> int:
+    """프로토 quoteCfg qyear/qmon/qday → KST 0시 epoch ms.
+
+    year=0 또는 month=0 면 0 반환 (시공일 미정).
+    """
+    if not month or not day:
+        return 0
+    import datetime
+    try:
+        dt = datetime.datetime(year or 2026, month, day, 0, 0, 0)
+        return int((dt - datetime.timedelta(hours=9)).timestamp() * 1000)
+    except (ValueError, OverflowError):
+        return 0
+
+
+def _deposit_resolve_krw(total_man: int, mode: str, value: int) -> int:
+    """프로토 lineTotal/depWonOf 로직 1:1.
+
+    mode='ratio' → total_man * value% (만원 → 원 환산)
+    mode='fixed' → value (이미 원 단위로 보낸다고 가정)
+    mode='none' → 0
+    """
+    if mode == "ratio" and value:
+        # 만원 → 원, * percent / 100
+        return int(round(total_man * 10000 * value / 100))
+    if mode == "fixed" and value:
+        return int(value)
+    return 0
+
+
+def _persist_quote_issue_to_db(
+    token: str, req: QuoteIssueRequest, biz: dict, now: int, expires_at: int,
+) -> None:
+    """QuoteIssueRequest 를 intake_forms 테이블에 INSERT.
+
+    기존 §19 컬럼 (호환) + §19.2 새 컬럼 모두 채운다.
+    """
+    items_payload = [
+        {"name": it.name, "price_man": int(it.price or 0),
+         "unit": it.unit, "area": it.area}
+        for it in (req.items or [])
+    ]
+    scheduled_at_ms = _workdate_to_epoch_ms(req.workYear, req.workMonth, req.workDay)
+    deposit_krw = _deposit_resolve_krw(req.total or 0, req.depositMode, req.depositValue or 0)
+    biz_name = (biz.get("name") or "").strip() or _fetch_owner_biz_name(req.devicePhone)
+
+    with db_conn() as con:
+        con.execute(
+            """
+            INSERT INTO intake_forms (
+                token, phone, customer_name, issued_at_ms, expires_at_ms,
+                submitted_at_ms, payload_json, device_id, owner_phone, created_at_ms,
+                scheduled_at_ms, scheduled_days, estimate_items_json, total_man,
+                deposit_amount_krw, deposit_mode, deposit_ratio_pct, biz_name,
+                work_month, work_day, work_year, deposit_value,
+                biz_owner, biz_no, biz_addr, biz_phone, biz_seal, biz_valid_days,
+                confirmed_date_iso, survey_json
+            ) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?,
+                      ?, ?, ?, ?, ?, ?, ?, ?,
+                      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)
+            """,
+            (
+                token, req.customerPhone, req.customerName, now, expires_at,
+                req.deviceId, req.devicePhone, now,
+                scheduled_at_ms, max(1, int(req.workDays or 1)),
+                json.dumps(items_payload, ensure_ascii=False),
+                int(req.total or 0),
+                deposit_krw,
+                req.depositMode,
+                int(req.depositValue) if req.depositMode == "ratio" else None,
+                biz_name or "",
+                int(req.workMonth or 0) or None,
+                int(req.workDay or 0) or None,
+                int(req.workYear or 2026),
+                int(req.depositValue or 0) or None,
+                biz.get("owner") or None,
+                biz.get("bizNo") or None,
+                biz.get("addr") or None,
+                biz.get("phone") or None,
+                biz.get("seal") or None,
+                int(biz["validDays"]) if biz.get("validDays") else None,
+            ),
+        )
+        con.commit()
+
+
+# ─── API 1: POST /api/quote/issue ───
+
+@app.post("/api/quote/issue")
+async def quote_issue(req: QuoteIssueRequest) -> dict:
+    """접수서 토큰 발급. 사장님이 채팅 견적 시트에서 [시공접수서 보내기] 누름 → 앱이 호출.
+
+    응답: {token, url, issuedAtMs, expiresAtMs, smsDraft}
+    smsDraft = SMS 본문 prefill 용 한국어 문구 (자동발송 X, 사장님 ▶ 직접).
+    """
+    if not (req.customerPhone or "").strip():
+        raise HTTPException(400, "customerPhone 필수")
+    if req.depositMode not in ("none", "ratio", "fixed"):
+        raise HTTPException(400, "depositMode 는 none/ratio/fixed")
+    if req.workMonth and not (1 <= req.workMonth <= 12):
+        raise HTTPException(400, "workMonth 1~12")
+    if req.workDay and not (1 <= req.workDay <= 31):
+        raise HTTPException(400, "workDay 1~31")
+
+    now = _now_ms()
+    token = _generate_intake_token()
+    # 유효기간: biz.validDays 우선, 없으면 INTAKE_TTL_MS (7일)
+    valid_days = (req.biz.validDays if (req.biz and req.biz.validDays) else None)
+    if valid_days and valid_days > 0:
+        expires_at = now + int(valid_days) * 24 * 60 * 60 * 1000
+    else:
+        expires_at = now + INTAKE_TTL_MS
+
+    biz_dict = req.biz.model_dump(exclude_none=False) if req.biz else {}
+    _persist_quote_issue_to_db(token, req, biz_dict, now, expires_at)
+
+    url = f"{INTAKE_PUBLIC_BASE_URL.rstrip('/')}/q/{token}"
+    biz_name = biz_dict.get("name") or _fetch_owner_biz_name(req.devicePhone) or "RING-GO 시공"
+    sms_draft = (
+        f"안녕하세요{(' ' + req.customerName + '님') if req.customerName else ''}, {biz_name} 입니다.\n"
+        f"시공일 확정을 위해 접수서를 작성 부탁드려요. 1분이면 끝나요 😊\n"
+        f"▶ {url}"
+    )
+    print(f"[quote/issue] customerPhone={req.customerPhone} → token={token} url={url}")
+    return {
+        "token": token,
+        "url": url,
+        "issuedAtMs": now,
+        "expiresAtMs": expires_at,
+        "smsDraft": sms_draft,
+    }
+
+
+# ─── API 2: GET /q/{token} ───
+# 화면 자체는 기존 §19 의 INTAKE_FORM_HTML_TEMPLATE 재활용 (프로토 openQuote 1:1).
+# 단 폼 제출 path 를 /q/{token}/submit 으로 박아야 하므로 별도 변형 템플릿 사용.
+
+INTAKE_FORM_HTML_V2_TEMPLATE = INTAKE_FORM_HTML_TEMPLATE.replace(
+    "/api/intake-form/submit",
+    "__QUOTE_SUBMIT_PATH__",
+)
+
+
+def _render_quote_form_html(token: str, row: tuple) -> str:
+    """row = SELECT _INTAKE_SELECT_COLS FROM intake_forms WHERE token=?
+
+    프로토 openQuote 1:1 — schedule_label / items / deposit 박아 렌더.
+    """
+    import html as _html
+    data = _intake_row_to_dict(row)
+    biz = (data["biz_name"] or "").strip() or "RING-GO 시공"
+    schedule_label = _format_schedule_label(data["scheduled_at_ms"], data["scheduled_days"])
+    items_html = _build_items_html(data["estimate_items"])
+    deposit_html = _build_deposit_html(
+        data["deposit_mode"], data["deposit_amount_krw"], data["deposit_ratio_pct"]
+    )
+    # 폼 제출 경로 = /q/{token}/submit
+    submit_path = f"/q/{token}/submit"
+    page = (INTAKE_FORM_HTML_V2_TEMPLATE
+            .replace("__QUOTE_SUBMIT_PATH__", submit_path)
+            .format(
+                biz_html=_html.escape(biz),
+                biz_js=json.dumps(biz, ensure_ascii=False),
+                schedule_label_html=_html.escape(schedule_label),
+                items_html=items_html,
+                total_man_html=_html.escape(str(int(data["total_man"] or 0))),
+                deposit_html=deposit_html,
+                token_js=_html.escape(token, quote=True),
+            ))
+    return page
+
+
+def _quote_status_page(title: str, body: str, status_code: int = 200) -> HTMLResponse:
+    """접수서 만료/제출됨/유효X 상태 페이지 공통."""
+    html = (
+        "<html><body style='font-family:-apple-system,sans-serif;padding:40px;text-align:center;background:#F4F5F7'>"
+        f"<h2 style='color:#F0436A'>{title}</h2><p style='color:#5A6472;line-height:1.6'>{body}</p>"
+        "</body></html>"
+    )
+    return HTMLResponse(content=html, status_code=status_code)
+
+
+@app.get("/q/{token}", response_class=HTMLResponse)
+async def quote_page(token: str) -> HTMLResponse:
+    """고객 브라우저용 접수서 폼 (프로토 openQuote 1:1)."""
+    with db_conn() as con:
+        row = con.execute(
+            f"SELECT {_INTAKE_SELECT_COLS} FROM intake_forms WHERE token = ?",
+            (token,),
+        ).fetchone()
+    if not row:
+        return _quote_status_page("❌ 유효하지 않은 링크", "사장님께 다시 링크를 받아 주세요.", 404)
+    data = _intake_row_to_dict(row)
+    now = _now_ms()
+    if data["submitted_at_ms"] is not None:
+        return _quote_status_page("✅ 이미 제출된 접수서입니다",
+                                  "접수 내용 확인은 사장님께 연락 주세요.")
+    if now > data["expires_at_ms"]:
+        return _quote_status_page("⌛ 만료된 링크",
+                                  "이 접수서 링크는 만료되었어요. 사장님께 새 링크를 요청해 주세요.", 410)
+    return HTMLResponse(content=_render_quote_form_html(token, row))
+
+
+# ─── API 3: POST /q/{token}/submit ───
+
+@app.post("/q/{token}/submit")
+async def quote_submit(token: str, req: QuoteSubmitRequest) -> dict:
+    """고객 제출 (프로토 finalizeQuote). 응답: {ok, submittedAtMs, customerPhone}."""
+    phone = (req.phone or "").strip()
+    address = (req.address or "").strip()
+    if not phone:
+        raise HTTPException(400, "phone 필수")
+    if not address:
+        raise HTTPException(400, "address 필수")
+
+    now = _now_ms()
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT phone, expires_at_ms, submitted_at_ms FROM intake_forms WHERE token = ?",
+            (token,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "유효하지 않은 토큰")
+        owner_customer_phone, expires_at, submitted_at = row
+        if submitted_at is not None:
+            raise HTTPException(409, "이미 제출된 접수서입니다")
+        if now > expires_at:
+            raise HTTPException(410, "만료된 접수서")
+
+        payload = {
+            "phone": phone,
+            "address": address,
+            "dong": (req.dong or "").strip() or None,
+            "memo": (req.memo or "").strip() or None,
+            "confirmedDate": (req.confirmedDate or "").strip() or None,
+            # 호환 alias (구 schema)
+            "contact_phone": phone,
+            "road_address": address,
+            "building_detail": (req.dong or "").strip() or None,
+        }
+        if req.survey:
+            payload["source"] = (req.survey.get("source") or "") + \
+                (' · "' + req.survey["keyword"] + '"' if req.survey.get("keyword") else "") + \
+                (" · " + req.survey["category"] if req.survey.get("category") else "") + \
+                (" · " + req.survey["etc"] if req.survey.get("etc") else "")
+        con.execute(
+            "UPDATE intake_forms SET submitted_at_ms = ?, payload_json = ?, "
+            "confirmed_date_iso = ?, survey_json = ? WHERE token = ?",
+            (now, json.dumps(payload, ensure_ascii=False),
+             (req.confirmedDate or "").strip() or None,
+             json.dumps(req.survey, ensure_ascii=False) if req.survey else None,
+             token),
+        )
+        con.commit()
+    print(f"[quote/submit] token={token} customerPhone={owner_customer_phone} → submitted")
+    return {"ok": True, "submittedAtMs": now, "customerPhone": owner_customer_phone}
+
+
+# ─── API 4: GET /api/quote/submissions ───
+
+@app.get("/api/quote/submissions")
+async def quote_submissions_list(
+    devicePhone: Optional[str] = None,
+    deviceId: Optional[str] = None,
+    sinceMs: int = 0,
+    limit: int = 50,
+) -> dict:
+    """사장님 폴링 — 발급한 접수서들 최신순. 제출됨 + 미제출 모두 포함.
+
+    응답: {items: [{token, customerPhone, customerName, issuedAtMs, expiresAtMs,
+                    submittedAtMs|null, payload|null, total, workMonth, workDay, workDays,
+                    biz, url}]}
+    """
+    limit = max(1, min(limit, 200))
+    where_parts: list[str] = []
+    params: list = []
+    if devicePhone:
+        where_parts.append("owner_phone = ?")
+        params.append(devicePhone)
+    if deviceId:
+        where_parts.append("device_id = ?")
+        params.append(deviceId)
+    if sinceMs:
+        where_parts.append("issued_at_ms > ?")
+        params.append(sinceMs)
+    where = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
+    with db_conn() as con:
+        rows = con.execute(
+            f"SELECT {_INTAKE_SELECT_COLS}, work_month, work_day, work_year, "
+            f"deposit_value, biz_owner, biz_no, biz_addr, biz_phone, biz_seal, "
+            f"biz_valid_days, confirmed_date_iso, survey_json "
+            f"FROM intake_forms {where} ORDER BY issued_at_ms DESC LIMIT ?",
+            [*params, limit],
+        ).fetchall()
+    items = []
+    for r in rows:
+        base = _intake_row_to_dict(r[:18])  # 기존 18 컬럼
+        # 새 컬럼 12 개 (work_month..survey_json)
+        (wm, wd, wy, dv, bo, bn, ba, bp, bs, bvd, cdi, sj) = r[18:30]
+        survey = None
+        if sj:
+            try:
+                survey = json.loads(sj)
+            except json.JSONDecodeError:
+                survey = None
+        items.append({
+            **base,
+            "customerPhone": base["phone"],
+            "customerName": base["customer_name"],
+            "issuedAtMs": base["issued_at_ms"],
+            "expiresAtMs": base["expires_at_ms"],
+            "submittedAtMs": base["submitted_at_ms"],
+            "total": base["total_man"],
+            "workMonth": wm, "workDay": wd, "workYear": wy, "workDays": base["scheduled_days"],
+            "depositMode": base["deposit_mode"],
+            "depositValue": dv,
+            "biz": {
+                "name": base["biz_name"], "owner": bo, "bizNo": bn,
+                "addr": ba, "phone": bp, "seal": bs, "validDays": bvd,
+            },
+            "confirmedDate": cdi,
+            "survey": survey,
+        })
+    return {"items": items, "count": len(items)}
+
+
+# ─── API 5: GET /q/{token}/doc — 견적서 직인 HTML (프로토 openQuoteDoc 1:1) ───
+
+QUOTE_DOC_HTML_TEMPLATE = """<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>견적서 · {biz_html}</title>
+<style>
+  :root {{
+    --blue:#3182F6; --bg:#F4F5F7; --t1:#0B0F19; --t2:#5A6472; --t3:#9AA3AF; --line:#EEF0F3;
+    --error:#F0436A;
+  }}
+  * {{ box-sizing:border-box; }}
+  body {{ margin:0; padding:24px 16px; background:var(--bg);
+         font-family:'Pretendard',-apple-system,system-ui,"Noto Sans KR",sans-serif;
+         color:var(--t1); line-height:1.55; }}
+  .wrap {{ max-width:480px; margin:0 auto; background:#fff; border-radius:14px;
+          padding:28px 22px; box-shadow:0 2px 8px rgba(0,0,0,.06); }}
+  .qd-title {{ text-align:center; font-size:23px; font-weight:800; letter-spacing:9px;
+              color:#111; padding-left:9px; margin-bottom:16px; }}
+  .qd-meta {{ display:flex; justify-content:space-between; font-size:11px; color:var(--t3);
+             margin-bottom:14px; flex-wrap:wrap; gap:4px; }}
+  .qd-to {{ font-size:15px; margin-bottom:14px; border-bottom:2px solid #111; padding-bottom:8px; }}
+  .qd-table {{ width:100%; border-collapse:collapse; font-size:12.5px; }}
+  .qd-table th {{ background:var(--bg); border:1px solid #cfd6df; padding:8px 6px; font-weight:800; }}
+  .qd-table td {{ border:1px solid #cfd6df; padding:9px 8px; }}
+  .qd-table .qd-n {{ font-weight:700; }}
+  .qd-table .qd-u {{ color:var(--t3); text-align:center; font-size:11.5px; }}
+  .qd-table .qd-a {{ text-align:right; font-weight:700; }}
+  .qd-table .qd-sum td {{ background:#FAFBFC; font-weight:800; }}
+  .qd-table .qd-sum td:last-child {{ color:var(--blue); text-align:right; }}
+  .qd-notes {{ font-size:12px; color:var(--t2); line-height:1.9; margin-top:14px; }}
+  .qd-dep {{ color:var(--error); font-weight:700; }}
+  .qd-foot {{ display:flex; align-items:flex-end; justify-content:space-between;
+             margin-top:24px; gap:10px; }}
+  .qd-co-n {{ font-size:15px; font-weight:800; }}
+  .qd-co-i {{ font-size:11px; color:var(--t3); margin-top:2px; }}
+  .qd-seal {{ flex:0 0 auto; width:62px; height:62px; border-radius:50%;
+             border:2.5px solid #d6342c; color:#d6342c;
+             display:flex; align-items:center; justify-content:center;
+             text-align:center; font-size:11px; font-weight:800; line-height:1.25;
+             transform:rotate(-12deg); opacity:.85; }}
+  @media print {{ body {{ background:#fff; padding:0; }} .wrap {{ box-shadow:none; border-radius:0; }} }}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="qd-title">견 적 서</div>
+  <div class="qd-meta">
+    <span>발행일: {issued_label_html}</span>
+    <span>유효기간: {valid_label_html}</span>
+  </div>
+  <div class="qd-to">수신: <b>{customer_label_html}</b> 귀하</div>
+
+  <table class="qd-table">
+    <thead>
+      <tr><th>품목</th><th>단가</th><th>금액</th></tr>
+    </thead>
+    <tbody>
+      {items_rows_html}
+      <tr class="qd-sum">
+        <td colspan="2">합계 (부가세 별도)</td>
+        <td>{total_label_html}원</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="qd-notes">
+    · 본 견적은 현장 상황 확인 후 일부 조정될 수 있어요.<br>
+    {dep_row_html}
+    · 시공일은 별도 안내드린 시공접수서에서 확인해 주세요.
+  </div>
+
+  <div class="qd-foot">
+    <div>
+      <div class="qd-co-n">{biz_html}</div>
+      <div class="qd-co-i">{owner_label_html}{biz_no_html}{addr_html}{phone_html}</div>
+    </div>
+    <div class="qd-seal">{seal_label_html}</div>
+  </div>
+</div>
+</body>
+</html>
+"""
+
+
+def _format_quote_doc_label_won(amount_man: int) -> str:
+    """만원 단위 → '1,234,567' 원 표기."""
+    return f"{int(amount_man) * 10000:,}"
+
+
+def _format_quote_doc_unit(it: dict) -> str:
+    """단가 표기 — pyeong/flat 구분."""
+    price = int(it.get("price_man") or 0)
+    if it.get("unit") == "pyeong" and it.get("area"):
+        return f"{price}만원/평 × {it.get('area')}평"
+    return f"{price}만원"
+
+
+def _format_quote_doc_items_rows(items: list[dict]) -> str:
+    import html as _html
+    if not items:
+        return '<tr><td colspan="3" class="qd-u">견적 항목이 없습니다</td></tr>'
+    rows = []
+    for it in items:
+        name = _html.escape(str(it.get("name") or ""))
+        price = int(it.get("price_man") or 0)
+        unit = _html.escape(_format_quote_doc_unit(it))
+        # area * price (만원) → 원
+        if it.get("unit") == "pyeong" and it.get("area"):
+            amount_man = int(round(price * float(it["area"])))
+        else:
+            amount_man = price
+        amount = f"{amount_man * 10000:,}"
+        rows.append(
+            f'<tr><td class="qd-n">{name}</td>'
+            f'<td class="qd-u">{unit}</td>'
+            f'<td class="qd-a">{amount}원</td></tr>'
+        )
+    return "".join(rows)
+
+
+def _format_quote_doc_issue_date(issued_at_ms: int) -> str:
+    import datetime
+    dt = datetime.datetime.utcfromtimestamp(issued_at_ms / 1000) + datetime.timedelta(hours=9)
+    return f"{dt.year}. {dt.month:02d}. {dt.day:02d}"
+
+
+def _format_quote_doc_valid_label(expires_at_ms: int) -> str:
+    import datetime
+    dt = datetime.datetime.utcfromtimestamp(expires_at_ms / 1000) + datetime.timedelta(hours=9)
+    return f"{dt.year}. {dt.month:02d}. {dt.day:02d} 까지"
+
+
+@app.get("/q/{token}/doc", response_class=HTMLResponse)
+async def quote_doc_page(token: str) -> HTMLResponse:
+    """견적서 직인 HTML (프로토 openQuoteDoc 1:1).
+
+    같은 token 으로 발급된 견적 데이터를 표·직인 형태로 렌더.
+    인쇄(브라우저 [인쇄]) 또는 캡쳐로 PDF 변환 가능.
+    """
+    import html as _html
+    with db_conn() as con:
+        row = con.execute(
+            f"SELECT {_INTAKE_SELECT_COLS}, biz_owner, biz_no, biz_addr, biz_phone, biz_seal "
+            f"FROM intake_forms WHERE token = ?",
+            (token,),
+        ).fetchone()
+    if not row:
+        return _quote_status_page("❌ 유효하지 않은 견적서 링크", "사장님께 다시 링크를 받아 주세요.", 404)
+    base = _intake_row_to_dict(row[:18])
+    (biz_owner, biz_no, biz_addr, biz_phone, biz_seal) = row[18:23]
+
+    biz = (base["biz_name"] or "").strip() or "RING-GO 시공"
+    customer = (base["customer_name"] or base["phone"] or "고객")
+    items = base["estimate_items"]
+    items_rows = _format_quote_doc_items_rows(items)
+    total_label = _format_quote_doc_label_won(base["total_man"])
+    issued_label = _format_quote_doc_issue_date(base["issued_at_ms"])
+    valid_label = _format_quote_doc_valid_label(base["expires_at_ms"])
+
+    dep_row = ""
+    if base["deposit_mode"] != "none" and base["deposit_amount_krw"]:
+        amount = f"{int(base['deposit_amount_krw']):,}"
+        suffix = ""
+        if base["deposit_mode"] == "ratio" and base["deposit_ratio_pct"]:
+            suffix = f" (총액의 {int(base['deposit_ratio_pct'])}%)"
+        dep_row = f'· <span class="qd-dep">계약금 {amount}원{suffix}</span> 입금 시 시공일 확정<br>'
+
+    # 사업자정보 라인
+    owner_label = (biz_owner or "")
+    if owner_label:
+        owner_label = _html.escape(f"대표 {owner_label}")
+    biz_no_html = (f" · 사업자 {_html.escape(biz_no)}" if biz_no else "")
+    addr_html = (f" · {_html.escape(biz_addr)}" if biz_addr else "")
+    phone_html = (f" · ☎ {_html.escape(biz_phone)}" if biz_phone else "")
+    seal_label = _html.escape((biz_seal or biz)[:8])  # 직인 안에 8자 컷
+
+    page = QUOTE_DOC_HTML_TEMPLATE.format(
+        biz_html=_html.escape(biz),
+        customer_label_html=_html.escape(customer),
+        issued_label_html=_html.escape(issued_label),
+        valid_label_html=_html.escape(valid_label),
+        items_rows_html=items_rows,
+        total_label_html=_html.escape(total_label),
+        dep_row_html=dep_row,
+        owner_label_html=owner_label,
+        biz_no_html=biz_no_html,
+        addr_html=addr_html,
+        phone_html=phone_html,
+        seal_label_html=seal_label,
     )
     return HTMLResponse(content=page)
 
