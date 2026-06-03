@@ -1156,7 +1156,7 @@ private fun AutoSmsSection(
         Spacer(Modifier.height(10.dp))
         AutoDotLabel(Color(0xFF12B886), "다시 연락한 고객 (단골·기존)")
         AutoTextArea(missedReturn) { missedReturn = it; prefs.autoMissedReturnText = it }
-        AutoNote("전화를 못 받은 상황이라 확인 없이 바로 나가요. 같은 번호엔 하루 1번만 발송돼요.")
+        AutoNote("신규·단골 모두 자동으로 나가요. 보내기 직전 10초 안에 취소할 수 있어요. 같은 번호엔 하루 1번만 — 최근 24시간 안에 보낸 문자(이미 답장했거나 방금 자동발송)가 있으면 건너뛰어요.")
     }
     Spacer(Modifier.height(10.dp))
 
