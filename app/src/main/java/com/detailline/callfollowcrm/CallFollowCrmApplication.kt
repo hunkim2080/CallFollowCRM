@@ -84,6 +84,25 @@ class CallFollowCrmApplication : Application() {
                 delay(60_000)
             }
         }
+
+        // 시간 기반 알림(시공 D-1 등) — WorkManager 주기 실행(앱 종료 상태에서도).
+        scheduleReminders()
+    }
+
+    /** 시공 D-1 등 리마인더 — 주기 워커(~3시간) + 앱 켤 때 1회 즉시 점검. */
+    private fun scheduleReminders() {
+        runCatching {
+            val wm = androidx.work.WorkManager.getInstance(this)
+            val periodic = androidx.work.PeriodicWorkRequestBuilder<com.detailline.callfollowcrm.service.ReminderWorker>(
+                3, java.util.concurrent.TimeUnit.HOURS
+            ).build()
+            wm.enqueueUniquePeriodicWork(
+                "reminders", androidx.work.ExistingPeriodicWorkPolicy.UPDATE, periodic
+            )
+            wm.enqueue(
+                androidx.work.OneTimeWorkRequestBuilder<com.detailline.callfollowcrm.service.ReminderWorker>().build()
+            )
+        }
     }
 
     /**

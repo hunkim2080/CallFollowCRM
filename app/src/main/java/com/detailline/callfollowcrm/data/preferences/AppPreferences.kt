@@ -182,6 +182,11 @@ class AppPreferences(context: Context) {
         get() = prefs.getLong("intake_sync_since_ms", 0L)
         set(value) = prefs.edit().putLong("intake_sync_since_ms", value).apply()
 
+    // ── 시간 기반 알림(D-1·잔금·브리핑) 중복방지 — 이미 보낸 키(예 "d1:{id}:{dateMs}"). ──
+    var reminderNotifiedKeys: Set<String>
+        get() = prefs.getStringSet("reminder_notified_keys", emptySet()) ?: emptySet()
+        set(value) = prefs.edit().putStringSet("reminder_notified_keys", value).apply()
+
     /**
      * 정산 — 이번 달 목표 매출(만원). 프로토 settleGoal 기본 500.
      * 사장님이 정산 상단 다크카드 "목표 수정" 으로 직접 변경.

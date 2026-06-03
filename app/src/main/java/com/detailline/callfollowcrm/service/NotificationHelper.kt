@@ -23,6 +23,9 @@ object NotificationHelper {
     /** 고객이 시공접수서를 작성·제출했을 때 알림. */
     private const val CHANNEL_INTAKE = "intake_submitted"
     private const val INTAKE_ID_OFFSET = 8_000_000
+    /** 시간 기반 리마인더(시공 D-1·잔금 미수·마감 브리핑). */
+    private const val CHANNEL_REMINDER = "reminder"
+    private const val D1_ID_OFFSET = 9_000_000
     /** SMS 알림 ID = 발신번호 hash + offset. 같은 번호 새 SMS = 같은 알림 update. */
     private const val SMS_ID_OFFSET = 10_000_000
 
@@ -92,7 +95,50 @@ object NotificationHelper {
                 }
                 manager.createNotificationChannel(channel)
             }
+            if (manager.getNotificationChannel(CHANNEL_REMINDER) == null) {
+                val channel = NotificationChannel(
+                    CHANNEL_REMINDER, "⏰ 시공·정산 리마인더", NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "내일 시공 안내·잔금 미수·마감 브리핑을 제때 알려줘요"
+                    setShowBadge(true)
+                }
+                manager.createNotificationChannel(channel)
+            }
         }
+    }
+
+    /**
+     * 시공 D-1 안내 알림 — 프로토 PUSH.d1 형식 1:1 (주황).
+     *   무음 자동발송 X — 탭/버튼 = 그 고객 채팅에서 사장님이 확인 후 발송.
+     */
+    fun showInstallD1(
+        context: Context,
+        customerId: Long,
+        phone: String,
+        name: String,
+        dateLabel: String,
+        timeLabel: String?,
+        address: String
+    ) {
+        val notifId = D1_ID_OFFSET + (customerId.toInt() and 0x7FFFFF)
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            action = MainActivity.ACTION_CHAT
+            putExtra(MainActivity.EXTRA_PHONE_NUMBER, phone)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pending = PendingIntent.getActivity(
+            context, notifId, openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val msg = "${name}님 · $dateLabel${timeLabel?.let { " $it" } ?: ""} · $address"
+        showProtoPush(
+            context, notifId, CHANNEL_REMINDER, ACCENT_AMBER,
+            title = "내일 시공 — 안내 문자 보낼까요?",
+            msg = msg,
+            note = "무음 자동발송 안 해요 · 사장님이 확인하면 보내요",
+            contentIntent = pending,
+            actions = listOf(PushAction("안내 보내기", pending))
+        )
     }
 
     // 프로토 PUSH accent 색 — 종류별 (var PUSH 의 accent).
