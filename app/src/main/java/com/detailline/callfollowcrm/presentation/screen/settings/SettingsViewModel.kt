@@ -41,6 +41,21 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     /** AI 서버 살아있음 표시 (●). null=아직 모름, true=정상, false=죽음. */
     val serverAlive: StateFlow<Boolean?> = container.serverHealth.alive
 
+    /** 서버 §21 내 말투 프로필 (학습률·특징·before/after). null=아직 안 불러옴. tone 화면 진입 시 1회 로드. */
+    private val _toneProfile = MutableStateFlow<com.detailline.callfollowcrm.ai.ToneProfile?>(null)
+    val toneProfile: StateFlow<com.detailline.callfollowcrm.ai.ToneProfile?> = _toneProfile.asStateFlow()
+    private var toneProfileLoaded = false
+
+    fun loadToneProfile() {
+        if (toneProfileLoaded) return
+        toneProfileLoaded = true
+        viewModelScope.launch {
+            container.phaseOneApiRepository.fetchToneProfile()
+                .onSuccess { _toneProfile.value = it }
+                .onFailure { toneProfileLoaded = false }  // 실패 시 재시도 허용
+        }
+    }
+
     /** 사장님 톤 학습용 보낸 SMS 샘플 개수. 설정 진입 시 한 번 계산. */
     private val _ownerToneSampleCount = MutableStateFlow(0)
     val ownerToneSampleCount: StateFlow<Int> = _ownerToneSampleCount.asStateFlow()

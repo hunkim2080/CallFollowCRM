@@ -29,6 +29,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -73,6 +75,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -264,6 +267,8 @@ fun SettingsScreen(
                 //   채택률/AutoLearning 카드는 프로토 기준 "상세 리포트" 소관 → 여기서 제거.
                 "tone" -> {
                     val agentCard by viewModel.agentCard.collectAsState()
+                    val toneProfile by viewModel.toneProfile.collectAsState()
+                    LaunchedEffect(Unit) { viewModel.loadToneProfile() }
                     val toneRagConsented by viewModel.toneRagConsented.collectAsState()
                     val toneRagUploadedCount by viewModel.toneRagUploadedCount.collectAsState()
                     val toneRagAvailable by viewModel.toneRagAvailable.collectAsState()
@@ -271,7 +276,8 @@ fun SettingsScreen(
                     val toneRagProgress by viewModel.toneRagProgress.collectAsState()
                     ToneLearnProtoSection(
                         container = container,
-                        tonePct = agentCard.tonePct,
+                        profile = toneProfile,
+                        tonePct = toneProfile?.learnRatePct ?: agentCard.tonePct,
                         ragUploadedCount = toneRagUploadedCount,
                         ragAvailable = toneRagAvailable,
                         ragConsented = toneRagConsented,
@@ -2472,6 +2478,7 @@ private fun CheckDot(done: Boolean) {
 @Composable
 private fun ToneLearnProtoSection(
     container: AppContainer,
+    profile: com.detailline.callfollowcrm.ai.ToneProfile?,
     tonePct: Int,
     ragUploadedCount: Int,
     ragAvailable: Int,
@@ -2482,6 +2489,7 @@ private fun ToneLearnProtoSection(
     onUpload: () -> Unit
 ) {
     val prefs = container.preferences
+    val learnedCount = profile?.sampleCount ?: ragUploadedCount
     var toneOn by remember { mutableStateOf(prefs.toneLearnEnabled) }
     var examplesCount by remember { mutableStateOf(prefs.toneExamples.size) }
     var signature by remember { mutableStateOf(prefs.toneSignature) }
@@ -2519,7 +2527,7 @@ private fun ToneLearnProtoSection(
                 .background(Brush.horizontalGradient(listOf(Color(0xFFFFD479), Color(0xFFFFB43E)))))
         }
         Spacer(Modifier.height(9.dp))
-        Text("내가 보낸 문자 ${formatThousands(ragUploadedCount)}개 학습",
+        Text("내가 보낸 문자 ${formatThousands(learnedCount)}개 학습",
             fontSize = 11.5.sp, color = Color.White.copy(alpha = 0.72f), fontWeight = FontWeight.SemiBold)
     }
     Spacer(Modifier.height(12.dp))
@@ -2554,14 +2562,30 @@ private fun ToneLearnProtoSection(
     }
     Spacer(Modifier.height(16.dp))
 
-    // ── AI가 분석한 사장님 말투 (서버 분석 필요) ──
+    // ── AI가 분석한 사장님 말투 (서버 §21 traits) ──
     ToneSecSub("AI가 분석한 사장님 말투")
-    TonePlaceholder("서버 말투 분석 준비 중이에요. 맥미니 업그레이드 후 사장님 말끝·이모티콘·길이·호칭을 자동으로 보여드려요.")
+    val traits = profile?.traits.orEmpty()
+    if (profile?.analyzed == true && traits.isNotEmpty()) {
+        ToneTraits(traits)
+    } else {
+        TonePlaceholder(
+            if (profile != null) "보낸 문자가 더 쌓이면 사장님 말끝·이모티콘·길이·호칭을 분석해 보여드려요."
+            else "서버에서 말투 분석을 불러오는 중이에요…"
+        )
+    }
     Spacer(Modifier.height(16.dp))
 
-    // ── 같은 질문, 이렇게 달라져요 (서버 분석 필요) ──
+    // ── 같은 질문, 이렇게 달라져요 (서버 §21 example) ──
     ToneSecSub("같은 질문, 이렇게 달라져요")
-    TonePlaceholder("일반 AI 답변 vs 사장님 말투 비교는 서버 분석이 연결되면 보여드려요.")
+    val ex = profile?.example
+    if (ex != null) {
+        ToneBeforeAfter(ex)
+    } else {
+        TonePlaceholder(
+            if (profile != null) "보낸 문자가 더 쌓이면 일반 AI 답변과 사장님 말투를 비교해 보여드려요."
+            else "서버에서 비교 예시를 불러오는 중이에요…"
+        )
+    }
     Spacer(Modifier.height(16.dp))
 
     // ── 무엇으로 배우나요 (sources) + RAG 녹이기 ──
@@ -2669,6 +2693,85 @@ private fun ToneSecSub(text: String) {
 private fun TonePlaceholder(text: String) {
     Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(14.dp)) {
         Text(text, fontSize = 12.5.sp, color = TossTextTertiary)
+    }
+}
+
+// 프로토 .traits / .trait / .tk — 흰 칩 + 회색 키.
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ToneTraits(traits: List<com.detailline.callfollowcrm.ai.ToneTrait>) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        traits.forEach { t ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp)).background(Color.White)
+                    .border(1.dp, TossDivider, RoundedCornerShape(12.dp))
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
+            ) {
+                if (t.k.isNotBlank()) {
+                    Text(t.k, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                    Spacer(Modifier.width(7.dp))
+                }
+                Text(t.v, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+            }
+        }
+    }
+}
+
+// 프로토 .tone-ba — 질문 + [일반 AI] / [내 말투] 두 답 비교.
+@Composable
+private fun ToneBeforeAfter(ex: com.detailline.callfollowcrm.ai.ToneExample) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White)) {
+        // ba-q
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 15.dp, end = 15.dp, top = 14.dp, bottom = 4.dp)
+        ) {
+            Text("💬", fontSize = 12.sp)
+            Spacer(Modifier.width(6.dp))
+            Text("\"${ex.question}\"", fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary)
+        }
+        // gen row
+        ToneBaRow(
+            tag = "일반 AI", tagBg = TossGrayBg, tagColor = TossTextTertiary, mark = null,
+            msg = ex.plain, msgBg = TossGrayBg, msgBorder = null
+        )
+        Box(Modifier.padding(horizontal = 15.dp).fillMaxWidth().height(1.dp).background(TossDivider))
+        // mine row
+        ToneBaRow(
+            tag = "내 말투", tagBg = Color(0xFFF1ECFF), tagColor = Color(0xFF7C5CFC), mark = "✨ 사장님처럼",
+            msg = ex.mine, msgBg = Color(0xFFF6F3FF), msgBorder = Color(0xFFECE5FF)
+        )
+    }
+}
+
+@Composable
+private fun ToneBaRow(
+    tag: String, tagBg: Color, tagColor: Color, mark: String?,
+    msg: String, msgBg: Color, msgBorder: Color?
+) {
+    Column(Modifier.padding(start = 15.dp, end = 15.dp, top = 9.dp, bottom = 13.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                tag, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, color = tagColor,
+                modifier = Modifier.clip(RoundedCornerShape(7.dp)).background(tagBg).padding(horizontal = 8.dp, vertical = 2.dp)
+            )
+            if (mark != null) {
+                Spacer(Modifier.weight(1f))
+                Text(mark, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF7C5CFC))
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        val msgMod = Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(msgBg)
+            .let { if (msgBorder != null) it.border(1.dp, msgBorder, RoundedCornerShape(13.dp)) else it }
+            .padding(horizontal = 13.dp, vertical = 11.dp)
+        Box(msgMod) {
+            Text(msg, fontSize = 13.sp, color = TossTextPrimary, lineHeight = 19.sp)
+        }
     }
 }
 

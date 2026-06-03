@@ -27,6 +27,18 @@ data class StyleLearnResult(
     val emojiPerMessage: Double
 )
 
+// 서버 §21 GET /api/tone/profile 응답 (내 말투 학습 화면용).
+data class ToneTrait(val k: String, val v: String)
+data class ToneExample(val question: String, val plain: String, val mine: String)
+data class ToneProfile(
+    val analyzed: Boolean,
+    val sampleCount: Int,
+    val learnRatePct: Int,
+    val traits: List<ToneTrait>,
+    val example: ToneExample?,
+    val editCount: Int
+)
+
 class PhaseOneApiRepository(
     private val baseUrl: String = "http://100.86.114.49:8000"
 ) {
@@ -138,6 +150,45 @@ class PhaseOneApiRepository(
                     kindness = stats?.optInt("kindness", 0) ?: 0,
                     avgLength = stats?.optInt("avgLength", 0) ?: 0,
                     emojiPerMessage = stats?.optDouble("emojiPerMessage", 0.0) ?: 0.0
+                )
+            }
+        }
+    }
+
+    /**
+     * 서버 §21 GET /api/tone/profile?device_id= — 학습률·말투 특징·before/after.
+     *   LLM 3종 병렬 호출(캐시 미스 시)이라 read timeout 을 넉넉히(45s) 둠.
+     *   실패/미분석이면 analyzed=false 로 와도 sampleCount/learnRatePct 는 채워져 옴 (hero 표시용).
+     */
+    suspend fun fetchToneProfile(deviceId: String = "owner-anon"): Result<ToneProfile> = withContext(Dispatchers.IO) {
+        runCatching {
+            val req = Request.Builder()
+                .url("$baseUrl/api/tone/profile?device_id=$deviceId")
+                .get()
+                .build()
+            val slowClient = client.newBuilder().readTimeout(45, TimeUnit.SECONDS).build()
+            slowClient.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                val json = JSONObject(resp.body?.string() ?: "{}")
+                val traits = mutableListOf<ToneTrait>()
+                val tarr = json.optJSONArray("traits") ?: JSONArray()
+                for (i in 0 until tarr.length()) {
+                    val o = tarr.optJSONObject(i) ?: continue
+                    val v = o.optString("v")
+                    if (v.isNotBlank()) traits += ToneTrait(o.optString("k"), v)
+                }
+                val exObj = json.optJSONObject("example")
+                val example = exObj?.let {
+                    ToneExample(it.optString("question"), it.optString("plain"), it.optString("mine"))
+                        .takeIf { e -> e.plain.isNotBlank() || e.mine.isNotBlank() }
+                }
+                ToneProfile(
+                    analyzed = json.optBoolean("analyzed", false),
+                    sampleCount = json.optInt("sampleCount", 0),
+                    learnRatePct = json.optInt("learnRatePct", 0),
+                    traits = traits,
+                    example = example,
+                    editCount = json.optInt("editCount", 0)
                 )
             }
         }
