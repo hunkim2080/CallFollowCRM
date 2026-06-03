@@ -1247,25 +1247,144 @@ def _coerce_v2_suggestions(parsed: dict) -> dict:
     }
 
 
-def _parse_suggestions_v2(raw_text: str) -> dict:
-    """v2 응답 파싱 — Claude 의 raw text → v2 dict (coerce 포함).
+def _repair_json_text(raw_text: str) -> Optional[str]:
+    """JSON 흔한 깨짐 복구: 코드블럭 제거 / trailing garbage 컷 / trailing comma /
+    닫는 괄호 누락 보완. 실패 시 None.
 
-    실패 케이스에서도 fallback_default 의 빈 답변 3개로 안전 반환.
+    §48 ② 빈답변 버그 fix — 1차 _parse_json_object 실패 시 보수 시도.
     """
+    import re as _re
+    text = (raw_text or "").strip()
+    if not text:
+        return None
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+        if text.endswith("```"):
+            text = text[:-3].rstrip()
+    brace_idx = text.find("{")
+    if brace_idx == -1:
+        return None
+    text = text[brace_idx:]
+    # 마지막 } 까지로 컷 (그 뒤 garbage 자르기)
+    last_brace = text.rfind("}")
+    if last_brace > 0:
+        # 단 } 뒤에 valid 닫는 ] 가 더 있을 수도 있어 보수적으로 } 다음 ] 까지
+        tail = text[last_brace + 1:].strip()
+        if tail and tail[0] in "]}":
+            text = text[:last_brace + 1 + len(tail.split()[0])]
+        else:
+            text = text[:last_brace + 1]
+    # trailing comma 제거
+    text = _re.sub(r',\s*([\}\]])', r'\1', text)
+    # 누락 닫는 괄호 보완
+    opens = text.count("{") - text.count("}")
+    if opens > 0:
+        text = text + ("}" * opens)
+    opens_arr = text.count("[") - text.count("]")
+    if opens_arr > 0:
+        text = text + ("]" * opens_arr)
+    return text
+
+
+def _extract_suggestion_texts_fallback(raw_text: str) -> list[str]:
+    """JSON 완전 깨졌을 때 정규식으로 "text":"..." 값만 추출 (최후 보루).
+
+    §48 ② 의 "최소 1개라도 유효 답변 보장" 요구사항용.
+    """
+    import re as _re
+    if not raw_text:
+        return []
+    matches = _re.findall(r'"text"\s*:\s*"((?:[^"\\]|\\.)*)"', raw_text)
+    out: list[str] = []
+    for m in matches[:3]:
+        try:
+            decoded = json.loads(f'"{m}"')
+            if isinstance(decoded, str) and decoded.strip():
+                out.append(decoded.strip())
+        except json.JSONDecodeError:
+            if m.strip():
+                out.append(m.strip())
+    return out
+
+
+_HARDCODED_FALLBACK_TEXT = "안녕하세요. 문의 주신 내용 확인하고 빠르게 답변드릴게요 ^^"
+
+
+def _build_emergency_v2(texts: list[str], reason: str) -> dict:
+    """fallback_default 인텐트 3개 + 회수된 텍스트로 v2 dict 구성.
+
+    텍스트 0개면 1번째 인텐트에 _HARDCODED_FALLBACK_TEXT 박아 최소 1개 보장.
+    """
+    intents = INTENT_POOL_V1["fallback_default"]
+    suggestions = []
+    for i, intent in enumerate(intents):
+        text = texts[i] if i < len(texts) else ""
+        if i == 0 and not text:
+            text = _HARDCODED_FALLBACK_TEXT
+            why = "model output 깨짐 — 임시 안내 답변 (최소 1개 보장)"
+        elif text:
+            why = "recovered from malformed JSON"
+        else:
+            why = "padded — model output 깨짐"
+        suggestions.append({
+            "intent_key": intent["intent_key"],
+            "label":      intent["label"],
+            "text":       text,
+            "why":        why,
+        })
+    return {
+        "scenario":            "fallback_default",
+        "scenario_confidence": 0.0,
+        "scenario_reason":     reason,
+        "suggestions":         suggestions,
+    }
+
+
+def _parse_suggestions_v2(raw_text: str) -> dict:
+    """v2 응답 파싱 — Claude/Gemini raw text → v2 dict.
+
+    §48 ② 빈답변 버그 fix — 4단계 복구로 최소 1개 유효 답변 보장:
+    1차: _parse_json_object → _coerce_v2_suggestions (정상 케이스)
+    2차: _repair_json_text 후 재시도 (trailing comma·괄호 누락 등)
+    3차: 정규식으로 "text":"..." 만 추출 → emergency v2
+    4차: 최후 hardcoded fallback (1번째 인텐트에 generic 한국어 답변)
+    """
+    # 1차
     try:
         parsed = _parse_json_object(raw_text)
-    except ValueError as e:
-        print(f"[prepare-reply] v2 JSON 파싱 실패: {e}. fallback_default 반환.")
-        return {
-            "scenario":            "fallback_default",
-            "scenario_confidence": 0.0,
-            "scenario_reason":     "model output not parseable as JSON",
-            "suggestions": [
-                {"intent_key": it["intent_key"], "label": it["label"], "text": "", "why": "parse error fallback"}
-                for it in INTENT_POOL_V1["fallback_default"]
-            ],
-        }
-    return _coerce_v2_suggestions(parsed)
+        v2 = _coerce_v2_suggestions(parsed)
+        # 최종 sanity — text 가 다 비어있고 fallback_default 면 추가 복구 시도
+        non_empty = sum(1 for s in v2["suggestions"] if (s.get("text") or "").strip())
+        if non_empty > 0:
+            return v2
+        # 다 빈값 = 모델이 진짜 빈 답변 보낸 경우. 추가 시도.
+        print(f"[prepare-reply] 1차 파싱은 됐으나 text 전부 빔 — 복구 시도")
+    except (ValueError, KeyError) as e:
+        print(f"[prepare-reply] 1차 파싱 실패: {type(e).__name__}: {e}")
+
+    # 2차: JSON repair
+    repaired = _repair_json_text(raw_text)
+    if repaired:
+        try:
+            parsed = json.loads(repaired)
+            if isinstance(parsed, dict):
+                v2 = _coerce_v2_suggestions(parsed)
+                non_empty = sum(1 for s in v2["suggestions"] if (s.get("text") or "").strip())
+                if non_empty > 0:
+                    print(f"[prepare-reply] 2차 JSON repair 통과 ({non_empty}개 유효)")
+                    return v2
+        except (json.JSONDecodeError, ValueError, KeyError) as e:
+            print(f"[prepare-reply] 2차 repair 실패: {type(e).__name__}: {e}")
+
+    # 3차: 정규식 부분추출
+    texts = _extract_suggestion_texts_fallback(raw_text)
+    if texts:
+        print(f"[prepare-reply] 3차 정규식 부분추출 — {len(texts)}개 회수")
+        return _build_emergency_v2(texts, "recovered from malformed JSON (regex fallback)")
+
+    # 4차: 최후 hardcoded fallback
+    print(f"[prepare-reply] 4차 hardcoded fallback (raw len={len(raw_text or '')})")
+    return _build_emergency_v2([], "model output not parseable — hardcoded fallback (최소 1개 답변 보장)")
 
 
 async def call_claude_for_suggestions_with_meta(
@@ -1315,28 +1434,177 @@ async def call_claude_for_suggestions_with_meta(
 
 
 # ============================================================================
+# §49 — Gemini 2.5 Flash A/B (사장님 2026-06-03 SYNC#49 지시)
+# 동일 v2 schema (scenario + suggestions[3]) 강제 → 앱 수정 0.
+# Gemini structured output (response_schema) 으로 JSON 빈답변 폴백 X.
+# 호출: prepare-reply?model=gemini → 이 경로. 기본은 sonnet 유지.
+# ============================================================================
+
+# Gemini response_schema (OpenAPI subset, "type" 대문자 — Gemini 명세)
+_GEMINI_V2_SUGGESTIONS_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "scenario": {
+            "type": "STRING",
+            "enum": list(VALID_SCENARIOS),
+        },
+        "scenario_confidence": {"type": "NUMBER"},
+        "scenario_reason": {"type": "STRING"},
+        "suggestions": {
+            "type": "ARRAY",
+            "items": {
+                "type": "OBJECT",
+                "properties": {
+                    "intent_key": {"type": "STRING"},
+                    "label":      {"type": "STRING"},
+                    "text":       {"type": "STRING"},
+                    "why":        {"type": "STRING"},
+                },
+                "required": ["intent_key", "label", "text", "why"],
+            },
+        },
+    },
+    "required": ["scenario", "scenario_confidence", "scenario_reason", "suggestions"],
+}
+
+
+async def _call_gemini_for_suggestions_raw(
+    system_text: str, user_msg: str,
+) -> tuple[str, dict]:
+    """Gemini 2.5 Flash 호출 — response_schema 로 JSON 강제.
+
+    Returns: (raw_json_text, usage_metadata dict)
+    """
+    if not GEMINI_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY env var not set")
+
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
+    )
+    payload = {
+        "systemInstruction": {"parts": [{"text": system_text}]},
+        "contents": [{"role": "user", "parts": [{"text": user_msg}]}],
+        "generationConfig": {
+            "temperature": 0.7,
+            "topP": 0.95,
+            "maxOutputTokens": 2048,
+            "responseMimeType": "application/json",
+            "responseSchema": _GEMINI_V2_SUGGESTIONS_SCHEMA,
+        },
+    }
+
+    async with httpx.AsyncClient(timeout=GEMINI_TIMEOUT_SEC) as client:
+        resp = await client.post(
+            url, json=payload, headers={"Content-Type": "application/json"}
+        )
+
+    if resp.status_code != 200:
+        raise RuntimeError(
+            f"Gemini API status {resp.status_code}: {resp.text[:300]}"
+        )
+
+    data = resp.json()
+    candidates = data.get("candidates") or []
+    if not candidates:
+        raise RuntimeError(f"Gemini empty candidates: {str(data)[:300]}")
+    content = candidates[0].get("content") or {}
+    parts = content.get("parts") or []
+    raw_json = "".join(p.get("text", "") for p in parts).strip()
+    if not raw_json:
+        finish = candidates[0].get("finishReason", "?")
+        raise RuntimeError(f"Gemini empty text (finishReason={finish}): {str(data)[:300]}")
+
+    usage_meta = data.get("usageMetadata") or {}
+    return raw_json, usage_meta
+
+
+async def call_gemini_for_suggestions_with_meta(
+    req: PrepareReplyRequest,
+) -> tuple[dict, dict]:
+    """Gemini 경로 — Sonnet 과 동일 v2 dict 반환.
+
+    Returns: (v2 dict, usage_meta dict)
+    usage_meta = {promptTokenCount, candidatesTokenCount, totalTokenCount, model}
+    """
+    # Sonnet 과 동일한 시스템 블록 사용 (RAG·페르소나 inject 포함)
+    # → 4 block 을 하나 string 으로 합쳐서 systemInstruction 으로 전달
+    system_blocks = await build_system_blocks_async(
+        owner_tone_samples=req.ownerToneSamples or [],
+        latest_msg=req.latestMessage or "",
+        device_id="owner-anon",
+    )
+    system_text = "\n\n".join(b.get("text", "") for b in system_blocks if b.get("text"))
+
+    persona_ctx = _persona_ctx_from_prepare_req(req)
+    persona_hint = trigger_persona_refresh_if_needed(req.phone, persona_ctx)
+    user_msg = build_user_message(req, persona_hint=persona_hint)
+
+    raw_json, usage_meta = await _call_gemini_for_suggestions_raw(system_text, user_msg)
+    v2 = _parse_suggestions_v2(raw_json)  # 견고화된 파서 (response_schema 로 거의 안 깨지지만 보험)
+    usage_meta["model"] = GEMINI_MODEL
+    return v2, usage_meta
+
+
+def _log_gemini_suggestions_usage(usage_meta: dict, latency_sec: float) -> None:
+    """Gemini 호출 사용량 → llm_usage_log 기록 (Sonnet 경로의 _log_llm_usage_from_response 와 평행)."""
+    try:
+        prompt_tokens = int(usage_meta.get("promptTokenCount", 0) or 0)
+        completion_tokens = int(usage_meta.get("candidatesTokenCount", 0) or 0)
+        log_llm_usage(
+            endpoint="prepare-reply",
+            model=GEMINI_MODEL,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            cache_read_tokens=0,
+            cache_write_tokens=0,
+        )
+    except Exception as e:
+        print(f"[prepare-reply/gemini] usage 로깅 실패: {type(e).__name__}: {e}")
+
+
+# ============================================================================
 # 백그라운드 처리
 # ============================================================================
-async def generate_and_cache(req: PrepareReplyRequest) -> None:
+async def generate_and_cache(req: PrepareReplyRequest, model: str = "sonnet") -> None:
+    """prepare-reply 백그라운드 처리.
+
+    model="sonnet" (기본) → Sonnet 4.6 + Anthropic SDK (기존 경로)
+    model="gemini"        → Gemini 2.5 Flash + response_schema (§49 A/B 비교)
+    """
     phone = req.phone
+    start_ms = _now_ms()
     try:
-        # 1) rate limit (초과면 HTTPException → 아래에서 missing 처리)
         check_rate_limit(phone)
-        # 2) Claude 호출 — v2 dict 반환
-        v2, response = await call_claude_for_suggestions_with_meta(req)
-        # 3) 사용량 기록 (성공한 호출만)
-        log_usage(phone, "prepare-reply", response)
-        _log_llm_usage_from_response("prepare-reply", response)  # §12.2
-        # 4) 결과 캐싱 — v2 dict 통째로 (scenario + suggestions[3 obj])
-        db_set_ready(phone, v2)
-        usage = response.usage
-        print(
-            f"[ready] {phone} scenario={v2['scenario']} conf={v2['scenario_confidence']} "
-            f"intents={[s['intent_key'] for s in v2['suggestions']]} "
-            f"(in={getattr(usage,'input_tokens',0)} "
-            f"cache_read={getattr(usage,'cache_read_input_tokens',0)} "
-            f"out={getattr(usage,'output_tokens',0)})"
-        )
+
+        if model == "gemini":
+            v2, usage_meta = await call_gemini_for_suggestions_with_meta(req)
+            latency_sec = (_now_ms() - start_ms) / 1000.0
+            _log_gemini_suggestions_usage(usage_meta, latency_sec)
+            db_set_ready(phone, v2)
+            print(
+                f"[ready/gemini] {phone} scenario={v2['scenario']} conf={v2['scenario_confidence']} "
+                f"intents={[s['intent_key'] for s in v2['suggestions']]} "
+                f"(in={usage_meta.get('promptTokenCount',0)} "
+                f"out={usage_meta.get('candidatesTokenCount',0)} "
+                f"latency={latency_sec:.1f}s)"
+            )
+        else:
+            # 기본 = Sonnet (기존 경로)
+            v2, response = await call_claude_for_suggestions_with_meta(req)
+            latency_sec = (_now_ms() - start_ms) / 1000.0
+            log_usage(phone, "prepare-reply", response)
+            _log_llm_usage_from_response("prepare-reply", response)
+            db_set_ready(phone, v2)
+            usage = response.usage
+            print(
+                f"[ready/sonnet] {phone} scenario={v2['scenario']} conf={v2['scenario_confidence']} "
+                f"intents={[s['intent_key'] for s in v2['suggestions']]} "
+                f"(in={getattr(usage,'input_tokens',0)} "
+                f"cache_read={getattr(usage,'cache_read_input_tokens',0)} "
+                f"out={getattr(usage,'output_tokens',0)} "
+                f"latency={latency_sec:.1f}s)"
+            )
     except asyncio.CancelledError:
         print(f"[cancelled] {phone}")
         raise
@@ -1344,7 +1612,7 @@ async def generate_and_cache(req: PrepareReplyRequest) -> None:
         print(f"[rate-limit] {phone}: {e.detail}")
         db_set_missing(phone)
     except Exception as e:
-        print(f"[failed] {phone}: {type(e).__name__}: {e}")
+        print(f"[failed/{model}] {phone}: {type(e).__name__}: {e}")
         db_set_missing(phone)
     finally:
         cur = _inflight_tasks.get(phone)
@@ -1369,7 +1637,20 @@ app = FastAPI(title="RING-GO Server (Claude Sonnet 4.6)", lifespan=lifespan)
 
 
 @app.post("/prepare-reply")
-async def prepare_reply(req: PrepareReplyRequest):
+async def prepare_reply(req: PrepareReplyRequest, model: str = "sonnet"):
+    """추천 답변 생성 백그라운드 트리거.
+
+    §49 A/B — 쿼리 파라미터 ?model=gemini 면 Gemini 2.5 Flash 경로. 기본은 sonnet.
+    응답 schema 는 동일 v2 (앱 수정 0).
+    """
+    if model not in ("sonnet", "gemini"):
+        raise HTTPException(400, f"model must be 'sonnet' or 'gemini', got {model!r}")
+    if model == "gemini" and not GEMINI_API_KEY:
+        raise HTTPException(
+            503,
+            "GEMINI_API_KEY 미설정. Mac mini 의 launchd plist EnvironmentVariables 에 박아주세요."
+        )
+
     db_set_generating(req.phone, req.latestMessage, req.latestMessageReceivedAtMs)
 
     # 진행 중인 같은 phone 태스크가 있으면 취소
@@ -1377,9 +1658,9 @@ async def prepare_reply(req: PrepareReplyRequest):
     if old is not None and not old.done():
         old.cancel()
 
-    task = asyncio.create_task(generate_and_cache(req))
+    task = asyncio.create_task(generate_and_cache(req, model=model))
     _inflight_tasks[req.phone] = task
-    return {"ok": True}
+    return {"ok": True, "model": model}
 
 
 @app.get("/suggestions/{phone}")
@@ -3393,6 +3674,275 @@ def healthz():
         "model": CLAUDE_MODEL,
         "pricing_loaded": PRICING_PATH.exists(),
     }
+
+
+# ============================================================================
+# §49 — /admin/prepare-reply/compare (Sonnet vs Gemini 나란히)
+# 사장님이 캐시된 최근 메시지 5~10건으로 두 모델 답변을 한 화면에서 톤 비교.
+# 호출 한 번에 Sonnet+Gemini 둘 다 병렬 호출 → 응답시간·토큰·v2 결과 같이.
+# ============================================================================
+
+def _fetch_recent_prepare_inputs(limit: int = 10) -> list[dict]:
+    """suggestions_cache 에서 최근 호출 phone 들의 입력 메시지를 회수.
+
+    Returns: [{phone, latestMessage, latestMessageReceivedAtMs}, ...]
+    실제 호출에 쓸 PrepareReplyRequest 의 최소 필드.
+    """
+    with db_conn() as con:
+        rows = con.execute(
+            "SELECT phone, based_on_message, based_on_received_at_ms "
+            "FROM suggestions_cache "
+            "WHERE based_on_message IS NOT NULL AND based_on_message != '' "
+            "ORDER BY updated_at_ms DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    return [
+        {
+            "phone": r[0],
+            "latestMessage": r[1],
+            "latestMessageReceivedAtMs": int(r[2] or 0),
+        }
+        for r in rows
+    ]
+
+
+async def _run_both_models_for_compare(
+    sample: dict, owner_tone_samples: list[str],
+) -> dict:
+    """한 샘플에 대해 Sonnet · Gemini 둘 다 호출 (병렬). 결과 + 메타.
+
+    실제 prepare-reply 와 동일 입력 — RAG·페르소나 적용.
+    """
+    req = PrepareReplyRequest(
+        phone=sample["phone"],
+        latestMessage=sample["latestMessage"],
+        latestMessageReceivedAtMs=sample["latestMessageReceivedAtMs"],
+        recentHistory=[],
+        customer=None,
+        ownerToneSamples=owner_tone_samples,
+    )
+
+    async def _run_sonnet():
+        start = _now_ms()
+        try:
+            v2, response = await call_claude_for_suggestions_with_meta(req)
+            latency = (_now_ms() - start) / 1000.0
+            usage = response.usage
+            return {
+                "ok": True,
+                "v2": v2,
+                "latency_sec": latency,
+                "input_tokens": getattr(usage, "input_tokens", 0),
+                "cache_read_tokens": getattr(usage, "cache_read_input_tokens", 0),
+                "output_tokens": getattr(usage, "output_tokens", 0),
+                "model": CLAUDE_MODEL,
+            }
+        except Exception as e:
+            return {"ok": False, "error": f"{type(e).__name__}: {e}",
+                    "latency_sec": (_now_ms() - start) / 1000.0,
+                    "model": CLAUDE_MODEL}
+
+    async def _run_gemini():
+        start = _now_ms()
+        try:
+            v2, usage_meta = await call_gemini_for_suggestions_with_meta(req)
+            latency = (_now_ms() - start) / 1000.0
+            return {
+                "ok": True,
+                "v2": v2,
+                "latency_sec": latency,
+                "input_tokens": int(usage_meta.get("promptTokenCount", 0) or 0),
+                "cache_read_tokens": 0,
+                "output_tokens": int(usage_meta.get("candidatesTokenCount", 0) or 0),
+                "model": GEMINI_MODEL,
+            }
+        except Exception as e:
+            return {"ok": False, "error": f"{type(e).__name__}: {e}",
+                    "latency_sec": (_now_ms() - start) / 1000.0,
+                    "model": GEMINI_MODEL}
+
+    sonnet, gemini = await asyncio.gather(_run_sonnet(), _run_gemini())
+    return {"input": sample, "sonnet": sonnet, "gemini": gemini}
+
+
+@app.get("/admin/prepare-reply/compare", response_class=HTMLResponse)
+async def admin_prepare_reply_compare(
+    x_admin_token: Optional[str] = Header(default=None, alias="X-Admin-Token"),
+    limit: int = 5,
+    device_id: str = "owner-anon",
+) -> HTMLResponse:
+    """Sonnet vs Gemini 비교 페이지 — admin token 필수.
+
+    동작:
+    1. suggestions_cache 의 최근 메시지 N건 회수 (사장님 실제 데이터)
+    2. 각 메시지마다 Sonnet · Gemini 둘 다 병렬 호출
+    3. 응답시간 · 토큰 · 답변 텍스트 한 화면 비교
+    """
+    _admin_auth(x_admin_token)
+    limit = max(1, min(limit, 10))
+
+    # owner_tone 풀에서 RAG 샘플 일부 가져옴 (Sonnet 과 동일 조건)
+    samples = _fetch_recent_prepare_inputs(limit)
+    if not samples:
+        return HTMLResponse(content=_compare_empty_html(), status_code=200)
+
+    # 톤 샘플 (가능하면 owner_tone 에서, 없으면 빈 리스트)
+    tone_samples: list[str] = []
+    with db_conn() as con:
+        rows = con.execute(
+            "SELECT text FROM owner_tone WHERE device_id = ? "
+            "ORDER BY created_at_ms DESC LIMIT 30",
+            (device_id,),
+        ).fetchall()
+        tone_samples = [r[0] for r in rows if r[0]]
+
+    # 모든 샘플 병렬 처리
+    tasks = [_run_both_models_for_compare(s, tone_samples) for s in samples]
+    results = await asyncio.gather(*tasks)
+
+    return HTMLResponse(content=_compare_render_html(results, tone_samples_count=len(tone_samples)))
+
+
+def _compare_empty_html() -> str:
+    return """<!doctype html><html lang="ko"><body style="font-family:sans-serif;padding:40px;text-align:center;background:#F4F5F7">
+<h2>비교할 메시지가 없어요</h2>
+<p>suggestions_cache 에 캐시된 메시지가 0건입니다. 앱에서 SMS 받아 prepare-reply 호출되면 채워집니다.</p>
+</body></html>"""
+
+
+def _compare_render_html(results: list[dict], tone_samples_count: int) -> str:
+    """비교 결과 → HTML. 좌 Sonnet · 우 Gemini, 차이점 강조."""
+    import html as _html
+
+    def _render_v2(model_result: dict) -> str:
+        if not model_result.get("ok"):
+            return (
+                f'<div class="err">❌ 호출 실패<br>'
+                f'<span class="errmsg">{_html.escape(model_result.get("error", "?"))}</span>'
+                f'<div class="meta">{model_result["latency_sec"]:.1f}s · {_html.escape(model_result["model"])}</div></div>'
+            )
+        v2 = model_result["v2"]
+        scenario = _html.escape(v2.get("scenario", "?"))
+        conf = v2.get("scenario_confidence", 0)
+        reason = _html.escape(v2.get("scenario_reason", ""))
+        sugs_html = []
+        empty_marker = '<em style="color:#9AA3AF">(빈 답변)</em>'
+        for s in v2.get("suggestions", []):
+            label = _html.escape(s.get("label", "?"))
+            text = _html.escape(s.get("text", ""))
+            why = _html.escape(s.get("why", ""))
+            text_display = text if text else empty_marker
+            sugs_html.append(
+                f'<div class="sug"><div class="sug-label">{label}</div>'
+                f'<div class="sug-text">{text_display}</div>'
+                f'<div class="sug-why">{why}</div></div>'
+            )
+        return (
+            f'<div class="scenario"><b>{scenario}</b> '
+            f'<span class="conf">conf={conf:.2f}</span></div>'
+            f'<div class="reason">{reason}</div>'
+            f'<div class="sugs">{"".join(sugs_html)}</div>'
+            f'<div class="meta">⏱ {model_result["latency_sec"]:.1f}s · '
+            f'in={model_result["input_tokens"]} '
+            f'cache={model_result["cache_read_tokens"]} '
+            f'out={model_result["output_tokens"]} · '
+            f'<span class="model">{_html.escape(model_result["model"])}</span></div>'
+        )
+
+    # 평균 응답시간 계산
+    sonnet_lat = [r["sonnet"]["latency_sec"] for r in results if r["sonnet"].get("ok")]
+    gemini_lat = [r["gemini"]["latency_sec"] for r in results if r["gemini"].get("ok")]
+    avg_sonnet = sum(sonnet_lat) / len(sonnet_lat) if sonnet_lat else 0
+    avg_gemini = sum(gemini_lat) / len(gemini_lat) if gemini_lat else 0
+    speedup = (avg_sonnet / avg_gemini) if avg_gemini > 0 else 0
+
+    rows_html = []
+    for i, r in enumerate(results, 1):
+        msg = _html.escape(r["input"]["latestMessage"])
+        phone = _html.escape(r["input"]["phone"])
+        rows_html.append(f'''
+        <div class="case">
+          <div class="case-head">
+            <span class="case-no">#{i}</span>
+            <span class="case-phone">{phone}</span>
+          </div>
+          <div class="case-msg">"{msg}"</div>
+          <div class="case-grid">
+            <div class="model-col sonnet"><div class="col-head">🟦 Sonnet 4.6</div>{_render_v2(r["sonnet"])}</div>
+            <div class="model-col gemini"><div class="col-head">🟨 Gemini 2.5 Flash</div>{_render_v2(r["gemini"])}</div>
+          </div>
+        </div>
+        ''')
+
+    return f'''<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sonnet vs Gemini 비교 — RING-GO</title>
+<style>
+  :root {{
+    --blue:#3182F6; --blue-dark:#1B64DA; --blue-tint:#EEF4FF;
+    --bg:#F4F5F7; --t1:#0B0F19; --t2:#5A6472; --t3:#9AA3AF; --line:#EEF0F3;
+    --error:#F0436A; --success:#16C172; --amber:#F6A609;
+  }}
+  * {{ box-sizing:border-box; }}
+  body {{ margin:0; padding:24px 18px; background:var(--bg);
+         font-family:'Pretendard',-apple-system,system-ui,sans-serif;
+         color:var(--t1); line-height:1.55; }}
+  .wrap {{ max-width:1200px; margin:0 auto; }}
+  h1 {{ font-size:22px; font-weight:700; margin:0 0 4px; }}
+  .sub {{ font-size:13px; color:var(--t2); margin-bottom:18px; }}
+  .summary {{ background:#fff; border-radius:14px; padding:18px 20px; margin-bottom:20px;
+              box-shadow:0 1px 3px rgba(0,0,0,.04); display:flex; gap:24px; flex-wrap:wrap; }}
+  .summary .m {{ font-size:13px; }}
+  .summary .m b {{ display:block; font-size:22px; color:var(--blue); margin-top:3px; }}
+  .summary .m.lat-sonnet b {{ color:#1B64DA; }}
+  .summary .m.lat-gemini b {{ color:#B8780A; }}
+  .case {{ background:#fff; border-radius:14px; margin-bottom:16px;
+           box-shadow:0 1px 3px rgba(0,0,0,.04); overflow:hidden; }}
+  .case-head {{ padding:12px 18px; background:#F8F9FB; border-bottom:1px solid var(--line);
+                display:flex; gap:12px; align-items:center; }}
+  .case-no {{ font-size:12px; font-weight:800; color:var(--blue); background:var(--blue-tint);
+              padding:3px 10px; border-radius:999px; }}
+  .case-phone {{ font-size:12px; color:var(--t3); font-family:monospace; }}
+  .case-msg {{ padding:14px 18px; font-size:14px; color:var(--t1); background:#FAFBFC;
+               border-bottom:1px solid var(--line); }}
+  .case-grid {{ display:grid; grid-template-columns:1fr 1fr; }}
+  .model-col {{ padding:16px 18px; border-right:1px solid var(--line); }}
+  .model-col:last-child {{ border-right:0; }}
+  .model-col.sonnet {{ background:#fff; }}
+  .model-col.gemini {{ background:#FFFCF5; }}
+  .col-head {{ font-size:13px; font-weight:700; margin-bottom:10px; }}
+  .scenario {{ font-size:14px; margin-bottom:5px; }}
+  .scenario .conf {{ font-size:11px; color:var(--t3); margin-left:6px; }}
+  .reason {{ font-size:11.5px; color:var(--t2); margin-bottom:10px; line-height:1.5; }}
+  .sugs {{ display:flex; flex-direction:column; gap:7px; }}
+  .sug {{ background:#F4F5F7; border-radius:9px; padding:9px 11px; }}
+  .sug-label {{ font-size:11px; font-weight:700; color:var(--blue); margin-bottom:4px; }}
+  .sug-text {{ font-size:13px; line-height:1.55; color:var(--t1); white-space:pre-wrap; }}
+  .sug-why {{ font-size:10.5px; color:var(--t3); margin-top:4px; }}
+  .meta {{ margin-top:10px; font-size:10.5px; color:var(--t3); font-family:monospace; }}
+  .model {{ font-weight:700; }}
+  .err {{ color:var(--error); font-size:13px; }}
+  .errmsg {{ font-size:11px; color:var(--t3); font-family:monospace; }}
+  @media (max-width:780px) {{ .case-grid {{ grid-template-columns:1fr; }} .model-col {{ border-right:0; border-bottom:1px solid var(--line); }} }}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🟦 Sonnet 4.6 vs 🟨 Gemini 2.5 Flash — A/B 비교</h1>
+  <div class="sub">사장님 실제 캐시 메시지 {len(results)}건 · 톤 RAG 샘플 {tone_samples_count}건 · 2026-06-03</div>
+  <div class="summary">
+    <div class="m lat-sonnet">Sonnet 평균 응답시간 <b>{avg_sonnet:.1f}s</b></div>
+    <div class="m lat-gemini">Gemini 평균 응답시간 <b>{avg_gemini:.1f}s</b></div>
+    <div class="m">속도 비율 <b>{speedup:.1f}×</b></div>
+    <div class="m">샘플 수 <b>{len(results)}</b></div>
+  </div>
+  {"".join(rows_html)}
+</div>
+</body>
+</html>'''
 
 
 # ============================================================================

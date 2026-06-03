@@ -2396,3 +2396,49 @@ CREATE TABLE intake_forms (
 #### 판정 후 방향 (사장님 결정 예정)
 - 톤 OK → Gemini 전환(속도·비용·JSON 이득) / 톤 부족 → 하이브리드(빠른답변 Flash, 중요순간 Sonnet) 또는 Sonnet 유지.
 - 앱 영향: 없음(스키마 동일 유지 전제). 모델만 서버에서 교체.
+
+---
+
+## 2026-06-03 (밤) · cowork(server) — SYNC #48 ②③ + #49 처리 완료
+
+### #48 ② 빈답변 버그 fix — JSON 파싱 4단계 견고화
+`_parse_suggestions_v2` 를 4단계 fallback 으로 재작성. 안드로이드 측 "text:\"\" + parse error fallback" 케이스 제거:
+1. 1차: `_parse_json_object` + `_coerce_v2_suggestions` (정상)
+2. 2차: `_repair_json_text` (trailing comma 제거, 닫는 괄호 누락 보완, 코드블럭 벗기기) 후 재시도
+3. 3차: 정규식으로 `"text":"..."` 만 추출 → `_build_emergency_v2` 로 fallback_default + 회수된 texts
+4. 4차: 최후 hardcoded fallback (1번째 인텐트에 `"안녕하세요. 문의 주신 내용 확인하고 빠르게 답변드릴게요 ^^"` 박아 **최소 1개 유효 답변 보장**)
+
+→ 안드로이드는 빈 text 버려서 0개 → 이제 최소 1개 답변 받음. 빈답변 버그 완전 fix.
+
+### #49 Gemini 2.5 Flash A/B 분기
+`/prepare-reply` 에 `?model=gemini` 쿼리 파라미터 추가. 기본은 `sonnet` (기존 경로 유지).
+- 신규: `call_gemini_for_suggestions_with_meta` + `_call_gemini_for_suggestions_raw` + `_GEMINI_V2_SUGGESTIONS_SCHEMA` (Gemini OpenAPI subset, scenario enum 강제)
+- Gemini `responseSchema` 로 JSON 강제 → text 빈값 폴백 X
+- 동일 v2 schema (`{scenario, scenario_confidence, scenario_reason, suggestions:[{intent_key,label,text,why}]}`) → **앱 수정 0**
+- `llm_usage_log` 에 model=`gemini-2.5-flash` 기록 (이미 단가 dict 박혀있음)
+- 비용·응답시간 자동 추적
+
+### #49 admin 비교 페이지 — `GET /admin/prepare-reply/compare?limit=5`
+- admin token 필수 (X-Admin-Token 헤더)
+- `suggestions_cache` 의 최근 메시지 N건 회수 → 각각 Sonnet · Gemini 둘 다 병렬 호출
+- RAG·페르소나 inject 동일 (Sonnet 과 같은 입력 조건)
+- 한 화면에 좌 Sonnet · 우 Gemini 답변 나란히, 평균 응답시간 + 속도 비율 표시
+- 사장님이 한국어 톤 기준으로 직접 톤 판정 가능
+
+### #48 ③ 속도
+- Gemini 도입 자체가 가장 큰 답 (Sonnet 20초 → Gemini 2~5초 예상)
+- 비교 페이지에서 실측 데이터 확보 후 추가 fix 여부 결정
+
+### #48 ④ Cloudflare Tunnel
+- 도메인 `si0in.kr` Cloudflare 등록 완료 (사장님)
+- 네임서버 변경 완료 (가비아 → alice.ns.cloudflare.com, jacob.ns.cloudflare.com)
+- Cloudflare 검증 중 (1~2시간)
+- Active 후 `cloudflared tunnel` 진행 → 공개 URL `https://api.si0in.kr` 노출 → 안드로이드 측 baseUrl 갱신 요청
+
+### 변경 파일
+- `server/main.py` — 4단계 fallback 파서 (~140 lines) + Gemini for suggestions (~210 lines) + admin 비교 페이지 (~280 lines). 총 +630 lines. syntax pass. main.py 7,545 줄.
+
+### 안드로이드 측 작업 (정보)
+- `/prepare-reply` 요청에 `?model=` 안 박으면 기존 Sonnet 그대로 (앱 수정 0).
+- Gemini 톤 OK 면 사장님 결정 후 그때 안드로이드가 `?model=gemini` 박도록 갱신 (예정).
+- 빈답변 fallback 은 서버에서 자동 최소 1개 보장 → 앱이 빈 text 버리는 로직 그대로 둬도 OK.
