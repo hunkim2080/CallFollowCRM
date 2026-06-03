@@ -95,12 +95,56 @@ object NotificationHelper {
         }
     }
 
-    /** 프로토 PUSH.quote accent — 보라(전환 알림). small-icon 틴트 + 앱명 accent. */
-    private val INTAKE_ACCENT_PURPLE = 0xFF7C5CFC.toInt()
+    // 프로토 PUSH accent 색 — 종류별 (var PUSH 의 accent).
+    private val ACCENT_BLUE = 0xFF3182F6.toInt()
+    private val ACCENT_GREEN = 0xFF16C172.toInt()
+    private val ACCENT_PURPLE = 0xFF7C5CFC.toInt()
+    private val ACCENT_AMBER = 0xFFF6A609.toInt()
+    private val ACCENT_PINK = 0xFFF0436A.toInt()
+    private val ACCENT_TEAL = 0xFF0E9E90.toInt()
+
+    /** 프로토 PUSH 알림의 액션 버튼. */
+    data class PushAction(val label: String, val intent: PendingIntent)
+
+    /**
+     * 프로토 PUSH 형식 공통 알림 빌더 — 모든 알림을 한 형식으로 통일.
+     *   accent 색(small-icon 틴트+앱명) + 이모지 제목 + 정보형 본문(+선택 note) + 액션 버튼.
+     */
+    fun showProtoPush(
+        context: Context,
+        id: Int,
+        channelId: String,
+        accent: Int,
+        title: String,
+        msg: String,
+        note: String? = null,
+        contentIntent: PendingIntent? = null,
+        actions: List<PushAction> = emptyList(),
+        timeoutMs: Long? = null
+    ) {
+        val bigText = buildString {
+            append(msg)
+            if (!note.isNullOrBlank()) append("\n$note")
+        }
+        val builder = NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setColor(accent)
+            .setColorized(true)
+            .setContentTitle(title)
+            .setContentText(msg)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+        contentIntent?.let { builder.setContentIntent(it) }
+        timeoutMs?.let { builder.setTimeoutAfter(it) }
+        actions.forEach { builder.addAction(R.drawable.ic_notification, it.label, it.intent) }
+        try {
+            NotificationManagerCompat.from(context).notify(id, builder.build())
+        } catch (_: SecurityException) { /* POST_NOTIFICATIONS 없음 — 무시 */ }
+    }
 
     /**
      * 고객이 시공접수서를 작성·제출했을 때 알림 — 프로토 PUSH.quote 형식 1:1.
-     *   제목(이모지) + 정보형 본문(희망일·금액) + 액션 버튼. 탭/버튼 = 그 고객 채팅.
      */
     fun showIntakeSubmitted(
         context: Context,
@@ -121,35 +165,20 @@ object NotificationHelper {
             context, notifId, openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-
         // 프로토 PUSH.quote.msg 구조: "{이름}님이 ... · 시공 희망 {날짜} · {금액}만원"
         val msg = buildString {
             append("${name}님이 접수서를 작성했어요")
             if (!dateLabel.isNullOrBlank()) append(" · 시공 희망 $dateLabel")
             if (totalManwon > 0) append(" · ${totalManwon}만원")
         }
-        val bigText = buildString {
-            append(msg)
-            append("\n📍 $address")
-            append("\n\n주소·시공일이 고객 카드에 자동 반영됐어요. 탭해서 확인하세요.")
-        }
-
-        val builder = NotificationCompat.Builder(context, CHANNEL_INTAKE)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setColor(INTAKE_ACCENT_PURPLE)
-            .setColorized(true)
-            .setContentTitle("시공접수서 회신 도착 🎉")
-            .setContentText(msg)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_EVENT)
-            .setAutoCancel(true)
-            .setContentIntent(pending)
-            // 프로토 btns[primary] "1탭으로 일정 확정" — 임포트가 이미 일정 반영 → 탭하면 그 고객 확인.
-            .addAction(R.drawable.ic_notification, "일정 확인", pending)
-        try {
-            NotificationManagerCompat.from(context).notify(notifId, builder.build())
-        } catch (_: SecurityException) { /* POST_NOTIFICATIONS 없음 — 무시 */ }
+        showProtoPush(
+            context, notifId, CHANNEL_INTAKE, ACCENT_PURPLE,
+            title = "시공접수서 회신 도착 🎉",
+            msg = msg,
+            note = "📍 $address\n주소·시공일이 고객 카드에 자동 반영됐어요.",
+            contentIntent = pending,
+            actions = listOf(PushAction("일정 확인", pending))
+        )
     }
 
     /** 같은 번호의 알림은 같은 ID 로 update — 새 메시지 도착 시 같은 자리 갱신. */
@@ -524,54 +553,30 @@ object NotificationHelper {
     }
 
     fun showAutoReplySent(context: Context, callRecordId: Long, phoneNumber: String) {
-        val id = autoReplyIdFor(callRecordId)
-        val builder = NotificationCompat.Builder(context, CHANNEL_AUTO_REPLY)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setColor(NOTIFICATION_BG_COLOR)
-            .setColorized(true)
-            .setContentTitle("RING-GO! $phoneNumber 캐치 완료!")
-            .setContentText("메시지가 정상적으로 전송됐어요")
-            .setStyle(
-                NotificationCompat.BigTextStyle().bigText(
-                    "RING-GO! $phoneNumber\n캐치 완료! 메시지가 정상적으로 전송됐어요"
-                )
-            )
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setAutoCancel(true)
-            .setTimeoutAfter(8_000L)
-        try {
-            NotificationManagerCompat.from(context).notify(id, builder.build())
-        } catch (_: SecurityException) { /* 무시 */ }
+        // 프로토 PUSH.missed (초록) — 부재중 → 막내가 대신 답장.
+        showProtoPush(
+            context, autoReplyIdFor(callRecordId), CHANNEL_AUTO_REPLY, ACCENT_GREEN,
+            title = "부재중 전화 — 막내가 대신 답장했어요",
+            msg = "$phoneNumber 님께 인사 + 상호 안내를 자동으로 보냈어요.",
+            note = "전화 못 받아도 놓치지 않았어요.",
+            timeoutMs = 8_000L
+        )
     }
 
     fun showAutoReplyCancelled(context: Context, callRecordId: Long) {
-        val id = autoReplyIdFor(callRecordId)
-        val builder = NotificationCompat.Builder(context, CHANNEL_AUTO_REPLY)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setColor(NOTIFICATION_BG_COLOR)
-            .setColorized(true)
-            .setContentTitle("자동 응답 취소됨")
-            .setContentText("문자는 발송되지 않았어요")
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setAutoCancel(true)
-            .setTimeoutAfter(5_000L)
-        try {
-            NotificationManagerCompat.from(context).notify(id, builder.build())
-        } catch (_: SecurityException) { /* 무시 */ }
+        showProtoPush(
+            context, autoReplyIdFor(callRecordId), CHANNEL_AUTO_REPLY, ACCENT_AMBER,
+            title = "자동 응답 취소됨",
+            msg = "문자는 발송되지 않았어요.",
+            timeoutMs = 5_000L
+        )
     }
 
     fun showAutoReplyFailed(context: Context, callRecordId: Long, phoneNumber: String) {
-        val id = autoReplyIdFor(callRecordId)
-        val builder = NotificationCompat.Builder(context, CHANNEL_AUTO_REPLY)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setColor(NOTIFICATION_BG_COLOR)
-            .setColorized(true)
-            .setContentTitle("⚠ 자동 응답 발송 실패")
-            .setContentText("$phoneNumber — 수동으로 다시 보내주세요")
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
-        try {
-            NotificationManagerCompat.from(context).notify(id, builder.build())
-        } catch (_: SecurityException) { /* 무시 */ }
+        showProtoPush(
+            context, autoReplyIdFor(callRecordId), CHANNEL_AUTO_REPLY, ACCENT_PINK,
+            title = "⚠️ 자동 응답 발송 실패",
+            msg = "$phoneNumber — 수동으로 다시 보내주세요."
+        )
     }
 }
