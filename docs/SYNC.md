@@ -2591,3 +2591,12 @@ launchd plist 에 추가 후 launchctl 재시작. 이 변경 없으면 issue 응
 - 적용: 슬라이드0 말풍선3+읽지않음 줄(0/130/260/390ms), 슬라이드1 고객버블+AI카드, 슬라이드2 도착카드+칩, 슬라이드5 아이콘줄+후기카드. (3/4/6 은 이미 카운트업·막대)
 - 비활성→활성 전환 시 재생(돌아오면 다시).
 - 서버 영향 없음.
+
+## 2026-06-04 · android (58)
+### 온보딩 — 타이핑 효과 + 카드 빛 스윕(sheen) 추가
+사장님 "타이핑 효과는? 빛나는 효과도 없어짐". 프로토 data-type/ob-caret + .ob-visual::after obSheen 미반영분.
+- TypewriterText: 슬라이드1 AI 답변 한 글자씩(22ms) + ▌커서. 활성 시 재생.
+- Sheen(BoxScope): 카드 활성화 시 빛 띠가 좌→우로 한 번 스윕(drawWithContent + horizontalGradient, 900ms). 카드 clip 안에서.
+- 실기기 확인(타이핑 중 ▌커서 캡처).
+- 온보딩 프로토 일치 완료(#52~#58: 자동넘김·악센트·균일카드·peek대칭·depth·카운트업·막대·진행바·RiseIn·타이핑·sheen).
+- 서버 영향 없음.

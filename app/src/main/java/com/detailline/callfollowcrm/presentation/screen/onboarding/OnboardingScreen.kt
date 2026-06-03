@@ -32,9 +32,14 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.util.lerp
 import kotlin.math.absoluteValue
@@ -245,17 +250,19 @@ private fun StoryStep(onStart: () -> Unit, onPageChanged: (Int) -> Unit) {
             ) {
                 KickerChip(s.kicker, accent)
                 Spacer(Modifier.height(15.dp))
-                // 프로토 .ob-visual — 모든 슬라이드 동일한 흰 카드(고정 254dp, 내용 가운데). 슬라이드 간 정렬 일관.
+                // 프로토 .ob-visual — 모든 슬라이드 동일한 흰 카드(고정 254dp, 내용 가운데) + 빛 스윕(obSheen).
                 Box(
                     Modifier
                         .fillMaxWidth()
                         .height(254.dp)
                         .shadow(10.dp, RoundedCornerShape(24.dp), spotColor = Color(0x26141A1F))
-                        .background(Color.White, RoundedCornerShape(24.dp))
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(Color.White)
                         .border(1.dp, Color(0xFFEDEFF3), RoundedCornerShape(24.dp))
-                        .padding(18.dp),
-                    contentAlignment = Alignment.Center
-                ) { s.visual(active) }
+                ) {
+                    Box(Modifier.matchParentSize().padding(18.dp), contentAlignment = Alignment.Center) { s.visual(active) }
+                    Sheen(active)
+                }
                 Spacer(Modifier.height(20.dp))
                 Text(s.title, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.6).sp, textAlign = TextAlign.Center)
                 Spacer(Modifier.height(8.dp))
@@ -561,7 +568,7 @@ private fun storySlides(): List<Slide> = listOf(
                     }
                 }
                 Spacer(Modifier.height(6.dp))
-                Text("안녕하세요! 24평 화장실 2개는 28~32만원선이에요. 사진 주시면 정확히 알려드릴게요 😊", fontSize = 13.sp, color = TossTextPrimary, lineHeight = 19.sp)
+                TypewriterText("안녕하세요! 24평 화장실 2개는 28~32만원선이에요. 사진 주시면 정확히 알려드릴게요 😊", active)
             }
             }
         }
@@ -687,6 +694,50 @@ private fun RiseIn(active: Boolean, delayMs: Int, content: @Composable () -> Uni
         label = "rise"
     )
     Box(Modifier.graphicsLayer { alpha = p; translationY = (1f - p) * 14.dp.toPx() }) { content() }
+}
+
+/**
+ * 프로토 .ob-visual::after obSheen — 슬라이드 활성화 시 카드 위로 빛이 한 번 스윽 지나감.
+ */
+@Composable
+private fun BoxScope.Sheen(active: Boolean) {
+    val p = remember(active) { Animatable(0f) }
+    LaunchedEffect(active) {
+        if (active) { p.snapTo(0f); p.animateTo(1f, tween(durationMillis = 900, delayMillis = 280, easing = LinearEasing)) }
+    }
+    if (p.value > 0f && p.value < 1f) {
+        Box(Modifier.matchParentSize().drawWithContent {
+            drawContent()
+            val band = size.width * 0.55f
+            val cx = -band + (size.width + band * 2f) * p.value
+            drawRect(
+                brush = Brush.horizontalGradient(
+                    0f to Color.Transparent,
+                    0.5f to Color.White.copy(alpha = 0.42f),
+                    1f to Color.Transparent,
+                    startX = cx - band / 2f, endX = cx + band / 2f
+                )
+            )
+        })
+    }
+}
+
+/**
+ * 프로토 data-type/ob-caret — 활성화 시 한 글자씩 타이핑(끝에 ▌ 커서).
+ */
+@Composable
+private fun TypewriterText(text: String, active: Boolean) {
+    var n by remember(active) { mutableStateOf(if (active) 0 else text.length) }
+    LaunchedEffect(active) {
+        if (active) {
+            n = 0
+            while (n < text.length) { kotlinx.coroutines.delay(22); n++ }
+        } else n = text.length
+    }
+    Text(
+        text.take(n) + if (n < text.length) "▌" else "",
+        fontSize = 13.sp, color = TossTextPrimary, lineHeight = 19.sp
+    )
 }
 
 @Composable
