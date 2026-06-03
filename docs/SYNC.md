@@ -2280,3 +2280,10 @@ CREATE TABLE intake_forms (
 3. before/after 비교 placeholder 에 `example.plain` ↔ `example.mine`
 4. `analyzed:false` 면 traits/example 자리는 "서버 분석 준비 중" 유지 (가짜 X)
 5. `editCount` 는 추후 추천 수정 로그 생기면 자동 채워짐
+
+## 2026-06-03 (저녁) · android (42)
+서버 §21 GET /api/tone/profile 앱 연결 완료 (cowork 구현분 소비).
+- PhaseOneApiRepository.fetchToneProfile(device_id=owner-anon) → ToneProfile(analyzed/sampleCount/learnRatePct/traits/example/editCount). read timeout 45s(LLM 병렬 대비).
+- 내 말투 학습(SettingsScreen tone): 화면 진입 시 1회 로드. hero % = learnRatePct, "말투 특징" placeholder → traits 칩 5개, "같은 질문 비교" placeholder → example(일반 AI ↔ 내 말투).
+- analyzed=false/로딩중/실패 시 정직 placeholder 유지(가짜 X). editCount 는 서버가 0 → 표시 안 함(추후 자동).
+- commit: 내 말투 학습 실데이터 연결. 서버 측 추가 작업 없음. 잘 동작 확인되면 닫힘.
