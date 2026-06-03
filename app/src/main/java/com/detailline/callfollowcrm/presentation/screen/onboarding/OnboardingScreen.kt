@@ -33,6 +33,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -212,7 +213,17 @@ private fun StoryStep(onStart: () -> Unit, onPageChanged: (Int) -> Unit) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp)) {
                 KickerChip(s.kicker, accent)
                 Spacer(Modifier.height(15.dp))
-                Box(Modifier.fillMaxWidth().heightIn(min = 150.dp), contentAlignment = Alignment.Center) { s.visual() }
+                // 프로토 .ob-visual — 모든 슬라이드 동일한 흰 카드(고정 226dp, 내용 가운데). 슬라이드 간 정렬 일관.
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(254.dp)
+                        .shadow(10.dp, RoundedCornerShape(24.dp), spotColor = Color(0x26141A1F))
+                        .background(Color.White, RoundedCornerShape(24.dp))
+                        .border(1.dp, Color(0xFFEDEFF3), RoundedCornerShape(24.dp))
+                        .padding(18.dp),
+                    contentAlignment = Alignment.Center
+                ) { s.visual() }
                 Spacer(Modifier.height(20.dp))
                 Text(s.title, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.6).sp, textAlign = TextAlign.Center)
                 Spacer(Modifier.height(8.dp))
