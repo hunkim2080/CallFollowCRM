@@ -31,6 +31,8 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -66,6 +68,11 @@ import com.detailline.callfollowcrm.presentation.theme.TossWarning
 
 private val ObBg = Color(0xFFFBFCFE)
 private val ObAccent = TossBlue
+// 프로토 OB_ACCENTS — 인트로 캐러셀 슬라이드별 악센트(분홍·파랑·초록·앰버·보라·주황·파랑).
+private val ObAccents = listOf(
+    Color(0xFFF0436A), Color(0xFF3182F6), Color(0xFF16C172), Color(0xFFF6A609),
+    Color(0xFF7C5CFC), Color(0xFFFF7847), Color(0xFF3182F6)
+)
 
 private val TRADES = listOf(
     "줄눈", "실리콘·코킹", "도배", "장판·마루", "타일", "욕실 리모델링",
@@ -91,20 +98,26 @@ fun OnboardingScreen(prefs: AppPreferences, onFinish: () -> Unit) {
     val selectedTrades = remember { mutableStateListOf<String>() }
     val selectedRegions = remember { mutableStateListOf<String>() }
     var bizName by remember { mutableStateOf(prefs.bizName) }
+    var storyPage by remember { mutableStateOf(0) }
+    // 프로토 .ob::before — 슬라이드별 accent 로 0.5초에 걸쳐 색 전환(인트로 캐러셀 단계에서만).
+    val bandAccent by animateColorAsState(
+        targetValue = if (step == 0) ObAccents.getOrElse(storyPage) { ObAccent } else ObAccent,
+        animationSpec = tween(500), label = "obBand"
+    )
 
     Box(
         Modifier
             .fillMaxSize()
             .background(ObBg)
     ) {
-        // 상단 액센트 밴드 (프로토 .ob::before — accent 12% → 투명)
+        // 상단 액센트 밴드 (프로토 .ob::before — accent 12% → 투명, 슬라이드 따라 색 전환)
         Box(
             Modifier
                 .fillMaxWidth()
                 .height(360.dp)
                 .background(
                     Brush.verticalGradient(
-                        listOf(ObAccent.copy(alpha = 0.12f), Color(0x00FBFCFE))
+                        listOf(bandAccent.copy(alpha = 0.12f), Color(0x00FBFCFE))
                     )
                 )
         )
@@ -118,7 +131,7 @@ fun OnboardingScreen(prefs: AppPreferences, onFinish: () -> Unit) {
                 .padding(top = 16.dp, bottom = 24.dp)
         ) {
             when (step) {
-                0 -> StoryStep(onStart = { step = 1 })
+                0 -> StoryStep(onStart = { step = 1 }, onPageChanged = { storyPage = it })
                 1 -> TradeStep(
                     selected = selectedTrades,
                     onBack = { step = 0 },
@@ -156,7 +169,7 @@ fun OnboardingScreen(prefs: AppPreferences, onFinish: () -> Unit) {
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun StoryStep(onStart: () -> Unit) {
+private fun StoryStep(onStart: () -> Unit, onPageChanged: (Int) -> Unit) {
     val slides = remember { storySlides() }
     val pager = rememberPagerState(pageCount = { slides.size })
 
@@ -174,6 +187,13 @@ private fun StoryStep(onStart: () -> Unit) {
         }
     }
 
+    // 슬라이드별 악센트(프로토 OB_ACCENTS) — 상단 밴드(부모)·키커칩·점에 0.5초 전환.
+    LaunchedEffect(pager.currentPage) { onPageChanged(pager.currentPage) }
+    val accent by animateColorAsState(
+        targetValue = ObAccents.getOrElse(pager.currentPage) { ObAccent },
+        animationSpec = tween(500), label = "obKicker"
+    )
+
     Column(Modifier.fillMaxSize()) {
         Text("RING-GO", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary, letterSpacing = 0.9.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
         Spacer(Modifier.height(8.dp))
@@ -190,7 +210,7 @@ private fun StoryStep(onStart: () -> Unit) {
         HorizontalPager(state = pager, modifier = Modifier.fillMaxWidth()) { i ->
             val s = slides[i]
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp)) {
-                KickerChip(s.kicker)
+                KickerChip(s.kicker, accent)
                 Spacer(Modifier.height(15.dp))
                 Box(Modifier.fillMaxWidth().heightIn(min = 150.dp), contentAlignment = Alignment.Center) { s.visual() }
                 Spacer(Modifier.height(20.dp))
@@ -209,7 +229,7 @@ private fun StoryStep(onStart: () -> Unit) {
                         .padding(horizontal = 3.dp)
                         .height(7.dp)
                         .width(if (on) 20.dp else 7.dp)
-                        .background(if (on) ObAccent else Color(0xFFE2E6EC), RoundedCornerShape(99.dp))
+                        .background(if (on) accent else Color(0xFFE2E6EC), RoundedCornerShape(99.dp))
                 )
             }
         }
@@ -454,11 +474,11 @@ private fun ObDots(step: Int) {
 }
 
 @Composable
-private fun KickerChip(text: String) {
+private fun KickerChip(text: String, accent: Color = ObAccent) {
     Box(
         Modifier.background(Color(0xFFF2F4F7), RoundedCornerShape(999.dp)).padding(horizontal = 12.dp, vertical = 5.dp)
     ) {
-        Text(text, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = ObAccent, letterSpacing = 0.5.sp)
+        Text(text, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = accent, letterSpacing = 0.5.sp)
     }
 }
 

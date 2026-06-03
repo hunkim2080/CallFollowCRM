@@ -2497,3 +2497,9 @@ DismissSwipeBox(우→좌) 를 홈 모든 inbox-alert 에 적용:
 - fix: StoryStep 에 LaunchedEffect 자동 넘김(4.2초, animateScrollToPage). 사장님이 드래그하면 collectIsDraggedAsState 로 감지 → 정지(프로토 stopAuto 동일). 실기기 확인(슬라이드1→3 자동 이동).
 - 남은 선택: 슬라이드 내 마이크로 애니메이션(92% 카운트업/타이핑/막대 차오름)은 미구현 — 원하면 추가.
 - 서버 영향 없음.
+
+## 2026-06-04 · android (53)
+### 온보딩 디자인 — 슬라이드별 악센트 색 전환 복구 (프로토 OB_ACCENTS)
+사장님 "온보딩 디자인이 프로토랑 다르다". 원인: 앱이 상단 오라·키커칩·점을 **전부 파랑 고정**으로 그렸음. 프로토 `.ob::before`+`--ob-accent` 는 슬라이드별 색(분홍·파랑·초록·앰버·보라·주황·파랑)으로 0.5초 전환.
+- fix: ObAccents 7색 추가. StoryStep accent=animateColorAsState(슬라이드별), 상단 밴드(bandAccent)·KickerChip·활성 점에 적용. 실기기 확인(슬라이드5 보라 전환).
+- 서버 영향 없음.
