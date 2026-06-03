@@ -31,12 +31,15 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -156,6 +159,20 @@ fun OnboardingScreen(prefs: AppPreferences, onFinish: () -> Unit) {
 private fun StoryStep(onStart: () -> Unit) {
     val slides = remember { storySlides() }
     val pager = rememberPagerState(pageCount = { slides.size })
+
+    // 프로토 attachObCarousel — 4.2초마다 자동으로 다음 슬라이드. 사장님이 한 번 만지면(드래그) 정지.
+    val dragged by pager.interactionSource.collectIsDraggedAsState()
+    var autoPaused by remember { mutableStateOf(false) }
+    LaunchedEffect(dragged) { if (dragged) autoPaused = true }
+    LaunchedEffect(autoPaused) {
+        if (autoPaused) return@LaunchedEffect
+        while (true) {
+            delay(4200)
+            if (autoPaused) break
+            val next = (pager.currentPage + 1) % slides.size
+            pager.animateScrollToPage(next)
+        }
+    }
 
     Column(Modifier.fillMaxSize()) {
         Text("RING-GO", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary, letterSpacing = 0.9.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)

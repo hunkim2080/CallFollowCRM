@@ -2490,3 +2490,10 @@ DismissSwipeBox(우→좌) 를 홈 모든 inbox-alert 에 적용:
 - 부재중 자동답장 = 이미 적용(영구, dismissedAutoReplyIds).
 - 시공 D-1/도착 RemindCard = DismissSwipeBox 로 감싸 기존 dismissReminder 재사용(건너뛰기와 동일).
 - 서버 영향 없음.
+
+## 2026-06-04 · android (52)
+### 온보딩(앱 소개) 캐러셀 자동 넘김 복구 — 사장님 "인터랙티브함 사라졌다"
+회원가입(로그인→앱소개) 점검: 로그인 화면·온보딩 4단계(캐러셀→업종→상호/지역→막내탄생) 구조·디자인은 프로토와 일치(현황판 정확). 단 **StoryStep 캐러셀에 자동 넘김이 없어 정적**이었음(프로토 attachObCarousel = 4.2초 자동).
+- fix: StoryStep 에 LaunchedEffect 자동 넘김(4.2초, animateScrollToPage). 사장님이 드래그하면 collectIsDraggedAsState 로 감지 → 정지(프로토 stopAuto 동일). 실기기 확인(슬라이드1→3 자동 이동).
+- 남은 선택: 슬라이드 내 마이크로 애니메이션(92% 카운트업/타이핑/막대 차오름)은 미구현 — 원하면 추가.
+- 서버 영향 없음.
