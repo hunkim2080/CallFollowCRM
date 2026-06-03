@@ -2370,9 +2370,13 @@ private fun EstimateBuilderDialog(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color.White
+        containerColor = Color.White,
+        tonalElevation = 0.dp
     ) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(bottom = 22.dp)) {
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+                .padding(horizontal = 18.dp).padding(bottom = 22.dp)
+        ) {
             Text("견적 만들기", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold,
                 color = TossTextPrimary, letterSpacing = (-0.4).sp)
             Spacer(Modifier.height(4.dp))
@@ -2451,8 +2455,9 @@ private fun EstimateBuilderDialog(
             }
             Spacer(Modifier.height(6.dp))
             // 항목 리스트 (프로토 est-row + 평당 est-area)
-            LazyColumn(Modifier.heightIn(max = 300.dp)) {
-                itemsIndexed(visibleItems, key = { _, it -> it.id }) { idx, item ->
+            // 전체 시트가 한 번에 스크롤되도록 항목은 일반 Column(내부 LazyColumn 제거).
+            Column(Modifier.fillMaxWidth()) {
+                visibleItems.forEachIndexed { idx, item ->
                     if (idx > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
                     val isPyeong = item.unit == com.detailline.callfollowcrm.data.local.entity.PricingItemEntity.UNIT_PYEONG
                     EstimateItemRow(

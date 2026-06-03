@@ -80,7 +80,8 @@ fun MyScheduleSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color.White
+        containerColor = Color.White,
+        tonalElevation = 0.dp
     ) {
         Column(
             modifier = Modifier

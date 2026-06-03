@@ -539,7 +539,8 @@ private fun ContactDialog(
     val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     androidx.compose.material3.ModalBottomSheet(
-        onDismissRequest = onDismiss, sheetState = sheetState, containerColor = Color.White
+        onDismissRequest = onDismiss, sheetState = sheetState, containerColor = Color.White,
+        tonalElevation = 0.dp
     ) {
         Column(
             Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 22.dp)
