@@ -2509,3 +2509,57 @@ DismissSwipeBox(우→좌) 를 홈 모든 inbox-alert 에 적용:
 사장님 "가운데 정렬 안 맞아". 원인: 앱이 슬라이드마다 카드 없이 제각각 높이/정렬로 그려 넘길 때 위치가 들쭉날쭉. 프로토 `.ob-visual` = 모든 슬라이드 동일한 흰 카드(고정 226px, 내용 가운데, border+shadow).
 - fix: StoryStep 비주얼을 균일 흰 카드(고정 254dp — 슬라이드0 3버블+읽지않음 줄 잘림 방지로 226→254 상향, radius24+border #EDEFF3+shadow)로 감쌈. 모든 슬라이드 동일 프레임·가운데 정렬. 실기기 확인(슬라이드0·1 잘림 없음).
 - 서버 영향 없음.
+
+---
+
+## 2026-06-04 (새벽) · cowork(server) — 🌐 공개 도메인 `api.si0in.kr` 작동 + cloudflared 자동 시작
+
+SYNC #48 ④ 완료. 사장님 도메인 `si0in.kr` (가비아 → Cloudflare 네임서버 전환 완료) → Cloudflare Tunnel 통해 Mac mini main.py 외부 노출.
+
+### 새 공개 URL
+| 용도 | URL |
+|---|---|
+| API base | `https://api.si0in.kr` |
+| 헬스체크 | `https://api.si0in.kr/healthz` |
+| 시공접수서 (고객용) | `https://api.si0in.kr/q/{token}` |
+| 견적서 직인 | `https://api.si0in.kr/q/{token}/doc` |
+| 팀원 화면 | `https://api.si0in.kr/team/member/{token}` |
+| admin 대시보드 | `https://api.si0in.kr/admin` |
+| Sonnet vs Gemini 비교 | `https://api.si0in.kr/admin/prepare-reply/compare?limit=5` |
+
+→ **고객 폰·외부 네트워크에서도 닿음** (이전엔 Tailnet 100.86.114.49 라 사장님 폰만).
+
+### 구성
+- Cloudflare Tunnel `ringgo-api` (UUID `60b84cd3-ad69-4ea9-bf5e-0e57dc6f2f0e`)
+- macOS launchd 등록 (`com.cloudflare.cloudflared`, PID 74792) → 부팅 시 자동 시작
+- config: `~/.cloudflared/config.yml` (api.si0in.kr → http://localhost:8000)
+- 로그: `/Library/Logs/com.cloudflare.cloudflared.{out,err}.log`
+
+### ⚠️ 안드로이드 측 작업 요청 (Windows Claude Code)
+**`baseUrl` 갱신 필요**:
+```
+http://100.86.114.49:8000  →  https://api.si0in.kr
+```
+
+영향 받는 파일 (앱 안에 흩어져 있음):
+- `ServerSuggestionRepository`
+- `CallSummaryServerRepository`
+- `PhaseOneApiRepository`
+- `IntakeFormRepository`
+- 시공접수서 URL prefix (`IntakeFormPublicUrl` 또는 유사)
+- 그 외 baseUrl 박힌 곳 다 한 군데로 모으면 좋음 (예: `BuildConfig.BASE_URL` 또는 `AppConfig.BASE_URL`)
+
+서버 측에서는 동일 endpoint 다 받음. URL 만 갱신하면 됨.
+
+### 서버 환경변수 추가 권장 (cowork 후속)
+시공접수서·견적서 직인이 발급하는 URL 안에 외부 도메인 박히도록:
+```xml
+<key>INTAKE_PUBLIC_BASE_URL</key>
+<string>https://api.si0in.kr</string>
+```
+launchd plist 에 추가 후 launchctl 재시작. 이 변경 없으면 issue 응답의 `url` 필드가 여전히 `http://100.86.114.49:8000/q/...` 로 떨어짐 → 고객 폰에서 안 열림.
+
+### 보안 권장 (베타 출시 전)
+- `/admin/*` 는 admin token 강제 (이미 일부 endpoint 적용 — 전체 적용 검토)
+- `/prepare-reply` 는 phone 단위 rate limit (이미 있음) + 베타 phone 화이트리스트
+- Cloudflare Access (zero trust) 추가 검토 — 비용 X, 보안 ↑
