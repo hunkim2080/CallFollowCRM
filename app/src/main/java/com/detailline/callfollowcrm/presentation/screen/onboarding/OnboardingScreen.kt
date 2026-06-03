@@ -32,8 +32,19 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.util.lerp
+import kotlin.math.absoluteValue
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.layout.layout
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -85,7 +96,7 @@ private val REGIONS = listOf(
     "전라", "광주", "경상", "대구", "부산", "울산", "제주"
 )
 
-private data class Slide(val kicker: String, val title: String, val sub: String, val visual: @Composable () -> Unit)
+private data class Slide(val kicker: String, val title: String, val sub: String, val visual: @Composable (active: Boolean) -> Unit)
 
 /**
  * 온보딩 — 프로토타입 `.ob` 4단계 그대로.
@@ -196,7 +207,7 @@ private fun StoryStep(onStart: () -> Unit, onPageChanged: (Int) -> Unit) {
     )
 
     Column(Modifier.fillMaxSize()) {
-        Text("RING-GO", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary, letterSpacing = 0.9.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+        Text("RING-GO", fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.2).sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
         Spacer(Modifier.height(8.dp))
         Text("곁에 오래 둘수록, 나다워지는 AI 비서", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
         Spacer(Modifier.height(16.dp))
@@ -208,22 +219,50 @@ private fun StoryStep(onStart: () -> Unit, onPageChanged: (Int) -> Unit) {
 
         Spacer(Modifier.weight(1f))
 
-        HorizontalPager(state = pager, modifier = Modifier.fillMaxWidth()) { i ->
+        // 프로토 .ob-carousel — 좌우로 옆 슬라이드가 살짝 엿보이는(peek) 카드 캐러셀.
+        //   부모 26dp 패딩 밖으로 빼서(full-bleed) + contentPadding 26dp → 카드는 (화면-52), 양옆 26dp peek.
+        HorizontalPager(
+            state = pager,
+            modifier = Modifier
+                .layout { measurable, constraints ->
+                    // 부모 26dp 패딩 밖으로 확장(full-bleed)하되, 보고하는 폭은 원래(패딩 안) 폭 유지 → 좌우 대칭.
+                    val pad = 26.dp.roundToPx()
+                    val placeable = measurable.measure(constraints.copy(maxWidth = constraints.maxWidth + pad * 2))
+                    layout(constraints.maxWidth, placeable.height) { placeable.place(-pad, 0) }
+                },
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 26.dp),
+            pageSpacing = 12.dp
+        ) { i ->
             val s = slides[i]
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp)) {
+            // 중심에서 멀수록 작아지고 흐려지는 depth — 넘길 때 카드가 팝업되는 느낌(프로토 obPop).
+            val pageOffset = ((pager.currentPage - i) + pager.currentPageOffsetFraction).absoluteValue.coerceIn(0f, 1f)
+            val active = pager.currentPage == i
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 2.dp)
+                    .graphicsLayer {
+                        val sc = lerp(0.93f, 1f, 1f - pageOffset)
+                        scaleX = sc; scaleY = sc
+                        alpha = lerp(0.5f, 1f, 1f - pageOffset)
+                    }
+            ) {
                 KickerChip(s.kicker, accent)
                 Spacer(Modifier.height(15.dp))
-                // 프로토 .ob-visual — 모든 슬라이드 동일한 흰 카드(고정 226dp, 내용 가운데). 슬라이드 간 정렬 일관.
+                // 프로토 .ob-visual — 모든 슬라이드 동일한 흰 카드(고정 254dp, 내용 가운데) + 빛 스윕(obSheen).
                 Box(
                     Modifier
                         .fillMaxWidth()
                         .height(254.dp)
                         .shadow(10.dp, RoundedCornerShape(24.dp), spotColor = Color(0x26141A1F))
-                        .background(Color.White, RoundedCornerShape(24.dp))
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(Color.White)
                         .border(1.dp, Color(0xFFEDEFF3), RoundedCornerShape(24.dp))
-                        .padding(18.dp),
-                    contentAlignment = Alignment.Center
-                ) { s.visual() }
+                ) {
+                    Box(Modifier.matchParentSize().padding(18.dp), contentAlignment = Alignment.Center) { s.visual(active) }
+                    Sheen(active)
+                }
                 Spacer(Modifier.height(20.dp))
                 Text(s.title, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.6).sp, textAlign = TextAlign.Center)
                 Spacer(Modifier.height(8.dp))
@@ -496,27 +535,30 @@ private fun KickerChip(text: String, accent: Color = ObAccent) {
 // ── 슬라이드 비주얼 (프로토 OB_SLIDES 재현, 클린 버전) ──
 
 private fun storySlides(): List<Slide> = listOf(
-    Slide("이런 적, 있으시죠", "혼자라 다 떠안고 계시죠", "견적에 예약에 안내까지, 하루에도 수십 번") {
+    Slide("이런 적, 있으시죠", "혼자라 다 떠안고 계시죠", "견적에 예약에 안내까지, 하루에도 수십 번") { active ->
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
-            CustomerBubble("\"견적 얼마예요? 24평 화장실 2개요\"")
+            RiseIn(active, 0) { CustomerBubble("\"견적 얼마예요? 24평 화장실 2개요\"") }
             Spacer(Modifier.height(9.dp))
-            CustomerBubble("\"주말에 시공 가능한가요?\"")
+            RiseIn(active, 130) { CustomerBubble("\"주말에 시공 가능한가요?\"") }
             Spacer(Modifier.height(9.dp))
-            CustomerBubble("\"위치가 어디세요? 사진 보냈어요\"")
+            RiseIn(active, 260) { CustomerBubble("\"위치가 어디세요? 사진 보냈어요\"") }
             Spacer(Modifier.height(14.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.background(TossError, RoundedCornerShape(8.dp)).padding(horizontal = 9.dp, vertical = 5.dp)) {
-                    Text("읽지 않음 +12", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
+            RiseIn(active, 390) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.background(TossError, RoundedCornerShape(8.dp)).padding(horizontal = 9.dp, vertical = 5.dp)) {
+                        Text("읽지 않음 +12", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
+                    }
+                    Spacer(Modifier.width(9.dp))
+                    Text("밀린 상담…", fontSize = 12.sp, color = TossTextTertiary)
                 }
-                Spacer(Modifier.width(9.dp))
-                Text("밀린 상담…", fontSize = 12.sp, color = TossTextTertiary)
             }
         }
     },
-    Slide("01 · 답장", "사장님 말투 그대로 답장", "쓸수록 말투를 배워서, 점점 더 사장님처럼") {
+    Slide("01 · 답장", "사장님 말투 그대로 답장", "쓸수록 말투를 배워서, 점점 더 사장님처럼") { active ->
         Column(Modifier.fillMaxWidth()) {
-            CustomerBubble("견적 얼마예요? 24평 화장실 2개요")
+            RiseIn(active, 0) { CustomerBubble("견적 얼마예요? 24평 화장실 2개요") }
             Spacer(Modifier.height(12.dp))
+            RiseIn(active, 160) {
             Column(Modifier.fillMaxWidth().background(TossBlueSoft, RoundedCornerShape(14.dp)).padding(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("✨ AI 추천 답변", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
@@ -526,29 +568,35 @@ private fun storySlides(): List<Slide> = listOf(
                     }
                 }
                 Spacer(Modifier.height(6.dp))
-                Text("안녕하세요! 24평 화장실 2개는 28~32만원선이에요. 사진 주시면 정확히 알려드릴게요 😊", fontSize = 13.sp, color = TossTextPrimary, lineHeight = 19.sp)
+                TypewriterText("안녕하세요! 24평 화장실 2개는 28~32만원선이에요. 사진 주시면 정확히 알려드릴게요 😊", active)
+            }
             }
         }
     },
-    Slide("02 · 안내", "내일 가요, 미리 알려드려요", "도착 30분 전 문자, 헛걸음 없게") {
+    Slide("02 · 안내", "내일 가요, 미리 알려드려요", "도착 30분 전 문자, 헛걸음 없게") { active ->
         Column(Modifier.fillMaxWidth()) {
+            RiseIn(active, 0) {
             Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(14.dp)).border(1.dp, Color(0xFFEEF0F3), RoundedCornerShape(14.dp)).padding(14.dp)) {
                 Text("📍 현장 5km 진입 · 도착 30분 전", fontSize = 11.sp, color = TossSuccess, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 Text("고객님, 30분 뒤 도착 예정입니다 😊", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
             }
+            }
             Spacer(Modifier.height(12.dp))
+            RiseIn(active, 150) {
             Box(Modifier.background(Color(0xFFFEF3E0), RoundedCornerShape(8.dp)).padding(horizontal = 11.dp, vertical = 6.dp)) {
                 Text("시공 하루 전 안내도 자동", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A))
             }
+            }
         }
     },
-    Slide("03 · 돈", "누가 안 줬는지 한눈에", "계약금·잔금, 떼일 걱정 없게 자동 정리") {
+    Slide("03 · 돈", "누가 안 줬는지 한눈에", "계약금·잔금, 떼일 걱정 없게 자동 정리") { active ->
         Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF272D3D), Color(0xFF14171F))), RoundedCornerShape(16.dp)).padding(18.dp)) {
             Text("아직 받을 돈", fontSize = 11.sp, color = Color.White.copy(alpha = 0.6f), fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(3.dp))
+            val won by animateIntAsState(if (active) 105 else 0, tween(900), label = "won")
             Text(buildAnnotatedString {
-                withStyle(SpanStyle(fontSize = 30.sp, fontWeight = FontWeight.ExtraBold)) { append("105") }
+                withStyle(SpanStyle(fontSize = 30.sp, fontWeight = FontWeight.ExtraBold)) { append("$won") }
                 withStyle(SpanStyle(fontSize = 16.sp)) { append("만원") }
             }, color = Color.White)
             Spacer(Modifier.height(13.dp))
@@ -561,17 +609,22 @@ private fun storySlides(): List<Slide> = listOf(
             }
         }
     },
-    Slide("04 · 요즘 경기", "나만 힘든 거 아니더라고요", "전국 현장 흐름으로 요즘 경기 한눈에") {
+    Slide("04 · 요즘 경기", "나만 힘든 거 아니더라고요", "전국 현장 흐름으로 요즘 경기 한눈에") { active ->
         Column(Modifier.fillMaxWidth()) {
             Row {
                 Text("이번 주 문의 ", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
                 Text("▼ 18%", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = TossError)
             }
             Spacer(Modifier.height(16.dp))
+            // 프로토: 그룹마다 회색(bg) 막대 + 파란 막대 한 쌍, 둘 다 stagger 로 차오름.
+            val barPairs = listOf(0.80f to 0.55f, 0.65f to 0.85f, 0.90f to 0.45f, 0.70f to 0.40f)
             Row(Modifier.fillMaxWidth().height(80.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Bottom) {
-                listOf(0.55f, 0.85f, 0.45f, 0.40f).forEach { h ->
-                    Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
-                        Box(Modifier.fillMaxWidth(0.5f).height((80 * h).dp).background(TossBlue, RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)))
+                barPairs.forEachIndexed { idx, pair ->
+                    val gBg by animateFloatAsState(if (active) pair.first else 0f, tween(600, delayMillis = idx * 100), label = "barBg")
+                    val gCol by animateFloatAsState(if (active) pair.second else 0f, tween(600, delayMillis = idx * 100 + 70), label = "barCol")
+                    Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.Bottom) {
+                        Box(Modifier.weight(1f).height((80 * gBg).dp).background(Color(0xFFDCE1EA), RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)))
+                        Box(Modifier.weight(1f).height((80 * gCol).dp).background(TossBlue, RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)))
                     }
                 }
             }
@@ -579,9 +632,10 @@ private fun storySlides(): List<Slide> = listOf(
             Text("전국 평균 -12% · 나만 그런 게 아니에요", fontSize = 11.sp, color = TossTextTertiary)
         }
     },
-    Slide("05 · 홍보", "후기 글, AI가 대신 써줘요", "고객과 나눈 문자로 만든 진짜 후기,\n사장님은 사진만 넣으세요") {
+    Slide("05 · 홍보", "후기 글, AI가 대신 써줘요", "고객과 나눈 문자로 만든 진짜 후기,\n사장님은 사진만 넣으세요") { active ->
         Column(Modifier.fillMaxWidth()) {
             // 프로토: 사진 ＋ 채팅 → 후기 아이콘 줄
+            RiseIn(active, 0) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center,
@@ -599,7 +653,9 @@ private fun storySlides(): List<Slide> = listOf(
                     Icon(Icons.Filled.Description, null, tint = Color(0xFFFF7847), modifier = Modifier.size(22.dp))
                 }
             }
+            }
             Spacer(Modifier.height(14.dp))
+            RiseIn(active, 170) {
             Column(Modifier.fillMaxWidth().background(TossGrayBg, RoundedCornerShape(14.dp)).padding(13.dp)) {
                 Text("[천호동] 화장실 줄눈 시공 후기", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
                 Spacer(Modifier.height(4.dp))
@@ -607,25 +663,86 @@ private fun storySlides(): List<Slide> = listOf(
                 Spacer(Modifier.height(4.dp))
                 Text("#천호동줄눈 #욕실줄눈 #디테일라인", fontSize = 12.sp, color = ObAccent, fontWeight = FontWeight.Bold)
             }
+            }
         }
     },
-    Slide("그래서 —", "함께할수록 완벽해져요", "오늘 시작하면, 내일 더 사장님다운 비서") {
+    Slide("그래서 —", "함께할수록 완벽해져요", "오늘 시작하면, 내일 더 사장님다운 비서") { active ->
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("사장님 말투 학습", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue, letterSpacing = 0.5.sp)
             Spacer(Modifier.height(4.dp))
+            val pct by animateIntAsState(if (active) 92 else 0, tween(1100), label = "pct")
+            val barW by animateFloatAsState(if (active) 0.92f else 0f, tween(1100), label = "pctbar")
             Text(buildAnnotatedString {
-                withStyle(SpanStyle(fontSize = 42.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)) { append("92") }
+                withStyle(SpanStyle(fontSize = 42.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)) { append("$pct") }
                 withStyle(SpanStyle(fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)) { append("%") }
             })
             Spacer(Modifier.height(10.dp))
             Box(Modifier.fillMaxWidth().height(8.dp).background(TossGrayBg, RoundedCornerShape(99.dp))) {
-                Box(Modifier.fillMaxWidth(0.92f).height(8.dp).background(TossBlue, RoundedCornerShape(99.dp)))
+                Box(Modifier.fillMaxWidth(barW.coerceIn(0.001f, 1f)).height(8.dp).background(TossBlue, RoundedCornerShape(99.dp)))
             }
             Spacer(Modifier.height(14.dp))
             Text("대화를 나눌수록, 점점 더 사장님처럼", fontSize = 12.5.sp, color = TossTextSecondary, fontWeight = FontWeight.SemiBold)
         }
     }
 )
+
+/**
+ * 프로토 obBubble/obUp — 슬라이드가 활성화되면 요소가 아래에서 위로 페이드인.
+ *   delayMs 로 stagger(하나씩 차례로). 비활성(다른 슬라이드)일 땐 숨김 → 돌아오면 다시 재생.
+ */
+@Composable
+private fun RiseIn(active: Boolean, delayMs: Int, content: @Composable () -> Unit) {
+    val p by animateFloatAsState(
+        targetValue = if (active) 1f else 0f,
+        animationSpec = tween(durationMillis = 430, delayMillis = if (active) delayMs else 0),
+        label = "rise"
+    )
+    Box(Modifier.graphicsLayer { alpha = p; translationY = (1f - p) * 14.dp.toPx() }) { content() }
+}
+
+/**
+ * 프로토 .ob-visual::after obSheen — 슬라이드 활성화 시 카드 위로 빛이 한 번 스윽 지나감.
+ */
+@Composable
+private fun BoxScope.Sheen(active: Boolean) {
+    val p = remember(active) { Animatable(0f) }
+    LaunchedEffect(active) {
+        if (active) { p.snapTo(0f); p.animateTo(1f, tween(durationMillis = 900, delayMillis = 280, easing = LinearEasing)) }
+    }
+    if (p.value > 0f && p.value < 1f) {
+        Box(Modifier.matchParentSize().drawWithContent {
+            drawContent()
+            val band = size.width * 0.55f
+            val cx = -band + (size.width + band * 2f) * p.value
+            drawRect(
+                brush = Brush.horizontalGradient(
+                    0f to Color.Transparent,
+                    0.5f to Color.White.copy(alpha = 0.42f),
+                    1f to Color.Transparent,
+                    startX = cx - band / 2f, endX = cx + band / 2f
+                )
+            )
+        })
+    }
+}
+
+/**
+ * 프로토 data-type/ob-caret — 활성화 시 한 글자씩 타이핑(끝에 ▌ 커서).
+ */
+@Composable
+private fun TypewriterText(text: String, active: Boolean) {
+    var n by remember(active) { mutableStateOf(if (active) 0 else text.length) }
+    LaunchedEffect(active) {
+        if (active) {
+            n = 0
+            while (n < text.length) { kotlinx.coroutines.delay(22); n++ }
+        } else n = text.length
+    }
+    Text(
+        text.take(n) + if (n < text.length) "▌" else "",
+        fontSize = 13.sp, color = TossTextPrimary, lineHeight = 19.sp
+    )
+}
 
 @Composable
 private fun CustomerBubble(text: String) {

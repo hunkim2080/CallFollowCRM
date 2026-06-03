@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * 맥미니 자체 서버 (Tailnet :8000) 살아있음 모니터링.
+ * 맥미니 자체 서버 (공개 도메인 api.si0in.kr) 살아있음 모니터링.
  *
  * 30초마다 GET /health 호출 (PhaseOneApiRepository.warmup 활용).
  * HomeScreen 상단의 작은 ● indicator 가 이 상태를 구독.

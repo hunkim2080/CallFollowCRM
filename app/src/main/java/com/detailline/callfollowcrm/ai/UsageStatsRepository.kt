@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit
  * 2026-05-27 사장님 결정: 진짜 토큰 낭비 파악용 모니터링 도구.
  */
 class UsageStatsRepository(
-    private val baseUrl: String = "http://100.86.114.49:8000"
+    private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL
 ) {
     private val client = OkHttpClient.Builder()
         .connectTimeout(3, TimeUnit.SECONDS)

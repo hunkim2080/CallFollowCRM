@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit
  * 자동발송 X 정책: 서버는 URL 만 발급, 앱이 SMS 본문에 prefill → 사장님이 ▶ 직접 발송.
  */
 class IntakeFormRepository(
-    private val baseUrl: String = "http://100.86.114.49:8000"
+    private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL
 ) {
     private val client = OkHttpClient.Builder()
         .connectTimeout(5, TimeUnit.SECONDS)
