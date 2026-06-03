@@ -71,6 +71,9 @@ dependencies {
     // 시간 기반 알림(시공 D-1·잔금 미수·마감 브리핑) 스케줄러 — 앱 종료 상태에서도 동작.
     implementation("androidx.work:work-runtime-ktx:2.9.1")
 
+    // 현장 도착 안내 — 지오펜싱(시공 현장 5km 진입 감지). FusedLocation + Geofencing.
+    implementation("com.google.android.gms:play-services-location:21.3.0")
+
     // 템플릿 첨부 사진 썸네일 로딩
     implementation("io.coil-kt:coil-compose:2.5.0")
 

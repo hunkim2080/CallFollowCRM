@@ -29,6 +29,7 @@ object NotificationHelper {
     private const val SETTLE_ID_OFFSET = 9_500_000
     private const val BRIEF_ID = 9_700_000
     private const val RECUR_ID = 9_800_000
+    private const val ARRIVAL_ID_OFFSET = 9_900_000
     /** SMS 알림 ID = 발신번호 hash + offset. 같은 번호 새 SMS = 같은 알림 update. */
     private const val SMS_ID_OFFSET = 10_000_000
 
@@ -181,6 +182,28 @@ object NotificationHelper {
         }
         return PendingIntent.getActivity(
             context, id, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
+    /** 현장 도착 안내 — 프로토 PUSH.arrival(초록). 5km 진입 시. 무음 자동발송 X. */
+    fun showArrival(context: Context, customerId: Long, phone: String, name: String) {
+        val notifId = ARRIVAL_ID_OFFSET + (customerId.toInt() and 0x7FFFFF)
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            action = MainActivity.ACTION_CHAT
+            putExtra(MainActivity.EXTRA_PHONE_NUMBER, phone)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pending = PendingIntent.getActivity(
+            context, notifId, openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        showProtoPush(
+            context, notifId, CHANNEL_REMINDER, ACCENT_GREEN,
+            title = "현장 도착 — 안내 문자 보낼까요?",
+            msg = "${name}님 현장 5km 안에 들어왔어요",
+            note = "확인 후 보내요 · 무음 자동발송 아니에요",
+            contentIntent = pending,
+            actions = listOf(PushAction("도착 안내 보내기", pending))
         )
     }
 

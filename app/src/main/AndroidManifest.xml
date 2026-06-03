@@ -32,6 +32,10 @@
     <uses-permission android:name="android.permission.RECEIVE_WAP_PUSH" />
     <!-- 예약 확정 시 축하 진동 (normal permission, 런타임 요청 불필요) -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- 현장 도착 안내(지오펜싱) — 시공 현장 5km 진입 감지. 백그라운드는 Android 10+ 별도 허용. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <!--
         통화 직후 PostCallCard 오버레이 표시 (첫 통화 한정).
         사용자가 설정 → 다른 앱 위에 표시 토글 직접 켜야 동작.
@@ -244,6 +248,11 @@
         -->
         <service
             android:name=".service.MmsDownloadService"
+            android:exported="false" />
+
+        <!-- 현장 도착 지오펜스 전이 수신. exported=false — 시스템 Geofencing 만 trigger. -->
+        <receiver
+            android:name=".service.GeofenceBroadcastReceiver"
             android:exported="false" />
 
         <!-- 견적서(직인) 이미지를 문자/공유로 내보낼 때 캐시 파일 URI 공유용. -->

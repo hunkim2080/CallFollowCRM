@@ -26,6 +26,7 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
         runCatching { checkBalanceDue(app.container) }
         runCatching { checkDailyBrief(app.container) }
         runCatching { checkRecurringDue(app.container) }
+        runCatching { GeofenceManager.refresh(applicationContext) }
         return Result.success()
     }
 

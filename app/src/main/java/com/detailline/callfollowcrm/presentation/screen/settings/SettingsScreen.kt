@@ -4,6 +4,8 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.compose.material3.Switch
@@ -134,6 +136,22 @@ fun SettingsScreen(
         } else {
             viewModel.setAutoFirstReplyEnabled(false)
             Toast.makeText(context, "SEND_SMS 권한이 거부되어 켤 수 없어요", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // 현장 도착(지오펜싱) 위치 권한.
+    val settingsScope = rememberCoroutineScope()
+    val locationPermLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { result ->
+        val fine = result[Manifest.permission.ACCESS_FINE_LOCATION] == true
+        if (fine) {
+            Toast.makeText(context, "위치 권한 OK. 백그라운드(앱 꺼져도)는 설정 → 권한 → 위치 → '항상 허용' 으로 켜주세요.", Toast.LENGTH_LONG).show()
+        } else {
+            Toast.makeText(context, "위치 권한이 거부되어 도착 감지를 켤 수 없어요", Toast.LENGTH_SHORT).show()
+        }
+        settingsScope.launch {
+            com.detailline.callfollowcrm.service.GeofenceManager.refresh(context)
         }
     }
 
@@ -279,7 +297,23 @@ fun SettingsScreen(
                         },
                         incomingNotifyOn = state.incomingSmsNotifyEnabled,
                         onIncomingNotifyToggle = viewModel::setIncomingSmsNotifyEnabled,
-                        onOpenRecurring = onOpenRecurring
+                        onOpenRecurring = onOpenRecurring,
+                        onArrivalToggle = { on ->
+                            if (on) {
+                                val fineGranted = ContextCompat.checkSelfPermission(
+                                    context, Manifest.permission.ACCESS_FINE_LOCATION
+                                ) == PackageManager.PERMISSION_GRANTED
+                                if (!fineGranted) locationPermLauncher.launch(
+                                    arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION)
+                                ) else settingsScope.launch {
+                                    com.detailline.callfollowcrm.service.GeofenceManager.refresh(context)
+                                }
+                            } else {
+                                settingsScope.launch {
+                                    com.detailline.callfollowcrm.service.GeofenceManager.refresh(context)
+                                }
+                            }
+                        }
                     )
                     Spacer(Modifier.height(16.dp))
                 }
@@ -1081,7 +1115,8 @@ private fun AutoSmsSection(
     onAutoReplyToggle: (Boolean) -> Unit,
     incomingNotifyOn: Boolean,
     onIncomingNotifyToggle: (Boolean) -> Unit,
-    onOpenRecurring: () -> Unit
+    onOpenRecurring: () -> Unit,
+    onArrivalToggle: (Boolean) -> Unit = {}
 ) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val prefs = remember {
@@ -1136,7 +1171,7 @@ private fun AutoSmsSection(
 
     // ③ 현장 도착 안내 (5km)
     AutoCard("📍", Color(0xFFE6F7EE), "현장 도착 안내 (5km)", null, "위치 기반 · 보내기 전 확인",
-        arrOn, { arrOn = it; prefs.arrivalAutoEnabled = it }) {
+        arrOn, { arrOn = it; prefs.arrivalAutoEnabled = it; onArrivalToggle(it) }) {
         AutoTextArea(arrText) { arrText = it; prefs.arrivalAutoText = it }
         AutoNote("위치 권한이 필요해요. (위치 기반 자동 감지는 준비 중)")
     }
