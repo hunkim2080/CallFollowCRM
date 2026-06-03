@@ -1019,6 +1019,17 @@ fun ChatScreen(
                 quoteDocData = data
                 showEstimateBuilder = false
             },
+            onIssueIntake = { issItems, total, y, mo, d, days, dm, dv ->
+                viewModel.issueQuoteIntake(issItems, total, y, mo, d, days, dm, dv) { result ->
+                    result.onSuccess { draft ->
+                        input = draft
+                        showEstimateBuilder = false
+                        android.widget.Toast.makeText(estCtx, "접수서 링크를 문자에 넣었어요 · ▶ 눌러 보내세요", android.widget.Toast.LENGTH_SHORT).show()
+                    }.onFailure {
+                        android.widget.Toast.makeText(estCtx, "서버 연결 실패 — 잠시 후 다시 시도해주세요", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
             onDismiss = { showEstimateBuilder = false }
         )
     }
@@ -2307,6 +2318,11 @@ private fun EstimateBuilderDialog(
     onShare: (String) -> Unit,
     onDismiss: () -> Unit,
     onQuoteDoc: (QuoteDocData) -> Unit = {},
+    onIssueIntake: (
+        items: List<com.detailline.callfollowcrm.ai.IntakeFormRepository.QuoteIssueItem>,
+        total: Int, workYear: Int, workMonth: Int, workDay: Int, workDays: Int,
+        depMode: String, depVal: Int
+    ) -> Unit = { _, _, _, _, _, _, _, _ -> },
     bizName: String = "",
     bizOwner: String = "",
     bizNo: String = "",
@@ -2320,6 +2336,10 @@ private fun EstimateBuilderDialog(
     // 계약금 — 프로토 depMode: ratio(%)/fixed(만원)/none.
     var depMode by remember { mutableStateOf("ratio") }
     var depVal by remember { mutableStateOf("30") }
+    // 시공일 (접수서/견적서) — null=미정.
+    var workDateMs by remember { mutableStateOf<Long?>(null) }
+    var workDays by remember { mutableStateOf(1) }
+    var estCalMonth by remember { mutableStateOf(estMonthAnchor(System.currentTimeMillis())) }
     // 항목 id → 수량(평당=평수, 정액=1). 0/미존재 = 미선택.
     val selectedQty = remember { mutableStateMapOf<Long, Int>() }
     // 프로토: 카테고리 없는 평탄 리스트.
@@ -2370,6 +2390,33 @@ private fun EstimateBuilderDialog(
             Spacer(Modifier.height(9.dp))
             Text(help, fontSize = 12.sp, color = TossTextTertiary, lineHeight = 18.sp,
                 modifier = Modifier.padding(horizontal = 2.dp))
+            // 시공일 (시공접수서/견적서 탭) — 프로토 q-datefield + 달력
+            if (mode != "text") {
+                Spacer(Modifier.height(11.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("시공일", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
+                        modifier = Modifier.padding(start = 2.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        workDateMs?.let { DateTimeUtils.formatKoreanDate(it) } ?: "미정 · 날짜를 골라주세요",
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                        color = if (workDateMs != null) TossBlue else TossTextTertiary
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+                EstInlineCalendar(estCalMonth, workDateMs,
+                    onShiftMonth = { estCalMonth = estShiftMonth(estCalMonth, it) },
+                    onSelect = { workDateMs = it })
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    listOf("당일" to 1, "2일" to 2, "3일" to 3, "4일" to 4, "5일" to 5, "일주일" to 7).forEach { (lbl, d) ->
+                        EstSmallChip(lbl, workDays == d) { workDays = d }
+                    }
+                }
+            }
             // 계약금 설정 (시공접수서/견적서 탭) — 프로토 depMode
             if (mode != "text") {
                 Spacer(Modifier.height(11.dp))
@@ -2446,8 +2493,28 @@ private fun EstimateBuilderDialog(
                 when (mode) {
                     "text" -> onConfirm(composeBody())
                     "quote" -> onQuoteDoc(quoteDocData())
-                    // 시공접수서 링크 발송은 서버 연결 후(3단계). 지금은 '문자로 붙여넣기'로 대체.
-                    else -> toast("시공접수서 링크는 서버 연결 후 동작해요 · 지금은 아래 '문자로 붙여넣기'로 보낼 수 있어요")
+                    else -> {
+                        // 시공접수서 — 서버 발급 → smsDraft prefill (호출부에서 처리)
+                        val cal = workDateMs?.let { java.util.Calendar.getInstance().apply { timeInMillis = it } }
+                        val issItems = visibleItems.mapNotNull { item ->
+                            val q = selectedQty[item.id] ?: 0
+                            if (q <= 0) return@mapNotNull null
+                            val isP = item.unit == com.detailline.callfollowcrm.data.local.entity.PricingItemEntity.UNIT_PYEONG
+                            com.detailline.callfollowcrm.ai.IntakeFormRepository.QuoteIssueItem(
+                                name = item.title,
+                                price = (item.price / 10_000L).toInt(),
+                                unit = if (isP) "pyeong" else "flat",
+                                area = if (isP) q.toDouble() else null
+                            )
+                        }
+                        onIssueIntake(
+                            issItems, (totalSum / 10_000L).toInt(),
+                            cal?.get(java.util.Calendar.YEAR) ?: 0,
+                            cal?.let { it.get(java.util.Calendar.MONTH) + 1 } ?: 0,
+                            cal?.get(java.util.Calendar.DAY_OF_MONTH) ?: 0,
+                            workDays, depMode, depVal.toIntOrNull() ?: 0
+                        )
+                    }
                 }
             }
             if (mode != "text") {
@@ -2559,6 +2626,94 @@ private fun StepperButton(label: String, onClick: () -> Unit) {
     ) {
         Box(contentAlignment = Alignment.Center) {
             Text(label, color = TossBlue, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun EstSmallChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier.clip(RoundedCornerShape(999.dp)).background(if (selected) TossBlue else TossGrayBg)
+            .clickable { onClick() }.padding(horizontal = 13.dp, vertical = 7.dp)
+    ) {
+        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+            color = if (selected) Color.White else TossTextSecondary)
+    }
+}
+
+private data class EstCell(val dayMs: Long, val dom: Int, val dow: Int, val inMonth: Boolean, val isToday: Boolean, val isPast: Boolean)
+
+private fun estMonthAnchor(anyMs: Long): Long = java.util.Calendar.getInstance().apply {
+    timeInMillis = anyMs
+    set(java.util.Calendar.DAY_OF_MONTH, 1)
+    set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+    set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+}.timeInMillis
+
+private fun estShiftMonth(anchor: Long, delta: Int): Long = java.util.Calendar.getInstance().apply {
+    timeInMillis = anchor; add(java.util.Calendar.MONTH, delta); set(java.util.Calendar.DAY_OF_MONTH, 1)
+}.timeInMillis
+
+private fun buildEstCells(anchor: Long): List<EstCell> {
+    val today = DateTimeUtils.startOfDay(System.currentTimeMillis())
+    val cal = java.util.Calendar.getInstance().apply { timeInMillis = anchor }
+    val month = cal.get(java.util.Calendar.MONTH)
+    val firstDow = cal.get(java.util.Calendar.DAY_OF_WEEK)
+    cal.add(java.util.Calendar.DAY_OF_MONTH, -(firstDow - 1))
+    return (0 until 42).map {
+        val dayStart = DateTimeUtils.startOfDay(cal.timeInMillis)
+        val cell = EstCell(
+            dayStart, cal.get(java.util.Calendar.DAY_OF_MONTH), cal.get(java.util.Calendar.DAY_OF_WEEK),
+            cal.get(java.util.Calendar.MONTH) == month, dayStart == today, dayStart < today
+        )
+        cal.add(java.util.Calendar.DAY_OF_MONTH, 1)
+        cell
+    }
+}
+
+/** 견적 시트 시공일 선택용 인라인 월 달력. */
+@Composable
+private fun EstInlineCalendar(monthAnchor: Long, selectedMs: Long?, onShiftMonth: (Int) -> Unit, onSelect: (Long) -> Unit) {
+    val cells = remember(monthAnchor) { buildEstCells(monthAnchor) }
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(Color.White).clickable { onShiftMonth(-1) },
+                contentAlignment = Alignment.Center) { Text("‹", fontSize = 16.sp, color = TossTextSecondary, fontWeight = FontWeight.Bold) }
+            Text(DateTimeUtils.formatMonthHeader(monthAnchor), modifier = Modifier.weight(1f),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center, fontSize = 15.sp,
+                fontWeight = FontWeight.Bold, color = TossTextPrimary)
+            Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(Color.White).clickable { onShiftMonth(1) },
+                contentAlignment = Alignment.Center) { Text("›", fontSize = 16.sp, color = TossTextSecondary, fontWeight = FontWeight.Bold) }
+        }
+        Row(Modifier.fillMaxWidth()) {
+            listOf("일", "월", "화", "수", "목", "금", "토").forEachIndexed { i, d ->
+                Text(d, modifier = Modifier.weight(1f).padding(vertical = 4.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center, fontSize = 11.sp,
+                    color = when (i) { 0 -> TossError; 6 -> TossBlue; else -> TossTextSecondary }, fontWeight = FontWeight.SemiBold)
+            }
+        }
+        repeat(6) { w ->
+            Row(Modifier.fillMaxWidth()) {
+                cells.subList(w * 7, w * 7 + 7).forEach { cell ->
+                    val isSel = selectedMs?.let { DateTimeUtils.startOfDay(it) == cell.dayMs } == true
+                    val bg = when { isSel -> TossBlue; cell.isToday -> TossBlueSoft; else -> Color.Transparent }
+                    val fg = when {
+                        isSel -> Color.White
+                        !cell.inMonth || cell.isPast -> TossTextTertiary
+                        cell.dow == java.util.Calendar.SUNDAY -> TossError
+                        cell.dow == java.util.Calendar.SATURDAY -> TossBlue
+                        else -> TossTextPrimary
+                    }
+                    Box(
+                        Modifier.weight(1f).height(34.dp).padding(2.dp).clip(RoundedCornerShape(8.dp))
+                            .background(bg).clickable { onSelect(cell.dayMs) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(cell.dom.toString(), color = fg, fontSize = 12.sp,
+                            fontWeight = if (isSel || cell.isToday) FontWeight.Bold else FontWeight.Medium)
+                    }
+                }
+            }
         }
     }
 }

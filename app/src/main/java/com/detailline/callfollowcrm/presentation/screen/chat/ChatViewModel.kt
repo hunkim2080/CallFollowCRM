@@ -835,6 +835,32 @@ class ChatViewModel(
     }
 
     /**
+     * 시공접수서 발급 v2 (맥미니 §19.2, 2026-06-03) — 견적 시트 [시공접수서 링크 보내기].
+     *   견적 데이터 + 사업자정보(AppPreferences) → POST /api/quote/issue → smsDraft 반환.
+     *   자동발송 X — 호출부가 composer 에 prefill → 사장님이 ▶.
+     */
+    fun issueQuoteIntake(
+        items: List<com.detailline.callfollowcrm.ai.IntakeFormRepository.QuoteIssueItem>,
+        total: Int, workYear: Int, workMonth: Int, workDay: Int, workDays: Int,
+        depositMode: String, depositValue: Int,
+        onResult: (Result<String>) -> Unit
+    ) = viewModelScope.launch {
+        val prefs = container.preferences
+        val name = customer.value?.name?.takeIf { it.isNotBlank() } ?: phoneNumber
+        val res = container.intakeFormRepository.issueQuote(
+            customerName = name, customerPhone = phoneNumber,
+            items = items, total = total,
+            workYear = workYear, workMonth = workMonth, workDay = workDay, workDays = workDays,
+            depositMode = depositMode, depositValue = depositValue,
+            bizName = prefs.bizName, bizOwner = prefs.bizOwner, bizNo = prefs.bizNo,
+            bizAddr = prefs.bizAddr, bizPhone = prefs.bizPhone, bizSeal = prefs.bizSeal,
+            bizValidDays = prefs.bizQuoteValidDays,
+            devicePhone = prefs.bizPhone, deviceId = "owner-anon"
+        )
+        onResult(res.map { it.smsDraft.ifBlank { "시공접수서 링크를 보냈어요." } })
+    }
+
+    /**
      * AI 제안 박스의 [시공일 등록] 액션 (action_type=register_schedule) hookup.
      * Customer 없으면 upsert 후 등록. 다음 캐시 갱신 때 nextActionJson 도 다음 단계로 자동 전환됨.
      */

@@ -38,6 +38,76 @@ class IntakeFormRepository(
         val expiresAtMs: Long
     )
 
+    /** 견적 한 줄 — price/area 는 만원 단위(프로토 lineTotal 그대로). */
+    data class QuoteIssueItem(val name: String, val price: Int, val unit: String, val area: Double? = null)
+
+    data class IssuedQuote(
+        val token: String,
+        val url: String,
+        val smsDraft: String,
+        val issuedAtMs: Long,
+        val expiresAtMs: Long
+    )
+
+    /**
+     * 시공접수서 발급 v2 (맥미니 §19.2, 2026-06-03) — POST /api/quote/issue.
+     *   req: 견적(items 만원)+시공일+계약금+사업자정보. res: smsDraft(앱이 SMS 본문 prefill → 사장님 ▶).
+     */
+    suspend fun issueQuote(
+        customerName: String,
+        customerPhone: String,
+        items: List<QuoteIssueItem>,
+        total: Int,
+        workYear: Int, workMonth: Int, workDay: Int, workDays: Int,
+        depositMode: String, depositValue: Int,
+        bizName: String, bizOwner: String, bizNo: String, bizAddr: String,
+        bizPhone: String, bizSeal: String, bizValidDays: Int,
+        devicePhone: String, deviceId: String
+    ): Result<IssuedQuote> = withContext(Dispatchers.IO) {
+        runCatching {
+            val payload = JSONObject().apply {
+                put("customerName", customerName)
+                put("customerPhone", customerPhone)
+                put("items", JSONArray().apply {
+                    items.forEach { it ->
+                        put(JSONObject().apply {
+                            put("name", it.name)
+                            put("price", it.price)
+                            put("unit", it.unit)
+                            it.area?.let { a -> put("area", a) }
+                        })
+                    }
+                })
+                put("total", total)
+                put("workYear", workYear); put("workMonth", workMonth)
+                put("workDay", workDay); put("workDays", workDays)
+                put("depositMode", depositMode); put("depositValue", depositValue)
+                put("biz", JSONObject().apply {
+                    put("name", bizName); put("owner", bizOwner); put("bizNo", bizNo)
+                    put("addr", bizAddr); put("phone", bizPhone); put("seal", bizSeal)
+                    put("validDays", bizValidDays)
+                })
+                put("devicePhone", devicePhone)
+                put("deviceId", deviceId)
+            }
+            val req = Request.Builder()
+                .url("$baseUrl/api/quote/issue")
+                .post(payload.toString().toRequestBody(jsonMedia))
+                .build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                val obj = JSONObject(resp.body?.string().orEmpty())
+                IssuedQuote(
+                    token = obj.getString("token"),
+                    url = obj.getString("url"),
+                    smsDraft = obj.optString("smsDraft"),
+                    issuedAtMs = obj.optLong("issuedAtMs"),
+                    expiresAtMs = obj.optLong("expiresAtMs")
+                )
+            }
+        }
+    }
+
     /** 접수서 발급. 성공 시 [Issued] (특히 url), 실패 시 Result.failure. */
     suspend fun issue(
         phone: String,
