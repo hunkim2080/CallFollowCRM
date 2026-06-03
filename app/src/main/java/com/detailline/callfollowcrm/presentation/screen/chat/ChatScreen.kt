@@ -2336,6 +2336,7 @@ private fun EstimateBuilderDialog(
     // 계약금 — 프로토 depMode: ratio(%)/fixed(만원)/none.
     var depMode by remember { mutableStateOf("ratio") }
     var depVal by remember { mutableStateOf("30") }
+    var depCustom by remember { mutableStateOf(false) } // 비율 '기타' 직접입력 여부
     // 시공일 (접수서/견적서) — null=미정.
     var workDateMs by remember { mutableStateOf<Long?>(null) }
     var workDays by remember { mutableStateOf(1) }
@@ -2435,19 +2436,42 @@ private fun EstimateBuilderDialog(
                     EstSegTab("정액", depMode == "fixed", Modifier.weight(1f)) { depMode = "fixed" }
                     EstSegTab("없음", depMode == "none", Modifier.weight(1f)) { depMode = "none" }
                 }
-                if (depMode != "none") {
+                if (depMode == "ratio") {
+                    // 비율 — 숫자패드 대신 알약(10/20/30/기타). 기타만 직접입력.
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)
+                    ) {
+                        listOf("10", "20", "30").forEach { v ->
+                            EstSmallChip("$v%", !depCustom && depVal == v) { depVal = v; depCustom = false }
+                        }
+                        EstSmallChip("기타", depCustom) { depCustom = true }
+                    }
+                    if (depCustom) {
+                        Spacer(Modifier.height(8.dp))
+                        com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                            depVal, { depVal = it.filter { c -> c.isDigit() } },
+                            placeholder = "예: 25 (%)", keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                        )
+                    }
+                    val depW = totalSum * (depVal.toIntOrNull() ?: 0) / 100
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "계약금 ${java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(depW)}원 (합계의 ${depVal.ifBlank { "0" }}%)",
+                        fontSize = 12.5.sp, color = TossBlue, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(start = 2.dp)
+                    )
+                } else if (depMode == "fixed") {
                     Spacer(Modifier.height(8.dp))
                     com.detailline.callfollowcrm.presentation.component.SheetTextField(
                         depVal, { depVal = it.filter { c -> c.isDigit() } },
-                        placeholder = if (depMode == "ratio") "예: 30 (%)" else "만원 (예: 10)",
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                        placeholder = "만원 (예: 10)", keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
                     )
-                    val depW = if (depMode == "ratio") totalSum * (depVal.toIntOrNull() ?: 0) / 100
-                    else (depVal.toIntOrNull() ?: 0) * 10_000L
+                    val depW = (depVal.toIntOrNull() ?: 0) * 10_000L
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "계약금 ${java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(depW)}원" +
-                            (if (depMode == "ratio") " (합계의 ${depVal.ifBlank { "0" }}%)" else " (정액)"),
+                        "계약금 ${java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(depW)}원 (정액)",
                         fontSize = 12.5.sp, color = TossBlue, fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(start = 2.dp)
                     )
