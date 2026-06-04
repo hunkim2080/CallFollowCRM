@@ -287,8 +287,8 @@
     <b>문자하면 답장 초안 준비.</b> <b>시공 전날 알림 카드까지.</b><br>
     접수서 보내면 <b>고객이 알아서 입력</b>까지 막내가.
   </p>
-  <div class="live-counter reveal d3">
-    <b id="liveCount">—</b><span class="lc-l">명 / 100명 신청 중</span>
+  <div class="live-counter reveal d3" id="liveCounter">
+    <span class="lc-l" style="font-size:13px;color:var(--t1);font-weight:800;">남은 자리</span><b id="liveCount">100</b><span class="lc-l">석</span>
   </div>
   <div class="cta-row reveal d4">
     <a href="#signup" class="cta cta-primary">베타 신청하기 →</a>
@@ -522,8 +522,8 @@
         <div class="pol-cell"><div class="pc-k">정식 출시</div><div class="pc-v"><b>50% 할인</b> 평생</div></div>
       </div>
       <div class="pol-progress">
-        <div class="pp-label"><span>지금까지 신청</span><b id="progCount">—</b></div>
-        <div class="pp-bar"><div class="pp-bar-fill" id="progBar"></div></div>
+        <div class="pp-label"><span>남은 자리</span><b id="progCount">100석</b></div>
+        <div class="pp-bar"><div class="pp-bar-fill" id="progBar" style="width:100%;"></div></div>
       </div>
     </div>
   </div>
@@ -733,17 +733,30 @@
     e.target.value = v;
   });
 
-  // ─── Live counter (fetch GET /api/beta-signup-count) ───
+  // ─── Live counter — "남은 자리" 표시 (cap - total) ───
   function loadCount(){
     fetch('/api/beta-signup-count').then(function(r){return r.json();}).then(function(d){
       const n = (d && typeof d.total === 'number') ? d.total : 0;
-      const lc = document.getElementById('liveCount'); if (lc) lc.textContent = n;
-      const pc = document.getElementById('progCount'); if (pc) pc.textContent = n + ' / 100명';
-      const pb = document.getElementById('progBar'); if (pb) setTimeout(function(){ pb.style.width = Math.min(100, n) + '%'; }, 300);
+      const cap = (d && typeof d.cap === 'number') ? d.cap : 100;
+      const remain = Math.max(0, cap - n);
+      const lc = document.getElementById('liveCount'); if (lc) lc.textContent = remain;
+      const pc = document.getElementById('progCount'); if (pc) pc.textContent = remain + '석';
+      const pb = document.getElementById('progBar'); if (pb){
+        const pct = Math.max(0, (remain / cap) * 100);
+        setTimeout(function(){ pb.style.width = pct + '%'; }, 300);
+      }
+      // 20석 이하면 urgency 색
+      const liveCounter = document.getElementById('liveCounter');
+      if (liveCounter && remain <= 20){
+        liveCounter.style.background = 'linear-gradient(135deg,#FDEAEF,#FFF3DF)';
+        liveCounter.style.borderColor = 'rgba(240,67,106,.3)';
+        if (lc) lc.style.color = '#F0436A';
+      }
     }).catch(function(){
-      const lc = document.getElementById('liveCount'); if (lc) lc.textContent = '0';
-      const pc = document.getElementById('progCount'); if (pc) pc.textContent = '0 / 100명';
-      const pb = document.getElementById('progBar'); if (pb) setTimeout(function(){ pb.style.width = '0%'; }, 300);
+      // 네트워크 실패 시 100석으로 표시 (정직 유지)
+      const lc = document.getElementById('liveCount'); if (lc) lc.textContent = '100';
+      const pc = document.getElementById('progCount'); if (pc) pc.textContent = '100석';
+      const pb = document.getElementById('progBar'); if (pb) setTimeout(function(){ pb.style.width = '100%'; }, 300);
     });
   }
   loadCount();
