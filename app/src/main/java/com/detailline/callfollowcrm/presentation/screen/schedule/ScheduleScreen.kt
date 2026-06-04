@@ -41,6 +41,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -95,11 +96,13 @@ fun ScheduleScreen(
     val todayStart = remember(nowMs) { DateTimeUtils.startOfDay(nowMs) }
 
     // 보고 있는 달의 anchor (그 달 1일 startOfDay). 화살표로 이동.
-    var viewedMonthAnchor by remember {
+    //   rememberSaveable: 고객정보 등으로 갔다 와도(화면이 composition 을 떠나도) 보던 달 유지. 2026-06-04.
+    var viewedMonthAnchor by rememberSaveable {
         mutableLongStateOf(monthAnchor(nowMs))
     }
     // 선택된 날 (null = 오늘). 셀 탭으로 변경.
-    var selectedDayMs by remember { mutableStateOf<Long?>(todayStart) }
+    //   rememberSaveable: 고객정보 갔다 오면 선택 날짜가 "오늘"로 풀리던 버그 fix(2026-06-04 사장님 보고).
+    var selectedDayMs by rememberSaveable { mutableStateOf<Long?>(todayStart) }
 
     Scaffold(
         containerColor = TossGrayBg,
