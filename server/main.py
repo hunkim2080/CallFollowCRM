@@ -5625,6 +5625,20 @@ _INTAKE_SELECT_COLS = (
 )
 
 
+def _fmt_phone_dashed(p: Optional[str]) -> str:
+    """전화번호 010-XXXX-XXXX / 010-XXX-XXXX 포맷. 비어있거나 형식 모르면 '010-' fallback.
+
+    §19 시공접수서 폼의 phone input prefill 용 (사장님 2026-06-04 요청).
+    웹은 폰 번호 자동 못 읽으니 발급 시 저장한 intake_forms.phone 으로 prefill.
+    """
+    digits = "".join(ch for ch in (p or "") if ch.isdigit())
+    if len(digits) == 11:
+        return f"{digits[:3]}-{digits[3:7]}-{digits[7:]}"
+    if len(digits) == 10:
+        return f"{digits[:3]}-{digits[3:6]}-{digits[6:]}"
+    return (p or "").strip() or "010-"
+
+
 @app.get("/api/intake-form/status")
 async def intake_form_status(phone: str, device_id: Optional[str] = None) -> dict:
     """해당 phone 의 가장 최근 intake (앱 polling 용)."""
@@ -5826,7 +5840,7 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
     <div class="q-card">
       <div class="q-card-h"><span class="q-step">3</span>연락처 · 현장 정보</div>
       <div class="q-label">전화번호</div>
-      <input class="q-input" id="q-phone" inputmode="numeric" value="010-" autocomplete="tel">
+      <input class="q-input" id="q-phone" inputmode="numeric" value="{phone_html}" autocomplete="tel">
       <div class="q-label">현장 주소</div>
       <div class="q-addr-field" id="q-addr-field" onclick="openAddr()"><span class="ico">🔍</span><span id="q-addr-text">주소 검색 (탭)</span></div>
       <input class="q-input" id="q-dong" placeholder="동/호수 (선택)" style="margin-top:8px">
@@ -6206,6 +6220,7 @@ async def intake_form_page(token: str) -> HTMLResponse:
         total_man_html=_html.escape(str(int(data["total_man"] or 0))),
         deposit_html=deposit_html,
         token_js=_html.escape(token, quote=True),
+        phone_html=_html.escape(_fmt_phone_dashed(data["phone"]), quote=True),
     )
     return HTMLResponse(content=page)
 
@@ -6479,6 +6494,7 @@ def _render_quote_form_html(token: str, row: tuple) -> str:
                 total_man_html=_html.escape(str(int(data["total_man"] or 0))),
                 deposit_html=deposit_html,
                 token_js=_html.escape(token, quote=True),
+                phone_html=_html.escape(_fmt_phone_dashed(data["phone"]), quote=True),
             ))
     return page
 
