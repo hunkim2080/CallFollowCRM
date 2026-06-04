@@ -20,6 +20,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -103,6 +108,19 @@ fun ScheduleScreen(
     // 선택된 날 (null = 오늘). 셀 탭으로 변경.
     //   rememberSaveable: 고객정보 갔다 오면 선택 날짜가 "오늘"로 풀리던 버그 fix(2026-06-04 사장님 보고).
     var selectedDayMs by rememberSaveable { mutableStateOf<Long?>(todayStart) }
+
+    // 팀원 현장 배정 (2026-06-05) — 팀원 있을 때만 일정 카드에 배정 줄 노출.
+    val teamMembers by viewModel.teamMembers.collectAsState()
+    val assignmentsByCustomer by viewModel.assignmentsByCustomer.collectAsState()
+    val assignToast by viewModel.toast.collectAsState()
+    val assignCtx = androidx.compose.ui.platform.LocalContext.current
+    androidx.compose.runtime.LaunchedEffect(assignToast) {
+        assignToast?.let {
+            android.widget.Toast.makeText(assignCtx, it, android.widget.Toast.LENGTH_SHORT).show()
+            viewModel.consumeToast()
+        }
+    }
+    var assignTarget by remember { mutableStateOf<CustomerEntity?>(null) }
 
     Scaffold(
         containerColor = TossGrayBg,
@@ -236,6 +254,9 @@ fun ScheduleScreen(
                         cardSummary = cardSummaries[suffix],
                         selectedDayMs = selectedDayMs,
                         todayStart = todayStart,
+                        assignedMembers = assignmentsByCustomer[c.id].orEmpty(),
+                        teamAvailable = teamMembers.isNotEmpty(),
+                        onAssign = { assignTarget = c },
                         onClick = { onOpenCustomer(c.id) },
                         onEdit = { onOpenCustomer(c.id) },
                         onOpenSettle = onOpenSettle
@@ -245,6 +266,22 @@ fun ScheduleScreen(
             }
             item { Spacer(Modifier.height(40.dp)) }
         }
+    }
+
+    // 팀원 현장 배정 시트 — 프로토 openAssign(팀원 칩 토글).
+    assignTarget?.let { c ->
+        val assignedIds = assignmentsByCustomer[c.id].orEmpty().map { it.memberId }.toSet()
+        AssignTeamSheet(
+            customerName = c.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(c.phoneNumber),
+            members = teamMembers,
+            initiallySelected = assignedIds,
+            onDismiss = { assignTarget = null },
+            onSave = { selectedIds ->
+                val dayStart = DateTimeUtils.startOfDay(c.scheduledWorkDate ?: System.currentTimeMillis())
+                viewModel.assignTeam(c, dayStart, selectedIds.toList())
+                assignTarget = null
+            }
+        )
     }
 }
 
@@ -449,6 +486,9 @@ private fun DayJobCard(
     cardSummary: String?,
     selectedDayMs: Long?,
     todayStart: Long,
+    assignedMembers: List<com.detailline.callfollowcrm.data.local.entity.TeamAssignmentEntity> = emptyList(),
+    teamAvailable: Boolean = false,
+    onAssign: () -> Unit = {},
     onClick: () -> Unit,
     onEdit: () -> Unit,
     onOpenSettle: () -> Unit
@@ -536,9 +576,80 @@ private fun DayJobCard(
                 Spacer(Modifier.weight(1f))
                 Icon(Icons.Default.ChevronRight, null, tint = TossBlue.copy(alpha = 0.6f), modifier = Modifier.size(16.dp))
             }
+            // 프로토 .assign-line — 팀원 현장 배정 (팀원 있을 때만 노출).
+            if (teamAvailable) {
+                Spacer(Modifier.height(10.dp))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                ) {
+                    if (assignedMembers.isEmpty()) {
+                        Text("아직 배정 안 함", fontSize = 13.sp, color = TossTextTertiary, modifier = Modifier.weight(1f))
+                        AssignBtn("팀원 배정", filled = true, onClick = onAssign)
+                    } else {
+                        AssignAvatars(assignedMembers)
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            assignedMembers.joinToString(", ") { it.memberName },
+                            fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
+                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        AssignBtn("변경", filled = false, onClick = onAssign)
+                    }
+                }
+            }
         }
     }
 }
+
+/** 프로토 .assign-btn — blue-tint 알약(배정) / 회색 텍스트(변경). */
+@Composable
+private fun AssignBtn(label: String, filled: Boolean, onClick: () -> Unit) {
+    Text(
+        label,
+        fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
+        color = if (filled) TossBlue else TossTextTertiary,
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .then(if (filled) Modifier.background(TossBlueSoft) else Modifier)
+            .clickable { onClick() }
+            .padding(horizontal = if (filled) 13.dp else 8.dp, vertical = 7.dp)
+    )
+}
+
+/** 프로토 .crew-avs — 겹친 작은 이니셜 아바타. */
+@Composable
+private fun AssignAvatars(members: List<com.detailline.callfollowcrm.data.local.entity.TeamAssignmentEntity>) {
+    Row {
+        members.take(4).forEachIndexed { idx, m ->
+            val (bg, fg) = ASSIGN_TINTS[((idx) % ASSIGN_TINTS.size)]
+            Box(
+                Modifier
+                    .then(if (idx == 0) Modifier else Modifier.offset(x = (-7 * idx).dp))
+                    .size(28.dp).clip(CircleShape)
+                    .background(Color.White)
+                    .padding(2.dp)
+            ) {
+                Box(Modifier.fillMaxSize().clip(CircleShape).background(bg), contentAlignment = Alignment.Center) {
+                    Text(
+                        m.memberName.replace(Regex("[\\s()]"), "").take(1).ifBlank { "?" },
+                        fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = fg
+                    )
+                }
+            }
+        }
+    }
+}
+
+private val ASSIGN_TINTS = listOf(
+    Color(0xFFE6EFFF) to Color(0xFF3182F6),
+    Color(0xFFE7F8EE) to Color(0xFF16A765),
+    Color(0xFFFDEAEF) to Color(0xFFF0436A),
+    Color(0xFFF1ECFE) to Color(0xFF7C5CFC),
+    Color(0xFFFEF3E0) to Color(0xFFE0920C),
+)
 
 @Composable
 private fun PayStatusReadOnly(row: com.detailline.callfollowcrm.domain.settlement.SettleRow) {
@@ -649,4 +760,72 @@ private fun buildCalendarCells(
         cal.add(Calendar.DAY_OF_MONTH, 1)
     }
     return cells
+}
+
+/**
+ * 팀원 현장 배정 시트 — 프로토 openAssign/renderAssign 1:1 (팀원 칩 토글).
+ *   저장 시 ScheduleViewModel.assignTeam → 로컬 기록 + 서버 schedule-snapshot push.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun AssignTeamSheet(
+    customerName: String,
+    members: List<com.detailline.callfollowcrm.ai.TeamRepository.TeamMember>,
+    initiallySelected: Set<String>,
+    onDismiss: () -> Unit,
+    onSave: (Set<String>) -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var selected by remember { mutableStateOf(initiallySelected) }
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = Color.White, tonalElevation = 0.dp) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 22.dp)
+        ) {
+            Text("현장 배정", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            Spacer(Modifier.height(4.dp))
+            Text("${customerName} 현장에 보낼 팀원을 고르세요. 배정하면 팀원 화면에 일정·주소가 떠요.",
+                fontSize = 13.sp, color = TossTextTertiary, lineHeight = 19.sp)
+            Spacer(Modifier.height(16.dp))
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                members.forEach { m ->
+                    val on = selected.contains(m.memberId)
+                    val roleLabel = if (m.role == "owner") "대표" else "팀원"
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(if (on) TossBlue else TossGrayBg)
+                            .clickable {
+                                selected = if (on) selected - m.memberId else selected + m.memberId
+                            }
+                            .padding(horizontal = 14.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (on) {
+                            Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(5.dp))
+                        }
+                        Text(m.name, fontSize = 13.5.sp, fontWeight = FontWeight.Bold,
+                            color = if (on) Color.White else TossTextPrimary)
+                        Spacer(Modifier.width(5.dp))
+                        Text(roleLabel, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                            color = if (on) Color.White.copy(alpha = 0.8f) else TossTextTertiary)
+                    }
+                }
+            }
+            Spacer(Modifier.height(20.dp))
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(TossBlue)
+                    .clickable { onSave(selected) }.padding(vertical = 15.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    if (selected.isNotEmpty()) "${selected.size}명 배정 완료" else "완료",
+                    color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold
+                )
+            }
+        }
+    }
 }

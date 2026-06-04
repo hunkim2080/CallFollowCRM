@@ -2986,3 +2986,12 @@ HOU-128 `/admin/beta/intake` (셋팅 폼) 도 이전 cycle 에 통합 완료. �
   - 미리보기/멤버 탭 = invite(reuse)로 url 받아 브라우저로 엶(멤버목록 API에 token 없어서). 실기기 전체 UI 검증 완료.
 - commit: (아래)
 - 다음 액션(서버): 없음. (앱이 팀원별 일정 배정 push(schedule-snapshot)는 추후 — 지금은 멤버 status=전화번호만)
+
+## 2026-06-05 02:05 · android
+팀원 현장 배정 (일정 카드 배정 줄 → 서버 schedule-snapshot push)
+- 변경: 앱만(기존 /api/team/schedule-snapshot 사용). DB v29 team_assignments(memberId·customerId·dayStartMs).
+  - 일정 화면 각 일정 카드 하단 배정 줄(프로토 .assign-line, 팀원 있을 때만): [팀원 배정]/[변경] → 팀원 칩 시트 → 저장 시 로컬 교체 + 영향 팀원별 snapshot push → 팀원 웹뷰에 일정·주소 반영. 토큰 만료(404) 시 invite(reuse) 재시도.
+  - 일당(JobCrew)은 별개(일정 등록 때) — 이번 배정 줄은 팀원 전용(정산 안 건드림).
+- 빌드 통과. ⚠️ 작업 중 폰 USB 분리 → 마이그레이션 실행·배정 UI 온디바이스 미검증(재연결 후 설치 필요).
+- commit: (아래)
+- 다음 액션(서버): 없음.

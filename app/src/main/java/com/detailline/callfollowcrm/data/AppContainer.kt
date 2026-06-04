@@ -127,6 +127,10 @@ class AppContainer(context: Context) {
 
     // 2026-06-05 팀 관리(비즈니스) — 팀원 초대/목록/제외/출발알림. 서버 팀 API.
     val teamRepository = com.detailline.callfollowcrm.ai.TeamRepository()
+    // 2026-06-05 팀원 현장 배정(로컬 기록 + 서버 snapshot push 의 토대).
+    val teamAssignmentRepository = com.detailline.callfollowcrm.data.repository.TeamAssignmentRepository(
+        db.teamAssignmentDao()
+    )
 
     // 2026-06-02 맥미니 §18 — 에이닷 통화요약 → Haiku 한 줄+불릿. AdotSummaryImporter 가 best-effort 호출.
     val callSummaryServerRepository = com.detailline.callfollowcrm.ai.CallSummaryServerRepository()

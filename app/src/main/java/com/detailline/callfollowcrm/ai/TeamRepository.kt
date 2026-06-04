@@ -135,6 +135,55 @@ class TeamRepository(
         }
     }
 
+    /** 배정된 일정 1건 — schedule-snapshot 의 item. */
+    data class SnapshotItem(
+        val whenLabel: String,         // "오늘" | "5/30" 등
+        val customerLabel: String,     // 현장/고객 표시명
+        val time: String?,             // "09:00"
+        val addr: String?,
+        val workSummary: String?,
+        val memo: String?,
+        val days: Int,
+        val isToday: Boolean,
+        val scheduledAtMs: Long
+    )
+
+    /**
+     * 팀원 일정 snapshot push — 팀원 웹뷰(/team/member/{token})에 표시될 배정 일정 통째 갱신.
+     *   활성 토큰 없음(404) 시 호출부가 invite(reuse) 후 재시도.
+     */
+    suspend fun pushScheduleSnapshot(memberId: String, items: List<SnapshotItem>): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val arr = org.json.JSONArray()
+                items.forEach { it2 ->
+                    arr.put(JSONObject().apply {
+                        put("when", it2.whenLabel)
+                        put("customer_label", it2.customerLabel)
+                        it2.time?.let { put("time", it) }
+                        it2.addr?.let { put("addr", it) }
+                        it2.workSummary?.let { put("work_summary", it) }
+                        it2.memo?.let { put("memo", it) }
+                        put("days", it2.days)
+                        put("is_today", it2.isToday)
+                        put("scheduled_at_ms", it2.scheduledAtMs)
+                    })
+                }
+                val payload = JSONObject().apply {
+                    put("member_id", memberId)
+                    put("items", arr)
+                }
+                val req = Request.Builder()
+                    .url("$baseUrl/api/team/schedule-snapshot")
+                    .post(payload.toString().toRequestBody(jsonMedia))
+                    .build()
+                client.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                    Unit
+                }
+            }
+        }
+
     /** 팀원 이벤트(출발/사진/도착) 최신순. 출발 알림 표시용. */
     suspend fun events(ownerPhone: String, sinceMs: Long = 0L, limit: Int = 30): Result<List<TeamEvent>> =
         withContext(Dispatchers.IO) {
