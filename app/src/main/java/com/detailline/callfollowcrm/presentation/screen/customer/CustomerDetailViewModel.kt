@@ -55,6 +55,26 @@ class CustomerDetailViewModel(
         container.callSummaryRepository.observeByCustomer(customerId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    // 현장 사진(로컬) — 이 고객 현장에 올린 사진. 2026-06-04.
+    val sitePhotos: kotlinx.coroutines.flow.StateFlow<List<com.detailline.callfollowcrm.data.local.entity.SitePhotoEntity>> =
+        container.sitePhotoRepository.observe(customerId)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** 갤러리에서 고른 사진들 추가(내부 저장소 복사). */
+    fun addSitePhotos(uris: List<android.net.Uri>) = viewModelScope.launch {
+        if (uris.isEmpty()) return@launch
+        var ok = 0
+        withContext(NonCancellable) {
+            uris.forEach { if (container.sitePhotoRepository.addFromUri(customerId, it)) ok++ }
+        }
+        _toast.value = if (ok > 0) "현장 사진 ${ok}장 추가했어요" else "사진을 추가하지 못했어요"
+    }
+
+    fun deleteSitePhoto(id: Long) = viewModelScope.launch {
+        withContext(NonCancellable) { container.sitePhotoRepository.delete(id) }
+        _toast.value = "사진을 삭제했어요"
+    }
+
     // 2026-05-29 킬러콘텐츠 5단계 — 고객 페르소나 (cowork prepare-reply 가 자동 생성).
     //   안드는 GET /api/customer-persona/{phone} 으로 cache 조회만.
     //   customer flow 받으면 phone 으로 fetch — 자동 갱신.

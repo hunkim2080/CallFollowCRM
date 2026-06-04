@@ -143,6 +143,8 @@ fun CustomerDetailScreen(
     // MMS 사진 풀스크린 뷰어 — 썸네일 탭하면 set, 다이얼로그가 보여줌. null 이면 닫힘.
     var fullscreenImageUri by remember { mutableStateOf<android.net.Uri?>(null) }
     var celebrationVisible by remember { mutableStateOf(false) }
+    // 현장 사진 삭제 확인 — null 이면 닫힘, 값 = 삭제 대상 photo id.
+    var photoToDelete by remember { mutableStateOf<Long?>(null) }
 
     // composer 는 bottomBar 로 이동됨. 스크롤 영향 안 받아 bringIntoView 등 복잡한 로직 불필요.
     val scrollState = rememberScrollState()
@@ -554,49 +556,81 @@ fun CustomerDetailScreen(
             //   2026-06-04 사장님 결정 "프로토 100%". 통화기록/녹음/에이닷 요약 데이터 수집(backfill·
             //   AdotSummaryImporter)은 그대로 동작 — 고객정보 화면에서 카드로 노출만 안 함.
 
-            // 6.5 현장 사진 (프로토 openCustomer) — 테스터용: UI 노출, 업로드 기능은 "준비 중"으로 막음.
-            val photoCtx = androidx.compose.ui.platform.LocalContext.current
-            val photoBlocked = {
-                android.widget.Toast.makeText(photoCtx, "현장 사진은 곧 제공돼요 🚧 (테스터 버전 준비 중)", android.widget.Toast.LENGTH_SHORT).show()
-            }
+            // 6.5 현장 사진 (프로토 openCustomer) — 사장님이 갤러리에서 골라 올림(로컬 저장). 2026-06-04 활성화.
+            //   ※ 팀원↔사장님 공유는 서버(team_site_photos) 보강 후 별도 연동 — docs/SERVER_HANDOFF 참조.
+            val sitePhotos by viewModel.sitePhotos.collectAsState()
+            // 갤러리 다중 선택 — 구형 기기(Android 10/GMS)에서도 결과 전달이 안정적인 ACTION_GET_CONTENT 사용.
+            val photoPicker = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.GetMultipleContents()
+            ) { uris -> if (uris.isNotEmpty()) viewModel.addSitePhotos(uris) }
+            val launchPhotoPicker = { photoPicker.launch("image/*") }
             TossCard {
                 Column {
                     androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                         Text("📷", fontSize = 13.sp)
                         Spacer(Modifier.width(6.dp))
-                        Text("현장 사진", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                        Text(
+                            if (sitePhotos.isEmpty()) "현장 사진" else "현장 사진 ${sitePhotos.size}장",
+                            fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
+                        )
                     }
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "팀원이 올린 사진은 파란 이름표가 붙어요. 모든 사진은 사장님 계정에 저장돼요.",
+                        "현장 사진을 올려 기록해두세요. (지금은 이 폰에만 저장 — 팀원 공유는 준비 중)",
                         fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp
                     )
                     Spacer(Modifier.height(10.dp))
-                    // photo-grid (3열) — 빈 슬롯 2 + 올리기. 전부 탭하면 "준비 중".
-                    androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        repeat(2) {
-                            androidx.compose.foundation.layout.Box(
-                                Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(12.dp))
-                                    .background(
-                                        Brush.linearGradient(listOf(Color(0xFFCFD6DF), Color(0xFFA9B3C1)))
-                                    )
-                                    .clickable { photoBlocked() }
-                            )
-                        }
-                        androidx.compose.foundation.layout.Box(
-                            Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(12.dp))
-                                .background(TossGrayBg)
-                                .border(1.5.dp, Color(0xFFC8D3E2), RoundedCornerShape(12.dp))
-                                .clickable { photoBlocked() },
-                            contentAlignment = androidx.compose.ui.Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
-                                androidx.compose.material3.Icon(
-                                    Icons.Default.PhotoCamera, null, tint = TossBlue, modifier = Modifier.size(22.dp)
-                                )
-                                Spacer(Modifier.height(2.dp))
-                                Text("올리기", fontSize = 11.sp, color = TossBlue, fontWeight = FontWeight.Bold)
+                    // photo-grid (3열) — 올린 사진들 + 맨 끝 [올리기] 타일.
+                    val cells: List<Any> = sitePhotos + listOf("UPLOAD")
+                    cells.chunked(3).forEachIndexed { rowIdx, row ->
+                        if (rowIdx > 0) Spacer(Modifier.height(8.dp))
+                        androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            row.forEach { cell ->
+                                if (cell is com.detailline.callfollowcrm.data.local.entity.SitePhotoEntity) {
+                                    androidx.compose.foundation.layout.Box(
+                                        Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
+                                    ) {
+                                        coil.compose.AsyncImage(
+                                            model = java.io.File(cell.filePath),
+                                            contentDescription = "현장 사진",
+                                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize().clickable {
+                                                fullscreenImageUri = android.net.Uri.fromFile(java.io.File(cell.filePath))
+                                            }
+                                        )
+                                        // 삭제 ✕ 배지 (우상단)
+                                        androidx.compose.foundation.layout.Box(
+                                            Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(4.dp)
+                                                .size(22.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.45f))
+                                                .clickable { photoToDelete = cell.id },
+                                            contentAlignment = androidx.compose.ui.Alignment.Center
+                                        ) {
+                                            androidx.compose.material3.Icon(
+                                                Icons.Default.Close, "삭제", tint = Color.White, modifier = Modifier.size(13.dp)
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    // [올리기] 타일
+                                    androidx.compose.foundation.layout.Box(
+                                        Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(12.dp))
+                                            .background(TossGrayBg)
+                                            .border(1.5.dp, Color(0xFFC8D3E2), RoundedCornerShape(12.dp))
+                                            .clickable { launchPhotoPicker() },
+                                        contentAlignment = androidx.compose.ui.Alignment.Center
+                                    ) {
+                                        Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                                            androidx.compose.material3.Icon(
+                                                Icons.Default.PhotoCamera, null, tint = TossBlue, modifier = Modifier.size(22.dp)
+                                            )
+                                            Spacer(Modifier.height(2.dp))
+                                            Text("올리기", fontSize = 11.sp, color = TossBlue, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
                             }
+                            // 마지막 줄 빈칸 채우기 (3열 정렬 유지)
+                            repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                         }
                     }
                 }
@@ -785,6 +819,23 @@ fun CustomerDetailScreen(
                 amountEditField = null
             },
             onDismiss = { amountEditField = null }
+        )
+    }
+
+    // 현장 사진 삭제 확인
+    photoToDelete?.let { id ->
+        AlertDialog(
+            onDismissRequest = { photoToDelete = null },
+            title = { Text("사진을 삭제할까요?", fontWeight = FontWeight.Bold) },
+            text = { Text("이 현장 사진을 지웁니다. 되돌릴 수 없어요.") },
+            confirmButton = {
+                TextButton(onClick = { viewModel.deleteSitePhoto(id); photoToDelete = null }) {
+                    Text("삭제", color = Color(0xFFF0436A), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { photoToDelete = null }) { Text("취소", color = TossTextSecondary) }
+            }
         )
     }
 

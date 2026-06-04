@@ -56,9 +56,10 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity::class,
         com.detailline.callfollowcrm.data.local.entity.JobCrewEntity::class,
         com.detailline.callfollowcrm.data.local.entity.RecurringMessageEntity::class,
-        com.detailline.callfollowcrm.data.local.entity.RecurringLogEntity::class
+        com.detailline.callfollowcrm.data.local.entity.RecurringLogEntity::class,
+        com.detailline.callfollowcrm.data.local.entity.SitePhotoEntity::class
     ],
-    version = 26,
+    version = 27,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -81,6 +82,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun notebookContactDao(): com.detailline.callfollowcrm.data.local.dao.NotebookContactDao
     abstract fun jobCrewDao(): com.detailline.callfollowcrm.data.local.dao.JobCrewDao
     abstract fun recurringMessageDao(): com.detailline.callfollowcrm.data.local.dao.RecurringMessageDao
+    abstract fun sitePhotoDao(): com.detailline.callfollowcrm.data.local.dao.SitePhotoDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -562,6 +564,24 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v27 — 현장 사진(로컬). SitePhotoEntity 와 정확히 일치해야 함(Room schema 검증).
+        private val MIGRATION_26_27 = object : Migration(26, 27) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `site_photos` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`customerId` INTEGER NOT NULL, " +
+                        "`filePath` TEXT NOT NULL, " +
+                        "`label` TEXT, " +
+                        "`createdAt` INTEGER NOT NULL)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_site_photos_customerId` " +
+                        "ON `site_photos` (`customerId`)"
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
@@ -574,7 +594,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15,
                     MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19,
                     MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23,
-                    MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26
+                    MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27
                 )
                 .fallbackToDestructiveMigration()   // migration 실패 시 안전망 (개발 단계)
                 .build()

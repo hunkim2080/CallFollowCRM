@@ -44,6 +44,10 @@ class AppContainer(context: Context) {
     val messageTemplateRepository = MessageTemplateRepository(db.messageTemplateDao())
     val messageHistoryRepository = MessageHistoryRepository(db.messageHistoryDao())
     val recordingRepository = RecordingRepository(db.recordingAttachmentDao())
+    // 현장 사진(로컬) — 사장님이 고객 현장에 올린 사진. 2026-06-04.
+    val sitePhotoRepository = com.detailline.callfollowcrm.data.repository.SitePhotoRepository(
+        context.applicationContext, db.sitePhotoDao()
+    )
     val callSummaryRepository = CallSummaryRepository(db.callSummaryDao())
     val templateAttachmentRepository = TemplateAttachmentRepository(db.templateAttachmentDao())
     val smsRepository = SmsRepository(context.applicationContext)

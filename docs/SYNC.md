@@ -2830,3 +2830,13 @@ rm -f .git/index.lock .git/ORIG_HEAD.lock && git pull --rebase origin main && gi
 - fix: SettlementViewModel rows 정렬을 compareBy { scheduledWorkDate ?: MAX }.thenByDescending { outstanding } 로 변경 → 시공일 오름차순(없으면 맨뒤, 동일날짜는 미수 큰 순). 미수/완료 목록 모두 적용.
 - 실기기 확인: 6/8→6/10→6/11 순.
 - 서버 영향 없음.
+
+## 2026-06-04 · android (68)
+### 현장 사진 업로드 활성화(로컬) + 팀 공유 서버 핸드오프
+사장님 "팀원도 현장사진 올리고, 나도 그 현장에 올리게 활성화".
+- 조사: 서버에 team_site_photos + 팀원 업로드/조회 인프라는 있으나 ①사진이 특정 고객(현장)에 연결 안 됨 ②사장님 업로드 통로 없음 ③앱은 팀 사진 안 불러옴. → 팀↔사장님 공유는 서버 보강 필요(Cowork).
+- 사장님 결정 "둘 다": ① 앱 로컬 업로드 활성화 + ② 서버 요청서 작성.
+- ① 구현(로컬 전용): DB v27 site_photos 테이블(SitePhotoEntity/Dao/Repository, MIGRATION_26_27) + AppContainer.sitePhotoRepository + CustomerDetailViewModel(sitePhotos/addSitePhotos/deleteSitePhoto) + CustomerDetailScreen "📷 현장 사진" 카드 실제화(갤러리 ACTION_GET_CONTENT 다중선택→내부저장소 복사→3열 그리드, 탭=풀스크린, ✕=삭제). photoBlocked "준비중" 제거.
+  - 검증: 마이그레이션 v26→27 정상(로그, 크래시 없음). 카드 렌더+선택기 실행 실기기 확인. **사진 고르기 최종 round-trip 은 시스템 갤러리가 adb 자동탭에 안 잡혀 수동 검증 필요(사장님 직접 1회).** GMS 포토피커 결과 불안정 회피로 GetMultipleContents(구형 안정) 채택.
+- ② docs/SERVER_HANDOFF_site_photos.md — team_site_photos 에 고객 연결 컬럼 + owner-upload 엔드포인트 + 고객별 조회 추가 요청.
+- 서버 영향: 없음(요청서만). cowork 작업 대기.
