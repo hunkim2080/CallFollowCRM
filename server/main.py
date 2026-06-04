@@ -420,6 +420,35 @@ def db_init() -> None:
             "CREATE INDEX IF NOT EXISTS idx_bir_revision "
             "ON beta_intake_responses (revision DESC)"
         )
+        # §23 — 베타 모집 랜딩페이지 신청 저장 (landing.html → POST /api/beta-signup)
+        # 같은 phone 중복 신청은 PRIMARY KEY 로 차단 (가장 최근 응답만 keep).
+        # source 는 'landing/<host>' 또는 'admin/manual' 등 유입경로 기록.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS beta_signups (
+                phone               TEXT PRIMARY KEY,
+                industry            TEXT,
+                region              TEXT,
+                monthly_inquiries   TEXT,
+                note                TEXT,
+                agreed_at_ms        INTEGER NOT NULL,
+                source              TEXT,
+                ip                  TEXT,
+                ua                  TEXT,
+                status              TEXT NOT NULL DEFAULT 'pending',
+                created_at_ms       INTEGER NOT NULL,
+                updated_at_ms       INTEGER NOT NULL
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_beta_signups_created "
+            "ON beta_signups(created_at_ms DESC)"
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_beta_signups_status "
+            "ON beta_signups(status, created_at_ms DESC)"
+        )
         con.commit()
 
 
@@ -4093,6 +4122,256 @@ async def admin_beta_intake_save(
         con.commit()
     print(f"[admin_beta_intake] saved rev={rev} draft={body.draft}")
     return {"ok": True, "revision": rev, "draft": body.draft, "saved_at": now}
+
+
+# ============================================================================
+# §23 — 베타 모집 랜딩페이지 + 신청 폼 (RING-GO 첫 공개 페이지)
+# ─────────────────────────────────────────────────────────────────────────────
+# api.si0in.kr/ 의 루트가 랜딩페이지 = 100명 베타 모집. 신청 폼은 5 항목
+# (전화번호 / 업종 / 지역 / 한 달 문의 수 / 동의) + 자유 메모.
+# 디자인 톤은 design-preview/ringgo-redesign.html (프로토) 1:1 — 라일락-블루
+# 메인, 둥근 카드, "막내 비서" 브랜드, 친근 ~요체.
+#
+# 베타 정책 (가격/인원/기간) 은 사장님이 HOU-128 셋팅 폼 (§22) 에 채운 값으로
+# 자동 갱신 — 일단 정적 placeholder (100명/4주/무료) 로 시작.
+#
+# 신청 저장: cache.db.beta_signups (phone PK = 중복 신청 차단). status=pending.
+# 사장님이 /admin/beta/signups 에서 리스트 확인 + status 변경 (accept/reject).
+# 추후: 선정 시 SOLAPI Zapier 로 사장님이 SMS 발송 (자동 발송 금지 — 항상 수동).
+# ============================================================================
+
+_LANDING_HTML_PATH = BASE_DIR / "static" / "landing.html"
+
+
+class BetaSignupRequest(BaseModel):
+    """랜딩페이지 신청 폼 페이로드. 모두 string (전화번호는 숫자 11자리, 하이픈 제거)."""
+
+    phone: str
+    industry: str
+    region: str
+    monthly_inquiries: str
+    note: str = ""
+    agreed: bool = False
+    source: str = "landing/unknown"
+
+
+_VALID_INDUSTRIES = {"줄눈", "타일", "도배", "장판", "인테리어", "기타"}
+_VALID_MONTHLY = {"0-10", "10-30", "30-60", "60-100", "100+"}
+
+
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+async def landing_root():
+    """api.si0in.kr/ → 랜딩페이지 (베타 모집).
+
+    추후 si0in.kr 루트 도메인을 Cloudflare Tunnel 에 추가하면 그쪽도 이 endpoint 가 응답.
+    """
+    if not _LANDING_HTML_PATH.exists():
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"landing.html not found at {_LANDING_HTML_PATH}. "
+                "server/static/landing.html 확인."
+            ),
+        )
+    return _LANDING_HTML_PATH.read_text(encoding="utf-8")
+
+
+@app.get("/landing", response_class=HTMLResponse, include_in_schema=False)
+async def landing_alias():
+    """/landing alias — / 와 동일."""
+    return await landing_root()
+
+
+@app.post("/api/beta-signup")
+async def beta_signup(req: BetaSignupRequest, request: Request):
+    """랜딩페이지 신청 저장. phone PK = 중복 시 UPSERT (가장 최근 응답 keep)."""
+    # 검증
+    phone_digits = "".join(ch for ch in req.phone if ch.isdigit())
+    if len(phone_digits) < 10 or len(phone_digits) > 11:
+        raise HTTPException(status_code=400, detail="전화번호 형식 오류 (10~11자리)")
+    if not req.agreed:
+        raise HTTPException(status_code=400, detail="개인정보 수집·이용 동의 필요")
+    if req.industry not in _VALID_INDUSTRIES:
+        raise HTTPException(status_code=400, detail="업종 선택 오류")
+    if req.monthly_inquiries not in _VALID_MONTHLY:
+        raise HTTPException(status_code=400, detail="문의 수 선택 오류")
+    region = (req.region or "").strip()
+    if len(region) < 2 or len(region) > 40:
+        raise HTTPException(status_code=400, detail="활동 지역 입력 오류")
+    note = (req.note or "").strip()[:300]
+
+    # 메타
+    ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or (
+        request.client.host if request.client else ""
+    )
+    ua = request.headers.get("user-agent", "")[:300]
+    now = _now_ms()
+
+    with sqlite3.connect(DB_PATH) as con:
+        con.execute(
+            """
+            INSERT INTO beta_signups
+              (phone, industry, region, monthly_inquiries, note, agreed_at_ms,
+               source, ip, ua, status, created_at_ms, updated_at_ms)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+            ON CONFLICT(phone) DO UPDATE SET
+              industry          = excluded.industry,
+              region            = excluded.region,
+              monthly_inquiries = excluded.monthly_inquiries,
+              note              = excluded.note,
+              agreed_at_ms      = excluded.agreed_at_ms,
+              source            = excluded.source,
+              ip                = excluded.ip,
+              ua                = excluded.ua,
+              updated_at_ms     = excluded.updated_at_ms
+            """,
+            (
+                phone_digits,
+                req.industry,
+                region,
+                req.monthly_inquiries,
+                note,
+                now,
+                req.source[:100],
+                ip[:60],
+                ua,
+                now,
+                now,
+            ),
+        )
+        # 총 신청자 수 (사장님이 즉시 확인할 수 있게)
+        count = con.execute(
+            "SELECT COUNT(*) FROM beta_signups WHERE status != 'rejected'"
+        ).fetchone()[0]
+        con.commit()
+
+    print(
+        f"[beta_signup] phone={phone_digits} industry={req.industry} "
+        f"region={region[:20]} total={count}"
+    )
+    return {"ok": True, "message": "신청이 접수됐어요.", "total_so_far": count}
+
+
+@app.get("/api/beta-signup-count")
+async def beta_signup_count():
+    """랜딩페이지 라이브 카운터용. 거절된 신청 제외한 총 인원."""
+    with sqlite3.connect(DB_PATH) as con:
+        n = con.execute(
+            "SELECT COUNT(*) FROM beta_signups WHERE status != 'rejected'"
+        ).fetchone()[0]
+    return {"total": n, "cap": 100}
+
+
+@app.get("/admin/beta/signups", response_class=HTMLResponse)
+async def admin_beta_signups(
+    x_admin_token: Optional[str] = Header(default=None, alias="X-Admin-Token"),
+    status: str = "all",
+    limit: int = 100,
+):
+    """사장님 admin — 신청자 리스트 (X-Admin-Token 헤더 필요, 우리 컨벤션)."""
+    _admin_auth(x_admin_token)
+    limit = max(1, min(limit, 500))
+    where = ""
+    params: tuple = ()
+    if status in {"pending", "accepted", "rejected"}:
+        where = "WHERE status = ?"
+        params = (status,)
+    with sqlite3.connect(DB_PATH) as con:
+        con.row_factory = sqlite3.Row
+        rows = con.execute(
+            f"""
+            SELECT phone, industry, region, monthly_inquiries, note, source,
+                   status, created_at_ms, updated_at_ms
+            FROM beta_signups
+            {where}
+            ORDER BY created_at_ms DESC
+            LIMIT {limit}
+            """,
+            params,
+        ).fetchall()
+        totals = dict(
+            con.execute(
+                """
+                SELECT status, COUNT(*) FROM beta_signups GROUP BY status
+                """
+            ).fetchall()
+        )
+
+    def _fmt_phone(p: str) -> str:
+        if len(p) == 11:
+            return f"{p[:3]}-{p[3:7]}-{p[7:]}"
+        if len(p) == 10:
+            return f"{p[:3]}-{p[3:6]}-{p[6:]}"
+        return p
+
+    def _fmt_ts(ms: int) -> str:
+        return _dt.datetime.fromtimestamp(ms / 1000).strftime("%Y-%m-%d %H:%M")
+
+    rows_html_parts = []
+    for r in rows:
+        rows_html_parts.append(
+            f"<tr>"
+            f"<td><b>{_fmt_phone(r['phone'])}</b></td>"
+            f"<td>{r['industry']}</td>"
+            f"<td>{r['region']}</td>"
+            f"<td>{r['monthly_inquiries']}</td>"
+            f"<td class=note>{(r['note'] or '')[:60]}</td>"
+            f"<td><span class=status-{r['status']}>{r['status']}</span></td>"
+            f"<td class=time>{_fmt_ts(r['created_at_ms'])}</td>"
+            f"</tr>"
+        )
+    rows_html = "".join(rows_html_parts) or (
+        "<tr><td colspan=7 style='text-align:center;color:#9AA3AF;padding:30px;'>"
+        "아직 신청자 없음</td></tr>"
+    )
+    total_pending = totals.get("pending", 0)
+    total_accepted = totals.get("accepted", 0)
+    total_rejected = totals.get("rejected", 0)
+    total_all = total_pending + total_accepted + total_rejected
+    return HTMLResponse(
+        content=f"""<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<title>RING-GO admin · 베타 신청자</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+body{{font-family:'Pretendard',-apple-system,system-ui,sans-serif;background:#F4F5F7;color:#0B0F19;margin:0;padding:18px;font-size:14px;}}
+.wrap{{max-width:1100px;margin:0 auto;}}
+h1{{font-size:22px;font-weight:900;letter-spacing:-.03em;margin-bottom:14px;}}
+.stats{{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;}}
+.stat{{background:#fff;border:1px solid #EEF0F3;border-radius:12px;padding:10px 14px;font-weight:700;}}
+.stat b{{font-size:20px;font-weight:900;color:#3182F6;display:block;}}
+table{{width:100%;border-collapse:collapse;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 10px rgba(17,24,39,.05);}}
+th{{background:#F4F5F7;color:#5A6472;font-weight:800;padding:11px 12px;text-align:left;font-size:12.5px;}}
+td{{padding:11px 12px;border-top:1px solid #EEF0F3;font-size:13.5px;}}
+.note{{color:#5A6472;font-size:12.5px;}}
+.time{{color:#9AA3AF;font-size:11.5px;white-space:nowrap;}}
+.status-pending{{background:#FFF3DF;color:#C9820B;padding:3px 9px;border-radius:8px;font-size:11.5px;font-weight:800;}}
+.status-accepted{{background:#E7F8EF;color:#0a8f44;padding:3px 9px;border-radius:8px;font-size:11.5px;font-weight:800;}}
+.status-rejected{{background:#FDEAEF;color:#F0436A;padding:3px 9px;border-radius:8px;font-size:11.5px;font-weight:800;}}
+.filter{{margin-bottom:14px;}}
+.filter a{{display:inline-block;margin-right:8px;padding:6px 12px;background:#fff;border:1px solid #EEF0F3;border-radius:999px;text-decoration:none;color:#5A6472;font-size:12.5px;font-weight:700;}}
+.filter a.on{{background:#3182F6;color:#fff;border-color:#3182F6;}}
+</style></head><body><div class=wrap>
+<h1>👥 베타 신청자 · 100명 모집</h1>
+<div class=stats>
+  <div class=stat><b>{total_all}</b>전체</div>
+  <div class=stat><b>{total_pending}</b>대기 (pending)</div>
+  <div class=stat><b>{total_accepted}</b>선정 (accepted)</div>
+  <div class=stat><b>{total_rejected}</b>거절 (rejected)</div>
+</div>
+<div class=filter>
+  <a href="?status=all" class="{'on' if status == 'all' else ''}">전체</a>
+  <a href="?status=pending" class="{'on' if status == 'pending' else ''}">대기</a>
+  <a href="?status=accepted" class="{'on' if status == 'accepted' else ''}">선정</a>
+  <a href="?status=rejected" class="{'on' if status == 'rejected' else ''}">거절</a>
+</div>
+<table><thead><tr>
+<th>전화번호</th><th>업종</th><th>지역</th><th>한달문의</th><th>한말씀</th><th>상태</th><th>신청시각</th>
+</tr></thead><tbody>{rows_html}</tbody></table>
+<p style="text-align:center;color:#9AA3AF;font-size:11.5px;margin-top:18px;">
+  RING-GO admin · X-Admin-Token 헤더 인증 · {len(rows)}건 표시 (최대 {limit})
+</p>
+</div></body></html>"""
+    )
 
 
 # ============================================================================

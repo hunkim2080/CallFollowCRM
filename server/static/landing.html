@@ -1,0 +1,756 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#3182F6">
+<title>시공막내 · 시공인들의 필수앱 — 베타 100명 모집</title>
+<meta name="description" content="문자 정리, 시공 전날 알림, 마감 브리핑, 톤 학습 대신 답변까지. 시공인들이 필수로 설치한다는 그 어플, 시공막내.">
+<meta property="og:title" content="시공막내 · 시공인들의 필수앱">
+<meta property="og:description" content="문자하면 정리해. 시공 전날 알아서 문자 보내. 마감 브리핑까지 해. 막내가 옆에 있으면 이렇게 달라져요.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  :root {
+    --blue:#3182F6; --blue-dark:#1B64DA; --blue-tint:#EEF4FF;
+    --purple:#7C5CFC; --purple-tint:#F1ECFF;
+    --teal:#0E9E90; --teal-tint:#E2F7F3;
+    --success:#16C172; --success-tint:#E7F8EF;
+    --amber:#F6A609; --amber-tint:#FFF3DF;
+    --error:#F0436A; --error-tint:#FDEAEF;
+    --bg:#F4F5F7; --card:#FFFFFF;
+    --t1:#0B0F19; --t2:#5A6472; --t3:#9AA3AF; --line:#EEF0F3;
+    --shadow:0 2px 10px rgba(17,24,39,.05);
+    --shadow-md:0 6px 20px rgba(17,24,39,.08);
+    --shadow-lg:0 16px 40px rgba(17,24,39,.12);
+    --grad-hero:linear-gradient(135deg,#EAF2FF 0%,#F1ECFF 50%,#E2F7F3 100%);
+    --grad-blue:linear-gradient(135deg,#3182F6 0%,#7C5CFC 100%);
+    --grad-night:linear-gradient(135deg,#1a1f2e 0%,#0c1220 100%);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html{scroll-behavior:smooth;}
+  body{font-family:'Pretendard',-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--t1);line-height:1.55;letter-spacing:-.01em;-webkit-font-smoothing:antialiased;overflow-x:hidden;}
+  a{color:var(--blue);text-decoration:none;}
+  button{font-family:inherit;cursor:pointer;border:0;background:none;}
+  img,svg{display:block;max-width:100%;}
+  .wrap{max-width:560px;margin:0 auto;padding:0 18px;}
+  .wrap-wide{max-width:780px;margin:0 auto;padding:0 18px;}
+
+  /* ─── Reveal on scroll ─── */
+  .reveal{opacity:0;transform:translateY(24px);transition:opacity .7s cubic-bezier(.16,1,.3,1),transform .7s cubic-bezier(.16,1,.3,1);}
+  .reveal.in{opacity:1;transform:translateY(0);}
+  .reveal.d1{transition-delay:.08s;} .reveal.d2{transition-delay:.18s;} .reveal.d3{transition-delay:.28s;} .reveal.d4{transition-delay:.38s;}
+
+  /* ─── Topbar ─── */
+  .topbar{position:sticky;top:0;background:rgba(244,245,247,.85);backdrop-filter:saturate(180%) blur(16px);-webkit-backdrop-filter:saturate(180%) blur(16px);z-index:80;padding:11px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(238,240,243,.7);}
+  .topbar .logo{font-size:17px;font-weight:900;letter-spacing:-.04em;color:var(--t1);display:flex;align-items:center;gap:6px;}
+  .topbar .logo .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--blue);box-shadow:0 0 0 3px var(--blue-tint);animation:pulse 2s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 3px var(--blue-tint);}50%{box-shadow:0 0 0 6px rgba(49,130,246,.18);}}
+  .topbar .live{margin-left:auto;background:#fff;border:1px solid var(--line);color:var(--t2);font-size:11px;font-weight:800;padding:5px 10px;border-radius:999px;display:flex;align-items:center;gap:5px;}
+  .topbar .live .ld{width:5px;height:5px;border-radius:50%;background:var(--success);box-shadow:0 0 0 3px rgba(22,193,114,.2);animation:pulse 1.6s ease-in-out infinite;}
+
+  /* ─── Hero ─── */
+  .hero{position:relative;padding:54px 18px 30px;text-align:center;background:var(--grad-hero);overflow:hidden;}
+  .hero::before{content:"";position:absolute;top:-100px;left:-100px;width:300px;height:300px;background:radial-gradient(circle,rgba(124,92,252,.18) 0%,transparent 70%);filter:blur(40px);pointer-events:none;}
+  .hero::after{content:"";position:absolute;bottom:-100px;right:-100px;width:300px;height:300px;background:radial-gradient(circle,rgba(49,130,246,.18) 0%,transparent 70%);filter:blur(40px);pointer-events:none;}
+  .hero > *{position:relative;z-index:1;}
+  .hero .kicker{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.7);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.8);color:var(--blue-dark);font-size:12.5px;font-weight:800;padding:7px 14px;border-radius:999px;margin-bottom:18px;box-shadow:0 4px 12px rgba(49,130,246,.12);}
+  .hero .kicker .dot{width:6px;height:6px;border-radius:50%;background:var(--success);box-shadow:0 0 0 3px rgba(22,193,114,.22);animation:pulse 1.4s ease-in-out infinite;}
+  .hero h1{font-size:34px;line-height:1.2;font-weight:900;letter-spacing:-.045em;color:var(--t1);margin-bottom:14px;}
+  .hero h1 .hl{position:relative;display:inline-block;color:var(--blue);}
+  .hero h1 .hl::after{content:"";position:absolute;left:0;right:0;bottom:2px;height:10px;background:rgba(49,130,246,.18);border-radius:6px;z-index:-1;}
+  .hero h1 .big{font-size:1.25em;background:var(--grad-blue);-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:900;}
+  .hero .sub{font-size:15.5px;color:var(--t2);line-height:1.65;max-width:420px;margin:0 auto 24px;}
+  .hero .sub b{color:var(--t1);font-weight:800;}
+  .live-counter{display:inline-flex;align-items:baseline;gap:5px;background:rgba(255,255,255,.7);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.8);padding:9px 16px;border-radius:999px;font-size:13px;font-weight:800;color:var(--t1);margin-bottom:24px;box-shadow:var(--shadow);}
+  .live-counter b{color:var(--blue);font-size:18px;font-weight:900;letter-spacing:-.02em;}
+  .live-counter .lc-l{color:var(--t3);font-weight:700;font-size:11.5px;}
+  .cta-row{display:flex;flex-direction:column;gap:10px;max-width:380px;margin:0 auto;}
+  .cta{display:flex;align-items:center;justify-content:center;gap:8px;padding:17px 22px;border-radius:14px;font-size:15.5px;font-weight:800;letter-spacing:-.02em;transition:transform .12s ease,box-shadow .25s ease;position:relative;overflow:hidden;}
+  .cta:active{transform:scale(.98);}
+  .cta-primary{background:var(--grad-blue);color:#fff;box-shadow:0 8px 24px rgba(49,130,246,.35);}
+  .cta-primary:hover{box-shadow:0 12px 32px rgba(49,130,246,.45);transform:translateY(-2px);}
+  .cta-primary::after{content:"";position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.3),transparent);animation:shine 3s ease-in-out infinite;}
+  @keyframes shine{0%,100%{left:-100%;}50%{left:100%;}}
+  .cta-secondary{background:rgba(255,255,255,.6);backdrop-filter:blur(10px);color:var(--t1);border:1.5px solid rgba(255,255,255,.8);}
+
+  /* ─── Hero phone mockup (자동 재생) ─── */
+  .hero-phone{margin:32px auto 0;max-width:320px;background:#fff;border:1px solid var(--line);border-radius:24px;padding:0;box-shadow:var(--shadow-lg);overflow:hidden;}
+  .hp-bar{background:#F8F9FB;padding:11px 16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line);}
+  .hp-bar .hp-bd{width:7px;height:7px;border-radius:50%;background:var(--success);box-shadow:0 0 0 3px rgba(22,193,114,.2);}
+  .hp-bar .hp-name{font-size:12.5px;font-weight:800;color:var(--t1);}
+  .hp-bar .hp-time{margin-left:auto;font-size:11px;color:var(--t3);font-weight:700;}
+  .hp-body{padding:14px 14px 16px;min-height:200px;position:relative;}
+  .hp-msg{display:flex;align-items:flex-start;gap:8px;margin-bottom:10px;opacity:0;transform:translateY(8px);transition:opacity .5s ease,transform .5s ease;}
+  .hp-msg.on{opacity:1;transform:translateY(0);}
+  .hp-ic{width:30px;height:30px;border-radius:9px;background:var(--blue-tint);color:var(--blue);display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:800;flex-shrink:0;}
+  .hp-ic.cust{background:#FFE7E7;color:var(--error);}
+  .hp-ic.ai{background:var(--purple-tint);color:var(--purple);}
+  .hp-cn{flex:1;min-width:0;}
+  .hp-nm{font-size:12px;font-weight:800;color:var(--t1);}
+  .hp-tm{font-size:10px;color:var(--t3);margin-left:5px;font-weight:700;}
+  .hp-tx{background:var(--bg);border-radius:10px;padding:8px 11px;font-size:12.5px;color:var(--t2);line-height:1.5;margin-top:3px;position:relative;}
+  .hp-tx.ai{background:linear-gradient(135deg,var(--blue-tint),var(--purple-tint));color:var(--blue-dark);font-weight:600;}
+  .hp-tx.ai::before{content:"막내";position:absolute;top:-8px;left:8px;background:var(--grad-blue);color:#fff;font-size:9px;font-weight:900;padding:2px 7px;border-radius:5px;letter-spacing:.04em;}
+  .typing-cursor{display:inline-block;width:2px;height:1em;background:var(--blue);margin-left:2px;vertical-align:text-bottom;animation:blink 1s step-end infinite;}
+  @keyframes blink{50%{opacity:0;}}
+
+  /* ─── Section ─── */
+  section{padding:48px 18px;}
+  .sec-title{font-size:13px;font-weight:900;color:var(--blue);text-align:center;margin-bottom:10px;letter-spacing:.08em;text-transform:uppercase;}
+  section h2{font-size:26px;font-weight:900;letter-spacing:-.04em;color:var(--t1);text-align:center;margin-bottom:10px;line-height:1.25;}
+  section h2 .b{color:var(--blue);} section h2 .p{color:var(--purple);} section h2 .t{color:var(--teal);}
+  section .lead{text-align:center;color:var(--t2);font-size:14.5px;margin:0 auto 30px;max-width:420px;line-height:1.65;}
+
+  /* ─── 공감 섹션 ─── */
+  .empathy{background:var(--card);border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
+  .pain-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px;}
+  @media (max-width:380px){.pain-grid{grid-template-columns:1fr;}}
+  .pain-card{background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:14px;cursor:default;transition:transform .25s ease,box-shadow .25s ease,border-color .25s ease;}
+  .pain-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-md);border-color:var(--blue-tint);}
+  .pain-card .pc-emoji{font-size:22px;margin-bottom:6px;display:block;}
+  .pain-card .pc-t{font-size:13px;font-weight:800;color:var(--t1);line-height:1.5;letter-spacing:-.02em;}
+
+  /* ─── 기능 데모 섹션 ─── */
+  .demo-block{margin-bottom:48px;}
+  .demo-block:last-child{margin-bottom:0;}
+  .demo-num{display:inline-block;background:var(--grad-blue);color:#fff;font-size:11px;font-weight:900;padding:5px 12px;border-radius:999px;letter-spacing:.04em;margin-bottom:12px;}
+  .demo-h{font-size:22px;font-weight:900;color:var(--t1);letter-spacing:-.035em;line-height:1.3;margin-bottom:10px;}
+  .demo-h .b{color:var(--blue);} .demo-h .p{color:var(--purple);} .demo-h .t{color:var(--teal);} .demo-h .a{color:var(--amber);}
+  .demo-p{font-size:14px;color:var(--t2);line-height:1.65;margin-bottom:20px;}
+
+  /* Demo 1 — 문자 정리 (왼쪽: 인입, 오른쪽: 정리됨) */
+  .demo-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:var(--shadow-md);position:relative;overflow:hidden;}
+  .demo-card .dc-title{font-size:12px;font-weight:800;color:var(--t3);margin-bottom:11px;letter-spacing:.04em;text-transform:uppercase;}
+  .raw-msg{background:var(--bg);border-radius:10px;padding:10px 12px;margin-bottom:7px;font-size:12.5px;color:var(--t2);position:relative;padding-left:32px;transform:translateX(-12px);opacity:0;transition:transform .5s ease,opacity .5s ease;}
+  .raw-msg.on{transform:translateX(0);opacity:1;}
+  .raw-msg::before{content:"📩";position:absolute;left:9px;top:9px;font-size:14px;}
+  .raw-msg .rm-from{font-weight:800;color:var(--t1);font-size:11.5px;display:block;margin-bottom:2px;}
+  .arrow-down{text-align:center;font-size:22px;color:var(--blue);margin:8px 0;animation:bounceDown 1.6s ease-in-out infinite;}
+  @keyframes bounceDown{0%,100%{transform:translateY(0);}50%{transform:translateY(6px);}}
+  .org-card{background:linear-gradient(135deg,var(--blue-tint),var(--purple-tint));border:1px solid rgba(49,130,246,.18);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:12px;opacity:0;transform:scale(.94);transition:opacity .5s ease,transform .5s ease;}
+  .org-card.on{opacity:1;transform:scale(1);}
+  .org-card .oc-ic{width:34px;height:34px;border-radius:10px;background:#fff;color:var(--blue);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;flex-shrink:0;}
+  .org-card .oc-t{font-size:13px;font-weight:800;color:var(--t1);}
+  .org-card .oc-s{font-size:11.5px;color:var(--t2);margin-top:2px;}
+
+  /* Demo 2 — 시공 전날 자동 문자 (캘린더 → 알림) */
+  .cal-vis{background:linear-gradient(135deg,#fff 0%,#F9FAFC 100%);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:14px;}
+  .cal-row{display:flex;align-items:center;gap:12px;margin-bottom:9px;padding:9px 0;border-bottom:1px dashed var(--line);}
+  .cal-row:last-child{border-bottom:0;margin-bottom:0;}
+  .cal-day{width:46px;text-align:center;flex-shrink:0;}
+  .cal-day .cd-d{font-size:18px;font-weight:900;color:var(--t1);line-height:1;}
+  .cal-day .cd-m{font-size:10px;color:var(--t3);font-weight:800;margin-top:2px;}
+  .cal-row.target{background:var(--amber-tint);border-radius:10px;padding:9px 12px;border-bottom:0;}
+  .cal-row.target .cd-d{color:var(--amber);}
+  .cal-info{flex:1;}
+  .cal-info .ci-c{font-size:12px;color:var(--t2);font-weight:700;}
+  .cal-info .ci-t{font-size:13.5px;font-weight:800;color:var(--t1);margin-top:2px;letter-spacing:-.02em;}
+  .alert-card{background:linear-gradient(135deg,var(--amber-tint),#fff);border:1px solid rgba(246,166,9,.3);border-radius:14px;padding:14px;display:flex;gap:11px;align-items:flex-start;box-shadow:0 4px 14px rgba(246,166,9,.15);opacity:0;transform:translateY(10px);transition:opacity .5s ease,transform .5s ease;}
+  .alert-card.on{opacity:1;transform:translateY(0);}
+  .alert-card .ac-ic{font-size:24px;animation:wiggle 1.5s ease-in-out infinite;}
+  @keyframes wiggle{0%,100%{transform:rotate(0);}25%{transform:rotate(-8deg);}75%{transform:rotate(8deg);}}
+  .alert-card .ac-t{font-size:13.5px;font-weight:800;color:var(--t1);letter-spacing:-.02em;}
+  .alert-card .ac-d{font-size:12px;color:var(--t2);margin-top:4px;line-height:1.5;}
+  .alert-card .ac-d b{color:var(--amber);}
+
+  /* Demo 3 — 마감 브리핑 (밤 모드) */
+  .briefing{background:var(--grad-night);border-radius:18px;padding:22px 20px;color:#fff;position:relative;overflow:hidden;}
+  .briefing::before{content:"";position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(124,92,252,.5),transparent);}
+  .briefing .br-time{font-size:11.5px;color:rgba(255,255,255,.5);font-weight:700;display:flex;align-items:center;gap:6px;margin-bottom:14px;}
+  .briefing .br-time::before{content:"🌙";font-size:14px;}
+  .briefing .br-h{font-size:18px;font-weight:900;color:#fff;margin-bottom:14px;letter-spacing:-.03em;line-height:1.4;}
+  .briefing .br-h b{color:#A4C4FF;}
+  .br-stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;}
+  .br-stat{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 9px;text-align:center;}
+  .br-stat .bs-v{font-size:17px;font-weight:900;color:#fff;line-height:1.2;letter-spacing:-.02em;}
+  .br-stat .bs-l{font-size:10.5px;color:rgba(255,255,255,.55);font-weight:700;margin-top:3px;}
+  .br-stat .bs-v.pos{color:#7DDDA8;} .br-stat .bs-v.up{color:#A4C4FF;}
+  .br-list{display:flex;flex-direction:column;gap:9px;}
+  .br-item{background:rgba(255,255,255,.04);border-left:2.5px solid var(--purple);border-radius:0 10px 10px 0;padding:9px 11px;font-size:12.5px;color:rgba(255,255,255,.85);line-height:1.55;}
+  .br-item b{color:#fff;font-weight:800;}
+  .br-item.urgent{border-left-color:var(--amber);}
+  .br-item.good{border-left-color:var(--success);}
+
+  /* Demo 4 — 톤 학습 비교 슬라이더 */
+  .compare-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:0;overflow:hidden;box-shadow:var(--shadow-md);}
+  .compare-tabs{display:flex;background:var(--bg);border-bottom:1px solid var(--line);}
+  .compare-tab{flex:1;padding:13px 10px;font-size:13px;font-weight:800;color:var(--t3);text-align:center;cursor:pointer;transition:all .2s ease;border-bottom:2px solid transparent;}
+  .compare-tab.active{background:#fff;color:var(--t1);border-bottom-color:var(--blue);}
+  .compare-body{padding:18px;}
+  .compare-q{background:var(--bg);border-radius:10px;padding:11px 13px;font-size:13px;color:var(--t2);margin-bottom:14px;}
+  .compare-q::before{content:"고객 문의 → ";color:var(--t3);font-weight:700;}
+  .compare-a{padding:14px 16px;border-radius:12px;font-size:13.5px;line-height:1.65;}
+  .compare-a.plain{background:#F5F5F5;color:var(--t2);border:1px dashed var(--line);}
+  .compare-a.plain::before{content:"❌ 일반 AI 답변";display:block;font-size:11px;font-weight:800;color:var(--error);margin-bottom:8px;letter-spacing:.04em;}
+  .compare-a.mine{background:linear-gradient(135deg,var(--blue-tint),var(--purple-tint));color:var(--blue-dark);font-weight:600;border:1px solid rgba(49,130,246,.2);}
+  .compare-a.mine::before{content:"✅ 사장님 톤 그대로 (시공막내)";display:block;font-size:11px;font-weight:800;color:var(--success);margin-bottom:8px;letter-spacing:.04em;color:#0a8f44;}
+
+  /* ─── 차별점 비교 ─── */
+  .compare-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .compare-side{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;}
+  .compare-side.old{background:#F8F9FB;}
+  .compare-side.new{background:linear-gradient(135deg,var(--blue-tint),var(--purple-tint));border-color:rgba(49,130,246,.25);}
+  .compare-side h4{font-size:13.5px;font-weight:900;margin-bottom:14px;letter-spacing:-.02em;}
+  .compare-side.old h4{color:var(--t2);} .compare-side.new h4{color:var(--blue-dark);}
+  .compare-side ul{list-style:none;display:flex;flex-direction:column;gap:8px;}
+  .compare-side li{font-size:12.5px;line-height:1.5;color:var(--t2);position:relative;padding-left:20px;}
+  .compare-side.old li::before{content:"😔";position:absolute;left:0;top:0;}
+  .compare-side.new li{color:var(--t1);font-weight:600;}
+  .compare-side.new li::before{content:"✨";position:absolute;left:0;top:0;}
+
+  /* ─── Beta policy ─── */
+  .policy{background:linear-gradient(135deg,#EAF2FF 0%,#F1ECFF 100%);border:1px solid rgba(49,130,246,.18);border-radius:20px;padding:24px 20px;position:relative;overflow:hidden;}
+  .policy::before{content:"";position:absolute;top:-50px;right:-50px;width:150px;height:150px;background:radial-gradient(circle,rgba(124,92,252,.2) 0%,transparent 70%);}
+  .policy .pol-badge{display:inline-block;background:var(--grad-blue);color:#fff;font-size:11px;font-weight:900;padding:6px 14px;border-radius:999px;letter-spacing:.06em;margin-bottom:14px;box-shadow:0 4px 12px rgba(49,130,246,.3);}
+  .pol-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;position:relative;z-index:1;}
+  .pol-cell{background:rgba(255,255,255,.75);backdrop-filter:blur(10px);border-radius:14px;padding:14px;}
+  .pol-cell .pc-k{font-size:11.5px;color:var(--t2);font-weight:700;margin-bottom:4px;}
+  .pol-cell .pc-v{font-size:17px;font-weight:900;color:var(--t1);letter-spacing:-.02em;}
+  .pol-cell .pc-v b{color:var(--blue);}
+  .pol-progress{margin-top:18px;background:rgba(255,255,255,.7);border-radius:12px;padding:12px 14px;position:relative;z-index:1;}
+  .pp-bar{height:8px;background:rgba(11,15,25,.08);border-radius:999px;overflow:hidden;margin-top:8px;}
+  .pp-bar-fill{height:100%;background:var(--grad-blue);border-radius:999px;width:0%;transition:width 1.2s cubic-bezier(.16,1,.3,1);}
+  .pp-label{display:flex;justify-content:space-between;align-items:baseline;font-size:11.5px;font-weight:700;color:var(--t2);}
+  .pp-label b{font-size:14px;color:var(--blue);font-weight:900;letter-spacing:-.02em;}
+
+  /* ─── Signup form ─── */
+  .signup-section{background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
+  .form-row{margin-bottom:14px;}
+  .form-row label{display:block;font-size:13px;font-weight:800;color:var(--t1);margin-bottom:7px;}
+  .form-row label .req{color:var(--error);font-weight:900;}
+  .form-row input,.form-row select,.form-row textarea{width:100%;padding:14px 14px;border:1.5px solid var(--line);border-radius:12px;font-size:15px;font-family:inherit;color:var(--t1);background:#fff;transition:border-color .14s ease;}
+  .form-row input:focus,.form-row select:focus,.form-row textarea:focus{outline:0;border-color:var(--blue);box-shadow:0 0 0 4px rgba(49,130,246,.1);}
+  .form-row input::placeholder{color:var(--t3);}
+  .form-row .hint{font-size:11.5px;color:var(--t3);margin-top:5px;}
+  .agree-row{display:flex;align-items:flex-start;gap:9px;background:var(--bg);padding:14px;border-radius:12px;margin-top:18px;}
+  .agree-row input[type=checkbox]{margin-top:2px;width:18px;height:18px;accent-color:var(--blue);flex-shrink:0;cursor:pointer;}
+  .agree-row label{font-size:12.5px;color:var(--t2);line-height:1.55;font-weight:600;cursor:pointer;}
+  .agree-row label b{color:var(--t1);font-weight:800;}
+  .submit-btn{width:100%;background:var(--grad-blue);color:#fff;padding:17px;border-radius:14px;font-size:16px;font-weight:900;letter-spacing:-.02em;margin-top:18px;box-shadow:0 8px 24px rgba(49,130,246,.35);transition:transform .12s ease,box-shadow .25s ease;position:relative;overflow:hidden;}
+  .submit-btn:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(49,130,246,.45);}
+  .submit-btn:active{transform:scale(.98);}
+  .submit-btn:disabled{background:var(--t3);cursor:not-allowed;box-shadow:none;transform:none;}
+  .form-success{display:none;text-align:center;padding:40px 20px;background:var(--success-tint);border:1.5px solid var(--success);border-radius:16px;}
+  .form-success .fs-ic{font-size:48px;margin-bottom:12px;animation:bounce .6s ease-out;}
+  @keyframes bounce{0%{transform:scale(0);}60%{transform:scale(1.15);}100%{transform:scale(1);}}
+  .form-success .fs-t{font-size:20px;font-weight:900;color:#0a8f44;margin-bottom:6px;letter-spacing:-.03em;}
+  .form-success .fs-d{font-size:13.5px;color:var(--t2);line-height:1.65;}
+  .form-error{display:none;background:var(--error-tint);color:var(--error);font-size:13px;font-weight:700;padding:11px 14px;border-radius:10px;margin-top:12px;}
+
+  /* ─── FAQ ─── */
+  .faq-list{display:flex;flex-direction:column;gap:8px;}
+  .faq-item{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;transition:border-color .2s ease,box-shadow .25s ease;}
+  .faq-item.open{border-color:var(--blue-tint);box-shadow:var(--shadow);}
+  .faq-q{padding:15px 16px;display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;font-weight:800;color:var(--t1);letter-spacing:-.02em;}
+  .faq-q .faq-ic{margin-left:auto;color:var(--t3);transition:transform .25s ease,color .2s ease;font-weight:900;font-size:20px;line-height:1;}
+  .faq-item.open .faq-q .faq-ic{transform:rotate(45deg);color:var(--blue);}
+  .faq-a{padding:0 16px 16px;font-size:13px;color:var(--t2);line-height:1.7;display:none;}
+  .faq-item.open .faq-a{display:block;}
+
+  /* ─── Sticky CTA (모바일) ─── */
+  .sticky-cta{position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.92);backdrop-filter:saturate(180%) blur(16px);border-top:1px solid var(--line);padding:10px 14px;z-index:90;display:none;animation:slideUp .4s ease-out;}
+  @keyframes slideUp{from{transform:translateY(100%);}to{transform:translateY(0);}}
+  .sticky-cta.show{display:block;}
+  .sticky-cta a{display:flex;align-items:center;justify-content:center;background:var(--grad-blue);color:#fff;padding:14px;border-radius:12px;font-size:15px;font-weight:900;letter-spacing:-.02em;box-shadow:0 4px 14px rgba(49,130,246,.35);}
+
+  /* ─── Footer ─── */
+  footer{padding:32px 18px 60px;text-align:center;color:var(--t3);font-size:11.5px;line-height:1.7;background:#fff;border-top:1px solid var(--line);}
+  footer .ft-logo{font-size:14px;font-weight:900;color:var(--t1);margin-bottom:6px;letter-spacing:-.04em;}
+  footer .ft-logo .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--blue);margin-right:5px;vertical-align:middle;}
+  footer a{color:var(--t3);text-decoration:underline;}
+
+  @media (min-width:600px){
+    .hero h1{font-size:40px;} .hero .sub{font-size:16.5px;}
+    section h2{font-size:30px;}
+    .demo-h{font-size:24px;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ─── Topbar ─── -->
+<div class="topbar">
+  <div class="logo"><span class="dot"></span>시공막내</div>
+  <div class="live"><span class="ld"></span>지금 베타 모집 중</div>
+</div>
+
+<!-- ─── Hero ─── -->
+<header class="hero">
+  <div class="kicker reveal"><span class="dot"></span>시공인 100명 한정 베타</div>
+  <h1 class="reveal d1">
+    시공인들의 <span class="hl">필수앱</span>,<br>
+    <span class="big">시공막내</span>
+  </h1>
+  <p class="sub reveal d2">
+    <b>문자하면 정리해.</b> <b>시공 전날 알아서 문자 보내.</b><br>
+    오늘 시공 문의 <b>마감 브리핑</b>까지 해주는 그 어플.
+  </p>
+  <div class="live-counter reveal d3">
+    <b id="liveCount">—</b><span class="lc-l">명 / 100명 신청 중</span>
+  </div>
+  <div class="cta-row reveal d4">
+    <a href="#signup" class="cta cta-primary">베타 신청하기 →</a>
+    <a href="#how" class="cta cta-secondary">막내가 어떻게 일하는지 보기</a>
+  </div>
+
+  <!-- Auto-playing phone mockup -->
+  <div class="hero-phone reveal d4" aria-hidden="true">
+    <div class="hp-bar">
+      <div class="hp-bd"></div>
+      <div class="hp-name">받은 문자</div>
+      <div class="hp-time">오후 9:43</div>
+    </div>
+    <div class="hp-body" id="hpStage">
+      <div class="hp-msg" data-step="1">
+        <div class="hp-ic cust">고</div>
+        <div class="hp-cn">
+          <div><span class="hp-nm">010-2345-1234</span><span class="hp-tm">방금</span></div>
+          <div class="hp-tx">24평 화장실 줄눈 얼마예요?</div>
+        </div>
+      </div>
+      <div class="hp-msg" data-step="2">
+        <div class="hp-ic ai">막</div>
+        <div class="hp-cn">
+          <div><span class="hp-nm">막내가 답장 준비</span><span class="hp-tm">3초 후</span></div>
+          <div class="hp-tx ai"><span id="typingArea"></span><span class="typing-cursor" id="typingCursor"></span></div>
+        </div>
+      </div>
+      <div class="hp-msg" data-step="3">
+        <div class="hp-ic">✓</div>
+        <div class="hp-cn">
+          <div><span class="hp-nm">사장님이 ▶ 보내기</span><span class="hp-tm">탭 한 번</span></div>
+          <div class="hp-tx" style="background:var(--success-tint);color:#0a8f44;font-weight:700;">고객한테 발송됨 · 자동 발송 X</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ─── 공감 ─── -->
+<section class="empathy">
+  <div class="wrap">
+    <div class="sec-title reveal">사장님, 이런 적 있죠</div>
+    <h2 class="reveal d1">현장 가 있는데<br>문자가 또 <span class="b">쌓이고</span> 있어요</h2>
+    <p class="lead reveal d2">시공하면서 답장하기 진짜 힘들죠. 막내가 옆에서 한 번에 정리해줄게요.</p>
+
+    <div class="pain-grid">
+      <div class="pain-card reveal d1"><span class="pc-emoji">📱</span><div class="pc-t">현장 가 있는데<br>문의는 계속 와요</div></div>
+      <div class="pain-card reveal d2"><span class="pc-emoji">😵</span><div class="pc-t">밤에 와서 답장<br>30통씩 몰아쓰기</div></div>
+      <div class="pain-card reveal d3"><span class="pc-emoji">📅</span><div class="pc-t">시공 전날 까먹어서<br>주소 확인 못 함</div></div>
+      <div class="pain-card reveal d4"><span class="pc-emoji">💸</span><div class="pc-t">정산은 머리 아파서<br>매번 미루는 중</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── 기능 데모 1 — 문자 정리 ─── -->
+<section id="how">
+  <div class="wrap">
+    <div class="sec-title reveal">막내가 일하는 법 ①</div>
+    <h2 class="reveal d1"><span class="b">문자하면</span><br>막내가 정리해놔요</h2>
+    <p class="lead reveal d2">하루 종일 쌓인 문자 30통? 막내가 자동 분류해서 답장 필요한 것만 보여줘요.</p>
+
+    <div class="demo-block">
+      <div class="demo-card reveal d3">
+        <div class="dc-title">▼ 시공막내가 자동으로 분류하는 중</div>
+        <div class="raw-msg" data-rm="1"><span class="rm-from">010-2345-1234</span>화장실 줄눈 24평 얼마</div>
+        <div class="raw-msg" data-rm="2"><span class="rm-from">010-9988-7766</span>혹시 내일 시공 가능?</div>
+        <div class="raw-msg" data-rm="3"><span class="rm-from">010-1122-3344</span>견적서 좀 보내주세요</div>
+        <div class="arrow-down">↓</div>
+        <div class="org-card" data-oc="1">
+          <div class="oc-ic">💬</div>
+          <div><div class="oc-t">신규 견적 문의 · 2건</div><div class="oc-s">답장 우선 처리</div></div>
+        </div>
+        <div class="org-card" data-oc="2" style="margin-top:7px;">
+          <div class="oc-ic" style="background:var(--amber-tint);color:var(--amber);">📅</div>
+          <div><div class="oc-t">일정 확인 요청 · 1건</div><div class="oc-s">캘린더 자동 매칭</div></div>
+        </div>
+        <div class="org-card" data-oc="3" style="margin-top:7px;">
+          <div class="oc-ic" style="background:var(--success-tint);color:var(--success);">📄</div>
+          <div><div class="oc-t">견적서 발송 요청 · 1건</div><div class="oc-s">서식 자동 작성</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 기능 데모 2 — 시공 전날 자동 문자 -->
+    <div class="sec-title reveal d1" style="margin-top:48px;">막내가 일하는 법 ②</div>
+    <h2 class="reveal d2"><span class="t">시공 전날이야</span><br>알아서 문자 보내</h2>
+    <p class="lead reveal d3">사장님이 일정 등록만 하면, 시공 D-1 에 막내가 고객한테 알아서 안내 문자 초안 만들어놔요.</p>
+
+    <div class="cal-vis reveal d3">
+      <div class="cal-row">
+        <div class="cal-day"><div class="cd-d">8</div><div class="cd-m">JUN</div></div>
+        <div class="cal-info"><div class="ci-c">010-2345-1234 · 김지영 고객님</div><div class="ci-t">강남구 자곡동 · 화장실 줄눈</div></div>
+      </div>
+      <div class="cal-row target">
+        <div class="cal-day"><div class="cd-d">9</div><div class="cd-m">JUN</div></div>
+        <div class="cal-info"><div class="ci-c">010-7788-9900 · 박철수 고객님 <span style="color:var(--amber);font-weight:900;">← 내일!</span></div><div class="ci-t">수원시 영통구 · 베란다 타일</div></div>
+      </div>
+    </div>
+    <div class="alert-card reveal d4" id="alertCard">
+      <div class="ac-ic">🔔</div>
+      <div>
+        <div class="ac-t">시공 D-1 알림 — 박철수 고객님께</div>
+        <div class="ac-d">막내가 안내 문자 초안 준비했어요. <b>"내일 오전 9시 도착 예정입니다~ 주차는 단지 입구 방문자 칸 이용하시면 돼요!"</b> · 사장님이 ▶ 보내기만</div>
+      </div>
+    </div>
+
+    <!-- 기능 데모 3 — 마감 브리핑 -->
+    <div class="sec-title reveal d1" style="margin-top:48px;">막내가 일하는 법 ③</div>
+    <h2 class="reveal d2"><span class="p">오늘 시공 문의</span><br>마감 브리핑까지</h2>
+    <p class="lead reveal d3">밤 11시, 막내가 오늘 하루 자동 정리. 사장님은 5초만 보고 자도 돼요.</p>
+
+    <div class="briefing reveal d3">
+      <div class="br-time">2026년 6월 4일 · 23:00 마감 브리핑</div>
+      <div class="br-h">오늘 <b>문의 12건</b>, 막내가 답장 준비 완료 <b>9건</b></div>
+      <div class="br-stat-grid">
+        <div class="br-stat"><div class="bs-v up">12</div><div class="bs-l">받은 문의</div></div>
+        <div class="br-stat"><div class="bs-v">9</div><div class="bs-l">답장 완료</div></div>
+        <div class="br-stat"><div class="bs-v pos">+3</div><div class="bs-l">시공 확정</div></div>
+      </div>
+      <div class="br-list">
+        <div class="br-item urgent"><b>내일 시공 2건</b> · 박철수 09시(수원), 이미정 14시(부천). 안내 문자 초안 대기 중.</div>
+        <div class="br-item"><b>답장 대기 3건</b> · 김지영(견적), 010-5566-..., 010-7788-... 내일 오전 처리 권장.</div>
+        <div class="br-item good"><b>오늘 매출 +₩2,180,000</b> · 베란다 타일 시공 1건 결제 확인.</div>
+      </div>
+    </div>
+
+    <!-- 기능 데모 4 — 톤 학습 -->
+    <div class="sec-title reveal d1" style="margin-top:48px;">막내가 일하는 법 ④</div>
+    <h2 class="reveal d2"><span class="b">상담 자신없어?</span><br>내 말투 그대로 답해줘요</h2>
+    <p class="lead reveal d3">사장님이 평소 보낸 문자 학습해서 ~요체, 이모티콘, 인사말까지 똑같이.</p>
+
+    <div class="compare-card reveal d3">
+      <div class="compare-tabs">
+        <div class="compare-tab active" data-cmp="mine">사장님 톤 (시공막내)</div>
+        <div class="compare-tab" data-cmp="plain">일반 AI 답변</div>
+      </div>
+      <div class="compare-body">
+        <div class="compare-q">화장실 2개 줄눈하면 얼마예요?</div>
+        <div class="compare-a mine" id="cmpMine">아 화장실 2개시구나~ 보통 28~32만원선이에요 😊 사진 몇 장만 주시면 딱 맞게 봐드릴게요! 편하게 문의주세요~</div>
+        <div class="compare-a plain" id="cmpPlain" style="display:none;">안녕하세요. 화장실 2개 줄눈 시공은 28~32만원입니다. 정확한 견적을 위해 현장 사진을 보내주시면 안내해 드리겠습니다.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── 차별점 ─── -->
+<section style="background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line);">
+  <div class="wrap">
+    <div class="sec-title reveal">왜 시공막내?</div>
+    <h2 class="reveal d1"><span class="b">혼자 다 하던</span> 그 시간,<br>막내가 돌려드려요</h2>
+    <p class="lead reveal d2">시공인을 위해 만들어진 단 하나의 답장 AI.</p>
+
+    <div class="compare-row reveal d3">
+      <div class="compare-side old">
+        <h4>지금 사장님</h4>
+        <ul>
+          <li>밤에 답장 몰아쓰기</li>
+          <li>전날 일정 까먹기</li>
+          <li>정산은 항상 다음 달</li>
+          <li>고객 응대 톤 매번 고민</li>
+          <li>현장 가서 폰만 보다 일 늦음</li>
+        </ul>
+      </div>
+      <div class="compare-side new">
+        <h4>시공막내랑</h4>
+        <ul>
+          <li>문자 오면 즉시 정리</li>
+          <li>D-1 자동 안내 문자</li>
+          <li>정산 마감 자동 브리핑</li>
+          <li>사장님 톤 그대로 답장 초안</li>
+          <li>현장 집중, 답장은 막내가</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Beta policy ─── -->
+<section>
+  <div class="wrap">
+    <div class="sec-title reveal">베타 혜택</div>
+    <h2 class="reveal d1"><span class="b">100명만</span> 먼저 모셔요</h2>
+    <p class="lead reveal d2">정식 출시 전, 사장님이 직접 막내 키워주실 분.</p>
+
+    <div class="policy reveal d3">
+      <div class="pol-badge">⚡ BETA EARLY ACCESS</div>
+      <div class="pol-grid">
+        <div class="pol-cell"><div class="pc-k">모집 인원</div><div class="pc-v"><b>100명</b> 한정</div></div>
+        <div class="pol-cell"><div class="pc-k">베타 기간</div><div class="pc-v"><b>4주</b> 무료</div></div>
+        <div class="pol-cell"><div class="pc-k">시작 시점</div><div class="pc-v">선정 후 즉시</div></div>
+        <div class="pol-cell"><div class="pc-k">정식 출시</div><div class="pc-v"><b>50% 할인</b> 평생</div></div>
+      </div>
+      <div class="pol-progress">
+        <div class="pp-label"><span>지금까지 신청</span><b id="progCount">—</b></div>
+        <div class="pp-bar"><div class="pp-bar-fill" id="progBar"></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Signup form ─── -->
+<section id="signup" class="signup-section">
+  <div class="wrap">
+    <div class="sec-title reveal">베타 신청</div>
+    <h2 class="reveal d1">30초면 끝, <span class="b">바로 신청</span></h2>
+    <p class="lead reveal d2">선정되면 사장님께 SMS 로 직접 안내드려요.</p>
+
+    <form id="signupForm" autocomplete="on" class="reveal d3">
+      <div class="form-row">
+        <label for="phone">전화번호 <span class="req">*</span></label>
+        <input id="phone" name="phone" type="tel" inputmode="tel" placeholder="010-1234-5678" maxlength="13" required>
+        <div class="hint">선정 안내 받으실 번호. SMS 로 알려드려요.</div>
+      </div>
+      <div class="form-row">
+        <label for="industry">업종 <span class="req">*</span></label>
+        <select id="industry" name="industry" required>
+          <option value="">선택해주세요</option>
+          <option value="줄눈">줄눈</option>
+          <option value="타일">타일</option>
+          <option value="도배">도배</option>
+          <option value="장판">장판</option>
+          <option value="인테리어">인테리어 (종합)</option>
+          <option value="기타">기타 시공업</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="region">활동 지역 <span class="req">*</span></label>
+        <input id="region" name="region" type="text" placeholder="예: 서울 강남구, 경기 수원시 영통구" maxlength="40" required>
+        <div class="hint">시·도 + 구·시 정도면 충분해요.</div>
+      </div>
+      <div class="form-row">
+        <label for="monthly_inquiries">한 달에 받으시는 문자 문의 수 <span class="req">*</span></label>
+        <select id="monthly_inquiries" name="monthly_inquiries" required>
+          <option value="">선택해주세요</option>
+          <option value="0-10">10건 이하</option>
+          <option value="10-30">10~30건</option>
+          <option value="30-60">30~60건</option>
+          <option value="60-100">60~100건</option>
+          <option value="100+">100건 이상</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="note">사장님 한 말씀 (선택)</label>
+        <textarea id="note" name="note" rows="3" maxlength="300" placeholder="평소 답장이 가장 힘든 순간, 막내한테 바라는 점 등 자유롭게."></textarea>
+        <div class="hint">최대 300자.</div>
+      </div>
+      <div class="agree-row">
+        <input id="agreed" name="agreed" type="checkbox" required>
+        <label for="agreed">
+          <b>개인정보 수집·이용에 동의합니다</b><br>
+          수집: 전화번호·업종·지역·문의 수. 목적: 베타 선정 안내. 보관: 베타 종료 후 즉시 파기 (가입 전환 시 서비스 이용 종료까지).
+        </label>
+      </div>
+      <button type="submit" class="submit-btn" id="submitBtn">베타 신청하기 →</button>
+      <div class="form-error" id="formError"></div>
+    </form>
+    <div class="form-success" id="formSuccess">
+      <div class="fs-ic">🙌</div>
+      <div class="fs-t">신청 완료!</div>
+      <div class="fs-d">베타 선정되시면 사장님께 SMS 로<br>직접 연락드릴게요. 잠시만 기다려주세요 😊</div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── FAQ ─── -->
+<section>
+  <div class="wrap">
+    <div class="sec-title reveal">자주 묻는 질문</div>
+    <h2 class="reveal d1">궁금한 거 <span class="b">먼저</span> 풀어드려요</h2>
+
+    <div class="faq-list reveal d2" style="margin-top:18px;">
+      <div class="faq-item"><div class="faq-q">자동 발송인가요? 막내가 마음대로 답장하나요? <span class="faq-ic">+</span></div><div class="faq-a">절대 아니에요. 막내는 답장 초안만 만들어드리고, 발송은 항상 사장님이 ▶ 버튼 한 번 누르셔야 나가요. 실수로 어색한 답장이 나갈 일 0.</div></div>
+      <div class="faq-item"><div class="faq-q">제 톤이랑 다르게 답장하면 어쩌죠? <span class="faq-ic">+</span></div><div class="faq-a">평소 보내신 문자 (혹은 보내실 예시 몇 개) 를 막내가 학습해요. 처음엔 어색해도 며칠 쓰면 사장님 톤 그대로 답장합니다. 사장님이 손보신 내용도 학습돼요.</div></div>
+      <div class="faq-item"><div class="faq-q">문자만? 카톡·전화는요? <span class="faq-ic">+</span></div><div class="faq-a">현재 베타는 SMS·MMS 만 지원. 통화 정리 (받은 통화 요약·후속 문자 작성) 도 지원해요. 카톡은 정식 출시 시점에 검토 중.</div></div>
+      <div class="faq-item"><div class="faq-q">개인정보·문자 내용 안전한가요? <span class="faq-ic">+</span></div><div class="faq-a">SMS 원문은 서버에 저장 안 함. 학습은 사장님이 직접 업로드하신 답장 예시만 사용. 베타 종료 시 모든 데이터 즉시 파기.</div></div>
+      <div class="faq-item"><div class="faq-q">베타 끝나면 얼마예요? <span class="faq-ic">+</span></div><div class="faq-a">정식 출시 가격은 베타 결과 보고 확정. 베타 참여자는 평생 50% 할인 보장합니다.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Sticky CTA ─── -->
+<div class="sticky-cta" id="stickyCta"><a href="#signup">베타 신청하기 →</a></div>
+
+<!-- ─── Footer ─── -->
+<footer>
+  <div class="ft-logo"><span class="dot"></span>시공막내 · RING-GO</div>
+  <div>혼자 일하는 시공 사장님의 막내 비서</div>
+  <div style="margin-top:10px;">서비스 문의: <a href="mailto:hugman2080@gmail.com">hugman2080@gmail.com</a></div>
+  <div style="margin-top:6px;color:var(--t3);">© 2026 시공막내 · 베타 운영 중</div>
+</footer>
+
+<script>
+(function(){
+  // ─── Reveal on scroll ───
+  const io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, {threshold:0.12, rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.reveal').forEach(function(el){ io.observe(el); });
+
+  // ─── Hero phone auto-play sequence ───
+  const stage = document.getElementById('hpStage');
+  const msgs = stage ? stage.querySelectorAll('.hp-msg') : [];
+  const typingArea = document.getElementById('typingArea');
+  const typingCursor = document.getElementById('typingCursor');
+  const aiReply = "아 24평이시구나~ 화장실 줄눈은 보통 28~32만원선이에요 😊 사진 몇 장만 주시면 정확히 봐드릴게요!";
+
+  let playStep = 0, typingIdx = 0, typingTimer = null;
+  function playSeq(){
+    msgs.forEach(function(m){ m.classList.remove('on'); });
+    if (typingArea) typingArea.textContent = '';
+    if (typingCursor) typingCursor.style.display = 'inline-block';
+    playStep = 0;
+    setTimeout(function(){ if (msgs[0]) msgs[0].classList.add('on'); }, 300);
+    setTimeout(function(){ if (msgs[1]) msgs[1].classList.add('on'); typeReply(); }, 1700);
+    setTimeout(function(){ if (msgs[2]) msgs[2].classList.add('on'); }, 1700 + aiReply.length*40 + 700);
+  }
+  function typeReply(){
+    typingIdx = 0;
+    if (typingTimer) clearInterval(typingTimer);
+    typingTimer = setInterval(function(){
+      if (typingIdx >= aiReply.length){
+        clearInterval(typingTimer);
+        if (typingCursor) typingCursor.style.display = 'none';
+        return;
+      }
+      typingIdx++;
+      if (typingArea) typingArea.textContent = aiReply.slice(0, typingIdx);
+    }, 38);
+  }
+  if (stage){
+    playSeq();
+    setInterval(playSeq, 11000);
+  }
+
+  // ─── Demo 1 — Raw msg → org card 시퀀스 (스크롤 진입 시 1회) ───
+  const demoCard1 = document.querySelector('.demo-card');
+  let demo1Played = false;
+  if (demoCard1){
+    const io1 = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if (e.isIntersecting && !demo1Played){
+          demo1Played = true;
+          const rms = demoCard1.querySelectorAll('.raw-msg');
+          const ocs = demoCard1.querySelectorAll('.org-card');
+          rms.forEach(function(rm, i){ setTimeout(function(){ rm.classList.add('on'); }, i*250); });
+          setTimeout(function(){
+            ocs.forEach(function(oc, i){ setTimeout(function(){ oc.classList.add('on'); }, i*200); });
+          }, rms.length*250 + 300);
+          io1.unobserve(demoCard1);
+        }
+      });
+    }, {threshold:0.4});
+    io1.observe(demoCard1);
+  }
+
+  // ─── Demo 2 — Alert card 자동 등장 ───
+  const alertCard = document.getElementById('alertCard');
+  if (alertCard){
+    const io2 = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if (e.isIntersecting){ setTimeout(function(){ alertCard.classList.add('on'); }, 400); io2.unobserve(alertCard); }
+      });
+    }, {threshold:0.4});
+    io2.observe(alertCard);
+  }
+
+  // ─── Demo 4 — Tab toggle (사장님 톤 ↔ 일반 AI) ───
+  document.querySelectorAll('.compare-tab').forEach(function(tab){
+    tab.addEventListener('click', function(){
+      document.querySelectorAll('.compare-tab').forEach(function(t){ t.classList.remove('active'); });
+      tab.classList.add('active');
+      const which = tab.dataset.cmp;
+      document.getElementById('cmpMine').style.display = which === 'mine' ? 'block' : 'none';
+      document.getElementById('cmpPlain').style.display = which === 'plain' ? 'block' : 'none';
+    });
+  });
+
+  // ─── FAQ ───
+  document.querySelectorAll('.faq-item').forEach(function(item){
+    item.querySelector('.faq-q').addEventListener('click', function(){ item.classList.toggle('open'); });
+  });
+
+  // ─── Sticky CTA on scroll ───
+  const stickyCta = document.getElementById('stickyCta');
+  const heroH = document.querySelector('.hero');
+  window.addEventListener('scroll', function(){
+    if (!stickyCta || !heroH) return;
+    const heroBottom = heroH.offsetTop + heroH.offsetHeight;
+    const signupEl = document.getElementById('signup');
+    const signupTop = signupEl ? signupEl.offsetTop : Infinity;
+    if (window.scrollY > heroBottom && window.scrollY < signupTop - 600) stickyCta.classList.add('show');
+    else stickyCta.classList.remove('show');
+  }, {passive:true});
+
+  // ─── Phone 자동 하이픈 ───
+  const phoneInput = document.getElementById('phone');
+  if (phoneInput) phoneInput.addEventListener('input', function(e){
+    let v = e.target.value.replace(/[^0-9]/g, '');
+    if (v.length > 11) v = v.slice(0, 11);
+    if (v.length >= 8) v = v.slice(0,3) + '-' + v.slice(3,7) + '-' + v.slice(7);
+    else if (v.length >= 4) v = v.slice(0,3) + '-' + v.slice(3);
+    e.target.value = v;
+  });
+
+  // ─── Live counter (fetch GET /api/beta-signup-count) ───
+  function loadCount(){
+    fetch('/api/beta-signup-count').then(function(r){return r.json();}).then(function(d){
+      const n = (d && typeof d.total === 'number') ? d.total : 0;
+      const lc = document.getElementById('liveCount'); if (lc) lc.textContent = n;
+      const pc = document.getElementById('progCount'); if (pc) pc.textContent = n + ' / 100명';
+      const pb = document.getElementById('progBar'); if (pb) setTimeout(function(){ pb.style.width = Math.min(100, n) + '%'; }, 300);
+    }).catch(function(){
+      const lc = document.getElementById('liveCount'); if (lc) lc.textContent = '0';
+      const pc = document.getElementById('progCount'); if (pc) pc.textContent = '0 / 100명';
+      const pb = document.getElementById('progBar'); if (pb) setTimeout(function(){ pb.style.width = '0%'; }, 300);
+    });
+  }
+  loadCount();
+
+  // ─── 폼 제출 ───
+  const form = document.getElementById('signupForm');
+  const successBox = document.getElementById('formSuccess');
+  const errorBox = document.getElementById('formError');
+  const submitBtn = document.getElementById('submitBtn');
+  if (form) form.addEventListener('submit', async function(e){
+    e.preventDefault();
+    errorBox.style.display = 'none'; errorBox.textContent = '';
+    const phone = phoneInput.value.replace(/[^0-9]/g, '');
+    if (phone.length < 10 || phone.length > 11){
+      errorBox.textContent = '전화번호를 다시 확인해주세요. (10~11자리)';
+      errorBox.style.display = 'block'; return;
+    }
+    const payload = {
+      phone: phone,
+      industry: document.getElementById('industry').value,
+      region: document.getElementById('region').value.trim(),
+      monthly_inquiries: document.getElementById('monthly_inquiries').value,
+      note: document.getElementById('note').value.trim(),
+      agreed: document.getElementById('agreed').checked,
+      source: 'landing/' + (location.host || 'unknown'),
+    };
+    submitBtn.disabled = true; submitBtn.textContent = '보내는 중...';
+    try {
+      const res = await fetch('/api/beta-signup', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+      const data = await res.json().catch(function(){return {};});
+      if (!res.ok || !data.ok){
+        const msg = (data && data.detail) ? data.detail : ('신청에 실패했어요 (HTTP ' + res.status + '). 잠시 후 다시 시도해주세요.');
+        errorBox.textContent = msg; errorBox.style.display = 'block';
+        submitBtn.disabled = false; submitBtn.textContent = '베타 신청하기 →'; return;
+      }
+      form.style.display = 'none'; successBox.style.display = 'block';
+      successBox.scrollIntoView({behavior:'smooth', block:'center'});
+      loadCount();
+    } catch (err) {
+      errorBox.textContent = '네트워크 오류예요. 잠시 후 다시 시도해주세요.';
+      errorBox.style.display = 'block';
+      submitBtn.disabled = false; submitBtn.textContent = '베타 신청하기 →';
+    }
+  });
+})();
+</script>
+
+</body>
+</html>

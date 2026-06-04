@@ -2702,3 +2702,85 @@ CREATE INDEX idx_bir_revision ON beta_intake_responses (revision DESC);
 - 마이그레이션 불필요(기존 컬럼만 새로 조회 → Room 컴파일 검증 통과). 빌드/설치/실행 정상, SQLite 오류 0.
 - ⚠️ 남은 2건(사장님 미선택): ①수신 누락(사진·장문 MMS = WAP_PUSH라 비기본앱은 못 받음) ②근본해결=RING-GO 기본 문자앱화(MMS 송수신 미완성이라 보류). 둘 다 분석 SYNC 위에 기록.
 - commit: d933e82
+=======
+## 2026-06-04 (아침) · cowork(server) — 🚀 시공막내 마케팅 랜딩페이지 + 베타 신청 (§23)
+
+사장님 디렉션: "시공인들의 필수앱 · 문자정리 · 시공전날 알림 · 마감 브리핑 · 톤 학습 답변 → 시공막내". 인터랙티브 최대 + 실제 기능 시연 + 신세대 느낌.
+
+### 새 엔드포인트 5개 (§23)
+| Method | Path | 용도 |
+|---|---|---|
+| GET  | `/`                       | 시공막내 랜딩페이지 (HTML, 누구나) |
+| GET  | `/landing`                | / 와 동일 alias |
+| POST | `/api/beta-signup`        | 신청 저장 (phone PK = 중복 UPSERT) |
+| GET  | `/api/beta-signup-count`  | 라이브 카운터 (랜딩 hero 표시) |
+| GET  | `/admin/beta/signups`     | 사장님 admin 신청자 리스트 (X-Admin-Token) |
+
+→ 공개 URL: **`https://api.si0in.kr/`** (루트 → 랜딩페이지)  
+→ 사장님 admin: `https://api.si0in.kr/admin/beta/signups` (헤더 `X-Admin-Token: 5302`)
+
+### 브랜드 / 카피 (사장님 메시지 verbatim)
+- 브랜드 = **시공막내** (RING-GO 는 영문 코드명 / 도메인 si0in.kr 만)
+- 핵심 카피: "시공인들의 필수앱", "문자하면 정리해", "시공 전날이야 알아서 문자 보내", "마감 브리핑까지", "상담 자신없어? 내 말투를 학습해서 대신 답변", "혼자 다 하던 그 시간, 막내가 돌려드려요"
+- 톤: 친근 ~요체 + 직설적 + 신세대 느낌
+
+### 인터랙티브 요소
+1. **Hero**: 글래스모피즘 + 그라데이션 노이즈 + 라이브 카운터 (실시간 신청자 N/100명)
+2. **자동 재생 폰 mockup**: 11초 루프 (고객 문의 → 막내 타이핑 답장 → 사장님 ▶ 보내기)
+3. **타이핑 효과**: AI 답장이 38ms/char 로 한 글자씩 타이핑됨 (~~"아 24평이시구나~ 화장실 줄눈은 보통 28~32만원선이에요 😊"~~)
+4. **스크롤 reveal**: IntersectionObserver 로 모든 카드 fade-up stagger
+5. **Demo 1 — 문자 정리**: 가짜 SMS 3개 인입 (slide-in) → 자동 분류된 카드 3개 등장 (scale-in)
+6. **Demo 2 — D-1 알림**: 캘린더 → 알림카드 자동 등장 + bell wiggle 애니
+7. **Demo 3 — 마감 브리핑**: 다크 모드 카드 (밤 시뮬레이션) + 통계 그리드 + 항목 리스트
+8. **Demo 4 — 톤 비교 토글**: 탭 클릭으로 "사장님 톤 (시공막내)" ↔ "일반 AI 답변" 전환
+9. **차별점 비교 2열**: "지금 사장님 (😔)" vs "시공막내랑 (✨)"
+10. **베타 정책 + Progress bar**: 라이브 카운트 + 100명 cap 바 (1.2s ease 채워짐)
+11. **신청 폼**: 5항목 + 자유메모 + 동의 (포커스 시 blue ring)
+12. **FAQ 아코디언**: `+` ↔ `×` 회전, 박스 살짝 lift
+13. **Sticky CTA**: 스크롤 hero 지나면 하단 고정 버튼 슬라이드 업
+14. **CTA shine**: 메인 CTA 에 3s 마다 빛 가로지름 애니메이션
+
+### DB 테이블 (cache.db / db_init §23)
+```sql
+CREATE TABLE beta_signups (
+  phone               TEXT PRIMARY KEY,         -- 11자리 숫자만 (하이픈 제거)
+  industry            TEXT,                     -- 줄눈/타일/도배/장판/인테리어/기타
+  region              TEXT,                     -- 시·도 + 구·시
+  monthly_inquiries   TEXT,                     -- 0-10/10-30/30-60/60-100/100+
+  note                TEXT,                     -- 자유 메모 (300자)
+  agreed_at_ms        INTEGER NOT NULL,
+  source              TEXT,                     -- 'landing/<host>' 등
+  ip                  TEXT,                     -- x-forwarded-for 첫번째
+  ua                  TEXT,                     -- User-Agent (300자)
+  status              TEXT NOT NULL DEFAULT 'pending',  -- pending/accepted/rejected
+  created_at_ms       INTEGER NOT NULL,
+  updated_at_ms       INTEGER NOT NULL
+);
+-- 같은 phone 재신청 시 UPSERT (가장 최근 응답 keep)
+```
+
+### 검증
+- `python3 -m py_compile main.py` 통과
+- main.py 7,695 → 7,974 줄 (+279 라인)
+- HTML 756 줄 (시공막내 12회 등장 / IntersectionObserver+typing+loadCount 21회 JS 매치)
+- 폼 검증: phone 10~11자리 / agreed 필수 / industry 화이트리스트 / monthly_inquiries 화이트리스트 / region 2~40자 / note 300자 cut
+
+### 변경 파일 (commit 대상)
+- `server/main.py` — db_init §23 + §23 endpoint 5개
+- `server/static/landing.html` — 시공막내 랜딩페이지 (76KB 베타인테이크 다음 second static asset)
+- `docs/SYNC.md` — 이 블록
+
+### 사장님 deploy (한 줄, 잘 통한 그 시퀀스)
+```bash
+cd ~/paperclip-company/workspaces/CallFollowCRM
+rm -f .git/index.lock .git/ORIG_HEAD.lock && git pull --rebase origin main && git add . && git commit -m "feat(landing): 시공막내 랜딩페이지 + 베타 신청 (§23)" && git push origin main && cp server/static/landing.html /Users/hun/ringgo-server/static/ && launchctl kickstart -k gui/$(id -u)/com.detailline.ringgo-server && sleep 5 && curl -sI https://api.si0in.kr/ | head -1 && curl -s https://api.si0in.kr/api/beta-signup-count && echo
+```
+
+기대: `HTTP/2 200` + `{"total":0,"cap":100}` → 폰에서 `https://api.si0in.kr/` 열면 랜딩페이지 보임.
+
+### 다음 cycle 작업 후보
+1. **deploy_phase1.sh 보강**: `cp -r server/static/* /Users/hun/ringgo-server/static/` 자동 (이번에도 사장님 수동 cp)
+2. **si0in.kr 루트 도메인 옮기기**: Cloudflare Tunnel config 에 hostname si0in.kr 추가 → cloudflared 재시작 (api.si0in.kr 그대로 + si0in.kr 도 같은 서버)
+3. **랜딩페이지 데이터 동적화**: 베타 셋팅 폼 (§22) 의 카테고리 5/6/7/9 데이터를 랜딩페이지에 자동 sync (현재 100명·4주·무료 placeholder)
+4. **신청 알림**: SOLAPI Zapier 로 사장님께 SMS (`?? 베타 신청 1건 — 010-XXXX-XXXX (줄눈, 수원시 영통구)`)
+5. **Zapier MCP Gmail `selected_api` schema 점검** (이전 cycle 부터 계속 미정)
