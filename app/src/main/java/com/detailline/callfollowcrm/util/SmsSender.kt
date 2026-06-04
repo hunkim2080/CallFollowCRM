@@ -10,9 +10,11 @@ import android.provider.Telephony
 import android.telephony.SmsManager
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.detailline.callfollowcrm.CallFollowCrmApplication
 import com.klinker.android.send_message.Message
 import com.klinker.android.send_message.Settings
 import com.klinker.android.send_message.Transaction
+import kotlinx.coroutines.launch
 
 /**
  * SMS 직접 발송 유틸. 정책상 발송이 허용된 경로 (첫 응대 자동 응답, 고객 상세 인라인 채팅)
@@ -61,7 +63,16 @@ object SmsSender {
             //     - 갤메시지/다른 SMS 앱도 못 봄 (모두 시스템 provider 읽음)
             //   해결: 발송 성공 직후 Sent 테이블 INSERT.
             //   default 아닐 때는 WRITE_SMS 권한 없어 silent fail (RuntimeException) — runCatching 안전망.
-            insertIntoSentProvider(context, phoneNumber, body)
+            val insertedToProvider = insertIntoSentProvider(context, phoneNumber, body)
+
+            // 2026-06-04 사장님 "보낸 문자가 간혹 안 보임" fix:
+            //   RING-GO 가 기본 문자앱이 아니면 위 provider INSERT 가 실패(= 시스템 문자함에 기록 안 됨).
+            //   그러면 채팅 재진입 시 loadMessages 가 provider 만 읽어 그 발신이 사라진다.
+            //   → 기록 실패 시 우리 로컬 캐시(cached_messages, systemId<0)에 보존해 화면에서 유지.
+            //   (기본앱이면 insertedToProvider=true → provider 가 정본이라 로컬 보존 불필요 → 중복 방지.)
+            if (!insertedToProvider) {
+                persistToLocalCache(context, phoneNumber, body)
+            }
         }
 
         return sent
@@ -70,9 +81,10 @@ object SmsSender {
     /**
      * 시스템 SMS provider (content://sms/sent) 에 사장님 발송 기록 INSERT.
      * Default SMS 앱일 때만 성공. 갤메시지가 default 면 갤메시지가 INSERT 책임 — silent fail OK.
+     * @return 실제로 row 가 INSERT 됐으면 true (= 기본 문자앱). 실패/비기본앱이면 false.
      */
-    private fun insertIntoSentProvider(context: Context, phoneNumber: String, body: String) {
-        runCatching {
+    private fun insertIntoSentProvider(context: Context, phoneNumber: String, body: String): Boolean {
+        return runCatching {
             val nowMs = System.currentTimeMillis()
             val values = ContentValues().apply {
                 put(Telephony.Sms.ADDRESS, phoneNumber)
@@ -83,10 +95,33 @@ object SmsSender {
                 put(Telephony.Sms.SEEN, 1)
                 put(Telephony.Sms.TYPE, Telephony.Sms.MESSAGE_TYPE_SENT)
             }
-            context.contentResolver.insert(Telephony.Sms.Sent.CONTENT_URI, values)
-        }.onFailure { e ->
+            context.contentResolver.insert(Telephony.Sms.Sent.CONTENT_URI, values) != null
+        }.getOrElse { e ->
             // default 아니거나 WRITE_SMS 거부 — 정상 케이스 (갤메시지가 default 책임).
             Log.w("SmsSender", "Sent provider INSERT failed (likely not default SMS app)", e)
+            false
+        }
+    }
+
+    /**
+     * 발송한 메시지를 앱 로컬 캐시에 보존 (기본 문자앱이 아니라 시스템 문자함에 기록 못 했을 때).
+     * fire-and-forget — 앱 수명 IO 스코프에서 비동기 저장. 모든 sendDirect 경로가 공통으로 탄다.
+     */
+    private fun persistToLocalCache(context: Context, phoneNumber: String, body: String) {
+        val app = context.applicationContext as? CallFollowCrmApplication ?: return
+        val digits = phoneNumber.filter { it.isDigit() }
+        val suffix = if (digits.length >= 8) digits.takeLast(8) else digits
+        if (suffix.length < 7) return
+        val nowMs = System.currentTimeMillis()
+        val msg = com.detailline.callfollowcrm.data.repository.SmsRepository.SmsMessage(
+            id = -nowMs,          // 음수 = 로컬 보존(시스템 provider 미반영) 표식
+            address = phoneNumber,
+            body = body,
+            dateMs = nowMs,
+            sent = true
+        )
+        app.applicationScope.launch {
+            runCatching { app.container.cachedMessageRepository.persistLocalSent(suffix, msg) }
         }
     }
 

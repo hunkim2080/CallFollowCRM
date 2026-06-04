@@ -2686,3 +2686,19 @@ CREATE INDEX idx_bir_revision ON beta_intake_responses (revision DESC);
 - admin token 환경변수 (plist `ADMIN_TOKEN`)
 
 > ⚠️ Gmail 자동 보고 메일은 Zapier MCP `gmail/message` 호출 시 `selected_api` 필수 검증 에러로 발송 실패 (그동안 잘 됐던 룰). 본 블록이 보고 대신. 다음 cycle 전 Zapier MCP 호출 형식 점검 필요.
+
+---
+
+## 2026-06-04 · android (61)
+### 문자 발신 누락 fix — 앱에서 보낸 문자가 재진입 시 사라지던 문제 (보낸문자 보존)
+사장님 보고 "보낸 문자가 간혹 안 보임" + "수신 일부 누락" 분석. 근본 원인 = RING-GO 가 기본 SMS 앱이 아님(기본=삼성 메시지). 이번 커밋은 **발신 누락**만 처리(사장님 선택 = 작고 안전한 것).
+- 원인: 비기본앱이라 SmsSender.sendDirect 의 content://sms/sent INSERT 가 실패 → 시스템 문자함에 기록 안 됨 → loadMessages 가 provider만 읽어 재진입 시 발신이 사라짐. 게다가 replaceSmsOnlyForSuffix 가 캐시를 provider 내용으로 덮어써 영구 소실.
+- fix(무 스키마변경, systemId 음수 = 로컬 보존본 표식):
+  - SmsSender.insertIntoSentProvider → Boolean 반환. 실패(비기본앱) 시 persistToLocalCache → cachedMessageRepository.persistLocalSent (systemId<0, applicationScope 비동기). sendDirect 9개 호출지점 전부 자동 커버.
+  - CachedMessageDao: clearProviderSmsForSuffix(systemId>=0만 삭제) + queryLocalSentBySuffix(systemId<0).
+  - CachedMessageRepository.replaceSmsOnlyForSuffix → clearProviderSmsForSuffix 로 교체(음수 보존). persistLocalSent/loadLocalSent 추가.
+  - ChatViewModel.loadMessages: localSent 병합 + mergeWithLocalSent(같은 본문 ±2분 provider 발신과 중복이면 로컬본 제외 — 기본앱 전환 미래 대비).
+  - CallFollowCrmApplication.applicationScope 공개.
+- 마이그레이션 불필요(기존 컬럼만 새로 조회 → Room 컴파일 검증 통과). 빌드/설치/실행 정상, SQLite 오류 0.
+- ⚠️ 남은 2건(사장님 미선택): ①수신 누락(사진·장문 MMS = WAP_PUSH라 비기본앱은 못 받음) ②근본해결=RING-GO 기본 문자앱화(MMS 송수신 미완성이라 보류). 둘 다 분석 SYNC 위에 기록.
+- commit: d933e82

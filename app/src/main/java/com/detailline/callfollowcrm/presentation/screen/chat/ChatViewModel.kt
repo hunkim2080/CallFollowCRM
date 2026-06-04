@@ -249,6 +249,11 @@ class ChatViewModel(
                 _messages.value = cached
             }
 
+            // 앱에서 보냈지만 시스템 문자함엔 없는 발신 보존본(기본 문자앱이 아닐 때). provider 결과에 합쳐 유지.
+            val localSent = runCatching {
+                container.cachedMessageRepository.loadLocalSent(suffix)
+            }.getOrDefault(emptyList())
+
             // stage 2: SMS 만 빠르게 새로고침. MMS 는 캐시값(정확) 그대로 유지하고 합쳐서 emit.
             val freshSms = runCatching {
                 container.smsRepository.querySmsOnly(phoneNumber)
@@ -257,7 +262,7 @@ class ChatViewModel(
                 container.cachedMessageRepository.loadMmsOnly(suffix)
             }.getOrDefault(emptyList())
             if (freshSms.isNotEmpty() || cached.isNotEmpty()) {
-                _messages.value = (freshSms + cachedMmsOnly).sortedByDescending { it.dateMs }
+                _messages.value = mergeWithLocalSent(freshSms, localSent, cachedMmsOnly)
                 runCatching {
                     container.cachedMessageRepository.replaceSmsOnlyForSuffix(suffix, freshSms)
                 }
@@ -267,11 +272,29 @@ class ChatViewModel(
             val freshMms = runCatching {
                 container.smsRepository.queryMmsOnly(phoneNumber)
             }.getOrDefault(emptyList())
-            _messages.value = (freshSms + freshMms).sortedByDescending { it.dateMs }
+            _messages.value = mergeWithLocalSent(freshSms, localSent, freshMms)
             runCatching {
                 container.cachedMessageRepository.replaceMmsOnlyForSuffix(suffix, freshMms)
             }
         }
+    }
+
+    /**
+     * provider 결과 + 로컬 발신 보존본 + (MMS) 를 합쳐 최신순 정렬.
+     * 중복 방지: provider 가 이미 같은 발신(같은 본문 ±2분)을 가졌으면 로컬 보존본은 제외
+     *   — RING-GO 가 기본 문자앱이 되는 미래엔 provider 가 정본이라 로컬본이 군더더기가 됨.
+     */
+    private fun mergeWithLocalSent(
+        providerSms: List<SmsRepository.SmsMessage>,
+        localSent: List<SmsRepository.SmsMessage>,
+        other: List<SmsRepository.SmsMessage>
+    ): List<SmsRepository.SmsMessage> {
+        val filteredLocal = localSent.filter { ls ->
+            providerSms.none { p ->
+                p.sent && p.body == ls.body && kotlin.math.abs(p.dateMs - ls.dateMs) < 120_000L
+            }
+        }
+        return (providerSms + filteredLocal + other).sortedByDescending { it.dateMs }
     }
 
     /**

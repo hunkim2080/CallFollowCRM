@@ -25,11 +25,26 @@ class CachedMessageRepository(private val dao: CachedMessageDao) {
     suspend fun loadMmsOnly(suffix: String, limit: Int = 500): List<SmsRepository.SmsMessage> =
         dao.queryBySuffixAndType(suffix, isMms = true, limit = limit).map { it.toSmsMessage() }
 
-    /** SMS 만 교체. MMS 캐시는 유지. */
+    /** 로컬 보존된 발신(앱에서 보냈지만 시스템 문자함엔 없는, systemId<0) 메시지만. */
+    suspend fun loadLocalSent(suffix: String, limit: Int = 200): List<SmsRepository.SmsMessage> =
+        dao.queryLocalSentBySuffix(suffix, limit).map { it.toSmsMessage() }
+
+    /** SMS 만 교체. MMS 캐시는 유지. 로컬 발신 보존본(systemId<0)도 유지(provider 출신만 교체). */
     suspend fun replaceSmsOnlyForSuffix(suffix: String, freshSms: List<SmsRepository.SmsMessage>) {
-        dao.clearForSuffixByType(suffix, isMms = false)
+        dao.clearProviderSmsForSuffix(suffix)
         val now = System.currentTimeMillis()
         dao.insertAll(freshSms.map { it.toCachedEntity(suffix, isMms = false, cachedAtMs = now) })
+    }
+
+    /**
+     * 앱에서 보낸 메시지를 로컬에 영구 보존.
+     * 기본 문자앱이 아니면 발신이 시스템 문자함(content://sms/sent)에 안 적혀 재진입 시 사라짐 →
+     * 우리 캐시에 systemId<0(음수) 행으로 남겨 화면에서 유지되게 한다.
+     */
+    suspend fun persistLocalSent(suffix: String, msg: SmsRepository.SmsMessage) {
+        dao.insertAll(
+            listOf(msg.toCachedEntity(suffix, isMms = false, cachedAtMs = System.currentTimeMillis()))
+        )
     }
 
     /** MMS 만 교체. SMS 캐시는 유지. */

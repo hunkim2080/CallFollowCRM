@@ -28,6 +28,9 @@ class CallFollowCrmApplication : Application() {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    /** 앱 수명 동안 도는 IO 스코프 — SmsSender 등 컴포넌트의 fire-and-forget 보존 작업용. */
+    val applicationScope: CoroutineScope get() = appScope
+
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
