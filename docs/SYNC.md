@@ -2823,3 +2823,10 @@ rm -f .git/index.lock .git/ORIG_HEAD.lock && git pull --rebase origin main && gi
 2. 상담함/일정/정산/통계/더보기 제목이 상태바에 붙음 → 원인: 엣지투엣지 OFF(롤백됨)라 statusBarsPadding=0. fix: 5개 메인탭만 상단 여백 ↑(홈 Row top 10→28dp, 4개 TopAppBar windowInsets top=12dp). 실기기 확인(홈·정산 여백 생김). ※엣지투엣지 전체 적용은 TopAppBar 20+개·bottomBar 영향 커서 보류.
 3. 채팅 보내기 확인 시트 [취소]가 제스처바와 겹침 → SendConfirmSheet Column 에 navigationBarsPadding 추가. (표준 수정, 실제 고객 오발송 위험으로 device 강제 검증은 생략 — 보내기 시트는 [보내기] 눌러야만 발송되는 구조)
 - 서버 영향 없음.
+
+## 2026-06-04 · android (67)
+### 정산 "받을 돈·미수 관리" 목록 시공일 오름차순 정렬 (사장님 요청)
+사장님 "정산 목록도 낮은 날짜부터". 기존 정렬 = 미수금액 큰 순(compareByDescending outstanding)이라 6/12,6/8,6/12 뒤죽박죽.
+- fix: SettlementViewModel rows 정렬을 compareBy { scheduledWorkDate ?: MAX }.thenByDescending { outstanding } 로 변경 → 시공일 오름차순(없으면 맨뒤, 동일날짜는 미수 큰 순). 미수/완료 목록 모두 적용.
+- 실기기 확인: 6/8→6/10→6/11 순.
+- 서버 영향 없음.

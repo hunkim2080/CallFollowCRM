@@ -48,9 +48,11 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
                             address = c.address
                         )
                     }
+                    // 시공일 오름차순(낮은 날짜부터) — 사장님 요청 2026-06-04. 날짜 없으면 맨 뒤,
+                    //   동일 날짜는 미수 큰 순. (미수/완료 목록 모두 이 순서를 따름)
                     .sortedWith(
-                        compareByDescending<SettleItem> { it.calc.outstanding }
-                            .thenByDescending { it.calc.total }
+                        compareBy<SettleItem> { it.scheduledWorkDate ?: Long.MAX_VALUE }
+                            .thenByDescending { it.calc.outstanding }
                     )
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
