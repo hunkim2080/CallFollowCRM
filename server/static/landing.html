@@ -285,7 +285,7 @@
   </h1>
   <p class="sub reveal d2">
     <b>문자하면 답장 초안 준비.</b> <b>시공 전날 알림 카드까지.</b><br>
-    통화 끝나면 <b>자동 요약 + 후속 문자</b>까지 막내가.
+    접수서 보내면 <b>고객이 알아서 입력</b>까지 막내가.
   </p>
   <div class="live-counter reveal d3">
     <b id="liveCount">—</b><span class="lc-l">명 / 100명 신청 중</span>
@@ -403,30 +403,54 @@
       </div>
     </div>
 
-    <!-- 기능 데모 3 — 통화 요약 + 후속 문자 -->
+    <!-- 기능 데모 3 — 시공접수서 자동 발급 -->
     <div class="sec-title reveal d1" style="margin-top:48px;">막내가 일하는 법 ③</div>
-    <h2 class="reveal d2"><span class="p">통화 끝나면</span><br>자동 요약 + 후속 문자</h2>
-    <p class="lead reveal d3">현장에서 받은 통화, 막내가 핵심 요약 + 고객한테 보낼 후속 문자까지 자동 작성. 사장님은 ▶ 보내기만.</p>
+    <h2 class="reveal d2"><span class="p">한 번 누르면</span><br>고객이 알아서 입력</h2>
+    <p class="lead reveal d3">사장님이 [📋 접수서 링크 보내기] 한 번 누르면, 고객 폰에 링크 → 고객이 평수·시공 부위·희망일 입력 → 사장님 폰에 자동 도착.</p>
 
     <div class="demo-card reveal d3" style="padding:18px;">
-      <div class="dc-title">▼ 받은 통화 · 김지영 고객님 · 6분 23초</div>
+      <div class="dc-title">▼ 시공막내가 접수서 자동 발급 중</div>
 
-      <div style="background:var(--bg);border-radius:12px;padding:12px 14px;margin-bottom:14px;">
-        <div style="font-size:11.5px;color:var(--t3);font-weight:700;margin-bottom:4px;">📞 통화 요약 (Haiku)</div>
-        <ul style="list-style:none;display:flex;flex-direction:column;gap:6px;margin-top:8px;">
-          <li style="font-size:12.5px;color:var(--t1);line-height:1.55;padding-left:14px;position:relative;"><span style="position:absolute;left:0;color:var(--blue);">•</span>24평 아파트 화장실 줄눈 시공 문의</li>
-          <li style="font-size:12.5px;color:var(--t1);line-height:1.55;padding-left:14px;position:relative;"><span style="position:absolute;left:0;color:var(--blue);">•</span>주말 시공 희망 (토 오전 선호)</li>
-          <li style="font-size:12.5px;color:var(--t1);line-height:1.55;padding-left:14px;position:relative;"><span style="position:absolute;left:0;color:var(--blue);">•</span>예산 30~35만원 — 견적 무료 확인 요청</li>
-        </ul>
+      <!-- 1. 사장님이 버튼 누름 -->
+      <div style="background:linear-gradient(135deg,var(--blue-tint),#fff);border:1px solid rgba(49,130,246,.2);border-radius:12px;padding:13px 15px;display:flex;align-items:center;gap:12px;">
+        <div style="width:34px;height:34px;border-radius:10px;background:#fff;color:var(--blue);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;flex-shrink:0;box-shadow:0 2px 6px rgba(49,130,246,.18);">📋</div>
+        <div style="flex:1;">
+          <div style="font-size:12.5px;font-weight:800;color:var(--t1);">사장님이 [접수서 링크 보내기] 탭</div>
+          <div style="font-size:11px;color:var(--t2);margin-top:2px;">→ 토큰 자동 발급 · 고객한테 SMS 링크 발송</div>
+        </div>
       </div>
 
       <div class="arrow-down">↓</div>
 
-      <div style="background:linear-gradient(135deg,var(--blue-tint),var(--purple-tint));border:1px solid rgba(49,130,246,.2);border-radius:12px;padding:13px 15px;position:relative;">
-        <div style="font-size:11px;font-weight:900;color:var(--blue-dark);letter-spacing:.04em;margin-bottom:7px;">✉️ 후속 문자 초안 (사장님 톤)</div>
-        <div style="font-size:13px;color:var(--t1);line-height:1.65;">김지영 고객님~ 방금 통화한 시공막내 사장이에요 😊 토요일 오전 시공 일정 잡아드릴게요. 정확한 견적 위해 화장실 사진 2~3장만 보내주세요!</div>
-        <div style="margin-top:11px;display:flex;justify-content:flex-end;">
-          <button style="background:var(--grad-blue);color:#fff;font-size:12px;font-weight:800;padding:8px 16px;border-radius:8px;letter-spacing:-.02em;box-shadow:0 4px 12px rgba(49,130,246,.3);">▶ 보내기</button>
+      <!-- 2. 고객 폰에서 폼 입력 -->
+      <div style="background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:14px;box-shadow:var(--shadow);">
+        <div style="font-size:10.5px;color:var(--t3);font-weight:700;margin-bottom:10px;letter-spacing:.04em;">📱 고객 폰 · 접수서 입력 중</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <div style="background:var(--bg);border-radius:8px;padding:8px 11px;display:flex;align-items:center;gap:8px;font-size:11.5px;">
+            <span style="color:var(--t3);font-weight:700;width:50px;">평수</span>
+            <b style="color:var(--t1);">24평</b>
+          </div>
+          <div style="background:var(--bg);border-radius:8px;padding:8px 11px;display:flex;align-items:center;gap:8px;font-size:11.5px;">
+            <span style="color:var(--t3);font-weight:700;width:50px;">부위</span>
+            <b style="color:var(--t1);">화장실 1곳</b>
+          </div>
+          <div style="background:var(--bg);border-radius:8px;padding:8px 11px;display:flex;align-items:center;gap:8px;font-size:11.5px;">
+            <span style="color:var(--t3);font-weight:700;width:50px;">희망일</span>
+            <b style="color:var(--t1);">토요일 오전</b>
+          </div>
+        </div>
+      </div>
+
+      <div class="arrow-down">↓</div>
+
+      <!-- 3. 사장님 폰에 자동 도착 알림 -->
+      <div style="background:linear-gradient(135deg,var(--success-tint),#fff);border:1px solid rgba(22,193,114,.25);border-radius:12px;padding:13px 15px;position:relative;">
+        <div style="display:flex;align-items:flex-start;gap:11px;">
+          <div style="width:34px;height:34px;border-radius:10px;background:#fff;color:var(--success);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;box-shadow:0 2px 6px rgba(22,193,114,.18);">✓</div>
+          <div style="flex:1;">
+            <div style="font-size:12.5px;font-weight:800;color:#0a8f44;">사장님 폰에 자동 도착</div>
+            <div style="font-size:12px;color:var(--t1);margin-top:4px;line-height:1.55;"><b>김지영 고객님</b> · 24평 화장실 · 토 오전 희망 — 첫 만남 전에 다 알고 가요</div>
+          </div>
         </div>
       </div>
     </div>
