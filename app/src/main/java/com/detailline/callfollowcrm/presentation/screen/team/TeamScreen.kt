@@ -1,0 +1,564 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
+package com.detailline.callfollowcrm.presentation.screen.team
+
+import android.app.Activity
+import android.content.Intent
+import android.provider.ContactsContract
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.Navigation
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.detailline.callfollowcrm.ai.TeamRepository
+import com.detailline.callfollowcrm.presentation.component.SheetFieldLabel
+import com.detailline.callfollowcrm.presentation.component.SheetTextField
+import com.detailline.callfollowcrm.presentation.theme.TossBlue
+import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
+import com.detailline.callfollowcrm.presentation.theme.TossDivider
+import com.detailline.callfollowcrm.presentation.theme.TossError
+import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
+import com.detailline.callfollowcrm.presentation.theme.TossPurple
+import com.detailline.callfollowcrm.presentation.theme.TossSuccess
+import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
+import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
+import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
+import com.detailline.callfollowcrm.util.PhoneNumberFormatter
+import kotlinx.coroutines.launch
+
+/**
+ * 팀 관리 화면 — 프로토 #s-team 1:1.  2026-06-05.
+ *   배너 / 팀원 추가(초대링크 SMS) / 팀원 화면 미리보기(실제 링크) / 팀원 목록(밀어서 빼기) / 출발 알림.
+ *   팀원은 앱 설치 X — 링크로 본인 일정만 봄. 비즈니스 요금제(서버 tier 검사).
+ */
+@Composable
+fun TeamScreen(
+    viewModel: TeamViewModel,
+    onBack: () -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val snackbar = remember { SnackbarHostState() }
+    val members by viewModel.members.collectAsState()
+    val departures by viewModel.departures.collectAsState()
+    val toast by viewModel.toast.collectAsState()
+    var addSheetOpen by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) { viewModel.load() }
+    LaunchedEffect(toast) {
+        toast?.let { snackbar.showSnackbar(it); viewModel.consumeToast() }
+    }
+
+    Scaffold(
+        containerColor = TossGrayBg,
+        snackbarHost = { SnackbarHost(snackbar) },
+        topBar = {
+            TopAppBar(
+                title = { Text("팀", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, "뒤로", tint = TossTextPrimary)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
+            )
+        }
+    ) { inner ->
+        if (viewModel.ownerPhoneMissing) {
+            OwnerMissingNotice(Modifier.padding(inner))
+            return@Scaffold
+        }
+        Column(
+            modifier = Modifier
+                .padding(inner)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+        ) {
+            Spacer(Modifier.height(4.dp))
+            // 프로토 .biz-banner — 보라 그라데이션
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Brush.linearGradient(listOf(Color(0xFF8B6CFF), TossPurple)))
+                    .padding(18.dp)
+            ) {
+                Text("팀원과 함께 일해요", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                Spacer(Modifier.height(5.dp))
+                Text(
+                    "팀원을 초대하면 일정·현장 주소를 같이 보고, 현장 배정과 출발 알림을 받을 수 있어요. (비즈니스 요금제)",
+                    fontSize = 12.5.sp, color = Color.White.copy(alpha = 0.85f), lineHeight = 18.sp
+                )
+            }
+            Spacer(Modifier.height(14.dp))
+
+            // 프로토 .invite — 점선 테두리 [+ 팀원 추가]
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .dashedBorder(1.5.dp, Color(0xFFC8D3E2), 16.dp)
+                    .clickable { addSheetOpen = true }
+                    .padding(15.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.Add, null, tint = TossBlue, modifier = Modifier.size(17.dp))
+                Spacer(Modifier.width(7.dp))
+                Text("팀원 추가", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+            }
+            Spacer(Modifier.height(10.dp))
+
+            // 프로토 .lockcard — 팀원 화면 미리보기 (가장 최근 팀원 링크 열기)
+            LockCardRow(
+                title = "팀원 화면 미리보기",
+                sub = "팀원이 링크 열면 보는 화면 (앱 설치 X)",
+                onClick = {
+                    val target = members.firstOrNull()
+                    if (target == null) {
+                        scope.launch { snackbar.showSnackbar("팀원을 먼저 추가해주세요") }
+                    } else {
+                        viewModel.previewLink(target) { url -> openUrl(context, url) }
+                    }
+                }
+            )
+            Spacer(Modifier.height(8.dp))
+
+            // 프로토 .sec-sub "팀원 N명" (대표 포함)
+            SecSub("팀원 ${members.size + 1}명")
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color.White)
+            ) {
+                // 대표(사장님) — 합성 행. 제외/미리보기 X.
+                MemberRow(
+                    name = viewModel.ownerName,
+                    roleLabel = "대표",
+                    isOwner = true,
+                    statusLine = PhoneNumberFormatter.format(viewModel.ownerPhone) + " · 나",
+                    tintIndex = 3,
+                    showDivider = members.isNotEmpty()
+                )
+                members.forEachIndexed { idx, m ->
+                    SwipeMemberRow(
+                        member = m,
+                        showDivider = idx < members.size - 1,
+                        onPreview = { viewModel.previewLink(m) { url -> openUrl(context, url) } },
+                        onRemove = {
+                            viewModel.remove(m) { undo ->
+                                scope.launch {
+                                    val r = snackbar.showSnackbar(
+                                        message = "${m.name} 제외 · 링크 차단됨",
+                                        actionLabel = "되돌리기"
+                                    )
+                                    if (r == SnackbarResult.ActionPerformed) undo()
+                                }
+                            }
+                        }
+                    )
+                }
+            }
+
+            // 프로토 .sec-sub "오늘 출발 알림"
+            SecSub("오늘 출발 알림")
+            if (departures.isEmpty()) {
+                Box(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White)
+                        .padding(vertical = 22.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("아직 출발 알림이 없어요", fontSize = 13.sp, color = TossTextTertiary)
+                }
+            } else {
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White)
+                ) {
+                    departures.forEachIndexed { idx, e ->
+                        DepartAlertRow(e, showDivider = idx < departures.size - 1)
+                    }
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+
+    if (addSheetOpen) {
+        AddMemberSheet(
+            onDismiss = { addSheetOpen = false },
+            onSubmit = { name, phone ->
+                addSheetOpen = false
+                viewModel.invite(name, phone) { memberPhone, draft ->
+                    // 자동발송 X — 문자앱 prefill, 사장님이 ▶ 직접 발송.
+                    com.detailline.callfollowcrm.util.SmsIntentHelper.openSmsCompose(context, memberPhone, draft)
+                }
+            }
+        )
+    }
+}
+
+/** 사업자 전화 미설정 안내. */
+@Composable
+private fun OwnerMissingNotice(modifier: Modifier) {
+    Box(modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("📇 사업자 정보를 먼저 등록해주세요", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "팀원 초대 링크는 사장님 전화번호로 묶여요.\n더보기 → 견적서·사업자 정보 에서 전화번호를 등록해주세요.",
+                fontSize = 13.sp, color = TossTextSecondary, lineHeight = 19.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
+    }
+}
+
+/** 프로토 .lockcard — 아이콘 박스 + 제목/부제 + 꺾쇠. */
+@Composable
+private fun LockCardRow(title: String, sub: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White)
+            .clickable(onClick = onClick).padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(TossBlueSoft),
+            contentAlignment = Alignment.Center
+        ) { Icon(Icons.Default.PhoneAndroid, null, tint = TossBlue, modifier = Modifier.size(20.dp)) }
+        Spacer(Modifier.width(13.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+            Text(sub, fontSize = 12.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 2.dp))
+        }
+        Icon(Icons.Default.ChevronRight, null, tint = TossTextTertiary, modifier = Modifier.size(20.dp))
+    }
+}
+
+@Composable
+private fun SecSub(text: String) {
+    Text(
+        text, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+        modifier = Modifier.padding(start = 2.dp, top = 26.dp, bottom = 11.dp)
+    )
+}
+
+/** 팀원 행(스와이프 제외 가능). 프로토 teamRowHtml + attachRowSwipe. */
+@Composable
+private fun SwipeMemberRow(
+    member: TeamRepository.TeamMember,
+    showDivider: Boolean,
+    onPreview: () -> Unit,
+    onRemove: () -> Unit
+) {
+    val state = rememberSwipeToDismissBoxState(
+        confirmValueChange = { v ->
+            if (v == SwipeToDismissBoxValue.EndToStart) { onRemove() }
+            false // 데이터 reload 가 행을 제거 — dismiss 안 시킴
+        },
+        positionalThreshold = { total -> total * 0.55f }
+    )
+    SwipeToDismissBox(
+        state = state,
+        enableDismissFromStartToEnd = false,
+        enableDismissFromEndToStart = true,
+        backgroundContent = {
+            Box(
+                Modifier.fillMaxWidth().background(TossError.copy(alpha = 0.12f)).padding(horizontal = 20.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Text("제외", color = TossError, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            }
+        }
+    ) {
+        MemberRow(
+            name = member.name,
+            roleLabel = if (member.role == "owner") "대표" else "팀원",
+            isOwner = member.role == "owner",
+            statusLine = PhoneNumberFormatter.format(member.phone),
+            tintIndex = member.tint,
+            showDivider = showDivider,
+            hint = "← 밀어서 빼기",
+            onClick = onPreview
+        )
+    }
+}
+
+/** 팀원 한 행. 아바타 + 이름 + 역할 뱃지 + 상태. */
+@Composable
+private fun MemberRow(
+    name: String,
+    roleLabel: String,
+    isOwner: Boolean,
+    statusLine: String,
+    tintIndex: Int,
+    showDivider: Boolean,
+    hint: String? = null,
+    onClick: (() -> Unit)? = null
+) {
+    Column(Modifier.background(Color.White)) {
+        Row(
+            Modifier.fillMaxWidth()
+                .let { if (onClick != null) it.clickable(onClick = onClick) else it }
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Avatar(name, tintIndex)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                    Spacer(Modifier.width(6.dp))
+                    RoleBadge(roleLabel, isOwner)
+                }
+                Text(statusLine, fontSize = 12.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 3.dp))
+            }
+            if (hint != null) {
+                Text(
+                    hint, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+                    modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(TossGrayBg)
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                )
+            }
+        }
+        if (showDivider) Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+    }
+}
+
+/** 프로토 .mr / .mr.lead — 역할 뱃지. */
+@Composable
+private fun RoleBadge(label: String, lead: Boolean) {
+    Text(
+        label,
+        fontSize = 11.sp, fontWeight = FontWeight.Bold,
+        color = if (lead) TossBlue else TossTextSecondary,
+        modifier = Modifier.clip(RoundedCornerShape(6.dp))
+            .background(if (lead) TossBlueSoft else TossGrayBg)
+            .padding(horizontal = 8.dp, vertical = 2.dp)
+    )
+}
+
+/** 프로토 .alert-item — 출발 알림 한 행. */
+@Composable
+private fun DepartAlertRow(e: TeamRepository.TeamEvent, showDivider: Boolean) {
+    val name = e.memberName ?: "팀원"
+    val place = e.payload?.optString("customer_label")?.takeIf { it.isNotBlank() && it != "null" }
+        ?: e.payload?.optString("addr")?.takeIf { it.isNotBlank() && it != "null" }
+        ?: "현장"
+    val time = com.detailline.callfollowcrm.util.DateTimeUtils.formatShort(e.createdAtMs)
+    Column {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                Modifier.size(36.dp).clip(RoundedCornerShape(50)).background(Color(0xFFE5F8EE)),
+                contentAlignment = Alignment.Center
+            ) { Icon(Icons.Default.Navigation, null, tint = Color(0xFF0E9F56), modifier = Modifier.size(18.dp)) }
+            Spacer(Modifier.width(11.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    buildAnnotatedDepart(name, time, place),
+                    fontSize = 13.5.sp, color = TossTextPrimary
+                )
+                Text(relativeAgo(e.createdAtMs), fontSize = 11.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 2.dp))
+            }
+        }
+        if (showDivider) Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+    }
+}
+
+private fun buildAnnotatedDepart(name: String, time: String, place: String) =
+    androidx.compose.ui.text.buildAnnotatedString {
+        pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.Bold))
+        append(name); pop()
+        append("님이 $time ${place}으로 출발했어요")
+    }
+
+/** 팀원 추가 시트 — 프로토 openAddMember 1:1. */
+@Composable
+private fun AddMemberSheet(onDismiss: () -> Unit, onSubmit: (name: String, phone: String) -> Unit) {
+    val context = LocalContext.current
+    var name by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    val pickContact = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
+        if (res.resultCode == Activity.RESULT_OK) {
+            res.data?.data?.let { uri ->
+                runCatching {
+                    context.contentResolver.query(
+                        uri,
+                        arrayOf(
+                            ContactsContract.CommonDataKinds.Phone.NUMBER,
+                            ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME
+                        ), null, null, null
+                    )?.use { cur ->
+                        if (cur.moveToFirst()) {
+                            val num = cur.getString(0) ?: ""
+                            val nm = cur.getString(1) ?: ""
+                            if (nm.isNotBlank()) name = nm
+                            phone = PhoneNumberFormatter.formatProgressive(num)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = Color.White, tonalElevation = 0.dp) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 22.dp)
+                .heightIn(max = 520.dp).verticalScroll(rememberScrollState())
+        ) {
+            Text("팀원 추가", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            Spacer(Modifier.height(4.dp))
+            Text("배정하면 이 번호로 현장 링크가 가요 (앱 설치 안 해도 돼요).", fontSize = 13.sp, color = TossTextTertiary)
+            Spacer(Modifier.height(14.dp))
+            Row(
+                Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(12.dp)).background(TossBlueSoft)
+                    .clickable {
+                        runCatching {
+                            pickContact.launch(Intent(Intent.ACTION_PICK, ContactsContract.CommonDataKinds.Phone.CONTENT_URI))
+                        }
+                    },
+                horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.Person, null, tint = TossBlue, modifier = Modifier.size(17.dp))
+                Spacer(Modifier.width(7.dp))
+                Text("연락처에서 불러오기", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+            }
+            Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f).height(1.dp).background(TossDivider))
+                Text("또는 직접 입력", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary, modifier = Modifier.padding(horizontal = 10.dp))
+                Box(Modifier.weight(1f).height(1.dp).background(TossDivider))
+            }
+            SheetFieldLabel("이름")
+            SheetTextField(name, { name = it }, placeholder = "예: 이기사")
+            Spacer(Modifier.height(10.dp))
+            SheetFieldLabel("전화번호")
+            SheetTextField(phone, { phone = PhoneNumberFormatter.formatProgressive(it) }, placeholder = "010-0000-0000", keyboardType = KeyboardType.Phone)
+            Spacer(Modifier.height(16.dp))
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(TossBlue)
+                    .clickable { onSubmit(name, phone) }.padding(vertical = 15.dp),
+                contentAlignment = Alignment.Center
+            ) { Text("팀원 추가", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold) }
+        }
+    }
+}
+
+/** 프로토 avatarHtml — 이니셜 아바타. */
+@Composable
+private fun Avatar(name: String, tintIndex: Int) {
+    val (bg, fg) = AV_TINTS[((tintIndex % AV_TINTS.size) + AV_TINTS.size) % AV_TINTS.size]
+    Box(
+        Modifier.size(44.dp).clip(RoundedCornerShape(50)).background(bg),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            name.replace(Regex("[\\s()]"), "").take(1).ifBlank { "?" },
+            fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = fg
+        )
+    }
+}
+
+// 프로토 AV_TINTS [bg, fg] 5색.
+private val AV_TINTS = listOf(
+    Color(0xFFE6EFFF) to Color(0xFF3182F6),
+    Color(0xFFE7F8EE) to Color(0xFF16A765),
+    Color(0xFFFDEAEF) to Color(0xFFF0436A),
+    Color(0xFFF1ECFE) to Color(0xFF7C5CFC),
+    Color(0xFFFEF3E0) to Color(0xFFE0920C),
+)
+
+/** 점선 테두리 modifier (프로토 .invite dashed border). */
+private fun Modifier.dashedBorder(width: androidx.compose.ui.unit.Dp, color: Color, radius: androidx.compose.ui.unit.Dp) =
+    drawBehind {
+        val stroke = Stroke(
+            width = width.toPx(),
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 8f), 0f)
+        )
+        drawRoundRect(color = color, style = stroke, cornerRadius = CornerRadius(radius.toPx(), radius.toPx()))
+    }
+
+private fun openUrl(context: android.content.Context, url: String) {
+    if (url.isBlank()) return
+    runCatching {
+        context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        })
+    }
+}
+
+/** 간단 상대시간 — 방금/N분 전/N시간 전/어제. */
+private fun relativeAgo(ms: Long): String {
+    val now = System.currentTimeMillis()
+    val d = now - ms
+    return when {
+        d < 60_000 -> "방금"
+        d < 3_600_000 -> "${d / 60_000}분 전"
+        d < 86_400_000 -> "${d / 3_600_000}시간 전"
+        d < 172_800_000 -> "어제"
+        else -> "${d / 86_400_000}일 전"
+    }
+}

@@ -44,6 +44,7 @@ object Destinations {
     const val NEW_LEADS = "new_leads"
     const val BUSINESS_INFO = "business_info"
     const val NOTEBOOK = "notebook"
+    const val TEAM = "team"
     const val REPORT = "report"
     const val TRADE_SELECT = "trade_select"
     const val RECURRING = "recurring"

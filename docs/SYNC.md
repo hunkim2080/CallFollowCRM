@@ -2977,3 +2977,12 @@ HOU-128 `/admin/beta/intake` (셋팅 폼) 도 이전 cycle 에 통합 완료. �
 알림 아이콘 최종 = 말풍선 안 'AI' (사장님 아이디어 변경)
 - 변경: 앱 리소스만(서버 무관). ic_notification.xml = 말풍선 + 'AI' 글자를 evenOdd 로 뚫음(직전 "전화 수화기" 대체). 글자 외곽선은 Arial Bold 추출해 고정 path(폰트 의존 X). RING-GO = AI 상담 비서 정체성 강조.
 - commit: (아래)
+
+## 2026-06-05 01:35 · android
+팀 관리 화면 신설 (프로토 #s-team 1:1, 서버 팀 API 연결)
+- 변경: 앱 화면만 추가(서버 인터페이스 무변경 — 기존 /api/team/* 사용). 더보기→팀 관리(Destinations.TEAM).
+  - TeamScreen/TeamViewModel/TeamRepository: 배너 / 팀원 추가(invite→sms_draft 문자앱 prefill, 자동발송X) / 팀원 화면 미리보기 / 팀원 목록(대표 합성행+서버멤버, 스와이프 제외+되돌리기) / 오늘 출발 알림(events departed).
+  - owner_phone = bizPhone. 미설정 시 안내 화면. tier 검사는 invite(서버 403 → 친절 메시지).
+  - 미리보기/멤버 탭 = invite(reuse)로 url 받아 브라우저로 엶(멤버목록 API에 token 없어서). 실기기 전체 UI 검증 완료.
+- commit: (아래)
+- 다음 액션(서버): 없음. (앱이 팀원별 일정 배정 push(schedule-snapshot)는 추후 — 지금은 멤버 status=전화번호만)

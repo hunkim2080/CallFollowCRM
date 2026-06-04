@@ -128,6 +128,7 @@ fun SettingsScreen(
     onOpenPricingItems: () -> Unit,
     onOpenBusinessInfo: () -> Unit = {},
     onOpenNotebook: () -> Unit = {},
+    onOpenTeam: () -> Unit = {},
     onOpenReport: () -> Unit = {},
     onOpenTradeSelect: () -> Unit = {},
     onOpenRecurring: () -> Unit = {},
@@ -225,9 +226,7 @@ fun SettingsScreen(
                     LockRow(Icons.Filled.Group, Color(0xFFFFF3DF), Color(0xFFF6A609), "수첩",
                         "일당·알바 · 거래처 — 자주 부르는 사람·업체 모아두기", onClick = onOpenNotebook)
                     LockRow(Icons.Filled.Group, TossBlueSoft, TossBlue, "팀 관리",
-                        "팀원 초대 · 현장 배정 · 출발 알림", tier = "비즈니스", locked = true) {
-                        Toast.makeText(context, "팀 관리는 비즈니스 요금제 기능이에요. 곧 제공돼요!", Toast.LENGTH_SHORT).show()
-                    }
+                        "팀원 초대 · 현장 배정 · 출발 알림", tier = "비즈니스", onClick = onOpenTeam)
                 }
                 SettingsGroup("장사 분석") {
                     LockRow(Icons.Filled.BarChart, TossBlueSoft, TossBlue, "상세 리포트",

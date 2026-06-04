@@ -365,6 +365,7 @@ fun AppNavHost(
                 onOpenPricingItems = { navController.navigate(Destinations.PRICING_ITEMS) },
                 onOpenBusinessInfo = { navController.navigate(Destinations.BUSINESS_INFO) },
                 onOpenNotebook = { navController.navigate(Destinations.NOTEBOOK) },
+                onOpenTeam = { navController.navigate(Destinations.TEAM) },
                 onOpenReport = { navController.navigate(Destinations.REPORT) },
                 onOpenTradeSelect = { navController.navigate(Destinations.TRADE_SELECT) },
                 onOpenRecurring = { navController.navigate(Destinations.RECURRING) },
@@ -382,6 +383,15 @@ fun AppNavHost(
         composable(Destinations.NOTEBOOK) {
             val vm: NotebookViewModel = viewModel(factory = viewModelFactory { NotebookViewModel(container) })
             NotebookScreen(viewModel = vm, onBack = { navController.popBackStack() })
+        }
+
+        composable(Destinations.TEAM) {
+            val vm: com.detailline.callfollowcrm.presentation.screen.team.TeamViewModel =
+                viewModel(factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.team.TeamViewModel(container) })
+            com.detailline.callfollowcrm.presentation.screen.team.TeamScreen(
+                viewModel = vm,
+                onBack = { navController.popBackStack() }
+            )
         }
 
         composable(Destinations.REPORT) {

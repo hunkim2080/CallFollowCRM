@@ -125,6 +125,9 @@ class AppContainer(context: Context) {
     // 2026-06-03 §19.2 — 시공접수서 제출 동기화(폴링 → 고객 카드 반영 + 알림).
     val intakeSyncManager = com.detailline.callfollowcrm.ai.IntakeSyncManager(this)
 
+    // 2026-06-05 팀 관리(비즈니스) — 팀원 초대/목록/제외/출발알림. 서버 팀 API.
+    val teamRepository = com.detailline.callfollowcrm.ai.TeamRepository()
+
     // 2026-06-02 맥미니 §18 — 에이닷 통화요약 → Haiku 한 줄+불릿. AdotSummaryImporter 가 best-effort 호출.
     val callSummaryServerRepository = com.detailline.callfollowcrm.ai.CallSummaryServerRepository()
 
