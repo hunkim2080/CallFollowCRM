@@ -2800,3 +2800,10 @@ rm -f .git/index.lock .git/ORIG_HEAD.lock && git pull --rebase origin main && gi
 - 클릭 버그: 최신 빌드에서 5가지 경로(시스템뒤로/←화살표/전환중 빠른탭/메모 키보드 띄운 채/2회 연속) 전수 재현 시도 → **전부 정상 작동**(스크린샷 검증). 현 빌드에선 재현 안 됨(옛 stale 빌드 또는 간헐 타이밍 추정). 사장님 재확인 요청.
 - 조사 중 발견한 진짜 버그 fix: ScheduleScreen 의 selectedDayMs/viewedMonthAnchor 가 remember → 고객정보 등으로 composition 떠나면 선택 날짜가 "오늘"로 리셋됨. rememberSaveable 로 교체 → 갔다 와도 보던 날짜·달 유지. 실기기 확인(15일 선택 유지).
 - 서버 영향 없음.
+
+## 2026-06-04 · android (64)
+### 고객 관리 — 예약/완료 필터를 시공일 순 정렬 (사장님 요청)
+사장님 "고객 관리 예약 목록이 시공일 순으로 나왔으면". 기존엔 ViewModel 전역 이름순이라 예약 필터도 날짜 뒤죽박죽(6/24,6/17,6/15,6/10,6/8...).
+- fix: CustomersScreen 의 list 계산에 필터별 정렬 추가 — 예약=scheduledWorkDate 오름차순(가까운 시공 먼저), 완료=내림차순(최근 완료 먼저). 그 외(전체/신규/미전환 등)는 기존 이름순 유지. remember(filter,withStatus) 로 캐시.
+- 실기기 확인: 예약 6/8→6/10→6/11→6/11→6/12→6/12→6/15... 정렬됨.
+- 서버 영향 없음.

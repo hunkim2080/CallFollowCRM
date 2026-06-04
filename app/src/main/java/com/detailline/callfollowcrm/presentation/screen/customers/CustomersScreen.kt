@@ -74,7 +74,16 @@ fun CustomersScreen(
     val withStatus = remember(customers) {
         customers.map { it to customerStatus(it, today0, now) }
     }
-    val list = if (filter == "전체") withStatus else withStatus.filter { it.second == filter }
+    // 필터 적용 + 정렬. 예약/완료는 시공일 순(사장님 요청 2026-06-04):
+    //   예약 = 가까운 시공 먼저(오름차순), 완료 = 최근 완료 먼저(내림차순). 그 외는 기존 이름순(ViewModel).
+    val list = remember(filter, withStatus) {
+        val filtered = if (filter == "전체") withStatus else withStatus.filter { it.second == filter }
+        when (filter) {
+            "예약" -> filtered.sortedBy { it.first.scheduledWorkDate ?: Long.MAX_VALUE }
+            "완료" -> filtered.sortedByDescending { it.first.scheduledWorkDate ?: Long.MIN_VALUE }
+            else -> filtered
+        }
+    }
     val note = when (filter) {
         "거래처" -> "숫자 = 이 거래처가 준 일감 누적 건수예요."
         "신규" -> "문의 후 14일 이내 · 예약 전 고객이에요. 14일 지나면 미전환으로 넘어가요."
