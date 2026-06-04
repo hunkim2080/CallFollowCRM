@@ -617,7 +617,7 @@
 <footer>
   <div class="ft-logo"><span class="dot"></span>시공막내 · RING-GO</div>
   <div>혼자 일하는 시공 사장님의 막내 비서</div>
-  <div style="margin-top:10px;">서비스 문의: <a href="mailto:hugman2080@gmail.com">hugman2080@gmail.com</a></div>
+  <div style="margin-top:10px;">서비스 문의: <a href="mailto:hello@si0in.kr">hello@si0in.kr</a></div>
   <div style="margin-top:6px;color:var(--t3);">© 2026 시공막내 · 베타 운영 중</div>
 </footer>
 
@@ -789,7 +789,21 @@
       const res = await fetch('/api/beta-signup', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
       const data = await res.json().catch(function(){return {};});
       if (!res.ok || !data.ok){
-        const msg = (data && data.detail) ? data.detail : ('신청에 실패했어요 (HTTP ' + res.status + '). 잠시 후 다시 시도해주세요.');
+        // detail 이 string / array / object 다 처리 (FastAPI validation 시 array of dict)
+        let msg = '';
+        if (data && data.detail){
+          if (typeof data.detail === 'string'){
+            msg = data.detail;
+          } else if (Array.isArray(data.detail)){
+            msg = data.detail.map(function(e){
+              if (typeof e === 'string') return e;
+              return e.msg || (e.loc ? e.loc.join('.') + ': ' + (e.msg || '오류') : JSON.stringify(e));
+            }).join(', ');
+          } else if (typeof data.detail === 'object'){
+            msg = data.detail.msg || JSON.stringify(data.detail);
+          }
+        }
+        if (!msg) msg = '신청에 실패했어요 (HTTP ' + res.status + '). 잠시 후 다시 시도해주세요.';
         errorBox.textContent = msg; errorBox.style.display = 'block';
         submitBtn.disabled = false; submitBtn.textContent = '베타 신청하기 →'; return;
       }

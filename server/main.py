@@ -30,7 +30,7 @@ from typing import Optional
 
 import anthropic
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, FileResponse, Response
 from pydantic import BaseModel, Field
 
