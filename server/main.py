@@ -4262,14 +4262,40 @@ async def beta_signup_count():
     return {"total": n, "cap": 100}
 
 
-@app.get("/admin/beta/signups", response_class=HTMLResponse)
-async def admin_beta_signups(
-    x_admin_token: Optional[str] = Header(default=None, alias="X-Admin-Token"),
+_BETA_SIGNUPS_HTML_PATH = BASE_DIR / "static" / "admin_beta_signups.html"
+
+
+@app.get(
+    "/admin/beta/signups", response_class=HTMLResponse, include_in_schema=False
+)
+async def admin_beta_signups_page():
+    """사장님 admin — 신청자 리스트 HTML SPA.
+
+    client-side 토큰 모달 + sessionStorage (admin_beta_intake 패턴과 일관).
+    서버 인증은 /admin/beta/signups/data 호출 시점에 Bearer 검증.
+    """
+    if not _BETA_SIGNUPS_HTML_PATH.exists():
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"HTML not found at {_BETA_SIGNUPS_HTML_PATH}. "
+                "server/static/admin_beta_signups.html 확인."
+            ),
+        )
+    return _BETA_SIGNUPS_HTML_PATH.read_text(encoding="utf-8")
+
+
+@app.get("/admin/beta/signups/data")
+async def admin_beta_signups_data(
+    authorization: Optional[str] = Header(default=None),
     status: str = "all",
     limit: int = 100,
 ):
-    """사장님 admin — 신청자 리스트 (X-Admin-Token 헤더 필요, 우리 컨벤션)."""
-    _admin_auth(x_admin_token)
+    """신청자 데이터 JSON 응답 (Bearer 토큰 인증).
+
+    admin_beta_signups.html 에서 sessionStorage 토큰으로 호출.
+    """
+    _admin_auth_bearer_from_header(authorization)
     limit = max(1, min(limit, 500))
     where = ""
     params: tuple = ()
@@ -4281,7 +4307,7 @@ async def admin_beta_signups(
         rows = con.execute(
             f"""
             SELECT phone, industry, region, monthly_inquiries, note, source,
-                   status, created_at_ms, updated_at_ms
+                   ip, ua, status, created_at_ms, updated_at_ms
             FROM beta_signups
             {where}
             ORDER BY created_at_ms DESC
@@ -4291,9 +4317,7 @@ async def admin_beta_signups(
         ).fetchall()
         totals = dict(
             con.execute(
-                """
-                SELECT status, COUNT(*) FROM beta_signups GROUP BY status
-                """
+                "SELECT status, COUNT(*) FROM beta_signups GROUP BY status"
             ).fetchall()
         )
 
@@ -4304,74 +4328,35 @@ async def admin_beta_signups(
             return f"{p[:3]}-{p[3:6]}-{p[6:]}"
         return p
 
-    def _fmt_ts(ms: int) -> str:
-        return _dt.datetime.fromtimestamp(ms / 1000).strftime("%Y-%m-%d %H:%M")
-
-    rows_html_parts = []
+    items = []
     for r in rows:
-        rows_html_parts.append(
-            f"<tr>"
-            f"<td><b>{_fmt_phone(r['phone'])}</b></td>"
-            f"<td>{r['industry']}</td>"
-            f"<td>{r['region']}</td>"
-            f"<td>{r['monthly_inquiries']}</td>"
-            f"<td class=note>{(r['note'] or '')[:60]}</td>"
-            f"<td><span class=status-{r['status']}>{r['status']}</span></td>"
-            f"<td class=time>{_fmt_ts(r['created_at_ms'])}</td>"
-            f"</tr>"
+        items.append(
+            {
+                "phone": _fmt_phone(r["phone"]),
+                "phone_raw": r["phone"],
+                "industry": r["industry"],
+                "region": r["region"],
+                "monthly_inquiries": r["monthly_inquiries"],
+                "note": r["note"] or "",
+                "source": r["source"] or "",
+                "ip": r["ip"] or "",
+                "ua": (r["ua"] or "")[:120],
+                "status": r["status"],
+                "created_at_ms": r["created_at_ms"],
+                "updated_at_ms": r["updated_at_ms"],
+            }
         )
-    rows_html = "".join(rows_html_parts) or (
-        "<tr><td colspan=7 style='text-align:center;color:#9AA3AF;padding:30px;'>"
-        "아직 신청자 없음</td></tr>"
-    )
-    total_pending = totals.get("pending", 0)
-    total_accepted = totals.get("accepted", 0)
-    total_rejected = totals.get("rejected", 0)
-    total_all = total_pending + total_accepted + total_rejected
-    return HTMLResponse(
-        content=f"""<!doctype html><html lang="ko"><head><meta charset="utf-8">
-<title>RING-GO admin · 베타 신청자</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<style>
-body{{font-family:'Pretendard',-apple-system,system-ui,sans-serif;background:#F4F5F7;color:#0B0F19;margin:0;padding:18px;font-size:14px;}}
-.wrap{{max-width:1100px;margin:0 auto;}}
-h1{{font-size:22px;font-weight:900;letter-spacing:-.03em;margin-bottom:14px;}}
-.stats{{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;}}
-.stat{{background:#fff;border:1px solid #EEF0F3;border-radius:12px;padding:10px 14px;font-weight:700;}}
-.stat b{{font-size:20px;font-weight:900;color:#3182F6;display:block;}}
-table{{width:100%;border-collapse:collapse;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 10px rgba(17,24,39,.05);}}
-th{{background:#F4F5F7;color:#5A6472;font-weight:800;padding:11px 12px;text-align:left;font-size:12.5px;}}
-td{{padding:11px 12px;border-top:1px solid #EEF0F3;font-size:13.5px;}}
-.note{{color:#5A6472;font-size:12.5px;}}
-.time{{color:#9AA3AF;font-size:11.5px;white-space:nowrap;}}
-.status-pending{{background:#FFF3DF;color:#C9820B;padding:3px 9px;border-radius:8px;font-size:11.5px;font-weight:800;}}
-.status-accepted{{background:#E7F8EF;color:#0a8f44;padding:3px 9px;border-radius:8px;font-size:11.5px;font-weight:800;}}
-.status-rejected{{background:#FDEAEF;color:#F0436A;padding:3px 9px;border-radius:8px;font-size:11.5px;font-weight:800;}}
-.filter{{margin-bottom:14px;}}
-.filter a{{display:inline-block;margin-right:8px;padding:6px 12px;background:#fff;border:1px solid #EEF0F3;border-radius:999px;text-decoration:none;color:#5A6472;font-size:12.5px;font-weight:700;}}
-.filter a.on{{background:#3182F6;color:#fff;border-color:#3182F6;}}
-</style></head><body><div class=wrap>
-<h1>👥 베타 신청자 · 100명 모집</h1>
-<div class=stats>
-  <div class=stat><b>{total_all}</b>전체</div>
-  <div class=stat><b>{total_pending}</b>대기 (pending)</div>
-  <div class=stat><b>{total_accepted}</b>선정 (accepted)</div>
-  <div class=stat><b>{total_rejected}</b>거절 (rejected)</div>
-</div>
-<div class=filter>
-  <a href="?status=all" class="{'on' if status == 'all' else ''}">전체</a>
-  <a href="?status=pending" class="{'on' if status == 'pending' else ''}">대기</a>
-  <a href="?status=accepted" class="{'on' if status == 'accepted' else ''}">선정</a>
-  <a href="?status=rejected" class="{'on' if status == 'rejected' else ''}">거절</a>
-</div>
-<table><thead><tr>
-<th>전화번호</th><th>업종</th><th>지역</th><th>한달문의</th><th>한말씀</th><th>상태</th><th>신청시각</th>
-</tr></thead><tbody>{rows_html}</tbody></table>
-<p style="text-align:center;color:#9AA3AF;font-size:11.5px;margin-top:18px;">
-  RING-GO admin · X-Admin-Token 헤더 인증 · {len(rows)}건 표시 (최대 {limit})
-</p>
-</div></body></html>"""
-    )
+    return {
+        "items": items,
+        "totals": {
+            "pending": totals.get("pending", 0),
+            "accepted": totals.get("accepted", 0),
+            "rejected": totals.get("rejected", 0),
+            "all": sum(totals.values()),
+        },
+        "filter": status,
+        "limit": limit,
+    }
 
 
 # ============================================================================

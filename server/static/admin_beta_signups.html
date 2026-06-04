@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>시공막내 admin · 베타 신청자</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  :root {
+    --blue:#3182F6; --blue-dark:#1B64DA; --blue-tint:#EEF4FF;
+    --purple:#7C5CFC; --purple-tint:#F1ECFF;
+    --success:#16C172; --success-tint:#E7F8EF;
+    --amber:#F6A609; --amber-tint:#FFF3DF;
+    --error:#F0436A; --error-tint:#FDEAEF;
+    --bg:#F4F5F7; --card:#FFFFFF;
+    --t1:#0B0F19; --t2:#5A6472; --t3:#9AA3AF; --line:#EEF0F3;
+    --shadow:0 2px 10px rgba(17,24,39,.05);
+    --shadow-lg:0 16px 40px rgba(17,24,39,.18);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Pretendard',-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--t1);padding:20px;font-size:14px;line-height:1.55;letter-spacing:-.01em;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1200px;margin:0 auto;}
+  h1{font-size:24px;font-weight:900;letter-spacing:-.035em;margin-bottom:6px;}
+  h1 .sub{font-size:12.5px;color:var(--t3);font-weight:700;margin-left:8px;letter-spacing:0;}
+  .top-row{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;}
+  .refresh-btn{margin-left:auto;background:#fff;border:1.5px solid var(--line);color:var(--t1);padding:8px 14px;border-radius:10px;font-size:12.5px;font-weight:800;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;transition:border-color .15s ease;}
+  .refresh-btn:hover{border-color:var(--blue);color:var(--blue);}
+  .logout-btn{background:#fff;border:1.5px solid var(--line);color:var(--t2);padding:8px 12px;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;}
+
+  /* ─── Stats ─── */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px;}
+  @media (max-width:600px){.stats{grid-template-columns:repeat(2,1fr);}}
+  .stat{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow);}
+  .stat .sk{font-size:11.5px;color:var(--t2);font-weight:700;margin-bottom:5px;letter-spacing:.02em;}
+  .stat .sv{font-size:24px;font-weight:900;letter-spacing:-.04em;line-height:1;}
+  .stat.all .sv{color:var(--t1);}
+  .stat.pending .sv{color:var(--amber);}
+  .stat.accepted .sv{color:var(--success);}
+  .stat.rejected .sv{color:var(--error);}
+
+  /* ─── Filter ─── */
+  .filter{display:flex;gap:7px;margin-bottom:14px;flex-wrap:wrap;}
+  .filter button{background:#fff;border:1.5px solid var(--line);color:var(--t2);padding:7px 14px;border-radius:999px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s ease;}
+  .filter button:hover{border-color:var(--blue);color:var(--blue);}
+  .filter button.on{background:var(--blue);border-color:var(--blue);color:#fff;box-shadow:0 4px 12px rgba(49,130,246,.28);}
+
+  /* ─── Table ─── */
+  .table-wrap{background:#fff;border-radius:14px;overflow:hidden;box-shadow:var(--shadow);border:1px solid var(--line);}
+  table{width:100%;border-collapse:collapse;}
+  thead{background:#FAFBFC;}
+  th{padding:13px 14px;text-align:left;font-size:11.5px;font-weight:800;color:var(--t2);letter-spacing:.02em;border-bottom:1px solid var(--line);}
+  td{padding:13px 14px;font-size:13px;border-bottom:1px solid var(--line);vertical-align:middle;}
+  tbody tr{transition:background .12s ease;cursor:pointer;}
+  tbody tr:hover{background:var(--blue-tint);}
+  tbody tr:last-child td{border-bottom:0;}
+  .phone-cell{font-weight:800;color:var(--t1);font-variant-numeric:tabular-nums;}
+  .industry-chip{display:inline-block;background:var(--blue-tint);color:var(--blue-dark);padding:3px 9px;border-radius:7px;font-size:11.5px;font-weight:800;}
+  .region-cell{color:var(--t2);font-size:12.5px;}
+  .monthly-cell{font-size:12px;color:var(--t1);font-weight:700;}
+  .note-cell{color:var(--t2);font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .time-cell{color:var(--t3);font-size:11.5px;font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .status-chip{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.04em;}
+  .status-chip.pending{background:var(--amber-tint);color:#C9820B;}
+  .status-chip.accepted{background:var(--success-tint);color:#0a8f44;}
+  .status-chip.rejected{background:var(--error-tint);color:var(--error);}
+
+  .empty-state{text-align:center;padding:50px 20px;color:var(--t3);}
+  .empty-state .es-ic{font-size:36px;margin-bottom:10px;}
+  .empty-state .es-t{font-size:14px;font-weight:700;color:var(--t2);}
+  .empty-state .es-d{font-size:12.5px;color:var(--t3);margin-top:5px;}
+
+  .loading{text-align:center;padding:40px;color:var(--t3);font-size:13px;}
+
+  .footer-note{text-align:center;color:var(--t3);font-size:11px;margin-top:18px;font-weight:600;}
+
+  /* ─── Token Modal ─── */
+  .modal-bg{position:fixed;inset:0;background:rgba(11,15,25,.5);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:100;padding:18px;}
+  .modal{background:#fff;border-radius:18px;padding:28px 24px 22px;max-width:380px;width:100%;box-shadow:var(--shadow-lg);}
+  .modal h2{font-size:20px;font-weight:900;letter-spacing:-.03em;margin-bottom:6px;color:var(--t1);}
+  .modal .modal-d{font-size:13px;color:var(--t2);margin-bottom:18px;line-height:1.55;}
+  .modal input{width:100%;padding:14px;border:1.5px solid var(--line);border-radius:12px;font-size:15px;font-family:inherit;color:var(--t1);transition:border-color .15s ease;}
+  .modal input:focus{outline:0;border-color:var(--blue);box-shadow:0 0 0 4px rgba(49,130,246,.12);}
+  .modal-error{background:var(--error-tint);color:var(--error);padding:10px 12px;border-radius:8px;font-size:12.5px;font-weight:700;margin-top:10px;display:none;}
+  .modal-btn{width:100%;background:var(--blue);color:#fff;padding:14px;border-radius:12px;font-size:15px;font-weight:900;border:0;cursor:pointer;font-family:inherit;margin-top:14px;letter-spacing:-.02em;box-shadow:0 4px 14px rgba(49,130,246,.3);transition:transform .12s ease;}
+  .modal-btn:hover{transform:translateY(-1px);}
+  .modal-btn:active{transform:scale(.98);}
+
+  /* ─── Detail panel ─── */
+  .detail-bg{position:fixed;inset:0;background:rgba(11,15,25,.4);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;z-index:90;padding:18px;animation:fadeIn .2s ease;}
+  .detail-bg.show{display:flex;}
+  @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+  .detail{background:#fff;border-radius:18px;padding:24px;max-width:480px;width:100%;box-shadow:var(--shadow-lg);max-height:80vh;overflow-y:auto;}
+  .detail .d-h{display:flex;align-items:center;gap:10px;margin-bottom:16px;}
+  .detail .d-h h2{font-size:18px;font-weight:900;letter-spacing:-.02em;color:var(--t1);}
+  .detail .d-close{margin-left:auto;background:none;border:0;color:var(--t3);font-size:20px;cursor:pointer;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;}
+  .detail .d-close:hover{background:var(--bg);color:var(--t1);}
+  .detail .d-row{display:flex;gap:14px;padding:11px 0;border-bottom:1px solid var(--line);}
+  .detail .d-row:last-child{border-bottom:0;}
+  .detail .d-k{width:80px;font-size:12px;color:var(--t3);font-weight:700;flex-shrink:0;letter-spacing:.02em;}
+  .detail .d-v{flex:1;font-size:13.5px;color:var(--t1);font-weight:600;line-height:1.55;word-break:break-word;}
+  .detail .d-v.mono{font-family:'SF Mono',Menlo,Monaco,monospace;font-size:12px;color:var(--t2);}
+</style>
+</head>
+<body>
+
+<!-- ─── Token modal ─── -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h2>🔒 admin 인증</h2>
+    <div class="modal-d">사장님 admin token 을 입력해주세요. 한 번 입력하면 같은 브라우저에서 자동으로 인증됩니다.</div>
+    <input id="tokenInput" type="password" placeholder="ADMIN_TOKEN" autocomplete="off" autofocus>
+    <div class="modal-error" id="modalError">토큰이 일치하지 않아요</div>
+    <button class="modal-btn" id="modalBtn">인증하기</button>
+  </div>
+</div>
+
+<!-- ─── Main page ─── -->
+<div class="wrap" id="mainWrap" style="display:none;">
+  <div class="top-row">
+    <h1>👥 베타 신청자<span class="sub">100명 모집 중</span></h1>
+    <button class="refresh-btn" id="refreshBtn">↻ 새로고침</button>
+    <button class="logout-btn" id="logoutBtn">로그아웃</button>
+  </div>
+
+  <div class="stats">
+    <div class="stat all"><div class="sk">전체</div><div class="sv" id="statAll">—</div></div>
+    <div class="stat pending"><div class="sk">대기 (pending)</div><div class="sv" id="statPending">—</div></div>
+    <div class="stat accepted"><div class="sk">선정 (accepted)</div><div class="sv" id="statAccepted">—</div></div>
+    <div class="stat rejected"><div class="sk">거절 (rejected)</div><div class="sv" id="statRejected">—</div></div>
+  </div>
+
+  <div class="filter">
+    <button data-f="all" class="on">전체</button>
+    <button data-f="pending">대기</button>
+    <button data-f="accepted">선정</button>
+    <button data-f="rejected">거절</button>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>전화번호</th><th>업종</th><th>지역</th><th>한달문의</th><th>한말씀</th><th>상태</th><th>신청시각</th>
+        </tr>
+      </thead>
+      <tbody id="tbody">
+        <tr><td colspan="7" class="loading">불러오는 중...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="footer-note">시공막내 admin · Bearer 토큰 인증 · <span id="rowCount">0</span>건 표시</div>
+</div>
+
+<!-- ─── Detail panel ─── -->
+<div class="detail-bg" id="detailBg">
+  <div class="detail" id="detail"></div>
+</div>
+
+<script>
+(function(){
+  const STORAGE_KEY = 'shigongmagne_admin_token';
+  const modalBg = document.getElementById('modalBg');
+  const modalBtn = document.getElementById('modalBtn');
+  const modalError = document.getElementById('modalError');
+  const tokenInput = document.getElementById('tokenInput');
+  const mainWrap = document.getElementById('mainWrap');
+  const tbody = document.getElementById('tbody');
+  const detailBg = document.getElementById('detailBg');
+  const detail = document.getElementById('detail');
+  let currentFilter = 'all';
+  let currentItems = [];
+
+  function getToken(){
+    try { return sessionStorage.getItem(STORAGE_KEY) || ''; } catch(e){ return ''; }
+  }
+  function setToken(t){
+    try { sessionStorage.setItem(STORAGE_KEY, t); } catch(e){}
+  }
+  function clearToken(){
+    try { sessionStorage.removeItem(STORAGE_KEY); } catch(e){}
+  }
+
+  function showModal(err){
+    modalBg.style.display = 'flex';
+    mainWrap.style.display = 'none';
+    if (err) modalError.style.display = 'block';
+    else modalError.style.display = 'none';
+    setTimeout(function(){ tokenInput.focus(); }, 50);
+  }
+  function hideModal(){
+    modalBg.style.display = 'none';
+    mainWrap.style.display = 'block';
+  }
+
+  async function load(filter){
+    const token = getToken();
+    if (!token){ showModal(false); return; }
+    tbody.innerHTML = '<tr><td colspan="7" class="loading">불러오는 중...</td></tr>';
+    try {
+      const url = '/admin/beta/signups/data?status=' + encodeURIComponent(filter) + '&limit=200';
+      const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
+      if (res.status === 401 || res.status === 403){ clearToken(); showModal(true); return; }
+      if (!res.ok){
+        tbody.innerHTML = '<tr><td colspan="7" class="loading">불러오기 실패 (HTTP ' + res.status + ')</td></tr>';
+        return;
+      }
+      const data = await res.json();
+      render(data);
+    } catch(err){
+      tbody.innerHTML = '<tr><td colspan="7" class="loading">네트워크 오류</td></tr>';
+    }
+  }
+
+  function render(data){
+    document.getElementById('statAll').textContent = data.totals.all;
+    document.getElementById('statPending').textContent = data.totals.pending;
+    document.getElementById('statAccepted').textContent = data.totals.accepted;
+    document.getElementById('statRejected').textContent = data.totals.rejected;
+    document.getElementById('rowCount').textContent = data.items.length;
+    currentItems = data.items;
+
+    if (!data.items.length){
+      tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="es-ic">🪺</div><div class="es-t">아직 신청자가 없어요</div><div class="es-d">랜딩페이지에서 신청이 들어오면 여기 표시돼요.</div></div></td></tr>';
+      return;
+    }
+
+    const rows = data.items.map(function(it, idx){
+      const ts = new Date(it.created_at_ms);
+      const tsStr = ts.getFullYear() + '-' + String(ts.getMonth()+1).padStart(2,'0') + '-' + String(ts.getDate()).padStart(2,'0') + ' ' + String(ts.getHours()).padStart(2,'0') + ':' + String(ts.getMinutes()).padStart(2,'0');
+      const note = (it.note || '').slice(0, 40) + ((it.note || '').length > 40 ? '…' : '');
+      return '<tr data-idx="' + idx + '">' +
+        '<td class="phone-cell">' + escapeHtml(it.phone) + '</td>' +
+        '<td><span class="industry-chip">' + escapeHtml(it.industry) + '</span></td>' +
+        '<td class="region-cell">' + escapeHtml(it.region) + '</td>' +
+        '<td class="monthly-cell">' + escapeHtml(it.monthly_inquiries) + '</td>' +
+        '<td class="note-cell">' + escapeHtml(note) + '</td>' +
+        '<td><span class="status-chip ' + it.status + '">' + it.status + '</span></td>' +
+        '<td class="time-cell">' + tsStr + '</td>' +
+      '</tr>';
+    }).join('');
+    tbody.innerHTML = rows;
+    tbody.querySelectorAll('tr').forEach(function(tr){
+      tr.addEventListener('click', function(){
+        const idx = parseInt(tr.dataset.idx, 10);
+        showDetail(currentItems[idx]);
+      });
+    });
+  }
+
+  function showDetail(it){
+    const ts = new Date(it.created_at_ms);
+    const tsFull = ts.getFullYear() + '-' + String(ts.getMonth()+1).padStart(2,'0') + '-' + String(ts.getDate()).padStart(2,'0') + ' ' + String(ts.getHours()).padStart(2,'0') + ':' + String(ts.getMinutes()).padStart(2,'0') + ':' + String(ts.getSeconds()).padStart(2,'0');
+    detail.innerHTML = '<div class="d-h"><h2>' + escapeHtml(it.phone) + '</h2><span class="status-chip ' + it.status + '">' + it.status + '</span><button class="d-close" id="dCloseBtn">×</button></div>' +
+      '<div class="d-row"><div class="d-k">업종</div><div class="d-v">' + escapeHtml(it.industry) + '</div></div>' +
+      '<div class="d-row"><div class="d-k">지역</div><div class="d-v">' + escapeHtml(it.region) + '</div></div>' +
+      '<div class="d-row"><div class="d-k">한달문의</div><div class="d-v">' + escapeHtml(it.monthly_inquiries) + '</div></div>' +
+      '<div class="d-row"><div class="d-k">한말씀</div><div class="d-v">' + escapeHtml(it.note || '(없음)') + '</div></div>' +
+      '<div class="d-row"><div class="d-k">유입</div><div class="d-v mono">' + escapeHtml(it.source || '-') + '</div></div>' +
+      '<div class="d-row"><div class="d-k">IP</div><div class="d-v mono">' + escapeHtml(it.ip || '-') + '</div></div>' +
+      '<div class="d-row"><div class="d-k">UA</div><div class="d-v mono">' + escapeHtml(it.ua || '-') + '</div></div>' +
+      '<div class="d-row"><div class="d-k">신청시각</div><div class="d-v mono">' + tsFull + '</div></div>';
+    detailBg.classList.add('show');
+    document.getElementById('dCloseBtn').addEventListener('click', function(){ detailBg.classList.remove('show'); });
+  }
+  detailBg.addEventListener('click', function(e){ if (e.target === detailBg) detailBg.classList.remove('show'); });
+
+  function escapeHtml(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+
+  // Modal submit
+  modalBtn.addEventListener('click', async function(){
+    const t = tokenInput.value.trim();
+    if (!t){ modalError.textContent = '토큰을 입력해주세요'; modalError.style.display = 'block'; return; }
+    // Probe with a no-op call
+    try {
+      const res = await fetch('/admin/beta/signups/data?status=all&limit=1', { headers: { 'Authorization': 'Bearer ' + t } });
+      if (res.status === 401 || res.status === 403){ modalError.textContent = '토큰이 일치하지 않아요'; modalError.style.display = 'block'; return; }
+      if (!res.ok){ modalError.textContent = '서버 오류 (HTTP ' + res.status + ')'; modalError.style.display = 'block'; return; }
+      setToken(t);
+      hideModal();
+      load(currentFilter);
+    } catch(err){
+      modalError.textContent = '네트워크 오류'; modalError.style.display = 'block';
+    }
+  });
+  tokenInput.addEventListener('keypress', function(e){ if (e.key === 'Enter') modalBtn.click(); });
+
+  // Filter buttons
+  document.querySelectorAll('.filter button').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      document.querySelectorAll('.filter button').forEach(function(b){ b.classList.remove('on'); });
+      btn.classList.add('on');
+      currentFilter = btn.dataset.f;
+      load(currentFilter);
+    });
+  });
+
+  // Refresh / Logout
+  document.getElementById('refreshBtn').addEventListener('click', function(){ load(currentFilter); });
+  document.getElementById('logoutBtn').addEventListener('click', function(){
+    clearToken();
+    tokenInput.value = '';
+    showModal(false);
+  });
+
+  // Boot
+  if (getToken()){ hideModal(); load(currentFilter); }
+  else { showModal(false); }
+})();
+</script>
+
+</body>
+</html>
