@@ -113,6 +113,16 @@ class ChatViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
+     * 시공접수서 제출 이벤트 (2026-06-05) — 고객이 접수서를 작성 완료하면 IntakeSyncManager 가 기록.
+     *   채팅 타임라인에 통화 카드처럼 "📋 접수서 작성 완료" 이벤트 카드로 표시(제출 시각 기준).
+     */
+    val intakeEvents: StateFlow<List<com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity>> = run {
+        val suffix = phoneNumber.filter { it.isDigit() }.takeLast(8)
+        if (suffix.length < 7) kotlinx.coroutines.flow.flowOf(emptyList())
+        else container.intakeEventRepository.observe(suffix)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
      * P0/P1/P2 AI 요약 — ChatScreen 상단 박스와 AI 제안 박스가 구독.
      * Room observe — 서버 응답이 캐시되면 자동 emit.
      * 서버 미구현이면 영구히 null → 화면에 아무 박스도 안 보임 (조용히 숨김).

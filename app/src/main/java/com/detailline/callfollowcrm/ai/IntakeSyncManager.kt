@@ -46,6 +46,25 @@ class IntakeSyncManager(private val container: AppContainer) {
             val dateLabel = workMs?.let {
                 SimpleDateFormat("M/d(E)", Locale.KOREA).format(java.util.Date(it))
             }
+
+            // 채팅 타임라인 카드용 이벤트 기록 — "고객이 접수서 작성을 완료했어요" 를 제출 시각에 표시.
+            //   token unique IGNORE → 폴링 반복돼도 카드 중복 안 됨. suffix = ChatViewModel 매칭 규칙과 동일.
+            runCatching {
+                val suffix = s.customerPhone.filter { it.isDigit() }.takeLast(8)
+                container.intakeEventRepository.record(
+                    com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity(
+                        phoneSuffix = suffix,
+                        token = s.token,
+                        customerName = nm,
+                        submittedAtMs = submitted,
+                        address = fullAddr.ifBlank { null },
+                        dateLabel = dateLabel,
+                        totalManwon = s.total.takeIf { it > 0 },
+                        createdAt = System.currentTimeMillis()
+                    )
+                )
+            }
+
             NotificationHelper.showIntakeSubmitted(
                 context, s.token, s.customerPhone, nm,
                 address = fullAddr.ifBlank { "주소 미입력" },

@@ -2959,3 +2959,11 @@ HOU-128 `/admin/beta/intake` (셋팅 폼) 도 이전 cycle 에 통합 완료. �
 - `python3 -m py_compile main.py` 통과
 - 인메모리 SQLite round-trip — 사장님 row (kind=owner, name=사장님) + 팀원 row (kind=member, name=김기사) 양쪽 정상 fetch, 8자리 suffix LIKE 매칭 OK
 - 기존 정책 (`base64 1MB 컷`, `owner_phone 검증`, `_check_team_tier`) 모두 유지
+
+## 2026-06-05 00:25 · android
+시공접수서 작성 완료 → 채팅 타임라인에 이벤트 카드 표시 (사장님 요청)
+- 변경: 앱 전용(서버 인터페이스 무변경). DB v28 신설 `intake_events`(phoneSuffix·token unique·submittedAtMs·dateLabel·totalManwon·address).
+  - IntakeSyncManager 가 GET /api/quote/submissions 새 제출 감지 시(기존 알림과 함께) intake_events 에 기록(token unique IGNORE → 중복 카드 방지).
+  - ChatViewModel.intakeEvents(suffix observe) → ChatScreen 타임라인에 통화 카드(CallSegment)처럼 IntakeSegment 카드로 병합(제출 시각 기준). 파란 accent + "📋 접수서 작성을 완료했어요" + 📅시공일·💰만원·📍주소.
+- commit: (아래)
+- 다음 액션: 서버 측 추가 작업 없음. (이번 기능은 기존 /api/quote/submissions 폴링만 사용)

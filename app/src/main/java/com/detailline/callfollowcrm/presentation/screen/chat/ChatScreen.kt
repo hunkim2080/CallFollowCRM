@@ -159,7 +159,11 @@ fun ChatScreen(
     val messages by viewModel.messages.collectAsState()
     // 통화 구간 — 메시지와 시간순 병합해 타임라인에 통화 카드로 표시 (loadMessages 무손상, 렌더 레이어 병합).
     val callRecords by viewModel.callRecords.collectAsState()
-    val timelineItems = remember(messages, callRecords) { buildChatTimeline(messages, callRecords) }
+    // 시공접수서 제출 이벤트 — 통화처럼 타임라인에 카드로 병합.
+    val intakeEvents by viewModel.intakeEvents.collectAsState()
+    val timelineItems = remember(messages, callRecords, intakeEvents) {
+        buildChatTimeline(messages, callRecords, intakeEvents)
+    }
     val templates by viewModel.templates.collectAsState()
     val pricingItems by viewModel.pricingItems.collectAsState()
     val toast by viewModel.toast.collectAsState()
@@ -501,6 +505,7 @@ fun ChatScreen(
                                 )
                             }
                             is ChatTimelineItem.Call -> CallSegment(ti.record, onGetSummary = { adotPasteOpen = true })
+                            is ChatTimelineItem.Intake -> IntakeSegment(ti.event)
                             is ChatTimelineItem.DateDivider -> ChatDateDivider(chatDateLabel(ti.dayStart))
                         }
                     }
@@ -1056,6 +1061,10 @@ sealed interface ChatTimelineItem {
     data class Call(val record: com.detailline.callfollowcrm.data.local.entity.CallRecordEntity) : ChatTimelineItem {
         override val timeMs: Long get() = record.endedAt
     }
+    /** 시공접수서 제출 이벤트 (2026-06-05) — 고객 작성 완료를 타임라인에 카드로. */
+    data class Intake(val event: com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity) : ChatTimelineItem {
+        override val timeMs: Long get() = event.submittedAtMs
+    }
     /** 프로토 chat-date — 날짜 경계 구분선. 렌더 직전에만 끼워넣음(buildChatTimeline 은 생성 X). */
     data class DateDivider(val dayStart: Long) : ChatTimelineItem {
         override val timeMs: Long get() = dayStart
@@ -1099,12 +1108,14 @@ private fun chatDateLabel(dayStart: Long): String {
  */
 private fun buildChatTimeline(
     messages: List<com.detailline.callfollowcrm.data.repository.SmsRepository.SmsMessage>,
-    calls: List<com.detailline.callfollowcrm.data.local.entity.CallRecordEntity>
+    calls: List<com.detailline.callfollowcrm.data.local.entity.CallRecordEntity>,
+    intakeEvents: List<com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity>
 ): List<ChatTimelineItem> {
-    if (calls.isEmpty()) return messages.map { ChatTimelineItem.Msg(it) }
-    val merged = ArrayList<ChatTimelineItem>(messages.size + calls.size)
+    if (calls.isEmpty() && intakeEvents.isEmpty()) return messages.map { ChatTimelineItem.Msg(it) }
+    val merged = ArrayList<ChatTimelineItem>(messages.size + calls.size + intakeEvents.size)
     messages.forEach { merged += ChatTimelineItem.Msg(it) }
     calls.forEach { merged += ChatTimelineItem.Call(it) }
+    intakeEvents.forEach { merged += ChatTimelineItem.Intake(it) }
     return merged.sortedWith(compareByDescending<ChatTimelineItem> { it.timeMs }.thenBy { it is ChatTimelineItem.Msg })
 }
 
@@ -1183,6 +1194,71 @@ private fun CallSegment(
             contentAlignment = Alignment.Center
         ) {
             Text("에이닷 통화 내용 요약 받기 ↑", color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold)
+        }
+    }
+}
+
+/**
+ * 채팅 안 시공접수서 제출 이벤트 카드 (2026-06-05) — 고객이 접수서를 작성 완료한 사실을 타임라인에 표시.
+ *   통화 카드(CallSegment)와 같은 전체폭 이벤트 카드 형태(파란 accent). 문자 말풍선과 구분.
+ *   내용: 📋 접수서 작성 완료 + 제출 시각, 그리고 (있으면) 📅 시공일 · 💰 만원 · 📍 주소.
+ *   프로토 team-alert quote 의 카피(시공일·금액·주소 묶음)를 채팅 이벤트로 옮김.
+ */
+@Composable
+private fun IntakeSegment(
+    event: com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(TossBlueSoft)
+            .border(1.dp, TossBlue.copy(alpha = 0.22f), RoundedCornerShape(14.dp))
+            .padding(horizontal = 12.dp, vertical = 11.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(TossBlue),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Assignment, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+            }
+            Spacer(Modifier.width(9.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "📋 접수서 작성을 완료했어요",
+                    fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = TossBlueDark
+                )
+                Text(
+                    DateTimeUtils.formatShort(event.submittedAtMs) + " · 고객이 직접 작성",
+                    fontSize = 11.sp, color = TossTextTertiary, fontWeight = FontWeight.Bold
+                )
+            }
+        }
+        // 접수 내용 요약 — 프로토 team-alert quote 의 시공일·금액·주소 묶음.
+        val detailLines = buildList {
+            val sched = buildString {
+                event.dateLabel?.let { append("📅 시공일 $it") }
+                event.totalManwon?.let {
+                    if (isNotEmpty()) append("  ·  ")
+                    append("💰 ${it}만원")
+                }
+            }
+            if (sched.isNotEmpty()) add(sched)
+            event.address?.let { add("📍 $it") }
+        }
+        if (detailLines.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            detailLines.forEach { line ->
+                Text(
+                    line,
+                    fontSize = 12.5.sp,
+                    color = TossTextPrimary,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
         }
     }
 }
