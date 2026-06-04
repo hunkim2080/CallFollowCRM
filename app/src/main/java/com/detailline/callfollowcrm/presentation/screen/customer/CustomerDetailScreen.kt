@@ -490,8 +490,21 @@ fun CustomerDetailScreen(
                             )
                             if (hasAmount) {
                                 Spacer(Modifier.height(12.dp))
-                                // 프로토엔 금액 옆 "수정" 링크 없음 — 제거(2026-06-03 사장님 결정).
-                                Text("총 ${manwonLabel(totalWon)}", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                                // 총금액 + [금액 수정] — 추가금/정정으로 총액이 바뀔 때 다시 고칠 수 있게(2026-06-04 사장님 요청).
+                                androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                    Text("총 ${manwonLabel(totalWon)}", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                                    Spacer(Modifier.weight(1f))
+                                    androidx.compose.foundation.layout.Row(
+                                        Modifier.clip(RoundedCornerShape(999.dp)).background(TossBlueSoft)
+                                            .clickable { amountEditField = "total" }
+                                            .padding(horizontal = 11.dp, vertical = 5.dp),
+                                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                                    ) {
+                                        androidx.compose.material3.Icon(Icons.Default.Edit, null, tint = TossBlue, modifier = Modifier.size(12.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("금액 수정", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                                    }
+                                }
                                 Spacer(Modifier.height(6.dp))
                                 Text(
                                     payStatusLabel(allPaid, depositWon, balanceWon, depPaid),

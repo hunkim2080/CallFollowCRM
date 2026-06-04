@@ -2807,3 +2807,11 @@ rm -f .git/index.lock .git/ORIG_HEAD.lock && git pull --rebase origin main && gi
 - fix: CustomersScreen 의 list 계산에 필터별 정렬 추가 — 예약=scheduledWorkDate 오름차순(가까운 시공 먼저), 완료=내림차순(최근 완료 먼저). 그 외(전체/신규/미전환 등)는 기존 이름순 유지. remember(filter,withStatus) 로 캐시.
 - 실기기 확인: 예약 6/8→6/10→6/11→6/11→6/12→6/12→6/15... 정렬됨.
 - 서버 영향 없음.
+
+## 2026-06-04 · android (65)
+### 추가금 처리 — ① 총금액 수정 버튼 복구(즉시) + ② 추가금 설계안 문서
+사장님 "오늘 추가금 5만원 받음, 총금액 바뀐 건데 어떻게 입력?".
+- 원인: 고객 카드 일정·정산에서 한 번 정한 총금액을 다시 고치는 UI 가 없었음(2026-06-03 프로토 맞춰 수정링크 제거했던 것). 정산 현금흐름 직접기록(manualCash)은 있지만 그건 고객 총액을 안 바꿈.
+- ① 즉시 대응: 일정·정산 hasAmount 일 때 "총 N만원" 옆 [✏️ 금액 수정] 칩 추가 → amountEditField="total" → 기존 AmountInputDialog(검증됨). 40→45 고치고 잔금 확인 가능. 실기기 렌더 확인.
+- ② 사장님 "추가금 개념 제대로 설계" 요청 → docs/plan_extra_charge.md 작성. 모델 ⓐ(extra_charges 테이블·정석·DB마이그레이션) / ⓑ(총액반영+manualCash·경량) 제시. **모델 확정 후 구현 예정**(마이그레이션·정산계산 다수 화면 영향이라 사장님 확인 먼저).
+- 서버 영향 없음.
