@@ -112,6 +112,7 @@ fun ScheduleScreen(
                 java.text.SimpleDateFormat("M월 d일 (E)", java.util.Locale.KOREAN).format(java.util.Date())
             }
             TopAppBar(
+                windowInsets = androidx.compose.foundation.layout.WindowInsets(top = 12.dp),
                 title = {
                     androidx.compose.foundation.layout.Column {
                         Text("일정", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.6).sp)

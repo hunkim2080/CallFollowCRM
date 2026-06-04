@@ -2254,7 +2254,8 @@ private fun SendConfirmDialog(
         tonalElevation = 0.dp
     ) {
         Column(
-            Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp)
+            // navigationBarsPadding — 제스처바/네비바와 [취소] 버튼 겹침 방지(2026-06-04 사장님 보고).
+            Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp).padding(bottom = 24.dp)
         ) {
             Text(
                 "$recipient 에게 보낼까요?",

@@ -185,6 +185,7 @@ fun SettingsScreen(
         containerColor = TossGrayBg,
         topBar = {
             TopAppBar(
+                windowInsets = androidx.compose.foundation.layout.WindowInsets(top = 12.dp),
                 title = {
                     Text(
                         subTitle,

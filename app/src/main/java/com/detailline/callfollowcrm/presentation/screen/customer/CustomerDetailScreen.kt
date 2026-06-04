@@ -2041,6 +2041,14 @@ private fun AddressEditDialog(
     var text by androidx.compose.runtime.saveable.rememberSaveable(currentAddress) {
         mutableStateOf(currentAddress.orEmpty())
     }
+    // 주소 검색(Daum 우편번호 WebView) — 선택 시 도로명주소 채움. 2026-06-04 연결(기존 미연결).
+    var showSearch by remember { mutableStateOf(false) }
+    if (showSearch) {
+        com.detailline.callfollowcrm.presentation.component.AddressSearchDialog(
+            onPicked = { picked -> text = picked; showSearch = false },
+            onDismiss = { showSearch = false }
+        )
+    }
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
         androidx.compose.material3.Surface(
             shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
@@ -2069,6 +2077,22 @@ private fun AddressEditDialog(
                     maxLines = 3,
                     modifier = Modifier.fillMaxWidth()
                 )
+                // 🔍 주소 검색 — Daum 우편번호. 직접 타이핑 대신 검색해서 정확한 도로명주소 채움.
+                Spacer(Modifier.height(10.dp))
+                androidx.compose.foundation.layout.Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                        .background(TossBlueSoft)
+                        .clickable { showSearch = true }
+                        .padding(vertical = 12.dp),
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                ) {
+                    Text("🔍", fontSize = 14.sp)
+                    Spacer(Modifier.width(6.dp))
+                    Text("주소 검색", color = TossBlue, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
                 // 자동 추출 후보 — 사장님 한 탭에 input 박힘.
                 if (extractedSuggestion != null) {
                     Spacer(Modifier.height(10.dp))

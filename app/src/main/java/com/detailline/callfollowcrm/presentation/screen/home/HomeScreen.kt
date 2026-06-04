@@ -233,7 +233,8 @@ fun HomeScreen(
                     .fillMaxWidth()
                     .background(TossGrayBg)
                     .statusBarsPadding()
-                    .padding(start = 18.dp, end = 14.dp, top = 10.dp, bottom = 10.dp),
+                    // top 여백 ↑ — 엣지투엣지 OFF 라 statusBarsPadding=0, 제목이 상태바에 붙던 것 완화(2026-06-04).
+                    .padding(start = 18.dp, end = 14.dp, top = 28.dp, bottom = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {

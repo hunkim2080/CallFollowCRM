@@ -2815,3 +2815,11 @@ rm -f .git/index.lock .git/ORIG_HEAD.lock && git pull --rebase origin main && gi
 - ① 즉시 대응: 일정·정산 hasAmount 일 때 "총 N만원" 옆 [✏️ 금액 수정] 칩 추가 → amountEditField="total" → 기존 AmountInputDialog(검증됨). 40→45 고치고 잔금 확인 가능. 실기기 렌더 확인.
 - ② 사장님 "추가금 개념 제대로 설계" 요청 → docs/plan_extra_charge.md 작성. 모델 ⓐ(extra_charges 테이블·정석·DB마이그레이션) / ⓑ(총액반영+manualCash·경량) 제시. **모델 확정 후 구현 예정**(마이그레이션·정산계산 다수 화면 영향이라 사장님 확인 먼저).
 - 서버 영향 없음.
+
+## 2026-06-04 · android (66)
+### 3건 수정 — 현장주소 검색 연결 + 상단 여백 + 보내기시트 하단 겹침
+사장님 보고 3건:
+1. 고객정보 현장주소 추가 시 "API 연결 안 됨" → 원인: AddressEditDialog 가 텍스트칸만, 기존 AddressSearchDialog(Daum/카카오 우편번호 WebView) 미연결. fix: [🔍 주소 검색] 버튼 연결 → 선택 시 도로명주소 채움. 실기기 확인(카카오 검색 로딩됨).
+2. 상담함/일정/정산/통계/더보기 제목이 상태바에 붙음 → 원인: 엣지투엣지 OFF(롤백됨)라 statusBarsPadding=0. fix: 5개 메인탭만 상단 여백 ↑(홈 Row top 10→28dp, 4개 TopAppBar windowInsets top=12dp). 실기기 확인(홈·정산 여백 생김). ※엣지투엣지 전체 적용은 TopAppBar 20+개·bottomBar 영향 커서 보류.
+3. 채팅 보내기 확인 시트 [취소]가 제스처바와 겹침 → SendConfirmSheet Column 에 navigationBarsPadding 추가. (표준 수정, 실제 고객 오발송 위험으로 device 강제 검증은 생략 — 보내기 시트는 [보내기] 눌러야만 발송되는 구조)
+- 서버 영향 없음.

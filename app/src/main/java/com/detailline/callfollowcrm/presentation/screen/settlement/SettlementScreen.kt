@@ -93,6 +93,7 @@ fun SettlementScreen(
         containerColor = TossGrayBg,
         topBar = {
             TopAppBar(
+                windowInsets = androidx.compose.foundation.layout.WindowInsets(top = 12.dp),
                 title = {
                     Text("정산", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.6).sp)
                 },
