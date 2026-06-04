@@ -2995,3 +2995,11 @@ HOU-128 `/admin/beta/intake` (셋팅 폼) 도 이전 cycle 에 통합 완료. �
 - 빌드 통과. ⚠️ 작업 중 폰 USB 분리 → 마이그레이션 실행·배정 UI 온디바이스 미검증(재연결 후 설치 필요).
 - commit: (아래)
 - 다음 액션(서버): 없음.
+
+## 2026-06-05 02:30 · android
+팀원 추가 시트 버그 2건 수정 (키보드 가림 + 입력 순서 꼬임)
+- 변경: 앱만. TeamScreen AddMemberSheet —
+  ① 시트 Column 에 imePadding() 추가 → 키보드가 입력칸·버튼 안 가림.
+  ② 전화번호 칸 String→TextFieldValue(커서 끝 고정) → formatProgressive 재포맷 시 숫자 순서 꼬임 해결(FollowUp 패턴 동일).
+- 빌드·설치 OK. adb 스크립트 탭은 Compose 포커스를 못 잡아 키보드 자동검증 불가 → 사장님 실기기 확인 요청.
+- commit: (아래)

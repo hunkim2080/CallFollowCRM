@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -64,8 +65,10 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.ai.TeamRepository
@@ -439,7 +442,8 @@ private fun buildAnnotatedDepart(name: String, time: String, place: String) =
 private fun AddMemberSheet(onDismiss: () -> Unit, onSubmit: (name: String, phone: String) -> Unit) {
     val context = LocalContext.current
     var name by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }
+    // 전화번호 = TextFieldValue — formatProgressive 재포맷 후 커서를 항상 맨 뒤로 고정(순서 꼬임 방지).
+    var phoneField by remember { mutableStateOf(TextFieldValue("")) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val pickContact = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
@@ -457,7 +461,8 @@ private fun AddMemberSheet(onDismiss: () -> Unit, onSubmit: (name: String, phone
                             val num = cur.getString(0) ?: ""
                             val nm = cur.getString(1) ?: ""
                             if (nm.isNotBlank()) name = nm
-                            phone = PhoneNumberFormatter.formatProgressive(num)
+                            val f = PhoneNumberFormatter.formatProgressive(num)
+                            phoneField = TextFieldValue(f, selection = TextRange(f.length))
                         }
                     }
                 }
@@ -467,7 +472,9 @@ private fun AddMemberSheet(onDismiss: () -> Unit, onSubmit: (name: String, phone
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = Color.White, tonalElevation = 0.dp) {
         Column(
-            Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 22.dp)
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp)
+                .imePadding()                       // 키보드 뜨면 내용이 위로 — 입력칸 안 가림
+                .padding(bottom = 22.dp)
                 .heightIn(max = 520.dp).verticalScroll(rememberScrollState())
         ) {
             Text("팀원 추가", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
@@ -496,11 +503,18 @@ private fun AddMemberSheet(onDismiss: () -> Unit, onSubmit: (name: String, phone
             SheetTextField(name, { name = it }, placeholder = "예: 이기사")
             Spacer(Modifier.height(10.dp))
             SheetFieldLabel("전화번호")
-            SheetTextField(phone, { phone = PhoneNumberFormatter.formatProgressive(it) }, placeholder = "010-0000-0000", keyboardType = KeyboardType.Phone)
+            SheetTextField(
+                phoneField,
+                { tfv ->
+                    val f = PhoneNumberFormatter.formatProgressive(tfv.text)
+                    phoneField = TextFieldValue(f, selection = TextRange(f.length))
+                },
+                placeholder = "010-0000-0000", keyboardType = KeyboardType.Phone
+            )
             Spacer(Modifier.height(16.dp))
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(TossBlue)
-                    .clickable { onSubmit(name, phone) }.padding(vertical = 15.dp),
+                    .clickable { onSubmit(name, phoneField.text) }.padding(vertical = 15.dp),
                 contentAlignment = Alignment.Center
             ) { Text("팀원 추가", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold) }
         }
