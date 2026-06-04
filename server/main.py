@@ -369,6 +369,17 @@ def db_init() -> None:
             "CREATE INDEX IF NOT EXISTS idx_team_photos_owner_uploaded "
             "ON team_site_photos(owner_phone, uploaded_at_ms)"
         )
+        # §25 — team_site_photos 에 customer_phone 추가 (안드로이드 SERVER_HANDOFF 2026-06-04)
+        # 사진을 "어느 고객 현장" 으로 묶기 위해 추가. 기존 row 호환 위해 NULL 허용.
+        # 매칭: 정확 일치 OR 끝 8자리 suffix (고객 phone 형태 다양 호환).
+        try:
+            con.execute("ALTER TABLE team_site_photos ADD COLUMN customer_phone TEXT")
+        except sqlite3.OperationalError:
+            pass  # already exists
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_team_photos_owner_customer "
+            "ON team_site_photos(owner_phone, customer_phone, uploaded_at_ms DESC)"
+        )
         # §19 patch — 프로토타입 openQuote 1:1: 시공일·견적·계약금은 issue 때 받아서
         # 폼에 "표시만". 고객은 전화·주소·메모·유입경로만 입력.
         for col_def in [
@@ -6963,6 +6974,17 @@ class TeamPhotoUploadRequest(BaseModel):
     label: Optional[str] = None                # '시공 전'|'시공 중'|'시공 후'|'추가 사진'
     image_data_url: Optional[str] = None       # base64 (작은 사진)
     note: Optional[str] = None
+    customer_phone: Optional[str] = None       # §25 — 고객 연결 (없으면 schedule_snapshot 자동 매핑 시도)
+
+
+class OwnerSitePhotoRequest(BaseModel):
+    """§25 — 사장님 본인이 현장사진 업로드 (팀원 토큰 없이)."""
+
+    owner_phone: str
+    customer_phone: str
+    image_data_url: str                        # base64 data URL (1MB 컷)
+    label: Optional[str] = None
+    note: Optional[str] = None
 
 
 # ─── API 1: 팀원 초대 (이름 + 전화 + URL 발급) ───
@@ -7289,15 +7311,37 @@ async def team_event_photo(req: TeamPhotoUploadRequest) -> dict:
         if data_url and len(data_url) > 1_400_000:  # 약 1MB base64
             raise HTTPException(413, "사진 용량 초과 (1MB 이하만)")
         label = (req.label or "").strip() or "추가 사진"
+        # §25 — customer_phone 결정: req 우선, 없으면 token 의 schedule_snapshot 에서 추출 시도
+        customer_phone = (req.customer_phone or "").strip() or None
+        if not customer_phone:
+            try:
+                snap_row = con.execute(
+                    "SELECT schedule_snapshot_json FROM team_member_links WHERE token = ?",
+                    (req.token,),
+                ).fetchone()
+                if snap_row and snap_row[0]:
+                    snap = json.loads(snap_row[0]) or {}
+                    # snapshot 구조 다양 — jobs[] 또는 items[] 안의 customer_phone/phone 키 검색
+                    if isinstance(snap, dict):
+                        candidates = snap.get("jobs") or snap.get("items") or snap.get("schedule") or []
+                        if isinstance(candidates, list):
+                            for j in candidates:
+                                if isinstance(j, dict):
+                                    cp = (j.get("customer_phone") or j.get("phone") or j.get("customerPhone") or "").strip()
+                                    if cp:
+                                        customer_phone = cp
+                                        break
+            except Exception:
+                pass  # snapshot 파싱 실패는 NULL 로 두고 통과 (안드로이드는 req 에 직접 보내는 게 안정)
         cur = con.execute(
             """
             INSERT INTO team_site_photos
                 (token, member_id, owner_phone, label, image_data_url, image_path,
-                 note, uploaded_at_ms)
-            VALUES (?, ?, ?, ?, ?, NULL, ?, ?)
+                 note, uploaded_at_ms, customer_phone)
+            VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)
             """,
             (req.token, member_id, owner_phone, label, data_url or None,
-             (req.note or "").strip() or None, now),
+             (req.note or "").strip() or None, now, customer_phone),
         )
         photo_id = cur.lastrowid
         # 동시에 event 로도 기록 (사장님 polling 알림용)
@@ -7348,6 +7392,146 @@ async def team_photos_list(
         }
         for r in rows
     ]
+    return {"photos": photos, "count": len(photos)}
+
+
+# ============================================================================
+# §25 — 현장 사진 팀↔사장님 공유 (안드로이드 SERVER_HANDOFF 2026-06-04)
+# ─────────────────────────────────────────────────────────────────────────────
+# 사장님 요청: "팀원도 그 현장에 사진 올리고, 나(사장님)도 그 현장에 올려서,
+# 고객 카드에서 같이 본다."
+#
+# 추가:
+#   1. team_site_photos.customer_phone 컬럼 (db_init §25)
+#   2. POST /api/site-photo/owner-upload — 사장님 본인 업로드 (member_id='OWNER')
+#   3. /api/team/event/photo 에 customer_phone 매핑 (req 우선 + schedule_snapshot 폴백)
+#   4. GET /api/site-photos — 고객별 사진 전체 (팀원 + 사장님) + 업로더 이름
+#
+# 정책 유지:
+#   - base64 1MB 컷
+#   - owner_phone 검증 (_check_team_tier 재사용)
+#   - 큰 사진은 image_path 디스크 (Phase B, 미구현)
+# ============================================================================
+
+
+@app.post("/api/site-photo/owner-upload")
+async def owner_site_photo_upload(req: OwnerSitePhotoRequest) -> dict:
+    """§25 — 사장님 본인 현장사진 업로드. member_id='OWNER' / token=NULL.
+
+    팀원 토큰 없이 owner_phone 검증으로 통과.
+    응답: {ok, photo_id, label, customer_phone}
+    """
+    owner_phone = (req.owner_phone or "").strip()
+    customer_phone = (req.customer_phone or "").strip()
+    if not owner_phone:
+        raise HTTPException(400, "owner_phone 필수")
+    if not customer_phone:
+        raise HTTPException(400, "customer_phone 필수")
+    # 사장님이 어떤 티어든 팀 기능 활성 상태인지 확인 (기존 helper 재사용)
+    _check_team_tier(owner_phone)
+    data_url = req.image_data_url or ""
+    if not data_url:
+        raise HTTPException(400, "image_data_url 필수")
+    if len(data_url) > 1_400_000:  # 약 1MB base64
+        raise HTTPException(413, "사진 용량 초과 (1MB 이하만)")
+    label = (req.label or "").strip() or "추가 사진"
+    now = _now_ms()
+    with db_conn() as con:
+        cur = con.execute(
+            """
+            INSERT INTO team_site_photos
+                (token, member_id, owner_phone, label, image_data_url, image_path,
+                 note, uploaded_at_ms, customer_phone)
+            VALUES (NULL, 'OWNER', ?, ?, ?, NULL, ?, ?, ?)
+            """,
+            (
+                owner_phone,
+                label,
+                data_url,
+                (req.note or "").strip() or None,
+                now,
+                customer_phone,
+            ),
+        )
+        photo_id = cur.lastrowid
+        con.commit()
+    print(
+        f"[owner_site_photo] owner={owner_phone} customer={customer_phone[:13]} "
+        f"photo_id={photo_id} label={label}"
+    )
+    return {
+        "ok": True,
+        "photo_id": photo_id,
+        "label": label,
+        "customer_phone": customer_phone,
+        "uploaded_at_ms": now,
+    }
+
+
+@app.get("/api/site-photos")
+async def site_photos_by_customer(
+    owner_phone: str,
+    customer_phone: str,
+    since_ms: int = 0,
+    limit: int = 50,
+) -> dict:
+    """§25 — 특정 고객 현장 사진 전부 (팀원 + 사장님) 조회.
+
+    응답: photos[] 각 row 에 uploader_kind ('owner'|'member'), uploader_name 포함.
+    매칭: customer_phone 정확 일치 OR 끝 8자리 suffix (다양한 형태 호환).
+    """
+    owner_phone = (owner_phone or "").strip()
+    customer_phone = (customer_phone or "").strip()
+    if not owner_phone:
+        raise HTTPException(400, "owner_phone 필수")
+    if not customer_phone:
+        raise HTTPException(400, "customer_phone 필수")
+    limit = max(1, min(limit, 200))
+    # 끝 8자리 suffix 도 매칭 (고객 phone 형태 다양 호환: '010-1234-5678' / '01012345678' / '+821012345678')
+    customer_digits = "".join(ch for ch in customer_phone if ch.isdigit())
+    suffix_8 = customer_digits[-8:] if len(customer_digits) >= 8 else customer_digits
+    with db_conn() as con:
+        rows = con.execute(
+            """
+            SELECT p.photo_id, p.member_id, p.label, p.image_data_url, p.image_path,
+                   p.note, p.uploaded_at_ms, p.customer_phone, m.name
+            FROM team_site_photos p
+            LEFT JOIN team_members m ON m.member_id = p.member_id
+            WHERE p.owner_phone = ?
+              AND p.uploaded_at_ms > ?
+              AND (
+                p.customer_phone = ?
+                OR REPLACE(REPLACE(REPLACE(REPLACE(IFNULL(p.customer_phone,''), '-', ''), ' ', ''), '+', ''), '_', '') LIKE ?
+              )
+            ORDER BY p.uploaded_at_ms DESC
+            LIMIT ?
+            """,
+            (
+                owner_phone,
+                since_ms,
+                customer_phone,
+                f"%{suffix_8}",
+                limit,
+            ),
+        ).fetchall()
+    photos = []
+    for r in rows:
+        mid = r[1]
+        is_owner = (mid == "OWNER") or (mid is None)
+        photos.append(
+            {
+                "photo_id": r[0],
+                "member_id": mid,
+                "label": r[2],
+                "image_data_url": r[3],
+                "image_path": r[4],
+                "note": r[5],
+                "uploaded_at_ms": r[6],
+                "customer_phone": r[7],
+                "uploader_kind": "owner" if is_owner else "member",
+                "uploader_name": "사장님" if is_owner else (r[8] or "팀원"),
+            }
+        )
     return {"photos": photos, "count": len(photos)}
 
 

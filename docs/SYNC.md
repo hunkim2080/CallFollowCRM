@@ -2942,3 +2942,20 @@ HOU-128 `/admin/beta/intake` (셋팅 폼) 도 이전 cycle 에 통합 완료. �
 4. **베타 셋팅 폼 (§22) 사장님 직접 채우기** — `https://api.si0in.kr/admin/beta/intake` 에서 10 카테고리 입력 → chief 깨움 → Phase 0 시작.
 5. **Zapier MCP `selected_api` schema 점검** — Gmail 자동 보고 메일 룰 복구.
 6. **deploy_phase1.sh 보강** — `cp -r server/static/*` 추가, main.py 동시 sync (현재 수동 cp).
+
+---
+
+## 2026-06-04 (저녁) · cowork(server) — 📷 §25 현장사진 팀↔사장님 공유
+
+안드로이드 `docs/SERVER_HANDOFF_site_photos.md` 4가지 보강 완료. 안드로이드는 위 endpoint 호출하면 즉시 작동.
+
+### 변경 (server/main.py +184 라인)
+1. **`team_site_photos.customer_phone` 컬럼 + 인덱스** (db_init §25, `ALTER TABLE IF NOT EXISTS`, 기존 row 호환)
+2. **POST `/api/site-photo/owner-upload`** — 사장님 본인 업로드 (`OwnerSitePhotoRequest{owner_phone, customer_phone, image_data_url, label?, note?}` → `member_id='OWNER'`, `token=NULL`). `_check_team_tier` + 1MB 컷 + owner_phone 검증.
+3. **`POST /api/team/event/photo` 에 `customer_phone` 추가** — req 에 있으면 그대로 / 없으면 `team_member_links.schedule_snapshot_json` 의 jobs/items/schedule 안에서 `customer_phone`/`phone`/`customerPhone` 자동 추출 / 그것도 없으면 NULL.
+4. **GET `/api/site-photos?owner_phone=&customer_phone=&since_ms=&limit=`** — 그 고객 사진 전부 (팀원+사장님), 응답에 `uploader_kind` (owner/member) + `uploader_name` ('사장님' / 팀원 name, team_members LEFT JOIN) + label + uploaded_at_ms 포함. 매칭 = 정확 일치 OR 끝 8자리 suffix (phone 형태 다양 호환).
+
+### 검증
+- `python3 -m py_compile main.py` 통과
+- 인메모리 SQLite round-trip — 사장님 row (kind=owner, name=사장님) + 팀원 row (kind=member, name=김기사) 양쪽 정상 fetch, 8자리 suffix LIKE 매칭 OK
+- 기존 정책 (`base64 1MB 컷`, `owner_phone 검증`, `_check_team_tier`) 모두 유지
