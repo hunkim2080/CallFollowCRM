@@ -2967,3 +2967,8 @@ HOU-128 `/admin/beta/intake` (셋팅 폼) 도 이전 cycle 에 통합 완료. �
   - ChatViewModel.intakeEvents(suffix observe) → ChatScreen 타임라인에 통화 카드(CallSegment)처럼 IntakeSegment 카드로 병합(제출 시각 기준). 파란 accent + "📋 접수서 작성을 완료했어요" + 📅시공일·💰만원·📍주소.
 - commit: (아래)
 - 다음 액션: 서버 측 추가 작업 없음. (이번 기능은 기존 /api/quote/submissions 폴링만 사용)
+
+## 2026-06-05 00:45 · android
+알림 상태바 small icon 재디자인 (사장님 요청 — 종 모양이 문자/타이머와 헷갈림)
+- 변경: 앱 리소스만(서버 무관). ic_notification.xml = 표준 "종" → 후보 4개 렌더 제시 후 사장님이 C 선택 = 말풍선 안 전화 수화기(RING-GO 통화+문자 CRM 정체성). 한 path + fillType=evenOdd 로 전화기를 구멍으로 뚫음(알림 아이콘=알파 마스크라 색 못 칠함). 모든 알림이 이 아이콘 공유.
+- commit: (아래)
