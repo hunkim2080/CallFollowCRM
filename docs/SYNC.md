@@ -2972,3 +2972,8 @@ HOU-128 `/admin/beta/intake` (셋팅 폼) 도 이전 cycle 에 통합 완료. �
 알림 상태바 small icon 재디자인 (사장님 요청 — 종 모양이 문자/타이머와 헷갈림)
 - 변경: 앱 리소스만(서버 무관). ic_notification.xml = 표준 "종" → 후보 4개 렌더 제시 후 사장님이 C 선택 = 말풍선 안 전화 수화기(RING-GO 통화+문자 CRM 정체성). 한 path + fillType=evenOdd 로 전화기를 구멍으로 뚫음(알림 아이콘=알파 마스크라 색 못 칠함). 모든 알림이 이 아이콘 공유.
 - commit: (아래)
+
+## 2026-06-05 00:58 · android
+알림 아이콘 최종 = 말풍선 안 'AI' (사장님 아이디어 변경)
+- 변경: 앱 리소스만(서버 무관). ic_notification.xml = 말풍선 + 'AI' 글자를 evenOdd 로 뚫음(직전 "전화 수화기" 대체). 글자 외곽선은 Arial Bold 추출해 고정 path(폰트 의존 X). RING-GO = AI 상담 비서 정체성 강조.
+- commit: (아래)
