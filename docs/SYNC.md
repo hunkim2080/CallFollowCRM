@@ -2830,3 +2830,107 @@ rm -f .git/index.lock .git/ORIG_HEAD.lock && git pull --rebase origin main && gi
 - fix: SettlementViewModel rows 정렬을 compareBy { scheduledWorkDate ?: MAX }.thenByDescending { outstanding } 로 변경 → 시공일 오름차순(없으면 맨뒤, 동일날짜는 미수 큰 순). 미수/완료 목록 모두 적용.
 - 실기기 확인: 6/8→6/10→6/11 순.
 - 서버 영향 없음.
+=======
+---
+
+## 2026-06-04 (아침) · cowork(server) — 🚀 시공막내 랜딩 + 베타 신청 + APK 다운 (§23 §24)
+
+사장님 디렉션 "베타 모집 랜딩 + 인터랙티브 + 신세대 느낌" → "시공인 필수앱 시공막내" 브랜드 도입. SMS 마케팅 카피 ("문자하면 정리해", "시공 전날 알아서", "혼자 다 하던 그 시간"). 사장님 정직 검수 2차 통해 demo 4개 모두 실제 구현 기능과 1:1 매핑 확정.
+
+### 새 엔드포인트 9개 (§23 + §24)
+| Method | Path | 인증 | 용도 |
+|---|---|---|---|
+| GET  | `/`                        | — | 시공막내 랜딩페이지 (HTML) |
+| GET  | `/landing`                 | — | / 와 동일 alias |
+| POST | `/api/beta-signup`         | — | 신청 저장 + status 자동 (accepted/waitlist) + install_url 응답 |
+| GET  | `/api/beta-signup-count`   | — | 라이브 카운터 (총 신청, cap 100) |
+| GET  | `/admin/beta/signups`      | client-side | sessionStorage 토큰 모달 + 통계/필터/테이블 SPA |
+| GET  | `/admin/beta/signups/data` | Bearer | 신청자 JSON (admin SPA 에서 호출) |
+| GET  | `/download/shigongmagne.apk` | — | APK FileResponse (사장님이 cp 하면 즉시 활성) |
+| GET  | `/api/download/version`    | — | APK 메타 (size, mtime, version) |
+| GET  | `/install`                 | — | 설치 안내 페이지 (출처 허용 + 다운 버튼 + FAQ) |
+
+→ 공개 URL: `https://api.si0in.kr/`
+
+### 신청 → 다운로드 흐름 (Zapier 없이, 사장님 작업 0)
+```
+사용자 신청 → POST /api/beta-signup
+            → DB 저장 + 신규 신청자면 status='accepted' 자동 (cap < 100)
+                       cap 도달 시 status='waitlist' 분기
+            → 응답: { ok:true, status, install_url:'/install' (accepted only) }
+사용자 success 화면 → "📲 지금 바로 설치하기 →" 큰 버튼
+            → /install 페이지 (출처 허용 가이드 + APK 다운 버튼)
+            → APK 다운 → 설치
+```
+
+### 사장님 정직 검수 — Demo 매핑 (CLAUDE.md §0 준수)
+| Demo | 실제 endpoint / 화면 | 검수 결과 |
+|---|---|---|
+| 1️⃣ 답장 초안 3가지 톤 (친근/자세/간단) | `/api/prepare-reply` INTENT_POOL_V1 | ✅ 진짜 |
+| 2️⃣ D-1 알림 카드 + 안내 문자 초안 | 안드로이드 RemindCard + prepare-reply | ✅ 진짜 (자동 발송 X) |
+| 3️⃣ 시공접수서 자동 발급 (3단계) | §19 /api/intake/issue + /intake/{token} | ✅ 진짜 (자동) — 1차 catch 후 통화 자동 요약에서 교체 |
+| 4️⃣ 톤 학습 답변 | owner_tone RAG + prepare-reply | ✅ 진짜 |
+
+**1차 catch (Demo 1 "카테고리 dashboard")** + **2차 catch (Demo 3 "통화 자동 캡쳐")** 둘 다 미구현 — 사장님이 발견 즉시 시정. Hero 카피 "마감 브리핑까지" 도 제거. 마케팅 거짓말 0.
+
+### 디자인 시스템 (design-preview/ringgo-redesign.html verbatim)
+- Primary: `#3182F6` (블루) / `#7C5CFC` (퍼플) / `#0E9E90` (틸) / `#16C172` (success) / `#F0436A` (포인트)
+- BG: `#F4F5F7` / `#FFFFFF` / `#EEF4FF` (blue tint)
+- 폰트: Pretendard / 카드 radius 14-16px
+- 브랜드 컨셉: "막내 비서" (AI = 사장님 옆 막내 직원)
+- 카피 톤: ~요체 친근, 사장님 SMS 그대로
+
+### 인터랙티브 요소 14가지
+글래스모피즘 hero / 자동 재생 폰 mockup (11s 루프) / 타이핑 효과 (38ms/char) / 라이브 카운터 ("남은 자리 N석") / Demo 1 raw msg → 답장 초안 3가지 stagger / Demo 2 캘린더 + bell wiggle 알림 / Demo 3 접수서 3단계 (탭→고객 폼→사장님 도착) / Demo 4 톤 비교 토글 / "지금" vs "시공막내랑" 2열 (😔 vs ✨) / Progress bar (1.2s ease, "남은 자리" 줄어드는 시각화) / 스크롤 reveal IntersectionObserver / FAQ 아코디언 / Sticky CTA / CTA shine (3s 빛 가로지름)
+
+### "남은 자리" 시각화 (사장님 catch)
+- 기존: "0명/100명 신청 중" → 사회적 증거 부재
+- 개선: "남은 자리 100석" → 신청 늘면 줄어듦 → FOMO
+- 20석 이하: 색깔 빨강 urgency 자동
+
+### DB 테이블 (cache.db / db_init §23)
+```sql
+CREATE TABLE beta_signups (
+  phone               TEXT PRIMARY KEY,  -- 11자리 숫자 (하이픈 제거)
+  industry            TEXT,              -- 줄눈/타일/도배/장판/인테리어/기타
+  region              TEXT,              -- 시·도 + 구·시
+  monthly_inquiries   TEXT,              -- 0-10/10-30/30-60/60-100/100+
+  note                TEXT,              -- 자유 메모 (300자)
+  agreed_at_ms        INTEGER NOT NULL,
+  source              TEXT,              -- 'landing/<host>'
+  ip                  TEXT,
+  ua                  TEXT,
+  status              TEXT NOT NULL,     -- accepted (자동) / waitlist (cap 도달) / pending (수동) / rejected
+  created_at_ms       INTEGER NOT NULL,
+  updated_at_ms       INTEGER NOT NULL
+);
+```
+
+### 어댑테이션 (chief HOU-128 → 우리 컨벤션 완료)
+HOU-128 `/admin/beta/intake` (셋팅 폼) 도 이전 cycle 에 통합 완료. 사장님이 그 폼 채워서 베타 정책 확정하면 랜딩의 정책 카드 (100명/4주/무료 placeholder) 가 진짜 값으로 자동 갱신 예정.
+
+### 보안 / 정직성
+- 사장님 Gmail (hugman2080@gmail.com) 노출 안 함 — `hello@si0in.kr` 사용 (Cloudflare Email Routing 셋업 완료)
+- SMS 원문 저장 X / LLM 원문 전송 X / 사용자별 drill-down X
+- admin 토큰: 기존 `ADMIN_TOKEN=5302` (Bearer)
+- IP / UA 저장은 abuse 추적용만 (사용자별 drill-down 아님)
+
+### 검증
+- `python3 -m py_compile main.py` 통과
+- main.py 8,074 줄 (이전 7,555 → +519 라인, §22 §23 §24 통합)
+- HTML: landing 823 줄 + install 199 줄 + admin_beta_signups 317 줄 + admin_beta_intake 1,317 줄
+- 폼 round-trip 통과: `{"ok":true,"status":"accepted","install_url":"/install","total_so_far":N}`
+
+### 사고 사후 정리 (재발 방지)
+1. **`Request` import 누락** 으로 `POST /api/beta-signup` 422 (`loc:["query","request"]`). FastAPI 가 Pydantic 모델 외 인자를 query 로 해석. → line 33 `from fastapi import FastAPI, HTTPException, Request` 추가로 fix.
+2. **랜딩 폼 `[object Object]` 에러**: FastAPI validation detail 이 array 인데 JS 가 string toString. → JS error 처리에 array/object 분기 추가.
+3. **GitHub push 중 안드로이드 동시 작업 conflict**: 이전 cycle 매 응답마다 발생. 워크플로 변경 = cowork 작업 전 사장님 `git pull --rebase` 강제 (sandbox lock 권한 X 라 사장님 mac 만 가능).
+4. **`git reset --mixed` 후 `git add .` 가 다른 commit 의 변경을 reverted 로 staged → 안드로이드 7 commits 삭제 commit push**: 즉시 `git revert --no-edit` 로 100% 복구. 안드로이드 작업 0 손실.
+
+### 다음 cycle 작업 후보
+1. **APK 업로드** — 안드로이드 빌드 후 `/Users/hun/ringgo-server/apk/shigongmagne.apk` cp. 즉시 다운 활성.
+2. **si0in.kr 루트 도메인** — Cloudflare Tunnel config 에 hostname `si0in.kr` 추가 (사장님 `cloudflared tunnel route dns ringgo-api si0in.kr` 한 줄). 그러면 `https://si0in.kr` 가 랜딩 응답.
+3. **Gmail "Send mail as"** (선택) — 답장도 `hello@si0in.kr` 로 보내기. 사장님 Gmail 주소 영원히 숨김.
+4. **베타 셋팅 폼 (§22) 사장님 직접 채우기** — `https://api.si0in.kr/admin/beta/intake` 에서 10 카테고리 입력 → chief 깨움 → Phase 0 시작.
+5. **Zapier MCP `selected_api` schema 점검** — Gmail 자동 보고 메일 룰 복구.
+6. **deploy_phase1.sh 보강** — `cp -r server/static/*` 추가, main.py 동시 sync (현재 수동 cp).
