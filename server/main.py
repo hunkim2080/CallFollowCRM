@@ -4207,13 +4207,33 @@ async def beta_signup(req: BetaSignupRequest, request: Request):
     ua = request.headers.get("user-agent", "")[:300]
     now = _now_ms()
 
+    # 사장님 결정: 신청 즉시 사이트에서 다운로드 가능 (status='accepted' 자동).
+    # cap (100명) 초과 시 'waitlist' 로 분기 → install 링크 미제공.
     with sqlite3.connect(DB_PATH) as con:
+        # 현재 accepted/pending 카운트 (cap 도달 여부 판정)
+        current_active = con.execute(
+            "SELECT COUNT(*) FROM beta_signups WHERE status IN ('accepted','pending')"
+        ).fetchone()[0]
+        # 기존 신청자 (재신청) 인지 확인
+        existing_row = con.execute(
+            "SELECT status FROM beta_signups WHERE phone = ?", (phone_digits,)
+        ).fetchone()
+        existing_status = existing_row[0] if existing_row else None
+
+        # 신규 신청자만 cap 체크. 기존 신청자는 이미 가진 status 유지.
+        if existing_status:
+            new_status = existing_status  # 그대로 유지 (재신청 시 status 안 바꿈)
+        elif current_active < 100:
+            new_status = "accepted"  # cap 미달 → 즉시 다운로드 가능
+        else:
+            new_status = "waitlist"  # cap 초과 → 대기자
+
         con.execute(
             """
             INSERT INTO beta_signups
               (phone, industry, region, monthly_inquiries, note, agreed_at_ms,
                source, ip, ua, status, created_at_ms, updated_at_ms)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(phone) DO UPDATE SET
               industry          = excluded.industry,
               region            = excluded.region,
@@ -4235,11 +4255,11 @@ async def beta_signup(req: BetaSignupRequest, request: Request):
                 req.source[:100],
                 ip[:60],
                 ua,
+                new_status,
                 now,
                 now,
             ),
         )
-        # 총 신청자 수 (사장님이 즉시 확인할 수 있게)
         count = con.execute(
             "SELECT COUNT(*) FROM beta_signups WHERE status != 'rejected'"
         ).fetchone()[0]
@@ -4247,9 +4267,20 @@ async def beta_signup(req: BetaSignupRequest, request: Request):
 
     print(
         f"[beta_signup] phone={phone_digits} industry={req.industry} "
-        f"region={region[:20]} total={count}"
+        f"region={region[:20]} status={new_status} total={count}"
     )
-    return {"ok": True, "message": "신청이 접수됐어요.", "total_so_far": count}
+    install_url = "/install" if new_status == "accepted" else None
+    return {
+        "ok": True,
+        "message": (
+            "신청이 접수됐어요. 지금 바로 설치하실 수 있어요."
+            if new_status == "accepted"
+            else "신청이 접수됐어요. 100명 마감으로 대기자 등록됐어요 — 자리 나면 안내드릴게요."
+        ),
+        "status": new_status,
+        "install_url": install_url,
+        "total_so_far": count,
+    }
 
 
 @app.get("/api/beta-signup-count")
@@ -4357,6 +4388,90 @@ async def admin_beta_signups_data(
         "filter": status,
         "limit": limit,
     }
+
+
+# ============================================================================
+# §24 — APK 직접 서빙 + 설치 안내 페이지 (베타 100명 다운로드 채널)
+# ─────────────────────────────────────────────────────────────────────────────
+# Google Play 비공개 테스트 셋업 전 임시 다리. 사장님이 안드로이드 APK 빌드 후
+# /Users/hun/ringgo-server/apk/shigongmagne.apk 에 cp 하면 즉시 활성.
+#
+# 사용자 흐름:
+#   1. 베타 선정 SMS → "https://api.si0in.kr/install" 링크
+#   2. 설치 안내 페이지 → "출처 알 수 없는 앱 허용" 설명 + 다운 버튼
+#   3. APK 다운로드 → 탭하면 설치
+#
+# 보안 우려 완화:
+#   - 사장님 사업자 정보 명시 (디테일라인 직인)
+#   - 단순 안내 페이지로 거부감 ↓
+#   - 추후 Play 등록 후 자동 마이그레이션 안내
+# ============================================================================
+
+_APK_DIR = Path("/Users/hun/ringgo-server/apk")
+_APK_PATH = _APK_DIR / "shigongmagne.apk"
+_APK_VERSION_PATH = _APK_DIR / "VERSION.txt"  # 사장님이 빌드 시 버전 정보 박는 곳 (optional)
+_INSTALL_HTML_PATH = BASE_DIR / "static" / "install.html"
+
+
+@app.get("/download/shigongmagne.apk", include_in_schema=False)
+async def download_apk():
+    """APK 다운로드 (직접 서빙). 사장님이 cp 한 후에만 활성."""
+    if not _APK_PATH.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "APK 파일이 아직 업로드 안 됨. "
+                "사장님이 /Users/hun/ringgo-server/apk/shigongmagne.apk 에 빌드한 APK 를 cp 하면 활성."
+            ),
+        )
+    return FileResponse(
+        _APK_PATH,
+        media_type="application/vnd.android.package-archive",
+        filename="shigongmagne.apk",
+        headers={
+            "Content-Disposition": 'attachment; filename="shigongmagne.apk"',
+            # 캐시 제어 — APK 업데이트 시 즉시 반영
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+        },
+    )
+
+
+@app.get("/api/download/version", include_in_schema=False)
+async def download_apk_version():
+    """현재 서빙 중인 APK 메타 정보 (size, mtime, optional VERSION.txt)."""
+    if not _APK_PATH.exists():
+        return {"available": False}
+    stat = _APK_PATH.stat()
+    version_text = ""
+    if _APK_VERSION_PATH.exists():
+        try:
+            version_text = _APK_VERSION_PATH.read_text(encoding="utf-8").strip()[:80]
+        except Exception:
+            pass
+    return {
+        "available": True,
+        "size_bytes": stat.st_size,
+        "size_mb": round(stat.st_size / 1024 / 1024, 1),
+        "mtime_ms": int(stat.st_mtime * 1000),
+        "mtime_iso": _dt.datetime.fromtimestamp(stat.st_mtime).strftime(
+            "%Y-%m-%d %H:%M"
+        ),
+        "version": version_text or "v0.1-beta",
+    }
+
+
+@app.get("/install", response_class=HTMLResponse, include_in_schema=False)
+async def install_page():
+    """설치 안내 페이지 — '출처 알 수 없는 앱 허용 → 다운 → 설치' 3단계.
+
+    선정자 SMS 의 링크 (api.si0in.kr/install) 가 여기로.
+    """
+    if not _INSTALL_HTML_PATH.exists():
+        raise HTTPException(
+            status_code=500,
+            detail=f"install.html 없음 (server/static/install.html 확인).",
+        )
+    return _INSTALL_HTML_PATH.read_text(encoding="utf-8")
 
 
 # ============================================================================

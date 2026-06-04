@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#3182F6">
+<title>시공막내 베타 설치</title>
+<meta name="description" content="시공막내 베타 앱 설치 안내. 출처 허용 → 다운로드 → 설치 3단계.">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  :root {
+    --blue:#3182F6; --blue-dark:#1B64DA; --blue-tint:#EEF4FF;
+    --purple:#7C5CFC; --purple-tint:#F1ECFF;
+    --success:#16C172; --success-tint:#E7F8EF;
+    --amber:#F6A609; --amber-tint:#FFF3DF;
+    --error:#F0436A; --error-tint:#FDEAEF;
+    --bg:#F4F5F7; --card:#FFFFFF;
+    --t1:#0B0F19; --t2:#5A6472; --t3:#9AA3AF; --line:#EEF0F3;
+    --shadow:0 2px 10px rgba(17,24,39,.05);
+    --shadow-lg:0 16px 40px rgba(17,24,39,.18);
+    --grad-blue:linear-gradient(135deg,#3182F6 0%,#7C5CFC 100%);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  body{font-family:'Pretendard',-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--t1);line-height:1.55;letter-spacing:-.01em;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:480px;margin:0 auto;padding:20px 18px 60px;}
+
+  .topbar{display:flex;align-items:center;gap:8px;margin-bottom:20px;}
+  .topbar .logo{font-size:17px;font-weight:900;letter-spacing:-.04em;color:var(--t1);}
+  .topbar .logo .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--blue);margin-right:4px;vertical-align:middle;box-shadow:0 0 0 3px var(--blue-tint);}
+  .topbar .badge{margin-left:auto;background:var(--success-tint);color:#0a8f44;font-size:11px;font-weight:800;padding:5px 10px;border-radius:999px;}
+
+  .hero{background:linear-gradient(135deg,#EAF2FF 0%,#F1ECFF 100%);border:1px solid rgba(49,130,246,.18);border-radius:18px;padding:24px 20px 22px;text-align:center;margin-bottom:24px;position:relative;overflow:hidden;}
+  .hero::before{content:"";position:absolute;top:-50px;right:-50px;width:150px;height:150px;background:radial-gradient(circle,rgba(124,92,252,.18) 0%,transparent 70%);}
+  .hero .h-ic{font-size:42px;margin-bottom:8px;position:relative;animation:bounce .8s ease-out;}
+  @keyframes bounce{0%{transform:scale(0);}60%{transform:scale(1.15);}100%{transform:scale(1);}}
+  .hero h1{font-size:23px;font-weight:900;letter-spacing:-.04em;line-height:1.3;color:var(--t1);margin-bottom:6px;position:relative;}
+  .hero h1 b{color:var(--blue);}
+  .hero .h-d{font-size:13px;color:var(--t2);line-height:1.55;position:relative;}
+
+  .step{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:12px;box-shadow:var(--shadow);}
+  .step-head{display:flex;align-items:center;gap:11px;margin-bottom:11px;}
+  .step-num{width:30px;height:30px;border-radius:50%;background:var(--grad-blue);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;flex-shrink:0;box-shadow:0 3px 10px rgba(49,130,246,.3);}
+  .step-t{font-size:15.5px;font-weight:900;color:var(--t1);letter-spacing:-.025em;}
+  .step-d{font-size:13.5px;color:var(--t2);line-height:1.65;margin-left:41px;}
+  .step-d b{color:var(--t1);font-weight:800;}
+  .step-d .path{font-family:'SF Mono',Menlo,Monaco,monospace;background:var(--bg);padding:2px 6px;border-radius:4px;font-size:12px;color:var(--blue-dark);font-weight:700;letter-spacing:0;}
+
+  .dl-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;background:var(--grad-blue);color:#fff;padding:18px;border-radius:14px;font-size:16px;font-weight:900;letter-spacing:-.02em;text-decoration:none;margin-top:12px;box-shadow:0 8px 22px rgba(49,130,246,.32);transition:transform .12s ease,box-shadow .25s ease;position:relative;overflow:hidden;}
+  .dl-btn:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(49,130,246,.4);}
+  .dl-btn:active{transform:scale(.98);}
+  .dl-btn::after{content:"";position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.3),transparent);animation:shine 2.5s ease-in-out infinite;}
+  @keyframes shine{0%,100%{left:-100%;}50%{left:100%;}}
+  .dl-meta{display:flex;align-items:center;justify-content:center;gap:8px;font-size:11.5px;color:var(--t3);margin-top:10px;font-weight:700;}
+  .dl-meta .dot{display:inline-block;width:3px;height:3px;background:var(--t3);border-radius:50%;}
+
+  .apk-unavailable{background:var(--amber-tint);border:1px solid rgba(246,166,9,.3);border-radius:12px;padding:14px;font-size:13px;color:#C9820B;font-weight:700;text-align:center;margin-top:12px;display:none;}
+
+  .warning{background:var(--amber-tint);border:1px solid rgba(246,166,9,.25);border-radius:12px;padding:13px 15px;font-size:12.5px;color:var(--t1);line-height:1.6;margin:12px 0;display:flex;gap:9px;}
+  .warning .w-ic{font-size:16px;flex-shrink:0;}
+  .warning b{font-weight:800;color:#C9820B;}
+
+  .faq{margin-top:24px;}
+  .faq-h{font-size:13px;font-weight:900;color:var(--blue);text-align:center;letter-spacing:.06em;margin-bottom:14px;text-transform:uppercase;}
+  .faq-item{background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:8px;overflow:hidden;}
+  .faq-q{padding:13px 14px;display:flex;align-items:center;gap:9px;cursor:pointer;font-size:13.5px;font-weight:800;color:var(--t1);letter-spacing:-.02em;}
+  .faq-q .faq-ic{margin-left:auto;color:var(--t3);transition:transform .2s ease;font-weight:900;font-size:18px;}
+  .faq-item.open .faq-q .faq-ic{transform:rotate(45deg);color:var(--blue);}
+  .faq-a{padding:0 14px 14px;font-size:12.5px;color:var(--t2);line-height:1.65;display:none;}
+  .faq-item.open .faq-a{display:block;}
+
+  footer{margin-top:30px;text-align:center;font-size:11px;color:var(--t3);line-height:1.7;}
+  footer b{color:var(--t2);font-weight:800;}
+  footer a{color:var(--blue);text-decoration:none;}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="topbar">
+    <div class="logo"><span class="dot"></span>시공막내</div>
+    <div class="badge">베타 설치</div>
+  </div>
+
+  <!-- ─── Hero ─── -->
+  <div class="hero">
+    <div class="h-ic">🙌</div>
+    <h1>시공막내 베타에<br><b>오신 걸 환영해요</b></h1>
+    <p class="h-d">아래 3단계만 따라하시면 바로 시작하실 수 있어요.</p>
+  </div>
+
+  <!-- ─── Step 1 ─── -->
+  <div class="step">
+    <div class="step-head">
+      <div class="step-num">1</div>
+      <div class="step-t">설정에서 출처 허용하기</div>
+    </div>
+    <div class="step-d">
+      안드로이드 설정 → <b>앱</b> → <b>특별 액세스</b> → <b>알 수 없는 앱 설치</b> →<br>
+      이 페이지를 연 브라우저 (Chrome / Samsung Internet) 를 찾아서 <b>"이 출처 허용"</b> 켜주세요.
+    </div>
+    <div class="warning">
+      <div class="w-ic">💡</div>
+      <div>안드로이드 12 이상은 기본적으로 차단돼 있어요. 한 번만 켜두시면 다음에 또 안 물어봐요.</div>
+    </div>
+  </div>
+
+  <!-- ─── Step 2 ─── -->
+  <div class="step">
+    <div class="step-head">
+      <div class="step-num">2</div>
+      <div class="step-t">APK 다운로드</div>
+    </div>
+    <div class="step-d">
+      아래 버튼 누르면 시공막내 APK 파일이 다운로드돼요. 폰 용량 20MB 정도 차지해요.
+    </div>
+    <a href="/download/shigongmagne.apk" class="dl-btn" id="dlBtn">⬇ 시공막내 APK 다운로드</a>
+    <div class="dl-meta">
+      <span id="apkVersion">버전 확인 중...</span>
+      <span class="dot"></span>
+      <span id="apkSize">크기 확인 중...</span>
+    </div>
+    <div class="apk-unavailable" id="apkUnavailable">
+      ⚠️ 아직 APK 가 업로드 안 됐어요. 사장님 안드로이드 빌드 후 곧 활성화돼요.
+    </div>
+  </div>
+
+  <!-- ─── Step 3 ─── -->
+  <div class="step">
+    <div class="step-head">
+      <div class="step-num">3</div>
+      <div class="step-t">탭해서 설치하기</div>
+    </div>
+    <div class="step-d">
+      다운로드 완료 알림이 뜨면 탭 → <b>"설치"</b> 누르기. 끝!<br>
+      홈 화면에 <b>"시공막내"</b> 앱이 생겨요. 처음 열면 사장님 정보 입력하시면 시작.
+    </div>
+  </div>
+
+  <!-- ─── FAQ ─── -->
+  <div class="faq">
+    <div class="faq-h">자주 묻는 질문</div>
+
+    <div class="faq-item">
+      <div class="faq-q">왜 Play 스토어 가 아니에요? <span class="faq-ic">+</span></div>
+      <div class="faq-a">베타 100명만 모집하는 단계라 Play 스토어 등록 전이에요. 정식 출시 시점에는 Play 스토어에서 자동으로 받으실 수 있게 안내드릴게요.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">"바이러스 위험" 경고가 떠요. 괜찮나요? <span class="faq-ic">+</span></div>
+      <div class="faq-a">안드로이드는 Play 외 다운로드를 기본적으로 경고해요. 시공막내 APK 는 사업자 정보가 명시된 디테일라인이 직접 빌드한 정식 앱이에요. "그래도 설치" 또는 "신뢰" 누르시면 돼요. 정식 출시 후엔 이런 경고 없어요.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">설치가 안 돼요. <span class="faq-ic">+</span></div>
+      <div class="faq-a">대부분 1단계 "출처 허용" 을 안 한 경우예요. 다시 설정 → 앱 → 특별 액세스 → 알 수 없는 앱 설치 에서 사용 중인 브라우저 허용했는지 확인해주세요. 그래도 안 되면 hugman2080@gmail.com 으로 문자주세요.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">개인정보·문자 내용 안전한가요? <span class="faq-ic">+</span></div>
+      <div class="faq-a">SMS 원문은 서버에 저장 안 해요. 학습은 사장님이 직접 업로드하신 답장 예시만 사용. 베타 종료 시 모든 데이터 즉시 파기. 자세한 정책은 첫 실행 시 보여드려요.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">iPhone 도 되나요? <span class="faq-ic">+</span></div>
+      <div class="faq-a">베타는 안드로이드 (Galaxy / 갤럭시 등) 만 지원해요. iOS 는 정식 출시 시점에 검토 중입니다.</div>
+    </div>
+  </div>
+
+  <footer>
+    <div><b>시공막내</b> · 베타 v0.1</div>
+    <div>혼자 일하는 시공 사장님의 막내 비서</div>
+    <div style="margin-top:8px;">문의: <a href="mailto:hugman2080@gmail.com">hugman2080@gmail.com</a></div>
+    <div style="margin-top:6px;color:var(--t3);">© 2026 시공막내 (디테일라인)</div>
+  </footer>
+</div>
+
+<script>
+(function(){
+  // APK 메타 정보 fetch
+  fetch('/api/download/version').then(function(r){return r.json();}).then(function(d){
+    if (!d.available){
+      document.getElementById('dlBtn').style.display = 'none';
+      document.querySelector('.dl-meta').style.display = 'none';
+      document.getElementById('apkUnavailable').style.display = 'block';
+      return;
+    }
+    document.getElementById('apkVersion').textContent = d.version;
+    document.getElementById('apkSize').textContent = d.size_mb + ' MB';
+  }).catch(function(){
+    document.getElementById('apkVersion').textContent = '버전 확인 실패';
+    document.getElementById('apkSize').textContent = '-';
+  });
+
+  // FAQ 아코디언
+  document.querySelectorAll('.faq-item').forEach(function(item){
+    item.querySelector('.faq-q').addEventListener('click', function(){ item.classList.toggle('open'); });
+  });
+})();
+</script>
+
+</body>
+</html>

@@ -587,8 +587,9 @@
     </form>
     <div class="form-success" id="formSuccess">
       <div class="fs-ic">🙌</div>
-      <div class="fs-t">신청 완료!</div>
-      <div class="fs-d">베타 선정되시면 사장님께 SMS 로<br>직접 연락드릴게요. 잠시만 기다려주세요 😊</div>
+      <div class="fs-t" id="successTitle">신청 완료!</div>
+      <div class="fs-d" id="successMsg">지금 바로 시공막내를 설치하실 수 있어요.<br>아래 버튼 누르면 설치 안내로 이동해요 😊</div>
+      <a href="/install" id="installCta" class="cta cta-primary" style="margin-top:18px;display:inline-flex;padding:15px 28px;font-size:15px;">📲 지금 바로 설치하기 →</a>
     </div>
   </div>
 </section>
@@ -791,6 +792,20 @@
         const msg = (data && data.detail) ? data.detail : ('신청에 실패했어요 (HTTP ' + res.status + '). 잠시 후 다시 시도해주세요.');
         errorBox.textContent = msg; errorBox.style.display = 'block';
         submitBtn.disabled = false; submitBtn.textContent = '베타 신청하기 →'; return;
+      }
+      // success — status 에 따라 install CTA 분기
+      const installCta = document.getElementById('installCta');
+      const successTitle = document.getElementById('successTitle');
+      const successMsg = document.getElementById('successMsg');
+      if (data.status === 'accepted' && data.install_url){
+        if (installCta){ installCta.href = data.install_url; installCta.style.display = 'inline-flex'; }
+        if (successTitle) successTitle.textContent = '신청 완료!';
+        if (successMsg) successMsg.innerHTML = '지금 바로 시공막내를 설치하실 수 있어요.<br>아래 버튼 누르면 설치 안내로 이동해요 😊';
+      } else {
+        // waitlist 등
+        if (installCta) installCta.style.display = 'none';
+        if (successTitle) successTitle.textContent = '대기자 등록!';
+        if (successMsg) successMsg.innerHTML = (data.message || '100명 마감으로 대기자 등록됐어요.') + '<br>자리 나면 사장님이 직접 연락드릴게요 😊';
       }
       form.style.display = 'none'; successBox.style.display = 'block';
       successBox.scrollIntoView({behavior:'smooth', block:'center'});
