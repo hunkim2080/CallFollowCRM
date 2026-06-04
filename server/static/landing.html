@@ -284,8 +284,8 @@
     <span class="big">시공막내</span>
   </h1>
   <p class="sub reveal d2">
-    <b>문자하면 정리해.</b> <b>시공 전날 알아서 문자 보내.</b><br>
-    오늘 시공 문의 <b>마감 브리핑</b>까지 해주는 그 어플.
+    <b>문자하면 답장 초안 준비.</b> <b>시공 전날 알림 카드까지.</b><br>
+    통화 끝나면 <b>자동 요약 + 후속 문자</b>까지 막내가.
   </p>
   <div class="live-counter reveal d3">
     <b id="liveCount">—</b><span class="lc-l">명 / 100명 신청 중</span>
@@ -336,10 +336,10 @@
     <p class="lead reveal d2">시공하면서 답장하기 진짜 힘들죠. 막내가 옆에서 한 번에 정리해줄게요.</p>
 
     <div class="pain-grid">
-      <div class="pain-card reveal d1"><span class="pc-emoji">📱</span><div class="pc-t">현장 가 있는데<br>문의는 계속 와요</div></div>
-      <div class="pain-card reveal d2"><span class="pc-emoji">😵</span><div class="pc-t">밤에 와서 답장<br>30통씩 몰아쓰기</div></div>
-      <div class="pain-card reveal d3"><span class="pc-emoji">📅</span><div class="pc-t">시공 전날 까먹어서<br>주소 확인 못 함</div></div>
-      <div class="pain-card reveal d4"><span class="pc-emoji">💸</span><div class="pc-t">정산은 머리 아파서<br>매번 미루는 중</div></div>
+      <div class="pain-card reveal d1"><span class="pc-emoji">📱</span><div class="pc-t">현장에서 문의는 오는데<br>답장할 손이 부족해요</div></div>
+      <div class="pain-card reveal d2"><span class="pc-emoji">😵</span><div class="pc-t">일 끝나고 몰아서 답장하다<br>놓치는 고객이 있어요</div></div>
+      <div class="pain-card reveal d3"><span class="pc-emoji">📅</span><div class="pc-t">날짜를 잘못 기록해서<br>잘못 방문한 적 있어요</div></div>
+      <div class="pain-card reveal d4"><span class="pc-emoji">💸</span><div class="pc-t">받아야 할 돈인데 미뤄지다<br>깜빡한 적 있어요</div></div>
     </div>
   </div>
 </section>
@@ -348,27 +348,34 @@
 <section id="how">
   <div class="wrap">
     <div class="sec-title reveal">막내가 일하는 법 ①</div>
-    <h2 class="reveal d1"><span class="b">문자하면</span><br>막내가 정리해놔요</h2>
-    <p class="lead reveal d2">하루 종일 쌓인 문자 30통? 막내가 자동 분류해서 답장 필요한 것만 보여줘요.</p>
+    <h2 class="reveal d1"><span class="b">문자 받으면</span><br>답장 초안 3가지로</h2>
+    <p class="lead reveal d2">현장 가 계신 동안 문의가 오면, 막내가 사장님 톤으로 답장 3개를 미리 준비해놔요. 마음에 드는 거 골라서 ▶ 보내기만.</p>
 
     <div class="demo-block">
       <div class="demo-card reveal d3">
-        <div class="dc-title">▼ 시공막내가 자동으로 분류하는 중</div>
-        <div class="raw-msg" data-rm="1"><span class="rm-from">010-2345-1234</span>화장실 줄눈 24평 얼마</div>
-        <div class="raw-msg" data-rm="2"><span class="rm-from">010-9988-7766</span>혹시 내일 시공 가능?</div>
-        <div class="raw-msg" data-rm="3"><span class="rm-from">010-1122-3344</span>견적서 좀 보내주세요</div>
+        <div class="dc-title">▼ 시공막내가 답장 초안을 준비하는 중</div>
+        <div class="raw-msg" data-rm="1"><span class="rm-from">010-2345-1234 · 김지영 고객님</span>24평 아파트 화장실 줄눈 얼마예요?</div>
         <div class="arrow-down">↓</div>
-        <div class="org-card" data-oc="1">
-          <div class="oc-ic">💬</div>
-          <div><div class="oc-t">신규 견적 문의 · 2건</div><div class="oc-s">답장 우선 처리</div></div>
+        <div class="org-card" data-oc="1" style="display:block;padding:13px 15px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">
+            <div class="oc-ic" style="width:24px;height:24px;border-radius:7px;font-size:11px;">①</div>
+            <div style="font-size:11.5px;font-weight:800;color:var(--blue-dark);letter-spacing:.04em;">친근하게</div>
+          </div>
+          <div style="font-size:12.5px;color:var(--t1);line-height:1.55;">아 24평 화장실이시구나~ 보통 28~32만원선이에요 😊 사진 몇 장만 주시면 정확히 봐드릴게요!</div>
         </div>
-        <div class="org-card" data-oc="2" style="margin-top:7px;">
-          <div class="oc-ic" style="background:var(--amber-tint);color:var(--amber);">📅</div>
-          <div><div class="oc-t">일정 확인 요청 · 1건</div><div class="oc-s">캘린더 자동 매칭</div></div>
+        <div class="org-card" data-oc="2" style="margin-top:7px;display:block;padding:13px 15px;background:linear-gradient(135deg,var(--success-tint),#fff);border-color:rgba(22,193,114,.2);">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">
+            <div class="oc-ic" style="width:24px;height:24px;border-radius:7px;font-size:11px;background:#fff;color:var(--success);">②</div>
+            <div style="font-size:11.5px;font-weight:800;color:#0a8f44;letter-spacing:.04em;">자세하게</div>
+          </div>
+          <div style="font-size:12.5px;color:var(--t1);line-height:1.55;">안녕하세요 고객님! 24평 화장실 줄눈은 보통 28~32만원입니다. 사진(타일/상태/면적) 몇 장만 보내주시면 정확한 견적 안내해 드릴게요~</div>
         </div>
-        <div class="org-card" data-oc="3" style="margin-top:7px;">
-          <div class="oc-ic" style="background:var(--success-tint);color:var(--success);">📄</div>
-          <div><div class="oc-t">견적서 발송 요청 · 1건</div><div class="oc-s">서식 자동 작성</div></div>
+        <div class="org-card" data-oc="3" style="margin-top:7px;display:block;padding:13px 15px;background:linear-gradient(135deg,var(--amber-tint),#fff);border-color:rgba(246,166,9,.25);">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">
+            <div class="oc-ic" style="width:24px;height:24px;border-radius:7px;font-size:11px;background:#fff;color:var(--amber);">③</div>
+            <div style="font-size:11.5px;font-weight:800;color:#C9820B;letter-spacing:.04em;">간단하게</div>
+          </div>
+          <div style="font-size:12.5px;color:var(--t1);line-height:1.55;">28~32만원선이에요~ 사진 보내주시면 정확히 알려드릴게요!</div>
         </div>
       </div>
     </div>
@@ -392,27 +399,35 @@
       <div class="ac-ic">🔔</div>
       <div>
         <div class="ac-t">시공 D-1 알림 — 박철수 고객님께</div>
-        <div class="ac-d">막내가 안내 문자 초안 준비했어요. <b>"내일 오전 9시 도착 예정입니다~ 주차는 단지 입구 방문자 칸 이용하시면 돼요!"</b> · 사장님이 ▶ 보내기만</div>
+        <div class="ac-d">막내가 안내 문자 초안 준비했어요. <b>"내일 오전 9시 도착 예정입니다~ 내일 뵙겠습니다~!"</b> · 사장님이 ▶ 보내기만</div>
       </div>
     </div>
 
-    <!-- 기능 데모 3 — 마감 브리핑 -->
+    <!-- 기능 데모 3 — 통화 요약 + 후속 문자 -->
     <div class="sec-title reveal d1" style="margin-top:48px;">막내가 일하는 법 ③</div>
-    <h2 class="reveal d2"><span class="p">오늘 시공 문의</span><br>마감 브리핑까지</h2>
-    <p class="lead reveal d3">밤 11시, 막내가 오늘 하루 자동 정리. 사장님은 5초만 보고 자도 돼요.</p>
+    <h2 class="reveal d2"><span class="p">통화 끝나면</span><br>자동 요약 + 후속 문자</h2>
+    <p class="lead reveal d3">현장에서 받은 통화, 막내가 핵심 요약 + 고객한테 보낼 후속 문자까지 자동 작성. 사장님은 ▶ 보내기만.</p>
 
-    <div class="briefing reveal d3">
-      <div class="br-time">2026년 6월 4일 · 23:00 마감 브리핑</div>
-      <div class="br-h">오늘 <b>문의 12건</b>, 막내가 답장 준비 완료 <b>9건</b></div>
-      <div class="br-stat-grid">
-        <div class="br-stat"><div class="bs-v up">12</div><div class="bs-l">받은 문의</div></div>
-        <div class="br-stat"><div class="bs-v">9</div><div class="bs-l">답장 완료</div></div>
-        <div class="br-stat"><div class="bs-v pos">+3</div><div class="bs-l">시공 확정</div></div>
+    <div class="demo-card reveal d3" style="padding:18px;">
+      <div class="dc-title">▼ 받은 통화 · 김지영 고객님 · 6분 23초</div>
+
+      <div style="background:var(--bg);border-radius:12px;padding:12px 14px;margin-bottom:14px;">
+        <div style="font-size:11.5px;color:var(--t3);font-weight:700;margin-bottom:4px;">📞 통화 요약 (Haiku)</div>
+        <ul style="list-style:none;display:flex;flex-direction:column;gap:6px;margin-top:8px;">
+          <li style="font-size:12.5px;color:var(--t1);line-height:1.55;padding-left:14px;position:relative;"><span style="position:absolute;left:0;color:var(--blue);">•</span>24평 아파트 화장실 줄눈 시공 문의</li>
+          <li style="font-size:12.5px;color:var(--t1);line-height:1.55;padding-left:14px;position:relative;"><span style="position:absolute;left:0;color:var(--blue);">•</span>주말 시공 희망 (토 오전 선호)</li>
+          <li style="font-size:12.5px;color:var(--t1);line-height:1.55;padding-left:14px;position:relative;"><span style="position:absolute;left:0;color:var(--blue);">•</span>예산 30~35만원 — 견적 무료 확인 요청</li>
+        </ul>
       </div>
-      <div class="br-list">
-        <div class="br-item urgent"><b>내일 시공 2건</b> · 박철수 09시(수원), 이미정 14시(부천). 안내 문자 초안 대기 중.</div>
-        <div class="br-item"><b>답장 대기 3건</b> · 김지영(견적), 010-5566-..., 010-7788-... 내일 오전 처리 권장.</div>
-        <div class="br-item good"><b>오늘 매출 +₩2,180,000</b> · 베란다 타일 시공 1건 결제 확인.</div>
+
+      <div class="arrow-down">↓</div>
+
+      <div style="background:linear-gradient(135deg,var(--blue-tint),var(--purple-tint));border:1px solid rgba(49,130,246,.2);border-radius:12px;padding:13px 15px;position:relative;">
+        <div style="font-size:11px;font-weight:900;color:var(--blue-dark);letter-spacing:.04em;margin-bottom:7px;">✉️ 후속 문자 초안 (사장님 톤)</div>
+        <div style="font-size:13px;color:var(--t1);line-height:1.65;">김지영 고객님~ 방금 통화한 시공막내 사장이에요 😊 토요일 오전 시공 일정 잡아드릴게요. 정확한 견적 위해 화장실 사진 2~3장만 보내주세요!</div>
+        <div style="margin-top:11px;display:flex;justify-content:flex-end;">
+          <button style="background:var(--grad-blue);color:#fff;font-size:12px;font-weight:800;padding:8px 16px;border-radius:8px;letter-spacing:-.02em;box-shadow:0 4px 12px rgba(49,130,246,.3);">▶ 보내기</button>
+        </div>
       </div>
     </div>
 
