@@ -210,24 +210,9 @@ fun CustomerDetailScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
             )
         },
-        snackbarHost = { SnackbarHost(snackbar) },
-        bottomBar = {
-            // Auto-save 채택 (2026-05-19) — '저장' 버튼 폐기. 모든 입력이 onChange 즉시 저장됨.
-            // 하단 CTA 는 채팅 진입 하나만.
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .background(TossGrayBg)
-                    .imePadding()
-                    .padding(horizontal = 20.dp, vertical = 12.dp)
-            ) {
-                TossPrimaryButton(
-                    text = "💬 문자 보내기",
-                    onClick = { customer?.let { onOpenChat(it.phoneNumber, it.id) } },
-                    enabled = customer != null
-                )
-            }
-        }
+        snackbarHost = { SnackbarHost(snackbar) }
+        // 하단 고정 "💬 문자 보내기" 버튼 제거 — 프로토 openCustomer 엔 없음(맨 아래 "지난 문자 보기"
+        //   링크만). 2026-06-04 사장님 결정 "프로토대로".
     ) { inner ->
         val c = customer
         if (c == null) {
@@ -431,13 +416,23 @@ fun CustomerDetailScreen(
                                 }
                             }
                             Spacer(Modifier.height(8.dp))
+                            // 프로토 .sum-li — 파란 5px 점(sum-dot) + 본문(14sp, t2, line 1.7). 2026-06-04.
                             lines.forEach { line ->
-                                Text(
-                                    line,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = TossTextPrimary,
+                                androidx.compose.foundation.layout.Row(
+                                    verticalAlignment = androidx.compose.ui.Alignment.Top,
                                     modifier = Modifier.padding(vertical = 2.dp)
-                                )
+                                ) {
+                                    androidx.compose.foundation.layout.Box(
+                                        Modifier.padding(top = 8.dp).size(5.dp).clip(CircleShape).background(TossBlue)
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        line,
+                                        fontSize = 14.sp,
+                                        color = TossTextSecondary,
+                                        lineHeight = 24.sp
+                                    )
+                                }
                             }
                         }
                     }
@@ -448,9 +443,14 @@ fun CustomerDetailScreen(
             //   2026-06-03 사장님 결정 "프로토대로 제거".
 
             // 메모 카드 — 프로토 순서: 대화요약 → 메모 → 일정 · 정산 (2026-06-03 프로토대로 이동).
+            //   라벨 = 프로토 cd-label "📝 메모"(이모지+12sp w800 t3) — 형제 카드와 통일(2026-06-04).
             TossCard {
                 Column {
-                    SectionLabel("메모")
+                    androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Text("📝", fontSize = 13.sp)
+                        Spacer(Modifier.width(6.dp))
+                        Text("메모", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                    }
                     Spacer(Modifier.height(10.dp))
                     OutlinedTextField(
                         value = memoInput,
@@ -537,127 +537,9 @@ fun CustomerDetailScreen(
             //    "📩 주고받은 문자" 접이식 섹션이 대화요약 아래로 올라옴 → 여기 중복.
             //    MessageRow/MessageRowView 는 dead code 가능성 → 다른 사용처 없으면 추후 정리.
 
-            // 5. 통화 기록 — 헤더 탭으로 펼침/접힘. 기본 접힘 (공간 절약).
-            //    펼친 상태에서 각 통화에 매칭된 녹음은 인라인 ▶ 버튼. 별도 "녹음 파일" 섹션 없음.
-            //    매칭 안 된 녹음은 카드 하단에 또 한 단 접힘으로 분리.
-            TossCard {
-                Column {
-                    val recsByCallId = remember(recordings) {
-                        recordings.filter { it.callRecordId != null }.groupBy { it.callRecordId!! }
-                    }
-                    val orphanRecs = remember(recordings) {
-                        recordings.filter { it.callRecordId == null }
-                    }
-
-                    // 클릭형 헤더
-                    androidx.compose.foundation.layout.Row(
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(enabled = records.isNotEmpty()) {
-                                callsExpanded = !callsExpanded
-                            }
-                            .padding(vertical = 4.dp)
-                    ) {
-                        SectionLabel(
-                            text = if (records.isEmpty()) "통화 기록" else "통화 기록 ${records.size}건",
-                            modifier = Modifier.weight(1f)
-                        )
-                        if (records.isNotEmpty()) {
-                            Text(
-                                if (callsExpanded) "▾" else "▸",
-                                color = TossTextTertiary,
-                                style = MaterialTheme.typography.labelMedium
-                            )
-                        }
-                    }
-
-                    if (records.isEmpty()) {
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            "통화 기록이 없어요",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TossTextTertiary
-                        )
-                    } else if (callsExpanded) {
-                        Spacer(Modifier.height(8.dp))
-                        records.forEach { r ->
-                            CallRecordRow(
-                                line = "${DateTimeUtils.formatShort(r.endedAt)} · ${callTypeLabel(r.callType)} · ${DateTimeUtils.durationLabel(r.duration)}",
-                                recordings = recsByCallId[r.id].orEmpty(),
-                                onPlay = { rec -> playRecording(context, rec.fileUri) }
-                            )
-                            Spacer(Modifier.height(6.dp))
-                        }
-                    }
-
-                    if (orphanRecs.isNotEmpty() && callsExpanded) {
-                        Spacer(Modifier.height(10.dp))
-                        androidx.compose.material3.Divider(color = TossDivider)
-                        Spacer(Modifier.height(6.dp))
-                        // 클릭형 헤더 한 줄 — 탭하면 목록 펼침/접힘.
-                        androidx.compose.foundation.layout.Row(
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { orphanRecsExpanded = !orphanRecsExpanded }
-                                .padding(vertical = 8.dp)
-                        ) {
-                            Text(
-                                "통화에 매칭 안 된 녹음 ${orphanRecs.size}건",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = TossTextSecondary,
-                                modifier = Modifier.weight(1f),
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                if (orphanRecsExpanded) "▾" else "▸",
-                                color = TossTextTertiary,
-                                style = MaterialTheme.typography.labelMedium
-                            )
-                        }
-                        if (orphanRecsExpanded) {
-                            Spacer(Modifier.height(2.dp))
-                            orphanRecs.forEach { rec ->
-                                androidx.compose.foundation.layout.Row(
-                                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        formatRecordingTitle(rec),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = TossTextSecondary,
-                                        modifier = Modifier.weight(1f),
-                                        maxLines = 1
-                                    )
-                                    androidx.compose.material3.TextButton(
-                                        onClick = { playRecording(context, rec.fileUri) }
-                                    ) {
-                                        Text("▶ 재생", color = TossBlue, fontWeight = FontWeight.SemiBold)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 6. 에이닷 통화 요약 — 실제로 요약이 들어왔을 때만 노출.
-            //    빈 상태 안내/붙여넣기 버튼은 숨김 ("준비 중" 톤). 에이닷 공유 인텐트는
-            //    Activity 레벨(AdotSummaryImporter.importFromShare)에서 그대로 받으므로
-            //    UI 없이도 자동 수집은 정상 동작.
-            if (summaries.isNotEmpty()) {
-                TossCard {
-                    Column {
-                        SectionLabel("에이닷 통화 요약")
-                        Spacer(Modifier.height(8.dp))
-                        summaries.forEach { s ->
-                            SummaryItem(summary = s)
-                            Spacer(Modifier.height(8.dp))
-                        }
-                    }
-                }
-            }
+            // 5·6. (제거) "통화 기록" + "에이닷 통화 요약" 카드 — 프로토 openCustomer 엔 없음.
+            //   2026-06-04 사장님 결정 "프로토 100%". 통화기록/녹음/에이닷 요약 데이터 수집(backfill·
+            //   AdotSummaryImporter)은 그대로 동작 — 고객정보 화면에서 카드로 노출만 안 함.
 
             // 6.5 현장 사진 (프로토 openCustomer) — 테스터용: UI 노출, 업로드 기능은 "준비 중"으로 막음.
             val photoCtx = androidx.compose.ui.platform.LocalContext.current

@@ -2784,3 +2784,12 @@ rm -f .git/index.lock .git/ORIG_HEAD.lock && git pull --rebase origin main && gi
 3. **랜딩페이지 데이터 동적화**: 베타 셋팅 폼 (§22) 의 카테고리 5/6/7/9 데이터를 랜딩페이지에 자동 sync (현재 100명·4주·무료 placeholder)
 4. **신청 알림**: SOLAPI Zapier 로 사장님께 SMS (`?? 베타 신청 1건 — 010-XXXX-XXXX (줄눈, 수원시 영통구)`)
 5. **Zapier MCP Gmail `selected_api` schema 점검** (이전 cycle 부터 계속 미정)
+
+## 2026-06-04 · android (62)
+### 고객정보 화면 프로토 1:1 점검·개선 (openCustomer 대조)
+사장님 "고객정보 프로토와 아직 1:1 아닌 부분 체크·개선". CustomerDetailScreen ↔ 프로토 openCustomer 전수 대조.
+- 순수 1:1 수정: ①메모 카드 라벨 SectionLabel("메모")→📝 메모(cd-label 이모지 스타일, 형제카드 통일) ②대화요약 줄에 파란 5px 점(sum-dot, 프로토 .sum-li) 추가.
+- 사장님 결정(질문 후) "프로토 100%": ③통화기록 카드 + ④에이닷 통화요약 카드 제거(프로토 openCustomer 엔 없음) ⑤하단 고정 "💬 문자 보내기" 버튼 제거(프로토는 "지난 문자 보기" 링크만). 데이터 수집(backfill/AdotSummaryImporter)은 유지 — 카드 노출만 제거.
+- 남은 1건(미구현): 이름 없을 때 프로토는 주소→아파트명 자동표시+"자동" 배지(name-auto). 앱은 전화번호만 → "주소→아파트명 추출" 기능 필요(스타일 아닌 개발). 사장님께 보고함.
+- 빌드/설치/실기기 확인(고객상세 캡처 4장: 점불릿·📝메모·카드제거·하단버튼없음 전부 확인). ONEONE_STATUS 고객상세 🟡→🟢(자동배지 제외) 갱신.
+- 서버 영향 없음.
