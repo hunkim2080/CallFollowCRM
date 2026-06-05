@@ -7349,6 +7349,23 @@ async def team_event_photo(req: TeamPhotoUploadRequest) -> dict:
                                         break
             except Exception:
                 pass  # snapshot 파싱 실패는 NULL 로 두고 통과 (안드로이드는 req 에 직접 보내는 게 안정)
+        # 한 현장(customer_phone) 최대 20장 — 사장님 정책(2026-06-05). customer_phone 미매핑이면 컷 생략.
+        if customer_phone:
+            cust_digits = "".join(ch for ch in customer_phone if ch.isdigit())
+            suffix_8 = cust_digits[-8:] if len(cust_digits) >= 8 else cust_digits
+            cnt = con.execute(
+                """
+                SELECT COUNT(*) FROM team_site_photos
+                WHERE owner_phone = ?
+                  AND (
+                    customer_phone = ?
+                    OR REPLACE(REPLACE(REPLACE(REPLACE(IFNULL(customer_phone,''), '-', ''), ' ', ''), '+', ''), '_', '') LIKE ?
+                  )
+                """,
+                (owner_phone, customer_phone, f"%{suffix_8}"),
+            ).fetchone()[0]
+            if cnt >= 20:
+                raise HTTPException(409, "한 현장에 사진은 20장까지예요")
         cur = con.execute(
             """
             INSERT INTO team_site_photos
@@ -7716,33 +7733,42 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
     window.location.href = url;
   }}
 
-  async function pickPhoto(label) {{
+  async function pickPhotos() {{
     var f = document.createElement('input');
-    f.type = 'file'; f.accept = 'image/*';
-    f.capture = 'environment';
+    f.type = 'file'; f.accept = 'image/*'; f.multiple = true;
     f.onchange = async function(e) {{
-      var file = e.target.files && e.target.files[0];
-      if (!file) return;
-      // 압축: 캔버스에 1024px 너비로 리사이즈
-      var dataUrl = await resizeImage(file, 1024, 0.82);
-      var btn = document.getElementById('ph-' + label);
-      if (btn) btn.textContent = '⏳ 전송 중...';
-      try {{
-        var resp = await fetch('/api/team/event/photo', {{
-          method:'POST',
-          headers:{{'Content-Type':'application/json'}},
-          body: JSON.stringify({{token: TOKEN, label: label, image_data_url: dataUrl}}),
-        }});
-        if (resp.ok) {{
-          if (btn) btn.outerHTML = '<div class="photo-thumb uploaded"><span class="ph-sent">✓</span><span class="pl">' + label + '</span></div>';
-        }} else {{
-          var err = await resp.json().catch(function(){{return{{}};}});
-          alert('실패: ' + (err.detail || resp.status));
-          if (btn) btn.textContent = label;
-        }}
-      }} catch (e) {{
-        alert('네트워크 오류');
+      var files = e.target.files;
+      if (!files || !files.length) return;
+      var grid = document.getElementById('mv-photo-grid');
+      var addBtn = document.getElementById('ph-add');
+      if (addBtn) addBtn.querySelector('.pl').textContent = '전송 중…';
+      var ok = 0, fail = 0;
+      for (var i = 0; i < files.length; i++) {{
+        var dataUrl = await resizeImage(files[i], 1024, 0.82);
+        try {{
+          var resp = await fetch('/api/team/event/photo', {{
+            method:'POST',
+            headers:{{'Content-Type':'application/json'}},
+            body: JSON.stringify({{token: TOKEN, image_data_url: dataUrl}}),
+          }});
+          if (resp.ok) {{
+            ok++;
+            if (grid && addBtn) {{
+              var d = document.createElement('div');
+              d.className = 'photo-thumb uploaded';
+              d.innerHTML = '<span class="ph-sent">✓</span><span class="pl">올림</span>';
+              grid.insertBefore(d, addBtn);
+            }}
+          }} else {{
+            fail++;
+            var err = await resp.json().catch(function(){{return{{}};}});
+            if (err.detail) {{ alert(err.detail); break; }}
+          }}
+        }} catch (e) {{ fail++; }}
       }}
+      if (addBtn) addBtn.querySelector('.pl').textContent = '올리기';
+      if (fail && ok) alert(ok + '장 올림 · ' + fail + '장 실패');
+      else if (fail && !ok) alert('사진 전송 실패');
     }};
     f.click();
   }}
@@ -7803,11 +7829,9 @@ def _build_today_card_html(item: dict) -> str:
     </div>
     <div class="mv-photos">
       <div class="mv-ph-top">📷 현장 사진 올리기<span class="mv-ph-sub">대표님에게 바로 전송</span></div>
-      <div class="ph-help">시공 전·후 사진을 찍어 올리면 대표님 앱에 자동으로 쌓여요.</div>
-      <div class="photo-grid">
-        <div class="photo-thumb" id="ph-시공 전" onclick="pickPhoto('시공 전')">📷<span class="pl">시공 전</span></div>
-        <div class="photo-thumb" id="ph-시공 중" onclick="pickPhoto('시공 중')">📷<span class="pl">시공 중</span></div>
-        <div class="photo-thumb" id="ph-시공 후" onclick="pickPhoto('시공 후')">📷<span class="pl">시공 후</span></div>
+      <div class="ph-help">사진을 한 번에 여러 장 골라 올리면 대표님 앱에 자동으로 쌓여요. (한 현장 20장까지)</div>
+      <div class="photo-grid" id="mv-photo-grid">
+        <div class="photo-thumb" id="ph-add" onclick="pickPhotos()">📷<span class="pl">올리기</span></div>
       </div>
     </div>
     '''

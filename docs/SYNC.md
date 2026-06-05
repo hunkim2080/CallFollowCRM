@@ -3082,3 +3082,12 @@ HOU-128 `/admin/beta/intake` (셋팅 폼) 도 이전 cycle 에 통합 완료. �
 (label 안 보냄 → TeamPhotoUploadRequest.label 기본 None. f.capture 제거 → 갤러리 다중선택 가능.)
 
 ### ③ 서버 20장 제한 — /api/team/event/photo INSERT 전, 그 customer_phone 의 team_site_photos 개수 >= 20 이면 거부(HTTPException 409 "한 현장 20장까지"). customer_phone 은 기존 §25 매핑(req 또는 schedule_snapshot)로 구함.
+
+## 2026-06-05 03:55 · android (⚠️ server/ 직접 수정 — 사장님 승인 룰 예외)
+팀원 웹뷰 사진 "전/중/후 → 한번에" + 서버 20장 제한 — 위 03:40 수정안을 **android 가 직접 적용**(사장님이 "내가 직접 고치기" 선택). server/main.py:
+1. TEAM_MEMBER_HTML_TEMPLATE 사진 그리드 = "올리기" 1개(`pickPhotos()`), 다중선택·라벨 제거.
+2. pickPhoto(label) → pickPhotos() (multiple, label 안 보냄, 결과 그리드에 ✓ 타일 추가).
+3. /api/team/event/photo: customer_phone 기준 20장 이상이면 409 거부.
+- py_compile 통과. **⚠️ 맥미니 배포 필요** (사장님 `bash server/deploy_phase1.sh` 또는 Cowork sync) 해야 라이브 반영.
+- cowork: 이 영역(server) 다음에 만질 때 충돌 주의 — android 가 위 3곳 건드림.
+- commit: (아래)
