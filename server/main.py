@@ -7743,6 +7743,11 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
   .card .name {{ font-size:16px; font-weight:800; color:var(--t1); }}
   .card .time {{ margin-left:auto; font-size:12.5px; font-weight:800; color:var(--blue); background:var(--blue-tint); padding:3px 9px; border-radius:8px; }}
 
+  /* 대표님 전달사항 (노란 박스) */
+  .owner-memo {{ margin-top:13px; background:#FFF8E1; border:1px solid #FFE7A3; border-radius:12px; padding:11px 13px; }}
+  .owner-memo .om-t {{ font-size:11.5px; font-weight:800; color:#A66B00; }}
+  .owner-memo .om-b {{ font-size:14px; font-weight:700; color:#5A3D00; margin-top:4px; line-height:1.5; word-break:keep-all; white-space:pre-wrap; }}
+
   /* 정보 줄 (아이콘 정렬) */
   .fl {{ margin-top:13px; display:flex; flex-direction:column; gap:9px; }}
   .fl-row {{ display:flex; align-items:flex-start; gap:9px; font-size:13.5px; }}
@@ -8082,24 +8087,29 @@ def _build_today_card_html(item: dict, date_label: str = "", photo_urls: list[st
     time = _html.escape(str(item.get("time") or "—"))
     addr = _html.escape(str(item.get("addr") or "주소 미입력"))
     work = _html.escape(str(item.get("work_summary") or ""))
-    memo = _html.escape(str(item.get("memo") or ""))
+    # team_memo = 사장님이 배정 시 직원에게 전달한 메모(고객 메모 아님 — 사생활 보호로 고객 메모는 안 보냄).
+    team_memo = str(item.get("team_memo") or "").strip()
     cust_phone = str(item.get("customer_phone") or "").strip()
     date_html = f'<span class="day-date">{_html.escape(date_label)}</span>' if date_label else ""
 
-    # 정보 줄 — 아이콘별 줄맞춤(시간/주소/작업/메모/고객). 주소는 #today-addr(복사·내비용, 순수 텍스트).
+    # 정보 줄 — 아이콘별 줄맞춤(시간/주소/작업/고객). 주소는 #today-addr(복사·내비용, 순수 텍스트).
     rows = [
         f'<div class="fl-row"><span class="fl-ic">🕘</span><span class="fl-k">시간</span><span class="fl-v">{time}</span></div>',
         f'<div class="fl-row"><span class="fl-ic">📍</span><span class="fl-k">주소</span><span class="fl-v" id="today-addr">{addr}</span></div>',
     ]
     if work:
         rows.append(f'<div class="fl-row"><span class="fl-ic">🔧</span><span class="fl-k">작업</span><span class="fl-v">{work}</span></div>')
-    if memo:
-        rows.append(f'<div class="fl-row"><span class="fl-ic">📝</span><span class="fl-k">메모</span><span class="fl-v">{memo}</span></div>')
     if cust_phone:
         # 고객 연락처 — 대표님이 배정 시 같이 보냄(사장님 요청 2026-06-05).
         cp = _html.escape(cust_phone)
         rows.append(f'<div class="fl-row"><span class="fl-ic">📞</span><span class="fl-k">고객</span><span class="fl-v"><a href="tel:{cp}">{cp}</a></span></div>')
     fl_html = '<div class="fl">' + "".join(rows) + '</div>'
+
+    # 대표님 전달사항 — 있을 때만 눈에 띄는 노란 박스(고객 메모와 별개).
+    memo_html = ""
+    if team_memo:
+        memo_safe = _html.escape(team_memo).replace("\n", "<br>")
+        memo_html = f'<div class="owner-memo"><div class="om-t">📌 대표님 전달사항</div><div class="om-b">{memo_safe}</div></div>'
 
     # 이미 올린 사진 = 작은 썸네일(?w=400)로 다시 보여주고, 탭하면 원본(라이트박스).
     #   썸네일은 서버가 줄여 보내(가볍고 빠름), 원본은 탭할 때만 받음.
@@ -8117,6 +8127,7 @@ def _build_today_card_html(item: dict, date_label: str = "", photo_urls: list[st
         <span class="name">{name}</span>
         <span class="time">{time}</span>
       </div>
+      {memo_html}
       {fl_html}
       <div class="stepper" id="mv-stepper"></div>
       <div style="margin-top:6px"><button class="hbtn" onclick="copyAddr()">📋 주소 복사</button></div>

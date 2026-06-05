@@ -14,16 +14,23 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.ui.text.input.KeyboardType
+import com.detailline.callfollowcrm.presentation.component.SheetFieldLabel
+import com.detailline.callfollowcrm.presentation.component.SheetTextField
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -270,15 +277,18 @@ fun ScheduleScreen(
 
     // 팀원 현장 배정 시트 — 프로토 openAssign(팀원 칩 토글).
     assignTarget?.let { c ->
-        val assignedIds = assignmentsByCustomer[c.id].orEmpty().map { it.memberId }.toSet()
+        val rows = assignmentsByCustomer[c.id].orEmpty()
+        val assignedIds = rows.map { it.memberId }.toSet()
+        val existingMemo = rows.firstNotNullOfOrNull { it.teamMemo }.orEmpty()
         AssignTeamSheet(
             customerName = c.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(c.phoneNumber),
             members = teamMembers,
             initiallySelected = assignedIds,
+            initialMemo = existingMemo,
             onDismiss = { assignTarget = null },
-            onSave = { selectedIds ->
+            onSave = { selectedIds, memo ->
                 val dayStart = DateTimeUtils.startOfDay(c.scheduledWorkDate ?: System.currentTimeMillis())
-                viewModel.assignTeam(c, dayStart, selectedIds.toList())
+                viewModel.assignTeam(c, dayStart, selectedIds.toList(), memo)
                 assignTarget = null
             }
         )
@@ -765,21 +775,48 @@ private fun buildCalendarCells(
  * 팀원 현장 배정 시트 — 프로토 openAssign/renderAssign 1:1 (팀원 칩 토글).
  *   저장 시 ScheduleViewModel.assignTeam → 로컬 기록 + 서버 schedule-snapshot push.
  */
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+/**
+ * 현장 배정 시트 — 팀원 칩 토글 + 직원 전달 메모.
+ *   ModalBottomSheet(별도 윈도우)는 갤S9/안드10 에서 키보드가 입력칸을 가림(reference_modalbottomsheet_keyboard).
+ *   메모 입력칸이 생겼으므로 액티비티 윈도우 안 인라인 오버레이로 그림(adjustResize → 키보드 뜨면 카드가 위로).
+ */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun AssignTeamSheet(
     customerName: String,
     members: List<com.detailline.callfollowcrm.ai.TeamRepository.TeamMember>,
     initiallySelected: Set<String>,
+    initialMemo: String,
     onDismiss: () -> Unit,
-    onSave: (Set<String>) -> Unit
+    onSave: (Set<String>, String) -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var selected by remember { mutableStateOf(initiallySelected) }
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = Color.White, tonalElevation = 0.dp) {
+    var memo by remember { mutableStateOf(initialMemo) }
+    val noRipple = remember { MutableInteractionSource() }
+
+    // 스크림(탭 시 닫힘) + 하단 정렬 카드.
+    Box(
+        Modifier.fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.4f))
+            .clickable(interactionSource = noRipple, indication = null) { onDismiss() }
+    ) {
         Column(
-            Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 22.dp)
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
+                .background(Color.White)
+                .clickable(interactionSource = noRipple, indication = null) { /* 카드 탭은 닫지 않음 */ }
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(horizontal = 20.dp)
+                .padding(top = 8.dp, bottom = 20.dp)
+                .heightIn(max = 620.dp)
+                .verticalScroll(rememberScrollState())
         ) {
+            // grip
+            Box(
+                Modifier.align(Alignment.CenterHorizontally).padding(bottom = 12.dp)
+                    .width(38.dp).height(4.dp).clip(RoundedCornerShape(999.dp)).background(TossDivider)
+            )
             Text("현장 배정", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
             Spacer(Modifier.height(4.dp))
             Text("${customerName} 현장에 보낼 팀원을 고르세요. 배정하면 팀원 화면에 일정·주소가 떠요.",
@@ -814,10 +851,20 @@ private fun AssignTeamSheet(
                     }
                 }
             }
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(18.dp))
+            // 직원 전달 메모 — 고객 메모와 별개. 팀원 화면에 '대표님 전달사항'으로 뜸(고객 메모는 안 보임).
+            SheetFieldLabel("직원에게 전달 (선택)")
+            SheetTextField(
+                memo, { memo = it },
+                placeholder = "예: 현관 비번 1234# · 사다리차 필요 · 주차는 뒷편",
+                singleLine = false, minHeightDp = 64
+            )
+            Text("고객 메모와 별개예요. 여기 적은 내용만 팀원 화면에 보여요.",
+                fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 6.dp, start = 2.dp))
+            Spacer(Modifier.height(18.dp))
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(TossBlue)
-                    .clickable { onSave(selected) }.padding(vertical = 15.dp),
+                    .clickable { onSave(selected, memo) }.padding(vertical = 15.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(

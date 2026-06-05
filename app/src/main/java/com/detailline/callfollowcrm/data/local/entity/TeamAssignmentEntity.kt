@@ -24,5 +24,7 @@ data class TeamAssignmentEntity(
     val memberName: String,
     val customerId: Long,
     val dayStartMs: Long,
-    val createdAt: Long
+    val createdAt: Long,
+    /** 사장님이 이 현장에서 직원에게 전달할 메모 (예: 현관 비번, 사다리차 필요). 현장당 1개 → 배정된 모든 팀원 행에 동일 저장. DB v30. */
+    val teamMemo: String? = null
 )

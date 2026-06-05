@@ -61,7 +61,7 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity::class,
         com.detailline.callfollowcrm.data.local.entity.TeamAssignmentEntity::class
     ],
-    version = 29,
+    version = 30,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -629,6 +629,13 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v30 — 현장 배정에 '직원 전달 메모' 추가 (고객 메모와 분리, 팀원 화면 표시용).
+        private val MIGRATION_29_30 = object : Migration(29, 30) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `team_assignments` ADD COLUMN `teamMemo` TEXT")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
@@ -642,7 +649,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19,
                     MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23,
                     MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27,
-                    MIGRATION_27_28, MIGRATION_28_29
+                    MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30
                 )
                 .fallbackToDestructiveMigration()   // migration 실패 시 안전망 (개발 단계)
                 .build()

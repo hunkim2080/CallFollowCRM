@@ -66,14 +66,14 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
      * 한 현장(고객)에 팀원 배정 저장 — 로컬 기록 교체 + 영향 받은 팀원들의 일정 snapshot 을 서버에 push.
      *   팀원 웹뷰(/team/member/{token})에 배정 일정이 바로 반영됨. 자동 SMS 발송 X.
      */
-    fun assignTeam(customer: CustomerEntity, dayStartMs: Long, selectedMemberIds: List<String>) {
+    fun assignTeam(customer: CustomerEntity, dayStartMs: Long, selectedMemberIds: List<String>, teamMemo: String? = null) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
             val members = _teamMembers.value
             val selected = members.filter { it.memberId in selectedMemberIds }
             val prev = container.teamAssignmentRepository.forCustomer(customer.id).map { it.memberId }.toSet()
             container.teamAssignmentRepository.replaceForCustomer(
-                customer.id, dayStartMs, selected.map { it.memberId to it.name }, now
+                customer.id, dayStartMs, selected.map { it.memberId to it.name }, now, teamMemo
             )
             // 영향 받은 팀원 = 이전 배정 ∪ 새 배정 — 각자 snapshot 재구성 push.
             val affected = prev + selectedMemberIds
@@ -106,7 +106,8 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
                 time = c.scheduledWorkMinutes?.let { DateTimeUtils.formatWorkMinutes(it) },
                 addr = c.address?.takeIf { it.isNotBlank() },
                 workSummary = null,
-                memo = c.memo.takeIf { it.isNotBlank() },
+                // 직원 전달 메모 = 배정 시 사장님이 적은 것(고객 메모 아님 — 사생활 보호).
+                teamMemo = a.teamMemo?.takeIf { it.isNotBlank() },
                 days = c.scheduledWorkDays.coerceAtLeast(1),
                 isToday = isToday,
                 scheduledAtMs = sStart

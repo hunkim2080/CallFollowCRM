@@ -15,19 +15,21 @@ class TeamAssignmentRepository(private val dao: TeamAssignmentDao) {
 
     suspend fun forMember(memberId: String): List<TeamAssignmentEntity> = dao.forMember(memberId)
 
-    /** 한 고객(현장)의 팀원 배정을 통째로 교체. */
+    /** 한 고객(현장)의 팀원 배정을 통째로 교체. teamMemo = 직원 전달 메모(현장당 1개 → 모든 행에 동일). */
     suspend fun replaceForCustomer(
         customerId: Long,
         dayStartMs: Long,
         members: List<Pair<String, String>>,   // (memberId, memberName)
-        nowMs: Long
+        nowMs: Long,
+        teamMemo: String? = null
     ) {
         dao.deleteForCustomer(customerId)
         if (members.isNotEmpty()) {
             dao.insertAll(members.map { (id, name) ->
                 TeamAssignmentEntity(
                     memberId = id, memberName = name,
-                    customerId = customerId, dayStartMs = dayStartMs, createdAt = nowMs
+                    customerId = customerId, dayStartMs = dayStartMs, createdAt = nowMs,
+                    teamMemo = teamMemo?.takeIf { it.isNotBlank() }
                 )
             })
         }

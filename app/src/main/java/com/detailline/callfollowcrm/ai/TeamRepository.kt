@@ -143,7 +143,7 @@ class TeamRepository(
         val time: String?,             // "09:00"
         val addr: String?,
         val workSummary: String?,
-        val memo: String?,
+        val teamMemo: String?,         // 사장님 → 직원 전달 메모 (고객 메모 아님)
         val days: Int,
         val isToday: Boolean,
         val scheduledAtMs: Long
@@ -165,7 +165,7 @@ class TeamRepository(
                         it2.time?.let { put("time", it) }
                         it2.addr?.let { put("addr", it) }
                         it2.workSummary?.let { put("work_summary", it) }
-                        it2.memo?.let { put("memo", it) }
+                        it2.teamMemo?.let { put("team_memo", it) }
                         put("days", it2.days)
                         put("is_today", it2.isToday)
                         put("scheduled_at_ms", it2.scheduledAtMs)

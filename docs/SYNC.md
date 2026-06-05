@@ -3134,3 +3134,16 @@ HOU-128 `/admin/beta/intake` (셋팅 폼) 도 이전 cycle 에 통합 완료. �
 - ⚠️ **권장**: 맥미니 서버 venv 에 `pip install Pillow` 해야 썸네일 축소 효과(속도) 적용. 안 깔아도 동작(원본 전송).
 - ⚠️ 맥미니 재배포 필요.
 - commit: (아래)
+
+## 2026-06-06 · android (+ server, 사장님 승인 룰 예외 연장)
+사장님→직원 전달 메모 추가 + 직원 화면에서 고객 메모 숨김 (사장님 결정: 배정 시트 입력 / 고객메모 숨김).
+- 앱(app):
+  · DB v30 — team_assignments 에 teamMemo 컬럼(MIGRATION_29_30). 현장당 1개(배정된 모든 팀원 행에 동일 저장).
+  · 배정 시트(AssignTeamSheet)에 "직원에게 전달 (선택)" 멀티라인 입력칸 추가. **ModalBottomSheet → 인라인 오버레이로 교체**(갤S9 키보드 가림 버그 회피, reference_modalbottomsheet_keyboard). 기존 메모 있으면 prefill.
+  · SnapshotItem.memo(=고객메모) 제거 → teamMemo 로 교체, JSON 키 "team_memo". pushSnapshotFor 가 배정행의 teamMemo 를 보냄(고객 c.memo 더는 안 보냄).
+- 서버(server/main.py) _build_today_card_html:
+  · 고객 메모(📝) 줄 제거 — 직원 화면에서 고객 메모 노출 중단(사생활 보호).
+  · team_memo 있으면 "📌 대표님 전달사항" 노란 박스로 카드 상단 표시(.owner-memo, 줄바꿈 보존).
+- ⚠️ 맥미니 재배포 필요. 앱은 빌드 성공 + 폰 설치 완료. 재배포 후 재배정해야 새 전달메모가 팀원 토큰에 박힘.
+- cowork: schedule-snapshot 의 team_memo 키 / _build_today_card_html 충돌 주의.
+- commit: (아래)
