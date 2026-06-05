@@ -477,8 +477,7 @@ private fun DayAddButton(label: String, onClick: () -> Unit) {
 
 /**
  * 프로토 day-job 카드 — hd 점 + 이름 + N일차 + 시간 + D-day/완료 태그 + 수정,
- *   📍 주소, 입금 상태(읽기), "정산·현금흐름에서 보기".
- * (팀원·일당 배정 line 은 99k 팀 기능 — 미구현, 추후.)
+ *   📍 주소, 입금 상태(읽기), "정산·현금흐름에서 보기", 팀원 배정 줄(팀원 있을 때).
  */
 @Composable
 private fun DayJobCard(
