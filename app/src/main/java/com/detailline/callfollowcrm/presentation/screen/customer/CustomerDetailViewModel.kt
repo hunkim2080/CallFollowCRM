@@ -60,14 +60,39 @@ class CustomerDetailViewModel(
         container.sitePhotoRepository.observe(customerId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** 갤러리에서 고른 사진들 추가(내부 저장소 복사). */
+    /** 팀원+사장님이 서버에 올린 현장 사진(§25). 고객 상세 열 때 가져옴. 팀원 건은 파란 이름표. */
+    private val _teamPhotos = MutableStateFlow<List<com.detailline.callfollowcrm.ai.SitePhotoServerRepository.RemotePhoto>>(emptyList())
+    val teamPhotos = _teamPhotos.asStateFlow()
+
+    /** 한 현장 최대 사진 수 (사장님 요청 2026-06-05). 로컬 + 서버 합산 기준. */
+    val sitePhotoMax = 20
+
+    fun refreshTeamPhotos() = viewModelScope.launch {
+        val owner = container.preferences.bizPhone.trim()
+        val cust = customer.value?.phoneNumber?.trim().orEmpty()
+        if (owner.isBlank() || cust.isBlank()) return@launch
+        container.sitePhotoServerRepository.fetch(owner, cust).onSuccess { _teamPhotos.value = it }
+    }
+
+    /** 갤러리에서 고른 사진들 추가(내부 저장소 복사). 한 현장 최대 [sitePhotoMax]장(로컬+서버 합산). */
     fun addSitePhotos(uris: List<android.net.Uri>) = viewModelScope.launch {
         if (uris.isEmpty()) return@launch
+        val current = sitePhotos.value.size + _teamPhotos.value.size
+        val room = (sitePhotoMax - current).coerceAtLeast(0)
+        if (room == 0) {
+            _toast.value = "한 현장에 사진은 ${sitePhotoMax}장까지예요"
+            return@launch
+        }
+        val toAdd = uris.take(room)
         var ok = 0
         withContext(NonCancellable) {
-            uris.forEach { if (container.sitePhotoRepository.addFromUri(customerId, it)) ok++ }
+            toAdd.forEach { if (container.sitePhotoRepository.addFromUri(customerId, it)) ok++ }
         }
-        _toast.value = if (ok > 0) "현장 사진 ${ok}장 추가했어요" else "사진을 추가하지 못했어요"
+        _toast.value = when {
+            ok == 0 -> "사진을 추가하지 못했어요"
+            uris.size > room -> "${sitePhotoMax}장까지만 — ${ok}장 추가했어요"
+            else -> "현장 사진 ${ok}장 추가했어요"
+        }
     }
 
     fun deleteSitePhoto(id: Long) = viewModelScope.launch {

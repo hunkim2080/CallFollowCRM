@@ -52,6 +52,8 @@ class AppContainer(context: Context) {
     val intakeEventRepository = com.detailline.callfollowcrm.data.repository.IntakeEventRepository(
         db.intakeEventDao()
     )
+    // 현장 사진 서버 조회(§25) — 고객 카드에 팀원+사장님 사진 표시. 2026-06-05.
+    val sitePhotoServerRepository = com.detailline.callfollowcrm.ai.SitePhotoServerRepository()
     val callSummaryRepository = CallSummaryRepository(db.callSummaryDao())
     val templateAttachmentRepository = TemplateAttachmentRepository(db.templateAttachmentDao())
     val smsRepository = SmsRepository(context.applicationContext)

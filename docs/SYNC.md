@@ -3028,3 +3028,14 @@ HOU-128 `/admin/beta/intake` (셋팅 폼) 도 이전 cycle 에 통합 완료. �
   `INSERT INTO subscribers(phone,plan_tier,monthly_price_krw,started_at_ms,created_at_ms,updated_at_ms) VALUES('010-6461-0131','team_99k',99000,<now>,<now>,<now>) ON CONFLICT(phone) DO UPDATE SET plan_tier='team_99k',churned_at_ms=NULL;`
 - 🐞 **서버 버그 제보:** `VALID_PLAN_TIERS={founder,beta,pro,enterprise}` (main.py 3414) 에 팀 tier(`team_99k` 등 TEAM_TIER_NAMES, 6878)가 없어서 **관리자 API `/api/admin/subscribers/upsert` 로는 팀 요금제 등록 불가**. VALID_PLAN_TIERS 에 team_99k 추가 권장.
 - 앱 측: invite 403 시 "비즈니스 요금제 기능이에요" 토스트 — 정상 동작(서버가 풀리면 바로 됨). 앱 변경 없음.
+
+## 2026-06-05 03:20 · android (+ cowork 요청)
+현장 사진 — 팀원 사진을 사장님 고객카드에 표시 + 20장 제한 (사장님 요청)
+- 앱 변경: CustomerDetail "현장 사진" 카드가 이제 GET /api/site-photos(§25) 로 팀원+사장님 서버 사진을 가져와 로컬 사진과 같이 표시. 팀원 사진엔 파란 이름표(uploader_name). 비트맵 풀스크린. SitePhotoServerRepository 신설(base64→Bitmap). 고객 상세 열 때 refresh.
+  - 한 현장 최대 20장 제한(로컬+서버 합산) — 20장이면 [올리기] 숨김 + 초과 선택 시 잘라서 추가.
+  - 앱 로컬 업로드는 원래 라벨(전/중/후) 없음(한번에 올림) — 변경 없음.
+- ⚠️ cowork(server) 요청 2가지:
+  1) **팀원 웹뷰(/team/member/{token}) 사진 업로드에서 "시공 전/중/후/추가" 라벨 제거** → 그냥 "사진 올리기" 한 번에(다중) 올리게. 사장님: "전중후 말고 싹 한번에" 편의성.
+  2) **현장(customer_phone)당 사진 20장 제한** — team photo upload 가 그 고객 이미 20장이면 거부(또는 오래된 것 제외). 사장님 정책.
+- 참고: 사장님 본인 사진은 아직 로컬 전용(서버 owner-upload 미연동). 팀 공유/기기이전 원하면 POST /api/site-photo/owner-upload 연동이 다음 후보.
+- commit: (아래)
