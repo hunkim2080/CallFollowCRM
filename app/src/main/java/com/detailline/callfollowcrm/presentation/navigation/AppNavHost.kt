@@ -7,6 +7,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -288,10 +289,21 @@ fun AppNavHost(
         composable(Destinations.NEW_LEADS) {
             val vm: com.detailline.callfollowcrm.presentation.screen.newleads.NewLeadsViewModel =
                 viewModel(factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.newleads.NewLeadsViewModel(container) })
+            val leadScope = androidx.compose.runtime.rememberCoroutineScope()
             com.detailline.callfollowcrm.presentation.screen.newleads.NewLeadsScreen(
                 viewModel = vm,
                 onBack = { navController.popBackStack() },
-                onOpenCustomerDetail = { id -> navController.navigate(Destinations.customerDetail(id)) },
+                onOpenLead = { phone, customerId ->
+                    if (customerId > 0) {
+                        navController.navigate(Destinations.customerDetail(customerId))
+                    } else {
+                        // 고객 카드 없는 문의(통화·문자·MMS만) → phone 으로 고객 만들어 연다.
+                        leadScope.launch {
+                            val id = container.customerRepository.upsertByPhone(phone).id
+                            navController.navigate(Destinations.customerDetail(id))
+                        }
+                    }
+                },
                 onReContact = { phone, customerId -> navController.navigate(Destinations.chat(phone, customerId)) }
             )
         }

@@ -59,7 +59,8 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 fun NewLeadsScreen(
     viewModel: NewLeadsViewModel,
     onBack: () -> Unit,
-    onOpenCustomerDetail: (Long) -> Unit,
+    /** 줄 탭 — 고객 카드 열기. customerId<=0 면 phone 으로 고객을 만들어 연다(AppNavHost 처리). */
+    onOpenLead: (phone: String, customerId: Long) -> Unit,
     onReContact: (phone: String, customerId: Long) -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -129,10 +130,10 @@ fun NewLeadsScreen(
                             Text(" · ${group.count}통", color = TossTextTertiary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
-                    items(group.leads, key = { it.customerId }) { lead ->
+                    items(group.leads, key = { it.phone }) { lead ->
                         NewLeadRow(
                             lead = lead,
-                            onClick = { onOpenCustomerDetail(lead.customerId) },
+                            onClick = { onOpenLead(lead.phone, lead.customerId) },
                             onReContact = { onReContact(lead.phone, lead.customerId) }
                         )
                     }

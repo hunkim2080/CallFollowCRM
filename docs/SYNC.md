@@ -3238,3 +3238,11 @@ MMS(사진/첨부 문자) 감지 추가 — MMS 로 처음 연락온 번호가 "
 - 한계: MMS 본문은 "📎 사진/첨부 메시지" placeholder(사진 자체 수신 아님). 사장님 실기기 MMS 1통으로 검증 필요.
 - 서버 무관. 앱 빌드+폰 설치 완료.
 - commit: (아래)
+
+## 2026-06-06 · android (app only)
+"신규 문의" 화면 재설계 — 고객카드 생성된 것만 보던 것 → 실제 문의 전부(사장님 "실제 문의 전부" 선택).
+- 원인: NewLeadsViewModel 이 customerRepository(고객 엔티티)만, createdAt 그룹. MMS·통화·미접촉 문의는 고객 카드가 없어 누락. 어제 MMS(5489 등) 안 뜸.
+- 수정: 소스 = sms_contacts_cache(MMS 포함) ∪ inbound 통화(180일). phone suffix 합산, 마지막 연락시각 기준 날짜 그룹. 시공일 잡힌 번호 제외. 답장여부 = 고객 messageHistory OR sms.hasOwnerReply. 이름/메모는 고객카드 있으면 거기서.
+- 네비: NewLeadUi 에 customerId(없으면 0)+phone. 화면 key=phone, 탭=onOpenLead(phone,id). AppNavHost: id>0 고객상세, 아니면 upsertByPhone 후 상세.
+- 서버 무관. 앱 빌드+폰 설치 완료.
+- commit: (아래)
