@@ -7272,6 +7272,8 @@ async def team_event_depart(req: TeamDepartEventRequest) -> dict:
                     payload["customer_label"] = today.get("customer_label")
                     payload["addr"] = today.get("addr")
                     payload["time"] = today.get("time")
+                    if today.get("customer_phone"):
+                        payload["customer_phone"] = today.get("customer_phone")
             except json.JSONDecodeError:
                 pass
         cur = con.execute(
@@ -7319,6 +7321,8 @@ async def team_event_arrive(req: TeamArriveEventRequest) -> dict:
                 if today:
                     payload["customer_label"] = today.get("customer_label")
                     payload["addr"] = today.get("addr")
+                    if today.get("customer_phone"):
+                        payload["customer_phone"] = today.get("customer_phone")
             except json.JSONDecodeError:
                 pass
         cur = con.execute(
@@ -7359,6 +7363,8 @@ async def team_event_complete(req: TeamCompleteEventRequest) -> dict:
                 if today:
                     payload["customer_label"] = today.get("customer_label")
                     payload["addr"] = today.get("addr")
+                    if today.get("customer_phone"):
+                        payload["customer_phone"] = today.get("customer_phone")
             except json.JSONDecodeError:
                 pass
         cur = con.execute(

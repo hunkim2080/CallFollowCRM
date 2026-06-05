@@ -3192,3 +3192,11 @@ HOU-128 `/admin/beta/intake` (셋팅 폼) 도 이전 cycle 에 통합 완료. �
 - 앱(app): SitePhotoServerRepository.fetchNotes + CustomerDetailViewModel.teamNotes/refreshTeamNotes(고객 상세 열 때). CustomerDetailScreen 현장사진 카드 아래 "✏️ 팀원 현장 메모" 카드(노란 박스, 팀원이름+시각+내용).
 - ⚠️ 맥미니 재배포 필요. 재배포 후 새로 보낸 메모부터 customer_phone 박혀 고객 카드에 연결됨(이전 메모는 customer_phone 없어 소급 X). 앱 빌드+폰 설치 완료.
 - commit: (아래)
+
+## 2026-06-06 · android (+ server, 사장님 승인 룰 예외 연장)
+상담함 팀원 알림 탭 → 팀 현황(X) → 그 고객 카드(현장 정보)로 변경 (사장님 결정).
+- 서버(server/main.py): 출발/도착/완료 payload 에도 customer_phone 추가(note 는 이미). → 알림이 어느 고객인지 식별.
+- 앱(app): TeamEventCenter.TeamUpdate.customerPhone 추가(payload 에서 추출). 상담함 배너 onClick = customerPhone → ensureCustomerForPhone → onOpenCustomerDetail(고객 카드). 없으면 팀 현황 폴백. goLabel "현장 보기".
+- 알림(푸시) 탭은 그대로 앱(상담함) 열림 — MainActivity 에 고객상세 딥링크 없음. 상담함 배너로 고객카드 진입. (필요시 후속)
+- ⚠️ 맥미니 재배포 필요(payload customer_phone). 재배포+재배정 후 새 이벤트부터 고객 연결. 앱 빌드+폰 설치 완료.
+- commit: (아래)

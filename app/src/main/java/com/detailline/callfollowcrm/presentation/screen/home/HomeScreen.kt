@@ -550,8 +550,16 @@ fun HomeScreen(
                                 tagText = null,
                                 tagBg = tint, tagFg = accent,
                                 sub = subText,
-                                goLabel = "팀 현황",
-                                onClick = onOpenTeam
+                                goLabel = "현장 보기",
+                                // 탭 → 그 고객 카드(현장 정보: 메모·사진·일정). 고객 못 찾으면 팀 현황으로.
+                                onClick = {
+                                    val ph = up.customerPhone
+                                    if (!ph.isNullOrBlank()) {
+                                        scope.launch { onOpenCustomerDetail(viewModel.ensureCustomerForPhone(ph)) }
+                                    } else {
+                                        onOpenTeam()
+                                    }
+                                }
                             )
                         }
                     }

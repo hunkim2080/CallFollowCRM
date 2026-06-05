@@ -32,7 +32,8 @@ class TeamEventCenter(
         val place: String,
         val timeLabel: String,
         val createdAtMs: Long,
-        val text: String? = null
+        val text: String? = null,
+        val customerPhone: String? = null  // 알림/배너 탭 시 그 고객 카드로 이동하는 키
     )
 
     /** 서버에서 오늘 팀 이벤트를 받아 배너 갱신 + 새 이벤트는 알림. 실패는 조용히 무시. */
@@ -51,6 +52,7 @@ class TeamEventCenter(
                 ?: "현장"
             val text = if (e.eventType == "note")
                 e.payload?.optString("text")?.takeIf { it.isNotBlank() && it != "null" } else null
+            val custPhone = e.payload?.optString("customer_phone")?.takeIf { it.isNotBlank() && it != "null" }
             TeamUpdate(
                 eventId = e.eventId,
                 kind = e.eventType,
@@ -58,7 +60,8 @@ class TeamEventCenter(
                 place = place,
                 timeLabel = DateTimeUtils.formatShort(e.createdAtMs),
                 createdAtMs = e.createdAtMs,
-                text = text
+                text = text,
+                customerPhone = custPhone
             )
         }
         _todayUpdates.value = infos
