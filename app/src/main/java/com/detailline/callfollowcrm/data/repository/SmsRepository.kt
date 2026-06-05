@@ -452,6 +452,18 @@ class SmsRepository(private val context: Context) {
             .take(contactLimit)
     }
 
+    /**
+     * 최근 MMS(사진/첨부 문자) 연락처만 추출 — incremental 캐시 upsert 용 (2026-06-06).
+     *   MMS 는 SmsReceiver(브로드캐스트)로 안 잡혀(기본 문자앱 아님) "오늘 신규"에서 누락됐음.
+     *   앱이 주기/observer 로 이걸 불러 캐시에 머지 → MMS 로 처음 연락온 번호도 신규로 잡힘.
+     */
+    fun queryRecentMmsContacts(mmsScanLimit: Int = 200, contactLimit: Int = 200): List<SmsContact> {
+        if (!hasReadPermission()) return emptyList()
+        val seen = LinkedHashMap<String, SmsContact>()
+        runCatching { fillFromMms(seen, mmsScanLimit, contactLimit) }
+        return seen.values.sortedByDescending { it.lastDateMs }
+    }
+
     private fun fillFromSms(
         seen: LinkedHashMap<String, SmsContact>,
         scanLimit: Int,

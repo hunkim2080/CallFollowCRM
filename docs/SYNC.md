@@ -3230,3 +3230,11 @@ HOU-128 `/admin/beta/intake` (셋팅 폼) 도 이전 cycle 에 통합 완료. �
 - 수정: callsForFlags=combine(missed,inbound) Pair 로 묶어 unconfirmed=missed / newToday=inbound 로 각각 올바른 입력 사용. 이제 받은 신규 전화도 오늘 신규에 표시.
 - 서버 무관. 앱 빌드+폰 설치 완료.
 - commit: (아래)
+
+## 2026-06-06 · android (app only)
+MMS(사진/첨부 문자) 감지 추가 — MMS 로 처음 연락온 번호가 "오늘 신규"에 안 잡히던 것(사장님 실사례 010-3465-3669 "📎 2개 첨부").
+- 원인: RING-GO 가 기본 문자앱이 아니라 MMS 브로드캐스트(WAP_PUSH) 못 받음. SmsReceiver 는 SMS 만. 캐시 풀스캔(MMS 포함)은 첫 설치 때만 → 이후 도착한 MMS 누락.
+- 해결(기본앱 전환 X, READ_SMS 로 읽기): SmsRepository.queryRecentMmsContacts(fillFromMms 재사용). Application: 시작 시 1회 syncMmsContacts + content://mms ContentObserver(1.5s debounce) → smsContactCacheRepository.upsertOne 머지. upsertOne 이 firstDateMsInScan=min, lastDate=max 라 신규/미확인 판정 자동 반영.
+- 한계: MMS 본문은 "📎 사진/첨부 메시지" placeholder(사진 자체 수신 아님). 사장님 실기기 MMS 1통으로 검증 필요.
+- 서버 무관. 앱 빌드+폰 설치 완료.
+- commit: (아래)

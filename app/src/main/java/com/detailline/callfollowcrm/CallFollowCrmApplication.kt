@@ -72,6 +72,24 @@ class CallFollowCrmApplication : Application() {
             }
         }
 
+        // MMS(사진/첨부 문자) 감지 (2026-06-06) — 기본 문자앱이 아니라 브로드캐스트로 못 받아
+        //   "오늘 신규"에서 누락됐음(SmsReceiver 는 SMS 만). 시작 시 1회 스캔 + content://mms 변경 감시로
+        //   캐시에 머지 → MMS 로 처음 연락온 번호도 신규/목록에 잡힘. READ_SMS 로 읽기 가능(기본앱 전환 불필요).
+        appScope.launch { syncMmsContacts() }
+        runCatching {
+            val mmsObserver = object : android.database.ContentObserver(
+                android.os.Handler(android.os.Looper.getMainLooper())
+            ) {
+                override fun onChange(selfChange: Boolean) {
+                    mmsSyncJob?.cancel()
+                    mmsSyncJob = appScope.launch { delay(1500); syncMmsContacts() }
+                }
+            }
+            contentResolver.registerContentObserver(
+                android.net.Uri.parse("content://mms"), true, mmsObserver
+            )
+        }
+
         // 2026-05-28 사장님 통점 fix: 정적 BroadcastReceiver (CallStateReceiver) 가
         //   Android 12+ / OneUI 에서 누락되는 케이스 多 → 통화 종료 감지 실패.
         //   Application 에서 TelephonyCallback (Android 12+) / PhoneStateListener (이하) 동적 등록 →
@@ -97,6 +115,17 @@ class CallFollowCrmApplication : Application() {
         appScope.launch {
             runCatching { com.detailline.callfollowcrm.service.GeofenceManager.refresh(this@CallFollowCrmApplication) }
         }
+    }
+
+    /** content://mms 변경 감시 debounce 용 잡. */
+    private var mmsSyncJob: kotlinx.coroutines.Job? = null
+
+    /** 최근 MMS 연락처를 캐시에 머지 — MMS 로 처음 연락온 번호도 "오늘 신규"·목록에 잡히게. */
+    private suspend fun syncMmsContacts() {
+        val contacts = runCatching {
+            container.smsRepository.queryRecentMmsContacts(mmsScanLimit = 120, contactLimit = 120)
+        }.getOrDefault(emptyList())
+        for (c in contacts) runCatching { container.smsContactCacheRepository.upsertOne(c) }
     }
 
     /** 시공 D-1 등 리마인더 — 주기 워커(~3시간) + 앱 켤 때 1회 즉시 점검. */
