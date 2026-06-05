@@ -3102,3 +3102,11 @@ HOU-128 `/admin/beta/intake` (셋팅 폼) 도 이전 cycle 에 통합 완료. �
 - 사장님 폰: 팀 사진에 업로더 파란 이름표는 이미 구현(동기화되면 보임).
 - ⚠️ **필수 후속**: ① 맥미니 서버 재배포 ② 사장님이 그 일정 **재배정**(일정→배정 줄→변경→저장)해야 새 snapshot(customer_phone 포함)이 팀원 토큰에 박힘 → 그 뒤 팀원이 올린 사진부터 사장님 폰에 뜸. (수정 전 올린 사진은 customer_phone NULL 이라 소급 X)
 - commit: (아래)
+
+## 2026-06-05 05:10 · android (+ server, 사장님 승인 룰 예외 연장)
+재배정해도 팀원 폰에서 매핑(일정·사진연결) 안 뜨는 버그 근본 수정.
+- 원인: invite 는 호출마다 **새 토큰** 발급(옛 토큰 만료 안 함) → 한 팀원이 활성 링크 여러 개 보유 가능. 그런데 /api/team/schedule-snapshot 은 **최신 토큰 1개만** 갱신(`ORDER BY issued_at_ms DESC LIMIT 1`). 팀원이 **옛 링크**를 열고 있으면 새 배정/customer_phone 이 그 링크엔 안 박혀 일정·사진매핑이 안 보임.
+- 서버(server/main.py) /api/team/schedule-snapshot: 최신 1개 → **활성 토큰 전부**에 snapshot+expiry 박도록 변경(executemany). 팀원이 어떤 링크를 열어도 최신 배정이 보임. 응답에 tokens_updated 추가.
+- ⚠️ **맥미니 재배포 필요**. 배포 후 사장님이 재배정하면 그 팀원의 모든 활성 링크에 customer_phone 포함 snapshot 이 박힘 → 팀원이 옛 링크로 올린 사진도 고객에 매핑됨.
+- cowork: schedule-snapshot 다음에 만질 때 충돌 주의(android 가 이 endpoint 수정).
+- commit: (아래)

@@ -7148,15 +7148,18 @@ async def team_schedule_snapshot(req: TeamScheduleSnapshot) -> dict:
     ]
     """
     with db_conn() as con:
-        # 가장 최근 활성 토큰
-        row = con.execute(
+        # 활성 토큰 전체 — invite 는 호출마다 새 토큰을 발급(옛 토큰 만료 안 함)하므로
+        # 한 팀원이 여러 링크를 갖고 있을 수 있다. 팀원이 어떤 링크를 보고 있든 최신 배정이
+        # 보이도록 활성 토큰 '전부'에 snapshot 을 박는다. (예전엔 최신 1개만 갱신 → 팀원이
+        # 옛 링크를 열고 있으면 배정·사진매핑이 안 떴음.)
+        rows = con.execute(
             "SELECT token FROM team_member_links WHERE member_id = ? "
-            "AND expires_at_ms > ? ORDER BY issued_at_ms DESC LIMIT 1",
+            "AND expires_at_ms > ? ORDER BY issued_at_ms DESC",
             (req.member_id, _now_ms()),
-        ).fetchone()
-        if not row:
+        ).fetchall()
+        if not rows:
             raise HTTPException(404, "활성 토큰 없음 — invite 또는 refresh-link 호출")
-        token = row[0]
+        tokens = [r[0] for r in rows]
         # 첫 item 의 scheduled_at_ms → 만료 자동 갱신 (시공 다음날 자정)
         scheduled_at_ms = 0
         for it in (req.items or []):
@@ -7164,14 +7167,15 @@ async def team_schedule_snapshot(req: TeamScheduleSnapshot) -> dict:
             if v and (not scheduled_at_ms or v > scheduled_at_ms):
                 scheduled_at_ms = int(v)
         new_expiry = _team_link_expiry_default(scheduled_at_ms)
-        con.execute(
+        snap_str = json.dumps(req.items, ensure_ascii=False)
+        con.executemany(
             "UPDATE team_member_links SET schedule_snapshot_json = ?, expires_at_ms = ? "
             "WHERE token = ?",
-            (json.dumps(req.items, ensure_ascii=False), new_expiry, token),
+            [(snap_str, new_expiry, t) for t in tokens],
         )
         con.commit()
-    return {"ok": True, "token": token, "expires_at_ms": new_expiry,
-            "items_count": len(req.items or [])}
+    return {"ok": True, "token": tokens[0], "tokens_updated": len(tokens),
+            "expires_at_ms": new_expiry, "items_count": len(req.items or [])}
 
 
 # ─── API 5: 사장님 polling — 팀원 이벤트 (출발/사진/도착) ───
