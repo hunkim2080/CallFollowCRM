@@ -132,7 +132,9 @@ fun SettingsScreen(
     onOpenReport: () -> Unit = {},
     onOpenTradeSelect: () -> Unit = {},
     onOpenRecurring: () -> Unit = {},
-    onShowIntro: () -> Unit = {}
+    onShowIntro: () -> Unit = {},
+    /** 진입 시 바로 열 서브페이지 ("autosms" = 자동 문자, 부재중 응답 펼침). null = 일반 더보기. */
+    initialSubPage: String? = null
 ) {
     val state by viewModel.state.collectAsState()
     val templates by viewModel.templates.collectAsState()
@@ -170,7 +172,7 @@ fun SettingsScreen(
 
     // 프로토 더보기 = 깔끔한 메뉴만. 진단/기능 카드는 메뉴 탭 시 서브페이지로(자체 라우트 없이 내부 전환).
     //   2026-06-02 사장님 결정("프로토처럼 완전 깔끔하게").
-    var subPage by remember { mutableStateOf<String?>(null) }
+    var subPage by remember { mutableStateOf(initialSubPage) }
     val subTitle = when (subPage) {
         "tone" -> "내 말투 학습"
         "autosms" -> "자동 문자"
@@ -306,6 +308,7 @@ fun SettingsScreen(
                         incomingNotifyOn = state.incomingSmsNotifyEnabled,
                         onIncomingNotifyToggle = viewModel::setIncomingSmsNotifyEnabled,
                         onOpenRecurring = onOpenRecurring,
+                        expandMissed = initialSubPage == "autosms",
                         onArrivalToggle = { on ->
                             if (on) {
                                 val fineGranted = ContextCompat.checkSelfPermission(
@@ -1124,7 +1127,9 @@ private fun AutoSmsSection(
     incomingNotifyOn: Boolean,
     onIncomingNotifyToggle: (Boolean) -> Unit,
     onOpenRecurring: () -> Unit,
-    onArrivalToggle: (Boolean) -> Unit = {}
+    onArrivalToggle: (Boolean) -> Unit = {},
+    /** true = 부재중 자동 응답 카드를 펼친 상태로 시작 (상담함 알림 길게누름 진입). */
+    expandMissed: Boolean = false
 ) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val prefs = remember {
@@ -1150,7 +1155,7 @@ private fun AutoSmsSection(
 
     // ① 부재중 자동 응답
     AutoCard("📞", TossBlueSoft, "부재중 자동 응답", "즉시 발송", "전화 못 받으면 자동으로 문자 발송",
-        autoReplyOn, onAutoReplyToggle) {
+        autoReplyOn, onAutoReplyToggle, initiallyExpanded = expandMissed) {
         AutoDotLabel(TossBlue, "처음 연락한 고객 (신규)")
         AutoTextArea(missedNew) { missedNew = it; prefs.autoMissedNewText = it }
         Spacer(Modifier.height(10.dp))
@@ -1224,9 +1229,10 @@ private fun AutoCard(
     sub: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
+    initiallyExpanded: Boolean = false,
     body: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(initiallyExpanded) }
     TossCard {
         Column {
             Row(

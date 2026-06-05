@@ -4,7 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.detailline.callfollowcrm.data.AppContainer
 import com.detailline.callfollowcrm.data.local.entity.CategoryEntity
+import com.detailline.callfollowcrm.data.local.entity.CallRecordEntity
 import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
+import com.detailline.callfollowcrm.data.repository.SmsRepository
 import com.detailline.callfollowcrm.util.DateTimeUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -34,6 +36,11 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
     private val categories = container.categoryRepository.observeAll()
     private val sentThisMonth = container.messageHistoryRepository.observeSentCountBetween(monthStart, monthEnd)
 
+    // 문의 추이용 실제 문의 소스 — 받은 문자/MMS 캐시 + 받은 전화. (고객 카드 createdAt 아님)
+    private val smsContacts = container.smsContactCacheRepository.observeAll(limit = 500)
+    private val inbound = container.callRecordRepository
+        .observeInboundSince(nowMs - 365L * DateTimeUtils.DAY_MS)
+
     private val period = MutableStateFlow(StatPeriod.D7)
     val periodState: StateFlow<StatPeriod> = period
     fun setPeriod(p: StatPeriod) { period.value = p }
@@ -44,7 +51,7 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StatsUiState())
 
     val trend: StateFlow<StatsTrendState> =
-        combine(customers, period) { cs, p -> buildTrend(cs, p) }
+        combine(smsContacts, inbound, period) { sms, calls, p -> buildTrend(sms, calls, p) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StatsTrendState())
 
     // ── 이번 달 고정 집계 ────────────────────────────────────────────
@@ -85,8 +92,24 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
     }
 
     // ── 문의 추이 (7일/30일) ─────────────────────────────────────────
-    private fun buildTrend(cs: List<CustomerEntity>, p: StatPeriod): StatsTrendState {
-        val createdDays = cs.map { DateTimeUtils.startOfDay(it.createdAt) }
+    // 2026-06-06 버그 수정: 기존엔 고객 카드 createdAt(=레코드 생성·가져오기 시각)으로 집계 →
+    //   밤늦게 온 문의가 다음날로, 수동/가져온 고객도 "문의"로 잡혀 엉뚱한 날에 막대가 섰음.
+    //   이제 "그 번호의 가장 처음 연락(받은 문자 최초 + 받은 전화 최초)" = 실제 신규 문의 시각으로 집계.
+    private fun buildTrend(
+        sms: List<SmsRepository.SmsContact>,
+        calls: List<CallRecordEntity>,
+        p: StatPeriod
+    ): StatsTrendState {
+        val firstDayBySuffix = HashMap<String, Long>()
+        fun mark(suffix: String, ms: Long) {
+            if (suffix.isBlank() || ms <= 0L) return
+            val day = DateTimeUtils.startOfDay(ms)
+            val cur = firstDayBySuffix[suffix]
+            if (cur == null || day < cur) firstDayBySuffix[suffix] = day
+        }
+        for (s in sms) mark(s.normalizedSuffix.ifBlank { phoneSuffix(s.address) }, s.firstDateMsInScan)
+        for (c in calls) mark(phoneSuffix(c.phoneNumber), c.startedAt ?: c.endedAt)
+        val createdDays = firstDayBySuffix.values.toList()
         val bars = when (p) {
             StatPeriod.D7 -> {
                 val monday = mondayOfWeek(nowMs)
@@ -163,6 +186,12 @@ data class StatsTrendState(
 // ── 날짜 헬퍼 ────────────────────────────────────────────────────
 private val WEEKDAYS = listOf("월", "화", "수", "목", "금", "토", "일")
 private val D30_LABELS = listOf("4주전", "3주전", "2주전", "이번주")
+
+/** 전화번호 끝 8자리 = 같은 사람 판정 키 (SMS 캐시 normalizedSuffix 와 동일 규칙). */
+private fun phoneSuffix(phone: String): String {
+    val d = phone.filter { it.isDigit() }
+    return if (d.length >= 8) d.takeLast(8) else d
+}
 
 private fun monthStartOf(anyMs: Long): Long = Calendar.getInstance().apply {
     timeInMillis = anyMs

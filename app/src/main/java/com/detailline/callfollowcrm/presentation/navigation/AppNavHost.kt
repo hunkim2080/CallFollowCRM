@@ -175,7 +175,8 @@ fun AppNavHost(
                 onOpenRecurringDue = { navController.navigate(Destinations.RECURRING_DUE) },
                 onOpenScheduleReminder = { navController.navigate(Destinations.SCHEDULE_REMINDER) },
                 onOpenEstimateFollowup = { navController.navigate(Destinations.ESTIMATE_FOLLOWUP) },
-                onOpenTeam = { navController.navigate(Destinations.TEAM) }
+                onOpenTeam = { navController.navigate(Destinations.TEAM) },
+                onOpenAutoSmsSettings = { navController.navigate(Destinations.SETTINGS_AUTOSMS) }
             )
         }
 
@@ -383,6 +384,39 @@ fun AppNavHost(
                 onOpenTradeSelect = { navController.navigate(Destinations.TRADE_SELECT) },
                 onOpenRecurring = { navController.navigate(Destinations.RECURRING) },
                 onShowIntro = { navController.navigate(Destinations.ONBOARDING) }
+            )
+        }
+
+        // 자동 문자(부재중 응답 펼침) 직행 — 상담함 "자동답장" 알림 길게누름 진입.
+        composable(Destinations.SETTINGS_AUTOSMS) {
+            val vm: SettingsViewModel = viewModel(factory = viewModelFactory { SettingsViewModel(container) })
+            SettingsScreen(
+                viewModel = vm,
+                container = container,
+                onBack = { navController.popBackStack() },
+                onOpenTemplates = { navController.navigate(Destinations.TEMPLATE_LIST) },
+                onOpenPricingItems = { navController.navigate(Destinations.PRICING_ITEMS) },
+                onOpenBusinessInfo = { navController.navigate(Destinations.BUSINESS_INFO) },
+                onOpenNotebook = { navController.navigate(Destinations.NOTEBOOK) },
+                onOpenTeam = { navController.navigate(Destinations.TEAM) },
+                onOpenReport = { navController.navigate(Destinations.REPORT) },
+                onOpenTradeSelect = { navController.navigate(Destinations.TRADE_SELECT) },
+                onOpenRecurring = { navController.navigate(Destinations.RECURRING) },
+                onShowIntro = { navController.navigate(Destinations.ONBOARDING) },
+                initialSubPage = "autosms"
+            )
+        }
+
+        composable(Destinations.CLOSING_BRIEF) {
+            val vm: com.detailline.callfollowcrm.presentation.screen.brief.ClosingBriefViewModel =
+                viewModel(factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.brief.ClosingBriefViewModel(container) })
+            com.detailline.callfollowcrm.presentation.screen.brief.ClosingBriefScreen(
+                viewModel = vm,
+                onBack = { navController.popBackStack() },
+                onOpenChat = { phone, customerId -> navController.navigate(Destinations.chat(phone, customerId)) },
+                onOpenSchedule = { navController.navigate(Destinations.SCHEDULE) },
+                onOpenNewLeads = { navController.navigate(Destinations.NEW_LEADS) },
+                onOpenSettlement = { navController.navigate(Destinations.SETTLEMENT) }
             )
         }
 

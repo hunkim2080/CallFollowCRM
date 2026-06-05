@@ -34,6 +34,10 @@ object Destinations {
     fun templateEdit(id: Long?) = if (id == null) "template_edit" else "template_edit?id=$id"
 
     const val SETTINGS = "settings"
+    /** 더보기 → 자동 문자(부재중 자동 응답 펼친 상태). 상담함 자동답장 알림 길게누름 진입. */
+    const val SETTINGS_AUTOSMS = "settings_autosms"
+    /** 마감 브리핑 — 오늘 신규/입금/내일 시공 정리 화면. 마감 브리핑 알림 탭 진입. */
+    const val CLOSING_BRIEF = "closing_brief"
     const val PRICING_ITEMS = "pricing_items"
     const val SCHEDULE = "schedule"
     const val SCHEDULE_ADD = "schedule_add"

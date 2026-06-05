@@ -43,6 +43,7 @@ class MainActivity : ComponentActivity() {
                             incoming.phoneNumber,
                             incoming.displayName
                         )
+                        is IncomingIntent.ClosingBrief -> container.navEvents.requestClosingBrief()
                         is IncomingIntent.SharedAudio -> RecordingShareHandler.handleShared(
                             context = this@MainActivity,
                             container = container,
@@ -85,6 +86,9 @@ class MainActivity : ComponentActivity() {
                 val phone = intent.getStringExtra(EXTRA_PHONE_NUMBER).orEmpty()
                 val name = intent.getStringExtra(EXTRA_DISPLAY_NAME)?.takeIf { it.isNotBlank() }
                 if (phone.isNotBlank()) pendingIntentState.value = IncomingIntent.CallSummary(phone, name)
+            }
+            ACTION_DAILY_BRIEF -> {
+                pendingIntentState.value = IncomingIntent.ClosingBrief
             }
             Intent.ACTION_SEND -> {
                 val mime = intent.type.orEmpty()
@@ -152,12 +156,14 @@ class MainActivity : ComponentActivity() {
         data class SharedAudio(val uris: List<Uri>, val displayName: String?) : IncomingIntent
         data class SharedText(val text: String) : IncomingIntent
         data class CallSummary(val phoneNumber: String, val displayName: String?) : IncomingIntent
+        object ClosingBrief : IncomingIntent
     }
 
     companion object {
         const val ACTION_FOLLOW_UP = "com.detailline.callfollowcrm.ACTION_FOLLOW_UP"
         const val ACTION_CHAT = "com.detailline.callfollowcrm.ACTION_CHAT"
         const val ACTION_CALL_SUMMARY = "com.detailline.callfollowcrm.ACTION_CALL_SUMMARY"
+        const val ACTION_DAILY_BRIEF = "com.detailline.callfollowcrm.ACTION_DAILY_BRIEF"
         const val EXTRA_PHONE_NUMBER = "extra_phone_number"
         const val EXTRA_CALL_RECORD_ID = "extra_call_record_id"
         const val EXTRA_TEMPLATE_ID = "extra_template_id"

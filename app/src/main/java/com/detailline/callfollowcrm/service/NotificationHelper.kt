@@ -264,7 +264,15 @@ object NotificationHelper {
         val note = if (tomorrowJobs > 0)
             "내일 시공 ${tomorrowJobs}곳" + (tomorrowLabel?.let { " — $it" } ?: "")
         else null
-        val pending = appOpenPending(context, BRIEF_ID)
+        // 2026-06-06: 탭하면 마감 브리핑 화면으로 (기존엔 홈만 열림).
+        val briefIntent = Intent(context, MainActivity::class.java).apply {
+            action = MainActivity.ACTION_DAILY_BRIEF
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pending = PendingIntent.getActivity(
+            context, BRIEF_ID, briefIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         showProtoPush(
             context, BRIEF_ID, CHANNEL_REMINDER, ACCENT_BLUE,
             title = "오늘 하루 마감 브리핑 🌙",

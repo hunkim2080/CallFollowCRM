@@ -41,6 +41,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -81,6 +83,11 @@ fun CallSummaryScreen(
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
+    // 2026-06-06 사장님 버그: 입력칸 탭해도 키패드가 안 떴음. 원인 = 흰 박스가 BasicTextField(1줄 높이)보다
+    //   훨씬 커서 빈 영역 탭은 포커스가 안 잡힘. → 박스 전체를 탭하면 포커스 요청 + 키보드 show.
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val rawFocus = remember { FocusRequester() }
+    val draftFocus = remember { FocusRequester() }
 
     var raw by remember { mutableStateOf(TextFieldValue("")) }
     var loading by remember { mutableStateOf(false) }
@@ -231,6 +238,7 @@ fun CallSummaryScreen(
                         .clip(RoundedCornerShape(14.dp))
                         .background(Color.White)
                         .heightIn(min = 150.dp)
+                        .clickable { rawFocus.requestFocus(); keyboard?.show() }
                         .padding(14.dp)
                 ) {
                     if (raw.text.isEmpty()) {
@@ -243,7 +251,7 @@ fun CallSummaryScreen(
                         value = raw,
                         onValueChange = { raw = it },
                         textStyle = TextStyle(fontSize = 14.sp, color = TossTextPrimary, lineHeight = 20.sp),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().focusRequester(rawFocus)
                     )
                 }
                 Spacer(Modifier.height(16.dp))
@@ -283,13 +291,14 @@ fun CallSummaryScreen(
                         .clip(RoundedCornerShape(14.dp))
                         .background(Color.White)
                         .heightIn(min = 130.dp)
+                        .clickable { draftFocus.requestFocus(); keyboard?.show() }
                         .padding(14.dp)
                 ) {
                     BasicTextField(
                         value = draft,
                         onValueChange = { draft = it },
                         textStyle = TextStyle(fontSize = 14.sp, color = TossTextPrimary, lineHeight = 20.sp),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().focusRequester(draftFocus)
                     )
                 }
                 Spacer(Modifier.height(16.dp))

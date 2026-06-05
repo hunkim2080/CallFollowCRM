@@ -60,6 +60,9 @@ fun AppRoot(container: AppContainer) {
                                 Destinations.callSummary(event.phoneNumber, event.name)
                             ) { launchSingleTop = true }
                         }
+                        is NavEvent.OpenClosingBrief -> {
+                            navController.navigate(Destinations.CLOSING_BRIEF) { launchSingleTop = true }
+                        }
                     }
                 }
             }

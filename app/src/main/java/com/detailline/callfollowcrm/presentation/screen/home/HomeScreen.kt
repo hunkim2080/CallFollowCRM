@@ -3,6 +3,7 @@ package com.detailline.callfollowcrm.presentation.screen.home
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -152,7 +153,9 @@ fun HomeScreen(
     /** 홈 "견적 회신 챙기기" 카드 탭 → 견적 회신 리마인드 목록. (2026-06-01) */
     onOpenEstimateFollowup: () -> Unit = {},
     /** 홈 "팀원 출발" 배너 탭 → 팀 관리(출발 현황). (2026-06-06) */
-    onOpenTeam: () -> Unit = {}
+    onOpenTeam: () -> Unit = {},
+    /** 상담함 "부재중 자동답장" 알림 길게누름 → 자동 문자 설정(부재중 응답 펼침). (2026-06-06) */
+    onOpenAutoSmsSettings: () -> Unit = {}
 ) {
     val timeline by viewModel.timeline.collectAsState()
     val filter by viewModel.filterState.collectAsState()
@@ -510,7 +513,8 @@ fun HomeScreen(
                     }
                 }
 
-                // 부재중 → 자동답장 (프로토 team-alert missed) — 한 건당 한 줄 카드. 탭 → 대화. 밀어서 정리.
+                // 부재중 → 자동답장 (프로토 team-alert missed) — 한 건당 한 줄 카드.
+                //   탭 → 대화 / 길게 → 자동 문자 설정(부재중 응답 펼침) / 밀어서 정리. (2026-06-06)
                 autoReplies.forEach { ar ->
                     item(key = "auto-reply-${ar.id}") {
                         val arName = ar.customerName?.takeIf { it.isNotBlank() }
@@ -527,7 +531,8 @@ fun HomeScreen(
                                     (if (ar.failed) "발송 실패 — 직접 보내주세요" else "자동 인사 보냄") +
                                     " · " + DateTimeUtils.formatShort(ar.createdAt),
                                 goLabel = "대화",
-                                onClick = { onOpenChat(ar.phone, ar.customerId) }
+                                onClick = { onOpenChat(ar.phone, ar.customerId) },
+                                onLongClick = onOpenAutoSmsSettings
                             )
                         }
                     }
@@ -1174,6 +1179,7 @@ private fun teamUpdateStyle(kind: String): TeamUpdateStyle = when (kind) {
 }
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 private fun InboxAlert(
     accent: Color,
     accentTint: Color,
@@ -1184,7 +1190,8 @@ private fun InboxAlert(
     tagFg: Color,
     sub: String,
     goLabel: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null
 ) {
     // 프로토 .team-alert — 흰 카드 + 좌측 4px 강조선 + 아이콘박스 + 제목/태그 + 부제 + go 칩.
     Row(
@@ -1194,7 +1201,7 @@ private fun InboxAlert(
             .clip(RoundedCornerShape(14.dp))
             .background(Color.White)
             .border(1.dp, TossDivider, RoundedCornerShape(14.dp))
-            .clickable { onClick() },
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(Modifier.width(4.dp).fillMaxHeight().background(accent))

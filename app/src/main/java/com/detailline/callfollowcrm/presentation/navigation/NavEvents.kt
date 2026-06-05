@@ -21,6 +21,10 @@ class NavEvents {
     fun requestCallSummary(phoneNumber: String, name: String? = null) {
         channel.trySend(NavEvent.OpenCallSummary(phoneNumber, name))
     }
+
+    fun requestClosingBrief() {
+        channel.trySend(NavEvent.OpenClosingBrief)
+    }
 }
 
 sealed interface NavEvent {
@@ -39,4 +43,6 @@ sealed interface NavEvent {
         val phoneNumber: String,
         val name: String? = null
     ) : NavEvent
+    /** "오늘 하루 마감 브리핑" 알림 탭 → 마감 브리핑 화면. */
+    object OpenClosingBrief : NavEvent
 }

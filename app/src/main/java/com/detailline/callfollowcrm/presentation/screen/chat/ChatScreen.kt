@@ -425,9 +425,22 @@ fun ChatScreen(
             aiSummary?.takeUnless { isEmptySentinel }?.let { s ->
                 // 2026-05-30 사장님 #3 통점 — 시공일정 등록된 고객 = "상황 종료" → NextActionBox 표시 X.
                 //   사장님 결정: 일정 잡혔으니 다음 액션 권유 불필요.
-                val scheduled = (customer?.scheduledWorkDate ?: 0L) > 0L
-                val action = remember(s.nextActionJson, scheduled) {
-                    if (scheduled) null else NextAction.parse(s.nextActionJson)
+                // 2026-06-06 사장님 통점 — 잔금 입금까지 끝났는데 "일정 답장하기" 가 계속 뜨던 버그.
+                //   상황 종료 판정 확장: ① 시공일 등록  ② 잔금 입금 체크(balancePaidAt)
+                //   ③ 고객이 "입금/잔금/완납/송금 했다" 는 문자를 보냄(본문 감지). 셋 중 하나면 액션 숨김.
+                val balancePaidByMsg = remember(messages) {
+                    fun paidLike(b: String): Boolean {
+                        val done = b.contains("했") || b.contains("완료") || b.contains("됐") ||
+                            b.contains("보냈") || b.contains("드렸") || b.contains("이체")
+                        return b.contains("완납") || ((b.contains("입금") || b.contains("잔금") || b.contains("송금")) && done)
+                    }
+                    messages.any { !it.sent && paidLike(it.body) }
+                }
+                val settled = (customer?.scheduledWorkDate ?: 0L) > 0L ||
+                    customer?.balancePaidAt != null ||
+                    balancePaidByMsg
+                val action = remember(s.nextActionJson, settled) {
+                    if (settled) null else NextAction.parse(s.nextActionJson)
                 }
                 val onActionHandler: (NextAction) -> Unit = { a -> triggerActionByType(a.actionType) }
                 val showCollapsed = composerFocused || summaryManualCollapsed
