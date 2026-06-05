@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material3.Icon
@@ -47,15 +49,21 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
@@ -102,6 +110,7 @@ fun TeamScreen(
     val snackbar = remember { SnackbarHostState() }
     val members by viewModel.members.collectAsState()
     val departures by viewModel.departures.collectAsState()
+    val recents by viewModel.recentNumbers.collectAsState()
     val toast by viewModel.toast.collectAsState()
     var addSheetOpen by remember { mutableStateOf(false) }
 
@@ -110,6 +119,8 @@ fun TeamScreen(
         toast?.let { snackbar.showSnackbar(it); viewModel.consumeToast() }
     }
 
+    // Box 로 감싸 시트를 액티비티 윈도우 안 오버레이로 → adjustResize 가 키보드 처리(채팅 입력창과 동일).
+    Box(Modifier.fillMaxSize()) {
     Scaffold(
         containerColor = TossGrayBg,
         snackbarHost = { SnackbarHost(snackbar) },
@@ -247,7 +258,8 @@ fun TeamScreen(
     }
 
     if (addSheetOpen) {
-        AddMemberSheet(
+        AddMemberOverlay(
+            recents = recents,
             onDismiss = { addSheetOpen = false },
             onSubmit = { name, phone ->
                 addSheetOpen = false
@@ -258,6 +270,7 @@ fun TeamScreen(
             }
         )
     }
+    } // Box
 }
 
 /** 사업자 전화 미설정 안내. */
@@ -437,14 +450,22 @@ private fun buildAnnotatedDepart(name: String, time: String, place: String) =
         append("님이 $time ${place}으로 출발했어요")
     }
 
-/** 팀원 추가 시트 — 프로토 openAddMember 1:1. */
+/**
+ * 팀원 추가 오버레이 — 프로토 openAddMember + 최근 번호 고르기.
+ *   ModalBottomSheet(별도 윈도우)가 갤S9/안드10 에서 키보드 대응을 못 해, 액티비티 윈도우 안 오버레이로 그림.
+ *   액티비티는 adjustResize → 키보드 뜨면 영역이 줄고, 하단 정렬 카드가 위로 올라가 입력칸이 안 가림(채팅 입력창과 동일 원리).
+ */
 @Composable
-private fun AddMemberSheet(onDismiss: () -> Unit, onSubmit: (name: String, phone: String) -> Unit) {
+private fun AddMemberOverlay(
+    recents: List<RecentNumber>,
+    onDismiss: () -> Unit,
+    onSubmit: (name: String, phone: String) -> Unit
+) {
     val context = LocalContext.current
     var name by remember { mutableStateOf("") }
     // 전화번호 = TextFieldValue — formatProgressive 재포맷 후 커서를 항상 맨 뒤로 고정(순서 꼬임 방지).
     var phoneField by remember { mutableStateOf(TextFieldValue("")) }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val noRipple = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
 
     val pickContact = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
         if (res.resultCode == Activity.RESULT_OK) {
@@ -470,17 +491,68 @@ private fun AddMemberSheet(onDismiss: () -> Unit, onSubmit: (name: String, phone
         }
     }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = Color.White, tonalElevation = 0.dp) {
+    // 스크림(탭 시 닫힘) + 하단 정렬 카드.
+    Box(
+        Modifier.fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.4f))
+            .clickable(interactionSource = noRipple, indication = null) { onDismiss() }
+    ) {
         Column(
-            Modifier.fillMaxWidth().padding(horizontal = 20.dp)
-                .imePadding()                       // 키보드 뜨면 내용이 위로 — 입력칸 안 가림
-                .padding(bottom = 22.dp)
-                .heightIn(max = 520.dp).verticalScroll(rememberScrollState())
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
+                .background(Color.White)
+                .clickable(interactionSource = noRipple, indication = null) { /* 카드 탭은 닫지 않음 */ }
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(horizontal = 20.dp)
+                .padding(top = 8.dp, bottom = 20.dp)
+                .heightIn(max = 600.dp)
+                .verticalScroll(rememberScrollState())
         ) {
+            // grip
+            Box(
+                Modifier.align(Alignment.CenterHorizontally).padding(bottom = 12.dp)
+                    .width(38.dp).height(4.dp).clip(RoundedCornerShape(999.dp)).background(TossDivider)
+            )
             Text("팀원 추가", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
             Spacer(Modifier.height(4.dp))
             Text("배정하면 이 번호로 현장 링크가 가요 (앱 설치 안 해도 돼요).", fontSize = 13.sp, color = TossTextTertiary)
             Spacer(Modifier.height(14.dp))
+
+            // 최근 통화·문자 번호 — 업무폰처럼 주소록에 저장 안 한 번호도 여기서 고름.
+            if (recents.isNotEmpty()) {
+                SheetFieldLabel("최근 통화·문자에서 고르기")
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg)) {
+                    recents.take(6).forEachIndexed { idx, r ->
+                        if (idx > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .clickable {
+                                    if (!r.name.isNullOrBlank() && name.isBlank()) name = r.name
+                                    val f = PhoneNumberFormatter.formatProgressive(r.phone)
+                                    phoneField = TextFieldValue(f, selection = TextRange(f.length))
+                                }
+                                .padding(horizontal = 14.dp, vertical = 11.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Phone, null, tint = TossTextTertiary, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(9.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    r.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(r.phone),
+                                    fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary
+                                )
+                                if (!r.name.isNullOrBlank()) {
+                                    Text(PhoneNumberFormatter.format(r.phone), fontSize = 12.sp, color = TossTextTertiary)
+                                }
+                            }
+                            Text(relativeAgo(r.lastMs), fontSize = 11.sp, color = TossTextTertiary)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+
             Row(
                 Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(12.dp)).background(TossBlueSoft)
                     .clickable {

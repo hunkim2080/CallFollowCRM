@@ -3003,3 +3003,13 @@ HOU-128 `/admin/beta/intake` (셋팅 폼) 도 이전 cycle 에 통합 완료. �
   ② 전화번호 칸 String→TextFieldValue(커서 끝 고정) → formatProgressive 재포맷 시 숫자 순서 꼬임 해결(FollowUp 패턴 동일).
 - 빌드·설치 OK. adb 스크립트 탭은 Compose 포커스를 못 잡아 키보드 자동검증 불가 → 사장님 실기기 확인 요청.
 - commit: (아래)
+
+## 2026-06-05 02:40 · android
+팀원 추가 시트 — 키보드 가림 근본 수정(ModalBottomSheet→인라인 오버레이) + 최근 번호 고르기
+- 변경: 앱만. AddMemberSheet(ModalBottomSheet, 별도 윈도우라 갤S9/안드10 에서 키보드 대응 실패) →
+  AddMemberOverlay(액티비티 윈도우 안 Box 오버레이, 하단정렬 카드 + imePadding/navigationBarsPadding).
+  액티비티 adjustResize 가 키보드 처리 = 채팅 입력창과 동일 검증된 방식.
+- 추가: "최근 통화·문자에서 고르기" — 통화기록+문자연락처 합쳐 최신순(주소록 저장 안 된 번호도). TeamViewModel.recentNumbers.
+- 전화번호 칸 TextFieldValue 커서 끝 고정(순서 꼬임)은 유지.
+- 빌드 OK. 키보드는 adb 로 못 띄워 자동검증 불가 → 사장님 실기기 확인. (최근번호 picker 렌더는 확인됨)
+- commit: (아래)

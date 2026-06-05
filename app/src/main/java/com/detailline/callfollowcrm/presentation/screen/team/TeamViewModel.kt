@@ -5,7 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.detailline.callfollowcrm.ai.TeamRepository
 import com.detailline.callfollowcrm.data.AppContainer
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
@@ -24,6 +28,31 @@ class TeamViewModel(private val container: AppContainer) : ViewModel() {
     /** 출발 이벤트만 (오늘 출발 알림 목록). */
     private val _departures = MutableStateFlow<List<TeamRepository.TeamEvent>>(emptyList())
     val departures = _departures.asStateFlow()
+
+    /**
+     * 최근 통화·문자 번호 (팀원 추가 시 "번호로 불러오기"용) — 주소록에 저장 안 된 번호도 보이게.
+     *   통화기록 + 문자 연락처 합쳐 끝 8자리로 중복 제거, 최신순. 이름은 고객으로 등록돼 있으면 표시.
+     */
+    val recentNumbers: StateFlow<List<RecentNumber>> = combine(
+        container.callRecordRepository.observeRecent(80),
+        container.smsContactCacheRepository.observeAll(200),
+        container.customerRepository.observeAll()
+    ) { calls, sms, customers ->
+        fun suf(p: String) = p.filter { it.isDigit() }.takeLast(8)
+        val nameBySuffix = customers.mapNotNull { c ->
+            c.name?.takeIf { it.isNotBlank() }?.let { suf(c.phoneNumber) to it }
+        }.toMap()
+        val map = LinkedHashMap<String, RecentNumber>()
+        fun add(phone: String, ms: Long) {
+            val s = suf(phone)
+            if (s.length < 8) return
+            val ex = map[s]
+            if (ex == null || ms > ex.lastMs) map[s] = RecentNumber(nameBySuffix[s], phone, ms)
+        }
+        calls.forEach { add(it.phoneNumber, it.endedAt) }
+        sms.forEach { add(it.address, it.lastDateMs) }
+        map.values.sortedByDescending { it.lastMs }.take(40)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _loading = MutableStateFlow(false)
     val loading = _loading.asStateFlow()
@@ -107,3 +136,10 @@ class TeamViewModel(private val container: AppContainer) : ViewModel() {
         else "서버 연결 실패 — 잠시 후 다시 시도해주세요"
     }
 }
+
+/** 최근 통화·문자 번호 1건 (팀원 추가 picker용). */
+data class RecentNumber(
+    val name: String?,
+    val phone: String,
+    val lastMs: Long
+)
