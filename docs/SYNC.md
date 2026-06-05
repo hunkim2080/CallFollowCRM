@@ -3124,3 +3124,13 @@ HOU-128 `/admin/beta/intake` (셋팅 폼) 도 이전 cycle 에 통합 완료. �
 - ⚠️ 맥미니 재배포 필요. (DB 스키마 변경 없음 — 컬럼 추가 X, ALTER 없음)
 - cowork: /team/member 화면·event/complete 다음에 만질 때 충돌 주의(android 가 수정).
 - commit: (아래)
+
+## 2026-06-06 · android (+ server, 사장님 승인 룰 예외 연장)
+팀원 웹뷰 사진: 새로고침하면 초록 ✓ 타일로 바뀌던 것 → **실제 썸네일 유지** + 탭하면 원본(라이트박스).
+- 서버(server/main.py):
+  · 신규 GET /api/team/photo/{photo_id}?token=&w= — 토큰 검증(활성+owner 일치) 후 base64 → 이미지 바이트 반환. w(폭) 주면 Pillow 로 축소+화질70 재압축(썸네일, 원본의 ~7~15%). **Pillow 없으면 원본 폴백**(안전).
+  · 팀원 페이지: 이미 올린 사진을 photo_id 로 조회 → 그리드에 <img ?w=400> 작은 썸네일, 탭→원본 라이트박스. (HTML 에 base64 안 박아 가벼움 + 브라우저 캐시)
+  · 방금 올린 타일도 탭하면 원본 보기.
+- ⚠️ **권장**: 맥미니 서버 venv 에 `pip install Pillow` 해야 썸네일 축소 효과(속도) 적용. 안 깔아도 동작(원본 전송).
+- ⚠️ 맥미니 재배포 필요.
+- commit: (아래)

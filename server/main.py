@@ -19,11 +19,14 @@ RING-GO 백엔드 서버 (Phase 1: Claude Sonnet 4.6 API)
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import datetime as _dt
 import json
 import os
 import sqlite3
 import time
+import urllib.parse
 from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
 from typing import Optional
@@ -33,6 +36,14 @@ import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, FileResponse, Response
 from pydantic import BaseModel, Field
+
+# Pillow(이미지 썸네일 축소)는 선택 의존성 — 없으면 원본 그대로 반환(안전 폴백).
+try:
+    from PIL import Image as _PILImage
+    _PIL_OK = True
+except Exception:
+    _PILImage = None
+    _PIL_OK = False
 
 # ============================================================================
 # 설정
@@ -7484,6 +7495,60 @@ async def team_photos_list(
     return {"photos": photos, "count": len(photos)}
 
 
+@app.get("/api/team/photo/{photo_id}")
+async def team_photo_raw(photo_id: int, token: str, w: Optional[int] = None) -> Response:
+    """팀원 웹뷰에서 이미 올린 사진을 <img>로 다시 보여줄 때 쓰는 이미지 바이트.
+
+    토큰(활성 + 그 사진의 owner_phone 일치) 검증 후 base64 data URL → 이미지 바이트로 디코드해 반환.
+    HTML 에 base64 를 다 박지 않아 페이지가 가볍고, 브라우저가 캐시한다.
+    w(폭, px) 주면 그 크기로 줄이고 화질 70 으로 재압축해 더 가볍게(썸네일). Pillow 없으면 원본.
+    """
+    with db_conn() as con:
+        link = con.execute(
+            "SELECT owner_phone, expires_at_ms FROM team_member_links WHERE token = ?",
+            (token,),
+        ).fetchone()
+        if not link:
+            raise HTTPException(404, "유효하지 않은 토큰")
+        owner_phone, expires_at = link
+        if _now_ms() > expires_at:
+            raise HTTPException(410, "만료된 링크")
+        ph = con.execute(
+            "SELECT image_data_url, owner_phone FROM team_site_photos WHERE photo_id = ?",
+            (photo_id,),
+        ).fetchone()
+    if not ph or ph[1] != owner_phone or not ph[0]:
+        raise HTTPException(404, "사진 없음")
+    data_url = ph[0]
+    media = "image/jpeg"
+    b64 = data_url
+    if data_url.startswith("data:"):
+        header, _, b64 = data_url.partition(",")
+        if ";" in header and ":" in header:
+            media = header[header.index(":") + 1:header.index(";")] or media
+    try:
+        raw = base64.b64decode(b64)
+    except (ValueError, binascii.Error):
+        raise HTTPException(500, "이미지 디코드 실패")
+    # 썸네일 요청(w) — Pillow 있으면 줄여 보내 더 빠름. 없으면 원본 그대로(안전 폴백).
+    if w and _PIL_OK:
+        try:
+            from io import BytesIO
+            tw = max(40, min(int(w), 1600))
+            im = _PILImage.open(BytesIO(raw)).convert("RGB")
+            if im.width > tw:
+                th = max(1, int(im.height * tw / im.width))
+                im = im.resize((tw, th))
+            buf = BytesIO()
+            im.save(buf, format="JPEG", quality=70, optimize=True)
+            raw = buf.getvalue()
+            media = "image/jpeg"
+        except Exception:
+            pass  # 변환 실패 → 원본 반환
+    return Response(content=raw, media_type=media,
+                    headers={"Cache-Control": "private, max-age=86400"})
+
+
 # ============================================================================
 # §25 — 현장 사진 팀↔사장님 공유 (안드로이드 SERVER_HANDOFF 2026-06-04)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -7733,9 +7798,17 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
     font-size:11px; color:var(--t3); position:relative; overflow:hidden;
   }}
   .photo-thumb.done {{ background:#E7F8EF; color:var(--success); font-weight:800; font-size:18px; }}
+  .photo-thumb {{ cursor:pointer; }}
+  .photo-thumb img {{ width:100%; height:100%; object-fit:cover; display:block; }}
   .photo-thumb .ov {{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.35); color:#fff; font-size:11px; font-weight:800; }}
   .photo-thumb .bar-wrap {{ position:absolute; left:8px; right:8px; bottom:8px; height:5px; border-radius:3px; background:rgba(255,255,255,.5); overflow:hidden; }}
   .photo-thumb .bar-fill {{ height:100%; width:0%; background:var(--blue); transition:width .2s; }}
+
+  /* 사진 크게 보기 (라이트박스) */
+  .lightbox {{ position:fixed; inset:0; background:rgba(0,0,0,.92); display:none; align-items:center; justify-content:center; z-index:50; }}
+  .lightbox.show {{ display:flex; }}
+  .lightbox img {{ max-width:96%; max-height:90%; border-radius:8px; }}
+  .lightbox .x {{ position:absolute; top:12px; right:18px; color:#fff; font-size:32px; font-weight:300; line-height:1; }}
 
   .empty {{ font-size:13px; color:var(--t3); text-align:center; padding:30px 16px; line-height:1.6; }}
 
@@ -7779,6 +7852,11 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
 
   <div class="actionbar" id="mv-actionbar"></div>
 
+</div>
+
+<div class="lightbox" id="lightbox" onclick="closeZoom()">
+  <span class="x">×</span>
+  <img id="lightbox-img" src="" alt="현장 사진">
 </div>
 
 <script>
@@ -7872,6 +7950,19 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
     renderProgress();
   }}
 
+  // 사진 크게 보기 — 썸네일 탭하면 원본(?w 없는 URL 또는 방금 올린 dataUrl)을 띄움.
+  function zoom(url) {{
+    var lb = document.getElementById('lightbox');
+    var im = document.getElementById('lightbox-img');
+    if (!lb || !im) return;
+    im.src = url;
+    lb.classList.add('show');
+  }}
+  function closeZoom() {{
+    var lb = document.getElementById('lightbox');
+    if (lb) lb.classList.remove('show');
+  }}
+
   function addrText() {{
     var el = document.getElementById('today-addr');
     return el ? (el.textContent || '').trim() : '';
@@ -7935,6 +8026,7 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
         if (resp.ok) {{
           ok++; PHOTO_COUNT++;
           tile.innerHTML = '<div class="ov">업로드 완료</div>';
+          (function(u) {{ tile.onclick = function() {{ zoom(u); }}; }})(dataUrl);
           updatePhotoCount();
         }} else {{
           fail++;
@@ -7974,13 +8066,15 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
 """
 
 
-def _build_today_card_html(item: dict, date_label: str = "", photo_count: int = 0) -> str:
+def _build_today_card_html(item: dict, date_label: str = "", photo_urls: list[str] | None = None) -> str:
     """오늘 현장 카드 HTML — 프로토 openMemberView 기반 + 전문성 보강(날짜·정보줄·진행단계·사진 X/20).
 
     진행 단계바(#mv-stepper)와 하단 액션바는 클라이언트 JS(renderProgress)가 STATUS 로 그린다.
-    여기선 빈 컨테이너만 둔다.
+    여기선 빈 컨테이너만 둔다. photo_urls = 이미 올린 사진 URL(작은 썸네일+탭하면 원본).
     """
     import html as _html
+    photo_urls = photo_urls or []
+    photo_count = len(photo_urls)
     if not item:
         return ('<div class="sec-sub">오늘 현장</div>'
                 '<div class="card"><div class="empty">오늘 배정된 현장이 없어요</div></div>')
@@ -8007,8 +8101,13 @@ def _build_today_card_html(item: dict, date_label: str = "", photo_count: int = 
         rows.append(f'<div class="fl-row"><span class="fl-ic">📞</span><span class="fl-k">고객</span><span class="fl-v"><a href="tel:{cp}">{cp}</a></span></div>')
     fl_html = '<div class="fl">' + "".join(rows) + '</div>'
 
-    # 이미 올린 사진 장수만큼 '올림 완료' 타일 표시(이미지 데이터는 안 실어 가볍게).
-    done_tiles = "".join('<div class="photo-thumb done">✓</div>' for _ in range(max(0, int(photo_count))))
+    # 이미 올린 사진 = 작은 썸네일(?w=400)로 다시 보여주고, 탭하면 원본(라이트박스).
+    #   썸네일은 서버가 줄여 보내(가볍고 빠름), 원본은 탭할 때만 받음.
+    done_tiles = "".join(
+        f'<div class="photo-thumb" onclick="zoom(\'{_html.escape(u, quote=True)}\')">'
+        f'<img src="{_html.escape(u, quote=True)}&amp;w=400" loading="lazy" alt=""></div>'
+        for u in photo_urls
+    )
 
     return f'''
     <div class="day-head"><span class="day-badge">오늘</span>{date_html}</div>
@@ -8130,7 +8229,7 @@ async def team_member_page(token: str) -> HTMLResponse:
     # 오늘 진행 단계(출발/도착/완료) — 오늘 0시(KST) 이후 이벤트로 복원(새로고침해도 단계 유지).
     kst_day_start = ((now + 9 * 3600_000) // 86_400_000) * 86_400_000 - 9 * 3600_000
     status = {"departed": False, "arrived": False, "completed": False}
-    photo_count = 0
+    photo_ids: list[int] = []
     with db_conn() as con:
         ev_rows = con.execute(
             "SELECT event_type FROM team_member_events "
@@ -8140,25 +8239,30 @@ async def team_member_page(token: str) -> HTMLResponse:
         for (et,) in ev_rows:
             if et in status:
                 status[et] = True
-        # 오늘 현장 사진 장수(고객 기준, X/20 표시용)
+        # 오늘 현장 사진 — 이미 올린 사진 id(고객 기준). 썸네일로 다시 보여주고 X/20 표시.
         cp = str((today or {}).get("customer_phone") or "").strip()
         if cp:
             digits = "".join(ch for ch in cp if ch.isdigit())
             suffix_8 = digits[-8:] if len(digits) >= 8 else digits
-            photo_count = con.execute(
+            ph_rows = con.execute(
                 """
-                SELECT COUNT(*) FROM team_site_photos
+                SELECT photo_id FROM team_site_photos
                 WHERE owner_phone = ?
                   AND (
                     customer_phone = ?
                     OR REPLACE(REPLACE(REPLACE(REPLACE(IFNULL(customer_phone,''), '-', ''), ' ', ''), '+', ''), '_', '') LIKE ?
                   )
+                ORDER BY uploaded_at_ms ASC
                 """,
                 (owner_phone, cp, f"%{suffix_8}"),
-            ).fetchone()[0]
+            ).fetchall()
+            photo_ids = [r[0] for r in ph_rows]
         # last_accessed 기록
         con.execute("UPDATE team_member_links SET last_accessed_ms = ? WHERE token = ?", (now, token))
         con.commit()
+    photo_count = len(photo_ids)
+    tok_q = urllib.parse.quote(token, safe="")
+    photo_urls = [f"/api/team/photo/{pid}?token={tok_q}" for pid in photo_ids]
 
     owner_label = "대표님"
     biz = _fetch_owner_biz_name(owner_phone)
@@ -8177,7 +8281,7 @@ async def team_member_page(token: str) -> HTMLResponse:
         member_name_html=_html.escape(member_name or "팀원"),
         owner_label_html=_html.escape(owner_label),
         biz_header_html=_html.escape(biz_header),
-        today_block=_build_today_card_html(today, date_label, photo_count),
+        today_block=_build_today_card_html(today, date_label, photo_urls),
         next_block=_build_next_block_html(items),
         expiry_label_html=_html.escape(_expiry_label(expires_at)),
         token_js=_html.escape(token, quote=True),
