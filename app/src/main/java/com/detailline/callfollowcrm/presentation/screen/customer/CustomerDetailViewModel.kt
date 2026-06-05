@@ -85,6 +85,16 @@ class CustomerDetailViewModel(
         container.sitePhotoServerRepository.fetchNotes(owner, cust).onSuccess { _teamNotes.value = it }
     }
 
+    /** 팀원 현장 메모에 답글 → 서버 저장 후 목록 새로고침(팀원 링크 화면에 보임). */
+    fun replyToTeamNote(eventId: Long, text: String) = viewModelScope.launch {
+        val owner = container.preferences.bizPhone.trim()
+        val body = text.trim()
+        if (owner.isBlank() || body.isEmpty()) return@launch
+        container.sitePhotoServerRepository.replyNote(owner, eventId, body)
+            .onSuccess { refreshTeamNotes(); _toast.value = "답글을 보냈어요" }
+            .onFailure { _toast.value = "답글 전송 실패" }
+    }
+
     /** 갤러리에서 고른 사진들 추가(내부 저장소 복사). 한 현장 최대 [sitePhotoMax]장(로컬+서버 합산). */
     fun addSitePhotos(uris: List<android.net.Uri>) = viewModelScope.launch {
         if (uris.isEmpty()) return@launch

@@ -5,8 +5,10 @@ import android.graphics.BitmapFactory
 import android.util.Base64
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.TimeUnit
@@ -32,14 +34,18 @@ class SitePhotoServerRepository(
         val uploadedAtMs: Long
     )
 
-    /** 팀원이 그 고객(현장)에 남긴 현장 메모 한 건. */
+    /** 팀원이 그 고객(현장)에 남긴 현장 메모 한 건. readAtMs/replyText = 양방향 확인·답글. */
     data class RemoteNote(
+        val eventId: Long,
         val text: String,
         val memberName: String,
-        val createdAtMs: Long
+        val createdAtMs: Long,
+        val readAtMs: Long?,
+        val replyText: String?,
+        val replyAtMs: Long?
     )
 
-    /** 고객별 팀원 현장 메모 — GET /api/team/notes. */
+    /** 고객별 팀원 현장 메모 — GET /api/team/notes. 조회 = 확인(서버가 read_at 박음). */
     suspend fun fetchNotes(ownerPhone: String, customerPhone: String): Result<List<RemoteNote>> =
         withContext(Dispatchers.IO) {
             runCatching {
@@ -55,11 +61,32 @@ class SitePhotoServerRepository(
                     (0 until arr.length()).map { i ->
                         val o = arr.getJSONObject(i)
                         RemoteNote(
+                            eventId = o.optLong("event_id"),
                             text = o.optString("text"),
                             memberName = o.optString("member_name").ifBlank { "팀원" },
-                            createdAtMs = o.optLong("created_at_ms")
+                            createdAtMs = o.optLong("created_at_ms"),
+                            readAtMs = o.optLong("read_at_ms").takeIf { it > 0 },
+                            replyText = o.optString("reply_text").takeIf { it.isNotBlank() && it != "null" },
+                            replyAtMs = o.optLong("reply_at_ms").takeIf { it > 0 }
                         )
                     }
+                }
+            }
+        }
+
+    /** 사장님이 팀원 현장 메모에 답글 — POST /api/team/note/reply. */
+    suspend fun replyNote(ownerPhone: String, eventId: Long, text: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val body = JSONObject().apply {
+                    put("owner_phone", ownerPhone)
+                    put("event_id", eventId)
+                    put("text", text)
+                }.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+                val req = Request.Builder().url("$baseUrl/api/team/note/reply").post(body).build()
+                client.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                    Unit
                 }
             }
         }

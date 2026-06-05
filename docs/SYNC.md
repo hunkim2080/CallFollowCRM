@@ -3200,3 +3200,13 @@ HOU-128 `/admin/beta/intake` (셋팅 폼) 도 이전 cycle 에 통합 완료. �
 - 알림(푸시) 탭은 그대로 앱(상담함) 열림 — MainActivity 에 고객상세 딥링크 없음. 상담함 배너로 고객카드 진입. (필요시 후속)
 - ⚠️ 맥미니 재배포 필요(payload customer_phone). 재배포+재배정 후 새 이벤트부터 고객 연결. 앱 빌드+폰 설치 완료.
 - commit: (아래)
+
+## 2026-06-06 · android (+ server, 사장님 승인 룰 예외 연장)
+현장 메모 양방향 — 사장님 읽음 확인 + 답글(리플).
+- 서버(server/main.py): team_member_events 에 read_at_ms·reply_text·reply_at_ms 컬럼 ALTER 추가.
+  · GET /api/team/notes: event_id·read_at·reply 포함 반환 + 조회 시 안읽은 메모 read_at 박음(mark_read=1 기본) = 사장님 확인.
+  · 신규 POST /api/team/note/reply (owner_phone, event_id, text) — 답글 저장(owner 일치 검증).
+  · 팀원 링크 화면: 각 메모에 "✓ 대표님 확인 {시각}" / "아직 확인 전" + "↳ 대표님 답글" 표시.
+- 앱(app): RemoteNote 에 eventId·readAtMs·replyText·replyAtMs. SitePhotoServerRepository.replyNote. CustomerDetailViewModel.replyToTeamNote. CustomerDetail 메모 카드에 내 답글 표시 + 답글 입력칸(보내기). 고객카드 열면 자동 '확인' 처리(GET notes).
+- ⚠️ 맥미니 재배포 필요(컬럼 ALTER + 엔드포인트). 앱 빌드+폰 설치 완료.
+- commit: (아래)

@@ -360,6 +360,16 @@ def db_init() -> None:
             "CREATE INDEX IF NOT EXISTS idx_team_events_owner_created "
             "ON team_member_events(owner_phone, created_at_ms)"
         )
+        # 현장 메모 양방향(2026-06-06) — 사장님 읽음 확인 + 답글. 기존 DB 엔 ALTER 로 추가.
+        for col_def in [
+            "read_at_ms INTEGER",      # 사장님이 그 메모를 확인한 시각 (NULL=아직 안 봄)
+            "reply_text TEXT",         # 사장님 답글 내용
+            "reply_at_ms INTEGER",     # 사장님 답글 시각
+        ]:
+            try:
+                con.execute(f"ALTER TABLE team_member_events ADD COLUMN {col_def}")
+            except sqlite3.OperationalError:
+                pass  # already exists
         # 팀원 사진 업로드 (시공 전/중/후/추가)
         con.execute(
             """
@@ -7619,11 +7629,13 @@ async def team_photo_raw(photo_id: int, token: str, w: Optional[int] = None) -> 
 
 
 @app.get("/api/team/notes")
-async def team_notes_list(owner_phone: str, customer_phone: str, limit: int = 100) -> dict:
+async def team_notes_list(owner_phone: str, customer_phone: str, limit: int = 100,
+                          mark_read: int = 1) -> dict:
     """사장님 고객 카드용 — 그 고객(현장)에 팀원이 남긴 현장 메모 모음(최신순).
 
-    응답: {notes: [{text, member_name, created_at_ms}]}
+    응답: {notes: [{event_id, text, member_name, created_at_ms, read_at_ms, reply_text, reply_at_ms}]}
     note 이벤트 payload 의 customer_phone(끝 8자리) 으로 매칭.
+    mark_read=1(기본): 사장님이 조회 = 확인. 안 읽은 메모에 read_at_ms 를 박음(팀원 화면에 "확인됨" 표시됨).
     """
     if not owner_phone or not customer_phone:
         raise HTTPException(400, "owner_phone, customer_phone 필수")
@@ -7631,10 +7643,13 @@ async def team_notes_list(owner_phone: str, customer_phone: str, limit: int = 10
     suffix_8 = digits[-8:] if len(digits) >= 8 else digits
     limit = max(1, min(limit, 200))
     out = []
+    to_mark = []
+    now = _now_ms()
     with db_conn() as con:
         rows = con.execute(
             """
-            SELECT e.payload_json, e.created_at_ms, m.name
+            SELECT e.event_id, e.payload_json, e.created_at_ms, m.name,
+                   e.read_at_ms, e.reply_text, e.reply_at_ms
             FROM team_member_events e
             LEFT JOIN team_members m ON m.member_id = e.member_id
             WHERE e.owner_phone = ? AND e.event_type = 'note'
@@ -7642,21 +7657,66 @@ async def team_notes_list(owner_phone: str, customer_phone: str, limit: int = 10
             """,
             (owner_phone,),
         ).fetchall()
-    for pj, cms, mname in rows:
-        try:
-            p = json.loads(pj) if pj else {}
-        except json.JSONDecodeError:
-            p = {}
-        text = (p.get("text") or "").strip()
-        if not text:
-            continue
-        cp = "".join(ch for ch in str(p.get("customer_phone") or "") if ch.isdigit())
-        cp8 = cp[-8:] if len(cp) >= 8 else cp
-        if suffix_8 and cp8 == suffix_8:
-            out.append({"text": text, "member_name": mname or "팀원", "created_at_ms": cms})
-        if len(out) >= limit:
-            break
+        for eid, pj, cms, mname, read_at, reply_text, reply_at in rows:
+            try:
+                p = json.loads(pj) if pj else {}
+            except json.JSONDecodeError:
+                p = {}
+            text = (p.get("text") or "").strip()
+            if not text:
+                continue
+            cp = "".join(ch for ch in str(p.get("customer_phone") or "") if ch.isdigit())
+            cp8 = cp[-8:] if len(cp) >= 8 else cp
+            if suffix_8 and cp8 == suffix_8:
+                eff_read = read_at or (now if mark_read else None)
+                if mark_read and not read_at:
+                    to_mark.append(eid)
+                out.append({
+                    "event_id": eid, "text": text, "member_name": mname or "팀원",
+                    "created_at_ms": cms, "read_at_ms": eff_read,
+                    "reply_text": reply_text, "reply_at_ms": reply_at,
+                })
+            if len(out) >= limit:
+                break
+        if to_mark:
+            con.executemany(
+                "UPDATE team_member_events SET read_at_ms = ? WHERE event_id = ?",
+                [(now, eid) for eid in to_mark],
+            )
+            con.commit()
     return {"notes": out, "count": len(out)}
+
+
+class TeamNoteReplyRequest(BaseModel):
+    owner_phone: str
+    event_id: int
+    text: str
+
+
+@app.post("/api/team/note/reply")
+async def team_note_reply(req: TeamNoteReplyRequest) -> dict:
+    """사장님이 팀원 현장 메모에 답글. 팀원 링크 화면에 '대표님 답글'로 보임."""
+    text = (req.text or "").strip()
+    if not text:
+        raise HTTPException(400, "내용을 입력해 주세요")
+    if len(text) > 1000:
+        text = text[:1000]
+    now = _now_ms()
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT owner_phone, event_type FROM team_member_events WHERE event_id = ?",
+            (req.event_id,),
+        ).fetchone()
+        if not row or row[1] != "note":
+            raise HTTPException(404, "메모 없음")
+        if row[0] != req.owner_phone:
+            raise HTTPException(403, "권한 없음")
+        con.execute(
+            "UPDATE team_member_events SET reply_text = ?, reply_at_ms = ? WHERE event_id = ?",
+            (text, now, req.event_id),
+        )
+        con.commit()
+    return {"ok": True, "event_id": req.event_id, "reply_at_ms": now}
 
 
 @app.delete("/api/team/photo/{photo_id}")
@@ -7961,6 +8021,10 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
   .mv-note-row {{ background:var(--bg); border-radius:10px; padding:10px 12px; }}
   .mv-note-row .mn-t {{ font-size:11px; font-weight:700; color:var(--t3); margin-right:6px; }}
   .mv-note-row .mn-b {{ font-size:13.5px; color:var(--t1); line-height:1.5; }}
+  .mv-note-row .mn-read {{ display:block; margin-top:5px; font-size:11px; font-weight:700; color:var(--success); }}
+  .mv-note-row .mn-unread {{ display:block; margin-top:5px; font-size:11px; font-weight:700; color:var(--t3); }}
+  .mv-note-row .mn-reply {{ margin-top:7px; padding:8px 10px; background:var(--blue-tint); border-radius:8px;
+    font-size:13px; color:var(--blue-dark); font-weight:600; line-height:1.5; }}
 
   /* 사진 크게 보기 (라이트박스) */
   .lightbox {{ position:fixed; inset:0; background:rgba(0,0,0,.92); display:none; align-items:center; justify-content:center; z-index:50; }}
@@ -8160,7 +8224,7 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
           var hh = ('0'+now.getHours()).slice(-2), mm = ('0'+now.getMinutes()).slice(-2);
           var row = document.createElement('div');
           row.className = 'mv-note-row';
-          row.innerHTML = '<span class="mn-t"></span><span class="mn-b"></span>';
+          row.innerHTML = '<span class="mn-t"></span><span class="mn-b"></span><span class="mn-unread">아직 확인 전</span>';
           row.querySelector('.mn-t').textContent = hh + ':' + mm;
           row.querySelector('.mn-b').textContent = text;
           list.appendChild(row);
@@ -8337,12 +8401,19 @@ def _build_today_card_html(item: dict, date_label: str = "", photos: list[dict] 
                 f'{delbtn}</div>')
     done_tiles = "".join(_tile(p) for p in photos)
 
-    # 직원이 오늘 남긴 현장 메모 목록(직원→사장). 보낸 것 확인용.
-    sent_notes = "".join(
-        f'<div class="mv-note-row"><span class="mn-t">{_html.escape(str(n.get("time") or ""))}</span>'
-        f'<span class="mn-b">{_html.escape(str(n.get("text") or "")).replace(chr(10), "<br>")}</span></div>'
-        for n in notes
-    )
+    # 직원이 오늘 남긴 현장 메모 목록(직원→사장) + 대표님 확인/답글 표시(양방향).
+    def _note_row(n: dict) -> str:
+        t = _html.escape(str(n.get("time") or ""))
+        b = _html.escape(str(n.get("text") or "")).replace(chr(10), "<br>")
+        read = n.get("read")
+        reply = n.get("reply")
+        status_html = (f'<span class="mn-read">✓ 대표님 확인 {_html.escape(str(read))}</span>'
+                       if read else '<span class="mn-unread">아직 확인 전</span>')
+        reply_html = (f'<div class="mn-reply">↳ 대표님 답글<br>{_html.escape(str(reply)).replace(chr(10), "<br>")}</div>'
+                      if reply else "")
+        return (f'<div class="mv-note-row"><span class="mn-t">{t}</span>'
+                f'<span class="mn-b">{b}</span>{status_html}{reply_html}</div>')
+    sent_notes = "".join(_note_row(n) for n in notes)
     return f'''
     <div class="day-head"><span class="day-badge">오늘</span>{date_html}</div>
     <div class="card">
@@ -8476,11 +8547,12 @@ async def team_member_page(token: str) -> HTMLResponse:
     ph_rows: list = []
     with db_conn() as con:
         ev_rows = con.execute(
-            "SELECT event_type, payload_json, created_at_ms FROM team_member_events "
+            "SELECT event_type, payload_json, created_at_ms, read_at_ms, reply_text, reply_at_ms "
+            "FROM team_member_events "
             "WHERE token = ? AND created_at_ms >= ? ORDER BY created_at_ms ASC",
             (token, kst_day_start),
         ).fetchall()
-        for et, pj, cms in ev_rows:
+        for et, pj, cms, read_at, reply_text, reply_at in ev_rows:
             if et in status:
                 status[et] = True
             elif et == "note":
@@ -8491,7 +8563,14 @@ async def team_member_page(token: str) -> HTMLResponse:
                     txt = ""
                 if txt:
                     _dtn = _dt.datetime.utcfromtimestamp(cms / 1000) + _dt.timedelta(hours=9)
-                    notes.append({"text": txt, "time": f"{_dtn.hour:02d}:{_dtn.minute:02d}"})
+                    read_label = None
+                    if read_at:
+                        _dr = _dt.datetime.utcfromtimestamp(read_at / 1000) + _dt.timedelta(hours=9)
+                        read_label = f"{_dr.month}/{_dr.day} {_dr.hour:02d}:{_dr.minute:02d}"
+                    notes.append({
+                        "text": txt, "time": f"{_dtn.hour:02d}:{_dtn.minute:02d}",
+                        "read": read_label, "reply": (reply_text or "").strip() or None,
+                    })
         # 오늘 현장 사진 — 이미 올린 사진(고객 기준) id+업로더. 썸네일 + 내가 올린 것만 ✕(삭제).
         cp = str((today or {}).get("customer_phone") or "").strip()
         if cp:
