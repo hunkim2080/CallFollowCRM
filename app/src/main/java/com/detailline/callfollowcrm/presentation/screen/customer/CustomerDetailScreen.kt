@@ -48,6 +48,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
@@ -710,27 +711,54 @@ fun CustomerDetailScreen(
                                     Spacer(Modifier.height(4.dp))
                                     Text(note.text, fontSize = 13.5.sp, color = Color(0xFF5A3D00), lineHeight = 19.sp)
 
-                                    // 내 답글(있으면) — 팀원 링크 화면에도 같이 보임.
-                                    if (!note.replyText.isNullOrBlank()) {
+                                    // 답글 편집 상태 — 평소엔 닫힘(버튼만), 누르면 입력칸 열림.
+                                    var editing by remember(note.eventId) { mutableStateOf(false) }
+                                    var reply by remember(note.eventId) { mutableStateOf("") }
+                                    val hasReply = !note.replyText.isNullOrBlank()
+
+                                    // 내 답글(있으면) — 팀원 링크 화면에도 같이 보임. 편집 중엔 숨김.
+                                    if (hasReply && !editing) {
                                         Spacer(Modifier.height(8.dp))
                                         androidx.compose.foundation.layout.Box(
                                             Modifier.fillMaxWidth().clip(RoundedCornerShape(9.dp))
                                                 .background(TossBlueSoft).padding(horizontal = 10.dp, vertical = 8.dp)
                                         ) {
                                             Column {
-                                                Text("↳ 내 답글", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                                                androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                                    Text("↳ 내 답글", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                                                    Spacer(Modifier.weight(1f))
+                                                    Text("수정", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+                                                        modifier = Modifier.clip(RoundedCornerShape(6.dp))
+                                                            .clickable { reply = note.replyText.orEmpty(); editing = true }
+                                                            .padding(horizontal = 6.dp, vertical = 2.dp))
+                                                }
                                                 Spacer(Modifier.height(2.dp))
-                                                Text(note.replyText, fontSize = 13.sp, color = TossBlueDark, lineHeight = 18.sp)
+                                                Text(note.replyText!!, fontSize = 13.sp, color = TossBlueDark, lineHeight = 18.sp)
                                             }
                                         }
                                     }
 
-                                    // 답글 입력 — 팀원에게 피드백.
-                                    var reply by remember(note.eventId) { mutableStateOf("") }
-                                    Spacer(Modifier.height(8.dp))
-                                    androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                    // 답글 없고 편집도 아니면 → "답글 달기" 버튼만(접힘).
+                                    if (!hasReply && !editing) {
+                                        Spacer(Modifier.height(8.dp))
+                                        androidx.compose.foundation.layout.Row(
+                                            Modifier.clip(RoundedCornerShape(8.dp))
+                                                .clickable { reply = ""; editing = true }
+                                                .padding(vertical = 4.dp),
+                                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                                        ) {
+                                            androidx.compose.material3.Icon(Icons.AutoMirrored.Filled.Reply, null,
+                                                tint = Color(0xFFA66B00), modifier = Modifier.size(15.dp))
+                                            Spacer(Modifier.width(5.dp))
+                                            Text("답글 달기", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFA66B00))
+                                        }
+                                    }
+
+                                    // 편집 중 → 입력칸 + 보내기/취소.
+                                    if (editing) {
+                                        Spacer(Modifier.height(8.dp))
                                         androidx.compose.foundation.layout.Box(
-                                            Modifier.weight(1f).clip(RoundedCornerShape(9.dp)).background(Color.White)
+                                            Modifier.fillMaxWidth().clip(RoundedCornerShape(9.dp)).background(Color.White)
                                                 .border(1.dp, Color(0xFFEAD9A8), RoundedCornerShape(9.dp))
                                                 .padding(horizontal = 10.dp, vertical = 9.dp)
                                         ) {
@@ -741,25 +769,32 @@ fun CustomerDetailScreen(
                                                 cursorBrush = androidx.compose.ui.graphics.SolidColor(TossBlue),
                                                 modifier = Modifier.fillMaxWidth(),
                                                 decorationBox = { inner ->
-                                                    if (reply.isEmpty()) Text(
-                                                        if (note.replyText.isNullOrBlank()) "답글 달기" else "답글 수정",
-                                                        fontSize = 13.sp, color = TossTextTertiary
-                                                    )
+                                                    if (reply.isEmpty()) Text("팀원에게 답글…", fontSize = 13.sp, color = TossTextTertiary)
                                                     inner()
                                                 }
                                             )
                                         }
-                                        Spacer(Modifier.width(8.dp))
-                                        androidx.compose.foundation.layout.Box(
-                                            Modifier.clip(RoundedCornerShape(9.dp))
-                                                .background(if (reply.isBlank()) Color(0xFFB7C2D0) else TossBlue)
-                                                .clickable(enabled = reply.isNotBlank()) {
-                                                    viewModel.replyToTeamNote(note.eventId, reply.trim())
-                                                    reply = ""
-                                                }
-                                                .padding(horizontal = 14.dp, vertical = 9.dp)
+                                        Spacer(Modifier.height(8.dp))
+                                        androidx.compose.foundation.layout.Row(
+                                            Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End,
+                                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                                         ) {
-                                            Text("보내기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                            Text("취소", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+                                                modifier = Modifier.clip(RoundedCornerShape(8.dp))
+                                                    .clickable { editing = false; reply = "" }
+                                                    .padding(horizontal = 14.dp, vertical = 9.dp))
+                                            Spacer(Modifier.width(4.dp))
+                                            androidx.compose.foundation.layout.Box(
+                                                Modifier.clip(RoundedCornerShape(9.dp))
+                                                    .background(if (reply.isBlank()) Color(0xFFB7C2D0) else TossBlue)
+                                                    .clickable(enabled = reply.isNotBlank()) {
+                                                        viewModel.replyToTeamNote(note.eventId, reply.trim())
+                                                        editing = false
+                                                    }
+                                                    .padding(horizontal = 16.dp, vertical = 9.dp)
+                                            ) {
+                                                Text("보내기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                            }
                                         }
                                     }
                                 }

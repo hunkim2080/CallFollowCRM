@@ -3210,3 +3210,9 @@ HOU-128 `/admin/beta/intake` (셋팅 폼) 도 이전 cycle 에 통합 완료. �
 - 앱(app): RemoteNote 에 eventId·readAtMs·replyText·replyAtMs. SitePhotoServerRepository.replyNote. CustomerDetailViewModel.replyToTeamNote. CustomerDetail 메모 카드에 내 답글 표시 + 답글 입력칸(보내기). 고객카드 열면 자동 '확인' 처리(GET notes).
 - ⚠️ 맥미니 재배포 필요(컬럼 ALTER + 엔드포인트). 앱 빌드+폰 설치 완료.
 - commit: (아래)
+
+## 2026-06-06 · android (app only)
+현장 메모 답글 UI 정리 — 항상 열린 입력칸이 미완성처럼 보임(사장님 지적).
+- CustomerDetailScreen: 답글 입력칸을 접힘 기본으로. 답글 없으면 "↩ 답글 달기" 버튼만, 누르면 입력칸+보내기/취소 열림. 답글 있으면 파란 박스+"수정" 링크(누르면 편집). 보내거나 취소하면 다시 닫힘.
+- 서버 변경 없음. 앱 빌드+폰 설치 완료.
+- commit: (아래)
