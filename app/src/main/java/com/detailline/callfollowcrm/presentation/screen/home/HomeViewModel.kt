@@ -542,12 +542,18 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         combine(spamSuffixes, _repliedSuffixes) { spam, replied -> spam + replied }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
+    // 미확인=부재중(missed) 기준, 오늘 신규=들어온 통화 전체(inbound: 수신·부재중·거절) 기준 — 둘 다 필요해
+    //   combine 5개 한도 안에서 쓰려고 두 통화 flow 를 미리 Pair 로 묶음.
+    //   (2026-06-06 버그픽스: 전엔 newToday 에도 missed 만 넘겨서 '받은 신규 전화'가 오늘 신규에 안 잡혔음.)
+    private val callsForFlags = combine(missedRecent, inboundRecent) { m, i -> m to i }
+
     private val timelineFlags: StateFlow<TimelineFlags> = combine(
-        smsContactsState, missedRecent, phonesWithCallsBeforeToday, excludedForUnconfirmed, scheduledCustomerSuffixes
-    ) { smsContacts, missed, callsBefore, spam, scheduled ->
+        smsContactsState, callsForFlags, phonesWithCallsBeforeToday, excludedForUnconfirmed, scheduledCustomerSuffixes
+    ) { smsContacts, calls, callsBefore, spam, scheduled ->
+        val (missed, inbound) = calls
         TimelineFlags(
             unconfirmedSuffixes = unconfirmedSuffixes(smsContacts, missed, spam, scheduled),
-            newTodaySuffixes = newTodaySuffixes(smsContacts, missed, callsBefore)
+            newTodaySuffixes = newTodaySuffixes(smsContacts, inbound, callsBefore)
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TimelineFlags(emptySet(), emptySet()))
 

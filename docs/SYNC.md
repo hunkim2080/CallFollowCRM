@@ -3223,3 +3223,10 @@ HOU-128 `/admin/beta/intake` (셋팅 폼) 도 이전 cycle 에 통합 완료. �
 - JS: copyText/openNavApp 헬퍼 추출(copyAddr/openNav 가 재사용), toggleNext 추가. event.stopPropagation 으로 버튼 탭이 카드 토글과 안 겹치게.
 - 서버 전용. ⚠️ 맥미니 재배포 필요.
 - commit: (아래)
+
+## 2026-06-06 · android (app only)
+버그픽스: "오늘 신규"에 받은(answered) 신규 전화가 안 잡힘(사장님 신고).
+- 원인: HomeViewModel.timelineFlags 가 newTodaySuffixes 에 missedRecent(부재중만) 를 넘김 → 리스트/“오늘 신규” 필터/카드 배지가 부재중·SMS 만 신규로 봄. KPI 카운트(todayNewInquiryCount)는 inboundRecent(수신·부재중·거절) 라서 숫자만 맞고 목록은 빠짐(불일치).
+- 수정: callsForFlags=combine(missed,inbound) Pair 로 묶어 unconfirmed=missed / newToday=inbound 로 각각 올바른 입력 사용. 이제 받은 신규 전화도 오늘 신규에 표시.
+- 서버 무관. 앱 빌드+폰 설치 완료.
+- commit: (아래)
