@@ -3110,3 +3110,17 @@ HOU-128 `/admin/beta/intake` (셋팅 폼) 도 이전 cycle 에 통합 완료. �
 - ⚠️ **맥미니 재배포 필요**. 배포 후 사장님이 재배정하면 그 팀원의 모든 활성 링크에 customer_phone 포함 snapshot 이 박힘 → 팀원이 옛 링크로 올린 사진도 고객에 매핑됨.
 - cowork: schedule-snapshot 다음에 만질 때 충돌 주의(android 가 이 endpoint 수정).
 - commit: (아래)
+
+## 2026-06-05 05:45 · android (+ server, 사장님 승인 룰 예외 연장)
+직원(팀원) 웹뷰 UX/UI 전문성 보강 — 사장님 'D·전부 통합(A+B+C)' 선택.
+- 서버(server/main.py) /team/member/{token} 화면 재설계 (TEAM_MEMBER_HTML_TEMPLATE + _build_today_card_html):
+  · 업체 브랜드 헤더(업체명 + R 마크)
+  · 오늘 날짜/D-day 헤더 + 정보 아이콘 줄맞춤(시간/주소/작업/메모/고객전화)
+  · 진행 단계바 배정→출발→도착→완료(탭하면 진행) + 하단 고정 액션바(다음 단계 버튼)
+  · 사진: 📸촬영 / 🖼️앨범 분리, 장수 카운트 X/20, 업로드 진행률 타일
+- 신규 엔드포인트: POST /api/team/event/complete (출발/도착과 동일 패턴, event_type 'completed'). depart/arrive 는 기존.
+  · 페이지 로드 시 오늘 0시(KST) 이후 이벤트로 단계 복원(새로고침해도 유지). 사진 장수는 team_site_photos 카운트.
+- 앱 영향 없음: 사장님 앱은 events 를 'departed' 만 필터(TeamViewModel) → 'arrived'/'completed' 는 기록만(향후 표시 여지).
+- ⚠️ 맥미니 재배포 필요. (DB 스키마 변경 없음 — 컬럼 추가 X, ALTER 없음)
+- cowork: /team/member 화면·event/complete 다음에 만질 때 충돌 주의(android 가 수정).
+- commit: (아래)

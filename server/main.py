@@ -339,7 +339,7 @@ def db_init() -> None:
                 token           TEXT,
                 member_id       TEXT NOT NULL,
                 owner_phone     TEXT NOT NULL,
-                event_type      TEXT NOT NULL,           -- 'departed'|'photo'|'arrived'
+                event_type      TEXT NOT NULL,           -- 'departed'|'photo'|'arrived'|'completed'
                 payload_json    TEXT,
                 created_at_ms   INTEGER NOT NULL
             )
@@ -6985,6 +6985,11 @@ class TeamArriveEventRequest(BaseModel):
     arrived_at_ms: Optional[int] = None
 
 
+class TeamCompleteEventRequest(BaseModel):
+    token: str
+    completed_at_ms: Optional[int] = None
+
+
 class TeamPhotoUploadRequest(BaseModel):
     token: str
     label: Optional[str] = None                # '시공 전'|'시공 중'|'시공 후'|'추가 사진'
@@ -7304,6 +7309,46 @@ async def team_event_arrive(req: TeamArriveEventRequest) -> dict:
     return {"ok": True, "event_id": event_id, "arrived_at_ms": arrived_at}
 
 
+@app.post("/api/team/event/complete")
+async def team_event_complete(req: TeamCompleteEventRequest) -> dict:
+    """팀원이 작업 완료. 출발/도착과 같은 패턴 — 진행 단계바 마지막 단계."""
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT member_id, owner_phone, expires_at_ms, schedule_snapshot_json "
+            "FROM team_member_links WHERE token = ?",
+            (req.token,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "유효하지 않은 토큰")
+        member_id, owner_phone, expires_at, snap = row
+        now = _now_ms()
+        if now > expires_at:
+            raise HTTPException(410, "만료된 링크")
+        completed_at = int(req.completed_at_ms or now)
+        payload = {"completed_at_ms": completed_at}
+        if snap:
+            try:
+                items = json.loads(snap) or []
+                today = next((it for it in items if it.get("is_today")), None) or (items[0] if items else None)
+                if today:
+                    payload["customer_label"] = today.get("customer_label")
+                    payload["addr"] = today.get("addr")
+            except json.JSONDecodeError:
+                pass
+        cur = con.execute(
+            """
+            INSERT INTO team_member_events
+                (token, member_id, owner_phone, event_type, payload_json, created_at_ms)
+            VALUES (?, ?, ?, 'completed', ?, ?)
+            """,
+            (req.token, member_id, owner_phone,
+             json.dumps(payload, ensure_ascii=False), now),
+        )
+        event_id = cur.lastrowid
+        con.commit()
+    return {"ok": True, "event_id": event_id, "completed_at_ms": completed_at}
+
+
 # ─── API 8: 팀원 사진 업로드 ───
 # 프로토 memberUpload() — 시공 전/중/후 라벨 + base64 이미지.
 
@@ -7605,40 +7650,62 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
   }}
   .wrap {{ max-width:480px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column; }}
 
-  .appbar {{ display:flex; align-items:center; padding:14px 18px 12px; background:#fff; border-bottom:1px solid var(--line); }}
-  .appbar .title {{ font-size:15px; font-weight:800; color:var(--t1); }}
-  .appbar .me {{ margin-left:auto; font-size:11.5px; font-weight:700; color:var(--t3); display:inline-flex; align-items:center; gap:5px; }}
-  .appbar .me .d {{ width:7px; height:7px; border-radius:50%; background:var(--success); }}
+  /* 브랜드 헤더 */
+  .appbar {{ display:flex; align-items:center; gap:9px; padding:13px 16px; background:#fff; border-bottom:1px solid var(--line); }}
+  .brand {{ display:inline-flex; align-items:center; gap:8px; }}
+  .brand-mark {{ width:26px; height:26px; border-radius:8px; background:linear-gradient(135deg,var(--blue),var(--blue-dark)); color:#fff; font-size:14px; font-weight:900; display:flex; align-items:center; justify-content:center; letter-spacing:-.5px; }}
+  .brand-name {{ font-size:15px; font-weight:800; color:var(--t1); }}
+  .brand-sub {{ font-size:10.5px; font-weight:700; color:var(--t3); margin-left:2px; }}
+  .appbar .me {{ margin-left:auto; font-size:12px; font-weight:800; color:var(--t1); display:inline-flex; align-items:center; gap:5px; background:#E7F8EF; padding:5px 10px; border-radius:999px; }}
+  .appbar .me .d {{ width:6px; height:6px; border-radius:50%; background:var(--success); }}
 
-  .mv-note {{ background:#FFF8E1; color:#7A5A00; font-size:12px; padding:10px 16px; line-height:1.5; }}
+  .mv-note {{ background:#FFF8E1; color:#7A5A00; font-size:11.5px; padding:9px 16px; line-height:1.5; }}
   .mv-note b {{ color:var(--blue-dark); }}
 
-  .scroll {{ flex:1; min-height:0; overflow-y:auto; padding:14px 16px 16px; }}
-  .sec-sub {{ font-size:11.5px; font-weight:800; color:var(--t3); margin:14px 2px 8px; letter-spacing:.02em; }}
-  .sec-sub:first-child {{ margin-top:4px; }}
+  .scroll {{ flex:1; min-height:0; overflow-y:auto; padding:14px 16px 18px; }}
+  .sec-sub {{ font-size:11.5px; font-weight:800; color:var(--t3); margin:16px 2px 8px; letter-spacing:.02em; }}
+  .sec-sub:first-child {{ margin-top:2px; }}
 
-  .card {{ background:#fff; border-radius:14px; padding:15px; margin-bottom:10px; box-shadow:var(--shadow); }}
+  /* 오늘 날짜 헤더 */
+  .day-head {{ display:flex; align-items:center; gap:8px; margin:2px 2px 9px; }}
+  .day-badge {{ font-size:11.5px; font-weight:900; color:#fff; background:var(--error); padding:3px 9px; border-radius:7px; }}
+  .day-date {{ font-size:13px; font-weight:800; color:var(--t2); }}
+
+  .card {{ background:#fff; border-radius:16px; padding:16px; margin-bottom:10px; box-shadow:var(--shadow); }}
   .card .row {{ display:flex; align-items:center; gap:8px; }}
   .card .hd {{ width:8px; height:8px; border-radius:50%; background:var(--blue); flex-shrink:0; }}
   .card .hd.hot {{ background:var(--error); }}
-  .card .name {{ font-size:15px; font-weight:800; color:var(--t1); }}
+  .card .name {{ font-size:16px; font-weight:800; color:var(--t1); }}
   .card .time {{ margin-left:auto; font-size:12.5px; font-weight:800; color:var(--blue); background:var(--blue-tint); padding:3px 9px; border-radius:8px; }}
-  .card .preview {{ font-size:13.5px; color:var(--t2); margin-top:9px; line-height:1.55; }}
-  .card .work {{ font-size:13px; color:var(--t2); margin-top:8px; }}
+
+  /* 정보 줄 (아이콘 정렬) */
+  .fl {{ margin-top:13px; display:flex; flex-direction:column; gap:9px; }}
+  .fl-row {{ display:flex; align-items:flex-start; gap:9px; font-size:13.5px; }}
+  .fl-ic {{ width:18px; text-align:center; flex-shrink:0; }}
+  .fl-k {{ width:34px; flex-shrink:0; color:var(--t3); font-weight:700; font-size:12.5px; padding-top:1px; }}
+  .fl-v {{ color:var(--t1); font-weight:600; line-height:1.5; flex:1; word-break:keep-all; }}
+  .fl-v a {{ color:var(--blue); font-weight:800; text-decoration:none; }}
+
+  /* 진행 단계바 */
+  .stepper {{ display:flex; align-items:flex-start; margin:16px 2px 4px; }}
+  .step {{ flex:1; display:flex; flex-direction:column; align-items:center; position:relative; }}
+  .step .bar {{ position:absolute; top:11px; left:-50%; width:100%; height:3px; background:#E5E8EC; z-index:0; border-radius:2px; }}
+  .step:first-child .bar {{ display:none; }}
+  .step.on .bar {{ background:var(--success); }}
+  .step .dot {{ width:24px; height:24px; border-radius:50%; background:#E5E8EC; color:#fff; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:900; z-index:1; }}
+  .step.done .dot {{ background:var(--success); }}
+  .step.cur .dot {{ background:var(--blue); box-shadow:0 0 0 4px var(--blue-tint); }}
+  .step .lb {{ font-size:11px; color:var(--t3); margin-top:6px; font-weight:700; }}
+  .step.done .lb {{ color:var(--success); }}
+  .step.cur .lb {{ color:var(--blue); font-weight:800; }}
 
   .hbtn {{
     display:inline-flex; align-items:center; justify-content:center; gap:6px;
     background:var(--bg); color:var(--blue); border:0; border-radius:11px;
     padding:11px 14px; font-size:13.5px; font-weight:800; font-family:inherit;
-    cursor:pointer; min-height:42px;
+    cursor:pointer; min-height:42px; width:100%;
   }}
-  .mv-depart {{
-    flex:1; background:var(--blue); color:#fff; border:0; border-radius:11px;
-    padding:12px; font-size:14.5px; font-weight:800; font-family:inherit; cursor:pointer;
-    display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:46px;
-  }}
-  .mv-depart:disabled {{ background:#9AA3AF; cursor:default; }}
-  .mv-depart.done {{ background:var(--success); }}
+  .navchips {{ display:flex; gap:7px; margin-top:9px; flex-wrap:wrap; }}
   .nav-chip {{
     background:#fff; border:1.5px solid var(--line); border-radius:999px;
     padding:8px 14px; font-size:12.5px; font-weight:700; color:var(--t1);
@@ -7646,42 +7713,61 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
   }}
   .nav-chip:active {{ background:var(--blue-tint); border-color:var(--blue); color:var(--blue); }}
 
-  .mv-photos {{ background:#fff; border-radius:14px; padding:14px; margin-top:10px; box-shadow:var(--shadow); }}
-  .mv-ph-top {{ display:flex; align-items:center; gap:7px; font-size:13.5px; font-weight:800; color:var(--t1); }}
-  .mv-ph-top .mv-ph-sub {{ margin-left:auto; font-size:11.5px; font-weight:700; color:var(--t3); }}
-  .ph-help {{ font-size:11.5px; color:var(--t3); margin-top:5px; line-height:1.5; }}
-  .photo-grid {{ display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-top:11px; }}
+  /* 사진 */
+  .mv-photos {{ background:#fff; border-radius:16px; padding:16px; margin-top:10px; box-shadow:var(--shadow); }}
+  .mv-ph-top {{ display:flex; align-items:center; gap:7px; font-size:14px; font-weight:800; color:var(--t1); }}
+  .ph-count {{ margin-left:auto; font-size:12px; font-weight:800; color:var(--blue); background:var(--blue-tint); padding:3px 10px; border-radius:999px; }}
+  .ph-help {{ font-size:11.5px; color:var(--t3); margin-top:6px; line-height:1.5; }}
+  .ph-actions {{ display:flex; gap:8px; margin-top:12px; }}
+  .ph-btn {{
+    flex:1; display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    background:var(--blue-tint); color:var(--blue-dark); border:0; border-radius:12px;
+    padding:13px; font-size:14px; font-weight:800; font-family:inherit; cursor:pointer; min-height:48px;
+  }}
+  .ph-btn:disabled {{ background:var(--bg); color:var(--t3); cursor:default; }}
+  .photo-grid {{ display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-top:12px; }}
+  .photo-grid:empty {{ display:none; }}
   .photo-thumb {{
     aspect-ratio:1; border-radius:10px; background:var(--bg);
     display:flex; flex-direction:column; align-items:center; justify-content:center;
-    font-size:11px; color:var(--t3); cursor:pointer; position:relative;
-    border:1.5px dashed var(--line);
+    font-size:11px; color:var(--t3); position:relative; overflow:hidden;
   }}
-  .photo-thumb.uploaded {{ background:#E7F8EF; border:0; color:var(--success); font-weight:800; }}
-  .photo-thumb .pl {{ font-size:11px; font-weight:800; }}
-  .photo-thumb .ph-sent {{ position:absolute; top:6px; right:6px; font-size:11px; }}
+  .photo-thumb.done {{ background:#E7F8EF; color:var(--success); font-weight:800; font-size:18px; }}
+  .photo-thumb .ov {{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.35); color:#fff; font-size:11px; font-weight:800; }}
+  .photo-thumb .bar-wrap {{ position:absolute; left:8px; right:8px; bottom:8px; height:5px; border-radius:3px; background:rgba(255,255,255,.5); overflow:hidden; }}
+  .photo-thumb .bar-fill {{ height:100%; width:0%; background:var(--blue); transition:width .2s; }}
 
   .empty {{ font-size:13px; color:var(--t3); text-align:center; padding:30px 16px; line-height:1.6; }}
 
-  .foot-note {{ font-size:12px; color:var(--t3); text-align:center; margin-top:20px; line-height:1.6; }}
+  .foot-note {{ font-size:12px; color:var(--t3); text-align:center; margin-top:22px; line-height:1.6; }}
   .foot-link {{ font-size:11.5px; color:var(--t3); text-align:center; margin-top:12px; background:var(--bg); border-radius:10px; padding:9px; }}
 
-  .status-page {{ padding:60px 24px; text-align:center; }}
-  .status-page h2 {{ font-size:22px; font-weight:800; }}
-  .status-page p {{ font-size:14px; color:var(--t2); line-height:1.6; margin-top:10px; }}
+  /* 하단 고정 액션바 */
+  .actionbar {{ background:#fff; border-top:1px solid var(--line); padding:12px 16px calc(12px + env(safe-area-inset-bottom)); }}
+  .actionbar:empty {{ display:none; }}
+  .act-btn {{
+    width:100%; background:var(--blue); color:#fff; border:0; border-radius:14px;
+    padding:15px; font-size:16px; font-weight:800; font-family:inherit; cursor:pointer;
+    display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:54px;
+  }}
+  .act-btn:disabled {{ cursor:default; }}
+  .act-btn.done {{ background:var(--success); }}
 </style>
 </head>
 <body>
 <div class="wrap">
 
   <div class="appbar">
-    <div class="title">내 일정</div>
+    <div class="brand">
+      <span class="brand-mark">R</span>
+      <span class="brand-name">{biz_header_html}</span>
+      <span class="brand-sub">RING-GO</span>
+    </div>
     <span class="me"><span class="d"></span>{member_name_html}</span>
   </div>
 
   <div class="mv-note">
-    🔗 링크로 열린 화면 (앱 설치 불필요)<br>
-    <b>{owner_label_html}</b>이(가) 배정한 일정만 보여요 · 고객 연락처·매출은 안 보여요
+    🔗 링크로 열린 화면 (앱 설치 불필요) · <b>{owner_label_html}</b>이(가) 배정한 일정만 보여요
   </div>
 
   <div class="scroll">
@@ -7691,52 +7777,113 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
     <div class="foot-link">🔗 이 링크는 {expiry_label_html} 자정에 만료돼요</div>
   </div>
 
+  <div class="actionbar" id="mv-actionbar"></div>
+
 </div>
 
 <script>
   var TOKEN = "{token_js}";
-  var DEPARTED = false;
+  var STATUS = {status_js};
+  var PHOTO_COUNT = {photo_count_js};
+  var PHOTO_MAX = 20;
+  var BUSY = false;
 
-  async function doDepart() {{
-    if (DEPARTED) return;
-    var btn = document.getElementById('mv-depart');
-    btn.disabled = true;
-    btn.textContent = '전송 중...';
+  // ── 진행 단계바 + 하단 액션 버튼 (STATUS 단일 소스로 둘 다 그림) ──
+  var STAGES = [
+    {{ key:'assigned',  lb:'배정' }},
+    {{ key:'departed',  lb:'출발' }},
+    {{ key:'arrived',   lb:'도착' }},
+    {{ key:'completed', lb:'완료' }},
+  ];
+  // 다음에 누를 단계 (출발→도착→완료 순) — 없으면 모두 완료.
+  function nextStage() {{
+    if (!STATUS.departed)  return {{ stage:'depart',   ep:'depart',   key:'departed',  label:'🚗 출발했어요' }};
+    if (!STATUS.arrived)   return {{ stage:'arrive',   ep:'arrive',   key:'arrived',   label:'📍 현장 도착' }};
+    if (!STATUS.completed) return {{ stage:'complete', ep:'complete', key:'completed', label:'✅ 작업 완료' }};
+    return null;
+  }}
+  function isDone(key) {{
+    if (key === 'assigned') return true;
+    return !!STATUS[key];
+  }}
+  function renderProgress() {{
+    var stepEl = document.getElementById('mv-stepper');
+    if (!stepEl) return;  // 오늘 현장 없음 → 단계바/액션바 둘 다 없음
+    var nx = nextStage();
+    var curKey = nx ? nx.key : null;
+    var html = '';
+    for (var i = 0; i < STAGES.length; i++) {{
+      var s = STAGES[i];
+      var done = isDone(s.key);
+      var cur = (s.key === curKey);
+      var cls = 'step' + (done ? ' done on' : '') + (cur ? ' cur' : '');
+      // bar(이전 단계와 연결선)는 이 단계가 done/cur 이면 채움
+      if (cur && !done) cls += ' on';
+      var dotInner = done ? '✓' : String(i + 1);
+      html += '<div class="' + cls + '"><span class="bar"></span>'
+            + '<span class="dot">' + dotInner + '</span>'
+            + '<span class="lb">' + s.lb + '</span></div>';
+    }}
+    stepEl.innerHTML = html;
+
+    var ab = document.getElementById('mv-actionbar');
+    if (!ab) return;
+    ab.innerHTML = '';
+    var b = document.createElement('button');
+    if (!nx) {{
+      b.className = 'act-btn done';
+      b.disabled = true;
+      b.textContent = '✓ 오늘 작업 완료';
+    }} else {{
+      b.className = 'act-btn';
+      b.textContent = nx.label;
+      b.onclick = function() {{ doStage(nx.stage); }};
+    }}
+    ab.appendChild(b);
+  }}
+
+  async function doStage(stage) {{
+    if (BUSY) return;
+    var map = {{
+      depart:   {{ ep:'depart',   key:'departed'  }},
+      arrive:   {{ ep:'arrive',   key:'arrived'   }},
+      complete: {{ ep:'complete', key:'completed' }},
+    }};
+    var m = map[stage]; if (!m) return;
+    BUSY = true;
+    var ab = document.getElementById('mv-actionbar');
+    if (ab) ab.innerHTML = '<button class="act-btn" disabled>전송 중…</button>';
     try {{
-      var resp = await fetch('/api/team/event/depart', {{
+      var resp = await fetch('/api/team/event/' + m.ep, {{
         method:'POST',
         headers:{{'Content-Type':'application/json'}},
         body: JSON.stringify({{token: TOKEN}}),
       }});
       if (resp.ok) {{
-        DEPARTED = true;
-        btn.classList.add('done');
-        btn.disabled = true;
-        btn.innerHTML = '✓ 출발 알림 보냄';
+        STATUS[m.key] = true;
       }} else {{
         var err = await resp.json().catch(function(){{return{{}};}});
         alert('실패: ' + (err.detail || resp.status));
-        btn.disabled = false;
-        btn.innerHTML = '🚗 출발';
       }}
     }} catch (e) {{
-      alert('네트워크 오류');
-      btn.disabled = false;
-      btn.innerHTML = '🚗 출발';
+      alert('네트워크 오류 — 잠시 후 다시 시도해 주세요');
     }}
+    BUSY = false;
+    renderProgress();
   }}
 
+  function addrText() {{
+    var el = document.getElementById('today-addr');
+    return el ? (el.textContent || '').trim() : '';
+  }}
   function copyAddr() {{
-    var addr = (document.getElementById('today-addr')||{{}}).textContent || '';
-    addr = addr.replace(/^📍\\s*/, '');
+    var addr = addrText();
     if (!addr) return;
     if (navigator.clipboard) navigator.clipboard.writeText(addr);
     alert('주소 복사됨\\n' + addr);
   }}
-
   function openNav(app) {{
-    var addr = (document.getElementById('today-addr')||{{}}).textContent || '';
-    addr = encodeURIComponent(addr.replace(/^📍\\s*/, ''));
+    var addr = encodeURIComponent(addrText());
     var url = '';
     if (app === '카카오맵')   url = 'https://map.kakao.com/?q=' + addr;
     else if (app === '티맵') url = 'tmap://search?name=' + addr;
@@ -7744,49 +7891,64 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
     window.location.href = url;
   }}
 
-  async function pickPhotos() {{
+  // ── 사진: 촬영(카메라) / 앨범(다중) — 같은 업로드 루틴 공유 ──
+  function updatePhotoCount() {{
+    var c = document.getElementById('ph-count');
+    if (c) c.textContent = PHOTO_COUNT + '/' + PHOTO_MAX;
+    var full = PHOTO_COUNT >= PHOTO_MAX;
+    ['ph-cam','ph-alb'].forEach(function(id) {{
+      var b = document.getElementById(id);
+      if (b) b.disabled = full;
+    }});
+  }}
+  function pickCamera() {{ openPicker(false); }}
+  function pickAlbum()  {{ openPicker(true); }}
+  function openPicker(multiple) {{
+    if (PHOTO_COUNT >= PHOTO_MAX) {{ alert('한 현장에 사진은 ' + PHOTO_MAX + '장까지예요'); return; }}
     var f = document.createElement('input');
-    f.type = 'file'; f.accept = 'image/*'; f.multiple = true;
-    f.onchange = async function(e) {{
-      var files = e.target.files;
-      if (!files || !files.length) return;
-      var grid = document.getElementById('mv-photo-grid');
-      var addBtn = document.getElementById('ph-add');
-      if (addBtn) addBtn.querySelector('.pl').textContent = '전송 중…';
-      var ok = 0, fail = 0;
-      for (var i = 0; i < files.length; i++) {{
-        var dataUrl = await resizeImage(files[i], 1024, 0.82);
-        try {{
-          var resp = await fetch('/api/team/event/photo', {{
-            method:'POST',
-            headers:{{'Content-Type':'application/json'}},
-            body: JSON.stringify({{token: TOKEN, image_data_url: dataUrl}}),
-          }});
-          if (resp.ok) {{
-            ok++;
-            if (grid && addBtn) {{
-              // 올린 사진을 썸네일로 보여주고 가운데 "업로드 완료" 오버레이 — 올라간 게 눈으로 확인됨.
-              var d = document.createElement('div');
-              d.className = 'photo-thumb uploaded';
-              d.style.position = 'relative';
-              d.style.backgroundImage = 'url(' + dataUrl + ')';
-              d.style.backgroundSize = 'cover';
-              d.style.backgroundPosition = 'center';
-              d.innerHTML = '<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);color:#fff;font-size:11px;font-weight:800;border-radius:10px">업로드 완료</span>';
-              grid.insertBefore(d, addBtn);
-            }}
-          }} else {{
-            fail++;
-            var err = await resp.json().catch(function(){{return{{}};}});
-            if (err.detail) {{ alert(err.detail); break; }}
-          }}
-        }} catch (e) {{ fail++; }}
-      }}
-      if (addBtn) addBtn.querySelector('.pl').textContent = '올리기';
-      if (fail && ok) alert(ok + '장 올림 · ' + fail + '장 실패');
-      else if (fail && !ok) alert('사진 전송 실패');
-    }};
+    f.type = 'file'; f.accept = 'image/*';
+    if (multiple) f.multiple = true; else f.capture = 'environment';
+    f.onchange = function(e) {{ uploadFiles(e.target.files); }};
     f.click();
+  }}
+  async function uploadFiles(files) {{
+    if (!files || !files.length) return;
+    var grid = document.getElementById('mv-photo-grid');
+    var ok = 0, fail = 0;
+    for (var i = 0; i < files.length; i++) {{
+      if (PHOTO_COUNT >= PHOTO_MAX) {{ alert('한 현장에 사진은 ' + PHOTO_MAX + '장까지예요'); break; }}
+      var dataUrl = await resizeImage(files[i], 1024, 0.82);
+      // 진행률 타일 미리 추가
+      var tile = document.createElement('div');
+      tile.className = 'photo-thumb';
+      tile.style.backgroundImage = 'url(' + dataUrl + ')';
+      tile.style.backgroundSize = 'cover';
+      tile.style.backgroundPosition = 'center';
+      tile.innerHTML = '<div class="bar-wrap"><div class="bar-fill" style="width:35%"></div></div>';
+      if (grid) grid.appendChild(tile);
+      try {{
+        var resp = await fetch('/api/team/event/photo', {{
+          method:'POST',
+          headers:{{'Content-Type':'application/json'}},
+          body: JSON.stringify({{token: TOKEN, image_data_url: dataUrl}}),
+        }});
+        if (resp.ok) {{
+          ok++; PHOTO_COUNT++;
+          tile.innerHTML = '<div class="ov">업로드 완료</div>';
+          updatePhotoCount();
+        }} else {{
+          fail++;
+          if (grid) grid.removeChild(tile);
+          var err = await resp.json().catch(function(){{return{{}};}});
+          if (err.detail) {{ alert(err.detail); break; }}
+        }}
+      }} catch (e) {{
+        fail++;
+        if (grid) grid.removeChild(tile);
+      }}
+    }}
+    if (fail && ok) alert(ok + '장 올림 · ' + fail + '장 실패');
+    else if (fail && !ok) alert('사진 전송 실패');
   }}
 
   function resizeImage(file, maxW, q) {{
@@ -7803,59 +7965,76 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
       img.src = URL.createObjectURL(file);
     }});
   }}
+
+  renderProgress();
+  updatePhotoCount();
 </script>
 </body>
 </html>
 """
 
 
-def _build_today_card_html(item: dict) -> str:
-    """오늘 현장 카드 HTML (프로토 openMemberView 의 card 부분 1:1)."""
+def _build_today_card_html(item: dict, date_label: str = "", photo_count: int = 0) -> str:
+    """오늘 현장 카드 HTML — 프로토 openMemberView 기반 + 전문성 보강(날짜·정보줄·진행단계·사진 X/20).
+
+    진행 단계바(#mv-stepper)와 하단 액션바는 클라이언트 JS(renderProgress)가 STATUS 로 그린다.
+    여기선 빈 컨테이너만 둔다.
+    """
     import html as _html
     if not item:
-        return '<div class="sec-sub">오늘 현장</div><div class="empty">오늘 배정된 현장이 없어요</div>'
+        return ('<div class="sec-sub">오늘 현장</div>'
+                '<div class="card"><div class="empty">오늘 배정된 현장이 없어요</div></div>')
     name = _html.escape(str(item.get("customer_label") or "현장"))
     time = _html.escape(str(item.get("time") or "—"))
     addr = _html.escape(str(item.get("addr") or "주소 미입력"))
     work = _html.escape(str(item.get("work_summary") or ""))
     memo = _html.escape(str(item.get("memo") or ""))
     cust_phone = str(item.get("customer_phone") or "").strip()
-    work_html = ""
-    if work or memo:
-        parts = [p for p in [work, memo] if p]
-        work_html = f'<div class="work">{" · ".join(parts)}</div>'
-    # 고객 연락처 — 대표님이 배정 시 같이 보냄(사장님 요청 2026-06-05). 있으면 전화 버튼.
-    phone_btn = (
-        f'<a class="hbtn" href="tel:{_html.escape(cust_phone)}" style="text-decoration:none;text-align:center">📞 고객 전화</a>'
-        if cust_phone else ""
-    )
+    date_html = f'<span class="day-date">{_html.escape(date_label)}</span>' if date_label else ""
+
+    # 정보 줄 — 아이콘별 줄맞춤(시간/주소/작업/메모/고객). 주소는 #today-addr(복사·내비용, 순수 텍스트).
+    rows = [
+        f'<div class="fl-row"><span class="fl-ic">🕘</span><span class="fl-k">시간</span><span class="fl-v">{time}</span></div>',
+        f'<div class="fl-row"><span class="fl-ic">📍</span><span class="fl-k">주소</span><span class="fl-v" id="today-addr">{addr}</span></div>',
+    ]
+    if work:
+        rows.append(f'<div class="fl-row"><span class="fl-ic">🔧</span><span class="fl-k">작업</span><span class="fl-v">{work}</span></div>')
+    if memo:
+        rows.append(f'<div class="fl-row"><span class="fl-ic">📝</span><span class="fl-k">메모</span><span class="fl-v">{memo}</span></div>')
+    if cust_phone:
+        # 고객 연락처 — 대표님이 배정 시 같이 보냄(사장님 요청 2026-06-05).
+        cp = _html.escape(cust_phone)
+        rows.append(f'<div class="fl-row"><span class="fl-ic">📞</span><span class="fl-k">고객</span><span class="fl-v"><a href="tel:{cp}">{cp}</a></span></div>')
+    fl_html = '<div class="fl">' + "".join(rows) + '</div>'
+
+    # 이미 올린 사진 장수만큼 '올림 완료' 타일 표시(이미지 데이터는 안 실어 가볍게).
+    done_tiles = "".join('<div class="photo-thumb done">✓</div>' for _ in range(max(0, int(photo_count))))
+
     return f'''
-    <div class="sec-sub">오늘 현장</div>
+    <div class="day-head"><span class="day-badge">오늘</span>{date_html}</div>
     <div class="card">
       <div class="row">
         <span class="hd hot"></span>
         <span class="name">{name}</span>
         <span class="time">{time}</span>
       </div>
-      <div class="preview" id="today-addr">📍 {addr}</div>
-      {work_html}
-      <div style="display:flex;gap:8px;margin-top:14px">
-        <button class="hbtn" onclick="copyAddr()">📋 주소 복사</button>
-        <button class="mv-depart" id="mv-depart" onclick="doDepart()">🚗 출발</button>
-      </div>
-      {f'<div style="margin-top:9px">{phone_btn}</div>' if phone_btn else ''}
-      <div style="display:flex;gap:7px;margin-top:9px;flex-wrap:wrap">
+      {fl_html}
+      <div class="stepper" id="mv-stepper"></div>
+      <div style="margin-top:6px"><button class="hbtn" onclick="copyAddr()">📋 주소 복사</button></div>
+      <div class="navchips">
         <button class="nav-chip" onclick="openNav('카카오맵')">카카오맵</button>
         <button class="nav-chip" onclick="openNav('카카오내비')">카카오내비</button>
         <button class="nav-chip" onclick="openNav('티맵')">티맵</button>
       </div>
     </div>
     <div class="mv-photos">
-      <div class="mv-ph-top">📷 현장 사진 올리기<span class="mv-ph-sub">대표님에게 바로 전송</span></div>
-      <div class="ph-help">사진을 한 번에 여러 장 골라 올리면 대표님 앱에 자동으로 쌓여요. (한 현장 20장까지)</div>
-      <div class="photo-grid" id="mv-photo-grid">
-        <div class="photo-thumb" id="ph-add" onclick="pickPhotos()">📷<span class="pl">올리기</span></div>
+      <div class="mv-ph-top">📷 현장 사진<span class="ph-count" id="ph-count">{int(photo_count)}/20</span></div>
+      <div class="ph-help">촬영하거나 앨범에서 골라 올리면 대표님 앱에 자동으로 쌓여요. (한 현장 20장까지)</div>
+      <div class="ph-actions">
+        <button class="ph-btn" id="ph-cam" onclick="pickCamera()">📸 촬영</button>
+        <button class="ph-btn" id="ph-alb" onclick="pickAlbum()">🖼️ 앨범</button>
       </div>
+      <div class="photo-grid" id="mv-photo-grid">{done_tiles}</div>
     </div>
     '''
 
@@ -7889,9 +8068,21 @@ def _expiry_label(expires_at_ms: int) -> str:
     return f"{dt.month}/{dt.day} ({wn[dt.weekday()]}요일)"
 
 
+def _short_date_label(ms: int) -> str:
+    """epoch ms → '6/5 (목)' 형태 (오늘 현장 날짜 헤더용, KST)."""
+    import datetime
+    dt = datetime.datetime.utcfromtimestamp(ms / 1000) + datetime.timedelta(hours=9)
+    wn = ["월","화","수","목","금","토","일"]
+    return f"{dt.month}/{dt.day} ({wn[dt.weekday()]})"
+
+
 @app.get("/team/member/{token}", response_class=HTMLResponse)
 async def team_member_page(token: str) -> HTMLResponse:
-    """팀원 브라우저용 화면 (프로토 openMemberView 1:1)."""
+    """팀원 브라우저용 화면 (프로토 openMemberView 기반 + 사장님 승인 UX 보강 2026-06-05).
+
+    보강(사장님 'D·전부 통합' 선택): 업체 브랜드 헤더 / 오늘 날짜·D-day / 정보 아이콘 줄맞춤 /
+    배정→출발→도착→완료 진행 단계바(탭) + 하단 고정 액션바 / 사진 촬영·앨범 분리 + X/20 + 진행률.
+    """
     import html as _html
     with db_conn() as con:
         row = con.execute(
@@ -7936,8 +8127,36 @@ async def team_member_page(token: str) -> HTMLResponse:
             items = []
     today = next((it for it in items if it.get("is_today")), None) or (items[0] if items else None)
 
-    # last_accessed 기록
+    # 오늘 진행 단계(출발/도착/완료) — 오늘 0시(KST) 이후 이벤트로 복원(새로고침해도 단계 유지).
+    kst_day_start = ((now + 9 * 3600_000) // 86_400_000) * 86_400_000 - 9 * 3600_000
+    status = {"departed": False, "arrived": False, "completed": False}
+    photo_count = 0
     with db_conn() as con:
+        ev_rows = con.execute(
+            "SELECT event_type FROM team_member_events "
+            "WHERE token = ? AND created_at_ms >= ?",
+            (token, kst_day_start),
+        ).fetchall()
+        for (et,) in ev_rows:
+            if et in status:
+                status[et] = True
+        # 오늘 현장 사진 장수(고객 기준, X/20 표시용)
+        cp = str((today or {}).get("customer_phone") or "").strip()
+        if cp:
+            digits = "".join(ch for ch in cp if ch.isdigit())
+            suffix_8 = digits[-8:] if len(digits) >= 8 else digits
+            photo_count = con.execute(
+                """
+                SELECT COUNT(*) FROM team_site_photos
+                WHERE owner_phone = ?
+                  AND (
+                    customer_phone = ?
+                    OR REPLACE(REPLACE(REPLACE(REPLACE(IFNULL(customer_phone,''), '-', ''), ' ', ''), '+', ''), '_', '') LIKE ?
+                  )
+                """,
+                (owner_phone, cp, f"%{suffix_8}"),
+            ).fetchone()[0]
+        # last_accessed 기록
         con.execute("UPDATE team_member_links SET last_accessed_ms = ? WHERE token = ?", (now, token))
         con.commit()
 
@@ -7945,14 +8164,25 @@ async def team_member_page(token: str) -> HTMLResponse:
     biz = _fetch_owner_biz_name(owner_phone)
     if biz:
         owner_label = biz + " 대표님"
+    biz_header = biz or "RING-GO"
+
+    date_label = ""
+    if today and today.get("scheduled_at_ms"):
+        try:
+            date_label = _short_date_label(int(today["scheduled_at_ms"]))
+        except (TypeError, ValueError):
+            date_label = ""
 
     page = TEAM_MEMBER_HTML_TEMPLATE.format(
         member_name_html=_html.escape(member_name or "팀원"),
         owner_label_html=_html.escape(owner_label),
-        today_block=_build_today_card_html(today),
+        biz_header_html=_html.escape(biz_header),
+        today_block=_build_today_card_html(today, date_label, photo_count),
         next_block=_build_next_block_html(items),
         expiry_label_html=_html.escape(_expiry_label(expires_at)),
         token_js=_html.escape(token, quote=True),
+        status_js=json.dumps(status),
+        photo_count_js=str(int(photo_count)),
     )
     return HTMLResponse(content=page)
 
