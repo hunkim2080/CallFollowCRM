@@ -51,7 +51,8 @@ class TeamViewModel(private val container: AppContainer) : ViewModel() {
         }
         calls.forEach { add(it.phoneNumber, it.endedAt) }
         sms.forEach { add(it.address, it.lastDateMs) }
-        map.values.sortedByDescending { it.lastMs }.take(40)
+        // 검색 풀 넓게(200) — UI 에서 평소 6개만 보이고 검색 시 전체에서 필터.
+        map.values.sortedByDescending { it.lastMs }.take(200)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _loading = MutableStateFlow(false)

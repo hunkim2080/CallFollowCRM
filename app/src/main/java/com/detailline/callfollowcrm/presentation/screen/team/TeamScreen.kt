@@ -465,6 +465,7 @@ private fun AddMemberOverlay(
     var name by remember { mutableStateOf("") }
     // 전화번호 = TextFieldValue — formatProgressive 재포맷 후 커서를 항상 맨 뒤로 고정(순서 꼬임 방지).
     var phoneField by remember { mutableStateOf(TextFieldValue("")) }
+    var search by remember { mutableStateOf("") }   // 최근 번호 검색어("010..." 또는 이름)
     val noRipple = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
 
     val pickContact = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
@@ -519,36 +520,57 @@ private fun AddMemberOverlay(
             Text("배정하면 이 번호로 현장 링크가 가요 (앱 설치 안 해도 돼요).", fontSize = 13.sp, color = TossTextTertiary)
             Spacer(Modifier.height(14.dp))
 
-            // 최근 통화·문자 번호 — 업무폰처럼 주소록에 저장 안 한 번호도 여기서 고름.
+            // 최근 통화·문자 번호 — "010..." 검색해서 고름(주소록 저장 안 된 번호도). 평소 6개, 검색 시 전체에서 필터.
             if (recents.isNotEmpty()) {
-                SheetFieldLabel("최근 통화·문자에서 고르기")
-                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg)) {
-                    recents.take(6).forEachIndexed { idx, r ->
-                        if (idx > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
-                        Row(
-                            Modifier.fillMaxWidth()
-                                .clickable {
-                                    if (!r.name.isNullOrBlank() && name.isBlank()) name = r.name
-                                    val f = PhoneNumberFormatter.formatProgressive(r.phone)
-                                    phoneField = TextFieldValue(f, selection = TextRange(f.length))
+                SheetFieldLabel("번호로 찾기 (최근 통화·문자)")
+                SheetTextField(search, { search = it }, placeholder = "010… 입력해 찾기", keyboardType = KeyboardType.Phone)
+                Spacer(Modifier.height(8.dp))
+                val q = search.filter { it.isDigit() }
+                val qName = search.trim()
+                val filtered = if (search.isBlank()) {
+                    recents.take(6)
+                } else {
+                    recents.filter { r ->
+                        (q.isNotEmpty() && r.phone.filter { c -> c.isDigit() }.contains(q)) ||
+                            (qName.isNotEmpty() && r.name?.contains(qName, ignoreCase = true) == true)
+                    }.take(12)
+                }
+                if (filtered.isNotEmpty()) {
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg)) {
+                        filtered.forEachIndexed { idx, r ->
+                            if (idx > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+                            Row(
+                                Modifier.fillMaxWidth()
+                                    .clickable {
+                                        if (!r.name.isNullOrBlank() && name.isBlank()) name = r.name
+                                        val f = PhoneNumberFormatter.formatProgressive(r.phone)
+                                        phoneField = TextFieldValue(f, selection = TextRange(f.length))
+                                        search = ""
+                                    }
+                                    .padding(horizontal = 14.dp, vertical = 11.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Phone, null, tint = TossTextTertiary, modifier = Modifier.size(15.dp))
+                                Spacer(Modifier.width(9.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        r.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(r.phone),
+                                        fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary
+                                    )
+                                    if (!r.name.isNullOrBlank()) {
+                                        Text(PhoneNumberFormatter.format(r.phone), fontSize = 12.sp, color = TossTextTertiary)
+                                    }
                                 }
-                                .padding(horizontal = 14.dp, vertical = 11.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Phone, null, tint = TossTextTertiary, modifier = Modifier.size(15.dp))
-                            Spacer(Modifier.width(9.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(
-                                    r.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(r.phone),
-                                    fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary
-                                )
-                                if (!r.name.isNullOrBlank()) {
-                                    Text(PhoneNumberFormatter.format(r.phone), fontSize = 12.sp, color = TossTextTertiary)
-                                }
+                                Text(relativeAgo(r.lastMs), fontSize = 11.sp, color = TossTextTertiary)
                             }
-                            Text(relativeAgo(r.lastMs), fontSize = 11.sp, color = TossTextTertiary)
                         }
                     }
+                } else {
+                    Text(
+                        "그 번호로 통화·문자 기록이 없어요 · 아래에 직접 입력하세요",
+                        fontSize = 12.5.sp, color = TossTextTertiary,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp)
+                    )
                 }
                 Spacer(Modifier.height(12.dp))
             }
