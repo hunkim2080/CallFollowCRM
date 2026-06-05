@@ -3019,3 +3019,12 @@ HOU-128 `/admin/beta/intake` (셋팅 폼) 도 이전 cycle 에 통합 완료. �
 - 변경: 앱만. AddMemberOverlay 의 최근번호 섹션에 검색 입력칸 추가("010…" 또는 이름) → recentNumbers(200개 풀)에서 번호 digits-contains / 이름 contains 로 필터(평소 6개, 검색 시 최대 12개). 저장 안 된 번호도 통화·문자 기록에서 찾아 담음.
 - 빌드 OK. 키보드 가림 수정은 사장님 확인 완료(인라인 오버레이). 검색칸 동작은 사장님 확인 부탁.
 - commit: (아래)
+
+## 2026-06-05 02:55 · android → cowork(server) 요청
+팀 기능 테스트가 비즈니스 게이트(_check_team_tier 403)에 막힘 — 사장님 테스트 가능하게 풀어주세요.
+- 사장님 owner_phone = 앱 bizPhone = `010-6461-0131` (앱이 이 문자열 그대로 /api/team/* 에 보냄. 정확히 일치해야 subscribers 조회됨).
+- **권장(테스트 즉시):** 서버 launchd plist EnvironmentVariables 에 `TEAM_TIER_BYPASS=1` 추가 후 reload → _check_team_tier 무조건 통과. (이미 코드에 구현돼 있음: main.py 6914)
+- **또는(실가입 시뮬):** subscribers 에 직접 INSERT (admin upsert 는 못 씀 — 아래 버그):
+  `INSERT INTO subscribers(phone,plan_tier,monthly_price_krw,started_at_ms,created_at_ms,updated_at_ms) VALUES('010-6461-0131','team_99k',99000,<now>,<now>,<now>) ON CONFLICT(phone) DO UPDATE SET plan_tier='team_99k',churned_at_ms=NULL;`
+- 🐞 **서버 버그 제보:** `VALID_PLAN_TIERS={founder,beta,pro,enterprise}` (main.py 3414) 에 팀 tier(`team_99k` 등 TEAM_TIER_NAMES, 6878)가 없어서 **관리자 API `/api/admin/subscribers/upsert` 로는 팀 요금제 등록 불가**. VALID_PLAN_TIERS 에 team_99k 추가 권장.
+- 앱 측: invite 403 시 "비즈니스 요금제 기능이에요" 토스트 — 정상 동작(서버가 풀리면 바로 됨). 앱 변경 없음.
