@@ -3216,3 +3216,10 @@ HOU-128 `/admin/beta/intake` (셋팅 폼) 도 이전 cycle 에 통합 완료. �
 - CustomerDetailScreen: 답글 입력칸을 접힘 기본으로. 답글 없으면 "↩ 답글 달기" 버튼만, 누르면 입력칸+보내기/취소 열림. 답글 있으면 파란 박스+"수정" 링크(누르면 편집). 보내거나 취소하면 다시 닫힘.
 - 서버 변경 없음. 앱 빌드+폰 설치 완료.
 - commit: (아래)
+
+## 2026-06-06 · android (server only)
+직원 페이지 "다음 일정" 클릭 무반응 → 탭하면 그 현장 길찾기 펼침(사장님 지적).
+- 서버(server/main.py) _build_next_block_html: 주소 있는 다음 일정 카드 = 탭(toggleNext) 시 주소복사+카카오맵/카카오내비/티맵 펼침(▾/▴). 주소 없으면 "주소 미정"(접힘 없음). 섹션 제목에 "· 탭하면 길찾기".
+- JS: copyText/openNavApp 헬퍼 추출(copyAddr/openNav 가 재사용), toggleNext 추가. event.stopPropagation 으로 버튼 탭이 카드 토글과 안 겹치게.
+- 서버 전용. ⚠️ 맥미니 재배포 필요.
+- commit: (아래)

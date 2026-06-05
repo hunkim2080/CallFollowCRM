@@ -8026,6 +8026,11 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
   .mv-note-row .mn-reply {{ margin-top:7px; padding:8px 10px; background:var(--blue-tint); border-radius:8px;
     font-size:13px; color:var(--blue-dark); font-weight:600; line-height:1.5; }}
 
+  /* 다음 일정 — 탭하면 길찾기 펼침 */
+  .next-card {{ cursor:pointer; }}
+  .next-card:active {{ background:#FAFBFC; }}
+  .next-chev {{ margin-left:8px; font-size:12px; color:var(--t3); }}
+
   /* 사진 크게 보기 (라이트박스) */
   .lightbox {{ position:fixed; inset:0; background:rgba(0,0,0,.92); display:none; align-items:center; justify-content:center; z-index:50; }}
   .lightbox.show {{ display:flex; }}
@@ -8242,19 +8247,26 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
     var el = document.getElementById('today-addr');
     return el ? (el.textContent || '').trim() : '';
   }}
-  function copyAddr() {{
-    var addr = addrText();
-    if (!addr) return;
-    if (navigator.clipboard) navigator.clipboard.writeText(addr);
-    alert('주소 복사됨\\n' + addr);
+  function copyText(t) {{
+    if (!t) return;
+    if (navigator.clipboard) navigator.clipboard.writeText(t);
+    alert('주소 복사됨\\n' + t);
   }}
-  function openNav(app) {{
-    var addr = encodeURIComponent(addrText());
-    var url = '';
-    if (app === '카카오맵')   url = 'https://map.kakao.com/?q=' + addr;
-    else if (app === '티맵') url = 'tmap://search?name=' + addr;
-    else                      url = 'https://map.kakao.com/?q=' + addr;
+  function openNavApp(app, addr) {{
+    var a = encodeURIComponent(addr || '');
+    var url = (app === '티맵') ? 'tmap://search?name=' + a : 'https://map.kakao.com/?q=' + a;
     window.location.href = url;
+  }}
+  function copyAddr() {{ copyText(addrText()); }}
+  function openNav(app) {{ openNavApp(app, addrText()); }}
+  // 다음 일정 카드 탭 → 그 현장 길찾기 펼침/접힘.
+  function toggleNext(idx) {{
+    var el = document.getElementById('next-act-' + idx);
+    var ch = document.getElementById('next-chev-' + idx);
+    if (!el) return;
+    var open = el.style.display !== 'none';
+    el.style.display = open ? 'none' : 'block';
+    if (ch) ch.textContent = open ? '▾' : '▴';
   }}
 
   // ── 사진: 촬영(카메라) / 앨범(다중) — 같은 업로드 루틴 공유 ──
@@ -8453,24 +8465,45 @@ def _build_today_card_html(item: dict, date_label: str = "", photos: list[dict] 
 
 
 def _build_next_block_html(items: list[dict]) -> str:
-    """다음 일정 블록 (today 제외)."""
+    """다음 일정 블록 (today 제외). 탭하면 그 현장 주소 복사·내비 펼침(미리 길 찾기)."""
     import html as _html
     upcoming = [it for it in (items or []) if not it.get("is_today")]
     if not upcoming:
         return ""
     rows = []
-    for it in upcoming[:5]:
+    for idx, it in enumerate(upcoming[:5]):
         name = _html.escape(str(it.get("customer_label") or "현장"))
         when = _html.escape(str(it.get("when") or ""))
         time = _html.escape(str(it.get("time") or ""))
-        addr = _html.escape(str(it.get("addr") or ""))
-        rows.append(
-            f'<div class="card">'
-            f'<div class="row"><span class="hd"></span><span class="name">{name}</span>'
-            f'<span class="time">{when} {time}</span></div>'
-            f'<div class="preview">📍 {addr}</div></div>'
-        )
-    return '<div class="sec-sub">다음 일정</div>' + "".join(rows)
+        addr_raw = str(it.get("addr") or "").strip()
+        addr = _html.escape(addr_raw)
+        addr_js = _html.escape(addr_raw, quote=True).replace("'", "\\'")
+        # 주소 있으면 탭 → 복사·내비 펼침. 없으면 그냥 정보 카드(주소 미정).
+        if addr_raw:
+            actions = (
+                f'<div class="next-act" id="next-act-{idx}" style="display:none">'
+                f'<div style="margin-top:8px"><button class="hbtn" onclick="event.stopPropagation();copyText(\'{addr_js}\')">📋 주소 복사</button></div>'
+                f'<div class="navchips">'
+                f'<button class="nav-chip" onclick="event.stopPropagation();openNavApp(\'카카오맵\',\'{addr_js}\')">카카오맵</button>'
+                f'<button class="nav-chip" onclick="event.stopPropagation();openNavApp(\'카카오내비\',\'{addr_js}\')">카카오내비</button>'
+                f'<button class="nav-chip" onclick="event.stopPropagation();openNavApp(\'티맵\',\'{addr_js}\')">티맵</button>'
+                f'</div></div>'
+            )
+            chev = '<span class="next-chev" id="next-chev-' + str(idx) + '">▾</span>'
+            rows.append(
+                f'<div class="card next-card" onclick="toggleNext({idx})">'
+                f'<div class="row"><span class="hd"></span><span class="name">{name}</span>'
+                f'<span class="time">{when} {time}</span>{chev}</div>'
+                f'<div class="preview">📍 {addr}</div>{actions}</div>'
+            )
+        else:
+            rows.append(
+                f'<div class="card">'
+                f'<div class="row"><span class="hd"></span><span class="name">{name}</span>'
+                f'<span class="time">{when} {time}</span></div>'
+                f'<div class="preview" style="color:var(--t3)">📍 주소 미정</div></div>'
+            )
+    return '<div class="sec-sub">다음 일정 <span style="font-weight:600;color:var(--t3)">· 탭하면 길찾기</span></div>' + "".join(rows)
 
 
 def _expiry_label(expires_at_ms: int) -> str:
