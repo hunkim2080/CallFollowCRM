@@ -161,7 +161,15 @@ fun CallSummaryScreen(
         scope.launch {
             val customer = runCatching { container.customerRepository.upsertByPhone(phoneNumber = phone) }.getOrNull()
             val ok = SmsSender.sendDirect(context, phone, body)
-            container.messageHistoryRepository.recordEstimateSent(phone, customer?.id, body)
+            // 통화 정리 발송 = 견적 아님. 발송 성공 시 일반 '보냄'으로만 기록(견적 회신에 안 끼게). 2026-06-06 fix.
+            if (ok) {
+                runCatching {
+                    container.messageHistoryRepository.recordAutoSend(
+                        phone, customer?.id, null, body,
+                        com.detailline.callfollowcrm.domain.model.MessageStatus.INLINE_SENT
+                    )
+                }
+            }
             Toast.makeText(
                 context,
                 if (ok) "통화 정리를 보냈어요 ✓" else "발송에 실패했어요",

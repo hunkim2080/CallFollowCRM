@@ -3246,3 +3246,12 @@ MMS(사진/첨부 문자) 감지 추가 — MMS 로 처음 연락온 번호가 "
 - 네비: NewLeadUi 에 customerId(없으면 0)+phone. 화면 key=phone, 탭=onOpenLead(phone,id). AppNavHost: id>0 고객상세, 아니면 upsertByPhone 후 상세.
 - 서버 무관. 앱 빌드+폰 설치 완료.
 - commit: (아래)
+
+## 2026-06-06 · android (app only)
+버그픽스: "견적 회신"에 견적 안 보낸 사람이 뜸(사장님 신고, 2곳).
+- 원인①(chat): EstimateBuilder onConfirm(=composer 채우기만)에서 recordEstimateSent 호출 → 안 보내도 ESTIMATE_SENT 기록.
+- 원인②(call summary): CallSummaryScreen.send() 가 '통화 정리' 발송을 ESTIMATE_SENT 로 기록 + 실패해도 기록(ok 밖).
+- 수정: ① onConfirm 은 estimateBody 만 표시(기록 X), 실제 발송 성공 시 markIfEstimate(보낸 본문==준비한 견적)일 때만 recordEstimateSent. onShare(외부 공유)는 유지. ② call summary 는 견적 아님 → 성공 시 INLINE_SENT 로만 기록(견적회신 제외).
+- ⚠️ 기존에 잘못 쌓인 ESTIMATE_SENT 행은 남아있어 그 2곳은 화면에서 한 번 "건너뛰기" 하면 사라짐(소급 자동삭제 X — 진짜/가짜 구분 불가).
+- 서버 무관. 앱 빌드+폰 설치 완료.
+- commit: (아래)

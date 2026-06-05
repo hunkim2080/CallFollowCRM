@@ -202,6 +202,9 @@ fun ChatScreen(
     var fullscreenImageUri by remember { mutableStateOf<android.net.Uri?>(null) }
     // 권한 요청 직후 자동 재시도용 — 입력 본문을 기억.
     var pendingSend by remember { mutableStateOf<String?>(null) }
+    // 견적 회신 리마인드 기준 — 견적 빌더로 채운 본문. **실제 발송 성공 시에만** ESTIMATE_SENT 기록
+    //   (전엔 composer 채우기만 해도 기록돼 안 보낸 사람이 견적회신에 떴음. 2026-06-06 fix).
+    var estimateBody by remember { mutableStateOf<String?>(null) }
     // 사진 첨부 — Photo Picker 로 선택된 URI 들. 발송 시 갤럭시 메시지로 본문+사진 같이 전달.
     var attachedPhotos by remember { mutableStateOf<List<android.net.Uri>>(emptyList()) }
     // AI 제안 박스의 [버튼] 액션 — null 이면 다이얼로그 안 떠 있는 상태.
@@ -238,13 +241,21 @@ fun ChatScreen(
         if (uris.isNotEmpty()) attachedPhotos = attachedPhotos + uris
     }
 
+    // 발송 성공한 본문이 '준비한 견적'과 같으면 그때만 ESTIMATE_SENT 기록(견적 회신 리마인드 기준).
+    val markIfEstimate: (String) -> Unit = { sentBody ->
+        if (estimateBody != null && sentBody == estimateBody) {
+            viewModel.recordEstimateSent(sentBody)
+            estimateBody = null
+        }
+    }
+
     val sendPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         val body = pendingSend
         pendingSend = null
         if (granted && body != null) {
-            viewModel.sendMessage(context, body) { ok -> if (ok) input = "" }
+            viewModel.sendMessage(context, body) { ok -> if (ok) { input = ""; markIfEstimate(body) } }
         }
     }
 
@@ -277,6 +288,7 @@ fun ChatScreen(
                     if (ok) {
                         input = ""
                         attachedPhotos = emptyList()
+                        markIfEstimate(body)
                     } else {
                         // klinker 실패 → 갤럭시 메시지 fallback (사장님이 거기서 직접 ▶)
                         val result = com.detailline.callfollowcrm.util.SmsIntentHelper
@@ -298,7 +310,7 @@ fun ChatScreen(
                 pendingSend = body
                 sendPermissionLauncher.launch(Manifest.permission.SEND_SMS)
             } else {
-                viewModel.sendMessage(context, body) { ok -> if (ok) input = "" }
+                viewModel.sendMessage(context, body) { ok -> if (ok) { input = ""; markIfEstimate(body) } }
             }
         }
     }
@@ -1006,8 +1018,8 @@ fun ChatScreen(
             validDays = estPrefs.bizQuoteValidDays,
             onConfirm = { body ->
                 input = body
-                // 견적 회신 리마인드 기준 시각 기록 (작성=composer 채움 = 곧 발송).
-                viewModel.recordEstimateSent(body)
+                // composer 채우기만 — 아직 발송 아님. 실제 발송 성공 시 markIfEstimate 가 기록.
+                estimateBody = body
                 showEstimateBuilder = false
             },
             onShare = { body ->
