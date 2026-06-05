@@ -173,7 +173,8 @@ fun AppNavHost(
                 onOpenSettlement = { navController.navigate(Destinations.SETTLEMENT) },
                 onOpenRecurringDue = { navController.navigate(Destinations.RECURRING_DUE) },
                 onOpenScheduleReminder = { navController.navigate(Destinations.SCHEDULE_REMINDER) },
-                onOpenEstimateFollowup = { navController.navigate(Destinations.ESTIMATE_FOLLOWUP) }
+                onOpenEstimateFollowup = { navController.navigate(Destinations.ESTIMATE_FOLLOWUP) },
+                onOpenTeam = { navController.navigate(Destinations.TEAM) }
             )
         }
 

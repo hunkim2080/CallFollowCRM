@@ -84,6 +84,8 @@ class CallFollowCrmApplication : Application() {
         appScope.launch {
             while (true) {
                 runCatching { container.intakeSyncManager.sync(this@CallFollowCrmApplication) }
+                // 팀원 출발 이벤트 — 새 출발이면 알림 + 상담함 배너 갱신 (사장님 요청 2026-06-06).
+                runCatching { container.teamEventCenter.poll(this@CallFollowCrmApplication) }
                 delay(60_000)
             }
         }

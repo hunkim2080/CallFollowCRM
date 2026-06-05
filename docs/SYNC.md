@@ -3147,3 +3147,17 @@ HOU-128 `/admin/beta/intake` (셋팅 폼) 도 이전 cycle 에 통합 완료. �
 - ⚠️ 맥미니 재배포 필요. 앱은 빌드 성공 + 폰 설치 완료. 재배포 후 재배정해야 새 전달메모가 팀원 토큰에 박힘.
 - cowork: schedule-snapshot 의 team_memo 키 / _build_today_card_html 충돌 주의.
 - commit: (아래)
+
+## 2026-06-06 · android (+ server, 사장님 승인 룰 예외 연장)
+직원화면 UI 2건 + 팀원 출발 알림(앱).
+- 서버(server/main.py) 직원 화면:
+  · 사진 카운트 "2/20"(파란 pill, 날짜처럼 보임) → "올린 사진 N장 (최대 20)" 회색 텍스트로 변경(혼동 제거).
+  · [출발했어요] 버튼이 하단에 있어 안 보임 → 진행 단계바 바로 아래(카드 안)로 이동. 하단 고정바 제거.
+- 앱(app) 팀원 출발 알림 (서버 변경 아님, 기존 /api/team/events 폴링):
+  · TeamEventCenter(ai/) 신설 — poll() 이 오늘 team events 조회 → 새 'departed' 면 알림 + todayDepartures 갱신.
+  · 알림 NotificationHelper.showTeamDeparture (초록): "{팀원}님이 {시각} · {현장}으로 출발했어요".
+  · 폴링: 포그라운드 60초 루프(Application) + 백그라운드 ReminderWorker(~3시간). 중복=prefs.teamDepartLastSeenMs.
+  · 상담함(HomeScreen): teamDepartures 배너(InboxAlert, 밀어서 정리) → 탭 시 팀 관리.
+  · 첫 폴링은 과거 출발 몰림 방지(baseline 만 잡고 알림 X).
+- ⚠️ 서버는 직원화면 UI 2건만 재배포 필요. 앱은 빌드+폰 설치 완료.
+- commit: (아래)

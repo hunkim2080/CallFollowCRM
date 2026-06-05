@@ -30,6 +30,7 @@ object NotificationHelper {
     private const val BRIEF_ID = 9_700_000
     private const val RECUR_ID = 9_800_000
     private const val ARRIVAL_ID_OFFSET = 9_900_000
+    private const val DEPART_ID_OFFSET = 9_600_000
     /** SMS 알림 ID = 발신번호 hash + offset. 같은 번호 새 SMS = 같은 알림 update. */
     private const val SMS_ID_OFFSET = 10_000_000
 
@@ -204,6 +205,25 @@ object NotificationHelper {
             note = "확인 후 보내요 · 무음 자동발송 아니에요",
             contentIntent = pending,
             actions = listOf(PushAction("도착 안내 보내기", pending))
+        )
+    }
+
+    /** 팀원 출발 알림 — 팀원이 링크 화면에서 [출발했어요] 누르면 (초록). 누가·몇시·어디로. 탭 → 앱. */
+    fun showTeamDeparture(
+        context: Context,
+        eventId: Long,
+        memberName: String,
+        timeLabel: String,
+        place: String
+    ) {
+        val notifId = DEPART_ID_OFFSET + (eventId.toInt() and 0x7FFFFF)
+        val pending = appOpenPending(context, notifId)
+        showProtoPush(
+            context, notifId, CHANNEL_REMINDER, ACCENT_GREEN,
+            title = "팀원 출발 🚗",
+            msg = "${memberName}님이 $timeLabel · ${place}으로 출발했어요",
+            contentIntent = pending,
+            actions = listOf(PushAction("팀 현황 보기", pending))
         )
     }
 

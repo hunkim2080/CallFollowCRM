@@ -129,6 +129,10 @@ class AppContainer(context: Context) {
 
     // 2026-06-05 팀 관리(비즈니스) — 팀원 초대/목록/제외/출발알림. 서버 팀 API.
     val teamRepository = com.detailline.callfollowcrm.ai.TeamRepository()
+    /** 팀원 출발 이벤트 폴링/알림 + 상담함 배너 소스 (2026-06-06). preferences 아래에서 생성. */
+    val teamEventCenter by lazy {
+        com.detailline.callfollowcrm.ai.TeamEventCenter(teamRepository, preferences)
+    }
     // 2026-06-05 팀원 현장 배정(로컬 기록 + 서버 snapshot push 의 토대).
     val teamAssignmentRepository = com.detailline.callfollowcrm.data.repository.TeamAssignmentRepository(
         db.teamAssignmentDao()

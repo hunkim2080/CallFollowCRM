@@ -7786,7 +7786,7 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
   /* 사진 */
   .mv-photos {{ background:#fff; border-radius:16px; padding:16px; margin-top:10px; box-shadow:var(--shadow); }}
   .mv-ph-top {{ display:flex; align-items:center; gap:7px; font-size:14px; font-weight:800; color:var(--t1); }}
-  .ph-count {{ margin-left:auto; font-size:12px; font-weight:800; color:var(--blue); background:var(--blue-tint); padding:3px 10px; border-radius:999px; }}
+  .ph-count {{ margin-left:auto; font-size:12px; font-weight:700; color:var(--t3); }}
   .ph-help {{ font-size:11.5px; color:var(--t3); margin-top:6px; line-height:1.5; }}
   .ph-actions {{ display:flex; gap:8px; margin-top:12px; }}
   .ph-btn {{
@@ -7820,9 +7820,9 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
   .foot-note {{ font-size:12px; color:var(--t3); text-align:center; margin-top:22px; line-height:1.6; }}
   .foot-link {{ font-size:11.5px; color:var(--t3); text-align:center; margin-top:12px; background:var(--bg); border-radius:10px; padding:9px; }}
 
-  /* 하단 고정 액션바 */
-  .actionbar {{ background:#fff; border-top:1px solid var(--line); padding:12px 16px calc(12px + env(safe-area-inset-bottom)); }}
-  .actionbar:empty {{ display:none; }}
+  /* 카드 안 진행 액션 버튼 (단계바 바로 아래 — 눈에 잘 띄게) */
+  .card-action {{ margin-top:14px; }}
+  .card-action:empty {{ display:none; }}
   .act-btn {{
     width:100%; background:var(--blue); color:#fff; border:0; border-radius:14px;
     padding:15px; font-size:16px; font-weight:800; font-family:inherit; cursor:pointer;
@@ -7854,8 +7854,6 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
     <div class="foot-note">상담·정산·통계·고객정보는 대표님만 봐요.<br>나는 내 현장만 깔끔하게 ✓</div>
     <div class="foot-link">🔗 이 링크는 {expiry_label_html} 자정에 만료돼요</div>
   </div>
-
-  <div class="actionbar" id="mv-actionbar"></div>
 
 </div>
 
@@ -7990,7 +7988,7 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
   // ── 사진: 촬영(카메라) / 앨범(다중) — 같은 업로드 루틴 공유 ──
   function updatePhotoCount() {{
     var c = document.getElementById('ph-count');
-    if (c) c.textContent = PHOTO_COUNT + '/' + PHOTO_MAX;
+    if (c) c.textContent = '올린 사진 ' + PHOTO_COUNT + '장 (최대 ' + PHOTO_MAX + ')';
     var full = PHOTO_COUNT >= PHOTO_MAX;
     ['ph-cam','ph-alb'].forEach(function(id) {{
       var b = document.getElementById(id);
@@ -8130,7 +8128,8 @@ def _build_today_card_html(item: dict, date_label: str = "", photo_urls: list[st
       {memo_html}
       {fl_html}
       <div class="stepper" id="mv-stepper"></div>
-      <div style="margin-top:6px"><button class="hbtn" onclick="copyAddr()">📋 주소 복사</button></div>
+      <div class="card-action" id="mv-actionbar"></div>
+      <div style="margin-top:8px"><button class="hbtn" onclick="copyAddr()">📋 주소 복사</button></div>
       <div class="navchips">
         <button class="nav-chip" onclick="openNav('카카오맵')">카카오맵</button>
         <button class="nav-chip" onclick="openNav('카카오내비')">카카오내비</button>
@@ -8138,7 +8137,7 @@ def _build_today_card_html(item: dict, date_label: str = "", photo_urls: list[st
       </div>
     </div>
     <div class="mv-photos">
-      <div class="mv-ph-top">📷 현장 사진<span class="ph-count" id="ph-count">{int(photo_count)}/20</span></div>
+      <div class="mv-ph-top">📷 현장 사진<span class="ph-count" id="ph-count">올린 사진 {int(photo_count)}장 (최대 20)</span></div>
       <div class="ph-help">촬영하거나 앨범에서 골라 올리면 대표님 앱에 자동으로 쌓여요. (한 현장 20장까지)</div>
       <div class="ph-actions">
         <button class="ph-btn" id="ph-cam" onclick="pickCamera()">📸 촬영</button>

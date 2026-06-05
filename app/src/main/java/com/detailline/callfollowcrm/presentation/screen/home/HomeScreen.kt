@@ -147,7 +147,9 @@ fun HomeScreen(
     /** 홈 "시공 안내 문자" 카드 탭 → D-1/도착 안내 목록. (2026-06-01) */
     onOpenScheduleReminder: () -> Unit = {},
     /** 홈 "견적 회신 챙기기" 카드 탭 → 견적 회신 리마인드 목록. (2026-06-01) */
-    onOpenEstimateFollowup: () -> Unit = {}
+    onOpenEstimateFollowup: () -> Unit = {},
+    /** 홈 "팀원 출발" 배너 탭 → 팀 관리(출발 현황). (2026-06-06) */
+    onOpenTeam: () -> Unit = {}
 ) {
     val timeline by viewModel.timeline.collectAsState()
     val filter by viewModel.filterState.collectAsState()
@@ -164,6 +166,7 @@ fun HomeScreen(
     val todayJobs by viewModel.todayJobs.collectAsState()
     val nextJobs by viewModel.nextJobs.collectAsState()
     val autoReplies by viewModel.autoReplies.collectAsState()
+    val teamDepartures by viewModel.teamDepartures.collectAsState()
     val recurringDueCount by viewModel.recurringDueCount.collectAsState()
     val scheduleReminders by viewModel.scheduleReminders.collectAsState()
     val estimateFollowupCount by viewModel.estimateFollowupCount.collectAsState()
@@ -522,6 +525,25 @@ fun HomeScreen(
                                     " · " + DateTimeUtils.formatShort(ar.createdAt),
                                 goLabel = "대화",
                                 onClick = { onOpenChat(ar.phone, ar.customerId) }
+                            )
+                        }
+                    }
+                }
+
+                // 팀원 출발 알림 (2026-06-06 사장님 요청) — 누가·몇시·어디로. 탭 → 팀 관리. 밀어서 정리.
+                teamDepartures.forEach { dep ->
+                    item(key = "team-depart-${dep.eventId}") {
+                        DismissSwipeBox(onDismiss = { viewModel.dismissTeamDeparture(dep.eventId) }) {
+                            InboxAlert(
+                                accent = TossSuccess,
+                                accentTint = Color(0xFFE5F8EE),
+                                icon = Icons.Default.Navigation,
+                                title = "팀원 출발 🚗",
+                                tagText = null,
+                                tagBg = Color(0xFFE5F8EE), tagFg = TossSuccess,
+                                sub = "${dep.memberName}님 · ${dep.timeLabel} · ${dep.place}으로 출발",
+                                goLabel = "팀 현황",
+                                onClick = onOpenTeam
                             )
                         }
                     }
