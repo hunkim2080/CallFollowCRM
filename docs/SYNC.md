@@ -3039,3 +3039,46 @@ HOU-128 `/admin/beta/intake` (셋팅 폼) 도 이전 cycle 에 통합 완료. �
   2) **현장(customer_phone)당 사진 20장 제한** — team photo upload 가 그 고객 이미 20장이면 거부(또는 오래된 것 제외). 사장님 정책.
 - 참고: 사장님 본인 사진은 아직 로컬 전용(서버 owner-upload 미연동). 팀 공유/기기이전 원하면 POST /api/site-photo/owner-upload 연동이 다음 후보.
 - commit: (아래)
+
+## 2026-06-05 03:40 · android → cowork(server) — 팀원 웹뷰 사진 "한번에" 정확한 수정안
+사장님: "팀원 url 대시보드 안 바뀜" — 전/중/후 라벨 그대로. 아래 2곳 교체해줘(server/main.py, TEAM_MEMBER_HTML_TEMPLATE).
+
+### ① 사진 그리드 (현재 7807~7811, `_build_today_card_html`)
+교체 전: `photo-thumb id="ph-시공 전/중/후" onclick="pickPhoto('시공 전')"` 3개
+교체 후:
+```
+      <div class="photo-grid" id="mv-photo-grid">
+        <div class="photo-thumb" id="ph-add" onclick="pickPhotos()">📷<span class="pl">올리기</span></div>
+      </div>
+```
++ ph-help 문구를 "사진을 한 번에 여러 장 골라 올리면 대표님 앱에 자동으로 쌓여요. (한 현장 20장까지)" 로.
+
+### ② JS pickPhoto(label) → pickPhotos() (7719~7748). 다중 선택 + 라벨 제거:
+```
+  async function pickPhotos() {{
+    var f = document.createElement('input');
+    f.type = 'file'; f.accept = 'image/*'; f.multiple = true;
+    f.onchange = async function(e) {{
+      var files = e.target.files; if (!files || !files.length) return;
+      var grid = document.getElementById('mv-photo-grid');
+      var addBtn = document.getElementById('ph-add');
+      var ok = 0, fail = 0;
+      for (var i = 0; i < files.length; i++) {{
+        var dataUrl = await resizeImage(files[i], 1024, 0.82);
+        try {{
+          var resp = await fetch('/api/team/event/photo', {{
+            method:'POST', headers:{{'Content-Type':'application/json'}},
+            body: JSON.stringify({{token: TOKEN, image_data_url: dataUrl}})
+          }});
+          if (resp.ok) {{ ok++; var d=document.createElement('div'); d.className='photo-thumb uploaded'; d.innerHTML='<span class="ph-sent">✓</span><span class="pl">올림</span>'; if(grid&&addBtn) grid.insertBefore(d, addBtn); }}
+          else {{ fail++; }}
+        }} catch (e) {{ fail++; }}
+      }}
+      if (fail) alert(ok + '장 올림 · ' + fail + '장 실패');
+    }};
+    f.click();
+  }}
+```
+(label 안 보냄 → TeamPhotoUploadRequest.label 기본 None. f.capture 제거 → 갤러리 다중선택 가능.)
+
+### ③ 서버 20장 제한 — /api/team/event/photo INSERT 전, 그 customer_phone 의 team_site_photos 개수 >= 20 이면 거부(HTTPException 409 "한 현장 20장까지"). customer_phone 은 기존 §25 매핑(req 또는 schedule_snapshot)로 구함.
