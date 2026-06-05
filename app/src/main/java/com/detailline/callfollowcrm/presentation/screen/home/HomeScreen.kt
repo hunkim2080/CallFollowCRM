@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.CallMissed
 import androidx.compose.material.icons.filled.CallReceived
 import androidx.compose.material.icons.filled.DateRange
@@ -536,6 +537,10 @@ fun HomeScreen(
                 teamUpdates.forEach { up ->
                     item(key = "team-update-${up.eventId}") {
                         val (accent, tint, icon, title, verb) = teamUpdateStyle(up.kind)
+                        val subText = if (up.kind == "note")
+                            "${up.memberName}님 · ${up.timeLabel} · ${up.text.orEmpty()}"
+                        else
+                            "${up.memberName}님 · ${up.timeLabel} · ${up.place} $verb"
                         DismissSwipeBox(onDismiss = { viewModel.dismissTeamUpdate(up.eventId) }) {
                             InboxAlert(
                                 accent = accent,
@@ -544,7 +549,7 @@ fun HomeScreen(
                                 title = title,
                                 tagText = null,
                                 tagBg = tint, tagFg = accent,
-                                sub = "${up.memberName}님 · ${up.timeLabel} · ${up.place} $verb",
+                                sub = subText,
                                 goLabel = "팀 현황",
                                 onClick = onOpenTeam
                             )
@@ -1156,6 +1161,7 @@ private data class TeamUpdateStyle(
 private fun teamUpdateStyle(kind: String): TeamUpdateStyle = when (kind) {
     "arrived" -> TeamUpdateStyle(TossBlue, TossBlueSoft, Icons.Default.LocationOn, "팀원 현장 도착 📍", "도착")
     "completed" -> TeamUpdateStyle(Color(0xFF7C5CFC), Color(0xFFF1ECFE), Icons.Default.CheckCircle, "작업 완료 ✅", "작업 완료")
+    "note" -> TeamUpdateStyle(Color(0xFFF6A609), Color(0xFFFFF3DF), Icons.Default.Edit, "현장 메모 📝", "")
     else -> TeamUpdateStyle(TossSuccess, Color(0xFFE5F8EE), Icons.Default.Navigation, "팀원 출발 🚗", "출발")
 }
 

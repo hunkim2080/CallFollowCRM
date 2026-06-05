@@ -24,14 +24,15 @@ class TeamEventCenter(
     private val _todayUpdates = MutableStateFlow<List<TeamUpdate>>(emptyList())
     val todayUpdates: StateFlow<List<TeamUpdate>> = _todayUpdates.asStateFlow()
 
-    /** kind = "departed" | "arrived" | "completed". */
+    /** kind = "departed" | "arrived" | "completed" | "note". note 면 text 에 메모 내용. */
     data class TeamUpdate(
         val eventId: Long,
         val kind: String,
         val memberName: String,
         val place: String,
         val timeLabel: String,
-        val createdAtMs: Long
+        val createdAtMs: Long,
+        val text: String? = null
     )
 
     /** 서버에서 오늘 팀 이벤트를 받아 배너 갱신 + 새 이벤트는 알림. 실패는 조용히 무시. */
@@ -48,13 +49,16 @@ class TeamEventCenter(
             val place = e.payload?.optString("customer_label")?.takeIf { it.isNotBlank() && it != "null" }
                 ?: e.payload?.optString("addr")?.takeIf { it.isNotBlank() && it != "null" }
                 ?: "현장"
+            val text = if (e.eventType == "note")
+                e.payload?.optString("text")?.takeIf { it.isNotBlank() && it != "null" } else null
             TeamUpdate(
                 eventId = e.eventId,
                 kind = e.eventType,
                 memberName = e.memberName ?: "팀원",
                 place = place,
                 timeLabel = DateTimeUtils.formatShort(e.createdAtMs),
-                createdAtMs = e.createdAtMs
+                createdAtMs = e.createdAtMs,
+                text = text
             )
         }
         _todayUpdates.value = infos
@@ -67,12 +71,12 @@ class TeamEventCenter(
             return
         }
         for (u in infos.filter { it.createdAtMs > lastSeen }) {
-            NotificationHelper.showTeamEvent(context, u.eventId, u.kind, u.memberName, u.timeLabel, u.place)
+            NotificationHelper.showTeamEvent(context, u.eventId, u.kind, u.memberName, u.timeLabel, u.place, u.text)
         }
         if (maxMs > lastSeen) preferences.teamEventLastSeenMs = maxMs
     }
 
     companion object {
-        private val KINDS = setOf("departed", "arrived", "completed")
+        private val KINDS = setOf("departed", "arrived", "completed", "note")
     }
 }

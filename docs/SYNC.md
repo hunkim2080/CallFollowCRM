@@ -3178,3 +3178,10 @@ HOU-128 `/admin/beta/intake` (셋팅 폼) 도 이전 cycle 에 통합 완료. �
 - 출발/도착/완료 오발송 방지: 버튼 누르면 window.confirm 한 번("…대표님께 보낼까요?") → 확인해야 전송(사장님이 '확인 한 번' 선택, 지연 방식 X).
 - 서버 전용 변경(앱 빌드 불필요). ⚠️ 맥미니 재배포 필요.
 - commit: (아래)
+
+## 2026-06-06 · android (+ server, 사장님 승인 룰 예외 연장)
+직원→사장 현장 메모(특이사항) 추가.
+- 서버(server/main.py): 신규 POST /api/team/event/note (token, text) → event 'note'(payload text+현장명). 직원 화면에 "✏️ 현장 메모" 입력칸+보내기+오늘 보낸 목록(핸들러가 note 이벤트 today 수집).
+- 앱(app): TeamEventCenter KINDS 에 'note' 추가 → TeamUpdate.text. 알림 showTeamEvent('note', 앰버 📝, "{팀원}님 ({현장}): {메모}"). 상담함 배너 note 스타일(앰버 Edit아이콘) + sub=메모 내용. event_type 'note' 도 출발/도착/완료처럼 같은 폴링·중복차단.
+- ⚠️ 맥미니 재배포 필요. 앱 빌드+폰 설치 완료.
+- commit: (아래)

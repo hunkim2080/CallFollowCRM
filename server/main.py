@@ -350,7 +350,7 @@ def db_init() -> None:
                 token           TEXT,
                 member_id       TEXT NOT NULL,
                 owner_phone     TEXT NOT NULL,
-                event_type      TEXT NOT NULL,           -- 'departed'|'photo'|'arrived'|'completed'
+                event_type      TEXT NOT NULL,           -- 'departed'|'photo'|'arrived'|'completed'|'note'
                 payload_json    TEXT,
                 created_at_ms   INTEGER NOT NULL
             )
@@ -7001,6 +7001,11 @@ class TeamCompleteEventRequest(BaseModel):
     completed_at_ms: Optional[int] = None
 
 
+class TeamNoteEventRequest(BaseModel):
+    token: str
+    text: str
+
+
 class TeamPhotoUploadRequest(BaseModel):
     token: str
     label: Optional[str] = None                # '시공 전'|'시공 중'|'시공 후'|'추가 사진'
@@ -7368,6 +7373,50 @@ async def team_event_complete(req: TeamCompleteEventRequest) -> dict:
         event_id = cur.lastrowid
         con.commit()
     return {"ok": True, "event_id": event_id, "completed_at_ms": completed_at}
+
+
+@app.post("/api/team/event/note")
+async def team_event_note(req: TeamNoteEventRequest) -> dict:
+    """팀원이 현장 특이사항 메모를 남김 → 사장님께 전달(현장명 같이). 직원→사장 방향."""
+    text = (req.text or "").strip()
+    if not text:
+        raise HTTPException(400, "내용을 입력해 주세요")
+    if len(text) > 1000:
+        text = text[:1000]
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT member_id, owner_phone, expires_at_ms, schedule_snapshot_json "
+            "FROM team_member_links WHERE token = ?",
+            (req.token,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "유효하지 않은 토큰")
+        member_id, owner_phone, expires_at, snap = row
+        now = _now_ms()
+        if now > expires_at:
+            raise HTTPException(410, "만료된 링크")
+        payload = {"text": text}
+        if snap:
+            try:
+                items = json.loads(snap) or []
+                today = next((it for it in items if it.get("is_today")), None) or (items[0] if items else None)
+                if today:
+                    payload["customer_label"] = today.get("customer_label")
+                    payload["addr"] = today.get("addr")
+            except json.JSONDecodeError:
+                pass
+        cur = con.execute(
+            """
+            INSERT INTO team_member_events
+                (token, member_id, owner_phone, event_type, payload_json, created_at_ms)
+            VALUES (?, ?, ?, 'note', ?, ?)
+            """,
+            (req.token, member_id, owner_phone,
+             json.dumps(payload, ensure_ascii=False), now),
+        )
+        event_id = cur.lastrowid
+        con.commit()
+    return {"ok": True, "event_id": event_id, "text": text}
 
 
 # ─── API 8: 팀원 사진 업로드 ───
@@ -7851,6 +7900,17 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
     background:rgba(0,0,0,.55); color:#fff; font-size:12px; font-weight:800; line-height:1;
     display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; }}
 
+  /* 현장 메모 (직원→사장) */
+  .mv-note-input {{ width:100%; margin-top:12px; border:1.5px solid var(--line); border-radius:12px;
+    padding:12px; font-size:14px; font-family:inherit; color:var(--t1); min-height:72px; resize:vertical;
+    background:var(--bg); box-sizing:border-box; }}
+  .mv-note-input:focus {{ outline:none; border-color:var(--blue); background:#fff; }}
+  .mv-note-list {{ margin-top:12px; display:flex; flex-direction:column; gap:8px; }}
+  .mv-note-list:empty {{ display:none; }}
+  .mv-note-row {{ background:var(--bg); border-radius:10px; padding:10px 12px; }}
+  .mv-note-row .mn-t {{ font-size:11px; font-weight:700; color:var(--t3); margin-right:6px; }}
+  .mv-note-row .mn-b {{ font-size:13.5px; color:var(--t1); line-height:1.5; }}
+
   /* 사진 크게 보기 (라이트박스) */
   .lightbox {{ position:fixed; inset:0; background:rgba(0,0,0,.92); display:none; align-items:center; justify-content:center; z-index:50; }}
   .lightbox.show {{ display:flex; }}
@@ -8029,6 +8089,40 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
     }} catch (e) {{ alert('네트워크 오류'); }}
   }}
 
+  // 현장 메모 보내기 (직원→사장) — 비어있으면 무시. 보내면 목록에 추가 + 입력칸 비움.
+  async function sendNote() {{
+    var ta = document.getElementById('mv-note-input');
+    var btn = document.getElementById('mv-note-send');
+    var text = ta ? (ta.value || '').trim() : '';
+    if (!text) {{ alert('내용을 입력해 주세요'); return; }}
+    if (btn) {{ btn.disabled = true; btn.textContent = '보내는 중…'; }}
+    try {{
+      var resp = await fetch('/api/team/event/note', {{
+        method:'POST',
+        headers:{{'Content-Type':'application/json'}},
+        body: JSON.stringify({{token: TOKEN, text: text}}),
+      }});
+      if (resp.ok) {{
+        var list = document.getElementById('mv-note-list');
+        if (list) {{
+          var now = new Date();
+          var hh = ('0'+now.getHours()).slice(-2), mm = ('0'+now.getMinutes()).slice(-2);
+          var row = document.createElement('div');
+          row.className = 'mv-note-row';
+          row.innerHTML = '<span class="mn-t"></span><span class="mn-b"></span>';
+          row.querySelector('.mn-t').textContent = hh + ':' + mm;
+          row.querySelector('.mn-b').textContent = text;
+          list.appendChild(row);
+        }}
+        if (ta) ta.value = '';
+      }} else {{
+        var err = await resp.json().catch(function(){{return{{}};}});
+        alert(err.detail || '전송 실패');
+      }}
+    }} catch (e) {{ alert('네트워크 오류'); }}
+    if (btn) {{ btn.disabled = false; btn.textContent = '📨 대표님께 보내기'; }}
+  }}
+
   function addrText() {{
     var el = document.getElementById('today-addr');
     return el ? (el.textContent || '').trim() : '';
@@ -8137,14 +8231,17 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
 """
 
 
-def _build_today_card_html(item: dict, date_label: str = "", photos: list[dict] | None = None) -> str:
+def _build_today_card_html(item: dict, date_label: str = "", photos: list[dict] | None = None,
+                           notes: list[dict] | None = None) -> str:
     """오늘 현장 카드 HTML — 프로토 openMemberView 기반 + 전문성 보강(날짜·정보줄·진행단계·사진 X/20).
 
     진행 단계바(#mv-stepper)와 하단 액션바는 클라이언트 JS(renderProgress)가 STATUS 로 그린다.
     여기선 빈 컨테이너만 둔다. photos = [{id, url, own}] (own=내가 올린 것 → ✕ 삭제 가능).
+    notes = 오늘 직원이 남긴 현장 메모 [{text, time}] (직원→사장 방향).
     """
     import html as _html
     photos = photos or []
+    notes = notes or []
     photo_count = len(photos)
     if not item:
         return ('<div class="sec-sub">오늘 현장</div>'
@@ -8189,6 +8286,12 @@ def _build_today_card_html(item: dict, date_label: str = "", photos: list[dict] 
                 f'{delbtn}</div>')
     done_tiles = "".join(_tile(p) for p in photos)
 
+    # 직원이 오늘 남긴 현장 메모 목록(직원→사장). 보낸 것 확인용.
+    sent_notes = "".join(
+        f'<div class="mv-note-row"><span class="mn-t">{_html.escape(str(n.get("time") or ""))}</span>'
+        f'<span class="mn-b">{_html.escape(str(n.get("text") or "")).replace(chr(10), "<br>")}</span></div>'
+        for n in notes
+    )
     return f'''
     <div class="day-head"><span class="day-badge">오늘</span>{date_html}</div>
     <div class="card">
@@ -8216,6 +8319,13 @@ def _build_today_card_html(item: dict, date_label: str = "", photos: list[dict] 
         <button class="ph-btn" id="ph-alb" onclick="pickAlbum()">🖼️ 앨범</button>
       </div>
       <div class="photo-grid" id="mv-photo-grid">{done_tiles}</div>
+    </div>
+    <div class="mv-photos">
+      <div class="mv-ph-top">✏️ 현장 메모</div>
+      <div class="ph-help">현장에서 느낀 특이사항을 적어 보내면 대표님께 전달돼요. (예: 곰팡이 심함 · 자재 추가 필요 · 고객 부재)</div>
+      <textarea id="mv-note-input" class="mv-note-input" placeholder="현장 특이사항을 적어주세요"></textarea>
+      <button class="ph-btn" id="mv-note-send" onclick="sendNote()" style="margin-top:10px">📨 대표님께 보내기</button>
+      <div class="mv-note-list" id="mv-note-list">{sent_notes}</div>
     </div>
     '''
 
@@ -8311,16 +8421,26 @@ async def team_member_page(token: str) -> HTMLResponse:
     # 오늘 진행 단계(출발/도착/완료) — 오늘 0시(KST) 이후 이벤트로 복원(새로고침해도 단계 유지).
     kst_day_start = ((now + 9 * 3600_000) // 86_400_000) * 86_400_000 - 9 * 3600_000
     status = {"departed": False, "arrived": False, "completed": False}
+    notes: list = []
     ph_rows: list = []
     with db_conn() as con:
         ev_rows = con.execute(
-            "SELECT event_type FROM team_member_events "
-            "WHERE token = ? AND created_at_ms >= ?",
+            "SELECT event_type, payload_json, created_at_ms FROM team_member_events "
+            "WHERE token = ? AND created_at_ms >= ? ORDER BY created_at_ms ASC",
             (token, kst_day_start),
         ).fetchall()
-        for (et,) in ev_rows:
+        for et, pj, cms in ev_rows:
             if et in status:
                 status[et] = True
+            elif et == "note":
+                txt = ""
+                try:
+                    txt = (json.loads(pj) or {}).get("text", "") if pj else ""
+                except json.JSONDecodeError:
+                    txt = ""
+                if txt:
+                    _dtn = _dt.datetime.utcfromtimestamp(cms / 1000) + _dt.timedelta(hours=9)
+                    notes.append({"text": txt, "time": f"{_dtn.hour:02d}:{_dtn.minute:02d}"})
         # 오늘 현장 사진 — 이미 올린 사진(고객 기준) id+업로더. 썸네일 + 내가 올린 것만 ✕(삭제).
         cp = str((today or {}).get("customer_phone") or "").strip()
         if cp:
@@ -8366,7 +8486,7 @@ async def team_member_page(token: str) -> HTMLResponse:
         member_name_html=_html.escape(member_name or "팀원"),
         owner_label_html=_html.escape(owner_label),
         biz_header_html=_html.escape(biz_header),
-        today_block=_build_today_card_html(today, date_label, photos),
+        today_block=_build_today_card_html(today, date_label, photos, notes),
         next_block=_build_next_block_html(items),
         expiry_label_html=_html.escape(_expiry_label(expires_at)),
         token_js=_html.escape(token, quote=True),

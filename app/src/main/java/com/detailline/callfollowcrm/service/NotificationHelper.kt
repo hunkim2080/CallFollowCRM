@@ -218,7 +218,8 @@ object NotificationHelper {
         kind: String,
         memberName: String,
         timeLabel: String,
-        place: String
+        place: String,
+        text: String? = null
     ) {
         val notifId = DEPART_ID_OFFSET + (eventId.toInt() and 0x7FFFFF)
         val pending = appOpenPending(context, notifId)
@@ -232,6 +233,11 @@ object NotificationHelper {
                 "작업 완료 ✅",
                 "${memberName}님이 $timeLabel · ${place} 작업을 끝냈어요",
                 ACCENT_PURPLE
+            )
+            "note" -> Triple(
+                "현장 메모 📝",
+                "${memberName}님 (${place}): ${text ?: ""}",
+                ACCENT_AMBER
             )
             else -> Triple(
                 "팀원 출발 🚗",
