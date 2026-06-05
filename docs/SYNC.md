@@ -3091,3 +3091,14 @@ HOU-128 `/admin/beta/intake` (셋팅 폼) 도 이전 cycle 에 통합 완료. �
 - py_compile 통과. **⚠️ 맥미니 배포 필요** (사장님 `bash server/deploy_phase1.sh` 또는 Cowork sync) 해야 라이브 반영.
 - cowork: 이 영역(server) 다음에 만질 때 충돌 주의 — android 가 위 3곳 건드림.
 - commit: (아래)
+
+## 2026-06-05 04:20 · android (+ server, 사장님 승인 룰 예외 연장)
+팀 사진 동기화 안 됨 근본 수정 — 일정 snapshot 에 customer_phone 누락이 원인.
+- 앱(app): schedule-snapshot item 에 `customer_phone`(=고객 phone) 추가(TeamRepository.SnapshotItem + ScheduleViewModel.pushSnapshotFor). 이게 있어야 팀원 사진이 그 고객에 연결됨.
+- 서버(server/main.py):
+  1) /api/team/event/photo 의 customer_phone 추출 버그 수정 — snapshot 이 LIST(앱이 보내는 형태)일 때도 처리(기존엔 dict 만). is_today 항목 우선.
+  2) 팀원 화면: 올린 사진을 썸네일+가운데 "업로드 완료" 오버레이로 표시(전엔 "올림✓" 텍스트).
+  3) 팀원 today 카드에 "📞 고객 전화" 버튼 추가(고객 phone 있을 때). ⚠️ 프로토는 "고객 연락처 안 보여요"였으나 사장님 요청으로 공유.
+- 사장님 폰: 팀 사진에 업로더 파란 이름표는 이미 구현(동기화되면 보임).
+- ⚠️ **필수 후속**: ① 맥미니 서버 재배포 ② 사장님이 그 일정 **재배정**(일정→배정 줄→변경→저장)해야 새 snapshot(customer_phone 포함)이 팀원 토큰에 박힘 → 그 뒤 팀원이 올린 사진부터 사장님 폰에 뜸. (수정 전 올린 사진은 customer_phone NULL 이라 소급 X)
+- commit: (아래)

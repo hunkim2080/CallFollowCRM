@@ -139,6 +139,7 @@ class TeamRepository(
     data class SnapshotItem(
         val whenLabel: String,         // "오늘" | "5/30" 등
         val customerLabel: String,     // 현장/고객 표시명
+        val customerPhone: String?,    // 고객 전화 — 팀원 사진을 이 고객에 연결하는 키(+팀원 연락용)
         val time: String?,             // "09:00"
         val addr: String?,
         val workSummary: String?,
@@ -160,6 +161,7 @@ class TeamRepository(
                     arr.put(JSONObject().apply {
                         put("when", it2.whenLabel)
                         put("customer_label", it2.customerLabel)
+                        it2.customerPhone?.let { put("customer_phone", it) }
                         it2.time?.let { put("time", it) }
                         it2.addr?.let { put("addr", it) }
                         it2.workSummary?.let { put("work_summary", it) }

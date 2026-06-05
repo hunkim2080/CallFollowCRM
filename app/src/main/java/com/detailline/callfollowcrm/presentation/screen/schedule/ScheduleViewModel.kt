@@ -102,6 +102,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             TeamRepository.SnapshotItem(
                 whenLabel = if (isToday) "오늘" else SimpleDateFormat("M/d", Locale.KOREA).format(java.util.Date(sStart)),
                 customerLabel = c.name?.takeIf { it.isNotBlank() } ?: "현장",
+                customerPhone = c.phoneNumber.takeIf { it.isNotBlank() },
                 time = c.scheduledWorkMinutes?.let { DateTimeUtils.formatWorkMinutes(it) },
                 addr = c.address?.takeIf { it.isNotBlank() },
                 workSummary = null,

@@ -7336,17 +7336,24 @@ async def team_event_photo(req: TeamPhotoUploadRequest) -> dict:
                     (req.token,),
                 ).fetchone()
                 if snap_row and snap_row[0]:
-                    snap = json.loads(snap_row[0]) or {}
-                    # snapshot 구조 다양 — jobs[] 또는 items[] 안의 customer_phone/phone 키 검색
-                    if isinstance(snap, dict):
+                    snap = json.loads(snap_row[0])
+                    # snapshot 구조 다양 — 안드로이드는 items[] LIST 로 보냄. dict(jobs/items/schedule) 도 호환.
+                    if isinstance(snap, list):
+                        candidates = snap
+                    elif isinstance(snap, dict):
                         candidates = snap.get("jobs") or snap.get("items") or snap.get("schedule") or []
-                        if isinstance(candidates, list):
-                            for j in candidates:
-                                if isinstance(j, dict):
-                                    cp = (j.get("customer_phone") or j.get("phone") or j.get("customerPhone") or "").strip()
-                                    if cp:
-                                        customer_phone = cp
-                                        break
+                    else:
+                        candidates = []
+                    if isinstance(candidates, list) and candidates:
+                        # 오늘 현장 우선(팀원은 오늘 카드에서 올림), 없으면 첫 항목.
+                        today = next((j for j in candidates if isinstance(j, dict) and j.get("is_today")), None)
+                        ordered = ([today] if today else []) + [j for j in candidates if j is not today]
+                        for j in ordered:
+                            if isinstance(j, dict):
+                                cp = (j.get("customer_phone") or j.get("phone") or j.get("customerPhone") or "").strip()
+                                if cp:
+                                    customer_phone = cp
+                                    break
             except Exception:
                 pass  # snapshot 파싱 실패는 NULL 로 두고 통과 (안드로이드는 req 에 직접 보내는 게 안정)
         # 한 현장(customer_phone) 최대 20장 — 사장님 정책(2026-06-05). customer_phone 미매핑이면 컷 생략.
@@ -7754,9 +7761,14 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
           if (resp.ok) {{
             ok++;
             if (grid && addBtn) {{
+              // 올린 사진을 썸네일로 보여주고 가운데 "업로드 완료" 오버레이 — 올라간 게 눈으로 확인됨.
               var d = document.createElement('div');
               d.className = 'photo-thumb uploaded';
-              d.innerHTML = '<span class="ph-sent">✓</span><span class="pl">올림</span>';
+              d.style.position = 'relative';
+              d.style.backgroundImage = 'url(' + dataUrl + ')';
+              d.style.backgroundSize = 'cover';
+              d.style.backgroundPosition = 'center';
+              d.innerHTML = '<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);color:#fff;font-size:11px;font-weight:800;border-radius:10px">업로드 완료</span>';
               grid.insertBefore(d, addBtn);
             }}
           }} else {{
@@ -7803,10 +7815,16 @@ def _build_today_card_html(item: dict) -> str:
     addr = _html.escape(str(item.get("addr") or "주소 미입력"))
     work = _html.escape(str(item.get("work_summary") or ""))
     memo = _html.escape(str(item.get("memo") or ""))
+    cust_phone = str(item.get("customer_phone") or "").strip()
     work_html = ""
     if work or memo:
         parts = [p for p in [work, memo] if p]
         work_html = f'<div class="work">{" · ".join(parts)}</div>'
+    # 고객 연락처 — 대표님이 배정 시 같이 보냄(사장님 요청 2026-06-05). 있으면 전화 버튼.
+    phone_btn = (
+        f'<a class="hbtn" href="tel:{_html.escape(cust_phone)}" style="text-decoration:none;text-align:center">📞 고객 전화</a>'
+        if cust_phone else ""
+    )
     return f'''
     <div class="sec-sub">오늘 현장</div>
     <div class="card">
@@ -7821,6 +7839,7 @@ def _build_today_card_html(item: dict) -> str:
         <button class="hbtn" onclick="copyAddr()">📋 주소 복사</button>
         <button class="mv-depart" id="mv-depart" onclick="doDepart()">🚗 출발</button>
       </div>
+      {f'<div style="margin-top:9px">{phone_btn}</div>' if phone_btn else ''}
       <div style="display:flex;gap:7px;margin-top:9px;flex-wrap:wrap">
         <button class="nav-chip" onclick="openNav('카카오맵')">카카오맵</button>
         <button class="nav-chip" onclick="openNav('카카오내비')">카카오내비</button>
