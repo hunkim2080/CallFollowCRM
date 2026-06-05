@@ -147,8 +147,12 @@ fun CustomerDetailScreen(
     var fullscreenBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     // 팀원+사장님이 서버에 올린 현장 사진(§25). 고객 전화 알게 되면 가져옴.
     val teamPhotos by viewModel.teamPhotos.collectAsState()
+    val teamNotes by viewModel.teamNotes.collectAsState()
     androidx.compose.runtime.LaunchedEffect(customer?.phoneNumber) {
-        if (!customer?.phoneNumber.isNullOrBlank()) viewModel.refreshTeamPhotos()
+        if (!customer?.phoneNumber.isNullOrBlank()) {
+            viewModel.refreshTeamPhotos()
+            viewModel.refreshTeamNotes()
+        }
     }
     var celebrationVisible by remember { mutableStateOf(false) }
     // 현장 사진 삭제 확인 — null 이면 닫힘, 값 = 삭제 대상 photo id.
@@ -669,6 +673,43 @@ fun CustomerDetailScreen(
                             }
                             // 마지막 줄 빈칸 채우기 (3열 정렬 유지)
                             repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                        }
+                    }
+                }
+            }
+
+            // 6.6 팀원 현장 메모 — 직원이 링크 화면에서 보낸 특이사항(2026-06-06). 있을 때만 카드.
+            if (teamNotes.isNotEmpty()) {
+                TossCard {
+                    Column {
+                        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Text("✏️", fontSize = 13.sp)
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                "팀원 현장 메모 ${teamNotes.size}개",
+                                fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
+                            )
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        teamNotes.forEachIndexed { idx, note ->
+                            if (idx > 0) Spacer(Modifier.height(8.dp))
+                            androidx.compose.foundation.layout.Box(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFFFFF8E1)).padding(12.dp)
+                            ) {
+                                Column {
+                                    androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                        Text(note.memberName, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFA66B00))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(
+                                            com.detailline.callfollowcrm.util.DateTimeUtils.formatShort(note.createdAtMs),
+                                            fontSize = 11.sp, color = TossTextTertiary
+                                        )
+                                    }
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(note.text, fontSize = 13.5.sp, color = Color(0xFF5A3D00), lineHeight = 19.sp)
+                                }
+                            }
                         }
                     }
                 }

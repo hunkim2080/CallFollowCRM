@@ -32,6 +32,38 @@ class SitePhotoServerRepository(
         val uploadedAtMs: Long
     )
 
+    /** 팀원이 그 고객(현장)에 남긴 현장 메모 한 건. */
+    data class RemoteNote(
+        val text: String,
+        val memberName: String,
+        val createdAtMs: Long
+    )
+
+    /** 고객별 팀원 현장 메모 — GET /api/team/notes. */
+    suspend fun fetchNotes(ownerPhone: String, customerPhone: String): Result<List<RemoteNote>> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val op = java.net.URLEncoder.encode(ownerPhone, "UTF-8")
+                val cp = java.net.URLEncoder.encode(customerPhone, "UTF-8")
+                val req = Request.Builder()
+                    .url("$baseUrl/api/team/notes?owner_phone=$op&customer_phone=$cp&limit=100")
+                    .get().build()
+                client.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                    val arr = JSONObject(resp.body?.string().orEmpty()).optJSONArray("notes")
+                        ?: org.json.JSONArray()
+                    (0 until arr.length()).map { i ->
+                        val o = arr.getJSONObject(i)
+                        RemoteNote(
+                            text = o.optString("text"),
+                            memberName = o.optString("member_name").ifBlank { "팀원" },
+                            createdAtMs = o.optLong("created_at_ms")
+                        )
+                    }
+                }
+            }
+        }
+
     suspend fun fetch(ownerPhone: String, customerPhone: String): Result<List<RemotePhoto>> =
         withContext(Dispatchers.IO) {
             runCatching {

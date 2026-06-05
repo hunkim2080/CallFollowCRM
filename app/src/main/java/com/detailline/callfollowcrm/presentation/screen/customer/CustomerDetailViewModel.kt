@@ -74,6 +74,17 @@ class CustomerDetailViewModel(
         container.sitePhotoServerRepository.fetch(owner, cust).onSuccess { _teamPhotos.value = it }
     }
 
+    /** 팀원이 이 고객(현장)에 남긴 현장 메모(특이사항). 고객 상세 열 때 가져옴. */
+    private val _teamNotes = MutableStateFlow<List<com.detailline.callfollowcrm.ai.SitePhotoServerRepository.RemoteNote>>(emptyList())
+    val teamNotes = _teamNotes.asStateFlow()
+
+    fun refreshTeamNotes() = viewModelScope.launch {
+        val owner = container.preferences.bizPhone.trim()
+        val cust = customer.value?.phoneNumber?.trim().orEmpty()
+        if (owner.isBlank() || cust.isBlank()) return@launch
+        container.sitePhotoServerRepository.fetchNotes(owner, cust).onSuccess { _teamNotes.value = it }
+    }
+
     /** 갤러리에서 고른 사진들 추가(내부 저장소 복사). 한 현장 최대 [sitePhotoMax]장(로컬+서버 합산). */
     fun addSitePhotos(uris: List<android.net.Uri>) = viewModelScope.launch {
         if (uris.isEmpty()) return@launch

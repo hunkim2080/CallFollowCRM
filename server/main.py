@@ -7403,6 +7403,10 @@ async def team_event_note(req: TeamNoteEventRequest) -> dict:
                 if today:
                     payload["customer_label"] = today.get("customer_label")
                     payload["addr"] = today.get("addr")
+                    # 고객 전화 — 사장님 고객 카드에 메모를 연결하는 키.
+                    cp = today.get("customer_phone")
+                    if cp:
+                        payload["customer_phone"] = cp
             except json.JSONDecodeError:
                 pass
         cur = con.execute(
@@ -7606,6 +7610,47 @@ async def team_photo_raw(photo_id: int, token: str, w: Optional[int] = None) -> 
             pass  # 변환 실패 → 원본 반환
     return Response(content=raw, media_type=media,
                     headers={"Cache-Control": "private, max-age=86400"})
+
+
+@app.get("/api/team/notes")
+async def team_notes_list(owner_phone: str, customer_phone: str, limit: int = 100) -> dict:
+    """사장님 고객 카드용 — 그 고객(현장)에 팀원이 남긴 현장 메모 모음(최신순).
+
+    응답: {notes: [{text, member_name, created_at_ms}]}
+    note 이벤트 payload 의 customer_phone(끝 8자리) 으로 매칭.
+    """
+    if not owner_phone or not customer_phone:
+        raise HTTPException(400, "owner_phone, customer_phone 필수")
+    digits = "".join(ch for ch in customer_phone if ch.isdigit())
+    suffix_8 = digits[-8:] if len(digits) >= 8 else digits
+    limit = max(1, min(limit, 200))
+    out = []
+    with db_conn() as con:
+        rows = con.execute(
+            """
+            SELECT e.payload_json, e.created_at_ms, m.name
+            FROM team_member_events e
+            LEFT JOIN team_members m ON m.member_id = e.member_id
+            WHERE e.owner_phone = ? AND e.event_type = 'note'
+            ORDER BY e.created_at_ms DESC LIMIT 400
+            """,
+            (owner_phone,),
+        ).fetchall()
+    for pj, cms, mname in rows:
+        try:
+            p = json.loads(pj) if pj else {}
+        except json.JSONDecodeError:
+            p = {}
+        text = (p.get("text") or "").strip()
+        if not text:
+            continue
+        cp = "".join(ch for ch in str(p.get("customer_phone") or "") if ch.isdigit())
+        cp8 = cp[-8:] if len(cp) >= 8 else cp
+        if suffix_8 and cp8 == suffix_8:
+            out.append({"text": text, "member_name": mname or "팀원", "created_at_ms": cms})
+        if len(out) >= limit:
+            break
+    return {"notes": out, "count": len(out)}
 
 
 @app.delete("/api/team/photo/{photo_id}")

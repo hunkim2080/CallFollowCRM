@@ -3185,3 +3185,10 @@ HOU-128 `/admin/beta/intake` (셋팅 폼) 도 이전 cycle 에 통합 완료. �
 - 앱(app): TeamEventCenter KINDS 에 'note' 추가 → TeamUpdate.text. 알림 showTeamEvent('note', 앰버 📝, "{팀원}님 ({현장}): {메모}"). 상담함 배너 note 스타일(앰버 Edit아이콘) + sub=메모 내용. event_type 'note' 도 출발/도착/완료처럼 같은 폴링·중복차단.
 - ⚠️ 맥미니 재배포 필요. 앱 빌드+폰 설치 완료.
 - commit: (아래)
+
+## 2026-06-06 · android (+ server, 사장님 승인 룰 예외 연장)
+팀원 현장 메모를 사장님 고객 카드에서도 보게(지금은 알림만 스쳐 사라짐).
+- 서버(server/main.py): note 이벤트 payload 에 customer_phone 추가(고객 연결 키). 신규 GET /api/team/notes?owner_phone=&customer_phone= → note 이벤트를 phone suffix 매칭해 {text, member_name, created_at_ms} 최신순.
+- 앱(app): SitePhotoServerRepository.fetchNotes + CustomerDetailViewModel.teamNotes/refreshTeamNotes(고객 상세 열 때). CustomerDetailScreen 현장사진 카드 아래 "✏️ 팀원 현장 메모" 카드(노란 박스, 팀원이름+시각+내용).
+- ⚠️ 맥미니 재배포 필요. 재배포 후 새로 보낸 메모부터 customer_phone 박혀 고객 카드에 연결됨(이전 메모는 customer_phone 없어 소급 X). 앱 빌드+폰 설치 완료.
+- commit: (아래)
