@@ -7559,6 +7559,35 @@ async def team_photo_raw(photo_id: int, token: str, w: Optional[int] = None) -> 
                     headers={"Cache-Control": "private, max-age=86400"})
 
 
+@app.delete("/api/team/photo/{photo_id}")
+async def team_photo_delete(photo_id: int, token: str) -> dict:
+    """팀원이 자기가 잘못 올린 사진 삭제. 본인(member) + owner 일치할 때만.
+
+    남의 사진·사장님 사진은 못 지움(member_id 불일치 시 403). 사진은 사장님 고객 카드에서도 사라짐.
+    """
+    with db_conn() as con:
+        link = con.execute(
+            "SELECT member_id, owner_phone, expires_at_ms FROM team_member_links WHERE token = ?",
+            (token,),
+        ).fetchone()
+        if not link:
+            raise HTTPException(404, "유효하지 않은 토큰")
+        member_id, owner_phone, expires_at = link
+        if _now_ms() > expires_at:
+            raise HTTPException(410, "만료된 링크")
+        ph = con.execute(
+            "SELECT member_id, owner_phone FROM team_site_photos WHERE photo_id = ?",
+            (photo_id,),
+        ).fetchone()
+        if not ph:
+            raise HTTPException(404, "사진 없음")
+        if ph[1] != owner_phone or ph[0] != member_id:
+            raise HTTPException(403, "내가 올린 사진만 지울 수 있어요")
+        con.execute("DELETE FROM team_site_photos WHERE photo_id = ?", (photo_id,))
+        con.commit()
+    return {"ok": True, "photo_id": photo_id}
+
+
 # ============================================================================
 # §25 — 현장 사진 팀↔사장님 공유 (안드로이드 SERVER_HANDOFF 2026-06-04)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -7818,6 +7847,9 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
   .photo-thumb .ov {{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.35); color:#fff; font-size:11px; font-weight:800; }}
   .photo-thumb .bar-wrap {{ position:absolute; left:8px; right:8px; bottom:8px; height:5px; border-radius:3px; background:rgba(255,255,255,.5); overflow:hidden; }}
   .photo-thumb .bar-fill {{ height:100%; width:0%; background:var(--blue); transition:width .2s; }}
+  .ph-del {{ position:absolute; top:4px; right:4px; width:22px; height:22px; border:0; border-radius:50%;
+    background:rgba(0,0,0,.55); color:#fff; font-size:12px; font-weight:800; line-height:1;
+    display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; }}
 
   /* 사진 크게 보기 (라이트박스) */
   .lightbox {{ position:fixed; inset:0; background:rgba(0,0,0,.92); display:none; align-items:center; justify-content:center; z-index:50; }}
@@ -7936,11 +7968,13 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
   async function doStage(stage) {{
     if (BUSY) return;
     var map = {{
-      depart:   {{ ep:'depart',   key:'departed'  }},
-      arrive:   {{ ep:'arrive',   key:'arrived'   }},
-      complete: {{ ep:'complete', key:'completed' }},
+      depart:   {{ ep:'depart',   key:'departed',  ask:'출발 알림을 대표님께 보낼까요?' }},
+      arrive:   {{ ep:'arrive',   key:'arrived',   ask:'현장 도착을 대표님께 알릴까요?' }},
+      complete: {{ ep:'complete', key:'completed', ask:'작업 완료를 대표님께 알릴까요?' }},
     }};
     var m = map[stage]; if (!m) return;
+    // 잘못 눌러도 한 번 더 확인(사장님 결정 2026-06-06) — 확인해야 전송.
+    if (!window.confirm(m.ask)) return;
     BUSY = true;
     var ab = document.getElementById('mv-actionbar');
     if (ab) ab.innerHTML = '<button class="act-btn" disabled>전송 중…</button>';
@@ -7974,6 +8008,25 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
   function closeZoom() {{
     var lb = document.getElementById('lightbox');
     if (lb) lb.classList.remove('show');
+  }}
+
+  // 잘못 올린 사진 삭제 — 내가 올린 것만(서버가 한 번 더 검증). 확인 후 삭제.
+  async function delPhoto(ev, pid) {{
+    if (ev) ev.stopPropagation();
+    if (!pid) return;
+    if (!window.confirm('이 사진을 지울까요?')) return;
+    try {{
+      var resp = await fetch('/api/team/photo/' + pid + '?token=' + encodeURIComponent(TOKEN), {{ method:'DELETE' }});
+      if (resp.ok) {{
+        var tile = document.querySelector('.photo-thumb[data-pid="' + pid + '"]');
+        if (tile && tile.parentNode) tile.parentNode.removeChild(tile);
+        if (PHOTO_COUNT > 0) PHOTO_COUNT--;
+        updatePhotoCount();
+      }} else {{
+        var err = await resp.json().catch(function(){{return{{}};}});
+        alert(err.detail || '삭제 실패');
+      }}
+    }} catch (e) {{ alert('네트워크 오류'); }}
   }}
 
   function addrText() {{
@@ -8038,7 +8091,12 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
         }});
         if (resp.ok) {{
           ok++; PHOTO_COUNT++;
-          tile.innerHTML = '<div class="ov">업로드 완료</div>';
+          var data = await resp.json().catch(function(){{return{{}};}});
+          var pid = data.photo_id || 0;
+          if (pid) tile.setAttribute('data-pid', pid);
+          // 방금 올린 건 내가 올린 것 → ✕(삭제) 버튼 같이.
+          tile.innerHTML = '<div class="ov">업로드 완료</div>'
+            + (pid ? '<button class="ph-del" onclick="delPhoto(event,' + pid + ')" aria-label="삭제">✕</button>' : '');
           (function(u) {{ tile.onclick = function() {{ zoom(u); }}; }})(dataUrl);
           updatePhotoCount();
         }} else {{
@@ -8079,15 +8137,15 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
 """
 
 
-def _build_today_card_html(item: dict, date_label: str = "", photo_urls: list[str] | None = None) -> str:
+def _build_today_card_html(item: dict, date_label: str = "", photos: list[dict] | None = None) -> str:
     """오늘 현장 카드 HTML — 프로토 openMemberView 기반 + 전문성 보강(날짜·정보줄·진행단계·사진 X/20).
 
     진행 단계바(#mv-stepper)와 하단 액션바는 클라이언트 JS(renderProgress)가 STATUS 로 그린다.
-    여기선 빈 컨테이너만 둔다. photo_urls = 이미 올린 사진 URL(작은 썸네일+탭하면 원본).
+    여기선 빈 컨테이너만 둔다. photos = [{id, url, own}] (own=내가 올린 것 → ✕ 삭제 가능).
     """
     import html as _html
-    photo_urls = photo_urls or []
-    photo_count = len(photo_urls)
+    photos = photos or []
+    photo_count = len(photos)
     if not item:
         return ('<div class="sec-sub">오늘 현장</div>'
                 '<div class="card"><div class="empty">오늘 배정된 현장이 없어요</div></div>')
@@ -8120,12 +8178,16 @@ def _build_today_card_html(item: dict, date_label: str = "", photo_urls: list[st
         memo_html = f'<div class="owner-memo"><div class="om-t">📌 대표님 전달사항</div><div class="om-b">{memo_safe}</div></div>'
 
     # 이미 올린 사진 = 작은 썸네일(?w=400)로 다시 보여주고, 탭하면 원본(라이트박스).
-    #   썸네일은 서버가 줄여 보내(가볍고 빠름), 원본은 탭할 때만 받음.
-    done_tiles = "".join(
-        f'<div class="photo-thumb" onclick="zoom(\'{_html.escape(u, quote=True)}\')">'
-        f'<img src="{_html.escape(u, quote=True)}&amp;w=400" loading="lazy" alt=""></div>'
-        for u in photo_urls
-    )
+    #   썸네일은 서버가 줄여 보내(가볍고 빠름), 원본은 탭할 때만 받음. 내가 올린 것엔 ✕(삭제).
+    def _tile(p: dict) -> str:
+        u = _html.escape(str(p.get("url") or ""), quote=True)
+        pid = int(p.get("id") or 0)
+        delbtn = (f'<button class="ph-del" onclick="delPhoto(event,{pid})" aria-label="삭제">✕</button>'
+                  if p.get("own") else "")
+        return (f'<div class="photo-thumb" data-pid="{pid}">'
+                f'<img src="{u}&amp;w=400" loading="lazy" alt="" onclick="zoom(\'{u}\')">'
+                f'{delbtn}</div>')
+    done_tiles = "".join(_tile(p) for p in photos)
 
     return f'''
     <div class="day-head"><span class="day-badge">오늘</span>{date_html}</div>
@@ -8249,7 +8311,7 @@ async def team_member_page(token: str) -> HTMLResponse:
     # 오늘 진행 단계(출발/도착/완료) — 오늘 0시(KST) 이후 이벤트로 복원(새로고침해도 단계 유지).
     kst_day_start = ((now + 9 * 3600_000) // 86_400_000) * 86_400_000 - 9 * 3600_000
     status = {"departed": False, "arrived": False, "completed": False}
-    photo_ids: list[int] = []
+    ph_rows: list = []
     with db_conn() as con:
         ev_rows = con.execute(
             "SELECT event_type FROM team_member_events "
@@ -8259,14 +8321,14 @@ async def team_member_page(token: str) -> HTMLResponse:
         for (et,) in ev_rows:
             if et in status:
                 status[et] = True
-        # 오늘 현장 사진 — 이미 올린 사진 id(고객 기준). 썸네일로 다시 보여주고 X/20 표시.
+        # 오늘 현장 사진 — 이미 올린 사진(고객 기준) id+업로더. 썸네일 + 내가 올린 것만 ✕(삭제).
         cp = str((today or {}).get("customer_phone") or "").strip()
         if cp:
             digits = "".join(ch for ch in cp if ch.isdigit())
             suffix_8 = digits[-8:] if len(digits) >= 8 else digits
             ph_rows = con.execute(
                 """
-                SELECT photo_id FROM team_site_photos
+                SELECT photo_id, member_id FROM team_site_photos
                 WHERE owner_phone = ?
                   AND (
                     customer_phone = ?
@@ -8276,13 +8338,16 @@ async def team_member_page(token: str) -> HTMLResponse:
                 """,
                 (owner_phone, cp, f"%{suffix_8}"),
             ).fetchall()
-            photo_ids = [r[0] for r in ph_rows]
         # last_accessed 기록
         con.execute("UPDATE team_member_links SET last_accessed_ms = ? WHERE token = ?", (now, token))
         con.commit()
-    photo_count = len(photo_ids)
+    photo_count = len(ph_rows)
     tok_q = urllib.parse.quote(token, safe="")
-    photo_urls = [f"/api/team/photo/{pid}?token={tok_q}" for pid in photo_ids]
+    # 내가(이 토큰 팀원이) 올린 사진만 삭제 가능(own=True). 남·사장님 사진은 삭제 버튼 X.
+    photos = [
+        {"id": pid, "url": f"/api/team/photo/{pid}?token={tok_q}", "own": (mid == member_id)}
+        for pid, mid in ph_rows
+    ]
 
     owner_label = "대표님"
     biz = _fetch_owner_biz_name(owner_phone)
@@ -8301,7 +8366,7 @@ async def team_member_page(token: str) -> HTMLResponse:
         member_name_html=_html.escape(member_name or "팀원"),
         owner_label_html=_html.escape(owner_label),
         biz_header_html=_html.escape(biz_header),
-        today_block=_build_today_card_html(today, date_label, photo_urls),
+        today_block=_build_today_card_html(today, date_label, photos),
         next_block=_build_next_block_html(items),
         expiry_label_html=_html.escape(_expiry_label(expires_at)),
         token_js=_html.escape(token, quote=True),

@@ -3171,3 +3171,10 @@ HOU-128 `/admin/beta/intake` (셋팅 폼) 도 이전 cycle 에 통합 완료. �
   · HomeViewModel.teamDepartures → teamUpdates(TeamUpdate), dismissTeamUpdate. HomeScreen 배너 kind별 색·아이콘(teamUpdateStyle).
 - ⚠️ 서버 재배포 필요(arrive payload). 앱 빌드+폰 설치 완료.
 - commit: (아래)
+
+## 2026-06-06 · android (server, 사장님 승인 룰 예외 연장)
+직원 실수 방지 2건 (사장님 결정).
+- 사진 삭제: 직원 화면 썸네일에 ✕(내가 올린 것만). 신규 DELETE /api/team/photo/{id}?token= (member+owner 일치 검증, 남·사장님 사진 403). 삭제 시 사장님 고객카드에서도 사라짐. 방금 올린 타일에도 ✕(업로드 응답 photo_id 사용).
+- 출발/도착/완료 오발송 방지: 버튼 누르면 window.confirm 한 번("…대표님께 보낼까요?") → 확인해야 전송(사장님이 '확인 한 번' 선택, 지연 방식 X).
+- 서버 전용 변경(앱 빌드 불필요). ⚠️ 맥미니 재배포 필요.
+- commit: (아래)
