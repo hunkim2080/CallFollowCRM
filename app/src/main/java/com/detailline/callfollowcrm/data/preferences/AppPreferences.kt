@@ -225,11 +225,11 @@ class AppPreferences(context: Context) {
         get() = prefs.getStringSet("dismissed_auto_reply_ids", emptySet()) ?: emptySet()
         set(value) = prefs.edit().putStringSet("dismissed_auto_reply_ids", value).apply()
 
-    // ── 팀원 출발 알림(2026-06-06) — 마지막으로 알림 보낸 출발 시각(중복 방지) + 상담함 배너 정리 id. ──
-    var teamDepartLastSeenMs: Long
+    // ── 팀원 진행 알림(2026-06-06) — 마지막으로 알림 보낸 이벤트 시각(출발/도착/완료 공통, 중복 방지). ──
+    var teamEventLastSeenMs: Long
         get() = prefs.getLong("team_depart_last_seen_ms", 0L)
         set(value) = prefs.edit().putLong("team_depart_last_seen_ms", value).apply()
-    /** 상담함 "팀원 출발" 배너 밀어서 정리한 event_id 들. */
+    /** 상담함 "팀원 진행" 배너 밀어서 정리한 event_id 들. */
     var dismissedTeamDepartIds: Set<String>
         get() = prefs.getStringSet("dismissed_team_depart_ids", emptySet()) ?: emptySet()
         set(value) = prefs.edit().putStringSet("dismissed_team_depart_ids", value).apply()

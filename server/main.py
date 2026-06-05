@@ -7292,20 +7292,30 @@ async def team_event_depart(req: TeamDepartEventRequest) -> dict:
 
 @app.post("/api/team/event/arrive")
 async def team_event_arrive(req: TeamArriveEventRequest) -> dict:
-    """팀원이 현장 도착. 출발과 같은 패턴."""
+    """팀원이 현장 도착. 출발과 같은 패턴 — 사장님 알림에 현장명 넣게 snapshot 에서 끌어옴."""
     with db_conn() as con:
         row = con.execute(
-            "SELECT member_id, owner_phone, expires_at_ms "
+            "SELECT member_id, owner_phone, expires_at_ms, schedule_snapshot_json "
             "FROM team_member_links WHERE token = ?",
             (req.token,),
         ).fetchone()
         if not row:
             raise HTTPException(404, "유효하지 않은 토큰")
-        member_id, owner_phone, expires_at = row
+        member_id, owner_phone, expires_at, snap = row
         now = _now_ms()
         if now > expires_at:
             raise HTTPException(410, "만료된 링크")
         arrived_at = int(req.arrived_at_ms or now)
+        payload = {"arrived_at_ms": arrived_at}
+        if snap:
+            try:
+                items = json.loads(snap) or []
+                today = next((it for it in items if it.get("is_today")), None) or (items[0] if items else None)
+                if today:
+                    payload["customer_label"] = today.get("customer_label")
+                    payload["addr"] = today.get("addr")
+            except json.JSONDecodeError:
+                pass
         cur = con.execute(
             """
             INSERT INTO team_member_events
@@ -7313,7 +7323,7 @@ async def team_event_arrive(req: TeamArriveEventRequest) -> dict:
             VALUES (?, ?, ?, 'arrived', ?, ?)
             """,
             (req.token, member_id, owner_phone,
-             json.dumps({"arrived_at_ms": arrived_at}, ensure_ascii=False), now),
+             json.dumps(payload, ensure_ascii=False), now),
         )
         event_id = cur.lastrowid
         con.commit()

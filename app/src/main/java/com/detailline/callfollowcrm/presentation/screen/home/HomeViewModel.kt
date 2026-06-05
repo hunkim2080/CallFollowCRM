@@ -283,22 +283,22 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // ────────────────────────────────────────────────────────
-    // 팀원 출발 알림 (상담함, 2026-06-06 사장님 요청)
-    //   TeamEventCenter 가 서버 폴링으로 채운 오늘 출발 목록을 배너로. 밀어서 정리(event_id 영속).
+    // 팀원 진행 알림 (상담함, 2026-06-06 사장님 요청)
+    //   TeamEventCenter 가 서버 폴링으로 채운 오늘 출발/도착/완료를 배너로. 밀어서 정리(event_id 영속).
     // ────────────────────────────────────────────────────────
     private val dismissedTeamDepartIds = MutableStateFlow(
         container.preferences.dismissedTeamDepartIds.mapNotNull { it.toLongOrNull() }.toSet()
     )
 
-    /** 상담함 "팀원 출발" 배너 밀어서 정리. */
-    fun dismissTeamDeparture(eventId: Long) {
+    /** 상담함 "팀원 진행" 배너 밀어서 정리. */
+    fun dismissTeamUpdate(eventId: Long) {
         val next = dismissedTeamDepartIds.value + eventId
         dismissedTeamDepartIds.value = next
         container.preferences.dismissedTeamDepartIds = next.map { it.toString() }.toSet()
     }
 
-    val teamDepartures: StateFlow<List<com.detailline.callfollowcrm.ai.TeamEventCenter.DepartureInfo>> =
-        combine(container.teamEventCenter.todayDepartures, dismissedTeamDepartIds) { list, dismissed ->
+    val teamUpdates: StateFlow<List<com.detailline.callfollowcrm.ai.TeamEventCenter.TeamUpdate>> =
+        combine(container.teamEventCenter.todayUpdates, dismissedTeamDepartIds) { list, dismissed ->
             list.filter { it.eventId !in dismissed }.sortedByDescending { it.createdAtMs }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 

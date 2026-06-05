@@ -208,20 +208,41 @@ object NotificationHelper {
         )
     }
 
-    /** 팀원 출발 알림 — 팀원이 링크 화면에서 [출발했어요] 누르면 (초록). 누가·몇시·어디로. 탭 → 앱. */
-    fun showTeamDeparture(
+    /**
+     * 팀원 진행 알림 — 팀원이 링크 화면에서 [출발/도착/완료] 누르면. 누가·몇시·어디서. 탭 → 앱(팀 현황).
+     *   kind = "departed" | "arrived" | "completed".
+     */
+    fun showTeamEvent(
         context: Context,
         eventId: Long,
+        kind: String,
         memberName: String,
         timeLabel: String,
         place: String
     ) {
         val notifId = DEPART_ID_OFFSET + (eventId.toInt() and 0x7FFFFF)
         val pending = appOpenPending(context, notifId)
+        val (title, msg, accent) = when (kind) {
+            "arrived" -> Triple(
+                "팀원 현장 도착 📍",
+                "${memberName}님이 $timeLabel · ${place}에 도착했어요",
+                ACCENT_BLUE
+            )
+            "completed" -> Triple(
+                "작업 완료 ✅",
+                "${memberName}님이 $timeLabel · ${place} 작업을 끝냈어요",
+                ACCENT_PURPLE
+            )
+            else -> Triple(
+                "팀원 출발 🚗",
+                "${memberName}님이 $timeLabel · ${place}으로 출발했어요",
+                ACCENT_GREEN
+            )
+        }
         showProtoPush(
-            context, notifId, CHANNEL_REMINDER, ACCENT_GREEN,
-            title = "팀원 출발 🚗",
-            msg = "${memberName}님이 $timeLabel · ${place}으로 출발했어요",
+            context, notifId, CHANNEL_REMINDER, accent,
+            title = title,
+            msg = msg,
             contentIntent = pending,
             actions = listOf(PushAction("팀 현황 보기", pending))
         )

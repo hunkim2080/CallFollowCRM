@@ -32,6 +32,8 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallMade
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Navigation
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CallMissed
 import androidx.compose.material.icons.filled.CallReceived
 import androidx.compose.material.icons.filled.DateRange
@@ -166,7 +168,7 @@ fun HomeScreen(
     val todayJobs by viewModel.todayJobs.collectAsState()
     val nextJobs by viewModel.nextJobs.collectAsState()
     val autoReplies by viewModel.autoReplies.collectAsState()
-    val teamDepartures by viewModel.teamDepartures.collectAsState()
+    val teamUpdates by viewModel.teamUpdates.collectAsState()
     val recurringDueCount by viewModel.recurringDueCount.collectAsState()
     val scheduleReminders by viewModel.scheduleReminders.collectAsState()
     val estimateFollowupCount by viewModel.estimateFollowupCount.collectAsState()
@@ -530,18 +532,19 @@ fun HomeScreen(
                     }
                 }
 
-                // 팀원 출발 알림 (2026-06-06 사장님 요청) — 누가·몇시·어디로. 탭 → 팀 관리. 밀어서 정리.
-                teamDepartures.forEach { dep ->
-                    item(key = "team-depart-${dep.eventId}") {
-                        DismissSwipeBox(onDismiss = { viewModel.dismissTeamDeparture(dep.eventId) }) {
+                // 팀원 진행 알림 (2026-06-06 사장님 요청) — 출발/도착/완료. 탭 → 팀 관리. 밀어서 정리.
+                teamUpdates.forEach { up ->
+                    item(key = "team-update-${up.eventId}") {
+                        val (accent, tint, icon, title, verb) = teamUpdateStyle(up.kind)
+                        DismissSwipeBox(onDismiss = { viewModel.dismissTeamUpdate(up.eventId) }) {
                             InboxAlert(
-                                accent = TossSuccess,
-                                accentTint = Color(0xFFE5F8EE),
-                                icon = Icons.Default.Navigation,
-                                title = "팀원 출발 🚗",
+                                accent = accent,
+                                accentTint = tint,
+                                icon = icon,
+                                title = title,
                                 tagText = null,
-                                tagBg = Color(0xFFE5F8EE), tagFg = TossSuccess,
-                                sub = "${dep.memberName}님 · ${dep.timeLabel} · ${dep.place}으로 출발",
+                                tagBg = tint, tagFg = accent,
+                                sub = "${up.memberName}님 · ${up.timeLabel} · ${up.place} $verb",
                                 goLabel = "팀 현황",
                                 onClick = onOpenTeam
                             )
@@ -1139,6 +1142,21 @@ private fun RemindCard(
             }
         }
     }
+}
+
+/** 팀원 진행 배너 스타일 — kind(출발/도착/완료)별 색·아이콘·제목·동사. */
+private data class TeamUpdateStyle(
+    val accent: Color,
+    val tint: Color,
+    val icon: ImageVector,
+    val title: String,
+    val verb: String
+)
+
+private fun teamUpdateStyle(kind: String): TeamUpdateStyle = when (kind) {
+    "arrived" -> TeamUpdateStyle(TossBlue, TossBlueSoft, Icons.Default.LocationOn, "팀원 현장 도착 📍", "도착")
+    "completed" -> TeamUpdateStyle(Color(0xFF7C5CFC), Color(0xFFF1ECFE), Icons.Default.CheckCircle, "작업 완료 ✅", "작업 완료")
+    else -> TeamUpdateStyle(TossSuccess, Color(0xFFE5F8EE), Icons.Default.Navigation, "팀원 출발 🚗", "출발")
 }
 
 @Composable

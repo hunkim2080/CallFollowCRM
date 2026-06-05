@@ -3161,3 +3161,13 @@ HOU-128 `/admin/beta/intake` (셋팅 폼) 도 이전 cycle 에 통합 완료. �
   · 첫 폴링은 과거 출발 몰림 방지(baseline 만 잡고 알림 X).
 - ⚠️ 서버는 직원화면 UI 2건만 재배포 필요. 앱은 빌드+폰 설치 완료.
 - commit: (아래)
+
+## 2026-06-06 · android (+ server, 사장님 승인 룰 예외 연장)
+팀원 알림 출발만 → 출발·도착·완료 3종 전부 (사장님 "출발 알람 있으면 도착도 완료도").
+- 서버(server/main.py): /api/team/event/arrive 도 payload 에 customer_label·addr 추가(도착 알림에 현장명). depart/complete 는 이미 있음.
+- 앱(app):
+  · TeamEventCenter: departed 만 → departed/arrived/completed 3종 poll + 알림. lastSeen 키는 공통(teamEventLastSeenMs, 기존 키 재사용).
+  · NotificationHelper.showTeamDeparture → showTeamEvent(kind): 출발(초록🚗)/도착(파랑📍)/완료(보라✅) 제목·색 분기.
+  · HomeViewModel.teamDepartures → teamUpdates(TeamUpdate), dismissTeamUpdate. HomeScreen 배너 kind별 색·아이콘(teamUpdateStyle).
+- ⚠️ 서버 재배포 필요(arrive payload). 앱 빌드+폰 설치 완료.
+- commit: (아래)
