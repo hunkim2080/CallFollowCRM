@@ -3411,7 +3411,7 @@ class SubscriberUpsertRequest(BaseModel):
     churned: bool = False        # True 면 churned_at_ms 박음 (해지 처리)
 
 
-VALID_PLAN_TIERS = {"founder", "beta", "pro", "enterprise"}
+VALID_PLAN_TIERS = {"founder", "beta", "pro", "enterprise", "team_99k"}
 
 
 @app.post("/api/admin/subscribers/upsert")
