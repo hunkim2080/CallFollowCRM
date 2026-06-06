@@ -115,6 +115,23 @@
   .tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10.5px;font-weight:700;color:#AEB5BF;}
   .tab.on{color:var(--blue);} .tab .ti{font-size:19px;}
 
+  /* 캘린더 */
+  .cal-head{display:flex;align-items:center;justify-content:center;gap:20px;padding:6px 0 12px;}
+  .cal-head .m{font-size:18px;font-weight:800;letter-spacing:-.02em;}
+  .cal-head .nav{width:32px;height:32px;border-radius:50%;background:#fff;box-shadow:var(--shadow);color:var(--t2);display:flex;align-items:center;justify-content:center;}
+  .cal-card{background:#fff;border-radius:20px;padding:10px 10px 14px;box-shadow:var(--shadow);}
+  .cal-week{display:grid;grid-template-columns:repeat(7,1fr);}
+  .cal-week .wd{text-align:center;font-size:12px;color:var(--t3);padding:7px 0;font-weight:700;}
+  .cal-week .wd.sun{color:var(--error);} .cal-week .wd.sat{color:var(--blue);}
+  .cal-cell{height:50px;display:flex;flex-direction:column;align-items:center;padding-top:4px;cursor:pointer;}
+  .cal-cell .num{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px;}
+  .cal-cell.today .num{background:var(--blue-tint);color:var(--blue-dark);font-weight:800;}
+  .cal-cell.sel .num{background:var(--blue);color:#fff;box-shadow:0 6px 14px rgba(49,130,246,.4);}
+  .jdots{display:flex;gap:3px;margin-top:4px;height:6px;align-items:center;}
+  .jdot{width:6px;height:6px;border-radius:50%;}
+  .jdot.mine{background:var(--blue);} .jdot.collab{background:var(--purple);}
+  .legend{display:flex;gap:16px;justify-content:center;margin:12px 0 2px;font-size:12px;font-weight:700;color:var(--t2);}
+  .legend .d{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:1px;}
   .field{display:flex;align-items:center;gap:10px;background:var(--bg);border-radius:13px;padding:13px 14px;margin:8px 0;}
   .field input{border:0;background:transparent;font-family:inherit;font-size:15px;flex:1;outline:none;color:var(--t1);}
   .note-in{background:var(--bg);border-radius:13px;padding:12px 14px;font-size:13.5px;color:var(--t3);margin-top:6px;}
@@ -134,6 +151,7 @@
     <button class="A" data-s="a-after" onclick="show('a-after',this)">공유 후 카드</button>
     <span class="grp">사장 B(협업)</span>
     <button class="B" data-s="b-push" onclick="show('b-push',this)">초대 알림</button>
+    <button class="B" data-s="b-cal" onclick="show('b-cal',this)">내 캘린더(점 구분)</button>
     <button class="B" data-s="b-list" onclick="show('b-list',this)">협업 현장 목록</button>
     <button class="B" data-s="b-detail" onclick="show('b-detail',this)">협업 현장 상세</button>
     <button class="B" data-s="b-wall" onclick="show('b-wall',this)">못 보는 것(벽)</button>
@@ -306,6 +324,45 @@
         </div>
       </div>
 
+      <!-- B: 내 캘린더 (협업 = 다른 색 점) -->
+      <div class="screen" id="b-cal">
+        <div class="appbar"><div class="ab-title" style="flex:1"><div class="title">일정</div></div><div class="iconbtn">＋</div></div>
+        <div class="scroll">
+          <div class="cal-head"><div class="nav">‹</div><div class="m">2026년 6월</div><div class="nav">›</div></div>
+          <div class="cal-card">
+            <div class="cal-week"><div class="wd sun">일</div><div class="wd">월</div><div class="wd">화</div><div class="wd">수</div><div class="wd">목</div><div class="wd">금</div><div class="wd sat">토</div></div>
+            <div class="cal-week" id="cal-cells"></div>
+          </div>
+          <div class="legend"><span><span class="d" style="background:var(--blue)"></span>내 현장</span>
+            <span><span class="d" style="background:var(--purple)"></span>협업 현장</span></div>
+
+          <div class="sec-sub">6월 12일 (금) · 오늘</div>
+          <div class="listrow" style="border-color:#E2D8FB" onclick="show('b-detail',document.querySelector('[data-s=b-detail]'))">
+            <div class="av" style="background:#F1ECFE">🤝</div>
+            <div class="grow"><div class="b">강동 천호동 현장 <span class="pill purple">협업</span></div>
+              <div class="sm muted">강동 서사장님과 함께 · 욕실 줄눈 2곳 · 09:00</div></div>
+            <div class="chev">›</div>
+          </div>
+          <div class="listrow">
+            <div class="av" style="background:var(--blue-tint)">🔧</div>
+            <div class="grow"><div class="b">내 고객 · 목동 현장 <span class="pill blue">내 현장</span></div>
+              <div class="sm muted">주방 코킹 · 14:00</div></div>
+            <div class="chev">›</div>
+          </div>
+          <div class="cal-card" style="background:#F1ECFE;box-shadow:none;margin-top:14px;padding:13px 14px">
+            <div class="sm b" style="color:#6B4FD8">🟣 보라색 점 = 협업 현장</div>
+            <div class="sm" style="color:#5a4a7a;margin-top:5px;line-height:1.6">내 일과 한눈에 구분돼서, 같이 가는 날을 헷갈리지 않고 더블부킹도 막아요.</div>
+          </div>
+        </div>
+        <div class="tabbar">
+          <div class="tab"><span class="ti">💬</span>상담함</div>
+          <div class="tab on"><span class="ti">📅</span>일정</div>
+          <div class="tab"><span class="ti">💰</span>정산</div>
+          <div class="tab"><span class="ti">📊</span>통계</div>
+          <div class="tab"><span class="ti">⋯</span>더보기</div>
+        </div>
+      </div>
+
       <!-- B: 벽 설명 -->
       <div class="screen" id="b-wall">
         <div class="appbar"><div class="iconbtn" onclick="show('b-detail',document.querySelector('[data-s=b-detail]'))">‹</div><div class="title sm">협업할 때 지켜지는 것</div></div>
@@ -346,6 +403,25 @@
     if(btn) btn.classList.add('on');
     document.querySelector('.screens').scrollTop=0;
   }
+
+  // 6월 2026 = 월요일 시작(1일=월). 내 현장 / 협업 현장 점 표시.
+  (function buildCal(){
+    var mine=[4,9,17,24], collab=[12,26], both=[19];   // 19일 = 내 현장+협업 둘 다
+    var first=0; // 6/1 요일(일=0). 데모용 0.
+    var box=document.getElementById('cal-cells'); if(!box) return;
+    var html='';
+    for(var i=0;i<first;i++) html+='<div class="cal-cell"></div>';
+    for(var d=1; d<=30; d++){
+      var cls='cal-cell'+(d===12?' today sel':'');
+      var dots='';
+      var m = mine.indexOf(d)>=0 || both.indexOf(d)>=0;
+      var c = collab.indexOf(d)>=0 || both.indexOf(d)>=0;
+      if(m) dots+='<span class="jdot mine"></span>';
+      if(c) dots+='<span class="jdot collab"></span>';
+      html+='<div class="'+cls+'"><div class="num">'+d+'</div><div class="jdots">'+dots+'</div></div>';
+    }
+    box.innerHTML=html;
+  })();
 </script>
 </body>
 </html>
