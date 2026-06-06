@@ -220,28 +220,30 @@ class AppPreferences(context: Context) {
         get() = prefs.getStringSet("reminder_notified_keys", emptySet()) ?: emptySet()
         set(value) = prefs.edit().putStringSet("reminder_notified_keys", value).apply()
 
-    /** 홈 "부재중 자동답장 보냄" 배너에서 밀어서 정리(dismiss)한 message_history id 들. */
+    /** 홈 "부재중 자동답장 보냄" 배너에서 밀어서 정리(dismiss)한 message_history id 들.
+     *  2026-06-06: apply()→commit() — S9 에서 앱이 백그라운드 종료되면 비동기 저장이 날아가
+     *  정리한 배너가 다시 뜨던 버그. 즉시 동기 저장으로 보장. */
     var dismissedAutoReplyIds: Set<String>
         get() = prefs.getStringSet("dismissed_auto_reply_ids", emptySet()) ?: emptySet()
-        set(value) = prefs.edit().putStringSet("dismissed_auto_reply_ids", value).apply()
+        set(value) { prefs.edit().putStringSet("dismissed_auto_reply_ids", value).commit() }
 
     // ── 팀원 진행 알림(2026-06-06) — 마지막으로 알림 보낸 이벤트 시각(출발/도착/완료 공통, 중복 방지). ──
     var teamEventLastSeenMs: Long
         get() = prefs.getLong("team_depart_last_seen_ms", 0L)
         set(value) = prefs.edit().putLong("team_depart_last_seen_ms", value).apply()
-    /** 상담함 "팀원 진행" 배너 밀어서 정리한 event_id 들. */
+    /** 상담함 "팀원 진행" 배너 밀어서 정리한 event_id 들. commit() = 즉시 저장(백그라운드 종료에도 보존). */
     var dismissedTeamDepartIds: Set<String>
         get() = prefs.getStringSet("dismissed_team_depart_ids", emptySet()) ?: emptySet()
-        set(value) = prefs.edit().putStringSet("dismissed_team_depart_ids", value).apply()
+        set(value) { prefs.edit().putStringSet("dismissed_team_depart_ids", value).commit() }
 
     /** 홈 "견적 회신 챙기기" 배너 밀어서 정리한 날(dayStart). 그 날 하루 숨김 — 다음날 다시. */
     var estimateFollowupDismissedDay: Long
         get() = prefs.getLong("estimate_followup_dismissed_day", 0L)
-        set(value) = prefs.edit().putLong("estimate_followup_dismissed_day", value).apply()
+        set(value) { prefs.edit().putLong("estimate_followup_dismissed_day", value).commit() }
     /** 홈 "오늘 보낼 정기 문자" 배너 밀어서 정리한 날(dayStart). 그 날 하루 숨김. */
     var recurringDueDismissedDay: Long
         get() = prefs.getLong("recurring_due_dismissed_day", 0L)
-        set(value) = prefs.edit().putLong("recurring_due_dismissed_day", value).apply()
+        set(value) { prefs.edit().putLong("recurring_due_dismissed_day", value).commit() }
 
     // ── 내 말투 학습 (프로토 renderTone). 학습률·before/after 는 서버 API 대기. ──
     var toneLearnEnabled: Boolean
