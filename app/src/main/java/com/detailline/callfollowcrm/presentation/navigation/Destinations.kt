@@ -43,6 +43,8 @@ object Destinations {
     const val SCHEDULE_ADD = "schedule_add"
     const val SETTLEMENT = "settlement"
     const val STATS = "stats"
+    /** 통계 "다녀온 현장" 셀 탭 → 이번 달 시공 현장 목록(프로토 s-visited). */
+    const val VISITED = "visited"
     const val SEARCH = "search"
     const val CUSTOMERS = "customers"
     const val NEW_LEADS = "new_leads"

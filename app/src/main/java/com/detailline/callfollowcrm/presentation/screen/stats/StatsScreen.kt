@@ -55,7 +55,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StatsScreen(viewModel: StatsViewModel) {
+fun StatsScreen(viewModel: StatsViewModel, onOpenVisited: () -> Unit = {}) {
     val s by viewModel.state.collectAsState()
     val trend by viewModel.trend.collectAsState()
 
@@ -75,7 +75,7 @@ fun StatsScreen(viewModel: StatsViewModel) {
         ) {
             item(key = "hero") { StatsHero(s); Spacer(Modifier.height(14.dp)) }
             item(key = "mascot") { StatsMascot(); Spacer(Modifier.height(14.dp)) }
-            item(key = "grid") { StatGrid(s) }
+            item(key = "grid") { StatGrid(s, onOpenVisited) }
             item(key = "sec-sub") {
                 Text(
                     "문의 추이 · 전기간 비교",
@@ -161,10 +161,11 @@ private fun StatsMascot() {
 /* ─────────────── stat-grid ─────────────── */
 
 @Composable
-private fun StatGrid(s: StatsUiState) {
+private fun StatGrid(s: StatsUiState, onOpenVisited: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatCell("다녀온 현장", "${s.jobs}", "곳", TossTextPrimary, Modifier.weight(1f))
+            // 프로토 openVisited — "다녀온 현장 ›" 셀만 탭 가능 → 현장 목록.
+            StatCell("다녀온 현장 ›", "${s.jobs}", "곳", TossTextPrimary, Modifier.weight(1f), onClick = onOpenVisited)
             StatCell("받은 문의", "${s.inquiries}", "건", TossBlue, Modifier.weight(1f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -175,9 +176,11 @@ private fun StatGrid(s: StatsUiState) {
 }
 
 @Composable
-private fun StatCell(label: String, value: String, unit: String, valueColor: Color, modifier: Modifier = Modifier) {
+private fun StatCell(label: String, value: String, unit: String, valueColor: Color, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
     Column(
-        modifier = modifier.clip(RoundedCornerShape(18.dp)).background(Color.White).padding(18.dp)
+        modifier = modifier.clip(RoundedCornerShape(18.dp)).background(Color.White)
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
+            .padding(18.dp)
     ) {
         Row(verticalAlignment = Alignment.Bottom) {
             Text(value, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, color = valueColor, letterSpacing = (-0.9).sp)

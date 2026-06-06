@@ -264,7 +264,20 @@ fun AppNavHost(
         composable(Destinations.STATS) {
             val vm: com.detailline.callfollowcrm.presentation.screen.stats.StatsViewModel =
                 viewModel(factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.stats.StatsViewModel(container) })
-            StatsScreen(viewModel = vm)
+            StatsScreen(
+                viewModel = vm,
+                onOpenVisited = { navController.navigate(Destinations.VISITED) }
+            )
+        }
+
+        composable(Destinations.VISITED) {
+            val vm: com.detailline.callfollowcrm.presentation.screen.stats.VisitedViewModel =
+                viewModel(factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.stats.VisitedViewModel(container) })
+            com.detailline.callfollowcrm.presentation.screen.stats.VisitedScreen(
+                viewModel = vm,
+                onBack = { navController.popBackStack() },
+                onOpenCustomer = { id -> navController.navigate(Destinations.customerDetail(id)) }
+            )
         }
 
         composable(Destinations.SEARCH) {
