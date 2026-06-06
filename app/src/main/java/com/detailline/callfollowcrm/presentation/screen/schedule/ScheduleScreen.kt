@@ -128,6 +128,8 @@ fun ScheduleScreen(
         }
     }
     var assignTarget by remember { mutableStateOf<CustomerEntity?>(null) }
+    // 배정 시트 열렸을 때 뒤로가기 = 시트 닫기 (앱 종료/화면 이탈 방지).
+    androidx.activity.compose.BackHandler(enabled = assignTarget != null) { assignTarget = null }
 
     Scaffold(
         containerColor = TossGrayBg,
