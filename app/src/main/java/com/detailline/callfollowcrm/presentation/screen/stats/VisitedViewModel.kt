@@ -8,19 +8,24 @@ import com.detailline.callfollowcrm.util.AddressExtractor
 import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import java.util.Calendar
 
 /**
- * 다녀온/다녀올 현장 목록 — 프로토 `s-visited`/openVisited 확장.
+ * 다녀온/다녀올 현장 목록 — 프로토 `s-visited` 확장.
  *   통계 "다녀온 현장 N곳" 셀 탭 → 이번 달 시공(scheduledWorkDate) 현장 리스트.
+ *
  *   2026-06-06 사장님 통점:
- *     ① 주소가 미등록으로 뜨던 것 → 고객 카드와 동일하게 수동 주소 없으면 문자에서 추출(extractedAddress) 폴백.
- *     ② "다녀온 현장"에 아직 안 간(미래) 현장이 섞여있던 것 → 지난(다녀온) / 예정(다녀올) 분리 + 색 구분.
+ *     ① "불러오는 중…"이 오래 떴음 — 모든 현장의 문자(SMS)를 스캔해 주소 추출하는 걸 기다린 뒤 한꺼번에 표시했기 때문.
+ *        → 목록은 **즉시** 표시(직접 입력 주소 먼저), 자동 인식 주소는 백그라운드에서 **하나씩 채움**("주소 확인 중…" → 주소).
+ *     ② "다녀온"에 미래 현장이 섞여 보임 → 지난(다녀온·초록) / 예정(다녀올·파랑) 분리 + 색 구분.
  */
 class VisitedViewModel(container: AppContainer) : ViewModel() {
 
@@ -29,44 +34,65 @@ class VisitedViewModel(container: AppContainer) : ViewModel() {
     private val monthStart = monthStartOf(nowMs)
     private val monthEnd = shiftMonth(monthStart, +1)
     private val smsRepository = container.smsRepository
+    private val customers = container.customerRepository.observeAll()
+
+    /** customerId → 문자에서 추출한 주소("" = 스캔했지만 못 찾음). 키 존재 = 스캔 완료. */
+    private val extractedAddr = MutableStateFlow<Map<Long, String>>(emptyMap())
 
     val state: StateFlow<VisitedState> =
-        container.customerRepository.observeAll()
-            .map { build(it) }
-            .flowOn(Dispatchers.IO)   // 주소 추출이 ContentResolver(SMS) 스캔 → IO 에서.
+        combine(customers, extractedAddr) { cs, extra -> build(cs, extra) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), VisitedState())
 
-    private fun build(cs: List<CustomerEntity>): VisitedState {
-        val jobs = cs.filter { it.scheduledWorkDate?.let { d -> d in monthStart until monthEnd } == true }
+    init {
+        // 직접 주소 없는 현장만 골라 백그라운드에서 한 번에 하나씩 주소 추출 → state 점진 갱신.
+        viewModelScope.launch(Dispatchers.IO) {
+            customers
+                .map { cs -> monthJobs(cs).filter { it.address.isNullOrBlank() } }
+                .distinctUntilChanged { a, b -> a.map { it.id }.toSet() == b.map { it.id }.toSet() }
+                .collect { needAddr ->
+                    for (c in needAddr) {
+                        if (extractedAddr.value.containsKey(c.id)) continue   // 이미 스캔함
+                        val found = runCatching {
+                            AddressExtractor.extractFromMessages(
+                                smsRepository.queryByPhone(c.phoneNumber, scanLimit = 200)
+                                    .sortedByDescending { it.dateMs }
+                                    .map { it.body }
+                            )
+                        }.getOrNull().orEmpty()
+                        extractedAddr.value = extractedAddr.value + (c.id to found)
+                    }
+                }
+        }
+    }
+
+    private fun monthJobs(cs: List<CustomerEntity>): List<CustomerEntity> =
+        cs.filter { it.scheduledWorkDate?.let { d -> d in monthStart until monthEnd } == true }
+
+    private fun build(cs: List<CustomerEntity>, extra: Map<Long, String>): VisitedState {
+        val jobs = monthJobs(cs)
 
         fun toRow(c: CustomerEntity): VisitedRow {
             val manual = c.address?.takeIf { it.isNotBlank() }
-            // 수동 주소 없으면 그 번호 문자에서 한국 주소 패턴 추출 (고객 카드 displayAddr 과 동일 규칙).
-            val resolved = manual ?: runCatching {
-                AddressExtractor.extractFromMessages(
-                    smsRepository.queryByPhone(c.phoneNumber, scanLimit = 300)
-                        .sortedByDescending { it.dateMs }
-                        .map { it.body }
-                )
-            }.getOrNull()
+            val addr = when {
+                manual != null -> manual
+                extra.containsKey(c.id) -> extra[c.id]?.takeIf { it.isNotBlank() } ?: "주소 미등록"
+                else -> "주소 확인 중…"   // 아직 스캔 전
+            }
             val day = c.scheduledWorkDate ?: 0L
             return VisitedRow(
                 customerId = c.id,
                 dateLabel = if (day > 0) dateMd(day) else "",
                 name = c.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(c.phoneNumber),
-                addr = resolved?.takeIf { it.isNotBlank() } ?: "주소 미등록",
+                addr = addr,
                 upcoming = day >= todayStart
             )
         }
 
         val visited = jobs.filter { (it.scheduledWorkDate ?: 0L) < todayStart }
-            .sortedByDescending { it.scheduledWorkDate ?: 0L }
-            .map { toRow(it) }
+            .sortedByDescending { it.scheduledWorkDate ?: 0L }.map { toRow(it) }
         val upcoming = jobs.filter { (it.scheduledWorkDate ?: 0L) >= todayStart }
-            .sortedBy { it.scheduledWorkDate ?: 0L }
-            .map { toRow(it) }
+            .sortedBy { it.scheduledWorkDate ?: 0L }.map { toRow(it) }
 
-        // 매출 합계 = 다녀온(완료) 현장만. 총금액(있으면) 아니면 계약금+잔금.
         val revenueWon = jobs.filter { (it.scheduledWorkDate ?: 0L) < todayStart }.sumOf { c ->
             c.totalAmount ?: ((c.depositAmount ?: 0L) + (c.balanceAmount ?: 0L))
         }

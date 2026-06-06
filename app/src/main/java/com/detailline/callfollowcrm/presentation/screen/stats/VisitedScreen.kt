@@ -96,18 +96,18 @@ fun VisitedScreen(
                 }
             }
 
-            // 다녀올 현장 (예정) — 파랑
-            if (state.upcomingRows.isNotEmpty()) {
-                item(key = "up-head") { SectionHead("다녀올 현장 (예정)", TossBlue) }
-                items(state.upcomingRows, key = { "up-${it.customerId}" }) { v ->
-                    VisitedRowItem(v, TossBlue, "예정", onClick = { onOpenCustomer(v.customerId) })
-                }
-            }
-            // 다녀온 현장 (완료) — 초록
+            // 다녀온 현장 (완료) — 초록 · 먼저 표시
             if (state.visitedRows.isNotEmpty()) {
                 item(key = "done-head") { SectionHead("다녀온 현장 (완료)", TossSuccess) }
                 items(state.visitedRows, key = { "done-${it.customerId}" }) { v ->
                     VisitedRowItem(v, TossSuccess, "완료", onClick = { onOpenCustomer(v.customerId) })
+                }
+            }
+            // 다녀올 현장 (예정) — 파랑 · 아래
+            if (state.upcomingRows.isNotEmpty()) {
+                item(key = "up-head") { SectionHead("다녀올 현장 (예정)", TossBlue) }
+                items(state.upcomingRows, key = { "up-${it.customerId}" }) { v ->
+                    VisitedRowItem(v, TossBlue, "예정", onClick = { onOpenCustomer(v.customerId) })
                 }
             }
         }
