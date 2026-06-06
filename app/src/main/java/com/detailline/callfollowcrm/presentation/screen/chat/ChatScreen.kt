@@ -2441,18 +2441,24 @@ private fun EstimateBuilderDialog(
     var estCalMonth by remember { mutableStateOf(estMonthAnchor(System.currentTimeMillis())) }
     // 항목 id → 수량(평당=평수, 정액=1). 0/미존재 = 미선택.
     val selectedQty = remember { mutableStateMapOf<Long, Int>() }
+    // 가격표에 없는 즉석 항목(예: 실리콘) — 견적 만들기에서 바로 직접 추가. (2026-06-07 사장님 요청)
+    val customItems = remember { androidx.compose.runtime.mutableStateListOf<EstCustomLine>() }
     // 프로토: 카테고리 없는 평탄 리스트.
     val visibleItems = remember(items) { items.sortedBy { it.displayOrder } }
-    val totalSum = remember(selectedQty.toMap(), visibleItems) {
-        visibleItems.sumOf { (selectedQty[it.id] ?: 0) * it.price }
+    val totalSum by remember {
+        androidx.compose.runtime.derivedStateOf {
+            visibleItems.sumOf { (selectedQty[it.id] ?: 0) * it.price } +
+                customItems.sumOf { (it.manwon.toIntOrNull() ?: 0) * 10_000L }
+        }
     }
-    val anySelected = selectedQty.values.any { it > 0 }
+    val anySelected = selectedQty.values.any { it > 0 } ||
+        customItems.any { it.name.isNotBlank() && (it.manwon.toIntOrNull() ?: 0) > 0 }
     val help = when (mode) {
         "accept" -> "예약금 받은 고객에게 — 정해진 시공일이 맞는지 확인하고 주소를 입력받는 셀프 접수서 링크예요."
         "quote" -> "고객이 보고용으로 쓰는 직인 찍힌 정식 견적서를 만들어 보내요."
         else -> "링크 없이 견적 내용만 문자로 보내요. (가볍게 견적만 물어볼 때)"
     }
-    fun composeBody() = buildEstimateBody(visibleItems, selectedQty.toMap(), totalSum, bizName)
+    fun composeBody() = buildEstimateBody(visibleItems, selectedQty.toMap(), totalSum, bizName, customItems.toList())
     fun toast(msg: String) = android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_SHORT).show()
     fun quoteDocData(): QuoteDocData {
         val lines = visibleItems.mapNotNull { item ->
@@ -2463,7 +2469,11 @@ private fun EstimateBuilderDialog(
             val amount = if (isPyeong) item.price * qty else item.price
             QuoteLine(item.title, spec, amount)
         }
-        return QuoteDocData(lines, totalSum, depMode, depVal.toIntOrNull() ?: 0)
+        val customLines = customItems.mapNotNull { c ->
+            val won = (c.manwon.toIntOrNull() ?: 0) * 10_000L
+            if (c.name.isBlank() || won <= 0) null else QuoteLine(c.name.trim(), "1식", won)
+        }
+        return QuoteDocData(lines + customLines, totalSum, depMode, depVal.toIntOrNull() ?: 0)
     }
 
     ModalBottomSheet(
@@ -2600,6 +2610,42 @@ private fun EstimateBuilderDialog(
                     )
                 }
             }
+            // 직접 추가 항목 — 가격표에 없는 즉석 견적(예: "실리콘 시공"). (2026-06-07 사장님 요청)
+            customItems.forEachIndexed { idx, c ->
+                Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(Modifier.weight(1f)) {
+                        com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                            c.name, { c.name = it }, placeholder = "항목명 (예: 실리콘 시공)"
+                        )
+                    }
+                    Spacer(Modifier.width(7.dp))
+                    Box(Modifier.width(96.dp)) {
+                        com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                            c.manwon, { c.manwon = it.filter { ch -> ch.isDigit() } },
+                            placeholder = "만원",
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                        )
+                    }
+                    Text(
+                        "✕", fontSize = 17.sp, color = TossTextTertiary, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(start = 8.dp).clickable { customItems.removeAt(idx) }
+                    )
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                    .border(1.5.dp, TossDivider, RoundedCornerShape(12.dp))
+                    .clickable { customItems.add(EstCustomLine()) }
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("＋ 직접 항목 추가", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+            }
             // 프로토 .est-total
             Spacer(Modifier.height(14.dp))
             Box(Modifier.fillMaxWidth().height(1.5.dp).background(TossDivider))
@@ -2634,8 +2680,15 @@ private fun EstimateBuilderDialog(
                                 area = if (isP) q.toDouble() else null
                             )
                         }
+                        val customIss = customItems.mapNotNull { c ->
+                            val m = c.manwon.toIntOrNull() ?: 0
+                            if (c.name.isBlank() || m <= 0) null
+                            else com.detailline.callfollowcrm.ai.IntakeFormRepository.QuoteIssueItem(
+                                name = c.name.trim(), price = m, unit = "flat", area = null
+                            )
+                        }
                         onIssueIntake(
-                            issItems, (totalSum / 10_000L).toInt(),
+                            issItems + customIss, (totalSum / 10_000L).toInt(),
                             cal?.get(java.util.Calendar.YEAR) ?: 0,
                             cal?.let { it.get(java.util.Calendar.MONTH) + 1 } ?: 0,
                             cal?.get(java.util.Calendar.DAY_OF_MONTH) ?: 0,
@@ -2863,7 +2916,8 @@ private fun buildEstimateBody(
     items: List<com.detailline.callfollowcrm.data.local.entity.PricingItemEntity>,
     quantities: Map<Long, Int>,
     totalSum: Long,
-    bizName: String = ""
+    bizName: String = "",
+    custom: List<EstCustomLine> = emptyList()
 ): String = buildString {
     // 프로토 makeEstimate — 친근한 인사 + 항목 나열 + 합계(부가세 별도) + 방문 제안.
     val greet = bizName.ifBlank { "디테일라인" }
@@ -2878,8 +2932,20 @@ private fun buildEstimateBody(
             append("· ${item.title} ${formatWon(item.price)}\n")
         }
     }
+    // 직접 추가한 즉석 항목.
+    for (c in custom) {
+        val won = (c.manwon.toIntOrNull() ?: 0) * 10_000L
+        if (c.name.isBlank() || won <= 0) continue
+        append("· ${c.name.trim()} ${formatWon(won)}\n")
+    }
     append("합계 ${formatWon(totalSum)} (부가세 별도)\n")
     append("\n방문 일정 잡아드릴까요? 😊")
+}
+
+/** 견적 만들기에서 직접 추가하는 즉석 항목 (가격표에 없는 것 — 예: 실리콘). name + manwon(만원). */
+private class EstCustomLine(name: String = "", manwon: String = "") {
+    var name by androidx.compose.runtime.mutableStateOf(name)
+    var manwon by androidx.compose.runtime.mutableStateOf(manwon)
 }
 
 /**
