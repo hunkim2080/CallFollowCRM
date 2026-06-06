@@ -3267,3 +3267,9 @@ MMS(사진/첨부 문자) 감지 추가 — MMS 로 처음 연락온 번호가 "
 - 변경(서버, 사장님 직접 요청 1곳): /api/call-summary 의 suggested_followup_sms 를 "고객님, 통화 내용 정리드립니다."로 시작하는 고객용 정리문자로 재구성 + 창작금지 강화. → docs/SERVER_HANDOFF_call_summary_tone.md 참고, 맥미니 deploy 필요.
 - commit: (아래 push 해시)
 - 다음 액션(서버 Claude): git pull + bash server/deploy_phase1.sh (call-summary 톤 반영)
+
+## 2026-06-06 14:40 · android
+상담함 "밀어서 정리"한 배너가 껐다 켜면 다시 뜨던 버그 fix.
+- 원인: 정리 저장이 SharedPreferences apply()(비동기) → S9 백그라운드 종료 시 디스크 반영 전 유실.
+- 수정: 부재중자동답장/팀원진행/견적회신/정기문자 정리 저장을 commit()(동기)로. app 전용, DB/서버 영향 0.
+- commit: 73a6e04
