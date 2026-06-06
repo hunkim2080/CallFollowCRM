@@ -47,6 +47,11 @@ class CallFollowCrmApplication : Application() {
                 runCatching { container.autoCategoryClassifier.backfillAll() }
                 container.preferences.autoCategoryBackfilled = true
             }
+            // 2026-06-07 — 카테고리 규칙 수정(날짜 등록=시공대기, 상담만=미분류) 후 1회 재정리.
+            if (!container.preferences.autoCategoryRebuiltV2) {
+                runCatching { container.autoCategoryClassifier.backfillAll() }
+                container.preferences.autoCategoryRebuiltV2 = true
+            }
         }
 
         // SMS/MMS 캐시 prefetch — 최근 20개 번호. ChatScreen 첫 진입을 즉시 보이게 하는 토대.
@@ -76,6 +81,10 @@ class CallFollowCrmApplication : Application() {
         //   "오늘 신규"에서 누락됐음(SmsReceiver 는 SMS 만). 시작 시 1회 스캔 + content://mms 변경 감시로
         //   캐시에 머지 → MMS 로 처음 연락온 번호도 신규/목록에 잡힘. READ_SMS 로 읽기 가능(기본앱 전환 불필요).
         appScope.launch { syncMmsContacts() }
+        // 2026-06-07 사장님 통점: 새 문자가 "오늘 신규"에 안 잡힘 — SmsReceiver 가 백그라운드/도즈에서
+        //   누락되면 캐시가 갱신 안 되고, 풀스캔은 첫 설치 때만 돌아 보충이 없었음.
+        //   해결: 앱 켤 때 + 60초마다 최근 SMS 를 캐시에 머지(self-heal) → 놓친 문자도 곧 잡힘.
+        appScope.launch { syncSmsContacts() }
         runCatching {
             val mmsObserver = object : android.database.ContentObserver(
                 android.os.Handler(android.os.Looper.getMainLooper())
@@ -104,6 +113,9 @@ class CallFollowCrmApplication : Application() {
                 runCatching { container.intakeSyncManager.sync(this@CallFollowCrmApplication) }
                 // 팀원 출발 이벤트 — 새 출발이면 알림 + 상담함 배너 갱신 (사장님 요청 2026-06-06).
                 runCatching { container.teamEventCenter.poll(this@CallFollowCrmApplication) }
+                // 최근 SMS/MMS 캐시 self-heal — SmsReceiver 가 놓친 문자도 60초 내 "오늘 신규"에 반영.
+                runCatching { syncSmsContacts() }
+                runCatching { syncMmsContacts() }
                 delay(60_000)
             }
         }
@@ -119,6 +131,14 @@ class CallFollowCrmApplication : Application() {
 
     /** content://mms 변경 감시 debounce 용 잡. */
     private var mmsSyncJob: kotlinx.coroutines.Job? = null
+
+    /** 최근 SMS 연락처를 캐시에 머지 — SmsReceiver 가 놓친 문자도 "오늘 신규"·목록에 잡히게. */
+    private suspend fun syncSmsContacts() {
+        val contacts = runCatching {
+            container.smsRepository.queryRecentContacts(scanLimit = 2000, contactLimit = 200)
+        }.getOrDefault(emptyList())
+        for (c in contacts) runCatching { container.smsContactCacheRepository.upsertOne(c) }
+    }
 
     /** 최근 MMS 연락처를 캐시에 머지 — MMS 로 처음 연락온 번호도 "오늘 신규"·목록에 잡히게. */
     private suspend fun syncMmsContacts() {

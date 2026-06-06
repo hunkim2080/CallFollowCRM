@@ -41,18 +41,23 @@ class AutoCategoryClassifier(
         val pendingId = categoryRepository.findByName(DefaultCategories.NAME_PENDING_WORK)?.id
         val doneId = categoryRepository.findByName(DefaultCategories.NAME_DONE_WORK)?.id
         var count = 0
-        // 모든 고객 순회 — 입금된 케이스만 자동 분류.
+        // 모든 고객 순회 — 날짜 등록/입금 기준으로 시공대기·완료 자동분류 + 잘못 분류된 건 미분류로 정리.
         val all = customerRepository.allOnce()
         for (c in all) {
-            val depositPaid = (c.depositAmount ?: 0L) > 0L
-            val balancePaid = (c.balanceAmount ?: 0L) > 0L
-            if (!depositPaid && !balancePaid) continue
             val canAutoClassify = c.categoryId == null
                 || c.categoryId == pendingId
                 || c.categoryId == doneId
-            if (!canAutoClassify) continue
-            val target = if (balancePaid) doneId else pendingId
-            if (target != null && target != c.categoryId) {
+            if (!canAutoClassify) continue   // 사장님 수동 카테고리는 절대 안 건드림
+            val depositPaid = (c.depositAmount ?: 0L) > 0L
+            val balancePaid = (c.balanceAmount ?: 0L) > 0L
+            val scheduled = (c.scheduledWorkDate ?: 0L) > 0L
+            val target: Long? = when {
+                balancePaid -> doneId
+                scheduled || depositPaid -> pendingId
+                c.categoryId == pendingId || c.categoryId == doneId -> null  // 자격 없는데 상태칸 → 미분류
+                else -> c.categoryId
+            }
+            if (target != c.categoryId) {
                 categoryRepository.assignCustomer(c.id, target)
                 count++
             }
@@ -76,11 +81,15 @@ class AutoCategoryClassifier(
 
         val depositPaid = (customer.depositAmount ?: 0L) > 0L
         val balancePaid = (customer.balanceAmount ?: 0L) > 0L
+        // 2026-06-07 사장님 정의: 계약 = 시공일(날짜) 등록 → "시공 대기". (상담만 = 미분류)
+        val scheduled = (customer.scheduledWorkDate ?: 0L) > 0L
 
         return when {
-            balancePaid -> doneId ?: customer.categoryId
-            depositPaid -> pendingId ?: customer.categoryId
-            else -> customer.categoryId  // 둘 다 미입금 — 자동 분류 X (기존 그대로)
+            balancePaid -> doneId ?: customer.categoryId          // 잔금 입금 → 시공 완료
+            scheduled || depositPaid -> pendingId ?: customer.categoryId  // 날짜 등록(계약) 또는 계약금 → 시공 대기
+            // 자격 없음: 상태 카테고리에 잘못 들어가 있던 고객은 미분류로 되돌림. (상담만 한 고객 정리)
+            customer.categoryId == pendingId || customer.categoryId == doneId -> null
+            else -> customer.categoryId  // 원래 미분류 → 그대로
         }
     }
 }

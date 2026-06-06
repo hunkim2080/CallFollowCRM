@@ -741,8 +741,15 @@ class ChatViewModel(
             }.getOrDefault(emptyList())
             if (cats.isNotEmpty()) {
                 val text = msgs.joinToString(" ") { it.body }
+                // 2026-06-07 사장님 통점: "상담만 해도 시공대기로 분류됨".
+                //   원인 = 키워드 분류기가 "시공 대기" 를 ["시공","대기"] 로 쪼개 → 상담문 "시공 문의…" 의 "시공" 에 매칭.
+                //   해결: 상태 카테고리("시공 대기"/"시공 완료")는 키워드 분류 대상에서 제외(이건 날짜·입금으로만 자동).
+                val systemNames = setOf(
+                    com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_PENDING_WORK,
+                    com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_DONE_WORK
+                )
                 val matched = com.detailline.callfollowcrm.category.CategoryAutoClassifier
-                    .classify(text, cats)
+                    .classify(text, cats.filter { it.name !in systemNames })
                 if (matched != null) {
                     runCatching {
                         container.categoryRepository.assignCustomer(c.id, matched.id)

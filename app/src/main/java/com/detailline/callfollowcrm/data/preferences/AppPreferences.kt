@@ -164,6 +164,14 @@ class AppPreferences(context: Context) {
         set(value) = prefs.edit().putBoolean(KEY_AUTO_CATEGORY_BACKFILLED, value).apply()
 
     /**
+     * 2026-06-07 — 카테고리 규칙 수정(날짜 등록=시공대기, 상담만=미분류) 후 1회 재정리 완료 여부.
+     * 옛 버그로 "상담만 했는데 시공대기"가 된 고객들을 새 규칙으로 한 번 더 분류해 정리.
+     */
+    var autoCategoryRebuiltV2: Boolean
+        get() = prefs.getBoolean("auto_category_rebuilt_v2", false)
+        set(value) = prefs.edit().putBoolean("auto_category_rebuilt_v2", value).apply()
+
+    /**
      * 2026-06-01 전면 리뉴얼 — 로그인 화면을 한 번 봤는지. 첫 실행에만 로그인 화면 노출.
      * 어떤 소셜 버튼/둘러보기든 누르면 true → 이후 바로 권한/홈으로.
      * (실제 소셜 OAuth 연동은 서버 작업으로 별도. 지금은 화면 + 진입 흐름만.)

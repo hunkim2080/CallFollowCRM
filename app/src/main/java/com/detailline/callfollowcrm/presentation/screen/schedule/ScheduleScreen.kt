@@ -1,5 +1,11 @@
 package com.detailline.callfollowcrm.presentation.screen.schedule
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -166,10 +172,7 @@ fun ScheduleScreen(
             )
         }
     ) { inner ->
-        // 월별 셀 6×7 + 시공 카운트 매핑. 매 월 이동시 재계산.
-        val cells = remember(viewedMonthAnchor, state.all) {
-            buildCalendarCells(viewedMonthAnchor, state.all, todayStart)
-        }
+        // 월별 셀은 AnimatedContent 안에서 anchor 별로 계산(월 전환 슬라이드용).
         // 선택된 날의 시공 목록 — 여러 날 시공(scheduledWorkDays)은 기간 내 모든 날에 표시.
         val schedulesForSelected = remember(selectedDayMs, state.all) {
             val day = selectedDayMs ?: return@remember emptyList<CustomerEntity>()
@@ -226,13 +229,28 @@ fun ScheduleScreen(
                             .padding(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 16.dp)
                     ) {
                         DowHeader()
-                        repeat(6) { week ->
-                            CalendarWeekRow(
-                                cells = cells.subList(week * 7, week * 7 + 7),
-                                selectedDayMs = selectedDayMs,
-                                onSelect = { dayMs -> selectedDayMs = dayMs },
-                                onLongSelect = { dayMs -> selectedDayMs = dayMs; onAddSchedule() }
-                            )
+                        // 2026-06-07 사장님 통점: 월 넘길 때 "휙휙" 바뀜 → 방향성 슬라이드+페이드로 부드럽게.
+                        androidx.compose.animation.AnimatedContent(
+                            targetState = viewedMonthAnchor,
+                            transitionSpec = {
+                                val forward = targetState > initialState
+                                val dir = if (forward) 1 else -1
+                                (slideInHorizontally(tween(260)) { w -> dir * w } + fadeIn(tween(260)))
+                                    .togetherWith(slideOutHorizontally(tween(260)) { w -> -dir * w } + fadeOut(tween(260)))
+                            },
+                            label = "calMonth"
+                        ) { anchor ->
+                            val monthCells = buildCalendarCells(anchor, state.all, todayStart)
+                            Column {
+                                repeat(6) { week ->
+                                    CalendarWeekRow(
+                                        cells = monthCells.subList(week * 7, week * 7 + 7),
+                                        selectedDayMs = selectedDayMs,
+                                        onSelect = { dayMs -> selectedDayMs = dayMs },
+                                        onLongSelect = { dayMs -> selectedDayMs = dayMs; onAddSchedule() }
+                                    )
+                                }
+                            }
                         }
                     }
                     // cal-hint
