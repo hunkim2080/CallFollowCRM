@@ -861,6 +861,8 @@ private fun AssignTeamSheet(
             )
             Text("고객 메모와 별개예요. 여기 적은 내용만 팀원 화면에 보여요.",
                 fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 6.dp, start = 2.dp))
+            Text("· 팀원 칩을 한 번 더 누르면 그 사람만 빠져요.",
+                fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 3.dp, start = 2.dp))
             Spacer(Modifier.height(18.dp))
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(TossBlue)
@@ -871,6 +873,18 @@ private fun AssignTeamSheet(
                     if (selected.isNotEmpty()) "${selected.size}명 배정 완료" else "완료",
                     color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold
                 )
+            }
+            // 이미 배정된 현장이면 "배정 전체 해제" 버튼 노출 — 칩 하나씩 끄지 않아도 한 번에 비움.
+            //   해제 = 빈 배정 저장 → 서버 snapshot 도 갱신되어 팀원 화면에서도 사라짐.
+            if (initiallySelected.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Box(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFFDEAEF))
+                        .clickable { onSave(emptySet(), "") }.padding(vertical = 14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("이 현장 배정 전체 해제", color = Color(0xFFF0436A), fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
+                }
             }
         }
     }
