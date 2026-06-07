@@ -583,7 +583,7 @@ private fun DayJobCard(
                 Icon(Icons.Default.LocationOn, null, tint = TossTextTertiary, modifier = Modifier.size(13.dp))
                 Spacer(Modifier.width(5.dp))
                 Text(
-                    customer.address?.takeIf { it.isNotBlank() } ?: "주소 미입력",
+                    com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(customer.address).takeIf { it.isNotBlank() } ?: "주소 미입력",
                     fontSize = 13.sp, color = TossTextSecondary, maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )

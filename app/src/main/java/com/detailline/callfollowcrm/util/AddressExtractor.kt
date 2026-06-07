@@ -20,6 +20,26 @@ package com.detailline.callfollowcrm.util
 object AddressExtractor {
 
     /**
+     * 주소 표시 정제 — 문장형으로 저장된 주소의 군더더기(어미·안내어)만 보수적으로 제거. (2026-06-07)
+     *   예: "경기 시흥시 가마길 2 입니다" → "경기 시흥시 가마길 2". 정상 주소 토큰은 절대 안 건드림.
+     *   표시 직전에만 적용(저장값은 유지). 바깥에서 안전하게 호출.
+     */
+    fun tidyAddress(raw: String?): String {
+        var s = (raw ?: "").trim()
+        if (s.isEmpty()) return s
+        // 선행 안내어
+        for (p in listOf("주소는", "주소:", "주소 :", "현장은", "현장:", "현장 :", "위치는", "위치:")) {
+            if (s.startsWith(p)) { s = s.removePrefix(p).trim(); break }
+        }
+        // 말미 종결 어미(2자 이상만 — 'ㅇ요' 단독 등 위험한 1자는 제외). 한 번만.
+        for (t in listOf("입니다.", "입니다", "이에요.", "이에요", "예요.", "예요", "이예요", "입니당",
+                "이고요", "이구요", "에요.", "에요", "이요.", "이요", "이라고요", "이라네요")) {
+            if (s.endsWith(t)) { s = s.dropLast(t.length).trim(); break }
+        }
+        return s.trim()
+    }
+
+    /**
      * 광역시도 정확 매칭. 자주 쓰는 줄임형 + 전체형.
      */
     private const val SIDO =

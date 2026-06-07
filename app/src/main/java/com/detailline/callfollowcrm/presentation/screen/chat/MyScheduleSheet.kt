@@ -245,7 +245,7 @@ private fun MiniJobRow(c: CustomerEntity) {
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             // 주소가 주인공 — 가까운 현장끼리 묶어보려고 보는 화면이라 주소를 크게 위로. (2026-06-04 사장님)
-            val addr = c.address?.takeIf { it.isNotBlank() }
+            val addr = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(c.address).takeIf { it.isNotBlank() }
             Text(
                 if (addr != null) "📍 $addr" else "📍 주소 미입력",
                 style = MaterialTheme.typography.bodyLarge,
