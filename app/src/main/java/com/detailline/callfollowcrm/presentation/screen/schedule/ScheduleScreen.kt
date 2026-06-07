@@ -125,10 +125,15 @@ fun ScheduleScreen(
         initialSelectedDayMs?.takeIf { it > 0L }?.let { DateTimeUtils.startOfDay(it) } ?: todayStart
     }
 
-    // 월 전환 = 정적 그리드 + 화살표/스와이프(한 제스처당 한 달). 2026-06-07 사장님 통점4:
-    //   HorizontalPager 를 LazyColumn item 안에 넣으니 세로스크롤·탭과 제스처 충돌로 화면 먹통("투명막").
-    //   → Pager 폐기, 단순 그리드로 복귀. 월 변경은 즉시(애니 없음) — 멈춤 위험 0.
-    var viewedMonthAnchor by rememberSaveable { mutableLongStateOf(monthAnchor(initialDay)) }
+    // 월 전환 = HorizontalPager (손가락 1:1 따라옴, 놓으면 한 달 스냅). 2026-06-08 복원.
+    //   투명막의 진짜 원인은 pager 가 아니라 LazyColumn 의 initialFirstVisibleItemIndex 였음(제거 완료).
+    //   pager 단독(인덱스/자동스크롤 없음)은 fff6166 때 정상 동작 — 안전하게 복원.
+    val pagerScope = androidx.compose.runtime.rememberCoroutineScope()
+    val baseAnchor = remember(initialDay) { monthAnchor(initialDay) }
+    val pagerState = androidx.compose.foundation.pager.rememberPagerState(initialPage = SCHEDULE_PAGER_CENTER) { SCHEDULE_PAGER_COUNT }
+    val viewedMonthAnchor by remember {
+        androidx.compose.runtime.derivedStateOf { shiftMonth(baseAnchor, pagerState.currentPage - SCHEDULE_PAGER_CENTER) }
+    }
     // 선택된 날 (null = 오늘). 셀 탭으로 변경.
     //   rememberSaveable: 고객정보 갔다 오면 선택 날짜가 "오늘"로 풀리던 버그 fix(2026-06-04 사장님 보고).
     var selectedDayMs by rememberSaveable { mutableStateOf<Long?>(initialDay) }
@@ -204,34 +209,17 @@ fun ScheduleScreen(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // 캘린더 영역 (월 헤더 + 요일 + 6주 그리드) — 한 item 으로 묶어 가로 swipe 적용.
-            //   사장님 요청 (2026-05-24): "캘린더에서 스와이프하면 월이 넘어갔으면".
-            //   pointerInput(detectHorizontalDragGestures) — LazyColumn 의 세로 스크롤과 충돌 없음.
+            // 캘린더 영역 (월 헤더 + 요일 + 6주 그리드 페이저). HorizontalPager = 손가락 1:1 따라옴.
             item(key = "calendar-block") {
-                Column(
-                    modifier = Modifier.pointerInput(Unit) {
-                        // 한 제스처당 한 달만(주르륵 방지). 세로 스크롤과는 축이 달라 충돌 없음.
-                        var accumulatedX = 0f
-                        var triggered = false
-                        detectHorizontalDragGestures(
-                            onDragEnd = { accumulatedX = 0f; triggered = false },
-                            onDragCancel = { accumulatedX = 0f; triggered = false }
-                        ) { _, dragAmount ->
-                            if (triggered) return@detectHorizontalDragGestures
-                            accumulatedX += dragAmount
-                            val threshold = 80f
-                            if (accumulatedX > threshold) { viewedMonthAnchor = shiftMonth(viewedMonthAnchor, -1); triggered = true }
-                            else if (accumulatedX < -threshold) { viewedMonthAnchor = shiftMonth(viewedMonthAnchor, +1); triggered = true }
-                        }
-                    }
-                ) {
+                Column {
                     MonthHeader(
                         anchorMs = viewedMonthAnchor,
-                        onPrev = { viewedMonthAnchor = shiftMonth(viewedMonthAnchor, -1) },
-                        onNext = { viewedMonthAnchor = shiftMonth(viewedMonthAnchor, +1) },
+                        onPrev = { pagerScope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) } },
+                        onNext = { pagerScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } },
                         onTapToday = {
-                            viewedMonthAnchor = monthAnchor(System.currentTimeMillis())
                             selectedDayMs = todayStart
+                            val target = SCHEDULE_PAGER_CENTER + monthsBetween(baseAnchor, monthAnchor(System.currentTimeMillis()))
+                            pagerScope.launch { pagerState.animateScrollToPage(target) }
                         }
                     )
                     // cal-card — 흰 카드 안에 요일 헤더 + 6주 그리드 (프로토 .cal-card)
@@ -243,23 +231,13 @@ fun ScheduleScreen(
                             .padding(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 16.dp)
                     ) {
                         DowHeader()
-                        // 월 전환 슬라이드(600ms + 감속 이징) — 2026-06-08 복원.
-                        //   멈춤(투명막)의 원인은 HorizontalPager + LazyColumn initialFirstVisibleItemIndex 였고,
-                        //   이 AnimatedContent 슬라이드 자체는 안전(높이 고정 6주 그리드). 사장님이 쓰던 600ms 그대로.
-                        androidx.compose.animation.AnimatedContent(
-                            targetState = viewedMonthAnchor,
-                            transitionSpec = {
-                                val forward = targetState > initialState
-                                val dir = if (forward) 1 else -1
-                                (slideInHorizontally(tween(600, easing = FastOutSlowInEasing)) { w -> dir * w } +
-                                    fadeIn(tween(600, easing = FastOutSlowInEasing)))
-                                    .togetherWith(
-                                        slideOutHorizontally(tween(600, easing = FastOutSlowInEasing)) { w -> -dir * w } +
-                                            fadeOut(tween(600, easing = FastOutSlowInEasing))
-                                    )
-                            },
-                            label = "calMonth"
-                        ) { anchor ->
+                        // 월 그리드 = HorizontalPager — 손가락 1:1 따라옴, 놓으면 한 달 스냅. (2026-06-08 복원)
+                        //   투명막 진범은 LazyColumn initialFirstVisibleItemIndex 였음(제거됨). pager 단독은 안전.
+                        androidx.compose.foundation.pager.HorizontalPager(
+                            state = pagerState,
+                            verticalAlignment = Alignment.Top
+                        ) { page ->
+                            val anchor = shiftMonth(baseAnchor, page - SCHEDULE_PAGER_CENTER)
                             val monthCells = buildCalendarCells(anchor, state.all, todayStart)
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 repeat(6) { week ->
