@@ -52,6 +52,11 @@ class CallFollowCrmApplication : Application() {
                 runCatching { container.autoCategoryClassifier.backfillAll() }
                 container.preferences.autoCategoryRebuiltV2 = true
             }
+            // 2026-06-07 — 견적 기록 버그 수정 전(6/6 이전) 잘못 쌓인 "견적 회신 챙기기" 데이터 1회 정리.
+            if (!container.preferences.estimateSentLegacyCleaned) {
+                runCatching { container.messageHistoryRepository.deleteEstimateSentBefore(1780671600000L) }
+                container.preferences.estimateSentLegacyCleaned = true
+            }
         }
 
         // SMS/MMS 캐시 prefetch — 최근 20개 번호. ChatScreen 첫 진입을 즉시 보이게 하는 토대.

@@ -80,7 +80,12 @@ fun AppRoot(container: AppContainer) {
                         RingTabBar(
                             currentRoute = currentRoute,
                             onSelect = { route ->
-                                if (route != currentRoute) {
+                                // 2026-06-07 사장님 통점: 탭이 가끔 안 눌림.
+                                //   원인 후보 = recompose 로 갱신되는 currentRoute 가 전환 중 잠깐 stale → 같은 탭으로 오판해 navigate 스킵.
+                                //   해결: 탭 누르는 순간의 실제 목적지(navController.currentDestination)로 비교.
+                                val live = navController.currentDestination?.route
+                                android.util.Log.d("NAVTAB", "tap=$route state=$currentRoute live=$live")
+                                if (route != live) {
                                     navController.navigate(route) {
                                         // 탭 전환: 시작 지점까지 pop + 상태 저장/복원으로 탭별 스크롤·스택 유지.
                                         popUpTo(navController.graph.findStartDestination().id) {

@@ -171,6 +171,11 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("auto_category_rebuilt_v2", false)
         set(value) = prefs.edit().putBoolean("auto_category_rebuilt_v2", value).apply()
 
+    /** 2026-06-07 — 견적 기록 버그 수정 전 잘못 쌓인 ESTIMATE_SENT 1회 정리 완료 여부. */
+    var estimateSentLegacyCleaned: Boolean
+        get() = prefs.getBoolean("estimate_sent_legacy_cleaned", false)
+        set(value) = prefs.edit().putBoolean("estimate_sent_legacy_cleaned", value).apply()
+
     /**
      * 2026-06-01 전면 리뉴얼 — 로그인 화면을 한 번 봤는지. 첫 실행에만 로그인 화면 노출.
      * 어떤 소셜 버튼/둘러보기든 누르면 true → 이후 바로 권한/홈으로.

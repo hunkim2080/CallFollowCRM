@@ -832,14 +832,17 @@ private fun TodayHeroCard(
                 color = TossTextSecondary, fontSize = 13.sp, lineHeight = 19.sp,
                 modifier = Modifier.padding(top = 5.dp)
             )
-            // he-next — 회색 박스 (아이콘 + 다음 시공 정보 + chevron) → 일정 이동
+            // he-next — 회색 박스 (아이콘 + 다음 시공 정보 + chevron).
+            //   2026-06-07 사장님 요청: 다음 시공 1곳이면 그 고객 카드로, 여러 곳이면 일정(캘린더)로.
             Row(
                 Modifier
                     .fillMaxWidth()
                     .padding(top = 15.dp)
                     .clip(RoundedCornerShape(14.dp))
                     .background(TossGrayBg)
-                    .clickable { onGoSchedule() }
+                    .clickable {
+                        if (nextJobs.size == 1) onOpenCustomer(nextJobs.first().id) else onGoSchedule()
+                    }
                     .padding(horizontal = 13.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {

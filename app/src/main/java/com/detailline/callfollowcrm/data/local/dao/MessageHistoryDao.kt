@@ -71,6 +71,10 @@ interface MessageHistoryDao {
     @Query("SELECT * FROM message_histories WHERE status = 'ESTIMATE_SENT' ORDER BY createdAt DESC")
     fun observeEstimateSends(): Flow<List<MessageHistoryEntity>>
 
+    /** 2026-06-07 — 견적 기록 버그 수정 전(cutoff 이전)에 잘못 쌓인 ESTIMATE_SENT 1회 정리용. */
+    @Query("DELETE FROM message_histories WHERE status = 'ESTIMATE_SENT' AND createdAt < :cutoff")
+    suspend fun deleteEstimateSentBefore(cutoff: Long)
+
     /**
      * 통계 "보낸 답장" — 실제 발송한 기록만 count (DRAFT_OPENED·취소·실패 제외). 기간 [from, to).
      */
