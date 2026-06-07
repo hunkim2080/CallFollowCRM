@@ -3282,3 +3282,15 @@ MMS(사진/첨부 문자) 감지 추가 — MMS 로 처음 연락온 번호가 "
 - 견적 만들기 "직접 항목 추가"(가격표에 없는 즉석 견적, 예: 실리콘) — 문자/견적서/접수서 반영. (8328095)
 - 협업 현장 기획+프로토(design-preview/collab-sites-proto.html, docs/SPEC_shared_sites_owner_to_owner.md): 번호숨김·주인+협업·정산제외·캘린더 보라점. 구현 대기.
 - 미해결: 받은 문자 알림 탭→대화 안 열림. 코드(ACTION_CHAT 딥링크)는 정상으로 보임. 폰 연결 불안정으로 최신빌드 검증 대기.
+
+## 2026-06-07 (오후) · android
+사장님 통점 7건 추가 처리 (대부분 app 전용).
+- 고객페이지 "예약 전"에 [📅 시공일 등록]·[💰 총금액 입력] 직접 버튼(견적서 안 거쳐도) + updateScheduledWorkDate 에 reclassify(날짜=시공대기). commit f445099
+- 채팅 문구넣기 시트: ✕ 삭제 + "입력창 글 문구로 저장"(키보드 없이). f445099
+- 사업자등록번호/전화 입력 하이픈 자동(XXX-XX-XXXXX / 010-XXXX-XXXX). 18fe9a7
+- 홈 D-1 안내문 꾹눌러 인라인 수정 후 발송. 18fe9a7
+- 주소 군더더기('입니다') 표시 정제(AddressExtractor.tidyAddress, 표시 전용). 49fdde0
+- 다음시공 카드 → 일정 그 날 뷰(schedule?day=), 탭 base 비교. 18a3994
+- **서버(사장님 직접요청)**: DELETE /api/team/photo 에 owner_phone 인증 추가 → 사장이 퇴사한 팀원 사진도 삭제. **맥미니 deploy 필요**. commit f445099
+- 미해결/검증대기: 하단 탭 가끔 안눌림(live 비교 fix+로그 심음), 받은문자 알림 탭. 사장님 폰 검증 중.
+- 다음 액션(서버 Claude): git pull + bash server/deploy_phase1.sh (call-summary 톤 + team/photo owner 삭제 반영)
