@@ -550,10 +550,14 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      */
     private val _repliedSuffixes = MutableStateFlow<Set<String>>(emptySet())
 
-    /** 미확인에서 빼야 할 suffix = 스팸(영구) ∪ 방금 답장(임시). */
+    /** "지금 답장 기다려요"에서 밀어서 정리한 suffix (영속). 미확인에서만 숨김 — 스팸 아님. 2026-06-07 */
+    private val _dismissedUnconfirmed = MutableStateFlow(container.preferences.dismissedUnconfirmedSuffixes)
+
+    /** 미확인에서 빼야 할 suffix = 스팸(영구) ∪ 방금 답장(임시) ∪ 밀어서 정리(영속). */
     private val excludedForUnconfirmed: StateFlow<Set<String>> =
-        combine(spamSuffixes, _repliedSuffixes) { spam, replied -> spam + replied }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+        combine(spamSuffixes, _repliedSuffixes, _dismissedUnconfirmed) { spam, replied, dismissed ->
+            spam + replied + dismissed
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
     // 미확인=부재중(missed) 기준, 오늘 신규=들어온 통화 전체(inbound: 수신·부재중·거절) 기준 — 둘 다 필요해
     //   combine 5개 한도 안에서 쓰려고 두 통화 flow 를 미리 Pair 로 묶음.
@@ -664,6 +668,26 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             container.spamPhoneRepository.unmark(phoneSuffix(phoneNumber))
         }
+    }
+
+    /**
+     * "지금 답장 기다려요"에서 밀어서 정리 — 미확인 목록에서만 숨김(스팸 아님).
+     *   2026-06-07 사장님 통점: 옛날엔 이 밀기가 '스팸 마킹'이라 답장 안 한 진짜 고객이 스팸으로 빠졌음.
+     *   이제 정상 고객으로 두고 대기 목록에서만 치움. 신규/최근대화엔 그대로 보임.
+     */
+    fun dismissUnconfirmed(phoneNumber: String) {
+        val suf = phoneSuffix(phoneNumber)
+        if (suf.isBlank()) return
+        _dismissedUnconfirmed.value = _dismissedUnconfirmed.value + suf
+        container.preferences.dismissedUnconfirmedSuffixes = _dismissedUnconfirmed.value
+    }
+
+    /** 정리 취소(Undo). */
+    fun undoDismissUnconfirmed(phoneNumber: String) {
+        val suf = phoneSuffix(phoneNumber)
+        if (suf.isBlank()) return
+        _dismissedUnconfirmed.value = _dismissedUnconfirmed.value - suf
+        container.preferences.dismissedUnconfirmedSuffixes = _dismissedUnconfirmed.value
     }
 
     /**

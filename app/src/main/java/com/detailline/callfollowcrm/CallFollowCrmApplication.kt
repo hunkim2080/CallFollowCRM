@@ -74,6 +74,19 @@ class CallFollowCrmApplication : Application() {
                 }
                 container.preferences.dailyWageCategoryCleanedV1 = true
             }
+            // 2026-06-07 — 옛 '밀어서 정리=스팸' 버그로 잘못 스팸 처리된 번호들(답장 안 한 진짜 고객)을
+            //   '정리됨'으로 이관(미확인에서만 숨김) + 스팸 해제. → 신규/목록에 정상 고객으로 복귀.
+            if (!container.preferences.spamSweptToDismissedV1) {
+                runCatching {
+                    val sufs = container.spamPhoneRepository.suffixes.first()
+                    if (sufs.isNotEmpty()) {
+                        container.preferences.dismissedUnconfirmedSuffixes =
+                            container.preferences.dismissedUnconfirmedSuffixes + sufs
+                        sufs.forEach { container.spamPhoneRepository.unmark(it) }
+                    }
+                }
+                container.preferences.spamSweptToDismissedV1 = true
+            }
         }
 
         // SMS/MMS 캐시 prefetch — 최근 20개 번호. ChatScreen 첫 진입을 즉시 보이게 하는 토대.

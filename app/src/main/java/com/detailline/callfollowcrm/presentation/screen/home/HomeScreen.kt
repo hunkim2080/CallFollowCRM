@@ -630,18 +630,18 @@ fun HomeScreen(
                 } else {
                     items(waiting, key = { "wait-${it.record.id}-${it.record.phoneNumber}" }) { item ->
                         val suffix = item.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8)
-                        // 우→좌 swipe → SpamPhone 영구 마킹 + Snackbar Undo.
+                        // 우→좌 swipe → "정리"(미확인 목록에서만 숨김, 스팸 아님) + Snackbar Undo. 2026-06-07
                         SpamSwipeBox(
                             onSpam = {
-                                viewModel.markSpam(item.record.phoneNumber)
+                                viewModel.dismissUnconfirmed(item.record.phoneNumber)
                                 scope.launch {
                                     val result = snackbarHostState.showSnackbar(
-                                        message = "확인함 — 미확인에서 제외돼요",
+                                        message = "정리했어요 — 대기 목록에서만 빠져요(고객은 그대로)",
                                         actionLabel = "되돌리기",
                                         duration = SnackbarDuration.Short
                                     )
                                     if (result == SnackbarResult.ActionPerformed) {
-                                        viewModel.unmarkSpam(item.record.phoneNumber)
+                                        viewModel.undoDismissUnconfirmed(item.record.phoneNumber)
                                     }
                                 }
                             },
@@ -1805,26 +1805,24 @@ private fun SpamSwipeBox(onSpam: () -> Unit, content: @Composable () -> Unit) {
                     .fillMaxWidth()
                     .padding(horizontal = 4.dp)
                     .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
-                    .background(TossError.copy(alpha = 0.12f))
+                    .background(TossBlueSoft)
                     .padding(horizontal = 20.dp),
                 contentAlignment = Alignment.CenterEnd
             ) {
-                // 2026-05-30 사장님 #11 통점 fix:
-                //   사장님 결정 = 문구만 "확인함" 으로, 동작은 그대로 (spam DB 마킹 — 미확인 카테고리에서만 영구 제외).
-                //   아이콘 의미 (Block) 와 "확인함" 텍스트는 살짝 어긋나나 사장님 요청대로 단순 문구 변경.
+                // 2026-06-07: 밀기 = '정리'(대기 목록에서만 숨김, 스팸 아님). 빨강·차단 아이콘 → 파랑·체크로.
                 androidx.compose.foundation.layout.Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Block,
-                        contentDescription = "확인함",
-                        tint = TossError,
+                        imageVector = Icons.Default.Check,
+                        contentDescription = "정리",
+                        tint = TossBlue,
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        "확인함",
-                        color = TossError,
+                        "정리",
+                        color = TossBlue,
                         fontWeight = FontWeight.SemiBold,
                         style = MaterialTheme.typography.bodyMedium
                     )

@@ -181,6 +181,20 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("daily_wage_category_cleaned_v1", false)
         set(value) { prefs.edit().putBoolean("daily_wage_category_cleaned_v1", value).commit() }
 
+    /**
+     * 2026-06-07 — "지금 답장 기다려요"에서 밀어서 '정리'한 번호(suffix).
+     *   미확인 목록에서만 숨김. 스팸 아님 — 신규/최근대화엔 그대로 보이는 정상 고객.
+     *   (이전엔 밀기=스팸 마킹이라 진짜 고객이 스팸으로 빠지던 버그를 대체)
+     */
+    var dismissedUnconfirmedSuffixes: Set<String>
+        get() = prefs.getStringSet("dismissed_unconfirmed_suffixes", emptySet()) ?: emptySet()
+        set(value) { prefs.edit().putStringSet("dismissed_unconfirmed_suffixes", value).commit() }
+
+    /** 2026-06-07 — 옛 '밀어서 정리=스팸' 으로 잘못 빠진 번호를 '정리됨'으로 1회 이관(스팸 해제). */
+    var spamSweptToDismissedV1: Boolean
+        get() = prefs.getBoolean("spam_swept_to_dismissed_v1", false)
+        set(value) { prefs.edit().putBoolean("spam_swept_to_dismissed_v1", value).commit() }
+
     /** 2026-06-07 — 스팸/광고 번호 앞자리. 이 앞자리로 시작하면 자동답장·AI 준비 X + 목록 제외. 기본 070. */
     var spamPrefixes: Set<String>
         get() = prefs.getStringSet("spam_prefixes", setOf("070")) ?: setOf("070")
