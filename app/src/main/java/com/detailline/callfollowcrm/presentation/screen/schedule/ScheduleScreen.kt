@@ -106,21 +106,27 @@ fun ScheduleScreen(
     onBack: () -> Unit,
     onOpenCustomer: (Long) -> Unit,
     onAddSchedule: () -> Unit = {},
-    onOpenSettle: () -> Unit = {}
+    onOpenSettle: () -> Unit = {},
+    /** 진입 시 미리 선택할 날(ms). 홈 "다음 시공" 카드에서 그 시공일로. null/<=0 = 오늘. */
+    initialSelectedDayMs: Long? = null
 ) {
     val state by viewModel.state.collectAsState()
     val cardSummaries by viewModel.cardSummariesByPhoneSuffix.collectAsState()
     val nowMs = remember { System.currentTimeMillis() }
     val todayStart = remember(nowMs) { DateTimeUtils.startOfDay(nowMs) }
+    // 홈 "다음 시공" 카드로 들어온 경우 그 시공일을 시작 선택값으로(자정 정규화). 아니면 오늘.
+    val initialDay = remember(initialSelectedDayMs) {
+        initialSelectedDayMs?.takeIf { it > 0L }?.let { DateTimeUtils.startOfDay(it) } ?: todayStart
+    }
 
     // 보고 있는 달의 anchor (그 달 1일 startOfDay). 화살표로 이동.
     //   rememberSaveable: 고객정보 등으로 갔다 와도(화면이 composition 을 떠나도) 보던 달 유지. 2026-06-04.
     var viewedMonthAnchor by rememberSaveable {
-        mutableLongStateOf(monthAnchor(nowMs))
+        mutableLongStateOf(monthAnchor(initialDay))
     }
     // 선택된 날 (null = 오늘). 셀 탭으로 변경.
     //   rememberSaveable: 고객정보 갔다 오면 선택 날짜가 "오늘"로 풀리던 버그 fix(2026-06-04 사장님 보고).
-    var selectedDayMs by rememberSaveable { mutableStateOf<Long?>(todayStart) }
+    var selectedDayMs by rememberSaveable { mutableStateOf<Long?>(initialDay) }
 
     // 팀원 현장 배정 (2026-06-05) — 팀원 있을 때만 일정 카드에 배정 줄 노출.
     val teamMembers by viewModel.teamMembers.collectAsState()

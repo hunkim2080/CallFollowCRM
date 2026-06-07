@@ -163,6 +163,7 @@ fun AppNavHost(
                 // FAB "수동 입력" 은 기존 FollowUp 화면 유지 (번호 직접 입력 + 상태/메모 한 번에).
                 onOpenManualEntry = { navController.navigate(Destinations.followUp()) },
                 onOpenSchedule = { navController.navigate(Destinations.SCHEDULE) },
+                onOpenScheduleAtDay = { dayMs -> navController.navigate(Destinations.schedule(dayMs)) },
                 onAddSchedule = { navController.navigate(Destinations.SCHEDULE_ADD) },
                 onOpenTemplates = { navController.navigate(Destinations.TEMPLATE_LIST) },
                 onOpenAiMessage = { navController.navigate(Destinations.AI_MESSAGE) },
@@ -232,14 +233,18 @@ fun AppNavHost(
             )
         }
 
-        composable(Destinations.SCHEDULE) {
+        composable(
+            route = Destinations.SCHEDULE_WITH_ARG,
+            arguments = listOf(navArgument("day") { type = NavType.LongType; defaultValue = -1L })
+        ) { entry ->
             val vm: ScheduleViewModel = viewModel(factory = viewModelFactory { ScheduleViewModel(container) })
             ScheduleScreen(
                 viewModel = vm,
                 onBack = { navController.popBackStack() },
                 onOpenCustomer = { id -> navController.navigate(Destinations.customerDetail(id)) },
                 onAddSchedule = { navController.navigate(Destinations.SCHEDULE_ADD) },
-                onOpenSettle = { navController.navigate(Destinations.SETTLEMENT) }
+                onOpenSettle = { navController.navigate(Destinations.SETTLEMENT) },
+                initialSelectedDayMs = entry.arguments?.getLong("day")?.takeIf { it > 0L }
             )
         }
 

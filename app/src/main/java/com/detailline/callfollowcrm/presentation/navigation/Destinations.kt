@@ -40,6 +40,9 @@ object Destinations {
     const val CLOSING_BRIEF = "closing_brief"
     const val PRICING_ITEMS = "pricing_items"
     const val SCHEDULE = "schedule"
+    /** 일정 탭 — day(ms) 주면 그 날 선택해서 진입(홈 "다음 시공" 카드). 인자 없으면 오늘. */
+    const val SCHEDULE_WITH_ARG = "schedule?day={day}"
+    fun schedule(dayMs: Long) = "schedule?day=$dayMs"
     const val SCHEDULE_ADD = "schedule_add"
     const val SETTLEMENT = "settlement"
     const val STATS = "stats"

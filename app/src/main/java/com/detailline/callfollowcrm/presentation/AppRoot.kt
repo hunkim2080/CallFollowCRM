@@ -69,7 +69,8 @@ fun AppRoot(container: AppContainer) {
 
             // 현재 라우트 → 하단 탭바 표시 여부 + 활성 탭 판단.
             val currentEntry by navController.currentBackStackEntryAsState()
-            val currentRoute = currentEntry?.destination?.route
+            // 인자 있는 탭 라우트("schedule?day=...") 도 같은 탭으로 인식 — "?" 앞 기준으로 비교.
+            val currentRoute = currentEntry?.destination?.route?.substringBefore("?")
             val showTabBar = currentRoute in RING_TAB_ROUTES
 
             Scaffold(
@@ -83,7 +84,7 @@ fun AppRoot(container: AppContainer) {
                                 // 2026-06-07 사장님 통점: 탭이 가끔 안 눌림.
                                 //   원인 후보 = recompose 로 갱신되는 currentRoute 가 전환 중 잠깐 stale → 같은 탭으로 오판해 navigate 스킵.
                                 //   해결: 탭 누르는 순간의 실제 목적지(navController.currentDestination)로 비교.
-                                val live = navController.currentDestination?.route
+                                val live = navController.currentDestination?.route?.substringBefore("?")
                                 android.util.Log.d("NAVTAB", "tap=$route state=$currentRoute live=$live")
                                 if (route != live) {
                                     navController.navigate(route) {

@@ -134,6 +134,8 @@ fun HomeScreen(
     /** FAB "수동 입력" 전용 — 번호 직접 타이핑하는 FollowUp 화면. */
     onOpenManualEntry: () -> Unit,
     onOpenSchedule: () -> Unit,
+    /** 홈 "다음 시공" 카드 → 일정 탭에서 그 날 선택해 진입. (2026-06-07) */
+    onOpenScheduleAtDay: (Long) -> Unit = {},
     onAddSchedule: () -> Unit = {},
     onOpenTemplates: () -> Unit,
     onOpenAiMessage: () -> Unit,
@@ -484,6 +486,7 @@ fun HomeScreen(
                         onNavigate = { phone -> launchNavigationFor(phone) },
                         onCall = { phone -> dialHome(context, phone) },
                         onGoSchedule = onOpenSchedule,
+                        onOpenScheduleAtDay = onOpenScheduleAtDay,
                         onAddSchedule = onAddSchedule,
                         onComplete = { c -> completeTarget = c }
                     )
@@ -752,6 +755,7 @@ private fun TodayHeroCard(
     onNavigate: (String) -> Unit,
     onCall: (String) -> Unit,
     onGoSchedule: () -> Unit,
+    onOpenScheduleAtDay: (Long) -> Unit,
     onAddSchedule: () -> Unit,
     onComplete: (com.detailline.callfollowcrm.data.local.entity.CustomerEntity) -> Unit
 ) {
@@ -833,7 +837,7 @@ private fun TodayHeroCard(
                 modifier = Modifier.padding(top = 5.dp)
             )
             // he-next — 회색 박스 (아이콘 + 다음 시공 정보 + chevron).
-            //   2026-06-07 사장님 요청: 다음 시공 1곳이면 그 고객 카드로, 여러 곳이면 일정(캘린더)로.
+            //   2026-06-07 사장님 요청: 다음 시공 카드 → 일정 탭에서 "그 날"이 선택된 채로(그 시공 카드 보임).
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -841,7 +845,8 @@ private fun TodayHeroCard(
                     .clip(RoundedCornerShape(14.dp))
                     .background(TossGrayBg)
                     .clickable {
-                        if (nextJobs.size == 1) onOpenCustomer(nextJobs.first().id) else onGoSchedule()
+                        val day = nextJobs.firstOrNull()?.scheduledWorkDate
+                        if (day != null) onOpenScheduleAtDay(day) else onGoSchedule()
                     }
                     .padding(horizontal = 13.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
