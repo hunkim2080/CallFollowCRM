@@ -6055,6 +6055,120 @@ async def shared_paid(req: SharedPaidRequest) -> dict:
     return {"ok": True, "share_id": share_id, "paid_at_ms": now}
 
 
+# ─── ⑦ GET /shared/{share_id} — 미가입 사장 link 도착 페이지 (HTML) ───
+# 협업 invite 시 partner 가 미가입이면 sms_draft 에 박힌 link 가 여기로 옴.
+# 안내문 + 현장 정보 일부 + 시공막내 앱 설치 안내 + /install 큰 버튼.
+# 벽: 고객 phone / 대화 / 타 고객 절대 노출 X. customer_label + 현장 메타만.
+
+@app.get("/shared/{share_id}", response_class=HTMLResponse, include_in_schema=False)
+async def shared_link_page(share_id: str) -> HTMLResponse:
+    """미가입 사장이 SMS link 클릭하면 보이는 안내 페이지."""
+    import html as _html
+    with db_conn() as con:
+        row = con.execute(
+            f"SELECT {_SHARED_SITES_COLS} FROM shared_sites WHERE share_id = ?",
+            (share_id,),
+        ).fetchone()
+    if not row:
+        return HTMLResponse(
+            content=(
+                "<!doctype html><html lang='ko'><head><meta charset='utf-8'>"
+                "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+                "<title>시공막내 — 링크 만료</title>"
+                "<style>body{font-family:-apple-system,sans-serif;background:#F4F5F7;color:#0B0F19;padding:60px 20px;text-align:center;}"
+                "h2{font-size:22px;color:#F0436A;margin-bottom:10px;letter-spacing:-.03em}"
+                "p{color:#5A6472;font-size:14px;line-height:1.6;}</style></head>"
+                "<body><h2>❌ 유효하지 않은 링크</h2>"
+                "<p>이 협업 공유 링크가 잘못되었거나 만료되었어요.<br>"
+                "사장님께 새 링크를 요청해 주세요.</p></body></html>"
+            ),
+            status_code=404,
+        )
+    data_dict = _shared_site_row_to_dict(row, viewer_kind="partner")
+    owner_name = _html.escape(data_dict.get("owner_name") or "사장님")
+    title = _html.escape(data_dict.get("title") or "협업 현장")
+    addr = _html.escape(data_dict.get("addr") or "")
+    work_summary = _html.escape(data_dict.get("work_summary") or "")
+    memo = _html.escape(data_dict.get("memo") or "")
+    customer_label = _html.escape(data_dict.get("customer_label") or "")
+    time_label = _html.escape(data_dict.get("time_label") or "")
+    scheduled_at = data_dict.get("scheduled_at_ms") or 0
+    date_label = ""
+    if scheduled_at:
+        try:
+            date_label = _dt.datetime.fromtimestamp(scheduled_at / 1000).strftime("%Y년 %m월 %d일 (%a)")
+        except Exception:
+            date_label = ""
+    date_label = _html.escape(date_label)
+    html_page = f"""<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#3182F6">
+<title>시공막내 — {owner_name}님이 협업 현장 공유</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  *{{box-sizing:border-box;margin:0;padding:0;}}
+  body{{font-family:'Pretendard',-apple-system,system-ui,sans-serif;background:#F4F5F7;color:#0B0F19;line-height:1.55;letter-spacing:-.01em;-webkit-font-smoothing:antialiased;}}
+  .wrap{{max-width:480px;margin:0 auto;padding:20px 18px 60px;}}
+  .topbar{{display:flex;align-items:center;gap:8px;margin-bottom:20px;}}
+  .topbar .logo{{font-size:17px;font-weight:900;letter-spacing:-.04em;color:#0B0F19;}}
+  .topbar .logo .dot{{display:inline-block;width:8px;height:8px;border-radius:50%;background:#3182F6;margin-right:4px;vertical-align:middle;box-shadow:0 0 0 3px #EEF4FF;}}
+  .topbar .badge{{margin-left:auto;background:#F1ECFF;color:#7C5CFC;font-size:11px;font-weight:800;padding:5px 10px;border-radius:999px;}}
+  .hero{{background:linear-gradient(135deg,#EAF2FF 0%,#F1ECFF 100%);border:1px solid rgba(49,130,246,.18);border-radius:18px;padding:22px 20px;text-align:center;margin-bottom:18px;}}
+  .hero .h-ic{{font-size:36px;margin-bottom:8px;}}
+  .hero h1{{font-size:20px;font-weight:900;letter-spacing:-.035em;line-height:1.35;color:#0B0F19;margin-bottom:6px;}}
+  .hero h1 b{{color:#3182F6;}}
+  .hero p{{font-size:13.5px;color:#5A6472;line-height:1.6;}}
+  .card{{background:#fff;border:1px solid #EEF0F3;border-radius:16px;padding:18px;margin-bottom:12px;box-shadow:0 2px 10px rgba(17,24,39,.05);}}
+  .card-title{{font-size:14px;font-weight:900;letter-spacing:-.025em;color:#0B0F19;margin-bottom:12px;display:flex;align-items:center;gap:8px;}}
+  .row{{display:flex;gap:12px;padding:9px 0;border-bottom:1px solid #EEF0F3;}}
+  .row:last-child{{border-bottom:0;}}
+  .row .k{{width:70px;font-size:12px;color:#9AA3AF;font-weight:700;flex-shrink:0;}}
+  .row .v{{flex:1;font-size:13.5px;color:#0B0F19;font-weight:600;word-break:break-word;}}
+  .row .v.memo{{color:#5A6472;font-weight:500;white-space:pre-wrap;}}
+  .install-cta{{background:linear-gradient(135deg,#3182F6 0%,#7C5CFC 100%);color:#fff;padding:16px;border-radius:14px;font-size:15px;font-weight:900;text-align:center;text-decoration:none;display:block;box-shadow:0 8px 22px rgba(49,130,246,.32);margin-top:18px;letter-spacing:-.02em;transition:transform .12s ease;}}
+  .install-cta:active{{transform:scale(.98);}}
+  .footer-note{{text-align:center;font-size:11.5px;color:#9AA3AF;margin-top:18px;line-height:1.7;}}
+  .footer-note a{{color:#3182F6;text-decoration:underline;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="logo"><span class="dot"></span>시공막내</div>
+    <div class="badge">협업 현장</div>
+  </div>
+
+  <div class="hero">
+    <div class="h-ic">🤝</div>
+    <h1><b>{owner_name}님</b>이<br>협업 현장을 공유했어요</h1>
+    <p>시공막내 앱 설치 후 같은 번호로 가입하시면<br>인앱으로 받으실 수 있어요.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📋 현장 정보</div>
+    {f'<div class="row"><div class="k">현장명</div><div class="v">{title}</div></div>' if title else ''}
+    {f'<div class="row"><div class="k">날짜</div><div class="v">{date_label} {time_label}</div></div>' if date_label or time_label else ''}
+    {f'<div class="row"><div class="k">주소</div><div class="v">{addr}</div></div>' if addr else ''}
+    {f'<div class="row"><div class="k">작업</div><div class="v">{work_summary}</div></div>' if work_summary else ''}
+    {f'<div class="row"><div class="k">메모</div><div class="v memo">{memo}</div></div>' if memo else ''}
+    {f'<div class="row"><div class="k">고객</div><div class="v">{customer_label}</div></div>' if customer_label else ''}
+  </div>
+
+  <a href="/install" class="install-cta">📲 시공막내 앱 설치하기 →</a>
+
+  <div class="footer-note">
+    설치 후 가입 시 <b>{owner_name}님이 공유한 이 현장이 자동으로 협업 목록에 추가</b>됩니다.<br>
+    문의: <a href="mailto:hello@si0in.kr">hello@si0in.kr</a>
+  </div>
+</div>
+</body>
+</html>"""
+    return HTMLResponse(content=html_page)
+
+
 # ============================================================================
 # §19 — 시공접수서 (고객 자가확인 폼) — 프로토타입 openQuote 1:1
 # ─────────────────────────────────────────────────────────────────────────────
