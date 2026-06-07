@@ -7727,7 +7727,7 @@ async def team_note_reply(req: TeamNoteReplyRequest) -> dict:
 
 @app.delete("/api/team/photo/{photo_id}")
 async def team_photo_delete(
-    photo_id: int, token: str | None = None, owner_phone: str | None = None
+    photo_id: int, token: Optional[str] = None, owner_phone: Optional[str] = None
 ) -> dict:
     """사진 삭제. 두 경로 허용:
       - 팀원(token): 본인이 올린 사진만(member_id + owner_phone 일치).
