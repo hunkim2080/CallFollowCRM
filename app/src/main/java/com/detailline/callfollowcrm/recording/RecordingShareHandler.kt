@@ -35,6 +35,8 @@ object RecordingShareHandler {
         scope.launch {
             var matched = 0
             var linked = 0
+            // 요약 대상(번호 인식된 것만) — 저장 먼저 끝내고, 토스트 후 백그라운드 요약.
+            val toSummarize = mutableListOf<Pair<String, String>>()  // (uri, fileName)
             uris.forEach { uri ->
                 runCatching {
                     val name = displayName
@@ -46,7 +48,10 @@ object RecordingShareHandler {
                         displayName = name,
                         sourceType = RecordingSourceType.SHARED_FROM_ADOT
                     )
-                    if (result.phoneNumber != null) matched++
+                    if (result.phoneNumber != null) {
+                        matched++
+                        toSummarize.add(uri.toString() to name)
+                    }
                     if (result.customerId != null) linked++
                 }
             }
@@ -58,6 +63,25 @@ object RecordingShareHandler {
             }
             withContext(Dispatchers.Main) {
                 Toast.makeText(appCtx, message, Toast.LENGTH_LONG).show()
+            }
+
+            // 녹음 → 맥미니 §26 (로컬 Whisper 받아쓰기 + 요약) → CallSummary. 통화카드 "AI 요약됨" 으로 표시.
+            //   STT 가 통화 길이에 비례(수~수십초)라 저장 토스트 후 백그라운드로 진행.
+            if (toSummarize.isNotEmpty()) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(appCtx, "통화 내용 요약 중… (잠시 후 통화카드에 떠요)", Toast.LENGTH_SHORT).show()
+                }
+                var summarized = 0
+                toSummarize.forEach { (u, n) ->
+                    runCatching {
+                        if (CallAudioSummarizer.summarizeAndSave(appCtx, container, u, n)) summarized++
+                    }
+                }
+                if (summarized > 0) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(appCtx, "통화 요약 ${summarized}개 완료", Toast.LENGTH_LONG).show()
+                    }
+                }
             }
         }
     }

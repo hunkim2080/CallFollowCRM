@@ -3312,3 +3312,13 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 - commit: (아래)
 - **다음 액션 (맥미니 Claude):** ① 위 endpoint 구현(로컬 Whisper) ② 동기/비동기 택1 회신 ③ 경로·필드 확정 회신. 그 후 안드로이드가 m4a 업로드→CallSummary 저장부 연결(표시는 이미 완료).
 - 미해결: (없음, 음성 경로는 서버 대기) · 기존 중복 row 1건은 화면 무해(firstOrNull).
+
+## 2026-06-08 (오후) · android
+무료 녹음(m4a) → 맥미니 §26 받아쓰기+요약 → 통화카드 "AI 요약됨" 연결 완료.
+- 맥미니 `/api/call-audio-summary`(c892e67, faster-whisper base + Haiku, 동기, {one_line,bullets,suggested_followup_sms,transcript}) 확인.
+- 신규(앱): `CallAudioSummaryRepository`(multipart 업로드, read timeout 120s) + `CallAudioSummarizer`(번호+시각 중복판정→업로드→CallSummary 저장, sourceType=AI_SERVER) + AppContainer 등록.
+- `RecordingShareHandler.handleShared`: 녹음 저장 후 번호 인식된 건을 백그라운드 요약(저장 토스트→"요약 중"→"요약 완료"). 표시는 기존 통화카드 "AI 요약됨" 재사용.
+- **실서버 검증 완료**: 실제 4분 통화 m4a 업로드 → HTTP 200(첫 55s, 이후 캐시 HIT) → Whisper 받아쓰기 + Haiku 요약/후속문자 정상.
+- 흐름(무료, 사용자 0원): 에이닷 "녹음 파일 공유" → RING-GO → 자동 업로드 → 통화카드 요약. 유료 txt 경로는 fallback 유지.
+- commit: (아래)
+- 다음 액션: (없음) · 사장님 실기기 공유 테스트 대기.

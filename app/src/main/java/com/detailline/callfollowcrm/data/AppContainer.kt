@@ -141,6 +141,9 @@ class AppContainer(context: Context) {
     // 2026-06-02 맥미니 §18 — 에이닷 통화요약 → Haiku 한 줄+불릿. AdotSummaryImporter 가 best-effort 호출.
     val callSummaryServerRepository = com.detailline.callfollowcrm.ai.CallSummaryServerRepository()
 
+    // 2026-06-08 맥미니 §26 — 무료 녹음(m4a) → 로컬 Whisper STT + Haiku 요약. CallAudioSummarizer 가 호출.
+    val callAudioSummaryRepository = com.detailline.callfollowcrm.ai.CallAudioSummaryRepository()
+
     // 서버 살아있음 모니터 — HomeScreen 상단 ● indicator 가 구독.
     val serverHealth = ServerHealthMonitor(phaseOneApiRepository).also { it.start() }
 
