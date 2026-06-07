@@ -3341,3 +3341,10 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 - 빌드/설치 OK. (with-me 빈 목록 → "공유받은 현장 없음" 표시. end-to-end 는 서버 endpoint 후.)
 - commit: (아래)
 - **다음 액션(맥미니 Claude)**: SERVER_HANDOFF_collab_sites.md endpoint 6종 구현 + SYNC 회신.
+
+## 2026-06-08 (밤2) · android · 협업 현장 A측 공유 + 서버 연동 확정
+맥미니 §27 (997bda7, 협업 6 endpoint) 확인 — 경로·필드·응답키 전부 앱 SharedSiteRepository 와 일치(owner_name/account/paid_at_ms 포함). B측 화면은 이제 실데이터로 동작.
+- 신규(앱): CustomerDetailScreen 에 **"협업 현장으로 공유"**(고객카드, collab-proto a-card) + **CollabShareSheet**(a-share 1:1 — 상대 사장 번호 입력 → /api/shared/invite). route=link 면 SmsIntentHelper 로 링크 문자, inapp 이면 "요청 보냄" 토스트. 고객 phone 안 보냄(customer_label 만).
+- 빌드 성공. **단 폰 분리되어 최신 APK 미설치** — 재연결 후 adb install -r 필요(또는 사장님이 깔기).
+- 남은 앱작업(다음): A측 "협업 중" 카드(상대 진행/완료+계좌 수신 + 입금완료 버튼), 캘린더 보라점. (서버 paid/with-me 다 준비됨 → 앱만 붙이면 됨)
+- commit: (아래)

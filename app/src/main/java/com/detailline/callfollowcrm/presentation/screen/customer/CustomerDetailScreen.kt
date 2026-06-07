@@ -137,6 +137,8 @@ fun CustomerDetailScreen(
 
     var memoInput by remember(customer?.id) { mutableStateOf(customer?.memo.orEmpty()) }
     var datePickerOpen by remember { mutableStateOf(false) }
+    // 협업 현장으로 공유 (collab-sites-proto a-card/a-share) — 다른 사장님께 이 현장 하나만 공유.
+    var collabShareOpen by remember(customer?.id) { mutableStateOf(false) }
     var callsExpanded by remember(customer?.id) { mutableStateOf(false) }
     var orphanRecsExpanded by remember(customer?.id) { mutableStateOf(false) }
     var nameDialogOpen by remember { mutableStateOf(false) }
@@ -408,6 +410,31 @@ fun CustomerDetailScreen(
                         }
                     },
                     onDismiss = { showAddressDialog = false }
+                )
+            }
+
+            // 1.4 협업 현장으로 공유 (collab-sites-proto a-card) — 다른 사장님과 이 현장 하나만 같이.
+            Spacer(Modifier.height(12.dp))
+            Text("이 현장 함께 하기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+                modifier = Modifier.padding(start = 2.dp, bottom = 8.dp))
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                    .border(1.5.dp, Color(0xFFC8D3E2), RoundedCornerShape(16.dp))
+                    .clickable { collabShareOpen = true }
+                    .padding(16.dp),
+                horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
+            ) {
+                Text("🤝 다른 사장님과 협업 현장으로 공유", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+                Spacer(Modifier.height(5.dp))
+                Text("같이 하기로 한 사장님께 이 현장 하나만 공유해요", fontSize = 12.5.sp, color = TossTextTertiary)
+            }
+
+            if (collabShareOpen) {
+                CollabShareSheet(
+                    siteTitle = c.name?.takeIf { it.isNotBlank() }?.let { "$it 현장" } ?: "이 현장",
+                    addr = displayAddr,
+                    scheduledAtMs = c.scheduledWorkDate,
+                    onDismiss = { collabShareOpen = false }
                 )
             }
 
@@ -2426,6 +2453,121 @@ private fun AddressEditDialog(
                         Text("저장", color = TossBlue, fontWeight = FontWeight.SemiBold)
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * 협업 현장으로 공유 시트 — collab-sites-proto a-share 1:1.
+ *   상대 사장 번호 입력 → /api/shared/invite. 가입 사장이면 인앱(상대 앱 "협업 현장"에 뜸),
+ *   아니면 문자 링크(SmsIntentHelper). 자동발송 아님 — 상대 수락해야 시작.
+ *   고객 전화번호/대화는 보내지 않음(customer_label = 안전 라벨만).
+ */
+@Composable
+private fun CollabShareSheet(
+    siteTitle: String,
+    addr: String?,
+    scheduledAtMs: Long?,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val container = remember { (context.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication).container }
+    var partnerPhone by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
+    var sending by remember { mutableStateOf(false) }
+
+    val dateLabel = remember(scheduledAtMs) {
+        if (scheduledAtMs == null || scheduledAtMs <= 0L) "날짜 미정"
+        else java.text.SimpleDateFormat("M월 d일 (E)", java.util.Locale.KOREA).format(java.util.Date(scheduledAtMs))
+    }
+
+    fun send() {
+        if (sending) return
+        val owner = container.preferences.bizPhone.filter { it.isDigit() }
+        if (owner.length < 9) {
+            android.widget.Toast.makeText(context, "먼저 더보기 → 사업자 정보에서 내 전화번호를 등록해주세요", android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
+        val partner = partnerPhone.filter { it.isDigit() }
+        if (partner.length < 9) {
+            android.widget.Toast.makeText(context, "함께 할 사장님 번호를 확인해주세요", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        sending = true
+        scope.launch {
+            val res = container.sharedSiteRepository.invite(
+                ownerPhone = owner, partnerPhone = partner, title = siteTitle,
+                addr = addr, scheduledAtMs = scheduledAtMs ?: 0L,
+                workSummary = null, memo = null, customerLabel = siteTitle
+            )
+            sending = false
+            res.onSuccess { r ->
+                if (r.route == "link" && !r.url.isNullOrBlank()) {
+                    val body = r.smsDraft ?: "협업 현장 공유 — ${r.url}"
+                    com.detailline.callfollowcrm.util.SmsIntentHelper.openSmsCompose(context, partner, body)
+                    android.widget.Toast.makeText(context, "문자로 공유 링크를 보냈어요", android.widget.Toast.LENGTH_LONG).show()
+                } else {
+                    android.widget.Toast.makeText(context, "협업 요청을 보냈어요 — 상대 사장님이 수락하면 시작돼요", android.widget.Toast.LENGTH_LONG).show()
+                }
+                onDismiss()
+            }.onFailure {
+                android.widget.Toast.makeText(context, "공유 실패 — 잠시 후 다시 시도해주세요", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        androidx.compose.material3.Surface(
+            shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(Modifier.padding(20.dp)) {
+                Text("협업 현장으로 공유", style = MaterialTheme.typography.titleLarge, color = TossTextPrimary, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(10.dp))
+                // 현장 카드
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(13.dp)) {
+                    Text(siteTitle, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                    Spacer(Modifier.height(3.dp))
+                    Text(dateLabel + (addr?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""),
+                        fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp)
+                }
+                Spacer(Modifier.height(14.dp))
+                Text("함께 할 사장님 번호", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+                    modifier = Modifier.padding(bottom = 6.dp))
+                androidx.compose.material3.OutlinedTextField(
+                    value = partnerPhone,
+                    onValueChange = { partnerPhone = it.filter { c -> c.isDigit() || c == '-' }.take(13) },
+                    placeholder = { Text("010-0000-0000", color = TossTextTertiary) },
+                    singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(4.dp))
+                Text("RING-GO 쓰는 사장님이면 그 분 앱으로, 아니면 문자 링크로 가요.", fontSize = 11.sp, color = TossTextTertiary)
+                Spacer(Modifier.height(14.dp))
+                // 벽 안내
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossBlueSoft).padding(13.dp)) {
+                    Text("상대 사장님께 보이는 것", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+                    Spacer(Modifier.height(6.dp))
+                    Text("• 날짜·시간·주소·시공 범위\n• 전달 메모·사진·출발/도착/완료", fontSize = 12.5.sp, color = Color(0xFF3A4A66), lineHeight = 19.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Text("✕ 고객 전화번호·대화·다른 고객은 안 보여요", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF0436A))
+                }
+                Spacer(Modifier.height(16.dp))
+                androidx.compose.foundation.layout.Box(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFF7C5CFC))
+                        .clickable(enabled = !sending) { send() }.padding(vertical = 15.dp),
+                    contentAlignment = androidx.compose.ui.Alignment.Center
+                ) {
+                    Text(if (sending) "보내는 중…" else "🤝 협업 요청 보내기", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
+                }
+                Spacer(Modifier.height(10.dp))
+                Text("자동 발송 아님 · 상대가 수락해야 시작돼요", fontSize = 11.5.sp, color = TossTextTertiary,
+                    modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Spacer(Modifier.height(8.dp))
+                Text("취소", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { onDismiss() }.padding(vertical = 10.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             }
         }
     }
