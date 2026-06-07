@@ -1,5 +1,6 @@
 package com.detailline.callfollowcrm.presentation.screen.schedule
 
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -239,10 +240,15 @@ fun ScheduleScreen(
                         androidx.compose.animation.AnimatedContent(
                             targetState = viewedMonthAnchor,
                             transitionSpec = {
+                                // 2026-06-07 사장님 통점2: 슬라이드가 너무 빨라 "휙" 넘어감 → 천천히 미끄러지게(450ms + 감속 이징).
                                 val forward = targetState > initialState
                                 val dir = if (forward) 1 else -1
-                                (slideInHorizontally(tween(260)) { w -> dir * w } + fadeIn(tween(260)))
-                                    .togetherWith(slideOutHorizontally(tween(260)) { w -> -dir * w } + fadeOut(tween(260)))
+                                (slideInHorizontally(tween(450, easing = FastOutSlowInEasing)) { w -> dir * w } +
+                                    fadeIn(tween(450, easing = FastOutSlowInEasing)))
+                                    .togetherWith(
+                                        slideOutHorizontally(tween(450, easing = FastOutSlowInEasing)) { w -> -dir * w } +
+                                            fadeOut(tween(450, easing = FastOutSlowInEasing))
+                                    )
                             },
                             label = "calMonth"
                         ) { anchor ->
