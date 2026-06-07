@@ -92,6 +92,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      */
     private val spamSuffixes: StateFlow<Set<String>> = container.spamPhoneRepository.suffixes
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+    /** 스팸 앞자리(070 등) — 미확인/신규에서 제외. (2026-06-07) */
+    private val spamPrefixes = container.preferences.spamPrefixes
 
     /** 오늘 이전에 통화 기록이 있는 phone suffix set. "오늘 신규" 판정 negative side. */
     private val phonesWithCallsBeforeToday: StateFlow<Set<String>> = container.callRecordRepository
@@ -450,6 +452,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         val result = HashSet<String>()
         for (c in smsContacts) {
             if (c.normalizedSuffix in spam) continue
+            if (com.detailline.callfollowcrm.util.SpamPrefix.isSpam(c.address, spamPrefixes)) continue  // 스팸 앞자리
             if (c.normalizedSuffix in scheduled) continue  // 2026-05-30 #3 — 시공일정 등록자 제외
             // 사장님 의도: 마지막 메시지가 고객 수신이면 미확인. 이전에 답장 보낸 적은 무관.
             if (!c.lastSent && c.lastDateMs >= sevenDayWindowStart) {
@@ -460,6 +463,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             if (m.endedAt < sevenDayWindowStart) continue
             val suffix = phoneSuffix(m.phoneNumber)
             if (suffix in spam) continue
+            if (com.detailline.callfollowcrm.util.SpamPrefix.isSpam(m.phoneNumber, spamPrefixes)) continue  // 스팸 앞자리
             if (suffix in scheduled) continue  // 2026-05-30 #3
             val sms = bySuffix[suffix]
             if (sms == null || !sms.hasOwnerReply) result += suffix

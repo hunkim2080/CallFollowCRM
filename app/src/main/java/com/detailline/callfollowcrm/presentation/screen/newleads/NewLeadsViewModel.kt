@@ -26,6 +26,7 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
 
     private val todayStart = DateTimeUtils.startOfDay(System.currentTimeMillis())
     private val sinceMs = todayStart - 180L * DateTimeUtils.DAY_MS
+    private val spamPrefixes = container.preferences.spamPrefixes
 
     private val smsContacts = container.smsContactCacheRepository.observeAll(limit = 500)
     private val inbound = container.callRecordRepository.observeInboundSince(sinceMs)
@@ -67,6 +68,8 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
 
         val leads = bySuffix.entries.mapNotNull { (suf, a) ->
             if (a.contactMs <= 0L) return@mapNotNull null
+            // 스팸 앞자리(070 등) 제외. (2026-06-07)
+            if (com.detailline.callfollowcrm.util.SpamPrefix.isSpam(a.phone.ifBlank { suf }, spamPrefixes)) return@mapNotNull null
             val cust = custBySuffix[suf]
             // 2026-06-07 사장님 B안: 계약(시공일 등록)된 고객도 목록에 남기되 "계약완료" 배지로 표시.
             //   (이전엔 시공일 잡히면 목록에서 제외했음 — 사장님이 한눈에 계약 여부 보고 싶다고 변경)

@@ -176,6 +176,11 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("estimate_sent_legacy_cleaned", false)
         set(value) = prefs.edit().putBoolean("estimate_sent_legacy_cleaned", value).apply()
 
+    /** 2026-06-07 — 스팸/광고 번호 앞자리. 이 앞자리로 시작하면 자동답장·AI 준비 X + 목록 제외. 기본 070. */
+    var spamPrefixes: Set<String>
+        get() = prefs.getStringSet("spam_prefixes", setOf("070")) ?: setOf("070")
+        set(value) { prefs.edit().putStringSet("spam_prefixes", value).commit() }
+
     /**
      * 2026-06-01 전면 리뉴얼 — 로그인 화면을 한 번 봤는지. 첫 실행에만 로그인 화면 노출.
      * 어떤 소셜 버튼/둘러보기든 누르면 true → 이후 바로 권한/홈으로.

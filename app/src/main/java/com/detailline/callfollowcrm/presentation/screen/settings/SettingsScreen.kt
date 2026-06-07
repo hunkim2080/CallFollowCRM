@@ -1142,6 +1142,7 @@ private fun AutoSmsSection(
     var d1Text by remember { mutableStateOf(prefs.d1AutoText) }
     var arrOn by remember { mutableStateOf(prefs.arrivalAutoEnabled) }
     var arrText by remember { mutableStateOf(prefs.arrivalAutoText) }
+    var spamPrefixes by remember { mutableStateOf(prefs.spamPrefixes) }
 
     fun hourLabel(h: Int): String = when {
         h == 0 -> "오전 12시"; h < 12 -> "오전 ${h}시"; h == 12 -> "오후 12시"; else -> "오후 ${h - 12}시"
@@ -1216,6 +1217,43 @@ private fun AutoSmsSection(
                 Text("고객 문자가 오면 AI 추천 답변과 함께 알림", fontSize = 12.sp, color = TossTextTertiary)
             }
             Switch(checked = incomingNotifyOn, onCheckedChange = onIncomingNotifyToggle)
+        }
+    }
+    Spacer(Modifier.height(14.dp))
+
+    // 광고·스팸 번호 앞자리 (2026-06-07) — 등록한 앞자리로 시작하면 자동답장·AI 준비 X + 신규/상담함 제외.
+    TossCard {
+        Column {
+            Text("광고·스팸 번호 앞자리", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+            Text(
+                "이 앞자리로 시작하는 번호는 자동답장·AI 추천을 안 하고 신규 목록에서도 빼요. (예: 070 인터넷전화·광고)",
+                fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+            Spacer(Modifier.height(10.dp))
+            if (spamPrefixes.isEmpty()) {
+                Text("등록된 앞자리가 없어요", fontSize = 12.5.sp, color = TossTextTertiary)
+            } else {
+                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    spamPrefixes.sorted().forEach { p ->
+                        AutoChip("$p  ✕", true) {
+                            spamPrefixes = spamPrefixes - p; prefs.spamPrefixes = spamPrefixes
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Text("빠른 추가", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
+                modifier = Modifier.padding(bottom = 6.dp))
+            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                com.detailline.callfollowcrm.util.SpamPrefix.SUGGESTED
+                    .filter { it !in spamPrefixes }
+                    .forEach { p ->
+                        AutoChip("＋ $p", false) {
+                            spamPrefixes = spamPrefixes + p; prefs.spamPrefixes = spamPrefixes
+                        }
+                    }
+            }
         }
     }
 }

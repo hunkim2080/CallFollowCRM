@@ -179,7 +179,9 @@ class SmsReceiver : BroadcastReceiver() {
         val pending = goAsync()
         scope.launch {
             val container = app.container
-            val notifyEnabled = container.preferences.incomingSmsNotifyEnabled
+            // 스팸 앞자리(070 등) = 광고로 보고 알림·AI 준비 모두 건너뜀. (2026-06-07 사장님 요청)
+            val isSpam = com.detailline.callfollowcrm.util.SpamPrefix.isSpam(sender, container.preferences.spamPrefixes)
+            val notifyEnabled = container.preferences.incomingSmsNotifyEnabled && !isSpam
             // 고객/카테고리 = 초기 알림 + 이후 prepare 둘 다 사용 → 한 번만 조회 (기존엔 findByPhone 2번).
             val customer = runCatching { container.customerRepository.findByPhone(sender) }.getOrNull()
             val categoryLabel = customer?.categoryId?.let { cid ->
@@ -206,6 +208,9 @@ class SmsReceiver : BroadcastReceiver() {
             } finally {
                 pending.finish()
             }
+
+            // 스팸 앞자리면 AI 추천 준비·폴링 전부 건너뜀(자동메세지 준비 X).
+            if (isSpam) return@launch
 
             // 2) 무거운 작업 (히스토리·톤·prepare·prefetch·polling) — broadcast 종료 후 계속.
             try {

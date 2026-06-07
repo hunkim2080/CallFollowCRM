@@ -57,6 +57,8 @@ object AutoReplyScheduler {
         // 권한·정책 한 번 더 점검 (스케줄러 호출 직전엔 race condition 가능)
         if (!container.preferences.autoFirstReplyEnabled) return
         if (!hasSendSmsPermission(context)) return
+        // 스팸 앞자리(070 등) = 광고로 보고 자동답장 안 함. (2026-06-07 사장님 요청)
+        if (com.detailline.callfollowcrm.util.SpamPrefix.isSpam(phoneNumber, container.preferences.spamPrefixes)) return
 
         // 수신(미부재중)인데 템플릿 미지정이면 발송 X. 부재중은 인라인 기본 문구가 있어 통과.
         if (!isMissed && container.preferences.firstReplyIncomingTemplateId <= 0) return
