@@ -23,7 +23,11 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -623,38 +627,48 @@ private fun Avatar(name: String?, index: Int, small: Boolean = false) {
 
 /* ─────────────── 목표 수정 다이얼로그 ─────────────── */
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun GoalEditDialog(
     initialManwon: Int,
     onConfirm: (Int) -> Unit,
     onDismiss: () -> Unit
 ) {
+    // 프로토 inputSheet 1:1 — 가운데 팝업(AlertDialog) 아니라 아래에서 올라오는 바텀시트. 2026-06-07
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var text by remember { mutableStateOf(if (initialManwon > 0) initialManwon.toString() else "") }
     val n = text.filter { it.isDigit() }.toIntOrNull() ?: 0
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("이번 달 목표 매출", fontWeight = FontWeight.Bold) },
-        text = {
-            Column {
-                Text("직접 정한 목표로 진행률을 보여드려요.", fontSize = 13.sp, color = TossTextSecondary)
-                Spacer(Modifier.height(10.dp))
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it.filter { c -> c.isDigit() } },
-                    label = { Text("목표 (만원)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = Color.White) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(horizontal = 22.dp)
+                .padding(bottom = 18.dp)
+        ) {
+            Text("이번 달 목표 매출", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            Spacer(Modifier.height(6.dp))
+            Text("직접 정한 목표로 진행률을 보여드려요.", fontSize = 13.sp, color = TossTextSecondary)
+            Spacer(Modifier.height(16.dp))
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it.filter { c -> c.isDigit() } },
+                label = { Text("목표 (만원)") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(18.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = onDismiss) { Text("취소", color = TossTextSecondary) }
+                Spacer(Modifier.width(8.dp))
+                TextButton(onClick = { if (n > 0) onConfirm(n) }, enabled = n > 0) {
+                    Text("저장", color = if (n > 0) TossBlue else TossTextTertiary, fontWeight = FontWeight.Bold)
+                }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = { if (n > 0) onConfirm(n) }, enabled = n > 0) {
-                Text("저장", color = if (n > 0) TossBlue else TossTextTertiary, fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("취소", color = TossTextSecondary) } }
-    )
+        }
+    }
 }
 
 /* ─────────────── 포맷 헬퍼 ─────────────── */
