@@ -243,16 +243,33 @@ fun ScheduleScreen(
                             .padding(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 16.dp)
                     ) {
                         DowHeader()
-                        // 월 그리드 — 정적(애니/페이저 없음). viewedMonthAnchor 바뀌면 즉시 그 달 표시.
-                        val monthCells = buildCalendarCells(viewedMonthAnchor, state.all, todayStart)
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            repeat(6) { week ->
-                                CalendarWeekRow(
-                                    cells = monthCells.subList(week * 7, week * 7 + 7),
-                                    selectedDayMs = selectedDayMs,
-                                    onSelect = { dayMs -> selectedDayMs = dayMs },
-                                    onLongSelect = { dayMs -> selectedDayMs = dayMs; onAddSchedule() }
-                                )
+                        // 월 전환 슬라이드(600ms + 감속 이징) — 2026-06-08 복원.
+                        //   멈춤(투명막)의 원인은 HorizontalPager + LazyColumn initialFirstVisibleItemIndex 였고,
+                        //   이 AnimatedContent 슬라이드 자체는 안전(높이 고정 6주 그리드). 사장님이 쓰던 600ms 그대로.
+                        androidx.compose.animation.AnimatedContent(
+                            targetState = viewedMonthAnchor,
+                            transitionSpec = {
+                                val forward = targetState > initialState
+                                val dir = if (forward) 1 else -1
+                                (slideInHorizontally(tween(600, easing = FastOutSlowInEasing)) { w -> dir * w } +
+                                    fadeIn(tween(600, easing = FastOutSlowInEasing)))
+                                    .togetherWith(
+                                        slideOutHorizontally(tween(600, easing = FastOutSlowInEasing)) { w -> -dir * w } +
+                                            fadeOut(tween(600, easing = FastOutSlowInEasing))
+                                    )
+                            },
+                            label = "calMonth"
+                        ) { anchor ->
+                            val monthCells = buildCalendarCells(anchor, state.all, todayStart)
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                repeat(6) { week ->
+                                    CalendarWeekRow(
+                                        cells = monthCells.subList(week * 7, week * 7 + 7),
+                                        selectedDayMs = selectedDayMs,
+                                        onSelect = { dayMs -> selectedDayMs = dayMs },
+                                        onLongSelect = { dayMs -> selectedDayMs = dayMs; onAddSchedule() }
+                                    )
+                                }
                             }
                         }
                     }
