@@ -37,16 +37,29 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
     private val unreadOnly = MutableStateFlow(false)
     fun setUnreadOnly(v: Boolean) { unreadOnly.value = v }
 
-    // 고객/카테고리/응대기록 3개를 미리 묶어 combine 5개 한도 회피.
-    private val custCtx = combine(customers, categories, repliedIds) { c, cat, rep -> Triple(c, cat, rep) }
+    /** 사장님이 직접 '광고/스팸'으로 표시한 번호(suffix). 상담함 카운트와 동일하게 신규목록에서도 제외. 2026-06-07 */
+    private val markedSpam = container.spamPhoneRepository.suffixes
+
+    // 고객/카테고리/응대기록/마킹스팸 4개를 미리 묶어 combine 5개 한도 회피.
+    private val custCtx = combine(customers, categories, repliedIds, markedSpam) { c, cat, rep, spam ->
+        CustCtx(c, cat, rep, spam)
+    }
 
     // contactMs = 마지막 연락(시각 라벨·정렬용), firstMs = 처음 연락(날짜 그룹용 — "신규=처음 들어온 날").
     private class Acc(var phone: String, var contactMs: Long, var firstMs: Long, var hasOwnerReply: Boolean)
 
+    private class CustCtx(
+        val custs: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
+        val cats: List<com.detailline.callfollowcrm.data.local.entity.CategoryEntity>,
+        val replied: List<Long>,
+        val spam: Set<String>
+    )
+
     val uiState: StateFlow<NewLeadsUiState> = combine(
         smsContacts, inbound, custCtx, unreadOnly
     ) { sms, calls, ctx, onlyUnread ->
-        val (custs, cats, replied) = ctx
+        val custs = ctx.custs; val cats = ctx.cats; val replied = ctx.replied
+        val spamSet = ctx.spam
         val catName = cats.associate { it.id to it.name }
         val repliedSet = replied.toHashSet()
         val custBySuffix = custs.associateBy { phoneSuffix(it.phoneNumber) }
@@ -73,6 +86,8 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
             if (a.contactMs <= 0L) return@mapNotNull null
             // 스팸 앞자리(070 등) 제외. (2026-06-07)
             if (com.detailline.callfollowcrm.util.SpamPrefix.isSpam(a.phone.ifBlank { suf }, spamPrefixes)) return@mapNotNull null
+            // 사장님이 '광고/스팸'으로 직접 표시한 번호 제외 — 상담함 '오늘 신규' 카운트와 일치. (2026-06-07)
+            if (suf in spamSet) return@mapNotNull null
             val cust = custBySuffix[suf]
             // 2026-06-07 사장님 B안: 계약(시공일 등록)된 고객도 목록에 남기되 "계약완료" 배지로 표시.
             //   (이전엔 시공일 잡히면 목록에서 제외했음 — 사장님이 한눈에 계약 여부 보고 싶다고 변경)

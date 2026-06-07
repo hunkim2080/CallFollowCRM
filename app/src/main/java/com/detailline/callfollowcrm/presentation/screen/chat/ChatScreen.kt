@@ -733,6 +733,7 @@ fun ChatScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .navigationBarsPadding()  // 시스템 하단 내비바와 겹침 방지 (2026-06-07 사장님 보고)
                     .padding(horizontal = 8.dp, vertical = 8.dp)
             ) {
                 // 메시지 미리보기 — 어느 메시지 액션인지 한눈에.
