@@ -44,7 +44,8 @@ object AdotShareTextParser {
         val phone = phoneRegex.find(raw)?.value?.filter { it.isDigit() }
         val recordedAt = extractDateTime(raw)
         val title = extractTitle(raw)
-        val summary = extractBlock(raw, listOf("상세 요약", "상세요약", "요약"))
+        // 라벨은 공유 텍스트("상세 요약")와 파일 저장("[통화요약]") 양쪽을 모두 인식.
+        val summary = extractBlock(raw, listOf("통화요약", "통화 요약", "상세 요약", "상세요약", "요약"))
         val transcript = extractBlock(raw, listOf("녹음 내용", "녹음내용", "통화 내용", "통화내용"))
 
         return Parsed(
@@ -57,15 +58,28 @@ object AdotShareTextParser {
         )
     }
 
+    // "3분 52초" / "52초" 같은 통화시간 줄.
+    private val durationRegex = Regex("""^\d+\s*분(\s*\d+\s*초)?$|^\d+\s*초$""")
+
     private fun extractTitle(raw: String): String? {
-        // 첫 번째 의미 있는 줄을 제목으로. 날짜/번호 줄은 건너뜀.
+        // 첫 번째 의미 있는 줄을 제목으로. 헤더/날짜/번호/라벨 줄은 건너뜀.
         for (line in raw.lineSequence()) {
-            val t = line.trim()
+            var t = line.trim()
             if (t.isEmpty()) continue
+            // 에이닷 파일 헤더("에이닷 전화"), 통화시간("3분 52초")은 제목 아님.
+            if (t == "에이닷 전화" || t.startsWith("에이닷")) continue
+            if (durationRegex.matches(t)) continue
+            // 라벨 줄([통화요약]/[녹음 내용]/상세 요약 …)은 제목 아님.
+            val labelLine = t.trim('[', ']', ' ', ':')
+            if (labelLine in setOf("통화요약", "통화 요약", "상세 요약", "상세요약", "요약",
+                                   "녹음 내용", "녹음내용", "통화 내용", "통화내용", "AI 제안", "새로운 할 일")) continue
             // 날짜만 있는 줄, 번호만 있는 줄, '님과의 통화' 줄은 제외
             if (phoneRegex.containsMatchIn(t)) continue
             if (dateRegex1.containsMatchIn(t) || dateRegex3.containsMatchIn(t)) continue
             if (t.contains("님과의 통화")) continue
+            // 불릿 기호 제거(에이닷 [통화요약] 첫 줄이 "* 화장실 공사…" 형태).
+            t = t.trimStart('*', '·', '-', '•', ' ')
+            if (t.isEmpty()) continue
             if (t.length > 80) return t.take(80)
             return t
         }
@@ -136,23 +150,25 @@ object AdotShareTextParser {
      */
     private fun extractBlock(raw: String, labels: List<String>): String? {
         val lines = raw.lines()
+        // 라벨 줄 판정 — 공유("녹음 내용")와 파일("[녹음 내용]") 양쪽. 대괄호/콜론/공백 제거 후 비교.
+        fun labelOf(line: String) = line.trim().trim('[', ']', ' ', ':')
         var startIdx = -1
         for ((i, line) in lines.withIndex()) {
-            val t = line.trim()
-            if (labels.any { t == it || t.startsWith("$it ") || t.startsWith("$it:") }) {
+            val l = labelOf(line)
+            if (labels.any { l == it || l.startsWith("$it ") }) {
                 startIdx = i + 1
                 break
             }
         }
         if (startIdx < 0) return null
 
-        val stopLabels = listOf("상세 요약", "상세요약", "녹음 내용", "녹음내용", "통화 내용",
-                                "통화내용", "AI 제안", "새로운 할 일")
+        val stopLabels = listOf("통화요약", "통화 요약", "상세 요약", "상세요약", "녹음 내용", "녹음내용",
+                                "통화 내용", "통화내용", "AI 제안", "새로운 할 일")
         val collected = mutableListOf<String>()
         for (j in startIdx until lines.size) {
-            val t = lines[j].trim()
-            if (stopLabels.any { it != labels.first() && (t == it || t.startsWith("$it ")) }) break
-            if (t.startsWith("AI가 자동 생성한 정보로")) break
+            val l = labelOf(lines[j])
+            if (stopLabels.any { it != labels.first() && (l == it || l.startsWith("$it ")) }) break
+            if (lines[j].trim().startsWith("AI가 자동 생성한 정보로")) break
             collected += lines[j]
         }
         val joined = collected.joinToString("\n").trim()

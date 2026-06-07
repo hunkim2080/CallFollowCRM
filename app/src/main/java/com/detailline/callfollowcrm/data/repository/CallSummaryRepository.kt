@@ -9,6 +9,10 @@ class CallSummaryRepository(private val dao: CallSummaryDao) {
     fun observeByCustomer(customerId: Long): Flow<List<CallSummaryEntity>> =
         dao.observeByCustomer(customerId)
 
+    /** 채팅 화면용 — 번호 끝 8자리로 통화요약 관찰(통화기록과 같은 suffix 매칭). */
+    fun observeByPhoneSuffix(suffix: String): Flow<List<CallSummaryEntity>> =
+        dao.observeByPhoneSuffix(suffix)
+
     suspend fun upsert(summary: CallSummaryEntity): Long = dao.insert(summary)
 
     suspend fun update(summary: CallSummaryEntity) = dao.update(summary)

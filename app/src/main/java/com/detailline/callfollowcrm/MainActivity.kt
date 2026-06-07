@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import com.detailline.callfollowcrm.presentation.AppRoot
 import com.detailline.callfollowcrm.recording.AdotSummaryImporter
+import com.detailline.callfollowcrm.recording.AdotTextFolderScanner
 import com.detailline.callfollowcrm.recording.RecordingShareHandler
 
 class MainActivity : ComponentActivity() {
@@ -24,6 +25,10 @@ class MainActivity : ComponentActivity() {
         handleIncoming(intent)
 
         val container = (application as CallFollowCrmApplication).container
+
+        // 에이닷 "통화 내용 텍스트 저장" 폴더(Download/A.phone)가 연결돼 있으면, 앱 켤 때마다
+        //   새 txt 통화요약을 자동 import. 폴더 미연결이면 즉시 no-op. (연결은 채팅 통화카드에서 1회.)
+        AdotTextFolderScanner.scanIfConnected(this, container)
 
         setContent {
             val pending = remember { pendingIntentState }

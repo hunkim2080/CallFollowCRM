@@ -46,6 +46,25 @@ object AdotSummaryImporter {
         }
     }
 
+    /**
+     * 에이닷 "통화 내용 텍스트 저장" 으로 폴더에 떨어진 .txt 파일을 [AdotTextFolderScanner] 가 읽어 호출.
+     *  - 파일명에서 뽑은 전화번호/시각을 fallback 으로 넘김(본문 파싱이 실패해도 매칭/중복판정 가능).
+     *  - 토스트는 띄우지 않는다(스캐너가 결과 개수를 묶어서 알림). suspend 로 직접 결과 반환.
+     */
+    suspend fun importTextFile(
+        container: AppContainer,
+        text: String,
+        knownPhone: String?,
+        knownRecordedAt: Long?
+    ): Result =
+        importInternal(
+            container = container,
+            text = text,
+            source = SummarySourceType.ADOT_SHARE,
+            knownPhone = knownPhone,
+            knownRecordedAt = knownRecordedAt
+        )
+
     /** CustomerDetail 에서 사용자 직접 붙여넣기. customerId 강제 지정(번호 매칭 실패해도 이 고객에 붙임). */
     fun importPasted(
         context: Context,
@@ -75,9 +94,16 @@ object AdotSummaryImporter {
         container: AppContainer,
         text: String,
         source: SummarySourceType,
-        forceCustomerId: Long? = null
+        forceCustomerId: Long? = null,
+        knownPhone: String? = null,
+        knownRecordedAt: Long? = null
     ): Result {
-        val parsed = AdotShareTextParser.parse(text)
+        val parsedRaw = AdotShareTextParser.parse(text)
+        // 파일명에서 받은 전화번호/시각을 fallback 으로 채움(본문 파싱 실패 대비). 파일명이 가장 신뢰도 높음.
+        val parsed = parsedRaw.copy(
+            phoneNumber = parsedRaw.phoneNumber ?: knownPhone?.filter { it.isDigit() }?.takeIf { it.isNotBlank() },
+            recordedAt = parsedRaw.recordedAt ?: knownRecordedAt
+        )
         val now = System.currentTimeMillis()
 
         // 1) Customer 결정 — 기존 Customer 만 매칭. 없어도 자동 생성하지 않는다.

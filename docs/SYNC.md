@@ -3300,3 +3300,15 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 - 변경: `_build_today_card_html(photos/notes: list[dict] | None)` → `Optional[list[dict]]`. route handler 아니라 당장 502 아님이나, 사장님 룰(Python 3.9 = Optional 형태)대로 통일.
 - commit: (아래)
 - 다음 액션 (server/cowork): 맥미니에서 `git pull` + `bash server/deploy_phase1.sh` 재배포
+
+## 2026-06-08 · android
+에이닷 통화요약을 RING-GO 가 자동으로 가져와 채팅 통화카드에 표시 (app 전용 + 서버 후속 1건).
+- **에이닷 "통화 내용 텍스트 저장" = txt 파일** 발견: `Download/A.phone/{번호}_{yyyyMMddHHmmss}.txt`, **인코딩 CP949(UTF-8 아님)**. 메뉴는 [녹음 파일 공유=무료] / [통화 내용 텍스트 저장=유료]. (reference_adot 메모 갱신)
+- 신규: `AdotTextFolderScanner`(SAF 폴더 1회 연결→앱 켤 때마다 새 txt 자동 import, CP949 디코드, 번호+시각 중복방지, 동시스캔 guard) + `AdotFilenameParser` .txt 허용 + `AdotSummaryImporter.importTextFile` + `AdotShareTextParser` 대괄호 라벨([통화요약]/[녹음 내용]) 인식 + MainActivity onCreate 스캔 트리거 + ChatScreen 통화카드 "📁 자동으로 받기 — 폴더 연결" 다이얼로그.
+- **통화카드 "AI 요약됨" 표시 구현**(프로토 callCardHtml 의 summarized 분기, 그동안 미구현): 불릿 + "이 통화 내용으로 후속 문자 쓰기"(입력창 prefill). `ChatViewModel.callSummaries`(observeByPhoneSuffix) + `CallSummaryDao/Repository.observeByPhoneSuffix`. **음성 경로도 같은 화면 재사용.**
+- 실기기 검증 완료: txt 자동 import → CP949 안 깨짐 → Haiku 요약+후속문자 → 통화카드 "AI 요약됨" 표시.
+- **방향 전환(사장님 결정 2026-06-08):** 에이닷 텍스트가 유료라, 앞으로 **무료 녹음(m4a) + 맥미니 자체 받아쓰기(Whisper, 무료)** 를 메인으로. txt 경로는 유료 에이닷 사용자용 fallback 으로 유지.
+- 변경(서버 영향): **맥미니 신규 endpoint 필요** → `docs/SERVER_HANDOFF_call_audio_summary.md` 참조. `POST /api/call-audio-summary`(multipart m4a → Whisper 받아쓰기 → 기존 call-summary Haiku → {one_line,bullets,suggested_followup_sms,transcript}). 응답 형식은 기존 /api/call-summary + transcript.
+- commit: (아래)
+- **다음 액션 (맥미니 Claude):** ① 위 endpoint 구현(로컬 Whisper) ② 동기/비동기 택1 회신 ③ 경로·필드 확정 회신. 그 후 안드로이드가 m4a 업로드→CallSummary 저장부 연결(표시는 이미 완료).
+- 미해결: (없음, 음성 경로는 서버 대기) · 기존 중복 row 1건은 화면 무해(firstOrNull).

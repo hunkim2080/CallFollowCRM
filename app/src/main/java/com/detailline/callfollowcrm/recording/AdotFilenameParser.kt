@@ -12,10 +12,11 @@ import java.util.Locale
  * 다양한 변형도 허용:
  *  - 하이픈/공백 포함 (010-8005-2080_20260515090523.m4a)
  *  - 확장자 .mp3 / .wav 도 시도
+ *  - .txt (에이닷 "통화 내용 텍스트 저장" 이 같은 이름규칙으로 Download/A.phone 에 떨굼) — [AdotTextFolderScanner] 가 사용.
  */
 object AdotFilenameParser {
 
-    private val pattern = Regex("""^([\d\-\s]{9,15})[_\-\s](\d{14})\.(m4a|mp3|wav)$""", RegexOption.IGNORE_CASE)
+    private val pattern = Regex("""^([\d\-\s]{9,15})[_\-\s](\d{14})\.(m4a|mp3|wav|txt)$""", RegexOption.IGNORE_CASE)
     private val datetimeFormat = SimpleDateFormat("yyyyMMddHHmmss", Locale.KOREA)
 
     data class Parsed(

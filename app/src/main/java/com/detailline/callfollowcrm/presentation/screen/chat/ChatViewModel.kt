@@ -136,6 +136,16 @@ class ChatViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
+     * 통화요약 (2026-06-08) — 에이닷 txt 자동 import 또는 붙여넣기로 저장된 CallSummary.
+     *   통화기록과 같은 suffix 매칭. 통화 카드(CallSegment)가 시각으로 짝지어 "AI 요약됨" 상태로 표시.
+     */
+    val callSummaries: StateFlow<List<com.detailline.callfollowcrm.data.local.entity.CallSummaryEntity>> = run {
+        val suffix = phoneNumber.filter { it.isDigit() }.takeLast(8)
+        if (suffix.length < 7) kotlinx.coroutines.flow.flowOf(emptyList())
+        else container.callSummaryRepository.observeByPhoneSuffix(suffix)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
      * 시공접수서 제출 이벤트 (2026-06-05) — 고객이 접수서를 작성 완료하면 IntakeSyncManager 가 기록.
      *   채팅 타임라인에 통화 카드처럼 "📋 접수서 작성 완료" 이벤트 카드로 표시(제출 시각 기준).
      */

@@ -161,6 +161,8 @@ fun ChatScreen(
     val callRecords by viewModel.callRecords.collectAsState()
     // 시공접수서 제출 이벤트 — 통화처럼 타임라인에 카드로 병합.
     val intakeEvents by viewModel.intakeEvents.collectAsState()
+    // 통화요약 — 통화 카드와 시각으로 짝지어 "AI 요약됨" 상태(불릿+후속문자) 표시.
+    val callSummaries by viewModel.callSummaries.collectAsState()
     val timelineItems = remember(messages, callRecords, intakeEvents) {
         buildChatTimeline(messages, callRecords, intakeEvents)
     }
@@ -239,6 +241,42 @@ fun ChatScreen(
         contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 5)
     ) { uris ->
         if (uris.isNotEmpty()) attachedPhotos = attachedPhotos + uris
+    }
+
+    // 에이닷 통화요약 txt 폴더(Download/A.phone) 연결 — 한 번만. 연결되면 앱 켤 때마다 자동 import.
+    val adotFolderLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            val appContainer = (context.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication).container
+            com.detailline.callfollowcrm.recording.AdotTextFolderScanner.connectFolder(context, uri)
+            com.detailline.callfollowcrm.recording.AdotTextFolderScanner.scanIfConnected(context, appContainer) { n ->
+                android.widget.Toast.makeText(
+                    context,
+                    if (n > 0) "통화 요약 ${n}개를 가져왔어요"
+                    else "폴더 연결됐어요. 이제 에이닷에서 ‘통화 내용 텍스트 저장’만 하면 자동으로 들어와요.",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            }
+            adotPasteOpen = false
+        }
+    }
+    // 통화카드 "에이닷 통화 내용 요약 받기 ↑" 탭 동작:
+    //   폴더 연결돼 있으면 → 바로 폴더 스캔(새 txt 자동 가져오기). 미연결이면 → 안내/붙여넣기 다이얼로그.
+    val requestAdotSummary: () -> Unit = {
+        if (com.detailline.callfollowcrm.recording.AdotTextFolderScanner.isConnected(context)) {
+            val appContainer = (context.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication).container
+            com.detailline.callfollowcrm.recording.AdotTextFolderScanner.scanIfConnected(context, appContainer) { n ->
+                android.widget.Toast.makeText(
+                    context,
+                    if (n > 0) "통화 요약 ${n}개를 가져왔어요"
+                    else "새로 들어온 통화 요약이 없어요. 에이닷에서 ‘통화 내용 텍스트 저장’을 먼저 눌러주세요.",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            }
+        } else {
+            adotPasteOpen = true
+        }
     }
 
     // 발송 성공한 본문이 '준비한 견적'과 같으면 그때만 ESTIMATE_SENT 기록(견적 회신 리마인드 기준).
@@ -529,7 +567,21 @@ fun ChatScreen(
                                     }
                                 )
                             }
-                            is ChatTimelineItem.Call -> CallSegment(ti.record, onGetSummary = { adotPasteOpen = true })
+                            is ChatTimelineItem.Call -> {
+                                // 통화 시각(±10분)으로 짝지어지는 요약이 있으면 "AI 요약됨" 상태로 렌더.
+                                val matched = callSummaries.firstOrNull {
+                                    it.recordedAt != null &&
+                                        kotlin.math.abs(it.recordedAt - ti.record.endedAt) < 10 * 60 * 1000L
+                                }
+                                CallSegment(
+                                    record = ti.record,
+                                    onGetSummary = requestAdotSummary,
+                                    summary = matched,
+                                    onUseAsDraft = { msg ->
+                                        input = if (input.isBlank()) msg else input + "\n" + msg
+                                    }
+                                )
+                            }
                             is ChatTimelineItem.Intake -> IntakeSegment(ti.event)
                             is ChatTimelineItem.DateDivider -> ChatDateDivider(chatDateLabel(ti.dayStart))
                         }
@@ -803,10 +855,30 @@ fun ChatScreen(
                     Text("에이닷 통화 내용 요약 받기", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "에이닷 통화요약 화면에서 ↑공유 → RING-GO 로 보내거나, 요약을 복사해서 아래에 붙여넣어 주세요.",
+                        "한 번만 폴더를 연결하면, 이후엔 에이닷에서 ‘통화 내용 텍스트 저장’만 눌러도 자동으로 들어와요.",
                         fontSize = 12.5.sp, color = TossTextSecondary, lineHeight = 18.sp
                     )
                     Spacer(Modifier.height(12.dp))
+                    // 자동 받기 (권장) — Download/A.phone 폴더 한 번 연결.
+                    Box(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossBlue)
+                            .clickable {
+                                val initialUri = android.net.Uri.parse(
+                                    "content://com.android.externalstorage.documents/document/primary%3ADownload%2FA.phone"
+                                )
+                                runCatching { adotFolderLauncher.launch(initialUri) }
+                                    .onFailure { runCatching { adotFolderLauncher.launch(null) } }
+                            }.padding(vertical = 13.dp),
+                        contentAlignment = Alignment.Center
+                    ) { Text("📁 자동으로 받기 — 폴더 한 번만 연결", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold) }
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "‘다운로드 → A.phone’ 폴더를 고르고 ‘이 폴더 사용’을 눌러주세요.",
+                        fontSize = 11.sp, color = TossTextTertiary, lineHeight = 16.sp
+                    )
+                    Spacer(Modifier.height(14.dp))
+                    Text("또는 직접 붙여넣기", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
+                    Spacer(Modifier.height(8.dp))
                     BasicTextField(
                         value = pasteText, onValueChange = { pasteText = it },
                         textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, color = TossTextPrimary),
@@ -1176,7 +1248,9 @@ private fun ChatDateDivider(label: String) {
 @Composable
 private fun CallSegment(
     record: com.detailline.callfollowcrm.data.local.entity.CallRecordEntity,
-    onGetSummary: () -> Unit
+    onGetSummary: () -> Unit,
+    summary: com.detailline.callfollowcrm.data.local.entity.CallSummaryEntity? = null,
+    onUseAsDraft: (String) -> Unit = {}
 ) {
     val type = runCatching {
         com.detailline.callfollowcrm.domain.model.CallType.valueOf(record.callType)
@@ -1214,18 +1288,48 @@ private fun CallSegment(
                     fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0A7D72)
                 )
                 Text(
-                    DateTimeUtils.formatShort(record.endedAt) + " · 문자하다 통화함",
+                    // 프로토 callCardHtml: 요약되면 "· AI 요약됨", 아니면 "· 문자하다 통화함".
+                    DateTimeUtils.formatShort(record.endedAt) + if (summary != null) " · AI 요약됨" else " · 문자하다 통화함",
                     fontSize = 11.sp, color = TossTextTertiary, fontWeight = FontWeight.Bold
                 )
             }
         }
-        // cc-sum-btn — 에이닷 통화 내용 요약 받기 ↑
-        Box(
-            Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(10.dp))
-                .background(Color(0xFF0E9E90)).clickable { onGetSummary() }.padding(vertical = 10.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("에이닷 통화 내용 요약 받기 ↑", color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold)
+
+        // 프로토 callCardHtml(m,i): m.summarized 여부로 분기.
+        val bullets = summary?.summaryText
+            ?.split("\n")
+            ?.map { it.trim().trimStart('•', '·', '-', '*', ' ') }
+            ?.filter { it.isNotEmpty() }
+            ?: emptyList()
+
+        if (bullets.isEmpty()) {
+            // 미요약 → cc-sum-btn (에이닷 통화 내용 요약 받기 ↑)
+            Box(
+                Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFF0E9E90)).clickable { onGetSummary() }.padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("에이닷 통화 내용 요약 받기 ↑", color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold)
+            }
+        } else {
+            // 요약됨 → cc-bul(불릿) + ghost 버튼 "이 통화 내용으로 후속 문자 쓰기"
+            Column(Modifier.padding(top = 10.dp)) {
+                bullets.forEach { line ->
+                    Row(Modifier.padding(bottom = 4.dp)) {
+                        Text("• ", fontSize = 12.5.sp, color = Color(0xFF0A7D72), fontWeight = FontWeight.Bold)
+                        Text(line, fontSize = 12.5.sp, color = TossTextSecondary, lineHeight = 19.sp)
+                    }
+                }
+            }
+            val draft = summary?.recommendedMessage?.takeIf { it.isNotBlank() }
+            Box(
+                Modifier.fillMaxWidth().padding(top = 8.dp).clip(RoundedCornerShape(10.dp))
+                    .background(Color.White).border(1.dp, Color(0xFFBCE0D8), RoundedCornerShape(10.dp))
+                    .clickable { if (draft != null) onUseAsDraft(draft) }.padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("이 통화 내용으로 후속 문자 쓰기", color = Color(0xFF0A7D72), fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold)
+            }
         }
     }
 }

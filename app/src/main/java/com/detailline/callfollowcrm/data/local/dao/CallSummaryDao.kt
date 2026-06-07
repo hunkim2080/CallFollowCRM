@@ -20,6 +20,10 @@ interface CallSummaryDao {
     @Query("SELECT * FROM call_summaries WHERE customerId = :customerId ORDER BY COALESCE(recordedAt, updatedAt) DESC")
     fun observeByCustomer(customerId: Long): Flow<List<CallSummaryEntity>>
 
+    /** 채팅(번호 기준) 통화요약 — 저장 포맷 차이 흡수 위해 끝 8자리 suffix 매칭. */
+    @Query("SELECT * FROM call_summaries WHERE phoneNumber LIKE '%' || :suffix ORDER BY COALESCE(recordedAt, updatedAt) DESC")
+    fun observeByPhoneSuffix(suffix: String): Flow<List<CallSummaryEntity>>
+
     @Query("SELECT * FROM call_summaries WHERE id = :id")
     suspend fun findById(id: Long): CallSummaryEntity?
 
