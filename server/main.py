@@ -481,6 +481,41 @@ def db_init() -> None:
             "CREATE INDEX IF NOT EXISTS idx_beta_signups_status "
             "ON beta_signups(status, created_at_ms DESC)"
         )
+        # §27 — 협업 현장 (사장↔사장 공유, 안드로이드 SERVER_HANDOFF 2026-06-08)
+        # A(owner_phone) 가 B(partner_phone) 에게 현장 1건 공유. 고객 phone/대화 절대 X.
+        # progress = assigned/departed/arrived/completed. completed 시 B 가 계좌 payload 보냄.
+        # paid = A 가 입금 완료 표시.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS shared_sites (
+                share_id          TEXT PRIMARY KEY,        -- 'sh_' + 10자 base62
+                owner_phone       TEXT NOT NULL,           -- A (현장 주인)
+                partner_phone     TEXT NOT NULL,           -- B (협업 사장)
+                title             TEXT,                    -- '강동 천호동 현장'
+                addr              TEXT,                    -- '강동구 천호동 …'
+                scheduled_at_ms   INTEGER,
+                work_summary      TEXT,                    -- '욕실 줄눈 2곳'
+                memo              TEXT,                    -- '현관 비번 1234#'
+                customer_label    TEXT,                    -- '강동 서사장님 현장' (고객 phone 대신 안전한 라벨)
+                status            TEXT NOT NULL DEFAULT 'pending',   -- pending/accepted/declined
+                progress          TEXT NOT NULL DEFAULT 'assigned',  -- assigned/departed/arrived/completed
+                account_bank      TEXT,                    -- B 가 completed 시 보내는 계좌 (A 가 입금용)
+                account_no        TEXT,
+                account_holder    TEXT,
+                paid_at_ms        INTEGER,                 -- A 가 입금 완료 표시한 시각
+                created_at_ms     INTEGER NOT NULL,
+                updated_at_ms     INTEGER NOT NULL
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_shared_sites_owner "
+            "ON shared_sites(owner_phone, created_at_ms DESC)"
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_shared_sites_partner "
+            "ON shared_sites(partner_phone, created_at_ms DESC)"
+        )
         con.commit()
 
 
@@ -5609,6 +5644,415 @@ async def call_audio_summary_endpoint(
     summary_cache_set(phone_digits, "call-audio-summary", cache_ts, response_payload)
     response_payload["_cache_hit"] = False
     return response_payload
+
+
+# ============================================================================
+# §27 — 협업 현장 (사장 ↔ 사장 공유, 안드로이드 SERVER_HANDOFF 2026-06-08)
+# ─────────────────────────────────────────────────────────────────────────────
+# A(현장 주인) 가 B(협업 사장) 에게 현장 1건을 공유. 둘 다 RING-GO 가입 사장.
+#
+# 핵심 벽 (모든 응답에서 절대 안 나가는 것):
+#   ❌ 고객 phone / 고객 대화 / A 의 다른 고객 / A 의 매출
+# 응답에 박는 것 (안전):
+#   ✅ 현장 정보 (title, addr, scheduled_at_ms, work_summary, memo)
+#   ✅ A 의 이름 (subscribers.name) + customer_label ('강동 서사장님 현장' 같은 안전 라벨)
+#   ✅ 상태 (status, progress) + 계좌 (B 가 completed 시 보내는 것, A 에게만)
+#
+# 인증:
+#   - owner_phone (A) 또는 partner_phone (B) 본인만 접근. 다른 share_id 는 403.
+#   - bizPhone = 가입 사장 = subscribers 또는 beta_signups (accepted) 에 등록된 phone.
+#
+# 6 endpoint:
+#   ① GET  /api/owner/exists?phone=        가입 사장 디렉터리 (inapp/link 분기용)
+#   ② POST /api/shared/invite              A → B 협업 요청
+#   ③ GET  /api/shared/with-me?phone=B     B 가 받은 공유 현장 목록 (B 화면 핵심)
+#   ④ POST /api/shared/respond             B 수락/거절
+#   ⑤ POST /api/shared/progress            B 출발/도착/완료 (completed 시 계좌 payload)
+#   ⑥ POST /api/shared/paid                A 입금 완료 표시
+# ============================================================================
+
+import secrets as _secrets_collab  # noqa: E402  (§27 share_id 생성 전용)
+_SHARE_ID_ALPHABET = (
+    "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+)
+
+
+def _gen_share_id() -> str:
+    """sh_ + 10자 base62 (충돌 확률 ~62^10 = ~8e17 — 충분히 안전)."""
+    return "sh_" + "".join(
+        _secrets_collab.choice(_SHARE_ID_ALPHABET) for _ in range(10)
+    )
+
+
+def _norm_phone(p: Optional[str]) -> str:
+    """전화번호 정규화: 숫자만 남김. 빈/None → ''."""
+    return "".join(ch for ch in (p or "") if ch.isdigit())
+
+
+def _is_registered_owner(phone_digits: str) -> Optional[str]:
+    """가입 사장 디렉터리 확인 — subscribers 우선, 그 다음 beta_signups (accepted).
+
+    반환: 가입자면 표시명 (subscribers.name 또는 beta_signups 의 region/industry 조합),
+          미가입이면 None.
+    """
+    if not phone_digits:
+        return None
+    with db_conn() as con:
+        # 1) subscribers (정식 가입 우선)
+        row = con.execute(
+            "SELECT name, company FROM subscribers WHERE phone = ? AND churned_at_ms IS NULL",
+            (phone_digits,),
+        ).fetchone()
+        if row:
+            name = (row[0] or "").strip()
+            company = (row[1] or "").strip()
+            return name or company or "사장님"
+        # 2) beta_signups (status=accepted) 도 사장 디렉터리에 포함 (베타 기간)
+        row = con.execute(
+            "SELECT industry, region FROM beta_signups WHERE phone = ? AND status = 'accepted'",
+            (phone_digits,),
+        ).fetchone()
+        if row:
+            industry = (row[0] or "").strip()
+            region = (row[1] or "").strip()
+            label = " ".join([s for s in (region, industry) if s]).strip()
+            return label or "사장님"
+    return None
+
+
+def _shared_site_row_to_dict(row: tuple, viewer_kind: str = "partner") -> dict:
+    """shared_sites row → API 응답 dict. viewer_kind = 'owner'|'partner'.
+
+    벽: 고객 phone / 대화 / 다른 고객 절대 X. 안전한 필드만 셀렉트.
+    계좌는 모든 viewer 에게 (A 는 입금용, B 는 본인이 등록한 정보 확인).
+    """
+    (
+        share_id,
+        owner_phone,
+        partner_phone,
+        title,
+        addr,
+        scheduled_at_ms,
+        work_summary,
+        memo,
+        customer_label,
+        status,
+        progress,
+        account_bank,
+        account_no,
+        account_holder,
+        paid_at_ms,
+        created_at_ms,
+        updated_at_ms,
+    ) = row
+    # 시각 라벨 (HH:MM, 안드로이드 측 편의)
+    time_label = ""
+    if scheduled_at_ms:
+        try:
+            time_label = _dt.datetime.fromtimestamp(scheduled_at_ms / 1000).strftime("%H:%M")
+        except Exception:
+            time_label = ""
+    out = {
+        "share_id": share_id,
+        "owner_phone": owner_phone,    # A 측 phone (B 가 누가 공유했는지 알아야)
+        "partner_phone": partner_phone,
+        "title": title or "",
+        "addr": addr or "",
+        "scheduled_at_ms": scheduled_at_ms or 0,
+        "time_label": time_label,
+        "work_summary": work_summary or "",
+        "memo": memo or "",
+        "customer_label": customer_label or "",
+        "status": status,
+        "progress": progress,
+        "created_at_ms": created_at_ms,
+        "updated_at_ms": updated_at_ms,
+    }
+    if viewer_kind == "partner":
+        # B 가 owner_name 보여야 ("OO 사장님이 공유함")
+        out["owner_name"] = _is_registered_owner(owner_phone) or "사장님"
+    # 계좌 — completed 이상에서만 (B 가 보낸 후 A 가 입금용으로 봐야)
+    if account_bank or account_no:
+        out["account"] = {
+            "bank": account_bank or "",
+            "account_no": account_no or "",
+            "holder": account_holder or "",
+        }
+    if paid_at_ms:
+        out["paid_at_ms"] = paid_at_ms
+    return out
+
+
+_SHARED_SITES_COLS = (
+    "share_id, owner_phone, partner_phone, title, addr, scheduled_at_ms, "
+    "work_summary, memo, customer_label, status, progress, "
+    "account_bank, account_no, account_holder, paid_at_ms, "
+    "created_at_ms, updated_at_ms"
+)
+
+
+# ─── ① GET /api/owner/exists ───
+# 가입 사장 디렉터리 확인 (인앱/링크 분기용)
+
+@app.get("/api/owner/exists")
+async def shared_owner_exists(phone: str) -> dict:
+    """phone 이 가입 사장이면 {registered: true, name}, 아니면 {registered: false}."""
+    phone_digits = _norm_phone(phone)
+    if not phone_digits:
+        raise HTTPException(400, "phone 필수")
+    name = _is_registered_owner(phone_digits)
+    if name:
+        return {"registered": True, "name": name}
+    return {"registered": False, "name": None}
+
+
+# ─── ② POST /api/shared/invite ───
+# A → B 협업 요청 (고객 phone 받지 않음)
+
+class SharedInviteRequest(BaseModel):
+    owner_phone: str                       # A
+    partner_phone: str                     # B
+    title: Optional[str] = None
+    addr: Optional[str] = None
+    scheduled_at_ms: Optional[int] = None
+    work_summary: Optional[str] = None
+    memo: Optional[str] = None
+    customer_label: Optional[str] = None   # '강동 서사장님 현장' 같은 안전 라벨 (고객 phone 대신)
+
+
+@app.post("/api/shared/invite")
+async def shared_invite(req: SharedInviteRequest) -> dict:
+    """A 가 B 에게 현장 공유 요청. 베타 기간 _check_team_tier 통과 (TEAM_TIER_BYPASS=1)."""
+    owner_phone = _norm_phone(req.owner_phone)
+    partner_phone = _norm_phone(req.partner_phone)
+    if not owner_phone:
+        raise HTTPException(400, "owner_phone 필수")
+    if not partner_phone:
+        raise HTTPException(400, "partner_phone 필수")
+    if owner_phone == partner_phone:
+        raise HTTPException(400, "본인에게 공유할 수 없습니다")
+    _check_team_tier(owner_phone)
+
+    now = _now_ms()
+    share_id = _gen_share_id()
+    title = (req.title or "").strip()[:100]
+    addr = (req.addr or "").strip()[:200]
+    work_summary = (req.work_summary or "").strip()[:200]
+    memo = (req.memo or "").strip()[:500]
+    customer_label = (req.customer_label or "").strip()[:60]
+
+    with db_conn() as con:
+        con.execute(
+            f"""
+            INSERT INTO shared_sites
+                ({_SHARED_SITES_COLS})
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'assigned',
+                    NULL, NULL, NULL, NULL, ?, ?)
+            """,
+            (
+                share_id,
+                owner_phone,
+                partner_phone,
+                title or None,
+                addr or None,
+                req.scheduled_at_ms,
+                work_summary or None,
+                memo or None,
+                customer_label or None,
+                now,
+                now,
+            ),
+        )
+        con.commit()
+
+    # B 가 가입 사장이면 인앱, 아니면 링크 + sms_draft
+    partner_name = _is_registered_owner(partner_phone)
+    if partner_name:
+        route = "inapp"
+        url = None
+        sms_draft = None
+        print(f"[shared/invite] {owner_phone} → {partner_phone} (inapp) share={share_id}")
+        return {"share_id": share_id, "route": route, "url": url, "sms_draft": sms_draft}
+    # 미가입 — 기존 팀 웹뷰 패턴 재사용 권장 (Phase 1 은 단순 SMS 안내문)
+    owner_name = _is_registered_owner(owner_phone) or "사장님"
+    base = INTAKE_PUBLIC_BASE_URL.rstrip("/")
+    url = f"{base}/shared/{share_id}"  # Phase 1: 링크 화면은 별도 (스펙 외)
+    sms_draft = (
+        f"{owner_name}님이 협업 현장을 공유했어요.\n"
+        f"{title or '현장'} — 자세히 보기: {url}\n"
+        f"(시공막내 앱 설치 시 인앱으로 받을 수 있어요)"
+    )
+    print(f"[shared/invite] {owner_phone} → {partner_phone} (link) share={share_id}")
+    return {"share_id": share_id, "route": "link", "url": url, "sms_draft": sms_draft}
+
+
+# ─── ③ GET /api/shared/with-me ───
+# B 가 받은 공유 현장 목록 (B 화면 핵심)
+
+@app.get("/api/shared/with-me")
+async def shared_with_me(phone: str, since_ms: int = 0, limit: int = 50) -> dict:
+    """B(partner_phone) 가 받은 공유 현장 목록. 본인 phone 만 접근 가능 (벽)."""
+    partner_phone = _norm_phone(phone)
+    if not partner_phone:
+        raise HTTPException(400, "phone 필수")
+    limit = max(1, min(limit, 200))
+    with db_conn() as con:
+        rows = con.execute(
+            f"""
+            SELECT {_SHARED_SITES_COLS}
+            FROM shared_sites
+            WHERE partner_phone = ? AND updated_at_ms > ?
+            ORDER BY created_at_ms DESC
+            LIMIT ?
+            """,
+            (partner_phone, since_ms, limit),
+        ).fetchall()
+    sites = [_shared_site_row_to_dict(r, viewer_kind="partner") for r in rows]
+    return {"sites": sites}
+
+
+# ─── ④ POST /api/shared/respond ───
+# B 수락/거절
+
+class SharedRespondRequest(BaseModel):
+    share_id: str
+    partner_phone: str
+    accept: bool
+
+
+@app.post("/api/shared/respond")
+async def shared_respond(req: SharedRespondRequest) -> dict:
+    """B 가 수락 또는 거절. share_id + partner_phone 일치 필수 (벽)."""
+    share_id = (req.share_id or "").strip()
+    partner_phone = _norm_phone(req.partner_phone)
+    if not share_id or not partner_phone:
+        raise HTTPException(400, "share_id, partner_phone 필수")
+    now = _now_ms()
+    new_status = "accepted" if req.accept else "declined"
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT partner_phone, status FROM shared_sites WHERE share_id = ?",
+            (share_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "share_id 없음")
+        if row[0] != partner_phone:
+            raise HTTPException(403, "권한 없음 (이 공유는 본인 것이 아닙니다)")
+        if row[1] in ("accepted", "declined"):
+            # 이미 응답한 share 는 재변경 차단 (단순화)
+            raise HTTPException(409, f"이미 {row[1]} 상태입니다")
+        con.execute(
+            "UPDATE shared_sites SET status = ?, updated_at_ms = ? WHERE share_id = ?",
+            (new_status, now, share_id),
+        )
+        con.commit()
+    print(f"[shared/respond] share={share_id} {partner_phone} → {new_status}")
+    return {"ok": True, "share_id": share_id, "status": new_status, "updated_at_ms": now}
+
+
+# ─── ⑤ POST /api/shared/progress ───
+# B 출발/도착/완료. completed 시 계좌 payload 받음 (A 에게 푸시 위해 저장).
+
+class SharedProgressPayload(BaseModel):
+    bank: Optional[str] = None
+    account_no: Optional[str] = None
+    holder: Optional[str] = None
+
+
+class SharedProgressRequest(BaseModel):
+    share_id: str
+    partner_phone: str
+    step: str                                      # 'departed'|'arrived'|'completed'
+    payload: Optional[SharedProgressPayload] = None
+
+
+_VALID_PROGRESS_STEPS = {"departed", "arrived", "completed"}
+
+
+@app.post("/api/shared/progress")
+async def shared_progress(req: SharedProgressRequest) -> dict:
+    """B 진행 업데이트. share_id + partner_phone 권한 필수.
+
+    step=completed 시 payload.bank/account_no/holder 를 shared_sites 에 저장 (A 입금용).
+    departed/arrived 는 payload 없음.
+    """
+    share_id = (req.share_id or "").strip()
+    partner_phone = _norm_phone(req.partner_phone)
+    step = (req.step or "").strip()
+    if not share_id or not partner_phone:
+        raise HTTPException(400, "share_id, partner_phone 필수")
+    if step not in _VALID_PROGRESS_STEPS:
+        raise HTTPException(400, f"step must be one of {_VALID_PROGRESS_STEPS}")
+    now = _now_ms()
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT partner_phone, status, owner_phone FROM shared_sites WHERE share_id = ?",
+            (share_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "share_id 없음")
+        if row[0] != partner_phone:
+            raise HTTPException(403, "권한 없음")
+        if row[1] != "accepted":
+            raise HTTPException(409, "수락된 공유만 진행 가능")
+        if step == "completed":
+            payload = req.payload or SharedProgressPayload()
+            bank = (payload.bank or "").strip()[:30]
+            account_no = (payload.account_no or "").strip()[:30]
+            holder = (payload.holder or "").strip()[:30]
+            con.execute(
+                """
+                UPDATE shared_sites SET
+                  progress = ?, account_bank = ?, account_no = ?, account_holder = ?,
+                  updated_at_ms = ?
+                WHERE share_id = ?
+                """,
+                (step, bank or None, account_no or None, holder or None, now, share_id),
+            )
+        else:
+            con.execute(
+                "UPDATE shared_sites SET progress = ?, updated_at_ms = ? WHERE share_id = ?",
+                (step, now, share_id),
+            )
+        con.commit()
+    print(f"[shared/progress] share={share_id} {partner_phone} → {step}")
+    return {"ok": True, "share_id": share_id, "progress": step, "updated_at_ms": now}
+
+
+# ─── ⑥ POST /api/shared/paid ───
+# A 가 입금 완료 표시 → B 에게 푸시 신호
+
+class SharedPaidRequest(BaseModel):
+    share_id: str
+    owner_phone: str
+
+
+@app.post("/api/shared/paid")
+async def shared_paid(req: SharedPaidRequest) -> dict:
+    """A 가 입금 완료 표시. share_id + owner_phone 권한 필수."""
+    share_id = (req.share_id or "").strip()
+    owner_phone = _norm_phone(req.owner_phone)
+    if not share_id or not owner_phone:
+        raise HTTPException(400, "share_id, owner_phone 필수")
+    now = _now_ms()
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT owner_phone, progress FROM shared_sites WHERE share_id = ?",
+            (share_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "share_id 없음")
+        if row[0] != owner_phone:
+            raise HTTPException(403, "권한 없음")
+        if row[1] != "completed":
+            raise HTTPException(409, "완료된 공유만 입금 표시 가능")
+        con.execute(
+            "UPDATE shared_sites SET paid_at_ms = ?, updated_at_ms = ? WHERE share_id = ?",
+            (now, now, share_id),
+        )
+        con.commit()
+    print(f"[shared/paid] share={share_id} {owner_phone} → paid")
+    return {"ok": True, "share_id": share_id, "paid_at_ms": now}
 
 
 # ============================================================================
