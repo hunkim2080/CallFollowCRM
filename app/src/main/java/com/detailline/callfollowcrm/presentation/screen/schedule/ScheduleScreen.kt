@@ -199,7 +199,18 @@ fun ScheduleScreen(
                 .sortedBy { it.scheduledWorkMinutes ?: Int.MAX_VALUE }
         }
 
+        // 홈 "다음 시공" 카드로 들어오면(initialSelectedDayMs) 달력 아래 그 날 시공 카드까지 자동 스크롤.
+        //   2026-06-07 사장님: "다음시공 누르면 그 날 카드가 바로 보이게(스크롤 내린 상태)".
+        val scheduleListState = androidx.compose.foundation.lazy.rememberLazyListState()
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            if (initialSelectedDayMs != null && initialSelectedDayMs > 0L) {
+                kotlinx.coroutines.delay(280)  // 첫 레이아웃(달력) 그려진 뒤
+                runCatching { scheduleListState.animateScrollToItem(1) }  // index1 = 그 날 라벨+카드
+            }
+        }
+
         LazyColumn(
+            state = scheduleListState,
             modifier = Modifier
                 .padding(inner)
                 .fillMaxSize()
