@@ -1305,14 +1305,21 @@ private fun CallSegment(
             ?.filter { it.isNotEmpty() }
             ?: emptyList()
 
+        // 부재중·거절·통화시간 0초는 요약할 내용(녹음/대화)이 없음 → 요약 버튼 숨김.
+        val summarizable = type != com.detailline.callfollowcrm.domain.model.CallType.MISSED &&
+            type != com.detailline.callfollowcrm.domain.model.CallType.REJECTED &&
+            record.duration > 0
+
         if (bullets.isEmpty()) {
-            // 미요약 → cc-sum-btn (에이닷 통화 내용 요약 받기 ↑)
-            Box(
-                Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(10.dp))
-                    .background(Color(0xFF0E9E90)).clickable { onGetSummary() }.padding(vertical = 10.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("에이닷 통화 내용 요약 받기 ↑", color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold)
+            // 미요약 + 요약 가능한 통화일 때만 → cc-sum-btn (에이닷 통화 내용 요약 받기 ↑)
+            if (summarizable) {
+                Box(
+                    Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFF0E9E90)).clickable { onGetSummary() }.padding(vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("에이닷 통화 내용 요약 받기 ↑", color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold)
+                }
             }
         } else {
             // 요약됨 → cc-bul(불릿) + ghost 버튼 "이 통화 내용으로 후속 문자 쓰기"
