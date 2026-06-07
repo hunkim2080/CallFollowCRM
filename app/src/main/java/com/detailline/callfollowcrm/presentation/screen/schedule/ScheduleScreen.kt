@@ -191,16 +191,12 @@ fun ScheduleScreen(
                 .sortedBy { it.scheduledWorkMinutes ?: Int.MAX_VALUE }
         }
 
-        // 홈 "다음 시공"으로 들어오면(initialSelectedDayMs) 그 날 카드(index1)가 바로 보이게 — 초기 위치로 진입.
-        //   2026-06-07 사장님 통점: animateScrollToItem(애니 스크롤) + HorizontalPager(item0) 조합이
-        //   안 끝나는 애니 상태를 만들어 화면이 "계속 바쁨"→ 하단 탭 등 터치 먹통(투명막) 유발.
-        //   해결: 애니메이션 없이 rememberLazyListState 초기 인덱스로 그 날 카드부터 보여준다.
-        val scheduleListState = androidx.compose.foundation.lazy.rememberLazyListState(
-            initialFirstVisibleItemIndex = if (initialSelectedDayMs != null && initialSelectedDayMs > 0L) 1 else 0
-        )
-
+        // 2026-06-08 사장님 통점(투명막 진범): LazyColumn 에 initialFirstVisibleItemIndex=1 을 주면 안 됨.
+        //   index0(캘린더 블록)이 뷰포트보다 큰 단일 item 인데, 첫 컴포지션 땐 그 아래 데이터가 비어
+        //   스크롤 범위가 없어 LazyList 측정이 깨짐 → 세로스크롤·가로스와이프·셀탭이 전부 입력만 먹고
+        //   안 움직이는 "투명막"이 됨. state 인자 자체를 빼서 정상본과 동일한 기본(0-index)로 둔다.
+        //   그 날 일정은 selectedDayMs = initialDay 로 캘린더 아래에 이미 렌더되므로 자동 스크롤 불필요.
         LazyColumn(
-            state = scheduleListState,
             modifier = Modifier
                 .padding(inner)
                 .fillMaxSize()
