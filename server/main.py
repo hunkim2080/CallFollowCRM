@@ -6135,6 +6135,24 @@ async def shared_link_page(share_id: str) -> HTMLResponse:
 </style>
 </head>
 <body>
+<script>
+(function(){{
+  // §27 deep link — 앱 설치된 사용자는 자동으로 앱으로 (custom scheme 시도)
+  // 안드로이드 측 manifest 에 intent-filter (scheme="shigongmagne") 등록되어 있어야 작동.
+  // 미등록 / 미설치 → iframe load fail, HTML 페이지 그대로 표시 (사용자 눈에 안 보임).
+  // 추후 Android App Link (autoVerify) 등록 시 OS 가 URL 차원에서 분기 — 이 JS 도 불필요해짐.
+  try {{
+    var shareId = "{share_id}";
+    var iframe = document.createElement('iframe');
+    iframe.style.cssText = 'display:none;width:0;height:0;border:0;position:absolute;';
+    iframe.src = 'shigongmagne://shared/' + shareId;
+    document.body.appendChild(iframe);
+    // 1초 후 iframe 제거 (메모리 정리)
+    setTimeout(function(){{ try {{ iframe.remove(); }} catch(e){{}} }}, 1000);
+  }} catch(e){{}}
+}})();
+</script>
+
 <div class="wrap">
   <div class="topbar">
     <div class="logo"><span class="dot"></span>시공막내</div>
