@@ -176,6 +176,11 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("estimate_sent_legacy_cleaned", false)
         set(value) = prefs.edit().putBoolean("estimate_sent_legacy_cleaned", value).apply()
 
+    /** 2026-06-07 — 발신 서명("외주/일당 절대 X")이 분류기에 섞여 고객이 '일당' 카테고리로 잘못 분류된 것 1회 정리. */
+    var dailyWageCategoryCleanedV1: Boolean
+        get() = prefs.getBoolean("daily_wage_category_cleaned_v1", false)
+        set(value) { prefs.edit().putBoolean("daily_wage_category_cleaned_v1", value).commit() }
+
     /** 2026-06-07 — 스팸/광고 번호 앞자리. 이 앞자리로 시작하면 자동답장·AI 준비 X + 목록 제외. 기본 070. */
     var spamPrefixes: Set<String>
         get() = prefs.getStringSet("spam_prefixes", setOf("070")) ?: setOf("070")

@@ -19,6 +19,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class CallFollowCrmApplication : Application() {
@@ -56,6 +57,22 @@ class CallFollowCrmApplication : Application() {
             if (!container.preferences.estimateSentLegacyCleaned) {
                 runCatching { container.messageHistoryRepository.deleteEstimateSentBefore(1780671600000L) }
                 container.preferences.estimateSentLegacyCleaned = true
+            }
+            // 2026-06-07 — 발신 서명("직영팀만 시공 (외주/일당 절대 X)")이 분류 본문에 섞여 고객이 '일당'
+            //   카테고리로 잘못 분류된 것 1회 해제(미분류로). '일당'은 수첩 개념이라 고객 카테고리에 있으면 안 됨.
+            if (!container.preferences.dailyWageCategoryCleanedV1) {
+                runCatching {
+                    val cats = container.categoryRepository.observeAll().first()
+                    val wageCatIds = cats.filter { it.name.trim() == "일당" }.map { it.id }.toHashSet()
+                    if (wageCatIds.isNotEmpty()) {
+                        container.customerRepository.observeAll().first().forEach { cust ->
+                            if (cust.categoryId in wageCatIds) {
+                                container.categoryRepository.assignCustomer(cust.id, null)
+                            }
+                        }
+                    }
+                }
+                container.preferences.dailyWageCategoryCleanedV1 = true
             }
         }
 

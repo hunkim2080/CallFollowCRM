@@ -354,7 +354,7 @@ fun ScheduleAddScreen(
             onPick = { c ->
                 mode = "mine"
                 name = c.name?.takeIf { it.isNotBlank() } ?: ""
-                phone = c.phoneNumber
+                phone = PhoneNumberFormatter.format(c.phoneNumber)  // 불러오기도 하이픈 표시(가독성). 2026-06-07
                 c.address?.takeIf { it.isNotBlank() }?.let { address = it }
                 showImport = false
             },

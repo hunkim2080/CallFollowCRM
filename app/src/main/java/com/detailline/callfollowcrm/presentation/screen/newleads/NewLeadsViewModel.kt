@@ -40,7 +40,8 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
     // 고객/카테고리/응대기록 3개를 미리 묶어 combine 5개 한도 회피.
     private val custCtx = combine(customers, categories, repliedIds) { c, cat, rep -> Triple(c, cat, rep) }
 
-    private class Acc(var phone: String, var contactMs: Long, var hasOwnerReply: Boolean)
+    // contactMs = 마지막 연락(시각 라벨·정렬용), firstMs = 처음 연락(날짜 그룹용 — "신규=처음 들어온 날").
+    private class Acc(var phone: String, var contactMs: Long, var firstMs: Long, var hasOwnerReply: Boolean)
 
     val uiState: StateFlow<NewLeadsUiState> = combine(
         smsContacts, inbound, custCtx, unreadOnly
@@ -55,15 +56,17 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
         for (s in sms) {
             val suf = s.normalizedSuffix.ifBlank { phoneSuffix(s.address) }
             if (suf.isBlank()) continue
-            val a = bySuffix.getOrPut(suf) { Acc(s.address, 0L, false) }
+            val a = bySuffix.getOrPut(suf) { Acc(s.address, 0L, Long.MAX_VALUE, false) }
             if (s.lastDateMs > a.contactMs) { a.contactMs = s.lastDateMs; if (s.address.isNotBlank()) a.phone = s.address }
+            if (s.firstDateMsInScan in 1 until a.firstMs) a.firstMs = s.firstDateMsInScan
             a.hasOwnerReply = a.hasOwnerReply || s.hasOwnerReply
         }
         for (c in calls) {
             val suf = phoneSuffix(c.phoneNumber)
             if (suf.isBlank()) continue
-            val a = bySuffix.getOrPut(suf) { Acc(c.phoneNumber, 0L, false) }
+            val a = bySuffix.getOrPut(suf) { Acc(c.phoneNumber, 0L, Long.MAX_VALUE, false) }
             if (c.endedAt > a.contactMs) { a.contactMs = c.endedAt; if (a.phone.isBlank()) a.phone = c.phoneNumber }
+            if (c.endedAt in 1 until a.firstMs) a.firstMs = c.endedAt
         }
 
         val leads = bySuffix.entries.mapNotNull { (suf, a) ->
@@ -86,7 +89,9 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
                     ?: "신규 문의",
                 replied = replyDone,
                 contracted = contracted,
-                dayStart = DateTimeUtils.startOfDay(a.contactMs)
+                // 날짜 그룹 = "처음 들어온 날"(firstMs). 상담함 '오늘 신규(새 번호 기준)'와 같은 정의로 맞춤.
+                //   (전엔 마지막 연락일 기준이라, 옛 고객이 오늘 답장만 해도 '오늘'에 잡혀 카운트가 달랐음. 2026-06-07)
+                dayStart = DateTimeUtils.startOfDay(if (a.firstMs == Long.MAX_VALUE) a.contactMs else a.firstMs)
             ) to a.contactMs
         }.sortedByDescending { it.second }.map { it.first }
 

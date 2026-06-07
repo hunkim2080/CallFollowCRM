@@ -763,7 +763,10 @@ class ChatViewModel(
                 container.categoryRepository.observeAll().first()
             }.getOrDefault(emptyList())
             if (cats.isNotEmpty()) {
-                val text = msgs.joinToString(" ") { it.body }
+                // 2026-06-07 사장님 통점: "신규 고객이 '일당'으로 분류됨".
+                //   원인 = 사장님 발신 서명("직영팀만 시공 (외주/일당 절대 X)")까지 분류 본문에 들어가 "일당" 카테고리에 매칭.
+                //   해결: 분류는 고객이 보낸 말(수신, !sent)만 본다. 사장님 보낸 정형문구/서명은 분류 신호에서 제외.
+                val text = msgs.filter { !it.sent }.joinToString(" ") { it.body }
                 // 2026-06-07 사장님 통점: "상담만 해도 시공대기로 분류됨".
                 //   원인 = 키워드 분류기가 "시공 대기" 를 ["시공","대기"] 로 쪼개 → 상담문 "시공 문의…" 의 "시공" 에 매칭.
                 //   해결: 상태 카테고리("시공 대기"/"시공 완료")는 키워드 분류 대상에서 제외(이건 날짜·입금으로만 자동).
