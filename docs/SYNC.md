@@ -3329,3 +3329,15 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 - 원인: 요약 시각(=통화 **시작**, 파일명) vs 통화 **종료** 시각을 ±10분으로 비교 → 10분 넘는 통화는 시작↔종료 간격이 10분 초과라 매칭 실패. 연결(callRecordId)도 같은 버그.
 - 수정: 통화 [시작-10분 ~ 종료+10분] 구간 안이면 매칭(startedAt nullable → endedAt fallback). ChatScreen 표시 + CallAudioSummarizer/AdotSummaryImporter/RecordingMatcher 연결 4곳.
 - commit: (아래)
+
+## 2026-06-08 (밤) · android · 협업 현장 Phase1 (앱측 + 서버 핸드오프)
+야간 자율 구현(사장님: 추천안으로 모두 진행). server-first — 앱 단독 완결분 + 최종 UI 까지, 서버 의존부는 핸드오프.
+- **입금 계좌 등록**: 더보기 → 견적서·사업자 정보에 은행/계좌번호/예금주 (AppPreferences bizBank/bizAccountNo/bizAccountHolder). 완전 동작.
+- **협업 현장 화면(B=협업자)**: 더보기 → "협업 현장"(비즈니스 tier). 프로토 collab-sites-proto b-list/b-detail 1:1 — 목록(빈화면 graceful) / 상세(주소+길찾기·전달사항·진행 stepper·완료 알리기+계좌전송·벽 안내). nav route COLLAB_SITES.
+- **SharedSiteRepository**(ai/): with-me/invite/respond/progress/paid/owner-exists 클라이언트. AppContainer 등록.
+- 변경(서버 영향): **신규 endpoint 6종 필요** → `docs/SERVER_HANDOFF_collab_sites.md`. 팀 API 스타일 재사용. progress=completed 시 계좌 payload→A 푸시. site-photos/notes 권한확장 재사용.
+- 결정 기록: `docs/DECISIONS_2026-06-08_collab_sites.md` (계좌만·사업자정보등록·입금완료확인 등 추천 9건).
+- 보류(서버 후 앱작업): A측 공유버튼+시트(고객카드), A측 완료/계좌 수신카드+입금완료, 캘린더 보라점.
+- 빌드/설치 OK. (with-me 빈 목록 → "공유받은 현장 없음" 표시. end-to-end 는 서버 endpoint 후.)
+- commit: (아래)
+- **다음 액션(맥미니 Claude)**: SERVER_HANDOFF_collab_sites.md endpoint 6종 구현 + SYNC 회신.

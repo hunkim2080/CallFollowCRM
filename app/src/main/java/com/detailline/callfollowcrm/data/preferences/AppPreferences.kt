@@ -244,6 +244,20 @@ class AppPreferences(context: Context) {
         get() = prefs.getInt(KEY_BIZ_VALID_DAYS, 14)
         set(value) = prefs.edit().putInt(KEY_BIZ_VALID_DAYS, value).apply()
 
+    // ── 입금 계좌 (2026-06-08) — 협업 현장 완료 시 요청 사장에게 전달 + 견적서 활용. ──
+    /** 은행명 (예: 국민은행). */
+    var bizBank: String
+        get() = prefs.getString(KEY_BIZ_BANK, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_BIZ_BANK, value.trim()).apply()
+    /** 계좌번호 (하이픈 포함 가능). */
+    var bizAccountNo: String
+        get() = prefs.getString(KEY_BIZ_ACCOUNT_NO, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_BIZ_ACCOUNT_NO, value.trim()).apply()
+    /** 예금주. 비우면 대표자 이름 사용. */
+    var bizAccountHolder: String
+        get() = prefs.getString(KEY_BIZ_ACCOUNT_HOLDER, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_BIZ_ACCOUNT_HOLDER, value.trim()).apply()
+
     // ── 시공접수서 제출 동기화 (2026-06-03) — 이미 임포트한 token / 마지막 동기화 시각. ──
     var intakeImportedTokens: Set<String>
         get() = prefs.getStringSet("intake_imported_tokens", emptySet()) ?: emptySet()
@@ -354,6 +368,9 @@ class AppPreferences(context: Context) {
         private const val KEY_BIZ_ADDR = "biz_addr"
         private const val KEY_BIZ_PHONE = "biz_phone"
         private const val KEY_BIZ_SEAL = "biz_seal"
+        private const val KEY_BIZ_BANK = "biz_bank"
+        private const val KEY_BIZ_ACCOUNT_NO = "biz_account_no"
+        private const val KEY_BIZ_ACCOUNT_HOLDER = "biz_account_holder"
         private const val KEY_BIZ_VALID_DAYS = "biz_quote_valid_days"
         private const val KEY_MONTHLY_GOAL = "monthly_goal_manwon"
         private const val KEY_OWNER_TRADES = "owner_trades"

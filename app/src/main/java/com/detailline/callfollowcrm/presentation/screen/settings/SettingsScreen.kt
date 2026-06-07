@@ -129,6 +129,7 @@ fun SettingsScreen(
     onOpenBusinessInfo: () -> Unit = {},
     onOpenNotebook: () -> Unit = {},
     onOpenTeam: () -> Unit = {},
+    onOpenCollabSites: () -> Unit = {},
     onOpenReport: () -> Unit = {},
     onOpenTradeSelect: () -> Unit = {},
     onOpenRecurring: () -> Unit = {},
@@ -229,6 +230,8 @@ fun SettingsScreen(
                         "일당·알바 · 거래처 — 자주 부르는 사람·업체 모아두기", onClick = onOpenNotebook)
                     LockRow(Icons.Filled.Group, TossBlueSoft, TossBlue, "팀 관리",
                         "팀원 초대 · 현장 배정 · 출발 알림", tier = "비즈니스", onClick = onOpenTeam)
+                    LockRow(Icons.Filled.Group, Color(0xFFF1ECFE), Color(0xFF7C5CFC), "협업 현장",
+                        "다른 사장님과 현장 하나만 같이 보기", tier = "비즈니스", onClick = onOpenCollabSites)
                 }
                 SettingsGroup("장사 분석") {
                     LockRow(Icons.Filled.BarChart, TossBlueSoft, TossBlue, "상세 리포트",

@@ -398,6 +398,7 @@ fun AppNavHost(
                 onOpenBusinessInfo = { navController.navigate(Destinations.BUSINESS_INFO) },
                 onOpenNotebook = { navController.navigate(Destinations.NOTEBOOK) },
                 onOpenTeam = { navController.navigate(Destinations.TEAM) },
+                onOpenCollabSites = { navController.navigate(Destinations.COLLAB_SITES) },
                 onOpenReport = { navController.navigate(Destinations.REPORT) },
                 onOpenTradeSelect = { navController.navigate(Destinations.TRADE_SELECT) },
                 onOpenRecurring = { navController.navigate(Destinations.RECURRING) },
@@ -417,6 +418,7 @@ fun AppNavHost(
                 onOpenBusinessInfo = { navController.navigate(Destinations.BUSINESS_INFO) },
                 onOpenNotebook = { navController.navigate(Destinations.NOTEBOOK) },
                 onOpenTeam = { navController.navigate(Destinations.TEAM) },
+                onOpenCollabSites = { navController.navigate(Destinations.COLLAB_SITES) },
                 onOpenReport = { navController.navigate(Destinations.REPORT) },
                 onOpenTradeSelect = { navController.navigate(Destinations.TRADE_SELECT) },
                 onOpenRecurring = { navController.navigate(Destinations.RECURRING) },
@@ -454,6 +456,15 @@ fun AppNavHost(
             val vm: com.detailline.callfollowcrm.presentation.screen.team.TeamViewModel =
                 viewModel(factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.team.TeamViewModel(container) })
             com.detailline.callfollowcrm.presentation.screen.team.TeamScreen(
+                viewModel = vm,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Destinations.COLLAB_SITES) {
+            val vm: com.detailline.callfollowcrm.presentation.screen.sharedsite.SharedSiteViewModel =
+                viewModel(factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.sharedsite.SharedSiteViewModel(container) })
+            com.detailline.callfollowcrm.presentation.screen.sharedsite.SharedSiteScreen(
                 viewModel = vm,
                 onBack = { navController.popBackStack() }
             )

@@ -58,6 +58,9 @@ fun BusinessInfoScreen(
     var phone by remember { mutableStateOf(prefs.bizPhone) }
     var seal by remember { mutableStateOf(prefs.bizSeal) }
     var validDays by remember { mutableStateOf(prefs.bizQuoteValidDays.toString()) }
+    var bank by remember { mutableStateOf(prefs.bizBank) }
+    var accountNo by remember { mutableStateOf(prefs.bizAccountNo) }
+    var accountHolder by remember { mutableStateOf(prefs.bizAccountHolder) }
 
     BackHandler(enabled = true) { onBack() }
 
@@ -112,6 +115,17 @@ fun BusinessInfoScreen(
                 Field("전화번호", phone, KeyboardType.Phone, placeholder = "010-0000-0000") { phone = formatPhoneInput(it) }
                 Field("직인 문구 (도장에 들어갈 글자)", seal, placeholder = "예: 디테일라인 줄눈") { seal = it }
 
+                // ── 입금 계좌 (협업 현장 정산용) ──
+                Spacer(Modifier.height(8.dp))
+                Text("입금 계좌 (협업 정산용)", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary,
+                    modifier = Modifier.padding(start = 2.dp, top = 6.dp))
+                Spacer(Modifier.height(2.dp))
+                Text("다른 사장님과 협업한 현장을 끝내면, 완료 알림에 이 계좌가 같이 전달돼요.",
+                    fontSize = 12.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp))
+                Field("은행", bank, placeholder = "예: 국민은행") { bank = it }
+                Field("계좌번호", accountNo, KeyboardType.Number, placeholder = "예: 123456-01-789012") { accountNo = it }
+                Field("예금주 (선택)", accountHolder, placeholder = "비우면 대표자 이름") { accountHolder = it }
+
                 // 견적서 유효기간 — 프로토: 작은 입력칸 + "일" + 안내
                 FieldLabel("견적서 유효기간")
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -140,6 +154,7 @@ fun BusinessInfoScreen(
                             prefs.bizAddr = addr; prefs.bizPhone = phone
                             prefs.bizSeal = seal.ifBlank { name }
                             prefs.bizQuoteValidDays = validDays.toIntOrNull()?.coerceIn(1, 365) ?: 14
+                            prefs.bizBank = bank; prefs.bizAccountNo = accountNo; prefs.bizAccountHolder = accountHolder
                             android.widget.Toast.makeText(context, "사업자 정보를 저장했어요 ✓ 견적서에 반영돼요", android.widget.Toast.LENGTH_SHORT).show()
                             onBack()
                         }
