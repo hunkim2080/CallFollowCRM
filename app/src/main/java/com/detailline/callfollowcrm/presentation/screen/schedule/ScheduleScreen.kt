@@ -199,15 +199,13 @@ fun ScheduleScreen(
                 .sortedBy { it.scheduledWorkMinutes ?: Int.MAX_VALUE }
         }
 
-        // 홈 "다음 시공" 카드로 들어오면(initialSelectedDayMs) 달력 아래 그 날 시공 카드까지 자동 스크롤.
-        //   2026-06-07 사장님: "다음시공 누르면 그 날 카드가 바로 보이게(스크롤 내린 상태)".
-        val scheduleListState = androidx.compose.foundation.lazy.rememberLazyListState()
-        androidx.compose.runtime.LaunchedEffect(Unit) {
-            if (initialSelectedDayMs != null && initialSelectedDayMs > 0L) {
-                kotlinx.coroutines.delay(280)  // 첫 레이아웃(달력) 그려진 뒤
-                runCatching { scheduleListState.animateScrollToItem(1) }  // index1 = 그 날 라벨+카드
-            }
-        }
+        // 홈 "다음 시공"으로 들어오면(initialSelectedDayMs) 그 날 카드(index1)가 바로 보이게 — 초기 위치로 진입.
+        //   2026-06-07 사장님 통점: animateScrollToItem(애니 스크롤) + HorizontalPager(item0) 조합이
+        //   안 끝나는 애니 상태를 만들어 화면이 "계속 바쁨"→ 하단 탭 등 터치 먹통(투명막) 유발.
+        //   해결: 애니메이션 없이 rememberLazyListState 초기 인덱스로 그 날 카드부터 보여준다.
+        val scheduleListState = androidx.compose.foundation.lazy.rememberLazyListState(
+            initialFirstVisibleItemIndex = if (initialSelectedDayMs != null && initialSelectedDayMs > 0L) 1 else 0
+        )
 
         LazyColumn(
             state = scheduleListState,
