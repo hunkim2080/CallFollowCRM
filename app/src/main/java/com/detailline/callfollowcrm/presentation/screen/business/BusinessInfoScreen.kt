@@ -107,9 +107,9 @@ fun BusinessInfoScreen(
 
                 Field("상호 (업체명)", name, placeholder = "예: 디테일라인 줄눈") { name = it }
                 Field("대표자 이름", owner, placeholder = "예: 정민수") { owner = it }
-                Field("사업자등록번호 (선택)", bizNo, KeyboardType.Number, placeholder = "123-45-67890") { bizNo = it }
+                Field("사업자등록번호 (선택)", bizNo, KeyboardType.Number, placeholder = "123-45-67890") { bizNo = formatBizNo(it) }
                 Field("주소 (선택)", addr, placeholder = "예: 서울 강동구") { addr = it }
-                Field("전화번호", phone, KeyboardType.Phone, placeholder = "010-0000-0000") { phone = it }
+                Field("전화번호", phone, KeyboardType.Phone, placeholder = "010-0000-0000") { phone = formatPhoneInput(it) }
                 Field("직인 문구 (도장에 들어갈 글자)", seal, placeholder = "예: 디테일라인 줄눈") { seal = it }
 
                 // 견적서 유효기간 — 프로토: 작은 입력칸 + "일" + 안내
@@ -165,4 +165,32 @@ private fun Field(label: String, value: String, keyboard: KeyboardType = Keyboar
     // 프로토 .sheet-label + .sheet-input.
     FieldLabel(label)
     SheetTextField(value = value, onValueChange = onChange, placeholder = placeholder, keyboardType = keyboard)
+}
+
+/** 사업자등록번호 자동 하이픈 — XXX-XX-XXXXX (숫자만, 최대 10자리). 입력 중 자동 삽입. */
+private fun formatBizNo(raw: String): String {
+    val d = raw.filter { it.isDigit() }.take(10)
+    return buildString {
+        for (i in d.indices) {
+            if (i == 3 || i == 5) append('-')
+            append(d[i])
+        }
+    }
+}
+
+/** 전화번호 자동 하이픈 — 휴대폰 010-XXXX-XXXX / 서울 02-XXXX-XXXX / 그 외 3-3(4)-4. 입력 중 자동. */
+private fun formatPhoneInput(raw: String): String {
+    val d = raw.filter { it.isDigit() }.take(11)
+    return when {
+        d.startsWith("02") -> when {
+            d.length <= 2 -> d
+            d.length <= 5 -> "${d.take(2)}-${d.drop(2)}"
+            d.length <= 9 -> "${d.take(2)}-${d.substring(2, d.length - 4)}-${d.takeLast(4)}"
+            else -> "${d.take(2)}-${d.substring(2, 6)}-${d.takeLast(4)}"
+        }
+        d.length <= 3 -> d
+        d.length <= 7 -> "${d.take(3)}-${d.drop(3)}"
+        d.length <= 10 -> "${d.take(3)}-${d.substring(3, d.length - 4)}-${d.takeLast(4)}"
+        else -> "${d.take(3)}-${d.substring(3, 7)}-${d.takeLast(4)}"
+    }
 }

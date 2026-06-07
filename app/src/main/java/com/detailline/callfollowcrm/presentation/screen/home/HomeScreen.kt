@@ -4,6 +4,8 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -597,9 +599,9 @@ fun HomeScreen(
                         RemindCard(
                             reminder = rem,
                             onSkip = { viewModel.dismissReminder(rem.item) },
-                            onSend = {
+                            onSend = { body ->
                                 val ok = com.detailline.callfollowcrm.util.SmsSender
-                                    .sendDirect(context, rem.item.phone, rem.body)
+                                    .sendDirect(context, rem.item.phone, body)
                                 if (ok) {
                                     viewModel.markReminderSent(rem.item)
                                     scope.launch {
@@ -1112,14 +1114,20 @@ private fun OutstandingCard(
 /**
  * 홈 진입 카드 (정기문자 / 시공 안내 등) — 이모지 + 라벨 + 강조 값 + chevron. N>0 일 때만 노출. (2026-06-01)
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun RemindCard(
     reminder: com.detailline.callfollowcrm.presentation.screen.home.HomeReminderUi,
     onSkip: () -> Unit,
-    onSend: () -> Unit
+    onSend: (String) -> Unit
 ) {
     // 프로토 .remind-card — 흰 카드 + 좌측 3px 앰버 inset + 라벨/이름/문구박스 + [건너뛰기][문자 보낼까요?].
     val amber = Color(0xFFF6A609)
+    // 2026-06-07 사장님 요청: 문구 박스를 꾹 누르면 그 자리에서 내용 수정.
+    var editing by remember(reminder.body) { mutableStateOf(false) }
+    var draft by remember(reminder.body) { mutableStateOf(reminder.body) }
+    val editFocus = remember { FocusRequester() }
+    val kb = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1142,16 +1150,42 @@ private fun RemindCard(
                 fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
                 letterSpacing = (-0.3).sp, modifier = Modifier.padding(top = 8.dp)
             )
-            // remind-msg
+            // remind-msg — 꾹 누르면 인라인 수정(activity 윈도우라 키보드 정상).
             Box(
                 Modifier
                     .fillMaxWidth()
                     .padding(top = 10.dp, bottom = 12.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(TossGrayBg)
+                    .combinedClickable(onClick = {}, onLongClick = { editing = true })
                     .padding(12.dp)
             ) {
-                Text(reminder.body, fontSize = 13.5.sp, color = TossTextPrimary, lineHeight = 21.sp)
+                if (editing) {
+                    Column(Modifier.fillMaxWidth()) {
+                        androidx.compose.foundation.text.BasicTextField(
+                            value = draft,
+                            onValueChange = { draft = it },
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                fontSize = 13.5.sp, color = TossTextPrimary, lineHeight = 21.sp
+                            ),
+                            cursorBrush = androidx.compose.ui.graphics.SolidColor(TossBlue),
+                            modifier = Modifier.fillMaxWidth().focusRequester(editFocus)
+                        )
+                        Box(
+                            Modifier.align(Alignment.End).padding(top = 8.dp)
+                                .clip(RoundedCornerShape(999.dp)).background(TossBlueSoft)
+                                .clickable { editing = false; kb?.hide() }
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) { Text("✓ 수정 완료", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossBlue) }
+                    }
+                    LaunchedEffect(Unit) { editFocus.requestFocus(); kb?.show() }
+                } else {
+                    Column(Modifier.fillMaxWidth()) {
+                        Text(draft, fontSize = 13.5.sp, color = TossTextPrimary, lineHeight = 21.sp)
+                        Text("✏️ 꾹 눌러 수정", fontSize = 10.5.sp, color = TossTextTertiary,
+                            modifier = Modifier.padding(top = 6.dp))
+                    }
+                }
             }
             // remind-btns
             Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
@@ -1162,7 +1196,7 @@ private fun RemindCard(
                 ) { Text("건너뛰기", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) }
                 Box(
                     Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(TossBlue)
-                        .clickable { onSend() }.padding(vertical = 12.dp),
+                        .clickable { editing = false; kb?.hide(); onSend(draft) }.padding(vertical = 12.dp),
                     contentAlignment = Alignment.Center
                 ) { Text("문자 보낼까요?", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White) }
             }
