@@ -68,9 +68,11 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
         val leads = bySuffix.entries.mapNotNull { (suf, a) ->
             if (a.contactMs <= 0L) return@mapNotNull null
             val cust = custBySuffix[suf]
-            if (cust?.scheduledWorkDate != null) return@mapNotNull null   // 시공 잡힌 건 리드 아님
+            // 2026-06-07 사장님 B안: 계약(시공일 등록)된 고객도 목록에 남기되 "계약완료" 배지로 표시.
+            //   (이전엔 시공일 잡히면 목록에서 제외했음 — 사장님이 한눈에 계약 여부 보고 싶다고 변경)
+            val contracted = (cust?.scheduledWorkDate ?: 0L) > 0L
             val phone = a.phone.ifBlank { suf }
-            val replyDone = (cust?.id?.let { it in repliedSet } == true) || a.hasOwnerReply
+            val replyDone = contracted || (cust?.id?.let { it in repliedSet } == true) || a.hasOwnerReply
             NewLeadUi(
                 customerId = cust?.id ?: 0L,
                 phone = phone,
@@ -80,6 +82,7 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
                     ?: cust?.categoryId?.let { catName[it] }?.takeIf { it.isNotBlank() }
                     ?: "신규 문의",
                 replied = replyDone,
+                contracted = contracted,
                 dayStart = DateTimeUtils.startOfDay(a.contactMs)
             ) to a.contactMs
         }.sortedByDescending { it.second }.map { it.first }
@@ -140,6 +143,8 @@ data class NewLeadUi(
     val timeLabel: String,
     val memo: String,
     val replied: Boolean,
+    /** 계약(시공일 등록) 완료 — 목록에 "계약완료" 배지로 남김. */
+    val contracted: Boolean = false,
     val dayStart: Long
 )
 

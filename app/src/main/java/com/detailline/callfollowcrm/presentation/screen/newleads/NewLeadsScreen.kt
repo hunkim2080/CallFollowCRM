@@ -45,6 +45,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossError
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
+import com.detailline.callfollowcrm.presentation.theme.TossSuccess
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
@@ -175,8 +176,10 @@ private fun NewLeadRow(lead: NewLeadUi, onClick: () -> Unit, onReContact: () -> 
             .padding(horizontal = 14.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // nl-dot — 미답장이면 빨강
-        Box(Modifier.size(8.dp).clip(CircleShape).background(if (lead.replied) TossDivider else TossError))
+        // nl-dot — 계약완료=초록, 미답장=빨강, 답장함=회색
+        Box(Modifier.size(8.dp).clip(CircleShape).background(
+            when { lead.contracted -> TossSuccess; lead.replied -> TossDivider; else -> TossError }
+        ))
         Spacer(Modifier.width(11.dp))
         // nl-b
         Column(Modifier.weight(1f)) {
@@ -190,8 +193,16 @@ private fun NewLeadRow(lead: NewLeadUi, onClick: () -> Unit, onReContact: () -> 
                 overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
         }
         Spacer(Modifier.width(11.dp))
-        // right — 답장함 태그 / 재연락 버튼
-        if (lead.replied) {
+        // right — 계약완료 배지 / 답장함 태그 / 재연락 버튼
+        if (lead.contracted) {
+            Text(
+                "계약완료",
+                color = Color(0xFF0E9F56), fontSize = 11.sp, fontWeight = FontWeight.ExtraBold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp)).background(Color(0xFFE5F8EE))
+                    .padding(horizontal = 10.dp, vertical = 5.dp)
+            )
+        } else if (lead.replied) {
             Text(
                 "답장함",
                 color = TossTextTertiary, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold,
