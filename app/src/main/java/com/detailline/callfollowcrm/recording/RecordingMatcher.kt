@@ -35,14 +35,14 @@ object RecordingMatcher {
         // 기존 Customer 만 매칭. 없으면 customerId=null 로 두고 phoneNumber 만 보관.
         val customerId: Long? = phone?.let { container.customerRepository.findByPhone(it)?.id }
 
-        // 가까운 시간의 CallRecord 찾기 (±10분)
+        // CallRecord 찾기 — 녹음 시각(통화 시작)이 통화 [시작-10분 ~ 종료+10분] 안이면 연결(긴 통화 대응).
         var linkedCallRecordId: Long? = null
         if (phone != null && parsed != null) {
-            val from = parsed.recordedAt - 10 * 60 * 1000
-            val to = parsed.recordedAt + 10 * 60 * 1000
+            val recAt = parsed.recordedAt
+            val win = 10 * 60 * 1000L
             runCatching {
                 val list = container.callRecordRepository.observeByPhone(phone).first()
-                linkedCallRecordId = list.firstOrNull { it.endedAt in from..to }?.id
+                linkedCallRecordId = list.firstOrNull { val s = it.startedAt ?: it.endedAt; recAt >= s - win && recAt <= it.endedAt + win }?.id
             }
         }
 

@@ -568,10 +568,13 @@ fun ChatScreen(
                                 )
                             }
                             is ChatTimelineItem.Call -> {
-                                // 통화 시각(±10분)으로 짝지어지는 요약이 있으면 "AI 요약됨" 상태로 렌더.
+                                // 요약 시각(=통화 시작)이 통화 [시작-10분 ~ 종료+10분] 안이면 그 통화 요약.
+                                //   종료시각만 비교하면 10분 넘는 통화는 못 맞음(시작↔종료 간격 > 10분).
+                                val win = 10 * 60 * 1000L
+                                val callStart = ti.record.startedAt ?: ti.record.endedAt
                                 val matched = callSummaries.firstOrNull {
-                                    it.recordedAt != null &&
-                                        kotlin.math.abs(it.recordedAt - ti.record.endedAt) < 10 * 60 * 1000L
+                                    val r = it.recordedAt
+                                    r != null && r >= callStart - win && r <= ti.record.endedAt + win
                                 }
                                 CallSegment(
                                     record = ti.record,

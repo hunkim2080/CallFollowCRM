@@ -114,14 +114,14 @@ object AdotSummaryImporter {
             else -> null
         }
 
-        // 2) CallRecord 매칭 (±10분)
+        // 2) CallRecord 매칭 — 요약 시각(통화 시작)이 통화 [시작-10분 ~ 종료+10분] 안이면 연결(긴 통화 대응).
         var linkedCallRecordId: Long? = null
-        if (parsed.phoneNumber != null && parsed.recordedAt != null) {
-            val from = parsed.recordedAt - 10 * 60 * 1000
-            val to = parsed.recordedAt + 10 * 60 * 1000
+        val recAt = parsed.recordedAt
+        if (parsed.phoneNumber != null && recAt != null) {
+            val win = 10 * 60 * 1000L
             runCatching {
                 val list = container.callRecordRepository.observeByPhone(parsed.phoneNumber).first()
-                linkedCallRecordId = list.firstOrNull { it.endedAt in from..to }?.id
+                linkedCallRecordId = list.firstOrNull { val s = it.startedAt ?: it.endedAt; recAt >= s - win && recAt <= it.endedAt + win }?.id
             }
         }
 

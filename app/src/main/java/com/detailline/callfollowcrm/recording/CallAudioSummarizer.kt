@@ -52,10 +52,10 @@ object CallAudioSummarizer {
         var direction = "incoming"
         var durationSec = 0
         runCatching {
-            val from = recordedAt - 10 * 60 * 1000
-            val to = recordedAt + 10 * 60 * 1000
+            // 요약 시각(통화 시작)이 통화 [시작-10분 ~ 종료+10분] 안인 통화기록과 연결(긴 통화 대응).
+            val win = 10 * 60 * 1000L
             val rec = container.callRecordRepository.observeByPhone(phone).first()
-                .firstOrNull { it.endedAt in from..to }
+                .firstOrNull { val s = it.startedAt ?: it.endedAt; recordedAt >= s - win && recordedAt <= it.endedAt + win }
             if (rec != null) {
                 linkedCallRecordId = rec.id
                 durationSec = (rec.duration).toInt().coerceAtLeast(0)

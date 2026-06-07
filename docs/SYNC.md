@@ -3322,3 +3322,10 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 - 흐름(무료, 사용자 0원): 에이닷 "녹음 파일 공유" → RING-GO → 자동 업로드 → 통화카드 요약. 유료 txt 경로는 fallback 유지.
 - commit: (아래)
 - 다음 액션: (없음) · 사장님 실기기 공유 테스트 대기.
+
+## 2026-06-08 (저녁) · android · fix
+통화 요약이 통화카드에 안 뜨던 버그 수정 — 시각 매칭 윈도우.
+- 증상: 11분 통화의 음성요약 저장됐는데 카드에 "AI 요약됨" 안 뜸.
+- 원인: 요약 시각(=통화 **시작**, 파일명) vs 통화 **종료** 시각을 ±10분으로 비교 → 10분 넘는 통화는 시작↔종료 간격이 10분 초과라 매칭 실패. 연결(callRecordId)도 같은 버그.
+- 수정: 통화 [시작-10분 ~ 종료+10분] 구간 안이면 매칭(startedAt nullable → endedAt fallback). ChatScreen 표시 + CallAudioSummarizer/AdotSummaryImporter/RecordingMatcher 연결 4곳.
+- commit: (아래)
