@@ -3294,3 +3294,9 @@ MMS(사진/첨부 문자) 감지 추가 — MMS 로 처음 연락온 번호가 "
 - **서버(사장님 직접요청)**: DELETE /api/team/photo 에 owner_phone 인증 추가 → 사장이 퇴사한 팀원 사진도 삭제. **맥미니 deploy 필요**. commit f445099
 - 미해결/검증대기: 하단 탭 가끔 안눌림(live 비교 fix+로그 심음), 받은문자 알림 탭. 사장님 폰 검증 중.
 - 다음 액션(서버 Claude): git pull + bash server/deploy_phase1.sh (call-summary 톤 + team/photo owner 삭제 반영)
+
+## 2026-06-07 · [android→server]
+main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
+- 변경: `_build_today_card_html(photos/notes: list[dict] | None)` → `Optional[list[dict]]`. route handler 아니라 당장 502 아님이나, 사장님 룰(Python 3.9 = Optional 형태)대로 통일.
+- commit: (아래)
+- 다음 액션 (server/cowork): 맥미니에서 `git pull` + `bash server/deploy_phase1.sh` 재배포

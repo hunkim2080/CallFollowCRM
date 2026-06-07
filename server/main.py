@@ -8375,8 +8375,8 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
 """
 
 
-def _build_today_card_html(item: dict, date_label: str = "", photos: list[dict] | None = None,
-                           notes: list[dict] | None = None) -> str:
+def _build_today_card_html(item: dict, date_label: str = "", photos: Optional[list[dict]] = None,
+                           notes: Optional[list[dict]] = None) -> str:
     """오늘 현장 카드 HTML — 프로토 openMemberView 기반 + 전문성 보강(날짜·정보줄·진행단계·사진 X/20).
 
     진행 단계바(#mv-stepper)와 하단 액션바는 클라이언트 JS(renderProgress)가 STATUS 로 그린다.
