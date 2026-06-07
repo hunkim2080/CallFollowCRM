@@ -85,7 +85,12 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
+import kotlinx.coroutines.launch
 import java.util.Calendar
+
+// 월 전환 Pager 풀 — 가운데(기준달) ± 1200달(±100년). 충분히 넓어 끝에 닿을 일 없음.
+private const val SCHEDULE_PAGER_CENTER = 1200
+private const val SCHEDULE_PAGER_COUNT = 2401
 
 /**
  * 시공 예약 화면 — 캘린더 그리드 기반 (2026-05-24 사장님 요청, 갤메 캘린더 패턴 벤치마킹).
@@ -100,7 +105,7 @@ import java.util.Calendar
  * 과거 + 미래 시공 모두 캘린더로 표현 — 사장님 의도: "그동안 한 시공도, 앞으로 할 시공도 한 화면".
  *   기존 "지난 예약 펼치기" 섹션은 제거 (캘린더 ◀ 로 충분).
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun ScheduleScreen(
     viewModel: ScheduleViewModel,
@@ -120,10 +125,17 @@ fun ScheduleScreen(
         initialSelectedDayMs?.takeIf { it > 0L }?.let { DateTimeUtils.startOfDay(it) } ?: todayStart
     }
 
-    // 보고 있는 달의 anchor (그 달 1일 startOfDay). 화살표로 이동.
-    //   rememberSaveable: 고객정보 등으로 갔다 와도(화면이 composition 을 떠나도) 보던 달 유지. 2026-06-04.
-    var viewedMonthAnchor by rememberSaveable {
-        mutableLongStateOf(monthAnchor(initialDay))
+    // 월 전환 = HorizontalPager (손가락을 1:1 로 따라오고 놓으면 한 달 스냅). 2026-06-07 사장님 통점3:
+    //   "터치하면 넘어갈게~ 가 아니라 손 따라오는 느낌" → detectDrag+AnimatedContent 폐기하고 Pager 로 교체.
+    //   기준달(baseAnchor)을 가운데 페이지(INITIAL_PAGE)에 두고, page-INITIAL_PAGE 만큼 달을 민다.
+    val pagerScope = androidx.compose.runtime.rememberCoroutineScope()
+    val baseAnchor = remember(initialDay) { monthAnchor(initialDay) }
+    val pagerState = androidx.compose.foundation.pager.rememberPagerState(
+        initialPage = SCHEDULE_PAGER_CENTER
+    ) { SCHEDULE_PAGER_COUNT }
+    // 보고 있는 달 anchor (정착 페이지 기준) — 헤더/선택 로직이 참조. pagerState 가 rememberSaveable 라 복귀해도 유지.
+    val viewedMonthAnchor by remember {
+        androidx.compose.runtime.derivedStateOf { shiftMonth(baseAnchor, pagerState.currentPage - SCHEDULE_PAGER_CENTER) }
     }
     // 선택된 날 (null = 오늘). 셀 탭으로 변경.
     //   rememberSaveable: 고객정보 갔다 오면 선택 날짜가 "오늘"로 풀리던 버그 fix(2026-06-04 사장님 보고).
@@ -199,35 +211,15 @@ fun ScheduleScreen(
             //   사장님 요청 (2026-05-24): "캘린더에서 스와이프하면 월이 넘어갔으면".
             //   pointerInput(detectHorizontalDragGestures) — LazyColumn 의 세로 스크롤과 충돌 없음.
             item(key = "calendar-block") {
-                Column(
-                    modifier = Modifier.pointerInput(Unit) {
-                        var accumulatedX = 0f
-                        // 2026-06-07 사장님: 한 번 밀면 한 달만. triggered 로 한 제스처당 1회만 넘기게(주르륵 방지).
-                        var triggered = false
-                        detectHorizontalDragGestures(
-                            onDragEnd = { accumulatedX = 0f; triggered = false },
-                            onDragCancel = { accumulatedX = 0f; triggered = false }
-                        ) { _, dragAmount ->
-                            if (triggered) return@detectHorizontalDragGestures
-                            accumulatedX += dragAmount
-                            val threshold = 80f  // 손가락 ~20dp 이상 끌면 트리거
-                            if (accumulatedX > threshold) {
-                                viewedMonthAnchor = shiftMonth(viewedMonthAnchor, -1)
-                                triggered = true
-                            } else if (accumulatedX < -threshold) {
-                                viewedMonthAnchor = shiftMonth(viewedMonthAnchor, +1)
-                                triggered = true
-                            }
-                        }
-                    }
-                ) {
+                Column {
                     MonthHeader(
                         anchorMs = viewedMonthAnchor,
-                        onPrev = { viewedMonthAnchor = shiftMonth(viewedMonthAnchor, -1) },
-                        onNext = { viewedMonthAnchor = shiftMonth(viewedMonthAnchor, +1) },
+                        onPrev = { pagerScope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) } },
+                        onNext = { pagerScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } },
                         onTapToday = {
-                            viewedMonthAnchor = monthAnchor(System.currentTimeMillis())
                             selectedDayMs = todayStart
+                            val target = SCHEDULE_PAGER_CENTER + monthsBetween(baseAnchor, monthAnchor(System.currentTimeMillis()))
+                            pagerScope.launch { pagerState.animateScrollToPage(target) }
                         }
                     )
                     // cal-card — 흰 카드 안에 요일 헤더 + 6주 그리드 (프로토 .cal-card)
@@ -239,24 +231,14 @@ fun ScheduleScreen(
                             .padding(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 16.dp)
                     ) {
                         DowHeader()
-                        // 2026-06-07 사장님 통점: 월 넘길 때 "휙휙" 바뀜 → 방향성 슬라이드+페이드로 부드럽게.
-                        androidx.compose.animation.AnimatedContent(
-                            targetState = viewedMonthAnchor,
-                            transitionSpec = {
-                                // 2026-06-07 사장님 통점2: 슬라이드가 너무 빨라 "휙" 넘어감 → 천천히 미끄러지게(600ms + 감속 이징).
-                                val forward = targetState > initialState
-                                val dir = if (forward) 1 else -1
-                                (slideInHorizontally(tween(600, easing = FastOutSlowInEasing)) { w -> dir * w } +
-                                    fadeIn(tween(600, easing = FastOutSlowInEasing)))
-                                    .togetherWith(
-                                        slideOutHorizontally(tween(600, easing = FastOutSlowInEasing)) { w -> -dir * w } +
-                                            fadeOut(tween(600, easing = FastOutSlowInEasing))
-                                    )
-                            },
-                            label = "calMonth"
-                        ) { anchor ->
+                        // 월 그리드 = HorizontalPager. 손가락을 1:1 로 따라오고 놓으면 한 달씩 스냅(2026-06-07).
+                        androidx.compose.foundation.pager.HorizontalPager(
+                            state = pagerState,
+                            verticalAlignment = Alignment.Top
+                        ) { page ->
+                            val anchor = shiftMonth(baseAnchor, page - SCHEDULE_PAGER_CENTER)
                             val monthCells = buildCalendarCells(anchor, state.all, todayStart)
-                            Column {
+                            Column(modifier = Modifier.fillMaxWidth()) {
                                 repeat(6) { week ->
                                     CalendarWeekRow(
                                         cells = monthCells.subList(week * 7, week * 7 + 7),
@@ -767,6 +749,13 @@ private fun shiftMonth(anchorMs: Long, delta: Int): Long {
         set(Calendar.DAY_OF_MONTH, 1)
     }
     return cal.timeInMillis
+}
+
+/** fromAnchor → toAnchor 사이의 달 수(부호 있음). page 인덱스 계산용. */
+private fun monthsBetween(fromAnchor: Long, toAnchor: Long): Int {
+    val a = Calendar.getInstance().apply { timeInMillis = fromAnchor }
+    val b = Calendar.getInstance().apply { timeInMillis = toAnchor }
+    return (b.get(Calendar.YEAR) - a.get(Calendar.YEAR)) * 12 + (b.get(Calendar.MONTH) - a.get(Calendar.MONTH))
 }
 
 /**
