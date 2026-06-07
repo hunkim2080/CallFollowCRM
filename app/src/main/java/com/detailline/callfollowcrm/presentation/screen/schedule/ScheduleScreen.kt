@@ -202,18 +202,21 @@ fun ScheduleScreen(
                 Column(
                     modifier = Modifier.pointerInput(Unit) {
                         var accumulatedX = 0f
+                        // 2026-06-07 사장님: 한 번 밀면 한 달만. triggered 로 한 제스처당 1회만 넘기게(주르륵 방지).
+                        var triggered = false
                         detectHorizontalDragGestures(
-                            onDragEnd = { accumulatedX = 0f },
-                            onDragCancel = { accumulatedX = 0f }
+                            onDragEnd = { accumulatedX = 0f; triggered = false },
+                            onDragCancel = { accumulatedX = 0f; triggered = false }
                         ) { _, dragAmount ->
+                            if (triggered) return@detectHorizontalDragGestures
                             accumulatedX += dragAmount
                             val threshold = 80f  // 손가락 ~20dp 이상 끌면 트리거
                             if (accumulatedX > threshold) {
                                 viewedMonthAnchor = shiftMonth(viewedMonthAnchor, -1)
-                                accumulatedX = 0f
+                                triggered = true
                             } else if (accumulatedX < -threshold) {
                                 viewedMonthAnchor = shiftMonth(viewedMonthAnchor, +1)
-                                accumulatedX = 0f
+                                triggered = true
                             }
                         }
                     }
@@ -240,14 +243,14 @@ fun ScheduleScreen(
                         androidx.compose.animation.AnimatedContent(
                             targetState = viewedMonthAnchor,
                             transitionSpec = {
-                                // 2026-06-07 사장님 통점2: 슬라이드가 너무 빨라 "휙" 넘어감 → 천천히 미끄러지게(450ms + 감속 이징).
+                                // 2026-06-07 사장님 통점2: 슬라이드가 너무 빨라 "휙" 넘어감 → 천천히 미끄러지게(600ms + 감속 이징).
                                 val forward = targetState > initialState
                                 val dir = if (forward) 1 else -1
-                                (slideInHorizontally(tween(450, easing = FastOutSlowInEasing)) { w -> dir * w } +
-                                    fadeIn(tween(450, easing = FastOutSlowInEasing)))
+                                (slideInHorizontally(tween(600, easing = FastOutSlowInEasing)) { w -> dir * w } +
+                                    fadeIn(tween(600, easing = FastOutSlowInEasing)))
                                     .togetherWith(
-                                        slideOutHorizontally(tween(450, easing = FastOutSlowInEasing)) { w -> -dir * w } +
-                                            fadeOut(tween(450, easing = FastOutSlowInEasing))
+                                        slideOutHorizontally(tween(600, easing = FastOutSlowInEasing)) { w -> -dir * w } +
+                                            fadeOut(tween(600, easing = FastOutSlowInEasing))
                                     )
                             },
                             label = "calMonth"
