@@ -159,6 +159,8 @@ fun CustomerDetailScreen(
     var celebrationVisible by remember { mutableStateOf(false) }
     // 현장 사진 삭제 확인 — null 이면 닫힘, 값 = 삭제 대상 photo id.
     var photoToDelete by remember { mutableStateOf<Long?>(null) }
+    // 팀원(서버) 사진 삭제 확인 — 사장님이 퇴사한 팀원 사진도 지울 수 있게. (2026-06-07)
+    var teamPhotoToDelete by remember { mutableStateOf<Long?>(null) }
 
     // composer 는 bottomBar 로 이동됨. 스크롤 영향 안 받아 bringIntoView 등 복잡한 로직 불필요.
     val scrollState = rememberScrollState()
@@ -547,13 +549,18 @@ fun CustomerDetailScreen(
                                 TossSecondaryButton(text = "💰 총금액 입력", onClick = { amountEditField = "total" })
                             }
                         } else {
+                            // 2026-06-07 사장님 통점: 통화로 다 정해졌는데 일정 등록하려면 견적서 보내기밖에 없었음(고객이 또 입력).
+                            //   → 이 자리에서 바로 "시공일 등록 / 총금액 입력". 고객 재입력 불필요. (견적서 경로도 보조로 유지)
                             Text(
-                                "아직 견적·일정 전이에요.\n견적서를 보내 일정·계약금을 한 번에 잡아보세요.",
+                                "통화로 정해졌으면 여기서 바로 등록하세요. 고객에게 또 입력시키지 않아도 돼요.",
                                 fontSize = 13.5.sp, color = TossTextSecondary, lineHeight = 21.sp
                             )
                             Spacer(Modifier.height(13.dp))
-                            // 프로토엔 "견적서 보내기" 하나만 — "📅 시공 예약일 설정" 버튼 제거(2026-06-03 사장님 결정).
-                            TossPrimaryButton(text = "견적서 보내기", onClick = { onOpenChat(c.phoneNumber, c.id) })
+                            TossPrimaryButton(text = "📅 시공일 등록", onClick = { datePickerOpen = true })
+                            Spacer(Modifier.height(8.dp))
+                            TossSecondaryButton(text = "💰 받을 돈(총금액) 입력", onClick = { amountEditField = "total" })
+                            Spacer(Modifier.height(8.dp))
+                            TossSecondaryButton(text = "견적서로 보내기", onClick = { onOpenChat(c.phoneNumber, c.id) })
                         }
                     }
                 }
@@ -650,6 +657,17 @@ fun CustomerDetailScreen(
                                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                                             ) {
                                                 Text(cell.uploaderName, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                            }
+                                            // 삭제 ✕ 배지 — 사장님은 팀원(퇴사 포함) 사진도 삭제 가능. (2026-06-07)
+                                            androidx.compose.foundation.layout.Box(
+                                                Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(4.dp)
+                                                    .size(22.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.45f))
+                                                    .clickable { teamPhotoToDelete = cell.photoId },
+                                                contentAlignment = androidx.compose.ui.Alignment.Center
+                                            ) {
+                                                androidx.compose.material3.Icon(
+                                                    Icons.Default.Close, "삭제", tint = Color.White, modifier = Modifier.size(13.dp)
+                                                )
                                             }
                                         }
                                     }
@@ -1032,6 +1050,23 @@ fun CustomerDetailScreen(
             },
             dismissButton = {
                 TextButton(onClick = { photoToDelete = null }) { Text("취소", color = TossTextSecondary) }
+            }
+        )
+    }
+
+    // 팀원 사진 삭제 확인 (서버) — 사장님이 퇴사한 팀원 사진도 정리.
+    teamPhotoToDelete?.let { pid ->
+        AlertDialog(
+            onDismissRequest = { teamPhotoToDelete = null },
+            title = { Text("이 사진을 삭제할까요?", fontWeight = FontWeight.Bold) },
+            text = { Text("팀원이 올린 현장 사진을 지웁니다. 팀원 화면에서도 사라지고 되돌릴 수 없어요.") },
+            confirmButton = {
+                TextButton(onClick = { viewModel.deleteTeamPhoto(pid); teamPhotoToDelete = null }) {
+                    Text("삭제", color = Color(0xFFF0436A), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { teamPhotoToDelete = null }) { Text("취소", color = TossTextSecondary) }
             }
         )
     }

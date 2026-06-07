@@ -121,6 +121,21 @@ class CustomerDetailViewModel(
         _toast.value = "사진을 삭제했어요"
     }
 
+    /** 팀원이 올린(서버) 현장 사진을 사장님이 삭제 — 퇴사한 팀원 사진도 정리 가능. (2026-06-07) */
+    fun deleteTeamPhoto(photoId: Long) = viewModelScope.launch {
+        val owner = container.preferences.bizPhone.trim()
+        if (owner.isBlank()) { _toast.value = "사업자 전화번호가 없어요"; return@launch }
+        val cust = customer.value?.phoneNumber?.trim().orEmpty()
+        val res = withContext(NonCancellable) {
+            container.sitePhotoServerRepository.deletePhotoAsOwner(owner, photoId)
+        }
+        res.onSuccess {
+            _teamPhotos.value = _teamPhotos.value.filterNot { it.photoId == photoId }
+            _toast.value = "사진을 삭제했어요"
+            if (cust.isNotBlank()) refreshTeamPhotos()
+        }.onFailure { _toast.value = "삭제 실패 — 잠시 후 다시" }
+    }
+
     // 2026-05-29 킬러콘텐츠 5단계 — 고객 페르소나 (cowork prepare-reply 가 자동 생성).
     //   안드는 GET /api/customer-persona/{phone} 으로 cache 조회만.
     //   customer flow 받으면 phone 으로 fetch — 자동 갱신.
@@ -321,6 +336,8 @@ class CustomerDetailViewModel(
         withContext(NonCancellable) {
             container.customerRepository.updateScheduledWorkDate(customerId, normalized)
             markTodayCallsAsHandled()
+            // 날짜 등록(계약) = "시공 대기" 자동 분류. 날짜 해제 시 자격 재평가. (2026-06-07 카테고리 규칙)
+            container.autoCategoryClassifier.reclassify(customerId)
         }
     }
 

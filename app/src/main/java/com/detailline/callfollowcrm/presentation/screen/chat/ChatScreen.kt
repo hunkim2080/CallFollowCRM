@@ -784,6 +784,9 @@ fun ChatScreen(
             category = "",
             templates = templates,
             onPick = { tpl -> input = if (input.isBlank()) tpl.body else input + "\n" + tpl.body; tplPickerOpen = false },
+            onDelete = { id -> viewModel.deleteTemplate(id) },
+            onSaveCurrent = { viewModel.saveTextAsTemplate(input) },
+            canSaveCurrent = input.isNotBlank(),
             onDismiss = { tplPickerOpen = false }
         )
     }
@@ -887,6 +890,9 @@ fun ChatScreen(
                 depositPrefillScheduledMs = null
                 templatePickerCategory = null
             },
+            onDelete = { id -> viewModel.deleteTemplate(id) },
+            onSaveCurrent = { viewModel.saveTextAsTemplate(input) },
+            canSaveCurrent = input.isNotBlank(),
             onDismiss = {
                 depositPrefillScheduledMs = null
                 templatePickerCategory = null
@@ -2199,6 +2205,9 @@ private fun TemplatePickerDialog(
     category: String,
     templates: List<MessageTemplateEntity>,
     onPick: (MessageTemplateEntity) -> Unit,
+    onDelete: (Long) -> Unit = {},
+    onSaveCurrent: () -> Unit = {},
+    canSaveCurrent: Boolean = false,
     onDismiss: () -> Unit
 ) {
     val filtered = remember(templates, category) {
@@ -2207,8 +2216,8 @@ private fun TemplatePickerDialog(
         // 카테고리 비어있으면 사장님이 직접 고르도록 전체로 fallback
         byCategory.ifEmpty { templates }
     }
-    val title = if (category.isBlank()) "템플릿 선택"
-    else "${categoryLabel(category)} 템플릿"
+    val title = if (category.isBlank()) "문구 넣기"
+    else "${categoryLabel(category)} 문구"
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -2216,40 +2225,66 @@ private fun TemplatePickerDialog(
             Text(title, color = TossTextPrimary, fontWeight = FontWeight.Bold)
         },
         text = {
-            if (filtered.isEmpty()) {
-                Text(
-                    "등록된 템플릿이 없어요.\n설정 → 템플릿에서 추가할 수 있어요.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TossTextTertiary
-                )
-            } else {
-                LazyColumn(
-                    modifier = Modifier.height(400.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+            Column(Modifier.fillMaxWidth()) {
+                // ＋ 새 문구 — 입력창에 쓴 글을 그대로 문구로 저장(키보드 없이, 채팅 흐름 그대로).
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(TossBlueSoft)
+                        .clickable { onSaveCurrent() }
+                        .padding(horizontal = 12.dp, vertical = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    items(filtered, key = { it.id }) { tpl ->
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(TossGrayBg)
-                                .clickable { onPick(tpl) }
-                                .padding(12.dp)
-                        ) {
-                            Text(
-                                tpl.title,
-                                color = TossBlue,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 14.sp
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                tpl.body,
-                                color = TossTextSecondary,
-                                fontSize = 13.sp,
-                                maxLines = 3,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                    Text("＋", color = TossBlue, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        if (canSaveCurrent) "지금 입력창에 쓴 글을 문구로 저장" else "입력창에 글을 쓴 뒤 누르면 문구로 저장돼요",
+                        color = TossBlue, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                if (filtered.isEmpty()) {
+                    Text(
+                        "아직 저장된 문구가 없어요. 위 ＋ 로 바로 추가할 수 있어요.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TossTextTertiary
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.height(360.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(filtered, key = { it.id }) { tpl ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(TossGrayBg),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(
+                                    modifier = Modifier.weight(1f).clickable { onPick(tpl) }.padding(12.dp)
+                                ) {
+                                    Text(
+                                        tpl.title, color = TossBlue,
+                                        fontWeight = FontWeight.SemiBold, fontSize = 14.sp
+                                    )
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        tpl.body, color = TossTextSecondary, fontSize = 13.sp,
+                                        maxLines = 3, overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                // ✕ 삭제 — 그 자리에서 바로. (확인창 없이 toast — 다시 ＋ 로 복구 가능)
+                                Box(
+                                    modifier = Modifier.clickable { onDelete(tpl.id) }
+                                        .padding(horizontal = 14.dp, vertical = 14.dp)
+                                ) {
+                                    Text("✕", color = TossTextTertiary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
                         }
                     }
                 }

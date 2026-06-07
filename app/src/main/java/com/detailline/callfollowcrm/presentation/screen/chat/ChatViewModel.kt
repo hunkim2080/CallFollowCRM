@@ -77,6 +77,29 @@ class ChatViewModel(
     val templates = container.messageTemplateRepository.observeActive()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList<MessageTemplateEntity>())
 
+    /** 문구 넣기 시트에서 바로 문구 삭제 (2026-06-07). */
+    fun deleteTemplate(id: Long) = viewModelScope.launch {
+        runCatching { container.messageTemplateRepository.deleteById(id) }
+        _toast.value = "문구를 지웠어요"
+    }
+
+    /** 입력창에 쓴 내용을 새 문구(템플릿)로 바로 저장 — 키보드 없이, 채팅 흐름 그대로. (2026-06-07) */
+    fun saveTextAsTemplate(text: String) = viewModelScope.launch {
+        val body = text.trim()
+        if (body.isBlank()) { _toast.value = "입력창에 문구를 먼저 쓰세요"; return@launch }
+        val now = System.currentTimeMillis()
+        val title = body.replace("\n", " ").trim().take(14).ifBlank { "새 문구" }
+        runCatching {
+            container.messageTemplateRepository.insert(
+                MessageTemplateEntity(
+                    title = title, body = body,
+                    category = com.detailline.callfollowcrm.domain.model.TemplateCategory.CUSTOM.name,
+                    isDefault = false, isActive = true, createdAt = now, updatedAt = now
+                )
+            )
+        }.onSuccess { _toast.value = "문구로 저장했어요 ✓" }.onFailure { _toast.value = "저장 실패" }
+    }
+
     /**
      * 채팅 중 "내 일정 확인" 시트용 — 시공일이 잡힌 모든 고객 (여러 날 시공 포함).
      *   고객과 대화하며 빈 날·가까운 현장을 바로 확인해 약속 잡기 좋게. (2026-06-01)

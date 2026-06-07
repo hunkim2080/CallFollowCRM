@@ -7726,29 +7726,40 @@ async def team_note_reply(req: TeamNoteReplyRequest) -> dict:
 
 
 @app.delete("/api/team/photo/{photo_id}")
-async def team_photo_delete(photo_id: int, token: str) -> dict:
-    """팀원이 자기가 잘못 올린 사진 삭제. 본인(member) + owner 일치할 때만.
-
-    남의 사진·사장님 사진은 못 지움(member_id 불일치 시 403). 사진은 사장님 고객 카드에서도 사라짐.
+async def team_photo_delete(
+    photo_id: int, token: str | None = None, owner_phone: str | None = None
+) -> dict:
+    """사진 삭제. 두 경로 허용:
+      - 팀원(token): 본인이 올린 사진만(member_id + owner_phone 일치).
+      - 사장님(owner_phone): 자기 현장 사진이면 누구 것이든 삭제(2026-06-07 — 퇴사한 팀원 사진 정리).
+    사진은 사장님 고객 카드/팀원 화면 양쪽에서 사라짐.
     """
     with db_conn() as con:
-        link = con.execute(
-            "SELECT member_id, owner_phone, expires_at_ms FROM team_member_links WHERE token = ?",
-            (token,),
-        ).fetchone()
-        if not link:
-            raise HTTPException(404, "유효하지 않은 토큰")
-        member_id, owner_phone, expires_at = link
-        if _now_ms() > expires_at:
-            raise HTTPException(410, "만료된 링크")
         ph = con.execute(
             "SELECT member_id, owner_phone FROM team_site_photos WHERE photo_id = ?",
             (photo_id,),
         ).fetchone()
         if not ph:
             raise HTTPException(404, "사진 없음")
-        if ph[1] != owner_phone or ph[0] != member_id:
-            raise HTTPException(403, "내가 올린 사진만 지울 수 있어요")
+        ph_member, ph_owner = ph[0], ph[1]
+        allowed = False
+        # 사장님 직접 삭제 — owner_phone 일치하면 그 현장 사진 전부 삭제 가능.
+        if owner_phone and owner_phone == ph_owner:
+            allowed = True
+        elif token:
+            link = con.execute(
+                "SELECT member_id, owner_phone, expires_at_ms FROM team_member_links WHERE token = ?",
+                (token,),
+            ).fetchone()
+            if not link:
+                raise HTTPException(404, "유효하지 않은 토큰")
+            m_id, m_owner, expires_at = link
+            if _now_ms() > expires_at:
+                raise HTTPException(410, "만료된 링크")
+            if ph_owner == m_owner and ph_member == m_id:
+                allowed = True
+        if not allowed:
+            raise HTTPException(403, "삭제 권한이 없어요")
         con.execute("DELETE FROM team_site_photos WHERE photo_id = ?", (photo_id,))
         con.commit()
     return {"ok": True, "photo_id": photo_id}

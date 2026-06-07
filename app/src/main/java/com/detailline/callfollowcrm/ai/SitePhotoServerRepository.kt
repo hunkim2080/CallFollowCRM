@@ -91,6 +91,21 @@ class SitePhotoServerRepository(
             }
         }
 
+    /** 사장님이 그 현장 사진 삭제 (퇴사한 팀원 사진 포함). owner_phone 일치로 서버 인증. */
+    suspend fun deletePhotoAsOwner(ownerPhone: String, photoId: Long): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val op = java.net.URLEncoder.encode(ownerPhone, "UTF-8")
+                val req = Request.Builder()
+                    .url("$baseUrl/api/team/photo/$photoId?owner_phone=$op")
+                    .delete().build()
+                client.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                    Unit
+                }
+            }
+        }
+
     suspend fun fetch(ownerPhone: String, customerPhone: String): Result<List<RemotePhoto>> =
         withContext(Dispatchers.IO) {
             runCatching {
