@@ -2,6 +2,7 @@ package com.detailline.callfollowcrm.presentation.screen.settlement
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -93,6 +94,7 @@ fun SettlementScreen(
     val active = remember(state.rows) { state.rows.filter { !it.calc.isPaidOff } }
     val done = remember(state.rows) { state.rows.filter { it.calc.isPaidOff } }
 
+    Box(Modifier.fillMaxSize()) {
     Scaffold(
         containerColor = TossGrayBg,
         topBar = {
@@ -180,13 +182,14 @@ fun SettlementScreen(
         )
     }
 
-    // 목표 수정
+    // 목표 수정 — 인라인 바텀 오버레이(액티비티 윈도우라 키보드가 안 가림). 2026-06-07
     if (showGoalEditor) {
-        GoalEditDialog(
+        GoalEditSheet(
             initialManwon = goalManwonHint(top),
             onConfirm = { viewModel.setMonthlyGoal(it); showGoalEditor = false },
             onDismiss = { showGoalEditor = false }
         )
+    }
     }
 }
 
@@ -627,26 +630,43 @@ private fun Avatar(name: String?, index: Int, small: Boolean = false) {
 
 /* ─────────────── 목표 수정 다이얼로그 ─────────────── */
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun GoalEditDialog(
+private fun GoalEditSheet(
     initialManwon: Int,
     onConfirm: (Int) -> Unit,
     onDismiss: () -> Unit
 ) {
-    // 프로토 inputSheet 1:1 — 가운데 팝업(AlertDialog) 아니라 아래에서 올라오는 바텀시트. 2026-06-07
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    // 프로토 inputSheet 모양(아래에서 올라오는 시트)이되, ModalBottomSheet(별도 윈도우)는 갤럭시에서
+    //   키보드가 시트를 가려버림 → 액티비티 윈도우 인라인 오버레이로 구현해 imePadding 으로 키보드 위에 띄움.
     var text by remember { mutableStateOf(if (initialManwon > 0) initialManwon.toString() else "") }
     val n = text.filter { it.isDigit() }.toIntOrNull() ?: 0
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = Color.White) {
+    val cardClick = remember { MutableInteractionSource() }
+    val scrimClick = remember { MutableInteractionSource() }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.32f))
+            .clickable(interactionSource = scrimClick, indication = null) { onDismiss() }
+    ) {
         Column(
-            modifier = Modifier
+            Modifier
+                .align(Alignment.BottomCenter)
                 .fillMaxWidth()
+                .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+                .background(Color.White)
+                .clickable(interactionSource = cardClick, indication = null) { /* 카드 탭은 닫힘 막기 */ }
                 .navigationBarsPadding()
                 .imePadding()
-                .padding(horizontal = 22.dp)
-                .padding(bottom = 18.dp)
+                .padding(start = 22.dp, end = 22.dp, top = 10.dp, bottom = 18.dp)
         ) {
+            Box(
+                Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(bottom = 14.dp)
+                    .width(40.dp).height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(TossDivider)
+            )
             Text("이번 달 목표 매출", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
             Spacer(Modifier.height(6.dp))
             Text("직접 정한 목표로 진행률을 보여드려요.", fontSize = 13.sp, color = TossTextSecondary)
