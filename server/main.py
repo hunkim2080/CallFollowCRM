@@ -33,7 +33,7 @@ from typing import Optional
 
 import anthropic
 import httpx
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, FileResponse, Response
 from pydantic import BaseModel, Field
 
@@ -5395,6 +5395,218 @@ async def call_summary_endpoint(req: CallSummaryRequest) -> dict:
         "generated_at_ms": _now_ms(),
     }
     summary_cache_set(req.phone, "call-summary", cache_ts, response_payload)
+    response_payload["_cache_hit"] = False
+    return response_payload
+
+
+# ============================================================================
+# §26 — POST /api/call-audio-summary (통화 녹음 → 로컬 Whisper STT → Haiku 요약)
+# ─────────────────────────────────────────────────────────────────────────────
+# 안드로이드 SERVER_HANDOFF 2026-06-08: 에이닷 "통화 텍스트 저장"이 유료 → 녹음
+# (m4a) 공유는 무료 → 사장님 결정 "무료 녹음 + 로컬 무료 STT".
+#
+# 흐름:
+#   1. 업로드된 오디오 (m4a/mp3/wav) → tempfile 저장
+#   2. faster-whisper "base" 모델 (~75MB, CPU int8) 로 한국어 STT → transcript
+#   3. transcript 를 기존 /api/call-summary 와 같은 Haiku 요약 (재사용)
+#   4. 응답 = {one_line, bullets, suggested_followup_sms, transcript}
+#   5. 캐시 키 (phone, "call-audio-summary", started_at_ms) — 재호출 시 STT+LLM 둘 다 0원
+#
+# 비용: API 0, 전기값만. Mac mini CPU 1분 통화 ~10초 처리.
+# 동시 호출 직렬화 (asyncio.Lock) — 메모리 보호.
+# ============================================================================
+
+_WHISPER_MODEL = None
+_WHISPER_LOCK: Optional["asyncio.Lock"] = None
+
+
+def _get_whisper_model():
+    """faster-whisper base 모델 lazy load (첫 호출 시 ~75MB 다운로드 + 메모리 적재)."""
+    global _WHISPER_MODEL
+    if _WHISPER_MODEL is not None:
+        return _WHISPER_MODEL
+    try:
+        from faster_whisper import WhisperModel
+    except ImportError as e:
+        raise HTTPException(
+            503,
+            "faster-whisper 패키지 미설치. requirements.txt 의 faster-whisper 설치 후 재시작 필요.",
+        ) from e
+    # CPU 모드 + int8 양자화 (Mac mini 호환 + 가장 가벼움)
+    _WHISPER_MODEL = WhisperModel("base", device="cpu", compute_type="int8")
+    print("[whisper] base 모델 로드 완료 (한국어 STT)")
+    return _WHISPER_MODEL
+
+
+def _whisper_lock() -> "asyncio.Lock":
+    """전역 lock — 동시 STT 호출 직렬화 (메모리/CPU 보호)."""
+    global _WHISPER_LOCK
+    if _WHISPER_LOCK is None:
+        _WHISPER_LOCK = asyncio.Lock()
+    return _WHISPER_LOCK
+
+
+def _audio_suffix(filename: Optional[str]) -> str:
+    """파일명 끝 확장자 안전 추출 (m4a/mp3/wav). 모르면 .m4a 기본."""
+    name = (filename or "").lower().strip()
+    for ext in (".m4a", ".mp3", ".wav", ".aac", ".ogg", ".flac"):
+        if name.endswith(ext):
+            return ext
+    return ".m4a"
+
+
+@app.post("/api/call-audio-summary")
+async def call_audio_summary_endpoint(
+    file: UploadFile = File(...),
+    phone: str = Form(...),
+    started_at_ms: int = Form(...),
+    direction: str = Form("incoming"),
+    duration_sec: int = Form(0),
+    customer_name: Optional[str] = Form(None),
+    customer_memo: Optional[str] = Form(None),
+    owner_tone_samples: Optional[str] = Form(None),  # JSON 배열 string (최대 10개)
+) -> dict:
+    """통화 녹음 → 로컬 Whisper STT → Haiku 요약 → one_line + bullets + 후속 문자 + transcript.
+
+    동기 응답. 통화 1분당 ~10초 예상 (Mac mini CPU). 앱은 read timeout 120s 권장.
+    """
+    if not phone:
+        raise HTTPException(400, "phone 필수")
+    phone_digits = "".join(ch for ch in phone if ch.isdigit())
+    if not phone_digits:
+        raise HTTPException(400, "phone 형식 오류")
+
+    cache_ts = started_at_ms or 0
+
+    # 1) 캐시 hit 시 STT + LLM 둘 다 skip
+    cached = summary_cache_get(phone_digits, "call-audio-summary", cache_ts)
+    if cached is not None:
+        print(f"[call-audio-summary] {phone_digits} → cache HIT (started_at_ms={cache_ts})")
+        return cached
+
+    check_rate_limit(phone_digits)
+
+    # 2) 오디오 파일 → tempfile
+    audio_data = await file.read()
+    if not audio_data:
+        raise HTTPException(400, "오디오 파일 비어있음")
+    if len(audio_data) > 50 * 1024 * 1024:  # 50MB cap (긴 통화 보호)
+        raise HTTPException(413, "오디오 파일 너무 큼 (50MB 이하)")
+
+    import tempfile
+    suffix = _audio_suffix(file.filename)
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(audio_data)
+        tmp_path = tmp.name
+
+    transcript = ""
+    try:
+        # 3) Whisper STT (한국어, 동시 호출 직렬화)
+        lock = _whisper_lock()
+        async with lock:
+            try:
+                model = _get_whisper_model()
+                # blocking inference 를 thread 로 (asyncio loop 보호)
+                def _run_stt() -> str:
+                    segments, _info = model.transcribe(
+                        tmp_path, language="ko", beam_size=5, vad_filter=True
+                    )
+                    parts = []
+                    for seg in segments:
+                        s = (seg.text or "").strip()
+                        if s:
+                            parts.append(s)
+                    return "\n".join(parts).strip()
+
+                transcript = await asyncio.to_thread(_run_stt)
+            except HTTPException:
+                raise
+            except Exception as e:
+                print(f"[call-audio-summary] Whisper STT 실패: {type(e).__name__}: {e}")
+                raise HTTPException(502, f"STT 실패: {type(e).__name__}")
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+
+    if not transcript:
+        raise HTTPException(422, "받아쓰기 결과 비어있음 (무음 또는 인식 불가)")
+
+    print(
+        f"[call-audio-summary] {phone_digits} STT 완료 "
+        f"(audio={len(audio_data)//1024}KB transcript={len(transcript)}자)"
+    )
+
+    # 4) owner_tone_samples JSON 파싱 (실패 시 빈 list)
+    samples_list: list[str] = []
+    if owner_tone_samples:
+        try:
+            parsed_samples = json.loads(owner_tone_samples)
+            if isinstance(parsed_samples, list):
+                samples_list = [str(s) for s in parsed_samples if s][:10]
+        except Exception:
+            samples_list = []
+
+    # 5) 기존 /api/call-summary 와 같은 패턴으로 user message 빌드
+    user_lines: list[str] = []
+    user_lines.append("[고객 정보]")
+    user_lines.append(f"전화번호: {phone_digits}")
+    user_lines.append(f"이름: {customer_name or '미등록'}")
+    if customer_memo:
+        user_lines.append(f"메모: {customer_memo}")
+    user_lines.append("")
+    user_lines.append("[통화 메타]")
+    user_lines.append(f"방향: {direction}")
+    user_lines.append(f"길이(초): {duration_sec}")
+    user_lines.append(f"시작 시각(epoch ms): {started_at_ms}")
+    user_lines.append("")
+    user_lines.append("[통화 받아쓰기 — Whisper STT]")
+    raw = transcript
+    if len(raw) > 8000:
+        raw = raw[:8000] + "\n…(truncated)"
+    user_lines.append(raw)
+    user_msg = "\n".join(user_lines)
+
+    system_prompt = _build_summary_system_prompt(CALL_SUMMARY_SYSTEM, samples_list)
+
+    try:
+        parsed, response = await call_claude_json(
+            system_prompt=system_prompt,
+            user_msg=user_msg,
+            max_tokens=600,
+            model=HAIKU_MODEL,
+        )
+    except Exception as e:
+        print(f"[call-audio-summary] {phone_digits} Claude 호출 실패: {type(e).__name__}: {e}")
+        raise HTTPException(502, f"LLM 호출 실패: {type(e).__name__}")
+
+    log_usage(phone_digits, "call-audio-summary", response)
+    _log_llm_usage_from_response("call-audio-summary", response)
+    usage = response.usage
+    print(
+        f"[call-audio-summary] {phone_digits} → ready "
+        f"(in={getattr(usage,'input_tokens',0)} "
+        f"cache_read={getattr(usage,'cache_read_input_tokens',0)} "
+        f"out={getattr(usage,'output_tokens',0)})"
+    )
+
+    try:
+        coerced = _coerce_call_summary(parsed)
+    except ValueError as e:
+        raise HTTPException(502, f"LLM 응답 형식 오류: {e}")
+
+    response_payload = {
+        **coerced,
+        "transcript": transcript,
+        "phone": phone_digits,
+        "direction": direction,
+        "duration_sec": duration_sec,
+        "started_at_ms": started_at_ms,
+        "generated_at_ms": _now_ms(),
+    }
+    # 캐시 저장 (transcript 포함 — 같은 통화 재호출 시 STT+LLM 둘 다 0원)
+    summary_cache_set(phone_digits, "call-audio-summary", cache_ts, response_payload)
     response_payload["_cache_hit"] = False
     return response_payload
 
