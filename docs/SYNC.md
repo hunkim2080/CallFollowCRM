@@ -3394,3 +3394,12 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 - #6 시공 **예약 취소(일정 비우기)**: 고객카드 '시공 예약' 행 탭 → 날짜 다이얼로그에 **'예약 취소'** 버튼(기존 예약 있을 때) → updateScheduledWorkDate(null). 고객이 시공 취소 시 사용.
 - 빌드+폰 설치+실행 OK(스모크). 제스처(스와이프/미리보기 왕복/취소)는 사장님 실사용 확인 권장.
 - commit: (아래)
+
+## 2026-06-09 00:00 · android · 협업 캘린더 보라점 보강 + 알림 핸드오프
+사장님 보고 #7/#8 이어받아 처리.
+- #7 협업 승인 현장 캘린더 표시: ScheduleViewModel 이 `/api/shared/with-me` 의 accepted + scheduled_at_ms 를 startOfDay set 으로 만들고, ScheduleScreen 캘린더 셀에 **내 시공 점 + 협업 보라점**을 함께 표시. 일정 화면 진입 시 loadCollab 재호출로 수락 후 복귀 갱신 보강.
+- SharedSiteRepository: `with-me`, `owner-exists` query 를 OkHttp HttpUrl.Builder 로 변경. `+82` 번호가 query 에서 깨질 수 있는 위험 제거.
+- #8 협업 출발/도착/완료 알림: 앱 폴러는 서버 endpoint 필요. `docs/SERVER_HANDOFF_collab_notify_calendar.md` 작성 — `/api/shared/progress` 이벤트 적재 + `GET /api/shared/owner-events` 요청.
+- 검증: `JAVA_HOME=C:\Program Files\Android\Android Studio\jbr` 로 `gradlew.bat :app:assembleDebug` 성공. 경고는 기존 ScheduleScreen onBack 미사용 1건.
+- commit: fbc9cee
+- 다음 액션(맥미니 Claude): `docs/SERVER_HANDOFF_collab_notify_calendar.md` 확인 후 owner-events endpoint 구현, SYNC 회신. 그 뒤 앱에서 CollabEventCenter 폴러/알림 연결.

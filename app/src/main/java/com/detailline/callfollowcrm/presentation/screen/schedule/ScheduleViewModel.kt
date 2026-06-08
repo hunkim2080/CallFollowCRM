@@ -43,6 +43,10 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
     private val _teamMembers = MutableStateFlow<List<TeamRepository.TeamMember>>(emptyList())
     val teamMembers = _teamMembers.asStateFlow()
 
+    /** 내가 수락한 협업 현장의 날짜(startOfDay) — 캘린더 보라점. (2026-06-08 #7) */
+    private val _collabDayStarts = MutableStateFlow<Set<Long>>(emptySet())
+    val collabDayStarts = _collabDayStarts.asStateFlow()
+
     /** 고객(현장)별 배정된 팀원 — 일정 카드 배정 줄이 구독. */
     val assignmentsByCustomer: StateFlow<Map<Long, List<TeamAssignmentEntity>>> =
         container.teamAssignmentRepository.observeAll()
@@ -53,12 +57,25 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
     val toast = _toast.asStateFlow()
     fun consumeToast() { _toast.value = null }
 
-    init { loadTeam() }
+    init { loadTeam(); loadCollab() }
 
     fun loadTeam() {
         if (ownerPhone.isBlank()) return
         viewModelScope.launch {
             container.teamRepository.members(ownerPhone).onSuccess { _teamMembers.value = it }
+        }
+    }
+
+    /** 내가 수락한 협업 현장 → 캘린더 보라점용 날짜 set. 서버 with-me. (2026-06-08 #7) */
+    fun loadCollab() {
+        if (ownerPhone.isBlank()) return
+        viewModelScope.launch {
+            container.sharedSiteRepository.withMe(ownerPhone).onSuccess { sites ->
+                _collabDayStarts.value = sites
+                    .filter { it.status == "accepted" && it.scheduledAtMs > 0L }
+                    .map { DateTimeUtils.startOfDay(it.scheduledAtMs) }
+                    .toSet()
+            }
         }
     }
 

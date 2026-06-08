@@ -3,6 +3,7 @@ package com.detailline.callfollowcrm.ai
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -74,7 +75,12 @@ class SharedSiteRepository(
     suspend fun withMe(phone: String, sinceMs: Long = 0L, limit: Int = 50): Result<List<SharedSite>> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val url = "$baseUrl/api/shared/with-me?phone=$phone&since_ms=$sinceMs&limit=$limit"
+                val url = baseUrl.toHttpUrl().newBuilder()
+                    .addPathSegments("api/shared/with-me")
+                    .addQueryParameter("phone", phone)
+                    .addQueryParameter("since_ms", sinceMs.toString())
+                    .addQueryParameter("limit", limit.toString())
+                    .build()
                 val req = Request.Builder().url(url).get().build()
                 client.newCall(req).execute().use { resp ->
                     if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
@@ -157,7 +163,11 @@ class SharedSiteRepository(
     /** 상대 번호가 가입 사장인지(인앱 vs 링크 분기). 서버 없으면 false(=링크 경로). */
     suspend fun ownerExists(phone: String): Result<Boolean> = withContext(Dispatchers.IO) {
         runCatching {
-            val req = Request.Builder().url("$baseUrl/api/owner/exists?phone=$phone").get().build()
+            val url = baseUrl.toHttpUrl().newBuilder()
+                .addPathSegments("api/owner/exists")
+                .addQueryParameter("phone", phone)
+                .build()
+            val req = Request.Builder().url(url).get().build()
             client.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
                 JSONObject(resp.body?.string().orEmpty()).optBoolean("registered", false)

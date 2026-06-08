@@ -117,9 +117,13 @@ fun ScheduleScreen(
     initialSelectedDayMs: Long? = null
 ) {
     val state by viewModel.state.collectAsState()
+    val collabDays by viewModel.collabDayStarts.collectAsState()   // 캘린더 협업 보라점 (#7)
     val cardSummaries by viewModel.cardSummariesByPhoneSuffix.collectAsState()
     val nowMs = remember { System.currentTimeMillis() }
     val todayStart = remember(nowMs) { DateTimeUtils.startOfDay(nowMs) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        viewModel.loadCollab()
+    }
     // 홈 "다음 시공" 카드로 들어온 경우 그 시공일을 시작 선택값으로(자정 정규화). 아니면 오늘.
     val initialDay = remember(initialSelectedDayMs) {
         initialSelectedDayMs?.takeIf { it > 0L }?.let { DateTimeUtils.startOfDay(it) } ?: todayStart
@@ -244,6 +248,7 @@ fun ScheduleScreen(
                                     CalendarWeekRow(
                                         cells = monthCells.subList(week * 7, week * 7 + 7),
                                         selectedDayMs = selectedDayMs,
+                                        collabDays = collabDays,
                                         onSelect = { dayMs -> selectedDayMs = dayMs },
                                         onLongSelect = { dayMs -> selectedDayMs = dayMs; onAddSchedule() }
                                     )
@@ -381,6 +386,7 @@ private fun DowHeader() {
 private fun CalendarWeekRow(
     cells: List<CalendarCell>,
     selectedDayMs: Long?,
+    collabDays: Set<Long>,
     onSelect: (Long) -> Unit,
     onLongSelect: (Long) -> Unit
 ) {
@@ -389,6 +395,7 @@ private fun CalendarWeekRow(
             CalendarDay(
                 cell = cell,
                 isSelected = selectedDayMs == cell.dayStartMs,
+                isCollab = cell.dayStartMs in collabDays,
                 onClick = { onSelect(cell.dayStartMs) },
                 onLongClick = { onLongSelect(cell.dayStartMs) },
                 modifier = Modifier.weight(1f)
@@ -402,6 +409,7 @@ private fun CalendarWeekRow(
 private fun CalendarDay(
     cell: CalendarCell,
     isSelected: Boolean,
+    isCollab: Boolean = false,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -439,14 +447,20 @@ private fun CalendarDay(
                 fontSize = 14.sp,
                 fontWeight = if (cell.isToday || isSelected) FontWeight.Bold else FontWeight.Medium
             )
-            if (cell.scheduleCount > 0) {
+            if (cell.scheduleCount > 0 || isCollab) {
                 Spacer(Modifier.height(2.dp))
-                Box(
-                    modifier = Modifier
-                        .size(5.dp)
-                        .clip(CircleShape)
-                        .background(dotColor)
-                )
+                // 내 시공 점 + 협업 보라점 — 둘 다면 점 2개. (2026-06-08 #7)
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    if (cell.scheduleCount > 0) {
+                        Box(Modifier.size(5.dp).clip(CircleShape).background(dotColor))
+                    }
+                    if (isCollab) {
+                        Box(
+                            Modifier.size(5.dp).clip(CircleShape)
+                                .background(if (isSelected) Color.White else Color(0xFF7C5CFC))
+                        )
+                    }
+                }
             }
         }
     }
