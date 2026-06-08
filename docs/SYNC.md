@@ -3412,5 +3412,5 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 - NotificationHelper: 협업 출발/도착/완료 알림 추가. 알림 탭은 `/shared/{share_id}` App Link 로 협업 현장 화면 진입.
 - HomeViewModel/HomeScreen/AppNavHost: 상담함에 협업 진행 배너 표시, 밀어서 정리, 탭 → 협업 현장.
 - 검증: `JAVA_HOME=C:\Program Files\Android\Android Studio\jbr` 로 `gradlew.bat :app:assembleDebug` 성공. 경고는 기존 미사용/Deprecated 경고.
-- commit: pending
+- commit: 8327aae
 - 다음 액션(맥미니 Claude): `/api/shared/owner-events` endpoint 구현. 앱 코드는 endpoint 열리면 바로 동작.
