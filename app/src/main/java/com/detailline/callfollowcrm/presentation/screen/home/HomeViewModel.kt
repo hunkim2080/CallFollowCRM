@@ -417,6 +417,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     /** 오늘 예약된 시공들 (시간순). 여러 날 시공(scheduledWorkDays)이 오늘 진행 중이면 포함. 다크 히어로. */
     val todayJobs: StateFlow<List<CustomerEntity>> = customers.map { list ->
         list.filter { c ->
+            if (c.workCompletedAt != null) return@filter false   // 완료 처리한 현장은 오늘 히어로에서 제외 (2026-06-08 #2)
             val s = c.scheduledWorkDate ?: return@filter false
             val start = DateTimeUtils.startOfDay(s)
             val end = start + (c.scheduledWorkDays.coerceAtLeast(1) - 1) * DateTimeUtils.DAY_MS
@@ -666,6 +667,15 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun setFilter(f: HomeFilter) { filter.value = f }
+
+    /** 오늘 시공 히어로 [완료] → 완료처리. 그 현장을 오늘 히어로에서 제외(완료 반영). (2026-06-08 #2) */
+    fun markJobCompleted(customerId: Long) = viewModelScope.launch {
+        runCatching { container.customerRepository.updateWorkCompletedAt(customerId, System.currentTimeMillis()) }
+    }
+    /** 완료 처리 되돌리기 (스낵바 '되돌리기'). */
+    fun undoJobCompleted(customerId: Long) = viewModelScope.launch {
+        runCatching { container.customerRepository.updateWorkCompletedAt(customerId, null) }
+    }
 
     /**
      * 미확인 카드 swipe → "광고/스팸" 으로 영구 마킹. 미확인 카테고리에서 제외.

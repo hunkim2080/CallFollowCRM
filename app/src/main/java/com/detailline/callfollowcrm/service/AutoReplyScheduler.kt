@@ -59,6 +59,8 @@ object AutoReplyScheduler {
         if (!hasSendSmsPermission(context)) return
         // 스팸 앞자리(070 등) = 광고로 보고 자동답장 안 함. (2026-06-07 사장님 요청)
         if (com.detailline.callfollowcrm.util.SpamPrefix.isSpam(phoneNumber, container.preferences.spamPrefixes)) return
+        // 휴대폰(010)에만 자동답장 — 광고·지역번호(02/070/1588 등)엔 안 보냄. (2026-06-08 사장님 #1)
+        if (!isKoreanMobile010(phoneNumber)) return
 
         // 수신(미부재중)인데 템플릿 미지정이면 발송 X. 부재중은 인라인 기본 문구가 있어 통과.
         if (!isMissed && container.preferences.firstReplyIncomingTemplateId <= 0) return
@@ -131,6 +133,18 @@ object AutoReplyScheduler {
         ContextCompat.checkSelfPermission(
             context, Manifest.permission.SEND_SMS
         ) == PackageManager.PERMISSION_GRANTED
+
+    /**
+     * 휴대폰(010) 번호인지 — 자동답장 대상 제한용. (2026-06-08 사장님 #1)
+     *   +82 국가코드 제거 후 국내형(0 시작)으로 정규화 → 010 시작만 true.
+     *   02/031 등 지역번호, 070 인터넷전화, 1588/15xx 대표번호는 false (자동답장 안 함).
+     */
+    private fun isKoreanMobile010(phone: String): Boolean {
+        var d = phone.filter { it.isDigit() }
+        if (d.startsWith("82")) d = d.substring(2)   // +82 10... → 10... / 010...
+        if (!d.startsWith("0")) d = "0$d"            // 국내형 leading 0 보장
+        return d.startsWith("010")
+    }
 
     /**
      * 2026-05-30 사장님 #1 통점 연관 fix:

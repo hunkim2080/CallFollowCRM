@@ -61,7 +61,7 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity::class,
         com.detailline.callfollowcrm.data.local.entity.TeamAssignmentEntity::class
     ],
-    version = 30,
+    version = 31,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -636,6 +636,13 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v31 — customers 에 시공 완료 시각(workCompletedAt). additive nullable. (2026-06-08 #2)
+        private val MIGRATION_30_31 = object : Migration(30, 31) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE customers ADD COLUMN workCompletedAt INTEGER")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
@@ -649,7 +656,8 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19,
                     MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23,
                     MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27,
-                    MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30
+                    MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30,
+                    MIGRATION_30_31
                 )
                 .fallbackToDestructiveMigration()   // migration 실패 시 안전망 (개발 단계)
                 .build()

@@ -53,6 +53,11 @@ data class CustomerEntity(
     val scheduledWorkMinutes: Int? = null,
     /** 시공 기간(며칠). 기본 1 = 당일. 여러 날 현장이면 2+. DB v24 (2026-06-01). */
     val scheduledWorkDays: Int = 1,
+    /**
+     * 시공 완료 처리 시각(ms). null = 미완료. DB v31 (2026-06-08 사장님 #2).
+     *   오늘 시공 히어로 [완료]→완료처리 시 set → 그 현장이 히어로에서 빠진다(완료 반영).
+     */
+    val workCompletedAt: Long? = null,
     val createdAt: Long,
     val updatedAt: Long
 )

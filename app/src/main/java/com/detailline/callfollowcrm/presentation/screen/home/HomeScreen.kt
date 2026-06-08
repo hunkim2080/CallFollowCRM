@@ -622,10 +622,13 @@ fun HomeScreen(
                 }
 
                 // 프로토 상담함 본문 — "지금 답장 기다려요"(미확인) + "최근 대화"(나머지) 두 섹션.
-                val waiting = flatItems.filter { it.isUnconfirmed }
+                // 번호당 1줄만 (가장 최근). flatItems 는 최신순 → distinctBy 가 최신 1개 유지.
+                //   (2026-06-08 #4: 고객이 연속 문자/통화 시 같은 번호가 2줄 차지하던 현상 방지.)
+                val dedupItems = flatItems.distinctBy { it.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8) }
+                val waiting = dedupItems.filter { it.isUnconfirmed }
                 // 최근 대화 = 시간순 그대로(카톡식). 안 읽음은 순서 안 바꾸고 파란 점+굵게로만 표시.
                 //   (사장님 2026-06-08 결정: "맨 위로 모으기" 빼고 시간순 유지 → 카톡과 더 동일.)
-                val recent = flatItems.filter { !it.isUnconfirmed }
+                val recent = dedupItems.filter { !it.isUnconfirmed }
 
                 // 지금 답장 기다려요 — waiting-head(제목+카운트+밀어서 정리) + 카드(왼쪽 밀기=정리). 비면 막내.
                 item(key = "waiting-head") { WaitingHeader(count = waiting.size) }
@@ -725,20 +728,30 @@ fun HomeScreen(
                 )
             }
 
-            // 오늘 시공 [완료] 팝업 — 프로토 openComplete. 완료처리=닫기+스낵바, 요청=문자 발송.
+            // 오늘 시공 [완료] 팝업 — 프로토 openComplete. 완료처리/요청 모두 그 현장을 완료 처리(히어로에서 빠짐). 2026-06-08 #2
             completeTarget?.let { c ->
                 CompletionDialog(
                     customer = c,
                     onDismiss = { completeTarget = null },
                     onComplete = { name ->
+                        val cid = c.id
                         completeTarget = null
-                        scope.launch { snackbarHostState.showSnackbar("$name 시공을 완료 처리했어요 ✓", duration = SnackbarDuration.Short) }
+                        viewModel.markJobCompleted(cid)   // 완료 반영 → todayJobs 에서 제외 → 히어로 갱신
+                        scope.launch {
+                            val res = snackbarHostState.showSnackbar(
+                                "$name 시공을 완료 처리했어요 ✓",
+                                actionLabel = "되돌리기", duration = SnackbarDuration.Short
+                            )
+                            if (res == SnackbarResult.ActionPerformed) viewModel.undoJobCompleted(cid)
+                        }
                     },
                     onSend = { phone, name, body, kind ->
+                        val cid = c.id
                         completeTarget = null
+                        viewModel.markJobCompleted(cid)   // 잔금/후기 발송도 = 시공 완료 → 히어로에서 빠짐
                         val ok = com.detailline.callfollowcrm.util.SmsSender.sendDirect(context, phone, body)
                         scope.launch {
-                            if (ok) snackbarHostState.showSnackbar("$name 님께 $kind 발송 ✓", duration = SnackbarDuration.Short)
+                            if (ok) snackbarHostState.showSnackbar("$name 님께 $kind 발송 ✓ · 완료 처리", duration = SnackbarDuration.Short)
                             else snackbarHostState.showSnackbar("문자 권한이 없어요 — 채팅에서 보내주세요", duration = SnackbarDuration.Short)
                         }
                     }

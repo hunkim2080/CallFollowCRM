@@ -3379,3 +3379,10 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 - (2) **채팅 한 번 열면(읽으면) 답장 안 해도 파란 점 사라짐**. 신규 ReadStateStore(SharedPreferences 영속, suffix→마지막 연 시각) + AppContainer 등록. ChatViewModel.init 에서 markRead(phone). HomeViewModel.readStates 노출 → HomeScreen 이 collect 해 row 별 안 읽음 = (lastSent==false && 고객 마지막 메시지 시각 > 읽은 시각). 새 메시지 오면 다시 점.
 - 빌드+폰 설치 OK. (점 사라짐은 사장님 탭 테스트로 최종 확인 권장 — 자동 탭 검증은 Compose 노드 미노출로 생략.)
 - commit: (아래)
+
+## 2026-06-08 (밤7) · android · 사장님 버그/요청 배치1 (#1 자동문자 010만 · #2 시공완료 반영 · #4 대기 dedupe)
+실사용 중 보고 3건. 서버 영향 없음(앱 전용). DB v30→v31(additive).
+- #1 부재중/수신 자동답장 = **휴대폰(010)에만**. AutoReplyScheduler.schedule() 에 isKoreanMobile010() 가드(+82 정규화). 02/070/1588 등 광고·지역번호 자동발송 차단.
+- #2 오늘 시공 [완료]→완료처리/요청 시 **그 현장이 히어로에서 빠짐**(완료 반영). CustomerEntity.workCompletedAt(DB v31, MIGRATION_30_31 = ALTER ADD COLUMN), CustomerRepository.updateWorkCompletedAt, HomeViewModel.markJobCompleted/undoJobCompleted + todayJobs 필터 제외. 스낵바 '되돌리기' 제공. **마이그레이션 실기기 검증 OK(데이터 보존, 크래시 없음).**
+- #4 "지금 답장 기다려요"(+최근 대화) **번호당 1줄만**. HomeScreen 에서 flatItems.distinctBy(suffix) 후 분할 → 연속 문자/통화로 같은 번호 2줄 차지하던 현상 해결.
+- 빌드+폰 설치+실행 OK. commit: (아래)

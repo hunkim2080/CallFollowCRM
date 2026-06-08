@@ -153,6 +153,12 @@ class CustomerRepository(
         dao.update(c.copy(scheduledWorkDate = scheduledWorkDate, updatedAt = System.currentTimeMillis()))
     }
 
+    /** 시공 완료 처리/취소 (2026-06-08 #2). null = 완료 취소(되돌리기). 오늘 시공 히어로에서 호출. */
+    suspend fun updateWorkCompletedAt(id: Long, completedAt: Long?) {
+        val c = dao.findById(id) ?: return
+        dao.update(c.copy(workCompletedAt = completedAt, updatedAt = System.currentTimeMillis()))
+    }
+
     /** 시공 시간(자정부터 분, null=미정) + 기간(일) 설정. 셀프 일정 등록/수정에서 호출. DB v24. */
     suspend fun updateScheduledWorkTiming(id: Long, minutes: Int?, days: Int) {
         val c = dao.findById(id) ?: return
