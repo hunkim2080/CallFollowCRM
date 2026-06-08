@@ -3432,4 +3432,4 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 - #6 캘린더 협업 보라점 클릭: 선택일에 협업 현장 카드 표시, 카드 탭 → 해당 협업 현장 상세.
 - #7 함께할 사장님 번호: 협업 공유 시트에서 수첩 일당·알바 + 최근 문자 연락처 후보 칩 제공. 초대 성공 시 수첩 WORKER 에 `협업` 태그로 자동 기록(best-effort).
 - 검증: `JAVA_HOME=C:\Program Files\Android\Android Studio\jbr` 로 `gradlew.bat :app:assembleDebug` 성공. 경고는 기존 미사용/Deprecated 위주.
-- commit: 23df459
+- commit: 565e95b
