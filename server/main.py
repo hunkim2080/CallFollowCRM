@@ -6203,7 +6203,10 @@ _ANDROID_ASSETLINKS = [
             "namespace": "android_app",
             "package_name": "com.detailline.callfollowcrm",
             "sha256_cert_fingerprints": [
-                "4B:C6:27:28:45:43:98:B8:9F:F9:D0:BD:41:02:9C:D6:6F:1D:39:7B:42:84:F0:61:5B:BD:26:71:86:4B:22:EE"
+                # release 키 (ringgo-release.jks)
+                "4B:C6:27:28:45:43:98:B8:9F:F9:D0:BD:41:02:9C:D6:6F:1D:39:7B:42:84:F0:61:5B:BD:26:71:86:4B:22:EE",
+                # debug 키 (~/.android/debug.keystore) — 사장님 debug 빌드 테스트 호환
+                "E7:83:43:AF:8F:3C:12:2B:E4:6A:C0:56:24:2E:EC:DF:60:55:0C:FD:B0:67:01:97:80:D6:27:73:91:4F:ED:84",
             ],
         },
     }
