@@ -3420,4 +3420,4 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 - SharedSiteRepository: shared API 에 보내는 owner/partner phone 을 숫자만으로 정규화. 하이픈/공백/`+82` 표기가 서버 식별키를 흔들지 않게 함.
 - SharedSiteScreen: 협업자가 입금 계좌 미등록 상태에서 `완료 알리기`를 눌러도 서버로 완료 이벤트를 보내지 않음. 회색 `계좌 등록 후 완료 알리기` 버튼 + 계좌 등록 안내 토스트.
 - 검증: `JAVA_HOME=C:\Program Files\Android\Android Studio\jbr` 로 `gradlew.bat :app:assembleDebug` 성공.
-- commit: pending
+- commit: 2782b57
