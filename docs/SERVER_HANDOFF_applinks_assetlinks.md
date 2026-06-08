@@ -13,7 +13,7 @@
 - `https://api.si0in.kr/.well-known/assetlinks.json`
 - `https://si0in.kr/.well-known/assetlinks.json`  ← si0in.kr 루트 도메인을 Cloudflare Tunnel 에 추가한 뒤
 
-내용 (= repo 의 `docs/assetlinks.json` 그대로):
+내용 (= repo 의 `docs/assetlinks.json` 그대로 — **지문 2개**):
 ```json
 [
   {
@@ -22,13 +22,16 @@
       "namespace": "android_app",
       "package_name": "com.detailline.callfollowcrm",
       "sha256_cert_fingerprints": [
-        "4B:C6:27:28:45:43:98:B8:9F:F9:D0:BD:41:02:9C:D6:6F:1D:39:7B:42:84:F0:61:5B:BD:26:71:86:4B:22:EE"
+        "4B:C6:27:28:45:43:98:B8:9F:F9:D0:BD:41:02:9C:D6:6F:1D:39:7B:42:84:F0:61:5B:BD:26:71:86:4B:22:EE",
+        "E7:83:43:AF:8F:3C:12:2B:E4:6A:C0:56:24:2E:EC:DF:60:55:0C:FD:B0:67:01:97:80:D6:27:73:91:4F:ED:84"
       ]
     }
   }
 ]
 ```
-- 이 SHA256 = **릴리즈 키(ringgo-release.jks) 인증서 지문.** (debug 빌드로 테스트하면 debug 키 지문도 배열에 추가해야 함 — 아래)
+- 첫 지문 = **릴리즈 키(ringgo-release.jks)** = 배포 APK. 둘째 = **사장님 PC debug 키** = 사장님 본인폰 테스트용(없으면 본인폰은 "ask"=선택창).
+- ⚠️ **2026-06-08 업데이트: 지문 2개로 늘었음 → 서버 재호스팅 필요.** (이전엔 release 1개만 올라가 있었음.)
+- 정식 출시 굳히면 debug 지문은 빼도 됨.
 
 FastAPI 예시:
 ```python

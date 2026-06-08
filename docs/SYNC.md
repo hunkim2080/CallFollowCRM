@@ -3356,3 +3356,10 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 - SharedSiteScreen: initialShareId 로 그 현장 상세 자동 열기 + pending 이면 수락/거절 버튼(respond) 추가.
 - **서버 할 일**: `/.well-known/assetlinks.json` 호스팅(api.si0in.kr + si0in.kr) → `docs/SERVER_HANDOFF_applinks_assetlinks.md` + `docs/assetlinks.json`. release SHA256=4B:C6:27:...:EE. INTAKE_PUBLIC_BASE_URL=https://api.si0in.kr 여야 링크가 App Link 됨.
 - 빌드 OK(폰 분리로 설치는 재연결 후). commit: (아래)
+
+## 2026-06-08 (밤4) · android · App Link 실기기 검증 + assetlinks 지문 2개
+- 실기기 검증 OK: `https://api.si0in.kr/shared/{id}` → RING-GO 협업 현장 화면 자동 열림(라우팅·파싱 정상). assetlinks.json 라이브 확인(HTTP 200, release 지문).
+- 도메인 검증 상태(사장님 폰=debug 빌드): "ask" — debug 인증서가 assetlinks 에 없어서. release 사용자는 "always"(정상 자동열림).
+- **assetlinks.json 에 debug 지문 추가**(사장님 본인폰도 자동열림 되게) → `docs/assetlinks.json` 이제 지문 2개(release+debug).
+- **다음 액션(맥미니)**: `/.well-known/assetlinks.json` 를 **업데이트된 2개 지문 버전으로 재호스팅**. (현재 1개만 라이브.)
+- commit: (아래)
