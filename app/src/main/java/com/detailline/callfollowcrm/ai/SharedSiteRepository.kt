@@ -88,7 +88,7 @@ class SharedSiteRepository(
             runCatching {
                 val url = baseUrl.toHttpUrl().newBuilder()
                     .addPathSegments("api/shared/with-me")
-                    .addQueryParameter("phone", phone)
+                    .addQueryParameter("phone", phoneKey(phone))
                     .addQueryParameter("since_ms", sinceMs.toString())
                     .addQueryParameter("limit", limit.toString())
                     .build()
@@ -114,8 +114,8 @@ class SharedSiteRepository(
     ): Result<InviteResult> = withContext(Dispatchers.IO) {
         runCatching {
             val payload = JSONObject().apply {
-                put("owner_phone", ownerPhone)
-                put("partner_phone", partnerPhone.filter { it.isDigit() || it == '+' })
+                put("owner_phone", phoneKey(ownerPhone))
+                put("partner_phone", phoneKey(partnerPhone))
                 put("title", title)
                 addr?.let { put("addr", it) }
                 put("scheduled_at_ms", scheduledAtMs)
@@ -141,7 +141,7 @@ class SharedSiteRepository(
     /** B 수락/거절. */
     suspend fun respond(shareId: String, partnerPhone: String, accept: Boolean): Result<Unit> =
         post("$baseUrl/api/shared/respond", JSONObject().apply {
-            put("share_id", shareId); put("partner_phone", partnerPhone); put("accept", accept)
+            put("share_id", shareId); put("partner_phone", phoneKey(partnerPhone)); put("accept", accept)
         })
 
     /** B 진행(출발/도착/완료). 완료 시 bank/account 를 payload 로 실어 보냄 → A 에게 계좌 전달. */
@@ -154,7 +154,7 @@ class SharedSiteRepository(
         holder: String? = null
     ): Result<Unit> = post("$baseUrl/api/shared/progress", JSONObject().apply {
         put("share_id", shareId)
-        put("partner_phone", partnerPhone)
+        put("partner_phone", phoneKey(partnerPhone))
         put("step", step.name.lowercase())
         if (step == Progress.COMPLETED && !accountNo.isNullOrBlank()) {
             put("payload", JSONObject().apply {
@@ -168,7 +168,7 @@ class SharedSiteRepository(
     /** A 입금완료 → B 알림. */
     suspend fun markPaid(shareId: String, ownerPhone: String): Result<Unit> =
         post("$baseUrl/api/shared/paid", JSONObject().apply {
-            put("share_id", shareId); put("owner_phone", ownerPhone)
+            put("share_id", shareId); put("owner_phone", phoneKey(ownerPhone))
         })
 
     /** A(현장 주인)용 협업 진행 이벤트. 서버 미구현(404) 시 Result 실패 → 호출부가 조용히 무시. */
@@ -177,7 +177,7 @@ class SharedSiteRepository(
             runCatching {
                 val url = baseUrl.toHttpUrl().newBuilder()
                     .addPathSegments("api/shared/owner-events")
-                    .addQueryParameter("phone", ownerPhone)
+                    .addQueryParameter("phone", phoneKey(ownerPhone))
                     .addQueryParameter("since_ms", sinceMs.toString())
                     .addQueryParameter("limit", limit.toString())
                     .build()
@@ -209,7 +209,7 @@ class SharedSiteRepository(
         runCatching {
             val url = baseUrl.toHttpUrl().newBuilder()
                 .addPathSegments("api/owner/exists")
-                .addQueryParameter("phone", phone)
+                .addQueryParameter("phone", phoneKey(phone))
                 .build()
             val req = Request.Builder().url(url).get().build()
             client.newCall(req).execute().use { resp ->
@@ -252,4 +252,6 @@ class SharedSiteRepository(
             )
         }
     }
+
+    private fun phoneKey(phone: String): String = phone.filter { it.isDigit() }
 }

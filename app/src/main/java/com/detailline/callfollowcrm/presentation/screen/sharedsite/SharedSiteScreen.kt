@@ -77,6 +77,7 @@ fun SharedSiteScreen(
     val loading by viewModel.loading.collectAsState()
     val toast by viewModel.toast.collectAsState()
     val context = LocalContext.current
+    val accountPrompt = "입금받을 계좌를 먼저 등록해주세요. 더보기 → 견적서·사업자 정보에서 등록할 수 있어요."
     var selectedId by rememberSaveableShareId()
 
     LaunchedEffect(Unit) { viewModel.load() }
@@ -137,7 +138,13 @@ fun SharedSiteScreen(
                             context.startActivity(Intent(Intent.ACTION_VIEW, uri))
                         }
                     },
-                    onProgress = { step -> viewModel.updateProgress(selected, step) },
+                    onProgress = { step ->
+                        if (step == SharedSiteRepository.Progress.COMPLETED && !viewModel.hasAccount()) {
+                            android.widget.Toast.makeText(context, accountPrompt, android.widget.Toast.LENGTH_LONG).show()
+                        } else {
+                            viewModel.updateProgress(selected, step)
+                        }
+                    },
                     onRespond = { accept -> viewModel.respond(selected, accept); if (!accept) selectedId = null }
                 )
             }
@@ -305,10 +312,17 @@ private fun DetailBody(
         val completing = step == SharedSiteRepository.Progress.COMPLETED
         Box(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                .background(if (completing) ProtoSuccess else ProtoBlue)
+                .background(if (completing && !hasAccount) Color(0xFFE5E8EF) else if (completing) ProtoSuccess else ProtoBlue)
                 .clickable { onProgress(step) }.padding(vertical = 14.dp),
             contentAlignment = Alignment.Center
-        ) { Text(label, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold) }
+        ) {
+            Text(
+                if (completing && !hasAccount) "계좌 등록 후 완료 알리기" else label,
+                color = if (completing && !hasAccount) TossTextSecondary else Color.White,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.ExtraBold
+            )
+        }
         if (completing) {
             Spacer(Modifier.height(7.dp))
             Text(

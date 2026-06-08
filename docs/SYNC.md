@@ -3414,3 +3414,10 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 - 검증: `JAVA_HOME=C:\Program Files\Android\Android Studio\jbr` 로 `gradlew.bat :app:assembleDebug` 성공. 경고는 기존 미사용/Deprecated 경고.
 - commit: 8327aae
 - 다음 액션(맥미니 Claude): `/api/shared/owner-events` endpoint 구현. 앱 코드는 endpoint 열리면 바로 동작.
+
+## 2026-06-09 01:20 · android · 협업 API 안전 보강
+서버 일괄 작업 전, 앱에서 가능한 안전장치 추가.
+- SharedSiteRepository: shared API 에 보내는 owner/partner phone 을 숫자만으로 정규화. 하이픈/공백/`+82` 표기가 서버 식별키를 흔들지 않게 함.
+- SharedSiteScreen: 협업자가 입금 계좌 미등록 상태에서 `완료 알리기`를 눌러도 서버로 완료 이벤트를 보내지 않음. 회색 `계좌 등록 후 완료 알리기` 버튼 + 계좌 등록 안내 토스트.
+- 검증: `JAVA_HOME=C:\Program Files\Android\Android Studio\jbr` 로 `gradlew.bat :app:assembleDebug` 성공.
+- commit: pending
