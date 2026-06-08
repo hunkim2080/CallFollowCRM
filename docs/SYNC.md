@@ -3386,3 +3386,11 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 - #2 오늘 시공 [완료]→완료처리/요청 시 **그 현장이 히어로에서 빠짐**(완료 반영). CustomerEntity.workCompletedAt(DB v31, MIGRATION_30_31 = ALTER ADD COLUMN), CustomerRepository.updateWorkCompletedAt, HomeViewModel.markJobCompleted/undoJobCompleted + todayJobs 필터 제외. 스낵바 '되돌리기' 제공. **마이그레이션 실기기 검증 OK(데이터 보존, 크래시 없음).**
 - #4 "지금 답장 기다려요"(+최근 대화) **번호당 1줄만**. HomeScreen 에서 flatItems.distinctBy(suffix) 후 분할 → 연속 문자/통화로 같은 번호 2줄 차지하던 현상 해결.
 - 빌드+폰 설치+실행 OK. commit: (아래)
+
+## 2026-06-08 (밤8) · android · 사장님 버그/요청 배치2 (#3 신규 밀어서정리 · #5 견적 미리보기 닫기 · #6 일정 취소)
+실사용 보고 3건. 서버 영향 없음(앱 전용).
+- #3 신규 문의 목록 줄 **밀어서 정리(우→좌) = 광고/스팸 마킹** → 신규 집계·상담함에서 제외(정확도). 되돌리기 스낵바. NewLeadsScreen 에 LeadSwipeBox(SpamSwipeBox 패턴) + NewLeadsViewModel.dismissAsSpam/undoDismiss(spamPhoneRepository).
+- #5 견적 '미리보기 닫기' → 채팅이 아니라 **견적 편집기로 복귀 + 선택 유지**. EstimateBuilder 상태를 EstimateDraft(ChatScreen remember)로 hoist(위임 by draft.x — 사용처 무변경). 미리보기=sheet만 닫고 draft 유지, 닫기=showEstimateBuilder 재오픈, 발송/취소 시 draft.reset. (편집기=ModalBottomSheet 별도 윈도우라 미리보기는 액티비티 윈도우에 떠야 PixelCopy 캡처 가능 → 닫았다 복귀 구조.)
+- #6 시공 **예약 취소(일정 비우기)**: 고객카드 '시공 예약' 행 탭 → 날짜 다이얼로그에 **'예약 취소'** 버튼(기존 예약 있을 때) → updateScheduledWorkDate(null). 고객이 시공 취소 시 사용.
+- 빌드+폰 설치+실행 OK(스모크). 제스처(스와이프/미리보기 왕복/취소)는 사장님 실사용 확인 권장.
+- commit: (아래)

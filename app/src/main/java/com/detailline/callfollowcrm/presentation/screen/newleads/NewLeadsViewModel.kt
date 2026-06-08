@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 /**
  * 신규 고객 · 날짜별 (프로토 `s-newleads` / renderNewLeads).
@@ -37,8 +38,18 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
     private val unreadOnly = MutableStateFlow(false)
     fun setUnreadOnly(v: Boolean) { unreadOnly.value = v }
 
+    /** 신규 목록에서 밀어서 정리 = '광고/스팸' 마킹 → 목록·집계에서 제외(상담함 카운트와 일치). (2026-06-08 #3) */
+    fun dismissAsSpam(phone: String) = viewModelScope.launch {
+        runCatching { spamRepo.mark(phoneSuffix(phone)) }
+    }
+    /** 되돌리기 — 스팸 마킹 해제. */
+    fun undoDismiss(phone: String) = viewModelScope.launch {
+        runCatching { spamRepo.unmark(phoneSuffix(phone)) }
+    }
+
     /** 사장님이 직접 '광고/스팸'으로 표시한 번호(suffix). 상담함 카운트와 동일하게 신규목록에서도 제외. 2026-06-07 */
     private val markedSpam = container.spamPhoneRepository.suffixes
+    private val spamRepo = container.spamPhoneRepository   // 밀어서 정리(스팸 마킹/해제). (2026-06-08 #3)
 
     // 고객/카테고리/응대기록/마킹스팸 4개를 미리 묶어 combine 5개 한도 회피.
     private val custCtx = combine(customers, categories, repliedIds, markedSpam) { c, cat, rep, spam ->

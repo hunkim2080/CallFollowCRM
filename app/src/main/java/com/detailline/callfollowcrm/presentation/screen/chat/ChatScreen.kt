@@ -219,6 +219,8 @@ fun ChatScreen(
     var showProposalDatePicker by remember { mutableStateOf(false) }
     // P3 — 견적서 작성기 (사장님 결정 2026-05-24): send_estimate 액션 시 템플릿 picker 대신 띄움.
     var showEstimateBuilder by remember { mutableStateOf(false) }
+    // 견적 만들기 상태 — ChatScreen 보관(미리보기 닫고 와도 선택 유지). (2026-06-08 #5)
+    val estimateDraft = remember { EstimateDraft(estMonthAnchor(System.currentTimeMillis())) }
     // 견적서(직인) 미리보기 — null 아니면 QuoteDocScreen 오버레이 표시 (견적 2단계).
     var quoteDocData by remember { mutableStateOf<QuoteDocData?>(null) }
     // P3 — 시공일 등록 직후 "이 일정으로 계약금 안내문도 만들어드릴까요?" 다이얼로그.
@@ -1104,8 +1106,11 @@ fun ChatScreen(
         val estPrefs = remember {
             (estCtx.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication).container.preferences
         }
+        // 미리보기로 갈 때만 sheet 닫고 draft 유지. 발송/취소 등 '종료' 시에만 draft 초기화. (2026-06-08 #5)
+        fun resetEstimateDraft() = estimateDraft.reset(estMonthAnchor(System.currentTimeMillis()))
         EstimateBuilderDialog(
             items = pricingItems,
+            draft = estimateDraft,
             bizName = estPrefs.bizName,
             bizOwner = estPrefs.bizOwner,
             bizNo = estPrefs.bizNo,
@@ -1116,6 +1121,7 @@ fun ChatScreen(
                 // composer 채우기만 — 아직 발송 아님. 실제 발송 성공 시 markIfEstimate 가 기록.
                 estimateBody = body
                 showEstimateBuilder = false
+                resetEstimateDraft()
             },
             onShare = { body ->
                 runCatching {
@@ -1126,29 +1132,33 @@ fun ChatScreen(
                 }
                 viewModel.recordEstimateSent(body)
                 showEstimateBuilder = false
+                resetEstimateDraft()
             },
             onQuoteDoc = { data ->
+                // 미리보기로 — sheet 만 닫고 draft 는 유지(닫기 시 복귀 위해).
                 quoteDocData = data
                 showEstimateBuilder = false
             },
             onIssueIntake = { issItems, total, y, mo, d, days, dm, dv ->
                 viewModel.issueQuoteIntake(issItems, total, y, mo, d, days, dm, dv) { result ->
-                    result.onSuccess { draft ->
-                        input = draft
+                    result.onSuccess { draftLink ->
+                        input = draftLink
                         showEstimateBuilder = false
+                        resetEstimateDraft()
                         android.widget.Toast.makeText(estCtx, "접수서 링크를 문자에 넣었어요 · ▶ 눌러 보내세요", android.widget.Toast.LENGTH_SHORT).show()
                     }.onFailure {
                         android.widget.Toast.makeText(estCtx, "서버 연결 실패 — 잠시 후 다시 시도해주세요", android.widget.Toast.LENGTH_SHORT).show()
                     }
                 }
             },
-            onDismiss = { showEstimateBuilder = false }
+            onDismiss = { showEstimateBuilder = false; resetEstimateDraft() }
         )
     }
 
     // 견적서(직인) 미리보기 오버레이.
     quoteDocData?.let { data ->
-        QuoteDocScreen(data = data, onClose = { quoteDocData = null })
+        // '미리보기 닫기' → 채팅이 아니라 견적 편집기로 복귀(선택 유지). (2026-06-08 #5)
+        QuoteDocScreen(data = data, onClose = { quoteDocData = null; showEstimateBuilder = true })
     }
 }
 
@@ -2559,9 +2569,32 @@ private fun SendConfirmDialog(
  * 견적서 본문이 composer 에 들어가면 사장님이 거기서 비고 자유롭게 추가.
  */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+/**
+ * 견적 만들기 상태 — '미리보기 닫기' 후 편집기로 돌아와도 선택이 유지되도록 ChatScreen 레벨에서 보관. (2026-06-08 #5)
+ *   (편집기=ModalBottomSheet 는 별도 윈도우라 미리보기 띄울 때 닫혀야 함 → 상태를 밖에 둬야 보존됨.)
+ */
+private class EstimateDraft(initialCalMonth: Long) {
+    val mode = androidx.compose.runtime.mutableStateOf("text")
+    val depMode = androidx.compose.runtime.mutableStateOf("ratio")
+    val depVal = androidx.compose.runtime.mutableStateOf("30")
+    val depCustom = androidx.compose.runtime.mutableStateOf(false)
+    val workDateMs = androidx.compose.runtime.mutableStateOf<Long?>(null)
+    val workDays = androidx.compose.runtime.mutableStateOf(1)
+    val estCalMonth = androidx.compose.runtime.mutableStateOf(initialCalMonth)
+    val selectedQty = androidx.compose.runtime.mutableStateMapOf<Long, Int>()
+    val customItems = androidx.compose.runtime.mutableStateListOf<EstCustomLine>()
+    /** 견적을 보냈거나(또는 진짜 닫았을 때) 다음을 위해 초기화. 미리보기 왕복 때는 호출 안 함. */
+    fun reset(initialCalMonth: Long) {
+        mode.value = "text"; depMode.value = "ratio"; depVal.value = "30"; depCustom.value = false
+        workDateMs.value = null; workDays.value = 1; estCalMonth.value = initialCalMonth
+        selectedQty.clear(); customItems.clear()
+    }
+}
+
 @Composable
 private fun EstimateBuilderDialog(
     items: List<com.detailline.callfollowcrm.data.local.entity.PricingItemEntity>,
+    draft: EstimateDraft,
     onConfirm: (String) -> Unit,
     onShare: (String) -> Unit,
     onDismiss: () -> Unit,
@@ -2580,19 +2613,20 @@ private fun EstimateBuilderDialog(
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     // 프로토 seg — 보내는 방식: text(문자 견적) / accept(시공접수서) / quote(견적서)
-    var mode by remember { mutableStateOf("text") }
+    // 상태는 draft(ChatScreen 보관)로 위임 — 미리보기 닫고 와도 유지. 사용처는 그대로. (2026-06-08 #5)
+    var mode by draft.mode
     // 계약금 — 프로토 depMode: ratio(%)/fixed(만원)/none.
-    var depMode by remember { mutableStateOf("ratio") }
-    var depVal by remember { mutableStateOf("30") }
-    var depCustom by remember { mutableStateOf(false) } // 비율 '기타' 직접입력 여부
+    var depMode by draft.depMode
+    var depVal by draft.depVal
+    var depCustom by draft.depCustom // 비율 '기타' 직접입력 여부
     // 시공일 (접수서/견적서) — null=미정.
-    var workDateMs by remember { mutableStateOf<Long?>(null) }
-    var workDays by remember { mutableStateOf(1) }
-    var estCalMonth by remember { mutableStateOf(estMonthAnchor(System.currentTimeMillis())) }
+    var workDateMs by draft.workDateMs
+    var workDays by draft.workDays
+    var estCalMonth by draft.estCalMonth
     // 항목 id → 수량(평당=평수, 정액=1). 0/미존재 = 미선택.
-    val selectedQty = remember { mutableStateMapOf<Long, Int>() }
+    val selectedQty = draft.selectedQty
     // 가격표에 없는 즉석 항목(예: 실리콘) — 견적 만들기에서 바로 직접 추가. (2026-06-07 사장님 요청)
-    val customItems = remember { androidx.compose.runtime.mutableStateListOf<EstCustomLine>() }
+    val customItems = draft.customItems
     // 프로토: 카테고리 없는 평탄 리스트.
     val visibleItems = remember(items) { items.sortedBy { it.displayOrder } }
     val totalSum by remember {

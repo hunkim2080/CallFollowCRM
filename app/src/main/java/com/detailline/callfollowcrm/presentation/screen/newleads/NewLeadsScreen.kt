@@ -49,6 +49,17 @@ import com.detailline.callfollowcrm.presentation.theme.TossSuccess
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 
 /**
  * 신규 고객 · 날짜별 (프로토 `s-newleads` / renderNewLeads) 1:1.
@@ -65,9 +76,12 @@ fun NewLeadsScreen(
     onReContact: (phone: String, customerId: Long) -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         containerColor = TossGrayBg,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("신규 고객 · 날짜별", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary) },
@@ -132,11 +146,23 @@ fun NewLeadsScreen(
                         }
                     }
                     items(group.leads, key = { it.phone }) { lead ->
-                        NewLeadRow(
-                            lead = lead,
-                            onClick = { onOpenLead(lead.phone, lead.customerId) },
-                            onReContact = { onReContact(lead.phone, lead.customerId) }
-                        )
+                        // 밀어서 정리(우→좌) = 광고/스팸 마킹 → 목록·집계에서 제외. 되돌리기 스낵바. (2026-06-08 #3)
+                        LeadSwipeBox(onDismiss = {
+                            viewModel.dismissAsSpam(lead.phone)
+                            scope.launch {
+                                val r = snackbarHostState.showSnackbar(
+                                    "광고/스팸으로 정리했어요 — 신규 집계에서 빠져요",
+                                    actionLabel = "되돌리기", duration = SnackbarDuration.Short
+                                )
+                                if (r == SnackbarResult.ActionPerformed) viewModel.undoDismiss(lead.phone)
+                            }
+                        }) {
+                            NewLeadRow(
+                                lead = lead,
+                                onClick = { onOpenLead(lead.phone, lead.customerId) },
+                                onReContact = { onReContact(lead.phone, lead.customerId) }
+                            )
+                        }
                     }
                 }
             }
@@ -161,6 +187,39 @@ private fun CFilterChip(label: String, count: Int, on: Boolean, onClick: () -> U
             fontSize = 13.sp, fontWeight = FontWeight.ExtraBold
         )
     }
+}
+
+/** 신규 줄 우→좌 swipe → '광고/정리'. SpamSwipeBox 와 동일 패턴(confirmValueChange=false, 데이터가 제거). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LeadSwipeBox(onDismiss: () -> Unit, content: @Composable () -> Unit) {
+    val swipeState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value == SwipeToDismissBoxValue.EndToStart) onDismiss()
+            false   // 원위치 복귀 — 실제 제거는 데이터(스팸 마킹)가 처리.
+        },
+        positionalThreshold = { total -> total * 0.6f }
+    )
+    SwipeToDismissBox(
+        state = swipeState,
+        enableDismissFromStartToEnd = false,
+        enableDismissFromEndToStart = true,
+        backgroundContent = {
+            Box(
+                Modifier.fillMaxWidth().padding(bottom = 9.dp)
+                    .clip(RoundedCornerShape(14.dp)).background(TossBlueSoft)
+                    .padding(horizontal = 20.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Check, "정리", tint = TossBlue, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("광고/정리", color = TossBlue, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                }
+            }
+        },
+        content = { content() }
+    )
 }
 
 @Composable

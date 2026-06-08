@@ -923,26 +923,43 @@ fun CustomerDetailScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.End
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                         ) {
-                            TextButton(onClick = { datePickerOpen = false }) {
-                                Text("취소", color = TossTextSecondary)
-                            }
-                            TextButton(
-                                onClick = {
-                                    val picked = datePickerState.selectedDateMillis
-                                    if (picked != null) {
-                                        // 일정 신규 등록/변경 모두 축하. 자동 status 전환은 폐기됨 (카테고리 시스템).
-                                        val wasAlreadyScheduled = customer?.scheduledWorkDate != null
-                                        viewModel.updateScheduledWorkDate(picked)
-                                        if (!wasAlreadyScheduled) {
-                                            celebrationVisible = true
-                                            vibrateCelebration(context)
-                                        }
-                                    }
+                            // 예약 취소(일정 비우기) — 기존 예약 있을 때만 노출. 고객이 시공 취소 시. (2026-06-08 #6)
+                            if (customer?.scheduledWorkDate != null) {
+                                TextButton(onClick = {
+                                    viewModel.updateScheduledWorkDate(null)
                                     datePickerOpen = false
+                                    android.widget.Toast.makeText(context, "시공 예약을 취소했어요", android.widget.Toast.LENGTH_SHORT).show()
+                                }) {
+                                    Text("예약 취소", color = Color(0xFFE5484D), fontWeight = FontWeight.SemiBold)
                                 }
-                            ) { Text("저장", color = TossBlue, fontWeight = FontWeight.SemiBold) }
+                            } else {
+                                Spacer(Modifier.width(1.dp))
+                            }
+                            androidx.compose.foundation.layout.Row(
+                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                            ) {
+                                TextButton(onClick = { datePickerOpen = false }) {
+                                    Text("취소", color = TossTextSecondary)
+                                }
+                                TextButton(
+                                    onClick = {
+                                        val picked = datePickerState.selectedDateMillis
+                                        if (picked != null) {
+                                            // 일정 신규 등록/변경 모두 축하. 자동 status 전환은 폐기됨 (카테고리 시스템).
+                                            val wasAlreadyScheduled = customer?.scheduledWorkDate != null
+                                            viewModel.updateScheduledWorkDate(picked)
+                                            if (!wasAlreadyScheduled) {
+                                                celebrationVisible = true
+                                                vibrateCelebration(context)
+                                            }
+                                        }
+                                        datePickerOpen = false
+                                    }
+                                ) { Text("저장", color = TossBlue, fontWeight = FontWeight.SemiBold) }
+                            }
                         }
                     }
                 }
