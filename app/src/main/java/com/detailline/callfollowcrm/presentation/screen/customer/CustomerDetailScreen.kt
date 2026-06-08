@@ -15,6 +15,7 @@ import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -2481,6 +2482,7 @@ private fun AddressEditDialog(
  *   아니면 문자 링크(SmsIntentHelper). 자동발송 아님 — 상대 수락해야 시작.
  *   고객 전화번호/대화는 보내지 않음(customer_label = 안전 라벨만).
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CollabShareSheet(
     siteTitle: String,
@@ -2491,6 +2493,8 @@ private fun CollabShareSheet(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val container = remember { (context.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication).container }
+    val workers by container.notebookRepository.observeWorkers().collectAsState(initial = emptyList())
+    val recentSmsContacts by container.smsContactCacheRepository.observeAll(40).collectAsState(initial = emptyList())
     var partnerPhone by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
     var sending by remember { mutableStateOf(false) }
 
@@ -2520,6 +2524,18 @@ private fun CollabShareSheet(
             )
             sending = false
             res.onSuccess { r ->
+                val existsInNotebook = workers.any { it.phone.filter { ch -> ch.isDigit() }.takeLast(8) == partner.takeLast(8) }
+                if (!existsInNotebook) {
+                    runCatching {
+                        container.notebookRepository.add(
+                            kind = com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity.KIND_WORKER,
+                            name = "협업 사장님",
+                            phone = partner,
+                            tag = "협업",
+                            memo = "협업 현장으로 함께 일한 사장님"
+                        )
+                    }
+                }
                 if (r.route == "link" && !r.url.isNullOrBlank()) {
                     val body = r.smsDraft ?: "협업 현장 공유 — ${r.url}"
                     com.detailline.callfollowcrm.util.SmsIntentHelper.openSmsCompose(context, partner, body)
@@ -2561,6 +2577,33 @@ private fun CollabShareSheet(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text("RING-GO 쓰는 사장님이면 그 분 앱으로, 아니면 문자 링크로 가요.", fontSize = 11.sp, color = TossTextTertiary)
+                val workerCandidates = workers.filter { it.phone.filter { ch -> ch.isDigit() }.length >= 9 }.take(8)
+                val smsCandidates = recentSmsContacts
+                    .filter { it.address.filter { ch -> ch.isDigit() }.length >= 9 }
+                    .filterNot { sms -> workerCandidates.any { it.phone.filter { ch -> ch.isDigit() }.takeLast(8) == sms.address.filter { ch -> ch.isDigit() }.takeLast(8) } }
+                    .take(8)
+                if (workerCandidates.isNotEmpty() || smsCandidates.isNotEmpty()) {
+                    Spacer(Modifier.height(12.dp))
+                    if (workerCandidates.isNotEmpty()) {
+                        Text("수첩 일당·알바에서 불러오기", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                        Spacer(Modifier.height(6.dp))
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                            workerCandidates.forEach { w ->
+                                CollabPhoneChip(w.name) { partnerPhone = w.phone }
+                            }
+                        }
+                    }
+                    if (smsCandidates.isNotEmpty()) {
+                        Spacer(Modifier.height(10.dp))
+                        Text("최근 문자에서 불러오기", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                        Spacer(Modifier.height(6.dp))
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                            smsCandidates.forEach { s ->
+                                CollabPhoneChip(com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(s.address)) { partnerPhone = s.address }
+                            }
+                        }
+                    }
+                }
                 Spacer(Modifier.height(14.dp))
                 // 벽 안내
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossBlueSoft).padding(13.dp)) {
@@ -2587,6 +2630,17 @@ private fun CollabShareSheet(
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             }
         }
+    }
+}
+
+@Composable
+private fun CollabPhoneChip(label: String, onClick: () -> Unit) {
+    Box(
+        Modifier.clip(RoundedCornerShape(999.dp)).background(TossGrayBg)
+            .clickable { onClick() }
+            .padding(horizontal = 11.dp, vertical = 7.dp)
+    ) {
+        Text(label, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary, maxLines = 1)
     }
 }
 

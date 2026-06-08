@@ -1146,6 +1146,7 @@ private fun AutoSmsSection(
     var arrOn by remember { mutableStateOf(prefs.arrivalAutoEnabled) }
     var arrText by remember { mutableStateOf(prefs.arrivalAutoText) }
     var spamPrefixes by remember { mutableStateOf(prefs.spamPrefixes) }
+    var newSpamPrefix by remember { mutableStateOf("") }
 
     fun hourLabel(h: Int): String = when {
         h == 0 -> "오전 12시"; h < 12 -> "오전 ${h}시"; h == 12 -> "오후 12시"; else -> "오후 ${h - 12}시"
@@ -1186,11 +1187,11 @@ private fun AutoSmsSection(
     }
     Spacer(Modifier.height(10.dp))
 
-    // ③ 현장 도착 안내 (5km)
-    AutoCard("📍", Color(0xFFE6F7EE), "현장 도착 안내 (5km)", null, "위치 기반 · 보내기 전 확인",
+    // ③ 오늘 시공 도착 안내
+    AutoCard("📍", Color(0xFFE6F7EE), "오늘 시공 도착 안내", null, "상담함 오늘시공 섹션 · 보내기 전 확인",
         arrOn, { arrOn = it; prefs.arrivalAutoEnabled = it; onArrivalToggle(it) }) {
         AutoTextArea(arrText) { arrText = it; prefs.arrivalAutoText = it }
-        AutoNote("위치 권한이 필요해요. (위치 기반 자동 감지는 준비 중)")
+        AutoNote("상담함의 오늘시공 도착 안내와 같은 문구예요. 위치 감지는 준비 중이라 지금은 사장님 확인 후 보내는 안내로 사용해요.")
     }
     Spacer(Modifier.height(14.dp))
 
@@ -1256,6 +1257,31 @@ private fun AutoSmsSection(
                             spamPrefixes = spamPrefixes + p; prefs.spamPrefixes = spamPrefixes
                         }
                     }
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = newSpamPrefix,
+                    onValueChange = { newSpamPrefix = it.filter { c -> c.isDigit() }.take(6) },
+                    placeholder = { Text("앞자리 직접 입력", color = TossTextTertiary) },
+                    singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                    modifier = Modifier.weight(1f)
+                )
+                Box(
+                    Modifier.clip(RoundedCornerShape(11.dp))
+                        .background(if (newSpamPrefix.isNotBlank()) TossBlue else TossGrayBg)
+                        .clickable(enabled = newSpamPrefix.isNotBlank()) {
+                            val p = newSpamPrefix
+                            spamPrefixes = spamPrefixes + p
+                            prefs.spamPrefixes = spamPrefixes
+                            newSpamPrefix = ""
+                        }
+                        .padding(horizontal = 14.dp, vertical = 14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("추가", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (newSpamPrefix.isNotBlank()) Color.White else TossTextTertiary)
+                }
             }
         }
     }

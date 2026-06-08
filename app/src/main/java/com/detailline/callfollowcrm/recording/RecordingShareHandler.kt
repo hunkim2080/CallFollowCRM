@@ -35,10 +35,17 @@ object RecordingShareHandler {
         scope.launch {
             var matched = 0
             var linked = 0
+            var skipped = 0
+            val seenUris = mutableSetOf<String>()
             // 요약 대상(번호 인식된 것만) — 저장 먼저 끝내고, 토스트 후 백그라운드 요약.
             val toSummarize = mutableListOf<Pair<String, String>>()  // (uri, fileName)
             uris.forEach { uri ->
                 runCatching {
+                    val uriKey = uri.toString()
+                    if (!seenUris.add(uriKey) || container.recordingRepository.existsByUri(uriKey)) {
+                        skipped++
+                        return@runCatching
+                    }
                     val name = displayName
                         ?: queryDisplayName(appCtx, uri)
                         ?: uri.lastPathSegment.orEmpty()
@@ -57,9 +64,10 @@ object RecordingShareHandler {
             }
 
             val message = buildString {
-                append("녹음 ${uris.size}개 저장")
+                append("녹음 ${uris.size - skipped}개 저장")
                 if (matched > 0) append(" · 번호 인식 ${matched}건")
                 if (linked > 0) append(" · 기존 고객 연결 ${linked}건")
+                if (skipped > 0) append(" · 중복 ${skipped}개 건너뜀")
             }
             withContext(Dispatchers.Main) {
                 Toast.makeText(appCtx, message, Toast.LENGTH_LONG).show()

@@ -113,11 +113,13 @@ fun ScheduleScreen(
     onOpenCustomer: (Long) -> Unit,
     onAddSchedule: () -> Unit = {},
     onOpenSettle: () -> Unit = {},
+    onOpenCollabSites: (String?) -> Unit = {},
     /** 진입 시 미리 선택할 날(ms). 홈 "다음 시공" 카드에서 그 시공일로. null/<=0 = 오늘. */
     initialSelectedDayMs: Long? = null
 ) {
     val state by viewModel.state.collectAsState()
     val collabDays by viewModel.collabDayStarts.collectAsState()   // 캘린더 협업 보라점 (#7)
+    val collabSites by viewModel.collabSites.collectAsState()
     val cardSummaries by viewModel.cardSummariesByPhoneSuffix.collectAsState()
     val nowMs = remember { System.currentTimeMillis() }
     val todayStart = remember(nowMs) { DateTimeUtils.startOfDay(nowMs) }
@@ -199,6 +201,11 @@ fun ScheduleScreen(
             state.all.filter { jobCoversDay(it, day) }
                 .sortedBy { it.scheduledWorkMinutes ?: Int.MAX_VALUE }
         }
+        val collabForSelected = remember(selectedDayMs, collabSites) {
+            val day = selectedDayMs ?: return@remember emptyList()
+            collabSites.filter { DateTimeUtils.startOfDay(it.scheduledAtMs) == day }
+                .sortedBy { it.timeLabel ?: "" }
+        }
 
         // 2026-06-08 사장님 통점(투명막 진범): LazyColumn 에 initialFirstVisibleItemIndex=1 을 주면 안 됨.
         //   index0(캘린더 블록)이 뷰포트보다 큰 단일 item 인데, 첫 컴포지션 땐 그 아래 데이터가 비어
@@ -272,7 +279,9 @@ fun ScheduleScreen(
                 DayLabel(dayMs = selectedDayMs, isToday = selectedDayMs == todayStart)
             }
             if (schedulesForSelected.isEmpty()) {
-                item(key = "no-schedules") { DayEmpty(onAdd = onAddSchedule) }
+                if (collabForSelected.isEmpty()) {
+                    item(key = "no-schedules") { DayEmpty(onAdd = onAddSchedule) }
+                }
             } else {
                 if (schedulesForSelected.size > 1) {
                     item(key = "day-count") { DayCount(schedulesForSelected.size) }
@@ -292,8 +301,20 @@ fun ScheduleScreen(
                         onOpenSettle = onOpenSettle
                     )
                 }
-                item(key = "day-add") { DayAddButton("이 날 일정 더 추가", onAddSchedule) }
             }
+            if (collabForSelected.isNotEmpty()) {
+                item(key = "collab-label") {
+                    Text(
+                        "이 날 협업 ${collabForSelected.size}곳",
+                        fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF7C5CFC),
+                        modifier = Modifier.padding(start = 2.dp, top = 6.dp, bottom = 11.dp)
+                    )
+                }
+                items(collabForSelected, key = { "sh-${it.shareId}" }) { site ->
+                    CollabDayCard(site = site, onClick = { onOpenCollabSites(site.shareId) })
+                }
+            }
+            item(key = "day-add") { DayAddButton("이 날 일정 더 추가", onAddSchedule) }
             item { Spacer(Modifier.height(40.dp)) }
         }
     }
@@ -315,6 +336,41 @@ fun ScheduleScreen(
                 assignTarget = null
             }
         )
+    }
+}
+
+@Composable
+private fun CollabDayCard(
+    site: com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite,
+    onClick: () -> Unit
+) {
+    TossCard(onClick = onClick) {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(9.dp).clip(CircleShape).background(Color(0xFF7C5CFC)))
+                Spacer(Modifier.width(10.dp))
+                Text(site.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, modifier = Modifier.weight(1f))
+                Text(
+                    "협업",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color(0xFF7C5CFC),
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(Color(0xFFF1ECFF)).padding(horizontal = 9.dp, vertical = 4.dp)
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                listOfNotNull(site.ownerName.takeIf { it.isNotBlank() }?.let { "$it 사장님" }, site.timeLabel, site.addr).joinToString(" · "),
+                fontSize = 13.sp,
+                color = TossTextSecondary,
+                maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+            site.workSummary?.takeIf { it.isNotBlank() }?.let {
+                Spacer(Modifier.height(6.dp))
+                Text(it, fontSize = 13.sp, color = TossTextTertiary, maxLines = 2)
+            }
+        }
     }
 }
 

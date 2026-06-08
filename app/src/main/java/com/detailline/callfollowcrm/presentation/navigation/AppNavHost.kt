@@ -245,6 +245,7 @@ fun AppNavHost(
                 onOpenCustomer = { id -> navController.navigate(Destinations.customerDetail(id)) },
                 onAddSchedule = { navController.navigate(Destinations.SCHEDULE_ADD) },
                 onOpenSettle = { navController.navigate(Destinations.SETTLEMENT) },
+                onOpenCollabSites = { shareId -> navController.navigate(Destinations.collabSites(shareId)) },
                 initialSelectedDayMs = entry.arguments?.getLong("day")?.takeIf { it > 0L }
             )
         }

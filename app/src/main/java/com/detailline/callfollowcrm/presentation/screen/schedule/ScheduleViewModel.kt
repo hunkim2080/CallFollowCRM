@@ -47,6 +47,10 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
     private val _collabDayStarts = MutableStateFlow<Set<Long>>(emptySet())
     val collabDayStarts = _collabDayStarts.asStateFlow()
 
+    /** 내가 수락한 협업 현장 목록 — 날짜 선택 시 카드로 보여줌. */
+    private val _collabSites = MutableStateFlow<List<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite>>(emptyList())
+    val collabSites = _collabSites.asStateFlow()
+
     /** 고객(현장)별 배정된 팀원 — 일정 카드 배정 줄이 구독. */
     val assignmentsByCustomer: StateFlow<Map<Long, List<TeamAssignmentEntity>>> =
         container.teamAssignmentRepository.observeAll()
@@ -71,8 +75,9 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         if (ownerPhone.isBlank()) return
         viewModelScope.launch {
             container.sharedSiteRepository.withMe(ownerPhone).onSuccess { sites ->
-                _collabDayStarts.value = sites
-                    .filter { it.status == "accepted" && it.scheduledAtMs > 0L }
+                val accepted = sites.filter { it.status == "accepted" && it.scheduledAtMs > 0L }
+                _collabSites.value = accepted
+                _collabDayStarts.value = accepted
                     .map { DateTimeUtils.startOfDay(it.scheduledAtMs) }
                     .toSet()
             }

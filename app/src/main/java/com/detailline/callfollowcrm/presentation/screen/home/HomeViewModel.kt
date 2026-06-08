@@ -381,7 +381,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     private fun renderReminderBody(item: com.detailline.callfollowcrm.domain.reminder.ReminderItem): String {
         val name = item.customerName?.takeIf { it.isNotBlank() } ?: "고객"
         val biz = container.preferences.bizName.takeIf { it.isNotBlank() }?.let { " $it" } ?: ""
-        return when (item.kind) {
+        val fallback = when (item.kind) {
             com.detailline.callfollowcrm.domain.reminder.ReminderKind.D1 -> {
                 val date = DateTimeUtils.formatKoreanDate(item.scheduledDayStartMs)
                 "${name}님, 안녕하세요$biz 😊 내일 $date 시공 예정입니다. 시간 맞춰 방문드릴게요. 변동 있으시면 편히 말씀 주세요!"
@@ -389,6 +389,15 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             com.detailline.callfollowcrm.domain.reminder.ReminderKind.ARRIVAL ->
                 "${name}님, 오늘 시공 위해 곧 출발합니다!$biz 도착 전 미리 연락드릴게요 😊"
         }
+        val raw = when (item.kind) {
+            com.detailline.callfollowcrm.domain.reminder.ReminderKind.D1 -> container.preferences.d1AutoText
+            com.detailline.callfollowcrm.domain.reminder.ReminderKind.ARRIVAL -> container.preferences.arrivalAutoText
+        }.ifBlank { fallback }
+        return raw
+            .replace("{고객명}", name)
+            .replace("{이름}", name)
+            .replace("{상호}", container.preferences.bizName)
+            .replace("{시공일}", DateTimeUtils.formatKoreanDate(item.scheduledDayStartMs))
     }
 
     /** 시공 안내 리마인드 — 보냄 처리(로그 SENT → 카드에서 제외). 실제 발송은 화면이 SmsSender 로. */
