@@ -287,6 +287,15 @@ class AppPreferences(context: Context) {
         get() = prefs.getStringSet("dismissed_team_depart_ids", emptySet()) ?: emptySet()
         set(value) { prefs.edit().putStringSet("dismissed_team_depart_ids", value).commit() }
 
+    // ── 협업 진행 알림(2026-06-09) — 상대 사장 출발/도착/완료 owner-events 중복 방지. ──
+    var collabEventLastSeenMs: Long
+        get() = prefs.getLong("collab_event_last_seen_ms", 0L)
+        set(value) = prefs.edit().putLong("collab_event_last_seen_ms", value).apply()
+    /** 상담함 "협업 진행" 배너 밀어서 정리한 event_id 들. */
+    var dismissedCollabEventIds: Set<String>
+        get() = prefs.getStringSet("dismissed_collab_event_ids", emptySet()) ?: emptySet()
+        set(value) { prefs.edit().putStringSet("dismissed_collab_event_ids", value).commit() }
+
     /** 홈 "견적 회신 챙기기" 배너 밀어서 정리한 날(dayStart). 그 날 하루 숨김 — 다음날 다시. */
     var estimateFollowupDismissedDay: Long
         get() = prefs.getLong("estimate_followup_dismissed_day", 0L)

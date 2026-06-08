@@ -158,6 +158,8 @@ fun HomeScreen(
     onOpenEstimateFollowup: () -> Unit = {},
     /** 홈 "팀원 출발" 배너 탭 → 팀 관리(출발 현황). (2026-06-06) */
     onOpenTeam: () -> Unit = {},
+    /** 홈 "협업 진행" 배너 탭 → 협업 현장. (2026-06-09) */
+    onOpenCollabSites: () -> Unit = {},
     /** 상담함 "부재중 자동답장" 알림 길게누름 → 자동 문자 설정(부재중 응답 펼침). (2026-06-06) */
     onOpenAutoSmsSettings: () -> Unit = {}
 ) {
@@ -179,6 +181,7 @@ fun HomeScreen(
     val nextJobs by viewModel.nextJobs.collectAsState()
     val autoReplies by viewModel.autoReplies.collectAsState()
     val teamUpdates by viewModel.teamUpdates.collectAsState()
+    val collabUpdates by viewModel.collabUpdates.collectAsState()
     val recurringDueCount by viewModel.recurringDueCount.collectAsState()
     val scheduleReminders by viewModel.scheduleReminders.collectAsState()
     val estimateFollowupCount by viewModel.estimateFollowupCount.collectAsState()
@@ -572,6 +575,28 @@ fun HomeScreen(
                                         onOpenTeam()
                                     }
                                 }
+                            )
+                        }
+                    }
+                }
+
+                // 협업 진행 알림 (2026-06-09) — 상대 사장 출발/도착/완료. 탭 → 협업 현장. 밀어서 정리.
+                collabUpdates.forEach { up ->
+                    item(key = "collab-update-${up.eventId}") {
+                        val (accent, tint, icon, title, verb) = collabUpdateStyle(up.kind)
+                        val subText = "${up.partnerName}님 · ${up.timeLabel} · ${up.title} $verb" +
+                            (up.accountText?.let { " · 계좌 $it" } ?: "")
+                        DismissSwipeBox(onDismiss = { viewModel.dismissCollabUpdate(up.eventId) }) {
+                            InboxAlert(
+                                accent = accent,
+                                accentTint = tint,
+                                icon = icon,
+                                title = title,
+                                tagText = null,
+                                tagBg = tint, tagFg = accent,
+                                sub = subText,
+                                goLabel = "현장 보기",
+                                onClick = onOpenCollabSites
                             )
                         }
                     }
@@ -1239,6 +1264,12 @@ private fun teamUpdateStyle(kind: String): TeamUpdateStyle = when (kind) {
     "completed" -> TeamUpdateStyle(Color(0xFF7C5CFC), Color(0xFFF1ECFE), Icons.Default.CheckCircle, "작업 완료 ✅", "작업 완료")
     "note" -> TeamUpdateStyle(Color(0xFFF6A609), Color(0xFFFFF3DF), Icons.Default.Edit, "현장 메모 📝", "")
     else -> TeamUpdateStyle(TossSuccess, Color(0xFFE5F8EE), Icons.Default.Navigation, "팀원 출발 🚗", "출발")
+}
+
+private fun collabUpdateStyle(kind: String): TeamUpdateStyle = when (kind) {
+    "arrived" -> TeamUpdateStyle(TossBlue, TossBlueSoft, Icons.Default.LocationOn, "협업 현장 도착 📍", "도착")
+    "completed" -> TeamUpdateStyle(Color(0xFF7C5CFC), Color(0xFFF1ECFE), Icons.Default.CheckCircle, "협업 작업 완료 ✅", "작업 완료")
+    else -> TeamUpdateStyle(TossSuccess, Color(0xFFE5F8EE), Icons.Default.Navigation, "협업 현장 출발 🚗", "출발")
 }
 
 @Composable

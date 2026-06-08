@@ -3403,3 +3403,14 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 - 검증: `JAVA_HOME=C:\Program Files\Android\Android Studio\jbr` 로 `gradlew.bat :app:assembleDebug` 성공. 경고는 기존 ScheduleScreen onBack 미사용 1건.
 - commit: c32e530
 - 다음 액션(맥미니 Claude): `docs/SERVER_HANDOFF_collab_notify_calendar.md` 확인 후 owner-events endpoint 구현, SYNC 회신. 그 뒤 앱에서 CollabEventCenter 폴러/알림 연결.
+
+## 2026-06-09 01:00 · android · 협업 진행 알림 앱 폴러 선반영
+서버는 클로드코드/맥미니가 깨어나면 처리하기로 하고, 앱에서 가능한 부분을 먼저 완료.
+- 신규: `CollabEventCenter` — `GET /api/shared/owner-events` 폴링, 첫 폴링은 기준점만 잡아 과거 알림 폭주 방지, 이후 새 departed/arrived/completed 만 알림.
+- SharedSiteRepository: `ownerEvents()` 클라이언트 추가. 서버 미구현(404) 상태에서는 Result 실패 → 앱은 조용히 무시.
+- AppContainer/Application/ReminderWorker 연결: 앱 켜짐 60초 루프 + WorkManager 주기 실행에서 협업 이벤트 폴링.
+- NotificationHelper: 협업 출발/도착/완료 알림 추가. 알림 탭은 `/shared/{share_id}` App Link 로 협업 현장 화면 진입.
+- HomeViewModel/HomeScreen/AppNavHost: 상담함에 협업 진행 배너 표시, 밀어서 정리, 탭 → 협업 현장.
+- 검증: `JAVA_HOME=C:\Program Files\Android\Android Studio\jbr` 로 `gradlew.bat :app:assembleDebug` 성공. 경고는 기존 미사용/Deprecated 경고.
+- commit: pending
+- 다음 액션(맥미니 Claude): `/api/shared/owner-events` endpoint 구현. 앱 코드는 endpoint 열리면 바로 동작.

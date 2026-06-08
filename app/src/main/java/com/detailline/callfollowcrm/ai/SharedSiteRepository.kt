@@ -71,6 +71,17 @@ class SharedSiteRepository(
         val smsDraft: String?
     )
 
+    /** A(현장 주인)가 받아보는 협업 진행 이벤트. */
+    data class OwnerEvent(
+        val eventId: String,
+        val shareId: String,
+        val title: String,
+        val partnerName: String,
+        val step: String,             // "departed" | "arrived" | "completed"
+        val atMs: Long,
+        val account: JSONObject? = null
+    )
+
     /** 내가 공유받은 협업 현장 목록. 서버 없거나 실패 시 빈 목록(graceful). */
     suspend fun withMe(phone: String, sinceMs: Long = 0L, limit: Int = 50): Result<List<SharedSite>> =
         withContext(Dispatchers.IO) {
@@ -159,6 +170,39 @@ class SharedSiteRepository(
         post("$baseUrl/api/shared/paid", JSONObject().apply {
             put("share_id", shareId); put("owner_phone", ownerPhone)
         })
+
+    /** A(현장 주인)용 협업 진행 이벤트. 서버 미구현(404) 시 Result 실패 → 호출부가 조용히 무시. */
+    suspend fun ownerEvents(ownerPhone: String, sinceMs: Long = 0L, limit: Int = 50): Result<List<OwnerEvent>> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val url = baseUrl.toHttpUrl().newBuilder()
+                    .addPathSegments("api/shared/owner-events")
+                    .addQueryParameter("phone", ownerPhone)
+                    .addQueryParameter("since_ms", sinceMs.toString())
+                    .addQueryParameter("limit", limit.toString())
+                    .build()
+                val req = Request.Builder().url(url).get().build()
+                client.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                    val arr = JSONObject(resp.body?.string().orEmpty()).optJSONArray("events") ?: JSONArray()
+                    (0 until arr.length()).mapNotNull { i ->
+                        val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                        val shareId = o.optString("share_id")
+                        val step = o.optString("step").lowercase()
+                        val atMs = o.optLong("at_ms")
+                        OwnerEvent(
+                            eventId = o.optString("event_id").ifBlank { "$shareId:$step:$atMs" },
+                            shareId = shareId,
+                            title = o.optString("title").ifBlank { "협업 현장" },
+                            partnerName = o.optString("partner_name").ifBlank { "협업 사장님" },
+                            step = step,
+                            atMs = atMs,
+                            account = o.optJSONObject("account")
+                        )
+                    }
+                }
+            }
+        }
 
     /** 상대 번호가 가입 사장인지(인앱 vs 링크 분기). 서버 없으면 false(=링크 경로). */
     suspend fun ownerExists(phone: String): Result<Boolean> = withContext(Dispatchers.IO) {

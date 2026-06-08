@@ -143,6 +143,10 @@ class AppContainer(context: Context) {
     val teamEventCenter by lazy {
         com.detailline.callfollowcrm.ai.TeamEventCenter(teamRepository, preferences)
     }
+    /** 협업 현장 진행 이벤트 폴링/알림 + 상담함 배너 소스 (2026-06-09). */
+    val collabEventCenter by lazy {
+        com.detailline.callfollowcrm.ai.CollabEventCenter(sharedSiteRepository, preferences)
+    }
     // 2026-06-05 팀원 현장 배정(로컬 기록 + 서버 snapshot push 의 토대).
     val teamAssignmentRepository = com.detailline.callfollowcrm.data.repository.TeamAssignmentRepository(
         db.teamAssignmentDao()

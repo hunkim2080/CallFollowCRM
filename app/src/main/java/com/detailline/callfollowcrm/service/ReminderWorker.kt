@@ -28,6 +28,8 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
         runCatching { checkRecurringDue(app.container) }
         // 팀원 출발 이벤트 — 앱 꺼져 있어도 주기 워커가 새 출발을 잡아 알림 (사장님 요청 2026-06-06).
         runCatching { app.container.teamEventCenter.poll(applicationContext) }
+        // 협업 현장 진행 이벤트 — 서버 owner-events 준비 후 앱 종료 상태에서도 알림.
+        runCatching { app.container.collabEventCenter.poll(applicationContext) }
         runCatching { GeofenceManager.refresh(applicationContext) }
         return Result.success()
     }

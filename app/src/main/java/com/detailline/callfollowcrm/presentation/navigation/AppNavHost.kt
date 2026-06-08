@@ -177,6 +177,7 @@ fun AppNavHost(
                 onOpenScheduleReminder = { navController.navigate(Destinations.SCHEDULE_REMINDER) },
                 onOpenEstimateFollowup = { navController.navigate(Destinations.ESTIMATE_FOLLOWUP) },
                 onOpenTeam = { navController.navigate(Destinations.TEAM) },
+                onOpenCollabSites = { navController.navigate(Destinations.COLLAB_SITES) },
                 onOpenAutoSmsSettings = { navController.navigate(Destinations.SETTINGS_AUTOSMS) }
             )
         }

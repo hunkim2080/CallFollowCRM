@@ -309,6 +309,23 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // ────────────────────────────────────────────────────────
+    // 협업 진행 알림 (상담함, 2026-06-09)
+    //   CollabEventCenter 가 서버 owner-events 로 채운 오늘 출발/도착/완료를 배너로.
+    // ────────────────────────────────────────────────────────
+    private val dismissedCollabEventIds = MutableStateFlow(container.preferences.dismissedCollabEventIds)
+
+    fun dismissCollabUpdate(eventId: String) {
+        val next = dismissedCollabEventIds.value + eventId
+        dismissedCollabEventIds.value = next
+        container.preferences.dismissedCollabEventIds = next
+    }
+
+    val collabUpdates: StateFlow<List<com.detailline.callfollowcrm.ai.CollabEventCenter.CollabUpdate>> =
+        combine(container.collabEventCenter.todayUpdates, dismissedCollabEventIds) { list, dismissed ->
+            list.filter { it.eventId !in dismissed }.sortedByDescending { it.createdAtMs }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    // ────────────────────────────────────────────────────────
     // 정기문자 "보낼 때 됐어요" 카운트 (상담함, 2026-06-01)
     //   포그라운드 계산 (앱 열 때). 자동발송 X — 사장님이 목록에서 확인 후 보냄.
     // ────────────────────────────────────────────────────────

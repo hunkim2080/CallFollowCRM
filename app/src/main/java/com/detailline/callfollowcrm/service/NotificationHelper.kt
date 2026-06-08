@@ -6,10 +6,12 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.graphics.BitmapFactory
+import android.net.Uri
 import android.os.Build
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.detailline.callfollowcrm.AppConfig
 import com.detailline.callfollowcrm.MainActivity
 import com.detailline.callfollowcrm.R
 
@@ -31,6 +33,7 @@ object NotificationHelper {
     private const val RECUR_ID = 9_800_000
     private const val ARRIVAL_ID_OFFSET = 9_900_000
     private const val DEPART_ID_OFFSET = 9_600_000
+    private const val COLLAB_ID_OFFSET = 9_400_000
     /** SMS 알림 ID = 발신번호 hash + offset. 같은 번호 새 SMS = 같은 알림 update. */
     private const val SMS_ID_OFFSET = 10_000_000
 
@@ -251,6 +254,53 @@ object NotificationHelper {
             msg = msg,
             contentIntent = pending,
             actions = listOf(PushAction("팀 현황 보기", pending))
+        )
+    }
+
+    /** 협업 진행 알림 — 다른 사장님이 공유 현장에서 출발/도착/완료를 누르면. */
+    fun showCollabEvent(
+        context: Context,
+        eventId: String,
+        shareId: String,
+        kind: String,
+        partnerName: String,
+        timeLabel: String,
+        title: String,
+        accountText: String? = null
+    ) {
+        val notifId = COLLAB_ID_OFFSET + (eventId.hashCode() and 0x7FFFFF)
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            action = Intent.ACTION_VIEW
+            data = Uri.parse("${AppConfig.BASE_URL.trimEnd('/')}/shared/$shareId")
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pending = PendingIntent.getActivity(
+            context, notifId, openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val (pushTitle, msg, accent) = when (kind) {
+            "arrived" -> Triple(
+                "협업 현장 도착 📍",
+                "${partnerName}님이 $timeLabel · ${title}에 도착했어요",
+                ACCENT_BLUE
+            )
+            "completed" -> Triple(
+                "협업 작업 완료 ✅",
+                "${partnerName}님이 $timeLabel · ${title} 작업을 끝냈어요",
+                ACCENT_PURPLE
+            )
+            else -> Triple(
+                "협업 현장 출발 🚗",
+                "${partnerName}님이 $timeLabel · ${title}으로 출발했어요",
+                ACCENT_GREEN
+            )
+        }
+        showProtoPush(
+            context, notifId, CHANNEL_REMINDER, accent,
+            title = pushTitle,
+            msg = accountText?.let { "$msg · 계좌 $it" } ?: msg,
+            contentIntent = pending,
+            actions = listOf(PushAction("협업 현장 보기", pending))
         )
     }
 

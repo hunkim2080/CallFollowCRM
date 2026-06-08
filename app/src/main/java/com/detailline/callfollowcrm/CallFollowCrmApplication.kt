@@ -148,6 +148,8 @@ class CallFollowCrmApplication : Application() {
                 runCatching { container.intakeSyncManager.sync(this@CallFollowCrmApplication) }
                 // 팀원 출발 이벤트 — 새 출발이면 알림 + 상담함 배너 갱신 (사장님 요청 2026-06-06).
                 runCatching { container.teamEventCenter.poll(this@CallFollowCrmApplication) }
+                // 협업 현장 진행 이벤트 — 서버 owner-events 가 열리면 출발/도착/완료 알림 + 상담함 배너.
+                runCatching { container.collabEventCenter.poll(this@CallFollowCrmApplication) }
                 // 최근 SMS/MMS 캐시 self-heal — SmsReceiver 가 놓친 문자도 60초 내 "오늘 신규"에 반영.
                 runCatching { syncSmsContacts() }
                 runCatching { syncMmsContacts() }
