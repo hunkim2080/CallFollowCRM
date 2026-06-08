@@ -3401,5 +3401,5 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 - SharedSiteRepository: `with-me`, `owner-exists` query 를 OkHttp HttpUrl.Builder 로 변경. `+82` 번호가 query 에서 깨질 수 있는 위험 제거.
 - #8 협업 출발/도착/완료 알림: 앱 폴러는 서버 endpoint 필요. `docs/SERVER_HANDOFF_collab_notify_calendar.md` 작성 — `/api/shared/progress` 이벤트 적재 + `GET /api/shared/owner-events` 요청.
 - 검증: `JAVA_HOME=C:\Program Files\Android\Android Studio\jbr` 로 `gradlew.bat :app:assembleDebug` 성공. 경고는 기존 ScheduleScreen onBack 미사용 1건.
-- commit: fbc9cee
+- commit: c32e530
 - 다음 액션(맥미니 Claude): `docs/SERVER_HANDOFF_collab_notify_calendar.md` 확인 후 owner-events endpoint 구현, SYNC 회신. 그 뒤 앱에서 CollabEventCenter 폴러/알림 연결.
