@@ -92,6 +92,13 @@ class AppContainer(context: Context) {
     val chatDraftStore = com.detailline.callfollowcrm.data.draft.ChatDraftStore()
 
     /**
+     * "최근 대화" 안 읽음(파란 점) 읽음 추적 — 카톡식 (2026-06-08 사장님 통점).
+     *   채팅 열면(ChatViewModel.init) markRead → 홈이 구독해 "고객 마지막 메시지 > 읽은 시각" 일 때만 점.
+     *   SharedPreferences 영속 (앱 재시작에도 유지).
+     */
+    val readStateStore = com.detailline.callfollowcrm.data.draft.ReadStateStore(context.applicationContext)
+
+    /**
      * AI 추천 답변 chips 의 phone 별 in-memory 캐시 (2026-05-28 사장님 통점).
      *   ChatScreen 재진입 시 chips 가 잠시 사라졌다 다시 채워지는 끊김을 0ms 로 단축.
      *   stale 차단은 ChatViewModel.effectiveSuggestions 의 기존 로직이 책임.

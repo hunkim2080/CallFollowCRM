@@ -653,6 +653,13 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /**
+     * 카톡식 읽음 추적 (2026-06-08) — "최근 대화" 파란 점 계산용.
+     *   suffix → 마지막으로 그 대화를 연 시각(ms). 채팅 열면 갱신 → 점 사라짐.
+     *   HomeScreen 이 collect 해서 row 별 안 읽음 = (lastSent==false && 고객 마지막 메시지 > 읽은 시각) 계산.
+     */
+    val readStates: StateFlow<Map<String, Long>> = container.readStateStore.readStates
+
     private fun phoneSuffix(phone: String): String {
         val digits = phone.filter { it.isDigit() }
         return if (digits.length >= 8) digits.takeLast(8) else digits

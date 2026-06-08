@@ -165,6 +165,8 @@ fun HomeScreen(
     val filter by viewModel.filterState.collectAsState()
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val aiCardSummaries by viewModel.cardSummariesByPhoneSuffix.collectAsState()
+    // 카톡식 읽음 추적 (2026-06-08) — "최근 대화" 파란 점 계산. 채팅 열면 갱신 → 점 사라짐.
+    val readStates by viewModel.readStates.collectAsState()
     val waitingReplies by viewModel.waitingReplies.collectAsState()
     val categoriesById by viewModel.categories.collectAsState()
     val todayNew by viewModel.todayNewInquiryCount.collectAsState()
@@ -621,10 +623,9 @@ fun HomeScreen(
 
                 // 프로토 상담함 본문 — "지금 답장 기다려요"(미확인) + "최근 대화"(나머지) 두 섹션.
                 val waiting = flatItems.filter { it.isUnconfirmed }
-                // 안 A (2026-06-08): "최근 대화" 안에서도 고객이 마지막에 말한(=안 읽은) 줄을 맨 위로.
-                //   sortedByDescending(Boolean) 은 안정 정렬 → 안 읽음/읽음 그룹 안에선 기존 최신순 유지.
+                // 최근 대화 = 시간순 그대로(카톡식). 안 읽음은 순서 안 바꾸고 파란 점+굵게로만 표시.
+                //   (사장님 2026-06-08 결정: "맨 위로 모으기" 빼고 시간순 유지 → 카톡과 더 동일.)
                 val recent = flatItems.filter { !it.isUnconfirmed }
-                    .sortedByDescending { it.lastSent == false }
 
                 // 지금 답장 기다려요 — waiting-head(제목+카운트+밀어서 정리) + 카드(왼쪽 밀기=정리). 비면 막내.
                 item(key = "waiting-head") { WaitingHeader(count = waiting.size) }
@@ -697,9 +698,13 @@ fun HomeScreen(
                                     )
                                 }
                                 val suffix = rItem.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8)
+                                // 카톡식 안 읽음: 고객이 마지막에 말함(lastSent==false) + 그 메시지가 마지막으로 읽은 시각보다 새것.
+                                val custMsgMs = rItem.lastActivityMs.takeIf { it > 0L } ?: rItem.record.endedAt
+                                val unread = rItem.lastSent == false && (readStates[suffix] ?: 0L) < custMsgMs
                                 RecentRow(
                                     item = rItem,
                                     index = index,
+                                    unread = unread,
                                     aiSummary = aiCardSummaries[suffix],
                                     onOpenChat = { onOpenChat(rItem.record.phoneNumber, rItem.customer?.id) }
                                 )
@@ -2310,15 +2315,15 @@ private fun Avatar(name: String?, index: Int) {
 private fun RecentRow(
     item: HomeItem,
     index: Int,
+    unread: Boolean,
     aiSummary: String?,
     onOpenChat: () -> Unit
 ) {
     val name = item.customer?.name?.takeIf { it.isNotBlank() }
     val title = name ?: PhoneNumberFormatter.format(item.record.phoneNumber)
     val tag = recentStatusTag(item.customer)   // 프로토 .tag — 시공 D-N/계약금/완료
-    // 안 A (2026-06-08 사장님 결정): 고객이 마지막에 말한 줄 = 안 읽음 = 파란 점 + 굵게 + "실제 한 말".
-    //   내가 답한 줄(또는 통화만) = 회색 + AI 요약(없으면 마지막 말, 내가 보냈으면 "나:" prefix).
-    val unread = item.lastSent == false
+    // 안 A (2026-06-08): 안 읽음(고객이 마지막에 말함 + 아직 안 열어봄, 카톡식) = 파란 점 + 굵게 + "실제 한 말".
+    //   내가 답한/읽은 줄(또는 통화만) = 회색 + AI 요약(없으면 마지막 말, 내가 보냈으면 "나:" prefix).
     val messageText = if (unread) {
         item.lastBody?.takeIf { it.isNotBlank() } ?: aiSummary
     } else {

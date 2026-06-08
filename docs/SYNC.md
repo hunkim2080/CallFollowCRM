@@ -3372,3 +3372,10 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 - 안 읽음 판정 = SMS lastSent==false (열람추적 없음, 답장하면 해제). 시공완료 "감사합니다"류도 점 표시되나 글 내용으로 구분됨(의도된 동작).
 - 빌드+폰 설치(SM-G965N) OK, 실데이터 렌더 확인. 참고 목업: design-preview/recent-unread-mockup.html (안 A/B/C 비교, 사장님 안 A 선택).
 - commit: (아래)
+
+## 2026-06-08 (밤6) · android · 최근 대화 — 시간순 유지 + 카톡식 "읽으면 점 해제"
+사장님 추가 요청 2건. 서버 영향 없음(앱 전용).
+- (1) "맨 위로 모으기" 빼고 **시간순 그대로 + 점만**(카톡과 더 동일). HomeScreen recent 정렬 제거.
+- (2) **채팅 한 번 열면(읽으면) 답장 안 해도 파란 점 사라짐**. 신규 ReadStateStore(SharedPreferences 영속, suffix→마지막 연 시각) + AppContainer 등록. ChatViewModel.init 에서 markRead(phone). HomeViewModel.readStates 노출 → HomeScreen 이 collect 해 row 별 안 읽음 = (lastSent==false && 고객 마지막 메시지 시각 > 읽은 시각). 새 메시지 오면 다시 점.
+- 빌드+폰 설치 OK. (점 사라짐은 사장님 탭 테스트로 최종 확인 권장 — 자동 탭 검증은 Compose 노드 미노출로 생략.)
+- commit: (아래)

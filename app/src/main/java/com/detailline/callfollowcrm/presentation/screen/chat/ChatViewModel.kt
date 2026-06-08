@@ -57,6 +57,11 @@ class ChatViewModel(
     private val _customerId = MutableStateFlow<Long?>(initialCustomerId)
 
     init {
+        // 카톡식 읽음 처리 (2026-06-08): 채팅 열면 그 대화를 "읽음"으로 → 홈 "최근 대화" 파란 점 사라짐.
+        //   답장 안 해도 열기만 하면 해제. (모든 진입 경로가 ChatViewModel 을 거치므로 여기 한 곳.)
+        if (phoneNumber.isNotBlank()) {
+            container.readStateStore.markRead(phoneNumber)
+        }
         // initialCustomerId 가 없으면 phone 으로 한 번 lookup (없으면 그대로 null 유지).
         if (initialCustomerId == null && phoneNumber.isNotBlank()) {
             viewModelScope.launch {
