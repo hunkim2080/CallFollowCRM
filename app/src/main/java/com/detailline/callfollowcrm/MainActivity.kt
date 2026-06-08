@@ -60,6 +60,7 @@ class MainActivity : ComponentActivity() {
                             container = container,
                             text = incoming.text
                         )
+                        is IncomingIntent.SharedSite -> container.navEvents.requestCollabSites(incoming.shareId)
                     }
                     pending.value = null
                 }
@@ -127,6 +128,16 @@ class MainActivity : ComponentActivity() {
                 //   phone 만 추출해 ChatScreen 으로 trampoline. body 가 있고 draft 비어있으면 prefill.
                 val uri = intent.data ?: return
                 val scheme = uri.scheme?.lowercase()
+                // 협업 현장 공유 App Link: https://api.si0in.kr/shared/{share_id} (또는 si0in.kr)
+                //   → 협업 현장 화면(그 현장 자동 열기). share_id = 경로 마지막 조각.
+                if (intent.action == Intent.ACTION_VIEW && scheme == "https" &&
+                    (uri.host == "api.si0in.kr" || uri.host == "si0in.kr") &&
+                    uri.path?.startsWith("/shared/") == true
+                ) {
+                    val shareId = uri.lastPathSegment?.takeIf { it.isNotBlank() }
+                    pendingIntentState.value = IncomingIntent.SharedSite(shareId)
+                    return
+                }
                 if (scheme !in setOf("sms", "smsto", "mms", "mmsto")) return
                 val phone = uri.schemeSpecificPart
                     ?.substringBefore('?')
@@ -162,6 +173,8 @@ class MainActivity : ComponentActivity() {
         data class SharedText(val text: String) : IncomingIntent
         data class CallSummary(val phoneNumber: String, val displayName: String?) : IncomingIntent
         object ClosingBrief : IncomingIntent
+        /** 협업 현장 공유 App Link. shareId = /shared/{share_id} 의 마지막 조각(없으면 목록). */
+        data class SharedSite(val shareId: String?) : IncomingIntent
     }
 
     companion object {

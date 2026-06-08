@@ -142,6 +142,23 @@
                 <data android:scheme="mms" />
                 <data android:scheme="mmsto" />
             </intent-filter>
+
+            <!--
+                2026-06-08 협업 현장 공유 App Link.
+                다른 사장님이 보낸 https://api.si0in.kr/shared/{share_id} (또는 si0in.kr) 를
+                브라우저 거치지 않고 RING-GO 가 바로 열어 협업 현장 화면으로 (MainActivity.handleIncoming).
+                autoVerify=true → 서버 /.well-known/assetlinks.json 에 릴리즈 SHA256 등록 필요.
+                pathPrefix="/shared/" — Android pathPattern 의 '*' 의미가 달라 prefix 로 매칭(= /shared/모든것).
+            -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="api.si0in.kr" />
+                <data android:host="si0in.kr" />
+                <data android:pathPrefix="/shared/" />
+            </intent-filter>
         </activity>
 
         <!--

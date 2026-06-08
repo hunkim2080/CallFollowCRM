@@ -69,7 +69,9 @@ private val ProtoSuccess = Color(0xFF16C172)
 @Composable
 fun SharedSiteScreen(
     viewModel: SharedSiteViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    /** 공유 링크(App Link)로 들어왔을 때 그 현장 상세를 자동으로 연다. */
+    initialShareId: String? = null
 ) {
     val sites by viewModel.sites.collectAsState()
     val loading by viewModel.loading.collectAsState()
@@ -78,6 +80,14 @@ fun SharedSiteScreen(
     var selectedId by rememberSaveableShareId()
 
     LaunchedEffect(Unit) { viewModel.load() }
+    // 링크로 진입 — 목록 로드 후 그 현장 상세 1회 자동 열기(사용자가 뒤로 가면 다시 안 엶).
+    var consumedInitial by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(sites, initialShareId) {
+        if (!consumedInitial && !initialShareId.isNullOrBlank() && sites.any { it.shareId == initialShareId }) {
+            selectedId = initialShareId
+            consumedInitial = true
+        }
+    }
     LaunchedEffect(toast) {
         toast?.let {
             android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show()
@@ -127,7 +137,8 @@ fun SharedSiteScreen(
                             context.startActivity(Intent(Intent.ACTION_VIEW, uri))
                         }
                     },
-                    onProgress = { step -> viewModel.updateProgress(selected, step) }
+                    onProgress = { step -> viewModel.updateProgress(selected, step) },
+                    onRespond = { accept -> viewModel.respond(selected, accept); if (!accept) selectedId = null }
                 )
             }
             Spacer(Modifier.height(20.dp))
@@ -198,7 +209,8 @@ private fun DetailBody(
     site: SharedSiteRepository.SharedSite,
     hasAccount: Boolean,
     onNavigate: (String) -> Unit,
-    onProgress: (SharedSiteRepository.Progress) -> Unit
+    onProgress: (SharedSiteRepository.Progress) -> Unit,
+    onRespond: (Boolean) -> Unit
 ) {
     // 협업 현장 pill + 주인
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
@@ -246,7 +258,37 @@ private fun DetailBody(
         }
     }
 
-    // 진행 상황 (눌러서 알려요)
+    // 초대 수락 전(pending) — 수락/거절. 수락해야 진행 단계가 열림.
+    if (site.status == "pending") {
+        Spacer(Modifier.height(16.dp))
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(CollabPurpleSoft)
+                .border(1.dp, Color(0xFFE2D8FB), RoundedCornerShape(14.dp)).padding(14.dp)
+        ) {
+            Text("🤝 ${site.ownerName}이 이 현장을 함께 하재요", fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
+            Spacer(Modifier.height(4.dp))
+            Text("수락하면 내 '협업 현장'에 들어오고 진행을 같이 기록해요.", fontSize = 12.sp, color = Color(0xFF5A4A7A), lineHeight = 17.sp)
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(
+                    Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
+                        .clickable { onRespond(false) }.padding(vertical = 13.dp),
+                    contentAlignment = Alignment.Center
+                ) { Text("거절", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) }
+                Box(
+                    Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(CollabPurple)
+                        .clickable { onRespond(true) }.padding(vertical = 13.dp),
+                    contentAlignment = Alignment.Center
+                ) { Text("수락", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = Color.White) }
+            }
+        }
+        // 벽 안내만 보여주고 진행 단계는 수락 후.
+        Spacer(Modifier.height(16.dp))
+        WallNote(site.ownerName)
+        return
+    }
+
+    // 진행 상황 (눌러서 알려요) — 수락된 현장만.
     Spacer(Modifier.height(16.dp))
     SectionSub("진행 상황 (눌러서 알려요)")
     Stepper(site.progress)
@@ -285,13 +327,17 @@ private fun DetailBody(
 
     // 벽 안내
     Spacer(Modifier.height(16.dp))
+    WallNote(site.ownerName)
+}
+
+@Composable private fun WallNote(ownerName: String) {
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(CollabPurpleSoft)
             .border(1.dp, Color(0xFFE2D8FB), RoundedCornerShape(14.dp)).padding(13.dp)
     ) {
         Text("🔒 이 현장만 보여요", fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
         Spacer(Modifier.height(6.dp))
-        Text("• 고객 전화번호 · 대화는 안 보여요\n• ${site.ownerName}의 다른 고객도 안 보여요",
+        Text("• 고객 전화번호 · 대화는 안 보여요\n• ${ownerName}의 다른 고객도 안 보여요",
             fontSize = 12.5.sp, color = Color(0xFF5A4A7A), lineHeight = 20.sp)
     }
 }

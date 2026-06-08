@@ -3348,3 +3348,11 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 - 빌드 성공. **단 폰 분리되어 최신 APK 미설치** — 재연결 후 adb install -r 필요(또는 사장님이 깔기).
 - 남은 앱작업(다음): A측 "협업 중" 카드(상대 진행/완료+계좌 수신 + 입금완료 버튼), 캘린더 보라점. (서버 paid/with-me 다 준비됨 → 앱만 붙이면 됨)
 - commit: (아래)
+
+## 2026-06-08 (밤3) · android · 협업 링크 App Links
+협업 공유 링크를 앱이 직접 열게 + assetlinks 핸드오프.
+- manifest: MainActivity 에 App Link intent-filter(autoVerify=true, https, host api.si0in.kr + si0in.kr, pathPrefix=/shared/). pathPattern '*' 의미 달라 prefix 사용.
+- MainActivity: ACTION_VIEW https si0in /shared/{id} → share_id(마지막 경로조각) 추출 → NavEvent.OpenCollabSites → 협업 현장 화면 자동 열기. NavEvents/Destinations(collab_sites?share=)/AppRoot/AppNavHost 연결.
+- SharedSiteScreen: initialShareId 로 그 현장 상세 자동 열기 + pending 이면 수락/거절 버튼(respond) 추가.
+- **서버 할 일**: `/.well-known/assetlinks.json` 호스팅(api.si0in.kr + si0in.kr) → `docs/SERVER_HANDOFF_applinks_assetlinks.md` + `docs/assetlinks.json`. release SHA256=4B:C6:27:...:EE. INTAKE_PUBLIC_BASE_URL=https://api.si0in.kr 여야 링크가 App Link 됨.
+- 빌드 OK(폰 분리로 설치는 재연결 후). commit: (아래)

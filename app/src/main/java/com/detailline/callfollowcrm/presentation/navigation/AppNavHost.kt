@@ -461,11 +461,16 @@ fun AppNavHost(
             )
         }
 
-        composable(Destinations.COLLAB_SITES) {
+        composable(
+            Destinations.COLLAB_SITES_WITH_ARG,
+            arguments = listOf(navArgument("share") { type = NavType.StringType; nullable = true; defaultValue = null })
+        ) { entry ->
+            val shareId = entry.arguments?.getString("share")
             val vm: com.detailline.callfollowcrm.presentation.screen.sharedsite.SharedSiteViewModel =
                 viewModel(factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.sharedsite.SharedSiteViewModel(container) })
             com.detailline.callfollowcrm.presentation.screen.sharedsite.SharedSiteScreen(
                 viewModel = vm,
+                initialShareId = shareId,
                 onBack = { navController.popBackStack() }
             )
         }

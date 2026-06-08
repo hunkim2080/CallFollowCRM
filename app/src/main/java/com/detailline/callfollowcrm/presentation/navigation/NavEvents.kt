@@ -25,6 +25,11 @@ class NavEvents {
     fun requestClosingBrief() {
         channel.trySend(NavEvent.OpenClosingBrief)
     }
+
+    /** 협업 현장 공유 링크(App Link) 탭 → 협업 현장 화면 (shareId 있으면 그 현장 바로 열기). */
+    fun requestCollabSites(shareId: String? = null) {
+        channel.trySend(NavEvent.OpenCollabSites(shareId))
+    }
 }
 
 sealed interface NavEvent {
@@ -45,4 +50,6 @@ sealed interface NavEvent {
     ) : NavEvent
     /** "오늘 하루 마감 브리핑" 알림 탭 → 마감 브리핑 화면. */
     object OpenClosingBrief : NavEvent
+    /** 협업 현장 공유 링크 → 협업 현장 화면. shareId 있으면 그 현장 상세 자동 열기. */
+    data class OpenCollabSites(val shareId: String? = null) : NavEvent
 }
