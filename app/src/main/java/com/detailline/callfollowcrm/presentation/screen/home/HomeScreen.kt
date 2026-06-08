@@ -621,7 +621,10 @@ fun HomeScreen(
 
                 // 프로토 상담함 본문 — "지금 답장 기다려요"(미확인) + "최근 대화"(나머지) 두 섹션.
                 val waiting = flatItems.filter { it.isUnconfirmed }
+                // 안 A (2026-06-08): "최근 대화" 안에서도 고객이 마지막에 말한(=안 읽은) 줄을 맨 위로.
+                //   sortedByDescending(Boolean) 은 안정 정렬 → 안 읽음/읽음 그룹 안에선 기존 최신순 유지.
                 val recent = flatItems.filter { !it.isUnconfirmed }
+                    .sortedByDescending { it.lastSent == false }
 
                 // 지금 답장 기다려요 — waiting-head(제목+카운트+밀어서 정리) + 카드(왼쪽 밀기=정리). 비면 막내.
                 item(key = "waiting-head") { WaitingHeader(count = waiting.size) }
@@ -2313,6 +2316,15 @@ private fun RecentRow(
     val name = item.customer?.name?.takeIf { it.isNotBlank() }
     val title = name ?: PhoneNumberFormatter.format(item.record.phoneNumber)
     val tag = recentStatusTag(item.customer)   // 프로토 .tag — 시공 D-N/계약금/완료
+    // 안 A (2026-06-08 사장님 결정): 고객이 마지막에 말한 줄 = 안 읽음 = 파란 점 + 굵게 + "실제 한 말".
+    //   내가 답한 줄(또는 통화만) = 회색 + AI 요약(없으면 마지막 말, 내가 보냈으면 "나:" prefix).
+    val unread = item.lastSent == false
+    val messageText = if (unread) {
+        item.lastBody?.takeIf { it.isNotBlank() } ?: aiSummary
+    } else {
+        aiSummary?.takeIf { it.isNotBlank() }
+            ?: item.lastBody?.takeIf { it.isNotBlank() }?.let { (if (item.lastSent == true) "나: " else "") + it }
+    }
     Row(
         Modifier
             .fillMaxWidth()
@@ -2320,12 +2332,20 @@ private fun RecentRow(
             .padding(horizontal = 16.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // 안 읽음 점 거터 — 읽은 줄도 빈 14dp 자리 유지(아바타 세로 정렬 통일).
+        Box(Modifier.width(14.dp), contentAlignment = Alignment.CenterStart) {
+            if (unread) {
+                Box(Modifier.size(8.dp).clip(CircleShape).background(TossBlue))
+            }
+        }
         Avatar(name, index)
         Spacer(Modifier.width(13.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
+                    title, fontSize = 15.sp,
+                    fontWeight = if (unread) FontWeight.ExtraBold else FontWeight.Bold,
+                    color = TossTextPrimary,
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false)
                 )
@@ -2338,9 +2358,14 @@ private fun RecentRow(
                 Spacer(Modifier.weight(1f))
                 Text(recentTimeLabel(item.lastActivityMs.takeIf { it > 0L } ?: item.record.endedAt), fontSize = 11.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
             }
-            if (!aiSummary.isNullOrBlank()) {
+            if (!messageText.isNullOrBlank()) {
                 Spacer(Modifier.height(3.dp))
-                Text(aiSummary, fontSize = 13.sp, color = TossTextSecondary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text(
+                    messageText, fontSize = 13.sp,
+                    color = if (unread) TossTextPrimary else TossTextSecondary,
+                    fontWeight = if (unread) FontWeight.SemiBold else FontWeight.Normal,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
             }
         }
     }

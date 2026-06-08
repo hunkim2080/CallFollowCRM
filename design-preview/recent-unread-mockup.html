@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>최근 대화 · 새 메시지 표시 3가지 안</title>
+<style>
+  :root {
+    --blue:#3182F6; --blue-dark:#1B64DA; --blue-tint:#EEF4FF;
+    --bg:#F4F5F7; --card:#FFFFFF;
+    --t1:#0B0F19; --t2:#5A6472; --t3:#9AA3AF; --line:#EEF0F3;
+    --success:#0E9F56;
+    --shadow:0 2px 10px rgba(17,24,39,.05);
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; background:var(--bg); color:var(--t1);
+    font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
+    padding:18px 0 60px; }
+  .wrap { max-width:430px; margin:0 auto; padding:0 16px; }
+  h1 { font-size:20px; font-weight:800; letter-spacing:-.03em; margin:6px 2px 4px; }
+  .lead { font-size:13px; color:var(--t2); line-height:1.55; margin:0 2px 22px; }
+
+  .block { margin-bottom:26px; }
+  .btitle { display:flex; align-items:center; gap:8px; font-size:15px; font-weight:800; letter-spacing:-.02em; margin:0 2px 4px; }
+  .pick { font-size:11px; font-weight:800; color:#fff; background:var(--blue); border-radius:999px; padding:3px 9px; }
+  .pick.gray { background:var(--t3); }
+  .bdesc { font-size:12.5px; color:var(--t2); line-height:1.5; margin:0 2px 10px; }
+
+  /* === 앱 실제 값 그대로 === */
+  .recent { background:var(--card); border-radius:18px; box-shadow:var(--shadow); overflow:hidden; }
+  .recent-row { display:flex; align-items:center; padding:13px 16px; }
+  .recent-row + .recent-row { border-top:1px solid var(--line); }
+  .gutter { width:14px; flex:0 0 14px; display:flex; align-items:center; justify-content:flex-start; }
+  .dot { width:8px; height:8px; border-radius:50%; background:var(--blue); }
+  .avatar { width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-size:16px; font-weight:800; margin-right:13px; flex:0 0 44px; }
+  .avatar.gray { background:var(--bg); color:var(--t3); }
+  .avatar svg { width:22px; height:22px; }
+  .info { flex:1; min-width:0; }
+  .rtop { display:flex; align-items:center; gap:7px; }
+  .rn { font-size:15px; font-weight:700; letter-spacing:-.02em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .rn.unread { font-weight:800; color:var(--t1); }
+  .rt { font-size:11px; color:var(--t3); margin-left:auto; flex:0 0 auto; font-weight:500; }
+  .rmsg { font-size:13px; color:var(--t2); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .rmsg.unread { color:var(--t1); font-weight:700; }
+  .rmsg .me { color:var(--t3); }
+  .tag { font-size:10.5px; font-weight:700; padding:3px 8px; border-radius:7px; flex:0 0 auto; }
+  .tag.blue { color:var(--blue); background:#EAF2FE; }
+  .tag.green { color:#0E9F56; background:#E5F8EE; }
+  .tag.amber { color:#B7791F; background:#FEF3E0; }
+  .tag.gray { color:var(--t3); background:var(--bg); }
+
+  .cap { font-size:11.5px; color:var(--t3); margin:7px 4px 0; line-height:1.5; }
+  .cap b { color:var(--blue); font-weight:800; }
+  .hr { height:1px; background:var(--line); margin:30px 2px; border:0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>최근 대화 — "새 메시지" 어떻게 보여줄까?</h1>
+  <p class="lead">고객이 마지막으로 말한 줄(=내가 아직 답 안 한 줄)을 어떻게 눈에 띄게 할지 3가지예요.
+  맨 위 <b>“지금(문제)”</b>이 현재 모습이고, 아래가 개선안이에요. 실제 앱과 같은 색·간격으로 그렸어요.</p>
+
+  <!-- ===== 지금 (문제) ===== -->
+  <div class="block">
+    <div class="btitle"><span class="pick gray">지금</span> 현재 모습 (문제)</div>
+    <div class="bdesc">줄마다 전부 회색 AI 요약 → 다 비슷해서 <b>어디 새 메시지 왔는지 안 보임</b>.</div>
+    <div class="recent">
+      <div class="recent-row">
+        <div class="gutter"></div>
+        <div class="avatar gray">P</div>
+        <div class="info">
+          <div class="rtop"><span class="rn">010-8767···</span><span class="tag blue">시공 D-DAY</span><span class="rt">오늘</span></div>
+          <div class="rmsg">✅ 화장실 바닥+베란다+욕조벽, 총160만…</div>
+        </div>
+      </div>
+      <div class="recent-row">
+        <div class="gutter"></div>
+        <div class="avatar gray">P</div>
+        <div class="info">
+          <div class="rtop"><span class="rn">010-2876-1700</span><span class="rt">오늘</span></div>
+          <div class="rmsg">강서구 가양동 벽+바닥 600각 타일 100만…</div>
+        </div>
+      </div>
+      <div class="recent-row">
+        <div class="gutter"></div>
+        <div class="avatar gray">P</div>
+        <div class="info">
+          <div class="rtop"><span class="rn">010-4059-0938</span><span class="rt">오늘</span></div>
+          <div class="rmsg">💬 통화 후 다른 집 사진 전송, 아직 견적 미확정</div>
+        </div>
+      </div>
+      <div class="recent-row">
+        <div class="gutter"></div>
+        <div class="avatar" style="background:#F3EEFE;color:#7C5CFC">강</div>
+        <div class="info">
+          <div class="rtop"><span class="rn">강서 윤사장</span><span class="rt">어제</span></div>
+          <div class="rmsg">줄눈 시공 24평 견적 문의 · 사진 받음</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="hr">
+
+  <!-- ===== 안 A ===== -->
+  <div class="block">
+    <div class="btitle"><span class="pick">안 A</span> 카톡처럼 안 읽음 강조 <span style="font-size:11px;font-weight:800;color:var(--blue)">추천</span></div>
+    <div class="bdesc">고객이 마지막에 말한 줄 = <b>파란 점 + 굵게 + 그 사람이 실제로 한 말</b>, 맨 위로.
+    내가 답한 줄 = 회색 + AI 요약.</div>
+    <div class="recent">
+      <div class="recent-row">
+        <div class="gutter"><span class="dot"></span></div>
+        <div class="avatar gray">P</div>
+        <div class="info">
+          <div class="rtop"><span class="rn unread">010-8767···</span><span class="tag blue">시공 D-DAY</span><span class="rt">오늘</span></div>
+          <div class="rmsg unread">내일 몇 시에 오세요?</div>
+        </div>
+      </div>
+      <div class="recent-row">
+        <div class="gutter"><span class="dot"></span></div>
+        <div class="avatar gray">P</div>
+        <div class="info">
+          <div class="rtop"><span class="rn unread">010-2876-1700</span><span class="rt">오늘</span></div>
+          <div class="rmsg unread">사진 더 보내드릴게요 📷</div>
+        </div>
+      </div>
+      <div class="recent-row">
+        <div class="gutter"><span class="dot"></span></div>
+        <div class="avatar gray">P</div>
+        <div class="info">
+          <div class="rtop"><span class="rn unread">010-4059-0938</span><span class="rt">오늘</span></div>
+          <div class="rmsg unread">다른 집 사진인데 이런 것도 되나요?</div>
+        </div>
+      </div>
+      <div class="recent-row">
+        <div class="gutter"></div>
+        <div class="avatar" style="background:#F3EEFE;color:#7C5CFC">강</div>
+        <div class="info">
+          <div class="rtop"><span class="rn">강서 윤사장</span><span class="rt">어제</span></div>
+          <div class="rmsg">줄눈 시공 24평 견적 문의 · 사진 받음</div>
+        </div>
+      </div>
+      <div class="recent-row">
+        <div class="gutter"></div>
+        <div class="avatar" style="background:#E5F8EE;color:#0E9F56">분</div>
+        <div class="info">
+          <div class="rtop"><span class="rn">분당 한사장</span><span class="tag green">계약금</span><span class="rt">2일 전</span></div>
+          <div class="rmsg">계약금 확인 · 시공 5/30 확정</div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">✔ <b>카톡·갤메시지랑 똑같아 바로 익숙</b>. 새 메시지가 확 보이고 위로 모임. 시공 잡힌 고객이 질문해도 안 묻힘.</div>
+  </div>
+
+  <!-- ===== 안 B ===== -->
+  <div class="block">
+    <div class="btitle"><span class="pick gray">안 B</span> 설계도 그대로 (마지막 말 + “나:”)</div>
+    <div class="bdesc">모든 줄에 마지막 주고받은 말. 내가 보냈으면 <b>나:</b> , 고객이면 그냥. 점·굵기·요약 없음.</div>
+    <div class="recent">
+      <div class="recent-row">
+        <div class="gutter"></div>
+        <div class="avatar gray">P</div>
+        <div class="info">
+          <div class="rtop"><span class="rn">010-8767···</span><span class="tag blue">시공 D-DAY</span><span class="rt">오늘</span></div>
+          <div class="rmsg">내일 몇 시에 오세요?</div>
+        </div>
+      </div>
+      <div class="recent-row">
+        <div class="gutter"></div>
+        <div class="avatar gray">P</div>
+        <div class="info">
+          <div class="rtop"><span class="rn">010-2876-1700</span><span class="rt">오늘</span></div>
+          <div class="rmsg">사진 더 보내드릴게요 📷</div>
+        </div>
+      </div>
+      <div class="recent-row">
+        <div class="gutter"></div>
+        <div class="avatar" style="background:#F3EEFE;color:#7C5CFC">강</div>
+        <div class="info">
+          <div class="rtop"><span class="rn">강서 윤사장</span><span class="rt">어제</span></div>
+          <div class="rmsg"><span class="me">나: </span>견적서 보내드렸어요, 확인 부탁드려요</div>
+        </div>
+      </div>
+      <div class="recent-row">
+        <div class="gutter"></div>
+        <div class="avatar" style="background:#E5F8EE;color:#0E9F56">분</div>
+        <div class="info">
+          <div class="rtop"><span class="rn">분당 한사장</span><span class="tag green">계약금</span><span class="rt">2일 전</span></div>
+          <div class="rmsg">계약금 보냈습니다!</div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">✔ 설계도와 100% 일치, 가장 단순. <b>“나:” 없는 줄 = 고객 차례</b>. 단, 강조가 약해 빠르게 훑을 땐 덜 띔.</div>
+  </div>
+
+  <!-- ===== 안 C ===== -->
+  <div class="block">
+    <div class="btitle"><span class="pick gray">안 C</span> 요약 유지 + 점만 추가</div>
+    <div class="bdesc">AI 요약은 그대로. 고객이 마지막에 말한 줄에만 <b>파란 점 + 굵게</b>.</div>
+    <div class="recent">
+      <div class="recent-row">
+        <div class="gutter"><span class="dot"></span></div>
+        <div class="avatar gray">P</div>
+        <div class="info">
+          <div class="rtop"><span class="rn unread">010-8767···</span><span class="tag blue">시공 D-DAY</span><span class="rt">오늘</span></div>
+          <div class="rmsg unread">✅ 화장실 바닥+베란다+욕조벽, 총160만…</div>
+        </div>
+      </div>
+      <div class="recent-row">
+        <div class="gutter"><span class="dot"></span></div>
+        <div class="avatar gray">P</div>
+        <div class="info">
+          <div class="rtop"><span class="rn unread">010-2876-1700</span><span class="rt">오늘</span></div>
+          <div class="rmsg unread">강서구 가양동 벽+바닥 600각 타일 100만…</div>
+        </div>
+      </div>
+      <div class="recent-row">
+        <div class="gutter"></div>
+        <div class="avatar" style="background:#F3EEFE;color:#7C5CFC">강</div>
+        <div class="info">
+          <div class="rtop"><span class="rn">강서 윤사장</span><span class="rt">어제</span></div>
+          <div class="rmsg">줄눈 시공 24평 견적 문의 · 사진 받음</div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">✔ 요약(맥락) 안 잃고 새 메시지 표시만 더함. 단, <b>새 글이 와도 “요약”이라 무슨 말 했는지는 안 보임</b>.</div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -3363,3 +3363,12 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 - **assetlinks.json 에 debug 지문 추가**(사장님 본인폰도 자동열림 되게) → `docs/assetlinks.json` 이제 지문 2개(release+debug).
 - **다음 액션(맥미니)**: `/.well-known/assetlinks.json` 를 **업데이트된 2개 지문 버전으로 재호스팅**. (현재 1개만 라이브.)
 - commit: (아래)
+
+## 2026-06-08 (밤5) · android · 홈 "최근 대화" 새 메시지(안 읽음) 표시 — 안 A
+사장님 통점("최근 대화가 죄다 요약으로 보여 새 메시지 온 줄 모름") → 카톡식 안 읽음 표시(안 A) 적용. 서버 영향 없음(앱 전용).
+- HomeItem 에 lastSent/lastBody 추가(통화만 있는 번호도 smsBySuffix 로 SMS 조회해 채움).
+- RecentRow: 고객이 마지막에 말한 줄(lastSent==false) = **파란 점 + 굵게 + "실제 마지막 말"**(요약 대신). 내가 답한 줄 = 회색 + AI 요약 그대로(없으면 마지막 말 "나:" prefix).
+- "최근 대화" 안에서 안 읽음 줄을 맨 위로(sortedByDescending, 안정정렬=그룹 내 최신순 유지). → 시공일정 잡혀 "지금 답장 기다려요"에서 빠진 고객이 질문해도 안 묻힘.
+- 안 읽음 판정 = SMS lastSent==false (열람추적 없음, 답장하면 해제). 시공완료 "감사합니다"류도 점 표시되나 글 내용으로 구분됨(의도된 동작).
+- 빌드+폰 설치(SM-G965N) OK, 실데이터 렌더 확인. 참고 목업: design-preview/recent-unread-mockup.html (안 A/B/C 비교, 사장님 안 A 선택).
+- commit: (아래)

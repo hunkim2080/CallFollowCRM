@@ -579,6 +579,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     ) { records, custs, f, smsContacts, flags ->
         val byPhone = custs.associateBy { it.phoneNumber }
         val callPhonesNormalized = records.map { phoneSuffix(it.phoneNumber) }.toHashSet()
+        // 안 A (2026-06-08): 통화 있는 번호도 SMS 의 lastSent/lastBody 가 필요 → suffix 로 조회.
+        val smsBySuffix = smsContacts.associateBy { it.normalizedSuffix }
 
         // 1) CallRecord 기반 HomeItem (기존 로직 — 번호+날짜 묶음)
         val callItems = records
@@ -587,12 +589,15 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 val (phone, _) = key
                 val suffix = phoneSuffix(phone)
                 val sorted = list.sortedByDescending { it.endedAt }
+                val sms = smsBySuffix[suffix]
                 HomeItem(
                     record = sorted.first(),
                     customer = byPhone[phone],
                     callCount = list.size,
                     isUnconfirmed = suffix in flags.unconfirmedSuffixes,
-                    isNewToday = suffix in flags.newTodaySuffixes
+                    isNewToday = suffix in flags.newTodaySuffixes,
+                    lastSent = sms?.lastSent,
+                    lastBody = sms?.lastBody
                 )
             }
 
@@ -617,7 +622,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                         ?: byPhone.values.firstOrNull { phoneSuffix(it.phoneNumber) == sms.normalizedSuffix },
                     callCount = 0,
                     isUnconfirmed = sms.normalizedSuffix in flags.unconfirmedSuffixes,
-                    isNewToday = sms.normalizedSuffix in flags.newTodaySuffixes
+                    isNewToday = sms.normalizedSuffix in flags.newTodaySuffixes,
+                    lastSent = sms.lastSent,
+                    lastBody = sms.lastBody
                 )
             }
 
@@ -924,7 +931,14 @@ data class HomeItem(
     val isUnconfirmed: Boolean = false,
     val isNewToday: Boolean = false,
     /** 마지막 활동 시각 = max(최근 통화, 최근 SMS). 정렬·행 시각 표시에 사용. 0L = 미설정(record.endedAt 사용). */
-    val lastActivityMs: Long = 0L
+    val lastActivityMs: Long = 0L,
+    /**
+     * 이 번호의 마지막 SMS 를 사장님이 보냈는지(true)·고객이 보냈는지(false). null = SMS 없음(통화만).
+     * "최근 대화" 안 읽음 표시(안 A, 2026-06-08): false = 고객이 마지막 = 새 메시지(파란 점 + 굵게 + 위로).
+     */
+    val lastSent: Boolean? = null,
+    /** 이 번호의 마지막 SMS 본문(표시용). 안 읽음 줄은 요약 대신 이 "실제 한 말"을 보여준다. */
+    val lastBody: String? = null
 )
 
 /** 홈 시공 안내 remind-card 표시 모델 (프로토 remind-card). */
