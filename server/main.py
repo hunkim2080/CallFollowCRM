@@ -6187,6 +6187,35 @@ async def shared_link_page(share_id: str) -> HTMLResponse:
     return HTMLResponse(content=html_page)
 
 
+# ─── ⑧ GET /.well-known/assetlinks.json — Android App Link autoVerify ───
+# 안드로이드 OS 가 이 도메인이 시공막내 앱을 인증했는지 확인하는 파일.
+# 이 파일이 있어야 https://api.si0in.kr/shared/{...} link 가 브라우저 안 거치고 바로 앱 열림.
+#
+# 검증: https://digitalassetlinks.googleapis.com/v1/statements:list
+#       ?source.web.site=https://api.si0in.kr&relation=delegate_permission/common.handle_all_urls
+#
+# sha256 = release 키 (ringgo-release.jks) 지문. 안드로이드 측 SERVER_HANDOFF 2026-06-08.
+
+_ANDROID_ASSETLINKS = [
+    {
+        "relation": ["delegate_permission/common.handle_all_urls"],
+        "target": {
+            "namespace": "android_app",
+            "package_name": "com.detailline.callfollowcrm",
+            "sha256_cert_fingerprints": [
+                "4B:C6:27:28:45:43:98:B8:9F:F9:D0:BD:41:02:9C:D6:6F:1D:39:7B:42:84:F0:61:5B:BD:26:71:86:4B:22:EE"
+            ],
+        },
+    }
+]
+
+
+@app.get("/.well-known/assetlinks.json", include_in_schema=False)
+async def assetlinks_json() -> list:
+    """App Link 도메인 검증용. Content-Type: application/json (FastAPI 자동), 200, 본문 = 위 list."""
+    return _ANDROID_ASSETLINKS
+
+
 # ============================================================================
 # §19 — 시공접수서 (고객 자가확인 폼) — 프로토타입 openQuote 1:1
 # ─────────────────────────────────────────────────────────────────────────────
@@ -6221,7 +6250,7 @@ INTAKE_TOKEN_LEN = 8
 INTAKE_TTL_MS = 7 * 24 * 60 * 60 * 1000  # 7일 (사장님 결정)
 INTAKE_PUBLIC_BASE_URL = os.environ.get(
     "INTAKE_PUBLIC_BASE_URL",
-    "http://100.86.114.49:8000",
+    "https://api.si0in.kr",
 )
 
 
