@@ -104,10 +104,10 @@ fun AppRoot(container: AppContainer) {
                                     navController.navigate(route) {
                                         // 탭 전환: 시작 지점까지 pop + 상태 저장/복원으로 탭별 스크롤·스택 유지.
                                         popUpTo(navController.graph.findStartDestination().id) {
-                                            saveState = true
+                                            saveState = route != Destinations.HOME
                                         }
                                         launchSingleTop = true
-                                        restoreState = true
+                                        restoreState = route != Destinations.HOME
                                     }
                                 }
                             }
