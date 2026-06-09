@@ -3467,4 +3467,4 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 - Debug 전용: DebugMmsSendReceiver 추가. `adb shell am broadcast ...SEND_TEST_MMS` 로 테스트 이미지 MMS 발송 가능(debug 빌드만).
 - 실기기 테스트(010-8005-6674): 삼성 메시지가 기본일 때는 provider/APN 권한 문제로 직접 발송 실패. RING-GO를 임시 기본 SMS holder로 변경 후 `MMS sent OK` 확인. 테스트 후 기본 SMS 앱을 삼성 메시지로 원복 확인.
 - 결론: 이미지 직접 전송은 가능하지만 RING-GO가 기본 문자앱이어야 함. 기본앱이 삼성 메시지면 지금처럼 삼성 문자앱 fallback이 맞음.
-- commit: (아래)
+- commit: 32d005b
