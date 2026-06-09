@@ -51,6 +51,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
@@ -245,6 +246,11 @@
                 <action android:name="com.detailline.callfollowcrm.ACTION_SMS_SEND_SUGGESTION" />
             </intent-filter>
         </receiver>
+
+        <!-- MMS 직접 발송 결과 콜백. 내부 PendingIntent 전용. -->
+        <receiver
+            android:name=".service.MmsSentReceiver"
+            android:exported="false" />
 
         <!--
             2026-05-29 Default SMS 앱 자격 컴포넌트 (3/4) — RESPOND_VIA_MESSAGE service.

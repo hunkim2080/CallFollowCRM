@@ -3458,3 +3458,13 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 - AppRoot: `상담함` 탭으로 이동할 때는 saved/restore state 를 끄고 항상 진짜 상담함 루트로 복귀하게 수정. 다른 탭은 기존 상태 복원 유지.
 - 검증: debug 빌드 성공, 폰 설치 성공. 실기기에서 `상담함 다음 시공 박스 → 일정(6/10) → 상담함 탭` 순서로 테스트해 상담함 복귀 확인.
 - commit: 2ab60d1
+
+## 2026-06-09 22:55 · android · 이미지 MMS 직접 발송 실험 경로
+사장님 요청: 이미지 하나 보낼 때 삼성 문자앱을 꼭 열어야 하는지 확인/개선.
+- SmsSender.sendMms 재활성화: klinker Transaction + Bitmap 첨부로 앱 안에서 MMS 발송 요청. 실제 결과 확인용 MmsSentReceiver 추가.
+- 기본 문자앱 안전장치: RING-GO가 기본 SMS 앱이 아니면 직접 MMS를 시도하지 않고 false 반환 → 기존 삼성 문자앱 fallback 유지. 무리한 optimistic 성공 표시 방지.
+- Manifest: MMS 직접 발송 라이브러리 요구 권한 중 CHANGE_WIFI_STATE 추가.
+- Debug 전용: DebugMmsSendReceiver 추가. `adb shell am broadcast ...SEND_TEST_MMS` 로 테스트 이미지 MMS 발송 가능(debug 빌드만).
+- 실기기 테스트(010-8005-6674): 삼성 메시지가 기본일 때는 provider/APN 권한 문제로 직접 발송 실패. RING-GO를 임시 기본 SMS holder로 변경 후 `MMS sent OK` 확인. 테스트 후 기본 SMS 앱을 삼성 메시지로 원복 확인.
+- 결론: 이미지 직접 전송은 가능하지만 RING-GO가 기본 문자앱이어야 함. 기본앱이 삼성 메시지면 지금처럼 삼성 문자앱 fallback이 맞음.
+- commit: (아래)

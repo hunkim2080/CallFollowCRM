@@ -3,7 +3,11 @@ package com.detailline.callfollowcrm.util
 import android.Manifest
 import android.content.ContentValues
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Build
 import android.provider.Telephony
@@ -11,6 +15,7 @@ import android.telephony.SmsManager
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.detailline.callfollowcrm.CallFollowCrmApplication
+import com.detailline.callfollowcrm.service.MmsSentReceiver
 import com.klinker.android.send_message.Message
 import com.klinker.android.send_message.Settings
 import com.klinker.android.send_message.Transaction
@@ -126,22 +131,100 @@ object SmsSender {
     }
 
     /**
-     * 사진 첨부 메시지(MMS) 를 우리 앱 안에서 직접 발송 — 현재 비활성 (2026-05-19 보류).
+     * 사진 첨부 메시지(MMS)를 우리 앱 안에서 직접 발송한다.
      *
-     * 시도 이력:
-     *  - klinker41/android-smsmms 5.2.5 통합 → sendNewMessage 가 fire-and-forget 이라 실제 발송 실패해도
-     *    success 로 잘못 판정. S9/SKT 조합에서 실제 통신사 전달 안 됨 확인.
-     *  - 결과 broadcast receiver 등록 + PendingIntent 콜백 처리 = 다음 세션 작업.
-     *  - 또는 자체 PDU + SmsManager.sendMultimediaMessage 구현이 더 견고할 수 있음.
-     *
-     * 본 메서드는 항상 false → ChatScreen 이 자동으로 SmsIntentHelper 갤럭시 메시지 fallback 으로 빠짐
-     * (수신인 + 본문 + 사진 채워서 갤럭시 메시지 열림 → 사장님이 거기서 ▶).
+     * 주의: Transaction.sendNewMessage 는 비동기라 이 반환값은 "발송 요청을 시스템/라이브러리에 넘겼다"는 뜻이다.
+     * 실제 성공/실패는 MmsSentReceiver 로그(ACTION_MMS_SENT)로 확인한다. 실패하면 ChatScreen 이 기존처럼
+     * 삼성 문자앱 작성 화면으로 fallback 한다.
      */
-    @Suppress("UNUSED_PARAMETER")
     fun sendMms(
         context: Context,
         phoneNumber: String,
         body: String,
         uris: List<Uri>
-    ): Boolean = false
+    ): Boolean {
+        if (!hasPermission(context)) {
+            Log.w(TAG, "sendMms blocked: SEND_SMS permission missing")
+            return false
+        }
+        if (!isDefaultSmsApp(context)) {
+            Log.w(TAG, "sendMms blocked: RING-GO is not the default SMS app")
+            return false
+        }
+        if (phoneNumber.isBlank() || uris.isEmpty()) return false
+
+        val app = context.applicationContext as? CallFollowCrmApplication
+        val bitmaps = uris.mapNotNull { uri ->
+            runCatching { decodeMmsBitmap(context, uri) }
+                .onFailure { Log.e(TAG, "MMS image decode failed: $uri", it) }
+                .getOrNull()
+        }
+        if (bitmaps.isEmpty()) return false
+
+        return runCatching {
+            Settings.setDebugLogging(true, TAG)
+            val settings = Settings().apply {
+                setUseSystemSending(true)
+                setDeliveryReports(true)
+                app?.container?.preferences?.manualMmscUrl?.let { setMmsc(it) }
+                app?.container?.preferences?.manualMmscProxy?.let { setProxy(it) }
+                app?.container?.preferences?.manualMmscPort
+                    ?.takeIf { it > 0 }
+                    ?.let { setPort(it.toString()) }
+            }
+
+            val message = Message(body, arrayOf(phoneNumber), bitmaps.toTypedArray()).apply {
+                setSave(true)
+                setImageNames(Array(bitmaps.size) { i -> "ringgo_${System.currentTimeMillis()}_$i.jpg" })
+            }
+
+            val sentIntent = Intent(context, MmsSentReceiver::class.java).apply {
+                action = MmsSentReceiver.ACTION_MMS_SENT
+                putExtra(MmsSentReceiver.EXTRA_PHONE, phoneNumber)
+                putExtra(MmsSentReceiver.EXTRA_BODY_PREVIEW, body.take(80))
+                putExtra(MmsSentReceiver.EXTRA_IMAGE_COUNT, bitmaps.size)
+            }
+
+            Transaction(context.applicationContext, settings)
+                .setExplicitBroadcastForSentMms(sentIntent)
+                .sendNewMessage(message, Transaction.NO_THREAD_ID)
+
+            Log.i(TAG, "MMS send requested: to=$phoneNumber images=${bitmaps.size} body=${body.length}")
+            true
+        }.getOrElse { e ->
+            Log.e(TAG, "MMS send request failed", e)
+            false
+        }
+    }
+
+    fun isDefaultSmsApp(context: Context): Boolean =
+        Telephony.Sms.getDefaultSmsPackage(context) == context.packageName
+
+    private fun decodeMmsBitmap(context: Context, uri: Uri): Bitmap {
+        val raw = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { decoder, _, _ ->
+                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+            }
+        } else {
+            context.contentResolver.openInputStream(uri).use { input ->
+                BitmapFactory.decodeStream(input) ?: error("BitmapFactory returned null")
+            }
+        }
+        val maxSide = 1280
+        val width = raw.width
+        val height = raw.height
+        val longer = maxOf(width, height)
+        if (longer <= maxSide) return raw
+        val scale = maxSide.toFloat() / longer.toFloat()
+        return Bitmap.createScaledBitmap(
+            raw,
+            (width * scale).toInt().coerceAtLeast(1),
+            (height * scale).toInt().coerceAtLeast(1),
+            true
+        ).also {
+            if (it !== raw) raw.recycle()
+        }
+    }
+
+    private const val TAG = "SmsSender"
 }
