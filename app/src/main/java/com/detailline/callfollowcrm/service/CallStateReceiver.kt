@@ -198,6 +198,18 @@ class CallStateReceiver : BroadcastReceiver() {
         val autoTitle: String? = autoTemplate?.title
             ?: if (isMissed && autoBody.isNotBlank()) "부재중 자동 응답" else null
 
+        // 2026-06-09 사장님 결정: 전화 끊은 뒤에는 복잡한 후속 카드보다
+        // "설정해둔 자동문자 10초 카운트다운 → 취소 아니면 발송" 만 먼저 보여준다.
+        if (autoOnPolicy && autoBody.isNotBlank()) {
+            AutoReplyScheduler.schedule(
+                context = context,
+                callRecordId = newRecordId,
+                phoneNumber = phoneNumber,
+                isMissed = isMissed
+            )
+            return
+        }
+
         // OverlayArgs 에 넣을 수동 템플릿: 사장님이 설정한 quickAction 슬롯 3개.
         val manualTemplates = listOf(
             prefs.quickActionTemplateId1,

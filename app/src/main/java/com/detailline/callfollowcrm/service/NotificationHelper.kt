@@ -533,7 +533,13 @@ object NotificationHelper {
         val builder = NotificationCompat.Builder(context, CHANNEL_INCOMING_SMS)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
-            .setContentText(body.take(60))
+            .setContentText(
+                when {
+                    suggestions == null -> body.take(60)
+                    suggestions.isEmpty() -> "AI 답변이 늦어요 · 직접 답장할까요?"
+                    else -> body.take(60)
+                }
+            )
             .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
             .setColor(NOTIFICATION_BG_COLOR)
             .setColorized(true)
@@ -564,9 +570,9 @@ object NotificationHelper {
                 sendIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            // 라벨은 짧게 "✨ 1번 보내기" — 답변 본문은 BigText 에서 미리 읽기.
-            //   2026-05-26 사장님 보고 fix: 라벨에 본문 넣으면 잘려서 어떤 답변인지 모름.
-            val label = "✨ ${idx + 1}번 보내기"
+            // 2026-06-09 사장님 요청: 카톡/메시지 알림처럼 추천 답변 버튼 자체에 짧은 문구 노출.
+            // 전체 문장은 BigText 에 보이고, 버튼은 시스템 폭 제한에 맞춰 짧게 줄인다.
+            val label = shortActionLabel(sug)
             builder.addAction(
                 NotificationCompat.Action.Builder(R.drawable.ic_notification, label, sendPending)
                     .setShowsUserInterface(false)
@@ -592,6 +598,12 @@ object NotificationHelper {
             10 -> "${digits.substring(0,3)}-${digits.substring(3,6)}-${digits.substring(6)}"
             else -> raw
         }
+    }
+
+    private fun shortActionLabel(text: String): String {
+        val oneLine = text.replace(Regex("\\s+"), " ").trim()
+        if (oneLine.length <= 16) return oneLine
+        return oneLine.take(15).trimEnd() + "…"
     }
 
     /**
@@ -786,10 +798,10 @@ object NotificationHelper {
             .setSmallIcon(R.drawable.ic_notification)
             .setColor(NOTIFICATION_BG_COLOR)
             .setColorized(true)
-            .setContentTitle("자동 응답 문자 보낼게요")
-            .setContentText("$phoneNumber · ${secs}초 후 발송 (취소 가능)")
+            .setContentTitle("10초 뒤 자동문자 보낼게요")
+            .setContentText("$phoneNumber · 취소하지 않으면 자동 발송")
             .setStyle(NotificationCompat.BigTextStyle().bigText(
-                "$phoneNumber 에게 ${secs}초 후 첫 응대 문자를 자동 발송합니다. 잘못 보낼 것 같으면 아래 '취소' 누르세요."
+                "$phoneNumber 에게 설정해둔 자동문자를 ${secs}초 뒤 보냅니다. 보내지 않으려면 '취소'를 누르세요."
             ))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setOngoing(true)

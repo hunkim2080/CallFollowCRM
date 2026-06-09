@@ -159,6 +159,18 @@
                 <data android:host="si0in.kr" />
                 <data android:pathPrefix="/shared/" />
             </intent-filter>
+
+            <!--
+                협업 링크 웹 페이지 fallback.
+                App Link 검증이 ask 상태거나 브라우저로 열린 경우 서버가 shigongmagne://shared/{share_id}
+                를 시도하므로, 앱이 설치된 사장님은 설치 안내 대신 협업 현장으로 들어가게 받는다.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="shigongmagne" android:host="shared" />
+            </intent-filter>
         </activity>
 
         <!--

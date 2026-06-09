@@ -3433,3 +3433,12 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 - #7 함께할 사장님 번호: 협업 공유 시트에서 수첩 일당·알바 + 최근 문자 연락처 후보 칩 제공. 초대 성공 시 수첩 WORKER 에 `협업` 태그로 자동 기록(best-effort).
 - 검증: `JAVA_HOME=C:\Program Files\Android\Android Studio\jbr` 로 `gradlew.bat :app:assembleDebug` 성공. 경고는 기존 미사용/Deprecated 위주.
 - commit: 565e95b
+
+## 2026-06-09 02:20 · android · 협업 링크 fallback + 문자/전화 알림 단순화
+사장님 보고 2건 처리. 앱 단독.
+- 협업 링크 fallback: App Link 상태가 `ask` 라서 웹으로 떨어진 폰에서 서버 HTML 이 부르는 `shigongmagne://shared/{share_id}` 를 앱이 받도록 manifest/MainActivity 추가. 설치 안내 반복 대신 협업 현장 화면으로 이동.
+- 문자 알림: RING-GO 초기 "문자 왔어요/AI 준비 중" 알림 제거. 문자 수신 후 AI 답변 준비를 기다렸다가 준비되면 추천 답변 버튼 포함 알림 1개만 표시. 30초 내 준비 실패/서버 오류면 "AI 답변이 늦어요 · 직접 답장할까요?" 알림 1개로 fallback.
+- 문자 알림 버튼: `1번 보내기` 대신 추천 답변 문장을 짧게 줄인 버튼 라벨 사용. 전체 답변은 펼친 알림 BigText 에 표시.
+- 전화 종료: 자동문자 조건이 맞으면 복잡한 PostCall 오버레이보다 `10초 뒤 자동문자 보낼게요` 카운트다운 알림으로 바로 이동. 취소하지 않으면 설정 문구 자동 발송.
+- 검증: `JAVA_HOME=C:\Program Files\Android\Android Studio\jbr` 로 `gradlew.bat :app:assembleDebug` 성공.
+- commit: (아래)

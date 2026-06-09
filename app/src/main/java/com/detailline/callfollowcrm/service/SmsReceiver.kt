@@ -188,23 +188,15 @@ class SmsReceiver : BroadcastReceiver() {
                 runCatching { container.categoryRepository.findById(cid)?.name }.getOrNull()
             }
 
-            // 1) 초기 알림만 띄우고 broadcast 를 즉시 종료한다.
+            // 1) 알림은 아직 띄우지 않고 broadcast 를 즉시 종료한다.
             //   2026-06-03 ANR fix: SMS_DELIVER 는 foreground broadcast(수신자 제한 ~10초). 기존엔 goAsync 를
             //   prepare(최대 ~9초) + polling(7.5초) 끝까지 들고 있어 합산 >10초 → "RING-GO 응답 없음" ANR 빈발
             //   (+ ANR 중 뒤 화면이 회색으로 굳어 다이얼로그가 미완성처럼 보임). 해결: 알림 후 pending.finish() 즉시.
             //   이후 무거운 작업은 Application scope 에서 broadcast 수명과 무관하게 계속.
+            //   2026-06-09 사장님 요청: 갤럭시 기본 문자 알림과 RING-GO 초기 알림이 같이 떠서 같은 문자가
+            //   2개 쌓이는 느낌. RING-GO 는 AI 답변 준비 후 1번만 띄우고, 30초 안에 실패하면 기본 알림 1번만 띄움.
             try {
-                if (notifyEnabled) {
-                    NotificationHelper.showIncomingSms(
-                        context = context.applicationContext,
-                        phone = sender,
-                        displayName = customer?.name,
-                        body = combinedBody,
-                        receivedAtMs = receivedAtMs,
-                        categoryLabel = categoryLabel,
-                        suggestions = null
-                    )
-                }
+                // no-op: notification is emitted after AI polling or timeout fallback.
             } finally {
                 pending.finish()
             }
@@ -281,6 +273,17 @@ class SmsReceiver : BroadcastReceiver() {
                 }
             } catch (e: Throwable) {
                 Log.e(TAG, "prepare/poll failed (broadcast already finished)", e)
+                if (notifyEnabled) {
+                    NotificationHelper.showIncomingSms(
+                        context = context.applicationContext,
+                        phone = sender,
+                        displayName = customer?.name,
+                        body = combinedBody,
+                        receivedAtMs = receivedAtMs,
+                        categoryLabel = categoryLabel,
+                        suggestions = emptyList()
+                    )
+                }
             }
         }
     }

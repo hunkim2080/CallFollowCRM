@@ -138,6 +138,12 @@ class MainActivity : ComponentActivity() {
                     pendingIntentState.value = IncomingIntent.SharedSite(shareId)
                     return
                 }
+                // 협업 링크 HTML fallback: shigongmagne://shared/{share_id}
+                if (intent.action == Intent.ACTION_VIEW && scheme == "shigongmagne" && uri.host == "shared") {
+                    val shareId = uri.lastPathSegment?.takeIf { it.isNotBlank() }
+                    pendingIntentState.value = IncomingIntent.SharedSite(shareId)
+                    return
+                }
                 if (scheme !in setOf("sms", "smsto", "mms", "mmsto")) return
                 val phone = uri.schemeSpecificPart
                     ?.substringBefore('?')
