@@ -7,6 +7,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -74,7 +77,14 @@ fun AppRoot(container: AppContainer) {
             val currentEntry by navController.currentBackStackEntryAsState()
             // 인자 있는 탭 라우트("schedule?day=...") 도 같은 탭으로 인식 — "?" 앞 기준으로 비교.
             val currentRoute = currentEntry?.destination?.route?.substringBefore("?")
-            val showTabBar = currentRoute in RING_TAB_ROUTES
+            var lastTabRoute by remember { mutableStateOf(Destinations.HOME) }
+            LaunchedEffect(currentRoute) {
+                if (currentRoute in RING_TAB_ROUTES) {
+                    lastTabRoute = currentRoute ?: Destinations.HOME
+                }
+            }
+            val detailRoutesWithTabs = setOf(Destinations.CUSTOMER_DETAIL_WITH_ARG)
+            val showTabBar = currentRoute in RING_TAB_ROUTES || currentRoute in detailRoutesWithTabs
 
             Scaffold(
                 // 상단 인셋은 각 화면이 자체 처리 → 외곽 Scaffold 는 0. 하단 탭바만 패딩 제공.
@@ -82,14 +92,15 @@ fun AppRoot(container: AppContainer) {
                 bottomBar = {
                     if (showTabBar) {
                         RingTabBar(
-                            currentRoute = currentRoute,
+                            currentRoute = if (currentRoute in RING_TAB_ROUTES) currentRoute else lastTabRoute,
                             onSelect = { route ->
                                 // 2026-06-07 사장님 통점: 탭이 가끔 안 눌림.
                                 //   원인 후보 = recompose 로 갱신되는 currentRoute 가 전환 중 잠깐 stale → 같은 탭으로 오판해 navigate 스킵.
                                 //   해결: 탭 누르는 순간의 실제 목적지(navController.currentDestination)로 비교.
                                 val live = navController.currentDestination?.route?.substringBefore("?")
                                 android.util.Log.d("NAVTAB", "tap=$route state=$currentRoute live=$live")
-                                if (route != live) {
+                                val alreadyOnRootTab = currentRoute in RING_TAB_ROUTES && route == live
+                                if (!alreadyOnRootTab) {
                                     navController.navigate(route) {
                                         // 탭 전환: 시작 지점까지 pop + 상태 저장/복원으로 탭별 스크롤·스택 유지.
                                         popUpTo(navController.graph.findStartDestination().id) {

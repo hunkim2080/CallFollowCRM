@@ -61,13 +61,18 @@ fun AppNavHost(
     // 토스 스타일 전환 (2026-06-03 사장님 통점 "그림자 생기듯 부자연스럽게 넘어감"):
     //   기본 NavHost 전환 = 페이드+스케일(스크림 그림자처럼 보임) → 수평 슬라이드 push 로 교체.
     //   상세 화면: 오른쪽에서 밀려 들어오고(enter), 뒤로가기 시 오른쪽으로 빠짐(popExit). 아래 화면은 살짝 패럴랙스.
-    //   하단 탭 4개(홈/일정/통계/더보기) 간 전환은 슬라이드 대신 페이드(좌우로 미는 게 어색하므로).
+    //   하단 탭 5개(홈/일정/정산/통계/더보기) 간 전환은 슬라이드 대신 페이드(좌우로 미는 게 어색하므로).
     val tabRoutes = setOf(
-        Destinations.HOME, Destinations.SCHEDULE, Destinations.STATS, Destinations.SETTINGS
+        Destinations.HOME,
+        Destinations.SCHEDULE,
+        Destinations.SETTLEMENT,
+        Destinations.STATS,
+        Destinations.SETTINGS
     )
     val slideDur = 280
     val fadeDur = 180
-    fun isTabSwitch(from: String?, to: String?): Boolean = from in tabRoutes && to in tabRoutes
+    fun routeBase(route: String?): String? = route?.substringBefore("?")
+    fun isTabSwitch(from: String?, to: String?): Boolean = routeBase(from) in tabRoutes && routeBase(to) in tabRoutes
 
     NavHost(
         navController = navController,
