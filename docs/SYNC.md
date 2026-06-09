@@ -3393,7 +3393,7 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 - #5 견적 '미리보기 닫기' → 채팅이 아니라 **견적 편집기로 복귀 + 선택 유지**. EstimateBuilder 상태를 EstimateDraft(ChatScreen remember)로 hoist(위임 by draft.x — 사용처 무변경). 미리보기=sheet만 닫고 draft 유지, 닫기=showEstimateBuilder 재오픈, 발송/취소 시 draft.reset. (편집기=ModalBottomSheet 별도 윈도우라 미리보기는 액티비티 윈도우에 떠야 PixelCopy 캡처 가능 → 닫았다 복귀 구조.)
 - #6 시공 **예약 취소(일정 비우기)**: 고객카드 '시공 예약' 행 탭 → 날짜 다이얼로그에 **'예약 취소'** 버튼(기존 예약 있을 때) → updateScheduledWorkDate(null). 고객이 시공 취소 시 사용.
 - 빌드+폰 설치+실행 OK(스모크). 제스처(스와이프/미리보기 왕복/취소)는 사장님 실사용 확인 권장.
-- commit: (아래)
+- commit: 540a112
 
 ## 2026-06-09 00:00 · android · 협업 캘린더 보라점 보강 + 알림 핸드오프
 사장님 보고 #7/#8 이어받아 처리.
