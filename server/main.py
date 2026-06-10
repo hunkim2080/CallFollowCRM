@@ -70,7 +70,9 @@ KAKAO_TIMEOUT_SEC = 5.0
 # 미설정 시 endpoint 가 503 응답 → 안드로이드는 "AI 서버 연결 실패" 토스트.
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 GEMINI_MODEL = "gemini-2.5-flash"
-GEMINI_TIMEOUT_SEC = 30.0
+# §26 fix (2026-06-10): 11분+ 통화는 transcript 4000~6000자 → Gemini 처리 시간 30~90초.
+# 짧은 통화 (prepare-reply) 와 긴 통화 (call-audio-summary) 둘 다 안전한 120초.
+GEMINI_TIMEOUT_SEC = 120.0
 GEMINI_MAX_OUTPUT_TOKENS = 500
 
 # §15 — Admin token (사업 metric endpoint 보호용. /api/admin/* 호출 시 X-Admin-Token 헤더 필요)
@@ -5727,13 +5729,15 @@ async def call_audio_summary_endpoint(
                     stderr=asyncio.subprocess.PIPE,
                 )
                 try:
+                    # §26 fix (2026-06-10): 11분+ 통화 base 모델 ~120초 → 여유 360초.
+                    # 15분 까지 처리 가능 (그 이상은 안드로이드 측에서 거부 권장).
                     stdout_b, stderr_b = await asyncio.wait_for(
-                        proc.communicate(), timeout=180.0
+                        proc.communicate(), timeout=360.0
                     )
                 except asyncio.TimeoutError:
                     proc.kill()
                     await proc.wait()
-                    raise HTTPException(504, "STT 시간 초과 (180s) — 통화가 너무 김")
+                    raise HTTPException(504, "STT 시간 초과 (360s) — 통화가 너무 김 (15분 이하 권장)")
                 if proc.returncode != 0:
                     err = (stderr_b.decode("utf-8", errors="replace") or "").strip()[:1000]
                     print(f"[call-audio-summary] STT subprocess fail rc={proc.returncode}: {err}")
