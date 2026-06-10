@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -56,32 +57,61 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
     private val markedSpam = container.spamPhoneRepository.suffixes
     private val spamRepo = container.spamPhoneRepository   // 밀어서 정리(스팸 마킹/해제). (2026-06-08 #3)
 
-    // ── 꾹 눌러 대화 미리보기(peek) — 줄 길게 누르면 들어가지 않고 그 자리에서 문자 기록 모달. ──
+    // ── 꾹 눌러 대화 미리보기(peek) — 줄 길게 누르면 들어가지 않고 그 자리에서 대화 모달. ──
+    //   채팅과 같은 내용: 문자 + 통화카드(에이닷 요약 매칭) 를 한 타임라인으로.
     private val cachedMessageRepository = container.cachedMessageRepository
     private val smsRepository = container.smsRepository
+    private val callRecordRepository = container.callRecordRepository
+    private val callSummaryRepository = container.callSummaryRepository
 
     private val _peek = MutableStateFlow<PeekState?>(null)
     val peek: StateFlow<PeekState?> = _peek.asStateFlow()
 
-    /** 줄을 꾹 눌렀을 때 — 그 번호의 최근 문자(읽기 전용)를 모달로. 통화만 있으면 빈 상태 + 결말 라벨. */
+    /** 줄을 꾹 눌렀을 때 — 그 번호의 문자 + 통화(+에이닷 요약)를 채팅과 똑같이 합쳐 모달로. 읽기 전용. */
     fun openPeek(lead: NewLeadUi) {
         val digits = lead.phone.filter { it.isDigit() }
         val suffix = if (digits.length >= 8) digits.takeLast(8) else digits
         _peek.value = PeekState(
             phone = lead.phone, customerId = lead.customerId, displayName = lead.displayName,
-            loading = true, messages = emptyList(), fallbackLine = lead.summaryLine
+            loading = true, items = emptyList(), fallbackLine = lead.summaryLine
         )
         viewModelScope.launch(Dispatchers.IO) {
+            // 문자 (캐시 + 시스템 SMS + 로컬 발신 보존본)
             val cached = runCatching { cachedMessageRepository.load(suffix, 60) }.getOrDefault(emptyList())
             val fresh = if (smsRepository.hasReadPermission())
                 runCatching { smsRepository.querySmsOnly(lead.phone) }.getOrDefault(emptyList())
             else emptyList()
             val localSent = runCatching { cachedMessageRepository.loadLocalSent(suffix) }.getOrDefault(emptyList())
-            val base = if (fresh.isNotEmpty()) fresh + localSent else cached + localSent
-            val merged = base.distinctBy { it.id to it.sent }
-                .sortedByDescending { it.dateMs }   // 최신(=어떻게 끝났는지)이 위로
-                .take(40)
-            _peek.update { cur -> if (cur?.phone == lead.phone) cur.copy(loading = false, messages = merged) else cur }
+            val sms = (if (fresh.isNotEmpty()) fresh + localSent else cached + localSent)
+                .distinctBy { it.id to it.sent }
+            // 통화 기록 + 에이닷 요약 (채팅과 동일 소스)
+            val calls = if (suffix.length >= 7)
+                runCatching { callRecordRepository.observeByPhoneSuffix(suffix).first() }.getOrDefault(emptyList())
+            else emptyList()
+            val summaries = if (suffix.length >= 7)
+                runCatching { callSummaryRepository.observeByPhoneSuffix(suffix).first() }.getOrDefault(emptyList())
+            else emptyList()
+
+            // 채팅 CallSegment 와 같은 ±10분 윈도우로 통화↔요약 매칭.
+            val win = 10 * 60 * 1000L
+            val items = ArrayList<PeekItem>(sms.size + calls.size)
+            sms.forEach { items += PeekItem.Sms(it) }
+            calls.forEach { rec ->
+                val callStart = rec.startedAt ?: rec.endedAt
+                val matched = summaries.firstOrNull { s ->
+                    val r = s.recordedAt
+                    r != null && r >= callStart - win && r <= rec.endedAt + win
+                }
+                val bullets = matched?.summaryText
+                    ?.split("\n")
+                    ?.map { it.trim().trimStart('•', '·', '-', '*', ' ') }
+                    ?.filter { it.isNotEmpty() }
+                    ?: emptyList()
+                items += PeekItem.Call(rec, bullets, summarized = matched != null)
+            }
+            // 최신이 아래(reverseLayout)에 오도록 내림차순 — 채팅과 같은 순서감.
+            val sorted = items.sortedByDescending { it.timeMs }.take(60)
+            _peek.update { cur -> if (cur?.phone == lead.phone) cur.copy(loading = false, items = sorted) else cur }
         }
     }
 
@@ -281,13 +311,28 @@ data class NewLeadsUiState(
     val unreadOnly: Boolean = false
 )
 
-/** 꾹 눌러 보는 대화 미리보기 상태. messages = 최신순(위가 최근). */
+/** 꾹 눌러 보는 대화 미리보기 상태. items = 최신순(위가 최근), 채팅과 같은 문자+통화 타임라인. */
 data class PeekState(
     val phone: String,
     val customerId: Long,
     val displayName: String,
     val loading: Boolean,
-    val messages: List<com.detailline.callfollowcrm.data.repository.SmsRepository.SmsMessage>,
-    /** 문자가 없을 때(통화만) 보여줄 한 줄 — 예 "부재중 (안 받음)". */
+    val items: List<PeekItem>,
+    /** 표시할 게 전혀 없을 때 보여줄 한 줄 — 예 "부재중 (안 받음)". */
     val fallbackLine: String? = null
 )
+
+/** 미리보기 타임라인 한 줄 — 문자 말풍선 또는 통화 카드(에이닷 요약 포함). 채팅 타임라인과 동일 구성. */
+sealed interface PeekItem {
+    val timeMs: Long
+    data class Sms(val msg: com.detailline.callfollowcrm.data.repository.SmsRepository.SmsMessage) : PeekItem {
+        override val timeMs: Long get() = msg.dateMs
+    }
+    data class Call(
+        val record: com.detailline.callfollowcrm.data.local.entity.CallRecordEntity,
+        val summaryBullets: List<String>,
+        val summarized: Boolean
+    ) : PeekItem {
+        override val timeMs: Long get() = record.endedAt
+    }
+}

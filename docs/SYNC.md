@@ -3567,3 +3567,8 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 신규문의 줄 꾹 누르기(롱프레스) → 그 번호 대화 미리보기 모달(읽기 전용 바텀시트). 들어가지 않고 바로 문자 기록 확인. 캐시+시스템SMS 머지, 최신이 아래(reverseLayout) 채팅버블. 통화만 있으면 빈 상태+결말라벨. [채팅 열기]로 전체 진입. 입력 없어 S9 키보드 이슈 무관.
 - 변경: 서버 영향 없음. NewLeadsViewModel(openPeek/closePeek/PeekState), NewLeadsScreen(combinedClickable+ModalBottomSheet+PeekSheet/PeekBubble), AiSummaryDao.observeAll(직전).
 - commit: (아래)
+
+## 2026-06-11 · android
+신규문의 꾹눌러 미리보기 = 채팅과 동일 타임라인으로 통일: 문자만 보이던 것 → 문자 말풍선 + 통화카드(에이닷 요약 ±10분 매칭, 불릿 노출)까지 합침. 통화만 있어도 통화카드+요약이 보임. (채팅 CallSegment 축약·읽기전용)
+- 변경: 서버 영향 없음. PeekState.items(PeekItem.Sms/Call), openPeek가 callRecordRepository+callSummaryRepository.first() 합침, PeekCallCard.
+- commit: (아래)

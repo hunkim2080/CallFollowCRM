@@ -29,6 +29,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -372,16 +373,16 @@ private fun PeekSheet(peek: PeekState, onOpenChat: () -> Unit) {
                     Text("불러오는 중…", color = TossTextTertiary, fontSize = 13.sp)
                 }
             }
-            peek.messages.isEmpty() -> Box(
+            peek.items.isEmpty() -> Box(
                 Modifier.fillMaxWidth().padding(vertical = 34.dp), contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        peek.fallbackLine ?: "주고받은 문자가 없어요",
+                        peek.fallbackLine ?: "주고받은 내용이 없어요",
                         color = TossTextSecondary, fontSize = 14.sp, fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "통화만 있었어요 — 채팅을 열면 자세히 볼 수 있어요",
+                        "채팅을 열면 자세히 볼 수 있어요",
                         color = TossTextTertiary, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp)
                     )
                 }
@@ -390,7 +391,12 @@ private fun PeekSheet(peek: PeekState, onOpenChat: () -> Unit) {
                 Modifier.fillMaxWidth().heightIn(max = 440.dp),
                 reverseLayout = true
             ) {
-                items(peek.messages, key = { "${it.id}-${it.sent}" }) { m -> PeekBubble(m) }
+                items(peek.items, key = { peekItemKey(it) }) { item ->
+                    when (item) {
+                        is PeekItem.Sms -> PeekBubble(item.msg)
+                        is PeekItem.Call -> PeekCallCard(item)
+                    }
+                }
             }
         }
         Spacer(Modifier.height(14.dp))
@@ -401,6 +407,74 @@ private fun PeekSheet(peek: PeekState, onOpenChat: () -> Unit) {
             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
                 .background(TossBlue).clickable { onOpenChat() }.padding(vertical = 13.dp)
         )
+    }
+}
+
+private fun peekItemKey(item: PeekItem): String = when (item) {
+    is PeekItem.Sms -> "s-${item.msg.id}-${item.msg.sent}"
+    is PeekItem.Call -> "c-${item.record.id}"
+}
+
+/** 미리보기 통화 카드 — 채팅 CallSegment 축약판(읽기 전용). 에이닷 요약 있으면 불릿으로 노출. */
+@Composable
+private fun PeekCallCard(item: PeekItem.Call) {
+    val record = item.record
+    val type = runCatching {
+        com.detailline.callfollowcrm.domain.model.CallType.valueOf(record.callType)
+    }.getOrNull()
+    val (label, accent) = when (type) {
+        com.detailline.callfollowcrm.domain.model.CallType.INCOMING -> "수신 통화" to Color(0xFF0E9E90)
+        com.detailline.callfollowcrm.domain.model.CallType.OUTGOING -> "발신 통화" to Color(0xFF0E9E90)
+        com.detailline.callfollowcrm.domain.model.CallType.MISSED -> "부재중 전화" to TossError
+        com.detailline.callfollowcrm.domain.model.CallType.REJECTED -> "거절한 전화" to TossTextSecondary
+        else -> "통화" to Color(0xFF0E9E90)
+    }
+    val durSec = record.duration
+    val durLabel = if (durSec > 0) {
+        val m = durSec / 60; val s = durSec % 60
+        if (m > 0) (if (s > 0) "${m}분 ${s}초" else "${m}분") else "${s}초"
+    } else null
+    val summarizable = type != com.detailline.callfollowcrm.domain.model.CallType.MISSED &&
+        type != com.detailline.callfollowcrm.domain.model.CallType.REJECTED && durSec > 0
+
+    Column(
+        Modifier.fillMaxWidth().padding(vertical = 4.dp)
+            .clip(RoundedCornerShape(14.dp)).background(Color(0xFFEAF4F1))
+            .border(1.dp, Color(0xFFCDE8E0), RoundedCornerShape(14.dp))
+            .padding(horizontal = 12.dp, vertical = 11.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(28.dp).clip(RoundedCornerShape(9.dp)).background(accent),
+                contentAlignment = Alignment.Center
+            ) { Icon(Icons.Default.Phone, null, tint = Color.White, modifier = Modifier.size(14.dp)) }
+            Spacer(Modifier.width(9.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    buildString { append(label); if (durLabel != null) { append(" · "); append(durLabel) } },
+                    fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0A7D72)
+                )
+                Text(
+                    DateTimeUtils.formatShort(record.endedAt) + if (item.summarized) " · AI 요약됨" else "",
+                    fontSize = 11.sp, color = TossTextTertiary, fontWeight = FontWeight.Bold
+                )
+            }
+        }
+        if (item.summaryBullets.isNotEmpty()) {
+            Column(Modifier.padding(top = 9.dp)) {
+                item.summaryBullets.forEach { line ->
+                    Row(Modifier.padding(bottom = 4.dp)) {
+                        Text("• ", fontSize = 12.5.sp, color = Color(0xFF0A7D72), fontWeight = FontWeight.Bold)
+                        Text(line, fontSize = 12.5.sp, color = TossTextSecondary, lineHeight = 19.sp)
+                    }
+                }
+            }
+        } else if (summarizable) {
+            Text(
+                "에이닷에서 이 통화 녹음을 공유하면 자동으로 요약돼요",
+                color = TossTextTertiary, fontSize = 11.5.sp, modifier = Modifier.padding(top = 8.dp)
+            )
+        }
     }
 }
 
