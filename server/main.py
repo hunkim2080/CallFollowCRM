@@ -5834,10 +5834,17 @@ async def call_audio_summary_endpoint(
     customer_name: Optional[str] = Form(None),
     customer_memo: Optional[str] = Form(None),
     owner_tone_samples: Optional[str] = Form(None),  # JSON 배열 string (최대 10개)
+    force_refresh: bool = Form(False),                # §26 (2026-06-10) — true 면 캐시 무시 + 새로 처리
 ) -> dict:
-    """통화 녹음 → 로컬 Whisper STT → Haiku 요약 → one_line + bullets + 후속 문자 + transcript.
+    """통화 녹음 → Whisper STT → Gemini/Haiku 요약 → one_line + bullets + 후속 문자 + transcript.
 
-    동기 응답. 통화 1분당 ~10초 예상 (Mac mini CPU). 앱은 read timeout 120s 권장.
+    응답에 cached 필드:
+      - cached=true  → DB 캐시에서 즉시 응답 (이미 처리됨, 안드로이드가 토스트 띄울 단서)
+      - cached=false → 새로 STT + LLM 처리 후 응답
+    재요약 흐름: 안드로이드가 cached=true 받음 → 사장님께 "다시 요약?" 물음 → Yes 면
+    force_refresh=true 로 재호출 → 캐시 무시 + 새 처리.
+
+    동기 응답. 통화 5분 미만 = 단일 / 5분+ = 청크 병렬. 앱은 read timeout 120s+ 권장.
     """
     if not phone:
         raise HTTPException(400, "phone 필수")
@@ -5847,11 +5854,18 @@ async def call_audio_summary_endpoint(
 
     cache_ts = started_at_ms or 0
 
-    # 1) 캐시 hit 시 STT + LLM 둘 다 skip
-    cached = summary_cache_get(phone_digits, "call-audio-summary", cache_ts)
-    if cached is not None:
-        print(f"[call-audio-summary] {phone_digits} → cache HIT (started_at_ms={cache_ts})")
-        return cached
+    # 1) 캐시 hit + force_refresh=false 면 즉시 응답 (안드로이드가 cached=true 보고 토스트)
+    if not force_refresh:
+        cached = summary_cache_get(phone_digits, "call-audio-summary", cache_ts)
+        if cached is not None:
+            print(f"[call-audio-summary] {phone_digits} → cache HIT (started_at_ms={cache_ts})")
+            # cached 응답에 명시적으로 cached=True (안드로이드가 분기)
+            cached_with_flag = dict(cached)
+            cached_with_flag["cached"] = True
+            cached_with_flag["_cache_hit"] = True
+            return cached_with_flag
+    else:
+        print(f"[call-audio-summary] {phone_digits} → force_refresh=true (캐시 무시)")
 
     check_rate_limit(phone_digits)
 
@@ -6007,6 +6021,7 @@ async def call_audio_summary_endpoint(
     # 캐시 저장 (transcript 포함 — 같은 통화 재호출 시 STT+LLM 둘 다 0원)
     summary_cache_set(phone_digits, "call-audio-summary", cache_ts, response_payload)
     response_payload["_cache_hit"] = False
+    response_payload["cached"] = False  # §26 (2026-06-10) — 안드로이드 UX 분기용
     return response_payload
 
 
