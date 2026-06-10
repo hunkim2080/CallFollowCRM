@@ -163,6 +163,8 @@ fun ChatScreen(
     val intakeEvents by viewModel.intakeEvents.collectAsState()
     // 통화요약 — 통화 카드와 시각으로 짝지어 "AI 요약됨" 상태(불릿+후속문자) 표시.
     val callSummaries by viewModel.callSummaries.collectAsState()
+    // 서버에서 요약 중인 통화 시각 — 통화카드가 "요약 중…" 스피너 표시.
+    val summarizingTimes by viewModel.summarizingRecordedAt.collectAsState()
     val timelineItems = remember(messages, callRecords, intakeEvents) {
         buildChatTimeline(messages, callRecords, intakeEvents)
     }
@@ -578,10 +580,14 @@ fun ChatScreen(
                                     val r = it.recordedAt
                                     r != null && r >= callStart - win && r <= ti.record.endedAt + win
                                 }
+                                // 서버 요약 진행 중인 녹음이 이 통화 시간대와 겹치면 스피너.
+                                val summarizing = matched == null && summarizingTimes.any { r ->
+                                    r >= callStart - win && r <= ti.record.endedAt + win
+                                }
                                 CallSegment(
                                     record = ti.record,
-                                    onGetSummary = requestAdotSummary,
                                     summary = matched,
+                                    isSummarizing = summarizing,
                                     onUseAsDraft = { msg ->
                                         input = if (input.isBlank()) msg else input + "\n" + msg
                                     }
@@ -1261,8 +1267,8 @@ private fun ChatDateDivider(label: String) {
 @Composable
 private fun CallSegment(
     record: com.detailline.callfollowcrm.data.local.entity.CallRecordEntity,
-    onGetSummary: () -> Unit,
     summary: com.detailline.callfollowcrm.data.local.entity.CallSummaryEntity? = null,
+    isSummarizing: Boolean = false,
     onUseAsDraft: (String) -> Unit = {}
 ) {
     val type = runCatching {
@@ -1321,14 +1327,28 @@ private fun CallSegment(
             record.duration > 0
 
         if (bullets.isEmpty()) {
-            // 미요약 + 요약 가능한 통화일 때만 → cc-sum-btn (에이닷 통화 내용 요약 받기 ↑)
-            if (summarizable) {
-                Box(
-                    Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFF0E9E90)).clickable { onGetSummary() }.padding(vertical = 10.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("에이닷 통화 내용 요약 받기 ↑", color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold)
+            when {
+                // 서버에서 받아쓰기+요약 중 (녹음 공유 직후 ~10~30초) → 스피너.
+                isSummarizing -> {
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFFDFF1ED)).padding(vertical = 10.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(color = Color(0xFF0E9E90), strokeWidth = 2.dp, modifier = Modifier.size(15.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("통화 내용 요약 중…", color = Color(0xFF0A7D72), fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold)
+                    }
+                }
+                // 미요약 + 요약 가능한 통화 → 버튼 대신 안내(2026-06-10 사장님 결정: 버튼 빼고 흐름에 맞춤).
+                //   요약은 에이닷에서 '녹음 파일 공유' → 서버 자동 요약으로 들어온다.
+                summarizable -> {
+                    Text(
+                        "에이닷에서 이 통화 녹음을 공유하면 자동으로 요약돼요",
+                        color = TossTextTertiary, fontSize = 11.5.sp, fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
                 }
             }
         } else {

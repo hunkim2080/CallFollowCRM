@@ -63,55 +63,62 @@ object CallAudioSummarizer {
             }
         }
 
-        val resResult = container.callAudioSummaryRepository.summarize(
-            audioBytes = audioBytes,
-            fileName = fileName,
-            phone = phone,
-            startedAtMs = recordedAt,
-            direction = direction,
-            durationSec = durationSec,
-            customerName = customer?.name
-        )
-        val res = resResult.getOrNull()
-        if (res == null) {
-            // 실패 원인을 그대로 남긴다(HTTP 코드/네트워크 예외) — 서버 핸드오프 진단용.
-            Log.w(TAG, "server summarize failed: $fileName  bytes=${audioBytes.size}", resResult.exceptionOrNull())
-            return false
-        }
-
-        val summaryText = buildString {
-            res.oneLine?.let { append(it) }
-            if (res.bullets.isNotEmpty()) {
-                if (isNotEmpty()) append("\n")
-                append(res.bullets.joinToString("\n"))
+        // 서버 받아쓰기+요약은 ~10~30초 걸린다. 그동안 채팅 통화카드가 "요약 중…" 스피너를
+        // 보여주도록 진행 상태를 켠다. 성공/실패 무관하게 finally 에서 끈다.
+        CallSummaryProgress.begin(phone, recordedAt)
+        try {
+            val resResult = container.callAudioSummaryRepository.summarize(
+                audioBytes = audioBytes,
+                fileName = fileName,
+                phone = phone,
+                startedAtMs = recordedAt,
+                direction = direction,
+                durationSec = durationSec,
+                customerName = customer?.name
+            )
+            val res = resResult.getOrNull()
+            if (res == null) {
+                // 실패 원인을 그대로 남긴다(HTTP 코드/네트워크 예외) — 서버 핸드오프 진단용.
+                Log.w(TAG, "server summarize failed: $fileName  bytes=${audioBytes.size}", resResult.exceptionOrNull())
+                return false
             }
-        }.takeIf { it.isNotBlank() }
 
-        val now = System.currentTimeMillis()
-        // 혹시 그 사이 txt 경로가 먼저 저장했으면 update, 아니면 insert.
-        val existing = container.callSummaryRepository.findExistingNear(phone, recordedAt)
-        val entity = (existing ?: CallSummaryEntity(
-            customerId = null,
-            phoneNumber = phone,
-            recordedAt = recordedAt,
-            sourceType = SummarySourceType.AI_SERVER.name,
-            createdAt = now,
-            updatedAt = now
-        )).copy(
-            customerId = customer?.id ?: existing?.customerId,
-            callRecordId = linkedCallRecordId ?: existing?.callRecordId,
-            phoneNumber = phone,
-            recordedAt = recordedAt,
-            title = res.oneLine ?: existing?.title,
-            summaryText = summaryText ?: existing?.summaryText,
-            recommendedMessage = res.followupSms ?: existing?.recommendedMessage,
-            transcriptText = res.transcript ?: existing?.transcriptText,
-            rawText = res.transcript ?: existing?.rawText,
-            sourceType = SummarySourceType.AI_SERVER.name,
-            updatedAt = now
-        )
-        container.callSummaryRepository.upsert(entity)
-        Log.d(TAG, "saved audio summary: $phone @ $recordedAt")
-        return true
+            val summaryText = buildString {
+                res.oneLine?.let { append(it) }
+                if (res.bullets.isNotEmpty()) {
+                    if (isNotEmpty()) append("\n")
+                    append(res.bullets.joinToString("\n"))
+                }
+            }.takeIf { it.isNotBlank() }
+
+            val now = System.currentTimeMillis()
+            // 혹시 그 사이 txt 경로가 먼저 저장했으면 update, 아니면 insert.
+            val existing = container.callSummaryRepository.findExistingNear(phone, recordedAt)
+            val entity = (existing ?: CallSummaryEntity(
+                customerId = null,
+                phoneNumber = phone,
+                recordedAt = recordedAt,
+                sourceType = SummarySourceType.AI_SERVER.name,
+                createdAt = now,
+                updatedAt = now
+            )).copy(
+                customerId = customer?.id ?: existing?.customerId,
+                callRecordId = linkedCallRecordId ?: existing?.callRecordId,
+                phoneNumber = phone,
+                recordedAt = recordedAt,
+                title = res.oneLine ?: existing?.title,
+                summaryText = summaryText ?: existing?.summaryText,
+                recommendedMessage = res.followupSms ?: existing?.recommendedMessage,
+                transcriptText = res.transcript ?: existing?.transcriptText,
+                rawText = res.transcript ?: existing?.rawText,
+                sourceType = SummarySourceType.AI_SERVER.name,
+                updatedAt = now
+            )
+            container.callSummaryRepository.upsert(entity)
+            Log.d(TAG, "saved audio summary: $phone @ $recordedAt")
+            return true
+        } finally {
+            CallSummaryProgress.end(phone, recordedAt)
+        }
     }
 }

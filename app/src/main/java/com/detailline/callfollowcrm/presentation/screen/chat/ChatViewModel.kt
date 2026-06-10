@@ -151,6 +151,22 @@ class ChatViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
+     * 지금 서버에서 요약 중인 통화의 녹음시각(recordedAt) 집합 — 이 채팅 번호 한정.
+     *   통화카드(CallSegment)가 자기 통화 시간대와 겹치면 "요약 중…" 스피너를 띄운다.
+     *   (녹음 공유 → 서버 요약은 백그라운드라 전역 [CallSummaryProgress] 로만 진행 상태가 보임.)
+     */
+    val summarizingRecordedAt: StateFlow<Set<Long>> =
+        com.detailline.callfollowcrm.recording.CallSummaryProgress.inProgress
+            .map { keys ->
+                val suffix = phoneNumber.filter { it.isDigit() }.takeLast(8)
+                keys.mapNotNull { k ->
+                    val parts = k.split("@")
+                    if (parts.size == 2 && parts[0] == suffix) parts[1].toLongOrNull() else null
+                }.toSet()
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
+    /**
      * 시공접수서 제출 이벤트 (2026-06-05) — 고객이 접수서를 작성 완료하면 IntakeSyncManager 가 기록.
      *   채팅 타임라인에 통화 카드처럼 "📋 접수서 작성 완료" 이벤트 카드로 표시(제출 시각 기준).
      */
