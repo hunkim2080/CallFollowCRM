@@ -2683,7 +2683,7 @@ private fun EstimateBuilderDialog(
     validDays: Int = 0
 ) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val noRipple = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     // 프로토 seg — 보내는 방식: text(문자 견적) / accept(시공접수서) / quote(견적서)
     // 상태는 draft(ChatScreen 보관)로 위임 — 미리보기 닫고 와도 유지. 사용처는 그대로. (2026-06-08 #5)
     var mode by draft.mode
@@ -2732,15 +2732,23 @@ private fun EstimateBuilderDialog(
         return QuoteDocData(lines + customLines, totalSum, depMode, depVal.toIntOrNull() ?: 0)
     }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = Color.White,
-        tonalElevation = 0.dp
+    // 인라인 오버레이(액티비티 창) — ModalBottomSheet 는 별도 윈도우라 키보드가 입력칸(직접항목·계약금)을
+    //   가린다(갤S9/안드10). 액티비티 창 + imePadding 으로 키보드 위로 올린다. (팀원배정/정산목표 시트와 동일 패턴)
+    Box(
+        Modifier.fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.4f))
+            .clickable(interactionSource = noRipple, indication = null) { onDismiss() }
     ) {
         Column(
-            Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
-                .padding(horizontal = 18.dp).padding(bottom = 22.dp)
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
+                .background(Color.White)
+                .clickable(interactionSource = noRipple, indication = null) { /* 카드 탭은 닫지 않음 */ }
+                .navigationBarsPadding()
+                .imePadding()
+                .heightIn(max = 640.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 18.dp).padding(top = 12.dp, bottom = 22.dp)
         ) {
             Text("견적 만들기", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold,
                 color = TossTextPrimary, letterSpacing = (-0.4).sp)
