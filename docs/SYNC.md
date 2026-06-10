@@ -3497,3 +3497,10 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 - 상세 진단 + 체크리스트: **docs/SERVER_HANDOFF_call_audio_summary_502.md**
 - 맥미니 액션: uvicorn 로그(15:11~15:12 KST) 트레이스백 + Whisper STT 프로세스/모델 상태 확인 → 고치면 SYNC 회신.
 - 앱측: 변경 없음(공유/저장/업로드 정상). 실패 시 사용자 토스트 안내 추가 + 실패 예외 로깅 추가(commit 아래).
+
+## 2026-06-10 · android → 맥미니 · [해결] 통화녹음 502 = Anthropic API 잔액 부족
+앞선 502 핸드오프(docs/SERVER_HANDOFF_call_audio_summary_502.md) 결론: **서버 코드 버그 아님.**
+- 진짜 원인: **Anthropic API 크레딧 잔액 0** → Haiku 요약 호출 즉시 실패 → 핸들러가 못 받아쳐 워커 사망 → Cloudflare 502. (빠른 502 ~3초 = STT 아니라 LLM 즉시 거절 신호와 일치.)
+- 조치: 사장님이 **크레딧 충전 → 즉시 정상.** Whisper STT 손댈 필요 없음.
+- 제안(맥미니, 선택): call-audio-summary 핸들러가 Anthropic 402/429 를 catch 해서 502 대신 명확한 JSON 에러("LLM 크레딧 부족")로 응답하면 다음엔 즉시 진단됨. (다른 LLM 엔드포인트도 동일 패턴 점검 권장.)
+- 앱측: 실패 시 사용자 토스트 + 예외 로깅은 그대로 유지(유용).
