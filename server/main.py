@@ -5661,6 +5661,163 @@ def _audio_suffix(filename: Optional[str]) -> str:
     return ".m4a"
 
 
+# §26 Option A (2026-06-10) — 긴 통화 청크 병렬 처리
+# Cloudflare 100초 hard timeout 우회 위해 audio 를 5분씩 split, STT 병렬 실행.
+# 전체 시간 = max(청크 처리) — 11분 통화도 ~60-80초 안에 끝남.
+CHUNK_DURATION_SEC = 300  # 5분
+LONG_CALL_THRESHOLD_SEC = 320  # 5분 20초 이상이면 chunk (300초 정확히는 chunk 안 함, 여유)
+
+
+async def _ffprobe_duration(audio_path: str) -> float:
+    """ffprobe 로 audio 길이 (초) 반환. 실패 시 0.0."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "ffprobe",
+            "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            audio_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        out, _ = await asyncio.wait_for(proc.communicate(), timeout=15.0)
+        return float(out.decode().strip() or "0")
+    except Exception as e:
+        print(f"[chunk] ffprobe 실패: {type(e).__name__}: {e}")
+        return 0.0
+
+
+async def _split_audio_to_chunks(
+    audio_path: str, chunk_seconds: int = CHUNK_DURATION_SEC
+) -> list[tuple[str, int, int]]:
+    """audio 를 chunk_seconds 씩 split. (chunk_path, start_sec, end_sec) 리스트.
+
+    ffmpeg 로 -c copy (재인코딩 없이 stream copy) — 빠름.
+    실패 시 빈 list (caller 는 단일 처리로 fallback).
+    """
+    duration = await _ffprobe_duration(audio_path)
+    if duration <= 0 or duration <= LONG_CALL_THRESHOLD_SEC:
+        # 짧은 통화 또는 길이 파악 실패 — 단일 처리 (caller 에서 처리)
+        return []
+
+    import tempfile
+    suffix = Path(audio_path).suffix or ".m4a"
+    n_chunks = int((duration + chunk_seconds - 1) // chunk_seconds)
+    chunks: list[tuple[str, int, int]] = []
+    for i in range(n_chunks):
+        start = i * chunk_seconds
+        end = min(start + chunk_seconds, int(duration) + 1)
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            chunk_path = tmp.name
+        proc = await asyncio.create_subprocess_exec(
+            "ffmpeg",
+            "-y", "-loglevel", "error",
+            "-i", audio_path,
+            "-ss", str(start),
+            "-t", str(end - start),
+            "-c:a", "copy",
+            chunk_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            _, err_b = await asyncio.wait_for(proc.communicate(), timeout=30.0)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+            print(f"[chunk {i+1}/{n_chunks}] ffmpeg split timeout")
+            # cleanup 이미 만든 chunks
+            for cp, _, _ in chunks:
+                try: os.unlink(cp)
+                except: pass
+            try: os.unlink(chunk_path)
+            except: pass
+            return []
+        if proc.returncode != 0:
+            err = err_b.decode("utf-8", errors="replace")[:200]
+            print(f"[chunk {i+1}/{n_chunks}] ffmpeg 실패 rc={proc.returncode}: {err}")
+            for cp, _, _ in chunks:
+                try: os.unlink(cp)
+                except: pass
+            try: os.unlink(chunk_path)
+            except: pass
+            return []
+        chunks.append((chunk_path, start, end))
+    print(f"[chunk] split 완료 {n_chunks}개 청크 (총 {int(duration)}초)")
+    return chunks
+
+
+async def _run_stt_one_subprocess(audio_path: str, label: str = "") -> str:
+    """단일 audio (또는 chunk) STT subprocess 호출. 실패 시 raise."""
+    worker_script = BASE_DIR / "whisper_worker.py"
+    if not worker_script.exists():
+        raise HTTPException(503, "whisper_worker.py 미배포")
+    venv_python = "/Users/hun/ringgo-server/venv/bin/python"
+    if not Path(venv_python).exists():
+        venv_python = sys.executable
+    proc = await asyncio.create_subprocess_exec(
+        venv_python, str(worker_script), audio_path,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        stdout_b, stderr_b = await asyncio.wait_for(
+            proc.communicate(), timeout=120.0
+        )
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.wait()
+        raise HTTPException(504, f"STT timeout {label}".strip())
+    if proc.returncode != 0:
+        err = (stderr_b.decode("utf-8", errors="replace") or "").strip()[:400]
+        raise HTTPException(502, f"STT 실패 {label} rc={proc.returncode}: {err[:200]}")
+    return (stdout_b.decode("utf-8", errors="replace") or "").strip()
+
+
+def _fmt_chunk_label(start: int, end: int) -> str:
+    """0:00-5:00 형식."""
+    def fmt(s: int) -> str:
+        return f"{s//60}:{s%60:02d}"
+    return f"{fmt(start)}-{fmt(end)}"
+
+
+async def _run_stt_with_chunking(audio_path: str) -> str:
+    """audio 길이 기반 자동 분기. 5분 미만 → 단일, 5분+ → 청크 병렬.
+
+    응답 transcript 에 [1/N start-end] 라벨 박힘.
+    """
+    chunks = await _split_audio_to_chunks(audio_path)
+    if not chunks:
+        # 단일 처리
+        print("[chunk] 단일 처리 (5분 미만 또는 split 실패)")
+        return await _run_stt_one_subprocess(audio_path, label="single")
+
+    # 병렬 STT
+    n = len(chunks)
+    print(f"[chunk] 병렬 STT 시작 {n}개 청크")
+    try:
+        transcripts = await asyncio.gather(
+            *[
+                _run_stt_one_subprocess(cp, label=f"{i+1}/{n}")
+                for i, (cp, _, _) in enumerate(chunks)
+            ]
+        )
+    finally:
+        # chunk 파일 cleanup
+        for cp, _, _ in chunks:
+            try: os.unlink(cp)
+            except Exception: pass
+
+    # 청크 라벨 박힌 전체 transcript 조립
+    parts = []
+    for i, ((_, start, end), txt) in enumerate(zip(chunks, transcripts)):
+        label = f"[{i+1}/{n} {_fmt_chunk_label(start, end)}]"
+        parts.append(f"{label}\n{txt}")
+    full = "\n\n".join(parts).strip()
+    print(f"[chunk] 병렬 STT 완료 {n}개 청크 → 합친 transcript {len(full)}자")
+    return full
+
+
 @app.post("/api/call-audio-summary")
 async def call_audio_summary_endpoint(
     file: UploadFile = File(...),
@@ -5707,58 +5864,22 @@ async def call_audio_summary_endpoint(
 
     transcript = ""
     try:
-        # 3) Whisper STT — §26 fix 502 #3 (2026-06-10):
-        # 이전엔 asyncio.to_thread 안에서 faster-whisper 호출 → uvicorn worker SIGSEGV.
-        # cpu_threads=1 / OMP=1 fix 로도 native crash 지속 → subprocess 로 완전 격리.
-        # 자식 process 가 죽어도 uvicorn worker 살아있음 (다른 요청 영향 0).
+        # 3) Whisper STT — §26 Option A (2026-06-10):
+        # 5분 미만 = 단일 subprocess, 5분 이상 = chunk 병렬 (Cloudflare 100s timeout 우회).
+        # subprocess 격리 유지 (uvicorn worker 보호).
         lock = _whisper_lock()
-        async with lock:  # 메모리/CPU 보호 위해 동시 1건만
+        async with lock:  # 메모리 보호 위해 동시 요청 1건만 (각 요청 안의 청크는 병렬)
             try:
-                worker_script = BASE_DIR / "whisper_worker.py"
-                if not worker_script.exists():
-                    raise HTTPException(503, "whisper_worker.py 미배포 — deploy_phase1.sh 재실행 필요")
-                venv_python = "/Users/hun/ringgo-server/venv/bin/python"
-                if not Path(venv_python).exists():
-                    venv_python = sys.executable  # fallback
-                print(f"[call-audio-summary] STT subprocess 시작 audio={len(audio_data)//1024}KB")
-                proc = await asyncio.create_subprocess_exec(
-                    venv_python,
-                    str(worker_script),
-                    tmp_path,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-                try:
-                    # §26 fix (2026-06-10): 11분+ 통화 base 모델 ~120초 → 여유 360초.
-                    # 15분 까지 처리 가능 (그 이상은 안드로이드 측에서 거부 권장).
-                    stdout_b, stderr_b = await asyncio.wait_for(
-                        proc.communicate(), timeout=360.0
-                    )
-                except asyncio.TimeoutError:
-                    proc.kill()
-                    await proc.wait()
-                    raise HTTPException(504, "STT 시간 초과 (360s) — 통화가 너무 김 (15분 이하 권장)")
-                if proc.returncode != 0:
-                    err = (stderr_b.decode("utf-8", errors="replace") or "").strip()[:1000]
-                    print(f"[call-audio-summary] STT subprocess fail rc={proc.returncode}: {err}")
-                    raise HTTPException(
-                        502,
-                        f"STT 실패 (rc={proc.returncode}): {err[:200]}",
-                    )
-                transcript = (stdout_b.decode("utf-8", errors="replace") or "").strip()
-                # stderr 에 RuntimeWarning 같은 무해 경고도 있을 수 있음 — 디버깅 도움
-                if stderr_b:
-                    err_preview = stderr_b.decode("utf-8", errors="replace")[:300]
-                    if err_preview.strip():
-                        print(f"[call-audio-summary] STT stderr (warning, 무해): {err_preview}")
-                print(f"[call-audio-summary] STT 완료 transcript={len(transcript)}자")
+                print(f"[call-audio-summary] {phone_digits} STT 시작 audio={len(audio_data)//1024}KB")
+                transcript = await _run_stt_with_chunking(tmp_path)
+                print(f"[call-audio-summary] {phone_digits} STT 완료 transcript={len(transcript)}자")
             except HTTPException:
                 raise
             except Exception as e:
                 import traceback as _tb
-                print(f"[call-audio-summary] STT subprocess 호출 실패: {type(e).__name__}: {e}")
+                print(f"[call-audio-summary] STT 실패: {type(e).__name__}: {e}")
                 print(_tb.format_exc())
-                raise HTTPException(502, f"STT subprocess 호출 실패: {type(e).__name__}: {e}")
+                raise HTTPException(502, f"STT 실패: {type(e).__name__}: {e}")
     finally:
         try:
             os.unlink(tmp_path)
