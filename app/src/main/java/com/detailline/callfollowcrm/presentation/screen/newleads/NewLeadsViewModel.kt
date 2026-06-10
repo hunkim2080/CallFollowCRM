@@ -5,11 +5,14 @@ import androidx.lifecycle.viewModelScope
 import com.detailline.callfollowcrm.data.AppContainer
 import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -52,6 +55,37 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
     /** 사장님이 직접 '광고/스팸'으로 표시한 번호(suffix). 상담함 카운트와 동일하게 신규목록에서도 제외. 2026-06-07 */
     private val markedSpam = container.spamPhoneRepository.suffixes
     private val spamRepo = container.spamPhoneRepository   // 밀어서 정리(스팸 마킹/해제). (2026-06-08 #3)
+
+    // ── 꾹 눌러 대화 미리보기(peek) — 줄 길게 누르면 들어가지 않고 그 자리에서 문자 기록 모달. ──
+    private val cachedMessageRepository = container.cachedMessageRepository
+    private val smsRepository = container.smsRepository
+
+    private val _peek = MutableStateFlow<PeekState?>(null)
+    val peek: StateFlow<PeekState?> = _peek.asStateFlow()
+
+    /** 줄을 꾹 눌렀을 때 — 그 번호의 최근 문자(읽기 전용)를 모달로. 통화만 있으면 빈 상태 + 결말 라벨. */
+    fun openPeek(lead: NewLeadUi) {
+        val digits = lead.phone.filter { it.isDigit() }
+        val suffix = if (digits.length >= 8) digits.takeLast(8) else digits
+        _peek.value = PeekState(
+            phone = lead.phone, customerId = lead.customerId, displayName = lead.displayName,
+            loading = true, messages = emptyList(), fallbackLine = lead.summaryLine
+        )
+        viewModelScope.launch(Dispatchers.IO) {
+            val cached = runCatching { cachedMessageRepository.load(suffix, 60) }.getOrDefault(emptyList())
+            val fresh = if (smsRepository.hasReadPermission())
+                runCatching { smsRepository.querySmsOnly(lead.phone) }.getOrDefault(emptyList())
+            else emptyList()
+            val localSent = runCatching { cachedMessageRepository.loadLocalSent(suffix) }.getOrDefault(emptyList())
+            val base = if (fresh.isNotEmpty()) fresh + localSent else cached + localSent
+            val merged = base.distinctBy { it.id to it.sent }
+                .sortedByDescending { it.dateMs }   // 최신(=어떻게 끝났는지)이 위로
+                .take(40)
+            _peek.update { cur -> if (cur?.phone == lead.phone) cur.copy(loading = false, messages = merged) else cur }
+        }
+    }
+
+    fun closePeek() { _peek.value = null }
 
     // 고객/카테고리/응대기록/마킹스팸 4개를 미리 묶어 combine 5개 한도 회피.
     private val custCtx = combine(customers, categories, repliedIds, markedSpam) { c, cat, rep, spam ->
@@ -245,4 +279,15 @@ data class NewLeadsUiState(
     val totalCount: Int = 0,
     val unreadCount: Int = 0,
     val unreadOnly: Boolean = false
+)
+
+/** 꾹 눌러 보는 대화 미리보기 상태. messages = 최신순(위가 최근). */
+data class PeekState(
+    val phone: String,
+    val customerId: Long,
+    val displayName: String,
+    val loading: Boolean,
+    val messages: List<com.detailline.callfollowcrm.data.repository.SmsRepository.SmsMessage>,
+    /** 문자가 없을 때(통화만) 보여줄 한 줄 — 예 "부재중 (안 받음)". */
+    val fallbackLine: String? = null
 )

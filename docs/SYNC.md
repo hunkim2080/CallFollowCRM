@@ -3562,3 +3562,8 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 신규문의 "통화" 줄 정보화: 밋밋한 "통화" → 부재중(안 받음)/수신 통화·N분 M초/거절한 통화. 통화만 있는 신규의 "어떻게 끝났는지" = 받았나 놓쳤나·얼마나 통화했나.
 - 변경: 서버 영향 없음. NewLeadsViewModel Acc에 lastCallType/lastCallDurationSec + callEndingLabel/durationLabel.
 - commit: (아래)
+
+## 2026-06-11 · android
+신규문의 줄 꾹 누르기(롱프레스) → 그 번호 대화 미리보기 모달(읽기 전용 바텀시트). 들어가지 않고 바로 문자 기록 확인. 캐시+시스템SMS 머지, 최신이 아래(reverseLayout) 채팅버블. 통화만 있으면 빈 상태+결말라벨. [채팅 열기]로 전체 진입. 입력 없어 S9 키보드 이슈 무관.
+- 변경: 서버 영향 없음. NewLeadsViewModel(openPeek/closePeek/PeekState), NewLeadsScreen(combinedClickable+ModalBottomSheet+PeekSheet/PeekBubble), AiSummaryDao.observeAll(직전).
+- commit: (아래)

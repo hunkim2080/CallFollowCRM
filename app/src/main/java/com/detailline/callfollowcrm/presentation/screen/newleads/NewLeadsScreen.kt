@@ -1,8 +1,13 @@
 package com.detailline.callfollowcrm.presentation.screen.newleads
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -24,12 +30,15 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -37,10 +46,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.detailline.callfollowcrm.data.repository.SmsRepository
+import com.detailline.callfollowcrm.util.DateTimeUtils
+import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossBlueDark
 import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
@@ -78,8 +93,25 @@ fun NewLeadsScreen(
     onReContact: (phone: String, customerId: Long) -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
+    val peek by viewModel.peek.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
+
+    // 꾹 누른 줄의 대화 미리보기 — 읽기 전용(입력 없음)이라 바텀시트 안전.
+    if (peek != null) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { viewModel.closePeek() },
+            sheetState = sheetState,
+            containerColor = Color.White
+        ) {
+            PeekSheet(
+                peek = peek!!,
+                onOpenChat = { val p = peek!!; viewModel.closePeek(); onReContact(p.phone, p.customerId) }
+            )
+        }
+    }
 
     Scaffold(
         containerColor = TossGrayBg,
@@ -162,6 +194,10 @@ fun NewLeadsScreen(
                             NewLeadRow(
                                 lead = lead,
                                 onClick = { onOpenLead(lead.phone, lead.customerId) },
+                                onLongClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    viewModel.openPeek(lead)
+                                },
                                 onReContact = { onReContact(lead.phone, lead.customerId) }
                             )
                         }
@@ -224,8 +260,9 @@ private fun LeadSwipeBox(onDismiss: () -> Unit, content: @Composable () -> Unit)
     )
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun NewLeadRow(lead: NewLeadUi, onClick: () -> Unit, onReContact: () -> Unit) {
+private fun NewLeadRow(lead: NewLeadUi, onClick: () -> Unit, onLongClick: () -> Unit, onReContact: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -233,7 +270,7 @@ private fun NewLeadRow(lead: NewLeadUi, onClick: () -> Unit, onReContact: () -> 
             .clip(RoundedCornerShape(14.dp))
             .background(Color.White)
             .border(1.dp, TossDivider, RoundedCornerShape(14.dp))
-            .clickable { onClick() }
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = 14.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -304,6 +341,90 @@ private fun NewLeadRow(lead: NewLeadUi, onClick: () -> Unit, onReContact: () -> 
                     .clip(RoundedCornerShape(10.dp)).background(TossBlue)
                     .clickable { onReContact() }
                     .padding(horizontal = 14.dp, vertical = 9.dp)
+            )
+        }
+    }
+}
+
+/** 꾹 눌러 보는 대화 미리보기 — 읽기 전용 바텀시트. 최신 메시지가 아래(채팅처럼)에 오게 reverseLayout. */
+@Composable
+private fun PeekSheet(peek: PeekState, onOpenChat: () -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().navigationBarsPadding()
+            .padding(start = 18.dp, end = 18.dp, bottom = 14.dp)
+    ) {
+        Text(
+            peek.displayName, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold,
+            color = TossTextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            PhoneNumberFormatter.format(peek.phone) + " · 최근 대화",
+            fontSize = 12.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 2.dp)
+        )
+        Spacer(Modifier.height(12.dp))
+        when {
+            peek.loading -> Box(
+                Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = TossBlue)
+                    Spacer(Modifier.width(10.dp))
+                    Text("불러오는 중…", color = TossTextTertiary, fontSize = 13.sp)
+                }
+            }
+            peek.messages.isEmpty() -> Box(
+                Modifier.fillMaxWidth().padding(vertical = 34.dp), contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        peek.fallbackLine ?: "주고받은 문자가 없어요",
+                        color = TossTextSecondary, fontSize = 14.sp, fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "통화만 있었어요 — 채팅을 열면 자세히 볼 수 있어요",
+                        color = TossTextTertiary, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp)
+                    )
+                }
+            }
+            else -> LazyColumn(
+                Modifier.fillMaxWidth().heightIn(max = 440.dp),
+                reverseLayout = true
+            ) {
+                items(peek.messages, key = { "${it.id}-${it.sent}" }) { m -> PeekBubble(m) }
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        Text(
+            "채팅 열기",
+            color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                .background(TossBlue).clickable { onOpenChat() }.padding(vertical = 13.dp)
+        )
+    }
+}
+
+@Composable
+private fun PeekBubble(msg: SmsRepository.SmsMessage) {
+    val sent = msg.sent
+    val text = msg.body.ifBlank { if (msg.imageUris.isNotEmpty()) "[사진]" else "" }
+    if (text.isBlank()) return
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        horizontalArrangement = if (sent) Arrangement.End else Arrangement.Start
+    ) {
+        Column(horizontalAlignment = if (sent) Alignment.End else Alignment.Start) {
+            Box(
+                Modifier.widthIn(max = 268.dp).clip(RoundedCornerShape(14.dp))
+                    .background(if (sent) TossBlue else TossGrayBg)
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Text(text, color = if (sent) Color.White else TossTextPrimary, fontSize = 13.5.sp, lineHeight = 19.sp)
+            }
+            Text(
+                DateTimeUtils.formatShort(msg.dateMs),
+                color = TossTextTertiary, fontSize = 10.sp,
+                modifier = Modifier.padding(top = 2.dp, start = 4.dp, end = 4.dp)
             )
         }
     }
