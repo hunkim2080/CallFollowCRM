@@ -516,6 +516,30 @@ def db_init() -> None:
             "CREATE INDEX IF NOT EXISTS idx_shared_sites_partner "
             "ON shared_sites(partner_phone, created_at_ms DESC)"
         )
+        # §28 — 협업 진행 이벤트 (안드로이드 SERVER_HANDOFF_collab_notify_calendar 2026-06-09)
+        # B 가 /api/shared/progress 호출 시 A 앞으로 이벤트 적재.
+        # A 가 /api/shared/owner-events 폴링으로 받음 (TeamEventCenter 패턴).
+        # 벽: 고객 phone / 대화 / 타 고객 절대 X. share 의 title + partner_name 만 노출.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS shared_owner_events (
+                event_id        TEXT PRIMARY KEY,        -- 'evt_' + 10자 base62
+                share_id        TEXT NOT NULL,
+                owner_phone     TEXT NOT NULL,           -- A (현장 주인 — 이 이벤트 받는 사람)
+                partner_phone   TEXT NOT NULL,           -- B (현장 진행자)
+                step            TEXT NOT NULL,           -- departed/arrived/completed
+                title           TEXT,                    -- share 의 title (배달 푸시 본문용)
+                account_bank    TEXT,                    -- completed 시만
+                account_no      TEXT,
+                account_holder  TEXT,
+                created_at_ms   INTEGER NOT NULL
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_shared_owner_events_owner "
+            "ON shared_owner_events(owner_phone, created_at_ms DESC)"
+        )
         con.commit()
 
 
@@ -5985,8 +6009,9 @@ async def shared_progress(req: SharedProgressRequest) -> dict:
         raise HTTPException(400, f"step must be one of {_VALID_PROGRESS_STEPS}")
     now = _now_ms()
     with db_conn() as con:
+        # title 도 같이 가져옴 (이벤트 본문용)
         row = con.execute(
-            "SELECT partner_phone, status, owner_phone FROM shared_sites WHERE share_id = ?",
+            "SELECT partner_phone, status, owner_phone, title FROM shared_sites WHERE share_id = ?",
             (share_id,),
         ).fetchone()
         if not row:
@@ -5995,11 +6020,20 @@ async def shared_progress(req: SharedProgressRequest) -> dict:
             raise HTTPException(403, "권한 없음")
         if row[1] != "accepted":
             raise HTTPException(409, "수락된 공유만 진행 가능")
+        owner_phone_for_event = row[2]
+        site_title = row[3] or ""
+        # 1) shared_sites 업데이트
+        event_bank = None
+        event_account_no = None
+        event_holder = None
         if step == "completed":
             payload = req.payload or SharedProgressPayload()
             bank = (payload.bank or "").strip()[:30]
             account_no = (payload.account_no or "").strip()[:30]
             holder = (payload.holder or "").strip()[:30]
+            event_bank = bank or None
+            event_account_no = account_no or None
+            event_holder = holder or None
             con.execute(
                 """
                 UPDATE shared_sites SET
@@ -6007,16 +6041,40 @@ async def shared_progress(req: SharedProgressRequest) -> dict:
                   updated_at_ms = ?
                 WHERE share_id = ?
                 """,
-                (step, bank or None, account_no or None, holder or None, now, share_id),
+                (step, event_bank, event_account_no, event_holder, now, share_id),
             )
         else:
             con.execute(
                 "UPDATE shared_sites SET progress = ?, updated_at_ms = ? WHERE share_id = ?",
                 (step, now, share_id),
             )
+        # 2) §28 — A 앞으로 이벤트 적재 (TeamEventCenter 패턴 폴링용)
+        event_id = "evt_" + "".join(
+            _secrets_collab.choice(_SHARE_ID_ALPHABET) for _ in range(10)
+        )
+        con.execute(
+            """
+            INSERT INTO shared_owner_events
+                (event_id, share_id, owner_phone, partner_phone, step, title,
+                 account_bank, account_no, account_holder, created_at_ms)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                event_id,
+                share_id,
+                owner_phone_for_event,
+                partner_phone,
+                step,
+                site_title or None,
+                event_bank,
+                event_account_no,
+                event_holder,
+                now,
+            ),
+        )
         con.commit()
-    print(f"[shared/progress] share={share_id} {partner_phone} → {step}")
-    return {"ok": True, "share_id": share_id, "progress": step, "updated_at_ms": now}
+    print(f"[shared/progress] share={share_id} {partner_phone} → {step} (event={event_id})")
+    return {"ok": True, "share_id": share_id, "progress": step, "event_id": event_id, "updated_at_ms": now}
 
 
 # ─── ⑥ POST /api/shared/paid ───
@@ -6055,7 +6113,58 @@ async def shared_paid(req: SharedPaidRequest) -> dict:
     return {"ok": True, "share_id": share_id, "paid_at_ms": now}
 
 
-# ─── ⑦ GET /shared/{share_id} — 미가입 사장 link 도착 페이지 (HTML) ───
+# ─── ⑦ GET /api/shared/owner-events ───
+# A(현장 주인) 폴링 — B 의 진행(departed/arrived/completed) 이벤트 받음.
+# TeamEventCenter 패턴. since_ms 이후만, 최신순.
+# 벽: 고객 phone 절대 X. title + partner_name 만 노출.
+
+@app.get("/api/shared/owner-events")
+async def shared_owner_events(
+    phone: str, since_ms: int = 0, limit: int = 50
+) -> dict:
+    """A 가 본인 협업 현장에 대한 진행 이벤트 폴링."""
+    owner_phone = _norm_phone(phone)
+    if not owner_phone:
+        raise HTTPException(400, "phone 필수")
+    limit = max(1, min(limit, 200))
+    with db_conn() as con:
+        rows = con.execute(
+            """
+            SELECT event_id, share_id, partner_phone, step, title,
+                   account_bank, account_no, account_holder, created_at_ms
+            FROM shared_owner_events
+            WHERE owner_phone = ? AND created_at_ms > ?
+            ORDER BY created_at_ms DESC
+            LIMIT ?
+            """,
+            (owner_phone, since_ms, limit),
+        ).fetchall()
+    events = []
+    for r in rows:
+        partner_phone = r[2]
+        # 벽: 고객 phone 노출 X. partner_name 으로만.
+        partner_name = _is_registered_owner(partner_phone) or "협업 사장"
+        step = r[3]
+        evt = {
+            "event_id": r[0],
+            "share_id": r[1],
+            "title": r[4] or "",
+            "partner_name": partner_name,
+            "step": step,
+            "at_ms": r[8],
+        }
+        # completed 일 때만 계좌 포함 (A 가 입금용)
+        if step == "completed" and (r[5] or r[6] or r[7]):
+            evt["account"] = {
+                "bank": r[5] or "",
+                "account_no": r[6] or "",
+                "holder": r[7] or "",
+            }
+        events.append(evt)
+    return {"events": events}
+
+
+# ─── ⑧ GET /shared/{share_id} — 미가입 사장 link 도착 페이지 (HTML) ───
 # 협업 invite 시 partner 가 미가입이면 sms_draft 에 박힌 link 가 여기로 옴.
 # 안내문 + 현장 정보 일부 + 시공막내 앱 설치 안내 + /install 큰 버튼.
 # 벽: 고객 phone / 대화 / 타 고객 절대 노출 X. customer_label + 현장 메타만.
