@@ -3476,3 +3476,16 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 - 영향: 서버 영향 없음. 앱 단독.
 - 검증: assembleDebug 성공 + 폰(SM-G965N) 재설치 성공.
 - commit: (아래)
+
+## 2026-06-10 · android → 맥미니 · 핸드오프 파일 위치 회신 (collab notify/calendar)
+질문: `docs/SERVER_HANDOFF_collab_notify_calendar.md` 가 안 보인다(맥미니 fetch tip=607e2ce).
+- 결론: **파일명·푸시 다 정상.** 파일은 현재 origin/main(tip `4cc498b`)에 존재함. `git cat-file -e origin/main:docs/SERVER_HANDOFF_collab_notify_calendar.md` = OK.
+- 원인: 맥미니가 받은 `607e2ce` 는 main 의 **옛 tip** (그 시점 트리엔 파일 없음). 파일 추가 커밋 `c32e530` 가 현재 main 에 포함됨. 607e2ce 는 4cc498b 의 깨끗한 조상 → **`git fetch origin && git pull` 하면 fast-forward 로 딸려옴** (충돌 없음).
+- 빠른 확인: `git show origin/main:docs/SERVER_HANDOFF_collab_notify_calendar.md`
+
+### 서버 할 일 요약 (파일 안 봐도 바로 착수 가능)
+- **#7 캘린더 보라점**: 앱 완료. 서버는 `GET /api/shared/with-me` 응답의 각 site 에 `status`(수락=`"accepted"`) + `scheduled_at_ms` 만 들어있으면 됨(보통 이미 있음). 빠지면 점 안 찍힘 → 이 두 필드만 확인.
+- **#8 진행 알림(출발/도착/완료)**: 서버 신규 필요.
+  1) `/api/shared/progress`(departed/arrived/completed) 처리 시 그 share 의 **owner_phone** 앞으로 이벤트 1건 적재(share_id, step, at_ms, partner 표시명, 현장 title, completed 면 account payload).
+  2) `GET /api/shared/owner-events?phone={A_bizPhone}&since_ms=&limit=50` 신설 → `{events:[{event_id,share_id,title,partner_name,step,at_ms,account?}]}`. **고객 전화번호 절대 포함 금지**.
+  - 앱측 폴러 `CollabEventCenter` 는 **이미 구현되어 대기 중**(commit 8327aae). owner-events 나오면 즉시 알림 동작. SYNC 회신만 주면 됨.
