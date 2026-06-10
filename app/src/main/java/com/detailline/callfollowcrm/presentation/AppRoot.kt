@@ -101,9 +101,18 @@ fun AppRoot(container: AppContainer) {
                                 android.util.Log.d("NAVTAB", "tap=$route state=$currentRoute live=$live")
                                 val alreadyOnRootTab = currentRoute in RING_TAB_ROUTES && route == live
                                 if (!alreadyOnRootTab) {
+                                    val startId = navController.graph.findStartDestination().id
+                                    // 2026-06-10 사장님 통점 "상세화면(고객상세 등)에서 하단 탭이 안 눌림":
+                                    //   터치는 정상(NAVTAB 로그 찍힘)인데 navigate 가 조용히 무시됨(no-op).
+                                    //   원인 = 탭 루트가 아닌 상세화면 위에서 restoreState=true 로 탭 전환 시
+                                    //          Navigation 의 상태 복원이 충돌해 전환을 삼킴(예외도 안 남).
+                                    //   해결: 상세 위에 있으면 먼저 시작지점까지 pop → "탭루트→탭" 정상 경로로 만든 뒤 전환.
+                                    if (live !in RING_TAB_ROUTES) {
+                                        navController.popBackStack(startId, /* inclusive = */ false)
+                                    }
                                     navController.navigate(route) {
                                         // 탭 전환: 시작 지점까지 pop + 상태 저장/복원으로 탭별 스크롤·스택 유지.
-                                        popUpTo(navController.graph.findStartDestination().id) {
+                                        popUpTo(startId) {
                                             saveState = route != Destinations.HOME
                                         }
                                         launchSingleTop = true
