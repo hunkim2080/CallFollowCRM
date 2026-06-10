@@ -1665,7 +1665,8 @@ private fun dialPhone(context: android.content.Context, phoneNumber: String) {
 /**
  * 입금 한 줄 — 라벨 + 받음 체크 + 금액 + 단위 칩 + 받은 날짜(DatePicker).
  *
- *  - 체크박스: 받음/안 받음 토글. 받음 = paidAt 에 "지금" 자동 기록 (이후 날짜 칸 탭하면 수정 가능)
+ *  - 받음 확정 = 받은 날짜를 바로 고르게 DatePicker 를 띄움(기본=오늘). 9일에 받은 걸 10일에
+ *    입력해도 실제 받은 날(9일)로 들어가게. (2026-06-10 사장님 통점: 받은 날이 누른 날로 박힘)
  *  - 금액: 직접 타이핑 또는 [+1만][+5만][+10만][+100만] 칩 가산 / [지움]
  *  - 천 단위 콤마는 VisualTransformation 으로 표시 (raw 값은 숫자만)
  *  - 받은 날짜: 체크된 상태에서 탭 → DatePicker 다이얼로그
@@ -1782,7 +1783,8 @@ private fun PaymentRow(
                                 modifier = Modifier
                                     .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
                                     .background(com.detailline.callfollowcrm.presentation.theme.TossSuccess)
-                                    .clickable { onPaidChange(true) }
+                                    // 받음 확정 = 실제 받은 날짜를 고르게 DatePicker(기본=오늘). 확인 시 그 날로 paidAt 기록.
+                                    .clickable { datePickerOpen = true }
                                     .padding(horizontal = 14.dp, vertical = 10.dp)
                             ) {
                                 Text(
@@ -1892,9 +1894,10 @@ private fun PaymentRow(
                 onCancel = { editing = false },
                 onSave = { newAmount ->
                     onAmountChange(newAmount)
-                    // EMPTY → RECEIVED: 저장 즉시 받음 처리. PROMISED 단계 거치려면 별개 흐름.
-                    if (paidAt == null) onPaidChange(true)
                     editing = false
+                    // 금액 입력 후 받음 처리도 실제 받은 날짜를 고르게 DatePicker(기본=오늘).
+                    //   취소하면 금액만 정해진 약속됨(PROMISED) 으로 남음.
+                    if (paidAt == null) datePickerOpen = true
                 }
             )
         }
