@@ -589,8 +589,7 @@ fun CustomerDetailScreen(
                             TossPrimaryButton(text = "📅 시공일 등록", onClick = { datePickerOpen = true })
                             Spacer(Modifier.height(8.dp))
                             TossSecondaryButton(text = "💰 받을 돈(총금액) 입력", onClick = { amountEditField = "total" })
-                            Spacer(Modifier.height(8.dp))
-                            TossSecondaryButton(text = "견적서로 보내기", onClick = { onOpenChat(c.phoneNumber, c.id) })
+                            // "견적서로 보내기" 제거 (2026-06-10 사장님: 용도 불명확). 견적서는 채팅 [견적 작성] 으로.
                         }
                     }
                 }
@@ -2415,15 +2414,24 @@ private fun AddressEditDialog(
                     color = TossTextSecondary
                 )
                 Spacer(Modifier.height(14.dp))
-                androidx.compose.material3.OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    placeholder = { Text("예: 서울 강서구 마곡중앙8로 60", color = TossTextTertiary) },
-                    singleLine = false,
-                    maxLines = 3,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                // 🔍 주소 검색 — Daum 우편번호. 직접 타이핑 대신 검색해서 정확한 도로명주소 채움.
+                // 주소는 직접 타이핑 대신 반드시 검색으로 — 정확한 정규화 도로명주소 확보.
+                //   (2026-06-10 사장님: 자유입력 칸 없애고 무조건 주소검색 한 번 하게.) 동/호수만 수동.
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                        .background(Color(0xFFF5F7FA))
+                        .clickable { showSearch = true }
+                        .padding(horizontal = 14.dp, vertical = 14.dp)
+                ) {
+                    Text(
+                        text.ifBlank { "🔍 주소 검색을 눌러 정확한 주소를 선택하세요" },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (text.isBlank()) TossTextTertiary else TossTextPrimary,
+                        fontWeight = if (text.isBlank()) FontWeight.Medium else FontWeight.SemiBold
+                    )
+                }
+                // 🔍 주소 검색 — Daum 우편번호. 정확한 도로명주소를 검색으로만 채운다.
                 Spacer(Modifier.height(10.dp))
                 androidx.compose.foundation.layout.Row(
                     modifier = Modifier
