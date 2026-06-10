@@ -3519,3 +3519,16 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
   - 무응답/다른 화면 60초 → 자동 아니오(기존 유지).
   - repo: summarize() 에 forceRefresh 파라미터(→ `force_refresh=true` form field) + 응답 `cached` 파싱 추가.
 - 확인 요청(맥미니): force_refresh=true 면 캐시 무시하고 새 STT/LLM 돌려 **cached:false 로** 응답 주는지. (앱은 그 응답으로 덮어씀)
+
+## 2026-06-11 · android → 맥미니 · [기획+핸드오프] 일당/협업 현장 흐름 + 일당 마켓 Phase 1
+사장님 구상: 직원/협업일당 공통 흐름(출발→도착사진→작업→완료→계좌→정산)을 앱 안에서 끝까지. 링크만으로 처음 사람도 쓰게 → 번호 기준 데이터 쌓아 일당 마켓("시공자 SNS")로.
+- 전체 기획·단계·계약: **docs/PLAN_labor_market.md**
+- Phase 1 확정 범위: 완료·계좌 = 정산 스위치 + 번호별 이력 자동 적립. (출발/도착사진=1.5단계, 별점=2단계)
+- **맥미니 서버 신규 필요**:
+  1. 참여자 웹뷰(/team/member/{token})에 [완료·계좌] 버튼 + `POST /api/labor/complete {token,bank,account_no,holder}` → 완료기록 + owner-events 에 completed+account 이벤트(팀/일당 배정 경로) + 번호 이력 적립 + 계좌 저장.
+  2. `GET /api/labor/history?phone={끝8자리}` → {count,last_worked_at,sites:[{label,date,photos[]}]} (고객 전화·대화 절대 미포함).
+  3. 웹뷰 계좌 자동채움(saved_account prefill).
+  4. (옵션) `POST /api/labor/paid` 입금완료 마크.
+- **앱(안드로이드) 담당**: 완료 알림에 [계좌복사]+[입금했어요]→정산 일당지급 자동기록, 배정/초대 화면에 번호 이력 카드. (owner-events/CollabEventCenter 재사용)
+- 개인정보: 번호 기반 기록은 서버만, 고객정보 미노출, 공개평판은 2단계+동의.
+- 진행: 앱은 정산 자동기록 등 서버 독립 부분부터 착수. 서버 endpoint 나오면 이력 카드/웹뷰 연동.
