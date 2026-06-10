@@ -866,6 +866,63 @@ fun HomeScreen(
  * KPI 4장 (2×2 그리드). LazyColumn 첫 item 으로 들어가서 스크롤 시 사라짐.
  * horizontal padding 은 LazyColumn 의 contentPadding 으로 들어가므로 안에서 X.
  */
+/** 오늘 시공 다크 히어로 한 장 (프로토 heroJobHtml). 2곳 이상이면 TodayHeroCard 가 현장 수만큼 반복. */
+@Composable
+private fun TodayHeroJobCard(
+    c: com.detailline.callfollowcrm.data.local.entity.CustomerEntity,
+    onOpenCustomer: (Long) -> Unit,
+    onNavigate: (String) -> Unit,
+    onCall: (String) -> Unit,
+    onComplete: (com.detailline.callfollowcrm.data.local.entity.CustomerEntity) -> Unit
+) {
+    val name = c.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(c.phoneNumber)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(Brush.linearGradient(listOf(Color(0xFF272D3D), Color(0xFF14171F))))
+            .clickable { onOpenCustomer(c.id) }
+            .padding(20.dp)
+    ) {
+        // hero-top — 초록 점 + 라벨
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(7.dp).clip(CircleShape).background(TossSuccess))
+            Spacer(Modifier.width(7.dp))
+            Text(
+                "오늘 시공 · D-DAY",
+                color = Color.White.copy(alpha = 0.62f), fontSize = 11.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp
+            )
+        }
+        // hero-name — 이름 + 시간 예정
+        Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = 11.dp)) {
+            Text(name, color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.7).sp)
+            c.scheduledWorkMinutes?.let { mins ->
+                Text(
+                    " · ${DateTimeUtils.formatWorkMinutes(mins)} 예정",
+                    color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(bottom = 2.dp)
+                )
+            }
+        }
+        // hero-addr
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 7.dp)) {
+            Icon(Icons.Default.Place, null, tint = Color.White.copy(alpha = 0.78f), modifier = Modifier.size(15.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(
+                c.address?.takeIf { it.isNotBlank() } ?: "주소 미등록 — 탭해서 등록",
+                color = Color.White.copy(alpha = 0.78f), fontSize = 13.sp, maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+        }
+        // hero-btns — 길찾기(light) / 전화(ghost) / 완료(ghost)
+        Row(modifier = Modifier.padding(top = 17.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            HeroBtn("길찾기", Icons.Default.Navigation, light = true, modifier = Modifier.weight(1f)) { onNavigate(c.phoneNumber) }
+            HeroBtn("전화", Icons.Default.Call, light = false, modifier = Modifier.weight(1f)) { onCall(c.phoneNumber) }
+            HeroBtn("완료", Icons.Default.Check, light = false, modifier = Modifier.weight(1f)) { onComplete(c) }
+        }
+    }
+}
+
 /**
  * 오늘 시공 히어로 — 시공 당일이면 맨 위 다크 카드(고객·주소·길찾기).
  *   없으면 "다음 시공" 미리보기(1~3곳) 또는 "오늘 없음" 긍정 카드. 2026-06-01.
@@ -883,52 +940,11 @@ private fun TodayHeroCard(
     onComplete: (com.detailline.callfollowcrm.data.local.entity.CustomerEntity) -> Unit
 ) {
     if (todayJobs.isNotEmpty()) {
-        // 프로토 heroJobHtml — 다크 그라데이션 + 🟢 D-DAY + 이름·시간 + 📍주소 + [길찾기][전화][완료].
-        val c = todayJobs.first()
-        val name = c.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(c.phoneNumber)
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(24.dp))
-                .background(Brush.linearGradient(listOf(Color(0xFF272D3D), Color(0xFF14171F))))
-                .clickable { onOpenCustomer(c.id) }
-                .padding(20.dp)
-        ) {
-            // hero-top — 초록 점 + 라벨
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(7.dp).clip(CircleShape).background(TossSuccess))
-                Spacer(Modifier.width(7.dp))
-                Text(
-                    if (todayJobs.size > 1) "오늘 시공 ${todayJobs.size}곳 · D-DAY" else "오늘 시공 · D-DAY",
-                    color = Color.White.copy(alpha = 0.62f), fontSize = 11.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp
-                )
-            }
-            // hero-name — 이름 + 시간 예정
-            Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = 11.dp)) {
-                Text(name, color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.7).sp)
-                c.scheduledWorkMinutes?.let { mins ->
-                    Text(
-                        " · ${DateTimeUtils.formatWorkMinutes(mins)} 예정",
-                        color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(bottom = 2.dp)
-                    )
-                }
-            }
-            // hero-addr
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 7.dp)) {
-                Icon(Icons.Default.Place, null, tint = Color.White.copy(alpha = 0.78f), modifier = Modifier.size(15.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    c.address?.takeIf { it.isNotBlank() } ?: "주소 미등록 — 탭해서 등록",
-                    color = Color.White.copy(alpha = 0.78f), fontSize = 13.sp, maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                )
-            }
-            // hero-btns — 길찾기(light) / 전화(ghost) / 완료(ghost)
-            Row(modifier = Modifier.padding(top = 17.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                HeroBtn("길찾기", Icons.Default.Navigation, light = true, modifier = Modifier.weight(1f)) { onNavigate(c.phoneNumber) }
-                HeroBtn("전화", Icons.Default.Call, light = false, modifier = Modifier.weight(1f)) { onCall(c.phoneNumber) }
-                HeroBtn("완료", Icons.Default.Check, light = false, modifier = Modifier.weight(1f)) { onComplete(c) }
+        // 오늘 시공이 2곳 이상이면 현장마다 독립 다크 카드를 시간순으로 쌓는다 (2026-06-11 사장님 결정).
+        // 프로토 heroJobHtml 은 1곳짜리 정적 데모 — 라벨/디자인은 그대로, 카드만 현장 수만큼 반복.
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            todayJobs.forEach { c ->
+                TodayHeroJobCard(c, onOpenCustomer, onNavigate, onCall, onComplete)
             }
         }
     } else {
