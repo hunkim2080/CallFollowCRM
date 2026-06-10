@@ -543,6 +543,48 @@ def db_init() -> None:
             "CREATE INDEX IF NOT EXISTS idx_shared_owner_events_owner "
             "ON shared_owner_events(owner_phone, created_at_ms DESC)"
         )
+        # §29 — 일당 마켓 Phase 1 (안드로이드 PLAN_labor_market 2026-06-11)
+        # 직원/협업일당/협업사장 공통 흐름 — 완료·계좌 = 정산 스위치 + 번호별 이력 적립.
+        # 키 = 전화 끝 8자리 (laborer.phone_suffix). 고객 정보 절대 미노출 (안전 라벨만).
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS laborer (
+                phone_suffix              TEXT PRIMARY KEY,   -- 전화 끝 8자리
+                completed_count           INTEGER NOT NULL DEFAULT 0,
+                last_worked_at_ms         INTEGER,
+                saved_bank                TEXT,
+                saved_account_no          TEXT,
+                saved_holder              TEXT,
+                saved_account_updated_at_ms INTEGER,
+                created_at_ms             INTEGER NOT NULL,
+                updated_at_ms             INTEGER NOT NULL
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS laborer_sites (
+                site_id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                phone_suffix         TEXT NOT NULL,
+                token                TEXT,
+                owner_phone          TEXT NOT NULL,
+                label                TEXT NOT NULL,   -- 안전 라벨 (고객 정보 X)
+                worked_at_ms         INTEGER NOT NULL,
+                photos_json          TEXT,            -- ["url1", ...]
+                paid_at_ms           INTEGER,         -- 입금완료 시각 (옵션)
+                completed_event_id   TEXT,            -- shared_owner_events.event_id
+                created_at_ms        INTEGER NOT NULL
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_laborer_sites_phone "
+            "ON laborer_sites(phone_suffix, worked_at_ms DESC)"
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_laborer_sites_token "
+            "ON laborer_sites(token, worked_at_ms DESC)"
+        )
         con.commit()
 
 
@@ -861,6 +903,34 @@ def _log_llm_usage_from_response(
         cache_read_tokens=getattr(usage, "cache_read_input_tokens", 0) or 0,
         cache_write_tokens=getattr(usage, "cache_creation_input_tokens", 0) or 0,
     )
+
+
+# §26 (2026-06-11) — Anthropic/Gemini exception → 정확한 HTTP status + 한국어 메시지.
+# 이전엔 모두 502 로 묻혀서 진단 늦어짐 (예: 크레딧 부족인지 rate limit 인지 모름).
+# 이제 endpoint 가 명확한 코드 + 한국어 메시지 반환 → 안드로이드 토스트 + 사장님 즉시 인지.
+
+def _classify_llm_error(err: Exception) -> tuple[int, str]:
+    """LLM exception → (HTTP status, 한국어 메시지).
+
+    Anthropic BadRequestError(credit) / RateLimitError(429) / overloaded(529) 구분.
+    Gemini API status 503 등도 같은 패턴.
+    """
+    name = type(err).__name__
+    msg_lower = str(err).lower()
+    # 크레딧 부족 (Anthropic 의 BadRequestError + "credit balance" 메시지)
+    if "credit balance" in msg_lower or "billing" in msg_lower:
+        return 402, "AI 서비스 크레딧 부족 — console.anthropic.com 에서 충전 필요"
+    # Rate limit (429)
+    if name == "RateLimitError" or "rate limit" in msg_lower or " 429" in msg_lower:
+        return 429, "AI 서비스 호출 한도 초과 — 잠시 후 다시 시도"
+    # Overloaded (Anthropic 529 / Gemini 503)
+    if "overloaded" in msg_lower or " 529" in msg_lower or " 503" in msg_lower:
+        return 503, "AI 서비스 일시 과부하 — 잠시 후 다시 시도"
+    # 인증/API 키 문제
+    if "api key" in msg_lower or "authentication" in msg_lower or "unauthorized" in msg_lower or " 401" in msg_lower:
+        return 503, "AI 서버 인증 실패 — 사장님께 알림 필요"
+    # 그 외 (네트워크 / 미상)
+    return 502, f"AI 서비스 호출 실패: {name}"
 
 
 # ============================================================================
@@ -4942,8 +5012,9 @@ async def _handle_summary_endpoint(
             model=model,
         )
     except Exception as e:
-        print(f"[{endpoint_label}] {ctx.phone} Claude 호출 실패 (model={model}): {type(e).__name__}: {e}")
-        raise HTTPException(502, f"LLM 호출 실패: {type(e).__name__}")
+        code, msg = _classify_llm_error(e)
+        print(f"[{endpoint_label}] {ctx.phone} Claude 호출 실패 (model={model}): {type(e).__name__}: {e} → {code} '{msg}'")
+        raise HTTPException(code, msg)
 
     # 4) 사용량 로그
     log_usage(ctx.phone, endpoint_label, response)
@@ -5561,8 +5632,9 @@ async def call_summary_endpoint(req: CallSummaryRequest) -> dict:
             model=HAIKU_MODEL,
         )
     except Exception as e:
-        print(f"[call-summary] {req.phone} Claude 호출 실패: {type(e).__name__}: {e}")
-        raise HTTPException(502, f"LLM 호출 실패: {type(e).__name__}")
+        code, msg = _classify_llm_error(e)
+        print(f"[call-summary] {req.phone} Claude 호출 실패: {type(e).__name__}: {e} → {code} '{msg}'")
+        raise HTTPException(code, msg)
 
     log_usage(req.phone, "call-summary", response)
     _log_llm_usage_from_response("call-summary", response)
@@ -5981,14 +6053,13 @@ async def call_audio_summary_endpoint(
             )
             used_llm = HAIKU_MODEL
         except Exception as claude_err:
+            # §26 (2026-06-11) — Anthropic 4xx 명확화 (사장님 즉시 진단)
+            code, msg = _classify_llm_error(claude_err)
             print(
                 f"[call-audio-summary] {phone_digits} Haiku 도 실패: "
-                f"{type(claude_err).__name__}: {claude_err}"
+                f"{type(claude_err).__name__}: {claude_err} → {code} '{msg}'"
             )
-            raise HTTPException(
-                502,
-                f"LLM 호출 실패 (gemini+haiku 둘 다): {type(claude_err).__name__}",
-            )
+            raise HTTPException(code, msg)
 
     # 비용 로깅: Haiku 일 때만 (Gemini Paid 비용은 별도 추적 안 함 — 매우 저렴)
     if response is not None:
@@ -6517,6 +6588,351 @@ async def shared_owner_events(
             }
         events.append(evt)
     return {"events": events}
+
+
+# ============================================================================
+# §29 — 일당 마켓 Phase 1 (안드로이드 PLAN_labor_market 2026-06-11)
+# ─────────────────────────────────────────────────────────────────────────────
+# 직원/협업일당 공통 흐름 — 완료·계좌 = 정산 스위치 + 번호별 이력 적립.
+# 키 = 전화 끝 8자리. 고객 정보 절대 미노출 (안전 라벨만).
+#
+# endpoint 4종:
+#   ① POST /api/labor/complete   — 완료 + 계좌 입력 + owner-events 적재 + 이력 +1
+#   ② GET  /api/labor/history    — 번호별 이력 조회 (count, sites)
+#   ③ POST /api/labor/paid       — (옵션) 사장 입금 완료 마크
+#   ④ GET  /api/labor/account    — 웹뷰 prefill 용 saved_account 조회
+# ============================================================================
+
+
+def _phone_suffix(p: Optional[str]) -> str:
+    """전화번호 → 끝 8자리. 미만이면 빈 string."""
+    digits = "".join(ch for ch in (p or "") if ch.isdigit())
+    return digits[-8:] if len(digits) >= 8 else ""
+
+
+def _safe_site_label_from_snapshot(snap_json: Optional[str], fallback_name: str) -> str:
+    """schedule_snapshot 에서 안전 라벨 추출. 고객 phone/대화 포함 X."""
+    if snap_json:
+        try:
+            snap = json.loads(snap_json) or {}
+            if isinstance(snap, dict):
+                candidates = (
+                    snap.get("jobs")
+                    or snap.get("items")
+                    or snap.get("schedule")
+                    or []
+                )
+                if isinstance(candidates, list) and candidates:
+                    first = candidates[0]
+                    if isinstance(first, dict):
+                        for key in ("title", "label", "site_label", "name"):
+                            v = (first.get(key) or "").strip()
+                            if v:
+                                return v[:60]
+                        # title 없으면 짧은 주소 (고객 정보 X 인 한)
+                        addr = (first.get("addr") or first.get("address") or "").strip()
+                        if addr:
+                            return addr[:60]
+        except Exception:
+            pass
+    return f"{fallback_name or '일당'} 현장"
+
+
+# ─── ① POST /api/labor/complete ───
+# 참여자(일당/팀원) 가 웹뷰에서 [완료·계좌] 누르면 호출.
+
+class LaborCompleteRequest(BaseModel):
+    token: str
+    bank: Optional[str] = None
+    account_no: Optional[str] = None
+    holder: Optional[str] = None
+
+
+@app.post("/api/labor/complete")
+async def labor_complete(req: LaborCompleteRequest) -> dict:
+    """일당/팀원 완료 + 계좌 등록.
+
+    동작:
+      1. 그 배정 완료 기록 (laborer_sites + completed_event_id)
+      2. shared_owner_events 에 completed + account payload (사장 폴링용)
+      3. 번호 (phone_suffix) 이력 +1 적립 + saved_account UPSERT
+    """
+    token = (req.token or "").strip()
+    if not token:
+        raise HTTPException(400, "token 필수")
+    bank = (req.bank or "").strip()[:30]
+    account_no = (req.account_no or "").strip()[:30]
+    holder = (req.holder or "").strip()[:30]
+
+    with db_conn() as con:
+        row = con.execute(
+            """
+            SELECT l.owner_phone, l.member_id, l.schedule_snapshot_json,
+                   l.expires_at_ms, m.phone, m.name
+            FROM team_member_links l
+            LEFT JOIN team_members m ON m.member_id = l.member_id
+            WHERE l.token = ?
+            """,
+            (token,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "유효하지 않은 token")
+        owner_phone, member_id, snap_json, expires_at, worker_phone, worker_name = row
+        now = _now_ms()
+        if now > (expires_at or 0):
+            raise HTTPException(410, "만료된 token")
+
+        worker_phone_str = (worker_phone or "").strip()
+        phone_suffix = _phone_suffix(worker_phone_str)
+        if not phone_suffix:
+            raise HTTPException(400, "참여자 전화번호가 짧음 (8자리 미만)")
+
+        site_label = _safe_site_label_from_snapshot(snap_json, worker_name or "")
+
+        # 2) laborer UPSERT + saved_account
+        account_provided = bool(bank or account_no or holder)
+        con.execute(
+            """
+            INSERT INTO laborer
+                (phone_suffix, completed_count, last_worked_at_ms,
+                 saved_bank, saved_account_no, saved_holder,
+                 saved_account_updated_at_ms, created_at_ms, updated_at_ms)
+            VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(phone_suffix) DO UPDATE SET
+              completed_count = completed_count + 1,
+              last_worked_at_ms = excluded.last_worked_at_ms,
+              saved_bank = CASE WHEN excluded.saved_bank IS NOT NULL
+                                THEN excluded.saved_bank ELSE saved_bank END,
+              saved_account_no = CASE WHEN excluded.saved_account_no IS NOT NULL
+                                       THEN excluded.saved_account_no ELSE saved_account_no END,
+              saved_holder = CASE WHEN excluded.saved_holder IS NOT NULL
+                                   THEN excluded.saved_holder ELSE saved_holder END,
+              saved_account_updated_at_ms = CASE WHEN excluded.saved_account_updated_at_ms IS NOT NULL
+                                                  THEN excluded.saved_account_updated_at_ms ELSE saved_account_updated_at_ms END,
+              updated_at_ms = excluded.updated_at_ms
+            """,
+            (
+                phone_suffix, now,
+                bank or None, account_no or None, holder or None,
+                now if account_provided else None,
+                now, now,
+            ),
+        )
+
+        # 3) shared_owner_events 에 completed + account (사장 폴링)
+        event_id = "evt_" + "".join(
+            _secrets_collab.choice(_SHARE_ID_ALPHABET) for _ in range(10)
+        )
+        con.execute(
+            """
+            INSERT INTO shared_owner_events
+                (event_id, share_id, owner_phone, partner_phone, step, title,
+                 account_bank, account_no, account_holder, created_at_ms)
+            VALUES (?, ?, ?, ?, 'completed', ?, ?, ?, ?, ?)
+            """,
+            (
+                event_id, token,  # share_id 자리에 token (labor 흐름)
+                owner_phone, worker_phone_str,
+                site_label,
+                bank or None, account_no or None, holder or None,
+                now,
+            ),
+        )
+
+        # 4) laborer_sites 적재
+        cur = con.execute(
+            """
+            INSERT INTO laborer_sites
+                (phone_suffix, token, owner_phone, label, worked_at_ms,
+                 photos_json, completed_event_id, created_at_ms)
+            VALUES (?, ?, ?, ?, ?, NULL, ?, ?)
+            """,
+            (phone_suffix, token, owner_phone, site_label, now, event_id, now),
+        )
+        site_id = cur.lastrowid
+
+        con.commit()
+
+    print(
+        f"[labor/complete] token={token[:10]}.. suffix={phone_suffix} "
+        f"owner={owner_phone} event={event_id} site={site_id}"
+    )
+    return {
+        "ok": True,
+        "site_id": site_id,
+        "event_id": event_id,
+        "completed_at_ms": now,
+        "phone_suffix": phone_suffix,
+        "label": site_label,
+    }
+
+
+# ─── ② GET /api/labor/history ───
+# 번호별 일당 이력. 사장이 배정/초대 화면에서 호출 — 그 사람 경력 가늠.
+
+@app.get("/api/labor/history")
+async def labor_history(phone: str, limit: int = 50) -> dict:
+    """번호 (끝 8자리) 별 이력. count + last_worked_at + sites[].
+
+    벽: 고객 전화·대화·계약 절대 미포함. label/date/photos 만.
+    """
+    phone_digits = "".join(ch for ch in (phone or "") if ch.isdigit())
+    if len(phone_digits) < 8:
+        raise HTTPException(400, "phone 끝 8자리 필요")
+    phone_suffix = phone_digits[-8:]
+    limit = max(1, min(limit, 200))
+
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT completed_count, last_worked_at_ms FROM laborer WHERE phone_suffix = ?",
+            (phone_suffix,),
+        ).fetchone()
+        if not row:
+            return {
+                "count": 0,
+                "last_worked_at_ms": None,
+                "last_worked_at": None,
+                "sites": [],
+            }
+        count, last_worked = row
+        rows = con.execute(
+            """
+            SELECT label, worked_at_ms, photos_json, paid_at_ms
+            FROM laborer_sites
+            WHERE phone_suffix = ?
+            ORDER BY worked_at_ms DESC
+            LIMIT ?
+            """,
+            (phone_suffix, limit),
+        ).fetchall()
+
+    sites = []
+    for r in rows:
+        label, worked_at_ms, photos_json, paid_at_ms = r
+        photos: list = []
+        if photos_json:
+            try:
+                p = json.loads(photos_json)
+                if isinstance(p, list):
+                    photos = p
+            except Exception:
+                photos = []
+        try:
+            date_str = _dt.datetime.fromtimestamp(worked_at_ms / 1000).strftime("%Y-%m-%d")
+        except Exception:
+            date_str = ""
+        sites.append({
+            "label": label or "",
+            "date": date_str,
+            "worked_at_ms": worked_at_ms,
+            "photos": photos,
+            "paid": paid_at_ms is not None,
+        })
+
+    last_worked_at_str = ""
+    if last_worked:
+        try:
+            last_worked_at_str = _dt.datetime.fromtimestamp(last_worked / 1000).strftime("%Y-%m-%d")
+        except Exception:
+            pass
+
+    return {
+        "count": count,
+        "last_worked_at_ms": last_worked,
+        "last_worked_at": last_worked_at_str,
+        "sites": sites,
+    }
+
+
+# ─── ③ POST /api/labor/paid ───
+# (옵션) 사장이 입금 완료 표시. token 또는 event_id 로 식별.
+
+class LaborPaidRequest(BaseModel):
+    token: Optional[str] = None
+    event_id: Optional[str] = None
+
+
+@app.post("/api/labor/paid")
+async def labor_paid(req: LaborPaidRequest) -> dict:
+    """입금 완료 표시. token 또는 event_id 하나는 필수.
+
+    laborer_sites.paid_at_ms 업데이트. 이력 화면에 "정산완료 ✓" 표시.
+    """
+    token = (req.token or "").strip() or None
+    event_id = (req.event_id or "").strip() or None
+    if not token and not event_id:
+        raise HTTPException(400, "token 또는 event_id 필수")
+    now = _now_ms()
+    with db_conn() as con:
+        if event_id:
+            cur = con.execute(
+                """
+                UPDATE laborer_sites SET paid_at_ms = ?
+                WHERE completed_event_id = ? AND paid_at_ms IS NULL
+                """,
+                (now, event_id),
+            )
+        else:
+            cur = con.execute(
+                """
+                UPDATE laborer_sites SET paid_at_ms = ?
+                WHERE token = ? AND paid_at_ms IS NULL
+                """,
+                (now, token),
+            )
+        affected = cur.rowcount
+        con.commit()
+    print(f"[labor/paid] token={token or ''} event={event_id or ''} marked={affected}")
+    return {"ok": True, "marked_paid": affected, "paid_at_ms": now}
+
+
+# ─── ④ GET /api/labor/account ───
+# 웹뷰 prefill 용 saved_account 조회 (token 검증 후 그 참여자의 저장 계좌).
+
+@app.get("/api/labor/account")
+async def labor_account(token: str) -> dict:
+    """token 검증 후 그 참여자의 saved_account 반환 (웹뷰 prefill 용).
+
+    응답: {found: bool, bank?, account_no?, holder?, count, last_worked_at?}
+    벽: 다른 사람의 계좌 절대 노출 X (token 매칭 필수).
+    """
+    token = (token or "").strip()
+    if not token:
+        raise HTTPException(400, "token 필수")
+    with db_conn() as con:
+        row = con.execute(
+            """
+            SELECT m.phone FROM team_member_links l
+            LEFT JOIN team_members m ON m.member_id = l.member_id
+            WHERE l.token = ?
+            """,
+            (token,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "유효하지 않은 token")
+        worker_phone = (row[0] or "").strip()
+        phone_suffix = _phone_suffix(worker_phone)
+        if not phone_suffix:
+            return {"found": False, "count": 0}
+        lrow = con.execute(
+            """
+            SELECT saved_bank, saved_account_no, saved_holder,
+                   completed_count, last_worked_at_ms
+            FROM laborer WHERE phone_suffix = ?
+            """,
+            (phone_suffix,),
+        ).fetchone()
+    if not lrow:
+        return {"found": False, "count": 0}
+    bank, account_no, holder, count, last_worked = lrow
+    return {
+        "found": True,
+        "bank": bank or "",
+        "account_no": account_no or "",
+        "holder": holder or "",
+        "count": count or 0,
+        "last_worked_at_ms": last_worked,
+    }
 
 
 # ─── ⑧ GET /shared/{share_id} — 미가입 사장 link 도착 페이지 (HTML) ───
