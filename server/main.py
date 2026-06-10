@@ -5667,12 +5667,18 @@ def _audio_suffix(filename: Optional[str]) -> str:
 CHUNK_DURATION_SEC = 300  # 5분
 LONG_CALL_THRESHOLD_SEC = 320  # 5분 20초 이상이면 chunk (300초 정확히는 chunk 안 함, 여유)
 
+# §26 fix (2026-06-10): launchd 의 PATH 에 /opt/homebrew/bin 없어서 ffmpeg/ffprobe
+# 못 찾음 → 절대경로 fallback. shutil.which 먼저 시도, 없으면 homebrew 표준 경로.
+import shutil as _shutil
+_FFMPEG_BIN = _shutil.which("ffmpeg") or "/opt/homebrew/bin/ffmpeg"
+_FFPROBE_BIN = _shutil.which("ffprobe") or "/opt/homebrew/bin/ffprobe"
+
 
 async def _ffprobe_duration(audio_path: str) -> float:
     """ffprobe 로 audio 길이 (초) 반환. 실패 시 0.0."""
     try:
         proc = await asyncio.create_subprocess_exec(
-            "ffprobe",
+            _FFPROBE_BIN,
             "-v", "error",
             "-show_entries", "format=duration",
             "-of", "default=noprint_wrappers=1:nokey=1",
@@ -5710,7 +5716,7 @@ async def _split_audio_to_chunks(
         with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
             chunk_path = tmp.name
         proc = await asyncio.create_subprocess_exec(
-            "ffmpeg",
+            _FFMPEG_BIN,
             "-y", "-loglevel", "error",
             "-i", audio_path,
             "-ss", str(start),
@@ -5934,8 +5940,11 @@ async def call_audio_summary_endpoint(
     used_llm = ""
     gemini_usage: dict = {}
     try:
+        # §26 fix (2026-06-10): 긴 통화 (4000+ 자 transcript) → 응답 풍부
+        # → 800 token 모자라서 응답 잘림 (JSONDecodeError: Unterminated string).
+        # 2000 token 으로 늘림 (Gemini 비용은 output token 기준 무시할 수준).
         parsed, gemini_usage = await _call_gemini_json_for_summary(
-            system_prompt, user_msg, max_output_tokens=800
+            system_prompt, user_msg, max_output_tokens=2000
         )
         used_llm = "gemini-2.5-flash"
         print(
@@ -5949,10 +5958,11 @@ async def call_audio_summary_endpoint(
             f"{type(gemini_err).__name__}: {gemini_err}"
         )
         try:
+            # §26 fix (2026-06-10): 600 token 짧음 (Bad JSON 자름) → 1500 token.
             parsed, response = await call_claude_json(
                 system_prompt=system_prompt,
                 user_msg=user_msg,
-                max_tokens=600,
+                max_tokens=1500,
                 model=HAIKU_MODEL,
             )
             used_llm = HAIKU_MODEL
