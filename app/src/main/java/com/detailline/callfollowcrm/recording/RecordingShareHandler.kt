@@ -36,6 +36,9 @@ object RecordingShareHandler {
             var matched = 0
             var linked = 0
             var skipped = 0
+            // 공유한 통화의 번호 — 처리 후 그 번호 채팅을 자동으로 연다(사장님 요청: 공유 후 찾기 번거로움).
+            var openPhone: String? = null
+            var openCustomerId: Long? = null
             val seenUris = mutableSetOf<String>()
             // 요약 대상(번호 인식된 것만) — 저장 먼저 끝내고, 토스트 후 백그라운드 요약.
             val toSummarize = mutableListOf<Pair<String, String>>()  // (uri, fileName)
@@ -63,6 +66,11 @@ object RecordingShareHandler {
                     if (result.phoneNumber != null) {
                         matched++
                         toSummarize.add(uri.toString() to name)
+                        // 여러 개 공유 시 첫 번째 인식된 번호의 채팅을 연다.
+                        if (openPhone == null) {
+                            openPhone = result.phoneNumber
+                            openCustomerId = result.customerId
+                        }
                     }
                     if (result.customerId != null) linked++
                 }
@@ -77,6 +85,10 @@ object RecordingShareHandler {
             withContext(Dispatchers.Main) {
                 Toast.makeText(appCtx, message, Toast.LENGTH_LONG).show()
             }
+
+            // 인식된 번호가 있으면 그 채팅을 바로 연다. 요약(아래)은 백그라운드로 이어지며,
+            //   채팅 통화카드가 "통화 내용 요약 중…" 스피너로 진행 상태를 보여준다(CallSummaryProgress).
+            openPhone?.let { container.navEvents.requestChat(it, openCustomerId) }
 
             // 녹음 → 맥미니 §26 (로컬 Whisper 받아쓰기 + 요약) → CallSummary. 통화카드 "AI 요약됨" 으로 표시.
             //   STT 가 통화 길이에 비례(수~수십초)라 저장 토스트 후 백그라운드로 진행.
