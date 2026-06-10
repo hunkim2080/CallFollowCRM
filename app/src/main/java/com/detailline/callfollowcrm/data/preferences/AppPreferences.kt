@@ -335,6 +335,15 @@ class AppPreferences(context: Context) {
         set(value) = prefs.edit().putString(KEY_OWNER_TRADES, value.take(3).joinToString("|")).apply()
 
     /** 수첩 일당/거래처용 자주 쓰는 문구. 구분자  (SMS 본문에 안 나오는 제어문자). */
+    /**
+     * 오늘 시공 히어로 카드 수동 순서 (고객 ID). 사장님이 꾹 눌러 트렐로식으로 끌어 바꾼 순서.
+     * 오늘 목록에 없는 ID(지난 날 것)는 적용 시 무시 → 자동 정리. 비면 시간순 기본.
+     */
+    var todayHeroOrder: List<Long>
+        get() = prefs.getString("today_hero_order", "")?.split(",")
+            ?.mapNotNull { it.trim().toLongOrNull() } ?: emptyList()
+        set(value) { prefs.edit().putString("today_hero_order", value.joinToString(",")).commit() }
+
     var workerSmsPhrases: List<String>
         get() = readPhrases(KEY_WORKER_PHRASES, DEFAULT_WORKER_PHRASES)
         set(value) = writePhrases(KEY_WORKER_PHRASES, value)

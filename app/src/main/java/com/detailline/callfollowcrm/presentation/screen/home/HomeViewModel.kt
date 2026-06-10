@@ -460,16 +460,38 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     // 오늘 시공 히어로 + 다음 시공 (상담함 최상단, 2026-06-01)
     // ────────────────────────────────────────────────────────
 
-    /** 오늘 예약된 시공들 (시간순). 여러 날 시공(scheduledWorkDays)이 오늘 진행 중이면 포함. 다크 히어로. */
-    val todayJobs: StateFlow<List<CustomerEntity>> = customers.map { list ->
-        list.filter { c ->
+    /** 사장님이 꾹 눌러 바꾼 오늘 히어로 카드 수동 순서(고객 ID). 비면 시간순 기본. */
+    private val _heroOrder = MutableStateFlow(container.preferences.todayHeroOrder)
+
+    /**
+     * 오늘 예약된 시공들. 기본은 시간순이되, 사장님이 트렐로식으로 끌어 바꾼 [_heroOrder] 가 있으면 그 순서 우선.
+     * 여러 날 시공(scheduledWorkDays)이 오늘 진행 중이면 포함. 다크 히어로.
+     */
+    val todayJobs: StateFlow<List<CustomerEntity>> = combine(customers, _heroOrder) { list, order ->
+        val base = list.filter { c ->
             if (c.workCompletedAt != null) return@filter false   // 완료 처리한 현장은 오늘 히어로에서 제외 (2026-06-08 #2)
             val s = c.scheduledWorkDate ?: return@filter false
             val start = DateTimeUtils.startOfDay(s)
             val end = start + (c.scheduledWorkDays.coerceAtLeast(1) - 1) * DateTimeUtils.DAY_MS
             todayStart in start..end
         }.sortedBy { it.scheduledWorkMinutes ?: Int.MAX_VALUE }
+        applyHeroOrder(base, order)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** 저장된 수동 순서를 적용. 순서에 있는 현장 먼저(그 순서대로), 새로 생긴 현장은 뒤에 시간순. */
+    private fun applyHeroOrder(base: List<CustomerEntity>, order: List<Long>): List<CustomerEntity> {
+        if (order.isEmpty() || base.size <= 1) return base
+        val byId = base.associateBy { it.id }
+        val ordered = order.mapNotNull { byId[it] }
+        val rest = base.filter { it.id !in order }
+        return ordered + rest
+    }
+
+    /** 사장님이 히어로 카드를 끌어 순서를 바꿈 → 저장(영속). 화면 즉시 반영. */
+    fun reorderTodayJobs(orderedIds: List<Long>) {
+        _heroOrder.value = orderedIds
+        container.preferences.todayHeroOrder = orderedIds
+    }
 
     /** 다음 시공 = 오늘 이후 가장 가까운 날의 시공들 (1~3곳). 오늘 시공 없을 때 미리보기. */
     val nextJobs: StateFlow<List<CustomerEntity>> = customers.map { list ->

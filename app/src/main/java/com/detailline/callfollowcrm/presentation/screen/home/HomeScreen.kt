@@ -79,10 +79,20 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -498,7 +508,8 @@ fun HomeScreen(
                         onGoSchedule = onOpenSchedule,
                         onOpenScheduleAtDay = onOpenScheduleAtDay,
                         onAddSchedule = onAddSchedule,
-                        onComplete = { c -> completeTarget = c }
+                        onComplete = { c -> completeTarget = c },
+                        onReorder = { ids -> viewModel.reorderTodayJobs(ids) }
                     )
                 }
 
@@ -866,6 +877,93 @@ fun HomeScreen(
  * KPI 4장 (2×2 그리드). LazyColumn 첫 item 으로 들어가서 스크롤 시 사라짐.
  * horizontal padding 은 LazyColumn 의 contentPadding 으로 들어가므로 안에서 X.
  */
+/**
+ * 오늘 시공이 2곳 이상일 때 — 카드를 꾹 눌러(롱프레스) 끌어서 순서 바꾸는 트렐로식 리스트.
+ *   먼저 가야 할 현장을 위로 올려두면 헷갈리지 않음 (2026-06-11 사장님 요청).
+ *   짧게 탭 = 그 현장 상세 열기(TodayHeroJobCard 의 clickable 유지). 길게 눌러야 드래그 시작.
+ *   손 떼면 새 순서를 onReorder 로 저장. 카드 높이가 달라도 측정값으로 임계 swap.
+ */
+@Composable
+private fun TodayHeroReorderableList(
+    jobs: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
+    onReorder: (List<Long>) -> Unit,
+    onOpenCustomer: (Long) -> Unit,
+    onNavigate: (String) -> Unit,
+    onCall: (String) -> Unit,
+    onComplete: (com.detailline.callfollowcrm.data.local.entity.CustomerEntity) -> Unit
+) {
+    // 로컬 순서 — 드래그 중 즉시 반영, 손 떼면 commit. key=현재 id 순서라 바깥 순서가 바뀌면 재동기화.
+    val items = remember(jobs.map { it.id }) { mutableStateListOf(*jobs.toTypedArray()) }
+    var draggingIndex by remember { mutableStateOf(-1) }
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+    val heights = remember { mutableStateMapOf<Int, Int>() }
+    val haptic = LocalHapticFeedback.current
+    val spacing = 10.dp
+
+    Column(verticalArrangement = Arrangement.spacedBy(spacing)) {
+        items.forEachIndexed { index, c ->
+            val isDragging = index == draggingIndex
+            Box(
+                Modifier
+                    .zIndex(if (isDragging) 1f else 0f)
+                    .graphicsLayer {
+                        translationY = if (isDragging) dragOffset else 0f
+                        if (isDragging) {
+                            scaleX = 1.02f; scaleY = 1.02f
+                            shadowElevation = 24f
+                            alpha = 0.97f
+                        }
+                    }
+                    .onGloballyPositioned { heights[index] = it.size.height }
+                    .pointerInput(c.id, items.size) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = {
+                                draggingIndex = index
+                                dragOffset = 0f
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            },
+                            onDragEnd = {
+                                draggingIndex = -1
+                                dragOffset = 0f
+                                onReorder(items.map { it.id })
+                            },
+                            onDragCancel = {
+                                draggingIndex = -1
+                                dragOffset = 0f
+                                onReorder(items.map { it.id })
+                            },
+                            onDrag = { change, drag ->
+                                change.consume()
+                                dragOffset += drag.y
+                                val cur = draggingIndex
+                                if (cur < 0) return@detectDragGesturesAfterLongPress
+                                val gap = spacing.toPx()
+                                // 아래로 끌어 다음 카드 절반 넘으면 swap, 위로도 동일.
+                                if (dragOffset > 0 && cur < items.lastIndex) {
+                                    val nextH = (heights[cur + 1] ?: 0) + gap
+                                    if (nextH > 0 && dragOffset > nextH / 2f) {
+                                        items.add(cur + 1, items.removeAt(cur))
+                                        draggingIndex = cur + 1
+                                        dragOffset -= nextH
+                                    }
+                                } else if (dragOffset < 0 && cur > 0) {
+                                    val prevH = (heights[cur - 1] ?: 0) + gap
+                                    if (prevH > 0 && -dragOffset > prevH / 2f) {
+                                        items.add(cur - 1, items.removeAt(cur))
+                                        draggingIndex = cur - 1
+                                        dragOffset += prevH
+                                    }
+                                }
+                            }
+                        )
+                    }
+            ) {
+                TodayHeroJobCard(c, onOpenCustomer, onNavigate, onCall, onComplete)
+            }
+        }
+    }
+}
+
 /** 오늘 시공 다크 히어로 한 장 (프로토 heroJobHtml). 2곳 이상이면 TodayHeroCard 가 현장 수만큼 반복. */
 @Composable
 private fun TodayHeroJobCard(
@@ -937,14 +1035,21 @@ private fun TodayHeroCard(
     onGoSchedule: () -> Unit,
     onOpenScheduleAtDay: (Long) -> Unit,
     onAddSchedule: () -> Unit,
-    onComplete: (com.detailline.callfollowcrm.data.local.entity.CustomerEntity) -> Unit
+    onComplete: (com.detailline.callfollowcrm.data.local.entity.CustomerEntity) -> Unit,
+    /** 사장님이 카드를 꾹 눌러 끌어 순서를 바꿨을 때 — 새 순서의 고객 ID 리스트. */
+    onReorder: (List<Long>) -> Unit = {}
 ) {
     if (todayJobs.isNotEmpty()) {
         // 오늘 시공이 2곳 이상이면 현장마다 독립 다크 카드를 시간순으로 쌓는다 (2026-06-11 사장님 결정).
         // 프로토 heroJobHtml 은 1곳짜리 정적 데모 — 라벨/디자인은 그대로, 카드만 현장 수만큼 반복.
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            todayJobs.forEach { c ->
-                TodayHeroJobCard(c, onOpenCustomer, onNavigate, onCall, onComplete)
+        // 2곳 이상이면 꾹 눌러 트렐로식으로 순서 변경 가능(먼저 갈 현장을 위로). 1곳이면 일반 카드.
+        if (todayJobs.size > 1) {
+            TodayHeroReorderableList(todayJobs, onReorder, onOpenCustomer, onNavigate, onCall, onComplete)
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                todayJobs.forEach { c ->
+                    TodayHeroJobCard(c, onOpenCustomer, onNavigate, onCall, onComplete)
+                }
             }
         }
     } else {
