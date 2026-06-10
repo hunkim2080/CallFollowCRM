@@ -5491,8 +5491,21 @@ def _get_whisper_model():
             503,
             "faster-whisper 패키지 미설치. requirements.txt 의 faster-whisper 설치 후 재시작 필요.",
         ) from e
-    # CPU 모드 + int8 양자화 (Mac mini 호환 + 가장 가벼움)
-    _WHISPER_MODEL = WhisperModel("base", device="cpu", compute_type="int8")
+    # §26 fix 502 #2 (2026-06-10):
+    # faster-whisper venv 직접 호출은 OK 인데 uvicorn 안에서만 워커 SIGSEGV → 502.
+    # 원인 = 내부 OMP/MKL/CPU 멀티스레드 + uvicorn async loop 충돌.
+    # → cpu_threads=1, num_workers=1, OMP/MKL_NUM_THREADS=1 로 직렬화 (속도 약간 ↓ 대신 안정).
+    os.environ.setdefault("OMP_NUM_THREADS", "1")
+    os.environ.setdefault("MKL_NUM_THREADS", "1")
+    os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+    print("[whisper] base 모델 로드 시작 (CPU, default, cpu_threads=1, num_workers=1)")
+    _WHISPER_MODEL = WhisperModel(
+        "base",
+        device="cpu",
+        compute_type="default",
+        cpu_threads=1,
+        num_workers=1,
+    )
     print("[whisper] base 모델 로드 완료 (한국어 STT)")
     return _WHISPER_MODEL
 
@@ -5567,8 +5580,17 @@ async def call_audio_summary_endpoint(
                 model = _get_whisper_model()
                 # blocking inference 를 thread 로 (asyncio loop 보호)
                 def _run_stt() -> str:
+                    # §26 fix 502 (안드로이드 SERVER_HANDOFF 2026-06-10):
+                    # - vad_filter=True 가 silero VAD 모델 자동 다운로드 시도 → 첫 호출 시
+                    #   네트워크/권한 fail 으로 워커 크래시 가능. False 로 disable.
+                    # - beam_size=5 → 1 (메모리 5배 절감 + 속도 향상)
+                    # - condition_on_previous_text=False (긴 오디오에서 메모리 안정)
                     segments, _info = model.transcribe(
-                        tmp_path, language="ko", beam_size=5, vad_filter=True
+                        tmp_path,
+                        language="ko",
+                        beam_size=1,
+                        vad_filter=False,
+                        condition_on_previous_text=False,
                     )
                     parts = []
                     for seg in segments:
@@ -5577,12 +5599,17 @@ async def call_audio_summary_endpoint(
                             parts.append(s)
                     return "\n".join(parts).strip()
 
+                print(f"[call-audio-summary] STT 시작 audio={len(audio_data)//1024}KB")
                 transcript = await asyncio.to_thread(_run_stt)
+                print(f"[call-audio-summary] STT 완료 transcript={len(transcript)}자")
             except HTTPException:
                 raise
             except Exception as e:
+                # 자세한 traceback 도 stderr 로 (디버깅용)
+                import traceback as _tb
                 print(f"[call-audio-summary] Whisper STT 실패: {type(e).__name__}: {e}")
-                raise HTTPException(502, f"STT 실패: {type(e).__name__}")
+                print(_tb.format_exc())
+                raise HTTPException(502, f"STT 실패: {type(e).__name__}: {e}")
     finally:
         try:
             os.unlink(tmp_path)
