@@ -3468,3 +3468,11 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 - 실기기 테스트(010-8005-6674): 삼성 메시지가 기본일 때는 provider/APN 권한 문제로 직접 발송 실패. RING-GO를 임시 기본 SMS holder로 변경 후 `MMS sent OK` 확인. 테스트 후 기본 SMS 앱을 삼성 메시지로 원복 확인.
 - 결론: 이미지 직접 전송은 가능하지만 RING-GO가 기본 문자앱이어야 함. 기본앱이 삼성 메시지면 지금처럼 삼성 문자앱 fallback이 맞음.
 - commit: 32d005b
+
+## 2026-06-10 · android · 에이닷 통화녹음 공유 "갑자기 안 됨" 회귀 수정
+사장님 신고: 에이닷에서 통화녹음 보내기가 잘 되다가 갑자기 안 됨.
+- 원인: 565e95b(#4 에이닷 음성공유 중복 차단)에서 RecordingShareHandler 가 `existsByUri(uriKey)` 로 DB 에 이미 있는 URI 면 건너뛰게 했음. 하지만 에이닷 공유 URI 는 녹음마다 고유 식별자가 아니라 캐시 파일 경로를 재사용할 수 있어서, 한 번 저장되면 이후 모든 공유가 "이미 저장됨 → 중복 건너뜀"으로 잘못 막힘.
+- 수정: 공유 핸들러에서 DB existsByUri 게이트 제거. 한 번의 공유 안에서 같은 URI 중복(seenUris)만 건너뜀. 진짜 자동 import 중복은 AdotFolderScanner 가 안정적인 트리 URI 로 따로 거르므로 그대로 안전.
+- 영향: 서버 영향 없음. 앱 단독.
+- 검증: assembleDebug 성공 + 폰(SM-G965N) 재설치 성공.
+- commit: (아래)

@@ -42,7 +42,12 @@ object RecordingShareHandler {
             uris.forEach { uri ->
                 runCatching {
                     val uriKey = uri.toString()
-                    if (!seenUris.add(uriKey) || container.recordingRepository.existsByUri(uriKey)) {
+                    // 한 번의 공유 안에서 같은 URI 가 두 번 들어온 경우만 건너뛴다.
+                    // 주의: DB 의 existsByUri 로 막지 않는다 — 에이닷 공유 URI 는 녹음마다 고유한
+                    //   식별자가 아니라 캐시 파일명을 재사용할 수 있어서, 한 번 저장되면 이후 모든
+                    //   공유가 "이미 저장됨"으로 잘못 막힌다(사장님 "갑자기 안 됨" 원인, 2026-06-10).
+                    //   진짜 자동 import 중복은 AdotFolderScanner 가 안정적인 트리 URI 로 따로 거른다.
+                    if (!seenUris.add(uriKey)) {
                         skipped++
                         return@runCatching
                     }
