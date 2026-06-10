@@ -2401,6 +2401,7 @@ private fun AddressEditDialog(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
+                com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
                 Text(
                     "현장 주소 등록",
                     style = MaterialTheme.typography.titleLarge,
@@ -2592,6 +2593,7 @@ private fun CollabShareSheet(
             shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth()
         ) {
             Column(Modifier.padding(20.dp)) {
+                com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
                 Text("협업 현장으로 공유", style = MaterialTheme.typography.titleLarge, color = TossTextPrimary, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(10.dp))
                 // 현장 카드

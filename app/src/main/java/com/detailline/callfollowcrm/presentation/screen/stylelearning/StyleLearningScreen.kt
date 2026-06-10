@@ -213,6 +213,7 @@ fun StyleLearningScreen(
             title = { Text("예문 추가", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
             text = {
                 Column {
+                    com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
                     Text("이런 상황엔 이렇게 답한다 — 막내가 그대로 배워요.", fontSize = 12.5.sp, color = TossTextTertiary)
                     Spacer(Modifier.height(8.dp))
                     OutlinedTextField(value = txt, onValueChange = { txt = it },
@@ -237,6 +238,7 @@ fun StyleLearningScreen(
             title = { Text("꼭 쓰는 인사말", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
             text = {
                 Column {
+                    com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
                     Text("답장 끝에 자동으로 붙일 시그니처예요.", fontSize = 12.5.sp, color = TossTextTertiary)
                     Spacer(Modifier.height(8.dp))
                     OutlinedTextField(value = txt, onValueChange = { txt = it },

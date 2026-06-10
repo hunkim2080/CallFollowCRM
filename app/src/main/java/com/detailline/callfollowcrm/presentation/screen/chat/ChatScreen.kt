@@ -915,6 +915,7 @@ fun ChatScreen(
         Dialog(onDismissRequest = { adotPasteOpen = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             Box(Modifier.fillMaxSize().padding(horizontal = 18.dp), contentAlignment = Alignment.Center) {
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color.White).padding(20.dp)) {
+                    com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
                     Text("에이닷 통화 내용 요약 받기", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
                     Spacer(Modifier.height(6.dp))
                     Text(

@@ -444,6 +444,7 @@ private fun AddCashDialog(
         title = { Text("직접 기록 · ${DateTimeUtils.formatKoreanDate(dayMs)}", fontWeight = FontWeight.Bold) },
         text = {
             Column {
+                com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
                 // 수입/지출
                 TwoToggle(
                     leftLabel = "들어온 돈", rightLabel = "나간 돈",

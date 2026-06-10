@@ -229,6 +229,7 @@ private fun RuleEditorDialog(
         androidx.compose.material3.Surface(shape = RoundedCornerShape(20.dp), color = Color.White,
             modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
+                com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
                 Text(if (initial == null) "정기 문자 만들기" else "규칙 수정",
                     style = MaterialTheme.typography.titleLarge, color = TossTextPrimary, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(2.dp))

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -86,7 +87,7 @@ fun TradeSelectScreen(
         }
     ) { inner ->
         Column(
-            Modifier.padding(inner).fillMaxSize().verticalScroll(rememberScrollState())
+            Modifier.padding(inner).fillMaxSize().imePadding().verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             Text("최대 3개까지 고를 수 있어요. 첫 번째가 대표 업종이에요.",

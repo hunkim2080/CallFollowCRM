@@ -2029,6 +2029,7 @@ private fun CategoryAddDialog(
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
                 Text(
                     "이름만 적으면 AI 가 대화 내용 보고 알아서 분류해드려요.",
                     style = MaterialTheme.typography.bodySmall,

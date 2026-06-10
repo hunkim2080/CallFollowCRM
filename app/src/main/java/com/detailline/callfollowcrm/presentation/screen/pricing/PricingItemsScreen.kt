@@ -330,6 +330,7 @@ private fun PricingItemEditDialog(
         title = { Text(title, color = TossTextPrimary, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
                 // 프로토 sh-sub
                 Text(
                     "AI 견적에 이 단가가 자동 반영돼요.",

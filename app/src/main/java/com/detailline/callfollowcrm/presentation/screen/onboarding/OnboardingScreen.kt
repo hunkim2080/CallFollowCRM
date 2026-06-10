@@ -335,6 +335,7 @@ private fun TradeStep(
                 onDismissRequest = { showCustom = false },
                 title = { Text("업종 직접 입력") },
                 text = {
+                    com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
                     androidx.compose.material3.OutlinedTextField(
                         value = input,
                         onValueChange = { input = it },
