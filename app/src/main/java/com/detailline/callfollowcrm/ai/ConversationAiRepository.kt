@@ -39,6 +39,7 @@ class ConversationAiRepository(
 
     fun observe(suffix: String): Flow<AiSummaryEntity?> = dao.observe(suffix)
     fun observeMany(suffixes: List<String>): Flow<List<AiSummaryEntity>> = dao.observeMany(suffixes)
+    fun observeAll(): Flow<List<AiSummaryEntity>> = dao.observeAll()
     suspend fun get(suffix: String): AiSummaryEntity? = dao.get(suffix)
 
     /**

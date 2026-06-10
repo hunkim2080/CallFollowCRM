@@ -21,6 +21,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Sms
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -248,8 +250,33 @@ private fun NewLeadRow(lead: NewLeadUi, onClick: () -> Unit, onReContact: () -> 
                 Spacer(Modifier.width(8.dp))
                 Text(lead.timeLabel, color = TossTextTertiary, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
             }
-            Text(lead.memo, color = TossTextSecondary, fontSize = 12.5.sp, maxLines = 1,
-                overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
+            // "어떻게 끝났는지" 한 줄 — ✨AI 요약(파랑) / 💬 마지막 문자 / 📞 통화. 없으면 memo.
+            if (lead.summaryLine != null) {
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        when {
+                            lead.summaryIsAi -> Icons.Default.AutoAwesome
+                            lead.lastWasCall -> Icons.Default.Call
+                            else -> Icons.Default.Sms
+                        },
+                        null,
+                        tint = if (lead.summaryIsAi) TossBlue else TossTextTertiary,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        lead.summaryLine,
+                        color = TossTextSecondary, fontSize = 12.5.sp, maxLines = 1,
+                        overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)
+                    )
+                }
+            } else {
+                Text(lead.memo, color = TossTextSecondary, fontSize = 12.5.sp, maxLines = 1,
+                    overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
+            }
         }
         Spacer(Modifier.width(11.dp))
         // right — 계약완료 배지 / 답장함 태그 / 재연락 버튼

@@ -3552,3 +3552,8 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 오늘 시공 히어로 카드 "빛나는" 애니메이션: 대각선 광택(shine sweep)이 2.8s 주기로 슥 지나가고, D-DAY 초록 점이 은은히 숨 쉬는 pulse. rememberInfiniteTransition + drawWithContent.
 - 변경: 서버 영향 없음 (순수 UI). TodayHeroJobCard.
 - commit: (아래)
+
+## 2026-06-11 · android
+신규문의 목록 각 줄에 "어떻게 끝났는지" 한 줄 추가 (사장님 선택=AI요약 우선+마지막문자 fallback): ✨AI cardSummary 있으면 우선(파란 ✨), 없으면 마지막 문자(💬 "고객:/나: 본문"), 문자 없고 통화뿐이면 📞 통화. 번호만 보고 들어가 봐야 했던 통점 해소. 둘 다 로컬 데이터라 서버 추가 X.
+- 변경: 서버 영향 없음. AiSummaryDao.observeAll 추가, NewLeadsViewModel(aiSummaries combine + lastBody/lastSent 집계), NewLeadUi(summaryLine/summaryIsAi/lastWasCall), NewLeadsScreen 둘째 줄.
+- commit: (아래)

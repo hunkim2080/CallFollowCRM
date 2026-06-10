@@ -34,6 +34,8 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
     private val customers = container.customerRepository.observeAll()
     private val categories = container.categoryRepository.observeAll()
     private val repliedIds = container.messageHistoryRepository.observeRepliedCustomerIds()
+    /** ✨AI 한줄요약(cardSummary) — 있으면 "어떻게 끝났는지" 줄에 우선 표시. */
+    private val aiSummaries = container.conversationAiRepository.observeAll()
 
     private val unreadOnly = MutableStateFlow(false)
     fun setUnreadOnly(v: Boolean) { unreadOnly.value = v }
@@ -57,7 +59,11 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
     }
 
     // contactMs = 마지막 연락(시각 라벨·정렬용), firstMs = 처음 연락(날짜 그룹용 — "신규=처음 들어온 날").
-    private class Acc(var phone: String, var contactMs: Long, var firstMs: Long, var hasOwnerReply: Boolean)
+    //   lastBody/lastSent = 가장 최근 문자 내용·방향("어떻게 끝났는지" fallback), lastWasCall = 마지막 연락이 통화였나.
+    private class Acc(
+        var phone: String, var contactMs: Long, var firstMs: Long, var hasOwnerReply: Boolean,
+        var lastBody: String = "", var lastSent: Boolean = false, var lastWasCall: Boolean = false
+    )
 
     private class CustCtx(
         val custs: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
@@ -67,13 +73,17 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
     )
 
     val uiState: StateFlow<NewLeadsUiState> = combine(
-        smsContacts, inbound, custCtx, unreadOnly
-    ) { sms, calls, ctx, onlyUnread ->
+        smsContacts, inbound, custCtx, unreadOnly, aiSummaries
+    ) { sms, calls, ctx, onlyUnread, summaries ->
         val custs = ctx.custs; val cats = ctx.cats; val replied = ctx.replied
         val spamSet = ctx.spam
         val catName = cats.associate { it.id to it.name }
         val repliedSet = replied.toHashSet()
         val custBySuffix = custs.associateBy { phoneSuffix(it.phoneNumber) }
+        // suffix → ✨AI 한줄요약 (빈/null 제외).
+        val summaryBySuffix = summaries.mapNotNull { s ->
+            s.cardSummary?.trim()?.takeIf { it.isNotEmpty() }?.let { s.phoneSuffix to it }
+        }.toMap()
 
         // suffix 별로 문자/MMS/통화 합쳐 마지막 연락 시각 집계.
         val bySuffix = LinkedHashMap<String, Acc>()
@@ -81,7 +91,11 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
             val suf = s.normalizedSuffix.ifBlank { phoneSuffix(s.address) }
             if (suf.isBlank()) continue
             val a = bySuffix.getOrPut(suf) { Acc(s.address, 0L, Long.MAX_VALUE, false) }
-            if (s.lastDateMs > a.contactMs) { a.contactMs = s.lastDateMs; if (s.address.isNotBlank()) a.phone = s.address }
+            if (s.lastDateMs > a.contactMs) {
+                a.contactMs = s.lastDateMs
+                if (s.address.isNotBlank()) a.phone = s.address
+                a.lastBody = s.lastBody; a.lastSent = s.lastSent; a.lastWasCall = false
+            }
             if (s.firstDateMsInScan in 1 until a.firstMs) a.firstMs = s.firstDateMsInScan
             a.hasOwnerReply = a.hasOwnerReply || s.hasOwnerReply
         }
@@ -89,7 +103,7 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
             val suf = phoneSuffix(c.phoneNumber)
             if (suf.isBlank()) continue
             val a = bySuffix.getOrPut(suf) { Acc(c.phoneNumber, 0L, Long.MAX_VALUE, false) }
-            if (c.endedAt > a.contactMs) { a.contactMs = c.endedAt; if (a.phone.isBlank()) a.phone = c.phoneNumber }
+            if (c.endedAt > a.contactMs) { a.contactMs = c.endedAt; if (a.phone.isBlank()) a.phone = c.phoneNumber; a.lastWasCall = true }
             if (c.endedAt in 1 until a.firstMs) a.firstMs = c.endedAt
         }
 
@@ -105,6 +119,15 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
             val contracted = (cust?.scheduledWorkDate ?: 0L) > 0L
             val phone = a.phone.ifBlank { suf }
             val replyDone = contracted || (cust?.id?.let { it in repliedSet } == true) || a.hasOwnerReply
+            // "어떻게 끝났는지" 한 줄 — ✨AI 요약 우선, 없으면 마지막 문자(방향 표시), 그것도 없으면 통화.
+            val aiSum = summaryBySuffix[suf]
+            val lastMsg = a.lastBody.replace("\n", " ").trim().takeIf { it.isNotEmpty() }
+            val summaryIsAi = aiSum != null
+            val summaryLine = aiSum ?: when {
+                lastMsg != null -> (if (a.lastSent) "나: " else "고객: ") + lastMsg
+                a.lastWasCall -> "통화"
+                else -> null
+            }
             NewLeadUi(
                 customerId = cust?.id ?: 0L,
                 phone = phone,
@@ -113,6 +136,9 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
                 memo = cust?.memo?.takeIf { it.isNotBlank() }
                     ?: cust?.categoryId?.let { catName[it] }?.takeIf { it.isNotBlank() }
                     ?: "신규 문의",
+                summaryLine = summaryLine,
+                summaryIsAi = summaryIsAi,
+                lastWasCall = a.lastWasCall && lastMsg == null,
                 replied = replyDone,
                 contracted = contracted,
                 // 날짜 그룹 = "처음 들어온 날"(firstMs). 상담함 '오늘 신규(새 번호 기준)'와 같은 정의로 맞춤.
@@ -176,6 +202,12 @@ data class NewLeadUi(
     val displayName: String,
     val timeLabel: String,
     val memo: String,
+    /** "어떻게 끝났는지" 한 줄 — ✨AI 요약 또는 마지막 문자. null 이면 memo 로 fallback. */
+    val summaryLine: String? = null,
+    /** summaryLine 이 ✨AI 요약이면 true(파란 ✨), 마지막 문자면 false(💬). */
+    val summaryIsAi: Boolean = false,
+    /** 마지막 연락이 통화뿐(문자 본문 없음) — UI 가 📞 아이콘. */
+    val lastWasCall: Boolean = false,
     val replied: Boolean,
     /** 계약(시공일 등록) 완료 — 목록에 "계약완료" 배지로 남김. */
     val contracted: Boolean = false,
