@@ -3509,3 +3509,13 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 서버 영향 없음(앱 단독).
 - 하단탭 먹통: 상세화면(고객상세 등) 위에서 탭이 조용히 안 눌리던 것 수정. 폰 실측(NAVTAB 로그 정상+터치 가로채는 창 없음)으로 navigate no-op 확인 → 상세 위에선 시작지점까지 pop 후 전환. (AppRoot)
 - 통화요약: 통화카드의 '에이닷 통화 내용 요약 받기' 버튼 제거(사장님 결정) → "에이닷에서 녹음 공유하면 자동 요약" 안내로 교체. 녹음 공유→서버 요약 ~10~30초 동안 통화카드에 "통화 내용 요약 중…" 스피너 표시. 전역 CallSummaryProgress(StateFlow)로 백그라운드 진행상태를 채팅이 구독.
+
+## 2026-06-10 · android → 맥미니 · [완료] call-audio-summary cached/force_refresh UX 붙임
+요청(맥미니): cached:true 면 "이미 처리된 통화 — 다시 요약?" + 예→force_refresh=true 재호출.
+- 앱 적용 완료(설치됨). 적용 방식/안드로이드 제약 정리:
+  - **토스트 버튼 불가** → 채팅 안 **AlertDialog** "이미 처리된 통화내용입니다 / 다시 요약해드릴까요? [다시 요약]/[아니오]" 로 구현.
+  - 기존 앱은 **로컬에 요약 있으면 서버를 아예 안 부르고 스킵**했음(그래서 재공유 시 무반응) → 이제 로컬 요약 있으면 다이얼로그로 묻고, **예→ `force_refresh=true`(multipart) 로 서버 재호출**해 덮어씀. 아니오→기존 유지.
+  - 서버 `cached:true`(로컬엔 없던 통화)도 동일 처리: 캐시본 먼저 저장·표시 → 다이얼로그 → 예면 force_refresh 재호출.
+  - 무응답/다른 화면 60초 → 자동 아니오(기존 유지).
+  - repo: summarize() 에 forceRefresh 파라미터(→ `force_refresh=true` form field) + 응답 `cached` 파싱 추가.
+- 확인 요청(맥미니): force_refresh=true 면 캐시 무시하고 새 STT/LLM 돌려 **cached:false 로** 응답 주는지. (앱은 그 응답으로 덮어씀)

@@ -35,8 +35,13 @@ object CallAudioSummarizer {
         val phone = parsed.phoneNumber
         val recordedAt = parsed.recordedAt
 
-        // 이미 요약된 통화면 스킵 (txt 로 먼저 받았거나 재처리).
-        if (container.callSummaryRepository.findExistingNear(phone, recordedAt) != null) return false
+        // 이미 처리된 통화(로컬에 요약 있음)를 재공유한 경우 → 조용히 건너뛰지 않고
+        //   "다시 요약해드릴까요?" 를 묻는다(채팅 다이얼로그). 아니오면 기존 유지, 예면 force_refresh.
+        var forceRefresh = false
+        if (container.callSummaryRepository.findExistingNear(phone, recordedAt) != null) {
+            if (!CallSummaryReprompt.ask(phone, recordedAt)) return false  // 아니오 → 기존 그대로
+            forceRefresh = true
+        }
 
         val audioBytes = runCatching {
             context.contentResolver.openInputStream(Uri.parse(audioUri))?.use { it.readBytes() }
@@ -63,26 +68,8 @@ object CallAudioSummarizer {
             }
         }
 
-        // 서버 받아쓰기+요약은 ~10~30초 걸린다. 그동안 채팅 통화카드가 "요약 중…" 스피너를
-        // 보여주도록 진행 상태를 켠다. 성공/실패 무관하게 finally 에서 끈다.
-        CallSummaryProgress.begin(phone, recordedAt)
-        try {
-            val resResult = container.callAudioSummaryRepository.summarize(
-                audioBytes = audioBytes,
-                fileName = fileName,
-                phone = phone,
-                startedAtMs = recordedAt,
-                direction = direction,
-                durationSec = durationSec,
-                customerName = customer?.name
-            )
-            val res = resResult.getOrNull()
-            if (res == null) {
-                // 실패 원인을 그대로 남긴다(HTTP 코드/네트워크 예외) — 서버 핸드오프 진단용.
-                Log.w(TAG, "server summarize failed: $fileName  bytes=${audioBytes.size}", resResult.exceptionOrNull())
-                return false
-            }
-
+        // 응답을 CallSummary 로 저장(있으면 merge, 없으면 insert). 두 번(캐시본/재처리본) 쓰여서 묶음.
+        suspend fun save(res: com.detailline.callfollowcrm.ai.CallAudioSummaryRepository.Result) {
             val summaryText = buildString {
                 res.oneLine?.let { append(it) }
                 if (res.bullets.isNotEmpty()) {
@@ -90,9 +77,7 @@ object CallAudioSummarizer {
                     append(res.bullets.joinToString("\n"))
                 }
             }.takeIf { it.isNotBlank() }
-
             val now = System.currentTimeMillis()
-            // 혹시 그 사이 txt 경로가 먼저 저장했으면 update, 아니면 insert.
             val existing = container.callSummaryRepository.findExistingNear(phone, recordedAt)
             val entity = (existing ?: CallSummaryEntity(
                 customerId = null,
@@ -115,7 +100,47 @@ object CallAudioSummarizer {
                 updatedAt = now
             )
             container.callSummaryRepository.upsert(entity)
-            Log.d(TAG, "saved audio summary: $phone @ $recordedAt")
+        }
+
+        // 서버 받아쓰기+요약은 ~10~30초 걸린다. 그동안 채팅 통화카드가 "요약 중…" 스피너를
+        // 보여주도록 진행 상태를 켠다. 성공/실패 무관하게 finally 에서 끈다.
+        CallSummaryProgress.begin(phone, recordedAt)
+        try {
+            val resResult = container.callAudioSummaryRepository.summarize(
+                audioBytes = audioBytes,
+                fileName = fileName,
+                phone = phone,
+                startedAtMs = recordedAt,
+                direction = direction,
+                durationSec = durationSec,
+                customerName = customer?.name,
+                forceRefresh = forceRefresh
+            )
+            val res = resResult.getOrNull()
+            if (res == null) {
+                // 실패 원인을 그대로 남긴다(HTTP 코드/네트워크 예외) — 서버 핸드오프 진단용.
+                Log.w(TAG, "server summarize failed: $fileName  bytes=${audioBytes.size}", resResult.exceptionOrNull())
+                return false
+            }
+            save(res)
+
+            // 서버가 캐시본(이미 처리)을 즉시 줬는데 아직 안 물어본 경우(로컬엔 없던 통화) →
+            //   화면엔 캐시본을 띄워둔 채 "다시 요약?" 묻고, 예면 force_refresh 로 재처리해 덮어쓴다.
+            if (res.cached && !forceRefresh) {
+                if (CallSummaryReprompt.ask(phone, recordedAt)) {
+                    container.callAudioSummaryRepository.summarize(
+                        audioBytes = audioBytes,
+                        fileName = fileName,
+                        phone = phone,
+                        startedAtMs = recordedAt,
+                        direction = direction,
+                        durationSec = durationSec,
+                        customerName = customer?.name,
+                        forceRefresh = true
+                    ).getOrNull()?.let { save(it) }
+                }
+            }
+            Log.d(TAG, "saved audio summary: $phone @ $recordedAt cached=${res.cached} force=$forceRefresh")
             return true
         } finally {
             CallSummaryProgress.end(phone, recordedAt)

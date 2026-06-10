@@ -847,6 +847,30 @@ fun ChatScreen(
         )
     }
 
+    // "이미 처리된 통화내용입니다. 다시 요약?" 프롬프트 (녹음 재공유 / 서버 캐시 응답 시).
+    //   백그라운드 요약기가 CallSummaryReprompt.ask 로 켜고, 이 채팅 번호와 맞으면 예/아니오를 띄움.
+    val reprompt by com.detailline.callfollowcrm.recording.CallSummaryReprompt.pending.collectAsState()
+    reprompt?.let { p ->
+        val mySuffix = viewModel.phoneNumber.filter { it.isDigit() }.takeLast(8)
+        if (p.phone.filter { it.isDigit() }.takeLast(8) == mySuffix) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { com.detailline.callfollowcrm.recording.CallSummaryReprompt.answer(false) },
+                title = { Text("이미 처리된 통화내용입니다") },
+                text = { Text("다시 요약해드릴까요?") },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(
+                        onClick = { com.detailline.callfollowcrm.recording.CallSummaryReprompt.answer(true) }
+                    ) { Text("다시 요약", fontWeight = FontWeight.Bold, color = TossBlue) }
+                },
+                dismissButton = {
+                    androidx.compose.material3.TextButton(
+                        onClick = { com.detailline.callfollowcrm.recording.CallSummaryReprompt.answer(false) }
+                    ) { Text("아니오", color = TossTextSecondary) }
+                }
+            )
+        }
+    }
+
     // 프로토 [문구 넣기] → 템플릿 picker (기존 TemplatePickerDialog 재사용, 전체 카테고리).
     if (tplPickerOpen) {
         TemplatePickerDialog(

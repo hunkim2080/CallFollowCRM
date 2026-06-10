@@ -34,7 +34,9 @@ class CallAudioSummaryRepository(
         val oneLine: String?,
         val bullets: List<String>,
         val followupSms: String?,
-        val transcript: String?
+        val transcript: String?,
+        /** 서버가 DB 캐시에서 즉시 응답했는지(=이미 처리된 통화). force_refresh 로 재처리 가능. */
+        val cached: Boolean = false
     )
 
     suspend fun summarize(
@@ -46,7 +48,9 @@ class CallAudioSummaryRepository(
         durationSec: Int = 0,
         customerName: String? = null,
         customerMemo: String? = null,
-        ownerToneSamples: List<String> = emptyList()
+        ownerToneSamples: List<String> = emptyList(),
+        /** true 면 서버 캐시 무시 + 새 STT/LLM 재처리 (사장님이 "다시 요약" 선택 시). */
+        forceRefresh: Boolean = false
     ): kotlin.Result<Result> = withContext(Dispatchers.IO) {
         runCatching {
             val audioMedia = "application/octet-stream".toMediaType()
@@ -58,6 +62,7 @@ class CallAudioSummaryRepository(
                 .addFormDataPart("direction", direction)
                 .addFormDataPart("duration_sec", durationSec.toString())
                 .apply {
+                    if (forceRefresh) addFormDataPart("force_refresh", "true")
                     customerName?.takeIf { it.isNotBlank() }?.let { addFormDataPart("customer_name", it) }
                     customerMemo?.takeIf { it.isNotBlank() }?.let { addFormDataPart("customer_memo", it) }
                     if (ownerToneSamples.isNotEmpty()) {
@@ -81,7 +86,8 @@ class CallAudioSummaryRepository(
                     oneLine = obj.optString("one_line").takeIf { it.isNotBlank() },
                     bullets = bullets,
                     followupSms = obj.optString("suggested_followup_sms").takeIf { it.isNotBlank() && it != "null" },
-                    transcript = obj.optString("transcript").takeIf { it.isNotBlank() }
+                    transcript = obj.optString("transcript").takeIf { it.isNotBlank() },
+                    cached = obj.optBoolean("cached", false)
                 )
             }
         }
