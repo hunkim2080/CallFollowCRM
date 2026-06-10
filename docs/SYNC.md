@@ -3489,3 +3489,11 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
   1) `/api/shared/progress`(departed/arrived/completed) 처리 시 그 share 의 **owner_phone** 앞으로 이벤트 1건 적재(share_id, step, at_ms, partner 표시명, 현장 title, completed 면 account payload).
   2) `GET /api/shared/owner-events?phone={A_bizPhone}&since_ms=&limit=50` 신설 → `{events:[{event_id,share_id,title,partner_name,step,at_ms,account?}]}`. **고객 전화번호 절대 포함 금지**.
   - 앱측 폴러 `CollabEventCenter` 는 **이미 구현되어 대기 중**(commit 8327aae). owner-events 나오면 즉시 알림 동작. SYNC 회신만 주면 됨.
+
+## 2026-06-10 · android → 맥미니 · 통화녹음 요약 502 (긴급, 사장님 실사용 막힘)
+사장님 "에이닷 통화녹음 공유가 안 됨" → 원인 = 서버 `/api/call-audio-summary` 가 **HTTP 502**.
+- 실기기 로그: 두 녹음(0.56MB, 9.5MB) 모두 `java.io.IOException: HTTP 502`.
+- PC 재현: `GET /`=200, 빈 POST=422(검증 정상), 필수값 채운 POST=**502 3.4s, body "error code: 502"(Cloudflare)**. → 검증 통과 후 핸들러 진입 뒤 즉시 502 = **call-audio-summary 핸들러(로컬 Whisper STT 단계) 크래시 추정**.
+- 상세 진단 + 체크리스트: **docs/SERVER_HANDOFF_call_audio_summary_502.md**
+- 맥미니 액션: uvicorn 로그(15:11~15:12 KST) 트레이스백 + Whisper STT 프로세스/모델 상태 확인 → 고치면 SYNC 회신.
+- 앱측: 변경 없음(공유/저장/업로드 정상). 실패 시 사용자 토스트 안내 추가 + 실패 예외 로깅 추가(commit 아래).

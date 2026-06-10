@@ -63,7 +63,7 @@ object CallAudioSummarizer {
             }
         }
 
-        val res = container.callAudioSummaryRepository.summarize(
+        val resResult = container.callAudioSummaryRepository.summarize(
             audioBytes = audioBytes,
             fileName = fileName,
             phone = phone,
@@ -71,9 +71,11 @@ object CallAudioSummarizer {
             direction = direction,
             durationSec = durationSec,
             customerName = customer?.name
-        ).getOrNull()
+        )
+        val res = resResult.getOrNull()
         if (res == null) {
-            Log.w(TAG, "server summarize failed: $fileName")
+            // 실패 원인을 그대로 남긴다(HTTP 코드/네트워크 예외) — 서버 핸드오프 진단용.
+            Log.w(TAG, "server summarize failed: $fileName  bytes=${audioBytes.size}", resResult.exceptionOrNull())
             return false
         }
 
