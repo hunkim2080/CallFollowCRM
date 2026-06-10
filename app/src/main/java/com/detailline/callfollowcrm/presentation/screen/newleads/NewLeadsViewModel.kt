@@ -62,7 +62,8 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
     //   lastBody/lastSent = 가장 최근 문자 내용·방향("어떻게 끝났는지" fallback), lastWasCall = 마지막 연락이 통화였나.
     private class Acc(
         var phone: String, var contactMs: Long, var firstMs: Long, var hasOwnerReply: Boolean,
-        var lastBody: String = "", var lastSent: Boolean = false, var lastWasCall: Boolean = false
+        var lastBody: String = "", var lastSent: Boolean = false, var lastWasCall: Boolean = false,
+        var lastCallType: String = "", var lastCallDurationSec: Long = 0L
     )
 
     private class CustCtx(
@@ -103,7 +104,11 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
             val suf = phoneSuffix(c.phoneNumber)
             if (suf.isBlank()) continue
             val a = bySuffix.getOrPut(suf) { Acc(c.phoneNumber, 0L, Long.MAX_VALUE, false) }
-            if (c.endedAt > a.contactMs) { a.contactMs = c.endedAt; if (a.phone.isBlank()) a.phone = c.phoneNumber; a.lastWasCall = true }
+            if (c.endedAt > a.contactMs) {
+                a.contactMs = c.endedAt
+                if (a.phone.isBlank()) a.phone = c.phoneNumber
+                a.lastWasCall = true; a.lastCallType = c.callType; a.lastCallDurationSec = c.duration
+            }
             if (c.endedAt in 1 until a.firstMs) a.firstMs = c.endedAt
         }
 
@@ -125,7 +130,7 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
             val summaryIsAi = aiSum != null
             val summaryLine = aiSum ?: when {
                 lastMsg != null -> (if (a.lastSent) "나: " else "고객: ") + lastMsg
-                a.lastWasCall -> "통화"
+                a.lastWasCall -> callEndingLabel(a.lastCallType, a.lastCallDurationSec)
                 else -> null
             }
             NewLeadUi(
@@ -169,6 +174,20 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
     private fun phoneSuffix(phone: String): String {
         val d = phone.filter { it.isDigit() }
         return if (d.length >= 8) d.takeLast(8) else d
+    }
+
+    /** 통화만 있는 신규의 "어떻게 끝났는지" — 부재중(안 받음)/수신 통화+시간/거절. */
+    private fun callEndingLabel(callType: String, durationSec: Long): String = when (callType) {
+        "MISSED" -> "부재중 (안 받음)"
+        "REJECTED" -> "거절한 통화"
+        "INCOMING" -> if (durationSec > 0) "수신 통화 · ${durationLabel(durationSec)}" else "수신 통화"
+        else -> "통화"
+    }
+
+    /** 초 → "N분 M초" / "M초". */
+    private fun durationLabel(sec: Long): String {
+        val m = sec / 60; val s = sec % 60
+        return if (m > 0) (if (s > 0) "${m}분 ${s}초" else "${m}분") else "${s}초"
     }
 
     /** createdAt → 프로토 nl-t 시각 라벨 ("방금"/"N분 전"/"N시간 전"/날짜+시각). */
