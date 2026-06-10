@@ -5266,6 +5266,70 @@ async def _call_gemini_refine(
     return polished, usage_meta
 
 
+async def _call_gemini_json_for_summary(
+    system_prompt: str, user_msg: str, max_output_tokens: int = 800
+) -> tuple[dict, dict]:
+    """§26 (2026-06-10) Gemini 2.5 Flash 통화요약 JSON. 실패 시 raise.
+
+    response_schema 로 {one_line, bullets, suggested_followup_sms} 강제.
+    Haiku 1/10 비용 + Paid tier 라 데이터 학습 안 함 (고객 프라이버시 보호).
+    응답: (parsed_dict, usage_metadata)
+    """
+    if not GEMINI_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY env var not set")
+
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
+    )
+    payload = {
+        "systemInstruction": {"parts": [{"text": system_prompt}]},
+        "contents": [{"role": "user", "parts": [{"text": user_msg}]}],
+        "generationConfig": {
+            "temperature": 0.3,
+            "maxOutputTokens": max_output_tokens,
+            "topP": 0.9,
+            "responseMimeType": "application/json",
+            "responseSchema": {
+                "type": "OBJECT",
+                "properties": {
+                    "one_line": {"type": "STRING"},
+                    "bullets": {
+                        "type": "ARRAY",
+                        "items": {"type": "STRING"},
+                    },
+                    "suggested_followup_sms": {"type": "STRING"},
+                },
+                "required": ["one_line", "bullets"],
+            },
+        },
+    }
+
+    async with httpx.AsyncClient(timeout=GEMINI_TIMEOUT_SEC) as client:
+        resp = await client.post(
+            url, json=payload, headers={"Content-Type": "application/json"}
+        )
+    if resp.status_code != 200:
+        raise RuntimeError(
+            f"Gemini API status {resp.status_code}: {resp.text[:300]}"
+        )
+    data = resp.json()
+    candidates = data.get("candidates") or []
+    if not candidates:
+        raise RuntimeError(f"Gemini empty candidates: {str(data)[:300]}")
+    content = candidates[0].get("content") or {}
+    parts = content.get("parts") or []
+    raw = "".join(p.get("text", "") for p in parts).strip()
+    if not raw:
+        finish = candidates[0].get("finishReason", "?")
+        raise RuntimeError(
+            f"Gemini empty response (finishReason={finish}): {str(data)[:300]}"
+        )
+    parsed = json.loads(raw)
+    usage_meta = data.get("usageMetadata") or {}
+    return parsed, usage_meta
+
+
 @app.post("/api/refine")
 async def refine_endpoint(req: RefineRequest) -> dict:
     """§14 — 사장님 원문을 Gemini 2.5 Flash 로 다듬어 polished 한 줄 반환.
@@ -5716,21 +5780,27 @@ async def call_audio_summary_endpoint(
 
     system_prompt = _build_summary_system_prompt(CALL_SUMMARY_SYSTEM, samples_list)
 
-    # §26 Option A — Qwen2.5 7B default + Haiku fallback (2026-06-10)
-    # Qwen 실패 시 자동 Haiku. 비용 0 + 데이터 프라이버시 + 무제한 호출.
+    # §26 (2026-06-10) — 사장님 결정: 1차 Gemini 2.5 Flash + 2차 Haiku fallback
+    # Gemini Flash = Haiku 의 ~1/10 비용 + 정확도 동급/우수 + Paid tier 데이터 학습 X
+    # ollama (Qwen 7B) 는 화자 구분 부족으로 정확도 떨어져서 제외 (코드는 유지 — env 토글로 재활성 가능)
     parsed = None
-    response = None  # Haiku response 객체 (Qwen 일 땐 None — log_usage skip)
+    response = None  # Haiku Anthropic 응답 객체 (Gemini 일 땐 None)
     used_llm = ""
+    gemini_usage: dict = {}
     try:
-        parsed = await call_ollama_json(
-            system_prompt=system_prompt, user_msg=user_msg, max_tokens=600
+        parsed, gemini_usage = await _call_gemini_json_for_summary(
+            system_prompt, user_msg, max_output_tokens=800
         )
-        used_llm = DEFAULT_LOCAL_LLM
-        print(f"[call-audio-summary] {phone_digits} → ollama ({used_llm}) OK")
-    except Exception as ollama_err:
+        used_llm = "gemini-2.5-flash"
         print(
-            f"[call-audio-summary] {phone_digits} ollama 실패, Haiku fallback: "
-            f"{type(ollama_err).__name__}: {ollama_err}"
+            f"[call-audio-summary] {phone_digits} → gemini OK "
+            f"(in={gemini_usage.get('promptTokenCount','?')} "
+            f"out={gemini_usage.get('candidatesTokenCount','?')})"
+        )
+    except Exception as gemini_err:
+        print(
+            f"[call-audio-summary] {phone_digits} gemini 실패, Haiku fallback: "
+            f"{type(gemini_err).__name__}: {gemini_err}"
         )
         try:
             parsed, response = await call_claude_json(
@@ -5747,10 +5817,10 @@ async def call_audio_summary_endpoint(
             )
             raise HTTPException(
                 502,
-                f"LLM 호출 실패 (ollama+haiku 둘 다): {type(claude_err).__name__}",
+                f"LLM 호출 실패 (gemini+haiku 둘 다): {type(claude_err).__name__}",
             )
 
-    # log_usage / cost 로깅은 Haiku 일 때만 (ollama 는 비용 0)
+    # 비용 로깅: Haiku 일 때만 (Gemini Paid 비용은 별도 추적 안 함 — 매우 저렴)
     if response is not None:
         log_usage(phone_digits, "call-audio-summary", response)
         _log_llm_usage_from_response("call-audio-summary", response)
@@ -5762,7 +5832,7 @@ async def call_audio_summary_endpoint(
             f"out={getattr(usage,'output_tokens',0)})"
         )
     else:
-        print(f"[call-audio-summary] {phone_digits} → ready ollama (cost=0)")
+        print(f"[call-audio-summary] {phone_digits} → ready gemini")
 
     try:
         coerced = _coerce_call_summary(parsed)
