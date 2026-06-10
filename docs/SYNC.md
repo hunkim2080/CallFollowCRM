@@ -3547,3 +3547,8 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 홈 "오늘 시공·도착 안내" 카드 오노출 수정: 토글(arrivalAutoEnabled) OFF + 5km 밖인데도 시공일이면 무조건 뜨던 버그. 이제 토글 ON + 지오펜스 5km 진입(GeofenceBroadcastReceiver가 arrivalEnteredKeys 적립)한 현장만 카드 노출. D1(전날 안내)은 위치 무관·날짜 기준 유지.
 - 변경: 서버 인터페이스 영향 없음 (앱 로컬/위치). ScheduleReminderCalc.compute(+arrivalEnabled,+arrivalEnteredCustomerIds), GeofenceBroadcastReceiver, AppPreferences.arrivalEnteredKeys.
 - commit: (아래)
+
+## 2026-06-11 · android
+오늘 시공 히어로 카드 "빛나는" 애니메이션: 대각선 광택(shine sweep)이 2.8s 주기로 슥 지나가고, D-DAY 초록 점이 은은히 숨 쉬는 pulse. rememberInfiniteTransition + drawWithContent.
+- 변경: 서버 영향 없음 (순수 UI). TodayHeroJobCard.
+- commit: (아래)
