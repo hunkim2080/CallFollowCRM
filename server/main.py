@@ -4653,6 +4653,52 @@ def build_context_user_message(ctx: "ConversationContext") -> str:
     return "\n".join(lines)
 
 
+# ─── 로컬 LLM (Ollama / Qwen2.5 7B) — §26 Option A (2026-06-10) ───
+# /api/call-audio-summary 의 LLM 호출을 Anthropic Haiku → Ollama 로 전환.
+# 비용 0 + 데이터 프라이버시. 실패 시 Haiku fallback.
+
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+DEFAULT_LOCAL_LLM = os.environ.get("LOCAL_LLM_MODEL", "qwen2.5:7b")
+
+
+async def call_ollama_json(
+    *,
+    system_prompt: str,
+    user_msg: str,
+    model: str = DEFAULT_LOCAL_LLM,
+    timeout: float = 120.0,
+    temperature: float = 0.3,
+    max_tokens: int = 600,
+) -> dict:
+    """Ollama 로컬 LLM 으로 JSON 응답. 실패 시 raise (caller 가 fallback).
+
+    Qwen2.5 7B 가 GPT-OSS 보다 instruction-following 정확. 첫 호출 ~10-30초
+    (모델 로드), 이후 ~5-10초.
+    """
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        r = await client.post(
+            f"{OLLAMA_BASE_URL}/api/generate",
+            json={
+                "model": model,
+                "system": system_prompt,
+                "prompt": user_msg,
+                "format": "json",
+                "stream": False,
+                "options": {
+                    "temperature": temperature,
+                    "num_predict": max_tokens,
+                },
+            },
+        )
+        r.raise_for_status()
+        data = r.json()
+    raw = data.get("response", "") or ""
+    raw = raw.strip()
+    if not raw:
+        raise ValueError("ollama 빈 응답")
+    return json.loads(raw)
+
+
 async def call_claude_json(
     *, system_prompt: str, user_msg: str, max_tokens: int = 600,
     model: str = CLAUDE_MODEL,
@@ -5670,26 +5716,53 @@ async def call_audio_summary_endpoint(
 
     system_prompt = _build_summary_system_prompt(CALL_SUMMARY_SYSTEM, samples_list)
 
+    # §26 Option A — Qwen2.5 7B default + Haiku fallback (2026-06-10)
+    # Qwen 실패 시 자동 Haiku. 비용 0 + 데이터 프라이버시 + 무제한 호출.
+    parsed = None
+    response = None  # Haiku response 객체 (Qwen 일 땐 None — log_usage skip)
+    used_llm = ""
     try:
-        parsed, response = await call_claude_json(
-            system_prompt=system_prompt,
-            user_msg=user_msg,
-            max_tokens=600,
-            model=HAIKU_MODEL,
+        parsed = await call_ollama_json(
+            system_prompt=system_prompt, user_msg=user_msg, max_tokens=600
         )
-    except Exception as e:
-        print(f"[call-audio-summary] {phone_digits} Claude 호출 실패: {type(e).__name__}: {e}")
-        raise HTTPException(502, f"LLM 호출 실패: {type(e).__name__}")
+        used_llm = DEFAULT_LOCAL_LLM
+        print(f"[call-audio-summary] {phone_digits} → ollama ({used_llm}) OK")
+    except Exception as ollama_err:
+        print(
+            f"[call-audio-summary] {phone_digits} ollama 실패, Haiku fallback: "
+            f"{type(ollama_err).__name__}: {ollama_err}"
+        )
+        try:
+            parsed, response = await call_claude_json(
+                system_prompt=system_prompt,
+                user_msg=user_msg,
+                max_tokens=600,
+                model=HAIKU_MODEL,
+            )
+            used_llm = HAIKU_MODEL
+        except Exception as claude_err:
+            print(
+                f"[call-audio-summary] {phone_digits} Haiku 도 실패: "
+                f"{type(claude_err).__name__}: {claude_err}"
+            )
+            raise HTTPException(
+                502,
+                f"LLM 호출 실패 (ollama+haiku 둘 다): {type(claude_err).__name__}",
+            )
 
-    log_usage(phone_digits, "call-audio-summary", response)
-    _log_llm_usage_from_response("call-audio-summary", response)
-    usage = response.usage
-    print(
-        f"[call-audio-summary] {phone_digits} → ready "
-        f"(in={getattr(usage,'input_tokens',0)} "
-        f"cache_read={getattr(usage,'cache_read_input_tokens',0)} "
-        f"out={getattr(usage,'output_tokens',0)})"
-    )
+    # log_usage / cost 로깅은 Haiku 일 때만 (ollama 는 비용 0)
+    if response is not None:
+        log_usage(phone_digits, "call-audio-summary", response)
+        _log_llm_usage_from_response("call-audio-summary", response)
+        usage = response.usage
+        print(
+            f"[call-audio-summary] {phone_digits} → ready haiku "
+            f"(in={getattr(usage,'input_tokens',0)} "
+            f"cache_read={getattr(usage,'cache_read_input_tokens',0)} "
+            f"out={getattr(usage,'output_tokens',0)})"
+        )
+    else:
+        print(f"[call-audio-summary] {phone_digits} → ready ollama (cost=0)")
 
     try:
         coerced = _coerce_call_summary(parsed)
