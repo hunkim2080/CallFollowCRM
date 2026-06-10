@@ -10,6 +10,25 @@ import kotlinx.coroutines.flow.Flow
 
 class CallRecordRepository(private val dao: CallRecordDao) {
 
+    /** 번호를 숫자만 + (82→0) 정규화. 통화 dedup 비교용(형식 무시). */
+    private fun normDigits(phone: String): String {
+        var d = phone.filter { it.isDigit() }
+        if (d.startsWith("82")) d = "0" + d.substring(2)
+        return d
+    }
+
+    /**
+     * 같은 통화가 이미 있으면 그 id. 번호 형식이 경로마다 달라도(원본/저장형식/+82) 끝 8자리 숫자 +
+     *   startedAt 으로 비교해 중복 INSERT 를 막는다. 끝 8자리 미만(번호 불명)이면 dedup 불가 → null.
+     */
+    private suspend fun existingIdSameCall(phone: String, startedAt: Long): Long? {
+        val target = normDigits(phone).takeLast(8)
+        if (target.length < 8) return null
+        return dao.findByStartedAt(startedAt)
+            .firstOrNull { normDigits(it.phoneNumber).takeLast(8) == target }
+            ?.id
+    }
+
     fun observeRecent(limit: Int = 50): Flow<List<CallRecordEntity>> = dao.observeRecent(limit)
     fun observeBetween(from: Long, to: Long): Flow<List<CallRecordEntity>> = dao.observeBetween(from, to)
     fun observeByPhone(phone: String): Flow<List<CallRecordEntity>> = dao.observeByPhone(phone)
@@ -41,10 +60,12 @@ class CallRecordRepository(private val dao: CallRecordDao) {
         //   같은 통화 종료 이벤트 받음 → 각각 create() 호출 → 같은 startedAt 으로 2 row INSERT →
         //   HomeViewModel.groupBy(phone, day) 의 list.size = 2 → "오늘 2통" 잘못 표시.
         //   기존 syncFromCallLog 는 이미 dedup 있는데 create() 만 없었음.
-        //   해결: 같은 (phone, startedAt) 있으면 기존 id 반환 (INSERT skip).
+        //   해결: 같은 통화(끝 8자리+startedAt) 있으면 기존 id 반환 (INSERT skip).
+        //   2026-06-10: 번호 형식 무시(normDigits) 로 비교 — CallStateReceiver(원본)와
+        //     syncFromCallLog(고객 저장형식)가 형식이 달라 dedup 빗나가 발신통화 2개 되던 것 fix.
         //   startedAt == null 케이스 (번호없음/권한 X) 는 dedup 불가 — 그대로 INSERT (rare path).
         if (startedAt != null) {
-            val existingId = dao.findIdByPhoneAndStarted(phoneNumber, startedAt)
+            val existingId = existingIdSameCall(phoneNumber, startedAt)
             if (existingId != null) return existingId
         }
         val entity = CallRecordEntity(
@@ -97,8 +118,8 @@ class CallRecordRepository(private val dao: CallRecordDao) {
 
         var inserted = 0
         for (e in entries) {
-            // startedAt 으로 dedup (CallLog DATE = 통화 시작 시각)
-            if (dao.countByPhoneAndStarted(phoneNumber, e.date) > 0) continue
+            // startedAt + 끝 8자리 dedup (번호 형식 무시 — CallLog DATE = 통화 시작 시각)
+            if (existingIdSameCall(phoneNumber, e.date) != null) continue
             dao.insert(
                 CallRecordEntity(
                     phoneNumber = phoneNumber,
@@ -139,7 +160,7 @@ class CallRecordRepository(private val dao: CallRecordDao) {
         for (e in entries) {
             val phone = e.phoneNumber
             if (phone.isBlank()) continue
-            if (dao.countByPhoneAndStarted(phone, e.date) > 0) continue
+            if (existingIdSameCall(phone, e.date) != null) continue
             dao.insert(
                 CallRecordEntity(
                     phoneNumber = phone,

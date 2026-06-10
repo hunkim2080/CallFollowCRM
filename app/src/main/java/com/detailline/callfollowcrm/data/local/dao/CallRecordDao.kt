@@ -58,6 +58,14 @@ interface CallRecordDao {
     @Query("SELECT id FROM call_records WHERE phoneNumber = :phone AND startedAt = :startedAt LIMIT 1")
     suspend fun findIdByPhoneAndStarted(phone: String, startedAt: Long): Long?
 
+    /**
+     * 2026-06-10 발신 통화 2개 중복 fix — 같은 시작시각의 기록들.
+     *   번호 형식(원본 "010..." / 고객저장 "010-..." / "+82...")이 경로마다 달라 phone 정확일치 dedup 이
+     *   빗나가 같은 통화가 2 row 로 들어감. → startedAt 으로 모아 끝 8자리 숫자로 비교(repo)해서 dedup.
+     */
+    @Query("SELECT * FROM call_records WHERE startedAt = :startedAt")
+    suspend fun findByStartedAt(startedAt: Long): List<CallRecordEntity>
+
     /** 해당 번호의 통화 기록 총 개수. "첫 통화 감지"용 (== 1 이면 방금 만든 게 처음). */
     @Query("SELECT COUNT(*) FROM call_records WHERE phoneNumber = :phone")
     suspend fun countByPhone(phone: String): Int

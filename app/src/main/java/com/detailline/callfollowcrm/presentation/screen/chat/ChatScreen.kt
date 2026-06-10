@@ -307,6 +307,29 @@ fun ChatScreen(
         viewModel.loadFullSummary()
     }
 
+    // 카톡식 실시간 반영 (2026-06-10 사장님 통점: 고객이 보낸 문자가 채팅에 바로 안 올라옴):
+    //   화면이 떠있는 동안 SMS/MMS provider 변화를 관찰 → 새 문자 즉시 reload. (기본 문자앱이 아니어도
+    //   READ_SMS 권한이면 삼성 문자앱의 수신 기록 write 에 발동.) 300ms 디바운스로 연속 변화 합침.
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        val resolver = context.contentResolver
+        val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        val reload = Runnable { viewModel.loadMessages() }
+        val observer = object : android.database.ContentObserver(handler) {
+            override fun onChange(selfChange: Boolean) {
+                handler.removeCallbacks(reload)
+                handler.postDelayed(reload, 300)
+            }
+        }
+        runCatching {
+            resolver.registerContentObserver(android.net.Uri.parse("content://sms"), true, observer)
+            resolver.registerContentObserver(android.net.Uri.parse("content://mms"), true, observer)
+        }
+        onDispose {
+            handler.removeCallbacks(reload)
+            runCatching { resolver.unregisterContentObserver(observer) }
+        }
+    }
+
     LaunchedEffect(toast) {
         toast?.let {
             snackbar.showSnackbar(it)
