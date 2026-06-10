@@ -36,12 +36,17 @@ object ScheduleReminderCalc {
     /**
      * @param loggedKeys 이미 보냄/넘김 처리된 (ruleId, customerId, scheduledDayStartMs)
      * @param todayStartMs 오늘 자정 ms (호출자 정규화)
+     * @param arrivalEnabled 도착 안내(위치 기반) 토글. OFF 면 ARRIVAL 카드 안 띄움.
+     * @param arrivalEnteredCustomerIds 오늘 5km 지오펜스 진입한 고객 ID. ARRIVAL 은 진입한 현장만.
+     *   → "오늘 시공일"이라고 무조건 뜨던 버그(위치·토글 무시) 방지. D1(전날 안내)은 위치 무관, 날짜 기준 유지.
      * 반환: 오늘 보낼 도착안내(ARRIVAL) + 내일 시공 전날안내(D1). 시공일 가까운 순.
      */
     fun compute(
         customers: List<CustomerEntity>,
         loggedKeys: Set<Triple<Long, Long, Long>>,
-        todayStartMs: Long
+        todayStartMs: Long,
+        arrivalEnabled: Boolean = false,
+        arrivalEnteredCustomerIds: Set<Long> = emptySet()
     ): List<ReminderItem> {
         val tomorrowStart = todayStartMs + DAY_MS
         val out = ArrayList<ReminderItem>()
@@ -52,6 +57,8 @@ object ScheduleReminderCalc {
                 tomorrowStart -> ReminderKind.D1
                 else -> continue
             }
+            // ARRIVAL 은 토글 ON + 실제 5km 진입한 현장만 (그냥 시공일이라고 뜨면 안 됨).
+            if (kind == ReminderKind.ARRIVAL && (!arrivalEnabled || c.id !in arrivalEnteredCustomerIds)) continue
             val key = Triple(ruleIdOf(kind), c.id, day)
             if (key in loggedKeys) continue
             out += ReminderItem(kind, c.id, c.name, c.phoneNumber, day)

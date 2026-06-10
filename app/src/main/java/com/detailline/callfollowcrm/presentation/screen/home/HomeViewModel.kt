@@ -369,7 +369,11 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     ) { custs, logs ->
         val keys = logs.map { Triple(it.ruleId, it.customerId, it.occurrenceDayStartMs) }.toSet()
         com.detailline.callfollowcrm.domain.reminder.ScheduleReminderCalc
-            .compute(custs, keys, todayStart).size
+            .compute(
+                custs, keys, todayStart,
+                arrivalEnabled = container.preferences.arrivalAutoEnabled,
+                arrivalEnteredCustomerIds = arrivalEnteredIdsToday()
+            ).size
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     /**
@@ -383,7 +387,11 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         val keys = logs.map { Triple(it.ruleId, it.customerId, it.occurrenceDayStartMs) }.toSet()
         val byId = custs.associateBy { it.id }
         com.detailline.callfollowcrm.domain.reminder.ScheduleReminderCalc
-            .compute(custs, keys, todayStart).map { item ->
+            .compute(
+                custs, keys, todayStart,
+                arrivalEnabled = container.preferences.arrivalAutoEnabled,
+                arrivalEnteredCustomerIds = arrivalEnteredIdsToday()
+            ).map { item ->
                 val c = byId[item.customerId]
                 val md = DateTimeUtils.formatDateOnly(item.scheduledDayStartMs)
                 val timeStr = c?.scheduledWorkMinutes?.let { " " + DateTimeUtils.formatWorkMinutes(it) } ?: ""
@@ -397,6 +405,15 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 )
             }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** 오늘 5km 진입한 고객 ID — 지오펜스가 적립한 "arrival:{id}:{오늘자정}" 키에서 파싱. */
+    private fun arrivalEnteredIdsToday(): Set<Long> {
+        val suffix = ":$todayStart"
+        return container.preferences.arrivalEnteredKeys.mapNotNull { k ->
+            if (!k.startsWith("arrival:") || !k.endsWith(suffix)) return@mapNotNull null
+            k.removePrefix("arrival:").removeSuffix(suffix).toLongOrNull()
+        }.toSet()
+    }
 
     private fun renderReminderBody(item: com.detailline.callfollowcrm.domain.reminder.ReminderItem): String {
         val name = item.customerName?.takeIf { it.isNotBlank() } ?: "고객"

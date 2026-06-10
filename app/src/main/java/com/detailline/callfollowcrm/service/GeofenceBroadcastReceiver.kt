@@ -36,6 +36,9 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 for (rid in ids) {
                     val id = rid.removePrefix("site_").toLongOrNull() ?: continue
                     val key = "arrival:$id:$todayStart"
+                    // 5km 진입 사실을 기록 → 홈 "도착 안내" 카드가 이때부터 노출 (토글 ON 전제).
+                    prefs.arrivalEnteredKeys = prefs.arrivalEnteredKeys + key
+                    // 알림은 같은 고객·같은 날 1회만.
                     if (key in prefs.reminderNotifiedKeys) continue
                     val c = container.customerRepository.findById(id) ?: continue
                     val nm = c.name?.takeIf { it.isNotBlank() } ?: c.phoneNumber

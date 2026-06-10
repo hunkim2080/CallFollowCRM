@@ -3542,3 +3542,8 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 오늘 시공 히어로 카드: 2곳 이상이면 꾹 눌러(롱프레스) 트렐로식으로 끌어 순서 변경 → 먼저 갈 현장 위로. 순서는 AppPreferences.todayHeroOrder(고객ID)에 영속, 지난 날 ID는 자동 무시. 짧게 탭=상세 열기 유지.
 - 변경: 서버 인터페이스 영향 없음 (앱 로컬 순서). HomeViewModel.reorderTodayJobs + todayJobs 가 수동순서 우선 적용. UI=TodayHeroReorderableList.
 - commit: (아래)
+
+## 2026-06-11 · android
+홈 "오늘 시공·도착 안내" 카드 오노출 수정: 토글(arrivalAutoEnabled) OFF + 5km 밖인데도 시공일이면 무조건 뜨던 버그. 이제 토글 ON + 지오펜스 5km 진입(GeofenceBroadcastReceiver가 arrivalEnteredKeys 적립)한 현장만 카드 노출. D1(전날 안내)은 위치 무관·날짜 기준 유지.
+- 변경: 서버 인터페이스 영향 없음 (앱 로컬/위치). ScheduleReminderCalc.compute(+arrivalEnabled,+arrivalEnteredCustomerIds), GeofenceBroadcastReceiver, AppPreferences.arrivalEnteredKeys.
+- commit: (아래)

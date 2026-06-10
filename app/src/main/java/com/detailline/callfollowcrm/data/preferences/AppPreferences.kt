@@ -271,6 +271,15 @@ class AppPreferences(context: Context) {
         get() = prefs.getStringSet("reminder_notified_keys", emptySet()) ?: emptySet()
         set(value) = prefs.edit().putStringSet("reminder_notified_keys", value).apply()
 
+    /**
+     * 도착 안내 5km 진입 기록 — 지오펜스 ENTER 시 "arrival:{id}:{dayStart}" 적립.
+     * 홈 "오늘 시공·도착 안내" 카드는 토글 ON + 이 키가 있어야(=실제 5km 진입) 노출.
+     * 그냥 시공일이라고 무조건 뜨던 버그(위치·토글 무시) 방지. commit()=백그라운드 수신기에서 즉시 보존.
+     */
+    var arrivalEnteredKeys: Set<String>
+        get() = prefs.getStringSet("arrival_entered_keys", emptySet()) ?: emptySet()
+        set(value) { prefs.edit().putStringSet("arrival_entered_keys", value).commit() }
+
     /** 홈 "부재중 자동답장 보냄" 배너에서 밀어서 정리(dismiss)한 message_history id 들.
      *  2026-06-06: apply()→commit() — S9 에서 앱이 백그라운드 종료되면 비동기 저장이 날아가
      *  정리한 배너가 다시 뜨던 버그. 즉시 동기 저장으로 보장. */

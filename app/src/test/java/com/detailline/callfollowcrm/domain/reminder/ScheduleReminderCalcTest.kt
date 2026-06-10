@@ -18,10 +18,29 @@ class ScheduleReminderCalcTest {
             createdAt = 0L, updatedAt = 0L
         )
 
-    @Test fun `오늘 시공 - 도착 안내`() {
-        val r = ScheduleReminderCalc.compute(listOf(customer(1, 0)), emptySet(), today)
+    @Test fun `오늘 시공 - 도착 안내 (토글 ON + 5km 진입)`() {
+        val r = ScheduleReminderCalc.compute(
+            listOf(customer(1, 0)), emptySet(), today,
+            arrivalEnabled = true, arrivalEnteredCustomerIds = setOf(1L)
+        )
         assertEquals(1, r.size)
         assertEquals(ReminderKind.ARRIVAL, r[0].kind)
+    }
+
+    @Test fun `도착 안내 - 토글 OFF 면 제외`() {
+        val r = ScheduleReminderCalc.compute(
+            listOf(customer(1, 0)), emptySet(), today,
+            arrivalEnabled = false, arrivalEnteredCustomerIds = setOf(1L)
+        )
+        assertTrue(r.isEmpty())
+    }
+
+    @Test fun `도착 안내 - 5km 미진입이면 제외`() {
+        val r = ScheduleReminderCalc.compute(
+            listOf(customer(1, 0)), emptySet(), today,
+            arrivalEnabled = true, arrivalEnteredCustomerIds = emptySet()
+        )
+        assertTrue(r.isEmpty())
     }
 
     @Test fun `내일 시공 - 전날 안내`() {
@@ -43,7 +62,10 @@ class ScheduleReminderCalcTest {
     @Test fun `이미 보낸 도착 안내는 제외`() {
         val c = customer(1, 0)
         val key = Triple(ScheduleReminderCalc.RULE_ARRIVAL, 1L, c.scheduledWorkDate!!)
-        val r = ScheduleReminderCalc.compute(listOf(c), setOf(key), today)
+        val r = ScheduleReminderCalc.compute(
+            listOf(c), setOf(key), today,
+            arrivalEnabled = true, arrivalEnteredCustomerIds = setOf(1L)
+        )
         assertTrue(r.isEmpty())
     }
 
@@ -51,14 +73,18 @@ class ScheduleReminderCalcTest {
         // 오늘 시공 고객을 D1 로 로그해도 ARRIVAL 은 여전히 떠야 함 (sentinel 분리).
         val c = customer(1, 0)
         val d1key = Triple(ScheduleReminderCalc.RULE_D1, 1L, c.scheduledWorkDate!!)
-        val r = ScheduleReminderCalc.compute(listOf(c), setOf(d1key), today)
+        val r = ScheduleReminderCalc.compute(
+            listOf(c), setOf(d1key), today,
+            arrivalEnabled = true, arrivalEnteredCustomerIds = setOf(1L)
+        )
         assertEquals(1, r.size)
         assertEquals(ReminderKind.ARRIVAL, r[0].kind)
     }
 
     @Test fun `오늘+내일 시공 - 도착 먼저, 전날 다음`() {
         val r = ScheduleReminderCalc.compute(
-            listOf(customer(2, 1), customer(1, 0)), emptySet(), today
+            listOf(customer(2, 1), customer(1, 0)), emptySet(), today,
+            arrivalEnabled = true, arrivalEnteredCustomerIds = setOf(1L)
         )
         assertEquals(2, r.size)
         assertEquals(ReminderKind.ARRIVAL, r[0].kind)
