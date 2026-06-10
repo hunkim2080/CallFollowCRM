@@ -25,6 +25,7 @@ import datetime as _dt
 import json
 import os
 import sqlite3
+import sys
 import time
 import urllib.parse
 from contextlib import asynccontextmanager, contextmanager
@@ -5573,43 +5574,56 @@ async def call_audio_summary_endpoint(
 
     transcript = ""
     try:
-        # 3) Whisper STT (한국어, 동시 호출 직렬화)
+        # 3) Whisper STT — §26 fix 502 #3 (2026-06-10):
+        # 이전엔 asyncio.to_thread 안에서 faster-whisper 호출 → uvicorn worker SIGSEGV.
+        # cpu_threads=1 / OMP=1 fix 로도 native crash 지속 → subprocess 로 완전 격리.
+        # 자식 process 가 죽어도 uvicorn worker 살아있음 (다른 요청 영향 0).
         lock = _whisper_lock()
-        async with lock:
+        async with lock:  # 메모리/CPU 보호 위해 동시 1건만
             try:
-                model = _get_whisper_model()
-                # blocking inference 를 thread 로 (asyncio loop 보호)
-                def _run_stt() -> str:
-                    # §26 fix 502 (안드로이드 SERVER_HANDOFF 2026-06-10):
-                    # - vad_filter=True 가 silero VAD 모델 자동 다운로드 시도 → 첫 호출 시
-                    #   네트워크/권한 fail 으로 워커 크래시 가능. False 로 disable.
-                    # - beam_size=5 → 1 (메모리 5배 절감 + 속도 향상)
-                    # - condition_on_previous_text=False (긴 오디오에서 메모리 안정)
-                    segments, _info = model.transcribe(
-                        tmp_path,
-                        language="ko",
-                        beam_size=1,
-                        vad_filter=False,
-                        condition_on_previous_text=False,
+                worker_script = BASE_DIR / "whisper_worker.py"
+                if not worker_script.exists():
+                    raise HTTPException(503, "whisper_worker.py 미배포 — deploy_phase1.sh 재실행 필요")
+                venv_python = "/Users/hun/ringgo-server/venv/bin/python"
+                if not Path(venv_python).exists():
+                    venv_python = sys.executable  # fallback
+                print(f"[call-audio-summary] STT subprocess 시작 audio={len(audio_data)//1024}KB")
+                proc = await asyncio.create_subprocess_exec(
+                    venv_python,
+                    str(worker_script),
+                    tmp_path,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                try:
+                    stdout_b, stderr_b = await asyncio.wait_for(
+                        proc.communicate(), timeout=180.0
                     )
-                    parts = []
-                    for seg in segments:
-                        s = (seg.text or "").strip()
-                        if s:
-                            parts.append(s)
-                    return "\n".join(parts).strip()
-
-                print(f"[call-audio-summary] STT 시작 audio={len(audio_data)//1024}KB")
-                transcript = await asyncio.to_thread(_run_stt)
+                except asyncio.TimeoutError:
+                    proc.kill()
+                    await proc.wait()
+                    raise HTTPException(504, "STT 시간 초과 (180s) — 통화가 너무 김")
+                if proc.returncode != 0:
+                    err = (stderr_b.decode("utf-8", errors="replace") or "").strip()[:1000]
+                    print(f"[call-audio-summary] STT subprocess fail rc={proc.returncode}: {err}")
+                    raise HTTPException(
+                        502,
+                        f"STT 실패 (rc={proc.returncode}): {err[:200]}",
+                    )
+                transcript = (stdout_b.decode("utf-8", errors="replace") or "").strip()
+                # stderr 에 RuntimeWarning 같은 무해 경고도 있을 수 있음 — 디버깅 도움
+                if stderr_b:
+                    err_preview = stderr_b.decode("utf-8", errors="replace")[:300]
+                    if err_preview.strip():
+                        print(f"[call-audio-summary] STT stderr (warning, 무해): {err_preview}")
                 print(f"[call-audio-summary] STT 완료 transcript={len(transcript)}자")
             except HTTPException:
                 raise
             except Exception as e:
-                # 자세한 traceback 도 stderr 로 (디버깅용)
                 import traceback as _tb
-                print(f"[call-audio-summary] Whisper STT 실패: {type(e).__name__}: {e}")
+                print(f"[call-audio-summary] STT subprocess 호출 실패: {type(e).__name__}: {e}")
                 print(_tb.format_exc())
-                raise HTTPException(502, f"STT 실패: {type(e).__name__}: {e}")
+                raise HTTPException(502, f"STT subprocess 호출 실패: {type(e).__name__}: {e}")
     finally:
         try:
             os.unlink(tmp_path)
