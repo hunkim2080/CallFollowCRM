@@ -90,6 +90,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -2372,11 +2374,24 @@ private fun AddressEditDialog(
     var text by androidx.compose.runtime.saveable.rememberSaveable(currentAddress) {
         mutableStateOf(currentAddress.orEmpty())
     }
-    // 주소 검색(Daum 우편번호 WebView) — 선택 시 도로명주소 채움. 2026-06-04 연결(기존 미연결).
+    // 동·호수(상세주소) 별도 입력 — 주소 검색은 도로명/지번까지만 주므로 검색 후 여기에 이어 적는다.
+    //   (2026-06-10 사장님 통점: 검색 후 동/호수 칸이 따로 없어 같은 칸에 우겨넣어야 해 불편.)
+    var detail by androidx.compose.runtime.saveable.rememberSaveable(currentAddress) {
+        mutableStateOf("")
+    }
+    val detailFocus = remember { FocusRequester() }
+    var focusDetail by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(focusDetail) {
+        if (focusDetail) {
+            runCatching { detailFocus.requestFocus() }
+            focusDetail = false
+        }
+    }
+    // 주소 검색(Daum 우편번호 WebView) — 선택 시 도로명주소 채우고 동/호수 칸으로 자동 포커스.
     var showSearch by remember { mutableStateOf(false) }
     if (showSearch) {
         com.detailline.callfollowcrm.presentation.component.AddressSearchDialog(
-            onPicked = { picked -> text = picked; showSearch = false },
+            onPicked = { picked -> text = picked; showSearch = false; focusDetail = true },
             onDismiss = { showSearch = false }
         )
     }
@@ -2424,6 +2439,16 @@ private fun AddressEditDialog(
                     Spacer(Modifier.width(6.dp))
                     Text("주소 검색", color = TossBlue, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
+                // 동·호수 — 검색으로 도로명만 채워지므로 여기에 이어 적는다. 검색하면 자동으로 이 칸에 포커스.
+                Spacer(Modifier.height(10.dp))
+                androidx.compose.material3.OutlinedTextField(
+                    value = detail,
+                    onValueChange = { detail = it },
+                    label = { Text("동·호수 (선택)") },
+                    placeholder = { Text("예: 101동 1502호", color = TossTextTertiary) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().focusRequester(detailFocus)
+                )
                 // 자동 추출 후보 — 사장님 한 탭에 input 박힘.
                 if (extractedSuggestion != null) {
                     Spacer(Modifier.height(10.dp))
@@ -2467,9 +2492,10 @@ private fun AddressEditDialog(
                             Text("삭제", color = TossTextSecondary)
                         }
                     }
+                    val combined = (text.trim() + if (detail.isBlank()) "" else " " + detail.trim()).trim()
                     androidx.compose.material3.TextButton(
-                        onClick = { onSave(text.trim().takeIf { it.isNotEmpty() }) },
-                        enabled = text.trim() != currentAddress.orEmpty().trim()
+                        onClick = { onSave(combined.takeIf { it.isNotEmpty() }) },
+                        enabled = combined != currentAddress.orEmpty().trim()
                     ) {
                         Text("저장", color = TossBlue, fontWeight = FontWeight.SemiBold)
                     }
