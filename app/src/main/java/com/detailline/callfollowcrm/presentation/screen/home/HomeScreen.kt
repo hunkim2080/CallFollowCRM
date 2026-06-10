@@ -231,6 +231,9 @@ fun HomeScreen(
 
     // 오늘 시공 히어로 [완료] → 프로토 openComplete 팝업 (시공 완료 · 고생하셨습니다).
     var completeTarget by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.CustomerEntity?>(null) }
+    // 협업 완료 알림 [입금했어요] → 일당 지급 금액 입력 대상. (일당 마켓 Phase 1)
+    var payTarget by remember { mutableStateOf<com.detailline.callfollowcrm.ai.CollabEventCenter.CollabUpdate?>(null) }
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
 
     Scaffold(
         containerColor = TossGrayBg,
@@ -587,17 +590,44 @@ fun HomeScreen(
                         val subText = "${up.partnerName}님 · ${up.timeLabel} · ${up.title} $verb" +
                             (up.accountText?.let { " · 계좌 $it" } ?: "")
                         DismissSwipeBox(onDismiss = { viewModel.dismissCollabUpdate(up.eventId) }) {
-                            InboxAlert(
-                                accent = accent,
-                                accentTint = tint,
-                                icon = icon,
-                                title = title,
-                                tagText = null,
-                                tagBg = tint, tagFg = accent,
-                                sub = subText,
-                                goLabel = "현장 보기",
-                                onClick = onOpenCollabSites
-                            )
+                            Column {
+                                InboxAlert(
+                                    accent = accent,
+                                    accentTint = tint,
+                                    icon = icon,
+                                    title = title,
+                                    tagText = null,
+                                    tagBg = tint, tagFg = accent,
+                                    sub = subText,
+                                    goLabel = "현장 보기",
+                                    onClick = onOpenCollabSites
+                                )
+                                // 완료 + 계좌 있으면 → [계좌 복사] [입금했어요]. (일당 마켓 Phase 1: 완료·계좌=정산 스위치)
+                                if (up.kind == "completed" && !up.accountText.isNullOrBlank()) {
+                                    Row(
+                                        Modifier.fillMaxWidth().padding(top = 6.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Box(
+                                            Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
+                                                .background(TossGrayBg)
+                                                .clickable {
+                                                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(up.accountText))
+                                                    android.widget.Toast.makeText(context, "계좌를 복사했어요", android.widget.Toast.LENGTH_SHORT).show()
+                                                }
+                                                .padding(vertical = 11.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) { Text("계좌 복사", color = TossTextSecondary, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+                                        Box(
+                                            Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
+                                                .background(TossBlue)
+                                                .clickable { payTarget = up }
+                                                .padding(vertical = 11.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) { Text("💸 입금했어요", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -780,6 +810,51 @@ fun HomeScreen(
                             else snackbarHostState.showSnackbar("문자 권한이 없어요 — 채팅에서 보내주세요", duration = SnackbarDuration.Short)
                         }
                     }
+                )
+            }
+
+            // 협업 완료 [입금했어요] → 일당 지급 금액 입력 → 정산 자동 기록. (일당 마켓 Phase 1)
+            payTarget?.let { up ->
+                var manwon by remember(up.eventId) { mutableStateOf("") }
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { payTarget = null },
+                    title = { Text("일당 지급 기록", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
+                    text = {
+                        Column {
+                            com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
+                            Text(
+                                "${up.partnerName}님께 보낸 일당을 정산에 기록해요." +
+                                    (up.accountText?.let { "\n계좌: $it" } ?: ""),
+                                fontSize = 13.sp, color = TossTextSecondary, lineHeight = 19.sp
+                            )
+                            Spacer(Modifier.height(10.dp))
+                            androidx.compose.material3.OutlinedTextField(
+                                value = manwon,
+                                onValueChange = { v -> manwon = v.filter { it.isDigit() } },
+                                placeholder = { Text("금액 (만원)", color = TossTextTertiary) },
+                                singleLine = true,
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(onClick = {
+                            viewModel.recordLaborPayment(up.partnerName, manwon.toLongOrNull() ?: 0L, up.eventId)
+                            payTarget = null
+                            scope.launch {
+                                snackbarHostState.showSnackbar("정산에 일당 지급을 기록했어요 ✓", duration = SnackbarDuration.Short)
+                            }
+                        }) { Text("기록", color = TossBlue, fontWeight = FontWeight.Bold) }
+                    },
+                    dismissButton = {
+                        androidx.compose.material3.TextButton(onClick = { payTarget = null }) {
+                            Text("취소", color = TossTextSecondary)
+                        }
+                    },
+                    containerColor = Color.White
                 )
             }
             } // end Box(nestedScroll)

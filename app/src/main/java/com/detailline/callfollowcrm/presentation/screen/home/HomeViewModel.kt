@@ -320,6 +320,26 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         container.preferences.dismissedCollabEventIds = next
     }
 
+    /**
+     * 일당/협업 완료 알림 → "입금했어요" 시 정산에 일당 지급(지출) 자동 기록 + 알림 정리.
+     *   (일당 마켓 Phase 1 — 완료·계좌 = 정산 스위치. docs/PLAN_labor_market.md)
+     *   manwon = 만원 단위. 0 이면 금액 없이 알림만 정리.
+     */
+    fun recordLaborPayment(partnerName: String, manwon: Long, eventId: String) = viewModelScope.launch {
+        if (manwon > 0L) {
+            runCatching {
+                container.manualCashRepository.add(
+                    dayMs = System.currentTimeMillis(),
+                    amount = manwon * 10_000L,
+                    isIncome = false,
+                    isDone = true,
+                    label = "일당 지급 · ${partnerName.ifBlank { "협업" }}"
+                )
+            }
+        }
+        dismissCollabUpdate(eventId)
+    }
+
     val collabUpdates: StateFlow<List<com.detailline.callfollowcrm.ai.CollabEventCenter.CollabUpdate>> =
         combine(container.collabEventCenter.todayUpdates, dismissedCollabEventIds) { list, dismissed ->
             list.filter { it.eventId !in dismissed }.sortedByDescending { it.createdAtMs }
