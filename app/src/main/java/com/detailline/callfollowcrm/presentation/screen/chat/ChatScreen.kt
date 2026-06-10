@@ -838,7 +838,12 @@ fun ChatScreen(
     if (myScheduleOpen) {
         MyScheduleSheet(
             jobs = scheduledJobs,
-            onDismiss = { myScheduleOpen = false }
+            onDismiss = { myScheduleOpen = false },
+            onPickDate = { dateText ->
+                // 선택한 날짜를 대화창에 넣고 시트 닫기 — 사장님이 바로 보내거나 이어 쓰게.
+                input = if (input.isBlank()) dateText else input.trimEnd() + " " + dateText
+                myScheduleOpen = false
+            }
         )
     }
 

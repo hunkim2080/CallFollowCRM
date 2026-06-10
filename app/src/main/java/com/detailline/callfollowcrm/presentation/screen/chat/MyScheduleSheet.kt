@@ -60,7 +60,10 @@ import java.util.Calendar
 @Composable
 fun MyScheduleSheet(
     jobs: List<CustomerEntity>,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    // 선택한 날짜 카드를 탭하면 그 날짜 문자열("2026년 6월 22일 (월)")을 대화창에 넣는다.
+    //   (사장님 플로우: "시공 언제 되냐" 문의 → 내 일정에서 빈 날 찾아 그 날짜를 채팅으로 제안)
+    onPickDate: (String) -> Unit = {}
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val nowMs = remember { System.currentTimeMillis() }
@@ -163,6 +166,7 @@ fun MyScheduleSheet(
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
                         .background(Color(0xFFF5F7FA))
+                        .clickable { onPickDate(DateTimeUtils.formatKoreanDate(day)) }
                         .padding(horizontal = 16.dp, vertical = 14.dp)
                 ) {
                     Text(
@@ -186,6 +190,13 @@ fun MyScheduleSheet(
                             MiniJobRow(c)
                         }
                     }
+                    // 탭하면 이 날짜가 대화창에 들어간다는 안내.
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "👆 눌러서 이 날짜를 대화창에 넣기",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TossBlue, fontWeight = FontWeight.SemiBold
+                    )
                 }
                 Spacer(Modifier.height(8.dp))
             }
