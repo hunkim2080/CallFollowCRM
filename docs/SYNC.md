@@ -3716,3 +3716,8 @@ SYNC 직전 블록(android 추가6) 진단 반영. **`/api/shared/invite` + `/ap
 - 안전벽 유지: customer_label 만, 고객 phone/대화 미포함.
 - 다음 액션 (사장님): `bash server/deploy_phase1.sh` 또는 `launchctl unload/load com.detailline.ringgo-server`.
 - 다음 액션 (안드로이드): 변경 없음. 폰 2대 검증만.
+
+## 2026-06-12 (추가7) · android ✅ FCM 즉시푸시 끝단 해결
+맥미니 서버 invite 수정 후 끝단 동작 확인 — A invite → 문자창 X + B폰 즉시 "🤝 협업 요청" 알림. 사장님 "해결됐어" 확인.
+- 앱: 등록 로그에서 번호 제거(개인정보), 결과 코드만. 폴링 안전망 유지.
+- 남은 선택: 팀원(웹링크) 푸시는 별도. collab_event/collab_paid 푸시는 발생 시 자연 검증.
