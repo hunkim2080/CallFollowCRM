@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.BasicTextField
@@ -2683,8 +2684,10 @@ private fun CollabShareSheet(
         androidx.compose.material3.Surface(
             shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth()
         ) {
-            Column(Modifier.padding(20.dp)) {
+            // 내용은 스크롤, "협업 요청 보내기" 버튼은 하단 고정 — 칩 많을 때 버튼이 화면 밖으로 잘리던 문제. (2026-06-12 사장님)
+            Column(Modifier.heightIn(max = 600.dp).padding(20.dp)) {
                 com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
+                Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
                 Text("협업 현장으로 공유", style = MaterialTheme.typography.titleLarge, color = TossTextPrimary, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(10.dp))
                 // 현장 카드
@@ -2744,6 +2747,7 @@ private fun CollabShareSheet(
                     Spacer(Modifier.height(8.dp))
                     Text("✕ 고객 전화번호·대화·다른 고객은 안 보여요", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF0436A))
                 }
+                } // ── 스크롤 영역 끝, 아래(보내기·취소)는 하단 고정 ──
                 Spacer(Modifier.height(16.dp))
                 androidx.compose.foundation.layout.Box(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFF7C5CFC))
