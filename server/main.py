@@ -585,6 +585,24 @@ def db_init() -> None:
             "CREATE INDEX IF NOT EXISTS idx_laborer_sites_token "
             "ON laborer_sites(token, worked_at_ms DESC)"
         )
+        # §30 — FCM 푸시 (SERVER_HANDOFF_fcm_push 2026-06-12)
+        # 앱이 onNewToken 마다 등록. 같은 phone 의 token list 보관 (폰 여러 대 가능).
+        # token 무효 (UnregisteredError) 시 자동 삭제.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS push_tokens (
+                token            TEXT PRIMARY KEY,
+                phone            TEXT NOT NULL,         -- 숫자만 (bizPhone)
+                platform         TEXT,                  -- 'android' / 'ios'
+                registered_at_ms INTEGER NOT NULL,
+                updated_at_ms    INTEGER NOT NULL
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_push_tokens_phone "
+            "ON push_tokens(phone, updated_at_ms DESC)"
+        )
         con.commit()
 
 
@@ -6322,6 +6340,14 @@ async def shared_invite(req: SharedInviteRequest) -> dict:
         url = None
         sms_draft = None
         print(f"[shared/invite] {owner_phone} → {partner_phone} (inapp) share={share_id}")
+        # §30 FCM 푸시 — B 폰에 즉시 알림 (앱 꺼져 있어도)
+        owner_name_for_fcm = _is_registered_owner(owner_phone) or "사장님"
+        _send_fcm_data_to_phone(partner_phone, {
+            "type": "collab_invite",
+            "share_id": share_id,
+            "owner_name": owner_name_for_fcm,
+            "title": title or "협업 현장",
+        })
         return {"share_id": share_id, "route": route, "url": url, "sms_draft": sms_draft}
     # 미가입 — 기존 팀 웹뷰 패턴 재사용 권장 (Phase 1 은 단순 SMS 안내문)
     owner_name = _is_registered_owner(owner_phone) or "사장님"
@@ -6500,6 +6526,21 @@ async def shared_progress(req: SharedProgressRequest) -> dict:
         )
         con.commit()
     print(f"[shared/progress] share={share_id} {partner_phone} → {step} (event={event_id})")
+    # §30 FCM 푸시 — A 에게 진행/완료 알림 (앱 꺼져 있어도)
+    partner_name = _is_registered_owner(partner_phone) or "협업 사장"
+    fcm_data: dict = {
+        "type": "collab_event",
+        "share_id": share_id,
+        "event_id": event_id,
+        "step": step,
+        "partner_name": partner_name,
+        "title": site_title or "협업 현장",
+    }
+    if step == "completed" and (event_bank or event_account_no):
+        fcm_data["bank"] = event_bank or ""
+        fcm_data["account_no"] = event_account_no or ""
+        fcm_data["holder"] = event_holder or ""
+    _send_fcm_data_to_phone(owner_phone_for_event, fcm_data)
     return {"ok": True, "share_id": share_id, "progress": step, "event_id": event_id, "updated_at_ms": now}
 
 
@@ -6536,6 +6577,19 @@ async def shared_paid(req: SharedPaidRequest) -> dict:
         )
         con.commit()
     print(f"[shared/paid] share={share_id} {owner_phone} → paid")
+    # §30 FCM 푸시 — B 에게 입금 완료 알림
+    with db_conn() as _con:
+        prow = _con.execute(
+            "SELECT partner_phone, title FROM shared_sites WHERE share_id = ?",
+            (share_id,),
+        ).fetchone()
+    if prow and prow[0]:
+        _send_fcm_data_to_phone(prow[0], {
+            "type": "collab_paid",
+            "share_id": share_id,
+            "title": prow[1] or "협업 현장",
+            "paid_at_ms": now,
+        })
     return {"ok": True, "share_id": share_id, "paid_at_ms": now}
 
 
@@ -6933,6 +6987,182 @@ async def labor_account(token: str) -> dict:
         "count": count or 0,
         "last_worked_at_ms": last_worked,
     }
+
+
+# ============================================================================
+# §30 — FCM 푸시 (안드로이드 SERVER_HANDOFF_fcm_push 2026-06-12)
+# ─────────────────────────────────────────────────────────────────────────────
+# 협업 invite/progress/paid 시점에 앱 꺼져 있어도 즉시 푸시 알림.
+# 폴링은 그대로 유지 (안전망 — FCM 실패해도 폴링으로 결국 받음).
+#
+# 데이터 모델:
+#   push_tokens (token PK, phone, platform, registered_at_ms, updated_at_ms)
+#
+# 흐름:
+#   1. 앱 onNewToken → POST /api/push/register {phone, token, platform}
+#   2. 협업 invite (route=inapp) → partner_phone 의 token 들로 FCM data-only 전송
+#   3. 협업 progress / paid 동일 패턴
+#
+# 벽: data payload 에 고객 phone/대화 절대 X. owner_name + title 만.
+# ============================================================================
+
+# Firebase Admin SDK lazy init — 첫 호출 시 service account 로드.
+# 미설정 (FCM_SERVICE_ACCOUNT_JSON env 없거나 파일 X) → FCM 호출 skip (폴링 폴백).
+FCM_SA_JSON_PATH = os.environ.get("FCM_SERVICE_ACCOUNT_JSON")
+_FCM_INITIALIZED = False
+_FCM_AVAILABLE = False
+
+
+def _init_firebase() -> bool:
+    """첫 호출 시 firebase-admin 초기화. 성공 시 True, 실패/미설정 시 False."""
+    global _FCM_INITIALIZED, _FCM_AVAILABLE
+    if _FCM_INITIALIZED:
+        return _FCM_AVAILABLE
+    _FCM_INITIALIZED = True
+    if not FCM_SA_JSON_PATH:
+        print("[fcm] FCM_SERVICE_ACCOUNT_JSON env 미설정 — FCM 비활성")
+        _FCM_AVAILABLE = False
+        return False
+    if not Path(FCM_SA_JSON_PATH).exists():
+        print(f"[fcm] service account JSON 파일 없음: {FCM_SA_JSON_PATH}")
+        _FCM_AVAILABLE = False
+        return False
+    try:
+        import firebase_admin
+        from firebase_admin import credentials
+        cred = credentials.Certificate(FCM_SA_JSON_PATH)
+        firebase_admin.initialize_app(cred)
+        _FCM_AVAILABLE = True
+        print(f"[fcm] Firebase Admin 초기화 완료 ({FCM_SA_JSON_PATH})")
+        return True
+    except Exception as e:
+        print(f"[fcm] Firebase Admin 초기화 실패: {type(e).__name__}: {e}")
+        _FCM_AVAILABLE = False
+        return False
+
+
+def _get_tokens_for_phone(phone_digits: str) -> list[str]:
+    """phone 의 등록된 FCM token list."""
+    if not phone_digits:
+        return []
+    with db_conn() as con:
+        rows = con.execute(
+            "SELECT token FROM push_tokens WHERE phone = ? ORDER BY updated_at_ms DESC LIMIT 10",
+            (phone_digits,),
+        ).fetchall()
+    return [r[0] for r in rows if r[0]]
+
+
+def _delete_invalid_token(token: str) -> None:
+    """무효 토큰 (UnregisteredError) 자동 삭제."""
+    if not token:
+        return
+    try:
+        with db_conn() as con:
+            con.execute("DELETE FROM push_tokens WHERE token = ?", (token,))
+            con.commit()
+        print(f"[fcm] 무효 token 삭제: {token[:20]}...")
+    except Exception as e:
+        print(f"[fcm] token 삭제 실패: {type(e).__name__}: {e}")
+
+
+def _send_fcm_data_to_phone(phone_digits: str, data: dict) -> dict:
+    """phone 의 모든 토큰으로 FCM data-only 메시지 전송.
+
+    반환: {sent, failed, removed} 카운트. 실패해도 raise 안 함 (폴링 폴백 위해).
+    """
+    result = {"sent": 0, "failed": 0, "removed": 0}
+    if not _init_firebase():
+        return result
+    tokens = _get_tokens_for_phone(phone_digits)
+    if not tokens:
+        return result
+    try:
+        from firebase_admin import messaging
+    except ImportError:
+        return result
+    # data payload 는 모두 string (FCM 요구사항)
+    data_str = {k: str(v) for k, v in data.items() if v is not None}
+    for tok in tokens:
+        try:
+            message = messaging.Message(
+                data=data_str,
+                token=tok,
+                android=messaging.AndroidConfig(priority="high"),
+            )
+            messaging.send(message)
+            result["sent"] += 1
+        except Exception as e:
+            err_name = type(e).__name__
+            err_msg = str(e).lower()
+            # 무효 토큰 = 삭제
+            if "unregistered" in err_msg or "invalid" in err_msg or err_name == "UnregisteredError":
+                _delete_invalid_token(tok)
+                result["removed"] += 1
+            else:
+                result["failed"] += 1
+                print(f"[fcm] send 실패 token={tok[:20]}... {err_name}: {e}")
+    print(
+        f"[fcm] {phone_digits} type={data.get('type','?')} "
+        f"sent={result['sent']} failed={result['failed']} removed={result['removed']}"
+    )
+    return result
+
+
+# ─── POST /api/push/register ───
+# 앱이 onNewToken / 앱 시작 시 호출. phone ↔ token 매핑 UPSERT.
+
+class PushRegisterRequest(BaseModel):
+    phone: str
+    token: str
+    platform: Optional[str] = "android"
+
+
+@app.post("/api/push/register")
+async def push_register(req: PushRegisterRequest) -> dict:
+    """FCM 토큰 등록 (UPSERT). 같은 token 재호출 시 phone 갱신."""
+    phone_digits = "".join(ch for ch in (req.phone or "") if ch.isdigit())
+    token = (req.token or "").strip()
+    if not phone_digits:
+        raise HTTPException(400, "phone 필수")
+    if not token:
+        raise HTTPException(400, "token 필수")
+    platform = (req.platform or "android").strip()[:20]
+    now = _now_ms()
+    with db_conn() as con:
+        con.execute(
+            """
+            INSERT INTO push_tokens (token, phone, platform, registered_at_ms, updated_at_ms)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(token) DO UPDATE SET
+              phone = excluded.phone,
+              platform = excluded.platform,
+              updated_at_ms = excluded.updated_at_ms
+            """,
+            (token, phone_digits, platform, now, now),
+        )
+        con.commit()
+    print(f"[push/register] phone={phone_digits} token={token[:20]}... platform={platform}")
+    return {"ok": True}
+
+
+# ─── POST /api/push/unregister ───
+# 로그아웃 / 토큰 무효 시 호출.
+
+class PushUnregisterRequest(BaseModel):
+    token: str
+
+
+@app.post("/api/push/unregister")
+async def push_unregister(req: PushUnregisterRequest) -> dict:
+    """FCM 토큰 삭제."""
+    token = (req.token or "").strip()
+    if not token:
+        raise HTTPException(400, "token 필수")
+    with db_conn() as con:
+        cur = con.execute("DELETE FROM push_tokens WHERE token = ?", (token,))
+        con.commit()
+    return {"ok": True, "deleted": cur.rowcount}
 
 
 # ─── ⑧ GET /shared/{share_id} — 미가입 사장 link 도착 페이지 (HTML) ───

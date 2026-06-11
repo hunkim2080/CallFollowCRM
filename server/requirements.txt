@@ -14,3 +14,7 @@ sqlite-vec
 # faster-whisper = CTranslate2 기반 Whisper, CPU 모드 OK, 한국어 지원.
 # base 모델 ~75MB, 첫 호출 시 자동 다운로드.
 faster-whisper
+# §30 — FCM 푸시 (안드로이드 SERVER_HANDOFF_fcm_push 2026-06-12)
+# 협업 invite/progress/paid 시점에 앱 꺼져 있어도 즉시 알림.
+# Firebase service account JSON 경로 = ENV FCM_SERVICE_ACCOUNT_JSON.
+firebase-admin
