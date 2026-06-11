@@ -4,11 +4,13 @@ import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.provider.ContactsContract
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,8 +24,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import com.detailline.callfollowcrm.presentation.util.bottomBarClearance
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -321,6 +324,7 @@ private fun PhraseSheet(
         },
         text = {
             Column {
+                com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
                 phrases.forEachIndexed { i, p ->
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
                         Box(
@@ -537,16 +541,32 @@ private fun ContactDialog(
     val catHint = if (isWorker) "전기·목공처럼 하는 일로, 또는 보조·기공·반장처럼 본인 방식대로 나눠도 돼요."
     else "자재·협력·장비처럼 본인 방식대로 나눠도 돼요."
     val showMemo = !isWorker || isEdit // 프로토: 일당 추가엔 메모 없음(편집엔 있음), 거래처는 항상 있음
-    val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val noRipple = remember { MutableInteractionSource() }
+    BackHandler(enabled = true) { onDismiss() }
 
-    androidx.compose.material3.ModalBottomSheet(
-        onDismissRequest = onDismiss, sheetState = sheetState, containerColor = Color.White,
-        tonalElevation = 0.dp
+    // ModalBottomSheet(별도 윈도우)는 갤S9/안드10 에서 키보드가 입력칸을 가림(reference_modalbottomsheet_keyboard).
+    //   → 액티비티 창 인라인 오버레이로 그려서 키보드 뜨면 카드가 위로 밀려 올라가게(imePadding). (2026-06-11 사장님 신고)
+    Box(
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f))
+            .clickable(interactionSource = noRipple, indication = null) { onDismiss() }
     ) {
         Column(
-            Modifier.fillMaxWidth().padding(horizontal = 20.dp).bottomBarClearance(extra = 22.dp)
-                .heightIn(max = 560.dp).verticalScroll(rememberScrollState())
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
+                .background(Color.White)
+                .clickable(interactionSource = noRipple, indication = null) { }
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(horizontal = 20.dp)
+                .padding(top = 8.dp, bottom = 20.dp)
+                .heightIn(max = 620.dp)
+                .verticalScroll(rememberScrollState())
         ) {
+            // grip
+            Box(
+                Modifier.align(Alignment.CenterHorizontally).padding(bottom = 12.dp)
+                    .width(38.dp).height(4.dp).clip(RoundedCornerShape(999.dp)).background(TossDivider)
+            )
             Text(title, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
             Spacer(Modifier.height(4.dp))
             Text(sub, fontSize = 13.sp, color = TossTextTertiary)
