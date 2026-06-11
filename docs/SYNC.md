@@ -3577,3 +3577,8 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 현장 주소 등록 모달 UI 정리: 회색 주소박스 + 파란 "주소 검색" 버튼이 둘 다 검색 열기라 헷갈리던 것 → 단계식. ①주소 미선택=검색 버튼 하나만(유일 동작) ②선택됨=주소 카드 📍 + [변경](재검색) + 동·호수 입력(이때만 노출, 자동 포커스). 중복 제거.
 - 변경: 서버 영향 없음. CustomerDetailScreen AddressEditDialog.
 - commit: (아래)
+
+## 2026-06-11 · android
+현장 주소 모달: 동·호수만 수정하려 해도 전체 재검색해야 하고 "11동 22동" 중복 누적되던 버그 수정. 열 때 저장된 주소를 splitSiteAddress 로 도로명+동·호수 분리(첫 숫자+동/호/층 위치) → 도로명은 📍카드, 동·호수는 입력칸에 prefill. 저장 시 도로명에 다시 안 붙어 중복 끝. 기존 중복분도 동·호수칸에서 바로 수정 가능.
+- 변경: 서버 영향 없음. CustomerDetailScreen splitSiteAddress + AddressEditDialog 초기값.
+- commit: (아래)

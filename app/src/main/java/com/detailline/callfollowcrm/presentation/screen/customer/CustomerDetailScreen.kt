@@ -2353,6 +2353,22 @@ private fun CategoryChoiceChip(label: String, selected: Boolean, onClick: () -> 
 }
 
 /**
+ * 저장된 한 줄 주소를 도로명(base) + 동·호수(detail)로 분리.
+ *   동·호수는 보통 끝에 "…동/호/층"으로 붙는다(아파트 동은 숫자+동, 법정동은 숫자 없음 → 오인 X).
+ *   첫 "숫자+동/호/층" 위치에서 자른다. 못 찾으면 전체가 도로명(detail 없음).
+ */
+private fun splitSiteAddress(full: String): Pair<String, String> {
+    val s = full.trim()
+    if (s.isEmpty()) return "" to ""
+    val m = Regex("""\d+\s*(동|호|층)""").find(s) ?: return s to ""
+    val idx = m.range.first
+    if (idx <= 0) return s to ""
+    val base = s.substring(0, idx).trim()
+    val detail = s.substring(idx).trim()
+    return if (base.isEmpty()) s to "" else base to detail
+}
+
+/**
  * "📍 현장 주소" 카드 탭 시 뜨는 입력 다이얼로그 (2026-05-28, DB v15).
  *   - currentAddress: 현재 저장된 수동 주소 (있으면 초기값으로 prefill)
  *   - extractedSuggestion: 메시지 자동 추출 결과 (currentAddress 와 다르면 칩으로 제안 — 한 탭에 input 박힘)
@@ -2370,13 +2386,16 @@ private fun AddressEditDialog(
     // 2026-05-28 사장님 통점: 다이얼로그 입력 도중 [뒤로]/홈/잠금/전화 → 입력 날아감.
     //   composer 임시저장과 같은 원칙. remember → rememberSaveable 로 변경 → Bundle 저장 → recompose/destroy 살아남음.
     //   currentAddress 가 바뀌면 (다른 고객의 다이얼로그) 시드 새로 = key 로 분리.
+    // 저장된 주소를 도로명(base) + 동·호수(detail)로 분리해서 다시 채운다.
+    //   (2026-06-11 사장님 통점: 동·호수만 고치려 해도 전체가 주소칸에 들어가 처음부터 재검색 + "11동 22동" 중복 누적.)
+    val (initBase, initDetail) = remember(currentAddress) { splitSiteAddress(currentAddress.orEmpty()) }
     var text by androidx.compose.runtime.saveable.rememberSaveable(currentAddress) {
-        mutableStateOf(currentAddress.orEmpty())
+        mutableStateOf(initBase)
     }
     // 동·호수(상세주소) 별도 입력 — 주소 검색은 도로명/지번까지만 주므로 검색 후 여기에 이어 적는다.
     //   (2026-06-10 사장님 통점: 검색 후 동/호수 칸이 따로 없어 같은 칸에 우겨넣어야 해 불편.)
     var detail by androidx.compose.runtime.saveable.rememberSaveable(currentAddress) {
-        mutableStateOf("")
+        mutableStateOf(initDetail)
     }
     val detailFocus = remember { FocusRequester() }
     var focusDetail by remember { mutableStateOf(false) }
