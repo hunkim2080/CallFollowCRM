@@ -3683,3 +3683,12 @@ FCM 즉시푸시 계획 핸드오프 작성(SERVER_HANDOFF_fcm_push.md).
 - google-services.json / adminsdk 키는 .gitignore (repo 에 없음). 프로젝트 id=ringgo-2844c.
 - commit: 6111272
 - 다음 액션(서버): /api/push/register + invite 푸시 → SYNC 회신. 그러면 끝단 검증.
+
+## 2026-06-12 (추가5) · android
+맥미니 FCM Phase 1 회신 — 앱 수신 payload 정렬 완료(commit e9b88c2 부근).
+- collab_invite: 그대로 일치 ✓
+- collab_event: 서버가 bank/account_no/holder 따로 + time_label 없음 → 앱이 account 합치고 time_label="방금" 폴백.
+- collab_paid: 신규 수신 처리 + showCollabPaid 추가.
+- 중복: FCM/폴링 같은 share_id/event_id → notifId 동일 → 알림 대체(이중 안 뜸).
+- unregister: 앱은 token 회전을 upsert 로 자가치유(번호 바뀌어도 다음 register 로 갱신). 명시적 logout 흐름 생기면 /unregister 붙일 예정.
+- 다음: 폰 2대 끝단 검증(B 꺼진 상태 invite → 즉시 알림 → 수락).
