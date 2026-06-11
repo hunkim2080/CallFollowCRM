@@ -152,6 +152,14 @@ fun NewLeadsScreen(
                     )
                 }
             }
+            // 꾹 누르기(롱프레스) 미리보기는 숨은 제스처 → 처음 쓰는 사람도 알게 한 줄 안내. (2026-06-11 사장님)
+            item {
+                Text(
+                    "💡 줄을 꾹 누르면 지난 대화를 미리 볼 수 있어요",
+                    color = TossTextTertiary, fontSize = 12.sp, fontWeight = FontWeight.Medium,
+                    modifier = Modifier.fillMaxWidth().padding(start = 2.dp, bottom = 14.dp)
+                )
+            }
             // cfilter — 전체 / 미답장만
             item {
                 Row(
