@@ -141,6 +141,20 @@ class CallFollowCrmApplication : Application() {
         //   권한 없으면 silent skip.
         registerCallStateListener()
 
+        // FCM 토큰 서버 등록 — 즉시 푸시(협업 요청)용. bizPhone 있을 때만. RingGoFcmService.onNewToken 보강.
+        //   docs/SERVER_HANDOFF_fcm_push.md. 실패해도 안전(폴링 알림 안전망).
+        run {
+            val phone = container.preferences.bizPhone.trim()
+            if (phone.isNotBlank()) {
+                runCatching {
+                    com.google.firebase.messaging.FirebaseMessaging.getInstance().token
+                        .addOnSuccessListener { token ->
+                            appScope.launch { runCatching { container.pushRegisterRepository.register(phone, token) } }
+                        }
+                }
+            }
+        }
+
         // 시공접수서 제출 폴링 — 앱이 켜져 있는 동안 60초마다 새 제출 동기화 → 고객 카드 반영 + 알림.
         //   (완전 백그라운드(앱 종료 상태) 알림은 WorkManager/FCM 필요 — 추후.)
         appScope.launch {

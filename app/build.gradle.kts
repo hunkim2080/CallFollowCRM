@@ -4,6 +4,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
+    id("com.google.gms.google-services")
 }
 
 // 릴리즈 서명 — keystore.properties (git 제외) 가 있으면 정식 키로 서명. 없으면 미서명(unsigned).
@@ -69,6 +70,10 @@ dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.06.00")
     implementation(composeBom)
     androidTestImplementation(composeBom)
+
+    // Firebase Cloud Messaging — 즉시 푸시(협업 요청/진행). google-services.json 으로 설정. (2026-06-12)
+    implementation(platform("com.google.firebase:firebase-bom:33.1.2"))
+    implementation("com.google.firebase:firebase-messaging-ktx")
 
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.activity:activity-compose:1.8.2")

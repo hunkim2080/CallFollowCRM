@@ -293,6 +293,15 @@
             android:name=".service.GeofenceBroadcastReceiver"
             android:exported="false" />
 
+        <!-- FCM 즉시 푸시 수신(협업 요청/진행). data 메시지 → 직접 알림. docs/SERVER_HANDOFF_fcm_push.md -->
+        <service
+            android:name=".service.RingGoFcmService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
         <!-- 견적서(직인) 이미지를 문자/공유로 내보낼 때 캐시 파일 URI 공유용. -->
         <provider
             android:name="androidx.core.content.FileProvider"

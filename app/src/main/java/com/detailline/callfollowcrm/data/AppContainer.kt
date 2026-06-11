@@ -147,6 +147,10 @@ class AppContainer(context: Context) {
     val collabEventCenter by lazy {
         com.detailline.callfollowcrm.ai.CollabEventCenter(sharedSiteRepository, preferences)
     }
+    /** FCM 토큰 서버 등록 — 즉시 푸시(2026-06-12). docs/SERVER_HANDOFF_fcm_push.md */
+    val pushRegisterRepository by lazy {
+        com.detailline.callfollowcrm.ai.PushRegisterRepository()
+    }
     // 2026-06-05 팀원 현장 배정(로컬 기록 + 서버 snapshot push 의 토대).
     val teamAssignmentRepository = com.detailline.callfollowcrm.data.repository.TeamAssignmentRepository(
         db.teamAssignmentDao()

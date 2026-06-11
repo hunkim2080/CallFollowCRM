@@ -30,6 +30,12 @@ local.properties
 keystore.properties
 secrets.properties
 
+# Firebase (FCM) — google-services.json = 앱 설정, adminsdk json = 서버 비밀키. 둘 다 git 금지.
+/firebase/
+app/google-services.json
+*-adminsdk-*.json
+google-services.json
+
 # Logs
 *.log
 
