@@ -581,8 +581,8 @@ private fun ContactDialog(
             )
             Spacer(Modifier.height(10.dp))
             com.detailline.callfollowcrm.presentation.component.SheetFieldLabel("전화번호")
-            com.detailline.callfollowcrm.presentation.component.SheetTextField(
-                phone, { phone = PhoneNumberFormatter.formatProgressive(it) },
+            com.detailline.callfollowcrm.presentation.component.FormattedTextField(
+                phone, { phone = it }, PhoneNumberFormatter::formatProgressive,
                 placeholder = "010-0000-0000", keyboardType = KeyboardType.Phone
             )
             Spacer(Modifier.height(10.dp))

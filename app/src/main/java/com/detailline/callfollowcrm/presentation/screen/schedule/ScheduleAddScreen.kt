@@ -96,14 +96,20 @@ fun ScheduleAddScreen(
     val workers by viewModel.workers.collectAsState()
     val vendors by viewModel.vendors.collectAsState()
     val recentContacts by viewModel.recentContacts.collectAsState()
+    val contactHints by viewModel.contactHints.collectAsState()
     val selectedWorkerIds = remember { mutableStateListOf<Long>() }
     var crewWageText by remember { mutableStateOf("") }
 
     var mode by remember { mutableStateOf("mine") } // mine | partner
     var name by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }
+    // 전화번호 = TextFieldValue + 커서 항상 끝 → formatProgressive 재포맷 시 숫자 순서 꼬임 방지(앱 공통 패턴).
+    //   2026-06-11 사장님 요청으로 "010" 미리 채움.
+    var phoneField by remember {
+        mutableStateOf(androidx.compose.ui.text.input.TextFieldValue("010", selection = androidx.compose.ui.text.TextRange(3)))
+    }
     var selectedVendor by remember { mutableStateOf<NotebookContactEntity?>(null) }
     var address by remember { mutableStateOf("") }
+    var addrDetail by remember { mutableStateOf("") }   // 동·호수(별도) — 주소 검색은 도로명까지만 줌.
     var totalManwon by remember { mutableStateOf("") }
     var depositManwon by remember { mutableStateOf("") }
     var depositReceived by remember { mutableStateOf(false) }
@@ -199,8 +205,15 @@ fun ScheduleAddScreen(
                 SheetTextField(name, { name = it }, placeholder = "예: 강동 서사장")
                 Spacer(Modifier.height(12.dp))
                 FieldLabel("고객 전화번호")
-                SheetTextField(phone, { phone = PhoneNumberFormatter.formatProgressive(it) }, placeholder = "010-0000-0000",
-                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone)
+                SheetTextField(
+                    value = phoneField,
+                    onValueChange = { tfv ->
+                        val f = PhoneNumberFormatter.formatProgressive(tfv.text)
+                        phoneField = androidx.compose.ui.text.input.TextFieldValue(f, selection = androidx.compose.ui.text.TextRange(f.length))
+                    },
+                    placeholder = "010-0000-0000",
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone
+                )
             } else {
                 FieldLabel("거래처 (자주 일 주는 곳)")
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -233,6 +246,12 @@ fun ScheduleAddScreen(
                     address.ifBlank { "주소 검색 (탭)" },
                     fontSize = 15.sp, color = if (address.isBlank()) TossTextTertiary else TossTextPrimary
                 )
+            }
+            // 동·호수 — 주소(도로명) 고른 뒤에만. 고객정보 화면과 동일 흐름. (2026-06-11)
+            if (address.isNotBlank()) {
+                Spacer(Modifier.height(8.dp))
+                FieldLabel("동·호수 (선택)")
+                SheetTextField(addrDetail, { addrDetail = it }, placeholder = "예: 101동 1502호")
             }
 
             Spacer(Modifier.height(12.dp))
@@ -327,10 +346,11 @@ fun ScheduleAddScreen(
                             if (v == null) { android.widget.Toast.makeText(context, "거래처를 선택해주세요", android.widget.Toast.LENGTH_SHORT).show(); return@clickable }
                             if (v.phone.filter { it.isDigit() }.length < 8) { android.widget.Toast.makeText(context, "이 거래처는 번호가 없어요. 수첩에서 번호를 추가해주세요", android.widget.Toast.LENGTH_SHORT).show(); return@clickable }
                             submitName = "${v.name} (거래처)"; submitPhone = v.phone
-                        } else { submitName = name; submitPhone = phone }
+                        } else { submitName = name; submitPhone = phoneField.text }
+                        val combinedAddr = (address.trim() + if (addrDetail.isBlank()) "" else " " + addrDetail.trim()).trim()
                         viewModel.submit(
                             name = submitName, phone = submitPhone, dayMs = dayMs,
-                            workMinutes = workMinutes, workDays = workDays, address = address,
+                            workMinutes = workMinutes, workDays = workDays, address = combinedAddr,
                             totalAmount = totalManwon.toLongOrNull()?.let { it * 10_000 },
                             depositAmount = if (depositReceived) depositManwon.toLongOrNull()?.let { it * 10_000 } else null,
                             depositPaid = depositReceived,
@@ -353,11 +373,16 @@ fun ScheduleAddScreen(
     if (showImport) {
         ContactImportDialog(
             contacts = recentContacts,
+            hints = contactHints,
             onPick = { c ->
                 mode = "mine"
                 name = c.name?.takeIf { it.isNotBlank() } ?: ""
-                phone = PhoneNumberFormatter.format(c.phoneNumber)  // 불러오기도 하이픈 표시(가독성). 2026-06-07
-                c.address?.takeIf { it.isNotBlank() }?.let { address = it }
+                val f = PhoneNumberFormatter.format(c.phoneNumber)  // 불러오기도 하이픈 표시(가독성).
+                phoneField = androidx.compose.ui.text.input.TextFieldValue(f, selection = androidx.compose.ui.text.TextRange(f.length))
+                c.address?.takeIf { it.isNotBlank() }?.let {
+                    val (base, detail) = com.detailline.callfollowcrm.util.splitSiteAddress(it)
+                    address = base; addrDetail = detail
+                }
                 showImport = false
             },
             onDismiss = { showImport = false }
@@ -573,6 +598,7 @@ private fun InlineMonthCalendar(
 @Composable
 private fun ContactImportDialog(
     contacts: List<CustomerEntity>,
+    hints: Map<String, String>,
     onPick: (CustomerEntity) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -583,6 +609,9 @@ private fun ContactImportDialog(
         ) {
             Text("통화·문자한 고객", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+            // 번호만으론 누군지 모르니 ✨요약/메모/주소/최근연락을 힌트로 같이 보여줌. (2026-06-11 사장님)
+            Text("번호 아래 힌트로 누군지 확인하고 골라요.", fontSize = 12.sp, color = TossTextTertiary,
+                modifier = Modifier.padding(horizontal = 20.dp))
             Spacer(Modifier.height(8.dp))
             if (contacts.isEmpty()) {
                 Text("불러올 고객이 아직 없어요", fontSize = 14.sp, color = TossTextTertiary,
@@ -590,21 +619,47 @@ private fun ContactImportDialog(
             } else {
                 LazyColumn(Modifier.fillMaxWidth().heightIn(max = 380.dp)) {
                     items(contacts, key = { it.id }) { c ->
+                        val hasName = c.name?.isNotBlank() == true
+                        val suffix = c.phoneNumber.filter { it.isDigit() }.takeLast(8)
+                        // 힌트 우선순위: ✨AI요약 > 메모 > 짧은주소 > 최근 연락 N일 전.
+                        val hint = hints[suffix]
+                            ?: c.memo?.takeIf { it.isNotBlank() }
+                            ?: c.address?.takeIf { it.isNotBlank() }
+                            ?: lastContactHint(c.updatedAt)
                         Column(
                             Modifier.fillMaxWidth().clickable { onPick(c) }
-                                .padding(horizontal = 20.dp, vertical = 12.dp)
+                                .padding(horizontal = 20.dp, vertical = 11.dp)
                         ) {
-                            Text(c.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(c.phoneNumber),
-                                fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-                            if (c.name?.isNotBlank() == true) {
-                                Spacer(Modifier.height(2.dp))
-                                Text(PhoneNumberFormatter.format(c.phoneNumber), fontSize = 12.sp, color = TossTextTertiary)
-                            }
+                            Text(
+                                if (hasName) c.name!! else PhoneNumberFormatter.format(c.phoneNumber),
+                                fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
+                                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            // 이름 있으면: 번호 · 힌트 / 이름 없으면: 힌트만(번호는 위에).
+                            Text(
+                                if (hasName) PhoneNumberFormatter.format(c.phoneNumber) + (hint?.let { " · $it" } ?: "")
+                                else (hint ?: PhoneNumberFormatter.format(c.phoneNumber)),
+                                fontSize = 12.sp, color = TossTextTertiary,
+                                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
                         }
                     }
                 }
             }
         }
+    }
+}
+
+/** updatedAt → "오늘 연락 / 어제 연락 / N일 전 연락" (번호만 있는 고객 식별 힌트). */
+private fun lastContactHint(updatedAt: Long): String {
+    val today = DateTimeUtils.startOfDay(System.currentTimeMillis())
+    val days = ((today - DateTimeUtils.startOfDay(updatedAt)) / DateTimeUtils.DAY_MS).toInt()
+    return when {
+        days <= 0 -> "오늘 연락"
+        days == 1 -> "어제 연락"
+        days in 2..30 -> "${days}일 전 연락"
+        else -> DateTimeUtils.formatDateOnly(updatedAt) + " 연락"
     }
 }
 

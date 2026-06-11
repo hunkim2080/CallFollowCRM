@@ -112,9 +112,9 @@ fun BusinessInfoScreen(
 
                 Field("상호 (업체명)", name, placeholder = "예: 디테일라인 줄눈") { name = it }
                 Field("대표자 이름", owner, placeholder = "예: 정민수") { owner = it }
-                Field("사업자등록번호 (선택)", bizNo, KeyboardType.Number, placeholder = "123-45-67890") { bizNo = formatBizNo(it) }
+                FormattedField("사업자등록번호 (선택)", bizNo, ::formatBizNo, KeyboardType.Number, "123-45-67890") { bizNo = it }
                 Field("주소 (선택)", addr, placeholder = "예: 서울 강동구") { addr = it }
-                Field("전화번호", phone, KeyboardType.Phone, placeholder = "010-0000-0000") { phone = formatPhoneInput(it) }
+                FormattedField("전화번호", phone, ::formatPhoneInput, KeyboardType.Phone, "010-0000-0000") { phone = it }
                 Field("직인 문구 (도장에 들어갈 글자)", seal, placeholder = "예: 디테일라인 줄눈") { seal = it }
 
                 // ── 입금 계좌 (협업 현장 정산용) ──
@@ -182,6 +182,19 @@ private fun Field(label: String, value: String, keyboard: KeyboardType = Keyboar
     // 프로토 .sheet-label + .sheet-input.
     FieldLabel(label)
     SheetTextField(value = value, onValueChange = onChange, placeholder = placeholder, keyboardType = keyboard)
+}
+
+/** 자동 하이픈(전화/사업자번호) 칸 — 커서 꼬임 방지 FormattedTextField 사용. */
+@Composable
+private fun FormattedField(
+    label: String, value: String, format: (String) -> String,
+    keyboard: KeyboardType, placeholder: String, onChange: (String) -> Unit
+) {
+    FieldLabel(label)
+    com.detailline.callfollowcrm.presentation.component.FormattedTextField(
+        value = value, onValueChange = onChange, format = format,
+        placeholder = placeholder, keyboardType = keyboard
+    )
 }
 
 /** 사업자등록번호 자동 하이픈 — XXX-XX-XXXXX (숫자만, 최대 10자리). 입력 중 자동 삽입. */

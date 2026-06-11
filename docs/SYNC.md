@@ -3617,3 +3617,12 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 하단 내비바 가림 버그 전수 개선: M3 ModalBottomSheet가 갤S9에서 내비바 인셋 0 반환 → 시트 버튼/내용 가림. 공통 헬퍼 presentation/util/SystemBars.kt(navBarBottomDp + Modifier.bottomBarClearance: 인셋>0이면 인셋, 0이면 리소스 navigation_bar_height fallback). 적용: PhotoPickerSheet, ChatScreen(버블액션시트·보내기확인시트), NewLeads 미리보기, MyScheduleSheet, NotebookScreen 편집시트. 인라인 오버레이(액티비티 창: AssignTeam/Settlement입력/AddMember/Onboarding/Login/탭바)는 정상이라 미변경(과다여백 방지).
 - 변경: 서버 영향 없음. 신규 SystemBars.kt + 5개 시트.
 - commit: (아래)
+
+## 2026-06-11 · android
+키패드 순서꼬임 + 주소 동호수 전수 개선:
+1) 자동하이픈 칸 커서꼬임 전수 수정: 공용 FormattedTextField(내부 TextFieldValue 커서끝 고정) 신설. 적용=ScheduleAdd 전화(+TextFieldValue inline), Notebook 전화, BusinessInfo 전화·사업자번호. (기존 Team/FollowUp는 이미 동일 패턴이라 유지)
+2) ScheduleAdd 전화번호 "010" 미리 채움.
+3) 주소 동·호수: splitSiteAddress 공용 util 추출(CustomerDetail 사용 전환) + ScheduleAdd에 동·호수 입력칸 추가(검색 후 노출, 불러오기 시 split prefill, 저장 시 도로명+동호수 결합).
+4) ScheduleAdd 불러오기 목록 힌트: 번호만 보고 누군지 모름 → ✨AI요약>메모>주소>최근연락 한 줄(contactHints, conversationAiRepository.observeAll 재사용).
+- 변경: 서버 영향 없음. TossComponents.FormattedTextField, util/AddressUtils.kt, ScheduleAddScreen/VM, NotebookScreen, BusinessInfoScreen, CustomerDetailScreen.
+- commit: (아래)

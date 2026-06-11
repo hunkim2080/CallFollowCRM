@@ -46,6 +46,17 @@ class ScheduleAddViewModel(private val container: AppContainer) : ViewModel() {
             .map { list -> list.sortedByDescending { it.updatedAt } }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** 번호별 ✨AI 한줄요약 — 불러오기 목록에서 "번호만 보고 누군지 모름" 해소 힌트. (suffix→요약) */
+    val contactHints: StateFlow<Map<String, String>> =
+        container.conversationAiRepository.observeAll()
+            .map { list ->
+                list.mapNotNull { s ->
+                    s.cardSummary?.trim()?.takeIf { it.isNotEmpty() && !it.equals("null", true) }
+                        ?.let { s.phoneSuffix to it }
+                }.toMap()
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
     /** 프로토 addPartner — 새 거래처를 수첩(VENDOR)에 추가. */
     fun addVendor(name: String, phone: String, onDone: () -> Unit) {
         val nm = name.trim()

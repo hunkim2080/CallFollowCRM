@@ -27,6 +27,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -268,6 +274,37 @@ fun SheetTextField(
  * 프로토 .sheet-input — 폼 입력칸. 회색 채움 + 1.5dp 테두리 + radius12 + 15sp.
  *   Material OutlinedTextField(아웃라인/플로팅 라벨) 대체 — 프로토 폼 1:1.
  */
+/**
+ * 자동 하이픈(전화번호/사업자번호)이 들어가는 입력칸 — 커서 순서 꼬임 방지 공용 컴포넌트.
+ *   String 상태를 onValueChange 에서 재포맷하면 갤S9 등에서 커서가 엉켜 숫자가 순서대로 안 들어감.
+ *   내부에서 TextFieldValue 로 커서를 항상 맨 뒤에 고정. 상태는 여전히 포맷된 String (호출부 단순).
+ *   (2026-06-11 사장님 전수 보고)
+ * @param format 입력 raw → 표시 문자열 (예: PhoneNumberFormatter::formatProgressive)
+ */
+@Composable
+fun FormattedTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    format: (String) -> String,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    keyboardType: KeyboardType = KeyboardType.Number
+) {
+    var tfv by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
+    if (tfv.text != value) tfv = TextFieldValue(value, TextRange(value.length))
+    SheetTextField(
+        value = tfv,
+        onValueChange = { newTfv ->
+            val f = format(newTfv.text)
+            tfv = TextFieldValue(f, TextRange(f.length))
+            onValueChange(f)
+        },
+        placeholder = placeholder,
+        keyboardType = keyboardType,
+        modifier = modifier
+    )
+}
+
 @Composable
 fun SheetTextField(
     value: String,
