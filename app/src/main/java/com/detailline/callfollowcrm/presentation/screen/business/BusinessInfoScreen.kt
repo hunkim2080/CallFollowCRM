@@ -1,6 +1,8 @@
 package com.detailline.callfollowcrm.presentation.screen.business
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -20,6 +22,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,6 +65,45 @@ fun BusinessInfoScreen(
     var bank by remember { mutableStateOf(prefs.bizBank) }
     var accountNo by remember { mutableStateOf(prefs.bizAccountNo) }
     var accountHolder by remember { mutableStateOf(prefs.bizAccountHolder) }
+
+    // 전화번호 자동 채움 — 비어 있으면 유심에서 내 번호 읽기 시도(한국은 빈 값 자주 옴 → 실패해도 무해).
+    LaunchedEffect(Unit) {
+        if (phone.isBlank()) {
+            val sim = com.detailline.callfollowcrm.util.DevicePhoneNumber.readSimNumber(context)
+            if (sim.isNotBlank()) phone = formatPhoneInput(sim)
+        }
+    }
+    // "내 번호 불러오기" — 구글 전화번호 힌트(한 번 탭). 자동 읽기 실패 보강.
+    val hintLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            runCatching {
+                val num = com.google.android.gms.auth.api.identity.Identity
+                    .getSignInClient(context).getPhoneNumberFromIntent(result.data)
+                val norm = com.detailline.callfollowcrm.util.DevicePhoneNumber.normalizeKorean(num)
+                if (norm.isNotBlank()) phone = formatPhoneInput(norm)
+            }
+        }
+    }
+    val launchPhoneHint = {
+        runCatching {
+            val req = com.google.android.gms.auth.api.identity.GetPhoneNumberHintIntentRequest.builder().build()
+            com.google.android.gms.auth.api.identity.Identity.getSignInClient(context)
+                .getPhoneNumberHintIntent(req)
+                .addOnSuccessListener { pi ->
+                    runCatching {
+                        hintLauncher.launch(
+                            androidx.activity.result.IntentSenderRequest.Builder(pi.intentSender).build()
+                        )
+                    }
+                }
+                .addOnFailureListener {
+                    android.widget.Toast.makeText(context, "번호를 자동으로 못 불러왔어요. 직접 입력해주세요", android.widget.Toast.LENGTH_SHORT).show()
+                }
+        }
+        Unit
+    }
 
     BackHandler(enabled = true) { onBack() }
 
@@ -115,6 +157,16 @@ fun BusinessInfoScreen(
                 FormattedField("사업자등록번호 (선택)", bizNo, ::formatBizNo, KeyboardType.Number, "123-45-67890") { bizNo = it }
                 Field("주소 (선택)", addr, placeholder = "예: 서울 강동구") { addr = it }
                 FormattedField("전화번호", phone, ::formatPhoneInput, KeyboardType.Phone, "010-0000-0000") { phone = it }
+                // 직접 입력 대신 한 번 탭으로 내 폰 번호 불러오기.
+                Text(
+                    "📱 내 번호 불러오기",
+                    fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossBlue,
+                    modifier = Modifier
+                        .padding(top = 6.dp, start = 2.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { launchPhoneHint() }
+                        .padding(horizontal = 8.dp, vertical = 5.dp)
+                )
                 Field("직인 문구 (도장에 들어갈 글자)", seal, placeholder = "예: 디테일라인 줄눈") { seal = it }
 
                 // ── 입금 계좌 (협업 현장 정산용) ──

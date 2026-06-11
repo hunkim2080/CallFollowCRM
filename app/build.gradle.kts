@@ -102,6 +102,8 @@ dependencies {
 
     // 현장 도착 안내 — 지오펜싱(시공 현장 5km 진입 감지). FusedLocation + Geofencing.
     implementation("com.google.android.gms:play-services-location:21.3.0")
+    // 내 번호 자동입력 — 구글 전화번호 힌트(한 번 탭). (2026-06-12)
+    implementation("com.google.android.gms:play-services-auth:21.2.0")
 
     // 템플릿 첨부 사진 썸네일 로딩
     implementation("io.coil-kt:coil-compose:2.5.0")
