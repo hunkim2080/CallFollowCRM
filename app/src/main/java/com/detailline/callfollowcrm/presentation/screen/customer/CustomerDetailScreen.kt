@@ -520,8 +520,9 @@ fun CustomerDetailScreen(
             run {
                 val scheduled = c.scheduledWorkDate
                 val totalWon = c.totalAmount ?: 0L
-                val hasAmount = totalWon > 0L
                 val depositWon = c.depositAmount ?: 0L
+                // 총금액 또는 계약금 중 하나라도 입력되면 정산 영역을 펼친다(계약금만 따로 넣는 경우 포함).
+                val hasAmount = totalWon > 0L || depositWon > 0L
                 val balanceWon = c.balanceAmount ?: (totalWon - depositWon).coerceAtLeast(0L)
                 val depPaid = c.depositPaidAt != null
                 val balPaid = c.balancePaidAt != null
@@ -543,22 +544,26 @@ fun CustomerDetailScreen(
                             )
                             if (hasAmount) {
                                 Spacer(Modifier.height(12.dp))
-                                // 총금액 + [금액 수정] — 추가금/정정으로 총액이 바뀔 때 다시 고칠 수 있게(2026-06-04 사장님 요청).
+                                // 총금액 행 — 있으면 금액+[수정], 없으면 [총금액 입력]. (추가금/정정 대비 항상 수정 가능)
                                 androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                    Text("총 ${manwonLabel(totalWon)}", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                                    if (totalWon > 0L)
+                                        Text("총 ${manwonLabel(totalWon)}", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                                    else
+                                        Text("총금액 미입력", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
                                     Spacer(Modifier.weight(1f))
-                                    androidx.compose.foundation.layout.Row(
-                                        Modifier.clip(RoundedCornerShape(999.dp)).background(TossBlueSoft)
-                                            .clickable { amountEditField = "total" }
-                                            .padding(horizontal = 11.dp, vertical = 5.dp),
-                                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                                    ) {
-                                        androidx.compose.material3.Icon(Icons.Default.Edit, null, tint = TossBlue, modifier = Modifier.size(12.dp))
-                                        Spacer(Modifier.width(4.dp))
-                                        Text("금액 수정", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossBlue)
-                                    }
+                                    MoneyEditPill(if (totalWon > 0L) "금액 수정" else "총금액 입력") { amountEditField = "total" }
                                 }
-                                Spacer(Modifier.height(6.dp))
+                                Spacer(Modifier.height(8.dp))
+                                // 계약금 행 — 총금액과 별개로 따로 입력/수정 (2026-06-11 사장님: 계약금을 따로 넣어야 함).
+                                androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                    if (depositWon > 0L)
+                                        Text("계약금 ${manwonLabel(depositWon)}", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = TossTextSecondary)
+                                    else
+                                        Text("계약금 미설정", fontSize = 14.sp, color = TossTextTertiary)
+                                    Spacer(Modifier.weight(1f))
+                                    MoneyEditPill(if (depositWon > 0L) "계약금 수정" else "계약금 입력") { amountEditField = "deposit" }
+                                }
+                                Spacer(Modifier.height(8.dp))
                                 Text(
                                     payStatusLabel(allPaid, depositWon, balanceWon, depPaid),
                                     fontSize = 13.sp, color = TossTextSecondary, lineHeight = 19.sp
@@ -582,6 +587,8 @@ fun CustomerDetailScreen(
                             } else {
                                 Spacer(Modifier.height(12.dp))
                                 TossSecondaryButton(text = "💰 총금액 입력", onClick = { amountEditField = "total" })
+                                Spacer(Modifier.height(8.dp))
+                                TossSecondaryButton(text = "💵 계약금 입력", onClick = { amountEditField = "deposit" })
                             }
                         } else {
                             // 2026-06-07 사장님 통점: 통화로 다 정해졌는데 일정 등록하려면 견적서 보내기밖에 없었음(고객이 또 입력).
@@ -593,7 +600,9 @@ fun CustomerDetailScreen(
                             Spacer(Modifier.height(13.dp))
                             TossPrimaryButton(text = "📅 시공일 등록", onClick = { datePickerOpen = true })
                             Spacer(Modifier.height(8.dp))
-                            TossSecondaryButton(text = "💰 받을 돈(총금액) 입력", onClick = { amountEditField = "total" })
+                            TossSecondaryButton(text = "💰 총금액 입력", onClick = { amountEditField = "total" })
+                            Spacer(Modifier.height(8.dp))
+                            TossSecondaryButton(text = "💵 계약금 입력", onClick = { amountEditField = "deposit" })
                             // "견적서로 보내기" 제거 (2026-06-10 사장님: 용도 불명확). 견적서는 채팅 [견적 작성] 으로.
                         }
                     }
@@ -1641,12 +1650,28 @@ private fun payStatusLabel(allPaid: Boolean, deposit: Long, balance: Long, depPa
     else -> "계약금 없음 · 전액 ${manwonLabel(balance)} 미수"
 }
 
+/** 금액 행 오른쪽 파란 알약 — [금액 수정]/[계약금 입력] 등. 탭 → 해당 입력 다이얼로그. */
+@Composable
+private fun MoneyEditPill(label: String, onClick: () -> Unit) {
+    androidx.compose.foundation.layout.Row(
+        Modifier.clip(RoundedCornerShape(999.dp)).background(TossBlueSoft)
+            .clickable { onClick() }
+            .padding(horizontal = 11.dp, vertical = 5.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+    ) {
+        androidx.compose.material3.Icon(Icons.Default.Edit, null, tint = TossBlue, modifier = Modifier.size(12.dp))
+        Spacer(Modifier.width(4.dp))
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+    }
+}
+
 /** 금액(총금액/계약금) 입력 다이얼로그 — 만원 단위. */
 @Composable
 private fun AmountInputDialog(title: String, initialWon: Long, onSave: (Long) -> Unit, onDismiss: () -> Unit) {
     var text by remember { mutableStateOf(if (initialWon > 0L) (initialWon / 10000L).toString() else "") }
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color.White).padding(20.dp)) {
+            com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
             Text("$title 입력", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(

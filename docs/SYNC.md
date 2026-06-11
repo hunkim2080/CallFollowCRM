@@ -3597,3 +3597,8 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 "이 현장 함께 하기"(협업 공유) 섹션: 예약(시공일) 잡힌 고객만 노출. 상담 단계(scheduledWorkDate=null)는 공유할 현장이 없으니 섹션+시트 숨김. (사장님 요청)
 - 변경: 서버 영향 없음. CustomerDetailScreen if(c.scheduledWorkDate != null) 게이트.
 - commit: (아래)
+
+## 2026-06-11 · android
+정산 카드: 계약금을 총금액과 따로 입력 가능하게. 기존엔 총금액 입력 입구만 있고 계약금 설정 버튼이 없었음(계약금 따로 못 넣음). 추가: filled 상태에 "계약금 {액}/미설정 [계약금 입력·수정]" 행, 빈/온보딩 상태에 "💵 계약금 입력" 버튼. hasAmount=총||계약금. AmountInputDialog에 ForceDialogResize(키보드 가림 방지) 추가.
+- 변경: 서버 영향 없음. CustomerDetailScreen 정산 카드 + MoneyEditPill + AmountInputDialog.
+- commit: (아래)
