@@ -35,7 +35,8 @@ class PushRegisterRepository(
             val req = Request.Builder().url("$baseUrl/api/push/register")
                 .post(payload.toString().toRequestBody(jsonMedia)).build()
             client.newCall(req).execute().use { resp ->
-                android.util.Log.i("PushRegister", "register phone=$p tokenLen=${token.length} code=${resp.code}")
+                // 번호는 로그에 안 남김(개인정보) — 결과 코드만.
+                android.util.Log.i("PushRegister", "register code=${resp.code}")
                 if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
             }
         }.onFailure { android.util.Log.w("PushRegister", "register FAILED: ${it.message}") }
