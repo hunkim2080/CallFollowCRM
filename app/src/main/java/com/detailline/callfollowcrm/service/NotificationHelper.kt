@@ -34,6 +34,7 @@ object NotificationHelper {
     private const val ARRIVAL_ID_OFFSET = 9_900_000
     private const val DEPART_ID_OFFSET = 9_600_000
     private const val COLLAB_ID_OFFSET = 9_400_000
+    private const val COLLAB_INVITE_ID_OFFSET = 9_450_000
     /** SMS 알림 ID = 발신번호 hash + offset. 같은 번호 새 SMS = 같은 알림 update. */
     private const val SMS_ID_OFFSET = 10_000_000
 
@@ -301,6 +302,33 @@ object NotificationHelper {
             msg = accountText?.let { "$msg · 계좌 $it" } ?: msg,
             contentIntent = pending,
             actions = listOf(PushAction("협업 현장 보기", pending))
+        )
+    }
+
+    /**
+     * 협업 요청이 왔어요(받는 쪽) — 상대 사장이 나에게 현장을 공유 요청(status=pending)했을 때 알림.
+     *   탭하면 협업 현장 화면(/shared/{shareId})이 열려 수락/거절 가능. (2026-06-12 사장님 요청)
+     *   고객 번호/대화는 안 들어옴(벽) — 보내는 사장 이름 + 현장 라벨만.
+     */
+    fun showCollabInvite(context: Context, shareId: String, ownerName: String, title: String) {
+        val notifId = COLLAB_INVITE_ID_OFFSET + (shareId.hashCode() and 0x7FFFFF)
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            action = Intent.ACTION_VIEW
+            data = Uri.parse("${AppConfig.BASE_URL.trimEnd('/')}/shared/$shareId")
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pending = PendingIntent.getActivity(
+            context, notifId, openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val who = ownerName.takeIf { it.isNotBlank() }?.let { "$it 사장님" } ?: "다른 사장님"
+        val site = title.takeIf { it.isNotBlank() } ?: "현장"
+        showProtoPush(
+            context, notifId, CHANNEL_REMINDER, ACCENT_PURPLE,
+            title = "🤝 협업 요청이 왔어요",
+            msg = "${who}이 '${site}' 협업을 요청했어요. 눌러서 수락하기",
+            contentIntent = pending,
+            actions = listOf(PushAction("수락하러 가기", pending))
         )
     }
 

@@ -310,6 +310,15 @@ class AppPreferences(context: Context) {
         get() = prefs.getStringSet("hidden_collab_share_ids", emptySet()) ?: emptySet()
         set(value) { prefs.edit().putStringSet("hidden_collab_share_ids", value).commit() }
 
+    /** 협업 요청(받는 쪽 pending) 알림 중복 방지 — 이미 알림 띄운 share_id 들. */
+    var seenCollabInviteShareIds: Set<String>
+        get() = prefs.getStringSet("seen_collab_invite_share_ids", emptySet()) ?: emptySet()
+        set(value) { prefs.edit().putStringSet("seen_collab_invite_share_ids", value).commit() }
+    /** 협업 요청 알림 첫 폴 시드 완료 여부 — 설치/업데이트 직후 옛 대기 요청 블라스트 방지. */
+    var collabInviteSeeded: Boolean
+        get() = prefs.getBoolean("collab_invite_seeded", false)
+        set(value) = prefs.edit().putBoolean("collab_invite_seeded", value).apply()
+
     /** 홈 "견적 회신 챙기기" 배너 밀어서 정리한 날(dayStart). 그 날 하루 숨김 — 다음날 다시. */
     var estimateFollowupDismissedDay: Long
         get() = prefs.getLong("estimate_followup_dismissed_day", 0L)

@@ -30,6 +30,8 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
         runCatching { app.container.teamEventCenter.poll(applicationContext) }
         // 협업 현장 진행 이벤트 — 서버 owner-events 준비 후 앱 종료 상태에서도 알림.
         runCatching { app.container.collabEventCenter.poll(applicationContext) }
+        // 받은 협업 요청(pending) — 앱 꺼져 있어도 주기 워커가 새 요청 잡아 "수락하시겠어요?" 알림.
+        runCatching { app.container.collabEventCenter.pollInvites(applicationContext) }
         runCatching { GeofenceManager.refresh(applicationContext) }
         return Result.success()
     }

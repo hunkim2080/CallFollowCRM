@@ -80,6 +80,31 @@ class CollabEventCenter(
         if (maxMs > lastSeen) preferences.collabEventLastSeenMs = maxMs
     }
 
+    /**
+     * 받은 협업 요청(pending) 폴링 + 알림 — 상대 사장이 나에게 현장을 공유 요청하면 "수락하시겠어요?" 알림.
+     *   서버 변경 불필요: with-me 응답에 이미 status="pending" 건이 들어옴(캘린더는 accepted 만 쓰지만 pending 도 옴).
+     *   설치/업데이트 직후 옛 대기 건 블라스트 방지 위해 첫 폴은 조용히 시드만. (2026-06-12 사장님 요청)
+     */
+    suspend fun pollInvites(context: Context) {
+        val owner = preferences.bizPhone.trim()
+        if (owner.isBlank()) return
+        val sites = sharedSiteRepository.withMe(owner).getOrNull() ?: return
+        val pending = sites.filter { it.status == "pending" }
+        val pendingIds = pending.map { it.shareId }.toSet()
+
+        if (!preferences.collabInviteSeeded) {
+            preferences.seenCollabInviteShareIds = pendingIds
+            preferences.collabInviteSeeded = true
+            return
+        }
+        val seen = preferences.seenCollabInviteShareIds
+        for (s in pending.filter { it.shareId !in seen }) {
+            NotificationHelper.showCollabInvite(context, s.shareId, s.ownerName, s.title)
+        }
+        // 현재 pending 전체로 갱신 — 수락/거절돼 사라진 건 빠지므로 재초대 시 다시 알림.
+        preferences.seenCollabInviteShareIds = pendingIds
+    }
+
     companion object {
         private val KINDS = setOf("departed", "arrived", "completed")
     }
