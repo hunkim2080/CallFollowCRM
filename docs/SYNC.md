@@ -3587,3 +3587,8 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 고객 페르소나 "null" 노출 수정: 서버 persona_text=JSON null → org.json optString 이 문자열 "null" 반환하던 함정. optStringClean(키없음/JSONnull/"null"/빈 → null) 으로 모든 필드 방어. UI: 내용 있으면 표시 / 없고 생성중(stale)이면 "고객 성향을 분석하고 있어요…" / 진짜 없으면 카드 숨김. literal "null"은 UI에서도 2차 차단.
 - 변경: 서버 영향 없음(앱 파싱/표시). 참고: 서버는 persona_text=null + stale=true 가 "생성 중" 신호로 그대로 OK. CustomerPersonaRepository.parsePersona + PersonaCard.
 - commit: (아래)
+
+## 2026-06-11 · android
+페르소나 빈 상태 문구 수정: "분석하고 있어요…"(곧 뜰 것처럼 과장) → "고객 성향을 정리하기엔 아직 대화가 부족해요. 대화가 더 쌓이면 자동으로 분석해드려요." 정직한 안내. 빈 상태에선 헤더 "갱신 중" 칩도 숨김(내용 있을 때만 갱신중).
+- 변경: 서버 영향 없음. PersonaCard.
+- commit: (아래)
