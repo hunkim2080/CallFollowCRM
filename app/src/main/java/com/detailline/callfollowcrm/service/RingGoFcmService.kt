@@ -41,16 +41,28 @@ class RingGoFcmService : FirebaseMessagingService() {
             "collab_event" -> {
                 val shareId = data["share_id"].orEmpty()
                 if (shareId.isNotBlank()) {
+                    // 서버는 완료 시 bank/account_no/holder 를 따로 보냄 → 한 줄로 합침. time_label 은 안 보냄 → "방금".
+                    val accountText = listOfNotNull(
+                        data["bank"]?.takeIf { it.isNotBlank() },
+                        data["account_no"]?.takeIf { it.isNotBlank() },
+                        data["holder"]?.takeIf { it.isNotBlank() }
+                    ).joinToString(" ").takeIf { it.isNotBlank() }
                     NotificationHelper.showCollabEvent(
                         context = this,
                         eventId = data["event_id"]?.takeIf { it.isNotBlank() } ?: shareId,
                         shareId = shareId,
                         kind = data["step"].orEmpty(),
                         partnerName = data["partner_name"].orEmpty(),
-                        timeLabel = data["time_label"].orEmpty(),
+                        timeLabel = data["time_label"]?.takeIf { it.isNotBlank() } ?: "방금",
                         title = data["title"].orEmpty(),
-                        accountText = data["account_text"]?.takeIf { it.isNotBlank() }
+                        accountText = accountText
                     )
+                }
+            }
+            "collab_paid" -> {
+                val shareId = data["share_id"].orEmpty()
+                if (shareId.isNotBlank()) {
+                    NotificationHelper.showCollabPaid(this, shareId, data["title"].orEmpty())
                 }
             }
         }

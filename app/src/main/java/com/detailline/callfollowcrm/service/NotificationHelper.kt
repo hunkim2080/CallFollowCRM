@@ -332,6 +332,28 @@ object NotificationHelper {
         )
     }
 
+    /** 협업 입금 완료(받는 쪽) — 주인(A)이 입금완료 표시 → 협업한 사장 B 에게 알림. (FCM collab_paid) */
+    fun showCollabPaid(context: Context, shareId: String, title: String) {
+        val notifId = COLLAB_INVITE_ID_OFFSET + ("paid:$shareId".hashCode() and 0x7FFFFF)
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            action = Intent.ACTION_VIEW
+            data = Uri.parse("${AppConfig.BASE_URL.trimEnd('/')}/shared/$shareId")
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pending = PendingIntent.getActivity(
+            context, notifId, openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val site = title.takeIf { it.isNotBlank() } ?: "협업 현장"
+        showProtoPush(
+            context, notifId, CHANNEL_REMINDER, ACCENT_GREEN,
+            title = "💰 입금 완료",
+            msg = "'${site}' 정산 입금이 완료됐어요",
+            contentIntent = pending,
+            actions = listOf(PushAction("협업 현장 보기", pending))
+        )
+    }
+
     /** 마감 브리핑 — 프로토 PUSH.brief 형식(파랑, 저녁 9시). 확실한 데이터만. */
     fun showDailyBrief(context: Context, newCustomers: Int, deposits: Int, tomorrowJobs: Int, tomorrowLabel: String?) {
         val parts = buildList {
