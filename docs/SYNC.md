@@ -3649,3 +3649,9 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
   - invite payload 동일(customer_label 만, 고객 번호·대화 미포함 — 벽 유지)
 - commit: 078af6b
 - 다음 액션(서버): 없음
+
+## 2026-06-11 (추가3) · android
+수첩 추가/편집 시트 키보드 가림 fix + ModalBottomSheet 입력칸 전수재점검.
+- 변경: 앱 UI 만. 서버 무관.
+- commit: 55ce44f
+- 다음 액션(서버): 없음
