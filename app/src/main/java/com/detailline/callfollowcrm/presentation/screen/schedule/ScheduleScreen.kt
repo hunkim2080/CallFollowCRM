@@ -44,6 +44,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -51,6 +52,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -159,8 +166,13 @@ fun ScheduleScreen(
     // 배정 시트 열렸을 때 뒤로가기 = 시트 닫기 (앱 종료/화면 이탈 방지).
     androidx.activity.compose.BackHandler(enabled = assignTarget != null) { assignTarget = null }
 
+    // 협업 카드 밀어서 숨김 → "되돌리기" 스낵바 (실수 스와이프 복구용).
+    val snackbarHostState = remember { SnackbarHostState() }
+    val uiScope = androidx.compose.runtime.rememberCoroutineScope()
+
     Scaffold(
         containerColor = TossGrayBg,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             // 프로토 일정 앱바 — "일정" + 오늘 날짜 + 우측 [+] (openAddSchedule). 프로토엔 FAB 없음.
             val todayLabel = remember {
@@ -296,9 +308,7 @@ fun ScheduleScreen(
                         assignedMembers = assignmentsByCustomer[c.id].orEmpty(),
                         teamAvailable = teamMembers.isNotEmpty(),
                         onAssign = { assignTarget = c },
-                        onClick = { onOpenCustomer(c.id) },
-                        onEdit = { onOpenCustomer(c.id) },
-                        onOpenSettle = onOpenSettle
+                        onClick = { onOpenCustomer(c.id) }
                     )
                 }
             }
@@ -311,7 +321,21 @@ fun ScheduleScreen(
                     )
                 }
                 items(collabForSelected, key = { "sh-${it.shareId}" }) { site ->
-                    CollabDayCard(site = site, onClick = { onOpenCollabSites(site.shareId) })
+                    CollabSwipeBox(
+                        onDelete = {
+                            viewModel.hideCollab(site.shareId)
+                            uiScope.launch {
+                                val r = snackbarHostState.showSnackbar(
+                                    message = "협업 현장을 숨겼어요",
+                                    actionLabel = "되돌리기",
+                                    duration = androidx.compose.material3.SnackbarDuration.Short
+                                )
+                                if (r == SnackbarResult.ActionPerformed) viewModel.unhideCollab(site.shareId)
+                            }
+                        }
+                    ) {
+                        CollabDayCard(site = site, onClick = { onOpenCollabSites(site.shareId) })
+                    }
                 }
             }
             // "더 추가"는 이미 일정/협업이 있을 때만. 아무것도 없으면 DayEmpty 의 "이 날 일정 등록"만 노출(중복 방지).
@@ -375,6 +399,45 @@ private fun CollabDayCard(
             }
         }
     }
+}
+
+/**
+ * 협업 카드 우→좌 swipe → 숨김. 빨강 "삭제" affordance.
+ *   confirmValueChange=false 로 원위치 복귀(데이터 흐름이 카드를 제거) + 스낵바 "되돌리기" 로 복구.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CollabSwipeBox(onDelete: () -> Unit, content: @Composable () -> Unit) {
+    val state = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value == SwipeToDismissBoxValue.EndToStart) onDelete()
+            false
+        },
+        positionalThreshold = { totalDistance -> totalDistance * 0.5f }
+    )
+    SwipeToDismissBox(
+        state = state,
+        enableDismissFromStartToEnd = false,
+        enableDismissFromEndToStart = true,
+        backgroundContent = {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0xFFFDEAEF))
+                    .padding(horizontal = 20.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Delete, "삭제", tint = Color(0xFFF0436A), modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("삭제", color = Color(0xFFF0436A), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
+            }
+        },
+        content = { content() }
+    )
 }
 
 @Composable
@@ -485,43 +548,71 @@ private fun CalendarDay(
         cell.dayOfWeek == Calendar.SATURDAY -> TossBlue
         else -> TossTextPrimary
     }
-    val dotColor = when {
-        isSelected -> Color.White
-        cell.hasPastSchedule && !cell.hasUpcomingSchedule -> TossTextTertiary // 지난 시공만
-        else -> TossSuccess // 다가올 시공 (또는 혼합)
-    }
+    // 프로토 jbar: 점 대신 일정 1건 = 막대 1줄(lane). 1건/2건/여러날이 한눈에 구분됨. (2026-06-11)
+    //   선택칸 막대는 흰색, 지난 시공은 회색, 다가올 시공은 초록, 협업은 보라.
+    val schedMaxLane = cell.bars.maxOfOrNull { it.lane } ?: -1
+    val collabLane = if (isCollab) schedMaxLane + 1 else -1
+    val lastLane = minOf(maxOf(schedMaxLane, collabLane), 2) // 최대 3줄(lane 0~2)
     Box(
         modifier = modifier
-            .aspectRatio(1f)
-            .padding(2.dp)
-            .clip(CircleShape)
-            .background(bgColor)
+            .height(52.dp)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                cell.dayOfMonth.toString(),
-                color = fgColor,
-                fontSize = 14.sp,
-                fontWeight = if (cell.isToday || isSelected) FontWeight.Bold else FontWeight.Medium
-            )
-            if (cell.scheduleCount > 0 || isCollab) {
-                Spacer(Modifier.height(2.dp))
-                // 내 시공 점 + 협업 보라점 — 둘 다면 점 2개. (2026-06-08 #7)
-                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                    if (cell.scheduleCount > 0) {
-                        Box(Modifier.size(5.dp).clip(CircleShape).background(dotColor))
-                    }
-                    if (isCollab) {
-                        Box(
-                            Modifier.size(5.dp).clip(CircleShape)
-                                .background(if (isSelected) Color.White else Color(0xFF7C5CFC))
-                        )
+            // 날짜 숫자 — 선택/오늘만 원형 배경(프로토 .num). 막대는 원 밖, 아래에.
+            Box(
+                Modifier.size(32.dp).clip(CircleShape).background(bgColor),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    cell.dayOfMonth.toString(),
+                    color = fgColor,
+                    fontSize = 14.sp,
+                    fontWeight = if (cell.isToday || isSelected) FontWeight.Bold else FontWeight.Medium
+                )
+            }
+            if (lastLane >= 0) {
+                Spacer(Modifier.height(3.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.fillMaxWidth()) {
+                    for (lane in 0..lastLane) {
+                        when {
+                            lane == collabLane -> CalBar(
+                                BarSeg.SINGLE, if (isSelected) Color.White else Color(0xFF7C5CFC)
+                            )
+                            else -> {
+                                val bar = cell.bars.firstOrNull { it.lane == lane }
+                                if (bar != null) {
+                                    val c = if (isSelected) Color.White else if (bar.past) TossTextTertiary else TossSuccess
+                                    CalBar(bar.seg, c)
+                                } else {
+                                    // 빈 lane — 위 칸과 세로 위치를 맞춰 여러날 막대가 가로로 이어지게.
+                                    Box(Modifier.fillMaxWidth().height(4.dp))
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+/** 캘린더 막대 한 줄 — SINGLE=가운데 16dp 알약, 여러날 START/MID/END=칸 가득(가로로 이어짐). */
+@Composable
+private fun CalBar(seg: BarSeg, color: Color) {
+    val shape = when (seg) {
+        BarSeg.SINGLE -> RoundedCornerShape(3.dp)
+        BarSeg.START -> RoundedCornerShape(topStart = 3.dp, bottomStart = 3.dp)
+        BarSeg.END -> RoundedCornerShape(topEnd = 3.dp, bottomEnd = 3.dp)
+        BarSeg.MID -> RoundedCornerShape(0.dp)
+    }
+    if (seg == BarSeg.SINGLE) {
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Box(Modifier.width(16.dp).height(4.dp).clip(shape).background(color))
+        }
+    } else {
+        Box(Modifier.fillMaxWidth().height(4.dp).clip(shape).background(color))
     }
 }
 
@@ -589,9 +680,7 @@ private fun DayJobCard(
     assignedMembers: List<com.detailline.callfollowcrm.data.local.entity.TeamAssignmentEntity> = emptyList(),
     teamAvailable: Boolean = false,
     onAssign: () -> Unit = {},
-    onClick: () -> Unit,
-    onEdit: () -> Unit,
-    onOpenSettle: () -> Unit
+    onClick: () -> Unit
 ) {
     val scheduled = customer.scheduledWorkDate ?: return
     val s = DateTimeUtils.startOfDay(scheduled)
@@ -637,10 +726,7 @@ private fun DayJobCard(
                 ) {
                     Text(tagText, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = if (isPast) TossTextTertiary else Color(0xFF0E9F56))
                 }
-                Box(
-                    Modifier.padding(start = 7.dp).size(30.dp).clip(RoundedCornerShape(9.dp)).clickable { onEdit() },
-                    contentAlignment = Alignment.Center
-                ) { Icon(Icons.Default.Edit, "수정", tint = TossTextTertiary, modifier = Modifier.size(16.dp)) }
+                // 연필 아이콘 제거(2026-06-11): 카드 전체 탭 = 연필 탭 = 고객 상세로, 기능 동일해 중복이었음.
             }
             // 📍 주소
             Spacer(Modifier.height(9.dp))
@@ -663,19 +749,7 @@ private fun DayJobCard(
                 Spacer(Modifier.height(10.dp))
                 PayStatusReadOnly(row)
             }
-            // 정산·현금흐름에서 보기
-            Spacer(Modifier.height(10.dp))
-            Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().clickable { onOpenSettle() }.padding(top = 10.dp)
-            ) {
-                Text("💰", fontSize = 13.sp)
-                Spacer(Modifier.width(5.dp))
-                Text("정산·현금흐름에서 보기", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossBlue)
-                Spacer(Modifier.weight(1f))
-                Icon(Icons.Default.ChevronRight, null, tint = TossBlue.copy(alpha = 0.6f), modifier = Modifier.size(16.dp))
-            }
+            // "정산·현금흐름에서 보기" 링크 제거(2026-06-11): 카드 탭하면 고객 상세에 정산이 이미 다 있어 불필요했음.
             // 프로토 .assign-line — 팀원 현장 배정 (팀원 있을 때만 노출).
             if (teamAvailable) {
                 Spacer(Modifier.height(10.dp))
@@ -780,6 +854,10 @@ private fun koreanMonthDay(ms: Long): String =
 // 캘린더 데이터 모델 + 빌더
 // ─────────────────────────────────────────────────────────────
 
+/** 캘린더 막대 한 칸 — 일정 1건 = 막대 1줄(lane). 여러 날 시공은 START/MID/END 로 이어 그림. (프로토 jbar) */
+private enum class BarSeg { SINGLE, START, MID, END }
+private data class DayBar(val lane: Int, val seg: BarSeg, val past: Boolean)
+
 private data class CalendarCell(
     val dayStartMs: Long,
     val dayOfMonth: Int,
@@ -788,8 +866,29 @@ private data class CalendarCell(
     val isToday: Boolean,
     val scheduleCount: Int,
     val hasPastSchedule: Boolean,
-    val hasUpcomingSchedule: Boolean
+    val hasUpcomingSchedule: Boolean,
+    val bars: List<DayBar> = emptyList()
 )
+
+/**
+ * 한 달치 시공들에 lane(세로 칸) 배정 — 같은 시공은 며칠짜리든 매일 같은 lane 에 와야 막대가 가로로 이어진다.
+ *   그리디 구간 패킹: 시작일 빠른 순 → 가장 위쪽 빈 lane(이전 시공 끝난 lane)에 배치. customerId→lane.
+ */
+private fun assignScheduleLanes(schedules: List<CustomerEntity>): Map<Long, Int> {
+    val intervals = schedules.mapNotNull { c ->
+        val s = c.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) } ?: return@mapNotNull null
+        val days = c.scheduledWorkDays.coerceAtLeast(1)
+        Triple(c.id, s, s + (days - 1) * DateTimeUtils.DAY_MS)
+    }.sortedWith(compareBy({ it.second }, { -(it.third - it.second) }))
+    val laneEnds = ArrayList<Long>() // lane -> 그 lane 에 마지막으로 들어간 시공의 끝 ms
+    val map = HashMap<Long, Int>()
+    for ((id, s, e) in intervals) {
+        var lane = laneEnds.indexOfFirst { it < s }
+        if (lane < 0) { laneEnds.add(e); lane = laneEnds.size - 1 } else laneEnds[lane] = e
+        map[id] = lane
+    }
+    return map
+}
 
 /**
  * 이 시공이 dayStart 날을 포함하는가 — 여러 날 시공(scheduledWorkDays) 고려.
@@ -847,13 +946,25 @@ private fun buildCalendarCells(
     val firstDow = cal.get(Calendar.DAY_OF_WEEK) // 1=SUN..7=SAT
     cal.add(Calendar.DAY_OF_MONTH, -(firstDow - 1)) // 그 주 일요일로
 
+    val laneMap = assignScheduleLanes(schedules)
     val cells = ArrayList<CalendarCell>(42)
     repeat(42) {
         val dayStart = DateTimeUtils.startOfDay(cal.timeInMillis)
-        // 여러 날 시공은 기간 내 모든 날에 점 표시 (scheduledWorkDays).
+        // 여러 날 시공은 기간 내 모든 날에 막대 표시 (scheduledWorkDays).
         val daySchedules = schedules.filter { jobCoversDay(it, dayStart) }
         val hasPast = daySchedules.isNotEmpty() && dayStart < todayStart
         val hasUp = daySchedules.isNotEmpty() && dayStart >= todayStart
+        val bars = daySchedules.mapNotNull { c ->
+            val s = c.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) } ?: return@mapNotNull null
+            val e = s + (c.scheduledWorkDays.coerceAtLeast(1) - 1) * DateTimeUtils.DAY_MS
+            val seg = when {
+                s == e -> BarSeg.SINGLE
+                dayStart == s -> BarSeg.START
+                dayStart == e -> BarSeg.END
+                else -> BarSeg.MID
+            }
+            DayBar(lane = laneMap[c.id] ?: 0, seg = seg, past = dayStart < todayStart)
+        }.sortedBy { it.lane }
         cells += CalendarCell(
             dayStartMs = dayStart,
             dayOfMonth = cal.get(Calendar.DAY_OF_MONTH),
@@ -862,7 +973,8 @@ private fun buildCalendarCells(
             isToday = dayStart == todayStart,
             scheduleCount = daySchedules.size,
             hasPastSchedule = hasPast,
-            hasUpcomingSchedule = hasUp
+            hasUpcomingSchedule = hasUp,
+            bars = bars
         )
         cal.add(Calendar.DAY_OF_MONTH, 1)
     }

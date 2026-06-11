@@ -305,6 +305,11 @@ class AppPreferences(context: Context) {
         get() = prefs.getStringSet("dismissed_collab_event_ids", emptySet()) ?: emptySet()
         set(value) { prefs.edit().putStringSet("dismissed_collab_event_ids", value).commit() }
 
+    /** 일정 화면에서 밀어서 숨긴 협업 현장 share_id 들. 서버 삭제가 아니라 내 일정 뷰에서만 제외(되돌리기 가능). */
+    var hiddenCollabShareIds: Set<String>
+        get() = prefs.getStringSet("hidden_collab_share_ids", emptySet()) ?: emptySet()
+        set(value) { prefs.edit().putStringSet("hidden_collab_share_ids", value).commit() }
+
     /** 홈 "견적 회신 챙기기" 배너 밀어서 정리한 날(dayStart). 그 날 하루 숨김 — 다음날 다시. */
     var estimateFollowupDismissedDay: Long
         get() = prefs.getLong("estimate_followup_dismissed_day", 0L)

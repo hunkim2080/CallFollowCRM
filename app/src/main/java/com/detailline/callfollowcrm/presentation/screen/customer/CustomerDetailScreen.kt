@@ -504,6 +504,15 @@ fun CustomerDetailScreen(
                         Text("📝", fontSize = 13.sp)
                         Spacer(Modifier.width(6.dp))
                         Text("메모", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                        Spacer(Modifier.weight(1f))
+                        // 저장 버튼이 없어 "어떻게 저장하지?" 헷갈리던 문제 → 자동저장 상태를 항상 표시. (2026-06-11)
+                        val savedMemo = c.memo.orEmpty()
+                        val (memoStatus, memoStatusColor) = when {
+                            memoInput != savedMemo -> "저장 중…" to TossTextTertiary
+                            memoInput.isNotBlank() -> "저장됨 ✓" to Color(0xFF16A765)
+                            else -> "자동으로 저장돼요" to TossTextTertiary
+                        }
+                        Text(memoStatus, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = memoStatusColor)
                     }
                     Spacer(Modifier.height(10.dp))
                     OutlinedTextField(
@@ -624,13 +633,25 @@ fun CustomerDetailScreen(
             // 6.5 현장 사진 (프로토 openCustomer) — 사장님이 갤러리에서 골라 올림(로컬 저장). 2026-06-04 활성화.
             //   ※ 팀원↔사장님 공유는 서버(team_site_photos) 보강 후 별도 연동 — docs/SERVER_HANDOFF 참조.
             val sitePhotos by viewModel.sitePhotos.collectAsState()
-            // 갤러리 다중 선택 — 구형 기기(Android 10/GMS)에서도 결과 전달이 안정적인 ACTION_GET_CONTENT 사용.
+            // 카톡식 사진 첨부 시트(아래→위) — 기존 시스템 "내 파일" 피커는 권한 거부/구형 fallback 으로만 유지. (2026-06-11)
+            var showPhotoPicker by remember { mutableStateOf(false) }
             val photoPicker = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.GetMultipleContents()
             ) { uris -> if (uris.isNotEmpty()) viewModel.addSitePhotos(uris) }
-            val launchPhotoPicker = { photoPicker.launch("image/*") }
+            val launchPhotoPicker = { showPhotoPicker = true }
             val photoMax = viewModel.sitePhotoMax
             val photoTotal = sitePhotos.size + teamPhotos.size
+            if (showPhotoPicker) {
+                com.detailline.callfollowcrm.presentation.component.PhotoPickerSheet(
+                    maxSelectable = (photoMax - photoTotal).coerceAtLeast(0),
+                    onConfirm = { uris ->
+                        if (uris.isNotEmpty()) viewModel.addSitePhotos(uris)
+                        showPhotoPicker = false
+                    },
+                    onDismiss = { showPhotoPicker = false },
+                    onOpenFiles = { showPhotoPicker = false; photoPicker.launch("image/*") }
+                )
+            }
             TossCard {
                 Column {
                     androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {

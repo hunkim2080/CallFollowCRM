@@ -71,17 +71,37 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     /** 내가 수락한 협업 현장 → 캘린더 보라점용 날짜 set. 서버 with-me. (2026-06-08 #7) */
+    /** 마지막으로 서버에서 받은 수락 협업 현장(숨김 필터 전) — hide/undo 시 재요청 없이 재필터하려 보관. */
+    private var allAcceptedCollab: List<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite> = emptyList()
+
     fun loadCollab() {
         if (ownerPhone.isBlank()) return
         viewModelScope.launch {
             container.sharedSiteRepository.withMe(ownerPhone).onSuccess { sites ->
-                val accepted = sites.filter { it.status == "accepted" && it.scheduledAtMs > 0L }
-                _collabSites.value = accepted
-                _collabDayStarts.value = accepted
-                    .map { DateTimeUtils.startOfDay(it.scheduledAtMs) }
-                    .toSet()
+                allAcceptedCollab = sites.filter { it.status == "accepted" && it.scheduledAtMs > 0L }
+                applyCollabFilter()
             }
         }
+    }
+
+    /** 숨김 set 을 빼고 _collabSites/_collabDayStarts 갱신. loadCollab 결과 + hide/undo 양쪽이 공유. */
+    private fun applyCollabFilter() {
+        val hidden = container.preferences.hiddenCollabShareIds
+        val visible = allAcceptedCollab.filter { it.shareId !in hidden }
+        _collabSites.value = visible
+        _collabDayStarts.value = visible.map { DateTimeUtils.startOfDay(it.scheduledAtMs) }.toSet()
+    }
+
+    /** 협업 카드 밀어서 삭제 — 서버에서 지우는 게 아니라 내 일정 뷰에서만 숨김(되돌리기 가능). */
+    fun hideCollab(shareId: String) {
+        container.preferences.hiddenCollabShareIds = container.preferences.hiddenCollabShareIds + shareId
+        applyCollabFilter()
+    }
+
+    /** 숨김 되돌리기(토스트의 "되돌리기"). */
+    fun unhideCollab(shareId: String) {
+        container.preferences.hiddenCollabShareIds = container.preferences.hiddenCollabShareIds - shareId
+        applyCollabFilter()
     }
 
     /**

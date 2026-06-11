@@ -1641,35 +1641,42 @@ private fun SuggestionArea(
                 fontWeight = FontWeight.ExtraBold
             )
             Spacer(Modifier.weight(1f))
-            // 접힘/펼침 표시 + 새로고침 버튼
+            // 접기/펼치기 — 글자 라벨 pill 로 키워서 ↻(새로고침)과 헷갈리지 않게. (2026-06-11 사장님: 접으려다 새로고침 눌림)
             if (hasSuggestions) {
                 Text(
-                    if (expanded) "▾" else "▸",
+                    if (expanded) "접기 ▾" else "펼치기 ▸",
                     color = TossTextSecondary,
-                    fontSize = 14.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(end = 8.dp)
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = onToggleExpand)
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
                 )
             }
-            // 2026-05-30 사장님 디자인 보강 #4 — 시공 사장님 손가락 배려: 28dp → 40dp.
-            IconButton(
-                onClick = onRegenerate,
-                enabled = !loading,
-                modifier = Modifier.size(40.dp)
-            ) {
-                if (loading) {
-                    CircularProgressIndicator(
-                        color = TossBlue,
-                        strokeWidth = 2.dp,
-                        modifier = Modifier.size(20.dp)
-                    )
-                } else {
-                    Icon(
-                        Icons.Default.Refresh,
-                        contentDescription = "재생성",
-                        tint = TossTextSecondary,
-                        modifier = Modifier.size(22.dp)
-                    )
+            // 새로고침은 펼친 상태에서만 노출 — 접힌 상태에선 누를 일이 없고, 접기 버튼과 충분히 떨어뜨림.
+            if (expanded) {
+                Spacer(Modifier.width(8.dp))
+                // 2026-05-30 사장님 디자인 보강 #4 — 시공 사장님 손가락 배려: 28dp → 40dp.
+                IconButton(
+                    onClick = onRegenerate,
+                    enabled = !loading,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    if (loading) {
+                        CircularProgressIndicator(
+                            color = TossBlue,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    } else {
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = "재생성",
+                            tint = TossTextSecondary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
                 }
             }
         }
