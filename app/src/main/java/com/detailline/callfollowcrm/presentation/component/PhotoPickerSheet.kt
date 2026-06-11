@@ -118,8 +118,9 @@ fun PhotoPickerSheet(
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = Color.White) {
         Column(
+            // navigationBarsPadding = 내비바 위로(에지투에지 케이스), + 추가 여백으로 어느 기기든 버튼이 바에 안 붙게.
             Modifier.fillMaxWidth().navigationBarsPadding()
-                .padding(horizontal = 14.dp).padding(bottom = 10.dp)
+                .padding(horizontal = 14.dp).padding(bottom = 22.dp)
         ) {
             Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("사진 첨부", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)

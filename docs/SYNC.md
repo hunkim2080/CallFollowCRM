@@ -3607,3 +3607,8 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 채팅 사진 첨부 = 카톡식 자체 갤러리 바텀시트로 교체. 기존 PickMultipleVisualMedia 는 갤S9(안드10)에 시스템 포토피커가 없어 "내 파일" 문서UI로 fallback + 한번에 안 잡히던 문제 → 자체 MediaStore 그리드(다중선택·번호배지)로 아래서 올라오게. "📁 파일에서"로 기존 시스템 피커 fallback 유지. 권한: READ_MEDIA_IMAGES(33+)/READ_EXTERNAL_STORAGE(≤32, 매니페스트 추가).
 - 변경: 서버 영향 없음. 신규 PhotoPickerSheet.kt, ChatScreen onAttachPhoto→자체피커, AndroidManifest 미디어권한.
 - commit: (아래)
+
+## 2026-06-11 · android
+사진 첨부 바텀시트 [첨부] 버튼이 하단 내비바에 붙던 것 → 하단 여백 10→22dp 로 넉넉히(navigationBarsPadding 0 반환 기기에서도 버튼이 바에 안 붙게).
+- 변경: 서버 영향 없음. PhotoPickerSheet.
+- commit: (아래)
