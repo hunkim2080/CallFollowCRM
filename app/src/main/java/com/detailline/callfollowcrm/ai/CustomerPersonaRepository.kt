@@ -56,22 +56,24 @@ class CustomerPersonaRepository(
         val json = JSONObject(body)
         // 2026-05-29 cowork §17 결정: 단일 persona_text 자유 텍스트 (한 줄 요약).
         //   "이 고객은 단답형이고 가격에 민감, 송파구 잠실엘스 32평 거주." 형태.
-        val personaText = json.optString("persona_text").takeIf { it.isNotBlank() }
+        //   optStringClean = JSON null 을 문자열 "null" 로 돌려주는 org.json 함정 방지(필드마다).
+        val personaText = json.optStringClean("persona_text")
         // 옛 5 필드 스키마 (안드 사양) 도 fallback. cowork 가 향후 분리 모드 도입 시 자동 호환.
-        val communicationStyle = json.optString("communication_style").takeIf { it.isNotBlank() }
-        val budgetSignal = json.optString("budget_signal").takeIf { it.isNotBlank() }
-        val location = json.optString("location").takeIf { it.isNotBlank() }
-        val schedulePattern = json.optString("schedule_pattern").takeIf { it.isNotBlank() }
-        val ownerMemo = json.optString("owner_memo").takeIf { it.isNotBlank() }
+        val communicationStyle = json.optStringClean("communication_style")
+        val budgetSignal = json.optStringClean("budget_signal")
+        val location = json.optStringClean("location")
+        val schedulePattern = json.optStringClean("schedule_pattern")
+        val ownerMemo = json.optStringClean("owner_memo")
+        val stale = json.optBoolean("stale", false)
 
-        // 모두 비어있으면 null (UI 카드 숨김). persona_text=null + stale=true 케이스 = "곧 생성됨".
-        if (personaText == null &&
+        val allEmpty = personaText == null &&
             communicationStyle == null && budgetSignal == null &&
-            location == null && schedulePattern == null && ownerMemo == null) {
-            return null
-        }
+            location == null && schedulePattern == null && ownerMemo == null
+        // 내용도 없고 생성 중(stale)도 아니면 = 보여줄 게 없음 → null (UI 카드 숨김).
+        //   내용은 없지만 stale 이면 → 빈 페르소나 반환해서 UI 가 "분석 중" 으로 자연스럽게 표시.
+        if (allEmpty && !stale) return null
 
-        val phoneOut = json.optString("phone").takeIf { it.isNotBlank() } ?: phone
+        val phoneOut = json.optStringClean("phone") ?: phone
         return CustomerPersona(
             phone = phoneOut,
             personaText = personaText,
@@ -81,12 +83,18 @@ class CustomerPersonaRepository(
             schedulePattern = schedulePattern,
             ownerMemo = ownerMemo,
             generatedAtMs = json.optLong("generated_at_ms"),
-            model = json.optString("model_used").takeIf { it.isNotBlank() }
-                ?: json.optString("model").takeIf { it.isNotBlank() },
+            model = json.optStringClean("model_used") ?: json.optStringClean("model"),
             sourceMessageCount = json.optInt("source_message_count", 0),
-            stale = json.optBoolean("stale", false),
+            stale = stale,
             refreshStartedAtMs = json.optLong("last_refresh_started_ms").takeIf { it > 0 }
         )
+    }
+
+    /** org.json 함정 방지: 키 없음/JSON null/"null"·빈문자 → null. 그 외엔 trim 한 값. */
+    private fun JSONObject.optStringClean(key: String): String? {
+        if (isNull(key)) return null
+        val v = optString(key).trim()
+        return v.takeIf { it.isNotEmpty() && !it.equals("null", ignoreCase = true) }
     }
 }
 

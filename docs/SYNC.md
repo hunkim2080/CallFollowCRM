@@ -3582,3 +3582,8 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 현장 주소 모달: 동·호수만 수정하려 해도 전체 재검색해야 하고 "11동 22동" 중복 누적되던 버그 수정. 열 때 저장된 주소를 splitSiteAddress 로 도로명+동·호수 분리(첫 숫자+동/호/층 위치) → 도로명은 📍카드, 동·호수는 입력칸에 prefill. 저장 시 도로명에 다시 안 붙어 중복 끝. 기존 중복분도 동·호수칸에서 바로 수정 가능.
 - 변경: 서버 영향 없음. CustomerDetailScreen splitSiteAddress + AddressEditDialog 초기값.
 - commit: (아래)
+
+## 2026-06-11 · android
+고객 페르소나 "null" 노출 수정: 서버 persona_text=JSON null → org.json optString 이 문자열 "null" 반환하던 함정. optStringClean(키없음/JSONnull/"null"/빈 → null) 으로 모든 필드 방어. UI: 내용 있으면 표시 / 없고 생성중(stale)이면 "고객 성향을 분석하고 있어요…" / 진짜 없으면 카드 숨김. literal "null"은 UI에서도 2차 차단.
+- 변경: 서버 영향 없음(앱 파싱/표시). 참고: 서버는 persona_text=null + stale=true 가 "생성 중" 신호로 그대로 OK. CustomerPersonaRepository.parsePersona + PersonaCard.
+- commit: (아래)

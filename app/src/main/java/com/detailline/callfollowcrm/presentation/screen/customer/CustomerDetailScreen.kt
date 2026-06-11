@@ -325,7 +325,8 @@ fun CustomerDetailScreen(
             // 1.2 고객 페르소나 (프로토 openCustomer #2 — 헤더 바로 아래). 킬러콘텐츠 5단계.
             //   cowork prepare-reply 가 자동 생성(Haiku 4.5, 24h cache). 안드는 cache 조회만, 없으면 숨김.
             val persona by viewModel.persona.collectAsState()
-            persona?.let { p -> if (!p.isEmpty) PersonaCard(p) }
+            // 내용 있으면 보여주고, 내용은 없어도 생성 중(stale)이면 "분석 중" 카드로 자연스럽게. 둘 다 아니면 숨김.
+            persona?.let { p -> if (!p.isEmpty || p.stale) PersonaCard(p) }
 
             // 1.3 현장 주소 — 표시 우선순위 (2026-05-28 사장님 결정):
             //   1) customer.address (사장님 수동 등록, DB v15) — 신뢰 최우선
@@ -1264,21 +1265,38 @@ private fun PersonaCard(persona: com.detailline.callfollowcrm.ai.CustomerPersona
                 )
             }
             Spacer(Modifier.height(10.dp))
-            if (!persona.personaText.isNullOrBlank()) {
-                // 2026-05-29 cowork §17 — 한 줄 자유 텍스트 우선 표시.
-                Text(
-                    persona.personaText,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TossTextPrimary,
-                    lineHeight = 22.sp
-                )
-            } else {
-                // 옛 5 필드 fallback (cowork 미래 분리 모드 도입 시 자동 활성화).
-                PersonaLine("💬", persona.communicationStyle)
-                PersonaLine("💰", persona.budgetSignal)
-                PersonaLine("🏠", persona.location)
-                PersonaLine("⏰", persona.schedulePattern)
-                PersonaLine("📝", persona.ownerMemo)
+            // 방어: 혹시라도 "null" 문자열이 새어들어와도 빈 것으로 취급(파싱에서 1차로 막지만 belt & suspenders).
+            val personaText = persona.personaText?.takeIf { it.isNotBlank() && !it.equals("null", true) }
+            val hasFields = !persona.communicationStyle.isNullOrBlank() || !persona.budgetSignal.isNullOrBlank() ||
+                !persona.location.isNullOrBlank() || !persona.schedulePattern.isNullOrBlank() || !persona.ownerMemo.isNullOrBlank()
+            when {
+                personaText != null -> {
+                    // 2026-05-29 cowork §17 — 한 줄 자유 텍스트 우선 표시.
+                    Text(
+                        personaText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TossTextPrimary,
+                        lineHeight = 22.sp
+                    )
+                }
+                hasFields -> {
+                    // 옛 5 필드 fallback (cowork 미래 분리 모드 도입 시 자동 활성화).
+                    PersonaLine("💬", persona.communicationStyle)
+                    PersonaLine("💰", persona.budgetSignal)
+                    PersonaLine("🏠", persona.location)
+                    PersonaLine("⏰", persona.schedulePattern)
+                    PersonaLine("📝", persona.ownerMemo)
+                }
+                else -> {
+                    // 내용이 아직 없음 — "null" 대신 자연스러운 안내. 생성 중이면 그렇게, 아니면 곧 채워진다고.
+                    Text(
+                        if (persona.stale) "고객 성향을 분석하고 있어요…"
+                        else "대화가 조금 더 쌓이면 고객 성향을 정리해드려요.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TossTextTertiary,
+                        lineHeight = 22.sp
+                    )
+                }
             }
             if (persona.sourceMessageCount > 0) {
                 Spacer(Modifier.height(6.dp))
