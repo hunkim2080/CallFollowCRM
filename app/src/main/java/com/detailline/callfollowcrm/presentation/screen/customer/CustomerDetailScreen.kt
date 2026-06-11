@@ -2417,47 +2417,63 @@ private fun AddressEditDialog(
                 Spacer(Modifier.height(14.dp))
                 // 주소는 직접 타이핑 대신 반드시 검색으로 — 정확한 정규화 도로명주소 확보.
                 //   (2026-06-10 사장님: 자유입력 칸 없애고 무조건 주소검색 한 번 하게.) 동/호수만 수동.
-                androidx.compose.foundation.layout.Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
-                        .background(Color(0xFFF5F7FA))
-                        .clickable { showSearch = true }
-                        .padding(horizontal = 14.dp, vertical = 14.dp)
-                ) {
-                    Text(
-                        text.ifBlank { "🔍 주소 검색을 눌러 정확한 주소를 선택하세요" },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (text.isBlank()) TossTextTertiary else TossTextPrimary,
-                        fontWeight = if (text.isBlank()) FontWeight.Medium else FontWeight.SemiBold
+                //   2026-06-11 UI 개선: 회색 박스 + 검색 버튼이 둘 다 "검색 열기"라 헷갈림 →
+                //     비었을 땐 검색 버튼 하나만, 고르면 주소 카드 + [변경] + 동·호수 (단계식).
+                if (text.isBlank()) {
+                    // ① 주소 미선택 — 큰 검색 버튼 하나(유일한 동작). 헷갈릴 여지 없음.
+                    androidx.compose.foundation.layout.Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                            .background(TossBlueSoft)
+                            .clickable { showSearch = true }
+                            .padding(vertical = 15.dp),
+                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        Text("🔍", fontSize = 15.sp)
+                        Spacer(Modifier.width(7.dp))
+                        Text("주소 검색", color = TossBlue, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    }
+                } else {
+                    // ② 주소 선택됨 — 선택된 주소 + [변경](재검색). 박스는 읽기용(누르면 안 바뀜 오해 방지).
+                    androidx.compose.foundation.layout.Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                            .background(Color(0xFFF5F7FA))
+                            .padding(horizontal = 14.dp, vertical = 13.dp),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        Text("📍", fontSize = 15.sp)
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TossTextPrimary, fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "변경",
+                            color = TossBlue, fontWeight = FontWeight.Bold, fontSize = 13.sp,
+                            modifier = Modifier
+                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                                .clickable { showSearch = true }
+                                .padding(horizontal = 9.dp, vertical = 5.dp)
+                        )
+                    }
+                    // 동·호수 — 주소 고른 뒤에만 노출(검색 후 자동 포커스). 도로명만 채워지니 여기에 이어 적음.
+                    Spacer(Modifier.height(10.dp))
+                    androidx.compose.material3.OutlinedTextField(
+                        value = detail,
+                        onValueChange = { detail = it },
+                        label = { Text("동·호수 (선택)") },
+                        placeholder = { Text("예: 101동 1502호", color = TossTextTertiary) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().focusRequester(detailFocus)
                     )
                 }
-                // 🔍 주소 검색 — Daum 우편번호. 정확한 도로명주소를 검색으로만 채운다.
-                Spacer(Modifier.height(10.dp))
-                androidx.compose.foundation.layout.Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
-                        .background(TossBlueSoft)
-                        .clickable { showSearch = true }
-                        .padding(vertical = 12.dp),
-                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                ) {
-                    Text("🔍", fontSize = 14.sp)
-                    Spacer(Modifier.width(6.dp))
-                    Text("주소 검색", color = TossBlue, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                }
-                // 동·호수 — 검색으로 도로명만 채워지므로 여기에 이어 적는다. 검색하면 자동으로 이 칸에 포커스.
-                Spacer(Modifier.height(10.dp))
-                androidx.compose.material3.OutlinedTextField(
-                    value = detail,
-                    onValueChange = { detail = it },
-                    label = { Text("동·호수 (선택)") },
-                    placeholder = { Text("예: 101동 1502호", color = TossTextTertiary) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().focusRequester(detailFocus)
-                )
                 // 자동 추출 후보 — 사장님 한 탭에 input 박힘.
                 if (extractedSuggestion != null) {
                     Spacer(Modifier.height(10.dp))

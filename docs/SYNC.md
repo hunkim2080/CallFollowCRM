@@ -3572,3 +3572,8 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 신규문의 꾹눌러 미리보기 = 채팅과 동일 타임라인으로 통일: 문자만 보이던 것 → 문자 말풍선 + 통화카드(에이닷 요약 ±10분 매칭, 불릿 노출)까지 합침. 통화만 있어도 통화카드+요약이 보임. (채팅 CallSegment 축약·읽기전용)
 - 변경: 서버 영향 없음. PeekState.items(PeekItem.Sms/Call), openPeek가 callRecordRepository+callSummaryRepository.first() 합침, PeekCallCard.
 - commit: (아래)
+
+## 2026-06-11 · android
+현장 주소 등록 모달 UI 정리: 회색 주소박스 + 파란 "주소 검색" 버튼이 둘 다 검색 열기라 헷갈리던 것 → 단계식. ①주소 미선택=검색 버튼 하나만(유일 동작) ②선택됨=주소 카드 📍 + [변경](재검색) + 동·호수 입력(이때만 노출, 자동 포커스). 중복 제거.
+- 변경: 서버 영향 없음. CustomerDetailScreen AddressEditDialog.
+- commit: (아래)
