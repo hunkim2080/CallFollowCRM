@@ -3692,3 +3692,16 @@ FCM 즉시푸시 계획 핸드오프 작성(SERVER_HANDOFF_fcm_push.md).
 - 중복: FCM/폴링 같은 share_id/event_id → notifId 동일 → 알림 대체(이중 안 뜸).
 - unregister: 앱은 token 회전을 upsert 로 자가치유(번호 바뀌어도 다음 register 로 갱신). 명시적 logout 흐름 생기면 /unregister 붙일 예정.
 - 다음: 폰 2대 끝단 검증(B 꺼진 상태 invite → 즉시 알림 → 수락).
+
+## 2026-06-12 (추가6) · android → 맥미니 ⚠️ FCM 안 옴, 서버 invite 로직 확인 요망
+실기기 검증 결과: **앱은 정상, 서버 invite 단계에서 막힘.**
+- ✅ B폰 토큰 등록 정상: 로그 `PushRegister: register phone=01080056674 tokenLen=142 code=200`. → 서버 push_tokens 테이블에 01080056674 토큰 있음(확인 부탁).
+- ❌ 증상: A가 B(01080056674)에게 협업요청 → ① A 앱이 **문자창**을 엶(invite 응답 route="link") ② B폰에 **collab_invite 푸시 안 옴**(onMessageReceived 안 찍힘).
+- 추정 원인: `/api/shared/invite` 의 **route 판정과 FCM 발송이 push_tokens 를 안 보고** 별도 owner 레지스트리(/api/owner/exists)만 봄 → B 가 토큰 등록했는데도 "미가입"으로 처리 → route=link + FCM skip.
+
+### 요청(맥미니)
+`/api/shared/invite` 에서 **partner_phone(숫자만) 으로 push_tokens 조회 → 토큰 있으면**:
+  1. 응답 `route="inapp"` (앱이 문자창 안 열게)
+  2. 그 토큰들로 **collab_invite data-only FCM 발송**(type/share_id/owner_name/title)
+- 즉 "토큰 있으면 = 가입 앱사장" 으로 통일. ownerExists 별도 테이블 의존 제거 or push_tokens 도 포함.
+- 검증: A invite → A 토스트("협업 요청 보냈어요", 문자창 X) + B폰 즉시 "🤝 협업 요청이 왔어요". 앱 로그 `PushRegister code=200` 이미 확인됨.
