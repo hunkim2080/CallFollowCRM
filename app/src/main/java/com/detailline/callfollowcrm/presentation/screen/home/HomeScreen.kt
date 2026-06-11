@@ -853,6 +853,7 @@ fun HomeScreen(
                                 onValueChange = { v -> manwon = v.filter { it.isDigit() } },
                                 placeholder = { Text("금액 (만원)", color = TossTextTertiary) },
                                 singleLine = true,
+                                visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation,
                                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                                     keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
                                 ),

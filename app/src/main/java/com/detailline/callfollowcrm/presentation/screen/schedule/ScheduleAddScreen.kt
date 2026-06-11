@@ -286,7 +286,8 @@ fun ScheduleAddScreen(
             Spacer(Modifier.height(12.dp))
             FieldLabel("총 금액 (만원)")
             SheetTextField(totalManwon, { totalManwon = it.filter { c -> c.isDigit() } }, placeholder = "예: 40",
-                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation)
 
             // .sheet-check — 계약금을 받았어요 → 체크 시 펼침
             Spacer(Modifier.height(4.dp))
@@ -309,7 +310,8 @@ fun ScheduleAddScreen(
             if (depositReceived) {
                 FieldLabel("계약금 (만원)")
                 SheetTextField(depositManwon, { depositManwon = it.filter { c -> c.isDigit() } }, placeholder = "예: 10",
-                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                    visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation)
             }
 
             // 일당 배정(앱 추가 기능) — 수첩 일당 있으면.
@@ -329,7 +331,8 @@ fun ScheduleAddScreen(
                     FieldLabel("1인 일당 (원)")
                     SheetTextField(crewWageText, { crewWageText = it.filter { c -> c.isDigit() } },
                         placeholder = "예: 200000",
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                        visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation)
                 }
             }
 

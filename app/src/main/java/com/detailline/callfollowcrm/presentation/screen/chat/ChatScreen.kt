@@ -2861,7 +2861,8 @@ private fun EstimateBuilderDialog(
                     Spacer(Modifier.height(8.dp))
                     com.detailline.callfollowcrm.presentation.component.SheetTextField(
                         depVal, { depVal = it.filter { c -> c.isDigit() } },
-                        placeholder = "만원 (예: 10)", keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                        placeholder = "만원 (예: 10)", keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                        visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation
                     )
                     val depW = (depVal.toIntOrNull() ?: 0) * 10_000L
                     Spacer(Modifier.height(6.dp))
@@ -2914,7 +2915,8 @@ private fun EstimateBuilderDialog(
                         com.detailline.callfollowcrm.presentation.component.SheetTextField(
                             c.manwon, { c.manwon = it.filter { ch -> ch.isDigit() } },
                             placeholder = "만원",
-                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                            visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation
                         )
                     }
                     Text(

@@ -641,7 +641,8 @@ private fun ContactDialog(
                 Spacer(Modifier.height(8.dp))
                 com.detailline.callfollowcrm.presentation.component.SheetTextField(
                     wageManwon, { wageManwon = it.filter { c -> c.isDigit() } },
-                    placeholder = "만원 (예: 18)", keyboardType = KeyboardType.Number
+                    placeholder = "만원 (예: 18)", keyboardType = KeyboardType.Number,
+                    visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation
                 )
             }
             // 메모

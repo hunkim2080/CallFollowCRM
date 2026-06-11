@@ -290,8 +290,10 @@ fun FormattedTextField(
     modifier: Modifier = Modifier,
     keyboardType: KeyboardType = KeyboardType.Number
 ) {
-    var tfv by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
-    if (tfv.text != value) tfv = TextFieldValue(value, TextRange(value.length))
+    // 저장된 raw 값(예: "01080056674")도 항상 format() 거쳐 표시 → 전화=하이픈, 돈=콤마가 기본으로 보임.
+    val shown = format(value)
+    var tfv by remember { mutableStateOf(TextFieldValue(shown, TextRange(shown.length))) }
+    if (tfv.text != shown) tfv = TextFieldValue(shown, TextRange(shown.length))
     SheetTextField(
         value = tfv,
         onValueChange = { newTfv ->
@@ -314,7 +316,9 @@ fun SheetTextField(
     keyboardType: KeyboardType = KeyboardType.Text,
     singleLine: Boolean = true,
     minHeightDp: Int = 0,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    visualTransformation: androidx.compose.ui.text.input.VisualTransformation =
+        androidx.compose.ui.text.input.VisualTransformation.None
 ) {
     val boxMod = modifier
         .fillMaxWidth()
@@ -331,10 +335,33 @@ fun SheetTextField(
         cursorBrush = SolidColor(TossBlue),
         singleLine = singleLine,
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        visualTransformation = visualTransformation,
         modifier = boxMod,
         decorationBox = { inner ->
             if (value.isEmpty()) Text(placeholder, color = TossTextTertiary, fontSize = 15.sp)
             inner()
+        }
+    )
+}
+
+/**
+ * 돈 입력칸 천 단위 콤마 — 상태(raw)는 숫자만 유지하고 화면에만 콤마를 끼움(2,500,000).
+ *   저장 로직은 그대로(숫자만 파싱) → 안전. 커서는 끝 고정(돈은 보통 이어 입력). (2026-06-12 사장님: 돈=콤마 기본)
+ */
+val ThousandsCommaTransformation = androidx.compose.ui.text.input.VisualTransformation { text ->
+    val raw = text.text
+    if (raw.isEmpty()) return@VisualTransformation androidx.compose.ui.text.input.TransformedText(
+        text, androidx.compose.ui.text.input.OffsetMapping.Identity
+    )
+    val number = raw.toLongOrNull() ?: return@VisualTransformation androidx.compose.ui.text.input.TransformedText(
+        text, androidx.compose.ui.text.input.OffsetMapping.Identity
+    )
+    val formatted = java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(number)
+    androidx.compose.ui.text.input.TransformedText(
+        androidx.compose.ui.text.AnnotatedString(formatted),
+        object : androidx.compose.ui.text.input.OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int = formatted.length
+            override fun transformedToOriginal(offset: Int): Int = raw.length
         }
     )
 }

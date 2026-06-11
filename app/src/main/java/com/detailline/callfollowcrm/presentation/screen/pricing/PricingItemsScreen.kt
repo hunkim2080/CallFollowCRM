@@ -348,7 +348,8 @@ private fun PricingItemEditDialog(
                         value = priceInput,
                         onValueChange = { v -> priceInput = v.filter { it.isDigit() } },
                         placeholder = "예: 30",
-                        keyboardType = KeyboardType.Number
+                        keyboardType = KeyboardType.Number,
+                        visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation
                     )
                 }
                 LabeledField(label = "계산 방식") {
@@ -439,13 +440,16 @@ private fun InputBox(
     value: String,
     onValueChange: (String) -> Unit,
     placeholder: String,
-    keyboardType: KeyboardType = KeyboardType.Text
+    keyboardType: KeyboardType = KeyboardType.Text,
+    visualTransformation: androidx.compose.ui.text.input.VisualTransformation =
+        androidx.compose.ui.text.input.VisualTransformation.None
 ) {
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
         textStyle = TextStyle(color = TossTextPrimary, fontSize = 14.sp),
         cursorBrush = SolidColor(TossBlue),
+        visualTransformation = visualTransformation,
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         modifier = Modifier
             .fillMaxWidth()

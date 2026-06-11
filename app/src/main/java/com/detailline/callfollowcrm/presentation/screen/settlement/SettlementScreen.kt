@@ -675,6 +675,7 @@ private fun GoalEditSheet(
                 value = text,
                 onValueChange = { text = it.filter { c -> c.isDigit() } },
                 label = { Text("목표 (만원)") },
+                visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()

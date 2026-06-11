@@ -1700,6 +1700,7 @@ private fun AmountInputDialog(title: String, initialWon: Long, onSave: (Long) ->
                 value = text,
                 onValueChange = { v -> text = v.filter { it.isDigit() } },
                 suffix = { Text("만원") },
+                visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation,
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),

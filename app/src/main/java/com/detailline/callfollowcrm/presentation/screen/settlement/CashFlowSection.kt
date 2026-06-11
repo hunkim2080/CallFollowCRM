@@ -460,7 +460,7 @@ private fun AddCashDialog(
                     leftColor = CashIn, rightColor = CashOut
                 )
                 Spacer(Modifier.height(16.dp))
-                // 금액 — 화면의 주인공: 큰 글씨 + 오른쪽 정렬 + "원" + 콤마 미리보기.
+                // 금액 — 화면의 주인공: 큰 글씨 + 오른쪽 정렬 + "원" + 천 단위 콤마(입력칸에 바로).
                 CashFieldLabel("금액")
                 OutlinedTextField(
                     value = amountText,
@@ -468,15 +468,11 @@ private fun AddCashDialog(
                     placeholder = { Text("0", fontSize = 22.sp, color = TossTextTertiary, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End) },
                     textStyle = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.End, color = accent),
                     suffix = { Text("원", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) },
+                    visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-                if (amount > 0) {
-                    Spacer(Modifier.height(5.dp))
-                    Text("= %,d원".format(amount), fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = accent,
-                        modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End)
-                }
                 Spacer(Modifier.height(14.dp))
                 CashFieldLabel("메모")
                 OutlinedTextField(
