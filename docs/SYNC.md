@@ -3662,3 +3662,9 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 - 공용: presentation.component.ThousandsCommaTransformation (돈 입력칸 13곳). FormattedTextField 표시값 format() 적용(전화).
 - commit: 8fef379
 - 다음 액션(서버): 없음
+
+## 2026-06-12 (추가2) · android
+협업 요청 받는 쪽 "수락하시겠어요?" 알림 — 앱만으로 구현(서버 변경 없음).
+- 변경: with-me 폴링으로 status="pending" 감지 → 로컬 알림 → 탭하면 /shared/{id} 수락화면. (CollabEventCenter.pollInvites)
+- 서버: 변경 불필요(pending 이 이미 with-me 응답에 옴). FCM(앱 완전종료 즉시알림)·팀원(웹링크) 알림은 추후 서버 협업 필요.
+- commit: 0e3892b
