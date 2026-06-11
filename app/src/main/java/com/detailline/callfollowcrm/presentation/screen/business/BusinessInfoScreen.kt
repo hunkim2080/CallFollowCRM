@@ -3,6 +3,7 @@ package com.detailline.callfollowcrm.presentation.screen.business
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -209,6 +210,19 @@ fun BusinessInfoScreen(
                             prefs.bizSeal = seal.ifBlank { name }
                             prefs.bizQuoteValidDays = validDays.toIntOrNull()?.coerceIn(1, 365) ?: 14
                             prefs.bizBank = bank; prefs.bizAccountNo = accountNo; prefs.bizAccountHolder = accountHolder
+                            // 번호 저장 즉시 FCM 토큰 서버 등록 — 앱 재시작 안 기다리게(즉시 푸시용). (2026-06-12)
+                            runCatching {
+                                val appCtx = context.applicationContext as? com.detailline.callfollowcrm.CallFollowCrmApplication
+                                val ph = phone.filter { it.isDigit() }
+                                if (appCtx != null && ph.length >= 9) {
+                                    com.google.firebase.messaging.FirebaseMessaging.getInstance().token
+                                        .addOnSuccessListener { token ->
+                                            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                                                runCatching { appCtx.container.pushRegisterRepository.register(ph, token) }
+                                            }
+                                        }
+                                }
+                            }
                             android.widget.Toast.makeText(context, "사업자 정보를 저장했어요 ✓ 견적서에 반영돼요", android.widget.Toast.LENGTH_SHORT).show()
                             onBack()
                         }
