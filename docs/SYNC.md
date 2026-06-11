@@ -3631,3 +3631,13 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 일정 캘린더: 예약 없는 날인데 "이 날 일정 등록"(DayEmpty)과 "이 날 일정 더 추가"가 같이 뜨던 중복 버그 수정. "더 추가"는 일정/협업이 1개 이상 있을 때만 노출.
 - 변경: 서버 영향 없음. ScheduleScreen day-add 조건 추가.
 - commit: (아래)
+
+## 2026-06-11 (추가) · android
+일정/챗/고객 UI 정리 7건 (사장님 실기기 피드백 연속 반영).
+- 변경: 앱 UI 만. 서버 인터페이스 영향 없음.
+  - 일정 카드: 연필 아이콘·"정산·현금흐름에서 보기" 링크 제거
+  - 캘린더: 점→프로토 jbar 막대(여러날 이어짐). 셀 선택 원이 칸 전체→날짜숫자만(프로토 .num)
+  - 협업 카드 밀어서 삭제 = 앱 로컬 숨김(AppPreferences.hiddenCollabShareIds)+되돌리기. 서버 share 삭제 아님(서버 endpoint 불필요)
+  - 현장 사진 올리기 = 카톡식 PhotoPickerSheet. 고객 메모 자동저장 상태표시. 챗 추천 접기 pill
+- commit: f1b6d75
+- 다음 액션(서버): 없음. (단 "현장 배정=협업 사장 공유" 통합은 사장님 결정 대기 — 결정되면 SharedSiteRepository.invite 흐름 재사용 예정)
