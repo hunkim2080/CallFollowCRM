@@ -3641,3 +3641,11 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
   - 현장 사진 올리기 = 카톡식 PhotoPickerSheet. 고객 메모 자동저장 상태표시. 챗 추천 접기 pill
 - commit: f1b6d75
 - 다음 액션(서버): 없음. (단 "현장 배정=협업 사장 공유" 통합은 사장님 결정 대기 — 결정되면 SharedSiteRepository.invite 흐름 재사용 예정)
+
+## 2026-06-11 (추가2) · android
+전문가 배정(팀원+협업사장) + 정산 직접기록 시트 토스화.
+- 변경: 협업 사장님 선택 = 기존 /api/shared/invite 재사용(앱→서버). 새 endpoint 불필요.
+  - 협업 사장 자동목록 = 수첩 "협업" 태그 worker(클라 로컬). 서버 partner-roster endpoint 필요 없음
+  - invite payload 동일(customer_label 만, 고객 번호·대화 미포함 — 벽 유지)
+- commit: 078af6b
+- 다음 액션(서버): 없음
