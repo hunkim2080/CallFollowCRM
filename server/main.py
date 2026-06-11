@@ -6271,6 +6271,11 @@ async def shared_owner_exists(phone: str) -> dict:
     name = _is_registered_owner(phone_digits)
     if name:
         return {"registered": True, "name": name}
+    # §FCM-fix (2026-06-12): push_tokens 도 인앱 판정 소스로 인정.
+    #   subscribers/beta_signups 디렉터리에 없어도 앱이 FCM 토큰 등록했으면 = 인앱 사용자.
+    #   (안드로이드 진단 SYNC 2026-06-12: B 가 register code=200 인데 link 로 떨어짐.)
+    if _get_tokens_for_phone(phone_digits):
+        return {"registered": True, "name": "사장님"}
     return {"registered": False, "name": None}
 
 
@@ -6334,12 +6339,19 @@ async def shared_invite(req: SharedInviteRequest) -> dict:
         con.commit()
 
     # B 가 가입 사장이면 인앱, 아니면 링크 + sms_draft
+    # §FCM-fix (2026-06-12): push_tokens 도 인앱 판정 소스로 인정.
+    #   subscribers/beta_signups 디렉터리에 없어도 앱이 FCM 토큰 등록했으면 = 인앱 사용자.
+    #   (안드로이드 진단 SYNC 2026-06-12: B 가 register code=200 인데 link 로 떨어짐 → 문자창 + FCM skip.)
     partner_name = _is_registered_owner(partner_phone)
-    if partner_name:
+    partner_tokens = _get_tokens_for_phone(partner_phone)
+    if partner_name or partner_tokens:
         route = "inapp"
         url = None
         sms_draft = None
-        print(f"[shared/invite] {owner_phone} → {partner_phone} (inapp) share={share_id}")
+        print(
+            f"[shared/invite] {owner_phone} → {partner_phone} (inapp) "
+            f"share={share_id} registered={bool(partner_name)} push_tokens={len(partner_tokens)}"
+        )
         # §30 FCM 푸시 — B 폰에 즉시 알림 (앱 꺼져 있어도)
         owner_name_for_fcm = _is_registered_owner(owner_phone) or "사장님"
         _send_fcm_data_to_phone(partner_phone, {

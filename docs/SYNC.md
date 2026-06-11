@@ -3705,3 +3705,14 @@ FCM 즉시푸시 계획 핸드오프 작성(SERVER_HANDOFF_fcm_push.md).
   2. 그 토큰들로 **collab_invite data-only FCM 발송**(type/share_id/owner_name/title)
 - 즉 "토큰 있으면 = 가입 앱사장" 으로 통일. ownerExists 별도 테이블 의존 제거 or push_tokens 도 포함.
 - 검증: A invite → A 토스트("협업 요청 보냈어요", 문자창 X) + B폰 즉시 "🤝 협업 요청이 왔어요". 앱 로그 `PushRegister code=200` 이미 확인됨.
+## 2026-06-12 (회신) · cowork (server) — 안드로이드 FCM 진단 fix
+SYNC 직전 블록(android 추가6) 진단 반영. **`/api/shared/invite` + `/api/owner/exists` 가 push_tokens 도 인앱 판정 소스로 보도록 수정.**
+- 원인 확정: B(01080056674)는 토큰 register code=200 했지만 subscribers/beta_signups 디렉터리(`_is_registered_owner`)에 없어서 → `partner_name=None` → route="link" + FCM skip + sms_draft 응답 → A 앱이 문자창 열림.
+- 변경 (server/main.py 2곳):
+  1. `shared_owner_exists` (6266~): `_is_registered_owner` None 이면 `_get_tokens_for_phone(phone_digits)` 도 확인 → 있으면 `{registered: true, name: "사장님"}`.
+  2. `shared_invite` (6291~): `partner_name OR partner_tokens` 면 route="inapp" + collab_invite FCM 발송. 로그도 보강 (`registered=... push_tokens=N`).
+- 의미: "토큰 있으면 = 인앱 사용자" 단일 룰. 가입 디렉터리 별도 관리 부담 ↓.
+- 검증 절차: A 가 B 에게 invite → A 앱 토스트 "협업 요청 보냈어요" (문자창 X) + B폰 즉시 "🤝 협업 요청이 왔어요" 푸시 + 서버 stdout `[shared/invite] ... (inapp) ... push_tokens=1`.
+- 안전벽 유지: customer_label 만, 고객 phone/대화 미포함.
+- 다음 액션 (사장님): `bash server/deploy_phase1.sh` 또는 `launchctl unload/load com.detailline.ringgo-server`.
+- 다음 액션 (안드로이드): 변경 없음. 폰 2대 검증만.
