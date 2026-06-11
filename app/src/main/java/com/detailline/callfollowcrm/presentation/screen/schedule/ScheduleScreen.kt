@@ -47,9 +47,11 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -153,6 +155,7 @@ fun ScheduleScreen(
 
     // 팀원 현장 배정 (2026-06-05) — 팀원 있을 때만 일정 카드에 배정 줄 노출.
     val teamMembers by viewModel.teamMembers.collectAsState()
+    val collabPartners by viewModel.collabPartners.collectAsState()
     val assignmentsByCustomer by viewModel.assignmentsByCustomer.collectAsState()
     val assignToast by viewModel.toast.collectAsState()
     val assignCtx = androidx.compose.ui.platform.LocalContext.current
@@ -306,7 +309,7 @@ fun ScheduleScreen(
                         selectedDayMs = selectedDayMs,
                         todayStart = todayStart,
                         assignedMembers = assignmentsByCustomer[c.id].orEmpty(),
-                        teamAvailable = teamMembers.isNotEmpty(),
+                        teamAvailable = teamMembers.isNotEmpty() || collabPartners.isNotEmpty(),
                         onAssign = { assignTarget = c },
                         onClick = { onOpenCustomer(c.id) }
                     )
@@ -346,20 +349,28 @@ fun ScheduleScreen(
         }
     }
 
-    // 팀원 현장 배정 시트 — 프로토 openAssign(팀원 칩 토글).
+    // 전문가 배정 시트 — 팀원(칩 토글, 완료에 저장) + 협업 사장님(탭하면 이 현장 협업 요청).
     assignTarget?.let { c ->
         val rows = assignmentsByCustomer[c.id].orEmpty()
         val assignedIds = rows.map { it.memberId }.toSet()
         val existingMemo = rows.firstNotNullOfOrNull { it.teamMemo }.orEmpty()
+        val assignCtxLocal = androidx.compose.ui.platform.LocalContext.current
         AssignTeamSheet(
             customerName = c.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(c.phoneNumber),
             members = teamMembers,
+            collabPartners = collabPartners,
             initiallySelected = assignedIds,
             initialMemo = existingMemo,
             onDismiss = { assignTarget = null },
             onSave = { selectedIds, memo ->
                 val dayStart = DateTimeUtils.startOfDay(c.scheduledWorkDate ?: System.currentTimeMillis())
                 viewModel.assignTeam(c, dayStart, selectedIds.toList(), memo)
+                assignTarget = null
+            },
+            onInviteCollab = { phone ->
+                viewModel.inviteCollabToSite(c, phone) { partner, body ->
+                    com.detailline.callfollowcrm.util.SmsIntentHelper.openSmsCompose(assignCtxLocal, partner, body)
+                }
                 assignTarget = null
             }
         )
@@ -760,7 +771,7 @@ private fun DayJobCard(
                 ) {
                     if (assignedMembers.isEmpty()) {
                         Text("아직 배정 안 함", fontSize = 13.sp, color = TossTextTertiary, modifier = Modifier.weight(1f))
-                        AssignBtn("팀원 배정", filled = true, onClick = onAssign)
+                        AssignBtn("전문가 배정", filled = true, onClick = onAssign)
                     } else {
                         AssignAvatars(assignedMembers)
                         Spacer(Modifier.width(8.dp))
@@ -995,13 +1006,16 @@ private fun buildCalendarCells(
 private fun AssignTeamSheet(
     customerName: String,
     members: List<com.detailline.callfollowcrm.ai.TeamRepository.TeamMember>,
+    collabPartners: List<com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity>,
     initiallySelected: Set<String>,
     initialMemo: String,
     onDismiss: () -> Unit,
-    onSave: (Set<String>, String) -> Unit
+    onSave: (Set<String>, String) -> Unit,
+    onInviteCollab: (String) -> Unit
 ) {
     var selected by remember { mutableStateOf(initiallySelected) }
     var memo by remember { mutableStateOf(initialMemo) }
+    var pendingInvite by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity?>(null) }
     val noRipple = remember { MutableInteractionSource() }
 
     // 스크림(탭 시 닫힘) + 하단 정렬 카드.
@@ -1027,52 +1041,94 @@ private fun AssignTeamSheet(
                 Modifier.align(Alignment.CenterHorizontally).padding(bottom = 12.dp)
                     .width(38.dp).height(4.dp).clip(RoundedCornerShape(999.dp)).background(TossDivider)
             )
-            Text("현장 배정", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            Text("전문가 배정", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
             Spacer(Modifier.height(4.dp))
-            Text("${customerName} 현장에 보낼 팀원을 고르세요. 배정하면 팀원 화면에 일정·주소가 떠요.",
+            Text("${customerName} 현장에 보낼 팀원이나 협업 사장님을 고르세요.",
                 fontSize = 13.sp, color = TossTextTertiary, lineHeight = 19.sp)
             Spacer(Modifier.height(16.dp))
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                members.forEach { m ->
-                    val on = selected.contains(m.memberId)
-                    val roleLabel = if (m.role == "owner") "대표" else "팀원"
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(if (on) TossBlue else TossGrayBg)
-                            .clickable {
-                                selected = if (on) selected - m.memberId else selected + m.memberId
+
+            // ── 👷 팀원 ──
+            Text("👷 팀원", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary,
+                modifier = Modifier.padding(start = 2.dp, bottom = 9.dp))
+            if (members.isEmpty()) {
+                Text("등록된 팀원이 없어요. 더보기 › 팀 관리에서 추가해요.",
+                    fontSize = 12.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp))
+            } else {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    members.forEach { m ->
+                        val on = selected.contains(m.memberId)
+                        val roleLabel = if (m.role == "owner") "대표" else "팀원"
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(if (on) TossBlue else TossGrayBg)
+                                .clickable {
+                                    selected = if (on) selected - m.memberId else selected + m.memberId
+                                }
+                                .padding(horizontal = 14.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (on) {
+                                Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                Spacer(Modifier.width(5.dp))
                             }
-                            .padding(horizontal = 14.dp, vertical = 9.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (on) {
-                            Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                            Text(m.name, fontSize = 13.5.sp, fontWeight = FontWeight.Bold,
+                                color = if (on) Color.White else TossTextPrimary)
                             Spacer(Modifier.width(5.dp))
+                            Text(roleLabel, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                                color = if (on) Color.White.copy(alpha = 0.8f) else TossTextTertiary)
                         }
-                        Text(m.name, fontSize = 13.5.sp, fontWeight = FontWeight.Bold,
-                            color = if (on) Color.White else TossTextPrimary)
-                        Spacer(Modifier.width(5.dp))
-                        Text(roleLabel, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                            color = if (on) Color.White.copy(alpha = 0.8f) else TossTextTertiary)
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+                // 직원 전달 메모 — 고객 메모와 별개. 팀원 화면에 '대표님 전달사항'으로 뜸(고객 메모는 안 보임).
+                SheetFieldLabel("직원에게 전달 (선택)")
+                SheetTextField(
+                    memo, { memo = it },
+                    placeholder = "예: 현관 비번 1234# · 사다리차 필요 · 주차는 뒷편",
+                    singleLine = false, minHeightDp = 64
+                )
+                Text("고객 메모와 별개예요. 여기 적은 내용만 팀원 화면에 보여요.",
+                    fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 6.dp, start = 2.dp))
+                Text("· 팀원 칩을 한 번 더 누르면 그 사람만 빠져요.",
+                    fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 3.dp, start = 2.dp))
+            }
+
+            // ── 🤝 협업 사장님 ──
+            Spacer(Modifier.height(16.dp))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+            Spacer(Modifier.height(16.dp))
+            Text("🤝 협업 사장님", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary,
+                modifier = Modifier.padding(start = 2.dp, bottom = 4.dp))
+            Text("탭하면 이 현장을 그 사장님께 협업 요청해요. 고객 번호·대화는 안 보내요.",
+                fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
+            if (collabPartners.isEmpty()) {
+                Text("전에 협업한 사장님이 여기 떠요. 새 사장님은 고객 정보 › 이 현장 함께 하기에서 초대해요.",
+                    fontSize = 12.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp))
+            } else {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    collabPartners.forEach { p ->
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(Color(0xFFF1ECFF))
+                                .clickable { pendingInvite = p }
+                                .padding(horizontal = 14.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("🤝", fontSize = 12.sp)
+                            Spacer(Modifier.width(5.dp))
+                            Text(p.name, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF7C5CFC))
+                        }
                     }
                 }
             }
-            Spacer(Modifier.height(18.dp))
-            // 직원 전달 메모 — 고객 메모와 별개. 팀원 화면에 '대표님 전달사항'으로 뜸(고객 메모는 안 보임).
-            SheetFieldLabel("직원에게 전달 (선택)")
-            SheetTextField(
-                memo, { memo = it },
-                placeholder = "예: 현관 비번 1234# · 사다리차 필요 · 주차는 뒷편",
-                singleLine = false, minHeightDp = 64
-            )
-            Text("고객 메모와 별개예요. 여기 적은 내용만 팀원 화면에 보여요.",
-                fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 6.dp, start = 2.dp))
-            Text("· 팀원 칩을 한 번 더 누르면 그 사람만 빠져요.",
-                fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 3.dp, start = 2.dp))
             Spacer(Modifier.height(18.dp))
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(TossBlue)
@@ -1097,5 +1153,22 @@ private fun AssignTeamSheet(
                 }
             }
         }
+    }
+
+    // 협업 사장님 탭 → 보내기 전 확인(실수 발송 방지).
+    pendingInvite?.let { p ->
+        AlertDialog(
+            onDismissRequest = { pendingInvite = null },
+            title = { Text("협업 요청 보내기", fontWeight = FontWeight.ExtraBold) },
+            text = { Text("${p.name} 사장님께 '${customerName} 현장'을 협업 요청할까요?\n고객 번호·대화는 보내지 않아요.", fontSize = 14.sp, lineHeight = 20.sp) },
+            confirmButton = {
+                TextButton(onClick = { onInviteCollab(p.phone); pendingInvite = null }) {
+                    Text("보내기", color = TossBlue, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingInvite = null }) { Text("취소", color = TossTextSecondary) }
+            }
+        )
     }
 }

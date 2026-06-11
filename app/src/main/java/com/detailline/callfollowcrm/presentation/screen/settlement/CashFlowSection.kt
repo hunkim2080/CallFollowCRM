@@ -47,6 +47,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -439,9 +440,16 @@ private fun AddCashDialog(
     var label by remember { mutableStateOf("") }
     val amount = amountText.filter { it.isDigit() }.toLongOrNull() ?: 0L
 
+    val accent = if (isIncome) CashIn else CashOut
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("직접 기록 · ${DateTimeUtils.formatKoreanDate(dayMs)}", fontWeight = FontWeight.Bold) },
+        title = {
+            Column {
+                Text("직접 기록", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                Text(DateTimeUtils.formatKoreanDate(dayMs), fontSize = 12.sp, color = TossTextTertiary)
+            }
+        },
         text = {
             Column {
                 com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
@@ -451,40 +459,69 @@ private fun AddCashDialog(
                     leftSelected = isIncome, onLeft = { isIncome = true }, onRight = { isIncome = false },
                     leftColor = CashIn, rightColor = CashOut
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(16.dp))
+                // 금액 — 화면의 주인공: 큰 글씨 + 오른쪽 정렬 + "원" + 콤마 미리보기.
+                CashFieldLabel("금액")
                 OutlinedTextField(
                     value = amountText,
-                    onValueChange = { amountText = it.filter { c -> c.isDigit() } },
-                    label = { Text("금액 (원)") },
+                    onValueChange = { amountText = it.filter { c -> c.isDigit() }.take(12) },
+                    placeholder = { Text("0", fontSize = 22.sp, color = TossTextTertiary, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End) },
+                    textStyle = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.End, color = accent),
+                    suffix = { Text("원", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(Modifier.height(8.dp))
+                if (amount > 0) {
+                    Spacer(Modifier.height(5.dp))
+                    Text("= %,d원".format(amount), fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = accent,
+                        modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End)
+                }
+                Spacer(Modifier.height(14.dp))
+                CashFieldLabel("메모")
                 OutlinedTextField(
                     value = label,
                     onValueChange = { label = it },
-                    label = { Text("메모 (예: 자재비)") },
+                    placeholder = { Text("예: 자재비", color = TossTextTertiary) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(14.dp))
                 // 완료/예정
+                CashFieldLabel("상태")
                 TwoToggle(
                     leftLabel = "이미 오감", rightLabel = "예정",
                     leftSelected = isDone, onLeft = { isDone = true }, onRight = { isDone = false },
                     leftColor = TossBlue, rightColor = TossTextTertiary
                 )
+                Spacer(Modifier.height(20.dp))
+                // 취소 / 추가 — 큰 풀폭 버튼. 추가는 수입=파랑·지출=빨강으로 물들임.
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(
+                        Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
+                            .clickable { onDismiss() }.padding(vertical = 14.dp),
+                        contentAlignment = Alignment.Center
+                    ) { Text("취소", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) }
+                    Box(
+                        Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
+                            .background(if (amount > 0) accent else TossDivider)
+                            .clickable(enabled = amount > 0) { onAdd(amount, isIncome, isDone, label) }
+                            .padding(vertical = 14.dp),
+                        contentAlignment = Alignment.Center
+                    ) { Text("추가", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+                }
             }
         },
-        confirmButton = {
-            TextButton(
-                onClick = { if (amount > 0) onAdd(amount, isIncome, isDone, label) },
-                enabled = amount > 0
-            ) { Text("추가", color = if (amount > 0) TossBlue else TossTextTertiary, fontWeight = FontWeight.Bold) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("취소", color = TossTextSecondary) } }
+        confirmButton = {},
+        dismissButton = {}
     )
+}
+
+/** 정산 직접기록 입력칸 라벨 — 12sp 굵게 t3, 살짝 들여쓰기. */
+@Composable
+private fun CashFieldLabel(text: String) {
+    Text(text, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+        modifier = Modifier.padding(start = 2.dp, bottom = 6.dp))
 }
 
 @Composable

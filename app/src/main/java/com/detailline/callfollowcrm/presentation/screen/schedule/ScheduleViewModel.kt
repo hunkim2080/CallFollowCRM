@@ -57,6 +57,12 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             .map { list -> list.groupBy { it.customerId } }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
+    /** 전에 협업한 사장님 자동 목록 — 협업 invite 시 수첩에 "협업" 태그로 쌓인 worker 들. (전문가 배정 시트의 협업 섹션) */
+    val collabPartners: StateFlow<List<com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity>> =
+        container.notebookRepository.observeWorkers()
+            .map { list -> list.filter { it.tag.contains("협업") } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     private val _toast = MutableStateFlow<String?>(null)
     val toast = _toast.asStateFlow()
     fun consumeToast() { _toast.value = null }
@@ -102,6 +108,37 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
     fun unhideCollab(shareId: String) {
         container.preferences.hiddenCollabShareIds = container.preferences.hiddenCollabShareIds - shareId
         applyCollabFilter()
+    }
+
+    /** 협업 현장 표시 라벨 — 고객 이름만(번호/대화 절대 미포함). CustomerDetail CollabShareSheet 와 동일 규칙. */
+    private fun collabTitleOf(c: CustomerEntity): String =
+        c.name?.takeIf { it.isNotBlank() }?.let { "$it 현장" } ?: "이 현장"
+
+    /**
+     * 전문가 배정 시트의 "협업 사장님" 선택 → 이 현장을 그 사장님께 협업 요청(/api/shared/invite).
+     *   고객 번호/대화는 안 보냄(customer_label = 안전 라벨만) — CustomerDetail 공유 흐름과 동일.
+     *   link 라우트면 onLink(번호, 문자본문) 로 화면이 SMS 작성창을 열게 함. inapp/실패는 토스트.
+     */
+    fun inviteCollabToSite(customer: CustomerEntity, partnerPhone: String, onLink: (String, String) -> Unit) {
+        val owner = ownerPhone.filter { it.isDigit() }
+        if (owner.length < 9) { _toast.value = "먼저 더보기 → 사업자 정보에서 내 전화번호를 등록해주세요"; return }
+        val partner = partnerPhone.filter { it.isDigit() }
+        if (partner.length < 9) { _toast.value = "협업 사장님 번호를 확인해주세요"; return }
+        val title = collabTitleOf(customer)
+        val addr = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(customer.address).takeIf { it.isNotBlank() }
+        viewModelScope.launch {
+            container.sharedSiteRepository.invite(
+                ownerPhone = owner, partnerPhone = partner, title = title,
+                addr = addr, scheduledAtMs = customer.scheduledWorkDate ?: 0L,
+                workSummary = null, memo = null, customerLabel = title
+            ).onSuccess { r ->
+                if (r.route == "link" && !r.url.isNullOrBlank()) {
+                    onLink(partner, r.smsDraft ?: "협업 현장 공유 — ${r.url}")
+                } else {
+                    _toast.value = "협업 요청을 보냈어요 — 상대 사장님이 수락하면 시작돼요"
+                }
+            }.onFailure { _toast.value = "공유 실패 — 잠시 후 다시 시도해주세요" }
+        }
     }
 
     /**
