@@ -32,6 +32,9 @@
     <uses-permission android:name="android.permission.RECEIVE_WAP_PUSH" />
     <!-- 예약 확정 시 축하 진동 (normal permission, 런타임 요청 불필요) -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- 채팅에서 고객에게 보낼 사진 고르기(카톡식 자체 갤러리). 33+ 는 READ_MEDIA_IMAGES, 그 이하(갤S9 등)는 READ_EXTERNAL_STORAGE. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <!-- 현장 도착 안내(지오펜싱) — 시공 현장 5km 진입 감지. 백그라운드는 Android 10+ 별도 허용. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />

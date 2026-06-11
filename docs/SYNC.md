@@ -3602,3 +3602,8 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 정산 카드: 계약금을 총금액과 따로 입력 가능하게. 기존엔 총금액 입력 입구만 있고 계약금 설정 버튼이 없었음(계약금 따로 못 넣음). 추가: filled 상태에 "계약금 {액}/미설정 [계약금 입력·수정]" 행, 빈/온보딩 상태에 "💵 계약금 입력" 버튼. hasAmount=총||계약금. AmountInputDialog에 ForceDialogResize(키보드 가림 방지) 추가.
 - 변경: 서버 영향 없음. CustomerDetailScreen 정산 카드 + MoneyEditPill + AmountInputDialog.
 - commit: (아래)
+
+## 2026-06-11 · android
+채팅 사진 첨부 = 카톡식 자체 갤러리 바텀시트로 교체. 기존 PickMultipleVisualMedia 는 갤S9(안드10)에 시스템 포토피커가 없어 "내 파일" 문서UI로 fallback + 한번에 안 잡히던 문제 → 자체 MediaStore 그리드(다중선택·번호배지)로 아래서 올라오게. "📁 파일에서"로 기존 시스템 피커 fallback 유지. 권한: READ_MEDIA_IMAGES(33+)/READ_EXTERNAL_STORAGE(≤32, 매니페스트 추가).
+- 변경: 서버 영향 없음. 신규 PhotoPickerSheet.kt, ChatScreen onAttachPhoto→자체피커, AndroidManifest 미디어권한.
+- commit: (아래)

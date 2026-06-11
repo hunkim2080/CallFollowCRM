@@ -211,6 +211,8 @@ fun ChatScreen(
     var estimateBody by remember { mutableStateOf<String?>(null) }
     // 사진 첨부 — Photo Picker 로 선택된 URI 들. 발송 시 갤럭시 메시지로 본문+사진 같이 전달.
     var attachedPhotos by remember { mutableStateOf<List<android.net.Uri>>(emptyList()) }
+    // 카톡식 자체 사진 피커(아래서 올라오는 바텀시트) 표시 여부. 2026-06-11 사장님 요청.
+    var showPhotoPicker by remember { mutableStateOf(false) }
     // AI 제안 박스의 [버튼] 액션 — null 이면 다이얼로그 안 떠 있는 상태.
     //   templatePickerCategory = "" 이면 전체 템플릿, 카테고리 이름이면 그 카테고리만.
     var templatePickerCategory by remember { mutableStateOf<String?>(null) }
@@ -681,11 +683,7 @@ fun ChatScreen(
                 onAiPolish = {
                     viewModel.aiPolish(input) { polished -> input = polished }
                 },
-                onAttachPhoto = {
-                    pickPhotos.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                    )
-                },
+                onAttachPhoto = { showPhotoPicker = true },
                 attachments = attachedPhotos,
                 onRemoveAttachment = { uri -> attachedPhotos = attachedPhotos - uri },
                 onSend = {
@@ -980,6 +978,22 @@ fun ChatScreen(
                 }
             }
         }
+    }
+
+    // 카톡식 자체 사진 피커 — 아래서 올라오는 바텀시트 갤러리. "파일에서"는 기존 시스템 피커로 fallback.
+    if (showPhotoPicker) {
+        com.detailline.callfollowcrm.presentation.component.PhotoPickerSheet(
+            maxSelectable = (5 - attachedPhotos.size).coerceAtLeast(0),
+            onConfirm = { uris ->
+                attachedPhotos = (attachedPhotos + uris).distinct().take(5)
+                showPhotoPicker = false
+            },
+            onDismiss = { showPhotoPicker = false },
+            onOpenFiles = {
+                showPhotoPicker = false
+                pickPhotos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            }
+        )
     }
 
     // 풀스크린 이미지 뷰어 (썸네일 탭 시)
