@@ -3655,3 +3655,10 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 - 변경: 앱 UI 만. 서버 무관.
 - commit: 55ce44f
 - 다음 액션(서버): 없음
+
+## 2026-06-12 · android
+전역 입력 포맷 규칙: 전화=하이픈 기본, 돈=천단위 콤마 기본.
+- 변경: 앱 UI 만. 서버 무관. (돈 입력칸 상태는 여전히 숫자만 → 저장 포맷 불변)
+- 공용: presentation.component.ThousandsCommaTransformation (돈 입력칸 13곳). FormattedTextField 표시값 format() 적용(전화).
+- commit: 8fef379
+- 다음 액션(서버): 없음
