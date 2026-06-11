@@ -3668,3 +3668,10 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 - 변경: with-me 폴링으로 status="pending" 감지 → 로컬 알림 → 탭하면 /shared/{id} 수락화면. (CollabEventCenter.pollInvites)
 - 서버: 변경 불필요(pending 이 이미 with-me 응답에 옴). FCM(앱 완전종료 즉시알림)·팀원(웹링크) 알림은 추후 서버 협업 필요.
 - commit: 0e3892b
+
+## 2026-06-12 (추가3) · android
+FCM 즉시푸시 계획 핸드오프 작성(SERVER_HANDOFF_fcm_push.md).
+- 변경: 아직 코드 X. 3박자(사장님 Firebase 콘솔 + 맥미니 서버 + 앱) 필요.
+- 서버(맥미니) 몫: POST /api/push/register(phone↔token) + invite route=inapp 시 partner 토큰으로 data-only FCM(type:collab_invite). firebase-admin + 서비스계정 키(맥미니에만).
+- 앱 몫: google-services.json 받으면 착수(그 전엔 빌드 깨져 불가).
+- 다음 액션: 사장님이 Firebase 프로젝트 생성 → google-services.json(앱) + 서비스계정 키(서버). 서버 Claude 는 키 받으면 §2 착수.
