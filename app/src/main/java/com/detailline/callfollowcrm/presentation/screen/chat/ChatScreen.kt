@@ -31,6 +31,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import com.detailline.callfollowcrm.presentation.util.bottomBarClearance
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
@@ -817,8 +818,8 @@ fun ChatScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .navigationBarsPadding()  // 시스템 하단 내비바와 겹침 방지 (2026-06-07 사장님 보고)
                     .padding(horizontal = 8.dp, vertical = 8.dp)
+                    .bottomBarClearance()  // 시스템 하단 내비바 가림 방지(M3 시트 인셋 0 버그 우회). 2026-06-11
             ) {
                 // 메시지 미리보기 — 어느 메시지 액션인지 한눈에.
                 Text(
@@ -2602,8 +2603,8 @@ private fun SendConfirmDialog(
         tonalElevation = 0.dp
     ) {
         Column(
-            // navigationBarsPadding — 제스처바/네비바와 [취소] 버튼 겹침 방지(2026-06-04 사장님 보고).
-            Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp).padding(bottom = 24.dp)
+            // 내비바/제스처바와 [취소][보내기] 버튼 겹침 방지(M3 시트 인셋 0 버그 우회). 2026-06-11
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp).bottomBarClearance(extra = 16.dp)
         ) {
             Text(
                 "$recipient 에게 보낼까요?",

@@ -19,9 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -46,7 +44,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -58,6 +55,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
+import com.detailline.callfollowcrm.presentation.util.bottomBarClearance
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -104,15 +102,6 @@ fun PhotoPickerSheet(
     onOpenFiles: () -> Unit
 ) {
     val context = LocalContext.current
-    val density = LocalDensity.current
-    // M3 ModalBottomSheet 가 일부 기기(갤S9 등)에서 내비바 인셋을 0으로 줘서 버튼이 내비바에 가림.
-    //   → 인셋이 정상(>0)이면 인셋, 0이면 시스템 리소스의 내비바 실제 높이를 fallback 으로 써서 확실히 띄운다.
-    val resNavPx = remember {
-        val id = context.resources.getIdentifier("navigation_bar_height", "dimen", "android")
-        if (id > 0) context.resources.getDimensionPixelSize(id) else 0
-    }
-    val navInsetPx = WindowInsets.navigationBars.getBottom(density)
-    val navBottomDp = with(density) { (if (navInsetPx > 0) navInsetPx else resNavPx).toDp() }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var granted by remember { mutableStateOf(hasMediaPermission(context)) }
     var images by remember { mutableStateOf<List<Uri>>(emptyList()) }
@@ -129,10 +118,10 @@ fun PhotoPickerSheet(
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = Color.White) {
         Column(
-            // 내비바 실제 높이(navBottomDp)만큼 띄우고 + 8dp 여백 → 어느 기기든 [첨부] 버튼이 내비바에 안 가림.
+            // 내비바 높이만큼 띄워 [첨부] 버튼이 내비바에 안 가리게(공통 헬퍼 — M3 시트 인셋 0 버그 우회).
             Modifier.fillMaxWidth()
                 .padding(horizontal = 14.dp)
-                .padding(bottom = navBottomDp + 8.dp)
+                .bottomBarClearance()
         ) {
             Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("사진 첨부", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)

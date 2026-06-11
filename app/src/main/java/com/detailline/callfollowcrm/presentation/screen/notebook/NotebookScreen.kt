@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import com.detailline.callfollowcrm.presentation.util.bottomBarClearance
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -543,7 +544,7 @@ private fun ContactDialog(
         tonalElevation = 0.dp
     ) {
         Column(
-            Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 22.dp)
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp).bottomBarClearance(extra = 22.dp)
                 .heightIn(max = 560.dp).verticalScroll(rememberScrollState())
         ) {
             Text(title, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)

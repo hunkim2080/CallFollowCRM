@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import com.detailline.callfollowcrm.presentation.util.bottomBarClearance
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -90,7 +91,7 @@ fun MyScheduleSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 18.dp)
-                .padding(bottom = 24.dp)
+                .bottomBarClearance(extra = 24.dp)  // 하단 내비바 가림 방지(M3 시트 인셋 0 버그). 2026-06-11
         ) {
             Text("내 시공 일정", style = MaterialTheme.typography.titleLarge,
                 color = TossTextPrimary, fontWeight = FontWeight.Bold)

@@ -6,7 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
+import com.detailline.callfollowcrm.presentation.util.bottomBarClearance
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -351,8 +351,9 @@ private fun NewLeadRow(lead: NewLeadUi, onClick: () -> Unit, onLongClick: () -> 
 @Composable
 private fun PeekSheet(peek: PeekState, onOpenChat: () -> Unit) {
     Column(
-        Modifier.fillMaxWidth().navigationBarsPadding()
-            .padding(start = 18.dp, end = 18.dp, bottom = 14.dp)
+        Modifier.fillMaxWidth()
+            .padding(start = 18.dp, end = 18.dp)
+            .bottomBarClearance(extra = 14.dp)
     ) {
         Text(
             peek.displayName, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold,

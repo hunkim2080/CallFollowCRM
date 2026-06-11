@@ -3612,3 +3612,8 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 사진 첨부 바텀시트 [첨부] 버튼이 하단 내비바에 붙던 것 → 하단 여백 10→22dp 로 넉넉히(navigationBarsPadding 0 반환 기기에서도 버튼이 바에 안 붙게).
 - 변경: 서버 영향 없음. PhotoPickerSheet.
 - commit: (아래)
+
+## 2026-06-11 · android
+하단 내비바 가림 버그 전수 개선: M3 ModalBottomSheet가 갤S9에서 내비바 인셋 0 반환 → 시트 버튼/내용 가림. 공통 헬퍼 presentation/util/SystemBars.kt(navBarBottomDp + Modifier.bottomBarClearance: 인셋>0이면 인셋, 0이면 리소스 navigation_bar_height fallback). 적용: PhotoPickerSheet, ChatScreen(버블액션시트·보내기확인시트), NewLeads 미리보기, MyScheduleSheet, NotebookScreen 편집시트. 인라인 오버레이(액티비티 창: AssignTeam/Settlement입력/AddMember/Onboarding/Login/탭바)는 정상이라 미변경(과다여백 방지).
+- 변경: 서버 영향 없음. 신규 SystemBars.kt + 5개 시트.
+- commit: (아래)
