@@ -3675,3 +3675,11 @@ FCM 즉시푸시 계획 핸드오프 작성(SERVER_HANDOFF_fcm_push.md).
 - 서버(맥미니) 몫: POST /api/push/register(phone↔token) + invite route=inapp 시 partner 토큰으로 data-only FCM(type:collab_invite). firebase-admin + 서비스계정 키(맥미니에만).
 - 앱 몫: google-services.json 받으면 착수(그 전엔 빌드 깨져 불가).
 - 다음 액션: 사장님이 Firebase 프로젝트 생성 → google-services.json(앱) + 서비스계정 키(서버). 서버 Claude 는 키 받으면 §2 착수.
+
+## 2026-06-12 (추가4) · android
+앱 측 FCM 즉시 푸시 연동 완료(협업 요청/진행). 서버 endpoint 대기.
+- 변경: 앱이 FCM 토큰을 POST /api/push/register {phone,token,platform:"android"} 로 등록(가입 사장 폰). RingGoFcmService 가 data 메시지 수신 → 알림.
+- 서버(맥미니) 할 일(미완 대기): ① POST /api/push/register 저장(phone↔token) ② /api/shared/invite route=inapp 시 partner 토큰으로 **data-only** FCM(type:collab_invite, share_id, owner_name, title). 서비스계정 키 이미 받음. 상세=docs/SERVER_HANDOFF_fcm_push.md §2
+- google-services.json / adminsdk 키는 .gitignore (repo 에 없음). 프로젝트 id=ringgo-2844c.
+- commit: 6111272
+- 다음 액션(서버): /api/push/register + invite 푸시 → SYNC 회신. 그러면 끝단 검증.
