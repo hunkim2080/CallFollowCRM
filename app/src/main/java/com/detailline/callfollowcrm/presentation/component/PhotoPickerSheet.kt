@@ -19,8 +19,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -45,6 +46,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -102,6 +104,15 @@ fun PhotoPickerSheet(
     onOpenFiles: () -> Unit
 ) {
     val context = LocalContext.current
+    val density = LocalDensity.current
+    // M3 ModalBottomSheet 가 일부 기기(갤S9 등)에서 내비바 인셋을 0으로 줘서 버튼이 내비바에 가림.
+    //   → 인셋이 정상(>0)이면 인셋, 0이면 시스템 리소스의 내비바 실제 높이를 fallback 으로 써서 확실히 띄운다.
+    val resNavPx = remember {
+        val id = context.resources.getIdentifier("navigation_bar_height", "dimen", "android")
+        if (id > 0) context.resources.getDimensionPixelSize(id) else 0
+    }
+    val navInsetPx = WindowInsets.navigationBars.getBottom(density)
+    val navBottomDp = with(density) { (if (navInsetPx > 0) navInsetPx else resNavPx).toDp() }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var granted by remember { mutableStateOf(hasMediaPermission(context)) }
     var images by remember { mutableStateOf<List<Uri>>(emptyList()) }
@@ -118,9 +129,10 @@ fun PhotoPickerSheet(
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = Color.White) {
         Column(
-            // navigationBarsPadding = 내비바 위로(에지투에지 케이스), + 추가 여백으로 어느 기기든 버튼이 바에 안 붙게.
-            Modifier.fillMaxWidth().navigationBarsPadding()
-                .padding(horizontal = 14.dp).padding(bottom = 22.dp)
+            // 내비바 실제 높이(navBottomDp)만큼 띄우고 + 8dp 여백 → 어느 기기든 [첨부] 버튼이 내비바에 안 가림.
+            Modifier.fillMaxWidth()
+                .padding(horizontal = 14.dp)
+                .padding(bottom = navBottomDp + 8.dp)
         ) {
             Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("사진 첨부", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
