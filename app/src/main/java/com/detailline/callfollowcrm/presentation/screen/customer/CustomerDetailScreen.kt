@@ -418,28 +418,32 @@ fun CustomerDetailScreen(
             }
 
             // 1.4 협업 현장으로 공유 (collab-sites-proto a-card) — 다른 사장님과 이 현장 하나만 같이.
-            Spacer(Modifier.height(12.dp))
-            Text("이 현장 함께 하기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
-                modifier = Modifier.padding(start = 2.dp, bottom = 8.dp))
-            Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-                    .border(1.5.dp, Color(0xFFC8D3E2), RoundedCornerShape(16.dp))
-                    .clickable { collabShareOpen = true }
-                    .padding(16.dp),
-                horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
-            ) {
-                Text("🤝 다른 사장님과 협업 현장으로 공유", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
-                Spacer(Modifier.height(5.dp))
-                Text("같이 하기로 한 사장님께 이 현장 하나만 공유해요", fontSize = 12.5.sp, color = TossTextTertiary)
-            }
+            //   예약(시공일)이 잡힌 고객만 = 진짜 "현장". 상담 단계(날짜 없음)는 공유할 현장이 없으니 섹션 숨김.
+            //   (2026-06-11 사장님 요청)
+            if (c.scheduledWorkDate != null) {
+                Spacer(Modifier.height(12.dp))
+                Text("이 현장 함께 하기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+                    modifier = Modifier.padding(start = 2.dp, bottom = 8.dp))
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                        .border(1.5.dp, Color(0xFFC8D3E2), RoundedCornerShape(16.dp))
+                        .clickable { collabShareOpen = true }
+                        .padding(16.dp),
+                    horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
+                ) {
+                    Text("🤝 다른 사장님과 협업 현장으로 공유", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+                    Spacer(Modifier.height(5.dp))
+                    Text("같이 하기로 한 사장님께 이 현장 하나만 공유해요", fontSize = 12.5.sp, color = TossTextTertiary)
+                }
 
-            if (collabShareOpen) {
-                CollabShareSheet(
-                    siteTitle = c.name?.takeIf { it.isNotBlank() }?.let { "$it 현장" } ?: "이 현장",
-                    addr = displayAddr,
-                    scheduledAtMs = c.scheduledWorkDate,
-                    onDismiss = { collabShareOpen = false }
-                )
+                if (collabShareOpen) {
+                    CollabShareSheet(
+                        siteTitle = c.name?.takeIf { it.isNotBlank() }?.let { "$it 현장" } ?: "이 현장",
+                        addr = displayAddr,
+                        scheduledAtMs = c.scheduledWorkDate,
+                        onDismiss = { collabShareOpen = false }
+                    )
+                }
             }
 
             // 1.5 AI 대화 요약 — 사장님 요청 (2026-05-24): 고객상세에서 문자 다시 검토 안 해도 흐름 파악.
