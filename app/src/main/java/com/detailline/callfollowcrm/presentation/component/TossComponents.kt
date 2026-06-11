@@ -348,6 +348,25 @@ fun SheetTextField(
  * 돈 입력칸 천 단위 콤마 — 상태(raw)는 숫자만 유지하고 화면에만 콤마를 끼움(2,500,000).
  *   저장 로직은 그대로(숫자만 파싱) → 안전. 커서는 끝 고정(돈은 보통 이어 입력). (2026-06-12 사장님: 돈=콤마 기본)
  */
+/**
+ * 전화번호 입력칸 하이픈 — 상태(raw)는 숫자만, 화면에만 010-0000-0000 하이픈. 커서 끝 고정.
+ *   FormattedTextField 를 못 쓰는 plain OutlinedTextField/BasicTextField 전화칸용. (2026-06-12 사장님: 전화=하이픈 기본)
+ */
+val PhoneHyphenTransformation = androidx.compose.ui.text.input.VisualTransformation { text ->
+    val digits = text.text.filter { it.isDigit() }
+    if (digits.isEmpty()) return@VisualTransformation androidx.compose.ui.text.input.TransformedText(
+        text, androidx.compose.ui.text.input.OffsetMapping.Identity
+    )
+    val formatted = com.detailline.callfollowcrm.util.PhoneNumberFormatter.formatProgressive(digits)
+    androidx.compose.ui.text.input.TransformedText(
+        androidx.compose.ui.text.AnnotatedString(formatted),
+        object : androidx.compose.ui.text.input.OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int = formatted.length
+            override fun transformedToOriginal(offset: Int): Int = text.text.length
+        }
+    )
+}
+
 val ThousandsCommaTransformation = androidx.compose.ui.text.input.VisualTransformation { text ->
     val raw = text.text
     if (raw.isEmpty()) return@VisualTransformation androidx.compose.ui.text.input.TransformedText(

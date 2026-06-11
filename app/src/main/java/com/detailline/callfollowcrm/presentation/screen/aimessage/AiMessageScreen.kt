@@ -76,7 +76,8 @@ fun AiMessageScreen(
                 com.detailline.callfollowcrm.presentation.component.SheetFieldLabel("고객 번호")
                 com.detailline.callfollowcrm.presentation.component.SheetTextField(
                     state.customerPhone, viewModel::onPhoneChange, placeholder = "010-0000-0000",
-                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone)
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone,
+                    visualTransformation = com.detailline.callfollowcrm.presentation.component.PhoneHyphenTransformation)
             }
             Column {
                 com.detailline.callfollowcrm.presentation.component.SheetFieldLabel("고객 문의")

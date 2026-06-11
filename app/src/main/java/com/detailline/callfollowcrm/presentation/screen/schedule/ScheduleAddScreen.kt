@@ -685,8 +685,9 @@ private fun NewVendorDialog(
             SheetTextField(nm, { nm = it }, placeholder = "예: 시흥 인테리어")
             Spacer(Modifier.height(10.dp))
             FieldLabel("전화번호")
-            SheetTextField(ph, { ph = it }, placeholder = "010-0000-0000",
-                keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone)
+            SheetTextField(ph, { ph = it.filter { c -> c.isDigit() } }, placeholder = "010-0000-0000",
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone,
+                visualTransformation = com.detailline.callfollowcrm.presentation.component.PhoneHyphenTransformation)
             Spacer(Modifier.height(18.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 Text("취소", color = TossTextSecondary, fontWeight = FontWeight.Medium,

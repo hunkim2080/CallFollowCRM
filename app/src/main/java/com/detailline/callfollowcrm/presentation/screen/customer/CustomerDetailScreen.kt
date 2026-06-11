@@ -2699,9 +2699,10 @@ private fun CollabShareSheet(
                     modifier = Modifier.padding(bottom = 6.dp))
                 androidx.compose.material3.OutlinedTextField(
                     value = partnerPhone,
-                    onValueChange = { partnerPhone = it.filter { c -> c.isDigit() || c == '-' }.take(13) },
+                    onValueChange = { partnerPhone = it.filter { c -> c.isDigit() }.take(11) },
                     placeholder = { Text("010-0000-0000", color = TossTextTertiary) },
                     singleLine = true,
+                    visualTransformation = com.detailline.callfollowcrm.presentation.component.PhoneHyphenTransformation,
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -2719,7 +2720,7 @@ private fun CollabShareSheet(
                         Spacer(Modifier.height(6.dp))
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                             workerCandidates.forEach { w ->
-                                CollabPhoneChip(w.name) { partnerPhone = w.phone }
+                                CollabPhoneChip(w.name) { partnerPhone = w.phone.filter { it.isDigit() } }
                             }
                         }
                     }
@@ -2729,7 +2730,7 @@ private fun CollabShareSheet(
                         Spacer(Modifier.height(6.dp))
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                             smsCandidates.forEach { s ->
-                                CollabPhoneChip(com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(s.address)) { partnerPhone = s.address }
+                                CollabPhoneChip(com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(s.address)) { partnerPhone = s.address.filter { it.isDigit() } }
                             }
                         }
                     }
