@@ -314,7 +314,10 @@ fun ScheduleScreen(
                     CollabDayCard(site = site, onClick = { onOpenCollabSites(site.shareId) })
                 }
             }
-            item(key = "day-add") { DayAddButton("이 날 일정 더 추가", onAddSchedule) }
+            // "더 추가"는 이미 일정/협업이 있을 때만. 아무것도 없으면 DayEmpty 의 "이 날 일정 등록"만 노출(중복 방지).
+            if (schedulesForSelected.isNotEmpty() || collabForSelected.isNotEmpty()) {
+                item(key = "day-add") { DayAddButton("이 날 일정 더 추가", onAddSchedule) }
+            }
             item { Spacer(Modifier.height(40.dp)) }
         }
     }

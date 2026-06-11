@@ -3626,3 +3626,8 @@ main.py PEP 604 잔존 1건 수정 (cowork 351d729 sweep 가 놓침)
 4) ScheduleAdd 불러오기 목록 힌트: 번호만 보고 누군지 모름 → ✨AI요약>메모>주소>최근연락 한 줄(contactHints, conversationAiRepository.observeAll 재사용).
 - 변경: 서버 영향 없음. TossComponents.FormattedTextField, util/AddressUtils.kt, ScheduleAddScreen/VM, NotebookScreen, BusinessInfoScreen, CustomerDetailScreen.
 - commit: (아래)
+
+## 2026-06-11 · android
+일정 캘린더: 예약 없는 날인데 "이 날 일정 등록"(DayEmpty)과 "이 날 일정 더 추가"가 같이 뜨던 중복 버그 수정. "더 추가"는 일정/협업이 1개 이상 있을 때만 노출.
+- 변경: 서버 영향 없음. ScheduleScreen day-add 조건 추가.
+- commit: (아래)
