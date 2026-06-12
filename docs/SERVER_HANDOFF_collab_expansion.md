@@ -79,6 +79,15 @@
   - 지원자끼리 서로 안 보임. owner 만 지원자 목록 조회.
   - 고객 정보(번호·대화)는 어느 단계에서도 미노출.
 
+## H. A 쪽 "이 현장 누가 함께?" (캘린더 협업 표시)
+
+- 프로토: `a-after`("협업 중 · 박지훈 사장님"), 일정 카드 배정줄.
+- A가 자기 현장에 협업 사장을 배정(invite)하면 A 캘린더/일정 카드에 **그 사장 이름 + 수락 여부**가 떠야 함.
+- 앱 현재(commit d14044b): A가 invite 보낼 때 **로컬로** "🤝 이름"만 기록·표시(prefs `collab_assignments`). **상대 수락 여부는 모름**(로컬 한계).
+- 서버 필요: A 의 **내보낸 협업 목록** — `GET /api/shared/by-me?phone=A` →
+  `[{ share_id, partner_name, partner_phone, scheduled_at_ms, status: pending|accepted|declined, title }]`
+  (또는 `owner-events` 에 accepted/declined 포함.) 앱이 이걸 받아 "🤝 이름 · 요청함/함께" 정확히 표시 + 거절 시 제거.
+
 ---
 
 ## 우선순위 제안 (작은 것 → 큰 것)
