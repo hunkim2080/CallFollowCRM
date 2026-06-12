@@ -36,6 +36,10 @@ class RingGoFcmService : FirebaseMessagingService() {
                         ownerName = data["owner_name"].orEmpty(),
                         title = data["title"].orEmpty()
                     )
+                    // FCM이 이미 띄웠으니 폴링이 같은 초대를 또 띄우지 않게 seen 에 추가(이중 알림 방지).
+                    (applicationContext as? CallFollowCrmApplication)?.container?.preferences?.let { p ->
+                        p.seenCollabInviteShareIds = p.seenCollabInviteShareIds + shareId
+                    }
                 }
             }
             "collab_event" -> {

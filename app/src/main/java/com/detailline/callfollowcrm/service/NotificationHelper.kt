@@ -440,6 +440,9 @@ object NotificationHelper {
             .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
+            // 같은 알림 id(같은 shareId 등)를 FCM·폴링이 각각 띄워도 소리/진동은 한 번만.
+            //   협업 초대가 2~3번 울리던 문제 fix (FCM + 앱루프폴링 + ReminderWorker폴링이 같은 건을 재게시).
+            .setOnlyAlertOnce(true)
         contentIntent?.let { builder.setContentIntent(it) }
         timeoutMs?.let { builder.setTimeoutAfter(it) }
         actions.forEach { builder.addAction(R.drawable.ic_notification, it.label, it.intent) }
