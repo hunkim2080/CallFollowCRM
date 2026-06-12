@@ -6760,6 +6760,109 @@ async def shared_owner_events(
     return {"events": events}
 
 
+# ─── ⑧ GET /api/shared/partners ───  (§B 2026-06-13)
+# B 가 받은 협업들 → owner_phone(A) 별 집계.
+# 핸드오프 §B (SERVER_HANDOFF_collab_expansion): "업체별 히스토리 + 누적 수입".
+#
+# 응답: { partners: [{ owner_phone, owner_name, count, total_wage, paid_total, last_at_ms }] }
+#   count       = B 와 그 A 가 한 협업 횟수 (모든 status)
+#   total_wage  = 완료(progress=completed) 된 협업의 daily_wage 합 (만원)
+#   paid_total  = A 가 markPaid 한(=paid_at_ms 있는) 협업의 daily_wage 합 (만원)
+#   last_at_ms  = 가장 최근 협업 created_at_ms
+#
+# 벽: A 의 고객 phone/대화/매출 미포함. B 와 A 간 일당만 노출. owner_phone 은 본인이 받은
+# 협업의 사장 번호라 노출 OK (B 가 어차피 알던 번호).
+
+@app.get("/api/shared/partners")
+async def shared_partners(phone: str, limit: int = 100) -> dict:
+    """B(partner_phone) 가 받은 협업들의 A(owner_phone) 별 집계."""
+    partner_phone = _norm_phone(phone)
+    if not partner_phone:
+        raise HTTPException(400, "phone 필수")
+    limit = max(1, min(limit, 300))
+    with db_conn() as con:
+        rows = con.execute(
+            """
+            SELECT
+              owner_phone,
+              COUNT(*)                                                                AS cnt,
+              COALESCE(SUM(CASE WHEN progress = 'completed' THEN COALESCE(daily_wage, 0) ELSE 0 END), 0) AS total_wage,
+              COALESCE(SUM(CASE WHEN paid_at_ms IS NOT NULL THEN COALESCE(daily_wage, 0) ELSE 0 END), 0) AS paid_total,
+              MAX(created_at_ms)                                                      AS last_at_ms
+            FROM shared_sites
+            WHERE partner_phone = ?
+            GROUP BY owner_phone
+            ORDER BY last_at_ms DESC
+            LIMIT ?
+            """,
+            (partner_phone, limit),
+        ).fetchall()
+    partners = []
+    for r in rows:
+        owner_phone, cnt, total_wage, paid_total, last_at_ms = r
+        partners.append({
+            "owner_phone": owner_phone,
+            "owner_name": _is_registered_owner(owner_phone) or "사장님",
+            "count": int(cnt or 0),
+            "total_wage": int(total_wage or 0),    # 만원 단위
+            "paid_total": int(paid_total or 0),    # 만원 단위
+            "last_at_ms": int(last_at_ms or 0),
+        })
+    return {"partners": partners}
+
+
+# ─── ⑨ GET /api/shared/history ───  (§B 2026-06-13)
+# B 가 특정 A 와 한 현장 내역.
+# 핸드오프 §B: "그 업체와 한 현장 내역" — b-biz 화면용.
+#
+# 응답: { sites: [{ share_id, title, scheduled_at_ms, daily_wage, paid }] }
+#   paid = paid_at_ms IS NOT NULL (boolean)
+#
+# 벽: A 의 고객 phone/대화/타 현장 미포함. B 본인이 참여한 협업만.
+
+@app.get("/api/shared/history")
+async def shared_history(phone: str, owner_phone: str, limit: int = 200) -> dict:
+    """B(partner_phone) 가 특정 A(owner_phone) 와 한 협업 현장 내역."""
+    partner_digits = _norm_phone(phone)
+    owner_digits = _norm_phone(owner_phone)
+    if not partner_digits:
+        raise HTTPException(400, "phone 필수")
+    if not owner_digits:
+        raise HTTPException(400, "owner_phone 필수")
+    limit = max(1, min(limit, 500))
+    with db_conn() as con:
+        rows = con.execute(
+            """
+            SELECT share_id, title, scheduled_at_ms, daily_wage, paid_at_ms,
+                   status, progress, created_at_ms
+            FROM shared_sites
+            WHERE partner_phone = ? AND owner_phone = ?
+            ORDER BY COALESCE(scheduled_at_ms, created_at_ms) DESC, created_at_ms DESC
+            LIMIT ?
+            """,
+            (partner_digits, owner_digits, limit),
+        ).fetchall()
+    sites = []
+    for r in rows:
+        share_id, title, scheduled_at_ms, daily_wage, paid_at_ms, status, progress, created_at_ms = r
+        item = {
+            "share_id": share_id,
+            "title": title or "",
+            "scheduled_at_ms": int(scheduled_at_ms or 0),
+            "paid": bool(paid_at_ms),
+            "status": status,
+            "progress": progress,
+            "created_at_ms": int(created_at_ms or 0),
+        }
+        if daily_wage is not None:
+            try:
+                item["daily_wage"] = int(daily_wage)
+            except Exception:
+                pass
+        sites.append(item)
+    return {"sites": sites}
+
+
 # ============================================================================
 # §29 — 일당 마켓 Phase 1 (안드로이드 PLAN_labor_market 2026-06-11)
 # ─────────────────────────────────────────────────────────────────────────────
