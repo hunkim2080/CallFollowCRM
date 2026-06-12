@@ -127,6 +127,15 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         applyCollabFilter()
     }
 
+    /** 일정 카드 밀어서 삭제 — 이 현장을 "일정에서만" 뺌(고객·대화·정산 기록은 보존). 되돌리기 가능. (2026-06-13 사장님) */
+    fun unschedule(customer: CustomerEntity) {
+        viewModelScope.launch { container.customerRepository.updateScheduledWorkDate(customer.id, null) }
+    }
+    /** 되돌리기 — 뺀 일정을 원래 날짜로 복구. */
+    fun restoreSchedule(customerId: Long, scheduledAtMs: Long) {
+        viewModelScope.launch { container.customerRepository.updateScheduledWorkDate(customerId, scheduledAtMs) }
+    }
+
     /** 협업 현장 표시 라벨 — 주소(지역+아파트) 우선, 없으면 고객 이름. 번호/대화 절대 미포함. CustomerDetail CollabShareSheet 와 동일 규칙. */
     private fun collabTitleOf(c: CustomerEntity): String =
         com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(c.address).takeIf { it.isNotBlank() }

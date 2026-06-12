@@ -304,17 +304,32 @@ fun ScheduleScreen(
                 }
                 items(schedulesForSelected, key = { "c-${it.id}" }) { c ->
                     val suffix = c.phoneNumber.filter { ch -> ch.isDigit() }.takeLast(8)
-                    DayJobCard(
-                        customer = c,
-                        cardSummary = cardSummaries[suffix],
-                        selectedDayMs = selectedDayMs,
-                        todayStart = todayStart,
-                        assignedMembers = assignmentsByCustomer[c.id].orEmpty(),
-                        collabPartnerNames = collabAssign[c.id].orEmpty(),
-                        teamAvailable = teamMembers.isNotEmpty() || collabPartners.isNotEmpty(),
-                        onAssign = { assignTarget = c },
-                        onClick = { onOpenCustomer(c.id) }
-                    )
+                    val originalDate = c.scheduledWorkDate ?: 0L
+                    CollabSwipeBox(
+                        onDelete = {
+                            viewModel.unschedule(c)
+                            uiScope.launch {
+                                val r = snackbarHostState.showSnackbar(
+                                    message = "일정에서 뺐어요 (고객·기록은 그대로)",
+                                    actionLabel = "되돌리기",
+                                    duration = androidx.compose.material3.SnackbarDuration.Short
+                                )
+                                if (r == SnackbarResult.ActionPerformed) viewModel.restoreSchedule(c.id, originalDate)
+                            }
+                        }
+                    ) {
+                        DayJobCard(
+                            customer = c,
+                            cardSummary = cardSummaries[suffix],
+                            selectedDayMs = selectedDayMs,
+                            todayStart = todayStart,
+                            assignedMembers = assignmentsByCustomer[c.id].orEmpty(),
+                            collabPartnerNames = collabAssign[c.id].orEmpty(),
+                            teamAvailable = teamMembers.isNotEmpty() || collabPartners.isNotEmpty(),
+                            onAssign = { assignTarget = c },
+                            onClick = { onOpenCustomer(c.id) }
+                        )
+                    }
                 }
             }
             if (collabForSelected.isNotEmpty()) {
