@@ -57,11 +57,18 @@
 - 흐름: 앱(B)이 **출발 탭** → 그때부터 위치 추적 시작(그 전엔 미추적) → 현장 3km geofence 진입 감지 → `POST /api/shared/progress {step:"arrived", auto:true}`.
 - 서버: arrived(auto) 수신 시 **A에게 "거의 도착해가요"** FCM + **B에게 "사장님께 알려드렸어요"** 확인 FCM.
 - `progress` endpoint 이미 있음 → `auto` 플래그 + 양쪽 푸시 분기만 추가. 수동 "도착" 버튼은 앱에서 제거(자동만).
+- **앱 현재 상태(2026-06-13):** 앱은 아직 **수동 도착 버튼** 유지 중(출발→도착→완료 3버튼). §E 푸시 분기가 서버에 들어오면 앱이: ① 출발 탭 시 위치추적 시작 ② 3km geofence 진입 시 `progress{step:"arrived", auto:true}` 전송 ③ 수동 도착 버튼 제거(프로토대로 2버튼). **서버가 arrived(auto)→A "거의 도착"+B "알려드렸어요" 푸시만 먼저 만들어 주면** 앱이 geofence 붙임. (위치 권한·지오펜스는 앱, 푸시 분기는 서버)
+- A 쪽 수신 문구는 앱이 생성(`a-arrive`): "박지훈 사장님이 거의 도착했어요 · 현장 3km 진입".
 
 ## F. 증거 사진 — 기존 site_photos 재사용
 
 - 프로토: `b-detail` "📸 현장 사진 · 증거용", `a-after` "… 증거용 … 분쟁에서 보호".
 - 개념: 시공 전·작업 중 상태(기존 하자) 사진 = "원래 그랬다" 증거. 기존 site_photos 흐름(`SERVER_HANDOFF_site_photos.md`)에 협업 현장 연결 + **보존(C)** 적용. 새 저장소 불필요, 라벨/연결만.
+- **앱이 소비할 endpoint (이 모양으로 주면 앱이 바로 붙임):**
+  - `POST /api/shared/photo` `{ share_id, partner_phone, image_base64, taken_at_ms? }` → `{ photo_id }`  (B 업로드)
+  - `GET /api/shared/photos?share_id=` → `{ photos: [{ photo_id, url|image_base64, uploader: "owner"|"partner", taken_at_ms }] }`  (A·B 둘 다 조회)
+  - 벽: share_id 로만 접근. 고객 번호/대화/타 고객 사진 절대 미포함.
+- **앱 현재 상태(2026-06-13):** A 공유후카드(`CollabAfterCard`)에 "증거사진 보기 자리" 골격 들어갈 준비 됨(서버 photos 오면 grid 채움). B(`SharedSiteScreen` 상세) 업로드 UI 는 위 `POST` 나오면 착수. 그 전까지 앱은 사진 섹션 미표시(빈 껍데기 안 만듦).
 
 ## G. 일당 모집 (broadcast → 지원 → 선택) ★ 신규 대형
 
@@ -98,11 +105,13 @@
 
 ---
 
-## 우선순위 제안 (작은 것 → 큰 것)
-1. **A · F** (일당 echo, 증거사진 라벨) — 기존 흐름 작은 확장
-2. **B · C** (업체별 집계, 보존 명시)
-3. **D · E** (2h 알림, 3km 양쪽 푸시 — geofence 감지는 앱, 서버는 push 분기)
-4. **G** (모집 시스템 — 별도 단계, 가장 큼)
+## 우선순위 제안 (작은 것 → 큰 것) — ※ 2026-06-13 진행 갱신
+1. ✅ **A**(일당 echo) · **H**(by-me + 수락 푸시) — 서버 완료(commit 61b3aad 등), 사장님 reload 대기
+2. ✅ **B**(업체별 partners/history) — 서버 완료(commit 911d6f2), 앱 연결 완료(9b3761e)
+3. ⬜ **C**(영구 보존 명시) — 코드보다 정책 확인. 협업 해제/완료 후에도 사진·메모·진행 삭제 금지 보장.
+4. ⬜ **F**(증거사진 photo POST/GET) · **E**(3km arrived(auto) 양쪽 푸시) — **다음 cycle 1순위**. 위 §F/§E "앱이 소비할 endpoint" 모양대로 주면 앱이 즉시 붙임.
+5. ⬜ **D**(2h 출동 알림 크론)
+6. ⬜ **G**(모집 시스템 — 가장 큼)
 
 ## 앱 측 동시 진행(이번 커밋)
 - 일당: A 입력(CollabShareSheet) + invite payload `daily_wage` + B 표시(보라 태그) — **graceful**(서버 echo 전엔 안 뜸).

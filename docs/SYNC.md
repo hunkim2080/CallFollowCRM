@@ -3841,3 +3841,14 @@ cowork 진단 회신 — 결론: **서버/직렬화 정상. 앱 송신부 버그
 - `/api/shared/history` 는 아직 미소비 — 상세 목록은 로드된(with-me 윈도우) 현장 + 합계 안내로 처리. 과거 현장 클릭 목록까지 원하면 history 연결은 후속.
 - **검증 주의**: 서버 reload 안 됐으면 partners 404 → 자동 폴백(로컬). reload 후 전체이력 집계로 바뀜. 사장님 reload 후 [업체별]에서 숫자 확인 필요.
 - commit: (아래)
+
+## 2026-06-13 (android 추가6) — 1~3단계 검수(QA) + §F/§E 핸드오프 날카롭게
+사장님 선택 "검수 + 핸드오프". 1~3단계 협업 흐름 전수 코드 점검 — **회귀/크래시 없음**. 발견한 건 버그 아니라 문서화할 **한계 4개**:
+1. **공유후카드는 로컬 collabAssignments 기준** — 다른 폰/서버에서만 생긴 협업은 안 뜸(로컬-낙관). by-me(§H) 권위 소스로 교체는 후속.
+2. **출근시간 날짜미정 케이스** — 발생 불가(공유시트는 scheduledWorkDate≠null 일 때만 열림).
+3. **업체별 stale bizPartner** — 서버 partners 갱신으로 그 사장 사라지면 상세→목록 폴백(제목 "협업 현장"), 크래시 아님.
+4. **CollabAfterCard 여러 장이면 각자 owner-events 호출** — 중복 네트워크지만 무해(graceful).
+- partners 404(서버 reload 전)/JSON 깨짐 → 전부 자동 폴백(로컬 그룹핑) 확인. 무회귀.
+- 핸드오프 갱신: §F 에 **앱이 소비할 photo POST/GET 모양** 명시, §E 에 **앱 현재 수동 도착 버튼 유지 + 서버 arrived(auto) 푸시 오면 geofence 붙임** 명시, 우선순위 §A/§B/§H ✅ 표기 + 다음 1순위 = §F/§E.
+- 다음 cycle 서버(cowork): §F(`POST/GET /api/shared/photo(s)`) + §E(`progress arrived auto` 양쪽 푸시) 만들어 주면 앱이 4단계 즉시 착수.
+- commit: (아래)
