@@ -3721,3 +3721,11 @@ SYNC 직전 블록(android 추가6) 진단 반영. **`/api/shared/invite` + `/ap
 맥미니 서버 invite 수정 후 끝단 동작 확인 — A invite → 문자창 X + B폰 즉시 "🤝 협업 요청" 알림. 사장님 "해결됐어" 확인.
 - 앱: 등록 로그에서 번호 제거(개인정보), 결과 코드만. 폴링 안전망 유지.
 - 남은 선택: 팀원(웹링크) 푸시는 별도. collab_event/collab_paid 푸시는 발생 시 자연 검증.
+
+## 2026-06-13 · android — 협업 사장(B) 확장 기획 승인 + 서버 핸드오프
+사장님과 프로토(`design-preview/collab-sites-proto.html`) 1:1 기획 완료·승인. "협업 사장이 왜 이 앱을 쓰나" → 일당·자동도착·증거사진·업체별수입·영구보존 + **일당 모집(broadcast→지원→선택)**.
+- 핸드오프: **`docs/SERVER_HANDOFF_collab_expansion.md`** (A~G 전체 스펙). 대부분 서버 의존 → 서버가 크리티컬 패스.
+- 서버 할 일 요약: ① invite 에 `daily_wage` 저장·echo ② `/api/shared/partners`·`/api/shared/history`(업체별 집계) ③ 해제해도 기록 보존 명시 ④ 출동 2h前 FCM(collab_remind) ⑤ 3km arrived(auto) → A·B 양쪽 푸시 ⑥ 증거사진=site_photos 재사용 ⑦ **모집 시스템**(`/api/recruit/create|with-me|apply|applicants|select`).
+- 우선순위: A·F → B·C → D·E → G(모집, 대형).
+- 앱(이번 커밋): 일당 A입력(CollabShareSheet)+invite payload `daily_wage`+B 보라태그 표시(graceful) / 출발 멘트 보강. 나머지(업체별·모집·geofence·2h)는 endpoint 준비 후 착수.
+- 다음 액션(서버): 우선순위 1(A·F)부터. 필드/응답키는 핸드오프 문서 기준.

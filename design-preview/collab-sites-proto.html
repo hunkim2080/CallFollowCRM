@@ -135,6 +135,42 @@
   .field{display:flex;align-items:center;gap:10px;background:var(--bg);border-radius:13px;padding:13px 14px;margin:8px 0;}
   .field input{border:0;background:transparent;font-family:inherit;font-size:15px;flex:1;outline:none;color:var(--t1);}
   .note-in{background:var(--bg);border-radius:13px;padding:12px 14px;font-size:13.5px;color:var(--t3);margin-top:6px;}
+
+  /* 목록 행이 꽉 차도록 + 우측 정렬 안정화 */
+  .grow{flex:1;min-width:0;}
+
+  /* 현장순 / 업체별 토글 */
+  .seg{display:flex;background:#fff;border-radius:13px;padding:4px;box-shadow:var(--shadow);margin:4px 0 12px;}
+  .seg button{flex:1;font-family:inherit;font-size:13px;font-weight:800;border:0;border-radius:10px;padding:9px;
+    background:transparent;color:var(--t3);cursor:pointer;}
+  .seg button.on{background:var(--purple);color:#fff;}
+
+  /* 업체별 히스토리 한 줄 */
+  .histrow{display:flex;align-items:center;gap:10px;padding:13px 0;border-bottom:1px solid var(--line);}
+  .histrow .hd{font-size:12px;color:var(--t3);font-weight:700;flex:0 0 42px;}
+  .histrow .ht{flex:1;font-size:14px;font-weight:700;min-width:0;}
+  .histrow .ha{font-size:14px;font-weight:800;color:#6B4FD8;display:flex;align-items:center;}
+
+  /* 자동 도착 토글 */
+  .tgl{width:38px;height:22px;border-radius:999px;background:#D7DCE3;position:relative;cursor:pointer;flex:0 0 38px;}
+  .tgl::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;
+    transition:.18s;box-shadow:0 1px 3px rgba(0,0,0,.2);}
+  .tgl.on{background:var(--success);} .tgl.on::after{left:18px;}
+
+  /* 일당 모집 — 지원자 순위 + 선택 */
+  .rank{width:26px;height:26px;border-radius:50%;background:#F1ECFE;color:#6B4FD8;font-weight:800;font-size:13px;
+    display:flex;align-items:center;justify-content:center;flex:0 0 26px;}
+  .rank.top{background:var(--purple);color:#fff;}
+  .pickrow{display:flex;align-items:center;gap:11px;background:#fff;border:1.5px solid var(--line);border-radius:14px;
+    padding:12px 13px;margin-bottom:9px;cursor:pointer;}
+  .pickrow.on{border-color:var(--purple);background:#FAF8FF;}
+  .pickrow .ck{width:24px;height:24px;border-radius:50%;border:2px solid #D7DCE3;flex:0 0 24px;display:flex;
+    align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:800;}
+  .pickrow.on .ck{background:var(--purple);border-color:var(--purple);}
+  .chipwrap{display:flex;flex-wrap:wrap;margin-top:4px;}
+  .mchip{display:inline-flex;align-items:center;font-size:13px;font-weight:700;border-radius:999px;padding:8px 13px;
+    background:#fff;border:1.5px solid var(--line);color:var(--t2);cursor:pointer;margin:0 7px 7px 0;}
+  .mchip.on{border-color:var(--purple);background:#F1ECFE;color:#6B4FD8;}
 </style>
 </head>
 <body>
@@ -142,6 +178,7 @@
     <h1>RING-GO · "협업 현장" 프로토 (검토용)</h1>
     <p>같이 하기로 한 현장 하나를 <b>두 사장님이 같이 보고 기록</b>. 서로의 다른 고객·번호·매출은 안 보임.<br>
        아래 버튼으로 <b>사장 A(현장 주인)</b> 와 <b>사장 B(협업)</b> 화면을 오가며 보세요.</p>
+    <p style="margin-top:4px">이번 추가 — 협업 사장님이 앱을 쓰는 이유: <b>그날 일당 표시 · 3km 자동 도착 알림 · 업체별 받은 돈</b></p>
   </div>
 
   <div class="switch">
@@ -149,12 +186,21 @@
     <button class="A on" data-s="a-card" onclick="show('a-card',this)">고객카드</button>
     <button class="A" data-s="a-share" onclick="show('a-share',this)">공유 시트</button>
     <button class="A" data-s="a-after" onclick="show('a-after',this)">공유 후 카드</button>
+    <button class="A" data-s="a-arrive" onclick="show('a-arrive',this)">거의 도착·완료 알림</button>
     <span class="grp">사장 B(협업)</span>
     <button class="B" data-s="b-push" onclick="show('b-push',this)">초대 알림</button>
+    <button class="B" data-s="b-remind" onclick="show('b-remind',this)">출동·도착 알림</button>
     <button class="B" data-s="b-cal" onclick="show('b-cal',this)">내 캘린더(점 구분)</button>
     <button class="B" data-s="b-list" onclick="show('b-list',this)">협업 현장 목록</button>
     <button class="B" data-s="b-detail" onclick="show('b-detail',this)">협업 현장 상세</button>
+    <button class="B" data-s="b-biz" onclick="show('b-biz',this)">업체별·내 수입</button>
     <button class="B" data-s="b-wall" onclick="show('b-wall',this)">못 보는 것(벽)</button>
+    <span class="grp">📣 일당 모집(여러 명 → 선택)</span>
+    <button class="A" data-s="m-compose" onclick="show('m-compose',this)">모집 만들기(A)</button>
+    <button class="B" data-s="m-push" onclick="show('m-push',this)">모집 알림(B)</button>
+    <button class="B" data-s="m-detail" onclick="show('m-detail',this)">작업내용 보기(B)</button>
+    <button class="A" data-s="m-applicants" onclick="show('m-applicants',this)">지원자 보기·선택(A)</button>
+    <button class="B" data-s="m-result" onclick="show('m-result',this)">확정/미선정(B)</button>
   </div>
 
   <div class="phone">
@@ -193,6 +239,10 @@
           <div class="field">📱 <input value="010-9876-5432" /></div>
           <div class="sm muted" style="margin:4px 2px 0">RING-GO 쓰는 사장님이면 그 분 앱으로, 아니면 문자 링크로 가요.</div>
 
+          <div class="sec-sub">그날 일당 (선택)</div>
+          <div class="field">💰 <input value="25" inputmode="numeric" style="text-align:right" /> <span class="b" style="color:var(--t2);flex:0 0 auto">만원</span></div>
+          <div class="sm muted" style="margin:4px 2px 0">합의한 일당을 적으면 상대 사장님 화면에 <b style="color:#6B4FD8">보라색 일당 태그</b>로 떠요. 비워도 됩니다.</div>
+
           <div class="wall" style="background:var(--blue-tint);border-color:#D9E5FB">
             <div class="l" style="color:var(--blue-dark)">상대 사장님께 보이는 것</div>
             <ul style="color:#3a4a66">
@@ -216,6 +266,7 @@
           <div class="card" style="margin-top:12px">
             <div class="row"><span class="b">🤝 협업 사장님</span>
               <span class="pill purple" style="margin-left:auto">박지훈 사장님</span></div>
+            <div class="row sm" style="margin-top:9px"><span class="muted">💰 그날 일당</span><b style="margin-left:auto">25만원</b></div>
             <div class="sm muted" style="margin-top:8px">상대가 올린 진행·사진·메모가 여기 그대로 들어와요.</div>
             <div class="stepper">
               <div class="step done"><div class="bar"></div><div class="dot">✓</div><div class="lb">배정</div></div>
@@ -225,7 +276,8 @@
             </div>
           </div>
 
-          <div class="sec-sub">박지훈 사장님이 올린 현장 사진</div>
+          <div class="sec-sub">박지훈 사장님이 올린 현장 사진 · 증거용</div>
+          <div class="sm muted" style="margin:-4px 2px 8px">시공 전·작업 중 상태를 남겨둔 사진이에요. “원래 그랬어요” 증거 → 두 분 다 분쟁에서 보호돼요.</div>
           <div class="pgrid">
             <div class="pcell">🖼️</div><div class="pcell">🖼️</div><div class="pcell">🖼️</div>
           </div>
@@ -235,7 +287,30 @@
             <div class="m" style="color:#23503a">바닥 들뜸 한 군데 있어서 보수 먼저 했습니다. 내일 마감 가능해요.</div>
           </div>
 
-          <button class="cta ghost" style="margin-top:14px">협업 해제 (사진·메모는 그대로 보존)</button>
+          <div class="memo-card" style="background:var(--blue-tint);border-color:#D9E5FB;margin-top:14px">
+            <div class="l" style="color:var(--blue-dark)">🗂 이 기록은 계속 남아요</div>
+            <div class="m" style="color:#3a4a66">사진·메모·진행 기록은 <b>이 고객 정보에 영구 보관</b>돼요. <b>3개월 뒤</b> 고객이 또 연락해도 이걸 바로 꺼내 보고 응대할 수 있어요. 협업을 해제해도 안 지워집니다.</div>
+          </div>
+          <button class="cta ghost" style="margin-top:12px">협업 해제 (사진·메모는 그대로 보존)</button>
+        </div>
+      </div>
+
+      <!-- A: 거의 도착·완료 알림 (주인 사장이 받음) -->
+      <div class="screen" id="a-arrive">
+        <div class="pushwrap">
+          <div style="text-align:center;color:#fff;font-weight:800;font-size:13px;margin-bottom:16px;opacity:.9">강동 서사장님 폰 · 잠금화면</div>
+          <div class="push">
+            <div class="ph">🚗 RING-GO · 협업 현장</div>
+            <div class="pt">박지훈 사장님이 거의 도착했어요</div>
+            <div class="pm">강동 천호동 현장 · 현장 3km 진입 · 약 9:12</div>
+          </div>
+          <div class="push" style="margin-top:14px">
+            <div class="ph">✅ RING-GO · 협업 현장</div>
+            <div class="pt">박지훈 사장님이 시공을 완료했어요</div>
+            <div class="pm">입금 계좌: 국민 123456-78-901234 (박지훈) · 일당 25만원</div>
+            <div class="pacts"><button class="ok">계좌 복사</button><button class="no">입금했어요</button></div>
+          </div>
+          <div style="text-align:center;color:#fff;font-size:11.5px;margin-top:14px;opacity:.85">협업 사장님이 누르지 않아도 — 위치로 자동, 완료 시 계좌까지 자동</div>
         </div>
       </div>
 
@@ -253,24 +328,74 @@
         </div>
       </div>
 
+      <!-- B: 출동 알림(2h 전) + 도착 알림(B 확인용) -->
+      <div class="screen" id="b-remind">
+        <div class="pushwrap">
+          <div style="text-align:center;color:#fff;font-weight:800;font-size:13px;margin-bottom:16px;opacity:.9">박지훈 사장님 폰 · 잠금화면</div>
+
+          <div class="push">
+            <div class="ph">⏰ RING-GO · 협업 현장 · 시작 2시간 전</div>
+            <div class="pt">오늘은 강동 천호동 현장으로 출동하는 날이에요!</div>
+            <div class="pm">오전 9:00 시작 · 일당 25만 · 강동 서사장님<br>출발할 때 <b>[출발]</b> 버튼을 눌러 사장님께 출발을 알려주세요 🚗</div>
+            <div class="pacts"><button class="ok" onclick="show('b-detail',document.querySelector('[data-s=b-detail]'))">현장 보기</button></div>
+          </div>
+
+          <div class="push" style="margin-top:14px">
+            <div class="ph">📍 RING-GO · 협업 현장</div>
+            <div class="pt">사장님께 “거의 다 왔어요”를 알려드렸어요!</div>
+            <div class="pm">강동 천호동 현장 3km 진입 · 자동으로 전송됐어요. 도착 버튼은 안 눌러도 돼요 😊</div>
+          </div>
+
+          <div style="text-align:center;color:#fff;font-size:11.5px;margin-top:14px;opacity:.85">출동 알림은 만나기로 한 시간 2시간 전에 자동으로 떠요</div>
+        </div>
+      </div>
+
       <!-- B: 협업 현장 목록 -->
       <div class="screen" id="b-list">
         <div class="appbar"><div class="iconbtn">‹</div><div class="title">협업 현장</div></div>
         <div class="scroll">
-          <div class="sm muted" style="margin:2px 2px 4px">다른 사장님과 같이 하는 현장이에요. 내 고객 목록과는 따로 모여요.</div>
-          <div class="listrow" onclick="show('b-detail',document.querySelector('[data-s=b-detail]'))">
-            <div class="av" style="background:var(--blue-tint)">🔧</div>
-            <div class="grow"><div class="b">강동 천호동 현장 <span class="pill amber">오늘</span></div>
-              <div class="sm muted">강동 서사장님 · 욕실 줄눈 2곳 · 09:00</div></div>
-            <div class="chev">›</div>
+          <div class="seg">
+            <button class="on" id="seg-date" onclick="blView('date')">현장순</button>
+            <button id="seg-biz" onclick="blView('biz')">업체별</button>
           </div>
-          <div class="listrow">
-            <div class="av" style="background:#E5F8EE">🔧</div>
-            <div class="grow"><div class="b">분당 정자동 현장 <span class="pill blue">6/2</span></div>
-              <div class="sm muted">분당 한사장님 · 주방 코킹</div></div>
-            <div class="chev">›</div>
+
+          <!-- 현장순 -->
+          <div id="bl-date">
+            <div class="sm muted" style="margin:2px 2px 8px">다른 사장님과 같이 하는 현장이에요. 내 고객 목록과는 따로 모여요.</div>
+            <div class="listrow" onclick="show('b-detail',document.querySelector('[data-s=b-detail]'))">
+              <div class="av" style="background:var(--blue-tint)">🔧</div>
+              <div class="grow"><div class="b">강동 천호동 현장 <span class="pill amber">오늘</span> <span class="pill purple">일당 25만</span></div>
+                <div class="sm muted">강동 서사장님 · 욕실 줄눈 2곳 · 09:00</div></div>
+              <div class="chev">›</div>
+            </div>
+            <div class="listrow">
+              <div class="av" style="background:#E5F8EE">🔧</div>
+              <div class="grow"><div class="b">분당 정자동 현장 <span class="pill blue">6/2</span> <span class="pill purple">일당 30만</span></div>
+                <div class="sm muted">분당 한사장님 · 주방 코킹 · 10:00</div></div>
+              <div class="chev">›</div>
+            </div>
+            <div class="sm muted" style="text-align:center;margin-top:20px">초대받은 현장만 보여요. 상대 사장님의 다른 고객은 안 보여요.</div>
           </div>
-          <div class="sm muted" style="text-align:center;margin-top:20px">초대받은 현장만 보여요. 상대 사장님의 다른 고객은 안 보여요.</div>
+
+          <!-- 업체별 -->
+          <div id="bl-biz" style="display:none">
+            <div class="sm muted" style="margin:2px 2px 8px">나를 부른 사장님별로 모았어요. 함께한 현장 수와 <b style="color:#6B4FD8">받은 일당 합계</b>가 쌓여요.</div>
+            <div class="listrow" onclick="show('b-biz',document.querySelector('[data-s=b-biz]'))">
+              <div class="av" style="background:#F1ECFE">🤝</div>
+              <div class="grow"><div class="b">강동 서사장님</div>
+                <div class="sm muted">함께한 현장 7곳 · 최근 06.10</div></div>
+              <div style="text-align:right"><div class="b" style="color:#6B4FD8">175만원</div><div class="sm muted">받은 일당</div></div>
+              <div class="chev" style="margin-left:8px">›</div>
+            </div>
+            <div class="listrow">
+              <div class="av" style="background:#F1ECFE">🤝</div>
+              <div class="grow"><div class="b">분당 한사장님</div>
+                <div class="sm muted">함께한 현장 3곳 · 최근 06.02</div></div>
+              <div style="text-align:right"><div class="b" style="color:#6B4FD8">80만원</div><div class="sm muted">받은 일당</div></div>
+              <div class="chev" style="margin-left:8px">›</div>
+            </div>
+            <div class="sm muted" style="text-align:center;margin-top:20px">업체를 누르면 그 사장님과 한 현장이 전부 나와요.</div>
+          </div>
         </div>
         <div class="tabbar">
           <div class="tab"><span class="ti">💬</span>상담함</div>
@@ -285,10 +410,11 @@
       <div class="screen" id="b-detail">
         <div class="appbar"><div class="iconbtn" onclick="show('b-list',document.querySelector('[data-s=b-list]'))">‹</div><div class="title sm">강동 천호동 현장</div></div>
         <div class="scroll">
-          <div class="row"><span class="pill purple">협업 현장</span><span class="sm muted">강동 서사장님과 함께</span></div>
+          <div class="row" style="flex-wrap:wrap;gap:6px"><span class="pill purple">협업 현장</span><span class="pill purple">일당 25만</span><span class="sm muted">강동 서사장님과 함께</span></div>
           <div class="card" style="margin-top:10px">
             <div class="row sm"><span class="muted">📅 날짜</span><b style="margin-left:auto">오늘 5/29 · 09:00</b></div>
             <div class="row sm" style="margin-top:9px"><span class="muted">🔧 시공</span><b style="margin-left:auto">욕실 줄눈 2곳</b></div>
+            <div class="row sm" style="margin-top:9px"><span class="muted">💰 그날 일당</span><b style="margin-left:auto;color:#6B4FD8">25만원</b></div>
           </div>
           <div class="addr-card">
             <div class="l">📍 현장 주소</div>
@@ -300,16 +426,34 @@
             <div class="m">현관 비번 1234# · 사다리차 필요 · 주차는 뒷편</div>
           </div>
 
-          <div class="sec-sub">진행 상황 (눌러서 알려요)</div>
+          <div class="sec-sub">진행 상황 — 딱 두 번만 누르면 끝 (출발 · 완료)</div>
           <div class="stepper">
             <div class="step done"><div class="bar"></div><div class="dot">✓</div><div class="lb">배정</div></div>
-            <div class="step done"><div class="bar"></div><div class="dot">✓</div><div class="lb">출발</div></div>
-            <div class="step cur"><div class="bar"></div><div class="dot">📍</div><div class="lb">도착</div></div>
-            <div class="step"><div class="bar"></div><div class="dot">3</div><div class="lb">완료</div></div>
+            <div class="step cur"><div class="bar"></div><div class="dot">🚗</div><div class="lb">출발</div></div>
+            <div class="step"><div class="bar"></div><div class="dot">📍</div><div class="lb">도착·자동</div></div>
+            <div class="step"><div class="bar"></div><div class="dot">✅</div><div class="lb">완료</div></div>
           </div>
-          <button class="cta green" style="margin-top:8px">✅ 완료 알리기</button>
 
-          <div class="sec-sub">현장 사진 (3/20)</div>
+          <!-- ① 출발 — 지금 누를 것 + 누를 이유 -->
+          <button class="cta" style="margin-top:10px">🚗 출발했어요</button>
+          <div class="sm muted" style="text-align:center;margin-top:8px;line-height:1.6">한 번 누르면 사장님이 <b style="color:var(--t2)">“오는구나”</b> 알아요 — 아침마다 “언제 오세요?” 연락 안 받아도 돼요.<br>이때부터 위치를 봐서 <b style="color:#0E9F56">3km 자동 도착 알림</b>이 켜져요. <span class="muted">(누르기 전엔 위치 안 봐요)</span></div>
+
+          <!-- ② 도착 — 버튼 없음, 자동 -->
+          <div class="card" style="background:#EEF7F1;border:1px solid #CDEAD8;box-shadow:none;margin-top:14px">
+            <div class="row"><span class="b sm" style="color:#0E9F56">📍 도착은 버튼이 없어요 — 자동</span>
+              <span class="tgl on" style="margin-left:auto" onclick="this.classList.toggle('on')"></span></div>
+            <div class="sm" style="color:#23503a;margin-top:7px;line-height:1.6">현장 <b>3km 안</b>에 들어오면 <b>“거의 도착해가요!”</b>가 사장님께 저절로 가요. 어차피 현장에서 만나니까 <b>도착 버튼은 따로 안 눌러도 됩니다.</b></div>
+          </div>
+
+          <!-- ③ 완료 — 작업 끝나면 = 돈 받기 -->
+          <button class="cta ghost" style="margin-top:14px">✅ 시공 종료 · 완료 (작업 끝나면)</button>
+          <div class="sm muted" style="text-align:center;margin-top:8px;line-height:1.6">누르면 미리 등록한 <b style="color:var(--t2)">내 계좌</b>가 사장님께 자동 전달돼요. <b style="color:#6B4FD8">완료 = 계좌 = 돈 받기</b> — 정산 스위치예요.</div>
+
+          <div class="sec-sub">📸 현장 사진 · 증거용 (3/20)</div>
+          <div class="memo-card" style="margin:0 0 9px">
+            <div class="l">📌 왜 찍어두나요?</div>
+            <div class="m">시공 전·작업 중 현장 상태(기존 깨짐·들뜸·곰팡이)를 찍어두면 <b>“이건 원래 그랬어요”</b> 증거가 돼요. 나중에 “여기 망가뜨렸지?” 누명·분쟁을 막아줍니다.</div>
+          </div>
           <div class="pgrid">
             <div class="pcell add">＋</div><div class="pcell">🖼️</div><div class="pcell">🖼️</div>
           </div>
@@ -392,6 +536,165 @@
         </div>
       </div>
 
+      <!-- B: 업체별 히스토리 + 내 수입 -->
+      <div class="screen" id="b-biz">
+        <div class="appbar"><div class="iconbtn" onclick="show('b-list',document.querySelector('[data-s=b-list]'))">‹</div><div class="title sm">강동 서사장님</div></div>
+        <div class="scroll">
+          <div class="card" style="background:linear-gradient(180deg,#F4F0FF,#fff);border:1.5px solid #E2D8FB">
+            <div class="sm b" style="color:#6B4FD8">강동 서사장님과 함께한 일</div>
+            <div class="row" style="margin-top:10px;align-items:flex-end">
+              <div><div class="sm muted">함께한 현장</div><div class="name" style="margin-top:2px">7곳</div></div>
+              <div style="margin-left:auto;text-align:right"><div class="sm muted">받은 일당 합계</div><div class="name" style="margin-top:2px;color:#6B4FD8">175만원</div></div>
+            </div>
+          </div>
+
+          <div class="sec-sub">함께한 현장</div>
+          <div class="card" style="padding:2px 16px">
+            <div class="histrow"><div class="hd">06.10</div><div class="ht">역삼동 화장실 줄눈</div><div class="ha">25만 <span class="pill green" style="margin-left:5px">입금✓</span></div></div>
+            <div class="histrow"><div class="hd">05.28</div><div class="ht">대치동 주방 실리콘</div><div class="ha">25만 <span class="pill green" style="margin-left:5px">입금✓</span></div></div>
+            <div class="histrow"><div class="hd">05.12</div><div class="ht">개포동 욕실 줄눈</div><div class="ha">30만</div></div>
+            <div class="histrow"><div class="hd">04.27</div><div class="ht">일원동 베란다</div><div class="ha">25만 <span class="pill green" style="margin-left:5px">입금✓</span></div></div>
+            <div class="histrow"><div class="hd">04.15</div><div class="ht">수서동 화장실 2곳</div><div class="ha">30만 <span class="pill green" style="margin-left:5px">입금✓</span></div></div>
+            <div class="histrow"><div class="hd">03.30</div><div class="ht">명일동 주방 코킹</div><div class="ha">20만 <span class="pill green" style="margin-left:5px">입금✓</span></div></div>
+            <div class="histrow" style="border-bottom:0"><div class="hd">03.18</div><div class="ht">고덕동 욕실 줄눈</div><div class="ha">20만 <span class="pill green" style="margin-left:5px">입금✓</span></div></div>
+          </div>
+          <div class="sm muted" style="text-align:center;margin-top:8px">완료할 때마다 자동으로 한 줄씩 쌓여요. <b style="color:#0E9F56">입금✓</b> = 주인 사장님이 입금완료한 것.</div>
+
+          <div class="wall" style="margin-top:16px">
+            <div class="l">🔒 여기에도 벽이 있어요</div>
+            <ul><li>금액은 <b>나와 이 사장님 사이 일당</b>만 보여요. 그 현장 고객·매출은 안 보여요.</li></ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- 모집 A: 모집 만들기 -->
+      <div class="screen" id="m-compose">
+        <div class="appbar"><div class="iconbtn">‹</div><div class="title sm">함께할 사장님 모집</div></div>
+        <div class="scroll">
+          <div class="sm muted" style="margin:2px 2px 8px">여러 사장님께 한 번에 보내고, <b>수락한 분 중에서</b> 골라요. 일 많을 때 빠르게 사람 구하기.</div>
+
+          <div class="sec-sub">현장 정보</div>
+          <div class="field">📅 <input value="6/18 (수)" /></div>
+          <div class="field">📍 <input value="인천 송도" /></div>
+          <div class="field">🔧 <input value="줄눈 시공" /></div>
+          <div class="field">💰 <input value="25" inputmode="numeric" style="text-align:right" /> <span class="b" style="color:var(--t2);flex:0 0 auto">만원 (일비)</span></div>
+
+          <div class="sec-sub">보낼 사장님 · 여러 명 선택</div>
+          <div class="chipwrap">
+            <span class="mchip on" onclick="mtog(this)">박지훈</span>
+            <span class="mchip on" onclick="mtog(this)">김반장</span>
+            <span class="mchip on" onclick="mtog(this)">이실장</span>
+            <span class="mchip" onclick="mtog(this)">최사장</span>
+            <span class="mchip" onclick="mtog(this)">정실장</span>
+            <span class="mchip" onclick="mtog(this)">한사장</span>
+          </div>
+          <div class="sm muted" style="margin:4px 2px 0">수첩의 <b>협업 사장님</b>들이 떠요. 자주 부르는 분만 골라 보낼 수 있어요.</div>
+
+          <button class="cta purple" style="margin-top:18px">📣 3명에게 모집 보내기</button>
+          <div class="sm muted" style="text-align:center;margin-top:10px">받은 분이 수락하면 <b>지원자 목록</b>에 쌓여요. 거기서 함께할 분을 고르면 돼요.</div>
+        </div>
+      </div>
+
+      <!-- 모집 B: 모집 알림 (잠금화면) -->
+      <div class="screen" id="m-push">
+        <div class="pushwrap">
+          <div style="text-align:center;color:#fff;font-weight:800;font-size:13px;margin-bottom:16px;opacity:.9">박지훈 사장님 폰 · 잠금화면</div>
+          <div class="push">
+            <div class="ph">📣 RING-GO · 함께할 사장님 모집</div>
+            <div class="pt">강동 서사장님이 함께할 사장님을 찾아요</div>
+            <div class="pm">6월 18일(수) · 인천 송도 · 줄눈 · 일비 25만원</div>
+            <div class="pacts"><button class="no" onclick="show('m-detail',document.querySelector('[data-s=m-detail]'))">작업내용 보기</button><button class="ok" onclick="show('m-detail',document.querySelector('[data-s=m-detail]'))">바로 수락</button></div>
+          </div>
+          <div style="text-align:center;color:#fff;font-size:11.5px;margin-top:14px;opacity:.85">먼저 수락한 순서로 우선이에요 — 가능하면 빨리!</div>
+        </div>
+      </div>
+
+      <!-- 모집 B: 작업내용 보기 + 수락 -->
+      <div class="screen" id="m-detail">
+        <div class="appbar"><div class="iconbtn" onclick="show('m-push',document.querySelector('[data-s=m-push]'))">‹</div><div class="title sm">모집 · 송도 현장</div></div>
+        <div class="scroll">
+          <div class="row" style="flex-wrap:wrap;gap:6px"><span class="pill purple">📣 모집</span><span class="pill purple">일비 25만</span><span class="sm muted">강동 서사장님</span></div>
+          <div class="card" style="margin-top:10px">
+            <div class="row sm"><span class="muted">📅 날짜</span><b style="margin-left:auto">6월 18일 (수) · 09:00</b></div>
+            <div class="row sm" style="margin-top:9px"><span class="muted">📍 장소</span><b style="margin-left:auto">인천 송도</b></div>
+            <div class="row sm" style="margin-top:9px"><span class="muted">🔧 시공</span><b style="margin-left:auto">줄눈 시공</b></div>
+            <div class="row sm" style="margin-top:9px"><span class="muted">💰 일비</span><b style="margin-left:auto;color:#6B4FD8">25만원</b></div>
+          </div>
+
+          <div class="memo-card" style="background:var(--blue-tint);border-color:#D9E5FB">
+            <div class="l" style="color:var(--blue-dark)">지금 지원하면</div>
+            <div class="m" style="color:#3a4a66">현재 <b>2명</b>이 수락했어요. 지금 수락하면 <b>3번째</b>. 먼저 수락한 순서로 우선이에요.</div>
+          </div>
+
+          <button class="cta purple">✋ 이 현장 수락하기</button>
+          <div class="sm muted" style="text-align:center;margin-top:10px">수락해도 확정은 아니에요 — 사장님이 고르면 알림이 와요. 안 되면 다음 현장에서 또 기회가 와요.</div>
+
+          <div class="wall" style="margin-top:16px">
+            <div class="l">🔒 모집 단계에서 보이는 것</div>
+            <ul><li>날짜 · 장소 · 시공 · 일비만 보여요</li><li>고객 정보 · 정확한 주소는 <b>확정된 뒤</b> 열려요</li></ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- 모집 A: 지원자 보기 → 선택 -->
+      <div class="screen" id="m-applicants">
+        <div class="appbar"><div class="iconbtn">‹</div><div class="title sm">송도 현장 지원자</div></div>
+        <div class="scroll">
+          <div class="card" style="background:linear-gradient(180deg,#F4F0FF,#fff);border:1.5px solid #E2D8FB">
+            <div class="sm b" style="color:#6B4FD8">6/18 송도 · 일비 25만</div>
+            <div class="sm muted" style="margin-top:5px">3명에게 보냄 · <b style="color:#6B4FD8">4명 수락</b> · 수락 빠른 순</div>
+          </div>
+
+          <div class="sec-sub">수락한 사장님 — 함께할 분을 고르세요</div>
+
+          <div class="pickrow on" onclick="pick(this)">
+            <div class="rank top">1</div>
+            <div class="grow"><div class="b">박지훈 사장님</div><div class="sm muted">07:02 수락 · 함께한 적 7번 · 받은 일당 175만</div></div>
+            <div class="ck">✓</div>
+          </div>
+          <div class="pickrow on" onclick="pick(this)">
+            <div class="rank">2</div>
+            <div class="grow"><div class="b">김반장</div><div class="sm muted">07:05 수락 · 함께한 적 3번</div></div>
+            <div class="ck">✓</div>
+          </div>
+          <div class="pickrow" onclick="pick(this)">
+            <div class="rank">3</div>
+            <div class="grow"><div class="b">이실장</div><div class="sm muted">07:11 수락 · 처음 함께</div></div>
+            <div class="ck"></div>
+          </div>
+          <div class="pickrow" onclick="pick(this)">
+            <div class="rank">4</div>
+            <div class="grow"><div class="b">최사장</div><div class="sm muted">08:20 수락 · 함께한 적 1번</div></div>
+            <div class="ck"></div>
+          </div>
+
+          <button class="cta purple" style="margin-top:8px">선택한 사장님과 확정하기</button>
+          <div class="sm muted" style="text-align:center;margin-top:10px">고르면 — 선택된 분께 <b>“확정”</b> 알림, 나머지께 <b>“다음에 함께해요”</b> 알림이 자동으로 가요.</div>
+        </div>
+      </div>
+
+      <!-- 모집 B: 확정 / 미선정 알림 -->
+      <div class="screen" id="m-result">
+        <div class="pushwrap">
+          <div style="text-align:center;color:#fff;font-weight:800;font-size:13px;margin-bottom:14px;opacity:.9">선택 결과는 두 분께 다르게 가요</div>
+
+          <div class="sm b" style="color:#fff;opacity:.95;margin:0 2px 7px">🎉 선택된 사장님께</div>
+          <div class="push">
+            <div class="ph">✅ RING-GO · 협업 현장</div>
+            <div class="pt">6/18 송도 현장, 함께하기로 확정됐어요!</div>
+            <div class="pm">오전 9:00 시작 · 일비 25만원 · 강동 서사장님<br>정확한 주소·전달사항이 이제 열렸어요.</div>
+            <div class="pacts"><button class="ok" onclick="show('b-detail',document.querySelector('[data-s=b-detail]'))">일정 보기</button></div>
+          </div>
+
+          <div class="sm b" style="color:#fff;opacity:.95;margin:16px 2px 7px">🙏 이번엔 아쉽게 안 된 사장님께</div>
+          <div class="push">
+            <div class="ph">RING-GO · 협업 현장 · 6/18 송도</div>
+            <div class="pt">먼저 지원한 분들과 함께하게 됐어요</div>
+            <div class="pm">다음 현장에 꼭 함께해요! 🙏</div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -402,7 +705,21 @@
     document.querySelectorAll('.switch button').forEach(b=>b.classList.remove('on'));
     if(btn) btn.classList.add('on');
     document.querySelector('.screens').scrollTop=0;
+    if(id==='b-list') blView('date');   // 목록 들어오면 항상 현장순부터
   }
+
+  // 협업 현장 목록: 현장순 ↔ 업체별 토글
+  function blView(v){
+    var byDate = v==='date';
+    document.getElementById('bl-date').style.display = byDate?'block':'none';
+    document.getElementById('bl-biz').style.display  = byDate?'none':'block';
+    document.getElementById('seg-date').classList.toggle('on', byDate);
+    document.getElementById('seg-biz').classList.toggle('on', !byDate);
+  }
+
+  // 일당 모집 — 보낼 사장님 칩 / 지원자 선택 토글
+  function mtog(el){ el.classList.toggle('on'); }
+  function pick(el){ el.classList.toggle('on'); var c=el.querySelector('.ck'); if(c) c.textContent = el.classList.contains('on') ? '✓' : ''; }
 
   // 6월 2026 = 월요일 시작(1일=월). 내 현장 / 협업 현장 점 표시.
   (function buildCal(){
