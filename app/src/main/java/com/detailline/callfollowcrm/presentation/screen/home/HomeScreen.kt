@@ -355,6 +355,8 @@ fun HomeScreen(
                 timeline.flatMap { it.items }
             }
             val listState = rememberLazyListState()
+            // 최근 대화 스크롤 버벅임 fix: 한 카드에 전체를 한 프레임에 그리면 끊김 → 기본 일부만, 나머지는 "더 보기".
+            var recentExpanded by remember { mutableStateOf(false) }
 
             // 카드 탭 인라인 액션 — 한 번에 하나만 펼침. key 포맷은 LazyColumn key 와 동일.
             // 회전/recompose 살아남게 rememberSaveable. null = 모두 접힘.
@@ -765,10 +767,11 @@ fun HomeScreen(
                 if (recent.isNotEmpty()) {
                     item(key = "recent-head") { SecSub("최근 대화") }
                     item(key = "recent-card") {
+                        val shownRecent = if (recentExpanded) recent else recent.take(12)
                         Column(
                             Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White)
                         ) {
-                            recent.forEachIndexed { index, rItem ->
+                            shownRecent.forEachIndexed { index, rItem ->
                                 if (index > 0) {
                                     Box(
                                         Modifier.fillMaxWidth().padding(start = 16.dp)
@@ -785,6 +788,20 @@ fun HomeScreen(
                                     unread = unread,
                                     aiSummary = aiCardSummaries[suffix],
                                     onOpenChat = { onOpenChat(rItem.record.phoneNumber, rItem.customer?.id) }
+                                )
+                            }
+                            if (recent.size > shownRecent.size) {
+                                Box(
+                                    Modifier.fillMaxWidth().padding(start = 16.dp)
+                                        .height(1.dp).background(TossDivider)
+                                )
+                                Text(
+                                    "이전 대화 ${recent.size - shownRecent.size}개 더 보기",
+                                    fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TossBlue,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth()
+                                        .clickable { recentExpanded = true }
+                                        .padding(vertical = 14.dp)
                                 )
                             }
                         }

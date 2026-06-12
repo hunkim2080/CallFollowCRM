@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -147,24 +148,20 @@ fun CustomersScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 18.dp)
                 ) {
-                    // .recent — 흰 카드 하나에 행들을 구분선으로 묶음
-                    item {
-                        Column(
-                            Modifier
-                                .fillMaxWidth()
-                                .background(Color.White, RoundedCornerShape(18.dp))
-                        ) {
-                            list.forEachIndexed { idx, (c, status) ->
-                                if (idx > 0) {
-                                    Box(
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .height(1.dp)
-                                            .background(TossDivider)
-                                    )
-                                }
-                                CustomerRow(c, status) { onOpenCustomerDetail(c.id) }
+                    // 흰 카드 하나처럼 보이되 행마다 lazy 로 그림(고객 많아도 안 버벅).
+                    //   첫/끝 행만 모서리 둥글게 + 사이 구분선 → 모양은 한 카드 그대로. spacedBy 없어서 행끼리 0 간격.
+                    itemsIndexed(list, key = { _, pair -> pair.first.id }) { idx, (c, status) ->
+                        val shape = when {
+                            list.size == 1 -> RoundedCornerShape(18.dp)
+                            idx == 0 -> RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp)
+                            idx == list.lastIndex -> RoundedCornerShape(bottomStart = 18.dp, bottomEnd = 18.dp)
+                            else -> RoundedCornerShape(0.dp)
+                        }
+                        Column(Modifier.fillMaxWidth().background(Color.White, shape)) {
+                            if (idx > 0) {
+                                Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
                             }
+                            CustomerRow(c, status) { onOpenCustomerDetail(c.id) }
                         }
                     }
                 }
