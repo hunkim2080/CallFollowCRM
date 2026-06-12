@@ -324,7 +324,7 @@ fun ScheduleScreen(
                             selectedDayMs = selectedDayMs,
                             todayStart = todayStart,
                             assignedMembers = assignmentsByCustomer[c.id].orEmpty(),
-                            collabPartnerNames = collabAssign[c.id].orEmpty(),
+                            collabPartnerNames = collabAssign[c.id].orEmpty().map { it.name },
                             teamAvailable = teamMembers.isNotEmpty() || collabPartners.isNotEmpty(),
                             onAssign = { assignTarget = c },
                             onClick = { onOpenCustomer(c.id) }
@@ -376,6 +376,7 @@ fun ScheduleScreen(
             customerName = c.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(c.phoneNumber),
             members = teamMembers,
             collabPartners = collabPartners,
+            assignedCollabPhones = collabAssign[c.id].orEmpty().map { it.phone }.toSet(),
             initiallySelected = assignedIds,
             initialMemo = existingMemo,
             onDismiss = { assignTarget = null },
@@ -388,8 +389,9 @@ fun ScheduleScreen(
                 viewModel.inviteCollabToSite(c, phone) { partner, body ->
                     com.detailline.callfollowcrm.util.SmsIntentHelper.openSmsCompose(assignCtxLocal, partner, body)
                 }
-                assignTarget = null
-            }
+                // 시트는 닫지 않음 — 방금 요청한 사장님이 "요청함 ✓"으로 바로 보이게.
+            },
+            onCancelCollab = { phone -> viewModel.removeCollabAssignment(c.id, phone) }
         )
     }
 }
@@ -1027,15 +1029,18 @@ private fun AssignTeamSheet(
     customerName: String,
     members: List<com.detailline.callfollowcrm.ai.TeamRepository.TeamMember>,
     collabPartners: List<com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity>,
+    assignedCollabPhones: Set<String>,
     initiallySelected: Set<String>,
     initialMemo: String,
     onDismiss: () -> Unit,
     onSave: (Set<String>, String) -> Unit,
-    onInviteCollab: (String) -> Unit
+    onInviteCollab: (String) -> Unit,
+    onCancelCollab: (String) -> Unit
 ) {
     var selected by remember { mutableStateOf(initiallySelected) }
     var memo by remember { mutableStateOf(initialMemo) }
     var pendingInvite by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity?>(null) }
+    var pendingCancel by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity?>(null) }
     val noRipple = remember { MutableInteractionSource() }
 
     // 스크림(탭 시 닫힘) + 하단 정렬 카드.
@@ -1123,7 +1128,7 @@ private fun AssignTeamSheet(
             Spacer(Modifier.height(16.dp))
             Text("🤝 협업 사장님", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary,
                 modifier = Modifier.padding(start = 2.dp, bottom = 4.dp))
-            Text("탭하면 이 현장을 그 사장님께 협업 요청해요. 고객 번호·대화는 안 보내요.",
+            Text("탭하면 협업 요청해요. 이미 요청한 분은 보라색 ✓ — 다시 누르면 취소돼요. 고객 번호·대화는 안 보내요.",
                 fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
             if (collabPartners.isEmpty()) {
                 Text("전에 협업한 사장님이 여기 떠요. 새 사장님은 고객 정보 › 이 현장 함께 하기에서 초대해요.",
@@ -1134,17 +1139,29 @@ private fun AssignTeamSheet(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     collabPartners.forEach { p ->
+                        val pPhone = p.phone.filter { it.isDigit() }
+                        val requested = pPhone.isNotEmpty() &&
+                            assignedCollabPhones.any { it.filter { d -> d.isDigit() }.takeLast(8) == pPhone.takeLast(8) }
                         Row(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(999.dp))
-                                .background(Color(0xFFF1ECFF))
-                                .clickable { pendingInvite = p }
+                                .background(if (requested) Color(0xFF7C5CFC) else Color(0xFFF1ECFF))
+                                .clickable { if (requested) pendingCancel = p else pendingInvite = p }
                                 .padding(horizontal = 14.dp, vertical = 9.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("🤝", fontSize = 12.sp)
+                            if (requested) {
+                                Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                            } else {
+                                Text("🤝", fontSize = 12.sp)
+                            }
                             Spacer(Modifier.width(5.dp))
-                            Text(p.name, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF7C5CFC))
+                            Text(p.name, fontSize = 13.5.sp, fontWeight = FontWeight.Bold,
+                                color = if (requested) Color.White else Color(0xFF7C5CFC))
+                            if (requested) {
+                                Spacer(Modifier.width(5.dp))
+                                Text("요청함", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.85f))
+                            }
                         }
                     }
                 }
@@ -1188,6 +1205,23 @@ private fun AssignTeamSheet(
             },
             dismissButton = {
                 TextButton(onClick = { pendingInvite = null }) { Text("취소", color = TossTextSecondary) }
+            }
+        )
+    }
+
+    // "요청함" 사장님 다시 탭 → 요청 취소 확인.
+    pendingCancel?.let { p ->
+        AlertDialog(
+            onDismissRequest = { pendingCancel = null },
+            title = { Text("협업 요청 취소", fontWeight = FontWeight.ExtraBold) },
+            text = { Text("${p.name} 사장님 요청을 내 목록에서 뺄까요?\n상대가 이미 수락했으면 상대 화면엔 남아요 — 직접 알려주세요.", fontSize = 14.sp, lineHeight = 20.sp) },
+            confirmButton = {
+                TextButton(onClick = { onCancelCollab(p.phone); pendingCancel = null }) {
+                    Text("요청 빼기", color = Color(0xFFF0436A), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingCancel = null }) { Text("그대로 두기", color = TossTextSecondary) }
             }
         )
     }

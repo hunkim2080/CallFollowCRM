@@ -63,8 +63,10 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             .map { list -> list.filter { it.tag.contains("협업") } }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** 협업 사장 배정(요청) — customerId → 이름들. 일정 카드 "🤝 이름"(로컬 기록, 서버 수락확정은 추후). (2026-06-13) */
-    private val _collabAssignByCustomer = MutableStateFlow<Map<Long, List<String>>>(emptyMap())
+    /** 협업 사장 배정(요청) 1건 — 일정 카드 "🤝 이름" + 중복요청 가드(phone). */
+    data class CollabAssign(val phone: String, val name: String)
+    /** 협업 사장 배정 — customerId → 배정들. (로컬 기록, 서버 수락확정은 추후). (2026-06-13) */
+    private val _collabAssignByCustomer = MutableStateFlow<Map<Long, List<CollabAssign>>>(emptyMap())
     val collabAssignByCustomer = _collabAssignByCustomer.asStateFlow()
 
     private val _toast = MutableStateFlow<String?>(null)
@@ -73,15 +75,21 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
 
     init { loadTeam(); loadCollab(); loadCollabAssignments() }
 
-    /** 로컬 협업 배정 기록 로드 → customerId→이름들. ("customerId|이름" prefs Set 파싱) */
+    /** 로컬 협업 배정 기록 로드 → customerId→배정들. ("customerId|phone|name" Set 파싱, 구버전 "id|name" 호환, 같은 번호 중복 제거) */
     private fun loadCollabAssignments() {
-        val map = HashMap<Long, MutableList<String>>()
+        val map = HashMap<Long, MutableList<CollabAssign>>()
         for (e in container.preferences.collabAssignments) {
-            val i = e.indexOf('|'); if (i <= 0) continue
-            val id = e.substring(0, i).toLongOrNull() ?: continue
-            val nm = e.substring(i + 1).takeIf { it.isNotBlank() } ?: continue
+            val parts = e.split('|')
+            val id = parts.getOrNull(0)?.toLongOrNull() ?: continue
+            val phone = if (parts.size >= 3) parts[1].filter { it.isDigit() } else ""
+            val name = if (parts.size >= 3) parts[2] else parts.getOrNull(1).orEmpty()
+            if (name.isBlank()) continue
             val list = map.getOrPut(id) { mutableListOf() }
-            if (nm !in list) list.add(nm)
+            val dup = list.any {
+                if (phone.isNotBlank() && it.phone.isNotBlank()) it.phone.takeLast(8) == phone.takeLast(8)
+                else it.name == name
+            }
+            if (!dup) list.add(CollabAssign(phone, name))
         }
         _collabAssignByCustomer.value = map
     }
@@ -151,6 +159,10 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         if (owner.length < 9) { _toast.value = "먼저 더보기 → 사업자 정보에서 내 전화번호를 등록해주세요"; return }
         val partner = partnerPhone.filter { it.isDigit() }
         if (partner.length < 9) { _toast.value = "협업 사장님 번호를 확인해주세요"; return }
+        // 중복 요청 가드 — 이미 이 현장에 이 사장님께 요청했으면 막음(같은 사람 계속 신청·수락되던 버그).
+        val already = _collabAssignByCustomer.value[customer.id].orEmpty()
+            .any { it.phone.isNotBlank() && it.phone.takeLast(8) == partner.takeLast(8) }
+        if (already) { _toast.value = "이미 이 현장에 요청한 사장님이에요"; return }
         val title = collabTitleOf(customer)
         val partnerName = collabPartners.value
             .firstOrNull { it.phone.filter { ch -> ch.isDigit() }.takeLast(8) == partner.takeLast(8) }
@@ -163,7 +175,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
                 workSummary = null, memo = null, customerLabel = title
             ).onSuccess { r ->
                 // 일정 카드 "🤝 이름" 표시용 로컬 배정 기록 (서버 수락 확정은 추후).
-                container.preferences.collabAssignments = container.preferences.collabAssignments + "${customer.id}|$partnerName"
+                container.preferences.collabAssignments = container.preferences.collabAssignments + "${customer.id}|$partner|$partnerName"
                 loadCollabAssignments()
                 if (r.route == "link" && !r.url.isNullOrBlank()) {
                     onLink(partner, r.smsDraft ?: "협업 현장 공유 — ${r.url}")
@@ -172,6 +184,19 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
                 }
             }.onFailure { _toast.value = "공유 실패 — 잠시 후 다시 시도해주세요" }
         }
+    }
+
+    /** 협업 요청 취소(로컬) — 배정 시트에서 "요청함" 사장님 다시 탭 → 내 화면에서 제거 + 재요청 가능. (상대/서버 취소는 추후) */
+    fun removeCollabAssignment(customerId: Long, partnerPhone: String) {
+        val ph = partnerPhone.filter { it.isDigit() }
+        container.preferences.collabAssignments = container.preferences.collabAssignments
+            .filterNot { e ->
+                val p = e.split('|')
+                p.getOrNull(0)?.toLongOrNull() == customerId &&
+                    (p.getOrNull(1)?.filter { it.isDigit() }?.takeLast(8) ?: "") == ph.takeLast(8)
+            }.toSet()
+        loadCollabAssignments()
+        _toast.value = "협업 요청을 내 목록에서 뺐어요"
     }
 
     /**
