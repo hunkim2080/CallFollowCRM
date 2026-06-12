@@ -79,6 +79,8 @@ fun SharedSiteScreen(
     val context = LocalContext.current
     val accountPrompt = "입금받을 계좌를 먼저 등록해주세요. 더보기 → 견적서·사업자 정보에서 등록할 수 있어요."
     var selectedId by rememberSaveableShareId()
+    var listView by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("date") } // "date" 현장순 | "biz" 업체별
+    var bizPartner by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) } // 업체별에서 고른 사장님 key
 
     LaunchedEffect(Unit) { viewModel.load() }
     // 링크로 진입 — 목록 로드 후 그 현장 상세 1회 자동 열기(사용자가 뒤로 가면 다시 안 엶).
@@ -97,7 +99,11 @@ fun SharedSiteScreen(
     }
 
     val selected = sites.firstOrNull { it.shareId == selectedId }
-    BackHandler(enabled = selected != null) { selectedId = null }
+    val partnerGroups = remember(sites) { groupByPartner(sites) }
+    val openPartner = partnerGroups.firstOrNull { it.key == bizPartner }
+    BackHandler(enabled = selected != null || bizPartner != null) {
+        if (selected != null) selectedId = null else bizPartner = null
+    }
 
     Scaffold(
         containerColor = TossGrayBg,
@@ -105,12 +111,22 @@ fun SharedSiteScreen(
             TopAppBar(
                 title = {
                     Text(
-                        if (selected != null) selected.title else "협업 현장",
+                        when {
+                            selected != null -> selected.title
+                            openPartner != null -> openPartner.name
+                            else -> "협업 현장"
+                        },
                         fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { if (selected != null) selectedId = null else onBack() }) {
+                    IconButton(onClick = {
+                        when {
+                            selected != null -> selectedId = null
+                            bizPartner != null -> bizPartner = null
+                            else -> onBack()
+                        }
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로", tint = TossTextPrimary)
                     }
                 },
@@ -127,7 +143,17 @@ fun SharedSiteScreen(
                 .padding(horizontal = 18.dp, vertical = 6.dp)
         ) {
             if (selected == null) {
-                ListBody(sites = sites, loading = loading, noBizPhone = viewModel.noBizPhone) { selectedId = it.shareId }
+                ListArea(
+                    sites = sites,
+                    loading = loading,
+                    noBizPhone = viewModel.noBizPhone,
+                    listView = listView,
+                    onListView = { listView = it; bizPartner = null },
+                    partnerGroups = partnerGroups,
+                    openPartner = openPartner,
+                    onPickPartner = { bizPartner = it },
+                    onOpen = { selectedId = it.shareId }
+                )
             } else {
                 DetailBody(
                     site = selected,
@@ -153,18 +179,19 @@ fun SharedSiteScreen(
     }
 }
 
+/** 협업 현장 목록 — 프로토 b-list: 현장순 / 업체별 세그먼트. 업체별은 로드된 현장을 사장님별로 묶음. */
 @Composable
-private fun ListBody(
+private fun ListArea(
     sites: List<SharedSiteRepository.SharedSite>,
     loading: Boolean,
     noBizPhone: Boolean,
+    listView: String,
+    onListView: (String) -> Unit,
+    partnerGroups: List<PartnerGroup>,
+    openPartner: PartnerGroup?,
+    onPickPartner: (String) -> Unit,
     onOpen: (SharedSiteRepository.SharedSite) -> Unit
 ) {
-    Text(
-        "다른 사장님과 같이 하는 현장이에요. 내 고객 목록과는 따로 모여요.",
-        fontSize = 12.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, top = 2.dp, bottom = 8.dp)
-    )
-
     when {
         noBizPhone -> EmptyCard(
             "먼저 사업자 전화를 등록해주세요",
@@ -175,12 +202,134 @@ private fun ListBody(
             "공유받은 현장이 없어요",
             "다른 사장님이 'OO 현장 같이 하자'고 공유하면 여기에 모여요. 초대받은 현장만 보이고, 그 사장님의 다른 고객은 안 보여요."
         )
-        else -> sites.forEach { site ->
-            SiteRow(site, onClick = { onOpen(site) })
-            Spacer(Modifier.height(9.dp))
+        // 업체별 → 사장님 한 명 선택: 그 사장님과 한 현장 전부 + 받은 일당 합계
+        openPartner != null -> {
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CollabPurpleSoft)
+                    .border(1.dp, Color(0xFFE2D8FB), RoundedCornerShape(16.dp)).padding(15.dp)
+            ) {
+                Text("${openPartner.name}과 함께한 현장", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("함께한 현장 ${openPartner.count}곳", fontSize = 12.5.sp, color = Color(0xFF5A4A7A), fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.weight(1f))
+                    Text("받은 일당 ", fontSize = 12.sp, color = Color(0xFF5A4A7A))
+                    Text("${openPartner.wageSum}만원", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = CollabPurple)
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Text("금액은 나와 이 사장님 사이 일당만 보여요. 완료된 현장 기준이에요.",
+                fontSize = 11.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 8.dp))
+            openPartner.sites.forEach { site ->
+                SiteRow(site, onClick = { onOpen(site) })
+                Spacer(Modifier.height(9.dp))
+            }
+        }
+        else -> {
+            SegTabs(listView, onListView)
+            Spacer(Modifier.height(12.dp))
+            if (listView == "date") {
+                Text(
+                    "다른 사장님과 같이 하는 현장이에요. 내 고객 목록과는 따로 모여요.",
+                    fontSize = 12.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 8.dp)
+                )
+                sites.forEach { site ->
+                    SiteRow(site, onClick = { onOpen(site) })
+                    Spacer(Modifier.height(9.dp))
+                }
+                Text("초대받은 현장만 보여요. 상대 사장님의 다른 고객은 안 보여요.",
+                    fontSize = 11.sp, color = TossTextTertiary, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
+            } else {
+                Text(
+                    "나를 부른 사장님별로 모았어요. 함께한 현장 수와 받은 일당 합계가 쌓여요.",
+                    fontSize = 12.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 8.dp)
+                )
+                partnerGroups.forEach { g ->
+                    PartnerRow(g, onClick = { onPickPartner(g.key) })
+                    Spacer(Modifier.height(9.dp))
+                }
+                Text("업체를 누르면 그 사장님과 한 현장이 전부 나와요.",
+                    fontSize = 11.sp, color = TossTextTertiary, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
+            }
         }
     }
 }
+
+/** 현장순 / 업체별 세그먼트 (프로토 .seg). */
+@Composable
+private fun SegTabs(current: String, onSelect: (String) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFEEF0F3)).padding(3.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        listOf("date" to "현장순", "biz" to "업체별").forEach { (key, label) ->
+            val on = current == key
+            Box(
+                Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
+                    .background(if (on) Color.White else Color.Transparent)
+                    .clickable { onSelect(key) }.padding(vertical = 9.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(label, fontSize = 13.sp, fontWeight = if (on) FontWeight.ExtraBold else FontWeight.Medium,
+                    color = if (on) TossTextPrimary else TossTextTertiary)
+            }
+        }
+    }
+}
+
+/** 업체별 행 — 사장님 이름 · 함께한 현장 N곳 · 최근 / 받은 일당 합계. */
+@Composable
+private fun PartnerRow(g: PartnerGroup, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White)
+            .border(1.dp, Color(0xFFEEF0F3), RoundedCornerShape(14.dp))
+            .clickable { onClick() }.padding(13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(CollabPurpleSoft), contentAlignment = Alignment.Center) {
+            Text("🤝", fontSize = 16.sp)
+        }
+        Spacer(Modifier.width(11.dp))
+        Column(Modifier.weight(1f)) {
+            Text(g.name, fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            Spacer(Modifier.height(2.dp))
+            Text("함께한 현장 ${g.count}곳" + (if (g.recentMs > 0L) " · 최근 ${SimpleDateFormat("MM.dd", Locale.KOREA).format(Date(g.recentMs))}" else ""),
+                fontSize = 12.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            Text("${g.wageSum}만원", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = CollabPurple)
+            Text("받은 일당", fontSize = 11.sp, color = TossTextTertiary)
+        }
+        Spacer(Modifier.width(8.dp))
+        Text("›", fontSize = 18.sp, color = TossTextTertiary)
+    }
+}
+
+/** 협업 현장을 사장님(주인 번호)별로 묶은 그룹. 받은 일당 = 완료된 현장의 일당 합계(로드된 현장 기준). */
+private data class PartnerGroup(
+    val key: String,
+    val name: String,
+    val count: Int,
+    val recentMs: Long,
+    val wageSum: Int,
+    val sites: List<SharedSiteRepository.SharedSite>
+)
+
+private fun groupByPartner(sites: List<SharedSiteRepository.SharedSite>): List<PartnerGroup> =
+    sites.groupBy { s -> s.ownerPhone.filter { it.isDigit() }.takeLast(8).ifBlank { s.ownerName } }
+        .map { (key, list) ->
+            PartnerGroup(
+                key = key,
+                name = list.first().ownerName,
+                count = list.size,
+                recentMs = list.maxOf { maxOf(it.scheduledAtMs, it.createdAtMs) },
+                wageSum = list.filter { it.progress == SharedSiteRepository.Progress.COMPLETED }.sumOf { it.dailyWage ?: 0 },
+                sites = list.sortedByDescending { it.scheduledAtMs }
+            )
+        }
+        .sortedByDescending { it.recentMs }
 
 @Composable
 private fun SiteRow(site: SharedSiteRepository.SharedSite, onClick: () -> Unit) {

@@ -16,9 +16,16 @@
 - `GET /api/shared/with-me`, `/api/shared/owner-events` 응답 각 항목에 `daily_wage` 포함.
 - 앱은 값 있으면 보라 태그 표시, 없으면 숨김(graceful). **앱은 이미 graceful 반영 예정** → 서버가 echo만 하면 바로 뜸.
 
+### A-2. 출근 시간 (`time_label`) — 작음, A 입력 (2026-06-13 앱 추가)
+- 앱(CollabShareSheet)이 "출근 시간" 칩(오전 7~오후 2시)을 추가 → invite payload 에 **`time_label`**(문자열, 예 `"오전 9시"`)를 보냄. 동시에 `scheduled_at_ms` 에 그 정시를 박아서 보냄.
+- `POST /api/shared/invite` 에 `time_label`(Optional[str]) 저장 + `/api/shared/with-me`·`/api/shared/by-me` 응답에 echo.
+  - 앱 `SharedSite.timeLabel` 이 이미 이걸 받아 목록/상세에 표시함(`· 09:00` 자리). 서버가 echo만 하면 바로 뜸.
+- §D(2h 출동 알림)의 `time_label` 과 동일 값 사용 — 1 데이터 1 출처.
+
 ## B. 업체별 히스토리 + 누적 수입 (B 화면) — 중간
 
 - 프로토: `b-list` 의 `[현장순 / 업체별]` 토글, `b-biz`(업체 1곳 요약 + 현장 내역).
+- **앱 현황(2026-06-13)**: `[현장순/업체별]` 토글 + 업체별 행/상세를 **앱이 이미 구현** — 단, 집계는 **현재 with-me 로 로드된 현장만** 로컬 그룹핑(받은 일당 = 완료 현장 일당 합). 서버 §B `partners`/`history` 가 오면 **전체 이력 기준으로 교체** 예정(윈도우 밖 과거 현장까지 합산). 그 전까지는 로컬 근사치.
 - 신규 `GET /api/shared/partners?phone=B` → 나를 부른 사장님별 집계
   ```
   { "partners": [ { "owner_phone","owner_name","count","total_wage","paid_total","last_at_ms" } ] }

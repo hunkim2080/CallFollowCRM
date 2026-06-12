@@ -112,7 +112,8 @@ class SharedSiteRepository(
         workSummary: String?,
         memo: String?,
         customerLabel: String?,
-        dailyWage: Int? = null
+        dailyWage: Int? = null,
+        timeLabel: String? = null
     ): Result<InviteResult> = withContext(Dispatchers.IO) {
         runCatching {
             val payload = JSONObject().apply {
@@ -125,6 +126,7 @@ class SharedSiteRepository(
                 memo?.let { put("memo", it) }
                 customerLabel?.let { put("customer_label", it) }
                 dailyWage?.let { put("daily_wage", it) }
+                timeLabel?.let { put("time_label", it) }
             }
             val req = Request.Builder().url("$baseUrl/api/shared/invite")
                 .post(payload.toString().toRequestBody(jsonMedia)).build()

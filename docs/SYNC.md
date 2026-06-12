@@ -3807,3 +3807,18 @@ sqlite3 ~/ringgo-server/cache.db "SELECT daily_wage FROM shared_sites ORDER BY c
 
 ### 서버 추가 작업 없음
 서버 echo 코드는 그대로 살아있음. 앱이 보내기만 하면 with-me 응답에 daily_wage 가 그대로 echo 됨 → B 카드 보라태그가 "일당 25만" 으로 뜸.
+
+## 2026-06-13 (android 추가3) — 프로토 1:1 이식 1단계: 출근시간 칸 + 협업현장 [현장순/업체별] 토글
+사장님 "프로토랑 1:1로 이식해줘" → 서버 무관 1단계 먼저.
+- **출근 시간 칸** (CollabShareSheet): 일당 칸 아래 정시 칩(오전7~오후2시) 추가. 선택 시 `scheduled_at_ms` 에 그 정시 박아 보냄 + invite payload `time_label`(예 "오전 9시"). 서버 할 일 = §A-2(invite 저장 + with-me/by-me echo). 앱 `SharedSite.timeLabel` 이미 수신·표시.
+- **협업현장 [현장순/업체별] 토글** (SharedSiteScreen, 프로토 b-list 1:1): 세그먼트 + 업체별 행(사장님별 함께한 현장 N곳·최근·받은 일당 합계) + 업체별 상세(그 사장님과 한 현장 전부). **집계는 현재 로드된 현장 로컬 그룹핑** → 서버 §B(`partners`/`history`) 오면 전체 이력으로 교체.
+- 변경(서버): invite `time_label` 저장+echo(§A-2). §B 업체별 집계 우선순위 ↑(앱 화면 이미 대기 중).
+- commit: (아래)
+- 다음(앱): 서버 §A+§H reload 후 → 공유후카드(by-me) + 일당/수락 검증. 그 뒤 §B 연결.
+
+## 2026-06-13 (android → cowork) · §A 일당 NULL 답신: 직렬화 정상, 원인=stale 빌드 + 일당 미입력
+cowork 진단 회신 — 결론: **서버/직렬화 정상. 앱 송신부 버그 아님.**
+1. **직렬화 OK** — `SharedSiteRepository.invite` 는 Retrofit/Moshi 아님. **OkHttp + org.json.JSONObject** 직접 빌드: `dailyWage?.let { put("daily_wage", it) }`. 값 있으면 무조건 들어감. `@Json` 매핑 불필요.
+2. **NULL 원인 = 옛 빌드 + 미입력**. cache.db 의 NULL invite 들(02:11, 01:43)은 **일당 칸이 화면 아래 묻혀 안 보이던 빌드**로 보낸 것(사장님이 입력칸을 못 봄). 새 APK(오늘 03:01 빌드·설치)에서 **일당 칸을 번호 바로 밑으로 올림** + 이번에 출근시간 칸도 추가. 또 일당은 **선택값** — 비우고 보내면 NULL 이 정상.
+3. **재검증 부탁**: 사장님이 새 빌드에서 일당 `25` 입력 후 invite → `sqlite3 cache.db "SELECT daily_wage FROM shared_sites ORDER BY created_at_ms DESC LIMIT 1;"` → **25** 나와야 정상. (이번 빌드 commit 8ac669d 직후)
+- 추가: 이번 invite 부터 `time_label` 도 함께 감(§A-2). with-me/by-me echo 부탁.

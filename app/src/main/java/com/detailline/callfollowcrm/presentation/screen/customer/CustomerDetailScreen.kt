@@ -2628,7 +2628,14 @@ private fun CollabShareSheet(
     val recentSmsContacts by container.smsContactCacheRepository.observeAll(40).collectAsState(initial = emptyList())
     var partnerPhone by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
     var dailyWage by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
+    var startHour by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(-1) } // 출근 시간(24h). -1 = 미선택
     var sending by remember { mutableStateOf(false) }
+
+    fun hourLabel(h: Int): String {
+        val ampm = if (h < 12) "오전" else "오후"
+        val h12 = if (h % 12 == 0) 12 else h % 12
+        return "$ampm ${h12}시"
+    }
 
     val dateLabel = remember(scheduledAtMs) {
         if (scheduledAtMs == null || scheduledAtMs <= 0L) "날짜 미정"
@@ -2648,12 +2655,24 @@ private fun CollabShareSheet(
             return
         }
         sending = true
+        // 출근 시간 선택 시: 일정 날짜에 그 시각(정시)을 박아 scheduledAtMs 로 보냄 + time_label 도 함께.
+        val baseMs = scheduledAtMs ?: 0L
+        val effectiveMs = if (startHour in 0..23 && baseMs > 0L) {
+            java.util.Calendar.getInstance().apply {
+                timeInMillis = baseMs
+                set(java.util.Calendar.HOUR_OF_DAY, startHour)
+                set(java.util.Calendar.MINUTE, 0)
+                set(java.util.Calendar.SECOND, 0)
+                set(java.util.Calendar.MILLISECOND, 0)
+            }.timeInMillis
+        } else baseMs
+        val timeLabel = startHour.takeIf { it in 0..23 }?.let { hourLabel(it) }
         scope.launch {
             val res = container.sharedSiteRepository.invite(
                 ownerPhone = owner, partnerPhone = partner, title = siteTitle,
-                addr = addr, scheduledAtMs = scheduledAtMs ?: 0L,
+                addr = addr, scheduledAtMs = effectiveMs,
                 workSummary = null, memo = null, customerLabel = siteTitle,
-                dailyWage = dailyWage.toIntOrNull()
+                dailyWage = dailyWage.toIntOrNull(), timeLabel = timeLabel
             )
             sending = false
             res.onSuccess { r ->
@@ -2730,6 +2749,31 @@ private fun CollabShareSheet(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text("합의한 일당을 적으면 상대 사장님 화면에 보라색 일당 태그로 떠요. 비워도 됩니다.", fontSize = 11.sp, color = TossTextTertiary)
+
+                // 출근 시간 — 상대 사장님이 "몇 시까지 가면 되는지" 알게. 정시 칩으로 빠르게.
+                Spacer(Modifier.height(14.dp))
+                Text("출근 시간 (선택)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+                    modifier = Modifier.padding(bottom = 6.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    listOf(7, 8, 9, 10, 11, 13, 14).forEach { h ->
+                        val selected = startHour == h
+                        Box(
+                            Modifier.clip(RoundedCornerShape(999.dp))
+                                .background(if (selected) Color(0xFF7C5CFC) else TossGrayBg)
+                                .clickable { startHour = if (selected) -1 else h }
+                                .padding(horizontal = 13.dp, vertical = 8.dp)
+                        ) {
+                            Text(hourLabel(h), fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
+                                color = if (selected) Color.White else TossTextSecondary, maxLines = 1)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    if (startHour in 0..23) "출발 2시간 전에 상대 사장님께 '오늘 ${hourLabel(startHour)} ○○ 현장' 알림이 가요."
+                    else "정하면 상대 사장님께 시작 시간이 보여요. 안 정해도 됩니다.",
+                    fontSize = 11.sp, color = TossTextTertiary
+                )
 
                 val workerCandidates = workers.filter { it.phone.filter { ch -> ch.isDigit() }.length >= 9 }.take(8)
                 val smsCandidates = recentSmsContacts
