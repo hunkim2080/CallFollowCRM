@@ -137,6 +137,7 @@ fun CustomerDetailScreen(
     val systemSms by viewModel.systemSms.collectAsState()
     val toast by viewModel.toast.collectAsState()
     val context = LocalContext.current
+    val container = remember { (context.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication).container }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -144,6 +145,8 @@ fun CustomerDetailScreen(
     var datePickerOpen by remember { mutableStateOf(false) }
     // 협업 현장으로 공유 (collab-sites-proto a-card/a-share) — 다른 사장님께 이 현장 하나만 공유.
     var collabShareOpen by remember(customer?.id) { mutableStateOf(false) }
+    // 공유 후/해제 시 로컬 협업 기록 다시 읽게 하는 트리거(prefs 는 비반응형).
+    var collabRefresh by remember(customer?.id) { mutableStateOf(0) }
     var callsExpanded by remember(customer?.id) { mutableStateOf(false) }
     var orphanRecsExpanded by remember(customer?.id) { mutableStateOf(false) }
     var nameDialogOpen by remember { mutableStateOf(false) }
@@ -423,9 +426,36 @@ fun CustomerDetailScreen(
             //   예약(시공일)이 잡힌 고객만 = 진짜 "현장". 상담 단계(날짜 없음)는 공유할 현장이 없으니 섹션 숨김.
             //   (2026-06-11 사장님 요청)
             if (c.scheduledWorkDate != null) {
+                val siteTitle = com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(displayAddr).takeIf { it.isNotBlank() }
+                    ?: c.name?.takeIf { it.isNotBlank() }?.let { "$it 현장" } ?: "협업 현장"
+                // 이 고객으로 공유한 협업 사장님(로컬 기록) — 번호 끝 8자리로 dedup.
+                val collabPartners = remember(c.id, collabRefresh) {
+                    container.preferences.collabAssignments.mapNotNull { e ->
+                        val p = e.split("|"); if (p.size >= 3 && p[0].toLongOrNull() == c.id) p[1] to p[2] else null
+                    }.distinctBy { it.first.filter { ch -> ch.isDigit() }.takeLast(8) }
+                }
                 Spacer(Modifier.height(12.dp))
                 Text("이 현장 함께 하기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
                     modifier = Modifier.padding(start = 2.dp, bottom = 8.dp))
+
+                // 공유 후 카드 (collab-sites-proto a-after) — 협업 중인 사장님별로 표시.
+                collabPartners.forEach { (partnerPhone, partnerName) ->
+                    CollabAfterCard(
+                        partnerName = partnerName.ifBlank { "협업 사장님" },
+                        siteTitle = siteTitle,
+                        onRelease = {
+                            container.preferences.collabAssignments = container.preferences.collabAssignments
+                                .filterNot { e ->
+                                    val p = e.split("|")
+                                    p.size >= 3 && p[0].toLongOrNull() == c.id &&
+                                        p[1].filter { it.isDigit() }.takeLast(8) == partnerPhone.filter { it.isDigit() }.takeLast(8)
+                                }.toSet()
+                            collabRefresh++
+                        }
+                    )
+                    Spacer(Modifier.height(10.dp))
+                }
+
                 Column(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
                         .border(1.5.dp, Color(0xFFC8D3E2), RoundedCornerShape(16.dp))
@@ -433,17 +463,24 @@ fun CustomerDetailScreen(
                         .padding(16.dp),
                     horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
                 ) {
-                    Text("🤝 다른 사장님과 협업 현장으로 공유", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+                    Text(
+                        if (collabPartners.isEmpty()) "🤝 다른 사장님과 협업 현장으로 공유" else "🤝 다른 사장님도 함께",
+                        fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue
+                    )
                     Spacer(Modifier.height(5.dp))
-                    Text("같이 하기로 한 사장님께 이 현장 하나만 공유해요", fontSize = 12.5.sp, color = TossTextTertiary)
+                    Text(
+                        if (collabPartners.isEmpty()) "같이 하기로 한 사장님께 이 현장 하나만 공유해요" else "한 명 더 불러서 같이 할 수 있어요",
+                        fontSize = 12.5.sp, color = TossTextTertiary
+                    )
                 }
 
                 if (collabShareOpen) {
                     CollabShareSheet(
-                        siteTitle = com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(displayAddr).takeIf { it.isNotBlank() }
-                            ?: c.name?.takeIf { it.isNotBlank() }?.let { "$it 현장" } ?: "협업 현장",
+                        siteTitle = siteTitle,
                         addr = displayAddr,
                         scheduledAtMs = c.scheduledWorkDate,
+                        customerId = c.id,
+                        onShared = { collabRefresh++ },
                         onDismiss = { collabShareOpen = false }
                     )
                 }
@@ -2608,6 +2645,93 @@ private fun AddressEditDialog(
 }
 
 /**
+ * 공유 후 카드 — collab-sites-proto `a-after` 1:1. A(주인)가 고객 정보에서 협업 진행을 봄.
+ *   헤더(협업 중 + 이름)·일당·진행 stepper·영구보관 안내·해제. 진행/일당은 서버 owner-events(같은 현장 제목 매칭),
+ *   서버 미가동/없으면 배정 단계만(graceful). 사진·메모 영역은 §F(서버) 연결 후.
+ */
+@Composable
+private fun CollabAfterCard(
+    partnerName: String,
+    siteTitle: String,
+    onRelease: () -> Unit
+) {
+    val context = LocalContext.current
+    val container = remember { (context.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication).container }
+    val purpleSoft = Color(0xFFF1ECFE)
+
+    // 서버 진행 이벤트(있으면) — 같은 현장 제목으로 매칭. 없으면 배정 단계만(graceful).
+    var step by remember(siteTitle, partnerName) { mutableStateOf<String?>(null) }
+    var wage by remember(siteTitle, partnerName) { mutableStateOf<Int?>(null) }
+    androidx.compose.runtime.LaunchedEffect(siteTitle, partnerName) {
+        val owner = container.preferences.bizPhone.filter { it.isDigit() }
+        if (owner.length >= 9) {
+            container.sharedSiteRepository.ownerEvents(owner).onSuccess { events ->
+                // 같은 현장(제목) 매칭. 이름이 구체적이면 사장님까지 일치시켜 여러 협업자 진행 섞임 방지.
+                val mine = events.filter {
+                    it.title == siteTitle && (partnerName == "협업 사장님" || it.partnerName == partnerName)
+                }.maxByOrNull { it.atMs }
+                step = mine?.step
+                wage = mine?.dailyWage
+            }
+        }
+    }
+    val curIdx = when (step?.lowercase()) {
+        "departed" -> 1; "arrived" -> 2; "completed" -> 3; else -> 0
+    }
+
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White)
+            .border(1.dp, Color(0xFFE2D8FB), RoundedCornerShape(16.dp)).padding(15.dp)
+    ) {
+        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text("🤝 협업 사장님", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            Spacer(Modifier.weight(1f))
+            Box(Modifier.clip(RoundedCornerShape(999.dp)).background(purpleSoft).padding(horizontal = 10.dp, vertical = 4.dp)) {
+                Text("$partnerName · 협업 중", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
+            }
+        }
+        wage?.let {
+            Spacer(Modifier.height(9.dp))
+            androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("💰 그날 일당", fontSize = 13.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
+                Spacer(Modifier.weight(1f))
+                Text("${it}만원", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text("상대가 올린 진행·사진·메모가 여기 그대로 들어와요.", fontSize = 12.sp, color = TossTextTertiary)
+        Spacer(Modifier.height(12.dp))
+        // 진행 stepper (A가 보는 상대 진행)
+        androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            listOf("배정", "출발", "도착", "완료").forEachIndexed { i, label ->
+                Column(Modifier.weight(1f), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                    val done = i < curIdx; val cur = i == curIdx
+                    val bg = when { done -> Color(0xFF16C172); cur -> Color(0xFF3182F6); else -> TossGrayBg }
+                    val fg = if (done || cur) Color.White else TossTextTertiary
+                    Box(Modifier.size(28.dp).clip(RoundedCornerShape(999.dp)).background(bg), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                        Text(if (done) "✓" else "${i + 1}", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = fg)
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text(label, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = if (done || cur) TossTextPrimary else TossTextTertiary)
+                }
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        // 영구보관 안내 (proto a-after verbatim)
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossBlueSoft).padding(13.dp)) {
+            Text("🗂 이 기록은 계속 남아요", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+            Spacer(Modifier.height(5.dp))
+            Text("사진·메모·진행 기록은 이 고객 정보에 영구 보관돼요. 3개월 뒤 고객이 또 연락해도 이걸 바로 꺼내 보고 응대할 수 있어요. 협업을 해제해도 안 지워집니다.",
+                fontSize = 12.sp, color = Color(0xFF3A4A66), lineHeight = 18.sp)
+        }
+        Spacer(Modifier.height(10.dp))
+        Text("협업 해제 (사진·메모는 그대로 보존)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { onRelease() }.padding(vertical = 11.dp),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+    }
+}
+
+/**
  * 협업 현장으로 공유 시트 — collab-sites-proto a-share 1:1.
  *   상대 사장 번호 입력 → /api/shared/invite. 가입 사장이면 인앱(상대 앱 "협업 현장"에 뜸),
  *   아니면 문자 링크(SmsIntentHelper). 자동발송 아님 — 상대 수락해야 시작.
@@ -2619,6 +2743,8 @@ private fun CollabShareSheet(
     siteTitle: String,
     addr: String?,
     scheduledAtMs: Long?,
+    customerId: Long,
+    onShared: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -2676,6 +2802,8 @@ private fun CollabShareSheet(
             )
             sending = false
             res.onSuccess { r ->
+                val partnerName = workers.firstOrNull { it.phone.filter { ch -> ch.isDigit() }.takeLast(8) == partner.takeLast(8) }?.name
+                    ?: "협업 사장님"
                 val existsInNotebook = workers.any { it.phone.filter { ch -> ch.isDigit() }.takeLast(8) == partner.takeLast(8) }
                 if (!existsInNotebook) {
                     runCatching {
@@ -2687,6 +2815,17 @@ private fun CollabShareSheet(
                             memo = "협업 현장으로 함께 일한 사장님"
                         )
                     }
+                }
+                // 로컬 협업 기록(공유후카드 + 캘린더 🤝 표시용) — "customerId|phone|name". 번호 끝 8자리로 중복 방지.
+                runCatching {
+                    val key8 = partner.takeLast(8)
+                    val already = container.preferences.collabAssignments.any { e ->
+                        val p = e.split("|"); p.size >= 3 && p[0].toLongOrNull() == customerId && p[1].filter { it.isDigit() }.takeLast(8) == key8
+                    }
+                    if (!already) {
+                        container.preferences.collabAssignments = container.preferences.collabAssignments + "$customerId|$partner|$partnerName"
+                    }
+                    onShared()
                 }
                 if (r.route == "link" && !r.url.isNullOrBlank()) {
                     val body = r.smsDraft ?: "협업 현장 공유 — ${r.url}"

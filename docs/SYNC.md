@@ -3822,3 +3822,14 @@ cowork 진단 회신 — 결론: **서버/직렬화 정상. 앱 송신부 버그
 2. **NULL 원인 = 옛 빌드 + 미입력**. cache.db 의 NULL invite 들(02:11, 01:43)은 **일당 칸이 화면 아래 묻혀 안 보이던 빌드**로 보낸 것(사장님이 입력칸을 못 봄). 새 APK(오늘 03:01 빌드·설치)에서 **일당 칸을 번호 바로 밑으로 올림** + 이번에 출근시간 칸도 추가. 또 일당은 **선택값** — 비우고 보내면 NULL 이 정상.
 3. **재검증 부탁**: 사장님이 새 빌드에서 일당 `25` 입력 후 invite → `sqlite3 cache.db "SELECT daily_wage FROM shared_sites ORDER BY created_at_ms DESC LIMIT 1;"` → **25** 나와야 정상. (이번 빌드 commit 8ac669d 직후)
 - 추가: 이번 invite 부터 `time_label` 도 함께 감(§A-2). with-me/by-me echo 부탁.
+
+## 2026-06-13 (android 추가4) — 프로토 1:1 이식 2단계: 공유후카드(a-after) A쪽 표시
+사장님 고고 → 2단계.
+- **공유후카드** (CustomerDetailScreen, 프로토 `a-after` 1:1): A가 고객정보에서 협업 진행을 봄. 헤더(이름 · 협업 중) + 일당 + 진행 stepper(배정/출발/도착/완료) + "이 기록은 계속 남아요"(영구보관) + 협업 해제(사진·메모 보존).
+  - 진행/일당 = 서버 `owner-events` 같은 현장 제목+이름 매칭(이미 있는 endpoint). 서버 미가동이면 배정 단계만(graceful).
+  - 사진·메모 영역(증거사진)은 §F 서버 연결 후 4단계에서.
+- **부수효과(갭 수정)**: CustomerDetail 협업 공유도 이제 `collabAssignments`(customerId|phone|name) 로컬 기록 → 캘린더 🤝 표시 + 공유후카드가 둘 다 뜸. 기존엔 ScheduleScreen 경로만 기록했음.
+- 협업 해제 = **로컬 카드만 제거**(서버 share 는 그대로). 서버 `/api/shared/cancel`(핸드오프 dedup §③) 오면 B쪽 pending 도 제거하도록 연결 예정.
+- 서버 할 일 추가 없음(owner-events daily_wage echo 만 확인 — cowork §A 에서 JOIN 으로 이미 함).
+- commit: (아래)
+- 다음(앱): 3단계 — 업체별을 §B(partners/history) 전체이력 집계로 교체.

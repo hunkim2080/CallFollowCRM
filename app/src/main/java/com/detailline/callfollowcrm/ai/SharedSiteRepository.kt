@@ -80,7 +80,8 @@ class SharedSiteRepository(
         val partnerName: String,
         val step: String,             // "departed" | "arrived" | "completed"
         val atMs: Long,
-        val account: JSONObject? = null
+        val account: JSONObject? = null,
+        val dailyWage: Int? = null    // 서버가 shared_sites JOIN 으로 echo (없으면 null)
     )
 
     /** 내가 공유받은 협업 현장 목록. 서버 없거나 실패 시 빈 목록(graceful). */
@@ -202,7 +203,8 @@ class SharedSiteRepository(
                             partnerName = o.optString("partner_name").ifBlank { "협업 사장님" },
                             step = step,
                             atMs = atMs,
-                            account = o.optJSONObject("account")
+                            account = o.optJSONObject("account"),
+                            dailyWage = o.optInt("daily_wage", 0).takeIf { it > 0 }
                         )
                     }
                 }
