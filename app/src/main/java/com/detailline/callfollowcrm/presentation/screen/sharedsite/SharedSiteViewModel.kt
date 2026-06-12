@@ -24,6 +24,10 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
     private val _sites = MutableStateFlow<List<SharedSiteRepository.SharedSite>>(emptyList())
     val sites = _sites.asStateFlow()
 
+    /** 업체별(§B) 서버 집계 — 비어 있으면 화면이 로컬 그룹핑으로 폴백. */
+    private val _partners = MutableStateFlow<List<SharedSiteRepository.Partner>>(emptyList())
+    val partners = _partners.asStateFlow()
+
     private val _loading = MutableStateFlow(false)
     val loading = _loading.asStateFlow()
 
@@ -39,6 +43,8 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
         _loading.value = true
         viewModelScope.launch {
             _sites.value = repo.withMe(myPhone).getOrDefault(emptyList())
+            // 업체별 집계(§B) — 서버 없거나 실패하면 빈 목록 → 화면이 로컬 그룹핑으로 폴백.
+            _partners.value = repo.partners(myPhone).getOrDefault(emptyList())
             _loading.value = false
         }
     }

@@ -3833,3 +3833,11 @@ cowork 진단 회신 — 결론: **서버/직렬화 정상. 앱 송신부 버그
 - 서버 할 일 추가 없음(owner-events daily_wage echo 만 확인 — cowork §A 에서 JOIN 으로 이미 함).
 - commit: (아래)
 - 다음(앱): 3단계 — 업체별을 §B(partners/history) 전체이력 집계로 교체.
+
+## 2026-06-13 (android 추가5) — 프로토 1:1 이식 3단계: 업체별을 서버 §B(partners) 전체이력 집계로
+- **SharedSiteRepository.partners()** 추가 — `GET /api/shared/partners?phone=B` → `{partners:[{owner_phone,owner_name,count,total_wage,paid_total,last_at_ms}]}` 파싱(핸드오프 §B 모양 그대로).
+- **SharedSiteViewModel**: `load()` 에서 partners 도 같이 로드. 실패/없으면 빈 목록.
+- **SharedSiteScreen 업체별**: 서버 partners 있으면 그걸로(전체 이력 count·total_wage·last_at) PartnerGroup 구성, **없으면 로컬 그룹핑 폴백**(이전 동작 유지 — 무회귀). 상세에서 서버 count > 로드된 현장 수면 "이전 N곳은 합계에 포함" 안내.
+- `/api/shared/history` 는 아직 미소비 — 상세 목록은 로드된(with-me 윈도우) 현장 + 합계 안내로 처리. 과거 현장 클릭 목록까지 원하면 history 연결은 후속.
+- **검증 주의**: 서버 reload 안 됐으면 partners 404 → 자동 폴백(로컬). reload 후 전체이력 집계로 바뀜. 사장님 reload 후 [업체별]에서 숫자 확인 필요.
+- commit: (아래)

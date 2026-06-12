@@ -98,8 +98,24 @@ fun SharedSiteScreen(
         }
     }
 
+    val serverPartners by viewModel.partners.collectAsState()
     val selected = sites.firstOrNull { it.shareId == selectedId }
-    val partnerGroups = remember(sites) { groupByPartner(sites) }
+    // 업체별: 서버 §B 집계 있으면 그걸로(전체 이력), 없으면 로드된 현장 로컬 그룹핑(폴백).
+    val partnerGroups = remember(sites, serverPartners) {
+        if (serverPartners.isNotEmpty()) serverPartners.map { p ->
+            val key = p.ownerPhone.filter { it.isDigit() }.takeLast(8).ifBlank { p.ownerName }
+            PartnerGroup(
+                key = key,
+                name = p.ownerName,
+                count = p.count,
+                recentMs = p.lastAtMs,
+                wageSum = p.totalWage,
+                sites = sites.filter { it.ownerPhone.filter { c -> c.isDigit() }.takeLast(8) == key }
+                    .sortedByDescending { it.scheduledAtMs }
+            )
+        }.sortedByDescending { it.recentMs }
+        else groupByPartner(sites)
+    }
     val openPartner = partnerGroups.firstOrNull { it.key == bizPartner }
     BackHandler(enabled = selected != null || bizPartner != null) {
         if (selected != null) selectedId = null else bizPartner = null
@@ -223,6 +239,12 @@ private fun ListArea(
             openPartner.sites.forEach { site ->
                 SiteRow(site, onClick = { onOpen(site) })
                 Spacer(Modifier.height(9.dp))
+            }
+            // 서버 전체이력 합계 > 지금 열 수 있는 현장 → 과거 현장은 합계에만 포함.
+            if (openPartner.count > openPartner.sites.size) {
+                Text("이전 현장 ${openPartner.count - openPartner.sites.size}곳은 합계에 포함돼요 (목록은 최근 것만 열려요).",
+                    fontSize = 11.sp, color = TossTextTertiary, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 4.dp))
             }
         }
         else -> {

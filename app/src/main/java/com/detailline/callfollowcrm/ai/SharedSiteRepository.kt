@@ -65,6 +65,16 @@ class SharedSiteRepository(
         val createdAtMs: Long
     )
 
+    /** 업체별(나를 부른 사장님) 집계 — 서버 §B. 전체 이력 기준(with-me 윈도우 밖 과거 포함). */
+    data class Partner(
+        val ownerPhone: String,
+        val ownerName: String,
+        val count: Int,        // 함께한 현장 수
+        val totalWage: Int,    // 완료 현장 일당 합(만원)
+        val paidTotal: Int,    // 입금 완료된 합(만원)
+        val lastAtMs: Long     // 최근 현장 시각
+    )
+
     data class InviteResult(
         val shareId: String,
         val route: String,           // "inapp" (상대도 앱 사장) | "link" (웹링크)
@@ -210,6 +220,32 @@ class SharedSiteRepository(
                 }
             }
         }
+
+    /** 업체별 집계(§B). 서버 미구현(404)/실패 시 Result 실패 → 호출부가 로컬 그룹핑으로 폴백. */
+    suspend fun partners(phone: String): Result<List<Partner>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val url = baseUrl.toHttpUrl().newBuilder()
+                .addPathSegments("api/shared/partners")
+                .addQueryParameter("phone", phoneKey(phone))
+                .build()
+            val req = Request.Builder().url(url).get().build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                val arr = JSONObject(resp.body?.string().orEmpty()).optJSONArray("partners") ?: JSONArray()
+                (0 until arr.length()).mapNotNull { i ->
+                    val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                    Partner(
+                        ownerPhone = o.optString("owner_phone"),
+                        ownerName = o.optString("owner_name").ifBlank { "사장님" },
+                        count = o.optInt("count"),
+                        totalWage = o.optInt("total_wage"),
+                        paidTotal = o.optInt("paid_total"),
+                        lastAtMs = o.optLong("last_at_ms")
+                    )
+                }
+            }
+        }
+    }
 
     /** 상대 번호가 가입 사장인지(인앱 vs 링크 분기). 서버 없으면 false(=링크 경로). */
     suspend fun ownerExists(phone: String): Result<Boolean> = withContext(Dispatchers.IO) {
