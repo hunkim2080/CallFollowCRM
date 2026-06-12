@@ -2714,6 +2714,23 @@ private fun CollabShareSheet(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text("RING-GO 쓰는 사장님이면 그 분 앱으로, 아니면 문자 링크로 가요.", fontSize = 11.sp, color = TossTextTertiary)
+
+                // 그날 일당 — 번호 바로 밑(눈에 띄게). 불러오기 칩은 그 아래.
+                Spacer(Modifier.height(14.dp))
+                Text("그날 일당 (선택)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+                    modifier = Modifier.padding(bottom = 6.dp))
+                androidx.compose.material3.OutlinedTextField(
+                    value = dailyWage,
+                    onValueChange = { dailyWage = it.filter { c -> c.isDigit() }.take(4) },
+                    placeholder = { Text("25", color = TossTextTertiary) },
+                    trailingIcon = { Text("만원", color = TossTextSecondary, fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 12.dp)) },
+                    singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(4.dp))
+                Text("합의한 일당을 적으면 상대 사장님 화면에 보라색 일당 태그로 떠요. 비워도 됩니다.", fontSize = 11.sp, color = TossTextTertiary)
+
                 val workerCandidates = workers.filter { it.phone.filter { ch -> ch.isDigit() }.length >= 9 }.take(8)
                 val smsCandidates = recentSmsContacts
                     .filter { it.address.filter { ch -> ch.isDigit() }.length >= 9 }
@@ -2741,20 +2758,6 @@ private fun CollabShareSheet(
                         }
                     }
                 }
-                Spacer(Modifier.height(14.dp))
-                Text("그날 일당 (선택)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
-                    modifier = Modifier.padding(bottom = 6.dp))
-                androidx.compose.material3.OutlinedTextField(
-                    value = dailyWage,
-                    onValueChange = { dailyWage = it.filter { c -> c.isDigit() }.take(4) },
-                    placeholder = { Text("25", color = TossTextTertiary) },
-                    trailingIcon = { Text("만원", color = TossTextSecondary, fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 12.dp)) },
-                    singleLine = true,
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(4.dp))
-                Text("합의한 일당을 적으면 상대 사장님 화면에 보라색 일당 태그로 떠요. 비워도 됩니다.", fontSize = 11.sp, color = TossTextTertiary)
                 Spacer(Modifier.height(14.dp))
                 // 벽 안내
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossBlueSoft).padding(13.dp)) {
