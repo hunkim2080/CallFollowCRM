@@ -3775,3 +3775,35 @@ SERVER_HANDOFF_collab_expansion.md 우선순위 1번. 두 묶음 한번에 적�
 사장님 신고: 한 현장에 같은 사장을 계속 신청→계속 수락됨(중복 share 양산).
 - 앱(commit c031f90): `inviteCollabToSite` 중복 가드(이미 요청한 번호면 차단) + 배정 시트 "요청함 ✓" 표시 + 취소. **새 중복은 이제 안 생김.**
 - 서버 할 일: ① `/api/shared/invite` 가 **같은 owner+partner+현장(또는 미완 share)** 이면 새로 만들지 말고 기존 것 반환(dedup). ② 테스트 중 쌓인 **기존 중복 share 정리**(owner+partner+title 같은 pending/accepted 중복 1개만). ③ (선택) 요청 취소 `/api/shared/cancel` → 상대 pending 제거.
+## 2026-06-13 (cowork → android) · §A 일당 진단: 앱 payload 미송신
+사장님 실기기 검증: B 화면 보라태그가 "일당 25만" 아니라 **그냥 "협업"** 으로 뜸.
+
+### 서버 진단 (cache.db 직접 확인)
+```sql
+SELECT share_id, partner_phone, title, daily_wage, datetime(created_at_ms/1000,'unixepoch','localtime')
+FROM shared_sites ORDER BY created_at_ms DESC LIMIT 3;
+sh_IuA1abmIuo|01080056674|가능 동 sk뷰 아파트||2026-06-13 02:11:35
+sh_nrwu07P85W|01080056674|가능 동 sk뷰 아파트||2026-06-13 01:43:05
+sh_KbmroOt3R8|01080056674|이 현장||2026-06-13 01:19:43
+```
+→ 최근 invite 3건 모두 **`daily_wage = NULL`** (4번째 컬럼 `||` 사이 빈 값).
+
+### 원인
+A 앱이 `POST /api/shared/invite` payload 에 `daily_wage` 키 자체를 안 보내고 있음.
+서버 (§A) 는 정상 — daily_wage 컬럼 ALTER OK + Pydantic Optional[int] 받을 준비됨 + 값 들어오면 INSERT 정상.
+
+### android 측 점검 요청
+1. **CollabShareSheet** (A 입력) — 핸드오프 `a-share` "그날 일당" 입력칸 실제로 화면 떠 있나? 사장님이 입력했는데 안 박힌 건지, 입력칸 자체가 안 보이는 건지.
+2. **invite payload 직렬화** — Retrofit/Moshi 직렬화 시 `daily_wage` 필드 누락 가능성. SharedInviteRequest 데이터 클래스에 `@Json(name="daily_wage") val dailyWage: Int? = null` 같은 매핑 확실히.
+3. **graceful 검증** — 핸드오프 §A 끝: "앱은 이미 graceful 반영 예정". 이 부분 commit (d14044b 부근) 이 실제 들어갔는지 git log 확인 부탁.
+
+### 빠른 검증 (android 작업 후)
+사장님이 입력값 25 박고 invite 보낸 직후 맥미니에서:
+```bash
+sqlite3 ~/ringgo-server/cache.db "SELECT daily_wage FROM shared_sites ORDER BY created_at_ms DESC LIMIT 1;"
+```
+→ `25` 나오면 송신 OK → 그 다음 B 카드 표시 코드 점검.
+→ 빈 값이면 송신부에서 또 누락 → 직렬화 재점검.
+
+### 서버 추가 작업 없음
+서버 echo 코드는 그대로 살아있음. 앱이 보내기만 하면 with-me 응답에 daily_wage 가 그대로 echo 됨 → B 카드 보라태그가 "일당 25만" 으로 뜸.
