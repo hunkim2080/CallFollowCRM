@@ -290,6 +290,11 @@ object NotificationHelper {
                 "${partnerName}님이 $timeLabel · ${title} 작업을 끝냈어요",
                 ACCENT_PURPLE
             )
+            "accepted" -> Triple(
+                "협업 수락 🤝",
+                "${partnerName}님이 '${title}' 협업을 수락했어요 — 함께 가요!",
+                ACCENT_PURPLE
+            )
             else -> Triple(
                 "협업 현장 출발 🚗",
                 "${partnerName}님이 $timeLabel · ${title}으로 출발했어요",

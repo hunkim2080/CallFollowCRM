@@ -87,6 +87,7 @@
 - 서버 필요: A 의 **내보낸 협업 목록** — `GET /api/shared/by-me?phone=A` →
   `[{ share_id, partner_name, partner_phone, scheduled_at_ms, status: pending|accepted|declined, title }]`
   (또는 `owner-events` 에 accepted/declined 포함.) 앱이 이걸 받아 "🤝 이름 · 요청함/함께" 정확히 표시 + 거절 시 제거.
+- **★ 즉시 알림(2026-06-13 사장님 지적 — 지금 A가 수락 알림을 못 받음):** B 가 `/api/shared/respond` (accept=true) 누르면 서버가 **A 에게 FCM 발송**. 기존 `collab_event` 재사용 → `type=collab_event, step=accepted, share_id, partner_name, title`(account 없음). **앱은 이미 수신·문구 준비됨**(commit 예정, "🤝 협업 수락 · OOO님이 수락했어요"). 서버는 invite→B, progress→A, paid→B 는 보내는데 **respond(accept)→A 만 빠져 있음** → 이것만 추가.
 
 ---
 

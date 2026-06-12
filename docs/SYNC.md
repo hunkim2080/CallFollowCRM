@@ -3729,3 +3729,9 @@ SYNC 직전 블록(android 추가6) 진단 반영. **`/api/shared/invite` + `/ap
 - 우선순위: A·F → B·C → D·E → G(모집, 대형).
 - 앱(이번 커밋): 일당 A입력(CollabShareSheet)+invite payload `daily_wage`+B 보라태그 표시(graceful) / 출발 멘트 보강. 나머지(업체별·모집·geofence·2h)는 endpoint 준비 후 착수.
 - 다음 액션(서버): 우선순위 1(A·F)부터. 필드/응답키는 핸드오프 문서 기준.
+
+## 2026-06-13 (추가) · android — 협업 수락 시 A 알림 누락(서버 할 일) + 앱 수신 준비 완료
+사장님 실기기 테스트: B가 협업 수락해도 A에게 알림이 안 옴. 원인 = **서버가 respond(accept)→A 푸시를 안 보냄**(현재 invite→B / progress→A / paid→B 만 있음).
+- 앱(이번 커밋): `NotificationHelper.showCollabEvent` 에 `step="accepted"` 케이스 추가 → "🤝 협업 수락 · OOO님이 수락했어요". 기존 `collab_event` FCM 재사용. **앱 수신 준비 완료**.
+- 서버 할 일: `/api/shared/respond` (accept=true) 시 A 에게 FCM `type=collab_event, step=accepted, share_id, partner_name, title`(account 불필요). 상세 = `docs/SERVER_HANDOFF_collab_expansion.md §H`.
+- 같은 §H 에 캘린더 정확표시용 `GET /api/shared/by-me`(수락여부 status)도 함께 요청.
