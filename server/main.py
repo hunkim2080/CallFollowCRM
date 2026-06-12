@@ -506,11 +506,17 @@ def db_init() -> None:
                 account_no        TEXT,
                 account_holder    TEXT,
                 paid_at_ms        INTEGER,                 -- A 가 입금 완료 표시한 시각
+                daily_wage        INTEGER,                 -- §A (2026-06-13) 그날 일당 (만원 단위, 정수). NULL 허용.
                 created_at_ms     INTEGER NOT NULL,
                 updated_at_ms     INTEGER NOT NULL
             )
             """
         )
+        # §A 마이그레이션 — 기존 cache.db 에 daily_wage 컬럼 없으면 추가.
+        try:
+            con.execute("ALTER TABLE shared_sites ADD COLUMN daily_wage INTEGER")
+        except Exception:
+            pass  # 이미 있음
         con.execute(
             "CREATE INDEX IF NOT EXISTS idx_shared_sites_owner "
             "ON shared_sites(owner_phone, created_at_ms DESC)"
@@ -6210,6 +6216,7 @@ def _shared_site_row_to_dict(row: tuple, viewer_kind: str = "partner") -> dict:
         account_no,
         account_holder,
         paid_at_ms,
+        daily_wage,                 # §A (2026-06-13)
         created_at_ms,
         updated_at_ms,
     ) = row
@@ -6248,6 +6255,12 @@ def _shared_site_row_to_dict(row: tuple, viewer_kind: str = "partner") -> dict:
         }
     if paid_at_ms:
         out["paid_at_ms"] = paid_at_ms
+    # §A (2026-06-13) 일당 echo — 값 있을 때만 (앱 graceful).
+    if daily_wage is not None:
+        try:
+            out["daily_wage"] = int(daily_wage)
+        except Exception:
+            pass
     return out
 
 
@@ -6255,6 +6268,7 @@ _SHARED_SITES_COLS = (
     "share_id, owner_phone, partner_phone, title, addr, scheduled_at_ms, "
     "work_summary, memo, customer_label, status, progress, "
     "account_bank, account_no, account_holder, paid_at_ms, "
+    "daily_wage, "  # §A (2026-06-13)
     "created_at_ms, updated_at_ms"
 )
 
@@ -6291,6 +6305,7 @@ class SharedInviteRequest(BaseModel):
     work_summary: Optional[str] = None
     memo: Optional[str] = None
     customer_label: Optional[str] = None   # '강동 서사장님 현장' 같은 안전 라벨 (고객 phone 대신)
+    daily_wage: Optional[int] = None       # §A (2026-06-13) 그날 일당 (만원 단위, 예: 25 = 25만)
 
 
 @app.post("/api/shared/invite")
@@ -6314,13 +6329,23 @@ async def shared_invite(req: SharedInviteRequest) -> dict:
     memo = (req.memo or "").strip()[:500]
     customer_label = (req.customer_label or "").strip()[:60]
 
+    # §A (2026-06-13) 일당 — 음수/비현실값 가드. None 이면 그대로 None.
+    daily_wage_val: Optional[int] = None
+    if req.daily_wage is not None:
+        try:
+            dw = int(req.daily_wage)
+            if 0 < dw <= 10000:  # 만원 단위, 1만~1억 사이
+                daily_wage_val = dw
+        except Exception:
+            daily_wage_val = None
+
     with db_conn() as con:
         con.execute(
             f"""
             INSERT INTO shared_sites
                 ({_SHARED_SITES_COLS})
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'assigned',
-                    NULL, NULL, NULL, NULL, ?, ?)
+                    NULL, NULL, NULL, NULL, ?, ?, ?)
             """,
             (
                 share_id,
@@ -6332,6 +6357,7 @@ async def shared_invite(req: SharedInviteRequest) -> dict:
                 work_summary or None,
                 memo or None,
                 customer_label or None,
+                daily_wage_val,    # §A
                 now,
                 now,
             ),
@@ -6410,7 +6436,11 @@ class SharedRespondRequest(BaseModel):
 
 @app.post("/api/shared/respond")
 async def shared_respond(req: SharedRespondRequest) -> dict:
-    """B 가 수락 또는 거절. share_id + partner_phone 일치 필수 (벽)."""
+    """B 가 수락 또는 거절. share_id + partner_phone 일치 필수 (벽).
+
+    §H (2026-06-13): accept=true 시 A 에게 collab_event(step=accepted) FCM 발송.
+        — 핸드오프 SERVER_HANDOFF_collab_expansion §H ★ "A 가 수락 알림을 못 받음" 보강.
+    """
     share_id = (req.share_id or "").strip()
     partner_phone = _norm_phone(req.partner_phone)
     if not share_id or not partner_phone:
@@ -6418,8 +6448,9 @@ async def shared_respond(req: SharedRespondRequest) -> dict:
     now = _now_ms()
     new_status = "accepted" if req.accept else "declined"
     with db_conn() as con:
+        # §H — owner_phone / title 도 같이 가져옴 (FCM 본문용)
         row = con.execute(
-            "SELECT partner_phone, status FROM shared_sites WHERE share_id = ?",
+            "SELECT partner_phone, status, owner_phone, title FROM shared_sites WHERE share_id = ?",
             (share_id,),
         ).fetchone()
         if not row:
@@ -6429,13 +6460,77 @@ async def shared_respond(req: SharedRespondRequest) -> dict:
         if row[1] in ("accepted", "declined"):
             # 이미 응답한 share 는 재변경 차단 (단순화)
             raise HTTPException(409, f"이미 {row[1]} 상태입니다")
+        owner_phone_for_fcm = row[2]
+        site_title = row[3] or ""
         con.execute(
             "UPDATE shared_sites SET status = ?, updated_at_ms = ? WHERE share_id = ?",
             (new_status, now, share_id),
         )
         con.commit()
     print(f"[shared/respond] share={share_id} {partner_phone} → {new_status}")
+    # §H (2026-06-13) FCM — A 에게 수락/거절 알림 (앱 꺼진 상태에서도).
+    # 핸드오프: 기존 collab_event 재사용 → type=collab_event, step=accepted|declined.
+    # 앱 측 ("🤝 협업 수락 · OOO 님이 수락했어요") 문구는 클라이언트 생성.
+    partner_name_for_fcm = _is_registered_owner(partner_phone) or "협업 사장"
+    _send_fcm_data_to_phone(owner_phone_for_fcm, {
+        "type": "collab_event",
+        "share_id": share_id,
+        "step": new_status,             # 'accepted' or 'declined'
+        "partner_name": partner_name_for_fcm,
+        "title": site_title or "협업 현장",
+    })
     return {"ok": True, "share_id": share_id, "status": new_status, "updated_at_ms": now}
+
+
+# ─── ④-bis GET /api/shared/by-me ───  (§H 2026-06-13)
+# A 가 보낸 협업 목록 — 캘린더 협업 표시("🤝 박지훈 사장님 · 함께") + 수락/거절 반영.
+# 핸드오프 §H: 앱 현재 (로컬 prefs collab_assignments) 한계 = 상대 수락 여부 모름 → 서버가 정답 보냄.
+# 벽: 고객 phone 미포함. share_id / partner_name / status / scheduled_at_ms / title / daily_wage 만.
+
+@app.get("/api/shared/by-me")
+async def shared_by_me(phone: str, since_ms: int = 0, limit: int = 100) -> dict:
+    """A(owner_phone) 가 내보낸 공유 목록. 본인 phone 만 접근 가능 (벽).
+
+    응답: { sites: [ { share_id, partner_phone, partner_name, status,
+                       scheduled_at_ms, title, daily_wage? } ] }
+    """
+    owner_phone = _norm_phone(phone)
+    if not owner_phone:
+        raise HTTPException(400, "phone 필수")
+    limit = max(1, min(limit, 300))
+    with db_conn() as con:
+        rows = con.execute(
+            """
+            SELECT share_id, partner_phone, title, scheduled_at_ms, status,
+                   daily_wage, created_at_ms, updated_at_ms
+            FROM shared_sites
+            WHERE owner_phone = ? AND updated_at_ms > ?
+            ORDER BY created_at_ms DESC
+            LIMIT ?
+            """,
+            (owner_phone, since_ms, limit),
+        ).fetchall()
+    sites = []
+    for r in rows:
+        share_id, partner_phone, title, scheduled_at_ms, status, daily_wage, created_at_ms, updated_at_ms = r
+        partner_name = _is_registered_owner(partner_phone) or "협업 사장"
+        item = {
+            "share_id": share_id,
+            "partner_phone": partner_phone,    # A 가 본인 보낸 목록 — 노출 OK (B phone)
+            "partner_name": partner_name,
+            "status": status,                  # pending | accepted | declined
+            "scheduled_at_ms": scheduled_at_ms or 0,
+            "title": title or "",
+            "created_at_ms": created_at_ms,
+            "updated_at_ms": updated_at_ms,
+        }
+        if daily_wage is not None:
+            try:
+                item["daily_wage"] = int(daily_wage)
+            except Exception:
+                pass
+        sites.append(item)
+    return {"sites": sites}
 
 
 # ─── ⑤ POST /api/shared/progress ───
@@ -6620,13 +6715,16 @@ async def shared_owner_events(
         raise HTTPException(400, "phone 필수")
     limit = max(1, min(limit, 200))
     with db_conn() as con:
+        # §A (2026-06-13) JOIN shared_sites 로 daily_wage echo.
         rows = con.execute(
             """
-            SELECT event_id, share_id, partner_phone, step, title,
-                   account_bank, account_no, account_holder, created_at_ms
-            FROM shared_owner_events
-            WHERE owner_phone = ? AND created_at_ms > ?
-            ORDER BY created_at_ms DESC
+            SELECT e.event_id, e.share_id, e.partner_phone, e.step, e.title,
+                   e.account_bank, e.account_no, e.account_holder, e.created_at_ms,
+                   s.daily_wage
+            FROM shared_owner_events e
+            LEFT JOIN shared_sites s ON s.share_id = e.share_id
+            WHERE e.owner_phone = ? AND e.created_at_ms > ?
+            ORDER BY e.created_at_ms DESC
             LIMIT ?
             """,
             (owner_phone, since_ms, limit),
@@ -6652,6 +6750,12 @@ async def shared_owner_events(
                 "account_no": r[6] or "",
                 "holder": r[7] or "",
             }
+        # §A 일당 echo — 값 있을 때만 (앱 graceful).
+        if r[9] is not None:
+            try:
+                evt["daily_wage"] = int(r[9])
+            except Exception:
+                pass
         events.append(evt)
     return {"events": events}
 

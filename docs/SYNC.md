@@ -3735,3 +3735,38 @@ SYNC 직전 블록(android 추가6) 진단 반영. **`/api/shared/invite` + `/ap
 - 앱(이번 커밋): `NotificationHelper.showCollabEvent` 에 `step="accepted"` 케이스 추가 → "🤝 협업 수락 · OOO님이 수락했어요". 기존 `collab_event` FCM 재사용. **앱 수신 준비 완료**.
 - 서버 할 일: `/api/shared/respond` (accept=true) 시 A 에게 FCM `type=collab_event, step=accepted, share_id, partner_name, title`(account 불필요). 상세 = `docs/SERVER_HANDOFF_collab_expansion.md §H`.
 - 같은 §H 에 캘린더 정확표시용 `GET /api/shared/by-me`(수락여부 status)도 함께 요청.
+## 2026-06-13 · cowork (server) — §A 일당 echo + §H by-me + 수락 알림
+SERVER_HANDOFF_collab_expansion.md 우선순위 1번. 두 묶음 한번에 적용.
+
+### §A — daily_wage echo
+- `shared_sites` 에 `daily_wage INTEGER` 컬럼 + ALTER 마이그레이션 (기존 DB 자동 패치).
+- `SharedInviteRequest.daily_wage: Optional[int]` (만원 단위, 0~10000 가드).
+- `INSERT` 에 daily_wage 포함. `_SHARED_SITES_COLS` 갱신.
+- `_shared_site_row_to_dict` → `daily_wage` 응답 echo (값 있을 때만, 앱 graceful).
+  - `/api/shared/with-me` 자동 반영.
+- `/api/shared/owner-events` → `shared_owner_events LEFT JOIN shared_sites` 로 daily_wage echo (별도 컬럼 추가 X — 1 데이터 1 출처).
+
+### §H — by-me + 수락 알림 ★ (사장님 즉시 지적 사항)
+- **신규** `GET /api/shared/by-me?phone=A&since_ms=&limit=` — A 가 내보낸 협업 목록 + status (pending/accepted/declined).
+  - 응답: `{ sites: [{ share_id, partner_phone, partner_name, status, scheduled_at_ms, title, daily_wage?, created_at_ms, updated_at_ms }] }`
+  - 앱이 캘린더/일정 카드 "🤝 박지훈 사장님 · 함께/요청함/거절" 정확히 표시할 수 있게.
+- **수락 알림 추가** `/api/shared/respond` accept=true/false 시 owner_phone 에게 FCM:
+  - `type=collab_event, step=accepted|declined, share_id, partner_name, title` (account 없음).
+  - 기존 `collab_event` 채널 재사용. 핸드오프 명시대로 앱이 한국어 문구 생성.
+
+### 안전벽
+- by-me 응답에 partner_phone 포함은 OK (A 가 본인이 보낸 거 → B 번호 알아야 함). 고객 phone/대화/금액(일당 외) 미포함.
+- FCM payload 도 partner_name/title 만, 일당/주소 미포함.
+
+### 검증 절차
+1. invite payload `daily_wage:25` 보내고 → `/api/shared/with-me?phone=B` 응답에 `daily_wage:25` 보임.
+2. B 가 respond accept=true → A 폰에 즉시 푸시 (type=collab_event, step=accepted) → 앱이 "🤝 협업 수락 · OOO님이 수락했어요" 표시.
+3. `/api/shared/by-me?phone=A` → 그 share 의 status="accepted" 확인.
+4. B 가 progress completed → `/api/shared/owner-events?phone=A` 응답에 daily_wage echo.
+
+### 다음 액션
+- 사장님: `git pull --rebase && git add server/main.py docs/SYNC.md && git commit && git push && launchctl reload`.
+- 안드로이드: 추가 작업 없음 (graceful 이미 반영 — 핸드오프). 검증만.
+
+### 남은 핸드오프 (다음 cycle)
+- §B/C (업체별 집계 + 보존 명시), §D/E (2h 알림 + geofence push), §F (site_photos 협업 연결), §G (모집 시스템 — 가장 큼).
