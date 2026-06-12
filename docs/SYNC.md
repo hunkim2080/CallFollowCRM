@@ -3770,3 +3770,8 @@ SERVER_HANDOFF_collab_expansion.md 우선순위 1번. 두 묶음 한번에 적�
 
 ### 남은 핸드오프 (다음 cycle)
 - §B/C (업체별 집계 + 보존 명시), §D/E (2h 알림 + geofence push), §F (site_photos 협업 연결), §G (모집 시스템 — 가장 큼).
+
+## 2026-06-13 (android 추가2) — 협업 중복 신청 버그(앱 가드 완료) + 서버 dedup 요청
+사장님 신고: 한 현장에 같은 사장을 계속 신청→계속 수락됨(중복 share 양산).
+- 앱(commit c031f90): `inviteCollabToSite` 중복 가드(이미 요청한 번호면 차단) + 배정 시트 "요청함 ✓" 표시 + 취소. **새 중복은 이제 안 생김.**
+- 서버 할 일: ① `/api/shared/invite` 가 **같은 owner+partner+현장(또는 미완 share)** 이면 새로 만들지 말고 기존 것 반환(dedup). ② 테스트 중 쌓인 **기존 중복 share 정리**(owner+partner+title 같은 pending/accepted 중복 1개만). ③ (선택) 요청 취소 `/api/shared/cancel` → 상대 pending 제거.
