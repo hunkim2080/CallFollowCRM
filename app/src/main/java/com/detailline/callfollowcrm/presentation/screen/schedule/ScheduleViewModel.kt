@@ -154,7 +154,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
      *   고객 번호/대화는 안 보냄(customer_label = 안전 라벨만) — CustomerDetail 공유 흐름과 동일.
      *   link 라우트면 onLink(번호, 문자본문) 로 화면이 SMS 작성창을 열게 함. inapp/실패는 토스트.
      */
-    fun inviteCollabToSite(customer: CustomerEntity, partnerPhone: String, onLink: (String, String) -> Unit) {
+    fun inviteCollabToSite(customer: CustomerEntity, partnerPhone: String, force: Boolean = false, onLink: (String, String) -> Unit) {
         val owner = ownerPhone.filter { it.isDigit() }
         if (owner.length < 9) { _toast.value = "먼저 더보기 → 사업자 정보에서 내 전화번호를 등록해주세요"; return }
         val partner = partnerPhone.filter { it.isDigit() }
@@ -162,7 +162,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         // 중복 요청 가드 — 이미 이 현장에 이 사장님께 요청했으면 막음(같은 사람 계속 신청·수락되던 버그).
         val already = _collabAssignByCustomer.value[customer.id].orEmpty()
             .any { it.phone.isNotBlank() && it.phone.takeLast(8) == partner.takeLast(8) }
-        if (already) { _toast.value = "이미 이 현장에 요청한 사장님이에요"; return }
+        if (already && !force) { _toast.value = "이미 이 현장에 요청한 사장님이에요"; return }
         val title = collabTitleOf(customer)
         val partnerName = collabPartners.value
             .firstOrNull { it.phone.filter { ch -> ch.isDigit() }.takeLast(8) == partner.takeLast(8) }

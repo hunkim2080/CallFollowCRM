@@ -385,13 +385,12 @@ fun ScheduleScreen(
                 viewModel.assignTeam(c, dayStart, selectedIds.toList(), memo)
                 assignTarget = null
             },
-            onInviteCollab = { phone ->
-                viewModel.inviteCollabToSite(c, phone) { partner, body ->
+            onInviteCollab = { phone, force ->
+                viewModel.inviteCollabToSite(c, phone, force) { partner, body ->
                     com.detailline.callfollowcrm.util.SmsIntentHelper.openSmsCompose(assignCtxLocal, partner, body)
                 }
                 // 시트는 닫지 않음 — 방금 요청한 사장님이 "요청함 ✓"으로 바로 보이게.
-            },
-            onCancelCollab = { phone -> viewModel.removeCollabAssignment(c.id, phone) }
+            }
         )
     }
 }
@@ -1034,13 +1033,12 @@ private fun AssignTeamSheet(
     initialMemo: String,
     onDismiss: () -> Unit,
     onSave: (Set<String>, String) -> Unit,
-    onInviteCollab: (String) -> Unit,
-    onCancelCollab: (String) -> Unit
+    onInviteCollab: (String, Boolean) -> Unit
 ) {
     var selected by remember { mutableStateOf(initiallySelected) }
     var memo by remember { mutableStateOf(initialMemo) }
     var pendingInvite by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity?>(null) }
-    var pendingCancel by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity?>(null) }
+    var pendingResend by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity?>(null) }
     val noRipple = remember { MutableInteractionSource() }
 
     // 스크림(탭 시 닫힘) + 하단 정렬 카드.
@@ -1128,7 +1126,7 @@ private fun AssignTeamSheet(
             Spacer(Modifier.height(16.dp))
             Text("🤝 협업 사장님", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary,
                 modifier = Modifier.padding(start = 2.dp, bottom = 4.dp))
-            Text("탭하면 협업 요청해요. 이미 요청한 분은 보라색 ✓ — 다시 누르면 취소돼요. 고객 번호·대화는 안 보내요.",
+            Text("탭하면 협업 요청해요. 이미 요청한 분은 보라색 ✓ — 다시 누르면 한 번 더 보내요. 고객 번호·대화는 안 보내요.",
                 fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
             if (collabPartners.isEmpty()) {
                 Text("전에 협업한 사장님이 여기 떠요. 새 사장님은 고객 정보 › 이 현장 함께 하기에서 초대해요.",
@@ -1146,7 +1144,7 @@ private fun AssignTeamSheet(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(999.dp))
                                 .background(if (requested) Color(0xFF7C5CFC) else Color(0xFFF1ECFF))
-                                .clickable { if (requested) pendingCancel = p else pendingInvite = p }
+                                .clickable { if (requested) pendingResend = p else pendingInvite = p }
                                 .padding(horizontal = 14.dp, vertical = 9.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -1199,7 +1197,7 @@ private fun AssignTeamSheet(
             title = { Text("협업 요청 보내기", fontWeight = FontWeight.ExtraBold) },
             text = { Text("${p.name} 사장님께 '${customerName} 현장'을 협업 요청할까요?\n고객 번호·대화는 보내지 않아요.", fontSize = 14.sp, lineHeight = 20.sp) },
             confirmButton = {
-                TextButton(onClick = { onInviteCollab(p.phone); pendingInvite = null }) {
+                TextButton(onClick = { onInviteCollab(p.phone, false); pendingInvite = null }) {
                     Text("보내기", color = TossBlue, fontWeight = FontWeight.Bold)
                 }
             },
@@ -1209,19 +1207,19 @@ private fun AssignTeamSheet(
         )
     }
 
-    // "요청함" 사장님 다시 탭 → 요청 취소 확인.
-    pendingCancel?.let { p ->
+    // "요청함" 사장님 다시 탭 → 한 번 더 보내기(재전송) 확인.
+    pendingResend?.let { p ->
         AlertDialog(
-            onDismissRequest = { pendingCancel = null },
-            title = { Text("협업 요청 취소", fontWeight = FontWeight.ExtraBold) },
-            text = { Text("${p.name} 사장님 요청을 내 목록에서 뺄까요?\n상대가 이미 수락했으면 상대 화면엔 남아요 — 직접 알려주세요.", fontSize = 14.sp, lineHeight = 20.sp) },
+            onDismissRequest = { pendingResend = null },
+            title = { Text("이미 요청한 사장님이에요", fontWeight = FontWeight.ExtraBold) },
+            text = { Text("${p.name} 사장님께 '${customerName} 현장'을 한 번 더 보낼까요?\n상대에게 알림이 다시 가요.", fontSize = 14.sp, lineHeight = 20.sp) },
             confirmButton = {
-                TextButton(onClick = { onCancelCollab(p.phone); pendingCancel = null }) {
-                    Text("요청 빼기", color = Color(0xFFF0436A), fontWeight = FontWeight.Bold)
+                TextButton(onClick = { onInviteCollab(p.phone, true); pendingResend = null }) {
+                    Text("한 번 더 보내기", color = TossBlue, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { pendingCancel = null }) { Text("그대로 두기", color = TossTextSecondary) }
+                TextButton(onClick = { pendingResend = null }) { Text("닫기", color = TossTextSecondary) }
             }
         )
     }
