@@ -58,6 +58,7 @@ class SharedSiteRepository(
         val scheduledAtMs: Long,
         val timeLabel: String?,      // "09:00"
         val workSummary: String?,    // 시공 범위
+        val dailyWage: Int? = null,  // 그날 일당(만원). A가 공유 시 입력, 없으면 null
         val memo: String?,           // 대표님 전달사항
         val status: String,          // "pending" | "accepted" | "declined"
         val progress: Progress,
@@ -110,7 +111,8 @@ class SharedSiteRepository(
         scheduledAtMs: Long,
         workSummary: String?,
         memo: String?,
-        customerLabel: String?
+        customerLabel: String?,
+        dailyWage: Int? = null
     ): Result<InviteResult> = withContext(Dispatchers.IO) {
         runCatching {
             val payload = JSONObject().apply {
@@ -122,6 +124,7 @@ class SharedSiteRepository(
                 workSummary?.let { put("work_summary", it) }
                 memo?.let { put("memo", it) }
                 customerLabel?.let { put("customer_label", it) }
+                dailyWage?.let { put("daily_wage", it) }
             }
             val req = Request.Builder().url("$baseUrl/api/shared/invite")
                 .post(payload.toString().toRequestBody(jsonMedia)).build()
@@ -245,6 +248,7 @@ class SharedSiteRepository(
                 scheduledAtMs = o.optLong("scheduled_at_ms"),
                 timeLabel = o.optString("time_label").takeIf { it.isNotBlank() },
                 workSummary = o.optString("work_summary").takeIf { it.isNotBlank() },
+                dailyWage = o.optInt("daily_wage", 0).takeIf { it > 0 },
                 memo = o.optString("memo").takeIf { it.isNotBlank() },
                 status = o.optString("status").ifBlank { "accepted" },
                 progress = Progress.from(o.optString("progress")),

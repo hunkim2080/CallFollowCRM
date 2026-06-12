@@ -2626,6 +2626,7 @@ private fun CollabShareSheet(
     val workers by container.notebookRepository.observeWorkers().collectAsState(initial = emptyList())
     val recentSmsContacts by container.smsContactCacheRepository.observeAll(40).collectAsState(initial = emptyList())
     var partnerPhone by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
+    var dailyWage by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
     var sending by remember { mutableStateOf(false) }
 
     val dateLabel = remember(scheduledAtMs) {
@@ -2650,7 +2651,8 @@ private fun CollabShareSheet(
             val res = container.sharedSiteRepository.invite(
                 ownerPhone = owner, partnerPhone = partner, title = siteTitle,
                 addr = addr, scheduledAtMs = scheduledAtMs ?: 0L,
-                workSummary = null, memo = null, customerLabel = siteTitle
+                workSummary = null, memo = null, customerLabel = siteTitle,
+                dailyWage = dailyWage.toIntOrNull()
             )
             sending = false
             res.onSuccess { r ->
@@ -2738,6 +2740,20 @@ private fun CollabShareSheet(
                         }
                     }
                 }
+                Spacer(Modifier.height(14.dp))
+                Text("그날 일당 (선택)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+                    modifier = Modifier.padding(bottom = 6.dp))
+                androidx.compose.material3.OutlinedTextField(
+                    value = dailyWage,
+                    onValueChange = { dailyWage = it.filter { c -> c.isDigit() }.take(4) },
+                    placeholder = { Text("25", color = TossTextTertiary) },
+                    trailingIcon = { Text("만원", color = TossTextSecondary, fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 12.dp)) },
+                    singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(4.dp))
+                Text("합의한 일당을 적으면 상대 사장님 화면에 보라색 일당 태그로 떠요. 비워도 됩니다.", fontSize = 11.sp, color = TossTextTertiary)
                 Spacer(Modifier.height(14.dp))
                 // 벽 안내
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossBlueSoft).padding(13.dp)) {

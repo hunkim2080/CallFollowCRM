@@ -199,6 +199,7 @@ private fun SiteRow(site: SharedSiteRepository.SharedSite, onClick: () -> Unit) 
                 Text(site.title, fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
                 Spacer(Modifier.width(6.dp))
                 Pill(dayLabel(site.scheduledAtMs))
+                site.dailyWage?.let { Spacer(Modifier.width(5.dp)); WagePill(it) }
             }
             val sub = buildString {
                 append(site.ownerName)
@@ -222,6 +223,7 @@ private fun DetailBody(
     // 협업 현장 pill + 주인
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
         PillStrong("협업 현장")
+        site.dailyWage?.let { Spacer(Modifier.width(6.dp)); WagePill(it) }
         Spacer(Modifier.width(8.dp))
         Text("${site.ownerName}과 함께", fontSize = 12.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
     }
@@ -231,6 +233,7 @@ private fun DetailBody(
     Card {
         InfoRow("📅 날짜", buildString { append(dayLabel(site.scheduledAtMs)); site.timeLabel?.let { append(" · "); append(it) } })
         site.workSummary?.let { Spacer(Modifier.height(9.dp)); InfoRow("🔧 시공", it) }
+        site.dailyWage?.let { Spacer(Modifier.height(9.dp)); InfoRow("💰 그날 일당", "${it}만원") }
     }
 
     // 주소
@@ -332,6 +335,14 @@ private fun DetailBody(
                 modifier = Modifier.padding(horizontal = 2.dp)
             )
         }
+        if (step == SharedSiteRepository.Progress.DEPARTED) {
+            Spacer(Modifier.height(7.dp))
+            Text(
+                "한 번 누르면 주인 사장님이 '오는구나' 알아요 — 따로 연락 안 해도 돼요.",
+                fontSize = 11.5.sp, color = TossTextTertiary, lineHeight = 16.sp,
+                modifier = Modifier.padding(horizontal = 2.dp)
+            )
+        }
     } else {
         Box(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(CollabPurpleSoft).padding(vertical = 13.dp),
@@ -383,6 +394,11 @@ private fun DetailBody(
 @Composable private fun PillStrong(text: String) {
     Box(Modifier.clip(RoundedCornerShape(999.dp)).background(CollabPurpleSoft).padding(horizontal = 10.dp, vertical = 4.dp)) {
         Text(text, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
+    }
+}
+@Composable private fun WagePill(wage: Int) {
+    Box(Modifier.clip(RoundedCornerShape(999.dp)).background(CollabPurpleSoft).padding(horizontal = 9.dp, vertical = 3.dp)) {
+        Text("일당 ${wage}만", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
     }
 }
 
