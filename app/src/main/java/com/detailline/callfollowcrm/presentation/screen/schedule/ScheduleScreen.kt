@@ -128,6 +128,7 @@ fun ScheduleScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val collabDays by viewModel.collabDayStarts.collectAsState()   // 캘린더 협업 보라점 (#7)
+    val collabAssign by viewModel.collabAssignByCustomer.collectAsState()   // 협업 사장 배정 → 카드 "🤝 이름"
     val collabSites by viewModel.collabSites.collectAsState()
     val cardSummaries by viewModel.cardSummariesByPhoneSuffix.collectAsState()
     val nowMs = remember { System.currentTimeMillis() }
@@ -309,6 +310,7 @@ fun ScheduleScreen(
                         selectedDayMs = selectedDayMs,
                         todayStart = todayStart,
                         assignedMembers = assignmentsByCustomer[c.id].orEmpty(),
+                        collabPartnerNames = collabAssign[c.id].orEmpty(),
                         teamAvailable = teamMembers.isNotEmpty() || collabPartners.isNotEmpty(),
                         onAssign = { assignTarget = c },
                         onClick = { onOpenCustomer(c.id) }
@@ -689,6 +691,7 @@ private fun DayJobCard(
     selectedDayMs: Long?,
     todayStart: Long,
     assignedMembers: List<com.detailline.callfollowcrm.data.local.entity.TeamAssignmentEntity> = emptyList(),
+    collabPartnerNames: List<String> = emptyList(),
     teamAvailable: Boolean = false,
     onAssign: () -> Unit = {},
     onClick: () -> Unit
@@ -762,21 +765,23 @@ private fun DayJobCard(
             }
             // "정산·현금흐름에서 보기" 링크 제거(2026-06-11): 카드 탭하면 고객 상세에 정산이 이미 다 있어 불필요했음.
             // 프로토 .assign-line — 팀원 현장 배정 (팀원 있을 때만 노출).
-            if (teamAvailable) {
+            if (teamAvailable || collabPartnerNames.isNotEmpty()) {
                 Spacer(Modifier.height(10.dp))
                 Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
                 ) {
-                    if (assignedMembers.isEmpty()) {
+                    if (assignedMembers.isEmpty() && collabPartnerNames.isEmpty()) {
                         Text("아직 배정 안 함", fontSize = 13.sp, color = TossTextTertiary, modifier = Modifier.weight(1f))
                         AssignBtn("전문가 배정", filled = true, onClick = onAssign)
                     } else {
-                        AssignAvatars(assignedMembers)
-                        Spacer(Modifier.width(8.dp))
+                        if (assignedMembers.isNotEmpty()) {
+                            AssignAvatars(assignedMembers)
+                            Spacer(Modifier.width(8.dp))
+                        }
                         Text(
-                            assignedMembers.joinToString(", ") { it.memberName },
+                            (assignedMembers.map { it.memberName } + collabPartnerNames.map { "🤝 $it" }).joinToString(", "),
                             fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
                             maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)

@@ -40,6 +40,21 @@ object AddressExtractor {
     }
 
     /**
+     * 협업 현장 표시 제목 — 주소에서 상세 호수(동·호·층)를 떼고 "지역명 + 아파트(건물)명"까지만. (2026-06-13 사장님)
+     *   예: "강동구 천호동 래미안강동팰리스 101동 1502호" → "강동구 천호동 래미안강동팰리스".
+     *   "천호동" 처럼 숫자 없는 행정동은 보존(\d+동 만 제거). 주소 없으면 "" → 호출부가 이름 등으로 fallback.
+     */
+    fun siteLabel(raw: String?): String {
+        var s = tidyAddress(raw)
+        if (s.isBlank()) return ""
+        s = s.replace(Regex("\\s*제?\\s*\\d{1,4}동(?:\\s*\\d{1,5}호)?.*$"), "")  // "101동 1502호…" / "101동"
+            .replace(Regex("\\s*\\d{1,5}호$"), "")                              // 동 없이 "1502호"
+            .replace(Regex("\\s*(?:지하|B)\\s*\\d+.*$"), "")                    // 지하 N
+            .trim()
+        return s
+    }
+
+    /**
      * 광역시도 정확 매칭. 자주 쓰는 줄임형 + 전체형.
      */
     private const val SIDO =

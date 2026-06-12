@@ -319,6 +319,11 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("collab_invite_seeded", false)
         set(value) = prefs.edit().putBoolean("collab_invite_seeded", value).apply()
 
+    /** A가 협업 사장에게 배정 요청한 현장 — 일정 카드 "🤝 이름" 표시용. "customerId|이름" Set. (2026-06-13) */
+    var collabAssignments: Set<String>
+        get() = prefs.getStringSet("collab_assignments", emptySet()) ?: emptySet()
+        set(value) { prefs.edit().putStringSet("collab_assignments", value).commit() }
+
     /** 홈 "견적 회신 챙기기" 배너 밀어서 정리한 날(dayStart). 그 날 하루 숨김 — 다음날 다시. */
     var estimateFollowupDismissedDay: Long
         get() = prefs.getLong("estimate_followup_dismissed_day", 0L)

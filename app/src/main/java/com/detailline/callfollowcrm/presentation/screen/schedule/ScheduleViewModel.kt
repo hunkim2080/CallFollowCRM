@@ -63,11 +63,28 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             .map { list -> list.filter { it.tag.contains("협업") } }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** 협업 사장 배정(요청) — customerId → 이름들. 일정 카드 "🤝 이름"(로컬 기록, 서버 수락확정은 추후). (2026-06-13) */
+    private val _collabAssignByCustomer = MutableStateFlow<Map<Long, List<String>>>(emptyMap())
+    val collabAssignByCustomer = _collabAssignByCustomer.asStateFlow()
+
     private val _toast = MutableStateFlow<String?>(null)
     val toast = _toast.asStateFlow()
     fun consumeToast() { _toast.value = null }
 
-    init { loadTeam(); loadCollab() }
+    init { loadTeam(); loadCollab(); loadCollabAssignments() }
+
+    /** 로컬 협업 배정 기록 로드 → customerId→이름들. ("customerId|이름" prefs Set 파싱) */
+    private fun loadCollabAssignments() {
+        val map = HashMap<Long, MutableList<String>>()
+        for (e in container.preferences.collabAssignments) {
+            val i = e.indexOf('|'); if (i <= 0) continue
+            val id = e.substring(0, i).toLongOrNull() ?: continue
+            val nm = e.substring(i + 1).takeIf { it.isNotBlank() } ?: continue
+            val list = map.getOrPut(id) { mutableListOf() }
+            if (nm !in list) list.add(nm)
+        }
+        _collabAssignByCustomer.value = map
+    }
 
     fun loadTeam() {
         if (ownerPhone.isBlank()) return
@@ -110,9 +127,10 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         applyCollabFilter()
     }
 
-    /** 협업 현장 표시 라벨 — 고객 이름만(번호/대화 절대 미포함). CustomerDetail CollabShareSheet 와 동일 규칙. */
+    /** 협업 현장 표시 라벨 — 주소(지역+아파트) 우선, 없으면 고객 이름. 번호/대화 절대 미포함. CustomerDetail CollabShareSheet 와 동일 규칙. */
     private fun collabTitleOf(c: CustomerEntity): String =
-        c.name?.takeIf { it.isNotBlank() }?.let { "$it 현장" } ?: "이 현장"
+        com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(c.address).takeIf { it.isNotBlank() }
+            ?: c.name?.takeIf { it.isNotBlank() }?.let { "$it 현장" } ?: "협업 현장"
 
     /**
      * 전문가 배정 시트의 "협업 사장님" 선택 → 이 현장을 그 사장님께 협업 요청(/api/shared/invite).
@@ -125,6 +143,9 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         val partner = partnerPhone.filter { it.isDigit() }
         if (partner.length < 9) { _toast.value = "협업 사장님 번호를 확인해주세요"; return }
         val title = collabTitleOf(customer)
+        val partnerName = collabPartners.value
+            .firstOrNull { it.phone.filter { ch -> ch.isDigit() }.takeLast(8) == partner.takeLast(8) }
+            ?.name?.takeIf { it.isNotBlank() } ?: "협업 사장님"
         val addr = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(customer.address).takeIf { it.isNotBlank() }
         viewModelScope.launch {
             container.sharedSiteRepository.invite(
@@ -132,6 +153,9 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
                 addr = addr, scheduledAtMs = customer.scheduledWorkDate ?: 0L,
                 workSummary = null, memo = null, customerLabel = title
             ).onSuccess { r ->
+                // 일정 카드 "🤝 이름" 표시용 로컬 배정 기록 (서버 수락 확정은 추후).
+                container.preferences.collabAssignments = container.preferences.collabAssignments + "${customer.id}|$partnerName"
+                loadCollabAssignments()
                 if (r.route == "link" && !r.url.isNullOrBlank()) {
                     onLink(partner, r.smsDraft ?: "협업 현장 공유 — ${r.url}")
                 } else {

@@ -440,7 +440,8 @@ fun CustomerDetailScreen(
 
                 if (collabShareOpen) {
                     CollabShareSheet(
-                        siteTitle = c.name?.takeIf { it.isNotBlank() }?.let { "$it 현장" } ?: "이 현장",
+                        siteTitle = com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(displayAddr).takeIf { it.isNotBlank() }
+                            ?: c.name?.takeIf { it.isNotBlank() }?.let { "$it 현장" } ?: "협업 현장",
                         addr = displayAddr,
                         scheduledAtMs = c.scheduledWorkDate,
                         onDismiss = { collabShareOpen = false }
