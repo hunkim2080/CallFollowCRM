@@ -1120,16 +1120,16 @@ private fun AssignTeamSheet(
                     fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 3.dp, start = 2.dp))
             }
 
-            // ── 🤝 협업 사장님 ──
+            // ── 🤝 일당사장 (인원 관리 등록) ──
             Spacer(Modifier.height(16.dp))
             Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
             Spacer(Modifier.height(16.dp))
-            Text("🤝 협업 사장님", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary,
+            Text("🤝 일당사장", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary,
                 modifier = Modifier.padding(start = 2.dp, bottom = 4.dp))
-            Text("탭하면 협업 요청해요. 이미 요청한 분은 보라색 ✓ — 다시 누르면 한 번 더 보내요. 고객 번호·대화는 안 보내요.",
+            Text("탭하면 이 현장 협업 요청해요. 이미 요청한 분은 보라색 ✓ — 다시 누르면 한 번 더 보내요. 고객 번호·대화는 안 보내요.",
                 fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
             if (collabPartners.isEmpty()) {
-                Text("전에 협업한 사장님이 여기 떠요. 새 사장님은 고객 정보 › 이 현장 함께 하기에서 초대해요.",
+                Text("더보기 › 인원 관리 › 일당사장에 등록하면 여기 떠요. 또는 고객 정보 › 이 현장 함께 하기에서 새로 초대해요.",
                     fontSize = 12.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp))
             } else {
                 FlowRow(

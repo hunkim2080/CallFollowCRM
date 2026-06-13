@@ -57,10 +57,9 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             .map { list -> list.groupBy { it.customerId } }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
-    /** 전에 협업한 사장님 자동 목록 — 협업 invite 시 수첩에 "협업" 태그로 쌓인 worker 들. (전문가 배정 시트의 협업 섹션) */
+    /** 인원 관리 "일당사장"(수첩 WORKER) 전체 — 전문가 배정 시트에서 탭하면 이 현장 협업 요청. (2026-06-13: "협업" 태그 필터 제거 — 등록한 일당사장 다 뜨게) */
     val collabPartners: StateFlow<List<com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity>> =
         container.notebookRepository.observeWorkers()
-            .map { list -> list.filter { it.tag.contains("협업") } }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** 협업 사장 배정(요청) 1건 — 일정 카드 "🤝 이름" + 중복요청 가드(phone). */
