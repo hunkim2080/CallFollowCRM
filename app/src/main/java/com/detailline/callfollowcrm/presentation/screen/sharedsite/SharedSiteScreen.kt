@@ -26,13 +26,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -107,6 +112,8 @@ fun SharedSiteScreen(
     var selectedId by rememberSaveableShareId()
     var listView by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("date") } // "date" 현장순 | "biz" 업체별
     var bizPartner by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) } // 업체별에서 고른 사장님 key
+    var showTrash by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) } // 휴지통 보기
+    val trashed by viewModel.trashed.collectAsState()
 
     LaunchedEffect(Unit) { viewModel.load() }
     // 링크로 진입 — 목록 로드 후 그 현장 상세 1회 자동 열기(사용자가 뒤로 가면 다시 안 엶).
@@ -126,8 +133,11 @@ fun SharedSiteScreen(
 
     val serverPartners by viewModel.partners.collectAsState()
     val selected = sites.firstOrNull { it.shareId == selectedId }
+    // 휴지통에 넣은 건 목록·집계에서 제외. 휴지통 뷰에서만 보임.
+    val activeSites = remember(sites, trashed) { sites.filter { it.shareId !in trashed } }
+    val trashedSites = remember(sites, trashed) { sites.filter { it.shareId in trashed } }
     // 업체별: 서버 §B 집계 있으면 그걸로(전체 이력), 없으면 로드된 현장 로컬 그룹핑(폴백).
-    val partnerGroups = remember(sites, serverPartners) {
+    val partnerGroups = remember(activeSites, serverPartners) {
         if (serverPartners.isNotEmpty()) serverPartners.map { p ->
             val key = p.ownerPhone.filter { it.isDigit() }.takeLast(8).ifBlank { p.ownerName }
             PartnerGroup(
@@ -136,15 +146,19 @@ fun SharedSiteScreen(
                 count = p.count,
                 recentMs = p.lastAtMs,
                 wageSum = p.totalWage,
-                sites = sites.filter { it.ownerPhone.filter { c -> c.isDigit() }.takeLast(8) == key }
+                sites = activeSites.filter { it.ownerPhone.filter { c -> c.isDigit() }.takeLast(8) == key }
                     .sortedByDescending { it.scheduledAtMs }
             )
         }.sortedByDescending { it.recentMs }
-        else groupByPartner(sites)
+        else groupByPartner(activeSites)
     }
     val openPartner = partnerGroups.firstOrNull { it.key == bizPartner }
-    BackHandler(enabled = selected != null || bizPartner != null) {
-        if (selected != null) selectedId = null else bizPartner = null
+    BackHandler(enabled = selected != null || bizPartner != null || showTrash) {
+        when {
+            selected != null -> selectedId = null
+            showTrash -> showTrash = false
+            else -> bizPartner = null
+        }
     }
     // 상세 열면 그 현장 증거사진 로드(닫히면 비움).
     LaunchedEffect(selected?.shareId) {
@@ -175,6 +189,7 @@ fun SharedSiteScreen(
                     Text(
                         when {
                             selected != null -> selected.title
+                            showTrash -> "휴지통"
                             openPartner != null -> openPartner.name
                             else -> "협업 현장"
                         },
@@ -185,11 +200,22 @@ fun SharedSiteScreen(
                     IconButton(onClick = {
                         when {
                             selected != null -> selectedId = null
+                            showTrash -> showTrash = false
                             bizPartner != null -> bizPartner = null
                             else -> onBack()
                         }
                     }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로", tint = TossTextPrimary)
+                    }
+                },
+                actions = {
+                    // 휴지통 들어가기 — 메인 목록에서 휴지통에 뭔가 있을 때만.
+                    if (selected == null && !showTrash && bizPartner == null && trashedSites.isNotEmpty()) {
+                        IconButton(onClick = { showTrash = true }) {
+                            Icon(Icons.Outlined.Delete, "휴지통", tint = TossTextSecondary)
+                            Text("${trashedSites.size}", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                                color = CollabPurple, modifier = Modifier.padding(start = 1.dp, bottom = 14.dp))
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
@@ -204,9 +230,18 @@ fun SharedSiteScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp, vertical = 6.dp)
         ) {
-            if (selected == null) {
+            if (showTrash && selected == null) {
+                TrashView(
+                    trashedSites = trashedSites,
+                    onRestore = {
+                        viewModel.restore(it.shareId)
+                        android.widget.Toast.makeText(context, "되살렸어요", android.widget.Toast.LENGTH_SHORT).show()
+                    },
+                    onOpen = { selectedId = it.shareId }
+                )
+            } else if (selected == null) {
                 ListArea(
-                    sites = sites,
+                    sites = activeSites,
                     loading = loading,
                     noBizPhone = viewModel.noBizPhone,
                     listView = listView,
@@ -214,7 +249,11 @@ fun SharedSiteScreen(
                     partnerGroups = partnerGroups,
                     openPartner = openPartner,
                     onPickPartner = { bizPartner = it },
-                    onOpen = { selectedId = it.shareId }
+                    onOpen = { selectedId = it.shareId },
+                    onTrash = {
+                        viewModel.trash(it.shareId)
+                        android.widget.Toast.makeText(context, "휴지통에 넣었어요 — 우상단 🗑에서 되살릴 수 있어요", android.widget.Toast.LENGTH_SHORT).show()
+                    }
                 )
             } else {
                 DetailBody(
@@ -285,7 +324,8 @@ private fun ListArea(
     partnerGroups: List<PartnerGroup>,
     openPartner: PartnerGroup?,
     onPickPartner: (String) -> Unit,
-    onOpen: (SharedSiteRepository.SharedSite) -> Unit
+    onOpen: (SharedSiteRepository.SharedSite) -> Unit,
+    onTrash: (SharedSiteRepository.SharedSite) -> Unit
 ) {
     when {
         noBizPhone -> EmptyCard(
@@ -331,11 +371,13 @@ private fun ListArea(
             Spacer(Modifier.height(12.dp))
             if (listView == "date") {
                 Text(
-                    "다른 사장님과 같이 하는 현장이에요. 내 고객 목록과는 따로 모여요.",
+                    "다른 사장님과 같이 하는 현장이에요. 내 고객 목록과는 따로 모여요. (밀어서 휴지통)",
                     fontSize = 12.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 8.dp)
                 )
                 sites.forEach { site ->
-                    SiteRow(site, onClick = { onOpen(site) })
+                    SharedSwipeBox(onDelete = { onTrash(site) }) {
+                        SiteRow(site, onClick = { onOpen(site) })
+                    }
                     Spacer(Modifier.height(9.dp))
                 }
                 Text("초대받은 현장만 보여요. 상대 사장님의 다른 고객은 안 보여요.",
@@ -431,6 +473,69 @@ private fun groupByPartner(sites: List<SharedSiteRepository.SharedSite>): List<P
             )
         }
         .sortedByDescending { it.recentMs }
+
+/** 협업 현장 카드 우→좌 swipe → 휴지통. 빨강 affordance. confirmValueChange=false 로 원위치(데이터가 카드 제거). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SharedSwipeBox(onDelete: () -> Unit, content: @Composable () -> Unit) {
+    val state = rememberSwipeToDismissBoxState(
+        confirmValueChange = { v -> if (v == SwipeToDismissBoxValue.EndToStart) onDelete(); false },
+        positionalThreshold = { d -> d * 0.5f }
+    )
+    SwipeToDismissBox(
+        state = state,
+        enableDismissFromStartToEnd = false,
+        enableDismissFromEndToStart = true,
+        backgroundContent = {
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFFDEAEF)).padding(horizontal = 20.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Delete, "휴지통", tint = Color(0xFFF0436A), modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("휴지통", color = Color(0xFFF0436A), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
+            }
+        },
+        content = { content() }
+    )
+}
+
+/** 휴지통 — 밀어서 정리한 협업 현장. '되살리기'로 복구(기록 보존). */
+@Composable
+private fun TrashView(
+    trashedSites: List<SharedSiteRepository.SharedSite>,
+    onRestore: (SharedSiteRepository.SharedSite) -> Unit,
+    onOpen: (SharedSiteRepository.SharedSite) -> Unit
+) {
+    Text("밀어서 정리한 협업 현장이에요. '되살리기'로 다시 목록에 올려요. (기록은 안 지워져요)",
+        fontSize = 12.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, top = 2.dp, bottom = 10.dp))
+    if (trashedSites.isEmpty()) {
+        EmptyCard("휴지통이 비었어요", "밀어서 정리한 현장이 여기 모여요.")
+    } else {
+        trashedSites.forEach { site ->
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White)
+                    .border(1.dp, Color(0xFFEEF0F3), RoundedCornerShape(14.dp)).padding(13.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f).clickable { onOpen(site) }) {
+                    Text(site.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
+                    Spacer(Modifier.height(2.dp))
+                    Text(site.ownerName, fontSize = 12.sp, color = TossTextTertiary)
+                }
+                Box(
+                    Modifier.clip(RoundedCornerShape(999.dp)).background(CollabPurpleSoft)
+                        .clickable { onRestore(site) }.padding(horizontal = 14.dp, vertical = 8.dp)
+                ) {
+                    Text("되살리기", fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = CollabPurple)
+                }
+            }
+            Spacer(Modifier.height(9.dp))
+        }
+    }
+}
 
 @Composable
 private fun SiteRow(site: SharedSiteRepository.SharedSite, onClick: () -> Unit) {

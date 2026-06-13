@@ -37,6 +37,21 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
     private val _photoBusy = MutableStateFlow(false)
     val photoBusy = _photoBusy.asStateFlow()
 
+    /** 휴지통에 넣은 협업 현장 share_id 들(목록에서 제외, 휴지통에 보관·복구 가능). */
+    private val _trashed = MutableStateFlow(container.preferences.trashedSharedSiteIds)
+    val trashed = _trashed.asStateFlow()
+
+    fun trash(shareId: String) {
+        if (shareId.isBlank()) return
+        container.preferences.trashedSharedSiteIds = container.preferences.trashedSharedSiteIds + shareId
+        _trashed.value = container.preferences.trashedSharedSiteIds
+    }
+
+    fun restore(shareId: String) {
+        container.preferences.trashedSharedSiteIds = container.preferences.trashedSharedSiteIds - shareId
+        _trashed.value = container.preferences.trashedSharedSiteIds
+    }
+
     /** true = 사업자 전화 미등록 → 협업 받을 수 없음(안내). */
     val noBizPhone: Boolean get() = myPhone.length < 9
 

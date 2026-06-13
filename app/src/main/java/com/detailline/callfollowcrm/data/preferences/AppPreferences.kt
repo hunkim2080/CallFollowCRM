@@ -324,6 +324,11 @@ class AppPreferences(context: Context) {
         get() = prefs.getStringSet("collab_assignments", emptySet()) ?: emptySet()
         set(value) { prefs.edit().putStringSet("collab_assignments", value).commit() }
 
+    /** 협업 현장(더보기→협업현장) 목록에서 밀어서 휴지통에 넣은 share_id 들. 서버 삭제 아님 — 목록에서 빼고 휴지통 보관(되살리기 가능). */
+    var trashedSharedSiteIds: Set<String>
+        get() = prefs.getStringSet("trashed_shared_site_ids", emptySet()) ?: emptySet()
+        set(value) { prefs.edit().putStringSet("trashed_shared_site_ids", value).commit() }
+
     /** 홈 "견적 회신 챙기기" 배너 밀어서 정리한 날(dayStart). 그 날 하루 숨김 — 다음날 다시. */
     var estimateFollowupDismissedDay: Long
         get() = prefs.getLong("estimate_followup_dismissed_day", 0L)
