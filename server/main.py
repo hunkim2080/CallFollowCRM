@@ -6469,8 +6469,21 @@ async def shared_invite(req: SharedInviteRequest) -> dict:
         existing_id = existing[0]
         print(
             f"[shared/invite/dedup] {owner_phone} → {partner_phone} title='{title_match}' "
-            f"→ 기존 share={existing_id} 재사용"
+            f"→ 기존 share={existing_id} 재사용 (re-poke FCM)"
         )
+        # ④ re-poke (2026-06-13) — 같은 협업 재요청 시 B 에게 FCM 한 번 더 (리마인드 효과).
+        # 새 share 안 만들고 기존 share_id 그대로. dedup 응답은 동일.
+        owner_name_for_fcm = (
+            owner_name_raw_val
+            or _is_registered_owner(owner_phone)
+            or "사장님"
+        )
+        _send_fcm_data_to_phone(partner_phone, {
+            "type": "collab_invite",
+            "share_id": existing_id,
+            "owner_name": owner_name_for_fcm,
+            "title": title or "협업 현장",
+        })
         return {
             "share_id": existing_id,
             "route": "inapp",
@@ -6604,8 +6617,8 @@ async def shared_respond(req: SharedRespondRequest) -> dict:
             raise HTTPException(404, "share_id 없음")
         if row[0] != partner_phone:
             raise HTTPException(403, "권한 없음 (이 공유는 본인 것이 아닙니다)")
-        if row[1] in ("accepted", "declined"):
-            # 이미 응답한 share 는 재변경 차단 (단순화)
+        if row[1] in ("accepted", "declined", "ended"):
+            # 이미 응답한 / 종료된 share 는 재변경 차단 (단순화)
             raise HTTPException(409, f"이미 {row[1]} 상태입니다")
         owner_phone_for_fcm = row[2]
         site_title = row[3] or ""
@@ -7221,6 +7234,76 @@ async def shared_cancel(req: SharedCancelRequest) -> dict:
         con.commit()
     print(f"[shared/cancel] share={share_id} owner={owner_phone} → declined (취소)")
     return {"ok": True, "share_id": share_id, "status": "declined", "updated_at_ms": now}
+
+
+# ─── ⑬ POST /api/shared/end ───  (2026-06-13)
+# 협업 해제 — owner 또는 partner 둘 다 호출 가능, pending + accepted 둘 다 처리.
+# 사장님 워딩: "협업 해제 / 그만하기 / 마음 안 맞아 돌려보내기".
+# status='ended' (declined 와 구분 — 거절이 아니라 종료).
+# 기록(사진·메모) 보존 (§C). row 삭제 X.
+# 상대에게 FCM collab_ended (by_name = 끝낸 사람 이름).
+
+class SharedEndRequest(BaseModel):
+    share_id: str
+    phone: str                              # 호출자 phone
+    by: str                                 # 'owner' or 'partner'
+
+
+@app.post("/api/shared/end")
+async def shared_end(req: SharedEndRequest) -> dict:
+    """협업 해제. owner 또는 partner 본인 권한. pending+accepted 모두 처리."""
+    share_id = (req.share_id or "").strip()
+    caller_phone = _norm_phone(req.phone)
+    by = (req.by or "").strip().lower()
+    if not share_id or not caller_phone:
+        raise HTTPException(400, "share_id, phone 필수")
+    if by not in ("owner", "partner"):
+        raise HTTPException(400, "by must be 'owner' or 'partner'")
+    now = _now_ms()
+    with db_conn() as con:
+        row = con.execute(
+            """
+            SELECT owner_phone, partner_phone, status, title, owner_name_raw
+            FROM shared_sites WHERE share_id = ?
+            """,
+            (share_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "share_id 없음")
+        owner_phone, partner_phone, status, title, owner_name_raw = row
+        # 권한 검증
+        if by == "owner":
+            if _norm_phone(owner_phone) != caller_phone:
+                raise HTTPException(403, "권한 없음 (owner 본인이 아닙니다)")
+            other_phone = partner_phone
+        else:  # partner
+            if _norm_phone(partner_phone) != caller_phone:
+                raise HTTPException(403, "권한 없음 (partner 본인이 아닙니다)")
+            other_phone = owner_phone
+        # 이미 종료된 share 차단
+        if status in ("ended", "declined"):
+            raise HTTPException(409, f"이미 종료된 협업입니다 (status={status})")
+        if status not in ("pending", "accepted"):
+            raise HTTPException(409, f"해제 불가 (status={status})")
+        con.execute(
+            "UPDATE shared_sites SET status = 'ended', updated_at_ms = ? WHERE share_id = ?",
+            (now, share_id),
+        )
+        con.commit()
+    print(f"[shared/end] share={share_id} by={by} caller={caller_phone} → ended")
+    # FCM collab_ended → 상대에게. by_name = 끝낸 사람 이름.
+    if by == "owner":
+        by_name = (owner_name_raw or "").strip() or _is_registered_owner(owner_phone) or "사장님"
+    else:
+        by_name = _is_registered_owner(partner_phone) or "협업 사장"
+    _send_fcm_data_to_phone(other_phone, {
+        "type": "collab_ended",
+        "share_id": share_id,
+        "title": title or "협업 현장",
+        "by_name": by_name,
+        "by": by,
+    })
+    return {"ok": True, "share_id": share_id, "status": "ended", "updated_at_ms": now}
 
 
 # ─── §D — 출동 2h 전 자동 알림 (uvicorn startup background task) ───

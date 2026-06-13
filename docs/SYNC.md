@@ -4222,3 +4222,50 @@ curl -s -X POST http://localhost:8000/api/recruit/select -H "Content-Type: appli
 - **일당사장 전달메모**: 전문가 배정 시트 일당사장 섹션에 "사장님께 전달(선택)" 칸 추가(팀원 "직원에게 전달"과 동일). invite `memo` 로 전송 → 상대 사장 SharedSiteScreen "📌 대표님 전달사항"(기존 표시 재사용, 서버 memo 필드 기존부터 있음 → reload 무관).
 - **테스트 정리(서버, 사장님 승인)**: B(01080056674) with-me 22건 중 **pending 14건 거절 처리**(respond accept=false → declined → 목록서 사라짐). **accepted 6건은 respond 로 안 됨** → cowork 가 SQL 로 정리 필요(또는 §end). 6건: sh_RD0t17JacV, sh_IuA1abmIuo, sh_nrwu07P85W, sh_KbmroOt3R8, sh_2QKvM8VrMI, sh_sWeUadcy8K (전부 "가능동sk뷰아파트"/"이 현장" 테스트).
 - commit: (아래)
+## 2026-06-13 (추가7) · cowork (server) — /api/shared/end + dedup re-poke
+사장님 ping (앱 5be7090/8d5d8bd). 2건 한 commit + 테스트 데이터 정리 안내.
+
+### ② 신규 `POST /api/shared/end` — 협업 해제
+- body: `{share_id, phone, by:"owner"|"partner"}`
+- 권한: by="owner" 면 caller phone 이 share.owner_phone, by="partner" 면 share.partner_phone 와 일치.
+- 처리: pending + accepted 둘 다 status='ended' 로. ('declined' 와 구분 — 거절이 아니라 종료.)
+- 기록 보존: row 삭제 X, 사진·메모 그대로 (§C).
+- FCM `collab_ended` → **상대에게** (owner end → partner / partner end → owner). payload: type, share_id, title, by_name, by.
+- 이미 ended/declined 면 409. accepted 도 아니고 pending 도 아니면 409.
+
+### dedup 영향 (자동)
+- 기존 dedup 쿼리: `status IN ('pending','accepted')` — **'ended' 자동 제외** → 같은 협업 재요청 시 새 share 생성. 사장님 명시 요구 충족.
+- shared_respond: 'ended' 도 응답 막음 (409). edge case 안전.
+- §D remind poller: `status='accepted'` — ended share 알람 안 감.
+- shared_progress: accepted 만 허용 — ended 자연 거부.
+
+### ④ dedup re-poke (선택 옵션 채택)
+- `/api/shared/invite` 의 dedup 분기에 **`collab_invite` FCM 재발사 추가**.
+- 새 share 안 만들고 기존 share_id 그대로 반환 (deduped:true) + B 폰 푸시 한 번 더.
+- stdout: `[shared/invite/dedup] ... → 기존 share=... 재사용 (re-poke FCM)`
+- 이유: 사장님 워딩 "같은 협업 다시 요청하면 dedup 이어도 B 에게 FCM 한 번 더" — 리마인드 UX.
+
+### ③ 테스트 데이터 6건 정리 (사장님 한 줄)
+```bash
+sqlite3 ~/ringgo-server/cache.db "UPDATE shared_sites SET status='declined', updated_at_ms=strftime('%s','now')*1000 WHERE share_id IN ('sh_RD0t17JacV','sh_IuA1abmIuo','sh_nrwu07P85W','sh_KbmroOt3R8','sh_2QKvM8VrMI','sh_sWeUadcy8K');"
+```
+
+### 안드로이드 측 (이미 호출 중)
+- `/api/shared/end` 앱이 이미 보내고 있음 (사장님 ping). 이제 서버가 받음.
+- `collab_ended` 수신 처리는 안드로이드 측 확인 필요.
+
+### 다음 액션 (사장님)
+한 줄: commit + push + cp + launchctl kickstart + ③ sqlite cleanup.
+
+### 검증 (배포 후)
+```bash
+# end (owner 가 해제)
+curl -s -X POST http://localhost:8000/api/shared/end -H "Content-Type: application/json" \
+  -d '{"share_id":"sh_xxx","phone":"01064610131","by":"owner"}'
+# → {"ok":true,"status":"ended"}
+
+# 같은 협업 다시 invite → 새 share 생성 (ended 자동 제외)
+curl -s -X POST http://localhost:8000/api/shared/invite -H "Content-Type: application/json" \
+  -d '{"owner_phone":"01064610131","partner_phone":"01080056674","title":"test"}'
+# → new share_id, deduped 없음
+```
