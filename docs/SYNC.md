@@ -3735,6 +3735,12 @@ SYNC 직전 블록(android 추가6) 진단 반영. **`/api/shared/invite` + `/ap
 - 앱(이번 커밋): `NotificationHelper.showCollabEvent` 에 `step="accepted"` 케이스 추가 → "🤝 협업 수락 · OOO님이 수락했어요". 기존 `collab_event` FCM 재사용. **앱 수신 준비 완료**.
 - 서버 할 일: `/api/shared/respond` (accept=true) 시 A 에게 FCM `type=collab_event, step=accepted, share_id, partner_name, title`(account 불필요). 상세 = `docs/SERVER_HANDOFF_collab_expansion.md §H`.
 - 같은 §H 에 캘린더 정확표시용 `GET /api/shared/by-me`(수락여부 status)도 함께 요청.
+
+## 2026-06-13 (android 추가16) — 거절/종료 협업이 일정 뱃지에 계속 뜨던 빈틈 self-heal
+사장님 신고: "16일 디테일라인 사장이랑 일한다고 체크돼있다, 다 삭제했는데". 진단: `collab_assignments`(로컬 "🤝 이름" 뱃지 기록)를 요청 시 박기만 하고 **서버 status 와 대조를 안 해** declined·ended 협업이 일정에 계속 떴음. 폰 prefs 에 sh_7wmchF6Kgv(6/16)·sh_RD0t17JacV 두 declined 배정 잔존.
+- **앱 고침**: SharedSiteRepository.`byMe()` 추가(이미 있는 GET /api/shared/by-me 사용) + ScheduleViewModel.`reconcileCollabAssignments()` — 일정 진입 시 by-me status 받아 declined/ended/cancelled shareId 배정 조용히 제거(self-heal). **실기기 검증 완료**(prefs collab_assignments 비워짐 + 16일 카드 "아직 배정 안 함").
+- 서버 변경 불필요(by-me 이미 동작). **추가15 의 owner-events SQL 정리는 여전히 필요**(묵은 출발 알람).
+- commit: (이 블록과 함께 push)
 ## 2026-06-13 · cowork (server) — §A 일당 echo + §H by-me + 수락 알림
 SERVER_HANDOFF_collab_expansion.md 우선순위 1번. 두 묶음 한번에 적용.
 

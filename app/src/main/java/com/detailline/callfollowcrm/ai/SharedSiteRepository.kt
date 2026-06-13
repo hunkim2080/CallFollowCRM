@@ -125,6 +125,23 @@ class SharedSiteRepository(
             }
         }
 
+    /** 내가(A) 요청해 만든 협업 현장 목록(by-me). 거절/종료된 건도 status 로 옴 → 일정 뱃지 self-heal 용. 실패 시 빈 목록. */
+    suspend fun byMe(phone: String, limit: Int = 80): Result<List<SharedSite>> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val url = baseUrl.toHttpUrl().newBuilder()
+                    .addPathSegments("api/shared/by-me")
+                    .addQueryParameter("phone", phoneKey(phone))
+                    .addQueryParameter("limit", limit.toString())
+                    .build()
+                val req = Request.Builder().url(url).get().build()
+                client.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                    parseSites(resp.body?.string().orEmpty())
+                }
+            }
+        }
+
     /** A(주인)가 상대 사장 번호로 현장 공유 요청. */
     suspend fun invite(
         ownerPhone: String,

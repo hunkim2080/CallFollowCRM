@@ -72,7 +72,32 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
     val toast = _toast.asStateFlow()
     fun consumeToast() { _toast.value = null }
 
-    init { loadTeam(); loadCollab(); loadCollabAssignments() }
+    init { loadTeam(); loadCollab(); loadCollabAssignments(); reconcileCollabAssignments() }
+
+    /**
+     * 거절/종료/취소된 협업은 일정 뱃지("🤝 이름")에서 자동 제거(self-heal).
+     *   collab_assignments 는 요청 시 로컬에 박는 기록인데, 상대가 거절하거나 협업이 끝나도 서버 상태와 대조를 안 해
+     *   "이미 끝난 협업"이 일정에 계속 떴음(2026-06-13 사장님: "16일 디테일라인 사장이랑 일한다고 체크돼있다, 다 삭제했는데").
+     *   → by-me 로 내가 만든 협업들 status 받아 declined/ended/cancelled 인 shareId(4번째 토큰) 배정을 조용히 정리.
+     */
+    private fun reconcileCollabAssignments() {
+        val owner = ownerPhone.filter { it.isDigit() }
+        if (owner.length < 9) return
+        viewModelScope.launch {
+            val sites = container.sharedSiteRepository.byMe(owner).getOrNull() ?: return@launch
+            val dead = sites.filter { it.status in DEAD_COLLAB_STATUS }.map { it.shareId }.toSet()
+            if (dead.isEmpty()) return@launch
+            val before = container.preferences.collabAssignments
+            val after = before.filterNot { e ->
+                val sid = e.split('|').getOrNull(3)  // "customerId|phone|name|shareId"
+                !sid.isNullOrBlank() && sid in dead
+            }.toSet()
+            if (after.size != before.size) {
+                container.preferences.collabAssignments = after
+                loadCollabAssignments()
+            }
+        }
+    }
 
     /** 로컬 협업 배정 기록 로드 → customerId→배정들. ("customerId|phone|name" Set 파싱, 구버전 "id|name" 호환, 같은 번호 중복 제거) */
     private fun loadCollabAssignments() {
@@ -333,6 +358,11 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
     /** 오늘이 어느 월인지 — UI 가 "이번 달" 표기에 사용. */
     fun currentMonthHeader(): String =
         DateTimeUtils.formatMonthHeader(System.currentTimeMillis())
+
+    companion object {
+        /** 일정 뱃지에서 더는 안 띄울(=정리할) 협업 상태 — 거절/종료/취소. */
+        private val DEAD_COLLAB_STATUS = setOf("declined", "ended", "cancelled", "canceled")
+    }
 }
 
 data class ScheduleUiState(
