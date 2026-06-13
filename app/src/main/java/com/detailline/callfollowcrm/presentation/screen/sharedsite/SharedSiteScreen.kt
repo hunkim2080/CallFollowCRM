@@ -150,6 +150,22 @@ fun SharedSiteScreen(
     LaunchedEffect(selected?.shareId) {
         selected?.let { viewModel.loadPhotos(it.shareId) } ?: run { /* 목록 — 비움은 다음 상세 열 때 */ }
     }
+    // §E: 출발 누른 현장의 3km 자동 도착 펜스 등록(위치 권한 받은 뒤).
+    val locationPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val s = sites.firstOrNull { it.shareId == selectedId }
+        if (granted && s != null) {
+            scope.launch { com.detailline.callfollowcrm.service.GeofenceManager.registerCollabArrival(context, s.shareId, s.addr) }
+            android.widget.Toast.makeText(context, "현장 3km 자동 도착이 켜졌어요", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+    fun armCollabArrival(site: SharedSiteRepository.SharedSite) {
+        if (site.addr.isNullOrBlank()) return
+        if (com.detailline.callfollowcrm.service.GeofenceManager.hasFineLocation(context)) {
+            scope.launch { com.detailline.callfollowcrm.service.GeofenceManager.registerCollabArrival(context, site.shareId, site.addr) }
+        } else {
+            locationPerm.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
 
     Scaffold(
         containerColor = TossGrayBg,
@@ -222,6 +238,14 @@ fun SharedSiteScreen(
                             android.widget.Toast.makeText(context, accountPrompt, android.widget.Toast.LENGTH_LONG).show()
                         } else {
                             viewModel.updateProgress(selected, step)
+                            // §E: 출발 알리면 그 현장 3km 자동 도착 켜기(권한 받고). 도착/완료면 펜스 정리.
+                            when (step) {
+                                SharedSiteRepository.Progress.DEPARTED -> armCollabArrival(selected)
+                                SharedSiteRepository.Progress.ARRIVED,
+                                SharedSiteRepository.Progress.COMPLETED ->
+                                    com.detailline.callfollowcrm.service.GeofenceManager.removeCollabArrival(context, selected.shareId)
+                                else -> {}
+                            }
                         }
                     },
                     onRespond = { accept -> viewModel.respond(selected, accept); if (!accept) selectedId = null }
@@ -568,8 +592,16 @@ private fun DetailBody(
         if (step == SharedSiteRepository.Progress.DEPARTED) {
             Spacer(Modifier.height(7.dp))
             Text(
-                "한 번 누르면 주인 사장님이 '오는구나' 알아요 — 따로 연락 안 해도 돼요.",
+                "한 번 누르면 주인 사장님이 '오는구나' 알아요 — 따로 연락 안 해도 돼요.\n이때부터 위치를 봐서 현장 3km에 들어가면 '거의 도착'이 자동으로 가요. (누르기 전엔 위치 안 봐요)",
                 fontSize = 11.5.sp, color = TossTextTertiary, lineHeight = 16.sp,
+                modifier = Modifier.padding(horizontal = 2.dp)
+            )
+        }
+        if (step == SharedSiteRepository.Progress.ARRIVED) {
+            Spacer(Modifier.height(7.dp))
+            Text(
+                "📍 현장 3km에 들어가면 '거의 도착'이 자동으로 가요. 자동이 안 잡히면 위 도착을 직접 눌러도 돼요.",
+                fontSize = 11.5.sp, color = ProtoSuccess, lineHeight = 16.sp,
                 modifier = Modifier.padding(horizontal = 2.dp)
             )
         }

@@ -4003,3 +4003,13 @@ cowork §E 푸시 분기에 맞춰 앱 수신부 먼저(안전·검증 쉬움).
 - RingGoFcmService 분기 추가. 앱 수신 준비 완료 — 실제 발사는 §E-3(geofence) 붙으면.
 - 다음(앱): §E-3 geofence(출발탭→위치추적→3km→arrived auto). 무거움+실주행 테스트 필요 → 수동 도착 버튼은 폴백으로 유지 예정.
 - commit: (아래)
+
+## 2026-06-13 (android 추가9) — §E-2/§E-3 3km 자동 도착 geofence (앱)
+기존 GeofenceManager/Receiver(본인 현장 5km) 재사용 + 협업 3km 분리.
+- **GeofenceManager**: `registerCollabArrival(shareId, addr)`(3km, requestId "collab_{shareId}", 별도 pendingIntent 7702 → refresh() 무영향) + `removeCollabArrival`. 주소→좌표=Geocoder, 권한/주소 없으면 skip(수동 폴백).
+- **GeofenceBroadcastReceiver**: "collab_" 진입 → `progress(arrived, auto=true)` 서버 발사(1회, reminderNotifiedKeys "collab_arrived:{shareId}") → 서버가 A "거의도착"+B "알려드렸어요" 푸시. site_ 5km 는 기존대로(토글 ON).
+- **SharedSiteRepository.progress**: `auto` 플래그 추가(payload `auto:true`).
+- **SharedSiteScreen**: 출발 탭 → 위치권한 요청 후 3km 펜스 등록(armCollabArrival). 도착/완료 탭 → 펜스 제거. **수동 도착 버튼 유지(폴백)** + "3km 자동, 안 잡히면 도착 직접" 안내.
+- **§E-1 푸시 수신**(추가8): collab_event auto="true"→"거의 도착", collab_arrived_confirm→"알려드렸어요".
+- ⚠️ **실주행 테스트 필요**: geofence 발사는 실제 현장 3km 진입해야 확인됨(데스크 검증 불가). 백그라운드 발사엔 "항상 허용" 위치 권장. 안 잡혀도 수동 도착 버튼으로 커버(무회귀).
+- commit: (아래). 폰 분리돼 설치는 재연결 후.

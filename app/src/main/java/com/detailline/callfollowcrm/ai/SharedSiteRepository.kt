@@ -178,11 +178,13 @@ class SharedSiteRepository(
         step: Progress,
         bank: String? = null,
         accountNo: String? = null,
-        holder: String? = null
+        holder: String? = null,
+        auto: Boolean = false
     ): Result<Unit> = post("$baseUrl/api/shared/progress", JSONObject().apply {
         put("share_id", shareId)
         put("partner_phone", phoneKey(partnerPhone))
         put("step", step.name.lowercase())
+        if (auto) put("auto", true)   // §E 3km geofence 자동 도착
         if (step == Progress.COMPLETED && !accountNo.isNullOrBlank()) {
             put("payload", JSONObject().apply {
                 bank?.let { put("bank", it) }

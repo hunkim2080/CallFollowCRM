@@ -31,9 +31,26 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 val app = context.applicationContext as? CallFollowCrmApplication ?: return@launch
                 val container = app.container
                 val prefs = container.preferences
-                if (!prefs.arrivalAutoEnabled) return@launch
                 val todayStart = DateTimeUtils.startOfDay(System.currentTimeMillis())
                 for (rid in ids) {
+                    // §E 협업 3km 진입 — 서버에 arrived(auto) 발사 → A "거의 도착" + B "알려드렸어요"(서버 푸시).
+                    if (rid.startsWith(GeofenceManager.COLLAB_PREFIX)) {
+                        val shareId = rid.removePrefix(GeofenceManager.COLLAB_PREFIX)
+                        val key = "collab_arrived:$shareId"
+                        if (key in prefs.reminderNotifiedKeys) continue // 1회만
+                        val myPhone = prefs.bizPhone.filter { it.isDigit() }
+                        if (myPhone.length < 9) continue
+                        val ok = container.sharedSiteRepository
+                            .progress(shareId, myPhone, com.detailline.callfollowcrm.ai.SharedSiteRepository.Progress.ARRIVED, auto = true)
+                            .isSuccess
+                        if (ok) {
+                            prefs.reminderNotifiedKeys = prefs.reminderNotifiedKeys + key
+                            GeofenceManager.removeCollabArrival(context, shareId) // 다 왔으니 펜스 정리
+                        }
+                        continue
+                    }
+                    // 본인 현장 5km 도착 안내 — 토글 ON 일 때만.
+                    if (!prefs.arrivalAutoEnabled) continue
                     val id = rid.removePrefix("site_").toLongOrNull() ?: continue
                     val key = "arrival:$id:$todayStart"
                     // 5km 진입 사실을 기록 → 홈 "도착 안내" 카드가 이때부터 노출 (토글 ON 전제).
