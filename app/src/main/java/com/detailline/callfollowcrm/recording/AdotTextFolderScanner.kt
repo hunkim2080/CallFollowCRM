@@ -119,6 +119,20 @@ object AdotTextFolderScanner {
         }
     }
 
+    /** 워커/통화종료 자동 스캔용 — 결과를 await(suspend). scanIfConnected 와 동일 로직이나 콜백 없이 직접 반환. */
+    suspend fun scanNow(context: Context, container: AppContainer): Int {
+        val treeUri = getTreeUri(context) ?: return 0
+        if (scanning) return 0
+        scanning = true
+        return try {
+            runCatching { scanInternal(context.applicationContext, container, treeUri) }
+                .onFailure { Log.w(TAG, "scanNow failed", it) }
+                .getOrDefault(0)
+        } finally {
+            scanning = false
+        }
+    }
+
     private suspend fun scanInternal(
         context: Context,
         container: AppContainer,

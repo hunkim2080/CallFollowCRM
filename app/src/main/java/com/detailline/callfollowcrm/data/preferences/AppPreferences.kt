@@ -62,6 +62,10 @@ class AppPreferences(context: Context) {
     var d1AutoEnabled: Boolean
         get() = prefs.getBoolean("d1_auto_enabled", true)
         set(value) = prefs.edit().putBoolean("d1_auto_enabled", value).apply()
+    /** 통화 자동 요약 on/off — 통화 끝나면 에이닷 폴더(녹음/텍스트)를 스캔해 자동 요약. 기본 ON. (2026-06-14 사장님) */
+    var autoSummaryEnabled: Boolean
+        get() = prefs.getBoolean("auto_summary_enabled", true)
+        set(value) = prefs.edit().putBoolean("auto_summary_enabled", value).apply()
     /** D-1 안내 묻는 시각(시, 0~23). 기본 오전 9시. */
     var d1SendHour: Int
         get() = prefs.getInt("d1_send_hour", 9)

@@ -1195,6 +1195,24 @@ private fun AutoSmsSection(
         AutoTextArea(arrText) { arrText = it; prefs.arrivalAutoText = it }
         AutoNote("상담함의 오늘시공 도착 안내와 같은 문구예요. 위치 감지는 준비 중이라 지금은 사장님 확인 후 보내는 안내로 사용해요.")
     }
+    Spacer(Modifier.height(10.dp))
+
+    // ④ 통화 자동 요약 (2026-06-14 사장님) — 통화 끝나면 에이닷 녹음/텍스트를 자동 요약(공유 안 눌러도 됨).
+    var autoSumOn by remember { mutableStateOf(prefs.autoSummaryEnabled) }
+    TossCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFFEDE9FE)),
+                contentAlignment = Alignment.Center) { Text("🤖", fontSize = 16.sp) }
+            Spacer(Modifier.width(11.dp))
+            Column(Modifier.weight(1f)) {
+                Text("통화 자동 요약", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                Text("통화가 끝나면 에이닷 녹음·통화내용을 자동으로 요약해 통화카드에 붙여요 (공유 버튼 안 눌러도 됨)",
+                    fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp)
+            }
+            Spacer(Modifier.width(8.dp))
+            Switch(checked = autoSumOn, onCheckedChange = { autoSumOn = it; prefs.autoSummaryEnabled = it })
+        }
+    }
     Spacer(Modifier.height(14.dp))
 
     Text("정해둔 주기로", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,

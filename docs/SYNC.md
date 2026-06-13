@@ -4341,3 +4341,15 @@ curl -s -X POST http://localhost:8000/api/shared/invite -H "Content-Type: applic
 - `owner_name` ✅ "하우스픽" (옛 테스트건만 "사장님" — 이름 저장 전 레코드라 정상)
 - `daily_wage` ✅ 25 (일당 설정된 건에 echo. 안 들어간 건은 애초에 일당 미설정이라 정상 — "미정" 표시)
 → B쪽 수락/거절 카드·상담함 카드에 실제 일당(25만원)·보낸이(하우스픽) 정상 표시. 추가18/추가20 협업 흐름 완성. 두 폰(메인 1cba6ed4 / B 23514638) 최신 빌드(71e7a58) 설치 완료.
+
+## 2026-06-14 (android 추가21) — 통화 끝나면 자동 통화요약 (공유 버튼 없이) + 자동요약 ON/OFF
+사장님: 에이닷 폴더만 연결돼 있으면 공유 버튼 안 눌러도 통화 끝나면 자동 요약되게. 텍스트·녹음 둘 다 OK.
+- **통화종료 트리거**: CallStateReceiver 가 통화 끝나면 `CallSummaryScanWorker` enqueue(15초 지연 + 네트워크 조건, REPLACE). 워커가 2패스(즉시+25초)로 폴더 스캔(에이닷 파일 쓰기 지연 대응).
+- **텍스트(.txt)**: AdotTextFolderScanner.scanNow — 기존대로 스캔 시 LLM 요약까지(비대화형).
+- **녹음(.m4a)**: AdotFolderScanner.scanAndSummarizeNow 신설 — import + 서버 STT+요약(비대화형). 이미 요약 있으면 스킵(재과금 방지).
+- **비대화형**: CallAudioSummarizer.summarizeAndSave 에 `interactive` 파라미터 추가 — 자동 경로는 "다시 요약?" 안 묻고 스킵.
+- **스위치**: 설정 자동문자 섹션에 "🤖 통화 자동 요약" ON/OFF(prefs.autoSummaryEnabled, 기본 ON).
+- no-op 조건: 스위치 OFF · 에이닷 폴더 미연결.
+- 서버 무관(기존 /api/call-audio-summary, callSummaryServerRepository 재사용). 빌드/설치 OK(B폰엔 폴더 미연결이라 실동작은 메인폰에서 확인 필요).
+- **다음**: 사장님 새 방향 — 통화 후 [요약+템플릿 선택+"고객에게 보내드릴까요?"] 창. 녹음(m4a)은 빼고 텍스트 요약 위주. (이번 커밋은 엔진, 다음 커밋은 그 창 UI)
+- commit: (이 블록과 함께 push)

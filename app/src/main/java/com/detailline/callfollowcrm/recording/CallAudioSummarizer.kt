@@ -24,12 +24,17 @@ object CallAudioSummarizer {
 
     private const val TAG = "CallAudioSum"
 
-    /** @return 새로 저장했으면 true. (이미 있음/파일명 패턴 불일치/서버 실패 = false) */
+    /**
+     * @param interactive true(공유 경로)=이미 요약 있으면 "다시 요약?" 다이얼로그로 물음.
+     *   false(통화종료 자동 스캔)=백그라운드라 묻지 않고 이미 있으면 조용히 스킵(재과금 방지).
+     * @return 새로 저장했으면 true. (이미 있음/파일명 패턴 불일치/서버 실패 = false)
+     */
     suspend fun summarizeAndSave(
         context: Context,
         container: AppContainer,
         audioUri: String,
-        fileName: String
+        fileName: String,
+        interactive: Boolean = true
     ): Boolean {
         val parsed = AdotFilenameParser.parse(fileName) ?: return false
         val phone = parsed.phoneNumber
@@ -37,8 +42,10 @@ object CallAudioSummarizer {
 
         // 이미 처리된 통화(로컬에 요약 있음)를 재공유한 경우 → 조용히 건너뛰지 않고
         //   "다시 요약해드릴까요?" 를 묻는다(채팅 다이얼로그). 아니오면 기존 유지, 예면 force_refresh.
+        //   자동 스캔(interactive=false)은 묻지 않고 스킵 — 백그라운드 + 재과금 방지.
         var forceRefresh = false
         if (container.callSummaryRepository.findExistingNear(phone, recordedAt) != null) {
+            if (!interactive) return false
             if (!CallSummaryReprompt.ask(phone, recordedAt)) return false  // 아니오 → 기존 그대로
             forceRefresh = true
         }
@@ -126,7 +133,7 @@ object CallAudioSummarizer {
 
             // 서버가 캐시본(이미 처리)을 즉시 줬는데 아직 안 물어본 경우(로컬엔 없던 통화) →
             //   화면엔 캐시본을 띄워둔 채 "다시 요약?" 묻고, 예면 force_refresh 로 재처리해 덮어쓴다.
-            if (res.cached && !forceRefresh) {
+            if (res.cached && !forceRefresh && interactive) {
                 if (CallSummaryReprompt.ask(phone, recordedAt)) {
                     container.callAudioSummaryRepository.summarize(
                         audioBytes = audioBytes,

@@ -162,6 +162,56 @@ object AdotFolderScanner {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong(KEY_LAST_SCAN, 0L)
 
     /**
+     * 통화종료 자동 스캔용 — 연결 시점 이후의 새 녹음을 import + **서버 STT+요약(비대화형)**.
+     *   scanInternal(=import만) 과 달리 요약까지 한다. 이미 요약 있으면(텍스트 경로 등) 스킵 → 재과금 방지.
+     *   결과를 await(suspend). @return 새로 요약한 건수.
+     */
+    suspend fun scanAndSummarizeNow(context: Context, container: AppContainer): Int {
+        val treeUri = getTreeUri(context) ?: return 0
+        val appCtx = context.applicationContext
+        val tree = DocumentFile.fromTreeUri(appCtx, treeUri) ?: return 0
+        if (!tree.isDirectory) return 0
+
+        var connectedAt = connectedAt(appCtx)
+        if (connectedAt == 0L) {
+            connectedAt = System.currentTimeMillis()
+            appCtx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                .putLong(KEY_CONNECTED_AT, connectedAt).apply()
+        }
+
+        var summarized = 0
+        for (f in tree.listFiles()) {
+            if (!f.isFile) continue
+            val name = f.name ?: continue
+            if (!name.endsWith(".m4a", ignoreCase = true) &&
+                !name.endsWith(".mp3", ignoreCase = true) &&
+                !name.endsWith(".wav", ignoreCase = true)
+            ) continue
+            val parsed = AdotFilenameParser.parse(name) ?: continue
+            if (parsed.recordedAt < connectedAt) continue   // 연결 전 옛 통화 무시
+
+            val uriStr = f.uri.toString()
+            // 녹음 첨부(없을 때만) — 기존 자동 import 와 동일하게 고객/통화기록 연결.
+            if (!container.recordingRepository.existsByUri(uriStr)) {
+                runCatching {
+                    RecordingMatcher.attach(container, uriStr, name, RecordingSourceType.SHARED_FROM_ADOT)
+                }
+            }
+            // 이미 요약 있으면 스킵(텍스트 경로가 먼저 요약했을 수 있음) — 비용 0.
+            if (container.callSummaryRepository.findExistingNear(parsed.phoneNumber, parsed.recordedAt) != null) continue
+            // 서버 받아쓰기+요약 (비대화형: 묻지 않음).
+            val ok = runCatching {
+                CallAudioSummarizer.summarizeAndSave(appCtx, container, uriStr, name, interactive = false)
+            }.getOrDefault(false)
+            if (ok) summarized++
+        }
+
+        appCtx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putLong(KEY_LAST_SCAN, System.currentTimeMillis()).apply()
+        return summarized
+    }
+
+    /**
      * 특정 번호의 과거 녹음을 백필.
      * scanInternal 과 달리 cutoff(연결 시점) 필터를 적용하지 않는다 — 사용자가 명시적으로
      * 그 번호의 통화 이력을 끌어오는 의도이므로 과거 데이터도 가져온다.
