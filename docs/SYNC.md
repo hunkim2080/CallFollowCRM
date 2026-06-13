@@ -4372,3 +4372,16 @@ curl -s -X POST http://localhost:8000/api/shared/invite -H "Content-Type: applic
 - 자동요약 엔진(추가21)+상담함 한줄(추가22)과 한 세트. 서버 무관(기존 요약 재사용).
 - **실기기 검증 필요(메인폰)**: 실제 수신통화 → 에이닷 저장 → 카드에 요약/후속문자 뜨는지. (adb로 통화 시뮬 불가, 사장님 라이브 테스트)
 - commit: (이 블록과 함께)
+
+## 2026-06-14 (android 추가24) — 말투 학습 데이터 정확도 수정 (고객 문자만 + 가짜 분석 제거)
+사장님: 막내비서 말투 학습 데이터가 부정확하다는 느낌 → 로직 확인 요청. 확인 결과 실제 문제 2개 발견:
+- ① StyleLearning "지금 학습하기" 가 **하드코딩 가짜 예문 5개**를 분석(실데이터 아님) → 표시되는 길이/이모지/친절도 전부 가짜였음.
+- ② 톤 코퍼스(querySentMessages/WithTimestamp)가 **보낸문자함 전체**(가족·인증·광고·택배 회신 등 무관 문자 다 포함)를 길이만 거르고 학습 → 비즈니스 말투 오염.
+**수정(사장님 결정: 고객 문자만 + 실제 분석으로):**
+- SmsRepository 에 `customerSuffixProvider` 추가 → 발신문자 중 **고객(CRM 번호)에게 보낸 것만** 학습. 비면(고객0/초기) 필터 미적용(폴백). 메인스레드 DB 접근 없이 in-memory 캐시.
+- AppContainer: customerRepository.observeAll() 구독으로 고객 번호 끝8자리 캐시 유지 → SmsRepository 에 공급.
+- 이 한 곳 필터로 실시간 톤(prepare-reply)·RAG 업로드·StyleLearning·카운트 전부 자동 정화(호출처 8곳 무변경).
+- StyleLearningViewModel.learnFromSamples: 하드코딩 제거 → 선택 기간(1/3/6개월) 내 실제 고객 발신문자 최대 300건 분석.
+- 서버 무관(데이터 선별은 앱 책임). 빌드/설치(B폰) OK·무crash. **메인폰 설치 필요**(실데이터는 메인폰).
+- 참고 ③: 앱 자동발송 문장 재학습 우려는 비기본 SMS앱이라 시스템 sent 미기록 가능성↑ → 영향 적음(미조치).
+- commit: (이 블록과 함께)

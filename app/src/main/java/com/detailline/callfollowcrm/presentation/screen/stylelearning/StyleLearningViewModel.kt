@@ -3,9 +3,11 @@ package com.detailline.callfollowcrm.presentation.screen.stylelearning
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.detailline.callfollowcrm.data.AppContainer
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class StyleLearningUiState(
     val periodMonths: Int = 1,
@@ -62,15 +64,27 @@ class StyleLearningViewModel(
 
     fun learnFromSamples() {
         viewModelScope.launch {
-            _state.value = _state.value.copy(loading = true, progress = 25, toast = null)
-            val samples = listOf(
-                "안녕하세요 문의주셔서 감사합니다.",
-                "현장 사진 보내주시면 정확 견적 드릴게요.",
-                "이번 주 목요일 오후 가능합니다.",
-                "계약금 30% 먼저 부탁드려요.",
-                "AS는 바로 일정 잡아 처리해드릴게요."
-            )
-            _state.value = _state.value.copy(progress = 70)
+            _state.value = _state.value.copy(loading = true, progress = 20, toast = null)
+            // 실제 사장님이 "고객에게 보낸 문자"로 분석. (querySentMessagesWithTimestamp 는 고객 번호로 자동 필터)
+            //   선택한 기간(최근 1/3/6개월) 안의 것만, 분석은 최대 300건.
+            val months = _state.value.periodMonths
+            val cutoff = System.currentTimeMillis() - months * 30L * 24 * 60 * 60 * 1000
+            val samples = withContext(Dispatchers.IO) {
+                runCatching {
+                    container.smsRepository.querySentMessagesWithTimestamp(limit = 3000)
+                        .filter { it.dateMs >= cutoff }
+                        .map { it.body }
+                        .take(300)
+                }.getOrDefault(emptyList())
+            }
+            if (samples.isEmpty()) {
+                _state.value = _state.value.copy(
+                    loading = false, progress = 0,
+                    toast = "분석할 고객 문자가 아직 없어요 (고객에게 보낸 문자가 쌓이면 배워요)"
+                )
+                return@launch
+            }
+            _state.value = _state.value.copy(progress = 60, sampleCount = samples.size)
             val result = container.phaseOneApiRepository.learnStyle(samples)
             _state.value = result.fold(
                 onSuccess = {
@@ -78,11 +92,12 @@ class StyleLearningViewModel(
                         loading = false,
                         progress = 100,
                         analyzed = true,
-                        sampleCount = it.sampleCount,
+                        // 실제 분석에 쓴 문자 수(서버 sampleCount 가 0이면 우리가 보낸 개수).
+                        sampleCount = it.sampleCount.takeIf { n -> n > 0 } ?: samples.size,
                         kindness = it.kindness,
                         avgLength = it.avgLength,
                         emojiPerMessage = it.emojiPerMessage,
-                        toast = "학습 완료"
+                        toast = "학습 완료 · ${samples.size}개 문자 분석"
                     )
                 },
                 onFailure = {

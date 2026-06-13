@@ -28,6 +28,8 @@ import com.detailline.callfollowcrm.data.repository.TemplateAttachmentRepository
 import com.detailline.callfollowcrm.presentation.navigation.NavEvents
 import com.detailline.callfollowcrm.recording.NoOpServerUploadRepository
 import com.detailline.callfollowcrm.recording.ServerUploadRepository
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 
 /**
  * 단순한 manual DI 컨테이너. Hilt 없이 Application이 보유한다.
@@ -56,7 +58,15 @@ class AppContainer(context: Context) {
     val sitePhotoServerRepository = com.detailline.callfollowcrm.ai.SitePhotoServerRepository()
     val callSummaryRepository = CallSummaryRepository(db.callSummaryDao())
     val templateAttachmentRepository = TemplateAttachmentRepository(db.templateAttachmentDao())
-    val smsRepository = SmsRepository(context.applicationContext)
+
+    /**
+     * 말투 학습용 "고객 번호 끝8자리" in-memory 캐시 (2026-06-14 사장님).
+     *   SmsRepository 가 발신문자 중 고객에게 보낸 것만 골라 학습하도록 공급. DB 접근 없이 읽음(메인스레드 안전).
+     *   클래스 말미 init 에서 customerRepository.observeAll() 구독으로 채움.
+     */
+    @Volatile
+    private var customerSuffixCache: Set<String> = emptySet()
+    val smsRepository = SmsRepository(context.applicationContext) { customerSuffixCache }
     val importantMessageRepository = ImportantMessageRepository(db.importantMessageDao())
     val cachedMessageRepository = CachedMessageRepository(db.cachedMessageDao())
     val conversationAiRepository = ConversationAiRepository(db.aiSummaryDao())
@@ -178,4 +188,17 @@ class AppContainer(context: Context) {
     val applicationScope = kotlinx.coroutines.CoroutineScope(
         kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO
     )
+
+    init {
+        // 고객 번호 끝8자리 캐시 유지 — 말투 학습이 "고객에게 보낸 문자"만 보도록.
+        applicationScope.launch {
+            customerRepository.observeAll().collect { list ->
+                customerSuffixCache = list
+                    .mapNotNull { c ->
+                        c.phoneNumber.filter { it.isDigit() }.takeLast(8).takeIf { it.length >= 7 }
+                    }
+                    .toSet()
+            }
+        }
+    }
 }

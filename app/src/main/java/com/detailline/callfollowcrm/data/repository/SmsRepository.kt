@@ -29,7 +29,15 @@ import kotlinx.coroutines.flow.callbackFlow
  *    끝 8자리 일치를 본다 (Korean 휴대폰은 끝 8자리가 사실상 unique).
  *  - 한 고객 상세 화면에서만 호출되므로 비용 미미.
  */
-class SmsRepository(private val context: Context) {
+class SmsRepository(
+    private val context: Context,
+    /**
+     * 말투 학습 코퍼스를 "고객에게 보낸 문자"로 거르기 위한 고객 번호 끝8자리 공급자.
+     *   (2026-06-14 사장님: 가족·인증·광고 등 모든 발신문자가 섞여 말투가 부정확 → 고객 응대 문자만 학습)
+     *   in-memory 캐시를 읽으므로 메인스레드 DB 접근 위험 없음. 비면(고객 0명/초기) 필터 미적용.
+     */
+    private val customerSuffixProvider: () -> Set<String> = { emptySet() }
+) {
 
     /**
      * 시스템 SMS / MMS 한 건. direction 으로 송/수신 구분.
@@ -591,21 +599,30 @@ class SmsRepository(private val context: Context) {
      * 사장님이 보낸(sent=true) 메시지 본문 최근 N건. 톤 학습 코퍼스 용도.
      * type=2 selection 대신 content://sms/sent path 사용 — 더 빠르고 단순.
      * 너무 짧은 메시지 (5자 미만) 는 톤 학습 가치 낮아 제외.
+     * 고객 번호 공급자가 비어있지 않으면 "고객에게 보낸 문자"만 (가족·인증·광고 제외). 필터로 줄어드는 만큼 더 넓게 조회.
      */
     fun querySentMessages(limit: Int = 50): List<String> {
         if (!hasReadPermission()) return emptyList()
+        val allowed = runCatching { customerSuffixProvider() }.getOrDefault(emptySet())
         val uri = Uri.parse("content://sms/sent")
-        val projection = arrayOf(COL_BODY)
+        val projection = arrayOf(COL_BODY, COL_ADDRESS)
+        val scan = if (allowed.isEmpty()) limit * 2 else limit * 6   // 필터 적용 시 더 넓게.
         val cursor = runCatching {
-            context.contentResolver.query(uri, projection, dateDescSortArgs(limit * 2), null)
+            context.contentResolver.query(uri, projection, dateDescSortArgs(scan), null)
         }.getOrNull() ?: return emptyList()
         return cursor.use { c ->
             val bodyIdx = c.getColumnIndex(COL_BODY)
+            val addrIdx = c.getColumnIndex(COL_ADDRESS)
             if (bodyIdx < 0) return@use emptyList()
             val out = mutableListOf<String>()
             while (c.moveToNext() && out.size < limit) {
                 val body = c.getString(bodyIdx).orEmpty().trim()
-                if (body.length >= 5) out += body
+                if (body.length < 5) continue
+                if (allowed.isNotEmpty() && addrIdx >= 0) {
+                    val suf = c.getString(addrIdx).orEmpty().filter { it.isDigit() }.takeLast(8)
+                    if (suf.length < 7 || suf !in allowed) continue
+                }
+                out += body
             }
             out
         }
@@ -619,19 +636,25 @@ class SmsRepository(private val context: Context) {
 
     fun querySentMessagesWithTimestamp(limit: Int = 10000): List<SentMessage> {
         if (!hasReadPermission()) return emptyList()
+        val allowed = runCatching { customerSuffixProvider() }.getOrDefault(emptySet())
         val uri = Uri.parse("content://sms/sent")
-        val projection = arrayOf(COL_BODY, COL_DATE)
+        val projection = arrayOf(COL_BODY, COL_DATE, COL_ADDRESS)
         val cursor = runCatching {
             context.contentResolver.query(uri, projection, dateDescSortArgs(limit), null)
         }.getOrNull() ?: return emptyList()
         return cursor.use { c ->
             val bodyIdx = c.getColumnIndex(COL_BODY)
             val dateIdx = c.getColumnIndex(COL_DATE)
+            val addrIdx = c.getColumnIndex(COL_ADDRESS)
             if (bodyIdx < 0 || dateIdx < 0) return@use emptyList()
             val out = mutableListOf<SentMessage>()
             while (c.moveToNext() && out.size < limit) {
                 val body = c.getString(bodyIdx).orEmpty().trim()
                 if (body.length < 5 || body.length > 500) continue
+                if (allowed.isNotEmpty() && addrIdx >= 0) {
+                    val suf = c.getString(addrIdx).orEmpty().filter { it.isDigit() }.takeLast(8)
+                    if (suf.length < 7 || suf !in allowed) continue
+                }
                 out += SentMessage(body = body, dateMs = c.getLong(dateIdx))
             }
             out
