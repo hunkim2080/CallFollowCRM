@@ -1206,6 +1206,40 @@ private fun AssignTeamSheet(
                     }
                 }
             }
+            // 협업 요청 확인 — 시트 안 인라인(별도 창 X → 이중 어둠 없음). 탭한 사람 확인 후 보내기.
+            val pendingP = pendingInvite ?: pendingResend
+            if (pendingP != null) {
+                val isResend = pendingResend != null
+                Spacer(Modifier.height(14.dp))
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFF1ECFF)).padding(14.dp)
+                ) {
+                    Text(if (isResend) "이미 요청한 사장님이에요" else "협업 요청 보내기",
+                        fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, color = Color(0xFF6B4FD8))
+                    Spacer(Modifier.height(5.dp))
+                    Text(
+                        if (isResend) "${pendingP.name} 사장님께 '${siteTitle}'을 한 번 더 보낼까요? 상대에게 알림이 다시 가요."
+                        else "${pendingP.name} 사장님께 '${siteTitle}'을 협업 요청할까요? 고객 번호·대화는 안 보내요.",
+                        fontSize = 12.5.sp, color = Color(0xFF5A4A7A), lineHeight = 18.sp
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(
+                            Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
+                                .clickable { pendingInvite = null; pendingResend = null }.padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) { Text("취소", fontWeight = FontWeight.Bold, color = TossTextSecondary, fontSize = 14.sp) }
+                        Box(
+                            Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(Color(0xFF7C5CFC))
+                                .clickable {
+                                    onInviteCollab(pendingP.phone, isResend, collabMemo, collabWage.toIntOrNull(), collabHour)
+                                    pendingInvite = null; pendingResend = null
+                                }.padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) { Text(if (isResend) "한 번 더 보내기" else "보내기", fontWeight = FontWeight.ExtraBold, color = Color.White, fontSize = 14.sp) }
+                    }
+                }
+            }
             Spacer(Modifier.height(18.dp))
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(TossBlue)
@@ -1232,37 +1266,5 @@ private fun AssignTeamSheet(
         }
     }
 
-    // 협업 사장님 탭 → 보내기 전 확인(실수 발송 방지).
-    pendingInvite?.let { p ->
-        AlertDialog(
-            onDismissRequest = { pendingInvite = null },
-            title = { Text("협업 요청 보내기", fontWeight = FontWeight.ExtraBold) },
-            text = { Text("${p.name} 사장님께 '${siteTitle}'을 협업 요청할까요?\n고객 번호·대화는 보내지 않아요.", fontSize = 14.sp, lineHeight = 20.sp) },
-            confirmButton = {
-                TextButton(onClick = { onInviteCollab(p.phone, false, collabMemo, collabWage.toIntOrNull(), collabHour); pendingInvite = null }) {
-                    Text("보내기", color = TossBlue, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingInvite = null }) { Text("취소", color = TossTextSecondary) }
-            }
-        )
-    }
-
-    // "요청함" 사장님 다시 탭 → 한 번 더 보내기(재전송) 확인.
-    pendingResend?.let { p ->
-        AlertDialog(
-            onDismissRequest = { pendingResend = null },
-            title = { Text("이미 요청한 사장님이에요", fontWeight = FontWeight.ExtraBold) },
-            text = { Text("${p.name} 사장님께 '${siteTitle}'을 한 번 더 보낼까요?\n상대에게 알림이 다시 가요.", fontSize = 14.sp, lineHeight = 20.sp) },
-            confirmButton = {
-                TextButton(onClick = { onInviteCollab(p.phone, true, collabMemo, collabWage.toIntOrNull(), collabHour); pendingResend = null }) {
-                    Text("한 번 더 보내기", color = TossBlue, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingResend = null }) { Text("닫기", color = TossTextSecondary) }
-            }
-        )
-    }
+    // (협업 요청 확인은 시트 안 인라인으로 이동 — AlertDialog 이중 어둠 제거)
 }
