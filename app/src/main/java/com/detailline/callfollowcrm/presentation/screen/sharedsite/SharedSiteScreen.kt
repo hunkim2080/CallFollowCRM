@@ -454,7 +454,7 @@ private fun SiteRow(site: SharedSiteRepository.SharedSite, onClick: () -> Unit) 
             val sub = buildString {
                 append(site.ownerName)
                 site.workSummary?.let { append(" · "); append(it) }
-                site.timeLabel?.let { append(" · "); append(it) }
+                timeText(site)?.let { append(" · "); append(it) }
             }
             Text(sub, fontSize = 12.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
         }
@@ -485,7 +485,7 @@ private fun DetailBody(
 
     // 날짜·시공 카드
     Card {
-        InfoRow("📅 날짜", buildString { append(dayLabel(site.scheduledAtMs)); site.timeLabel?.let { append(" · "); append(it) } })
+        InfoRow("📅 날짜", buildString { append(dayLabel(site.scheduledAtMs)); timeText(site)?.let { append(" · "); append(it) } })
         site.workSummary?.let { Spacer(Modifier.height(9.dp)); InfoRow("🔧 시공", it) }
         site.dailyWage?.let { Spacer(Modifier.height(9.dp)); InfoRow("💰 그날 일당", "${it}만원") }
     }
@@ -787,6 +787,21 @@ private fun dayLabel(ms: Long): String {
         else -> SimpleDateFormat("M.d", Locale.KOREA).format(Date(ms))
     }
 }
+
+/** scheduled_at_ms 에 박힌 시각(출근시간) → "오전 9시". 자정(00:00)=미설정이면 null. 서버 time_label echo 없어도 시간 표시. */
+private fun timeOf(ms: Long): String? {
+    if (ms <= 0L) return null
+    val cal = Calendar.getInstance().apply { timeInMillis = ms }
+    val h = cal.get(Calendar.HOUR_OF_DAY); val m = cal.get(Calendar.MINUTE)
+    if (h == 0 && m == 0) return null
+    val ampm = if (h < 12) "오전" else "오후"
+    val h12 = if (h % 12 == 0) 12 else h % 12
+    return "$ampm ${h12}시" + (if (m > 0) " ${m}분" else "")
+}
+
+/** 표시용 시간 — 서버 time_label 우선, 없으면 scheduled_at_ms 에서 추출. */
+private fun timeText(site: SharedSiteRepository.SharedSite): String? =
+    site.timeLabel?.takeIf { it.isNotBlank() } ?: timeOf(site.scheduledAtMs)
 
 @Composable
 private fun rememberSaveableShareId() =
