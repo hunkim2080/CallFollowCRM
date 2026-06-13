@@ -72,6 +72,9 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
     val toast = _toast.asStateFlow()
     fun consumeToast() { _toast.value = null }
 
+    /** 전문가 배정 협업 요청 시 출근시간 칩 기본 선택값(마지막 보낸 시간 기억). 시트 열 때 1회 읽음. */
+    val lastCollabStartHour: Int get() = container.preferences.lastCollabStartHour
+
     init { loadTeam(); loadCollab(); loadCollabAssignments(); reconcileCollabAssignments() }
 
     /**
@@ -227,6 +230,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             ).onSuccess { r ->
                 // 일정 카드 "🤝 이름" 표시용 로컬 배정 기록 (서버 수락 확정은 추후). 4번째=shareId(공유후카드 사진 조회용).
                 container.preferences.collabAssignments = container.preferences.collabAssignments + "${customer.id}|$partner|$partnerName|${r.shareId}"
+                if (startHour in 0..23) container.preferences.lastCollabStartHour = startHour  // 다음 요청 때 미리 선택
                 loadCollabAssignments()
                 if (r.deduped) {
                     _toast.value = "이미 이 현장으로 협업 중인 사장님이에요 (새 알림은 안 가요)"
@@ -250,6 +254,35 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             }.toSet()
         loadCollabAssignments()
         _toast.value = "협업 요청을 내 목록에서 뺐어요"
+    }
+
+    /** 전문가 배정 시트 안 "+추가" — 팀원 즉시 등록(서버 invite). 등록 후 칩에 바로 뜸. (2026-06-14) */
+    fun addTeamMember(name: String, phone: String) {
+        val owner = ownerPhone.filter { it.isDigit() }
+        if (owner.length < 9) { _toast.value = "먼저 더보기 → 사업자 정보에서 내 전화번호를 등록해주세요"; return }
+        val nm = name.trim(); val ph = phone.filter { it.isDigit() }
+        if (nm.isBlank()) { _toast.value = "이름을 입력해주세요"; return }
+        if (ph.length < 9) { _toast.value = "전화번호를 확인해주세요"; return }
+        viewModelScope.launch {
+            container.teamRepository.invite(owner, nm, ph)
+                .onSuccess { loadTeam(); _toast.value = "팀원 ${nm}님을 추가했어요" }
+                .onFailure { _toast.value = "팀원 추가 실패 — 잠시 후 다시 시도해주세요" }
+        }
+    }
+
+    /** 전문가 배정 시트 안 "+추가" — 일당사장(수첩 WORKER) 즉시 등록. 일당(만원)은 ×10000 저장. 칩에 바로 뜸(Flow). (2026-06-14) */
+    fun addCollabPartner(name: String, phone: String, wageManwon: Int?) {
+        val nm = name.trim(); val ph = phone.filter { it.isDigit() }
+        if (nm.isBlank()) { _toast.value = "이름을 입력해주세요"; return }
+        if (ph.length < 9) { _toast.value = "전화번호를 확인해주세요"; return }
+        viewModelScope.launch {
+            container.notebookRepository.add(
+                kind = com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity.KIND_WORKER,
+                name = nm, phone = ph, tag = "", memo = "",
+                wage = wageManwon?.takeIf { it > 0 }?.let { it.toLong() * 10000 }
+            )
+            _toast.value = "일당사장 ${nm}님을 추가했어요"
+        }
     }
 
     /**

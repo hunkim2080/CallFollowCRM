@@ -36,6 +36,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.ui.text.input.KeyboardType
+import com.detailline.callfollowcrm.presentation.component.FormattedTextField
 import com.detailline.callfollowcrm.presentation.component.SheetFieldLabel
 import com.detailline.callfollowcrm.presentation.component.SheetTextField
 import androidx.compose.material.icons.filled.Check
@@ -383,6 +384,9 @@ fun ScheduleScreen(
             assignedCollabPhones = collabAssign[c.id].orEmpty().map { it.phone }.toSet(),
             initiallySelected = assignedIds,
             initialMemo = existingMemo,
+            defaultStartHour = viewModel.lastCollabStartHour,
+            onAddTeamMember = { name, phone -> viewModel.addTeamMember(name, phone) },
+            onAddWorker = { name, phone, wage -> viewModel.addCollabPartner(name, phone, wage) },
             onDismiss = { assignTarget = null },
             onSave = { selectedIds, memo ->
                 val dayStart = DateTimeUtils.startOfDay(c.scheduledWorkDate ?: System.currentTimeMillis())
@@ -610,13 +614,13 @@ private fun CalendarDay(
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.fillMaxWidth()) {
                     for (lane in 0..lastLane) {
                         when {
-                            lane == collabLane -> CalBar(
-                                BarSeg.SINGLE, if (isSelected) Color.White else Color(0xFF7C5CFC)
-                            )
+                            // 막대는 날짜 동그라미 '밖(아래)' 흰 배경 위 → 선택돼도 흰색이면 안 보임(사장님 신고).
+                            //   선택 여부와 무관하게 색 유지(협업=보라/지난=회색/다가올=초록).
+                            lane == collabLane -> CalBar(BarSeg.SINGLE, Color(0xFF7C5CFC))
                             else -> {
                                 val bar = cell.bars.firstOrNull { it.lane == lane }
                                 if (bar != null) {
-                                    val c = if (isSelected) Color.White else if (bar.past) TossTextTertiary else TossSuccess
+                                    val c = if (bar.past) TossTextTertiary else TossSuccess
                                     CalBar(bar.seg, c)
                                 } else {
                                     // 빈 lane — 위 칸과 세로 위치를 맞춰 여러날 막대가 가로로 이어지게.
@@ -784,8 +788,9 @@ private fun DayJobCard(
                 PayStatusReadOnly(row)
             }
             // "정산·현금흐름에서 보기" 링크 제거(2026-06-11): 카드 탭하면 고객 상세에 정산이 이미 다 있어 불필요했음.
-            // 프로토 .assign-line — 팀원 현장 배정 (팀원 있을 때만 노출).
-            if (teamAvailable || collabPartnerNames.isNotEmpty()) {
+            // 프로토 .assign-line — 전문가 배정. 항상 노출(팀원·일당사장 0명이어도) → 시트의 "+추가"로 바로 등록. (2026-06-14 사장님)
+            run {
+                @Suppress("UNUSED_EXPRESSION") teamAvailable  // (게이팅 제거 — 빈 상태에서도 배정/추가 진입 가능해야 함)
                 Spacer(Modifier.height(10.dp))
                 Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
                 Row(
@@ -1035,18 +1040,36 @@ private fun AssignTeamSheet(
     assignedCollabPhones: Set<String>,
     initiallySelected: Set<String>,
     initialMemo: String,
+    defaultStartHour: Int,
+    onAddTeamMember: (name: String, phone: String) -> Unit,
+    onAddWorker: (name: String, phone: String, wageManwon: Int?) -> Unit,
     onDismiss: () -> Unit,
     onSave: (Set<String>, String) -> Unit,
     onInviteCollab: (phone: String, force: Boolean, memo: String, dailyWage: Int?, startHour: Int) -> Unit
 ) {
     var selected by remember { mutableStateOf(initiallySelected) }
     var memo by remember { mutableStateOf(initialMemo) }
-    var collabMemo by remember { mutableStateOf("") } // 일당사장(협업)에게 전달할 메모
-    var collabWage by remember { mutableStateOf("") }  // 그날 일당(만원, 숫자만)
-    var collabHour by remember { mutableStateOf(-1) }  // 출근시간(24h), -1=미선택
+    // 일당사장 탭 시 펼쳐지는 요청 카드용 — 사람마다 일당(저장값 자동)·출근시간(마지막값)·전달을 그때 채움.
+    var collabMemo by remember { mutableStateOf("") }
+    var collabWage by remember { mutableStateOf("") }
+    var collabHour by remember { mutableStateOf(defaultStartHour) }
     var pendingInvite by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity?>(null) }
     var pendingResend by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity?>(null) }
+    // 시트 안 "+추가" 인라인 폼 (한 번에 하나만 열림)
+    var addTeamOpen by remember { mutableStateOf(false) }
+    var addWorkerOpen by remember { mutableStateOf(false) }
+    var newName by remember { mutableStateOf("") }
+    var newPhone by remember { mutableStateOf("") }
+    var newWage by remember { mutableStateOf("") }
     val noRipple = remember { MutableInteractionSource() }
+
+    // 일당사장 칩 탭 → 그 사람 값으로 요청 카드 펼침(일당=저장값, 출근시간=마지막값).
+    fun openInvite(p: com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity, resend: Boolean) {
+        collabWage = p.wage?.takeIf { it > 0 }?.let { (it / 10000).toString() } ?: ""
+        collabHour = defaultStartHour
+        collabMemo = ""
+        if (resend) { pendingResend = p; pendingInvite = null } else { pendingInvite = p; pendingResend = null }
+    }
 
     // 스크림(탭 시 닫힘) + 하단 정렬 카드.
     Box(
@@ -1063,7 +1086,7 @@ private fun AssignTeamSheet(
                 .imePadding()
                 .padding(horizontal = 20.dp)
                 .padding(top = 8.dp, bottom = 20.dp)
-                .heightIn(max = 620.dp)
+                .heightIn(max = 640.dp)
                 .verticalScroll(rememberScrollState())
         ) {
             // grip
@@ -1075,44 +1098,52 @@ private fun AssignTeamSheet(
             Spacer(Modifier.height(4.dp))
             Text("${siteTitle}에 보낼 팀원이나 협업 사장님을 고르세요.",
                 fontSize = 13.sp, color = TossTextTertiary, lineHeight = 19.sp)
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(18.dp))
 
-            // ── 👷 팀원 ──
+            // ── 👷 팀원 ── (칩 토글 + 끝에 + 추가)
             Text("👷 팀원", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary,
                 modifier = Modifier.padding(start = 2.dp, bottom = 9.dp))
-            if (members.isEmpty()) {
-                Text("등록된 팀원이 없어요. 더보기 › 팀 관리에서 추가해요.",
-                    fontSize = 12.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp))
-            } else {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    members.forEach { m ->
-                        val on = selected.contains(m.memberId)
-                        val roleLabel = if (m.role == "owner") "대표" else "팀원"
-                        Row(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(999.dp))
-                                .background(if (on) TossBlue else TossGrayBg)
-                                .clickable {
-                                    selected = if (on) selected - m.memberId else selected + m.memberId
-                                }
-                                .padding(horizontal = 14.dp, vertical = 9.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            if (on) {
-                                Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
-                                Spacer(Modifier.width(5.dp))
-                            }
-                            Text(m.name, fontSize = 13.5.sp, fontWeight = FontWeight.Bold,
-                                color = if (on) Color.White else TossTextPrimary)
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                members.forEach { m ->
+                    val on = selected.contains(m.memberId)
+                    val roleLabel = if (m.role == "owner") "대표" else "팀원"
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(if (on) TossBlue else TossGrayBg)
+                            .clickable { selected = if (on) selected - m.memberId else selected + m.memberId }
+                            .padding(horizontal = 14.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (on) {
+                            Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
                             Spacer(Modifier.width(5.dp))
-                            Text(roleLabel, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                                color = if (on) Color.White.copy(alpha = 0.8f) else TossTextTertiary)
                         }
+                        Text(m.name, fontSize = 13.5.sp, fontWeight = FontWeight.Bold,
+                            color = if (on) Color.White else TossTextPrimary)
+                        Spacer(Modifier.width(5.dp))
+                        Text(roleLabel, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                            color = if (on) Color.White.copy(alpha = 0.8f) else TossTextTertiary)
                     }
                 }
+                AddChip("팀원 추가", TossGrayBg, TossBlue) {
+                    newName = ""; newPhone = ""; newWage = ""; addWorkerOpen = false; addTeamOpen = !addTeamOpen
+                }
+            }
+            if (addTeamOpen) {
+                QuickAddForm(
+                    title = "새 팀원 추가", showWage = false,
+                    name = newName, onName = { newName = it },
+                    phone = newPhone, onPhone = { newPhone = it },
+                    wage = "", onWage = {}, accent = TossBlue,
+                    onCancel = { addTeamOpen = false },
+                    onSubmit = { onAddTeamMember(newName, newPhone); addTeamOpen = false; newName = ""; newPhone = "" }
+                )
+            }
+            if (selected.isNotEmpty()) {
                 Spacer(Modifier.height(14.dp))
                 // 직원 전달 메모 — 고객 메모와 별개. 팀원 화면에 '대표님 전달사항'으로 뜸(고객 메모는 안 보임).
                 SheetFieldLabel("직원에게 전달 (선택)")
@@ -1127,105 +1158,112 @@ private fun AssignTeamSheet(
                     fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 3.dp, start = 2.dp))
             }
 
-            // ── 🤝 일당사장 (인원 관리 등록) ──
+            // ── 🤝 일당사장 ── (칩 탭=요청 펼침 + 끝에 + 추가)
             Spacer(Modifier.height(16.dp))
             Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
             Spacer(Modifier.height(16.dp))
             Text("🤝 일당사장", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary,
                 modifier = Modifier.padding(start = 2.dp, bottom = 4.dp))
-            Text("탭하면 이 현장 협업 요청해요. 이미 요청한 분은 보라색 ✓ — 다시 누르면 한 번 더 보내요. 고객 번호·대화는 안 보내요.",
+            Text("탭하면 그 사장님께 이 현장 협업 요청해요. 이미 요청한 분은 보라색 ✓. 고객 번호·대화는 안 보내요.",
                 fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
-            // 협업 사장님께 보낼 정보 — 그날 일당·출근시간·전달메모. 사람 탭 전에 입력(탭하면 이 값들로 요청 감).
-            if (collabPartners.isNotEmpty()) {
-                SheetFieldLabel("그날 일당 (만원, 선택)")
-                SheetTextField(
-                    collabWage, { collabWage = it.filter { c -> c.isDigit() }.take(4) },
-                    placeholder = "예: 25", singleLine = true
-                )
-                Spacer(Modifier.height(12.dp))
-                SheetFieldLabel("출근 시간 (선택)")
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    listOf(7, 8, 9, 10, 11, 13, 14).forEach { h ->
-                        val on = collabHour == h
-                        val ampm = if (h < 12) "오전" else "오후"; val h12 = if (h % 12 == 0) 12 else h % 12
-                        Box(
-                            Modifier.clip(RoundedCornerShape(999.dp))
-                                .background(if (on) Color(0xFF7C5CFC) else TossGrayBg)
-                                .clickable { collabHour = if (on) -1 else h }
-                                .padding(horizontal = 13.dp, vertical = 8.dp)
-                        ) {
-                            Text("$ampm ${h12}시", fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
-                                color = if (on) Color.White else TossTextSecondary, maxLines = 1)
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                collabPartners.forEach { p ->
+                    val pPhone = p.phone.filter { it.isDigit() }
+                    val requested = pPhone.isNotEmpty() &&
+                        assignedCollabPhones.any { it.filter { d -> d.isDigit() }.takeLast(8) == pPhone.takeLast(8) }
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(if (requested) Color(0xFF7C5CFC) else Color(0xFFF1ECFF))
+                            .clickable { openInvite(p, requested) }
+                            .padding(horizontal = 14.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (requested) {
+                            Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                        } else {
+                            Text("🤝", fontSize = 12.sp)
                         }
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-                SheetFieldLabel("사장님께 전달 (선택)")
-                SheetTextField(
-                    collabMemo, { collabMemo = it },
-                    placeholder = "예: 오전 9시 현장 앞에서 만나요 · 사다리차 가져와주세요",
-                    singleLine = false, minHeightDp = 56
-                )
-                Text("일당·시간·전달은 협업 사장님 화면에 함께 보여요. 사람 탭 전에 적어주세요.",
-                    fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 6.dp, start = 2.dp))
-                Spacer(Modifier.height(12.dp))
-            }
-            if (collabPartners.isEmpty()) {
-                Text("더보기 › 인원 관리 › 일당사장에 등록하면 여기 떠요. 또는 고객 정보 › 이 현장 함께 하기에서 새로 초대해요.",
-                    fontSize = 12.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp))
-            } else {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    collabPartners.forEach { p ->
-                        val pPhone = p.phone.filter { it.isDigit() }
-                        val requested = pPhone.isNotEmpty() &&
-                            assignedCollabPhones.any { it.filter { d -> d.isDigit() }.takeLast(8) == pPhone.takeLast(8) }
-                        Row(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(999.dp))
-                                .background(if (requested) Color(0xFF7C5CFC) else Color(0xFFF1ECFF))
-                                .clickable { if (requested) pendingResend = p else pendingInvite = p }
-                                .padding(horizontal = 14.dp, vertical = 9.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            if (requested) {
-                                Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
-                            } else {
-                                Text("🤝", fontSize = 12.sp)
-                            }
+                        Spacer(Modifier.width(5.dp))
+                        Text(p.name, fontSize = 13.5.sp, fontWeight = FontWeight.Bold,
+                            color = if (requested) Color.White else Color(0xFF7C5CFC))
+                        if (requested) {
                             Spacer(Modifier.width(5.dp))
-                            Text(p.name, fontSize = 13.5.sp, fontWeight = FontWeight.Bold,
-                                color = if (requested) Color.White else Color(0xFF7C5CFC))
-                            if (requested) {
-                                Spacer(Modifier.width(5.dp))
-                                Text("요청함", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.85f))
-                            }
+                            Text("요청함", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.85f))
                         }
                     }
                 }
+                AddChip("일당사장 추가", Color(0xFFF1ECFF), Color(0xFF7C5CFC)) {
+                    newName = ""; newPhone = ""; newWage = ""; addTeamOpen = false; addWorkerOpen = !addWorkerOpen
+                }
             }
-            // 협업 요청 확인 — 시트 안 인라인(별도 창 X → 이중 어둠 없음). 탭한 사람 확인 후 보내기.
+            if (collabPartners.isEmpty() && !addWorkerOpen) {
+                Spacer(Modifier.height(8.dp))
+                Text("아직 등록된 일당사장이 없어요. 위 ‘+ 일당사장 추가’로 등록해보세요.",
+                    fontSize = 12.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp))
+            }
+            if (addWorkerOpen) {
+                QuickAddForm(
+                    title = "새 일당사장 추가", showWage = true,
+                    name = newName, onName = { newName = it },
+                    phone = newPhone, onPhone = { newPhone = it },
+                    wage = newWage, onWage = { newWage = it.filter { c -> c.isDigit() }.take(4) },
+                    accent = Color(0xFF7C5CFC),
+                    onCancel = { addWorkerOpen = false },
+                    onSubmit = {
+                        onAddWorker(newName, newPhone, newWage.toIntOrNull())
+                        addWorkerOpen = false; newName = ""; newPhone = ""; newWage = ""
+                    }
+                )
+            }
+
+            // 일당사장 탭 시 펼쳐지는 요청 카드 — 일당(자동)·출근시간(기본)·전달을 그 사람에게 보냄.
             val pendingP = pendingInvite ?: pendingResend
             if (pendingP != null) {
                 val isResend = pendingResend != null
                 Spacer(Modifier.height(14.dp))
                 Column(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFF1ECFF)).padding(14.dp)
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFF7F3FF)).padding(14.dp)
                 ) {
-                    Text(if (isResend) "이미 요청한 사장님이에요" else "협업 요청 보내기",
+                    Text(if (isResend) "${pendingP.name} 사장님 — 한 번 더 보내기" else "${pendingP.name} 사장님께 요청",
                         fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, color = Color(0xFF6B4FD8))
-                    Spacer(Modifier.height(5.dp))
-                    Text(
-                        if (isResend) "${pendingP.name} 사장님께 '${siteTitle}'을 한 번 더 보낼까요? 상대에게 알림이 다시 가요."
-                        else "${pendingP.name} 사장님께 '${siteTitle}'을 협업 요청할까요? 고객 번호·대화는 안 보내요.",
-                        fontSize = 12.5.sp, color = Color(0xFF5A4A7A), lineHeight = 18.sp
+                    Spacer(Modifier.height(10.dp))
+                    SheetFieldLabel("그날 일당 (만원, 선택)")
+                    SheetTextField(
+                        collabWage, { collabWage = it.filter { c -> c.isDigit() }.take(4) },
+                        placeholder = "예: 25", keyboardType = KeyboardType.Number, singleLine = true
                     )
                     Spacer(Modifier.height(12.dp))
+                    SheetFieldLabel("출근 시간 (선택)")
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        listOf(7, 8, 9, 10, 11, 13, 14).forEach { h ->
+                            val on = collabHour == h
+                            val ampm = if (h < 12) "오전" else "오후"; val h12 = if (h % 12 == 0) 12 else h % 12
+                            Box(
+                                Modifier.clip(RoundedCornerShape(999.dp))
+                                    .background(if (on) Color(0xFF7C5CFC) else Color.White)
+                                    .clickable { collabHour = if (on) -1 else h }
+                                    .padding(horizontal = 13.dp, vertical = 8.dp)
+                            ) {
+                                Text("$ampm ${h12}시", fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
+                                    color = if (on) Color.White else TossTextSecondary, maxLines = 1)
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    SheetFieldLabel("사장님께 전달 (선택)")
+                    SheetTextField(
+                        collabMemo, { collabMemo = it },
+                        placeholder = "예: 현장 앞에서 만나요 · 사다리차 가져와주세요",
+                        singleLine = false, minHeightDp = 56
+                    )
+                    Spacer(Modifier.height(14.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Box(
-                            Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
+                            Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(Color.White)
                                 .clickable { pendingInvite = null; pendingResend = null }.padding(vertical = 12.dp),
                             contentAlignment = Alignment.Center
                         ) { Text("취소", fontWeight = FontWeight.Bold, color = TossTextSecondary, fontSize = 14.sp) }
@@ -1265,6 +1303,69 @@ private fun AssignTeamSheet(
             }
         }
     }
+}
 
-    // (협업 요청 확인은 시트 안 인라인으로 이동 — AlertDialog 이중 어둠 제거)
+/** 전문가 배정 시트 "+ 추가" 칩 — 채움 배경(보더 미사용)으로 토글식 인라인 추가 폼을 연다. */
+@Composable
+private fun AddChip(label: String, bg: Color, fg: Color, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(bg)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 13.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Default.Add, null, tint = fg, modifier = Modifier.size(14.dp))
+        Spacer(Modifier.width(4.dp))
+        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = fg)
+    }
+}
+
+/** 전문가 배정 시트 안 인라인 "빠른 추가" 폼 — 이름+전화(+일당). 화면 이동 없이 바로 등록. (2026-06-14) */
+@Composable
+private fun QuickAddForm(
+    title: String,
+    showWage: Boolean,
+    name: String, onName: (String) -> Unit,
+    phone: String, onPhone: (String) -> Unit,
+    wage: String, onWage: (String) -> Unit,
+    accent: Color,
+    onCancel: () -> Unit,
+    onSubmit: () -> Unit
+) {
+    Spacer(Modifier.height(10.dp))
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFF4F6F8)).padding(14.dp)
+    ) {
+        Text(title, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, color = TossTextPrimary)
+        Spacer(Modifier.height(10.dp))
+        SheetFieldLabel("이름")
+        SheetTextField(name, onName, placeholder = "예: 박반장")
+        Spacer(Modifier.height(10.dp))
+        SheetFieldLabel("전화번호")
+        FormattedTextField(
+            value = phone, onValueChange = onPhone,
+            format = PhoneNumberFormatter::formatProgressive,
+            placeholder = "010-0000-0000", keyboardType = KeyboardType.Phone
+        )
+        if (showWage) {
+            Spacer(Modifier.height(10.dp))
+            SheetFieldLabel("그날 일당 (만원, 선택)")
+            SheetTextField(wage, onWage, placeholder = "예: 25", keyboardType = KeyboardType.Number)
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(
+                Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(Color.White)
+                    .clickable { onCancel() }.padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) { Text("취소", fontWeight = FontWeight.Bold, color = TossTextSecondary, fontSize = 14.sp) }
+            Box(
+                Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(accent)
+                    .clickable { onSubmit() }.padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) { Text("추가", fontWeight = FontWeight.ExtraBold, color = Color.White, fontSize = 14.sp) }
+        }
+    }
 }

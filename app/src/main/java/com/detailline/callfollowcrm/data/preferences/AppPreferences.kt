@@ -324,6 +324,11 @@ class AppPreferences(context: Context) {
         get() = prefs.getStringSet("collab_assignments", emptySet()) ?: emptySet()
         set(value) { prefs.edit().putStringSet("collab_assignments", value).commit() }
 
+    /** 전문가 배정에서 협업 요청 시 마지막으로 고른 출근시간(24h). 다음 요청 때 미리 선택됨. 기본 오전 9시. (2026-06-14) */
+    var lastCollabStartHour: Int
+        get() = prefs.getInt("last_collab_start_hour", 9)
+        set(value) { prefs.edit().putInt("last_collab_start_hour", value).apply() }
+
     /** 협업 현장(더보기→협업현장) 목록에서 밀어서 휴지통에 넣은 share_id 들. 서버 삭제 아님 — 목록에서 빼고 휴지통 보관(되살리기 가능). */
     var trashedSharedSiteIds: Set<String>
         get() = prefs.getStringSet("trashed_shared_site_ids", emptySet()) ?: emptySet()
