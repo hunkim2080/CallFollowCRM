@@ -93,10 +93,43 @@ import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 @Composable
 fun NotebookScreen(
     viewModel: NotebookViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    restrictKind: NotebookTab? = null  // null=양탭(수첩 원형) / VENDOR=거래처만 / WORKER=일당사장만
+) {
+    Scaffold(
+        containerColor = TossGrayBg,
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        when (restrictKind) { NotebookTab.WORKER -> "일당사장"; else -> "수첩" },
+                        fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "뒤로", tint = TossTextPrimary) }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
+            )
+        }
+    ) { inner ->
+        NotebookContent(viewModel, restrictKind, Modifier.padding(inner))
+    }
+}
+
+/**
+ * 수첩/인원관리 공용 본문 — Scaffold 없이 재사용. restrictKind 로 한 분류만(탭 숨김).
+ *   추가는 본문 "+추가" 줄로. (인원관리 일당사장 탭이 이걸 그대로 씀)
+ */
+@Composable
+fun NotebookContent(
+    viewModel: NotebookViewModel,
+    restrictKind: NotebookTab? = null,
+    modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val tab by viewModel.tabState.collectAsState()
+    val tabRaw by viewModel.tabState.collectAsState()
+    val tab = restrictKind ?: tabRaw
     val workers by viewModel.workers.collectAsState()
     val vendors by viewModel.vendors.collectAsState()
     val workerPhrases by viewModel.workerPhrases.collectAsState()
@@ -113,28 +146,8 @@ fun NotebookScreen(
     // 분류 필터 (탭 바뀌면 전체로 리셋).
     var filter by remember(tab) { mutableStateOf("all") }
 
-    Scaffold(
-        containerColor = TossGrayBg,
-        topBar = {
-            TopAppBar(
-                title = { Text("수첩", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "뒤로", tint = TossTextPrimary) }
-                },
-                actions = {
-                    // 프로토 우상단 + (흰 둥근 버튼)
-                    Box(
-                        Modifier.padding(end = 12.dp).size(38.dp).clip(RoundedCornerShape(11.dp))
-                            .background(Color.White)
-                            .clickable { editing = NotebookContactEntity(kind = tab.kind, name = "", createdAt = 0, updatedAt = 0) },
-                        contentAlignment = Alignment.Center
-                    ) { Icon(Icons.Default.Add, "추가", tint = TossBlue, modifier = Modifier.size(20.dp)) }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
-            )
-        }
-    ) { inner ->
-        Column(Modifier.padding(inner).fillMaxSize().background(TossGrayBg)) {
+    Column(modifier.fillMaxSize().background(TossGrayBg)) {
+        if (restrictKind == null) {
             Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 NotebookTab.values().forEach { t ->
                     val sel = t == tab
@@ -151,6 +164,9 @@ fun NotebookScreen(
                     }
                 }
             }
+        } else {
+            Spacer(Modifier.height(12.dp))
+        }
             // 프로토 수첩 info-note 안내 배너
             val noteText = if (tab == NotebookTab.WORKER)
                 "필요할 때 부르는 일당·알바를 모아두는 곳이에요. 분류로 등록해두면 필요한 사람만 골라 부르기 쉬워요."
@@ -236,8 +252,7 @@ fun NotebookScreen(
                 }
             }
         }
-    }
-
+    // ── 시트들(편집/문자/현장) — NotebookContent 안에서 그대로 ──
     editing?.let { target ->
         ContactDialog(
             target = target,

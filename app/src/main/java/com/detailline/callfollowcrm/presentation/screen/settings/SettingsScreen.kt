@@ -228,10 +228,10 @@ fun SettingsScreen(
                 SetupCheckCard()
 
                 SettingsGroup("함께 일하는 사람") {
+                    LockRow(Icons.Filled.Group, TossBlueSoft, TossBlue, "인원 관리",
+                        "팀원 · 일당사장 — 현장에 보낼 사람 관리", tier = "비즈니스", onClick = onOpenTeam)
                     LockRow(Icons.Filled.Group, Color(0xFFFFF3DF), Color(0xFFF6A609), "수첩",
-                        "일당·알바 · 거래처 — 자주 부르는 사람·업체 모아두기", onClick = onOpenNotebook)
-                    LockRow(Icons.Filled.Group, TossBlueSoft, TossBlue, "팀 관리",
-                        "팀원 초대 · 현장 배정 · 출발 알림", tier = "비즈니스", onClick = onOpenTeam)
+                        "거래처 — 자재·협력·장비 자주 거래하는 곳", onClick = onOpenNotebook)
                     LockRow(Icons.Filled.Group, Color(0xFFF1ECFE), Color(0xFF7C5CFC), "협업 현장",
                         "다른 사장님과 현장 하나만 같이 보기", tier = "비즈니스", onClick = onOpenCollabSites)
                 }

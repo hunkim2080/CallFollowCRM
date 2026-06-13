@@ -456,14 +456,22 @@ fun AppNavHost(
 
         composable(Destinations.NOTEBOOK) {
             val vm: NotebookViewModel = viewModel(factory = viewModelFactory { NotebookViewModel(container) })
-            NotebookScreen(viewModel = vm, onBack = { navController.popBackStack() })
+            // 수첩 = 거래처만 (일당·알바는 인원 관리로 이동).
+            NotebookScreen(
+                viewModel = vm,
+                onBack = { navController.popBackStack() },
+                restrictKind = com.detailline.callfollowcrm.presentation.screen.notebook.NotebookTab.VENDOR
+            )
         }
 
         composable(Destinations.TEAM) {
             val vm: com.detailline.callfollowcrm.presentation.screen.team.TeamViewModel =
                 viewModel(factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.team.TeamViewModel(container) })
+            // 인원 관리 = 팀원(서버) + 일당사장(수첩 WORKER). NotebookViewModel 도 주입.
+            val nbVm: NotebookViewModel = viewModel(factory = viewModelFactory { NotebookViewModel(container) })
             com.detailline.callfollowcrm.presentation.screen.team.TeamScreen(
                 viewModel = vm,
+                notebookViewModel = nbVm,
                 onBack = { navController.popBackStack() }
             )
         }

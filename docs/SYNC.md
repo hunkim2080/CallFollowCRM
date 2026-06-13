@@ -4185,3 +4185,13 @@ curl -s -X POST http://localhost:8000/api/recruit/select -H "Content-Type: appli
 
 ### 다음 액션 (사장님)
 한 줄: commit + push + cp + launchctl kickstart.
+
+## 2026-06-13 (android 추가11) — 인원 관리 구조개편 (프로토 의도적 변경)
+사장님 요청: 팀관리→인원관리(팀원+일당사장), 수첩=거래처만.
+- **NotebookScreen 분리**: 본문을 `NotebookContent(viewModel, restrictKind, modifier)`(Scaffold 없음, 재사용)로 추출. NotebookScreen=얇은 래퍼. restrictKind=VENDOR/WORKER/null.
+- **수첩** = NotebookScreen(restrictKind=VENDOR) → 거래처만(일당 탭 숨김).
+- **인원 관리**(TeamScreen, 제목 "팀"→"인원 관리"): [팀원][일당사장] 토글. 팀원=기존 서버 팀, 일당사장=NotebookContent(WORKER). NotebookViewModel 주입(nav). 토글은 스크롤 밖, 각 분기 자기 스크롤(중첩 스크롤 안전).
+- **SettingsScreen**: "팀 관리"→"인원 관리"(팀원·일당사장), 수첩 부제→거래처. 순서 인원관리 먼저.
+- ⚠️ **프로토 의도적 변경**: 프로토 `s-team`(팀 관리) + 수첩[일당/거래처] → 인원관리[팀원/일당사장] + 수첩[거래처]. 사장님 명시 요청. 현황판/프로토 반영은 후속.
+- 협업 후보 출처(ScheduleVM collabPartners=WORKER tag "협업")는 같은 DB라 무영향.
+- 서버 무관(app-only). commit: cfde219

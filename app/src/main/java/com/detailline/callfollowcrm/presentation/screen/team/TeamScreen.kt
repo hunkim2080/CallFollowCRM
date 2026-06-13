@@ -103,6 +103,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun TeamScreen(
     viewModel: TeamViewModel,
+    notebookViewModel: com.detailline.callfollowcrm.presentation.screen.notebook.NotebookViewModel,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -113,6 +114,7 @@ fun TeamScreen(
     val recents by viewModel.recentNumbers.collectAsState()
     val toast by viewModel.toast.collectAsState()
     var addSheetOpen by remember { mutableStateOf(false) }
+    var peopleTab by remember { mutableStateOf("team") } // "team" 팀원 | "worker" 일당사장
 
     LaunchedEffect(Unit) { viewModel.load() }
     LaunchedEffect(toast) {
@@ -126,7 +128,7 @@ fun TeamScreen(
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
-                title = { Text("팀", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary) },
+                title = { Text("인원 관리", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, "뒤로", tint = TossTextPrimary)
@@ -136,17 +138,24 @@ fun TeamScreen(
             )
         }
     ) { inner ->
-        if (viewModel.ownerPhoneMissing) {
-            OwnerMissingNotice(Modifier.padding(inner))
-            return@Scaffold
-        }
-        Column(
-            modifier = Modifier
-                .padding(inner)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp)
-        ) {
+        Column(Modifier.padding(inner).fillMaxSize()) {
+          PeopleToggle(peopleTab) { peopleTab = it }
+          if (peopleTab == "worker") {
+            com.detailline.callfollowcrm.presentation.screen.notebook.NotebookContent(
+                notebookViewModel,
+                com.detailline.callfollowcrm.presentation.screen.notebook.NotebookTab.WORKER,
+                Modifier.weight(1f)
+            )
+          } else if (viewModel.ownerPhoneMissing) {
+            OwnerMissingNotice(Modifier.weight(1f))
+          } else {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp)
+            ) {
             Spacer(Modifier.height(4.dp))
             // 프로토 .biz-banner — 보라 그라데이션
             Column(
@@ -254,6 +263,8 @@ fun TeamScreen(
                 }
             }
             Spacer(Modifier.height(24.dp))
+            }
+          }
         }
     }
 
@@ -271,6 +282,29 @@ fun TeamScreen(
         )
     }
     } // Box
+}
+
+/** 인원 관리 [팀원][일당사장] 세그먼트 토글. */
+@Composable
+private fun PeopleToggle(current: String, onSelect: (String) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(16.dp).clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFFEEF0F3)).padding(3.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        listOf("team" to "팀원", "worker" to "일당사장").forEach { (key, label) ->
+            val on = current == key
+            Box(
+                Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
+                    .background(if (on) Color.White else Color.Transparent)
+                    .clickable { onSelect(key) }.padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(label, fontSize = 14.sp, fontWeight = if (on) FontWeight.ExtraBold else FontWeight.Medium,
+                    color = if (on) TossTextPrimary else TossTextSecondary)
+            }
+        }
+    }
 }
 
 /** 사업자 전화 미설정 안내. */
