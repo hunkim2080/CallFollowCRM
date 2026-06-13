@@ -3,9 +3,8 @@
 package com.detailline.callfollowcrm.presentation.overlay
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,13 +12,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,12 +34,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.data.local.entity.MessageTemplateEntity
-import com.detailline.callfollowcrm.domain.model.LeadHeat
 import com.detailline.callfollowcrm.presentation.theme.CallFollowCrmTheme
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
@@ -52,24 +53,26 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 import com.detailline.callfollowcrm.service.CardMode
 import com.detailline.callfollowcrm.service.CardState
 import com.detailline.callfollowcrm.service.SendStatus
+import com.detailline.callfollowcrm.service.SummaryStatus
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 
 /**
- * 통화 직후 WindowManager 에 띄우는 카드. 두 모드 분기.
+ * 통화 직후 WindowManager 에 띄우는 카드. (프로토 triggerPostCall → openCallSummary)
  *
- * - AUTO_REPLY 모드: 상단에 자동 발송 카운트다운 영역 + 취소 버튼. 발송되거나 취소되면 영역만
- *   상태로 바뀌고, leadHeat/메모 입력은 계속 가능.
- * - MANUAL_CHOOSE 모드: leadHeat + 메모 + 템플릿 알약 칩. 칩 탭 = 3초 카운트다운 후 발송.
+ * - 수신/발신(대화 있음): 통화 요약(✨ 불릿) + AI 후속 문자 초안 + [다듬기][문자 보내기].
+ *     요약은 통화 끝나고 몇 초~십몇 초 걸리므로 "정리 중…" → 준비되면 자동으로 채워짐(스트리밍).
+ *     (에이닷이 녹음/통화내용 저장 → 자동 스캔 → 서버 요약. 공유 버튼 불필요.)
+ * - 부재중(대화 없음): 기존 자동 응답 카운트다운 + 템플릿.
  */
 @Composable
 fun PostCallCard(
     state: CardState,
-    onPickLeadHeat: (LeadHeat) -> Unit,
-    onMemoChange: (String) -> Unit,
     onCancelAutoReply: () -> Unit,
     onPickTemplate: (MessageTemplateEntity) -> Unit,
     onCancelManualSend: () -> Unit,
-    onSummarize: () -> Unit,
+    onEditDraft: (String) -> Unit,
+    onToggleEditDraft: () -> Unit,
+    onSendDraft: () -> Unit,
     onClose: () -> Unit
 ) {
     // 오버레이는 자체 Compose 컨텍스트라 테마를 직접 감싸야 토스 색/폰트 적용된다.
@@ -86,37 +89,35 @@ fun PostCallCard(
                 shadowElevation = 12.dp
             ) {
                 Column(
-                    modifier = Modifier
-                        .padding(horizontal = 18.dp, vertical = 16.dp),
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     HeaderRow(state, onClose)
 
-                    // 받은 통화(대화 있음) → "통화 정리해서 보내기" (A안). 부재중은 대화 없으니 미노출.
-                    if (!state.isMissed) {
-                        SummarizeButton(onSummarize)
-                    }
-
-                    // 자동 발송 영역 — AUTO_REPLY 모드에서만, 그리고 발송이 끝나기 전까진 카운트다운 진행 중
-                    if (state.mode == CardMode.AUTO_REPLY || state.sendStatus == SendStatus.SENT || state.sendStatus == SendStatus.FAILED) {
-                        AutoReplyBanner(state, onCancel = onCancelAutoReply)
-                    }
-
-                    // 리드 온도 — 항상 노출. 분류된 직후엔 선택된 칩이 강조됨.
-                    LeadHeatPicker(state.leadHeat, onPickLeadHeat)
-
-                    // 메모 — 항상 노출. 자동 발송 진행 중에도 입력 가능 (카드는 안 닫히므로).
-                    MemoField(state.memo, onMemoChange)
-
-                    // 수동 템플릿 영역 — MANUAL_CHOOSE 모드 일 때만.
-                    if (state.mode == CardMode.MANUAL_CHOOSE) {
-                        ManualTemplateArea(
-                            templates = state.manualTemplates,
-                            sendStatus = state.sendStatus,
-                            countdownMs = state.countdownMs,
-                            pendingTemplateTitle = state.pendingTemplateTitle,
-                            onPick = onPickTemplate,
-                            onCancel = onCancelManualSend
+                    if (state.isMissed) {
+                        // 부재중 — 대화 없음 → 자동 응답 / 템플릿 (기존 흐름 유지).
+                        if (state.mode == CardMode.AUTO_REPLY || state.sendStatus == SendStatus.SENT || state.sendStatus == SendStatus.FAILED) {
+                            AutoReplyBanner(state, onCancel = onCancelAutoReply)
+                        }
+                        if (state.mode == CardMode.MANUAL_CHOOSE) {
+                            ManualTemplateArea(
+                                templates = state.manualTemplates,
+                                sendStatus = state.sendStatus,
+                                countdownMs = state.countdownMs,
+                                pendingTemplateTitle = state.pendingTemplateTitle,
+                                onPick = onPickTemplate,
+                                onCancel = onCancelManualSend
+                            )
+                        }
+                    } else {
+                        // 수신/발신 — 통화 요약 + 후속 문자.
+                        CallSummarySection(
+                            state = state,
+                            onEditDraft = onEditDraft,
+                            onToggleEditDraft = onToggleEditDraft,
+                            onSendDraft = onSendDraft,
+                            onPickTemplate = onPickTemplate,
+                            onCancelManualSend = onCancelManualSend
                         )
                     }
                 }
@@ -126,26 +127,150 @@ fun PostCallCard(
 }
 
 @Composable
-private fun SummarizeButton(onSummarize: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(Color(0xFF7C5CFC))
-            .clickable(onClick = onSummarize)
-            .padding(vertical = 13.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text("📝 통화 정리해서 보내기", color = Color.White, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
+private fun CallSummarySection(
+    state: CardState,
+    onEditDraft: (String) -> Unit,
+    onToggleEditDraft: () -> Unit,
+    onSendDraft: () -> Unit,
+    onPickTemplate: (MessageTemplateEntity) -> Unit,
+    onCancelManualSend: () -> Unit
+) {
+    when (state.summaryStatus) {
+        SummaryStatus.LOADING -> {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                color = TossBlueSoft
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = TossBlue)
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text("✨ 통화 정리 중…", color = TossBlue, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Spacer(Modifier.height(2.dp))
+                        Text("곧 요약과 보낼 문자를 보여드릴게요", color = TossTextSecondary, fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+
+        SummaryStatus.READY -> {
+            // ✨ 통화 요약 불릿
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                color = TossBlueSoft
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp)) {
+                    Text("✨ 통화에서 이런 얘기가 오갔어요", color = TossBlue, fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
+                    Spacer(Modifier.height(8.dp))
+                    state.summaryBullets.forEach { b ->
+                        Row(modifier = Modifier.padding(vertical = 2.dp)) {
+                            Text("•  ", color = TossTextSecondary, fontSize = 13.sp)
+                            Text(b, color = TossTextPrimary, fontSize = 13.sp, lineHeight = 19.sp)
+                        }
+                    }
+                }
+            }
+            Text("📞 에이닷 통화요약을 바탕으로 막내가 정리했어요", color = TossTextTertiary, fontSize = 11.sp)
+
+            // 고객에게 보낼 후속 문자 — 초안 있으면 다듬기/보내기, 없으면 템플릿 폴백.
+            if (state.draftText.isNotBlank() || state.draftEditing) {
+                Text("고객에게 보낼 후속 문자", color = TossTextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                if (state.draftEditing) {
+                    OutlinedTextField(
+                        value = state.draftText,
+                        onValueChange = onEditDraft,
+                        singleLine = false,
+                        keyboardOptions = KeyboardOptions.Default,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = TossBlue,
+                            unfocusedBorderColor = TossDivider,
+                            focusedTextColor = TossTextPrimary,
+                            unfocusedTextColor = TossTextPrimary,
+                            cursorColor = TossBlue,
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White
+                        )
+                    )
+                } else {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        color = TossGrayBg
+                    ) {
+                        Text(
+                            state.draftText,
+                            modifier = Modifier.padding(horizontal = 13.dp, vertical = 12.dp),
+                            color = TossTextPrimary, fontSize = 13.5.sp, lineHeight = 20.sp
+                        )
+                    }
+                }
+                when {
+                    state.draftSent -> Text("✓ 보냈어요", color = TossSuccess, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    state.draftFailed -> Text("⚠ 발송 실패 — 다시 시도해주세요", color = TossError, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    else -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(
+                            modifier = Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
+                                .border(1.dp, TossDivider, RoundedCornerShape(12.dp))
+                                .clickable(onClick = onToggleEditDraft).padding(vertical = 13.dp),
+                            contentAlignment = Alignment.Center
+                        ) { Text(if (state.draftEditing) "수정 완료" else "다듬기", color = TossTextSecondary, fontWeight = FontWeight.Bold, fontSize = 14.sp) }
+                        Box(
+                            modifier = Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
+                                .background(TossBlue).clickable(onClick = onSendDraft).padding(vertical = 13.dp),
+                            contentAlignment = Alignment.Center
+                        ) { Text("문자 보내기", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp) }
+                    }
+                }
+            } else {
+                // 요약은 됐는데 후속 문자 초안이 없는 경우 → 템플릿에서 골라 보내기.
+                ManualTemplateArea(
+                    templates = state.manualTemplates,
+                    sendStatus = state.sendStatus,
+                    countdownMs = state.countdownMs,
+                    pendingTemplateTitle = state.pendingTemplateTitle,
+                    onPick = onPickTemplate,
+                    onCancel = onCancelManualSend
+                )
+            }
+        }
+
+        SummaryStatus.UNAVAILABLE -> {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                color = TossGrayBg
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+                    Text("통화 요약을 못 가져왔어요", color = TossTextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "에이닷 자동 저장·폴더 연결을 확인해주세요. 아래에서 직접 골라 보낼 수 있어요.",
+                        color = TossTextTertiary, fontSize = 12.sp, lineHeight = 17.sp
+                    )
+                }
+            }
+            ManualTemplateArea(
+                templates = state.manualTemplates,
+                sendStatus = state.sendStatus,
+                countdownMs = state.countdownMs,
+                pendingTemplateTitle = state.pendingTemplateTitle,
+                onPick = onPickTemplate,
+                onCancel = onCancelManualSend
+            )
+        }
     }
 }
 
 @Composable
 private fun HeaderRow(state: CardState, onClose: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Column(modifier = Modifier
-            .weight(1f)) {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = PhoneNumberFormatter.format(state.phoneNumber),
                 style = MaterialTheme.typography.titleLarge,
@@ -153,7 +278,7 @@ private fun HeaderRow(state: CardState, onClose: () -> Unit) {
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = if (state.isMissed) "부재중 통화 · 첫 연락" else "수신 통화 · 첫 연락",
+                text = if (state.isMissed) "부재중 통화 · 첫 연락" else "방금 통화 종료",
                 style = MaterialTheme.typography.labelMedium,
                 color = TossTextTertiary
             )
@@ -226,80 +351,6 @@ private fun AutoReplyBanner(state: CardState, onCancel: () -> Unit) {
 }
 
 @Composable
-private fun LeadHeatPicker(selected: LeadHeat?, onPick: (LeadHeat) -> Unit) {
-    Column {
-        Text(
-            "이 고객 어땠어?",
-            style = MaterialTheme.typography.labelLarge,
-            color = TossTextPrimary,
-            fontWeight = FontWeight.SemiBold
-        )
-        Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            HeatChip(LeadHeat.COLD, selected, onPick)
-            HeatChip(LeadHeat.WARM, selected, onPick)
-        }
-    }
-}
-
-@Composable
-private fun HeatChip(heat: LeadHeat, selected: LeadHeat?, onPick: (LeadHeat) -> Unit) {
-    val isSelected = selected == heat
-    val bg = if (isSelected) TossBlueSoft else Color.White
-    val border = if (isSelected) TossBlue else TossDivider
-    val fg = if (isSelected) TossBlue else TossTextSecondary
-    Surface(
-        modifier = Modifier
-            .border(width = if (isSelected) 1.5.dp else 1.dp, color = border, shape = RoundedCornerShape(999.dp))
-            .background(bg, RoundedCornerShape(999.dp)),
-        shape = RoundedCornerShape(999.dp),
-        color = bg,
-        onClick = { onPick(heat) }
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(heat.emoji, fontSize = 16.sp)
-            Spacer(Modifier.size(6.dp))
-            Text(heat.label, color = fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-        }
-    }
-}
-
-@Composable
-private fun MemoField(memo: String, onChange: (String) -> Unit) {
-    Column {
-        Text(
-            "메모 (선택)",
-            style = MaterialTheme.typography.labelLarge,
-            color = TossTextPrimary,
-            fontWeight = FontWeight.SemiBold
-        )
-        Spacer(Modifier.height(8.dp))
-        OutlinedTextField(
-            value = memo,
-            onValueChange = onChange,
-            placeholder = { Text("이 고객 한 줄 메모", color = TossTextTertiary) },
-            singleLine = false,
-            keyboardOptions = KeyboardOptions.Default,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(70.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = TossBlue,
-                unfocusedBorderColor = TossDivider,
-                focusedTextColor = TossTextPrimary,
-                unfocusedTextColor = TossTextPrimary,
-                cursorColor = TossBlue,
-                focusedContainerColor = Color.White,
-                unfocusedContainerColor = Color.White
-            )
-        )
-    }
-}
-
-@Composable
 private fun ManualTemplateArea(
     templates: List<MessageTemplateEntity>,
     sendStatus: SendStatus,
@@ -360,7 +411,6 @@ private fun ManualTemplateArea(
                         fontSize = 12.sp
                     )
                 } else {
-                    // 칩들을 두 줄까지 자연스럽게 배치.
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         templates.chunked(2).forEach { rowItems ->
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

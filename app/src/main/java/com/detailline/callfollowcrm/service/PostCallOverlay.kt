@@ -24,9 +24,11 @@ import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.detailline.callfollowcrm.CallFollowCrmApplication
 import com.detailline.callfollowcrm.data.local.entity.MessageTemplateEntity
-import com.detailline.callfollowcrm.domain.model.LeadHeat
 import com.detailline.callfollowcrm.domain.model.MessageStatus
 import com.detailline.callfollowcrm.presentation.overlay.PostCallCard
+import com.detailline.callfollowcrm.recording.AdotFolderScanner
+import com.detailline.callfollowcrm.recording.AdotTextFolderScanner
+import com.detailline.callfollowcrm.recording.CallSummaryProgress
 import com.detailline.callfollowcrm.util.PermissionHelper
 import com.detailline.callfollowcrm.util.SmsSender
 import kotlinx.coroutines.CoroutineScope
@@ -36,6 +38,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -65,6 +68,9 @@ object PostCallOverlayManager {
     private var currentArgs: OverlayArgs? = null
     private var countdownJob: Job? = null
     private var autoDismissJob: Job? = null
+    private var summaryScanJob: Job? = null
+    private var summaryObserveJob: Job? = null
+    private var summaryTimeoutJob: Job? = null
 
     private val _state = MutableStateFlow<CardState?>(null)
     val state = _state.asStateFlow()
@@ -87,35 +93,39 @@ object PostCallOverlayManager {
 
     // ----- internal state mutations called from card UI -----
 
-    internal fun onLeadHeatPicked(heat: LeadHeat) {
-        val args = currentArgs ?: return
-        _state.update { it?.copy(leadHeat = heat) }
+    /** 후속 문자 초안 다듬기 — 입력 중 텍스트 갱신. */
+    internal fun onEditDraft(text: String) {
+        _state.update { it?.copy(draftText = text) }
         resetAutoDismiss()
-        ioScope.launch {
-            val app = appOrNull() ?: return@launch
-            // status 인자 = null → 기존 status 가 있으면 보존, 신규 생성 시엔 NEW_INQUIRY 가 기본.
-            // (드물게 동일 번호의 customer 가 이미 다른 단계 status 일 수 있어 강등 방지.)
-            val customer = app.container.customerRepository.upsertByPhone(
-                phoneNumber = args.phoneNumber,
-                leadHeat = heat
-            )
-            _state.update { it?.copy(customerId = customer.id) }
-        }
     }
 
-    internal fun onMemoChanged(text: String) {
-        _state.update { it?.copy(memo = text) }
+    /** [다듬기] 토글 — 읽기 ↔ 편집. */
+    internal fun onToggleEditDraft() {
+        _state.update { it?.copy(draftEditing = !(it.draftEditing)) }
         resetAutoDismiss()
-        // 메모는 debounce 가 필요하지만 간단히 매 변경 시 저장 (텍스트 짧고, 위험 없음).
+    }
+
+    /** [문자 보내기] — 현재 초안을 고객에게 발송. */
+    internal fun onSendDraft() {
         val args = currentArgs ?: return
+        val body = _state.value?.draftText?.trim().orEmpty()
+        if (body.isBlank()) return
+        resetAutoDismiss()
         ioScope.launch {
             val app = appOrNull() ?: return@launch
-            // 첫 메모 입력 시 Customer 가 아직 없을 수 있으므로 upsert. status 보존.
-            val customer = app.container.customerRepository.upsertByPhone(
-                phoneNumber = args.phoneNumber
+            val ctx = currentView?.context ?: return@launch
+            val customer = runCatching {
+                app.container.customerRepository.upsertByPhone(phoneNumber = args.phoneNumber)
+            }.getOrNull()
+            val ok = SmsSender.sendDirect(ctx.applicationContext, args.phoneNumber, body)
+            app.container.messageHistoryRepository.recordAutoSend(
+                phoneNumber = args.phoneNumber,
+                customerId = customer?.id,
+                templateId = null,
+                body = body,
+                status = if (ok) MessageStatus.INLINE_SENT else MessageStatus.INLINE_FAILED
             )
-            app.container.customerRepository.updateMemo(customer.id, text)
-            _state.update { it?.copy(customerId = customer.id) }
+            _state.update { it?.copy(draftEditing = false, draftSent = ok, draftFailed = !ok) }
         }
     }
 
@@ -166,19 +176,72 @@ object PostCallOverlayManager {
         hide()
     }
 
-    /** [📝 통화 정리해서 보내기] → 앱의 CallSummaryScreen 열고 카드 닫음. */
-    internal fun onSummarizeTapped() {
-        val args = currentArgs ?: return
-        val view = currentView ?: return
-        val ctx = view.context.applicationContext
-        // 이름은 화면이 phone 으로 lookup — 여기선 번호만 전달.
-        val intent = android.content.Intent(ctx, com.detailline.callfollowcrm.MainActivity::class.java).apply {
-            action = com.detailline.callfollowcrm.MainActivity.ACTION_CALL_SUMMARY
-            putExtra(com.detailline.callfollowcrm.MainActivity.EXTRA_PHONE_NUMBER, args.phoneNumber)
-            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
+    // ----- 통화 요약 스트리밍 (수신/발신 통화) -----
+
+    /**
+     * 카드가 떠 있는 동안 이 통화의 요약이 준비되면 카드에 채운다.
+     *   - 즉시 + 몇 초 간격으로 폴더 스캔(에이닷 파일 쓰기 지연 대응) → 워커보다 빠르게.
+     *   - callSummaryRepository(번호 suffix) + CallSummaryProgress 를 관찰해 READY/LOADING 갱신.
+     *   - 75초 안에 못 가져오면 UNAVAILABLE(템플릿 폴백).
+     */
+    private fun startSummaryStreaming(phone: String, openedAtMs: Long) {
+        val suffix = phone.filter { it.isDigit() }.takeLast(8)
+        if (suffix.length < 7) { _state.update { it?.copy(summaryStatus = SummaryStatus.UNAVAILABLE) }; return }
+        val app = appOrNull() ?: return
+        val ctx = currentView?.context?.applicationContext ?: return
+
+        // 빠른 결과를 위해 카드 쪽에서도 스캔을 몇 번 시도(중복은 dedup 으로 무해).
+        summaryScanJob = ioScope.launch {
+            for (waitMs in listOf(3_000L, 9_000L, 20_000L)) {
+                delay(waitMs)
+                if (_state.value?.summaryStatus != SummaryStatus.LOADING) return@launch
+                runCatching { AdotTextFolderScanner.scanNow(ctx, app.container) }
+                runCatching { AdotFolderScanner.scanAndSummarizeNow(ctx, app.container) }
+            }
         }
-        runCatching { ctx.startActivity(intent) }
-        hide()
+
+        summaryObserveJob = ioScope.launch {
+            combine(
+                app.container.callSummaryRepository.observeByPhoneSuffix(suffix),
+                CallSummaryProgress.inProgress
+            ) { summaries, inProg -> summaries to inProg }.collect { (summaries, _) ->
+                // 이 통화(카드 연 시점 ±30분)의 최신 요약.
+                val match = summaries
+                    .filter { (it.recordedAt ?: it.updatedAt) >= openedAtMs - 30 * 60 * 1000L }
+                    .maxByOrNull { it.recordedAt ?: it.updatedAt }
+                if (match != null && !match.summaryText.isNullOrBlank()) {
+                    val bullets = summaryBulletsOf(match.title, match.summaryText)
+                    val draft = match.recommendedMessage?.trim().orEmpty()
+                    _state.update {
+                        it?.copy(
+                            summaryStatus = SummaryStatus.READY,
+                            summaryBullets = bullets,
+                            // 사용자가 이미 다듬는 중이면 덮어쓰지 않음.
+                            draftText = if (it.draftEditing || it.draftSent) it.draftText else draft
+                        )
+                    }
+                    resetAutoDismiss()
+                    return@collect
+                }
+            }
+        }
+
+        summaryTimeoutJob = ioScope.launch {
+            delay(75_000)
+            if (_state.value?.summaryStatus == SummaryStatus.LOADING) {
+                _state.update { it?.copy(summaryStatus = SummaryStatus.UNAVAILABLE) }
+            }
+        }
+    }
+
+    /** summaryText("한 줄\n불릿\n불릿") → 불릿 리스트(제목 줄 제외, 기호 제거). 비면 제목 한 줄. */
+    private fun summaryBulletsOf(title: String?, summaryText: String): List<String> {
+        val t = title?.trim()
+        val lines = summaryText.split("\n")
+            .map { it.trim().removePrefix("•").removePrefix("-").trim() }
+            .filter { it.isNotBlank() }
+        val bullets = lines.filter { it != t }
+        return bullets.ifEmpty { lines }.ifEmpty { listOfNotNull(t) }
     }
 
     // ----- private impl -----
@@ -208,8 +271,8 @@ object PostCallOverlayManager {
             autoReplyTemplateTitle = args.autoReplyTemplateTitle,
             manualTemplates = args.manualTemplates,
             customerId = null,
-            leadHeat = null,
-            memo = ""
+            // 수신/발신(대화 있음)만 요약 스트리밍. 부재중은 요약 안 함(섹션 미표시).
+            summaryStatus = if (args.isMissed) SummaryStatus.UNAVAILABLE else SummaryStatus.LOADING
         )
 
         val wm = appContext.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
@@ -223,12 +286,12 @@ object PostCallOverlayManager {
                 cardState?.let {
                     PostCallCard(
                         state = it,
-                        onPickLeadHeat = ::onLeadHeatPicked,
-                        onMemoChange = ::onMemoChanged,
                         onCancelAutoReply = ::onCancelAutoReply,
                         onPickTemplate = ::onPickTemplate,
                         onCancelManualSend = ::onCancelManualSend,
-                        onSummarize = ::onSummarizeTapped,
+                        onEditDraft = ::onEditDraft,
+                        onToggleEditDraft = ::onToggleEditDraft,
+                        onSendDraft = ::onSendDraft,
                         onClose = ::onCloseTapped
                     )
                 }
@@ -253,6 +316,10 @@ object PostCallOverlayManager {
                 currentView = composeView
                 currentOwner = owner
                 startAutoDismiss()
+                // 수신/발신(대화 있음) → 통화 요약을 스트리밍으로 카드에 채움.
+                if (!args.isMissed) {
+                    startSummaryStreaming(args.phoneNumber, System.currentTimeMillis())
+                }
                 if (autoOn) {
                     countdownJob = ioScope.launch {
                         tickdown(AUTO_REPLY_COUNTDOWN_MS)
@@ -277,6 +344,9 @@ object PostCallOverlayManager {
         countdownJob = null
         autoDismissJob?.cancel()
         autoDismissJob = null
+        summaryScanJob?.cancel(); summaryScanJob = null
+        summaryObserveJob?.cancel(); summaryObserveJob = null
+        summaryTimeoutJob?.cancel(); summaryTimeoutJob = null
         currentView?.let { v ->
             runCatching {
                 val wm = v.context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
@@ -294,9 +364,10 @@ object PostCallOverlayManager {
         autoDismissJob?.cancel()
         autoDismissJob = ioScope.launch {
             delay(AUTO_DISMISS_MS)
-            // 카운트다운이 진행 중이면 카드 유지 (발송이 끝날 때까지)
+            // 카운트다운 진행 중이거나 통화 요약을 아직 정리 중이면 카드 유지.
             val st = _state.value
             if (st?.sendStatus == SendStatus.COUNTING_DOWN) return@launch
+            if (st?.summaryStatus == SummaryStatus.LOADING) return@launch
             withContext(Dispatchers.Main) { actuallyHide() }
         }
     }
@@ -358,6 +429,9 @@ data class OverlayArgs(
 enum class CardMode { AUTO_REPLY, MANUAL_CHOOSE }
 enum class SendStatus { IDLE, COUNTING_DOWN, SENT, CANCELLED, FAILED }
 
+/** 통화 요약 상태 — 정리 중 / 준비됨 / 못 가져옴(템플릿 폴백). */
+enum class SummaryStatus { LOADING, READY, UNAVAILABLE }
+
 data class CardState(
     val phoneNumber: String,
     val isMissed: Boolean,
@@ -367,11 +441,16 @@ data class CardState(
     val autoReplyTemplateTitle: String?,
     val manualTemplates: List<MessageTemplateEntity>,
     val customerId: Long?,
-    val leadHeat: LeadHeat?,
-    val memo: String,
     val pendingTemplateId: Long? = null,
     val pendingTemplateBody: String? = null,
-    val pendingTemplateTitle: String? = null
+    val pendingTemplateTitle: String? = null,
+    // ── 통화 요약(수신/발신) ──
+    val summaryStatus: SummaryStatus = SummaryStatus.LOADING,
+    val summaryBullets: List<String> = emptyList(),
+    val draftText: String = "",
+    val draftEditing: Boolean = false,
+    val draftSent: Boolean = false,
+    val draftFailed: Boolean = false
 )
 
 // ----- custom lifecycle owner for the ComposeView in WindowManager -----

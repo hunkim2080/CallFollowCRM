@@ -4362,3 +4362,13 @@ curl -s -X POST http://localhost:8000/api/shared/invite -H "Content-Type: applic
 - 서버 무관. 빌드/설치 OK(B폰엔 통화요약 데이터 없어 실표시는 메인폰에서 확인).
 - 다음(B): 통화 후 카드 프로토식 재설계(✨요약 불릿 + AI 후속문자 초안 + [다듬기][보내기], 자동·스트리밍). 결정=AI 맞춤 초안 1개(프로토 1:1).
 - commit: (이 블록과 함께)
+
+## 2026-06-14 (android 추가23) — 통화 후 카드 프로토식 재설계 (✨요약 불릿 + AI 후속문자 + 다듬기/보내기)
+사장님: 통화 끝나면 [요약 + 후속문자 + 보내기] 창. AI 맞춤 초안 1개(프로토 openCallSummary 1:1). 고객온도·메모·"가져오기↑" 제거.
+- PostCallCard 재작성: 수신/발신=통화요약 섹션(정리중 스피너 → ✨"통화에서 이런 얘기가 오갔어요" 불릿 + 📞출처 + 후속문자 초안 + [다듬기][문자 보내기]). 부재중=기존 자동응답/템플릿 유지.
+- PostCallOverlay: 요약 스트리밍 — 카드 뜨면 LOADING, callSummaryRepository(suffix)+CallSummaryProgress 관찰, 이 통화(±30분) 최신 요약 뜨면 READY로 채움. 못 가져오면 75초 후 UNAVAILABLE(템플릿 폴백). 빠른 결과 위해 카드도 3·9·20초에 스캔. LOADING 중엔 자동 닫힘 보류.
+- CardState: summaryStatus/summaryBullets/draftText/draftEditing/draftSent/draftFailed 추가, leadHeat·memo 제거. onSendDraft=INLINE_SENT 기록.
+- 적용 범위: 첫 수신통화 = 오버레이 카드(요약). 반복통화 = 조용한 알림(기존) + 상담함 한줄(추가22). 부재중 = 대화 없어 요약 안 함.
+- 자동요약 엔진(추가21)+상담함 한줄(추가22)과 한 세트. 서버 무관(기존 요약 재사용).
+- **실기기 검증 필요(메인폰)**: 실제 수신통화 → 에이닷 저장 → 카드에 요약/후속문자 뜨는지. (adb로 통화 시뮬 불가, 사장님 라이브 테스트)
+- commit: (이 블록과 함께)
