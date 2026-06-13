@@ -428,10 +428,11 @@ fun CustomerDetailScreen(
             if (c.scheduledWorkDate != null) {
                 val siteTitle = com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(displayAddr).takeIf { it.isNotBlank() }
                     ?: c.name?.takeIf { it.isNotBlank() }?.let { "$it 현장" } ?: "협업 현장"
-                // 이 고객으로 공유한 협업 사장님(로컬 기록) — 번호 끝 8자리로 dedup.
+                // 이 고객으로 공유한 협업 사장님(로컬 기록) — Triple(phone, name, shareId). 번호 끝 8자리 dedup.
                 val collabPartners = remember(c.id, collabRefresh) {
                     container.preferences.collabAssignments.mapNotNull { e ->
-                        val p = e.split("|"); if (p.size >= 3 && p[0].toLongOrNull() == c.id) p[1] to p[2] else null
+                        val p = e.split("|")
+                        if (p.size >= 3 && p[0].toLongOrNull() == c.id) Triple(p[1], p[2], p.getOrNull(3).orEmpty()) else null
                     }.distinctBy { it.first.filter { ch -> ch.isDigit() }.takeLast(8) }
                 }
                 Spacer(Modifier.height(12.dp))
@@ -439,11 +440,18 @@ fun CustomerDetailScreen(
                     modifier = Modifier.padding(start = 2.dp, bottom = 8.dp))
 
                 // 공유 후 카드 (collab-sites-proto a-after) — 협업 중인 사장님별로 표시.
-                collabPartners.forEach { (partnerPhone, partnerName) ->
+                collabPartners.forEach { (partnerPhone, partnerName, shareId) ->
                     CollabAfterCard(
                         partnerName = partnerName.ifBlank { "협업 사장님" },
                         siteTitle = siteTitle,
+                        shareId = shareId,
+                        onViewPhoto = { fullscreenBitmap = it },
                         onRelease = {
+                            // 서버 pending 요청도 취소(best-effort). accepted 면 서버 409 → 조용히 무시, 로컬만 제거.
+                            if (shareId.isNotBlank()) {
+                                val owner = container.preferences.bizPhone
+                                scope.launch { runCatching { container.sharedSiteRepository.cancel(shareId, owner) } }
+                            }
                             container.preferences.collabAssignments = container.preferences.collabAssignments
                                 .filterNot { e ->
                                     val p = e.split("|")
@@ -2647,12 +2655,15 @@ private fun AddressEditDialog(
 /**
  * 공유 후 카드 — collab-sites-proto `a-after` 1:1. A(주인)가 고객 정보에서 협업 진행을 봄.
  *   헤더(협업 중 + 이름)·일당·진행 stepper·영구보관 안내·해제. 진행/일당은 서버 owner-events(같은 현장 제목 매칭),
- *   서버 미가동/없으면 배정 단계만(graceful). 사진·메모 영역은 §F(서버) 연결 후.
+ *   서버 미가동/없으면 배정 단계만(graceful). 증거사진은 §F GET /api/shared/photos (A 는 보기만).
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CollabAfterCard(
     partnerName: String,
     siteTitle: String,
+    shareId: String,
+    onViewPhoto: (android.graphics.Bitmap) -> Unit,
     onRelease: () -> Unit
 ) {
     val context = LocalContext.current
@@ -2662,9 +2673,11 @@ private fun CollabAfterCard(
     // 서버 진행 이벤트(있으면) — 같은 현장 제목으로 매칭. 없으면 배정 단계만(graceful).
     var step by remember(siteTitle, partnerName) { mutableStateOf<String?>(null) }
     var wage by remember(siteTitle, partnerName) { mutableStateOf<Int?>(null) }
-    androidx.compose.runtime.LaunchedEffect(siteTitle, partnerName) {
+    var photos by remember(shareId, siteTitle) { mutableStateOf(emptyList<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedPhoto>()) }
+    androidx.compose.runtime.LaunchedEffect(siteTitle, partnerName, shareId) {
         val owner = container.preferences.bizPhone.filter { it.isDigit() }
         if (owner.length >= 9) {
+            var sid = shareId
             container.sharedSiteRepository.ownerEvents(owner).onSuccess { events ->
                 // 같은 현장(제목) 매칭. 이름이 구체적이면 사장님까지 일치시켜 여러 협업자 진행 섞임 방지.
                 val mine = events.filter {
@@ -2672,7 +2685,10 @@ private fun CollabAfterCard(
                 }.maxByOrNull { it.atMs }
                 step = mine?.step
                 wage = mine?.dailyWage
+                if (sid.isBlank()) sid = mine?.shareId.orEmpty()  // 옛 기록(shareId 없음) → 이벤트에서 보충
             }
+            // 증거사진 조회(§F) — A 는 보기만(프로토 a-after).
+            if (sid.isNotBlank()) container.sharedSiteRepository.photos(sid, owner).onSuccess { photos = it }
         }
     }
     val curIdx = when (step?.lowercase()) {
@@ -2713,6 +2729,38 @@ private fun CollabAfterCard(
                     }
                     Spacer(Modifier.height(4.dp))
                     Text(label, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = if (done || cur) TossTextPrimary else TossTextTertiary)
+                }
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        // 📸 협업 사장님이 올린 증거사진 (proto a-after) — A 는 보기만.
+        Text("📸 ${partnerName}이 올린 현장 사진 · 증거용", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+        Spacer(Modifier.height(2.dp))
+        Text("시공 전·작업 중 상태를 남겨둔 사진이에요. '원래 그랬어요' 증거 → 두 분 다 분쟁에서 보호돼요.",
+            fontSize = 11.sp, color = TossTextTertiary, lineHeight = 16.sp)
+        Spacer(Modifier.height(8.dp))
+        if (photos.isEmpty()) {
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(vertical = 16.dp),
+                horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                Text("🖼️", fontSize = 20.sp)
+                Spacer(Modifier.height(4.dp))
+                Text("협업 사장님이 사진을 올리면 여기 보여요", fontSize = 11.5.sp, color = TossTextTertiary)
+            }
+        } else {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                photos.forEach { p ->
+                    val bmp = p.bitmap
+                    androidx.compose.foundation.layout.Box(
+                        Modifier.size(92.dp).clip(RoundedCornerShape(11.dp)).background(Color(0xFFEDEFF3))
+                            .then(if (bmp != null) Modifier.clickable { onViewPhoto(bmp) } else Modifier),
+                        contentAlignment = androidx.compose.ui.Alignment.Center
+                    ) {
+                        if (bmp != null) androidx.compose.foundation.Image(
+                            bitmap = bmp.asImageBitmap(), contentDescription = p.label ?: "현장 사진",
+                            modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(11.dp)),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        ) else Text("🖼️", fontSize = 18.sp)
+                    }
                 }
             }
         }
@@ -2823,7 +2871,7 @@ private fun CollabShareSheet(
                         val p = e.split("|"); p.size >= 3 && p[0].toLongOrNull() == customerId && p[1].filter { it.isDigit() }.takeLast(8) == key8
                     }
                     if (!already) {
-                        container.preferences.collabAssignments = container.preferences.collabAssignments + "$customerId|$partner|$partnerName"
+                        container.preferences.collabAssignments = container.preferences.collabAssignments + "$customerId|$partner|$partnerName|${r.shareId}"
                     }
                     onShared()
                 }

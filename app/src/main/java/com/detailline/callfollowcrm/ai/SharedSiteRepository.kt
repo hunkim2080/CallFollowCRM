@@ -65,6 +65,17 @@ class SharedSiteRepository(
         val createdAtMs: Long
     )
 
+    /** 협업 현장 증거 사진 1장 — 서버 §F (POST /api/shared/photo, GET /api/shared/photos). */
+    data class SharedPhoto(
+        val photoId: Long,
+        val bitmap: android.graphics.Bitmap?,
+        val label: String?,          // "시공 전" 등
+        val note: String?,
+        val uploaderKind: String,    // "owner" | "partner"
+        val uploaderName: String,
+        val uploadedAtMs: Long
+    )
+
     /** 업체별(나를 부른 사장님) 집계 — 서버 §B. 전체 이력 기준(with-me 윈도우 밖 과거 포함). */
     data class Partner(
         val ownerPhone: String,
@@ -245,6 +256,67 @@ class SharedSiteRepository(
                 }
             }
         }
+    }
+
+    /** 증거 사진 업로드(§F) — 업로더(owner/partner) 본인 번호 + base64(raw). */
+    suspend fun uploadPhoto(
+        shareId: String,
+        uploaderPhone: String,
+        imageBase64: String,
+        label: String? = null,
+        note: String? = null
+    ): Result<Unit> = post("$baseUrl/api/shared/photo", JSONObject().apply {
+        put("share_id", shareId)
+        put("partner_phone", phoneKey(uploaderPhone))
+        put("image_base64", imageBase64)
+        label?.let { put("label", it) }
+        note?.let { put("note", it) }
+    })
+
+    /** 그 협업 현장의 모든 증거 사진(owner+partner). 서버 미구현/실패 시 빈 목록(graceful). */
+    suspend fun photos(shareId: String, phone: String, limit: Int = 50): Result<List<SharedPhoto>> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val url = baseUrl.toHttpUrl().newBuilder()
+                    .addPathSegments("api/shared/photos")
+                    .addQueryParameter("share_id", shareId)
+                    .addQueryParameter("phone", phoneKey(phone))
+                    .addQueryParameter("limit", limit.toString())
+                    .build()
+                val req = Request.Builder().url(url).get().build()
+                client.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                    val arr = JSONObject(resp.body?.string().orEmpty()).optJSONArray("photos") ?: JSONArray()
+                    (0 until arr.length()).mapNotNull { i ->
+                        val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                        SharedPhoto(
+                            photoId = o.optLong("photo_id"),
+                            bitmap = decodeDataUrl(o.optString("image_data_url")),
+                            label = o.optString("label").takeIf { it.isNotBlank() && it != "null" },
+                            note = o.optString("note").takeIf { it.isNotBlank() && it != "null" },
+                            uploaderKind = o.optString("uploader_kind"),
+                            uploaderName = o.optString("uploader_name").ifBlank { "사장님" },
+                            uploadedAtMs = o.optLong("uploaded_at_ms")
+                        )
+                    }
+                }
+            }
+        }
+
+    /** A 본인이 보낸 pending 협업 요청 취소(§dedup cancel). accepted 이후엔 서버가 409 → 조용히 무시. */
+    suspend fun cancel(shareId: String, ownerPhone: String): Result<Unit> =
+        post("$baseUrl/api/shared/cancel", JSONObject().apply {
+            put("share_id", shareId); put("owner_phone", phoneKey(ownerPhone))
+        })
+
+    /** "data:image/jpeg;base64,XXXX" 또는 raw base64 → Bitmap. 실패 시 null. */
+    private fun decodeDataUrl(dataUrl: String?): android.graphics.Bitmap? {
+        if (dataUrl.isNullOrBlank()) return null
+        return runCatching {
+            val b64 = dataUrl.substringAfter(",", dataUrl)
+            val bytes = android.util.Base64.decode(b64, android.util.Base64.DEFAULT)
+            android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        }.getOrNull()
     }
 
     /** 상대 번호가 가입 사장인지(인앱 vs 링크 분기). 서버 없으면 false(=링크 경로). */

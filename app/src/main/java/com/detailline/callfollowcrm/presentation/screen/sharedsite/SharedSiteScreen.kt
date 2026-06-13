@@ -3,6 +3,9 @@ package com.detailline.callfollowcrm.presentation.screen.sharedsite
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -36,11 +39,16 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -76,7 +84,25 @@ fun SharedSiteScreen(
     val sites by viewModel.sites.collectAsState()
     val loading by viewModel.loading.collectAsState()
     val toast by viewModel.toast.collectAsState()
+    val photos by viewModel.photos.collectAsState()
+    val photoBusy by viewModel.photoBusy.collectAsState()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var fullscreenPhoto by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var pendingUploadShareId by remember { mutableStateOf("") }
+    // 증거사진 선택 → base64 변환(IO) → 업로드. 한 장씩.
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        val sid = pendingUploadShareId
+        if (uri != null && sid.isNotBlank()) {
+            scope.launch {
+                val b64 = withContext(Dispatchers.IO) {
+                    com.detailline.callfollowcrm.util.ImageEncoder.uriToJpegBase64(context, uri)
+                }
+                if (b64 != null) viewModel.uploadPhotoBase64(sid, b64)
+                else android.widget.Toast.makeText(context, "사진을 불러오지 못했어요", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
     val accountPrompt = "입금받을 계좌를 먼저 등록해주세요. 더보기 → 견적서·사업자 정보에서 등록할 수 있어요."
     var selectedId by rememberSaveableShareId()
     var listView by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("date") } // "date" 현장순 | "biz" 업체별
@@ -119,6 +145,10 @@ fun SharedSiteScreen(
     val openPartner = partnerGroups.firstOrNull { it.key == bizPartner }
     BackHandler(enabled = selected != null || bizPartner != null) {
         if (selected != null) selectedId = null else bizPartner = null
+    }
+    // 상세 열면 그 현장 증거사진 로드(닫히면 비움).
+    LaunchedEffect(selected?.shareId) {
+        selected?.let { viewModel.loadPhotos(it.shareId) } ?: run { /* 목록 — 비움은 다음 상세 열 때 */ }
     }
 
     Scaffold(
@@ -174,6 +204,13 @@ fun SharedSiteScreen(
                 DetailBody(
                     site = selected,
                     hasAccount = viewModel.hasAccount(),
+                    photos = photos,
+                    photoBusy = photoBusy,
+                    onPickPhoto = {
+                        pendingUploadShareId = selected.shareId
+                        photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    },
+                    onViewPhoto = { fullscreenPhoto = it },
                     onNavigate = { addr ->
                         runCatching {
                             val uri = Uri.parse("geo:0,0?q=" + Uri.encode(addr))
@@ -191,6 +228,24 @@ fun SharedSiteScreen(
                 )
             }
             Spacer(Modifier.height(20.dp))
+        }
+    }
+
+    // 증거사진 풀스크린 뷰어
+    fullscreenPhoto?.let { bmp ->
+        androidx.compose.ui.window.Dialog(onDismissRequest = { fullscreenPhoto = null }) {
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.Black)
+                    .clickable { fullscreenPhoto = null },
+                contentAlignment = Alignment.Center
+            ) {
+                androidx.compose.foundation.Image(
+                    bitmap = bmp.asImageBitmap(),
+                    contentDescription = "현장 사진",
+                    modifier = Modifier.fillMaxWidth(),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                )
+            }
         }
     }
 }
@@ -387,6 +442,10 @@ private fun SiteRow(site: SharedSiteRepository.SharedSite, onClick: () -> Unit) 
 private fun DetailBody(
     site: SharedSiteRepository.SharedSite,
     hasAccount: Boolean,
+    photos: List<SharedSiteRepository.SharedPhoto>,
+    photoBusy: Boolean,
+    onPickPhoto: () -> Unit,
+    onViewPhoto: (android.graphics.Bitmap) -> Unit,
     onNavigate: (String) -> Unit,
     onProgress: (SharedSiteRepository.Progress) -> Unit,
     onRespond: (Boolean) -> Unit
@@ -521,9 +580,76 @@ private fun DetailBody(
         ) { Text("완료된 현장이에요 ✓", color = CollabPurple, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold) }
     }
 
+    // 📸 증거 사진 (proto b-detail) — 시공 전·작업 중 상태 = "원래 그랬어요" 증거.
+    Spacer(Modifier.height(18.dp))
+    SectionSub("📸 현장 사진 · 증거용" + (if (photos.isNotEmpty()) " (${photos.size})" else ""))
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+            .background(Color(0xFFFFF8E8)).border(1.dp, Color(0xFFF6E4B8), RoundedCornerShape(14.dp)).padding(13.dp)
+    ) {
+        Text("📌 왜 찍어두나요?", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB4790A))
+        Spacer(Modifier.height(5.dp))
+        Text("시공 전·작업 중 현장 상태(기존 깨짐·들뜸·곰팡이)를 찍어두면 \"이건 원래 그랬어요\" 증거가 돼요. 나중에 \"여기 망가뜨렸지?\" 누명·분쟁을 막아줍니다.",
+            fontSize = 13.sp, color = Color(0xFF5A4A1F), lineHeight = 20.sp)
+    }
+    Spacer(Modifier.height(10.dp))
+    PhotoGrid(photos = photos, busy = photoBusy, onAdd = onPickPhoto, onView = onViewPhoto)
+
     // 벽 안내
     Spacer(Modifier.height(16.dp))
     WallNote(site.ownerName)
+}
+
+/** 증거사진 그리드 — 3열, ＋추가 셀 + 사진 셀. 프로토 .pgrid. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun PhotoGrid(
+    photos: List<SharedSiteRepository.SharedPhoto>,
+    busy: Boolean,
+    onAdd: () -> Unit,
+    onView: (android.graphics.Bitmap) -> Unit
+) {
+    val cellMod = Modifier.size(96.dp).clip(RoundedCornerShape(12.dp))
+    androidx.compose.foundation.layout.FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // ＋ 추가 셀
+        Box(
+            cellMod.background(CollabPurpleSoft).border(1.dp, Color(0xFFE2D8FB), RoundedCornerShape(12.dp))
+                .clickable(enabled = !busy) { onAdd() },
+            contentAlignment = Alignment.Center
+        ) {
+            if (busy) Text("올리는 중…", fontSize = 10.sp, color = CollabPurple, fontWeight = FontWeight.Bold)
+            else Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("＋", fontSize = 22.sp, color = CollabPurple, fontWeight = FontWeight.Bold)
+                Text("사진", fontSize = 10.sp, color = CollabPurple, fontWeight = FontWeight.Bold)
+            }
+        }
+        photos.forEach { p ->
+            val bmp = p.bitmap
+            if (bmp != null) {
+                Box(cellMod.background(Color(0xFFEDEFF3)).clickable { onView(bmp) }, contentAlignment = Alignment.BottomStart) {
+                    androidx.compose.foundation.Image(
+                        bitmap = bmp.asImageBitmap(), contentDescription = p.label ?: "현장 사진",
+                        modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                    )
+                    // 누가 올렸는지(나/주인) 작은 칩
+                    Text(
+                        if (p.uploaderKind == "owner") "주인" else "나",
+                        fontSize = 9.sp, color = Color.White, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(4.dp).clip(RoundedCornerShape(6.dp))
+                            .background(Color(0x99000000)).padding(horizontal = 5.dp, vertical = 1.dp)
+                    )
+                }
+            } else {
+                Box(cellMod.background(Color(0xFFEDEFF3)), contentAlignment = Alignment.Center) {
+                    Text("🖼️", fontSize = 20.sp)
+                }
+            }
+        }
+    }
 }
 
 @Composable private fun WallNote(ownerName: String) {

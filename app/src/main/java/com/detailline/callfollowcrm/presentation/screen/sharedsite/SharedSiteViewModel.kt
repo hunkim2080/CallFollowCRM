@@ -31,6 +31,12 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
     private val _loading = MutableStateFlow(false)
     val loading = _loading.asStateFlow()
 
+    /** 현재 연 협업 현장의 증거 사진(§F). 상세 열 때 loadPhotos. */
+    private val _photos = MutableStateFlow<List<SharedSiteRepository.SharedPhoto>>(emptyList())
+    val photos = _photos.asStateFlow()
+    private val _photoBusy = MutableStateFlow(false)
+    val photoBusy = _photoBusy.asStateFlow()
+
     /** true = 사업자 전화 미등록 → 협업 받을 수 없음(안내). */
     val noBizPhone: Boolean get() = myPhone.length < 9
 
@@ -88,4 +94,25 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
 
     /** 완료 알리기 전, 입금 계좌가 등록돼 있는지. 없으면 화면이 등록 유도. */
     fun hasAccount(): Boolean = container.preferences.bizAccountNo.isNotBlank()
+
+    /** 상세 열 때 그 현장의 증거 사진 로드(§F). 다른 현장으로 바뀌면 비움. */
+    fun loadPhotos(shareId: String) {
+        if (shareId.isBlank() || noBizPhone) { _photos.value = emptyList(); return }
+        viewModelScope.launch { _photos.value = repo.photos(shareId, myPhone).getOrDefault(emptyList()) }
+    }
+
+    /** 증거 사진 업로드(§F) — base64 는 화면에서 변환해 넘김(VM 은 Context 없음). */
+    fun uploadPhotoBase64(shareId: String, base64: String) {
+        if (shareId.isBlank() || noBizPhone || base64.isBlank()) return
+        _photoBusy.value = true
+        viewModelScope.launch {
+            repo.uploadPhoto(shareId, myPhone, base64)
+                .onSuccess {
+                    _toast.value = "현장 사진을 올렸어요"
+                    _photos.value = repo.photos(shareId, myPhone).getOrDefault(_photos.value)
+                }
+                .onFailure { _toast.value = "사진 업로드 실패 — 잠시 후 다시" }
+            _photoBusy.value = false
+        }
+    }
 }

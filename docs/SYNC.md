@@ -3984,3 +3984,14 @@ curl -s -X POST http://localhost:8000/api/shared/cancel -H "Content-Type: applic
 ### 다음 cycle 남은 핸드오프
 - §D (2h 알림 — 서버 크론 vs 앱 ReminderWorker 결정 대기).
 - §G (모집 시스템 — 대형).
+
+## 2026-06-13 (android 추가7) — 4단계 §F 증거사진 (A 보기 + B 업로드/보기) 앱 연결
+cowork §F(POST /api/shared/photo, GET /api/shared/photos) 위에 앱 붙임.
+- **SharedSiteRepository**: `uploadPhoto(shareId, uploaderPhone, base64, label?)` + `photos(shareId, phone)`(SharedPhoto: bitmap/label/uploaderKind/uploaderName) + `cancel(shareId, ownerPhone)`(§dedup) + decodeDataUrl.
+- **ImageEncoder**(util 신규): URI → 다운스케일 JPEG base64(raw, no-wrap). maxDim 1280·q72(서버 1MB 컷 대비).
+- **B쪽**(SharedSiteScreen 상세): 프로토 b-detail "📸 현장 사진·증거용" + "왜 찍어두나요?" framing + PhotoGrid(＋추가→picker→업로드, 사진 셀 탭→풀스크린, '나/주인' 칩). 상세 열 때 loadPhotos.
+- **A쪽**(공유후카드): 프로토 a-after "협업 사장님이 올린 현장 사진·증거용" 보기 grid(업로드는 B만). 사진 없으면 "올리면 여기 보여요".
+- **shareId 저장**: `collabAssignments` 4번째 칸에 shareId 추가(공유후카드 사진 조회용). 옛 기록(shareId 없음)은 owner-events 에서 보충. 파서는 4칸 호환(ScheduleVM 무변).
+- **협업 해제**: 로컬 제거 + `cancel(shareId)` 서버 호출(pending 이면 B쪽 제거, accepted 면 서버 409 → 조용히 무시).
+- 업로더 = partner_phone(본인 번호, owner/partner 무관). 벽: share_id 권한검증은 서버.
+- commit: (아래). 다음(앱): §E 3km geofence.
