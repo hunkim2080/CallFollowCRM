@@ -95,6 +95,7 @@ fun SharedSiteScreen(
     val scope = rememberCoroutineScope()
     var fullscreenPhoto by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     var pendingUploadShareId by remember { mutableStateOf("") }
+    var showPhotoPicker by remember { mutableStateOf(false) }  // 카톡식 사진첨부 바텀시트
     // 증거사진 선택 → base64 변환(IO) → 업로드. 한 장씩.
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         val sid = pendingUploadShareId
@@ -265,7 +266,7 @@ fun SharedSiteScreen(
                     photoBusy = photoBusy,
                     onPickPhoto = {
                         pendingUploadShareId = selected.shareId
-                        photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        showPhotoPicker = true
                     },
                     onViewPhoto = { fullscreenPhoto = it },
                     onNavigate = { addr ->
@@ -334,6 +335,32 @@ fun SharedSiteScreen(
                 )
             }
         }
+    }
+
+    // 현장 사진 — 카톡식 바텀시트(아래서 위로 올라오는 갤러리). "파일에서"는 시스템 피커 fallback. (2026-06-14 사장님)
+    if (showPhotoPicker) {
+        com.detailline.callfollowcrm.presentation.component.PhotoPickerSheet(
+            maxSelectable = 10,
+            onConfirm = { uris ->
+                val sid = pendingUploadShareId
+                showPhotoPicker = false
+                if (sid.isNotBlank()) {
+                    uris.forEach { uri ->
+                        scope.launch {
+                            val b64 = withContext(Dispatchers.IO) {
+                                com.detailline.callfollowcrm.util.ImageEncoder.uriToJpegBase64(context, uri)
+                            }
+                            if (b64 != null) viewModel.uploadPhotoBase64(sid, b64)
+                        }
+                    }
+                }
+            },
+            onDismiss = { showPhotoPicker = false },
+            onOpenFiles = {
+                showPhotoPicker = false
+                photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            }
+        )
     }
 }
 
@@ -620,25 +647,6 @@ private fun DetailBody(
         site.dailyWage?.let { Spacer(Modifier.height(9.dp)); InfoRow("💰 그날 일당", "${it}만원") }
     }
 
-    // 주소
-    if (!site.addr.isNullOrBlank()) {
-        Spacer(Modifier.height(10.dp))
-        Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-                .background(Color(0xFFF5F9FF)).border(1.5.dp, Color(0xFFE2EDFD), RoundedCornerShape(16.dp)).padding(15.dp)
-        ) {
-            Text("📍 현장 주소", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
-            Spacer(Modifier.height(7.dp))
-            Text(site.addr, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, lineHeight = 22.sp)
-            Spacer(Modifier.height(11.dp))
-            Box(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(ProtoBlue)
-                    .clickable { onNavigate(site.addr) }.padding(vertical = 12.dp),
-                contentAlignment = Alignment.Center
-            ) { Text("길찾기 시작", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold) }
-        }
-    }
-
     // 대표님 전달사항
     if (!site.memo.isNullOrBlank()) {
         Spacer(Modifier.height(10.dp))
@@ -660,7 +668,25 @@ private fun DetailBody(
                 .border(1.dp, Color(0xFFE2D8FB), RoundedCornerShape(14.dp)).padding(14.dp)
         ) {
             Text("🤝 ${site.ownerName}이 이 현장을 함께 하재요", fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(8.dp))
+            // 일당 = 수락 판단에 제일 중요 → 크게 강조(프로토 b-invite). 없으면 "미정".
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color.White).padding(horizontal = 12.dp, vertical = 11.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("💰 그날 일당", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5A4A7A))
+                Spacer(Modifier.weight(1f))
+                Text(
+                    site.dailyWage?.let { "${it}만원" } ?: "미정",
+                    fontSize = 18.sp, fontWeight = FontWeight.ExtraBold,
+                    color = if (site.dailyWage != null) Color(0xFF6B4FD8) else TossTextTertiary
+                )
+            }
+            site.timeLabel?.takeIf { it.isNotBlank() }?.let {
+                Spacer(Modifier.height(7.dp))
+                Text("🕘 출근 $it", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5A4A7A))
+            }
+            Spacer(Modifier.height(10.dp))
             Text("수락하면 내 '협업 현장'에 들어오고 진행을 같이 기록해요.", fontSize = 12.sp, color = Color(0xFF5A4A7A), lineHeight = 17.sp)
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -740,6 +766,34 @@ private fun DetailBody(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(CollabPurpleSoft).padding(vertical = 13.dp),
             contentAlignment = Alignment.Center
         ) { Text("완료된 현장이에요 ✓", color = CollabPurple, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold) }
+    }
+
+    // 현장 주소 — 출발 알린 뒤에 길찾기 활성화(출발→길찾기). 출발 전엔 회색 비활성. (2026-06-14 사장님)
+    if (!site.addr.isNullOrBlank()) {
+        Spacer(Modifier.height(16.dp))
+        val canNavigate = site.progress != SharedSiteRepository.Progress.ASSIGNED
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                .background(Color(0xFFF5F9FF)).border(1.5.dp, Color(0xFFE2EDFD), RoundedCornerShape(16.dp)).padding(15.dp)
+        ) {
+            Text("📍 현장 주소", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+            Spacer(Modifier.height(7.dp))
+            Text(site.addr, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, lineHeight = 22.sp)
+            Spacer(Modifier.height(11.dp))
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                    .background(if (canNavigate) ProtoBlue else Color(0xFFE5E8EF))
+                    .then(if (canNavigate) Modifier.clickable { onNavigate(site.addr) } else Modifier)
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    if (canNavigate) "길찾기 시작" else "출발 알리면 길찾기가 켜져요",
+                    color = if (canNavigate) Color.White else TossTextSecondary,
+                    fontSize = 14.sp, fontWeight = FontWeight.ExtraBold
+                )
+            }
+        }
     }
 
     // 📸 증거 사진 (proto b-detail) — 시공 전·작업 중 상태 = "원래 그랬어요" 증거.
