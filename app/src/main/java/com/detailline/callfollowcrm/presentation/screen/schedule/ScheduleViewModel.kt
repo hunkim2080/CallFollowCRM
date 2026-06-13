@@ -153,7 +153,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
      *   고객 번호/대화는 안 보냄(customer_label = 안전 라벨만) — CustomerDetail 공유 흐름과 동일.
      *   link 라우트면 onLink(번호, 문자본문) 로 화면이 SMS 작성창을 열게 함. inapp/실패는 토스트.
      */
-    fun inviteCollabToSite(customer: CustomerEntity, partnerPhone: String, force: Boolean = false, onLink: (String, String) -> Unit) {
+    fun inviteCollabToSite(customer: CustomerEntity, partnerPhone: String, force: Boolean = false, memo: String = "", onLink: (String, String) -> Unit) {
         val owner = ownerPhone.filter { it.isDigit() }
         if (owner.length < 9) { _toast.value = "먼저 더보기 → 사업자 정보에서 내 전화번호를 등록해주세요"; return }
         val partner = partnerPhone.filter { it.isDigit() }
@@ -171,7 +171,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             container.sharedSiteRepository.invite(
                 ownerPhone = owner, partnerPhone = partner, title = title,
                 addr = addr, scheduledAtMs = customer.scheduledWorkDate ?: 0L,
-                workSummary = null, memo = null, customerLabel = title,
+                workSummary = null, memo = memo.takeIf { it.isNotBlank() }, customerLabel = title,
                 ownerName = container.preferences.bizName
             ).onSuccess { r ->
                 // 일정 카드 "🤝 이름" 표시용 로컬 배정 기록 (서버 수락 확정은 추후). 4번째=shareId(공유후카드 사진 조회용).

@@ -4216,3 +4216,9 @@ curl -s -X POST http://localhost:8000/api/recruit/select -H "Content-Type: appli
   - dedup 은 declined/ended 제외(이미 그럼) → 재요청 시 새 pending 생성 → 새 알람.
 - **재알림(추가12 ②)**: deduped invite 에 FCM 재발사(re-poke)는 별개로 여전히 요청.
 - commit: (아래)
+
+## 2026-06-13 (android 추가14) — 협업 진행 알림 폭주 가드 + 일당사장 전달메모 + 테스트 정리
+- **알림 폭주 가드**(CollabEventCenter.poll): 앱이 한동안 꺼졌거나 옛 owner-events 쌓이면 A 폰에 수십 개 "출발/도착" 알림이 한 번에 터지던 것 → **한 폴당 최대 5개(최신순)만** 알림, 나머지는 조용히 lastSeen 넘김. (사장님 신고: 거절 14건 처리하니 A 폰에 옛 출발 이벤트 무더기 터짐)
+- **일당사장 전달메모**: 전문가 배정 시트 일당사장 섹션에 "사장님께 전달(선택)" 칸 추가(팀원 "직원에게 전달"과 동일). invite `memo` 로 전송 → 상대 사장 SharedSiteScreen "📌 대표님 전달사항"(기존 표시 재사용, 서버 memo 필드 기존부터 있음 → reload 무관).
+- **테스트 정리(서버, 사장님 승인)**: B(01080056674) with-me 22건 중 **pending 14건 거절 처리**(respond accept=false → declined → 목록서 사라짐). **accepted 6건은 respond 로 안 됨** → cowork 가 SQL 로 정리 필요(또는 §end). 6건: sh_RD0t17JacV, sh_IuA1abmIuo, sh_nrwu07P85W, sh_KbmroOt3R8, sh_2QKvM8VrMI, sh_sWeUadcy8K (전부 "가능동sk뷰아파트"/"이 현장" 테스트).
+- commit: (아래)

@@ -65,7 +65,10 @@ class CollabEventCenter(
             if (maxMs > 0L) preferences.collabEventLastSeenMs = maxMs
             return
         }
-        for (u in infos.filter { it.createdAtMs > lastSeen }) {
+        // 폭주 방지: 앱이 한동안 꺼져 있었거나 옛 이벤트가 쌓여 있으면 한 번에 수십 개가 터질 수 있음.
+        //   → 새 이벤트는 한 폴당 최대 5개(최신순)만 알림, 나머지는 조용히 lastSeen 넘김.
+        val newOnes = infos.filter { it.createdAtMs > lastSeen }.sortedBy { it.createdAtMs }
+        for (u in newOnes.takeLast(5)) {
             NotificationHelper.showCollabEvent(
                 context = context,
                 eventId = u.eventId,
