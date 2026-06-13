@@ -24,6 +24,10 @@ interface CallSummaryDao {
     @Query("SELECT * FROM call_summaries WHERE phoneNumber LIKE '%' || :suffix ORDER BY COALESCE(recordedAt, updatedAt) DESC")
     fun observeByPhoneSuffix(suffix: String): Flow<List<CallSummaryEntity>>
 
+    /** 상담함 한줄 미리보기용 — 전체 통화요약(최신순). 번호별 최신 1건을 화면에서 골라 씀. */
+    @Query("SELECT * FROM call_summaries ORDER BY COALESCE(recordedAt, updatedAt) DESC")
+    fun observeAll(): Flow<List<CallSummaryEntity>>
+
     @Query("SELECT * FROM call_summaries WHERE id = :id")
     suspend fun findById(id: Long): CallSummaryEntity?
 

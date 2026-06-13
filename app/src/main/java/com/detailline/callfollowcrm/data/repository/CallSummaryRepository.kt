@@ -13,6 +13,9 @@ class CallSummaryRepository(private val dao: CallSummaryDao) {
     fun observeByPhoneSuffix(suffix: String): Flow<List<CallSummaryEntity>> =
         dao.observeByPhoneSuffix(suffix)
 
+    /** 상담함 한줄 미리보기용 — 전체 통화요약(최신순). */
+    fun observeAll(): Flow<List<CallSummaryEntity>> = dao.observeAll()
+
     suspend fun upsert(summary: CallSummaryEntity): Long = dao.insert(summary)
 
     suspend fun update(summary: CallSummaryEntity) = dao.update(summary)

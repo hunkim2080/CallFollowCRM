@@ -4353,3 +4353,12 @@ curl -s -X POST http://localhost:8000/api/shared/invite -H "Content-Type: applic
 - 서버 무관(기존 /api/call-audio-summary, callSummaryServerRepository 재사용). 빌드/설치 OK(B폰엔 폴더 미연결이라 실동작은 메인폰에서 확인 필요).
 - **다음**: 사장님 새 방향 — 통화 후 [요약+템플릿 선택+"고객에게 보내드릴까요?"] 창. 녹음(m4a)은 빼고 텍스트 요약 위주. (이번 커밋은 엔진, 다음 커밋은 그 창 UI)
 - commit: (이 블록과 함께 push)
+
+## 2026-06-14 (android 추가22) — 상담함 한줄기록: 통화만 한 고객도 통화요약 한 줄
+사장님: 문자 안 하고 통화만 한 고객은 상담함 리스트에 미리보기 줄이 비어 있었음. 통화요약 데이터를 한 줄로 남기자.
+- cardSummariesByPhoneSuffix 에 통화요약(callSummaryRepository.observeAll) 합침. SMS 대화요약 우선, 없으면(통화만) 통화요약 한 줄("📞 …").
+- 한 줄 = 통화요약 title 우선, 없으면 요약 본문 첫 줄(불릿 기호 제거). callSummaryOneLine().
+- CallSummaryDao.observeAll() + Repository.observeAll() 추가.
+- 서버 무관. 빌드/설치 OK(B폰엔 통화요약 데이터 없어 실표시는 메인폰에서 확인).
+- 다음(B): 통화 후 카드 프로토식 재설계(✨요약 불릿 + AI 후속문자 초안 + [다듬기][보내기], 자동·스트리밍). 결정=AI 맞춤 초안 1개(프로토 1:1).
+- commit: (이 블록과 함께)

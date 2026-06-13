@@ -949,11 +949,35 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             if (suffixes.isEmpty()) {
                 flowOf(emptyMap())
             } else {
-                container.conversationAiRepository.observeMany(suffixes).map { list ->
-                    list.mapNotNull { e -> e.cardSummary?.let { e.phoneSuffix to it } }.toMap()
+                // SMS 대화 AI 요약 + 통화요약을 합침. 문자만/통화만 어느 쪽이든 상담함에 한 줄이 뜨게.
+                //   (2026-06-14 사장님: 통화만 한 고객은 한줄기록이 비어 있었음 → 통화요약을 한 줄로)
+                kotlinx.coroutines.flow.combine(
+                    container.conversationAiRepository.observeMany(suffixes),
+                    container.callSummaryRepository.observeAll()
+                ) { convList, callList ->
+                    val smsMap = convList.mapNotNull { e -> e.cardSummary?.let { e.phoneSuffix to it } }.toMap()
+                    // 번호별 최신 통화요약 한 줄 — SMS 요약 없는 번호(통화만)만 채움.
+                    val callMap = callList
+                        .groupBy { phoneSuffix(it.phoneNumber ?: "") }
+                        .mapNotNull { (suf, rows) ->
+                            if (suf.isBlank() || suf in smsMap) return@mapNotNull null
+                            val latest = rows.maxByOrNull { it.recordedAt ?: it.updatedAt }
+                            val line = latest?.let { callSummaryOneLine(it) }
+                            if (line.isNullOrBlank()) null else suf to ("📞 $line")
+                        }.toMap()
+                    callMap + smsMap   // SMS 요약 우선
                 }
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    /** 통화요약을 상담함 한 줄로 — 제목 우선, 없으면 요약 본문 첫 줄(불릿 기호 제거). */
+    private fun callSummaryOneLine(e: com.detailline.callfollowcrm.data.local.entity.CallSummaryEntity): String? {
+        e.title?.takeIf { it.isNotBlank() }?.let { return it.trim() }
+        return e.summaryText
+            ?.lineSequence()
+            ?.map { it.trim().removePrefix("•").removePrefix("-").trim() }
+            ?.firstOrNull { it.isNotBlank() }
+    }
 
     // ── 대기 카드 AI 추천 답변 (프로토 sugbox + 홈 1탭 발송) ──────────────
     /** suffix → 서버가 준비한 추천 답변 1순위 텍스트. 있으면 대기 카드에 미리보기 + 비행기 버튼. */
