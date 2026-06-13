@@ -4312,3 +4312,11 @@ curl -s -X POST http://localhost:8000/api/shared/invite -H "Content-Type: applic
 - RingTabBar `inboxBadge`(이미 있던 미사용 파라미터)에 받은요청 수 연결 → 상담함 탭 빨간 배지.
 - 서버 무관. (일당 표시는 §A reload 후 실제값)
 - commit: (이 블록과 함께 push)
+
+## 2026-06-14 (android 추가20) — 협업 요청 수락 유효시간 12시간 (지나면 "수락 시간이 지났어요")
+사장님: 받은 협업 요청에 수락 유효시간 12시간을 둠. 그 이후 수락 누르면 "수락 시간이 지났어요" 톤으로.
+- B쪽 pending 카드: 12h 경과 시 수락 막고 빨간 안내("⏰ 수락 시간이 지났어요 — 보낸 지 12시간이 지나 만료됐어요. 다시 보내달라고 하세요"). 수락 버튼 회색+탭하면 토스트. 거절은 "지우기"로 열어둠.
+- 앵커(12h 기준 시각) = 서버 `created_at_ms`(>0) 우선, **없으면 로컬 첫 관측 시각**(AppPreferences.collabInviteFirstSeen, pollInvites/VM.load 가 기록). 둘 다 0이면 만료 처리 안 함(잘못된 즉시만료 방지).
+- VM `acceptExpired(site)` + `ACCEPT_VALID_MS=12h`. 서버 무관(앱 단독 동작).
+- **서버 권장(선택) ★**: with-me 응답에 `created_at_ms` echo 되면 기기·재설치 무관하게 "보낸 시각 기준" 정확해짐. 지금은 echo 안 되면 "처음 본 시각 기준 12h"로 폴백(약간 관대, 잘못 만료는 없음). 가능하면 §with-me 에 created_at_ms 추가 부탁. (이상적으론 서버도 만료 수락 거부하면 양쪽 일치)
+- commit: (이 블록과 함께 push)

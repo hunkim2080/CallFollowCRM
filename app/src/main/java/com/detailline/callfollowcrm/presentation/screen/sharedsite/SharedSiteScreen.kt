@@ -262,6 +262,7 @@ fun SharedSiteScreen(
                 DetailBody(
                     site = selected,
                     hasAccount = viewModel.hasAccount(),
+                    acceptExpired = viewModel.acceptExpired(selected),
                     photos = photos,
                     photoBusy = photoBusy,
                     onPickPhoto = {
@@ -622,6 +623,7 @@ private fun SiteRow(site: SharedSiteRepository.SharedSite, onClick: () -> Unit) 
 private fun DetailBody(
     site: SharedSiteRepository.SharedSite,
     hasAccount: Boolean,
+    acceptExpired: Boolean,
     photos: List<SharedSiteRepository.SharedPhoto>,
     photoBusy: Boolean,
     onPickPhoto: () -> Unit,
@@ -631,6 +633,7 @@ private fun DetailBody(
     onRespond: (Boolean) -> Unit,
     onLeave: () -> Unit
 ) {
+    val ctx = LocalContext.current
     // 협업 현장 pill + 주인
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
         PillStrong("협업 현장")
@@ -687,19 +690,41 @@ private fun DetailBody(
                 Text("🕘 출근 $it", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5A4A7A))
             }
             Spacer(Modifier.height(10.dp))
-            Text("수락하면 내 '협업 현장'에 들어오고 진행을 같이 기록해요.", fontSize = 12.sp, color = Color(0xFF5A4A7A), lineHeight = 17.sp)
+            if (acceptExpired) {
+                // 수락 유효시간(12h) 경과 — 수락 막고 "지났어요" 안내. 거절(지우기)만 열어둠.
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFFFFF1F1)).border(1.dp, Color(0xFFF6C9C9), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 12.dp, vertical = 11.dp)
+                ) {
+                    Text("⏰ 수락 시간이 지났어요", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFC0392B))
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "보낸 지 12시간이 지나 만료됐어요. 함께 하려면 ${site.ownerName}께 다시 보내달라고 하세요.",
+                        fontSize = 12.sp, color = Color(0xFF8A4B43), lineHeight = 17.sp
+                    )
+                }
+            } else {
+                Text("수락하면 내 '협업 현장'에 들어오고 진행을 같이 기록해요.", fontSize = 12.sp, color = Color(0xFF5A4A7A), lineHeight = 17.sp)
+            }
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Box(
                     Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
                         .clickable { onRespond(false) }.padding(vertical = 13.dp),
                     contentAlignment = Alignment.Center
-                ) { Text("거절", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) }
+                ) { Text(if (acceptExpired) "지우기" else "거절", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) }
                 Box(
-                    Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(CollabPurple)
-                        .clickable { onRespond(true) }.padding(vertical = 13.dp),
+                    Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
+                        .background(if (acceptExpired) Color(0xFFE5E8EF) else CollabPurple)
+                        .clickable {
+                            if (acceptExpired) {
+                                android.widget.Toast.makeText(ctx, "수락 시간이 지났어요 — 12시간이 지나 만료됐어요", android.widget.Toast.LENGTH_LONG).show()
+                            } else onRespond(true)
+                        }
+                        .padding(vertical = 13.dp),
                     contentAlignment = Alignment.Center
-                ) { Text("수락", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = Color.White) }
+                ) { Text("수락", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = if (acceptExpired) TossTextTertiary else Color.White) }
             }
         }
         // 벽 안내만 보여주고 진행 단계는 수락 후.

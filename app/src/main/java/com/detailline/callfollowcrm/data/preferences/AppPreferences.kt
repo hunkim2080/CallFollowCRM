@@ -319,6 +319,31 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("collab_invite_seeded", false)
         set(value) = prefs.edit().putBoolean("collab_invite_seeded", value).apply()
 
+    /** 받은 협업 요청을 처음 본 시각(ms) — share_id → firstSeenMs.
+     *  수락 유효시간(12h) 계산 앵커. 서버 created_at_ms 가 0(미echo)이면 이걸로 폴백 →
+     *  앵커가 항상 ≥ 실제 보낸 시각이라 "보자마자 만료" 같은 잘못된 즉시 만료를 막는다. (2026-06-14 사장님) */
+    var collabInviteFirstSeen: Map<String, Long>
+        get() = runCatching {
+            val raw = prefs.getString("collab_invite_first_seen", null) ?: return@runCatching emptyMap<String, Long>()
+            val o = org.json.JSONObject(raw)
+            buildMap { o.keys().forEach { k -> put(k, o.optLong(k)) } }
+        }.getOrDefault(emptyMap())
+        set(value) {
+            val o = org.json.JSONObject()
+            value.forEach { (k, v) -> o.put(k, v) }
+            prefs.edit().putString("collab_invite_first_seen", o.toString()).apply()
+        }
+
+    /** 현재 pending 집합과 동기화 — 새 요청은 nowMs 로 첫 관측 기록, 사라진(응답한) 건은 제거. */
+    fun syncCollabInviteFirstSeen(pendingShareIds: Set<String>, nowMs: Long) {
+        val cur = collabInviteFirstSeen
+        val next = HashMap<String, Long>(pendingShareIds.size)
+        for (id in pendingShareIds) next[id] = cur[id] ?: nowMs
+        if (next != cur) collabInviteFirstSeen = next
+    }
+
+    fun collabInviteFirstSeenMs(shareId: String): Long = collabInviteFirstSeen[shareId] ?: 0L
+
     /** A가 협업 사장에게 배정 요청한 현장 — 일정 카드 "🤝 이름" 표시용. "customerId|이름" Set. (2026-06-13) */
     var collabAssignments: Set<String>
         get() = prefs.getStringSet("collab_assignments", emptySet()) ?: emptySet()

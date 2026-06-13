@@ -72,11 +72,29 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
         if (noBizPhone) return
         _loading.value = true
         viewModelScope.launch {
-            _sites.value = repo.withMe(myPhone).getOrDefault(emptyList())
+            val list = repo.withMe(myPhone).getOrDefault(emptyList())
+            _sites.value = list
+            // 수락 유효시간(12h) 앵커: 화면을 직접 열어 본 시각도 기록(폴링 전이라도) — 서버 created_at_ms 폴백.
+            container.preferences.syncCollabInviteFirstSeen(
+                list.filter { it.status == "pending" }.map { it.shareId }.toSet(),
+                System.currentTimeMillis()
+            )
             // 업체별 집계(§B) — 서버 없거나 실패하면 빈 목록 → 화면이 로컬 그룹핑으로 폴백.
             _partners.value = repo.partners(myPhone).getOrDefault(emptyList())
             _loading.value = false
         }
+    }
+
+    /**
+     * 받은 협업 요청의 수락 유효시간(12h)이 지났는지. true 면 더는 수락 불가(화면이 "지났어요" 안내).
+     *   앵커 = 서버 created_at_ms(>0) 우선, 없으면 로컬 첫 관측 시각. 둘 다 0이면 만료 처리 안 함(안전).
+     */
+    fun acceptExpired(site: SharedSiteRepository.SharedSite): Boolean {
+        if (site.status != "pending") return false
+        val anchor = site.createdAtMs.takeIf { it > 0L }
+            ?: container.preferences.collabInviteFirstSeenMs(site.shareId)
+        if (anchor <= 0L) return false
+        return System.currentTimeMillis() - anchor >= ACCEPT_VALID_MS
     }
 
     fun respond(site: SharedSiteRepository.SharedSite, accept: Boolean) {
@@ -138,5 +156,10 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
                 .onFailure { _toast.value = "사진 업로드 실패 — 잠시 후 다시" }
             _photoBusy.value = false
         }
+    }
+
+    companion object {
+        /** 협업 요청 수락 유효시간 — 12시간. 그 이후엔 수락 불가("수락 시간이 지났어요"). (2026-06-14 사장님) */
+        const val ACCEPT_VALID_MS = 12L * 60 * 60 * 1000
     }
 }

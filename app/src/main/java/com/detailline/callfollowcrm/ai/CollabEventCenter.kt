@@ -102,6 +102,8 @@ class CollabEventCenter(
         val pending = sites.filter { it.status == "pending" }
         _pendingInvites.value = pending   // 상담함 "받은 협업 요청" 카드 — 응답하면 다음 폴에서 자동으로 빠짐
         val pendingIds = pending.map { it.shareId }.toSet()
+        // 수락 유효시간(12h) 앵커: 처음 본 시각 기록(서버 created_at_ms 폴백). 응답해 사라진 건 정리.
+        preferences.syncCollabInviteFirstSeen(pendingIds, System.currentTimeMillis())
 
         if (!preferences.collabInviteSeeded) {
             preferences.seenCollabInviteShareIds = pendingIds
