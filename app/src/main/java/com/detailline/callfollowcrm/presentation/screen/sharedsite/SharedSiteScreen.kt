@@ -904,9 +904,9 @@ private fun timeOf(ms: Long): String? {
     return "$ampm ${h12}시" + (if (m > 0) " ${m}분" else "")
 }
 
-/** 표시용 시간 — 서버 time_label 우선, 없으면 scheduled_at_ms 에서 추출. */
+/** 표시용 시간 — scheduled_at_ms 에서 추출(자정=null) 우선, 없으면 의미있는 time_label. "00:00" 자정 라벨은 안 보임. */
 private fun timeText(site: SharedSiteRepository.SharedSite): String? =
-    site.timeLabel?.takeIf { it.isNotBlank() } ?: timeOf(site.scheduledAtMs)
+    timeOf(site.scheduledAtMs) ?: site.timeLabel?.takeIf { it.isNotBlank() && it != "00:00" && it != "0:00" }
 
 @Composable
 private fun rememberSaveableShareId() =

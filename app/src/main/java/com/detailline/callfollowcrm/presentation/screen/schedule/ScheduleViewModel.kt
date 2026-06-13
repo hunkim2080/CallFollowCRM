@@ -172,7 +172,8 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             container.sharedSiteRepository.invite(
                 ownerPhone = owner, partnerPhone = partner, title = title,
                 addr = addr, scheduledAtMs = customer.scheduledWorkDate ?: 0L,
-                workSummary = null, memo = null, customerLabel = title
+                workSummary = null, memo = null, customerLabel = title,
+                ownerName = container.preferences.bizName
             ).onSuccess { r ->
                 // 일정 카드 "🤝 이름" 표시용 로컬 배정 기록 (서버 수락 확정은 추후). 4번째=shareId(공유후카드 사진 조회용).
                 container.preferences.collabAssignments = container.preferences.collabAssignments + "${customer.id}|$partner|$partnerName|${r.shareId}"

@@ -2846,7 +2846,8 @@ private fun CollabShareSheet(
                 ownerPhone = owner, partnerPhone = partner, title = siteTitle,
                 addr = addr, scheduledAtMs = effectiveMs,
                 workSummary = null, memo = null, customerLabel = siteTitle,
-                dailyWage = dailyWage.toIntOrNull(), timeLabel = timeLabel
+                dailyWage = dailyWage.toIntOrNull(), timeLabel = timeLabel,
+                ownerName = container.preferences.bizName
             )
             sending = false
             res.onSuccess { r ->

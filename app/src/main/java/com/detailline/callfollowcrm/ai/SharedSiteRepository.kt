@@ -135,7 +135,8 @@ class SharedSiteRepository(
         memo: String?,
         customerLabel: String?,
         dailyWage: Int? = null,
-        timeLabel: String? = null
+        timeLabel: String? = null,
+        ownerName: String? = null
     ): Result<InviteResult> = withContext(Dispatchers.IO) {
         runCatching {
             val payload = JSONObject().apply {
@@ -149,6 +150,7 @@ class SharedSiteRepository(
                 customerLabel?.let { put("customer_label", it) }
                 dailyWage?.let { put("daily_wage", it) }
                 timeLabel?.let { put("time_label", it) }
+                ownerName?.takeIf { it.isNotBlank() }?.let { put("owner_name", it) }  // A 사업자명(상호) → B 화면 "OO과 함께"
             }
             val req = Request.Builder().url("$baseUrl/api/shared/invite")
                 .post(payload.toString().toRequestBody(jsonMedia)).build()

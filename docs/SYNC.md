@@ -4148,3 +4148,12 @@ curl -s -X POST http://localhost:8000/api/recruit/select -H "Content-Type: appli
 
 ### 협업 시스템 — 완성 ✨
 §A·§A-2·§B·§C·§D·§E·§F·§F-2·§G·§H + dedup + cancel = 핸드오프 전체 마무리.
+
+## 2026-06-13 (android 추가10) — 협업: 사업자명 표시 + 출근시간 00:00 버그 + 휴지통
+사장님 스샷: B 화면에 초대한 사장이 "사장님"으로(사업자명 아님), 날짜 "6.9 · 00:00".
+- **owner_name(사업자명)**: 앱이 invite payload 에 `owner_name`(A 의 bizName=상호) 추가 전송. **서버 할 일**: `/api/shared/invite` 에서 owner_name 받으면 저장 + `/api/shared/with-me`·`/api/shared/by-me` 응답 `owner_name` 에 그대로 echo(없으면 기존 fallback "사장님"). → B 화면 "디테일라인과 함께"로 뜸. (CustomerDetail + 전문가배정 양 경로 다 전송)
+- **00:00 버그(앱)**: timeText 가 scheduled_at_ms 에서 시각 추출(자정=숨김) 우선 + "00:00" 라벨 제외. 자정이면 시간 안 보임(6.9 만).
+- **"이 현장" 제목**: 옛 공유(6.9) 데이터. 새 초대는 주소(siteLabel) 기반 제목. 소급 안 됨.
+- **협업현장 휴지통**(android 추가9, commit 9127be4): 밀어서 휴지통+되살리기(로컬 trashedSharedSiteIds, 서버 삭제 아님).
+- 변경(서버): invite owner_name 저장+echo. 그 외 앱-내부.
+- commit: (아래)
