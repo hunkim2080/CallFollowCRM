@@ -52,6 +52,15 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
         _trashed.value = container.preferences.trashedSharedSiteIds
     }
 
+    /** B(협업자)가 협업 그만하기 — 서버 end(by partner) → A 에게 알림 + 기록 보존. 로컬에선 즉시 숨김(서버가 declined 처리). best-effort. */
+    fun leaveCollab(site: SharedSiteRepository.SharedSite) {
+        trash(site.shareId) // 즉시 목록에서 빠짐
+        viewModelScope.launch {
+            runCatching { repo.endCollab(site.shareId, myPhone, asOwner = false) }
+            _toast.value = "협업을 그만뒀어요 — 사장님께 알려드렸어요"
+        }
+    }
+
     /** true = 사업자 전화 미등록 → 협업 받을 수 없음(안내). */
     val noBizPhone: Boolean get() = myPhone.length < 9
 

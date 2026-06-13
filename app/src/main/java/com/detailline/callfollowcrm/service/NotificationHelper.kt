@@ -367,6 +367,29 @@ object NotificationHelper {
         )
     }
 
+    /** 협업 해제됨 — 상대(A 또는 B)가 협업을 끝냄. 받는 쪽에 알림 + 기록은 보존. (FCM collab_ended) */
+    fun showCollabEnded(context: Context, shareId: String, byName: String, title: String) {
+        val notifId = COLLAB_INVITE_ID_OFFSET + ("ended:$shareId".hashCode() and 0x7FFFFF)
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            action = Intent.ACTION_VIEW
+            data = Uri.parse("${AppConfig.BASE_URL.trimEnd('/')}/shared/$shareId")
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pending = PendingIntent.getActivity(
+            context, notifId, openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val who = byName.takeIf { it.isNotBlank() } ?: "상대 사장님"
+        val site = title.takeIf { it.isNotBlank() } ?: "협업 현장"
+        showProtoPush(
+            context, notifId, CHANNEL_REMINDER, ACCENT_PURPLE,
+            title = "협업이 해제됐어요",
+            msg = "${who}이 '${site}' 협업을 해제했어요 — 기록(사진·메모)은 남아있어요",
+            contentIntent = pending,
+            actions = listOf(PushAction("협업 현장 보기", pending))
+        )
+    }
+
     /** 협업 입금 완료(받는 쪽) — 주인(A)이 입금완료 표시 → 협업한 사장 B 에게 알림. (FCM collab_paid) */
     fun showCollabPaid(context: Context, shareId: String, title: String) {
         val notifId = COLLAB_INVITE_ID_OFFSET + ("paid:$shareId".hashCode() and 0x7FFFFF)

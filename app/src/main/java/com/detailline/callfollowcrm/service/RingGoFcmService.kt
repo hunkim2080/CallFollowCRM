@@ -77,6 +77,13 @@ class RingGoFcmService : FirebaseMessagingService() {
                     NotificationHelper.showCollabPaid(this, shareId, data["title"].orEmpty())
                 }
             }
+            // 협업 해제됨 — 상대가 끝냄(A 해제 / B 그만하기). 받는 쪽에 알림.
+            "collab_ended" -> {
+                val shareId = data["share_id"].orEmpty()
+                if (shareId.isNotBlank()) {
+                    NotificationHelper.showCollabEnded(this, shareId, data["by_name"].orEmpty(), data["title"].orEmpty())
+                }
+            }
         }
     }
 }

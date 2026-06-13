@@ -447,10 +447,10 @@ fun CustomerDetailScreen(
                         shareId = shareId,
                         onViewPhoto = { fullscreenBitmap = it },
                         onRelease = {
-                            // 서버 pending 요청도 취소(best-effort). accepted 면 서버 409 → 조용히 무시, 로컬만 제거.
+                            // 협업 해제(수락된 것도) — 서버 end → B 에게 알림 + 기록 보존 + 재요청 풀림. best-effort(서버 오면 동작).
                             if (shareId.isNotBlank()) {
                                 val owner = container.preferences.bizPhone
-                                scope.launch { runCatching { container.sharedSiteRepository.cancel(shareId, owner) } }
+                                scope.launch { runCatching { container.sharedSiteRepository.endCollab(shareId, owner, asOwner = true) } }
                             }
                             container.preferences.collabAssignments = container.preferences.collabAssignments
                                 .filterNot { e ->
@@ -2674,6 +2674,7 @@ private fun CollabAfterCard(
     var step by remember(siteTitle, partnerName) { mutableStateOf<String?>(null) }
     var wage by remember(siteTitle, partnerName) { mutableStateOf<Int?>(null) }
     var photos by remember(shareId, siteTitle) { mutableStateOf(emptyList<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedPhoto>()) }
+    var confirmRelease by remember { mutableStateOf(false) }
     androidx.compose.runtime.LaunchedEffect(siteTitle, partnerName, shareId) {
         val owner = container.preferences.bizPhone.filter { it.isDigit() }
         if (owner.length >= 9) {
@@ -2774,8 +2775,25 @@ private fun CollabAfterCard(
         }
         Spacer(Modifier.height(10.dp))
         Text("협업 해제 (사진·메모는 그대로 보존)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
-            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { onRelease() }.padding(vertical = 11.dp),
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { confirmRelease = true }.padding(vertical = 11.dp),
             textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+    }
+    if (confirmRelease) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmRelease = false },
+            title = { Text("협업 해제할까요?", fontWeight = FontWeight.Bold) },
+            text = { Text("${partnerName}님께 '협업이 해제됐어요' 알림이 가요. 사진·메모·진행 기록은 그대로 남고, 나중에 다시 요청할 수 있어요.") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { confirmRelease = false; onRelease() }) {
+                    Text("해제", color = Color(0xFFF0436A), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { confirmRelease = false }) {
+                    Text("그대로 두기", color = TossTextSecondary)
+                }
+            }
+        )
     }
 }
 

@@ -4204,3 +4204,15 @@ curl -s -X POST http://localhost:8000/api/recruit/select -H "Content-Type: appli
 - **cowork 요청 ②(재알림)**: A가 같은 협업을 다시 요청(="한 번 더 보내기")하면 dedup 이어도 **B 에게 FCM 재발송(re-poke)** 해주면 좋겠음. 지금은 deduped 면 아무 알림도 안 가서 "한 번 더 보내기"가 무동작. (옵션: invite 에 `force_notify` 받으면 기존 share 로 collab_invite FCM 재발사)
 - **사장님 액션**: ① **맥미니 서버 reload**(owner_name·일당·수락·사진·3km 다 켜짐) ② 새 알람 테스트는 **다른 현장(새 주소)·다른 사람**으로.
 - commit: (아래)
+
+## 2026-06-13 (android 추가13) — 협업 수명주기: 해제(양쪽) + 경우의 수 점검
+사장님 결정: 양쪽 누구든 협업 해제 가능 + 상대 알림 + 기록 보존 + 재요청 OK.
+- **앱 추가**: `endCollab(shareId, phone, asOwner)` → `POST /api/shared/end`. A "협업 해제"(확인 다이얼로그) = end(by owner). B "협업 그만하기"(상세 하단, 확인) = end(by partner)+로컬 즉시 숨김. FCM `collab_ended` 수신 → "○○이 협업을 해제했어요(기록 보존)".
+- **declined 필터 버그 고침**: 거절/해제된 협업이 B 협업현장 목록에 진행막대까지 달고 그대로 뜨던 것 → 활성목록·휴지통에서 `status != "declined"` 제외.
+- **서버 할 일 ★**: 신규 `POST /api/shared/end {share_id, phone, by:"owner"|"partner"}` —
+  - phone 이 그 share 의 owner(by=owner) 또는 partner(by=partner) 인지 검증.
+  - **pending·accepted 둘 다** 처리 가능 → status="declined"(또는 "ended"). 기록(사진·메모·진행) 보존(§C).
+  - **상대에게** FCM `type=collab_ended, share_id, title, by_name`(끝낸 사람 이름).
+  - dedup 은 declined/ended 제외(이미 그럼) → 재요청 시 새 pending 생성 → 새 알람.
+- **재알림(추가12 ②)**: deduped invite 에 FCM 재발사(re-poke)는 별개로 여전히 요청.
+- commit: (아래)

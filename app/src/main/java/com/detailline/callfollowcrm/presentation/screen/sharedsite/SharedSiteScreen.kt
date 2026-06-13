@@ -114,6 +114,7 @@ fun SharedSiteScreen(
     var bizPartner by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) } // 업체별에서 고른 사장님 key
     var showTrash by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) } // 휴지통 보기
     val trashed by viewModel.trashed.collectAsState()
+    var confirmLeave by remember { mutableStateOf(false) } // 협업 그만하기 확인
 
     LaunchedEffect(Unit) { viewModel.load() }
     // 링크로 진입 — 목록 로드 후 그 현장 상세 1회 자동 열기(사용자가 뒤로 가면 다시 안 엶).
@@ -133,9 +134,9 @@ fun SharedSiteScreen(
 
     val serverPartners by viewModel.partners.collectAsState()
     val selected = sites.firstOrNull { it.shareId == selectedId }
-    // 휴지통에 넣은 건 목록·집계에서 제외. 휴지통 뷰에서만 보임.
-    val activeSites = remember(sites, trashed) { sites.filter { it.shareId !in trashed } }
-    val trashedSites = remember(sites, trashed) { sites.filter { it.shareId in trashed } }
+    // 휴지통에 넣은 건 목록·집계에서 제외. 거절/해제(declined)된 협업도 활성 목록에서 제외(기록은 서버 보존).
+    val activeSites = remember(sites, trashed) { sites.filter { it.shareId !in trashed && it.status != "declined" } }
+    val trashedSites = remember(sites, trashed) { sites.filter { it.shareId in trashed && it.status != "declined" } }
     // 업체별: 서버 §B 집계 있으면 그걸로(전체 이력), 없으면 로드된 현장 로컬 그룹핑(폴백).
     val partnerGroups = remember(activeSites, serverPartners) {
         if (serverPartners.isNotEmpty()) serverPartners.map { p ->
@@ -287,11 +288,33 @@ fun SharedSiteScreen(
                             }
                         }
                     },
-                    onRespond = { accept -> viewModel.respond(selected, accept); if (!accept) selectedId = null }
+                    onRespond = { accept -> viewModel.respond(selected, accept); if (!accept) selectedId = null },
+                    onLeave = { confirmLeave = true }
                 )
             }
             Spacer(Modifier.height(20.dp))
         }
+    }
+
+    // 협업 그만하기 확인
+    if (confirmLeave) {
+        val s = selected
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmLeave = false },
+            title = { Text("협업을 그만할까요?", fontWeight = FontWeight.Bold) },
+            text = { Text("${s?.ownerName ?: "사장님"}께 '협업을 그만뒀어요' 알림이 가요. 사진·메모·진행 기록은 그대로 남아요.") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    confirmLeave = false
+                    if (s != null) { viewModel.leaveCollab(s); selectedId = null }
+                }) { Text("그만하기", color = Color(0xFFF0436A), fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { confirmLeave = false }) {
+                    Text("계속 함께", color = TossTextSecondary)
+                }
+            }
+        )
     }
 
     // 증거사진 풀스크린 뷰어
@@ -577,7 +600,8 @@ private fun DetailBody(
     onViewPhoto: (android.graphics.Bitmap) -> Unit,
     onNavigate: (String) -> Unit,
     onProgress: (SharedSiteRepository.Progress) -> Unit,
-    onRespond: (Boolean) -> Unit
+    onRespond: (Boolean) -> Unit,
+    onLeave: () -> Unit
 ) {
     // 협업 현장 pill + 주인
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
@@ -735,6 +759,12 @@ private fun DetailBody(
     // 벽 안내
     Spacer(Modifier.height(16.dp))
     WallNote(site.ownerName)
+
+    // 협업 그만하기 (B가 끝내기) — 사장님께 알림 + 기록 보존. 마음 안 맞을 때.
+    Spacer(Modifier.height(14.dp))
+    Text("협업 그만하기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { onLeave() }.padding(vertical = 11.dp),
+        textAlign = androidx.compose.ui.text.style.TextAlign.Center)
 }
 
 /** 증거사진 그리드 — 3열, ＋추가 셀 + 사진 셀. 프로토 .pgrid. */

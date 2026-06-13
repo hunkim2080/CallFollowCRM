@@ -315,6 +315,17 @@ class SharedSiteRepository(
             put("share_id", shareId); put("owner_phone", phoneKey(ownerPhone))
         })
 
+    /**
+     * 협업 해제(끝내기) — 수락된 협업도 양쪽 누구든 끝낼 수 있음. 상대에게 알림 + 기록 보존 + 재요청 가능(dedup 풀림).
+     *   by="owner"(A 해제) | "partner"(B 그만하기). 서버 미구현이면 Result 실패 → 호출부가 로컬만 정리.
+     */
+    suspend fun endCollab(shareId: String, phone: String, asOwner: Boolean): Result<Unit> =
+        post("$baseUrl/api/shared/end", JSONObject().apply {
+            put("share_id", shareId)
+            put("phone", phoneKey(phone))
+            put("by", if (asOwner) "owner" else "partner")
+        })
+
     /** "data:image/jpeg;base64,XXXX" 또는 raw base64 → Bitmap. 실패 시 null. */
     private fun decodeDataUrl(dataUrl: String?): android.graphics.Bitmap? {
         if (dataUrl.isNullOrBlank()) return null
