@@ -535,6 +535,12 @@ def db_init() -> None:
             con.execute("ALTER TABLE shared_sites ADD COLUMN time_label_raw TEXT")
         except Exception:
             pass
+        # §D (2026-06-13) — 출동 2h 전 알림 dedup 컬럼. NULL = 아직 발송 안 됨.
+        # poller 가 UPDATE ... WHERE reminded_at_ms IS NULL 로 race 차단.
+        try:
+            con.execute("ALTER TABLE shared_sites ADD COLUMN reminded_at_ms INTEGER")
+        except Exception:
+            pass
         con.execute(
             "CREATE INDEX IF NOT EXISTS idx_shared_sites_owner "
             "ON shared_sites(owner_phone, created_at_ms DESC)"
@@ -7133,6 +7139,101 @@ async def shared_cancel(req: SharedCancelRequest) -> dict:
         con.commit()
     print(f"[shared/cancel] share={share_id} owner={owner_phone} → declined (취소)")
     return {"ok": True, "share_id": share_id, "status": "declined", "updated_at_ms": now}
+
+
+# ─── §D — 출동 2h 전 자동 알림 (uvicorn startup background task) ───
+# 핸드오프 SERVER_HANDOFF_collab_expansion §D: "확정된 협업 현장의 scheduled_at_ms − 2h 시점에
+# B 에게 FCM type=collab_remind." 서버 크론 (uvicorn 내부 폴링) 선택 — 사장님 launchd plist
+# 변경 0, uvicorn 살아있는 동안 자동 동작.
+#
+# 동작:
+#   - 매 60초마다 polling.
+#   - status='accepted' + scheduled_at_ms 가 [now, now + 2h] 안 + reminded_at_ms IS NULL
+#     + paid_at_ms IS NULL + progress != 'completed' 인 share 검색.
+#   - 각 share 에 대해 collab_remind FCM 발사 → B 폰 (partner_phone).
+#   - UPDATE reminded_at_ms = now WHERE share_id=? AND reminded_at_ms IS NULL → race 차단.
+#   - 발사 후 [shared/remind] stdout 로그.
+#
+# dedup: reminded_at_ms IS NULL 가드로 같은 share 두 번 발사 차단 (핸드오프 명시).
+# 안전: 1차 발사 전 알람 막힌 share (accept 후 시간 지나 reminded_at_ms 박힘) 도 안전.
+
+_REMIND_POLL_INTERVAL_SEC = 60
+_REMIND_WINDOW_MS = 2 * 60 * 60 * 1000  # 2시간
+
+
+def _remind_pass() -> None:
+    """1회 폴링 — 2h 안 들어온 accepted share 찾아서 B 에게 FCM."""
+    now = _now_ms()
+    with db_conn() as con:
+        rows = con.execute(
+            """
+            SELECT share_id, owner_phone, partner_phone, title, scheduled_at_ms,
+                   time_label_raw, daily_wage
+            FROM shared_sites
+            WHERE status = 'accepted'
+              AND scheduled_at_ms IS NOT NULL
+              AND scheduled_at_ms > ?
+              AND scheduled_at_ms - ? <= ?
+              AND reminded_at_ms IS NULL
+              AND paid_at_ms IS NULL
+              AND (progress IS NULL OR progress != 'completed')
+            LIMIT 50
+            """,
+            (now, now, _REMIND_WINDOW_MS),
+        ).fetchall()
+    for r in rows:
+        share_id, owner_phone, partner_phone, title, scheduled_at_ms, time_label_raw, daily_wage = r
+        # race 차단: 이 쿼리가 1행 UPDATE 한 경우만 FCM 발사 (다른 worker 가 먼저 박았으면 0행).
+        with db_conn() as con:
+            cur = con.execute(
+                """
+                UPDATE shared_sites
+                SET reminded_at_ms = ?, updated_at_ms = ?
+                WHERE share_id = ? AND reminded_at_ms IS NULL
+                """,
+                (now, now, share_id),
+            )
+            con.commit()
+            if cur.rowcount != 1:
+                continue
+        # FCM 발사
+        tl = (time_label_raw or "").strip()
+        if not tl and scheduled_at_ms:
+            try:
+                tl = _dt.datetime.fromtimestamp(scheduled_at_ms / 1000).strftime("%H:%M")
+            except Exception:
+                tl = ""
+        owner_name = _is_registered_owner(owner_phone) or "사장님"
+        fcm_data = {
+            "type": "collab_remind",
+            "share_id": share_id,
+            "title": title or "협업 현장",
+            "owner_name": owner_name,
+            "time_label": tl,
+        }
+        if daily_wage is not None:
+            fcm_data["daily_wage"] = str(int(daily_wage))   # FCM data 는 string
+        _send_fcm_data_to_phone(partner_phone, fcm_data)
+        print(
+            f"[shared/remind] share={share_id} partner={partner_phone} "
+            f"scheduled={scheduled_at_ms} time={tl} sent"
+        )
+
+
+async def _remind_poller_loop() -> None:
+    """무한 poller — uvicorn 살아있는 동안 매 60초 _remind_pass()."""
+    print(f"[shared/remind] poller started (interval={_REMIND_POLL_INTERVAL_SEC}s window=2h)")
+    while True:
+        try:
+            _remind_pass()
+        except Exception as e:
+            print(f"[shared/remind] poller err: {type(e).__name__}: {e}")
+        await asyncio.sleep(_REMIND_POLL_INTERVAL_SEC)
+
+
+@app.on_event("startup")
+async def _kickoff_remind_poller() -> None:
+    asyncio.create_task(_remind_poller_loop())
 
 
 # ============================================================================

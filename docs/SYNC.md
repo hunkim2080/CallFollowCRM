@@ -4013,3 +4013,61 @@ cowork §E 푸시 분기에 맞춰 앱 수신부 먼저(안전·검증 쉬움).
 - **§E-1 푸시 수신**(추가8): collab_event auto="true"→"거의 도착", collab_arrived_confirm→"알려드렸어요".
 - ⚠️ **실주행 테스트 필요**: geofence 발사는 실제 현장 3km 진입해야 확인됨(데스크 검증 불가). 백그라운드 발사엔 "항상 허용" 위치 권장. 안 잡혀도 수동 도착 버튼으로 커버(무회귀).
 - commit: (아래). 폰 분리돼 설치는 재연결 후.
+
+## 2026-06-13 (추가4) · cowork (server) — §D 출동 2h 전 자동 알림 (서버 크론)
+SERVER_HANDOFF_collab_expansion.md §D. uvicorn startup background task 방식 (사장님 launchd plist 변경 0).
+
+### 결정 — 서버 크론 vs 앱 ReminderWorker
+**서버 크론 (uvicorn 내부 polling) 채택.** 이유:
+- 사장님 launchd plist 변경 불필요 (이미 uvicorn 살아있는 동안 자동).
+- 앱 OS killed 영향 0 (서버에서 발사).
+- "앱이 꺼져 있어도 2h 전 알람" 시나리오 보장.
+
+### 구현
+- `shared_sites.reminded_at_ms INTEGER` ALTER (NULL = 아직 발사 안 됨, 마이그레이션 자동).
+- `_remind_pass()` — 1회 SQL 폴링:
+  ```sql
+  SELECT ... FROM shared_sites
+  WHERE status='accepted' AND scheduled_at_ms IS NOT NULL
+    AND scheduled_at_ms > now
+    AND scheduled_at_ms - now <= 2h
+    AND reminded_at_ms IS NULL
+    AND paid_at_ms IS NULL
+    AND (progress IS NULL OR progress != 'completed')
+  LIMIT 50
+  ```
+- 각 share 마다 **UPDATE ... WHERE reminded_at_ms IS NULL** 로 race 차단 (1행 박힌 경우만 FCM 발사).
+- `_remind_poller_loop()` — 매 60초 `_remind_pass()`. uvicorn 살아있는 동안 무한.
+- `@app.on_event("startup")` 에서 `asyncio.create_task(_remind_poller_loop())` 등록.
+
+### FCM payload (B 에게)
+```
+type: collab_remind
+share_id, title, owner_name, time_label, daily_wage(있으면)
+```
+앱이 본 멘트 생성: "오늘은 OO 현장으로 출동하는 날이에요! 출발할 때 [출발] 버튼을 눌러 사장님께 출발을 알려주세요 🚗"
+
+### dedup (핸드오프 명시)
+- 같은 share_id 두 번 발사 X (reminded_at_ms 박힘으로 자동).
+- 앱 ReminderWorker 와 충돌? — 앱 ReminderWorker 미가동 (핸드오프 §D: "둘 중 하나만 발송되게 dedup"). 서버만 발사. 안드로이드 측 ReminderWorker 가 이미 있다면 끄거나 미가동 권장.
+
+### 안전벽
+- FCM payload: title / owner_name / time_label / daily_wage 만. 주소/계좌/customer 미포함.
+
+### 검증 (배포 후)
+1. uvicorn stdout 에 `[shared/remind] poller started (interval=60s window=2h)` 1줄 보이면 startup OK.
+2. accept 된 share 의 scheduled_at_ms 가 2h 안 들어오는 순간 (또는 테스트로 scheduled_at_ms 를 2h 이내로 수동 박은 share) → 60초 안에 B 폰 푸시 + stdout `[shared/remind] share=... sent`.
+3. DB:
+   ```bash
+   sqlite3 ~/ringgo-server/cache.db "SELECT share_id, scheduled_at_ms, reminded_at_ms FROM shared_sites WHERE status='accepted' AND scheduled_at_ms IS NOT NULL ORDER BY scheduled_at_ms LIMIT 5;"
+   ```
+
+### 다음 액션 (사장님)
+- `git pull --rebase && launchctl kickstart -k` (또는 unload/load) → uvicorn 재시작 → poller 자동 시작.
+
+### 안드로이드 측 (다음 commit 사이클에)
+- `collab_remind` 수신 처리 (앱이 멘트 생성, [출발] 버튼으로 deep link).
+- 앱 ReminderWorker (만약 있다면) 비활성화 권장 — 서버가 단일 발송 원.
+
+### 남은 핸드오프
+- §G (모집 시스템 — 가장 큰 작업, recruit + recruit_application 2 테이블 + 5 endpoint + FCM 3 type).
