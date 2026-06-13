@@ -4303,4 +4303,12 @@ curl -s -X POST http://localhost:8000/api/shared/invite -H "Content-Type: applic
 - **현장사진 카톡식**: 시스템 피커 → 공용 `PhotoPickerSheet`(아래서 위로 올라오는 갤러리, "파일에서" fallback)로 교체.
 - 실기기 검증: A쪽 통일형 메인폰 풀검증(토글→일당섹션→"1명에게 보내기"). B쪽은 사장님 라이브 테스트 중.
 - **서버 재확인 요청 ★**: §A daily_wage echo 가 reload 돼야 B쪽 일당이 "미정" 대신 실제 값으로 보임. owner_name 도 아직 "사장님"(reload 전).
+- commit: 3d5a42b
+
+## 2026-06-14 (android 추가19) — 상담함에 "받은 협업 요청" 카드 + 탭 배지 (푸시 실수로 지워도 찾게)
+사장님: 협업 푸시를 실수로 밀어 지우면 다시 못 찾고 헤맴 → 상담함(홈)에 영구 표시 필요.
+- CollabEventCenter 에 `pendingInvites` StateFlow 추가(pollInvites 가 채움, 응답하면 자동 빠짐).
+- HomeViewModel `pendingCollabInvites` → HomeScreen 상담함 상단에 "🤝 받은 협업 요청 · OOO님·현장·일당" 카드(탭=협업현장 수락하러).
+- RingTabBar `inboxBadge`(이미 있던 미사용 파라미터)에 받은요청 수 연결 → 상담함 탭 빨간 배지.
+- 서버 무관. (일당 표시는 §A reload 후 실제값)
 - commit: (이 블록과 함께 push)

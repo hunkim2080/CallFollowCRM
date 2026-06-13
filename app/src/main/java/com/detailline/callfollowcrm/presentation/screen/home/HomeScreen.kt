@@ -201,6 +201,7 @@ fun HomeScreen(
     val autoReplies by viewModel.autoReplies.collectAsState()
     val teamUpdates by viewModel.teamUpdates.collectAsState()
     val collabUpdates by viewModel.collabUpdates.collectAsState()
+    val pendingInvites by viewModel.pendingCollabInvites.collectAsState()
     val recurringDueCount by viewModel.recurringDueCount.collectAsState()
     val scheduleReminders by viewModel.scheduleReminders.collectAsState()
     val estimateFollowupCount by viewModel.estimateFollowupCount.collectAsState()
@@ -602,6 +603,23 @@ fun HomeScreen(
                                 }
                             )
                         }
+                    }
+                }
+
+                // 받은 협업 요청(수락 대기) — 푸시를 실수로 지워도 여기서 찾아 수락. 응답하면 자동으로 빠짐. (2026-06-14 사장님)
+                pendingInvites.forEach { inv ->
+                    item(key = "collab-invite-${inv.shareId}") {
+                        InboxAlert(
+                            accent = Color(0xFF7C5CFC),
+                            accentTint = Color(0xFFF1ECFE),
+                            icon = Icons.Default.Person,
+                            title = "🤝 받은 협업 요청",
+                            tagText = "수락 대기",
+                            tagBg = Color(0xFFF1ECFE), tagFg = Color(0xFF7C5CFC),
+                            sub = "${inv.ownerName}님 · ${inv.title}" + (inv.dailyWage?.let { " · 일당 ${it}만원" } ?: ""),
+                            goLabel = "수락하러 가기",
+                            onClick = onOpenCollabSites
+                        )
                     }
                 }
 

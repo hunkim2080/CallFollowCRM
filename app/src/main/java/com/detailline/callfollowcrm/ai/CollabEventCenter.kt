@@ -19,6 +19,11 @@ class CollabEventCenter(
     private val _todayUpdates = MutableStateFlow<List<CollabUpdate>>(emptyList())
     val todayUpdates: StateFlow<List<CollabUpdate>> = _todayUpdates.asStateFlow()
 
+    /** 받은 협업 요청(pending) — 상담함 "받은 협업 요청" 카드용. pollInvites 가 채움.
+     *   (2026-06-14 사장님: 푸시 알림을 실수로 밀어 지워도 여기서 다시 찾아 수락하게) */
+    private val _pendingInvites = MutableStateFlow<List<SharedSiteRepository.SharedSite>>(emptyList())
+    val pendingInvites: StateFlow<List<SharedSiteRepository.SharedSite>> = _pendingInvites.asStateFlow()
+
     data class CollabUpdate(
         val eventId: String,
         val shareId: String,
@@ -95,6 +100,7 @@ class CollabEventCenter(
         if (owner.isBlank()) return
         val sites = sharedSiteRepository.withMe(owner).getOrNull() ?: return
         val pending = sites.filter { it.status == "pending" }
+        _pendingInvites.value = pending   // 상담함 "받은 협업 요청" 카드 — 응답하면 다음 폴에서 자동으로 빠짐
         val pendingIds = pending.map { it.shareId }.toSet()
 
         if (!preferences.collabInviteSeeded) {

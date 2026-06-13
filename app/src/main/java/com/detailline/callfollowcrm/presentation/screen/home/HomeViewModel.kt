@@ -345,6 +345,11 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             list.filter { it.eventId !in dismissed }.sortedByDescending { it.createdAtMs }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** 받은 협업 요청(수락 대기) — 상담함 카드. 푸시를 실수로 지워도 여기서 찾아 수락. 응답하면 자동으로 빠짐. (2026-06-14) */
+    val pendingCollabInvites: StateFlow<List<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite>> =
+        container.collabEventCenter.pendingInvites
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     // ────────────────────────────────────────────────────────
     // 정기문자 "보낼 때 됐어요" 카운트 (상담함, 2026-06-01)
     //   포그라운드 계산 (앱 열 때). 자동발송 X — 사장님이 목록에서 확인 후 보냄.

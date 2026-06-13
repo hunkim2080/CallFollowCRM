@@ -6,6 +6,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -91,7 +92,10 @@ fun AppRoot(container: AppContainer) {
                 contentWindowInsets = WindowInsets(0, 0, 0, 0),
                 bottomBar = {
                     if (showTabBar) {
+                        // 상담함 배지 = 받은 협업 요청(수락 대기) 수 — 푸시 지워도 여기서 눈에 띄게. (2026-06-14 사장님)
+                        val pendingCollab by container.collabEventCenter.pendingInvites.collectAsState()
                         RingTabBar(
+                            inboxBadge = pendingCollab.size.takeIf { it > 0 },
                             currentRoute = if (currentRoute in RING_TAB_ROUTES) currentRoute else lastTabRoute,
                             onSelect = { route ->
                                 // 2026-06-07 사장님 통점: 탭이 가끔 안 눌림.
