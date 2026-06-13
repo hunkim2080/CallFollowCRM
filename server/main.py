@@ -541,6 +541,54 @@ def db_init() -> None:
             con.execute("ALTER TABLE shared_sites ADD COLUMN reminded_at_ms INTEGER")
         except Exception:
             pass
+        # §G (2026-06-13) — 일당 모집 시스템 (broadcast → 지원 → 선택).
+        # 핸드오프 SERVER_HANDOFF_collab_expansion §G. 데이터 2종 = recruits + recruit_applications.
+        # 정확 주소는 확정 후 공개. 지원자끼리 안 보임. 고객 정보 미노출.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS recruits (
+                recruit_id      TEXT PRIMARY KEY,        -- 'rec_' + 10자 base62
+                owner_phone     TEXT NOT NULL,           -- A (모집자)
+                date_ms         INTEGER,                 -- 모집 일자/시각 (scheduled)
+                place           TEXT,                    -- 대략 위치 '인천 송도' (확정 전 공개)
+                full_addr       TEXT,                    -- 정확한 주소 (확정 후만 공개)
+                work            TEXT,                    -- 작업 종류 '줄눈'
+                daily_wage      INTEGER,                 -- 만원 단위
+                status          TEXT NOT NULL DEFAULT 'open', -- open/closed
+                created_at_ms   INTEGER NOT NULL,
+                updated_at_ms   INTEGER NOT NULL
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_recruits_owner "
+            "ON recruits(owner_phone, created_at_ms DESC)"
+        )
+        # recruit_applications — 초대받음(invited) → 지원함(applied) → 선택(selected)/미선택(rejected)
+        # invited 단계 row 는 create 시 일괄 생성. apply 시 applied_at_ms 박힘 = 순번 결정.
+        # select 시 selected/rejected + decided_at_ms 박힘. (§B history 와 합쳐 past_count/total 계산)
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS recruit_applications (
+                recruit_id      TEXT NOT NULL,
+                partner_phone   TEXT NOT NULL,
+                status          TEXT NOT NULL DEFAULT 'invited',  -- invited/applied/selected/rejected
+                invited_at_ms   INTEGER NOT NULL,
+                applied_at_ms   INTEGER,                          -- NULL = 아직 지원 X. ORDER BY 순번.
+                decided_at_ms   INTEGER,                          -- selected or rejected 시각
+                share_id        TEXT,                             -- selected 시 자동 생성된 shared_sites.share_id
+                PRIMARY KEY (recruit_id, partner_phone)
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_recruit_apps_partner "
+            "ON recruit_applications(partner_phone, invited_at_ms DESC)"
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_recruit_apps_applied "
+            "ON recruit_applications(recruit_id, applied_at_ms ASC)"
+        )
         con.execute(
             "CREATE INDEX IF NOT EXISTS idx_shared_sites_owner "
             "ON shared_sites(owner_phone, created_at_ms DESC)"
@@ -7239,6 +7287,433 @@ async def _remind_poller_loop() -> None:
 
 # §D startup — lifespan (line 1888) 에서 통합 호출. on_event("startup") 는
 #   FastAPI 가 lifespan= 받으면 무시되므로 사용 안 함.
+
+
+# ============================================================================
+# §G — 일당 모집 시스템 (broadcast → 지원 → 선택)
+# ─────────────────────────────────────────────────────────────────────────────
+# 핸드오프 SERVER_HANDOFF_collab_expansion §G. 프로토 m-compose/m-push/m-detail/
+# m-applicants/m-result.
+#
+# 흐름:
+#   1) A 가 partner_phones[] 에 모집 broadcast (FCM recruit_invite).
+#   2) B 들이 apply (선착순 applied_at_ms).
+#   3) A 가 applicants 조회 (순번 + §B past_count/past_total 가산점).
+#   4) A 가 select(selected_phones) → 자동 협업 현장 확정(shared_sites accepted) +
+#      FCM recruit_confirmed(정확 주소 공개) / recruit_rejected.
+#
+# 안전벽: 모집 단계 full_addr 비공개, 지원자끼리 상호 미노출, 고객 정보 0.
+# ============================================================================
+
+
+def _gen_recruit_id() -> str:
+    return "rec_" + "".join(
+        _secrets_collab.choice(_SHARE_ID_ALPHABET) for _ in range(10)
+    )
+
+
+def _recruit_past_for(partner_phone: str, owner_phone: str) -> tuple:
+    """§B 재사용 — 그 partner 가 그 owner 와 한 협업 history (count, total_wage)."""
+    with db_conn() as con:
+        row = con.execute(
+            """
+            SELECT COUNT(*) AS cnt,
+                   COALESCE(SUM(CASE WHEN progress='completed' THEN COALESCE(daily_wage,0) ELSE 0 END), 0) AS total
+            FROM shared_sites
+            WHERE partner_phone = ? AND owner_phone = ?
+            """,
+            (partner_phone, owner_phone),
+        ).fetchone()
+    return (int(row[0] or 0), int(row[1] or 0))
+
+
+# ─── ① POST /api/recruit/create ───
+class RecruitCreateRequest(BaseModel):
+    owner_phone: str
+    date_ms: Optional[int] = None           # 모집 일자/시각
+    place: Optional[str] = None             # '인천 송도' 대략 위치 (확정 전 공개)
+    full_addr: Optional[str] = None         # 정확한 주소 (확정 후만 공개)
+    work: Optional[str] = None              # '줄눈'
+    daily_wage: Optional[int] = None        # 만원 단위
+    partner_phones: list                    # 모집 받을 후보들
+
+
+@app.post("/api/recruit/create")
+async def recruit_create(req: RecruitCreateRequest) -> dict:
+    """A 가 모집 공고 broadcast. partner_phones 각자에게 FCM 발사."""
+    owner_phone = _norm_phone(req.owner_phone)
+    if not owner_phone:
+        raise HTTPException(400, "owner_phone 필수")
+    _check_team_tier(owner_phone)
+    place = (req.place or "").strip()[:100]
+    full_addr = (req.full_addr or "").strip()[:200]
+    work = (req.work or "").strip()[:60]
+    daily_wage_val: Optional[int] = None
+    if req.daily_wage is not None:
+        try:
+            dw = int(req.daily_wage)
+            if 0 < dw <= 10000:
+                daily_wage_val = dw
+        except Exception:
+            pass
+    # partner_phones 정규화 + 본인 제외 + 중복 제거
+    raw_phones = req.partner_phones or []
+    if not isinstance(raw_phones, list) or not raw_phones:
+        raise HTTPException(400, "partner_phones 비어있음")
+    partners: list = []
+    seen = set()
+    for p in raw_phones:
+        if not isinstance(p, str):
+            continue
+        d = _norm_phone(p)
+        if not d or d == owner_phone or d in seen:
+            continue
+        seen.add(d)
+        partners.append(d)
+    if not partners:
+        raise HTTPException(400, "유효한 partner_phones 없음")
+
+    recruit_id = _gen_recruit_id()
+    now = _now_ms()
+    with db_conn() as con:
+        con.execute(
+            """
+            INSERT INTO recruits
+                (recruit_id, owner_phone, date_ms, place, full_addr, work, daily_wage,
+                 status, created_at_ms, updated_at_ms)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
+            """,
+            (
+                recruit_id, owner_phone, req.date_ms,
+                place or None, full_addr or None, work or None, daily_wage_val,
+                now, now,
+            ),
+        )
+        for p in partners:
+            con.execute(
+                """
+                INSERT INTO recruit_applications
+                    (recruit_id, partner_phone, status, invited_at_ms)
+                VALUES (?, ?, 'invited', ?)
+                """,
+                (recruit_id, p, now),
+            )
+        con.commit()
+    # FCM recruit_invite — 각 partner 에게 (full_addr 미포함 = 확정 전 비공개)
+    owner_name = _is_registered_owner(owner_phone) or "사장님"
+    fcm_data_base = {
+        "type": "recruit_invite",
+        "recruit_id": recruit_id,
+        "owner_name": owner_name,
+        "place": place or "",
+        "work": work or "",
+    }
+    if req.date_ms:
+        fcm_data_base["date_ms"] = str(int(req.date_ms))
+    if daily_wage_val is not None:
+        fcm_data_base["daily_wage"] = str(daily_wage_val)
+    sent = 0
+    for p in partners:
+        _send_fcm_data_to_phone(p, dict(fcm_data_base))
+        sent += 1
+    print(
+        f"[recruit/create] recruit={recruit_id} owner={owner_phone} partners={len(partners)} "
+        f"work='{work}' wage={daily_wage_val} sent={sent}"
+    )
+    return {"recruit_id": recruit_id, "partner_count": len(partners)}
+
+
+# ─── ② GET /api/recruit/with-me ───
+@app.get("/api/recruit/with-me")
+async def recruit_with_me(phone: str, since_ms: int = 0, limit: int = 50) -> dict:
+    """B 가 받은 모집들. invited/applied/selected/rejected 모두 포함.
+
+    벽: full_addr 은 본인이 selected 일 때만 노출.
+    """
+    partner_phone = _norm_phone(phone)
+    if not partner_phone:
+        raise HTTPException(400, "phone 필수")
+    limit = max(1, min(limit, 200))
+    with db_conn() as con:
+        rows = con.execute(
+            """
+            SELECT r.recruit_id, r.owner_phone, r.date_ms, r.place, r.full_addr,
+                   r.work, r.daily_wage, r.status, r.created_at_ms,
+                   a.status, a.invited_at_ms, a.applied_at_ms, a.decided_at_ms, a.share_id
+            FROM recruit_applications a
+            JOIN recruits r ON r.recruit_id = a.recruit_id
+            WHERE a.partner_phone = ? AND a.invited_at_ms > ?
+            ORDER BY a.invited_at_ms DESC
+            LIMIT ?
+            """,
+            (partner_phone, since_ms, limit),
+        ).fetchall()
+    out = []
+    for r in rows:
+        (recruit_id, owner_phone, date_ms, place, full_addr, work, daily_wage,
+         recruit_status, created_at_ms,
+         my_status, invited_at_ms, applied_at_ms, decided_at_ms, share_id) = r
+        owner_name = _is_registered_owner(owner_phone) or "사장님"
+        item = {
+            "recruit_id": recruit_id,
+            "owner_phone": owner_phone,    # 본인이 받은 모집의 owner 번호 — 노출 OK
+            "owner_name": owner_name,
+            "date_ms": int(date_ms or 0),
+            "place": place or "",
+            "work": work or "",
+            "recruit_status": recruit_status,    # open/closed
+            "my_status": my_status,              # invited/applied/selected/rejected
+            "invited_at_ms": int(invited_at_ms or 0),
+            "applied_at_ms": int(applied_at_ms or 0),
+            "decided_at_ms": int(decided_at_ms or 0),
+            "created_at_ms": int(created_at_ms or 0),
+        }
+        if daily_wage is not None:
+            try:
+                item["daily_wage"] = int(daily_wage)
+            except Exception:
+                pass
+        # full_addr 은 selected 일 때만 노출 (벽 — 모집 단계 비공개)
+        if my_status == "selected":
+            item["full_addr"] = full_addr or ""
+            if share_id:
+                item["share_id"] = share_id    # 자동 생성된 협업 현장 link
+        out.append(item)
+    return {"recruits": out}
+
+
+# ─── ③ POST /api/recruit/apply ───
+class RecruitApplyRequest(BaseModel):
+    recruit_id: str
+    partner_phone: str
+
+
+@app.post("/api/recruit/apply")
+async def recruit_apply(req: RecruitApplyRequest) -> dict:
+    """B 가 지원. applied_at_ms 박힘 = 선착순 순번."""
+    recruit_id = (req.recruit_id or "").strip()
+    partner_phone = _norm_phone(req.partner_phone)
+    if not recruit_id or not partner_phone:
+        raise HTTPException(400, "recruit_id, partner_phone 필수")
+    now = _now_ms()
+    with db_conn() as con:
+        r = con.execute(
+            "SELECT status FROM recruits WHERE recruit_id = ?",
+            (recruit_id,),
+        ).fetchone()
+        if not r:
+            raise HTTPException(404, "recruit_id 없음")
+        if r[0] != "open":
+            raise HTTPException(409, f"모집 마감됨 (status={r[0]})")
+        app_row = con.execute(
+            "SELECT status, applied_at_ms FROM recruit_applications WHERE recruit_id = ? AND partner_phone = ?",
+            (recruit_id, partner_phone),
+        ).fetchone()
+        if not app_row:
+            raise HTTPException(403, "초대받지 않은 모집입니다")
+        if app_row[0] != "invited":
+            raise HTTPException(409, f"이미 처리된 지원입니다 (status={app_row[0]})")
+        con.execute(
+            """
+            UPDATE recruit_applications
+            SET status = 'applied', applied_at_ms = ?
+            WHERE recruit_id = ? AND partner_phone = ?
+            """,
+            (now, recruit_id, partner_phone),
+        )
+        con.commit()
+    print(f"[recruit/apply] recruit={recruit_id} partner={partner_phone} applied_at={now}")
+    return {"ok": True, "recruit_id": recruit_id, "applied_at_ms": now}
+
+
+# ─── ④ GET /api/recruit/applicants ───
+@app.get("/api/recruit/applicants")
+async def recruit_applicants(recruit_id: str, owner_phone: str) -> dict:
+    """A(owner) 가 지원자 목록 조회. 본인 모집만. 선착순 + §B history 가산점.
+
+    응답: applicants[{partner_phone, partner_name, applied_at_ms, rank,
+                     past_count, past_total, status}]
+    """
+    recruit_id = (recruit_id or "").strip()
+    owner_digits = _norm_phone(owner_phone)
+    if not recruit_id or not owner_digits:
+        raise HTTPException(400, "recruit_id, owner_phone 필수")
+    with db_conn() as con:
+        r = con.execute(
+            "SELECT owner_phone FROM recruits WHERE recruit_id = ?",
+            (recruit_id,),
+        ).fetchone()
+        if not r:
+            raise HTTPException(404, "recruit_id 없음")
+        if _norm_phone(r[0]) != owner_digits:
+            raise HTTPException(403, "권한 없음 (본인 모집만 조회 가능)")
+        rows = con.execute(
+            """
+            SELECT partner_phone, status, applied_at_ms, decided_at_ms, share_id
+            FROM recruit_applications
+            WHERE recruit_id = ? AND applied_at_ms IS NOT NULL
+            ORDER BY applied_at_ms ASC
+            """,
+            (recruit_id,),
+        ).fetchall()
+    applicants = []
+    for i, row in enumerate(rows):
+        partner_phone, status, applied_at_ms, decided_at_ms, share_id = row
+        past_count, past_total = _recruit_past_for(partner_phone, owner_digits)
+        applicants.append({
+            "partner_phone": partner_phone,
+            "partner_name": _is_registered_owner(partner_phone) or "협업 사장",
+            "applied_at_ms": int(applied_at_ms or 0),
+            "rank": i + 1,
+            "past_count": past_count,
+            "past_total": past_total,
+            "status": status,    # applied/selected/rejected
+            "decided_at_ms": int(decided_at_ms or 0),
+            "share_id": share_id,
+        })
+    return {"applicants": applicants, "count": len(applicants)}
+
+
+# ─── ⑤ POST /api/recruit/select ───
+class RecruitSelectRequest(BaseModel):
+    recruit_id: str
+    owner_phone: str
+    selected_phones: list                    # 선택된 partner phones (1명 이상)
+
+
+@app.post("/api/recruit/select")
+async def recruit_select(req: RecruitSelectRequest) -> dict:
+    """A 가 선택. 선택자 → shared_sites 자동 확정 + recruit_confirmed FCM (정확 주소 공개).
+    미선택 지원자 → recruit_rejected FCM. recruit 자체 status=closed.
+    """
+    recruit_id = (req.recruit_id or "").strip()
+    owner_digits = _norm_phone(req.owner_phone)
+    if not recruit_id or not owner_digits:
+        raise HTTPException(400, "recruit_id, owner_phone 필수")
+    sel_raw = req.selected_phones or []
+    if not isinstance(sel_raw, list) or not sel_raw:
+        raise HTTPException(400, "selected_phones 비어있음")
+    selected_set = set()
+    for p in sel_raw:
+        if isinstance(p, str):
+            d = _norm_phone(p)
+            if d:
+                selected_set.add(d)
+    if not selected_set:
+        raise HTTPException(400, "유효한 selected_phones 없음")
+    now = _now_ms()
+    with db_conn() as con:
+        rec = con.execute(
+            """
+            SELECT owner_phone, date_ms, place, full_addr, work, daily_wage, status
+            FROM recruits WHERE recruit_id = ?
+            """,
+            (recruit_id,),
+        ).fetchone()
+        if not rec:
+            raise HTTPException(404, "recruit_id 없음")
+        if _norm_phone(rec[0]) != owner_digits:
+            raise HTTPException(403, "권한 없음")
+        if rec[6] == "closed":
+            raise HTTPException(409, "이미 마감된 모집입니다")
+        owner_phone = rec[0]
+        date_ms = rec[1]
+        place = rec[2] or ""
+        full_addr = rec[3] or ""
+        work = rec[4] or ""
+        daily_wage = rec[5]
+        # 지원한 applicants 만 select 대상 — 초대만 받고 지원 안 한 사람은 'invited' 그대로 둠
+        app_rows = con.execute(
+            """
+            SELECT partner_phone, status FROM recruit_applications
+            WHERE recruit_id = ? AND applied_at_ms IS NOT NULL
+            """,
+            (recruit_id,),
+        ).fetchall()
+        selected_results = []      # (partner_phone, share_id)
+        rejected_results = []      # partner_phone
+        for partner_phone, app_status in app_rows:
+            if app_status in ("selected", "rejected"):
+                continue
+            if partner_phone in selected_set:
+                # 1) shared_sites 자동 생성 (status=accepted, progress=assigned)
+                share_id = _gen_share_id()
+                title = work or "협업 현장"
+                con.execute(
+                    f"""
+                    INSERT INTO shared_sites
+                        ({_SHARED_SITES_COLS})
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'accepted', 'assigned',
+                            NULL, NULL, NULL, NULL, ?, NULL, ?, ?)
+                    """,
+                    (
+                        share_id, owner_phone, partner_phone,
+                        title, full_addr or None, date_ms,
+                        work or None, None, None,
+                        daily_wage,
+                        now, now,
+                    ),
+                )
+                # 2) recruit_applications UPDATE
+                con.execute(
+                    """
+                    UPDATE recruit_applications
+                    SET status = 'selected', decided_at_ms = ?, share_id = ?
+                    WHERE recruit_id = ? AND partner_phone = ?
+                    """,
+                    (now, share_id, recruit_id, partner_phone),
+                )
+                selected_results.append((partner_phone, share_id))
+            else:
+                con.execute(
+                    """
+                    UPDATE recruit_applications
+                    SET status = 'rejected', decided_at_ms = ?
+                    WHERE recruit_id = ? AND partner_phone = ?
+                    """,
+                    (now, recruit_id, partner_phone),
+                )
+                rejected_results.append(partner_phone)
+        con.execute(
+            "UPDATE recruits SET status = 'closed', updated_at_ms = ? WHERE recruit_id = ?",
+            (now, recruit_id),
+        )
+        con.commit()
+    # FCM 발사
+    owner_name = _is_registered_owner(owner_phone) or "사장님"
+    title = work or "협업 현장"
+    for partner_phone, share_id in selected_results:
+        fcm_data = {
+            "type": "recruit_confirmed",
+            "recruit_id": recruit_id,
+            "share_id": share_id,
+            "owner_name": owner_name,
+            "title": title,
+            "full_addr": full_addr,      # 확정 후 정확한 주소 공개
+            "place": place,
+        }
+        if date_ms:
+            fcm_data["date_ms"] = str(int(date_ms))
+        if daily_wage is not None:
+            fcm_data["daily_wage"] = str(int(daily_wage))
+        _send_fcm_data_to_phone(partner_phone, fcm_data)
+    for partner_phone in rejected_results:
+        _send_fcm_data_to_phone(partner_phone, {
+            "type": "recruit_rejected",
+            "recruit_id": recruit_id,
+            "owner_name": owner_name,
+            "title": title,
+        })
+    print(
+        f"[recruit/select] recruit={recruit_id} owner={owner_phone} "
+        f"selected={len(selected_results)} rejected={len(rejected_results)}"
+    )
+    return {
+        "ok": True,
+        "recruit_id": recruit_id,
+        "selected": [{"partner_phone": p, "share_id": s} for p, s in selected_results],
+        "rejected_count": len(rejected_results),
+    }
 
 
 # ============================================================================

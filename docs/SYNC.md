@@ -4071,3 +4071,80 @@ share_id, title, owner_name, time_label, daily_wage(있으면)
 
 ### 남은 핸드오프
 - §G (모집 시스템 — 가장 큰 작업, recruit + recruit_application 2 테이블 + 5 endpoint + FCM 3 type).
+
+## 2026-06-13 (추가5) · cowork (server) — §G 일당 모집 시스템 완성
+SERVER_HANDOFF_collab_expansion.md §G 마지막 핸드오프. 협업 시스템 핵심 모두 종료.
+
+### 데이터 2종 (핸드오프 명시)
+- `recruits` — 모집 공고 (recruit_id, owner_phone, date_ms, place, full_addr, work, daily_wage, status=open/closed, ...)
+- `recruit_applications` — 초대→지원→선택 통합 row (status=invited/applied/selected/rejected, applied_at_ms=선착순 순번, share_id=선택 시 자동 생성된 협업 link)
+
+### 5 endpoint
+1. **`POST /api/recruit/create`** `{owner_phone, date_ms?, place?, full_addr?, work?, daily_wage?, partner_phones:[...]}` → `{recruit_id, partner_count}`
+   - 각 partner_phone 에 row + FCM `recruit_invite` (full_addr 제외).
+2. **`GET /api/recruit/with-me?phone=B`** → 내가 받은 모집들 (invited/applied/selected/rejected 모두).
+   - **full_addr 은 my_status='selected' 일 때만 노출** (벽).
+   - selected 시 자동 생성된 share_id 도 포함.
+3. **`POST /api/recruit/apply`** `{recruit_id, partner_phone}` → 지원.
+   - applied_at_ms 박힘 = 선착순 순번 (1·2·3등).
+   - 초대 안 받은 사람 403, 마감된 모집 409.
+4. **`GET /api/recruit/applicants?recruit_id=&owner_phone=`** (owner 만) → 지원자 목록 + 가산점.
+   - `rank` (applied_at_ms 순), `past_count`, `past_total` (§B history 재사용 — "함께한 적 N번, 받은 일당 OO만").
+5. **`POST /api/recruit/select`** `{recruit_id, owner_phone, selected_phones:[...]}` →
+   - 선택자 → **`shared_sites` 자동 INSERT (status='accepted', progress='assigned', daily_wage, scheduled_at_ms=date_ms, addr=full_addr)** + FCM `recruit_confirmed` (정확 주소 공개).
+   - 미선택자 → FCM `recruit_rejected`.
+   - recruit 자체 status='closed'.
+   - **§A·§B·§D·§E·§F 자동 작동** — 채택자는 곧바로 협업 사장 등록 → 출동 2h 전 알림 자동 발사.
+
+### FCM 3 type (모두 data-only)
+- `recruit_invite`: type, recruit_id, owner_name, place, work, date_ms, daily_wage. **full_addr 없음**.
+  앱 멘트: "강동 서사장님이 함께할 사장님을 찾아요 / 6월 18일·인천 송도·줄눈·일비 25만원"
+- `recruit_confirmed`: type, recruit_id, share_id, owner_name, title, full_addr, place, date_ms, daily_wage.
+  앱 멘트: "6/18 송도 현장, 함께하기로 확정됐어요!"
+- `recruit_rejected`: type, recruit_id, owner_name, title.
+  앱 멘트: "먼저 지원한 분들과 함께하게 됐어요. 다음 현장에 꼭 함께해요! 🙏"
+
+### 안전벽 (핸드오프 §G 그대로)
+- 모집 단계엔 **정확한 주소 비공개** (`place` 만, "인천 송도").
+- 지원자끼리 서로 안 보임 — with-me 는 본인 phone 으로만 필터.
+- owner 만 `applicants` 조회 가능.
+- 고객 정보 (번호·대화·라벨) 어느 단계에서도 미노출.
+
+### 검증 (배포 후)
+```bash
+# ① 모집 생성
+curl -s -X POST http://localhost:8000/api/recruit/create -H "Content-Type: application/json" \
+  -d '{"owner_phone":"01064610131","date_ms":1781289600000,"place":"인천 송도","full_addr":"인천광역시 연수구 송도동 ...","work":"줄눈","daily_wage":25,"partner_phones":["01080056674","01099999991"]}'
+# → {"recruit_id":"rec_...", "partner_count":2}
+
+# ② B 폰에서 받은 모집 확인 (full_addr 없음)
+curl -s "http://localhost:8000/api/recruit/with-me?phone=01080056674" | python3 -m json.tool
+
+# ③ B 지원 (선착순 1등)
+curl -s -X POST http://localhost:8000/api/recruit/apply -H "Content-Type: application/json" \
+  -d '{"recruit_id":"rec_...","partner_phone":"01080056674"}'
+
+# ④ A 지원자 조회
+curl -s "http://localhost:8000/api/recruit/applicants?recruit_id=rec_...&owner_phone=01064610131" | python3 -m json.tool
+# → rank/past_count/past_total 보임
+
+# ⑤ A 선택 → shared_sites 자동 생성 + 양쪽 FCM
+curl -s -X POST http://localhost:8000/api/recruit/select -H "Content-Type: application/json" \
+  -d '{"recruit_id":"rec_...","owner_phone":"01064610131","selected_phones":["01080056674"]}'
+# → 선택자 폰 "확정 + 정확한 주소" 푸시, 미선택자 폰 "다음 현장에 꼭" 푸시
+# → sqlite shared_sites 에 자동 row (status=accepted, progress=assigned) → §D 알림 자동 대상
+```
+
+### 다음 액션 (사장님)
+한 줄: `git pull --rebase + cp + launchctl kickstart`.
+이번엔 plist 변경 0, ENV 변경 0.
+
+### 안드로이드 측 작업 (별도 cycle)
+- 모집 작성 화면 m-compose (partner_phones 선택 — 협업 사장 + 일당 사장 합쳐서)
+- 모집 알림 m-push (recruit_invite 수신 → 카드 표시)
+- 모집 상세 m-detail (지원 버튼)
+- 지원자 목록 m-applicants (owner, rank/past 표시)
+- 결과 알림 m-result (recruit_confirmed/recruit_rejected 수신)
+
+### 협업 시스템 — 완성 ✨
+§A·§A-2·§B·§C·§D·§E·§F·§F-2·§G·§H + dedup + cancel = 핸드오프 전체 마무리.
