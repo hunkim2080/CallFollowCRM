@@ -1892,7 +1892,13 @@ async def lifespan(app: FastAPI):
     print(f"[boot] DB at {DB_PATH}")
     print(f"[boot] pricing.md mtime = {_pricing_cache['mtime']}")
     print(f"[boot] Claude model = {CLAUDE_MODEL}")
-    yield
+    # §D (2026-06-13) — 출동 2h 전 알림 poller. uvicorn 살아있는 동안 무한.
+    remind_task = asyncio.create_task(_remind_poller_loop())
+    print(f"[boot] §D remind poller scheduled")
+    try:
+        yield
+    finally:
+        remind_task.cancel()
 
 
 app = FastAPI(title="RING-GO Server (Claude Sonnet 4.6)", lifespan=lifespan)
@@ -7231,9 +7237,8 @@ async def _remind_poller_loop() -> None:
         await asyncio.sleep(_REMIND_POLL_INTERVAL_SEC)
 
 
-@app.on_event("startup")
-async def _kickoff_remind_poller() -> None:
-    asyncio.create_task(_remind_poller_loop())
+# §D startup — lifespan (line 1888) 에서 통합 호출. on_event("startup") 는
+#   FastAPI 가 lifespan= 받으면 무시되므로 사용 안 함.
 
 
 # ============================================================================
