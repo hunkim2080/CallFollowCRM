@@ -535,6 +535,12 @@ def db_init() -> None:
             con.execute("ALTER TABLE shared_sites ADD COLUMN time_label_raw TEXT")
         except Exception:
             pass
+        # §A-3 (2026-06-13) — invite payload 에 owner_name(초대한 사장 상호 '디테일라인') 직접 받기.
+        # 협업 사장 화면에 "디테일라인과 함께"로 표시. 없으면 _is_registered_owner fallback.
+        try:
+            con.execute("ALTER TABLE shared_sites ADD COLUMN owner_name_raw TEXT")
+        except Exception:
+            pass
         # §D (2026-06-13) — 출동 2h 전 알림 dedup 컬럼. NULL = 아직 발송 안 됨.
         # poller 가 UPDATE ... WHERE reminded_at_ms IS NULL 로 race 차단.
         try:
@@ -6296,6 +6302,7 @@ def _shared_site_row_to_dict(row: tuple, viewer_kind: str = "partner") -> dict:
         paid_at_ms,
         daily_wage,                 # §A (2026-06-13)
         time_label_raw,             # §A-2 (2026-06-13)
+        owner_name_raw,             # §A-3 (2026-06-13)
         created_at_ms,
         updated_at_ms,
     ) = row
@@ -6324,8 +6331,12 @@ def _shared_site_row_to_dict(row: tuple, viewer_kind: str = "partner") -> dict:
         "updated_at_ms": updated_at_ms,
     }
     if viewer_kind == "partner":
-        # B 가 owner_name 보여야 ("OO 사장님이 공유함")
-        out["owner_name"] = _is_registered_owner(owner_phone) or "사장님"
+        # B 가 owner_name 보여야 ("디테일라인과 함께") — §A-3: invite payload 의 owner_name 우선.
+        out["owner_name"] = (
+            (owner_name_raw or "").strip()
+            or _is_registered_owner(owner_phone)
+            or "사장님"
+        )
     # 계좌 — completed 이상에서만 (B 가 보낸 후 A 가 입금용으로 봐야)
     if account_bank or account_no:
         out["account"] = {
@@ -6350,6 +6361,7 @@ _SHARED_SITES_COLS = (
     "account_bank, account_no, account_holder, paid_at_ms, "
     "daily_wage, "        # §A (2026-06-13)
     "time_label_raw, "    # §A-2 (2026-06-13)
+    "owner_name_raw, "    # §A-3 (2026-06-13)
     "created_at_ms, updated_at_ms"
 )
 
@@ -6388,6 +6400,7 @@ class SharedInviteRequest(BaseModel):
     customer_label: Optional[str] = None   # '강동 서사장님 현장' 같은 안전 라벨 (고객 phone 대신)
     daily_wage: Optional[int] = None       # §A (2026-06-13) 그날 일당 (만원 단위, 예: 25 = 25만)
     time_label: Optional[str] = None       # §A-2 (2026-06-13) 시각 라벨 ('오전 9시' 자연어)
+    owner_name: Optional[str] = None       # §A-3 (2026-06-13) 초대한 사장 상호 ('디테일라인')
 
 
 @app.post("/api/shared/invite")
@@ -6426,6 +6439,12 @@ async def shared_invite(req: SharedInviteRequest) -> dict:
         s = req.time_label.strip()[:30]
         if s:
             time_label_raw_val = s
+    # §A-3 (2026-06-13) 초대한 사장 상호 ('디테일라인'). 비면 None.
+    owner_name_raw_val: Optional[str] = None
+    if req.owner_name:
+        s = req.owner_name.strip()[:60]
+        if s:
+            owner_name_raw_val = s
 
     # §dedup (2026-06-13, SYNC android 추가2 요청):
     # 같은 owner+partner+title 이고 미완(pending/accepted, paid_at_ms NULL) share 있으면 그것 반환.
@@ -6466,7 +6485,7 @@ async def shared_invite(req: SharedInviteRequest) -> dict:
             INSERT INTO shared_sites
                 ({_SHARED_SITES_COLS})
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'assigned',
-                    NULL, NULL, NULL, NULL, ?, ?, ?, ?)
+                    NULL, NULL, NULL, NULL, ?, ?, ?, ?, ?)
             """,
             (
                 share_id,
@@ -6480,6 +6499,7 @@ async def shared_invite(req: SharedInviteRequest) -> dict:
                 customer_label or None,
                 daily_wage_val,        # §A
                 time_label_raw_val,    # §A-2
+                owner_name_raw_val,    # §A-3
                 now,
                 now,
             ),
@@ -6501,7 +6521,12 @@ async def shared_invite(req: SharedInviteRequest) -> dict:
             f"share={share_id} registered={bool(partner_name)} push_tokens={len(partner_tokens)}"
         )
         # §30 FCM 푸시 — B 폰에 즉시 알림 (앱 꺼져 있어도)
-        owner_name_for_fcm = _is_registered_owner(owner_phone) or "사장님"
+        # §A-3 (2026-06-13) — invite 의 owner_name(상호 '디테일라인') 우선.
+        owner_name_for_fcm = (
+            owner_name_raw_val
+            or _is_registered_owner(owner_phone)
+            or "사장님"
+        )
         _send_fcm_data_to_phone(partner_phone, {
             "type": "collab_invite",
             "share_id": share_id,
@@ -6624,7 +6649,7 @@ async def shared_by_me(phone: str, since_ms: int = 0, limit: int = 100) -> dict:
         rows = con.execute(
             """
             SELECT share_id, partner_phone, title, scheduled_at_ms, status,
-                   daily_wage, time_label_raw, created_at_ms, updated_at_ms
+                   daily_wage, time_label_raw, owner_name_raw, created_at_ms, updated_at_ms
             FROM shared_sites
             WHERE owner_phone = ? AND updated_at_ms > ?
             ORDER BY created_at_ms DESC
@@ -6634,7 +6659,7 @@ async def shared_by_me(phone: str, since_ms: int = 0, limit: int = 100) -> dict:
         ).fetchall()
     sites = []
     for r in rows:
-        share_id, partner_phone, title, scheduled_at_ms, status, daily_wage, time_label_raw, created_at_ms, updated_at_ms = r
+        share_id, partner_phone, title, scheduled_at_ms, status, daily_wage, time_label_raw, owner_name_raw, created_at_ms, updated_at_ms = r
         partner_name = _is_registered_owner(partner_phone) or "협업 사장"
         # §A-2 time_label (raw 우선, 없으면 HH:MM)
         tl = (time_label_raw or "").strip()
@@ -6643,10 +6668,13 @@ async def shared_by_me(phone: str, since_ms: int = 0, limit: int = 100) -> dict:
                 tl = _dt.datetime.fromtimestamp(scheduled_at_ms / 1000).strftime("%H:%M")
             except Exception:
                 tl = ""
+        # §A-3 owner_name (raw 우선, 없으면 registered owner, 최종 fallback "사장님")
+        on = (owner_name_raw or "").strip() or _is_registered_owner(owner_phone) or "사장님"
         item = {
             "share_id": share_id,
             "partner_phone": partner_phone,    # A 가 본인 보낸 목록 — 노출 OK (B phone)
             "partner_name": partner_name,
+            "owner_name": on,                  # §A-3 — by-me 도 echo (사장님 명시 요청)
             "status": status,                  # pending | accepted | declined
             "scheduled_at_ms": scheduled_at_ms or 0,
             "time_label": tl,
@@ -7222,7 +7250,7 @@ def _remind_pass() -> None:
         rows = con.execute(
             """
             SELECT share_id, owner_phone, partner_phone, title, scheduled_at_ms,
-                   time_label_raw, daily_wage
+                   time_label_raw, daily_wage, owner_name_raw
             FROM shared_sites
             WHERE status = 'accepted'
               AND scheduled_at_ms IS NOT NULL
@@ -7236,7 +7264,7 @@ def _remind_pass() -> None:
             (now, now, _REMIND_WINDOW_MS),
         ).fetchall()
     for r in rows:
-        share_id, owner_phone, partner_phone, title, scheduled_at_ms, time_label_raw, daily_wage = r
+        share_id, owner_phone, partner_phone, title, scheduled_at_ms, time_label_raw, daily_wage, owner_name_raw = r
         # race 차단: 이 쿼리가 1행 UPDATE 한 경우만 FCM 발사 (다른 worker 가 먼저 박았으면 0행).
         with db_conn() as con:
             cur = con.execute(
@@ -7257,7 +7285,8 @@ def _remind_pass() -> None:
                 tl = _dt.datetime.fromtimestamp(scheduled_at_ms / 1000).strftime("%H:%M")
             except Exception:
                 tl = ""
-        owner_name = _is_registered_owner(owner_phone) or "사장님"
+        # §A-3 — owner_name_raw 우선 ('디테일라인')
+        owner_name = (owner_name_raw or "").strip() or _is_registered_owner(owner_phone) or "사장님"
         fcm_data = {
             "type": "collab_remind",
             "share_id": share_id,

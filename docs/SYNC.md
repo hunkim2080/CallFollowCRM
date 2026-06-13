@@ -4157,3 +4157,31 @@ curl -s -X POST http://localhost:8000/api/recruit/select -H "Content-Type: appli
 - **협업현장 휴지통**(android 추가9, commit 9127be4): 밀어서 휴지통+되살리기(로컬 trashedSharedSiteIds, 서버 삭제 아님).
 - 변경(서버): invite owner_name 저장+echo. 그 외 앱-내부.
 - commit: (아래)
+## 2026-06-13 (추가6) · cowork (server) — §A-3 invite owner_name echo
+사장님 ping: 협업 사장 화면에 "디테일라인과 함께" 표시. 앱이 invite payload 에 owner_name(상호) 보냄.
+
+### 변경
+- `shared_sites.owner_name_raw TEXT` ALTER (NULL 허용).
+- `SharedInviteRequest.owner_name: Optional[str]` 필드 추가 (60자 cap).
+- INSERT 시 박힘.
+- `_shared_site_row_to_dict` (with-me 응답): `owner_name = owner_name_raw or _is_registered_owner(owner_phone) or "사장님"` — raw 우선, fallback 유지.
+- `/api/shared/by-me` 응답에도 `owner_name` 키 추가 (사장님 명시 요청 — 일관성).
+- `_send_fcm_data_to_phone` 시점 owner_name 도 raw 우선:
+  - `collab_invite` FCM 발사 — B 폰에 즉시 "디테일라인" 표시.
+  - `collab_remind` (§D poller) FCM — 출동 2h 전 알림에도 "디테일라인" 표시.
+
+### 안전벽
+- raw 60자 cap. 빈 string 은 None 처리.
+- 다른 vIEW (partners/history/owner-events) 는 변경 X — 그건 B 가 알고 있던 owner 라 fallback 으로도 충분.
+
+### 검증 (배포 후)
+1. 앱에서 `invite` 보낼 때 `owner_name: "디테일라인"` 포함:
+   ```bash
+   sqlite3 ~/ringgo-server/cache.db "SELECT owner_name_raw FROM shared_sites ORDER BY created_at_ms DESC LIMIT 1;"
+   # → 디테일라인
+   ```
+2. B 폰 invite 푸시 알림에 "디테일라인" 표시.
+3. with-me 응답 owner_name 도 "디테일라인" 으로 echo.
+
+### 다음 액션 (사장님)
+한 줄: commit + push + cp + launchctl kickstart.
