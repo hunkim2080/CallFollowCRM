@@ -372,8 +372,12 @@ fun ScheduleScreen(
         val assignedIds = rows.map { it.memberId }.toSet()
         val existingMemo = rows.firstNotNullOfOrNull { it.teamMemo }.orEmpty()
         val assignCtxLocal = androidx.compose.ui.platform.LocalContext.current
+        // 현장 제목 — 주소(지역+아파트/단독) "○○ 현장", 없으면 실제 이름, 전화번호는 안 씀.
+        val assignSiteTitle = com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(c.address).takeIf { it.isNotBlank() }?.let { "$it 현장" }
+            ?: c.name?.takeIf { it.isNotBlank() && it.count { ch -> ch.isDigit() } < 9 }?.let { "$it 현장" }
+            ?: "이 현장"
         AssignTeamSheet(
-            customerName = c.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(c.phoneNumber),
+            siteTitle = assignSiteTitle,
             members = teamMembers,
             collabPartners = collabPartners,
             assignedCollabPhones = collabAssign[c.id].orEmpty().map { it.phone }.toSet(),
@@ -385,8 +389,8 @@ fun ScheduleScreen(
                 viewModel.assignTeam(c, dayStart, selectedIds.toList(), memo)
                 assignTarget = null
             },
-            onInviteCollab = { phone, force, memo ->
-                viewModel.inviteCollabToSite(c, phone, force, memo) { partner, body ->
+            onInviteCollab = { phone, force, memo, wage, hour ->
+                viewModel.inviteCollabToSite(c, phone, force, memo, wage, hour) { partner, body ->
                     com.detailline.callfollowcrm.util.SmsIntentHelper.openSmsCompose(assignCtxLocal, partner, body)
                 }
                 // 시트는 닫지 않음 — 방금 요청한 사장님이 "요청함 ✓"으로 바로 보이게.
@@ -1025,7 +1029,7 @@ private fun buildCalendarCells(
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun AssignTeamSheet(
-    customerName: String,
+    siteTitle: String,
     members: List<com.detailline.callfollowcrm.ai.TeamRepository.TeamMember>,
     collabPartners: List<com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity>,
     assignedCollabPhones: Set<String>,
@@ -1033,11 +1037,13 @@ private fun AssignTeamSheet(
     initialMemo: String,
     onDismiss: () -> Unit,
     onSave: (Set<String>, String) -> Unit,
-    onInviteCollab: (String, Boolean, String) -> Unit  // (phone, force, memo)
+    onInviteCollab: (phone: String, force: Boolean, memo: String, dailyWage: Int?, startHour: Int) -> Unit
 ) {
     var selected by remember { mutableStateOf(initiallySelected) }
     var memo by remember { mutableStateOf(initialMemo) }
     var collabMemo by remember { mutableStateOf("") } // 일당사장(협업)에게 전달할 메모
+    var collabWage by remember { mutableStateOf("") }  // 그날 일당(만원, 숫자만)
+    var collabHour by remember { mutableStateOf(-1) }  // 출근시간(24h), -1=미선택
     var pendingInvite by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity?>(null) }
     var pendingResend by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity?>(null) }
     val noRipple = remember { MutableInteractionSource() }
@@ -1067,7 +1073,7 @@ private fun AssignTeamSheet(
             )
             Text("전문가 배정", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
             Spacer(Modifier.height(4.dp))
-            Text("${customerName} 현장에 보낼 팀원이나 협업 사장님을 고르세요.",
+            Text("${siteTitle}에 보낼 팀원이나 협업 사장님을 고르세요.",
                 fontSize = 13.sp, color = TossTextTertiary, lineHeight = 19.sp)
             Spacer(Modifier.height(16.dp))
 
@@ -1129,15 +1135,38 @@ private fun AssignTeamSheet(
                 modifier = Modifier.padding(start = 2.dp, bottom = 4.dp))
             Text("탭하면 이 현장 협업 요청해요. 이미 요청한 분은 보라색 ✓ — 다시 누르면 한 번 더 보내요. 고객 번호·대화는 안 보내요.",
                 fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
-            // 협업 사장님께 전달 메모 — 팀원의 "직원에게 전달"과 동일. 요청에 실려 상대 화면 '대표님 전달사항'으로 뜸. (탭 전에 입력)
+            // 협업 사장님께 보낼 정보 — 그날 일당·출근시간·전달메모. 사람 탭 전에 입력(탭하면 이 값들로 요청 감).
             if (collabPartners.isNotEmpty()) {
+                SheetFieldLabel("그날 일당 (만원, 선택)")
+                SheetTextField(
+                    collabWage, { collabWage = it.filter { c -> c.isDigit() }.take(4) },
+                    placeholder = "예: 25", singleLine = true
+                )
+                Spacer(Modifier.height(12.dp))
+                SheetFieldLabel("출근 시간 (선택)")
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    listOf(7, 8, 9, 10, 11, 13, 14).forEach { h ->
+                        val on = collabHour == h
+                        val ampm = if (h < 12) "오전" else "오후"; val h12 = if (h % 12 == 0) 12 else h % 12
+                        Box(
+                            Modifier.clip(RoundedCornerShape(999.dp))
+                                .background(if (on) Color(0xFF7C5CFC) else TossGrayBg)
+                                .clickable { collabHour = if (on) -1 else h }
+                                .padding(horizontal = 13.dp, vertical = 8.dp)
+                        ) {
+                            Text("$ampm ${h12}시", fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
+                                color = if (on) Color.White else TossTextSecondary, maxLines = 1)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
                 SheetFieldLabel("사장님께 전달 (선택)")
                 SheetTextField(
                     collabMemo, { collabMemo = it },
                     placeholder = "예: 오전 9시 현장 앞에서 만나요 · 사다리차 가져와주세요",
                     singleLine = false, minHeightDp = 56
                 )
-                Text("적은 내용은 협업 사장님 화면에 '대표님 전달사항'으로 보여요. 사람 탭 전에 적어주세요.",
+                Text("일당·시간·전달은 협업 사장님 화면에 함께 보여요. 사람 탭 전에 적어주세요.",
                     fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 6.dp, start = 2.dp))
                 Spacer(Modifier.height(12.dp))
             }
@@ -1208,9 +1237,9 @@ private fun AssignTeamSheet(
         AlertDialog(
             onDismissRequest = { pendingInvite = null },
             title = { Text("협업 요청 보내기", fontWeight = FontWeight.ExtraBold) },
-            text = { Text("${p.name} 사장님께 '${customerName} 현장'을 협업 요청할까요?\n고객 번호·대화는 보내지 않아요.", fontSize = 14.sp, lineHeight = 20.sp) },
+            text = { Text("${p.name} 사장님께 '${siteTitle}'을 협업 요청할까요?\n고객 번호·대화는 보내지 않아요.", fontSize = 14.sp, lineHeight = 20.sp) },
             confirmButton = {
-                TextButton(onClick = { onInviteCollab(p.phone, false, collabMemo); pendingInvite = null }) {
+                TextButton(onClick = { onInviteCollab(p.phone, false, collabMemo, collabWage.toIntOrNull(), collabHour); pendingInvite = null }) {
                     Text("보내기", color = TossBlue, fontWeight = FontWeight.Bold)
                 }
             },
@@ -1225,9 +1254,9 @@ private fun AssignTeamSheet(
         AlertDialog(
             onDismissRequest = { pendingResend = null },
             title = { Text("이미 요청한 사장님이에요", fontWeight = FontWeight.ExtraBold) },
-            text = { Text("${p.name} 사장님께 '${customerName} 현장'을 한 번 더 보낼까요?\n상대에게 알림이 다시 가요.", fontSize = 14.sp, lineHeight = 20.sp) },
+            text = { Text("${p.name} 사장님께 '${siteTitle}'을 한 번 더 보낼까요?\n상대에게 알림이 다시 가요.", fontSize = 14.sp, lineHeight = 20.sp) },
             confirmButton = {
-                TextButton(onClick = { onInviteCollab(p.phone, true, collabMemo); pendingResend = null }) {
+                TextButton(onClick = { onInviteCollab(p.phone, true, collabMemo, collabWage.toIntOrNull(), collabHour); pendingResend = null }) {
                     Text("한 번 더 보내기", color = TossBlue, fontWeight = FontWeight.Bold)
                 }
             },

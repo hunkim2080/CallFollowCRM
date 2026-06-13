@@ -143,17 +143,30 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch { container.customerRepository.updateScheduledWorkDate(customerId, scheduledAtMs) }
     }
 
-    /** 협업 현장 표시 라벨 — 주소(지역+아파트) 우선, 없으면 고객 이름. 번호/대화 절대 미포함. CustomerDetail CollabShareSheet 와 동일 규칙. */
-    private fun collabTitleOf(c: CustomerEntity): String =
+    /** 협업 현장 표시 라벨 — 주소(지역+아파트/단독은 지역+동) "○○ 현장", 없으면 실제 고객 이름, 둘 다 없으면 "이 현장".
+     *   전화번호는 제목으로 쓰지 않음(이름이 번호면 건너뜀). 번호/대화 절대 미포함. */
+    private fun collabTitleOf(c: CustomerEntity): String {
         com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(c.address).takeIf { it.isNotBlank() }
-            ?: c.name?.takeIf { it.isNotBlank() }?.let { "$it 현장" } ?: "협업 현장"
+            ?.let { return "$it 현장" }
+        c.name?.takeIf { it.isNotBlank() && it.count { ch -> ch.isDigit() } < 9 } // 이름이 전화번호면 제외
+            ?.let { return "$it 현장" }
+        return "이 현장"
+    }
 
     /**
      * 전문가 배정 시트의 "협업 사장님" 선택 → 이 현장을 그 사장님께 협업 요청(/api/shared/invite).
      *   고객 번호/대화는 안 보냄(customer_label = 안전 라벨만) — CustomerDetail 공유 흐름과 동일.
      *   link 라우트면 onLink(번호, 문자본문) 로 화면이 SMS 작성창을 열게 함. inapp/실패는 토스트.
      */
-    fun inviteCollabToSite(customer: CustomerEntity, partnerPhone: String, force: Boolean = false, memo: String = "", onLink: (String, String) -> Unit) {
+    fun inviteCollabToSite(
+        customer: CustomerEntity,
+        partnerPhone: String,
+        force: Boolean = false,
+        memo: String = "",
+        dailyWage: Int? = null,
+        startHour: Int = -1, // 출근시간(24h). -1=미선택
+        onLink: (String, String) -> Unit
+    ) {
         val owner = ownerPhone.filter { it.isDigit() }
         if (owner.length < 9) { _toast.value = "먼저 더보기 → 사업자 정보에서 내 전화번호를 등록해주세요"; return }
         val partner = partnerPhone.filter { it.isDigit() }
@@ -167,11 +180,24 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             .firstOrNull { it.phone.filter { ch -> ch.isDigit() }.takeLast(8) == partner.takeLast(8) }
             ?.name?.takeIf { it.isNotBlank() } ?: "협업 사장님"
         val addr = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(customer.address).takeIf { it.isNotBlank() }
+        // 출근시간 선택 시: 일정 날짜에 그 정시 박아 scheduled_at_ms + time_label 도 함께.
+        val baseMs = customer.scheduledWorkDate ?: 0L
+        val effectiveMs = if (startHour in 0..23 && baseMs > 0L) {
+            Calendar.getInstance().apply {
+                timeInMillis = baseMs
+                set(Calendar.HOUR_OF_DAY, startHour); set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+            }.timeInMillis
+        } else baseMs
+        val timeLabel = startHour.takeIf { it in 0..23 }?.let {
+            val ampm = if (it < 12) "오전" else "오후"; val h12 = if (it % 12 == 0) 12 else it % 12; "$ampm ${h12}시"
+        }
         viewModelScope.launch {
             container.sharedSiteRepository.invite(
                 ownerPhone = owner, partnerPhone = partner, title = title,
-                addr = addr, scheduledAtMs = customer.scheduledWorkDate ?: 0L,
+                addr = addr, scheduledAtMs = effectiveMs,
                 workSummary = null, memo = memo.takeIf { it.isNotBlank() }, customerLabel = title,
+                dailyWage = dailyWage, timeLabel = timeLabel,
                 ownerName = container.preferences.bizName
             ).onSuccess { r ->
                 // 일정 카드 "🤝 이름" 표시용 로컬 배정 기록 (서버 수락 확정은 추후). 4번째=shareId(공유후카드 사진 조회용).

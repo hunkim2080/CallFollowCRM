@@ -143,8 +143,6 @@ fun CustomerDetailScreen(
 
     var memoInput by remember(customer?.id) { mutableStateOf(customer?.memo.orEmpty()) }
     var datePickerOpen by remember { mutableStateOf(false) }
-    // 협업 현장으로 공유 (collab-sites-proto a-card/a-share) — 다른 사장님께 이 현장 하나만 공유.
-    var collabShareOpen by remember(customer?.id) { mutableStateOf(false) }
     // 공유 후/해제 시 로컬 협업 기록 다시 읽게 하는 트리거(prefs 는 비반응형).
     var collabRefresh by remember(customer?.id) { mutableStateOf(0) }
     var callsExpanded by remember(customer?.id) { mutableStateOf(false) }
@@ -426,8 +424,9 @@ fun CustomerDetailScreen(
             //   예약(시공일)이 잡힌 고객만 = 진짜 "현장". 상담 단계(날짜 없음)는 공유할 현장이 없으니 섹션 숨김.
             //   (2026-06-11 사장님 요청)
             if (c.scheduledWorkDate != null) {
-                val siteTitle = com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(displayAddr).takeIf { it.isNotBlank() }
-                    ?: c.name?.takeIf { it.isNotBlank() }?.let { "$it 현장" } ?: "협업 현장"
+                val siteTitle = com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(displayAddr).takeIf { it.isNotBlank() }?.let { "$it 현장" }
+                    ?: c.name?.takeIf { it.isNotBlank() && it.count { ch -> ch.isDigit() } < 9 }?.let { "$it 현장" }
+                    ?: "이 현장"
                 // 이 고객으로 공유한 협업 사장님(로컬 기록) — Triple(phone, name, shareId). 번호 끝 8자리 dedup.
                 val collabPartners = remember(c.id, collabRefresh) {
                     container.preferences.collabAssignments.mapNotNull { e ->
@@ -435,62 +434,34 @@ fun CustomerDetailScreen(
                         if (p.size >= 3 && p[0].toLongOrNull() == c.id) Triple(p[1], p[2], p.getOrNull(3).orEmpty()) else null
                     }.distinctBy { it.first.filter { ch -> ch.isDigit() }.takeLast(8) }
                 }
-                Spacer(Modifier.height(12.dp))
-                Text("이 현장 함께 하기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
-                    modifier = Modifier.padding(start = 2.dp, bottom = 8.dp))
-
-                // 공유 후 카드 (collab-sites-proto a-after) — 협업 중인 사장님별로 표시.
-                collabPartners.forEach { (partnerPhone, partnerName, shareId) ->
-                    CollabAfterCard(
-                        partnerName = partnerName.ifBlank { "협업 사장님" },
-                        siteTitle = siteTitle,
-                        shareId = shareId,
-                        onViewPhoto = { fullscreenBitmap = it },
-                        onRelease = {
-                            // 협업 해제(수락된 것도) — 서버 end → B 에게 알림 + 기록 보존 + 재요청 풀림. best-effort(서버 오면 동작).
-                            if (shareId.isNotBlank()) {
-                                val owner = container.preferences.bizPhone
-                                scope.launch { runCatching { container.sharedSiteRepository.endCollab(shareId, owner, asOwner = true) } }
+                // 협업 보내기는 일정 → 전문가 배정으로 이동(2026-06-13 사장님). 여기선 협업 중인 사장님 진행만 표시.
+                if (collabPartners.isNotEmpty()) {
+                    Spacer(Modifier.height(12.dp))
+                    Text("🤝 협업 중", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+                        modifier = Modifier.padding(start = 2.dp, bottom = 8.dp))
+                    collabPartners.forEach { (partnerPhone, partnerName, shareId) ->
+                        CollabAfterCard(
+                            partnerName = partnerName.ifBlank { "협업 사장님" },
+                            siteTitle = siteTitle,
+                            shareId = shareId,
+                            onViewPhoto = { fullscreenBitmap = it },
+                            onRelease = {
+                                // 협업 해제(수락된 것도) — 서버 end → B 에게 알림 + 기록 보존 + 재요청 풀림. best-effort(서버 오면 동작).
+                                if (shareId.isNotBlank()) {
+                                    val owner = container.preferences.bizPhone
+                                    scope.launch { runCatching { container.sharedSiteRepository.endCollab(shareId, owner, asOwner = true) } }
+                                }
+                                container.preferences.collabAssignments = container.preferences.collabAssignments
+                                    .filterNot { e ->
+                                        val p = e.split("|")
+                                        p.size >= 3 && p[0].toLongOrNull() == c.id &&
+                                            p[1].filter { it.isDigit() }.takeLast(8) == partnerPhone.filter { it.isDigit() }.takeLast(8)
+                                    }.toSet()
+                                collabRefresh++
                             }
-                            container.preferences.collabAssignments = container.preferences.collabAssignments
-                                .filterNot { e ->
-                                    val p = e.split("|")
-                                    p.size >= 3 && p[0].toLongOrNull() == c.id &&
-                                        p[1].filter { it.isDigit() }.takeLast(8) == partnerPhone.filter { it.isDigit() }.takeLast(8)
-                                }.toSet()
-                            collabRefresh++
-                        }
-                    )
-                    Spacer(Modifier.height(10.dp))
-                }
-
-                Column(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-                        .border(1.5.dp, Color(0xFFC8D3E2), RoundedCornerShape(16.dp))
-                        .clickable { collabShareOpen = true }
-                        .padding(16.dp),
-                    horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        if (collabPartners.isEmpty()) "🤝 다른 사장님과 협업 현장으로 공유" else "🤝 다른 사장님도 함께",
-                        fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue
-                    )
-                    Spacer(Modifier.height(5.dp))
-                    Text(
-                        if (collabPartners.isEmpty()) "같이 하기로 한 사장님께 이 현장 하나만 공유해요" else "한 명 더 불러서 같이 할 수 있어요",
-                        fontSize = 12.5.sp, color = TossTextTertiary
-                    )
-                }
-
-                if (collabShareOpen) {
-                    CollabShareSheet(
-                        siteTitle = siteTitle,
-                        addr = displayAddr,
-                        scheduledAtMs = c.scheduledWorkDate,
-                        customerId = c.id,
-                        onShared = { collabRefresh++ },
-                        onDismiss = { collabShareOpen = false }
-                    )
+                        )
+                        Spacer(Modifier.height(10.dp))
+                    }
                 }
             }
 
