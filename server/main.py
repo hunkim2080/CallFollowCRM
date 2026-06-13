@@ -404,6 +404,18 @@ def db_init() -> None:
             "CREATE INDEX IF NOT EXISTS idx_team_photos_owner_customer "
             "ON team_site_photos(owner_phone, customer_phone, uploaded_at_ms DESC)"
         )
+        # §F (2026-06-13) — team_site_photos 에 share_id 연결 (협업 현장 사진).
+        # 핸드오프 SERVER_HANDOFF_collab_expansion §F: "기존 site_photos 흐름에 협업 현장 연결.
+        # 새 저장소 불필요, 라벨/연결만." 협업 현장 사진은 share_id 로 묶임 (A·B 둘 다 같은 share_id 로 업로드/조회).
+        # 벽: shared_sites 의 owner_phone/partner_phone 중 하나가 요청자 owner_phone 과 일치해야 권한.
+        try:
+            con.execute("ALTER TABLE team_site_photos ADD COLUMN share_id TEXT")
+        except sqlite3.OperationalError:
+            pass  # already exists
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_team_photos_share "
+            "ON team_site_photos(share_id, uploaded_at_ms DESC)"
+        )
         # §19 patch — 프로토타입 openQuote 1:1: 시공일·견적·계약금은 issue 때 받아서
         # 폼에 "표시만". 고객은 전화·주소·메모·유입경로만 입력.
         for col_def in [
@@ -517,6 +529,12 @@ def db_init() -> None:
             con.execute("ALTER TABLE shared_sites ADD COLUMN daily_wage INTEGER")
         except Exception:
             pass  # 이미 있음
+        # §A-2 (2026-06-13) — invite payload 에 time_label("오전 9시") 직접 받기. NULL 허용.
+        # scheduled_at_ms 가 있으면 HH:MM 자동 생성하지만, 앱이 자연어 형태로 보내주면 그대로 echo.
+        try:
+            con.execute("ALTER TABLE shared_sites ADD COLUMN time_label_raw TEXT")
+        except Exception:
+            pass
         con.execute(
             "CREATE INDEX IF NOT EXISTS idx_shared_sites_owner "
             "ON shared_sites(owner_phone, created_at_ms DESC)"
@@ -6217,12 +6235,14 @@ def _shared_site_row_to_dict(row: tuple, viewer_kind: str = "partner") -> dict:
         account_holder,
         paid_at_ms,
         daily_wage,                 # §A (2026-06-13)
+        time_label_raw,             # §A-2 (2026-06-13)
         created_at_ms,
         updated_at_ms,
     ) = row
     # 시각 라벨 (HH:MM, 안드로이드 측 편의)
-    time_label = ""
-    if scheduled_at_ms:
+    # §A-2 (2026-06-13) — invite 시 받은 자연어 time_label_raw ('오전 9시') 우선, 없으면 HH:MM 자동.
+    time_label = (time_label_raw or "").strip()
+    if not time_label and scheduled_at_ms:
         try:
             time_label = _dt.datetime.fromtimestamp(scheduled_at_ms / 1000).strftime("%H:%M")
         except Exception:
@@ -6268,7 +6288,8 @@ _SHARED_SITES_COLS = (
     "share_id, owner_phone, partner_phone, title, addr, scheduled_at_ms, "
     "work_summary, memo, customer_label, status, progress, "
     "account_bank, account_no, account_holder, paid_at_ms, "
-    "daily_wage, "  # §A (2026-06-13)
+    "daily_wage, "        # §A (2026-06-13)
+    "time_label_raw, "    # §A-2 (2026-06-13)
     "created_at_ms, updated_at_ms"
 )
 
@@ -6306,6 +6327,7 @@ class SharedInviteRequest(BaseModel):
     memo: Optional[str] = None
     customer_label: Optional[str] = None   # '강동 서사장님 현장' 같은 안전 라벨 (고객 phone 대신)
     daily_wage: Optional[int] = None       # §A (2026-06-13) 그날 일당 (만원 단위, 예: 25 = 25만)
+    time_label: Optional[str] = None       # §A-2 (2026-06-13) 시각 라벨 ('오전 9시' 자연어)
 
 
 @app.post("/api/shared/invite")
@@ -6338,6 +6360,45 @@ async def shared_invite(req: SharedInviteRequest) -> dict:
                 daily_wage_val = dw
         except Exception:
             daily_wage_val = None
+    # §A-2 (2026-06-13) 시각 라벨 ('오전 9시' 자연어). 비면 None.
+    time_label_raw_val: Optional[str] = None
+    if req.time_label:
+        s = req.time_label.strip()[:30]
+        if s:
+            time_label_raw_val = s
+
+    # §dedup (2026-06-13, SYNC android 추가2 요청):
+    # 같은 owner+partner+title 이고 미완(pending/accepted, paid_at_ms NULL) share 있으면 그것 반환.
+    # title NULL/빈 경우 scheduled_at_ms 도 보조 매치 (중복 검출용).
+    with db_conn() as _con:
+        title_match = title or ""
+        existing = _con.execute(
+            """
+            SELECT share_id FROM shared_sites
+            WHERE owner_phone = ?
+              AND partner_phone = ?
+              AND IFNULL(title,'') = ?
+              AND status IN ('pending','accepted')
+              AND paid_at_ms IS NULL
+              AND (progress IS NULL OR progress != 'completed')
+            ORDER BY created_at_ms DESC
+            LIMIT 1
+            """,
+            (owner_phone, partner_phone, title_match),
+        ).fetchone()
+    if existing:
+        existing_id = existing[0]
+        print(
+            f"[shared/invite/dedup] {owner_phone} → {partner_phone} title='{title_match}' "
+            f"→ 기존 share={existing_id} 재사용"
+        )
+        return {
+            "share_id": existing_id,
+            "route": "inapp",
+            "url": None,
+            "sms_draft": None,
+            "deduped": True,
+        }
 
     with db_conn() as con:
         con.execute(
@@ -6345,7 +6406,7 @@ async def shared_invite(req: SharedInviteRequest) -> dict:
             INSERT INTO shared_sites
                 ({_SHARED_SITES_COLS})
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'assigned',
-                    NULL, NULL, NULL, NULL, ?, ?, ?)
+                    NULL, NULL, NULL, NULL, ?, ?, ?, ?)
             """,
             (
                 share_id,
@@ -6357,7 +6418,8 @@ async def shared_invite(req: SharedInviteRequest) -> dict:
                 work_summary or None,
                 memo or None,
                 customer_label or None,
-                daily_wage_val,    # §A
+                daily_wage_val,        # §A
+                time_label_raw_val,    # §A-2
                 now,
                 now,
             ),
@@ -6502,7 +6564,7 @@ async def shared_by_me(phone: str, since_ms: int = 0, limit: int = 100) -> dict:
         rows = con.execute(
             """
             SELECT share_id, partner_phone, title, scheduled_at_ms, status,
-                   daily_wage, created_at_ms, updated_at_ms
+                   daily_wage, time_label_raw, created_at_ms, updated_at_ms
             FROM shared_sites
             WHERE owner_phone = ? AND updated_at_ms > ?
             ORDER BY created_at_ms DESC
@@ -6512,14 +6574,22 @@ async def shared_by_me(phone: str, since_ms: int = 0, limit: int = 100) -> dict:
         ).fetchall()
     sites = []
     for r in rows:
-        share_id, partner_phone, title, scheduled_at_ms, status, daily_wage, created_at_ms, updated_at_ms = r
+        share_id, partner_phone, title, scheduled_at_ms, status, daily_wage, time_label_raw, created_at_ms, updated_at_ms = r
         partner_name = _is_registered_owner(partner_phone) or "협업 사장"
+        # §A-2 time_label (raw 우선, 없으면 HH:MM)
+        tl = (time_label_raw or "").strip()
+        if not tl and scheduled_at_ms:
+            try:
+                tl = _dt.datetime.fromtimestamp(scheduled_at_ms / 1000).strftime("%H:%M")
+            except Exception:
+                tl = ""
         item = {
             "share_id": share_id,
             "partner_phone": partner_phone,    # A 가 본인 보낸 목록 — 노출 OK (B phone)
             "partner_name": partner_name,
             "status": status,                  # pending | accepted | declined
             "scheduled_at_ms": scheduled_at_ms or 0,
+            "time_label": tl,
             "title": title or "",
             "created_at_ms": created_at_ms,
             "updated_at_ms": updated_at_ms,
@@ -6547,6 +6617,7 @@ class SharedProgressRequest(BaseModel):
     partner_phone: str
     step: str                                      # 'departed'|'arrived'|'completed'
     payload: Optional[SharedProgressPayload] = None
+    auto: Optional[bool] = False                   # §E (2026-06-13) — geofence 자동 감지 (arrived 만 의미 있음)
 
 
 _VALID_PROGRESS_STEPS = {"departed", "arrived", "completed"}
@@ -6632,8 +6703,13 @@ async def shared_progress(req: SharedProgressRequest) -> dict:
             ),
         )
         con.commit()
-    print(f"[shared/progress] share={share_id} {partner_phone} → {step} (event={event_id})")
+    is_auto = bool(req.auto) and step == "arrived"   # §E — geofence 자동
+    print(
+        f"[shared/progress] share={share_id} {partner_phone} → {step} "
+        f"(event={event_id}{', auto' if is_auto else ''})"
+    )
     # §30 FCM 푸시 — A 에게 진행/완료 알림 (앱 꺼져 있어도)
+    # §E (2026-06-13): step=arrived & auto=true 시 앱이 "거의 도착해가요" 문구로 표시.
     partner_name = _is_registered_owner(partner_phone) or "협업 사장"
     fcm_data: dict = {
         "type": "collab_event",
@@ -6643,11 +6719,21 @@ async def shared_progress(req: SharedProgressRequest) -> dict:
         "partner_name": partner_name,
         "title": site_title or "협업 현장",
     }
+    if is_auto:
+        fcm_data["auto"] = "true"   # FCM data 는 string. 앱이 분기.
     if step == "completed" and (event_bank or event_account_no):
         fcm_data["bank"] = event_bank or ""
         fcm_data["account_no"] = event_account_no or ""
         fcm_data["holder"] = event_holder or ""
     _send_fcm_data_to_phone(owner_phone_for_event, fcm_data)
+    # §E (2026-06-13) — auto arrived 시 B 에게 "사장님께 알려드렸어요" 확인 FCM 별도 발송.
+    # 핸드오프 SERVER_HANDOFF_collab_expansion §E: b-remind 아래 푸시.
+    if is_auto:
+        _send_fcm_data_to_phone(partner_phone, {
+            "type": "collab_arrived_confirm",
+            "share_id": share_id,
+            "title": site_title or "협업 현장",
+        })
     return {"ok": True, "share_id": share_id, "progress": step, "event_id": event_id, "updated_at_ms": now}
 
 
@@ -6861,6 +6947,192 @@ async def shared_history(phone: str, owner_phone: str, limit: int = 200) -> dict
                 pass
         sites.append(item)
     return {"sites": sites}
+
+
+# ─── ⑩ POST /api/shared/photo ───  (§F-2 2026-06-13)
+# 협업 현장 증거사진 업로드 — 핸드오프 SERVER_HANDOFF_collab_expansion §F + 사장님 워딩 그대로.
+# body: { share_id, partner_phone (= 업로더 phone), image_base64, label? }
+# 벽: share_id 의 owner_phone 또는 partner_phone 중 하나가 업로더 phone 과 일치.
+# 저장: team_site_photos 재사용 (§F share_id 컬럼). 영구 보존 (§C).
+
+class SharedPhotoUploadRequest(BaseModel):
+    share_id: str
+    partner_phone: str                      # 업로더 phone (owner 든 partner 든)
+    image_base64: str                       # base64 (data URL 또는 raw base64)
+    label: Optional[str] = None             # '시공 전'|'시공 중'|'시공 후'|'추가 사진'
+    note: Optional[str] = None
+
+
+@app.post("/api/shared/photo")
+async def shared_photo_upload(req: SharedPhotoUploadRequest) -> dict:
+    """협업 현장 사진 업로드. share_id 의 owner/partner 만 가능."""
+    share_id = (req.share_id or "").strip()
+    uploader_phone = _norm_phone(req.partner_phone)
+    if not share_id or not uploader_phone:
+        raise HTTPException(400, "share_id, partner_phone 필수")
+    image_b64 = (req.image_base64 or "").strip()
+    if not image_b64:
+        raise HTTPException(400, "image_base64 필수")
+    # data URL 이 아니면 prefix 붙임 (기존 site_photos 호환)
+    if not image_b64.startswith("data:"):
+        image_data_url = f"data:image/jpeg;base64,{image_b64}"
+    else:
+        image_data_url = image_b64
+    if len(image_data_url) > 1_400_000:  # 약 1MB
+        raise HTTPException(413, "사진 용량 초과 (1MB 이하만)")
+    with db_conn() as _con:
+        _row = _con.execute(
+            "SELECT owner_phone, partner_phone, title FROM shared_sites WHERE share_id = ?",
+            (share_id,),
+        ).fetchone()
+    if not _row:
+        raise HTTPException(404, "share_id 없음")
+    share_owner = _norm_phone(_row[0])
+    share_partner = _norm_phone(_row[1])
+    if uploader_phone not in (share_owner, share_partner):
+        raise HTTPException(403, "권한 없음 (이 협업 현장의 owner/partner 만 업로드 가능)")
+    # 업로더 종류 결정 — owner 이면 member_id='OWNER', partner 이면 'PARTNER:{phone}' (구분용)
+    if uploader_phone == share_owner:
+        member_id = "OWNER"
+        store_owner_phone = share_owner
+    else:
+        member_id = f"PARTNER:{uploader_phone}"
+        store_owner_phone = share_owner  # owner_phone 컬럼은 share 의 주인(A) 으로 저장 — A 가 보존 권한
+    label = (req.label or "").strip() or "현장 사진"
+    now = _now_ms()
+    with db_conn() as con:
+        cur = con.execute(
+            """
+            INSERT INTO team_site_photos
+                (token, member_id, owner_phone, label, image_data_url, image_path,
+                 note, uploaded_at_ms, customer_phone, share_id)
+            VALUES (NULL, ?, ?, ?, ?, NULL, ?, ?, NULL, ?)
+            """,
+            (
+                member_id,
+                store_owner_phone,
+                label,
+                image_data_url,
+                (req.note or "").strip() or None,
+                now,
+                share_id,
+            ),
+        )
+        photo_id = cur.lastrowid
+        con.commit()
+    print(
+        f"[shared/photo] share={share_id} uploader={uploader_phone} "
+        f"({'OWNER' if uploader_phone == share_owner else 'PARTNER'}) "
+        f"photo_id={photo_id} label={label}"
+    )
+    return {
+        "ok": True,
+        "photo_id": photo_id,
+        "share_id": share_id,
+        "label": label,
+        "uploaded_at_ms": now,
+    }
+
+
+# ─── ⑪ GET /api/shared/photos ───  (§F-2 2026-06-13)
+# 협업 현장 사진 목록 — share_id 의 모든 사진 (owner 업로드 + partner 업로드 둘 다).
+# 사장님 워딩 그대로 ?share_id= 만. 안전벽: phone 옵셔널 query (있으면 검증).
+
+@app.get("/api/shared/photos")
+async def shared_photos_list(
+    share_id: str,
+    phone: Optional[str] = None,
+    since_ms: int = 0,
+    limit: int = 100,
+) -> dict:
+    """협업 현장 사진 조회. phone 제공 시 owner/partner 권한 검증."""
+    share_id = (share_id or "").strip()
+    if not share_id:
+        raise HTTPException(400, "share_id 필수")
+    limit = max(1, min(limit, 300))
+    if phone:
+        phone_digits = _norm_phone(phone)
+        with db_conn() as _con:
+            _row = _con.execute(
+                "SELECT owner_phone, partner_phone FROM shared_sites WHERE share_id = ?",
+                (share_id,),
+            ).fetchone()
+        if not _row:
+            raise HTTPException(404, "share_id 없음")
+        if phone_digits not in (_norm_phone(_row[0]), _norm_phone(_row[1])):
+            raise HTTPException(403, "권한 없음")
+    with db_conn() as con:
+        rows = con.execute(
+            """
+            SELECT photo_id, member_id, label, image_data_url, note, uploaded_at_ms
+            FROM team_site_photos
+            WHERE share_id = ? AND uploaded_at_ms > ?
+            ORDER BY uploaded_at_ms DESC
+            LIMIT ?
+            """,
+            (share_id, since_ms, limit),
+        ).fetchall()
+    photos = []
+    for r in rows:
+        photo_id, member_id, label, image_data_url, note, uploaded_at_ms = r
+        mid = member_id or ""
+        if mid == "OWNER":
+            uploader_kind = "owner"
+            uploader_name = "사장님"
+        elif mid.startswith("PARTNER:"):
+            uploader_kind = "partner"
+            uploader_phone_part = mid.split(":", 1)[1]
+            uploader_name = _is_registered_owner(uploader_phone_part) or "협업 사장"
+        else:
+            uploader_kind = "member"
+            uploader_name = "팀원"
+        photos.append({
+            "photo_id": photo_id,
+            "label": label or "",
+            "image_data_url": image_data_url or "",
+            "note": note or "",
+            "uploaded_at_ms": uploaded_at_ms,
+            "uploader_kind": uploader_kind,
+            "uploader_name": uploader_name,
+        })
+    return {"photos": photos, "count": len(photos)}
+
+
+# ─── ⑫ POST /api/shared/cancel ───  (§dedup 2026-06-13)
+# A 가 보낸 협업 요청 취소 (B 가 아직 응답 안 한 pending 만).
+# 핸드오프 SYNC android 추가2: "(선택) 요청 취소 /api/shared/cancel → 상대 pending 제거"
+
+class SharedCancelRequest(BaseModel):
+    share_id: str
+    owner_phone: str
+
+
+@app.post("/api/shared/cancel")
+async def shared_cancel(req: SharedCancelRequest) -> dict:
+    """A 본인이 보낸 협업 요청 취소. pending 만 가능. 'declined' 로 변경 (보존, B 측 안 보이게)."""
+    share_id = (req.share_id or "").strip()
+    owner_phone = _norm_phone(req.owner_phone)
+    if not share_id or not owner_phone:
+        raise HTTPException(400, "share_id, owner_phone 필수")
+    now = _now_ms()
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT owner_phone, status FROM shared_sites WHERE share_id = ?",
+            (share_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "share_id 없음")
+        if row[0] != owner_phone:
+            raise HTTPException(403, "권한 없음 (이 요청은 본인이 보낸 것이 아닙니다)")
+        if row[1] != "pending":
+            raise HTTPException(409, f"취소 불가 (현재 status={row[1]}, pending 만 취소 가능)")
+        con.execute(
+            "UPDATE shared_sites SET status = 'declined', updated_at_ms = ? WHERE share_id = ?",
+            (now, share_id),
+        )
+        con.commit()
+    print(f"[shared/cancel] share={share_id} owner={owner_phone} → declined (취소)")
+    return {"ok": True, "share_id": share_id, "status": "declined", "updated_at_ms": now}
 
 
 # ============================================================================
@@ -9180,13 +9452,18 @@ class TeamPhotoUploadRequest(BaseModel):
 
 
 class OwnerSitePhotoRequest(BaseModel):
-    """§25 — 사장님 본인이 현장사진 업로드 (팀원 토큰 없이)."""
+    """§25 — 사장님 본인이 현장사진 업로드 (팀원 토큰 없이).
+
+    §F (2026-06-13) — share_id 옵셔널 추가. 협업 현장 사진은 share_id 로 묶임.
+    customer_phone 은 협업 현장에선 안전 라벨 또는 빈 값일 수 있음 → §F 에서 미필수화.
+    """
 
     owner_phone: str
-    customer_phone: str
+    customer_phone: Optional[str] = None       # §F: share_id 만으로도 업로드 가능 (협업 현장).
     image_data_url: str                        # base64 data URL (1MB 컷)
     label: Optional[str] = None
     note: Optional[str] = None
+    share_id: Optional[str] = None             # §F: 협업 현장 사진 (shared_sites.share_id)
 
 
 # ─── API 1: 팀원 초대 (이름 + 전화 + URL 발급) ───
@@ -9942,12 +10219,26 @@ async def owner_site_photo_upload(req: OwnerSitePhotoRequest) -> dict:
     """
     owner_phone = (req.owner_phone or "").strip()
     customer_phone = (req.customer_phone or "").strip()
+    share_id = (req.share_id or "").strip()    # §F
     if not owner_phone:
         raise HTTPException(400, "owner_phone 필수")
-    if not customer_phone:
-        raise HTTPException(400, "customer_phone 필수")
+    # §F: customer_phone 또는 share_id 중 하나 필수 (협업 현장은 share_id 만).
+    if not customer_phone and not share_id:
+        raise HTTPException(400, "customer_phone 또는 share_id 중 하나 필수")
     # 사장님이 어떤 티어든 팀 기능 활성 상태인지 확인 (기존 helper 재사용)
     _check_team_tier(owner_phone)
+    # §F 벽: share_id 제공 시 그 share 의 owner 또는 partner 중 하나가 요청자 owner_phone 이어야.
+    if share_id:
+        with db_conn() as _con:
+            _row = _con.execute(
+                "SELECT owner_phone, partner_phone FROM shared_sites WHERE share_id = ?",
+                (share_id,),
+            ).fetchone()
+        if not _row:
+            raise HTTPException(404, "share_id 없음")
+        owner_digits = _norm_phone(owner_phone)
+        if owner_digits not in (_norm_phone(_row[0]), _norm_phone(_row[1])):
+            raise HTTPException(403, "권한 없음 (이 협업 현장의 owner/partner 만 업로드 가능)")
     data_url = req.image_data_url or ""
     if not data_url:
         raise HTTPException(400, "image_data_url 필수")
@@ -9960,8 +10251,8 @@ async def owner_site_photo_upload(req: OwnerSitePhotoRequest) -> dict:
             """
             INSERT INTO team_site_photos
                 (token, member_id, owner_phone, label, image_data_url, image_path,
-                 note, uploaded_at_ms, customer_phone)
-            VALUES (NULL, 'OWNER', ?, ?, ?, NULL, ?, ?, ?)
+                 note, uploaded_at_ms, customer_phone, share_id)
+            VALUES (NULL, 'OWNER', ?, ?, ?, NULL, ?, ?, ?, ?)
             """,
             (
                 owner_phone,
@@ -9969,20 +10260,23 @@ async def owner_site_photo_upload(req: OwnerSitePhotoRequest) -> dict:
                 data_url,
                 (req.note or "").strip() or None,
                 now,
-                customer_phone,
+                customer_phone or None,
+                share_id or None,
             ),
         )
         photo_id = cur.lastrowid
         con.commit()
     print(
-        f"[owner_site_photo] owner={owner_phone} customer={customer_phone[:13]} "
+        f"[owner_site_photo] owner={owner_phone} "
+        f"customer={(customer_phone or '')[:13]} share={share_id or '-'} "
         f"photo_id={photo_id} label={label}"
     )
     return {
         "ok": True,
         "photo_id": photo_id,
         "label": label,
-        "customer_phone": customer_phone,
+        "customer_phone": customer_phone or None,
+        "share_id": share_id or None,
         "uploaded_at_ms": now,
     }
 
@@ -9990,49 +10284,80 @@ async def owner_site_photo_upload(req: OwnerSitePhotoRequest) -> dict:
 @app.get("/api/site-photos")
 async def site_photos_by_customer(
     owner_phone: str,
-    customer_phone: str,
+    customer_phone: Optional[str] = None,
+    share_id: Optional[str] = None,            # §F (2026-06-13)
     since_ms: int = 0,
     limit: int = 50,
 ) -> dict:
-    """§25 — 특정 고객 현장 사진 전부 (팀원 + 사장님) 조회.
+    """§25 + §F — 특정 고객 현장 또는 협업 현장 사진 전부 (팀원 + 사장님) 조회.
 
     응답: photos[] 각 row 에 uploader_kind ('owner'|'member'), uploader_name 포함.
     매칭: customer_phone 정확 일치 OR 끝 8자리 suffix (다양한 형태 호환).
+    §F: share_id 제공 시 그 share 의 owner 또는 partner 중 하나가 요청자 owner_phone 이어야 벽 통과.
+        share_id 제공 시 owner_phone 무관 모든 사진 (A 가 올린 것 + B 가 올린 것) 반환.
     """
     owner_phone = (owner_phone or "").strip()
     customer_phone = (customer_phone or "").strip()
+    share_id = (share_id or "").strip()
     if not owner_phone:
         raise HTTPException(400, "owner_phone 필수")
-    if not customer_phone:
-        raise HTTPException(400, "customer_phone 필수")
+    if not customer_phone and not share_id:
+        raise HTTPException(400, "customer_phone 또는 share_id 중 하나 필수")
     limit = max(1, min(limit, 200))
-    # 끝 8자리 suffix 도 매칭 (고객 phone 형태 다양 호환: '010-1234-5678' / '01012345678' / '+821012345678')
-    customer_digits = "".join(ch for ch in customer_phone if ch.isdigit())
-    suffix_8 = customer_digits[-8:] if len(customer_digits) >= 8 else customer_digits
-    with db_conn() as con:
-        rows = con.execute(
-            """
-            SELECT p.photo_id, p.member_id, p.label, p.image_data_url, p.image_path,
-                   p.note, p.uploaded_at_ms, p.customer_phone, m.name
-            FROM team_site_photos p
-            LEFT JOIN team_members m ON m.member_id = p.member_id
-            WHERE p.owner_phone = ?
-              AND p.uploaded_at_ms > ?
-              AND (
-                p.customer_phone = ?
-                OR REPLACE(REPLACE(REPLACE(REPLACE(IFNULL(p.customer_phone,''), '-', ''), ' ', ''), '+', ''), '_', '') LIKE ?
-              )
-            ORDER BY p.uploaded_at_ms DESC
-            LIMIT ?
-            """,
-            (
-                owner_phone,
-                since_ms,
-                customer_phone,
-                f"%{suffix_8}",
-                limit,
-            ),
-        ).fetchall()
+
+    # §F — share_id 모드: 그 share 의 owner/partner 권한 확인
+    if share_id:
+        with db_conn() as _con:
+            _row = _con.execute(
+                "SELECT owner_phone, partner_phone FROM shared_sites WHERE share_id = ?",
+                (share_id,),
+            ).fetchone()
+        if not _row:
+            raise HTTPException(404, "share_id 없음")
+        owner_digits = _norm_phone(owner_phone)
+        if owner_digits not in (_norm_phone(_row[0]), _norm_phone(_row[1])):
+            raise HTTPException(403, "권한 없음 (이 협업 현장의 owner/partner 만 조회 가능)")
+        with db_conn() as con:
+            rows = con.execute(
+                """
+                SELECT p.photo_id, p.member_id, p.label, p.image_data_url, p.image_path,
+                       p.note, p.uploaded_at_ms, p.customer_phone, m.name
+                FROM team_site_photos p
+                LEFT JOIN team_members m ON m.member_id = p.member_id
+                WHERE p.share_id = ? AND p.uploaded_at_ms > ?
+                ORDER BY p.uploaded_at_ms DESC
+                LIMIT ?
+                """,
+                (share_id, since_ms, limit),
+            ).fetchall()
+    else:
+        # 기존 customer_phone 모드 (§25 기존 흐름 유지)
+        customer_digits = "".join(ch for ch in customer_phone if ch.isdigit())
+        suffix_8 = customer_digits[-8:] if len(customer_digits) >= 8 else customer_digits
+        with db_conn() as con:
+            rows = con.execute(
+                """
+                SELECT p.photo_id, p.member_id, p.label, p.image_data_url, p.image_path,
+                       p.note, p.uploaded_at_ms, p.customer_phone, m.name
+                FROM team_site_photos p
+                LEFT JOIN team_members m ON m.member_id = p.member_id
+                WHERE p.owner_phone = ?
+                  AND p.uploaded_at_ms > ?
+                  AND (
+                    p.customer_phone = ?
+                    OR REPLACE(REPLACE(REPLACE(REPLACE(IFNULL(p.customer_phone,''), '-', ''), ' ', ''), '+', ''), '_', '') LIKE ?
+                  )
+                ORDER BY p.uploaded_at_ms DESC
+                LIMIT ?
+                """,
+                (
+                    owner_phone,
+                    since_ms,
+                    customer_phone,
+                    f"%{suffix_8}",
+                    limit,
+                ),
+            ).fetchall()
     photos = []
     for r in rows:
         mid = r[1]

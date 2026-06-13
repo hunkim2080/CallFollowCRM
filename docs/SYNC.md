@@ -3852,3 +3852,135 @@ cowork 진단 회신 — 결론: **서버/직렬화 정상. 앱 송신부 버그
 - 핸드오프 갱신: §F 에 **앱이 소비할 photo POST/GET 모양** 명시, §E 에 **앱 현재 수동 도착 버튼 유지 + 서버 arrived(auto) 푸시 오면 geofence 붙임** 명시, 우선순위 §A/§B/§H ✅ 표기 + 다음 1순위 = §F/§E.
 - 다음 cycle 서버(cowork): §F(`POST/GET /api/shared/photo(s)`) + §E(`progress arrived auto` 양쪽 푸시) 만들어 주면 앱이 4단계 즉시 착수.
 - commit: (아래)
+## 2026-06-13 (추가2) · cowork (server) — §E geofence + §F 협업 사진 연결
+SERVER_HANDOFF_collab_expansion.md 우선순위 3번 (§E·§F 묶음).
+
+### §E — 3km geofence push 분기 (작음)
+- `SharedProgressRequest.auto: Optional[bool] = False` 필드 추가.
+- `/api/shared/progress` step="arrived" + auto=true 시:
+  - **A 에게**: 기존 `collab_event` FCM 에 `auto: "true"` 플래그 추가 → 앱이 "거의 도착해가요" 문구로 표시 (vs 일반 "도착" 구분).
+  - **B 에게**: 새 type `collab_arrived_confirm` FCM (share_id + title) → 앱이 "사장님께 알려드렸어요" 확인 표시. b-remind 아래 푸시.
+- step=departed/completed 또는 auto=false 인 arrived 는 기존 동작 그대로.
+- 핸드오프 명시: "수동 도착 버튼은 앱에서 제거(자동만)" — 서버는 둘 다 받음 (호환).
+
+### §F — site_photos 협업 연결 (라벨/연결만)
+- `team_site_photos` 에 `share_id TEXT` 컬럼 ALTER + 인덱스 (NULL 허용 — 기존 row 호환).
+- `POST /api/site-photo/owner-upload` 변경:
+  - `share_id: Optional[str]` 추가.
+  - `customer_phone` 미필수화 (share_id 만으로도 업로드 가능 — 협업 현장).
+  - **벽 검증**: share_id 제공 시 그 share 의 owner/partner 중 하나가 요청자 owner_phone 이어야 (다른 사장 침범 차단).
+- `GET /api/site-photos` 변경:
+  - `share_id: Optional[str]` query 추가.
+  - share_id 모드: 그 share 의 모든 사진 반환 (uploader 무관 — A 올린 것 + B 올린 것 둘 다).
+  - 기존 customer_phone 모드 그대로 유지 (백워드 호환).
+  - **벽**: 동일 권한 검증.
+
+### 안전벽 (양쪽 공통)
+- FCM payload: partner_name / title 만. 주소/계좌/일당 미포함.
+- 사진 endpoint: owner_phone + share_id 권한 검증 → 무관한 사장이 share_id 만 알아도 사진 못 봄.
+- 고객 phone / 대화 절대 미포함.
+
+### 검증 (배포 후)
+```bash
+# §E — auto arrived 시뮬레이션
+curl -s -X POST http://localhost:8000/api/shared/progress \
+  -H "Content-Type: application/json" \
+  -d '{"share_id":"sh_xxx","partner_phone":"01080056674","step":"arrived","auto":true}'
+# 서버 stdout 에 [shared/progress] ... → arrived (event=evt_..., auto) 보이면 OK.
+# A 폰 + B 폰 둘 다 푸시 받음.
+
+# §F — share_id 사진 조회
+curl -s "http://localhost:8000/api/site-photos?owner_phone=01064610131&share_id=sh_xxx"
+```
+
+### 안드로이드 측 작업 (다음 cycle 대기)
+- §E:
+  - 출발 탭 → 위치 추적 시작 (그 전엔 미추적).
+  - 3km geofence 진입 감지 → `POST /api/shared/progress {step:"arrived", auto:true}`.
+  - 수동 "도착" 버튼 제거.
+  - `collab_event.auto == "true"` 분기 ("거의 도착해가요").
+  - 새 type `collab_arrived_confirm` 수신 처리 ("사장님께 알려드렸어요").
+- §F:
+  - 협업 현장 사진 업로드/조회 시 share_id 사용.
+  - 기존 customer_phone 흐름은 그대로 (변경 X).
+
+### 다음 cycle 남은 핸드오프
+- §D (2h 알림 — 서버 크론 vs 앱 ReminderWorker 결정 필요. 사장님 결정 대기).
+- §G (모집 시스템 — 대형 작업, recruit + recruit_application 2 테이블 + 5 endpoint).
+
+## 2026-06-13 (추가3) · cowork (server) — §A-2 time_label + §F-2 photo endpoint 정렬 + dedup + cancel
+사장님 ping "RING-GO 서버 — 지금 할 것" 반영. 4건 한 commit.
+
+### §A-2 — invite time_label echo (신규)
+- `shared_sites` 에 `time_label_raw TEXT` ALTER 추가 (NULL 허용).
+- `SharedInviteRequest.time_label: Optional[str]` 필드.
+- `_shared_site_row_to_dict` + `/api/shared/by-me`: time_label_raw 있으면 그대로 echo, 없으면 HH:MM 자동.
+- `/api/shared/with-me` 자동 반영. 핸드오프: "앱이 invite 에 time_label('오전 9시')도 보내. 저장 + with-me/by-me echo."
+
+### §F-2 — photo endpoint 사장님 워딩 그대로 정렬
+- 신규 `POST /api/shared/photo {share_id, partner_phone, image_base64, label?, note?}`
+  - partner_phone = 업로더 phone (owner 든 partner 든).
+  - 벽: share_id 의 owner/partner 중 하나가 업로더 phone 이어야.
+  - 저장: `team_site_photos` 재사용 (§F share_id 컬럼). member_id = 'OWNER' / 'PARTNER:{phone}' 구분.
+  - 영구 보존 (§C).
+- 신규 `GET /api/shared/photos?share_id=&phone=&since_ms=&limit=`
+  - 그 share 의 모든 사진 (owner + partner 둘 다).
+  - phone 옵셔널 — 제공 시 권한 검증, 없으면 share_id 만으로 통과 (10자 base62 추측 어려움).
+  - 응답: photos[{photo_id, label, image_data_url, note, uploaded_at_ms, uploader_kind, uploader_name}]
+- 기존 `/api/site-photo/owner-upload` 와 `/api/site-photos` (§F 첫 버전) 도 그대로 살아있음 — 백워드 호환.
+
+### §dedup — invite 중복 차단 + 취소
+- `/api/shared/invite` 시 같은 owner+partner+title (NULL/빈 포함) + status IN ('pending','accepted') + paid_at_ms NULL + progress != 'completed' 인 미완 share 있으면 그것 반환 + `deduped: true`. 새 share 안 만듦.
+- 신규 `POST /api/shared/cancel {share_id, owner_phone}` — A 본인이 보낸 pending 요청 취소. status='declined' 로 변경 (행 삭제 X, §C 보존).
+- 다른 status 면 409 차단.
+
+### 기존 테스트 중복 share 정리 (사장님 한 줄)
+```bash
+sqlite3 ~/ringgo-server/cache.db <<SQL
+-- 같은 owner+partner+title 중 pending/accepted 가 2개 이상이면 가장 오래된 것만 남기고 나머지 declined.
+UPDATE shared_sites SET status='declined', updated_at_ms=strftime('%s','now')*1000
+WHERE share_id IN (
+  SELECT share_id FROM shared_sites s
+  WHERE status IN ('pending','accepted') AND paid_at_ms IS NULL
+    AND EXISTS (
+      SELECT 1 FROM shared_sites x
+      WHERE x.owner_phone = s.owner_phone
+        AND x.partner_phone = s.partner_phone
+        AND IFNULL(x.title,'') = IFNULL(s.title,'')
+        AND x.status IN ('pending','accepted') AND x.paid_at_ms IS NULL
+        AND x.created_at_ms < s.created_at_ms
+    )
+);
+SELECT changes() AS '취소 처리된 중복 share 수';
+SQL
+```
+
+### 안전벽
+- 사진: owner/partner 만 업로드·조회. 외부 사장 침범 차단.
+- dedup: title 빈/NULL 동등 처리 → 무제목 협업도 dedup 됨.
+- cancel: pending 만 — accepted 이후엔 progress 이미 시작이므로 취소 막음.
+
+### 검증 (reload 후)
+```bash
+# §A-2 — 앱에서 time_label='오전 9시' 보낸 후
+sqlite3 ~/ringgo-server/cache.db "SELECT daily_wage, time_label_raw FROM shared_sites ORDER BY created_at_ms DESC LIMIT 1;"
+# → 25|오전 9시 나오면 OK.
+
+# §F-2 — 사진 업로드/조회
+curl -s -X POST http://localhost:8000/api/shared/photo -H "Content-Type: application/json" \
+  -d '{"share_id":"sh_xxx","partner_phone":"01080056674","image_base64":"...","label":"시공 전"}'
+curl -s "http://localhost:8000/api/shared/photos?share_id=sh_xxx&phone=01080056674" | python3 -m json.tool
+
+# §dedup — 같은 invite 2번 보내기
+curl -s -X POST http://localhost:8000/api/shared/invite -H "Content-Type: application/json" \
+  -d '{"owner_phone":"01099999991","partner_phone":"01080056674","title":"테스트 현장","daily_wage":25}'
+# 두 번째 호출에 deduped: true 박힘.
+
+# §cancel — pending 취소
+curl -s -X POST http://localhost:8000/api/shared/cancel -H "Content-Type: application/json" \
+  -d '{"share_id":"sh_xxx","owner_phone":"01099999991"}'
+```
+
+### 다음 cycle 남은 핸드오프
+- §D (2h 알림 — 서버 크론 vs 앱 ReminderWorker 결정 대기).
+- §G (모집 시스템 — 대형).
