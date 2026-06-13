@@ -1234,7 +1234,8 @@ private fun AssignTeamSheet(
                     SheetFieldLabel("그날 일당 (만원, 선택)")
                     SheetTextField(
                         collabWage, { collabWage = it.filter { c -> c.isDigit() }.take(4) },
-                        placeholder = "예: 25", keyboardType = KeyboardType.Number, singleLine = true
+                        placeholder = "예: 25", keyboardType = KeyboardType.Number, singleLine = true,
+                        visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation
                     )
                     Spacer(Modifier.height(12.dp))
                     SheetFieldLabel("출근 시간 (선택)")
@@ -1352,7 +1353,8 @@ private fun QuickAddForm(
         if (showWage) {
             Spacer(Modifier.height(10.dp))
             SheetFieldLabel("그날 일당 (만원, 선택)")
-            SheetTextField(wage, onWage, placeholder = "예: 25", keyboardType = KeyboardType.Number)
+            SheetTextField(wage, onWage, placeholder = "예: 25", keyboardType = KeyboardType.Number,
+                visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation)
         }
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
