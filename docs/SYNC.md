@@ -4195,3 +4195,12 @@ curl -s -X POST http://localhost:8000/api/recruit/select -H "Content-Type: appli
 - ⚠️ **프로토 의도적 변경**: 프로토 `s-team`(팀 관리) + 수첩[일당/거래처] → 인원관리[팀원/일당사장] + 수첩[거래처]. 사장님 명시 요청. 현황판/프로토 반영은 후속.
 - 협업 후보 출처(ScheduleVM collabPartners=WORKER tag "협업")는 같은 DB라 무영향.
 - 서버 무관(app-only). commit: cfde219
+
+## 2026-06-13 (android 추가12) — "협업 알람 안 와" 진단: dedup + 서버 reload + 재알림 요청
+사장님 신고: 협업 요청했는데 B 폰에 알람 안 옴. **서버 with-me 직접 조회로 원인 확정**:
+- B(01080056674) 목록: 마지막 share 02:34(declined), 그 현장 "가능동sk뷰아파트"에 **이미 accepted share(02:26)** 존재. owner_name 전부 "사장님"(= **서버 reload 아직 안 됨**, §A-3 echo 미적용).
+- **원인 = dedup**: 같은 owner+partner+title 미완(accepted) share 있으면 서버가 새로 안 만들고 기존 반환(deduped:true) → **새 invite/FCM 안 감** → B 알람 없음. (정상 동작이지만 A가 "보냈어요"로 오해)
+- **앱 고침(이번)**: invite 응답 `deduped` 파싱 → A 에게 "이미 이 현장으로 협업 중이에요 (새 알림은 안 가요)" 토스트. 양 경로(CustomerDetail/전문가배정).
+- **cowork 요청 ②(재알림)**: A가 같은 협업을 다시 요청(="한 번 더 보내기")하면 dedup 이어도 **B 에게 FCM 재발송(re-poke)** 해주면 좋겠음. 지금은 deduped 면 아무 알림도 안 가서 "한 번 더 보내기"가 무동작. (옵션: invite 에 `force_notify` 받으면 기존 share 로 collab_invite FCM 재발사)
+- **사장님 액션**: ① **맥미니 서버 reload**(owner_name·일당·수락·사진·3km 다 켜짐) ② 새 알람 테스트는 **다른 현장(새 주소)·다른 사람**으로.
+- commit: (아래)

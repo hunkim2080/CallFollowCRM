@@ -177,7 +177,9 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
                 // 일정 카드 "🤝 이름" 표시용 로컬 배정 기록 (서버 수락 확정은 추후). 4번째=shareId(공유후카드 사진 조회용).
                 container.preferences.collabAssignments = container.preferences.collabAssignments + "${customer.id}|$partner|$partnerName|${r.shareId}"
                 loadCollabAssignments()
-                if (r.route == "link" && !r.url.isNullOrBlank()) {
+                if (r.deduped) {
+                    _toast.value = "이미 이 현장으로 협업 중인 사장님이에요 (새 알림은 안 가요)"
+                } else if (r.route == "link" && !r.url.isNullOrBlank()) {
                     onLink(partner, r.smsDraft ?: "협업 현장 공유 — ${r.url}")
                 } else {
                     _toast.value = "협업 요청을 보냈어요 — 상대 사장님이 수락하면 시작돼요"

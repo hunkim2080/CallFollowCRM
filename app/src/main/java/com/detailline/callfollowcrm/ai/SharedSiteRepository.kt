@@ -90,7 +90,8 @@ class SharedSiteRepository(
         val shareId: String,
         val route: String,           // "inapp" (상대도 앱 사장) | "link" (웹링크)
         val url: String?,            // route=link 일 때
-        val smsDraft: String?
+        val smsDraft: String?,
+        val deduped: Boolean = false // 서버가 같은 현장 미완 협업 있어 새로 안 만들고 기존 반환(=새 알람 안 감)
     )
 
     /** A(현장 주인)가 받아보는 협업 진행 이벤트. */
@@ -161,7 +162,8 @@ class SharedSiteRepository(
                     shareId = obj.optString("share_id"),
                     route = obj.optString("route").ifBlank { "link" },
                     url = obj.optString("url").takeIf { it.isNotBlank() },
-                    smsDraft = obj.optString("sms_draft").takeIf { it.isNotBlank() }
+                    smsDraft = obj.optString("sms_draft").takeIf { it.isNotBlank() },
+                    deduped = obj.optBoolean("deduped", false)
                 )
             }
         }

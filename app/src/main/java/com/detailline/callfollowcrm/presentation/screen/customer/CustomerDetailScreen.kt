@@ -2876,7 +2876,9 @@ private fun CollabShareSheet(
                     }
                     onShared()
                 }
-                if (r.route == "link" && !r.url.isNullOrBlank()) {
+                if (r.deduped) {
+                    android.widget.Toast.makeText(context, "이미 이 현장으로 협업 중인 사장님이에요. (새 알림은 안 가요 — 다른 현장·사람은 새로 가요)", android.widget.Toast.LENGTH_LONG).show()
+                } else if (r.route == "link" && !r.url.isNullOrBlank()) {
                     val body = r.smsDraft ?: "협업 현장 공유 — ${r.url}"
                     com.detailline.callfollowcrm.util.SmsIntentHelper.openSmsCompose(context, partner, body)
                     android.widget.Toast.makeText(context, "문자로 공유 링크를 보냈어요", android.widget.Toast.LENGTH_LONG).show()
