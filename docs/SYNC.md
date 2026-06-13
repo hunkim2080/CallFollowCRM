@@ -3995,3 +3995,11 @@ cowork §F(POST /api/shared/photo, GET /api/shared/photos) 위에 앱 붙임.
 - **협업 해제**: 로컬 제거 + `cancel(shareId)` 서버 호출(pending 이면 B쪽 제거, accepted 면 서버 409 → 조용히 무시).
 - 업로더 = partner_phone(본인 번호, owner/partner 무관). 벽: share_id 권한검증은 서버.
 - commit: (아래). 다음(앱): §E 3km geofence.
+
+## 2026-06-13 (android 추가8) — §E-1 3km 자동도착 푸시 2종 수신 처리
+cowork §E 푸시 분기에 맞춰 앱 수신부 먼저(안전·검증 쉬움).
+- **collab_event + auto="true"**(A 받음): `showCollabEvent(auto=true)` → "거의 도착 📍 · OOO님이 거의 도착했어요 · 현장 3km 진입"(초록). auto 없으면 기존 "도착"(파랑) 그대로.
+- **collab_arrived_confirm**(B 받음, 신규 type): `showCollabArrivedConfirm` → "📍 사장님께 알려드렸어요 · 3km 진입·자동 전송·도착버튼 안 눌러도 돼요 😊"(프로토 b-remind 아래 푸시).
+- RingGoFcmService 분기 추가. 앱 수신 준비 완료 — 실제 발사는 §E-3(geofence) 붙으면.
+- 다음(앱): §E-3 geofence(출발탭→위치추적→3km→arrived auto). 무거움+실주행 테스트 필요 → 수동 도착 버튼은 폴백으로 유지 예정.
+- commit: (아래)

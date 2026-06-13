@@ -267,7 +267,8 @@ object NotificationHelper {
         partnerName: String,
         timeLabel: String,
         title: String,
-        accountText: String? = null
+        accountText: String? = null,
+        auto: Boolean = false
     ) {
         val notifId = COLLAB_ID_OFFSET + (eventId.hashCode() and 0x7FFFFF)
         val openIntent = Intent(context, MainActivity::class.java).apply {
@@ -280,7 +281,11 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val (pushTitle, msg, accent) = when (kind) {
-            "arrived" -> Triple(
+            "arrived" -> if (auto) Triple(
+                "거의 도착 📍",
+                "${partnerName}님이 거의 도착했어요 · ${title} 3km 진입",
+                ACCENT_GREEN
+            ) else Triple(
                 "협업 현장 도착 📍",
                 "${partnerName}님이 $timeLabel · ${title}에 도착했어요",
                 ACCENT_BLUE
@@ -334,6 +339,31 @@ object NotificationHelper {
             msg = "${who}이 '${site}' 협업을 요청했어요. 눌러서 수락하기",
             contentIntent = pending,
             actions = listOf(PushAction("수락하러 가기", pending))
+        )
+    }
+
+    /**
+     * 3km 자동 도착 확인(협업 사장 B 가 받음) — geofence 로 "거의 도착"이 주인께 자동 전송됐음을 B 에게 확인. (FCM collab_arrived_confirm)
+     *   프로토 b-remind 아래 푸시: "사장님께 '거의 다 왔어요'를 알려드렸어요!"
+     */
+    fun showCollabArrivedConfirm(context: Context, shareId: String, title: String) {
+        val notifId = COLLAB_INVITE_ID_OFFSET + ("arrconf:$shareId".hashCode() and 0x7FFFFF)
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            action = Intent.ACTION_VIEW
+            data = Uri.parse("${AppConfig.BASE_URL.trimEnd('/')}/shared/$shareId")
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pending = PendingIntent.getActivity(
+            context, notifId, openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val site = title.takeIf { it.isNotBlank() } ?: "협업 현장"
+        showProtoPush(
+            context, notifId, CHANNEL_REMINDER, ACCENT_GREEN,
+            title = "📍 사장님께 알려드렸어요",
+            msg = "${site} 3km 진입 · 자동으로 전송됐어요. 도착 버튼은 안 눌러도 돼요 😊",
+            contentIntent = pending,
+            actions = listOf(PushAction("협업 현장 보기", pending))
         )
     }
 

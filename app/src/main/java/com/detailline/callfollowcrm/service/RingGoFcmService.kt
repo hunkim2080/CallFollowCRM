@@ -59,8 +59,16 @@ class RingGoFcmService : FirebaseMessagingService() {
                         partnerName = data["partner_name"].orEmpty(),
                         timeLabel = data["time_label"]?.takeIf { it.isNotBlank() } ?: "방금",
                         title = data["title"].orEmpty(),
-                        accountText = accountText
+                        accountText = accountText,
+                        auto = data["auto"] == "true"   // §E 3km 자동 도착 → "거의 도착해가요"
                     )
+                }
+            }
+            // §E: B 가 3km 자동 도착 → "사장님께 알려드렸어요" 확인(받는 쪽 = 협업 사장 B).
+            "collab_arrived_confirm" -> {
+                val shareId = data["share_id"].orEmpty()
+                if (shareId.isNotBlank()) {
+                    NotificationHelper.showCollabArrivedConfirm(this, shareId, data["title"].orEmpty())
                 }
             }
             "collab_paid" -> {
