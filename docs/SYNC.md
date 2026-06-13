@@ -4269,3 +4269,13 @@ curl -s -X POST http://localhost:8000/api/shared/invite -H "Content-Type: applic
   -d '{"owner_phone":"01064610131","partner_phone":"01080056674","title":"test"}'
 # → new share_id, deduped 없음
 ```
+
+## 2026-06-13 (android 추가15) — 협업 진행알림 묵은알림 차단 + 서버 owner-events 정리 요청
+사장님 신고: A요청→B거절 했는데 A에 "출발" 알람. 진단: A(01064610131) owner-events 에 **새벽 01:53 옛 테스트 출발/도착 이벤트**(sh_sWeUadcy8K) 남아있고 폴링이 surface. 거절과 무관.
+- **앱 고침**(CollabEventCenter.poll): **6시간 지난 진행 이벤트는 알림 X**(recentCutoff) + 기존 한 폴당 5개 cap. 옛 이벤트는 조용히 lastSeen 만 넘김.
+- **cowork 요청 ★**: 테스트 owner-events 정리 — 6 accepted 테스트 share 의 진행 이벤트 삭제(declined 처리만으론 owner-events 안 지워져서 폴링이 계속 surface). 예:
+  ```sql
+  DELETE FROM shared_owner_events WHERE share_id IN ('sh_RD0t17JacV','sh_IuA1abmIuo','sh_nrwu07P85W','sh_KbmroOt3R8','sh_2QKvM8VrMI','sh_sWeUadcy8K');
+  ```
+- commit: 8123537
+- **앱 추가 할 일(다음)**: cowork 가 end=`status='ended'` 씀 → 앱 목록 필터에 'ended' 도 제외(현재 'declined' 만). collab_ended 수신은 이미 됨.

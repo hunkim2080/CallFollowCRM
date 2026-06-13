@@ -65,9 +65,11 @@ class CollabEventCenter(
             if (maxMs > 0L) preferences.collabEventLastSeenMs = maxMs
             return
         }
-        // 폭주 방지: 앱이 한동안 꺼져 있었거나 옛 이벤트가 쌓여 있으면 한 번에 수십 개가 터질 수 있음.
-        //   → 새 이벤트는 한 폴당 최대 5개(최신순)만 알림, 나머지는 조용히 lastSeen 넘김.
-        val newOnes = infos.filter { it.createdAtMs > lastSeen }.sortedBy { it.createdAtMs }
+        // 폭주·묵은알림 방지:
+        //   ① 6시간 지난 옛 진행 이벤트는 알림 X(이미 지난 출발/도착은 알려도 의미 없음 — 옛 테스트 이벤트 surface 차단).
+        //   ② 앱이 한동안 꺼졌어도 한 폴당 최대 5개(최신순)만. 나머지는 조용히 lastSeen 넘김.
+        val recentCutoff = System.currentTimeMillis() - 6 * 60 * 60 * 1000L
+        val newOnes = infos.filter { it.createdAtMs > lastSeen && it.createdAtMs >= recentCutoff }.sortedBy { it.createdAtMs }
         for (u in newOnes.takeLast(5)) {
             NotificationHelper.showCollabEvent(
                 context = context,

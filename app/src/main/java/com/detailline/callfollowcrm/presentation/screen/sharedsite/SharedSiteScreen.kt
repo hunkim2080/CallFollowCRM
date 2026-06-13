@@ -134,9 +134,10 @@ fun SharedSiteScreen(
 
     val serverPartners by viewModel.partners.collectAsState()
     val selected = sites.firstOrNull { it.shareId == selectedId }
-    // 휴지통에 넣은 건 목록·집계에서 제외. 거절/해제(declined)된 협업도 활성 목록에서 제외(기록은 서버 보존).
-    val activeSites = remember(sites, trashed) { sites.filter { it.shareId !in trashed && it.status != "declined" } }
-    val trashedSites = remember(sites, trashed) { sites.filter { it.shareId in trashed && it.status != "declined" } }
+    // 휴지통에 넣은 건 목록·집계에서 제외. 거절(declined)/해제(ended)된 협업도 활성 목록에서 제외(기록은 서버 보존).
+    val gone = setOf("declined", "ended")
+    val activeSites = remember(sites, trashed) { sites.filter { it.shareId !in trashed && it.status !in gone } }
+    val trashedSites = remember(sites, trashed) { sites.filter { it.shareId in trashed && it.status !in gone } }
     // 업체별: 서버 §B 집계 있으면 그걸로(전체 이력), 없으면 로드된 현장 로컬 그룹핑(폴백).
     val partnerGroups = remember(activeSites, serverPartners) {
         if (serverPartners.isNotEmpty()) serverPartners.map { p ->
