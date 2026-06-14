@@ -167,6 +167,28 @@ class ChatViewModel(
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
     /**
+     * 통화 카드 탭 → 그 통화 한 건을 연결된 녹음 폴더에서 찾아 즉시 요약. (2026-06-14 사장님)
+     *   에이닷 들어가 '공유' 안 해도 됨. 진행 중엔 CallSummaryProgress 로 스피너, 결과는 토스트.
+     */
+    fun summarizeCall(record: com.detailline.callfollowcrm.data.local.entity.CallRecordEntity, context: android.content.Context) {
+        val phone = record.phoneNumber
+        val at = record.startedAt ?: record.endedAt
+        viewModelScope.launch {
+            com.detailline.callfollowcrm.recording.CallSummaryProgress.begin(phone, at)
+            val res = runCatching {
+                com.detailline.callfollowcrm.recording.AdotFolderScanner.summarizeCallNow(context, container, phone, at)
+            }.getOrDefault(com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.NO_FILE)
+            com.detailline.callfollowcrm.recording.CallSummaryProgress.end(phone, at)
+            _toast.value = when (res) {
+                com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.OK -> "통화 내용을 요약했어요 ✨"
+                com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.ALREADY -> "이미 요약돼 있어요"
+                com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.NO_FOLDER -> "에이닷 녹음 폴더를 먼저 연결해주세요 (설정 → 통화 자동 요약)"
+                com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.NO_FILE -> "이 통화의 녹음 파일을 못 찾았어요"
+            }
+        }
+    }
+
+    /**
      * 시공접수서 제출 이벤트 (2026-06-05) — 고객이 접수서를 작성 완료하면 IntakeSyncManager 가 기록.
      *   채팅 타임라인에 통화 카드처럼 "📋 접수서 작성 완료" 이벤트 카드로 표시(제출 시각 기준).
      */

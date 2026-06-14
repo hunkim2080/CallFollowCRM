@@ -616,7 +616,8 @@ fun ChatScreen(
                                     isSummarizing = summarizing,
                                     onUseAsDraft = { msg ->
                                         input = if (input.isBlank()) msg else input + "\n" + msg
-                                    }
+                                    },
+                                    onSummarizeCall = { viewModel.summarizeCall(ti.record, context) }
                                 )
                             }
                             is ChatTimelineItem.Intake -> IntakeSegment(ti.event)
@@ -1337,7 +1338,8 @@ private fun CallSegment(
     record: com.detailline.callfollowcrm.data.local.entity.CallRecordEntity,
     summary: com.detailline.callfollowcrm.data.local.entity.CallSummaryEntity? = null,
     isSummarizing: Boolean = false,
-    onUseAsDraft: (String) -> Unit = {}
+    onUseAsDraft: (String) -> Unit = {},
+    onSummarizeCall: () -> Unit = {}
 ) {
     val type = runCatching {
         com.detailline.callfollowcrm.domain.model.CallType.valueOf(record.callType)
@@ -1409,14 +1411,16 @@ private fun CallSegment(
                         Text("통화 내용 요약 중…", color = Color(0xFF0A7D72), fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold)
                     }
                 }
-                // 미요약 + 요약 가능한 통화 → 버튼 대신 안내(2026-06-10 사장님 결정: 버튼 빼고 흐름에 맞춤).
-                //   요약은 에이닷에서 '녹음 파일 공유' → 서버 자동 요약으로 들어온다.
+                // 미요약 + 요약 가능한 통화 → 탭하면 연결된 녹음 폴더에서 찾아 바로 요약(에이닷 공유 불필요). (2026-06-14 사장님)
                 summarizable -> {
-                    Text(
-                        "에이닷에서 이 통화 녹음을 공유하면 자동으로 요약돼요",
-                        color = TossTextTertiary, fontSize = 11.5.sp, fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
+                    Box(
+                        Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(10.dp))
+                            .background(Color.White).border(1.dp, Color(0xFFBCE0D8), RoundedCornerShape(10.dp))
+                            .clickable { onSummarizeCall() }.padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("✨ 이 통화 요약하기", color = Color(0xFF0A7D72), fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold)
+                    }
                 }
             }
         } else {

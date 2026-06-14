@@ -270,4 +270,51 @@ object AdotFolderScanner {
             }
         }
     }
+
+    /** 탭-요약 결과. */
+    enum class SummarizeResult { OK, ALREADY, NO_FILE, NO_FOLDER }
+
+    /**
+     * 특정 통화 한 건을 폴더에서 찾아 즉시 요약(채팅에서 통화 카드 탭). 연결 시점 cutoff 무시(사용자 명시 의도).
+     *   매칭 = 파일명 번호 끝 8자리 일치 + 녹음시각이 통화시각 ±30분. 가장 가까운 파일을 요약.
+     *   에이닷 들어가 '공유' 안 해도, 연결된 폴더에서 알아서 찾아 요약. (2026-06-14 사장님)
+     */
+    suspend fun summarizeCallNow(
+        context: Context,
+        container: AppContainer,
+        phoneNumber: String,
+        callAtMs: Long
+    ): SummarizeResult {
+        val treeUri = getTreeUri(context) ?: return SummarizeResult.NO_FOLDER
+        val appCtx = context.applicationContext
+        val tree = DocumentFile.fromTreeUri(appCtx, treeUri) ?: return SummarizeResult.NO_FOLDER
+        if (!tree.isDirectory) return SummarizeResult.NO_FOLDER
+        val target = phoneNumber.filter { it.isDigit() }.takeLast(8)
+        if (target.length < 7) return SummarizeResult.NO_FILE
+        val win = 30 * 60 * 1000L
+        var bestUri: String? = null
+        var bestName = ""
+        var bestAt = 0L
+        var bestDelta = Long.MAX_VALUE
+        for (f in tree.listFiles()) {
+            if (!f.isFile) continue
+            val name = f.name ?: continue
+            if (!name.endsWith(".m4a", true) && !name.endsWith(".mp3", true) && !name.endsWith(".wav", true)) continue
+            val parsed = AdotFilenameParser.parse(name) ?: continue
+            if (parsed.phoneNumber.takeLast(8) != target) continue
+            val delta = kotlin.math.abs(parsed.recordedAt - callAtMs)
+            if (delta <= win && delta < bestDelta) {
+                bestUri = f.uri.toString(); bestName = name; bestAt = parsed.recordedAt; bestDelta = delta
+            }
+        }
+        val uriStr = bestUri ?: return SummarizeResult.NO_FILE
+        if (container.callSummaryRepository.findExistingNear(phoneNumber, bestAt) != null) return SummarizeResult.ALREADY
+        if (!container.recordingRepository.existsByUri(uriStr)) {
+            runCatching { RecordingMatcher.attach(container, uriStr, bestName, RecordingSourceType.SHARED_FROM_ADOT) }
+        }
+        val ok = runCatching {
+            CallAudioSummarizer.summarizeAndSave(appCtx, container, uriStr, bestName, interactive = false)
+        }.getOrDefault(false)
+        return if (ok) SummarizeResult.OK else SummarizeResult.NO_FILE
+    }
 }
