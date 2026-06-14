@@ -186,13 +186,15 @@ class SharedSiteRepository(
         }
     }
 
-    /** B 수락/거절. */
-    suspend fun respond(shareId: String, partnerPhone: String, accept: Boolean): Result<Unit> =
+    /** B 수락/거절. partnerName = B 사업자명(상호) → A 화면 "OO 사장님" 표기용(여러 협업자 구분). */
+    suspend fun respond(shareId: String, partnerPhone: String, accept: Boolean, partnerName: String? = null): Result<Unit> =
         post("$baseUrl/api/shared/respond", JSONObject().apply {
             put("share_id", shareId); put("partner_phone", phoneKey(partnerPhone)); put("accept", accept)
+            partnerName?.takeIf { it.isNotBlank() }?.let { put("partner_name", it) }
         })
 
-    /** B 진행(출발/도착/완료). 완료 시 bank/account 를 payload 로 실어 보냄 → A 에게 계좌 전달. */
+    /** B 진행(출발/도착/완료). 완료 시 bank/account 를 payload 로 실어 보냄 → A 에게 계좌 전달.
+     *   partnerName = B 사업자명(상호) → A 화면 "OO 사장님" 표기용(여러 협업자 구분). */
     suspend fun progress(
         shareId: String,
         partnerPhone: String,
@@ -200,11 +202,13 @@ class SharedSiteRepository(
         bank: String? = null,
         accountNo: String? = null,
         holder: String? = null,
-        auto: Boolean = false
+        auto: Boolean = false,
+        partnerName: String? = null
     ): Result<Unit> = post("$baseUrl/api/shared/progress", JSONObject().apply {
         put("share_id", shareId)
         put("partner_phone", phoneKey(partnerPhone))
         put("step", step.name.lowercase())
+        partnerName?.takeIf { it.isNotBlank() }?.let { put("partner_name", it) }
         if (auto) put("auto", true)   // §E 3km geofence 자동 도착
         if (step == Progress.COMPLETED && !accountNo.isNullOrBlank()) {
             put("payload", JSONObject().apply {

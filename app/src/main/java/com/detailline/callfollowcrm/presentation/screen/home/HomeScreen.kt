@@ -635,7 +635,7 @@ fun HomeScreen(
                 collabUpdates.forEach { up ->
                     item(key = "collab-update-${up.eventId}") {
                         val (accent, tint, icon, title, verb) = collabUpdateStyle(up.kind)
-                        val subText = "${up.partnerName}님 · ${up.timeLabel} · ${up.title} $verb" +
+                        val subText = "${bossLabel(up.partnerName)} · ${up.timeLabel} · ${up.title} $verb" +
                             (up.accountText?.let { " · 계좌 $it" } ?: "")
                         DismissSwipeBox(onDismiss = { viewModel.dismissCollabUpdate(up.eventId) }) {
                             Column {
@@ -1307,6 +1307,13 @@ private fun CollabUpcomingCard(
             }
         }
     }
+}
+
+/** 협업 상대 표기 — "사업자명 사장님". 여러 협업자도 안 헷갈리게. 이미 '사장' 들어가면 그대로. (2026-06-14) */
+private fun bossLabel(name: String): String = when {
+    name.isBlank() -> "협업 사장님"
+    name.contains("사장") -> name
+    else -> "$name 사장님"
 }
 
 /** 프로토 shortAddr — 주소에서 "구/시" + "동" 만 추려 짧게. 없으면 "주소 미입력". */

@@ -97,9 +97,14 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
         return System.currentTimeMillis() - anchor >= ACCEPT_VALID_MS
     }
 
+    /** 내 사업자명(상호) → A 화면 "OO 사장님" 표기용. 없으면 대표자 이름. (2026-06-14) */
+    private fun myBizName(): String =
+        container.preferences.bizName.takeIf { it.isNotBlank() }
+            ?: container.preferences.bizOwner
+
     fun respond(site: SharedSiteRepository.SharedSite, accept: Boolean) {
         viewModelScope.launch {
-            repo.respond(site.shareId, myPhone, accept)
+            repo.respond(site.shareId, myPhone, accept, partnerName = myBizName())
                 .onSuccess {
                     _toast.value = if (accept) "협업 현장에 들어왔어요" else "거절했어요"
                     // 수락/거절 즉시 상담함 카드·뱃지·알림에서 제거(다음 폴 안 기다리게). (2026-06-14 버그)
@@ -122,7 +127,8 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
                 holder = if (withAccount) {
                     container.preferences.bizAccountHolder.takeIf { it.isNotBlank() }
                         ?: container.preferences.bizOwner.takeIf { it.isNotBlank() }
-                } else null
+                } else null,
+                partnerName = myBizName()
             )
             res.onSuccess {
                 _toast.value = when (step) {

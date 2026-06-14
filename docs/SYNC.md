@@ -4393,3 +4393,12 @@ curl -s -X POST http://localhost:8000/api/shared/invite -H "Content-Type: applic
 - 효과: 녹음 폴더 연결 + 답한 통화면 방향·반복 무관 자동 요약 + 카드. 연결 이후 통화부터(connectedAt=now).
 - 서버 무관(기존 §26 endpoint). 빌드/메인폰 설치·무crash. **사장님: 설정에서 녹음 폴더 연결 후 새 통화로 검증 필요.**
 - commit: (이 블록과 함께)
+
+## 2026-06-14 (android 추가26) — 협업 카드 "사업자명 사장님" 표기 (서버 relay 요청)
+사장님: 상담함 협업 진행 카드가 "협업 사장님"으로만 떠 여러 협업자면 헷갈림 → 상대 사업자명+사장님으로.
+- 앱(B): respond/progress 페이로드에 `partner_name` = B 사업자명(상호, 없으면 대표자) 추가 전송. (SharedSiteRepository.respond/progress + SharedSiteViewModel)
+- 앱(A): 협업 업데이트 카드 표기 "{partner_name} 사장님" (이미 '사장' 포함이면 그대로, 빈값이면 "협업 사장님").
+- **서버(cowork) 요청**: /api/shared/respond·/api/shared/progress 가 받은 `partner_name` 을 저장하고,
+  /api/shared/owner-events 응답의 `partner_name` + collab_event FCM 의 `partner_name` 으로 그대로 relay 해주세요.
+  (지금은 owner-events partner_name 이 비어 와서 앱이 기본값 "협업 사장님" 표시 중.)
+- commit: (이 블록과 함께)
