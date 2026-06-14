@@ -632,7 +632,10 @@ private fun ContactDialog(
                 modifier = Modifier.padding(bottom = 7.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 tagList.forEach { tg ->
-                    NbChip(tg, selected = !customTagOpen && tag == tg) { tag = tg; customTagOpen = false }
+                    // 다시 누르면 선택 해제(분류 없음) — "제거가 안 된다" 통점 해결. (2026-06-14)
+                    NbChip(tg, selected = !customTagOpen && tag == tg) {
+                        if (!customTagOpen && tag == tg) tag = "" else { tag = tg; customTagOpen = false }
+                    }
                 }
                 NbChip("+ 직접", selected = customTagOpen) {
                     customTagOpen = true
@@ -654,11 +657,18 @@ private fun ContactDialog(
                     NbChip("시급", selected = wageType == NotebookContactEntity.WAGE_HOURLY) { wageType = NotebookContactEntity.WAGE_HOURLY }
                 }
                 Spacer(Modifier.height(8.dp))
-                com.detailline.callfollowcrm.presentation.component.SheetTextField(
-                    wageManwon, { wageManwon = it.filter { c -> c.isDigit() } },
-                    placeholder = "만원 (예: 18)", keyboardType = KeyboardType.Number,
-                    visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation
-                )
+                // 만원 단위 입력 — 입력칸 옆에 "만원" 고정 표기(타이핑해도 안 사라짐).
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f)) {
+                        com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                            wageManwon, { wageManwon = it.filter { c -> c.isDigit() } },
+                            placeholder = "예: 18", keyboardType = KeyboardType.Number,
+                            visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation
+                        )
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Text("만원", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
+                }
             }
             // 메모
             if (showMemo) {
