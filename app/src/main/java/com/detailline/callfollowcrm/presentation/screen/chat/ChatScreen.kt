@@ -97,9 +97,14 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -1548,6 +1553,13 @@ private fun ChatBubble(
     val star: @Composable () -> Unit = {
         Icon(Icons.Default.Bookmarks, "저장된 메시지", tint = TossBlue, modifier = Modifier.size(14.dp))
     }
+    // 본문 속 링크(URL) — 밑줄+색으로 표시하고, 말풍선 탭하면 첫 링크를 연다.
+    //   (Compose 1.6.8 = LinkAnnotation 미지원, ClickableText 는 텍스트 길게누르기를 먹어서 복사/저장이 깨짐 →
+    //    길게누르기는 그대로 두고 탭=링크 열기 방식. 접수서 문자는 보통 링크 1개라 정확.) (2026-06-14 사장님)
+    val uriHandler = LocalUriHandler.current
+    val firstUrl = remember(body) { firstUrlIn(body) }
+    val linkColor = if (sent) Color.White else TossBlue
+    val styledBody = remember(body, sent) { linkifyBody(body, linkColor) }
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.Bottom,
@@ -1564,7 +1576,10 @@ private fun ChatBubble(
             shadowElevation = if (sent) 0.dp else 1.dp,
             modifier = Modifier
                 .widthIn(max = 280.dp)
-                .combinedClickable(onClick = {}, onLongClick = onLongPress)
+                .combinedClickable(
+                    onClick = { firstUrl?.let { runCatching { uriHandler.openUri(it) } } },
+                    onLongClick = onLongPress
+                )
         ) {
             Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp)) {
                 if (imageUris.isNotEmpty()) {
@@ -1591,7 +1606,7 @@ private fun ChatBubble(
                 }
                 if (body.isNotBlank()) {
                     Text(
-                        body,
+                        styledBody,
                         color = if (sent) Color.White else TossTextPrimary,
                         fontSize = 14.sp,
                         lineHeight = 20.sp
@@ -1603,6 +1618,33 @@ private fun ChatBubble(
             Spacer(Modifier.width(6.dp)); timeText()
             if (isStarred) { Spacer(Modifier.width(4.dp)); star() }
         }
+    }
+}
+
+/** 본문에서 첫 URL 추출 — 스킴 없으면 https:// 보정해 반환. 없으면 null. */
+private fun firstUrlIn(body: String): String? {
+    val m = android.util.Patterns.WEB_URL.matcher(body)
+    if (!m.find()) return null
+    val raw = m.group()
+    return if (raw.startsWith("http://", true) || raw.startsWith("https://", true)) raw else "https://$raw"
+}
+
+/** 본문 속 모든 URL 을 밑줄+색으로 표시한 AnnotatedString (탭 동작은 말풍선 onClick 이 처리). */
+private fun linkifyBody(body: String, linkColor: Color): AnnotatedString {
+    val m = android.util.Patterns.WEB_URL.matcher(body)
+    if (!m.find()) return AnnotatedString(body)
+    m.reset()
+    return buildAnnotatedString {
+        var last = 0
+        while (m.find()) {
+            val s = m.start(); val e = m.end()
+            if (s > last) append(body.substring(last, s))
+            withStyle(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)) {
+                append(body.substring(s, e))
+            }
+            last = e
+        }
+        if (last < body.length) append(body.substring(last))
     }
 }
 
