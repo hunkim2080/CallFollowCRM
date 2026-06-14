@@ -134,6 +134,23 @@ class CallFollowCrmApplication : Application() {
             )
         }
 
+        // content://sms 실시간 감지 (2026-06-14 사장님 통점: 기본 문자앱으로 대화하면 RING-GO 에 바로 반영 안 됨).
+        //   SmsReceiver 는 "수신"만 잡고 "발신(기본 문자앱에서 보냄)"은 못 잡아 상담함이 60초/콜드스타트 때까지 stale.
+        //   SMS provider 변경(수신·발신·읽음 무엇이든)을 감지해 캐시 머지 → ~1초 안에 상담함 최신화.
+        runCatching {
+            val smsObserver = object : android.database.ContentObserver(
+                android.os.Handler(android.os.Looper.getMainLooper())
+            ) {
+                override fun onChange(selfChange: Boolean) {
+                    smsSyncJob?.cancel()
+                    smsSyncJob = appScope.launch { delay(1200); syncSmsContacts() }
+                }
+            }
+            contentResolver.registerContentObserver(
+                android.net.Uri.parse("content://sms"), true, smsObserver
+            )
+        }
+
         // 2026-05-28 사장님 통점 fix: 정적 BroadcastReceiver (CallStateReceiver) 가
         //   Android 12+ / OneUI 에서 누락되는 케이스 多 → 통화 종료 감지 실패.
         //   Application 에서 TelephonyCallback (Android 12+) / PhoneStateListener (이하) 동적 등록 →
@@ -184,6 +201,7 @@ class CallFollowCrmApplication : Application() {
 
     /** content://mms 변경 감시 debounce 용 잡. */
     private var mmsSyncJob: kotlinx.coroutines.Job? = null
+    private var smsSyncJob: kotlinx.coroutines.Job? = null
 
     /** 최근 SMS 연락처를 캐시에 머지 — SmsReceiver 가 놓친 문자도 "오늘 신규"·목록에 잡히게. */
     private suspend fun syncSmsContacts() {
