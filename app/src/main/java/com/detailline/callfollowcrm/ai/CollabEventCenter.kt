@@ -48,6 +48,16 @@ class CollabEventCenter(
             .filter { it.step in KINDS && it.atMs > 0L }
             .sortedBy { it.atMs }
 
+        // 내가 초대할 때 저장한 로컬 배정(customerId|phone|name|shareId)에서 shareId→상대 이름 매핑.
+        //   서버 partner_name 이 일반값("협업 사장")이어도, A 는 누구한테 보냈는지 알므로 로컬 이름으로 특정. (2026-06-14 사장님)
+        val nameByShareId = HashMap<String, String>()
+        for (entry in preferences.collabAssignments) {
+            val p = entry.split('|')
+            if (p.size >= 4) {
+                val nm = p[2].trim(); val sid = p[3].trim()
+                if (sid.isNotEmpty() && nm.isNotEmpty()) nameByShareId[sid] = nm
+            }
+        }
         val infos = tracked.map { e ->
             val accountText = e.account?.let { a ->
                 val bank = a.optString("bank").takeIf { it.isNotBlank() && it != "null" }
@@ -59,7 +69,7 @@ class CollabEventCenter(
                 eventId = e.eventId,
                 shareId = e.shareId,
                 kind = e.step,
-                partnerName = e.partnerName,
+                partnerName = nameByShareId[e.shareId]?.takeIf { it.isNotBlank() } ?: e.partnerName,
                 title = e.title,
                 timeLabel = DateTimeUtils.formatShort(e.atMs),
                 createdAtMs = e.atMs,

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>막내 10단계 변신 미리보기</title>
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; background:#0f1115; color:#eaeef5; font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif; padding:24px 16px 60px; }
+  h1 { font-size:20px; font-weight:800; text-align:center; margin:6px 0 4px; }
+  .sub { text-align:center; color:#9aa3b2; font-size:13px; margin-bottom:24px; line-height:1.6; }
+  .grid { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; max-width:920px; margin:0 auto; }
+  @media (max-width:720px){ .grid { grid-template-columns:repeat(2,1fr); } }
+  .card { background:#1a1e27; border:1px solid #2a3140; border-radius:18px; padding:14px 8px 12px; text-align:center; }
+  .stage { position:relative; width:120px; height:120px; margin:0 auto; }
+  .lbl { margin-top:6px; }
+  .lbl b { display:block; font-size:14px; font-weight:800; }
+  .lbl span { display:block; font-size:11px; color:#8b93a4; margin-top:2px; }
+
+  /* ── 막내 (프로토 .mascot 1:1) + 단계 변신 ── */
+  .mascot { position:relative; width:120px; height:120px; }
+  .m-face { position:absolute; left:14px; bottom:0; width:92px; height:92px; border-radius:50%; background:linear-gradient(165deg,#EAF2FF,#CFE0FF); box-shadow:0 12px 26px rgba(49,130,246,.22); z-index:1; }
+  .m-hat { position:absolute; left:50%; top:6px; transform:translateX(-50%); width:78px; height:42px; background:linear-gradient(180deg,var(--hl),var(--hd)); border-radius:39px 39px 6px 6px; z-index:2; }
+  .m-hat::before { content:''; position:absolute; left:50%; top:-7px; transform:translateX(-50%); width:14px; height:10px; background:var(--hd); border-radius:99px; }
+  .m-hat::after { content:''; position:absolute; left:50%; bottom:-4px; transform:translateX(-50%); width:100px; height:14px; background:var(--hd); border-radius:99px; }
+  .m-hat.nocknob::before { display:none; }
+  .m-eye { position:absolute; top:58px; width:9px; height:9px; border-radius:50%; background:#2B3243; z-index:3; }
+  .m-eye.l { left:46px; } .m-eye.r { left:65px; }
+  .m-cheek { position:absolute; top:66px; width:11px; height:7px; border-radius:50%; background:#FFB3C1; opacity:.7; z-index:3; }
+  .m-cheek.l { left:39px; } .m-cheek.r { left:70px; }
+  .m-smile { position:absolute; top:67px; left:50%; transform:translateX(-50%); width:20px; height:11px; border:2.5px solid #2B3243; border-top:0; border-radius:0 0 22px 22px; z-index:3; }
+  /* 후광 (8단계+) */
+  .m-glow { position:absolute; left:14px; bottom:0; width:92px; height:92px; border-radius:50%; background:#FFC83D; opacity:.30; transform:scale(1.20); transform-origin:center; z-index:0; }
+  /* 왕관 (7단계+) */
+  .m-crown { position:absolute; left:50%; top:-3px; transform:translateX(-50%); width:36px; height:22px; background:#FFC83D; z-index:3;
+    clip-path:polygon(0 100%, 0 40%, 20% 66%, 35% 10%, 50% 58%, 65% 10%, 80% 66%, 100% 40%, 100% 100%); }
+  /* 반짝임 (9단계) */
+  .m-spark { position:absolute; border-radius:50%; background:#FFF3C4; z-index:4; box-shadow:0 0 6px #FFE08A; }
+  .m-spark.s1 { left:22px; top:28px; width:6px; height:6px; }
+  .m-spark.s2 { left:98px; top:40px; width:4px; height:4px; }
+  .m-spark.s3 { left:92px; top:88px; width:5px; height:5px; }
+</style>
+</head>
+<body>
+  <h1>막내 비서 10단계 변신</h1>
+  <div class="sub">앱에 실제로 들어간 코드와 같은 색·소품으로 그린 미리보기예요.<br>레벨 10구간마다 모자 색이 바뀌고, 고수(7)+ 왕관 · 마스터(8)+ 후광 · 레전드(9) 반짝임이 붙어요.</div>
+  <div class="grid" id="grid"></div>
+<script>
+  var tiers = [
+    { lv:'1~10',   name:'새내기',  e:'🌱', hl:'#FFCB5B', hd:'#F6A609' },
+    { lv:'11~20',  name:'수습',    e:'🐣', hl:'#7DD3C8', hd:'#2FB3A4' },
+    { lv:'21~30',  name:'일잘러',  e:'🔧', hl:'#8FD98C', hd:'#3FB84B' },
+    { lv:'31~40',  name:'베테랑',  e:'⭐', hl:'#8FB6FF', hd:'#3182F6' },
+    { lv:'41~50',  name:'에이스',  e:'🔥', hl:'#B39DFF', hd:'#7C5CFC' },
+    { lv:'51~60',  name:'능력자',  e:'💪', hl:'#FFA6C9', hd:'#F0589B' },
+    { lv:'61~70',  name:'달인',    e:'🏅', hl:'#FF9B7A', hd:'#F0562E' },
+    { lv:'71~80',  name:'고수',    e:'👑', hl:'#C9A6FF', hd:'#8B3DF6' },
+    { lv:'81~90',  name:'마스터',  e:'💎', hl:'#DDE3EC', hd:'#98A4B6' },
+    { lv:'91~100', name:'레전드',  e:'🚀', hl:'#FFE08A', hd:'#F5B400' }
+  ];
+  document.getElementById('grid').innerHTML = tiers.map(function(t, i) {
+    var crown = i >= 7, glow = i >= 8, spark = i >= 9;
+    return '<div class="card">'
+      + '<div class="stage"><div class="mascot" style="--hl:' + t.hl + ';--hd:' + t.hd + '">'
+        + (glow ? '<div class="m-glow"></div>' : '')
+        + '<div class="m-face"></div>'
+        + '<div class="m-hat' + (crown ? ' nocknob' : '') + '"></div>'
+        + '<div class="m-eye l"></div><div class="m-eye r"></div>'
+        + '<div class="m-cheek l"></div><div class="m-cheek r"></div>'
+        + '<div class="m-smile"></div>'
+        + (crown ? '<div class="m-crown"></div>' : '')
+        + (spark ? '<div class="m-spark s1"></div><div class="m-spark s2"></div><div class="m-spark s3"></div>' : '')
+      + '</div></div>'
+      + '<div class="lbl"><b>' + t.e + ' ' + t.name + '</b><span>Lv.' + t.lv + '</span></div>'
+    + '</div>';
+  }).join('');
+</script>
+</body>
+</html>
