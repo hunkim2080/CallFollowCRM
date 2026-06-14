@@ -36,7 +36,8 @@ class CollabEventCenter(
         val title: String,
         val timeLabel: String,
         val createdAtMs: Long,
-        val accountText: String? = null
+        val accountText: String? = null,
+        val accountNo: String? = null   // 계좌번호만 (복사용). 은행·예금주는 accountText 에.
     )
 
     suspend fun poll(context: Context) {
@@ -59,6 +60,7 @@ class CollabEventCenter(
             }
         }
         val infos = tracked.map { e ->
+            val accountNoOnly = e.account?.optString("account_no")?.takeIf { it.isNotBlank() && it != "null" }
             val accountText = e.account?.let { a ->
                 val bank = a.optString("bank").takeIf { it.isNotBlank() && it != "null" }
                 val no = a.optString("account_no").takeIf { it.isNotBlank() && it != "null" }
@@ -73,7 +75,8 @@ class CollabEventCenter(
                 title = e.title,
                 timeLabel = DateTimeUtils.formatShort(e.atMs),
                 createdAtMs = e.atMs,
-                accountText = accountText
+                accountText = accountText,
+                accountNo = accountNoOnly
             )
         }
         _todayUpdates.value = infos

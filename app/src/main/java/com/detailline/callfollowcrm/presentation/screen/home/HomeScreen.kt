@@ -660,8 +660,10 @@ fun HomeScreen(
                                             Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
                                                 .background(TossGrayBg)
                                                 .clickable {
-                                                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(up.accountText))
-                                                    android.widget.Toast.makeText(context, "계좌를 복사했어요", android.widget.Toast.LENGTH_SHORT).show()
+                                                    // 계좌번호만 복사(은행·예금주는 카드에 보임). 송금 앱에 바로 붙이게. (2026-06-14 사장님)
+                                                    val copyNo = up.accountNo?.takeIf { it.isNotBlank() } ?: up.accountText
+                                                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(copyNo))
+                                                    android.widget.Toast.makeText(context, "계좌번호를 복사했어요", android.widget.Toast.LENGTH_SHORT).show()
                                                 }
                                                 .padding(vertical = 11.dp),
                                             contentAlignment = Alignment.Center
