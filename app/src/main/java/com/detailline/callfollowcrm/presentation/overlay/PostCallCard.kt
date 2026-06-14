@@ -73,6 +73,7 @@ fun PostCallCard(
     onEditDraft: (String) -> Unit,
     onToggleEditDraft: () -> Unit,
     onSendDraft: () -> Unit,
+    onAppendTemplate: (MessageTemplateEntity) -> Unit,
     onClose: () -> Unit
 ) {
     // 오버레이는 자체 Compose 컨텍스트라 테마를 직접 감싸야 토스 색/폰트 적용된다.
@@ -117,7 +118,8 @@ fun PostCallCard(
                             onToggleEditDraft = onToggleEditDraft,
                             onSendDraft = onSendDraft,
                             onPickTemplate = onPickTemplate,
-                            onCancelManualSend = onCancelManualSend
+                            onCancelManualSend = onCancelManualSend,
+                            onAppendTemplate = onAppendTemplate
                         )
                     }
                 }
@@ -133,7 +135,8 @@ private fun CallSummarySection(
     onToggleEditDraft: () -> Unit,
     onSendDraft: () -> Unit,
     onPickTemplate: (MessageTemplateEntity) -> Unit,
-    onCancelManualSend: () -> Unit
+    onCancelManualSend: () -> Unit,
+    onAppendTemplate: (MessageTemplateEntity) -> Unit
 ) {
     when (state.summaryStatus) {
         SummaryStatus.LOADING -> {
@@ -225,6 +228,34 @@ private fun CallSummarySection(
                                 .background(TossBlue).clickable(onClick = onSendDraft).padding(vertical = 13.dp),
                             contentAlignment = Alignment.Center
                         ) { Text("문자 보내기", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp) }
+                    }
+                }
+                // 빠른 템플릿 — 눌러서 후속 문자 하단에 붙이기. (2026-06-14 사장님)
+                if (!state.draftSent) {
+                    if (state.manualTemplates.isNotEmpty()) {
+                        Text("빠른 템플릿 (눌러서 붙이기)", fontSize = 12.sp, color = TossTextTertiary, fontWeight = FontWeight.SemiBold)
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            state.manualTemplates.chunked(2).forEach { rowItems ->
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    rowItems.forEach { tpl ->
+                                        Surface(
+                                            shape = RoundedCornerShape(999.dp),
+                                            color = TossBlueSoft,
+                                            onClick = { onAppendTemplate(tpl) }
+                                        ) {
+                                            Box(modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp)) {
+                                                Text(tpl.title, color = TossBlue, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        Text(
+                            "설정 → 후속 빠른 액션에서 템플릿을 골라두면 여기서 눌러 붙일 수 있어요",
+                            fontSize = 11.sp, color = TossTextTertiary, lineHeight = 16.sp
+                        )
                     }
                 }
             } else {

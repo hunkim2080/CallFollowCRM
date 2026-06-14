@@ -105,6 +105,16 @@ object PostCallOverlayManager {
         resetAutoDismiss()
     }
 
+    /** 빠른 템플릿 칩 탭 — 후속 문자 하단에 그 템플릿 본문을 붙인다. */
+    internal fun onAppendTemplate(template: MessageTemplateEntity) {
+        _state.update { st ->
+            if (st == null) return@update st
+            val sep = if (st.draftText.isBlank()) "" else "\n"
+            st.copy(draftText = st.draftText + sep + template.body)
+        }
+        resetAutoDismiss()
+    }
+
     /** [문자 보내기] — 현재 초안을 고객에게 발송. */
     internal fun onSendDraft() {
         val args = currentArgs ?: return
@@ -292,6 +302,7 @@ object PostCallOverlayManager {
                         onEditDraft = ::onEditDraft,
                         onToggleEditDraft = ::onToggleEditDraft,
                         onSendDraft = ::onSendDraft,
+                        onAppendTemplate = ::onAppendTemplate,
                         onClose = ::onCloseTapped
                     )
                 }
