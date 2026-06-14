@@ -39,6 +39,12 @@ class IntakeSyncManager(private val container: AppContainer) {
             if (!s.memo.isNullOrBlank() && c.memo.isNullOrBlank()) {
                 container.customerRepository.updateMemo(c.id, "📋 접수: ${s.memo}")
             }
+            // 견적금액도 고객 카드 총금액에 반영 (주소·시공일과 동일). s.total = 만원 → totalAmount = 원(×10,000).
+            //   토큰은 한 번만 import 되므로(중복 skip) 이 덮어쓰기는 1회뿐 → 이후 사장님 수동 수정은 안전.
+            //   단, import 시점에 이미 수동 입력해둔 총금액이 있으면 존중(수동 우선). (2026-06-14 사장님: 견적금액 미등록 버그)
+            if (s.total > 0 && (c.totalAmount == null || c.totalAmount == 0L)) {
+                container.customerRepository.updateTotalAmount(c.id, s.total.toLong() * 10_000L)
+            }
 
             imported.add(s.token)
             changed = true
