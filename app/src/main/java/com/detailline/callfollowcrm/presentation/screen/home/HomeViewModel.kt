@@ -355,6 +355,16 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         container.collabEventCenter.acceptedUpcoming
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** 협업 진행 알림의 shareId → 내가 그 현장을 공유한 고객 id. A(주인)는 '현장 보기'를 그 고객 상세로 보냄. (2026-06-14) */
+    fun customerIdForShareId(shareId: String): Long? {
+        if (shareId.isBlank()) return null
+        for (e in container.preferences.collabAssignments) {
+            val p = e.split('|')
+            if (p.size >= 4 && p[3].trim() == shareId) return p[0].trim().toLongOrNull()
+        }
+        return null
+    }
+
     // ────────────────────────────────────────────────────────
     // 정기문자 "보낼 때 됐어요" 카운트 (상담함, 2026-06-01)
     //   포그라운드 계산 (앱 열 때). 자동발송 X — 사장님이 목록에서 확인 후 보냄.

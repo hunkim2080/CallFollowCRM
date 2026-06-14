@@ -37,7 +37,10 @@ class CollabEventCenter(
         val timeLabel: String,
         val createdAtMs: Long,
         val accountText: String? = null,
-        val accountNo: String? = null   // 계좌번호만 (복사용). 은행·예금주는 accountText 에.
+        val accountNo: String? = null,   // 계좌번호만 (복사용)
+        val accountBank: String? = null, // 은행명
+        val accountHolder: String? = null, // 예금주
+        val dailyWage: Int? = null       // 보낼 금액(만원)
     )
 
     suspend fun poll(context: Context) {
@@ -60,13 +63,11 @@ class CollabEventCenter(
             }
         }
         val infos = tracked.map { e ->
-            val accountNoOnly = e.account?.optString("account_no")?.takeIf { it.isNotBlank() && it != "null" }
-            val accountText = e.account?.let { a ->
-                val bank = a.optString("bank").takeIf { it.isNotBlank() && it != "null" }
-                val no = a.optString("account_no").takeIf { it.isNotBlank() && it != "null" }
-                val holder = a.optString("holder").takeIf { it.isNotBlank() && it != "null" }
-                listOfNotNull(bank, no, holder).joinToString(" ").takeIf { it.isNotBlank() }
-            }
+            val acc = e.account
+            val accBank = acc?.optString("bank")?.takeIf { it.isNotBlank() && it != "null" }
+            val accountNoOnly = acc?.optString("account_no")?.takeIf { it.isNotBlank() && it != "null" }
+            val accHolder = acc?.optString("holder")?.takeIf { it.isNotBlank() && it != "null" }
+            val accountText = listOfNotNull(accBank, accountNoOnly, accHolder).joinToString(" ").takeIf { it.isNotBlank() }
             CollabUpdate(
                 eventId = e.eventId,
                 shareId = e.shareId,
@@ -76,7 +77,10 @@ class CollabEventCenter(
                 timeLabel = DateTimeUtils.formatShort(e.atMs),
                 createdAtMs = e.atMs,
                 accountText = accountText,
-                accountNo = accountNoOnly
+                accountNo = accountNoOnly,
+                accountBank = accBank,
+                accountHolder = accHolder,
+                dailyWage = e.dailyWage
             )
         }
         _todayUpdates.value = infos

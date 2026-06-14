@@ -637,8 +637,25 @@ fun HomeScreen(
                         val (accent, tint, icon, title, verb) = collabUpdateStyle(up.kind)
                         val subText = "${bossLabel(up.partnerName)} · ${up.timeLabel} · ${up.title} $verb" +
                             (up.accountText?.let { " · 계좌 $it" } ?: "")
+                        // A(주인)는 '현장 보기' → 그날 시공한 고객 상세로(빈 협업화면 X). 못 찾으면 협업 현장으로 폴백. (2026-06-14 사장님)
+                        val openCollab = {
+                            val cid = viewModel.customerIdForShareId(up.shareId)
+                            if (cid != null) onOpenCustomerDetail(cid) else onOpenCollabSites()
+                        }
                         DismissSwipeBox(onDismiss = { viewModel.dismissCollabUpdate(up.eventId) }) {
-                            Column {
+                            if (up.kind == "completed" && !up.accountText.isNullOrBlank()) {
+                                // 완료+계좌 → 정산 카드 하나로(금액·은행·계좌·예금주·버튼 모두 카드 안). (2026-06-14 사장님 디자인 통합)
+                                CollabSettleCard(
+                                    up = up,
+                                    onOpen = openCollab,
+                                    onCopy = {
+                                        val copyNo = up.accountNo?.takeIf { it.isNotBlank() } ?: (up.accountText ?: "")
+                                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(copyNo))
+                                        android.widget.Toast.makeText(context, "계좌번호를 복사했어요", android.widget.Toast.LENGTH_SHORT).show()
+                                    },
+                                    onPaid = { payTarget = up }
+                                )
+                            } else {
                                 InboxAlert(
                                     accent = accent,
                                     accentTint = tint,
@@ -648,48 +665,8 @@ fun HomeScreen(
                                     tagBg = tint, tagFg = accent,
                                     sub = subText,
                                     goLabel = "현장 보기",
-                                    onClick = onOpenCollabSites
+                                    onClick = openCollab
                                 )
-                                // 완료 + 계좌 있으면 → 계좌 정보(은행·예금주) 한 줄 + [계좌 복사] [입금했어요]. (일당 마켓 Phase 1)
-                                if (up.kind == "completed" && !up.accountText.isNullOrBlank()) {
-                                    // 은행·번호·예금주 또렷하게(번호만 복사돼도 어디로/누구에게인지 보이게). (2026-06-14 사장님)
-                                    Row(
-                                        Modifier.fillMaxWidth().padding(top = 8.dp).clip(RoundedCornerShape(10.dp))
-                                            .background(TossGrayBg).padding(horizontal = 12.dp, vertical = 9.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text("💳", fontSize = 13.sp)
-                                        Spacer(Modifier.width(7.dp))
-                                        Text(
-                                            up.accountText, fontSize = 12.5.sp, color = TossTextSecondary,
-                                            fontWeight = FontWeight.Bold, lineHeight = 17.sp
-                                        )
-                                    }
-                                    Row(
-                                        Modifier.fillMaxWidth().padding(top = 6.dp),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Box(
-                                            Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
-                                                .background(TossGrayBg)
-                                                .clickable {
-                                                    // 계좌번호만 복사(은행·예금주는 카드에 보임). 송금 앱에 바로 붙이게. (2026-06-14 사장님)
-                                                    val copyNo = up.accountNo?.takeIf { it.isNotBlank() } ?: up.accountText
-                                                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(copyNo))
-                                                    android.widget.Toast.makeText(context, "계좌번호를 복사했어요", android.widget.Toast.LENGTH_SHORT).show()
-                                                }
-                                                .padding(vertical = 11.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) { Text("계좌 복사", color = TossTextSecondary, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-                                        Box(
-                                            Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
-                                                .background(TossBlue)
-                                                .clickable { payTarget = up }
-                                                .padding(vertical = 11.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) { Text("💸 입금했어요", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-                                    }
-                                }
                             }
                         }
                     }
@@ -1384,6 +1361,85 @@ private fun bossLabel(name: String): String = when {
     name.isBlank() -> "협업 사장님"
     name.contains("사장") -> name
     else -> "$name 사장님"
+}
+
+/** 협업 완료 정산 카드 — 금액·은행·계좌(읽기 쉽게)·예금주 + [계좌 복사][입금했어요]를 카드 하나에. (2026-06-14 사장님) */
+@Composable
+private fun CollabSettleCard(
+    up: com.detailline.callfollowcrm.ai.CollabEventCenter.CollabUpdate,
+    onOpen: () -> Unit,
+    onCopy: () -> Unit,
+    onPaid: () -> Unit
+) {
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White)
+            .border(1.dp, Color(0xFFE7E0FB), RoundedCornerShape(18.dp))
+            .padding(16.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("협업 작업 완료 ✅", fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                Text(
+                    "${bossLabel(up.partnerName)} · ${up.timeLabel}",
+                    fontSize = 12.sp, color = TossTextTertiary, maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+            Text(
+                "현장 보기", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF7C5CFC),
+                modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFF1ECFE))
+                    .clickable { onOpen() }.padding(horizontal = 11.dp, vertical = 6.dp)
+            )
+        }
+        if (up.title.isNotBlank()) {
+            Spacer(Modifier.height(7.dp))
+            Text(
+                "📍 ${up.title}", fontSize = 12.5.sp, color = TossTextSecondary, maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        // 정산 박스 — 금액 + 계좌
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(13.dp)) {
+            up.dailyWage?.let { wage ->
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text("보낼 금액", fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                    Spacer(Modifier.weight(1f))
+                    Text("${wage}만원", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                }
+                Spacer(Modifier.height(10.dp))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFE5E8EE)))
+                Spacer(Modifier.height(10.dp))
+            }
+            Text("입금 계좌", fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+            Spacer(Modifier.height(3.dp))
+            Text(
+                buildString {
+                    up.accountBank?.let { append(it); append("  ") }
+                    append(up.accountNo?.let { com.detailline.callfollowcrm.presentation.component.formatAccountNo(it) } ?: (up.accountText ?: ""))
+                },
+                fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary
+            )
+            up.accountHolder?.let {
+                Spacer(Modifier.height(2.dp))
+                Text("예금주 $it", fontSize = 12.sp, color = TossTextTertiary)
+            }
+        }
+        Spacer(Modifier.height(11.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(
+                Modifier.weight(1f).clip(RoundedCornerShape(11.dp)).background(TossGrayBg)
+                    .clickable { onCopy() }.padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) { Text("계좌 복사", color = TossTextSecondary, fontSize = 13.5.sp, fontWeight = FontWeight.Bold) }
+            Box(
+                Modifier.weight(1f).clip(RoundedCornerShape(11.dp)).background(TossBlue)
+                    .clickable { onPaid() }.padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) { Text("💸 입금했어요", color = Color.White, fontSize = 13.5.sp, fontWeight = FontWeight.Bold) }
+        }
+    }
 }
 
 /** 프로토 shortAddr — 주소에서 "구/시" + "동" 만 추려 짧게. 없으면 "주소 미입력". */
