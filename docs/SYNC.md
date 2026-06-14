@@ -4513,3 +4513,9 @@ File "/Users/hun/ringgo-server/main.py", line 10220, in team_member_invite
 
 ### 앱 측 액션
 - 없음. 서버 페이지만 바뀌면 즉시 반영됨. (스냅샷 데이터는 이미 제공 중.)
+
+## 2026-06-15 (android) — 핸드오프29 후속: 영구 링크 결정 확정 (사장님)
+사장님 확인: **팀원은 영구 링크가 맞다** (계속 같이 일하는 사람 → 홈에 깔아두고 매일 봄). → 위 핸드오프29 "⚠️ 결정 필요" = **영구 링크로 확정.**
+- 현재(확인됨): `team_member_links.expires_at_ms` = "시공 다음날 자정 만료"(main.py:325). 초대마다 새 토큰 발급 → 매번 새 임시 링크였음.
+- 바꿀 것(cowork): 팀원당 **만료 없는 stable 토큰 1개**. 제외/퇴사는 `team_members.removed_at_ms` 로 차단(만료 대신).
+- ⚠️ 주의: `schedule_snapshot_json` 이 **토큰별**로 저장됨(main.py:334). 영구 토큰 1개로 가면, `/api/team/schedule-snapshot` 가 그 **영구 토큰의 snapshot 을 in-place 갱신**해야 함(새 토큰 만들지 말 것). 앱은 member_id 로 push 하므로 앱 변경 불필요.
