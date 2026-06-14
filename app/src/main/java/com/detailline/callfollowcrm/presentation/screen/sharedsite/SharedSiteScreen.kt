@@ -637,7 +637,6 @@ private fun DetailBody(
     // 협업 현장 pill + 주인
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
         PillStrong("협업 현장")
-        site.dailyWage?.let { Spacer(Modifier.width(6.dp)); WagePill(it) }
         Spacer(Modifier.width(8.dp))
         Text("${site.ownerName}과 함께", fontSize = 12.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
     }
@@ -647,7 +646,8 @@ private fun DetailBody(
     Card {
         InfoRow("📅 날짜", buildString { append(dayLabel(site.scheduledAtMs)); timeText(site)?.let { append(" · "); append(it) } })
         site.workSummary?.let { Spacer(Modifier.height(9.dp)); InfoRow("🔧 시공", it) }
-        site.dailyWage?.let { Spacer(Modifier.height(9.dp)); InfoRow("💰 그날 일당", "${it}만원") }
+        // 수락 전(pending)엔 아래 큰 강조 박스에서 일당을 보여주므로 여기선 생략(중복 방지). 수락 후엔 여기서 표기.
+        if (site.status != "pending") site.dailyWage?.let { Spacer(Modifier.height(9.dp)); InfoRow("💰 그날 일당", "${it}만원") }
     }
 
     // 대표님 전달사항
