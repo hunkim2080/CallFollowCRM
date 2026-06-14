@@ -496,12 +496,15 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      */
     val todayJobs: StateFlow<List<CustomerEntity>> = combine(customers, _heroOrder) { list, order ->
         val base = list.filter { c ->
-            if (c.workCompletedAt != null) return@filter false   // 완료 처리한 현장은 오늘 히어로에서 제외 (2026-06-08 #2)
             val s = c.scheduledWorkDate ?: return@filter false
             val start = DateTimeUtils.startOfDay(s)
             val end = start + (c.scheduledWorkDays.coerceAtLeast(1) - 1) * DateTimeUtils.DAY_MS
-            todayStart in start..end
-        }.sortedBy { it.scheduledWorkMinutes ?: Int.MAX_VALUE }
+            if (todayStart !in start..end) return@filter false
+            // 완료한 현장도 '완료한 그날'은 회색 카드로 남김(다시 전화할 수도 있으니) → 다음날 자동 사라짐. (2026-06-14 사장님)
+            val done = c.workCompletedAt
+            if (done != null && DateTimeUtils.startOfDay(done) != todayStart) return@filter false
+            true
+        }.sortedWith(compareBy({ it.workCompletedAt != null }, { it.scheduledWorkMinutes ?: Int.MAX_VALUE }))
         applyHeroOrder(base, order)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 

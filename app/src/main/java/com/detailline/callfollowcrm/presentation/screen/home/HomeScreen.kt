@@ -1027,6 +1027,11 @@ private fun TodayHeroJobCard(
     onComplete: (com.detailline.callfollowcrm.data.local.entity.CustomerEntity) -> Unit
 ) {
     val name = c.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(c.phoneNumber)
+    // 완료한 현장은 '완료한 그날'만 회색 작은 카드로 남김 — 다시 전화 가능, 다음날 사라짐. (2026-06-14 사장님)
+    if (c.workCompletedAt != null) {
+        CompletedHeroJobCard(c, onOpenCustomer, onCall)
+        return
+    }
     // 히어로 카드 "빛나는" 애니메이션 — 광택 한 줄기가 대각선으로 슥 지나가고, D-DAY 점이 은은히 숨 쉼.
     val shine = rememberInfiniteTransition(label = "heroShine")
     val shineX by shine.animateFloat(
@@ -1097,6 +1102,56 @@ private fun TodayHeroJobCard(
             HeroBtn("길찾기", Icons.Default.Navigation, light = true, modifier = Modifier.weight(1f)) { onNavigate(c.phoneNumber) }
             HeroBtn("전화", Icons.Default.Call, light = false, modifier = Modifier.weight(1f)) { onCall(c.phoneNumber) }
             HeroBtn("완료", Icons.Default.Check, light = false, modifier = Modifier.weight(1f)) { onComplete(c) }
+        }
+    }
+}
+
+/**
+ * 완료한 오늘 시공 — 회색 작은 카드로 '완료 ✓' 남김(다음날 사라짐). 다시 전화 가능. (2026-06-14 사장님)
+ */
+@Composable
+private fun CompletedHeroJobCard(
+    c: com.detailline.callfollowcrm.data.local.entity.CustomerEntity,
+    onOpenCustomer: (Long) -> Unit,
+    onCall: (String) -> Unit
+) {
+    val name = c.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(c.phoneNumber)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFFF1F3F6))
+            .clickable { onOpenCustomer(c.id) }
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier.size(30.dp).clip(CircleShape).background(Color(0xFFD9DEE6)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Default.Check, null, tint = Color(0xFF6B7280), modifier = Modifier.size(17.dp))
+        }
+        Spacer(Modifier.width(11.dp))
+        Column(Modifier.weight(1f)) {
+            Text("오늘 시공 완료 ✓", fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF9AA1AC))
+            Text(
+                name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6B7280),
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 1.dp)
+            )
+            c.address?.takeIf { it.isNotBlank() }?.let {
+                Text(
+                    shortAddr(it), fontSize = 12.sp, color = Color(0xFFAAB0BA),
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
+        }
+        // 다시 전화 — 완료해도 오늘은 다시 걸 수 있게.
+        Box(
+            Modifier.size(36.dp).clip(CircleShape).background(Color.White).clickable { onCall(c.phoneNumber) },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Default.Call, "전화", tint = Color(0xFF6B7280), modifier = Modifier.size(17.dp))
         }
     }
 }
