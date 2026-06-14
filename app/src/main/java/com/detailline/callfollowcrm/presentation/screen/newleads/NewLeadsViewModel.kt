@@ -64,6 +64,28 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
     private val callRecordRepository = container.callRecordRepository
     private val callSummaryRepository = container.callSummaryRepository
 
+    /** SMS 대화요약(cardSummary) + 통화요약(callSummary)을 합친 suffix→한줄 맵.
+     *   (2026-06-14 사장님: 신규문의에서 통화가 "수신 통화·1분14초"로만 떠 누군지 모름 → 통화요약 한 줄을 보여줌.
+     *    SMS 요약 우선, 없으면(통화만) 통화요약 제목/첫 줄.) */
+    private val summaryBySuffixFlow: kotlinx.coroutines.flow.Flow<Map<String, String>> =
+        combine(aiSummaries, callSummaryRepository.observeAll()) { smsSums, callSums ->
+            val smsMap = smsSums.mapNotNull { s ->
+                s.cardSummary?.trim()?.takeIf { it.isNotEmpty() }?.let { s.phoneSuffix to it }
+            }.toMap()
+            val callMap = callSums
+                .groupBy { phoneSuffix(it.phoneNumber ?: "") }
+                .mapNotNull { (suf, rows) ->
+                    if (suf.isBlank() || suf in smsMap) return@mapNotNull null
+                    val latest = rows.maxByOrNull { it.recordedAt ?: it.updatedAt }
+                    val line = latest?.title?.trim()?.takeIf { it.isNotEmpty() }
+                        ?: latest?.summaryText?.lineSequence()
+                            ?.map { it.trim().removePrefix("•").removePrefix("-").trim() }
+                            ?.firstOrNull { it.isNotBlank() }
+                    if (line.isNullOrBlank()) null else suf to line
+                }.toMap()
+            callMap + smsMap   // SMS 요약 우선
+        }
+
     private val _peek = MutableStateFlow<PeekState?>(null)
     val peek: StateFlow<PeekState?> = _peek.asStateFlow()
 
@@ -138,17 +160,14 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
     )
 
     val uiState: StateFlow<NewLeadsUiState> = combine(
-        smsContacts, inbound, custCtx, unreadOnly, aiSummaries
-    ) { sms, calls, ctx, onlyUnread, summaries ->
+        smsContacts, inbound, custCtx, unreadOnly, summaryBySuffixFlow
+    ) { sms, calls, ctx, onlyUnread, summaryBySuffix ->
         val custs = ctx.custs; val cats = ctx.cats; val replied = ctx.replied
         val spamSet = ctx.spam
         val catName = cats.associate { it.id to it.name }
         val repliedSet = replied.toHashSet()
         val custBySuffix = custs.associateBy { phoneSuffix(it.phoneNumber) }
-        // suffix → ✨AI 한줄요약 (빈/null 제외).
-        val summaryBySuffix = summaries.mapNotNull { s ->
-            s.cardSummary?.trim()?.takeIf { it.isNotEmpty() }?.let { s.phoneSuffix to it }
-        }.toMap()
+        // summaryBySuffix = SMS 대화요약 + 통화요약 합친 맵 (summaryBySuffixFlow).
 
         // suffix 별로 문자/MMS/통화 합쳐 마지막 연락 시각 집계.
         val bySuffix = LinkedHashMap<String, Acc>()
