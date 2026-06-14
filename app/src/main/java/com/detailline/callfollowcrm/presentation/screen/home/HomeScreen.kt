@@ -291,7 +291,7 @@ fun HomeScreen(
                                 val secs = lastOkAtMs?.let { (System.currentTimeMillis() - it) / 1000 } ?: 0L
                                 "✨ $ownerTrade 전문 AI · 서버 연결 정상 (${secs}초 전)"
                             }
-                            false -> "AI 서버 연결 실패 — Tailscale 확인하세요"
+                            false -> "AI 서버에 잠깐 연결이 안 돼요 — 인터넷 확인 후 잠시 뒤 다시 해보세요"
                             null -> "AI 서버 상태 체크 중..."
                         }
                         android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()

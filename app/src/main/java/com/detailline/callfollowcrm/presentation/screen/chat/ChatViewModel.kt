@@ -646,9 +646,9 @@ class ChatViewModel(
     /**
      * 사장님이 입력한 본문을 AI 가 사장님 톤으로 다듬어 돌려줌.
      *
-     * 백엔드 = 맥미니 Ollama Tailnet (RINGGO_BACKEND_BRIEF.md).
-     * 첫 호출은 모델 로드까지 ~10초. aiPolishing StateFlow 가 true 동안 ChatScreen 이 로딩 표시.
-     * 실패의 절대다수는 Tailscale 미연결 (ConnectException/UnknownHost). 사장님 입장 단순화 위해 한 메시지로 통합.
+     * 백엔드 = 맥미니 공개 서버 api.si0in.kr POST /api/refine (RemoteRefineRepository).
+     * aiPolishing StateFlow 가 true 동안 ChatScreen 이 로딩 표시.
+     * 실패의 절대다수는 인터넷 끊김 / 서버 일시 다운 (ConnectException/UnknownHost). 사장님 입장 단순화 위해 한 메시지로 통합.
      */
     fun aiPolish(rawBody: String, onPolished: (String) -> Unit) {
         if (rawBody.isBlank()) {
@@ -690,7 +690,7 @@ class ChatViewModel(
             _aiPolishing.value = false
             result.fold(
                 onSuccess = { polished -> onPolished(polished) },
-                onFailure = { _toast.value = "AI 서버 연결 실패 — Tailscale 확인하세요" }
+                onFailure = { _toast.value = "AI 서버에 잠깐 연결이 안 돼요 — 인터넷 확인 후 잠시 뒤 다시 해보세요" }
             )
         }
     }
@@ -879,7 +879,7 @@ class ChatViewModel(
                 )
                 val prep = container.suggestionRepository.requestPrepare(ctx)
                 if (prep.isFailure) {
-                    _toast.value = "AI 서버 연결 실패 — Tailscale 확인하세요"
+                    _toast.value = "AI 서버에 잠깐 연결이 안 돼요 — 인터넷 확인 후 잠시 뒤 다시 해보세요"
                     return@launch
                 }
                 // 2초 간격 폴링 — 최대 5회 (10초). gpt-oss 첫 로드 후엔 3~5초면 충분.

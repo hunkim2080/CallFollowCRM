@@ -625,7 +625,7 @@ object NotificationHelper {
                 }
                 suggestions.isEmpty() -> {
                     // 2026-05-28 사장님 보고 fix: 2분째 "준비 중..." 멈춤 차단.
-                    //   서버 죽음/Tailscale 끊김 가능성. 사장님이 [💬 직접 답장] 으로 즉시 답할 수 있게.
+                    //   서버 다운 / 인터넷 끊김 가능성. 사장님이 [💬 직접 답장] 으로 즉시 답할 수 있게.
                     append("\n\n🔌 AI 서버 응답 없음 — 직접 답장하거나 RING-GO 에서 확인하세요")
                 }
                 else -> {

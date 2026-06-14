@@ -1073,12 +1073,12 @@ private fun ServerStatusCard(alive: Boolean?) {
         true -> Triple(
             TossSuccess,
             "AI 서버 정상",
-            "Tailscale 연결됨. 채팅 답변 추천 / 견적 도움이 작동해요."
+            "서버 연결됨. 채팅 답변 추천 / 견적 도움이 작동해요."
         )
         false -> Triple(
             TossError,
             "AI 서버 연결 안 됨",
-            "Tailscale 이 켜져있는지 확인하세요. 답변 추천이 안 떠도 메시지는 보낼 수 있어요."
+            "인터넷 연결을 확인해 주세요. 잠시 후 자동으로 다시 연결돼요. 답변 추천이 안 떠도 메시지는 보낼 수 있어요."
         )
         null -> Triple(
             TossTextTertiary,

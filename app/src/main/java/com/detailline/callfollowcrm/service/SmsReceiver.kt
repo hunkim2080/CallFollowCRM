@@ -86,7 +86,7 @@ class SmsReceiver : BroadcastReceiver() {
             }
         }
         // 2026-05-28 사장님 보고 fix: polling 끝났는데 응답 없으면 알림이 "준비 중..." 영원히 멈춤.
-        //   서버 죽었거나 Tailscale 끊겼을 가능성. 사장님이 ChatScreen 안 들어가면 영영 모름.
+        //   서버 다운 / 인터넷 끊김 가능성. 사장님이 ChatScreen 안 들어가면 영영 모름.
         //   해결: 부분이라도 있으면 update / 없으면 "서버 응답 없음" 상태로 update → "준비 중..." 정리.
         if (lastPartialSugs.isNotEmpty()) {
             NotificationHelper.showIncomingSms(
