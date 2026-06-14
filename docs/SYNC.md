@@ -4479,3 +4479,37 @@ File "/Users/hun/ringgo-server/main.py", line 10220, in team_member_invite
 1. 사장님 한 줄 reload.
 2. 폰에서 이전에 추가 시도했던 팀원 (하하 / 010-8005-2080) 다시 추가 → 200 OK + UI 에 정상 표시.
 3. stdout: `[team/invite] 재활성화 member=...` 또는 `재사용 ...`.
+
+## 2026-06-14 (android) — 핸드오프29: 팀원 URL 페이지에 ① 월 캘린더 ② 홈 화면 추가 버튼
+사장님 요청 (2026-06-14). 둘 다 **서버가 그리는 `/team/member/{token}` HTML 페이지** 안의 일이라 앱(android) 영역 밖 → cowork(server) 작업. **앱 변경 불필요** (일정 데이터는 이미 `/api/team/schedule-snapshot` 으로 통째 push 중).
+
+### 배경 (현재 구조)
+- 팀원은 앱 설치 X. 사장님이 보낸 링크 `/team/member/{token}` 만 엶.
+- 프로토 `openMemberView()` (design-preview/ringgo-redesign.html:2391) = 현재 팀원 화면 설계:
+  앱바 "내 일정" → 링크 안내 → **오늘 현장** 카드(주소·작업·출발/네비/주소복사) → 현장 사진 올리기 → **다음 일정**(리스트 1줄) → 안내 → "링크는 시공 다음 날 자정 만료".
+- 즉 프로토엔 **캘린더 없음**. 이번 2개는 프로토에 없는 신규 추가(사장님 명시 요청).
+
+### 앱이 이미 push 하는 데이터 (서버에 있음 — 캘린더 소스)
+`POST /api/team/schedule-snapshot` items[] 각 항목:
+`when`("오늘"|"5/30"), `customer_label`, `customer_phone?`, `time?`("09:00"), `addr?`, `work_summary?`, `team_memo?`(사장→직원 전달메모), `days`(int), `is_today`(bool), `scheduled_at_ms`(epoch ms).
+→ `scheduled_at_ms` + `days` 로 월 캘린더에 점/배지를 칠 수 있음. 추가 앱 작업 없이 캘린더 렌더 가능.
+
+### ① 월 캘린더 (팀원이 자기 일정 한눈에)
+- `/team/member/{token}` 상단(오늘 현장 위 또는 토글)에 **월 캘린더** 추가.
+- 일정 있는 날 = 점/색 배지. `days`>=2 인 현장은 시작~끝 연속 표시.
+- 날짜 탭 → 그 날 배정(현장명·시간·주소·작업·team_memo) 표시. 빈 날 = "배정 없음".
+- 비공개 유지: 고객 연락처·매출·상담은 절대 노출 X (프로토 원칙 그대로, line 2406).
+- 비주얼 참고: 프로토 사장님 일정탭 `buildCalendar()` / `openMySchedule()` 스타일 재사용 권장.
+
+### ② "홈 화면에 추가" 버튼 (PWA)
+- 페이지에 web app manifest(`display:standalone`, name "내 일정"(RING-GO), 아이콘) + "📲 홈 화면에 추가" 버튼.
+- Chrome(안드): `beforeinstallprompt` 캡처 → 버튼이 `prompt()` 호출.
+- 삼성인터넷/iOS: 자동 프롬프트 없음 → 버튼 탭 시 안내 시트("메뉴 → 현재 페이지를 홈 화면에 추가").
+
+### ⚠️ 결정 필요 (cowork ↔ 사장님) — 토큰 만료 충돌
+현재 링크는 **시공 다음 날 자정 만료**(프로토 line 2407). 그런데 "홈 화면에 등록"은 **계속 다시 열겠다**는 뜻 → 만료되면 홈 아이콘이 죽음.
+- **권장(android 의견):** 팀원별 **영구 링크**(만료 없는 stable per-member 토큰)를 하나 두고, 그게 항상 그 팀원의 *현재* 배정을 보여주게. (제외/퇴사 시 서버가 `removed_at` 로 차단.) 홈 아이콘은 이 영구 링크를 가리킴.
+- 사장님께 확인: "팀원이 홈 화면에 깔아두고 매일 여는 영구 링크"가 맞는지 (= 만료 제거). 맞으면 영구 링크로, 보안상 만료 유지가 필요하면 별도 협의.
+
+### 앱 측 액션
+- 없음. 서버 페이지만 바뀌면 즉시 반영됨. (스냅샷 데이터는 이미 제공 중.)
