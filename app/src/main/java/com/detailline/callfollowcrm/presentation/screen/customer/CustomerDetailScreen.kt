@@ -2529,34 +2529,27 @@ private fun AddressEditDialog(
                         Text("주소 검색", color = TossBlue, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                     }
                 } else {
-                    // ② 주소 선택됨 — 선택된 주소 + [변경](재검색). 박스는 읽기용(누르면 안 바뀜 오해 방지).
-                    androidx.compose.foundation.layout.Row(
+                    // ② 주소 선택됨 — 도로명 주소(직접 편집 가능) + [다시 검색].
+                    //    (2026-06-14 사장님: 읽기전용이라 주소에 낀 오타·잡텍스트("아직 뮥바음" 등)를 못 지우고
+                    //     동호수만 고치려 해도 [변경]으로 전체 재검색해야 했음 → 도로명도 직접 고치게 편집칸으로.)
+                    androidx.compose.material3.OutlinedTextField(
+                        value = text,
+                        onValueChange = { text = it },
+                        label = { Text("도로명 주소") },
+                        leadingIcon = { Text("📍", fontSize = 15.sp) },
+                        singleLine = false,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "🔍 주소 다시 검색",
+                        color = TossBlue, fontWeight = FontWeight.Bold, fontSize = 13.sp,
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
-                            .background(Color(0xFFF5F7FA))
-                            .padding(horizontal = 14.dp, vertical = 13.dp),
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                    ) {
-                        Text("📍", fontSize = 15.sp)
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TossTextPrimary, fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            "변경",
-                            color = TossBlue, fontWeight = FontWeight.Bold, fontSize = 13.sp,
-                            modifier = Modifier
-                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
-                                .clickable { showSearch = true }
-                                .padding(horizontal = 9.dp, vertical = 5.dp)
-                        )
-                    }
-                    // 동·호수 — 주소 고른 뒤에만 노출(검색 후 자동 포커스). 도로명만 채워지니 여기에 이어 적음.
+                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                            .clickable { showSearch = true }
+                            .padding(horizontal = 9.dp, vertical = 6.dp)
+                    )
+                    // 동·호수 — 도로명만 채워지니 여기에 이어 적음. 별도 칸이라 동호수만 따로 고칠 수 있음.
                     Spacer(Modifier.height(10.dp))
                     androidx.compose.material3.OutlinedTextField(
                         value = detail,
