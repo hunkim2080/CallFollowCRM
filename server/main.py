@@ -10163,12 +10163,41 @@ class OwnerSitePhotoRequest(BaseModel):
 # 프로토 openAddMember/addMemberSubmit 1:1 — 자동발송 X, URL 만 반환 → 앱이 SMS prefill.
 
 @app.post("/api/team/member/invite")
-async def team_member_invite(req: TeamInviteRequest) -> dict:
+async def team_member_invite(request: Request) -> dict:
     """팀원 추가 + URL 토큰 발급.
 
     응답: {member_id, name, role, token, url, expires_at_ms, sms_draft}
     sms_draft = 사장님이 SMS 본문 prefill 용 문구 (자동발송 X).
+
+    SYNC 추가28 (2026-06-14): 기존 `req: TeamInviteRequest` 자동 바인딩이
+    "There was an error parsing the body" 400 으로 떨어지는 증상 보고됨.
+    원인 추적을 위해 **방어적 수동 파싱**으로 전환:
+      1. raw body 직접 읽어서 json.loads
+      2. TeamInviteRequest(**body) 수동 생성
+      3. 실패 시 stdout 에 실제 에러 클래스·메시지 찍고 명확한 detail 반환
+    다른 POST endpoint 는 동일 패턴인데 정상 → 이 endpoint 만 이상하면 stdout 로그가 결정타.
     """
+    # SYNC 추가28 — 방어적 파싱 (FastAPI 자동 바인딩 우회)
+    try:
+        raw_body = await request.body()
+    except Exception as e:
+        print(f"[team/invite] raw body 읽기 실패: {type(e).__name__}: {e}")
+        raise HTTPException(400, f"본문 읽기 실패: {type(e).__name__}")
+    print(f"[team/invite] raw body bytes={len(raw_body)} ct={request.headers.get('content-type')}")
+    if not raw_body:
+        raise HTTPException(400, "본문이 비어있습니다")
+    try:
+        import json as _json
+        body_dict = _json.loads(raw_body.decode("utf-8"))
+    except Exception as e:
+        print(f"[team/invite] JSON decode 실패: {type(e).__name__}: {e} / first 100 bytes: {raw_body[:100]!r}")
+        raise HTTPException(400, f"JSON 디코드 실패: {type(e).__name__}: {e}")
+    try:
+        req = TeamInviteRequest(**body_dict)
+    except Exception as e:
+        print(f"[team/invite] TeamInviteRequest 변환 실패: {type(e).__name__}: {e} / body_dict={body_dict}")
+        raise HTTPException(400, f"필드 검증 실패: {type(e).__name__}: {e}")
+    print(f"[team/invite] 파싱 OK owner={req.owner_phone} name={req.name} phone={req.phone} role={req.role}")
     _check_team_tier(req.owner_phone)
     name = (req.name or "").strip()
     phone = (req.phone or "").strip()

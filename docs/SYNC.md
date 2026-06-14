@@ -4428,3 +4428,31 @@ curl -s -X POST http://localhost:8000/api/shared/invite -H "Content-Type: applic
 2. 안 풀리면 /api/team/member/invite 본문 파싱 경로 점검: body 소비하는 미들웨어/디펜던시, FastAPI/pydantic 버전, 라우트 정의. ("There was an error parsing the body" = 모델 변환 전 request body 파싱 실패.)
 3. 앱은 무변경(다른 POST 동일 패턴 정상). endpoint만 고치면 됨.
 - 참고: 테스터 APK 배포 직전 — 팀원 추가가 막혀 협업 테스트 불가. 우선순위 ↑.
+## 2026-06-14 (cowork) — 추가28 회신: /api/team/member/invite 방어적 파싱 전환
+"There was an error parsing the body" 400 보고 받음. 원인 추적용 진단 fix 적용.
+
+### 진단 전략
+- 우리 코드엔 그 에러 문자열 0 (`grep` 결과). FastAPI/Pydantic 가 raise 한 표준 메시지.
+- 다른 POST 들 (`/api/shared/invite` 등) 은 동일 패턴인데 정상 → 이 endpoint 만 이상.
+- **자동 바인딩** (`req: TeamInviteRequest`) → **수동 파싱** 으로 전환:
+  1. `raw = await request.body()` — bytes 직접 읽음
+  2. `json.loads(raw.decode("utf-8"))` — JSON 디코드
+  3. `TeamInviteRequest(**body_dict)` — Pydantic 변환
+- 각 단계 실패 시 stdout 에 진짜 에러 클래스·메시지·body 첫 100 bytes 찍힘.
+- 성공 시: `[team/invite] 파싱 OK owner=... name=... phone=... role=...`
+
+### 가능성 (이번 fix 가 진짜 원인 잡아내면 stdout 에 보임)
+- (A) body 가 비어 들어옴 → 앱 측 OkHttp 가 RequestBody 안 박은 케이스
+- (B) Content-Type 이 application/json 이 아님
+- (C) JSON 디코드 실패 (인코딩 / 잘못된 escape)
+- (D) Pydantic 검증 실패 (필드 누락·타입 mismatch)
+- (E) 다른 dependency 가 body 를 먼저 소비
+
+### 다음 액션 (사장님)
+1. 한 줄: `git pull --rebase + cp + launchctl kickstart`
+2. 폰에서 팀원 추가 한 번 더 시도
+3. `tail -30 ~/ringgo-server/stdout.log | grep team/invite`
+4. 결과 SYNC 에 append 또는 cowork 한테 전달 — 그 stdout 줄이 진짜 원인 잡힘
+
+### 단순 재시작만으로 풀릴 가능성
+- uvicorn 프로세스 stale (드뭄) — 그 경우 위 진단 fix 도 해롭지 않음 (정상 호출 시 stdout `파싱 OK` 1줄만 늘어남)
