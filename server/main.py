@@ -10206,15 +10206,31 @@ async def team_member_invite(request: Request) -> dict:
     role = req.role if req.role in ("owner", "worker") else "worker"
 
     now = _now_ms()
-    # 이미 같은 phone 으로 등록된 팀원 있으면 재활용 (removed_at_ms 가 null 인 경우)
+    # SYNC 추가28 (2026-06-14) — UNIQUE 충돌 fix.
+    # 기존: removed_at_ms IS NULL 만 SELECT → 제거된 팀원 재등록 시 INSERT → UNIQUE 충돌(500).
+    # 수정: removed 여부 무관하게 SELECT → 있으면 UPDATE(이름·role·tint 갱신 + reactivate)
+    #       없으면 INSERT (신규).
     with db_conn() as con:
         existing = con.execute(
-            "SELECT member_id FROM team_members WHERE owner_phone = ? AND phone = ? "
-            "AND removed_at_ms IS NULL",
+            "SELECT member_id, removed_at_ms FROM team_members "
+            "WHERE owner_phone = ? AND phone = ?",
             (req.owner_phone, phone),
         ).fetchone()
         if existing:
             member_id = existing[0]
+            was_removed = existing[1] is not None
+            con.execute(
+                """
+                UPDATE team_members
+                SET name = ?, role = ?, tint = ?, removed_at_ms = NULL
+                WHERE member_id = ?
+                """,
+                (name, role, int(req.tint or 0), member_id),
+            )
+            print(
+                f"[team/invite] {'재활성화' if was_removed else '재사용'} "
+                f"member={member_id} (이름·role·tint 갱신)"
+            )
         else:
             member_id = _generate_member_id()
             con.execute(

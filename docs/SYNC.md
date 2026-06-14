@@ -4456,3 +4456,26 @@ curl -s -X POST http://localhost:8000/api/shared/invite -H "Content-Type: applic
 
 ### 단순 재시작만으로 풀릴 가능성
 - uvicorn 프로세스 stale (드뭄) — 그 경우 위 진단 fix 도 해롭지 않음 (정상 호출 시 stdout `파싱 OK` 1줄만 늘어남)
+
+## 2026-06-14 (cowork) — 추가28 fix #2: UNIQUE 충돌 → reactivation
+직전 진단 fix(방어적 파싱)로 stdout 에 정확한 에러 캡처:
+```
+sqlite3.IntegrityError: UNIQUE constraint failed: team_members.owner_phone, team_members.phone
+File "/Users/hun/ringgo-server/main.py", line 10220, in team_member_invite
+```
+파싱은 OK, INSERT 단계에서 충돌.
+
+### 원인
+- `team_members` 의 UNIQUE constraint = `(owner_phone, phone)` — removed_at_ms 무관.
+- 기존 SELECT 가 `removed_at_ms IS NULL` 만 봐서 — **제거됐던 팀원 재등록 시 row 못 찾음 → INSERT → UNIQUE 충돌 → 500**.
+
+### 수정
+- removed 여부 무관하게 SELECT.
+- 있으면 **UPDATE**: 이름·role·tint 갱신 + `removed_at_ms = NULL` (reactivate).
+- 없으면 INSERT (신규).
+- stdout 로그: `[team/invite] 재활성화 member=... (이름·role·tint 갱신)` 또는 `재사용 ...`.
+
+### 검증
+1. 사장님 한 줄 reload.
+2. 폰에서 이전에 추가 시도했던 팀원 (하하 / 010-8005-2080) 다시 추가 → 200 OK + UI 에 정상 표시.
+3. stdout: `[team/invite] 재활성화 member=...` 또는 `재사용 ...`.
