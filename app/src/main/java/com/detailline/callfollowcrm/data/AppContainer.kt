@@ -35,6 +35,7 @@ import kotlinx.coroutines.launch
  * 단순한 manual DI 컨테이너. Hilt 없이 Application이 보유한다.
  */
 class AppContainer(context: Context) {
+    val appContext: Context = context.applicationContext
     private val db = AppDatabase.getInstance(context.applicationContext)
 
     val customerRepository = CustomerRepository(

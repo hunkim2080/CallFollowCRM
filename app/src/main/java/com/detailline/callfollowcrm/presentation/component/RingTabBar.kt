@@ -1,6 +1,7 @@
 package com.detailline.callfollowcrm.presentation.component
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -106,12 +108,14 @@ private fun RingTabItem(
         Box(contentAlignment = Alignment.Center) {
             Icon(tab.icon, contentDescription = tab.label, tint = tint, modifier = Modifier.size(23.dp))
             if (badge != null && badge > 0) {
+                // 깔끔한 원형 뱃지 — 한 자리("1")도 찌그러지지 않게 최소 16dp 정사각 + 흰 테두리로 아이콘과 분리.
                 Box(
                     modifier = Modifier
-                        .offset(x = 11.dp, y = (-7).dp)
+                        .offset(x = 10.dp, y = (-6).dp)
+                        .defaultMinSize(minWidth = 16.dp, minHeight = 16.dp)
                         .background(TossError, CircleShape)
-                        .padding(horizontal = 4.dp)
-                        .height(15.dp),
+                        .border(1.5.dp, Color.White, CircleShape)
+                        .padding(horizontal = 4.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(

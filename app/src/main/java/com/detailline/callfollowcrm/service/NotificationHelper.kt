@@ -271,10 +271,11 @@ object NotificationHelper {
         auto: Boolean = false
     ) {
         val notifId = COLLAB_ID_OFFSET + (eventId.hashCode() and 0x7FFFFF)
+        // 협업 진행 알림(수락/출발/도착/완료)은 전부 '주인(A)'이 받음. A 는 '받은 협업현장' 목록에
+        //   이 현장이 없어 /shared/ 로 보내면 "공유받은 현장이 없어요"가 떠 버림(2026-06-14 버그).
+        //   → 딥링크 없이 앱(상담함)으로 연다. 진행 카드/일정에서 확인 가능.
         val openIntent = Intent(context, MainActivity::class.java).apply {
-            action = Intent.ACTION_VIEW
-            data = Uri.parse("${AppConfig.BASE_URL.trimEnd('/')}/shared/$shareId")
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
         val pending = PendingIntent.getActivity(
             context, notifId, openIntent,
@@ -340,6 +341,12 @@ object NotificationHelper {
             contentIntent = pending,
             actions = listOf(PushAction("수락하러 가기", pending))
         )
+    }
+
+    /** 협업 초대 알림 지우기 — B 가 수락/거절하면 호출. showCollabInvite 와 같은 notifId 공식. (2026-06-14) */
+    fun cancelCollabInvite(context: Context, shareId: String) {
+        val notifId = COLLAB_INVITE_ID_OFFSET + (shareId.hashCode() and 0x7FFFFF)
+        NotificationManagerCompat.from(context).cancel(notifId)
     }
 
     /**

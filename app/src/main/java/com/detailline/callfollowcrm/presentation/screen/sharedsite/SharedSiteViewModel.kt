@@ -102,6 +102,8 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
             repo.respond(site.shareId, myPhone, accept)
                 .onSuccess {
                     _toast.value = if (accept) "협업 현장에 들어왔어요" else "거절했어요"
+                    // 수락/거절 즉시 상담함 카드·뱃지·알림에서 제거(다음 폴 안 기다리게). (2026-06-14 버그)
+                    container.collabEventCenter.markResponded(container.appContext, site.shareId)
                     load()
                 }
                 .onFailure { _toast.value = "처리 못했어요 — 잠시 후 다시" }

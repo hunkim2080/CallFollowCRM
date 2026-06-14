@@ -118,6 +118,16 @@ class CollabEventCenter(
         preferences.seenCollabInviteShareIds = pendingIds
     }
 
+    /**
+     * B 가 수락/거절하면 즉시 호출 — 다음 폴(주기)을 기다리지 않고 상담함 카드·하단 뱃지에서 그 초대를 빼고
+     *   떠 있던 "수락하러 가기" 알림도 지운다. seen 유지로 재알림 방지. (2026-06-14 버그: 수락해도 카드/알림 남음)
+     */
+    fun markResponded(context: Context, shareId: String) {
+        _pendingInvites.value = _pendingInvites.value.filter { it.shareId != shareId }
+        preferences.seenCollabInviteShareIds = preferences.seenCollabInviteShareIds + shareId
+        NotificationHelper.cancelCollabInvite(context, shareId)
+    }
+
     companion object {
         private val KINDS = setOf("departed", "arrived", "completed")
     }
