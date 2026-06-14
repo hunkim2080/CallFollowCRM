@@ -59,6 +59,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.ai.SharedSiteRepository
+import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
@@ -116,6 +117,10 @@ fun SharedSiteScreen(
     var showTrash by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) } // 휴지통 보기
     val trashed by viewModel.trashed.collectAsState()
     var confirmLeave by remember { mutableStateOf(false) } // 협업 그만하기 확인
+    // 일당 지급(입금) 계좌 — 화면에서 인라인 등록/수정. prefs 는 비반응형이라 화면 상태로 들고 즉시 반영.
+    var payoutBank by remember { mutableStateOf(viewModel.accountBank) }
+    var payoutNo by remember { mutableStateOf(viewModel.accountNo) }
+    var payoutHolder by remember { mutableStateOf(viewModel.accountHolder) }
 
     LaunchedEffect(Unit) { viewModel.load() }
     // 링크로 진입 — 목록 로드 후 그 현장 상세 1회 자동 열기(사용자가 뒤로 가면 다시 안 엶).
@@ -261,7 +266,14 @@ fun SharedSiteScreen(
             } else {
                 DetailBody(
                     site = selected,
-                    hasAccount = viewModel.hasAccount(),
+                    hasAccount = payoutNo.isNotBlank(),
+                    payoutBank = payoutBank,
+                    payoutNo = payoutNo,
+                    payoutHolder = payoutHolder,
+                    onSavePayout = { b, n, h ->
+                        viewModel.saveAccount(b, n, h)
+                        payoutBank = b.trim(); payoutNo = n.trim(); payoutHolder = h.trim()
+                    },
                     acceptExpired = viewModel.acceptExpired(selected),
                     photos = photos,
                     photoBusy = photoBusy,
@@ -277,7 +289,7 @@ fun SharedSiteScreen(
                         }
                     },
                     onProgress = { step ->
-                        if (step == SharedSiteRepository.Progress.COMPLETED && !viewModel.hasAccount()) {
+                        if (step == SharedSiteRepository.Progress.COMPLETED && payoutNo.isBlank()) {
                             android.widget.Toast.makeText(context, accountPrompt, android.widget.Toast.LENGTH_LONG).show()
                         } else {
                             viewModel.updateProgress(selected, step)
@@ -623,6 +635,10 @@ private fun SiteRow(site: SharedSiteRepository.SharedSite, onClick: () -> Unit) 
 private fun DetailBody(
     site: SharedSiteRepository.SharedSite,
     hasAccount: Boolean,
+    payoutBank: String,
+    payoutNo: String,
+    payoutHolder: String,
+    onSavePayout: (bank: String, no: String, holder: String) -> Unit,
     acceptExpired: Boolean,
     photos: List<SharedSiteRepository.SharedPhoto>,
     photoBusy: Boolean,
@@ -732,6 +748,10 @@ private fun DetailBody(
         WallNote(site.ownerName)
         return
     }
+
+    // 일당 지급계좌 — 수락 후. 끝나면 이 계좌로 받음. 등록/미등록 분기로 확인·등록. (2026-06-14 사장님)
+    Spacer(Modifier.height(16.dp))
+    CollabPayoutAccountSection(bank = payoutBank, no = payoutNo, holder = payoutHolder, onSave = onSavePayout)
 
     // 진행 상황 (눌러서 알려요) — 수락된 현장만.
     Spacer(Modifier.height(16.dp))
@@ -940,6 +960,95 @@ private fun PhotoGrid(
         Text(text, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
     }
 }
+/**
+ * 일당 지급(입금) 계좌 — 협업 수락 후 확인/등록. (2026-06-14 사장님 문구)
+ *   등록됨: 마지막 계좌 보여주고 "이 계좌로 올려둘까요? 변경은 [수정]".
+ *   미등록: "사장님! 아직 일당 지급 계좌가 등록이 안됐어요!" + 인라인 등록폼(은행 선택+계좌+예금주).
+ */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun CollabPayoutAccountSection(
+    bank: String,
+    no: String,
+    holder: String,
+    onSave: (bank: String, no: String, holder: String) -> Unit
+) {
+    val registered = no.isNotBlank()
+    var editing by remember(registered) { mutableStateOf(!registered) }
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+            .background(Color(0xFFF6F3FF)).border(1.dp, Color(0xFFE2D8FB), RoundedCornerShape(14.dp))
+            .padding(14.dp)
+    ) {
+        Text("💰 일이 끝난 후 일당 지급계좌를 확인해주세요!", fontSize = 13.5.sp,
+            fontWeight = FontWeight.ExtraBold, color = CollabPurple)
+        Spacer(Modifier.height(10.dp))
+        if (registered && !editing) {
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color.White).padding(12.dp)) {
+                Text(
+                    listOfNotNull(bank.takeIf { it.isNotBlank() }, no.takeIf { it.isNotBlank() }).joinToString("  "),
+                    fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary
+                )
+                if (holder.isNotBlank()) {
+                    Spacer(Modifier.height(2.dp))
+                    Text("예금주 $holder", fontSize = 12.5.sp, color = TossTextTertiary)
+                }
+            }
+            Spacer(Modifier.height(9.dp))
+            Text("이 계좌로 올려둘까요? 변경을 원하시면 수정 버튼을 누른 후 수정해주세요!",
+                fontSize = 12.5.sp, color = Color(0xFF5A4A7A), lineHeight = 18.sp)
+            Spacer(Modifier.height(10.dp))
+            Box(
+                Modifier.clip(RoundedCornerShape(10.dp)).background(Color.White)
+                    .border(1.dp, Color(0xFFCDBEF6), RoundedCornerShape(10.dp))
+                    .clickable { editing = true }.padding(horizontal = 16.dp, vertical = 9.dp)
+            ) { Text("수정", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CollabPurple) }
+        } else {
+            if (!registered) {
+                Text("사장님! 아직 일당 지급 계좌가 등록이 안됐어요!\n아래 일당 지급계좌를 등록해주세요!",
+                    fontSize = 12.5.sp, color = Color(0xFF5A4A7A), lineHeight = 18.sp)
+                Spacer(Modifier.height(10.dp))
+            }
+            var fBank by remember { mutableStateOf(bank) }
+            var fNo by remember { mutableStateOf(no) }
+            var fHolder by remember { mutableStateOf(holder) }
+            var bankOpen by remember { mutableStateOf(false) }
+            var bankQuery by remember { mutableStateOf("") }
+            com.detailline.callfollowcrm.presentation.component.BankPickerField(
+                label = "은행", bank = fBank, open = bankOpen, query = bankQuery,
+                onToggle = { bankOpen = !bankOpen; bankQuery = "" },
+                onQuery = { bankQuery = it },
+                onPick = { fBank = it; bankOpen = false; bankQuery = "" }
+            )
+            Spacer(Modifier.height(8.dp))
+            com.detailline.callfollowcrm.presentation.component.SheetFieldLabel("계좌번호")
+            com.detailline.callfollowcrm.presentation.component.FormattedTextField(
+                value = fNo, onValueChange = { fNo = it },
+                format = { com.detailline.callfollowcrm.presentation.component.formatAccountNo(it) },
+                placeholder = "예: 1234-5678-9012",
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+            )
+            Spacer(Modifier.height(8.dp))
+            com.detailline.callfollowcrm.presentation.component.SheetFieldLabel("예금주 (선택)")
+            com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                fHolder, { fHolder = it }, placeholder = "비우면 내 이름"
+            )
+            Spacer(Modifier.height(12.dp))
+            val canSave = fNo.filter { it.isDigit() }.length >= 6 && fBank.isNotBlank()
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                    .background(if (canSave) CollabPurple else TossDivider)
+                    .clickable(enabled = canSave) { onSave(fBank, fNo, fHolder); editing = false }
+                    .padding(vertical = 13.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(if (registered) "계좌 저장" else "이 계좌로 등록",
+                    color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
+            }
+        }
+    }
+}
+
 @Composable private fun WagePill(wage: Int) {
     Box(Modifier.clip(RoundedCornerShape(999.dp)).background(CollabPurpleSoft).padding(horizontal = 9.dp, vertical = 3.dp)) {
         Text("일당 ${wage}만", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))

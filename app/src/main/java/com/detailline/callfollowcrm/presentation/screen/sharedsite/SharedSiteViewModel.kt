@@ -139,6 +139,16 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
     /** 완료 알리기 전, 입금 계좌가 등록돼 있는지. 없으면 화면이 등록 유도. */
     fun hasAccount(): Boolean = container.preferences.bizAccountNo.isNotBlank()
 
+    /** 일당 지급(입금) 계좌 — 협업 화면 인라인 확인/등록·수정용. (2026-06-14 사장님) */
+    val accountBank: String get() = container.preferences.bizBank
+    val accountNo: String get() = container.preferences.bizAccountNo
+    val accountHolder: String get() = container.preferences.bizAccountHolder
+    fun saveAccount(bank: String, no: String, holder: String) {
+        container.preferences.bizBank = bank.trim()
+        container.preferences.bizAccountNo = no.trim()
+        container.preferences.bizAccountHolder = holder.trim()
+    }
+
     /** 상세 열 때 그 현장의 증거 사진 로드(§F). 다른 현장으로 바뀌면 비움. */
     fun loadPhotos(shareId: String) {
         if (shareId.isBlank() || noBizPhone) { _photos.value = emptyList(); return }
