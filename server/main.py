@@ -35,7 +35,7 @@ from typing import Optional
 import anthropic
 import httpx
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, FileResponse, Response
+from fastapi.responses import HTMLResponse, FileResponse, Response, JSONResponse
 from pydantic import BaseModel, Field
 
 # Pillow(이미지 썸네일 축소)는 선택 의존성 — 없으면 원본 그대로 반환(안전 폴백).
@@ -10073,19 +10073,19 @@ def _check_team_tier(owner_phone: str) -> None:
         raise HTTPException(403, f"99k(팀) 요금제 필요. 현재 tier: {plan_tier}")
 
 
+# 추가29 (2026-06-15) — 영구 링크 결정 확정 (사장님): 팀원당 stable 토큰 1개, 만료 없음.
+# 제외/퇴사는 team_members.removed_at_ms 로 차단 (만료 대신).
+# expires_at_ms 컬럼은 그대로 유지하되 매우 큰 값(5138년)으로 통일 → 기존 `expires_at_ms > now`
+# 조회 로직 다 그대로 통과. 코드 한 줄 변경으로 영구 링크 효과.
+_PERMANENT_LINK_EXPIRY_MS = 99_999_999_999_999  # ≈ 5138-11-16 UTC
+
+
 def _team_link_expiry_default(scheduled_at_ms: int = 0) -> int:
-    """URL 만료 시각 — 시공일이 박혀있으면 시공 다음날 자정(KST), 아니면 30일 후."""
-    now = _now_ms()
-    if scheduled_at_ms and scheduled_at_ms > 0:
-        # 시공 다음날 자정 KST = 시공일 (KST 자정) + 2일 (KST 23:59:59)
-        import datetime
-        dt = datetime.datetime.utcfromtimestamp(scheduled_at_ms / 1000) + datetime.timedelta(hours=9)
-        # 시공일 다음날 자정
-        midnight_kst = (dt.replace(hour=0, minute=0, second=0, microsecond=0)
-                        + datetime.timedelta(days=2))
-        # KST → UTC ms
-        return int((midnight_kst - datetime.timedelta(hours=9)).timestamp() * 1000)
-    return now + 30 * 24 * 60 * 60 * 1000  # 30일
+    """URL 만료 시각 — 추가29 (2026-06-15) 이후 항상 영구.
+
+    이전 동작 (시공 다음날 자정 만료) 은 deprecated. scheduled_at_ms 인자는 호환 위해 유지.
+    """
+    return _PERMANENT_LINK_EXPIRY_MS
 
 
 # ─── 모델 (Pydantic) ───
@@ -10241,18 +10241,30 @@ async def team_member_invite(request: Request) -> dict:
                 """,
                 (member_id, req.owner_phone, phone, name, role, int(req.tint or 0), now),
             )
-        # 토큰 발급 (30일 default — 일정이 박힐 때 refresh-link 로 시공 다음날 자정 재발급)
-        token = _generate_team_token()
-        expires_at = _team_link_expiry_default(0)
-        con.execute(
-            """
-            INSERT INTO team_member_links
-                (token, member_id, owner_phone, issued_at_ms, expires_at_ms,
-                 schedule_snapshot_json, last_accessed_ms)
-            VALUES (?, ?, ?, ?, ?, NULL, NULL)
-            """,
-            (token, member_id, req.owner_phone, now, expires_at),
-        )
+        # 추가29 (2026-06-15) 영구 링크 — 멤버당 토큰 1개 재사용.
+        existing_token = con.execute(
+            "SELECT token FROM team_member_links WHERE member_id = ? "
+            "ORDER BY issued_at_ms ASC LIMIT 1",
+            (member_id,),
+        ).fetchone()
+        if existing_token:
+            token = existing_token[0]
+            con.execute(
+                "UPDATE team_member_links SET expires_at_ms = ? WHERE token = ?",
+                (_PERMANENT_LINK_EXPIRY_MS, token),
+            )
+        else:
+            token = _generate_team_token()
+            con.execute(
+                """
+                INSERT INTO team_member_links
+                    (token, member_id, owner_phone, issued_at_ms, expires_at_ms,
+                     schedule_snapshot_json, last_accessed_ms)
+                VALUES (?, ?, ?, ?, ?, NULL, NULL)
+                """,
+                (token, member_id, req.owner_phone, now, _PERMANENT_LINK_EXPIRY_MS),
+            )
+        expires_at = _PERMANENT_LINK_EXPIRY_MS
         con.commit()
     url = f"{INTAKE_PUBLIC_BASE_URL.rstrip('/')}/team/member/{token}"
     sms_draft = (
@@ -11126,6 +11138,11 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=yes,maximum-scale=5">
+<meta name="theme-color" content="#3182F6">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="내 일정">
+<link rel="manifest" href="/manifest/team-member.webmanifest?token={token_js}">
+<link rel="apple-touch-icon" href="/manifest/team-member-icon.svg">
 <title>{member_name_html} · 내 일정</title>
 <style>
   :root {{
@@ -11271,6 +11288,43 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
   .foot-note {{ font-size:12px; color:var(--t3); text-align:center; margin-top:22px; line-height:1.6; }}
   .foot-link {{ font-size:11.5px; color:var(--t3); text-align:center; margin-top:12px; background:var(--bg); border-radius:10px; padding:9px; }}
 
+  /* 추가29 (2026-06-15) — 월 캘린더 */
+  .cal-card {{ background:var(--card); border-radius:14px; padding:14px 14px 12px; margin-bottom:14px; box-shadow:var(--shadow); }}
+  .cal-head {{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }}
+  .cal-head h3 {{ margin:0; font-size:15.5px; font-weight:800; color:var(--t1); }}
+  .cal-nav {{ display:inline-flex; gap:4px; }}
+  .cal-nav button {{ background:var(--bg); border:0; border-radius:8px; width:32px; height:32px; font-size:14px; font-weight:700; color:var(--t1); cursor:pointer; font-family:inherit; }}
+  .cal-nav button:active {{ background:#E8EAEE; }}
+  .cal-week {{ display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-bottom:6px; font-size:10.5px; font-weight:700; color:var(--t3); text-align:center; }}
+  .cal-week .sun {{ color:#E53E3E; }}
+  .cal-week .sat {{ color:var(--blue-dark); }}
+  .cal-grid {{ display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }}
+  .cal-day {{ aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:8px; font-size:13px; color:var(--t2); cursor:pointer; position:relative; padding-top:2px; }}
+  .cal-day.out {{ color:#D6D9DE; }}
+  .cal-day.has {{ color:var(--t1); font-weight:700; }}
+  .cal-day.today {{ background:var(--blue-tint); color:var(--blue-dark); font-weight:800; }}
+  .cal-day.sel {{ background:var(--blue); color:#fff; font-weight:800; }}
+  .cal-day.sel .dot {{ background:#fff; }}
+  .cal-day .dot {{ position:absolute; bottom:4px; width:5px; height:5px; border-radius:50%; background:var(--blue); }}
+  .cal-day-list {{ margin-top:10px; padding-top:10px; border-top:1px solid var(--line); display:none; }}
+  .cal-day-list.show {{ display:block; }}
+  .cal-day-list .row {{ background:var(--bg); border-radius:10px; padding:10px 12px; margin-top:6px; }}
+  .cal-day-list .row .t {{ font-size:12px; font-weight:800; color:var(--blue-dark); margin-bottom:3px; }}
+  .cal-day-list .row .c {{ font-size:13.5px; font-weight:700; color:var(--t1); }}
+  .cal-day-list .row .s {{ font-size:12px; color:var(--t2); margin-top:3px; }}
+  .cal-day-list .row .m {{ font-size:12px; color:var(--blue-dark); margin-top:4px; padding:6px 8px; background:var(--blue-tint); border-radius:6px; }}
+  .cal-day-list .empty-day {{ font-size:12px; color:var(--t3); text-align:center; padding:14px; }}
+
+  /* 추가29 — PWA 홈 화면 추가 버튼 */
+  .pwa-install {{ display:block; width:100%; margin:18px 0 4px; background:#fff; color:var(--blue-dark); border:1.5px solid var(--blue); border-radius:12px; padding:13px; font-size:14px; font-weight:800; cursor:pointer; font-family:inherit; }}
+  .pwa-install:active {{ background:var(--blue-tint); }}
+  .pwa-sheet {{ position:fixed; inset:0; background:rgba(0,0,0,.5); display:none; align-items:flex-end; justify-content:center; z-index:60; }}
+  .pwa-sheet.show {{ display:flex; }}
+  .pwa-sheet-card {{ width:100%; max-width:480px; background:#fff; border-radius:16px 16px 0 0; padding:22px 20px 28px; }}
+  .pwa-sheet-card h3 {{ margin:0 0 10px; font-size:17px; font-weight:800; }}
+  .pwa-sheet-card p {{ margin:0 0 18px; font-size:14px; color:var(--t2); line-height:1.6; }}
+  .pwa-sheet-close {{ width:100%; background:var(--blue); color:#fff; border:0; border-radius:12px; padding:14px; font-size:15px; font-weight:800; font-family:inherit; cursor:pointer; }}
+
   /* 카드 안 진행 액션 버튼 (단계바 바로 아래 — 눈에 잘 띄게) */
   .card-action {{ margin-top:14px; }}
   .card-action:empty {{ display:none; }}
@@ -11300,10 +11354,21 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
   </div>
 
   <div class="scroll">
+    {calendar_block}
     {today_block}
     {next_block}
+    <button id="pwa-install-btn" class="pwa-install" type="button" onclick="onInstallClick()">📲 홈 화면에 추가</button>
     <div class="foot-note">상담·정산·통계·고객정보는 대표님만 봐요.<br>나는 내 현장만 깔끔하게 ✓</div>
-    <div class="foot-link">🔗 이 링크는 {expiry_label_html} 자정에 만료돼요</div>
+    <div class="foot-link">🔗 이 링크는 계속 사용할 수 있어요</div>
+  </div>
+
+  <!-- PWA 설치 안내 시트 (삼성인터넷·iOS — beforeinstallprompt 없는 브라우저용) -->
+  <div class="pwa-sheet" id="pwa-sheet" onclick="if(event.target.id==='pwa-sheet')closePwaSheet()">
+    <div class="pwa-sheet-card">
+      <h3>📲 홈 화면에 추가하기</h3>
+      <p id="pwa-sheet-msg">브라우저 메뉴를 열고 "현재 페이지를 홈 화면에 추가" 를 눌러주세요.</p>
+      <button class="pwa-sheet-close" type="button" onclick="closePwaSheet()">확인</button>
+    </div>
   </div>
 
 </div>
@@ -11319,6 +11384,124 @@ TEAM_MEMBER_HTML_TEMPLATE = """<!doctype html>
   var PHOTO_COUNT = {photo_count_js};
   var PHOTO_MAX = 20;
   var BUSY = false;
+
+  // ── 추가29: 월 캘린더 ──
+  var ITEMS_FOR_CAL = {items_for_cal_js};
+  var CAL_VIEW = new Date();
+  CAL_VIEW.setDate(1);
+  var CAL_SEL_KEY = null;
+
+  function _dKey(d) {{ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }}
+
+  function buildScheduleMap() {{
+    var map = {{}};
+    for (var i=0; i<ITEMS_FOR_CAL.length; i++) {{
+      var it = ITEMS_FOR_CAL[i];
+      if (!it.scheduled_at_ms) continue;
+      var start = new Date(it.scheduled_at_ms);
+      var days = Math.max(1, it.days || 1);
+      for (var d=0; d<days; d++) {{
+        var dt = new Date(start.getTime() + d*86400000);
+        var k = _dKey(dt);
+        if (!map[k]) map[k] = [];
+        map[k].push(it);
+      }}
+    }}
+    return map;
+  }}
+  var SCHED_MAP = buildScheduleMap();
+
+  function renderCalendar() {{
+    var y = CAL_VIEW.getFullYear(), m = CAL_VIEW.getMonth();
+    document.getElementById('cal-title').textContent = y + '년 ' + (m+1) + '월';
+    var first = new Date(y, m, 1);
+    var startDow = first.getDay();
+    var lastDate = new Date(y, m+1, 0).getDate();
+    var prevLast = new Date(y, m, 0).getDate();
+    var today = new Date();
+    var todayKey = _dKey(today);
+    var html = '';
+    var cells = 0;
+    for (var i=startDow-1; i>=0; i--) {{
+      html += '<div class="cal-day out">'+(prevLast-i)+'</div>';
+      cells++;
+    }}
+    for (var d=1; d<=lastDate; d++) {{
+      var dt = new Date(y, m, d);
+      var k = _dKey(dt);
+      var cls = 'cal-day';
+      var has = SCHED_MAP[k] && SCHED_MAP[k].length > 0;
+      if (has) cls += ' has';
+      if (k === todayKey) cls += ' today';
+      if (k === CAL_SEL_KEY) cls += ' sel';
+      html += '<div class="'+cls+'" onclick="selectDay(\\''+k+'\\')">'+d;
+      if (has) html += '<span class="dot"></span>';
+      html += '</div>';
+      cells++;
+    }}
+    var nextD = 1;
+    while (cells < 42) {{
+      html += '<div class="cal-day out">'+nextD+'</div>';
+      nextD++; cells++;
+    }}
+    document.getElementById('cal-grid').innerHTML = html;
+    renderSelectedDay();
+  }}
+
+  function renderSelectedDay() {{
+    var box = document.getElementById('cal-day-list');
+    if (!CAL_SEL_KEY) {{ box.classList.remove('show'); box.innerHTML=''; return; }}
+    var rows = SCHED_MAP[CAL_SEL_KEY] || [];
+    var parts = ['<div class="t">'+CAL_SEL_KEY+' 배정</div>'];
+    if (rows.length === 0) {{
+      parts.push('<div class="empty-day">이 날 배정 없음</div>');
+    }} else {{
+      for (var i=0; i<rows.length; i++) {{
+        var it = rows[i];
+        var p = '<div class="row">';
+        if (it.time) p += '<div class="t">'+escapeHtml(it.time)+'</div>';
+        p += '<div class="c">'+escapeHtml(it.customer_label||'현장')+'</div>';
+        if (it.addr) p += '<div class="s">📍 '+escapeHtml(it.addr)+'</div>';
+        if (it.work_summary) p += '<div class="s">🔨 '+escapeHtml(it.work_summary)+'</div>';
+        if (it.team_memo) p += '<div class="m">📌 '+escapeHtml(it.team_memo)+'</div>';
+        p += '</div>';
+        parts.push(p);
+      }}
+    }}
+    box.innerHTML = parts.join('');
+    box.classList.add('show');
+  }}
+
+  function selectDay(k) {{ CAL_SEL_KEY = (CAL_SEL_KEY===k ? null : k); renderCalendar(); }}
+  function calPrev() {{ CAL_VIEW.setMonth(CAL_VIEW.getMonth()-1); CAL_SEL_KEY=null; renderCalendar(); }}
+  function calNext() {{ CAL_VIEW.setMonth(CAL_VIEW.getMonth()+1); CAL_SEL_KEY=null; renderCalendar(); }}
+  function calToday() {{ CAL_VIEW=new Date(); CAL_VIEW.setDate(1); CAL_SEL_KEY=_dKey(new Date()); renderCalendar(); }}
+
+  function escapeHtml(s) {{ s=String(s||''); return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }}
+
+  // ── 추가29: PWA ──
+  var deferredPrompt = null;
+  window.addEventListener('beforeinstallprompt', function(e) {{ e.preventDefault(); deferredPrompt = e; }});
+  function onInstallClick() {{
+    if (deferredPrompt) {{
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(function(){{ deferredPrompt=null; }});
+      return;
+    }}
+    var ua = navigator.userAgent.toLowerCase();
+    var msg = '브라우저 메뉴를 열고 "현재 페이지를 홈 화면에 추가" 를 눌러주세요.';
+    if (/iphone|ipad|ipod/.test(ua)) {{
+      msg = '하단 공유 버튼 (▢↑) 을 누르고 "홈 화면에 추가" 를 선택해주세요.';
+    }} else if (ua.indexOf('samsungbrowser') !== -1) {{
+      msg = '하단 메뉴 (≡) → "현재 페이지를 홈 화면에 추가" 를 눌러주세요.';
+    }}
+    document.getElementById('pwa-sheet-msg').textContent = msg;
+    document.getElementById('pwa-sheet').classList.add('show');
+  }}
+  function closePwaSheet() {{ document.getElementById('pwa-sheet').classList.remove('show'); }}
+
+  CAL_SEL_KEY = _dKey(new Date());
+  document.addEventListener('DOMContentLoaded', renderCalendar);
 
   // ── 진행 단계바 + 하단 액션 버튼 (STATUS 단일 소스로 둘 다 그림) ──
   var STAGES = [
@@ -11874,18 +12057,95 @@ async def team_member_page(token: str) -> HTMLResponse:
         except (TypeError, ValueError):
             date_label = ""
 
+    # 추가29 (2026-06-15) — 캘린더용 안전 items (고객 phone·매출 제거)
+    safe_items_for_cal = []
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        safe_items_for_cal.append({
+            "scheduled_at_ms": it.get("scheduled_at_ms") or 0,
+            "days": int(it.get("days") or 1),
+            "time": (it.get("time") or "")[:8],
+            "customer_label": (it.get("customer_label") or "")[:60],
+            "addr": (it.get("addr") or "")[:120],
+            "work_summary": (it.get("work_summary") or "")[:80],
+            "team_memo": (it.get("team_memo") or "")[:200],
+            "is_today": bool(it.get("is_today")),
+        })
+    calendar_block_html = (
+        '<div class="cal-card">'
+        '<div class="cal-head"><h3 id="cal-title">캘린더</h3>'
+        '<div class="cal-nav">'
+        '<button type="button" onclick="calPrev()">‹</button>'
+        '<button type="button" onclick="calToday()">오늘</button>'
+        '<button type="button" onclick="calNext()">›</button>'
+        '</div></div>'
+        '<div class="cal-week">'
+        '<span class="sun">일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span class="sat">토</span>'
+        '</div>'
+        '<div class="cal-grid" id="cal-grid"></div>'
+        '<div class="cal-day-list" id="cal-day-list"></div>'
+        '</div>'
+    )
+
     page = TEAM_MEMBER_HTML_TEMPLATE.format(
         member_name_html=_html.escape(member_name or "팀원"),
         owner_label_html=_html.escape(owner_label),
         biz_header_html=_html.escape(biz_header),
+        calendar_block=calendar_block_html,
         today_block=_build_today_card_html(today, date_label, photos, notes),
         next_block=_build_next_block_html(items),
-        expiry_label_html=_html.escape(_expiry_label(expires_at)),
         token_js=_html.escape(token, quote=True),
         status_js=json.dumps(status),
         photo_count_js=str(int(photo_count)),
+        items_for_cal_js=json.dumps(safe_items_for_cal, ensure_ascii=False),
     )
     return HTMLResponse(content=page)
+
+
+# ─── 추가29 (2026-06-15) — PWA web app manifest + 아이콘 ───
+
+@app.get("/manifest/team-member.webmanifest")
+async def team_member_manifest(token: str):
+    """PWA manifest — start_url 이 해당 팀원의 영구 링크. 사장님 상호로 name 동적 생성."""
+    biz = None
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT owner_phone FROM team_member_links WHERE token = ?",
+            (token,),
+        ).fetchone()
+    if row:
+        biz = _fetch_owner_biz_name(row[0])
+    name = (biz + " 일정") if biz else "내 일정"
+    short_name = (biz[:8] + " 일정") if biz and len(biz) > 8 else (biz + " 일정" if biz else "내 일정")
+    start = f"/team/member/{token}"
+    manifest = {
+        "name": name,
+        "short_name": short_name,
+        "start_url": start,
+        "scope": start,
+        "display": "standalone",
+        "background_color": "#F4F5F7",
+        "theme_color": "#3182F6",
+        "icons": [
+            {"src": "/manifest/team-member-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable"},
+            {"src": "/manifest/team-member-icon.svg", "sizes": "192x192", "type": "image/svg+xml"},
+            {"src": "/manifest/team-member-icon.svg", "sizes": "512x512", "type": "image/svg+xml"},
+        ],
+    }
+    return JSONResponse(content=manifest, media_type="application/manifest+json")
+
+
+@app.get("/manifest/team-member-icon.svg")
+async def team_member_icon():
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">'
+        '<rect width="512" height="512" rx="96" fill="#3182F6"/>'
+        '<text x="256" y="320" text-anchor="middle" font-family="-apple-system,system-ui,sans-serif" '
+        'font-size="280" font-weight="900" fill="#fff">📅</text>'
+        '</svg>'
+    )
+    return Response(content=svg, media_type="image/svg+xml")
 
 
 # ============================================================================
