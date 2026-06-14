@@ -151,6 +151,30 @@ class CallFollowCrmApplication : Application() {
             )
         }
 
+        // content://call_log 실시간 감지 (2026-06-14 사장님: 통화도 문자처럼 즉시 반영되게).
+        //   통화상태 리스너가 끝에 기록을 만들지만 OEM 백그라운드 정책으로 놓칠 때가 있음.
+        //   시스템이 통화기록을 쓰면 감지 → syncRecentCallLog 로 누락분 보강(dedup). 앱 떠있어도 즉시 최신화.
+        runCatching {
+            val callObserver = object : android.database.ContentObserver(
+                android.os.Handler(android.os.Looper.getMainLooper())
+            ) {
+                override fun onChange(selfChange: Boolean) {
+                    callLogSyncJob?.cancel()
+                    callLogSyncJob = appScope.launch {
+                        delay(1500)
+                        runCatching {
+                            container.callRecordRepository.syncRecentCallLog(
+                                this@CallFollowCrmApplication, limit = 20
+                            )
+                        }
+                    }
+                }
+            }
+            contentResolver.registerContentObserver(
+                android.provider.CallLog.Calls.CONTENT_URI, true, callObserver
+            )
+        }
+
         // 2026-05-28 사장님 통점 fix: 정적 BroadcastReceiver (CallStateReceiver) 가
         //   Android 12+ / OneUI 에서 누락되는 케이스 多 → 통화 종료 감지 실패.
         //   Application 에서 TelephonyCallback (Android 12+) / PhoneStateListener (이하) 동적 등록 →
@@ -202,6 +226,7 @@ class CallFollowCrmApplication : Application() {
     /** content://mms 변경 감시 debounce 용 잡. */
     private var mmsSyncJob: kotlinx.coroutines.Job? = null
     private var smsSyncJob: kotlinx.coroutines.Job? = null
+    private var callLogSyncJob: kotlinx.coroutines.Job? = null
 
     /** 최근 SMS 연락처를 캐시에 머지 — SmsReceiver 가 놓친 문자도 "오늘 신규"·목록에 잡히게. */
     private suspend fun syncSmsContacts() {
