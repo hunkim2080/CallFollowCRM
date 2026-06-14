@@ -202,6 +202,7 @@ fun HomeScreen(
     val teamUpdates by viewModel.teamUpdates.collectAsState()
     val collabUpdates by viewModel.collabUpdates.collectAsState()
     val pendingInvites by viewModel.pendingCollabInvites.collectAsState()
+    val collabUpcoming by viewModel.collabUpcoming.collectAsState()
     val recurringDueCount by viewModel.recurringDueCount.collectAsState()
     val scheduleReminders by viewModel.scheduleReminders.collectAsState()
     val estimateFollowupCount by viewModel.estimateFollowupCount.collectAsState()
@@ -523,6 +524,13 @@ fun HomeScreen(
                         onComplete = { c -> completeTarget = c },
                         onReorder = { ids -> viewModel.reorderTodayJobs(ids) }
                     )
+                }
+
+                // 내가 수락한 협업 현장(오늘 이후) — 협업자(B)에겐 이게 '다음 일'. 홈에서 바로 보이게. (2026-06-14 사장님)
+                if (collabUpcoming.isNotEmpty()) {
+                    item(key = "collab-upcoming") {
+                        CollabUpcomingCard(sites = collabUpcoming, onClick = onOpenCollabSites)
+                    }
                 }
 
                 // 2026-06-01 프로토 1:1 — KPI 타일·미수금 카드는 프로토 상담함에 없음 → 제거.
@@ -1247,6 +1255,55 @@ private fun TodayHeroCard(
                 contentAlignment = Alignment.Center
             ) {
                 Text("+ 일정 직접 추가", color = TossBlue, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
+            }
+        }
+    }
+}
+
+/**
+ * 내가 수락한 협업 현장(오늘 이후) — 홈 '다음 일' 카드. 협업자(B)는 자기 고객 일정이 없어도
+ *   수락한 협업이 다음 일정으로 보여야 함("다음 예정 시공 없음" 통점 보완). 탭 → 협업 현장 화면. (2026-06-14)
+ */
+@Composable
+private fun CollabUpcomingCard(
+    sites: List<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite>,
+    onClick: () -> Unit
+) {
+    val purple = Color(0xFF7C5CFC)
+    val purpleSoft = Color(0xFFF1ECFE)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White)
+            .border(1.dp, Color(0xFFE7E0FB), RoundedCornerShape(18.dp))
+            .clickable { onClick() }
+            .padding(16.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(purpleSoft),
+                contentAlignment = Alignment.Center
+            ) { Text("🤝", fontSize = 15.sp) }
+            Spacer(Modifier.width(10.dp))
+            Text("협업 현장 · ${sites.size}곳", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold,
+                color = purple, modifier = Modifier.weight(1f))
+            Icon(Icons.Default.ChevronRight, null, tint = TossTextTertiary, modifier = Modifier.size(18.dp))
+        }
+        val today = DateTimeUtils.startOfDay(System.currentTimeMillis())
+        sites.take(3).forEach { s ->
+            val word = if (DateTimeUtils.startOfDay(s.scheduledAtMs) == today) "오늘" else relativeDayWord(s.scheduledAtMs)
+            Row(Modifier.fillMaxWidth().padding(top = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    word, color = purple, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(purpleSoft).padding(horizontal = 7.dp, vertical = 2.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    s.title + " · " + s.ownerName + "과 함께" + (s.dailyWage?.let { " · 일당 ${it}만원" } ?: ""),
+                    color = TossTextPrimary, fontSize = 13.5.sp, fontWeight = FontWeight.Bold,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
             }
         }
     }

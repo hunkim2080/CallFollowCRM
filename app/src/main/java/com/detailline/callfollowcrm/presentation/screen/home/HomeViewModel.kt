@@ -350,6 +350,11 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         container.collabEventCenter.pendingInvites
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** 수락한 협업 현장(오늘 이후) — 내 '다음 일'. 홈 상단에 협업 현장 카드. (2026-06-14 사장님) */
+    val collabUpcoming: StateFlow<List<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite>> =
+        container.collabEventCenter.acceptedUpcoming
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     // ────────────────────────────────────────────────────────
     // 정기문자 "보낼 때 됐어요" 카운트 (상담함, 2026-06-01)
     //   포그라운드 계산 (앱 열 때). 자동발송 X — 사장님이 목록에서 확인 후 보냄.

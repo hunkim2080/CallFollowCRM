@@ -24,6 +24,10 @@ class CollabEventCenter(
     private val _pendingInvites = MutableStateFlow<List<SharedSiteRepository.SharedSite>>(emptyList())
     val pendingInvites: StateFlow<List<SharedSiteRepository.SharedSite>> = _pendingInvites.asStateFlow()
 
+    /** 수락한(accepted) 협업 현장 중 오늘 이후 = 내 '다음 일'. 홈에 협업 현장 카드로 노출. (2026-06-14 사장님) */
+    private val _acceptedUpcoming = MutableStateFlow<List<SharedSiteRepository.SharedSite>>(emptyList())
+    val acceptedUpcoming: StateFlow<List<SharedSiteRepository.SharedSite>> = _acceptedUpcoming.asStateFlow()
+
     data class CollabUpdate(
         val eventId: String,
         val shareId: String,
@@ -101,6 +105,11 @@ class CollabEventCenter(
         val sites = sharedSiteRepository.withMe(owner).getOrNull() ?: return
         val pending = sites.filter { it.status == "pending" }
         _pendingInvites.value = pending   // 상담함 "받은 협업 요청" 카드 — 응답하면 다음 폴에서 자동으로 빠짐
+        // 수락한 협업 중 오늘 이후(날짜 있는 것) = 내 '다음 일' → 홈 협업 카드.
+        val todayStart = DateTimeUtils.startOfDay(System.currentTimeMillis())
+        _acceptedUpcoming.value = sites
+            .filter { it.status == "accepted" && it.scheduledAtMs >= todayStart }
+            .sortedBy { it.scheduledAtMs }
         val pendingIds = pending.map { it.shareId }.toSet()
         // 수락 유효시간(12h) 앵커: 처음 본 시각 기록(서버 created_at_ms 폴백). 응답해 사라진 건 정리.
         preferences.syncCollabInviteFirstSeen(pendingIds, System.currentTimeMillis())
