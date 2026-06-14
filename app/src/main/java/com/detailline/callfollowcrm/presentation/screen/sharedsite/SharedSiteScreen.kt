@@ -653,9 +653,19 @@ private fun SiteRow(site: SharedSiteRepository.SharedSite, onClick: () -> Unit) 
         Spacer(Modifier.width(11.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(site.title, fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                Text(site.title, fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false))
                 Spacer(Modifier.width(6.dp))
-                Pill(dayLabel(site.scheduledAtMs))
+                // 상태 태그 — 완료 / 예정 / 수락 대기. (2026-06-14 사장님)
+                val (stTxt, stBg, stFg) = when {
+                    site.progress == SharedSiteRepository.Progress.COMPLETED -> Triple("완료", Color(0xFFE5F8EE), Color(0xFF0E9F56))
+                    site.status == "pending" -> Triple("수락 대기", Color(0xFFF1ECFE), CollabPurple)
+                    else -> Triple("예정", Color(0xFFEAF1FF), Color(0xFF3182F6))
+                }
+                Box(Modifier.clip(RoundedCornerShape(999.dp)).background(stBg).padding(horizontal = 8.dp, vertical = 2.dp)) {
+                    Text(stTxt, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, color = stFg)
+                }
                 site.dailyWage?.let { Spacer(Modifier.width(5.dp)); WagePill(it) }
             }
             val sub = buildString {
