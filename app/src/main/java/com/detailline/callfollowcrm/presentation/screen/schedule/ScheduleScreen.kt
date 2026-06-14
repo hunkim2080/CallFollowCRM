@@ -1265,12 +1265,22 @@ private fun AssignTeamSheet(
                 }
             }
 
-            // ── 버튼 하나: ○명에게 보내기 (팀원 배정 + 일당사장 요청 동시) ──
+            // ── 버튼 하나: ○명에게 보내기 / (원래 배정 있었는데 다 빼면) 배정 모두 취소 ──
+            //   (2026-06-14 사장님: 둘 다 빼고 저장하려는데 버튼이 비활성이라 취소 저장이 안 됐음.)
+            val hadInitial = initiallySelected.isNotEmpty() || reqKeys.isNotEmpty()
+            val isCancelAll = !anySelected && hadInitial   // 원래 있던 걸 다 뺀 상태 = 취소 저장
+            val canSubmit = anySelected || isCancelAll
             Spacer(Modifier.height(18.dp))
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                    .background(if (anySelected) TossBlue else Color(0xFFE5E8EF))
-                    .clickable(enabled = anySelected) {
+                    .background(
+                        when {
+                            anySelected -> TossBlue
+                            isCancelAll -> Color(0xFFFDECEC)   // 취소(빼기) — 연한 빨강
+                            else -> Color(0xFFE5E8EF)
+                        }
+                    )
+                    .clickable(enabled = canSubmit) {
                         // 팀원 배정 저장(있거나 원래 있었으면 — 비우기 포함). 메모 공통.
                         if (selectedWorkers.isNotEmpty() || initiallySelected.isNotEmpty()) onSave(selectedWorkers, memo)
                         // 새로 선택한 일당사장 → 협업 요청(공통 메모·시간 + 각자 일당).
@@ -1291,8 +1301,16 @@ private fun AssignTeamSheet(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    if (anySelected) "${totalCount}명에게 보내기" else "부를 사람을 골라주세요",
-                    color = if (anySelected) Color.White else TossTextTertiary,
+                    when {
+                        anySelected -> "${totalCount}명에게 보내기"
+                        isCancelAll -> "배정 모두 취소"
+                        else -> "부를 사람을 골라주세요"
+                    },
+                    color = when {
+                        anySelected -> Color.White
+                        isCancelAll -> TossError
+                        else -> TossTextTertiary
+                    },
                     fontSize = 15.sp, fontWeight = FontWeight.ExtraBold
                 )
             }
