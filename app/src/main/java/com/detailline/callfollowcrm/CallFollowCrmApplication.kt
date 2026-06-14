@@ -36,6 +36,8 @@ class CallFollowCrmApplication : Application() {
         super.onCreate()
         container = AppContainer(this)
         NotificationHelper.ensureChannels(this)
+        // 막내 단계(변신) 복원 — 설정 안 열어도 앱 곳곳 막내가 현재 단계로 보이게. (2026-06-14)
+        com.detailline.callfollowcrm.presentation.component.MascotTierState.set(container.preferences.agentTier)
 
         appScope.launch {
             DefaultTemplates.seedIfEmpty(container.messageTemplateRepository)

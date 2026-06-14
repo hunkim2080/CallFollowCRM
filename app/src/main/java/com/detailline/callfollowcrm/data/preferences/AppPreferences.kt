@@ -66,6 +66,10 @@ class AppPreferences(context: Context) {
     var autoSummaryEnabled: Boolean
         get() = prefs.getBoolean("auto_summary_enabled", true)
         set(value) = prefs.edit().putBoolean("auto_summary_enabled", value).apply()
+    /** 막내 비서 현재 단계(0~9, 10레벨마다). 앱 시작 시 Mascot 변신 복원용. (2026-06-14) */
+    var agentTier: Int
+        get() = prefs.getInt("agent_tier", 0)
+        set(value) = prefs.edit().putInt("agent_tier", value).apply()
     /** D-1 안내 묻는 시각(시, 0~23). 기본 오전 9시. */
     var d1SendHour: Int
         get() = prefs.getInt("d1_send_hour", 9)

@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -126,6 +127,10 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     val agentCard: StateFlow<AgentCardState> =
         combine(container.customerRepository.observeAll(), _toneRagUploadedCount, _toneRagAvailable) { customers, toneUploaded, sentCount ->
             buildAgentCard(customers, toneUploaded, sentCount)
+        }.onEach {
+            // 단계 변경 시 전역 막내 변신 상태 + prefs 갱신(앱 곳곳 Mascot 반영).
+            com.detailline.callfollowcrm.presentation.component.MascotTierState.set(it.tier)
+            container.preferences.agentTier = it.tier
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AgentCardState())
 
     private fun buildAgentCard(customers: List<CustomerEntity>, toneUploaded: Int, sentCount: Int): AgentCardState {
