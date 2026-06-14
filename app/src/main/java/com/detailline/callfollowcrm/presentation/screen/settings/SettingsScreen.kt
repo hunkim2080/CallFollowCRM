@@ -2402,6 +2402,9 @@ private fun TemplateDropdown(
  * 더보기 상단 막내 비서 카드 (프로토 .agent-card 간소화).
  *   캐릭터(Mascot) + 이름 + 학습 안내. 학습 수치는 실제 보유값(사장님 톤 샘플 수).
  */
+/** 10레벨 구간마다 캐릭터 '변신' 엠블럼 (정식 그림 전, 우선 배지로 표시). (2026-06-14) */
+private val AGENT_EMBLEMS = listOf("🌱", "🐣", "🔧", "⭐", "🔥", "💪", "🏅", "👑", "💎", "🚀")
+
 @Composable
 private fun AgentMiniCard(card: AgentCardState) {
     // 프로토 agent-card — 그라데이션 카드 + mascot + 레벨칩 + 말투 진행바 + stats.
@@ -2414,7 +2417,18 @@ private fun AgentMiniCard(card: AgentCardState) {
             .padding(horizontal = 18.dp, vertical = 15.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Mascot(sizeDp = 56.dp)
+            // 막내 + 단계 변신 엠블럼(우하단 배지)
+            Box(contentAlignment = Alignment.Center) {
+                Mascot(sizeDp = 56.dp)
+                Box(
+                    Modifier.align(Alignment.BottomEnd)
+                        .clip(RoundedCornerShape(999.dp)).background(Color.White)
+                        .border(1.dp, Color(0xFFE6EAFB), RoundedCornerShape(999.dp))
+                        .padding(horizontal = 3.dp, vertical = 1.dp)
+                ) {
+                    Text(AGENT_EMBLEMS[card.tier.coerceIn(0, AGENT_EMBLEMS.lastIndex)], fontSize = 14.sp)
+                }
+            }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 // agent-name + lv 칩
@@ -2458,7 +2472,7 @@ private fun AgentMiniCard(card: AgentCardState) {
         }
         Text(
             "함께한 상담 ${card.consultCount}건 · 시공 완료 ${card.doneJobs}건" +
-                if (card.toNextLevel > 0) " · 다음 레벨까지 ${card.toNextLevel}건" else " · 최고 레벨 🎉",
+                if (card.toNextLevel > 0) " · 다음 레벨까지 ${card.toNextLevel} XP" else " · 최고 레벨 🎉",
             fontSize = 11.5.sp, color = TossTextTertiary, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(top = 9.dp)
         )

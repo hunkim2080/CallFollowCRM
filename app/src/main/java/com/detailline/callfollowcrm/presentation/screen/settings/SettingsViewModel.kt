@@ -124,24 +124,23 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
      *   - 레벨 = 상담 건수 구간. 다음 레벨까지 = 다음 구간 경계까지.
      */
     val agentCard: StateFlow<AgentCardState> =
-        combine(container.customerRepository.observeAll(), _toneRagUploadedCount) { customers, toneUploaded ->
-            buildAgentCard(customers, toneUploaded)
+        combine(container.customerRepository.observeAll(), _toneRagUploadedCount, _toneRagAvailable) { customers, toneUploaded, sentCount ->
+            buildAgentCard(customers, toneUploaded, sentCount)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AgentCardState())
 
-    private fun buildAgentCard(customers: List<CustomerEntity>, toneUploaded: Int): AgentCardState {
+    private fun buildAgentCard(customers: List<CustomerEntity>, toneUploaded: Int, sentCount: Int): AgentCardState {
         val todayStart = DateTimeUtils.startOfDay(System.currentTimeMillis())
         val consult = customers.size
         val doneJobs = customers.count { it.scheduledWorkDate?.let { d -> d < todayStart } == true }
         val tonePct = ((toneUploaded * 100.0) / TONE_TARGET).toInt().coerceIn(0, 100)
 
-        // 레벨 = 상담 건수 구간. (idx, 다음 경계)
-        val thresholds = listOf(0, 10, 30, 60, 100, 200, 400)
-        val titles = listOf("새내기", "수습", "일잘러", "베테랑", "에이스", "능력자", "마스터")
-        var lvIdx = 0
-        for (i in thresholds.indices) if (consult >= thresholds[i]) lvIdx = i
-        val level = lvIdx + 1
-        val title = titles[lvIdx.coerceIn(0, titles.lastIndex)]
-        val toNext = if (lvIdx < thresholds.lastIndex) (thresholds[lvIdx + 1] - consult).coerceAtLeast(0) else 0
+        // 경험치 = 핑퐁(고객에게 보낸 문자 수) + 계약 성사 보너스. 레벨/칭호/변신 단계 산출.
+        val contracted = customers.count { it.scheduledWorkDate != null }
+        val xp = sentCount + contracted * CONTRACT_BONUS_XP
+        val level = levelForXp(xp)
+        val tier = ((level - 1) / 10).coerceIn(0, AGENT_TITLES.lastIndex)
+        val title = AGENT_TITLES[tier]
+        val toNext = if (level < MAX_LEVEL) (xpForLevel(level + 1) - xp).coerceAtLeast(0) else 0
 
         val line = when {
             tonePct >= 80 -> "사장님 말투, 이제 거의 다 외웠어요!"
@@ -151,7 +150,8 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         }
         return AgentCardState(
             level = level, title = title, line = line,
-            tonePct = tonePct, consultCount = consult, doneJobs = doneJobs, toNextLevel = toNext
+            tonePct = tonePct, consultCount = consult, doneJobs = doneJobs,
+            toNextLevel = toNext, xp = xp, tier = tier
         )
     }
 
@@ -314,10 +314,28 @@ data class AgentCardState(
     val tonePct: Int = 0,
     val consultCount: Int = 0,
     val doneJobs: Int = 0,
-    val toNextLevel: Int = 10
+    val toNextLevel: Int = 10,  // 다음 레벨까지 남은 XP
+    val xp: Int = 0,
+    val tier: Int = 0           // 0~9 (10레벨마다 변신)
 )
 
 private const val TONE_TARGET = 500
+
+// ── 막내 레벨 = 경험치 기반 (2026-06-14 사장님 재설계) ──
+//   XP = 핑퐁(고객에게 보낸 문자 = 막내가 배우는 코퍼스) + 계약 성사 보너스. 단순 견적문의(핑퐁 적음)는 XP 적게.
+private const val MAX_LEVEL = 100
+private const val CONTRACT_BONUS_XP = 30
+/** 레벨 L 도달 누적 XP = 2*(L-1)*L. 초반 빠르고 뒤로 갈수록 천천히. L2=4, L10=180, L50=4900, L100=19800. */
+private fun xpForLevel(level: Int): Int = 2 * (level - 1) * level
+private fun levelForXp(xp: Int): Int {
+    var lv = 1
+    while (lv < MAX_LEVEL && xpForLevel(lv + 1) <= xp) lv++
+    return lv
+}
+/** 10단계 칭호 — 10레벨 구간마다 하나(캐릭터 변신과 동일 구간). */
+private val AGENT_TITLES = listOf(
+    "새내기", "수습", "일잘러", "베테랑", "에이스", "능력자", "달인", "고수", "마스터", "레전드"
+)
 
 data class SettingsUiState(
     val afterCallBehavior: AfterCallBehavior,

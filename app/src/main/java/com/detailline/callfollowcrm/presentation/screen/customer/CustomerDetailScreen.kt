@@ -280,10 +280,7 @@ fun CustomerDetailScreen(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).padding(17.dp)
             ) {
                 androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    androidx.compose.foundation.layout.Box(
-                        Modifier.size(9.dp).clip(CircleShape).background(heatDotColor(c.leadHeat))
-                    )
-                    Spacer(Modifier.width(10.dp))
+                    // 고객온도 점 제거 (2026-06-14 사장님: 온도 더 안 씀 — 통화 후 카드에서 뺀 것과 일관).
                     Text(
                         headerName, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
                         letterSpacing = (-0.6).sp, maxLines = 1,
