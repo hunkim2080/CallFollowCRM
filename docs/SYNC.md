@@ -4385,3 +4385,11 @@ curl -s -X POST http://localhost:8000/api/shared/invite -H "Content-Type: applic
 - 서버 무관(데이터 선별은 앱 책임). 빌드/설치(B폰) OK·무crash. **메인폰 설치 필요**(실데이터는 메인폰).
 - 참고 ③: 앱 자동발송 문장 재학습 우려는 비기본 SMS앱이라 시스템 sent 미기록 가능성↑ → 영향 적음(미조치).
 - commit: (이 블록과 함께)
+
+## 2026-06-14 (android 추가25) — 통화 자동요약 빈틈 2개 보완 (녹음 폴더 연결 + 카드 범위 확대)
+사장님 라이브 진단: 발신/재통화 후 카드 안 뜨고 요약 안 됨. 원인 = ① 카드가 "첫 수신통화"만 ② 에이닷 녹음(m4a) 폴더 연결 UI가 앱에 아예 없음(텍스트만). 에이닷은 자동녹음+통화종료시 자동저장.
+- **ⓑ 녹음 폴더 연결 추가**: 설정 자동문자 섹션 "🎙️ 에이닷 녹음 폴더 [연결하기]" (OpenDocumentTree→AdotFolderScanner.connectFolder). 연결되면 통화 끝날 때 워커가 m4a 스캔→/api/call-audio-summary(서버 로컬 Whisper STT+요약, 405/422로 배포 확인)→CallSummary. ↑ 안 눌러도 자동.
+- **ⓐ 카드 범위 확대**: CallStateReceiver — 답한 통화(수신·발신, 반복 무관, ≥15초)는 dispatchAnsweredCallUi 로 통화 후 요약 카드(자동응답 없음). 부재중은 기존 로직 그대로. (기존 "첫 수신통화만" → 발신/재통화 빈틈 해소)
+- 효과: 녹음 폴더 연결 + 답한 통화면 방향·반복 무관 자동 요약 + 카드. 연결 이후 통화부터(connectedAt=now).
+- 서버 무관(기존 §26 endpoint). 빌드/메인폰 설치·무crash. **사장님: 설정에서 녹음 폴더 연결 후 새 통화로 검증 필요.**
+- commit: (이 블록과 함께)

@@ -1213,6 +1213,49 @@ private fun AutoSmsSection(
             Switch(checked = autoSumOn, onCheckedChange = { autoSumOn = it; prefs.autoSummaryEnabled = it })
         }
     }
+    Spacer(Modifier.height(8.dp))
+
+    // 에이닷 녹음(m4a) 폴더 연결 — 자동 녹음을 ↑ 없이 자동 요약하려면 필요. (2026-06-14 사장님 빈틈 보완)
+    var recFolderConnected by remember { mutableStateOf(com.detailline.callfollowcrm.recording.AdotFolderScanner.isConnected(ctx)) }
+    val recFolderLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            com.detailline.callfollowcrm.recording.AdotFolderScanner.connectFolder(ctx, uri)
+            recFolderConnected = true
+            android.widget.Toast.makeText(
+                ctx, "녹음 폴더 연결됐어요. 이제 통화 끝나면 자동으로 요약돼요.", android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+    TossCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFFEDE9FE)),
+                contentAlignment = Alignment.Center) { Text("🎙️", fontSize = 16.sp) }
+            Spacer(Modifier.width(11.dp))
+            Column(Modifier.weight(1f)) {
+                Text("에이닷 녹음 폴더 ${if (recFolderConnected) "· 연결됨" else ""}", fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                Text(
+                    if (recFolderConnected) "통화 끝나면 녹음으로 자동 요약돼요 (↑ 안 눌러도 됨)"
+                    else "에이닷 자동 녹음을 ↑ 없이 자동 요약하려면 녹음 폴더를 한 번 연결하세요",
+                    fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            Box(
+                Modifier.clip(RoundedCornerShape(10.dp))
+                    .background(if (recFolderConnected) Color(0xFFEEF0F3) else Color(0xFF3182F6))
+                    .clickable { recFolderLauncher.launch(null) }
+                    .padding(horizontal = 14.dp, vertical = 9.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(if (recFolderConnected) "다시" else "연결하기",
+                    fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                    color = if (recFolderConnected) TossTextSecondary else Color.White)
+            }
+        }
+    }
     Spacer(Modifier.height(14.dp))
 
     Text("정해둔 주기로", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,

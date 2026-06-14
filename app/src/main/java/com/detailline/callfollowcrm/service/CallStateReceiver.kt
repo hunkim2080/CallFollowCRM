@@ -102,32 +102,45 @@ class CallStateReceiver : BroadcastReceiver() {
                     val phone = recent?.phoneNumber
                     val phoneOk = phone != null && phone.isNotBlank() && phone != "(번호없음)"
                     if (phoneOk) {
-                        val callCount = app.container.callRecordRepository.countByPhone(phone!!)
-                        val isMissedType = recent?.type == CallType.MISSED
-                        val useAutoPath = if (isMissedType) {
-                            val lastSent = app.container.messageHistoryRepository.lastSentAtForPhone(phone)
-                            val withinCooldown = lastSent != null &&
-                                (System.currentTimeMillis() - lastSent) < AUTO_REPLY_COOLDOWN_MS
-                            !withinCooldown
-                        } else {
-                            callCount == 1
-                        }
-                        if (useAutoPath) {
-                            dispatchFirstCallUi(
+                        // 2026-06-14 사장님: 답한 통화(수신·발신, 반복 무관) = 상담 → 통화 후 요약 카드.
+                        //   기존엔 "첫 수신통화"만 카드라 발신·재통화엔 안 떴음(사장님 통점). 충분히 통화했으면(>=15초) 카드.
+                        val answered = (recent?.type == CallType.INCOMING || recent?.type == CallType.OUTGOING) &&
+                            (recent?.duration ?: 0L) >= 15L
+                        if (answered) {
+                            dispatchAnsweredCallUi(
                                 context = context,
                                 app = app,
                                 newRecordId = newRecordId,
-                                phoneNumber = phone,
-                                callType = recent!!.type
+                                phoneNumber = phone!!
                             )
                         } else {
-                            dispatchRepeatCallUi(
-                                context = context,
-                                app = app,
-                                newRecordId = newRecordId,
-                                phoneNumber = phone,
-                                callType = recent!!.type
-                            )
+                            val callCount = app.container.callRecordRepository.countByPhone(phone!!)
+                            val isMissedType = recent?.type == CallType.MISSED
+                            val useAutoPath = if (isMissedType) {
+                                val lastSent = app.container.messageHistoryRepository.lastSentAtForPhone(phone)
+                                val withinCooldown = lastSent != null &&
+                                    (System.currentTimeMillis() - lastSent) < AUTO_REPLY_COOLDOWN_MS
+                                !withinCooldown
+                            } else {
+                                callCount == 1
+                            }
+                            if (useAutoPath) {
+                                dispatchFirstCallUi(
+                                    context = context,
+                                    app = app,
+                                    newRecordId = newRecordId,
+                                    phoneNumber = phone,
+                                    callType = recent!!.type
+                                )
+                            } else {
+                                dispatchRepeatCallUi(
+                                    context = context,
+                                    app = app,
+                                    newRecordId = newRecordId,
+                                    phoneNumber = phone,
+                                    callType = recent!!.type
+                                )
+                            }
                         }
                     }
                 } catch (_: Throwable) {
@@ -156,6 +169,50 @@ class CallStateReceiver : BroadcastReceiver() {
             val t = app.container.messageTemplateRepository.findById(id) ?: return@mapNotNull null
             t.title to t.id
         }.take(3)
+    }
+
+    /**
+     * 답한 통화(수신·발신, 반복 무관) 후 통화 요약 카드.
+     *   자동응답 없음(직접 통화한 상담이므로). 카드가 에이닷 녹음/텍스트로 요약을 스트리밍해 채움.
+     *   오버레이 권한 없거나 이미 떠있으면 알림으로 fallback.
+     */
+    private suspend fun dispatchAnsweredCallUi(
+        context: Context,
+        app: CallFollowCrmApplication,
+        newRecordId: Long,
+        phoneNumber: String
+    ) {
+        val prefs = app.container.preferences
+        val manualTemplates = listOf(
+            prefs.quickActionTemplateId1,
+            prefs.quickActionTemplateId2,
+            prefs.quickActionTemplateId3
+        )
+            .filter { it > 0 }
+            .mapNotNull { app.container.messageTemplateRepository.findById(it) }
+            .take(3)
+
+        val shown = PostCallOverlayManager.showOrIgnore(
+            context = context,
+            args = OverlayArgs(
+                callRecordId = newRecordId,
+                phoneNumber = phoneNumber,
+                isMissed = false,
+                autoReplyTemplateId = null,
+                autoReplyTemplateTitle = null,
+                autoReplyTemplateBody = null,
+                manualTemplates = manualTemplates
+            )
+        )
+        if (!shown) {
+            NotificationHelper.showCallEndedNotification(
+                context = context,
+                phoneNumber = phoneNumber,
+                callRecordId = newRecordId,
+                isMissed = false,
+                quickActions = buildQuickActions(app)
+            )
+        }
     }
 
     /**
