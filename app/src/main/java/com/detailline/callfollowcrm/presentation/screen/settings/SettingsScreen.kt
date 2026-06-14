@@ -1288,59 +1288,102 @@ private fun AutoSmsSection(
     }
     Spacer(Modifier.height(14.dp))
 
-    // 광고·스팸 번호 앞자리 (2026-06-07) — 등록한 앞자리로 시작하면 자동답장·AI 준비 X + 신규/상담함 제외.
+    // 광고·스팸 번호 앞자리 — 비주얼 정리(2026-06-14 사장님: 디자인 개선). 기능 동일.
     TossCard {
         Column {
-            Text("광고·스팸 번호 앞자리", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+            // 아이콘 헤더
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(Color(0xFFFDECEC)),
+                    contentAlignment = Alignment.Center
+                ) { Text("🚫", fontSize = 15.sp) }
+                Spacer(Modifier.width(10.dp))
+                Text("광고·스팸 번호 앞자리", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+            }
             Text(
-                "이 앞자리로 시작하는 번호는 자동답장·AI 추천을 안 하고 신규 목록에서도 빼요. (예: 070 인터넷전화·광고)",
+                "이 앞자리로 시작하는 번호는 자동답장·AI 추천을 안 하고 신규 목록에서도 빼요.",
                 fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp,
-                modifier = Modifier.padding(top = 4.dp)
+                modifier = Modifier.padding(top = 8.dp)
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(14.dp))
+
+            // ── 등록된 앞자리 ──
+            Text("등록된 앞자리", fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+            Spacer(Modifier.height(8.dp))
             if (spamPrefixes.isEmpty()) {
-                Text("등록된 앞자리가 없어요", fontSize = 12.5.sp, color = TossTextTertiary)
+                Box(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(vertical = 14.dp),
+                    contentAlignment = Alignment.Center
+                ) { Text("아직 등록한 앞자리가 없어요", fontSize = 12.5.sp, color = TossTextTertiary) }
             } else {
-                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                androidx.compose.foundation.layout.FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     spamPrefixes.sorted().forEach { p ->
-                        AutoChip("$p  ✕", true) {
-                            spamPrefixes = spamPrefixes - p; prefs.spamPrefixes = spamPrefixes
+                        Row(
+                            Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFFDECEC))
+                                .border(1.dp, Color(0xFFF6C9C9), RoundedCornerShape(999.dp))
+                                .clickable { spamPrefixes = spamPrefixes - p; prefs.spamPrefixes = spamPrefixes }
+                                .padding(start = 13.dp, end = 10.dp, top = 7.dp, bottom = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(p, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFD64545))
+                            Spacer(Modifier.width(6.dp))
+                            Text("✕", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFD64545).copy(alpha = 0.6f))
                         }
                     }
                 }
             }
-            Spacer(Modifier.height(10.dp))
-            Text("빠른 추가", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
-                modifier = Modifier.padding(bottom = 6.dp))
-            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                com.detailline.callfollowcrm.util.SpamPrefix.SUGGESTED
-                    .filter { it !in spamPrefixes }
-                    .forEach { p ->
-                        AutoChip("＋ $p", false) {
-                            spamPrefixes = spamPrefixes + p; prefs.spamPrefixes = spamPrefixes
+
+            // ── 추천 앞자리 ──
+            val suggested = com.detailline.callfollowcrm.util.SpamPrefix.SUGGESTED.filter { it !in spamPrefixes }
+            if (suggested.isNotEmpty()) {
+                Spacer(Modifier.height(16.dp))
+                Text("추천 앞자리 · 눌러서 추가", fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                Spacer(Modifier.height(8.dp))
+                androidx.compose.foundation.layout.FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    suggested.forEach { p ->
+                        Row(
+                            Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White)
+                                .border(1.dp, TossDivider, RoundedCornerShape(999.dp))
+                                .clickable { spamPrefixes = spamPrefixes + p; prefs.spamPrefixes = spamPrefixes }
+                                .padding(start = 10.dp, end = 13.dp, top = 7.dp, bottom = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("＋", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+                            Spacer(Modifier.width(5.dp))
+                            Text(p, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
                         }
                     }
+                }
             }
-            Spacer(Modifier.height(10.dp))
+
+            // ── 직접 입력 ──
+            Spacer(Modifier.height(16.dp))
+            Text("직접 입력", fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+            Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = newSpamPrefix,
-                    onValueChange = { newSpamPrefix = it.filter { c -> c.isDigit() }.take(6) },
-                    placeholder = { Text("앞자리 직접 입력", color = TossTextTertiary) },
-                    singleLine = true,
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
-                    modifier = Modifier.weight(1f)
-                )
+                Box(Modifier.weight(1f)) {
+                    com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                        value = newSpamPrefix,
+                        onValueChange = { newSpamPrefix = it.filter { c -> c.isDigit() }.take(6) },
+                        placeholder = "예: 070",
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                    )
+                }
                 Box(
-                    Modifier.clip(RoundedCornerShape(11.dp))
+                    Modifier.clip(RoundedCornerShape(12.dp))
                         .background(if (newSpamPrefix.isNotBlank()) TossBlue else TossGrayBg)
                         .clickable(enabled = newSpamPrefix.isNotBlank()) {
-                            val p = newSpamPrefix
-                            spamPrefixes = spamPrefixes + p
+                            spamPrefixes = spamPrefixes + newSpamPrefix
                             prefs.spamPrefixes = spamPrefixes
                             newSpamPrefix = ""
                         }
-                        .padding(horizontal = 14.dp, vertical = 14.dp),
+                        .padding(horizontal = 18.dp, vertical = 14.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text("추가", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (newSpamPrefix.isNotBlank()) Color.White else TossTextTertiary)
