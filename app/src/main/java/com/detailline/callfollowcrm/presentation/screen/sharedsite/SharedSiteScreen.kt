@@ -118,6 +118,7 @@ fun SharedSiteScreen(
     val trashed by viewModel.trashed.collectAsState()
     var confirmLeave by remember { mutableStateOf(false) } // 협업 그만하기 확인
     // 일당 지급(입금) 계좌 — 화면에서 인라인 등록/수정. prefs 는 비반응형이라 화면 상태로 들고 즉시 반영.
+    var navChooserAddr by remember { mutableStateOf<String?>(null) } // 길찾기 앱 선택 다이얼로그(주소)
     var payoutBank by remember { mutableStateOf(viewModel.accountBank) }
     var payoutNo by remember { mutableStateOf(viewModel.accountNo) }
     var payoutHolder by remember { mutableStateOf(viewModel.accountHolder) }
@@ -283,10 +284,10 @@ fun SharedSiteScreen(
                     },
                     onViewPhoto = { fullscreenPhoto = it },
                     onNavigate = { addr ->
-                        runCatching {
-                            val uri = Uri.parse("geo:0,0?q=" + Uri.encode(addr))
-                            context.startActivity(Intent(Intent.ACTION_VIEW, uri))
-                        }
+                        // 처음이면 지도앱 선택받고 기억, 다음부터 바로 그 앱으로. (2026-06-14 사장님)
+                        val saved = viewModel.navApp()
+                        if (saved.isBlank()) navChooserAddr = addr
+                        else com.detailline.callfollowcrm.util.NavApps.launch(context, saved, addr)
                     },
                     onProgress = { step ->
                         if (step == SharedSiteRepository.Progress.COMPLETED && payoutNo.isBlank()) {
@@ -309,6 +310,43 @@ fun SharedSiteScreen(
             }
             Spacer(Modifier.height(20.dp))
         }
+    }
+
+    // 길찾기 앱 선택 — 한 번 고르면 기억(기본값). (2026-06-14 사장님)
+    navChooserAddr?.let { addr ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { navChooserAddr = null },
+            title = { Text("어떤 지도로 안내할까요?", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text("한 번 고르면 다음부터 바로 그 앱으로 열려요.", fontSize = 13.sp, color = TossTextTertiary)
+                    Spacer(Modifier.height(10.dp))
+                    com.detailline.callfollowcrm.util.NavApps.ALL.forEach { app ->
+                        Box(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
+                                .clickable {
+                                    viewModel.setNavApp(app)
+                                    com.detailline.callfollowcrm.util.NavApps.launch(context, app, addr)
+                                    navChooserAddr = null
+                                }
+                                .padding(vertical = 13.dp, horizontal = 14.dp)
+                        ) {
+                            Text(
+                                com.detailline.callfollowcrm.util.NavApps.label(app),
+                                fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary
+                            )
+                        }
+                        Spacer(Modifier.height(8.dp))
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { navChooserAddr = null }) {
+                    Text("취소", color = TossTextSecondary)
+                }
+            }
+        )
     }
 
     // 협업 그만하기 확인

@@ -155,6 +155,10 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
         container.preferences.bizAccountHolder = holder.trim()
     }
 
+    /** 길찾기 기본 지도앱 — 비면 처음 길찾기 때 선택받음. (2026-06-14) */
+    fun navApp(): String = container.preferences.navApp
+    fun setNavApp(app: String) { container.preferences.navApp = app }
+
     /** 상세 열 때 그 현장의 증거 사진 로드(§F). 다른 현장으로 바뀌면 비움. */
     fun loadPhotos(shareId: String) {
         if (shareId.isBlank() || noBizPhone) { _photos.value = emptyList(); return }

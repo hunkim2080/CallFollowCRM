@@ -70,6 +70,10 @@ class AppPreferences(context: Context) {
     var agentTier: Int
         get() = prefs.getInt("agent_tier", 0)
         set(value) = prefs.edit().putInt("agent_tier", value).apply()
+    /** 길찾기 기본 지도앱(tmap/kakao/naver/default). 비면 처음 길찾기 때 선택받음. (2026-06-14) */
+    var navApp: String
+        get() = prefs.getString("nav_app", "") ?: ""
+        set(value) = prefs.edit().putString("nav_app", value).apply()
     /** D-1 안내 묻는 시각(시, 0~23). 기본 오전 9시. */
     var d1SendHour: Int
         get() = prefs.getInt("d1_send_hour", 9)
