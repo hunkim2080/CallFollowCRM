@@ -25,7 +25,10 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -52,7 +55,8 @@ private val SubColor = Color(0xFF8A93A2)
  *   어떤 버튼/둘러보기든 누르면 onProceed() → 권한/홈으로.
  */
 @Composable
-fun LoginScreen(onProceed: () -> Unit) {
+fun LoginScreen(onLoginPhone: (String) -> Unit, onProceed: () -> Unit) {
+    var phone by remember { mutableStateOf("") }
     Box(
         Modifier
             .fillMaxSize()
@@ -114,34 +118,32 @@ fun LoginScreen(onProceed: () -> Unit) {
                 )
             }
 
-            // 소셜 로그인 버튼 3종
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                LoginButton(
-                    bg = Color(0xFFFEE500),
-                    fg = Color(0xFF191600),
-                    label = "카카오로 시작하기",
-                    chip = "3초 만에 시작",
-                    onClick = onProceed
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.Chat, null, tint = Color(0xFF191600), modifier = Modifier.size(20.dp))
-                }
-                LoginButton(
-                    bg = Color(0xFF03C75A),
-                    fg = Color.White,
-                    label = "네이버로 시작하기",
-                    onClick = onProceed
-                ) {
-                    Text("N", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black)
-                }
-                LoginButton(
-                    bg = Color.White,
-                    fg = Color(0xFF1F2937),
-                    label = "Google로 시작하기",
-                    borderColor = Color(0xFFE5E7EB),
-                    onClick = onProceed
-                ) {
-                    Text("G", color = Color(0xFF4285F4), fontSize = 19.sp, fontWeight = FontWeight.Black)
-                }
+            // 테스터: 할당받은 본인 핸드폰 번호로 시작. (2026-06-14 사장님)
+            Text(
+                "할당받은 본인 핸드폰 번호로 시작하세요",
+                fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TagColor,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            Spacer(Modifier.height(10.dp))
+            com.detailline.callfollowcrm.presentation.component.FormattedTextField(
+                value = phone,
+                onValueChange = { phone = it },
+                format = com.detailline.callfollowcrm.util.PhoneNumberFormatter::formatProgressive,
+                placeholder = "010-0000-0000",
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone
+            )
+            Spacer(Modifier.height(10.dp))
+            val phoneOk = phone.filter { it.isDigit() }.length >= 10
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(53.dp)
+                    .background(if (phoneOk) LoginBlue else Color(0xFFCBD5E1), RoundedCornerShape(15.dp))
+                    .clickable(enabled = phoneOk) { onLoginPhone(phone) },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("이 번호로 시작하기", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.3).sp)
             }
 
             Spacer(Modifier.height(20.dp))

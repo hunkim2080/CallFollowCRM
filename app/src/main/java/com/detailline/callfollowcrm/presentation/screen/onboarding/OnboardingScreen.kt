@@ -309,7 +309,8 @@ private fun TradeStep(
         TRADES.chunked(2).forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                 row.forEach { t ->
-                    TradeCell(t, selected.contains(t), Modifier.weight(1f)) {
+                    // 테스터 빌드: 줄눈만 선택 가능, 나머지는 회색·비활성. (2026-06-14 사장님)
+                    TradeCell(t, selected.contains(t), enabled = t == "줄눈", modifier = Modifier.weight(1f)) {
                         if (selected.contains(t)) selected.remove(t) else selected.add(t)
                     }
                 }
@@ -317,17 +318,16 @@ private fun TradeStep(
             }
             Spacer(Modifier.height(9.dp))
         }
-        // + 직접 입력 (프로토 addCustomTrade) — 목록에 없는 업종을 직접 추가.
+        // + 직접 입력 — 테스터 빌드에선 비활성(회색). (2026-06-14 사장님)
         var showCustom by remember { mutableStateOf(false) }
         Box(
             Modifier
                 .fillMaxWidth()
-                .border(1.5.dp, Color(0xFFD8DEE6), RoundedCornerShape(14.dp))
-                .clickable { showCustom = true }
+                .border(1.5.dp, Color(0xFFE5E8EE), RoundedCornerShape(14.dp))
                 .padding(vertical = 14.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text("+ 직접 입력", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
+            Text("+ 직접 입력", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
         }
         if (showCustom) {
             var input by remember { mutableStateOf("") }
@@ -362,16 +362,18 @@ private fun TradeStep(
 }
 
 @Composable
-private fun TradeCell(label: String, on: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun TradeCell(label: String, on: Boolean, enabled: Boolean = true, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Row(
         modifier = modifier
-            .background(if (on) TossBlueSoft else Color.White, RoundedCornerShape(14.dp))
+            .background(if (!enabled) Color(0xFFF2F4F6) else if (on) TossBlueSoft else Color.White, RoundedCornerShape(14.dp))
             .border(1.5.dp, if (on) TossBlue else Color(0xFFEEF0F3), RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
+            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 15.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(label, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (on) TossBlueDark else TossTextPrimary, modifier = Modifier.weight(1f))
+        Text(label, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+            color = if (!enabled) TossTextTertiary else if (on) TossBlueDark else TossTextPrimary,
+            modifier = Modifier.weight(1f))
         Box(
             Modifier.size(18.dp).background(if (on) TossBlue else Color.Transparent, RoundedCornerShape(6.dp))
                 .border(2.dp, if (on) TossBlue else Color(0xFFEEF0F3), RoundedCornerShape(6.dp)),

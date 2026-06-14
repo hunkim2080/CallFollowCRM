@@ -111,19 +111,34 @@ fun AppNavHost(
 
         composable(Destinations.LOGIN) {
             val context = androidx.compose.ui.platform.LocalContext.current
-            com.detailline.callfollowcrm.presentation.screen.login.LoginScreen(
-                onProceed = {
-                    container.preferences.hasSeenLogin = true
-                    val next = when {
-                        !container.preferences.hasOnboarded -> Destinations.ONBOARDING
-                        com.detailline.callfollowcrm.util.PermissionHelper
-                            .allMissingNonNotification(context).isNotEmpty() -> Destinations.PERMISSIONS
-                        else -> Destinations.HOME
-                    }
-                    navController.navigate(next) {
-                        popUpTo(Destinations.LOGIN) { inclusive = true }
-                    }
+            val goNext = {
+                container.preferences.hasSeenLogin = true
+                val next = when {
+                    !container.preferences.hasOnboarded -> Destinations.ONBOARDING
+                    com.detailline.callfollowcrm.util.PermissionHelper
+                        .allMissingNonNotification(context).isNotEmpty() -> Destinations.PERMISSIONS
+                    else -> Destinations.HOME
                 }
+                navController.navigate(next) {
+                    popUpTo(Destinations.LOGIN) { inclusive = true }
+                }
+            }
+            com.detailline.callfollowcrm.presentation.screen.login.LoginScreen(
+                onLoginPhone = { phone ->
+                    // 테스터: 할당받은 본인 번호로 로그인 → bizPhone 저장(협업·팀 기능 키). (2026-06-14 사장님)
+                    container.preferences.bizPhone = phone.trim()
+                    val ph = phone.filter { it.isDigit() }
+                    if (ph.length >= 9) runCatching {
+                        com.google.firebase.messaging.FirebaseMessaging.getInstance().token
+                            .addOnSuccessListener { token ->
+                                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                                    runCatching { container.pushRegisterRepository.register(ph, token) }
+                                }
+                            }
+                    }
+                    goNext()
+                },
+                onProceed = goNext
             )
         }
 

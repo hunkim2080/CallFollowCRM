@@ -97,19 +97,20 @@ fun TradeSelectScreen(
             Spacer(Modifier.height(14.dp))
 
             FlowRow(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
-                (TRADES + selected.filter { it !in TRADES }).distinct().forEach { t ->
+                TRADES.forEach { t ->
+                    val enabled = t == "줄눈"   // 테스터 빌드: 줄눈만 활성, 나머지 회색·비활성 (2026-06-14 사장님)
                     val isSel = selected.contains(t)
                     val isPrimary = selected.firstOrNull() == t
                     Box(
                         Modifier.padding(bottom = 8.dp).clip(RoundedCornerShape(999.dp))
-                            .background(if (isSel) TossBlueSoft else Color.White)
-                            .clickable { toggle(t) }
+                            .background(if (!enabled) TossGrayBg else if (isSel) TossBlueSoft else Color.White)
+                            .then(if (enabled) Modifier.clickable { toggle(t) } else Modifier)
                             .padding(horizontal = 14.dp, vertical = 10.dp)
                     ) {
                         Text(
                             (if (isPrimary) "★ " else "") + t,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = if (isSel) TossBlue else TossTextSecondary,
+                            color = if (!enabled) TossTextTertiary else if (isSel) TossBlue else TossTextSecondary,
                             fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium
                         )
                     }
@@ -117,19 +118,16 @@ fun TradeSelectScreen(
             }
 
             Spacer(Modifier.height(12.dp))
-            Text("목록에 없으면 직접 추가", style = MaterialTheme.typography.labelMedium, color = TossTextSecondary)
+            // 테스터 빌드: 직접 추가 비활성(회색). (2026-06-14 사장님)
+            Text("목록에 없으면 직접 추가", style = MaterialTheme.typography.labelMedium, color = TossTextTertiary)
             Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 com.detailline.callfollowcrm.presentation.component.SheetTextField(
                     value = customText, onValueChange = { customText = it },
-                    placeholder = "예: 방역, 인테리어 필름…", modifier = Modifier.weight(1f)
+                    placeholder = "예: 방역, 인테리어 필름…", modifier = Modifier.weight(1f), enabled = false
                 )
-                Text("추가", color = if (customText.isNotBlank() && selected.size < 3) TossBlue else TossTextTertiary,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clickable {
-                        val v = customText.trim()
-                        if (v.isNotBlank() && selected.size < 3 && v !in selected) { selected.add(v); customText = "" }
-                    }.padding(horizontal = 12.dp))
+                Text("추가", color = TossTextTertiary, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 12.dp))
             }
 
             Spacer(Modifier.height(24.dp))
