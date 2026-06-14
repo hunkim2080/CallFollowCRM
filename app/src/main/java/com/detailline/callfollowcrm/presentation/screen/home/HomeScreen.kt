@@ -650,8 +650,21 @@ fun HomeScreen(
                                     goLabel = "현장 보기",
                                     onClick = onOpenCollabSites
                                 )
-                                // 완료 + 계좌 있으면 → [계좌 복사] [입금했어요]. (일당 마켓 Phase 1: 완료·계좌=정산 스위치)
+                                // 완료 + 계좌 있으면 → 계좌 정보(은행·예금주) 한 줄 + [계좌 복사] [입금했어요]. (일당 마켓 Phase 1)
                                 if (up.kind == "completed" && !up.accountText.isNullOrBlank()) {
+                                    // 은행·번호·예금주 또렷하게(번호만 복사돼도 어디로/누구에게인지 보이게). (2026-06-14 사장님)
+                                    Row(
+                                        Modifier.fillMaxWidth().padding(top = 8.dp).clip(RoundedCornerShape(10.dp))
+                                            .background(TossGrayBg).padding(horizontal = 12.dp, vertical = 9.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("💳", fontSize = 13.sp)
+                                        Spacer(Modifier.width(7.dp))
+                                        Text(
+                                            up.accountText, fontSize = 12.5.sp, color = TossTextSecondary,
+                                            fontWeight = FontWeight.Bold, lineHeight = 17.sp
+                                        )
+                                    }
                                     Row(
                                         Modifier.fillMaxWidth().padding(top = 6.dp),
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
