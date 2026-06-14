@@ -2572,8 +2572,29 @@ private fun WaitingCard(
                     }
                 }
             }
+        } else if (item.lastBody.isNullOrBlank()) {
+            // 통화/부재중만 있는 손님 — 답장할 문자가 없는데 "AI 답변 준비 중"이 떠 버그처럼 보임(2026-06-14).
+            //   → AI 준비 중 대신 통화 안내 + [문자하기](대화 시작).
+            val missed = item.record.callType == "MISSED"
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Call, null, tint = TossTextTertiary, modifier = Modifier.size(13.dp))
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    if (missed) "부재중 전화 · 문자로 이어가기" else "통화한 손님 · 문자로 이어가기",
+                    fontSize = 13.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium
+                )
+                Spacer(Modifier.weight(1f))
+                Box(
+                    Modifier
+                        .border(1.5.dp, Color(0xFFDCE7FB), RoundedCornerShape(999.dp))
+                        .clickable { onOpenChat() }
+                        .padding(horizontal = 15.dp, vertical = 8.dp)
+                ) {
+                    Text("문자하기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                }
+            }
         } else {
-            // 프로토 preparing — 추천 준비 전: "AI 답변 준비 중…" + [답장하기].
+            // 프로토 preparing — 문자 받았고 추천 준비 전: "AI 답변 준비 중…" + [답장하기].
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.AutoAwesome, null, tint = TossTextTertiary, modifier = Modifier.size(13.dp))
                 Spacer(Modifier.width(5.dp))
