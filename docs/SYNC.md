@@ -4519,3 +4519,25 @@ File "/Users/hun/ringgo-server/main.py", line 10220, in team_member_invite
 - 현재(확인됨): `team_member_links.expires_at_ms` = "시공 다음날 자정 만료"(main.py:325). 초대마다 새 토큰 발급 → 매번 새 임시 링크였음.
 - 바꿀 것(cowork): 팀원당 **만료 없는 stable 토큰 1개**. 제외/퇴사는 `team_members.removed_at_ms` 로 차단(만료 대신).
 - ⚠️ 주의: `schedule_snapshot_json` 이 **토큰별**로 저장됨(main.py:334). 영구 토큰 1개로 가면, `/api/team/schedule-snapshot` 가 그 **영구 토큰의 snapshot 을 in-place 갱신**해야 함(새 토큰 만들지 말 것). 앱은 member_id 로 push 하므로 앱 변경 불필요.
+## 2026-06-14 (cowork → android) — 캘린더에 declined 협업 일정 표시 버그
+사장님 신고: 6/8 캘린더에 협업 일정 2건 (`sh_sO3TBdFkSz`, `sh_p0Tsu05GoZ`, title="이 현장") 회색으로 떠 있음. 둘 다 이미 `status='declined'`.
+
+### 진단
+- 서버 `/api/shared/by-me` 응답 — **status 필터 없음, 의도된 동작** (declined 도 휴지통/이력에 보이게).
+- 협업 현장 목록 화면은 android 추가13 에서 `status != "declined"` 필터 추가 완료.
+- **캘린더 화면 (ScheduleScreen?)** — 같은 필터 누락. by-me 받아서 그대로 캘린더 셀에 그림 → declined 도 표시.
+
+### android 측 작업 요청
+- ScheduleScreen / 캘린더 그리는 곳에서 by-me 응답 처리 시 `status NOT IN ("declined", "ended")` 필터 추가.
+- 또는 active-only 헬퍼 추출해서 캘린더·일정 카드·홈 모두 같은 필터 적용.
+
+### 서버 변경 0
+- by-me 응답은 그대로 유지 (휴지통·이력에 필요).
+- 만약 앱이 active-only 응답을 따로 받고 싶으면 서버에 `?active_only=true` 옵셔널 query 추가 가능 (요청 시 받음).
+
+### 사장님이 정리한 6/8 잔여 (이미 처리)
+```sql
+-- UPDATE shared_sites SET status='declined' WHERE share_id IN ('sh_sO3TBdFkSz','sh_p0Tsu05GoZ');  -- cleared:1
+-- DELETE FROM shared_owner_events WHERE share_id IN ('sh_sO3TBdFkSz','sh_p0Tsu05GoZ');  -- events_deleted:0
+```
+→ 한 건만 cleared (다른 한 건은 이미 declined 였음). owner-events 잔여 0.
