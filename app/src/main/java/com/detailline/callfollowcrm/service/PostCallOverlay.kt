@@ -313,13 +313,15 @@ object PostCallOverlayManager {
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            // FLAG_NOT_TOUCH_MODAL: 카드 밖 영역의 터치는 아래 앱으로 그대로 패스 (사장님이 다른 작업 가능)
-            // FLAG_ALT_FOCUSABLE_IM: 메모 입력 시 IME 가 정상 표시되도록.
-            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM,
+            // FLAG_NOT_TOUCH_MODAL: 카드 밖 터치는 아래 앱으로 패스 (사장님이 다른 작업 가능).
+            //   FLAG_ALT_FOCUSABLE_IM 제거: 포커스 가능한 오버레이에 이 플래그가 있으면 안드로이드가
+            //   "IME 불필요"로 처리해 후속문자 다듬기 시 키패드가 안 떴음 (2026-06-14 사장님). 빼야 키보드 뜸.
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.CENTER
+            // 키보드 뜨면 카드가 가리지 않게 위로 밀어줌(다듬기 입력칸 보이게).
+            softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN
         }
 
         runCatching { wm.addView(composeView, params) }
