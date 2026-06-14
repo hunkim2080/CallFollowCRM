@@ -4415,3 +4415,16 @@ curl -s -X POST http://localhost:8000/api/shared/invite -H "Content-Type: applic
 - 가능하면 엔진을 Gemini→Claude(소넷/하이쿠)로 올리면 완성도 더↑ (사장님 비용 OK 가이드). 비용 큰 기능 아니라 품질 우선.
 - 앱은 무변경(같은 /api/refine 페이로드). 프롬프트만 바꾸면 즉시 반영.
 - commit: (이 블록과 함께)
+
+## 2026-06-14 (android 추가28) — 🚨 팀원 추가 서버 오류 (서버 수정 요청, cowork)
+사장님 "팀원 추가하니 서버 오류". 앱에서 진단:
+- GET /api/team/members?owner_phone=... → 200 (정상)
+- POST /api/team/member/invite (body {owner_phone,name,phone,role,tint}) → **400 {"detail":"There was an error parsing the body"}**
+- 같은 OkHttp+application/json 방식의 다른 POST(/api/shared/invite, /api/refine 등)는 정상 → **앱 요청 형식 문제 아님.** 이 endpoint만 본문 파싱 단계에서 실패.
+- 서버 TeamInviteRequest(owner_phone,name,phone,role="worker",tint=0) 와 앱 payload 일치. 그런데도 파싱 400.
+
+**요청(cowork, server):**
+1. 먼저 **서버 재시작/재배포**(bash server/deploy_phase1.sh)로 풀리는지 — 프로세스 stale 가능성.
+2. 안 풀리면 /api/team/member/invite 본문 파싱 경로 점검: body 소비하는 미들웨어/디펜던시, FastAPI/pydantic 버전, 라우트 정의. ("There was an error parsing the body" = 모델 변환 전 request body 파싱 실패.)
+3. 앱은 무변경(다른 POST 동일 패턴 정상). endpoint만 고치면 됨.
+- 참고: 테스터 APK 배포 직전 — 팀원 추가가 막혀 협업 테스트 불가. 우선순위 ↑.
