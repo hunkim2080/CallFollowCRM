@@ -103,9 +103,10 @@ class CallStateReceiver : BroadcastReceiver() {
                     val phoneOk = phone != null && phone.isNotBlank() && phone != "(번호없음)"
                     if (phoneOk) {
                         // 2026-06-14 사장님: 답한 통화(수신·발신, 반복 무관) = 상담 → 통화 후 요약 카드.
-                        //   기존엔 "첫 수신통화"만 카드라 발신·재통화엔 안 떴음(사장님 통점). 충분히 통화했으면(>=15초) 카드.
+                        //   기존엔 "첫 수신통화"만 카드라 발신·재통화엔 안 떴음(사장님 통점).
+                        //   문턱 5초 — 짧은 상담/테스트도 뜨되, 1~4초 오발신/즉시끊김만 제외.
                         val answered = (recent?.type == CallType.INCOMING || recent?.type == CallType.OUTGOING) &&
-                            (recent?.duration ?: 0L) >= 15L
+                            (recent?.duration ?: 0L) >= 5L
                         if (answered) {
                             dispatchAnsweredCallUi(
                                 context = context,
