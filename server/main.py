@@ -5032,6 +5032,15 @@ async def admin_beta_dashboard_data(
     cutoff = now - days * 86_400_000
     cutoff_7d = now - 7 * 86_400_000
 
+    # 폰 format helper (module-level _fmt_phone 가 다른 함수 nested 라 사용 불가)
+    def _fmt_phone(p):
+        s = "".join(ch for ch in (p or "") if ch.isdigit())
+        if len(s) == 11 and s.startswith("010"):
+            return f"{s[:3]}-{s[3:7]}-{s[7:]}"
+        if len(s) == 10:
+            return f"{s[:3]}-{s[3:6]}-{s[6:]}"
+        return s or ""
+
     with db_conn() as con:
         # ── 화이트리스트 사용자 ──
         wl_rows = con.execute(
