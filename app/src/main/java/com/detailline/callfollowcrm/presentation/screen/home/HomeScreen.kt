@@ -855,6 +855,18 @@ fun HomeScreen(
                             if (res == SnackbarResult.ActionPerformed) viewModel.undoJobCompleted(cid)
                         }
                     },
+                    onCompletePaid = { name ->
+                        val cid = c.id
+                        completeTarget = null
+                        viewModel.markJobCompletedBalancePaid(cid)   // 완료 + 잔금 완납 처리(고객상세 '잔금 받음', 미수금에서 빠짐)
+                        scope.launch {
+                            val res = snackbarHostState.showSnackbar(
+                                "$name 완료 · 잔금까지 다 받음 처리했어요 ✓",
+                                actionLabel = "되돌리기", duration = SnackbarDuration.Short
+                            )
+                            if (res == SnackbarResult.ActionPerformed) viewModel.undoJobCompleted(cid)
+                        }
+                    },
                     onSend = { phone, name, body, kind ->
                         val cid = c.id
                         completeTarget = null
@@ -1492,6 +1504,7 @@ private fun CompletionDialog(
     customer: com.detailline.callfollowcrm.data.local.entity.CustomerEntity,
     onDismiss: () -> Unit,
     onComplete: (name: String) -> Unit,
+    onCompletePaid: (name: String) -> Unit,
     onSend: (phone: String, name: String, body: String, kind: String) -> Unit
 ) {
     val name = customer.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(customer.phoneNumber)
@@ -1502,11 +1515,18 @@ private fun CompletionDialog(
     val won = "%,d".format(bal)
     val reviewMsg = "고객님, 오늘 시공 잘 마쳤습니다 😊 만족스러우셨다면 후기 한 줄 부탁드려요! 또 필요하시면 언제든 연락주세요 :)"
     val balanceMsg = "고객님, 오늘 시공 잘 마쳤습니다 😊\n잔금은 ${won}원입니다.\n맡겨주셔서 대단히 감사합니다!"
-    val subtitle = if (hasBal) "$name · 잔금 ${won}원" else "$name · 정산 완료"
 
-    // 프로토 .modal-card — left/right 18, top 50% translateY(-50%) = 좌우 18 여백 + 세로 정중앙.
-    //   usePlatformDefaultWidth=false 로 좁은 기본 너비 해제 후, 전체화면 Box 로 명시적 가운데 정렬
-    //   (안 그러면 세로 정렬이 풀려 바닥에 깔림).
+    // 완료 흐름(2026-06-15 사장님): 잔금 남았으면 먼저 "다 받았나요?" → 네=완납 처리 / 아니요=안내문자 단계.
+    //   잔금 없으면 바로 후기 문자 단계. 문자는 자유롭게 수정 가능(BasicTextField + ForceDialogResize 로 키보드 정상).
+    var askedNo by remember { mutableStateOf(false) }                 // hasBal 에서 "아니요" → 문자 단계
+    var msg by remember { mutableStateOf(if (hasBal) balanceMsg else reviewMsg) }
+    val subtitle = when {
+        hasBal && !askedNo -> "$name · 잔금 ${won}원"
+        hasBal -> "$name · 잔금 ${won}원 미수"
+        else -> "$name · 정산 완료"
+    }
+
+    // 프로토 .modal-card — 좌우 18 여백 + 세로 정중앙. usePlatformDefaultWidth=false + 전체화면 Box 가운데 정렬.
     androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
@@ -1522,37 +1542,59 @@ private fun CompletionDialog(
                 .background(Color.White)
                 .padding(20.dp)
         ) {
+            com.detailline.callfollowcrm.presentation.util.ForceDialogResize()  // 다이얼로그 키보드 가림 방지(갤S9)
             Text("🎉 시공 완료 · 고생하셨습니다!", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
             Spacer(Modifier.height(4.dp))
             Text(subtitle, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossBlueDark)
-            Spacer(Modifier.height(12.dp))
-            Text(
-                if (hasBal) balanceMsg else reviewMsg,
-                fontSize = 13.5.sp, lineHeight = 21.sp, color = TossTextSecondary,
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(13.dp)
-            )
             Spacer(Modifier.height(14.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+
+            if (hasBal && !askedNo) {
+                // ── 1단계: 잔금 다 받았는지 확인 ──
+                Text("잔금 ${won}원은 다 받으셨어요?", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                Spacer(Modifier.height(14.dp))
                 Box(
-                    Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
-                        .clickable { onComplete(name) }.padding(vertical = 13.dp),
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossBlue)
+                        .clickable { onCompletePaid(name) }.padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center
-                ) { Text("완료처리", color = TossTextSecondary, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
-                val sendKind = if (hasBal) "잔금 요청" else "후기 요청"
-                val sendBody = if (hasBal) balanceMsg else reviewMsg
+                ) { Text("네, 다 받았어요", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold) }
+                Spacer(Modifier.height(8.dp))
                 Box(
-                    Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(TossBlue)
-                        .clickable { onSend(customer.phoneNumber, name, sendBody, sendKind) }.padding(vertical = 13.dp),
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
+                        .clickable { askedNo = true }.padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center
-                ) { Text("$sendKind 보내기", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
-            }
-            if (hasBal) {
+                ) { Text("아니요, 아직이요", color = TossTextSecondary, fontSize = 15.sp, fontWeight = FontWeight.Bold) }
+            } else {
+                // ── 2단계: 안내 문자(자유 수정) + 발송/완료 ──
+                Text(
+                    if (hasBal) "잔금 안내 문자 — 자유롭게 고쳐서 보내세요" else "후기 요청 문자 — 자유롭게 고쳐서 보내세요",
+                    fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary
+                )
                 Spacer(Modifier.height(6.dp))
                 Box(
-                    Modifier.fillMaxWidth().clickable { onSend(customer.phoneNumber, name, reviewMsg, "후기 요청") }
-                        .padding(vertical = 10.dp),
-                    contentAlignment = Alignment.Center
-                ) { Text("후기 요청도 함께 보내기", color = TossTextTertiary, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold) }
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(13.dp)
+                ) {
+                    androidx.compose.foundation.text.BasicTextField(
+                        value = msg,
+                        onValueChange = { msg = it },
+                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.5.sp, color = TossTextPrimary, lineHeight = 21.sp),
+                        cursorBrush = androidx.compose.ui.graphics.SolidColor(TossBlue),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                Spacer(Modifier.height(14.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(
+                        Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
+                            .clickable { onComplete(name) }.padding(vertical = 13.dp),
+                        contentAlignment = Alignment.Center
+                    ) { Text("문자 없이 완료", color = TossTextSecondary, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+                    Box(
+                        Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(TossBlue)
+                            .clickable { onSend(customer.phoneNumber, name, msg, if (hasBal) "잔금 요청" else "후기 요청") }
+                            .padding(vertical = 13.dp),
+                        contentAlignment = Alignment.Center
+                    ) { Text("문자 보내기", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+                }
             }
         }
       } // end center Box

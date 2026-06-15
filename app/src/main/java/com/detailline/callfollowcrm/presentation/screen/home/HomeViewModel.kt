@@ -786,6 +786,23 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     /**
+     * 완료 + 잔금 완납 처리 — 완료 팝업에서 "잔금 다 받았어요" 선택 시. (2026-06-15 사장님)
+     *   balanceAmount 비어 있으면 (총액-계약금)으로 채우고 balancePaidAt=now → 고객상세 '잔금 받음' + 미수금에서 빠짐.
+     */
+    fun markJobCompletedBalancePaid(customerId: Long) = viewModelScope.launch {
+        runCatching {
+            val now = System.currentTimeMillis()
+            val c = container.customerRepository.findById(customerId)
+            container.customerRepository.updateWorkCompletedAt(customerId, now)
+            if (c != null) {
+                val bal = c.balanceAmount ?: ((c.totalAmount ?: 0L) - (c.depositAmount ?: 0L)).coerceAtLeast(0L)
+                if (c.balanceAmount == null && bal > 0L) container.customerRepository.updateBalanceAmount(customerId, bal)
+                container.customerRepository.updateBalancePaidAt(customerId, now)
+            }
+        }
+    }
+
+    /**
      * 미확인 카드 swipe → "광고/스팸" 으로 영구 마킹. 미확인 카테고리에서 제외.
      *   suffix 정규화는 ViewModel 안에서 — 호출자는 raw phone 만 넘김.
      *   Snackbar Undo 가 [unmarkSpam] 호출.
