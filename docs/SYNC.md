@@ -4762,3 +4762,11 @@ SYNC 추가30 그대로. 한 줄 변경 + 진단 로그 추가.
 - 추가: NotificationHelper.showSummaryReadyNotification (CHANNEL_FOLLOW_UP, ID offset 8M), CallAudioSummarizer notifyOnComplete 파라미터.
 - 참고: 부재중 자동문자 10초 카운트다운은 처음부터 안 지웠음(보존됨). 텍스트(txt) 요약 경로는 이 알림 미연동(audio 경로 우선) — 필요시 후속.
 - 변경: 앱 단독, 서버 영향 없음. 검증: 빌드 OK + 폰 설치 + 기동 크래시 없음. (알림 표시는 실제 통화→요약 완료 시 확인)
+
+## 2026-06-16 00:52 · android
+베타 배포용 릴리스 APK 빌드 — versionCode 1→2, versionName 0.1.0→0.1.1
+- 산출물: app/build/outputs/apk/release/app-release.apk (= shigongmagne.apk 로 복사본 생성). 서명 OK(v2, CN=RING-GO 릴리스 키 ringgo-release.jks).
+- 전송: Tailscale 폐기됨 → 사장님이 이 APK를 맥미니 ~/ringgo-server/apk/shigongmagne.apk 로 직접 복사(수동). 
+- cowork 확인 요청: si0in.kr/install 이 ~/ringgo-server/apk/shigongmagne.apk 를 그대로 서빙하는지(파일명·경로) 한 번 점검 부탁.
+- 주의: 이후 베타 빌드마다 versionCode 올려야 기존 설치 위 업데이트됨. 릴리스 키(ringgo-release.jks+keystore.properties) 분실 시 업데이트 영영 불가 — 백업 유지.
+- 변경 파일(git): app/build.gradle.kts (버전만). APK는 .gitignore(**/build/) 제외.
