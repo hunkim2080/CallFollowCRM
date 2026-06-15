@@ -42,6 +42,17 @@
   .a-amber .pt{color:#B97700} .a-pink .pt{color:var(--pink)} .a-teal .pt{color:var(--teal)}
   .t-blue{background:var(--blue)} .t-green{background:var(--green)} .t-purple{background:var(--purple)}
   .t-amber{background:var(--amber)} .t-pink{background:var(--pink)} .t-teal{background:var(--teal)} .t-gray{background:#8A93A0}
+  /* 검토 의견 */
+  .rv{background:#FFFBEF;border:1px solid #F4E6B8;border-radius:16px;padding:16px;margin-bottom:14px;}
+  .rv h3{font-size:14.5px;font-weight:800;margin:0 0 6px;color:#946200;}
+  .rv .ln{font-size:12.5px;color:var(--t2);margin:6px 0;line-height:1.65;}
+  .rv b{color:var(--t1);}
+  .pri{display:flex;gap:8px;font-size:12.5px;margin:4px 0;align-items:flex-start;}
+  .pri .d{flex:0 0 16px;font-size:13px;line-height:1.5;}
+  .rvitem{font-size:12.5px;color:var(--t2);margin:9px 0;line-height:1.65;padding-left:10px;border-left:3px solid #F0E0A8;}
+  .rvitem b{color:var(--t1);}
+  .keep{color:var(--green);font-weight:800;} .tweak{color:#B97700;font-weight:800;} .cut{color:var(--pink);font-weight:800;}
+  .quote{background:#fff;border-radius:8px;padding:2px 7px;border:1px solid var(--line);font-weight:700;color:var(--t1);}
 </style>
 </head>
 <body>
@@ -67,6 +78,58 @@
       ※ 화면 위 카드 권한이 <b>꺼져 있으면</b>, 카드 대신 <b>상단 푸시</b>로 대체돼서 떠요.
     </div>
   </header>
+
+  <!-- ===== 막내의 솔직 검토 & 개선안 ===== -->
+  <div class="rv">
+    <h3>💡 막내의 솔직 검토 &amp; 개선안</h3>
+    <div class="ln">원칙 하나: <b>알림은 적고 정확할수록 신뢰가 커져요.</b> 너무 자주 울리면 사장님이 알림을 꺼버리고, 그러면 정작 중요한 걸 놓쳐요. 그래서 “꼭 필요한가 / 지금 울리는 게 맞나”를 기준으로 봤어요.</div>
+
+    <div class="ln" style="margin-top:12px;"><b>우선순위 한눈에</b></div>
+    <div class="pri"><span class="d">🟢</span><span><b class="keep">꼭 필요 (그대로 두기):</b> 새 문자 · 접수서 회신 · 협업 요청 · 잔금 미수 · 통화 후 카드(받은 전화)</span></div>
+    <div class="pri"><span class="d">🟡</span><span><b class="tweak">유용하지만 조건 손질:</b> 부재중 자동문자 · 마감 브리핑 · D-1 · 팀원/협업 진행 · 현장 도착 5km</span></div>
+    <div class="pri"><span class="d">🔴</span><span><b class="cut">줄이거나 합치기:</b> “RING-GO 캐치!”(내가 건 전화에도 뜸) · 팀원 ‘출발’ 매번 · 같은 아침/저녁에 여러 개 따로 뜨는 것</span></div>
+
+    <div class="ln" style="margin-top:14px;"><b>항목별 — 왜 / 피로감 / 안 울려야 할 때 / 문구</b></div>
+
+    <div class="rvitem"><b>1. 통화 후 카드</b> <span class="keep">유지</span> · 핵심 기능. ⚠️ 단 <b>내가 건 발신 통화 중에 ‘고객도 아니고 문자 이력도 없는 번호’(자재상·가족·택배)엔 뜨지 않게</b> — 안 그러면 전화할 때마다 카드가 떠서 피로해요. 받은 전화·기존 고객에만.</div>
+
+    <div class="rvitem"><b>2. 부재중 자동문자</b> <span class="tweak">조건 손질</span> · 필요. ⚠️ <b>연락처에 저장된 비(非)고객(가족 등)·광고번호엔 자동발송 X.</b> (스팸 앞자리는 이미 차단 중) “자동으로 문자 나가는” 기능이라 더 보수적으로.</div>
+
+    <div class="rvitem"><b>3. “RING-GO 캐치!”</b> <span class="cut">문구·조건 둘 다</span> · 이름이 <b>뭘 하라는지 안 보여요.</b> 또 내가 건 발신 통화에도 떠서 피로. 문구 → <span class="quote">방금 통화 · 후속 문자 보낼까요?</span> 로, 그리고 <b>발신 통화엔 끄기</b>(고객일 때만).</div>
+
+    <div class="rvitem"><b>4. 조용한 재통화 알림</b> <span class="keep">유지</span> · 소리 없이 알림함에만 — 잘 설계됨. 그대로.</div>
+
+    <div class="rvitem"><b>5. 새 문자</b> <span class="tweak">조건 손질</span> · 핵심. ⚠️ <b>인증번호(OTP)·광고 발신번호(1500·웹발신 등)는 알림 X</b> → ‘진짜 고객 문자’만 울리게. (지금은 그런 것도 “새 문자”로 떠서 노이즈)</div>
+
+    <div class="rvitem"><b>6. 접수서 회신 도착</b> <span class="keep">유지</span> · 드물고 반가운 알림. 완벽. 그대로.</div>
+
+    <div class="rvitem"><b>7. 마감 브리핑(밤 9시)</b> <span class="tweak">설정 추가</span> · 유용. <b>시간 바꾸기 / 끄기</b>를 설정에 두면 좋아요. (아무 일 없는 날은 이미 안 옴 — 잘함)</div>
+
+    <div class="rvitem"><b>8. 정기문자(오전 9시)</b> <span class="keep">유지</span> · 보낼 게 있는 날만. 그대로.</div>
+
+    <div class="rvitem"><b>9. 잔금 미수(오전 10시)</b> <span class="tweak">묶기</span> · 필요. ⚠️ 여러 명이면 <b>하나로 묶어서</b> → <span class="quote">못 받은 잔금 3곳 · 합계 90만원</span> (지금은 고객마다 따로 → 아침에 여러 번 울림)</div>
+
+    <div class="rvitem"><b>10. 시공 전날 D-1(저녁)</b> <span class="tweak">묶기</span> · 유용. 여러 건이면 <b>묶어서</b>. 토글은 그대로.</div>
+
+    <div class="rvitem"><b>11. 팀원 출발/도착/완료</b> <span class="tweak">출발 선택</span> · 도착·완료는 중요. <b>‘출발’ 알림은 끌 수 있게</b>(선택). 팀원이 여럿이면 하루 알림이 너무 많아져요.</div>
+
+    <div class="rvitem"><b>12. 협업 진행(수락/출발/도착/완료)</b> <span class="tweak">출발 선택</span> · 수락·완료는 중요. 출발은 선택으로.</div>
+
+    <div class="rvitem"><b>13. 협업 요청</b> <span class="keep">유지</span> · 바로 행동(수락/거절)이 필요. 그대로.</div>
+
+    <div class="rvitem"><b>14. 현장 도착 5km 안내</b> <span class="cut">조건 중요</span> · ⚠️ <b>‘오늘 시공 예약된 고객’ 현장에만.</b> 과거 고객 동네를 지나갈 때 울리면 안 돼요(가장 피로한 케이스).</div>
+
+    <div class="rvitem"><b>15. 입금완료 / 협업 해제</b> <span class="keep">유지</span> · 의미 있는 사건. 그대로.</div>
+
+    <div class="ln" style="margin-top:14px;"><b>전체 개선 원칙 (요약)</b></div>
+    <div class="pri"><span class="d">①</span><span><b>종류별 ON/OFF</b> — 설정에서 “팀원 출발”, “마감 브리핑” 등을 따로 끌 수 있게.</span></div>
+    <div class="pri"><span class="d">②</span><span><b>묶음</b> — 같은 아침/저녁에 여러 건은 한 알림으로(잔금·D-1·팀원).</span></div>
+    <div class="pri"><span class="d">③</span><span><b>발신 통화 최소화</b> — 내가 건 전화엔 카드/푸시를 최대한 안 띄움(고객·이력 있을 때만).</span></div>
+    <div class="pri"><span class="d">④</span><span><b>노이즈 차단</b> — 인증번호·광고 문자, 비고객 번호엔 안 울림.</span></div>
+    <div class="pri"><span class="d">⑤</span><span><b>방해금지 시간</b> — 밤 늦게(예: 22시 이후)는 소리 없이(꼭 필요한 것 제외).</span></div>
+    <div class="pri"><span class="d">⑥</span><span><b>문구 톤 통일</b> — “~보낼까요?”처럼 <b>다음 행동을 묻는</b> 형태로.</span></div>
+    <div class="ln" style="margin-top:8px;color:var(--t3);">※ 이건 막내의 제안이에요. 사장님이 “이건 그대로 / 이건 바꿔” 정해주시면 그대로 반영할게요.</div>
+  </div>
 
   <!-- ===== 통화 끝나면 오는 그 알람 (사장님 질문) ===== -->
   <div class="sec">
