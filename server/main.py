@@ -2945,12 +2945,12 @@ setInterval(loadAll, 30 * 1000);  // 30초 자동 새로고침
 """
 
 
-@app.get("/admin", response_class=HTMLResponse)
+@app.get("/admin/usage-chart", response_class=HTMLResponse)
 async def admin_dashboard() -> HTMLResponse:
-    """사람이 보기 좋은 사용량 대시보드.
+    """사람이 보기 좋은 사용량 대시보드 (기존). 추가33 (2026-06-15) 이후 path 변경:
+    `/admin` 은 새 admin 홈 허브가 차지 → 이 페이지는 `/admin/usage-chart` 로.
 
     데이터는 /api/usage-stats 와 /admin/usage 의 JSON 을 fetch 해서 렌더.
-    Tailnet 안의 폰 브라우저에서도 잘 보이도록 mobile-first.
     """
     return HTMLResponse(content=_ADMIN_DASHBOARD_HTML)
 
@@ -6028,6 +6028,16 @@ _ADMIN_HOME_HTML = """<!doctype html>
         <div class="title">베타 인테이크 폼</div>
         <div class="desc">사장님이 직접 베타 설정 (HOU-128)</div>
         <div class="stats"><span>10 카테고리 설정</span></div>
+      </div>
+      <div class="arrow">›</div>
+    </a>
+
+    <a href="/admin/usage-chart" class="menu-card" style="text-decoration:none; color:inherit;">
+      <div class="icon green">📈</div>
+      <div class="body">
+        <div class="title">LLM 사용량 차트</div>
+        <div class="desc">prepare-reply / refine / call-summary 사용량 시계열</div>
+        <div class="stats"><span>일별 · 모델별 토큰·비용</span></div>
       </div>
       <div class="arrow">›</div>
     </a>
