@@ -75,7 +75,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
     /** 전문가 배정 협업 요청 시 출근시간 칩 기본 선택값(마지막 보낸 시간 기억). 시트 열 때 1회 읽음. */
     val lastCollabStartHour: Int get() = container.preferences.lastCollabStartHour
 
-    init { loadTeam(); loadCollab(); loadCollabAssignments(); reconcileCollabAssignments() }
+    init { loadTeam(); loadCollab(); loadCollabAssignments() }  // loadCollab() 안에서 reconcile(거절 정리)도 같이 돈다
 
     /**
      * 거절/종료/취소된 협업은 일정 뱃지("🤝 이름")에서 자동 제거(self-heal).
@@ -89,6 +89,9 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             val sites = container.sharedSiteRepository.byMe(owner).getOrNull() ?: return@launch
             val dead = sites.filter { it.status in DEAD_COLLAB_STATUS }.map { it.shareId }.toSet()
+            // 표시용 dead set 갱신 + 즉시 재필터 (prefs 정리와 무관하게 배지에서 바로 빠지게).
+            deadCollabShareIds = dead
+            loadCollabAssignments()
             if (dead.isEmpty()) return@launch
             val before = container.preferences.collabAssignments
             val after = before.filterNot { e ->
@@ -102,12 +105,19 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    /** 로컬 협업 배정 기록 로드 → customerId→배정들. ("customerId|phone|name" Set 파싱, 구버전 "id|name" 호환, 같은 번호 중복 제거) */
+    /** by-me 로 받은 거절/종료/취소된 협업 shareId — 표시 단계에서 "🤝 이름" 배지를 즉시 거른다.
+     *   (prefs 정리(reconcile)가 비동기로 못 따라가도, 캘린더/일정 카드엔 죽은 협업이 안 뜨게.) (2026-06-15 cowork 핸드오프) */
+    private var deadCollabShareIds: Set<String> = emptySet()
+
+    /** 로컬 협업 배정 기록 로드 → customerId→배정들. ("customerId|phone|name|shareId" Set 파싱, 구버전 "id|name" 호환, 같은 번호 중복 제거)
+     *   거절/종료된 shareId(deadCollabShareIds) 건은 표시에서 제외. */
     private fun loadCollabAssignments() {
         val map = HashMap<Long, MutableList<CollabAssign>>()
         for (e in container.preferences.collabAssignments) {
             val parts = e.split('|')
             val id = parts.getOrNull(0)?.toLongOrNull() ?: continue
+            val shareId = parts.getOrNull(3)?.trim().orEmpty()
+            if (shareId.isNotEmpty() && shareId in deadCollabShareIds) continue  // 거절/종료된 협업은 배지에서 제외
             val phone = if (parts.size >= 3) parts[1].filter { it.isDigit() } else ""
             val name = if (parts.size >= 3) parts[2] else parts.getOrNull(1).orEmpty()
             if (name.isBlank()) continue
@@ -140,6 +150,8 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
                 applyCollabFilter()
             }
         }
+        // 화면 진입(resume)마다 거절/종료된 협업 배지도 다시 정리 — 앱 켜둔 채 상대가 거절해도 다음 진입에 사라지게.
+        reconcileCollabAssignments()
     }
 
     /** 숨김 set 을 빼고 _collabSites/_collabDayStarts 갱신. loadCollab 결과 + hide/undo 양쪽이 공유. */
