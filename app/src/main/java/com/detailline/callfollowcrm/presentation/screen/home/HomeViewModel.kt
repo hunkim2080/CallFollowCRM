@@ -1019,6 +1019,10 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     private val _waitingReplies = MutableStateFlow<Map<String, String>>(emptyMap())
     val waitingReplies: StateFlow<Map<String, String>> = _waitingReplies
 
+    /** 새 버전 배너 — 하루 1회 체크 결과(서버 mtime_ms vs BUILD_TIMESTAMP). (2026-06-16) */
+    private val _updateAvailable = MutableStateFlow(false)
+    val updateAvailable: StateFlow<Boolean> = _updateAvailable
+
     /** 이미 fetch 시도한 suffix (중복 호출 방지). */
     private val fetchedReplySuffixes = java.util.Collections.synchronizedSet(HashSet<String>())
 
@@ -1043,6 +1047,17 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                     }
                 }
             }
+        }
+
+        // 새 버전 체크 — 하루 1회 throttle. 서버 mtime_ms > BUILD_TIMESTAMP(+여유) 면 배너 ON.
+        viewModelScope.launch {
+            val prefs = container.preferences
+            val now = System.currentTimeMillis()
+            if (now - prefs.lastUpdateCheckMs > 24L * 60 * 60 * 1000) {
+                prefs.lastUpdateCheckMs = now
+                prefs.updateAvailable = com.detailline.callfollowcrm.util.UpdateChecker.isNewerAvailable()
+            }
+            _updateAvailable.value = prefs.updateAvailable
         }
     }
 

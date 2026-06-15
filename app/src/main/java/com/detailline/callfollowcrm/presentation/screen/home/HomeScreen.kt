@@ -209,6 +209,7 @@ fun HomeScreen(
     val estimateFollowupDismissed by viewModel.estimateFollowupDismissed.collectAsState()
     val recurringDueDismissed by viewModel.recurringDueDismissed.collectAsState()
     val isInitialSmsLoading by viewModel.isInitialSmsLoading.collectAsState()
+    val updateAvailable by viewModel.updateAvailable.collectAsState()
 
     // 서버 상태 indicator — AppContainer 의 ServerHealthMonitor 를 직접 구독.
     // 30초마다 GET /health 호출 → 결과 반영. 사장님만 알아볼 작은 동그라미. tap = Toast 안내.
@@ -332,6 +333,31 @@ fun HomeScreen(
                 .fillMaxSize()
                 .background(TossGrayBg)
         ) {
+            // 새 버전 배너 (2026-06-16 사장님) — 서버 mtime_ms > BUILD_TIMESTAMP 면 "받기"→브라우저 si0in.kr/install.
+            if (updateAvailable) {
+                Row(
+                    Modifier.fillMaxWidth().background(TossBlue).padding(horizontal = 16.dp, vertical = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("✨ 새 버전이 나왔어요!", color = Color.White, fontWeight = FontWeight.Bold,
+                        fontSize = 13.5.sp, modifier = Modifier.weight(1f))
+                    Box(
+                        Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White)
+                            .clickable {
+                                runCatching {
+                                    context.startActivity(
+                                        android.content.Intent(
+                                            android.content.Intent.ACTION_VIEW,
+                                            android.net.Uri.parse("https://si0in.kr/install")
+                                        ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    )
+                                }
+                            }
+                            .padding(horizontal = 14.dp, vertical = 6.dp)
+                    ) { Text("받기", color = TossBlue, fontWeight = FontWeight.ExtraBold, fontSize = 12.5.sp) }
+                }
+            }
+
             // 2026-05-28 사장님 통점 fix: 앱 첫 진입 시 SMS 풀스캔 (10000건) 가 수 초 걸려
             //   "처음엔 옛 통화만, 잠시 후 SMS 카드 스르륵 추가" 깜빡임 인지.
             //   해결: 첫 풀스캔 emit 전까지 얇은 LinearProgressIndicator 표시. 풀스캔 끝나면 사라짐.

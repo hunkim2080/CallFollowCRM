@@ -1,4 +1,7 @@
 import java.util.Properties
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 plugins {
     id("com.android.application")
@@ -15,6 +18,16 @@ if (keystorePropsFile.exists()) {
     keystorePropsFile.inputStream().use { keystoreProps.load(it) }
 }
 
+// 자동 버전 (2026-06-16 사장님) — 매번 수동으로 안 올려도 되게.
+//   versionCode = git 커밋 수(커밋마다 +1, 단조 증가). versionName = beta-{빌드시각}.
+//   BUILD_TIMESTAMP = 빌드 mtime(ms) → 앱이 서버 /api/download/version 의 mtime_ms 와 비교해 새 버전 감지.
+val buildTimeMs = System.currentTimeMillis()
+fun gitCommitCount(): Int = try {
+    ProcessBuilder("git", "rev-list", "--count", "HEAD")
+        .redirectErrorStream(true).start()
+        .inputStream.bufferedReader().use { it.readText() }.trim().toIntOrNull() ?: 1
+} catch (e: Exception) { 1 }
+
 android {
     namespace = "com.detailline.callfollowcrm"
     compileSdk = 34
@@ -23,8 +36,9 @@ android {
         applicationId = "com.detailline.callfollowcrm"
         minSdk = 26
         targetSdk = 34
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = gitCommitCount()
+        versionName = "beta-" + SimpleDateFormat("yyMMdd-HHmm", Locale.US).format(Date(buildTimeMs))
+        buildConfigField("long", "BUILD_TIMESTAMP", "${buildTimeMs}L")
         vectorDrawables { useSupportLibrary = true }
     }
 
@@ -55,7 +69,7 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
 
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.10" }
 
     packaging {

@@ -4790,3 +4790,10 @@ SYNC 추가30 그대로. 한 줄 변경 + 진단 로그 추가.
 - ①: 다른 사장님도 쓰므로 기본값에서 "디테일라인" 제거. 자동문자 3종(AppPreferences)·기본 템플릿 5종(DefaultTemplates)·정기문자 기본값·견적문구 fallback(ChatScreen)·견적서 fallback(QuoteDoc)·설정 푸터·온보딩 데모/placeholder·스타일학습 예시. 출력은 상호 없이 중립 문구, 빈 상호 fallback="상호 미설정". 코드 주석 1곳만 잔존(비노출).
 - ②: 채팅 사진 탭 → 풀스크린 한 번에 온 사진 전부 좌우 스와이프(HorizontalPager) + 핀치 줌(1~5배)/더블탭 줌/단일탭 닫기. 1배에선 스와이프, 줌 상태/핀치에서만 제스처 소비해 충돌 방지(awaitEachGesture). 페이지 인디케이터(N/M). fullscreenImageUri(단일)→fullscreenImages(리스트)+start index.
 - 변경: 앱 단독, 서버 영향 없음. 빌드 OK.
+
+## 2026-06-16 07:45 · android
+③ build.gradle 자동 버전 ④ 새 버전 배너(앱 내 업데이트 알림)
+- ③: versionCode = `git rev-list --count HEAD`(커밋마다 +1, 지금 572), versionName = "beta-{빌드시각}"(예 beta-260616-0738). 수동 bump 끝. buildConfig=true + BuildConfig.BUILD_TIMESTAMP(빌드 mtime ms) 추가.
+- ④: 홈 진입 시 하루 1회 GET https://si0in.kr/api/download/version → mtime_ms 가 BUILD_TIMESTAMP+10분 보다 새로우면 홈 상단 파란 배너 "✨ 새 버전이 나왔어요! [받기]" → 외부 브라우저 https://si0in.kr/install. throttle/결과는 AppPreferences(lastUpdateCheckMs·updateAvailable). UpdateChecker(util, OkHttp). 실패=조용히 무배너.
+- **cowork 확인 요청**: GET /api/download/version 응답에 `mtime_ms`(서버 shigongmagne.apk 파일 수정시각, epoch ms) 필드 필요. 없으면 배너 영영 안 뜸. (mtime 10분 여유 = 업로드 지연 자기오탐 방지.)
+- 검증: 빌드 OK(versionCode 572 확인), 폰 설치, 홈 진입 무크래시 + 체크 정상(이 빌드 최신이라 배너 안 뜸=정상). 사진 갤러리 스와이프 1/2→2/2 실기 확인.

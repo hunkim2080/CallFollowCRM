@@ -92,6 +92,15 @@ class AppPreferences(context: Context) {
             "고객님, 30분 뒤 도착 예정입니다 😊 잠시 후 뵐게요!") ?: ""
         set(value) = prefs.edit().putString("arrival_auto_text", value).apply()
 
+    /** 새 버전 체크 마지막 시각(ms) — 하루 1회 throttle. (2026-06-16) */
+    var lastUpdateCheckMs: Long
+        get() = prefs.getLong("last_update_check_ms", 0L)
+        set(value) = prefs.edit().putLong("last_update_check_ms", value).apply()
+    /** 마지막 체크에서 새 버전 감지 여부 — 다음 체크 전까지 배너 유지용. */
+    var updateAvailable: Boolean
+        get() = prefs.getBoolean("update_available", false)
+        set(value) = prefs.edit().putBoolean("update_available", value).apply()
+
     /**
      * 후속 처리 알림 (두 번째 통화부터)의 빠른 액션 버튼 3개에 표시할 템플릿 ID.
      * -1L = 해당 슬롯 사용 안 함 (그 자리 액션 버튼이 안 뜸).
