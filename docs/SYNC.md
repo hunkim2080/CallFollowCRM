@@ -4779,3 +4779,8 @@ SYNC 추가30 그대로. 한 줄 변경 + 진단 로그 추가.
 - 매칭: recording_attachments 를 번호 suffix로 관찰 → 통화 1건↔녹음 1건 1:1(callRecordId 먼저, 없으면 fileName 시각 ±10분). 부재중/녹음없는 통화엔 안 뜸.
 - 변경: RecordingAttachmentDao.observeByPhoneSuffix, RecordingRepository, ChatViewModel.recordings, ChatScreen(recordingFor 맵 + CallRecordingPlayer). 앱 단독, 서버 영향 없음. DB 스키마 변경 없음(SELECT만).
 - 검증: 빌드 OK + 폰 설치 + 채팅 딥링크로 통화카드 진입 → 플레이어 렌더 확인(스크린샷), 크래시 없음. 실제 재생음은 사장님 ▶ 확인 필요(오디오).
+
+## 2026-06-16 07:20 · android
+통화 녹음 플레이어 — ±5초 점프 제거, 1.5배속 빨리듣기 토글로 교체 (사장님: 통화는 빨리듣기가 더 유용)
+- 변경: 플레이어 2번째 줄을 [⟲5초][배속][5초⟳] → 단일 토글 "⚡ 1.5배속으로 빨리 듣기"(켜면 강조). 1.0↔1.5 토글. skip 함수 제거.
+- 앱 단독. 빌드+설치+무크래시 확인. 토글 렌더는 사장님 폰에서 확인(긴 채팅 adb 캡처 어려움).

@@ -1566,14 +1566,8 @@ private fun CallRecordingPlayer(audioUri: String, durationHintMs: Long? = null) 
             }
         }
     }
-    fun skip(deltaMs: Int) {
-        val p = player ?: return
-        if (!prepared) return
-        val target = (positionMs + deltaMs).coerceIn(0, durationMs.coerceAtLeast(0))
-        runCatching { p.seekTo(target) }; positionMs = target
-    }
-    fun cycleSpeed() {
-        speed = when (speed) { 1.0f -> 1.5f; 1.5f -> 2.0f; else -> 1.0f }
+    fun setFast(on: Boolean) {
+        speed = if (on) 1.5f else 1.0f
         val p = player
         if (p != null && p.isPlaying) applySpeed(p)
     }
@@ -1626,17 +1620,26 @@ private fun CallRecordingPlayer(audioUri: String, durationHintMs: Long? = null) 
                 Text("${playerClock(shownPos)} / ${playerClock(durationMs)}",
                     fontSize = 11.sp, color = TossTextTertiary, fontWeight = FontWeight.Bold)
             }
+            // 5초 점프 대신 1.5배속 빨리듣기 토글 (2026-06-16 사장님: 통화는 빨리듣기가 더 유용).
+            val fast = speed >= 1.5f
             Row(
-                Modifier.fillMaxWidth().padding(top = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally),
+                Modifier.fillMaxWidth().padding(top = 6.dp),
+                horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("⟲ 5초", fontSize = 12.sp, color = Color(0xFF0A7D72), fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { skip(-5000) }.padding(horizontal = 8.dp, vertical = 4.dp))
-                Text(playerSpeedLabel(speed), fontSize = 12.sp, color = Color(0xFF0A7D72), fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { cycleSpeed() }.padding(horizontal = 8.dp, vertical = 4.dp))
-                Text("5초 ⟳", fontSize = 12.sp, color = Color(0xFF0A7D72), fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { skip(5000) }.padding(horizontal = 8.dp, vertical = 4.dp))
+                Box(
+                    Modifier.clip(RoundedCornerShape(999.dp))
+                        .background(if (fast) Color(0xFF0E9E90) else Color(0xFFEAF4F1))
+                        .clickable { setFast(!fast) }
+                        .padding(horizontal = 16.dp, vertical = 7.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        if (fast) "⚡ 1.5배속으로 빨리 듣는 중" else "⚡ 1.5배속으로 빨리 듣기",
+                        fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold,
+                        color = if (fast) Color.White else Color(0xFF0A7D72)
+                    )
+                }
             }
         }
     }
@@ -1646,7 +1649,6 @@ private fun playerClock(ms: Int): String {
     val s = (ms / 1000).coerceAtLeast(0)
     return "${s / 60}:${(s % 60).toString().padStart(2, '0')}"
 }
-private fun playerSpeedLabel(s: Float): String = when (s) { 1.0f -> "1.0x"; 1.5f -> "1.5x"; else -> "2.0x" }
 
 /**
  * 채팅 안 시공접수서 제출 이벤트 카드 (2026-06-05) — 고객이 접수서를 작성 완료한 사실을 타임라인에 표시.
