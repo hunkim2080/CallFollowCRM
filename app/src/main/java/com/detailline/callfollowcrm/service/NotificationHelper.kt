@@ -698,6 +698,49 @@ object NotificationHelper {
         } catch (_: SecurityException) { /* POST_NOTIFICATIONS 없음 — 무시 */ }
     }
 
+    /**
+     * 통화 요약이 준비되면 잠깐 떴다 사라지는 알림 (2026-06-16 사장님).
+     *   "고객과의 통화 내용을 요약했어요!" 톤 — 앱 들어가서 확인하란 식. setTimeoutAfter 로 잠깐 뒤 자동 소멸.
+     *   통화 끝 후속 카드/"RING-GO 캐치!" 알림(제거됨) 대신, 요약이 진짜 다 됐을 때만 가볍게 알림. 탭 → 그 번호 채팅방.
+     *   자동 통화요약(통화 끝→워커) 경로에서만 호출 — 수동 "이 통화 요약하기"/백필엔 안 뜸.
+     */
+    fun showSummaryReadyNotification(
+        context: Context,
+        phoneNumber: String,
+        displayName: String? = null,
+        callRecordId: Long? = null
+    ) {
+        val notifId = (callRecordId?.toInt()?.and(0x7FFFFFFF) ?: 0) + SUMMARY_READY_ID_OFFSET
+        val intent = Intent(context, MainActivity::class.java).apply {
+            action = MainActivity.ACTION_CHAT
+            putExtra(MainActivity.EXTRA_PHONE_NUMBER, phoneNumber)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pending = PendingIntent.getActivity(
+            context, notifId, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val who = displayName?.takeIf { it.isNotBlank() }?.let { "${it}님" } ?: "고객"
+        val title = "✨ ${who}과의 통화 내용을 요약했어요"
+        val text = "탭하면 바로 확인할 수 있어요"
+        val builder = NotificationCompat.Builder(context, CHANNEL_FOLLOW_UP)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setColor(NOTIFICATION_BG_COLOR)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setAutoCancel(true)
+            .setTimeoutAfter(4000L)   // 잠깐(약 4초) 떴다 자동으로 사라짐
+            .setContentIntent(pending)
+        try {
+            NotificationManagerCompat.from(context).notify(notifId, builder.build())
+        } catch (_: SecurityException) { /* POST_NOTIFICATIONS 없음 — 무시 */ }
+    }
+
+    /** 요약 완료 알림 ID offset — 다른 알림(AUTO_REPLY 5M / QUIET 7M)과 분리. */
+    private const val SUMMARY_READY_ID_OFFSET = 8_000_000
+
     /** quiet 알림 ID 와 일반 후속 ID 충돌 방지 offset (AUTO_REPLY_ID_OFFSET 와도 분리). */
     private const val QUIET_ID_OFFSET = 7_000_000
 

@@ -201,7 +201,7 @@ object AdotFolderScanner {
             if (container.callSummaryRepository.findExistingNear(parsed.phoneNumber, parsed.recordedAt) != null) continue
             // 서버 받아쓰기+요약 (비대화형: 묻지 않음).
             val ok = runCatching {
-                CallAudioSummarizer.summarizeAndSave(appCtx, container, uriStr, name, interactive = false)
+                CallAudioSummarizer.summarizeAndSave(appCtx, container, uriStr, name, interactive = false, notifyOnComplete = true)
             }.getOrDefault(false)
             if (ok) summarized++
         }

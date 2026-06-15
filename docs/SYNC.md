@@ -4754,3 +4754,11 @@ SYNC 추가30 그대로. 한 줄 변경 + 진단 로그 추가.
 - 제거: CallStateReceiver 트리거(answered→오버레이, first→오버레이/캐치알림, 발신/거절→캐치알림) / NotificationHelper.showCallEndedNotification / PostCallCard.kt·PostCallOverlay.kt 파일 삭제 / 온보딩 "다른 앱 위에 표시" 권한 카드 / 설정 시작체크 "다른 앱 위에 표시" 단계 / AndroidManifest SYSTEM_ALERT_WINDOW 권한.
 - 검증: 빌드 OK + 폰 설치 + 일정/더보기 탭 진입 크래시 없음(NAVTAB 확인).
 - 잔여 죽은코드(비노출, 차후 정리 가능): SettingsScreen.AfterCallCard 컴포저블 + AfterCallBehavior enum + quickActionTemplate prefs — 원래 렌더 안 되던 것.
+
+## 2026-06-16 00:45 · android
+통화 요약 완료 시 "잠깐 떴다 사라지는" 알림 추가 (사장님 아이디어 — 제거한 카드 대체)
+- 동작: 통화 끝 → 자동요약 워커가 요약 완료하면(수십 초 뒤) "✨ OOO님과의 통화 내용을 요약했어요 / 탭하면 바로 확인" 헤드업 알림이 약 4초 떴다 자동 소멸(setTimeoutAfter). 탭 → 그 번호 채팅방.
+- 범위: **자동 통화요약 경로(scanAndSummarizeNow→summarizeAndSave notifyOnComplete=true)에서만**. 수동 "이 통화 요약하기"(summarizeCallNow)·고객상세 백필(scanByPhone)·이미 요약된 통화엔 안 뜸(재과금/중복 방지 기존 로직 그대로).
+- 추가: NotificationHelper.showSummaryReadyNotification (CHANNEL_FOLLOW_UP, ID offset 8M), CallAudioSummarizer notifyOnComplete 파라미터.
+- 참고: 부재중 자동문자 10초 카운트다운은 처음부터 안 지웠음(보존됨). 텍스트(txt) 요약 경로는 이 알림 미연동(audio 경로 우선) — 필요시 후속.
+- 변경: 앱 단독, 서버 영향 없음. 검증: 빌드 OK + 폰 설치 + 기동 크래시 없음. (알림 표시는 실제 통화→요약 완료 시 확인)

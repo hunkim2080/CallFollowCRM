@@ -6,6 +6,7 @@ import android.util.Log
 import com.detailline.callfollowcrm.data.AppContainer
 import com.detailline.callfollowcrm.data.local.entity.CallSummaryEntity
 import com.detailline.callfollowcrm.domain.model.SummarySourceType
+import com.detailline.callfollowcrm.service.NotificationHelper
 import kotlinx.coroutines.flow.first
 
 /**
@@ -34,7 +35,8 @@ object CallAudioSummarizer {
         container: AppContainer,
         audioUri: String,
         fileName: String,
-        interactive: Boolean = true
+        interactive: Boolean = true,
+        notifyOnComplete: Boolean = false
     ): Boolean {
         val parsed = AdotFilenameParser.parse(fileName) ?: return false
         val phone = parsed.phoneNumber
@@ -149,7 +151,16 @@ object CallAudioSummarizer {
                     ).getOrNull()?.let { save(it) }
                 }
             }
-            Log.d(TAG, "saved audio summary: $phone @ $recordedAt cached=${res.cached} force=$forceRefresh")
+            // 자동 통화요약(통화 끝→워커)일 때만 "요약했어요" 알림 — 잠깐 떴다 사라짐, 탭→통화방.
+            if (notifyOnComplete) {
+                NotificationHelper.showSummaryReadyNotification(
+                    context = context,
+                    phoneNumber = phone,
+                    displayName = customer?.name,
+                    callRecordId = linkedCallRecordId
+                )
+            }
+            Log.d(TAG, "saved audio summary: $phone @ $recordedAt cached=${res.cached} force=$forceRefresh notify=$notifyOnComplete")
             return true
         } finally {
             CallSummaryProgress.end(phone, recordedAt)
