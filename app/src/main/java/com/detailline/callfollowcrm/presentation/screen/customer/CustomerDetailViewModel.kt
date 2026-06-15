@@ -336,6 +336,13 @@ class CustomerDetailViewModel(
         withContext(NonCancellable) {
             container.customerRepository.updateScheduledWorkDate(customerId, normalized)
             markTodayCallsAsHandled()
+            // 예약(일정) 취소 시 = 그 현장의 전문가 배정(팀원 + 협업 요청)도 전부 정리. 일정 없는데 배정만 남으면 안 됨. (2026-06-15 사장님)
+            if (normalized == null) {
+                container.teamAssignmentRepository.deleteForCustomer(customerId)
+                val before = container.preferences.collabAssignments
+                val after = before.filterNot { it.split('|').getOrNull(0)?.toLongOrNull() == customerId }.toSet()
+                if (after.size != before.size) container.preferences.collabAssignments = after
+            }
             // 날짜 등록(계약) = "시공 대기" 자동 분류. 날짜 해제 시 자격 재평가. (2026-06-07 카테고리 규칙)
             container.autoCategoryClassifier.reclassify(customerId)
         }

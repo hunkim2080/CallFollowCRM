@@ -15,6 +15,9 @@ class TeamAssignmentRepository(private val dao: TeamAssignmentDao) {
 
     suspend fun forMember(memberId: String): List<TeamAssignmentEntity> = dao.forMember(memberId)
 
+    /** 한 고객(현장)의 팀원 배정을 전부 삭제. 예약(일정) 취소 시 호출 — 배정도 같이 사라져야. (2026-06-15 사장님) */
+    suspend fun deleteForCustomer(customerId: Long) = dao.deleteForCustomer(customerId)
+
     /** 한 고객(현장)의 팀원 배정을 통째로 교체. teamMemo = 직원 전달 메모(현장당 1개 → 모든 행에 동일). */
     suspend fun replaceForCustomer(
         customerId: Long,

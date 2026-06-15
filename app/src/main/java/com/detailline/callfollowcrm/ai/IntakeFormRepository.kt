@@ -153,6 +153,9 @@ class IntakeFormRepository(
         val confirmedDateIso: String?,
         val workYear: Int, val workMonth: Int, val workDay: Int, val workDays: Int,
         val total: Int,
+        /** 계약금 — depositMode: none|ratio|fixed, depositValue: %(ratio) 또는 만원(fixed). 프로토 depVal 그대로. */
+        val depositMode: String,
+        val depositValue: Int,
         val source: String?
     )
 
@@ -185,6 +188,8 @@ class IntakeFormRepository(
                             workYear = itObj.optInt("workYear"), workMonth = itObj.optInt("workMonth"),
                             workDay = itObj.optInt("workDay"), workDays = itObj.optInt("workDays", 1),
                             total = itObj.optInt("total"),
+                            depositMode = itObj.optString("depositMode").takeIf { s -> s.isNotBlank() && s != "null" } ?: "none",
+                            depositValue = itObj.optInt("depositValue"),
                             source = survey.str("source")
                         )
                     }
