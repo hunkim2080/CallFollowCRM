@@ -273,8 +273,26 @@
 <!-- ─── Topbar ─── -->
 <div class="topbar">
   <div class="logo"><span class="dot"></span>시공막내</div>
-  <div class="live"><span class="ld"></span>지금 베타 모집 중</div>
+  <div class="topbar-right">
+    <div class="live"><span class="ld"></span>지금 베타 모집 중</div>
+    <a href="/install" class="topbar-install">📲 앱 설치</a>
+  </div>
 </div>
+<style>
+  .topbar-right { display:flex; align-items:center; gap:8px; margin-left:auto; }
+  .topbar-install {
+    font-size:12.5px; font-weight:800; color:var(--blue-dark);
+    background:var(--blue-tint); padding:7px 12px; border-radius:999px;
+    display:inline-flex; align-items:center; gap:4px; white-space:nowrap;
+    transition:background .15s, transform .1s;
+  }
+  .topbar-install:hover { background:#DDE9FB; }
+  .topbar-install:active { transform:scale(0.97); }
+  /* 좁은 모바일에서는 "모집 중" 숨김 — 핵심 install 만 보존 */
+  @media (max-width:380px) {
+    .topbar-right .live { display:none; }
+  }
+</style>
 
 <!-- ─── Hero ─── -->
 <header class="hero">
