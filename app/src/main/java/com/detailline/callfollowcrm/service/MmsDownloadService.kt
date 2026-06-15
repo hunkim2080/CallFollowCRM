@@ -90,8 +90,7 @@ class MmsDownloadService : MmsReceivedService() {
                 displayName = customerForNotif?.name,
                 body = displayBody,
                 receivedAtMs = receivedAtMs,
-                categoryLabel = categoryLabel,
-                suggestions = null
+                categoryLabel = categoryLabel
             )
         }
 

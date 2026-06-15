@@ -566,9 +566,7 @@ object NotificationHelper {
         displayName: String?,
         body: String,
         receivedAtMs: Long,
-        categoryLabel: String? = null,
-        /** AI 추천 답변 — null 이면 칩 X. 준비되면 같은 알림 ID 로 update 호출. */
-        suggestions: List<String>? = null
+        categoryLabel: String? = null
     ) {
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
 
@@ -617,47 +615,14 @@ object NotificationHelper {
             .setShowsUserInterface(false)
             .build()
 
-        // BigText = 받은 메시지 + AI 추천 답변 전체 (액션 라벨이 짧아 잘려서, 본문에서 풀로 노출).
-        //   2026-05-26 사장님 보고 fix:
-        //     - 액션 라벨 "✨ 신축 욕..." 처럼 짤려서 어떤 답변인지 모름
-        //     - BigText 안에 답변 전체 + 번호 → 사장님이 펼쳐서 읽고 → 짧은 액션 "✨ 1번 보내기" 한 탭
-        //   suggestions == null  → 첫 알림, polling 시작 전 ("준비 중..." 진행감)
-        //   suggestions == []    → polling 끝났는데 응답 없음 ("서버 응답 없음 — 직접 답장")
-        //   suggestions == [...] → 정상 답변 표시
-        val bigText = buildString {
-            append(body)
-            when {
-                suggestions == null -> {
-                    append("\n\n✨ AI 추천 답변 준비 중...")
-                }
-                suggestions.isEmpty() -> {
-                    // 2026-05-28 사장님 보고 fix: 2분째 "준비 중..." 멈춤 차단.
-                    //   서버 다운 / 인터넷 끊김 가능성. 사장님이 [💬 직접 답장] 으로 즉시 답할 수 있게.
-                    append("\n\n🔌 AI 서버 응답 없음 — 직접 답장하거나 RING-GO 에서 확인하세요")
-                }
-                else -> {
-                    // 2026-05-26 사장님 보고 fix:
-                    //   - 안내 문구 "(아래 ✨ 버튼 = 즉시 발송)" 제거 — 액션 라벨로 충분.
-                    //   - 각 답변 사이 빈 줄 (\n\n) 추가 → 1·2·3 경계 명확.
-                    append("\n\n✨ AI 추천 답변")
-                    suggestions.take(3).forEachIndexed { idx, sug ->
-                        val num = listOf("1️⃣", "2️⃣", "3️⃣")[idx]
-                        append("\n\n$num $sug")
-                    }
-                }
-            }
-        }
+        // 알림은 '받은 메시지'만 깔끔하게. AI 추천 답변은 알림에 안 넣고 탭해서 들어간 문자방에서 본다.
+        //   (2026-06-15 사장님: 알림창엔 추천이 안 보이는 게 더 깔끔. 수신 즉시 카톡처럼 헤드업.)
+        val bigText = body
 
         val builder = NotificationCompat.Builder(context, CHANNEL_INCOMING_SMS)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
-            .setContentText(
-                when {
-                    suggestions == null -> body.take(60)
-                    suggestions.isEmpty() -> "AI 답변이 늦어요 · 직접 답장할까요?"
-                    else -> body.take(60)
-                }
-            )
+            .setContentText(body.take(60))
             .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
             .setColor(NOTIFICATION_BG_COLOR)
             .setColorized(true)
@@ -665,42 +630,12 @@ object NotificationHelper {
             .setShowWhen(true)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setContentIntent(openPending)
-            // 같은 알림 id 의 후속 update (AI 추천 채워질 때) 가 소리/진동 두 번 울리지 않게.
-            //   첫 알림만 사장님께 알리고, AI 추천은 조용히 보강.
-            .setOnlyAlertOnce(true)
+            // 카톡처럼 즉시 헤드업 — 채널이 IMPORTANCE_HIGH 라도 priority 명시로 더 일관되게.
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
 
-        // 액션 우선순위: AI 추천 (한 탭 발송) → 직접 답장 (RemoteInput).
-        //   전화는 본체 탭 → ChatScreen 에서 가능 (알림 슬롯 낭비 X).
-        //   Android 알림 액션 최대 3개 — 추천 3개면 답장 빠짐, 추천 2개면 답장 포함.
-        val notifId = smsNotificationId(phone)
-        val sugList = suggestions?.take(3).orEmpty()
-        sugList.forEachIndexed { idx, sug ->
-            val sendIntent = Intent(context, SmsReplyReceiver::class.java).apply {
-                action = SmsReplyReceiver.ACTION_SEND_SUGGESTION
-                putExtra(SmsReplyReceiver.EXTRA_PHONE, phone)
-                putExtra(SmsReplyReceiver.EXTRA_SUGGESTION_BODY, sug)
-            }
-            val sendPending = PendingIntent.getBroadcast(
-                context,
-                // 같은 알림 안에서 칩별로 unique requestCode.
-                notifId * 10 + idx + 1,
-                sendIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            // 2026-06-09 사장님 요청: 카톡/메시지 알림처럼 추천 답변 버튼 자체에 짧은 문구 노출.
-            // 전체 문장은 BigText 에 보이고, 버튼은 시스템 폭 제한에 맞춰 짧게 줄인다.
-            val label = shortActionLabel(sug)
-            builder.addAction(
-                NotificationCompat.Action.Builder(R.drawable.ic_notification, label, sendPending)
-                    .setShowsUserInterface(false)
-                    .build()
-            )
-        }
-        // 액션 슬롯 남으면 직접 답장 추가. (추천 3개면 빠짐 — 본체 탭으로 직접 타이핑 유도.)
-        if (sugList.size < 3) {
-            builder.addAction(replyAction)
-        }
+        // 알림엔 추천 칩 없음(깔끔). 빠른 답장(RemoteInput) 하나만 — 추천은 탭해서 문자방에서.
+        builder.addAction(replyAction)
 
         runCatching {
             NotificationManagerCompat.from(context)

@@ -31,87 +31,7 @@ class SmsReceiver : BroadcastReceiver() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    /**
-     * 알림 표시 후 서버 추천 답변 polling — 2.5초 간격 12번 (최대 30초).
-     * READY 면 같은 알림 ID 로 update (suggestions 칩 3개 박힘).
-     * 그 안에 안 오면 silent give up (사장님이 ChatScreen 에서 ↻ 가능).
-     *   2026-06-03: 서버 LLM 이 실제 ~20초 걸려 기존 7.5초 폴링은 거의 항상 실패였음(실기기 확인).
-     *   broadcast 는 이미 pending.finish() 됐으므로 이 polling 은 ANR 무관(Application scope).
-     */
-    private suspend fun pollAndUpdateSuggestions(
-        context: Context,
-        container: com.detailline.callfollowcrm.data.AppContainer,
-        phone: String,
-        displayName: String?,
-        body: String,
-        receivedAtMs: Long,
-        categoryLabel: String?
-    ) {
-        // 2.5초 × 12 = 30초. broadcast 종료 후 Application scope 에서 도므로 ANR 무관.
-        //   더 견고하게(프로세스 kill 대비) 하려면 ForegroundService/WorkManager 로 분리 (다음 step).
-        //
-        // 2026-05-28 사장님 보고 fix:
-        //   기존 = READY + isNotEmpty 면 첫 hit 으로 update → LLM 이 점진 생성하면 2개만 받기도.
-        //   사장님 통점 = "3번이 안 보임". 알림에 2개, ChatScreen 들어가면 3개.
-        //   새 정책: size >= 3 일 때만 update. 단 마지막 시도엔 부분이라도 update (답변 없음 알림 방지).
-        // 2026-05-28 v2: suggestions = List<ReplyChoice> → 알림 본문엔 text 만 추출해서 전달.
-        //   NotificationHelper 시그니처 (List<String>?) 는 그대로 — BigText/액션엔 라벨 없이 답변 본문만.
-        //   알림에는 chip UI 가 없으므로 ChatScreen 처럼 라벨 노출은 불필요.
-        var lastPartialSugs: List<String> = emptyList()
-        // 2026-06-03 fix(사장님 "추천 1% 성공"): 폴링이 7.5초에 포기 → 서버 LLM(Sonnet)이 실제 ~20초
-        //   걸려 아직 GENERATING 이라 거의 매번 실패(실기기 logcat 확인). broadcast 는 이미
-        //   pending.finish() 로 끝났으므로 여기서 더 기다려도 ANR 없음. 30초(2.5s×12)로 확장.
-        repeat(12) { _ ->
-            kotlinx.coroutines.delay(2500L)
-            val result = runCatching {
-                container.suggestionRepository.fetch(phone).getOrNull()
-            }.getOrNull()
-            if (result?.status == com.detailline.callfollowcrm.ai.SuggestionStatus.READY) {
-                val sugs = result.suggestions?.suggestions.orEmpty().map { it.text }
-                if (sugs.size >= 3) {
-                    // 3개 다 받음 — 즉시 update + 종료.
-                    NotificationHelper.showIncomingSms(
-                        context = context,
-                        phone = phone,
-                        displayName = displayName,
-                        body = body,
-                        receivedAtMs = receivedAtMs,
-                        categoryLabel = categoryLabel,
-                        suggestions = sugs
-                    )
-                    return
-                }
-                // 2개 이하 — 더 기다림. 마지막 attempt 면 부분이라도 보냄 (아래 처리).
-                if (sugs.isNotEmpty()) lastPartialSugs = sugs
-            }
-        }
-        // 2026-05-28 사장님 보고 fix: polling 끝났는데 응답 없으면 알림이 "준비 중..." 영원히 멈춤.
-        //   서버 다운 / 인터넷 끊김 가능성. 사장님이 ChatScreen 안 들어가면 영영 모름.
-        //   해결: 부분이라도 있으면 update / 없으면 "서버 응답 없음" 상태로 update → "준비 중..." 정리.
-        if (lastPartialSugs.isNotEmpty()) {
-            NotificationHelper.showIncomingSms(
-                context = context,
-                phone = phone,
-                displayName = displayName,
-                body = body,
-                receivedAtMs = receivedAtMs,
-                categoryLabel = categoryLabel,
-                suggestions = lastPartialSugs
-            )
-        } else {
-            // 빈 list 전달 → NotificationHelper 가 "서버 응답 없음 — 직접 답장" 분기로 처리.
-            //   "준비 중..." placeholder 잔존 차단 + 사장님이 [💬 직접 답장] 으로 즉시 답 가능.
-            NotificationHelper.showIncomingSms(
-                context = context,
-                phone = phone,
-                displayName = displayName,
-                body = body,
-                receivedAtMs = receivedAtMs,
-                categoryLabel = categoryLabel,
-                suggestions = emptyList()
-            )
-        }
-    }
+    // (2026-06-15) pollAndUpdateSuggestions 제거 — 알림은 수신 즉시 1번만(추천 미포함). 추천은 문자방에서.
 
     override fun onReceive(context: Context, intent: Intent) {
         // 2026-05-29 Phase A 1단계 — 두 액션 분기:
@@ -188,15 +108,22 @@ class SmsReceiver : BroadcastReceiver() {
                 runCatching { container.categoryRepository.findById(cid)?.name }.getOrNull()
             }
 
-            // 1) 알림은 아직 띄우지 않고 broadcast 를 즉시 종료한다.
-            //   2026-06-03 ANR fix: SMS_DELIVER 는 foreground broadcast(수신자 제한 ~10초). 기존엔 goAsync 를
-            //   prepare(최대 ~9초) + polling(7.5초) 끝까지 들고 있어 합산 >10초 → "RING-GO 응답 없음" ANR 빈발
-            //   (+ ANR 중 뒤 화면이 회색으로 굳어 다이얼로그가 미완성처럼 보임). 해결: 알림 후 pending.finish() 즉시.
-            //   이후 무거운 작업은 Application scope 에서 broadcast 수명과 무관하게 계속.
-            //   2026-06-09 사장님 요청: 갤럭시 기본 문자 알림과 RING-GO 초기 알림이 같이 떠서 같은 문자가
-            //   2개 쌓이는 느낌. RING-GO 는 AI 답변 준비 후 1번만 띄우고, 30초 안에 실패하면 기본 알림 1번만 띄움.
+            // 1) 알림을 '수신 즉시' 띄운다 — 카톡처럼 바로 헤드업. (2026-06-15 사장님)
+            //   2026-06-09 엔 갤 기본알림 중복을 피하려 AI 폴링(최대 30초) 끝나야 띄웠는데, 그게 "늦게/안 울림"의
+            //   원인이었음. 이제 추천을 알림에 안 넣으니(깔끔) 기다릴 게 없어 즉시 1번 띄운다. 추천은 탭→문자방에서.
+            //   (비-기본 SMS 앱이면 갤 메시지 알림과 겹칠 수 있어 '갤 메시지 알림 끄기' 안내 — 채널 설명.)
+            //   ANR: 알림 즉시 후 pending.finish() — 무거운 작업(prepare)은 Application scope 에서 계속.
             try {
-                // no-op: notification is emitted after AI polling or timeout fallback.
+                if (notifyEnabled) {
+                    NotificationHelper.showIncomingSms(
+                        context = context.applicationContext,
+                        phone = sender,
+                        displayName = customer?.name,
+                        body = combinedBody,
+                        receivedAtMs = receivedAtMs,
+                        categoryLabel = categoryLabel
+                    )
+                }
             } finally {
                 pending.finish()
             }
@@ -256,34 +183,12 @@ class SmsReceiver : BroadcastReceiver() {
                     otherUpcomingSchedulesMs = otherSchedules
                 )
 
+                // 추천 답변은 미리 준비만 해둔다(문자방 진입 시 바로 보이게). 알림엔 더 이상 안 넣음 → 폴링 제거.
                 container.suggestionRepository.requestPrepare(ctx)  // fire-and-forget
                 container.smsCachePrefetcher.prefetchForNumber(sender)
-
-                // AI 추천 답변 polling — 알림 토글 ON 일 때만. broadcast 는 이미 종료됨.
-                if (notifyEnabled) {
-                    pollAndUpdateSuggestions(
-                        context = context.applicationContext,
-                        container = container,
-                        phone = sender,
-                        displayName = customer?.name,
-                        body = combinedBody,
-                        receivedAtMs = receivedAtMs,
-                        categoryLabel = categoryLabel
-                    )
-                }
             } catch (e: Throwable) {
-                Log.e(TAG, "prepare/poll failed (broadcast already finished)", e)
-                if (notifyEnabled) {
-                    NotificationHelper.showIncomingSms(
-                        context = context.applicationContext,
-                        phone = sender,
-                        displayName = customer?.name,
-                        body = combinedBody,
-                        receivedAtMs = receivedAtMs,
-                        categoryLabel = categoryLabel,
-                        suggestions = emptyList()
-                    )
-                }
+                // 알림은 위에서 이미 즉시 띄웠으므로 여기선 로그만 (prepare 실패해도 알림/문자방은 정상).
+                Log.e(TAG, "prepare failed (broadcast already finished)", e)
             }
         }
     }
