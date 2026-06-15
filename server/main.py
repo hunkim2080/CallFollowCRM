@@ -7782,6 +7782,19 @@ def _norm_phone(p: Optional[str]) -> str:
     return "".join(ch for ch in (p or "") if ch.isdigit())
 
 
+def _fmt_phone(p: Optional[str]) -> str:
+    """전화번호 표시 format — '010-1234-5678' 형태.
+
+    module-level (NameError 방지 — 다른 nested _fmt_phone 가 있어 module 호출 시 못 찾는 케이스 fix).
+    """
+    s = _norm_phone(p)
+    if len(s) == 11 and s.startswith("010"):
+        return f"{s[:3]}-{s[3:7]}-{s[7:]}"
+    if len(s) == 10:
+        return f"{s[:3]}-{s[3:6]}-{s[6:]}"
+    return s or ""
+
+
 def _is_registered_owner(phone_digits: str) -> Optional[str]:
     """가입 사장 디렉터리 확인 — subscribers 우선, 그 다음 beta_signups (accepted).
 
