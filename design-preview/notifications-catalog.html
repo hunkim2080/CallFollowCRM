@@ -3,371 +3,373 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>RING-GO 알림 모음 · 언제 · 왜</title>
+<title>RING-GO 알림 시스템 명세서 (수정용)</title>
 <style>
   :root{
-    --blue:#3182F6; --green:#16C172; --purple:#7C5CFC; --amber:#F6A609; --pink:#F0436A; --teal:#0E9E90;
-    --bg:#F4F5F7; --card:#fff; --t1:#0B0F19; --t2:#5A6472; --t3:#9AA3AF; --line:#EEF0F3;
+    --bg:#F6F7F9; --card:#fff; --t1:#11151C; --t2:#566; --t3:#8A93A0; --line:#E5E8EC;
+    --red:#E5484D; --amber:#C77700; --blue:#1E6FE0; --green:#0E8F5B; --gray:#6B7480;
   }
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);color:var(--t1);
-    font-family:'Pretendard',-apple-system,system-ui,"Noto Sans KR",sans-serif;line-height:1.55;}
-  .wrap{max-width:560px;margin:0 auto;padding:20px 14px 60px;}
-  header h1{font-size:21px;font-weight:800;margin:6px 0 4px;}
-  header p{font-size:13px;color:var(--t2);margin:0 0 6px;}
-  .legend{font-size:11.5px;color:var(--t3);background:#fff;border-radius:10px;padding:10px 12px;margin:12px 0 4px;line-height:1.7;}
-  .sec{margin-top:26px;}
-  .sec-h{font-size:15px;font-weight:800;margin:0 0 4px;display:flex;align-items:center;gap:7px;}
-  .sec-sub{font-size:12px;color:var(--t3);margin:0 0 12px;}
-  .item{background:var(--card);border-radius:16px;box-shadow:0 1px 3px rgba(0,0,0,.05),0 6px 16px rgba(0,0,0,.04);
-    padding:14px;margin-bottom:14px;}
-  .item.star{outline:2px solid var(--blue);outline-offset:0;}
-  /* 알림 목업 */
-  .push{border-left:4px solid var(--blue);background:#FBFCFE;border-radius:10px;padding:10px 12px;}
-  .push .app{font-size:10.5px;color:var(--t3);font-weight:700;letter-spacing:.2px;margin-bottom:3px;}
-  .push .pt{font-size:13.5px;font-weight:800;color:var(--t1);}
-  .push .pb{font-size:12.5px;color:var(--t2);margin-top:2px;white-space:pre-line;}
-  .push .note{font-size:11.5px;color:var(--t3);margin-top:4px;white-space:pre-line;}
-  .push .acts{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap;}
-  .push .acts span{font-size:11.5px;font-weight:700;color:var(--blue);background:#EEF4FF;border-radius:999px;padding:5px 11px;}
-  .meta{margin-top:11px;display:flex;flex-direction:column;gap:7px;}
-  .row{display:flex;gap:8px;font-size:12.5px;align-items:flex-start;}
-  .row .k{flex:0 0 58px;font-weight:800;color:var(--t1);}
-  .row .v{flex:1;color:var(--t2);}
-  .tag{display:inline-block;font-size:10.5px;font-weight:800;border-radius:999px;padding:3px 9px;color:#fff;vertical-align:middle;margin-left:6px;}
-  /* accent helpers */
-  .a-blue{border-color:var(--blue)} .a-green{border-color:var(--green)} .a-purple{border-color:var(--purple)}
-  .a-amber{border-color:var(--amber)} .a-pink{border-color:var(--pink)} .a-teal{border-color:var(--teal)}
-  .a-blue .pt{color:var(--blue)} .a-green .pt{color:var(--green)} .a-purple .pt{color:var(--purple)}
-  .a-amber .pt{color:#B97700} .a-pink .pt{color:var(--pink)} .a-teal .pt{color:var(--teal)}
-  .t-blue{background:var(--blue)} .t-green{background:var(--green)} .t-purple{background:var(--purple)}
-  .t-amber{background:var(--amber)} .t-pink{background:var(--pink)} .t-teal{background:var(--teal)} .t-gray{background:#8A93A0}
-  /* 검토 의견 */
-  .rv{background:#FFFBEF;border:1px solid #F4E6B8;border-radius:16px;padding:16px;margin-bottom:14px;}
-  .rv h3{font-size:14.5px;font-weight:800;margin:0 0 6px;color:#946200;}
-  .rv .ln{font-size:12.5px;color:var(--t2);margin:6px 0;line-height:1.65;}
-  .rv b{color:var(--t1);}
-  .pri{display:flex;gap:8px;font-size:12.5px;margin:4px 0;align-items:flex-start;}
-  .pri .d{flex:0 0 16px;font-size:13px;line-height:1.5;}
-  .rvitem{font-size:12.5px;color:var(--t2);margin:9px 0;line-height:1.65;padding-left:10px;border-left:3px solid #F0E0A8;}
-  .rvitem b{color:var(--t1);}
-  .keep{color:var(--green);font-weight:800;} .tweak{color:#B97700;font-weight:800;} .cut{color:var(--pink);font-weight:800;}
-  .quote{background:#fff;border-radius:8px;padding:2px 7px;border:1px solid var(--line);font-weight:700;color:var(--t1);}
+    font-family:'Pretendard',-apple-system,system-ui,"Noto Sans KR",sans-serif;line-height:1.5;font-size:13px;}
+  .wrap{max-width:1100px;margin:0 auto;padding:18px 12px 60px;}
+  h1{font-size:19px;margin:4px 0;}
+  h2{font-size:16px;margin:30px 0 8px;padding-top:10px;border-top:2px solid var(--t1);}
+  h3{font-size:13.5px;margin:0 0 2px;}
+  .sub{color:var(--t2);font-size:12px;margin:0 0 8px;}
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:8px;background:#fff;}
+  table{border-collapse:collapse;width:100%;min-width:920px;font-size:11.5px;}
+  th,td{border:1px solid var(--line);padding:6px 7px;text-align:left;vertical-align:top;}
+  th{background:#EEF1F4;font-weight:800;white-space:nowrap;position:sticky;top:0;}
+  td.c{text-align:center;white-space:nowrap;}
+  .b{display:inline-block;border-radius:4px;padding:1px 6px;font-weight:800;font-size:10.5px;color:#fff;}
+  .urgent{background:var(--red)} .important{background:var(--amber)} .info{background:var(--gray)} .brief{background:var(--blue)}
+  .p-high{color:var(--red);font-weight:800} .p-mid{color:var(--amber);font-weight:800} .p-low{color:var(--green);font-weight:800}
+  .mvp1{background:var(--red)} .mvp2{background:var(--amber)} .mvp3{background:var(--gray)}
+  .yes{color:var(--red);font-weight:800} .no{color:var(--gray)}
+  /* 상세 카드 */
+  .spec{background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px 13px;margin-bottom:10px;}
+  .spec .nm{font-size:14px;font-weight:800;margin-bottom:6px;}
+  .spec .g{display:grid;grid-template-columns:84px 1fr;gap:3px 10px;font-size:12px;}
+  .spec .k{color:var(--t3);font-weight:700;}
+  .spec .v{color:var(--t1);}
+  .spec .prob{color:var(--red);} .spec .fix{color:var(--green);}
+  .verdict{display:inline-block;border-radius:5px;padding:2px 9px;font-weight:800;font-size:11.5px;margin-top:7px;}
+  .v-keep{background:#E5F5EC;color:var(--green)} .v-fix{background:#FCEFD8;color:var(--amber)}
+  .v-low{background:#EEF1F4;color:var(--gray)} .v-del{background:#FBE4E5;color:var(--red)}
+  .risk{background:#fff;border:1px solid var(--line);border-left:4px solid var(--red);border-radius:8px;padding:10px 12px;margin-bottom:9px;}
+  .risk .rt{font-weight:800;font-size:13px;}
+  .chk{background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:10px;}
+  .chk li{margin:5px 0;}
+  .tagrow{font-size:11.5px;color:var(--t2);margin:3px 0;}
+  code{background:#EEF1F4;border-radius:4px;padding:1px 5px;font-size:11px;}
+  .legend{font-size:11px;color:var(--t2);background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:8px 0;}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <h1>🔔 RING-GO 가 띄우는 알림 모음</h1>
-    <p>각 알림이 <b>언제</b> 뜨고, <b>왜(어떤 기준으로)</b> 뜨는지 한 곳에 정리했어요.</p>
-    <div class="legend">
-      <b>색의 뜻</b><br>
-      🔵 파랑 = 정보·브리핑 &nbsp; 🟢 초록 = 출발·도착·입금 &nbsp; 🟣 보라 = 접수·협업<br>
-      🟠 주황 = 확인 필요(보낼까요?) &nbsp; 🔴 분홍 = 못 받은 돈 &nbsp; 🟦 청록 = 정기문자<br>
-      <b>“즉시”</b> = 일이 생기는 그 순간 / <b>“예약”</b> = 정해진 시간대에 앱이 스스로 점검해서
-    </div>
-
-    <!-- 두 가지 모양 -->
-    <div class="legend" style="background:#F2F6FF;color:var(--t2);">
-      <b>📐 알림은 두 가지 모양으로 떠요</b><br><br>
-      <span class="tag t-blue">화면 위 카드</span> &nbsp;= 화면 <b>한가운데</b>에 큼직하게 뜨는 카드(오버레이).
-      요약·초안·버튼이 한 장에 다 있어요. <b>‘다른 앱 위에 표시’ 권한</b>이 켜져 있어야 떠요.<br>
-      → <b>통화 후 카드</b> 가 대표예요. (사장님이 말한 “이 알람”)<br><br>
-      <span class="tag t-gray">상단 푸시</span> &nbsp;= 핸드폰 <b>맨 위에서 아래로</b> 내려오는 보통 알림(헤드업). 누르면 해당 화면으로.<br>
-      → 새 문자·접수서·브리핑·잔금·D-1·팀/협업 알림이 다 이거예요.<br><br>
-      ※ 화면 위 카드 권한이 <b>꺼져 있으면</b>, 카드 대신 <b>상단 푸시</b>로 대체돼서 떠요.
-    </div>
-  </header>
-
-  <!-- ===== 막내의 솔직 검토 & 개선안 ===== -->
-  <div class="rv">
-    <h3>💡 막내의 솔직 검토 &amp; 개선안</h3>
-    <div class="ln">원칙 하나: <b>알림은 적고 정확할수록 신뢰가 커져요.</b> 너무 자주 울리면 사장님이 알림을 꺼버리고, 그러면 정작 중요한 걸 놓쳐요. 그래서 “꼭 필요한가 / 지금 울리는 게 맞나”를 기준으로 봤어요.</div>
-
-    <div class="ln" style="margin-top:12px;"><b>우선순위 한눈에</b></div>
-    <div class="pri"><span class="d">🟢</span><span><b class="keep">꼭 필요 (그대로 두기):</b> 새 문자 · 접수서 회신 · 협업 요청 · 잔금 미수 · 통화 후 카드(받은 전화)</span></div>
-    <div class="pri"><span class="d">🟡</span><span><b class="tweak">유용하지만 조건 손질:</b> 부재중 자동문자 · 마감 브리핑 · D-1 · 팀원/협업 진행 · 현장 도착 5km</span></div>
-    <div class="pri"><span class="d">🔴</span><span><b class="cut">줄이거나 합치기:</b> “RING-GO 캐치!”(내가 건 전화에도 뜸) · 팀원 ‘출발’ 매번 · 같은 아침/저녁에 여러 개 따로 뜨는 것</span></div>
-
-    <div class="ln" style="margin-top:14px;"><b>항목별 — 왜 / 피로감 / 안 울려야 할 때 / 문구</b></div>
-
-    <div class="rvitem"><b>1. 통화 후 카드</b> <span class="keep">유지</span> · 핵심 기능. ⚠️ 단 <b>내가 건 발신 통화 중에 ‘고객도 아니고 문자 이력도 없는 번호’(자재상·가족·택배)엔 뜨지 않게</b> — 안 그러면 전화할 때마다 카드가 떠서 피로해요. 받은 전화·기존 고객에만.</div>
-
-    <div class="rvitem"><b>2. 부재중 자동문자</b> <span class="tweak">조건 손질</span> · 필요. ⚠️ <b>연락처에 저장된 비(非)고객(가족 등)·광고번호엔 자동발송 X.</b> (스팸 앞자리는 이미 차단 중) “자동으로 문자 나가는” 기능이라 더 보수적으로.</div>
-
-    <div class="rvitem"><b>3. “RING-GO 캐치!”</b> <span class="cut">문구·조건 둘 다</span> · 이름이 <b>뭘 하라는지 안 보여요.</b> 또 내가 건 발신 통화에도 떠서 피로. 문구 → <span class="quote">방금 통화 · 후속 문자 보낼까요?</span> 로, 그리고 <b>발신 통화엔 끄기</b>(고객일 때만).</div>
-
-    <div class="rvitem"><b>4. 조용한 재통화 알림</b> <span class="keep">유지</span> · 소리 없이 알림함에만 — 잘 설계됨. 그대로.</div>
-
-    <div class="rvitem"><b>5. 새 문자</b> <span class="tweak">조건 손질</span> · 핵심. ⚠️ <b>인증번호(OTP)·광고 발신번호(1500·웹발신 등)는 알림 X</b> → ‘진짜 고객 문자’만 울리게. (지금은 그런 것도 “새 문자”로 떠서 노이즈)</div>
-
-    <div class="rvitem"><b>6. 접수서 회신 도착</b> <span class="keep">유지</span> · 드물고 반가운 알림. 완벽. 그대로.</div>
-
-    <div class="rvitem"><b>7. 마감 브리핑(밤 9시)</b> <span class="tweak">설정 추가</span> · 유용. <b>시간 바꾸기 / 끄기</b>를 설정에 두면 좋아요. (아무 일 없는 날은 이미 안 옴 — 잘함)</div>
-
-    <div class="rvitem"><b>8. 정기문자(오전 9시)</b> <span class="keep">유지</span> · 보낼 게 있는 날만. 그대로.</div>
-
-    <div class="rvitem"><b>9. 잔금 미수(오전 10시)</b> <span class="tweak">묶기</span> · 필요. ⚠️ 여러 명이면 <b>하나로 묶어서</b> → <span class="quote">못 받은 잔금 3곳 · 합계 90만원</span> (지금은 고객마다 따로 → 아침에 여러 번 울림)</div>
-
-    <div class="rvitem"><b>10. 시공 전날 D-1(저녁)</b> <span class="tweak">묶기</span> · 유용. 여러 건이면 <b>묶어서</b>. 토글은 그대로.</div>
-
-    <div class="rvitem"><b>11. 팀원 출발/도착/완료</b> <span class="tweak">출발 선택</span> · 도착·완료는 중요. <b>‘출발’ 알림은 끌 수 있게</b>(선택). 팀원이 여럿이면 하루 알림이 너무 많아져요.</div>
-
-    <div class="rvitem"><b>12. 협업 진행(수락/출발/도착/완료)</b> <span class="tweak">출발 선택</span> · 수락·완료는 중요. 출발은 선택으로.</div>
-
-    <div class="rvitem"><b>13. 협업 요청</b> <span class="keep">유지</span> · 바로 행동(수락/거절)이 필요. 그대로.</div>
-
-    <div class="rvitem"><b>14. 현장 도착 5km 안내</b> <span class="cut">조건 중요</span> · ⚠️ <b>‘오늘 시공 예약된 고객’ 현장에만.</b> 과거 고객 동네를 지나갈 때 울리면 안 돼요(가장 피로한 케이스).</div>
-
-    <div class="rvitem"><b>15. 입금완료 / 협업 해제</b> <span class="keep">유지</span> · 의미 있는 사건. 그대로.</div>
-
-    <div class="ln" style="margin-top:14px;"><b>전체 개선 원칙 (요약)</b></div>
-    <div class="pri"><span class="d">①</span><span><b>종류별 ON/OFF</b> — 설정에서 “팀원 출발”, “마감 브리핑” 등을 따로 끌 수 있게.</span></div>
-    <div class="pri"><span class="d">②</span><span><b>묶음</b> — 같은 아침/저녁에 여러 건은 한 알림으로(잔금·D-1·팀원).</span></div>
-    <div class="pri"><span class="d">③</span><span><b>발신 통화 최소화</b> — 내가 건 전화엔 카드/푸시를 최대한 안 띄움(고객·이력 있을 때만).</span></div>
-    <div class="pri"><span class="d">④</span><span><b>노이즈 차단</b> — 인증번호·광고 문자, 비고객 번호엔 안 울림.</span></div>
-    <div class="pri"><span class="d">⑤</span><span><b>방해금지 시간</b> — 밤 늦게(예: 22시 이후)는 소리 없이(꼭 필요한 것 제외).</span></div>
-    <div class="pri"><span class="d">⑥</span><span><b>문구 톤 통일</b> — “~보낼까요?”처럼 <b>다음 행동을 묻는</b> 형태로.</span></div>
-    <div class="ln" style="margin-top:8px;color:var(--t3);">※ 이건 막내의 제안이에요. 사장님이 “이건 그대로 / 이건 바꿔” 정해주시면 그대로 반영할게요.</div>
+  <h1>RING-GO 알림 시스템 명세서 <span style="font-size:12px;color:var(--t3)">(수정·결정용 · 코드 기준)</span></h1>
+  <p class="sub">고객 안내문 아님. 제품 기획 판단용. 각 알림의 트리거·표시방식·자동발송·중복방지·개인정보·우선순위·수정사항.</p>
+  <div class="legend">
+    <b>긴급도</b> <span class="b urgent">긴급</span> 즉시 행동 · <span class="b important">중요</span> 곧 처리 · <span class="b info">참고</span> 알아만 두기 · <span class="b brief">브리핑</span> 요약 &nbsp;|&nbsp;
+    <b>표시</b> 팝업카드=화면중앙 오버레이 / 상단푸시=헤드업 / 조용한=소리·헤드업 없음 &nbsp;|&nbsp;
+    <b>MVP</b> <span class="b mvp1">1</span>오픈전필수 <span class="b mvp2">2</span>오픈후 <span class="b mvp3">후</span>나중
   </div>
 
-  <!-- ===== 통화 끝나면 오는 그 알람 (사장님 질문) ===== -->
-  <div class="sec">
-    <div class="sec-h">📞 통화가 끝나면 (즉시)</div>
-    <div class="sec-sub">전화를 끊는 순간 앱이 판단해서 아래 중 하나를 띄워요.</div>
+  <!-- ============ 1. 요약표 ============ -->
+  <h2>1. 알림 전체 요약표 (17종)</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr>
+      <th>#</th><th>알림명</th><th>발생 상황</th><th>표시</th><th>긴급도</th>
+      <th>자동발송</th><th>확인필요</th><th>중복방지</th><th>개인정보</th><th>MVP</th>
+    </tr></thead>
+    <tbody>
+      <tr><td class="c">1</td><td><b>새 문자</b></td><td>고객 SMS 수신 즉시</td><td class="c">상단푸시</td><td class="c"><span class="b urgent">긴급</span></td><td class="c no">X</td><td class="c yes">O</td><td>번호별 동일ID 갱신</td><td class="c p-high">높음</td><td class="c"><span class="b mvp1">1</span></td></tr>
+      <tr><td class="c">2</td><td><b>통화 후 카드</b></td><td>통화(수신·발신) 5초+ 종료</td><td class="c">팝업카드<br>(권한X→푸시)</td><td class="c"><span class="b important">중요</span></td><td class="c no">X</td><td class="c yes">O</td><td>떠있으면 무시</td><td class="c p-mid">중간</td><td class="c"><span class="b mvp1">1</span></td></tr>
+      <tr><td class="c">3</td><td><b>부재중 자동문자</b></td><td>부재중/첫통화 + 토글ON</td><td class="c">팝업카드/푸시<br>(10초 카운트)</td><td class="c"><span class="b important">중요</span></td><td class="c yes">O ⚠️</td><td class="c">취소가능</td><td>번호별 24h 쿨다운</td><td class="c p-low">낮음</td><td class="c"><span class="b mvp1">1</span></td></tr>
+      <tr><td class="c">4</td><td><b>접수서 회신 도착</b></td><td>고객 접수서 제출(60초 폴링)</td><td class="c">상단푸시</td><td class="c"><span class="b important">중요</span></td><td class="c no">X</td><td class="c yes">O</td><td>token별 1회</td><td class="c p-high">높음</td><td class="c"><span class="b mvp1">1</span></td></tr>
+      <tr><td class="c">5</td><td><b>협업 요청</b></td><td>상대 사장 현장 공유요청(FCM)</td><td class="c">상단푸시</td><td class="c"><span class="b urgent">긴급</span></td><td class="c no">X</td><td class="c yes">O</td><td>shareId·onlyAlertOnce</td><td class="c p-low">낮음</td><td class="c"><span class="b mvp1">1</span></td></tr>
+      <tr><td class="c">6</td><td><b>잔금 미수</b></td><td>완료 3일+ 미입금 · 오전 10시</td><td class="c">상단푸시</td><td class="c"><span class="b info">참고</span></td><td class="c no">X</td><td class="c yes">O</td><td>고객별 1회</td><td class="c p-mid">중간</td><td class="c"><span class="b mvp1">1</span></td></tr>
+      <tr><td class="c">7</td><td><b>시공 전날 D-1</b></td><td>전날 저녁(설정시각)·토글ON</td><td class="c">상단푸시</td><td class="c"><span class="b important">중요</span></td><td class="c no">X</td><td class="c yes">O</td><td>고객·날짜별 1회</td><td class="c p-mid">중간</td><td class="c"><span class="b mvp1">1</span></td></tr>
+      <tr><td class="c">8</td><td><b>협업 완료(정산)</b></td><td>상대 사장 ‘완료’ 누름</td><td class="c">상단푸시</td><td class="c"><span class="b important">중요</span></td><td class="c no">X</td><td class="c yes">O</td><td>eventId·onlyAlertOnce</td><td class="c p-high">높음 ⚠️계좌</td><td class="c"><span class="b mvp1">1</span></td></tr>
+      <tr><td class="c">9</td><td>협업 진행(수락/출발/도착)</td><td>상대 사장 진행 버튼</td><td class="c">상단푸시</td><td class="c"><span class="b info">참고</span></td><td class="c no">X</td><td class="c no">X</td><td>eventId·onlyAlertOnce</td><td class="c p-low">낮음</td><td class="c"><span class="b mvp2">2</span></td></tr>
+      <tr><td class="c">10</td><td>팀원 출발/도착/완료</td><td>팀원 링크화면 버튼</td><td class="c">상단푸시</td><td class="c"><span class="b info">참고</span></td><td class="c no">X</td><td class="c no">X</td><td>eventId·onlyAlertOnce</td><td class="c p-low">낮음</td><td class="c"><span class="b mvp2">2</span></td></tr>
+      <tr><td class="c">11</td><td>마감 브리핑</td><td>밤 9시(내용 있을 때만)</td><td class="c">상단푸시</td><td class="c"><span class="b brief">브리핑</span></td><td class="c no">X</td><td class="c no">X</td><td>하루 1회(brief:날짜)</td><td class="c p-low">낮음</td><td class="c"><span class="b mvp2">2</span></td></tr>
+      <tr><td class="c">12</td><td>정기문자 발송일</td><td>오전 9시(보낼 게 있을 때)</td><td class="c">상단푸시</td><td class="c"><span class="b brief">브리핑</span></td><td class="c no">X</td><td class="c yes">O</td><td>하루 1회</td><td class="c p-low">낮음</td><td class="c"><span class="b mvp2">2</span></td></tr>
+      <tr><td class="c">13</td><td>RING-GO 캐치!(후속 백업)</td><td>카드 권한X / 발신 첫통화</td><td class="c">상단푸시</td><td class="c"><span class="b info">참고</span></td><td class="c no">X</td><td class="c yes">O</td><td>callRecordId별</td><td class="c p-low">낮음</td><td class="c"><span class="b mvp2">2</span></td></tr>
+      <tr><td class="c">14</td><td>조용한 재통화 알림</td><td>2번째+ 미처리 통화</td><td class="c">조용한</td><td class="c"><span class="b info">참고</span></td><td class="c no">X</td><td class="c no">X</td><td>처리/일정 있으면 X</td><td class="c p-low">낮음</td><td class="c"><span class="b mvp3">후</span></td></tr>
+      <tr><td class="c">15</td><td>협업 입금완료 / 해제</td><td>주인 입금표시 / 협업 해제</td><td class="c">상단푸시</td><td class="c"><span class="b info">참고</span></td><td class="c no">X</td><td class="c no">X</td><td>shareId·onlyAlertOnce</td><td class="c p-low">낮음</td><td class="c"><span class="b mvp2">2</span></td></tr>
+      <tr><td class="c">16</td><td>현장 도착 5km(내 현장)</td><td>내 현장 5km 진입(GPS)</td><td class="c">상단푸시</td><td class="c"><span class="b info">참고</span></td><td class="c no">X</td><td class="c yes">O</td><td>고객별</td><td class="c p-mid">중간</td><td class="c"><span class="b mvp3">후</span></td></tr>
+      <tr><td class="c">17</td><td>협업 도착 자동확인(3km)</td><td>협업현장 3km 진입(GPS)</td><td class="c">상단푸시</td><td class="c"><span class="b info">참고</span></td><td class="c yes">O(전송)</td><td class="c no">X</td><td>shareId별</td><td class="c p-mid">중간</td><td class="c"><span class="b mvp3">후</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="sub" style="margin-top:6px">⚠️ <b>공통 발견</b>: 코드에 <code>setVisibility(PRIVATE)</code> 가 없어 <b>모든 알림 본문이 잠금화면에 그대로 노출</b>됨(문자 내용·주소·금액·계좌번호 포함). → 민감 항목은 잠금화면에서 가려야 함(아래 위험 TOP 참고).</p>
 
-    <!-- A1 ★ 사장님이 물어본 그 알람 -->
-    <div class="item star">
-      <div class="push a-blue">
-        <div class="app">RING-GO · 통화 후 카드 ★ 사장님이 물어보신 그 알람 · 〔화면 위 카드〕</div>
-        <div class="pt">방금 통화 종료 · 010-1234-5678</div>
-        <div class="pb">✨ 통화 정리 중…
-기다리지 않으셔도 돼요 — 닫아도 요약은 통화방(채팅)에 저장돼요</div>
-        <div class="acts"><span>다듬기</span><span>문자 보내기</span><span>✕ 닫기</span></div>
-      </div>
-      <div class="meta">
-        <div class="row"><span class="k">언제</span><span class="v"><b>통화(수신·발신)를 5초 이상 하고 끊으면</b> 화면 위에 바로 떠요. (화면 위 표시 권한이 있을 때)</span></div>
-        <div class="row"><span class="k">왜</span><span class="v">5초 넘는 통화 = “상담”으로 봐요. 에이닷 녹음/통화내용 폴더를 <b>자동으로 훑어 요약</b>(공유 안 해도 됨) → 요약 불릿 + 보낼 후속문자 초안을 카드에 채워줘요.</span></div>
-        <div class="row"><span class="k">정리</span><span class="v">30초 안에 요약을 못 가져오면 “템플릿에서 골라 보내기”로 바뀌어요. <b>안 기다리고 닫아도</b> 요약은 그 고객 통화방(채팅)에 저장돼요.</span></div>
-      </div>
-    </div>
+  <!-- ============ 2. 상세 명세 ============ -->
+  <h2>2. 알림별 상세 명세</h2>
 
-    <!-- A2 -->
-    <div class="item">
-      <div class="push a-amber">
-        <div class="app">RING-GO · 부재중 자동문자 · 〔상단 푸시〕</div>
-        <div class="pt">부재중 자동 응답 (10초 후 발송)</div>
-        <div class="pb">“지금 작업 중이라 못 받았어요. 곧 연락드릴게요 😊”</div>
-        <div class="acts"><span>지금 보내기</span><span>취소</span></div>
-      </div>
-      <div class="meta">
-        <div class="row"><span class="k">언제</span><span class="v"><b>부재중(또는 첫 통화)</b>이고, 설정에서 자동문자가 <b>켜져</b> 있을 때. 10초 카운트다운 후 자동 발송(중간에 취소 가능).</span></div>
-        <div class="row"><span class="k">왜</span><span class="v">같은 번호에 <b>최근 24시간 안에 보낸 문자가 없을 때만</b> 보내요(이미 응대했으면 또 안 보냄 — 스팸 방지).</span></div>
-      </div>
+  <div class="spec">
+    <div class="nm">1. 새 문자 <span class="b urgent">긴급</span></div>
+    <div class="g">
+      <span class="k">현재 문구</span><span class="v">제목 “{이름/번호} · 새 문자” / 본문 = 받은 문자 그대로</span>
+      <span class="k">언제</span><span class="v">고객 SMS 수신 즉시(헤드업)</span>
+      <span class="k">왜</span><span class="v">고객 응대 누락 방지(앱 핵심)</span>
+      <span class="k">표시/버튼</span><span class="v">상단푸시 · [💬 직접 답장](RemoteInput)</span>
+      <span class="k">자동실행</span><span class="v">없음</span>
+      <span class="k">중복방지</span><span class="v">번호별 동일 ID 갱신</span>
+      <span class="k">개인정보</span><span class="v p-high">높음 — 문자 본문이 잠금화면에 노출</span>
+      <span class="k prob">문제점</span><span class="v prob">① 인증번호(OTP)·광고도 “새 문자”로 울림 ② 잠금화면 본문 노출</span>
+      <span class="k fix">수정</span><span class="v fix">① 인증/광고 발신번호(15xx·웹발신) 제외 ② <code>setVisibility(PRIVATE)</code>로 잠금화면엔 “새 문자”만</span>
+      <span class="k">추천 문구</span><span class="v">유지(“{이름} · 새 문자”)</span>
     </div>
-
-    <!-- A3 -->
-    <div class="item">
-      <div class="push a-blue">
-        <div class="app">RING-GO · 〔상단 푸시〕</div>
-        <div class="pt">RING-GO 캐치!</div>
-        <div class="pb">010-1234-5678 · 고객에게 보낼 빠른 메시지를 선택하세요</div>
-        <div class="acts"><span>빠른 액션 1</span><span>빠른 액션 2</span></div>
-      </div>
-      <div class="meta">
-        <div class="row"><span class="k">언제</span><span class="v">화면 위 표시 권한이 없거나, 본인이 건 첫 통화 등 카드를 못 띄울 때 <b>알림함</b>에 떠요.</span></div>
-        <div class="row"><span class="k">왜</span><span class="v">통화 후 빠른 처리를 놓치지 않게 하는 대체(백업) 알림이에요. 설정한 빠른 액션 템플릿을 바로 고를 수 있어요.</span></div>
-      </div>
-    </div>
-
-    <!-- A4 -->
-    <div class="item">
-      <div class="push" style="border-color:#8A93A0;background:#FAFBFC;">
-        <div class="app">RING-GO · 조용한 알림 · 〔상단 푸시 · 소리없음〕</div>
-        <div class="pt">또 전화온 고객 — 아직 답장 안 했어요</div>
-        <div class="pb">010-1234-5678 · 눌러서 확인하기</div>
-      </div>
-      <div class="meta">
-        <div class="row"><span class="k">언제</span><span class="v">같은 번호로 <b>두 번째 이상</b> 통화했는데 아직 답장·온도분류·일정등록을 안 한 경우. <b>소리·헤드업 없이</b> 알림함에만 조용히.</span></div>
-        <div class="row"><span class="k">왜</span><span class="v">이미 답장했거나 일정을 잡았으면 <b>안 떠요</b>(괜한 알림 안 만들기).</span></div>
-      </div>
-    </div>
+    <span class="verdict v-fix">수정(조건·개인정보)</span>
   </div>
 
-  <!-- ===== 문자 ===== -->
-  <div class="sec">
-    <div class="sec-h">💬 문자 받았을 때 (즉시) <span class="tag t-gray">상단 푸시</span></div>
-    <div class="sec-sub">고객 문자가 오는 순간 카톡처럼 위에서 내려와요.</div>
-    <div class="item">
-      <div class="push a-blue">
-        <div class="app">RING-GO</div>
-        <div class="pt">김고객 · 새 문자</div>
-        <div class="pb">사장님 혹시 다음 주 화요일에 시공 가능할까요?</div>
-        <div class="acts"><span>💬 직접 답장</span></div>
-      </div>
-      <div class="meta">
-        <div class="row"><span class="k">언제</span><span class="v">고객 문자가 오면 <b>즉시</b> 헤드업으로 떠요. (2026-06-15: 기다림 없이 바로 뜨게 고침)</span></div>
-        <div class="row"><span class="k">왜</span><span class="v"><b>알림창은 받은 문자만 깔끔하게</b> 보여줘요. AI 추천 답변은 알림에 넣지 않고, <b>알림을 누르면 들어가는 문자방에서</b> 보여줘요.</span></div>
-        <div class="row"><span class="k">팁</span><span class="v">갤럭시 기본 ‘메시지’ 알림과 겹쳐 두 번 뜨면, 기본 메시지 앱 알림을 꺼두세요.</span></div>
-      </div>
+  <div class="spec">
+    <div class="nm">2. 통화 후 카드 <span class="b important">중요</span></div>
+    <div class="g">
+      <span class="k">현재 문구</span><span class="v">“방금 통화 종료 · {번호}” + ✨통화 정리 중…</span>
+      <span class="k">언제</span><span class="v">통화(수신·발신) 5초 이상 후 종료</span>
+      <span class="k">왜</span><span class="v">상담 요약 + 후속문자 초안 제공</span>
+      <span class="k">표시/버튼</span><span class="v">팝업카드(권한X면 상단푸시 대체) · [다듬기][문자 보내기][닫기]</span>
+      <span class="k">자동실행</span><span class="v">없음(사장 확인 후 발송)</span>
+      <span class="k">중복방지</span><span class="v">이미 떠있으면 무시(showOrIgnore)</span>
+      <span class="k">개인정보</span><span class="v p-mid">중간 — 번호·요약 화면 표시</span>
+      <span class="k prob">문제점</span><span class="v prob">내가 건 발신 통화(자재상·가족 등 비고객)에도 매번 뜸 → 피로</span>
+      <span class="k fix">수정</span><span class="v fix">발신은 ‘고객이거나 문자 이력 있는 번호’일 때만</span>
+      <span class="k">추천 문구</span><span class="v">유지</span>
     </div>
+    <span class="verdict v-fix">수정(발신 조건)</span>
   </div>
 
-  <!-- ===== 접수서 ===== -->
-  <div class="sec">
-    <div class="sec-h">📋 시공접수서 <span class="tag t-gray">상단 푸시</span></div>
-    <div class="sec-sub">고객이 보낸 링크로 직접 작성하면 알려줘요.</div>
-    <div class="item">
-      <div class="push a-purple">
-        <div class="app">RING-GO</div>
-        <div class="pt">시공접수서 회신 도착 🎉</div>
-        <div class="pb">김고객님이 접수서를 작성했어요 · 시공 희망 6/30(화) · 65만원</div>
-        <div class="note">📍 서울 양천구 목동서로 400
-주소·시공일이 고객 카드에 자동 반영됐어요.</div>
-        <div class="acts"><span>일정 확인</span></div>
-      </div>
-      <div class="meta">
-        <div class="row"><span class="k">언제</span><span class="v">고객이 접수서 링크를 <b>작성·제출</b>하면. (앱이 약 60초마다 서버를 확인해서 감지)</span></div>
-        <div class="row"><span class="k">왜</span><span class="v">제출되면 <b>주소·시공일·견적금액·계약금이 고객 카드에 자동 반영</b>돼요(직접 입력 안 해도 됨).</span></div>
-      </div>
+  <div class="spec">
+    <div class="nm">3. 부재중 자동문자 <span class="b important">중요</span> · ⚠️ 자동발송</div>
+    <div class="g">
+      <span class="k">현재 문구</span><span class="v">“부재중 자동 응답” + 설정 문구(신규/단골)</span>
+      <span class="k">언제</span><span class="v">부재중/첫통화 + 자동문자 토글 ON → 10초 후 자동발송</span>
+      <span class="k">왜</span><span class="v">못 받은 전화 즉시 응대</span>
+      <span class="k">표시/버튼</span><span class="v">팝업카드/푸시 카운트다운 · [지금 보내기][취소]</span>
+      <span class="k">자동실행</span><span class="v p-high">예 — 10초 뒤 SMS 자동 발송</span>
+      <span class="k">중복방지</span><span class="v">같은 번호 24h 1회(쿨다운)</span>
+      <span class="k">개인정보</span><span class="v p-low">낮음(내가 보내는 문자)</span>
+      <span class="k prob">문제점</span><span class="v prob">저장된 비(非)고객(가족·지인)·광고 번호에도 자동 발송될 수 있음(오발송)</span>
+      <span class="k fix">수정</span><span class="v fix">고객/문자이력 있는 번호에만. 연락처 저장된 비고객·광고는 제외. (스팸앞자리는 이미 차단)</span>
+      <span class="k">추천 문구</span><span class="v">유지</span>
     </div>
+    <span class="verdict v-fix">수정(오발송 차단 — 오픈 전 필수)</span>
   </div>
 
-  <!-- ===== 시간 예약 ===== -->
-  <div class="sec">
-    <div class="sec-h">⏰ 정해진 시간에 (자동 점검) <span class="tag t-gray">상단 푸시</span></div>
-    <div class="sec-sub">앱이 약 3시간마다 깨어나서, 아래 정해진 시간대에 해당하면 알림을 띄워요.</div>
-
-    <div class="item">
-      <div class="push a-blue">
-        <div class="app">RING-GO</div>
-        <div class="pt">오늘 하루 마감 브리핑 🌙</div>
-        <div class="pb">오늘 새 고객 2명 · 입금 1건</div>
-        <div class="note">내일 시공 1곳 — 6/16(월) 오전 9시</div>
-        <div class="acts"><span>오늘 정리 보기</span></div>
-      </div>
-      <div class="meta">
-        <div class="row"><span class="k">언제</span><span class="v"><b>저녁 9시</b>경, 하루에 한 번.</span></div>
-        <div class="row"><span class="k">왜</span><span class="v">오늘 새 고객·입금·내일 시공이 <b>하나라도 있을 때만</b>(아무 일 없는 날엔 안 보냄).</span></div>
-      </div>
+  <div class="spec">
+    <div class="nm">4. 접수서 회신 도착 <span class="b important">중요</span></div>
+    <div class="g">
+      <span class="k">현재 문구</span><span class="v">“시공접수서 회신 도착 🎉” + “{이름}…시공 희망 {날짜}·{금액}만원” + 📍주소</span>
+      <span class="k">언제</span><span class="v">고객이 접수서 제출(앱 60초 폴링 감지)</span>
+      <span class="k">왜</span><span class="v">주소·시공일·견적·계약금 자동 반영 알림</span>
+      <span class="k">표시/버튼</span><span class="v">상단푸시 · [일정 확인]</span>
+      <span class="k">자동실행</span><span class="v">없음(데이터 반영은 자동, 발송 아님)</span>
+      <span class="k">중복방지</span><span class="v">token별 1회</span>
+      <span class="k">개인정보</span><span class="v p-high">높음 — 주소+금액이 잠금화면 노출</span>
+      <span class="k prob">문제점</span><span class="v prob">주소·금액이 잠금화면에 그대로 보임</span>
+      <span class="k fix">수정</span><span class="v fix"><code>setVisibility(PRIVATE)</code> — 잠금화면엔 “접수서 도착”만, 상세는 열어야 보이게</span>
+      <span class="k">추천 문구</span><span class="v">유지</span>
     </div>
-
-    <div class="item">
-      <div class="push a-teal">
-        <div class="app">RING-GO</div>
-        <div class="pt">오늘 정기 문자 보낼 고객 3명</div>
-        <div class="pb">안부문자 · 오늘 3명 · {고객명} 자동 채움 · 보내기 전에 한 번 봐주세요</div>
-        <div class="acts"><span>검토하고 보내기</span></div>
-      </div>
-      <div class="meta">
-        <div class="row"><span class="k">언제</span><span class="v"><b>오전 9시</b>경.</span></div>
-        <div class="row"><span class="k">왜</span><span class="v">오늘 보낼 정기문자가 있는 날만. <b>무음 자동발송이 아니라</b> 확인 후 보내는 방식이에요.</span></div>
-      </div>
-    </div>
-
-    <div class="item">
-      <div class="push a-pink">
-        <div class="app">RING-GO</div>
-        <div class="pt">아직 안 들어온 잔금이 있어요</div>
-        <div class="pb">김고객님 · 잔금 30만원 · 시공 완료 후 3일째 미입금</div>
-        <div class="acts"><span>잔금 요청 보내기</span></div>
-      </div>
-      <div class="meta">
-        <div class="row"><span class="k">언제</span><span class="v"><b>오전 10시</b>경.</span></div>
-        <div class="row"><span class="k">왜</span><span class="v">시공 완료 <b>3일이 지났는데 잔금이 아직 안 들어온</b> 고객. 고객마다 한 번만 알려줘요.</span></div>
-      </div>
-    </div>
-
-    <div class="item">
-      <div class="push a-amber">
-        <div class="app">RING-GO</div>
-        <div class="pt">내일 시공 — 안내 문자 보낼까요?</div>
-        <div class="pb">김고객님 · 6/16(월) 오전 9시 · 서울 양천구 목동…</div>
-        <div class="note">무음 자동발송 안 해요 · 사장님이 확인하면 보내요</div>
-        <div class="acts"><span>안내 보내기</span></div>
-      </div>
-      <div class="meta">
-        <div class="row"><span class="k">언제</span><span class="v">시공 <b>전날 저녁</b>(설정한 시각 이후). D-1 자동문자 토글이 켜져 있을 때.</span></div>
-        <div class="row"><span class="k">왜</span><span class="v">내일 시공 예약 고객마다 한 번. 사장님이 확인하고 보내는 방식이에요.</span></div>
-      </div>
-    </div>
+    <span class="verdict v-fix">수정(개인정보)</span>
   </div>
 
-  <!-- ===== 팀 · 협업 ===== -->
-  <div class="sec">
-    <div class="sec-h">🤝 팀원 · 협업 사장님 <span class="tag t-gray">상단 푸시</span></div>
-    <div class="sec-sub">앱이 꺼져 있어도 즉시(FCM 푸시) + 주기 점검으로 받아요.</div>
-
-    <div class="item">
-      <div class="push a-green">
-        <div class="app">RING-GO · 팀원</div>
-        <div class="pt">팀원 출발 🚗 / 현장 도착 📍 / 작업 완료 ✅</div>
-        <div class="pb">이기사님이 오전 9:10 · 천호동 현장으로 출발했어요</div>
-        <div class="acts"><span>팀 현황 보기</span></div>
-      </div>
-      <div class="meta">
-        <div class="row"><span class="k">언제</span><span class="v">팀원이 링크 화면에서 <b>[출발/도착/완료]</b>를 누르는 즉시.</span></div>
-        <div class="row"><span class="k">왜</span><span class="v">누가·몇 시·어디서 무엇을 했는지 사장님이 바로 알 수 있게.</span></div>
-      </div>
+  <div class="spec">
+    <div class="nm">5. 협업 요청 <span class="b urgent">긴급</span></div>
+    <div class="g">
+      <span class="k">현재 문구</span><span class="v">“🤝 협업 요청이 왔어요” + “{사장님}이 ‘{현장}’ 협업을 요청…수락하기”</span>
+      <span class="k">언제</span><span class="v">상대 사장이 현장 공유요청(FCM 즉시)</span>
+      <span class="k">왜</span><span class="v">수락/거절 즉시 결정 필요</span>
+      <span class="k">표시/버튼</span><span class="v">상단푸시 · [수락하러 가기]</span>
+      <span class="k">자동실행</span><span class="v">없음</span>
+      <span class="k">중복방지</span><span class="v">shareId별 · onlyAlertOnce(FCM+폴링 중복 방지)</span>
+      <span class="k">개인정보</span><span class="v p-low">낮음 — 보낸사람+현장명만(고객정보 벽)</span>
+      <span class="k prob">문제점</span><span class="v">없음(잘 설계됨)</span>
+      <span class="k fix">수정</span><span class="v">유지</span>
     </div>
-
-    <div class="item">
-      <div class="push a-purple">
-        <div class="app">RING-GO · 협업</div>
-        <div class="pt">🤝 협업 요청이 왔어요</div>
-        <div class="pb">디테일라인 사장님이 ‘목동 현장’ 협업을 요청했어요. 눌러서 수락하기</div>
-        <div class="acts"><span>수락하러 가기</span></div>
-      </div>
-      <div class="meta">
-        <div class="row"><span class="k">언제</span><span class="v">다른 사장님이 나에게 현장을 <b>공유 요청</b>하면 즉시.</span></div>
-        <div class="row"><span class="k">왜</span><span class="v">고객 번호·대화는 안 보이고(벽) <b>보낸 사장 이름 + 현장 이름</b>만. 눌러서 수락/거절.</span></div>
-      </div>
-    </div>
-
-    <div class="item">
-      <div class="push a-green">
-        <div class="app">RING-GO · 협업 진행</div>
-        <div class="pt">협업 수락 🤝 / 출발 🚗 / 도착 📍 / 작업 완료 ✅</div>
-        <div class="pb">디테일라인 사장님이 오전 9:40 · 목동 현장에 도착했어요 · 계좌 카카오뱅크 333…</div>
-        <div class="acts"><span>협업 현장 보기</span></div>
-      </div>
-      <div class="meta">
-        <div class="row"><span class="k">언제</span><span class="v">함께 일하는 사장님이 공유 현장에서 <b>수락/출발/도착/완료</b>를 누를 때.</span></div>
-        <div class="row"><span class="k">왜</span><span class="v">완료 알림엔 <b>입금 계좌</b>도 같이 와서 바로 정산할 수 있어요.</span></div>
-      </div>
-    </div>
-
-    <div class="item">
-      <div class="push a-green">
-        <div class="app">RING-GO · 협업</div>
-        <div class="pt">📍 사장님께 알려드렸어요 &nbsp; / &nbsp; 💰 입금 완료 &nbsp; / &nbsp; 협업이 해제됐어요</div>
-        <div class="pb">목동 현장 3km 진입 · 자동으로 전송됐어요 (도착 버튼 안 눌러도 돼요 😊)</div>
-        <div class="acts"><span>협업 현장 보기</span></div>
-      </div>
-      <div class="meta">
-        <div class="row"><span class="k">언제</span><span class="v">현장 3km 진입 시 <b>자동 도착 알림</b>, 주인이 <b>입금완료</b> 표시할 때, 협업이 <b>해제</b>될 때.</span></div>
-        <div class="row"><span class="k">왜</span><span class="v">해제돼도 <b>사진·메모 기록은 남아요</b>. 위치 기반(geofence) 자동 알림이라 버튼 안 눌러도 됨.</span></div>
-      </div>
-    </div>
-
-    <div class="item">
-      <div class="push a-green">
-        <div class="app">RING-GO</div>
-        <div class="pt">현장 도착 — 안내 문자 보낼까요?</div>
-        <div class="pb">김고객님 현장 5km 안에 들어왔어요</div>
-        <div class="note">확인 후 보내요 · 무음 자동발송 아니에요</div>
-        <div class="acts"><span>도착 안내 보내기</span></div>
-      </div>
-      <div class="meta">
-        <div class="row"><span class="k">언제</span><span class="v">내가 <b>내 현장 5km 안</b>에 들어가면(위치 기반).</span></div>
-        <div class="row"><span class="k">왜</span><span class="v">“곧 도착” 안내를 고객에게 빠르게 보낼 수 있게. 자동발송 아니고 확인 후 보내요.</span></div>
-      </div>
-    </div>
+    <span class="verdict v-keep">유지</span>
   </div>
 
-  <p style="font-size:11px;color:var(--t3);text-align:center;margin-top:24px;line-height:1.7">
-    이 문서는 앱이 실제로 띄우는 알림을 그대로 정리한 거예요.<br>문구·시간은 코드 기준이며, 곧 서비스 오픈! 💪
-  </p>
+  <div class="spec">
+    <div class="nm">6. 잔금 미수 <span class="b info">참고</span></div>
+    <div class="g">
+      <span class="k">현재 문구</span><span class="v">“아직 안 들어온 잔금이 있어요” + “{이름}·잔금 {N}만원·완료 후 {n}일째 미입금”</span>
+      <span class="k">언제</span><span class="v">완료 3일 지났는데 미입금 · 오전 10시경</span>
+      <span class="k">표시/버튼</span><span class="v">상단푸시 · [잔금 요청 보내기]</span>
+      <span class="k">중복방지</span><span class="v">고객별 1회</span>
+      <span class="k">개인정보</span><span class="v p-mid">중간(이름+금액)</span>
+      <span class="k prob">문제점</span><span class="v prob">여러 명이면 같은 아침에 따로 여러 번</span>
+      <span class="k fix">수정</span><span class="v fix">하나로 묶기: “못 받은 잔금 3곳 · 합계 90만원”</span>
+      <span class="k">추천 문구</span><span class="v">묶음형으로 변경</span>
+    </div>
+    <span class="verdict v-fix">수정(묶기)</span>
+  </div>
+
+  <div class="spec">
+    <div class="nm">7. 시공 전날 D-1 <span class="b important">중요</span></div>
+    <div class="g">
+      <span class="k">현재 문구</span><span class="v">“내일 시공 — 안내 문자 보낼까요?” + “{이름}·{날짜}{시각}·{주소}”</span>
+      <span class="k">언제</span><span class="v">전날 저녁(설정 시각) · D-1 토글 ON</span>
+      <span class="k">표시/버튼</span><span class="v">상단푸시 · [안내 보내기] (확인 후 발송)</span>
+      <span class="k">중복방지</span><span class="v">고객·날짜별 1회</span>
+      <span class="k">개인정보</span><span class="v p-mid">중간(이름+주소)</span>
+      <span class="k prob">문제점</span><span class="v prob">여러 건이면 따로 여러 번 · 주소 잠금화면 노출</span>
+      <span class="k fix">수정</span><span class="v fix">여러 건 묶기 + 잠금화면 주소 가림</span>
+      <span class="k">추천 문구</span><span class="v">유지(묶음 시 “내일 시공 N곳 — 안내 보낼까요?”)</span>
+    </div>
+    <span class="verdict v-fix">수정(묶기·개인정보)</span>
+  </div>
+
+  <div class="spec">
+    <div class="nm">8. 협업 완료(정산) <span class="b important">중요</span> · ⚠️ 계좌 노출</div>
+    <div class="g">
+      <span class="k">현재 문구</span><span class="v">“협업 작업 완료 ✅” + “…작업을 끝냈어요 · 계좌 {은행 계좌번호 예금주}”</span>
+      <span class="k">언제</span><span class="v">상대 사장이 ‘완료’ 누름</span>
+      <span class="k">표시/버튼</span><span class="v">상단푸시 · [협업 현장 보기]</span>
+      <span class="k">개인정보</span><span class="v p-high">높음 — 입금 계좌번호가 알림/잠금화면 노출</span>
+      <span class="k prob">문제점</span><span class="v prob">계좌번호가 잠금화면에 그대로 — 노출/촬영 위험</span>
+      <span class="k fix">수정</span><span class="v fix">알림엔 “완료 · 정산하기”만, 계좌는 앱 안에서. <code>setVisibility(PRIVATE)</code></span>
+      <span class="k">추천 문구</span><span class="v">“협업 완료 — 정산 계좌 확인” (계좌번호는 본문에서 빼기)</span>
+    </div>
+    <span class="verdict v-fix">수정(개인정보 — 오픈 전 필수)</span>
+  </div>
+
+  <div class="spec">
+    <div class="nm">9. 협업 진행(수락/출발/도착) <span class="b info">참고</span></div>
+    <div class="g">
+      <span class="k">언제</span><span class="v">상대 사장 진행 버튼(수락/출발/도착)</span>
+      <span class="k">표시</span><span class="v">상단푸시(헤드업)</span>
+      <span class="k prob">문제점</span><span class="v prob">출발·도착까지 다 헤드업 → 피로</span>
+      <span class="k fix">수정</span><span class="v fix">수락은 중요(헤드업), 출발/도착은 조용한 알림으로</span>
+    </div>
+    <span class="verdict v-fix">수정(강도 낮춤)</span>
+  </div>
+
+  <div class="spec">
+    <div class="nm">10. 팀원 출발/도착/완료 <span class="b info">참고</span></div>
+    <div class="g">
+      <span class="k">언제</span><span class="v">팀원이 링크화면에서 [출발/도착/완료]</span>
+      <span class="k">표시</span><span class="v">상단푸시</span>
+      <span class="k prob">문제점</span><span class="v prob">팀원 여럿이면 하루 알림 폭주(3명×3=9건)</span>
+      <span class="k fix">수정</span><span class="v fix">‘출발’은 조용한/기본OFF, 도착·완료 유지. 종류별 ON/OFF</span>
+    </div>
+    <span class="verdict v-fix">수정(강도·묶기)</span>
+  </div>
+
+  <div class="spec">
+    <div class="nm">11. 마감 브리핑 <span class="b brief">브리핑</span> / 12. 정기문자 <span class="b brief">브리핑</span></div>
+    <div class="g">
+      <span class="k">언제</span><span class="v">마감=밤 9시 / 정기문자=오전 9시 (둘 다 내용 있을 때만)</span>
+      <span class="k">개인정보</span><span class="v p-low">낮음</span>
+      <span class="k prob">문제점</span><span class="v prob">시간 고정 · 끄기 불가</span>
+      <span class="k fix">수정</span><span class="v fix">시간 설정 + 종류별 ON/OFF</span>
+    </div>
+    <span class="verdict v-keep">유지(설정 추가)</span>
+  </div>
+
+  <div class="spec">
+    <div class="nm">13. RING-GO 캐치!(후속 백업) <span class="b info">참고</span></div>
+    <div class="g">
+      <span class="k">현재 문구</span><span class="v">“RING-GO 캐치!” / “RING-GO 캐치! · 부재중”</span>
+      <span class="k">언제</span><span class="v">팝업카드 권한 없음 / 발신 첫 통화</span>
+      <span class="k prob">문제점</span><span class="v prob">이름이 뭘 하라는지 안 보임 + 발신통화에도 뜸</span>
+      <span class="k fix">수정</span><span class="v fix">문구 변경 + 발신통화엔 끄기(고객일 때만)</span>
+      <span class="k">추천 문구</span><span class="v">“방금 통화 · 후속 문자 보낼까요?”</span>
+    </div>
+    <span class="verdict v-fix">수정(문구·조건)</span>
+  </div>
+
+  <div class="spec">
+    <div class="nm">14. 조용한 재통화 알림 <span class="b info">참고</span></div>
+    <div class="g">
+      <span class="k">언제</span><span class="v">2번째+ 통화인데 미처리(답장·분류·일정 X)</span>
+      <span class="k">표시</span><span class="v">조용한 알림(소리·헤드업 없음)</span>
+      <span class="k">개인정보</span><span class="v p-low">낮음</span>
+      <span class="k">문제점</span><span class="v">없음(잘 설계됨)</span>
+    </div>
+    <span class="verdict v-keep">유지</span>
+  </div>
+
+  <div class="spec">
+    <div class="nm">15. 협업 입금완료 / 해제 <span class="b info">참고</span></div>
+    <div class="g">
+      <span class="k">언제</span><span class="v">주인이 입금완료 표시 / 협업 해제(FCM)</span>
+      <span class="k">개인정보</span><span class="v p-low">낮음(현장명만)</span>
+      <span class="k">문제점</span><span class="v">없음</span>
+    </div>
+    <span class="verdict v-keep">유지</span>
+  </div>
+
+  <div class="spec">
+    <div class="nm">16. 현장 도착 5km / 17. 협업 도착 3km <span class="b info">참고</span> · ⚠️ 위치 오탐</div>
+    <div class="g">
+      <span class="k">언제</span><span class="v">내 현장 5km / 협업현장 3km 진입(GPS geofence)</span>
+      <span class="k">자동실행</span><span class="v p-high">3km는 주인에게 ‘거의 도착’ 자동 전송</span>
+      <span class="k prob">문제점</span><span class="v prob">과거 고객 동네 지나갈 때 오탐 · 배터리 · 자동 전송 위험</span>
+      <span class="k fix">수정</span><span class="v fix">‘오늘 시공 예약된 현장’에만 활성 · 기본 OFF로 시작</span>
+    </div>
+    <span class="verdict v-low">후순위(기본 OFF)</span>
+  </div>
+
+  <!-- ============ 3. 위험 TOP 5 ============ -->
+  <h2>3. 위험도 높은 알림 TOP 5</h2>
+
+  <div class="risk"><div class="rt">① 부재중 자동문자 — 오발송</div>
+    저장된 비고객(가족·지인)·광고 번호에도 <b>자동으로 문자가 나갈 수 있음</b>. 한 번 나가면 회수 불가.<br>
+    <b>→ 수정:</b> 고객/문자이력 있는 번호에만 자동발송. 비고객·광고 제외. 카운트다운 유지.</div>
+
+  <div class="risk"><div class="rt">② 협업 완료(정산) — 계좌번호 노출</div>
+    완료 알림 본문에 <b>입금 계좌번호</b>가 들어가 잠금화면에 그대로 보임(촬영·노출 위험).<br>
+    <b>→ 수정:</b> 본문에서 계좌번호 빼고 “정산 계좌 확인”만. 계좌는 앱 안에서. <code>setVisibility(PRIVATE)</code>.</div>
+
+  <div class="risk"><div class="rt">③ 새 문자 — 본문 노출 + 노이즈</div>
+    문자 본문이 잠금화면 노출. 인증번호·광고도 “새 문자”로 울려 피로.<br>
+    <b>→ 수정:</b> 잠금화면 본문 가림(PRIVATE) + 인증/광고 발신 제외.</div>
+
+  <div class="risk"><div class="rt">④ 접수서 / D-1 — 주소·금액 노출</div>
+    고객 주소·견적 금액이 잠금화면에 보임.<br>
+    <b>→ 수정:</b> <code>setVisibility(PRIVATE)</code> — 잠금화면엔 제목만, 상세는 열어야.</div>
+
+  <div class="risk"><div class="rt">⑤ 위치 기반(5km/3km) — 오탐 + 자동전송</div>
+    과거 고객 동네를 지날 때 잘못 울리고, 3km는 주인에게 자동 전송됨. 배터리도 소모.<br>
+    <b>→ 수정:</b> ‘오늘 예약된 현장’에만. 기본 OFF로 출시 후 검증.</div>
+
+  <!-- ============ 4. MVP 오픈 전 ============ -->
+  <h2>4. MVP 오픈 전 반드시 고칠 것</h2>
+
+  <div class="chk">
+    <h3>A. 오픈 전 필수 수정 (개인정보·오발송)</h3>
+    <ul>
+      <li>☐ <b>잠금화면 민감정보 가리기</b> <code>setVisibility(PRIVATE)</code> — 새 문자 / 접수서 / 협업 완료(계좌) / D-1(주소)</li>
+      <li>☐ <b>협업 완료 알림에서 계좌번호 빼기</b> (본문 → 앱 안에서 확인)</li>
+      <li>☐ <b>부재중 자동문자</b>: 비고객·광고 번호 자동발송 차단</li>
+      <li>☐ <b>새 문자</b>: 인증번호(OTP)·광고 발신 제외</li>
+      <li>☐ <b>발신 통화</b>: 통화 후 카드/“캐치” = 고객·이력 있을 때만</li>
+      <li>☐ <b>위치 5km/3km</b>: 기본 OFF (또는 오늘 예약 현장만)</li>
+    </ul>
+  </div>
+  <div class="chk">
+    <h3>B. 오픈 후 개선 가능</h3>
+    <ul>
+      <li>☐ 묶음: 잔금·D-1·팀원 진행을 한 알림으로</li>
+      <li>☐ 종류별 ON/OFF (팀원 출발, 마감 브리핑 등)</li>
+      <li>☐ 강도 조정: 협업/팀원 ‘출발·도착’ → 조용한 알림</li>
+      <li>☐ “RING-GO 캐치!” 문구 → “방금 통화 · 후속 문자 보낼까요?”</li>
+      <li>☐ 마감 브리핑 시간 설정</li>
+    </ul>
+  </div>
+  <div class="chk">
+    <h3>C. 나중에 넣어도 됨</h3>
+    <ul>
+      <li>☐ 방해금지 시간대(밤엔 소리 없이)</li>
+      <li>☐ 위치 geofence 정교화(반경·정확도)</li>
+      <li>☐ 알림별 사용 통계로 자동 강도 조정</li>
+    </ul>
+  </div>
+
+  <!-- ============ 5. 최종 정책 ============ -->
+  <h2>5. 최종 추천 알림 정책</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>정책</th><th>해당 알림</th></tr></thead>
+    <tbody>
+      <tr><td class="c"><b>강한 알림</b><br>(헤드업)</td><td>새 문자 · 부재중(자동문자 카운트다운) · 협업 요청 · 접수서 도착</td></tr>
+      <tr><td class="c"><b>일반 알림</b></td><td>통화 후 처리 · D-1 · 잔금 미수 · 협업 완료(정산)</td></tr>
+      <tr><td class="c"><b>조용한 알림</b></td><td>팀원 출발/도착 · 협업 출발/도착 · 재통화 미처리</td></tr>
+      <tr><td class="c"><b>브리핑</b></td><td>마감 브리핑 · 정기문자 목록</td></tr>
+      <tr><td class="c"><b>사용자 확인 후 실행</b></td><td>D-1·도착·잔금 안내 문자(보낼까요?) · 통화 후 후속문자</td></tr>
+      <tr><td class="c"><b>자동 실행 OK</b></td><td>접수서 데이터 반영(알림 아님) · onlyAlertOnce 중복 억제</td></tr>
+      <tr><td class="c"><b>자동 실행 ⚠️ 조건부</b></td><td>부재중 자동문자(고객만) · 3km 자동전송(오늘 현장만)</td></tr>
+      <tr><td class="c"><b>기본 OFF로 시작</b></td><td>위치 5km/3km · 팀원 ‘출발’ · (선택) 마감 브리핑</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p class="sub" style="margin-top:18px">작성 기준: 앱 코드(NotificationHelper·CallStateReceiver·ReminderWorker·SmsReceiver) 실제 동작. 사장님이 행마다 “유지/수정/삭제/OFF” 정해주시면 그대로 반영합니다.</p>
 </div>
 </body>
 </html>
