@@ -4693,3 +4693,49 @@ SYNC 추가30 그대로. 한 줄 변경 + 진단 로그 추가.
 - 수정 파일(12곳/6파일): PostCallCard.kt, ChatViewModel.kt, ChatScreen.kt(6), SettingsScreen.kt(2), NewLeadsScreen.kt, CustomerDetailScreen.kt(죽은뱃지). 내부 식별자/enum값("ADOT_SHARE")/주석은 유지.
 - commit: (아래)
 - 다음 액션: 서버측 없음. (참고: 통화녹음은 여전히 에이닷이 만든 파일을 폴더에서 주워옴 — "에이닷의 손만 빌림". 브랜드만 가린 것.)
+## 2026-06-15 (cowork) — 추가32: 베타 종합 대시보드 (전문 IR-grade)
+사장님 요청: "내 베타테스터들이 어떤 활동을 하는지 정확하게 판단할 수 있게. 깔끔하고 전문적이게."
+
+### 신규 endpoint
+- `GET /admin/beta/dashboard/data?days=7|30|90|365` — JSON (Bearer 인증).
+  - kpi: total_users, active_7d, active_30d, new_7d, activated, total_api_calls
+  - network: 협업 요청·수락·완료·모집 공고·지원·팀원·사진
+  - cost: 기간 LLM 비용 + 누적
+  - daily_series[]: 일별 활성 사용자 + API 호출 수 (빈 날도 0 채움)
+  - feature_usage[]: endpoint 별 호출 수 + 비용
+  - users[]: 사용자별 활동 (calls·active_days·cost·상태)
+- `GET /admin/beta/dashboard` — HTML SPA.
+
+### 대시보드 구성 (한 화면)
+1. **KPI 카드 6개**: 총 사용자 / 7일 활성 / 30일 활성 / 신규 / 활성화 / 총 호출
+2. **일별 활성 라인 차트** (Chart.js, 듀얼 Y축: 활성·호출)
+3. **Network 신호 카드 7개**: 협업·모집·팀·사진 (양면 시장 증거)
+4. **기능 사용 막대 차트**: refine·통화요약·답장추천 등 endpoint 별 시각화
+5. **LLM 비용 박스**: 기간 + 누적 (원화)
+6. **사용자별 활동 테이블**: 폰·등록일·첫 진입·마지막 활동·활성 일수·총 호출·비용·상태(활성/휴면/미진입)
+
+### 데이터 소스
+- `beta_whitelist` — 사용자 기본 정보 + first/last_seen
+- `api_usage` — phone 별 endpoint·토큰·비용 (베타 phone 만 필터)
+- `shared_sites`, `recruits`, `recruit_applications`, `team_members`, `team_site_photos` — 네트워크 신호
+- `llm_usage_log` — LLM 비용 (KRW)
+
+### 기간 필터
+- 토글: 7일 / 30일 / 90일 / 1년
+- 모든 시계열 + 집계가 기간에 맞춰 재계산
+
+### IR 트랙션 연결
+이 대시보드 한 화면 = IR v3 의 Slide 13 (트랙션) 빈칸 직접 채움:
+- "베타 30명 / WAU 22명 / 4주 리텐션 70%" 같은 숫자 산출 가능
+- 기능별 사용량 = "사장님들이 가장 많이 쓰는 기능" 차트로 IR 에 박기
+- Network 신호 (협업·모집) = Network Effect 작동 증거
+
+### UI 디자인
+- Pretendard / RING-GO 파란색 / 카드 + shadow / 반응형 (모바일 친화)
+- Chart.js 4.4.0 CDN
+- sessionStorage ADMIN_TOKEN (다른 admin 페이지와 일관)
+- 모바일에서도 깔끔 (grid 2열 → 1열 자동)
+
+### 다음 액션 (사장님)
+한 줄: commit + push + cp + launchctl kickstart.
+접속: `https://si0in.kr/admin/beta/dashboard`

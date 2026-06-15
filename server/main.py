@@ -5004,6 +5004,534 @@ async def admin_beta_whitelist_page():
 
 
 # ============================================================================
+# 추가32 (2026-06-15) — 베타 종합 대시보드 (사장님 IR + 베타 운영)
+# ─────────────────────────────────────────────────────────────────────────────
+# 사장님 요청: "내 베타테스터들이 어떤 활동을 하는지 정확하게 판단할 수 있게."
+# - DAU/WAU/MAU
+# - 기능별 사용량 (refine, 통화요약, 협업 invite 등)
+# - 일별 활성도 라인 차트
+# - 사용자별 활동 테이블
+# - LLM 비용 (인프라)
+# - 네트워크 신호 (협업·모집 발생)
+# ============================================================================
+
+
+@app.get("/admin/beta/dashboard/data")
+async def admin_beta_dashboard_data(
+    days: int = 30,
+    authorization: Optional[str] = Header(default=None),
+) -> dict:
+    """베타 종합 대시보드 데이터.
+
+    days: 7 / 30 / 90 / 365 (시계열·집계 기간).
+    응답: { kpi, daily_active, feature_usage, users[], cost, network }
+    """
+    _admin_auth_bearer_from_header(authorization)
+    days = max(1, min(days, 365))
+    now = _now_ms()
+    cutoff = now - days * 86_400_000
+    cutoff_7d = now - 7 * 86_400_000
+
+    with db_conn() as con:
+        # ── 화이트리스트 사용자 ──
+        wl_rows = con.execute(
+            """
+            SELECT phone, name, memo, added_at_ms, first_seen_ms, last_seen_ms, use_count
+            FROM beta_whitelist ORDER BY added_at_ms DESC
+            """
+        ).fetchall()
+
+        total_users = len(wl_rows)
+        activated = sum(1 for r in wl_rows if r[4])
+        new_7d = sum(1 for r in wl_rows if r[3] and r[3] >= cutoff_7d)
+        # 활성 정의: last_seen 7일 이내
+        active_7d = sum(1 for r in wl_rows if r[5] and r[5] >= cutoff_7d)
+        active_30d = sum(1 for r in wl_rows if r[5] and r[5] >= now - 30 * 86_400_000)
+
+        wl_phones = [r[0] for r in wl_rows]
+
+        # ── api_usage 데이터 (베타 phone 만) ──
+        api_rows: list = []
+        if wl_phones:
+            placeholders = ",".join(["?"] * len(wl_phones))
+            api_rows = con.execute(
+                f"""
+                SELECT phone, endpoint, input_tokens, output_tokens, cost_usd, created_at_ms
+                FROM api_usage
+                WHERE created_at_ms >= ?
+                  AND phone IN ({placeholders})
+                """,
+                (cutoff, *wl_phones),
+            ).fetchall()
+
+        # ── 기능 사용량 집계 (endpoint 별) ──
+        feature_count: dict = {}
+        feature_cost: dict = {}
+        feature_label = {
+            "prepare-reply": "답장 추천",
+            "refine": "친절 다듬기",
+            "call-summary": "통화 요약 (텍스트)",
+            "call-audio-summary": "통화 요약 (녹음)",
+            "conversation-summary": "대화 요약",
+            "card-summary": "고객 카드 요약",
+            "next-action-suggest": "다음 행동 제안",
+            "tone-import": "톤 학습",
+        }
+        for r in api_rows:
+            endpoint = r[1]
+            feature_count[endpoint] = feature_count.get(endpoint, 0) + 1
+            feature_cost[endpoint] = feature_cost.get(endpoint, 0.0) + (r[4] or 0.0)
+
+        # ── 일별 활성 (daily) ──
+        daily_active: dict = {}     # date_key → set of phones
+        daily_calls: dict = {}      # date_key → call count
+        for r in api_rows:
+            ts = r[5] or 0
+            try:
+                dt = _dt.datetime.utcfromtimestamp(ts / 1000) + _dt.timedelta(hours=9)
+                k = dt.strftime("%Y-%m-%d")
+            except Exception:
+                continue
+            daily_active.setdefault(k, set()).add(r[0])
+            daily_calls[k] = daily_calls.get(k, 0) + 1
+        # 빈 날짜 0 채우기 (시계열 연속)
+        daily_series: list = []
+        for i in range(days - 1, -1, -1):
+            d = _dt.datetime.utcfromtimestamp((now - i * 86_400_000) / 1000) + _dt.timedelta(hours=9)
+            k = d.strftime("%Y-%m-%d")
+            daily_series.append({
+                "date": k,
+                "active": len(daily_active.get(k, set())),
+                "calls": daily_calls.get(k, 0),
+            })
+
+        # ── 협업 / 모집 / 팀원 신호 (Network) ──
+        collab_total = con.execute(
+            "SELECT COUNT(*) FROM shared_sites WHERE created_at_ms >= ?", (cutoff,),
+        ).fetchone()[0]
+        collab_accepted = con.execute(
+            "SELECT COUNT(*) FROM shared_sites WHERE created_at_ms >= ? AND status = 'accepted'",
+            (cutoff,),
+        ).fetchone()[0]
+        collab_completed = con.execute(
+            "SELECT COUNT(*) FROM shared_sites WHERE created_at_ms >= ? AND progress = 'completed'",
+            (cutoff,),
+        ).fetchone()[0]
+        recruit_total = con.execute(
+            "SELECT COUNT(*) FROM recruits WHERE created_at_ms >= ?", (cutoff,),
+        ).fetchone()[0]
+        recruit_apps = con.execute(
+            "SELECT COUNT(*) FROM recruit_applications WHERE invited_at_ms >= ?", (cutoff,),
+        ).fetchone()[0]
+        team_members_total = con.execute(
+            "SELECT COUNT(*) FROM team_members WHERE removed_at_ms IS NULL",
+        ).fetchone()[0]
+        photos_total = con.execute(
+            "SELECT COUNT(*) FROM team_site_photos WHERE uploaded_at_ms >= ?", (cutoff,),
+        ).fetchone()[0]
+
+        # ── LLM 비용 (전체 — llm_usage_log) ──
+        cost_30d = con.execute(
+            "SELECT COALESCE(SUM(cost_krw),0), COUNT(*) FROM llm_usage_log WHERE timestamp_ms >= ?",
+            (cutoff,),
+        ).fetchone()
+        cost_all = con.execute(
+            "SELECT COALESCE(SUM(cost_krw),0), COUNT(*) FROM llm_usage_log",
+        ).fetchone()
+
+        # ── 사용자별 활동 (top 50) ──
+        # 각 phone 의 endpoint 별 호출 수 + last_seen + 활성 일수
+        per_user_calls: dict = {}
+        per_user_days: dict = {}
+        per_user_cost: dict = {}
+        for r in api_rows:
+            phone, endpoint, _it, _ot, cost_usd, ts = r
+            per_user_calls[phone] = per_user_calls.get(phone, 0) + 1
+            per_user_cost[phone] = per_user_cost.get(phone, 0.0) + (cost_usd or 0.0)
+            try:
+                dt = _dt.datetime.utcfromtimestamp(ts / 1000) + _dt.timedelta(hours=9)
+                per_user_days.setdefault(phone, set()).add(dt.strftime("%Y-%m-%d"))
+            except Exception:
+                pass
+
+        users = []
+        for r in wl_rows:
+            phone, name, memo, added, first, last, uc = r
+            users.append({
+                "phone": _fmt_phone(phone),
+                "phone_raw": phone,
+                "name": name or "",
+                "memo": memo or "",
+                "added_at_ms": added,
+                "first_seen_ms": first,
+                "last_seen_ms": last,
+                "use_count": uc or 0,
+                "calls": per_user_calls.get(phone, 0),
+                "active_days": len(per_user_days.get(phone, set())),
+                "cost_usd": round(per_user_cost.get(phone, 0.0), 4),
+            })
+        # 정렬: 마지막 활동 최근순
+        users.sort(key=lambda u: u["last_seen_ms"] or 0, reverse=True)
+
+    feature_list = []
+    for ep, cnt in feature_count.items():
+        feature_list.append({
+            "endpoint": ep,
+            "label": feature_label.get(ep, ep),
+            "count": cnt,
+            "cost_usd": round(feature_cost.get(ep, 0.0), 4),
+        })
+    feature_list.sort(key=lambda f: f["count"], reverse=True)
+
+    return {
+        "days": days,
+        "generated_at_ms": now,
+        "kpi": {
+            "total_users": total_users,
+            "activated": activated,
+            "new_7d": new_7d,
+            "active_7d": active_7d,
+            "active_30d": active_30d,
+            "total_api_calls": len(api_rows),
+        },
+        "network": {
+            "collab_total": collab_total,
+            "collab_accepted": collab_accepted,
+            "collab_completed": collab_completed,
+            "recruit_total": recruit_total,
+            "recruit_apps": recruit_apps,
+            "team_members": team_members_total,
+            "photos": photos_total,
+        },
+        "cost": {
+            "period_krw": round(cost_30d[0] or 0, 0),
+            "period_calls": cost_30d[1],
+            "all_krw": round(cost_all[0] or 0, 0),
+            "all_calls": cost_all[1],
+        },
+        "daily_series": daily_series,
+        "feature_usage": feature_list,
+        "users": users,
+    }
+
+
+_BETA_DASHBOARD_HTML = """<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>베타 종합 대시보드 — RING-GO</title>
+<style>
+  :root { --blue:#3182F6; --blue-dark:#1B64DA; --blue-tint:#EEF4FF;
+          --bg:#F4F5F7; --card:#fff;
+          --t1:#0B0F19; --t2:#5A6472; --t3:#9AA3AF; --line:#EEF0F3;
+          --error:#F0436A; --success:#16C172; --warning:#F59E0B;
+          --shadow:0 1px 3px rgba(0,0,0,.04); }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; background:var(--bg); font-family:'Pretendard',-apple-system,system-ui,sans-serif;
+         color:var(--t1); line-height:1.5; }
+  .wrap { max-width:1200px; margin:0 auto; padding:20px 18px 60px; }
+  .head { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+  h1 { font-size:24px; font-weight:800; margin:0; }
+  .sub { font-size:13px; color:var(--t2); margin-bottom:22px; }
+  .toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px; }
+  .toolbar button { background:#fff; border:1.5px solid var(--line); padding:8px 14px;
+                    border-radius:9px; font-size:13px; font-weight:700; cursor:pointer;
+                    color:var(--t2); font-family:inherit; }
+  .toolbar button.active { background:var(--blue); color:#fff; border-color:var(--blue); }
+  .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:12px;
+              margin-bottom:18px; }
+  .kpi { background:var(--card); border-radius:12px; padding:14px 16px; box-shadow:var(--shadow); }
+  .kpi .lbl { font-size:11.5px; color:var(--t3); font-weight:700; text-transform:uppercase; letter-spacing:0.3px; }
+  .kpi .val { font-size:28px; font-weight:800; color:var(--t1); margin-top:2px; }
+  .kpi .sub2 { font-size:11.5px; color:var(--t2); margin-top:2px; }
+  .kpi.blue .val { color:var(--blue-dark); }
+  .kpi.green .val { color:var(--success); }
+  .kpi.orange .val { color:var(--warning); }
+  .row { display:grid; grid-template-columns:2fr 1fr; gap:16px; margin-bottom:18px; }
+  @media (max-width:760px) { .row { grid-template-columns:1fr; } }
+  .card { background:var(--card); border-radius:14px; padding:18px; box-shadow:var(--shadow); }
+  .card h2 { font-size:14px; font-weight:800; margin:0 0 14px; color:var(--t1); }
+  .chart-box { height:220px; }
+  .feat-row { display:flex; align-items:center; gap:10px; margin-bottom:9px; font-size:13px; }
+  .feat-row .name { flex:0 0 130px; color:var(--t1); font-weight:600; }
+  .feat-row .bar { flex:1; height:10px; background:var(--bg); border-radius:5px; overflow:hidden; }
+  .feat-row .bar .fill { height:100%; background:linear-gradient(90deg, var(--blue), var(--blue-dark)); }
+  .feat-row .num { flex:0 0 60px; text-align:right; color:var(--t2); font-weight:700; font-size:12px; }
+  .net-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+  .net-item { padding:10px; background:var(--bg); border-radius:10px; }
+  .net-item .lbl { font-size:11px; color:var(--t3); font-weight:700; }
+  .net-item .val { font-size:18px; font-weight:800; color:var(--blue-dark); margin-top:2px; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th, td { text-align:left; padding:9px 8px; border-bottom:1px solid var(--line); }
+  th { font-size:11px; color:var(--t3); font-weight:700; text-transform:uppercase; }
+  td.right { text-align:right; }
+  .badge { display:inline-block; padding:2px 7px; border-radius:6px; font-size:11px; font-weight:700; }
+  .badge.on { background:#E7F8EF; color:var(--success); }
+  .badge.off { background:#FFF2F5; color:var(--error); }
+  .badge.cool { background:#FFF8E1; color:#7A5A00; }
+  #tokenModal { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none;
+                align-items:center; justify-content:center; z-index:50; }
+  #tokenModal.show { display:flex; }
+  #tokenModal .box { background:#fff; border-radius:14px; padding:24px; max-width:90vw; width:360px; }
+  #tokenModal input { width:100%; border:1.5px solid var(--line); border-radius:10px; padding:12px;
+                      font-size:14px; font-family:inherit; margin:10px 0; }
+  #tokenModal button { width:100%; background:var(--blue); color:#fff; border:0; border-radius:10px;
+                       padding:12px; font-size:14px; font-weight:800; cursor:pointer; font-family:inherit; }
+</style></head>
+<body>
+<div id="tokenModal"><div class="box">
+  <h3 style="margin:0 0 6px">관리자 인증</h3>
+  <p style="font-size:13px; color:#5A6472; margin:0">ADMIN_TOKEN 을 입력하세요. 브라우저에 저장됩니다.</p>
+  <input id="tokenInput" type="password" placeholder="토큰">
+  <button onclick="saveToken()">시작</button>
+</div></div>
+
+<div class="wrap">
+  <div class="head">
+    <div>
+      <h1>📊 베타 종합 대시보드</h1>
+      <p class="sub">테스터 활동 · 기능 사용 · 네트워크 · 인프라 비용 한눈에</p>
+    </div>
+    <div style="font-size:11px; color:var(--t3); text-align:right;">
+      <div id="genTime">로딩중...</div>
+      <div style="margin-top:2px">시공막내 · RING-GO</div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <button data-days="7" onclick="setPeriod(7)">최근 7일</button>
+    <button data-days="30" class="active" onclick="setPeriod(30)">최근 30일</button>
+    <button data-days="90" onclick="setPeriod(90)">최근 90일</button>
+    <button data-days="365" onclick="setPeriod(365)">최근 1년</button>
+    <button onclick="load()" style="margin-left:auto">↻ 새로고침</button>
+  </div>
+
+  <!-- KPI 카드 -->
+  <div class="kpi-grid" id="kpiGrid"></div>
+
+  <!-- 일별 활성 라인 차트 + Network 신호 -->
+  <div class="row">
+    <div class="card">
+      <h2>일별 활성 사용자 + API 호출 수</h2>
+      <div class="chart-box"><canvas id="dailyChart"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>🤝 Network 신호 (협업·모집·팀)</h2>
+      <div class="net-grid" id="netGrid"></div>
+    </div>
+  </div>
+
+  <!-- 기능 사용 막대 + LLM 비용 -->
+  <div class="row">
+    <div class="card">
+      <h2>📈 기능 사용량 (호출 수)</h2>
+      <div id="featList"></div>
+    </div>
+    <div class="card">
+      <h2>💸 LLM 인프라 비용</h2>
+      <div id="costBox"></div>
+    </div>
+  </div>
+
+  <!-- 사용자별 활동 테이블 -->
+  <div class="card" style="margin-bottom:18px">
+    <h2>👥 베타 테스터 활동 상세</h2>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th>폰 · 이름</th>
+          <th>등록일</th>
+          <th>첫 진입</th>
+          <th>마지막 활동</th>
+          <th>활성 일수</th>
+          <th class="right">총 호출</th>
+          <th class="right">비용 (USD)</th>
+          <th>상태</th>
+        </tr></thead>
+        <tbody id="userRows"><tr><td colspan="8" style="text-align:center; padding:30px; color:#9AA3AF">로딩중...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+  var DAYS = 30;
+  var CHART_REF = null;
+
+  function getToken() { return sessionStorage.getItem('admin_token') || ''; }
+  function saveToken() {
+    var t = document.getElementById('tokenInput').value.trim();
+    if (!t) return;
+    sessionStorage.setItem('admin_token', t);
+    document.getElementById('tokenModal').classList.remove('show');
+    load();
+  }
+  function ensureToken() {
+    if (!getToken()) { document.getElementById('tokenModal').classList.add('show'); return false; }
+    return true;
+  }
+  function setPeriod(d) {
+    DAYS = d;
+    document.querySelectorAll('.toolbar button[data-days]').forEach(function(b){
+      b.classList.toggle('active', Number(b.dataset.days) === d);
+    });
+    load();
+  }
+  async function load() {
+    if (!ensureToken()) return;
+    try {
+      var r = await fetch('/admin/beta/dashboard/data?days=' + DAYS, {
+        headers: { 'Authorization': 'Bearer ' + getToken() }
+      });
+      if (r.status === 401) { sessionStorage.removeItem('admin_token'); ensureToken(); return; }
+      if (!r.ok) throw new Error('API 오류 ' + r.status);
+      var d = await r.json();
+      render(d);
+    } catch(e) { alert('로드 실패: ' + e.message); }
+  }
+  function render(d) {
+    document.getElementById('genTime').textContent = '데이터 갱신: ' + new Date(d.generated_at_ms).toLocaleString('ko-KR');
+    // KPI 카드
+    var kpi = d.kpi;
+    var pct = function(n, tot) { return tot > 0 ? Math.round(n / tot * 100) : 0; };
+    document.getElementById('kpiGrid').innerHTML =
+      kpiCard('blue', '총 베타 사용자', kpi.total_users, '명') +
+      kpiCard('green', '활성 (7일)', kpi.active_7d, pct(kpi.active_7d, kpi.total_users) + '% 활성') +
+      kpiCard('green', '활성 (30일)', kpi.active_30d, pct(kpi.active_30d, kpi.total_users) + '% 활성') +
+      kpiCard('orange', '신규 (7일)', kpi.new_7d, '신규 가입') +
+      kpiCard('', '활성화 (첫 진입)', kpi.activated, pct(kpi.activated, kpi.total_users) + '% 진입 완료') +
+      kpiCard('blue', '총 API 호출 (' + d.days + '일)', kpi.total_api_calls, '회');
+
+    // Network 신호
+    var n = d.network;
+    document.getElementById('netGrid').innerHTML =
+      netItem('🤝 협업 요청', n.collab_total) +
+      netItem('✓ 협업 수락', n.collab_accepted) +
+      netItem('🏁 협업 완료', n.collab_completed) +
+      netItem('📣 모집 공고', n.recruit_total) +
+      netItem('👋 모집 지원', n.recruit_apps) +
+      netItem('👷 팀원 등록', n.team_members) +
+      netItem('📸 현장 사진', n.photos) +
+      netItem('', '');
+
+    // 일별 활성 차트
+    if (CHART_REF) CHART_REF.destroy();
+    var ctx = document.getElementById('dailyChart').getContext('2d');
+    var labels = d.daily_series.map(function(p){ return p.date.slice(5); });
+    var actives = d.daily_series.map(function(p){ return p.active; });
+    var calls = d.daily_series.map(function(p){ return p.calls; });
+    CHART_REF = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          { label: '활성 사용자', data: actives, borderColor: '#3182F6', backgroundColor: 'rgba(49,130,246,.1)', tension: 0.3, yAxisID: 'y' },
+          { label: 'API 호출 수', data: calls, borderColor: '#16C172', backgroundColor: 'rgba(22,193,114,.1)', tension: 0.3, yAxisID: 'y1' },
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+          y: { type: 'linear', position: 'left', title: { display: true, text: '활성' }, beginAtZero: true },
+          y1: { type: 'linear', position: 'right', title: { display: true, text: 'API' }, beginAtZero: true, grid: { drawOnChartArea: false } },
+        },
+        plugins: { legend: { labels: { font: { size: 11 } } } },
+      }
+    });
+
+    // 기능 사용 막대
+    var feat = d.feature_usage;
+    if (feat.length === 0) {
+      document.getElementById('featList').innerHTML = '<div style="text-align:center; padding:20px; color:#9AA3AF; font-size:13px">아직 사용 데이터 없음</div>';
+    } else {
+      var maxN = feat[0].count;
+      var html = '';
+      feat.forEach(function(f){
+        var pct2 = maxN > 0 ? Math.round(f.count / maxN * 100) : 0;
+        html += '<div class="feat-row">'
+              + '<span class="name">' + escape(f.label) + '</span>'
+              + '<span class="bar"><span class="fill" style="width:' + pct2 + '%; display:block"></span></span>'
+              + '<span class="num">' + f.count + '</span>'
+              + '</div>';
+      });
+      document.getElementById('featList').innerHTML = html;
+    }
+
+    // LLM 비용
+    var c = d.cost;
+    document.getElementById('costBox').innerHTML =
+      '<div style="margin-bottom:12px"><div style="font-size:11.5px; color:#9AA3AF; font-weight:700">기간 (' + d.days + '일)</div>'
+      + '<div style="font-size:24px; font-weight:800; color:#1B64DA">' + Math.round(c.period_krw).toLocaleString() + '원</div>'
+      + '<div style="font-size:11.5px; color:#5A6472">' + c.period_calls + '회 호출</div></div>'
+      + '<div><div style="font-size:11.5px; color:#9AA3AF; font-weight:700">누적</div>'
+      + '<div style="font-size:18px; font-weight:800; color:#0B0F19">' + Math.round(c.all_krw).toLocaleString() + '원</div>'
+      + '<div style="font-size:11.5px; color:#5A6472">' + c.all_calls + '회 호출</div></div>';
+
+    // 사용자 테이블
+    var users = d.users;
+    if (users.length === 0) {
+      document.getElementById('userRows').innerHTML = '<tr><td colspan="8" style="text-align:center; padding:30px; color:#9AA3AF">등록된 테스터 없음</td></tr>';
+    } else {
+      var html2 = '';
+      var now = Date.now();
+      users.forEach(function(u){
+        var added = u.added_at_ms ? new Date(u.added_at_ms).toLocaleDateString('ko') : '-';
+        var first = u.first_seen_ms ? new Date(u.first_seen_ms).toLocaleDateString('ko') : '<span style="color:#9AA3AF">-</span>';
+        var last = u.last_seen_ms ? timeAgo(now - u.last_seen_ms) : '<span style="color:#9AA3AF">-</span>';
+        var statusBadge;
+        if (!u.first_seen_ms) statusBadge = '<span class="badge off">미진입</span>';
+        else if (u.last_seen_ms && (now - u.last_seen_ms) < 7 * 86400000) statusBadge = '<span class="badge on">활성</span>';
+        else statusBadge = '<span class="badge cool">휴면</span>';
+        html2 += '<tr>'
+              + '<td><b>' + u.phone + '</b><br><span style="font-size:11px; color:#5A6472">' + escape(u.name || '-') + '</span></td>'
+              + '<td>' + added + '</td>'
+              + '<td>' + first + '</td>'
+              + '<td>' + last + '</td>'
+              + '<td>' + u.active_days + '일</td>'
+              + '<td class="right"><b>' + u.calls + '</b></td>'
+              + '<td class="right">$' + u.cost_usd.toFixed(3) + '</td>'
+              + '<td>' + statusBadge + '</td>'
+              + '</tr>';
+      });
+      document.getElementById('userRows').innerHTML = html2;
+    }
+  }
+  function kpiCard(cls, lbl, val, sub) {
+    return '<div class="kpi ' + cls + '">'
+         + '<div class="lbl">' + escape(lbl) + '</div>'
+         + '<div class="val">' + val + '</div>'
+         + '<div class="sub2">' + escape(sub) + '</div>'
+         + '</div>';
+  }
+  function netItem(lbl, val) {
+    if (!lbl) return '<div></div>';
+    return '<div class="net-item"><div class="lbl">' + escape(lbl) + '</div><div class="val">' + val + '</div></div>';
+  }
+  function timeAgo(ms) {
+    var s = Math.floor(ms / 1000);
+    if (s < 60) return s + '초 전';
+    var m = Math.floor(s / 60);
+    if (m < 60) return m + '분 전';
+    var h = Math.floor(m / 60);
+    if (h < 24) return h + '시간 전';
+    var d = Math.floor(h / 24);
+    return d + '일 전';
+  }
+  function escape(s) { s = String(s||''); return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  load();
+</script></body></html>
+"""
+
+
+@app.get("/admin/beta/dashboard", response_class=HTMLResponse, include_in_schema=False)
+async def admin_beta_dashboard_page():
+    """베타 종합 대시보드 HTML."""
+    return HTMLResponse(content=_BETA_DASHBOARD_HTML)
+
+
+# ============================================================================
 # §24 — APK 직접 서빙 + 설치 안내 페이지 (베타 100명 다운로드 채널)
 # ─────────────────────────────────────────────────────────────────────────────
 # Google Play 비공개 테스트 셋업 전 임시 다리. 사장님이 안드로이드 APK 빌드 후
