@@ -5837,6 +5837,306 @@ async def admin_beta_dashboard_page():
 
 
 # ============================================================================
+# 추가33 (2026-06-15) — admin 홈 허브 (PWA — 사장님 폰 홈화면)
+# ─────────────────────────────────────────────────────────────────────────────
+# /admin → 사장님 전용 콘솔 홈. PWA 로 설치 → 폰 홈화면에서 바로 진입.
+# 진입 카드: 베타 대시보드 / 화이트리스트 / 베타 신청자 / 베타 인테이크.
+# ============================================================================
+
+
+@app.get("/admin/home/data")
+async def admin_home_data(authorization: Optional[str] = Header(default=None)) -> dict:
+    """홈 허브 미리보기 — 3개 카드용 통계 한 번에."""
+    _admin_auth_bearer_from_header(authorization)
+    now = _now_ms()
+    cutoff_7d = now - 7 * 86_400_000
+    with db_conn() as con:
+        # 화이트리스트
+        wl_total = con.execute("SELECT COUNT(*) FROM beta_whitelist").fetchone()[0]
+        wl_active = con.execute(
+            "SELECT COUNT(*) FROM beta_whitelist WHERE last_seen_ms >= ?", (cutoff_7d,)
+        ).fetchone()[0]
+        wl_pending = con.execute(
+            "SELECT COUNT(*) FROM beta_whitelist WHERE first_seen_ms IS NULL"
+        ).fetchone()[0]
+        # 베타 신청자
+        signup_total = con.execute("SELECT COUNT(*) FROM beta_signups").fetchone()[0]
+        signup_pending = con.execute(
+            "SELECT COUNT(*) FROM beta_signups WHERE status = 'pending'"
+        ).fetchone()[0]
+        signup_7d = con.execute(
+            "SELECT COUNT(*) FROM beta_signups WHERE created_at_ms >= ?", (cutoff_7d,)
+        ).fetchone()[0]
+        # 대시보드 미리보기 — 활성 사용자 + 7일 호출
+        api_7d = con.execute(
+            "SELECT COUNT(*) FROM api_usage WHERE created_at_ms >= ?", (cutoff_7d,)
+        ).fetchone()[0]
+        cost_7d = con.execute(
+            "SELECT COALESCE(SUM(cost_krw),0) FROM llm_usage_log WHERE timestamp_ms >= ?",
+            (cutoff_7d,),
+        ).fetchone()[0]
+    return {
+        "whitelist": {"total": wl_total, "active_7d": wl_active, "pending": wl_pending},
+        "signups": {"total": signup_total, "pending": signup_pending, "new_7d": signup_7d},
+        "dashboard": {"active_7d": wl_active, "api_calls_7d": api_7d, "cost_krw_7d": round(cost_7d or 0, 0)},
+    }
+
+
+_ADMIN_HOME_HTML = """<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#3182F6">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="시공막내 admin">
+<link rel="manifest" href="/manifest/admin.webmanifest">
+<link rel="apple-touch-icon" href="/manifest/admin-icon.svg">
+<title>시공막내 admin · 콘솔</title>
+<style>
+  :root { --blue:#3182F6; --blue-dark:#1B64DA; --blue-tint:#EEF4FF;
+          --bg:#F4F5F7; --card:#fff;
+          --t1:#0B0F19; --t2:#5A6472; --t3:#9AA3AF; --line:#EEF0F3;
+          --success:#16C172; --warning:#F59E0B; --error:#F0436A;
+          --shadow:0 1px 3px rgba(0,0,0,.04); --shadow-lg:0 8px 24px rgba(0,0,0,.08); }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; padding:0; background:var(--bg); }
+  body { font-family:'Pretendard',-apple-system,system-ui,sans-serif; color:var(--t1); line-height:1.5; min-height:100vh; }
+  .wrap { max-width:560px; margin:0 auto; padding:20px 16px 50px; }
+  .head { display:flex; align-items:center; gap:12px; margin-bottom:6px; }
+  .brand-mark { width:42px; height:42px; border-radius:12px;
+                background:linear-gradient(135deg,var(--blue),var(--blue-dark));
+                color:#fff; font-size:18px; font-weight:900;
+                display:flex; align-items:center; justify-content:center; }
+  .brand-name { font-size:18px; font-weight:800; }
+  .brand-sub { font-size:11.5px; color:var(--t3); font-weight:700; }
+  h1 { font-size:23px; font-weight:800; margin:18px 0 4px; }
+  .sub { font-size:13px; color:var(--t2); margin-bottom:20px; }
+
+  .pwa-install { display:block; width:100%; background:#fff; color:var(--blue-dark);
+                 border:1.5px solid var(--blue); border-radius:12px; padding:13px;
+                 font-size:14px; font-weight:800; cursor:pointer; font-family:inherit;
+                 margin-bottom:18px; }
+  .pwa-install:active { background:var(--blue-tint); }
+
+  .menu-grid { display:grid; gap:12px; }
+  .menu-card { background:var(--card); border-radius:16px; padding:18px; box-shadow:var(--shadow);
+               cursor:pointer; transition:transform .12s, box-shadow .12s;
+               display:flex; align-items:center; gap:14px; }
+  .menu-card:hover { transform:translateY(-1px); box-shadow:var(--shadow-lg); }
+  .menu-card:active { transform:scale(0.99); }
+  .menu-card .icon { width:56px; height:56px; border-radius:14px; flex:0 0 56px;
+                     display:flex; align-items:center; justify-content:center;
+                     font-size:28px; }
+  .menu-card .icon.blue { background:var(--blue-tint); }
+  .menu-card .icon.green { background:#E7F8EF; }
+  .menu-card .icon.orange { background:#FFF8E1; }
+  .menu-card .body { flex:1; min-width:0; }
+  .menu-card .title { font-size:16px; font-weight:800; color:var(--t1); margin-bottom:2px; }
+  .menu-card .desc { font-size:12.5px; color:var(--t2); margin-bottom:6px; }
+  .menu-card .stats { display:flex; gap:10px; flex-wrap:wrap; font-size:11.5px; color:var(--t3); font-weight:700; }
+  .menu-card .stats b { color:var(--blue-dark); font-size:13px; }
+  .menu-card .arrow { font-size:18px; color:var(--t3); }
+
+  .foot { margin-top:30px; padding:14px; background:#fff; border-radius:12px;
+          text-align:center; font-size:11.5px; color:var(--t3); box-shadow:var(--shadow); }
+  .foot a { color:var(--blue-dark); text-decoration:none; font-weight:700; }
+
+  /* PWA 설치 안내 시트 */
+  .pwa-sheet { position:fixed; inset:0; background:rgba(0,0,0,.5); display:none;
+               align-items:flex-end; justify-content:center; z-index:60; }
+  .pwa-sheet.show { display:flex; }
+  .pwa-sheet-card { width:100%; max-width:560px; background:#fff; border-radius:16px 16px 0 0;
+                    padding:22px 20px 28px; }
+  .pwa-sheet-card h3 { margin:0 0 10px; font-size:17px; font-weight:800; }
+  .pwa-sheet-card p { margin:0 0 18px; font-size:14px; color:var(--t2); line-height:1.6; }
+  .pwa-sheet-close { width:100%; background:var(--blue); color:#fff; border:0; border-radius:12px;
+                     padding:14px; font-size:15px; font-weight:800; font-family:inherit; cursor:pointer; }
+
+  /* 토큰 모달 */
+  #tokenModal { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none;
+                align-items:center; justify-content:center; z-index:50; padding:20px; }
+  #tokenModal.show { display:flex; }
+  #tokenModal .box { background:#fff; border-radius:14px; padding:24px; max-width:90vw; width:360px; }
+  #tokenModal input { width:100%; border:1.5px solid var(--line); border-radius:10px; padding:12px;
+                      font-size:14px; font-family:inherit; margin:10px 0; }
+  #tokenModal button { width:100%; background:var(--blue); color:#fff; border:0; border-radius:10px;
+                       padding:12px; font-size:14px; font-weight:800; cursor:pointer; font-family:inherit; }
+</style></head>
+<body>
+<div id="tokenModal"><div class="box">
+  <h3 style="margin:0 0 6px">관리자 인증</h3>
+  <p style="font-size:13px; color:#5A6472; margin:0">ADMIN_TOKEN 입력. 브라우저에 저장됩니다.</p>
+  <input id="tokenInput" type="password" placeholder="토큰">
+  <button onclick="saveToken()">시작</button>
+</div></div>
+
+<div class="pwa-sheet" id="pwa-sheet" onclick="if(event.target.id==='pwa-sheet')closePwaSheet()">
+  <div class="pwa-sheet-card">
+    <h3>📲 홈 화면에 추가하기</h3>
+    <p id="pwa-sheet-msg">브라우저 메뉴를 열고 "현재 페이지를 홈 화면에 추가" 를 눌러주세요.</p>
+    <button class="pwa-sheet-close" onclick="closePwaSheet()">확인</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="head">
+    <div class="brand-mark">R</div>
+    <div>
+      <div class="brand-name">RING-GO</div>
+      <div class="brand-sub">시공막내 admin</div>
+    </div>
+  </div>
+  <h1>👋 안녕하세요, 사장님!</h1>
+  <p class="sub">베타 운영 콘솔 — 대시보드 · 화이트리스트 · 신청자 관리</p>
+
+  <button class="pwa-install" type="button" onclick="onInstallClick()">📲 홈 화면에 추가</button>
+
+  <div class="menu-grid">
+    <a href="/admin/beta/dashboard" class="menu-card" style="text-decoration:none; color:inherit;">
+      <div class="icon blue">📊</div>
+      <div class="body">
+        <div class="title">베타 종합 대시보드</div>
+        <div class="desc">테스터 활동 · 기능 사용 · LLM 비용</div>
+        <div class="stats" id="statsDashboard">로딩...</div>
+      </div>
+      <div class="arrow">›</div>
+    </a>
+
+    <a href="/admin/beta/whitelist" class="menu-card" style="text-decoration:none; color:inherit;">
+      <div class="icon green">🧪</div>
+      <div class="body">
+        <div class="title">화이트리스트</div>
+        <div class="desc">베타 테스터 폰번호 추가·관리</div>
+        <div class="stats" id="statsWhitelist">로딩...</div>
+      </div>
+      <div class="arrow">›</div>
+    </a>
+
+    <a href="/admin/beta/signups" class="menu-card" style="text-decoration:none; color:inherit;">
+      <div class="icon orange">📝</div>
+      <div class="body">
+        <div class="title">베타 신청자</div>
+        <div class="desc">si0in.kr 가입 폼 들어온 신청자</div>
+        <div class="stats" id="statsSignups">로딩...</div>
+      </div>
+      <div class="arrow">›</div>
+    </a>
+
+    <a href="/admin/beta/intake" class="menu-card" style="text-decoration:none; color:inherit;">
+      <div class="icon blue">📋</div>
+      <div class="body">
+        <div class="title">베타 인테이크 폼</div>
+        <div class="desc">사장님이 직접 베타 설정 (HOU-128)</div>
+        <div class="stats"><span>10 카테고리 설정</span></div>
+      </div>
+      <div class="arrow">›</div>
+    </a>
+  </div>
+
+  <div class="foot">
+    🏗️ <b>시공막내</b> — 1인 시공 사장님의 운영 OS<br>
+    <a href="https://si0in.kr" target="_blank">si0in.kr</a> · <a href="/healthz" target="_blank">healthz</a>
+  </div>
+</div>
+
+<script>
+  function getToken() { return sessionStorage.getItem('admin_token') || ''; }
+  function saveToken() {
+    var t = document.getElementById('tokenInput').value.trim();
+    if (!t) return;
+    sessionStorage.setItem('admin_token', t);
+    document.getElementById('tokenModal').classList.remove('show');
+    loadStats();
+  }
+  function ensureToken() {
+    if (!getToken()) { document.getElementById('tokenModal').classList.add('show'); return false; }
+    return true;
+  }
+  async function loadStats() {
+    if (!ensureToken()) return;
+    try {
+      var r = await fetch('/admin/home/data', { headers: { 'Authorization': 'Bearer ' + getToken() } });
+      if (r.status === 401) { sessionStorage.removeItem('admin_token'); ensureToken(); return; }
+      if (!r.ok) throw new Error('통계 로드 실패');
+      var d = await r.json();
+      document.getElementById('statsDashboard').innerHTML =
+        '활성 <b>' + d.dashboard.active_7d + '</b>명 · 호출 <b>' + d.dashboard.api_calls_7d.toLocaleString() + '</b>건 · ' + Math.round(d.dashboard.cost_krw_7d).toLocaleString() + '원 (7일)';
+      document.getElementById('statsWhitelist').innerHTML =
+        '등록 <b>' + d.whitelist.total + '</b>명 · 활성 <b>' + d.whitelist.active_7d + '</b>명 · 미진입 <b>' + d.whitelist.pending + '</b>명';
+      document.getElementById('statsSignups').innerHTML =
+        '총 <b>' + d.signups.total + '</b>건 · 대기 <b>' + d.signups.pending + '</b>건 · 신규 <b>' + d.signups.new_7d + '</b>건 (7일)';
+    } catch(e) {
+      console.error(e);
+      document.querySelectorAll('.stats').forEach(function(el){ el.textContent = '통계 로드 실패'; });
+    }
+  }
+
+  // PWA 설치
+  var deferredPrompt = null;
+  window.addEventListener('beforeinstallprompt', function(e) { e.preventDefault(); deferredPrompt = e; });
+  function onInstallClick() {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(function(){ deferredPrompt = null; });
+      return;
+    }
+    var ua = navigator.userAgent.toLowerCase();
+    var msg = '브라우저 메뉴를 열고 "현재 페이지를 홈 화면에 추가" 를 눌러주세요.';
+    if (/iphone|ipad|ipod/.test(ua)) msg = '하단 공유 버튼 (▢↑) 을 누르고 "홈 화면에 추가" 를 선택해주세요.';
+    else if (ua.indexOf('samsungbrowser') !== -1) msg = '하단 메뉴 (≡) → "현재 페이지를 홈 화면에 추가" 를 눌러주세요.';
+    document.getElementById('pwa-sheet-msg').textContent = msg;
+    document.getElementById('pwa-sheet').classList.add('show');
+  }
+  function closePwaSheet() { document.getElementById('pwa-sheet').classList.remove('show'); }
+
+  loadStats();
+</script></body></html>
+"""
+
+
+@app.get("/admin", response_class=HTMLResponse, include_in_schema=False)
+async def admin_home_page():
+    """사장님 admin 홈 허브 — PWA + 카드 메뉴."""
+    return HTMLResponse(content=_ADMIN_HOME_HTML)
+
+
+@app.get("/manifest/admin.webmanifest")
+async def admin_manifest():
+    """PWA manifest — admin 홈."""
+    manifest = {
+        "name": "시공막내 admin",
+        "short_name": "시공막내 admin",
+        "start_url": "/admin",
+        "scope": "/admin",
+        "display": "standalone",
+        "background_color": "#F4F5F7",
+        "theme_color": "#3182F6",
+        "icons": [
+            {"src": "/manifest/admin-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable"},
+            {"src": "/manifest/admin-icon.svg", "sizes": "192x192", "type": "image/svg+xml"},
+            {"src": "/manifest/admin-icon.svg", "sizes": "512x512", "type": "image/svg+xml"},
+        ],
+    }
+    return JSONResponse(content=manifest, media_type="application/manifest+json")
+
+
+@app.get("/manifest/admin-icon.svg")
+async def admin_icon():
+    """PWA 아이콘 — admin 홈 (파란 박스 + R)."""
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">'
+        '<defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">'
+        '<stop offset="0%" stop-color="#3182F6"/>'
+        '<stop offset="100%" stop-color="#1B64DA"/></linearGradient></defs>'
+        '<rect width="512" height="512" rx="96" fill="url(#g)"/>'
+        '<text x="256" y="345" text-anchor="middle" font-family="-apple-system,system-ui,sans-serif" '
+        'font-size="280" font-weight="900" fill="#fff">R</text>'
+        '</svg>'
+    )
+    return Response(content=svg, media_type="image/svg+xml")
+
+
+# ============================================================================
 # §24 — APK 직접 서빙 + 설치 안내 페이지 (베타 100명 다운로드 채널)
 # ─────────────────────────────────────────────────────────────────────────────
 # Google Play 비공개 테스트 셋업 전 임시 다리. 사장님이 안드로이드 APK 빌드 후
