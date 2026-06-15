@@ -5139,6 +5139,123 @@ async def admin_beta_dashboard_data(
             "SELECT COALESCE(SUM(cost_krw),0), COUNT(*) FROM llm_usage_log",
         ).fetchone()
 
+        # ── 카드 drill-down 상세 (최근 30개씩) ──
+        def _fmt_dt(ms):
+            if not ms: return ""
+            try:
+                dt = _dt.datetime.utcfromtimestamp(ms / 1000) + _dt.timedelta(hours=9)
+                return dt.strftime("%m/%d %H:%M")
+            except Exception:
+                return ""
+        # 협업 요청 (전체)
+        rows = con.execute(
+            """
+            SELECT share_id, owner_phone, partner_phone, title, scheduled_at_ms,
+                   status, progress, daily_wage, time_label_raw, owner_name_raw, created_at_ms
+            FROM shared_sites WHERE created_at_ms >= ?
+            ORDER BY created_at_ms DESC LIMIT 30
+            """, (cutoff,),
+        ).fetchall()
+        collab_details = [
+            {
+                "owner_name": (r[9] or "").strip() or (_is_registered_owner(r[1]) or "사장님"),
+                "owner_phone": _fmt_phone(r[1]),
+                "partner_name": _is_registered_owner(r[2]) or "협업 사장",
+                "partner_phone": _fmt_phone(r[2]),
+                "title": r[3] or "",
+                "scheduled": _fmt_dt(r[4]) or (r[8] or ""),
+                "status": r[5],
+                "progress": r[6],
+                "daily_wage": r[7],
+                "created": _fmt_dt(r[10]),
+            } for r in rows
+        ]
+        collab_accepted_details = [d for d in collab_details if d["status"] == "accepted"][:30]
+        collab_completed_details = [d for d in collab_details if d["progress"] == "completed"][:30]
+
+        # 모집 공고
+        rows = con.execute(
+            """
+            SELECT recruit_id, owner_phone, date_ms, place, work, daily_wage, status, created_at_ms
+            FROM recruits WHERE created_at_ms >= ?
+            ORDER BY created_at_ms DESC LIMIT 30
+            """, (cutoff,),
+        ).fetchall()
+        recruit_details = [
+            {
+                "owner_name": _is_registered_owner(r[1]) or "사장님",
+                "owner_phone": _fmt_phone(r[1]),
+                "date": _fmt_dt(r[2]),
+                "place": r[3] or "",
+                "work": r[4] or "",
+                "daily_wage": r[5],
+                "status": r[6],
+                "created": _fmt_dt(r[7]),
+            } for r in rows
+        ]
+
+        # 모집 지원
+        rows = con.execute(
+            """
+            SELECT r.recruit_id, ra.partner_phone, ra.invited_at_ms, ra.applied_at_ms,
+                   ra.status, r.place, r.work, r.daily_wage
+            FROM recruit_applications ra
+            JOIN recruits r ON r.recruit_id = ra.recruit_id
+            WHERE ra.invited_at_ms >= ? AND ra.applied_at_ms IS NOT NULL
+            ORDER BY ra.applied_at_ms DESC LIMIT 30
+            """, (cutoff,),
+        ).fetchall()
+        recruit_app_details = [
+            {
+                "partner_name": _is_registered_owner(r[1]) or "협업 사장",
+                "partner_phone": _fmt_phone(r[1]),
+                "applied": _fmt_dt(r[3]),
+                "status": r[4],
+                "place": r[5] or "",
+                "work": r[6] or "",
+                "daily_wage": r[7],
+            } for r in rows
+        ]
+
+        # 팀원 등록 (활성)
+        rows = con.execute(
+            """
+            SELECT member_id, owner_phone, name, phone, role, created_at_ms
+            FROM team_members WHERE removed_at_ms IS NULL
+            ORDER BY created_at_ms DESC LIMIT 30
+            """
+        ).fetchall()
+        team_details = [
+            {
+                "owner_name": _is_registered_owner(r[1]) or "사장님",
+                "owner_phone": _fmt_phone(r[1]),
+                "name": r[2] or "",
+                "phone": _fmt_phone(r[3]),
+                "role": r[4] or "worker",
+                "created": _fmt_dt(r[5]),
+            } for r in rows
+        ]
+
+        # 현장 사진
+        rows = con.execute(
+            """
+            SELECT photo_id, owner_phone, label, customer_phone, share_id, uploaded_at_ms, member_id
+            FROM team_site_photos WHERE uploaded_at_ms >= ?
+            ORDER BY uploaded_at_ms DESC LIMIT 30
+            """, (cutoff,),
+        ).fetchall()
+        photo_details = [
+            {
+                "owner_name": _is_registered_owner(r[1]) or "사장님",
+                "owner_phone": _fmt_phone(r[1]),
+                "label": r[2] or "",
+                "customer_phone": _fmt_phone(r[3]) if r[3] else "",
+                "share_id": r[4] or "",
+                "uploaded": _fmt_dt(r[5]),
+                "uploader": r[6] or "",
+            } for r in rows
+        ]
+
         # ── 사용자별 활동 (top 50) ──
         # 각 phone 의 endpoint 별 호출 수 + last_seen + 활성 일수
         per_user_calls: dict = {}
@@ -5212,6 +5329,15 @@ async def admin_beta_dashboard_data(
         "daily_series": daily_series,
         "feature_usage": feature_list,
         "users": users,
+        "details": {
+            "collab_total": collab_details,
+            "collab_accepted": collab_accepted_details,
+            "collab_completed": collab_completed_details,
+            "recruit_total": recruit_details,
+            "recruit_apps": recruit_app_details,
+            "team_members": team_details,
+            "photos": photo_details,
+        },
     }
 
 
@@ -5258,9 +5384,31 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
   .feat-row .bar .fill { height:100%; background:linear-gradient(90deg, var(--blue), var(--blue-dark)); }
   .feat-row .num { flex:0 0 60px; text-align:right; color:var(--t2); font-weight:700; font-size:12px; }
   .net-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
-  .net-item { padding:10px; background:var(--bg); border-radius:10px; }
+  .net-item { padding:10px; background:var(--bg); border-radius:10px; cursor:pointer;
+              transition:background .15s, transform .1s; }
+  .net-item:hover { background:#E8EEF7; }
+  .net-item:active { transform:scale(0.98); }
+  .net-item.empty { cursor:default; opacity:.4; }
+  .net-item.empty:hover { background:var(--bg); }
   .net-item .lbl { font-size:11px; color:var(--t3); font-weight:700; }
   .net-item .val { font-size:18px; font-weight:800; color:var(--blue-dark); margin-top:2px; }
+
+  /* drill-down 모달 */
+  .modal { position:fixed; inset:0; background:rgba(0,0,0,.55); display:none;
+           align-items:center; justify-content:center; z-index:60; padding:20px; }
+  .modal.show { display:flex; }
+  .modal-box { background:#fff; border-radius:16px; max-width:780px; width:100%;
+               max-height:85vh; overflow:hidden; display:flex; flex-direction:column;
+               box-shadow:0 20px 60px rgba(0,0,0,.3); }
+  .modal-head { display:flex; align-items:center; justify-content:space-between;
+                padding:18px 20px 14px; border-bottom:1px solid var(--line); }
+  .modal-head h3 { margin:0; font-size:17px; font-weight:800; }
+  .modal-head .close { background:none; border:0; font-size:22px; color:var(--t3);
+                       cursor:pointer; padding:4px 8px; }
+  .modal-body { overflow-y:auto; padding:0 4px 14px; }
+  .modal-body table { font-size:13px; }
+  .modal-body th, .modal-body td { padding:10px 16px; }
+  .modal-body .nodata { text-align:center; padding:40px; color:var(--t3); font-size:13px; }
   table { width:100%; border-collapse:collapse; font-size:12.5px; }
   th, td { text-align:left; padding:9px 8px; border-bottom:1px solid var(--line); }
   th { font-size:11px; color:var(--t3); font-weight:700; text-transform:uppercase; }
@@ -5354,6 +5502,17 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
   </div>
 </div>
 
+<!-- drill-down 모달 -->
+<div class="modal" id="drillModal" onclick="if(event.target.id==='drillModal')closeDrill()">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3 id="drillTitle">상세</h3>
+      <button class="close" type="button" onclick="closeDrill()">×</button>
+    </div>
+    <div class="modal-body" id="drillBody"></div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
   var DAYS = 30;
@@ -5403,17 +5562,18 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
       kpiCard('', '활성화 (첫 진입)', kpi.activated, pct(kpi.activated, kpi.total_users) + '% 진입 완료') +
       kpiCard('blue', '총 API 호출 (' + d.days + '일)', kpi.total_api_calls, '회');
 
-    // Network 신호
+    // Network 신호 (클릭 시 drill-down)
+    LAST_DETAILS = d.details || {};
     var n = d.network;
     document.getElementById('netGrid').innerHTML =
-      netItem('🤝 협업 요청', n.collab_total) +
-      netItem('✓ 협업 수락', n.collab_accepted) +
-      netItem('🏁 협업 완료', n.collab_completed) +
-      netItem('📣 모집 공고', n.recruit_total) +
-      netItem('👋 모집 지원', n.recruit_apps) +
-      netItem('👷 팀원 등록', n.team_members) +
-      netItem('📸 현장 사진', n.photos) +
-      netItem('', '');
+      netItem('🤝 협업 요청', n.collab_total, 'collab_total') +
+      netItem('✓ 협업 수락', n.collab_accepted, 'collab_accepted') +
+      netItem('🏁 협업 완료', n.collab_completed, 'collab_completed') +
+      netItem('📣 모집 공고', n.recruit_total, 'recruit_total') +
+      netItem('👋 모집 지원', n.recruit_apps, 'recruit_apps') +
+      netItem('👷 팀원 등록', n.team_members, 'team_members') +
+      netItem('📸 현장 사진', n.photos, 'photos') +
+      netItem('', '', '');
 
     // 일별 활성 차트
     if (CHART_REF) CHART_REF.destroy();
@@ -5505,9 +5665,91 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
          + '<div class="sub2">' + escape(sub) + '</div>'
          + '</div>';
   }
-  function netItem(lbl, val) {
-    if (!lbl) return '<div></div>';
-    return '<div class="net-item"><div class="lbl">' + escape(lbl) + '</div><div class="val">' + val + '</div></div>';
+  function netItem(lbl, val, kind) {
+    if (!lbl) return '<div class="net-item empty"></div>';
+    var clickAttr = (val > 0 && kind) ? ' onclick="openDrill(\\''+kind+'\\',\\''+lbl.replace(/'/g,"\\\\'")+'\\')"' : ' class="net-item empty"';
+    var cls = (val > 0 && kind) ? 'net-item' : 'net-item empty';
+    return '<div class="' + cls + '"' + (val > 0 && kind ? ' onclick="openDrill(\\''+kind+'\\', \\''+lbl.replace(/'/g,"")+'\\')"' : '') + '>'
+         + '<div class="lbl">' + escape(lbl) + '</div><div class="val">' + val + '</div></div>';
+  }
+
+  // drill-down 모달
+  var LAST_DETAILS = {};
+  function openDrill(kind, title) {
+    var rows = LAST_DETAILS[kind] || [];
+    document.getElementById('drillTitle').textContent = title + ' · ' + rows.length + '건';
+    document.getElementById('drillBody').innerHTML = renderDrillTable(kind, rows);
+    document.getElementById('drillModal').classList.add('show');
+  }
+  function closeDrill() { document.getElementById('drillModal').classList.remove('show'); }
+
+  function renderDrillTable(kind, rows) {
+    if (!rows || rows.length === 0) return '<div class="nodata">상세 데이터 없음</div>';
+    var cols, head;
+    if (kind === 'collab_total' || kind === 'collab_accepted' || kind === 'collab_completed') {
+      head = ['요청자', '협업 사장', '현장', '예정', '일당', '상태', '생성'];
+      cols = function(r){ return [
+        '<b>'+escape(r.owner_name)+'</b><br><span style="font-size:11px; color:#9AA3AF">'+escape(r.owner_phone)+'</span>',
+        '<b>'+escape(r.partner_name)+'</b><br><span style="font-size:11px; color:#9AA3AF">'+escape(r.partner_phone)+'</span>',
+        escape(r.title || '-'),
+        escape(r.scheduled || '-'),
+        r.daily_wage ? r.daily_wage + '만' : '-',
+        '<span class="badge ' + (r.status === 'accepted' ? 'on' : r.status === 'completed' ? 'on' : 'cool') + '">' + escape(r.status) + '</span>',
+        escape(r.created),
+      ]; };
+    } else if (kind === 'recruit_total') {
+      head = ['모집자', '날짜', '위치', '작업', '일당', '상태', '생성'];
+      cols = function(r){ return [
+        '<b>'+escape(r.owner_name)+'</b><br><span style="font-size:11px; color:#9AA3AF">'+escape(r.owner_phone)+'</span>',
+        escape(r.date || '-'),
+        escape(r.place || '-'),
+        escape(r.work || '-'),
+        r.daily_wage ? r.daily_wage + '만' : '-',
+        '<span class="badge ' + (r.status === 'open' ? 'on' : 'cool') + '">' + escape(r.status) + '</span>',
+        escape(r.created),
+      ]; };
+    } else if (kind === 'recruit_apps') {
+      head = ['지원자', '지원 시각', '상태', '위치', '작업', '일당'];
+      cols = function(r){ return [
+        '<b>'+escape(r.partner_name)+'</b><br><span style="font-size:11px; color:#9AA3AF">'+escape(r.partner_phone)+'</span>',
+        escape(r.applied),
+        '<span class="badge cool">' + escape(r.status) + '</span>',
+        escape(r.place || '-'),
+        escape(r.work || '-'),
+        r.daily_wage ? r.daily_wage + '만' : '-',
+      ]; };
+    } else if (kind === 'team_members') {
+      head = ['사장님', '팀원 이름', '팀원 폰', '역할', '등록'];
+      cols = function(r){ return [
+        '<b>'+escape(r.owner_name)+'</b><br><span style="font-size:11px; color:#9AA3AF">'+escape(r.owner_phone)+'</span>',
+        '<b>'+escape(r.name || '-')+'</b>',
+        escape(r.phone),
+        '<span class="badge cool">' + escape(r.role) + '</span>',
+        escape(r.created),
+      ]; };
+    } else if (kind === 'photos') {
+      head = ['사장님', '라벨', '고객 phone', '협업 share', '업로더', '시각'];
+      cols = function(r){ return [
+        '<b>'+escape(r.owner_name)+'</b><br><span style="font-size:11px; color:#9AA3AF">'+escape(r.owner_phone)+'</span>',
+        escape(r.label || '-'),
+        escape(r.customer_phone || '-'),
+        r.share_id ? '<span style="font-family:monospace; font-size:11px">' + escape(r.share_id.slice(0,12)) + '</span>' : '-',
+        escape(r.uploader || '-'),
+        escape(r.uploaded),
+      ]; };
+    } else {
+      return '<div class="nodata">상세 데이터 없음</div>';
+    }
+    var html = '<table><thead><tr>';
+    head.forEach(function(h){ html += '<th>' + h + '</th>'; });
+    html += '</tr></thead><tbody>';
+    rows.forEach(function(r){
+      html += '<tr>';
+      cols(r).forEach(function(c){ html += '<td>' + c + '</td>'; });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    return html;
   }
   function timeAgo(ms) {
     var s = Math.floor(ms / 1000);
