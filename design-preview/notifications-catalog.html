@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RING-GO 알림 모음 · 언제 · 왜</title>
+<style>
+  :root{
+    --blue:#3182F6; --green:#16C172; --purple:#7C5CFC; --amber:#F6A609; --pink:#F0436A; --teal:#0E9E90;
+    --bg:#F4F5F7; --card:#fff; --t1:#0B0F19; --t2:#5A6472; --t3:#9AA3AF; --line:#EEF0F3;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--t1);
+    font-family:'Pretendard',-apple-system,system-ui,"Noto Sans KR",sans-serif;line-height:1.55;}
+  .wrap{max-width:560px;margin:0 auto;padding:20px 14px 60px;}
+  header h1{font-size:21px;font-weight:800;margin:6px 0 4px;}
+  header p{font-size:13px;color:var(--t2);margin:0 0 6px;}
+  .legend{font-size:11.5px;color:var(--t3);background:#fff;border-radius:10px;padding:10px 12px;margin:12px 0 4px;line-height:1.7;}
+  .sec{margin-top:26px;}
+  .sec-h{font-size:15px;font-weight:800;margin:0 0 4px;display:flex;align-items:center;gap:7px;}
+  .sec-sub{font-size:12px;color:var(--t3);margin:0 0 12px;}
+  .item{background:var(--card);border-radius:16px;box-shadow:0 1px 3px rgba(0,0,0,.05),0 6px 16px rgba(0,0,0,.04);
+    padding:14px;margin-bottom:14px;}
+  .item.star{outline:2px solid var(--blue);outline-offset:0;}
+  /* 알림 목업 */
+  .push{border-left:4px solid var(--blue);background:#FBFCFE;border-radius:10px;padding:10px 12px;}
+  .push .app{font-size:10.5px;color:var(--t3);font-weight:700;letter-spacing:.2px;margin-bottom:3px;}
+  .push .pt{font-size:13.5px;font-weight:800;color:var(--t1);}
+  .push .pb{font-size:12.5px;color:var(--t2);margin-top:2px;white-space:pre-line;}
+  .push .note{font-size:11.5px;color:var(--t3);margin-top:4px;white-space:pre-line;}
+  .push .acts{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap;}
+  .push .acts span{font-size:11.5px;font-weight:700;color:var(--blue);background:#EEF4FF;border-radius:999px;padding:5px 11px;}
+  .meta{margin-top:11px;display:flex;flex-direction:column;gap:7px;}
+  .row{display:flex;gap:8px;font-size:12.5px;align-items:flex-start;}
+  .row .k{flex:0 0 58px;font-weight:800;color:var(--t1);}
+  .row .v{flex:1;color:var(--t2);}
+  .tag{display:inline-block;font-size:10.5px;font-weight:800;border-radius:999px;padding:3px 9px;color:#fff;vertical-align:middle;margin-left:6px;}
+  /* accent helpers */
+  .a-blue{border-color:var(--blue)} .a-green{border-color:var(--green)} .a-purple{border-color:var(--purple)}
+  .a-amber{border-color:var(--amber)} .a-pink{border-color:var(--pink)} .a-teal{border-color:var(--teal)}
+  .a-blue .pt{color:var(--blue)} .a-green .pt{color:var(--green)} .a-purple .pt{color:var(--purple)}
+  .a-amber .pt{color:#B97700} .a-pink .pt{color:var(--pink)} .a-teal .pt{color:var(--teal)}
+  .t-blue{background:var(--blue)} .t-green{background:var(--green)} .t-purple{background:var(--purple)}
+  .t-amber{background:var(--amber)} .t-pink{background:var(--pink)} .t-teal{background:var(--teal)} .t-gray{background:#8A93A0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🔔 RING-GO 가 띄우는 알림 모음</h1>
+    <p>각 알림이 <b>언제</b> 뜨고, <b>왜(어떤 기준으로)</b> 뜨는지 한 곳에 정리했어요.</p>
+    <div class="legend">
+      <b>색의 뜻</b><br>
+      🔵 파랑 = 정보·브리핑 &nbsp; 🟢 초록 = 출발·도착·입금 &nbsp; 🟣 보라 = 접수·협업<br>
+      🟠 주황 = 확인 필요(보낼까요?) &nbsp; 🔴 분홍 = 못 받은 돈 &nbsp; 🟦 청록 = 정기문자<br>
+      <b>“즉시”</b> = 일이 생기는 그 순간 / <b>“예약”</b> = 정해진 시간대에 앱이 스스로 점검해서
+    </div>
+  </header>
+
+  <!-- ===== 통화 끝나면 오는 그 알람 (사장님 질문) ===== -->
+  <div class="sec">
+    <div class="sec-h">📞 통화가 끝나면 (즉시)</div>
+    <div class="sec-sub">전화를 끊는 순간 앱이 판단해서 아래 중 하나를 띄워요.</div>
+
+    <!-- A1 ★ 사장님이 물어본 그 알람 -->
+    <div class="item star">
+      <div class="push a-blue">
+        <div class="app">RING-GO · 통화 후 카드 ★ 사장님이 물어보신 그 알람</div>
+        <div class="pt">방금 통화 종료 · 010-1234-5678</div>
+        <div class="pb">✨ 통화 정리 중…
+기다리지 않으셔도 돼요 — 닫아도 요약은 통화방(채팅)에 저장돼요</div>
+        <div class="acts"><span>다듬기</span><span>문자 보내기</span><span>✕ 닫기</span></div>
+      </div>
+      <div class="meta">
+        <div class="row"><span class="k">언제</span><span class="v"><b>통화(수신·발신)를 5초 이상 하고 끊으면</b> 화면 위에 바로 떠요. (화면 위 표시 권한이 있을 때)</span></div>
+        <div class="row"><span class="k">왜</span><span class="v">5초 넘는 통화 = “상담”으로 봐요. 에이닷 녹음/통화내용 폴더를 <b>자동으로 훑어 요약</b>(공유 안 해도 됨) → 요약 불릿 + 보낼 후속문자 초안을 카드에 채워줘요.</span></div>
+        <div class="row"><span class="k">정리</span><span class="v">30초 안에 요약을 못 가져오면 “템플릿에서 골라 보내기”로 바뀌어요. <b>안 기다리고 닫아도</b> 요약은 그 고객 통화방(채팅)에 저장돼요.</span></div>
+      </div>
+    </div>
+
+    <!-- A2 -->
+    <div class="item">
+      <div class="push a-amber">
+        <div class="app">RING-GO · 부재중 자동문자</div>
+        <div class="pt">부재중 자동 응답 (10초 후 발송)</div>
+        <div class="pb">“지금 작업 중이라 못 받았어요. 곧 연락드릴게요 😊”</div>
+        <div class="acts"><span>지금 보내기</span><span>취소</span></div>
+      </div>
+      <div class="meta">
+        <div class="row"><span class="k">언제</span><span class="v"><b>부재중(또는 첫 통화)</b>이고, 설정에서 자동문자가 <b>켜져</b> 있을 때. 10초 카운트다운 후 자동 발송(중간에 취소 가능).</span></div>
+        <div class="row"><span class="k">왜</span><span class="v">같은 번호에 <b>최근 24시간 안에 보낸 문자가 없을 때만</b> 보내요(이미 응대했으면 또 안 보냄 — 스팸 방지).</span></div>
+      </div>
+    </div>
+
+    <!-- A3 -->
+    <div class="item">
+      <div class="push a-blue">
+        <div class="app">RING-GO</div>
+        <div class="pt">RING-GO 캐치!</div>
+        <div class="pb">010-1234-5678 · 고객에게 보낼 빠른 메시지를 선택하세요</div>
+        <div class="acts"><span>빠른 액션 1</span><span>빠른 액션 2</span></div>
+      </div>
+      <div class="meta">
+        <div class="row"><span class="k">언제</span><span class="v">화면 위 표시 권한이 없거나, 본인이 건 첫 통화 등 카드를 못 띄울 때 <b>알림함</b>에 떠요.</span></div>
+        <div class="row"><span class="k">왜</span><span class="v">통화 후 빠른 처리를 놓치지 않게 하는 대체(백업) 알림이에요. 설정한 빠른 액션 템플릿을 바로 고를 수 있어요.</span></div>
+      </div>
+    </div>
+
+    <!-- A4 -->
+    <div class="item">
+      <div class="push" style="border-color:#8A93A0;background:#FAFBFC;">
+        <div class="app">RING-GO · 조용한 알림</div>
+        <div class="pt">또 전화온 고객 — 아직 답장 안 했어요</div>
+        <div class="pb">010-1234-5678 · 눌러서 확인하기</div>
+      </div>
+      <div class="meta">
+        <div class="row"><span class="k">언제</span><span class="v">같은 번호로 <b>두 번째 이상</b> 통화했는데 아직 답장·온도분류·일정등록을 안 한 경우. <b>소리·헤드업 없이</b> 알림함에만 조용히.</span></div>
+        <div class="row"><span class="k">왜</span><span class="v">이미 답장했거나 일정을 잡았으면 <b>안 떠요</b>(괜한 알림 안 만들기).</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 문자 ===== -->
+  <div class="sec">
+    <div class="sec-h">💬 문자 받았을 때 (즉시)</div>
+    <div class="sec-sub">고객 문자가 오는 순간 카톡처럼 위에서 내려와요.</div>
+    <div class="item">
+      <div class="push a-blue">
+        <div class="app">RING-GO</div>
+        <div class="pt">김고객 · 새 문자</div>
+        <div class="pb">사장님 혹시 다음 주 화요일에 시공 가능할까요?</div>
+        <div class="acts"><span>💬 직접 답장</span></div>
+      </div>
+      <div class="meta">
+        <div class="row"><span class="k">언제</span><span class="v">고객 문자가 오면 <b>즉시</b> 헤드업으로 떠요. (2026-06-15: 기다림 없이 바로 뜨게 고침)</span></div>
+        <div class="row"><span class="k">왜</span><span class="v"><b>알림창은 받은 문자만 깔끔하게</b> 보여줘요. AI 추천 답변은 알림에 넣지 않고, <b>알림을 누르면 들어가는 문자방에서</b> 보여줘요.</span></div>
+        <div class="row"><span class="k">팁</span><span class="v">갤럭시 기본 ‘메시지’ 알림과 겹쳐 두 번 뜨면, 기본 메시지 앱 알림을 꺼두세요.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 접수서 ===== -->
+  <div class="sec">
+    <div class="sec-h">📋 시공접수서</div>
+    <div class="sec-sub">고객이 보낸 링크로 직접 작성하면 알려줘요.</div>
+    <div class="item">
+      <div class="push a-purple">
+        <div class="app">RING-GO</div>
+        <div class="pt">시공접수서 회신 도착 🎉</div>
+        <div class="pb">김고객님이 접수서를 작성했어요 · 시공 희망 6/30(화) · 65만원</div>
+        <div class="note">📍 서울 양천구 목동서로 400
+주소·시공일이 고객 카드에 자동 반영됐어요.</div>
+        <div class="acts"><span>일정 확인</span></div>
+      </div>
+      <div class="meta">
+        <div class="row"><span class="k">언제</span><span class="v">고객이 접수서 링크를 <b>작성·제출</b>하면. (앱이 약 60초마다 서버를 확인해서 감지)</span></div>
+        <div class="row"><span class="k">왜</span><span class="v">제출되면 <b>주소·시공일·견적금액·계약금이 고객 카드에 자동 반영</b>돼요(직접 입력 안 해도 됨).</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 시간 예약 ===== -->
+  <div class="sec">
+    <div class="sec-h">⏰ 정해진 시간에 (자동 점검)</div>
+    <div class="sec-sub">앱이 약 3시간마다 깨어나서, 아래 정해진 시간대에 해당하면 알림을 띄워요.</div>
+
+    <div class="item">
+      <div class="push a-blue">
+        <div class="app">RING-GO</div>
+        <div class="pt">오늘 하루 마감 브리핑 🌙</div>
+        <div class="pb">오늘 새 고객 2명 · 입금 1건</div>
+        <div class="note">내일 시공 1곳 — 6/16(월) 오전 9시</div>
+        <div class="acts"><span>오늘 정리 보기</span></div>
+      </div>
+      <div class="meta">
+        <div class="row"><span class="k">언제</span><span class="v"><b>저녁 9시</b>경, 하루에 한 번.</span></div>
+        <div class="row"><span class="k">왜</span><span class="v">오늘 새 고객·입금·내일 시공이 <b>하나라도 있을 때만</b>(아무 일 없는 날엔 안 보냄).</span></div>
+      </div>
+    </div>
+
+    <div class="item">
+      <div class="push a-teal">
+        <div class="app">RING-GO</div>
+        <div class="pt">오늘 정기 문자 보낼 고객 3명</div>
+        <div class="pb">안부문자 · 오늘 3명 · {고객명} 자동 채움 · 보내기 전에 한 번 봐주세요</div>
+        <div class="acts"><span>검토하고 보내기</span></div>
+      </div>
+      <div class="meta">
+        <div class="row"><span class="k">언제</span><span class="v"><b>오전 9시</b>경.</span></div>
+        <div class="row"><span class="k">왜</span><span class="v">오늘 보낼 정기문자가 있는 날만. <b>무음 자동발송이 아니라</b> 확인 후 보내는 방식이에요.</span></div>
+      </div>
+    </div>
+
+    <div class="item">
+      <div class="push a-pink">
+        <div class="app">RING-GO</div>
+        <div class="pt">아직 안 들어온 잔금이 있어요</div>
+        <div class="pb">김고객님 · 잔금 30만원 · 시공 완료 후 3일째 미입금</div>
+        <div class="acts"><span>잔금 요청 보내기</span></div>
+      </div>
+      <div class="meta">
+        <div class="row"><span class="k">언제</span><span class="v"><b>오전 10시</b>경.</span></div>
+        <div class="row"><span class="k">왜</span><span class="v">시공 완료 <b>3일이 지났는데 잔금이 아직 안 들어온</b> 고객. 고객마다 한 번만 알려줘요.</span></div>
+      </div>
+    </div>
+
+    <div class="item">
+      <div class="push a-amber">
+        <div class="app">RING-GO</div>
+        <div class="pt">내일 시공 — 안내 문자 보낼까요?</div>
+        <div class="pb">김고객님 · 6/16(월) 오전 9시 · 서울 양천구 목동…</div>
+        <div class="note">무음 자동발송 안 해요 · 사장님이 확인하면 보내요</div>
+        <div class="acts"><span>안내 보내기</span></div>
+      </div>
+      <div class="meta">
+        <div class="row"><span class="k">언제</span><span class="v">시공 <b>전날 저녁</b>(설정한 시각 이후). D-1 자동문자 토글이 켜져 있을 때.</span></div>
+        <div class="row"><span class="k">왜</span><span class="v">내일 시공 예약 고객마다 한 번. 사장님이 확인하고 보내는 방식이에요.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 팀 · 협업 ===== -->
+  <div class="sec">
+    <div class="sec-h">🤝 팀원 · 협업 사장님</div>
+    <div class="sec-sub">앱이 꺼져 있어도 즉시(FCM 푸시) + 주기 점검으로 받아요.</div>
+
+    <div class="item">
+      <div class="push a-green">
+        <div class="app">RING-GO · 팀원</div>
+        <div class="pt">팀원 출발 🚗 / 현장 도착 📍 / 작업 완료 ✅</div>
+        <div class="pb">이기사님이 오전 9:10 · 천호동 현장으로 출발했어요</div>
+        <div class="acts"><span>팀 현황 보기</span></div>
+      </div>
+      <div class="meta">
+        <div class="row"><span class="k">언제</span><span class="v">팀원이 링크 화면에서 <b>[출발/도착/완료]</b>를 누르는 즉시.</span></div>
+        <div class="row"><span class="k">왜</span><span class="v">누가·몇 시·어디서 무엇을 했는지 사장님이 바로 알 수 있게.</span></div>
+      </div>
+    </div>
+
+    <div class="item">
+      <div class="push a-purple">
+        <div class="app">RING-GO · 협업</div>
+        <div class="pt">🤝 협업 요청이 왔어요</div>
+        <div class="pb">디테일라인 사장님이 ‘목동 현장’ 협업을 요청했어요. 눌러서 수락하기</div>
+        <div class="acts"><span>수락하러 가기</span></div>
+      </div>
+      <div class="meta">
+        <div class="row"><span class="k">언제</span><span class="v">다른 사장님이 나에게 현장을 <b>공유 요청</b>하면 즉시.</span></div>
+        <div class="row"><span class="k">왜</span><span class="v">고객 번호·대화는 안 보이고(벽) <b>보낸 사장 이름 + 현장 이름</b>만. 눌러서 수락/거절.</span></div>
+      </div>
+    </div>
+
+    <div class="item">
+      <div class="push a-green">
+        <div class="app">RING-GO · 협업 진행</div>
+        <div class="pt">협업 수락 🤝 / 출발 🚗 / 도착 📍 / 작업 완료 ✅</div>
+        <div class="pb">디테일라인 사장님이 오전 9:40 · 목동 현장에 도착했어요 · 계좌 카카오뱅크 333…</div>
+        <div class="acts"><span>협업 현장 보기</span></div>
+      </div>
+      <div class="meta">
+        <div class="row"><span class="k">언제</span><span class="v">함께 일하는 사장님이 공유 현장에서 <b>수락/출발/도착/완료</b>를 누를 때.</span></div>
+        <div class="row"><span class="k">왜</span><span class="v">완료 알림엔 <b>입금 계좌</b>도 같이 와서 바로 정산할 수 있어요.</span></div>
+      </div>
+    </div>
+
+    <div class="item">
+      <div class="push a-green">
+        <div class="app">RING-GO · 협업</div>
+        <div class="pt">📍 사장님께 알려드렸어요 &nbsp; / &nbsp; 💰 입금 완료 &nbsp; / &nbsp; 협업이 해제됐어요</div>
+        <div class="pb">목동 현장 3km 진입 · 자동으로 전송됐어요 (도착 버튼 안 눌러도 돼요 😊)</div>
+        <div class="acts"><span>협업 현장 보기</span></div>
+      </div>
+      <div class="meta">
+        <div class="row"><span class="k">언제</span><span class="v">현장 3km 진입 시 <b>자동 도착 알림</b>, 주인이 <b>입금완료</b> 표시할 때, 협업이 <b>해제</b>될 때.</span></div>
+        <div class="row"><span class="k">왜</span><span class="v">해제돼도 <b>사진·메모 기록은 남아요</b>. 위치 기반(geofence) 자동 알림이라 버튼 안 눌러도 됨.</span></div>
+      </div>
+    </div>
+
+    <div class="item">
+      <div class="push a-green">
+        <div class="app">RING-GO</div>
+        <div class="pt">현장 도착 — 안내 문자 보낼까요?</div>
+        <div class="pb">김고객님 현장 5km 안에 들어왔어요</div>
+        <div class="note">확인 후 보내요 · 무음 자동발송 아니에요</div>
+        <div class="acts"><span>도착 안내 보내기</span></div>
+      </div>
+      <div class="meta">
+        <div class="row"><span class="k">언제</span><span class="v">내가 <b>내 현장 5km 안</b>에 들어가면(위치 기반).</span></div>
+        <div class="row"><span class="k">왜</span><span class="v">“곧 도착” 안내를 고객에게 빠르게 보낼 수 있게. 자동발송 아니고 확인 후 보내요.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <p style="font-size:11px;color:var(--t3);text-align:center;margin-top:24px;line-height:1.7">
+    이 문서는 앱이 실제로 띄우는 알림을 그대로 정리한 거예요.<br>문구·시간은 코드 기준이며, 곧 서비스 오픈! 💪
+  </p>
+</div>
+</body>
+</html>
