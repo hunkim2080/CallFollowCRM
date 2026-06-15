@@ -103,37 +103,7 @@ fun OnboardingPermissionScreen(onContinue: () -> Unit) {
                         PermRow("📱", "전화 상태", "통화 종료를 감지하기 위해 필요해요")
                         PermRow("📋", "통화 기록", "방금 통화한 번호를 자동으로 채워줘요")
                         PermRow("💬", "주고받은 문자", "고객 대화를 한 화면에서 보고 답장 추천을 받기 위해 필요해요")
-                        PermRow("🔔", "알림", "통화 후 후속 안내 알림을 표시해요")
-                    }
-                }
-
-                // 별도 안내 — 일반 권한 다이얼로그로 못 받는 SYSTEM_ALERT_WINDOW.
-                // 사용자가 시스템 설정 화면 직접 가야 토글 가능. 강력 권장 톤.
-                TossCard {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            "✨ 다른 앱 위에 표시 (강력 권장)",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = TossTextPrimary
-                        )
-                        Spacer(Modifier.height(2.dp))
-                        SubText("켜면 통화가 끝나는 순간 바로 후속 카드가 떠서, 다른 화면에서도 한 번에 처리할 수 있어요.")
-                        SubText("끄면 알림으로만 안내됩니다 (한 단계 더 누르셔야 해요).")
-                        Spacer(Modifier.height(6.dp))
-                        TossTextButton(
-                            text = "→ 설정 열기",
-                            onClick = {
-                                runCatching {
-                                    val ctx = appCtx
-                                    val intent = android.content.Intent(
-                                        android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                        android.net.Uri.parse("package:${ctx.packageName}")
-                                    ).apply { addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK) }
-                                    ctx.startActivity(intent)
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        PermRow("🔔", "알림", "부재중 자동 응답·중요 알림을 표시해요")
                     }
                 }
 

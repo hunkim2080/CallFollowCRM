@@ -102,19 +102,12 @@ class CallStateReceiver : BroadcastReceiver() {
                     val phone = recent?.phoneNumber
                     val phoneOk = phone != null && phone.isNotBlank() && phone != "(번호없음)"
                     if (phoneOk) {
-                        // 2026-06-14 사장님: 답한 통화(수신·발신, 반복 무관) = 상담 → 통화 후 요약 카드.
-                        //   기존엔 "첫 수신통화"만 카드라 발신·재통화엔 안 떴음(사장님 통점).
-                        //   문턱 5초 — 짧은 상담/테스트도 뜨되, 1~4초 오발신/즉시끊김만 제외.
+                        // 2026-06-16 사장님: 통화 끝 후속 카드/"RING-GO 캐치!" 알림 제거.
+                        //   답한 통화(수신·발신 5초+)는 통화요약 워커(위)만 돌고 별도 UI 없음.
+                        //   첫 부재중/미응대만 자동문자 경로, 재통화는 조용한 알림.
                         val answered = (recent?.type == CallType.INCOMING || recent?.type == CallType.OUTGOING) &&
                             (recent?.duration ?: 0L) >= 5L
-                        if (answered) {
-                            dispatchAnsweredCallUi(
-                                context = context,
-                                app = app,
-                                newRecordId = newRecordId,
-                                phoneNumber = phone!!
-                            )
-                        } else {
+                        if (!answered) {
                             val callCount = app.container.callRecordRepository.countByPhone(phone!!)
                             val isMissedType = recent?.type == CallType.MISSED
                             val useAutoPath = if (isMissedType) {
@@ -154,78 +147,14 @@ class CallStateReceiver : BroadcastReceiver() {
     }
 
     /**
-     * 사장님이 Settings 에서 지정한 후속 빠른 액션 템플릿 3개를 (라벨, id) 쌍 리스트로 반환.
-     * 미지정(-1) 슬롯은 건너뜀. 알림 시스템 한도(3개)에 맞춰 최대 3개.
-     */
-    private suspend fun buildQuickActions(
-        app: CallFollowCrmApplication
-    ): List<Pair<String, Long>> {
-        val ids = listOf(
-            app.container.preferences.quickActionTemplateId1,
-            app.container.preferences.quickActionTemplateId2,
-            app.container.preferences.quickActionTemplateId3
-        ).filter { it > 0 }
-        if (ids.isEmpty()) return emptyList()
-        return ids.mapNotNull { id ->
-            val t = app.container.messageTemplateRepository.findById(id) ?: return@mapNotNull null
-            t.title to t.id
-        }.take(3)
-    }
-
-    /**
-     * 답한 통화(수신·발신, 반복 무관) 후 통화 요약 카드.
-     *   자동응답 없음(직접 통화한 상담이므로). 카드가 에이닷 녹음/텍스트로 요약을 스트리밍해 채움.
-     *   오버레이 권한 없거나 이미 떠있으면 알림으로 fallback.
-     */
-    private suspend fun dispatchAnsweredCallUi(
-        context: Context,
-        app: CallFollowCrmApplication,
-        newRecordId: Long,
-        phoneNumber: String
-    ) {
-        val prefs = app.container.preferences
-        val manualTemplates = listOf(
-            prefs.quickActionTemplateId1,
-            prefs.quickActionTemplateId2,
-            prefs.quickActionTemplateId3
-        )
-            .filter { it > 0 }
-            .mapNotNull { app.container.messageTemplateRepository.findById(it) }
-            .take(3)
-
-        val shown = PostCallOverlayManager.showOrIgnore(
-            context = context,
-            args = OverlayArgs(
-                callRecordId = newRecordId,
-                phoneNumber = phoneNumber,
-                isMissed = false,
-                autoReplyTemplateId = null,
-                autoReplyTemplateTitle = null,
-                autoReplyTemplateBody = null,
-                manualTemplates = manualTemplates
-            )
-        )
-        if (!shown) {
-            NotificationHelper.showCallEndedNotification(
-                context = context,
-                phoneNumber = phoneNumber,
-                callRecordId = newRecordId,
-                isMissed = false,
-                quickActions = buildQuickActions(app)
-            )
-        }
-    }
-
-    /**
-     * 첫 통화 UI 디스패치.
+     * 첫 통화 UI 디스패치 (2026-06-16: 후속 카드/"RING-GO 캐치!" 알림 제거 후 = 자동문자 전용).
      *
-     * 우선순위:
-     *  1) SYSTEM_ALERT_WINDOW 권한 OK → PostCallCard 오버레이 (auto-reply ON/OFF 모드 자동 분기)
-     *  2) 오버레이 권한 없음 + auto-reply 정책 + 권한 OK → 기존 AutoReplyScheduler 알림 (fallback)
-     *  3) 둘 다 안 됨 → 기존 후속 처리 알림 (수동 처리용)
+     * 동작:
+     *  - 자동문자(autoFirstReply) ON + 본문 있음 → AutoReplyScheduler 10초 카운트다운 발송(취소 가능).
+     *  - OFF 또는 본문 없음 → 아무 UI 없음 (통화요약은 별도 워커가 채팅 통화카드에 채움).
      *
      * 통화 타입 필터:
-     *  - INCOMING / MISSED 만 카드/자동응답 대상. OUTGOING/REJECTED 는 카드는 안 띄우고 기록만 남김.
+     *  - INCOMING / MISSED 만 자동문자 대상. OUTGOING/REJECTED/UNKNOWN 은 기록만 남기고 return.
      */
     private suspend fun dispatchFirstCallUi(
         context: Context,
@@ -237,19 +166,8 @@ class CallStateReceiver : BroadcastReceiver() {
         val isMissed = when (callType) {
             CallType.INCOMING -> false
             CallType.MISSED -> true
-            else -> {
-                // OUTGOING/REJECTED/UNKNOWN — 카드/자동응답 흐름엔 안 맞음.
-                // 사장님이 본인이 건 전화라도 첫 접촉이면 후속 처리는 필요하므로 기존 알림은 띄움.
-                val quickActions = buildQuickActions(app)
-                NotificationHelper.showCallEndedNotification(
-                    context = context,
-                    phoneNumber = phoneNumber,
-                    callRecordId = newRecordId,
-                    isMissed = false,
-                    quickActions = quickActions
-                )
-                return
-            }
+            // OUTGOING/REJECTED/UNKNOWN — 자동문자 대상 아님. 후속 카드/알림 제거됨(2026-06-16). 기록만 남김.
+            else -> return
         }
 
         val prefs = app.container.preferences
@@ -275,63 +193,14 @@ class CallStateReceiver : BroadcastReceiver() {
             }
             else -> autoTemplate?.body.orEmpty()
         }
-        val autoTitle: String? = autoTemplate?.title
-            ?: if (isMissed && autoBody.isNotBlank()) "부재중 자동 응답" else null
-
-        // 2026-06-09 사장님 결정: 전화 끊은 뒤에는 복잡한 후속 카드보다
-        // "설정해둔 자동문자 10초 카운트다운 → 취소 아니면 발송" 만 먼저 보여준다.
+        // 통화 끝 후속 카드/"RING-GO 캐치!" 알림은 제거됨(2026-06-16 사장님). 자동문자만 유지:
+        //   자동문자 ON + 본문 있으면 10초 카운트다운 발송(알림에서 취소 가능). 본문은 스케줄러가 동일 규칙으로 재해석.
         if (autoOnPolicy && autoBody.isNotBlank()) {
             AutoReplyScheduler.schedule(
                 context = context,
                 callRecordId = newRecordId,
                 phoneNumber = phoneNumber,
                 isMissed = isMissed
-            )
-            return
-        }
-
-        // OverlayArgs 에 넣을 수동 템플릿: 사장님이 설정한 quickAction 슬롯 3개.
-        val manualTemplates = listOf(
-            prefs.quickActionTemplateId1,
-            prefs.quickActionTemplateId2,
-            prefs.quickActionTemplateId3
-        )
-            .filter { it > 0 }
-            .mapNotNull { app.container.messageTemplateRepository.findById(it) }
-            .take(3)
-
-        val tryOverlay = PostCallOverlayManager.showOrIgnore(
-            context = context,
-            args = OverlayArgs(
-                callRecordId = newRecordId,
-                phoneNumber = phoneNumber,
-                isMissed = isMissed,
-                autoReplyTemplateId = autoTemplate?.id,
-                autoReplyTemplateTitle = autoTitle,
-                autoReplyTemplateBody = autoBody.ifBlank { null },
-                manualTemplates = manualTemplates
-            )
-        )
-        if (tryOverlay) return
-
-        // ----- fallback paths (오버레이 권한 없거나 띄우기 실패) -----
-        if (autoOnPolicy && autoBody.isNotBlank()) {
-            // 기존 AutoReplyScheduler 흐름 (알림 카운트다운). 본문은 스케줄러가 동일 규칙으로 재해석.
-            AutoReplyScheduler.schedule(
-                context = context,
-                callRecordId = newRecordId,
-                phoneNumber = phoneNumber,
-                isMissed = isMissed
-            )
-        } else {
-            // 마지막 fallback — 수동 처리용 알림
-            val quickActions = buildQuickActions(app)
-            NotificationHelper.showCallEndedNotification(
-                context = context,
-                phoneNumber = phoneNumber,
-                callRecordId = newRecordId,
-                isMissed = isMissed,
-                quickActions = quickActions
             )
         }
     }

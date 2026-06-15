@@ -4746,3 +4746,11 @@ SYNC 추가30 그대로. 한 줄 변경 + 진단 로그 추가.
 - 원인: cowork 핸드오프(추가31 직전 협업 배지 즉시필터)로 들어온 `deadCollabShareIds` 필드가 init 블록 **아래**에 선언됨. init 이 동기로 loadCollabAssignments() 를 호출하는데 그 시점엔 필드가 아직 null → NPE.
 - 수정: `deadCollabShareIds` 선언을 init 위로 이동(emptySet 초기화 보장). 빌드+폰 설치+일정탭 실탭 검증(NAVTAB tap=schedule, 크래시 없음, 앱 foreground 유지).
 - 변경: 앱 단독. 서버 영향 없음. (참고: 이 필드는 cowork by-me 거절/종료 협업 필터용 — 동작 그대로, 위치만 옮김.)
+
+## 2026-06-16 00:25 · android
+통화 끝 후속문자 기능 제거 — "RING-GO 캐치!" 알림 + 통화종료 오버레이 카드 둘 다 (사장님 "둘 다 없애기")
+- 변경: 앱 단독, 서버 영향 없음.
+- 보존(중요): ① 부재중 자동문자(AutoReplyScheduler) ② 통화 요약 생성(워커→채팅 통화카드) ③ 재통화 조용한 알림 — 전부 그대로 동작.
+- 제거: CallStateReceiver 트리거(answered→오버레이, first→오버레이/캐치알림, 발신/거절→캐치알림) / NotificationHelper.showCallEndedNotification / PostCallCard.kt·PostCallOverlay.kt 파일 삭제 / 온보딩 "다른 앱 위에 표시" 권한 카드 / 설정 시작체크 "다른 앱 위에 표시" 단계 / AndroidManifest SYSTEM_ALERT_WINDOW 권한.
+- 검증: 빌드 OK + 폰 설치 + 일정/더보기 탭 진입 크래시 없음(NAVTAB 확인).
+- 잔여 죽은코드(비노출, 차후 정리 가능): SettingsScreen.AfterCallCard 컴포저블 + AfterCallBehavior enum + quickActionTemplate prefs — 원래 렌더 안 되던 것.

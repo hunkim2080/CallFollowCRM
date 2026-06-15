@@ -40,13 +40,6 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <!--
-        통화 직후 PostCallCard 오버레이 표시 (첫 통화 한정).
-        사용자가 설정 → 다른 앱 위에 표시 토글 직접 켜야 동작.
-        미허용 시 기존 AutoReplyScheduler 알림 fallback.
-    -->
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-
-    <!--
         klinker/android-smsmms 가 MMS 직접 발송 시 통신사 게이트웨이 호출용으로 요구하는 권한들.
         사진 첨부 메시지를 우리 앱 안에서 끝내기 위함 (chooser/수신인 선택 X).
         모두 normal 권한이라 런타임 다이얼로그 X.

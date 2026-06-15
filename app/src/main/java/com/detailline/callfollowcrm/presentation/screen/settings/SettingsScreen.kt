@@ -2575,9 +2575,6 @@ private fun SetupCheckCard() {
     val notiOn = remember(refresh) {
         runCatching { NotificationManagerCompat.from(context).areNotificationsEnabled() }.getOrDefault(false)
     }
-    val overlayOn = remember(refresh) {
-        runCatching { android.provider.Settings.canDrawOverlays(context) }.getOrDefault(false)
-    }
     val roleLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { refresh++ }
@@ -2596,15 +2593,6 @@ private fun SetupCheckCard() {
                 val i = android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                     .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
                     .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(i)
-            }
-        },
-        SetupStep("다른 앱 위에 표시", overlayOn) {
-            runCatching {
-                val i = android.content.Intent(
-                    android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    android.net.Uri.parse("package:${context.packageName}")
-                ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                 context.startActivity(i)
             }
         }
