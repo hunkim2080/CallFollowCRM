@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RING-GO 앱 전체 로직 진단 명세서</title>
+<style>
+  :root{
+    --bg:#F6F7F9; --card:#fff; --t1:#11151C; --t2:#566; --t3:#8A93A0; --line:#E5E8EC;
+    --red:#E5484D; --amber:#C77700; --blue:#1E6FE0; --green:#0E8F5B; --gray:#6B7480;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--t1);
+    font-family:'Pretendard',-apple-system,system-ui,"Noto Sans KR",sans-serif;line-height:1.5;font-size:13px;}
+  .wrap{max-width:1150px;margin:0 auto;padding:16px 12px 70px;}
+  .nav{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+  .nav a{font-size:12px;font-weight:800;text-decoration:none;padding:7px 12px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--t2);}
+  .nav a.on{background:var(--t1);color:#fff;border-color:var(--t1);}
+  h1{font-size:19px;margin:4px 0;}
+  h2{font-size:16px;margin:28px 0 8px;padding-top:10px;border-top:2px solid var(--t1);}
+  h3{font-size:13.5px;margin:14px 0 4px;}
+  .sub{color:var(--t2);font-size:12px;margin:0 0 8px;}
+  .toc{background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:12px;columns:2;}
+  .toc a{color:var(--blue);text-decoration:none;display:block;margin:2px 0;}
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:8px;background:#fff;}
+  table{border-collapse:collapse;width:100%;min-width:880px;font-size:11.5px;}
+  th,td{border:1px solid var(--line);padding:6px 7px;text-align:left;vertical-align:top;}
+  th{background:#EEF1F4;font-weight:800;white-space:nowrap;}
+  td.c{text-align:center;white-space:nowrap;}
+  .b{display:inline-block;border-radius:4px;padding:1px 6px;font-weight:800;font-size:10.5px;color:#fff;}
+  .mvp1{background:var(--red)} .mvp2{background:var(--amber)} .mvp3{background:var(--gray)}
+  .p-high{color:var(--red);font-weight:800} .p-mid{color:var(--amber);font-weight:800} .p-low{color:var(--green);font-weight:800}
+  .yes{color:var(--red);font-weight:800} .no{color:var(--gray)} .ok{color:var(--green);font-weight:800}
+  .fix{background:#fff;border:1px solid var(--line);border-radius:8px;padding:11px 13px;margin-bottom:9px;}
+  .fix .g{display:grid;grid-template-columns:96px 1fr;gap:3px 10px;font-size:12px;}
+  .fix .k{color:var(--t3);font-weight:700;} .fix .prob{color:var(--red);} .fix .rec{color:var(--green);}
+  .risk{background:#fff;border:1px solid var(--line);border-left:4px solid var(--red);border-radius:8px;padding:10px 12px;margin-bottom:9px;}
+  .risk .rt{font-weight:800;font-size:13px;}
+  .risk .g{display:grid;grid-template-columns:90px 1fr;gap:2px 10px;font-size:11.5px;margin-top:5px;}
+  .risk .k{color:var(--t3);font-weight:700;}
+  .chk{background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:10px;}
+  .chk li{margin:5px 0;}
+  .scn{background:#fff;border:1px solid var(--line);border-radius:8px;padding:11px 13px;margin-bottom:9px;}
+  .scn .t{font-weight:800;font-size:13px;margin-bottom:5px;}
+  .scn .g{display:grid;grid-template-columns:108px 1fr;gap:3px 10px;font-size:11.8px;}
+  .scn .k{color:var(--t3);font-weight:700;}
+  code{background:#EEF1F4;border-radius:4px;padding:1px 5px;font-size:11px;}
+  .legend{font-size:11px;color:var(--t2);background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:8px 0;}
+  .final .g{display:grid;grid-template-columns:150px 1fr;gap:6px 10px;font-size:12.5px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px;}
+  .final .k{color:var(--t3);font-weight:800;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="nav">
+    <a href="app-logic-diagnostic.html" class="on">앱 전체 로직 진단</a>
+    <a href="notifications-catalog.html">알림 시스템 명세서 →</a>
+  </div>
+
+  <h1>RING-GO 앱 전체 로직 진단 명세서 <span style="font-size:12px;color:var(--t3)">(코드 기준 · 수정·결정용)</span></h1>
+  <p class="sub">고객 소개문 아님. “어디가 위험한가”를 우선으로 본 냉정 진단. 기준: 실제 앱 코드(Room v31·23테이블, Receiver·ViewModel·Repository).</p>
+  <div class="legend"><b>MVP</b> <span class="b mvp1">1</span>오픈 전 필수 · <span class="b mvp2">2</span>오픈 후 개선 · <span class="b mvp3">후</span>나중 &nbsp;|&nbsp; <b>개인정보</b> <span class="p-high">높음</span>/<span class="p-mid">중간</span>/<span class="p-low">낮음</span></div>
+  <div class="toc">
+    <a href="#s1">1. 앱 전체 흐름 요약(단계표)</a>
+    <a href="#s2">2. 기능별 로직 명세표</a>
+    <a href="#s3">3. 데이터 흐름 점검</a>
+    <a href="#s4">4. 예외/실패 케이스</a>
+    <a href="#s5">5. 화면 구조 점검</a>
+    <a href="#s6">6. 사용자 여정별 점검</a>
+    <a href="#s7">7. 위험도 TOP 10</a>
+    <a href="#s8">8. MVP 오픈 전 수정 우선순위</a>
+    <a href="#s9">9. 최종 판단</a>
+  </div>
+
+  <!-- ===== 1 ===== -->
+  <h2 id="s1">1. 앱 전체 흐름 요약 (단계별)</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>단계</th><th>사용자 행동</th><th>앱 자동 동작</th><th>생성/수정 데이터</th><th>알림</th><th>다음 단계</th><th>실패 가능성</th><th>수정</th></tr></thead>
+    <tbody>
+      <tr><td><b>고객 유입</b></td><td>고객이 전화/문자</td><td>sms_contacts_cache upsert · (통화) call_records 생성</td><td>SmsContactCache / CallRecord</td><td>새 문자 / 통화 후 카드</td><td>상담</td><td class="p-mid">권한 없으면 감지 누락</td><td class="c"><span class="b mvp1">1</span></td></tr>
+      <tr><td><b>통화 발생</b></td><td>전화 받음/끊음</td><td>CallStateReceiver: 5초+면 통화후카드, 부재중이면 자동문자, 재통화면 조용한알림</td><td>CallRecord · (요약) CallSummary</td><td>통화 후 카드/캐치/부재중자동</td><td>요약·후속문자</td><td class="p-high">발신·비고객에도 카드</td><td class="c"><span class="b mvp1">1</span></td></tr>
+      <tr><td><b>문자 수신/발신</b></td><td>답장</td><td>AI 추천 준비(requestPrepare) · 발신 시 Sent provider/로컬캐시</td><td>MessageHistory · SuggestionEvent</td><td>새 문자</td><td>상담 정리</td><td class="p-mid">인증/광고 노이즈 · 비기본앱 발신보존</td><td class="c"><span class="b mvp1">1</span></td></tr>
+      <tr><td><b>고객 카드 생성</b></td><td>채팅 진입/발송</td><td>upsertByPhone (채팅·접수서·셀프일정·통화후발송)</td><td><b>Customer 최초 생성</b></td><td>—</td><td>카드 관리</td><td class="p-mid">생성 경로 분산(문자수신만으론 캐시뿐)</td><td class="c"><span class="b mvp2">2</span></td></tr>
+      <tr><td><b>상담 정리</b></td><td>추천답변/다듬기 사용</td><td>요약·추천·다듬기(서버 LLM)</td><td>CallSummary · AiSummary</td><td>—</td><td>접수서/일정</td><td class="p-mid">서버 다운/오프라인</td><td class="c"><span class="b mvp2">2</span></td></tr>
+      <tr><td><b>접수서 발송</b></td><td>견적·계약금 입력 후 링크 발송</td><td>POST /api/quote/issue → smsDraft prefill (자동발송 X)</td><td>(서버 intake)</td><td>—</td><td>고객 작성 대기</td><td class="p-low">서버 실패=토스트</td><td class="c"><span class="b mvp1">1</span></td></tr>
+      <tr><td><b>접수서 제출</b></td><td>고객이 링크 작성</td><td>IntakeSyncManager 폴링 감지 → 고객에 반영</td><td>Customer(주소·시공일·총금액·계약금) · IntakeEvent</td><td>접수서 회신 도착</td><td>일정 확정</td><td class="p-high">주소·금액 잠금화면 노출</td><td class="c"><span class="b mvp1">1</span></td></tr>
+      <tr><td><b>일정 등록</b></td><td>예약일 지정/확인</td><td>updateScheduledWorkDate · 자동 카테고리(시공대기)</td><td>Customer.scheduledWorkDate · categoryId</td><td>(D-1 예약)</td><td>계약금/잔금</td><td class="p-low">취소 시 배정 정리(반영됨)</td><td class="c"><span class="b mvp2">2</span></td></tr>
+      <tr><td><b>계약금/잔금</b></td><td>금액·받음 표시</td><td>잔금 자동계산(total-deposit) · 미수금 집계</td><td>deposit/balance/total · paidAt</td><td>잔금 미수(오전 10시)</td><td>시공 전 안내</td><td class="p-high">받음 자동처리 위험 · 금액 노출</td><td class="c"><span class="b mvp1">1</span></td></tr>
+      <tr><td><b>시공 전 안내</b></td><td>D-1 안내 보내기</td><td>ReminderWorker 전날 저녁 점검(토글)</td><td>—</td><td>D-1 (확인 후 발송)</td><td>시공 당일</td><td class="p-mid">여러 건 개별 알림</td><td class="c"><span class="b mvp2">2</span></td></tr>
+      <tr><td><b>시공 당일</b></td><td>출발/도착/완료</td><td>오늘 시공 카드 · (위치) 5km 도착 감지</td><td>workCompletedAt</td><td>현장 도착 5km</td><td>잔금 요청</td><td class="p-high">위치 오탐</td><td class="c"><span class="b mvp3">후</span></td></tr>
+      <tr><td><b>완료 후 후속</b></td><td>완료 → 잔금 확인 → 후기</td><td>완료 팝업: 잔금 네/아니오, 안내문자</td><td>workCompletedAt · balancePaidAt</td><td>잔금 미수</td><td>정산</td><td class="p-mid">—</td><td class="c"><span class="b mvp2">2</span></td></tr>
+      <tr><td><b>팀원 작업</b></td><td>팀원 배정/링크</td><td>schedule-snapshot 푸시 · 60초 이벤트 폴링</td><td>TeamAssignment</td><td>팀원 출발/도착/완료</td><td>현장 확인</td><td class="p-mid">인원 많으면 알림 폭주</td><td class="c"><span class="b mvp2">2</span></td></tr>
+      <tr><td><b>협업</b></td><td>현장 공유→수락→진행→정산</td><td>FCM 즉시 + 60초 폴링 · 3km 자동도착 · 완료 시 계좌 payload</td><td>(서버 shared) · collabAssignments(로컬)</td><td>요청/진행/완료/입금/해제</td><td>정산</td><td class="p-high">계좌 노출 · 위치 자동전송</td><td class="c"><span class="b mvp1">1</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <!-- ===== 2 ===== -->
+  <h2 id="s2">2. 기능별 로직 명세표</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>기능</th><th>시작 조건</th><th>주체</th><th>권한</th><th>생성/수정 데이터</th><th>연결 화면</th><th>중복방지</th><th>실패 대체</th><th>개인정보</th><th>MVP</th></tr></thead>
+    <tbody>
+      <tr><td><b>통화 감지</b></td><td>OFFHOOK/RINGING→IDLE</td><td class="c">외부</td><td>전화상태·통화기록</td><td>CallRecord 생성</td><td>통화 후 카드</td><td>—</td><td>번호없음 기록</td><td class="c p-low">낮음</td><td class="c"><span class="b mvp1">1</span></td></tr>
+      <tr><td><b>통화 후 카드</b></td><td>통화 5초+ 종료</td><td class="c">앱</td><td>오버레이</td><td>—</td><td>오버레이→채팅</td><td>떠있으면 무시</td><td>권한X→상단푸시</td><td class="c p-mid">중간</td><td class="c"><span class="b mvp1">1</span></td></tr>
+      <tr><td><b>부재중 자동문자</b></td><td>부재중+토글ON</td><td class="c">앱(자동발송)</td><td>SMS발신</td><td>MessageHistory</td><td>카드/푸시</td><td>24h 쿨다운</td><td>권한X→실패알림</td><td class="c p-low">낮음</td><td class="c"><span class="b mvp1">1</span></td></tr>
+      <tr><td><b>새 문자 알림</b></td><td>SMS 수신</td><td class="c">외부</td><td>알림</td><td>SmsContactCache</td><td>채팅</td><td>번호별 동일ID</td><td>권한X→무시</td><td class="c p-high">높음</td><td class="c"><span class="b mvp1">1</span></td></tr>
+      <tr><td><b>AI 추천 답변</b></td><td>고객 문자 수신</td><td class="c">앱+서버</td><td>인터넷</td><td>SuggestionEvent</td><td>채팅 추천영역</td><td>phone 캐시</td><td>실패=빈상태,↻</td><td class="c p-low">낮음</td><td class="c"><span class="b mvp2">2</span></td></tr>
+      <tr><td><b>다듬기</b></td><td>✨ 버튼 탭</td><td class="c">사용자</td><td>인터넷</td><td>—</td><td>채팅 입력칸</td><td>—</td><td>토스트</td><td class="c p-low">낮음</td><td class="c"><span class="b mvp2">2</span></td></tr>
+      <tr><td><b>통화 요약(자동)</b></td><td>통화 종료 15초 후</td><td class="c">앱+서버</td><td>폴더·인터넷</td><td>CallSummary</td><td>채팅 통화카드</td><td>findExistingNear·1:1</td><td>요약없음 표시</td><td class="c p-mid">중간</td><td class="c"><span class="b mvp2">2</span></td></tr>
+      <tr><td><b>접수서 발급</b></td><td>견적 입력 후</td><td class="c">사용자</td><td>인터넷</td><td>(서버)</td><td>견적서/채팅</td><td>—</td><td>토스트</td><td class="c p-low">낮음</td><td class="c"><span class="b mvp1">1</span></td></tr>
+      <tr><td><b>접수서 제출 반영</b></td><td>고객 제출(폴링)</td><td class="c">앱 자동</td><td>인터넷</td><td>Customer 다수 + IntakeEvent</td><td>고객카드/일정</td><td>token 1회</td><td>조용히 종료</td><td class="c p-high">높음</td><td class="c"><span class="b mvp1">1</span></td></tr>
+      <tr><td><b>일정 등록/취소</b></td><td>예약 지정/취소</td><td class="c">사용자</td><td>—</td><td>scheduledWorkDate · 취소시 배정삭제</td><td>일정/고객상세</td><td>—</td><td>—</td><td class="c p-low">낮음</td><td class="c"><span class="b mvp2">2</span></td></tr>
+      <tr><td><b>입금/잔금</b></td><td>금액·받음 표시</td><td class="c">사용자(+완료팝업 자동)</td><td>—</td><td>deposit/balance/paidAt</td><td>고객상세/정산/완료팝업</td><td>—</td><td>—</td><td class="c p-mid">중간</td><td class="c"><span class="b mvp1">1</span></td></tr>
+      <tr><td><b>D-1 / 잔금미수 알림</b></td><td>전날저녁 / 완료3일+</td><td class="c">앱 자동</td><td>알림</td><td>—</td><td>채팅</td><td>고객·날짜별 1회</td><td>—</td><td class="c p-mid">중간</td><td class="c"><span class="b mvp2">2</span></td></tr>
+      <tr><td><b>팀원 배정/이벤트</b></td><td>배정/팀원 버튼</td><td class="c">사용자+외부</td><td>인터넷</td><td>TeamAssignment</td><td>팀 관리</td><td>eventId·onlyAlertOnce</td><td>폴링 재시도</td><td class="c p-low">낮음</td><td class="c"><span class="b mvp2">2</span></td></tr>
+      <tr><td><b>협업 진행/정산</b></td><td>공유→수락→진행</td><td class="c">외부(FCM)+폴링</td><td>인터넷·(위치)</td><td>(서버)·collabAssignments</td><td>협업 현장</td><td>shareId·onlyAlertOnce</td><td>폴링 안전망</td><td class="c p-high">높음(계좌)</td><td class="c"><span class="b mvp1">1</span></td></tr>
+      <tr><td><b>위치 도착(5km/3km)</b></td><td>현장 반경 진입</td><td class="c">외부(GPS)</td><td>위치(항상)</td><td>(3km=서버 progress 자동)</td><td>고객/협업</td><td>customerId·shareId별</td><td>권한X→수동버튼</td><td class="c p-mid">중간</td><td class="c"><span class="b mvp3">후</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <!-- ===== 3 ===== -->
+  <h2 id="s3">3. 데이터 흐름 점검</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>데이터</th><th>최초 생성</th><th>수정 화면</th><th>자동 업데이트</th><th>볼 수 있는 사람</th><th>알림 노출</th><th>삭제/숨김</th><th>위험·수정 제안</th></tr></thead>
+    <tbody>
+      <tr><td><b>고객 번호</b></td><td>문자수신(캐시)·통화·채팅·접수서</td><td>—(키)</td><td class="c ok">O</td><td>사장님</td><td class="c">제목</td><td class="c no">제한</td><td class="p-low">키값. 정규화(끝8자리) 일관성 확인</td></tr>
+      <tr><td><b>고객 이름</b></td><td>upsert/수동</td><td>고객상세</td><td class="c">접수서</td><td>사장님</td><td class="c">제목</td><td>편집</td><td class="p-low">—</td></tr>
+      <tr><td><b>통화 기록</b></td><td>CallStateReceiver</td><td>—</td><td class="c ok">O</td><td>사장님</td><td class="c">—</td><td class="c no">—</td><td class="p-mid">권한 없으면 “번호없음”</td></tr>
+      <tr><td><b>통화 요약</b></td><td>자동(15초)/수동</td><td>—</td><td class="c ok">O</td><td>사장님</td><td class="c">—</td><td class="c no">—</td><td class="p-mid">파일 매칭 오류 가능(±윈도우) — 1:1 매칭으로 보강됨</td></tr>
+      <tr><td><b>문자 내용</b></td><td>SMS provider/로컬캐시</td><td>—</td><td class="c ok">O</td><td>사장님</td><td class="c p-high">본문 전체</td><td class="c no">—</td><td class="p-high">잠금화면 본문 노출 → PRIVATE</td></tr>
+      <tr><td><b>AI 추천 답변</b></td><td>서버 prepare</td><td>—</td><td class="c ok">O</td><td>사장님</td><td class="c no">미노출(변경됨)</td><td class="c">재생성</td><td class="p-low">—</td></tr>
+      <tr><td><b>고객 온도(leadHeat)</b></td><td>upsert/통화후/상세</td><td>고객상세·통화후 카드</td><td class="c">통화</td><td>사장님</td><td class="c">—</td><td class="c no">—</td><td class="p-mid">⚠️ “온도 편집 제거” 결정 있었으나 코드 잔존 — 확인 필요</td></tr>
+      <tr><td><b>주소</b></td><td>접수서/수동</td><td>고객상세</td><td class="c">접수서</td><td>사장님·(팀원 배정현장)</td><td class="c p-high">접수서·D-1 알림</td><td>편집</td><td class="p-high">알림 노출 → PRIVATE</td></tr>
+      <tr><td><b>시공일</b></td><td>접수서/일정/채팅/수동</td><td>일정·고객상세</td><td class="c">접수서</td><td>사장님·팀원·협업</td><td class="c">D-1</td><td>취소</td><td class="p-low">—</td></tr>
+      <tr><td><b>견적금액(총)</b></td><td>접수서/수동</td><td>고객상세·셀프일정</td><td class="c">접수서</td><td>사장님</td><td class="c">접수서</td><td>편집</td><td class="p-mid">알림 노출</td></tr>
+      <tr><td><b>계약금</b></td><td>접수서/수동</td><td>고객상세·셀프일정</td><td class="c">접수서(금액만)</td><td>사장님</td><td class="c">—</td><td>편집</td><td class="p-mid">‘받음’은 수동(자동 X 잘함)</td></tr>
+      <tr><td><b>잔금</b></td><td>자동계산/수동</td><td>고객상세·완료팝업</td><td class="c">total-deposit</td><td>사장님</td><td class="c">잔금미수</td><td>편집</td><td class="p-mid">완납 자동처리는 확인 후만</td></tr>
+      <tr><td><b>팀원 상태</b></td><td>팀원 버튼(서버)</td><td>—</td><td class="c ok">O</td><td>사장님</td><td class="c">출발/도착/완료</td><td class="c no">—</td><td class="p-low">알림 폭주</td></tr>
+      <tr><td><b>협업 현장</b></td><td>공유/수락(서버)</td><td>협업화면</td><td class="c ok">O</td><td>양 사장(고객정보 벽)</td><td class="c">진행 전반</td><td>휴지통(로컬)</td><td class="p-low">고객정보 미노출 잘함</td></tr>
+      <tr><td><b>정산 계좌</b></td><td>사업자정보 등록</td><td>사업자정보/협업</td><td class="c">—</td><td>양 사장</td><td class="c p-high">협업 완료 알림</td><td>편집</td><td class="p-high">⚠️ 계좌번호 알림 노출 → 본문 제거+PRIVATE</td></tr>
+      <tr><td><b>사진/메모</b></td><td>현장사진/팀원</td><td>고객상세/협업</td><td class="c">서버 조회</td><td>사장님·팀원·협업</td><td class="c">현장메모</td><td>삭제</td><td class="p-mid">협업 해제돼도 보존(의도)</td></tr>
+    </tbody>
+  </table></div>
+
+  <!-- ===== 4 ===== -->
+  <h2 id="s4">4. 예외 / 실패 케이스 점검</h2>
+
+  <div class="fix"><div class="g">
+    <span class="k">상황</span><span><b>화면 위 표시 권한 OFF</b></span>
+    <span class="k">현재</span><span>통화 후 카드 못 띄움 → 상단 푸시(“RING-GO 캐치!”)로 대체. 조용히 처리.</span>
+    <span class="k">위험</span><span class="prob">낮음(폴백 있음). 단 사용자는 왜 카드가 안 뜨는지 모름.</span>
+    <span class="k rec">권장</span><span class="rec">권한 안내에서 “이 권한 꺼지면 통화 후 카드 대신 알림으로만 떠요” 명시.</span>
+    <span class="k">수정필요</span><span class="c"><span class="b mvp2">2</span></span>
+  </div></div>
+
+  <div class="fix"><div class="g">
+    <span class="k">상황</span><span><b>SMS 발신 권한 없음</b></span>
+    <span class="k">현재</span><span>SmsSender.sendDirect=false → 자동발송 실패 기록 + 실패 알림.</span>
+    <span class="k">위험</span><span class="prob">자동문자가 ‘보냈다고 착각’ 위험은 막힘. 다만 사장님이 실패를 놓칠 수 있음.</span>
+    <span class="k rec">권장</span><span class="rec">실패 시 “문자 권한이 없어 못 보냈어요 — 채팅에서 직접 보내기” 명확 안내.</span>
+    <span class="k">수정필요</span><span class="c"><span class="b mvp2">2</span></span>
+  </div></div>
+
+  <div class="fix"><div class="g">
+    <span class="k">상황</span><span><b>통화기록 권한 없음</b></span>
+    <span class="k">현재</span><span>번호 못 가져옴 → “(번호없음)”으로 기록, 카드/요약 매칭 불가.</span>
+    <span class="k">위험</span><span class="prob">핵심 기능(통화 후 카드/요약) 무력화.</span>
+    <span class="k rec">권장</span><span class="rec">권한 꺼져 있으면 홈에 상시 배너 “통화 자동 인식 꺼짐 — 켜기”.</span>
+    <span class="k">수정필요</span><span class="c"><span class="b mvp1">1</span></span>
+  </div></div>
+
+  <div class="fix"><div class="g">
+    <span class="k">상황</span><span><b>알림 권한 없음</b></span>
+    <span class="k">현재</span><span>모든 notify 조용히 무시(앱 안 죽음).</span>
+    <span class="k">위험</span><span class="prob">새 문자·협업 요청 등 다 놓침 — 앱 가치 0에 수렴.</span>
+    <span class="k rec">권장</span><span class="rec">앱 시작 시 권한 없으면 강한 안내(설정 바로가기).</span>
+    <span class="k">수정필요</span><span class="c"><span class="b mvp1">1</span></span>
+  </div></div>
+
+  <div class="fix"><div class="g">
+    <span class="k">상황</span><span><b>위치 권한 없음 / 배터리 최적화</b></span>
+    <span class="k">현재</span><span>geofence 등록 안 함(조용히), 수동 도착 버튼 폴백. OEM 자동시작 막히면 통화 receiver 호출 누락 가능(주석만).</span>
+    <span class="k">위험</span><span class="prob">위치 알림 안 옴(허용 가능) / 통화 감지 누락(심각).</span>
+    <span class="k rec">권장</span><span class="rec">위치=기본 OFF로 출시. 배터리 최적화 제외 안내 화면 추가.</span>
+    <span class="k">수정필요</span><span class="c"><span class="b mvp1">1</span></span>
+  </div></div>
+
+  <div class="fix"><div class="g">
+    <span class="k">상황</span><span><b>인터넷 없음</b></span>
+    <span class="k">현재</span><span>추천/요약/접수폴링/협업 = getOrNull로 조용히 skip. 다듬기만 토스트.</span>
+    <span class="k">위험</span><span class="prob">사용자는 “왜 추천이 안 떠?” 모름(무반응).</span>
+    <span class="k rec">권장</span><span class="rec">추천영역/요약카드에 “연결 안 됨 · 다시 시도” 상태 표시.</span>
+    <span class="k">수정필요</span><span class="c"><span class="b mvp2">2</span></span>
+  </div></div>
+
+  <div class="fix"><div class="g">
+    <span class="k">상황</span><span><b>같은 번호 여러 번 전화</b></span>
+    <span class="k">현재</span><span>1번째=카드, 2번째+=조용한 알림(이미 처리/일정이면 X). 잘 설계됨.</span>
+    <span class="k">위험</span><span class="prob">낮음.</span>
+    <span class="k rec">권장</span><span class="rec">유지.</span>
+    <span class="k">수정필요</span><span class="c ok">없음</span>
+  </div></div>
+
+  <div class="fix"><div class="g">
+    <span class="k">상황</span><span><b>고객 아닌 번호가 전화/문자 (가족·자재상·광고)</b></span>
+    <span class="k">현재</span><span>발신통화에도 카드/“캐치”. 인증·광고 문자도 “새 문자”. 부재중 자동문자가 비고객에 갈 수 있음.</span>
+    <span class="k">위험</span><span class="prob">피로 + ⚠️오발송.</span>
+    <span class="k rec">권장</span><span class="rec">고객/문자이력 있는 번호에만. 인증·광고 발신 제외.</span>
+    <span class="k">수정필요</span><span class="c"><span class="b mvp1">1</span></span>
+  </div></div>
+
+  <div class="fix"><div class="g">
+    <span class="k">상황</span><span><b>팀원/협업자 번호가 고객으로 잡힘</b></span>
+    <span class="k">현재</span><span>번호 기반 upsert라 팀원/협업 사장도 고객 카드로 생성될 수 있음.</span>
+    <span class="k">위험</span><span class="prob">고객 목록 오염 · 잘못된 자동문자 대상.</span>
+    <span class="k rec">권장</span><span class="rec">팀원/협업 번호는 고객 자동생성·자동문자 제외 태깅.</span>
+    <span class="k">수정필요</span><span class="c"><span class="b mvp1">1</span></span>
+  </div></div>
+
+  <div class="fix"><div class="g">
+    <span class="k">상황</span><span><b>접수서 중복 제출</b></span>
+    <span class="k">현재</span><span>token unique·intakeImportedTokens로 중복 알림/카드 방지. 잘 됨.</span>
+    <span class="k">위험</span><span class="prob">낮음. 단 재제출(수정)된 새 값 반영 규칙 확인 필요.</span>
+    <span class="k rec">권장</span><span class="rec">유지 + 재제출 시 갱신 정책 명문화.</span>
+    <span class="k">수정필요</span><span class="c"><span class="b mvp3">후</span></span>
+  </div></div>
+
+  <div class="fix"><div class="g">
+    <span class="k">상황</span><span><b>일정 변경 / 계약금만 들어오고 잔금 미입</b></span>
+    <span class="k">현재</span><span>일정 취소 시 배정 정리(반영됨). 잔금 미수=완료 3일+ 알림.</span>
+    <span class="k">위험</span><span class="prob">낮음.</span>
+    <span class="k rec">권장</span><span class="rec">잔금 미수 알림 묶기.</span>
+    <span class="k">수정필요</span><span class="c"><span class="b mvp2">2</span></span>
+  </div></div>
+
+  <div class="fix"><div class="g">
+    <span class="k">상황</span><span><b>협업 해제 / 위치 오탐 / 자동문자 오발송</b></span>
+    <span class="k">현재</span><span>해제=기록 보존(의도). 위치 5km/3km는 오늘 아닌 현장에도 오탐 가능 + 3km는 자동 전송. 자동문자 비고객 위험.</span>
+    <span class="k">위험</span><span class="prob">⚠️ 위치 오탐+자동전송, 자동문자 오발송 = 신뢰 직격.</span>
+    <span class="k rec">권장</span><span class="rec">위치=오늘 예약 현장만+기본OFF. 자동문자=고객만. (둘 다 1순위)</span>
+    <span class="k">수정필요</span><span class="c"><span class="b mvp1">1</span></span>
+  </div></div>
+
+  <!-- ===== 5 ===== -->
+  <h2 id="s5">5. 화면 구조 점검</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>화면</th><th>목적</th><th>먼저 할 행동</th><th>핵심 정보</th><th>숨길 정보</th><th>다음 행동</th><th>복잡/불필요</th><th>수정 제안</th></tr></thead>
+    <tbody>
+      <tr><td><b>홈(상담함)</b></td><td>오늘 할 일·답장 대기</td><td>답장 대기 처리</td><td>오늘 시공·미수금·답장대기</td><td>—</td><td>채팅/완료</td><td>카드 종류 많음</td><td>‘오늘 할 일’ 우선 정렬 유지</td></tr>
+      <tr><td><b>고객 목록</b></td><td>고객 검색/분류</td><td>고객 찾기</td><td>이름·번호·상태</td><td>금액(목록선)</td><td>고객상세</td><td>—</td><td>카테고리 필터 단순화</td></tr>
+      <tr><td><b>고객 상세</b></td><td>한 고객 모든 것</td><td>메모/일정/금액 확인</td><td>일정·정산·요약·사진</td><td>—</td><td>채팅/예약/입금</td><td>섹션 많음</td><td>온도편집 제거 여부 확정</td></tr>
+      <tr><td><b>채팅(문자방)</b></td><td>대화+통화+추천</td><td>답장</td><td>대화·통화요약·추천</td><td>—</td><td>발송/다듬기/접수서</td><td>—</td><td>추천=고객 메시지일 때만(유지)</td></tr>
+      <tr><td><b>접수서 작성/발송</b></td><td>견적+계약금 링크</td><td>항목·계약금 입력</td><td>견적·시공일·계약금</td><td>—</td><td>링크 발송</td><td>—</td><td>계약금 단위(만원) 명확</td></tr>
+      <tr><td><b>일정</b></td><td>예약 캘린더</td><td>날짜 확인</td><td>예약·협업·오늘시공</td><td>—</td><td>예약 추가</td><td>협업 점/배지 혼동 가능</td><td>완료/예정 태그(반영됨)</td></tr>
+      <tr><td><b>정산(입금/잔금)</b></td><td>못 받은 돈</td><td>미수 확인</td><td>미수 합계·고객별</td><td>—</td><td>잔금 요청</td><td>—</td><td>완납 처리 확인형 유지</td></tr>
+      <tr><td><b>팀원 현황</b></td><td>팀원 배정·진행</td><td>배정</td><td>팀원·현장·상태</td><td>고객 연락처</td><td>배정/링크</td><td>—</td><td>출발 알림 선택화</td></tr>
+      <tr><td><b>협업 현장</b></td><td>사장 협업·정산</td><td>수락/진행</td><td>현장·진행·계좌·사진</td><td class="p-high">고객정보(벽 잘됨)</td><td>진행/정산</td><td>—</td><td>계좌 표시 위치 점검</td></tr>
+      <tr><td><b>설정</b></td><td>자동화·권한 토글</td><td>자동문자/도착 설정</td><td>토글·권한 상태</td><td>—</td><td>권한 요청</td><td>위험 토글 섞임</td><td>알림 종류별 ON/OFF 추가</td></tr>
+      <tr><td><b>권한 안내</b></td><td>권한 허용 유도</td><td>허용</td><td>왜 필요한지</td><td>—</td><td>홈</td><td>—</td><td>배터리 최적화 안내 추가</td></tr>
+    </tbody>
+  </table></div>
+
+  <!-- ===== 6 ===== -->
+  <h2 id="s6">6. 사용자 여정별 점검</h2>
+
+  <div class="scn"><div class="t">시나리오 1. 신규 고객 전화 → 상담 → 문자 → 접수서 → 예약</div><div class="g">
+    <span class="k">정상 흐름</span><span>전화 종료 → 통화 후 카드(요약+초안) → 문자 발송 → 접수서 링크 → 고객 작성 → 일정 자동 반영</span>
+    <span class="k">끊길 지점</span><span>요약 30초 내 못 옴(에이닷 미연결) / 접수서 서버 실패 / 고객이 링크 안 엶</span>
+    <span class="k">헷갈릴 지점</span><span>요약 로딩 의미(개선됨) · 접수서 발송이 자동인지 수동인지</span>
+    <span class="k">자동화 위험</span><span>없음(다 확인형)</span>
+    <span class="k">확인 필요</span><span>문자 발송·접수서 발송은 사장님 탭(유지)</span>
+    <span class="k rec">개선</span><span class="rec">에이닷 미연결 시 “요약 쓰려면 폴더 연결” 안내, 접수서 미열람 리마인드</span>
+  </div></div>
+
+  <div class="scn"><div class="t">시나리오 2. 문자 문의 → AI 답변 → 일정 제안 → 접수서</div><div class="g">
+    <span class="k">정상 흐름</span><span>문자 수신(즉시 알림) → 채팅 진입 → 추천답변 → 일정 제안 → 접수서</span>
+    <span class="k">끊길 지점</span><span>추천 생성 ~20초 / 오프라인이면 무반응 / 고객 row는 채팅 진입 시 생성</span>
+    <span class="k">헷갈릴 지점</span><span>추천이 언제 준비되는지 / 인증·광고 문자도 알림</span>
+    <span class="k">자동화 위험</span><span>없음</span>
+    <span class="k">확인 필요</span><span>추천은 채워주기만(발송은 사장)</span>
+    <span class="k rec">개선</span><span class="rec">추천 ‘준비 중/실패’ 상태 표시, 인증·광고 알림 제외</span>
+  </div></div>
+
+  <div class="scn"><div class="t">시나리오 3. 부재중 → 자동문자 → 재연락 → 상담 정리</div><div class="g">
+    <span class="k">정상 흐름</span><span>부재중 → 10초 카운트 → 자동문자 → 고객 재연락 → 통화 후 카드</span>
+    <span class="k">끊길 지점</span><span>발신권한 없음 / 비고객에 자동발송 / 24h 쿨다운으로 ‘안 나감’ 오해</span>
+    <span class="k">헷갈릴 지점</span><span>왜 자동문자가 안 나갔는지(쿨다운)</span>
+    <span class="k">자동화 위험</span><span class="prob">⚠️ 비고객·광고 자동발송</span>
+    <span class="k">확인 필요</span><span>카운트다운 취소 가능(유지)</span>
+    <span class="k rec">개선</span><span class="rec">대상=고객만, 쿨다운/스킵 사유를 카드에 표기</span>
+  </div></div>
+
+  <div class="scn"><div class="t">시나리오 4. D-1 → 당일 도착 → 완료 → 잔금 요청</div><div class="g">
+    <span class="k">정상 흐름</span><span>전날 D-1 안내 → 당일 오늘시공 카드 → 완료 → 잔금 네/아니오 → 안내문자</span>
+    <span class="k">끊길 지점</span><span>위치 도착 오탐 / 잔금 자동완납 오처리</span>
+    <span class="k">헷갈릴 지점</span><span>완료=끝이 아니라 잔금 단계(개선됨)</span>
+    <span class="k">자동화 위험</span><span class="prob">잔금 ‘받음’ 자동처리, 위치 자동전송</span>
+    <span class="k">확인 필요</span><span>잔금 완납·안내문자=확인형(유지)</span>
+    <span class="k rec">개선</span><span class="rec">위치 오늘 현장만, 잔금 묶음 알림</span>
+  </div></div>
+
+  <div class="scn"><div class="t">시나리오 5. 팀원 현장 진행 → 사장 확인</div><div class="g">
+    <span class="k">정상 흐름</span><span>배정 → 링크 → 팀원 출발/도착/완료 → 사장 알림 + 팀 현황</span>
+    <span class="k">끊길 지점</span><span>팀원 링크 만료(임시 토큰) / 인원 많으면 알림 폭주</span>
+    <span class="k">헷갈릴 지점</span><span>팀원 링크가 매번 새로 발급(영구링크 핸드오프 대기)</span>
+    <span class="k">자동화 위험</span><span>없음</span>
+    <span class="k">확인 필요</span><span>—</span>
+    <span class="k rec">개선</span><span class="rec">영구 링크(서버), 출발 알림 선택화·묶기</span>
+  </div></div>
+
+  <div class="scn"><div class="t">시나리오 6. 협업 공유 → 수락 → 진행 → 완료 → 정산</div><div class="g">
+    <span class="k">정상 흐름</span><span>공유 요청(FCM) → 수락 → 진행 → 완료(계좌) → 입금 → 해제</span>
+    <span class="k">끊길 지점</span><span>FCM 누락(폴링 안전망 있음) / 계좌 노출 / 3km 자동전송 오탐</span>
+    <span class="k">헷갈릴 지점</span><span>계좌 어디서 보는지(통합됨) · 거절/완료 후 카드 잔존(수정됨)</span>
+    <span class="k">자동화 위험</span><span class="prob">⚠️ 3km 자동 도착 전송, 계좌 알림 노출</span>
+    <span class="k">확인 필요</span><span>입금완료 표시=수동(유지)</span>
+    <span class="k rec">개선</span><span class="rec">계좌 알림 본문 제거, 3km 오늘 현장만</span>
+  </div></div>
+
+  <div class="scn"><div class="t">시나리오 7. 권한 OFF / 인터넷 없음</div><div class="g">
+    <span class="k">정상 흐름</span><span>권한 허용 → 정상. 미허용 → 대부분 조용히 폴백</span>
+    <span class="k">끊길 지점</span><span>통화기록·알림 권한 없으면 핵심 무력화. 오프라인 시 추천/요약 무반응</span>
+    <span class="k">헷갈릴 지점</span><span>왜 아무것도 안 뜨는지 사용자가 모름</span>
+    <span class="k">자동화 위험</span><span>—</span>
+    <span class="k">확인 필요</span><span>—</span>
+    <span class="k rec">개선</span><span class="rec">권한/연결 상태 상시 배너, 끄면 어떤 기능이 죽는지 명시</span>
+  </div></div>
+
+  <!-- ===== 7 ===== -->
+  <h2 id="s7">7. 위험도 TOP 10</h2>
+
+  <div class="risk"><div class="rt">① 부재중 자동문자 오발송</div><div class="g">
+    <span class="k">왜 위험</span><span>자동으로 문자가 나감(회수 불가)</span>
+    <span class="k">발생 상황</span><span>가족·자재상·광고 번호 부재중 시</span>
+    <span class="k">현재 방어</span><span>스팸 앞자리 차단 + 24h 쿨다운</span>
+    <span class="k">부족</span><span>저장된 비고객·일반 광고는 못 거름</span>
+    <span class="k rec">수정</span><span class="rec">고객/문자이력 번호에만 자동발송</span>
+    <span class="k">우선순위</span><span class="c"><span class="b mvp1">1</span></span>
+  </div></div>
+
+  <div class="risk"><div class="rt">② 협업 완료 알림에 계좌번호 노출</div><div class="g">
+    <span class="k">왜 위험</span><span>계좌번호가 잠금화면/알림에 그대로</span>
+    <span class="k">발생 상황</span><span>협업 완료 시마다</span>
+    <span class="k">현재 방어</span><span>없음(본문에 계좌 포함)</span>
+    <span class="k rec">수정</span><span class="rec">본문서 계좌 제거+앱에서, setVisibility(PRIVATE)</span>
+    <span class="k">우선순위</span><span class="c"><span class="b mvp1">1</span></span>
+  </div></div>
+
+  <div class="risk"><div class="rt">③ 알림 본문 잠금화면 노출(전반)</div><div class="g">
+    <span class="k">왜 위험</span><span>문자내용·주소·금액이 잠금화면에 보임</span>
+    <span class="k">발생 상황</span><span>새 문자·접수서·D-1 등</span>
+    <span class="k">현재 방어</span><span>없음(<code>setVisibility</code> 미설정)</span>
+    <span class="k rec">수정</span><span class="rec">민감 알림 PRIVATE — 잠금화면엔 제목만</span>
+    <span class="k">우선순위</span><span class="c"><span class="b mvp1">1</span></span>
+  </div></div>
+
+  <div class="risk"><div class="rt">④ 위치(5km/3km) 오탐 + 자동전송</div><div class="g">
+    <span class="k">왜 위험</span><span>엉뚱한 곳에서 울리고 협업 3km는 자동 전송</span>
+    <span class="k">발생 상황</span><span>과거 고객 동네 통과, GPS 부정확</span>
+    <span class="k">현재 방어</span><span>오늘~+7일 현장만(5km), 토글</span>
+    <span class="k">부족</span><span>‘오늘’ 한정 아님, 3km는 자동 발사</span>
+    <span class="k rec">수정</span><span class="rec">오늘 예약 현장만 + 기본 OFF</span>
+    <span class="k">우선순위</span><span class="c"><span class="b mvp1">1</span></span>
+  </div></div>
+
+  <div class="risk"><div class="rt">⑤ 발신/비고객 통화에 카드·“캐치”</div><div class="g">
+    <span class="k">왜 위험</span><span>전화할 때마다 떠 피로 → 알림 끔</span>
+    <span class="k">발생 상황</span><span>자재상·가족에게 거는 전화</span>
+    <span class="k">현재 방어</span><span>5초 문턱만</span>
+    <span class="k rec">수정</span><span class="rec">발신은 고객/이력 있을 때만</span>
+    <span class="k">우선순위</span><span class="c"><span class="b mvp1">1</span></span>
+  </div></div>
+
+  <div class="risk"><div class="rt">⑥ 팀원/협업 번호가 고객으로 생성</div><div class="g">
+    <span class="k">왜 위험</span><span>고객목록 오염 + 자동문자 대상 오인</span>
+    <span class="k">발생 상황</span><span>팀원·협업 사장과 문자/통화</span>
+    <span class="k">현재 방어</span><span>없음(번호 upsert)</span>
+    <span class="k rec">수정</span><span class="rec">팀원/협업 번호 태깅 → 고객·자동문자 제외</span>
+    <span class="k">우선순위</span><span class="c"><span class="b mvp1">1</span></span>
+  </div></div>
+
+  <div class="risk"><div class="rt">⑦ 통화기록·알림 권한 실패 시 핵심 무력화</div><div class="g">
+    <span class="k">왜 위험</span><span>통화 인식·알림이 앱의 본체</span>
+    <span class="k">발생 상황</span><span>권한 거부, OEM 자동시작 차단</span>
+    <span class="k">현재 방어</span><span>조용한 폴백(주석만)</span>
+    <span class="k rec">수정</span><span class="rec">상시 배너 + 배터리 최적화 제외 안내</span>
+    <span class="k">우선순위</span><span class="c"><span class="b mvp1">1</span></span>
+  </div></div>
+
+  <div class="risk"><div class="rt">⑧ 새 문자 인증/광고 노이즈</div><div class="g">
+    <span class="k">왜 위험</span><span>관심 없는 알림 → 피로/무시</span>
+    <span class="k">발생 상황</span><span>OTP·광고 수신</span>
+    <span class="k">현재 방어</span><span>스팸 앞자리만</span>
+    <span class="k rec">수정</span><span class="rec">인증·웹발신·광고 발신 제외</span>
+    <span class="k">우선순위</span><span class="c"><span class="b mvp2">2</span></span>
+  </div></div>
+
+  <div class="risk"><div class="rt">⑨ 잔금·D-1·팀원 알림 개별 폭주</div><div class="g">
+    <span class="k">왜 위험</span><span>같은 시간 여러 알림 → 피로</span>
+    <span class="k">발생 상황</span><span>고객/팀원 다수</span>
+    <span class="k">현재 방어</span><span>고객별 1회(묶음 없음)</span>
+    <span class="k rec">수정</span><span class="rec">하나로 묶기</span>
+    <span class="k">우선순위</span><span class="c"><span class="b mvp2">2</span></span>
+  </div></div>
+
+  <div class="risk"><div class="rt">⑩ 오프라인 시 무반응(추천/요약)</div><div class="g">
+    <span class="k">왜 위험</span><span>고장으로 오해 → 불신</span>
+    <span class="k">발생 상황</span><span>인터넷 약함/서버 다운</span>
+    <span class="k">현재 방어</span><span>조용히 skip</span>
+    <span class="k rec">수정</span><span class="rec">‘연결 안 됨·다시 시도’ 상태 표시</span>
+    <span class="k">우선순위</span><span class="c"><span class="b mvp2">2</span></span>
+  </div></div>
+
+  <!-- ===== 8 ===== -->
+  <h2 id="s8">8. MVP 오픈 전 수정 우선순위</h2>
+  <div class="chk"><h3>A. 오픈 전 반드시 수정 (신뢰 직결)</h3><ul>
+    <li>☐ 민감 알림 <code>setVisibility(PRIVATE)</code> — 새 문자·접수서·협업완료·D-1 (잠금화면 본문/주소/금액/계좌 가림)</li>
+    <li>☐ 협업 완료 알림에서 <b>계좌번호 본문 제거</b> (앱 안에서 확인)</li>
+    <li>☐ <b>부재중 자동문자 = 고객/이력 번호만</b> (비고객·광고 자동발송 차단)</li>
+    <li>☐ <b>발신/비고객 통화</b>에 카드·“캐치” 안 띄움</li>
+    <li>☐ <b>위치 5km/3km = 오늘 예약 현장만 + 기본 OFF</b></li>
+    <li>☐ <b>팀원/협업 번호 태깅</b> → 고객 자동생성·자동문자 제외</li>
+    <li>☐ <b>권한 실패 상시 안내</b>(통화기록·알림) + 배터리 최적화 제외 안내</li>
+  </ul></div>
+  <div class="chk"><h3>B. 오픈 후 빠르게 개선</h3><ul>
+    <li>☐ 알림 묶기(잔금·D-1·팀원)</li>
+    <li>☐ 알림 종류별 ON/OFF (설정)</li>
+    <li>☐ 새 문자 인증·광고 제외</li>
+    <li>☐ 오프라인/실패 상태 표시(추천·요약)</li>
+    <li>☐ “RING-GO 캐치!” 문구 → “방금 통화 · 후속 문자 보낼까요?”</li>
+    <li>☐ 협업/팀원 ‘출발·도착’ → 조용한 알림</li>
+    <li>☐ 고객 온도(leadHeat) 제거 결정 확정/정리</li>
+  </ul></div>
+  <div class="chk"><h3>C. 후순위 / 나중 기능</h3><ul>
+    <li>☐ 방해금지 시간대(밤엔 소리 없이)</li>
+    <li>☐ 위치 geofence 정교화(반경·정확도·배터리)</li>
+    <li>☐ 마감 브리핑 시간 설정</li>
+    <li>☐ 추천 학습 루프(SuggestionEvent 활용)</li>
+  </ul></div>
+
+  <!-- ===== 9 ===== -->
+  <h2 id="s9">9. 최종 판단</h2>
+  <div class="final"><div class="g">
+    <span class="k">가장 강한 장점</span><span>전화·문자 → 상담(요약·추천) → 문자/접수서 → 일정 → 계약금/잔금 → 정산까지 <b>한 흐름으로 연결</b>. 에이닷 통화 자동 요약, 협업의 <b>고객정보 벽</b>은 잘 설계됨.</span>
+    <span class="k">가장 큰 약점</span><span>① 알림 <b>개인정보 잠금화면 노출</b>(계좌·문자·주소) ② <b>자동발송·위치 자동전송</b> 오작동 리스크 ③ 권한·OEM 실패 시 핵심 기능 취약 + 안내 부족 ④ 고객 생성 경로 분산 + 팀원/협업 번호 오염.</span>
+    <span class="k">반드시 살릴 흐름</span><span>신규 전화→통화후카드→문자/접수서 · 문자→AI답변→일정 · 접수서→일정→계약금/잔금 · D-1/완료/잔금 · 협업 요청→진행→정산</span>
+    <span class="k">줄이거나 숨길 것</span><span>위치 5km/3km(기본 OFF) · 팀원 ‘출발’ · “RING-GO 캐치!” 백업 · 고객 온도(미사용이면)</span>
+    <span class="k">자동화 금지</span><span>잔금/계약금 ‘받음’ 처리(확인 필수) · 부재중 자동문자(조건부) · 3km 자동 전송(오늘 현장만)</span>
+    <span class="k">더 자동화 OK</span><span>접수서 데이터 반영 · 통화 요약 · 알림 중복 억제(onlyAlertOnce) · 카테고리 자동분류</span>
+    <span class="k">제품 구조 점수</span><span><b>기능 폭/연결성: 상</b> · <b>MVP 견고성(개인정보·자동화·권한): 중하</b> → 위 A 항목만 처리하면 오픈 가능 수준.</span>
+    <span class="k">오픈 전 최종 권고</span><span>“기능 추가 말고” <b>A(7개) 안전·개인정보 수정에 집중</b>. 위치/팀원출발/캐치는 기본 OFF로 줄여 출시 → 실사용 데이터로 B 개선.</span>
+  </div></div>
+
+  <p class="sub" style="margin-top:18px">작성: 앱 코드 직접 분석(5개 영역 병렬 조사). 표의 각 행에 “유지/수정/삭제/OFF”를 정해주시면 그대로 반영합니다. ↔ <a href="notifications-catalog.html">알림 시스템 명세서</a></p>
+</div>
+</body>
+</html>
