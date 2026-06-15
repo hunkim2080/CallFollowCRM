@@ -4541,3 +4541,20 @@ File "/Users/hun/ringgo-server/main.py", line 10220, in team_member_invite
 -- DELETE FROM shared_owner_events WHERE share_id IN ('sh_sO3TBdFkSz','sh_p0Tsu05GoZ');  -- events_deleted:0
 ```
 → 한 건만 cleared (다른 한 건은 이미 declined 였음). owner-events 잔여 0.
+
+## 2026-06-15 (android) — 핸드오프30: 다듬기 결과 잘림 = 서버 max output 500 (cowork)
+사장님 보고: ✨ 다듬기 누르면 결과 글이 문장 중간에서 **잘려서** 나옴. 앱 영역 아님 → server.
+
+### 진단 (앱 무결 확인)
+- 앱: `ChatScreen.kt:691` `aiPolish(input){ polished -> input = polished }` = 서버 polished 를 **그대로** 입력칸에 넣음. take/substring/maxLength 없음 → 앱은 안 자름.
+- 서버: `main.py:76 GEMINI_MAX_OUTPUT_TOKENS = 500` → `main.py:5418 _call_gemini_refine` 의 `maxOutputTokens` 로 사용. 출력 500토큰(한글 ~300~600자)에서 끊김 = 긴 문장이 잘리는 원인.
+- 비교: 다른 Gemini 호출은 2048(`main.py:1807`) / 2000(`main.py:6141`). 다듬기만 500.
+- `GEMINI_MAX_OUTPUT_TOKENS` 는 grep 결과 **5418(refine) 한 곳에서만** 사용 → 올려도 다른 기능 영향 없음.
+
+### 권장 수정 (cowork)
+- `GEMINI_MAX_OUTPUT_TOKENS = 500` → **2048** (refine 전용이라 안전).
+- (선택) `_call_gemini_refine` 에서 `finishReason == "MAX_TOKENS"` 면 로그 1줄 — 향후 재발 조기 발견.
+- 검증: 긴 원문(예: 견적 안내 5~6줄) 다듬기 → 끝까지 안 잘리고 나오는지.
+
+### 앱 측 액션
+- 없음. 서버 상수만 올리면 즉시 정상.
