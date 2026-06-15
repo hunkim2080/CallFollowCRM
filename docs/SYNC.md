@@ -4575,3 +4575,20 @@ File "/Users/hun/ringgo-server/main.py", line 10220, in team_member_invite
 
 ### 앱 측 액션
 - 없음. 서버 완료 화면만 바뀌면 됨.
+## 2026-06-15 (cowork) — 핸드오프30 처리: GEMINI_MAX_OUTPUT_TOKENS 500 → 2048
+SYNC 추가30 그대로. 한 줄 변경 + 진단 로그 추가.
+
+### 변경
+- `GEMINI_MAX_OUTPUT_TOKENS = 500` → **2048** (main.py:76).
+- `_call_gemini_refine`: `finishReason == "MAX_TOKENS"` 면 stdout 에 WARN 1줄 (향후 재발 조기 발견).
+
+### 영향 범위
+- `GEMINI_MAX_OUTPUT_TOKENS` 사용처 = `_call_gemini_refine` 한 곳 (main.py:5418) → 다듬기 기능만 영향.
+- 다른 Gemini 호출 (call-audio-summary 2048, prepare-reply 2000) 은 그대로.
+
+### 검증
+- 긴 원문 (견적 안내 5~6줄) 다듬기 → 끝까지 잘리지 않고 응답.
+- stdout 에 `[gemini/refine] WARN finishReason=MAX_TOKENS` 안 보여야 정상.
+
+### 다음 액션 (사장님)
+한 줄: commit + push + cp + launchctl kickstart.

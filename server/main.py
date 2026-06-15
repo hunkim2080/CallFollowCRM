@@ -73,7 +73,7 @@ GEMINI_MODEL = "gemini-2.5-flash"
 # §26 fix (2026-06-10): 11분+ 통화는 transcript 4000~6000자 → Gemini 처리 시간 30~90초.
 # 짧은 통화 (prepare-reply) 와 긴 통화 (call-audio-summary) 둘 다 안전한 120초.
 GEMINI_TIMEOUT_SEC = 120.0
-GEMINI_MAX_OUTPUT_TOKENS = 500
+GEMINI_MAX_OUTPUT_TOKENS = 2048  # 핸드오프30 (2026-06-15): 500 → 2048. 긴 원문 다듬기 시 끊김 해결.
 
 # §15 — Admin token (사업 metric endpoint 보호용. /api/admin/* 호출 시 X-Admin-Token 헤더 필요)
 # 미설정 시 admin endpoint 는 503 (인증 비활성화).
@@ -5442,6 +5442,14 @@ async def _call_gemini_refine(
         # finishReason 이 SAFETY 같은 경우 candidates 는 있지만 text 가 비어있음
         finish = candidates[0].get("finishReason", "?")
         raise RuntimeError(f"Gemini empty polished (finishReason={finish}): {str(data)[:300]}")
+
+    # 핸드오프30 (2026-06-15) — MAX_TOKENS 로 끊기는 경우 stdout 로그 (조기 발견).
+    finish_reason = candidates[0].get("finishReason", "")
+    if finish_reason == "MAX_TOKENS":
+        print(
+            f"[gemini/refine] WARN finishReason=MAX_TOKENS "
+            f"(maxOutputTokens={GEMINI_MAX_OUTPUT_TOKENS}, polished_len={len(polished)})"
+        )
 
     usage_meta = data.get("usageMetadata") or {}
     return polished, usage_meta
