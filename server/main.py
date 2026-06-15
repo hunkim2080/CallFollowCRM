@@ -5041,6 +5041,19 @@ async def admin_beta_dashboard_data(
             return f"{s[:3]}-{s[3:6]}-{s[6:]}"
         return s or ""
 
+    # 베타 화이트리스트 이름 map (helper) — 사장님이 admin 에서 박은 name 활용.
+    # _is_registered_owner (subscribers/beta_signups) 에 없는 사용자도 화이트리스트 name 으로 표시.
+    _wl_name_map: dict = {}
+    # (wl_rows 는 아래에서 로드되므로 closure 로 lazy lookup)
+    def _user_name(phone, default="사장님"):
+        if not phone:
+            return default
+        return (
+            _is_registered_owner(phone)
+            or _wl_name_map.get(phone)
+            or default
+        )
+
     with db_conn() as con:
         # ── 화이트리스트 사용자 ──
         wl_rows = con.execute(
@@ -5053,6 +5066,10 @@ async def admin_beta_dashboard_data(
         total_users = len(wl_rows)
         activated = sum(1 for r in wl_rows if r[4])
         new_7d = sum(1 for r in wl_rows if r[3] and r[3] >= cutoff_7d)
+        # 화이트리스트 name map 구축 (위 _user_name closure 가 이걸 lookup)
+        for r in wl_rows:
+            if r[1]:  # name 있는 것만
+                _wl_name_map[r[0]] = r[1]
         # 활성 정의: last_seen 7일 이내
         active_7d = sum(1 for r in wl_rows if r[5] and r[5] >= cutoff_7d)
         active_30d = sum(1 for r in wl_rows if r[5] and r[5] >= now - 30 * 86_400_000)
@@ -5167,9 +5184,9 @@ async def admin_beta_dashboard_data(
         ).fetchall()
         collab_details = [
             {
-                "owner_name": (r[9] or "").strip() or (_is_registered_owner(r[1]) or "사장님"),
+                "owner_name": (r[9] or "").strip() or _user_name(r[1], "사장님"),
                 "owner_phone": _fmt_phone(r[1]),
-                "partner_name": _is_registered_owner(r[2]) or "협업 사장",
+                "partner_name": _user_name(r[2], "협업 사장"),
                 "partner_phone": _fmt_phone(r[2]),
                 "title": r[3] or "",
                 "scheduled": _fmt_dt(r[4]) or (r[8] or ""),
@@ -5192,7 +5209,7 @@ async def admin_beta_dashboard_data(
         ).fetchall()
         recruit_details = [
             {
-                "owner_name": _is_registered_owner(r[1]) or "사장님",
+                "owner_name": _user_name(r[1], "사장님"),
                 "owner_phone": _fmt_phone(r[1]),
                 "date": _fmt_dt(r[2]),
                 "place": r[3] or "",
@@ -5216,7 +5233,7 @@ async def admin_beta_dashboard_data(
         ).fetchall()
         recruit_app_details = [
             {
-                "partner_name": _is_registered_owner(r[1]) or "협업 사장",
+                "partner_name": _user_name(r[1], "협업 사장"),
                 "partner_phone": _fmt_phone(r[1]),
                 "applied": _fmt_dt(r[3]),
                 "status": r[4],
@@ -5236,7 +5253,7 @@ async def admin_beta_dashboard_data(
         ).fetchall()
         team_details = [
             {
-                "owner_name": _is_registered_owner(r[1]) or "사장님",
+                "owner_name": _user_name(r[1], "사장님"),
                 "owner_phone": _fmt_phone(r[1]),
                 "name": r[2] or "",
                 "phone": _fmt_phone(r[3]),
@@ -5255,7 +5272,7 @@ async def admin_beta_dashboard_data(
         ).fetchall()
         photo_details = [
             {
-                "owner_name": _is_registered_owner(r[1]) or "사장님",
+                "owner_name": _user_name(r[1], "사장님"),
                 "owner_phone": _fmt_phone(r[1]),
                 "label": r[2] or "",
                 "customer_phone": _fmt_phone(r[3]) if r[3] else "",
@@ -5283,6 +5300,14 @@ async def admin_beta_dashboard_data(
         users = []
         for r in wl_rows:
             phone, name, memo, added, first, last, uc = r
+            calls = per_user_calls.get(phone, 0)
+            active_days = len(per_user_days.get(phone, set()))
+            # 평균 일일 호출 (활성 일수 기준 — 활성 안 한 날 빼고)
+            avg_per_active_day = round(calls / active_days, 1) if active_days > 0 else 0
+            # 평균 일일 호출 (전체 기간 기준 — 가입 이후)
+            days_since_added = max(1, int((now - (added or now)) / 86_400_000))
+            days_observed = min(days_since_added, days)
+            avg_per_day = round(calls / days_observed, 2) if days_observed > 0 else 0
             users.append({
                 "phone": _fmt_phone(phone),
                 "phone_raw": phone,
@@ -5292,12 +5317,31 @@ async def admin_beta_dashboard_data(
                 "first_seen_ms": first,
                 "last_seen_ms": last,
                 "use_count": uc or 0,
-                "calls": per_user_calls.get(phone, 0),
-                "active_days": len(per_user_days.get(phone, set())),
+                "calls": calls,
+                "active_days": active_days,
+                "avg_per_day": avg_per_day,
+                "avg_per_active_day": avg_per_active_day,
                 "cost_usd": round(per_user_cost.get(phone, 0.0), 4),
             })
         # 정렬: 마지막 활동 최근순
         users.sort(key=lambda u: u["last_seen_ms"] or 0, reverse=True)
+
+        # 전체 평균 (KPI 카드용)
+        active_users = [u for u in users if u["calls"] > 0]
+        if active_users:
+            avg_calls_per_user_per_day = round(
+                sum(u["calls"] for u in active_users) / len(active_users) / days, 2
+            )
+            avg_active_days_per_user = round(
+                sum(u["active_days"] for u in active_users) / len(active_users), 1
+            )
+            avg_use_count = round(
+                sum(u["use_count"] for u in active_users) / len(active_users), 1
+            )
+        else:
+            avg_calls_per_user_per_day = 0
+            avg_active_days_per_user = 0
+            avg_use_count = 0
 
     feature_list = []
     for ep, cnt in feature_count.items():
@@ -5319,6 +5363,9 @@ async def admin_beta_dashboard_data(
             "active_7d": active_7d,
             "active_30d": active_30d,
             "total_api_calls": len(api_rows),
+            "avg_calls_per_user_per_day": avg_calls_per_user_per_day,
+            "avg_active_days_per_user": avg_active_days_per_user,
+            "avg_use_count": avg_use_count,
         },
         "network": {
             "collab_total": collab_total,
@@ -5501,11 +5548,13 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
           <th>첫 진입</th>
           <th>마지막 활동</th>
           <th>활성 일수</th>
+          <th class="right">앱 실행</th>
           <th class="right">총 호출</th>
+          <th class="right">일평균</th>
           <th class="right">비용 (USD)</th>
           <th>상태</th>
         </tr></thead>
-        <tbody id="userRows"><tr><td colspan="8" style="text-align:center; padding:30px; color:#9AA3AF">로딩중...</td></tr></tbody>
+        <tbody id="userRows"><tr><td colspan="10" style="text-align:center; padding:30px; color:#9AA3AF">로딩중...</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -5569,7 +5618,10 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
       kpiCard('green', '활성 (30일)', kpi.active_30d, pct(kpi.active_30d, kpi.total_users) + '% 활성') +
       kpiCard('orange', '신규 (7일)', kpi.new_7d, '신규 가입') +
       kpiCard('', '활성화 (첫 진입)', kpi.activated, pct(kpi.activated, kpi.total_users) + '% 진입 완료') +
-      kpiCard('blue', '총 API 호출 (' + d.days + '일)', kpi.total_api_calls, '회');
+      kpiCard('blue', '총 API 호출', kpi.total_api_calls, '회 (' + d.days + '일)') +
+      kpiCard('orange', '평균 호출/사장님/일', kpi.avg_calls_per_user_per_day, '회 (활성자 기준)') +
+      kpiCard('green', '평균 활성 일수', kpi.avg_active_days_per_user, '일 / ' + d.days + '일 중') +
+      kpiCard('blue', '평균 앱 실행', kpi.avg_use_count, '회 (누적, 활성자 기준)');
 
     // Network 신호 (클릭 시 drill-down)
     LAST_DETAILS = d.details || {};
@@ -5641,7 +5693,7 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
     // 사용자 테이블
     var users = d.users;
     if (users.length === 0) {
-      document.getElementById('userRows').innerHTML = '<tr><td colspan="8" style="text-align:center; padding:30px; color:#9AA3AF">등록된 테스터 없음</td></tr>';
+      document.getElementById('userRows').innerHTML = '<tr><td colspan="10" style="text-align:center; padding:30px; color:#9AA3AF">등록된 테스터 없음</td></tr>';
     } else {
       var html2 = '';
       var now = Date.now();
@@ -5659,7 +5711,9 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
               + '<td>' + first + '</td>'
               + '<td>' + last + '</td>'
               + '<td>' + u.active_days + '일</td>'
+              + '<td class="right">' + u.use_count + '</td>'
               + '<td class="right"><b>' + u.calls + '</b></td>'
+              + '<td class="right" style="color:#1B64DA; font-weight:700">' + u.avg_per_day + '</td>'
               + '<td class="right">$' + u.cost_usd.toFixed(3) + '</td>'
               + '<td>' + statusBadge + '</td>'
               + '</tr>';
