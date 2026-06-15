@@ -140,6 +140,13 @@ class ChatViewModel(
         else container.callRecordRepository.observeByPhoneSuffix(suffix)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** 통화 녹음 첨부 (2026-06-16) — 통화 카드에 재생 플레이어를 띄우기 위함. suffix 매칭. */
+    val recordings: StateFlow<List<com.detailline.callfollowcrm.data.local.entity.RecordingAttachmentEntity>> = run {
+        val suffix = phoneNumber.filter { it.isDigit() }.takeLast(8)
+        if (suffix.length < 7) kotlinx.coroutines.flow.flowOf(emptyList())
+        else container.recordingRepository.observeByPhoneSuffix(suffix)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     /**
      * 통화요약 (2026-06-08) — 에이닷 txt 자동 import 또는 붙여넣기로 저장된 CallSummary.
      *   통화기록과 같은 suffix 매칭. 통화 카드(CallSegment)가 시각으로 짝지어 "AI 요약됨" 상태로 표시.

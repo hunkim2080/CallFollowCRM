@@ -4770,3 +4770,12 @@ SYNC 추가30 그대로. 한 줄 변경 + 진단 로그 추가.
 - cowork 확인 요청: si0in.kr/install 이 ~/ringgo-server/apk/shigongmagne.apk 를 그대로 서빙하는지(파일명·경로) 한 번 점검 부탁.
 - 주의: 이후 베타 빌드마다 versionCode 올려야 기존 설치 위 업데이트됨. 릴리스 키(ringgo-release.jks+keystore.properties) 분실 시 업데이트 영영 불가 — 백업 유지.
 - 변경 파일(git): app/build.gradle.kts (버전만). APK는 .gitignore(**/build/) 제외.
+
+## 2026-06-16 07:10 · android
+통화 카드에 녹음 재생 플레이어 추가 (사장님 요청 — 에이닷 안 들어가고 바로 듣기)
+- 위치: 채팅 통화카드(CallSegment) 맨 아래. 이 통화의 녹음 파일이 있을 때만 표시.
+- UI: ▶/⏸ 원형버튼 + 진행 슬라이더(드래그 탐색) + 0:00/총길이 + ⟲5초 / 배속(1.0→1.5→2.0) / 5초⟳. (에이닷 플레이어 참고)
+- 백엔드: MediaPlayer, 재생 누를 때 lazy prepareAsync, 카드 사라지면 release. content:// (SAF 녹음 폴더) 직접 재생.
+- 매칭: recording_attachments 를 번호 suffix로 관찰 → 통화 1건↔녹음 1건 1:1(callRecordId 먼저, 없으면 fileName 시각 ±10분). 부재중/녹음없는 통화엔 안 뜸.
+- 변경: RecordingAttachmentDao.observeByPhoneSuffix, RecordingRepository, ChatViewModel.recordings, ChatScreen(recordingFor 맵 + CallRecordingPlayer). 앱 단독, 서버 영향 없음. DB 스키마 변경 없음(SELECT만).
+- 검증: 빌드 OK + 폰 설치 + 채팅 딥링크로 통화카드 진입 → 플레이어 렌더 확인(스크린샷), 크래시 없음. 실제 재생음은 사장님 ▶ 확인 필요(오디오).

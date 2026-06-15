@@ -23,6 +23,14 @@ interface RecordingAttachmentDao {
     @Query("SELECT * FROM recording_attachments WHERE customerId IS NULL ORDER BY createdAt DESC")
     fun observeUnlinked(): Flow<List<RecordingAttachmentEntity>>
 
+    /** 채팅 통화카드 재생용 — 이 번호의 녹음 첨부(최신순). 통화기록과 같은 suffix 매칭. */
+    @Query("""
+        SELECT * FROM recording_attachments
+        WHERE replace(replace(phoneNumber, '-', ''), ' ', '') LIKE '%' || :suffix
+        ORDER BY createdAt DESC
+    """)
+    fun observeByPhoneSuffix(suffix: String): Flow<List<RecordingAttachmentEntity>>
+
     @Query("SELECT * FROM recording_attachments WHERE id = :id")
     suspend fun findById(id: Long): RecordingAttachmentEntity?
 

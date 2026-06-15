@@ -200,6 +200,36 @@ fun ChatScreen(
             }
             out
         }
+    // 통화 녹음 — 통화카드 재생 플레이어용. 통화 1건 ↔ 녹음 1건 1:1 배정(요약과 동일 로직: callRecordId 먼저, 없으면 fileName 시각 ±10분).
+    val recordings by viewModel.recordings.collectAsState()
+    val recordingFor: Map<Long, com.detailline.callfollowcrm.data.local.entity.RecordingAttachmentEntity> =
+        remember(callRecords, recordings) {
+            val win = 10 * 60 * 1000L
+            val out = HashMap<Long, com.detailline.callfollowcrm.data.local.entity.RecordingAttachmentEntity>()
+            val used = HashSet<Long>()
+            val recById = callRecords.associateBy { it.id }
+            for (r in recordings) {
+                val rid = r.callRecordId ?: continue
+                if (recById.containsKey(rid) && !out.containsKey(rid) && r.id !in used) {
+                    out[rid] = r; used.add(r.id)
+                }
+            }
+            for (rec in callRecords.sortedByDescending { it.endedAt }) {
+                if (out.containsKey(rec.id)) continue
+                val callStart = rec.startedAt ?: rec.endedAt
+                val cand = recordings
+                    .filter { it.id !in used }
+                    .mapNotNull { rr ->
+                        val at = com.detailline.callfollowcrm.recording.AdotFilenameParser.parse(rr.fileName)?.recordedAt
+                        if (at != null) rr to at else null
+                    }
+                    .filter { (_, at) -> at >= callStart - win && at <= rec.endedAt + win }
+                    .minByOrNull { (_, at) -> kotlin.math.abs(at - callStart) }
+                    ?.first
+                if (cand != null) { out[rec.id] = cand; used.add(cand.id) }
+            }
+            out
+        }
     val templates by viewModel.templates.collectAsState()
     val pricingItems by viewModel.pricingItems.collectAsState()
     val toast by viewModel.toast.collectAsState()
@@ -638,10 +668,13 @@ fun ChatScreen(
                                 val summarizing = matched == null && summarizingTimes.any { r ->
                                     r >= callStart - win && r <= ti.record.endedAt + win
                                 }
+                                val callRec = recordingFor[ti.record.id]
                                 CallSegment(
                                     record = ti.record,
                                     summary = matched,
                                     isSummarizing = summarizing,
+                                    audioUri = callRec?.fileUri,
+                                    audioDurationMs = callRec?.duration,
                                     onUseAsDraft = { msg ->
                                         input = if (input.isBlank()) msg else input + "\n" + msg
                                     },
@@ -1366,6 +1399,8 @@ private fun CallSegment(
     record: com.detailline.callfollowcrm.data.local.entity.CallRecordEntity,
     summary: com.detailline.callfollowcrm.data.local.entity.CallSummaryEntity? = null,
     isSummarizing: Boolean = false,
+    audioUri: String? = null,
+    audioDurationMs: Long? = null,
     onUseAsDraft: (String) -> Unit = {},
     onSummarizeCall: () -> Unit = {}
 ) {
@@ -1471,8 +1506,147 @@ private fun CallSegment(
                 Text("이 통화 내용으로 후속 문자 쓰기", color = Color(0xFF0A7D72), fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold)
             }
         }
+        // 녹음 재생 플레이어 — 이 통화의 녹음 파일이 있으면 카드 맨 아래에 표시(에이닷 안 들어가고 바로 듣기). (2026-06-16 사장님)
+        if (audioUri != null) {
+            CallRecordingPlayer(audioUri = audioUri, durationHintMs = audioDurationMs)
+        }
     }
 }
+
+/**
+ * 통화 녹음 재생 플레이어 (2026-06-16 사장님) — 에이닷 안 들어가고 통화카드에서 바로 듣기.
+ *   ▶/⏸ · 진행 슬라이더(드래그 탐색) · 0:00/총길이 · ±5초 · 배속(1.0→1.5→2.0). MediaPlayer 백엔드.
+ *   재생 누를 때 lazy 로 준비(prepareAsync), 카드 사라지면 release. content:// (SAF 녹음 폴더) 재생.
+ */
+@Composable
+private fun CallRecordingPlayer(audioUri: String, durationHintMs: Long? = null) {
+    val context = LocalContext.current
+    var player by remember(audioUri) { mutableStateOf<android.media.MediaPlayer?>(null) }
+    var prepared by remember(audioUri) { mutableStateOf(false) }
+    var loading by remember(audioUri) { mutableStateOf(false) }
+    var isPlaying by remember(audioUri) { mutableStateOf(false) }
+    var pendingPlay by remember(audioUri) { mutableStateOf(false) }
+    var durationMs by remember(audioUri) { mutableStateOf((durationHintMs ?: 0L).toInt()) }
+    var positionMs by remember(audioUri) { mutableStateOf(0) }
+    var dragMs by remember(audioUri) { mutableStateOf<Int?>(null) }
+    var speed by remember(audioUri) { mutableStateOf(1.0f) }
+    var error by remember(audioUri) { mutableStateOf(false) }
+
+    fun applySpeed(p: android.media.MediaPlayer) {
+        runCatching { p.playbackParams = p.playbackParams.setSpeed(speed) }
+    }
+    fun create() {
+        loading = true
+        runCatching {
+            android.media.MediaPlayer().apply {
+                setDataSource(context, android.net.Uri.parse(audioUri))
+                setOnPreparedListener { mp ->
+                    prepared = true; loading = false; durationMs = mp.duration
+                    if (pendingPlay) {
+                        applySpeed(mp); runCatching { mp.start() }
+                        isPlaying = mp.isPlaying; pendingPlay = false
+                    }
+                }
+                setOnCompletionListener { isPlaying = false; positionMs = durationMs }
+                setOnErrorListener { _, _, _ -> error = true; loading = false; isPlaying = false; true }
+                prepareAsync()
+            }.also { player = it }
+        }.onFailure { error = true; loading = false }
+    }
+    fun togglePlay() {
+        val p = player
+        when {
+            error -> {}
+            p == null -> { pendingPlay = true; create() }
+            !prepared -> { pendingPlay = true }
+            p.isPlaying -> { p.pause(); isPlaying = false }
+            else -> {
+                if (durationMs in 1..positionMs) { runCatching { p.seekTo(0) }; positionMs = 0 }
+                applySpeed(p); runCatching { p.start() }; isPlaying = p.isPlaying
+            }
+        }
+    }
+    fun skip(deltaMs: Int) {
+        val p = player ?: return
+        if (!prepared) return
+        val target = (positionMs + deltaMs).coerceIn(0, durationMs.coerceAtLeast(0))
+        runCatching { p.seekTo(target) }; positionMs = target
+    }
+    fun cycleSpeed() {
+        speed = when (speed) { 1.0f -> 1.5f; 1.5f -> 2.0f; else -> 1.0f }
+        val p = player
+        if (p != null && p.isPlaying) applySpeed(p)
+    }
+
+    LaunchedEffect(isPlaying) {
+        while (isPlaying) {
+            val p = player
+            if (p != null && dragMs == null) runCatching { positionMs = p.currentPosition }
+            kotlinx.coroutines.delay(250)
+        }
+    }
+    androidx.compose.runtime.DisposableEffect(audioUri) {
+        onDispose { runCatching { player?.release() }; player = null }
+    }
+
+    val shownPos = dragMs ?: positionMs
+    Column(
+        Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(10.dp))
+            .background(Color.White).border(1.dp, Color(0xFFCDE8E0), RoundedCornerShape(10.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+    ) {
+        if (error) {
+            Text("녹음을 재생할 수 없어요", color = TossTextTertiary, fontSize = 12.sp)
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(36.dp).clip(RoundedCornerShape(50)).background(Color(0xFF0E9E90))
+                        .clickable { togglePlay() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (loading) CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                    else Text(if (isPlaying) "⏸" else "▶", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.width(10.dp))
+                androidx.compose.material3.Slider(
+                    value = if (durationMs > 0) (shownPos.toFloat() / durationMs).coerceIn(0f, 1f) else 0f,
+                    onValueChange = { frac -> dragMs = (frac * durationMs).toInt() },
+                    onValueChangeFinished = {
+                        val d = dragMs
+                        if (d != null) { runCatching { player?.seekTo(d) }; positionMs = d }
+                        dragMs = null
+                    },
+                    colors = androidx.compose.material3.SliderDefaults.colors(
+                        thumbColor = Color(0xFF0E9E90),
+                        activeTrackColor = Color(0xFF0E9E90)
+                    ),
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text("${playerClock(shownPos)} / ${playerClock(durationMs)}",
+                    fontSize = 11.sp, color = TossTextTertiary, fontWeight = FontWeight.Bold)
+            }
+            Row(
+                Modifier.fillMaxWidth().padding(top = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("⟲ 5초", fontSize = 12.sp, color = Color(0xFF0A7D72), fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { skip(-5000) }.padding(horizontal = 8.dp, vertical = 4.dp))
+                Text(playerSpeedLabel(speed), fontSize = 12.sp, color = Color(0xFF0A7D72), fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { cycleSpeed() }.padding(horizontal = 8.dp, vertical = 4.dp))
+                Text("5초 ⟳", fontSize = 12.sp, color = Color(0xFF0A7D72), fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { skip(5000) }.padding(horizontal = 8.dp, vertical = 4.dp))
+            }
+        }
+    }
+}
+
+private fun playerClock(ms: Int): String {
+    val s = (ms / 1000).coerceAtLeast(0)
+    return "${s / 60}:${(s % 60).toString().padStart(2, '0')}"
+}
+private fun playerSpeedLabel(s: Float): String = when (s) { 1.0f -> "1.0x"; 1.5f -> "1.5x"; else -> "2.0x" }
 
 /**
  * 채팅 안 시공접수서 제출 이벤트 카드 (2026-06-05) — 고객이 접수서를 작성 완료한 사실을 타임라인에 표시.

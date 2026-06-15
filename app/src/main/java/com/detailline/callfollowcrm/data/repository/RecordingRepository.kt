@@ -14,6 +14,10 @@ class RecordingRepository(private val dao: RecordingAttachmentDao) {
 
     fun observeUnlinked(): Flow<List<RecordingAttachmentEntity>> = dao.observeUnlinked()
 
+    /** 채팅 통화카드 재생 플레이어용 — 번호 suffix 매칭으로 녹음 첨부 관찰. */
+    fun observeByPhoneSuffix(suffix: String): Flow<List<RecordingAttachmentEntity>> =
+        dao.observeByPhoneSuffix(suffix)
+
     suspend fun existsByUri(uri: String): Boolean = dao.countByUri(uri) > 0
 
     suspend fun add(
