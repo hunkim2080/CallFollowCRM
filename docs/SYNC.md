@@ -4686,3 +4686,10 @@ SYNC 추가30 그대로. 한 줄 변경 + 진단 로그 추가.
 ### 다음 액션 (사장님)
 1. 한 줄: commit + push + cp + launchctl kickstart.
 2. 폰에서 `https://si0in.kr/admin/beta/whitelist` 열어 ADMIN_TOKEN 입력 → 본인 폰번호 (01064610131) 부터 추가 → 테스트.
+
+## 2026-06-15 23:35 · android
+사용자 화면에서 "에이닷" 브랜드명 전부 숨김 + 통화요약 안 될 때 안내 추가 (사장님 결정 ②)
+- 변경: 앱 UI 카피만 수정 (서버 영향 없음). "에이닷" → "통화 녹음"/"통화 녹음 앱" 으로 중립화. PostCallCard 통화요약 footer 가 옛 텍스트경로 시절 "에이닷 통화요약 바탕"으로 잘못 적혀 있던 것도 "통화 녹음을 바탕으로"로 사실 정정(지금 메인 경로 = m4a → 우리 서버 STT+요약). 실패/빈 상태엔 "통화 녹음 켜졌는지·폴더 연결됐는지 확인 (설정→통화 자동 요약)" 안내 추가.
+- 수정 파일(12곳/6파일): PostCallCard.kt, ChatViewModel.kt, ChatScreen.kt(6), SettingsScreen.kt(2), NewLeadsScreen.kt, CustomerDetailScreen.kt(죽은뱃지). 내부 식별자/enum값("ADOT_SHARE")/주석은 유지.
+- commit: (아래)
+- 다음 액션: 서버측 없음. (참고: 통화녹음은 여전히 에이닷이 만든 파일을 폴더에서 주워옴 — "에이닷의 손만 빌림". 브랜드만 가린 것.)

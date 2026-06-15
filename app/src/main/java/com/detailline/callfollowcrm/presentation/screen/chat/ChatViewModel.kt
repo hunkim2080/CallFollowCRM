@@ -182,8 +182,8 @@ class ChatViewModel(
             _toast.value = when (res) {
                 com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.OK -> "통화 내용을 요약했어요 ✨"
                 com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.ALREADY -> "이미 요약돼 있어요"
-                com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.NO_FOLDER -> "에이닷 녹음 폴더를 먼저 연결해주세요 (설정 → 통화 자동 요약)"
-                com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.NO_FILE -> "이 통화의 녹음 파일을 못 찾았어요"
+                com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.NO_FOLDER -> "통화 녹음 폴더를 먼저 연결해주세요 (설정 → 통화 자동 요약)"
+                com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.NO_FILE -> "이 통화의 녹음 파일을 못 찾았어요. 통화 녹음이 켜져 있는지 확인해주세요."
             }
         }
     }

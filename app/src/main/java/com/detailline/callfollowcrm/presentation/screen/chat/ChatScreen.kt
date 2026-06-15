@@ -292,7 +292,7 @@ fun ChatScreen(
                 android.widget.Toast.makeText(
                     context,
                     if (n > 0) "통화 요약 ${n}개를 가져왔어요"
-                    else "폴더 연결됐어요. 이제 에이닷에서 ‘통화 내용 텍스트 저장’만 하면 자동으로 들어와요.",
+                    else "폴더 연결됐어요. 이제 통화 녹음 앱에서 통화 내용을 텍스트로 저장하면 자동으로 들어와요.",
                     android.widget.Toast.LENGTH_LONG
                 ).show()
             }
@@ -308,7 +308,7 @@ fun ChatScreen(
                 android.widget.Toast.makeText(
                     context,
                     if (n > 0) "통화 요약 ${n}개를 가져왔어요"
-                    else "새로 들어온 통화 요약이 없어요. 에이닷에서 ‘통화 내용 텍스트 저장’을 먼저 눌러주세요.",
+                    else "새로 들어온 통화 요약이 없어요. 통화 녹음 앱에서 통화 내용을 텍스트로 저장하면 자동으로 들어와요.",
                     android.widget.Toast.LENGTH_LONG
                 ).show()
             }
@@ -944,10 +944,10 @@ fun ChatScreen(
             Box(Modifier.fillMaxSize().padding(horizontal = 18.dp), contentAlignment = Alignment.Center) {
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color.White).padding(20.dp)) {
                     com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
-                    Text("에이닷 통화 내용 요약 받기", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                    Text("통화 내용 요약 받기", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "한 번만 폴더를 연결하면, 이후엔 에이닷에서 ‘통화 내용 텍스트 저장’만 눌러도 자동으로 들어와요.",
+                        "한 번만 폴더를 연결하면, 이후엔 통화 내용을 텍스트로 저장할 때마다 자동으로 들어와요.",
                         fontSize = 12.5.sp, color = TossTextSecondary, lineHeight = 18.sp
                     )
                     Spacer(Modifier.height(12.dp))
@@ -965,7 +965,7 @@ fun ChatScreen(
                     ) { Text("📁 자동으로 받기 — 폴더 한 번만 연결", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold) }
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "‘다운로드 → A.phone’ 폴더를 고르고 ‘이 폴더 사용’을 눌러주세요.",
+                        "열린 폴더에서 그대로 ‘이 폴더 사용’을 눌러주세요.",
                         fontSize = 11.sp, color = TossTextTertiary, lineHeight = 16.sp
                     )
                     Spacer(Modifier.height(14.dp))
@@ -977,7 +977,7 @@ fun ChatScreen(
                         modifier = Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(12.dp))
                             .background(TossGrayBg).padding(12.dp),
                         decorationBox = { inner ->
-                            if (pasteText.isEmpty()) Text("여기에 에이닷 통화 요약을 붙여넣기…", color = TossTextTertiary, fontSize = 13.sp)
+                            if (pasteText.isEmpty()) Text("여기에 통화 요약을 붙여넣기…", color = TossTextTertiary, fontSize = 13.sp)
                             inner()
                         }
                     )

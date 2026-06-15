@@ -1206,7 +1206,7 @@ private fun AutoSmsSection(
             Spacer(Modifier.width(11.dp))
             Column(Modifier.weight(1f)) {
                 Text("통화 자동 요약", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-                Text("통화가 끝나면 에이닷 녹음·통화내용을 자동으로 요약해 통화카드에 붙여요 (공유 버튼 안 눌러도 됨)",
+                Text("통화가 끝나면 통화 녹음을 자동으로 요약해 통화카드에 붙여요 (공유 버튼 안 눌러도 됨)",
                     fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp)
             }
             Spacer(Modifier.width(8.dp))
@@ -1234,11 +1234,11 @@ private fun AutoSmsSection(
                 contentAlignment = Alignment.Center) { Text("🎙️", fontSize = 16.sp) }
             Spacer(Modifier.width(11.dp))
             Column(Modifier.weight(1f)) {
-                Text("에이닷 녹음 폴더 ${if (recFolderConnected) "· 연결됨" else ""}", fontSize = 15.sp,
+                Text("통화 녹음 폴더 ${if (recFolderConnected) "· 연결됨" else ""}", fontSize = 15.sp,
                     fontWeight = FontWeight.Bold, color = TossTextPrimary)
                 Text(
                     if (recFolderConnected) "통화 끝나면 녹음으로 자동 요약돼요 (↑ 안 눌러도 됨)"
-                    else "에이닷 자동 녹음을 ↑ 없이 자동 요약하려면 녹음 폴더를 한 번 연결하세요",
+                    else "통화 녹음을 ↑ 없이 자동 요약하려면 녹음 폴더를 한 번 연결하세요",
                     fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp
                 )
             }

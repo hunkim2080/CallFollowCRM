@@ -480,7 +480,7 @@ private fun PeekCallCard(item: PeekItem.Call) {
             }
         } else if (summarizable) {
             Text(
-                "에이닷에서 이 통화 녹음을 공유하면 자동으로 요약돼요",
+                "통화가 끝나면 녹음을 바탕으로 자동으로 요약돼요",
                 color = TossTextTertiary, fontSize = 11.5.sp, modifier = Modifier.padding(top = 8.dp)
             )
         }

@@ -179,7 +179,7 @@ private fun CallSummarySection(
                     }
                 }
             }
-            Text("📞 에이닷 통화요약을 바탕으로 막내가 정리했어요", color = TossTextTertiary, fontSize = 11.sp)
+            Text("📞 통화 녹음을 바탕으로 막내가 정리했어요", color = TossTextTertiary, fontSize = 11.sp)
 
             // 고객에게 보낼 후속 문자 — 초안 있으면 다듬기/보내기, 없으면 템플릿 폴백.
             if (state.draftText.isNotBlank() || state.draftEditing) {
@@ -282,7 +282,7 @@ private fun CallSummarySection(
                     Text("통화 요약을 못 가져왔어요", color = TossTextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        "에이닷 자동 저장·폴더 연결을 확인해주세요. 아래에서 직접 골라 보낼 수 있어요.",
+                        "통화 녹음이 켜져 있는지, 녹음 폴더가 연결됐는지 확인해주세요 (설정 → 통화 자동 요약). 아래에서 직접 골라 보낼 수 있어요.",
                         color = TossTextTertiary, fontSize = 12.sp, lineHeight = 17.sp
                     )
                 }

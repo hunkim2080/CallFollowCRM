@@ -1469,7 +1469,7 @@ private fun ScheduleRow(
 }
 
 private fun summaryBadge(raw: String): String = when (raw) {
-    "ADOT_SHARE" -> "에이닷 공유"
+    "ADOT_SHARE" -> "통화 녹음"
     "MANUAL_PASTE" -> "직접 붙여넣음"
     "AI_SERVER" -> "AI 서버"
     else -> raw
