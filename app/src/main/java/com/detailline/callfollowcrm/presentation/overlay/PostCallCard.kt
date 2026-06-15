@@ -154,7 +154,8 @@ private fun CallSummarySection(
                     Column {
                         Text("✨ 통화 정리 중…", color = TossBlue, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                         Spacer(Modifier.height(2.dp))
-                        Text("곧 요약과 보낼 문자를 보여드릴게요", color = TossTextSecondary, fontSize = 12.sp)
+                        // "어쩌라는 거냐" 방지: 안 기다려도 되고, 닫아도 결과는 통화방(채팅)에 저장됨을 명시.
+                        Text("기다리지 않으셔도 돼요 — 위 ✕ 로 닫으셔도 요약은 통화방(채팅)에 저장돼요", color = TossTextSecondary, fontSize = 12.sp, lineHeight = 17.sp)
                     }
                 }
             }
@@ -314,8 +315,20 @@ private fun HeaderRow(state: CardState, onClose: () -> Unit) {
                 color = TossTextTertiary
             )
         }
-        IconButton(onClick = onClose) {
-            Icon(Icons.Default.Close, contentDescription = "닫기", tint = TossTextSecondary)
+        // 닫기 — 작은 X 아이콘만 있으면 "눌리는지" 헷갈림(사장님). 글자 라벨 단 회색 알약으로 명확하게.
+        Surface(
+            shape = RoundedCornerShape(999.dp),
+            color = TossGrayBg,
+            onClick = onClose
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.Close, contentDescription = "닫기", tint = TossTextSecondary, modifier = Modifier.size(15.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("닫기", color = TossTextSecondary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            }
         }
     }
 }

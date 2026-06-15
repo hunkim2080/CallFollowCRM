@@ -192,7 +192,7 @@ object PostCallOverlayManager {
      * 카드가 떠 있는 동안 이 통화의 요약이 준비되면 카드에 채운다.
      *   - 즉시 + 몇 초 간격으로 폴더 스캔(에이닷 파일 쓰기 지연 대응) → 워커보다 빠르게.
      *   - callSummaryRepository(번호 suffix) + CallSummaryProgress 를 관찰해 READY/LOADING 갱신.
-     *   - 75초 안에 못 가져오면 UNAVAILABLE(템플릿 폴백).
+     *   - 30초 안에 못 가져오면 UNAVAILABLE(템플릿 폴백).
      */
     private fun startSummaryStreaming(phone: String, openedAtMs: Long) {
         val suffix = phone.filter { it.isDigit() }.takeLast(8)
@@ -237,7 +237,8 @@ object PostCallOverlayManager {
         }
 
         summaryTimeoutJob = ioScope.launch {
-            delay(75_000)
+            // 75초는 너무 길어 "계속 로딩"으로 느껴짐(사장님) → 30초면 못 가져온 것. 템플릿 폴백으로 전환.
+            delay(30_000)
             if (_state.value?.summaryStatus == SummaryStatus.LOADING) {
                 _state.update { it?.copy(summaryStatus = SummaryStatus.UNAVAILABLE) }
             }
