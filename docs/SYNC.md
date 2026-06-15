@@ -4643,3 +4643,46 @@ SYNC 추가30 그대로. 한 줄 변경 + 진단 로그 추가.
 ### 검증 (사장님 reload 후)
 - 폰에서 다듬기 1회 → 원문보다 자연스럽게 길어진 친절한 메시지.
 - stdout `[refine] OK ... raw_len=X polished_len=Y changed=YES` 에서 polished_len 이 raw_len 보다 명확히 크면 OK.
+
+## 2026-06-15 (cowork) — 추가31: 베타 화이트리스트 (테스터 폰번호 첫 진입 게이트)
+사장님 결정: "내가 등록한 폰번호를 첫 진입 로그인 코드로". 코드·SMS·관리 X, 폰번호 1개로 운영.
+
+### 신규 테이블
+- `beta_whitelist` (phone PK, name, memo, added_at_ms, first_seen_ms, last_seen_ms, use_count)
+- ALTER 마이그레이션 자동.
+
+### Endpoint 5개
+- `POST /api/beta/check {phone}` — **앱 첫 진입 (인증 X)**. 화이트리스트 매칭 → `{ok, name}` / `{ok:false, reason}`. 매칭 OK 시 first_seen·last_seen·use_count 자동 업데이트.
+- `POST /admin/beta/whitelist {phone, name?, memo?}` — 사장님 추가 (Bearer). 이미 있으면 UPDATE (이름·메모 갱신).
+- `DELETE /admin/beta/whitelist/{phone}` — 제거.
+- `GET /admin/beta/whitelist/data` — 목록 + total/activated 통계.
+- `GET /admin/beta/whitelist` — **admin HTML SPA** (사장님 폰에서 추가/제거 가능).
+
+### admin HTML 페이지 (인라인 — static 파일 X)
+- sessionStorage 토큰 패턴 (다른 admin 페이지와 일관).
+- 새 테스터 추가 폼 (폰번호 필수, 이름·메모 옵셔널).
+- 등록된 테스터 표 (폰·이름·메모·상태(사용중/미진입)·사용 수·삭제 버튼).
+- 통계: 전체 N / 활성 N (앱 첫 진입 한 사람).
+- 모바일 친화 (사장님 폰에서 카페 댓글 받아 즉시 추가 가능).
+
+### 운영 흐름
+1. 사장님 카페에 글: "베타 받을 분 댓글로 폰번호 + 상호"
+2. 사장님이 `/admin/beta/whitelist` 페이지 폰에서 열어 추가
+3. 사장님 카톡/댓글로 "추가됐어요. APK 설치 후 그 번호로 시작하세요" 안내
+4. 시공 사장이 앱 첫 진입 → 폰번호 입력 → 통과 → 사용 시작
+5. 사장님 admin 페이지에서 누가 진입했는지 + use_count 봄 → IR 트랙션 데이터
+
+### 안드로이드 측 작업 (별도 cycle)
+- 앱 첫 부팅 시 폰번호 입력 화면
+- `POST /api/beta/check {phone}` 호출
+- `ok:true` → SharedPreferences 에 "베타 통과" 박음 + 그 번호 사용자 ID 로 사용
+- `ok:false` → "베타 등록되지 않은 번호" 안내 + 사장님 연락처 표시
+- 한 번 통과한 폰은 다시 안 물어봄
+
+### 기존 endpoint 영향 없음
+- 새 화이트리스트는 **앱 첫 진입 게이트** 만. 기존 endpoint 들의 owner_phone 동작 그대로.
+- 추후 더 엄격하게 게이트 박을 수도 있지만 (예: `_check_beta_whitelist` 헬퍼) 이번엔 MVP.
+
+### 다음 액션 (사장님)
+1. 한 줄: commit + push + cp + launchctl kickstart.
+2. 폰에서 `https://si0in.kr/admin/beta/whitelist` 열어 ADMIN_TOKEN 입력 → 본인 폰번호 (01064610131) 부터 추가 → 테스트.

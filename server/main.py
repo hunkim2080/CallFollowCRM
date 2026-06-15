@@ -496,6 +496,26 @@ def db_init() -> None:
             "CREATE INDEX IF NOT EXISTS idx_beta_signups_status "
             "ON beta_signups(status, created_at_ms DESC)"
         )
+        # 추가31 (2026-06-15) — 베타 화이트리스트 (테스터 폰번호 기반 첫 진입 게이트).
+        # 사장님이 admin 페이지에서 폰번호 등록 → 앱 첫 진입 시 본인 phone 입력 → 매칭 OK 면 진입.
+        # 코드·SMS·관리 시스템 없이 폰번호 1개만으로 화이트리스트 운영.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS beta_whitelist (
+                phone           TEXT PRIMARY KEY,            -- 사장님이 등록한 테스터 폰 (digits only)
+                name            TEXT,                        -- 누구인지 (메모, 예: '강동 박사장')
+                memo            TEXT,                        -- 모집 경로 등 메모
+                added_at_ms     INTEGER NOT NULL,
+                first_seen_ms   INTEGER,                     -- 앱이 첫 호출한 시각 (실제 사용 시작)
+                last_seen_ms    INTEGER,                     -- 최근 호출 시각
+                use_count       INTEGER NOT NULL DEFAULT 0   -- check 호출 카운트
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_beta_whitelist_added "
+            "ON beta_whitelist(added_at_ms DESC)"
+        )
         # §27 — 협업 현장 (사장↔사장 공유, 안드로이드 SERVER_HANDOFF 2026-06-08)
         # A(owner_phone) 가 B(partner_phone) 에게 현장 1건 공유. 고객 phone/대화 절대 X.
         # progress = assigned/departed/arrived/completed. completed 시 B 가 계좌 payload 보냄.
@@ -4660,6 +4680,327 @@ async def admin_beta_signups_data(
         "filter": status,
         "limit": limit,
     }
+
+
+# ============================================================================
+# 추가31 (2026-06-15) — 베타 화이트리스트 (테스터 폰번호 게이트)
+# ─────────────────────────────────────────────────────────────────────────────
+# 사장님이 admin 페이지에서 폰번호 등록 → 앱 첫 진입 시 본인 phone 입력 →
+# 서버 매칭 OK 면 진입. 코드·SMS·관리 없음. 폰번호 1개로 화이트리스트 운영.
+#
+# Endpoint:
+#   POST /api/beta/check            — 앱 첫 진입 (인증 X, phone 하나만)
+#   POST /admin/beta/whitelist      — 사장님이 추가 (Bearer 인증)
+#   DELETE /admin/beta/whitelist/{phone} — 제거
+#   GET /admin/beta/whitelist/data  — 목록 조회
+#   GET /admin/beta/whitelist       — admin HTML SPA (사장님 폰에서 추가/제거)
+# ============================================================================
+
+
+class BetaCheckRequest(BaseModel):
+    phone: str
+
+
+@app.post("/api/beta/check")
+async def beta_check(req: BetaCheckRequest) -> dict:
+    """앱 첫 진입 시 호출. phone 이 화이트리스트에 있는지 확인.
+
+    응답: { ok: true, name: "강동 박사장" } / { ok: false, reason: "..." }
+    """
+    phone_digits = _norm_phone(req.phone)
+    if not phone_digits:
+        return {"ok": False, "reason": "폰번호 형식이 올바르지 않습니다"}
+    now = _now_ms()
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT name, first_seen_ms, use_count FROM beta_whitelist WHERE phone = ?",
+            (phone_digits,),
+        ).fetchone()
+        if not row:
+            print(f"[beta/check] {phone_digits} → 미등록")
+            return {
+                "ok": False,
+                "reason": "베타 등록되지 않은 번호입니다. 사장님께 문의해주세요.",
+            }
+        name, first_seen, use_count = row
+        # 첫 사용 시각 기록 + use_count 증가
+        new_first_seen = first_seen or now
+        con.execute(
+            """
+            UPDATE beta_whitelist
+            SET first_seen_ms = COALESCE(first_seen_ms, ?),
+                last_seen_ms = ?,
+                use_count = use_count + 1
+            WHERE phone = ?
+            """,
+            (now, now, phone_digits),
+        )
+        con.commit()
+    print(f"[beta/check] {phone_digits} → OK (name={name}, use_count={(use_count or 0) + 1})")
+    return {"ok": True, "name": name or "테스터"}
+
+
+class BetaWhitelistAddRequest(BaseModel):
+    phone: str
+    name: Optional[str] = None
+    memo: Optional[str] = None
+
+
+@app.post("/admin/beta/whitelist")
+async def admin_beta_whitelist_add(
+    req: BetaWhitelistAddRequest,
+    authorization: Optional[str] = Header(default=None),
+) -> dict:
+    """사장님이 베타 테스터 폰번호 추가."""
+    _admin_auth_bearer_from_header(authorization)
+    phone_digits = _norm_phone(req.phone)
+    if not phone_digits:
+        raise HTTPException(400, "유효하지 않은 폰번호")
+    name = (req.name or "").strip()[:60] or None
+    memo = (req.memo or "").strip()[:200] or None
+    now = _now_ms()
+    with db_conn() as con:
+        # 이미 있으면 UPDATE (이름·메모 갱신), 없으면 INSERT
+        existing = con.execute(
+            "SELECT phone FROM beta_whitelist WHERE phone = ?",
+            (phone_digits,),
+        ).fetchone()
+        if existing:
+            con.execute(
+                "UPDATE beta_whitelist SET name = ?, memo = ? WHERE phone = ?",
+                (name, memo, phone_digits),
+            )
+            action = "updated"
+        else:
+            con.execute(
+                """
+                INSERT INTO beta_whitelist (phone, name, memo, added_at_ms, use_count)
+                VALUES (?, ?, ?, ?, 0)
+                """,
+                (phone_digits, name, memo, now),
+            )
+            action = "added"
+        con.commit()
+    print(f"[admin/beta/whitelist] {action} {phone_digits} name={name} memo={memo}")
+    return {"ok": True, "phone": phone_digits, "name": name, "memo": memo, "action": action}
+
+
+@app.delete("/admin/beta/whitelist/{phone}")
+async def admin_beta_whitelist_remove(
+    phone: str,
+    authorization: Optional[str] = Header(default=None),
+) -> dict:
+    """사장님이 베타 테스터 제거."""
+    _admin_auth_bearer_from_header(authorization)
+    phone_digits = _norm_phone(phone)
+    if not phone_digits:
+        raise HTTPException(400, "유효하지 않은 폰번호")
+    with db_conn() as con:
+        cur = con.execute(
+            "DELETE FROM beta_whitelist WHERE phone = ?",
+            (phone_digits,),
+        )
+        con.commit()
+    print(f"[admin/beta/whitelist] removed {phone_digits} (rows={cur.rowcount})")
+    return {"ok": True, "phone": phone_digits, "removed": cur.rowcount}
+
+
+@app.get("/admin/beta/whitelist/data")
+async def admin_beta_whitelist_data(
+    authorization: Optional[str] = Header(default=None),
+) -> dict:
+    """베타 화이트리스트 전체 목록 (사장님 admin)."""
+    _admin_auth_bearer_from_header(authorization)
+    with db_conn() as con:
+        rows = con.execute(
+            """
+            SELECT phone, name, memo, added_at_ms, first_seen_ms, last_seen_ms, use_count
+            FROM beta_whitelist
+            ORDER BY added_at_ms DESC
+            """
+        ).fetchall()
+    items = []
+    for r in rows:
+        items.append({
+            "phone": _fmt_phone(r[0]),
+            "phone_raw": r[0],
+            "name": r[1] or "",
+            "memo": r[2] or "",
+            "added_at_ms": r[3],
+            "first_seen_ms": r[4],
+            "last_seen_ms": r[5],
+            "use_count": r[6],
+            "activated": bool(r[4]),  # 첫 진입 했는지
+        })
+    return {
+        "items": items,
+        "total": len(items),
+        "activated": sum(1 for it in items if it["activated"]),
+    }
+
+
+_BETA_WHITELIST_HTML = """<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>베타 화이트리스트 — RING-GO</title>
+<style>
+  :root {{ --blue:#3182F6; --blue-dark:#1B64DA; --bg:#F4F5F7; --card:#fff;
+          --t1:#0B0F19; --t2:#5A6472; --t3:#9AA3AF; --line:#EEF0F3;
+          --error:#F0436A; --success:#16C172; }}
+  * {{ box-sizing:border-box; }}
+  body {{ margin:0; background:var(--bg); font-family:'Pretendard',-apple-system,system-ui,sans-serif;
+         color:var(--t1); line-height:1.5; }}
+  .wrap {{ max-width:760px; margin:0 auto; padding:18px 16px 40px; }}
+  h1 {{ font-size:21px; font-weight:800; margin:0 0 4px; }}
+  .sub {{ font-size:13px; color:var(--t2); margin-bottom:18px; }}
+  .stat {{ display:inline-block; background:var(--card); border-radius:10px; padding:8px 12px;
+          font-size:13px; font-weight:700; margin-right:8px; box-shadow:0 1px 3px rgba(0,0,0,.04); }}
+  .stat b {{ color:var(--blue-dark); font-size:15px; margin-left:4px; }}
+  .card {{ background:var(--card); border-radius:14px; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,.04);
+          margin-top:16px; }}
+  .card h2 {{ font-size:15px; font-weight:800; margin:0 0 12px; }}
+  label {{ display:block; font-size:12px; font-weight:700; color:var(--t2); margin:8px 0 4px; }}
+  input, textarea {{ width:100%; border:1.5px solid var(--line); border-radius:10px; padding:11px 12px;
+                    font-size:14px; font-family:inherit; }}
+  input:focus {{ outline:none; border-color:var(--blue); }}
+  .row {{ display:flex; gap:8px; }}
+  .row > * {{ flex:1; }}
+  button {{ background:var(--blue); color:#fff; border:0; border-radius:10px; padding:11px 16px;
+           font-size:14px; font-weight:800; font-family:inherit; cursor:pointer; }}
+  button:disabled {{ opacity:.5; cursor:default; }}
+  button.warn {{ background:#fff; color:var(--error); border:1.5px solid var(--error); padding:6px 10px;
+                font-size:12px; }}
+  table {{ width:100%; border-collapse:collapse; font-size:13px; }}
+  th, td {{ text-align:left; padding:9px 6px; border-bottom:1px solid var(--line); }}
+  th {{ font-size:11px; color:var(--t3); font-weight:700; }}
+  .badge {{ display:inline-block; padding:2px 7px; border-radius:6px; font-size:11px; font-weight:700; }}
+  .badge.on {{ background:#E7F8EF; color:var(--success); }}
+  .badge.off {{ background:#FFF2F5; color:var(--error); }}
+  .msg {{ margin-top:10px; font-size:13px; }}
+  .msg.ok {{ color:var(--success); }}
+  .msg.err {{ color:var(--error); }}
+  #tokenModal {{ position:fixed; inset:0; background:rgba(0,0,0,.5); display:none;
+                align-items:center; justify-content:center; z-index:50; }}
+  #tokenModal.show {{ display:flex; }}
+  #tokenModal .box {{ background:#fff; border-radius:14px; padding:22px; max-width:90vw; width:340px; }}
+</style></head>
+<body>
+<div id="tokenModal"><div class="box">
+  <h3 style="margin:0 0 8px">ADMIN_TOKEN 입력</h3>
+  <p style="font-size:13px; color:#5A6472; margin:0 0 12px">brower 에 저장됩니다.</p>
+  <input id="tokenInput" type="password" placeholder="토큰">
+  <button onclick="saveToken()" style="margin-top:10px; width:100%">저장</button>
+</div></div>
+
+<div class="wrap">
+  <h1>🧪 베타 화이트리스트</h1>
+  <p class="sub">테스터 폰번호 관리 — 등록된 번호만 앱 첫 진입 가능</p>
+  <div>
+    <span class="stat">전체 <b id="statTotal">-</b></span>
+    <span class="stat">활성 <b id="statActive">-</b></span>
+  </div>
+
+  <div class="card">
+    <h2>+ 새 테스터 추가</h2>
+    <div class="row">
+      <div><label>폰번호 *</label><input id="addPhone" placeholder="01012345678"></div>
+      <div><label>이름 (메모)</label><input id="addName" placeholder="강동 박사장"></div>
+    </div>
+    <label>메모 (모집 경로 등)</label>
+    <input id="addMemo" placeholder="시공카페 댓글, 디테일라인 인스타 ...">
+    <button onclick="addPhone()" style="margin-top:10px">추가</button>
+    <div id="addMsg" class="msg"></div>
+  </div>
+
+  <div class="card">
+    <h2>등록된 테스터</h2>
+    <table>
+      <thead><tr><th>폰번호</th><th>이름·메모</th><th>상태</th><th>사용 수</th><th></th></tr></thead>
+      <tbody id="rows"><tr><td colspan="5" style="text-align:center; padding:20px; color:#9AA3AF">로딩중...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  function getToken() {{ return sessionStorage.getItem('admin_token') || ''; }}
+  function saveToken() {{
+    var t = document.getElementById('tokenInput').value.trim();
+    if (!t) return;
+    sessionStorage.setItem('admin_token', t);
+    document.getElementById('tokenModal').classList.remove('show');
+    load();
+  }}
+  function ensureToken() {{
+    if (!getToken()) {{ document.getElementById('tokenModal').classList.add('show'); return false; }}
+    return true;
+  }}
+  async function api(method, path, body) {{
+    var opts = {{ method: method, headers: {{ 'Authorization': 'Bearer ' + getToken() }} }};
+    if (body) {{ opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }}
+    var r = await fetch(path, opts);
+    if (r.status === 401) {{ sessionStorage.removeItem('admin_token'); ensureToken(); throw new Error('인증 실패'); }}
+    if (!r.ok) {{ var t = await r.text(); throw new Error(t || 'API 오류'); }}
+    return r.json();
+  }}
+  async function load() {{
+    if (!ensureToken()) return;
+    try {{
+      var d = await api('GET', '/admin/beta/whitelist/data');
+      document.getElementById('statTotal').textContent = d.total;
+      document.getElementById('statActive').textContent = d.activated;
+      var html = '';
+      if (d.items.length === 0) {{
+        html = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#9AA3AF">아직 등록된 테스터가 없어요</td></tr>';
+      }} else {{
+        for (var i=0; i<d.items.length; i++) {{
+          var it = d.items[i];
+          var date = it.added_at_ms ? new Date(it.added_at_ms).toLocaleDateString('ko') : '';
+          html += '<tr>'
+            + '<td><b>' + it.phone + '</b><br><span style="font-size:11px; color:#9AA3AF">' + date + '</span></td>'
+            + '<td><b>' + escape(it.name || '-') + '</b><br><span style="font-size:11.5px; color:#5A6472">' + escape(it.memo || '') + '</span></td>'
+            + '<td>' + (it.activated ? '<span class="badge on">사용중</span>' : '<span class="badge off">미진입</span>') + '</td>'
+            + '<td>' + it.use_count + '</td>'
+            + '<td><button class="warn" onclick="rm(\\''+it.phone_raw+'\\')">삭제</button></td>'
+            + '</tr>';
+        }}
+      }}
+      document.getElementById('rows').innerHTML = html;
+    }} catch(e) {{ alert('로드 실패: ' + e.message); }}
+  }}
+  async function addPhone() {{
+    if (!ensureToken()) return;
+    var phone = document.getElementById('addPhone').value.trim();
+    var name = document.getElementById('addName').value.trim();
+    var memo = document.getElementById('addMemo').value.trim();
+    if (!phone) {{ alert('폰번호 입력'); return; }}
+    var msg = document.getElementById('addMsg');
+    msg.className = 'msg'; msg.textContent = '추가중...';
+    try {{
+      var r = await api('POST', '/admin/beta/whitelist', {{ phone: phone, name: name, memo: memo }});
+      msg.className = 'msg ok';
+      msg.textContent = (r.action === 'updated' ? '갱신됨' : '추가됨') + ': ' + r.phone;
+      document.getElementById('addPhone').value = '';
+      document.getElementById('addName').value = '';
+      document.getElementById('addMemo').value = '';
+      load();
+    }} catch(e) {{ msg.className = 'msg err'; msg.textContent = '실패: ' + e.message; }}
+  }}
+  async function rm(phone) {{
+    if (!confirm(phone + ' 삭제할까요?')) return;
+    try {{ await api('DELETE', '/admin/beta/whitelist/' + encodeURIComponent(phone)); load(); }}
+    catch(e) {{ alert('삭제 실패: ' + e.message); }}
+  }}
+  function escape(s) {{ s = String(s||''); return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }}
+  load();
+</script></body></html>
+"""
+
+
+@app.get("/admin/beta/whitelist", response_class=HTMLResponse, include_in_schema=False)
+async def admin_beta_whitelist_page():
+    """사장님 admin HTML — 테스터 폰번호 추가·제거·목록."""
+    return HTMLResponse(content=_BETA_WHITELIST_HTML)
 
 
 # ============================================================================
