@@ -5947,6 +5947,31 @@ _ADMIN_HOME_HTML = """<!doctype html>
           text-align:center; font-size:11.5px; color:var(--t3); box-shadow:var(--shadow); }
   .foot a { color:var(--blue-dark); text-decoration:none; font-weight:700; }
 
+  /* 베타 모집 링크 카드 */
+  .share-card { background:var(--card); border-radius:16px; padding:18px; box-shadow:var(--shadow);
+                margin-top:22px; }
+  .share-card h3 { margin:0 0 6px; font-size:16px; font-weight:800; }
+  .share-desc { font-size:12.5px; color:var(--t2); margin:0 0 14px; }
+  .share-url-box { background:var(--blue-tint); border:1.5px dashed var(--blue); border-radius:12px;
+                   padding:14px; cursor:pointer; transition:background .12s;
+                   display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .share-url-box:hover { background:#DDE9FB; }
+  .share-url-box:active { transform:scale(0.99); }
+  .share-url { font-size:17px; font-weight:800; color:var(--blue-dark); font-family:monospace; }
+  .share-copy-hint { font-size:11.5px; color:var(--blue-dark); font-weight:700; }
+  .share-msg { width:100%; border:1.5px solid var(--line); border-radius:10px; padding:12px;
+               font-size:13px; font-family:inherit; line-height:1.6; color:var(--t1);
+               margin-top:12px; resize:vertical; min-height:140px; }
+  .share-msg:focus { outline:none; border-color:var(--blue); }
+  .share-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
+  .share-btn { background:#fff; border:1.5px solid var(--line); border-radius:10px;
+               padding:12px 10px; font-size:13px; font-weight:800; cursor:pointer; font-family:inherit;
+               color:var(--t1); }
+  .share-btn.primary { background:var(--blue); color:#fff; border-color:var(--blue); }
+  .share-btn:active { transform:scale(0.98); }
+  .share-toast { margin-top:10px; font-size:12.5px; font-weight:700; text-align:center;
+                 color:var(--success); min-height:18px; transition:opacity .3s; }
+
   /* PWA 설치 안내 시트 */
   .pwa-sheet { position:fixed; inset:0; background:rgba(0,0,0,.5); display:none;
                align-items:flex-end; justify-content:center; z-index:60; }
@@ -6049,6 +6074,33 @@ _ADMIN_HOME_HTML = """<!doctype html>
     </a>
   </div>
 
+  <!-- 베타 모집 링크 공유 -->
+  <div class="card share-card">
+    <h3>📤 베타 모집 링크</h3>
+    <p class="share-desc">다른 시공 사장님께 보낼 신청 링크예요. 탭해서 공유하거나 복사하세요.</p>
+
+    <div class="share-url-box" onclick="copyUrl()">
+      <span class="share-url" id="shareUrl">https://si0in.kr</span>
+      <span class="share-copy-hint">📋 탭하면 복사</span>
+    </div>
+
+    <textarea class="share-msg" id="shareMsg" rows="7">🛠️ 시공막내 베타 사장님 모집!
+
+✓ 부재중 전화 자동 답장 (시공 중 손이 없을 때)
+✓ 통화·문자 자동 정리 (분쟁 방지)
+✓ 문자 한 통이 일정으로 (머리에 안 외워도 됨)
+✓ 협업 사장 캘린더 자동 동기화
+
+베타 무료. 줄눈/타일 사장님 신청 ↓
+https://si0in.kr</textarea>
+
+    <div class="share-actions">
+      <button class="share-btn primary" onclick="shareLink()">📲 카톡·문자로 보내기</button>
+      <button class="share-btn" onclick="copyMsg()">📋 메시지 통째 복사</button>
+    </div>
+    <div class="share-toast" id="shareToast"></div>
+  </div>
+
   <div class="foot">
     🏗️ <b>시공막내</b> — 1인 시공 사장님의 운영 OS<br>
     <a href="https://si0in.kr" target="_blank">si0in.kr</a> · <a href="/healthz" target="_blank">healthz</a>
@@ -6104,6 +6156,51 @@ _ADMIN_HOME_HTML = """<!doctype html>
     document.getElementById('pwa-sheet').classList.add('show');
   }
   function closePwaSheet() { document.getElementById('pwa-sheet').classList.remove('show'); }
+
+  // 베타 모집 링크 공유
+  function showToast(msg, isError) {
+    var t = document.getElementById('shareToast');
+    t.textContent = msg;
+    t.style.color = isError ? '#F0436A' : '#16C172';
+    t.style.opacity = '1';
+    setTimeout(function(){ t.style.opacity = '0'; setTimeout(function(){ t.textContent = ''; t.style.opacity = '1'; }, 300); }, 2500);
+  }
+  function copyUrl() {
+    var url = document.getElementById('shareUrl').textContent;
+    copyToClipboard(url, '✓ URL 복사됨!');
+  }
+  function copyMsg() {
+    var msg = document.getElementById('shareMsg').value;
+    copyToClipboard(msg, '✓ 메시지 통째 복사됨!');
+  }
+  function copyToClipboard(text, successMsg) {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(function(){ showToast(successMsg); }).catch(function(){ fallbackCopy(text, successMsg); });
+    } else { fallbackCopy(text, successMsg); }
+  }
+  function fallbackCopy(text, successMsg) {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); showToast(successMsg); } catch(e) { showToast('복사 실패: 길게 눌러 직접 복사하세요', true); }
+    document.body.removeChild(ta);
+  }
+  function shareLink() {
+    var msg = document.getElementById('shareMsg').value;
+    var url = document.getElementById('shareUrl').textContent;
+    if (navigator.share) {
+      navigator.share({
+        title: '시공막내 베타 사장님 모집',
+        text: msg,
+        url: url
+      }).then(function(){ showToast('✓ 공유 시트 띄움'); }).catch(function(e){
+        if (e.name !== 'AbortError') showToast('공유 실패: ' + e.message, true);
+      });
+    } else {
+      // Web Share API 미지원 (데스크탑 등) → 메시지 복사 폴백
+      copyToClipboard(msg, '✓ 공유 미지원 — 메시지 복사함');
+    }
+  }
 
   loadStats();
 </script></body></html>
