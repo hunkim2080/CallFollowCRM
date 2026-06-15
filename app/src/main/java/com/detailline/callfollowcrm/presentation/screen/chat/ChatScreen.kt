@@ -174,6 +174,32 @@ fun ChatScreen(
     val timelineItems = remember(messages, callRecords, intakeEvents) {
         buildChatTimeline(messages, callRecords, intakeEvents)
     }
+    // 통화 1건 ↔ 요약 1건 1:1 배정 (2026-06-15 버그: 가까운 두 통화가 같은 요약 하나를 공유 표시).
+    //   ① callRecordId 로 명시 연결된 요약 먼저  ② 남은 통화엔 ±10분 내 '가장 가까운 미사용' 요약 1개.
+    //   firstOrNull(겹침 허용) → 1:1 그리디 매칭으로 교체. 한 요약은 한 통화에만.
+    val recordSummary: Map<Long, com.detailline.callfollowcrm.data.local.entity.CallSummaryEntity> =
+        remember(callRecords, callSummaries) {
+            val win = 10 * 60 * 1000L
+            val out = HashMap<Long, com.detailline.callfollowcrm.data.local.entity.CallSummaryEntity>()
+            val usedSummaryIds = HashSet<Long>()
+            val recById = callRecords.associateBy { it.id }
+            for (s in callSummaries) {
+                val rid = s.callRecordId ?: continue
+                if (recById.containsKey(rid) && !out.containsKey(rid) && s.id !in usedSummaryIds) {
+                    out[rid] = s; usedSummaryIds.add(s.id)
+                }
+            }
+            for (rec in callRecords.sortedByDescending { it.endedAt }) {
+                if (out.containsKey(rec.id)) continue
+                val callStart = rec.startedAt ?: rec.endedAt
+                val cand = callSummaries
+                    .filter { it.id !in usedSummaryIds && it.recordedAt != null }
+                    .filter { val r = it.recordedAt!!; r >= callStart - win && r <= rec.endedAt + win }
+                    .minByOrNull { kotlin.math.abs(it.recordedAt!! - callStart) }
+                if (cand != null) { out[rec.id] = cand; usedSummaryIds.add(cand.id) }
+            }
+            out
+        }
     val templates by viewModel.templates.collectAsState()
     val pricingItems by viewModel.pricingItems.collectAsState()
     val toast by viewModel.toast.collectAsState()
@@ -603,14 +629,11 @@ fun ChatScreen(
                                 )
                             }
                             is ChatTimelineItem.Call -> {
-                                // 요약 시각(=통화 시작)이 통화 [시작-10분 ~ 종료+10분] 안이면 그 통화 요약.
-                                //   종료시각만 비교하면 10분 넘는 통화는 못 맞음(시작↔종료 간격 > 10분).
+                                // 통화↔요약 1:1 배정 결과(recordSummary)에서 이 통화의 요약을 가져온다.
+                                //   (이전엔 firstOrNull 로 ±10분 겹침 매칭 → 가까운 두 통화가 같은 요약 공유 표시 버그.)
                                 val win = 10 * 60 * 1000L
                                 val callStart = ti.record.startedAt ?: ti.record.endedAt
-                                val matched = callSummaries.firstOrNull {
-                                    val r = it.recordedAt
-                                    r != null && r >= callStart - win && r <= ti.record.endedAt + win
-                                }
+                                val matched = recordSummary[ti.record.id]
                                 // 서버 요약 진행 중인 녹음이 이 통화 시간대와 겹치면 스피너.
                                 val summarizing = matched == null && summarizingTimes.any { r ->
                                     r >= callStart - win && r <= ti.record.endedAt + win

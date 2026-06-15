@@ -65,9 +65,11 @@ object CallAudioSummarizer {
         var durationSec = 0
         runCatching {
             // 요약 시각(통화 시작)이 통화 [시작-10분 ~ 종료+10분] 안인 통화기록과 연결(긴 통화 대응).
+            //   여러 통화가 가까우면 firstOrNull 은 엉뚱한 통화에 붙을 수 있어 '가장 가까운' 통화로 연결. (2026-06-15)
             val win = 10 * 60 * 1000L
             val rec = container.callRecordRepository.observeByPhone(phone).first()
-                .firstOrNull { val s = it.startedAt ?: it.endedAt; recordedAt >= s - win && recordedAt <= it.endedAt + win }
+                .filter { val s = it.startedAt ?: it.endedAt; recordedAt >= s - win && recordedAt <= it.endedAt + win }
+                .minByOrNull { kotlin.math.abs((it.startedAt ?: it.endedAt) - recordedAt) }
             if (rec != null) {
                 linkedCallRecordId = rec.id
                 durationSec = (rec.duration).toInt().coerceAtLeast(0)
