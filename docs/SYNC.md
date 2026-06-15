@@ -4739,3 +4739,10 @@ SYNC 추가30 그대로. 한 줄 변경 + 진단 로그 추가.
 ### 다음 액션 (사장님)
 한 줄: commit + push + cp + launchctl kickstart.
 접속: `https://si0in.kr/admin/beta/dashboard`
+
+## 2026-06-15 23:56 · android
+일정탭 진입 즉시 크래시 fix (어제 들어온 협업배지 필터의 Kotlin 초기화 순서 버그)
+- 증상: 일정탭 탭 → 앱 강제종료. `NullPointerException: Set.contains() on null` @ ScheduleViewModel.loadCollabAssignments:120 ← init:78.
+- 원인: cowork 핸드오프(추가31 직전 협업 배지 즉시필터)로 들어온 `deadCollabShareIds` 필드가 init 블록 **아래**에 선언됨. init 이 동기로 loadCollabAssignments() 를 호출하는데 그 시점엔 필드가 아직 null → NPE.
+- 수정: `deadCollabShareIds` 선언을 init 위로 이동(emptySet 초기화 보장). 빌드+폰 설치+일정탭 실탭 검증(NAVTAB tap=schedule, 크래시 없음, 앱 foreground 유지).
+- 변경: 앱 단독. 서버 영향 없음. (참고: 이 필드는 cowork by-me 거절/종료 협업 필터용 — 동작 그대로, 위치만 옮김.)

@@ -75,6 +75,12 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
     /** 전문가 배정 협업 요청 시 출근시간 칩 기본 선택값(마지막 보낸 시간 기억). 시트 열 때 1회 읽음. */
     val lastCollabStartHour: Int get() = container.preferences.lastCollabStartHour
 
+    /** by-me 로 받은 거절/종료/취소된 협업 shareId — 표시 단계에서 "🤝 이름" 배지를 즉시 거른다.
+     *   (prefs 정리(reconcile)가 비동기로 못 따라가도, 캘린더/일정 카드엔 죽은 협업이 안 뜨게.) (2026-06-15 cowork 핸드오프)
+     *   ⚠️ 반드시 init 블록보다 위에 선언해야 한다 — init → loadCollabAssignments() 가 이 값을 동기로 읽는데,
+     *      init 아래에 두면 초기화 순서상 init 시점엔 null 이라 'Set.contains() on null' NPE 로 일정탭 진입 즉시 크래시. (2026-06-15 fix) */
+    private var deadCollabShareIds: Set<String> = emptySet()
+
     init { loadTeam(); loadCollab(); loadCollabAssignments() }  // loadCollab() 안에서 reconcile(거절 정리)도 같이 돈다
 
     /**
@@ -104,10 +110,6 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             }
         }
     }
-
-    /** by-me 로 받은 거절/종료/취소된 협업 shareId — 표시 단계에서 "🤝 이름" 배지를 즉시 거른다.
-     *   (prefs 정리(reconcile)가 비동기로 못 따라가도, 캘린더/일정 카드엔 죽은 협업이 안 뜨게.) (2026-06-15 cowork 핸드오프) */
-    private var deadCollabShareIds: Set<String> = emptySet()
 
     /** 로컬 협업 배정 기록 로드 → customerId→배정들. ("customerId|phone|name|shareId" Set 파싱, 구버전 "id|name" 호환, 같은 번호 중복 제거)
      *   거절/종료된 shareId(deadCollabShareIds) 건은 표시에서 제외. */
