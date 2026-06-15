@@ -4904,7 +4904,7 @@ _BETA_WHITELIST_HTML = """<!doctype html>
   <div class="card">
     <h2>+ 새 테스터 추가</h2>
     <div class="row">
-      <div><label>폰번호 *</label><input id="addPhone" placeholder="01012345678"></div>
+      <div><label>폰번호 *</label><input id="addPhone" type="tel" inputmode="numeric" placeholder="010-1234-5678" maxlength="13" oninput="autoHyphen(this)"></div>
       <div><label>이름 (메모)</label><input id="addName" placeholder="강동 박사장"></div>
     </div>
     <label>메모 (모집 경로 등)</label>
@@ -4992,6 +4992,12 @@ _BETA_WHITELIST_HTML = """<!doctype html>
     catch(e) { alert('삭제 실패: ' + e.message); }
   }
   function escape(s) { s = String(s||''); return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function autoHyphen(el) {
+    var d = el.value.replace(/\D/g, '').slice(0, 11);
+    if (d.length <= 3) el.value = d;
+    else if (d.length <= 7) el.value = d.slice(0,3) + '-' + d.slice(3);
+    else el.value = d.slice(0,3) + '-' + d.slice(3,7) + '-' + d.slice(7);
+  }
   load();
 </script></body></html>
 """
