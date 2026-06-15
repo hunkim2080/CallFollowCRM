@@ -1,7 +1,4 @@
 import java.util.Properties
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 plugins {
     id("com.android.application")
@@ -19,7 +16,9 @@ if (keystorePropsFile.exists()) {
 }
 
 // 자동 버전 (2026-06-16 사장님) — 매번 수동으로 안 올려도 되게.
-//   versionCode = git 커밋 수(커밋마다 +1, 단조 증가). versionName = beta-{빌드시각}.
+//   versionCode = git 커밋 수(커밋마다 +1, 단조 증가) → 폰이 "새 버전"으로 인식하는 진짜 번호.
+//   versionName = "0.2-beta" (화면에 보이는 라벨. 마케팅용으로 가끔 손으로 0.3-beta 식으로만 올림).
+//     → 안드 설정 화면엔 "0.2-beta (574)" 처럼 versionCode 가 괄호로 같이 보여 빌드 구분 가능.
 //   BUILD_TIMESTAMP = 빌드 mtime(ms) → 앱이 서버 /api/download/version 의 mtime_ms 와 비교해 새 버전 감지.
 val buildTimeMs = System.currentTimeMillis()
 fun gitCommitCount(): Int = try {
@@ -37,7 +36,7 @@ android {
         minSdk = 26
         targetSdk = 34
         versionCode = gitCommitCount()
-        versionName = "beta-" + SimpleDateFormat("yyMMdd-HHmm", Locale.US).format(Date(buildTimeMs))
+        versionName = "0.2-beta"
         buildConfigField("long", "BUILD_TIMESTAMP", "${buildTimeMs}L")
         vectorDrawables { useSupportLibrary = true }
     }
