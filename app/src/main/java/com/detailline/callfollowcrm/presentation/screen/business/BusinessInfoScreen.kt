@@ -163,7 +163,7 @@ fun BusinessInfoScreen(
                     fontSize = 12.5.sp, color = TossTextTertiary)
                 Spacer(Modifier.height(14.dp))
 
-                Field("상호 (업체명)", name, placeholder = "예: 디테일라인 줄눈") { name = it }
+                Field("상호 (업체명)", name, placeholder = "예: ○○ 줄눈") { name = it }
                 Field("대표자 이름", owner, placeholder = "예: 정민수") { owner = it }
                 FormattedField("사업자등록번호 (선택)", bizNo, ::formatBizNo, KeyboardType.Number, "123-45-67890") { bizNo = it }
                 Field("주소 (선택)", addr, placeholder = "예: 서울 강동구") { addr = it }
@@ -178,7 +178,7 @@ fun BusinessInfoScreen(
                         .clickable { launchPhoneHint() }
                         .padding(horizontal = 8.dp, vertical = 5.dp)
                 )
-                Field("직인 문구 (도장에 들어갈 글자)", seal, placeholder = "예: 디테일라인 줄눈") { seal = it }
+                Field("직인 문구 (도장에 들어갈 글자)", seal, placeholder = "예: ○○ 줄눈") { seal = it }
 
                 // ── 입금 계좌 (협업 현장 정산용) ──
                 Spacer(Modifier.height(8.dp))

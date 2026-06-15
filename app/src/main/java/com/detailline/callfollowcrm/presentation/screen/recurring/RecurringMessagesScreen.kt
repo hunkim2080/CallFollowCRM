@@ -223,7 +223,7 @@ private fun RuleEditorDialog(
     var interval by remember { mutableStateOf(initial?.intervalDays ?: 30) }
     var minutes by remember { mutableStateOf(initial?.sendMinutes ?: 600) }
     var categoryId by remember { mutableStateOf(initial?.targetCategoryId) }
-    var body by remember { mutableStateOf(initial?.bodyTemplate ?: "{고객명}님, 디테일라인입니다 😊 시공하신 지 한 달 됐어요. 줄눈 상태 점검 도와드릴까요?") }
+    var body by remember { mutableStateOf(initial?.bodyTemplate ?: "{고객명}님, 안녕하세요 😊 시공하신 지 한 달 됐어요. 줄눈 상태 점검 도와드릴까요?") }
 
     Dialog(onDismissRequest = onDismiss) {
         androidx.compose.material3.Surface(shape = RoundedCornerShape(20.dp), color = Color.White,

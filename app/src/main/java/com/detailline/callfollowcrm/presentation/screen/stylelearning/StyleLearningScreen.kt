@@ -217,7 +217,7 @@ fun StyleLearningScreen(
                     Text("이런 상황엔 이렇게 답한다 — 막내가 그대로 배워요.", fontSize = 12.5.sp, color = TossTextTertiary)
                     Spacer(Modifier.height(8.dp))
                     OutlinedTextField(value = txt, onValueChange = { txt = it },
-                        placeholder = { Text("예: 계좌 물어보면 → \"국민 123-45 디테일라인이에요 😊\"") },
+                        placeholder = { Text("예: 계좌 물어보면 → \"국민 123-45 ○○이에요 😊\"") },
                         modifier = Modifier.fillMaxWidth().height(110.dp))
                 }
             },

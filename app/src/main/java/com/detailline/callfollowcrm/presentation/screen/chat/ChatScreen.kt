@@ -1,4 +1,4 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 
 package com.detailline.callfollowcrm.presentation.screen.chat
 
@@ -7,6 +7,16 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -265,7 +275,8 @@ fun ChatScreen(
     //   init = ChatDraftStore.get(phone), 변경 시 자동 save, 전송 후 input="" = 자동 clear (set 이 empty 면 remove).
     var input by remember { mutableStateOf(viewModel.loadDraft()) }
     LaunchedEffect(input) { viewModel.saveDraft(input) }
-    var fullscreenImageUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var fullscreenImages by remember { mutableStateOf<List<android.net.Uri>?>(null) }
+    var fullscreenStart by remember { mutableStateOf(0) }
     // 권한 요청 직후 자동 재시도용 — 입력 본문을 기억.
     var pendingSend by remember { mutableStateOf<String?>(null) }
     // 견적 회신 리마인드 기준 — 견적 빌더로 채운 본문. **실제 발송 성공 시에만** ESTIMATE_SENT 기록
@@ -651,7 +662,7 @@ fun ChatScreen(
                                     sent = msg.sent,
                                     imageUris = msg.imageUris,
                                     isStarred = starredKeys.contains(msg.dateMs to msg.sent),
-                                    onImageTap = { fullscreenImageUri = it },
+                                    onImageTap = { uris, idx -> fullscreenImages = uris; fullscreenStart = idx },
                                     onLongPress = {
                                         // 2026-05-25: 직접 toggleStar 호출 X → BottomSheet 띄워서 저장/복사 선택.
                                         bubbleActionTarget = msg
@@ -1059,32 +1070,47 @@ fun ChatScreen(
         )
     }
 
-    // 풀스크린 이미지 뷰어 (썸네일 탭 시)
-    fullscreenImageUri?.let { uri ->
-        Dialog(
-            onDismissRequest = { fullscreenImageUri = null },
+    // 풀스크린 이미지 뷰어 — 한 번에 온 사진 전부 좌우 스와이프 + 핀치/더블탭 줌. (2026-06-16 사장님)
+    fullscreenImages?.let { imgs ->
+        if (imgs.isNotEmpty()) Dialog(
+            onDismissRequest = { fullscreenImages = null },
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
+            val pagerState = rememberPagerState(
+                initialPage = fullscreenStart.coerceIn(0, imgs.size - 1)
+            ) { imgs.size }
+            var curZoomed by remember { mutableStateOf(false) }
+            LaunchedEffect(pagerState.currentPage) { curZoomed = false }
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black)
-                    .clickable { fullscreenImageUri = null },
+                modifier = Modifier.fillMaxSize().background(Color.Black),
                 contentAlignment = Alignment.Center
             ) {
-                AsyncImage(
-                    model = uri,
-                    contentDescription = "사진",
-                    modifier = Modifier.fillMaxWidth(),
-                    contentScale = ContentScale.Fit
-                )
+                HorizontalPager(
+                    state = pagerState,
+                    userScrollEnabled = !curZoomed,
+                    modifier = Modifier.fillMaxSize()
+                ) { page ->
+                    ZoomableAsyncImage(
+                        uri = imgs[page],
+                        isCurrentPage = page == pagerState.currentPage,
+                        onZoomedChange = { z -> if (page == pagerState.currentPage) curZoomed = z },
+                        onTap = { fullscreenImages = null }
+                    )
+                }
                 IconButton(
-                    onClick = { fullscreenImageUri = null },
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(16.dp)
+                    onClick = { fullscreenImages = null },
+                    modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
                 ) {
                     Icon(Icons.Default.Close, "닫기", tint = Color.White)
+                }
+                if (imgs.size > 1) {
+                    Text(
+                        "${pagerState.currentPage + 1} / ${imgs.size}",
+                        color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 28.dp)
+                            .clip(RoundedCornerShape(999.dp)).background(Color(0x66000000))
+                            .padding(horizontal = 14.dp, vertical = 5.dp)
+                    )
                 }
             }
         }
@@ -1651,6 +1677,65 @@ private fun playerClock(ms: Int): String {
 }
 
 /**
+ * 풀스크린 사진 한 장 — 핀치 줌(1~5배) + 줌 상태에서 이동(pan) + 더블탭 줌/복원, 단일탭 닫기. (2026-06-16 사장님)
+ *   줌 안 된 1배 상태의 한 손가락 드래그는 소비하지 않아 HorizontalPager 가 페이지 넘김을 받는다.
+ *   (멀티터치=핀치이거나 이미 줌된 상태일 때만 제스처 소비 → 스와이프와 줌이 충돌하지 않음.)
+ */
+@Composable
+private fun ZoomableAsyncImage(
+    uri: android.net.Uri,
+    isCurrentPage: Boolean,
+    onZoomedChange: (Boolean) -> Unit,
+    onTap: () -> Unit
+) {
+    var scale by remember { mutableStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+    // 다른 페이지로 넘어가면 줌/이동 리셋.
+    LaunchedEffect(isCurrentPage) { if (!isCurrentPage) { scale = 1f; offset = Offset.Zero } }
+    LaunchedEffect(scale) { onZoomedChange(scale > 1.02f) }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val multiTouch = event.changes.count { it.pressed } >= 2
+                        if (scale > 1.02f || multiTouch) {
+                            val zoom = event.calculateZoom()
+                            val pan = event.calculatePan()
+                            val newScale = (scale * zoom).coerceIn(1f, 5f)
+                            scale = newScale
+                            offset = if (newScale > 1f) offset + pan else Offset.Zero
+                            event.changes.forEach { it.consume() }
+                        }
+                        if (event.changes.none { it.pressed }) break
+                    }
+                }
+            }
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { if (scale <= 1.02f) onTap() },
+                    onDoubleTap = {
+                        if (scale > 1.02f) { scale = 1f; offset = Offset.Zero } else scale = 2.5f
+                    }
+                )
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        AsyncImage(
+            model = uri,
+            contentDescription = "사진",
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer(scaleX = scale, scaleY = scale, translationX = offset.x, translationY = offset.y)
+        )
+    }
+}
+
+/**
  * 채팅 안 시공접수서 제출 이벤트 카드 (2026-06-05) — 고객이 접수서를 작성 완료한 사실을 타임라인에 표시.
  *   통화 카드(CallSegment)와 같은 전체폭 이벤트 카드 형태(파란 accent). 문자 말풍선과 구분.
  *   내용: 📋 접수서 작성 완료 + 제출 시각, 그리고 (있으면) 📅 시공일 · 💰 만원 · 📍 주소.
@@ -1731,7 +1816,7 @@ private fun ChatBubble(
     sent: Boolean,
     imageUris: List<android.net.Uri>,
     isStarred: Boolean,
-    onImageTap: (android.net.Uri) -> Unit,
+    onImageTap: (List<android.net.Uri>, Int) -> Unit,
     onLongPress: () -> Unit
 ) {
     // 프로토 .brow/.bubble — 시각(btime)은 말풍선 밖(옆 아래), 별표는 바깥쪽.
@@ -1784,18 +1869,18 @@ private fun ChatBubble(
                 if (imageUris.isNotEmpty()) {
                     // 한 줄에 최대 3장 썸네일. 탭하면 풀스크린.
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        imageUris.chunked(3).forEach { rowUris ->
+                        imageUris.indices.chunked(3).forEach { rowIdx ->
                             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                rowUris.forEach { uri ->
+                                rowIdx.forEach { idx ->
                                     AsyncImage(
-                                        model = uri,
+                                        model = imageUris[idx],
                                         contentDescription = "첨부 사진",
                                         contentScale = ContentScale.Crop,
                                         modifier = Modifier
                                             .size(80.dp)
                                             .clip(RoundedCornerShape(8.dp))
                                             .background(TossGrayBg)
-                                            .clickable { onImageTap(uri) }
+                                            .clickable { onImageTap(imageUris, idx) }
                                     )
                                 }
                             }
@@ -3454,8 +3539,9 @@ private fun buildEstimateBody(
     custom: List<EstCustomLine> = emptyList()
 ): String = buildString {
     // 프로토 makeEstimate — 친근한 인사 + 항목 나열 + 합계(부가세 별도) + 방문 제안.
-    val greet = bizName.ifBlank { "디테일라인" }
-    append("안녕하세요, ${greet}입니다 😊\n요청주신 견적 안내드려요.\n")
+    if (bizName.isNotBlank()) append("안녕하세요, ${bizName}입니다 😊\n")
+    else append("안녕하세요 😊\n")
+    append("요청주신 견적 안내드려요.\n")
     for (item in items) {
         val qty = quantities[item.id] ?: 0
         if (qty <= 0) continue

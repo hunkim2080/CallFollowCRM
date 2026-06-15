@@ -100,7 +100,7 @@ fun QuoteDocScreen(
     val prefs = remember {
         (context.applicationContext as CallFollowCrmApplication).container.preferences
     }
-    val bizName = prefs.bizName.ifBlank { "디테일라인 줄눈" }
+    val bizName = prefs.bizName.ifBlank { "상호 미설정" }
     val bizOwner = prefs.bizOwner
     val bizNo = prefs.bizNo
     val bizAddr = prefs.bizAddr

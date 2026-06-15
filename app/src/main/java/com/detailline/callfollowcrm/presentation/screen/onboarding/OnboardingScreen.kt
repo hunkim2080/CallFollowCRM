@@ -408,7 +408,7 @@ private fun ProfileStep(
                 .border(1.5.dp, Color(0xFFEEF0F3), RoundedCornerShape(13.dp))
                 .padding(horizontal = 16.dp, vertical = 14.dp)
         ) {
-            if (name.isEmpty()) Text("상호 (예: 디테일라인 줄눈)", fontSize = 15.sp, color = TossTextTertiary)
+            if (name.isEmpty()) Text("상호 (예: ○○ 줄눈)", fontSize = 15.sp, color = TossTextTertiary)
             BasicTextField(
                 value = name,
                 onValueChange = onName,
@@ -662,9 +662,9 @@ private fun storySlides(): List<Slide> = listOf(
             Column(Modifier.fillMaxWidth().background(TossGrayBg, RoundedCornerShape(14.dp)).padding(13.dp)) {
                 Text("[천호동] 화장실 줄눈 시공 후기", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
                 Spacer(Modifier.height(4.dp))
-                Text("안녕하세요, 디테일라인 줄눈입니다 😊 욕실 2곳 줄눈+코킹 재시공을…", fontSize = 12.sp, color = TossTextPrimary, lineHeight = 19.sp)
+                Text("안녕하세요, ○○ 줄눈입니다 😊 욕실 2곳 줄눈+코킹 재시공을…", fontSize = 12.sp, color = TossTextPrimary, lineHeight = 19.sp)
                 Spacer(Modifier.height(4.dp))
-                Text("#천호동줄눈 #욕실줄눈 #디테일라인", fontSize = 12.sp, color = ObAccent, fontWeight = FontWeight.Bold)
+                Text("#천호동줄눈 #욕실줄눈 #줄눈시공", fontSize = 12.sp, color = ObAccent, fontWeight = FontWeight.Bold)
             }
             }
         }

@@ -2311,12 +2311,6 @@ private fun AppFooter() {
             color = TossTextTertiary,
             fontSize = 11.sp
         )
-        Spacer(Modifier.height(2.dp))
-        Text(
-            "디테일라인 줄눈",
-            color = TossTextTertiary,
-            fontSize = 11.sp
-        )
     }
 }
 
@@ -2842,7 +2836,7 @@ private fun ToneLearnProtoSection(
         ToneInputDialog(
             title = "예문 추가",
             sub = "이런 상황엔 이렇게 답한다 — 막내가 그대로 배워요.",
-            placeholder = "예: 계좌 물어보면 → \"국민 123-45 디테일라인이에요 😊 입금 확인되면 바로 문자드릴게요!\"",
+            placeholder = "예: 계좌 물어보면 → \"국민 123-45 ○○이에요 😊 입금 확인되면 바로 문자드릴게요!\"",
             initial = "",
             onDismiss = { showExampleDialog = false },
             onConfirm = { v ->
