@@ -4845,45 +4845,45 @@ _BETA_WHITELIST_HTML = """<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>베타 화이트리스트 — RING-GO</title>
 <style>
-  :root {{ --blue:#3182F6; --blue-dark:#1B64DA; --bg:#F4F5F7; --card:#fff;
+  :root { --blue:#3182F6; --blue-dark:#1B64DA; --bg:#F4F5F7; --card:#fff;
           --t1:#0B0F19; --t2:#5A6472; --t3:#9AA3AF; --line:#EEF0F3;
-          --error:#F0436A; --success:#16C172; }}
-  * {{ box-sizing:border-box; }}
-  body {{ margin:0; background:var(--bg); font-family:'Pretendard',-apple-system,system-ui,sans-serif;
-         color:var(--t1); line-height:1.5; }}
-  .wrap {{ max-width:760px; margin:0 auto; padding:18px 16px 40px; }}
-  h1 {{ font-size:21px; font-weight:800; margin:0 0 4px; }}
-  .sub {{ font-size:13px; color:var(--t2); margin-bottom:18px; }}
-  .stat {{ display:inline-block; background:var(--card); border-radius:10px; padding:8px 12px;
-          font-size:13px; font-weight:700; margin-right:8px; box-shadow:0 1px 3px rgba(0,0,0,.04); }}
-  .stat b {{ color:var(--blue-dark); font-size:15px; margin-left:4px; }}
-  .card {{ background:var(--card); border-radius:14px; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,.04);
-          margin-top:16px; }}
-  .card h2 {{ font-size:15px; font-weight:800; margin:0 0 12px; }}
-  label {{ display:block; font-size:12px; font-weight:700; color:var(--t2); margin:8px 0 4px; }}
-  input, textarea {{ width:100%; border:1.5px solid var(--line); border-radius:10px; padding:11px 12px;
-                    font-size:14px; font-family:inherit; }}
-  input:focus {{ outline:none; border-color:var(--blue); }}
-  .row {{ display:flex; gap:8px; }}
-  .row > * {{ flex:1; }}
-  button {{ background:var(--blue); color:#fff; border:0; border-radius:10px; padding:11px 16px;
-           font-size:14px; font-weight:800; font-family:inherit; cursor:pointer; }}
-  button:disabled {{ opacity:.5; cursor:default; }}
-  button.warn {{ background:#fff; color:var(--error); border:1.5px solid var(--error); padding:6px 10px;
-                font-size:12px; }}
-  table {{ width:100%; border-collapse:collapse; font-size:13px; }}
-  th, td {{ text-align:left; padding:9px 6px; border-bottom:1px solid var(--line); }}
-  th {{ font-size:11px; color:var(--t3); font-weight:700; }}
-  .badge {{ display:inline-block; padding:2px 7px; border-radius:6px; font-size:11px; font-weight:700; }}
-  .badge.on {{ background:#E7F8EF; color:var(--success); }}
-  .badge.off {{ background:#FFF2F5; color:var(--error); }}
-  .msg {{ margin-top:10px; font-size:13px; }}
-  .msg.ok {{ color:var(--success); }}
-  .msg.err {{ color:var(--error); }}
-  #tokenModal {{ position:fixed; inset:0; background:rgba(0,0,0,.5); display:none;
-                align-items:center; justify-content:center; z-index:50; }}
-  #tokenModal.show {{ display:flex; }}
-  #tokenModal .box {{ background:#fff; border-radius:14px; padding:22px; max-width:90vw; width:340px; }}
+          --error:#F0436A; --success:#16C172; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); font-family:'Pretendard',-apple-system,system-ui,sans-serif;
+         color:var(--t1); line-height:1.5; }
+  .wrap { max-width:760px; margin:0 auto; padding:18px 16px 40px; }
+  h1 { font-size:21px; font-weight:800; margin:0 0 4px; }
+  .sub { font-size:13px; color:var(--t2); margin-bottom:18px; }
+  .stat { display:inline-block; background:var(--card); border-radius:10px; padding:8px 12px;
+          font-size:13px; font-weight:700; margin-right:8px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
+  .stat b { color:var(--blue-dark); font-size:15px; margin-left:4px; }
+  .card { background:var(--card); border-radius:14px; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,.04);
+          margin-top:16px; }
+  .card h2 { font-size:15px; font-weight:800; margin:0 0 12px; }
+  label { display:block; font-size:12px; font-weight:700; color:var(--t2); margin:8px 0 4px; }
+  input, textarea { width:100%; border:1.5px solid var(--line); border-radius:10px; padding:11px 12px;
+                    font-size:14px; font-family:inherit; }
+  input:focus { outline:none; border-color:var(--blue); }
+  .row { display:flex; gap:8px; }
+  .row > * { flex:1; }
+  button { background:var(--blue); color:#fff; border:0; border-radius:10px; padding:11px 16px;
+           font-size:14px; font-weight:800; font-family:inherit; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:default; }
+  button.warn { background:#fff; color:var(--error); border:1.5px solid var(--error); padding:6px 10px;
+                font-size:12px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:9px 6px; border-bottom:1px solid var(--line); }
+  th { font-size:11px; color:var(--t3); font-weight:700; }
+  .badge { display:inline-block; padding:2px 7px; border-radius:6px; font-size:11px; font-weight:700; }
+  .badge.on { background:#E7F8EF; color:var(--success); }
+  .badge.off { background:#FFF2F5; color:var(--error); }
+  .msg { margin-top:10px; font-size:13px; }
+  .msg.ok { color:var(--success); }
+  .msg.err { color:var(--error); }
+  #tokenModal { position:fixed; inset:0; background:rgba(0,0,0,.5); display:none;
+                align-items:center; justify-content:center; z-index:50; }
+  #tokenModal.show { display:flex; }
+  #tokenModal .box { background:#fff; border-radius:14px; padding:22px; max-width:90vw; width:340px; }
 </style></head>
 <body>
 <div id="tokenModal"><div class="box">
@@ -4923,37 +4923,37 @@ _BETA_WHITELIST_HTML = """<!doctype html>
 </div>
 
 <script>
-  function getToken() {{ return sessionStorage.getItem('admin_token') || ''; }}
-  function saveToken() {{
+  function getToken() { return sessionStorage.getItem('admin_token') || ''; }
+  function saveToken() {
     var t = document.getElementById('tokenInput').value.trim();
     if (!t) return;
     sessionStorage.setItem('admin_token', t);
     document.getElementById('tokenModal').classList.remove('show');
     load();
-  }}
-  function ensureToken() {{
-    if (!getToken()) {{ document.getElementById('tokenModal').classList.add('show'); return false; }}
+  }
+  function ensureToken() {
+    if (!getToken()) { document.getElementById('tokenModal').classList.add('show'); return false; }
     return true;
-  }}
-  async function api(method, path, body) {{
-    var opts = {{ method: method, headers: {{ 'Authorization': 'Bearer ' + getToken() }} }};
-    if (body) {{ opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }}
+  }
+  async function api(method, path, body) {
+    var opts = { method: method, headers: { 'Authorization': 'Bearer ' + getToken() } };
+    if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
     var r = await fetch(path, opts);
-    if (r.status === 401) {{ sessionStorage.removeItem('admin_token'); ensureToken(); throw new Error('인증 실패'); }}
-    if (!r.ok) {{ var t = await r.text(); throw new Error(t || 'API 오류'); }}
+    if (r.status === 401) { sessionStorage.removeItem('admin_token'); ensureToken(); throw new Error('인증 실패'); }
+    if (!r.ok) { var t = await r.text(); throw new Error(t || 'API 오류'); }
     return r.json();
-  }}
-  async function load() {{
+  }
+  async function load() {
     if (!ensureToken()) return;
-    try {{
+    try {
       var d = await api('GET', '/admin/beta/whitelist/data');
       document.getElementById('statTotal').textContent = d.total;
       document.getElementById('statActive').textContent = d.activated;
       var html = '';
-      if (d.items.length === 0) {{
+      if (d.items.length === 0) {
         html = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#9AA3AF">아직 등록된 테스터가 없어요</td></tr>';
-      }} else {{
-        for (var i=0; i<d.items.length; i++) {{
+      } else {
+        for (var i=0; i<d.items.length; i++) {
           var it = d.items[i];
           var date = it.added_at_ms ? new Date(it.added_at_ms).toLocaleDateString('ko') : '';
           html += '<tr>'
@@ -4963,35 +4963,35 @@ _BETA_WHITELIST_HTML = """<!doctype html>
             + '<td>' + it.use_count + '</td>'
             + '<td><button class="warn" onclick="rm(\\''+it.phone_raw+'\\')">삭제</button></td>'
             + '</tr>';
-        }}
-      }}
+        }
+      }
       document.getElementById('rows').innerHTML = html;
-    }} catch(e) {{ alert('로드 실패: ' + e.message); }}
-  }}
-  async function addPhone() {{
+    } catch(e) { alert('로드 실패: ' + e.message); }
+  }
+  async function addPhone() {
     if (!ensureToken()) return;
     var phone = document.getElementById('addPhone').value.trim();
     var name = document.getElementById('addName').value.trim();
     var memo = document.getElementById('addMemo').value.trim();
-    if (!phone) {{ alert('폰번호 입력'); return; }}
+    if (!phone) { alert('폰번호 입력'); return; }
     var msg = document.getElementById('addMsg');
     msg.className = 'msg'; msg.textContent = '추가중...';
-    try {{
-      var r = await api('POST', '/admin/beta/whitelist', {{ phone: phone, name: name, memo: memo }});
+    try {
+      var r = await api('POST', '/admin/beta/whitelist', { phone: phone, name: name, memo: memo });
       msg.className = 'msg ok';
       msg.textContent = (r.action === 'updated' ? '갱신됨' : '추가됨') + ': ' + r.phone;
       document.getElementById('addPhone').value = '';
       document.getElementById('addName').value = '';
       document.getElementById('addMemo').value = '';
       load();
-    }} catch(e) {{ msg.className = 'msg err'; msg.textContent = '실패: ' + e.message; }}
-  }}
-  async function rm(phone) {{
+    } catch(e) { msg.className = 'msg err'; msg.textContent = '실패: ' + e.message; }
+  }
+  async function rm(phone) {
     if (!confirm(phone + ' 삭제할까요?')) return;
-    try {{ await api('DELETE', '/admin/beta/whitelist/' + encodeURIComponent(phone)); load(); }}
-    catch(e) {{ alert('삭제 실패: ' + e.message); }}
-  }}
-  function escape(s) {{ s = String(s||''); return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }}
+    try { await api('DELETE', '/admin/beta/whitelist/' + encodeURIComponent(phone)); load(); }
+    catch(e) { alert('삭제 실패: ' + e.message); }
+  }
+  function escape(s) { s = String(s||''); return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   load();
 </script></body></html>
 """
