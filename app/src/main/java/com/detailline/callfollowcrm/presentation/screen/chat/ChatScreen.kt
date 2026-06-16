@@ -251,6 +251,10 @@ fun ChatScreen(
     val suggestion by viewModel.effectiveSuggestions.collectAsState()
     val suggestionsStale by viewModel.suggestionsAreStale.collectAsState()
     val suggestionsLoading by viewModel.suggestionsLoading.collectAsState()
+    // 통화로 끝난 대화면 추천 준비 X — "준비 중" 대신 "문자 오면 준비" 안내. (2026-06-17 사장님)
+    val endedWithCall by viewModel.lastActivityIsCall.collectAsState()
+    // (Phase 2) 원칙 발견 카드 — 추천과 다르게 보냈을 때 막내가 "이게 원칙이에요?" 물음. (2026-06-17 사장님)
+    val principleDiscovery by viewModel.principleDiscovery.collectAsState()
     // 별표된 메시지 식별 키 set — ChatBubble 의 isStarred 여부 빠르게 판정
     val starredKeys = remember(starred) {
         starred.map { it.messageDateMs to it.sent }.toHashSet()
@@ -740,6 +744,7 @@ fun ChatScreen(
                 SuggestionArea(
                     suggestion = suggestion,
                     loading = suggestionsLoading,
+                    endedWithCall = endedWithCall,
                     expanded = suggestionsExpanded,
                     isStale = suggestionsStale,
                     onToggleExpand = { suggestionsExpanded = !suggestionsExpanded },
@@ -752,6 +757,17 @@ fun ChatScreen(
                         suggestionsExpanded = false
                     },
                     onRegenerate = { viewModel.regenerateSuggestions() }
+                )
+            }
+
+            // (Phase 2) 원칙 발견 카드 — 추천과 다르게 보냈을 때 막내가 "이게 원칙이에요?" ⭕/❌/나중에. (2026-06-17 사장님)
+            principleDiscovery?.let { disc ->
+                PrincipleDiscoveryCard(
+                    discovery = disc,
+                    onAccept = { viewModel.acceptPrinciple() },
+                    onReject = { viewModel.rejectPrinciple() },
+                    onLater = { viewModel.laterPrinciple() },
+                    onDismiss = { viewModel.clearPrincipleDiscovery() }
                 )
             }
 
@@ -1963,13 +1979,16 @@ private fun linkifyBody(body: String, linkColor: Color): AnnotatedString {
 private fun SuggestionArea(
     suggestion: ReplySuggestions?,
     loading: Boolean,
+    endedWithCall: Boolean,
     expanded: Boolean,
     isStale: Boolean,
     onToggleExpand: () -> Unit,
     onPickChoice: (com.detailline.callfollowcrm.ai.ReplyChoice) -> Unit,
     onRegenerate: () -> Unit
 ) {
-    val hasSuggestions = suggestion != null && suggestion.suggestions.isNotEmpty()
+    // 통화로 끝난 대화면 추천/스피너 숨기고 "문자 오면 준비" 안내만. (2026-06-17 사장님)
+    val hasSuggestions = suggestion != null && suggestion.suggestions.isNotEmpty() && !endedWithCall
+    val effectiveLoading = loading && !endedWithCall
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -2007,10 +2026,10 @@ private fun SuggestionArea(
                 // 2026-05-30 사장님 디자인 보강 #4 — 시공 사장님 손가락 배려: 28dp → 40dp.
                 IconButton(
                     onClick = onRegenerate,
-                    enabled = !loading,
+                    enabled = !effectiveLoading,
                     modifier = Modifier.size(40.dp)
                 ) {
-                    if (loading) {
+                    if (effectiveLoading) {
                         CircularProgressIndicator(
                             color = TossBlue,
                             strokeWidth = 2.dp,
@@ -2041,6 +2060,16 @@ private fun SuggestionArea(
         // 칩 영역 — expanded 일 때만 표시
         if (expanded) {
             when {
+                endedWithCall -> {
+                    // 통화로 끝난 대화 — 답할 문자가 없으니 준비 안 함. 문자 오면 그때 준비. (2026-06-17 사장님)
+                    Text(
+                        "📞 통화로 끝난 대화예요 — 고객이 문자를 보내면 막내가 추천 답변을 준비할게요",
+                        color = TossTextTertiary,
+                        fontSize = 12.sp,
+                        lineHeight = 17.sp,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                }
                 hasSuggestions -> {
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -2058,7 +2087,7 @@ private fun SuggestionArea(
                         }
                     }
                 }
-                loading -> {
+                effectiveLoading -> {
                     // 프로토 design-preview/ringgo-redesign.html :2810 (.think-row) 1:1.
                     //   [막내 마스코트 44dp] [회색 말풍선 안에 파란 점 3개 통통] "막내가 답변을 준비 중이에요!"
                     com.detailline.callfollowcrm.presentation.component.MascotThinkingRow(
@@ -2126,6 +2155,124 @@ private fun SuggestionChip(index: Int, label: String?, text: String, onTap: () -
         }
     }
 }
+
+/**
+ * (Phase 2) 원칙 발견 카드 — design-preview/proto-principle-discovery.html 의 .disc / .resolved 1:1.
+ *   추천과 다른 답을 보냈을 때 막내가 "이게 사장님 원칙이에요?"를 ⭕/❌/나중에 로 묻는다.
+ *   ⭕ → 저장 + "기억했어요 🌱" / ❌ → "잊을게요" / 나중에 → "다음에 또". 결과 보여준 뒤 자동 사라짐.
+ */
+@Composable
+private fun PrincipleDiscoveryCard(
+    discovery: PrincipleDiscovery,
+    onAccept: () -> Unit,
+    onReject: () -> Unit,
+    onLater: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val blueDeep = Color(0xFF1B64DA)
+    val blueSoft = Color(0xFFE8F1FE)
+    val lineColor = Color(0xFFEAEDF0)
+
+    if (discovery.resolved != null) {
+        // 결과 메시지 — 잠깐 보여주고 자동 해제. (프로토 .resolved)
+        LaunchedEffect(discovery.resolved) {
+            kotlinx.coroutines.delay(2600)
+            onDismiss()
+        }
+        val style = when (discovery.resolved) {
+            PrincipleResolved.OK -> ResolvedStyle("✅", "기억했어요! 막내가 사장님을 하나 더 알게 됐어요 🌱",
+                Color(0xFFE7F5F3), Color(0xFF0A7D72), Color(0xFFBFE7E1))
+            PrincipleResolved.NO -> ResolvedStyle("🙇", "알겠어요, 잊을게요. 더 지켜보고 다시 배울게요.",
+                Color(0xFFF7F8FA), TossTextSecondary, lineColor)
+            PrincipleResolved.LATER -> ResolvedStyle("⏭️", "다음에 또 보이면 그때 여쭤볼게요.",
+                Color(0xFFF7F8FA), TossTextSecondary, lineColor)
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(style.bg)
+                .border(1.dp, style.border, RoundedCornerShape(18.dp))
+                .padding(15.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Text(style.emoji, fontSize = 18.sp)
+            Spacer(Modifier.width(9.dp))
+            Text(style.msg, color = style.fg, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, lineHeight = 20.sp)
+        }
+        return
+    }
+
+    // 질문 카드 (프로토 .disc) — 서버가 question 을 주면 그대로, 없으면 원칙을 감싼 템플릿.
+    val q = discovery.question?.takeIf { it.isNotBlank() }
+        ?: "방금 보니, 사장님은 이렇게 응대하시네요:\n\n\"${discovery.principle}\"\n\n이게 사장님 원칙이 맞아요?"
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White)
+            .border(1.5.dp, blueSoft, RoundedCornerShape(18.dp))
+            .padding(16.dp)
+    ) {
+        Box(
+            Modifier
+                .clip(RoundedCornerShape(999.dp))
+                .background(blueSoft)
+                .padding(horizontal = 9.dp, vertical = 4.dp)
+        ) {
+            Text("💡 막내가 하나 배웠어요", color = blueDeep, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+        }
+        Spacer(Modifier.height(9.dp))
+        Text(q, color = TossTextPrimary, fontSize = 14.5.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(7.dp))
+        Text(
+            "맞으면 앞으로 막내가 이렇게 응대해요. (틀리면 그냥 ❌)",
+            color = TossTextTertiary, fontSize = 11.5.sp, lineHeight = 16.sp
+        )
+        Spacer(Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            Box(
+                Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(TossBlue)
+                    .clickable(onClick = onAccept)
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) { Text("⭕ 맞아요", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold) }
+            Box(
+                Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White)
+                    .border(1.dp, lineColor, RoundedCornerShape(12.dp))
+                    .clickable(onClick = onReject)
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) { Text("❌ 아니에요", color = TossTextSecondary, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold) }
+            Box(
+                Modifier
+                    .weight(0.7f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White)
+                    .border(1.dp, lineColor, RoundedCornerShape(12.dp))
+                    .clickable(onClick = onLater)
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) { Text("나중에", color = TossTextTertiary, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+        }
+    }
+}
+
+private data class ResolvedStyle(
+    val emoji: String,
+    val msg: String,
+    val bg: Color,
+    val fg: Color,
+    val border: Color
+)
 
 /** 프로토 .act-chip — 흰 알약 + 파란 아이콘 + 라벨 (견적 작성 / 내 일정 확인 / 문구 넣기). */
 @Composable

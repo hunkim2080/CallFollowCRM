@@ -256,6 +256,20 @@ class AppPreferences(context: Context) {
         get() = prefs.getStringSet("spam_prefixes", setOf("070")) ?: setOf("070")
         set(value) { prefs.edit().putStringSet("spam_prefixes", value).commit() }
 
+    // ── 원칙 발견 (Phase 2, 2026-06-17) — 너무 자주 안 묻게 하루 한도 + 거절 후보 기억 ──
+    /** 원칙 묻기 한도 추적용 — 마지막으로 카운트한 '날(자정 ms)'. */
+    var principleAskDayStart: Long
+        get() = prefs.getLong("principle_ask_day", 0L)
+        set(value) { prefs.edit().putLong("principle_ask_day", value).apply() }
+    /** 그 날 이미 원칙을 몇 번 물었는지. */
+    var principleAskCountToday: Int
+        get() = prefs.getInt("principle_ask_count", 0)
+        set(value) { prefs.edit().putInt("principle_ask_count", value).apply() }
+    /** 사장님이 ❌(아니에요)한 원칙 후보 — 다시 안 묻게 보관. */
+    var dismissedPrincipleCandidates: Set<String>
+        get() = prefs.getStringSet("principle_dismissed", emptySet()) ?: emptySet()
+        set(value) { prefs.edit().putStringSet("principle_dismissed", value).apply() }
+
     /**
      * 2026-06-01 전면 리뉴얼 — 로그인 화면을 한 번 봤는지. 첫 실행에만 로그인 화면 노출.
      * 어떤 소셜 버튼/둘러보기든 누르면 true → 이후 바로 권한/홈으로.

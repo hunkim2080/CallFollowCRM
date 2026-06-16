@@ -222,8 +222,9 @@ fun SettingsScreen(
             if (subPage == null) {
                 // ══════════════ 프로토 s-more 메뉴 (1:1) ══════════════
                 // 막내 비서 카드 (agent-card) — 레벨·말투%·상담/시공 = 실제 카운트.
+                //   카드 탭 → '내 말투 학습'으로 이동(막내 비서 = 말투 학습 흐름). (2026-06-17 사장님)
                 val agentCard by viewModel.agentCard.collectAsState()
-                AgentMiniCard(card = agentCard)
+                AgentMiniCard(card = agentCard, onClick = { subPage = "tone" })
 
                 // 프로토 setup-check — 시작 체크 (실제 권한 상태). 다 되면 한 줄로 접힘.
                 SetupCheckCard()
@@ -2416,12 +2417,14 @@ private fun TemplateDropdown(
 private val AGENT_EMBLEMS = listOf("🌱", "🐣", "🔧", "⭐", "🔥", "💪", "🏅", "👑", "💎", "🚀")
 
 @Composable
-private fun AgentMiniCard(card: AgentCardState) {
+private fun AgentMiniCard(card: AgentCardState, onClick: (() -> Unit)? = null) {
     // 프로토 agent-card — 그라데이션 카드 + mascot + 레벨칩 + 말투 진행바 + stats.
+    //   2026-06-17 사장님: 카드를 누르면 '내 말투 학습'으로 들어가게(흐름 자연스럽게).
     Column(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(22.dp))
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .background(Brush.linearGradient(listOf(Color(0xFFEAF2FF), Color(0xFFF1ECFF))))
             .border(1.dp, Color(0xFFE6EAFB), RoundedCornerShape(22.dp))
             .padding(horizontal = 18.dp, vertical = 15.dp)

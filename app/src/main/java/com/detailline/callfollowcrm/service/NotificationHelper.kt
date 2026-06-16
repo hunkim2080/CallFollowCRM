@@ -37,6 +37,7 @@ object NotificationHelper {
     private const val COLLAB_INVITE_ID_OFFSET = 9_450_000
     /** SMS 알림 ID = 발신번호 hash + offset. 같은 번호 새 SMS = 같은 알림 update. */
     private const val SMS_ID_OFFSET = 10_000_000
+    private const val MMS_FAIL_ID = 9_300_000
 
     // 알림 배너 배경 — 파스텔 블루 (Material Blue 100).
     // setColorized(true) 와 함께 쓰면 OneUI 등 일부 시스템이 배너 전체 배경으로 사용.
@@ -509,6 +510,25 @@ object NotificationHelper {
         try {
             NotificationManagerCompat.from(context).notify(id, builder.build())
         } catch (_: SecurityException) { /* POST_NOTIFICATIONS 없음 — 무시 */ }
+    }
+
+    /**
+     * MMS(사진) 수신 실패 알림 (2026-06-17 사장님).
+     *   RING-GO 가 기본 문자앱일 때 통신사 MMS 다운로드가 실패하면(klinker auto-APN 한계) 사진이
+     *   조용히 사라지던 문제 → 이제는 알림으로 알려 사장님이 대처(삼성 메시지 확인/기본앱 전환)하게.
+     *   ⚠️ 근본 해결 = 삼성 메시지를 기본 문자앱으로 두기(그 사진은 RING-GO 가 그대로 읽음).
+     */
+    fun showMmsReceiveFailed(context: Context, senderHint: String?) {
+        val who = senderHint?.takeIf { it.isNotBlank() }?.let { "$it 님" } ?: "고객"
+        showProtoPush(
+            context = context,
+            id = MMS_FAIL_ID,
+            channelId = CHANNEL_INCOMING_SMS,
+            accent = ACCENT_AMBER,
+            title = "📷 사진을 못 받았어요",
+            msg = "${who}이 보낸 사진(MMS)을 받지 못했어요.",
+            note = "삼성 메시지 앱을 '기본 문자앱'으로 두면 사진이 잘 들어와요. RING-GO 는 그 사진을 그대로 보여줘요."
+        )
     }
 
     /**

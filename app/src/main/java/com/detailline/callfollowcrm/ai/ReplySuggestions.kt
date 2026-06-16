@@ -54,6 +54,17 @@ data class SuggestionFetchResult(
     val suggestions: ReplySuggestions?
 )
 
+/**
+ * (Phase 2 — 원칙 발견) 추천 ≠ 사장님 실제 답일 때, 서버 LLM 이 그 답에서 추론한 '원칙 후보'.
+ *   - principle: ⭕ 누르면 저장될 한 줄(선언형). 예 "신축 문의엔 즉답 견적 대신 방문 견적을 먼저 권한다".
+ *   - question: 발견 카드에 보일 질문체(서버가 주면 그대로, 없으면 앱이 템플릿으로 감쌈).
+ *   서버가 새로 배울 원칙이 없다고 판단하면 principle=null → 앱은 카드 안 띄움.
+ */
+data class PrincipleCandidate(
+    val principle: String,
+    val question: String? = null
+)
+
 /** 서버에 보내는 prepare 컨텍스트. */
 data class PrepareContext(
     val phone: String,

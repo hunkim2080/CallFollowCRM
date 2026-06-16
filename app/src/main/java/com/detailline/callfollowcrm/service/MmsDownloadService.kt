@@ -53,11 +53,16 @@ class MmsDownloadService : MmsReceivedService() {
         }
         val container = app.container
 
-        // 1) 방금 INSERT 된 INBOX MMS 추출. klinker 가 비동기로 INSERT 하므로 잠시 대기 안전망.
+        // 1) 방금 INSERT 된 INBOX MMS 추출. klinker 가 비동기로 download/INSERT 하므로 넉넉히(~6초) 대기.
         //   IntentService onHandleIntent 는 worker thread 라 sleep OK.
-        val mms = pollLatestInboxMms(container, maxAttempts = 3, delayMs = 500L)
+        val mms = pollLatestInboxMms(container, maxAttempts = 6, delayMs = 1000L)
         if (mms == null) {
-            Log.w(TAG, "queryLatestInboxMms returned null after retries — abort hook")
+            // 다운로드가 끝내 안 됨 = 사진 유실 위험. 조용히 끝내지 말고 사장님께 알림(데이터 손실 방지). (2026-06-17 사장님)
+            //   근본 해결은 삼성 메시지를 기본 문자앱으로 두기 — 그러면 RING-GO 가 그 MMS 를 그대로 읽음.
+            Log.w(TAG, "MMS download produced no inbox row — likely failed. Notifying boss (no silent loss).")
+            if (container.preferences.incomingSmsNotifyEnabled) {
+                runCatching { NotificationHelper.showMmsReceiveFailed(applicationContext, senderHint = null) }
+            }
             return
         }
         val sender = mms.address.orEmpty()

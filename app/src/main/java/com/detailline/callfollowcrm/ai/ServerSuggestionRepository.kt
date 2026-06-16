@@ -31,6 +31,12 @@ class ServerSuggestionRepository(
         .writeTimeout(5, TimeUnit.SECONDS)
         .build()
 
+    // 원칙 추론(infer-principle)은 LLM 응답을 동기로 기다리므로 read/call 타임아웃을 넉넉히. (Phase 2, 2026-06-17)
+    private val inferClient: OkHttpClient = client.newBuilder()
+        .readTimeout(20, TimeUnit.SECONDS)
+        .callTimeout(25, TimeUnit.SECONDS)
+        .build()
+
     override suspend fun requestPrepare(context: PrepareContext): Result<Unit> =
         withContext(Dispatchers.IO) {
             runCatching {
@@ -146,6 +152,47 @@ class ServerSuggestionRepository(
             scenarioReason = json.optString("scenario_reason").takeIf { it.isNotBlank() }
         )
         return SuggestionFetchResult(SuggestionStatus.READY, suggestions)
+    }
+
+    override suspend fun inferPrinciple(
+        customerMessage: String,
+        aiSuggestion: String,
+        ownerReply: String,
+        scenario: String?,
+        existingPrinciples: List<String>,
+        deviceId: String?,
+        ownerTrade: String?
+    ): Result<PrincipleCandidate?> = withContext(Dispatchers.IO) {
+        runCatching {
+            val payload = JSONObject().apply {
+                put("customerMessage", customerMessage)
+                put("aiSuggestion", aiSuggestion)
+                put("ownerReply", ownerReply)
+                scenario?.takeIf { it.isNotBlank() }?.let { put("scenario", it) }
+                deviceId?.takeIf { it.isNotBlank() }?.let { put("deviceId", it) }
+                ownerTrade?.takeIf { it.isNotBlank() }?.let { put("ownerTrade", it) }
+                if (existingPrinciples.isNotEmpty()) {
+                    put("existingPrinciples", JSONArray().apply { existingPrinciples.forEach { put(it) } })
+                }
+            }
+            val req = Request.Builder()
+                .url("$baseUrl/infer-principle")
+                .post(payload.toString().toRequestBody(JSON_MEDIA))
+                .build()
+            inferClient.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                val bodyStr = resp.body?.string() ?: throw IOException("빈 응답")
+                val json = JSONObject(bodyStr)
+                // principle 이 없거나 null 이면 "새로 배울 원칙 없음" → null 반환(카드 안 띄움).
+                if (!json.has("principle") || json.isNull("principle")) return@use null
+                val principle = json.optString("principle").trim()
+                if (principle.isBlank()) return@use null
+                PrincipleCandidate(
+                    principle = principle,
+                    question = json.optString("question").trim().takeIf { it.isNotBlank() }
+                )
+            }
+        }
     }
 
     companion object {

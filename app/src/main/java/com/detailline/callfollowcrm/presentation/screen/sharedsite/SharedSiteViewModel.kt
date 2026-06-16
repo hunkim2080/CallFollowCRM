@@ -45,6 +45,8 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
         if (shareId.isBlank()) return
         container.preferences.trashedSharedSiteIds = container.preferences.trashedSharedSiteIds + shareId
         _trashed.value = container.preferences.trashedSharedSiteIds
+        // 홈/상담함 협업 카드에서도 즉시 제거 (다음 폴 안 기다림). (2026-06-17 사장님)
+        container.collabEventCenter.markTrashed(shareId)
     }
 
     fun restore(shareId: String) {

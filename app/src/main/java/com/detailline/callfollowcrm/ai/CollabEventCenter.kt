@@ -120,12 +120,14 @@ class CollabEventCenter(
         val owner = preferences.bizPhone.trim()
         if (owner.isBlank()) return
         val sites = sharedSiteRepository.withMe(owner).getOrNull() ?: return
-        val pending = sites.filter { it.status == "pending" }
+        // 휴지통에 넣은 협업 현장은 상담함/홈 카드에서도 제외 — 화면에선 지웠는데 홈에 남던 버그. (2026-06-17 사장님)
+        val trashed = preferences.trashedSharedSiteIds
+        val pending = sites.filter { it.status == "pending" && it.shareId !in trashed }
         _pendingInvites.value = pending   // 상담함 "받은 협업 요청" 카드 — 응답하면 다음 폴에서 자동으로 빠짐
         // 수락한 협업 중 오늘 이후(날짜 있는 것) = 내 '다음 일' → 홈 협업 카드.
         val todayStart = DateTimeUtils.startOfDay(System.currentTimeMillis())
         _acceptedUpcoming.value = sites
-            .filter { it.status == "accepted" && it.scheduledAtMs >= todayStart }
+            .filter { it.status == "accepted" && it.scheduledAtMs >= todayStart && it.shareId !in trashed }
             .sortedBy { it.scheduledAtMs }
         val pendingIds = pending.map { it.shareId }.toSet()
         // 수락 유효시간(12h) 앵커: 처음 본 시각 기록(서버 created_at_ms 폴백). 응답해 사라진 건 정리.
@@ -152,6 +154,16 @@ class CollabEventCenter(
         _pendingInvites.value = _pendingInvites.value.filter { it.shareId != shareId }
         preferences.seenCollabInviteShareIds = preferences.seenCollabInviteShareIds + shareId
         NotificationHelper.cancelCollabInvite(context, shareId)
+    }
+
+    /**
+     * 화면에서 협업 현장을 휴지통에 넣으면 즉시 호출 — 다음 폴을 기다리지 않고 홈/상담함 카드에서 바로 제거.
+     *   (2026-06-17 사장님: 협업 현장 다 지웠는데 상담함에 협업현장 섹션이 남던 버그)
+     */
+    fun markTrashed(shareId: String) {
+        if (shareId.isBlank()) return
+        _pendingInvites.value = _pendingInvites.value.filter { it.shareId != shareId }
+        _acceptedUpcoming.value = _acceptedUpcoming.value.filter { it.shareId != shareId }
     }
 
     companion object {

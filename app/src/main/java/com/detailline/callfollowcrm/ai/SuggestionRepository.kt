@@ -22,4 +22,19 @@ interface SuggestionRepository {
      * 캐시 조회. 신선도 판정은 호출자가 basedOnReceivedAtMs 로 직접 비교.
      */
     suspend fun fetch(phone: String): Result<SuggestionFetchResult>
+
+    /**
+     * (Phase 2 — 원칙 발견) 추천 ≠ 사장님 실제 답이 확실할 때, 그 답에서 '왜 이렇게 했는지' 한 줄 원칙을
+     *   서버 LLM 이 추론. fire-and-forget 아닌 동기 — 결과(후보)를 기다려 카드에 띄움.
+     *   서버가 기존 원칙과 중복이거나 무의미하면 null 반환 → 앱은 카드 안 띄움.
+     */
+    suspend fun inferPrinciple(
+        customerMessage: String,
+        aiSuggestion: String,
+        ownerReply: String,
+        scenario: String?,
+        existingPrinciples: List<String>,
+        deviceId: String?,
+        ownerTrade: String?
+    ): Result<PrincipleCandidate?>
 }

@@ -303,9 +303,26 @@ class ChatViewModel(
             sug.basedOnReceivedAtMs < latest.dateMs
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
+    /**
+     * 마지막 대화가 '통화'로 끝났는지 — 마지막 문자보다 더 최근에 통화가 있었던 경우.
+     *   true 면 답할 문자가 없음 → 추천을 준비하지 않고(스피너 X), ↻ 눌러도 "문자가 오면 준비할게요" 안내만.
+     *   (2026-06-17 사장님: "통화로 끝났는데도 막내가 답변을 준비한다고 나오네")
+     */
+    val lastActivityIsCall: StateFlow<Boolean> =
+        combine(_messages, callRecords) { msgs, calls ->
+            val latestMsgMs = msgs.firstOrNull()?.dateMs ?: 0L
+            val latestCallMs = calls.maxOfOrNull { it.endedAt } ?: 0L
+            latestCallMs > 0L && latestCallMs > latestMsgMs
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
     // ↻ 재생성 진행 중. ChatScreen 이 ↻ 버튼 자리 로딩 인디케이터에 사용.
     private val _suggestionsLoading = MutableStateFlow(false)
     val suggestionsLoading = _suggestionsLoading.asStateFlow()
+
+    // ── 원칙 발견 (Phase 2, 2026-06-17 사장님) ────────────────────────────────
+    //   추천 ≠ 사장님 실제 답이 확실할 때 서버가 추론한 '원칙 후보'. null 이면 카드 없음.
+    private val _principleDiscovery = MutableStateFlow<PrincipleDiscovery?>(null)
+    val principleDiscovery: StateFlow<PrincipleDiscovery?> = _principleDiscovery.asStateFlow()
 
     /**
      * 화면 진입 또는 새로고침 시 호출. READ_SMS 권한 + 토글 모두 OK 여야 실제 조회.
@@ -470,6 +487,7 @@ class ChatViewModel(
             //   ok 든 ok 아니든 user intent (보내려 했음) 자체는 발생 → 발송 실패면 안 박음 (잡음).
             if (ok) {
                 captureSendSignal(trimmed)
+                maybeInferPrinciple(trimmed)  // (Phase 2) 추천과 다르게 보냈으면 '원칙' 추론. (2026-06-17 사장님)
             }
 
             _toast.value = if (ok) "보냈어요" else "발송 실패"
@@ -546,6 +564,94 @@ class ChatViewModel(
         }
         if (picked != null) {
             pickedActioned = true
+        }
+    }
+
+    // ════════════════════════ 원칙 발견 (Phase 2, 2026-06-17 사장님) ════════════════════════
+    /**
+     * 사장님이 추천과 '다르게' 보냈고, 그 추천이 확신 있는 추천이었을 때만 서버 LLM 에
+     *   "왜 이렇게 했는지" 한 줄 원칙 추론을 요청 → 후보가 나오면 발견 카드(⭕/❌/나중에)를 띄운다.
+     *   콜드스타트 자동 억제(확신 게이트) + 하루 한도 + 이미 거절/보유한 원칙 제외.
+     *   호출 시점: sendMessage 성공 직후(captureSendSignal 다음) — picked/snapshot 아직 살아있음.
+     */
+    private fun maybeInferPrinciple(sentText: String) {
+        val sugs = pickedSuggestionsSnapshot ?: _suggestions.value ?: return
+        if (sugs.suggestions.isEmpty()) return
+        val conf = sugs.scenarioConfidence ?: return                 // 확신 점수 없으면 패스
+        if (conf < PRINCIPLE_MIN_CONFIDENCE) return                  // 확신 있을 때만(사례 적으면 자연히 안 물음)
+        val aiText = (pickedChoice?.text ?: sugs.suggestions.firstOrNull()?.text)?.trim().orEmpty()
+        if (aiText.isBlank()) return
+        val mine = sentText.trim()
+        if (mine == aiText) return                                   // 그대로 보냄 = 의도 없음
+        if (levenshtein(aiText, mine) < PRINCIPLE_MIN_EDIT_DISTANCE) return  // 거의 같으면 패스
+        val customerMsg = sugs.basedOnMessage.takeIf { it.isNotBlank() }
+            ?: _messages.value.firstOrNull { !it.sent }?.body ?: return
+        if (!canAskPrincipleToday()) return                          // 하루 한도
+        viewModelScope.launch(Dispatchers.IO) {
+            val existing = runCatching { container.principleRepository.enabledTexts() }.getOrDefault(emptyList())
+            val candidate = runCatching {
+                container.suggestionRepository.inferPrinciple(
+                    customerMessage = customerMsg,
+                    aiSuggestion = aiText,
+                    ownerReply = mine,
+                    scenario = sugs.scenario,
+                    existingPrinciples = existing,
+                    deviceId = container.preferences.deviceId,
+                    ownerTrade = container.preferences.ownerTrades.firstOrNull()
+                ).getOrNull()
+            }.getOrNull() ?: return@launch
+            val text = candidate.principle.trim()
+            if (text.isBlank()) return@launch
+            // 이미 ❌ 했거나 보유 중인 원칙이면 다시 안 띄움.
+            if (text in container.preferences.dismissedPrincipleCandidates) return@launch
+            if (existing.any { it.equals(text, ignoreCase = true) }) return@launch
+            markPrincipleAsked()
+            _principleDiscovery.value = PrincipleDiscovery(principle = text, question = candidate.question)
+        }
+    }
+
+    /** 발견 카드 ⭕ — 원칙 저장(막내가 이제 이렇게 생각). 카드는 '기억했어요'로 잠깐 바뀐 뒤 자동 사라짐. */
+    fun acceptPrinciple() {
+        val d = _principleDiscovery.value ?: return
+        _principleDiscovery.value = d.copy(resolved = PrincipleResolved.OK)
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { container.principleRepository.add(d.principle, source = "discovered") }
+        }
+    }
+
+    /** ❌ — 잊고 다시 안 물음(후보 기록). */
+    fun rejectPrinciple() {
+        val d = _principleDiscovery.value ?: return
+        container.preferences.dismissedPrincipleCandidates =
+            container.preferences.dismissedPrincipleCandidates + d.principle
+        _principleDiscovery.value = d.copy(resolved = PrincipleResolved.NO)
+    }
+
+    /** 나중에 — 그냥 닫기(거절 아님, 다음에 또 보이면 물음). */
+    fun laterPrinciple() {
+        val d = _principleDiscovery.value ?: return
+        _principleDiscovery.value = d.copy(resolved = PrincipleResolved.LATER)
+    }
+
+    /** resolved 메시지를 잠깐 보여준 뒤 카드 완전 해제 (카드 composable 이 호출). */
+    fun clearPrincipleDiscovery() { _principleDiscovery.value = null }
+
+    /** 오늘 원칙을 더 물어도 되는지 (하루 한도). 새 날이면 리셋. */
+    private fun canAskPrincipleToday(): Boolean {
+        val today = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(System.currentTimeMillis())
+        val p = container.preferences
+        if (p.principleAskDayStart != today) return true
+        return p.principleAskCountToday < PRINCIPLE_MAX_PER_DAY
+    }
+
+    private fun markPrincipleAsked() {
+        val today = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(System.currentTimeMillis())
+        val p = container.preferences
+        if (p.principleAskDayStart != today) {
+            p.principleAskDayStart = today
+            p.principleAskCountToday = 1
+        } else {
+            p.principleAskCountToday = p.principleAskCountToday + 1
         }
     }
 
@@ -735,6 +841,8 @@ class ChatViewModel(
      *   사장님이 ↻ 안 눌러도 됨. _suggestionsLoading=true 가 ChatScreen 의 스피너 트리거.
      */
     fun loadSuggestions() = viewModelScope.launch {
+        // 통화로 끝난 대화면 답할 문자가 없음 → 추천 준비 안 함(스피너 X). (2026-06-17 사장님)
+        if (lastActivityIsCall.value) return@launch
         // 2026-05-28 사장님 통점: "알림엔 2개, ChatScreen 들어가면 3개" = LLM 점진 생성 race.
         //   첫 fetch 가 size >= 3 면 그대로. 부족하면 polling 으로 더 기다림. 알림 정책과 일관.
         val first = container.suggestionRepository.fetch(phoneNumber).getOrNull()
@@ -854,6 +962,11 @@ class ChatViewModel(
      * 컨텍스트 구성은 SmsReceiver 와 같은 로직 (최근 20건 + customer hint).
      */
     fun regenerateSuggestions() {
+        // 통화로 끝난 대화 — 답할 문자가 없으니 준비하지 않고 안내만. (2026-06-17 사장님)
+        if (lastActivityIsCall.value) {
+            _toast.value = "통화로 끝난 대화예요 — 고객이 문자를 보내면 추천 답변을 준비할게요"
+            return
+        }
         val latestReceived = _messages.value.firstOrNull { !it.sent } ?: run {
             _toast.value = "고객 마지막 메시지가 없어요"
             return
@@ -1037,4 +1150,22 @@ class ChatViewModel(
             }
         }
     }
+
+    companion object {
+        /** 원칙 추론 게이트 — 추천 확신(scenario_confidence)이 이 이상일 때만. 사례 적으면 자연히 안 물음. */
+        private const val PRINCIPLE_MIN_CONFIDENCE = 0.6
+        /** 추천과 사장님 답의 편집거리가 이 미만이면 "거의 같음"으로 보고 안 물음. */
+        private const val PRINCIPLE_MIN_EDIT_DISTANCE = 12
+        /** 하루 최대 원칙 묻기 횟수 — 귀찮게 안 하기. */
+        private const val PRINCIPLE_MAX_PER_DAY = 2
+    }
 }
+
+/** (Phase 2) 발견 카드 상태. resolved=null 이면 질문 중, 아니면 결과 메시지 잠깐 보여준 뒤 자동 해제. */
+data class PrincipleDiscovery(
+    val principle: String,
+    val question: String? = null,
+    val resolved: PrincipleResolved? = null
+)
+
+enum class PrincipleResolved { OK, NO, LATER }
