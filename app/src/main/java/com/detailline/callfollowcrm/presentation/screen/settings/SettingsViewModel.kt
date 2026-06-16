@@ -51,7 +51,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         if (toneProfileLoaded) return
         toneProfileLoaded = true
         viewModelScope.launch {
-            container.phaseOneApiRepository.fetchToneProfile()
+            container.phaseOneApiRepository.fetchToneProfile(container.preferences.deviceId)
                 .onSuccess { _toneProfile.value = it }
                 .onFailure { toneProfileLoaded = false }  // 실패 시 재시도 허용
         }
@@ -209,7 +209,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
                     }.getOrDefault(emptyList())
                 }
                 if (messages.isEmpty()) return@launch
-                val deviceId = "owner-anon"  // multi-device 대응은 다음 sprint
+                val deviceId = container.preferences.deviceId  // 폰별 분리 (2026-06-17)
                 val result = container.ownerToneUploadRepository.batchUpload(
                     deviceId = deviceId,
                     messages = messages,

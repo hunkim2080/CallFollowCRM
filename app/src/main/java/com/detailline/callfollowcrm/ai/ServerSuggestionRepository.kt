@@ -36,6 +36,7 @@ class ServerSuggestionRepository(
             runCatching {
                 val payload = JSONObject().apply {
                     put("phone", context.phone)
+                    context.deviceId?.takeIf { it.isNotBlank() }?.let { put("deviceId", it) }
                     put("latestMessage", context.latestMessage)
                     put("latestMessageReceivedAtMs", context.latestMessageReceivedAtMs)
                     put("recentHistory", JSONArray().apply {

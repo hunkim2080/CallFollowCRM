@@ -1431,6 +1431,9 @@ class PrepareReplyRequest(BaseModel):
     customer: Optional[CustomerInfo] = None
     # 새 필드 — 안드로이드 측에서 SmsRepository.querySentMessages(50) 결과를 보냄
     ownerToneSamples: list[str] = Field(default_factory=list)
+    # 2026-06-17 — 폰별 말투 풀 격리. 이 폰의 owner_tone 에서만 RAG retrieval.
+    #   미전송(구버전 앱) 이면 "owner-anon" 폴백 → 기존 동작 유지(점진 마이그레이션).
+    deviceId: Optional[str] = None
 
 
 # ─── P0+P1+P2: 공통 ConversationContext (사양서 §1) ───
@@ -1737,7 +1740,7 @@ async def call_claude_for_suggestions_with_meta(
     system_blocks = await build_system_blocks_async(
         owner_tone_samples=req.ownerToneSamples or [],
         latest_msg=req.latestMessage or "",
-        device_id="owner-anon",  # 사장님 1인 운영. 멀티유저 시 안드가 device_id 보낼 것.
+        device_id=(req.deviceId or "owner-anon"),  # 2026-06-17 폰별 격리. 미전송(구버전)이면 폴백.
     )
 
     # §17 — 페르소나 hint. 캐시된 게 있으면 user msg 의 [고객 정보] 영역에 inject.
@@ -1874,7 +1877,7 @@ async def call_gemini_for_suggestions_with_meta(
     system_blocks = await build_system_blocks_async(
         owner_tone_samples=req.ownerToneSamples or [],
         latest_msg=req.latestMessage or "",
-        device_id="owner-anon",
+        device_id=(req.deviceId or "owner-anon"),  # 2026-06-17 폰별 격리. 미전송(구버전)이면 폴백.
     )
     system_text = "\n\n".join(b.get("text", "") for b in system_blocks if b.get("text"))
 

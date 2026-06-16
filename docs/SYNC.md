@@ -4828,3 +4828,14 @@ versionName "0.2-beta" 고정 + 첫 실행 "최근 7일 통화 따라잡기" (�
 - **‼️ cowork 가 할 일 = 맥미니에서 배포(나는 윈도우라 배포 못 함)**: `git pull --rebase` → `bash server/deploy_phase1.sh` (또는 launchctl reload). 배포 전엔 계속 "무난 답변" 나옴.
 - 배포 후 검증: `curl https://api.si0in.kr/suggestions/01033872844` 가 fallback_default 아니라 price_inquiry(견적/조건/예약) 3개 실답변이면 OK. 안드 앱은 수정 0(v2 schema 동일).
 - **남은 같은 위험(내가 안 건드림, cowork 판단)**: refine(main.py:7055, ✨다듬기)·summary(main.py:7116, 통화요약) Gemini 호출도 `thinkingConfig` 없음 → 긴 입력서 같은 truncation 가능. 요약은 thinking 이 품질에 도움될 수도 있어 의도였을지 몰라 안 건드림. truncation(MAX_TOKENS) 보이면 동일하게 `thinkingConfig:{thinkingBudget:0}` 적용 권장.
+
+## 2026-06-17 · android → ‼️ cowork (말투 학습/추천 폰별 격리 — 베타 개인정보 사고 방지, 사장님 승인 하 서버도 수정)
+**문제**: device_id 가 앱 전체에서 `"owner-anon"` 하드코딩 → **모든 베타 테스터가 owner_tone 풀 하나를 공유.** 테스터 A 의 말투 문자가 B 의 추천(RAG retrieval)에 섞여 나옴 = 개인정보·정확도 사고. (사장님: 폰 3대 다 "383개 학습" 동일하게 떠서 발견)
+- **앱 수정(폰별 UUID 발급·전 경로 적용)**: `AppPreferences.deviceId`(최초 1회 UUID 생성·영속) → ① 톤 업로드(SettingsViewModel) ② 톤 프로필 GET(fetchToneProfile) ③ **prepare-reply 페이로드에 `deviceId` 신규 전송**(PrepareContext+ServerSuggestionRepository, 3개 빌드사이트: ChatViewModel/SmsReceiver/MmsDownloadService) ④ 시공접수서(intake) device_id 도 통일.
+- **서버 수정(내가 함)**: `PrepareReplyRequest.deviceId: Optional[str]=None` 추가 + prepare-reply 의 `build_system_blocks_async(device_id=...)` 2곳(sonnet 1740 / gemini 1877)을 `device_id=(req.deviceId or "owner-anon")` 으로. **미전송(구버전 앱)이면 owner-anon 폴백 → 무중단 점진 마이그레이션.**
+- owner_tone/tone-profile 엔드포인트는 **이미 device_id 로 분리**돼 있어 서버 추가 변경 불필요(검증: 새 device_id POST → total_in_pool:0, owner-anon → 383). 즉 **prepare-reply retrieval 격리만 배포로 적용**됨.
+- **‼️ cowork 할 일 = 맥미니 배포**: `git pull --rebase` → `bash server/deploy_phase1.sh`. (위 Gemini thinking fix 와 함께 배포되면 됨)
+- **마이그레이션/주의**:
+  - 기존 owner-anon 383 은 **고아 데이터로 남음**(무해). 원하면 `DELETE FROM owner_tone WHERE device_id='owner-anon'` 정리 가능(선택). 단 구버전 앱이 아직 owner-anon 쓰는 동안은 두는 게 안전.
+  - **베타 테스터는 새 APK 로 업데이트해야** 폰별 격리 적용. 업데이트 전엔 owner-anon 공유(폴백).
+  - **UX**: 업데이트하면 각 폰의 "내가 보낸 문자 N개 학습" 이 **0 으로 보임**(owner-anon→새 UUID 전환). 정상. 각 폰에서 '말투 업로드' 1회 하면 그 폰 풀이 채워짐. (사장님께 안내함)

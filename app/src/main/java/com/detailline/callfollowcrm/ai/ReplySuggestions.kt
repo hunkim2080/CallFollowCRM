@@ -72,7 +72,12 @@ data class PrepareContext(
      * 고객 이름은 leak 되면 안 되므로 epoch ms 만 보냄.
      * 서버는 "토요일 가능?" 같은 일정 질문에 이 정보를 근거로 답변.
      */
-    val otherUpcomingSchedulesMs: List<Long> = emptyList()
+    val otherUpcomingSchedulesMs: List<Long> = emptyList(),
+    /**
+     * 폰별 고유 id (AppPreferences.deviceId). 서버가 이 폰의 말투 풀에서만 RAG retrieval.
+     * null/미전송이면 서버가 "owner-anon" 폴백(구버전 호환). (2026-06-17)
+     */
+    val deviceId: String? = null
 )
 
 data class HistoryMessage(

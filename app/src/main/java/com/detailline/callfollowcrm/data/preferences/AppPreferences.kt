@@ -70,6 +70,22 @@ class AppPreferences(context: Context) {
     var agentTier: Int
         get() = prefs.getInt("agent_tier", 0)
         set(value) = prefs.edit().putInt("agent_tier", value).apply()
+
+    /**
+     * 폰(설치)별 고유 식별자. 말투 학습/추천을 **폰마다 분리**하기 위함. (2026-06-17 사장님)
+     *   - 베타: 모든 폰이 "owner-anon" 공용 풀을 쓰면 테스터 A 말투가 B 추천에 섞임(개인정보·정확도 사고).
+     *     이 id 로 서버 owner_tone 풀 + prepare-reply RAG retrieval 을 폰별로 격리.
+     *   - 최초 1회 UUID 생성·영속. 앱 삭제/데이터 삭제 시 새로 생성(그땐 재업로드).
+     */
+    val deviceId: String
+        get() {
+            var id = prefs.getString("device_id", null)
+            if (id.isNullOrBlank()) {
+                id = "dev-" + java.util.UUID.randomUUID().toString()
+                prefs.edit().putString("device_id", id).apply()
+            }
+            return id
+        }
     /** 길찾기 기본 지도앱(tmap/kakao/naver/default). 비면 처음 길찾기 때 선택받음. (2026-06-14) */
     var navApp: String
         get() = prefs.getString("nav_app", "") ?: ""

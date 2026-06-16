@@ -180,7 +180,8 @@ class SmsReceiver : BroadcastReceiver() {
                     recentHistory = history,
                     customer = customerHint,
                     ownerToneSamples = ownerToneSamples,
-                    otherUpcomingSchedulesMs = otherSchedules
+                    otherUpcomingSchedulesMs = otherSchedules,
+                    deviceId = container.preferences.deviceId
                 )
 
                 // 추천 답변은 미리 준비만 해둔다(문자방 진입 시 바로 보이게). 알림엔 더 이상 안 넣음 → 폴링 제거.

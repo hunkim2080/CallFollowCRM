@@ -904,7 +904,8 @@ class ChatViewModel(
                     recentHistory = history,
                     customer = hint,
                     ownerToneSamples = ownerToneSamples,
-                    otherUpcomingSchedulesMs = otherSchedules
+                    otherUpcomingSchedulesMs = otherSchedules,
+                    deviceId = container.preferences.deviceId
                 )
                 val prep = container.suggestionRepository.requestPrepare(ctx)
                 if (prep.isFailure) {
@@ -981,7 +982,7 @@ class ChatViewModel(
             bizName = prefs.bizName, bizOwner = prefs.bizOwner, bizNo = prefs.bizNo,
             bizAddr = prefs.bizAddr, bizPhone = prefs.bizPhone, bizSeal = prefs.bizSeal,
             bizValidDays = prefs.bizQuoteValidDays,
-            devicePhone = prefs.bizPhone, deviceId = "owner-anon"
+            devicePhone = prefs.bizPhone, deviceId = prefs.deviceId
         )
         onResult(res.map { it.smsDraft.ifBlank { "시공접수서 링크를 보냈어요." } })
     }
