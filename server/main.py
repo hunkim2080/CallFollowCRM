@@ -82,7 +82,7 @@ ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN")
 
 CLAUDE_MODEL = "claude-sonnet-4-6"        # 매출 직결 워크로드 (prepare-reply)
 HAIKU_MODEL  = "claude-haiku-4-5"         # 단순 요약/분류 워크로드 (card/conversation/next-action). Sonnet 의 ~1/3 비용.
-CLAUDE_MAX_TOKENS = 800
+CLAUDE_MAX_TOKENS = 2048  # 2026-06-16: 800 → 2048. 추천답변 3개(이유 포함)는 800 토큰에 빠듯해 truncation 위험 → 상향(sonnet 경로 안전망)
 CLAUDE_TIMEOUT = 60.0  # 초. 한 호출이 60초 넘으면 끊는다.
 
 # Sonnet 4.6 가격 (per 1M tokens) — 2026 기준
@@ -1824,7 +1824,13 @@ async def _call_gemini_for_suggestions_raw(
         "generationConfig": {
             "temperature": 0.7,
             "topP": 0.95,
-            "maxOutputTokens": 2048,
+            "maxOutputTokens": 3072,
+            # ★ 2026-06-16 (android Claude, 사장님 승인) — fallback_default 버그 fix.
+            #   Gemini 2.5 Flash 는 thinking 모델. thinking 토큰이 maxOutputTokens 를 같이 먹어서,
+            #   가격 4개짜리 긴 문의처럼 복잡한 입력에선 thinking 이 예산을 다 써 실제 JSON 이 truncate →
+            #   파서 4단계 전부 실패 → "💬 무난 답변" 하드코딩으로 빠지던 원인.
+            #   추천 답변은 추론 불필요(톤 모방 생성)라 thinking 끔 → truncation 해소 + 더 빠르고 저렴.
+            "thinkingConfig": {"thinkingBudget": 0},
             "responseMimeType": "application/json",
             "responseSchema": _GEMINI_V2_SUGGESTIONS_SCHEMA,
         },

@@ -4817,3 +4817,14 @@ versionName "0.2-beta" 고정 + 첫 실행 "최근 7일 통화 따라잡기" (�
   - `GET /health` = `{"ok":true,"model":"claude-sonnet-4-6","pricing_loaded":true}` → 크레딧·가격표·모델 문제 아님. **순수 출력 파싱 버그.**
 - **cowork 액션**: prepare-reply 의 LLM 응답 파서 점검. 다항목 가격 질문(여러 줄 번호목록 + 인사 섞임)에서 Claude 출력이 파서 기대 형식(JSON?)과 어긋나 fallback 으로 빠지는 듯. 코드펜스/서두 산문/스키마 불일치 등 의심. fallback_default 비율 로깅 권장.
 - 앱 측 후속(보류, 사장님 결정 대기): scenario==fallback_default 면 앱이 "무난 답변"을 진짜 추천처럼 보여주지 말고 재시도/명확한 상태표시 고려 가능.
+
+## 2026-06-16 11:30 · android → ‼️ cowork (위 버그 근본원인 규명 + 서버 직접 수정함, 사장님 승인)
+**진짜 원인 = Gemini 2.5 Flash 의 thinking 토큰이 출력 예산을 먹어 JSON truncation.** (cowork 영역이지만 사장님이 "내가 고쳐서 커밋+푸시" 승인 → android Claude 가 server/main.py 직접 수정함. 충돌나면 알려줘.)
+- prepare-reply 기본 모델은 **Gemini** (`PREPARE_REPLY_MODEL` 기본 "gemini", main.py:1981). `/health` 의 claude-sonnet-4-6 은 상수 표시일 뿐 — 실제 생성은 Gemini.
+- `_call_gemini_for_suggestions_raw`(main.py:1824) 가 `maxOutputTokens:2048` 인데 **`thinkingConfig` 없음** → Flash 가 thinking 에 토큰을 쓰고 그게 출력예산을 같이 깎음. 가격 4개 같은 복잡 입력 → thinking 폭주 → 실제 JSON 이 첫 "text" 닫기 전에 잘림 → 파서 1~3차 전부 실패(정규식도 닫힌 따옴표 못 찾아 0개 회수) → 4차 하드코딩 "무난 답변". 짧은 문자는 thinking 적어 안 깨짐 = "긴 문의일수록·새로고침해도 동일" 설명됨.
+- **내가 한 수정(2곳)**:
+  1. `_call_gemini_for_suggestions_raw` generationConfig: `"thinkingConfig": {"thinkingBudget": 0}` 추가 + `maxOutputTokens` 2048→3072. (추천답변은 추론 불필요 → thinking off = truncation 해소 + 빠르고 저렴, §49 "JSON 안정성" 의도와 일치)
+  2. `CLAUDE_MAX_TOKENS` 800→2048 (sonnet 롤백 경로도 답 3개엔 빠듯해 truncation 위험 → 안전망).
+- **‼️ cowork 가 할 일 = 맥미니에서 배포(나는 윈도우라 배포 못 함)**: `git pull --rebase` → `bash server/deploy_phase1.sh` (또는 launchctl reload). 배포 전엔 계속 "무난 답변" 나옴.
+- 배포 후 검증: `curl https://api.si0in.kr/suggestions/01033872844` 가 fallback_default 아니라 price_inquiry(견적/조건/예약) 3개 실답변이면 OK. 안드 앱은 수정 0(v2 schema 동일).
+- **남은 같은 위험(내가 안 건드림, cowork 판단)**: refine(main.py:7055, ✨다듬기)·summary(main.py:7116, 통화요약) Gemini 호출도 `thinkingConfig` 없음 → 긴 입력서 같은 truncation 가능. 요약은 thinking 이 품질에 도움될 수도 있어 의도였을지 몰라 안 건드림. truncation(MAX_TOKENS) 보이면 동일하게 `thinkingConfig:{thinkingBudget:0}` 적용 권장.
