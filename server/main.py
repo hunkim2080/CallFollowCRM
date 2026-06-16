@@ -7289,6 +7289,247 @@ async def refine_endpoint(req: RefineRequest) -> dict:
 
 
 # ============================================================================
+# §50 — POST /infer-principle  (원칙 발견 Phase 2, 2026-06-17)
+# ─────────────────────────────────────────────────────────────────────────────
+# 안드로이드 ChatViewModel.maybeInferPrinciple() 이 호출.
+# 사장님이 답장 발송 직후 (추천≠실제답, 편집거리 12자+, 하루 2회 cap, scenario_confidence≥0.6)
+# 트리거 — 서버는 LLM 으로 "재사용 가능한 판단 원칙" 한 줄 추론.
+#
+# 모델: Haiku 4.5 (빈도 낮음, 짧은 출력 — 비용 최소).
+# 출력 강건: JSON 강제 + 파싱 실패 시 {"principle": null} 폴백 (앱은 5xx 도 silent).
+#
+# 핸드오프: docs/SERVER_HANDOFF_infer_principle.md
+# ============================================================================
+
+
+class InferPrincipleRequest(BaseModel):
+    customerMessage: str
+    aiSuggestion: str
+    ownerReply: str
+    scenario: Optional[str] = None
+    existingPrinciples: list = Field(default_factory=list)
+    deviceId: Optional[str] = None
+    ownerTrade: Optional[str] = None
+
+
+def _build_infer_principle_system_prompt(
+    existing_principles: list, owner_trade: Optional[str]
+) -> str:
+    """원칙 발견용 system prompt — Haiku 가 짧은 JSON 한 줄로 답하게."""
+    trade = (owner_trade or "").strip() or "시공"
+    cleaned: list = []
+    seen: set = set()
+    for p in (existing_principles or []):
+        s = (p or "").strip()
+        if not s or s in seen:
+            continue
+        seen.add(s)
+        cleaned.append(s)
+        if len(cleaned) >= 30:
+            break
+    if cleaned:
+        existing_block = "\n".join(f"- {p}" for p in cleaned)
+    else:
+        existing_block = "(없음)"
+
+    return f"""너는 {trade} 사장님의 답장 습관에서 "재사용 가능한 판단 원칙"을 찾아내는 분석가다.
+
+────── 입력 ──────
+- 고객이 보낸 메시지
+- AI 가 추천했던 답장
+- 사장님이 실제로 보낸 답장
+- 사장님이 이미 켜놓은 원칙들 (중복 회피용)
+
+────── 핵심 판단 (반드시 지켜라) ──────
+1. 추천과 실제 답의 차이가 **'의도(전략)' 차이**인지, 단순 **말투/오타/길이** 차이인지 판단.
+   - 말투·표현만 다르면 → null. (그건 말투 학습 소관, 원칙이 아님)
+2. **의도 차이**라면 그 의도를 **일반화된 한 줄 원칙**으로.
+   - "이 고객" 이 아니라 "이런 상황의 고객엔" 으로 일반화.
+3. 기존 원칙과 의미가 겹치면 → **무조건 null** (중복 저장 방지).
+4. 너무 특수해서 다시 적용될 일 없으면 → **null**.
+5. 헛스윙 < 침묵. **확신 없으면 null**.
+
+────── 원칙 문체 규칙 ──────
+- 평서문 한 줄, 25자~45자.
+- "~한다" 체 (주어 생략 가능).
+- 고객 실명·특정 금액·날짜 절대 X (일반화).
+- "내가 ~한다" 보다 "~엔 ~한다" 가 좋음 (조건 + 행동).
+
+좋은 예: "신축 문의엔 즉답 견적 대신 방문 견적을 먼저 권한다"
+나쁜 예: "김신축 고객에게 35만원 대신 방문하기로 했다" (특정·일회성 → null)
+
+────── 기존 원칙 (중복 회피) ──────
+{existing_block}
+
+────── 출력 형식 — 반드시 JSON 만 ──────
+새로 배울 게 있을 때:
+{{"principle":"<25~45자 한 줄 원칙>","question":"<카드에 보일 질문체>"}}
+
+배울 게 없거나 애매하거나 기존과 중복일 때:
+{{"principle":null}}
+
+질문체 예: "방금 보니 — 신축 문의엔 바로 가격을 알려주기보다 '방문 견적'을 먼저 권하시네요. 혹시 이게 사장님 원칙이에요?"
+
+엄격: JSON 한 덩어리만 출력. 코드펜스(`) · 설명 · 인사 · 마크다운 · 따옴표 외 텍스트 절대 금지.
+"""
+
+
+def _build_infer_principle_user_message(req: InferPrincipleRequest) -> str:
+    """LLM 에 보낼 user 메시지."""
+    parts: list = []
+    if req.scenario:
+        parts.append(f"[추천 시나리오] {req.scenario}")
+        parts.append("")
+    parts.append("[고객 메시지]")
+    parts.append(req.customerMessage or "")
+    parts.append("")
+    parts.append("[AI 가 추천했던 답]")
+    parts.append(req.aiSuggestion or "")
+    parts.append("")
+    parts.append("[사장님이 실제로 보낸 답]")
+    parts.append(req.ownerReply or "")
+    parts.append("")
+    parts.append("위 차이가 의도(전략) 차이인지 말투 차이인지 판단하고, 의도 차이면 일반화된 한 줄 원칙으로. 형식: JSON 한 덩어리만.")
+    return "\n".join(parts)
+
+
+def _parse_infer_principle_response(text: str) -> dict:
+    """LLM 응답에서 {principle, question} 강건 파싱. 실패 시 {principle: None}.
+
+    1. 코드펜스(```json ... ```) 제거.
+    2. 첫 { 부터 마지막 } 까지 추출.
+    3. json.loads 시도.
+    4. principle 키 검증 (str 또는 None).
+    5. principle 이 너무 짧거나(<10자) 너무 길면(>80자) → None.
+    """
+    if not text:
+        return {"principle": None}
+    s = text.strip()
+    # 코드펜스 제거
+    if s.startswith("```"):
+        # ```json\n...\n``` 또는 ```\n...\n```
+        s = s.lstrip("`")
+        # json 또는 빈 줄 시작 처리
+        if s.lower().startswith("json"):
+            s = s[4:].lstrip()
+        # 끝 ``` 제거
+        if s.endswith("```"):
+            s = s[:-3].rstrip()
+    # 첫 { 부터 마지막 } 까지
+    start = s.find("{")
+    end = s.rfind("}")
+    if start < 0 or end < 0 or end <= start:
+        return {"principle": None}
+    json_str = s[start:end + 1]
+    try:
+        data = json.loads(json_str)
+    except (json.JSONDecodeError, ValueError):
+        return {"principle": None}
+    if not isinstance(data, dict):
+        return {"principle": None}
+    principle = data.get("principle")
+    # principle 검증
+    if principle is None:
+        return {"principle": None}
+    if not isinstance(principle, str):
+        return {"principle": None}
+    principle = principle.strip()
+    # 너무 짧거나 너무 길면 (스펙: 25~45자 권장, 안전 마진 10~80)
+    if len(principle) < 10 or len(principle) > 80:
+        return {"principle": None}
+    question = data.get("question")
+    if isinstance(question, str):
+        question = question.strip()
+        if len(question) > 300:
+            question = question[:300]
+    else:
+        question = None
+    out = {"principle": principle}
+    if question:
+        out["question"] = question
+    return out
+
+
+@app.post("/infer-principle")
+async def infer_principle_endpoint(req: InferPrincipleRequest) -> dict:
+    """§50 — 사장님 답장 vs AI 추천 차이에서 재사용 가능한 원칙 한 줄 추론.
+
+    실패·애매 시 모두 {"principle": null}. 앱은 그것 받으면 카드 안 띄움.
+    5xx 도 앱은 silent (catch swallow).
+    """
+    customer_msg = (req.customerMessage or "").strip()
+    ai_sugg = (req.aiSuggestion or "").strip()
+    owner_reply = (req.ownerReply or "").strip()
+    # 필수 입력 비어있으면 null (앱이 검증해야 하지만 안전망)
+    if not customer_msg or not ai_sugg or not owner_reply:
+        print(f"[infer-principle] 입력 비어있음 → null (msg={bool(customer_msg)} sugg={bool(ai_sugg)} reply={bool(owner_reply)})")
+        return {"principle": None}
+
+    if not CLAUDE_API_KEY:
+        print("[infer-principle] CLAUDE_API_KEY 미설정 → null")
+        return {"principle": None}
+
+    system_prompt = _build_infer_principle_system_prompt(
+        req.existingPrinciples or [], req.ownerTrade
+    )
+    user_msg = _build_infer_principle_user_message(req)
+
+    try:
+        response = await claude_client.messages.create(
+            model=HAIKU_MODEL,
+            max_tokens=400,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_msg}],
+        )
+    except anthropic.BadRequestError as e:
+        # 4xx — 크레딧 부족 등. silent null.
+        print(f"[infer-principle] Anthropic 4xx: {type(e).__name__}: {str(e)[:200]}")
+        return {"principle": None}
+    except Exception as e:
+        print(f"[infer-principle] Anthropic 호출 실패: {type(e).__name__}: {str(e)[:200]}")
+        return {"principle": None}
+
+    # 응답 텍스트 추출
+    raw_text = ""
+    try:
+        for block in response.content:
+            if getattr(block, "type", None) == "text":
+                raw_text += getattr(block, "text", "") or ""
+    except Exception as e:
+        print(f"[infer-principle] response.content 추출 실패: {type(e).__name__}: {e}")
+        return {"principle": None}
+
+    # 사용량 로깅
+    try:
+        usage = response.usage
+        prompt_tokens = getattr(usage, "input_tokens", 0) or 0
+        completion_tokens = getattr(usage, "output_tokens", 0) or 0
+        cache_read = getattr(usage, "cache_read_input_tokens", 0) or 0
+        cache_write = getattr(usage, "cache_creation_input_tokens", 0) or 0
+        log_llm_usage(
+            endpoint="infer-principle",
+            model=response.model or HAIKU_MODEL,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            cache_read_tokens=cache_read,
+            cache_write_tokens=cache_write,
+        )
+    except Exception as e:
+        print(f"[infer-principle] usage 기록 실패 (무시): {type(e).__name__}: {e}")
+        prompt_tokens = completion_tokens = 0
+
+    parsed = _parse_infer_principle_response(raw_text)
+    print(
+        f"[infer-principle] OK in={prompt_tokens} out={completion_tokens} "
+        f"deviceId={req.deviceId or '-'} trade={req.ownerTrade or '-'} "
+        f"existing={len(req.existingPrinciples or [])} "
+        f"result={'principle' if parsed.get('principle') else 'null'} "
+        f"raw_len={len(raw_text)}"
+    )
+    return parsed
+
+
+# ============================================================================
 # §18 — POST /api/call-summary  (에이닷 통화요약 원문 → 1줄 + 불릿 + 후속 문자 초안)
 # ─────────────────────────────────────────────────────────────────────────────
 # 안드로이드 측 흐름:

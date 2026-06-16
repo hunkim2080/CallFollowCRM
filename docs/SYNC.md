@@ -4872,3 +4872,58 @@ versionName "0.2-beta" 고정 + 첫 실행 "최근 7일 통화 따라잡기" (�
   1. (대기 중) 누적 배포: Gemini fix + device_id 격리 + 멀티업종 + 원칙주입 → `git pull --rebase` → `bash server/deploy_phase1.sh`.
   2. **(신규) `POST /infer-principle`** — 스펙: **`docs/SERVER_HANDOFF_infer_principle.md`**. 없으면 발견 카드는 안 뜸(앱은 silent, 무해). Haiku 4.5 권장. 추천≠실제답에서 한 줄 원칙 추론, 기존/애매/일회성이면 `{"principle":null}`.
 - 검증: 앱 컴파일 OK. 발견 카드 end-to-end 는 `/infer-principle` 배포 후 가능.
+## 2026-06-17 · cowork (server) — A 배포 안내 + B /infer-principle 구현
+안드로이드 핸드오프 (2026-06-17) 처리.
+
+### A. 배포 (사장님 한 줄 명령)
+이미 main 에 push 된 변경분 적용. 사장님이 맥미니에서:
+- thinkingBudget=0 (이미 배포됨, 직전 사이클)
+- prepare-reply device_id 폰별 격리 (신규)
+- 멀티업종 ownerTrade/priceList (신규)
+- 원칙 주입 principles[] (신규)
+→ `git pull --rebase + cp + launchctl kickstart` 한 줄로 모두 적용.
+
+### B. POST /infer-principle 신규 endpoint
+docs/SERVER_HANDOFF_infer_principle.md 그대로 구현.
+
+#### 입력 (Pydantic — Optional[...] 으로 Python 3.9 호환)
+- `customerMessage: str` (필수)
+- `aiSuggestion: str` (필수)
+- `ownerReply: str` (필수)
+- `scenario: Optional[str]`
+- `existingPrinciples: list` (default [])
+- `deviceId: Optional[str]`
+- `ownerTrade: Optional[str]`
+
+#### 출력
+- 새 원칙 발견: `{"principle": "한 줄 25~45자", "question": "카드 질문체"}`
+- 애매/일회성/중복: `{"principle": null}` (앱이 카드 안 띄움)
+
+#### 구현 포인트
+1. **모델**: HAIKU_MODEL (claude-haiku-4-5) — 빈도 낮음·짧은 출력 비용 최소.
+2. **JSON 강건 파싱**: 코드펜스 제거 + 첫 `{` ~ 마지막 `}` 추출 + json.loads + 길이 검증 (10~80자) + 실패 시 `{principle: null}` 폴백.
+3. **시스템 프롬프트**:
+   - 추천 vs 실제답 차이가 의도(전략) 차이인지 말투 차이인지 판단
+   - 말투 차이 → null
+   - existingPrinciples 와 의미 중복 → null
+   - 너무 특수 → null
+   - 좋은예/나쁜예 박힘
+4. **에러 처리**: Anthropic 4xx (크레딧 부족 등) / 일반 에러 / parse 실패 모두 `{principle: null}` 반환 — 앱은 silent.
+5. **로깅**: `log_llm_usage(endpoint="infer-principle", ...)` + stdout `[infer-principle] OK in=N out=N deviceId=... trade=... existing=N result=principle|null`.
+
+#### 검증 curl (배포 후)
+```bash
+# 원칙 있는 케이스 — principle 반환 기대
+curl -s -X POST https://api.si0in.kr/infer-principle \
+  -H 'content-type: application/json' \
+  -d '{"customerMessage":"신축 입주 줄눈 견적요","aiSuggestion":"거실 35만원이에요","ownerReply":"신축은 방문해서 봐야 정확해요, 한번 들를게요","scenario":"price_inquiry","existingPrinciples":[]}' | python3 -m json.tool
+
+# 거의 같은 답 — null 기대
+curl -s -X POST https://api.si0in.kr/infer-principle \
+  -H 'content-type: application/json' \
+  -d '{"customerMessage":"안녕하세요","aiSuggestion":"네 안녕하세요","ownerReply":"네 안녕하세요!","scenario":"general","existingPrinciples":[]}' | python3 -m json.tool
+```
+
+### 다음 액션 (사장님)
+한 줄: `git pull --rebase + cp + launchctl kickstart` (deploy_phase1.sh 의 plist 단계 우회).
+배포 후 위 curl 2개 검증.
