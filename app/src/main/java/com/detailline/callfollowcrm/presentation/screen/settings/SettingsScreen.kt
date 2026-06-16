@@ -1379,8 +1379,15 @@ private fun AutoSmsSection(
                     Modifier.clip(RoundedCornerShape(12.dp))
                         .background(if (newSpamPrefix.isNotBlank()) TossBlue else TossGrayBg)
                         .clickable(enabled = newSpamPrefix.isNotBlank()) {
-                            spamPrefixes = spamPrefixes + newSpamPrefix
-                            prefs.spamPrefixes = spamPrefixes
+                            val p = newSpamPrefix
+                            // 저장 됐는지 사장님이 헷갈리던 통점(2026-06-16): 추가 결과를 토스트로 분명히 알림 + 중복 안내.
+                            if (p in spamPrefixes) {
+                                android.widget.Toast.makeText(ctx, "‘$p’ 는 이미 등록돼 있어요", android.widget.Toast.LENGTH_SHORT).show()
+                            } else {
+                                spamPrefixes = spamPrefixes + p
+                                prefs.spamPrefixes = spamPrefixes   // .commit() = 즉시 저장
+                                android.widget.Toast.makeText(ctx, "‘$p’ 저장됐어요 ✓ — 위 ‘등록된 앞자리’에 추가됐어요", android.widget.Toast.LENGTH_SHORT).show()
+                            }
                             newSpamPrefix = ""
                         }
                         .padding(horizontal = 18.dp, vertical = 14.dp),

@@ -55,6 +55,8 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -275,6 +277,10 @@ fun ChatScreen(
     //   init = ChatDraftStore.get(phone), 변경 시 자동 save, 전송 후 input="" = 자동 clear (set 이 empty 면 remove).
     var input by remember { mutableStateOf(viewModel.loadDraft()) }
     LaunchedEffect(input) { viewModel.saveDraft(input) }
+    // 입력창 커서 위치 — 캘린더/템플릿 등 프로그램적 삽입을 "끝"이 아니라 정확한 위치에 넣기 위함. (2026-06-16 사장님)
+    var inputSelection by remember { mutableStateOf(TextRange(input.length)) }
+    // 본문을 통째로 바꾸는 프로그램적 채우기(템플릿·다듬기·발송클리어 등)는 커서를 항상 끝으로.
+    val setInput: (String) -> Unit = { s -> input = s; inputSelection = TextRange(s.length) }
     var fullscreenImages by remember { mutableStateOf<List<android.net.Uri>?>(null) }
     var fullscreenStart by remember { mutableStateOf(0) }
     // 권한 요청 직후 자동 재시도용 — 입력 본문을 기억.
@@ -372,7 +378,7 @@ fun ChatScreen(
         val body = pendingSend
         pendingSend = null
         if (granted && body != null) {
-            viewModel.sendMessage(context, body) { ok -> if (ok) { input = ""; markIfEstimate(body) } }
+            viewModel.sendMessage(context, body) { ok -> if (ok) { setInput(""); markIfEstimate(body) } }
         }
     }
 
@@ -426,7 +432,7 @@ fun ChatScreen(
             } else {
                 viewModel.sendMessageWithPhotos(context, body, photos) { ok ->
                     if (ok) {
-                        input = ""
+                        setInput("")
                         attachedPhotos = emptyList()
                         markIfEstimate(body)
                     } else {
@@ -439,7 +445,7 @@ fun ChatScreen(
                                 attachmentUris = photos
                             )
                         if (result is com.detailline.callfollowcrm.util.SmsIntentHelper.Result.Opened) {
-                            input = ""
+                            setInput("")
                             attachedPhotos = emptyList()
                         }
                     }
@@ -450,7 +456,7 @@ fun ChatScreen(
                 pendingSend = body
                 sendPermissionLauncher.launch(Manifest.permission.SEND_SMS)
             } else {
-                viewModel.sendMessage(context, body) { ok -> if (ok) { input = ""; markIfEstimate(body) } }
+                viewModel.sendMessage(context, body) { ok -> if (ok) { setInput(""); markIfEstimate(body) } }
             }
         }
     }
@@ -687,7 +693,7 @@ fun ChatScreen(
                                     audioUri = callRec?.fileUri,
                                     audioDurationMs = callRec?.duration,
                                     onUseAsDraft = { msg ->
-                                        input = if (input.isBlank()) msg else input + "\n" + msg
+                                        setInput(if (input.isBlank()) msg else input + "\n" + msg)
                                     },
                                     onSummarizeCall = { viewModel.summarizeCall(ti.record, context) }
                                 )
@@ -741,7 +747,7 @@ fun ChatScreen(
                         // 2026-05-29 킬러콘텐츠 3단계 — chip 탭 시그널 capture.
                         //   ViewModel 이 picked snapshot 보관 → send 후 SENT_AS_IS/EDITED/REFINED 판정.
                         viewModel.onSuggestionTapped(picked)
-                        input = picked.text
+                        setInput(picked.text)
                         // 답변 추천 사용 직후 = 자동 접힘 (사장님이 보낼 본문에 집중)
                         suggestionsExpanded = false
                     },
@@ -752,10 +758,12 @@ fun ChatScreen(
             // composer pill — 인스타 DM 스타일 ([✨][📷][입력][▶]) + 사진 첨부 미리보기
             Composer(
                 input = input,
+                selection = inputSelection,
                 onChange = { input = it },
+                onSelectionChange = { inputSelection = it },
                 isPolishing = polishing,
                 onAiPolish = {
-                    viewModel.aiPolish(input) { polished -> input = polished }
+                    viewModel.aiPolish(input) { polished -> setInput(polished) }
                 },
                 onAttachPhoto = { showPhotoPicker = true },
                 attachments = attachedPhotos,
@@ -935,8 +943,16 @@ fun ChatScreen(
             jobs = scheduledJobs,
             onDismiss = { myScheduleOpen = false },
             onPickDate = { dateText ->
-                // 선택한 날짜를 대화창에 넣고 시트 닫기 — 사장님이 바로 보내거나 이어 쓰게.
-                input = if (input.isBlank()) dateText else input.trimEnd() + " " + dateText
+                // 선택한 날짜를 "커서 위치"에 넣는다 (끝이 아니라). 사장님이 문장 중간에 끼워넣을 수 있게. (2026-06-16)
+                val start = inputSelection.start.coerceIn(0, input.length)
+                val end = inputSelection.end.coerceIn(0, input.length)
+                val before = input.substring(0, start)
+                val after = input.substring(end)
+                // 앞 글자가 공백이 아니면 한 칸 띄워서 단어가 붙지 않게.
+                val lead = if (before.isNotEmpty() && !before.last().isWhitespace()) " " else ""
+                val piece = lead + dateText
+                input = before + piece + after
+                inputSelection = TextRange(start + piece.length)  // 커서를 넣은 날짜 바로 뒤로.
                 myScheduleOpen = false
             }
         )
@@ -971,7 +987,7 @@ fun ChatScreen(
         TemplatePickerDialog(
             category = "",
             templates = templates,
-            onPick = { tpl -> input = if (input.isBlank()) tpl.body else input + "\n" + tpl.body; tplPickerOpen = false },
+            onPick = { tpl -> setInput(if (input.isBlank()) tpl.body else input + "\n" + tpl.body); tplPickerOpen = false },
             onDelete = { id -> viewModel.deleteTemplate(id) },
             onSaveCurrent = { viewModel.saveTextAsTemplate(input) },
             canSaveCurrent = input.isNotBlank(),
@@ -1126,7 +1142,7 @@ fun ChatScreen(
                 // P3 — RESERVATION 흐름 (시공일 등록 직후 또는 request_deposit) 이면
                 // 본문 앞에 "예약 일정: 5월 26일 (수)" 한 줄 자동 prepend.
                 val ms = depositPrefillScheduledMs
-                input = if (ms != null) prependScheduleNote(tpl.body, ms) else tpl.body
+                setInput(if (ms != null) prependScheduleNote(tpl.body, ms) else tpl.body)
                 depositPrefillScheduledMs = null
                 templatePickerCategory = null
             },
@@ -1195,7 +1211,7 @@ fun ChatScreen(
             val cleaned = input.replace(proposalPattern, "").lines()
                 .joinToString("\n") { it.trimEnd() }
                 .trimEnd('\n', ' ')
-            input = if (cleaned.isBlank()) proposal else "$cleaned\n$proposal"
+            setInput(if (cleaned.isBlank()) proposal else "$cleaned\n$proposal")
             showProposalDatePicker = false
         }
         val screenHeightDp = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
@@ -1279,7 +1295,7 @@ fun ChatScreen(
             bizPhone = estPrefs.bizPhone,
             validDays = estPrefs.bizQuoteValidDays,
             onConfirm = { body ->
-                input = body
+                setInput(body)
                 // composer 채우기만 — 아직 발송 아님. 실제 발송 성공 시 markIfEstimate 가 기록.
                 estimateBody = body
                 showEstimateBuilder = false
@@ -1304,7 +1320,7 @@ fun ChatScreen(
             onIssueIntake = { issItems, total, y, mo, d, days, dm, dv ->
                 viewModel.issueQuoteIntake(issItems, total, y, mo, d, days, dm, dv) { result ->
                     result.onSuccess { draftLink ->
-                        input = draftLink
+                        setInput(draftLink)
                         showEstimateBuilder = false
                         resetEstimateDraft()
                         android.widget.Toast.makeText(estCtx, "접수서 링크를 문자에 넣었어요 · ▶ 눌러 보내세요", android.widget.Toast.LENGTH_SHORT).show()
@@ -2209,7 +2225,9 @@ private fun QuickActionPill(label: String, emoji: String, onTap: () -> Unit) {
 @Composable
 private fun Composer(
     input: String,
+    selection: TextRange,
     onChange: (String) -> Unit,
+    onSelectionChange: (TextRange) -> Unit,
     isPolishing: Boolean,
     onAiPolish: () -> Unit,
     onAttachPhoto: () -> Unit,
@@ -2298,8 +2316,15 @@ private fun Composer(
                     )
                 }
                 BasicTextField(
-                    value = input,
-                    onValueChange = onChange,
+                    // 커서 위치를 추적하려면 TextFieldValue 필요. selection 은 본문 길이 안으로 coerce(외부 채우기와 어긋나도 안전).
+                    value = TextFieldValue(
+                        text = input,
+                        selection = TextRange(
+                            selection.start.coerceIn(0, input.length),
+                            selection.end.coerceIn(0, input.length)
+                        )
+                    ),
+                    onValueChange = { tfv -> onChange(tfv.text); onSelectionChange(tfv.selection) },
                     textStyle = TextStyle(color = TossTextPrimary, fontSize = 14.sp, lineHeight = 21.sp),
                     cursorBrush = SolidColor(TossBlue),
                     maxLines = 5,
