@@ -948,11 +948,12 @@ fun ChatScreen(
                 val end = inputSelection.end.coerceIn(0, input.length)
                 val before = input.substring(0, start)
                 val after = input.substring(end)
-                // 앞 글자가 공백이 아니면 한 칸 띄워서 단어가 붙지 않게.
+                // 앞/뒤 글자가 공백이 아니면 한 칸씩 띄워 단어가 붙지 않게(중간 삽입 대비).
                 val lead = if (before.isNotEmpty() && !before.last().isWhitespace()) " " else ""
-                val piece = lead + dateText
+                val trail = if (after.isNotEmpty() && !after.first().isWhitespace()) " " else ""
+                val piece = lead + dateText + trail
                 input = before + piece + after
-                inputSelection = TextRange(start + piece.length)  // 커서를 넣은 날짜 바로 뒤로.
+                inputSelection = TextRange(start + piece.length)  // 커서를 넣은 날짜(+뒤 공백) 다음으로.
                 myScheduleOpen = false
             }
         )
