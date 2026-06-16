@@ -134,6 +134,7 @@ fun SettingsScreen(
     onOpenReport: () -> Unit = {},
     onOpenTradeSelect: () -> Unit = {},
     onOpenRecurring: () -> Unit = {},
+    onOpenPrinciples: () -> Unit = {},
     onShowIntro: () -> Unit = {},
     /** 진입 시 바로 열 서브페이지 ("autosms" = 자동 문자, 부재중 응답 펼침). null = 일반 더보기. */
     initialSubPage: String? = null
@@ -292,6 +293,14 @@ fun SettingsScreen(
                         ragProgress = toneRagProgress,
                         onConsentAndUpload = { viewModel.uploadOwnerTone(consentNow = true) },
                         onUpload = { viewModel.uploadOwnerTone(consentNow = false) }
+                    )
+                    Spacer(Modifier.height(14.dp))
+                    // 막내가 알아낸 원칙 (판단 기준 = 3번째 학습 층). (2026-06-17)
+                    LockRow(
+                        Icons.Filled.AutoAwesome, Color(0xFFF1ECFF), Color(0xFF7C5CFC),
+                        "막내가 알아낸 원칙",
+                        "막내가 사장님 답변에서 찾은 판단 기준 · 수정/삭제",
+                        onClick = onOpenPrinciples
                     )
                     Spacer(Modifier.height(16.dp))
                 }
