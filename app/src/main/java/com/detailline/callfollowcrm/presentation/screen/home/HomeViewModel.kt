@@ -777,7 +777,12 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             // 스팸 등록(앞자리/마킹) 번호는 상담함 목록에서 제외 — 들어오지도, 추천 준비도 안 함. (2026-06-17 사장님)
             .filterNot { spam.isSpam(it.record.phoneNumber, phoneSuffix(it.record.phoneNumber)) }
             .filter { f.accept(it) }
-            .map { it.copy(lastActivityMs = activityMs(it)) }
+            .map { item ->
+                val suffix = phoneSuffix(item.record.phoneNumber)
+                // 마지막 활동이 통화인가 = 통화가 있고, 그 통화가 마지막 SMS 보다 최신(또는 같음). (2026-06-17 사장님)
+                val wasCall = item.callCount > 0 && item.record.endedAt >= (smsLatestBySuffix[suffix] ?: 0L)
+                item.copy(lastActivityMs = activityMs(item), lastActivityWasCall = wasCall)
+            }
             .groupBy { DateTimeUtils.startOfDay(it.lastActivityMs) }
             .toSortedMap(compareByDescending { it })
             .map { (dayStart, items) ->
@@ -1142,7 +1147,12 @@ data class HomeItem(
      */
     val lastSent: Boolean? = null,
     /** 이 번호의 마지막 SMS 본문(표시용). 안 읽음 줄은 요약 대신 이 "실제 한 말"을 보여준다. */
-    val lastBody: String? = null
+    val lastBody: String? = null,
+    /**
+     * 마지막 활동이 '통화'인가 (통화가 마지막 SMS 보다 최신) — 통화로 끝난 대화 판정.
+     *   true 면 답할 문자가 없으므로 대기 카드가 "AI 답변 준비 중" 대신 통화 안내를 보여준다. (2026-06-17 사장님)
+     */
+    val lastActivityWasCall: Boolean = false
 )
 
 /** 홈 시공 안내 remind-card 표시 모델 (프로토 remind-card). */

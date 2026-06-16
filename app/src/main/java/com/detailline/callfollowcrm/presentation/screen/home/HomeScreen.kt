@@ -2830,9 +2830,9 @@ private fun WaitingCard(
                     }
                 }
             }
-        } else if (item.lastBody.isNullOrBlank()) {
-            // 통화/부재중만 있는 손님 — 답장할 문자가 없는데 "AI 답변 준비 중"이 떠 버그처럼 보임(2026-06-14).
-            //   → AI 준비 중 대신 통화 안내 + [문자하기](대화 시작).
+        } else if (item.lastBody.isNullOrBlank() || item.lastActivityWasCall) {
+            // 통화/부재중만 있거나, 문자 뒤 마지막이 '통화로 끝난' 손님 — 답장할 문자가 없는데
+            //   "AI 답변 준비 중"이 떠 버그처럼 보임(2026-06-14, 2026-06-17 사장님). → 통화 안내 + [문자하기].
             val missed = item.record.callType == "MISSED"
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Call, null, tint = TossTextTertiary, modifier = Modifier.size(13.dp))
