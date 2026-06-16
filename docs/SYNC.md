@@ -4797,3 +4797,12 @@ SYNC 추가30 그대로. 한 줄 변경 + 진단 로그 추가.
 - ④: 홈 진입 시 하루 1회 GET https://si0in.kr/api/download/version → mtime_ms 가 BUILD_TIMESTAMP+10분 보다 새로우면 홈 상단 파란 배너 "✨ 새 버전이 나왔어요! [받기]" → 외부 브라우저 https://si0in.kr/install. throttle/결과는 AppPreferences(lastUpdateCheckMs·updateAvailable). UpdateChecker(util, OkHttp). 실패=조용히 무배너.
 - **cowork 확인 요청**: GET /api/download/version 응답에 `mtime_ms`(서버 shigongmagne.apk 파일 수정시각, epoch ms) 필드 필요. 없으면 배너 영영 안 뜸. (mtime 10분 여유 = 업로드 지연 자기오탐 방지.)
 - 검증: 빌드 OK(versionCode 572 확인), 폰 설치, 홈 진입 무크래시 + 체크 정상(이 빌드 최신이라 배너 안 뜸=정상). 사진 갤러리 스와이프 1/2→2/2 실기 확인.
+
+## 2026-06-16 08:20 · android
+versionName "0.2-beta" 고정 + 첫 실행 "최근 7일 통화 따라잡기" (사장님: 새 사장님 첫 경험 점검 → "통화만 따라잡기, 추천 생성 없이" 선택)
+- versionName 을 "beta-{시각}" → "0.2-beta" 로(화면 라벨). versionCode 는 그대로 git 커밋수 자동(현재 575). 폰 설정엔 "0.2-beta (575)" 로 보임. (직전 빌드가 같은 커밋이라 575 안 올라가던 게 "같은 버전" 원인이었음 → 커밋 시 자동 +1)
+- **첫 실행 데이터 범위 점검 결과(서버와 무관, 참고)**: 새 사장님 설치 시 — 문자 연락처만 로컬 캐시(최대 500명, 폰 안), 통화/요약/녹음/추천은 0에서 시작. 녹음은 폴더 연결(명시 동의) 전엔 0이고 연결해도 연결시점 이후만. 미확인 추천은 GET /suggestions(읽기)만 → 새 사장님은 서버에 준비분 없어 거의 MISSING(생성·과금 0). **과거 무더기 요약/업로드 없음.**
+- 보완: 통화 기록만 첫 실행 1회 최근 7일 import(상담함이 전화-only 고객으로도 채워지게). AppPreferences.initialCallLogImported(권한 없으면 재시도) + CallLogHelper.queryRecentSince + CallRecordRepository.importCallLogSince(기존 syncRecentCallLog 와 동일 dedup·UNHANDLED). 부재중·미답장은 자동 '미확인'. **서버 추천 생성 호출 없음 = 비용 0.**
+- 변경: 앱 단독, 서버 영향 없음.
+- 검증: 빌드 OK(575), 폰 release 575 in-place 설치(데이터 보존)·런치 무크래시. dedup 동일(CallStateReceiver/import 둘 다 startedAt=CallLog DATE) → 중복 카드 없음 확인. shigongmagne.apk(575) 갱신.
+- **cowork 확인(낮은 우선순위)**: GET /suggestions/{phone} 가 "모르는 번호"로 들어와도 서버가 LLM 생성을 트리거하지 않는지(앱은 읽기만 함). 트리거하면 새 사장님 첫 홈 로드에서 미확인 수만큼 생성될 수 있음.
