@@ -909,7 +909,10 @@ class ChatViewModel(
                     ownerTrade = container.preferences.ownerTrades.firstOrNull(),
                     priceList = withContext(Dispatchers.IO) {
                         runCatching { container.pricingItemRepository.priceListText() }.getOrDefault("")
-                    }.takeIf { it.isNotBlank() }
+                    }.takeIf { it.isNotBlank() },
+                    principles = withContext(Dispatchers.IO) {
+                        runCatching { container.principleRepository.enabledTexts() }.getOrDefault(emptyList())
+                    }.takeIf { it.isNotEmpty() }
                 )
                 val prep = container.suggestionRepository.requestPrepare(ctx)
                 if (prep.isFailure) {

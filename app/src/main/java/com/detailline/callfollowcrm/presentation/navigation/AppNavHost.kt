@@ -45,6 +45,8 @@ import com.detailline.callfollowcrm.presentation.screen.stats.StatsScreen
 import com.detailline.callfollowcrm.presentation.screen.trade.TradeSelectScreen
 import com.detailline.callfollowcrm.presentation.screen.stylelearning.StyleLearningScreen
 import com.detailline.callfollowcrm.presentation.screen.stylelearning.StyleLearningViewModel
+import com.detailline.callfollowcrm.presentation.screen.principle.PrincipleManageScreen
+import com.detailline.callfollowcrm.presentation.screen.principle.PrincipleManageViewModel
 import com.detailline.callfollowcrm.presentation.screen.template.TemplateEditScreen
 import com.detailline.callfollowcrm.presentation.screen.template.TemplateEditViewModel
 import com.detailline.callfollowcrm.presentation.screen.template.TemplateListScreen
@@ -215,6 +217,17 @@ fun AppNavHost(
                 factory = viewModelFactory { StyleLearningViewModel(container) }
             )
             StyleLearningScreen(
+                viewModel = vm,
+                onBack = { navController.popBackStack() },
+                onOpenPrinciples = { navController.navigate(Destinations.PRINCIPLES) }
+            )
+        }
+
+        composable(Destinations.PRINCIPLES) {
+            val vm: PrincipleManageViewModel = viewModel(
+                factory = viewModelFactory { PrincipleManageViewModel(container) }
+            )
+            PrincipleManageScreen(
                 viewModel = vm,
                 onBack = { navController.popBackStack() }
             )

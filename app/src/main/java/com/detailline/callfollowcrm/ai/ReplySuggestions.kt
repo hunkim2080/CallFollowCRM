@@ -87,7 +87,12 @@ data class PrepareContext(
      * 사장님이 앱에 입력한 가격표(텍스트). 서버가 전역 줄눈 pricing.md 대신 이걸 AI에 주입.
      * 비면 서버가 "가격표 없음 — 추측 금지"로 처리. (2026-06-17)
      */
-    val priceList: String? = null
+    val priceList: String? = null,
+    /**
+     * "막내가 알아낸 사장님 원칙" (켜진 것). 서버가 답변의 판단 기준으로 주입. (2026-06-17)
+     * 말투/사례 위 3번째 층 = 왜 그렇게 답하는지.
+     */
+    val principles: List<String>? = null
 )
 
 data class HistoryMessage(

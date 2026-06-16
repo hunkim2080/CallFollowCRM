@@ -160,7 +160,10 @@ class MmsDownloadService : MmsReceivedService() {
                 ownerTrade = container.preferences.ownerTrades.firstOrNull(),
                 priceList = runBlocking {
                     runCatching { container.pricingItemRepository.priceListText() }.getOrDefault("")
-                }.takeIf { it.isNotBlank() }
+                }.takeIf { it.isNotBlank() },
+                principles = runBlocking {
+                    runCatching { container.principleRepository.enabledTexts() }.getOrDefault(emptyList())
+                }.takeIf { it.isNotEmpty() }
             )
             runBlocking { container.suggestionRepository.requestPrepare(ctx) }
             // 캐시 prefetch — 사장님이 알림 → ChatScreen 진입 시 즉시 표시.

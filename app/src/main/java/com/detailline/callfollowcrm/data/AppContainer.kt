@@ -72,6 +72,7 @@ class AppContainer(context: Context) {
     val cachedMessageRepository = CachedMessageRepository(db.cachedMessageDao())
     val conversationAiRepository = ConversationAiRepository(db.aiSummaryDao())
     val pricingItemRepository = PricingItemRepository(db.pricingItemDao())
+    val principleRepository = com.detailline.callfollowcrm.data.repository.PrincipleRepository(db.principleDao())
     val categoryRepository = CategoryRepository(db.categoryDao(), db.customerDao())
     // 2026-05-30 #7 — 입금 상태 기반 자동 카테고리 분류 (시공 대기 / 시공 완료).
     val autoCategoryClassifier = com.detailline.callfollowcrm.data.repository.AutoCategoryClassifier(

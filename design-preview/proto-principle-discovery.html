@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>막내 원칙 발견 — 컨셉 시안</title>
+<style>
+  :root{
+    --blue:#3182F6; --blue-soft:#E8F1FE; --blue-deep:#1B64DA;
+    --teal:#0E9E90; --teal-soft:#E7F5F3;
+    --t1:#191F28; --t2:#6B7684; --t3:#B0B8C1;
+    --line:#EAEDF0; --bg:#F2F4F6; --card:#fff;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  body{margin:0; background:#dfe3e8; font-family:-apple-system,'Apple SD Gothic Neo','Noto Sans KR',sans-serif; color:var(--t1);
+       display:flex; flex-direction:column; align-items:center; padding:18px 10px 40px;}
+  .note{max-width:390px; font-size:12.5px; color:#4b5563; background:#fffbe6; border:1px solid #ffe58f;
+        border-radius:10px; padding:9px 12px; margin-bottom:12px; line-height:1.5;}
+  .phone{width:390px; max-width:100%; background:var(--bg); border-radius:26px; overflow:hidden;
+         box-shadow:0 12px 40px rgba(0,0,0,.22); border:1px solid #d4d9df;}
+  /* header */
+  .hdr{background:#fff; display:flex; align-items:center; gap:10px; padding:13px 16px; border-bottom:1px solid var(--line);}
+  .back{color:var(--t2); font-size:20px;}
+  .hdr .who{font-weight:800; font-size:16px;}
+  .hdr .sub{font-size:11.5px; color:var(--t3); font-weight:600;}
+  .grow{flex:1;}
+  .ic{color:var(--blue); font-size:17px;}
+  /* chat */
+  .chat{padding:16px 14px 10px; min-height:300px;}
+  .day{ text-align:center; font-size:11px; color:var(--t3); margin:4px 0 14px;}
+  .row{display:flex; margin-bottom:14px;}
+  .row.me{justify-content:flex-end;}
+  .bub{max-width:78%; padding:11px 14px; border-radius:16px; font-size:14px; line-height:1.5; white-space:pre-wrap;}
+  .bub.cust{background:#fff; border:1px solid var(--line); border-top-left-radius:5px;}
+  .bub.me{background:var(--blue); color:#fff; border-top-right-radius:5px;}
+  .stamp{font-size:10.5px; color:var(--t3); align-self:flex-end; margin:0 6px;}
+
+  /* 추천이었던 답 (muted) */
+  .sugg{margin:2px 0 14px; background:#fff; border:1px dashed #cdd5de; border-radius:14px; padding:10px 13px;}
+  .sugg .lab{font-size:11px; font-weight:800; color:var(--t3); margin-bottom:5px; letter-spacing:.2px;}
+  .sugg .txt{font-size:13px; color:var(--t2); line-height:1.5;}
+
+  /* divergence marker */
+  .diverge{display:flex; align-items:center; gap:8px; margin:0 4px 12px; color:#E0892B; font-size:11.5px; font-weight:800;}
+  .diverge .ln{flex:1; height:1px; background:repeating-linear-gradient(90deg,#f0c78f 0 5px,transparent 5px 9px);}
+
+  /* discovery card (the feature) */
+  .disc{background:linear-gradient(180deg,#fff, #fbfdff); border:1.5px solid var(--blue-soft); border-radius:18px;
+        padding:16px; box-shadow:0 6px 20px rgba(49,130,246,.10); margin:6px 2px 4px;
+        animation:pop .45s cubic-bezier(.2,.9,.3,1.2);}
+  @keyframes pop{from{opacity:0; transform:translateY(10px) scale(.97);} to{opacity:1; transform:none;}}
+  .disc .top{display:flex; align-items:center; gap:8px; margin-bottom:9px;}
+  .disc .badge{font-size:12px; font-weight:900; color:var(--blue-deep); background:var(--blue-soft); padding:4px 9px; border-radius:999px;}
+  .disc .q{font-size:14.5px; line-height:1.6; font-weight:600;}
+  .disc .q b{color:var(--blue-deep);}
+  .disc .hint{font-size:11.5px; color:var(--t3); margin-top:7px;}
+  .btns{display:flex; gap:8px; margin-top:14px;}
+  .btn{flex:1; text-align:center; padding:12px 0; border-radius:12px; font-size:14px; font-weight:800; cursor:pointer; border:none;}
+  .btn.ox{background:var(--blue); color:#fff;}
+  .btn.no{background:#fff; color:var(--t2); border:1px solid var(--line);}
+  .btn.skip{background:#fff; color:var(--t3); border:1px solid var(--line); flex:.7;}
+  .btn:active{transform:scale(.97);}
+
+  /* resolved states */
+  .resolved{border-radius:18px; padding:15px 16px; margin:6px 2px 4px; font-size:14px; font-weight:700; line-height:1.55;
+            animation:pop .4s ease; display:flex; gap:9px; align-items:flex-start;}
+  .resolved.ok{background:var(--teal-soft); color:#0a7d72; border:1px solid #bfe7e1;}
+  .resolved.no{background:#f7f8fa; color:var(--t2); border:1px solid var(--line);}
+  .resolved .em{font-size:18px;}
+
+  /* principle panel */
+  .panel{background:#fff; border-top:1px solid var(--line); padding:15px 16px 18px;}
+  .panel h4{margin:0 0 3px; font-size:13.5px; display:flex; align-items:center; gap:7px;}
+  .panel h4 .cnt{background:var(--teal); color:#fff; font-size:11px; font-weight:900; border-radius:999px; padding:1px 8px;}
+  .panel .desc{font-size:11.5px; color:var(--t3); margin-bottom:11px;}
+  .plist{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px;}
+  .plist li{display:flex; gap:9px; align-items:flex-start; font-size:13px; line-height:1.45; color:var(--t1);
+            background:#f7f9fc; border:1px solid var(--line); border-radius:11px; padding:9px 11px;}
+  .plist li .k{color:var(--teal); font-weight:900;}
+  .plist li.new{animation:slidein .5s ease; border-color:#bfe7e1; background:var(--teal-soft);}
+  @keyframes slidein{from{opacity:0; transform:translateX(-12px);} to{opacity:1; transform:none;}}
+
+  .replay{display:block; margin:16px auto 0; background:#fff; border:1px solid #d4d9df; color:var(--t2);
+          font-weight:700; font-size:13px; padding:9px 18px; border-radius:999px; cursor:pointer;}
+</style>
+</head>
+<body>
+  <div class="note">💡 <b>아이디어 단계 컨셉 시안</b> (실제 앱 아님). "내 답이 막내 추천과 <b>달랐을 때만</b> 막내가 그 이유=원칙을 추론해 ⭕/❌로 묻는다" 흐름. 아래 <b>⭕/❌/나중에</b>를 눌러보세요.</div>
+
+  <div class="phone">
+    <div class="hdr">
+      <span class="back">‹</span>
+      <div>
+        <div class="who">010-2345-6789</div>
+        <div class="sub">김신축 · 신축 입주</div>
+      </div>
+      <span class="grow"></span>
+      <span class="ic">📞</span>
+    </div>
+
+    <div class="chat">
+      <div class="day">오늘</div>
+
+      <!-- 고객 문의 -->
+      <div class="row"><div class="bub cust">안녕하세요~ 이번에 새 아파트 입주하는데요, 거실이랑 욕실 줄눈 시공 견적 좀 알려주실 수 있을까요? 😊</div></div>
+
+      <!-- 막내가 추천했던 답 (muted) -->
+      <div class="sugg">
+        <div class="lab">💬 막내가 추천했던 답</div>
+        <div class="txt">거실 줄눈은 35만원, 욕실은 개당 8만원이에요 😊 시공 원하시면 일정 잡아드릴게요!</div>
+      </div>
+
+      <!-- 사장님이 실제로 보낸 답 -->
+      <div class="row me">
+        <span class="stamp">14:02</span>
+        <div class="bub me">신축이시군요! 신축은 마감 상태를 직접 봐야 정확해서, 제가 한 번 방문해서 보고 정확하게 잡아드릴게요 😊 이번 주 중에 언제 편하세요?</div>
+      </div>
+
+      <!-- 차이 감지 -->
+      <div class="diverge"><span class="ln"></span>↔ 추천과 달랐어요<span class="ln"></span></div>
+
+      <!-- 발견 카드 -->
+      <div id="slot"></div>
+    </div>
+
+    <!-- 원칙 패널 -->
+    <div class="panel">
+      <h4>🧠 막내가 알아낸 사장님 원칙 <span class="cnt" id="cnt">2</span></h4>
+      <div class="desc">막내가 ⭕ 받은 것만 쌓여요. 이게 곧 "막내가 나를 알아가는" 기록.</div>
+      <ul class="plist" id="plist">
+        <li><span class="k">①</span><span>가격만 빠르게 물어보는 손님 → 가격 경쟁 대신 <b>품질·AS</b>를 먼저 설명한다.</span></li>
+        <li><span class="k">②</span><span>단골/소개 손님은 <b>계좌부터</b> 편하게 안내한다.</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <button class="replay" onclick="reset()">↻ 처음부터 다시</button>
+
+<script>
+  var QUESTION =
+    '<div class="disc" id="disc">'
+    + '<div class="top"><span class="badge">💡 막내가 하나 배웠어요</span></div>'
+    + '<div class="q">방금 보니 — <b>신축 문의</b>엔 바로 가격을 알려주기보다 <b>"방문 견적"을 먼저 권하시네요.</b><br>혹시 이게 사장님 원칙이에요?</div>'
+    + '<div class="hint">맞으면 앞으로 신축 문의에 막내가 이렇게 응대해요. (틀리면 그냥 ❌)</div>'
+    + '<div class="btns">'
+    + '<button class="btn ox" onclick="say(true)">⭕ 맞아요</button>'
+    + '<button class="btn no" onclick="say(false)">❌ 아니에요</button>'
+    + '<button class="btn skip" onclick="later()">나중에</button>'
+    + '</div></div>';
+
+  function reset(){
+    document.getElementById('slot').innerHTML = QUESTION;
+    var ex = document.querySelector('.plist li.new'); if(ex) ex.remove();
+    document.getElementById('cnt').textContent = '2';
+  }
+
+  function say(ok){
+    var slot = document.getElementById('slot');
+    if(ok){
+      slot.innerHTML =
+        '<div class="resolved ok"><span class="em">✅</span><div>기억했어요! 앞으로 <b>신축 문의엔 방문 견적부터</b> 권할게요.<br><span style="font-weight:600;color:#0a7d72;font-size:12.5px;">막내가 사장님을 하나 더 알게 됐어요 🌱</span></div></div>';
+      addPrinciple();
+    } else {
+      slot.innerHTML =
+        '<div class="resolved no"><span class="em">🙇</span><div>알겠어요, 잊을게요. 더 지켜보고 다시 배울게요.</div></div>';
+    }
+  }
+  function later(){
+    document.getElementById('slot').innerHTML =
+      '<div class="resolved no"><span class="em">⏭️</span><div>다음에 또 보이면 그때 여쭤볼게요.</div></div>';
+  }
+
+  function addPrinciple(){
+    var ul = document.getElementById('plist');
+    var li = document.createElement('li');
+    li.className = 'new';
+    li.innerHTML = '<span class="k">③</span><span><b>신축</b> 문의엔 즉답 견적 대신 <b>방문 견적</b>을 먼저 권한다.</span>';
+    ul.appendChild(li);
+    document.getElementById('cnt').textContent = '3';
+  }
+
+  reset();
+</script>
+</body>
+</html>

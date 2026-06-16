@@ -39,6 +39,9 @@ class ServerSuggestionRepository(
                     context.deviceId?.takeIf { it.isNotBlank() }?.let { put("deviceId", it) }
                     context.ownerTrade?.takeIf { it.isNotBlank() }?.let { put("ownerTrade", it) }
                     context.priceList?.takeIf { it.isNotBlank() }?.let { put("priceList", it) }
+                    context.principles?.takeIf { it.isNotEmpty() }?.let { ps ->
+                        put("principles", JSONArray().apply { ps.forEach { put(it) } })
+                    }
                     put("latestMessage", context.latestMessage)
                     put("latestMessageReceivedAtMs", context.latestMessageReceivedAtMs)
                     put("recentHistory", JSONArray().apply {

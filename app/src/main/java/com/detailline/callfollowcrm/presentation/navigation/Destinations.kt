@@ -66,6 +66,7 @@ object Destinations {
     const val ESTIMATE_FOLLOWUP = "estimate_followup"
     const val AI_MESSAGE = "ai_message"
     const val STYLE_LEARNING = "style_learning"
+    const val PRINCIPLES = "principles"
 
     /** 통화 정리해서 보내기 — 음성/붙여넣기/직접 → AI 요약 → 고객용 문자 초안 → 발송. */
     const val CALL_SUMMARY_WITH_ARG = "call_summary?phone={phone}&name={name}"

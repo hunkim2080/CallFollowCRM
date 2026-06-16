@@ -184,7 +184,9 @@ class SmsReceiver : BroadcastReceiver() {
                     deviceId = container.preferences.deviceId,
                     ownerTrade = container.preferences.ownerTrades.firstOrNull(),
                     priceList = runCatching { container.pricingItemRepository.priceListText() }
-                        .getOrDefault("").takeIf { it.isNotBlank() }
+                        .getOrDefault("").takeIf { it.isNotBlank() },
+                    principles = runCatching { container.principleRepository.enabledTexts() }
+                        .getOrDefault(emptyList()).takeIf { it.isNotEmpty() }
                 )
 
                 // 추천 답변은 미리 준비만 해둔다(문자방 진입 시 바로 보이게). 알림엔 더 이상 안 넣음 → 폴링 제거.

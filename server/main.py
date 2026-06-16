@@ -1362,6 +1362,7 @@ async def build_system_blocks_async(
     device_id: str = "owner-anon",
     trade: Optional[str] = None,
     price_list: Optional[str] = None,
+    principles: Optional[list[str]] = None,
 ) -> list[dict]:
     """§16 — Tone RAG 통합 system 빌더. (+2026-06-17 멀티업종: 역할·가격표를 사장님별로)
 
@@ -1378,6 +1379,17 @@ async def build_system_blocks_async(
         _SYSTEM_BLOCK_A_FIXED.replace("줄눈 시공 사장님", f"{role} 사장님", 1)
         if role else _SYSTEM_BLOCK_A_FIXED
     )
+
+    # 2026-06-17 "막내가 알아낸 사장님 원칙" — 말투/사례 위 3번째 층(판단 기준)을 block A 에 주입.
+    #   답변 전략을 고를 때 이 원칙을 우선 적용. (규칙이 아니라 가이드 — 상황 보고 유연하게)
+    clean_principles = [p.strip() for p in (principles or []) if p and p.strip()]
+    if clean_principles:
+        block_a = block_a + (
+            "\n\n────── 사장님의 응대 원칙 (반드시 우선 반영) ──────\n"
+            "이 사장님이 실제로 지키는 판단 기준이다. 답변 전략·내용을 고를 때 먼저 적용하라.\n"
+            "단, 절대 규칙이 아니라 가이드다 — 상황이 분명히 안 맞으면 무리해서 끼워맞추지 마라.\n"
+            + "\n".join(f"- {p}" for p in clean_principles)
+        )
 
     # 가격표 — 사장님이 앱에 입력한 게 오면 그걸, 없으면: 줄눈/타일은 전역 pricing.md(폴백), 그 외는 "없음"
     if price_list and price_list.strip():
@@ -1478,6 +1490,8 @@ class PrepareReplyRequest(BaseModel):
     #   미전송이면 줄눈 폴백(구버전·줄눈 사장님). 빈 가격표면 "가격표 없음" 처리.
     ownerTrade: Optional[str] = None
     priceList: Optional[str] = None
+    # 2026-06-17 "막내가 알아낸 사장님 원칙" — 답변의 판단 기준(왜 그렇게 답하는지). 켜진 것만 옴.
+    principles: list[str] = Field(default_factory=list)
 
 
 # ─── P0+P1+P2: 공통 ConversationContext (사양서 §1) ───
@@ -1787,6 +1801,7 @@ async def call_claude_for_suggestions_with_meta(
         device_id=(req.deviceId or "owner-anon"),  # 2026-06-17 폰별 격리. 미전송(구버전)이면 폴백.
         trade=req.ownerTrade,
         price_list=req.priceList,
+        principles=req.principles,
     )
 
     # §17 — 페르소나 hint. 캐시된 게 있으면 user msg 의 [고객 정보] 영역에 inject.
@@ -1926,6 +1941,7 @@ async def call_gemini_for_suggestions_with_meta(
         device_id=(req.deviceId or "owner-anon"),  # 2026-06-17 폰별 격리. 미전송(구버전)이면 폴백.
         trade=req.ownerTrade,
         price_list=req.priceList,
+        principles=req.principles,
     )
     system_text = "\n\n".join(b.get("text", "") for b in system_blocks if b.get("text"))
 

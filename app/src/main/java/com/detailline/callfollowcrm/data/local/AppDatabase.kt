@@ -59,9 +59,10 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         com.detailline.callfollowcrm.data.local.entity.RecurringLogEntity::class,
         com.detailline.callfollowcrm.data.local.entity.SitePhotoEntity::class,
         com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity::class,
-        com.detailline.callfollowcrm.data.local.entity.TeamAssignmentEntity::class
+        com.detailline.callfollowcrm.data.local.entity.TeamAssignmentEntity::class,
+        com.detailline.callfollowcrm.data.local.entity.PrincipleEntity::class
     ],
-    version = 31,
+    version = 32,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -87,6 +88,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun sitePhotoDao(): com.detailline.callfollowcrm.data.local.dao.SitePhotoDao
     abstract fun intakeEventDao(): com.detailline.callfollowcrm.data.local.dao.IntakeEventDao
     abstract fun teamAssignmentDao(): com.detailline.callfollowcrm.data.local.dao.TeamAssignmentDao
+    abstract fun principleDao(): com.detailline.callfollowcrm.data.local.dao.PrincipleDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -643,6 +645,21 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v32 — "막내가 알아낸 사장님 원칙" 저장 (발견 카드 ⭕ / 직접 추가). (2026-06-17)
+        private val MIGRATION_31_32 = object : Migration(31, 32) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `principles` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`text` TEXT NOT NULL, " +
+                        "`enabled` INTEGER NOT NULL, " +
+                        "`source` TEXT NOT NULL, " +
+                        "`createdAt` INTEGER NOT NULL, " +
+                        "`updatedAt` INTEGER NOT NULL)"
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
@@ -657,7 +674,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23,
                     MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27,
                     MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30,
-                    MIGRATION_30_31
+                    MIGRATION_30_31, MIGRATION_31_32
                 )
                 .fallbackToDestructiveMigration()   // migration 실패 시 안전망 (개발 단계)
                 .build()

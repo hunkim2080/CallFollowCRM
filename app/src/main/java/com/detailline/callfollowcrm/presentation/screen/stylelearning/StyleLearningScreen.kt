@@ -62,7 +62,8 @@ private val PurpleSoft = Color(0xFFF1ECFF)
 @Composable
 fun StyleLearningScreen(
     viewModel: StyleLearningViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onOpenPrinciples: () -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
@@ -190,6 +191,10 @@ fun StyleLearningScreen(
             Spacer(Modifier.height(8.dp))
             TeachButton("💬", "말투 세부 설정",
                 state.signature.takeIf { it.isNotBlank() }?.let { "시그니처: $it" } ?: "꼭 쓰는 인사 시그니처를 정해요") { signatureOpen = true }
+
+            // ── 막내가 알아낸 원칙 (판단 기준 = 3번째 학습 층) ──
+            SecSub("막내가 알아낸 원칙")
+            TeachButton("🧠", "막내가 알아낸 원칙 보기", "막내가 사장님 답변에서 찾아낸 판단 기준 (수정·삭제)") { onOpenPrinciples() }
 
             // ── privacy info-note ──
             Row(
