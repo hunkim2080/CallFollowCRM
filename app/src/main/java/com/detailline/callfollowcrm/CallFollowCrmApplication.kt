@@ -136,6 +136,37 @@ class CallFollowCrmApplication : Application() {
             }
         }
 
+        // 말투 사례집 자동 동기화 (2026-06-17 사장님) — 한 번 '동기화'(동의)했으면, 이후엔 앱 켤 때
+        //   하루 1번 새로 보낸 문자만 조용히 올려 사례집을 최신 유지. 사장님이 다시 안 눌러도 됨.
+        //   동의 전(toneUploadConsented=false)엔 자동 X(명시 동의 후에만). 폰별 deviceId 로 격리 업로드.
+        appScope.launch {
+            val prefs = container.preferences
+            if (!prefs.toneUploadConsented) return@launch
+            val now = System.currentTimeMillis()
+            if (now - prefs.toneLastAutoSyncMs < 24L * 60 * 60 * 1000) return@launch
+            if (!container.smsRepository.hasReadPermission()) return@launch
+            prefs.toneLastAutoSyncMs = now   // 새 문자 없어도 하루 1번만 시도
+            val since = prefs.toneLastUploadedAtMs
+            val newMsgs = runCatching {
+                container.smsRepository.querySentMessagesWithTimestamp(limit = 50000)
+                    .filter { it.dateMs > since }
+                    .map {
+                        com.detailline.callfollowcrm.ai.OwnerToneUploadRepository.TimestampedText(
+                            text = it.body, timestampMs = it.dateMs
+                        )
+                    }
+            }.getOrDefault(emptyList())
+            if (newMsgs.isNotEmpty()) {
+                val ok = runCatching {
+                    container.ownerToneUploadRepository.batchUpload(prefs.deviceId, newMsgs).getOrNull()
+                }.getOrNull()
+                if (ok != null) {
+                    prefs.toneLastUploadedAtMs = now
+                    if (ok.totalInPool > 0) prefs.toneTotalUploadedCount = ok.totalInPool
+                }
+            }
+        }
+
         // MMS(사진/첨부 문자) 감지 (2026-06-06) — 기본 문자앱이 아니라 브로드캐스트로 못 받아
         //   "오늘 신규"에서 누락됐음(SmsReceiver 는 SMS 만). 시작 시 1회 스캔 + content://mms 변경 감시로
         //   캐시에 머지 → MMS 로 처음 연락온 번호도 신규/목록에 잡힘. READ_SMS 로 읽기 가능(기본앱 전환 불필요).

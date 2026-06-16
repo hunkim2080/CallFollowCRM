@@ -193,6 +193,15 @@ class AppPreferences(context: Context) {
         set(value) = prefs.edit().putInt(KEY_TONE_TOTAL_UPLOADED, value).apply()
 
     /**
+     * 말투 사례집 자동 동기화 마지막 시도 시각(throttle 용). (2026-06-17 사장님)
+     *   한 번 동의(toneUploadConsented)했으면, 앱 켤 때 하루 1번 새 문자만 조용히 자동 업로드.
+     *   → 사장님이 '동기화'를 다시 안 눌러도 사례집이 최신 유지.
+     */
+    var toneLastAutoSyncMs: Long
+        get() = prefs.getLong("tone_last_auto_sync_ms", 0L)
+        set(value) = prefs.edit().putLong("tone_last_auto_sync_ms", value).apply()
+
+    /**
      * 2026-05-30 #7 — 사장님 옛 고객들 1회 일괄 자동 분류 완료 여부.
      * Application.onCreate 에서 false 일 때만 AutoCategoryClassifier.backfillAll 호출 후 true.
      */
