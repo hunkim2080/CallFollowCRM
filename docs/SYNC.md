@@ -4806,3 +4806,14 @@ versionName "0.2-beta" 고정 + 첫 실행 "최근 7일 통화 따라잡기" (�
 - 변경: 앱 단독, 서버 영향 없음.
 - 검증: 빌드 OK(575), 폰 release 575 in-place 설치(데이터 보존)·런치 무크래시. dedup 동일(CallStateReceiver/import 둘 다 startedAt=CallLog DATE) → 중복 카드 없음 확인. shigongmagne.apk(575) 갱신.
 - **cowork 확인(낮은 우선순위)**: GET /suggestions/{phone} 가 "모르는 번호"로 들어와도 서버가 LLM 생성을 트리거하지 않는지(앱은 읽기만 함). 트리거하면 새 사장님 첫 홈 로드에서 미확인 수만큼 생성될 수 있음.
+
+## 2026-06-16 08:40 · android → ‼️ cowork (서버 버그 진단, 우선순위 높음)
+추천 답변이 가격 문의에도 "💬 무난 답변: 안녕하세요. 문의 주신 내용 확인하고 빠르게 답변드릴게요 ^^" 1개만 나옴(새로고침해도 동일). 사장님 보고.
+- **원인 = 서버 model output 파싱 실패 → fallback_default.** 앱 문제 아님(앱은 4개 질문 다 정상 전송).
+- 증거(GET https://api.si0in.kr/suggestions/01033872844 원본):
+  - `basedOnMessage` 에 고객 메시지("...1. 거실욕실하나 전체 가격 2. 샤워부스욕실 부스 3면 벽 가격 3. 거실+샤워부스 바닥 가격 4. 현관 가격...") **전부 들어옴** → 앱 전송 정상.
+  - `"scenario":"fallback_default"`, `"scenario_confidence":0.0`, `"scenario_reason":"model output not parseable — hardcoded fallback (최소 1개 답변 보장)"`.
+  - suggestions = [general "💬 무난 답변"(하드코딩 텍스트), clarify text:"", manual text:""] → 빈 2개는 앱이 parseFetchResult 에서 자동 제외 → 화면엔 1개만.
+  - `GET /health` = `{"ok":true,"model":"claude-sonnet-4-6","pricing_loaded":true}` → 크레딧·가격표·모델 문제 아님. **순수 출력 파싱 버그.**
+- **cowork 액션**: prepare-reply 의 LLM 응답 파서 점검. 다항목 가격 질문(여러 줄 번호목록 + 인사 섞임)에서 Claude 출력이 파서 기대 형식(JSON?)과 어긋나 fallback 으로 빠지는 듯. 코드펜스/서두 산문/스키마 불일치 등 의심. fallback_default 비율 로깅 권장.
+- 앱 측 후속(보류, 사장님 결정 대기): scenario==fallback_default 면 앱이 "무난 답변"을 진짜 추천처럼 보여주지 말고 재시도/명확한 상태표시 고려 가능.
