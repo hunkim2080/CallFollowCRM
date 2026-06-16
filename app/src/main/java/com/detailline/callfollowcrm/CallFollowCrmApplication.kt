@@ -114,6 +114,28 @@ class CallFollowCrmApplication : Application() {
             }
         }
 
+        // 2026-06-16 사장님 — 첫 실행 "최근 7일 통화 따라잡기".
+        //   새 사장님이 깔면 통화 기록은 0부터라 전화로만 연락한 최근 고객이 상담함에 안 보임.
+        //   설치 직후 1회만 최근 7일 통화기록을 가져와 상담함을 채운다. (부재중·미답장은 '미확인'에 자동 반영)
+        //   ⚠️ 서버 추천 생성은 하지 않음 = 비용 0. 과거 깊은 데이터/녹음은 그대로 안 건드림.
+        //   권한(READ_CALL_LOG) 없으면 flag 안 세우고 다음 실행에 재시도(온보딩 grant 후 채워짐).
+        appScope.launch {
+            if (!container.preferences.initialCallLogImported) {
+                val granted = ContextCompat.checkSelfPermission(
+                    this@CallFollowCrmApplication, Manifest.permission.READ_CALL_LOG
+                ) == PackageManager.PERMISSION_GRANTED
+                if (granted) {
+                    val sevenDaysAgo = System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000
+                    runCatching {
+                        container.callRecordRepository.importCallLogSince(
+                            this@CallFollowCrmApplication, sevenDaysAgo
+                        )
+                    }
+                    container.preferences.initialCallLogImported = true
+                }
+            }
+        }
+
         // MMS(사진/첨부 문자) 감지 (2026-06-06) — 기본 문자앱이 아니라 브로드캐스트로 못 받아
         //   "오늘 신규"에서 누락됐음(SmsReceiver 는 SMS 만). 시작 시 1회 스캔 + content://mms 변경 감시로
         //   캐시에 머지 → MMS 로 처음 연락온 번호도 신규/목록에 잡힘. READ_SMS 로 읽기 가능(기본앱 전환 불필요).

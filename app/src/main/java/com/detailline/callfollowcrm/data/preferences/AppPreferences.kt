@@ -192,6 +192,16 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("auto_category_rebuilt_v2", false)
         set(value) = prefs.edit().putBoolean("auto_category_rebuilt_v2", value).apply()
 
+    /**
+     * 2026-06-16 — 첫 실행 시 최근 7일 통화기록 1회 "따라잡기" 완료 여부.
+     *   새 사장님이 깔면 상담함이 텅 비어 보이는 문제(전화로만 연락한 고객 누락) 보완.
+     *   READ_CALL_LOG 권한 있을 때만 import 하고 true 로. 권한 없으면 false 유지 → 온보딩 grant 후 재시도.
+     *   서버 추천 생성은 하지 않음(비용 0) — 통화 기록만.
+     */
+    var initialCallLogImported: Boolean
+        get() = prefs.getBoolean("initial_call_log_imported", false)
+        set(value) = prefs.edit().putBoolean("initial_call_log_imported", value).apply()
+
     /** 2026-06-07 — 견적 기록 버그 수정 전 잘못 쌓인 ESTIMATE_SENT 1회 정리 완료 여부. */
     var estimateSentLegacyCleaned: Boolean
         get() = prefs.getBoolean("estimate_sent_legacy_cleaned", false)

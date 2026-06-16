@@ -69,6 +69,49 @@ object CallLogHelper {
         }
     }
 
+    /**
+     * [sinceMs] 이후의 모든 통화 기록 (최신순, dedup 없음). 첫 실행 "최근 7일 따라잡기"용.
+     *   queryRecent 와 달리 번호별로 묶지 않고 그 기간의 통화를 그대로 다 반환 → 상담함이 실제 이력대로 채워짐.
+     *   [cap] = 활동 많은 폰 보호용 안전 상한 (7일이면 보통 수십~수백건). 초과분은 가장 최근 [cap]건만.
+     */
+    fun queryRecentSince(context: Context, sinceMs: Long, cap: Int = 500): List<RecentCall> {
+        if (!PermissionHelper.isGranted(context, Manifest.permission.READ_CALL_LOG)) return emptyList()
+        return try {
+            val out = mutableListOf<RecentCall>()
+            context.contentResolver.query(
+                CallLog.Calls.CONTENT_URI,
+                arrayOf(
+                    CallLog.Calls.NUMBER,
+                    CallLog.Calls.TYPE,
+                    CallLog.Calls.DURATION,
+                    CallLog.Calls.DATE
+                ),
+                dateDescSortArgs(cap),
+                null
+            )?.use { cursor ->
+                while (cursor.moveToNext() && out.size < cap) {
+                    val date = cursor.getLong(3)
+                    if (date < sinceMs) break   // DATE DESC 정렬 → 기간 밖 만나면 이후도 전부 밖.
+                    val num = cursor.getString(0).orEmpty()
+                    if (num.isBlank()) continue
+                    out.add(
+                        RecentCall(
+                            phoneNumber = num,
+                            type = mapType(cursor.getInt(1)),
+                            duration = cursor.getLong(2),
+                            date = date
+                        )
+                    )
+                }
+            }
+            out
+        } catch (e: SecurityException) {
+            emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
     fun queryLatest(context: Context): RecentCall? {
         if (!PermissionHelper.isGranted(context, Manifest.permission.READ_CALL_LOG)) return null
         return try {

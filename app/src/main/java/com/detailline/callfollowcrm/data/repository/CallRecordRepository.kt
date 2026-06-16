@@ -152,6 +152,38 @@ class CallRecordRepository(private val dao: CallRecordDao) {
      *
      * @return 새로 insert 된 row 수
      */
+    /**
+     * 첫 실행 1회 — [sinceMs] 이후 시스템 통화기록을 Room 으로 가져온다 ("최근 7일 따라잡기").
+     *   syncRecentCallLog 와 동일한 dedup(끝8자리+startedAt) + UNHANDLED 정책.
+     *   단 번호별로 묶지 않고 그 기간 통화를 다 넣어 상담함에 최근 전화 고객이 이력대로 보이게.
+     *   부재중·미답장은 자동으로 '미확인'에 잡힘. 서버 추천 생성은 하지 않음(비용 0).
+     * @return 새로 insert 된 row 수
+     */
+    suspend fun importCallLogSince(context: Context, sinceMs: Long): Int {
+        val entries = CallLogHelper.queryRecentSince(context, sinceMs)
+        if (entries.isEmpty()) return 0
+
+        var inserted = 0
+        for (e in entries) {
+            val phone = e.phoneNumber
+            if (phone.isBlank()) continue
+            if (existingIdSameCall(phone, e.date) != null) continue
+            dao.insert(
+                CallRecordEntity(
+                    phoneNumber = phone,
+                    callType = e.type.name,
+                    duration = e.duration,
+                    startedAt = e.date,
+                    endedAt = e.date + e.duration * 1000,
+                    handledStatus = HandledStatus.UNHANDLED.name,
+                    linkedCustomerId = null
+                )
+            )
+            inserted++
+        }
+        return inserted
+    }
+
     suspend fun syncRecentCallLog(context: Context, limit: Int = 30): Int {
         val entries = CallLogHelper.queryRecent(context, limit)
         if (entries.isEmpty()) return 0
