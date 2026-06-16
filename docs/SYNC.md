@@ -4858,3 +4858,17 @@ versionName "0.2-beta" 고정 + 첫 실행 "최근 7일 통화 따라잡기" (�
 - 서버(내가 수정): `PrepareReplyRequest.principles` + `build_system_blocks_async` 가 block A 에 "사장님의 응대 원칙(우선 반영, 규칙 아닌 가이드)" 주입. 미전송이면 무영향.
 - **‼️ 배포 1회로 누적 전부 적용**: Gemini fix + device_id + 멀티업종 + 원칙주입. `git pull --rebase` → `bash server/deploy_phase1.sh`.
 - 2단계 예정(앱+서버): 채팅에서 추천≠실제답 감지 → `/infer-principle`(신규 엔드포인트, LLM 이 "왜?" 추론) → 챗 카드 ⭕/❌ → ⭕면 이 엔진에 저장. (= design-preview/proto-principle-discovery.html 흐름)
+
+## 2026-06-17 · android → ‼️ cowork (상담함 버그 5건 + 원칙 발견 2단계 앱측)
+베타 사장님 보고 버그 5건 fix + 원칙발견 2단계(발견 카드) **앱측** 구현. commit: 4ae7a9a
+- **버그 (앱 단독, 서버 무관)**:
+  1. 스팸 등록 번호가 상담함 목록에 남던 것 → `HomeViewModel.timeline` 에 스팸 게이트(suffix 마킹 + 앞자리 prefix) 추가, 새로고침 때 `spamPrefixesFlow` 재읽기로 즉시 제외. KPI(미확인/신규)도 prefix 변경 반영.
+  2. 통화로 끝난 대화에 "막내가 답변 준비 중" 뜨던 것 → `ChatViewModel.lastActivityIsCall` 게이트. 통화가 마지막이면 추천 준비 X + "문자 오면 준비할게요" 안내. ↻ 눌러도 안내만.
+  3. 더보기 막내비서 카드 탭 → 내 말투 학습(subPage="tone") 진입.
+  4. 협업 휴지통에 넣었는데 홈 "협업 현장" 카드에 남던 것 → `CollabEventCenter.pollInvites` 가 trashed 제외 + `markTrashed` 즉시 제거(`SharedSiteViewModel.trash` 에서 호출).
+  5. **(데이터 손실)** 기본 문자앱일 때 고객 MMS(사진) klinker 다운로드 실패 시 조용히 유실 → 실패 시 알림(`showMmsReceiveFailed`)으로 전환. **근본 해결 = 삼성 메시지를 기본 문자앱으로**(그 MMS 는 RING-GO 가 provider 에서 그대로 읽음). 사장님께 권고함.
+- **원칙발견 2단계(앱측)**: `ChatViewModel.maybeInferPrinciple` — 발송 직후, 추천 확신(scenario_confidence≥0.6) + 추천과 편집거리 12자↑ 다름 + 하루 2회 한도 통과 시 `/infer-principle` 호출 → 후보 나오면 챗 카드(⭕/❌/나중에 = `ChatScreen.PrincipleDiscoveryCard`). ⭕=`PrincipleRepository.add(source="discovered")`, ❌=재질문 안 함(prefs).
+- **‼️ cowork 할 일 (서버)**:
+  1. (대기 중) 누적 배포: Gemini fix + device_id 격리 + 멀티업종 + 원칙주입 → `git pull --rebase` → `bash server/deploy_phase1.sh`.
+  2. **(신규) `POST /infer-principle`** — 스펙: **`docs/SERVER_HANDOFF_infer_principle.md`**. 없으면 발견 카드는 안 뜸(앱은 silent, 무해). Haiku 4.5 권장. 추천≠실제답에서 한 줄 원칙 추론, 기존/애매/일회성이면 `{"principle":null}`.
+- 검증: 앱 컴파일 OK. 발견 카드 end-to-end 는 `/infer-principle` 배포 후 가능.
