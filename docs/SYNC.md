@@ -4839,3 +4839,15 @@ versionName "0.2-beta" 고정 + 첫 실행 "최근 7일 통화 따라잡기" (�
   - 기존 owner-anon 383 은 **고아 데이터로 남음**(무해). 원하면 `DELETE FROM owner_tone WHERE device_id='owner-anon'` 정리 가능(선택). 단 구버전 앱이 아직 owner-anon 쓰는 동안은 두는 게 안전.
   - **베타 테스터는 새 APK 로 업데이트해야** 폰별 격리 적용. 업데이트 전엔 owner-anon 공유(폴백).
   - **UX**: 업데이트하면 각 폰의 "내가 보낸 문자 N개 학습" 이 **0 으로 보임**(owner-anon→새 UUID 전환). 정상. 각 폰에서 '말투 업로드' 1회 하면 그 폰 풀이 채워짐. (사장님께 안내함)
+
+## 2026-06-17 · android → ‼️ cowork (멀티업종 — 줄눈 하드코딩 해제, 사장님 승인 하 서버 수정)
+**문제**: prepare-reply 시스템 프롬프트가 `"너는 줄눈 시공 사장님 비서다"` 하드코딩(main.py 의 _SYSTEM_BLOCK_A_FIXED) + 전역 `pricing.md`(줄눈 단가) 주입 → 도배·청소·철거 등 다른 업종 사장님한테 안 맞음. 온보딩에 업종 선택(prefs.ownerTrades)이 이미 있고 가격표도 앱(pricing_items)에서 입력하는데 **서버 AI까지 전달이 안 돼 있었음**.
+- **앱(전송 추가)**: prepare-reply 페이로드에 `ownerTrade`(대표 업종) + `priceList`(앱 활성 가격항목 텍스트, PricingItemRepository.priceListText()) 신규 전송. PrepareContext + 3개 빌드사이트(Chat/Sms/Mms). + 줄눈 기본가격 자동 시드(DefaultPricingItems) **중단** → 새 사장님 빈 가격표 시작.
+- **서버(내가 수정)**: `PrepareReplyRequest.ownerTrade/priceList` 추가. `build_system_blocks_async(trade, price_list)`:
+  - 역할: `_SYSTEM_BLOCK_A_FIXED.replace("줄눈 시공 사장님","{업종} 사장님")` (업종 오면).
+  - 가격표: priceList 오면 그걸 / 없고 줄눈·타일계열이면 pricing.md 폴백 / 그 외는 "가격표 없음(추측금지)".
+  - block D 가격케이스: 줄눈/타일=기존(신축·구축·타일·실리콘) vs 그 외=범용. `_is_tile_trade()` 로 분기.
+  - 미전송(구버전 앱)=줄눈 폴백 → **무중단**. Pydantic 이 모르는 필드 무시하므로 배포 전 구버전 서버도 앱 신필드 무해.
+- **‼️ cowork = 맥미니 배포 한 번**: `git pull --rebase` → `bash server/deploy_phase1.sh`. **이 한 번으로 (1)Gemini thinking fix (2)device_id 격리 (3)멀티업종** 셋 다 적용됨.
+- **⚠️ 동작 변경(중요)**: 이제 prepare-reply 가격은 **사장님이 앱에 입력한 가격표(pricing_items)** 를 씀 — 전역 pricing.md 아님(줄눈·타일 + 가격표 빈 경우만 pricing.md 폴백). 사장님 폰은 시드된 줄눈 가격이 그대로 들어가니, 앱 '가격표 관리' 확인 권장.
+- **남은 줄눈 잔재(낮은 우선순위)**: DefaultTemplates 의 "메지" 등 줄눈 용어 템플릿, 온보딩 데모 "○○ 줄눈"/해시태그 — 사용자 편집 가능 영역이라 보류. 멀티업종 본격화 시 업종별 시드로.
