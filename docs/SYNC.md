@@ -4851,3 +4851,10 @@ versionName "0.2-beta" 고정 + 첫 실행 "최근 7일 통화 따라잡기" (�
 - **‼️ cowork = 맥미니 배포 한 번**: `git pull --rebase` → `bash server/deploy_phase1.sh`. **이 한 번으로 (1)Gemini thinking fix (2)device_id 격리 (3)멀티업종** 셋 다 적용됨.
 - **⚠️ 동작 변경(중요)**: 이제 prepare-reply 가격은 **사장님이 앱에 입력한 가격표(pricing_items)** 를 씀 — 전역 pricing.md 아님(줄눈·타일 + 가격표 빈 경우만 pricing.md 폴백). 사장님 폰은 시드된 줄눈 가격이 그대로 들어가니, 앱 '가격표 관리' 확인 권장.
 - **남은 줄눈 잔재(낮은 우선순위)**: DefaultTemplates 의 "메지" 등 줄눈 용어 템플릿, 온보딩 데모 "○○ 줄눈"/해시태그 — 사용자 편집 가능 영역이라 보류. 멀티업종 본격화 시 업종별 시드로.
+
+## 2026-06-17 · android → cowork (원칙 발견 기능 1/2 — 사장님 원칙 엔진, 사장님 승인 하 서버 수정)
+"막내가 알아낸 사장님 원칙"(말투/사례 위 3번째 층 = 판단 기준) 도입. **1단계=엔진** 완료, 2단계(발견 카드)는 진행 예정.
+- 앱: DB v32 `principles` 테이블(MIGRATION_31_32, additive) + Repo. prepare-reply 에 켜진 원칙 `principles[]` 전송(PrepareContext + 3 빌드사이트). 관리화면(더보기→내 말투 학습→막내가 알아낸 원칙: 보기/켜끄/수정/삭제/직접추가). **온디바이스 검증 완료**(마이그레이션 데이터 보존·CRUD 동작).
+- 서버(내가 수정): `PrepareReplyRequest.principles` + `build_system_blocks_async` 가 block A 에 "사장님의 응대 원칙(우선 반영, 규칙 아닌 가이드)" 주입. 미전송이면 무영향.
+- **‼️ 배포 1회로 누적 전부 적용**: Gemini fix + device_id + 멀티업종 + 원칙주입. `git pull --rebase` → `bash server/deploy_phase1.sh`.
+- 2단계 예정(앱+서버): 채팅에서 추천≠실제답 감지 → `/infer-principle`(신규 엔드포인트, LLM 이 "왜?" 추론) → 챗 카드 ⭕/❌ → ⭕면 이 엔진에 저장. (= design-preview/proto-principle-discovery.html 흐름)
