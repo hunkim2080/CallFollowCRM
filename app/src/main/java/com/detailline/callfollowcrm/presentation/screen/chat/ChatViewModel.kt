@@ -905,7 +905,11 @@ class ChatViewModel(
                     customer = hint,
                     ownerToneSamples = ownerToneSamples,
                     otherUpcomingSchedulesMs = otherSchedules,
-                    deviceId = container.preferences.deviceId
+                    deviceId = container.preferences.deviceId,
+                    ownerTrade = container.preferences.ownerTrades.firstOrNull(),
+                    priceList = withContext(Dispatchers.IO) {
+                        runCatching { container.pricingItemRepository.priceListText() }.getOrDefault("")
+                    }.takeIf { it.isNotBlank() }
                 )
                 val prep = container.suggestionRepository.requestPrepare(ctx)
                 if (prep.isFailure) {

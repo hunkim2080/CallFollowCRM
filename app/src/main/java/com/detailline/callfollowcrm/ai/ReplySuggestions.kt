@@ -77,7 +77,17 @@ data class PrepareContext(
      * 폰별 고유 id (AppPreferences.deviceId). 서버가 이 폰의 말투 풀에서만 RAG retrieval.
      * null/미전송이면 서버가 "owner-anon" 폴백(구버전 호환). (2026-06-17)
      */
-    val deviceId: String? = null
+    val deviceId: String? = null,
+    /**
+     * 대표 업종(prefs.ownerTrades 첫번째). 서버가 AI 역할을 "{업종} 사장님 비서"로 맞춤. (2026-06-17)
+     * null/미전송이면 서버가 "줄눈 시공" 폴백(구버전 호환).
+     */
+    val ownerTrade: String? = null,
+    /**
+     * 사장님이 앱에 입력한 가격표(텍스트). 서버가 전역 줄눈 pricing.md 대신 이걸 AI에 주입.
+     * 비면 서버가 "가격표 없음 — 추측 금지"로 처리. (2026-06-17)
+     */
+    val priceList: String? = null
 )
 
 data class HistoryMessage(

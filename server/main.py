@@ -1297,11 +1297,7 @@ _SYSTEM_BLOCK_D_FORMAT = """────── 기본 규칙 ──────
 - 가격·날짜·시간은 대화 또는 가격표에서만 추출. 추측하지 마라.
 - 금기어: "급하면" 계열, "싸다" 계열 → 변형 표현도 피하라.
 
-가격 문의 케이스 처리:
-- 신축/구축 미확정 → 한 후보는 "신축이세요 구축이세요?" 물어보기.
-- 타일 크기 미언급 → 한 후보는 "타일 사진 보내주시면 정확히 견적 드려요" 안내.
-- 답변 형식: 표 금지. 항목별 줄바꿈 나열 + 합계.
-- 실리콘 제거/셀프줄눈/누수 가능성 = "현장 확인 후 추가될 수 있어요" 한 문장 덧붙임.
+{PRICE_CASE}
 
 ══════ 답 형식 — 반드시 지켜라 (v2) ══════
 - 응답 첫 글자는 무조건 '{' 로 시작. 인사·설명·코드블럭·백틱·tag 절대 X.
@@ -1320,6 +1316,26 @@ _SYSTEM_BLOCK_D_FORMAT = """────── 기본 규칙 ──────
 - 정확히 3개. 시나리오의 3 intent 모두 사용. intent_key 중복 X.
 - scenario_confidence < 0.6 이면 "scenario":"fallback_default" 사용 (강제).
 """
+
+# 2026-06-17 멀티업종 — 가격 문의 케이스 처리를 업종별로. 줄눈/타일은 기존 그대로, 그 외는 범용.
+_PRICE_CASE_TILE = """가격 문의 케이스 처리:
+- 신축/구축 미확정 → 한 후보는 "신축이세요 구축이세요?" 물어보기.
+- 타일 크기 미언급 → 한 후보는 "타일 사진 보내주시면 정확히 견적 드려요" 안내.
+- 답변 형식: 표 금지. 항목별 줄바꿈 나열 + 합계.
+- 실리콘 제거/셀프줄눈/누수 가능성 = "현장 확인 후 추가될 수 있어요" 한 문장 덧붙임."""
+
+_PRICE_CASE_GENERIC = """가격 문의 케이스 처리:
+- 견적에 필요한 정보(작업 범위·면적·현장 상태 등)가 부족하면 한 후보는 그 정보를 물어보기.
+- 정확한 금액이 애매하면 한 후보는 "사진 보내주시면 정확히 견적 드려요" 또는 "현장 보고 정확히 안내드릴게요".
+- 답변 형식: 표 금지. 항목별 줄바꿈 나열 + 합계."""
+
+
+def _is_tile_trade(trade: Optional[str]) -> bool:
+    """줄눈/타일 계열 업종인가. 미전송(구버전·줄눈 사장님)이면 True = 기존 줄눈 동작 유지."""
+    t = (trade or "").replace(" ", "")
+    if not t:
+        return True
+    return any(k in t for k in ("줄눈", "타일", "메지", "방수", "에폭시"))
 
 
 def build_system_blocks(owner_tone_samples: list[str]) -> list[dict]:
@@ -1344,8 +1360,10 @@ async def build_system_blocks_async(
     owner_tone_samples: list[str],
     latest_msg: str,
     device_id: str = "owner-anon",
+    trade: Optional[str] = None,
+    price_list: Optional[str] = None,
 ) -> list[dict]:
-    """§16 — Tone RAG 통합 system 빌더.
+    """§16 — Tone RAG 통합 system 빌더. (+2026-06-17 멀티업종: 역할·가격표를 사장님별로)
 
     block C (사장님 톤) 위치에 RAG 로 retrieved top-10 inject.
     RAG 비활성화 또는 풀 비어있으면 기존 ownerToneSamples 로 fallback.
@@ -1354,7 +1372,29 @@ async def build_system_blocks_async(
       - 같은 device + 같은 query → 같은 retrieved set → cache hit
       - 다른 query → cache miss + 새 retrieval
     """
-    pricing_block = "────── 가격표 ──────\n" + load_pricing()
+    # block A 역할 — 업종이 오면 "{업종} 사장님", 없으면 기존 "줄눈 시공" (구버전·줄눈 폴백)
+    role = (trade or "").strip()
+    block_a = (
+        _SYSTEM_BLOCK_A_FIXED.replace("줄눈 시공 사장님", f"{role} 사장님", 1)
+        if role else _SYSTEM_BLOCK_A_FIXED
+    )
+
+    # 가격표 — 사장님이 앱에 입력한 게 오면 그걸, 없으면: 줄눈/타일은 전역 pricing.md(폴백), 그 외는 "없음"
+    if price_list and price_list.strip():
+        pricing_block = "────── 가격표 (사장님 입력) ──────\n" + price_list.strip()
+    elif _is_tile_trade(trade):
+        pricing_block = "────── 가격표 ──────\n" + load_pricing()
+    else:
+        pricing_block = (
+            "────── 가격표 ──────\n"
+            "(아직 등록된 가격표가 없어요. 금액을 추측하지 말고, 한 후보는 "
+            "'사진 보내주시면 정확히 견적 드려요' 또는 '현장 보고 정확히 안내드릴게요' 로 답하세요.)"
+        )
+
+    # block D — 가격 문의 케이스 처리를 업종별로
+    block_d = _SYSTEM_BLOCK_D_FORMAT.replace(
+        "{PRICE_CASE}", _PRICE_CASE_TILE if _is_tile_trade(trade) else _PRICE_CASE_GENERIC
+    )
 
     # RAG retrieve 시도 — 실패 시 None
     rag_samples = None
@@ -1377,10 +1417,10 @@ async def build_system_blocks_async(
         )
 
     return [
-        {"type": "text", "text": _SYSTEM_BLOCK_A_FIXED, "cache_control": {"type": "ephemeral"}},
-        {"type": "text", "text": pricing_block,        "cache_control": {"type": "ephemeral"}},
-        {"type": "text", "text": tone_block,           "cache_control": {"type": "ephemeral"}},
-        {"type": "text", "text": _SYSTEM_BLOCK_D_FORMAT},
+        {"type": "text", "text": block_a,        "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": pricing_block,  "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": tone_block,     "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": block_d},
     ]
 
 
@@ -1434,6 +1474,10 @@ class PrepareReplyRequest(BaseModel):
     # 2026-06-17 — 폰별 말투 풀 격리. 이 폰의 owner_tone 에서만 RAG retrieval.
     #   미전송(구버전 앱) 이면 "owner-anon" 폴백 → 기존 동작 유지(점진 마이그레이션).
     deviceId: Optional[str] = None
+    # 2026-06-17 멀티업종 — 대표 업종(AI 역할) + 사장님 가격표(전역 줄눈 pricing.md 대체).
+    #   미전송이면 줄눈 폴백(구버전·줄눈 사장님). 빈 가격표면 "가격표 없음" 처리.
+    ownerTrade: Optional[str] = None
+    priceList: Optional[str] = None
 
 
 # ─── P0+P1+P2: 공통 ConversationContext (사양서 §1) ───
@@ -1741,6 +1785,8 @@ async def call_claude_for_suggestions_with_meta(
         owner_tone_samples=req.ownerToneSamples or [],
         latest_msg=req.latestMessage or "",
         device_id=(req.deviceId or "owner-anon"),  # 2026-06-17 폰별 격리. 미전송(구버전)이면 폴백.
+        trade=req.ownerTrade,
+        price_list=req.priceList,
     )
 
     # §17 — 페르소나 hint. 캐시된 게 있으면 user msg 의 [고객 정보] 영역에 inject.
@@ -1878,6 +1924,8 @@ async def call_gemini_for_suggestions_with_meta(
         owner_tone_samples=req.ownerToneSamples or [],
         latest_msg=req.latestMessage or "",
         device_id=(req.deviceId or "owner-anon"),  # 2026-06-17 폰별 격리. 미전송(구버전)이면 폴백.
+        trade=req.ownerTrade,
+        price_list=req.priceList,
     )
     system_text = "\n\n".join(b.get("text", "") for b in system_blocks if b.get("text"))
 

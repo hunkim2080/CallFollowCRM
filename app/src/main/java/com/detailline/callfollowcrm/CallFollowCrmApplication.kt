@@ -41,7 +41,9 @@ class CallFollowCrmApplication : Application() {
 
         appScope.launch {
             DefaultTemplates.seedIfEmpty(container.messageTemplateRepository)
-            DefaultPricingItems.seedIfEmpty(container.pricingItemRepository)
+            // 2026-06-17 멀티업종: 줄눈 기본 가격표 자동 시드 중단. 새 사장님(어느 업종이든)은 빈 가격표로
+            //   시작해 직접 입력 → 서버 AI 가 그 가격을 씀. (기존 사장님 폰은 이미 입력돼 있어 영향 없음)
+            // DefaultPricingItems.seedIfEmpty(container.pricingItemRepository)  // 줄눈 전용이라 비활성
             // 2026-05-30 #7 — 기본 카테고리 seed + 옛 고객 1회 자동 분류.
             com.detailline.callfollowcrm.data.local.seed.DefaultCategories.seedIfMissing(
                 container.categoryRepository

@@ -37,6 +37,8 @@ class ServerSuggestionRepository(
                 val payload = JSONObject().apply {
                     put("phone", context.phone)
                     context.deviceId?.takeIf { it.isNotBlank() }?.let { put("deviceId", it) }
+                    context.ownerTrade?.takeIf { it.isNotBlank() }?.let { put("ownerTrade", it) }
+                    context.priceList?.takeIf { it.isNotBlank() }?.let { put("priceList", it) }
                     put("latestMessage", context.latestMessage)
                     put("latestMessageReceivedAtMs", context.latestMessageReceivedAtMs)
                     put("recentHistory", JSONArray().apply {

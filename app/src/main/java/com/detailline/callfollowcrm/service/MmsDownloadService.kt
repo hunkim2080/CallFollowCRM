@@ -156,7 +156,11 @@ class MmsDownloadService : MmsReceivedService() {
                 customer = customerHint,
                 ownerToneSamples = ownerToneSamples,
                 otherUpcomingSchedulesMs = otherSchedules,
-                deviceId = container.preferences.deviceId
+                deviceId = container.preferences.deviceId,
+                ownerTrade = container.preferences.ownerTrades.firstOrNull(),
+                priceList = runBlocking {
+                    runCatching { container.pricingItemRepository.priceListText() }.getOrDefault("")
+                }.takeIf { it.isNotBlank() }
             )
             runBlocking { container.suggestionRepository.requestPrepare(ctx) }
             // 캐시 prefetch — 사장님이 알림 → ChatScreen 진입 시 즉시 표시.
