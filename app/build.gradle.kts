@@ -62,6 +62,17 @@ android {
         }
     }
 
+    // 릴리즈 APK 파일명을 항상 shigongmagne.apk 로 고정 (베타 배포 링크가 이 이름을 가리킴). (2026-06-17 사장님)
+    //   안드로이드 설치/업데이트는 패키지명+versionCode 로 판단 → 파일명은 배포 경로 일치용일 뿐.
+    applicationVariants.all {
+        val variant = this
+        variant.outputs.all {
+            if (variant.buildType.name == "release") {
+                (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName = "shigongmagne.apk"
+            }
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
