@@ -322,7 +322,8 @@ object AdotFolderScanner {
             runCatching { RecordingMatcher.attach(container, uriStr, bestName, RecordingSourceType.SHARED_FROM_ADOT) }
         }
         val ok = runCatching {
-            CallAudioSummarizer.summarizeAndSave(appCtx, container, uriStr, bestName, interactive = false)
+            // notifyOnComplete=true — 탭으로 요약해도 끝나면 "막내가 OO님 통화 요약했어요!" 푸시(앱 켜져 있어도). (2026-06-18 사장님)
+            CallAudioSummarizer.summarizeAndSave(appCtx, container, uriStr, bestName, interactive = false, notifyOnComplete = true)
         }.getOrDefault(false)
         if (!ok) return SummarizeResult.NO_FILE
         // 새로 저장한 요약도 같은 이유(시각 드리프트)로 탭한 카드에 확실히 붙도록 직접 연결.

@@ -744,8 +744,11 @@ object NotificationHelper {
             context, notifId, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val who = displayName?.takeIf { it.isNotBlank() }?.let { "${it}님" } ?: "고객"
-        val title = "✨ ${who}과의 통화 내용을 요약했어요"
+        // 이름 없으면 번호 끝 4자리로 — "막내가 9114님의 통화 내용을 요약했어요!" (사장님 2026-06-18, 반갑게)
+        val who = displayName?.takeIf { it.isNotBlank() }
+            ?: phoneNumber.filter { it.isDigit() }.takeLast(4).takeIf { it.isNotBlank() }
+            ?: "고객"
+        val title = "✨ 막내가 ${who}님의 통화 내용을 요약했어요!"
         val text = "탭하면 바로 확인할 수 있어요"
         val builder = NotificationCompat.Builder(context, CHANNEL_FOLLOW_UP)
             .setSmallIcon(R.drawable.ic_notification)
