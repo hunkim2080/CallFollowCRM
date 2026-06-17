@@ -180,7 +180,9 @@ class ChatViewModel(
     fun summarizeCall(record: com.detailline.callfollowcrm.data.local.entity.CallRecordEntity, context: android.content.Context) {
         val phone = record.phoneNumber
         val at = record.startedAt ?: record.endedAt
-        viewModelScope.launch {
+        // Dispatchers.IO 필수 — summarizeCallNow 가 SAF 폴더 스캔(tree.listFiles)·DB 를 하므로 메인에서 돌면
+        //   "통화 요약하기 눌러도 반응 없음 + 앱 꺼짐(ANR)". (2026-06-18 사장님 B폰). viewModelScope 기본=Main.immediate.
+        viewModelScope.launch(Dispatchers.IO) {
             com.detailline.callfollowcrm.recording.CallSummaryProgress.begin(phone, at)
             val res = runCatching {
                 // callRecordId 전달 — 찾은 요약을 '탭한 그 통화'에 직접 연결해 카드에 즉시 표시(시각 드리프트로 안 보이던 버그 fix).
