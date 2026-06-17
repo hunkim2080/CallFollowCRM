@@ -32,9 +32,12 @@ class ScheduleReminderViewModel(private val container: AppContainer) : ViewModel
     ) { customers, logs ->
         val keys = logs.map { Triple(it.ruleId, it.customerId, it.occurrenceDayStartMs) }.toSet()
         // D-1 토글 OFF 면 이 리마인드 화면에도 D-1 안 띄움(토글 일관성). arrival 은 기존대로(여기선 미노출). (2026-06-18 사장님)
+        // + 설정 시각(d1SendHour) 전엔 D-1 숨김 — 홈 카드와 동일 기준(자정 갑툭 방지). (2026-06-18 사장님)
         ScheduleReminderCalc.compute(
             customers, keys, todayStart,
-            d1Enabled = container.preferences.d1AutoEnabled
+            d1Enabled = container.preferences.d1AutoEnabled,
+            d1TimeReached = java.util.Calendar.getInstance()
+                .get(java.util.Calendar.HOUR_OF_DAY) >= container.preferences.d1SendHour
         ).map { ReminderRow(it, renderBody(it)) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 

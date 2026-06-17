@@ -398,6 +398,10 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     /** D-1 안내 토글 — 비반응형 prefs 를 flow 로(새로고침 때 재읽기). OFF 면 홈 "내일 시공 안내" 카드 숨김. (2026-06-18 사장님) */
     private val d1EnabledFlow = MutableStateFlow(container.preferences.d1AutoEnabled)
 
+    /** 설정한 D-1 안내 시각(d1SendHour, 예 오후 6시)이 됐는지 — 그 전엔 홈 D-1 카드 숨김(자정 갑툭 방지). emit 때마다 현재 시각 재평가. (2026-06-18 사장님) */
+    private fun d1TimeReachedNow(): Boolean =
+        java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY) >= container.preferences.d1SendHour
+
     val scheduleReminderCount: StateFlow<Int> = combine(
         customers,
         container.recurringMessageRepository.observeLogs(),
@@ -409,7 +413,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 custs, keys, todayStart,
                 arrivalEnabled = container.preferences.arrivalAutoEnabled,
                 arrivalEnteredCustomerIds = arrivalEnteredIdsToday(),
-                d1Enabled = d1On
+                d1Enabled = d1On,
+                d1TimeReached = d1TimeReachedNow()
             ).size
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
@@ -429,7 +434,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 custs, keys, todayStart,
                 arrivalEnabled = container.preferences.arrivalAutoEnabled,
                 arrivalEnteredCustomerIds = arrivalEnteredIdsToday(),
-                d1Enabled = d1On
+                d1Enabled = d1On,
+                d1TimeReached = d1TimeReachedNow()
             ).map { item ->
                 val c = byId[item.customerId]
                 val md = DateTimeUtils.formatDateOnly(item.scheduledDayStartMs)
