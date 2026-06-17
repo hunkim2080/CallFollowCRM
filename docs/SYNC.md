@@ -4927,3 +4927,11 @@ curl -s -X POST https://api.si0in.kr/infer-principle \
 ### 다음 액션 (사장님)
 한 줄: `git pull --rebase + cp + launchctl kickstart` (deploy_phase1.sh 의 plist 단계 우회).
 배포 후 위 curl 2개 검증.
+
+## 2026-06-18 01:00 · android
+협업 화면 "공유받은 현장 / 내가 공유한 현장" 분리 + 통화요약 매칭 버그 fix + 서버 핸드오프
+- 변경(서버 영향): "내가 공유한 현장" 탭이 `GET /api/shared/by-me` 호출 → **응답에 `partner_name` 추가 필요** + **지난 날짜 현장도 반환**(#9 6/4 사라짐 해결). 상세 = `docs/SERVER_HANDOFF_2026-06-18.md`.
+- 추가 서버 작업: `server/static/install.html` 버전 라벨/`/api/download/version`/서빙 APK stale(#10) 갱신.
+- 앱 단독(서버 무관): 통화요약 "이미 요약됨"인데 카드에 안 보이던 버그 — 탭한 통화에 callRecordId 강제 연결(e813763).
+- commit: 6d04a20(협업 분리), e813763(통화요약), + 직전 1fd1b73(기본앱 권유 제거)
+- 다음 액션 (cowork): `SERVER_HANDOFF_2026-06-18.md` §1 partner_name(★) → §2 by-me 날짜필터 제거 → §3 다운로드 페이지. + 누적 서버 변경 배포(deploy) & `/infer-principle` 구현(기존 핸드오프).
