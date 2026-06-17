@@ -112,6 +112,8 @@ fun SharedSiteScreen(
     }
     val accountPrompt = "입금받을 계좌를 먼저 등록해주세요. 더보기 → 견적서·사업자 정보에서 등록할 수 있어요."
     var selectedId by rememberSaveableShareId()
+    // 1차 분리(2026-06-18 사장님): "received" 공유받은 현장 | "shared" 내가 공유한 현장.
+    var topMode by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("received") }
     var listView by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("date") } // "date" 현장순 | "biz" 업체별
     var bizPartner by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) } // 업체별에서 고른 사장님 key
     var showTrash by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) } // 휴지통 보기
@@ -140,11 +142,16 @@ fun SharedSiteScreen(
     }
 
     val serverPartners by viewModel.partners.collectAsState()
+    val mySharedSites by viewModel.mySharedSites.collectAsState()
     val selected = sites.firstOrNull { it.shareId == selectedId }
     // 휴지통에 넣은 건 목록·집계에서 제외. 거절(declined)/해제(ended)된 협업도 활성 목록에서 제외(기록은 서버 보존).
     val gone = setOf("declined", "ended")
     val activeSites = remember(sites, trashed) { sites.filter { it.shareId !in trashed && it.status !in gone } }
     val trashedSites = remember(sites, trashed) { sites.filter { it.shareId in trashed && it.status !in gone } }
+    // 내가 공유한 현장(by-me) — 거절/종료 제외, 시공일 가까운 순. (2026-06-18 사장님)
+    val myActiveShared = remember(mySharedSites) {
+        mySharedSites.filter { it.status !in gone }.sortedByDescending { it.scheduledAtMs }
+    }
     // 업체별: 서버 §B 집계 있으면 그걸로(전체 이력), 없으면 로드된 현장 로컬 그룹핑(폴백).
     val partnerGroups = remember(activeSites, serverPartners) {
         if (serverPartners.isNotEmpty()) serverPartners.map { p ->
@@ -249,21 +256,34 @@ fun SharedSiteScreen(
                     onOpen = { selectedId = it.shareId }
                 )
             } else if (selected == null) {
-                ListArea(
-                    sites = activeSites,
-                    loading = loading,
-                    noBizPhone = viewModel.noBizPhone,
-                    listView = listView,
-                    onListView = { listView = it; bizPartner = null },
-                    partnerGroups = partnerGroups,
-                    openPartner = openPartner,
-                    onPickPartner = { bizPartner = it },
-                    onOpen = { selectedId = it.shareId },
-                    onTrash = {
-                        viewModel.trash(it.shareId)
-                        android.widget.Toast.makeText(context, "휴지통에 넣었어요 — 우상단 🗑에서 되살릴 수 있어요", android.widget.Toast.LENGTH_SHORT).show()
-                    }
-                )
+                // 1차 분리: [공유받은 현장] [내가 공유한 현장]. 업체별 드릴다운(openPartner) 중엔 숨김. (2026-06-18 사장님)
+                if (openPartner == null) {
+                    CollabTopTabs(topMode, onSelect = { topMode = it; bizPartner = null })
+                    Spacer(Modifier.height(12.dp))
+                }
+                if (topMode == "shared") {
+                    MySharedArea(
+                        sites = myActiveShared,
+                        loading = loading,
+                        noBizPhone = viewModel.noBizPhone
+                    )
+                } else {
+                    ListArea(
+                        sites = activeSites,
+                        loading = loading,
+                        noBizPhone = viewModel.noBizPhone,
+                        listView = listView,
+                        onListView = { listView = it; bizPartner = null },
+                        partnerGroups = partnerGroups,
+                        openPartner = openPartner,
+                        onPickPartner = { bizPartner = it },
+                        onOpen = { selectedId = it.shareId },
+                        onTrash = {
+                            viewModel.trash(it.shareId)
+                            android.widget.Toast.makeText(context, "휴지통에 넣었어요 — 우상단 🗑에서 되살릴 수 있어요", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                }
             } else {
                 DetailBody(
                     site = selected,
@@ -524,6 +544,111 @@ private fun SegTabs(current: String, onSelect: (String) -> Unit) {
     }
 }
 
+/** 1차 분리 세그먼트 — 공유받은 현장 / 내가 공유한 현장. (2026-06-18 사장님) */
+@Composable
+private fun CollabTopTabs(current: String, onSelect: (String) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFEEF0F3)).padding(3.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        listOf("received" to "공유받은 현장", "shared" to "내가 공유한 현장").forEach { (key, label) ->
+            val on = current == key
+            Box(
+                Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
+                    .background(if (on) Color.White else Color.Transparent)
+                    .clickable { onSelect(key) }.padding(vertical = 9.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(label, fontSize = 13.sp, fontWeight = if (on) FontWeight.ExtraBold else FontWeight.Medium,
+                    color = if (on) TossTextPrimary else TossTextTertiary)
+            }
+        }
+    }
+}
+
+/**
+ * 내가(A) 공유한 현장 모음 — 현장명 · 날짜 · 🤝 누구랑(상대방) · 진행상태. 서버 by-me. (2026-06-18 사장님)
+ *   "누구랑"(partnerName)·진행상태는 상대가 수락하면 서버가 채움. 서버 미구현/실패면 빈 목록 안내.
+ */
+@Composable
+private fun MySharedArea(
+    sites: List<SharedSiteRepository.SharedSite>,
+    loading: Boolean,
+    noBizPhone: Boolean
+) {
+    when {
+        noBizPhone -> EmptyCard(
+            "먼저 사업자 전화를 등록해주세요",
+            "더보기 → 견적서·사업자 정보에서 전화번호를 넣으면, 내 현장을 다른 사장님께 공유할 수 있어요."
+        )
+        sites.isEmpty() && loading -> EmptyCard("불러오는 중…", "")
+        sites.isEmpty() -> EmptyCard(
+            "내가 공유한 현장이 없어요",
+            "일정·고객 화면에서 '협업 현장으로 공유'를 누르면, 그 현장을 함께할 사장님과 여기에 모여요."
+        )
+        else -> {
+            Text(
+                "내가 다른 사장님께 공유한 현장이에요. 누가 함께하는지·어디까지 진행됐는지 한눈에 보여요.",
+                fontSize = 12.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 8.dp)
+            )
+            sites.forEach { site ->
+                MySharedRow(site)
+                Spacer(Modifier.height(9.dp))
+            }
+            Text("함께하는 사장님 이름·진행상태는 상대가 수락하면 채워져요.",
+                fontSize = 11.sp, color = TossTextTertiary, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
+        }
+    }
+}
+
+/** 내가 공유한 현장 1건 — 현장명 + 누구랑 + 날짜 + 상태. (탭 상세는 후속) */
+@Composable
+private fun MySharedRow(site: SharedSiteRepository.SharedSite) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White)
+            .border(1.dp, Color(0xFFEEF0F3), RoundedCornerShape(14.dp)).padding(13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(CollabPurpleSoft), contentAlignment = Alignment.Center) {
+            Text("🤝", fontSize = 16.sp)
+        }
+        Spacer(Modifier.width(11.dp))
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(site.title, fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false))
+                Spacer(Modifier.width(6.dp))
+                // A측 상태: 완료 / 출발·도착(진행) / 수락 대기 / 예정
+                val (stTxt, stBg, stFg) = when {
+                    site.progress == SharedSiteRepository.Progress.COMPLETED -> Triple("완료", Color(0xFFE5F8EE), Color(0xFF0E9F56))
+                    site.status == "pending" -> Triple("수락 대기", Color(0xFFF1ECFE), CollabPurple)
+                    site.progress == SharedSiteRepository.Progress.DEPARTED -> Triple("출발", Color(0xFFEAF1FF), ProtoBlue)
+                    site.progress == SharedSiteRepository.Progress.ARRIVED -> Triple("도착", Color(0xFFEAF1FF), ProtoBlue)
+                    else -> Triple("예정", Color(0xFFEAF1FF), ProtoBlue)
+                }
+                Box(Modifier.clip(RoundedCornerShape(999.dp)).background(stBg).padding(horizontal = 8.dp, vertical = 2.dp)) {
+                    Text(stTxt, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, color = stFg)
+                }
+                site.dailyWage?.let { Spacer(Modifier.width(5.dp)); WagePill(it) }
+            }
+            Spacer(Modifier.height(3.dp))
+            // 누구랑 — 사장님 핵심 요청. partner_name(서버) 있으면 이름, 없으면 상태 안내.
+            val who = site.partnerName?.let { "🤝 $it 사장님과 함께" }
+                ?: if (site.status == "pending") "함께할 사장님 수락 대기 중" else "함께하는 사장님과"
+            Text(who, fontSize = 12.5.sp, color = Color(0xFF6B4FD8), fontWeight = FontWeight.Bold,
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            val sub = buildString {
+                append(dayLabel(site.scheduledAtMs))
+                timeText(site)?.let { append(" · "); append(it) }
+                site.workSummary?.let { append(" · "); append(it) }
+            }
+            Text(sub, fontSize = 12.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
+        }
+    }
+}
+
 /** 업체별 행 — 사장님 이름 · 함께한 현장 N곳 · 최근 / 받은 일당 합계. */
 @Composable
 private fun PartnerRow(g: PartnerGroup, onClick: () -> Unit) {
@@ -734,7 +859,10 @@ private fun DetailBody(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(CollabPurpleSoft)
                 .border(1.dp, Color(0xFFE2D8FB), RoundedCornerShape(14.dp)).padding(14.dp)
         ) {
-            Text("🤝 ${site.ownerName}이 이 현장을 함께 하재요", fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
+            Text("🤝 ${site.ownerName}이 함께 하재요", fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
+            Spacer(Modifier.height(4.dp))
+            // "이 현장" 대신 실제 현장명 + 날짜를 보여줌(사장님 요청 2026-06-18).
+            Text("${site.title} · ${dayLabel(site.scheduledAtMs)}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5A4A7A))
             Spacer(Modifier.height(8.dp))
             // 일당 = 수락 판단에 제일 중요 → 크게 강조(프로토 b-invite). 없으면 "미정".
             Row(

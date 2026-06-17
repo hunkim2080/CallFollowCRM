@@ -53,6 +53,7 @@ class SharedSiteRepository(
         val shareId: String,
         val ownerPhone: String,      // 현장 주인 사장 번호 (연락용 — 고객 번호 아님)
         val ownerName: String,
+        val partnerName: String? = null, // 내가 공유한 현장(by-me)에서 "누구랑" — 협업자(B) 상호. 서버 partner_name(미구현이면 null).
         val title: String,           // 현장 표시명 (예: "강동 천호동 현장")
         val addr: String?,
         val scheduledAtMs: Long,
@@ -393,6 +394,7 @@ class SharedSiteRepository(
                 shareId = o.optString("share_id"),
                 ownerPhone = o.optString("owner_phone"),
                 ownerName = o.optString("owner_name").ifBlank { "사장님" },
+                partnerName = o.optString("partner_name").takeIf { it.isNotBlank() && it != "null" },
                 title = o.optString("title").ifBlank { "협업 현장" },
                 addr = o.optString("addr").takeIf { it.isNotBlank() },
                 scheduledAtMs = o.optLong("scheduled_at_ms"),

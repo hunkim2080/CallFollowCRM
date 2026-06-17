@@ -24,6 +24,10 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
     private val _sites = MutableStateFlow<List<SharedSiteRepository.SharedSite>>(emptyList())
     val sites = _sites.asStateFlow()
 
+    /** 내가(A) 공유한 현장 — 서버 by-me. "누구랑"(partnerName)·진행상태 포함. 서버 미구현이면 빈 목록. (2026-06-18 사장님) */
+    private val _mySharedSites = MutableStateFlow<List<SharedSiteRepository.SharedSite>>(emptyList())
+    val mySharedSites = _mySharedSites.asStateFlow()
+
     /** 업체별(§B) 서버 집계 — 비어 있으면 화면이 로컬 그룹핑으로 폴백. */
     private val _partners = MutableStateFlow<List<SharedSiteRepository.Partner>>(emptyList())
     val partners = _partners.asStateFlow()
@@ -83,6 +87,8 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
             )
             // 업체별 집계(§B) — 서버 없거나 실패하면 빈 목록 → 화면이 로컬 그룹핑으로 폴백.
             _partners.value = repo.partners(myPhone).getOrDefault(emptyList())
+            // 내가 공유한 현장(by-me) — 거절/종료 제외는 화면에서. 서버 미구현이면 빈 목록(graceful).
+            _mySharedSites.value = repo.byMe(myPhone).getOrDefault(emptyList())
             _loading.value = false
         }
     }
