@@ -6363,6 +6363,7 @@ _APK_DIR = Path("/Users/hun/ringgo-server/apk")
 _APK_PATH = _APK_DIR / "shigongmagne.apk"
 _APK_VERSION_PATH = _APK_DIR / "VERSION.txt"  # 사장님이 빌드 시 버전 정보 박는 곳 (optional)
 _INSTALL_HTML_PATH = BASE_DIR / "static" / "install.html"
+_PRIVACY_HTML_PATH = BASE_DIR / "static" / "privacy.html"
 
 
 @app.get("/download/shigongmagne.apk", include_in_schema=False)
@@ -6424,6 +6425,21 @@ async def install_page():
             detail=f"install.html 없음 (server/static/install.html 확인).",
         )
     return _INSTALL_HTML_PATH.read_text(encoding="utf-8")
+
+
+@app.get("/privacy", response_class=HTMLResponse, include_in_schema=False)
+async def privacy_page():
+    """개인정보 처리방침 — Google Play Console 7단계(데이터 보안) 의 URL 입력값.
+
+    내용: server/static/privacy.html
+    Play Console 정식 출시 전부터 활성 (Internal Testing 시 필수).
+    """
+    if not _PRIVACY_HTML_PATH.exists():
+        raise HTTPException(
+            status_code=500,
+            detail="privacy.html 없음 (server/static/privacy.html 확인).",
+        )
+    return _PRIVACY_HTML_PATH.read_text(encoding="utf-8")
 
 
 # ============================================================================
