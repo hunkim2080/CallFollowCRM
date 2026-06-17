@@ -132,6 +132,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         // observeContacts 가 초기 + onChange emit 책임. 별도 manual 갱신 필요 없음.
         // 단, 스팸 앞자리(prefs)는 비반응형 → 새로고침 때 다시 읽어 방금 등록한 스팸을 목록에서 즉시 제외. (2026-06-17 사장님)
         spamPrefixesFlow.value = container.preferences.spamPrefixes
+        // D-1 토글도 비반응형 prefs → 새로고침 때 재읽기(토글 끄면 홈 D-1 카드 사라지게). (2026-06-18 사장님)
+        d1EnabledFlow.value = container.preferences.d1AutoEnabled
     }
 
     /**
@@ -393,16 +395,21 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      * 시공 D-1 / 도착 안내 리마인드 카운트 (상담함, 2026-06-01) — 사장님 명시 요청.
      *   내일/오늘 시공 고객에게 "안내 문자 보낼까요?". 정기문자와 같은 로그(음수 sentinel) 재사용.
      */
+    /** D-1 안내 토글 — 비반응형 prefs 를 flow 로(새로고침 때 재읽기). OFF 면 홈 "내일 시공 안내" 카드 숨김. (2026-06-18 사장님) */
+    private val d1EnabledFlow = MutableStateFlow(container.preferences.d1AutoEnabled)
+
     val scheduleReminderCount: StateFlow<Int> = combine(
         customers,
-        container.recurringMessageRepository.observeLogs()
-    ) { custs, logs ->
+        container.recurringMessageRepository.observeLogs(),
+        d1EnabledFlow
+    ) { custs, logs, d1On ->
         val keys = logs.map { Triple(it.ruleId, it.customerId, it.occurrenceDayStartMs) }.toSet()
         com.detailline.callfollowcrm.domain.reminder.ScheduleReminderCalc
             .compute(
                 custs, keys, todayStart,
                 arrivalEnabled = container.preferences.arrivalAutoEnabled,
-                arrivalEnteredCustomerIds = arrivalEnteredIdsToday()
+                arrivalEnteredCustomerIds = arrivalEnteredIdsToday(),
+                d1Enabled = d1On
             ).size
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
@@ -412,15 +419,17 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      */
     val scheduleReminders: StateFlow<List<HomeReminderUi>> = combine(
         customers,
-        container.recurringMessageRepository.observeLogs()
-    ) { custs, logs ->
+        container.recurringMessageRepository.observeLogs(),
+        d1EnabledFlow
+    ) { custs, logs, d1On ->
         val keys = logs.map { Triple(it.ruleId, it.customerId, it.occurrenceDayStartMs) }.toSet()
         val byId = custs.associateBy { it.id }
         com.detailline.callfollowcrm.domain.reminder.ScheduleReminderCalc
             .compute(
                 custs, keys, todayStart,
                 arrivalEnabled = container.preferences.arrivalAutoEnabled,
-                arrivalEnteredCustomerIds = arrivalEnteredIdsToday()
+                arrivalEnteredCustomerIds = arrivalEnteredIdsToday(),
+                d1Enabled = d1On
             ).map { item ->
                 val c = byId[item.customerId]
                 val md = DateTimeUtils.formatDateOnly(item.scheduledDayStartMs)

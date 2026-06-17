@@ -46,7 +46,8 @@ object ScheduleReminderCalc {
         loggedKeys: Set<Triple<Long, Long, Long>>,
         todayStartMs: Long,
         arrivalEnabled: Boolean = false,
-        arrivalEnteredCustomerIds: Set<Long> = emptySet()
+        arrivalEnteredCustomerIds: Set<Long> = emptySet(),
+        d1Enabled: Boolean = true
     ): List<ReminderItem> {
         val tomorrowStart = todayStartMs + DAY_MS
         val out = ArrayList<ReminderItem>()
@@ -59,6 +60,8 @@ object ScheduleReminderCalc {
             }
             // ARRIVAL 은 토글 ON + 실제 5km 진입한 현장만 (그냥 시공일이라고 뜨면 안 됨).
             if (kind == ReminderKind.ARRIVAL && (!arrivalEnabled || c.id !in arrivalEnteredCustomerIds)) continue
+            // D-1 도 토글 따라가게 — OFF 면 홈 "내일 시공 안내" 카드 안 띄움(알림은 ReminderWorker 가 이미 토글 체크). (2026-06-18 사장님)
+            if (kind == ReminderKind.D1 && !d1Enabled) continue
             val key = Triple(ruleIdOf(kind), c.id, day)
             if (key in loggedKeys) continue
             out += ReminderItem(kind, c.id, c.name, c.phoneNumber, day)

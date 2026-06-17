@@ -31,7 +31,11 @@ class ScheduleReminderViewModel(private val container: AppContainer) : ViewModel
         container.recurringMessageRepository.observeLogs()
     ) { customers, logs ->
         val keys = logs.map { Triple(it.ruleId, it.customerId, it.occurrenceDayStartMs) }.toSet()
-        ScheduleReminderCalc.compute(customers, keys, todayStart).map { ReminderRow(it, renderBody(it)) }
+        // D-1 토글 OFF 면 이 리마인드 화면에도 D-1 안 띄움(토글 일관성). arrival 은 기존대로(여기선 미노출). (2026-06-18 사장님)
+        ScheduleReminderCalc.compute(
+            customers, keys, todayStart,
+            d1Enabled = container.preferences.d1AutoEnabled
+        ).map { ReminderRow(it, renderBody(it)) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private fun renderBody(item: ReminderItem): String {

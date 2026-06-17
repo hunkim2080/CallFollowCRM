@@ -52,12 +52,17 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                     // 본인 현장 5km 도착 안내 — 토글 ON 일 때만.
                     if (!prefs.arrivalAutoEnabled) continue
                     val id = rid.removePrefix("site_").toLongOrNull() ?: continue
+                    val c = container.customerRepository.findById(id) ?: continue
+                    // ★ 도착 안내는 '오늘' 시공 현장만. 펜스는 이번주(오늘~+7일) 미리 등록돼 있어서,
+                    //   내일/이번주 현장 5km 에 들어가도 알림이 떴음 → 오늘 시공일과 일치할 때만 알림/기록.
+                    //   (2026-06-18 사장님 버그: 내일 고객인데 "현장 5km 들어왔어요 보낼까요?" 푸시가 떴음)
+                    val scheduledDay = c.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) }
+                    if (scheduledDay != todayStart) continue
                     val key = "arrival:$id:$todayStart"
                     // 5km 진입 사실을 기록 → 홈 "도착 안내" 카드가 이때부터 노출 (토글 ON 전제).
                     prefs.arrivalEnteredKeys = prefs.arrivalEnteredKeys + key
                     // 알림은 같은 고객·같은 날 1회만.
                     if (key in prefs.reminderNotifiedKeys) continue
-                    val c = container.customerRepository.findById(id) ?: continue
                     val nm = c.name?.takeIf { it.isNotBlank() } ?: c.phoneNumber
                     NotificationHelper.showArrival(context, id, c.phoneNumber, nm)
                     prefs.reminderNotifiedKeys = prefs.reminderNotifiedKeys + key

@@ -1465,12 +1465,30 @@ private fun AutoDotLabel(dotColor: Color, label: String) {
 
 @Composable
 private fun AutoTextArea(value: String, onChange: (String) -> Unit) {
-    androidx.compose.material3.OutlinedTextField(
-        value = value,
-        onValueChange = onChange,
-        modifier = Modifier.fillMaxWidth().heightIn(min = 84.dp),
-        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.5.sp, color = TossTextPrimary)
-    )
+    // 입력 즉시 prefs 에 자동 저장됨(별도 저장 버튼 없음). 저장된 줄 몰라 불안하다는 통점 → "✓ 저장됨" 잠깐 표시. (2026-06-18 사장님)
+    var editTick by remember { mutableStateOf(0) }
+    var showSaved by remember { mutableStateOf(false) }
+    LaunchedEffect(editTick) {
+        if (editTick == 0) return@LaunchedEffect
+        showSaved = true
+        kotlinx.coroutines.delay(1600)
+        showSaved = false
+    }
+    Column {
+        androidx.compose.material3.OutlinedTextField(
+            value = value,
+            onValueChange = { onChange(it); editTick++ },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 84.dp),
+            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.5.sp, color = TossTextPrimary)
+        )
+        Box(Modifier.padding(top = 5.dp, start = 2.dp)) {
+            if (showSaved) {
+                Text("✓ 저장됐어요", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF12B886))
+            } else {
+                Text("입력하면 자동으로 저장돼요", fontSize = 11.5.sp, color = TossTextTertiary)
+            }
+        }
+    }
 }
 
 @Composable
