@@ -83,7 +83,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -220,12 +222,22 @@ fun HomeScreen(
     val serverAlive by serverHealth.alive.collectAsState()
     val lastOkAtMs by serverHealth.lastOkAtMs.collectAsState()
 
-    // 화면 진입 시 SMS 연락처 새로고침 — Settings 토글 켜고 돌아왔거나 새 SMS 받았을 수 있어서.
+    // 화면 진입 + 돌아올 때마다(ON_RESUME) SMS/CallLog 동기화.
     // + CallLog → Room sync (2026-05-28 사장님 통점):
     //   Android 12+ / OneUI 가 정적 BroadcastReceiver 누락하면 통화 종료 감지 못 함 → 진입 시 폴링으로 보완.
-    LaunchedEffect(Unit) {
-        viewModel.refreshSmsContacts()
-        viewModel.syncRecentCallLog(context)
+    // 2026-06-18 사장님 통점("통화/문자 끝나면 즉시 상담함에 반영 안 됨"): LaunchedEffect(Unit)은 첫 진입 1회뿐 —
+    //   통화 중 OEM(삼성)이 content observer 를 얼리면, 통화 끝나고 '이미 떠 있던' 홈으로 돌아와도 재동기 안 됨.
+    //   → ON_RESUME 마다 동기 → 통화/문자 끝내고 앱 보는 순간 ~1초 안에 최신화(addObserver 가 첫 진입도 커버).
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshSmsContacts()
+                viewModel.syncRecentCallLog(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(obs)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
     }
 
     // 뒤로가기 UX (2026-05-25 사장님 결정):
