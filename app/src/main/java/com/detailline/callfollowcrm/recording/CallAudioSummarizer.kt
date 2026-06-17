@@ -157,7 +157,8 @@ object CallAudioSummarizer {
                     context = context,
                     phoneNumber = phone,
                     displayName = customer?.name,
-                    callRecordId = linkedCallRecordId
+                    callRecordId = linkedCallRecordId,
+                    customerId = customer?.id   // 번호 포맷 무관하게 '그 고객'으로 정확히 열기(엉뚱한 곳 이동 방지).
                 )
             }
             Log.d(TAG, "saved audio summary: $phone @ $recordedAt cached=${res.cached} force=$forceRefresh notify=$notifyOnComplete")

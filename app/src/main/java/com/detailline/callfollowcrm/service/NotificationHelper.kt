@@ -728,12 +728,16 @@ object NotificationHelper {
         context: Context,
         phoneNumber: String,
         displayName: String? = null,
-        callRecordId: Long? = null
+        callRecordId: Long? = null,
+        customerId: Long? = null
     ) {
         val notifId = (callRecordId?.toInt()?.and(0x7FFFFFFF) ?: 0) + SUMMARY_READY_ID_OFFSET
+        // customerId 가 있으면 같이 실어 보냄 → 채팅이 번호 포맷 매칭이 아니라 '그 고객'으로 정확히 열림.
+        //   (2026-06-18 사장님 버그: 요약 알림 탭하면 관련없는 곳으로 이동 — 녹음 번호 포맷이 달라 빈/엉뚱한 대화가 열렸을 수 있음)
         val intent = Intent(context, MainActivity::class.java).apply {
             action = MainActivity.ACTION_CHAT
             putExtra(MainActivity.EXTRA_PHONE_NUMBER, phoneNumber)
+            customerId?.takeIf { it > 0 }?.let { putExtra(MainActivity.EXTRA_CUSTOMER_ID, it) }
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val pending = PendingIntent.getActivity(
