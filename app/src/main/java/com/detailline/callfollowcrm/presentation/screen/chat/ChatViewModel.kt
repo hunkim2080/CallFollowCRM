@@ -69,9 +69,6 @@ class ChatViewModel(
                 if (found != null) _customerId.value = found.id
             }
         }
-        // 뒤로가기로 화면 나가도 ⭕/❌/나중에 안 골랐으면 발견 카드 다시 표시. (2026-06-18 사장님)
-        //   launch 로 — restore 가 init 아래 선언된 프로퍼티(_principleDiscovery 등)를 만지므로 동기 호출은 init 순서 NPE.
-        viewModelScope.launch { restorePendingPrinciple() }
     }
 
     /** id 변경되면 자동으로 다시 observe. id null 이면 null flow. */
@@ -325,7 +322,9 @@ class ChatViewModel(
 
     // ── 원칙 발견 (Phase 2, 2026-06-17 사장님) ────────────────────────────────
     //   추천 ≠ 사장님 실제 답이 확실할 때 서버가 추론한 '원칙 후보'. null 이면 카드 없음.
-    private val _principleDiscovery = MutableStateFlow<PrincipleDiscovery?>(null)
+    //   초기값 = 영속된 미결정 발견 복원(뒤로가기로 사라졌던 것). 선언 시점 계산이라 init 순서 NPE 없음
+    //   (constructor 파라미터 phoneNumber/container 만 읽음). (2026-06-18 사장님)
+    private val _principleDiscovery = MutableStateFlow(computeInitialPendingPrinciple())
     val principleDiscovery: StateFlow<PrincipleDiscovery?> = _principleDiscovery.asStateFlow()
 
     /**
@@ -665,13 +664,17 @@ class ChatViewModel(
             container.preferences.pendingPrincipleDiscoveries.filterNot { it.take(8) == key }.toSet()
     }
 
-    /** VM 생성 시 — 이 번호의 미결정 발견이 있으면 카드 복원(뒤로가기로 사라졌던 것 다시 표시). */
-    private fun restorePendingPrinciple() {
+    /**
+     * VM 생성 시 _principleDiscovery 초기값 — 이 번호의 미결정 발견이 있으면 복원(뒤로가기로 사라졌던 것).
+     *   _principleDiscovery 를 안 만지고 값만 반환 → 선언 초기화 시점에 안전(init 순서 NPE 없음).
+     *   constructor 파라미터(phoneNumber 기반 getter, container)만 읽음.
+     */
+    private fun computeInitialPendingPrinciple(): PrincipleDiscovery? {
         val key = principlePhoneKey
-        if (key.length != 8 || _principleDiscovery.value != null) return
-        val entry = container.preferences.pendingPrincipleDiscoveries.firstOrNull { it.take(8) == key } ?: return
-        val principle = entry.drop(8).takeIf { it.isNotBlank() } ?: return
-        _principleDiscovery.value = PrincipleDiscovery(principle = principle)
+        if (key.length != 8) return null
+        val entry = container.preferences.pendingPrincipleDiscoveries.firstOrNull { it.take(8) == key } ?: return null
+        val principle = entry.drop(8).takeIf { it.isNotBlank() } ?: return null
+        return PrincipleDiscovery(principle = principle)
     }
 
     /** 오늘 원칙을 더 물어도 되는지 (하루 한도). 새 날이면 리셋. */
