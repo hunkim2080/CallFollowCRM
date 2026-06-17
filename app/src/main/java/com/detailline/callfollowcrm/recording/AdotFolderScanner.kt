@@ -283,7 +283,8 @@ object AdotFolderScanner {
         context: Context,
         container: AppContainer,
         phoneNumber: String,
-        callAtMs: Long
+        callAtMs: Long,
+        callRecordId: Long? = null
     ): SummarizeResult {
         val treeUri = getTreeUri(context) ?: return SummarizeResult.NO_FOLDER
         val appCtx = context.applicationContext
@@ -308,13 +309,43 @@ object AdotFolderScanner {
             }
         }
         val uriStr = bestUri ?: return SummarizeResult.NO_FILE
-        if (container.callSummaryRepository.findExistingNear(phoneNumber, bestAt) != null) return SummarizeResult.ALREADY
+        // 이미 요약돼 있으면 재과금 없이 스킵. 단, 시각 드리프트로 '탭한 통화카드'엔 안 붙어 있을 수 있어
+        //   사용자가 직접 탭한 그 통화기록(callRecordId)에 강제 연결 → 카드에 즉시 표시.
+        //   (2026-06-18 버그: "이미 요약돼 있어요" 토스트인데 화면엔 요약이 안 보임.
+        //    원인 = ALREADY 판정은 녹음시각 ±2분, 채팅 표시는 통화시각 ±10분 페어링이라 창이 어긋남.)
+        container.callSummaryRepository.findExistingNear(phoneNumber, bestAt)?.let { existing ->
+            linkToCall(container, existing, callRecordId)
+            return SummarizeResult.ALREADY
+        }
         if (!container.recordingRepository.existsByUri(uriStr)) {
             runCatching { RecordingMatcher.attach(container, uriStr, bestName, RecordingSourceType.SHARED_FROM_ADOT) }
         }
         val ok = runCatching {
             CallAudioSummarizer.summarizeAndSave(appCtx, container, uriStr, bestName, interactive = false)
         }.getOrDefault(false)
-        return if (ok) SummarizeResult.OK else SummarizeResult.NO_FILE
+        if (!ok) return SummarizeResult.NO_FILE
+        // 새로 저장한 요약도 같은 이유(시각 드리프트)로 탭한 카드에 확실히 붙도록 직접 연결.
+        container.callSummaryRepository.findExistingNear(phoneNumber, bestAt)?.let { saved ->
+            linkToCall(container, saved, callRecordId)
+        }
+        return SummarizeResult.OK
+    }
+
+    /**
+     * 탭으로 요약/확인한 통화카드에 요약을 확실히 표시 — 그 통화기록 id 로 직접 연결.
+     *   채팅 화면은 callRecordId 연결을 1순위로 페어링하므로, 시각이 ±10분을 벗어나도 카드에 바로 붙는다.
+     *   이미 같은 통화에 연결돼 있거나 callRecordId 가 없으면 아무 것도 안 함.
+     */
+    private suspend fun linkToCall(
+        container: AppContainer,
+        summary: com.detailline.callfollowcrm.data.local.entity.CallSummaryEntity,
+        callRecordId: Long?
+    ) {
+        if (callRecordId == null || summary.callRecordId == callRecordId) return
+        runCatching {
+            container.callSummaryRepository.update(
+                summary.copy(callRecordId = callRecordId, updatedAt = System.currentTimeMillis())
+            )
+        }
     }
 }

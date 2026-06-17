@@ -183,7 +183,8 @@ class ChatViewModel(
         viewModelScope.launch {
             com.detailline.callfollowcrm.recording.CallSummaryProgress.begin(phone, at)
             val res = runCatching {
-                com.detailline.callfollowcrm.recording.AdotFolderScanner.summarizeCallNow(context, container, phone, at)
+                // callRecordId 전달 — 찾은 요약을 '탭한 그 통화'에 직접 연결해 카드에 즉시 표시(시각 드리프트로 안 보이던 버그 fix).
+                com.detailline.callfollowcrm.recording.AdotFolderScanner.summarizeCallNow(context, container, phone, at, callRecordId = record.id)
             }.getOrDefault(com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.NO_FILE)
             com.detailline.callfollowcrm.recording.CallSummaryProgress.end(phone, at)
             _toast.value = when (res) {
