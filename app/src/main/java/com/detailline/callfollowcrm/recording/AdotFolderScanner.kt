@@ -9,6 +9,7 @@ import com.detailline.callfollowcrm.domain.model.RecordingSourceType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -314,7 +315,7 @@ object AdotFolderScanner {
         //   (2026-06-18 버그: "이미 요약돼 있어요" 토스트인데 화면엔 요약이 안 보임.
         //    원인 = ALREADY 판정은 녹음시각 ±2분, 채팅 표시는 통화시각 ±10분 페어링이라 창이 어긋남.)
         container.callSummaryRepository.findExistingNear(phoneNumber, bestAt)?.let { existing ->
-            linkToCall(container, existing, callRecordId)
+            linkToCall(container, phoneNumber, existing, callRecordId)
             return SummarizeResult.ALREADY
         }
         if (!container.recordingRepository.existsByUri(uriStr)) {
@@ -326,7 +327,7 @@ object AdotFolderScanner {
         if (!ok) return SummarizeResult.NO_FILE
         // 새로 저장한 요약도 같은 이유(시각 드리프트)로 탭한 카드에 확실히 붙도록 직접 연결.
         container.callSummaryRepository.findExistingNear(phoneNumber, bestAt)?.let { saved ->
-            linkToCall(container, saved, callRecordId)
+            linkToCall(container, phoneNumber, saved, callRecordId)
         }
         return SummarizeResult.OK
     }
@@ -334,14 +335,28 @@ object AdotFolderScanner {
     /**
      * 탭으로 요약/확인한 통화카드에 요약을 확실히 표시 — 그 통화기록 id 로 직접 연결.
      *   채팅 화면은 callRecordId 연결을 1순위로 페어링하므로, 시각이 ±10분을 벗어나도 카드에 바로 붙는다.
+     *
+     * ★ 단, 같은 번호 통화가 여러 건이면(예: 5:49 통화 + 0:11 통화) 이 요약(recordedAt)에 '가장 가까운'
+     *   통화가 탭한 통화일 때만 연결한다. 안 그러면 탭할 때마다 요약이 엉뚱한 카드로 끌려가 서로 뒤바뀜.
+     *   (2026-06-18 사장님: 5:49 요약하니 11초짜리 내용이 들어오고, 11초 누르면 그게 위로 올라가 뒤바뀜)
      *   이미 같은 통화에 연결돼 있거나 callRecordId 가 없으면 아무 것도 안 함.
      */
     private suspend fun linkToCall(
         container: AppContainer,
+        phoneNumber: String,
         summary: com.detailline.callfollowcrm.data.local.entity.CallSummaryEntity,
         callRecordId: Long?
     ) {
         if (callRecordId == null || summary.callRecordId == callRecordId) return
+        // 이 요약 시각에 가장 가까운 통화가 '탭한 통화'가 아니면, 그 요약은 다른 통화 것 → 옮기지 않음.
+        val sRec = summary.recordedAt
+        if (sRec != null) {
+            val calls = runCatching {
+                container.callRecordRepository.observeByPhone(phoneNumber).first()
+            }.getOrDefault(emptyList())
+            val closest = calls.minByOrNull { kotlin.math.abs((it.startedAt ?: it.endedAt) - sRec) }
+            if (closest != null && closest.id != callRecordId) return
+        }
         runCatching {
             container.callSummaryRepository.update(
                 summary.copy(callRecordId = callRecordId, updatedAt = System.currentTimeMillis())
