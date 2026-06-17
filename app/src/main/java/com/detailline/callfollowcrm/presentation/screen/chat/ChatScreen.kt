@@ -2463,16 +2463,26 @@ private fun Composer(
                         modifier = Modifier.size(19.dp).clickable(enabled = !isPolishing) { onAiPolish() }
                     )
                 }
-                BasicTextField(
-                    // 커서 위치를 추적하려면 TextFieldValue 필요. selection 은 본문 길이 안으로 coerce(외부 채우기와 어긋나도 안전).
-                    value = TextFieldValue(
+                // 한글 조합(composition) 보존 — value 를 매 입력마다 새 TextFieldValue 로 만들면 조합영역이 끊겨
+                //   "ㄱㅣㄷㅏㄹㅕ"처럼 자모가 분리됨. IME 가 준 TextFieldValue 를 그대로 들고 있어야 합쳐진다. (2026-06-17 사장님 버그)
+                //   외부(템플릿·다듬기·캘린더·발송클리어)에서 input 이 바뀐 경우에만 다시 채택(그땐 커서 지정 위치/끝).
+                var tfv by remember { mutableStateOf(TextFieldValue(input, TextRange(input.length))) }
+                if (input != tfv.text) {
+                    tfv = TextFieldValue(
                         text = input,
                         selection = TextRange(
                             selection.start.coerceIn(0, input.length),
                             selection.end.coerceIn(0, input.length)
                         )
-                    ),
-                    onValueChange = { tfv -> onChange(tfv.text); onSelectionChange(tfv.selection) },
+                    )
+                }
+                BasicTextField(
+                    value = tfv,
+                    onValueChange = { v ->
+                        tfv = v                       // IME 조합영역 보존(핵심) — 한글 자모가 합쳐짐
+                        onChange(v.text)
+                        onSelectionChange(v.selection)
+                    },
                     textStyle = TextStyle(color = TossTextPrimary, fontSize = 14.sp, lineHeight = 21.sp),
                     cursorBrush = SolidColor(TossBlue),
                     maxLines = 5,
