@@ -4999,3 +4999,52 @@ open https://si0in.kr/install
 - `SharedSiteRepository.respond(...)` / `.progress(...)` JSON body 에 `partner_name` 키 = 본인 owner 상호 같이 보내기. 이미 보내고 있으면 키 이름만 맞춰주세요.
 - 보내고 있는데 안 보이면 앱 ← 키 이름 (snake/camel) 확인.
 
+
+## 2026-06-18 07:00 · cowork
+추가34 — /admin/user/{phone} 사용자 종합 활동 페이지 (사장님 요청: "베타테스터 번호 클릭하면 스케줄·활동 다 보였으면")
+
+### 무엇
+- 신규 페이지: `GET /admin/user/{phone}` (HTML, 토큰 인증)
+- 신규 API: `GET /admin/user/{phone}/data` (JSON)
+- whitelist + dashboard 양쪽의 폰번호 셀을 `<a href="/admin/user/{phone}">` 로 감쌈 (파란 색 링크).
+
+### 페이지 구성 (위에서 아래)
+1. **요약 4장** — 등록한 일정 / 협업(보냄·받음) / 앱 호출 누적 / 최근 활동
+2. **📋 등록한 일정·현장** ← ★ 사장님이 요청한 핵심 — `intake_forms.owner_phone = target`, 최근 50건, 발급/제출 상태 pill, payload_json 한 줄 요약 (work / work_summary / memo)
+3. **🤝 협업 (보냄)** — `shared_sites.owner_phone = target`. partner 상호 + status + progress
+4. **🤝 협업 (받음)** — `shared_sites.partner_phone = target`. owner 상호
+5. **⚙️ 기능별 사용** — `api_usage` GROUP BY endpoint (답장 추천 / refine / 통화 요약 / 원칙 발견 등 라벨링)
+6. **🕒 최근 활동** — `api_usage` 최근 10건 (어떤 기능을 언제 썼는지)
+7. **👤 프로필** — phone / name / memo / registered_name / 가입일 / 첫 진입 / 마지막 진입 / 앱 실행 횟수
+
+### 데이터 소스 (모두 기존 테이블)
+- `beta_whitelist` (프로필·진입 횟수)
+- `intake_forms` (등록 일정·현장)
+- `shared_sites` (협업 sent/received, `partner_name_raw`·`owner_name_raw` echo)
+- `api_usage` (기능별 누적 + 최근 timeline)
+- `subscribers` (`_is_registered_owner` 으로 registered_name)
+
+### 변경 파일
+- `server/main.py` (1 파일, +504/-2) — admin_user_detail_data + _ADMIN_USER_DETAIL_HTML + 두 endpoint + whitelist HTML link + dashboard HTML link
+
+### 사장님 한 줄 배포
+```bash
+cd ~/paperclip-company/workspaces/CallFollowCRM
+[ -f .git/index.lock ] && rm -f .git/index.lock
+git pull --rebase
+git add server/main.py docs/SYNC.md
+git commit -m "feat(admin): /admin/user/{phone} 사용자 종합 활동 페이지 + 폰번호 클릭"
+git push
+cp server/main.py ~/ringgo-server/
+launchctl kickstart -k gui/$(id -u)/com.detailline.ringgo-server
+```
+
+### 사용법
+- `https://api.si0in.kr/admin/beta/whitelist` 또는 `/admin/beta/dashboard` 들어가서 폰번호(파란 색) 클릭 → 종합 페이지로 이동.
+- 또는 직접 URL: `https://api.si0in.kr/admin/user/01012345678`
+- ADMIN_TOKEN 은 sessionStorage 에 저장됨 (기존 admin 페이지들과 같음).
+
+### "이 사람 진짜 쓰는지" 한 눈 판단법
+- 요약카드 [등록한 일정·현장] = 0 + [앱 호출] 낮음 → dead beta. 화이트리스트에서 빼거나 한 번 문의.
+- [등록한 일정] 있고 [최근 활동] "1주 전" 이내 → 진성 사용자.
+

@@ -5036,8 +5036,9 @@ _BETA_WHITELIST_HTML = """<!doctype html>
         for (var i=0; i<d.items.length; i++) {
           var it = d.items[i];
           var date = it.added_at_ms ? new Date(it.added_at_ms).toLocaleDateString('ko') : '';
+          // 추가34 (2026-06-18) — 폰번호 클릭 시 /admin/user/{phone} 으로 (스케줄·활동 다 보임)
           html += '<tr>'
-            + '<td><b>' + it.phone + '</b><br><span style="font-size:11px; color:#9AA3AF">' + date + '</span></td>'
+            + '<td><a href="/admin/user/' + encodeURIComponent(it.phone_raw) + '" style="color:#3182F6; text-decoration:none"><b>' + it.phone + '</b></a><br><span style="font-size:11px; color:#9AA3AF">' + date + '</span></td>'
             + '<td><b>' + escape(it.name || '-') + '</b><br><span style="font-size:11.5px; color:#5A6472">' + escape(it.memo || '') + '</span></td>'
             + '<td>' + (it.activated ? '<span class="badge on">사용중</span>' : '<span class="badge off">미진입</span>') + '</td>'
             + '<td>' + it.use_count + '</td>'
@@ -5791,8 +5792,9 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
         if (!u.first_seen_ms) statusBadge = '<span class="badge off">미진입</span>';
         else if (u.last_seen_ms && (now - u.last_seen_ms) < 7 * 86400000) statusBadge = '<span class="badge on">활성</span>';
         else statusBadge = '<span class="badge cool">휴면</span>';
+        // 추가34 (2026-06-18) — 폰번호 클릭 시 /admin/user/{phone} 으로 (스케줄·활동 다 보임)
         html2 += '<tr>'
-              + '<td><b>' + u.phone + '</b><br><span style="font-size:11px; color:#5A6472">' + escape(u.name || '-') + '</span></td>'
+              + '<td><a href="/admin/user/' + encodeURIComponent(u.phone_raw) + '" style="color:#3182F6; text-decoration:none"><b>' + u.phone + '</b></a><br><span style="font-size:11px; color:#5A6472">' + escape(u.name || '-') + '</span></td>'
               + '<td>' + added + '</td>'
               + '<td>' + first + '</td>'
               + '<td>' + last + '</td>'
@@ -5920,6 +5922,506 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
 async def admin_beta_dashboard_page():
     """베타 종합 대시보드 HTML."""
     return HTMLResponse(content=_BETA_DASHBOARD_HTML)
+
+
+# ============================================================================
+# 추가34 (2026-06-18) — /admin/user/{phone} 사용자 종합 활동 페이지
+# ─────────────────────────────────────────────────────────────────────────────
+# 사장님 요청: "베타테스터들 번호 클릭하면 스케줄 등록은 했는지 다 보였으면 좋겠어."
+# → whitelist + dashboard 양쪽에서 폰번호 클릭 → 이 페이지로 이동.
+# 맨 위: 등록한 일정·현장 (intake_forms + shared_sites.owner)
+# 그 아래: 통화 요약 / 답장 사용 / 협업 (sent/received) / 최근 활동·가입일.
+# ============================================================================
+
+
+@app.get("/admin/user/{phone}/data")
+async def admin_user_detail_data(
+    phone: str,
+    authorization: Optional[str] = Header(default=None),
+) -> dict:
+    """베타 사용자 한 명의 종합 활동 데이터 (JSON).
+
+    응답:
+      profile: { phone, name, memo, added_at_ms, first_seen_ms, last_seen_ms,
+                 use_count, registered_name }
+      intakes: [{ token, customer_name, issued_at_ms, submitted_at_ms,
+                  status('issued'|'submitted'), summary }]
+      shared_sent: [{ share_id, partner_phone, partner_name, title,
+                      scheduled_at_ms, status, progress }]
+      shared_received: [{ share_id, owner_phone, owner_name, title,
+                          scheduled_at_ms, status, progress }]
+      feature_counts: { prepare-reply: N, refine: N, call-audio-summary: N, ... }
+      recent_api: [{ endpoint, created_at_ms }] (최근 10건)
+      last_active_ms: int (api_usage MAX 또는 whitelist.last_seen_ms)
+    """
+    _admin_auth_bearer_from_header(authorization)
+    target = _norm_phone(phone)
+    if not target:
+        raise HTTPException(400, "phone 필수")
+
+    with db_conn() as con:
+        # ── 1) 프로필 (whitelist + registered) ──
+        wl_row = con.execute(
+            """SELECT phone, name, memo, added_at_ms, first_seen_ms,
+                       last_seen_ms, use_count
+               FROM beta_whitelist WHERE phone = ?""",
+            (target,),
+        ).fetchone()
+        if wl_row:
+            profile = {
+                "phone": _fmt_phone(target),
+                "phone_raw": target,
+                "name": wl_row[1] or "",
+                "memo": wl_row[2] or "",
+                "added_at_ms": wl_row[3],
+                "first_seen_ms": wl_row[4],
+                "last_seen_ms": wl_row[5],
+                "use_count": wl_row[6] or 0,
+            }
+        else:
+            profile = {
+                "phone": _fmt_phone(target),
+                "phone_raw": target,
+                "name": "",
+                "memo": "",
+                "added_at_ms": None,
+                "first_seen_ms": None,
+                "last_seen_ms": None,
+                "use_count": 0,
+            }
+        profile["registered_name"] = _is_registered_owner(target) or ""
+
+        # ── 2) 등록한 접수서 (intake_forms.owner_phone) ──
+        intake_rows = con.execute(
+            """SELECT token, customer_name, issued_at_ms, submitted_at_ms, payload_json
+               FROM intake_forms
+               WHERE owner_phone = ?
+               ORDER BY issued_at_ms DESC
+               LIMIT 50""",
+            (target,),
+        ).fetchall()
+        intakes = []
+        for r in intake_rows:
+            token, cust, issued, submitted, payload = r
+            summary = ""
+            try:
+                if payload:
+                    pj = _json.loads(payload)
+                    # payload_json 안에서 작업 종류 또는 메모 한 줄 뽑기 (best-effort)
+                    summary = (
+                        pj.get("work") or pj.get("work_summary")
+                        or pj.get("memo") or pj.get("note") or ""
+                    )
+                    if isinstance(summary, str):
+                        summary = summary.strip()[:60]
+                    else:
+                        summary = ""
+            except Exception:
+                summary = ""
+            intakes.append({
+                "token": token,
+                "customer_name": cust or "",
+                "issued_at_ms": issued,
+                "submitted_at_ms": submitted,
+                "status": "submitted" if submitted else "issued",
+                "summary": summary,
+            })
+
+        # ── 3) 협업 — 보낸 현장 (owner_phone = target) ──
+        sent_rows = con.execute(
+            """SELECT share_id, partner_phone, title, scheduled_at_ms, status,
+                       progress, partner_name_raw
+               FROM shared_sites
+               WHERE owner_phone = ?
+               ORDER BY created_at_ms DESC
+               LIMIT 50""",
+            (target,),
+        ).fetchall()
+        shared_sent = []
+        for r in sent_rows:
+            sid, pp, title, sched, status, prog, pn_raw = r
+            shared_sent.append({
+                "share_id": sid,
+                "partner_phone": _fmt_phone(pp),
+                "partner_name": (pn_raw or "").strip() or _is_registered_owner(pp) or "협업 사장",
+                "title": title or "",
+                "scheduled_at_ms": sched,
+                "status": status,
+                "progress": prog,
+            })
+
+        # ── 4) 협업 — 받은 현장 (partner_phone = target) ──
+        recv_rows = con.execute(
+            """SELECT share_id, owner_phone, title, scheduled_at_ms, status,
+                       progress, owner_name_raw
+               FROM shared_sites
+               WHERE partner_phone = ?
+               ORDER BY created_at_ms DESC
+               LIMIT 50""",
+            (target,),
+        ).fetchall()
+        shared_received = []
+        for r in recv_rows:
+            sid, op, title, sched, status, prog, on_raw = r
+            shared_received.append({
+                "share_id": sid,
+                "owner_phone": _fmt_phone(op),
+                "owner_name": (on_raw or "").strip() or _is_registered_owner(op) or "사장님",
+                "title": title or "",
+                "scheduled_at_ms": sched,
+                "status": status,
+                "progress": prog,
+            })
+
+        # ── 5) 기능별 사용량 (api_usage.endpoint) ──
+        feat_rows = con.execute(
+            """SELECT endpoint, COUNT(*)
+               FROM api_usage
+               WHERE phone = ?
+               GROUP BY endpoint""",
+            (target,),
+        ).fetchall()
+        feature_counts = {r[0]: r[1] for r in feat_rows}
+
+        # ── 6) 최근 api_usage 10건 (어떤 기능을 언제 썼는지) ──
+        recent_rows = con.execute(
+            """SELECT endpoint, created_at_ms
+               FROM api_usage
+               WHERE phone = ?
+               ORDER BY created_at_ms DESC
+               LIMIT 10""",
+            (target,),
+        ).fetchall()
+        recent_api = [{"endpoint": r[0], "created_at_ms": r[1]} for r in recent_rows]
+
+        # ── 7) last_active_ms — api_usage MAX OR whitelist.last_seen_ms ──
+        last_api = con.execute(
+            "SELECT MAX(created_at_ms) FROM api_usage WHERE phone = ?", (target,)
+        ).fetchone()[0]
+        last_active_ms = max(
+            last_api or 0,
+            profile.get("last_seen_ms") or 0,
+        ) or None
+
+    return {
+        "profile": profile,
+        "intakes": intakes,
+        "shared_sent": shared_sent,
+        "shared_received": shared_received,
+        "feature_counts": feature_counts,
+        "recent_api": recent_api,
+        "last_active_ms": last_active_ms,
+    }
+
+
+_ADMIN_USER_DETAIL_HTML = """<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>사용자 상세 — RING-GO admin</title>
+<style>
+  :root { --blue:#3182F6; --blue-dark:#1B64DA; --bg:#F4F5F7; --card:#fff;
+          --t1:#0B0F19; --t2:#5A6472; --t3:#9AA3AF; --line:#EEF0F3;
+          --error:#F0436A; --success:#16C172; --warn:#FF8B40; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg);
+         font-family:'Pretendard',-apple-system,system-ui,sans-serif;
+         color:var(--t1); line-height:1.5; }
+  .wrap { max-width:760px; margin:0 auto; padding:16px 14px 40px; }
+  .back { display:inline-block; font-size:13px; color:var(--blue);
+          text-decoration:none; margin-bottom:8px; }
+  .back:hover { text-decoration:underline; }
+  h1 { font-size:21px; font-weight:800; margin:0 0 4px; }
+  .sub { font-size:13px; color:var(--t2); margin-bottom:14px; }
+  .card { background:var(--card); border-radius:14px; padding:16px;
+          box-shadow:0 1px 3px rgba(0,0,0,.04); margin-top:14px; }
+  .card h2 { font-size:14px; font-weight:800; margin:0 0 12px;
+             display:flex; align-items:center; gap:6px; }
+  .card h2 .cnt { font-size:11.5px; font-weight:700; color:var(--t3);
+                  background:var(--bg); border-radius:999px; padding:2px 8px; }
+  .row { display:flex; flex-wrap:wrap; gap:10px; }
+  .meta { font-size:12.5px; color:var(--t2); }
+  .meta b { color:var(--t1); }
+  .pill { display:inline-block; padding:3px 9px; border-radius:7px;
+          font-size:11px; font-weight:800; }
+  .pill.ok { background:#E7F8EF; color:var(--success); }
+  .pill.pending { background:#FFF7E5; color:var(--warn); }
+  .pill.declined { background:#FFF2F5; color:var(--error); }
+  .pill.ended { background:#EEF0F3; color:var(--t3); }
+  .pill.accepted { background:#E5F0FF; color:var(--blue); }
+  .item { padding:10px 0; border-bottom:1px solid var(--line); font-size:13px; }
+  .item:last-child { border-bottom:0; }
+  .item .title { font-weight:700; font-size:13.5px; }
+  .item .sub2 { color:var(--t2); font-size:12px; margin-top:3px; }
+  .empty { color:var(--t3); font-size:13px; text-align:center; padding:14px 0; }
+  .kv { display:grid; grid-template-columns:90px 1fr; gap:6px 12px;
+        font-size:13px; }
+  .kv .k { color:var(--t2); font-weight:700; }
+  .feat-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
+  .feat { background:var(--bg); border-radius:10px; padding:10px 12px;
+          display:flex; align-items:center; justify-content:space-between; }
+  .feat .lab { font-size:12.5px; color:var(--t2); font-weight:700; }
+  .feat .n { font-size:16px; font-weight:800; color:var(--t1); }
+  .summary-cards { display:grid; grid-template-columns:repeat(2,1fr); gap:10px;
+                   margin-top:12px; }
+  .s-card { background:var(--card); border-radius:12px; padding:12px;
+            box-shadow:0 1px 3px rgba(0,0,0,.04); }
+  .s-card .lab { font-size:11.5px; color:var(--t3); font-weight:700; }
+  .s-card .v { font-size:17px; font-weight:800; margin-top:3px; }
+  #tokenModal { position:fixed; inset:0; background:rgba(0,0,0,.5); display:none;
+                align-items:center; justify-content:center; z-index:50; }
+  #tokenModal.show { display:flex; }
+  #tokenModal .box { background:#fff; border-radius:14px; padding:22px;
+                     max-width:90vw; width:340px; }
+  #tokenModal input { width:100%; border:1.5px solid var(--line);
+                      border-radius:10px; padding:11px 12px; font-size:14px;
+                      font-family:inherit; }
+  #tokenModal button { width:100%; background:var(--blue); color:#fff; border:0;
+                       border-radius:10px; padding:11px 16px; font-size:14px;
+                       font-weight:800; font-family:inherit; cursor:pointer;
+                       margin-top:10px; }
+</style></head>
+<body>
+<div id="tokenModal"><div class="box">
+  <h3 style="margin:0 0 8px">ADMIN_TOKEN 입력</h3>
+  <p style="font-size:13px; color:#5A6472; margin:0 0 12px">browser 에 저장됩니다.</p>
+  <input id="tokenInput" type="password" placeholder="토큰">
+  <button onclick="saveToken()">저장</button>
+</div></div>
+
+<div class="wrap">
+  <a class="back" href="/admin">← admin 홈</a>
+  <h1 id="hdr">사용자 상세</h1>
+  <div class="sub" id="hdrSub">로딩중…</div>
+
+  <div class="summary-cards">
+    <div class="s-card"><div class="lab">등록한 일정·현장</div><div class="v" id="kIntakes">-</div></div>
+    <div class="s-card"><div class="lab">협업 현장 (보냄+받음)</div><div class="v" id="kCollab">-</div></div>
+    <div class="s-card"><div class="lab">앱 호출 (누적)</div><div class="v" id="kCalls">-</div></div>
+    <div class="s-card"><div class="lab">최근 활동</div><div class="v" id="kRecent">-</div></div>
+  </div>
+
+  <!-- ★ 맨 위: 등록한 일정·현장 (사장님이 요청한 핵심) -->
+  <div class="card">
+    <h2>📋 등록한 일정·현장 <span class="cnt" id="cIntakes">0</span></h2>
+    <div id="intakeList"><div class="empty">로딩중…</div></div>
+  </div>
+
+  <!-- 협업 (보낸·받은) -->
+  <div class="card">
+    <h2>🤝 협업 현장 (보냄) <span class="cnt" id="cSent">0</span></h2>
+    <div id="sentList"><div class="empty">-</div></div>
+  </div>
+  <div class="card">
+    <h2>🤝 협업 현장 (받음) <span class="cnt" id="cRecv">0</span></h2>
+    <div id="recvList"><div class="empty">-</div></div>
+  </div>
+
+  <!-- 기능별 사용량 -->
+  <div class="card">
+    <h2>⚙️ 기능별 사용 (누적)</h2>
+    <div class="feat-grid" id="featGrid"><div class="empty">-</div></div>
+  </div>
+
+  <!-- 최근 활동 timeline (최근 10건) -->
+  <div class="card">
+    <h2>🕒 최근 활동 <span class="cnt" id="cRecent">0</span></h2>
+    <div id="recentList"><div class="empty">-</div></div>
+  </div>
+
+  <!-- 프로필 메타 -->
+  <div class="card">
+    <h2>👤 프로필</h2>
+    <div class="kv" id="profileKV"></div>
+  </div>
+</div>
+
+<script>
+  // URL path 마지막 segment 를 phone 으로
+  var PHONE = decodeURIComponent(location.pathname.split('/').filter(Boolean).pop() || '');
+
+  function getToken() { return sessionStorage.getItem('admin_token') || ''; }
+  function saveToken() {
+    var t = document.getElementById('tokenInput').value.trim();
+    if (!t) return;
+    sessionStorage.setItem('admin_token', t);
+    document.getElementById('tokenModal').classList.remove('show');
+    load();
+  }
+  function ensureToken() {
+    if (!getToken()) { document.getElementById('tokenModal').classList.add('show'); return false; }
+    return true;
+  }
+  async function api(path) {
+    var r = await fetch(path, { headers: { 'Authorization': 'Bearer ' + getToken() } });
+    if (r.status === 401) { sessionStorage.removeItem('admin_token'); ensureToken(); throw new Error('인증 실패'); }
+    if (!r.ok) { var t = await r.text(); throw new Error(t || 'API 오류'); }
+    return r.json();
+  }
+  function esc(s) { s = String(s||''); return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function fmtDate(ms) {
+    if (!ms) return '-';
+    var d = new Date(ms);
+    return d.toLocaleString('ko', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+  }
+  function fmtRel(ms) {
+    if (!ms) return '없음';
+    var diff = Date.now() - ms;
+    var d = Math.floor(diff / 86400000);
+    if (d < 1) return '오늘';
+    if (d < 7) return d + '일 전';
+    if (d < 30) return Math.floor(d/7) + '주 전';
+    if (d < 365) return Math.floor(d/30) + '개월 전';
+    return Math.floor(d/365) + '년 전';
+  }
+  var FEATURE_LABEL = {
+    'prepare-reply':       '답장 추천',
+    'refine':              '친절 다듬기',
+    'call-summary':        '통화 요약 (텍스트)',
+    'call-audio-summary':  '통화 요약 (녹음)',
+    'conversation-summary':'대화 요약',
+    'card-summary':        '고객 카드 요약',
+    'next-action-suggest': '다음 행동 제안',
+    'tone-import':         '톤 학습',
+    'infer-principle':     '원칙 발견',
+  };
+
+  async function load() {
+    if (!ensureToken()) return;
+    try {
+      var d = await api('/admin/user/' + encodeURIComponent(PHONE) + '/data');
+
+      // 헤더
+      var p = d.profile;
+      var displayName = p.name || p.registered_name || '(이름 없음)';
+      document.getElementById('hdr').textContent = displayName + ' · ' + p.phone;
+      document.getElementById('hdrSub').textContent =
+        (p.memo ? '메모: ' + p.memo + ' · ' : '') +
+        '가입: ' + (p.added_at_ms ? fmtRel(p.added_at_ms) : '미등록') +
+        ' · 사용 ' + (p.use_count || 0) + '회';
+
+      // 요약 카드
+      document.getElementById('kIntakes').textContent = d.intakes.length;
+      document.getElementById('kCollab').textContent =
+        d.shared_sent.length + ' / ' + d.shared_received.length;
+      var totalCalls = 0;
+      for (var k in d.feature_counts) totalCalls += d.feature_counts[k] || 0;
+      document.getElementById('kCalls').textContent = totalCalls;
+      document.getElementById('kRecent').textContent = fmtRel(d.last_active_ms);
+
+      // 일정·현장
+      document.getElementById('cIntakes').textContent = d.intakes.length;
+      var ihtml = '';
+      if (d.intakes.length === 0) {
+        ihtml = '<div class="empty">아직 접수서·일정 등록한 게 없어요</div>';
+      } else {
+        for (var i=0; i<d.intakes.length; i++) {
+          var it = d.intakes[i];
+          var statusPill = it.status === 'submitted'
+            ? '<span class="pill ok">제출됨</span>'
+            : '<span class="pill pending">발급만</span>';
+          ihtml += '<div class="item">'
+            + '<div class="title">' + esc(it.customer_name || '(고객 미상)') + ' ' + statusPill + '</div>'
+            + '<div class="sub2">'
+            + '발급: ' + fmtDate(it.issued_at_ms)
+            + (it.submitted_at_ms ? ' · 제출: ' + fmtDate(it.submitted_at_ms) : '')
+            + (it.summary ? ' · ' + esc(it.summary) : '')
+            + '</div></div>';
+        }
+      }
+      document.getElementById('intakeList').innerHTML = ihtml;
+
+      // 협업 보낸
+      document.getElementById('cSent').textContent = d.shared_sent.length;
+      var shtml = '';
+      if (d.shared_sent.length === 0) shtml = '<div class="empty">보낸 협업 없음</div>';
+      else {
+        for (var i=0; i<d.shared_sent.length; i++) {
+          var s = d.shared_sent[i];
+          shtml += '<div class="item">'
+            + '<div class="title">' + esc(s.title || '협업 현장') + ' · ' + esc(s.partner_name) + '</div>'
+            + '<div class="sub2">'
+            + (s.scheduled_at_ms ? fmtDate(s.scheduled_at_ms) + ' · ' : '')
+            + '<span class="pill ' + s.status + '">' + s.status + '</span>'
+            + ' · ' + (s.progress || '-')
+            + '</div></div>';
+        }
+      }
+      document.getElementById('sentList').innerHTML = shtml;
+
+      // 협업 받은
+      document.getElementById('cRecv').textContent = d.shared_received.length;
+      var rhtml = '';
+      if (d.shared_received.length === 0) rhtml = '<div class="empty">받은 협업 없음</div>';
+      else {
+        for (var i=0; i<d.shared_received.length; i++) {
+          var s = d.shared_received[i];
+          rhtml += '<div class="item">'
+            + '<div class="title">' + esc(s.title || '협업 현장') + ' · ' + esc(s.owner_name) + '</div>'
+            + '<div class="sub2">'
+            + (s.scheduled_at_ms ? fmtDate(s.scheduled_at_ms) + ' · ' : '')
+            + '<span class="pill ' + s.status + '">' + s.status + '</span>'
+            + ' · ' + (s.progress || '-')
+            + '</div></div>';
+        }
+      }
+      document.getElementById('recvList').innerHTML = rhtml;
+
+      // 기능별 사용량
+      var fhtml = '';
+      var feats = Object.keys(d.feature_counts || {}).sort(function(a,b){
+        return (d.feature_counts[b] || 0) - (d.feature_counts[a] || 0);
+      });
+      if (feats.length === 0) fhtml = '<div class="empty">아직 기능 사용 없음</div>';
+      else {
+        for (var i=0; i<feats.length; i++) {
+          var ep = feats[i];
+          fhtml += '<div class="feat"><span class="lab">'
+            + esc(FEATURE_LABEL[ep] || ep) + '</span><span class="n">'
+            + (d.feature_counts[ep] || 0) + '</span></div>';
+        }
+      }
+      document.getElementById('featGrid').innerHTML = fhtml;
+
+      // 최근 timeline
+      document.getElementById('cRecent').textContent = d.recent_api.length;
+      var lhtml = '';
+      if (d.recent_api.length === 0) lhtml = '<div class="empty">최근 사용 없음</div>';
+      else {
+        for (var i=0; i<d.recent_api.length; i++) {
+          var x = d.recent_api[i];
+          lhtml += '<div class="item">'
+            + '<div class="title">' + esc(FEATURE_LABEL[x.endpoint] || x.endpoint) + '</div>'
+            + '<div class="sub2">' + fmtDate(x.created_at_ms) + '</div></div>';
+        }
+      }
+      document.getElementById('recentList').innerHTML = lhtml;
+
+      // 프로필 메타
+      var pk = '';
+      pk += '<div class="k">폰</div><div>' + esc(p.phone) + '</div>';
+      pk += '<div class="k">이름(메모)</div><div>' + esc(p.name || '-') + '</div>';
+      pk += '<div class="k">메모</div><div>' + esc(p.memo || '-') + '</div>';
+      pk += '<div class="k">가입자명</div><div>' + esc(p.registered_name || '-') + '</div>';
+      pk += '<div class="k">화이트리스트 등록</div><div>' + fmtDate(p.added_at_ms) + '</div>';
+      pk += '<div class="k">첫 진입</div><div>' + fmtDate(p.first_seen_ms) + '</div>';
+      pk += '<div class="k">마지막 진입</div><div>' + fmtDate(p.last_seen_ms) + ' (' + fmtRel(p.last_seen_ms) + ')</div>';
+      pk += '<div class="k">앱 실행 횟수</div><div>' + (p.use_count || 0) + '</div>';
+      document.getElementById('profileKV').innerHTML = pk;
+
+    } catch(e) {
+      document.getElementById('hdrSub').textContent = '로드 실패: ' + e.message;
+    }
+  }
+  load();
+</script></body></html>
+"""
+
+
+@app.get("/admin/user/{phone}", response_class=HTMLResponse, include_in_schema=False)
+async def admin_user_detail_page(phone: str):
+    """사용자 종합 활동 페이지 HTML — phone path 는 JS 가 사용."""
+    return HTMLResponse(content=_ADMIN_USER_DETAIL_HTML)
 
 
 # ============================================================================
