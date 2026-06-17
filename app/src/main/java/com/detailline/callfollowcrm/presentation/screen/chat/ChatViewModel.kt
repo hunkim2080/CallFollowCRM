@@ -69,6 +69,9 @@ class ChatViewModel(
                 if (found != null) _customerId.value = found.id
             }
         }
+        // 뒤로가기로 화면 나가도 ⭕/❌/나중에 안 골랐으면 발견 카드 다시 표시. (2026-06-18 사장님)
+        //   launch 로 — restore 가 init 아래 선언된 프로퍼티(_principleDiscovery 등)를 만지므로 동기 호출은 init 순서 NPE.
+        viewModelScope.launch { restorePendingPrinciple() }
     }
 
     /** id 변경되면 자동으로 다시 observe. id null 이면 null flow. */
@@ -607,7 +610,9 @@ class ChatViewModel(
             if (text in container.preferences.dismissedPrincipleCandidates) return@launch
             if (existing.any { it.equals(text, ignoreCase = true) }) return@launch
             markPrincipleAsked()
-            _principleDiscovery.value = PrincipleDiscovery(principle = text, question = candidate.question)
+            val disc = PrincipleDiscovery(principle = text, question = candidate.question)
+            _principleDiscovery.value = disc
+            persistPendingPrinciple(disc)  // 뒤로가기로 사라져도 ⭕/❌/나중에 고를 때까지 다시 뜨게. (2026-06-18 사장님)
         }
     }
 
@@ -615,6 +620,7 @@ class ChatViewModel(
     fun acceptPrinciple() {
         val d = _principleDiscovery.value ?: return
         _principleDiscovery.value = d.copy(resolved = PrincipleResolved.OK)
+        clearPendingPrinciple()  // 선택 완료 → 영속본 제거
         viewModelScope.launch(Dispatchers.IO) {
             runCatching { container.principleRepository.add(d.principle, source = "discovered") }
         }
@@ -626,16 +632,47 @@ class ChatViewModel(
         container.preferences.dismissedPrincipleCandidates =
             container.preferences.dismissedPrincipleCandidates + d.principle
         _principleDiscovery.value = d.copy(resolved = PrincipleResolved.NO)
+        clearPendingPrinciple()  // 선택 완료 → 영속본 제거
     }
 
     /** 나중에 — 그냥 닫기(거절 아님, 다음에 또 보이면 물음). */
     fun laterPrinciple() {
         val d = _principleDiscovery.value ?: return
         _principleDiscovery.value = d.copy(resolved = PrincipleResolved.LATER)
+        clearPendingPrinciple()  // 선택 완료(나중에도 결정) → 영속본 제거
     }
 
     /** resolved 메시지를 잠깐 보여준 뒤 카드 완전 해제 (카드 composable 이 호출). */
     fun clearPrincipleDiscovery() { _principleDiscovery.value = null }
+
+    // ── 대기 중 발견 카드 영속화 (2026-06-18 사장님: 뒤로가기로 화면 나가도 ⭕/❌/나중에 고를 때까지 유지) ──
+    //   항목 = 번호 끝 8자리(고정폭) + 원칙. 구분자 없이 앞 8자리=번호 키. (질문은 복원 시 카드가 템플릿으로 재생성)
+    private val principlePhoneKey: String get() = phoneNumber.filter { it.isDigit() }.takeLast(8)
+
+    /** 발견 카드 띄울 때 같이 저장 — 화면 나갔다 와도(VM 재생성) 그대로 복원. 같은 번호 기존 항목은 교체. */
+    private fun persistPendingPrinciple(d: PrincipleDiscovery) {
+        val key = principlePhoneKey
+        if (key.length != 8) return
+        val kept = container.preferences.pendingPrincipleDiscoveries.filterNot { it.take(8) == key }
+        container.preferences.pendingPrincipleDiscoveries = (kept + (key + d.principle)).toSet()
+    }
+
+    /** ⭕/❌/나중에 결정되면(선택 완료) 영속본 제거 — 더는 복원 안 함. */
+    private fun clearPendingPrinciple() {
+        val key = principlePhoneKey
+        if (key.length != 8) return
+        container.preferences.pendingPrincipleDiscoveries =
+            container.preferences.pendingPrincipleDiscoveries.filterNot { it.take(8) == key }.toSet()
+    }
+
+    /** VM 생성 시 — 이 번호의 미결정 발견이 있으면 카드 복원(뒤로가기로 사라졌던 것 다시 표시). */
+    private fun restorePendingPrinciple() {
+        val key = principlePhoneKey
+        if (key.length != 8 || _principleDiscovery.value != null) return
+        val entry = container.preferences.pendingPrincipleDiscoveries.firstOrNull { it.take(8) == key } ?: return
+        val principle = entry.drop(8).takeIf { it.isNotBlank() } ?: return
+        _principleDiscovery.value = PrincipleDiscovery(principle = principle)
+    }
 
     /** 오늘 원칙을 더 물어도 되는지 (하루 한도). 새 날이면 리셋. */
     private fun canAskPrincipleToday(): Boolean {

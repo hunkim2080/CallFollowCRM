@@ -269,6 +269,13 @@ class AppPreferences(context: Context) {
     var dismissedPrincipleCandidates: Set<String>
         get() = prefs.getStringSet("principle_dismissed", emptySet()) ?: emptySet()
         set(value) { prefs.edit().putStringSet("principle_dismissed", value).apply() }
+    /**
+     * 아직 ⭕/❌/나중에 안 누른 '대기 중 원칙 발견'. 뒤로가기로 채팅 나갔다 와도(VM 재생성) 다시 떠야 함
+     *   — 선택할 때까지 유지. 항목 = "번호끝8자리  원칙  질문". (2026-06-18 사장님)
+     */
+    var pendingPrincipleDiscoveries: Set<String>
+        get() = prefs.getStringSet("principle_pending", emptySet()) ?: emptySet()
+        set(value) { prefs.edit().putStringSet("principle_pending", value).apply() }
 
     /**
      * 2026-06-01 전면 리뉴얼 — 로그인 화면을 한 번 봤는지. 첫 실행에만 로그인 화면 노출.
