@@ -164,8 +164,9 @@
   </div>
 
   <footer>
-    <div><b>시공막내</b> · 베타 v0.1</div>
+    <div><b>시공막내</b> · 베타 <span id="footerVersion">…</span></div>
     <div>혼자 일하는 시공 사장님의 막내 비서</div>
+    <div style="margin-top:6px;color:var(--t3);font-size:12px;">빌드: <span id="footerBuild">-</span></div>
     <div style="margin-top:8px;">문의: <a href="mailto:hello@si0in.kr">hello@si0in.kr</a></div>
     <div style="margin-top:6px;color:var(--t3);">© 2026 시공막내 (디테일라인)</div>
   </footer>
@@ -183,9 +184,16 @@
     }
     document.getElementById('apkVersion').textContent = d.version;
     document.getElementById('apkSize').textContent = d.size_mb + ' MB';
+    // §3 (2026-06-18) footer 도 동적으로 — stale 라벨 방지
+    var fv = document.getElementById('footerVersion');
+    var fb = document.getElementById('footerBuild');
+    if (fv) fv.textContent = d.version;
+    if (fb) fb.textContent = (d.mtime_iso || '-') + ' · ' + (d.size_mb || '-') + 'MB';
   }).catch(function(){
     document.getElementById('apkVersion').textContent = '버전 확인 실패';
     document.getElementById('apkSize').textContent = '-';
+    var fv = document.getElementById('footerVersion');
+    if (fv) fv.textContent = '?';
   });
 
   // FAQ 아코디언

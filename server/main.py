@@ -561,6 +561,13 @@ def db_init() -> None:
             con.execute("ALTER TABLE shared_sites ADD COLUMN owner_name_raw TEXT")
         except Exception:
             pass
+        # §I (2026-06-18) 핸드오프 06-18 §1 — B(협업자) 가 respond/progress 시 보낸 본인 상호.
+        # by-me 응답의 partner_name 으로 echo → A 화면 "🤝 OO 사장님과 함께".
+        # 없으면 _is_registered_owner(partner_phone) fallback, 최종 "협업 사장".
+        try:
+            con.execute("ALTER TABLE shared_sites ADD COLUMN partner_name_raw TEXT")
+        except Exception:
+            pass
         # §D (2026-06-13) — 출동 2h 전 알림 dedup 컬럼. NULL = 아직 발송 안 됨.
         # poller 가 UPDATE ... WHERE reminded_at_ms IS NULL 로 race 차단.
         try:
@@ -6409,7 +6416,7 @@ async def download_apk_version():
         "mtime_iso": _dt.datetime.fromtimestamp(stat.st_mtime).strftime(
             "%Y-%m-%d %H:%M"
         ),
-        "version": version_text or "v0.1-beta",
+        "version": version_text or "v0.2-beta",  # §3 (2026-06-18) — VERSION.txt 없을 때 fallback. 다음 빌드 시 사장님이 VERSION.txt 갱신 권장.
     }
 
 
@@ -8587,6 +8594,7 @@ class SharedRespondRequest(BaseModel):
     share_id: str
     partner_phone: str
     accept: bool
+    partner_name: Optional[str] = None   # §I (2026-06-18) — B 본인 상호 ('박지훈전문줄눈'). by-me 의 partner_name echo 용.
 
 
 @app.post("/api/shared/respond")
@@ -8617,16 +8625,25 @@ async def shared_respond(req: SharedRespondRequest) -> dict:
             raise HTTPException(409, f"이미 {row[1]} 상태입니다")
         owner_phone_for_fcm = row[2]
         site_title = row[3] or ""
-        con.execute(
-            "UPDATE shared_sites SET status = ?, updated_at_ms = ? WHERE share_id = ?",
-            (new_status, now, share_id),
-        )
+        # §I (2026-06-18) — B 가 보낸 partner_name(상호) 박기 (있을 때만).
+        partner_name_raw_val = (req.partner_name or "").strip() if hasattr(req, "partner_name") else ""
+        if partner_name_raw_val:
+            con.execute(
+                "UPDATE shared_sites SET status = ?, partner_name_raw = ?, updated_at_ms = ? WHERE share_id = ?",
+                (new_status, partner_name_raw_val, now, share_id),
+            )
+        else:
+            con.execute(
+                "UPDATE shared_sites SET status = ?, updated_at_ms = ? WHERE share_id = ?",
+                (new_status, now, share_id),
+            )
         con.commit()
-    print(f"[shared/respond] share={share_id} {partner_phone} → {new_status}")
+    print(f"[shared/respond] share={share_id} {partner_phone} → {new_status} pn={partner_name_raw_val!r}")
     # §H (2026-06-13) FCM — A 에게 수락/거절 알림 (앱 꺼진 상태에서도).
     # 핸드오프: 기존 collab_event 재사용 → type=collab_event, step=accepted|declined.
     # 앱 측 ("🤝 협업 수락 · OOO 님이 수락했어요") 문구는 클라이언트 생성.
-    partner_name_for_fcm = _is_registered_owner(partner_phone) or "협업 사장"
+    # §I (2026-06-18) — B 가 보낸 상호 우선, 없으면 registered, 최종 fallback.
+    partner_name_for_fcm = partner_name_raw_val or _is_registered_owner(partner_phone) or "협업 사장"
     _send_fcm_data_to_phone(owner_phone_for_fcm, {
         "type": "collab_event",
         "share_id": share_id,
@@ -8657,7 +8674,8 @@ async def shared_by_me(phone: str, since_ms: int = 0, limit: int = 100) -> dict:
         rows = con.execute(
             """
             SELECT share_id, partner_phone, title, scheduled_at_ms, status,
-                   daily_wage, time_label_raw, owner_name_raw, created_at_ms, updated_at_ms
+                   daily_wage, time_label_raw, owner_name_raw, partner_name_raw,
+                   created_at_ms, updated_at_ms
             FROM shared_sites
             WHERE owner_phone = ? AND updated_at_ms > ?
             ORDER BY created_at_ms DESC
@@ -8667,8 +8685,16 @@ async def shared_by_me(phone: str, since_ms: int = 0, limit: int = 100) -> dict:
         ).fetchall()
     sites = []
     for r in rows:
-        share_id, partner_phone, title, scheduled_at_ms, status, daily_wage, time_label_raw, owner_name_raw, created_at_ms, updated_at_ms = r
-        partner_name = _is_registered_owner(partner_phone) or "협업 사장"
+        (share_id, partner_phone, title, scheduled_at_ms, status,
+         daily_wage, time_label_raw, owner_name_raw, partner_name_raw,
+         created_at_ms, updated_at_ms) = r
+        # §I (2026-06-18) — B 가 respond/progress 에 박은 상호 (partner_name_raw) 우선.
+        # 없으면 registered owner, 최종 fallback "협업 사장".
+        partner_name = (
+            (partner_name_raw or "").strip()
+            or _is_registered_owner(partner_phone)
+            or "협업 사장"
+        )
         # §A-2 time_label (raw 우선, 없으면 HH:MM)
         tl = (time_label_raw or "").strip()
         if not tl and scheduled_at_ms:
@@ -8714,6 +8740,7 @@ class SharedProgressRequest(BaseModel):
     step: str                                      # 'departed'|'arrived'|'completed'
     payload: Optional[SharedProgressPayload] = None
     auto: Optional[bool] = False                   # §E (2026-06-13) — geofence 자동 감지 (arrived 만 의미 있음)
+    partner_name: Optional[str] = None             # §I (2026-06-18) — B 본인 상호 (by-me 의 partner_name echo 용)
 
 
 _VALID_PROGRESS_STEPS = {"departed", "arrived", "completed"}
@@ -8748,6 +8775,8 @@ async def shared_progress(req: SharedProgressRequest) -> dict:
             raise HTTPException(409, "수락된 공유만 진행 가능")
         owner_phone_for_event = row[2]
         site_title = row[3] or ""
+        # §I (2026-06-18) — B 가 보낸 partner_name 박기 (있을 때만, partial UPDATE).
+        partner_name_raw_val = (req.partner_name or "").strip() if hasattr(req, "partner_name") else ""
         # 1) shared_sites 업데이트
         event_bank = None
         event_account_no = None
@@ -8760,20 +8789,37 @@ async def shared_progress(req: SharedProgressRequest) -> dict:
             event_bank = bank or None
             event_account_no = account_no or None
             event_holder = holder or None
-            con.execute(
-                """
-                UPDATE shared_sites SET
-                  progress = ?, account_bank = ?, account_no = ?, account_holder = ?,
-                  updated_at_ms = ?
-                WHERE share_id = ?
-                """,
-                (step, event_bank, event_account_no, event_holder, now, share_id),
-            )
+            if partner_name_raw_val:
+                con.execute(
+                    """
+                    UPDATE shared_sites SET
+                      progress = ?, account_bank = ?, account_no = ?, account_holder = ?,
+                      partner_name_raw = ?, updated_at_ms = ?
+                    WHERE share_id = ?
+                    """,
+                    (step, event_bank, event_account_no, event_holder, partner_name_raw_val, now, share_id),
+                )
+            else:
+                con.execute(
+                    """
+                    UPDATE shared_sites SET
+                      progress = ?, account_bank = ?, account_no = ?, account_holder = ?,
+                      updated_at_ms = ?
+                    WHERE share_id = ?
+                    """,
+                    (step, event_bank, event_account_no, event_holder, now, share_id),
+                )
         else:
-            con.execute(
-                "UPDATE shared_sites SET progress = ?, updated_at_ms = ? WHERE share_id = ?",
-                (step, now, share_id),
-            )
+            if partner_name_raw_val:
+                con.execute(
+                    "UPDATE shared_sites SET progress = ?, partner_name_raw = ?, updated_at_ms = ? WHERE share_id = ?",
+                    (step, partner_name_raw_val, now, share_id),
+                )
+            else:
+                con.execute(
+                    "UPDATE shared_sites SET progress = ?, updated_at_ms = ? WHERE share_id = ?",
+                    (step, now, share_id),
+                )
         # 2) §28 — A 앞으로 이벤트 적재 (TeamEventCenter 패턴 폴링용)
         event_id = "evt_" + "".join(
             _secrets_collab.choice(_SHARE_ID_ALPHABET) for _ in range(10)
@@ -8806,7 +8852,8 @@ async def shared_progress(req: SharedProgressRequest) -> dict:
     )
     # §30 FCM 푸시 — A 에게 진행/완료 알림 (앱 꺼져 있어도)
     # §E (2026-06-13): step=arrived & auto=true 시 앱이 "거의 도착해가요" 문구로 표시.
-    partner_name = _is_registered_owner(partner_phone) or "협업 사장"
+    # §I (2026-06-18) — B 가 보낸 상호 우선, 없으면 registered, 최종 fallback.
+    partner_name = partner_name_raw_val or _is_registered_owner(partner_phone) or "협업 사장"
     fcm_data: dict = {
         "type": "collab_event",
         "share_id": share_id,

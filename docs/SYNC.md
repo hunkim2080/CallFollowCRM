@@ -4935,3 +4935,67 @@ curl -s -X POST https://api.si0in.kr/infer-principle \
 - 앱 단독(서버 무관): 통화요약 "이미 요약됨"인데 카드에 안 보이던 버그 — 탭한 통화에 callRecordId 강제 연결(e813763).
 - commit: 6d04a20(협업 분리), e813763(통화요약), + 직전 1fd1b73(기본앱 권유 제거)
 - 다음 액션 (cowork): `SERVER_HANDOFF_2026-06-18.md` §1 partner_name(★) → §2 by-me 날짜필터 제거 → §3 다운로드 페이지. + 누적 서버 변경 배포(deploy) & `/infer-principle` 구현(기존 핸드오프).
+## 2026-06-18 06:30 · cowork
+핸드오프 06-18 (android→cowork) 3건 — partner_name echo + by-me 점검 + install footer stale fix
+
+### ① by-me 응답 `partner_name` 추가 (★ 핸드오프 §1)
+- **변경**:
+  - `shared_sites` 테이블에 `partner_name_raw TEXT` 컬럼 추가 (마이그레이션 ALTER, line ~564)
+  - `SharedRespondRequest` + `SharedProgressRequest` 모델에 `partner_name: Optional[str] = None` 필드 추가
+  - `shared_respond` / `shared_progress` 핸들러에서 `req.partner_name` 받으면 `partner_name_raw` 컬럼에 박음 (있을 때만 partial UPDATE)
+  - `shared_by_me` SELECT 에 `partner_name_raw` 추가 + 응답 `partner_name` 채움 우선순위:
+    1. `partner_name_raw` (B 가 respond/progress 에 보낸 상호) ★
+    2. `_is_registered_owner(partner_phone)` (B 가 가입자면 그 상호)
+    3. `"협업 사장"` (최종 fallback)
+  - respond/progress FCM 의 `partner_name` 도 동일 우선순위 적용
+- **앱 측 액션 (android Claude)**: `SharedSiteRepository` 가 respond/progress 호출 시 `partner_name`=본인 owner 상호 (예: "박지훈전문줄눈") 같이 보내주세요. 이미 보내고 있으면 OK — 키 이름만 `partner_name` 으로 맞춰주세요.
+- **graceful**: B 가 partner_name 안 보내면 기존 fallback 그대로. 앱 카드는 "함께할 사장님 수락 대기 중" 으로 표시(요청한 graceful 동작 유지).
+
+### ② by-me 지난 날짜 현장 점검 (핸드오프 §2)
+- **결론**: 서버 코드 변경 불필요. 이미 핸드오프 의도와 일치.
+  - by-me SQL: `WHERE owner_phone=? AND updated_at_ms > ? ORDER BY created_at_ms DESC LIMIT ?` — 날짜 필터(upcoming/today) 없음 ✅
+  - since_ms 0(default) 이면 모든 row 반환 ✅
+  - limit default=100, max=300 — 6/4 (2주 전) 도 최근 100건 안에 들어옴 ✅
+  - 협업자 수락 시 `status = accepted` 로만 바뀌고 `owner_phone` 그대로 → owner 쪽 by-me 에서 사라지지 않음 ✅
+  - with-me 와 동일 패턴 (둘 다 `updated_at_ms > since_ms` + limit 만 차이)
+- **단**: 앱이 since_ms 를 큰 값(예: 24h 전)으로 넣어 호출하면 오래된 row 빠질 수 있음 — 캘린더 협업 카드 채우기 용도면 since_ms=0 권장.
+
+### ③ install.html stale 버전 표기 fix (핸드오프 §3)
+- **변경**:
+  - `install.html:167` 의 하드코딩 `<div><b>시공막내</b> · 베타 v0.1</div>` 제거.
+  - 동적 렌더 — `<span id="footerVersion">…</span>` + `<span id="footerBuild">` (mtime+size).
+  - JS fetch('/api/download/version') 결과로 채움 (실패 시 "?" 표시).
+  - main.py `/api/download/version` default fallback `"v0.1-beta"` → `"v0.2-beta"` 갱신.
+- **사장님 액션 (다음 빌드 시 권장)**: `/Users/hun/ringgo-server/apk/VERSION.txt` 에 한 줄 `v0.3-beta` 같은 식으로 박으면 footer + 다운로드 버튼 메타가 그 값으로 표시됨. VERSION.txt 없으면 위 default 사용.
+- **APK 파일**: 이미 사장님이 6/16 07:57 에 최신본으로 교체함 → 별도 작업 없음.
+
+### 변경 파일
+- `server/main.py` — partner_name_raw ALTER (line ~564) + Respond/Progress 모델·핸들러 (8593, 8625, 8736~) + by-me SELECT (8657, 8676) + download/version fallback (6419)
+- `server/static/install.html` — footer 동적 (line 166~172) + JS (line 184~)
+
+### 사장님 한 줄 배포 (lock 처리 + commit + push + 재시작)
+```bash
+cd ~/paperclip-company/workspaces/CallFollowCRM
+[ -f .git/index.lock ] && rm -f .git/index.lock
+git pull --rebase
+git add server/main.py server/static/install.html docs/SYNC.md docs/SERVER_HANDOFF_2026-06-18.md
+git commit -m "feat(협업): by-me partner_name echo + install footer 동적 + by-me 점검"
+git push
+cp server/main.py ~/ringgo-server/
+cp server/static/install.html ~/ringgo-server/static/
+launchctl kickstart -k gui/$(id -u)/com.detailline.ringgo-server
+```
+
+### 배포 후 검증 curl
+```bash
+# ①: B(있는 가입자) accept → by-me 가 그 상호로 partner_name 돌려주는지
+curl -s 'https://api.si0in.kr/api/shared/by-me?phone=01012345678' | python3 -m json.tool | grep partner_name
+
+# ③: install footer 동적 — 페이지 열어 footer 의 "베타 v0.2-beta" 확인
+open https://si0in.kr/install
+```
+
+### 다음 액션 (안드로이드 Claude)
+- `SharedSiteRepository.respond(...)` / `.progress(...)` JSON body 에 `partner_name` 키 = 본인 owner 상호 같이 보내기. 이미 보내고 있으면 키 이름만 맞춰주세요.
+- 보내고 있는데 안 보이면 앱 ← 키 이름 (snake/camel) 확인.
+
