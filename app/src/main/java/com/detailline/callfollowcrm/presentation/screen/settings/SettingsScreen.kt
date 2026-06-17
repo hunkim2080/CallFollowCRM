@@ -2611,14 +2611,10 @@ private fun SetupCheckCard() {
     ) { refresh++ }
 
     data class SetupStep(val label: String, val done: Boolean, val action: () -> Unit)
+    // 2026-06-18 사장님 결정: "기본 메시지 앱 설정" 권유 제거. 기본앱이 되면 MMS(사진) 직접 수신이
+    //   통신사 한계로 실패해 고객 사진이 조용히 유실되는 치명적 위험 → 삼성 문자를 기본으로 두고
+    //   RING-GO 는 옆에서 읽는 '동반자' 포지션. (기본앱 진입 카드/헬퍼 코드는 Phase B 대비 남겨둠)
     val steps = listOf(
-        SetupStep("기본 메시지 앱 설정", smsDefault) {
-            activity?.let { act ->
-                com.detailline.callfollowcrm.util.DefaultSmsAppHelper.createRequestIntent(act)?.let { i ->
-                    runCatching { roleLauncher.launch(i) }
-                }
-            }
-        },
         SetupStep("알림 권한", notiOn) {
             runCatching {
                 val i = android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
