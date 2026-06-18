@@ -118,6 +118,8 @@
     <div class="dl-meta">
       <span id="apkVersion">버전 확인 중...</span>
       <span class="dot"></span>
+      <span id="apkBuild">빌드 확인 중...</span>
+      <span class="dot"></span>
       <span id="apkSize">크기 확인 중...</span>
     </div>
     <div class="apk-unavailable" id="apkUnavailable">
@@ -184,6 +186,8 @@
     }
     document.getElementById('apkVersion').textContent = d.version;
     document.getElementById('apkSize').textContent = d.size_mb + ' MB';
+    // 추가37 (2026-06-18) — 다운로드 버튼 옆에 빌드 날짜 표시 (사장님 요청)
+    document.getElementById('apkBuild').textContent = (d.mtime_iso || '-') + ' 빌드';
     // §3 (2026-06-18) footer 도 동적으로 — stale 라벨 방지
     var fv = document.getElementById('footerVersion');
     var fb = document.getElementById('footerBuild');
@@ -192,6 +196,7 @@
   }).catch(function(){
     document.getElementById('apkVersion').textContent = '버전 확인 실패';
     document.getElementById('apkSize').textContent = '-';
+    document.getElementById('apkBuild').textContent = '-';
     var fv = document.getElementById('footerVersion');
     if (fv) fv.textContent = '?';
   });
