@@ -438,20 +438,31 @@ class ChatViewModel(
             }
             _customerId.value = c.id
 
-            // 2) 실제 발송
+            // 2) 실제 발송 — 로컬 보존은 여기(VM)서 동기로 직접(아래). SmsSender 비동기 보존은 끔(race·중복 방지).
             val ok = withContext(Dispatchers.IO) {
-                SmsSender.sendDirect(context, phoneNumber, trimmed)
+                SmsSender.sendDirect(context, phoneNumber, trimmed, persistLocalOnFail = false)
             }
 
             // 3) optimistic UI: 보낸 메시지 즉시 리스트 맨 앞에. id 충돌 피하려 음수 임시 id.
+            //    ⚠️ 보존본(localSent)을 *동기로 먼저* 저장한 뒤 화면에 올린다 — 직후 loadMessages 가 돌아도 안 지워지게.
+            //    (예전 버그: SmsSender 가 보존을 applicationScope 비동기 저장 → 그 사이 reload 가 발신을 지웠다가
+            //     몇 초 뒤 다시 뜸. 그동안 OX 발견카드만 보여 "문자 안 가고 OX부터" 처럼 보임. 2026-06-18 사장님 보고)
             if (ok) {
+                val nowMs = System.currentTimeMillis()
                 val optimistic = SmsRepository.SmsMessage(
-                    id = -System.currentTimeMillis(),
+                    id = -nowMs,
                     address = phoneNumber,
                     body = trimmed,
-                    dateMs = System.currentTimeMillis(),
+                    dateMs = nowMs,
                     sent = true
                 )
+                withContext(Dispatchers.IO + NonCancellable) {
+                    runCatching {
+                        val digits = phoneNumber.filter { it.isDigit() }
+                        val suffix = if (digits.length >= 8) digits.takeLast(8) else digits
+                        if (suffix.length >= 7) container.cachedMessageRepository.persistLocalSent(suffix, optimistic)
+                    }
+                }
                 _messages.value = listOf(optimistic) + _messages.value
             }
 

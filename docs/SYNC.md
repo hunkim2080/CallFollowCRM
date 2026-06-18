@@ -5128,3 +5128,10 @@ curl -s -X POST 'https://api.si0in.kr/prepare-reply' \
 - fix: SCHEDULE_ADD 에 day 인자 추가(scheduleAdd(dayMs)) → ScheduleScreen.onAddSchedule(selectedDayMs) → ScheduleAddScreen(initialDayMs) 로 시공일·달력 seed. 홈 진입은 오늘 유지.
 - commit: 0bb9a28
 - 참고: A폰 빌드·설치 완료. 이 S9 는 screencap 흰화면·홈 uiautomator idle 실패로 화면 자동검증 막힘 → 빌드+정적검증으로 진행, 사장님 탭 확인 요청.
+
+## 2026-06-18 23:15 · android
+채팅 발신 버그 fix — 보낸 문자가 잠깐 사라졌다 몇 초 뒤 다시 뜨던 것(그 사이 OX 발견카드만 보여 "문자 안 가고 OX부터"처럼)
+- 원인: SmsSender 가 로컬 보존본(localSent)을 applicationScope 비동기(fire-and-forget) 저장 → 전송 직후 loadMessages 가 돌면 발신이 wipe(제공자 색인 전, 보존본 미커밋) → 몇 초 뒤 복귀.
+- fix(앱 단독, 서버 무관): sendDirect 에 persistLocalOnFail 플래그(기본 true → 기존 호출부 7곳 영향 0). 채팅 VM(sendMessage)은 false 로 호출 + 보낸 메시지를 동기(await)로 localSent 저장 후 화면 표시 → 직후 reload 가 돌아도 유지.
+- 비고: CustomerDetail/CallSummary 발신도 같은 비동기 보존이지만 화면 reload 패턴 달라 미관측 — 신고 시 동일 패턴 적용 예정.
+- commit: 곧

@@ -39,7 +39,7 @@ object SmsSender {
      * @return 발송 호출 성공 여부 (= SmsManager 까지 안전하게 전달). 실제 통신사 전달 성공은
      *         별도 PendingIntent 콜백이 필요하지만, 이 앱은 UX 안 막기 위해 fire-and-forget.
      */
-    fun sendDirect(context: Context, phoneNumber: String, body: String): Boolean {
+    fun sendDirect(context: Context, phoneNumber: String, body: String, persistLocalOnFail: Boolean = true): Boolean {
         if (!hasPermission(context)) return false
         if (phoneNumber.isBlank() || body.isBlank()) return false
 
@@ -75,7 +75,8 @@ object SmsSender {
             //   그러면 채팅 재진입 시 loadMessages 가 provider 만 읽어 그 발신이 사라진다.
             //   → 기록 실패 시 우리 로컬 캐시(cached_messages, systemId<0)에 보존해 화면에서 유지.
             //   (기본앱이면 insertedToProvider=true → provider 가 정본이라 로컬 보존 불필요 → 중복 방지.)
-            if (!insertedToProvider) {
+            //   persistLocalOnFail=false 면 호출부(채팅 VM)가 보존을 *동기*로 직접 함 → 비동기 보존 race·중복 방지.
+            if (!insertedToProvider && persistLocalOnFail) {
                 persistToLocalCache(context, phoneNumber, body)
             }
         }
