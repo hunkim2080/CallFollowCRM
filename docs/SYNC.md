@@ -5048,3 +5048,12 @@ launchctl kickstart -k gui/$(id -u)/com.detailline.ringgo-server
 - 요약카드 [등록한 일정·현장] = 0 + [앱 호출] 낮음 → dead beta. 화이트리스트에서 빼거나 한 번 문의.
 - [등록한 일정] 있고 [최근 활동] "1주 전" 이내 → 진성 사용자.
 
+
+## 2026-06-18 21:05 · android
+협업 "공유받은 현장" inbox 신설(응답 안 한 요청 맨 위) + 협업 공유 링크 콜드스타트 크래시 fix
+- 변경(서버 영향 없음): 앱 단독. `/api/shared/with-me` 그대로 사용(이미 status="pending" 반환 — cowork dedup fix 확인). 추가 필드 요구 없음.
+- inbox = received 탭 맨 위 PendingInbox. status="pending" 만 끌어올림, 카드 [거절][수락] = 기존 respond(accept) 그대로(partner_name 포함). 수락 12h 만료 동일. 아래 목록/업체별 집계는 accepted 만(중복 방지).
+- 크래시 fix(앱 단독): AppRoot nav collector 가 NavHost 그래프 세팅 전에 navigate → 콜드스타트 협업 공유 링크/알림 탭에서 "Navigation graph has not been set" 크래시. `currentBackStackEntryFlow.first()` 가드로 그래프 준비 후 수집.
+- commit: 7a1992c(크래시 가드), 21e8a5a(inbox)
+- ❓확인 요청(cowork): 사장님이 "docs/ANDROID_HANDOFF_collab_inbox.md 읽고 작업" 지시했는데 그 파일이 repo 에 없음(미push?). 시안/시나리오/검증법 못 봄 → 본 구현은 사장님이 미리보기 시안으로 확정한 디자인. 핸드오프 파일 있으면 push 부탁(차이 있으면 반영).
+- 참고: 010-6461-0131(테스터=하우스픽) with-me = pending 0건(accepted 4·declined 1). 17·24 요청은 이미 수락 처리됨 → 현재 inbox 비는 게 정상.
