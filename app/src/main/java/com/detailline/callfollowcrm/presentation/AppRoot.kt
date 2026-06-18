@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import kotlinx.coroutines.flow.first
 import com.detailline.callfollowcrm.data.AppContainer
 import com.detailline.callfollowcrm.presentation.component.RING_TAB_ROUTES
 import com.detailline.callfollowcrm.presentation.component.RingTabBar
@@ -43,6 +44,10 @@ fun AppRoot(container: AppContainer) {
             }
 
             LaunchedEffect(Unit) {
+                // 콜드스타트 딥링크(협업 공유 링크·알림 탭) race 방지: NavHost 가 그래프를 세팅하기 전에
+                //   navigate 하면 "Navigation graph has not been set" 크래시. 첫 백스택 엔트리(그래프 준비 신호)를
+                //   기다린 뒤 수집 시작 — 버퍼(Channel.BUFFERED)된 이벤트는 그 직후 정상 전달됨.
+                navController.currentBackStackEntryFlow.first()
                 container.navEvents.events.collect { event ->
                     when (event) {
                         is NavEvent.OpenFollowUp -> {
