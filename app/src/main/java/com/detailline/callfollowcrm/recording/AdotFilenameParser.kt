@@ -25,8 +25,10 @@ object AdotFilenameParser {
         """^.*?(01[\d\-\s]{8,12})[_\-\s](\d{6})[_\-\s](\d{6})\.(m4a|mp3|wav|txt)$""",
         RegexOption.IGNORE_CASE
     )
-    private val fmt14 = SimpleDateFormat("yyyyMMddHHmmss", Locale.KOREA)
-    private val fmtYY = SimpleDateFormat("yyMMddHHmmss", Locale.KOREA)
+    // ⚠️ SimpleDateFormat 은 스레드 비안전 → 공유 필드로 두면 동시 스캔 시 날짜가 틀리게 파싱될 수 있음
+    //    (object 싱글톤이라 여러 스캔 코루틴이 동시에 parse 가능). 호출마다 새로 만들어 격리. (2026-06-18 점검)
+    private fun fmt14() = SimpleDateFormat("yyyyMMddHHmmss", Locale.KOREA)
+    private fun fmtYY() = SimpleDateFormat("yyMMddHHmmss", Locale.KOREA)
 
     data class Parsed(
         val phoneNumber: String,   // 숫자만 (01080052080)
@@ -39,7 +41,7 @@ object AdotFilenameParser {
         patAdot.matchEntire(name)?.let { m ->
             val phone = m.groupValues[1].filter { it.isDigit() }
             if (phone.length < 9) return null
-            val time = runCatching { fmt14.parse(m.groupValues[2])?.time }.getOrNull() ?: return null
+            val time = runCatching { fmt14().parse(m.groupValues[2])?.time }.getOrNull() ?: return null
             return Parsed(phone, time)
         }
 
@@ -47,7 +49,7 @@ object AdotFilenameParser {
             val phone = m.groupValues[1].filter { it.isDigit() }
             if (phone.length < 10) return null
             val time = runCatching {
-                fmtYY.parse(m.groupValues[2] + m.groupValues[3])?.time
+                fmtYY().parse(m.groupValues[2] + m.groupValues[3])?.time
             }.getOrNull() ?: return null
             return Parsed(phone, time)
         }
