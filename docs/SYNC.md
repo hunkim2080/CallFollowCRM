@@ -5135,3 +5135,11 @@ curl -s -X POST 'https://api.si0in.kr/prepare-reply' \
 - fix(앱 단독, 서버 무관): sendDirect 에 persistLocalOnFail 플래그(기본 true → 기존 호출부 7곳 영향 0). 채팅 VM(sendMessage)은 false 로 호출 + 보낸 메시지를 동기(await)로 localSent 저장 후 화면 표시 → 직후 reload 가 돌아도 유지.
 - 비고: CustomerDetail/CallSummary 발신도 같은 비동기 보존이지만 화면 reload 패턴 달라 미관측 — 신고 시 동일 패턴 적용 예정.
 - commit: 곧
+
+## 2026-06-19 01:30 · android
+Play Store 비공개(closed) 테스트 **제출 완료 — 현재 구글 검토 중.** + 베타 위해 백그라운드 위치 권한 제거.
+- 변경(앱, 서버 무관): AndroidManifest 에서 ACCESS_BACKGROUND_LOCATION 제거 → Play 의 "백그라운드 위치 선언+데모영상" 심사 회피. 도착안내(geofence)는 foreground(앱 열림)에서만 동작. FINE/COARSE 는 유지. 정식 출시 때 데모영상 만들어 재추가 예정.
+- 빌드: bundleRelease 자동 versionCode 629 (0.2.629), targetSdk 35, 서명됨. (625·628 은 bg위치 포함본 → release 에서 제거함)
+- Play 제출 메타: 스토어등록정보(설명·아이콘512·피처그래픽1024x500 = playstore-assets/), 콘텐츠등급 전체이용가, 대상연령 18+, 데이터보안(수집O·전송 HTTPS·삭제요청 아니요·계정생성 안함·광고ID 없음), SMS/통화 선언=CRM, 개인정보처리방침 = https://si0in.kr/privacy.
+- 다음 액션(server/cowork): ① **https://si0in.kr/privacy 계속 라이브 유지 必** (Play 가 참조 — 죽으면 심사 반려 위험). ② (선택) 데이터보안 "삭제요청 아니요" vs 처리방침 "앱서 삭제 가능" 불일치 추후 정합.
+- commit: 곧
