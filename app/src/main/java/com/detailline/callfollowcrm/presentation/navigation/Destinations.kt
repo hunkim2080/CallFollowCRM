@@ -44,6 +44,9 @@ object Destinations {
     const val SCHEDULE_WITH_ARG = "schedule?day={day}"
     fun schedule(dayMs: Long) = "schedule?day=$dayMs"
     const val SCHEDULE_ADD = "schedule_add"
+    /** 직접 등록 — 일정에서 누른 날(ms)을 시공일 기본값으로. 인자 없으면/<=0 이면 오늘. */
+    const val SCHEDULE_ADD_WITH_ARG = "schedule_add?day={day}"
+    fun scheduleAdd(dayMs: Long?) = if (dayMs == null || dayMs <= 0L) SCHEDULE_ADD else "schedule_add?day=$dayMs"
     const val SETTLEMENT = "settlement"
     const val STATS = "stats"
     /** 통계 "다녀온 현장" 셀 탭 → 이번 달 시공 현장 목록(프로토 s-visited). */

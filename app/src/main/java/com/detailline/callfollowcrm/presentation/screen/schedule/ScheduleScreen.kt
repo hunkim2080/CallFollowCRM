@@ -121,7 +121,7 @@ fun ScheduleScreen(
     viewModel: ScheduleViewModel,
     onBack: () -> Unit,
     onOpenCustomer: (Long) -> Unit,
-    onAddSchedule: () -> Unit = {},
+    onAddSchedule: (Long?) -> Unit = {},
     onOpenSettle: () -> Unit = {},
     onOpenCollabSites: (String?) -> Unit = {},
     /** 진입 시 미리 선택할 날(ms). 홈 "다음 시공" 카드에서 그 시공일로. null/<=0 = 오늘. */
@@ -201,7 +201,7 @@ fun ScheduleScreen(
                             .size(38.dp)
                             .clip(RoundedCornerShape(11.dp))
                             .background(Color.White)
-                            .clickable { onAddSchedule() },
+                            .clickable { onAddSchedule(selectedDayMs) },
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(Icons.Default.Add, "일정 등록", tint = TossBlue, modifier = Modifier.size(20.dp))
@@ -274,7 +274,7 @@ fun ScheduleScreen(
                                         selectedDayMs = selectedDayMs,
                                         collabDays = collabDays,
                                         onSelect = { dayMs -> selectedDayMs = dayMs },
-                                        onLongSelect = { dayMs -> selectedDayMs = dayMs; onAddSchedule() }
+                                        onLongSelect = { dayMs -> selectedDayMs = dayMs; onAddSchedule(dayMs) }
                                     )
                                 }
                             }
@@ -297,7 +297,7 @@ fun ScheduleScreen(
             }
             if (schedulesForSelected.isEmpty()) {
                 if (collabForSelected.isEmpty()) {
-                    item(key = "no-schedules") { DayEmpty(onAdd = onAddSchedule) }
+                    item(key = "no-schedules") { DayEmpty(onAdd = { onAddSchedule(selectedDayMs) }) }
                 }
             } else {
                 if (schedulesForSelected.size > 1) {
@@ -372,7 +372,7 @@ fun ScheduleScreen(
             }
             // "더 추가"는 이미 일정/협업이 있을 때만. 아무것도 없으면 DayEmpty 의 "이 날 일정 등록"만 노출(중복 방지).
             if (schedulesForSelected.isNotEmpty() || collabForSelected.isNotEmpty()) {
-                item(key = "day-add") { DayAddButton("이 날 일정 더 추가", onAddSchedule) }
+                item(key = "day-add") { DayAddButton("이 날 일정 더 추가", { onAddSchedule(selectedDayMs) }) }
             }
             item { Spacer(Modifier.height(40.dp)) }
         }

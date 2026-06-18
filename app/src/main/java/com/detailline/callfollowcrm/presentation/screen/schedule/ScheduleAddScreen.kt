@@ -88,7 +88,9 @@ import java.util.Calendar
 fun ScheduleAddScreen(
     viewModel: ScheduleAddViewModel,
     onDone: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    /** 일정에서 누른 날(ms). 시공일·달력 기본값으로. null/<=0 = 오늘. (2026-06-18 사장님) */
+    initialDayMs: Long? = null
 ) {
     val context = LocalContext.current
     val toast by viewModel.toast.collectAsState()
@@ -113,8 +115,13 @@ fun ScheduleAddScreen(
     var totalManwon by remember { mutableStateOf("") }
     var depositManwon by remember { mutableStateOf("") }
     var depositReceived by remember { mutableStateOf(false) }
-    var dayMs by remember { mutableLongStateOf(DateTimeUtils.startOfDay(System.currentTimeMillis())) }
-    var monthAnchor by remember { mutableLongStateOf(monthAnchorOf(System.currentTimeMillis())) }
+    // 일정에서 누른 날을 시공일 기본값으로(없으면 오늘). 달력도 그 달로 연다. (2026-06-18 사장님)
+    val seedDayMs = remember(initialDayMs) {
+        initialDayMs?.takeIf { it > 0L }?.let { DateTimeUtils.startOfDay(it) }
+            ?: DateTimeUtils.startOfDay(System.currentTimeMillis())
+    }
+    var dayMs by remember { mutableLongStateOf(seedDayMs) }
+    var monthAnchor by remember { mutableLongStateOf(monthAnchorOf(seedDayMs)) }
     var workMinutes by remember { mutableStateOf(9 * 60) } // 프로토 기본 오전 9시 (미정 없음)
     var workDays by remember { mutableStateOf(1) }
 

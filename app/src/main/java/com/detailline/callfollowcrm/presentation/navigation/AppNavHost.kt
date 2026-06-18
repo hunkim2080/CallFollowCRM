@@ -276,17 +276,21 @@ fun AppNavHost(
                 viewModel = vm,
                 onBack = { navController.popBackStack() },
                 onOpenCustomer = { id -> navController.navigate(Destinations.customerDetail(id)) },
-                onAddSchedule = { navController.navigate(Destinations.SCHEDULE_ADD) },
+                onAddSchedule = { day -> navController.navigate(Destinations.scheduleAdd(day)) },
                 onOpenSettle = { navController.navigate(Destinations.SETTLEMENT) },
                 onOpenCollabSites = { shareId -> navController.navigate(Destinations.collabSites(shareId)) },
                 initialSelectedDayMs = entry.arguments?.getLong("day")?.takeIf { it > 0L }
             )
         }
 
-        composable(Destinations.SCHEDULE_ADD) {
+        composable(
+            route = Destinations.SCHEDULE_ADD_WITH_ARG,
+            arguments = listOf(navArgument("day") { type = NavType.LongType; defaultValue = -1L })
+        ) { entry ->
             val vm: ScheduleAddViewModel = viewModel(factory = viewModelFactory { ScheduleAddViewModel(container) })
             ScheduleAddScreen(
                 viewModel = vm,
+                initialDayMs = entry.arguments?.getLong("day")?.takeIf { it > 0L },
                 onDone = { navController.popBackStack() },
                 onBack = { navController.popBackStack() }
             )
