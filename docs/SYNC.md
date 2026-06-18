@@ -5057,3 +5057,68 @@ launchctl kickstart -k gui/$(id -u)/com.detailline.ringgo-server
 - commit: 7a1992c(크래시 가드), 21e8a5a(inbox)
 - ❓확인 요청(cowork): 사장님이 "docs/ANDROID_HANDOFF_collab_inbox.md 읽고 작업" 지시했는데 그 파일이 repo 에 없음(미push?). 시안/시나리오/검증법 못 봄 → 본 구현은 사장님이 미리보기 시안으로 확정한 디자인. 핸드오프 파일 있으면 push 부탁(차이 있으면 반영).
 - 참고: 010-6461-0131(테스터=하우스픽) with-me = pending 0건(accepted 4·declined 1). 17·24 요청은 이미 수락 처리됨 → 현재 inbox 비는 게 정상.
+
+## 2026-06-18 22:00 · cowork
+추가36 — 화이트리스트 게이트 (사장님 보고: "체크 안 한 번호가 어플 로그인 가능")
+
+### 진단
+- `/api/beta/check` 자체는 정상 (미등록이면 ok:false)
+- 그치만 **핵심 endpoint 들이 phone 만 받고 화이트리스트 확인 안 함** → 앱이 게이트 우회하면 모든 기능 사용 가능
+
+### 수정 — 서버 helper + 6개 endpoint 가드
+
+신규 helper `_ensure_beta_whitelist(phone)`:
+- `beta_whitelist` 에 없으면 403 (`"베타 등록되지 않은 번호입니다"`)
+- 빈 phone 은 skip (해당 endpoint 의 다른 검증에 맡김)
+- 우회 ENV: `BETA_WHITELIST_BYPASS=1`
+
+가드 적용 endpoint (총 6):
+1. `/prepare-reply` (req.phone) — 답장 추천
+2. `/api/refine` (req.phone, **신규 옵션 필드**)
+3. `/api/call-summary` (req.phone)
+4. `/api/call-audio-summary` (Form phone)
+5. `/api/site-photo/owner-upload` (req.owner_phone)
+6. `/api/shared/invite` (req.owner_phone, partner_phone 은 skip)
+
+미가드 (의도적):
+- `/infer-principle` — deviceId 만 받음 (phone 없음). 비용 매우 낮음.
+- `/api/shared/respond`, `/progress`, `/by-me`, `/with-me`, `/owner-events` — 협업 사장(B)이 화이트리스트 안 됐어도 받아야 함. owner 측은 이미 invite 에서 막음.
+
+### ⚠️ 사장님 주의사항
+1. **사장님 본인 phone (010-8005-2080) 도 `beta_whitelist` 에 박혀있어야** 사장님도 기능 사용 가능. `https://api.si0in.kr/admin/beta/whitelist` 에서 확인.
+2. 기존 베타 사용자들이 다 박혀있는지 한 번 더 확인 (안 박혀있으면 그 사람들 즉시 차단됨).
+3. 문제 생기면 plist `EnvironmentVariables` 에 `BETA_WHITELIST_BYPASS=1` 박고 launchctl reload → 가드 OFF.
+
+### RefineRequest 변경
+- `phone: Optional[str] = None` 필드 추가 (옵션). 앱이 보내면 가드, 안 보내면 skip.
+- **안드로이드 측 액션**: refine 호출 시 사장님 phone 같이 보내주세요. 안 보내도 동작은 함 (graceful) 그치만 그러면 우회 가능.
+
+### 변경 파일
+- `server/main.py` — _ensure_beta_whitelist 신설 (_check_team_tier 옆) + 6 endpoint 가드 + RefineRequest.phone 필드
+
+### 사장님 한 줄 배포
+```bash
+cd ~/paperclip-company/workspaces/CallFollowCRM
+[ -f .git/index.lock ] && rm -f .git/index.lock
+GIT_EDITOR=true git pull --rebase
+git add server/main.py docs/SYNC.md
+git commit -m "feat(beta): 화이트리스트 게이트 helper + 핵심 6 endpoint 가드"
+git push
+cp server/main.py ~/ringgo-server/
+launchctl kickstart -k gui/$(id -u)/com.detailline.ringgo-server
+```
+
+### 배포 후 검증
+```bash
+# 화이트리스트 안 된 phone 으로 prepare-reply 호출 → 403
+curl -s -X POST 'https://api.si0in.kr/prepare-reply' \
+  -H 'content-type: application/json' \
+  -d '{"phone":"01099999999","latestMessage":"테스트"}' | python3 -m json.tool
+# 기대: {"detail":"베타 등록되지 않은 번호입니다. 사장님께 문의해주세요."}
+
+# 사장님 본인 phone 으로 호출 → 정상 처리 (또는 다른 검증 에러)
+```
+
+### 다음 cycle (안드로이드 측)
+- `RefineRepository` (refine 호출) JSON body 에 phone 박아주세요. 보내면 가드 동작, 안 보내면 graceful.
+

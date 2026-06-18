@@ -2075,6 +2075,7 @@ async def prepare_reply(req: PrepareReplyRequest, model: Optional[str] = None):
     - ENV PREPARE_REPLY_MODEL=sonnet 박으면 default 가 sonnet 으로 되돌림 (롤백)
     - 응답 schema 는 동일 v2 (앱 수정 0)
     """
+    _ensure_beta_whitelist(req.phone)  # 추가36 (2026-06-18) — 화이트리스트 게이트
     chosen_model = (model or PREPARE_REPLY_DEFAULT_MODEL).lower()
     if chosen_model not in ("sonnet", "gemini"):
         raise HTTPException(400, f"model must be 'sonnet' or 'gemini', got {chosen_model!r}")
@@ -7526,6 +7527,7 @@ class RefineRequest(BaseModel):
     owner_tone_samples: list[str] = Field(default_factory=list)
     customer_name: Optional[str] = None
     customer_memo: Optional[str] = None
+    phone: Optional[str] = None  # 추가36 (2026-06-18) — 화이트리스트 게이트용. 앱이 보내면 검사, 없으면 skip.
 
 
 def _build_refine_system_prompt(owner_tone_samples: list[str]) -> str:
@@ -7768,6 +7770,7 @@ async def refine_endpoint(req: RefineRequest) -> dict:
       - Gemini API 호출 실패 → 502
       - raw 비어있음 → 400
     """
+    _ensure_beta_whitelist(req.phone)  # 추가36 (2026-06-18) — 화이트리스트 게이트 (phone 보내면 체크)
     raw = (req.raw or "").strip()
     if not raw:
         raise HTTPException(400, "raw 가 비어있음")
@@ -8204,6 +8207,7 @@ async def call_summary_endpoint(req: CallSummaryRequest) -> dict:
 
     모델: Haiku 4.5. 캐시 키: phone + endpoint="call-summary" + started_at_ms.
     """
+    _ensure_beta_whitelist(req.phone)  # 추가36 (2026-06-18) — 화이트리스트 게이트
     if not req.raw_text or not req.raw_text.strip():
         raise HTTPException(400, "raw_text 비어있음")
 
@@ -8519,6 +8523,7 @@ async def call_audio_summary_endpoint(
     """
     if not phone:
         raise HTTPException(400, "phone 필수")
+    _ensure_beta_whitelist(phone)  # 추가36 (2026-06-18) — 화이트리스트 게이트
     phone_digits = "".join(ch for ch in phone if ch.isdigit())
     if not phone_digits:
         raise HTTPException(400, "phone 형식 오류")
@@ -8918,6 +8923,7 @@ async def shared_invite(req: SharedInviteRequest) -> dict:
         raise HTTPException(400, "partner_phone 필수")
     if owner_phone == partner_phone:
         raise HTTPException(400, "본인에게 공유할 수 없습니다")
+    _ensure_beta_whitelist(owner_phone)  # 추가36 (2026-06-18) — 화이트리스트 게이트 (owner 만)
     _check_team_tier(owner_phone)
 
     now = _now_ms()
@@ -12596,6 +12602,37 @@ def _generate_member_id() -> str:
     raise HTTPException(500, "팀원 ID 생성 실패")
 
 
+def _ensure_beta_whitelist(phone: Optional[str]) -> None:
+    """추가36 (2026-06-18) — beta_whitelist 게이트.
+
+    사장님 보고: "화이트리스트에 체크하지 않은 번호가 어플 로그인 가능".
+    원인: `/api/beta/check` 는 정상이지만 다른 핵심 endpoint 들이 phone 만 받고
+    화이트리스트 확인 안 함 → 앱이 게이트 우회 시 모든 기능 사용 가능.
+    대응: 핵심 endpoint 진입에 이 helper 호출 → 미등록 phone 이면 403.
+
+    개발용 우회: ENV `BETA_WHITELIST_BYPASS=1` 이면 무조건 통과 (테스트 편의).
+    빈 phone 은 skip — 해당 endpoint 가 phone 필수면 자체 검증으로 거부, 아니면 그대로 진행.
+    """
+    if os.environ.get("BETA_WHITELIST_BYPASS") == "1":
+        return
+    if not phone:
+        return  # phone 없으면 다른 검증에 맡김
+    phone_digits = _norm_phone(phone)
+    if not phone_digits:
+        return
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT 1 FROM beta_whitelist WHERE phone = ?",
+            (phone_digits,),
+        ).fetchone()
+    if not row:
+        print(f"[beta_whitelist_guard] BLOCK {phone_digits} (미등록)")
+        raise HTTPException(
+            403,
+            "베타 등록되지 않은 번호입니다. 사장님께 문의해주세요."
+        )
+
+
 def _check_team_tier(owner_phone: str) -> None:
     """subscribers 의 plan_tier 가 team_99k 인지 검증. 미가입은 403.
 
@@ -13524,6 +13561,8 @@ async def owner_site_photo_upload(req: OwnerSitePhotoRequest) -> dict:
     # §F: customer_phone 또는 share_id 중 하나 필수 (협업 현장은 share_id 만).
     if not customer_phone and not share_id:
         raise HTTPException(400, "customer_phone 또는 share_id 중 하나 필수")
+    # 추가36 (2026-06-18) — 화이트리스트 게이트
+    _ensure_beta_whitelist(owner_phone)
     # 사장님이 어떤 티어든 팀 기능 활성 상태인지 확인 (기존 helper 재사용)
     _check_team_tier(owner_phone)
     # §F 벽: share_id 제공 시 그 share 의 owner 또는 partner 중 하나가 요청자 owner_phone 이어야.
