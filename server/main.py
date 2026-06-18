@@ -8952,7 +8952,11 @@ async def shared_invite(req: SharedInviteRequest) -> dict:
 
     # §dedup (2026-06-13, SYNC android 추가2 요청):
     # 같은 owner+partner+title 이고 미완(pending/accepted, paid_at_ms NULL) share 있으면 그것 반환.
-    # title NULL/빈 경우 scheduled_at_ms 도 보조 매치 (중복 검출용).
+    # 추가35 (2026-06-18 버그fix): scheduled_at_ms 도 매치 조건에 포함.
+    #   - 이전: title 만 비교 → 다른 날짜 invite 가 옛 share 와 dedup 되어 신규 share 안 만들어짐.
+    #     사장님 보고: 17일·24일 일정이 새로 공유 안 됨 (옛 pending share 가 매치되어 re-poke 만 발생).
+    #   - 수정: 같은 날짜(scheduled_at_ms) 에 같은 owner+partner+title 인 경우에만 dedup.
+    #     날짜 다르면 새 share 만들어짐. 둘 다 NULL 인 케이스(날짜 없는 invite) 는 기존처럼 매치.
     with db_conn() as _con:
         title_match = title or ""
         existing = _con.execute(
@@ -8961,13 +8965,14 @@ async def shared_invite(req: SharedInviteRequest) -> dict:
             WHERE owner_phone = ?
               AND partner_phone = ?
               AND IFNULL(title,'') = ?
+              AND IFNULL(scheduled_at_ms, 0) = IFNULL(?, 0)
               AND status IN ('pending','accepted')
               AND paid_at_ms IS NULL
               AND (progress IS NULL OR progress != 'completed')
             ORDER BY created_at_ms DESC
             LIMIT 1
             """,
-            (owner_phone, partner_phone, title_match),
+            (owner_phone, partner_phone, title_match, req.scheduled_at_ms),
         ).fetchone()
     if existing:
         existing_id = existing[0]
