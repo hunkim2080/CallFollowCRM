@@ -339,6 +339,14 @@ fun CustomerDetailScreen(
             val ctx = LocalContext.current
             val manualAddress = c.address?.takeIf { it.isNotBlank() }
             val displayAddr = manualAddress ?: extractedAddress
+            // 메시지에서 자동 인식한 주소를 '저장값'으로 굳힘 — 일정·D-1알림·전문가배정도 같은 주소를 쓰게.
+            //   (2026-06-18 사장님: 고객상세엔 주소 보이는데 일정엔 "주소 미입력". 감지만 하고 저장은 안 돼 생긴 불일치.)
+            //   저장 후엔 보통 주소처럼 표시되고, 탭하면 수정 가능. composable LaunchedEffect 라 init 순서 영향 없음.
+            LaunchedEffect(c.id, manualAddress, extractedAddress) {
+                if (manualAddress == null && !extractedAddress.isNullOrBlank()) {
+                    viewModel.updateManualAddress(extractedAddress)
+                }
+            }
             var showAddressDialog by remember { mutableStateOf(false) }
 
             if (displayAddr != null) {
