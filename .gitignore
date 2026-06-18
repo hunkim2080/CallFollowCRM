@@ -30,6 +30,9 @@ local.properties
 keystore.properties
 secrets.properties
 
+# versionCode 자동증가 카운터 (release 빌드마다 +1, 로컬 빌드 상태) — pull 충돌 방지로 git 제외. keystore 와 함께 백업 권장.
+version.properties
+
 # Firebase (FCM) — google-services.json = 앱 설정, adminsdk json = 서버 비밀키. 둘 다 git 금지.
 /firebase/
 app/google-services.json

@@ -15,10 +15,10 @@ if (keystorePropsFile.exists()) {
     keystorePropsFile.inputStream().use { keystoreProps.load(it) }
 }
 
-// 자동 버전 (2026-06-16 사장님) — 매번 수동으로 안 올려도 되게.
-//   versionCode = git 커밋 수(커밋마다 +1, 단조 증가) → 폰이 "새 버전"으로 인식하는 진짜 번호.
-//   versionName = "0.2-beta" (화면에 보이는 라벨. 마케팅용으로 가끔 손으로 0.3-beta 식으로만 올림).
-//     → 안드 설정 화면엔 "0.2-beta (574)" 처럼 versionCode 가 괄호로 같이 보여 빌드 구분 가능.
+// 자동 버전 (2026-06-18 사장님 — Play Store 내부테스트) — 매번 수동으로 안 올려도 되게.
+//   versionCode = version.properties 카운터, release 빌드(bundleRelease/assembleRelease)마다 자동 +1 (아래 블록).
+//     ⚠️ Play Store 는 같은 versionCode 재업로드를 거절 → 매 release 빌드 +1 필수. 절대 낮추지 말 것.
+//   versionName = "0.2.{versionCode}" (예: 0.2.623) → 빌드 구분 쉽게.
 //   BUILD_TIMESTAMP = 빌드 mtime(ms) → 앱이 서버 /api/download/version 의 mtime_ms 와 비교해 새 버전 감지.
 val buildTimeMs = System.currentTimeMillis()
 fun gitCommitCount(): Int = try {
@@ -26,6 +26,23 @@ fun gitCommitCount(): Int = try {
         .redirectErrorStream(true).start()
         .inputStream.bufferedReader().use { it.readText() }.trim().toIntOrNull() ?: 1
 } catch (e: Exception) { 1 }
+
+// versionCode 자동 증가 카운터 (version.properties, git 제외 — pull 충돌 방지). release 빌드마다 +1.
+//   git 커밋수를 바닥값(floor)으로 둬 파일 분실에도 역행 없음(Play Store 영구 거절 방지). keystore 와 함께 백업 권장.
+val versionPropsFile = rootProject.file("version.properties")
+val versionProps = Properties()
+if (versionPropsFile.exists()) versionPropsFile.inputStream().use { versionProps.load(it) }
+val wantsReleaseBuild = gradle.startParameter.taskNames.any {
+    it.contains("bundleRelease", ignoreCase = true) || it.contains("assembleRelease", ignoreCase = true)
+}
+var appVersionCode = maxOf(versionProps.getProperty("versionCode")?.toIntOrNull() ?: 0, gitCommitCount())
+if (wantsReleaseBuild) {
+    appVersionCode += 1
+    versionProps.setProperty("versionCode", appVersionCode.toString())
+    versionPropsFile.outputStream().use {
+        versionProps.store(it, "RING-GO versionCode - release 빌드마다 자동 +1. 절대 낮추지 마세요 (Play Store 영구 거절).")
+    }
+}
 
 android {
     namespace = "com.detailline.callfollowcrm"
@@ -35,8 +52,8 @@ android {
         applicationId = "com.detailline.callfollowcrm"
         minSdk = 26
         targetSdk = 34
-        versionCode = gitCommitCount()
-        versionName = "0.2-beta"
+        versionCode = appVersionCode
+        versionName = "0.2.$appVersionCode"
         buildConfigField("long", "BUILD_TIMESTAMP", "${buildTimeMs}L")
         vectorDrawables { useSupportLibrary = true }
     }
