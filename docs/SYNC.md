@@ -5122,3 +5122,9 @@ curl -s -X POST 'https://api.si0in.kr/prepare-reply' \
 ### 다음 cycle (안드로이드 측)
 - `RefineRepository` (refine 호출) JSON body 에 phone 박아주세요. 보내면 가드 동작, 안 보내면 graceful.
 
+## 2026-06-18 21:35 · android
+일정: 캘린더에서 누른 날이 "일정 직접 등록" 시공일에 안 잡히던 버그 fix (앱 단독, 서버 무관)
+- 증상: 일정에서 날짜 눌러 등록 → 직접등록 시공일이 늘 "오늘". 누른 날 선택 안 됨(프로토 "길게 누르면 그 날 등록"과 어긋남).
+- fix: SCHEDULE_ADD 에 day 인자 추가(scheduleAdd(dayMs)) → ScheduleScreen.onAddSchedule(selectedDayMs) → ScheduleAddScreen(initialDayMs) 로 시공일·달력 seed. 홈 진입은 오늘 유지.
+- commit: 0bb9a28
+- 참고: A폰 빌드·설치 완료. 이 S9 는 screencap 흰화면·홈 uiautomator idle 실패로 화면 자동검증 막힘 → 빌드+정적검증으로 진행, 사장님 탭 확인 요청.
