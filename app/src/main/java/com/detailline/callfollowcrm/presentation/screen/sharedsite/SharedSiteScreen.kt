@@ -148,12 +148,15 @@ fun SharedSiteScreen(
     val gone = setOf("declined", "ended")
     val activeSites = remember(sites, trashed) { sites.filter { it.shareId !in trashed && it.status !in gone } }
     val trashedSites = remember(sites, trashed) { sites.filter { it.shareId in trashed && it.status !in gone } }
+    // 응답 안 한 요청(inbox) vs 수락한 현장 분리 — 맨 위 inbox 로 끌어올려 묻히지 않게. (2026-06-18 사장님)
+    val pendingSites = remember(activeSites) { activeSites.filter { it.status == "pending" }.sortedByDescending { it.createdAtMs } }
+    val acceptedSites = remember(activeSites) { activeSites.filter { it.status != "pending" } }
     // 내가 공유한 현장(by-me) — 거절/종료 제외, 시공일 가까운 순. (2026-06-18 사장님)
     val myActiveShared = remember(mySharedSites) {
         mySharedSites.filter { it.status !in gone }.sortedByDescending { it.scheduledAtMs }
     }
     // 업체별: 서버 §B 집계 있으면 그걸로(전체 이력), 없으면 로드된 현장 로컬 그룹핑(폴백).
-    val partnerGroups = remember(activeSites, serverPartners) {
+    val partnerGroups = remember(acceptedSites, serverPartners) {
         if (serverPartners.isNotEmpty()) serverPartners.map { p ->
             val key = p.ownerPhone.filter { it.isDigit() }.takeLast(8).ifBlank { p.ownerName }
             PartnerGroup(
@@ -162,11 +165,11 @@ fun SharedSiteScreen(
                 count = p.count,
                 recentMs = p.lastAtMs,
                 wageSum = p.totalWage,
-                sites = activeSites.filter { it.ownerPhone.filter { c -> c.isDigit() }.takeLast(8) == key }
+                sites = acceptedSites.filter { it.ownerPhone.filter { c -> c.isDigit() }.takeLast(8) == key }
                     .sortedByDescending { it.scheduledAtMs }
             )
         }.sortedByDescending { it.recentMs }
-        else groupByPartner(activeSites)
+        else groupByPartner(acceptedSites)
     }
     val openPartner = partnerGroups.firstOrNull { it.key == bizPartner }
     BackHandler(enabled = selected != null || bizPartner != null || showTrash) {
@@ -268,10 +271,26 @@ fun SharedSiteScreen(
                         noBizPhone = viewModel.noBizPhone
                     )
                 } else {
+                    // 맨 위: 응답 안 한 협업 요청 inbox — 푸시 놓쳐도 여기서 바로 수락/거절. (2026-06-18 사장님)
+                    if (openPartner == null && pendingSites.isNotEmpty()) {
+                        PendingInbox(
+                            sites = pendingSites,
+                            isExpired = { viewModel.acceptExpired(it) },
+                            onAccept = { site ->
+                                if (viewModel.acceptExpired(site)) {
+                                    android.widget.Toast.makeText(context, "수락 시간이 지났어요 — 12시간이 지나 만료됐어요", android.widget.Toast.LENGTH_LONG).show()
+                                } else viewModel.respond(site, true)
+                            },
+                            onReject = { viewModel.respond(it, false) },
+                            onOpen = { selectedId = it.shareId }
+                        )
+                        Spacer(Modifier.height(16.dp))
+                    }
                     ListArea(
-                        sites = activeSites,
+                        sites = acceptedSites,
                         loading = loading,
                         noBizPhone = viewModel.noBizPhone,
+                        hasPending = pendingSites.isNotEmpty(),
                         listView = listView,
                         onListView = { listView = it; bizPartner = null },
                         partnerGroups = partnerGroups,
@@ -441,6 +460,7 @@ private fun ListArea(
     sites: List<SharedSiteRepository.SharedSite>,
     loading: Boolean,
     noBizPhone: Boolean,
+    hasPending: Boolean = false,
     listView: String,
     onListView: (String) -> Unit,
     partnerGroups: List<PartnerGroup>,
@@ -455,6 +475,13 @@ private fun ListArea(
             "더보기 → 견적서·사업자 정보에서 전화번호를 넣으면, 다른 사장님이 그 번호로 현장을 공유할 수 있어요."
         )
         sites.isEmpty() && loading -> EmptyCard("불러오는 중…", "")
+        // 위 inbox 에 응답 안 한 요청이 있으면 큰 빈 카드 대신 가벼운 안내(모순 방지).
+        sites.isEmpty() && hasPending -> Text(
+            "수락하면 여기 '공유받은 현장'에 쌓여요.",
+            fontSize = 12.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)
+        )
         sites.isEmpty() -> EmptyCard(
             "공유받은 현장이 없어요",
             "다른 사장님이 'OO 현장 같이 하자'고 공유하면 여기에 모여요. 초대받은 현장만 보이고, 그 사장님의 다른 고객은 안 보여요."
@@ -564,6 +591,89 @@ private fun CollabTopTabs(current: String, onSelect: (String) -> Unit) {
             }
         }
     }
+}
+
+/**
+ * 응답 안 한 협업 요청 inbox — 공유받은 현장 맨 위. 푸시를 놓쳐도 여기서 바로 수락/거절. (2026-06-18 사장님)
+ *   17·24일 사건(요청을 다시 볼 곳이 없어 묻힘) 해결. 카드 본문 탭 = 상세, [수락]/[거절] = 바로 응답.
+ *   12h 만료(acceptExpired)면 수락 막고 "지났어요" + 거절은 '지우기'로.
+ */
+@Composable
+private fun PendingInbox(
+    sites: List<SharedSiteRepository.SharedSite>,
+    isExpired: (SharedSiteRepository.SharedSite) -> Boolean,
+    onAccept: (SharedSiteRepository.SharedSite) -> Unit,
+    onReject: (SharedSiteRepository.SharedSite) -> Unit,
+    onOpen: (SharedSiteRepository.SharedSite) -> Unit
+) {
+    // 헤더: 🤝 새 협업 요청 [N] · 응답 기다려요
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 2.dp, bottom = 9.dp)) {
+        Text("🤝 새 협업 요청 ", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
+        Box(Modifier.clip(RoundedCornerShape(999.dp)).background(CollabPurple).padding(horizontal = 7.dp, vertical = 1.dp)) {
+            Text("${sites.size}", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+        }
+        Spacer(Modifier.width(7.dp))
+        Text("응답 기다려요", fontSize = 11.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
+    }
+    sites.forEach { site ->
+        val expired = isExpired(site)
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(CollabPurpleSoft)
+                .border(1.dp, Color(0xFFE2D8FB), RoundedCornerShape(14.dp))
+                .clickable { onOpen(site) }
+                .padding(14.dp)
+        ) {
+            Text("🤝 ${site.ownerName}이 함께 하재요", fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
+            Spacer(Modifier.height(4.dp))
+            val line = buildString {
+                append(site.title); append(" · "); append(dayLabel(site.scheduledAtMs))
+                timeText(site)?.let { append(" · "); append(it) }
+            }
+            Text(line, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5A4A7A))
+            site.workSummary?.let {
+                Spacer(Modifier.height(2.dp))
+                Text(it, fontSize = 12.sp, color = Color(0xFF6B5E86), fontWeight = FontWeight.Medium,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
+            // 일당 = 수락 판단에 제일 중요 → 크게(프로토 b-invite). 없으면 "미정".
+            Spacer(Modifier.height(9.dp))
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color.White).padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("💰 그날 일당", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5A4A7A))
+                Spacer(Modifier.weight(1f))
+                Text(
+                    site.dailyWage?.let { "${it}만원" } ?: "미정",
+                    fontSize = 17.sp, fontWeight = FontWeight.ExtraBold,
+                    color = if (site.dailyWage != null) Color(0xFF6B4FD8) else TossTextTertiary
+                )
+            }
+            if (expired) {
+                Spacer(Modifier.height(8.dp))
+                Text("⏰ 수락 시간이 지났어요 (12시간 경과) — 함께하려면 ${site.ownerName}께 다시 보내달라고 하세요.",
+                    fontSize = 11.5.sp, color = Color(0xFFC0392B), lineHeight = 16.sp)
+            }
+            Spacer(Modifier.height(11.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(
+                    Modifier.weight(1f).clip(RoundedCornerShape(11.dp)).background(Color.White)
+                        .border(1.dp, Color(0xFFE2D8FB), RoundedCornerShape(11.dp))
+                        .clickable { onReject(site) }.padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) { Text(if (expired) "지우기" else "거절", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) }
+                Box(
+                    Modifier.weight(1f).clip(RoundedCornerShape(11.dp))
+                        .background(if (expired) Color(0xFFE5E8EF) else CollabPurple)
+                        .clickable { onAccept(site) }.padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) { Text("수락", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = if (expired) TossTextTertiary else Color.White) }
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+    }
+    Text("푸시를 놓쳐도 여기서 바로 수락·거절할 수 있어요. 수락하면 아래 '공유받은 현장'으로 들어와요.",
+        fontSize = 11.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, top = 1.dp))
 }
 
 /**
