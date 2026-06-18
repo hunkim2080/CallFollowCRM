@@ -51,7 +51,7 @@ android {
     defaultConfig {
         applicationId = "com.detailline.callfollowcrm"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 35  // Play Store 요구(2026-06-18): 신규/업데이트는 API 35+ 타겟 필수
         versionCode = appVersionCode
         versionName = "0.2.$appVersionCode"
         buildConfigField("long", "BUILD_TIMESTAMP", "${buildTimeMs}L")
