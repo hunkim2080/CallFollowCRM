@@ -327,7 +327,18 @@ fun ScheduleScreen(
                             assignedMembers = assignmentsByCustomer[c.id].orEmpty(),
                             collabPartnerNames = collabAssign[c.id].orEmpty().map { it.name },
                             teamAvailable = teamMembers.isNotEmpty() || collabPartners.isNotEmpty(),
-                            onAssign = { assignTarget = c },
+                            // 주소 있어야 팀원·일당 사장님 호출 가능 (2026-06-18 사장님: 주소 없는데 일당사장에게 알람이 갔음).
+                            onAssign = {
+                                if (c.address.isNullOrBlank()) {
+                                    android.widget.Toast.makeText(
+                                        assignCtx,
+                                        "현장 주소를 먼저 등록해주세요 — 주소가 있어야 팀원·일당 사장님을 부를 수 있어요. (고객 카드 → 현장 주소)",
+                                        android.widget.Toast.LENGTH_LONG
+                                    ).show()
+                                } else {
+                                    assignTarget = c
+                                }
+                            },
                             onClick = { onOpenCustomer(c.id) }
                         )
                     }
