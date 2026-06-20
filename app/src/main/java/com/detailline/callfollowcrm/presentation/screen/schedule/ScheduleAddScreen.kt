@@ -221,6 +221,45 @@ fun ScheduleAddScreen(
                     placeholder = "010-0000-0000",
                     keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone
                 )
+                // 번호 일부(중간·뒷자리)만 쳐도 저장된 고객을 바로 찾아 보여줌 → 탭하면 채워짐. (2026-06-20 사장님)
+                //   "불러오기" 목록은 안 쓰고 외운 뒷번호/중간번호로 치는 사장님 흐름에 맞춤.
+                val typedDigits = phoneField.text.filter { it.isDigit() }
+                if (typedDigits.length in 3..10) {
+                    val matches = recentContacts.asSequence()
+                        .filter { c ->
+                            val d = c.phoneNumber.filter { ch -> ch.isDigit() }
+                            d.length >= 8 && d.contains(typedDigits) && d != typedDigits
+                        }
+                        .distinctBy { it.phoneNumber.filter { ch -> ch.isDigit() }.takeLast(8) }
+                        .take(6).toList()
+                    if (matches.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg)) {
+                            matches.forEachIndexed { i, c ->
+                                val cn = c.name?.takeIf { it.isNotBlank() && it.count { ch -> ch.isDigit() } < 9 }
+                                Row(
+                                    Modifier.fillMaxWidth().clickable {
+                                        val f = PhoneNumberFormatter.format(c.phoneNumber)
+                                        phoneField = androidx.compose.ui.text.input.TextFieldValue(f, selection = androidx.compose.ui.text.TextRange(f.length))
+                                        if (cn != null && name.isBlank()) name = cn
+                                    }.padding(horizontal = 14.dp, vertical = 11.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(cn ?: PhoneNumberFormatter.format(c.phoneNumber),
+                                            fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                                        if (cn != null) Text(PhoneNumberFormatter.format(c.phoneNumber),
+                                            fontSize = 12.sp, color = TossTextTertiary)
+                                    }
+                                    Text("넣기", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossBlueDark)
+                                }
+                                if (i < matches.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White))
+                            }
+                        }
+                        Text("번호 일부(중간·뒷자리)만 쳐도 찾아드려요. 탭하면 채워져요.",
+                            fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 6.dp, start = 2.dp))
+                    }
+                }
             } else {
                 FieldLabel("거래처 (자주 일 주는 곳)")
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

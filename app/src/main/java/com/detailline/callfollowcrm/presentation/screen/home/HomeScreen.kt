@@ -1390,6 +1390,10 @@ private fun CollabUpcomingCard(
         val today = DateTimeUtils.startOfDay(System.currentTimeMillis())
         sites.take(3).forEach { s ->
             val word = if (DateTimeUtils.startOfDay(s.scheduledAtMs) == today) "오늘" else relativeDayWord(s.scheduledAtMs)
+            // 줄: 간략 주소(없으면 시간) · 누구 사장님 · 일당. "협업 현장"·"~과 함께" 군더더기 제거. (2026-06-20 사장님)
+            val place = com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(s.addr).takeIf { it.isNotBlank() }
+                ?: s.timeLabel?.takeIf { it.isNotBlank() && it != "00:00" && it != "0:00" }
+            val rowLine = listOfNotNull(place, bossLabel(s.ownerName), s.dailyWage?.let { "일당 ${it}만원" }).joinToString(" · ")
             Row(Modifier.fillMaxWidth().padding(top = 9.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     word, color = purple, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold,
@@ -1397,7 +1401,7 @@ private fun CollabUpcomingCard(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    com.detailline.callfollowcrm.ai.siteDisplayName(s) + " · " + s.ownerName + "과 함께" + (s.dailyWage?.let { " · 일당 ${it}만원" } ?: ""),
+                    rowLine,
                     color = TossTextPrimary, fontSize = 13.5.sp, fontWeight = FontWeight.Bold,
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
