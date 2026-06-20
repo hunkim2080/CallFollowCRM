@@ -61,6 +61,7 @@ class MainActivity : ComponentActivity() {
                             text = incoming.text
                         )
                         is IncomingIntent.SharedSite -> container.navEvents.requestCollabSites(incoming.shareId)
+                        is IncomingIntent.CollabMine -> container.navEvents.requestCollabSites(tab = "shared")
                     }
                     pending.value = null
                 }
@@ -95,6 +96,10 @@ class MainActivity : ComponentActivity() {
             }
             ACTION_DAILY_BRIEF -> {
                 pendingIntentState.value = IncomingIntent.ClosingBrief
+            }
+            ACTION_COLLAB_MINE -> {
+                // 협업 수락/진행 알림(주인 A가 받음) 탭 → 협업 현장 "내가 공유한 현장" 탭. (2026-06-20 사장님)
+                pendingIntentState.value = IncomingIntent.CollabMine
             }
             Intent.ACTION_SEND -> {
                 val mime = intent.type.orEmpty()
@@ -181,6 +186,8 @@ class MainActivity : ComponentActivity() {
         object ClosingBrief : IncomingIntent
         /** 협업 현장 공유 App Link. shareId = /shared/{share_id} 의 마지막 조각(없으면 목록). */
         data class SharedSite(val shareId: String?) : IncomingIntent
+        /** 협업 수락/진행 알림(주인 A가 받음) 탭 → 협업 현장 "내가 공유한 현장" 탭. (2026-06-20 사장님) */
+        object CollabMine : IncomingIntent
     }
 
     companion object {
@@ -188,6 +195,7 @@ class MainActivity : ComponentActivity() {
         const val ACTION_CHAT = "com.detailline.callfollowcrm.ACTION_CHAT"
         const val ACTION_CALL_SUMMARY = "com.detailline.callfollowcrm.ACTION_CALL_SUMMARY"
         const val ACTION_DAILY_BRIEF = "com.detailline.callfollowcrm.ACTION_DAILY_BRIEF"
+        const val ACTION_COLLAB_MINE = "com.detailline.callfollowcrm.ACTION_COLLAB_MINE"
         const val EXTRA_PHONE_NUMBER = "extra_phone_number"
         const val EXTRA_CALL_RECORD_ID = "extra_call_record_id"
         const val EXTRA_TEMPLATE_ID = "extra_template_id"

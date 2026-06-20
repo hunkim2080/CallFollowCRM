@@ -58,9 +58,14 @@ object Destinations {
     const val NOTEBOOK = "notebook"
     const val TEAM = "team"
     const val COLLAB_SITES = "collab_sites"
-    /** 협업 현장 — 공유 링크(App Link) 로 진입 시 share 로 그 현장 자동 열기. 더보기 진입은 인자 없음. */
-    const val COLLAB_SITES_WITH_ARG = "collab_sites?share={share}"
-    fun collabSites(shareId: String?) = if (shareId.isNullOrBlank()) COLLAB_SITES else "collab_sites?share=$shareId"
+    /** 협업 현장 — share 로 그 현장 자동 열기, tab="shared" 면 "내가 공유한 현장" 탭부터. 더보기 진입은 인자 없음. */
+    const val COLLAB_SITES_WITH_ARG = "collab_sites?share={share}&tab={tab}"
+    fun collabSites(shareId: String? = null, tab: String? = null): String {
+        val s = shareId?.takeIf { it.isNotBlank() }?.let { "share=$it" }.orEmpty()
+        val t = tab?.takeIf { it.isNotBlank() }?.let { "tab=$it" }.orEmpty()
+        val q = listOf(s, t).filter { it.isNotEmpty() }.joinToString("&")
+        return if (q.isEmpty()) COLLAB_SITES else "collab_sites?$q"
+    }
     const val REPORT = "report"
     const val TRADE_SELECT = "trade_select"
     const val RECURRING = "recurring"

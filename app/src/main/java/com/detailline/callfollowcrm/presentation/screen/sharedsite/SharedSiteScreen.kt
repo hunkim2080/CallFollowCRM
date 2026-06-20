@@ -59,6 +59,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.ai.SharedSiteRepository
+import com.detailline.callfollowcrm.ai.siteDisplayName
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
@@ -85,7 +86,9 @@ fun SharedSiteScreen(
     viewModel: SharedSiteViewModel,
     onBack: () -> Unit,
     /** 공유 링크(App Link)로 들어왔을 때 그 현장 상세를 자동으로 연다. */
-    initialShareId: String? = null
+    initialShareId: String? = null,
+    /** "shared" 면 "내가 공유한 현장" 탭부터 연다(협업 수락/진행 알림 탭). 기본은 받은 현장. (2026-06-20 사장님) */
+    initialTab: String? = null
 ) {
     val sites by viewModel.sites.collectAsState()
     val loading by viewModel.loading.collectAsState()
@@ -113,7 +116,8 @@ fun SharedSiteScreen(
     val accountPrompt = "입금받을 계좌를 먼저 등록해주세요. 더보기 → 견적서·사업자 정보에서 등록할 수 있어요."
     var selectedId by rememberSaveableShareId()
     // 1차 분리(2026-06-18 사장님): "received" 공유받은 현장 | "shared" 내가 공유한 현장.
-    var topMode by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("received") }
+    //   협업 수락/진행 알림(주인 A)으로 들어오면 initialTab="shared" → 내가 공유한 현장부터. (2026-06-20 사장님)
+    var topMode by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(if (initialTab == "shared") "shared" else "received") }
     var listView by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("date") } // "date" 현장순 | "biz" 업체별
     var bizPartner by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) } // 업체별에서 고른 사장님 key
     var showTrash by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) } // 휴지통 보기
@@ -207,7 +211,7 @@ fun SharedSiteScreen(
                 title = {
                     Text(
                         when {
-                            selected != null -> selected.title
+                            selected != null -> siteDisplayName(selected)
                             showTrash -> "휴지통"
                             openPartner != null -> openPartner.name
                             else -> "협업 현장"
@@ -626,7 +630,7 @@ private fun PendingInbox(
             Text("🤝 ${site.ownerName}이 함께 하재요", fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
             Spacer(Modifier.height(4.dp))
             val line = buildString {
-                append(site.title); append(" · "); append(dayLabel(site.scheduledAtMs))
+                append(siteDisplayName(site)); append(" · "); append(dayLabel(site.scheduledAtMs))
                 timeText(site)?.let { append(" · "); append(it) }
             }
             Text(line, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5A4A7A))
@@ -726,7 +730,7 @@ private fun MySharedRow(site: SharedSiteRepository.SharedSite) {
         Spacer(Modifier.width(11.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(site.title, fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
+                Text(siteDisplayName(site), fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false))
                 Spacer(Modifier.width(6.dp))
@@ -858,7 +862,7 @@ private fun TrashView(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f).clickable { onOpen(site) }) {
-                    Text(site.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
+                    Text(siteDisplayName(site), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
                     Spacer(Modifier.height(2.dp))
                     Text(site.ownerName, fontSize = 12.sp, color = TossTextTertiary)
                 }
@@ -888,7 +892,7 @@ private fun SiteRow(site: SharedSiteRepository.SharedSite, onClick: () -> Unit) 
         Spacer(Modifier.width(11.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(site.title, fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
+                Text(siteDisplayName(site), fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false))
                 Spacer(Modifier.width(6.dp))
@@ -971,8 +975,8 @@ private fun DetailBody(
         ) {
             Text("🤝 ${site.ownerName}이 함께 하재요", fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
             Spacer(Modifier.height(4.dp))
-            // "이 현장" 대신 실제 현장명 + 날짜를 보여줌(사장님 요청 2026-06-18).
-            Text("${site.title} · ${dayLabel(site.scheduledAtMs)}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5A4A7A))
+            // "이 현장" 대신 실제 현장명(주소) + 날짜를 보여줌(사장님 요청 2026-06-18·06-20).
+            Text("${siteDisplayName(site)} · ${dayLabel(site.scheduledAtMs)}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5A4A7A))
             Spacer(Modifier.height(8.dp))
             // 일당 = 수락 판단에 제일 중요 → 크게 강조(프로토 b-invite). 없으면 "미정".
             Row(
@@ -1136,7 +1140,7 @@ private fun DetailBody(
     ) {
         Text("📌 왜 찍어두나요?", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB4790A))
         Spacer(Modifier.height(5.dp))
-        Text("시공 전·작업 중 현장 상태(기존 깨짐·들뜸·곰팡이)를 찍어두면 \"이건 원래 그랬어요\" 증거가 돼요. 나중에 \"여기 망가뜨렸지?\" 누명·분쟁을 막아줍니다.",
+        Text("시공 전·작업 중 현장 상태를 미리 찍어두면 \"이건 원래 그랬어요\" 증거가 돼요. 나중에 \"여기 망가뜨렸죠?\" 같은 누명·분쟁을 막아줍니다.",
             fontSize = 13.sp, color = Color(0xFF5A4A1F), lineHeight = 20.sp)
     }
     Spacer(Modifier.height(10.dp))

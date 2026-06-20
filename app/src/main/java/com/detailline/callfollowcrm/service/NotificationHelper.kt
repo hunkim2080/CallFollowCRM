@@ -273,9 +273,11 @@ object NotificationHelper {
     ) {
         val notifId = COLLAB_ID_OFFSET + (eventId.hashCode() and 0x7FFFFF)
         // 협업 진행 알림(수락/출발/도착/완료)은 전부 '주인(A)'이 받음. A 는 '받은 협업현장' 목록에
-        //   이 현장이 없어 /shared/ 로 보내면 "공유받은 현장이 없어요"가 떠 버림(2026-06-14 버그).
-        //   → 딥링크 없이 앱(상담함)으로 연다. 진행 카드/일정에서 확인 가능.
+        //   이 현장이 없어 /shared/{id} 로 보내면 "공유받은 현장이 없어요"가 떠 버림(2026-06-14 버그).
+        //   기존엔 그래서 action 없이 앱만 열어 → 탭해도 아무 반응 없음(2026-06-20 사장님 신고).
+        //   → A 의 "내가 공유한 현장" 탭으로 보냄(거기서 수락/진행 확인). ACTION_COLLAB_MINE.
         val openIntent = Intent(context, MainActivity::class.java).apply {
+            action = MainActivity.ACTION_COLLAB_MINE
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
         val pending = PendingIntent.getActivity(

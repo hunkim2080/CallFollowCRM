@@ -662,7 +662,7 @@ fun HomeScreen(
                             title = "🤝 받은 협업 요청",
                             tagText = "수락 대기",
                             tagBg = Color(0xFFF1ECFE), tagFg = Color(0xFF7C5CFC),
-                            sub = "${inv.ownerName}님 · ${inv.title}" + (inv.dailyWage?.let { " · 일당 ${it}만원" } ?: ""),
+                            sub = "${inv.ownerName}님 · ${com.detailline.callfollowcrm.ai.siteDisplayName(inv)}" + (inv.dailyWage?.let { " · 일당 ${it}만원" } ?: ""),
                             goLabel = "수락하러 가기",
                             onClick = onOpenCollabSites
                         )
@@ -1397,7 +1397,7 @@ private fun CollabUpcomingCard(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    s.title + " · " + s.ownerName + "과 함께" + (s.dailyWage?.let { " · 일당 ${it}만원" } ?: ""),
+                    com.detailline.callfollowcrm.ai.siteDisplayName(s) + " · " + s.ownerName + "과 함께" + (s.dailyWage?.let { " · 일당 ${it}만원" } ?: ""),
                     color = TossTextPrimary, fontSize = 13.5.sp, fontWeight = FontWeight.Bold,
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )

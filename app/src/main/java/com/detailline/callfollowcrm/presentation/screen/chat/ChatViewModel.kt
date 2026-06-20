@@ -174,6 +174,14 @@ class ChatViewModel(
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
     /**
+     * 통화가 끝나면 곧 자동요약 워커가 도는 상황인지(설정 ON + 녹음폴더 연결). 방금 끝난 통화 카드에
+     *   미리 "요약 중…"을 띄워, 정적 '요약하기' 버튼만 보이던 문제를 없앤다. (2026-06-20 사장님)
+     */
+    val autoSummaryActive: Boolean
+        get() = container.preferences.autoSummaryEnabled &&
+            com.detailline.callfollowcrm.recording.AdotFolderScanner.isConnected(container.appContext)
+
+    /**
      * 통화 카드 탭 → 그 통화 한 건을 연결된 녹음 폴더에서 찾아 즉시 요약. (2026-06-14 사장님)
      *   에이닷 들어가 '공유' 안 해도 됨. 진행 중엔 CallSummaryProgress 로 스피너, 결과는 토스트.
      */

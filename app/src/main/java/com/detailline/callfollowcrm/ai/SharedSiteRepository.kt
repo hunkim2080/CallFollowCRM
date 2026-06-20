@@ -411,3 +411,16 @@ class SharedSiteRepository(
 
     private fun phoneKey(phone: String): String = phone.filter { it.isDigit() }
 }
+
+/**
+ * 화면 표시용 현장 이름 — 공유할 때 주소가 안 잡혀 "이 현장"/"협업 현장"으로 굳은 라벨 대신,
+ *   주소가 있으면 주소를 보여준다. 일정·협업현장 어디서나 같은 규칙. (2026-06-20 사장님)
+ *   우선순위: 주소 라벨(지역+건물) > 진짜 현장명 > 주소 원문 > "협업 현장".
+ *   ※ 주소가 아예 없는 현장은 보여줄 주소가 없어 "협업 현장"으로 떨어짐(= 그 현장에 주소를 등록해야 주소가 뜸).
+ */
+fun siteDisplayName(site: SharedSiteRepository.SharedSite): String {
+    com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(site.addr).takeIf { it.isNotBlank() }?.let { return it }
+    site.title.takeIf { it.isNotBlank() && it != "이 현장" && it != "협업 현장" }?.let { return it }
+    site.addr?.takeIf { it.isNotBlank() }?.let { return it }
+    return "협업 현장"
+}

@@ -424,7 +424,7 @@ private fun CollabDayCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(9.dp).clip(CircleShape).background(Color(0xFF7C5CFC)))
                 Spacer(Modifier.width(10.dp))
-                Text(site.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, modifier = Modifier.weight(1f))
+                Text(com.detailline.callfollowcrm.ai.siteDisplayName(site), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, modifier = Modifier.weight(1f))
                 Text(
                     "협업",
                     fontSize = 11.sp,

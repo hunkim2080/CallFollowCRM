@@ -5183,4 +5183,19 @@ owner_phone 을 **card-summary / conversation-summary / next-action-suggest 3개
   - `principle` 예: ❌ "신축 문의엔 즉답 견적 대신 방문 견적을 먼저 권한다" → ⭕ "새 집(신축) 문의 오면, 바로 가격 안 하고 '한번 보러 갈게요' 먼저 하시네요"
   - `question` 은 한 문장, 끝 "~할까요?"/"맞아요?" (예: "앞으로도 이렇게 하면 될까요?")
   - 구현 = prompt 에 "초등학생도 이해할 쉬운 말로, 어려운 한자어 금지" 한 줄 + 위 금지어/예시 추가.
+- commit: f736916
+
+## 2026-06-20 13:30 · android — 협업 "이 현장"→주소 + 수락알림 탭 무반응 + 증거사진 문구 업종중립 + 통화요약 스피너
+사장님 실기기(A폰 1cba…) 테스트 4건 처리. compileDebugKotlin OK + assembleDebug 설치 완료.
+1. **"이 현장" → 주소 표시 (앱 전역)**: 공유 시 주소·이름이 없어 제목이 "이 현장"으로 굳은 현장이 일정·협업현장·홈 곳곳에 "이 현장"으로 뜨던 문제. 공용 `siteDisplayName(site)`(ai/SharedSiteRepository.kt) 도입 — 주소라벨(지역+건물) > 진짜현장명 > 주소원문 > "협업 현장". 협업현장(헤더/목록/대기/사진카드 detail)·일정(CollabDayCard)·홈(받은요청·다음협업) 전부 적용. ⚠️ **주소가 아예 없는 현장은 "협업 현장"으로 떨어짐** — 그 현장에 주소(server addr)가 있어야 주소가 뜸. (cowork: invite 시 addr 비면 by-me/with-me 에 addr null → 표시 불가. 추후 고객주소 backfill 여지)
+2. **협업 수락/진행 알림 탭 무반응 fix**: 주인(A)이 받는 collab_event 알림이 action 없이 앱만 열어 탭해도 반응 없던 것(2026-06-14 주석대로 /shared/{id} 는 A '받은목록'에 없어 빈화면이라 딥링크 뺐던 잔재). → 새 `ACTION_COLLAB_MINE` 로 협업현장 **"내가 공유한 현장" 탭**을 열게 함. NavEvents/Destinations(tab arg)/AppRoot/AppNavHost/MainActivity/NotificationHelper 배선.
+3. **증거사진 안내문구 업종중립**: "왜 찍어두나요?" 본문 줄눈 특화 예시 "(기존 깨짐·들뜸·곰팡이)" 제거 → 다른 업종 시공인도 쓰게 일반화(프로토 b-detail line280 중립표현과 정렬).
+4. **통화요약 진행 스피너(방금 끝난 통화)**: 자동요약 워커가 통화종료 ~15~40초 뒤 돌아서 그 전엔 채팅 통화카드가 정적 '요약하기' 버튼만 보이던 문제("돌아가는 로딩 아님"). 자동요약 ON+폴더연결이면 방금 끝난(≤4분) 요약가능 통화에 미리 "요약 중…" 스피너 → 요약 도착하면 결과로, 안 오면 창 지나 버튼 복귀(서버호출·토스트 없음).
+5. **휴지통/그만하기 시 위치펜스 정리**: trash() 에 removeCollabArrival 추가 — 출발만 누르고 안 간 채 휴지통/그만하기 하면 펜스가 남아 나중에 엉뚱한 '거의 도착' 자동알림 쏘던 잠재버그 차단.
 - commit: 곧
+
+### 🔧 서버(cowork) 요청 — 협업 "지우기" 눌렀는데 A에게 "출발" 푸시 가는 버그 (앱쪽 무관 확정)
+사장님 신고: 협업현장에서 **수락받은 협업을 "지우기/거절"** 했는데 **협업을 요청한 폰(A)** 에 **"협업 현장 출발 🚗"** 푸시가 감.
+- **앱쪽 추적 = 앱엔 "출발(departed)" 이벤트 보내는 경로가 trash/respond(decline)/leave 어디에도 없음.** departed 는 오직 B가 [출발 알리기] 버튼 → `POST /api/shared/progress {step:departed}` 로만 발사. trash=로컬, respond(false)=`/respond{accept:false}`, leave=`/end{by:partner}` — 진행 이벤트 아님.
+- 즉 A가 "출발" 푸시를 받음 = **서버가 A의 owner-events 에 step=departed 를 내려준 것**. 의심 ① `/respond(accept=false)` 또는 `/end` 핸들러가 잘못 progress(departed) 생성/푸시. ② `GET /owner-events` 가 옛 departed 를 (지우기→재폴 때) 다시 내려줌(at_ms 갱신 시 앱이 재알림).
+- **점검**: respond(decline)/end 가 progress/푸시 이벤트 안 만드는지 + owner-events 가 declined/ended 건 과거 progress 필터링하는지. 재현: B [출발]→A수신 → B가 거절/지우기 → A에 "출발" 재도착 여부.

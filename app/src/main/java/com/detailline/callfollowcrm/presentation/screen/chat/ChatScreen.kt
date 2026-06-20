@@ -183,6 +183,11 @@ fun ChatScreen(
     val callSummaries by viewModel.callSummaries.collectAsState()
     // 서버에서 요약 중인 통화 시각 — 통화카드가 "요약 중…" 스피너 표시.
     val summarizingTimes by viewModel.summarizingRecordedAt.collectAsState()
+    // 자동요약 ON + 녹음폴더 연결이면, 방금 끝난 통화 카드에 미리 "요약 중…"을 띄운다(워커가 ~15~40초 뒤 돌아서
+    //   그 전엔 정적 '요약하기' 버튼만 보이던 문제). 요약이 도착하면 그걸로 바뀌고, 안 오면 창이 지나 버튼으로 복귀. (2026-06-20 사장님)
+    val autoSummaryActive = remember { viewModel.autoSummaryActive }
+    val nowTick = remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(20_000); nowTick.value = System.currentTimeMillis() } }
     val timelineItems = remember(messages, callRecords, intakeEvents) {
         buildChatTimeline(messages, callRecords, intakeEvents)
     }
@@ -686,9 +691,16 @@ fun ChatScreen(
                                 val callStart = ti.record.startedAt ?: ti.record.endedAt
                                 val matched = recordSummary[ti.record.id]
                                 // 서버 요약 진행 중인 녹음이 이 통화 시간대와 겹치면 스피너.
-                                val summarizing = matched == null && summarizingTimes.any { r ->
+                                //   + 방금 끝난(≤4분) 요약 가능한 통화는 자동요약 워커가 곧 도므로 미리 스피너(정적 '요약하기' 대신). (2026-06-20 사장님)
+                                val recType = runCatching { com.detailline.callfollowcrm.domain.model.CallType.valueOf(ti.record.callType) }.getOrNull()
+                                val recSummarizable = recType != com.detailline.callfollowcrm.domain.model.CallType.MISSED &&
+                                    recType != com.detailline.callfollowcrm.domain.model.CallType.REJECTED &&
+                                    ti.record.duration > 0
+                                val autoPending = autoSummaryActive && recSummarizable &&
+                                    (nowTick.value - ti.record.endedAt) in 0..(4 * 60 * 1000L)
+                                val summarizing = matched == null && (autoPending || summarizingTimes.any { r ->
                                     r >= callStart - win && r <= ti.record.endedAt + win
-                                }
+                                })
                                 val callRec = recordingFor[ti.record.id]
                                 CallSegment(
                                     record = ti.record,

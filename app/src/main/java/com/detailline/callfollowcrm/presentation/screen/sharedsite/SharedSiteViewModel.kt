@@ -51,6 +51,9 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
         _trashed.value = container.preferences.trashedSharedSiteIds
         // 홈/상담함 협업 카드에서도 즉시 제거 (다음 폴 안 기다림). (2026-06-17 사장님)
         container.collabEventCenter.markTrashed(shareId)
+        // 휴지통/그만하기로 뺀 현장은 위치 펜스도 정리 — 출발만 누르고 안 가도 남던 펜스가
+        //   나중에 엉뚱한 '거의 도착' 자동 알림을 쏘는 걸 막는다(배터리·오알림 방지). (2026-06-20 사장님)
+        runCatching { com.detailline.callfollowcrm.service.GeofenceManager.removeCollabArrival(container.appContext, shareId) }
     }
 
     fun restore(shareId: String) {
