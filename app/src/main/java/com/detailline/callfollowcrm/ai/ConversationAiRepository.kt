@@ -29,7 +29,9 @@ import java.util.concurrent.TimeUnit
  */
 class ConversationAiRepository(
     private val dao: AiSummaryDao,
-    private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL
+    private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL,
+    /** 사장님(owner) 본인 phone(digits) — 서버 베타 화이트리스트 가드용. 비면 안 보냄. card/conversation/next-action 3개 공통. (2026-06-20 cowork 계약) */
+    private val ownerPhone: () -> String = { "" }
 ) {
     private val client = OkHttpClient.Builder()
         .connectTimeout(3, TimeUnit.SECONDS)
@@ -121,7 +123,11 @@ class ConversationAiRepository(
     }
 
     private fun callServer(url: String, jsonBody: String): JSONObject {
-        val req = Request.Builder().url(url).post(jsonBody.toRequestBody(JSON)).build()
+        // owner_phone(사장님) 주입 — card/conversation/next-action 3개 공통. 비면 그대로(서버 가드 skip). (2026-06-20 cowork 계약)
+        val op = ownerPhone().filter { it.isDigit() }.takeIf { it.length >= 9 }
+        val sendBody = if (op == null) jsonBody
+            else runCatching { JSONObject(jsonBody).put("owner_phone", op).toString() }.getOrDefault(jsonBody)
+        val req = Request.Builder().url(url).post(sendBody.toRequestBody(JSON)).build()
         client.newCall(req).execute().use { resp ->
             if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
             return JSONObject(resp.body?.string() ?: "{}")

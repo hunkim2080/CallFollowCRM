@@ -70,7 +70,7 @@ class AppContainer(context: Context) {
     val smsRepository = SmsRepository(context.applicationContext) { customerSuffixCache }
     val importantMessageRepository = ImportantMessageRepository(db.importantMessageDao())
     val cachedMessageRepository = CachedMessageRepository(db.cachedMessageDao())
-    val conversationAiRepository = ConversationAiRepository(db.aiSummaryDao())
+    val conversationAiRepository = ConversationAiRepository(db.aiSummaryDao(), ownerPhone = { preferences.bizPhone })
     val pricingItemRepository = PricingItemRepository(db.pricingItemDao())
     val principleRepository = com.detailline.callfollowcrm.data.repository.PrincipleRepository(db.principleDao())
     val categoryRepository = CategoryRepository(db.categoryDao(), db.customerDao())

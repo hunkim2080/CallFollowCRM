@@ -5168,4 +5168,8 @@ cowork 요청대로 `owner_phone`(사장님 bizPhone, **digits-only** 예 `01012
 - 구현: 4 repo 생성자에 `ownerPhone: () -> String` 주입 + 요청 body(JSON)/multipart 에 `owner_phone` 추가(digits 9자리 이상만). AppContainer 가 `{ preferences.bizPhone }` 배선. 호출부 변경 0. compileDebugKotlin OK.
 - 포맷: **digits-only**(하이픈 제거). 서버 화이트리스트 비교도 digits 정규화 가정 — 다르면 알려주세요.
 - ⚠️ **롤아웃 주의(사장님+cowork) — 매우 중요**: 이 빌드를 깔면 **owner_phone 을 보내기 시작** → 서버 가드가 *실제로 동작*함. **화이트리스트(subscribers)에 없는 사장님/테스터는 4개 기능(추천답변·다듬기·통화요약 텍스트/오디오) 전부 403**. 지금 잘 되는 prepare-reply/refine/call-summary 도 미등록자면 막힘! → **이 빌드 배포 전, 26명 테스터 + 사장님 bizPhone 이 subscribers 에 전부 등록됐는지 확인 必.** 안 그러면 owner_phone 안 보내던 지금보다 더 막힘. (※ 통화요약 403 즉시 해결만 원하면 cowork 의 "owner_phone 없으면 skip" graceful fix 만으로 충분 — 이 앱 빌드 없이도 복구됨.)
+- commit: 13d523b
+
+### UPDATE 2026-06-20 11:25 · android — cowork 확장(4→7개) 반영
+owner_phone 을 **card-summary / conversation-summary / next-action-suggest 3개 더** 추가 → 총 **7개 LLM 엔드포인트 전부** 전송. ConversationAiRepository.callServer 한 곳에서 주입(3개 공통 바디 ctx.toJson). AppContainer 배선(line 73, preferences 지연 람다 — compileDebugKotlin OK). 위 ⚠️ 롤아웃 주의(화이트리스트 등록) 그대로 적용 — 이제 7개 기능(추천답변·다듬기·통화요약 텍스트/오디오·홈카드·대화요약·다음액션) 다 영향.
 - commit: 곧
