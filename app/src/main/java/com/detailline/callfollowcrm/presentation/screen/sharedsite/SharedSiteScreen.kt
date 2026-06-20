@@ -122,7 +122,8 @@ fun SharedSiteScreen(
     var bizPartner by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) } // 업체별에서 고른 사장님 key
     var showTrash by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) } // 휴지통 보기
     val trashed by viewModel.trashed.collectAsState()
-    var confirmLeave by remember { mutableStateOf(false) } // 협업 그만하기 확인
+    // 협업 빼기 확인 대상 — 수락된(진행중) 건은 "그만두기"(상대 알림+양쪽 빠짐), 완료된 건 "정리"(내 목록만). null=닫힘. (2026-06-20 사장님)
+    var confirmRemoveSite by remember { mutableStateOf<SharedSiteRepository.SharedSite?>(null) }
     // 일당 지급(입금) 계좌 — 화면에서 인라인 등록/수정. prefs 는 비반응형이라 화면 상태로 들고 즉시 반영.
     var navChooserAddr by remember { mutableStateOf<String?>(null) } // 길찾기 앱 선택 다이얼로그(주소)
     var payoutBank by remember { mutableStateOf(viewModel.accountBank) }
@@ -301,10 +302,7 @@ fun SharedSiteScreen(
                         openPartner = openPartner,
                         onPickPartner = { bizPartner = it },
                         onOpen = { selectedId = it.shareId },
-                        onTrash = {
-                            viewModel.trash(it.shareId)
-                            android.widget.Toast.makeText(context, "휴지통에 넣었어요 — 우상단 🗑에서 되살릴 수 있어요", android.widget.Toast.LENGTH_SHORT).show()
-                        }
+                        onTrash = { confirmRemoveSite = it }   // 바로 안 빼고 확인부터 — 수락된 협업은 상대에게 알림이 감. (2026-06-20 사장님)
                     )
                 }
             } else {
@@ -348,7 +346,7 @@ fun SharedSiteScreen(
                         }
                     },
                     onRespond = { accept -> viewModel.respond(selected, accept); if (!accept) selectedId = null },
-                    onLeave = { confirmLeave = true }
+                    onLeave = { confirmRemoveSite = selected }
                 )
             }
             Spacer(Modifier.height(20.dp))
@@ -392,22 +390,33 @@ fun SharedSiteScreen(
         )
     }
 
-    // 협업 그만하기 확인
-    if (confirmLeave) {
-        val s = selected
+    // 협업 빼기 확인 — 수락된(진행중) 건은 그만두기(상대 알림+양쪽 빠짐), 완료된 건 정리(내 목록만). (2026-06-20 사장님)
+    confirmRemoveSite?.let { s ->
+        val done = s.progress == SharedSiteRepository.Progress.COMPLETED
         androidx.compose.material3.AlertDialog(
-            onDismissRequest = { confirmLeave = false },
-            title = { Text("협업을 그만할까요?", fontWeight = FontWeight.Bold) },
-            text = { Text("${s?.ownerName ?: "사장님"}께 '협업을 그만뒀어요' 알림이 가요. 사진·메모·진행 기록은 그대로 남아요.") },
+            onDismissRequest = { confirmRemoveSite = null },
+            title = { Text(if (done) "이 현장을 정리할까요?" else "협업을 그만할까요?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    if (done) "끝난 현장이에요. 내 목록에서만 치워요. (사진·진행 기록은 남아요)"
+                    else "${s.ownerName}님께 '협업을 그만뒀어요' 알림이 가요. 사진·메모·진행 기록은 그대로 남아요."
+                )
+            },
             confirmButton = {
                 androidx.compose.material3.TextButton(onClick = {
-                    confirmLeave = false
-                    if (s != null) { viewModel.leaveCollab(s); selectedId = null }
-                }) { Text("그만하기", color = Color(0xFFF0436A), fontWeight = FontWeight.Bold) }
+                    confirmRemoveSite = null
+                    if (done) {
+                        viewModel.trash(s.shareId)
+                        android.widget.Toast.makeText(context, "목록에서 정리했어요 — 우상단 🗑에서 되살릴 수 있어요", android.widget.Toast.LENGTH_SHORT).show()
+                    } else {
+                        viewModel.leaveCollab(s)
+                    }
+                    if (selectedId == s.shareId) selectedId = null
+                }) { Text(if (done) "정리" else "그만하기", color = Color(0xFFF0436A), fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { confirmLeave = false }) {
-                    Text("계속 함께", color = TossTextSecondary)
+                androidx.compose.material3.TextButton(onClick = { confirmRemoveSite = null }) {
+                    Text(if (done) "그대로 둘게요" else "계속 함께", color = TossTextSecondary)
                 }
             }
         )

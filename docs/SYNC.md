@@ -5273,5 +5273,19 @@ cowork 커밋(76383b3, 6cd61d3) git 으로 실코드 대조함. 결과:
   - **앱 `NotificationHelper.showCollabEvent` 의 `when(kind)` 에 "declined" 케이스가 없어서 `else` 로 떨어져 → "협업 현장 출발 🚗"** 로 표시됨. (= B 거절인데 A엔 "출발")
 - 앱 fix: "declined" → "협업 요청 거절" 문구, "departed" 명시 케이스, **모르는 step 은 else→return(무시)** 로. 더는 엉뚱한 "출발" 안 뜸.
 - → cowork 는 이 건 **서버 손댈 것 없음**(respond/owner-events 그대로 OK). 위 "owner-events status 필터" 도 이 버그 때문이 아니었음(불필요).
+- commit: 5124fe8
+
+## 2026-06-20 23:30 · android — 협업 취소/그만두기 "양쪽 동기화 + 항상 알림" 통일 (사장님 스펙 확정)
+사장님 결정: **수락된 협업을 어느 쪽이든 빼면 → 양쪽 일정에서 빠짐 + 상대에게 알림 + 빼기 전 확인.** (한쪽만 사라져서 "내가 수락했었나 착각?" 하는 일 없게)
+- **규칙**: 수락된(진행중) 협업 빼기 = 그만두기(서버 end → 상대 "해제" 알림 + 양쪽 status=ended 로 목록서 빠짐) / 완료된 협업 = 내 목록만 정리(로컬) / 수락 전 A 취소 = cancel(조용, B 미수락이라) / B 거절 = A 알림(기존).
+- 통일한 "빼기" 5곳:
+  1. B 협업현장 목록 밀어삭제 → 확인창 → 진행중=leaveCollab(A 알림)/완료=trash(로컬). (기존 즉시 trash 였음)
+  2. B 협업현장 상세 "협업 그만하기" → 확인창 통합(위와 같은 다이얼로그).
+  3. B 일정(캘린더) 협업카드 밀어삭제 → 확인창 → 진행중=leaveCollabSite(endCollab asOwner=false, A 알림)/완료=hideCollab(로컬). (기존 그냥 hide 였음)
+  4. A 일정 전문가배정에서 "요청함" 빼기(removeCollabAssignment) → 로컬 제거 + **서버에도** cancel(수락전 조용)→실패시 endCollab(asOwner=true, B 알림). (기존 로컬만 = B 안 빠지던 갭)
+  5. A 고객상세 "협업 해제" → 이미 확인창+endCollab(asOwner=true, B 알림). 그대로 OK(검증).
+- 서버: `/api/shared/end`(pending+accepted 모두, 상대에 collab_ended FCM) + `/api/shared/cancel`(pending→declined) 이미 있음 → **앱만 배선.** 서버 변경 없음.
+- 미세선택: A 배정시트 빼기는 '직접 체크 해제+보내기'라 별도 확인창 없이 바로 처리(스와이프 오작동 위험 없음). 원하면 추가 가능.
+- compileDebugKotlin OK + A폰 설치.
 - commit: 곧
 

@@ -168,6 +168,8 @@ fun ScheduleScreen(
         }
     }
     var assignTarget by remember { mutableStateOf<CustomerEntity?>(null) }
+    // 협업 카드 밀어 "그만두기" 확인 대상(수락된 협업만 — 상대에 알림 감). null=닫힘. (2026-06-20 사장님)
+    var confirmLeaveCollab by remember { mutableStateOf<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite?>(null) }
     // 배정 시트 열렸을 때 뒤로가기 = 시트 닫기 (앱 종료/화면 이탈 방지).
     androidx.activity.compose.BackHandler(enabled = assignTarget != null) { assignTarget = null }
 
@@ -355,14 +357,19 @@ fun ScheduleScreen(
                 items(collabForSelected, key = { "sh-${it.shareId}" }) { site ->
                     CollabSwipeBox(
                         onDelete = {
-                            viewModel.hideCollab(site.shareId)
-                            uiScope.launch {
-                                val r = snackbarHostState.showSnackbar(
-                                    message = "협업 현장을 숨겼어요",
-                                    actionLabel = "되돌리기",
-                                    duration = androidx.compose.material3.SnackbarDuration.Short
-                                )
-                                if (r == SnackbarResult.ActionPerformed) viewModel.unhideCollab(site.shareId)
+                            // 끝난 협업은 그냥 숨김(되돌리기). 진행 중(수락된) 협업은 확인 후 "그만두기"(상대에 알림). (2026-06-20 사장님)
+                            if (site.progress == com.detailline.callfollowcrm.ai.SharedSiteRepository.Progress.COMPLETED) {
+                                viewModel.hideCollab(site.shareId)
+                                uiScope.launch {
+                                    val r = snackbarHostState.showSnackbar(
+                                        message = "끝난 협업을 숨겼어요",
+                                        actionLabel = "되돌리기",
+                                        duration = androidx.compose.material3.SnackbarDuration.Short
+                                    )
+                                    if (r == SnackbarResult.ActionPerformed) viewModel.unhideCollab(site.shareId)
+                                }
+                            } else {
+                                confirmLeaveCollab = site
                             }
                         }
                     ) {
@@ -411,6 +418,26 @@ fun ScheduleScreen(
                 }
             },
             onCancelCollab = { phone -> viewModel.removeCollabAssignment(c.id, phone) }
+        )
+    }
+
+    // 협업 카드 밀어 "그만두기" 확인 — 수락된 협업은 상대(주인 A)에게 알림 가고 양쪽에서 빠짐. (2026-06-20 사장님)
+    confirmLeaveCollab?.let { s ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmLeaveCollab = null },
+            title = { Text("협업을 그만할까요?", fontWeight = FontWeight.Bold) },
+            text = { Text("${s.ownerName}님께 '협업을 그만뒀어요' 알림이 가요. 사진·기록은 그대로 남아요.") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    confirmLeaveCollab = null
+                    viewModel.leaveCollabSite(s)
+                }) { Text("그만하기", color = TossError, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { confirmLeaveCollab = null }) {
+                    Text("계속 함께", color = TossTextSecondary)
+                }
+            }
         )
     }
 }

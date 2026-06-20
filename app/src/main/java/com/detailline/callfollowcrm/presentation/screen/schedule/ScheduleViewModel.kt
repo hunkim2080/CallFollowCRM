@@ -176,6 +176,18 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         applyCollabFilter()
     }
 
+    /** 협업 카드 "그만두기"(밀어서) — 수락된 협업을 끝냄(서버 end → 상대=주인 A 에게 "해제" 알림) + 내 일정에서 숨김.
+     *   캘린더 협업카드는 내가 '공유받은(B)' 현장이라 asOwner=false. (2026-06-20 사장님 — 양쪽 동기화) */
+    fun leaveCollabSite(site: com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite) {
+        hideCollab(site.shareId)  // 즉시 일정에서 사라짐(서버 반영 전에도)
+        val owner = ownerPhone.filter { it.isDigit() }
+        if (owner.length < 9 || site.shareId.isBlank()) return
+        viewModelScope.launch {
+            runCatching { container.sharedSiteRepository.endCollab(site.shareId, owner, asOwner = false) }
+            _toast.value = "협업을 그만뒀어요 — 사장님께 알려드렸어요"
+        }
+    }
+
     /** 일정 카드 밀어서 삭제 — 이 현장을 "일정에서만" 뺌(고객·대화·정산 기록은 보존). 되돌리기 가능. (2026-06-13 사장님) */
     fun unschedule(customer: CustomerEntity) {
         viewModelScope.launch { container.customerRepository.updateScheduledWorkDate(customer.id, null) }
@@ -265,9 +277,17 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    /** 협업 요청 취소(로컬) — 배정 시트에서 "요청함" 사장님 다시 탭 → 내 화면에서 제거 + 재요청 가능. (상대/서버 취소는 추후) */
+    /** 협업 요청/협업 취소 — 배정 시트에서 "요청함" 사장님 다시 탭 → 내 목록에서 빼고 + 서버에도 알려 B쪽에서도 빠지게.
+     *   수락 전이면 요청 취소(조용), 수락 후면 해제(B 에게 "해제" 알림). (2026-06-20 사장님 — 양쪽 동기화) */
     fun removeCollabAssignment(customerId: Long, partnerPhone: String) {
         val ph = partnerPhone.filter { it.isDigit() }
+        // shareId 찾기(서버 취소/해제용) — collabAssignments 4번째 칸 "customerId|phone|name|shareId".
+        val shareId = container.preferences.collabAssignments.firstNotNullOfOrNull { e ->
+            val p = e.split('|')
+            if (p.getOrNull(0)?.toLongOrNull() == customerId &&
+                (p.getOrNull(1)?.filter { it.isDigit() }?.takeLast(8) ?: "") == ph.takeLast(8))
+                p.getOrNull(3)?.trim()?.takeIf { it.isNotBlank() } else null
+        }
         container.preferences.collabAssignments = container.preferences.collabAssignments
             .filterNot { e ->
                 val p = e.split('|')
@@ -275,7 +295,15 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
                     (p.getOrNull(1)?.filter { it.isDigit() }?.takeLast(8) ?: "") == ph.takeLast(8)
             }.toSet()
         loadCollabAssignments()
-        _toast.value = "협업 요청을 내 목록에서 뺐어요"
+        // 서버에도 — 수락 전이면 cancel(조용), 수락했으면(cancel 실패) end(B 에게 "해제" 알림). best-effort.
+        val owner = ownerPhone.filter { it.isDigit() }
+        if (shareId != null && owner.length >= 9) {
+            viewModelScope.launch {
+                val cancelled = container.sharedSiteRepository.cancel(shareId, owner).isSuccess
+                if (!cancelled) runCatching { container.sharedSiteRepository.endCollab(shareId, owner, asOwner = true) }
+            }
+        }
+        _toast.value = "협업 요청을 취소했어요"
     }
 
     /** 전문가 배정 시트 안 "+추가" — 팀원 즉시 등록(서버 invite). 등록 후 칩에 바로 뜸. (2026-06-14) */
