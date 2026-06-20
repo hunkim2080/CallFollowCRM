@@ -251,9 +251,12 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("spam_swept_to_dismissed_v1", false)
         set(value) { prefs.edit().putBoolean("spam_swept_to_dismissed_v1", value).commit() }
 
-    /** 2026-06-07 — 스팸/광고 번호 앞자리. 이 앞자리로 시작하면 자동답장·AI 준비 X + 목록 제외. 기본 070. */
+    /** 2026-06-07 — 스팸/광고 번호 앞자리. 이 앞자리로 시작하면 자동답장·AI 준비 X + 목록 제외.
+     *   2026-06-20 사장님: 기본값을 추천 앞자리(070·050·0507·지역번호) 전부로 — 사람들이 직접 선택할 줄 몰라서.
+     *   (설정에서 안 건드린 사용자에게만 기본 적용. 직접 편집했으면 그 값 유지.) */
     var spamPrefixes: Set<String>
-        get() = prefs.getStringSet("spam_prefixes", setOf("070")) ?: setOf("070")
+        get() = prefs.getStringSet("spam_prefixes", com.detailline.callfollowcrm.util.SpamPrefix.SUGGESTED.toSet())
+            ?: com.detailline.callfollowcrm.util.SpamPrefix.SUGGESTED.toSet()
         set(value) { prefs.edit().putStringSet("spam_prefixes", value).commit() }
 
     // ── 원칙 발견 (Phase 2, 2026-06-17) — 너무 자주 안 묻게 하루 한도 + 거절 후보 기억 ──
