@@ -105,9 +105,9 @@ fun ScheduleAddScreen(
     var mode by remember { mutableStateOf("mine") } // mine | partner
     var name by remember { mutableStateOf("") }
     // 전화번호 = TextFieldValue + 커서 항상 끝 → formatProgressive 재포맷 시 숫자 순서 꼬임 방지(앱 공통 패턴).
-    //   2026-06-11 사장님 요청으로 "010" 미리 채움.
+    //   2026-06-20 사장님: "010" 미리채움 제거 — 빈칸이어야 '뒷번호 일부만 쳐서 찾기'를 사람들이 인지함.
     var phoneField by remember {
-        mutableStateOf(androidx.compose.ui.text.input.TextFieldValue("010", selection = androidx.compose.ui.text.TextRange(3)))
+        mutableStateOf(androidx.compose.ui.text.input.TextFieldValue("", selection = androidx.compose.ui.text.TextRange(0)))
     }
     var selectedVendor by remember { mutableStateOf<NotebookContactEntity?>(null) }
     var address by remember { mutableStateOf("") }
@@ -125,7 +125,6 @@ fun ScheduleAddScreen(
     var workMinutes by remember { mutableStateOf(9 * 60) } // 프로토 기본 오전 9시 (미정 없음)
     var workDays by remember { mutableStateOf(1) }
 
-    var showImport by remember { mutableStateOf(false) }
     var showNewVendor by remember { mutableStateOf(false) }
     var showAddrSearch by remember { mutableStateOf(false) }
     var showTimeCustom by remember { mutableStateOf(false) }
@@ -191,34 +190,20 @@ fun ScheduleAddScreen(
             Spacer(Modifier.height(13.dp))
 
             if (mode == "mine") {
-                // .contact-import — 통화·문자한 고객에서 불러오기
-                Row(
-                    Modifier
-                        .fillMaxWidth().height(50.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(TossBlueSoft)
-                        .clickable { showImport = true },
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.Chat, null, tint = TossBlueDark, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("통화·문자한 고객에서 불러오기", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossBlueDark)
-                }
-                // .or-div — 또는 직접 입력
-                OrDivider("또는 직접 입력")
-                Spacer(Modifier.height(4.dp))
                 FieldLabel("고객 이름 (선택)")
                 SheetTextField(name, { name = it }, placeholder = "예: 강동 서사장")
                 Spacer(Modifier.height(12.dp))
                 FieldLabel("고객 전화번호")
+                // 010 미리채움 제거 + 안내 → 저장된 고객은 번호 일부만 쳐도 찾아짐을 사람들이 인지하게. (2026-06-20 사장님)
+                Text("저장된 고객은 번호 일부만(뒷 4자리·중간) 쳐도 떠요. 탭하면 채워져요.",
+                    fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 6.dp))
                 SheetTextField(
                     value = phoneField,
                     onValueChange = { tfv ->
                         val f = PhoneNumberFormatter.formatProgressive(tfv.text)
                         phoneField = androidx.compose.ui.text.input.TextFieldValue(f, selection = androidx.compose.ui.text.TextRange(f.length))
                     },
-                    placeholder = "010-0000-0000",
+                    placeholder = "번호 입력 · 일부만 쳐도 찾아져요",
                     keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone
                 )
                 // 번호 일부(중간·뒷자리)만 쳐도 저장된 고객을 바로 찾아 보여줌 → 탭하면 채워짐. (2026-06-20 사장님)
@@ -417,25 +402,6 @@ fun ScheduleAddScreen(
                 Spacer(Modifier.height(40.dp))
             }
         }
-    }
-
-    if (showImport) {
-        ContactImportDialog(
-            contacts = recentContacts,
-            hints = contactHints,
-            onPick = { c ->
-                mode = "mine"
-                name = c.name?.takeIf { it.isNotBlank() } ?: ""
-                val f = PhoneNumberFormatter.format(c.phoneNumber)  // 불러오기도 하이픈 표시(가독성).
-                phoneField = androidx.compose.ui.text.input.TextFieldValue(f, selection = androidx.compose.ui.text.TextRange(f.length))
-                c.address?.takeIf { it.isNotBlank() }?.let {
-                    val (base, detail) = com.detailline.callfollowcrm.util.splitSiteAddress(it)
-                    address = base; addrDetail = detail
-                }
-                showImport = false
-            },
-            onDismiss = { showImport = false }
-        )
     }
 
     if (showNewVendor) {
