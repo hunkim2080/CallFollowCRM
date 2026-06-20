@@ -5339,3 +5339,11 @@ cp server/main.py ~/ringgo-server/
 launchctl kickstart -k gui/$(id -u)/com.detailline.ringgo-server
 ```
 
+## 2026-06-21 00:40 · android — /api/beta/check 매 진입 호출 (cowork 요청 이행) + 새버전 배너 10분
+cowork 06-20 15:30 요청 이행.
+- **BetaCheckRepository** 신설: `POST /api/beta/check {phone:digits}` → `{ok,name?,reason?}`. **MainActivity.onResume 마다 호출**(bizPhone 으로). 캐싱 없음(무조건). 네트워크 실패=null(fail-open). → 서버 use_count++/last_seen 갱신 = admin '사용 수/최근 앱 실행' 실시간. ✅
+- 새버전 배너 체크 throttle 24h→**10분** (테스터가 업데이트 하루 늦게 받던 것 fix).
+- ⚠️ **"ok:false 면 진입 차단"은 안 넣음 — 확인 부탁**: 현재 앱엔 *진입 차단 게이트가 원래 없음*(로그인=번호입력→바로 진입, AI만 owner_phone 화이트리스트로 막힘). 그래서 "그대로 둘 차단"이 없어 통계 핑만 넣음. 비등록자를 **앱 자체에서 막는 화면**을 원하면 별도 작업(네트워크 끊겨도 안 잠기게 fail-open + 차단 UI). 만들까요?
+- ℹ️ onResume 는 포그라운드 복귀마다(서브 액티비티 갔다와도) 불림 → use_count 가 '앱 켠 횟수'보다 큼(리줌 횟수). "세션당 1회" dedup 원하면 알려주세요.
+- 배포: release **649** 빌드 → 맥미니 `~/ringgo-server/apk/shigongmagne.apk` 업로드 완료(검증 OK). 오늘 작업 전부 포함.
+- commit: 7b9b2dc
