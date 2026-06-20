@@ -189,13 +189,14 @@ class ChatViewModel(
             val res = runCatching {
                 // callRecordId 전달 — 찾은 요약을 '탭한 그 통화'에 직접 연결해 카드에 즉시 표시(시각 드리프트로 안 보이던 버그 fix).
                 com.detailline.callfollowcrm.recording.AdotFolderScanner.summarizeCallNow(context, container, phone, at, callRecordId = record.id)
-            }.getOrDefault(com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.NO_FILE)
+            }.getOrDefault(com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.FAILED)  // 호출 자체가 throw = 실패(파일 없음 아님)
             com.detailline.callfollowcrm.recording.CallSummaryProgress.end(phone, at)
             _toast.value = when (res) {
                 com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.OK -> "통화 내용을 요약했어요 ✨"
                 com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.ALREADY -> "이미 요약돼 있어요"
                 com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.NO_FOLDER -> "통화 녹음 폴더를 먼저 연결해주세요 (설정 → 통화 자동 요약)"
                 com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.NO_FILE -> "이 통화의 녹음 파일을 못 찾았어요. 통화 녹음이 켜져 있는지 확인해주세요."
+                com.detailline.callfollowcrm.recording.AdotFolderScanner.SummarizeResult.FAILED -> "통화 요약을 끝내지 못했어요. 잠시 후 다시 시도해주세요. (계속되면 알려주세요)"
             }
         }
     }

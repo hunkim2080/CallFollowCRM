@@ -5143,3 +5143,13 @@ Play Store 비공개(closed) 테스트 **제출 완료 — 현재 구글 검토 
 - Play 제출 메타: 스토어등록정보(설명·아이콘512·피처그래픽1024x500 = playstore-assets/), 콘텐츠등급 전체이용가, 대상연령 18+, 데이터보안(수집O·전송 HTTPS·삭제요청 아니요·계정생성 안함·광고ID 없음), SMS/통화 선언=CRM, 개인정보처리방침 = https://si0in.kr/privacy.
 - 다음 액션(server/cowork): ① **https://si0in.kr/privacy 계속 라이브 유지 必** (Play 가 참조 — 죽으면 심사 반려 위험). ② (선택) 데이터보안 "삭제요청 아니요" vs 처리방침 "앱서 삭제 가능" 불일치 추후 정합.
 - commit: 곧
+
+## 2026-06-20 02:00 · android
+🚑 통화요약 "녹음 파일 못 찾음" 토스트 진단 — **코드 회귀 아님. 진짜 원인 = 서버 audio-summary 의심.**
+- 증상: 010-6461-0131(하우스픽 테스터) 통화요약 탭 → "이 통화의 녹음 파일을 못 찾았어요" 토스트. 엊그제(6/18)는 정상.
+- **회귀 아님 근거**: ① "잘 되던 6/18 빌드"가 이미 의심 커밋(379fbce/16e6832/c58a3eb, 모두 6/18 08:03~08:09)을 포함. ② 379fbce(IO전환): CallAudioSummaryRepository.summarize 가 내부 withContext(IO)라 네트워크는 원래부터 IO — IO전환은 SAF스캔 ANR 만 고친 것, 요약 성공/실패 무관. ③ c58a3eb 알림: showSummaryReadyNotification 가 null-safe("고객" fallback) + try/catch(SecurityException) → throw 안 함.
+- **진짜 원인**: ChatViewModel 의 NO_FILE 토스트가 **과부하**. summarizeCallNow→summarizeAndSave 가 (a)매칭 녹음 없음 (b)오디오 읽기 실패 (c)**서버 /api/call-audio-summary 실패** 를 전부 "녹음 못 찾음"으로 표시. 서버 audio-summary 가 IOException/타임아웃이면 → false → NO_FILE.
+- ⚠️ **서버측(cowork) 점검 요청**: `/api/call-audio-summary` (맥미니 **로컬 Whisper STT**) 가 죽었/느린지 확인. 사장님이 검증한 prepare-reply·call-summary(LLM 채널)와 **별개 엔드포인트**임. curl 로 테스트 m4a 업로드 + Whisper 프로세스/OOM/로그 점검 바람. (connectTimeout 5s, readTimeout 120s)
+- **앱 fix**: 토스트 분리 — 매칭 녹음 자체 없음=NO_FILE(유지), 파일 찾았으나 요약 실패=**FAILED**("통화 요약을 끝내지 못했어요. 잠시 후 다시 시도"). 서버오류를 "파일 없음"으로 오진 안 하게. (AdotFolderScanner.SummarizeResult.FAILED 추가, ChatViewModel when 분기)
+- 사장님 A/B: 본인폰(010-8005-2080) 재현 시 = 서버(Whisper) / 재현 안 되면 = 010-6461-0131 폰 녹음·폴더·권한.
+- commit: 곧

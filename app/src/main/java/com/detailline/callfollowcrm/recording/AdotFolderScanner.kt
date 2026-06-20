@@ -272,8 +272,8 @@ object AdotFolderScanner {
         }
     }
 
-    /** 탭-요약 결과. */
-    enum class SummarizeResult { OK, ALREADY, NO_FILE, NO_FOLDER }
+    /** 탭-요약 결과. NO_FILE=폴더에 매칭 녹음 자체가 없음 / FAILED=파일은 찾았으나 요약 실패(서버·네트워크·오디오읽기). */
+    enum class SummarizeResult { OK, ALREADY, NO_FILE, NO_FOLDER, FAILED }
 
     /**
      * 특정 통화 한 건을 폴더에서 찾아 즉시 요약(채팅에서 통화 카드 탭). 연결 시점 cutoff 무시(사용자 명시 의도).
@@ -325,7 +325,10 @@ object AdotFolderScanner {
             // notifyOnComplete=true — 탭으로 요약해도 끝나면 "막내가 OO님 통화 요약했어요!" 푸시(앱 켜져 있어도). (2026-06-18 사장님)
             CallAudioSummarizer.summarizeAndSave(appCtx, container, uriStr, bestName, interactive = false, notifyOnComplete = true)
         }.getOrDefault(false)
-        if (!ok) return SummarizeResult.NO_FILE
+        // 파일은 찾았으나 요약 실패 = 서버(/api/call-audio-summary, 맥미니 Whisper STT) 오류·네트워크·오디오 읽기 실패 등.
+        //   이걸 NO_FILE("녹음 못 찾음")로 뭉뚱그리면 진짜 원인(주로 서버)을 가려 오진됨
+        //   (2026-06-20 하우스픽 테스터: NO_FILE 토스트였지만 실은 서버 audio-summary 실패 의심). → FAILED 로 분리.
+        if (!ok) return SummarizeResult.FAILED
         // 새로 저장한 요약도 같은 이유(시각 드리프트)로 탭한 카드에 확실히 붙도록 직접 연결.
         container.callSummaryRepository.findExistingNear(phoneNumber, bestAt)?.let { saved ->
             linkToCall(container, phoneNumber, saved, callRecordId)
