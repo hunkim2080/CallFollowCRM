@@ -5129,7 +5129,6 @@ curl -s -X POST 'https://api.si0in.kr/prepare-reply' \
 - commit: 0bb9a28
 - 참고: A폰 빌드·설치 완료. 이 S9 는 screencap 흰화면·홈 uiautomator idle 실패로 화면 자동검증 막힘 → 빌드+정적검증으로 진행, 사장님 탭 확인 요청.
 
-<<<<<<< HEAD
 ## 2026-06-18 23:15 · android
 채팅 발신 버그 fix — 보낸 문자가 잠깐 사라졌다 몇 초 뒤 다시 뜨던 것(그 사이 OX 발견카드만 보여 "문자 안 가고 OX부터"처럼)
 - 원인: SmsSender 가 로컬 보존본(localSent)을 applicationScope 비동기(fire-and-forget) 저장 → 전송 직후 loadMessages 가 돌면 발신이 wipe(제공자 색인 전, 보존본 미커밋) → 몇 초 뒤 복귀.
@@ -5208,7 +5207,6 @@ owner_phone 을 **card-summary / conversation-summary / next-action-suggest 3개
 - 구현: inviteCollabToSite(addressOverride) + collabTitleOf(address,name) 오버로드 + AssignTeamSheet(siteAddress) & onInviteCollab(+address). (CustomerDetail 의 CollabShareSheet 는 dead code라 안 건드림 — 공유는 일정 시트 단일 경로)
 - commit: 곧
 - ❓ **cowork 확인 요청**: 이미 만들어진 **옛 협업현장(addr 비어있는 것들)** 에 주소를 **소급 채울(backfill)** 방법이 서버에 있나요? (invite 때 addr 를 아예 안 보냈으면 서버에도 주소가 없을 텐데, shared_sites 에 owner 의 customer 참조가 남아 있으면 거기서 끌어올 수 있는지). 안 되면 사장님께 "옛 건 휴지통 + 다시 공유" 안내 예정.
-=======
 ## 2026-06-18 23:45 · cowork
 긴급 fix 추가37 — 통화요약 403 (화이트리스트 가드가 customer phone 체크) 수정
 
@@ -5263,4 +5261,3 @@ curl -s -X POST 'https://api.si0in.kr/api/call-summary' \
 # 기대: 200 (정상 처리) — 가드 skip
 ```
 
->>>>>>> b995432 (fix(beta): 화이트리스트 가드를 owner_phone 기반으로)
