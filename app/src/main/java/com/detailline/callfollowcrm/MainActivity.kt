@@ -12,6 +12,8 @@ import com.detailline.callfollowcrm.presentation.AppRoot
 import com.detailline.callfollowcrm.recording.AdotSummaryImporter
 import com.detailline.callfollowcrm.recording.AdotTextFolderScanner
 import com.detailline.callfollowcrm.recording.RecordingShareHandler
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -73,6 +75,17 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleIncoming(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // 앱 진입(포그라운드)마다 베타 사용 핑 — 서버가 use_count++/last_seen 갱신 → admin '최근 앱 실행/사용 수' 실시간.
+        //   캐싱 없이 매번 호출(cowork 요청 2026-06-21). 통계용이라 결과로 진입 막지 않음(fail-open). bizPhone 없으면 skip.
+        val container = (application as? CallFollowCrmApplication)?.container ?: return
+        val phone = container.preferences.bizPhone
+        if (phone.filter { it.isDigit() }.length >= 9) {
+            lifecycleScope.launch { runCatching { container.betaCheckRepository.check(phone) } }
+        }
     }
 
     private fun handleIncoming(intent: Intent?) {

@@ -1092,11 +1092,12 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             }
         }
 
-        // 새 버전 체크 — 하루 1회 throttle. 서버 mtime_ms > BUILD_TIMESTAMP(+여유) 면 배너 ON.
+        // 새 버전 체크 — 앱 열 때마다(홈 진입) 체크하되 10분 연타만 방지. (2026-06-21 사장님: 베타 빨리 받게)
+        //   서버 mtime_ms > BUILD_TIMESTAMP(+여유) 면 배너 ON. (기존 24시간 throttle → 테스터가 하루 늦게 받던 것)
         viewModelScope.launch {
             val prefs = container.preferences
             val now = System.currentTimeMillis()
-            if (now - prefs.lastUpdateCheckMs > 24L * 60 * 60 * 1000) {
+            if (now - prefs.lastUpdateCheckMs > 10L * 60 * 1000) {
                 prefs.lastUpdateCheckMs = now
                 prefs.updateAvailable = com.detailline.callfollowcrm.util.UpdateChecker.isNewerAvailable()
             }

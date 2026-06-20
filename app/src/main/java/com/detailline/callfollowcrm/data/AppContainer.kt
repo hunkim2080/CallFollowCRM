@@ -151,6 +151,9 @@ class AppContainer(context: Context) {
 
     // 2026-06-08 협업 현장(사장↔사장) — 공유 요청/수락/진행/입금. 서버 endpoint 대기(SERVER_HANDOFF_collab_sites.md).
     val sharedSiteRepository = com.detailline.callfollowcrm.ai.SharedSiteRepository()
+
+    // 2026-06-21 cowork 요청 — 앱 진입(onResume)마다 /api/beta/check 핑 → admin 대시보드 사용 수/최근 실행 실시간.
+    val betaCheckRepository = com.detailline.callfollowcrm.ai.BetaCheckRepository()
     /** 팀원 출발 이벤트 폴링/알림 + 상담함 배너 소스 (2026-06-06). preferences 아래에서 생성. */
     val teamEventCenter by lazy {
         com.detailline.callfollowcrm.ai.TeamEventCenter(teamRepository, preferences)
