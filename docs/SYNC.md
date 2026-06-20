@@ -5152,4 +5152,13 @@ Play Store 비공개(closed) 테스트 **제출 완료 — 현재 구글 검토 
 - ⚠️ **서버측(cowork) 점검 요청**: `/api/call-audio-summary` (맥미니 **로컬 Whisper STT**) 가 죽었/느린지 확인. 사장님이 검증한 prepare-reply·call-summary(LLM 채널)와 **별개 엔드포인트**임. curl 로 테스트 m4a 업로드 + Whisper 프로세스/OOM/로그 점검 바람. (connectTimeout 5s, readTimeout 120s)
 - **앱 fix**: 토스트 분리 — 매칭 녹음 자체 없음=NO_FILE(유지), 파일 찾았으나 요약 실패=**FAILED**("통화 요약을 끝내지 못했어요. 잠시 후 다시 시도"). 서버오류를 "파일 없음"으로 오진 안 하게. (AdotFolderScanner.SummarizeResult.FAILED 추가, ChatViewModel when 분기)
 - 사장님 A/B: 본인폰(010-8005-2080) 재현 시 = 서버(Whisper) / 재현 안 되면 = 010-6461-0131 폰 녹음·폴더·권한.
+- commit: cec7741
+
+### ⚠️ UPDATE 2026-06-20 10:40 · android — 원인 100% 확정 (Whisper/Cloudflare 아님! 서버 베타 화이트리스트 버그)
+A폰(8005-2080) ADB logcat + curl 재현으로 확정. **A폰에서도 재현** → 서버 확정.
+- logcat: `CallAudioSum: server summarize failed: 01071507868_20260620094928.m4a bytes=1502487` / `java.io.IOException: HTTP 403` (CallAudioSummaryRepository.kt:78). 녹음 파일은 정상 매칭·읽기(1.5MB) 성공.
+- curl 재현: 1.5MB 더미 multipart → `POST https://api.si0in.kr/api/call-audio-summary` → **HTTP 403**, body=`{"detail":"베타 등록되지 않은 번호입니다. 사장님께 문의해주세요."}` (Server: cloudflare 통과 후 FastAPI 응답). 빈 POST=422(도달O), GET /health=200, POST /api/call-summary=422(정상).
+- **진짜 원인**: `/api/call-audio-summary` 의 베타 화이트리스트 게이트가 **`phone` 폼필드(=앱이 넣는 *고객* 번호)** 를 화이트리스트 검사함 → 고객 번호는 절대 등록 안 돼있어 전부 403. 6/18~6/20 사이 게이트 추가/변경으로 회귀("엊그제 정상"과 일치).
+- **🔧 서버측(cowork) 수정 필요**: 이 엔드포인트 게이트는 *고객 phone* 이 아니라 **사장님(owner/device) 번호** 를 검사해야 함. 현재 앱은 이 멀티파트 요청에 owner 번호를 안 보냄. 택1 → ① 게이트를 graceful 로(owner 번호 없으면 통과, RefineRepository 방식) ② 앱이 owner 번호 보내도록 **필드명 지정해 주면 앱에서 추가함**. 어느 쪽으로 갈지 회신 바람.
+- 앱측 조치: NO_FILE→FAILED 토스트 분리(commit cec7741) — 진짜 원인 가리던 "녹음 못 찾음" 오진 메시지 교정. **근본 fix 는 서버.**
 - commit: 곧
