@@ -21,7 +21,9 @@ import java.util.concurrent.TimeUnit
  * fetch 는 캐시 조회. 신선도 판정은 호출자 책임.
  */
 class ServerSuggestionRepository(
-    private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL
+    private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL,
+    /** 사장님(owner) 본인 phone(digits) — 서버 베타 화이트리스트 가드용. 비면 안 보냄(서버 가드 skip). (2026-06-20 cowork 계약) */
+    private val ownerPhone: () -> String = { "" }
 ) : SuggestionRepository {
 
     // prepare 는 폰이 빠르게 끊겨야 하므로 짧은 타임아웃, fetch 도 단순 GET 이라 짧게.
@@ -42,6 +44,7 @@ class ServerSuggestionRepository(
             runCatching {
                 val payload = JSONObject().apply {
                     put("phone", context.phone)
+                    ownerPhone().filter { it.isDigit() }.takeIf { it.length >= 9 }?.let { put("owner_phone", it) }
                     context.deviceId?.takeIf { it.isNotBlank() }?.let { put("deviceId", it) }
                     context.ownerTrade?.takeIf { it.isNotBlank() }?.let { put("ownerTrade", it) }
                     context.priceList?.takeIf { it.isNotBlank() }?.let { put("priceList", it) }

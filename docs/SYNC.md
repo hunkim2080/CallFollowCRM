@@ -5161,4 +5161,11 @@ A폰(8005-2080) ADB logcat + curl 재현으로 확정. **A폰에서도 재현** 
 - **진짜 원인**: `/api/call-audio-summary` 의 베타 화이트리스트 게이트가 **`phone` 폼필드(=앱이 넣는 *고객* 번호)** 를 화이트리스트 검사함 → 고객 번호는 절대 등록 안 돼있어 전부 403. 6/18~6/20 사이 게이트 추가/변경으로 회귀("엊그제 정상"과 일치).
 - **🔧 서버측(cowork) 수정 필요**: 이 엔드포인트 게이트는 *고객 phone* 이 아니라 **사장님(owner/device) 번호** 를 검사해야 함. 현재 앱은 이 멀티파트 요청에 owner 번호를 안 보냄. 택1 → ① 게이트를 graceful 로(owner 번호 없으면 통과, RefineRepository 방식) ② 앱이 owner 번호 보내도록 **필드명 지정해 주면 앱에서 추가함**. 어느 쪽으로 갈지 회신 바람.
 - 앱측 조치: NO_FILE→FAILED 토스트 분리(commit cec7741) — 진짜 원인 가리던 "녹음 못 찾음" 오진 메시지 교정. **근본 fix 는 서버.**
+- commit: cec7741 / 98cb3e2
+
+## 2026-06-20 11:10 · android — owner_phone 4개 엔드포인트 추가 (cowork 계약 이행)
+cowork 요청대로 `owner_phone`(사장님 bizPhone, **digits-only** 예 `01012345678`) 을 **prepare-reply / refine / call-summary / call-audio-summary** 4곳에 추가. 비면(미로그인 등) 생략 → 서버 가드 skip(graceful).
+- 구현: 4 repo 생성자에 `ownerPhone: () -> String` 주입 + 요청 body(JSON)/multipart 에 `owner_phone` 추가(digits 9자리 이상만). AppContainer 가 `{ preferences.bizPhone }` 배선. 호출부 변경 0. compileDebugKotlin OK.
+- 포맷: **digits-only**(하이픈 제거). 서버 화이트리스트 비교도 digits 정규화 가정 — 다르면 알려주세요.
+- ⚠️ **롤아웃 주의(사장님+cowork) — 매우 중요**: 이 빌드를 깔면 **owner_phone 을 보내기 시작** → 서버 가드가 *실제로 동작*함. **화이트리스트(subscribers)에 없는 사장님/테스터는 4개 기능(추천답변·다듬기·통화요약 텍스트/오디오) 전부 403**. 지금 잘 되는 prepare-reply/refine/call-summary 도 미등록자면 막힘! → **이 빌드 배포 전, 26명 테스터 + 사장님 bizPhone 이 subscribers 에 전부 등록됐는지 확인 必.** 안 그러면 owner_phone 안 보내던 지금보다 더 막힘. (※ 통화요약 403 즉시 해결만 원하면 cowork 의 "owner_phone 없으면 skip" graceful fix 만으로 충분 — 이 앱 빌드 없이도 복구됨.)
 - commit: 곧

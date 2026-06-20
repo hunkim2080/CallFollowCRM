@@ -21,7 +21,9 @@ import java.util.concurrent.TimeUnit
  * 실패해도 앱은 에이닷 원문 파싱 결과를 그대로 쓰므로(graceful), 이 호출은 "품질 향상" 용.
  */
 class CallSummaryServerRepository(
-    private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL
+    private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL,
+    /** 사장님(owner) 본인 phone(digits) — 서버 베타 화이트리스트 가드용. 비면 안 보냄. (2026-06-20 cowork 계약) */
+    private val ownerPhone: () -> String = { "" }
 ) {
     private val client = OkHttpClient.Builder()
         .connectTimeout(5, TimeUnit.SECONDS)
@@ -50,6 +52,7 @@ class CallSummaryServerRepository(
         runCatching {
             val payload = JSONObject().apply {
                 put("phone", phone)
+                ownerPhone().filter { it.isDigit() }.takeIf { it.length >= 9 }?.let { put("owner_phone", it) }
                 put("raw_text", rawText.take(8000))
                 put("direction", direction)
                 put("duration_sec", durationSec)

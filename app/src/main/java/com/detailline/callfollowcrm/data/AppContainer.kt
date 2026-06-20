@@ -127,11 +127,11 @@ class AppContainer(context: Context) {
     //   2026-05-28 사장님 결정: Gemini 2.5 Flash + 컨텍스트 전송 (recent_messages + tone + customer hint).
     //   서버 endpoint `POST /api/refine` (cowork 가 박을 것) 안에서 Gemini 호출. API 키는 Mac mini 만.
     //   OllamaRefineRepository 는 rollback 용 코드 유지.
-    val refineRepository: RefineRepository = RemoteRefineRepository()
+    val refineRepository: RefineRepository = RemoteRefineRepository(ownerPhone = { preferences.bizPhone })
 
     // 답변 추천 (Phase 1). 맥미니 자체 서버 (포트 8000) — RINGGO_SERVER_SPEC.md 참조.
     // SmsReceiver 가 prepare 트리거, ChatViewModel 이 fetch.
-    val suggestionRepository: SuggestionRepository = ServerSuggestionRepository()
+    val suggestionRepository: SuggestionRepository = ServerSuggestionRepository(ownerPhone = { preferences.bizPhone })
     val phaseOneApiRepository = PhaseOneApiRepository()
 
     // 2026-05-29 킬러콘텐츠 4단계 (Tone RAG) — 사장님 sent SMS 풀 batch upload (Mac mini).
@@ -169,10 +169,10 @@ class AppContainer(context: Context) {
     )
 
     // 2026-06-02 맥미니 §18 — 에이닷 통화요약 → Haiku 한 줄+불릿. AdotSummaryImporter 가 best-effort 호출.
-    val callSummaryServerRepository = com.detailline.callfollowcrm.ai.CallSummaryServerRepository()
+    val callSummaryServerRepository = com.detailline.callfollowcrm.ai.CallSummaryServerRepository(ownerPhone = { preferences.bizPhone })
 
     // 2026-06-08 맥미니 §26 — 무료 녹음(m4a) → 로컬 Whisper STT + Haiku 요약. CallAudioSummarizer 가 호출.
-    val callAudioSummaryRepository = com.detailline.callfollowcrm.ai.CallAudioSummaryRepository()
+    val callAudioSummaryRepository = com.detailline.callfollowcrm.ai.CallAudioSummaryRepository(ownerPhone = { preferences.bizPhone })
 
     // 서버 살아있음 모니터 — HomeScreen 상단 ● indicator 가 구독.
     val serverHealth = ServerHealthMonitor(phaseOneApiRepository).also { it.start() }

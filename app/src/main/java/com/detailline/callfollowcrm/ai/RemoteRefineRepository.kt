@@ -35,7 +35,9 @@ import java.util.concurrent.TimeUnit
  * 서버 endpoint 미구현 시 graceful fallback (Result.failure).
  */
 class RemoteRefineRepository(
-    private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL
+    private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL,
+    /** 사장님(owner) 본인 phone(digits) — 서버 베타 화이트리스트 가드용. 비면 안 보냄. (2026-06-20 cowork 계약) */
+    private val ownerPhone: () -> String = { "" }
 ) : RefineRepository {
 
     private val client: OkHttpClient = OkHttpClient.Builder()
@@ -49,6 +51,7 @@ class RemoteRefineRepository(
             runCatching {
                 val payload = JSONObject().apply {
                     put("raw", input)
+                    ownerPhone().filter { it.isDigit() }.takeIf { it.length >= 9 }?.let { put("owner_phone", it) }
                     // 컨텍스트 — 비어있어도 항상 키는 보냄 (서버 측에서 일관 처리).
                     put("recent_messages", JSONArray().apply {
                         context.recentMessages.forEach { hm ->

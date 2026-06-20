@@ -22,7 +22,9 @@ import java.util.concurrent.TimeUnit
  * STT 가 통화 1분당 ~10초라 read timeout 을 길게(120s) 잡는다.
  */
 class CallAudioSummaryRepository(
-    private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL
+    private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL,
+    /** 사장님(owner) 본인 phone(digits) — 서버 베타 화이트리스트 가드용. 비면 안 보냄. (2026-06-20 cowork 계약) */
+    private val ownerPhone: () -> String = { "" }
 ) {
     private val client = OkHttpClient.Builder()
         .connectTimeout(5, TimeUnit.SECONDS)
@@ -62,6 +64,7 @@ class CallAudioSummaryRepository(
                 .addFormDataPart("direction", direction)
                 .addFormDataPart("duration_sec", durationSec.toString())
                 .apply {
+                    ownerPhone().filter { it.isDigit() }.takeIf { it.length >= 9 }?.let { addFormDataPart("owner_phone", it) }
                     if (forceRefresh) addFormDataPart("force_refresh", "true")
                     customerName?.takeIf { it.isNotBlank() }?.let { addFormDataPart("customer_name", it) }
                     customerMemo?.takeIf { it.isNotBlank() }?.let { addFormDataPart("customer_memo", it) }
