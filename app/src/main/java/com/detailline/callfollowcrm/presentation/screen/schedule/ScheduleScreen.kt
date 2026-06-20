@@ -390,6 +390,7 @@ fun ScheduleScreen(
             ?: "이 현장"
         AssignTeamSheet(
             siteTitle = assignSiteTitle,
+            siteAddress = c.address,
             members = teamMembers,
             collabPartners = collabPartners,
             assignedCollabPhones = collabAssign[c.id].orEmpty().map { it.phone }.toSet(),
@@ -404,8 +405,8 @@ fun ScheduleScreen(
                 viewModel.assignTeam(c, dayStart, selectedIds.toList(), memo)
                 assignTarget = null
             },
-            onInviteCollab = { phone, force, memo, wage, hour ->
-                viewModel.inviteCollabToSite(c, phone, force, memo, wage, hour) { partner, body ->
+            onInviteCollab = { phone, force, memo, wage, hour, address ->
+                viewModel.inviteCollabToSite(c, phone, force, memo, wage, hour, address) { partner, body ->
                     com.detailline.callfollowcrm.util.SmsIntentHelper.openSmsCompose(assignCtxLocal, partner, body)
                 }
             },
@@ -1046,6 +1047,7 @@ private fun buildCalendarCells(
 @Composable
 private fun AssignTeamSheet(
     siteTitle: String,
+    siteAddress: String?,
     members: List<com.detailline.callfollowcrm.ai.TeamRepository.TeamMember>,
     collabPartners: List<com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity>,
     assignedCollabPhones: Set<String>,
@@ -1056,7 +1058,7 @@ private fun AssignTeamSheet(
     onAddWorker: (name: String, phone: String, wageManwon: Int?) -> Unit,
     onDismiss: () -> Unit,
     onSave: (Set<String>, String) -> Unit,
-    onInviteCollab: (phone: String, force: Boolean, memo: String, dailyWage: Int?, startHour: Int) -> Unit,
+    onInviteCollab: (phone: String, force: Boolean, memo: String, dailyWage: Int?, startHour: Int, address: String?) -> Unit,
     onCancelCollab: (phone: String) -> Unit
 ) {
     fun key(phone: String) = phone.filter { it.isDigit() }.takeLast(8)
@@ -1079,10 +1081,16 @@ private fun AssignTeamSheet(
     var newName by remember { mutableStateOf("") }
     var newPhone by remember { mutableStateOf("") }
     var newWage by remember { mutableStateOf("") }
+    // 협업 보낼 때 현장 주소가 없으면 여기서 입력 → 고객에 저장 + 공유에 사용. (2026-06-20 사장님)
+    var siteAddrInput by remember { mutableStateOf("") }
     val noRipple = remember { MutableInteractionSource() }
+    val assignSheetCtx = androidx.compose.ui.platform.LocalContext.current
 
     val anySelected = selectedWorkers.isNotEmpty() || selectedPartners.isNotEmpty()
     val totalCount = selectedWorkers.size + selectedPartners.size
+    // 협업(일당사장)을 새로 보낼 땐 현장 주소가 꼭 있어야 함 — 없으면 상대가 못 찾고 현장명이 "협업 현장"으로 떠서. (2026-06-20 사장님)
+    val invitingNewCollab = selectedPartners.any { it !in reqKeys }
+    val needAddress = invitingNewCollab && siteAddress.isNullOrBlank() && siteAddrInput.isBlank()
     val purple = Color(0xFF7C5CFC); val purpleLight = Color(0xFFF1ECFF)
 
     // 스크림(탭 시 닫힘) + 하단 정렬 카드.
@@ -1222,6 +1230,17 @@ private fun AssignTeamSheet(
                 Spacer(Modifier.height(16.dp))
                 Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
                 Spacer(Modifier.height(14.dp))
+                // 현장 주소 — 협업 보낼 땐 필수. 고객에 주소 없을 때만 노출(있으면 자동 사용). (2026-06-20 사장님)
+                if (invitingNewCollab && siteAddress.isNullOrBlank()) {
+                    SheetFieldLabel("📍 현장 주소 (협업엔 꼭 필요해요)")
+                    SheetTextField(
+                        siteAddrInput, { siteAddrInput = it },
+                        placeholder = "예: 인천 미추홀구 매소홀로 137", singleLine = false, minHeightDp = 50
+                    )
+                    Text("주소가 있어야 상대 사장님이 길찾기로 찾아가고, 현장 이름도 주소로 떠요. 한 번 넣으면 이 고객에 저장돼요.",
+                        fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 6.dp, start = 2.dp))
+                    Spacer(Modifier.height(14.dp))
+                }
                 SheetFieldLabel("출근 시간 (선택)")
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     listOf(7, 8, 9, 10, 11, 13, 14).forEach { h ->
@@ -1292,12 +1311,18 @@ private fun AssignTeamSheet(
                         }
                     )
                     .clickable(enabled = canSubmit) {
+                        // 협업 보내는데 주소가 없으면 막고 안내(아래 주소칸 입력 유도). (2026-06-20 사장님)
+                        if (needAddress) {
+                            android.widget.Toast.makeText(assignSheetCtx, "현장 주소를 먼저 넣어주세요 — 협업엔 주소가 꼭 필요해요", android.widget.Toast.LENGTH_SHORT).show()
+                            return@clickable
+                        }
+                        val addrToSend = siteAddrInput.trim().takeIf { it.isNotBlank() }
                         // 팀원 배정 저장(있거나 원래 있었으면 — 비우기 포함). 메모 공통.
                         if (selectedWorkers.isNotEmpty() || initiallySelected.isNotEmpty()) onSave(selectedWorkers, memo)
-                        // 새로 선택한 일당사장 → 협업 요청(공통 메모·시간 + 각자 일당).
+                        // 새로 선택한 일당사장 → 협업 요청(공통 메모·시간 + 각자 일당 + 현장 주소).
                         selectedPartners.forEach { k ->
                             if (k !in reqKeys) collabPartners.firstOrNull { key(it.phone) == k }?.let { p ->
-                                onInviteCollab(p.phone, false, memo, partnerWages[k]?.toIntOrNull(), startHour)
+                                onInviteCollab(p.phone, false, memo, partnerWages[k]?.toIntOrNull(), startHour, addrToSend)
                             }
                         }
                         // 요청했었다가 해제한 일당사장 → 취소.

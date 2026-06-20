@@ -187,10 +187,11 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
 
     /** 협업 현장 표시 라벨 — 주소(지역+아파트/단독은 지역+동) "○○ 현장", 없으면 실제 고객 이름, 둘 다 없으면 "이 현장".
      *   전화번호는 제목으로 쓰지 않음(이름이 번호면 건너뜀). 번호/대화 절대 미포함. */
-    private fun collabTitleOf(c: CustomerEntity): String {
-        com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(c.address).takeIf { it.isNotBlank() }
+    private fun collabTitleOf(c: CustomerEntity): String = collabTitleOf(c.address, c.name)
+    private fun collabTitleOf(address: String?, name: String?): String {
+        com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(address).takeIf { it.isNotBlank() }
             ?.let { return "$it 현장" }
-        c.name?.takeIf { it.isNotBlank() && it.count { ch -> ch.isDigit() } < 9 } // 이름이 전화번호면 제외
+        name?.takeIf { it.isNotBlank() && it.count { ch -> ch.isDigit() } < 9 } // 이름이 전화번호면 제외
             ?.let { return "$it 현장" }
         return "이 현장"
     }
@@ -207,6 +208,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         memo: String = "",
         dailyWage: Int? = null,
         startHour: Int = -1, // 출근시간(24h). -1=미선택
+        addressOverride: String? = null, // 시트에서 입력받은 현장 주소(고객에 주소 없을 때). 비면 customer.address. (2026-06-20 사장님)
         onLink: (String, String) -> Unit
     ) {
         val owner = ownerPhone.filter { it.isDigit() }
@@ -217,11 +219,13 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         val already = _collabAssignByCustomer.value[customer.id].orEmpty()
             .any { it.phone.isNotBlank() && it.phone.takeLast(8) == partner.takeLast(8) }
         if (already && !force) { _toast.value = "이미 이 현장에 요청한 사장님이에요"; return }
-        val title = collabTitleOf(customer)
+        // 시트에서 주소를 받았으면 그걸로(고객에도 저장), 아니면 고객 주소 → 제목·addr 둘 다 주소 기반. (2026-06-20 사장님)
+        val effectiveAddress = addressOverride?.trim()?.takeIf { it.isNotBlank() } ?: customer.address
+        val title = collabTitleOf(effectiveAddress, customer.name)
         val partnerName = collabPartners.value
             .firstOrNull { it.phone.filter { ch -> ch.isDigit() }.takeLast(8) == partner.takeLast(8) }
             ?.name?.takeIf { it.isNotBlank() } ?: "협업 사장님"
-        val addr = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(customer.address).takeIf { it.isNotBlank() }
+        val addr = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(effectiveAddress).takeIf { it.isNotBlank() }
         // 출근시간 선택 시: 일정 날짜에 그 정시 박아 scheduled_at_ms + time_label 도 함께.
         val baseMs = customer.scheduledWorkDate ?: 0L
         val effectiveMs = if (startHour in 0..23 && baseMs > 0L) {
@@ -235,6 +239,10 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             val ampm = if (it < 12) "오전" else "오후"; val h12 = if (it % 12 == 0) 12 else it % 12; "$ampm ${h12}시"
         }
         viewModelScope.launch {
+            // 입력받은 주소는 고객에도 저장 — 다음부턴 자동, 데이터 보존(사장님을 버그리포터로 X). (2026-06-20)
+            if (!addressOverride.isNullOrBlank() && addressOverride.trim() != customer.address) {
+                runCatching { container.customerRepository.updateAddress(customer.id, addressOverride.trim()) }
+            }
             container.sharedSiteRepository.invite(
                 ownerPhone = owner, partnerPhone = partner, title = title,
                 addr = addr, scheduledAtMs = effectiveMs,

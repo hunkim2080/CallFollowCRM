@@ -5199,3 +5199,11 @@ owner_phone 을 **card-summary / conversation-summary / next-action-suggest 3개
 - **앱쪽 추적 = 앱엔 "출발(departed)" 이벤트 보내는 경로가 trash/respond(decline)/leave 어디에도 없음.** departed 는 오직 B가 [출발 알리기] 버튼 → `POST /api/shared/progress {step:departed}` 로만 발사. trash=로컬, respond(false)=`/respond{accept:false}`, leave=`/end{by:partner}` — 진행 이벤트 아님.
 - 즉 A가 "출발" 푸시를 받음 = **서버가 A의 owner-events 에 step=departed 를 내려준 것**. 의심 ① `/respond(accept=false)` 또는 `/end` 핸들러가 잘못 progress(departed) 생성/푸시. ② `GET /owner-events` 가 옛 departed 를 (지우기→재폴 때) 다시 내려줌(at_ms 갱신 시 앱이 재알림).
 - **점검**: respond(decline)/end 가 progress/푸시 이벤트 안 만드는지 + owner-events 가 declined/ended 건 과거 progress 필터링하는지. 재현: B [출발]→A수신 → B가 거절/지우기 → A에 "출발" 재도착 여부.
+
+## 2026-06-20 14:10 · android — 협업 공유 시 현장 주소 필수화(사장님 승인)
+"전에것들 전부 '이 현장/협업 현장'으로 뜬다" → 근본원인 = 공유 때 **주소가 안 들어가서**(addr null). 사장님 승인 받아 **공유할 때 주소 필수**로.
+- 전문가배정 시트: 일당사장 **새로** 선택 + 그 고객에 주소 없으면 → "📍 현장 주소 (협업엔 꼭 필요해요)" 입력칸 노출. 안 넣고 보내려 하면 토스트로 막음.
+- 입력한 주소는 **고객에도 저장**(customerRepository.updateAddress) → 다음부턴 자동 + 데이터 보존. invite 의 title·addr 둘 다 그 주소 기반(→ 상대 화면/일정/홈 전부 주소로 뜸).
+- 구현: inviteCollabToSite(addressOverride) + collabTitleOf(address,name) 오버로드 + AssignTeamSheet(siteAddress) & onInviteCollab(+address). (CustomerDetail 의 CollabShareSheet 는 dead code라 안 건드림 — 공유는 일정 시트 단일 경로)
+- commit: 곧
+- ❓ **cowork 확인 요청**: 이미 만들어진 **옛 협업현장(addr 비어있는 것들)** 에 주소를 **소급 채울(backfill)** 방법이 서버에 있나요? (invite 때 addr 를 아예 안 보냈으면 서버에도 주소가 없을 텐데, shared_sites 에 owner 의 customer 참조가 남아 있으면 거기서 끌어올 수 있는지). 안 되면 사장님께 "옛 건 휴지통 + 다시 공유" 안내 예정.
