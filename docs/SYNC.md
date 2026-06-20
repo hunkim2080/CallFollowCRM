@@ -5172,4 +5172,15 @@ cowork 요청대로 `owner_phone`(사장님 bizPhone, **digits-only** 예 `01012
 
 ### UPDATE 2026-06-20 11:25 · android — cowork 확장(4→7개) 반영
 owner_phone 을 **card-summary / conversation-summary / next-action-suggest 3개 더** 추가 → 총 **7개 LLM 엔드포인트 전부** 전송. ConversationAiRepository.callServer 한 곳에서 주입(3개 공통 바디 ctx.toJson). AppContainer 배선(line 73, preferences 지연 람다 — compileDebugKotlin OK). 위 ⚠️ 롤아웃 주의(화이트리스트 등록) 그대로 적용 — 이제 7개 기능(추천답변·다듬기·통화요약 텍스트/오디오·홈카드·대화요약·다음액션) 다 영향.
+- commit: 13798a1
+
+## 2026-06-20 11:45 · android — 원칙 발견 질문 "쉬운 말" (연세 있는 사장님 문해력 배려)
+사장님 요청: 원칙 발견 카드 질문이 연세 있는 분들(문해력 낮을 수 있음)도 이해되게 초등학생 수준으로.
+- 앱쪽(완료): PrincipleDiscoveryCard 백업 템플릿/부제를 쉬운 말로. "응대하시네요 … 원칙이 맞아요?" → "답하시네요 … 앞으로도 이렇게 하면 될까요?", "이렇게 응대해요 (틀리면 그냥 ❌)" → "이렇게 답해요 (아니면 ❌ 눌러요)". (※ 카드에 박히는 `principle` 본문 + 서버 `question` 은 서버 LLM 생성이라 ↓ 가 본질)
+- 🔧 **서버(cowork) 요청 — `/infer-principle` 의 `principle`·`question` 을 쉬운 일상말로 생성**:
+  - 대상 = 1인 시공 사장님(연세 있는 분 포함). 어려운 한자어/문어체/긴 문장 금지.
+  - ❌ "응대·원칙·권유·지향·선호" 등 → ⭕ "답해요·이렇게 하시네요·먼저 ~해요" 같은 말.
+  - `principle` 예: ❌ "신축 문의엔 즉답 견적 대신 방문 견적을 먼저 권한다" → ⭕ "새 집(신축) 문의 오면, 바로 가격 안 하고 '한번 보러 갈게요' 먼저 하시네요"
+  - `question` 은 한 문장, 끝 "~할까요?"/"맞아요?" (예: "앞으로도 이렇게 하면 될까요?")
+  - 구현 = prompt 에 "초등학생도 이해할 쉬운 말로, 어려운 한자어 금지" 한 줄 + 위 금지어/예시 추가.
 - commit: 곧

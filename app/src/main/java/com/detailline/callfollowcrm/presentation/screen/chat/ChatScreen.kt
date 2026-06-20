@@ -2205,8 +2205,9 @@ private fun PrincipleDiscoveryCard(
     }
 
     // 질문 카드 (프로토 .disc) — 서버가 question 을 주면 그대로, 없으면 원칙을 감싼 템플릿.
+    //   연세 있는 사장님 문해력 배려(2026-06-20) — "응대/원칙" 같은 딱딱한 말 빼고 쉬운 일상말로.
     val q = discovery.question?.takeIf { it.isNotBlank() }
-        ?: "방금 보니, 사장님은 이렇게 응대하시네요:\n\n\"${discovery.principle}\"\n\n이게 사장님 원칙이 맞아요?"
+        ?: "방금 보니까, 사장님은 이렇게 답하시네요:\n\n\"${discovery.principle}\"\n\n앞으로도 이렇게 하면 될까요?"
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -2228,7 +2229,7 @@ private fun PrincipleDiscoveryCard(
         Text(q, color = TossTextPrimary, fontSize = 14.5.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(7.dp))
         Text(
-            "맞으면 앞으로 막내가 이렇게 응대해요. (틀리면 그냥 ❌)",
+            "맞으면 앞으로 막내가 이렇게 답해요. (아니면 ❌ 눌러요)",
             color = TossTextTertiary, fontSize = 11.5.sp, lineHeight = 16.sp
         )
         Spacer(Modifier.height(14.dp))
