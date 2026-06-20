@@ -6101,14 +6101,10 @@ async def admin_user_detail_data(
         ).fetchall()
         recent_api = [{"endpoint": r[0], "created_at_ms": r[1]} for r in recent_rows]
 
-        # ── 7) last_active_ms — api_usage MAX OR whitelist.last_seen_ms ──
-        last_api = con.execute(
-            "SELECT MAX(created_at_ms) FROM api_usage WHERE phone = ?", (target,)
-        ).fetchone()[0]
-        last_active_ms = max(
-            last_api or 0,
-            profile.get("last_seen_ms") or 0,
-        ) or None
+        # ── 7) last_active_ms = 앱 실행 시각 (추가41 — beta_whitelist.last_seen_ms 만)
+        # 사장님 의도: "앱 켜기만 해도 활동". 폴링 endpoint 들이 _touch_beta_whitelist 호출해서 갱신.
+        # LLM 사용 (api_usage MAX) 은 별도 의미라 합치지 않음.
+        last_active_ms = profile.get("last_seen_ms") or None
 
     return {
         "profile": profile,
@@ -6205,7 +6201,7 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
     <div class="s-card"><div class="lab">등록한 일정·현장</div><div class="v" id="kIntakes">-</div></div>
     <div class="s-card"><div class="lab">협업 현장 (보냄+받음)</div><div class="v" id="kCollab">-</div></div>
     <div class="s-card"><div class="lab">앱 호출 (누적)</div><div class="v" id="kCalls">-</div></div>
-    <div class="s-card"><div class="lab">최근 활동</div><div class="v" id="kRecent">-</div></div>
+    <div class="s-card"><div class="lab">최근 앱 실행</div><div class="v" id="kRecent">-</div></div>
   </div>
 
   <!-- ★ 맨 위: 등록한 일정·현장 (사장님이 요청한 핵심) -->
@@ -9131,6 +9127,7 @@ async def shared_with_me(phone: str, since_ms: int = 0, limit: int = 50) -> dict
     partner_phone = _norm_phone(phone)
     if not partner_phone:
         raise HTTPException(400, "phone 필수")
+    _touch_beta_whitelist(partner_phone)  # 추가41 (2026-06-20) — 앱 실행 heartbeat
     limit = max(1, min(limit, 200))
     with db_conn() as con:
         rows = con.execute(
@@ -9229,6 +9226,7 @@ async def shared_by_me(phone: str, since_ms: int = 0, limit: int = 100) -> dict:
     owner_phone = _norm_phone(phone)
     if not owner_phone:
         raise HTTPException(400, "phone 필수")
+    _touch_beta_whitelist(owner_phone)  # 추가41 (2026-06-20) — 앱 실행 heartbeat
     limit = max(1, min(limit, 300))
     with db_conn() as con:
         rows = con.execute(
@@ -9502,6 +9500,7 @@ async def shared_owner_events(
     owner_phone = _norm_phone(phone)
     if not owner_phone:
         raise HTTPException(400, "phone 필수")
+    _touch_beta_whitelist(owner_phone)  # 추가41 (2026-06-20) — 앱 실행 heartbeat
     limit = max(1, min(limit, 200))
     with db_conn() as con:
         # §A (2026-06-13) JOIN shared_sites 로 daily_wage echo.
@@ -12652,6 +12651,42 @@ def _generate_member_id() -> str:
             if not row:
                 return mid
     raise HTTPException(500, "팀원 ID 생성 실패")
+
+
+def _touch_beta_whitelist(phone: Optional[str]) -> None:
+    """추가41 (2026-06-20) — 폴링 endpoint 들이 부르는 가벼운 heartbeat.
+
+    사장님 의도: "앱 켜기만 해도 활동" — 협업 화면 들어가서 폴링만 해도 "최근 앱 실행"
+    갱신되게.
+
+    동작:
+    - phone 이 beta_whitelist 에 있으면 last_seen_ms 만 갱신 (use_count 는 X — 그건 게이트 통과 카운트)
+    - first_seen_ms 가 NULL 이면 함께 박음 (지금까지 미진입이었으면 첫 진입으로 기록)
+    - 화이트리스트에 없으면 무시 (graceful, 가드 아님)
+    - 빈 phone 도 skip
+
+    by-me / with-me / owner-events 같은 폴링 endpoint 진입에 박는다.
+    """
+    if not phone:
+        return
+    phone_digits = _norm_phone(phone)
+    if not phone_digits:
+        return
+    now = _now_ms()
+    try:
+        with db_conn() as con:
+            con.execute(
+                """
+                UPDATE beta_whitelist
+                SET first_seen_ms = COALESCE(first_seen_ms, ?),
+                    last_seen_ms = ?
+                WHERE phone = ?
+                """,
+                (now, now, phone_digits),
+            )
+    except Exception:
+        # 가벼운 heartbeat — 실패해도 본 endpoint 동작 막으면 안 됨
+        pass
 
 
 def _ensure_beta_whitelist(phone: Optional[str]) -> None:
