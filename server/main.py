@@ -1499,6 +1499,10 @@ class PrepareReplyRequest(BaseModel):
     priceList: Optional[str] = None
     # 2026-06-17 "막내가 알아낸 사장님 원칙" — 답변의 판단 기준(왜 그렇게 답하는지). 켜진 것만 옴.
     principles: list[str] = Field(default_factory=list)
+    # 추가37 (2026-06-18) — 화이트리스트 게이트용 사장님 phone.
+    # 위 phone 은 *고객* (대화 상대) 라 가드에 부적절. owner_phone 으로 owner 식별.
+    # 안드로이드가 보내면 가드, 없으면 skip (graceful, 점진 적용).
+    owner_phone: Optional[str] = None
 
 
 # ─── P0+P1+P2: 공통 ConversationContext (사양서 §1) ───
@@ -2075,7 +2079,9 @@ async def prepare_reply(req: PrepareReplyRequest, model: Optional[str] = None):
     - ENV PREPARE_REPLY_MODEL=sonnet 박으면 default 가 sonnet 으로 되돌림 (롤백)
     - 응답 schema 는 동일 v2 (앱 수정 0)
     """
-    _ensure_beta_whitelist(req.phone)  # 추가36 (2026-06-18) — 화이트리스트 게이트
+    # 추가37 (2026-06-18) — 화이트리스트 게이트는 owner_phone 으로 (req.phone 은 customer phone).
+    # 안드로이드가 owner_phone 안 보내면 skip (graceful, 점진 적용).
+    _ensure_beta_whitelist(req.owner_phone)
     chosen_model = (model or PREPARE_REPLY_DEFAULT_MODEL).lower()
     if chosen_model not in ("sonnet", "gemini"):
         raise HTTPException(400, f"model must be 'sonnet' or 'gemini', got {chosen_model!r}")
@@ -7527,7 +7533,8 @@ class RefineRequest(BaseModel):
     owner_tone_samples: list[str] = Field(default_factory=list)
     customer_name: Optional[str] = None
     customer_memo: Optional[str] = None
-    phone: Optional[str] = None  # 추가36 (2026-06-18) — 화이트리스트 게이트용. 앱이 보내면 검사, 없으면 skip.
+    phone: Optional[str] = None        # legacy — 무엇이 들어왔는지 모호. owner_phone 우선 사용.
+    owner_phone: Optional[str] = None  # 추가37 (2026-06-18) — 화이트리스트 게이트용 사장님 phone.
 
 
 def _build_refine_system_prompt(owner_tone_samples: list[str]) -> str:
@@ -7770,7 +7777,8 @@ async def refine_endpoint(req: RefineRequest) -> dict:
       - Gemini API 호출 실패 → 502
       - raw 비어있음 → 400
     """
-    _ensure_beta_whitelist(req.phone)  # 추가36 (2026-06-18) — 화이트리스트 게이트 (phone 보내면 체크)
+    # 추가37 (2026-06-18) — 화이트리스트 게이트는 owner_phone (없으면 legacy phone) 으로.
+    _ensure_beta_whitelist(req.owner_phone or None)  # 안드로이드 owner_phone 보내면 가드, 안 보내면 skip
     raw = (req.raw or "").strip()
     if not raw:
         raise HTTPException(400, "raw 가 비어있음")
@@ -8077,7 +8085,7 @@ async def infer_principle_endpoint(req: InferPrincipleRequest) -> dict:
 # ============================================================================
 
 class CallSummaryRequest(BaseModel):
-    phone: str
+    phone: str                                      # *고객* phone (통화 상대)
     raw_text: str                                   # 에이닷 통화요약 원문 (길 수 있음)
     direction: str                                  # "incoming" | "outgoing" | "missed"
     duration_sec: int = 0
@@ -8085,6 +8093,8 @@ class CallSummaryRequest(BaseModel):
     customer_name: Optional[str] = None
     customer_memo: Optional[str] = None
     owner_tone_samples: list[str] = Field(default_factory=list)
+    # 추가37 (2026-06-18) — 화이트리스트 게이트용 사장님 phone (req.phone 은 customer 라 부적절).
+    owner_phone: Optional[str] = None
 
 
 CALL_SUMMARY_SYSTEM = """너는 1인 시공자(줄눈/타일) 사장님의 비서다.
@@ -8207,7 +8217,8 @@ async def call_summary_endpoint(req: CallSummaryRequest) -> dict:
 
     모델: Haiku 4.5. 캐시 키: phone + endpoint="call-summary" + started_at_ms.
     """
-    _ensure_beta_whitelist(req.phone)  # 추가36 (2026-06-18) — 화이트리스트 게이트
+    # 추가37 (2026-06-18) — 가드는 owner_phone 으로 (req.phone 은 *고객* phone). 없으면 skip.
+    _ensure_beta_whitelist(req.owner_phone)
     if not req.raw_text or not req.raw_text.strip():
         raise HTTPException(400, "raw_text 비어있음")
 
@@ -8502,7 +8513,7 @@ async def _run_stt_with_chunking(audio_path: str) -> str:
 @app.post("/api/call-audio-summary")
 async def call_audio_summary_endpoint(
     file: UploadFile = File(...),
-    phone: str = Form(...),
+    phone: str = Form(...),                          # *고객* phone (통화 상대)
     started_at_ms: int = Form(...),
     direction: str = Form("incoming"),
     duration_sec: int = Form(0),
@@ -8510,6 +8521,7 @@ async def call_audio_summary_endpoint(
     customer_memo: Optional[str] = Form(None),
     owner_tone_samples: Optional[str] = Form(None),  # JSON 배열 string (최대 10개)
     force_refresh: bool = Form(False),                # §26 (2026-06-10) — true 면 캐시 무시 + 새로 처리
+    owner_phone: Optional[str] = Form(None),         # 추가37 (2026-06-18) — 화이트리스트 게이트용 사장님 phone
 ) -> dict:
     """통화 녹음 → Whisper STT → Gemini/Haiku 요약 → one_line + bullets + 후속 문자 + transcript.
 
@@ -8523,7 +8535,8 @@ async def call_audio_summary_endpoint(
     """
     if not phone:
         raise HTTPException(400, "phone 필수")
-    _ensure_beta_whitelist(phone)  # 추가36 (2026-06-18) — 화이트리스트 게이트
+    # 추가37 (2026-06-18) — 가드는 owner_phone 으로 (phone 은 *고객* phone). 안드로이드가 안 보내면 skip.
+    _ensure_beta_whitelist(owner_phone)
     phone_digits = "".join(ch for ch in phone if ch.isdigit())
     if not phone_digits:
         raise HTTPException(400, "phone 형식 오류")
