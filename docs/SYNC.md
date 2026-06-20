@@ -5294,3 +5294,48 @@ cowork 커밋(76383b3, 6cd61d3) git 으로 실코드 대조함. 결과:
 - 일정 직접 등록 전화번호칸: **번호 일부(중간·뒷자리)만 쳐도** 저장 고객이 매칭돼 아래 목록으로 뜸 → 탭하면 채워짐(contains 부분일치, recentContacts=observeAll). "불러오기"는 그대로 두고 추가. (사장님: 뒷번호/중간번호로 치는 흐름)
 - commit: 곧
 
+
+## 2026-06-20 15:30 · cowork
+추가42 — _touch_beta_whitelist 광범위 박기 (앱 켜면 무조건 잡히게)
+
+### 사장님 지적
+"무조건 협업화면 5초 틀어야해? 그냥 앱만 실행했다 하면 나와야지"
+
+### fix
+1. 신규 helper `_ensure_and_touch_beta_whitelist(phone)` = 가드 + heartbeat 동시
+2. 모든 owner_phone 받는 endpoint 의 `_ensure_beta_whitelist(...)` → `_ensure_and_touch_beta_whitelist(...)` 로 교체:
+   - /prepare-reply, /api/refine, /api/call-summary, /api/call-audio-summary
+   - /api/shared/invite, /api/site-photo/owner-upload
+3. _handle_summary_endpoint (card/conversation/next-action) 에 `_touch_beta_whitelist(ctx.owner_phone)` 박음
+4. 기존 폴링 endpoint (by-me/with-me/owner-events) 는 그대로 (추가41 에서 이미 박음)
+
+### 효과
+사장님 owner_phone (010-8005-2080 등) 보내는 어떤 endpoint 든 호출 시 `last_seen_ms` 자동 갱신.
+이제 사장님이 답장 추천 한 번 누르거나, 통화 요약 한 번 누르거나, 협업 화면 들어가서 폴링만 해도 → "최근 앱 실행" 갱신.
+
+### 그치만 100% 보장하려면 (안드로이드 측 액션 필요)
+**안드로이드가 매 앱 진입 시 /api/beta/check 호출** — 그러면 사장님이 아무 기능 안 써도, 단순 앱 켜기만 해도 갱신.
+
+#### 안드로이드 Claude 에게 줄 프롬프트
+```
+앱 진입 (MainActivity onResume 또는 SplashScreen) 마다 한 번씩 /api/beta/check 호출 부탁.
+서버는 이미 호출될 때마다 use_count +1, last_seen_ms 갱신.
+현재는 첫 진입 한 번만 부르는 듯 — 그러면 "최근 앱 실행" 이 영원히 같은 값.
+캐싱 빼고 무조건 호출 (응답이 ok:true 면 진행, ok:false 면 진입 차단 그대로).
+이거 들어가면 사장님 admin 대시보드 의 '최근 앱 실행' / '사용 수' 가 실시간 정확해짐.
+SYNC 06-20 15:30 cowork 참고.
+```
+
+### 사장님 한 줄 배포
+```bash
+cd ~/paperclip-company/workspaces/CallFollowCRM
+[ -f .git/index.lock ] && rm -f .git/index.lock
+git rebase --abort 2>/dev/null
+GIT_EDITOR=true git pull --rebase || (sed -i '' '/^<<<<<<< /d;/^=======$/d;/^>>>>>>> /d' docs/SYNC.md && git add docs/SYNC.md && GIT_EDITOR=true git rebase --continue)
+git add server/main.py
+git commit -m "feat(admin): _touch 광범위 박기 (앱 켜기만 해도 최근앱실행 갱신)"
+git push
+cp server/main.py ~/ringgo-server/
+launchctl kickstart -k gui/$(id -u)/com.detailline.ringgo-server
+```
+

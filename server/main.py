@@ -2081,7 +2081,7 @@ async def prepare_reply(req: PrepareReplyRequest, model: Optional[str] = None):
     """
     # 추가37 (2026-06-18) — 화이트리스트 게이트는 owner_phone 으로 (req.phone 은 customer phone).
     # 안드로이드가 owner_phone 안 보내면 skip (graceful, 점진 적용).
-    _ensure_beta_whitelist(req.owner_phone)
+    _ensure_and_touch_beta_whitelist(req.owner_phone)
     chosen_model = (model or PREPARE_REPLY_DEFAULT_MODEL).lower()
     if chosen_model not in ("sonnet", "gemini"):
         raise HTTPException(400, f"model must be 'sonnet' or 'gemini', got {chosen_model!r}")
@@ -7333,7 +7333,9 @@ async def _handle_summary_endpoint(
         raise HTTPException(code, msg)
 
     # 4) 사용량 로그
-    log_usage(ctx.phone, endpoint_label, response)
+    # 추가38+42 (2026-06-18/20) — owner 단위 통계 + heartbeat
+    log_usage(ctx.owner_phone or ctx.phone, endpoint_label, response)
+    _touch_beta_whitelist(ctx.owner_phone)
     _log_llm_usage_from_response(endpoint_label, response)  # §12.2
     usage = response.usage
     print(
@@ -7774,7 +7776,7 @@ async def refine_endpoint(req: RefineRequest) -> dict:
       - raw 비어있음 → 400
     """
     # 추가37 (2026-06-18) — 화이트리스트 게이트는 owner_phone (없으면 legacy phone) 으로.
-    _ensure_beta_whitelist(req.owner_phone or None)  # 안드로이드 owner_phone 보내면 가드, 안 보내면 skip
+    _ensure_and_touch_beta_whitelist(req.owner_phone)  # 안드로이드 owner_phone 보내면 가드, 안 보내면 skip
     raw = (req.raw or "").strip()
     if not raw:
         raise HTTPException(400, "raw 가 비어있음")
@@ -8248,7 +8250,7 @@ async def call_summary_endpoint(req: CallSummaryRequest) -> dict:
     모델: Haiku 4.5. 캐시 키: phone + endpoint="call-summary" + started_at_ms.
     """
     # 추가37 (2026-06-18) — 가드는 owner_phone 으로 (req.phone 은 *고객* phone). 없으면 skip.
-    _ensure_beta_whitelist(req.owner_phone)
+    _ensure_and_touch_beta_whitelist(req.owner_phone)
     if not req.raw_text or not req.raw_text.strip():
         raise HTTPException(400, "raw_text 비어있음")
 
@@ -8566,7 +8568,7 @@ async def call_audio_summary_endpoint(
     if not phone:
         raise HTTPException(400, "phone 필수")
     # 추가37 (2026-06-18) — 가드는 owner_phone 으로 (phone 은 *고객* phone). 안드로이드가 안 보내면 skip.
-    _ensure_beta_whitelist(owner_phone)
+    _ensure_and_touch_beta_whitelist(owner_phone)
     phone_digits = "".join(ch for ch in phone if ch.isdigit())
     if not phone_digits:
         raise HTTPException(400, "phone 형식 오류")
@@ -8966,7 +8968,7 @@ async def shared_invite(req: SharedInviteRequest) -> dict:
         raise HTTPException(400, "partner_phone 필수")
     if owner_phone == partner_phone:
         raise HTTPException(400, "본인에게 공유할 수 없습니다")
-    _ensure_beta_whitelist(owner_phone)  # 추가36 (2026-06-18) — 화이트리스트 게이트 (owner 만)
+    _ensure_and_touch_beta_whitelist(owner_phone)  # 추가36 (2026-06-18) — 화이트리스트 게이트 (owner 만)
     _check_team_tier(owner_phone)
 
     now = _now_ms()
@@ -12689,6 +12691,17 @@ def _touch_beta_whitelist(phone: Optional[str]) -> None:
         pass
 
 
+def _ensure_and_touch_beta_whitelist(phone: Optional[str]) -> None:
+    """추가42 (2026-06-20) — 가드 + heartbeat 동시.
+
+    사장님 보고: "협업 화면 들어가야 갱신되면 안 됨. 앱 켜기만 해도 활동."
+    → 모든 owner_phone 받는 endpoint 진입에 이거 한 줄 박으면
+       (1) 가드 통과 검증 + (2) last_seen_ms 자동 갱신.
+    """
+    _ensure_beta_whitelist(phone)
+    _touch_beta_whitelist(phone)
+
+
 def _ensure_beta_whitelist(phone: Optional[str]) -> None:
     """추가36 (2026-06-18) — beta_whitelist 게이트.
 
@@ -13649,7 +13662,7 @@ async def owner_site_photo_upload(req: OwnerSitePhotoRequest) -> dict:
     if not customer_phone and not share_id:
         raise HTTPException(400, "customer_phone 또는 share_id 중 하나 필수")
     # 추가36 (2026-06-18) — 화이트리스트 게이트
-    _ensure_beta_whitelist(owner_phone)
+    _ensure_and_touch_beta_whitelist(owner_phone)
     # 사장님이 어떤 티어든 팀 기능 활성 상태인지 확인 (기존 helper 재사용)
     _check_team_tier(owner_phone)
     # §F 벽: share_id 제공 시 그 share 의 owner 또는 partner 중 하나가 요청자 owner_phone 이어야.
