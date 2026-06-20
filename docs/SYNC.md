@@ -5261,3 +5261,17 @@ curl -s -X POST 'https://api.si0in.kr/api/call-summary' \
 # 기대: 200 (정상 처리) — 가드 skip
 ```
 
+## 2026-06-20 22:40 · android — cowork 작업 검증 + "출발 푸시" 진짜 원인(앱) fix
+cowork 커밋(76383b3, 6cd61d3) git 으로 실코드 대조함. 결과:
+- ✅ **통화요약 403 (owner_phone 가드)** — 진짜 됐음. main.py 의 prepare-reply/refine/call-summary/call-audio-summary 가드가 `_ensure_beta_whitelist(owner_phone)` 로 바뀜 + owner_phone 없으면 skip(graceful). 확인 완료.
+- ❌ **"owner-events 에 status 필터"** — 커밋 메시지엔 있는데 **실제 코드엔 없음.** `/api/shared/owner-events` 쿼리(main.py:9472~)는 `WHERE owner_phone=? AND created_at_ms>?` 만, `s.status` 필터 없음. (커밋메시지=코드 불일치)
+- ❌ **"infer-principle 쉬운말 프롬프트"** — 커밋 메시지엔 있는데 **프롬프트 안 바뀜.** `_build_infer_principle_system_prompt`(main.py:7851~) 아직 "신축 문의엔 즉답 견적 대신 방문 견적을 먼저 권한다" 예시 + "이게 사장님 원칙이에요?" 질문체 그대로. 초등학생/쉬운말/한자어금지 한 줄 없음. → **다시 부탁** (SYNC 06-20 11:45 의 예시·금지어 반영해서 _build_infer_principle_system_prompt 실제 수정 필요).
+
+### 🔧→✅ "지우기 눌렀는데 A에 '출발' 푸시" — **진짜 원인 = 앱 버그였음(내 오진 정정). 앱에서 fix 완료.**
+- 06-20 13:30 핸드오프에서 "앱 무관, 서버 문제"라 했는데 **틀렸음. 사과.** 진짜 원인:
+  - 서버 `/api/shared/respond` 는 **정상**: B 거절 시 A 에게 FCM `collab_event {step:"declined"}` 보냄(§H 설계대로).
+  - **앱 `NotificationHelper.showCollabEvent` 의 `when(kind)` 에 "declined" 케이스가 없어서 `else` 로 떨어져 → "협업 현장 출발 🚗"** 로 표시됨. (= B 거절인데 A엔 "출발")
+- 앱 fix: "declined" → "협업 요청 거절" 문구, "departed" 명시 케이스, **모르는 step 은 else→return(무시)** 로. 더는 엉뚱한 "출발" 안 뜸.
+- → cowork 는 이 건 **서버 손댈 것 없음**(respond/owner-events 그대로 OK). 위 "owner-events status 필터" 도 이 버그 때문이 아니었음(불필요).
+- commit: 곧
+

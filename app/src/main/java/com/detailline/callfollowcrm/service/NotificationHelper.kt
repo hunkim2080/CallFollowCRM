@@ -304,11 +304,18 @@ object NotificationHelper {
                 "${partnerName}님이 '${title}' 협업을 수락했어요 — 함께 가요!",
                 ACCENT_PURPLE
             )
-            else -> Triple(
+            "declined" -> Triple(
+                "협업 요청 거절",
+                "${partnerName}님이 '${title}' 협업을 거절했어요.",
+                ACCENT_PINK
+            )
+            "departed" -> Triple(
                 "협업 현장 출발 🚗",
                 "${partnerName}님이 $timeLabel · ${title}으로 출발했어요",
                 ACCENT_GREEN
             )
+            // 모르는 step 은 "출발"로 잘못 표시하지 말고 무시. (2026-06-20 버그 fix: B가 거절(declined)하면 A에 "출발" 푸시가 뜨던 것 — else 가 출발로 떨어져서)
+            else -> return
         }
         showProtoPush(
             context, notifId, CHANNEL_REMINDER, accent,
