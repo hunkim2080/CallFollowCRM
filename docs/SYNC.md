@@ -5285,7 +5285,7 @@ cowork 커밋(76383b3, 6cd61d3) git 으로 실코드 대조함. 결과:
   4. A 일정 전문가배정에서 "요청함" 빼기(removeCollabAssignment) → 로컬 제거 + **서버에도** cancel(수락전 조용)→실패시 endCollab(asOwner=true, B 알림). (기존 로컬만 = B 안 빠지던 갭)
   5. A 고객상세 "협업 해제" → 이미 확인창+endCollab(asOwner=true, B 알림). 그대로 OK(검증).
 - 서버: `/api/shared/end`(pending+accepted 모두, 상대에 collab_ended FCM) + `/api/shared/cancel`(pending→declined) 이미 있음 → **앱만 배선.** 서버 변경 없음.
-- 미세선택: A 배정시트 빼기는 '직접 체크 해제+보내기'라 별도 확인창 없이 바로 처리(스와이프 오작동 위험 없음). 원하면 추가 가능.
+- A 배정시트 빼기(보낸 협업 취소)도 사장님 요청으로 **"보낸 협업을 취소할까요?" 확인창 추가** — 저장 시 취소 대상 있으면 한 번 묻고 진행(submit 람다로 분리). 이제 5곳 전부 확인 통일.
 - compileDebugKotlin OK + A폰 설치.
 - commit: 곧
 

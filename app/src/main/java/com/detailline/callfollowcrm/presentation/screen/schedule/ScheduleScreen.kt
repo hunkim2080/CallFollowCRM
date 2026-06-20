@@ -1327,6 +1327,27 @@ private fun AssignTeamSheet(
             val hadInitial = initiallySelected.isNotEmpty() || reqKeys.isNotEmpty()
             val isCancelAll = !anySelected && hadInitial   // 원래 있던 걸 다 뺀 상태 = 취소 저장
             val canSubmit = anySelected || isCancelAll
+            // 보낸 협업을 빼는(취소) 게 있으면 저장 전에 "정말 취소?" 한 번 물어봄. (2026-06-20 사장님)
+            val cancelling = reqKeys.any { it !in selectedPartners }
+            var confirmCancel by remember { mutableStateOf(false) }
+            val submit: () -> Unit = {
+                val addrToSend = siteAddrInput.trim().takeIf { it.isNotBlank() }
+                // 팀원 배정 저장(있거나 원래 있었으면 — 비우기 포함). 메모 공통.
+                if (selectedWorkers.isNotEmpty() || initiallySelected.isNotEmpty()) onSave(selectedWorkers, memo)
+                // 새로 선택한 일당사장 → 협업 요청(공통 메모·시간 + 각자 일당 + 현장 주소).
+                selectedPartners.forEach { k ->
+                    if (k !in reqKeys) collabPartners.firstOrNull { key(it.phone) == k }?.let { p ->
+                        onInviteCollab(p.phone, false, memo, partnerWages[k]?.toIntOrNull(), startHour, addrToSend)
+                    }
+                }
+                // 요청했었다가 해제한 일당사장 → 취소(서버에도 알림).
+                reqKeys.forEach { k ->
+                    if (k !in selectedPartners) collabPartners.firstOrNull { key(it.phone) == k }?.let { p ->
+                        onCancelCollab(p.phone)
+                    }
+                }
+                onDismiss()
+            }
             Spacer(Modifier.height(18.dp))
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
@@ -1343,22 +1364,8 @@ private fun AssignTeamSheet(
                             android.widget.Toast.makeText(assignSheetCtx, "현장 주소를 먼저 넣어주세요 — 협업엔 주소가 꼭 필요해요", android.widget.Toast.LENGTH_SHORT).show()
                             return@clickable
                         }
-                        val addrToSend = siteAddrInput.trim().takeIf { it.isNotBlank() }
-                        // 팀원 배정 저장(있거나 원래 있었으면 — 비우기 포함). 메모 공통.
-                        if (selectedWorkers.isNotEmpty() || initiallySelected.isNotEmpty()) onSave(selectedWorkers, memo)
-                        // 새로 선택한 일당사장 → 협업 요청(공통 메모·시간 + 각자 일당 + 현장 주소).
-                        selectedPartners.forEach { k ->
-                            if (k !in reqKeys) collabPartners.firstOrNull { key(it.phone) == k }?.let { p ->
-                                onInviteCollab(p.phone, false, memo, partnerWages[k]?.toIntOrNull(), startHour, addrToSend)
-                            }
-                        }
-                        // 요청했었다가 해제한 일당사장 → 취소.
-                        reqKeys.forEach { k ->
-                            if (k !in selectedPartners) collabPartners.firstOrNull { key(it.phone) == k }?.let { p ->
-                                onCancelCollab(p.phone)
-                            }
-                        }
-                        onDismiss()
+                        // 보낸 협업을 빼는 게 있으면 "정말 취소?" 먼저, 없으면 바로 저장. (2026-06-20 사장님)
+                        if (cancelling) confirmCancel = true else submit()
                     }
                     .padding(vertical = 15.dp),
                 contentAlignment = Alignment.Center
@@ -1375,6 +1382,25 @@ private fun AssignTeamSheet(
                         else -> TossTextTertiary
                     },
                     fontSize = 15.sp, fontWeight = FontWeight.ExtraBold
+                )
+            }
+
+            // 보낸 협업 취소 확인 — "정말 취소?" (상대에 알림 감). (2026-06-20 사장님)
+            if (confirmCancel) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { confirmCancel = false },
+                    title = { Text("보낸 협업을 취소할까요?", fontWeight = FontWeight.Bold) },
+                    text = { Text("요청을 뺀 사장님께 '협업이 취소됐어요' 알림이 가요. (아직 수락 전이면 조용히 빠져요)") },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(onClick = { confirmCancel = false; submit() }) {
+                            Text("취소하기", color = TossError, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    dismissButton = {
+                        androidx.compose.material3.TextButton(onClick = { confirmCancel = false }) {
+                            Text("그대로 둘게요", color = TossTextSecondary)
+                        }
+                    }
                 )
             }
         }
