@@ -190,12 +190,9 @@ fun ScheduleAddScreen(
             Spacer(Modifier.height(13.dp))
 
             if (mode == "mine") {
-                FieldLabel("고객 이름 (선택)")
-                SheetTextField(name, { name = it }, placeholder = "예: 강동 서사장")
-                Spacer(Modifier.height(12.dp))
+                // 순서: 전화번호 → 이름 → (주소·시공일). "저장된"→"한번이라도 연락했던"으로 풀어씀. (2026-06-21 사장님)
                 FieldLabel("고객 전화번호")
-                // 010 미리채움 제거 + 안내 → 저장된 고객은 번호 일부만 쳐도 찾아짐을 사람들이 인지하게. (2026-06-20 사장님)
-                Text("저장된 고객은 번호 일부만(뒷 4자리·중간) 쳐도 떠요. 탭하면 채워져요.",
+                Text("한번이라도 연락했던 고객은 번호 일부만(뒷 4자리·중간) 쳐도 떠요. 탭하면 채워져요.",
                     fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 6.dp))
                 SheetTextField(
                     value = phoneField,
@@ -245,6 +242,9 @@ fun ScheduleAddScreen(
                             fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 6.dp, start = 2.dp))
                     }
                 }
+                Spacer(Modifier.height(12.dp))
+                FieldLabel("고객 이름 (선택)")
+                SheetTextField(name, { name = it }, placeholder = "안 적어도 돼요 · 예: 강동 서사장")
             } else {
                 FieldLabel("거래처 (자주 일 주는 곳)")
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
