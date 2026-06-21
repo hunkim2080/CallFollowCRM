@@ -31,63 +31,76 @@ class IntakeSyncManager(private val container: AppContainer) {
             if (submitted > maxSubmitted) maxSubmitted = submitted
             if (s.token in imported || s.customerPhone.isBlank()) continue
 
-            val c = container.customerRepository.upsertByPhone(phoneNumber = s.customerPhone)
-            val fullAddr = listOfNotNull(s.address, s.dong).joinToString(" ").trim()
-            if (fullAddr.isNotBlank()) container.customerRepository.updateAddress(c.id, fullAddr)
-            val workMs = workMsOf(s)
-            workMs?.let { container.customerRepository.updateScheduledWorkDate(c.id, it) }
-            if (!s.memo.isNullOrBlank() && c.memo.isNullOrBlank()) {
-                container.customerRepository.updateMemo(c.id, "📋 접수: ${s.memo}")
-            }
-            // 견적금액도 고객 카드 총금액에 반영 (주소·시공일과 동일). s.total = 만원 → totalAmount = 원(×10,000).
-            //   토큰은 한 번만 import 되므로(중복 skip) 이 덮어쓰기는 1회뿐 → 이후 사장님 수동 수정은 안전.
-            //   단, import 시점에 이미 수동 입력해둔 총금액이 있으면 존중(수동 우선). (2026-06-14 사장님: 견적금액 미등록 버그)
-            val totalWon = s.total.toLong() * 10_000L
-            if (s.total > 0 && (c.totalAmount == null || c.totalAmount == 0L)) {
-                container.customerRepository.updateTotalAmount(c.id, totalWon)
-            }
-            // 계약금도 고객 카드에 반영 (접수서에 계약금 박아 보낸 경우). QuoteDocScreen 과 동일 계산:
-            //   ratio → 총액 × %/100, fixed → depositValue(만원) × 10,000. 잔금 = 총액 - 계약금 자동.
-            //   금액만 세팅(받음 처리는 사장님이 직접) — 제출이 곧 입금 확인은 아니므로. 수동 입력분은 존중. (2026-06-14 사장님)
-            val depositWon = when (s.depositMode) {
-                "ratio" -> if (s.depositValue > 0 && totalWon > 0) totalWon * s.depositValue / 100 else 0L
-                "fixed" -> if (s.depositValue > 0) s.depositValue.toLong() * 10_000L else 0L
-                else -> 0L
-            }
-            if (depositWon > 0 && (c.depositAmount == null || c.depositAmount == 0L)) {
-                container.customerRepository.updateDepositAmount(c.id, depositWon)
-            }
-
-            imported.add(s.token)
-            changed = true
-            val nm = s.customerName.ifBlank { s.customerPhone }
-            val dateLabel = workMs?.let {
-                SimpleDateFormat("M/d(E)", Locale.KOREA).format(java.util.Date(it))
-            }
-
-            // 채팅 타임라인 카드용 이벤트 기록 — "고객이 접수서 작성을 완료했어요" 를 제출 시각에 표시.
-            //   token unique IGNORE → 폴링 반복돼도 카드 중복 안 됨. suffix = ChatViewModel 매칭 규칙과 동일.
-            runCatching {
-                val suffix = s.customerPhone.filter { it.isDigit() }.takeLast(8)
-                container.intakeEventRepository.record(
-                    com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity(
-                        phoneSuffix = suffix,
-                        token = s.token,
-                        customerName = nm,
-                        submittedAtMs = submitted,
-                        address = fullAddr.ifBlank { null },
-                        dateLabel = dateLabel,
-                        totalManwon = s.total.takeIf { it > 0 },
-                        createdAt = System.currentTimeMillis()
-                    )
+            // 제출 1건 처리 — 한 건이 예외나도 다른 건/폴링이 죽지 않게 격리(2026-06-21: 일정 자동등록 누락 디버깅).
+            //   성공해야만 imported 에 넣어 다음 폴링서 재시도되게(반쪽 처리 방지).
+            val processed = runCatching {
+                val c = container.customerRepository.upsertByPhone(phoneNumber = s.customerPhone)
+                val fullAddr = listOfNotNull(s.address, s.dong).joinToString(" ").trim()
+                if (fullAddr.isNotBlank()) container.customerRepository.updateAddress(c.id, fullAddr)
+                val workMs = workMsOf(s)
+                android.util.Log.i(
+                    "IntakeSync",
+                    "tok=${s.token} cid=${c.id} y=${s.workYear} mo=${s.workMonth} d=${s.workDay} conf=${s.confirmedDateIso} => workMs=$workMs total=${s.total}"
                 )
-            }
+                workMs?.let { container.customerRepository.updateScheduledWorkDate(c.id, it) }
+                android.util.Log.i(
+                    "IntakeSync",
+                    "after setDate cid=${c.id} readBack=${container.customerRepository.findById(c.id)?.scheduledWorkDate}"
+                )
+                if (!s.memo.isNullOrBlank() && c.memo.isNullOrBlank()) {
+                    container.customerRepository.updateMemo(c.id, "📋 접수: ${s.memo}")
+                }
+                // 견적금액도 고객 카드 총금액에 반영 (주소·시공일과 동일). s.total = 만원 → totalAmount = 원(×10,000).
+                //   단, import 시점에 이미 수동 입력해둔 총금액이 있으면 존중(수동 우선). (2026-06-14 사장님)
+                val totalWon = s.total.toLong() * 10_000L
+                if (s.total > 0 && (c.totalAmount == null || c.totalAmount == 0L)) {
+                    container.customerRepository.updateTotalAmount(c.id, totalWon)
+                }
+                // 계약금도 고객 카드에 반영. ratio → 총액 × %/100, fixed → depositValue(만원) × 10,000. 수동 입력분 존중. (2026-06-14 사장님)
+                val depositWon = when (s.depositMode) {
+                    "ratio" -> if (s.depositValue > 0 && totalWon > 0) totalWon * s.depositValue / 100 else 0L
+                    "fixed" -> if (s.depositValue > 0) s.depositValue.toLong() * 10_000L else 0L
+                    else -> 0L
+                }
+                if (depositWon > 0 && (c.depositAmount == null || c.depositAmount == 0L)) {
+                    container.customerRepository.updateDepositAmount(c.id, depositWon)
+                }
 
-            NotificationHelper.showIntakeSubmitted(
-                context, s.token, s.customerPhone, nm,
-                address = fullAddr.ifBlank { "주소 미입력" },
-                dateLabel = dateLabel, totalManwon = s.total
-            )
+                val nm = s.customerName.ifBlank { s.customerPhone }
+                val dateLabel = workMs?.let {
+                    SimpleDateFormat("M/d(E)", Locale.KOREA).format(java.util.Date(it))
+                }
+
+                // 채팅 타임라인 카드용 이벤트 기록 — token unique IGNORE → 중복 방지.
+                runCatching {
+                    val suffix = s.customerPhone.filter { it.isDigit() }.takeLast(8)
+                    container.intakeEventRepository.record(
+                        com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity(
+                            phoneSuffix = suffix,
+                            token = s.token,
+                            customerName = nm,
+                            submittedAtMs = submitted,
+                            address = fullAddr.ifBlank { null },
+                            dateLabel = dateLabel,
+                            totalManwon = s.total.takeIf { it > 0 },
+                            createdAt = System.currentTimeMillis()
+                        )
+                    )
+                }
+
+                NotificationHelper.showIntakeSubmitted(
+                    context, s.token, s.customerPhone, nm,
+                    address = fullAddr.ifBlank { "주소 미입력" },
+                    dateLabel = dateLabel, totalManwon = s.total
+                )
+            }.onFailure {
+                android.util.Log.e("IntakeSync", "process token=${s.token} FAILED", it)
+            }.isSuccess
+
+            if (processed) {
+                imported.add(s.token)
+                changed = true
+            }
         }
         if (changed || maxSubmitted != since) {
             prefs.intakeImportedTokens = imported
