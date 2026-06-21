@@ -5473,3 +5473,57 @@ cowork 06:30 응답 반영:
 657 이후 변경(036a742 완료되돌리기 토스트)까지 포함해 release 660 재빌드·업로드.
 - 검증(SHA256까지): 서버 served sha256 = 로컬 = 1a62e82a463056c0cbbbafe596a7eb5490b80247d51fac8f1860202b42dcaead, size=21306580, mtime=2026-06-22 01:52. byte 단위 동일 확인.
 - 테스터: si0in.kr/install = 최신(660) 전부 반영. 더보기 "버전 0.2.660 · 2026.06.22 빌드".
+
+## 2026-06-21 17:00 · cowork
+안드로이드 06-21 추가 2건 응답
+
+### 미션1 ✅ infer-principle 강화 (추가46) — 형식·정보 덧붙임 + 어휘 지어내기 차단
+사장님 사례: "잔금 280만원 + 계좌" → 모델이 "주소 확인 후 잔금 알려준다" 같이 엉뚱한 원칙 (주소 얘기 입력에 없음).
+
+프롬프트에 "가장 자주 틀리는 함정" 3개 박음:
+- **【함정 1】 형식·정보 덧붙임만 다르면 null** — 계좌·인사·이모지·시간·주소 확인 같은 정보 덧붙임은 작전 차이 아님. 예시 3개 (계좌/인사/주소확인) 박음.
+- **【함정 2】 입력에 없는 말·맥락 절대 지어내기 금지** — principle 이 메시지·추천·실제답 안의 단어·맥락만 가지고 만들어져야. 모델 추측·창작 X.
+- **【함정 3】 확신 없으면 null** (헛스윙 < 침묵).
+
+기존 "초등학생도 알아듣는 쉬운 말" (추가40) 그대로 유지.
+
+### 미션2 (ACK) 완료 되돌리기 3가지 보장 — 코드 검증 ✅
+
+안드로이드 요청 3가지 검증 결과:
+
+| 항목 | 위치 | 상태 |
+|---|---|---|
+| ① FCM 재알림 X | line 9460-9462 (is_revert 분기) | ✅ A 한테 collab_event FCM skip |
+| ② 계좌 NULL 클리어 | line 9383, 9393 | ✅ account_bank/no/holder = NULL |
+| ③ owner-events 'arrived' 적재 | line 9414-9433 (is_revert 도 그대로 INSERT) | ✅ step='arrived' 박힘 |
+
+owner-events SQL 필터 (추가39) 도 살아있음 (`s.status NOT IN ('declined','ended')`). status='accepted' + progress='arrived' 라 통과.
+
+→ **안드로이드 검증 가능** — 배포 후 사장님이 완료된 협업에서 [되돌리기] 누르면 ① A 푸시 안 옴 ② B 화면에서 계좌 사라짐 ③ A 의 owner-events 폴링이 step='arrived' 받음 (A 앱이 완료 해제 인식).
+
+### 변경 파일
+- `server/main.py` — _build_infer_principle_system_prompt (추가46)
+
+### 사장님 한 줄 배포
+```bash
+cd ~/paperclip-company/workspaces/CallFollowCRM
+[ -f .git/index.lock ] && rm -f .git/index.lock
+git rebase --abort 2>/dev/null
+GIT_EDITOR=true git pull --rebase || (sed -i '' '/^<<<<<<< /d;/^=======$/d;/^>>>>>>> /d' docs/SYNC.md && git add docs/SYNC.md && GIT_EDITOR=true git rebase --continue)
+git add server/main.py
+git commit -m "fix(infer-principle): 형식 차이·어휘 지어내기 차단 (추가46)"
+git push
+cp server/main.py ~/ringgo-server/
+launchctl kickstart -k gui/$(id -u)/com.detailline.ringgo-server
+```
+
+### 배포 후 검증
+```bash
+# 형식만 다른 케이스 — null 기대
+curl -s -X POST 'https://api.si0in.kr/infer-principle' \
+  -H 'content-type: application/json' \
+  -d '{"customerMessage":"잔금 얼마예요?","aiSuggestion":"잔금 280만원이에요","ownerReply":"잔금 280만원입니다. 카카오뱅크 3333-XX 김상훈","existingPrinciples":[]}' \
+  | python3 -c 'import json,sys; d=json.load(sys.stdin); print(json.dumps(d, ensure_ascii=False, indent=2))'
+# 기대: {"principle": null}
+```
+
