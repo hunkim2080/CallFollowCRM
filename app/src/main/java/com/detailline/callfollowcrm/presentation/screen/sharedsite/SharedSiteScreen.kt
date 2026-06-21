@@ -1025,100 +1025,98 @@ private fun DetailBody(
                 ) { Text("수락", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = if (acceptExpired) TossTextTertiary else Color.White) }
             }
         }
-        // 벽 안내만 보여주고 진행 단계는 수락 후.
-        Spacer(Modifier.height(16.dp))
-        WallNote(site.ownerName)
         return
     }
 
-    // 일당 지급계좌 — 수락 후. 끝나면 이 계좌로 받음. 등록/미등록 분기로 확인·등록. (2026-06-14 사장님)
-    Spacer(Modifier.height(16.dp))
-    CollabPayoutAccountSection(bank = payoutBank, no = payoutNo, holder = payoutHolder, onSave = onSavePayout)
-
-    // 진행 상황 (눌러서 알려요) — 수락된 현장만.
+    // 진행 상황 (눌러서 알려요) — 수락된 현장만. (계좌는 맨 아래로 이동, 2026-06-21 사장님)
     Spacer(Modifier.height(16.dp))
     SectionSub("진행 상황 (눌러서 알려요)")
     Stepper(site.progress)
     Spacer(Modifier.height(8.dp))
 
-    val next = when (site.progress) {
-        SharedSiteRepository.Progress.ASSIGNED -> SharedSiteRepository.Progress.DEPARTED to "🚗 출발 알리기"
-        SharedSiteRepository.Progress.DEPARTED -> SharedSiteRepository.Progress.ARRIVED to "📍 도착 알리기"
-        SharedSiteRepository.Progress.ARRIVED -> SharedSiteRepository.Progress.COMPLETED to "✅ 완료 알리기"
-        SharedSiteRepository.Progress.COMPLETED -> null
-    }
-    if (next != null) {
-        val (step, label) = next
-        val completing = step == SharedSiteRepository.Progress.COMPLETED
-        Box(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                .background(if (completing && !hasAccount) Color(0xFFE5E8EF) else if (completing) ProtoSuccess else ProtoBlue)
-                .clickable { onProgress(step) }.padding(vertical = 14.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                if (completing && !hasAccount) "계좌 등록 후 완료 알리기" else label,
-                color = if (completing && !hasAccount) TossTextSecondary else Color.White,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.ExtraBold
-            )
+    val hasAddr = !site.addr.isNullOrBlank()
+    when (site.progress) {
+        SharedSiteRepository.Progress.ASSIGNED -> {
+            // 출발+길찾기는 아래 '현장 주소' 버튼이 한 번에 처리(2026-06-21 사장님). 주소 없는 옛 협업만 여기서 출발만.
+            if (!hasAddr) {
+                StepActionButton("🚗 출발 알리기", ProtoBlue, Color.White) {
+                    onProgress(SharedSiteRepository.Progress.DEPARTED)
+                }
+                Spacer(Modifier.height(7.dp))
+                Text("누르면 주인 사장님께 '출발했어요' 알림이 가요. (주소가 없어 길찾기는 안 열려요)",
+                    fontSize = 11.5.sp, color = TossTextTertiary, lineHeight = 16.sp,
+                    modifier = Modifier.padding(horizontal = 2.dp))
+            }
         }
-        if (completing) {
+        SharedSiteRepository.Progress.DEPARTED -> {
+            StepActionButton("📍 도착 알리기", ProtoBlue, Color.White) {
+                onProgress(SharedSiteRepository.Progress.ARRIVED)
+            }
+            Spacer(Modifier.height(7.dp))
+            Text("📍 현장 3km에 들어가면 '거의 도착'이 자동으로 가요. 자동이 안 잡히면 위 도착을 직접 눌러도 돼요.",
+                fontSize = 11.5.sp, color = ProtoSuccess, lineHeight = 16.sp,
+                modifier = Modifier.padding(horizontal = 2.dp))
+        }
+        SharedSiteRepository.Progress.ARRIVED -> {
+            StepActionButton(
+                if (hasAccount) "✅ 완료 알리기" else "계좌 등록 후 완료 알리기",
+                if (hasAccount) ProtoSuccess else Color(0xFFE5E8EF),
+                if (hasAccount) Color.White else TossTextSecondary
+            ) { onProgress(SharedSiteRepository.Progress.COMPLETED) }
             Spacer(Modifier.height(7.dp))
             Text(
                 if (hasAccount) "완료를 누르면 주인 사장님께 '완료 + 내 입금 계좌'가 전달돼요."
-                else "⚠️ 입금받을 계좌가 없어요. 더보기 → 견적서·사업자 정보에서 계좌를 먼저 등록하면 완료 시 자동 전달돼요.",
-                fontSize = 11.5.sp, color = if (hasAccount) TossTextTertiary else Color(0xFFD9534F), lineHeight = 16.sp,
-                modifier = Modifier.padding(horizontal = 2.dp)
+                else "⚠️ 입금받을 계좌가 없어요. 맨 아래 '일당 지급계좌'를 먼저 등록하면 완료 시 자동 전달돼요.",
+                fontSize = 11.5.sp, color = if (hasAccount) TossTextTertiary else Color(0xFFD9534F),
+                lineHeight = 16.sp, modifier = Modifier.padding(horizontal = 2.dp)
             )
         }
-        if (step == SharedSiteRepository.Progress.DEPARTED) {
-            Spacer(Modifier.height(7.dp))
-            Text(
-                "한 번 누르면 주인 사장님이 '오는구나' 알아요 — 따로 연락 안 해도 돼요.\n이때부터 위치를 봐서 현장 3km에 들어가면 '거의 도착'이 자동으로 가요. (누르기 전엔 위치 안 봐요)",
-                fontSize = 11.5.sp, color = TossTextTertiary, lineHeight = 16.sp,
-                modifier = Modifier.padding(horizontal = 2.dp)
-            )
+        SharedSiteRepository.Progress.COMPLETED -> {
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(CollabPurpleSoft).padding(vertical = 13.dp),
+                contentAlignment = Alignment.Center
+            ) { Text("완료된 현장이에요 ✓", color = CollabPurple, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold) }
+            Spacer(Modifier.height(8.dp))
+            // 실수로 완료를 눌렀을 때 한 단계(도착)로 되돌리기 (2026-06-21 사장님)
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                    .border(1.dp, TossDivider, RoundedCornerShape(12.dp))
+                    .clickable { onProgress(SharedSiteRepository.Progress.ARRIVED) }.padding(vertical = 11.dp),
+                contentAlignment = Alignment.Center
+            ) { Text("↩ 완료 되돌리기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) }
         }
-        if (step == SharedSiteRepository.Progress.ARRIVED) {
-            Spacer(Modifier.height(7.dp))
-            Text(
-                "📍 현장 3km에 들어가면 '거의 도착'이 자동으로 가요. 자동이 안 잡히면 위 도착을 직접 눌러도 돼요.",
-                fontSize = 11.5.sp, color = ProtoSuccess, lineHeight = 16.sp,
-                modifier = Modifier.padding(horizontal = 2.dp)
-            )
-        }
-    } else {
-        Box(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(CollabPurpleSoft).padding(vertical = 13.dp),
-            contentAlignment = Alignment.Center
-        ) { Text("완료된 현장이에요 ✓", color = CollabPurple, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold) }
     }
 
-    // 현장 주소 — 출발 알린 뒤에 길찾기 활성화(출발→길찾기). 출발 전엔 회색 비활성. (2026-06-14 사장님)
-    if (!site.addr.isNullOrBlank()) {
+    // 현장 주소 + 길찾기 — 배정 단계면 [출발 알리고 길찾기](한 번에 둘 다), 출발 후엔 [길찾기 시작]. (2026-06-21 사장님)
+    if (hasAddr) {
         Spacer(Modifier.height(16.dp))
-        val canNavigate = site.progress != SharedSiteRepository.Progress.ASSIGNED
+        val assigned = site.progress == SharedSiteRepository.Progress.ASSIGNED
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
                 .background(Color(0xFFF5F9FF)).border(1.5.dp, Color(0xFFE2EDFD), RoundedCornerShape(16.dp)).padding(15.dp)
         ) {
             Text("📍 현장 주소", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
             Spacer(Modifier.height(7.dp))
-            Text(site.addr, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, lineHeight = 22.sp)
+            Text(site.addr!!, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, lineHeight = 22.sp)
             Spacer(Modifier.height(11.dp))
             Box(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                    .background(if (canNavigate) ProtoBlue else Color(0xFFE5E8EF))
-                    .then(if (canNavigate) Modifier.clickable { onNavigate(site.addr) } else Modifier)
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(ProtoBlue)
+                    .clickable {
+                        if (assigned) onProgress(SharedSiteRepository.Progress.DEPARTED)
+                        onNavigate(site.addr!!)
+                    }
                     .padding(vertical = 12.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    if (canNavigate) "길찾기 시작" else "출발 알리면 길찾기가 켜져요",
-                    color = if (canNavigate) Color.White else TossTextSecondary,
-                    fontSize = 14.sp, fontWeight = FontWeight.ExtraBold
+                    if (assigned) "🚗 출발 알리고 길찾기" else "길찾기 시작",
+                    color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold
                 )
+            }
+            if (assigned) {
+                Spacer(Modifier.height(8.dp))
+                Text("누르면 ① 주인 사장님께 '출발했어요' 알림 + ② 길찾기 앱이 같이 열려요.\n이때부터 현장 3km에 들어가면 '거의 도착'이 자동으로 가요. (누르기 전엔 위치 안 봐요)",
+                    fontSize = 11.5.sp, color = TossTextTertiary, lineHeight = 16.sp)
             }
         }
     }
@@ -1138,9 +1136,9 @@ private fun DetailBody(
     Spacer(Modifier.height(10.dp))
     PhotoGrid(photos = photos, busy = photoBusy, onAdd = onPickPhoto, onView = onViewPhoto)
 
-    // 벽 안내
-    Spacer(Modifier.height(16.dp))
-    WallNote(site.ownerName)
+    // 일당 지급계좌 — 맨 아래로 이동(이미 등록된 정보라 매번 위에 띄울 필요 없음). (2026-06-21 사장님)
+    Spacer(Modifier.height(18.dp))
+    CollabPayoutAccountSection(bank = payoutBank, no = payoutNo, holder = payoutHolder, onSave = onSavePayout)
 
     // 협업 그만하기 (B가 끝내기) — 사장님께 알림 + 기록 보존. 마음 안 맞을 때.
     Spacer(Modifier.height(14.dp))
@@ -1201,16 +1199,13 @@ private fun PhotoGrid(
     }
 }
 
-@Composable private fun WallNote(ownerName: String) {
-    Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(CollabPurpleSoft)
-            .border(1.dp, Color(0xFFE2D8FB), RoundedCornerShape(14.dp)).padding(13.dp)
-    ) {
-        Text("🔒 이 현장만 보여요", fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
-        Spacer(Modifier.height(6.dp))
-        Text("• 고객 전화번호 · 대화는 안 보여요\n• ${ownerName}의 다른 고객도 안 보여요",
-            fontSize = 12.5.sp, color = Color(0xFF5A4A7A), lineHeight = 20.sp)
-    }
+/** 진행 단계 큰 버튼(출발/도착/완료) — 공통. (2026-06-21 사장님) */
+@Composable private fun StepActionButton(label: String, bg: Color, textColor: Color, onClick: () -> Unit) {
+    Box(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(bg)
+            .clickable { onClick() }.padding(vertical = 14.dp),
+        contentAlignment = Alignment.Center
+    ) { Text(label, color = textColor, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold) }
 }
 
 // ── 작은 컴포넌트들 ──
@@ -1268,7 +1263,10 @@ private fun CollabPayoutAccountSection(
         if (registered && !editing) {
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color.White).padding(12.dp)) {
                 Text(
-                    listOfNotNull(bank.takeIf { it.isNotBlank() }, no.takeIf { it.isNotBlank() }).joinToString("  "),
+                    listOfNotNull(
+                        bank.takeIf { it.isNotBlank() },
+                        com.detailline.callfollowcrm.presentation.component.formatAccountNo(no).takeIf { it.isNotBlank() }
+                    ).joinToString("  "),
                     fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary
                 )
                 if (holder.isNotBlank()) {

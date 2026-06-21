@@ -2329,11 +2329,13 @@ private fun openSamsungMessagesApp(ctx: android.content.Context) {
 
 @Composable
 private fun AppFooter() {
-    val ctx = LocalContext.current
-    val version = remember(ctx) {
+    // 버전 + '빌드 날짜' — 사장님이 "지금 깐 게 최신인지" 한눈에 비교용. (2026-06-21 사장님)
+    //   versionName 은 "0.2.{빌드번호}" 라 빌드마다 바뀜. 그래도 숫자라 와닿게 빌드 날짜·시각도 같이 표기.
+    val builtAt = remember {
         runCatching {
-            ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "1.0"
-        }.getOrDefault("1.0")
+            java.text.SimpleDateFormat("yyyy.MM.dd HH:mm", java.util.Locale.KOREA)
+                .format(java.util.Date(com.detailline.callfollowcrm.BuildConfig.BUILD_TIMESTAMP))
+        }.getOrDefault("")
     }
     Column(
         modifier = Modifier
@@ -2342,10 +2344,25 @@ private fun AppFooter() {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            "RING-GO v$version",
-            color = TossTextTertiary,
-            fontSize = 11.sp
+            "RING-GO 버전 ${com.detailline.callfollowcrm.BuildConfig.VERSION_NAME}",
+            color = TossTextSecondary,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold
         )
+        if (builtAt.isNotEmpty()) {
+            Spacer(Modifier.height(3.dp))
+            Text(
+                "$builtAt 빌드",
+                color = TossTextTertiary,
+                fontSize = 11.5.sp
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "이 빌드 날짜가 '최신'과 같으면 업데이트된 거예요",
+                color = TossTextTertiary,
+                fontSize = 10.5.sp
+            )
+        }
     }
 }
 

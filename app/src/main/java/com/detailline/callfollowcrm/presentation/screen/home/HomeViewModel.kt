@@ -362,9 +362,16 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         container.collabEventCenter.pendingInvites
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** 수락한 협업 현장(오늘 이후) — 내 '다음 일'. 홈 상단에 협업 현장 카드. (2026-06-14 사장님) */
+    /**
+     * 수락한 협업 현장 — 홈 상단 카드. 오늘·내일 것만 보여줌(모레+ 는 홈에서 빼고 '협업 현장' 탭에서만).
+     *   (2026-06-21 사장님: 모레·먼 날짜까지 홈에 계속 떠서 "이게 왜 떠있지" 혼란 → D-1 안내처럼 임박한 것만.)
+     */
     val collabUpcoming: StateFlow<List<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite>> =
         container.collabEventCenter.acceptedUpcoming
+            .map { list ->
+                val until = todayStart + 2L * 24 * 60 * 60 * 1000  // 모레 0시 = 오늘·내일까지만
+                list.filter { it.scheduledAtMs <= 0L || it.scheduledAtMs < until }
+            }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** 협업 진행 알림의 shareId → 내가 그 현장을 공유한 고객 id. A(주인)는 '현장 보기'를 그 고객 상세로 보냄. (2026-06-14) */
