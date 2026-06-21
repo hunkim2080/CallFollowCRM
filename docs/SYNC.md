@@ -5457,3 +5457,7 @@ launchctl kickstart -k gui/$(id -u)/com.detailline.ringgo-server
 1. **접수서 재제출**: 매번 새 토큰 발급 (옛 URL 재사용 X). 서버는 이미 OK.
 2. **완료 되돌리기 응답**: `/api/shared/progress` 응답 JSON 에 `revert: true` 옴 (is_revert 인 경우). 앱이 그걸로 "완료 해제됨" 토스트.
 
+## 2026-06-21 05:30 · android — 릴리스 657 사이트 배포 (테스터용)
+오늘 작업 전부 포함(밀어서휴지통/협업상세 정비/홈협업 임박만/더보기 빌드날짜/접수서 격리·로그/계좌 뒤로가기) → release 657 빌드·서명·shigongmagne.apk.
+- 맥미니 `~/ringgo-server/apk/shigongmagne.apk` scp 완료. 검증: /api/download/version size_bytes=21306624(로컬과 byte 일치), mtime=2026-06-22 01:38. 로컬 sha256=0ad61625…
+- 테스터 다운로드: si0in.kr/install. 더보기 하단 "버전 0.2.657 / 빌드 2026.06.22" 로 최신 확인 가능.
