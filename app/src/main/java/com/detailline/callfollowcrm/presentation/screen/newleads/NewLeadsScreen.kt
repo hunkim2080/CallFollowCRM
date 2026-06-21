@@ -240,33 +240,12 @@ private fun CFilterChip(label: String, count: Int, on: Boolean, onClick: () -> U
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LeadSwipeBox(onDismiss: () -> Unit, content: @Composable () -> Unit) {
-    val swipeState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) onDismiss()
-            false   // 원위치 복귀 — 실제 제거는 데이터(스팸 마킹)가 처리.
-        },
-        positionalThreshold = { total -> total * 0.6f }
-    )
-    SwipeToDismissBox(
-        state = swipeState,
-        enableDismissFromStartToEnd = false,
-        enableDismissFromEndToStart = true,
-        backgroundContent = {
-            Box(
-                Modifier.fillMaxWidth().padding(bottom = 9.dp)
-                    .clip(RoundedCornerShape(14.dp)).background(TossBlueSoft)
-                    .padding(horizontal = 20.dp),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Check, "정리", tint = TossBlue, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("광고/정리", color = TossBlue, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                }
-            }
-        },
-        content = { content() }
-    )
+    // 밀면 바로가 아니라 → 드러나는 버튼을 눌러야 정리(2026-06-21 사장님). SwipeRevealBox 로 통일.
+    com.detailline.callfollowcrm.presentation.component.SwipeRevealBox(
+        onAction = onDismiss,
+        label = "광고/정리",
+        containerColor = TossBlue
+    ) { content() }
 }
 
 @OptIn(ExperimentalFoundationApi::class)

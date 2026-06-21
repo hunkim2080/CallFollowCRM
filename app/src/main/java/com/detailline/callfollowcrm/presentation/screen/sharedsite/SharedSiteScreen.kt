@@ -828,28 +828,11 @@ private fun groupByPartner(sites: List<SharedSiteRepository.SharedSite>): List<P
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SharedSwipeBox(onDelete: () -> Unit, content: @Composable () -> Unit) {
-    val state = rememberSwipeToDismissBoxState(
-        confirmValueChange = { v -> if (v == SwipeToDismissBoxValue.EndToStart) onDelete(); false },
-        positionalThreshold = { d -> d * 0.5f }
-    )
-    SwipeToDismissBox(
-        state = state,
-        enableDismissFromStartToEnd = false,
-        enableDismissFromEndToStart = true,
-        backgroundContent = {
-            Box(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFFDEAEF)).padding(horizontal = 20.dp),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.Delete, "휴지통", tint = Color(0xFFF0436A), modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("휴지통", color = Color(0xFFF0436A), fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                }
-            }
-        },
-        content = { content() }
-    )
+    // 밀면 바로가 아니라 → 드러나는 '휴지통' 버튼을 눌러야 동작(2026-06-21 사장님). SwipeRevealBox 로 통일.
+    com.detailline.callfollowcrm.presentation.component.SwipeRevealBox(
+        onAction = onDelete,
+        label = "휴지통"
+    ) { content() }
 }
 
 /** 휴지통 — 밀어서 정리한 협업 현장. '되살리기'로 복구(기록 보존). */

@@ -2403,51 +2403,13 @@ private fun SpamSwipeBox(onSpam: () -> Unit, content: @Composable () -> Unit) {
     //   해결: false 반환 → SwipeBox 는 원위치 복귀 애니. spam 처리는 onSpam → markSpam 이
     //   unconfirmedSuffixes 에서 그 phone 을 제거 → 카드가 LazyColumn 에서 자연 사라짐.
     //   undo 시 카드가 다시 등장 → 새 SwipeBox = 정상 state.
-    val state = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) {
-                onSpam()
-            }
-            false   // 항상 false — dismiss 안 시킴. 카드 제거는 데이터 흐름이 처리.
-        },
-        positionalThreshold = { totalDistance -> totalDistance * 0.6f }
-    )
-    SwipeToDismissBox(
-        state = state,
-        enableDismissFromStartToEnd = false,
-        enableDismissFromEndToStart = true,
-        backgroundContent = {
-            androidx.compose.foundation.layout.Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp)
-                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
-                    .background(TossBlueSoft)
-                    .padding(horizontal = 20.dp),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                // 2026-06-07: 밀기 = '정리'(대기 목록에서만 숨김, 스팸 아님). 빨강·차단 아이콘 → 파랑·체크로.
-                androidx.compose.foundation.layout.Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = "정리",
-                        tint = TossBlue,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        "정리",
-                        color = TossBlue,
-                        fontWeight = FontWeight.SemiBold,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-            }
-        },
-        content = { content() }
-    )
+    // 밀면 바로가 아니라 → 드러나는 버튼을 눌러야 정리(2026-06-21 사장님). SwipeRevealBox 로 통일.
+    com.detailline.callfollowcrm.presentation.component.SwipeRevealBox(
+        onAction = onSpam,
+        label = "정리",
+        containerColor = TossBlue,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+    ) { content() }
 }
 
 /**
@@ -2457,42 +2419,13 @@ private fun SpamSwipeBox(onSpam: () -> Unit, content: @Composable () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DismissSwipeBox(onDismiss: () -> Unit, content: @Composable () -> Unit) {
-    val state = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) onDismiss()
-            false
-        },
-        positionalThreshold = { totalDistance -> totalDistance * 0.5f }
-    )
-    SwipeToDismissBox(
-        state = state,
-        enableDismissFromStartToEnd = false,
-        enableDismissFromEndToStart = true,
-        backgroundContent = {
-            androidx.compose.foundation.layout.Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp)
-                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
-                    .background(TossTextTertiary.copy(alpha = 0.12f))
-                    .padding(horizontal = 20.dp),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = "정리",
-                        tint = TossTextSecondary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text("정리", color = TossTextSecondary, fontWeight = FontWeight.SemiBold,
-                        style = MaterialTheme.typography.bodyMedium)
-                }
-            }
-        },
-        content = { content() }
-    )
+    // 밀면 바로가 아니라 → 드러나는 버튼을 눌러야 정리(2026-06-21 사장님). SwipeRevealBox 로 통일.
+    com.detailline.callfollowcrm.presentation.component.SwipeRevealBox(
+        onAction = onDismiss,
+        label = "정리",
+        containerColor = TossBlue,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+    ) { content() }
 }
 
 /**

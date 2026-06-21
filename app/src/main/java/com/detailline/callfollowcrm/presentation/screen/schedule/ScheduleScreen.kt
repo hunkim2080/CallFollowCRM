@@ -484,36 +484,11 @@ private fun CollabDayCard(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CollabSwipeBox(onDelete: () -> Unit, content: @Composable () -> Unit) {
-    val state = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) onDelete()
-            false
-        },
-        positionalThreshold = { totalDistance -> totalDistance * 0.5f }
-    )
-    SwipeToDismissBox(
-        state = state,
-        enableDismissFromStartToEnd = false,
-        enableDismissFromEndToStart = true,
-        backgroundContent = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0xFFFDEAEF))
-                    .padding(horizontal = 20.dp),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Delete, "삭제", tint = Color(0xFFF0436A), modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("삭제", color = Color(0xFFF0436A), fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                }
-            }
-        },
-        content = { content() }
-    )
+    // 밀면 바로가 아니라 → 드러나는 '삭제' 버튼을 눌러야 동작(2026-06-21 사장님). SwipeRevealBox 로 통일.
+    com.detailline.callfollowcrm.presentation.component.SwipeRevealBox(
+        onAction = onDelete,
+        label = "삭제"
+    ) { content() }
 }
 
 @Composable

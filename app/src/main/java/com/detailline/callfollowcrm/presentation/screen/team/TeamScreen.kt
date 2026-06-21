@@ -364,25 +364,12 @@ private fun SwipeMemberRow(
     onPreview: () -> Unit,
     onRemove: () -> Unit
 ) {
-    val state = rememberSwipeToDismissBoxState(
-        confirmValueChange = { v ->
-            if (v == SwipeToDismissBoxValue.EndToStart) { onRemove() }
-            false // 데이터 reload 가 행을 제거 — dismiss 안 시킴
-        },
-        positionalThreshold = { total -> total * 0.55f }
-    )
-    SwipeToDismissBox(
-        state = state,
-        enableDismissFromStartToEnd = false,
-        enableDismissFromEndToStart = true,
-        backgroundContent = {
-            Box(
-                Modifier.fillMaxWidth().background(TossError.copy(alpha = 0.12f)).padding(horizontal = 20.dp),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                Text("제외", color = TossError, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            }
-        }
+    // 밀면 바로가 아니라 → 드러나는 '제외' 버튼을 눌러야 빠짐(2026-06-21 사장님). SwipeRevealBox 로 통일.
+    com.detailline.callfollowcrm.presentation.component.SwipeRevealBox(
+        onAction = onRemove,
+        label = "제외",
+        containerColor = TossError,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
     ) {
         MemberRow(
             name = member.name,

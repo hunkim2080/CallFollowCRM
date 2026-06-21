@@ -5364,3 +5364,10 @@ cowork 06-20 15:30 요청 이행.
 - RemindCard 이름 줄("{이름} · 내일(날짜) 시간") 바로 아래 **"📍 간략주소"** 한 줄 표시(주소 없으면 숨김, 1줄 말줄임).
 - 서버 영향 없음. A폰 설치 완료.
 - commit: 곧
+
+## 2026-06-21 02:40 · android — 밀어서 "바로 삭제" → "밀면 🗑 버튼 드러나고 눌러야 삭제" 앱 전체 통일
+사장님 요청(증권앱 관심목록 스타일): 실수 삭제 방지 + 안정감. "앱 전체 한 번에" 선택.
+- 신규 공용 컴포넌트 **`presentation/component/SwipeRevealBox.kt`**: 우→좌 밀면 콘텐츠가 밀리며 오른쪽 🗑 버튼 노출(절반 이상=열린 채 고정), 버튼 탭→onAction. 열린 채 콘텐츠 탭/오른쪽 밀기=닫힘. (Animatable offset + detectHorizontalDragGestures, 갤S9 대응)
+- 7곳 전부 이걸로 위임(시그니처 유지, 호출부 무변경): 홈 SpamSwipeBox·DismissSwipeBox(정리/파랑), 신규 LeadSwipeBox(광고·정리/파랑), 일정 CollabSwipeBox(삭제/빨강), 협업 SharedSwipeBox(휴지통/빨강), 팀 SwipeMemberRow(제외/빨강).
+- 색: 정리=파랑, 삭제/제외=빨강. 아이콘=휴지통 통일. 서버 영향 없음. A폰 설치.
+- commit: 곧
