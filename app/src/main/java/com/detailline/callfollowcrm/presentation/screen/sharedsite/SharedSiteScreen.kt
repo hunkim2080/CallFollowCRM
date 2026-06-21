@@ -1294,6 +1294,18 @@ private fun CollabPayoutAccountSection(
             var fHolder by remember { mutableStateOf(holder) }
             var bankOpen by remember { mutableStateOf(false) }
             var bankQuery by remember { mutableStateOf("") }
+            var showSaveConfirm by remember { mutableStateOf(false) }
+            // 계좌 수정 중 뒤로가기 = 화면 나가기가 아니라 '편집만 닫기'. 바꿨으면 저장 물어봄. (2026-06-22 사장님)
+            //   registered 일 때만(보여줄 원래 화면이 있을 때). 미등록 신규 입력 땐 기본 뒤로가기.
+            BackHandler(enabled = registered) {
+                when {
+                    bankOpen -> bankOpen = false
+                    fBank.trim() != bank.trim() ||
+                        fNo.filter { it.isDigit() } != no.filter { it.isDigit() } ||
+                        fHolder.trim() != holder.trim() -> showSaveConfirm = true
+                    else -> editing = false
+                }
+            }
             com.detailline.callfollowcrm.presentation.component.BankPickerField(
                 label = "은행", bank = fBank, open = bankOpen, query = bankQuery,
                 onToggle = { bankOpen = !bankOpen; bankQuery = "" },
@@ -1324,6 +1336,23 @@ private fun CollabPayoutAccountSection(
             ) {
                 Text(if (registered) "계좌 저장" else "이 계좌로 등록",
                     color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
+            }
+            if (showSaveConfirm) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { showSaveConfirm = false },
+                    title = { Text("바뀐 계좌를 저장할까요?") },
+                    text = { Text("수정한 내용을 저장하지 않고 닫으면 사라져요.") },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(onClick = {
+                            onSave(fBank, fNo, fHolder); showSaveConfirm = false; editing = false
+                        }) { Text("저장", color = CollabPurple, fontWeight = FontWeight.Bold) }
+                    },
+                    dismissButton = {
+                        androidx.compose.material3.TextButton(onClick = {
+                            showSaveConfirm = false; editing = false
+                        }) { Text("저장 안 함", color = TossTextSecondary) }
+                    }
+                )
             }
         }
     }
