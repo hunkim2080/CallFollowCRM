@@ -5468,3 +5468,8 @@ cowork 06:30 응답 반영:
 - **완료 되돌리기 토스트**: updateProgress 에서 site.progress==COMPLETED && step==ARRIVED = 되돌리기로 판단 → "완료를 해제했어요 — 다시 '도착' 상태로 돌렸어요" 토스트. (서버 is_revert/revert:true 와 결과 동일, repo.progress 는 Result<Unit> 라 로컬 판정)
 - ⚠️ 서버 되돌리기(재알림X·계좌클리어)는 cowork main.py 배포(추가44/45) 후 적용 — 사장님이 06:30 블록 배포 한 줄 실행 필요.
 - A폰 설치. (이 토스트 변경은 다음 사이트 업로드 때 반영) commit: 곧
+
+## 2026-06-21 06:00 · android — 릴리스 660 재배포 (657 → 660, 완료되돌리기 토스트까지 포함)
+657 이후 변경(036a742 완료되돌리기 토스트)까지 포함해 release 660 재빌드·업로드.
+- 검증(SHA256까지): 서버 served sha256 = 로컬 = 1a62e82a463056c0cbbbafe596a7eb5490b80247d51fac8f1860202b42dcaead, size=21306580, mtime=2026-06-22 01:52. byte 단위 동일 확인.
+- 테스터: si0in.kr/install = 최신(660) 전부 반영. 더보기 "버전 0.2.660 · 2026.06.22 빌드".
