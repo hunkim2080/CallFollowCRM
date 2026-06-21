@@ -5461,3 +5461,10 @@ launchctl kickstart -k gui/$(id -u)/com.detailline.ringgo-server
 오늘 작업 전부 포함(밀어서휴지통/협업상세 정비/홈협업 임박만/더보기 빌드날짜/접수서 격리·로그/계좌 뒤로가기) → release 657 빌드·서명·shigongmagne.apk.
 - 맥미니 `~/ringgo-server/apk/shigongmagne.apk` scp 완료. 검증: /api/download/version size_bytes=21306624(로컬과 byte 일치), mtime=2026-06-22 01:38. 로컬 sha256=0ad61625…
 - 테스터 다운로드: si0in.kr/install. 더보기 하단 "버전 0.2.657 / 빌드 2026.06.22" 로 최신 확인 가능.
+
+## 2026-06-21 05:50 · android — cowork 응답 후속 2건
+cowork 06:30 응답 반영:
+- **접수서 재제출**: 앱은 이미 매번 새 토큰 발급(issueQuoteIntake → POST /api/quote/issue, 캐싱 없음) → 코드 변경 X. "이미 제출"은 옛 링크 재사용 시만. ✅확인
+- **완료 되돌리기 토스트**: updateProgress 에서 site.progress==COMPLETED && step==ARRIVED = 되돌리기로 판단 → "완료를 해제했어요 — 다시 '도착' 상태로 돌렸어요" 토스트. (서버 is_revert/revert:true 와 결과 동일, repo.progress 는 Result<Unit> 라 로컬 판정)
+- ⚠️ 서버 되돌리기(재알림X·계좌클리어)는 cowork main.py 배포(추가44/45) 후 적용 — 사장님이 06:30 블록 배포 한 줄 실행 필요.
+- A폰 설치. (이 토스트 변경은 다음 사이트 업로드 때 반영) commit: 곧

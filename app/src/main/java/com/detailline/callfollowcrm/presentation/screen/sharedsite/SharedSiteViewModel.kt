@@ -142,10 +142,14 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
                 partnerName = myBizName()
             )
             res.onSuccess {
-                _toast.value = when (step) {
-                    SharedSiteRepository.Progress.DEPARTED -> "출발 알렸어요"
-                    SharedSiteRepository.Progress.ARRIVED -> "도착 알렸어요"
-                    SharedSiteRepository.Progress.COMPLETED -> "완료 알렸어요 — 주인 사장님께 계좌가 전달돼요"
+                // 완료(COMPLETED) → 도착(ARRIVED) = 되돌리기. 서버도 is_revert 로 처리(재알림 X). (2026-06-21 cowork/사장님)
+                val reverting = site.progress == SharedSiteRepository.Progress.COMPLETED &&
+                    step == SharedSiteRepository.Progress.ARRIVED
+                _toast.value = when {
+                    reverting -> "완료를 해제했어요 — 다시 '도착' 상태로 돌렸어요"
+                    step == SharedSiteRepository.Progress.DEPARTED -> "출발 알렸어요"
+                    step == SharedSiteRepository.Progress.ARRIVED -> "도착 알렸어요"
+                    step == SharedSiteRepository.Progress.COMPLETED -> "완료 알렸어요 — 주인 사장님께 계좌가 전달돼요"
                     else -> "알렸어요"
                 }
                 load()
