@@ -181,6 +181,7 @@ fun HomeScreen(
     onOpenTeam: () -> Unit = {},
     /** 홈 "협업 진행" 배너 탭 → 협업 현장. (2026-06-09) */
     onOpenCollabSites: () -> Unit = {},
+    onOpenCollabSiteDetail: (String) -> Unit = {},   // 협업 카드 각 줄 → 그 현장 상세 (2026-06-21 사장님)
     /** 상담함 "부재중 자동답장" 알림 길게누름 → 자동 문자 설정(부재중 응답 펼침). (2026-06-06) */
     onOpenAutoSmsSettings: () -> Unit = {}
 ) {
@@ -567,7 +568,7 @@ fun HomeScreen(
                 // 내가 수락한 협업 현장(오늘 이후) — 협업자(B)에겐 이게 '다음 일'. 홈에서 바로 보이게. (2026-06-14 사장님)
                 if (collabUpcoming.isNotEmpty()) {
                     item(key = "collab-upcoming") {
-                        CollabUpcomingCard(sites = collabUpcoming, onClick = onOpenCollabSites)
+                        CollabUpcomingCard(sites = collabUpcoming, onClick = onOpenCollabSites, onOpenSite = onOpenCollabSiteDetail)
                     }
                 }
 
@@ -1364,7 +1365,8 @@ private fun TodayHeroCard(
 @Composable
 private fun CollabUpcomingCard(
     sites: List<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite>,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onOpenSite: (String) -> Unit
 ) {
     val purple = Color(0xFF7C5CFC)
     val purpleSoft = Color(0xFFF1ECFE)
@@ -1374,10 +1376,13 @@ private fun CollabUpcomingCard(
             .clip(RoundedCornerShape(18.dp))
             .background(Color.White)
             .border(1.dp, Color(0xFFE7E0FB), RoundedCornerShape(18.dp))
-            .clickable { onClick() }
             .padding(16.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        // 헤더 — 누르면 협업 현장 전체 목록. (각 줄은 그 현장 상세로 따로 들어감) (2026-06-21 사장님)
+        Row(
+            Modifier.fillMaxWidth().clickable { onClick() },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Box(
                 Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(purpleSoft),
                 contentAlignment = Alignment.Center
@@ -1394,7 +1399,13 @@ private fun CollabUpcomingCard(
             val place = com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(s.addr).takeIf { it.isNotBlank() }
                 ?: s.timeLabel?.takeIf { it.isNotBlank() && it != "00:00" && it != "0:00" }
             val rowLine = listOfNotNull(place, bossLabel(s.ownerName), s.dailyWage?.let { "일당 ${it}만원" }).joinToString(" · ")
-            Row(Modifier.fillMaxWidth().padding(top = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+            // 각 줄 누르면 그 현장 상세로. (2026-06-21 사장님)
+            Row(
+                Modifier.fillMaxWidth()
+                    .clickable(enabled = s.shareId.isNotBlank()) { onOpenSite(s.shareId) }
+                    .padding(vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
                     word, color = purple, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold,
                     modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(purpleSoft).padding(horizontal = 7.dp, vertical = 2.dp)
@@ -1403,8 +1414,10 @@ private fun CollabUpcomingCard(
                 Text(
                     rowLine,
                     color = TossTextPrimary, fontSize = 13.5.sp, fontWeight = FontWeight.Bold,
-                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
+                Icon(Icons.Default.ChevronRight, null, tint = TossTextTertiary, modifier = Modifier.size(15.dp))
             }
         }
     }

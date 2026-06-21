@@ -200,6 +200,7 @@ fun AppNavHost(
                 onOpenEstimateFollowup = { navController.navigate(Destinations.ESTIMATE_FOLLOWUP) },
                 onOpenTeam = { navController.navigate(Destinations.TEAM) },
                 onOpenCollabSites = { navController.navigate(Destinations.COLLAB_SITES) },
+                onOpenCollabSiteDetail = { shareId -> navController.navigate(Destinations.collabSites(shareId)) },
                 onOpenAutoSmsSettings = { navController.navigate(Destinations.SETTINGS_AUTOSMS) }
             )
         }
