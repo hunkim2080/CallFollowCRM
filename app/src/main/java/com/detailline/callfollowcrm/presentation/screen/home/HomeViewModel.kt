@@ -446,7 +446,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                     body = renderReminderBody(item),
                     name = item.customerName?.takeIf { it.isNotBlank() } ?: item.phone,
                     whenLabel = (if (d1) "내일" else "오늘") + "($md)$timeStr",
-                    kindLabel = if (d1) "내일 시공 안내 · D-1" else "오늘 시공 · 도착 안내"
+                    kindLabel = if (d1) "내일 시공 안내 · D-1" else "오늘 시공 · 도착 안내",
+                    addressLabel = com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(c?.address)
                 )
             }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -1177,7 +1178,9 @@ data class HomeReminderUi(
     val body: String,
     val name: String,
     val whenLabel: String,
-    val kindLabel: String
+    val kindLabel: String,
+    /** 간략 주소(지역+건물) — "이 번호가 내일 고객 맞나?" 눈으로 확인용. 주소 없으면 "". (2026-06-21 사장님) */
+    val addressLabel: String
 )
 
 /**

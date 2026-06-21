@@ -1751,6 +1751,16 @@ private fun RemindCard(
                 fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
                 letterSpacing = (-0.3).sp, modifier = Modifier.padding(top = 8.dp)
             )
+            // 주소 한 줄 — "이 번호가 내일 고객 맞나?" 눈으로 확인 (2026-06-21 사장님). 주소 없으면 숨김.
+            if (reminder.addressLabel.isNotBlank()) {
+                Text(
+                    "📍 ${reminder.addressLabel}",
+                    fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TossTextSecondary,
+                    letterSpacing = (-0.2).sp,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
             // remind-msg — 꾹 누르면 인라인 수정(activity 윈도우라 키보드 정상).
             Box(
                 Modifier
