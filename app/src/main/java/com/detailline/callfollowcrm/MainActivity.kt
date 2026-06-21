@@ -64,6 +64,17 @@ class MainActivity : ComponentActivity() {
                         )
                         is IncomingIntent.SharedSite -> container.navEvents.requestCollabSites(incoming.shareId)
                         is IncomingIntent.CollabMine -> container.navEvents.requestCollabSites(tab = "shared")
+                        is IncomingIntent.CollabEnded -> {
+                            // 무엇이 해제됐는지 명확히 — 해제된 현장은 목록서 빠지므로 토스트로 알려줌 + 협업 현장 목록 열기. (2026-06-21 사장님)
+                            val site = incoming.title.takeIf { it.isNotBlank() } ?: "협업 현장"
+                            val who = incoming.byName.takeIf { it.isNotBlank() }?.let { "$it 님이 " } ?: ""
+                            android.widget.Toast.makeText(
+                                this@MainActivity,
+                                "${who}「$site」 협업을 해제했어요. 사진·기록은 남아있어요.",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                            container.navEvents.requestCollabSites()
+                        }
                     }
                     pending.value = null
                 }
@@ -113,6 +124,13 @@ class MainActivity : ComponentActivity() {
             ACTION_COLLAB_MINE -> {
                 // 협업 수락/진행 알림(주인 A가 받음) 탭 → 협업 현장 "내가 공유한 현장" 탭. (2026-06-20 사장님)
                 pendingIntentState.value = IncomingIntent.CollabMine
+            }
+            ACTION_COLLAB_ENDED -> {
+                // 협업 해제 알림 탭 → 무엇이 해제됐는지 토스트 + 목록. (2026-06-21 사장님)
+                pendingIntentState.value = IncomingIntent.CollabEnded(
+                    intent.getStringExtra(EXTRA_COLLAB_TITLE).orEmpty(),
+                    intent.getStringExtra(EXTRA_COLLAB_BY).orEmpty()
+                )
             }
             Intent.ACTION_SEND -> {
                 val mime = intent.type.orEmpty()
@@ -201,6 +219,8 @@ class MainActivity : ComponentActivity() {
         data class SharedSite(val shareId: String?) : IncomingIntent
         /** 협업 수락/진행 알림(주인 A가 받음) 탭 → 협업 현장 "내가 공유한 현장" 탭. (2026-06-20 사장님) */
         object CollabMine : IncomingIntent
+        /** 협업 해제 알림 탭 → 무엇이/누가 해제했는지 안내 + 목록. (2026-06-21 사장님) */
+        data class CollabEnded(val title: String, val byName: String) : IncomingIntent
     }
 
     companion object {
@@ -209,6 +229,9 @@ class MainActivity : ComponentActivity() {
         const val ACTION_CALL_SUMMARY = "com.detailline.callfollowcrm.ACTION_CALL_SUMMARY"
         const val ACTION_DAILY_BRIEF = "com.detailline.callfollowcrm.ACTION_DAILY_BRIEF"
         const val ACTION_COLLAB_MINE = "com.detailline.callfollowcrm.ACTION_COLLAB_MINE"
+        const val ACTION_COLLAB_ENDED = "com.detailline.callfollowcrm.ACTION_COLLAB_ENDED"
+        const val EXTRA_COLLAB_TITLE = "extra_collab_title"
+        const val EXTRA_COLLAB_BY = "extra_collab_by"
         const val EXTRA_PHONE_NUMBER = "extra_phone_number"
         const val EXTRA_CALL_RECORD_ID = "extra_call_record_id"
         const val EXTRA_TEMPLATE_ID = "extra_template_id"

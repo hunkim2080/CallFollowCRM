@@ -387,9 +387,12 @@ object NotificationHelper {
     /** 협업 해제됨 — 상대(A 또는 B)가 협업을 끝냄. 받는 쪽에 알림 + 기록은 보존. (FCM collab_ended) */
     fun showCollabEnded(context: Context, shareId: String, byName: String, title: String) {
         val notifId = COLLAB_INVITE_ID_OFFSET + ("ended:$shareId".hashCode() and 0x7FFFFF)
+        // 탭하면 "무엇을/누가 해제했는지" 토스트 + 협업 현장 목록. (전엔 /shared/{id} 로 갔는데 해제된 현장은 목록서
+        //   빠져 상세가 안 열리고 빈 목록만 떴음 — "뭐가 해제됐는지 안 보임" fix). (2026-06-21 사장님)
         val openIntent = Intent(context, MainActivity::class.java).apply {
-            action = Intent.ACTION_VIEW
-            data = Uri.parse("${AppConfig.BASE_URL.trimEnd('/')}/shared/$shareId")
+            action = MainActivity.ACTION_COLLAB_ENDED
+            putExtra(MainActivity.EXTRA_COLLAB_TITLE, title)
+            putExtra(MainActivity.EXTRA_COLLAB_BY, byName)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val pending = PendingIntent.getActivity(
