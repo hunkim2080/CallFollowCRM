@@ -9322,9 +9322,9 @@ async def shared_progress(req: SharedProgressRequest) -> dict:
         raise HTTPException(400, f"step must be one of {_VALID_PROGRESS_STEPS}")
     now = _now_ms()
     with db_conn() as con:
-        # title 도 같이 가져옴 (이벤트 본문용)
+        # 추가44 (2026-06-21) — progress 도 SELECT (되돌리기 판정용)
         row = con.execute(
-            "SELECT partner_phone, status, owner_phone, title FROM shared_sites WHERE share_id = ?",
+            "SELECT partner_phone, status, owner_phone, title, progress FROM shared_sites WHERE share_id = ?",
             (share_id,),
         ).fetchone()
         if not row:
@@ -9335,6 +9335,10 @@ async def shared_progress(req: SharedProgressRequest) -> dict:
             raise HTTPException(409, "수락된 공유만 진행 가능")
         owner_phone_for_event = row[2]
         site_title = row[3] or ""
+        current_progress = (row[4] or "assigned")
+        # 추가44 (2026-06-21) — '완료 되돌리기' = 현재 progress=completed + 새 step=arrived
+        # 사장님 보고: 앱에 완료→도착 되돌리기 버튼. 정산 reset + 불필요한 재알림 X.
+        is_revert = (step == "arrived" and current_progress == "completed")
         # §I (2026-06-18) — B 가 보낸 partner_name 박기 (있을 때만, partial UPDATE).
         partner_name_raw_val = (req.partner_name or "").strip() if hasattr(req, "partner_name") else ""
         # 1) shared_sites 업데이트
@@ -9368,6 +9372,29 @@ async def shared_progress(req: SharedProgressRequest) -> dict:
                     WHERE share_id = ?
                     """,
                     (step, event_bank, event_account_no, event_holder, now, share_id),
+                )
+        elif is_revert:
+            # 추가44 (2026-06-21) — 완료 되돌리기. progress='arrived' + account_* NULL reset.
+            # paid_at_ms 는 보존 (사장님 별도 액션). FCM 안 보냄 (사장님 요청: 불필요 재알림 X).
+            if partner_name_raw_val:
+                con.execute(
+                    """
+                    UPDATE shared_sites SET
+                      progress = 'arrived', account_bank = NULL, account_no = NULL, account_holder = NULL,
+                      partner_name_raw = ?, updated_at_ms = ?
+                    WHERE share_id = ?
+                    """,
+                    (partner_name_raw_val, now, share_id),
+                )
+            else:
+                con.execute(
+                    """
+                    UPDATE shared_sites SET
+                      progress = 'arrived', account_bank = NULL, account_no = NULL, account_holder = NULL,
+                      updated_at_ms = ?
+                    WHERE share_id = ?
+                    """,
+                    (now, share_id),
                 )
         else:
             if partner_name_raw_val:
@@ -9428,7 +9455,13 @@ async def shared_progress(req: SharedProgressRequest) -> dict:
         fcm_data["bank"] = event_bank or ""
         fcm_data["account_no"] = event_account_no or ""
         fcm_data["holder"] = event_holder or ""
-    _send_fcm_data_to_phone(owner_phone_for_event, fcm_data)
+    # 추가44 (2026-06-21) — 되돌리기는 FCM 안 보냄 (사장님 요청: 불필요 재알림 X).
+    # A 앱이 owner-events 폴링으로 알아챔 (가장 최근 step=arrived 이벤트).
+    if is_revert:
+        fcm_data["revert"] = "true"   # 응답에 표식 (앱이 알게 — 푸시는 안 보냄)
+        print(f"[shared/progress] share={share_id} REVERT (completed→arrived). FCM skip.")
+    else:
+        _send_fcm_data_to_phone(owner_phone_for_event, fcm_data)
     # §E (2026-06-13) — auto arrived 시 B 에게 "사장님께 알려드렸어요" 확인 FCM 별도 발송.
     # 핸드오프 SERVER_HANDOFF_collab_expansion §E: b-remind 아래 푸시.
     if is_auto:
@@ -12367,8 +12400,11 @@ async def quote_submissions_list(
         where_parts.append("device_id = ?")
         params.append(deviceId)
     if sinceMs:
-        where_parts.append("issued_at_ms > ?")
-        params.append(sinceMs)
+        # 추가45 (2026-06-21) — sinceMs 필터 정정. issued_at_ms 만 보면 옛 발급 + 최근 제출 누락.
+        # 안드로이드는 sinceMs 에 마지막 본 submittedAtMs 최댓값을 넣음 → submitted_at_ms 기준이 맞음.
+        # 두 가지 다 OR — 새로 발급된 미제출 폼 + 옛 발급 새 제출 둘 다 잡힘.
+        where_parts.append("(issued_at_ms > ? OR submitted_at_ms > ?)")
+        params.extend([sinceMs, sinceMs])
     where = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
     with db_conn() as con:
         rows = con.execute(

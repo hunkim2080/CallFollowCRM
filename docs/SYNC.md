@@ -5406,3 +5406,54 @@ cowork 06-20 15:30 요청 이행.
 사장님: 계좌 [수정] 누른 뒤 뒤로가기 하면 화면이 통째로 나가버림. → 편집만 닫혀야(안 바꿨으면), 바꿨으면 "저장할까요?".
 - CollabPayoutAccountSection 편집 폼에 BackHandler(enabled=registered) 추가(상세 BackHandler보다 안쪽=우선). 은행 드롭다운 열려있으면 먼저 닫고, 계좌/은행/예금주 바뀌었으면 "바뀐 계좌를 저장할까요?" 다이얼로그(저장/저장 안 함), 안 바뀌었으면 editing=false 로 편집만 닫음.
 - 빌드/설치 OK. commit: 곧
+
+## 2026-06-21 06:30 · cowork
+안드로이드 핸드오프 3건 응답 (06-21 03:40·04:40·05:10)
+
+### 미션1 ✅ 접수서 재제출 — 서버 코드 변경 X (이미 OK)
+**검증 결과**: `/api/quote/issue` 가 **매번 새 토큰 + 새 row** INSERT. UPSERT 없음. 즉:
+- ① 새 토큰 = 항상 미제출 ✅
+- ② 같은 customerPhone 으로 여러 row 공존 ✅
+- ③ /api/quote/submissions 가 row 별로 다 내려옴 (ORDER BY issued_at_ms DESC) ✅
+
+→ 사장님이 본 "이미 제출" 페이지는 **앱이 옛 토큰 URL 재사용** 한 경우만 뜸 (그 토큰의 submitted_at_ms 가 박혀있어서).
+
+**안드로이드 측 액션**: 사장님이 "시공접수서 보내기" 누를 때마다 무조건 `/api/quote/issue` 호출 → 새 토큰 받음 → 그 URL SMS. 옛 토큰 캐싱 X.
+
+### 미션2 ✅ sinceMs 필터 — submitted_at_ms 도 OR 추가 (추가45)
+**fix**: `/api/quote/submissions` SQL where 절
+- 이전: `issued_at_ms > ?`
+- 새로: `(issued_at_ms > ? OR submitted_at_ms > ?)`
+
+→ 새로 발급된 미제출 폼 + 옛 발급 새 제출 둘 다 잡힘. 누락 0.
+
+### 미션3 ✅ 협업 완료 되돌리기 (추가44)
+**fix**: `/api/shared/progress` 에 "되돌리기" 분기
+- 현재 progress='completed' + 새 step='arrived' → **is_revert 모드**
+- 동작:
+  1. `shared_sites SET progress='arrived', account_bank=NULL, account_no=NULL, account_holder=NULL`
+  2. `paid_at_ms` 는 보존 (사장님 입금 표시 별도 액션)
+  3. `shared_owner_events` INSERT step='arrived' (A 폴링이 보고 완료 해제 인식)
+  4. **FCM 안 보냄** (사장님 요청: 불필요 재알림 X). 응답 JSON 에 `revert=true` 표식.
+- 그 외 정상 흐름 (departed/arrived/completed) 은 그대로.
+
+### 변경 파일
+- `server/main.py` — shared_progress 본문 (추가44) + quote_submissions SQL (추가45)
+
+### 사장님 한 줄 배포
+```bash
+cd ~/paperclip-company/workspaces/CallFollowCRM
+[ -f .git/index.lock ] && rm -f .git/index.lock
+git rebase --abort 2>/dev/null
+GIT_EDITOR=true git pull --rebase || (sed -i '' '/^<<<<<<< /d;/^=======$/d;/^>>>>>>> /d' docs/SYNC.md && git add docs/SYNC.md && GIT_EDITOR=true git rebase --continue)
+git add server/main.py
+git commit -m "fix(intake+협업): sinceMs 필터 OR submitted_at_ms + 완료 되돌리기"
+git push
+cp server/main.py ~/ringgo-server/
+launchctl kickstart -k gui/$(id -u)/com.detailline.ringgo-server
+```
+
+### 안드로이드 측 다음 액션
+1. **접수서 재제출**: 매번 새 토큰 발급 (옛 URL 재사용 X). 서버는 이미 OK.
+2. **완료 되돌리기 응답**: `/api/shared/progress` 응답 JSON 에 `revert: true` 옴 (is_revert 인 경우). 앱이 그걸로 "완료 해제됨" 토스트.
+
