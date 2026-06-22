@@ -148,7 +148,7 @@ fun OnboardingScreen(prefs: AppPreferences, onFinish: () -> Unit) {
                     selected = selectedTrades,
                     onBack = { step = 0 },
                     onNext = {
-                        prefs.ownerTrades = selectedTrades.toList().take(3)
+                        prefs.ownerTrades = selectedTrades.toList().take(1)  // 하나만(라디오) — 대표 업종 1개
                         step = 2
                     }
                 )
@@ -303,15 +303,15 @@ private fun TradeStep(
         ObDots(1)
         Text("어떤 시공을 하세요?", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.6).sp)
         Spacer(Modifier.height(8.dp))
-        Text("하시는 걸 모두 골라주세요. 2~3개도 괜찮아요 (예: 줄눈 + 실리콘).", fontSize = 14.sp, color = TossTextSecondary, lineHeight = 21.sp)
+        Text("하시는 걸 하나만 골라주세요.", fontSize = 14.sp, color = TossTextSecondary, lineHeight = 21.sp)
         Spacer(Modifier.height(16.dp))
         // 2열 그리드
         TRADES.chunked(2).forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                 row.forEach { t ->
-                    // 테스터 빌드: 줄눈만 선택 가능, 나머지는 회색·비활성. (2026-06-14 사장님)
-                    TradeCell(t, selected.contains(t), enabled = t == "줄눈", modifier = Modifier.weight(1f)) {
-                        if (selected.contains(t)) selected.remove(t) else selected.add(t)
+                    // 테스터 빌드: 줄눈·에어컨만 선택 가능, 나머지 회색·비활성. 하나만 선택(라디오). (2026-06-22 사장님)
+                    TradeCell(t, selected.contains(t), enabled = t == "줄눈" || t == "에어컨 설치·청소", modifier = Modifier.weight(1f)) {
+                        if (selected.contains(t)) selected.remove(t) else { selected.clear(); selected.add(t) }
                     }
                 }
                 if (row.size == 1) Spacer(Modifier.weight(1f))
@@ -356,7 +356,7 @@ private fun TradeStep(
             )
         }
         Spacer(Modifier.height(16.dp))
-        ObCta(if (selected.isEmpty()) "다음" else "다음 (${selected.size}개)", enabled = selected.isNotEmpty(), onClick = onNext)
+        ObCta("다음", enabled = selected.isNotEmpty(), onClick = onNext)
         Spacer(Modifier.height(12.dp))
     }
 }

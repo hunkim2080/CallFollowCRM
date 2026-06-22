@@ -51,12 +51,12 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 
 private val TRADES = listOf(
     "줄눈", "실리콘·코킹", "도배", "장판·마루", "타일", "욕실리모델링",
-    "페인트·도색", "필름", "방충망", "중문·샷시", "에어컨", "입주청소",
+    "페인트·도색", "필름", "방충망", "중문·샷시", "에어컨 설치·청소", "입주청소",
     "누수·방수", "도어", "조명·전기"
 )
 
 /**
- * 내 업종 선택 (2026-06-01) — 최대 3개, 첫 번째 = 대표.
+ * 내 업종 선택 (2026-06-01) — 하나만(라디오). (2026-06-22 사장님: 1개만)
  *   업종이 AI지식·가격표·시나리오를 바꿈(해자). prefs.ownerTrades 저장.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -70,8 +70,9 @@ fun TradeSelectScreen(
     var customText by remember { mutableStateOf("") }
 
     fun toggle(t: String) {
+        // 하나만 선택(라디오) — 다른 걸 누르면 교체. (2026-06-22 사장님)
         if (selected.contains(t)) selected.remove(t)
-        else if (selected.size < 3) selected.add(t)
+        else { selected.clear(); selected.add(t) }
     }
 
     Scaffold(
@@ -90,15 +91,13 @@ fun TradeSelectScreen(
             Modifier.padding(inner).fillMaxSize().imePadding().verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            Text("최대 3개까지 고를 수 있어요. 첫 번째가 대표 업종이에요.",
+            Text("하시는 시공을 하나만 골라주세요.",
                 style = MaterialTheme.typography.bodyMedium, color = TossTextSecondary)
-            Spacer(Modifier.height(4.dp))
-            Text("선택 ${selected.size}/3", style = MaterialTheme.typography.labelMedium, color = TossTextTertiary)
             Spacer(Modifier.height(14.dp))
 
             FlowRow(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
                 TRADES.forEach { t ->
-                    val enabled = t == "줄눈"   // 테스터 빌드: 줄눈만 활성, 나머지 회색·비활성 (2026-06-14 사장님)
+                    val enabled = t == "줄눈" || t == "에어컨 설치·청소"   // 테스터 빌드: 줄눈·에어컨만 활성 (2026-06-22 사장님)
                     val isSel = selected.contains(t)
                     val isPrimary = selected.firstOrNull() == t
                     Box(

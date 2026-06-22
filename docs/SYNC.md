@@ -5613,4 +5613,16 @@ S23U(C폰) 실기기 디버깅 중 발견·수정. release 665 배포(사이트 
 - BusinessInfoScreen 저장 Box 에 `navigationBarsPadding()` 추가. (Scaffold 화면들은 기본 systemBars inset 라 무관)
 - 같은 오버레이 패턴 후보(추가 점검 예정): ScheduleAddScreen / NotebookScreen / SettlementScreen / TeamScreen / 가격표 등 — 하단 CTA 있으면 동일 적용 필요.
 - 배너 fix(665) 실기기 확인: C폰 667 설치 후 홈 "새 버전" 배너 사라짐(폴백 여유 2시간이 빌드→업로드 시차 흡수).
-- commit: (이 줄 다음 commit)
+- commit: 7c7402c
+
+## 2026-06-23 00:10 · android — 온보딩/설정 업종 선택: 하나만(라디오) + 에어컨 설치·청소 활성화 (release 668)
+사장님: "앱 초반 어떤 시공 고르는 거 — 1개만 선택되게 + 에어컨 설치 청소도 활성화."
+- **OnboardingScreen.TradeStep** + **TradeSelectScreen(설정 '내 업종')** 둘 다: 다중선택 → **단일 선택(라디오, 다른 거 누르면 교체)**. 활성 업종 = `줄눈` + `에어컨 설치·청소` 2개(나머지 회색 유지). 두 화면 라벨 통일(설정쪽 "에어컨"→"에어컨 설치·청소").
+- ownerTrades 는 1개만 저장(take(1)). 모든 소비처가 `.firstOrNull()` 이라 안전.
+- 본인(이미 온보딩 완료)은 더보기>내 업종 에서 변경 가능. 온보딩 화면은 새 설치(데이터 초기화) 때만 노출.
+- commit: (다음 커밋)
+
+### 🙏 다음 액션 (cowork — 서버): "에어컨 설치·청소" 업종 AI 지원 확인
+앱이 이제 `ownerTrade="에어컨 설치·청소"` 를 서버로 보낼 수 있음(prepare-reply / suggestions 의 ownerTrade 필드, ServerSuggestionRepository).
+- 서버가 이 업종의 **AI 역할/시나리오/지식/가격표 맥락**을 갖고 있는지 확인 부탁. 줄눈 전용이면 에어컨 사장님이 받는 추천 답변 품질↓.
+- 없으면 줄눈처럼 에어컨 설치·청소용 프롬프트/시나리오(7시나리오×3intent) 추가 필요.
