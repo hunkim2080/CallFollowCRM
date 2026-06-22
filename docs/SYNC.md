@@ -5586,3 +5586,11 @@ launchctl kickstart -k gui/$(id -u)/com.detailline.ringgo-server
 - 이동환 (옛 빌드, 010-4726-2496) = 다음 번 사장님이 본인 phone 으로 폴링·접수서 사용 시 last_seen 갱신
 - 사장님 본인 phone (010-8005-2080) = 같은 흐름
 
+## 2026-06-22 22:15 · android — 서버 연결 점 UX(가짜 빨강 제거) + 릴리스 662 배포
+상단 'AI' 알약 점이 앱 켜자마자 노랑(확인중) 또는 콜드스타트 첫 health 실패 시 빨강 → "서버 안 됨" 오인 보고 多.
+- **AiBadge**(HomeScreen): 확인중 색 노랑(TossWarning)→옅은 회색(TossTextTertiary). (설정 ServerStatusCard 는 이미 회색이라 그대로)
+- **ServerHealthMonitor**: 빨강(_alive=false)은 **연속 2회 실패 확정** 시만. 1회 실패면 직전 상태(첫 켜짐=회색/직전=초록) 유지 + 2초 뒤 빨리 재확인. 성공=즉시 초록. → 콜드스타트 가짜 빨강 차단.
+- 앱 전용 변경(서버 영향 X). `/health`(=warmup) endpoint 그대로 사용. cowork 작업 불필요.
+- release 662 빌드(APK+AAB 한 번에·버전 1회만 +1). B폰 0.2.662 설치. 사이트 배포: served sha256=로컬=8af84052f563afc10c6d4420dfd10771d6154593bfa5fdff9edbef2fa58750ea, size=21307504 byte 동일.
+- Play 업로드용 .aab 도 **662(이 수정 포함)** 새로 생성 → app/build/outputs/bundle/release/app-release.aab (직전 661 .aab 대체).
+- commit: 7a1a682
