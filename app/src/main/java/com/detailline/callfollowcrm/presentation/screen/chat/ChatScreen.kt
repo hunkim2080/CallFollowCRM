@@ -40,7 +40,9 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.union
 import com.detailline.callfollowcrm.presentation.util.bottomBarClearance
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -472,10 +474,11 @@ fun ChatScreen(
 
     Scaffold(
         containerColor = TossGrayBg,
-        // ChatScreen 의 contentWindowInsets 에 ime 포함 → 키보드 뜨면 inner padding 이 자동
-        // 늘어남 → composer 가 키보드 위. systemBars 와 union/add 가 받는 type 인식 못해서
-        // ime 단독으로만 박음 (nav bar 영역과 겹쳐도 nav bar 가 작아서 시각 손해 미세).
-        contentWindowInsets = WindowInsets.ime,
+        // contentWindowInsets = ime ∪ navigationBars:
+        //   키보드 뜨면 ime 만큼(composer 가 키보드 위), 키보드 내려가면 navbar 만큼 하단 여백 확보.
+        //   예전엔 ime 단독 → 갤S23U 등에서 제스처/3버튼 내비바(홈버튼)가 입력창을 가림.
+        //   (S9 는 액티비티창 navbar inset 0 라 영향 없음 → S9 유지, S23U 해결.) (2026-06-22 사장님)
+        contentWindowInsets = WindowInsets.ime.union(WindowInsets.navigationBars),
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             TopAppBar(

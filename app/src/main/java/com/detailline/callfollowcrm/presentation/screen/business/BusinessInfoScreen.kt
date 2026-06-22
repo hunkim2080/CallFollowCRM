@@ -68,7 +68,8 @@ fun BusinessInfoScreen(
     var owner by remember { mutableStateOf(prefs.bizOwner) }
     var bizNo by remember { mutableStateOf(prefs.bizNo) }
     var addr by remember { mutableStateOf(prefs.bizAddr) }
-    var phone by remember { mutableStateOf(prefs.bizPhone) }
+    // 숫자만 보관(표시는 PhoneHyphenTransformation 으로 하이픈). FormattedTextField 의 버퍼 재작성이 S23U IME 자리바뀜을 일으켜 교체. (2026-06-22)
+    var phone by remember { mutableStateOf(prefs.bizPhone.filter { it.isDigit() }) }
     var seal by remember { mutableStateOf(prefs.bizSeal) }
     var validDays by remember { mutableStateOf(prefs.bizQuoteValidDays.toString()) }
     var bank by remember { mutableStateOf(prefs.bizBank) }
@@ -81,7 +82,7 @@ fun BusinessInfoScreen(
     LaunchedEffect(Unit) {
         if (phone.isBlank()) {
             val sim = com.detailline.callfollowcrm.util.DevicePhoneNumber.readSimNumber(context)
-            if (sim.isNotBlank()) phone = formatPhoneInput(sim)
+            if (sim.isNotBlank()) phone = sim.filter { it.isDigit() }
         }
     }
     // "내 번호 불러오기" — 구글 전화번호 힌트(한 번 탭). 자동 읽기 실패 보강.
@@ -93,7 +94,7 @@ fun BusinessInfoScreen(
                 val num = com.google.android.gms.auth.api.identity.Identity
                     .getSignInClient(context).getPhoneNumberFromIntent(result.data)
                 val norm = com.detailline.callfollowcrm.util.DevicePhoneNumber.normalizeKorean(num)
-                if (norm.isNotBlank()) phone = formatPhoneInput(norm)
+                if (norm.isNotBlank()) phone = norm.filter { it.isDigit() }
             }
         }
     }
@@ -167,7 +168,15 @@ fun BusinessInfoScreen(
                 Field("대표자 이름", owner, placeholder = "예: 정민수") { owner = it }
                 FormattedField("사업자등록번호 (선택)", bizNo, ::formatBizNo, KeyboardType.Number, "123-45-67890") { bizNo = it }
                 Field("주소 (선택)", addr, placeholder = "예: 서울 강동구") { addr = it }
-                FormattedField("전화번호", phone, ::formatPhoneInput, KeyboardType.Phone, "010-0000-0000") { phone = it }
+                // 전화번호 — 숫자만 상태, 하이픈은 표시만(PhoneHyphenTransformation). 버퍼 재작성 없어 S23U 자리바뀜 X. (2026-06-22 사장님)
+                FieldLabel("전화번호")
+                SheetTextField(
+                    value = phone,
+                    onValueChange = { phone = it.filter { c -> c.isDigit() }.take(11) },
+                    placeholder = "010-0000-0000",
+                    keyboardType = KeyboardType.Phone,
+                    visualTransformation = com.detailline.callfollowcrm.presentation.component.PhoneHyphenTransformation
+                )
                 // 직접 입력 대신 한 번 탭으로 내 폰 번호 불러오기.
                 Text(
                     "📱 내 번호 불러오기",
@@ -225,7 +234,7 @@ fun BusinessInfoScreen(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(TossBlue)
                         .clickable {
                             prefs.bizName = name; prefs.bizOwner = owner; prefs.bizNo = bizNo
-                            prefs.bizAddr = addr; prefs.bizPhone = phone
+                            prefs.bizAddr = addr; prefs.bizPhone = formatPhoneInput(phone)
                             prefs.bizSeal = seal.ifBlank { name }
                             prefs.bizQuoteValidDays = validDays.toIntOrNull()?.coerceIn(1, 365) ?: 14
                             prefs.bizBank = bank; prefs.bizAccountNo = accountNo; prefs.bizAccountHolder = accountHolder
