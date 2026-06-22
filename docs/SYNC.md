@@ -5607,3 +5607,10 @@ S23U(C폰) 실기기 디버깅 중 발견·수정. release 665 배포(사이트 
 - 지금 응답: `{available, size_bytes, mtime_ms, mtime_iso, version:"v0.3-beta"}` — versionCode 가 없어 앱이 시각으로 추정 → 오탐.
 - 추출법(택1): `aapt dump badging apk/shigongmagne.apk | grep -o "versionCode='[0-9]*'"` 또는 apkutils/pyaxmlparser 로 파싱. 업로드 시 1회 계산해 캐시해도 됨.
 - 앱은 이미 `version_code` 오면 그걸로 정확 비교하게 배포됨(665+). 서버가 주기 시작하면 배너 오탐 즉시 사라짐.
+
+## 2026-06-22 23:50 · android — 사업자정보 저장버튼 네비바 가림 fix (release 667)
+안드16(C폰 S23U, SDK36) edge-to-edge 강제 → Scaffold 안 쓰는 자체 오버레이(BusinessInfoScreen)의 하단 저장 버튼이 홈버튼(네비바)에 깔림.
+- BusinessInfoScreen 저장 Box 에 `navigationBarsPadding()` 추가. (Scaffold 화면들은 기본 systemBars inset 라 무관)
+- 같은 오버레이 패턴 후보(추가 점검 예정): ScheduleAddScreen / NotebookScreen / SettlementScreen / TeamScreen / 가격표 등 — 하단 CTA 있으면 동일 적용 필요.
+- 배너 fix(665) 실기기 확인: C폰 667 설치 후 홈 "새 버전" 배너 사라짐(폴백 여유 2시간이 빌드→업로드 시차 흡수).
+- commit: (이 줄 다음 commit)

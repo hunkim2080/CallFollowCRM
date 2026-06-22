@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -229,7 +230,9 @@ fun BusinessInfoScreen(
             }
 
             // ── 하단 고정 저장 (프로토 sheet-cta) ──
-            Box(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp)) {
+            //   navigationBarsPadding: 안드로이드15+ edge-to-edge 강제(예: 갤S23U/안드16)에서 저장 버튼이
+            //   홈버튼(네비바)에 가리던 것 방지. S9 등 옛 기기는 navbar inset 0 라 영향 없음. (2026-06-22 사장님)
+            Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 14.dp)) {
                 Box(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(TossBlue)
                         .clickable {
