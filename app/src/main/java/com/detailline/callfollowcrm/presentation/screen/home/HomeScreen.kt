@@ -2583,14 +2583,15 @@ private fun ServerStatusDot(alive: Boolean?, onClick: () -> Unit) {
 /**
  * 프로토 .ai-badge (renderAiBadge) — 상담함 앱바 오른쪽 "{업종} AI" 알약.
  *   그라데이션 배경 + 초록 점 + ✨ + "{업종} AI" (예: "줄눈 AI"). 탭 = AI 설명/서버 상태.
- *   점 색으로 서버 연결 상태를 은근히 표시(정상=초록/끊김=빨강/확인중=노랑).
+ *   점 색으로 서버 연결 상태를 은근히 표시(정상=초록/끊김=빨강/확인중=회색).
+ *   (확인중 노랑→회색: 앱 켜자마자 노랑/주황 점을 '서버 안 됨'으로 오인하는 보고 多. 2026-06-22 사장님)
  */
 @Composable
 private fun AiBadge(trade: String, alive: Boolean?, onClick: () -> Unit) {
     val dot = when (alive) {
         true -> TossSuccess
         false -> TossError
-        null -> TossWarning
+        null -> TossTextTertiary  // 확인 중 = 옅은 회색. 빨강은 ServerHealthMonitor 가 연속 2회 실패해야만 띄움.
     }
     val label = "$trade AI"
     Row(

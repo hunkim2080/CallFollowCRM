@@ -24,19 +24,23 @@ class ServerHealthMonitor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val _alive = MutableStateFlow<Boolean?>(null)
-    /** null = 첫 체크 전 / true = 살아있음 / false = 죽음. */
+    /** null = 확인 중(회색) / true = 살아있음(초록) / false = 연결 끊김 확정(빨강). */
     val alive: StateFlow<Boolean?> = _alive.asStateFlow()
 
     private val _lastOkAtMs = MutableStateFlow<Long?>(null)
     val lastOkAtMs: StateFlow<Long?> = _lastOkAtMs.asStateFlow()
 
+    // 빨강(실패 확정)은 연속 2회 실패부터 — 앱 켜자마자 네트워크가 아직 안 올라와 한 번 삐끗한 걸
+    //   '서버 죽음'으로 오인시키지 않기 위함. 그 전엔 회색(확인 중)/직전 초록 유지. (2026-06-22 사장님 UX)
+    @Volatile private var consecutiveFails = 0
+
     fun start() {
         scope.launch {
             while (true) {
-                val ok = phaseOneApiRepository.warmup().isSuccess
-                _alive.value = ok
-                if (ok) _lastOkAtMs.value = System.currentTimeMillis()
-                delay(30_000)
+                applyResult(phaseOneApiRepository.warmup().isSuccess)
+                // 첫 실패(아직 빨강 아님) 직후엔 2초 뒤 빨리 재확인 — 켜자마자 네트워크 준비 전 삐끗을 흡수.
+                //   그 외(성공/빨강 확정)엔 30초 주기.
+                delay(if (consecutiveFails == 1) 2_000L else 30_000L)
             }
         }
     }
@@ -46,10 +50,22 @@ class ServerHealthMonitor(
      *   30초 polling 안 기다리고 즉시 ping.
      */
     fun refresh() {
-        scope.launch {
-            val ok = phaseOneApiRepository.warmup().isSuccess
-            _alive.value = ok
-            if (ok) _lastOkAtMs.value = System.currentTimeMillis()
+        scope.launch { applyResult(phaseOneApiRepository.warmup().isSuccess) }
+    }
+
+    /**
+     * health 결과 반영.
+     *   성공 = 즉시 초록 + 연속실패 리셋.
+     *   실패 = 연속 2회부터 빨강 확정. 1회뿐이면 직전 상태(첫 켜짐=회색 / 직전=초록) 유지 → 일시적 끊김으로 빨강 안 띄움.
+     */
+    private fun applyResult(ok: Boolean) {
+        if (ok) {
+            consecutiveFails = 0
+            _alive.value = true
+            _lastOkAtMs.value = System.currentTimeMillis()
+        } else {
+            consecutiveFails++
+            if (consecutiveFails >= 2) _alive.value = false
         }
     }
 }
