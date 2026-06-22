@@ -5527,3 +5527,62 @@ curl -s -X POST 'https://api.si0in.kr/infer-principle' \
 # 기대: {"principle": null}
 ```
 
+
+## 2026-06-21 18:00 · cowork
+추가47 — 옛 빌드 사용자도 last_seen 잡히게 (사장님 정정: "캐싱 문제 X, 옛 빌드는 새 호출 코드 자체가 없음")
+
+### 사장님 지적
+"옛 앱은 옛 설명서대로만 움직이는 로봇. /api/beta/check 매번 호출하라는 명령 자체가 옛 빌드엔 없음."
+→ 안드로이드 측 (06-21 의 onResume 마다 /api/beta/check) 은 새 빌드만 적용. **옛 빌드는 영영 안 잡힘**.
+
+### cowork 가 할 일 (사장님 정확한 지적)
+"옛 앱도 추천답변·접수서 같은 걸 부를 땐 자기 번호를 서버에 보냄. 그 호출들에서도 서버가 last_seen 갱신하면 옛 빌드도 잡힘."
+
+### fix
+`_touch_beta_whitelist(owner_phone)` 을 옛 빌드도 호출하는 endpoint 진입에 박음:
+1. `/api/quote/issue` (req.devicePhone = 사장님 phone)
+2. `/api/quote/submissions` (devicePhone) — 폴링용, 자주 호출
+3. `/api/team/members` (owner_phone) — 폴링
+4. `/api/team/events` (owner_phone) — 폴링
+5. `/api/team/photos` (owner_phone) — 폴링
+6. `/api/team/notes` (owner_phone) — 폴링
+7. `/api/push/register` (phone) — 앱 첫 진입 시 호출
+
+→ **옛 빌드 사용자도** 접수서 발급/조회·팀원 화면 폴링·푸시 토큰 등록 등 어떤 활동이든 하면 자동 `last_seen_ms` 갱신.
+
+### 이미 박혀있던 곳 (추가41/42)
+- /prepare-reply, /api/refine, /api/call-summary, /api/call-audio-summary (owner_phone Optional — 새 빌드만)
+- /api/site-photo/owner-upload (owner_phone)
+- /api/shared/invite (owner_phone)
+- /api/shared/by-me, /with-me, /owner-events (phone — 협업 화면 폴링 시)
+- _handle_summary_endpoint (card/conversation/next-action — ctx.owner_phone)
+
+### 이번 cycle 후 효과
+| 사용자 유형 | 잡힘 |
+|---|---|
+| 옛 빌드 + LLM 호출만 | ❌→✅ 답장추천 호출은 customer phone 이라 X. 그치만 quote/submissions 폴링 시 ✅ |
+| 옛 빌드 + 접수서 발급 | ❌→✅ |
+| 옛 빌드 + 팀 화면 | ❌→✅ |
+| 옛 빌드 + 협업 화면 | ✅ (이미) |
+| 새 빌드 (629+) | ✅ (이미) |
+
+### 변경 파일
+- `server/main.py` — 7 endpoint 진입에 `_touch_beta_whitelist(...)` 한 줄씩 추가 (추가47)
+
+### 사장님 한 줄 배포
+```bash
+cd ~/paperclip-company/workspaces/CallFollowCRM
+[ -f .git/index.lock ] && rm -f .git/index.lock
+git rebase --abort 2>/dev/null
+GIT_EDITOR=true git pull --rebase || (sed -i '' '/^<<<<<<< /d;/^=======$/d;/^>>>>>>> /d' docs/SYNC.md && git add docs/SYNC.md && GIT_EDITOR=true git rebase --continue)
+git add server/main.py
+git commit -m "feat(admin): _touch 광범위 확장 — 옛 빌드 사용자도 last_seen 잡힘 (추가47)"
+git push
+cp server/main.py ~/ringgo-server/
+launchctl kickstart -k gui/$(id -u)/com.detailline.ringgo-server
+```
+
+### 배포 후 효과
+- 이동환 (옛 빌드, 010-4726-2496) = 다음 번 사장님이 본인 phone 으로 폴링·접수서 사용 시 last_seen 갱신
+- 사장님 본인 phone (010-8005-2080) = 같은 흐름
+

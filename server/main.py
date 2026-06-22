@@ -10980,6 +10980,7 @@ async def push_register(req: PushRegisterRequest) -> dict:
         raise HTTPException(400, "phone 필수")
     if not token:
         raise HTTPException(400, "token 필수")
+    _touch_beta_whitelist(phone_digits)  # 추가47 (2026-06-21) — 옛 빌드 첫 진입에서도 잡힘
     platform = (req.platform or "android").strip()[:20]
     now = _now_ms()
     with db_conn() as con:
@@ -12231,6 +12232,8 @@ async def quote_issue(req: QuoteIssueRequest) -> dict:
     응답: {token, url, issuedAtMs, expiresAtMs, smsDraft}
     smsDraft = SMS 본문 prefill 용 한국어 문구 (자동발송 X, 사장님 ▶ 직접).
     """
+    # 추가47 (2026-06-21) — 옛 빌드도 last_seen 잡힘 (devicePhone = 사장님 phone)
+    _touch_beta_whitelist(req.devicePhone)
     if not (req.customerPhone or "").strip():
         raise HTTPException(400, "customerPhone 필수")
     if req.depositMode not in ("none", "ratio", "fixed"):
@@ -12418,6 +12421,8 @@ async def quote_submissions_list(
                     submittedAtMs|null, payload|null, total, workMonth, workDay, workDays,
                     biz, url}]}
     """
+    # 추가47 (2026-06-21) — 옛 빌드도 last_seen 잡힘. devicePhone = 사장님 본인 phone.
+    _touch_beta_whitelist(devicePhone)
     limit = max(1, min(limit, 200))
     where_parts: list[str] = []
     params: list = []
@@ -13044,6 +13049,7 @@ async def team_member_list(owner_phone: str, include_removed: bool = False) -> d
     """
     if not owner_phone:
         raise HTTPException(400, "owner_phone 필수")
+    _touch_beta_whitelist(owner_phone)  # 추가47 (2026-06-21) — 옛 빌드도 잡힘
     where = "WHERE owner_phone = ?"
     if not include_removed:
         where += " AND removed_at_ms IS NULL"
@@ -13151,6 +13157,7 @@ async def team_events_list(owner_phone: str, since_ms: int = 0, limit: int = 30)
     """
     if not owner_phone:
         raise HTTPException(400, "owner_phone 필수")
+    _touch_beta_whitelist(owner_phone)  # 추가47 (2026-06-21) — 옛 빌드도 잡힘
     limit = max(1, min(limit, 200))
     with db_conn() as con:
         rows = con.execute(
@@ -13482,6 +13489,7 @@ async def team_photos_list(
     """사장님 측에서 팀원이 올린 사진 조회 (프로토 openTeamPhotoView)."""
     if not owner_phone:
         raise HTTPException(400, "owner_phone 필수")
+    _touch_beta_whitelist(owner_phone)  # 추가47 (2026-06-21) — 옛 빌드도 잡힘
     limit = max(1, min(limit, 200))
     where = "WHERE owner_phone = ? AND uploaded_at_ms > ?"
     params: list = [owner_phone, since_ms]
@@ -13571,6 +13579,7 @@ async def team_notes_list(owner_phone: str, customer_phone: str, limit: int = 10
     """
     if not owner_phone or not customer_phone:
         raise HTTPException(400, "owner_phone, customer_phone 필수")
+    _touch_beta_whitelist(owner_phone)  # 추가47 (2026-06-21) — 옛 빌드도 잡힘
     digits = "".join(ch for ch in customer_phone if ch.isdigit())
     suffix_8 = digits[-8:] if len(digits) >= 8 else digits
     limit = max(1, min(limit, 200))
