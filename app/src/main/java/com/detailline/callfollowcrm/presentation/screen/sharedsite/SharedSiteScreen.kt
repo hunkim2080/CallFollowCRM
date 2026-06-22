@@ -124,6 +124,8 @@ fun SharedSiteScreen(
     val trashed by viewModel.trashed.collectAsState()
     // 협업 빼기 확인 대상 — 수락된(진행중) 건은 "그만두기"(상대 알림+양쪽 빠짐), 완료된 건 "정리"(내 목록만). null=닫힘. (2026-06-20 사장님)
     var confirmRemoveSite by remember { mutableStateOf<SharedSiteRepository.SharedSite?>(null) }
+    // 내가(A) 공유한 현장 내리기/삭제 확인 대상. null=닫힘. (2026-06-23 사장님)
+    var confirmCancelMine by remember { mutableStateOf<SharedSiteRepository.SharedSite?>(null) }
     // 일당 지급(입금) 계좌 — 화면에서 인라인 등록/수정. prefs 는 비반응형이라 화면 상태로 들고 즉시 반영.
     var navChooserAddr by remember { mutableStateOf<String?>(null) } // 길찾기 앱 선택 다이얼로그(주소)
     var payoutBank by remember { mutableStateOf(viewModel.accountBank) }
@@ -273,7 +275,8 @@ fun SharedSiteScreen(
                     MySharedArea(
                         sites = myActiveShared,
                         loading = loading,
-                        noBizPhone = viewModel.noBizPhone
+                        noBizPhone = viewModel.noBizPhone,
+                        onDelete = { confirmCancelMine = it }
                     )
                 } else {
                     // 맨 위: 응답 안 한 협업 요청 inbox — 푸시 놓쳐도 여기서 바로 수락/거절. (2026-06-18 사장님)
@@ -331,7 +334,10 @@ fun SharedSiteScreen(
                         else com.detailline.callfollowcrm.util.NavApps.launch(context, saved, addr)
                     },
                     onProgress = { step ->
-                        if (step == SharedSiteRepository.Progress.COMPLETED && payoutNo.isBlank()) {
+                        if (step == SharedSiteRepository.Progress.DEPARTED && isBeforeScheduledDay(selected.scheduledAtMs)) {
+                            // 미래 시공의 출발을 미리 못 누르게 — 그날만 누를 수 있음. (2026-06-23 사장님)
+                            android.widget.Toast.makeText(context, "아직 시공일이 아니에요. 출발은 시공 당일에 누를 수 있어요.", android.widget.Toast.LENGTH_LONG).show()
+                        } else if (step == SharedSiteRepository.Progress.COMPLETED && payoutNo.isBlank()) {
                             android.widget.Toast.makeText(context, accountPrompt, android.widget.Toast.LENGTH_LONG).show()
                         } else {
                             viewModel.updateProgress(selected, step)
@@ -417,6 +423,31 @@ fun SharedSiteScreen(
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = { confirmRemoveSite = null }) {
                     Text(if (done) "그대로 둘게요" else "계속 함께", color = TossTextSecondary)
+                }
+            }
+        )
+    }
+
+    // 내가(A) 공유한 현장 내리기/삭제 — 수락 전이면 취소, 수락 후면 상대에 해제 알림. (2026-06-23 사장님)
+    confirmCancelMine?.let { s ->
+        val pending = s.status == "pending"
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmCancelMine = null },
+            title = { Text(if (pending) "공유를 취소할까요?" else "이 현장을 내릴까요?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    if (pending) "아직 상대가 수락 전이에요. 조용히 취소돼요. (사진·기록은 남아요)"
+                    else "${s.partnerName ?: "함께하는"} 사장님께 '협업이 해제됐어요' 알림이 가요. 사진·메모·진행 기록은 그대로 남아요."
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    val site = s; confirmCancelMine = null; viewModel.cancelMyShared(site)
+                }) { Text(if (pending) "취소하기" else "내리기", color = Color(0xFFF0436A), fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { confirmCancelMine = null }) {
+                    Text("그대로 둘게요", color = TossTextSecondary)
                 }
             }
         )
@@ -697,7 +728,8 @@ private fun PendingInbox(
 private fun MySharedArea(
     sites: List<SharedSiteRepository.SharedSite>,
     loading: Boolean,
-    noBizPhone: Boolean
+    noBizPhone: Boolean,
+    onDelete: (SharedSiteRepository.SharedSite) -> Unit
 ) {
     when {
         noBizPhone -> EmptyCard(
@@ -715,14 +747,22 @@ private fun MySharedArea(
                 fontSize = 12.5.sp, color = TossTextTertiary, modifier = Modifier.padding(start = 2.dp, bottom = 8.dp)
             )
             sites.forEach { site ->
-                MySharedRow(site)
+                MySharedSwipeBox(onDelete = { onDelete(site) }) {
+                    MySharedRow(site)
+                }
                 Spacer(Modifier.height(9.dp))
             }
-            Text("함께하는 사장님 이름·진행상태는 상대가 수락하면 채워져요.",
+            Text("밀어서 '삭제'하면 내려요. 함께하는 사장님 이름·진행상태는 상대가 수락하면 채워져요.",
                 fontSize = 11.sp, color = TossTextTertiary, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
         }
     }
+}
+
+/** 내가 공유한 현장 우→좌 swipe → '삭제'(내리기). 드러나는 버튼 눌러야 동작. (2026-06-23 사장님) */
+@Composable
+private fun MySharedSwipeBox(onDelete: () -> Unit, content: @Composable () -> Unit) {
+    com.detailline.callfollowcrm.presentation.component.SwipeRevealBox(onAction = onDelete, label = "삭제") { content() }
 }
 
 /** 내가 공유한 현장 1건 — 현장명 + 누구랑 + 날짜 + 상태. (탭 상세는 후속) */
@@ -901,6 +941,7 @@ private fun SiteRow(site: SharedSiteRepository.SharedSite, onClick: () -> Unit) 
             }
             val sub = buildString {
                 append(site.ownerName)
+                append(" · "); append(dayLabel(site.scheduledAtMs))   // 날짜 없어 헷갈린다는 사장님 보고 → 날짜 추가 (2026-06-23)
                 site.workSummary?.let { append(" · "); append(it) }
                 timeText(site)?.let { append(" · "); append(it) }
             }
@@ -1102,8 +1143,13 @@ private fun DetailBody(
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(ProtoBlue)
                     .clickable {
-                        if (assigned) onProgress(SharedSiteRepository.Progress.DEPARTED)
-                        onNavigate(site.addr!!)
+                        if (assigned && isBeforeScheduledDay(site.scheduledAtMs)) {
+                            // 미래 시공은 '출발 알리고 길찾기'도 막음 — 그날만. (2026-06-23 사장님)
+                            android.widget.Toast.makeText(ctx, "아직 시공일이 아니에요. 출발은 시공 당일에 누를 수 있어요.", android.widget.Toast.LENGTH_LONG).show()
+                        } else {
+                            if (assigned) onProgress(SharedSiteRepository.Progress.DEPARTED)
+                            onNavigate(site.addr!!)
+                        }
                     }
                     .padding(vertical = 12.dp),
                 contentAlignment = Alignment.Center
@@ -1408,6 +1454,15 @@ private fun CollabPayoutAccountSection(
 }
 
 // 날짜 라벨: 오늘/내일/M.d
+/** 시공일이 '오늘보다 미래'면 true → 출발 버튼을 미리 못 누르게(그날만 누름). 날짜 없으면(0) 막지 않음. (2026-06-23 사장님) */
+private fun isBeforeScheduledDay(scheduledAtMs: Long): Boolean {
+    if (scheduledAtMs <= 0L) return false
+    val sched = Calendar.getInstance().apply { timeInMillis = scheduledAtMs }
+    val today = Calendar.getInstance()
+    fun ymd(c: Calendar) = c.get(Calendar.YEAR) * 10000 + c.get(Calendar.MONTH) * 100 + c.get(Calendar.DAY_OF_MONTH)
+    return ymd(sched) > ymd(today)
+}
+
 private fun dayLabel(ms: Long): String {
     if (ms <= 0L) return "날짜 미정"
     val cal = Calendar.getInstance().apply { timeInMillis = ms }

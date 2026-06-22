@@ -268,6 +268,8 @@ fun HomeScreen(
     var completeTarget by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.CustomerEntity?>(null) }
     // 협업 완료 알림 [입금했어요] → 일당 지급 금액 입력 대상. (일당 마켓 Phase 1)
     var payTarget by remember { mutableStateOf<com.detailline.callfollowcrm.ai.CollabEventCenter.CollabUpdate?>(null) }
+    // 대기 카드 꾹 누르면 뜨는 '스팸 등록 / 정리' 선택. null=닫힘. (2026-06-23 사장님)
+    var spamTarget by remember { mutableStateOf<HomeItem?>(null) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
 
     Scaffold(
@@ -813,7 +815,8 @@ fun HomeScreen(
                                                 onOpenChat(item.record.phoneNumber, item.customer?.id)
                                             }
                                         }
-                                    }
+                                    },
+                                    onLongPress = { spamTarget = item }
                                 )
                             }
                         )
@@ -958,6 +961,62 @@ fun HomeScreen(
                     },
                     dismissButton = {
                         androidx.compose.material3.TextButton(onClick = { payTarget = null }) {
+                            Text("취소", color = TossTextSecondary)
+                        }
+                    },
+                    containerColor = Color.White
+                )
+            }
+
+            // 대기 카드 꾹 누름 → 스팸 등록 / 대기목록 정리 선택. (2026-06-23 사장님: "정리도 있지만 스팸 등록도 있어야")
+            spamTarget?.let { target ->
+                val phone = target.record.phoneNumber
+                val nm = target.customer?.name?.takeIf { n -> n.isNotBlank() } ?: PhoneNumberFormatter.format(phone)
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { spamTarget = null },
+                    title = { Text(nm, fontWeight = FontWeight.Bold, color = TossTextPrimary) },
+                    text = {
+                        Column {
+                            Box(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFFFF1F3))
+                                    .clickable {
+                                        spamTarget = null
+                                        viewModel.markSpam(phone)
+                                        scope.launch {
+                                            val r = snackbarHostState.showSnackbar("스팸으로 등록했어요 — 앞으로 안 보여요", actionLabel = "되돌리기", duration = SnackbarDuration.Short)
+                                            if (r == SnackbarResult.ActionPerformed) viewModel.unmarkSpam(phone)
+                                        }
+                                    }
+                                    .padding(14.dp)
+                            ) {
+                                Column {
+                                    Text("🚫 스팸으로 등록", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossError)
+                                    Text("앞으로 상담함·신규에서 안 보여요", fontSize = 12.sp, color = TossTextTertiary)
+                                }
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            Box(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
+                                    .clickable {
+                                        spamTarget = null
+                                        viewModel.dismissUnconfirmed(phone)
+                                        scope.launch {
+                                            val r = snackbarHostState.showSnackbar("정리했어요 — 대기 목록에서만 빠져요(고객은 그대로)", actionLabel = "되돌리기", duration = SnackbarDuration.Short)
+                                            if (r == SnackbarResult.ActionPerformed) viewModel.undoDismissUnconfirmed(phone)
+                                        }
+                                    }
+                                    .padding(14.dp)
+                            ) {
+                                Column {
+                                    Text("🧹 대기목록에서 정리", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                                    Text("이 목록에서만 빼요 (고객·대화는 그대로)", fontSize = 12.sp, color = TossTextTertiary)
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {},
+                    dismissButton = {
+                        androidx.compose.material3.TextButton(onClick = { spamTarget = null }) {
                             Text("취소", color = TossTextSecondary)
                         }
                     },
@@ -2711,6 +2770,7 @@ private fun dialHome(context: android.content.Context, phone: String) {
  *   heat 점 + 이름(+신규칩) + 시간 + 전화 + preview(AI 요약) + [답장하기].
  *   프로토의 "AI 추천 답변 quick-send" 는 앱에선 채팅의 추천 시스템이 담당 → 여기선 preparing 변형([답장하기]→채팅).
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun WaitingCard(
     item: HomeItem,
@@ -2718,7 +2778,8 @@ private fun WaitingCard(
     suggestedReply: String?,
     onOpenChat: () -> Unit,
     onCall: () -> Unit,
-    onQuickSend: () -> Unit
+    onQuickSend: () -> Unit,
+    onLongPress: () -> Unit = {}
 ) {
     val isNew = item.isNewToday
     val heatColor = when {
@@ -2737,7 +2798,7 @@ private fun WaitingCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
             .background(Color.White)
-            .clickable { onOpenChat() }
+            .combinedClickable(onClick = { onOpenChat() }, onLongClick = { onLongPress() })
             .padding(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

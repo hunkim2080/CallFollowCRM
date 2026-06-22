@@ -5626,3 +5626,23 @@ S23U(C폰) 실기기 디버깅 중 발견·수정. release 665 배포(사이트 
 앱이 이제 `ownerTrade="에어컨 설치·청소"` 를 서버로 보낼 수 있음(prepare-reply / suggestions 의 ownerTrade 필드, ServerSuggestionRepository).
 - 서버가 이 업종의 **AI 역할/시나리오/지식/가격표 맥락**을 갖고 있는지 확인 부탁. 줄눈 전용이면 에어컨 사장님이 받는 추천 답변 품질↓.
 - 없으면 줄눈처럼 에어컨 설치·청소용 프롬프트/시나리오(7시나리오×3intent) 추가 필요.
+
+## 2026-06-23 04:10 · android — 사장님 실기기 버그/요청 9건 일괄 fix (release 669)
+C폰(S23U)·A폰(S9) 실기기 보고 일괄 처리. release 669 사이트 배포 검증: served sha256=로컬=278739412bb837f1fdc12367cc188864234b72abbde663dfd566ad1962b16db7, size=21320408.
+1. **신규 고객·날짜별 카드 디자인 깨짐**: 카드 간격 9dp 가 SwipeRevealBox '안'이라 드러나는 버튼(파랑)이 카드 아래 여백으로 비침 → 간격을 박스 '밖'(modifier)으로. (NewLeadsScreen)
+2. **일정 협업 현장 빨간 테두리 삐져나옴**: CollabSwipeBox(SwipeRevealBox 14dp) ↔ 안의 TossCard(16dp) 모서리 반경 불일치 → 빨강 버튼이 모서리로 비침. shape=16dp 일치. (ScheduleScreen)
+3. **공유받은 현장 날짜 없음**: SiteRow 부제에 dayLabel(날짜) 추가(상호 · 날짜 · 시공 · 시간). (SharedSiteScreen)
+4. **내가 공유한 현장 삭제**: MySharedRow 밀어서 '삭제' → 확인 다이얼로그 → `endCollab(asOwner=true)`. 수락 전=조용히 취소, 수락 후=상대에 해제 알림+기록 보존. `cancelMyShared` VM 추가. (SharedSiteScreen/VM)
+5. **미래 시공 출발 미리 못 누름**: `isBeforeScheduledDay` 가드 — 시공일이 오늘보다 미래면 '출발'/'출발+길찾기' 막고 "시공 당일에 누를 수 있어요" 토스트. (SharedSiteScreen)
+6. **고객정보 메모 포커스**: customer 흐름이 memoInput 을 매번 덮어쓰던 LaunchedEffect 제거(60초 폴/재방출 때 입력·커서 흔들림 방지) + 메모 라벨 줄 탭→메모 포커스. (CustomerDetailScreen)
+7. **문자 사진 다운로드**: 채팅 풀스크린 사진 뷰어 좌상단 ⬇ → 갤러리(사진/RING-GO) 저장(MediaStore). (ChatScreen)
+8. **상담함 스팸 등록**: 대기 카드 꾹 누름 → [🚫 스팸으로 등록 / 🧹 대기목록 정리] 선택(둘 다 스낵바 되돌리기). 기존 '밀어서 정리'는 유지. (HomeScreen, `markSpam`)
+9. **완료 후 계좌 늦게 옴**: owner-events 60초 폴링이라 최대 60초 지연. 앱측 = MainActivity.onResume 에 즉시 1회 collab poll 추가(앱 열면 바로 받음). **진짜 즉시는 서버 FCM 푸시 필요(아래 cowork 액션)**.
+- 앱 영향만(2~8). 서버 변경 불필요. #9 만 cowork 필요.
+- commit: (다음 커밋)
+
+### 🙏 다음 액션 (cowork — 서버): 협업 '완료' 시 owner 에게 FCM 즉시 푸시
+사장님 보고: B가 '완료'를 누르면 A(주인) 본폰에 '완료+계좌'가 **늦게(최대 60초)** 뜬다. 원인 = A 앱이 `/api/shared/owner-events` 를 60초 폴링이라서.
+- 앱엔 이미 FCM 수신기(`RingGoFcmService`) + 토큰 등록(`pushRegisterRepository.register`) 있음.
+- 요청: `/api/shared/progress` 가 step=`completed`(가능하면 departed/arrived 도) 저장될 때 **owner_phone 으로 FCM data push 1발** → 앱이 받으면 즉시 owner-events 1회 폴(또는 바로 알림). 60초 대기 없이 즉시 '완료+계좌'.
+- (병행 대기) `/api/download/version` 에 `version_code`(int) 추가 요청도 아직 미반영 — 새버전 배너 오탐 방지용(앱은 665+ 부터 받을 준비됨).

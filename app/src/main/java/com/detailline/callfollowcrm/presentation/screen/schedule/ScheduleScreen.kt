@@ -485,9 +485,11 @@ private fun CollabDayCard(
 @Composable
 private fun CollabSwipeBox(onDelete: () -> Unit, content: @Composable () -> Unit) {
     // 밀면 바로가 아니라 → 드러나는 '삭제' 버튼을 눌러야 동작(2026-06-21 사장님). SwipeRevealBox 로 통일.
+    // shape=16dp: 안에 든 TossCard(라운드 16dp)와 모서리를 맞춰야 빨간 버튼이 모서리로 삐져나오지 않음. (2026-06-23 사장님)
     com.detailline.callfollowcrm.presentation.component.SwipeRevealBox(
         onAction = onDelete,
-        label = "삭제"
+        label = "삭제",
+        shape = RoundedCornerShape(16.dp)
     ) { content() }
 }
 

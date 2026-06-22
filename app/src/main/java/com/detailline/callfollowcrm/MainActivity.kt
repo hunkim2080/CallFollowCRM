@@ -96,6 +96,11 @@ class MainActivity : ComponentActivity() {
         val phone = container.preferences.bizPhone
         if (phone.filter { it.isDigit() }.length >= 9) {
             lifecycleScope.launch { runCatching { container.betaCheckRepository.check(phone) } }
+            // 앱이 앞으로 올 때 협업 진행(완료+계좌) 즉시 1회 폴 — 60초 주기 안 기다리고 바로 받기. (2026-06-23 사장님: 완료 후 계좌 늦게 옴)
+            lifecycleScope.launch {
+                runCatching { container.collabEventCenter.poll(applicationContext) }
+                runCatching { container.collabEventCenter.pollInvites(applicationContext) }
+            }
         }
     }
 

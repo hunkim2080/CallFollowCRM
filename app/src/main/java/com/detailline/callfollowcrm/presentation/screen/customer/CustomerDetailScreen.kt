@@ -181,11 +181,8 @@ fun CustomerDetailScreen(
         }
     }
 
-    LaunchedEffect(customer?.id) {
-        customer?.let {
-            memoInput = it.memo
-        }
-    }
+    // memoInput 초기화는 위 remember(customer?.id) 가 담당. customer 흐름으로 매번 덮어쓰면
+    //   다른 필드 갱신·60초 폴링으로 customer 가 재방출될 때 입력/커서/포커스가 흔들릴 수 있어 제거. (2026-06-23 사장님)
 
     // memo auto-save — 사용자가 타이핑 멈춘 뒤 400ms 후 저장. 자동 debounce 패턴.
     // memoInput 이 바뀔 때마다 이전 effect 가 cancel 되므로 마지막 변경만 저장됨.
@@ -521,9 +518,14 @@ fun CustomerDetailScreen(
 
             // 메모 카드 — 프로토 순서: 대화요약 → 메모 → 일정 · 정산 (2026-06-03 프로토대로 이동).
             //   라벨 = 프로토 cd-label "📝 메모"(이모지+12sp w800 t3) — 형제 카드와 통일(2026-06-04).
+            val memoFocus = remember { FocusRequester() }
             TossCard {
                 Column {
-                    androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    // 라벨 줄을 탭해도 메모에 바로 커서가 가게 — '타이핑하려고 탭했는데 포커스 안 잡힘' 보고. (2026-06-23 사장님)
+                    androidx.compose.foundation.layout.Row(
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().clickable { runCatching { memoFocus.requestFocus() } }
+                    ) {
                         Text("📝", fontSize = 13.sp)
                         Spacer(Modifier.width(6.dp))
                         Text("메모", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
@@ -542,7 +544,7 @@ fun CustomerDetailScreen(
                         value = memoInput,
                         onValueChange = { memoInput = it },
                         placeholder = { Text("현관 비번·주의사항·고객 특징 등을 메모해두세요", color = TossTextTertiary) },
-                        modifier = Modifier.fillMaxWidth().height(140.dp),
+                        modifier = Modifier.fillMaxWidth().height(140.dp).focusRequester(memoFocus),
                         colors = tossFieldColors()
                     )
                 }

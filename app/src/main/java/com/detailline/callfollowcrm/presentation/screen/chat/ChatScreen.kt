@@ -66,6 +66,7 @@ import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Info
@@ -1150,6 +1151,24 @@ fun ChatScreen(
                     modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
                 ) {
                     Icon(Icons.Default.Close, "닫기", tint = Color.White)
+                }
+                // 사진 저장(다운로드) — 지금 보고 있는 사진을 휴대폰 갤러리에 저장. (2026-06-23 사장님)
+                IconButton(
+                    onClick = {
+                        imgs.getOrNull(pagerState.currentPage)?.let { uri ->
+                            scope.launch {
+                                val ok = saveImageToGallery(context, uri)
+                                android.widget.Toast.makeText(
+                                    context,
+                                    if (ok) "사진을 저장했어요 (갤러리)" else "저장하지 못했어요",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                    },
+                    modifier = Modifier.align(Alignment.TopStart).padding(16.dp)
+                ) {
+                    Icon(Icons.Default.FileDownload, "사진 저장", tint = Color.White)
                 }
                 if (imgs.size > 1) {
                     Text(
@@ -3214,6 +3233,36 @@ private class EstimateDraft(initialCalMonth: Long) {
         selectedQty.clear(); customItems.clear()
     }
 }
+
+/** 받은/보낸 문자 사진을 휴대폰 갤러리(사진/RING-GO)에 저장. 성공 true. (2026-06-23 사장님) */
+private suspend fun saveImageToGallery(context: android.content.Context, uri: android.net.Uri): Boolean =
+    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        runCatching {
+            val resolver = context.contentResolver
+            val values = android.content.ContentValues().apply {
+                put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, "RINGGO_" + System.currentTimeMillis() + ".jpg")
+                put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES + "/RING-GO")
+                    put(android.provider.MediaStore.Images.Media.IS_PENDING, 1)
+                }
+            }
+            val collection = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q)
+                android.provider.MediaStore.Images.Media.getContentUri(android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            else android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            val dest = resolver.insert(collection, values) ?: return@runCatching false
+            val ok = resolver.openOutputStream(dest)?.use { out ->
+                resolver.openInputStream(uri)?.use { input -> input.copyTo(out); true } ?: false
+            } ?: false
+            if (!ok) return@runCatching false
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                values.clear()
+                values.put(android.provider.MediaStore.Images.Media.IS_PENDING, 0)
+                resolver.update(dest, values, null, null)
+            }
+            true
+        }.getOrDefault(false)
+    }
 
 @Composable
 private fun EstimateBuilderDialog(

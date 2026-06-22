@@ -190,7 +190,8 @@ fun NewLeadsScreen(
                     }
                     items(group.leads, key = { it.phone }) { lead ->
                         // 밀어서 정리(우→좌) = 광고/스팸 마킹 → 목록·집계에서 제외. 되돌리기 스낵바. (2026-06-08 #3)
-                        LeadSwipeBox(onDismiss = {
+                        // 카드 간격(9dp)은 스와이프 박스 '밖'에 — 안에 두면 드러나는 버튼이 카드 아래로 비쳐 디자인이 깨짐. (2026-06-23 사장님)
+                        LeadSwipeBox(modifier = Modifier.padding(bottom = 9.dp), onDismiss = {
                             viewModel.dismissAsSpam(lead.phone)
                             scope.launch {
                                 val r = snackbarHostState.showSnackbar(
@@ -239,9 +240,10 @@ private fun CFilterChip(label: String, count: Int, on: Boolean, onClick: () -> U
 /** 신규 줄 우→좌 swipe → '광고/정리'. SpamSwipeBox 와 동일 패턴(confirmValueChange=false, 데이터가 제거). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun LeadSwipeBox(onDismiss: () -> Unit, content: @Composable () -> Unit) {
+private fun LeadSwipeBox(modifier: Modifier = Modifier, onDismiss: () -> Unit, content: @Composable () -> Unit) {
     // 밀면 바로가 아니라 → 드러나는 버튼을 눌러야 정리(2026-06-21 사장님). SwipeRevealBox 로 통일.
     com.detailline.callfollowcrm.presentation.component.SwipeRevealBox(
+        modifier = modifier,
         onAction = onDismiss,
         label = "광고/정리",
         containerColor = TossBlue
@@ -254,7 +256,6 @@ private fun NewLeadRow(lead: NewLeadUi, onClick: () -> Unit, onLongClick: () -> 
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(bottom = 9.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(Color.White)
             .border(1.dp, TossDivider, RoundedCornerShape(14.dp))

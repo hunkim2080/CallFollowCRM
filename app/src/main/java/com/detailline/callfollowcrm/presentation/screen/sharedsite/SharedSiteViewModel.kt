@@ -70,6 +70,18 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
+    /** A(주인)가 '내가 공유한 현장'을 내림/삭제 — 수락 전이면 조용히 취소, 수락 후면 상대에 '해제' 알림 + 기록 보존. (2026-06-23 사장님) */
+    fun cancelMyShared(site: SharedSiteRepository.SharedSite) {
+        _mySharedSites.value = _mySharedSites.value.filterNot { it.shareId == site.shareId }  // 즉시 목록에서 빠짐
+        viewModelScope.launch {
+            runCatching { repo.endCollab(site.shareId, myPhone, asOwner = true) }
+            container.collabEventCenter.markTrashed(site.shareId)  // 일정/홈 협업 카드에서도 즉시 정리
+            _toast.value = if (site.status == "pending") "공유를 취소했어요"
+                else "${site.partnerName ?: "상대"} 사장님께 해제 알림을 보냈어요"
+            load()
+        }
+    }
+
     /** true = 사업자 전화 미등록 → 협업 받을 수 없음(안내). */
     val noBizPhone: Boolean get() = myPhone.length < 9
 
