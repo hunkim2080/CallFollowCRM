@@ -5594,3 +5594,16 @@ launchctl kickstart -k gui/$(id -u)/com.detailline.ringgo-server
 - release 662 빌드(APK+AAB 한 번에·버전 1회만 +1). B폰 0.2.662 설치. 사이트 배포: served sha256=로컬=8af84052f563afc10c6d4420dfd10771d6154593bfa5fdff9edbef2fa58750ea, size=21307504 byte 동일.
 - Play 업로드용 .aab 도 **662(이 수정 포함)** 새로 생성 → app/build/outputs/bundle/release/app-release.aab (직전 661 .aab 대체).
 - commit: 7a1a682
+
+## 2026-06-22 23:35 · android — 폰 입력 자리바뀜·새버전 배너·S23U 네비바 가림 3종 fix (release 665)
+S23U(C폰) 실기기 디버깅 중 발견·수정. release 665 배포(사이트 served sha256=로컬=70812f43a6c7820a7eea8135274193cd690b110c94b27dfd60a1f6de107c8b7e).
+- **사업자정보 전화번호 자리바뀜**: FormattedTextField(키 입력마다 TextFieldValue 재작성)가 삼성 S23U IME 입력 조합을 깨 숫자가 순서대로 안 들어감 → 숫자만 상태 + `PhoneHyphenTransformation`(표시 전용)로 교체. **이 버그로 bizPhone 이 틀리게 저장돼 통화요약 owner_phone 403 까지 유발**했던 것. (BusinessInfoScreen)
+- **S23U 입력창 가림**: ChatScreen `contentWindowInsets = ime` → `ime ∪ navigationBars`. 갤S23U 홈버튼(제스처/3버튼 네비바)이 채팅 입력창 가리던 것 해결. (S9 은 액티비티창 navbar inset 0 라 영향 없음)
+- **새 버전 배너 오탐**: UpdateChecker 가 빌드시각 vs 서버 mtime 비교라, 빌드→업로드 시차(>여유 10분)면 *최신을 깔아도* 배너가 뜸. → **서버 version_code 우선 비교**로 바꿈(폴백은 시각비교 여유 10분→2시간).
+- commit: c1ee465
+
+### 🙏 다음 액션 (cowork — 서버)
+**`GET /api/download/version` 응답에 `version_code`(int, 현재 서빙 중인 shigongmagne.apk 의 versionCode) 추가 부탁.**
+- 지금 응답: `{available, size_bytes, mtime_ms, mtime_iso, version:"v0.3-beta"}` — versionCode 가 없어 앱이 시각으로 추정 → 오탐.
+- 추출법(택1): `aapt dump badging apk/shigongmagne.apk | grep -o "versionCode='[0-9]*'"` 또는 apkutils/pyaxmlparser 로 파싱. 업로드 시 1회 계산해 캐시해도 됨.
+- 앱은 이미 `version_code` 오면 그걸로 정확 비교하게 배포됨(665+). 서버가 주기 시작하면 배너 오탐 즉시 사라짐.
