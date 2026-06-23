@@ -5718,3 +5718,11 @@ C폰(S23U)·A폰(S9) 실기기 보고 일괄 처리. release 669 사이트 배�
 - 갭: "협업으로 일당사장 부르기"(SharedSiteRepository.dailyWage)는 서버로만 가고 CashFlowCalc 에 안 들어감 → 마이너스 안 잡힘. B(불린 사장) 폰 플러스도 미구현.
 - 계획(앱 위주, 서버는 이미 daily_wage echo 함): SettlementViewModel 이 SharedSite by-me(소유=지출)·with-me(불려감=수입) 의 dailyWage 를 CashFlowCalc 에 공급. '언제 계상?' 기본 = status=accepted + (progress=COMPLETED→확정 / 아니면 예정, scheduledAtMs 날짜).
 - **보류 이유**: 금전 로직이라 adb 로 숫자 검증이 안 됨 → 다음 집중 세션에 정확히 + 검증해서. cowork 확인 필요: with-me 응답이 daily_wage echo 하는지.
+
+## 2026-06-23 14:05 · android — 사용자 여정 이벤트 발사 시스템 (release 691)
+사장님 요청 + cowork 서버 완비(POST /api/event). ⚠️ 핸드오프 문서(docs/ANDROID_HANDOFF_user_journey_events.md)와 서버 /api/event 코드가 **repo 에 없음**(맥미니에만) → 라이브 /openapi.json 의 실제 스키마로 구현.
+- 스키마(검증됨, 서버 200 {ok:true,count:1}): POST /api/event {owner_phone, events:[{event_name, screen?, target?, extra?, timestamp_ms}]}.
+- JourneyEventRepository(ai/): track()=버퍼 적재, 30초 flush=배치. fail-open+재시도, 상한200, owner_phone(bizPhone) 없으면 보관.
+- 발사: 화면진입(AppNavHost currentBackStackEntryFlow→screen_view, 전 화면)·버튼(상담함1탭·채팅전송→button_click)·캡쳐(사진다운로드→capture)·LLM(추천준비→llm_use).
+- 배포: B폰 + si0in.kr release 691(0.2.691).
+- ❗cowork 액션: ① /api/event 서버 코드 repo 에 push(현재 main.py 엔 /api/team/event/* 만 있음) ② 핸드오프 문서 push ③ (검증용 테스트 이벤트 1건이 owner_phone=01000000000 로 들어감 — 무시/삭제).
