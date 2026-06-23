@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.CallMissed
 import androidx.compose.material.icons.filled.CallReceived
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
@@ -210,6 +211,7 @@ fun HomeScreen(
     val collabUpcoming by viewModel.collabUpcoming.collectAsState()
     val recurringDueCount by viewModel.recurringDueCount.collectAsState()
     val scheduleReminders by viewModel.scheduleReminders.collectAsState()
+    val balanceDues by viewModel.balanceDues.collectAsState()
     val estimateFollowupCount by viewModel.estimateFollowupCount.collectAsState()
     val estimateFollowupDismissed by viewModel.estimateFollowupDismissed.collectAsState()
     val recurringDueDismissed by viewModel.recurringDueDismissed.collectAsState()
@@ -756,6 +758,35 @@ fun HomeScreen(
                             }
                         )
                         }
+                    }
+                }
+
+                // 안 들어온 잔금(미수 1일+ 경과) — 협업 요청과 같은 InboxAlert 컴팩트 카드. 고객마다 1개. (2026-06-23 사장님)
+                //   탭 = 그 고객 채팅(잔금 요청 보내러) · 꾹 누름 = 받음 처리(되돌리기 가능).
+                balanceDues.forEach { due ->
+                    item(key = "balancedue-${due.customerId}") {
+                        InboxAlert(
+                            accent = Color(0xFFF0436A),
+                            accentTint = Color(0xFFFDE7EC),
+                            icon = Icons.Filled.AccountBalanceWallet,
+                            title = "아직 안 들어온 잔금",
+                            tagText = "${due.daysSince}일째",
+                            tagBg = Color(0xFFFDE7EC), tagFg = Color(0xFFF0436A),
+                            sub = (due.whereLabel?.let { "$it · " } ?: "") + "잔금 ${MoneyFormatter.won(due.outstandingWon)}",
+                            goLabel = "잔금 요청",
+                            onClick = { onOpenChat(due.phone, due.customerId) },
+                            onLongClick = {
+                                viewModel.markBalanceReceived(due.customerId)
+                                scope.launch {
+                                    val r = snackbarHostState.showSnackbar(
+                                        message = "${due.name} 잔금 받음 처리 ✓",
+                                        actionLabel = "되돌리기",
+                                        duration = SnackbarDuration.Short
+                                    )
+                                    if (r == SnackbarResult.ActionPerformed) viewModel.undoBalanceReceived(due.customerId)
+                                }
+                            }
+                        )
                     }
                 }
 

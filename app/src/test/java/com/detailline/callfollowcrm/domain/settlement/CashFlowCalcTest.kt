@@ -21,10 +21,14 @@ class CashFlowCalcTest {
         depositPaidAt: Long? = null,
         balance: Long? = null,
         balancePaidAt: Long? = null,
-        scheduled: Long? = null
+        scheduled: Long? = null,
+        name: String? = null,
+        address: String? = null
     ) = CustomerEntity(
         id = id,
         phoneNumber = "01012345678",
+        name = name,
+        address = address,
         depositAmount = deposit,
         depositPaidAt = depositPaidAt,
         balanceAmount = balance,
@@ -97,5 +101,37 @@ class CashFlowCalcTest {
         // 계약금(day1 확정) + 잔금(day2 확정). 예정 수입 없음(미수 0).
         assertEquals(2, items.size)
         assertEquals(0, items.count { !it.isDone })
+    }
+
+    // ── 이름 없는(번호로만 뜨는) 고객 단서 — 사장님 결정 2026-06-23 ──
+    @Test fun `이름 없는 고객은 번호 밑에 현장·시공일 단서`() {
+        val items = CashFlowCalc.buildItems(
+            listOf(customer(total = 1_000_000, deposit = 300_000, depositPaidAt = day1,
+                address = "반포 래미안 101동", scheduled = day2)),
+            emptyList()
+        )
+        val dep = items.first { it.tag == "계약금" }
+        assertEquals(true, dep.subtitle?.contains("반포 래미안 101동"))
+        assertEquals(true, dep.subtitle?.contains("시공"))
+    }
+
+    @Test fun `이름 있는 고객은 단서 없이 이름 그대로 - 프로토 유지`() {
+        val items = CashFlowCalc.buildItems(
+            listOf(customer(total = 1_000_000, deposit = 300_000, depositPaidAt = day1,
+                name = "반포 김사장", address = "반포 래미안 101동", scheduled = day2)),
+            emptyList()
+        )
+        val dep = items.first { it.tag == "계약금" }
+        assertEquals("반포 김사장", dep.title)
+        assertEquals(null, dep.subtitle)
+    }
+
+    @Test fun `주소·시공일 둘 다 없으면 단서 없음`() {
+        val items = CashFlowCalc.buildItems(
+            listOf(customer(total = 1_000_000, deposit = 300_000, depositPaidAt = day1)),
+            emptyList()
+        )
+        val dep = items.first { it.tag == "계약금" }
+        assertEquals(null, dep.subtitle)
     }
 }

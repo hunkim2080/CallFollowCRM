@@ -12,6 +12,7 @@ import com.detailline.callfollowcrm.data.repository.SmsRepository
 import com.detailline.callfollowcrm.domain.model.HandledStatus
 import com.detailline.callfollowcrm.domain.settlement.SettlementCalc
 import com.detailline.callfollowcrm.util.DateTimeUtils
+import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -459,6 +460,38 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /**
+     * 안 들어온 잔금(미수) — 받을 돈 남았고 시공 후 1일+ 지난 고객. 상담함에 고객마다 카드. (사장님 2026-06-23)
+     *   기준/경과일 = [SettlementCalc.overdueDays]. 오래 지난 것부터 위로. "받았어요" 하면 미수 0 → 사라짐.
+     */
+    val balanceDues: StateFlow<List<HomeBalanceDueUi>> = customers.map { list ->
+        list.filter { SettlementCalc.hasMoney(it) }
+            .mapNotNull { c ->
+                val days = SettlementCalc.overdueDays(c, todayStart) ?: return@mapNotNull null
+                val won = SettlementCalc.rowOf(c).outstanding
+                val realName = c.name?.takeIf { it.isNotBlank() }
+                // 카드엔 번호 대신 아주 짧은 현장("수원 대동아파트"). 없으면 이름, 그것도 없으면 잔금만. (사장님 2026-06-23)
+                val shortAddr = com.detailline.callfollowcrm.util.AddressExtractor.roughSite(c.address)
+                    .takeIf { it.isNotBlank() }
+                HomeBalanceDueUi(
+                    customerId = c.id,
+                    phone = c.phoneNumber,
+                    name = realName ?: PhoneNumberFormatter.format(c.phoneNumber),
+                    whereLabel = shortAddr ?: realName,
+                    outstandingWon = won,
+                    daysSince = days,
+                    body = balanceRequestBody(realName, won)
+                )
+            }
+            .sortedByDescending { it.daysSince }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** 잔금 요청 문자 본문 — 이름 + 미수액. (계좌는 prefs 미보유 → 금액만, 완료 흐름과 동일) */
+    private fun balanceRequestBody(name: String?, outstandingWon: Long): String {
+        val who = name ?: "고객"
+        return "${who}님 안녕하세요 😊 지난 시공 잔금 ${"%,d".format(outstandingWon)}원 입금 부탁드립니다. 감사합니다!"
+    }
+
     /** 오늘 5km 진입한 고객 ID — 지오펜스가 적립한 "arrival:{id}:{오늘자정}" 키에서 파싱. */
     private fun arrivalEnteredIdsToday(): Set<Long> {
         val suffix = ":$todayStart"
@@ -854,6 +887,25 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     /**
+     * 상담함 미수 카드 [받았어요] — 잔금 받음 처리. 완료일(workCompletedAt)은 안 건드림(이미 끝난 시공).
+     *   balanceAmount 비어 있으면 (총액-계약금)으로 채우고 balancePaidAt=now → 미수 0 → 카드 사라짐. (2026-06-23 사장님)
+     */
+    fun markBalanceReceived(customerId: Long) = viewModelScope.launch {
+        runCatching {
+            val now = System.currentTimeMillis()
+            val c = container.customerRepository.findById(customerId) ?: return@runCatching
+            val bal = c.balanceAmount ?: ((c.totalAmount ?: 0L) - (c.depositAmount ?: 0L)).coerceAtLeast(0L)
+            if (c.balanceAmount == null && bal > 0L) container.customerRepository.updateBalanceAmount(customerId, bal)
+            container.customerRepository.updateBalancePaidAt(customerId, now)
+        }
+    }
+
+    /** 미수 카드 받음 처리 되돌리기(스낵바 '되돌리기') — 잔금 다시 미수로. */
+    fun undoBalanceReceived(customerId: Long) = viewModelScope.launch {
+        runCatching { container.customerRepository.updateBalancePaidAt(customerId, null) }
+    }
+
+    /**
      * 미확인 카드 swipe → "광고/스팸" 으로 영구 마킹. 미확인 카테고리에서 제외.
      *   suffix 정규화는 ViewModel 안에서 — 호출자는 raw phone 만 넘김.
      *   Snackbar Undo 가 [unmarkSpam] 호출.
@@ -1190,6 +1242,19 @@ data class HomeReminderUi(
     val kindLabel: String,
     /** 간략 주소(지역+건물) — "이 번호가 내일 고객 맞나?" 눈으로 확인용. 주소 없으면 "". (2026-06-21 사장님) */
     val addressLabel: String
+)
+
+/** 상담함 "안 들어온 잔금" 미수 카드 모델 — 프로토 settle 푸시를 카드화. (2026-06-23 사장님) */
+data class HomeBalanceDueUi(
+    val customerId: Long,
+    val phone: String,
+    /** 스낵바용 — 이름 없으면 하이픈 번호. */
+    val name: String,
+    /** 카드 표시용 = 짧은 현장주소 ?: 이름. 둘 다 없으면 null → 카드엔 잔금만(번호 X). */
+    val whereLabel: String?,
+    val outstandingWon: Long,
+    val daysSince: Int,
+    val body: String
 )
 
 /**

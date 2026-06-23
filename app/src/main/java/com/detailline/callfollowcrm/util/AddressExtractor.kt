@@ -54,6 +54,35 @@ object AddressExtractor {
         return s
     }
 
+    /** 광역시·특별시 짧은 이름 — roughSite 가 "구"를 우선 쓸지 판단. */
+    private val METRO_CITIES = listOf("서울", "부산", "대구", "인천", "광주", "대전", "울산", "세종")
+    private val BUILDING_RX = Regex(
+        "[가-힣A-Za-z0-9]{1,15}(?:아파트|빌라|오피스텔|타워|팰리스|푸르지오|자이|힐스테이트|엠밸리|파크|캐슬|빌딩)"
+    )
+    private val SI_GUN_RX = Regex("([가-힣]{2,5})(?:시|군)(?=\\s|\\)|$)")
+    private val GU_RX = Regex("([가-힣]{1,4})구(?=\\s|\\)|$)")
+
+    /**
+     * 아주 짧은 현장 표시 — "시(또는 구) + 아파트/건물명"까지만. "대충 어디" 용. (2026-06-23 사장님)
+     *   예: "경기 수원시 장안구 대평로39번길 8 (꽃뫼노을마을 대동아파트)" → "수원 대동아파트".
+     *       "서울 강남구 역삼동 래미안아파트" → "강남 래미안아파트".
+     *   지역: 광역시면 구, 그 외엔 시/군(없으면 구). 건물: 아파트 등 단지명(마지막 매칭).
+     *   둘 다 못 뽑으면 [siteLabel] 로 fallback(빈 것보단 긴 거라도). 주소 없으면 "".
+     */
+    fun roughSite(raw: String?): String {
+        val s = tidyAddress(raw)
+        if (s.isBlank()) return ""
+        val bldg = BUILDING_RX.findAll(s).lastOrNull()?.value?.trim()
+        val metro = METRO_CITIES.firstOrNull { s.contains(it) }
+        val region = if (metro != null) {
+            GU_RX.find(s)?.groupValues?.get(1) ?: metro
+        } else {
+            SI_GUN_RX.find(s)?.groupValues?.get(1) ?: GU_RX.find(s)?.groupValues?.get(1)
+        }
+        val out = listOfNotNull(region, bldg).joinToString(" ").trim()
+        return out.ifBlank { siteLabel(raw) }
+    }
+
     /**
      * 광역시도 정확 매칭. 자주 쓰는 줄임형 + 전체형.
      */

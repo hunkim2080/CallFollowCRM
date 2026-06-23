@@ -123,4 +123,36 @@ class AddressExtractorTest {
         val r = AddressExtractor.extractFromMessages(listOf("네", "감사합니다", "내일 봬요"))
         assertNull(r)
     }
+
+    // ---------- roughSite: "대충 어디" 짧은 표시 (사장님 2026-06-23) ----------
+
+    @Test fun `풀주소 - 시 + 아파트명만 남김`() {
+        // 사장님 실제 케이스
+        assertEquals(
+            "수원 대동아파트",
+            AddressExtractor.roughSite("경기 수원시 장안구 대평로39번길 8 (꽃뫼노을마을 대동아파트)")
+        )
+    }
+
+    @Test fun `광역시는 구 + 아파트명`() {
+        assertEquals("강남 래미안아파트", AddressExtractor.roughSite("서울 강남구 역삼동 래미안아파트"))
+    }
+
+    @Test fun `광역시 아파트 없으면 구만`() {
+        assertEquals("송파", AddressExtractor.roughSite("서울특별시 송파구 잠실동"))
+    }
+
+    @Test fun `아파트명만 있으면 그것만`() {
+        assertEquals("대동아파트", AddressExtractor.roughSite("꽃뫼 대동아파트"))
+    }
+
+    @Test fun `주소 없으면 빈 문자열`() {
+        assertEquals("", AddressExtractor.roughSite(null))
+        assertEquals("", AddressExtractor.roughSite(""))
+    }
+
+    @Test fun `시구 건물 다 없으면 siteLabel 로 fallback`() {
+        // 동만 있는 케이스 — 빈 것보단 동네라도.
+        assertTrue(AddressExtractor.roughSite("천호동 어딘가").contains("천호동"))
+    }
 }

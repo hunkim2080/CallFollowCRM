@@ -51,6 +51,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.domain.settlement.CashDayAgg
@@ -396,6 +397,14 @@ private fun CashItemRow(
                     ) {
                         Text(item.tag, style = MaterialTheme.typography.labelSmall, color = TossTextSecondary)
                     }
+                }
+                // 번호로만 뜨는 고객 — 번호 밑에 "현장 주소 · 시공일" 단서 (사장님 결정 2026-06-23)
+                item.subtitle?.let { sub ->
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        sub, fontSize = 12.sp, color = TossTextSecondary,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
                 }
                 Spacer(Modifier.height(3.dp))
                 Text(

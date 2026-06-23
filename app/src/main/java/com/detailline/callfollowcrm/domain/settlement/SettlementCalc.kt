@@ -1,6 +1,7 @@
 package com.detailline.callfollowcrm.domain.settlement
 
 import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
+import com.detailline.callfollowcrm.util.DateTimeUtils
 
 /**
  * 한 고객의 정산(미수) 계산 결과. 화면/홈 카드/테스트가 공유하는 단일 계산.
@@ -63,5 +64,17 @@ object SettlementCalc {
             balancePaid = balancePaid,
             isPaidOff = isPaidOff
         )
+    }
+
+    /**
+     * 미수 경과일 — 받을 돈(미수)이 남아 있고 시공 후 N일 지났으면 N, 아니면 null.
+     *   기준일 = 완료일(workCompletedAt) 우선, 없으면 시공 예약일(scheduledWorkDate). 둘 다 없으면 null(날짜 모름).
+     *   N>=1 일 때만 값(=하루라도 지남) → "1일 경과한 미수만 상담함에" (사장님 결정 2026-06-23).
+     */
+    fun overdueDays(c: CustomerEntity, todayStartMs: Long): Int? {
+        if (rowOf(c).outstanding <= 0L) return null
+        val base = c.workCompletedAt ?: c.scheduledWorkDate ?: return null
+        val days = ((todayStartMs - DateTimeUtils.startOfDay(base)) / DateTimeUtils.DAY_MS).toInt()
+        return if (days >= 1) days else null
     }
 }

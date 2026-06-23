@@ -16,6 +16,12 @@ data class CashItem(
     val title: String,
     /** "계약금" / "잔금" / "받을 예정" / "직접". */
     val tag: String,
+    /**
+     * 제목(title) 밑에 붙는 식별 단서 — "현장 주소 · M/d 시공".
+     * 이름이 없어 title 이 전화번호로 떨어진 고객 카드에서만 채워진다(번호만으론 누군지 모름).
+     * 이름이 있으면 null = 프로토 그대로 이름+금액. (사장님 결정 2026-06-23)
+     */
+    val subtitle: String? = null,
     val refType: CashRefType,
     val refId: Long
 )
@@ -64,15 +70,20 @@ object CashFlowCalc {
         for (c in customers) {
             if (!SettlementCalc.hasMoney(c)) continue
             val row = SettlementCalc.rowOf(c)
-            val title = c.name?.takeIf { it.isNotBlank() }
-                ?: PhoneNumberFormatter.format(c.phoneNumber)
+            val hasName = c.name?.isNotBlank() == true
+            val title = if (hasName) c.name!!.trim()
+                else PhoneNumberFormatter.format(c.phoneNumber)
+            // 이름이 없어 번호로만 뜨면 "어딘지" 모름 → 현장 주소·시공일을 단서로 붙인다.
+            // 이름 있으면 null = 프로토 그대로(이름+금액). (사장님 결정 2026-06-23)
+            val hint = if (hasName) null else identifyHint(c.address, c.scheduledWorkDate)
 
             val depositPaidAt = c.depositPaidAt
             if (depositPaidAt != null && row.depositAmount > 0L) {
                 out += CashItem(
                     dayStartMs = DateTimeUtils.startOfDay(depositPaidAt),
                     amount = row.depositAmount, isIncome = true, isDone = true,
-                    title = title, tag = "계약금", refType = CashRefType.CUSTOMER, refId = c.id
+                    title = title, tag = "계약금", subtitle = hint,
+                    refType = CashRefType.CUSTOMER, refId = c.id
                 )
             }
             val balancePaidAt = c.balancePaidAt
@@ -80,7 +91,8 @@ object CashFlowCalc {
                 out += CashItem(
                     dayStartMs = DateTimeUtils.startOfDay(balancePaidAt),
                     amount = row.balanceAmount, isIncome = true, isDone = true,
-                    title = title, tag = "잔금", refType = CashRefType.CUSTOMER, refId = c.id
+                    title = title, tag = "잔금", subtitle = hint,
+                    refType = CashRefType.CUSTOMER, refId = c.id
                 )
             }
             val sched = c.scheduledWorkDate
@@ -88,7 +100,8 @@ object CashFlowCalc {
                 out += CashItem(
                     dayStartMs = DateTimeUtils.startOfDay(sched),
                     amount = row.outstanding, isIncome = true, isDone = false,
-                    title = title, tag = "받을 예정", refType = CashRefType.CUSTOMER, refId = c.id
+                    title = title, tag = "받을 예정", subtitle = hint,
+                    refType = CashRefType.CUSTOMER, refId = c.id
                 )
             }
         }
@@ -129,4 +142,16 @@ object CashFlowCalc {
     /** day(자정 ms) → 그 날 항목들. */
     fun byDay(items: List<CashItem>): Map<Long, List<CashItem>> =
         items.groupBy { it.dayStartMs }
+
+    /**
+     * 이름 없는(번호로만 뜨는) 고객을 알아볼 단서 — "현장 주소 · M/d 시공".
+     * 둘 다 없으면 null = 붙일 단서가 없어 번호만 남는다(주소·시공일 미등록 고객의 한계).
+     */
+    private fun identifyHint(address: String?, scheduledWorkDate: Long?): String? {
+        val parts = ArrayList<String>(2)
+        address?.trim()?.takeIf { it.isNotEmpty() }?.let { parts.add(it) }
+        scheduledWorkDate?.takeIf { it > 0L }
+            ?.let { parts.add(DateTimeUtils.formatDateOnly(it) + " 시공") }
+        return parts.joinToString("  ·  ").ifEmpty { null }
+    }
 }
