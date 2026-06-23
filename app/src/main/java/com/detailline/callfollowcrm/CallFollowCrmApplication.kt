@@ -34,6 +34,7 @@ class CallFollowCrmApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        installMainThreadHoverCrashGuard()  // 마우스 휠/hover 크래시(Compose) 안전망 — 다이얼로그·바텀시트 등 모든 윈도우 커버
         container = AppContainer(this)
         NotificationHelper.ensureChannels(this)
         // 막내 단계(변신) 복원 — 설정 안 열어도 앱 곳곳 막내가 현재 단계로 보이게. (2026-06-14)
@@ -278,6 +279,43 @@ class CallFollowCrmApplication : Application() {
         appScope.launch {
             runCatching { com.detailline.callfollowcrm.service.GeofenceManager.refresh(this@CallFollowCrmApplication) }
         }
+    }
+
+    /**
+     * 마우스 휠/hover 크래시 안전망 (2026-06-23 사장님 — 안드로이드 스튜디오 미러링에서 휠 굴리면 앱이 바로 꺼짐).
+     *   "java.lang.IllegalStateException: The ACTION_HOVER_EXIT event was not cleared" 는 마우스/미러링/DeX 의
+     *   hover 이벤트를 Compose 가 내부 Handler 로 '예약 실행'한 뒤 화면이 바뀌면 터지는 프레임워크 버그
+     *   (Compose 1.6.x). MainActivity.dispatchGenericMotionEvent 에서 hover 를 막지만, 다이얼로그·바텀시트는
+     *   '별도 윈도우'라 그 막이 안 닿고, 이미 예약된 runnable 은 막아도 늦게 터진다.
+     *   → 메인 스레드 루프를 감싸 *이 특정 hover 예외만* 삼키고(다른 예외는 그대로 던져 정상 크래시 유지) 앱을
+     *   계속 살린다. 터치 사용자(실제 고객)는 hover 자체가 없어 절대 안 걸린다.
+     */
+    private fun installMainThreadHoverCrashGuard() {
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            while (true) {
+                try {
+                    android.os.Looper.loop()
+                } catch (t: Throwable) {
+                    if (!isComposeHoverCrash(t)) throw t   // 우리가 모르는 진짜 크래시 → 그대로 던져 시스템 기본 처리
+                    android.util.Log.w("HoverCrashGuard", "Compose hover 예외 삼킴(무해) — 앱 유지", t)
+                    // 루프 재진입 → 앱 계속 살아있음.
+                }
+            }
+        }
+    }
+
+    /** 위 안전망이 삼킬 대상 = Compose 의 ACTION_HOVER_EXIT 버그뿐. 그 외 예외는 false 로 그대로 통과시켜 정상 크래시. */
+    private fun isComposeHoverCrash(t: Throwable): Boolean {
+        var e: Throwable? = t
+        while (e != null) {
+            if (e is IllegalStateException && e.message?.contains("HOVER_EXIT", ignoreCase = true) == true) return true
+            if (e.stackTrace.any {
+                    it.className.contains("AndroidComposeView") &&
+                        it.methodName.contains("HoverExit", ignoreCase = true)
+                }) return true
+            e = e.cause
+        }
+        return false
     }
 
     /** content://mms 변경 감시 debounce 용 잡. */
