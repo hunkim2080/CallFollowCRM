@@ -5708,3 +5708,13 @@ C폰(S23U)·A폰(S9) 실기기 보고 일괄 처리. release 669 사이트 배�
 - 배포: B폰 + si0in.kr release 687(0.2.687).
 - 앱 전용. 서버 변경 불필요.
 - commit: f28e4d8
+
+## 2026-06-23 13:40 · android — 최근 대화 밀어서 [스팸][사생활] (release 689)
+사장님: 최근 대화도 밀려야(스팸 섞일 수 있음). 각 줄 SwipeRevealTwoBox(흰배경·RectangleShape) [스팸][사생활]. 마킹=timeline spam 필터로 최근에서도 자동 사라짐(이미 있던 .filterNot{spam}). 정리는 대기전용이라 최근엔 제외. commit 9ae1328.
+
+## 2026-06-23 13:40 · android — (대기) 일당 현금흐름 ± 진단 + 계획
+사장님: 일당사장 부르면 내 폰 현금흐름 마이너스 / 일당사장 폰 플러스.
+- 발견: 일당(JobCrew, 수첩일당→일정 배정)은 이미 CashFlowCalc 에서 '일당' 지출(마이너스)로 잡힘. ✅
+- 갭: "협업으로 일당사장 부르기"(SharedSiteRepository.dailyWage)는 서버로만 가고 CashFlowCalc 에 안 들어감 → 마이너스 안 잡힘. B(불린 사장) 폰 플러스도 미구현.
+- 계획(앱 위주, 서버는 이미 daily_wage echo 함): SettlementViewModel 이 SharedSite by-me(소유=지출)·with-me(불려감=수입) 의 dailyWage 를 CashFlowCalc 에 공급. '언제 계상?' 기본 = status=accepted + (progress=COMPLETED→확정 / 아니면 예정, scheduledAtMs 날짜).
+- **보류 이유**: 금전 로직이라 adb 로 숫자 검증이 안 됨 → 다음 집중 세션에 정확히 + 검증해서. cowork 확인 필요: with-me 응답이 daily_wage echo 하는지.
