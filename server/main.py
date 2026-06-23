@@ -4981,6 +4981,7 @@ _BETA_WHITELIST_HTML = """<!doctype html>
 </div></div>
 
 <div class="wrap">
+  <a href="/admin" style="display:inline-block; font-size:13px; color:#3182F6; text-decoration:none; margin-bottom:8px;">← admin 홈</a>
   <h1>🧪 베타 화이트리스트</h1>
   <p class="sub">테스터 폰번호 관리 — 등록된 번호만 앱 첫 진입 가능</p>
   <div>
@@ -5585,6 +5586,7 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
 </div></div>
 
 <div class="wrap">
+  <a href="/admin" style="display:inline-block; font-size:13px; color:#3182F6; text-decoration:none; margin-bottom:6px;">← admin 홈</a>
   <div class="head">
     <div>
       <h1>📊 베타 종합 대시보드</h1>
