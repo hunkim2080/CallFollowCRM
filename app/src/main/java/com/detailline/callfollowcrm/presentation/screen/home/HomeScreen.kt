@@ -217,6 +217,7 @@ fun HomeScreen(
     val recurringDueDismissed by viewModel.recurringDueDismissed.collectAsState()
     val isInitialSmsLoading by viewModel.isInitialSmsLoading.collectAsState()
     val updateAvailable by viewModel.updateAvailable.collectAsState()
+    val latestVersionCode by viewModel.latestVersionCode.collectAsState()
 
     // 서버 상태 indicator — AppContainer 의 ServerHealthMonitor 를 직접 구독.
     // 30초마다 GET /health 호출 → 결과 반영. 사장님만 알아볼 작은 동그라미. tap = Toast 안내.
@@ -354,12 +355,19 @@ fun HomeScreen(
         ) {
             // 새 버전 배너 (2026-06-16 사장님) — 서버 mtime_ms > BUILD_TIMESTAMP 면 "받기"→브라우저 si0in.kr/install.
             if (updateAvailable) {
+                val currentVer = com.detailline.callfollowcrm.BuildConfig.VERSION_NAME
+                val latestVer = if (latestVersionCode > 0) "0.2.$latestVersionCode" else null
+                val bannerText = if (latestVer != null) {
+                    "$currentVer → $latestVer 업데이트 하세요!"
+                } else {
+                    "$currentVer → 최신 버전으로 업데이트 하세요!"
+                }
                 Row(
                     Modifier.fillMaxWidth().background(TossBlue).padding(horizontal = 16.dp, vertical = 11.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("✨ 새 버전이 나왔어요!", color = Color.White, fontWeight = FontWeight.Bold,
-                        fontSize = 13.5.sp, modifier = Modifier.weight(1f))
+                    Text(bannerText, color = Color.White, fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp, modifier = Modifier.weight(1f))
                     Box(
                         Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White)
                             .clickable {

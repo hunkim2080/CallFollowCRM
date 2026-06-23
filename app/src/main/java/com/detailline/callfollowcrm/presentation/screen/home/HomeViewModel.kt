@@ -1133,6 +1133,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     /** 새 버전 배너 — 하루 1회 체크 결과(서버 mtime_ms vs BUILD_TIMESTAMP). (2026-06-16) */
     private val _updateAvailable = MutableStateFlow(false)
     val updateAvailable: StateFlow<Boolean> = _updateAvailable
+    /** 서버가 알려준 최신 versionCode (0 = 모름). 배너에 "현재→최신" 표시용. */
+    private val _latestVersionCode = MutableStateFlow(0)
+    val latestVersionCode: StateFlow<Int> = _latestVersionCode
 
     /** 이미 fetch 시도한 suffix (중복 호출 방지). */
     private val fetchedReplySuffixes = java.util.Collections.synchronizedSet(HashSet<String>())
@@ -1167,9 +1170,12 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             val now = System.currentTimeMillis()
             if (now - prefs.lastUpdateCheckMs > 10L * 60 * 1000) {
                 prefs.lastUpdateCheckMs = now
-                prefs.updateAvailable = com.detailline.callfollowcrm.util.UpdateChecker.isNewerAvailable()
+                val info = com.detailline.callfollowcrm.util.UpdateChecker.checkUpdate()
+                prefs.updateAvailable = info.available
+                if (info.latestCode > 0) prefs.latestVersionCode = info.latestCode
             }
             _updateAvailable.value = prefs.updateAvailable
+            _latestVersionCode.value = prefs.latestVersionCode
         }
     }
 

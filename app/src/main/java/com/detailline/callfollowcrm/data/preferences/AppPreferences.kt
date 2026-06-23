@@ -116,6 +116,10 @@ class AppPreferences(context: Context) {
     var updateAvailable: Boolean
         get() = prefs.getBoolean("update_available", false)
         set(value) = prefs.edit().putBoolean("update_available", value).apply()
+    /** 마지막 체크에서 서버가 알려준 최신 versionCode (0 = 모름). */
+    var latestVersionCode: Int
+        get() = prefs.getInt("latest_version_code", 0)
+        set(value) = prefs.edit().putInt("latest_version_code", value).apply()
 
     /**
      * 후속 처리 알림 (두 번째 통화부터)의 빠른 액션 버튼 3개에 표시할 템플릿 ID.

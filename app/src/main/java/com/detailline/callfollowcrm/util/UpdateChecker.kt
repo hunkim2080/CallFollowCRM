@@ -28,19 +28,25 @@ object UpdateChecker {
         .readTimeout(8, TimeUnit.SECONDS)
         .build()
 
-    suspend fun isNewerAvailable(): Boolean = withContext(Dispatchers.IO) {
+    /** version_code 가 있으면 반환 (없으면 0). */
+    suspend fun checkUpdate(): UpdateInfo = withContext(Dispatchers.IO) {
         runCatching {
             val req = Request.Builder().url(URL).get().build()
             client.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) return@use false
+                if (!resp.isSuccessful) return@use UpdateInfo(false, 0)
                 val json = JSONObject(resp.body?.string().orEmpty())
-                // 1순위: 서버가 versionCode 를 주면 정확히 비교(시각 비교 오탐 제거).
                 val serverCode = json.optInt("version_code", 0)
-                if (serverCode > 0) return@use serverCode > BuildConfig.VERSION_CODE
-                // 폴백: 빌드시각 비교(서버가 아직 version_code 안 줄 때).
+                if (serverCode > 0) {
+                    return@use UpdateInfo(serverCode > BuildConfig.VERSION_CODE, serverCode)
+                }
                 val mtime = json.optLong("mtime_ms", 0L)
-                mtime > BuildConfig.BUILD_TIMESTAMP + MARGIN_MS
+                UpdateInfo(mtime > BuildConfig.BUILD_TIMESTAMP + MARGIN_MS, 0)
             }
-        }.getOrDefault(false)
+        }.getOrDefault(UpdateInfo(false, 0))
     }
+
+    /** 하위 호환 — Boolean 만 필요한 곳 (내부 폴백용). */
+    suspend fun isNewerAvailable(): Boolean = checkUpdate().available
+
+    data class UpdateInfo(val available: Boolean, val latestCode: Int)
 }
