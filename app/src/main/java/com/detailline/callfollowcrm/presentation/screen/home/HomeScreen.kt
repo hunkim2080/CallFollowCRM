@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallMade
 import androidx.compose.material.icons.filled.Check
@@ -781,6 +782,19 @@ fun HomeScreen(
                                 scope.launch {
                                     val r = snackbarHostState.showSnackbar(
                                         message = "스팸으로 등록했어요 — 앞으로 안 보여요",
+                                        actionLabel = "되돌리기",
+                                        duration = SnackbarDuration.Short
+                                    )
+                                    if (r == SnackbarResult.ActionPerformed) {
+                                        viewModel.unmarkSpam(item.record.phoneNumber)
+                                    }
+                                }
+                            },
+                            onMarkPersonal = {
+                                viewModel.markSpam(item.record.phoneNumber, item.customer?.name?.takeIf { it.isNotBlank() }, "personal")
+                                scope.launch {
+                                    val r = snackbarHostState.showSnackbar(
+                                        message = "사생활 번호로 옮겼어요 — 링고가 안 잡아요",
                                         actionLabel = "되돌리기",
                                         duration = SnackbarDuration.Short
                                     )
@@ -2469,20 +2483,29 @@ private fun statusColors(label: String): Pair<Color, Color> {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SpamSwipeBox(onMarkSpam: () -> Unit, onCleanup: () -> Unit, content: @Composable () -> Unit) {
-    // 밀면 [🚫 스팸][🧹 정리] 두 버튼이 같이 드러남(2026-06-23 사장님: "정리도 있지만 스팸도 보여야"). 버튼 눌러야 동작 = 실수 방지.
-    //   스팸=markSpam(상담함·신규에서 영구 숨김)·정리=dismissUnconfirmed(대기 목록에서만). 둘 다 Snackbar Undo.
-    //   undo 시 같은 LazyColumn key 라 카드가 자연 복귀(빈 칸 잔상 없음).
-    com.detailline.callfollowcrm.presentation.component.SwipeRevealTwoBox(
+private fun SpamSwipeBox(
+    onMarkSpam: () -> Unit,
+    onMarkPersonal: () -> Unit,
+    onCleanup: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    // 밀면 [🚫 스팸][👤 사생활][🧹 정리] 세 버튼(2026-06-23 사장님). 버튼 눌러야 동작 = 실수 방지.
+    //   스팸=광고/스팸 영구숨김 · 사생활=내 개인연락처 영구숨김(링고 제외) · 정리=대기목록에서만. 셋 다 Snackbar Undo.
+    //   스팸·사생활은 더보기 목록(kind별)에서 [해제]로 복구. undo 시 같은 LazyColumn key 라 카드 자연 복귀.
+    com.detailline.callfollowcrm.presentation.component.SwipeRevealThreeBox(
         onFirst = onMarkSpam,
-        onSecond = onCleanup,
+        onSecond = onMarkPersonal,
+        onThird = onCleanup,
         firstLabel = "스팸",
-        secondLabel = "정리",
+        secondLabel = "사생활",
+        thirdLabel = "정리",
         firstColor = TossError,
-        secondColor = TossBlue,
+        secondColor = Color(0xFF7C5CFC),
+        thirdColor = TossBlue,
         firstIcon = Icons.Filled.Block,
-        secondIcon = Icons.Filled.CleaningServices,
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp)   // WaitingCard(18dp)와 모서리 맞춤 — 파란 테두리 비침 fix. (2026-06-23 사장님)
+        secondIcon = Icons.Filled.Person,
+        thirdIcon = Icons.Filled.CleaningServices,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp)   // WaitingCard(18dp)와 모서리 맞춤 — 테두리 비침 fix.
     ) { content() }
 }
 

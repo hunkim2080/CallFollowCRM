@@ -18,14 +18,15 @@ class SpamPhoneRepository(private val dao: SpamPhoneDao) {
     /** '스팸 목록' 화면용 — 최근 등록순 전체 엔티티. (2026-06-23 사장님) */
     val all: Flow<List<SpamPhoneEntity>> = dao.observeAll()
 
-    suspend fun mark(suffix: String, phoneNumber: String = "", displayName: String? = null) {
+    suspend fun mark(suffix: String, phoneNumber: String = "", displayName: String? = null, kind: String = "spam") {
         if (suffix.isBlank()) return
         dao.insert(
             SpamPhoneEntity(
                 phoneSuffix = suffix,
                 markedAt = System.currentTimeMillis(),
                 phoneNumber = phoneNumber,
-                displayName = displayName
+                displayName = displayName,
+                kind = kind
             )
         )
     }

@@ -858,10 +858,10 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      *   suffix 정규화는 ViewModel 안에서 — 호출자는 raw phone 만 넘김.
      *   Snackbar Undo 가 [unmarkSpam] 호출.
      */
-    fun markSpam(phoneNumber: String, displayName: String? = null) {
+    fun markSpam(phoneNumber: String, displayName: String? = null, kind: String = "spam") {
         viewModelScope.launch(Dispatchers.IO) {
-            // 전체 번호+이름도 저장 → 더보기 '스팸 목록'에서 알아보고 복구(해제) 가능. (2026-06-23 사장님)
-            container.spamPhoneRepository.mark(phoneSuffix(phoneNumber), phoneNumber, displayName)
+            // 전체 번호+이름도 저장 → 더보기 '스팸/사생활 목록'에서 알아보고 복구(해제) 가능. kind=spam/personal. (2026-06-23 사장님)
+            container.spamPhoneRepository.mark(phoneSuffix(phoneNumber), phoneNumber, displayName, kind)
         }
     }
 

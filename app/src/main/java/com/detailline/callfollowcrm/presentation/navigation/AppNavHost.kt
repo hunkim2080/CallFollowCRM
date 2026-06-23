@@ -436,6 +436,7 @@ fun AppNavHost(
                 onOpenRecurring = { navController.navigate(Destinations.RECURRING) },
                 onOpenPrinciples = { navController.navigate(Destinations.PRINCIPLES) },
                 onOpenSpamList = { navController.navigate(Destinations.SPAM_LIST) },
+                onOpenPersonalList = { navController.navigate(Destinations.PERSONAL_LIST) },
                 onShowIntro = { navController.navigate(Destinations.ONBOARDING) }
             )
         }
@@ -461,10 +462,16 @@ fun AppNavHost(
             )
         }
 
-        // 더보기 → 스팸 차단 번호 목록(잘못 등록 시 복구). (2026-06-23 사장님)
+        // 더보기 → 스팸 차단 번호 / 사생활 번호 목록(잘못 등록 시 복구). (2026-06-23 사장님)
         composable(Destinations.SPAM_LIST) {
             com.detailline.callfollowcrm.presentation.screen.spam.SpamListScreen(
-                container = container,
+                container = container, kind = "spam",
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable(Destinations.PERSONAL_LIST) {
+            com.detailline.callfollowcrm.presentation.screen.spam.SpamListScreen(
+                container = container, kind = "personal",
                 onBack = { navController.popBackStack() }
             )
         }

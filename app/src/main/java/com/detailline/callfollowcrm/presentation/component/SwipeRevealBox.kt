@@ -245,3 +245,84 @@ private fun RevealActionButton(
         }
     }
 }
+
+/**
+ * SwipeRevealBox 의 "세 버튼" 버전 — 밀면 [첫][둘][셋] 세 개가 드러난다.
+ *   (2026-06-23 사장님 — 상담함 대기 카드: [스팸][사생활][정리]). 버튼 64dp 라 갤S9 에서도 들어감.
+ */
+@Composable
+fun SwipeRevealThreeBox(
+    onFirst: () -> Unit,
+    onSecond: () -> Unit,
+    onThird: () -> Unit,
+    firstLabel: String,
+    secondLabel: String,
+    thirdLabel: String,
+    firstColor: Color,
+    secondColor: Color,
+    thirdColor: Color,
+    firstIcon: ImageVector,
+    secondIcon: ImageVector,
+    thirdIcon: ImageVector,
+    modifier: Modifier = Modifier,
+    shape: Shape = RoundedCornerShape(14.dp),
+    content: @Composable () -> Unit
+) {
+    val density = LocalDensity.current
+    val buttonDp = 64.dp
+    val revealDp = buttonDp * 3
+    val revealPx = with(density) { revealDp.toPx() }
+    val offsetX = remember { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+    var opened by remember { mutableStateOf(false) }
+
+    Box(
+        modifier
+            .fillMaxWidth()
+            .clip(shape)
+    ) {
+        Box(Modifier.matchParentSize(), contentAlignment = Alignment.CenterEnd) {
+            Row(Modifier.fillMaxHeight()) {
+                RevealActionButton(buttonDp, firstColor, firstIcon, firstLabel, opened) {
+                    onFirst(); opened = false; scope.launch { offsetX.animateTo(0f, tween(180)) }
+                }
+                RevealActionButton(buttonDp, secondColor, secondIcon, secondLabel, opened) {
+                    onSecond(); opened = false; scope.launch { offsetX.animateTo(0f, tween(180)) }
+                }
+                RevealActionButton(buttonDp, thirdColor, thirdIcon, thirdLabel, opened) {
+                    onThird(); opened = false; scope.launch { offsetX.animateTo(0f, tween(180)) }
+                }
+            }
+        }
+        Box(
+            Modifier
+                .clip(shape)
+                .offset { IntOffset(offsetX.value.roundToInt(), 0) }
+                .pointerInput(Unit) {
+                    detectHorizontalDragGestures(
+                        onDragEnd = {
+                            val open = offsetX.value < -revealPx * 0.35f
+                            opened = open
+                            scope.launch { offsetX.animateTo(if (open) -revealPx else 0f, tween(200)) }
+                        },
+                        onDragCancel = {
+                            scope.launch { offsetX.animateTo(if (opened) -revealPx else 0f, tween(200)) }
+                        },
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            val target = (offsetX.value + dragAmount).coerceIn(-revealPx, 0f)
+                            scope.launch { offsetX.snapTo(target) }
+                        }
+                    )
+                }
+                .pointerInput(opened) {
+                    if (opened) {
+                        detectTapGestures(onTap = {
+                            opened = false
+                            scope.launch { offsetX.animateTo(0f, tween(180)) }
+                        })
+                    }
+                }
+        ) { content() }
+    }
+}

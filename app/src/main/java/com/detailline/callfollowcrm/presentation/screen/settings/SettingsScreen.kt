@@ -48,6 +48,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.filled.Message
@@ -137,6 +138,7 @@ fun SettingsScreen(
     onOpenRecurring: () -> Unit = {},
     onOpenPrinciples: () -> Unit = {},
     onOpenSpamList: () -> Unit = {},
+    onOpenPersonalList: () -> Unit = {},
     onShowIntro: () -> Unit = {},
     /** 진입 시 바로 열 서브페이지 ("autosms" = 자동 문자, 부재중 응답 펼침). null = 일반 더보기. */
     initialSubPage: String? = null
@@ -264,6 +266,8 @@ fun SettingsScreen(
                         navLabel) { subPage = "nav" }
                     LockRow(Icons.Filled.Block, Color(0xFFFFF1F3), Color(0xFFF0436A), "스팸 차단 번호",
                         "상담함에서 스팸 등록한 번호 · 잘못 넣었으면 여기서 풀기", onClick = onOpenSpamList)
+                    LockRow(Icons.Filled.Person, Color(0xFFF1ECFE), Color(0xFF7C5CFC), "사생활 번호",
+                        "내 개인 연락처 · 링고가 안 잡음 · 풀려면 여기서", onClick = onOpenPersonalList)
                 }
                 SettingsGroup("도움말") {
                     LockRow(Icons.AutoMirrored.Filled.Chat, TossGrayBg, TossTextTertiary, "알림 미리보기",

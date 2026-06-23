@@ -18,5 +18,7 @@ data class SpamPhoneEntity(
     val markedAt: Long,
     // 표시·복구용(2026-06-23 사장님 '스팸 목록'). 옛 데이터는 phoneNumber="" → 화면에서 suffix 로 대체.
     val phoneNumber: String = "",
-    val displayName: String? = null
+    val displayName: String? = null,
+    // "spam"=광고/스팸, "personal"=사생활(내 개인 연락처). 둘 다 RING-GO 목록·자동문자·AI 에서 제외. 목록만 따로 봄. (2026-06-23 사장님)
+    val kind: String = "spam"
 )
