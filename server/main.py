@@ -5170,6 +5170,18 @@ async def admin_beta_dashboard_data(
         active_30d = sum(1 for r in wl_rows if r[5] and r[5] >= now - 30 * 86_400_000)
 
         wl_phones = [r[0] for r in wl_rows]
+        # 추가49 (2026-06-21) — phone → industry 매핑 (beta_signups 에서). 사장님이 admin 에서
+        # 직접 추가한 phone 은 signups 에 없을 수 있음 → industry 빈 문자열.
+        industry_map: dict = {}
+        if wl_phones:
+            placeholders_i = ",".join(["?"] * len(wl_phones))
+            industry_rows = con.execute(
+                f"SELECT phone, industry FROM beta_signups WHERE phone IN ({placeholders_i})",
+                wl_phones,
+            ).fetchall()
+            for ir in industry_rows:
+                if ir[1]:
+                    industry_map[ir[0]] = ir[1]
 
         # ── api_usage 데이터 (베타 phone 만) ──
         api_rows: list = []
@@ -5407,6 +5419,7 @@ async def admin_beta_dashboard_data(
                 "phone": _fmt_phone(phone),
                 "phone_raw": phone,
                 "name": name or "",
+                "industry": industry_map.get(phone, ""),  # 추가49 — 업종
                 "memo": memo or "",
                 "added_at_ms": added,
                 "first_seen_ms": first,
@@ -5640,6 +5653,7 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
       <table>
         <thead><tr>
           <th>폰 · 이름</th>
+          <th>업종</th>
           <th>등록일</th>
           <th>첫 진입</th>
           <th>마지막 앱 실행</th>
@@ -5650,7 +5664,7 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
           <th class="right">비용 (USD)</th>
           <th>상태</th>
         </tr></thead>
-        <tbody id="userRows"><tr><td colspan="10" style="text-align:center; padding:30px; color:#9AA3AF">로딩중...</td></tr></tbody>
+        <tbody id="userRows"><tr><td colspan="11" style="text-align:center; padding:30px; color:#9AA3AF">로딩중...</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -5719,8 +5733,18 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
     var dead = allUsers.filter(function(u){
       return !u.last_seen_ms || u.last_seen_ms < sevenAgo;
     }).length;
+    // 추가49 (2026-06-21) — 업종 분포 (가장 많은 업종 1개)
+    var byIndustry = {};
+    allUsers.forEach(function(u){
+      if (u.industry) byIndustry[u.industry] = (byIndustry[u.industry] || 0) + 1;
+    });
+    var industryKeys = Object.keys(byIndustry).sort(function(a,b){ return byIndustry[b] - byIndustry[a]; });
+    var topIndustry = industryKeys[0] || '-';
+    var topIndustryCount = byIndustry[topIndustry] || 0;
+    var industrySub = industryKeys.length > 1 ? '+' + (industryKeys.length - 1) + '개 업종' : (topIndustryCount > 0 ? '단일 업종' : '미입력');
     document.getElementById('kpiGrid').innerHTML =
       kpiCard('blue', '총 베타 사용자', kpi.total_users, '명') +
+      kpiCard('blue', '🔧 가장 많은 업종', topIndustry, topIndustryCount + '명 · ' + industrySub) +
       kpiCard('green', '🟢 진성 사용자', sincere, 'LLM 5회+ 사용') +
       kpiCard('orange', '🟡 구경꾼', watcher, '앱은 열지만 기능 X') +
       kpiCard('', '🔴 안 쓰는 사람', dead, '7일+ 무활동') +
@@ -5816,8 +5840,13 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
         else if (u.last_seen_ms && (now - u.last_seen_ms) < 7 * 86400000) statusBadge = '<span class="badge on">활성</span>';
         else statusBadge = '<span class="badge cool">휴면</span>';
         // 추가34 (2026-06-18) — 폰번호 클릭 시 /admin/user/{phone} 으로 (스케줄·활동 다 보임)
+        // 추가49 (2026-06-21) — 업종 컬럼 추가
+        var industryHtml = u.industry
+          ? '<span style="background:#EEF4FF; color:#1B64DA; padding:2px 7px; border-radius:6px; font-size:11px; font-weight:700;">' + escape(u.industry) + '</span>'
+          : '<span style="color:#9AA3AF; font-size:11px;">-</span>';
         html2 += '<tr>'
               + '<td><a href="/admin/user/' + encodeURIComponent(u.phone_raw) + '" style="color:#3182F6; text-decoration:none"><b>' + u.phone + '</b></a><br><span style="font-size:11px; color:#5A6472">' + escape(u.name || '-') + '</span></td>'
+              + '<td>' + industryHtml + '</td>'
               + '<td>' + added + '</td>'
               + '<td>' + first + '</td>'
               + '<td>' + last + '</td>'
@@ -6013,6 +6042,14 @@ async def admin_user_detail_data(
                 "use_count": 0,
             }
         profile["registered_name"] = _is_registered_owner(target) or ""
+        # 추가49 (2026-06-21) — 업종 (beta_signups.industry). 사장님이 admin 에서 직접 추가한
+        # 사용자는 beta_signups 에 없을 수 있음 → None.
+        signup_row = con.execute(
+            "SELECT industry, region FROM beta_signups WHERE phone = ?",
+            (target,),
+        ).fetchone()
+        profile["industry"] = (signup_row[0] if signup_row else None) or ""
+        profile["region"] = (signup_row[1] if signup_row else None) or ""
 
         # ── 2) 등록한 접수서 (intake_forms.owner_phone) ──
         intake_rows = con.execute(
@@ -6314,10 +6351,13 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
       var p = d.profile;
       var displayName = p.name || p.registered_name || '(이름 없음)';
       document.getElementById('hdr').textContent = displayName + ' · ' + p.phone;
+      // 추가49 (2026-06-21) — 업종·지역 표시
+      var industryBadge = p.industry ? '🔧 ' + p.industry + (p.region ? ' · ' + p.region : '') + ' · ' : '';
       document.getElementById('hdrSub').textContent =
+        industryBadge +
         (p.memo ? '메모: ' + p.memo + ' · ' : '') +
         '가입: ' + (p.added_at_ms ? fmtRel(p.added_at_ms) : '미등록') +
-        ' · 사용 ' + (p.use_count || 0) + '회';
+        ' · 진입 ' + (p.use_count || 0) + '회';
 
       // 요약 카드
       document.getElementById('kIntakes').textContent = d.intakes.length;
