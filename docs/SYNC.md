@@ -5726,3 +5726,10 @@ C폰(S23U)·A폰(S9) 실기기 보고 일괄 처리. release 669 사이트 배�
 - 발사: 화면진입(AppNavHost currentBackStackEntryFlow→screen_view, 전 화면)·버튼(상담함1탭·채팅전송→button_click)·캡쳐(사진다운로드→capture)·LLM(추천준비→llm_use).
 - 배포: B폰 + si0in.kr release 691(0.2.691).
 - ❗cowork 액션: ① /api/event 서버 코드 repo 에 push(현재 main.py 엔 /api/team/event/* 만 있음) ② 핸드오프 문서 push ③ (검증용 테스트 이벤트 1건이 owner_phone=01000000000 로 들어감 — 무시/삭제).
+
+## 2026-06-23 14:25 · android — 일당 현금흐름 ± : 사장님 결정 + 설계 확정(구현은 다음 집중세션)
+사장님 결정: 마이너스는 **완료되면** 표기 + 일당도 완료처리/입금받음 체크. (고객 잔금 모델과 동일: 완료=예정 지출 → 입금=확정)
+- 발견: 협업에 이미 있음 — 완료(progress=COMPLETED), 입금완료(POST /api/shared/paid → B 알림), Partner.totalWage/paidTotal. **빠진 것 = dailyWage 가 CashFlowCalc 에 안 들어감**(지금 customers/manual/jobCrew 만).
+- 계획(앱 위주): SettlementViewModel 이 SharedSiteRepository byMe(소유=지출)·withMe(불려감=수입) COMPLETED+dailyWage → CashFlowCalc 공급. done/planned=입금여부(로컬 Set 플래그로 서버 의존 최소; POST /api/shared/paid 병행=상대 알림). CashFlowCalcTest 단위테스트 必. SharedSiteScreen 입금 체크 버튼.
+- 보류 이유: 금전 + 2-사장 협업 adb 시뮬·검증 불가 → 단위테스트+실제숫자 확인 필요. JobCrew(수첩 일당)는 이미 마이너스 됨.
+- cowork 확인: byMe/withMe 응답이 **per-site 입금여부(paid)** 를 echo 하는지(없으면 앱 로컬 플래그로 처리 예정).
