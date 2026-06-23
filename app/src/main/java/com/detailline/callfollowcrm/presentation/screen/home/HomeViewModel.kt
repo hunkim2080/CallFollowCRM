@@ -33,6 +33,9 @@ import kotlinx.coroutines.withContext
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
+    // 자정 넘어 앱 재진입 시 날짜 재계산용 tick. refreshSmsContacts() 가 갱신 → todayJobs 재필터링.
+    private val _todayTick = MutableStateFlow(System.currentTimeMillis())
+
     private val bounds = DateTimeUtils.todayBounds()
     private val todayStart = bounds.first
     private val todayEnd = bounds.second
@@ -135,6 +138,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         spamPrefixesFlow.value = container.preferences.spamPrefixes
         // D-1 토글도 비반응형 prefs → 새로고침 때 재읽기(토글 끄면 홈 D-1 카드 사라지게). (2026-06-18 사장님)
         d1EnabledFlow.value = container.preferences.d1AutoEnabled
+        // 자정 넘어 재진입 시 todayJobs 날짜 재계산 트리거.
+        _todayTick.value = System.currentTimeMillis()
     }
 
     /**
@@ -570,15 +575,17 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      * 오늘 예약된 시공들. 기본은 시간순이되, 사장님이 트렐로식으로 끌어 바꾼 [_heroOrder] 가 있으면 그 순서 우선.
      * 여러 날 시공(scheduledWorkDays)이 오늘 진행 중이면 포함. 다크 히어로.
      */
-    val todayJobs: StateFlow<List<CustomerEntity>> = combine(customers, _heroOrder) { list, order ->
+    val todayJobs: StateFlow<List<CustomerEntity>> = combine(customers, _heroOrder, _todayTick) { list, order, _ ->
+        // todayStart 는 ViewModel 생성 시 캐시돼 자정 넘어도 갱신 안 됨 → 필터 내에서 동적 계산. (2026-06-24 버그픽스)
+        val nowTodayStart = DateTimeUtils.startOfDay(System.currentTimeMillis())
         val base = list.filter { c ->
             val s = c.scheduledWorkDate ?: return@filter false
             val start = DateTimeUtils.startOfDay(s)
             val end = start + (c.scheduledWorkDays.coerceAtLeast(1) - 1) * DateTimeUtils.DAY_MS
-            if (todayStart !in start..end) return@filter false
+            if (nowTodayStart !in start..end) return@filter false
             // 완료한 현장도 '완료한 그날'은 회색 카드로 남김(다시 전화할 수도 있으니) → 다음날 자동 사라짐. (2026-06-14 사장님)
             val done = c.workCompletedAt
-            if (done != null && DateTimeUtils.startOfDay(done) != todayStart) return@filter false
+            if (done != null && DateTimeUtils.startOfDay(done) != nowTodayStart) return@filter false
             true
         }.sortedWith(compareBy({ it.workCompletedAt != null }, { it.scheduledWorkMinutes ?: Int.MAX_VALUE }))
         applyHeroOrder(base, order)
