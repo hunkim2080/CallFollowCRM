@@ -9,6 +9,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -36,6 +37,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -132,5 +134,114 @@ fun SwipeRevealBox(
                     }
                 }
         ) { content() }
+    }
+}
+
+/**
+ * SwipeRevealBox 의 "두 버튼" 버전 — 밀면 오른쪽에 [첫 버튼][둘째 버튼] 두 개가 같이 드러난다.
+ *   (2026-06-23 사장님 — 상담함 대기 카드: 밀면 [스팸][정리] 둘 다 보이게.)
+ *   제스처·동작은 SwipeRevealBox 와 동일(절반 넘게 밀면 열린 채 고정, 콘텐츠 탭/오른쪽 밀기=닫힘, 버튼 눌러야 실제 동작).
+ */
+@Composable
+fun SwipeRevealTwoBox(
+    onFirst: () -> Unit,
+    onSecond: () -> Unit,
+    firstLabel: String,
+    secondLabel: String,
+    firstColor: Color,
+    secondColor: Color,
+    firstIcon: ImageVector,
+    secondIcon: ImageVector,
+    modifier: Modifier = Modifier,
+    shape: Shape = RoundedCornerShape(14.dp),
+    content: @Composable () -> Unit
+) {
+    val density = LocalDensity.current
+    val buttonDp = 72.dp
+    val revealDp = buttonDp * 2
+    val revealPx = with(density) { revealDp.toPx() }
+    val offsetX = remember { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+    var opened by remember { mutableStateOf(false) }
+
+    Box(
+        modifier
+            .fillMaxWidth()
+            .clip(shape)
+    ) {
+        // 뒤: 오른쪽 끝 두 버튼 [first][second] (콘텐츠 높이에 자동 맞춤)
+        Box(Modifier.matchParentSize(), contentAlignment = Alignment.CenterEnd) {
+            Row(Modifier.fillMaxHeight()) {
+                RevealActionButton(buttonDp, firstColor, firstIcon, firstLabel, opened) {
+                    onFirst()
+                    opened = false
+                    scope.launch { offsetX.animateTo(0f, tween(180)) }
+                }
+                RevealActionButton(buttonDp, secondColor, secondIcon, secondLabel, opened) {
+                    onSecond()
+                    opened = false
+                    scope.launch { offsetX.animateTo(0f, tween(180)) }
+                }
+            }
+        }
+        // 앞: 콘텐츠 — offset 으로 밀림. .clip(shape) 로 뒤 버튼이 카드 모서리로 안 비침.
+        Box(
+            Modifier
+                .clip(shape)
+                .offset { IntOffset(offsetX.value.roundToInt(), 0) }
+                .pointerInput(Unit) {
+                    detectHorizontalDragGestures(
+                        onDragEnd = {
+                            val open = offsetX.value < -revealPx * 0.4f
+                            opened = open
+                            scope.launch { offsetX.animateTo(if (open) -revealPx else 0f, tween(200)) }
+                        },
+                        onDragCancel = {
+                            scope.launch { offsetX.animateTo(if (opened) -revealPx else 0f, tween(200)) }
+                        },
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            val target = (offsetX.value + dragAmount).coerceIn(-revealPx, 0f)
+                            scope.launch { offsetX.snapTo(target) }
+                        }
+                    )
+                }
+                .pointerInput(opened) {
+                    if (opened) {
+                        detectTapGestures(onTap = {
+                            opened = false
+                            scope.launch { offsetX.animateTo(0f, tween(180)) }
+                        })
+                    }
+                }
+        ) { content() }
+    }
+}
+
+@Composable
+private fun RevealActionButton(
+    buttonWidth: Dp,
+    containerColor: Color,
+    icon: ImageVector,
+    label: String,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        Modifier
+            .fillMaxHeight()
+            .width(buttonWidth)
+            .background(containerColor)
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(icon, label, tint = Color.White, modifier = Modifier.size(22.dp))
+            Spacer(Modifier.height(2.dp))
+            Text(label, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        }
     }
 }

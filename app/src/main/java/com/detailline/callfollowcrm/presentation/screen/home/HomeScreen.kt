@@ -31,6 +31,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallMade
 import androidx.compose.material.icons.filled.Check
@@ -773,9 +774,22 @@ fun HomeScreen(
                 } else {
                     items(waiting, key = { "wait-${it.record.id}-${it.record.phoneNumber}" }) { item ->
                         val suffix = item.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8)
-                        // 우→좌 swipe → "정리"(미확인 목록에서만 숨김, 스팸 아님) + Snackbar Undo. 2026-06-07
+                        // 우→좌 swipe → [🚫 스팸][🧹 정리] 두 버튼. 스팸=영구 숨김, 정리=대기목록에서만. 둘 다 Snackbar Undo. (2026-06-23 사장님)
                         SpamSwipeBox(
-                            onSpam = {
+                            onMarkSpam = {
+                                viewModel.markSpam(item.record.phoneNumber)
+                                scope.launch {
+                                    val r = snackbarHostState.showSnackbar(
+                                        message = "스팸으로 등록했어요 — 앞으로 안 보여요",
+                                        actionLabel = "되돌리기",
+                                        duration = SnackbarDuration.Short
+                                    )
+                                    if (r == SnackbarResult.ActionPerformed) {
+                                        viewModel.unmarkSpam(item.record.phoneNumber)
+                                    }
+                                }
+                            },
+                            onCleanup = {
                                 viewModel.dismissUnconfirmed(item.record.phoneNumber)
                                 scope.launch {
                                     val result = snackbarHostState.showSnackbar(
@@ -2455,18 +2469,19 @@ private fun statusColors(label: String): Pair<Color, Color> {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SpamSwipeBox(onSpam: () -> Unit, content: @Composable () -> Unit) {
-    // 2026-05-28 사장님 보고 버그 fix:
-    //   기존 confirmValueChange { true } → dismiss 확정 → SwipeBox state stuck.
-    //   unmarkSpam (undo) 후 같은 LazyColumn key 라 composable 재사용 → dismissed state 그대로 → 빈 칸 + "광고로 처리" 잔상.
-    //   해결: false 반환 → SwipeBox 는 원위치 복귀 애니. spam 처리는 onSpam → markSpam 이
-    //   unconfirmedSuffixes 에서 그 phone 을 제거 → 카드가 LazyColumn 에서 자연 사라짐.
-    //   undo 시 카드가 다시 등장 → 새 SwipeBox = 정상 state.
-    // 밀면 바로가 아니라 → 드러나는 버튼을 눌러야 정리(2026-06-21 사장님). SwipeRevealBox 로 통일.
-    com.detailline.callfollowcrm.presentation.component.SwipeRevealBox(
-        onAction = onSpam,
-        label = "정리",
-        containerColor = TossBlue,
+private fun SpamSwipeBox(onMarkSpam: () -> Unit, onCleanup: () -> Unit, content: @Composable () -> Unit) {
+    // 밀면 [🚫 스팸][🧹 정리] 두 버튼이 같이 드러남(2026-06-23 사장님: "정리도 있지만 스팸도 보여야"). 버튼 눌러야 동작 = 실수 방지.
+    //   스팸=markSpam(상담함·신규에서 영구 숨김)·정리=dismissUnconfirmed(대기 목록에서만). 둘 다 Snackbar Undo.
+    //   undo 시 같은 LazyColumn key 라 카드가 자연 복귀(빈 칸 잔상 없음).
+    com.detailline.callfollowcrm.presentation.component.SwipeRevealTwoBox(
+        onFirst = onMarkSpam,
+        onSecond = onCleanup,
+        firstLabel = "스팸",
+        secondLabel = "정리",
+        firstColor = TossError,
+        secondColor = TossBlue,
+        firstIcon = Icons.Filled.Block,
+        secondIcon = Icons.Filled.CleaningServices,
         shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp)   // WaitingCard(18dp)와 모서리 맞춤 — 파란 테두리 비침 fix. (2026-06-23 사장님)
     ) { content() }
 }
@@ -2740,7 +2755,7 @@ private fun WaitingHeader(count: Int) {
         }
         Spacer(Modifier.weight(1f))
         // 프로토 .swipe-hint — 회색칩 배경
-        Text("← 밀어서 정리", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = TossTextTertiary,
+        Text("← 밀어서 스팸·정리", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = TossTextTertiary,
             modifier = Modifier.background(TossGrayBg, RoundedCornerShape(999.dp)).padding(horizontal = 9.dp, vertical = 3.dp))
     }
 }
