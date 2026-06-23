@@ -5479,7 +5479,8 @@ async def admin_beta_dashboard_data(
 
         users = []
         for r in wl_rows:
-            phone, name, memo, added, first, last, uc = r
+            # 추가50 (2026-06-21) — SELECT 에 owner_trade 컬럼 추가 (8개). unpack 도 8개로.
+            phone, name, memo, added, first, last, uc, _ot = r
             calls = per_user_calls.get(phone, 0)
             active_days = len(per_user_days.get(phone, set()))
             # 평균 일일 호출 (활성 일수 기준 — 활성 안 한 날 빼고)
