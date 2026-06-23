@@ -5733,3 +5733,16 @@ C폰(S23U)·A폰(S9) 실기기 보고 일괄 처리. release 669 사이트 배�
 - 계획(앱 위주): SettlementViewModel 이 SharedSiteRepository byMe(소유=지출)·withMe(불려감=수입) COMPLETED+dailyWage → CashFlowCalc 공급. done/planned=입금여부(로컬 Set 플래그로 서버 의존 최소; POST /api/shared/paid 병행=상대 알림). CashFlowCalcTest 단위테스트 必. SharedSiteScreen 입금 체크 버튼.
 - 보류 이유: 금전 + 2-사장 협업 adb 시뮬·검증 불가 → 단위테스트+실제숫자 확인 필요. JobCrew(수첩 일당)는 이미 마이너스 됨.
 - cowork 확인: byMe/withMe 응답이 **per-site 입금여부(paid)** 를 echo 하는지(없으면 앱 로컬 플래그로 처리 예정).
+
+## 2026-06-23 21:40 · cowork
+추가52 — 사용자 여정 screen 이름 정규화. 안드로이드가 보낸 raw route ("chat?phone={phone}&customerId={customerId}") 를 ? 앞 + 마지막 segment 만 잘라 SCREEN_LABEL 매칭. 결과: "chat?phone=..." → "채팅", "customer/{id}" → "고객 상세" 등.
+- 변경: admin/user/{phone} 페이지 사용자 여정 카드 가독성. 안드로이드 변경 불필요.
+- commit: (pending)
+
+## 2026-06-23 21:55 · cowork
+추가52+53 — admin/user 페이지 두 가지 개선.
+- 추가52: 사용자 여정 가독성. screen URL 정규화 + 5분 gap 으로 세션 묶음 + 연속 같은 화면 ×N 압축 + 이벤트 한글 라벨("화면 진입"/"AI 사용"/"버튼"/"캡쳐") + 색 border (회색/파랑/초록/주황).
+- 추가53: 업종 [수정] prompt() → select dropdown modal. 19개 표준 업종 list + "직접 입력" + "비우기".
+- 변경: admin/user/{phone} 페이지만. 안드로이드 변경 불필요.
+- commit: (pending)
+- 다음 액션 (옵션): 안드로이드 onboarding 의 실제 trade list 와 위 19개 일치 확인. 다르면 list 정렬.

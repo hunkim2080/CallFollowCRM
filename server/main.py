@@ -6244,18 +6244,29 @@ async def admin_user_detail_data(
                LIMIT 50""",
             (target,),
         ).fetchall()
+        # 추가52 (2026-06-23) — screen 정규화 (URL route → 짧은 이름)
+        # 안드로이드가 "chat?phone={phone}&customerId={customerId}" 같이 route 그대로 보냄.
+        # ? 앞 + 마지막 segment 만 잘라서 SCREEN_LABEL 매칭되게.
+        def _norm_screen(s):
+            if not s:
+                return ""
+            base = str(s).split("?")[0].split("&")[0].strip().rstrip("/")
+            if "/" in base:
+                base = base.rsplit("/", 1)[-1]
+            return base.lower()
+
         events_journey = []
         for er in event_rows:
             ename, scr, tgt, extra_str, ts = er
             extra_obj = None
             if extra_str:
                 try:
-                    extra_obj = _json.loads(extra_str)
+                    extra_obj = json.loads(extra_str)
                 except Exception:
                     extra_obj = None
             events_journey.append({
                 "event_name": ename,
-                "screen": scr or "",
+                "screen": _norm_screen(scr),
                 "target": tgt or "",
                 "extra": extra_obj,
                 "at_ms": ts,
@@ -6332,10 +6343,10 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
             box-shadow:0 1px 3px rgba(0,0,0,.04); }
   .s-card .lab { font-size:11.5px; color:var(--t3); font-weight:700; }
   .s-card .v { font-size:17px; font-weight:800; margin-top:3px; }
-  #tokenModal { position:fixed; inset:0; background:rgba(0,0,0,.5); display:none;
+  #tokenModal, #tradeModal { position:fixed; inset:0; background:rgba(0,0,0,.5); display:none;
                 align-items:center; justify-content:center; z-index:50; }
-  #tokenModal.show { display:flex; }
-  #tokenModal .box { background:#fff; border-radius:14px; padding:22px;
+  #tokenModal.show, #tradeModal.show { display:flex; }
+  #tokenModal .box, #tradeModal .box { background:#fff; border-radius:14px; padding:22px;
                      max-width:90vw; width:340px; }
   #tokenModal input { width:100%; border:1.5px solid var(--line);
                       border-radius:10px; padding:11px 12px; font-size:14px;
@@ -6344,6 +6355,20 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
                        border-radius:10px; padding:11px 16px; font-size:14px;
                        font-weight:800; font-family:inherit; cursor:pointer;
                        margin-top:10px; }
+  /* 추가52 (2026-06-23) — 사용자 여정 가독성 */
+  .ses-hdr { font-weight:800; color:var(--t2); padding:10px 8px 6px;
+             border-top:1px dashed var(--line); margin-top:6px;
+             font-size:12.5px; letter-spacing:-0.2px; }
+  .ses-hdr:first-child { border-top:0; margin-top:0; }
+  .ses-meta { color:var(--t3); font-weight:600; font-size:11px; margin-left:6px; }
+  .ev-row { border-left:3px solid transparent; padding-left:9px; }
+  .ev-view  { border-left-color:#B8BEC7; }
+  .ev-ai    { border-left-color:#2196F3; }
+  .ev-click { border-left-color:#4CAF50; }
+  .ev-cap   { border-left-color:#FF9800; }
+  .ev-err   { border-left-color:#F44336; }
+  .ev-x     { background:var(--bg); border-radius:6px; padding:1px 6px;
+              font-size:11px; font-weight:800; color:var(--t2); margin-left:6px; }
 </style></head>
 <body>
 <div id="tokenModal"><div class="box">
@@ -6351,6 +6376,34 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
   <p style="font-size:13px; color:#5A6472; margin:0 0 12px">browser 에 저장됩니다.</p>
   <input id="tokenInput" type="password" placeholder="토큰">
   <button onclick="saveToken()">저장</button>
+</div></div>
+
+<!-- 추가53 (2026-06-23) — 업종 선택 modal -->
+<div id="tradeModal"><div class="box">
+  <h3 style="margin:0 0 8px">업종 선택</h3>
+  <p style="font-size:13px; color:#5A6472; margin:0 0 10px">아래 list 에서 고르거나, 직접 입력.</p>
+  <select id="tradeSel" onchange="onTradeSelChange()"
+          style="width:100%; padding:11px 12px; border:1.5px solid #E5E8EC;
+                 border-radius:10px; font-size:14px; font-family:inherit;
+                 background:#fff; appearance:none;
+                 background-image:url('data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;12&quot; height=&quot;8&quot; viewBox=&quot;0 0 12 8&quot;><path fill=&quot;%236B7280&quot; d=&quot;M6 8L0 0h12z&quot;/></svg>');
+                 background-repeat:no-repeat; background-position:right 12px center;
+                 padding-right:32px;"></select>
+  <div id="tradeCustomWrap" style="display:none; margin-top:10px;">
+    <input id="tradeCustom" type="text" placeholder="업종 직접 입력"
+           style="width:100%; padding:11px 12px; border:1.5px solid #E5E8EC;
+                  border-radius:10px; font-size:14px; font-family:inherit;">
+  </div>
+  <div style="display:flex; gap:8px; margin-top:12px;">
+    <button onclick="closeTradeModal()"
+            style="flex:1; background:#F1F3F5; color:#5A6472; border:0;
+                   border-radius:10px; padding:11px; font-size:14px; font-weight:700;
+                   font-family:inherit; cursor:pointer;">취소</button>
+    <button onclick="saveTrade()"
+            style="flex:1; background:#3182F6; color:#fff; border:0;
+                   border-radius:10px; padding:11px; font-size:14px; font-weight:800;
+                   font-family:inherit; cursor:pointer;">저장</button>
+  </div>
 </div></div>
 
 <div class="wrap">
@@ -6456,20 +6509,58 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
     'infer-principle':     '원칙 발견',
   };
 
-  // 추가50 (2026-06-21) — 업종 수동 수정 (사장님이 잘못 박혀있는 거 고침)
-  window.editTrade = async function() {
+  // 추가53 (2026-06-23) — 업종 수정: select dropdown modal (prompt() 제거)
+  // 자주 쓰는 업종 list 박아놓고 클릭 → 저장. "직접 입력" + "비우기" 옵션 포함.
+  var TRADE_OPTIONS = [
+    '줄눈', '타일', '도배', '페인트',
+    '입주청소', '탄성코트', '욕실코팅', '나노코팅',
+    '상판연마', '방충망', '에어컨 청소',
+    '장판', '필름', '블라인드',
+    '누수', '설비', '전기', '인테리어 소공사',
+    '집수리'
+  ];
+  window.editTrade = function() {
     var current = (window._currentProfile && window._currentProfile.owner_trade) || '';
-    var newTrade = prompt('업종 입력 (예: 줄눈, 타일, 도배, 페인트). 비우면 reset.', current);
-    if (newTrade === null) return;
+    var opts = '';
+    opts += '<option value="">— 비우기 (없음) —</option>';
+    for (var i=0; i<TRADE_OPTIONS.length; i++) {
+      var v = TRADE_OPTIONS[i];
+      var sel = (v === current) ? ' selected' : '';
+      opts += '<option value="' + esc(v) + '"' + sel + '>' + esc(v) + '</option>';
+    }
+    // current 가 list 에 없으면 직접 입력으로
+    var inList = TRADE_OPTIONS.indexOf(current) >= 0 || current === '';
+    var customSel = inList ? '' : ' selected';
+    opts += '<option value="__custom__"' + customSel + '>✏️ 직접 입력...</option>';
+    document.getElementById('tradeSel').innerHTML = opts;
+    document.getElementById('tradeCustom').value = inList ? '' : current;
+    document.getElementById('tradeCustomWrap').style.display = inList ? 'none' : 'block';
+    document.getElementById('tradeModal').classList.add('show');
+  };
+  window.closeTradeModal = function() {
+    document.getElementById('tradeModal').classList.remove('show');
+  };
+  window.onTradeSelChange = function() {
+    var v = document.getElementById('tradeSel').value;
+    document.getElementById('tradeCustomWrap').style.display = (v === '__custom__') ? 'block' : 'none';
+  };
+  window.saveTrade = async function() {
+    var sel = document.getElementById('tradeSel').value;
+    var newTrade = '';
+    if (sel === '__custom__') {
+      newTrade = (document.getElementById('tradeCustom').value || '').trim();
+      if (!newTrade) { alert('업종을 적어주세요'); return; }
+    } else {
+      newTrade = sel;  // '' 면 reset
+    }
     try {
       var r = await fetch('/admin/beta/whitelist/' + encodeURIComponent(PHONE), {
         method: 'PATCH',
         headers: { 'Authorization': 'Bearer ' + getToken(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ owner_trade: newTrade.trim() })
+        body: JSON.stringify({ owner_trade: newTrade })
       });
       if (!r.ok) { alert('실패: ' + r.status + ' ' + (await r.text())); return; }
-      var d = await r.json();
-      alert('업종 변경됨: ' + (d.owner_trade || '(없음)'));
+      closeTradeModal();
       load();
     } catch(e) { alert('실패: ' + e.message); }
   };
@@ -6593,7 +6684,7 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
       }
       document.getElementById('recentList').innerHTML = lhtml;
 
-      // 추가51 (2026-06-21) — 사용자 여정 timeline
+      // 추가52 (2026-06-23) — 사용자 여정 timeline (세션 묶음 + 압축 + 한글)
       var journey = d.events_journey || [];
       document.getElementById('cJourney').textContent = journey.length;
       var EVENT_ICON = {
@@ -6601,7 +6692,24 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
         'button_click': '👆',
         'screenshot':   '📸',
         'feature_use':  '⚙️',
+        'llm_use':      '⚙️',
         'error':        '⚠️',
+      };
+      var EVENT_LABEL = {
+        'screen_view':  '화면 진입',
+        'button_click': '버튼',
+        'screenshot':   '캡쳐',
+        'feature_use':  'AI 사용',
+        'llm_use':      'AI 사용',
+        'error':        '에러',
+      };
+      var EVENT_CLASS = {
+        'screen_view':  'ev-view',
+        'button_click': 'ev-click',
+        'screenshot':   'ev-cap',
+        'feature_use':  'ev-ai',
+        'llm_use':      'ev-ai',
+        'error':        'ev-err',
       };
       var SCREEN_LABEL = {
         'home':         '홈',
@@ -6616,18 +6724,103 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
         'settings':     '설정',
         'onboarding':   '온보딩',
       };
+
+      // 짧은 상대 시각 (방금 / 5분 전 / 2시간 전 / 어제 / N일 전)
+      function fmtShort(ms) {
+        if (!ms) return '-';
+        var diff = Date.now() - ms;
+        if (diff < 0) return '방금';
+        var sec = Math.floor(diff / 1000);
+        if (sec < 60) return '방금';
+        var min = Math.floor(sec / 60);
+        if (min < 60) return min + '분 전';
+        var hr = Math.floor(min / 60);
+        if (hr < 24) return hr + '시간 전';
+        var day = Math.floor(hr / 24);
+        if (day === 1) return '어제';
+        if (day < 7) return day + '일 전';
+        return Math.floor(day / 7) + '주 전';
+      }
+      // 세션 헤더 시간 표시 (오늘/어제/날짜 + 시각 범위)
+      function fmtSesHdr(start, end) {
+        var s = new Date(start), e = new Date(end);
+        var diffDay = Math.floor((Date.now() - end) / 86400000);
+        var dayLbl;
+        if (diffDay < 1) dayLbl = '오늘';
+        else if (diffDay < 2) dayLbl = '어제';
+        else dayLbl = (s.getMonth()+1) + '월 ' + s.getDate() + '일';
+        var hm = function(d) {
+          var h = d.getHours(), m = d.getMinutes();
+          var ap = h < 12 ? '오전' : '오후';
+          var h12 = h % 12; if (h12 === 0) h12 = 12;
+          return ap + ' ' + h12 + ':' + (m<10?'0':'') + m;
+        };
+        if (Math.abs(end - start) < 60000) return dayLbl + ' ' + hm(s);
+        return dayLbl + ' ' + hm(s) + ' ~ ' + hm(e);
+      }
+
       var jhtml = '';
       if (journey.length === 0) {
         jhtml = '<div class="empty">아직 여정 데이터 없음 (안드로이드 측 이벤트 발사 후 보임)</div>';
       } else {
-        for (var i=0; i<journey.length; i++) {
-          var ev = journey[i];
-          var icon = EVENT_ICON[ev.event_name] || '·';
-          var screen = SCREEN_LABEL[ev.screen] || ev.screen || '';
-          var titleText = icon + ' ' + screen + (ev.target ? ' · ' + esc(ev.target) : '');
-          jhtml += '<div class="item">'
-            + '<div class="title">' + titleText + '</div>'
-            + '<div class="sub2">' + fmtDate(ev.at_ms) + ' · ' + esc(ev.event_name) + '</div></div>';
+        // 1) ASC 정렬 (세션 분리는 시간순으로 한 번 훑어야 함)
+        var asc = journey.slice().sort(function(a,b){ return a.at_ms - b.at_ms; });
+        // 2) 세션 분리 (5분 이상 gap)
+        var GAP = 5*60*1000;
+        var sessions = [];
+        var cur = null;
+        for (var i=0; i<asc.length; i++) {
+          var ev = asc[i];
+          if (!cur || ev.at_ms - cur.end_ms > GAP) {
+            cur = { start_ms: ev.at_ms, end_ms: ev.at_ms, events: [] };
+            sessions.push(cur);
+          }
+          cur.end_ms = ev.at_ms;
+          cur.events.push(ev);
+        }
+        // 3) 각 세션 안 연속 같은 (event,screen,target) 압축
+        function compress(list) {
+          var out = [];
+          for (var i=0; i<list.length; i++) {
+            var e = list[i];
+            var last = out[out.length-1];
+            var same = last && last.event_name === e.event_name
+                       && last.screen === e.screen
+                       && (last.target||'') === (e.target||'');
+            if (same) {
+              last.count += 1;
+              last.last_ms = e.at_ms;
+            } else {
+              out.push({
+                event_name: e.event_name, screen: e.screen, target: e.target,
+                count: 1, last_ms: e.at_ms
+              });
+            }
+          }
+          return out;
+        }
+        // 4) HTML — 세션은 최근(아래)→옛(위)순, 세션 안은 시간 흐름 그대로 (옛→새)
+        for (var s=sessions.length-1; s>=0; s--) {
+          var ses = sessions[s];
+          var compressed = compress(ses.events);
+          var durSec = Math.round((ses.end_ms - ses.start_ms) / 1000);
+          var durLbl;
+          if (durSec < 60) durLbl = durSec + '초';
+          else durLbl = Math.round(durSec/60) + '분';
+          jhtml += '<div class="ses-hdr">🕐 ' + fmtSesHdr(ses.start_ms, ses.end_ms)
+                + '<span class="ses-meta">· ' + durLbl + ' · ' + ses.events.length + '건</span></div>';
+          for (var k=0; k<compressed.length; k++) {
+            var c = compressed[k];
+            var icon = EVENT_ICON[c.event_name] || '·';
+            var screen = SCREEN_LABEL[c.screen] || c.screen || '';
+            var lbl = EVENT_LABEL[c.event_name] || c.event_name;
+            var cls = EVENT_CLASS[c.event_name] || '';
+            var countTxt = c.count > 1 ? '<span class="ev-x">×' + c.count + '</span>' : '';
+            var tgtTxt = c.target ? ' · ' + esc(c.target) : '';
+            jhtml += '<div class="item ev-row ' + cls + '">'
+              + '<div class="title">' + icon + ' ' + esc(screen) + countTxt + tgtTxt + '</div>'
+              + '<div class="sub2">' + fmtShort(c.last_ms) + ' · ' + lbl + '</div></div>';
+          }
         }
       }
       document.getElementById('journeyList').innerHTML = jhtml;
