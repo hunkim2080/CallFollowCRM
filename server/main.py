@@ -5642,10 +5642,10 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
           <th>폰 · 이름</th>
           <th>등록일</th>
           <th>첫 진입</th>
-          <th>마지막 활동</th>
+          <th>마지막 앱 실행</th>
           <th>활성 일수</th>
-          <th class="right">앱 실행</th>
-          <th class="right">총 호출</th>
+          <th class="right">진입 횟수</th>
+          <th class="right">LLM 사용</th>
           <th class="right">일평균</th>
           <th class="right">비용 (USD)</th>
           <th>상태</th>
@@ -5708,16 +5708,30 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
     // KPI 카드
     var kpi = d.kpi;
     var pct = function(n, tot) { return tot > 0 ? Math.round(n / tot * 100) : 0; };
+    // 추가48 (2026-06-21) — 사용자 유형 3종 분류 (사장님 요청)
+    var nowMs = Date.now();
+    var allUsers = d.users || [];
+    var sevenAgo = nowMs - 7 * 86400000;
+    var sincere = allUsers.filter(function(u){ return (u.calls || 0) >= 5; }).length;
+    var watcher = allUsers.filter(function(u){
+      return (u.last_seen_ms && u.last_seen_ms >= sevenAgo) && (u.calls || 0) === 0;
+    }).length;
+    var dead = allUsers.filter(function(u){
+      return !u.last_seen_ms || u.last_seen_ms < sevenAgo;
+    }).length;
     document.getElementById('kpiGrid').innerHTML =
       kpiCard('blue', '총 베타 사용자', kpi.total_users, '명') +
+      kpiCard('green', '🟢 진성 사용자', sincere, 'LLM 5회+ 사용') +
+      kpiCard('orange', '🟡 구경꾼', watcher, '앱은 열지만 기능 X') +
+      kpiCard('', '🔴 안 쓰는 사람', dead, '7일+ 무활동') +
       kpiCard('green', '활성 (7일)', kpi.active_7d, pct(kpi.active_7d, kpi.total_users) + '% 활성') +
       kpiCard('green', '활성 (30일)', kpi.active_30d, pct(kpi.active_30d, kpi.total_users) + '% 활성') +
       kpiCard('orange', '신규 (7일)', kpi.new_7d, '신규 가입') +
       kpiCard('', '활성화 (첫 진입)', kpi.activated, pct(kpi.activated, kpi.total_users) + '% 진입 완료') +
-      kpiCard('blue', '총 API 호출', kpi.total_api_calls, '회 (' + d.days + '일)') +
-      kpiCard('orange', '평균 호출/사장님/일', kpi.avg_calls_per_user_per_day, '회 (활성자 기준)') +
+      kpiCard('blue', '총 LLM 호출', kpi.total_api_calls, '회 (' + d.days + '일)') +
+      kpiCard('orange', '평균 LLM/사장님/일', kpi.avg_calls_per_user_per_day, '회 (활성자 기준)') +
       kpiCard('green', '평균 활성 일수', kpi.avg_active_days_per_user, '일 / ' + d.days + '일 중') +
-      kpiCard('blue', '평균 앱 실행', kpi.avg_use_count, '회 (누적, 활성자 기준)');
+      kpiCard('blue', '평균 진입 횟수', kpi.avg_use_count, '회 (누적, 활성자 기준)');
 
     // Network 신호 (클릭 시 drill-down)
     LAST_DETAILS = d.details || {};
