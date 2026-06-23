@@ -413,6 +413,7 @@ fun HomeScreen(
             //   non-null = 다이얼로그 떠 있는 상태. 어떤 phone 에 대해 띄웠는지 기억 → 선택 후 그 phone 의 주소 resolve + launch.
             //   사장님이 SettingsScreen 에서 미리 골랐으면 prefs.defaultNavAppKey != null → 다이얼로그 X, 즉시 launch.
             var navDialogPhone by remember { mutableStateOf<String?>(null) }
+            var navDialogAddr by remember { mutableStateOf<String?>(null) }
             val prefs = remember(context) {
                 (context.applicationContext as CallFollowCrmApplication).container.preferences
             }
@@ -425,6 +426,15 @@ fun HomeScreen(
                         val addr = viewModel.resolveAddressForPhone(phone)
                         com.detailline.callfollowcrm.util.NavLauncher.launch(context, navApp, addr)
                     }
+                }
+            }
+            // 협업 현장 — 주소가 이미 있어서 phone lookup 없이 바로 길찾기.
+            fun launchNavigationForAddr(addr: String?) {
+                val navApp = com.detailline.callfollowcrm.util.NavApp.fromKey(prefs.defaultNavAppKey)
+                if (navApp == null) {
+                    navDialogAddr = addr
+                } else {
+                    scope.launch { com.detailline.callfollowcrm.util.NavLauncher.launch(context, navApp, addr) }
                 }
             }
             // 다이얼로그 — 사장님이 [📍 길찾기] 첫 탭한 phone 에 대해서만 표시.
@@ -440,6 +450,17 @@ fun HomeScreen(
                         }
                     },
                     onDismiss = { navDialogPhone = null }
+                )
+            }
+            // 협업 현장 길찾기 앱 선택 (주소 기반).
+            navDialogAddr?.let { pendingAddr ->
+                NavAppPickerDialog(
+                    onPick = { picked ->
+                        prefs.defaultNavAppKey = picked.key
+                        navDialogAddr = null
+                        scope.launch { com.detailline.callfollowcrm.util.NavLauncher.launch(context, picked, pendingAddr) }
+                    },
+                    onDismiss = { navDialogAddr = null }
                 )
             }
 
@@ -556,13 +577,21 @@ fun HomeScreen(
                 }
 
                 // 오늘 시공 히어로 — 시공 당일이면 맨 위 다크 카드(주소+길찾기), 없으면 다음 시공 미리보기.
+                //   오늘 협업 현장도 여기에 보라색 카드로 함께 표시. (2026-06-24 사장님)
                 item(key = "today-hero") {
+                    val todayDayStart = DateTimeUtils.startOfDay(System.currentTimeMillis())
+                    val collabTodaySites = collabUpcoming.filter {
+                        it.scheduledAtMs > 0L && DateTimeUtils.startOfDay(it.scheduledAtMs) == todayDayStart
+                    }
                     TodayHeroCard(
                         todayJobs = todayJobs,
                         nextJobs = nextJobs,
+                        collabTodaySites = collabTodaySites,
                         onOpenCustomer = onOpenCustomerDetail,
                         onNavigate = { phone -> launchNavigationFor(phone) },
+                        onNavigateAddr = { addr -> launchNavigationForAddr(addr) },
                         onCall = { phone -> dialHome(context, phone) },
+                        onOpenCollabSite = onOpenCollabSiteDetail,
                         onGoSchedule = onOpenSchedule,
                         onOpenScheduleAtDay = onOpenScheduleAtDay,
                         onAddSchedule = onAddSchedule,
@@ -571,10 +600,14 @@ fun HomeScreen(
                     )
                 }
 
-                // 내가 수락한 협업 현장(오늘 이후) — 협업자(B)에겐 이게 '다음 일'. 홈에서 바로 보이게. (2026-06-14 사장님)
-                if (collabUpcoming.isNotEmpty()) {
+                // 내가 수락한 협업 현장(내일 이후) — 오늘 것은 이미 위 히어로에 표시됨. (2026-06-14 사장님)
+                val todayDayStart = DateTimeUtils.startOfDay(System.currentTimeMillis())
+                val collabFuture = collabUpcoming.filter {
+                    it.scheduledAtMs <= 0L || DateTimeUtils.startOfDay(it.scheduledAtMs) != todayDayStart
+                }
+                if (collabFuture.isNotEmpty()) {
                     item(key = "collab-upcoming") {
-                        CollabUpcomingCard(sites = collabUpcoming, onClick = onOpenCollabSites, onOpenSite = onOpenCollabSiteDetail)
+                        CollabUpcomingCard(sites = collabFuture, onClick = onOpenCollabSites, onOpenSite = onOpenCollabSiteDetail)
                     }
                 }
 
@@ -1347,6 +1380,74 @@ private fun CompletedHeroJobCard(
 }
 
 /**
+ * 협업 현장 오늘 히어로 카드 — 보라색 점·뱃지로 내 시공과 구분. 탭 → 협업 현장 상세. (2026-06-24 사장님)
+ */
+@Composable
+private fun CollabHeroJobCard(
+    s: com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite,
+    onOpenSite: (String) -> Unit,
+    onCall: (String) -> Unit,
+    onNavigateAddr: (String?) -> Unit
+) {
+    val purple = Color(0xFF7C5CFC)
+    val addr = s.addr?.takeIf { it.isNotBlank() }
+    val shine = rememberInfiniteTransition(label = "collabShine")
+    val dotPulse by shine.animateFloat(
+        initialValue = 0.45f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(1100, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "dotPulse"
+    )
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(Brush.linearGradient(listOf(Color(0xFF1C1730), Color(0xFF14171F))))
+            .clickable { onOpenSite(s.shareId) }
+            .padding(20.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(7.dp).clip(CircleShape).background(purple.copy(alpha = dotPulse)))
+            Spacer(Modifier.width(7.dp))
+            Text(
+                "협업 현장 · 오늘",
+                color = purple.copy(alpha = 0.9f), fontSize = 11.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp
+            )
+        }
+        val displayTitle = s.title.takeIf { it.isNotBlank() } ?: addr ?: "협업 현장"
+        Text(
+            displayTitle,
+            color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold,
+            letterSpacing = (-0.5).sp, modifier = Modifier.padding(top = 11.dp),
+            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+        )
+        val wageText = s.dailyWage?.let { " · 일당 ${it}만원" } ?: ""
+        Text(
+            "${bossLabel(s.ownerName)}$wageText",
+            color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+        if (addr != null) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 7.dp)) {
+                Icon(Icons.Default.Place, null, tint = Color.White.copy(alpha = 0.78f), modifier = Modifier.size(15.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    addr, color = Color.White.copy(alpha = 0.78f), fontSize = 13.sp,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
+        }
+        Row(modifier = Modifier.padding(top = 17.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (addr != null) {
+                HeroBtn("길찾기", Icons.Default.Navigation, light = true, modifier = Modifier.weight(1f)) { onNavigateAddr(addr) }
+            }
+            HeroBtn("전화", Icons.Default.Call, light = false,
+                modifier = if (addr != null) Modifier.weight(1f) else Modifier.fillMaxWidth()
+            ) { onCall(s.ownerPhone) }
+        }
+    }
+}
+
+/**
  * 오늘 시공 히어로 — 시공 당일이면 맨 위 다크 카드(고객·주소·길찾기).
  *   없으면 "다음 시공" 미리보기(1~3곳) 또는 "오늘 없음" 긍정 카드. 2026-06-01.
  */
@@ -1354,9 +1455,12 @@ private fun CompletedHeroJobCard(
 private fun TodayHeroCard(
     todayJobs: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
     nextJobs: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
+    collabTodaySites: List<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite> = emptyList(),
     onOpenCustomer: (Long) -> Unit,
     onNavigate: (String) -> Unit,
+    onNavigateAddr: (String?) -> Unit = {},
     onCall: (String) -> Unit,
+    onOpenCollabSite: (String) -> Unit = {},
     onGoSchedule: () -> Unit,
     onOpenScheduleAtDay: (Long) -> Unit,
     onAddSchedule: () -> Unit,
@@ -1364,17 +1468,21 @@ private fun TodayHeroCard(
     /** 사장님이 카드를 꾹 눌러 끌어 순서를 바꿨을 때 — 새 순서의 고객 ID 리스트. */
     onReorder: (List<Long>) -> Unit = {}
 ) {
-    if (todayJobs.isNotEmpty()) {
+    if (todayJobs.isNotEmpty() || collabTodaySites.isNotEmpty()) {
         // 오늘 시공이 2곳 이상이면 현장마다 독립 다크 카드를 시간순으로 쌓는다 (2026-06-11 사장님 결정).
         // 프로토 heroJobHtml 은 1곳짜리 정적 데모 — 라벨/디자인은 그대로, 카드만 현장 수만큼 반복.
         // 2곳 이상이면 꾹 눌러 트렐로식으로 순서 변경 가능(먼저 갈 현장을 위로). 1곳이면 일반 카드.
-        if (todayJobs.size > 1) {
-            TodayHeroReorderableList(todayJobs, onReorder, onOpenCustomer, onNavigate, onCall, onComplete)
-        } else {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        // 협업 현장은 순서 변경 없이 뒤에 이어 붙임. (2026-06-24 사장님)
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (todayJobs.size > 1) {
+                TodayHeroReorderableList(todayJobs, onReorder, onOpenCustomer, onNavigate, onCall, onComplete)
+            } else {
                 todayJobs.forEach { c ->
                     TodayHeroJobCard(c, onOpenCustomer, onNavigate, onCall, onComplete)
                 }
+            }
+            collabTodaySites.forEach { s ->
+                CollabHeroJobCard(s, onOpenCollabSite, onCall, onNavigateAddr)
             }
         }
     } else {
