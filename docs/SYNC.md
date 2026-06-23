@@ -5746,3 +5746,8 @@ C폰(S23U)·A폰(S9) 실기기 보고 일괄 처리. release 669 사이트 배�
 - 변경: admin/user/{phone} 페이지만. 안드로이드 변경 불필요.
 - commit: (pending)
 - 다음 액션 (옵션): 안드로이드 onboarding 의 실제 trade list 와 위 19개 일치 확인. 다르면 list 정렬.
+
+## 2026-06-23 22:05 · cowork
+추가53 후속 — 업종 list 를 안드로이드 onboarding (OnboardingScreen.kt:89-93) 의 15개 순서·이름과 정확히 일치시킴. 안드로이드 Claude 확인 받음.
+- 변경: server/main.py 의 TRADE_OPTIONS 만.
+- commit: (위 추가52+53 commit 에 합쳐서 push)
