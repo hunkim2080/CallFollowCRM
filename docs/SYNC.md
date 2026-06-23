@@ -5699,3 +5699,12 @@ C폰(S23U)·A폰(S9) 실기기 보고 일괄 처리. release 669 사이트 배�
 - 배포: B폰 + si0in.kr release 681(0.2.681), served sha 6b0203e1… 일치. (C폰은 배포 중 분리됨 — 사이트서 받거나 재연결 시 설치)
 - 앱 전용. 서버 변경 불필요.
 - commit: 0a4aea3
+
+## 2026-06-23 13:15 · android — 밀어서 [스팸][사생활][정리] 3버튼 + 더보기 사생활 목록 (release 687)
+사장님: 업무폰=개인폰 겸용 — 밀어서 '사생활' → 링고 제외.
+- spam_phones.kind 추가(DB v34, spam/personal, 폰 마이그레이션 무크래시 확인). 둘 다 RING-GO 제외(observeSuffixes), 목록만 분리.
+- SwipeRevealThreeBox(64dp, S9 대응). 대기카드 밀면 스팸·사생활(보라 Person)·정리. 사생활=markSpam(kind=personal)+Undo.
+- 더보기 '앱 설정' "사생활 번호" 행 → SpamListScreen(kind=personal) 재사용. 해제=재노출.
+- 배포: B폰 + si0in.kr release 687(0.2.687).
+- 앱 전용. 서버 변경 불필요.
+- commit: f28e4d8
