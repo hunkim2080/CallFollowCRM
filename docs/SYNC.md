@@ -5665,3 +5665,11 @@ C폰(S23U)·A폰(S9) 실기기 보고 일괄 처리. release 669 사이트 배�
 2. **스와이프 카드 모서리 테두리 비침**: 카드 라운드 > SwipeRevealBox shape 면 뒤 버튼이 모서리로 비침(대기카드 18dp vs 12dp 파란선). → SwipeRevealBox 콘텐츠에 `.clip(shape)`(근본·모든 스와이프 공통) + SpamSwipeBox shape 12→18.
 3. **정기문자 만들기 여유**: 칩 FlowRow 세로간격 추가(wrapped 칩 붙던 것)+섹션 12→18·소제목 14→20·라벨 6→8·칩 패딩 키움.
 - 앱 전용. 서버 변경 불필요.
+
+## 2026-06-23 11:25 · android — 마우스 휠 크래시 안전망 강화(모든 윈도우) + 이폰(A) 최신설치 (release 676)
+사장님 "이폰에도 설치" — A폰이 아직 669(휠 수정 전)이라 그 폰에서 휠 크래시가 재발(캡처 09:38 ACTION_HOVER_EXIT). 최신 설치 + 가드 강화.
+- release 675 의 `MainActivity.dispatchGenericMotionEvent` hover 차단은 **메인 윈도우만** 커버 — 다이얼로그·바텀시트는 별도 윈도우라 안 닿고, 이미 예약된 hover runnable 은 막아도 늦게 터짐.
+- → `CallFollowCrmApplication.onCreate` 에 `installMainThreadHoverCrashGuard()`: 메인 스레드 루프를 감싸 Compose `ACTION_HOVER_EXIT` 예외만 삼킴(그 외 예외는 그대로 던져 정상 크래시). **모든 윈도우** 커버. 터치 실사용자는 hover 없어 무관.
+- 배포: A폰(debug) versionCode 675 설치, release **676**(0.2.676) si0in.kr 푸시 — served sha256 `8177a849…` 로컬 일치 확인.
+- 앱 전용. 서버 변경 불필요.
+- commit: 7abc6df
