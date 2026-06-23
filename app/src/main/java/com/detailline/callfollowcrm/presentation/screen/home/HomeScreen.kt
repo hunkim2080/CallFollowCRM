@@ -870,13 +870,42 @@ fun HomeScreen(
                                 // 카톡식 안 읽음: 고객이 마지막에 말함(lastSent==false) + 그 메시지가 마지막으로 읽은 시각보다 새것.
                                 val custMsgMs = rItem.lastActivityMs.takeIf { it > 0L } ?: rItem.record.endedAt
                                 val unread = rItem.lastSent == false && (readStates[suffix] ?: 0L) < custMsgMs
-                                RecentRow(
-                                    item = rItem,
-                                    index = index,
-                                    unread = unread,
-                                    aiSummary = aiCardSummaries[suffix],
-                                    onOpenChat = { onOpenChat(rItem.record.phoneNumber, rItem.customer?.id) }
-                                )
+                                // 최근 대화도 밀어서 [🚫 스팸][👤 사생활] — 스팸/개인일 수 있으니. (2026-06-23 사장님)
+                                //   정리(대기목록)는 최근엔 해당 없어 제외. 마킹하면 timeline 의 spam 필터로 최근에서도 자동 사라짐.
+                                val rName = rItem.customer?.name?.takeIf { it.isNotBlank() }
+                                com.detailline.callfollowcrm.presentation.component.SwipeRevealTwoBox(
+                                    onFirst = {
+                                        viewModel.markSpam(rItem.record.phoneNumber, rName, "spam")
+                                        scope.launch {
+                                            val r = snackbarHostState.showSnackbar("스팸으로 등록했어요 — 앞으로 안 보여요", actionLabel = "되돌리기", duration = SnackbarDuration.Short)
+                                            if (r == SnackbarResult.ActionPerformed) viewModel.unmarkSpam(rItem.record.phoneNumber)
+                                        }
+                                    },
+                                    onSecond = {
+                                        viewModel.markSpam(rItem.record.phoneNumber, rName, "personal")
+                                        scope.launch {
+                                            val r = snackbarHostState.showSnackbar("사생활 번호로 옮겼어요 — 링고가 안 잡아요", actionLabel = "되돌리기", duration = SnackbarDuration.Short)
+                                            if (r == SnackbarResult.ActionPerformed) viewModel.unmarkSpam(rItem.record.phoneNumber)
+                                        }
+                                    },
+                                    firstLabel = "스팸",
+                                    secondLabel = "사생활",
+                                    firstColor = TossError,
+                                    secondColor = Color(0xFF7C5CFC),
+                                    firstIcon = Icons.Filled.Block,
+                                    secondIcon = Icons.Filled.Person,
+                                    shape = androidx.compose.ui.graphics.RectangleShape
+                                ) {
+                                    Box(Modifier.fillMaxWidth().background(Color.White)) {
+                                        RecentRow(
+                                            item = rItem,
+                                            index = index,
+                                            unread = unread,
+                                            aiSummary = aiCardSummaries[suffix],
+                                            onOpenChat = { onOpenChat(rItem.record.phoneNumber, rItem.customer?.id) }
+                                        )
+                                    }
+                                }
                             }
                             if (recent.size > shownRecent.size) {
                                 Box(
