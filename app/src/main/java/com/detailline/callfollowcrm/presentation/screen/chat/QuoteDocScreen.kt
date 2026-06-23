@@ -95,6 +95,8 @@ fun QuoteDocScreen(
     data: QuoteDocData,
     onClose: () -> Unit
 ) {
+    // 뒤로가기 = 미리보기만 닫고 견적 편집기로 복귀. 없으면 back 이 ChatScreen 까지 pop 됨. (2026-06-23 사장님)
+    androidx.activity.compose.BackHandler { onClose() }
     val context = LocalContext.current
     val view = LocalView.current
     val prefs = remember {

@@ -5652,3 +5652,10 @@ C폰(S23U)·A폰(S9) 실기기 보고 일괄 처리. release 669 사이트 배�
 - 채팅 통화 카드 → **"✏️ 요약 수정"** → 인라인 편집(BasicTextField, 한 줄=한 항목) → 저장. `ChatViewModel.updateCallSummary` → `callSummaryRepository.update(summaryText 교체)`.
 - 모든 화면(채팅·고객정보·미리보기·홈)이 같은 `call_summaries` row 를 보므로 **한 곳 수정=전부 반영**. 자동스캔 dedup(findExistingNear)이 덮어쓰기 방지.
 - 앱 전용. 서버 변경 불필요.
+
+## 2026-06-23 05:30 · android — 견적/문구 뒤로가기 버그 + 바텀시트 디자인 통일 (release 674)
+사장님 보고: 채팅에서 견적 작성 열고 뒤로가기 → 채팅까지 꺼짐 + 선택 초기화. 그리고 견적/문구도 '내 시공 일정' 시트처럼 통일.
+1. **뒤로가기 버그**: 견적 작성(EstimateBuilderDialog)·견적서 미리보기(QuoteDocScreen)는 ModalBottomSheet 가 아니라(키보드 가림 회피) 인라인 Box 오버레이라 BackHandler 가 없어 시스템 back 이 NavHost 로 가 ChatScreen 을 pop 했음 → 각 오버레이에 `BackHandler { onDismiss/onClose }` 추가.
+2. **선택 초기화**: 견적 onDismiss 가 resetEstimateDraft() 호출 → 뒤로/바깥탭에도 선택이 날아감. → onDismiss 는 닫기만(초기화 X). 초기화는 발송(onConfirm/onShare/onIssueIntake) 시에만. 같은 고객이면 다시 열어도 선택 유지.
+3. **디자인 통일**: '내 시공 일정'(ModalBottomSheet) 손잡이 바처럼 — 견적 작성에 손잡이(SheetGrabber) 추가 + 문구 넣기(TemplatePickerDialog)를 가운데 AlertDialog → 하단 바텀시트(손잡이+스크림+BackHandler)로 전환. 문구 picker 는 2곳(문구넣기 칩/AI제안 액션) 공용이라 둘 다 시트화.
+- 앱 전용. 서버 변경 불필요.

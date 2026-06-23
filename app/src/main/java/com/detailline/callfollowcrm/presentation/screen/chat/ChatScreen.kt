@@ -1381,7 +1381,8 @@ fun ChatScreen(
                     }
                 }
             },
-            onDismiss = { showEstimateBuilder = false; resetEstimateDraft() }
+            // 뒤로/바깥 탭 = 채팅으로 복귀, 선택은 유지(다시 열면 그대로). 초기화는 발송 시에만. (2026-06-23 사장님)
+            onDismiss = { showEstimateBuilder = false }
         )
     }
 
@@ -3008,9 +3009,16 @@ private fun NextActionBox(json: String?, onAction: (NextAction) -> Unit) {
     }
 }
 
+/** 바텀시트 손잡이 바 — '내 시공 일정' 시트(ModalBottomSheet)와 통일감. (2026-06-23 사장님) */
+@Composable
+private fun SheetGrabber() {
+    Box(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 8.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.width(36.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(Color(0xFFD9DEE5)))
+    }
+}
+
 /**
- * AI 제안 박스의 템플릿 선택 시트.
- * category = "" 이면 전체. 카테고리에 매칭되는 템플릿 없으면 전체로 fallback (사장님이 직접 고름).
+ * AI 제안 박스의 템플릿 선택 시트(바텀시트). category = "" 이면 전체.
  * 탭 = onPick(tpl) → composer input 채워짐. 자동 발송 X.
  */
 @Composable
@@ -3032,13 +3040,24 @@ private fun TemplatePickerDialog(
     val title = if (category.isBlank()) "문구 넣기"
     else "${categoryLabel(category)} 문구"
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(title, color = TossTextPrimary, fontWeight = FontWeight.Bold)
-        },
-        text = {
-            Column(Modifier.fillMaxWidth()) {
+    val noRipple = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    androidx.activity.compose.BackHandler { onDismiss() }
+    Box(
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f))
+            .clickable(interactionSource = noRipple, indication = null) { onDismiss() }
+    ) {
+        Column(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
+                .background(Color.White)
+                .clickable(interactionSource = noRipple, indication = null) { }
+                .navigationBarsPadding()
+                .heightIn(max = 620.dp)
+                .padding(horizontal = 18.dp).padding(top = 6.dp, bottom = 18.dp)
+        ) {
+            SheetGrabber()
+            Text(title, color = TossTextPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Spacer(Modifier.height(12.dp))
                 // ＋ 새 문구 — 입력창에 쓴 글을 그대로 문구로 저장(키보드 없이, 채팅 흐름 그대로).
                 Row(
                     modifier = Modifier
@@ -3101,15 +3120,14 @@ private fun TemplatePickerDialog(
                         }
                     }
                 }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("닫기", color = TossTextSecondary)
-            }
-        },
-        containerColor = Color.White
-    )
+            Spacer(Modifier.height(10.dp))
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
+                    .clickable { onDismiss() }.padding(vertical = 13.dp),
+                contentAlignment = Alignment.Center
+            ) { Text("닫기", color = TossTextSecondary, fontWeight = FontWeight.Bold, fontSize = 14.sp) }
+        }
+    }
 }
 
 private fun categoryLabel(categoryName: String): String =
@@ -3378,6 +3396,8 @@ private fun EstimateBuilderDialog(
         return QuoteDocData(lines + customLines, totalSum, depMode, depVal.toIntOrNull() ?: 0)
     }
 
+    // 뒤로가기 = 이 오버레이만 닫고 채팅으로 복귀. 없으면 시스템 back 이 NavHost 로 가 ChatScreen 까지 pop 됨(채팅이 꺼지던 버그). (2026-06-23 사장님)
+    androidx.activity.compose.BackHandler { onDismiss() }
     // 인라인 오버레이(액티비티 창) — ModalBottomSheet 는 별도 윈도우라 키보드가 입력칸(직접항목·계약금)을
     //   가린다(갤S9/안드10). 액티비티 창 + imePadding 으로 키보드 위로 올린다. (팀원배정/정산목표 시트와 동일 패턴)
     Box(
@@ -3394,8 +3414,9 @@ private fun EstimateBuilderDialog(
                 .imePadding()
                 .heightIn(max = 640.dp)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 18.dp).padding(top = 12.dp, bottom = 22.dp)
+                .padding(horizontal = 18.dp).padding(top = 6.dp, bottom = 22.dp)
         ) {
+            SheetGrabber()
             Text("견적 만들기", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold,
                 color = TossTextPrimary, letterSpacing = (-0.4).sp)
             Spacer(Modifier.height(4.dp))
