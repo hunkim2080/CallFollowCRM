@@ -75,6 +75,8 @@ object Destinations {
     const val AI_MESSAGE = "ai_message"
     const val STYLE_LEARNING = "style_learning"
     const val PRINCIPLES = "principles"
+    /** 더보기 → 스팸 차단 번호 목록(잘못 등록 시 복구). (2026-06-23 사장님) */
+    const val SPAM_LIST = "spam_list"
 
     /** 통화 정리해서 보내기 — 음성/붙여넣기/직접 → AI 요약 → 고객용 문자 초안 → 발송. */
     const val CALL_SUMMARY_WITH_ARG = "call_summary?phone={phone}&name={name}"

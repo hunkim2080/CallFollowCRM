@@ -15,9 +15,19 @@ class SpamPhoneRepository(private val dao: SpamPhoneDao) {
 
     val suffixes: Flow<Set<String>> = dao.observeSuffixes().map { it.toHashSet() }
 
-    suspend fun mark(suffix: String) {
+    /** '스팸 목록' 화면용 — 최근 등록순 전체 엔티티. (2026-06-23 사장님) */
+    val all: Flow<List<SpamPhoneEntity>> = dao.observeAll()
+
+    suspend fun mark(suffix: String, phoneNumber: String = "", displayName: String? = null) {
         if (suffix.isBlank()) return
-        dao.insert(SpamPhoneEntity(phoneSuffix = suffix, markedAt = System.currentTimeMillis()))
+        dao.insert(
+            SpamPhoneEntity(
+                phoneSuffix = suffix,
+                markedAt = System.currentTimeMillis(),
+                phoneNumber = phoneNumber,
+                displayName = displayName
+            )
+        )
     }
 
     suspend fun unmark(suffix: String) {

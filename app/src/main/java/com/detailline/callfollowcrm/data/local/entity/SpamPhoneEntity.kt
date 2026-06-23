@@ -15,5 +15,8 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "spam_phones")
 data class SpamPhoneEntity(
     @PrimaryKey val phoneSuffix: String,
-    val markedAt: Long
+    val markedAt: Long,
+    // 표시·복구용(2026-06-23 사장님 '스팸 목록'). 옛 데이터는 phoneNumber="" → 화면에서 suffix 로 대체.
+    val phoneNumber: String = "",
+    val displayName: String? = null
 )

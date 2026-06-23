@@ -348,20 +348,12 @@ fun AppNavHost(
         composable(Destinations.NEW_LEADS) {
             val vm: com.detailline.callfollowcrm.presentation.screen.newleads.NewLeadsViewModel =
                 viewModel(factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.newleads.NewLeadsViewModel(container) })
-            val leadScope = androidx.compose.runtime.rememberCoroutineScope()
             com.detailline.callfollowcrm.presentation.screen.newleads.NewLeadsScreen(
                 viewModel = vm,
                 onBack = { navController.popBackStack() },
                 onOpenLead = { phone, customerId ->
-                    if (customerId > 0) {
-                        navController.navigate(Destinations.customerDetail(customerId))
-                    } else {
-                        // 고객 카드 없는 문의(통화·문자·MMS만) → phone 으로 고객 만들어 연다.
-                        leadScope.launch {
-                            val id = container.customerRepository.upsertByPhone(phone).id
-                            navController.navigate(Destinations.customerDetail(id))
-                        }
-                    }
+                    // 신규는 고객정보가 거의 없음 → 고객상세 말고 바로 채팅으로. (2026-06-23 사장님)
+                    navController.navigate(Destinations.chat(phone, customerId.takeIf { it > 0 }))
                 },
                 onReContact = { phone, customerId -> navController.navigate(Destinations.chat(phone, customerId)) }
             )
@@ -443,6 +435,7 @@ fun AppNavHost(
                 onOpenTradeSelect = { navController.navigate(Destinations.TRADE_SELECT) },
                 onOpenRecurring = { navController.navigate(Destinations.RECURRING) },
                 onOpenPrinciples = { navController.navigate(Destinations.PRINCIPLES) },
+                onOpenSpamList = { navController.navigate(Destinations.SPAM_LIST) },
                 onShowIntro = { navController.navigate(Destinations.ONBOARDING) }
             )
         }
@@ -465,6 +458,14 @@ fun AppNavHost(
                 onOpenRecurring = { navController.navigate(Destinations.RECURRING) },
                 onShowIntro = { navController.navigate(Destinations.ONBOARDING) },
                 initialSubPage = "autosms"
+            )
+        }
+
+        // 더보기 → 스팸 차단 번호 목록(잘못 등록 시 복구). (2026-06-23 사장님)
+        composable(Destinations.SPAM_LIST) {
+            com.detailline.callfollowcrm.presentation.screen.spam.SpamListScreen(
+                container = container,
+                onBack = { navController.popBackStack() }
             )
         }
 

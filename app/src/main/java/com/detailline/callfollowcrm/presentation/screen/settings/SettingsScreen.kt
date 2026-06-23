@@ -47,6 +47,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.filled.Message
@@ -135,6 +136,7 @@ fun SettingsScreen(
     onOpenTradeSelect: () -> Unit = {},
     onOpenRecurring: () -> Unit = {},
     onOpenPrinciples: () -> Unit = {},
+    onOpenSpamList: () -> Unit = {},
     onShowIntro: () -> Unit = {},
     /** 진입 시 바로 열 서브페이지 ("autosms" = 자동 문자, 부재중 응답 펼침). null = 일반 더보기. */
     initialSubPage: String? = null
@@ -260,6 +262,8 @@ fun SettingsScreen(
                         .find { it.key == state.defaultNavAppKey }?.label ?: "카카오내비"
                     LockRow(Icons.Filled.Navigation, TossGrayBg, TossTextTertiary, "기본 네비 앱",
                         navLabel) { subPage = "nav" }
+                    LockRow(Icons.Filled.Block, Color(0xFFFFF1F3), Color(0xFFF0436A), "스팸 차단 번호",
+                        "상담함에서 스팸 등록한 번호 · 잘못 넣었으면 여기서 풀기", onClick = onOpenSpamList)
                 }
                 SettingsGroup("도움말") {
                     LockRow(Icons.AutoMirrored.Filled.Chat, TossGrayBg, TossTextTertiary, "알림 미리보기",

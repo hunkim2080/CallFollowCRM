@@ -62,7 +62,7 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         com.detailline.callfollowcrm.data.local.entity.TeamAssignmentEntity::class,
         com.detailline.callfollowcrm.data.local.entity.PrincipleEntity::class
     ],
-    version = 32,
+    version = 33,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -660,6 +660,14 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v33 — spam_phones 에 전체 번호(phoneNumber)+이름(displayName) 추가. '스팸 목록' 표시·복구용. additive. (2026-06-23)
+        private val MIGRATION_32_33 = object : Migration(32, 33) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE spam_phones ADD COLUMN phoneNumber TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE spam_phones ADD COLUMN displayName TEXT")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
@@ -674,7 +682,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23,
                     MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27,
                     MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30,
-                    MIGRATION_30_31, MIGRATION_31_32
+                    MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33
                 )
                 .fallbackToDestructiveMigration()   // migration 실패 시 안전망 (개발 단계)
                 .build()

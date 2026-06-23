@@ -777,7 +777,7 @@ fun HomeScreen(
                         // 우→좌 swipe → [🚫 스팸][🧹 정리] 두 버튼. 스팸=영구 숨김, 정리=대기목록에서만. 둘 다 Snackbar Undo. (2026-06-23 사장님)
                         SpamSwipeBox(
                             onMarkSpam = {
-                                viewModel.markSpam(item.record.phoneNumber)
+                                viewModel.markSpam(item.record.phoneNumber, item.customer?.name?.takeIf { it.isNotBlank() })
                                 scope.launch {
                                     val r = snackbarHostState.showSnackbar(
                                         message = "스팸으로 등록했어요 — 앞으로 안 보여요",
@@ -995,7 +995,7 @@ fun HomeScreen(
                                 Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFFFF1F3))
                                     .clickable {
                                         spamTarget = null
-                                        viewModel.markSpam(phone)
+                                        viewModel.markSpam(phone, target.customer?.name?.takeIf { it.isNotBlank() })
                                         scope.launch {
                                             val r = snackbarHostState.showSnackbar("스팸으로 등록했어요 — 앞으로 안 보여요", actionLabel = "되돌리기", duration = SnackbarDuration.Short)
                                             if (r == SnackbarResult.ActionPerformed) viewModel.unmarkSpam(phone)

@@ -13,6 +13,10 @@ interface SpamPhoneDao {
     @Query("SELECT phoneSuffix FROM spam_phones")
     fun observeSuffixes(): Flow<List<String>>
 
+    /** '스팸 목록' 화면용 — 최근 등록순 전체. (2026-06-23 사장님) */
+    @Query("SELECT * FROM spam_phones ORDER BY markedAt DESC")
+    fun observeAll(): Flow<List<SpamPhoneEntity>>
+
     @Query("SELECT phoneSuffix FROM spam_phones")
     suspend fun getAllSuffixes(): List<String>
 
