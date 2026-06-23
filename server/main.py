@@ -561,6 +561,13 @@ def db_init() -> None:
             con.execute("ALTER TABLE shared_sites ADD COLUMN owner_name_raw TEXT")
         except Exception:
             pass
+        # 추가50 (2026-06-21) — 앱 onboarding 에서 사장님이 고른 업종 (ownerTrade) 저장.
+        # 옛 ownerTrade 는 LLM 호출에만 inject 되고 저장 X. 이제 가장 최근 값 박음.
+        # owner_phone + ownerTrade 같이 오는 LLM 호출에서 자동 저장.
+        try:
+            con.execute("ALTER TABLE beta_whitelist ADD COLUMN owner_trade TEXT")
+        except Exception:
+            pass
         # §I (2026-06-18) 핸드오프 06-18 §1 — B(협업자) 가 respond/progress 시 보낸 본인 상호.
         # by-me 응답의 partner_name 으로 echo → A 화면 "🤝 OO 사장님과 함께".
         # 없으면 _is_registered_owner(partner_phone) fallback, 최종 "협업 사장".
@@ -1531,6 +1538,10 @@ class ConversationContext(BaseModel):
     recent_messages: list[Message] = Field(default_factory=list)
     call_summaries: list[CallSummary] = Field(default_factory=list)
     owner_tone_samples: list[str] = Field(default_factory=list)
+    # 추가38 (2026-06-18) — owner 단위 집계용 사장님 phone
+    owner_phone: Optional[str] = None
+    # 추가50 (2026-06-21) — 앱 onboarding 업종
+    owner_trade: Optional[str] = None
 
 
 # ─── 응답 enum (사양서 §3, §4) ───
@@ -2081,7 +2092,8 @@ async def prepare_reply(req: PrepareReplyRequest, model: Optional[str] = None):
     """
     # 추가37 (2026-06-18) — 화이트리스트 게이트는 owner_phone 으로 (req.phone 은 customer phone).
     # 안드로이드가 owner_phone 안 보내면 skip (graceful, 점진 적용).
-    _ensure_and_touch_beta_whitelist(req.owner_phone)
+    # 추가50 (2026-06-21) — ownerTrade 같이 저장.
+    _ensure_and_touch_beta_whitelist(req.owner_phone, owner_trade=req.ownerTrade)
     chosen_model = (model or PREPARE_REPLY_DEFAULT_MODEL).lower()
     if chosen_model not in ("sonnet", "gemini"):
         raise HTTPException(400, f"model must be 'sonnet' or 'gemini', got {chosen_model!r}")
@@ -4892,6 +4904,38 @@ async def admin_beta_whitelist_remove(
     return {"ok": True, "phone": phone_digits, "removed": cur.rowcount}
 
 
+class BetaWhitelistPatchRequest(BaseModel):
+    owner_trade: Optional[str] = None   # 업종 수동 변경 (예: "줄눈", "타일", "도배")
+
+
+@app.patch("/admin/beta/whitelist/{phone}")
+async def admin_beta_whitelist_patch(
+    phone: str,
+    req: BetaWhitelistPatchRequest,
+    authorization: Optional[str] = Header(default=None),
+) -> dict:
+    """추가50 (2026-06-21) — 사장님이 잘못 설정된 업종 수동 변경.
+
+    body: {"owner_trade": "줄눈"}  → 빈 문자열 보내면 NULL 로 reset.
+    """
+    _admin_auth_bearer_from_header(authorization)
+    phone_digits = _norm_phone(phone)
+    if not phone_digits:
+        raise HTTPException(400, "유효하지 않은 폰번호")
+    new_trade = (req.owner_trade or "").strip()[:30]
+    new_trade_val = new_trade or None  # 빈 문자열은 NULL
+    with db_conn() as con:
+        cur = con.execute(
+            "UPDATE beta_whitelist SET owner_trade = ? WHERE phone = ?",
+            (new_trade_val, phone_digits),
+        )
+        con.commit()
+    if cur.rowcount == 0:
+        raise HTTPException(404, "phone 화이트리스트 미등록")
+    print(f"[admin/beta/whitelist] patch {phone_digits} → owner_trade={new_trade_val!r}")
+    return {"ok": True, "phone": phone_digits, "owner_trade": new_trade_val}
+
+
 @app.get("/admin/beta/whitelist/data")
 async def admin_beta_whitelist_data(
     authorization: Optional[str] = Header(default=None),
@@ -5153,7 +5197,8 @@ async def admin_beta_dashboard_data(
         # ── 화이트리스트 사용자 ──
         wl_rows = con.execute(
             """
-            SELECT phone, name, memo, added_at_ms, first_seen_ms, last_seen_ms, use_count
+            SELECT phone, name, memo, added_at_ms, first_seen_ms, last_seen_ms, use_count,
+                   owner_trade
             FROM beta_whitelist ORDER BY added_at_ms DESC
             """
         ).fetchall()
@@ -5162,9 +5207,13 @@ async def admin_beta_dashboard_data(
         activated = sum(1 for r in wl_rows if r[4])
         new_7d = sum(1 for r in wl_rows if r[3] and r[3] >= cutoff_7d)
         # 화이트리스트 name map 구축 (위 _user_name closure 가 이걸 lookup)
+        # 추가50 (2026-06-21) — owner_trade map 도 같이 (앱 onboarding 업종)
+        wl_trade_map: dict = {}
         for r in wl_rows:
             if r[1]:  # name 있는 것만
                 _wl_name_map[r[0]] = r[1]
+            if len(r) > 7 and r[7]:  # owner_trade 있는 것만
+                wl_trade_map[r[0]] = r[7]
         # 활성 정의: last_seen 7일 이내
         active_7d = sum(1 for r in wl_rows if r[5] and r[5] >= cutoff_7d)
         active_30d = sum(1 for r in wl_rows if r[5] and r[5] >= now - 30 * 86_400_000)
@@ -5419,7 +5468,9 @@ async def admin_beta_dashboard_data(
                 "phone": _fmt_phone(phone),
                 "phone_raw": phone,
                 "name": name or "",
-                "industry": industry_map.get(phone, ""),  # 추가49 — 업종
+                # 추가50 (2026-06-21) — 앱 onboarding 업종 우선, 폴백으로 모집 폼 industry
+                "industry": (wl_trade_map.get(phone) or industry_map.get(phone, "")),
+                "industry_source": ("app" if wl_trade_map.get(phone) else ("signup" if industry_map.get(phone) else "")),
                 "memo": memo or "",
                 "added_at_ms": added,
                 "first_seen_ms": first,
@@ -6015,7 +6066,7 @@ async def admin_user_detail_data(
         # ── 1) 프로필 (whitelist + registered) ──
         wl_row = con.execute(
             """SELECT phone, name, memo, added_at_ms, first_seen_ms,
-                       last_seen_ms, use_count
+                       last_seen_ms, use_count, owner_trade
                FROM beta_whitelist WHERE phone = ?""",
             (target,),
         ).fetchone()
@@ -6048,7 +6099,12 @@ async def admin_user_detail_data(
             "SELECT industry, region FROM beta_signups WHERE phone = ?",
             (target,),
         ).fetchone()
-        profile["industry"] = (signup_row[0] if signup_row else None) or ""
+        # 추가50 (2026-06-21) — 앱 onboarding 에서 고른 업종 우선 (owner_trade) → 모집 폼 폴백 (industry).
+        owner_trade_from_app = (wl_row[7] if wl_row and len(wl_row) > 7 else None) or ""
+        signup_industry = (signup_row[0] if signup_row else None) or ""
+        profile["owner_trade"] = owner_trade_from_app  # 앱 onboarding 원본
+        profile["industry"] = owner_trade_from_app or signup_industry  # 표시용 우선순위
+        profile["industry_source"] = "app" if owner_trade_from_app else ("signup" if signup_industry else "")
         profile["region"] = (signup_row[1] if signup_row else None) or ""
 
         # ── 2) 등록한 접수서 (intake_forms.owner_phone) ──
@@ -6342,6 +6398,24 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
     'infer-principle':     '원칙 발견',
   };
 
+  // 추가50 (2026-06-21) — 업종 수동 수정 (사장님이 잘못 박혀있는 거 고침)
+  window.editTrade = async function() {
+    var current = (window._currentProfile && window._currentProfile.owner_trade) || '';
+    var newTrade = prompt('업종 입력 (예: 줄눈, 타일, 도배, 페인트). 비우면 reset.', current);
+    if (newTrade === null) return;
+    try {
+      var r = await fetch('/admin/beta/whitelist/' + encodeURIComponent(PHONE), {
+        method: 'PATCH',
+        headers: { 'Authorization': 'Bearer ' + getToken(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ owner_trade: newTrade.trim() })
+      });
+      if (!r.ok) { alert('실패: ' + r.status + ' ' + (await r.text())); return; }
+      var d = await r.json();
+      alert('업종 변경됨: ' + (d.owner_trade || '(없음)'));
+      load();
+    } catch(e) { alert('실패: ' + e.message); }
+  };
+
   async function load() {
     if (!ensureToken()) return;
     try {
@@ -6349,13 +6423,18 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
 
       // 헤더
       var p = d.profile;
+      window._currentProfile = p;  // 추가50 — editTrade 가 참조
       var displayName = p.name || p.registered_name || '(이름 없음)';
       document.getElementById('hdr').textContent = displayName + ' · ' + p.phone;
-      // 추가49 (2026-06-21) — 업종·지역 표시
-      var industryBadge = p.industry ? '🔧 ' + p.industry + (p.region ? ' · ' + p.region : '') + ' · ' : '';
-      document.getElementById('hdrSub').textContent =
-        industryBadge +
-        (p.memo ? '메모: ' + p.memo + ' · ' : '') +
+      // 추가49+50 (2026-06-21) — 업종·지역 표시 + 수정 버튼
+      var industryHtml = p.industry
+        ? '🔧 ' + p.industry + ' (' + (p.industry_source === 'app' ? '앱' : '모집폼') + ')' +
+          (p.region ? ' · ' + p.region : '') +
+          ' <a href="javascript:editTrade()" style="color:#3182F6; font-size:11px; margin-left:4px;">[수정]</a> · '
+        : '🔧 <span style="color:#9AA3AF">업종 미입력</span> <a href="javascript:editTrade()" style="color:#3182F6; font-size:11px;">[설정]</a> · ';
+      document.getElementById('hdrSub').innerHTML =
+        industryHtml +
+        (p.memo ? '메모: ' + esc(p.memo) + ' · ' : '') +
         '가입: ' + (p.added_at_ms ? fmtRel(p.added_at_ms) : '미등록') +
         ' · 진입 ' + (p.use_count || 0) + '회';
 
@@ -7389,9 +7468,9 @@ async def _handle_summary_endpoint(
         raise HTTPException(code, msg)
 
     # 4) 사용량 로그
-    # 추가38+42 (2026-06-18/20) — owner 단위 통계 + heartbeat
+    # 추가38+42+50 (2026-06-18/20/21) — owner 단위 통계 + heartbeat + 업종 저장
     log_usage(ctx.owner_phone or ctx.phone, endpoint_label, response)
-    _touch_beta_whitelist(ctx.owner_phone)
+    _touch_beta_whitelist(ctx.owner_phone, owner_trade=getattr(ctx, 'owner_trade', None))
     _log_llm_usage_from_response(endpoint_label, response)  # §12.2
     usage = response.usage
     print(
@@ -7589,6 +7668,7 @@ class RefineRequest(BaseModel):
     customer_memo: Optional[str] = None
     phone: Optional[str] = None        # legacy — 무엇이 들어왔는지 모호. owner_phone 우선 사용.
     owner_phone: Optional[str] = None  # 추가37 (2026-06-18) — 화이트리스트 게이트용 사장님 phone.
+    ownerTrade: Optional[str] = None   # 추가50 (2026-06-21) — 앱 onboarding 업종 (저장용)
 
 
 def _build_refine_system_prompt(owner_tone_samples: list[str]) -> str:
@@ -7832,7 +7912,7 @@ async def refine_endpoint(req: RefineRequest) -> dict:
       - raw 비어있음 → 400
     """
     # 추가37 (2026-06-18) — 화이트리스트 게이트는 owner_phone (없으면 legacy phone) 으로.
-    _ensure_and_touch_beta_whitelist(req.owner_phone)  # 안드로이드 owner_phone 보내면 가드, 안 보내면 skip
+    _ensure_and_touch_beta_whitelist(req.owner_phone, owner_trade=req.ownerTrade)  # 추가37+50
     raw = (req.raw or "").strip()
     if not raw:
         raise HTTPException(400, "raw 가 비어있음")
@@ -8211,6 +8291,7 @@ class CallSummaryRequest(BaseModel):
     owner_tone_samples: list[str] = Field(default_factory=list)
     # 추가37 (2026-06-18) — 화이트리스트 게이트용 사장님 phone (req.phone 은 customer 라 부적절).
     owner_phone: Optional[str] = None
+    ownerTrade: Optional[str] = None   # 추가50 (2026-06-21) — 앱 onboarding 업종 (저장용)
 
 
 CALL_SUMMARY_SYSTEM = """너는 1인 시공자(줄눈/타일) 사장님의 비서다.
@@ -8334,7 +8415,7 @@ async def call_summary_endpoint(req: CallSummaryRequest) -> dict:
     모델: Haiku 4.5. 캐시 키: phone + endpoint="call-summary" + started_at_ms.
     """
     # 추가37 (2026-06-18) — 가드는 owner_phone 으로 (req.phone 은 *고객* phone). 없으면 skip.
-    _ensure_and_touch_beta_whitelist(req.owner_phone)
+    _ensure_and_touch_beta_whitelist(req.owner_phone, owner_trade=getattr(req, 'ownerTrade', None))
     if not req.raw_text or not req.raw_text.strip():
         raise HTTPException(400, "raw_text 비어있음")
 
@@ -8638,6 +8719,7 @@ async def call_audio_summary_endpoint(
     owner_tone_samples: Optional[str] = Form(None),  # JSON 배열 string (최대 10개)
     force_refresh: bool = Form(False),                # §26 (2026-06-10) — true 면 캐시 무시 + 새로 처리
     owner_phone: Optional[str] = Form(None),         # 추가37 (2026-06-18) — 화이트리스트 게이트용 사장님 phone
+    owner_trade: Optional[str] = Form(None),         # 추가50 (2026-06-21) — 앱 onboarding 업종
 ) -> dict:
     """통화 녹음 → Whisper STT → Gemini/Haiku 요약 → one_line + bullets + 후속 문자 + transcript.
 
@@ -12780,8 +12862,9 @@ def _generate_member_id() -> str:
     raise HTTPException(500, "팀원 ID 생성 실패")
 
 
-def _touch_beta_whitelist(phone: Optional[str]) -> None:
+def _touch_beta_whitelist(phone: Optional[str], owner_trade: Optional[str] = None) -> None:
     """추가41 (2026-06-20) — 폴링 endpoint 들이 부르는 가벼운 heartbeat.
+    추가50 (2026-06-21) — owner_trade 받으면 같이 저장 (앱 onboarding 업종).
 
     사장님 의도: "앱 켜기만 해도 활동" — 협업 화면 들어가서 폴링만 해도 "최근 앱 실행"
     갱신되게.
@@ -12800,31 +12883,45 @@ def _touch_beta_whitelist(phone: Optional[str]) -> None:
     if not phone_digits:
         return
     now = _now_ms()
+    trade_clean = (owner_trade or "").strip()[:30] if owner_trade else ""
     try:
         with db_conn() as con:
-            con.execute(
-                """
-                UPDATE beta_whitelist
-                SET first_seen_ms = COALESCE(first_seen_ms, ?),
-                    last_seen_ms = ?
-                WHERE phone = ?
-                """,
-                (now, now, phone_digits),
-            )
+            if trade_clean:
+                # 추가50 — owner_trade 도 같이 (가장 최근 값으로 덮어쓰기)
+                con.execute(
+                    """
+                    UPDATE beta_whitelist
+                    SET first_seen_ms = COALESCE(first_seen_ms, ?),
+                        last_seen_ms = ?,
+                        owner_trade = ?
+                    WHERE phone = ?
+                    """,
+                    (now, now, trade_clean, phone_digits),
+                )
+            else:
+                con.execute(
+                    """
+                    UPDATE beta_whitelist
+                    SET first_seen_ms = COALESCE(first_seen_ms, ?),
+                        last_seen_ms = ?
+                    WHERE phone = ?
+                    """,
+                    (now, now, phone_digits),
+                )
     except Exception:
         # 가벼운 heartbeat — 실패해도 본 endpoint 동작 막으면 안 됨
         pass
 
 
-def _ensure_and_touch_beta_whitelist(phone: Optional[str]) -> None:
-    """추가42 (2026-06-20) — 가드 + heartbeat 동시.
+def _ensure_and_touch_beta_whitelist(phone: Optional[str], owner_trade: Optional[str] = None) -> None:
+    """추가42 (2026-06-20) — 가드 + heartbeat 동시. 추가50 (2026-06-21) — owner_trade 도 같이.
 
     사장님 보고: "협업 화면 들어가야 갱신되면 안 됨. 앱 켜기만 해도 활동."
     → 모든 owner_phone 받는 endpoint 진입에 이거 한 줄 박으면
-       (1) 가드 통과 검증 + (2) last_seen_ms 자동 갱신.
+       (1) 가드 통과 검증 + (2) last_seen_ms 자동 갱신 + (3) owner_trade 저장.
     """
     _ensure_beta_whitelist(phone)
-    _touch_beta_whitelist(phone)
+    _touch_beta_whitelist(phone, owner_trade=owner_trade)
 
 
 def _ensure_beta_whitelist(phone: Optional[str]) -> None:
