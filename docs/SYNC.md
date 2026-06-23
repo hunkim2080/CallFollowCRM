@@ -5673,3 +5673,12 @@ C폰(S23U)·A폰(S9) 실기기 보고 일괄 처리. release 669 사이트 배�
 - 배포: A폰(debug) versionCode 675 설치, release **676**(0.2.676) si0in.kr 푸시 — served sha256 `8177a849…` 로컬 일치 확인.
 - 앱 전용. 서버 변경 불필요.
 - commit: 7abc6df
+
+## 2026-06-23 12:00 · android — 상담함 대기카드 밀면 [스팸][정리] 두 버튼 (release 677)
+사장님: 스팸 선택이 '꾹 누르기'에 숨어 안 보임("업데이트 됐나?"). 밀면 둘 다 보이게(사장님 선택).
+- `SwipeRevealTwoBox` 신설(component/SwipeRevealBox.kt) — SwipeRevealBox 2버튼 버전. 대기 카드 밀면 🚫스팸(빨강 TossError·Block)·🧹정리(파랑 TossBlue·CleaningServices) 두 버튼 드러남. 버튼 눌러야 동작(실수 방지)+둘 다 Snackbar Undo.
+- 스팸=markSpam(상담함·신규 영구 숨김), 정리=dismissUnconfirmed(대기목록만, 고객 보존). 헤더 힌트 "밀어서 정리"→"밀어서 스팸·정리". 롱프레스 선택창은 보조 유지.
+- 폰 실기 스와이프 스크린샷으로 [스팸][정리] 정상 노출 확인.
+- 배포: C폰 + si0in.kr release 677(0.2.677), served sha a387a774… 일치.
+- 앱 전용. 서버 변경 불필요.
+- commit: 0305903
