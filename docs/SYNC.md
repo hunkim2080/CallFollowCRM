@@ -5690,3 +5690,12 @@ C폰(S23U)·A폰(S9) 실기기 보고 일괄 처리. release 669 사이트 배�
 - 배포: C폰 release 679(0.2.679), si0in.kr served sha 2ab2524d… 일치.
 - 앱 전용. 서버 변경 불필요.
 - commit: eb23fa6
+
+## 2026-06-23 12:50 · android — 시공일 잡을 때 '시공 시간' 설정(채팅·고객정보) (release 681)
+사장님 "예약 시간 설정 어떻게 해?" 진단: 시간 기능은 일정 시공등록엔 있었으나 채팅·고객정보 날짜선택은 날짜만 → scheduledWorkMinutes null → 시간순 정렬 안 됨.
+- 날짜 선택 직후 "시공 시간" 다이얼로그(component/WorkTimePickerDialog): 칩(오전8~오후6)+시간미정+직접(TimeInput). 칩 탭=즉시 선택+닫힘. S9 컴팩트.
+- 채팅(시공일 등록→시간→계약금안내)·고객정보(날짜→시간→첫등록시 축하) 둘 다. CustomerRepository.updateScheduledWorkMinutes(days 보존)+VM 2개.
+- 시간 넣으면 기존 시간순 정렬(오늘시공·일정·다음시공) 자동 작동.
+- 배포: B폰 + si0in.kr release 681(0.2.681), served sha 6b0203e1… 일치. (C폰은 배포 중 분리됨 — 사이트서 받거나 재연결 시 설치)
+- 앱 전용. 서버 변경 불필요.
+- commit: 0a4aea3
