@@ -235,23 +235,23 @@ private fun RuleEditorDialog(
                 Spacer(Modifier.height(2.dp))
                 Text("규칙만 정해두면 막내가 날짜를 계산해서 보낼 때 알려드려요.",
                     fontSize = 12.5.sp, color = TossTextTertiary)
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(20.dp))
 
                 EditorLabel("이름")
                 com.detailline.callfollowcrm.presentation.component.SheetTextField(
                     name, { name = it }, placeholder = "예: 시공 한 달 점검")
 
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(18.dp))
                 EditorLabel("주기 (시공일로부터)")
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("30일마다" to 30, "60일마다" to 60, "90일마다" to 90, "6개월마다" to 180, "매년" to 365).forEach { (l, v) ->
                         PickChip(l, interval == v) { interval = v }
                     }
                 }
 
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(18.dp))
                 EditorLabel("보낼 대상")
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     PickChip("전체 고객", categoryId == null) { categoryId = null }
                     categories.forEach { cat ->
                         val label = if (cat.emoji != null) "${cat.emoji} ${cat.name}" else cat.name
@@ -259,9 +259,9 @@ private fun RuleEditorDialog(
                     }
                 }
 
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(18.dp))
                 EditorLabel("발송 시각 (표시용 · 자동발송 안 함)")
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(
                         "오전 8시" to 480, "오전 9시" to 540, "오전 10시" to 600,
                         "오전 11시" to 660, "오후 1시" to 780, "오후 6시" to 1080
@@ -270,7 +270,7 @@ private fun RuleEditorDialog(
                     }
                 }
 
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(18.dp))
                 EditorLabel("문구 ({고객명} = 고객 이름으로 자동 치환)")
                 com.detailline.callfollowcrm.presentation.component.SheetTextField(
                     body, { body = it }, placeholder = "{고객명}님, ...", singleLine = false, minHeightDp = 76)
@@ -304,7 +304,7 @@ private fun RuleEditorDialog(
 @Composable
 private fun EditorLabel(text: String) {
     Text(text, style = MaterialTheme.typography.labelMedium, color = TossTextSecondary,
-        fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 6.dp))
+        fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 8.dp))
 }
 
 @Composable
@@ -313,7 +313,7 @@ private fun PickChip(label: String, selected: Boolean, onClick: () -> Unit) {
         Modifier.clip(RoundedCornerShape(999.dp))
             .background(if (selected) TossBlue else TossGrayBg)
             .clickable { onClick() }
-            .padding(horizontal = 14.dp, vertical = 9.dp)
+            .padding(horizontal = 15.dp, vertical = 11.dp)
     ) {
         Text(label, color = if (selected) Color.White else TossTextSecondary,
             fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)

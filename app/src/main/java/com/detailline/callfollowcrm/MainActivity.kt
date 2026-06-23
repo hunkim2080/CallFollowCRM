@@ -104,6 +104,18 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // 마우스 hover(커서가 떠 있는 상태) 이벤트를 Compose 로 보내지 않음 — Compose 1.6.x 의
+    //   "ACTION_HOVER_EXIT event was not cleared" 크래시 회피(삼성 + 마우스/미러링/DeX 에서만 발생).
+    //   우린 터치 앱이라 hover 효과 안 쓰고, 휠 스크롤(ACTION_SCROLL)은 그대로 통과 → 스크롤은 정상. (2026-06-23 사장님)
+    override fun dispatchGenericMotionEvent(ev: android.view.MotionEvent): Boolean {
+        when (ev.actionMasked) {
+            android.view.MotionEvent.ACTION_HOVER_ENTER,
+            android.view.MotionEvent.ACTION_HOVER_MOVE,
+            android.view.MotionEvent.ACTION_HOVER_EXIT -> return true
+        }
+        return super.dispatchGenericMotionEvent(ev)
+    }
+
     private fun handleIncoming(intent: Intent?) {
         if (intent == null) return
         when (intent.action) {

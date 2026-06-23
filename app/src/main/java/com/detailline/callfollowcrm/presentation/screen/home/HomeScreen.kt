@@ -2467,7 +2467,7 @@ private fun SpamSwipeBox(onSpam: () -> Unit, content: @Composable () -> Unit) {
         onAction = onSpam,
         label = "정리",
         containerColor = TossBlue,
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp)   // WaitingCard(18dp)와 모서리 맞춤 — 파란 테두리 비침 fix. (2026-06-23 사장님)
     ) { content() }
 }
 

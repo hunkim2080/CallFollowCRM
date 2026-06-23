@@ -101,8 +101,10 @@ fun SwipeRevealBox(
             }
         }
         // 앞: 콘텐츠 — offset 으로 밀림. 콘텐츠 자체 배경(흰색 등)이 휴지통을 덮음.
+        //   .clip(shape): 콘텐츠를 박스와 같은 모서리로 깎아, 안 카드 라운드가 더 커도 뒤 버튼이 모서리로 안 비침. (2026-06-23 사장님)
         Box(
             Modifier
+                .clip(shape)
                 .offset { IntOffset(offsetX.value.roundToInt(), 0) }
                 .pointerInput(Unit) {
                     detectHorizontalDragGestures(

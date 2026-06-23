@@ -5659,3 +5659,9 @@ C폰(S23U)·A폰(S9) 실기기 보고 일괄 처리. release 669 사이트 배�
 2. **선택 초기화**: 견적 onDismiss 가 resetEstimateDraft() 호출 → 뒤로/바깥탭에도 선택이 날아감. → onDismiss 는 닫기만(초기화 X). 초기화는 발송(onConfirm/onShare/onIssueIntake) 시에만. 같은 고객이면 다시 열어도 선택 유지.
 3. **디자인 통일**: '내 시공 일정'(ModalBottomSheet) 손잡이 바처럼 — 견적 작성에 손잡이(SheetGrabber) 추가 + 문구 넣기(TemplatePickerDialog)를 가운데 AlertDialog → 하단 바텀시트(손잡이+스크림+BackHandler)로 전환. 문구 picker 는 2곳(문구넣기 칩/AI제안 액션) 공용이라 둘 다 시트화.
 - 앱 전용. 서버 변경 불필요.
+
+## 2026-06-23 06:10 · android — 마우스 휠 크래시 + 스와이프 카드 테두리 비침 + 정기문자 여유 (release 675)
+1. **마우스 휠 크래시**(에뮬/미러링/DeX): 휠 돌리면 즉시 종료. 원인 = Compose 1.6.x `IllegalStateException: The ACTION_HOVER_EXIT event was not cleared`(AndroidComposeView.sendHoverExitEvent) — 삼성+마우스 hover 버그(우리 코드 아님, BOM 2024.06.00/1.6.8 으로도 미수정). 터치엔 hover 없어 실사용자 무관. → MainActivity.dispatchGenericMotionEvent 에서 ACTION_HOVER_* 삼킴(휠 ACTION_SCROLL 은 통과 → 스크롤 정상).
+2. **스와이프 카드 모서리 테두리 비침**: 카드 라운드 > SwipeRevealBox shape 면 뒤 버튼이 모서리로 비침(대기카드 18dp vs 12dp 파란선). → SwipeRevealBox 콘텐츠에 `.clip(shape)`(근본·모든 스와이프 공통) + SpamSwipeBox shape 12→18.
+3. **정기문자 만들기 여유**: 칩 FlowRow 세로간격 추가(wrapped 칩 붙던 것)+섹션 12→18·소제목 14→20·라벨 6→8·칩 패딩 키움.
+- 앱 전용. 서버 변경 불필요.
