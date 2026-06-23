@@ -1624,18 +1624,19 @@ private fun CallSegment(
                     }
                 }
             }
-            // 잘못된 요약 직접 고치기 — 탭하면 인라인 편집. (2026-06-23 사장님)
-            Box(
-                Modifier.fillMaxWidth().padding(top = 6.dp).clip(RoundedCornerShape(10.dp))
-                    .clickable { editText = summary?.summaryText.orEmpty(); editing = true }
-                    .padding(vertical = 6.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("✏️ 요약 수정", color = Color(0xFF0A7D72), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            // 잘못된 요약 직접 고치기 — 작은 링크(오른쪽). 큰 '후속 문자' 버튼과 떼어 오탭 방지. (2026-06-23 사장님)
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.End) {
+                Box(
+                    Modifier.clip(RoundedCornerShape(8.dp))
+                        .clickable { editText = summary?.summaryText.orEmpty(); editing = true }
+                        .padding(horizontal = 8.dp, vertical = 5.dp)
+                ) {
+                    Text("✏️ 요약 수정", color = Color(0xFF0A7D72), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
             }
             val draft = summary?.recommendedMessage?.takeIf { it.isNotBlank() }
             Box(
-                Modifier.fillMaxWidth().padding(top = 6.dp).clip(RoundedCornerShape(10.dp))
+                Modifier.fillMaxWidth().padding(top = 12.dp).clip(RoundedCornerShape(10.dp))
                     .background(Color.White).border(1.dp, Color(0xFFBCE0D8), RoundedCornerShape(10.dp))
                     .clickable { if (draft != null) onUseAsDraft(draft) }.padding(vertical = 10.dp),
                 contentAlignment = Alignment.Center
