@@ -4506,13 +4506,13 @@ async def admin_beta_intake_save(
 # ============================================================================
 # §23 — 베타 모집 랜딩페이지 + 신청 폼 (RING-GO 첫 공개 페이지)
 # ─────────────────────────────────────────────────────────────────────────────
-# api.si0in.kr/ 의 루트가 랜딩페이지 = 100명 베타 모집. 신청 폼은 5 항목
+# api.si0in.kr/ 의 루트가 랜딩페이지 = 50명 베타 모집. 신청 폼은 5 항목
 # (전화번호 / 업종 / 지역 / 한 달 문의 수 / 동의) + 자유 메모.
 # 디자인 톤은 design-preview/ringgo-redesign.html (프로토) 1:1 — 라일락-블루
 # 메인, 둥근 카드, "막내 비서" 브랜드, 친근 ~요체.
 #
 # 베타 정책 (가격/인원/기간) 은 사장님이 HOU-128 셋팅 폼 (§22) 에 채운 값으로
-# 자동 갱신 — 일단 정적 placeholder (100명/4주/무료) 로 시작.
+# 자동 갱신 — 일단 정적 placeholder (50명/4주/무료) 로 시작.
 #
 # 신청 저장: cache.db.beta_signups (phone PK = 중복 신청 차단). status=pending.
 # 사장님이 /admin/beta/signups 에서 리스트 확인 + status 변경 (accept/reject).
@@ -4587,7 +4587,7 @@ async def beta_signup(req: BetaSignupRequest, request: Request):
     now = _now_ms()
 
     # 사장님 결정: 신청 즉시 사이트에서 다운로드 가능 (status='accepted' 자동).
-    # cap (100명) 초과 시 'waitlist' 로 분기 → install 링크 미제공.
+    # cap (50명) 초과 시 'waitlist' 로 분기 → install 링크 미제공.
     with sqlite3.connect(DB_PATH) as con:
         # 현재 accepted/pending 카운트 (cap 도달 여부 판정)
         current_active = con.execute(
@@ -4602,7 +4602,7 @@ async def beta_signup(req: BetaSignupRequest, request: Request):
         # 신규 신청자만 cap 체크. 기존 신청자는 이미 가진 status 유지.
         if existing_status:
             new_status = existing_status  # 그대로 유지 (재신청 시 status 안 바꿈)
-        elif current_active < 100:
+        elif current_active < 50:
             new_status = "accepted"  # cap 미달 → 즉시 다운로드 가능
         else:
             new_status = "waitlist"  # cap 초과 → 대기자
@@ -4654,7 +4654,7 @@ async def beta_signup(req: BetaSignupRequest, request: Request):
         "message": (
             "신청이 접수됐어요. 지금 바로 설치하실 수 있어요."
             if new_status == "accepted"
-            else "신청이 접수됐어요. 100명 마감으로 대기자 등록됐어요 — 자리 나면 안내드릴게요."
+            else "신청이 접수됐어요. 50명 마감으로 대기자 등록됐어요 — 자리 나면 안내드릴게요."
         ),
         "status": new_status,
         "install_url": install_url,
@@ -6857,7 +6857,7 @@ async def admin_icon():
 
 
 # ============================================================================
-# §24 — APK 직접 서빙 + 설치 안내 페이지 (베타 100명 다운로드 채널)
+# §24 — APK 직접 서빙 + 설치 안내 페이지 (베타 50명 다운로드 채널)
 # ─────────────────────────────────────────────────────────────────────────────
 # Google Play 비공개 테스트 셋업 전 임시 다리. 사장님이 안드로이드 APK 빌드 후
 # /Users/hun/ringgo-server/apk/shigongmagne.apk 에 cp 하면 즉시 활성.
