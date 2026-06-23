@@ -721,6 +721,30 @@ def db_init() -> None:
             "CREATE INDEX IF NOT EXISTS idx_push_tokens_phone "
             "ON push_tokens(phone, updated_at_ms DESC)"
         )
+        # 추가51 (2026-06-21) — 사용자 여정 트래킹 (사장님 요청: "베타테스터들 앱 사용 여정")
+        # 앱이 화면 진입·버튼 클릭·캡쳐 시도 시점에 POST /api/event 호출 → 여기 INSERT.
+        # admin/user/{phone} 페이지의 "🚶 사용자 여정" 카드에서 timeline 으로 봄.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS app_events (
+                event_id      INTEGER PRIMARY KEY AUTOINCREMENT,
+                owner_phone   TEXT NOT NULL,           -- 사장님 phone (누가 한 행동)
+                event_name    TEXT NOT NULL,           -- 'screen_view' / 'button_click' / 'screenshot' / 'feature_use' 등
+                screen        TEXT,                    -- 'home' / 'chat' / 'collab' / 'intake_form' 등
+                target        TEXT,                    -- '버튼·요소 식별자' (예: 'btn_reply_suggest')
+                extra_json    TEXT,                    -- 자유 페이로드 (JSON 객체)
+                created_at_ms INTEGER NOT NULL
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_app_events_owner "
+            "ON app_events(owner_phone, created_at_ms DESC)"
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_app_events_screen "
+            "ON app_events(screen, created_at_ms DESC)"
+        )
         con.commit()
 
 
@@ -6210,6 +6234,32 @@ async def admin_user_detail_data(
         ).fetchall()
         recent_api = [{"endpoint": r[0], "created_at_ms": r[1]} for r in recent_rows]
 
+        # ── 6.5) 사용자 여정 events (추가51 — 최근 50건)
+        event_rows = con.execute(
+            """SELECT event_name, screen, target, extra_json, created_at_ms
+               FROM app_events
+               WHERE owner_phone = ?
+               ORDER BY created_at_ms DESC
+               LIMIT 50""",
+            (target,),
+        ).fetchall()
+        events_journey = []
+        for er in event_rows:
+            ename, scr, tgt, extra_str, ts = er
+            extra_obj = None
+            if extra_str:
+                try:
+                    extra_obj = _json.loads(extra_str)
+                except Exception:
+                    extra_obj = None
+            events_journey.append({
+                "event_name": ename,
+                "screen": scr or "",
+                "target": tgt or "",
+                "extra": extra_obj,
+                "at_ms": ts,
+            })
+
         # ── 7) last_active_ms = 앱 실행 시각 (추가41 — beta_whitelist.last_seen_ms 만)
         # 사장님 의도: "앱 켜기만 해도 활동". 폴링 endpoint 들이 _touch_beta_whitelist 호출해서 갱신.
         # LLM 사용 (api_usage MAX) 은 별도 의미라 합치지 않음.
@@ -6222,6 +6272,7 @@ async def admin_user_detail_data(
         "shared_received": shared_received,
         "feature_counts": feature_counts,
         "recent_api": recent_api,
+        "events_journey": events_journey,  # 추가51 (2026-06-21) — 사용자 여정
         "last_active_ms": last_active_ms,
     }
 
@@ -6339,6 +6390,12 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
   <div class="card">
     <h2>🕒 최근 활동 <span class="cnt" id="cRecent">0</span></h2>
     <div id="recentList"><div class="empty">-</div></div>
+  </div>
+
+  <!-- 추가51 (2026-06-21) — 사용자 여정 timeline -->
+  <div class="card">
+    <h2>🚶 사용자 여정 <span class="cnt" id="cJourney">0</span></h2>
+    <div id="journeyList"><div class="empty">아직 여정 데이터 없음 (안드로이드 측 이벤트 발사 후 보임)</div></div>
   </div>
 
   <!-- 프로필 메타 -->
@@ -6534,6 +6591,45 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
         }
       }
       document.getElementById('recentList').innerHTML = lhtml;
+
+      // 추가51 (2026-06-21) — 사용자 여정 timeline
+      var journey = d.events_journey || [];
+      document.getElementById('cJourney').textContent = journey.length;
+      var EVENT_ICON = {
+        'screen_view':  '👀',
+        'button_click': '👆',
+        'screenshot':   '📸',
+        'feature_use':  '⚙️',
+        'error':        '⚠️',
+      };
+      var SCREEN_LABEL = {
+        'home':         '홈',
+        'chat':         '채팅',
+        'collab':       '협업현장',
+        'collab_inbox': '협업 인박스',
+        'intake_form':  '접수서',
+        'schedule':     '일정',
+        'customer':     '고객 상세',
+        'call':         '통화상담',
+        'team':         '팀원',
+        'settings':     '설정',
+        'onboarding':   '온보딩',
+      };
+      var jhtml = '';
+      if (journey.length === 0) {
+        jhtml = '<div class="empty">아직 여정 데이터 없음 (안드로이드 측 이벤트 발사 후 보임)</div>';
+      } else {
+        for (var i=0; i<journey.length; i++) {
+          var ev = journey[i];
+          var icon = EVENT_ICON[ev.event_name] || '·';
+          var screen = SCREEN_LABEL[ev.screen] || ev.screen || '';
+          var titleText = icon + ' ' + screen + (ev.target ? ' · ' + esc(ev.target) : '');
+          jhtml += '<div class="item">'
+            + '<div class="title">' + titleText + '</div>'
+            + '<div class="sub2">' + fmtDate(ev.at_ms) + ' · ' + esc(ev.event_name) + '</div></div>';
+        }
+      }
+      document.getElementById('journeyList').innerHTML = jhtml;
 
       // 프로필 메타
       var pk = '';
@@ -11098,6 +11194,79 @@ def _send_fcm_data_to_phone(phone_digits: str, data: dict) -> dict:
         f"sent={result['sent']} failed={result['failed']} removed={result['removed']}"
     )
     return result
+
+
+# ============================================================================
+# 추가51 (2026-06-21) — 사용자 여정 트래킹 (사장님 요청)
+# ─────────────────────────────────────────────────────────────────────────────
+# 앱이 화면 진입·버튼 클릭·캡쳐 시도 시점에 호출 → app_events INSERT.
+# 가벼운 1개 / 배치 (events 배열) 둘 다 지원.
+# 미등록 phone 도 receive (graceful — 베타 운영 측면).
+# ============================================================================
+
+
+class AppEventItem(BaseModel):
+    event_name: str                            # 'screen_view' / 'button_click' / 'screenshot' / 'feature_use'
+    screen: Optional[str] = None               # 'home' / 'chat' / 'collab' / ...
+    target: Optional[str] = None               # 'btn_reply_suggest' 같은 식별자
+    extra: Optional[dict] = None               # 자유 페이로드
+    timestamp_ms: Optional[int] = None         # 안드로이드 측 발생 시각 (없으면 서버 now)
+
+
+class AppEventRequest(BaseModel):
+    owner_phone: str                           # 사장님 phone
+    # 단일: event 만 보내거나, 배치: events 보냄
+    event: Optional[AppEventItem] = None
+    events: Optional[list[AppEventItem]] = None
+
+
+@app.post("/api/event")
+async def app_event_log(req: AppEventRequest) -> dict:
+    """추가51 (2026-06-21) — 앱 이벤트 1개 또는 배치 INSERT.
+
+    body 예시 (단일):
+      {"owner_phone":"01080052080","event":{"event_name":"screen_view","screen":"home"}}
+    body 예시 (배치):
+      {"owner_phone":"01080052080","events":[{...},{...}]}
+    """
+    owner_phone = _norm_phone(req.owner_phone)
+    if not owner_phone:
+        raise HTTPException(400, "owner_phone 필수")
+    _touch_beta_whitelist(owner_phone)  # 앱 실행 신호 (last_seen 갱신)
+    items: list[AppEventItem] = []
+    if req.events:
+        items.extend(req.events)
+    if req.event:
+        items.append(req.event)
+    if not items:
+        raise HTTPException(400, "event 또는 events 필수")
+    if len(items) > 100:
+        raise HTTPException(400, "한 번에 최대 100건")
+    now = _now_ms()
+    rows = []
+    for it in items:
+        ts = int(it.timestamp_ms) if it.timestamp_ms else now
+        extra_str = _json.dumps(it.extra, ensure_ascii=False) if it.extra else None
+        rows.append((
+            owner_phone,
+            (it.event_name or "")[:50],
+            (it.screen or "")[:50] or None,
+            (it.target or "")[:80] or None,
+            extra_str,
+            ts,
+        ))
+    with db_conn() as con:
+        con.executemany(
+            """
+            INSERT INTO app_events
+                (owner_phone, event_name, screen, target, extra_json, created_at_ms)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            rows,
+        )
+        con.commit()
+    print(f"[event] owner={owner_phone} count={len(rows)}")
+    return {"ok": True, "count": len(rows)}
 
 
 # ─── POST /api/push/register ───
