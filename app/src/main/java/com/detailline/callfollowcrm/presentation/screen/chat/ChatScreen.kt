@@ -308,6 +308,8 @@ fun ChatScreen(
     //   templatePickerCategory = "" 이면 전체 템플릿, 카테고리 이름이면 그 카테고리만.
     var templatePickerCategory by remember { mutableStateOf<String?>(null) }
     var showDatePicker by remember { mutableStateOf(false) }
+    // 시공일 등록 직후 "시공 시간" 선택 다이얼로그를 띄울 날짜(ms). null=닫힘. (2026-06-23 사장님)
+    var pendingScheduleTimeMs by remember { mutableStateOf<Long?>(null) }
     // confirm_schedule 액션 — 사장님이 고객에게 시공 가능 날짜 제안 흐름.
     //   캘린더로 날짜 선택 → 입력란에 "X월 X일 (요일) 괜찮으세요?" 자동 박힘 → 사장님 검토 후 전송.
     //   register_schedule (시공일 등록) 과 별개 — 고객 동의 후 register_schedule 로 따로 등록.
@@ -1218,7 +1220,7 @@ fun ChatScreen(
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let { ts ->
                         viewModel.setScheduledWorkDate(ts)
-                        showDepositFollowupForMs = ts
+                        pendingScheduleTimeMs = ts   // 날짜 등록 후 "시공 시간" 선택으로 이어감 (2026-06-23 사장님)
                     }
                     showDatePicker = false
                 }) {
@@ -1233,6 +1235,22 @@ fun ChatScreen(
         ) {
             DatePicker(state = datePickerState)
         }
+    }
+
+    // 시공일 등록 직후 "시공 시간" 선택 — 정한 뒤 계약금 안내 제안으로 이어감. (2026-06-23 사장님)
+    pendingScheduleTimeMs?.let { ts ->
+        com.detailline.callfollowcrm.presentation.component.WorkTimePickerDialog(
+            initialMinutes = customer?.scheduledWorkMinutes,
+            onPick = { mins ->
+                viewModel.setScheduledWorkMinutes(mins)
+                pendingScheduleTimeMs = null
+                showDepositFollowupForMs = ts
+            },
+            onDismiss = {
+                pendingScheduleTimeMs = null
+                showDepositFollowupForMs = ts
+            }
+        )
     }
 
     // AI 제안 박스의 [일정 잡기/협의] 액션 — 캘린더 → 자동 텍스트 박힘 흐름.

@@ -1196,6 +1196,14 @@ class ChatViewModel(
         _toast.value = "시공일을 등록했어요"
     }
 
+    /** 시공 시간(자정부터 분, null=미정) 설정 — 시공일 등록 후 시간 칩에서 호출. (2026-06-23 사장님) */
+    fun setScheduledWorkMinutes(minutes: Int?) = viewModelScope.launch {
+        val id = ensureCustomerId()
+        withContext(Dispatchers.IO + NonCancellable) {
+            runCatching { container.customerRepository.updateScheduledWorkMinutes(id, minutes) }
+        }
+    }
+
     /**
      * 2026-05-29 킬러콘텐츠 3단계 — 화면 떠날 때 DISMISSED 시그널.
      *

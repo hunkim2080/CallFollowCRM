@@ -159,6 +159,12 @@ class CustomerRepository(
         dao.update(c.copy(workCompletedAt = completedAt, updatedAt = System.currentTimeMillis()))
     }
 
+    /** 시공 시간만 설정/변경(자정부터 분, null=미정). 기간(days)은 그대로 보존. 채팅·고객정보 날짜선택 후 시간 칩에서 호출. (2026-06-23 사장님) */
+    suspend fun updateScheduledWorkMinutes(id: Long, minutes: Int?) {
+        val c = dao.findById(id) ?: return
+        dao.update(c.copy(scheduledWorkMinutes = minutes, updatedAt = System.currentTimeMillis()))
+    }
+
     /** 시공 시간(자정부터 분, null=미정) + 기간(일) 설정. 셀프 일정 등록/수정에서 호출. DB v24. */
     suspend fun updateScheduledWorkTiming(id: Long, minutes: Int?, days: Int) {
         val c = dao.findById(id) ?: return

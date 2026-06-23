@@ -165,6 +165,9 @@ fun CustomerDetailScreen(
         }
     }
     var celebrationVisible by remember { mutableStateOf(false) }
+    // 날짜 저장 후 "시공 시간" 선택 + (첫 등록이면) 축하 보류 플래그. (2026-06-23 사장님)
+    var workTimePickerOpen by remember { mutableStateOf(false) }
+    var pendingCelebrate by remember { mutableStateOf(false) }
     // 현장 사진 삭제 확인 — null 이면 닫힘, 값 = 삭제 대상 photo id.
     var photoToDelete by remember { mutableStateOf<Long?>(null) }
     // 팀원(서버) 사진 삭제 확인 — 사장님이 퇴사한 팀원 사진도 지울 수 있게. (2026-06-07)
@@ -1011,13 +1014,10 @@ fun CustomerDetailScreen(
                                     onClick = {
                                         val picked = datePickerState.selectedDateMillis
                                         if (picked != null) {
-                                            // 일정 신규 등록/변경 모두 축하. 자동 status 전환은 폐기됨 (카테고리 시스템).
-                                            val wasAlreadyScheduled = customer?.scheduledWorkDate != null
+                                            // 날짜 저장 → "시공 시간" 선택 → (첫 등록이면) 축하. (2026-06-23 사장님)
+                                            pendingCelebrate = customer?.scheduledWorkDate == null
                                             viewModel.updateScheduledWorkDate(picked)
-                                            if (!wasAlreadyScheduled) {
-                                                celebrationVisible = true
-                                                vibrateCelebration(context)
-                                            }
+                                            workTimePickerOpen = true
                                         }
                                         datePickerOpen = false
                                     }
@@ -1028,6 +1028,22 @@ fun CustomerDetailScreen(
                 }
             }
         }
+    }
+
+    // 시공일 저장 직후 "시공 시간" 선택. 정하면(또는 닫으면) 첫 등록이면 축하. (2026-06-23 사장님)
+    if (workTimePickerOpen && customer != null) {
+        com.detailline.callfollowcrm.presentation.component.WorkTimePickerDialog(
+            initialMinutes = customer?.scheduledWorkMinutes,
+            onPick = { mins ->
+                viewModel.updateScheduledWorkMinutes(mins)
+                workTimePickerOpen = false
+                if (pendingCelebrate) { celebrationVisible = true; vibrateCelebration(context); pendingCelebrate = false }
+            },
+            onDismiss = {
+                workTimePickerOpen = false
+                if (pendingCelebrate) { celebrationVisible = true; vibrateCelebration(context); pendingCelebrate = false }
+            }
+        )
     }
 
     // 예약 확정 축하 오버레이 — Scaffold 위에 떠서 콘페티 + 메시지 표시. 2.5초 뒤 자동 닫힘.

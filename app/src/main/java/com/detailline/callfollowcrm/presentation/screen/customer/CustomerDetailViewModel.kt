@@ -327,6 +327,13 @@ class CustomerDetailViewModel(
         }
     }
 
+    /** 시공 시간(자정부터 분, null=미정) 설정 — 날짜 선택 후 시간 칩에서 호출. 기간 보존. (2026-06-23 사장님) */
+    fun updateScheduledWorkMinutes(minutes: Int?) = viewModelScope.launch {
+        withContext(NonCancellable) {
+            container.customerRepository.updateScheduledWorkMinutes(customerId, minutes)
+        }
+    }
+
     /**
      * 시공 예약일 설정. epoch ms (자정으로 정규화). 취소는 null.
      * 2026-05-25: 자동 status RESERVATION_CONFIRMED 전환 제거 — 카테고리 시스템으로 이관.
