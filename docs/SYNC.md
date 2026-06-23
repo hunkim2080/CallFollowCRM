@@ -5682,3 +5682,11 @@ C폰(S23U)·A폰(S9) 실기기 보고 일괄 처리. release 669 사이트 배�
 - 배포: C폰 + si0in.kr release 677(0.2.677), served sha a387a774… 일치.
 - 앱 전용. 서버 변경 불필요.
 - commit: 0305903
+
+## 2026-06-23 12:20 · android — 스팸 차단 번호 목록(더보기 복구) + 신규 탭→바로 채팅 (release 679)
+사장님: ① 스팸으로 넣은 번호 어디 가나+잘못 넣으면 풀게(더보기). ② 신규 카드 탭→고객정보 말고 바로 채팅.
+- ① spam_phones 에 phoneNumber+displayName(DB v33, ALTER ADD COLUMN, 폰 마이그레이션 무크래시 확인). markSpam=전체번호+이름 저장. 더보기 '앱 설정'에 "스팸 차단 번호" → SpamListScreen(번호/이름·등록순·[해제]). 해제=unmark→재노출. 옛 데이터=suffix 표시.
+- ② NewLeads 행 탭: customerDetail→chat 바로(onReContact 동일 경로).
+- 배포: C폰 release 679(0.2.679), si0in.kr served sha 2ab2524d… 일치.
+- 앱 전용. 서버 변경 불필요.
+- commit: eb23fa6
