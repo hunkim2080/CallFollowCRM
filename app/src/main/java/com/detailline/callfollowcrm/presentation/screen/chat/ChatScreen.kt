@@ -1158,6 +1158,7 @@ fun ChatScreen(
                 // 사진 저장(다운로드) — 지금 보고 있는 사진을 휴대폰 갤러리에 저장. (2026-06-23 사장님)
                 IconButton(
                     onClick = {
+                        viewModel.trackJourney("capture", "image_download")
                         imgs.getOrNull(pagerState.currentPage)?.let { uri ->
                             scope.launch {
                                 val ok = saveImageToGallery(context, uri)

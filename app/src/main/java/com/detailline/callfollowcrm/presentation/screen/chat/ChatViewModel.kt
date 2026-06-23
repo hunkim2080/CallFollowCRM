@@ -438,6 +438,7 @@ class ChatViewModel(
      * Customer 없으면 NEW_INQUIRY 로 자동 생성 (첫 발송이 = 첫 후속 처리이므로).
      */
     fun sendMessage(context: Context, body: String, onResult: (Boolean) -> Unit) {
+        container.journeyEventRepository.track("button_click", screen = "chat", target = "send")
         val trimmed = body.trim()
         if (trimmed.isEmpty()) { onResult(false); return }
         if (phoneNumber.isBlank()) {
@@ -915,9 +916,14 @@ class ChatViewModel(
      *   이제 polling (2초 × 5회 = 10초) 으로 자동 wait → READY 되면 즉시 채움.
      *   사장님이 ↻ 안 눌러도 됨. _suggestionsLoading=true 가 ChatScreen 의 스피너 트리거.
      */
+    /** 사용자 여정 이벤트 적재(채팅 화면). 30초 배치로 서버 전송. (2026-06-23 사장님) */
+    fun trackJourney(eventName: String, target: String? = null) =
+        container.journeyEventRepository.track(eventName, screen = "chat", target = target)
+
     fun loadSuggestions() = viewModelScope.launch {
         // 통화로 끝난 대화면 답할 문자가 없음 → 추천 준비 안 함(스피너 X). (2026-06-17 사장님)
         if (lastActivityIsCall.value) return@launch
+        container.journeyEventRepository.track("llm_use", screen = "chat", target = "suggestions")
         // 2026-05-28 사장님 통점: "알림엔 2개, ChatScreen 들어가면 3개" = LLM 점진 생성 race.
         //   첫 fetch 가 size >= 3 면 그대로. 부족하면 polling 으로 더 기다림. 알림 정책과 일관.
         val first = container.suggestionRepository.fetch(phoneNumber).getOrNull()

@@ -80,6 +80,8 @@ class AppContainer(context: Context) {
         customerRepository = customerRepository
     )
     val spamPhoneRepository = com.detailline.callfollowcrm.data.repository.SpamPhoneRepository(db.spamPhoneDao())
+    // 사용자 여정 이벤트(화면진입·버튼·캡쳐·LLM) — 30초 배치 → POST /api/event. (2026-06-23 사장님)
+    val journeyEventRepository = com.detailline.callfollowcrm.ai.JourneyEventRepository()
     // 정산 Phase 2 (DB v20) — 직접 현금 기록.
     val manualCashRepository = com.detailline.callfollowcrm.data.repository.ManualCashRepository(db.manualCashDao())
     // 수첩 (DB v21) — 일당/거래처.

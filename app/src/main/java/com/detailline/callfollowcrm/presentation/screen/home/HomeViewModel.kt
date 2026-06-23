@@ -1119,6 +1119,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      *   발송 기록 남기고, 그 카드를 미확인에서 즉시 제외 + 추천 미리보기 제거.
      */
     fun onWaitingReplySent(phone: String, body: String, customerId: Long?) {
+        container.journeyEventRepository.track("button_click", screen = "home", target = "quick_reply")
         val suffix = phoneSuffix(phone)
         _repliedSuffixes.value = _repliedSuffixes.value + suffix
         _waitingReplies.value = _waitingReplies.value - suffix

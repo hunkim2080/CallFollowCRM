@@ -279,6 +279,14 @@ class CallFollowCrmApplication : Application() {
         appScope.launch {
             runCatching { com.detailline.callfollowcrm.service.GeofenceManager.refresh(this@CallFollowCrmApplication) }
         }
+
+        // 사용자 여정 이벤트 — 30초마다 버퍼를 모아 서버로 배치 전송(admin 타임라인). (2026-06-23 사장님)
+        appScope.launch {
+            while (true) {
+                delay(30_000)
+                runCatching { container.journeyEventRepository.flush(container.preferences.bizPhone) }
+            }
+        }
     }
 
     /**

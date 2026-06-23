@@ -76,6 +76,13 @@ fun AppNavHost(
     fun routeBase(route: String?): String? = route?.substringBefore("?")
     fun isTabSwitch(from: String?, to: String?): Boolean = routeBase(from) in tabRoutes && routeBase(to) in tabRoutes
 
+    // 사용자 여정 — 화면 진입(목적지 변경)마다 screen_view 적재. 30초 배치로 전송. (2026-06-23 사장님)
+    androidx.compose.runtime.LaunchedEffect(navController) {
+        navController.currentBackStackEntryFlow.collect { entry ->
+            container.journeyEventRepository.track("screen_view", screen = entry.destination.route)
+        }
+    }
+
     NavHost(
         navController = navController,
         startDestination = startDestination,
