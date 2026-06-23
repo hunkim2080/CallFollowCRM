@@ -121,7 +121,8 @@ class SmsReceiver : BroadcastReceiver() {
                         displayName = customer?.name,
                         body = combinedBody,
                         receivedAtMs = receivedAtMs,
-                        categoryLabel = categoryLabel
+                        categoryLabel = categoryLabel,
+                        isNewCustomer = customer == null
                     )
                 }
             } finally {

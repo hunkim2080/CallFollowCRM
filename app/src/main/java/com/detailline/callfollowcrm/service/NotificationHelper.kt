@@ -6,6 +6,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.graphics.BitmapFactory
+import android.media.AudioAttributes
 import android.net.Uri
 import android.os.Build
 import android.widget.RemoteViews
@@ -19,14 +20,16 @@ object NotificationHelper {
 
     private const val CHANNEL_FOLLOW_UP = "call_follow_up"
     private const val CHANNEL_FOLLOW_UP_QUIET = "call_follow_up_quiet"
-    private const val CHANNEL_AUTO_REPLY = "auto_reply"
+    private const val CHANNEL_AUTO_REPLY = "auto_reply_2"
     /** 2026-05-25 사장님 결정 — RING-GO 가 갤메시지보다 더 좋은 알림창. 풍부한 정보 + AI 추천 답변. */
-    private const val CHANNEL_INCOMING_SMS = "incoming_sms"
+    private const val CHANNEL_INCOMING_SMS = "incoming_sms_2"
+    /** 처음 연락온 신규 고객 — 별도 소리로 구분. */
+    private const val CHANNEL_INCOMING_SMS_NEW = "incoming_sms_new"
     /** 고객이 시공접수서를 작성·제출했을 때 알림. */
-    private const val CHANNEL_INTAKE = "intake_submitted"
+    private const val CHANNEL_INTAKE = "intake_submitted_2"
     private const val INTAKE_ID_OFFSET = 8_000_000
     /** 시간 기반 리마인더(시공 D-1·잔금 미수·마감 브리핑). */
-    private const val CHANNEL_REMINDER = "reminder"
+    private const val CHANNEL_REMINDER = "reminder_2"
     private const val D1_ID_OFFSET = 9_000_000
     private const val SETTLE_ID_OFFSET = 9_500_000
     private const val BRIEF_ID = 9_700_000
@@ -51,68 +54,72 @@ object NotificationHelper {
     fun ensureChannels(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = context.getSystemService(NotificationManager::class.java) ?: return
+            val audioAttrs = AudioAttributes.Builder()
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                .build()
+            fun snd(resId: Int) = Uri.parse("android.resource://${context.packageName}/$resId")
+
             if (manager.getNotificationChannel(CHANNEL_FOLLOW_UP) == null) {
-                val channel = NotificationChannel(
-                    CHANNEL_FOLLOW_UP,
-                    "통화 후속 안내",
-                    NotificationManager.IMPORTANCE_HIGH
-                ).apply {
-                    description = "방금 끝난 통화에 대한 후속 문자 안내"
-                }
-                manager.createNotificationChannel(channel)
+                manager.createNotificationChannel(NotificationChannel(
+                    CHANNEL_FOLLOW_UP, "통화 후속 안내", NotificationManager.IMPORTANCE_HIGH
+                ).apply { description = "방금 끝난 통화에 대한 후속 문자 안내" })
             }
             if (manager.getNotificationChannel(CHANNEL_AUTO_REPLY) == null) {
-                val channel = NotificationChannel(
-                    CHANNEL_AUTO_REPLY,
-                    "자동 응답 문자",
-                    NotificationManager.IMPORTANCE_HIGH
+                manager.createNotificationChannel(NotificationChannel(
+                    CHANNEL_AUTO_REPLY, "자동 응답 문자", NotificationManager.IMPORTANCE_HIGH
                 ).apply {
                     description = "처음 연락온 고객 자동 응답 발송 안내 (취소 가능)"
-                }
-                manager.createNotificationChannel(channel)
+                    setSound(snd(R.raw.sound_auto_reply), audioAttrs)
+                })
             }
             // quiet 후속 안내 — 2번째 이후 통화이지만 사장님이 아직 답장/분류 안 한 경우.
             // 배너 X (heads-up 없음), 사운드 X, 알림함에만 조용히 쌓임.
             if (manager.getNotificationChannel(CHANNEL_FOLLOW_UP_QUIET) == null) {
-                val channel = NotificationChannel(
-                    CHANNEL_FOLLOW_UP_QUIET,
-                    "후속 미처리 안내",
-                    NotificationManager.IMPORTANCE_LOW
+                manager.createNotificationChannel(NotificationChannel(
+                    CHANNEL_FOLLOW_UP_QUIET, "후속 미처리 안내", NotificationManager.IMPORTANCE_LOW
                 ).apply {
                     description = "답장 못 한 손님이 또 연락 왔을 때 조용히 알려줘요"
                     setShowBadge(true)
-                }
-                manager.createNotificationChannel(channel)
+                })
             }
-            // 신규 SMS 수신 — 갤메시지 대체 알림. 본문 + AI 추천 답변 + 빠른 답장 RemoteInput.
+            // 기존 고객 답장 — 갤메시지 대체 알림.
             if (manager.getNotificationChannel(CHANNEL_INCOMING_SMS) == null) {
-                val channel = NotificationChannel(
-                    CHANNEL_INCOMING_SMS,
-                    "📩 새 문자",
-                    NotificationManager.IMPORTANCE_HIGH
+                manager.createNotificationChannel(NotificationChannel(
+                    CHANNEL_INCOMING_SMS, "📩 새 문자", NotificationManager.IMPORTANCE_HIGH
                 ).apply {
                     description = "고객 SMS 가 오면 AI 추천 답변과 함께 표시 — 갤메시지 알림은 끄고 사용하세요"
+                    setSound(snd(R.raw.sound_reply), audioAttrs)
                     setShowBadge(true)
-                }
-                manager.createNotificationChannel(channel)
+                })
+            }
+            // 신규 문의 — 처음 연락온 고객, 별도 소리로 구분.
+            if (manager.getNotificationChannel(CHANNEL_INCOMING_SMS_NEW) == null) {
+                manager.createNotificationChannel(NotificationChannel(
+                    CHANNEL_INCOMING_SMS_NEW, "📩 신규 문의", NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "처음 연락온 신규 고객 문자 — 바로 답장해요"
+                    setSound(snd(R.raw.sound_new_inquiry), audioAttrs)
+                    setShowBadge(true)
+                })
             }
             if (manager.getNotificationChannel(CHANNEL_INTAKE) == null) {
-                val channel = NotificationChannel(
+                manager.createNotificationChannel(NotificationChannel(
                     CHANNEL_INTAKE, "📋 접수서 작성됨", NotificationManager.IMPORTANCE_HIGH
                 ).apply {
                     description = "고객이 시공접수서를 작성하면 알려줘요"
+                    setSound(snd(R.raw.sound_intake), audioAttrs)
                     setShowBadge(true)
-                }
-                manager.createNotificationChannel(channel)
+                })
             }
             if (manager.getNotificationChannel(CHANNEL_REMINDER) == null) {
-                val channel = NotificationChannel(
+                manager.createNotificationChannel(NotificationChannel(
                     CHANNEL_REMINDER, "⏰ 시공·정산 리마인더", NotificationManager.IMPORTANCE_HIGH
                 ).apply {
                     description = "내일 시공 안내·잔금 미수·마감 브리핑을 제때 알려줘요"
+                    setSound(snd(R.raw.sound_reminder), audioAttrs)
                     setShowBadge(true)
-                }
-                manager.createNotificationChannel(channel)
+                })
             }
         }
     }
@@ -598,7 +605,8 @@ object NotificationHelper {
         displayName: String?,
         body: String,
         receivedAtMs: Long,
-        categoryLabel: String? = null
+        categoryLabel: String? = null,
+        isNewCustomer: Boolean = false
     ) {
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
 
@@ -651,7 +659,8 @@ object NotificationHelper {
         //   (2026-06-15 사장님: 알림창엔 추천이 안 보이는 게 더 깔끔. 수신 즉시 카톡처럼 헤드업.)
         val bigText = body
 
-        val builder = NotificationCompat.Builder(context, CHANNEL_INCOMING_SMS)
+        val smsChannel = if (isNewCustomer) CHANNEL_INCOMING_SMS_NEW else CHANNEL_INCOMING_SMS
+        val builder = NotificationCompat.Builder(context, smsChannel)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(body.take(60))
