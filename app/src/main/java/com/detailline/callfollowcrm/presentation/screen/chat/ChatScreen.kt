@@ -715,7 +715,8 @@ fun ChatScreen(
                                     onUseAsDraft = { msg ->
                                         setInput(if (input.isBlank()) msg else input + "\n" + msg)
                                     },
-                                    onSummarizeCall = { viewModel.summarizeCall(ti.record, context) }
+                                    onSummarizeCall = { viewModel.summarizeCall(ti.record, context) },
+                                    onEditSummary = { newText -> matched?.let { viewModel.updateCallSummary(it, newText) } }
                                 )
                             }
                             is ChatTimelineItem.Intake -> IntakeSegment(ti.event)
@@ -1495,8 +1496,12 @@ private fun CallSegment(
     audioUri: String? = null,
     audioDurationMs: Long? = null,
     onUseAsDraft: (String) -> Unit = {},
-    onSummarizeCall: () -> Unit = {}
+    onSummarizeCall: () -> Unit = {},
+    onEditSummary: (String) -> Unit = {}
 ) {
+    // 사장님이 잘못된 통화 요약을 직접 고치는 인라인 편집 상태. (2026-06-23 사장님)
+    var editing by remember(summary?.id) { mutableStateOf(false) }
+    var editText by remember(summary?.id) { mutableStateOf("") }
     val type = runCatching {
         com.detailline.callfollowcrm.domain.model.CallType.valueOf(record.callType)
     }.getOrNull()
@@ -1579,19 +1584,58 @@ private fun CallSegment(
                     }
                 }
             }
+        } else if (editing) {
+            // 사장님이 잘못된 요약을 직접 고침 — 한 줄에 한 항목. (2026-06-23 사장님)
+            Column(Modifier.padding(top = 10.dp)) {
+                Box(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color.White)
+                        .border(1.dp, Color(0xFFBCE0D8), RoundedCornerShape(10.dp)).padding(10.dp)
+                ) {
+                    BasicTextField(
+                        value = editText,
+                        onValueChange = { editText = it },
+                        textStyle = TextStyle(fontSize = 12.5.sp, color = TossTextPrimary, lineHeight = 19.sp),
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp)
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                Text("한 줄에 한 가지씩 적으면 깔끔해요.", fontSize = 10.5.sp, color = TossTextTertiary)
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(
+                        Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).background(TossGrayBg)
+                            .clickable { editing = false }.padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) { Text("취소", color = TossTextSecondary, fontSize = 12.5.sp, fontWeight = FontWeight.Bold) }
+                    Box(
+                        Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).background(Color(0xFF0E9E90))
+                            .clickable { onEditSummary(editText); editing = false }.padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) { Text("저장", color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold) }
+                }
+            }
         } else {
-            // 요약됨 → cc-bul(불릿) + ghost 버튼 "이 통화 내용으로 후속 문자 쓰기"
+            // 요약됨 → cc-bul(불릿) + ✏️ 수정 + ghost 버튼 "이 통화 내용으로 후속 문자 쓰기"
             Column(Modifier.padding(top = 10.dp)) {
                 bullets.forEach { line ->
                     Row(Modifier.padding(bottom = 4.dp)) {
                         Text("• ", fontSize = 12.5.sp, color = Color(0xFF0A7D72), fontWeight = FontWeight.Bold)
-                        Text(line, fontSize = 12.5.sp, color = TossTextSecondary, lineHeight = 19.sp)
+                        Text(line, fontSize = 12.5.sp, color = TossTextSecondary, lineHeight = 19.sp, modifier = Modifier.weight(1f))
                     }
                 }
             }
+            // 잘못된 요약 직접 고치기 — 탭하면 인라인 편집. (2026-06-23 사장님)
+            Box(
+                Modifier.fillMaxWidth().padding(top = 6.dp).clip(RoundedCornerShape(10.dp))
+                    .clickable { editText = summary?.summaryText.orEmpty(); editing = true }
+                    .padding(vertical = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("✏️ 요약 수정", color = Color(0xFF0A7D72), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
             val draft = summary?.recommendedMessage?.takeIf { it.isNotBlank() }
             Box(
-                Modifier.fillMaxWidth().padding(top = 8.dp).clip(RoundedCornerShape(10.dp))
+                Modifier.fillMaxWidth().padding(top = 6.dp).clip(RoundedCornerShape(10.dp))
                     .background(Color.White).border(1.dp, Color(0xFFBCE0D8), RoundedCornerShape(10.dp))
                     .clickable { if (draft != null) onUseAsDraft(draft) }.padding(vertical = 10.dp),
                 contentAlignment = Alignment.Center

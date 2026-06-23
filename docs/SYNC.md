@@ -5646,3 +5646,9 @@ C폰(S23U)·A폰(S9) 실기기 보고 일괄 처리. release 669 사이트 배�
 - 앱엔 이미 FCM 수신기(`RingGoFcmService`) + 토큰 등록(`pushRegisterRepository.register`) 있음.
 - 요청: `/api/shared/progress` 가 step=`completed`(가능하면 departed/arrived 도) 저장될 때 **owner_phone 으로 FCM data push 1발** → 앱이 받으면 즉시 owner-events 1회 폴(또는 바로 알림). 60초 대기 없이 즉시 '완료+계좌'.
 - (병행 대기) `/api/download/version` 에 `version_code`(int) 추가 요청도 아직 미반영 — 새버전 배너 오탐 방지용(앱은 665+ 부터 받을 준비됨).
+
+## 2026-06-23 04:40 · android — 통화요약 사장님 직접 수정(인라인 ✏️) (release 670)
+사장님 요청: 자동 통화요약이 틀린 경우 직접 고치게. A안(카드에서 바로 수정) 채택.
+- 채팅 통화 카드 → **"✏️ 요약 수정"** → 인라인 편집(BasicTextField, 한 줄=한 항목) → 저장. `ChatViewModel.updateCallSummary` → `callSummaryRepository.update(summaryText 교체)`.
+- 모든 화면(채팅·고객정보·미리보기·홈)이 같은 `call_summaries` row 를 보므로 **한 곳 수정=전부 반영**. 자동스캔 dedup(findExistingNear)이 덮어쓰기 방지.
+- 앱 전용. 서버 변경 불필요.

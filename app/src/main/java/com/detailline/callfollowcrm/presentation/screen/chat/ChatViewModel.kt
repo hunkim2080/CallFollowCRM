@@ -209,6 +209,16 @@ class ChatViewModel(
         }
     }
 
+    /** 통화 요약을 사장님이 직접 고침(잘못된 요약 정정). summaryText 만 교체 → 채팅·고객정보·미리보기 모든 화면 자동 반영. (2026-06-23 사장님) */
+    fun updateCallSummary(summary: com.detailline.callfollowcrm.data.local.entity.CallSummaryEntity, newText: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            container.callSummaryRepository.update(
+                summary.copy(summaryText = newText.trim(), updatedAt = System.currentTimeMillis())
+            )
+            _toast.value = "통화 요약을 수정했어요 ✓"
+        }
+    }
+
     /**
      * 시공접수서 제출 이벤트 (2026-06-05) — 고객이 접수서를 작성 완료하면 IntakeSyncManager 가 기록.
      *   채팅 타임라인에 통화 카드처럼 "📋 접수서 작성 완료" 이벤트 카드로 표시(제출 시각 기준).
