@@ -560,6 +560,12 @@
         <input id="phone" name="phone" type="tel" inputmode="tel" placeholder="010-1234-5678" maxlength="13" required>
         <div class="hint">선정 안내 받으실 번호. SMS 로 알려드려요.</div>
       </div>
+      <!-- 추가57 — 업체명 (사장님이 admin 페이지에서 누가 누군지 분간하기 위해) -->
+      <div class="form-row">
+        <label for="business_name">업체명 <span class="req">*</span></label>
+        <input id="business_name" name="business_name" type="text" placeholder="예: 디테일라인 줄눈" maxlength="60" required>
+        <div class="hint">상호·브랜드명. 안내 메시지에 호칭으로 써요.</div>
+      </div>
       <div class="form-row">
         <label for="industry">업종 <span class="req">*</span></label>
         <select id="industry" name="industry" required>
@@ -590,14 +596,14 @@
       </div>
       <div class="form-row">
         <label for="note">사장님 한 말씀 (선택)</label>
-        <textarea id="note" name="note" rows="3" maxlength="300" placeholder="평소 답장이 가장 힘든 순간, 막내한테 바라는 점 등 자유롭게."></textarea>
-        <div class="hint">최대 300자.</div>
+        <textarea id="note" name="note" rows="5" maxlength="500" placeholder="시공을 위해 쓰시던 앱이 있다면 무엇이었는지·왜 사용하셨는지 적어주시면 정말 큰 도움이 됩니다. 또 평소 답장이 가장 힘든 순간이나 막내한테 바라는 점도 자유롭게 적어주세요."></textarea>
+        <div class="hint">최대 500자. 옛 앱 이름·사용 이유 알려주시면 진심으로 감사드려요.</div>
       </div>
       <div class="agree-row">
         <input id="agreed" name="agreed" type="checkbox" required>
         <label for="agreed">
           <b>개인정보 수집·이용에 동의합니다</b><br>
-          수집: 전화번호·업종·지역·문의 수. 목적: 베타 선정 안내. 보관: 베타 종료 후 즉시 파기 (가입 전환 시 서비스 이용 종료까지).
+          수집: 전화번호·업체명·업종·지역·문의 수·자유 메모. 목적: 베타 선정 안내·서비스 개선. 보관: 베타 종료 후 즉시 파기 (가입 전환 시 서비스 이용 종료까지).
         </label>
       </div>
       <button type="submit" class="submit-btn" id="submitBtn">베타 신청하기 →</button>
@@ -795,6 +801,7 @@
     }
     const payload = {
       phone: phone,
+      business_name: document.getElementById('business_name').value.trim(),  // 추가57
       industry: document.getElementById('industry').value,
       region: document.getElementById('region').value.trim(),
       monthly_inquiries: document.getElementById('monthly_inquiries').value,

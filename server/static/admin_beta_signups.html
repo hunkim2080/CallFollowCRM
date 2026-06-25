@@ -148,11 +148,11 @@
     <table>
       <thead>
         <tr>
-          <th>전화번호</th><th>업종</th><th>지역</th><th>한달문의</th><th>한말씀</th><th>상태</th><th>신청시각</th><th>화이트리스트</th>
+          <th>전화번호</th><th>업체명</th><th>업종</th><th>지역</th><th>한달문의</th><th>한말씀</th><th>상태</th><th>신청시각</th><th>화이트리스트</th>
         </tr>
       </thead>
       <tbody id="tbody">
-        <tr><td colspan="8" class="loading">불러오는 중...</td></tr>
+        <tr><td colspan="9" class="loading">불러오는 중...</td></tr>
       </tbody>
     </table>
   </div>
@@ -204,19 +204,19 @@
   async function load(filter){
     const token = getToken();
     if (!token){ showModal(false); return; }
-    tbody.innerHTML = '<tr><td colspan="8" class="loading">불러오는 중...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="loading">불러오는 중...</td></tr>';
     try {
       const url = '/admin/beta/signups/data?status=' + encodeURIComponent(filter) + '&limit=200';
       const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
       if (res.status === 401 || res.status === 403){ clearToken(); showModal(true); return; }
       if (!res.ok){
-        tbody.innerHTML = '<tr><td colspan="8" class="loading">불러오기 실패 (HTTP ' + res.status + ')</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="loading">불러오기 실패 (HTTP ' + res.status + ')</td></tr>';
         return;
       }
       const data = await res.json();
       render(data);
     } catch(err){
-      tbody.innerHTML = '<tr><td colspan="8" class="loading">네트워크 오류</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="loading">네트워크 오류</td></tr>';
     }
   }
 
@@ -229,7 +229,7 @@
     currentItems = data.items;
 
     if (!data.items.length){
-      tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="es-ic">🪺</div><div class="es-t">아직 신청자가 없어요</div><div class="es-d">랜딩페이지에서 신청이 들어오면 여기 표시돼요.</div></div></td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="es-ic">🪺</div><div class="es-t">아직 신청자가 없어요</div><div class="es-d">랜딩페이지에서 신청이 들어오면 여기 표시돼요.</div></div></td></tr>';
       return;
     }
 
@@ -241,8 +241,10 @@
       const wlCell = it.is_whitelisted
         ? '<span class="wl-done">✅ 등록됨</span>'
         : '<button class="wl-btn" data-phone="' + escapeHtml(it.phone_raw) + '">+ 등록</button>';
+      const bizName = it.business_name || '<span style="color:#9AA3AF">—</span>';
       return '<tr data-idx="' + idx + '">' +
         '<td class="phone-cell">' + escapeHtml(it.phone) + '</td>' +
+        '<td style="font-weight:700;color:#0B0F19;">' + (it.business_name ? escapeHtml(it.business_name) : '<span style="color:#9AA3AF">—</span>') + '</td>' +
         '<td><span class="industry-chip">' + escapeHtml(it.industry) + '</span></td>' +
         '<td class="region-cell">' + escapeHtml(it.region) + '</td>' +
         '<td class="monthly-cell">' + escapeHtml(it.monthly_inquiries) + '</td>' +
@@ -299,6 +301,7 @@
     const ts = new Date(it.created_at_ms);
     const tsFull = ts.getFullYear() + '-' + String(ts.getMonth()+1).padStart(2,'0') + '-' + String(ts.getDate()).padStart(2,'0') + ' ' + String(ts.getHours()).padStart(2,'0') + ':' + String(ts.getMinutes()).padStart(2,'0') + ':' + String(ts.getSeconds()).padStart(2,'0');
     detail.innerHTML = '<div class="d-h"><h2>' + escapeHtml(it.phone) + '</h2><span class="status-chip ' + it.status + '">' + it.status + '</span><button class="d-close" id="dCloseBtn">×</button></div>' +
+      '<div class="d-row"><div class="d-k">업체명</div><div class="d-v">' + escapeHtml(it.business_name || '(없음)') + '</div></div>' +
       '<div class="d-row"><div class="d-k">업종</div><div class="d-v">' + escapeHtml(it.industry) + '</div></div>' +
       '<div class="d-row"><div class="d-k">지역</div><div class="d-v">' + escapeHtml(it.region) + '</div></div>' +
       '<div class="d-row"><div class="d-k">한달문의</div><div class="d-v">' + escapeHtml(it.monthly_inquiries) + '</div></div>' +

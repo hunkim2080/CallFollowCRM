@@ -5792,3 +5792,16 @@ C폰(S23U)·A폰(S9) 실기기 보고 일괄 처리. release 669 사이트 배�
 - 작동: row 끝에 [+ 등록] 버튼 → 클릭 = POST /admin/beta/whitelist + visual 즉시 ✅ 등록됨.
 - 이미 등록된 사람 = ✅ 등록됨 라벨로 시작 (DB join 으로 한 번에).
 - commit: (pending)
+
+## 2026-06-25 20:00 · cowork
+추가57 — 신청 폼 개편.
+- 사장님 의도: "번호만 있으니까 누군지 분간 안 가 + 옛 앱 경험 정보 받고 싶음"
+- 변경:
+  - landing.html: "업체명" 필수 input 추가 (전화번호 바로 아래). "사장님 한 말씀" placeholder = "시공을 위해 쓰시던 앱이 있다면 무엇이었는지·왜 사용하셨는지... + 평소 답장이 힘든 순간". maxlength 300→500. 동의 문구도 "업체명·자유 메모" 명시.
+  - main.py: BetaSignupRequest 에 business_name 필드. POST 처리 + DB INSERT/UPDATE. 
+  - DB: beta_signups ALTER TABLE ADD COLUMN business_name TEXT (idempotent).
+  - admin_beta_signups.html: 컬럼 9개로 (업체명 추가). row + detail 모달 둘 다.
+  - /admin/beta/signups/data: 응답에 business_name 추가.
+- 옛 신청자 (8명) 의 business_name = NULL → admin 에 "—" 표시.
+- 변경: server/main.py, server/static/landing.html, server/static/admin_beta_signups.html.
+- commit: (pending)

@@ -496,6 +496,12 @@ def db_init() -> None:
             "CREATE INDEX IF NOT EXISTS idx_beta_signups_status "
             "ON beta_signups(status, created_at_ms DESC)"
         )
+        # 추가57 (2026-06-25) — 신청 폼에 업체명 + 옛 앱 사용 경험 추가
+        # 사장님: "번호만 있으니까 누군지 분간 안 가, 업체명 적게 해줘"
+        try:
+            con.execute("ALTER TABLE beta_signups ADD COLUMN business_name TEXT")
+        except sqlite3.OperationalError:
+            pass  # already exists
         # 추가31 (2026-06-15) — 베타 화이트리스트 (테스터 폰번호 기반 첫 진입 게이트).
         # 사장님이 admin 페이지에서 폰번호 등록 → 앱 첫 진입 시 본인 phone 입력 → 매칭 OK 면 진입.
         # 코드·SMS·관리 시스템 없이 폰번호 1개만으로 화이트리스트 운영.
@@ -4568,6 +4574,7 @@ class BetaSignupRequest(BaseModel):
     note: str = ""
     agreed: bool = False
     source: str = "landing/unknown"
+    business_name: str = ""  # 추가57 — 업체명 (사장님이 admin 페이지에서 신청자 분간용)
 
 
 _VALID_INDUSTRIES = {"줄눈", "타일", "도배", "장판", "인테리어", "기타"}
@@ -4613,7 +4620,8 @@ async def beta_signup(req: BetaSignupRequest, request: Request):
     region = (req.region or "").strip()
     if len(region) < 2 or len(region) > 40:
         raise HTTPException(status_code=400, detail="활동 지역 입력 오류")
-    note = (req.note or "").strip()[:300]
+    note = (req.note or "").strip()[:500]  # 추가57 — 한말씀에 옛 앱 경험도 적게 → 300 → 500
+    business_name = (req.business_name or "").strip()[:60]  # 추가57
 
     # 메타
     ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or (
@@ -4647,8 +4655,8 @@ async def beta_signup(req: BetaSignupRequest, request: Request):
             """
             INSERT INTO beta_signups
               (phone, industry, region, monthly_inquiries, note, agreed_at_ms,
-               source, ip, ua, status, created_at_ms, updated_at_ms)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               source, ip, ua, status, created_at_ms, updated_at_ms, business_name)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(phone) DO UPDATE SET
               industry          = excluded.industry,
               region            = excluded.region,
@@ -4658,7 +4666,8 @@ async def beta_signup(req: BetaSignupRequest, request: Request):
               source            = excluded.source,
               ip                = excluded.ip,
               ua                = excluded.ua,
-              updated_at_ms     = excluded.updated_at_ms
+              updated_at_ms     = excluded.updated_at_ms,
+              business_name     = excluded.business_name
             """,
             (
                 phone_digits,
@@ -4673,6 +4682,7 @@ async def beta_signup(req: BetaSignupRequest, request: Request):
                 new_status,
                 now,
                 now,
+                business_name,
             ),
         )
         count = con.execute(
@@ -4753,7 +4763,7 @@ async def admin_beta_signups_data(
         rows = con.execute(
             f"""
             SELECT phone, industry, region, monthly_inquiries, note, source,
-                   ip, ua, status, created_at_ms, updated_at_ms
+                   ip, ua, status, created_at_ms, updated_at_ms, business_name
             FROM beta_signups
             {where}
             ORDER BY created_at_ms DESC
@@ -4794,6 +4804,7 @@ async def admin_beta_signups_data(
                 "created_at_ms": r["created_at_ms"],
                 "updated_at_ms": r["updated_at_ms"],
                 "is_whitelisted": r["phone"] in wl_phones,  # 추가56b
+                "business_name": r["business_name"] or "",  # 추가57
             }
         )
     return {
