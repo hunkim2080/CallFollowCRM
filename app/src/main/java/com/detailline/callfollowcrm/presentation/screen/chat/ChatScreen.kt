@@ -3540,9 +3540,9 @@ private fun EstimateBuilderDialog(
                 }
             }
             Spacer(Modifier.height(6.dp))
-            // 가격을 그 자리에서 고칠 수 있다는 힌트 — 고친 값은 가격표에 저장돼 다음에도 그대로. (2026-06-25 사장님)
-            Text("💡 가격을 탭하면 그 자리에서 고칠 수 있어요. 고친 값은 다음에도 기억돼요.",
-                fontSize = 11.5.sp, color = TossTextTertiary, lineHeight = 16.sp,
+            // 가격을 그 자리에서 고칠 수 있다는 힌트 한 줄 — 줄마다 ✏️ 빼고 여기로만 안내. (2026-06-25 사장님)
+            Text("💡 가격을 탭하면 바로 고칠 수 있어요",
+                fontSize = 11.5.sp, color = TossTextTertiary,
                 modifier = Modifier.padding(start = 2.dp, bottom = 4.dp))
             // 항목 리스트 (프로토 est-row + 평당 est-area)
             // 전체 시트가 한 번에 스크롤되도록 항목은 일반 Column(내부 LazyColumn 제거).
@@ -3753,19 +3753,13 @@ private fun EstimateItemRow(
                     }.padding(horizontal = 7.dp, vertical = 4.dp)
                 )
             } else {
-                // 탭 = 그 자리에서 가격 수정. ✏️ 로 수정 가능 표시.
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
+                // 탭 = 그 자리에서 가격 수정. 연필 아이콘 없이 가격만 — 안내는 상단 힌트 한 줄로. (2026-06-25 사장님: 조잡함 제거)
+                Text(
+                    if (isPyeong) "${formatWon(price)}/평" else formatWon(price),
+                    color = TossTextSecondary, fontSize = 14.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { editingPrice = true }
-                        .padding(horizontal = 5.dp, vertical = 3.dp)
-                ) {
-                    Text(
-                        if (isPyeong) "${formatWon(price)}/평" else formatWon(price),
-                        color = TossTextSecondary, fontSize = 14.sp, fontWeight = FontWeight.Bold
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text("✏️", fontSize = 11.sp)
-                }
+                        .padding(horizontal = 6.dp, vertical = 4.dp)
+                )
             }
         }
         // 프로토 .est-area — 평당 항목 선택 시 평수 조절
