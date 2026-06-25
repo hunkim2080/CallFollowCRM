@@ -1213,6 +1213,10 @@ class ChatViewModel(
                 container.customerRepository.updateScheduledWorkDate(id, timestampMs)
             }
         }
+        // 캘린더 등록 KPI — 채팅 AI제안 [시공일 등록]도 한 건으로 집계. (2026-06-25 cowork 요청)
+        container.journeyEventRepository.track(
+            "schedule_create", screen = "chat", target = "…" + phoneNumber.filter { it.isDigit() }.takeLast(4)
+        )
         _toast.value = "시공일을 등록했어요"
     }
 

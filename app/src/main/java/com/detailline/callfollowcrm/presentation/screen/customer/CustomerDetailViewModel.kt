@@ -340,6 +340,13 @@ class CustomerDetailViewModel(
      */
     fun updateScheduledWorkDate(epochMs: Long?) = viewModelScope.launch {
         val normalized = epochMs?.let { com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(it) }
+        // 캘린더 등록 KPI — 고객상세 날짜 픽커로 시공일 잡는 것도 한 건. 취소(null)는 제외. (2026-06-25 cowork 요청)
+        if (normalized != null) {
+            val c = customer.value
+            val label = c?.name?.trim()?.takeIf { it.isNotBlank() }
+                ?: ("…" + (c?.phoneNumber?.filter { ch -> ch.isDigit() }?.takeLast(4) ?: ""))
+            container.journeyEventRepository.track("schedule_create", screen = "customer_detail", target = label)
+        }
         withContext(NonCancellable) {
             container.customerRepository.updateScheduledWorkDate(customerId, normalized)
             markTodayCallsAsHandled()

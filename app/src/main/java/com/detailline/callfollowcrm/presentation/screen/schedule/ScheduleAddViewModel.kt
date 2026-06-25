@@ -112,6 +112,9 @@ class ScheduleAddViewModel(private val container: AppContainer) : ViewModel() {
                 }
                 runCatching { container.autoCategoryClassifier.reclassify(id) }
             }
+            // 캘린더 등록은 서버 미전송(로컬 CustomerEntity only) → admin KPI 측정용 여정 이벤트만 발사. (2026-06-25 cowork 요청)
+            val label = name.trim().takeIf { it.isNotBlank() } ?: ("…" + digits.takeLast(4))
+            container.journeyEventRepository.track("schedule_create", screen = "schedule", target = label)
             _saving.value = false
             _toast.value = "일정 등록 완료"
             onDone()
