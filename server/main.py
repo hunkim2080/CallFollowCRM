@@ -6791,19 +6791,8 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
       }
       document.getElementById('featGrid').innerHTML = fhtml;
 
-      // 최근 timeline
-      document.getElementById('cRecent').textContent = d.recent_api.length;
-      var lhtml = '';
-      if (d.recent_api.length === 0) lhtml = '<div class="empty">최근 사용 없음</div>';
-      else {
-        for (var i=0; i<d.recent_api.length; i++) {
-          var x = d.recent_api[i];
-          lhtml += '<div class="item">'
-            + '<div class="title">' + esc(FEATURE_LABEL[x.endpoint] || x.endpoint) + '</div>'
-            + '<div class="sub2">' + fmtDate(x.created_at_ms) + '</div></div>';
-        }
-      }
-      document.getElementById('recentList').innerHTML = lhtml;
+      // 추가54+ (2026-06-23) — 옛 "최근 timeline" 제거됨 (여정 탭으로 통합).
+      // cRecent / recentList element 가 없어서 호출하면 null 에러 → 통째 삭제.
 
       // 추가52 (2026-06-23) — 사용자 여정 timeline (세션 묶음 + 압축 + 한글)
       var journey = d.events_journey || [];
