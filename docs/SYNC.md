@@ -5762,28 +5762,13 @@ C폰(S23U)·A폰(S9) 실기기 보고 일괄 처리. release 669 사이트 배�
 - 변경: server/main.py 의 _ADMIN_USER_DETAIL_HTML 만. API 변경 X. 안드로이드 변경 X.
 - commit: (pending)
 
-## 2026-06-25 22:11 · android — 업데이트 배너 버전번호 표시 + A폰/서버 704 갱신
-- 버그 진단: A폰(701) vs 서버(703, 06:24 업로드) → 29h 차이로 배너 정상 표시(오탐 아님). 사장님이 "최신인 것 같은데"라고 느낀 이유 = 배너에 목표 버전 숫자가 없어서.
-- 배포: release 704 빌드 → A폰(디버그서명) + 서버 shigongmagne.apk 갱신(22:11).
-- 변경: app/util/UpdateChecker.kt, HomeViewModel.kt, HomeScreen.kt — 배너를 "현재버전 → 최신버전 업데이트 하세요!" 형식으로 표시 (commit d093a7c).
-- commit: d093a7c (배너 코드), version 704 (version.properties, git 제외)
-- **cowork 필수 액션**: `/api/download/version` 응답에 `version_code: int` 필드 추가.
-  - 현재 응답: `{mtime_ms, mtime_iso, version, size_bytes, ...}` → version_code 없음.
-  - 추가 시 배너가 "0.2.701 → 0.2.704 업데이트 하세요!" 처럼 정확한 버전 번호로 표시됨.
-  - 미추가 시: mtime 기반 폴백(2h 마진)으로 동작하나, 서버 APK 재업로드 시 오탐 가능.
-  - 구현: APK 파일 파싱 or 별도 version_code.txt 파일로 관리 권장.
-
-## 2026-06-25 23:30 · android — 시공일 등록 KPI(schedule_create) + 견적 가격 인라인수정 + 완료현장 화면
-질문 답변(cowork: 일정탭 시공일 등록 서버 전송 여부):
-- **결론: 캘린더(시공일) 등록은 서버 미전송. 앱 로컬 Room DB(CustomerEntity.scheduledWorkDate)에만 저장.**
-  - shared_sites/intake_forms/team-snapshot 아님. (협업 공유·접수서 발급은 별도 액션이고, 일반 시공일 등록 자체는 로컬 only)
-- **조치: 수동 등록 3경로에 `journeyEventRepository.track("schedule_create", screen, target=고객라벨)` 발사 (commit 245b5f4)**
-  - ① 일정탭 셀프등록 `ScheduleAddViewModel.submit` → screen="schedule"
-  - ② 채팅 AI제안 [시공일 등록] `ChatViewModel.setScheduledWorkDate` → screen="chat"
-  - ③ 고객상세 날짜픽커 `CustomerDetailViewModel.updateScheduledWorkDate` → screen="customer_detail" (취소=null 은 제외)
-  - target=고객명(없으면 …번호뒤4자리). 기존 /api/event 배치(30초)로 전송됨 — 서버 추가작업 불필요.
-- **cowork 측**: admin/user 여정/집계에서 event_name="schedule_create" 카운트하면 "이 사용자 캘린더 N건 등록" KPI 측정 가능. screen 으로 경로별 분해도 됨.
-- 곁들임(앱 only, 서버 무관):
-  - 견적 만들기 항목 가격 그 자리에서 수정 → 가격표에 저장(다음에도 기억). commit 3b1f76e
-  - 완료된 협업현장 상세: 길찾기 빼고 정산(일당+계좌전달) 한 줄, 주소는 기록으로. commit 358d54e
-  - 홈 협업카드 완료 버튼. commit 0399e1f
+## 2026-06-23 23:15 · cowork
+추가55 — 캘린더 시공일 등록 추적 (안드로이드 245b5f4 와 짝).
+- 안드로이드: schedule_create 이벤트 3경로 (schedule / chat / customer_detail) 발사.
+- cowork: /admin/user/{phone}/data 응답에 schedule_count (event_name='schedule_create' COUNT) 추가.
+- 새 페이지 숫자 4칸: "현장(접수서)" → "시공일(캘린더 등록)" 으로 라벨 변경. 사장님 KPI 핵심.
+- 접수서 탭 라벨 명확화 + 안내문 ("위 시공일 숫자 + 여정 탭 참고").
+- 여정에 schedule_create 한글 라벨 "시공일 등록" + 📅 + 보라 border.
+- SCREEN_LABEL 에 customer_detail 추가.
+- 변경: server/main.py 만. 안드로이드 변경 X (이미 완료).
+- commit: (pending)

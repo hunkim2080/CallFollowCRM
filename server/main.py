@@ -6277,6 +6277,16 @@ async def admin_user_detail_data(
         # LLM 사용 (api_usage MAX) 은 별도 의미라 합치지 않음.
         last_active_ms = profile.get("last_seen_ms") or None
 
+        # ── 8) schedule_count = 캘린더 시공일 등록 누적 (추가55 — 2026-06-23)
+        # 안드로이드가 일정 등록 시 EventTracker.track("schedule_create", ...) 호출.
+        # 3경로 (일정탭 / 채팅 AI 제안 / 고객상세 날짜픽커) 다 잡힘. 취소는 제외.
+        # = 사장님 KPI ("사람들이 캘린더에 시공일 꾸준히 등록") 의 진짜 측정 지표.
+        sc_row = con.execute(
+            "SELECT COUNT(*) FROM app_events WHERE owner_phone = ? AND event_name = 'schedule_create'",
+            (target,),
+        ).fetchone()
+        schedule_count = sc_row[0] if sc_row else 0
+
     return {
         "profile": profile,
         "intakes": intakes,
@@ -6286,6 +6296,7 @@ async def admin_user_detail_data(
         "recent_api": recent_api,
         "events_journey": events_journey,  # 추가51 (2026-06-21) — 사용자 여정
         "last_active_ms": last_active_ms,
+        "schedule_count": schedule_count,  # 추가55 (2026-06-23) — 캘린더 시공일 등록 누적
     }
 
 
@@ -6366,6 +6377,7 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
   .ev-ai    { border-left-color:#2196F3; }
   .ev-click { border-left-color:#4CAF50; }
   .ev-cap   { border-left-color:#FF9800; }
+  .ev-sch   { border-left-color:#9C27B0; }  /* 추가55 — 시공일 등록 (보라) */
   .ev-err   { border-left-color:#F44336; }
   .ev-x     { background:var(--bg); border-radius:6px; padding:1px 6px;
               font-size:11px; font-weight:800; color:var(--t2); margin-left:6px; }
@@ -6473,9 +6485,9 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
     <div class="meta-row" id="heroMeta"></div>
   </div>
 
-  <!-- ② 핵심 숫자 4 -->
+  <!-- ② 핵심 숫자 4 (추가55 — "현장"→"시공일" 라벨 변경: 캘린더 KPI) -->
   <div class="big-grid">
-    <div class="big-card"><div class="v" id="nIntakes">-</div><div class="lab">현장</div></div>
+    <div class="big-card"><div class="v" id="nSchedule">-</div><div class="lab">시공일</div></div>
     <div class="big-card"><div class="v" id="nCollab">-</div><div class="lab">협업</div></div>
     <div class="big-card"><div class="v" id="nAI">-</div><div class="lab">AI 사용</div></div>
     <div class="big-card"><div class="v" id="nDays">-</div><div class="lab">가입한지</div></div>
@@ -6494,7 +6506,10 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
       <div id="journeyList"><div class="empty">로딩중…</div></div>
     </div>
     <div class="tab-pane" id="paneIntake">
-      <h2>📋 등록한 일정·현장 <span class="cnt" id="cIntakes">0</span></h2>
+      <h2>📋 접수서 발급/제출 <span class="cnt" id="cIntakes">0</span></h2>
+      <p style="font-size:11.5px; color:#9AA3AF; margin:0 0 8px;">
+        ※ 사장님이 고객한테 시공 정보 폼 보낼 때. 캘린더 시공일은 위 "시공일" 숫자 + 여정 탭 참고.
+      </p>
       <div id="intakeList"><div class="empty">로딩중…</div></div>
     </div>
     <div class="tab-pane" id="paneCollab">
@@ -6716,10 +6731,11 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
       var addedMs = p.added_at_ms || p.first_seen_ms;
       var nDays = addedMs ? Math.max(1, Math.floor((Date.now() - addedMs) / 86400000)) : null;
 
-      document.getElementById('nIntakes').textContent = d.intakes.length;
-      document.getElementById('nCollab').textContent  = totalCollab;
-      document.getElementById('nAI').textContent      = totalAI;
-      document.getElementById('nDays').textContent    = nDays !== null ? nDays + '일' : '-';
+      // 추가55 — "시공일" = schedule_create 이벤트 누적 (캘린더 KPI)
+      document.getElementById('nSchedule').textContent = (d.schedule_count || 0);
+      document.getElementById('nCollab').textContent   = totalCollab;
+      document.getElementById('nAI').textContent       = totalAI;
+      document.getElementById('nDays').textContent     = nDays !== null ? nDays + '일' : '-';
 
       // ── ③-A 현장 탭 ──────────────────────────────────
       document.getElementById('cIntakes').textContent = d.intakes.length;
@@ -6798,41 +6814,45 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
       var journey = d.events_journey || [];
       document.getElementById('cJourney').textContent = journey.length;
       var EVENT_ICON = {
-        'screen_view':  '👀',
-        'button_click': '👆',
-        'screenshot':   '📸',
-        'feature_use':  '⚙️',
-        'llm_use':      '⚙️',
-        'error':        '⚠️',
+        'screen_view':    '👀',
+        'button_click':   '👆',
+        'screenshot':     '📸',
+        'feature_use':    '⚙️',
+        'llm_use':        '⚙️',
+        'schedule_create':'📅',  // 추가55 — 시공일 등록
+        'error':          '⚠️',
       };
       var EVENT_LABEL = {
-        'screen_view':  '화면 진입',
-        'button_click': '버튼',
-        'screenshot':   '캡쳐',
-        'feature_use':  'AI 사용',
-        'llm_use':      'AI 사용',
-        'error':        '에러',
+        'screen_view':    '화면 진입',
+        'button_click':   '버튼',
+        'screenshot':     '캡쳐',
+        'feature_use':    'AI 사용',
+        'llm_use':        'AI 사용',
+        'schedule_create':'시공일 등록',  // 추가55
+        'error':          '에러',
       };
       var EVENT_CLASS = {
-        'screen_view':  'ev-view',
-        'button_click': 'ev-click',
-        'screenshot':   'ev-cap',
-        'feature_use':  'ev-ai',
-        'llm_use':      'ev-ai',
-        'error':        'ev-err',
+        'screen_view':    'ev-view',
+        'button_click':   'ev-click',
+        'screenshot':     'ev-cap',
+        'feature_use':    'ev-ai',
+        'llm_use':        'ev-ai',
+        'schedule_create':'ev-sch',  // 추가55
+        'error':          'ev-err',
       };
       var SCREEN_LABEL = {
-        'home':         '홈',
-        'chat':         '채팅',
-        'collab':       '협업현장',
-        'collab_inbox': '협업 인박스',
-        'intake_form':  '접수서',
-        'schedule':     '일정',
-        'customer':     '고객 상세',
-        'call':         '통화상담',
-        'team':         '팀원',
-        'settings':     '설정',
-        'onboarding':   '온보딩',
+        'home':            '홈',
+        'chat':            '채팅',
+        'collab':          '협업현장',
+        'collab_inbox':    '협업 인박스',
+        'intake_form':     '접수서',
+        'schedule':        '일정',
+        'customer':        '고객 상세',
+        'customer_detail': '고객 상세',
+        'call':            '통화상담',
+        'team':            '팀원',
+        'settings':        '설정',
+        'onboarding':      '온보딩',
       };
 
       // 짧은 상대 시각 (방금 / 5분 전 / 2시간 전 / 어제 / N일 전)
