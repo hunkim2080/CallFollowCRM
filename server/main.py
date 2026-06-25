@@ -7194,15 +7194,8 @@ _ADMIN_HOME_HTML = """<!doctype html>
       <div class="arrow">›</div>
     </a>
 
-    <a href="/admin/beta/intake" class="menu-card" style="text-decoration:none; color:inherit;">
-      <div class="icon blue">📋</div>
-      <div class="body">
-        <div class="title">베타 인테이크 폼</div>
-        <div class="desc">사장님이 직접 베타 설정 (HOU-128)</div>
-        <div class="stats"><span>10 카테고리 설정</span></div>
-      </div>
-      <div class="arrow">›</div>
-    </a>
+    <!-- 추가56 (2026-06-25) — 베타 인테이크 폼 카드 제거. 페이지 (/admin/beta/intake) 자체는
+         유지 (사장님이 직접 URL 치면 접근 가능). 사장님이 안 쓰는 죽은 카드라 admin 홈에서만 뺌. -->
 
     <a href="/admin/usage-chart" class="menu-card" style="text-decoration:none; color:inherit;">
       <div class="icon green">📈</div>
@@ -11571,7 +11564,9 @@ async def app_event_log(req: AppEventRequest) -> dict:
     rows = []
     for it in items:
         ts = int(it.timestamp_ms) if it.timestamp_ms else now
-        extra_str = _json.dumps(it.extra, ensure_ascii=False) if it.extra else None
+        # 추가56 fix (2026-06-25) — _json undefined NameError 500. 안드로이드 진단으로 잡힘.
+        # extra 가 있는 이벤트 (backfill 의 {backfilled:true} 등) = 500 → 배치 통째 실패 → 재발사 무한 루프.
+        extra_str = json.dumps(it.extra, ensure_ascii=False) if it.extra else None
         rows.append((
             owner_phone,
             (it.event_name or "")[:50],

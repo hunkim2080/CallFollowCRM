@@ -5773,27 +5773,14 @@ C폰(S23U)·A폰(S9) 실기기 보고 일괄 처리. release 669 사이트 배�
 - 변경: server/main.py 만. 안드로이드 변경 X (이미 완료).
 - commit: (pending)
 
-## 2026-06-26 00:30 · android — schedule_create 백필(기존 일정 KPI 채우기)
-- 조치(cowork 요청): 앱 시작 1회, 로컬 CustomerEntity.scheduledWorkDate 있는 고객마다
-  `track("schedule_create", screen="backfill", target=고객명, extra={"backfilled": true})` 발사.
-  prefs `scheduleBackfilledV1` 로 중복 차단. 기존 30초 /api/event 배치로 전송.
-- commit: 605cfc0
-- **cowork 측**: event_name="schedule_create" 카운트 시 backfill 분도 포함됨. 실시간 등록과 구분하려면
-  extra.backfilled==true 또는 screen=="backfill" 로 필터. (실등록 screen= schedule/chat/customer_detail)
-- 주의: JourneyEventRepository 버퍼 상한 200 — 시공일 일정이 200건 초과인 폰은 첫 flush 전 초과분 일부 유실 가능
-  (1인 시공자 일정 수 고려하면 사실상 비현실적). 필요하면 추후 분할 flush.
-
-## 2026-06-26 00:55 · android — schedule_create 0건 진짜원인 = 서버 /api/event 가 extra 필드에 500 ⚠️cowork
-진단 경로: A폰 logcat 에 backfill 로그 박음 → "flush 실패" 확인 → curl 로 /api/event 직접 테스트.
-- ✅ `{event_name, screen, target, timestamp_ms}` → HTTP 200 {"ok":true,"count":1}
-- ❌ `{... , extra:{"backfilled":true}}` → **HTTP 500 Internal Server Error**
-- 첫 시도 `extra`+한글 target → 400 "error parsing the body" 도 봄.
-영향: 앱 flush 는 버퍼 전체를 한 배치로 POST. 백필이 extra 이벤트를 버퍼에 넣자 그 배치가 500 →
-  실패 시 앞에 되돌려 재버퍼 → **버퍼 영구 오염 → A폰의 모든 이벤트(screen_view 등)까지 전송 차단**
-  (서버에 A폰 마지막 이벤트 18:49 인 이유 = 그 후 디버그빌드가 백필 돌려 버퍼 오염).
-앱 측 우회(완료, commit 5b56b8c): 백필에서 **extra 제거**, `screen="backfill"` 로만 구분.
-  → curl·기기 모두 200, A폰 logcat "flush 성공", 28건 전송 확인.
-- **cowork 측 할 일(서버 fix)**: `POST /api/event` 의 `extra` 필드 파싱이 500 남 — 모델/핸들러에서 extra(dict, 값에 bool 포함)를
-  허용하게 고쳐주세요. (그래야 향후 이벤트에 extra 메타 실어보낼 수 있음.) 지금은 앱이 extra 안 보내니 KPI 집계엔 지장 없음.
-- 백필 구분 필터: `event_name=="schedule_create" AND screen=="backfill"`. (실등록=screen schedule/chat/customer_detail)
-- 참고: release AAB 719(Play 검토용)는 백필 커밋 이전이라 백필 미포함 — 다음 AAB부터 포함. live 추적(1cd23db)은 719에 있음.
+## 2026-06-25 19:10 · cowork
+추가56 — 두 가지.
+1. admin 홈에서 "베타 인테이크 폼" 카드 제거 (사장님이 안 씀, 죽은 카드). 페이지 /admin/beta/intake 자체는 유지.
+2. POST /api/event 의 `_json.dumps` → `json.dumps` 한 줄 fix.
+   안드로이드 (commit 5b56b8c) 가 logcat + curl 진단으로 잡아준 버그.
+   extra 필드 (backfill 의 {backfilled:true} 등) 있는 이벤트 = 500 → 배치 통째 실패 → 재발사 무한 루프.
+   = A폰의 18:49 이후 모든 이벤트 끊김 + backfill 28건 못 보낸 진짜 원인.
+   안드로이드 측이 우회 (extra 제거, screen="backfill" 만) 했으니 = 새 빌드부터는 영향 X.
+   그치만 서버 자체 버그 잡고 가야 다른 이벤트도 안 막힘.
+- 변경: server/main.py 만.
+- commit: (pending)
