@@ -5752,13 +5752,12 @@ C폰(S23U)·A폰(S9) 실기기 보고 일괄 처리. release 669 사이트 배�
 - 변경: server/main.py 의 TRADE_OPTIONS 만.
 - commit: (위 추가52+53 commit 에 합쳐서 push)
 
-## 2026-06-25 22:11 · android — 업데이트 배너 버전번호 표시 + A폰/서버 704 갱신
-- 버그 진단: A폰(701) vs 서버(703, 06:24 업로드) → 29h 차이로 배너 정상 표시(오탐 아님). 사장님이 "최신인 것 같은데"라고 느낀 이유 = 배너에 목표 버전 숫자가 없어서.
-- 배포: release 704 빌드 → A폰(디버그서명) + 서버 shigongmagne.apk 갱신(22:11).
-- 변경: app/util/UpdateChecker.kt, HomeViewModel.kt, HomeScreen.kt — 배너를 "현재버전 → 최신버전 업데이트 하세요!" 형식으로 표시 (commit d093a7c).
-- commit: d093a7c (배너 코드), version 704 (version.properties, git 제외)
-- **cowork 필수 액션**: `/api/download/version` 응답에 `version_code: int` 필드 추가.
-  - 현재 응답: `{mtime_ms, mtime_iso, version, size_bytes, ...}` → version_code 없음.
-  - 추가 시 배너가 "0.2.701 → 0.2.704 업데이트 하세요!" 처럼 정확한 버전 번호로 표시됨.
-  - 미추가 시: mtime 기반 폴백(2h 마진)으로 동작하나, 서버 APK 재업로드 시 오탐 가능.
-  - 구현: APK 파일 파싱 or 별도 version_code.txt 파일로 관리 권장.
+## 2026-06-23 22:30 · cowork
+추가54 — /admin/user/{phone} 페이지 통째 재설계.
+- 옛: 8개 카드 나열 (이름 + 요약4 + 현장 + 협업보냄 + 협업받음 + 기능 + 최근활동 + 여정 + 프로필).
+- 새: 4구획 시선 흐름 = ① Hero (이름·업종·폰·등급 badge·마지막진입·누적실행) → ② 숫자4 (현장/협업/AI/가입한지) → ③ 활동 탭 (여정·현장·협업·AI 누적, 한 번에 하나) → ④ 자세히 (접힘).
+- 등급 logic: <1일+5회↑=🟢진성 / <1일=🟡사용중 / <7일=🟡띄엄띄엄 / <30일=🟠잠수 / 그외=⚫휴면.
+- 협업 보냄·받음 = 한 list 통합 (→/← icon), 시간순 DESC.
+- editTrade modal 그대로 보존.
+- 변경: server/main.py 의 _ADMIN_USER_DETAIL_HTML 만. API 변경 X. 안드로이드 변경 X.
+- commit: (pending)

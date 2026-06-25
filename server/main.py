@@ -6369,6 +6369,63 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
   .ev-err   { border-left-color:#F44336; }
   .ev-x     { background:var(--bg); border-radius:6px; padding:1px 6px;
               font-size:11px; font-weight:800; color:var(--t2); margin-left:6px; }
+  /* 추가54 (2026-06-23) — 페이지 재설계 (Hero / 숫자 / 탭 / 접힘) */
+  .hero { background:linear-gradient(135deg, #0B0F19 0%, #1B2236 100%);
+          color:#fff; border-radius:16px; padding:18px 18px 16px; margin-top:14px;
+          box-shadow:0 4px 12px rgba(0,0,0,.08); }
+  .hero .name { font-size:20px; font-weight:800; line-height:1.25;
+                display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .hero .name .org { color:#B8C2D0; font-weight:600; font-size:15px; }
+  .hero .ph { font-size:13.5px; color:#D4DBE5; margin-top:6px; letter-spacing:0.3px; }
+  .hero .ph a { color:#82B1FF; text-decoration:none; font-size:11.5px;
+                font-weight:700; margin-left:6px; }
+  .hero .meta-row { margin-top:12px; display:flex; align-items:center;
+                    gap:10px; flex-wrap:wrap; font-size:12.5px; color:#D4DBE5; }
+  .hero .meta-row b { color:#fff; font-weight:700; }
+  .badge { display:inline-flex; align-items:center; gap:5px;
+           padding:4px 10px; border-radius:999px;
+           font-size:11.5px; font-weight:800; letter-spacing:-0.1px; }
+  .badge.real { background:rgba(22,193,114,.22); color:#52E6A0; }
+  .badge.peek { background:rgba(255,139,64,.22); color:#FFB983; }
+  .badge.dead { background:rgba(240,67,106,.22); color:#FF8FAB; }
+  .badge.cold { background:rgba(184,194,208,.22); color:#D4DBE5; }
+  .big-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px;
+              margin-top:10px; }
+  .big-card { background:var(--card); border-radius:12px; padding:12px 8px;
+              box-shadow:0 1px 3px rgba(0,0,0,.04); text-align:center; }
+  .big-card .v { font-size:22px; font-weight:800; color:var(--t1);
+                 line-height:1.1; letter-spacing:-0.5px; }
+  .big-card .lab { font-size:11px; color:var(--t3); font-weight:700;
+                   margin-top:4px; }
+  @media (max-width:420px) {
+    .big-card .v { font-size:19px; }
+    .big-card .lab { font-size:10.5px; }
+  }
+  /* 탭 */
+  .tabs { display:flex; gap:4px; background:var(--bg); padding:4px;
+          border-radius:11px; margin-top:14px; overflow-x:auto; }
+  .tab-btn { flex:1; min-width:max-content; padding:9px 12px; border-radius:8px;
+             font-size:12.5px; font-weight:800; color:var(--t2);
+             background:transparent; border:0; cursor:pointer;
+             font-family:inherit; letter-spacing:-0.2px;
+             transition:background .15s; }
+  .tab-btn.active { background:#fff; color:var(--t1);
+                    box-shadow:0 1px 2px rgba(0,0,0,.06); }
+  .tab-pane { display:none; }
+  .tab-pane.active { display:block; }
+  /* 접힘 */
+  details.more { background:var(--card); border-radius:12px; padding:0;
+                 box-shadow:0 1px 3px rgba(0,0,0,.04); margin-top:14px;
+                 overflow:hidden; }
+  details.more > summary { padding:13px 16px; font-size:13.5px;
+                           font-weight:800; color:var(--t2); cursor:pointer;
+                           list-style:none; display:flex; align-items:center;
+                           justify-content:space-between; }
+  details.more > summary::-webkit-details-marker { display:none; }
+  details.more > summary::after { content:'▾'; color:var(--t3);
+                                  transition:transform .15s; }
+  details.more[open] > summary::after { transform:rotate(180deg); }
+  details.more > div { padding:0 16px 16px; border-top:1px solid var(--line); }
 </style></head>
 <body>
 <div id="tokenModal"><div class="box">
@@ -6408,55 +6465,58 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
 
 <div class="wrap">
   <a class="back" href="/admin">← admin 홈</a>
-  <h1 id="hdr">사용자 상세</h1>
-  <div class="sub" id="hdrSub">로딩중…</div>
 
-  <div class="summary-cards">
-    <div class="s-card"><div class="lab">등록한 일정·현장</div><div class="v" id="kIntakes">-</div></div>
-    <div class="s-card"><div class="lab">협업 현장 (보냄+받음)</div><div class="v" id="kCollab">-</div></div>
-    <div class="s-card"><div class="lab">앱 호출 (누적)</div><div class="v" id="kCalls">-</div></div>
-    <div class="s-card"><div class="lab">최근 앱 실행</div><div class="v" id="kRecent">-</div></div>
+  <!-- ① Hero — 누구이고 잘 쓰는지 한 줄 -->
+  <div class="hero" id="hero">
+    <div class="name" id="heroName">로딩중…</div>
+    <div class="ph" id="heroPh"></div>
+    <div class="meta-row" id="heroMeta"></div>
   </div>
 
-  <!-- ★ 맨 위: 등록한 일정·현장 (사장님이 요청한 핵심) -->
-  <div class="card">
-    <h2>📋 등록한 일정·현장 <span class="cnt" id="cIntakes">0</span></h2>
-    <div id="intakeList"><div class="empty">로딩중…</div></div>
+  <!-- ② 핵심 숫자 4 -->
+  <div class="big-grid">
+    <div class="big-card"><div class="v" id="nIntakes">-</div><div class="lab">현장</div></div>
+    <div class="big-card"><div class="v" id="nCollab">-</div><div class="lab">협업</div></div>
+    <div class="big-card"><div class="v" id="nAI">-</div><div class="lab">AI 사용</div></div>
+    <div class="big-card"><div class="v" id="nDays">-</div><div class="lab">가입한지</div></div>
   </div>
 
-  <!-- 협업 (보낸·받은) -->
-  <div class="card">
-    <h2>🤝 협업 현장 (보냄) <span class="cnt" id="cSent">0</span></h2>
-    <div id="sentList"><div class="empty">-</div></div>
+  <!-- ③ 활동 (탭 — 한 번에 하나) -->
+  <div class="tabs">
+    <button class="tab-btn active" data-pane="paneJourney">🚶 여정</button>
+    <button class="tab-btn"        data-pane="paneIntake">📋 현장</button>
+    <button class="tab-btn"        data-pane="paneCollab">🤝 협업</button>
+    <button class="tab-btn"        data-pane="paneAI">⚙️ AI 사용</button>
   </div>
   <div class="card">
-    <h2>🤝 협업 현장 (받음) <span class="cnt" id="cRecv">0</span></h2>
-    <div id="recvList"><div class="empty">-</div></div>
+    <div class="tab-pane active" id="paneJourney">
+      <h2>🚶 사용자 여정 <span class="cnt" id="cJourney">0</span></h2>
+      <div id="journeyList"><div class="empty">로딩중…</div></div>
+    </div>
+    <div class="tab-pane" id="paneIntake">
+      <h2>📋 등록한 일정·현장 <span class="cnt" id="cIntakes">0</span></h2>
+      <div id="intakeList"><div class="empty">로딩중…</div></div>
+    </div>
+    <div class="tab-pane" id="paneCollab">
+      <h2>🤝 협업 현장 <span class="cnt" id="cCollab">0</span></h2>
+      <div id="collabList"><div class="empty">로딩중…</div></div>
+    </div>
+    <div class="tab-pane" id="paneAI">
+      <h2>⚙️ AI · 기능 사용 (누적)</h2>
+      <div class="feat-grid" id="featGrid"><div class="empty">로딩중…</div></div>
+      <p style="font-size:11px; color:#9AA3AF; margin:12px 0 0; text-align:center;">
+        ※ 시간 흐름은 "여정" 탭에서 보세요.
+      </p>
+    </div>
   </div>
 
-  <!-- 기능별 사용량 -->
-  <div class="card">
-    <h2>⚙️ 기능별 사용 (누적)</h2>
-    <div class="feat-grid" id="featGrid"><div class="empty">-</div></div>
-  </div>
-
-  <!-- 최근 활동 timeline (최근 10건) -->
-  <div class="card">
-    <h2>🕒 최근 활동 <span class="cnt" id="cRecent">0</span></h2>
-    <div id="recentList"><div class="empty">-</div></div>
-  </div>
-
-  <!-- 추가51 (2026-06-21) — 사용자 여정 timeline -->
-  <div class="card">
-    <h2>🚶 사용자 여정 <span class="cnt" id="cJourney">0</span></h2>
-    <div id="journeyList"><div class="empty">아직 여정 데이터 없음 (안드로이드 측 이벤트 발사 후 보임)</div></div>
-  </div>
-
-  <!-- 프로필 메타 -->
-  <div class="card">
-    <h2>👤 프로필</h2>
-    <div class="kv" id="profileKV"></div>
-  </div>
+  <!-- ④ 자세히 (접힘) — 옛 메타·프로필 -->
+  <details class="more">
+    <summary>▸ 자세히 (가입일·메모·옛 데이터)</summary>
+    <div>
+      <div class="kv" id="profileKV"></div>
+    </div>
+  </details>
 </div>
 
 <script>
@@ -6575,38 +6635,93 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
     } catch(e) { alert('실패: ' + e.message); }
   };
 
+  // 추가54 (2026-06-23) — 페이지 재설계: Hero / 숫자 / 탭 / 접힘
+  // 짧은 상대 시각 (load 밖에도 쓰게 외부에 둠)
+  function fmtShort(ms) {
+    if (!ms) return '-';
+    var diff = Date.now() - ms;
+    if (diff < 0) return '방금';
+    var sec = Math.floor(diff / 1000);
+    if (sec < 60) return '방금';
+    var min = Math.floor(sec / 60);
+    if (min < 60) return min + '분 전';
+    var hr = Math.floor(min / 60);
+    if (hr < 24) return hr + '시간 전';
+    var day = Math.floor(hr / 24);
+    if (day === 1) return '어제';
+    if (day < 7) return day + '일 전';
+    return Math.floor(day / 7) + '주 전';
+  }
+  // 등급 결정 — 마지막 활동 + 누적 사용
+  function userGrade(lastMs, useCount) {
+    if (!lastMs) return ['cold', '⚫ 진입 안 함'];
+    var d = (Date.now() - lastMs) / 86400000;
+    if (d < 1 && (useCount || 0) >= 5) return ['real', '🟢 진성'];
+    if (d < 1)  return ['peek', '🟡 사용중'];
+    if (d < 7)  return ['peek', '🟡 띄엄띄엄'];
+    if (d < 30) return ['dead', '🟠 잠수'];
+    return ['cold', '⚫ 휴면'];
+  }
+  // 폰 포맷 (010-1234-5678)
+  function fmtPhone(p) {
+    p = String(p||'').replace(/[^0-9]/g,'');
+    if (p.length === 11) return p.slice(0,3) + '-' + p.slice(3,7) + '-' + p.slice(7);
+    if (p.length === 10) return p.slice(0,3) + '-' + p.slice(3,6) + '-' + p.slice(6);
+    return p;
+  }
+  // 탭 전환 (1번 init)
+  function initTabs() {
+    var btns = document.querySelectorAll('.tab-btn');
+    btns.forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var paneId = btn.getAttribute('data-pane');
+        btns.forEach(function(b){ b.classList.remove('active'); });
+        document.querySelectorAll('.tab-pane').forEach(function(p){ p.classList.remove('active'); });
+        btn.classList.add('active');
+        document.getElementById(paneId).classList.add('active');
+      });
+    });
+  }
+
   async function load() {
     if (!ensureToken()) return;
     try {
       var d = await api('/admin/user/' + encodeURIComponent(PHONE) + '/data');
-
-      // 헤더
       var p = d.profile;
-      window._currentProfile = p;  // 추가50 — editTrade 가 참조
+      window._currentProfile = p;
+
+      // ── ① Hero — 누구이고 잘 쓰는지 ─────────────────────
       var displayName = p.name || p.registered_name || '(이름 없음)';
-      document.getElementById('hdr').textContent = displayName + ' · ' + p.phone;
-      // 추가49+50 (2026-06-21) — 업종·지역 표시 + 수정 버튼
-      var industryHtml = p.industry
-        ? '🔧 ' + p.industry + ' (' + (p.industry_source === 'app' ? '앱' : '모집폼') + ')' +
-          (p.region ? ' · ' + p.region : '') +
-          ' <a href="javascript:editTrade()" style="color:#3182F6; font-size:11px; margin-left:4px;">[수정]</a> · '
-        : '🔧 <span style="color:#9AA3AF">업종 미입력</span> <a href="javascript:editTrade()" style="color:#3182F6; font-size:11px;">[설정]</a> · ';
-      document.getElementById('hdrSub').innerHTML =
-        industryHtml +
-        (p.memo ? '메모: ' + esc(p.memo) + ' · ' : '') +
-        '가입: ' + (p.added_at_ms ? fmtRel(p.added_at_ms) : '미등록') +
-        ' · 진입 ' + (p.use_count || 0) + '회';
+      var org = p.memo ? '· ' + esc(p.memo) : '';
+      var industryTxt = p.industry
+        ? esc(p.industry)
+        : '<span style="color:#B8C2D0">업종 미입력</span>';
+      var industryEdit = ' <a href="javascript:editTrade()">[' + (p.industry?'수정':'설정') + ']</a>';
+      var grade = userGrade(p.last_seen_ms, p.use_count);
+      var lastTxt = p.last_seen_ms ? fmtShort(p.last_seen_ms) + ' 진입' : '진입 기록 없음';
 
-      // 요약 카드
-      document.getElementById('kIntakes').textContent = d.intakes.length;
-      document.getElementById('kCollab').textContent =
-        d.shared_sent.length + ' / ' + d.shared_received.length;
-      var totalCalls = 0;
-      for (var k in d.feature_counts) totalCalls += d.feature_counts[k] || 0;
-      document.getElementById('kCalls').textContent = totalCalls;
-      document.getElementById('kRecent').textContent = fmtRel(d.last_active_ms);
+      document.getElementById('heroName').innerHTML =
+        esc(displayName) + (org ? ' <span class="org">' + org + '</span>' : '');
+      document.getElementById('heroPh').innerHTML =
+        '📞 ' + esc(fmtPhone(p.phone)) + ' · 🔧 ' + industryTxt + industryEdit;
+      document.getElementById('heroMeta').innerHTML =
+        '<span class="badge ' + grade[0] + '">' + grade[1] + '</span>'
+        + '<span>· ' + lastTxt + '</span>'
+        + '<span>· 누적 <b>' + (p.use_count||0) + '</b>번 실행</span>';
 
-      // 일정·현장
+      // ── ② 숫자 4 ─────────────────────────────────────
+      var totalCollab = d.shared_sent.length + d.shared_received.length;
+      var totalAI = 0;
+      for (var k in d.feature_counts) totalAI += d.feature_counts[k] || 0;
+      var addedMs = p.added_at_ms || p.first_seen_ms;
+      var nDays = addedMs ? Math.max(1, Math.floor((Date.now() - addedMs) / 86400000)) : null;
+
+      document.getElementById('nIntakes').textContent = d.intakes.length;
+      document.getElementById('nCollab').textContent  = totalCollab;
+      document.getElementById('nAI').textContent      = totalAI;
+      document.getElementById('nDays').textContent    = nDays !== null ? nDays + '일' : '-';
+
+      // ── ③-A 현장 탭 ──────────────────────────────────
       document.getElementById('cIntakes').textContent = d.intakes.length;
       var ihtml = '';
       if (d.intakes.length === 0) {
@@ -6628,15 +6743,29 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
       }
       document.getElementById('intakeList').innerHTML = ihtml;
 
-      // 협업 보낸
-      document.getElementById('cSent').textContent = d.shared_sent.length;
-      var shtml = '';
-      if (d.shared_sent.length === 0) shtml = '<div class="empty">보낸 협업 없음</div>';
+      // ── ③-B 협업 탭 (보냄+받음 통합, 시간순 DESC) ─────
+      var merged = [];
+      for (var i=0; i<d.shared_sent.length; i++) {
+        merged.push(Object.assign({_dir:'sent'}, d.shared_sent[i]));
+      }
+      for (var i=0; i<d.shared_received.length; i++) {
+        merged.push(Object.assign({_dir:'recv'}, d.shared_received[i]));
+      }
+      merged.sort(function(a,b){ return (b.scheduled_at_ms||0) - (a.scheduled_at_ms||0); });
+      document.getElementById('cCollab').textContent = merged.length;
+      var chtml = '';
+      if (merged.length === 0) chtml = '<div class="empty">협업 현장 없음</div>';
       else {
-        for (var i=0; i<d.shared_sent.length; i++) {
-          var s = d.shared_sent[i];
-          shtml += '<div class="item">'
-            + '<div class="title">' + esc(s.title || '협업 현장') + ' · ' + esc(s.partner_name) + '</div>'
+        for (var i=0; i<merged.length; i++) {
+          var s = merged[i];
+          var dirIcon = s._dir === 'sent' ? '→' : '←';
+          var dirLbl  = s._dir === 'sent' ? '보냄' : '받음';
+          var counter = s._dir === 'sent' ? s.partner_name : s.owner_name;
+          chtml += '<div class="item">'
+            + '<div class="title">' + dirIcon + ' ' + esc(s.title || '협업 현장')
+            + ' · ' + esc(counter || '-')
+            + ' <span style="color:#9AA3AF; font-size:11px; font-weight:600">(' + dirLbl + ')</span>'
+            + '</div>'
             + '<div class="sub2">'
             + (s.scheduled_at_ms ? fmtDate(s.scheduled_at_ms) + ' · ' : '')
             + '<span class="pill ' + s.status + '">' + s.status + '</span>'
@@ -6644,25 +6773,7 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
             + '</div></div>';
         }
       }
-      document.getElementById('sentList').innerHTML = shtml;
-
-      // 협업 받은
-      document.getElementById('cRecv').textContent = d.shared_received.length;
-      var rhtml = '';
-      if (d.shared_received.length === 0) rhtml = '<div class="empty">받은 협업 없음</div>';
-      else {
-        for (var i=0; i<d.shared_received.length; i++) {
-          var s = d.shared_received[i];
-          rhtml += '<div class="item">'
-            + '<div class="title">' + esc(s.title || '협업 현장') + ' · ' + esc(s.owner_name) + '</div>'
-            + '<div class="sub2">'
-            + (s.scheduled_at_ms ? fmtDate(s.scheduled_at_ms) + ' · ' : '')
-            + '<span class="pill ' + s.status + '">' + s.status + '</span>'
-            + ' · ' + (s.progress || '-')
-            + '</div></div>';
-        }
-      }
-      document.getElementById('recvList').innerHTML = rhtml;
+      document.getElementById('collabList').innerHTML = chtml;
 
       // 기능별 사용량
       var fhtml = '';
@@ -6848,9 +6959,10 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
       document.getElementById('profileKV').innerHTML = pk;
 
     } catch(e) {
-      document.getElementById('hdrSub').textContent = '로드 실패: ' + e.message;
+      document.getElementById('heroName').textContent = '로드 실패: ' + e.message;
     }
   }
+  initTabs();
   load();
 </script></body></html>
 """
