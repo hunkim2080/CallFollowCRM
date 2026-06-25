@@ -3310,11 +3310,13 @@ private class EstimateDraft(initialCalMonth: Long) {
     val estCalMonth = androidx.compose.runtime.mutableStateOf(initialCalMonth)
     val selectedQty = androidx.compose.runtime.mutableStateMapOf<Long, Int>()
     val customItems = androidx.compose.runtime.mutableStateListOf<EstCustomLine>()
+    /** 항목 id → 이번 세션에서 그 자리에서 바꾼 가격(원). 즉시 우선 적용. DB 저장과 별개. (2026-06-25 사장님) */
+    val priceOverrides = androidx.compose.runtime.mutableStateMapOf<Long, Long>()
     /** 견적을 보냈거나(또는 진짜 닫았을 때) 다음을 위해 초기화. 미리보기 왕복 때는 호출 안 함. */
     fun reset(initialCalMonth: Long) {
         mode.value = "text"; depMode.value = "ratio"; depVal.value = "30"; depCustom.value = false
         workDateMs.value = null; workDays.value = 1; estCalMonth.value = initialCalMonth
-        selectedQty.clear(); customItems.clear()
+        selectedQty.clear(); customItems.clear(); priceOverrides.clear()
     }
 }
 
@@ -3387,13 +3389,13 @@ private fun EstimateBuilderDialog(
     // 가격표에 없는 즉석 항목(예: 실리콘) — 견적 만들기에서 바로 직접 추가. (2026-06-07 사장님 요청)
     val customItems = draft.customItems
     // 프로토: 카테고리 없는 평탄 리스트.
-    val visibleItems = remember(items) { items.sortedBy { it.displayOrder } }
-    val totalSum by remember {
-        androidx.compose.runtime.derivedStateOf {
-            visibleItems.sumOf { (selectedQty[it.id] ?: 0) * it.price } +
-                customItems.sumOf { (it.manwon.toIntOrNull() ?: 0) * 10_000L }
-        }
-    }
+    val baseItems = remember(items) { items.sortedBy { it.displayOrder } }
+    // 그 자리에서 바꾼 가격은 이번 세션에 즉시 우선 적용 — DB 저장은 비동기(다음 기억용)라, 지금 보낼 견적은
+    //   override 로 바로 반영해 레이스(옛 값으로 들어감)를 없앤다. visibleItems 가 곧 '효과적 가격' 리스트라
+    //   본문·견적서·접수서 전부 자동으로 바뀐 값을 쓴다. (2026-06-25 사장님)
+    val visibleItems = baseItems.map { it.copy(price = draft.priceOverrides[it.id] ?: it.price) }
+    val totalSum = visibleItems.sumOf { (selectedQty[it.id] ?: 0) * it.price } +
+        customItems.sumOf { (it.manwon.toIntOrNull() ?: 0) * 10_000L }
     val anySelected = selectedQty.values.any { it > 0 } ||
         customItems.any { it.name.isNotBlank() && (it.manwon.toIntOrNull() ?: 0) > 0 }
     val help = when (mode) {
@@ -3566,7 +3568,11 @@ private fun EstimateBuilderDialog(
                             val cur = selectedQty[item.id] ?: 0
                             if (cur > 1) selectedQty[item.id] = cur - 1
                         },
-                        onEditPrice = { manwon -> onUpdatePrice(item.id, manwon * 10_000L) }
+                        onEditPrice = { manwon ->
+                            val won = manwon * 10_000L
+                            draft.priceOverrides[item.id] = won   // 이번 세션 즉시 반영(레이스 없음)
+                            onUpdatePrice(item.id, won)           // DB 저장 — 다음에도 기억
+                        }
                     )
                 }
             }
