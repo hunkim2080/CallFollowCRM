@@ -3753,8 +3753,12 @@ private fun EstimateItemRow(
                 //   draftManwon 은 편집 시작 시 1회만 초기화(price 키 X) — 입력 중 price 가 바뀌어도 글자가 튀지 않게.
                 var draftManwon by remember { mutableStateOf((price / 10_000L).toString()) }
                 var wasFocused by remember { mutableStateOf(false) }
-                // 편집 진입 즉시 포커스 잡고 숫자패드 올림.
+                // 편집 진입 시 포커스+숫자패드. 단, 입력칸이 완전히 배치된 '다음 프레임'에 포커스를 걸어야
+                //   입력 세션(IME 연결)이 제대로 붙는다. 즉시 requestFocus 하면 커서만 깜빡이고 첫 백스페이스/입력이
+                //   안 먹다가 다시 탭해야 먹는 버그가 난다(S9). (2026-06-25 사장님)
                 LaunchedEffect(Unit) {
+                    androidx.compose.runtime.withFrameNanos { }
+                    kotlinx.coroutines.delay(80)
                     runCatching { priceFocus.requestFocus() }
                     keyboard?.show()
                 }
