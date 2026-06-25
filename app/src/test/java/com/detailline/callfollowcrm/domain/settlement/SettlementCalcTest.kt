@@ -84,6 +84,30 @@ class SettlementCalcTest {
         assertTrue(SettlementCalc.hasMoney(customer(deposit = 100_000)))
     }
 
+    @Test fun `총액 줄였는데 옛 잔금이 stale 로 남아도 - 총액-계약금으로 자가복구`() {
+        // 사장님 신고(2026-06-26): 총 15만 / 계약금 10만인데 잔금이 35만으로 뜸.
+        //   DB: totalAmount=15만, depositAmount=10만, balanceAmount=35만(옛 45만 시절 잔금이 stale).
+        //   잔금 미받음(balancePaid=false) → 총액 기준 재계산 = 15-10 = 5만.
+        val r = SettlementCalc.rowOf(
+            customer(total = 150_000, deposit = 100_000, depositPaid = true, balance = 350_000)
+        )
+        assertEquals(150_000, r.total)
+        assertEquals(50_000, r.balanceAmount)   // 35만(stale) 무시 → 5만
+        assertEquals(100_000, r.received)        // 계약금만 받음
+        assertEquals(50_000, r.outstanding)
+        assertFalse(r.isPaidOff)
+    }
+
+    @Test fun `잔금 받음 표시된 건 - 받은 실제 금액 유지`() {
+        // 받은 기록은 보존: balancePaid=true 면 저장된 balanceAmount 를 그대로 받은 금액으로.
+        val r = SettlementCalc.rowOf(
+            customer(total = 1_000_000, deposit = 300_000, depositPaid = true, balance = 700_000, balancePaid = true)
+        )
+        assertEquals(700_000, r.balanceAmount)
+        assertEquals(1_000_000, r.received)
+        assertTrue(r.isPaidOff)
+    }
+
     @Test fun `받은게 총액 초과해도 미수는 음수 안됨`() {
         // 총액 100k 인데 계약금 300k 받음으로 박힘 (이상 입력) → outstanding 0.
         val r = SettlementCalc.rowOf(

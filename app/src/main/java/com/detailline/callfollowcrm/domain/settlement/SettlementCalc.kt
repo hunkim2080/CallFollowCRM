@@ -41,14 +41,18 @@ object SettlementCalc {
 
     fun rowOf(c: CustomerEntity): SettleRow {
         val deposit = (c.depositAmount ?: 0L).coerceAtLeast(0L)
-        // 잔금: 직접 박힌 값 우선 → 없으면 (총액 − 계약금) 으로 추정 → 그것도 없으면 0.
-        val balance = c.balanceAmount?.coerceAtLeast(0L)
-            ?: c.totalAmount?.let { (it - deposit).coerceAtLeast(0L) }
-            ?: 0L
-        val total = c.totalAmount ?: (deposit + balance)
-
         val depositPaid = c.depositPaidAt != null
         val balancePaid = c.balancePaidAt != null
+        // 잔금 규칙 (2026-06-26 사장님 신고: 총 15만인데 잔금 35만으로 뜸 — 옛 45만 시절 balanceAmount 가 stale 로 남음):
+        //  - 총액이 있으면 = 항상 (총액 − 계약금). 총액이 헤드라인 진실이므로 저장된 stale balanceAmount 는 무시해
+        //    "총액과 잔금이 안 맞는" 모순을 원천 차단. (받음 처리 후에도 동일 — received = 계약금 + 잔금 = 총액 으로 일관)
+        //  - 총액이 없으면(계약금/잔금만 박힌 옛 데이터) = 직접 박힌 balanceAmount (없으면 0).
+        val balance = if (c.totalAmount != null) {
+            (c.totalAmount - deposit).coerceAtLeast(0L)
+        } else {
+            c.balanceAmount?.coerceAtLeast(0L) ?: 0L
+        }
+        val total = c.totalAmount ?: (deposit + balance)
         val received = (if (depositPaid) deposit else 0L) + (if (balancePaid) balance else 0L)
         val outstanding = (total - received).coerceAtLeast(0L)
         val isPaidOff = total > 0L && received >= total
