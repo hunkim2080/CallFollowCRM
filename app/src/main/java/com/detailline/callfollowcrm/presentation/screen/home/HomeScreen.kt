@@ -246,6 +246,13 @@ fun HomeScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
     }
 
+    // 협업 현장 홈 카드 완료 버튼 결과 토스트.
+    LaunchedEffect(Unit) {
+        viewModel.collabCompleteToast.collect { msg ->
+            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
     // 뒤로가기 UX (2026-05-25 사장님 결정):
     //   1) 필터 != 전체 → 전체로 복귀 (consume)
     //   2) 필터 == 전체 → "한 번 더 누르면 종료" Toast → 2초 안 두 번째 = 앱 종료
@@ -604,6 +611,7 @@ fun HomeScreen(
                         onOpenScheduleAtDay = onOpenScheduleAtDay,
                         onAddSchedule = onAddSchedule,
                         onComplete = { c -> completeTarget = c },
+                        onCompleteCollabSite = { s -> viewModel.completeCollabSite(s) },
                         onReorder = { ids -> viewModel.reorderTodayJobs(ids) }
                     )
                 }
@@ -1395,7 +1403,8 @@ private fun CollabHeroJobCard(
     s: com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite,
     onOpenSite: (String) -> Unit,
     onCall: (String) -> Unit,
-    onNavigateAddr: (String?) -> Unit
+    onNavigateAddr: (String?) -> Unit,
+    onComplete: (com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite) -> Unit = {}
 ) {
     val purple = Color(0xFF7C5CFC)
     val addr = s.addr?.takeIf { it.isNotBlank() }
@@ -1444,13 +1453,17 @@ private fun CollabHeroJobCard(
                 )
             }
         }
+        val isCompleted = s.progress == com.detailline.callfollowcrm.ai.SharedSiteRepository.Progress.COMPLETED
         Row(modifier = Modifier.padding(top = 17.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (addr != null) {
                 HeroBtn("길찾기", Icons.Default.Navigation, light = true, modifier = Modifier.weight(1f)) { onNavigateAddr(addr) }
             }
-            HeroBtn("전화", Icons.Default.Call, light = false,
-                modifier = if (addr != null) Modifier.weight(1f) else Modifier.fillMaxWidth()
-            ) { onCall(s.ownerPhone) }
+            HeroBtn("전화", Icons.Default.Call, light = false, modifier = Modifier.weight(1f)) { onCall(s.ownerPhone) }
+            if (isCompleted) {
+                HeroBtn("완료됨 ✓", Icons.Default.CheckCircle, light = false, modifier = Modifier.weight(1f)) {}
+            } else {
+                HeroBtn("완료", Icons.Default.CheckCircle, light = false, modifier = Modifier.weight(1f)) { onComplete(s) }
+            }
         }
     }
 }
@@ -1473,6 +1486,7 @@ private fun TodayHeroCard(
     onOpenScheduleAtDay: (Long) -> Unit,
     onAddSchedule: () -> Unit,
     onComplete: (com.detailline.callfollowcrm.data.local.entity.CustomerEntity) -> Unit,
+    onCompleteCollabSite: (com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite) -> Unit = {},
     /** 사장님이 카드를 꾹 눌러 끌어 순서를 바꿨을 때 — 새 순서의 고객 ID 리스트. */
     onReorder: (List<Long>) -> Unit = {}
 ) {
@@ -1490,7 +1504,7 @@ private fun TodayHeroCard(
                 }
             }
             collabTodaySites.forEach { s ->
-                CollabHeroJobCard(s, onOpenCollabSite, onCall, onNavigateAddr)
+                CollabHeroJobCard(s, onOpenCollabSite, onCall, onNavigateAddr, onCompleteCollabSite)
             }
         }
     } else {

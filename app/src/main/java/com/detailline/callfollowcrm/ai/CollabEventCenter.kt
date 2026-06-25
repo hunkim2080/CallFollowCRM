@@ -166,6 +166,13 @@ class CollabEventCenter(
         _acceptedUpcoming.value = _acceptedUpcoming.value.filter { it.shareId != shareId }
     }
 
+    /** 완료 직후 다음 폴 전까지 로컬 카드에 즉시 반영 (홈 카드 완료 버튼 → 다시 안 뜨게). */
+    fun updateLocalProgress(shareId: String, progress: SharedSiteRepository.Progress) {
+        _acceptedUpcoming.value = _acceptedUpcoming.value.map {
+            if (it.shareId == shareId) it.copy(progress = progress) else it
+        }
+    }
+
     companion object {
         private val KINDS = setOf("departed", "arrived", "completed")
     }

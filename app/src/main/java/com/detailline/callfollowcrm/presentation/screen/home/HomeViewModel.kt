@@ -16,6 +16,7 @@ import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -379,6 +380,42 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 list.filter { it.scheduledAtMs <= 0L || it.scheduledAtMs < until }
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    // 홈 협업 카드 완료 버튼 — 결과 토스트를 one-shot 으로 HomeScreen 에 전달.
+    private val _collabCompleteToast = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val collabCompleteToast: kotlinx.coroutines.flow.SharedFlow<String> = _collabCompleteToast
+
+    /** 홈 협업 현장 카드에서 바로 "완료" 누를 때 — 계좌 없으면 토스트만. 있으면 서버에 COMPLETED 전송. */
+    fun completeCollabSite(site: com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite) {
+        val accountNo = container.preferences.bizAccountNo
+        if (accountNo.isBlank()) {
+            _collabCompleteToast.tryEmit("계좌를 먼저 등록해야 완료 알림을 보낼 수 있어요 → 더보기 > 내 정보")
+            return
+        }
+        viewModelScope.launch {
+            val myPhone = container.preferences.bizPhone.filter { it.isDigit() }
+            val myName = container.preferences.bizName.takeIf { it.isNotBlank() }
+                ?: container.preferences.bizOwner
+            container.sharedSiteRepository.progress(
+                shareId = site.shareId,
+                partnerPhone = myPhone,
+                step = com.detailline.callfollowcrm.ai.SharedSiteRepository.Progress.COMPLETED,
+                bank = container.preferences.bizBank.takeIf { it.isNotBlank() },
+                accountNo = accountNo.takeIf { it.isNotBlank() },
+                holder = (container.preferences.bizAccountHolder.takeIf { it.isNotBlank() }
+                    ?: container.preferences.bizOwner.takeIf { it.isNotBlank() }),
+                partnerName = myName
+            ).onSuccess {
+                container.collabEventCenter.updateLocalProgress(
+                    site.shareId,
+                    com.detailline.callfollowcrm.ai.SharedSiteRepository.Progress.COMPLETED
+                )
+                _collabCompleteToast.tryEmit("완료 알렸어요 — 주인 사장님께 계좌가 전달돼요")
+            }.onFailure {
+                _collabCompleteToast.tryEmit("전송 실패 — 잠시 후 다시 시도해주세요")
+            }
+        }
+    }
 
     /** 협업 진행 알림의 shareId → 내가 그 현장을 공유한 고객 id. A(주인)는 '현장 보기'를 그 고객 상세로 보냄. (2026-06-14) */
     fun customerIdForShareId(shareId: String): Long? {
