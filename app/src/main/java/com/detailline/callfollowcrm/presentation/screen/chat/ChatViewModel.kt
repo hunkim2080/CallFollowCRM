@@ -121,6 +121,20 @@ class ChatViewModel(
             emptyList<com.detailline.callfollowcrm.data.local.entity.PricingItemEntity>()
         )
 
+    /**
+     * 견적 만들기에서 항목 가격을 그 자리에서 고침 → 가격표(단일 기준)에 바로 저장.
+     *   마지막으로 바꾼 값이 다음에도 그대로 뜸(가격표=한 곳에서만 관리). (2026-06-25 사장님)
+     *   priceWon=원 단위(이미 *10000 된 값). 0 이하면 무시.
+     */
+    fun updateItemPrice(id: Long, priceWon: Long) {
+        if (id <= 0L || priceWon <= 0L) return
+        viewModelScope.launch {
+            val item = container.pricingItemRepository.findById(id) ?: return@launch
+            if (item.price == priceWon) return@launch
+            container.pricingItemRepository.update(item.copy(price = priceWon))
+        }
+    }
+
     /** ⭐ 별표된 메시지 목록 (이 번호 한정). */
     val starred: kotlinx.coroutines.flow.StateFlow<List<ImportantMessageEntity>> =
         container.importantMessageRepository.observeByPhone(phoneNumber)
