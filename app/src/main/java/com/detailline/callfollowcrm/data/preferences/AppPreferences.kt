@@ -259,10 +259,12 @@ class AppPreferences(context: Context) {
      * 2026-06-26 — schedule_create 여정이벤트 추적 도입 전부터 로컬에 있던 시공일 일정들을
      *   admin KPI 에 1회 백필 완료 여부. false 일 때만 scheduledWorkDate 있는 고객마다
      *   track("schedule_create", screen="backfill", extra={backfilled:true}) 발사 후 true. (cowork 요청)
+     *   ⚠️ V2: V1 은 '버퍼에 쌓고 flush 전에 앱이 죽어 유실 + flag 만 박힘' 버그가 있어 키를 올려 강제 재실행.
+     *      이제 전송 성공해야만 flag(아래 Application 백필 로직).
      */
-    var scheduleBackfilledV1: Boolean
-        get() = prefs.getBoolean("schedule_backfilled_v1", false)
-        set(value) { prefs.edit().putBoolean("schedule_backfilled_v1", value).commit() }
+    var scheduleBackfilledV2: Boolean
+        get() = prefs.getBoolean("schedule_backfilled_v2", false)
+        set(value) { prefs.edit().putBoolean("schedule_backfilled_v2", value).commit() }
 
     /** 2026-06-07 — 스팸/광고 번호 앞자리. 이 앞자리로 시작하면 자동답장·AI 준비 X + 목록 제외.
      *   2026-06-20 사장님: 기본값을 추천 앞자리(070·050·0507·지역번호) 전부로 — 사람들이 직접 선택할 줄 몰라서.

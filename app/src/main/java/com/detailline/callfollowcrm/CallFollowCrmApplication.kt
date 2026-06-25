@@ -92,22 +92,46 @@ class CallFollowCrmApplication : Application() {
                 }
                 container.preferences.spamSweptToDismissedV1 = true
             }
-            // 2026-06-26 — schedule_create 추적 도입 전부터 잡혀있던 시공일 일정들을 admin KPI 에 1회 백필.
-            //   로컬 CustomerEntity.scheduledWorkDate 있는 고객마다 한 번씩 발사(중복은 flag 로 차단). (cowork 요청)
-            if (!container.preferences.scheduleBackfilledV1) {
-                runCatching {
-                    val scheduled = container.customerRepository.observeAll().first()
-                        .filter { it.scheduledWorkDate != null && it.scheduledWorkDate > 0L }
-                    for (c in scheduled) {
-                        val label = c.name?.trim()?.takeIf { it.isNotBlank() }
-                            ?: ("…" + c.phoneNumber.filter { ch -> ch.isDigit() }.takeLast(4))
-                        container.journeyEventRepository.track(
-                            "schedule_create", screen = "backfill", target = label,
-                            extra = mapOf("backfilled" to true)
-                        )
-                    }
-                }
-                container.preferences.scheduleBackfilledV1 = true
+        }
+
+        // 2026-06-26 — schedule_create 백필. 추적 도입 전부터 잡혀있던 시공일 일정을 admin KPI 에 1회 채움. (cowork 요청)
+        //   ⚠️ 독립 코루틴 + '전송 성공해야만 flag': 예전엔 버퍼에 쌓고 flag 만 박은 뒤 30초 flush 전에 앱이 죽어
+        //      이벤트가 통째로 유실되고 flag 때문에 영영 skip 됐다(서버 0건의 진짜 원인). 이제 쌓고 즉시 flush,
+        //      성공(또는 보낼 것 없음)일 때만 flag. 실패(오프라인/번호없음)면 다음 실행에 재시도.
+        appScope.launch {
+            val log = "backfill"
+            if (container.preferences.scheduleBackfilledV2) {
+                android.util.Log.i(log, "flag 이미 박혀있음 skip")
+                return@launch
+            }
+            val phone = container.preferences.bizPhone
+            if (phone.filter { it.isDigit() }.length < 9) {
+                android.util.Log.i(log, "bizPhone 없음 — 다음 실행에 재시도")
+                return@launch
+            }
+            android.util.Log.i(log, "시작")
+            val scheduled = runCatching {
+                container.customerRepository.observeAll().first()
+                    .filter { it.scheduledWorkDate != null && it.scheduledWorkDate > 0L }
+            }.getOrDefault(emptyList())
+            android.util.Log.i(log, "DB 에서 ${scheduled.size}건 로드")
+            for (c in scheduled) {
+                val label = c.name?.trim()?.takeIf { it.isNotBlank() }
+                    ?: ("…" + c.phoneNumber.filter { ch -> ch.isDigit() }.takeLast(4))
+                // ⚠️ extra 는 빼야 함 — 서버 /api/event 가 extra 필드 들어오면 HTTP 500 을 내고, 그러면 그 배치 전체가
+                //   실패+재버퍼되어 버퍼가 영구 오염(이후 모든 이벤트 전송 막힘)된다(서버 0건의 진짜 원인). cowork 서버 fix 전까지
+                //   백필 구분은 screen="backfill" 로만 한다. (2026-06-26)
+                container.journeyEventRepository.track(
+                    "schedule_create", screen = "backfill", target = label
+                )
+            }
+            android.util.Log.i(log, "${scheduled.size}건 발사 → flush 시도")
+            val ok = container.journeyEventRepository.flush(phone)
+            if (ok) {
+                container.preferences.scheduleBackfilledV2 = true
+                android.util.Log.i(log, "flush 성공 → flag 박음 (완료)")
+            } else {
+                android.util.Log.i(log, "flush 실패 → flag 안 박음, 다음 실행에 재시도")
             }
         }
 

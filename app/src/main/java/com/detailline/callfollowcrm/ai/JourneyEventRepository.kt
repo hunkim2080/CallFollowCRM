@@ -56,12 +56,15 @@ class JourneyEventRepository(
         }
     }
 
-    /** 버퍼를 비워 배치 전송. 실패 시 되돌려 담아 다음에 재시도. owner_phone 없으면 보관만. */
-    suspend fun flush(ownerPhone: String) = withContext(Dispatchers.IO) {
+    /**
+     * 버퍼를 비워 배치 전송. 실패 시 되돌려 담아 다음에 재시도. owner_phone 없으면 보관만.
+     * @return 전송 성공(또는 보낼 것 없음)=true, 번호없음/전송실패=false. (백필이 '성공해야 flag' 판단에 사용)
+     */
+    suspend fun flush(ownerPhone: String): Boolean = withContext(Dispatchers.IO) {
         val digits = ownerPhone.filter { it.isDigit() }
-        if (digits.length < 9) return@withContext   // 사업자 번호 미설정 — 보관(전송 X)
+        if (digits.length < 9) return@withContext false   // 사업자 번호 미설정 — 보관(전송 X)
         val batch: List<JSONObject> = synchronized(lock) {
-            if (buffer.isEmpty()) return@withContext
+            if (buffer.isEmpty()) return@withContext true   // 보낼 것 없음 = 성공 취급
             ArrayList(buffer).also { buffer.clear() }
         }
         val ok = runCatching {
@@ -81,5 +84,6 @@ class JourneyEventRepository(
                 while (buffer.size > maxBuffer) buffer.removeAt(0)
             }
         }
+        ok
     }
 }
