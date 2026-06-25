@@ -1078,16 +1078,15 @@ private fun DetailBody(
     val hasAddr = !site.addr.isNullOrBlank()
     when (site.progress) {
         SharedSiteRepository.Progress.ASSIGNED -> {
-            // 출발+길찾기는 아래 '현장 주소' 버튼이 한 번에 처리(2026-06-21 사장님). 주소 없는 옛 협업만 여기서 출발만.
-            if (!hasAddr) {
-                StepActionButton("🚗 출발 알리기", ProtoBlue, Color.White) {
-                    onProgress(SharedSiteRepository.Progress.DEPARTED)
-                }
-                Spacer(Modifier.height(7.dp))
-                Text("누르면 주인 사장님께 '출발했어요' 알림이 가요. (주소가 없어 길찾기는 안 열려요)",
-                    fontSize = 11.5.sp, color = TossTextTertiary, lineHeight = 16.sp,
-                    modifier = Modifier.padding(horizontal = 2.dp))
+            // 출발 알리기 = '출발했어요' 알림만. 길찾기 자동 열기와 분리 — 누를 때마다 네비가 켜지는 게 싫다는
+            //   사장님 요청(2026-06-26). 주소는 아래 카드에서 '복사' 해 원하는 지도앱에 붙여 쓰면 됨.
+            StepActionButton("🚗 출발 알리기", ProtoBlue, Color.White) {
+                onProgress(SharedSiteRepository.Progress.DEPARTED)
             }
+            Spacer(Modifier.height(7.dp))
+            Text("누르면 주인 사장님께 '출발했어요' 알림이 가요. 이때부터 현장 3km에 들어가면 '거의 도착'이 자동으로 가요.",
+                fontSize = 11.5.sp, color = TossTextTertiary, lineHeight = 16.sp,
+                modifier = Modifier.padding(horizontal = 2.dp))
         }
         SharedSiteRepository.Progress.DEPARTED -> {
             StepActionButton("📍 도착 알리기", ProtoBlue, Color.White) {
@@ -1154,54 +1153,34 @@ private fun DetailBody(
         }
     }
 
-    // 현장 주소 + 길찾기 — 배정 단계면 [출발 알리고 길찾기](한 번에 둘 다), 출발 후엔 [길찾기 시작].
-    //   완료되면 큰 길찾기 버튼은 빼고 주소만 기록으로 남김 + AS 대비 작은 '길찾기' 링크. (2026-06-21·2026-06-25 사장님)
+    // 현장 주소 — 큰 길찾기 버튼(2개라 조잡 + 출발 시 네비 자동열림)을 빼고, 오른쪽 위 작은 '복사' 아이콘만.
+    //   주소를 복사해 원하는 지도앱에 붙여 쓰면 됨. (2026-06-26 사장님)
     if (hasAddr) {
         Spacer(Modifier.height(16.dp))
-        val assigned = site.progress == SharedSiteRepository.Progress.ASSIGNED
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
                 .background(Color(0xFFF5F9FF)).border(1.5.dp, Color(0xFFE2EDFD), RoundedCornerShape(16.dp)).padding(15.dp)
         ) {
-            Text("📍 현장 주소", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
-            Spacer(Modifier.height(7.dp))
-            Text(site.addr!!, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, lineHeight = 22.sp)
-            if (completed) {
-                // 끝난 현장 — 큰 [길찾기 시작]은 빼고, 다시 갈 일(AS)만 대비해 작은 '길찾기' 링크만. (2026-06-25 사장님)
-                Spacer(Modifier.height(9.dp))
-                Text(
-                    "길찾기",
-                    fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ProtoBlue,
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onNavigate(site.addr!!) }
-                        .padding(vertical = 4.dp, horizontal = 2.dp)
-                )
-            } else {
-                Spacer(Modifier.height(11.dp))
-                Box(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(ProtoBlue)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("📍 현장 주소", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
+                Spacer(Modifier.weight(1f))
+                // 복사 아이콘 버튼 — 주소를 클립보드로.
+                Row(
+                    Modifier.clip(RoundedCornerShape(9.dp)).background(Color.White)
+                        .border(1.dp, Color(0xFFD6E4FB), RoundedCornerShape(9.dp))
                         .clickable {
-                            if (assigned && isBeforeScheduledDay(site.scheduledAtMs)) {
-                                // 미래 시공은 '출발 알리고 길찾기'도 막음 — 그날만. (2026-06-23 사장님)
-                                android.widget.Toast.makeText(ctx, "아직 시공일이 아니에요. 출발은 시공 당일에 누를 수 있어요.", android.widget.Toast.LENGTH_LONG).show()
-                            } else {
-                                if (assigned) onProgress(SharedSiteRepository.Progress.DEPARTED)
-                                onNavigate(site.addr!!)
-                            }
+                            val clip = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                            clip.setPrimaryClip(android.content.ClipData.newPlainText("현장 주소", site.addr))
+                            android.widget.Toast.makeText(ctx, "주소를 복사했어요", android.widget.Toast.LENGTH_SHORT).show()
                         }
-                        .padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center
+                        .padding(horizontal = 11.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        if (assigned) "🚗 출발 알리고 길찾기" else "길찾기 시작",
-                        color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold
-                    )
-                }
-                if (assigned) {
-                    Spacer(Modifier.height(8.dp))
-                    Text("누르면 ① 주인 사장님께 '출발했어요' 알림 + ② 길찾기 앱이 같이 열려요.\n이때부터 현장 3km에 들어가면 '거의 도착'이 자동으로 가요. (누르기 전엔 위치 안 봐요)",
-                        fontSize = 11.5.sp, color = TossTextTertiary, lineHeight = 16.sp)
+                    Text("📋 복사", fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = ProtoBlue)
                 }
             }
+            Spacer(Modifier.height(8.dp))
+            Text(site.addr!!, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, lineHeight = 22.sp)
         }
     }
 
