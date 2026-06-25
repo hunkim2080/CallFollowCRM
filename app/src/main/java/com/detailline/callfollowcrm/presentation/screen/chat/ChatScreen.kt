@@ -3719,22 +3719,29 @@ private fun EstimateItemRow(
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     Column(Modifier.fillMaxWidth()) {
         // 프로토 .est-item — [체크박스] 이름(flex) 가격(우측)
+        //   토글 클릭은 '체크박스+이름'에만 둔다. 행 전체에 두면 비활성 clickable 이 가격 입력칸 탭까지 삼켜
+        //   숫자패드가 안 떴다(2026-06-25 사장님 버그). 가격/입력칸 영역은 클릭 가로채는 부모가 없어야 함.
         Row(
-            Modifier.fillMaxWidth().clickable(enabled = !editingPrice, onClick = onToggle).padding(vertical = 13.dp),
+            Modifier.fillMaxWidth().padding(vertical = 13.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 프로토 .est-box — 24dp rounded8, on=파랑 채움+체크
-            Box(
-                Modifier.size(24.dp).clip(RoundedCornerShape(8.dp))
-                    .background(if (checked) TossBlue else Color.White)
-                    .border(2.dp, if (checked) TossBlue else TossDivider, RoundedCornerShape(8.dp)),
-                contentAlignment = Alignment.Center
+            Row(
+                Modifier.weight(1f).clickable(onClick = onToggle),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                if (checked) Text("✓", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                // 프로토 .est-box — 24dp rounded8, on=파랑 채움+체크
+                Box(
+                    Modifier.size(24.dp).clip(RoundedCornerShape(8.dp))
+                        .background(if (checked) TossBlue else Color.White)
+                        .border(2.dp, if (checked) TossBlue else TossDivider, RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (checked) Text("✓", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.width(12.dp))
+                Text(title, color = TossTextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f))
             }
-            Spacer(Modifier.width(12.dp))
-            Text(title, color = TossTextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(1f))
             if (editingPrice) {
                 // 만원 단위로 입력 — 평당이면 평당 단가. 저장 시 *10000 해서 원으로. (호출부 onEditPrice)
                 var draftManwon by remember(price) { mutableStateOf((price / 10_000L).toString()) }
