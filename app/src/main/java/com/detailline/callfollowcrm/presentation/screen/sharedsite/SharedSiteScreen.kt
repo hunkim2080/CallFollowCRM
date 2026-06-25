@@ -1128,7 +1128,34 @@ private fun DetailBody(
         }
     }
 
-    // 현장 주소 + 길찾기 — 배정 단계면 [출발 알리고 길찾기](한 번에 둘 다), 출발 후엔 [길찾기 시작]. (2026-06-21 사장님)
+    // 완료된 현장 = "이제 갈 곳"이 아니라 "끝나서 돈 받을 곳" → 길찾기 자리에 정산 한 줄(일당+계좌 전달)을 먼저. (2026-06-25 사장님)
+    val completed = site.progress == SharedSiteRepository.Progress.COMPLETED
+    if (completed) {
+        Spacer(Modifier.height(16.dp))
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                .background(Color(0xFFE9F9F1)).border(1.dp, Color(0xFFBFEBD4), RoundedCornerShape(16.dp)).padding(15.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("💰 이 현장 일당", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF3A8C63))
+                Spacer(Modifier.weight(1f))
+                Text(
+                    site.dailyWage?.let { "${it}만원" } ?: "미정",
+                    fontSize = 18.sp, fontWeight = FontWeight.ExtraBold,
+                    color = if (site.dailyWage != null) Color(0xFF0E9F56) else TossTextTertiary
+                )
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                if (hasAccount) "완료할 때 주인 사장님께 내 입금 계좌가 전달됐어요. 입금을 기다려요."
+                else "⚠️ 계좌가 없어 전달 못 했어요. 맨 아래 '일당 지급계좌'를 등록하고 완료를 다시 눌러주세요.",
+                fontSize = 11.5.sp, color = if (hasAccount) Color(0xFF3A8C63) else Color(0xFFD9534F), lineHeight = 16.sp
+            )
+        }
+    }
+
+    // 현장 주소 + 길찾기 — 배정 단계면 [출발 알리고 길찾기](한 번에 둘 다), 출발 후엔 [길찾기 시작].
+    //   완료되면 큰 길찾기 버튼은 빼고 주소만 기록으로 남김 + AS 대비 작은 '길찾기' 링크. (2026-06-21·2026-06-25 사장님)
     if (hasAddr) {
         Spacer(Modifier.height(16.dp))
         val assigned = site.progress == SharedSiteRepository.Progress.ASSIGNED
@@ -1139,30 +1166,41 @@ private fun DetailBody(
             Text("📍 현장 주소", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary)
             Spacer(Modifier.height(7.dp))
             Text(site.addr!!, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, lineHeight = 22.sp)
-            Spacer(Modifier.height(11.dp))
-            Box(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(ProtoBlue)
-                    .clickable {
-                        if (assigned && isBeforeScheduledDay(site.scheduledAtMs)) {
-                            // 미래 시공은 '출발 알리고 길찾기'도 막음 — 그날만. (2026-06-23 사장님)
-                            android.widget.Toast.makeText(ctx, "아직 시공일이 아니에요. 출발은 시공 당일에 누를 수 있어요.", android.widget.Toast.LENGTH_LONG).show()
-                        } else {
-                            if (assigned) onProgress(SharedSiteRepository.Progress.DEPARTED)
-                            onNavigate(site.addr!!)
-                        }
-                    }
-                    .padding(vertical = 12.dp),
-                contentAlignment = Alignment.Center
-            ) {
+            if (completed) {
+                // 끝난 현장 — 큰 [길찾기 시작]은 빼고, 다시 갈 일(AS)만 대비해 작은 '길찾기' 링크만. (2026-06-25 사장님)
+                Spacer(Modifier.height(9.dp))
                 Text(
-                    if (assigned) "🚗 출발 알리고 길찾기" else "길찾기 시작",
-                    color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold
+                    "길찾기",
+                    fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ProtoBlue,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onNavigate(site.addr!!) }
+                        .padding(vertical = 4.dp, horizontal = 2.dp)
                 )
-            }
-            if (assigned) {
-                Spacer(Modifier.height(8.dp))
-                Text("누르면 ① 주인 사장님께 '출발했어요' 알림 + ② 길찾기 앱이 같이 열려요.\n이때부터 현장 3km에 들어가면 '거의 도착'이 자동으로 가요. (누르기 전엔 위치 안 봐요)",
-                    fontSize = 11.5.sp, color = TossTextTertiary, lineHeight = 16.sp)
+            } else {
+                Spacer(Modifier.height(11.dp))
+                Box(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(ProtoBlue)
+                        .clickable {
+                            if (assigned && isBeforeScheduledDay(site.scheduledAtMs)) {
+                                // 미래 시공은 '출발 알리고 길찾기'도 막음 — 그날만. (2026-06-23 사장님)
+                                android.widget.Toast.makeText(ctx, "아직 시공일이 아니에요. 출발은 시공 당일에 누를 수 있어요.", android.widget.Toast.LENGTH_LONG).show()
+                            } else {
+                                if (assigned) onProgress(SharedSiteRepository.Progress.DEPARTED)
+                                onNavigate(site.addr!!)
+                            }
+                        }
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        if (assigned) "🚗 출발 알리고 길찾기" else "길찾기 시작",
+                        color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold
+                    )
+                }
+                if (assigned) {
+                    Spacer(Modifier.height(8.dp))
+                    Text("누르면 ① 주인 사장님께 '출발했어요' 알림 + ② 길찾기 앱이 같이 열려요.\n이때부터 현장 3km에 들어가면 '거의 도착'이 자동으로 가요. (누르기 전엔 위치 안 봐요)",
+                        fontSize = 11.5.sp, color = TossTextTertiary, lineHeight = 16.sp)
+                }
             }
         }
     }
