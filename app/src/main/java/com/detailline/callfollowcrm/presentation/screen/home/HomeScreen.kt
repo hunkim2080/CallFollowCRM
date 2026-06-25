@@ -1408,7 +1408,14 @@ private fun CollabHeroJobCard(
 ) {
     val purple = Color(0xFF7C5CFC)
     val addr = s.addr?.takeIf { it.isNotBlank() }
+    // 히어로 카드 "빛나는" 애니메이션 — 일반 시공 카드와 동일하게 광택 한 줄기가 대각선으로 슥 지나가고
+    //   점이 은은히 숨 쉼. (2026-06-26 사장님: 협업 카드만 이 애니메이션이 빠져있었음)
     val shine = rememberInfiniteTransition(label = "collabShine")
+    val shineX by shine.animateFloat(
+        initialValue = -0.6f, targetValue = 1.6f,
+        animationSpec = infiniteRepeatable(tween(2800, easing = LinearEasing), RepeatMode.Restart),
+        label = "shineX"
+    )
     val dotPulse by shine.animateFloat(
         initialValue = 0.45f, targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(1100, easing = FastOutSlowInEasing), RepeatMode.Reverse),
@@ -1419,6 +1426,21 @@ private fun CollabHeroJobCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
             .background(Brush.linearGradient(listOf(Color(0xFF1C1730), Color(0xFF14171F))))
+            .drawWithContent {
+                drawContent()
+                // 대각선 광택 — 카드 폭을 가로지르는 흰 띠. 양 끝에선 카드 밖이라 잠깐 쉼.
+                val cx = shineX * size.width
+                val band = size.width * 0.22f
+                drawRect(
+                    brush = Brush.linearGradient(
+                        0f to Color.Transparent,
+                        0.5f to Color.White.copy(alpha = 0.16f),
+                        1f to Color.Transparent,
+                        start = Offset(cx - band, 0f),
+                        end = Offset(cx + band, size.height)
+                    )
+                )
+            }
             .clickable { onOpenSite(s.shareId) }
             .padding(20.dp)
     ) {
