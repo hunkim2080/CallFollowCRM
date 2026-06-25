@@ -59,6 +59,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -3713,6 +3714,9 @@ private fun EstimateItemRow(
     val isPyeong = unit == com.detailline.callfollowcrm.data.local.entity.PricingItemEntity.UNIT_PYEONG
     // 가격 자리에서 직접 수정 — 탭하면 입력칸으로 바뀜. 저장하면 가격표(단일 기준)에 반영. (2026-06-25 사장님)
     var editingPrice by remember { mutableStateOf(false) }
+    // 편집 진입 시 입력칸이 새로 그려지면서 첫 탭으로는 포커스를 못 받아 숫자패드가 안 뜸 → 자동 포커스+키보드. (2026-06-25 사장님 버그)
+    val priceFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     Column(Modifier.fillMaxWidth()) {
         // 프로토 .est-item — [체크박스] 이름(flex) 가격(우측)
         Row(
@@ -3734,12 +3738,18 @@ private fun EstimateItemRow(
             if (editingPrice) {
                 // 만원 단위로 입력 — 평당이면 평당 단가. 저장 시 *10000 해서 원으로. (호출부 onEditPrice)
                 var draftManwon by remember(price) { mutableStateOf((price / 10_000L).toString()) }
+                // 편집 진입 즉시 포커스 잡고 숫자패드 올림 — 탭 한 번으로 바로 입력 가능.
+                LaunchedEffect(Unit) {
+                    runCatching { priceFocus.requestFocus() }
+                    keyboard?.show()
+                }
                 Box(Modifier.width(78.dp)) {
                     com.detailline.callfollowcrm.presentation.component.SheetTextField(
                         draftManwon, { draftManwon = it.filter { c -> c.isDigit() } },
                         placeholder = "만원",
                         keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
-                        visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation
+                        visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation,
+                        modifier = Modifier.focusRequester(priceFocus)
                     )
                 }
                 Spacer(Modifier.width(2.dp))
@@ -3750,6 +3760,7 @@ private fun EstimateItemRow(
                         val m = draftManwon.toIntOrNull() ?: 0
                         if (m > 0) onEditPrice(m)
                         editingPrice = false
+                        keyboard?.hide()
                     }.padding(horizontal = 7.dp, vertical = 4.dp)
                 )
             } else {
