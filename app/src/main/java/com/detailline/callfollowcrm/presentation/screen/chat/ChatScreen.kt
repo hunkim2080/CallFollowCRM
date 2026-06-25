@@ -3750,8 +3750,15 @@ private fun EstimateItemRow(
             }
             if (editingPrice) {
                 // 만원 단위 입력 — 한 글자 칠 때마다 즉시 반영(✓ 안 눌러도 적용됨). 평당이면 평당 단가.
-                //   draftManwon 은 편집 시작 시 1회만 초기화(price 키 X) — 입력 중 price 가 바뀌어도 글자가 튀지 않게.
-                var draftManwon by remember { mutableStateOf((price / 10_000L).toString()) }
+                //   커서를 항상 끝에 고정한 TextFieldValue 사용: 삼성/S9 에서 String 입력칸은 입력 순서가 꼬이고
+                //   끝자리가 안 지워진다(전화=하이픈·돈=콤마 메모의 그 패턴). 만원 단위라 콤마 변환은 불필요.
+                //   draft 는 편집 시작 시 1회만 초기화(price 키 X) — 입력 중 price 가 바뀌어도 글자가 튀지 않게.
+                val initStr = (price / 10_000L).toString()
+                var draftTfv by remember {
+                    mutableStateOf(
+                        androidx.compose.ui.text.input.TextFieldValue(initStr, androidx.compose.ui.text.TextRange(initStr.length))
+                    )
+                }
                 var wasFocused by remember { mutableStateOf(false) }
                 // 편집 진입 시 포커스+숫자패드. 단, 입력칸이 완전히 배치된 '다음 프레임'에 포커스를 걸어야
                 //   입력 세션(IME 연결)이 제대로 붙는다. 즉시 requestFocus 하면 커서만 깜빡이고 첫 백스페이스/입력이
@@ -3762,19 +3769,21 @@ private fun EstimateItemRow(
                     runCatching { priceFocus.requestFocus() }
                     keyboard?.show()
                 }
-                Box(Modifier.width(78.dp)) {
+                Box(Modifier.width(84.dp)) {
                     com.detailline.callfollowcrm.presentation.component.SheetTextField(
-                        draftManwon,
-                        { input ->
-                            val digits = input.filter { c -> c.isDigit() }
-                            draftManwon = digits
+                        value = draftTfv,
+                        onValueChange = { newTfv ->
+                            val digits = newTfv.text.filter { c -> c.isDigit() }
+                            // 커서는 항상 끝으로 — 재구성/IME 가 옮겨도 순서가 안 꼬이게.
+                            draftTfv = androidx.compose.ui.text.input.TextFieldValue(
+                                digits, androidx.compose.ui.text.TextRange(digits.length)
+                            )
                             // 입력 즉시 반영 — ✓ 안 눌러도 바뀐 값이 바로 견적에 들어감. (2026-06-25 사장님)
                             val m = digits.toIntOrNull() ?: 0
                             if (m > 0) onEditPrice(m)
                         },
                         placeholder = "만원",
                         keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
-                        visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation,
                         modifier = Modifier.focusRequester(priceFocus).onFocusChanged { st ->
                             // 다른 곳을 누르면 편집칸 닫힘(값은 이미 반영됨). 진입 직후 0프레임 isFocused=false 로 닫히지 않게 가드.
                             if (st.isFocused) wasFocused = true
