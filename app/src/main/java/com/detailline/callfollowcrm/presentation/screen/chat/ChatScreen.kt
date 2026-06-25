@@ -3749,20 +3749,33 @@ private fun EstimateItemRow(
                     modifier = Modifier.weight(1f))
             }
             if (editingPrice) {
-                // 만원 단위로 입력 — 평당이면 평당 단가. 저장 시 *10000 해서 원으로. (호출부 onEditPrice)
-                var draftManwon by remember(price) { mutableStateOf((price / 10_000L).toString()) }
-                // 편집 진입 즉시 포커스 잡고 숫자패드 올림 — 탭 한 번으로 바로 입력 가능.
+                // 만원 단위 입력 — 한 글자 칠 때마다 즉시 반영(✓ 안 눌러도 적용됨). 평당이면 평당 단가.
+                //   draftManwon 은 편집 시작 시 1회만 초기화(price 키 X) — 입력 중 price 가 바뀌어도 글자가 튀지 않게.
+                var draftManwon by remember { mutableStateOf((price / 10_000L).toString()) }
+                var wasFocused by remember { mutableStateOf(false) }
+                // 편집 진입 즉시 포커스 잡고 숫자패드 올림.
                 LaunchedEffect(Unit) {
                     runCatching { priceFocus.requestFocus() }
                     keyboard?.show()
                 }
                 Box(Modifier.width(78.dp)) {
                     com.detailline.callfollowcrm.presentation.component.SheetTextField(
-                        draftManwon, { draftManwon = it.filter { c -> c.isDigit() } },
+                        draftManwon,
+                        { input ->
+                            val digits = input.filter { c -> c.isDigit() }
+                            draftManwon = digits
+                            // 입력 즉시 반영 — ✓ 안 눌러도 바뀐 값이 바로 견적에 들어감. (2026-06-25 사장님)
+                            val m = digits.toIntOrNull() ?: 0
+                            if (m > 0) onEditPrice(m)
+                        },
                         placeholder = "만원",
                         keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
                         visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation,
-                        modifier = Modifier.focusRequester(priceFocus)
+                        modifier = Modifier.focusRequester(priceFocus).onFocusChanged { st ->
+                            // 다른 곳을 누르면 편집칸 닫힘(값은 이미 반영됨). 진입 직후 0프레임 isFocused=false 로 닫히지 않게 가드.
+                            if (st.isFocused) wasFocused = true
+                            else if (wasFocused) editingPrice = false
+                        }
                     )
                 }
                 Spacer(Modifier.width(2.dp))
@@ -3770,9 +3783,7 @@ private fun EstimateItemRow(
                 Text(
                     "✓", fontSize = 17.sp, color = TossBlue, fontWeight = FontWeight.Bold,
                     modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable {
-                        val m = draftManwon.toIntOrNull() ?: 0
-                        if (m > 0) onEditPrice(m)
-                        editingPrice = false
+                        editingPrice = false   // 값은 입력 즉시 이미 반영됨 — ✓ 는 편집칸 닫기/키보드 내리기.
                         keyboard?.hide()
                     }.padding(horizontal = 7.dp, vertical = 4.dp)
                 )
