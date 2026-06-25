@@ -5784,3 +5784,11 @@ C폰(S23U)·A폰(S9) 실기기 보고 일괄 처리. release 669 사이트 배�
    그치만 서버 자체 버그 잡고 가야 다른 이벤트도 안 막힘.
 - 변경: server/main.py 만.
 - commit: (pending)
+
+## 2026-06-25 19:30 · cowork
+추가56b — 베타 신청자 → 화이트리스트 한 번 클릭 등록.
+- 사장님 불편: "번호를 화이트리스트에 일일이 치니까 자꾸 까먹어"
+- 변경: server (admin/beta/signups/data 응답에 is_whitelisted 필드) + admin_beta_signups.html (컬럼 1개 추가 + 버튼/✅ 라벨 + 클릭 핸들러).
+- 작동: row 끝에 [+ 등록] 버튼 → 클릭 = POST /admin/beta/whitelist + visual 즉시 ✅ 등록됨.
+- 이미 등록된 사람 = ✅ 등록됨 라벨로 시작 (DB join 으로 한 번에).
+- commit: (pending)

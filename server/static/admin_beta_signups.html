@@ -64,6 +64,13 @@
   .status-chip.accepted{background:var(--success-tint);color:#0a8f44;}
   .status-chip.rejected{background:var(--error-tint);color:var(--error);}
 
+  /* 추가56b — 화이트리스트 등록 버튼 / 라벨 */
+  .wl-btn{background:var(--blue);color:#fff;border:0;padding:6px 11px;border-radius:8px;font-size:11.5px;font-weight:800;cursor:pointer;font-family:inherit;letter-spacing:-.01em;transition:all .12s ease;white-space:nowrap;}
+  .wl-btn:hover{background:var(--blue-dark);transform:translateY(-1px);}
+  .wl-btn:active{transform:scale(.96);}
+  .wl-btn:disabled{background:var(--t3);cursor:not-allowed;transform:none;}
+  .wl-done{display:inline-flex;align-items:center;gap:4px;color:var(--success);font-size:11.5px;font-weight:800;white-space:nowrap;}
+
   .empty-state{text-align:center;padding:50px 20px;color:var(--t3);}
   .empty-state .es-ic{font-size:36px;margin-bottom:10px;}
   .empty-state .es-t{font-size:14px;font-weight:700;color:var(--t2);}
@@ -141,11 +148,11 @@
     <table>
       <thead>
         <tr>
-          <th>전화번호</th><th>업종</th><th>지역</th><th>한달문의</th><th>한말씀</th><th>상태</th><th>신청시각</th>
+          <th>전화번호</th><th>업종</th><th>지역</th><th>한달문의</th><th>한말씀</th><th>상태</th><th>신청시각</th><th>화이트리스트</th>
         </tr>
       </thead>
       <tbody id="tbody">
-        <tr><td colspan="7" class="loading">불러오는 중...</td></tr>
+        <tr><td colspan="8" class="loading">불러오는 중...</td></tr>
       </tbody>
     </table>
   </div>
@@ -197,19 +204,19 @@
   async function load(filter){
     const token = getToken();
     if (!token){ showModal(false); return; }
-    tbody.innerHTML = '<tr><td colspan="7" class="loading">불러오는 중...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="loading">불러오는 중...</td></tr>';
     try {
       const url = '/admin/beta/signups/data?status=' + encodeURIComponent(filter) + '&limit=200';
       const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
       if (res.status === 401 || res.status === 403){ clearToken(); showModal(true); return; }
       if (!res.ok){
-        tbody.innerHTML = '<tr><td colspan="7" class="loading">불러오기 실패 (HTTP ' + res.status + ')</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="loading">불러오기 실패 (HTTP ' + res.status + ')</td></tr>';
         return;
       }
       const data = await res.json();
       render(data);
     } catch(err){
-      tbody.innerHTML = '<tr><td colspan="7" class="loading">네트워크 오류</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="loading">네트워크 오류</td></tr>';
     }
   }
 
@@ -222,7 +229,7 @@
     currentItems = data.items;
 
     if (!data.items.length){
-      tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="es-ic">🪺</div><div class="es-t">아직 신청자가 없어요</div><div class="es-d">랜딩페이지에서 신청이 들어오면 여기 표시돼요.</div></div></td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="es-ic">🪺</div><div class="es-t">아직 신청자가 없어요</div><div class="es-d">랜딩페이지에서 신청이 들어오면 여기 표시돼요.</div></div></td></tr>';
       return;
     }
 
@@ -230,6 +237,10 @@
       const ts = new Date(it.created_at_ms);
       const tsStr = ts.getFullYear() + '-' + String(ts.getMonth()+1).padStart(2,'0') + '-' + String(ts.getDate()).padStart(2,'0') + ' ' + String(ts.getHours()).padStart(2,'0') + ':' + String(ts.getMinutes()).padStart(2,'0');
       const note = (it.note || '').slice(0, 40) + ((it.note || '').length > 40 ? '…' : '');
+      // 추가56b — 화이트리스트 등록 버튼 / 등록됨 라벨
+      const wlCell = it.is_whitelisted
+        ? '<span class="wl-done">✅ 등록됨</span>'
+        : '<button class="wl-btn" data-phone="' + escapeHtml(it.phone_raw) + '">+ 등록</button>';
       return '<tr data-idx="' + idx + '">' +
         '<td class="phone-cell">' + escapeHtml(it.phone) + '</td>' +
         '<td><span class="industry-chip">' + escapeHtml(it.industry) + '</span></td>' +
@@ -238,13 +249,48 @@
         '<td class="note-cell">' + escapeHtml(note) + '</td>' +
         '<td><span class="status-chip ' + it.status + '">' + it.status + '</span></td>' +
         '<td class="time-cell">' + tsStr + '</td>' +
+        '<td>' + wlCell + '</td>' +
       '</tr>';
     }).join('');
     tbody.innerHTML = rows;
     tbody.querySelectorAll('tr').forEach(function(tr){
-      tr.addEventListener('click', function(){
+      tr.addEventListener('click', function(e){
+        // 화이트리스트 버튼 클릭은 row click (detail 모달) 과 분리
+        if (e.target.classList.contains('wl-btn')) return;
         const idx = parseInt(tr.dataset.idx, 10);
         showDetail(currentItems[idx]);
+      });
+    });
+    // 추가56b — 화이트리스트 등록 버튼 핸들러
+    tbody.querySelectorAll('.wl-btn').forEach(function(btn){
+      btn.addEventListener('click', async function(e){
+        e.stopPropagation();
+        const phoneRaw = btn.dataset.phone;
+        const token = getToken();
+        if (!token){ showModal(false); return; }
+        btn.disabled = true;
+        btn.textContent = '등록 중…';
+        try {
+          const res = await fetch('/admin/beta/whitelist', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: phoneRaw })
+          });
+          if (!res.ok){
+            const t = await res.text();
+            alert('실패: HTTP ' + res.status + '\n' + t);
+            btn.disabled = false;
+            btn.textContent = '+ 등록';
+            return;
+          }
+          // 성공 → 라벨 변경 (즉시 visual)
+          const td = btn.parentElement;
+          td.innerHTML = '<span class="wl-done">✅ 등록됨</span>';
+        } catch(err){
+          alert('네트워크 오류: ' + err.message);
+          btn.disabled = false;
+          btn.textContent = '+ 등록';
+        }
       });
     });
   }

@@ -4766,6 +4766,9 @@ async def admin_beta_signups_data(
                 "SELECT status, COUNT(*) FROM beta_signups GROUP BY status"
             ).fetchall()
         )
+        # 추가56b (2026-06-25) — 화이트리스트 등록 여부 한 번에 (set lookup, O(1))
+        # 사장님이 한 번 클릭으로 신청자 → 화이트리스트 등록할 수 있게.
+        wl_phones = {r[0] for r in con.execute("SELECT phone FROM beta_whitelist").fetchall()}
 
     def _fmt_phone(p: str) -> str:
         if len(p) == 11:
@@ -4790,6 +4793,7 @@ async def admin_beta_signups_data(
                 "status": r["status"],
                 "created_at_ms": r["created_at_ms"],
                 "updated_at_ms": r["updated_at_ms"],
+                "is_whitelisted": r["phone"] in wl_phones,  # 추가56b
             }
         )
     return {
