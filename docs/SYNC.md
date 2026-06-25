@@ -5772,3 +5772,13 @@ C폰(S23U)·A폰(S9) 실기기 보고 일괄 처리. release 669 사이트 배�
 - SCREEN_LABEL 에 customer_detail 추가.
 - 변경: server/main.py 만. 안드로이드 변경 X (이미 완료).
 - commit: (pending)
+
+## 2026-06-26 00:30 · android — schedule_create 백필(기존 일정 KPI 채우기)
+- 조치(cowork 요청): 앱 시작 1회, 로컬 CustomerEntity.scheduledWorkDate 있는 고객마다
+  `track("schedule_create", screen="backfill", target=고객명, extra={"backfilled": true})` 발사.
+  prefs `scheduleBackfilledV1` 로 중복 차단. 기존 30초 /api/event 배치로 전송.
+- commit: 605cfc0
+- **cowork 측**: event_name="schedule_create" 카운트 시 backfill 분도 포함됨. 실시간 등록과 구분하려면
+  extra.backfilled==true 또는 screen=="backfill" 로 필터. (실등록 screen= schedule/chat/customer_detail)
+- 주의: JourneyEventRepository 버퍼 상한 200 — 시공일 일정이 200건 초과인 폰은 첫 flush 전 초과분 일부 유실 가능
+  (1인 시공자 일정 수 고려하면 사실상 비현실적). 필요하면 추후 분할 flush.
