@@ -92,6 +92,23 @@ class CallFollowCrmApplication : Application() {
                 }
                 container.preferences.spamSweptToDismissedV1 = true
             }
+            // 2026-06-26 — schedule_create 추적 도입 전부터 잡혀있던 시공일 일정들을 admin KPI 에 1회 백필.
+            //   로컬 CustomerEntity.scheduledWorkDate 있는 고객마다 한 번씩 발사(중복은 flag 로 차단). (cowork 요청)
+            if (!container.preferences.scheduleBackfilledV1) {
+                runCatching {
+                    val scheduled = container.customerRepository.observeAll().first()
+                        .filter { it.scheduledWorkDate != null && it.scheduledWorkDate > 0L }
+                    for (c in scheduled) {
+                        val label = c.name?.trim()?.takeIf { it.isNotBlank() }
+                            ?: ("…" + c.phoneNumber.filter { ch -> ch.isDigit() }.takeLast(4))
+                        container.journeyEventRepository.track(
+                            "schedule_create", screen = "backfill", target = label,
+                            extra = mapOf("backfilled" to true)
+                        )
+                    }
+                }
+                container.preferences.scheduleBackfilledV1 = true
+            }
         }
 
         // SMS/MMS 캐시 prefetch — 최근 20개 번호. ChatScreen 첫 진입을 즉시 보이게 하는 토대.
