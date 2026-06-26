@@ -119,6 +119,25 @@ class TeamViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
+    /**
+     * 팀원 이름 수정 — 같은 번호로 재초대(서버가 같은 member_id 의 name 을 UPDATE, 링크 토큰은 재사용).
+     *   서버 invite 가 (owner_phone, phone) 일치 시 name·role·tint 만 갱신하고 기존 영구 링크는 그대로 둠
+     *   → 링크 안 깨지고 이름만 바뀜. (2026-06-26 사장님)
+     */
+    fun rename(member: TeamRepository.TeamMember, newName: String) {
+        val nm = newName.trim()
+        if (nm.isBlank()) { _toast.value = "이름을 입력해주세요"; return }
+        if (nm == member.name) return
+        viewModelScope.launch {
+            _loading.value = true
+            container.teamRepository.invite(ownerPhone, nm, member.phone, member.role, member.tint).fold(
+                onSuccess = { load(); _toast.value = "이름을 '${nm}'(으)로 바꿨어요 ✓" },
+                onFailure = { _toast.value = inviteErrorMessage(it) }
+            )
+            _loading.value = false
+        }
+    }
+
     /** 팀원 화면 미리보기 — 그 팀원 링크를 받아 콜백(브라우저로 열기). reuse 라 안전. */
     fun previewLink(member: TeamRepository.TeamMember, onUrl: (String) -> Unit) {
         viewModelScope.launch {

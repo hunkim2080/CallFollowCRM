@@ -114,6 +114,7 @@ fun TeamScreen(
     val toast by viewModel.toast.collectAsState()
     var addSheetOpen by remember { mutableStateOf(false) }
     var peopleTab by remember { mutableStateOf("team") } // "team" 팀원 | "worker" 일당사장
+    var renameTarget by remember { mutableStateOf<TeamRepository.TeamMember?>(null) } // 이름 수정 대상. null=닫힘.
 
     LaunchedEffect(Unit) { viewModel.load() }
     LaunchedEffect(toast) {
@@ -227,6 +228,7 @@ fun TeamScreen(
                         member = m,
                         showDivider = idx < members.size - 1,
                         onPreview = { viewModel.previewLink(m) { url -> openUrl(context, url) } },
+                        onEdit = { renameTarget = m },
                         onRemove = {
                             viewModel.remove(m) { undo ->
                                 scope.launch {
@@ -281,6 +283,37 @@ fun TeamScreen(
                     ).show()
                     // 자동발송 X — 문자앱 prefill, 사장님이 ▶ 직접 발송.
                     com.detailline.callfollowcrm.util.SmsIntentHelper.openSmsCompose(context, memberPhone, draft)
+                }
+            }
+        )
+    }
+
+    // 팀원 이름 수정 다이얼로그 — 같은 번호로 재초대해 서버가 이름만 갱신(링크 유지). (2026-06-26 사장님)
+    renameTarget?.let { m ->
+        var newName by remember(m.memberId) { mutableStateOf(m.name) }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { renameTarget = null },
+            title = { Text("팀원 이름 수정", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
+            text = {
+                Column {
+                    Text(PhoneNumberFormatter.format(m.phone), fontSize = 12.sp, color = TossTextTertiary)
+                    Spacer(Modifier.height(10.dp))
+                    com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                        newName, { newName = it }, placeholder = "이름"
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text("번호는 그대로예요. 이름만 바뀌고 보낸 초대 링크는 안 바뀌어요.",
+                        fontSize = 11.sp, color = TossTextTertiary, lineHeight = 15.sp)
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    viewModel.rename(m, newName); renameTarget = null
+                }) { Text("저장", fontWeight = FontWeight.Bold, color = TossBlue) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { renameTarget = null }) {
+                    Text("취소", color = TossTextSecondary)
                 }
             }
         )
@@ -362,6 +395,7 @@ private fun SwipeMemberRow(
     member: TeamRepository.TeamMember,
     showDivider: Boolean,
     onPreview: () -> Unit,
+    onEdit: () -> Unit,
     onRemove: () -> Unit
 ) {
     // 밀면 바로가 아니라 → 드러나는 '제외' 버튼을 눌러야 빠짐(2026-06-21 사장님). SwipeRevealBox 로 통일.
@@ -378,7 +412,7 @@ private fun SwipeMemberRow(
             statusLine = PhoneNumberFormatter.format(member.phone),
             tintIndex = member.tint,
             showDivider = showDivider,
-            hint = "← 밀어서 빼기",
+            onEdit = onEdit,        // 오른쪽 '수정' 버튼 → 이름 수정. (제외는 밀어서)
             onClick = onPreview
         )
     }
@@ -394,6 +428,7 @@ private fun MemberRow(
     tintIndex: Int,
     showDivider: Boolean,
     hint: String? = null,
+    onEdit: (() -> Unit)? = null,
     onClick: (() -> Unit)? = null
 ) {
     Column(Modifier.background(Color.White)) {
@@ -413,7 +448,14 @@ private fun MemberRow(
                 }
                 Text(statusLine, fontSize = 12.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 3.dp))
             }
-            if (hint != null) {
+            // 오른쪽 '수정' 버튼 — 이름 수정(같은 번호 재초대 → 서버가 이름만 갱신, 링크 유지). 제외는 밀어서. (2026-06-26 사장님)
+            if (onEdit != null) {
+                Text(
+                    "✏️ 수정", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossBlue,
+                    modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(TossBlueSoft)
+                        .clickable(onClick = onEdit).padding(horizontal = 11.dp, vertical = 6.dp)
+                )
+            } else if (hint != null) {
                 Text(
                     hint, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
                     modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(TossGrayBg)
