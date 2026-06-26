@@ -378,13 +378,22 @@ fun HomeScreen(
                     Box(
                         Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White)
                             .clickable {
+                                // Custom Tabs 로 열기 — Chrome 모바일 엔진으로 렌더해 외부 브라우저의 '데스크톱 사이트'
+                                //   모드로 PC 처럼 보이던 문제 방지(설치 페이지 viewport 는 정상). 실패 시 일반 보기로 폴백. (2026-06-26 사장님)
+                                val uri = android.net.Uri.parse("https://si0in.kr/install")
                                 runCatching {
-                                    context.startActivity(
-                                        android.content.Intent(
-                                            android.content.Intent.ACTION_VIEW,
-                                            android.net.Uri.parse("https://si0in.kr/install")
-                                        ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    )
+                                    androidx.browser.customtabs.CustomTabsIntent.Builder()
+                                        .setShowTitle(true)
+                                        .build()
+                                        .apply { intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK) }
+                                        .launchUrl(context, uri)
+                                }.onFailure {
+                                    runCatching {
+                                        context.startActivity(
+                                            android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
+                                                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        )
+                                    }
                                 }
                             }
                             .padding(horizontal = 14.dp, vertical = 6.dp)
