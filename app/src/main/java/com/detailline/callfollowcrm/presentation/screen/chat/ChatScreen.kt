@@ -260,6 +260,10 @@ fun ChatScreen(
     val suggestion by viewModel.effectiveSuggestions.collectAsState()
     val suggestionsStale by viewModel.suggestionsAreStale.collectAsState()
     val suggestionsLoading by viewModel.suggestionsLoading.collectAsState()
+    val suggestionsFailed by viewModel.suggestionsFailed.collectAsState()
+    val unreflectedCount by viewModel.unreflectedCustomerCount.collectAsState()
+    // (A 정책) 추천이 옛 메시지 기준(stale)이면 자동으로 새 추천 생성 — 채팅 보던 중 새 문자 와도 반영. 중복은 VM 가드. (2026-06-27)
+    LaunchedEffect(suggestionsStale) { if (suggestionsStale) viewModel.refreshIfStale() }
     // 통화로 끝난 대화면 추천 준비 X — "준비 중" 대신 "문자 오면 준비" 안내. (2026-06-17 사장님)
     val endedWithCall by viewModel.lastActivityIsCall.collectAsState()
     // (Phase 2) 원칙 발견 카드 — 추천과 다르게 보냈을 때 막내가 "이게 원칙이에요?" 물음. (2026-06-17 사장님)
@@ -764,6 +768,8 @@ fun ChatScreen(
                 SuggestionArea(
                     suggestion = suggestion,
                     loading = suggestionsLoading,
+                    failed = suggestionsFailed,
+                    unreflectedCount = unreflectedCount,
                     endedWithCall = endedWithCall,
                     expanded = suggestionsExpanded,
                     isStale = suggestionsStale,
@@ -2080,6 +2086,8 @@ private fun linkifyBody(body: String, linkColor: Color): AnnotatedString {
 private fun SuggestionArea(
     suggestion: ReplySuggestions?,
     loading: Boolean,
+    failed: Boolean,
+    unreflectedCount: Int,
     endedWithCall: Boolean,
     expanded: Boolean,
     isStale: Boolean,
@@ -2147,19 +2155,26 @@ private fun SuggestionArea(
                 }
             }
         }
-        // stale 안내 — 새 메시지 도착했으나 추천은 옛 메시지 기준 (2026-05-28).
-        //   chip 은 그대로 보임. 사장님이 보고 직접 ↻ 누를지 옛 답변 보낼지 결정.
-        if (isStale && hasSuggestions && expanded) {
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "📨 새 메시지가 왔어요 — ↻ 누르면 새 답변 받아요",
-                color = TossTextSecondary,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium
-            )
-        }
-        // 칩 영역 — expanded 일 때만 표시
+        // (A 정책, 2026-06-27) stale/실패 상태 안내 + 칩.
+        //   stale 이면 옛 칩을 흐리게(탭하면 복사) + "고객 새 문자 N개" + 자동으로 새 답변 생성 중.
+        //   실패면 "못 만들었어요 — 다시 시도"(옛것만 계속 보이지 않게).
         if (expanded) {
+            val dim = (isStale || failed) && hasSuggestions
+            val cntText = if (unreflectedCount > 0) "고객 새 문자 ${unreflectedCount}개" else "새 메시지"
+            val header = when {
+                failed -> "⚠️ 추천을 못 만들었어요 — ↻ 다시 시도해주세요"
+                isStale && effectiveLoading -> "📨 ${cntText} 안 반영 — 새 답변 만드는 중…"
+                isStale && hasSuggestions -> "📨 ${cntText} 왔어요 — ↻ 새 답변 받기"
+                else -> null
+            }
+            header?.let {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    it,
+                    color = if (failed) Color(0xFFD9534F) else TossTextSecondary,
+                    fontSize = 11.sp, fontWeight = FontWeight.Medium
+                )
+            }
             when {
                 endedWithCall -> {
                     // 통화로 끝난 대화 — 답할 문자가 없으니 준비 안 함. 문자 오면 그때 준비. (2026-06-17 사장님)
@@ -2172,11 +2187,19 @@ private fun SuggestionArea(
                     )
                 }
                 hasSuggestions -> {
+                    if (dim) {
+                        Spacer(Modifier.height(3.dp))
+                        Text(
+                            "이전 추천 (옛 메시지 기준) · 탭하면 복사돼요",
+                            color = TossTextTertiary, fontSize = 10.5.sp, fontWeight = FontWeight.Medium
+                        )
+                    }
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 4.dp)
+                            .graphicsLayer { alpha = if (dim) 0.5f else 1f }   // stale/실패면 옛 칩 흐리게
                     ) {
                         itemsIndexed(suggestion!!.suggestions) { idx, choice ->
                             SuggestionChip(

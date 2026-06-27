@@ -357,6 +357,38 @@ class ChatViewModel(
     private val _suggestionsLoading = MutableStateFlow(false)
     val suggestionsLoading = _suggestionsLoading.asStateFlow()
 
+    // 추천 생성 실패 — 서버 장애/타임아웃/크레딧 등. true 면 "못 만들었어요 — 다시 시도" 표시(옛것만 계속 보이지 않게). (2026-06-27 추천 정합성 개선)
+    private val _suggestionsFailed = MutableStateFlow(false)
+    val suggestionsFailed = _suggestionsFailed.asStateFlow()
+
+    // stale 자동 새로고침 무한루프/중복 방지 — 이 '최신 고객 메시지 시각'으로 이미 자동 시도했으면 다시 안 함. (수동 ↻ 는 별개)
+    private var autoRefreshAttemptedForMs = 0L
+
+    /**
+     * 추천이 stale(최신 고객 메시지보다 옛 기준)이면 (A 정책) 자동으로 새 추천 생성.
+     *   - 이미 생성 중이거나, 이 메시지로 이미 자동 시도했으면 안 함(중복 폭탄 방지).
+     *   - 수동 ↻(regenerateSuggestions)는 이 가드와 무관하게 항상 동작.
+     * @return 자동 새로고침을 실제로 시작했으면 true.
+     */
+    fun refreshIfStale(): Boolean {
+        if (lastActivityIsCall.value || _suggestionsLoading.value) return false
+        val latestCustomer = _messages.value.firstOrNull { !it.sent } ?: return false
+        val cur = _suggestions.value ?: return false
+        if (cur.basedOnReceivedAtMs >= latestCustomer.dateMs) return false   // 이미 최신
+        if (autoRefreshAttemptedForMs == latestCustomer.dateMs) return false // 이 메시지로 이미 자동 시도
+        autoRefreshAttemptedForMs = latestCustomer.dateMs
+        regenerateSuggestions(auto = true)
+        return true
+    }
+
+    /** 화면의 옛 추천이 지금 고객 메시지 기준 몇 개를 못 담았나 — "고객 새 문자 N개 안 반영" 표시용. */
+    val unreflectedCustomerCount: StateFlow<Int> =
+        combine(_suggestions, _messages) { sug, msgs ->
+            val latest = msgs.firstOrNull() ?: return@combine 0
+            if (latest.sent || sug == null) return@combine 0
+            msgs.count { !it.sent && it.dateMs > sug.basedOnReceivedAtMs }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
     // ── 원칙 발견 (Phase 2, 2026-06-17 사장님) ────────────────────────────────
     //   추천 ≠ 사장님 실제 답이 확실할 때 서버가 추론한 '원칙 후보'. null 이면 카드 없음.
     //   초기값 = 영속된 미결정 발견 복원(뒤로가기로 사라졌던 것). 선언 시점 계산이라 init 순서 NPE 없음
@@ -937,6 +969,8 @@ class ChatViewModel(
     fun loadSuggestions() = viewModelScope.launch {
         // 통화로 끝난 대화면 답할 문자가 없음 → 추천 준비 안 함(스피너 X). (2026-06-17 사장님)
         if (lastActivityIsCall.value) return@launch
+        // (A 정책) 캐시가 옛 메시지 기준이면 자동으로 새 추천 생성 — 옛것은 화면에 흐리게 남고 스르륵 교체됨. (2026-06-27)
+        if (refreshIfStale()) return@launch
         container.journeyEventRepository.track("llm_use", screen = "chat", target = "suggestions")
         // 2026-05-28 사장님 통점: "알림엔 2개, ChatScreen 들어가면 3개" = LLM 점진 생성 race.
         //   첫 fetch 가 size >= 3 면 그대로. 부족하면 polling 으로 더 기다림. 알림 정책과 일관.
@@ -1056,18 +1090,19 @@ class ChatViewModel(
      * 흐름: PrepareContext 구성 → POST /prepare-reply → 2초 간격 폴링 (최대 10초) → READY 면 표시.
      * 컨텍스트 구성은 SmsReceiver 와 같은 로직 (최근 20건 + customer hint).
      */
-    fun regenerateSuggestions() {
+    fun regenerateSuggestions(auto: Boolean = false) {
         // 통화로 끝난 대화 — 답할 문자가 없으니 준비하지 않고 안내만. (2026-06-17 사장님)
         if (lastActivityIsCall.value) {
-            _toast.value = "통화로 끝난 대화예요 — 고객이 문자를 보내면 추천 답변을 준비할게요"
+            if (!auto) _toast.value = "통화로 끝난 대화예요 — 고객이 문자를 보내면 추천 답변을 준비할게요"
             return
         }
         val latestReceived = _messages.value.firstOrNull { !it.sent } ?: run {
-            _toast.value = "고객 마지막 메시지가 없어요"
+            if (!auto) _toast.value = "고객 마지막 메시지가 없어요"
             return
         }
         if (_suggestionsLoading.value) return
         _suggestionsLoading.value = true
+        _suggestionsFailed.value = false   // 새 시도 시작 — 실패 표시 초기화
         viewModelScope.launch {
             try {
                 val history = _messages.value
@@ -1124,7 +1159,8 @@ class ChatViewModel(
                 )
                 val prep = container.suggestionRepository.requestPrepare(ctx)
                 if (prep.isFailure) {
-                    _toast.value = "AI 서버에 잠깐 연결이 안 돼요 — 인터넷 확인 후 잠시 뒤 다시 해보세요"
+                    _suggestionsFailed.value = true   // UI: "못 만들었어요 — 다시 시도"
+                    if (!auto) _toast.value = "AI 서버에 잠깐 연결이 안 돼요 — 인터넷 확인 후 잠시 뒤 다시 해보세요"
                     return@launch
                 }
                 // 2초 간격 폴링 — 최대 5회 (10초). gpt-oss 첫 로드 후엔 3~5초면 충분.
@@ -1133,10 +1169,12 @@ class ChatViewModel(
                     val fetch = container.suggestionRepository.fetch(phoneNumber).getOrNull()
                     if (fetch?.status == SuggestionStatus.READY && fetch.suggestions != null) {
                         _suggestions.value = fetch.suggestions
+                        _suggestionsFailed.value = false
                         return@launch
                     }
                 }
-                _toast.value = "추천 답변 생성 시간 초과"
+                _suggestionsFailed.value = true   // 시간 초과도 실패로 — 옛것만 계속 보이지 않게
+                if (!auto) _toast.value = "추천 답변 생성 시간 초과"
             } finally {
                 _suggestionsLoading.value = false
             }
