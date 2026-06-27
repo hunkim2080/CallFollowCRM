@@ -5805,3 +5805,13 @@ C폰(S23U)·A폰(S9) 실기기 보고 일괄 처리. release 669 사이트 배�
 - 옛 신청자 (8명) 의 business_name = NULL → admin 에 "—" 표시.
 - 변경: server/main.py, server/static/landing.html, server/static/admin_beta_signups.html.
 - commit: (pending)
+
+## 2026-06-27 · android — 추천 답변 정합성 (A)부드럽게 + 서버 핸드오프
+- 문제: 추천이 옛 맥락(예약단계)인데 최신인 척 보임 + 늦은 옛 생성이 새것 덮을 위험.
+- 정책(사장님): (A) stale이면 옛것 흐리게 + 자동 새로고침 + 스르륵 교체(하드 차단 X).
+- 앱(완료): 진입/새문자 시 stale 자동 재생성(중복 가드), 옛칩 흐리게+"고객 새문자 N개", 실패상태 UI.
+- **cowork 할 일**: `docs/SERVER_HANDOFF_suggestion_freshness.md` 참조.
+  - ⭐필수 2번: prepare 저장 시 **based_on_received_at_ms 비교해 옛 기준 결과가 최신 캐시 못 덮게**.
+  - 1번: fetch 응답에 based_on_received_at_ms 비어있지 않게 확인(앱 stale 판정 근거).
+  - 3·4(선택): in-flight 중복 억제, MMS ready 보류.
+  - 안 함(과설계): conversation_version 카운터/job 테이블/이력 다벌 — 1인 규모라 불필요.
