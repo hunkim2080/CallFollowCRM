@@ -64,12 +64,16 @@
   .status-chip.accepted{background:var(--success-tint);color:#0a8f44;}
   .status-chip.rejected{background:var(--error-tint);color:var(--error);}
 
-  /* 추가56b — 화이트리스트 등록 버튼 / 라벨 */
+  /* 추가56b + 57b — 화이트리스트 등록 / 거절 버튼 */
+  .wl-actions{display:flex;gap:6px;align-items:center;}
   .wl-btn{background:var(--blue);color:#fff;border:0;padding:6px 11px;border-radius:8px;font-size:11.5px;font-weight:800;cursor:pointer;font-family:inherit;letter-spacing:-.01em;transition:all .12s ease;white-space:nowrap;}
   .wl-btn:hover{background:var(--blue-dark);transform:translateY(-1px);}
   .wl-btn:active{transform:scale(.96);}
   .wl-btn:disabled{background:var(--t3);cursor:not-allowed;transform:none;}
+  .wl-rej{background:#fff;color:var(--error);border:1.5px solid var(--error-tint);padding:5px 9px;border-radius:8px;font-size:11.5px;font-weight:800;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all .12s ease;}
+  .wl-rej:hover{background:var(--error-tint);border-color:var(--error);}
   .wl-done{display:inline-flex;align-items:center;gap:4px;color:var(--success);font-size:11.5px;font-weight:800;white-space:nowrap;}
+  .wl-rejected{display:inline-flex;align-items:center;gap:4px;color:var(--error);font-size:11.5px;font-weight:800;white-space:nowrap;}
 
   .empty-state{text-align:center;padding:50px 20px;color:var(--t3);}
   .empty-state .es-ic{font-size:36px;margin-bottom:10px;}
@@ -237,10 +241,20 @@
       const ts = new Date(it.created_at_ms);
       const tsStr = ts.getFullYear() + '-' + String(ts.getMonth()+1).padStart(2,'0') + '-' + String(ts.getDate()).padStart(2,'0') + ' ' + String(ts.getHours()).padStart(2,'0') + ':' + String(ts.getMinutes()).padStart(2,'0');
       const note = (it.note || '').slice(0, 40) + ((it.note || '').length > 40 ? '…' : '');
-      // 추가56b — 화이트리스트 등록 버튼 / 등록됨 라벨
-      const wlCell = it.is_whitelisted
-        ? '<span class="wl-done">✅ 등록됨</span>'
-        : '<button class="wl-btn" data-phone="' + escapeHtml(it.phone_raw) + '">+ 등록</button>';
+      // 추가56b + 57b — 상태별 분기
+      // (등록됨 | 거절됨 | [+ 등록] [✕ 거절])
+      let wlCell;
+      if (it.is_whitelisted) {
+        wlCell = '<span class="wl-done">✅ 등록됨</span>';
+      } else if (it.status === 'rejected') {
+        wlCell = '<span class="wl-rejected">⛔ 거절됨</span>';
+      } else {
+        wlCell =
+          '<div class="wl-actions">' +
+            '<button class="wl-btn" data-phone="' + escapeHtml(it.phone_raw) + '">+ 등록</button>' +
+            '<button class="wl-rej" data-phone="' + escapeHtml(it.phone_raw) + '">✕ 거절</button>' +
+          '</div>';
+      }
       const bizName = it.business_name || '<span style="color:#9AA3AF">—</span>';
       return '<tr data-idx="' + idx + '">' +
         '<td class="phone-cell">' + escapeHtml(it.phone) + '</td>' +
@@ -257,8 +271,9 @@
     tbody.innerHTML = rows;
     tbody.querySelectorAll('tr').forEach(function(tr){
       tr.addEventListener('click', function(e){
-        // 화이트리스트 버튼 클릭은 row click (detail 모달) 과 분리
+        // 액션 버튼 클릭은 row click (detail 모달) 과 분리
         if (e.target.classList.contains('wl-btn')) return;
+        if (e.target.classList.contains('wl-rej')) return;
         const idx = parseInt(tr.dataset.idx, 10);
         showDetail(currentItems[idx]);
       });
@@ -285,13 +300,50 @@
             btn.textContent = '+ 등록';
             return;
           }
-          // 성공 → 라벨 변경 (즉시 visual)
-          const td = btn.parentElement;
-          td.innerHTML = '<span class="wl-done">✅ 등록됨</span>';
+          // 성공 → wl-actions div 통째 → ✅ 라벨로
+          const wrap = btn.closest('.wl-actions') || btn.parentElement;
+          wrap.outerHTML = '<span class="wl-done">✅ 등록됨</span>';
         } catch(err){
           alert('네트워크 오류: ' + err.message);
           btn.disabled = false;
           btn.textContent = '+ 등록';
+        }
+      });
+    });
+    // 추가57b — 거절 버튼 핸들러
+    tbody.querySelectorAll('.wl-rej').forEach(function(btn){
+      btn.addEventListener('click', async function(e){
+        e.stopPropagation();
+        const phoneRaw = btn.dataset.phone;
+        const token = getToken();
+        if (!token){ showModal(false); return; }
+        if (!confirm('이 신청자를 거절 처리할까요? (status → rejected)')) return;
+        btn.disabled = true;
+        btn.textContent = '처리 중…';
+        try {
+          const res = await fetch('/admin/beta/signups/' + encodeURIComponent(phoneRaw), {
+            method: 'PATCH',
+            headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'rejected' })
+          });
+          if (!res.ok){
+            const t = await res.text();
+            alert('실패: HTTP ' + res.status + '\n' + t);
+            btn.disabled = false;
+            btn.textContent = '✕ 거절';
+            return;
+          }
+          // 성공 → wl-actions 통째 + status 칩 둘 다 업데이트
+          const tr = btn.closest('tr');
+          const wrap = btn.closest('.wl-actions') || btn.parentElement;
+          wrap.outerHTML = '<span class="wl-rejected">⛔ 거절됨</span>';
+          // 상태 칩도 rejected 로 (7번째 td = status)
+          const statusTd = tr.querySelectorAll('td')[6];
+          if (statusTd) statusTd.innerHTML = '<span class="status-chip rejected">rejected</span>';
+        } catch(err){
+          alert('네트워크 오류: ' + err.message);
+          btn.disabled = false;
+          btn.textContent = '✕ 거절';
         }
       });
     });

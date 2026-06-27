@@ -4820,6 +4820,39 @@ async def admin_beta_signups_data(
     }
 
 
+# 추가57b (2026-06-25) — 베타 신청자 status 변경 (운영자 결정 = 거절)
+# 사장님 의도: "여기 거절도 있어야하지않을까" — admin 페이지에서 한 번 클릭으로 거절 처리.
+class BetaSignupStatusPatch(BaseModel):
+    status: str  # 'rejected' | 'accepted' | 'pending'
+
+
+@app.patch("/admin/beta/signups/{phone}")
+async def admin_beta_signups_patch(
+    phone: str,
+    body: BetaSignupStatusPatch,
+    authorization: Optional[str] = Header(default=None),
+):
+    """신청자 status 변경. 거절 ↔ 복구 둘 다 같은 endpoint."""
+    _admin_auth_bearer_from_header(authorization)
+    phone_digits = "".join(ch for ch in phone if ch.isdigit())
+    if not phone_digits:
+        raise HTTPException(400, "phone 필수")
+    new_status = (body.status or "").strip().lower()
+    if new_status not in {"pending", "accepted", "rejected", "waitlist"}:
+        raise HTTPException(400, "status = pending|accepted|rejected|waitlist 중 하나")
+    now = _now_ms()
+    with sqlite3.connect(DB_PATH) as con:
+        cur = con.execute(
+            "UPDATE beta_signups SET status = ?, updated_at_ms = ? WHERE phone = ?",
+            (new_status, now, phone_digits),
+        )
+        if cur.rowcount == 0:
+            raise HTTPException(404, "해당 phone 신청자 없음")
+        con.commit()
+    print(f"[admin/beta/signups] {phone_digits} → status={new_status}")
+    return {"ok": True, "phone": phone_digits, "status": new_status}
+
+
 # ============================================================================
 # 추가31 (2026-06-15) — 베타 화이트리스트 (테스터 폰번호 게이트)
 # ─────────────────────────────────────────────────────────────────────────────
