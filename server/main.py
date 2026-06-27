@@ -791,26 +791,53 @@ def db_set_generating(phone: str, latest_msg: str, received_at_ms: int) -> None:
         con.commit()
 
 
-def db_set_ready(phone: str, v2: dict) -> None:
+def db_set_ready(phone: str, v2: dict, based_on_received_at_ms: Optional[int] = None) -> bool:
     """v2 dict 통째로 suggestions_json 에 저장.
 
+    추가58 (2026-06-25) — 덮어쓰기 가드.
+    based_on_received_at_ms = 이 prepare 호출이 기준으로 삼은 메시지 시각.
+    저장 시점에 캐시의 based_on_received_at_ms 가 더 새것이면 = 다른 prepare 가 새 값 박은 상태.
+    그러면 이번 ready 는 옛 결과라 폐기 (UPDATE 가 0 rows 영향).
+
+    return: True = 저장 됐음. False = 새 prepare 가 덮어써서 skip.
+
     v2 = {scenario, scenario_confidence, scenario_reason, suggestions:[3 obj]}
-    suggestions_cache 테이블의 schema 는 안 만짐 — suggestions_json (TEXT) 안에 dict 직렬화.
     """
     now = _now_ms()
     with sqlite3.connect(DB_PATH) as con:
-        con.execute(
-            """
-            UPDATE suggestions_cache SET
-                status='ready',
-                suggestions_json=?,
-                generated_at_ms=?,
-                updated_at_ms=?
-            WHERE phone=?
-            """,
-            (json.dumps(v2, ensure_ascii=False), now, now, phone),
-        )
-        con.commit()
+        if based_on_received_at_ms is not None:
+            # 가드 적용 — atomic WHERE 로 옛 ready 덮어쓰기 차단.
+            cur = con.execute(
+                """
+                UPDATE suggestions_cache SET
+                    status='ready',
+                    suggestions_json=?,
+                    generated_at_ms=?,
+                    updated_at_ms=?
+                WHERE phone=? AND based_on_received_at_ms = ?
+                """,
+                (json.dumps(v2, ensure_ascii=False), now, now, phone, based_on_received_at_ms),
+            )
+            con.commit()
+            if cur.rowcount == 0:
+                print(f"[ready/skip-stale] {phone} based={based_on_received_at_ms} — 새 prepare 가 이미 더 새 값 박음, 폐기")
+                return False
+            return True
+        else:
+            # 옛 호출자 (가드 없이) — 그대로 덮어씀
+            con.execute(
+                """
+                UPDATE suggestions_cache SET
+                    status='ready',
+                    suggestions_json=?,
+                    generated_at_ms=?,
+                    updated_at_ms=?
+                WHERE phone=?
+                """,
+                (json.dumps(v2, ensure_ascii=False), now, now, phone),
+            )
+            con.commit()
+            return True
 
 
 def db_set_missing(phone: str) -> None:
@@ -2038,11 +2065,13 @@ async def generate_and_cache(req: PrepareReplyRequest, model: str = "sonnet") ->
     try:
         check_rate_limit(phone)
 
+        # 추가58 — 덮어쓰기 가드용: 이번 prepare 의 기준 시각.
+        based_ts = getattr(req, "latestMessageReceivedAtMs", None)
         if model == "gemini":
             v2, usage_meta = await call_gemini_for_suggestions_with_meta(req)
             latency_sec = (_now_ms() - start_ms) / 1000.0
             _log_gemini_suggestions_usage(usage_meta, latency_sec)
-            db_set_ready(phone, v2)
+            db_set_ready(phone, v2, based_on_received_at_ms=based_ts)
             print(
                 f"[ready/gemini] {phone} scenario={v2['scenario']} conf={v2['scenario_confidence']} "
                 f"intents={[s['intent_key'] for s in v2['suggestions']]} "
@@ -2056,7 +2085,7 @@ async def generate_and_cache(req: PrepareReplyRequest, model: str = "sonnet") ->
             latency_sec = (_now_ms() - start_ms) / 1000.0
             log_usage(phone, "prepare-reply", response)
             _log_llm_usage_from_response("prepare-reply", response)
-            db_set_ready(phone, v2)
+            db_set_ready(phone, v2, based_on_received_at_ms=based_ts)
             usage = response.usage
             print(
                 f"[ready/sonnet] {phone} scenario={v2['scenario']} conf={v2['scenario_confidence']} "
@@ -7471,6 +7500,7 @@ async def admin_icon():
 _APK_DIR = Path("/Users/hun/ringgo-server/apk")
 _APK_PATH = _APK_DIR / "shigongmagne.apk"
 _APK_VERSION_PATH = _APK_DIR / "VERSION.txt"  # 사장님이 빌드 시 버전 정보 박는 곳 (optional)
+_APK_VERSION_CODE_PATH = _APK_DIR / "VERSION_CODE.txt"  # 추가58 (2026-06-25) — int versionCode (앱 업데이트 비교용)
 _INSTALL_HTML_PATH = BASE_DIR / "static" / "install.html"
 _PRIVACY_HTML_PATH = BASE_DIR / "static" / "privacy.html"
 
@@ -7510,6 +7540,15 @@ async def download_apk_version():
             version_text = _APK_VERSION_PATH.read_text(encoding="utf-8").strip()[:80]
         except Exception:
             pass
+    # 추가58 (2026-06-25) — version_code (int) 추가. mtime 폴백 오탐 (재업로드 시) 해소.
+    # 안드로이드가 빌드 시 VERSION_CODE.txt 옆 파일에 박아서 함께 올림.
+    version_code = 0
+    if _APK_VERSION_CODE_PATH.exists():
+        try:
+            raw = _APK_VERSION_CODE_PATH.read_text(encoding="utf-8").strip()
+            version_code = int(raw) if raw else 0
+        except Exception as e:
+            print(f"[download/version] VERSION_CODE.txt 파싱 실패: {e}")
     return {
         "available": True,
         "size_bytes": stat.st_size,
@@ -7518,7 +7557,8 @@ async def download_apk_version():
         "mtime_iso": _dt.datetime.fromtimestamp(stat.st_mtime).strftime(
             "%Y-%m-%d %H:%M"
         ),
-        "version": version_text or "v0.2-beta",  # §3 (2026-06-18) — VERSION.txt 없을 때 fallback. 다음 빌드 시 사장님이 VERSION.txt 갱신 권장.
+        "version": version_text or "v0.2-beta",  # §3 (2026-06-18) — VERSION.txt 없을 때 fallback.
+        "version_code": version_code,  # 추가58 — int. 0 이면 VERSION_CODE.txt 없음 (안드로이드는 mtime 폴백).
     }
 
 

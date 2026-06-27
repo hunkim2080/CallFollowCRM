@@ -5815,3 +5815,27 @@ C폰(S23U)·A폰(S9) 실기기 보고 일괄 처리. release 669 사이트 배�
 - 거절 시 status 칩도 즉시 rejected 로 변경 (visual).
 - 변경: server/main.py + server/static/admin_beta_signups.html.
 - commit: (pending)
+
+## 2026-06-25 21:00 · cowork (안드로이드 핸드오프 ① + ③ 응답)
+추가58 — 안드로이드의 4개 요청 응답.
+- ① [필수] 추천 덮어쓰기 가드: db_set_ready 에 based_on_received_at_ms 인자 추가.
+  UPDATE WHERE 에 atomic 매칭 → 옛 prepare 결과가 새 cache 못 덮음.
+  rowcount==0 면 [ready/skip-stale] 로그 + skip. 호출처 (Gemini/Sonnet) 두 곳 다 적용.
+  fetch 응답에 basedOnReceivedAtMs 이미 채워서 나옴 (앱 stale 판정 OK).
+  in-flight 가드는 안 박음 (1인 규모 과설계 — 옛 prepare 가 와도 atomic UPDATE skip 으로 충분).
+- ③ [중간] /api/download/version 에 version_code (int) 추가.
+  _APK_VERSION_CODE_PATH = apk/VERSION_CODE.txt 옆 파일. 안드로이드 빌드 시 함께 박음.
+  없거나 파싱 실패 시 0 반환 — 앱은 mtime 폴백 (그치만 부정확).
+- ② [중간] 이미 박았음 (어제 추가56) — _json → json.
+- ④ [확인] 이미 박았음 (어제 추가55) — admin/user 의 시공일 카드 = event_name='schedule_create' COUNT.
+  screen='backfill' 별 분리는 다음 cycle 옵션 (사장님 결정 받기).
+
+다음 액션 (사장님 → 안드로이드):
+- VERSION_CODE.txt 옆 파일 빌드 시 만들어 주세요. cp 할 때 같이 올림.
+  ```
+  cp app-release.apk    /Users/hun/ringgo-server/apk/shigongmagne.apk
+  cp app-version_code   /Users/hun/ringgo-server/apk/VERSION_CODE.txt   # (예: 733)
+  ```
+- ②/④ 는 cowork 측 완료. 안드로이드 측 검증 시 정상 작동 확인 부탁.
+
+commit: (pending)
