@@ -84,6 +84,18 @@ class RingGoFcmService : FirebaseMessagingService() {
                     NotificationHelper.showCollabEnded(this, shareId, data["by_name"].orEmpty(), data["title"].orEmpty())
                 }
             }
+            // 시공접수서 제출 — 고객이 작성 완료하는 즉시(폴링 60초 안 기다리고) 동기화.
+            //   서버가 제출 저장 직후 data push(type=intake_submitted)를 사장님 번호로 보냄 → 여기서 바로 sync().
+            //   sync() 가 GET /api/quote/submissions 로 새 건을 가져와 고객 카드 반영 + 알림 + 채팅 타임라인 카드까지
+            //   처리(폴링과 동일 경로). token 중복 가드가 있어 폴링과 겹쳐도 이중 알림 없음. 폴링은 안전망으로 유지.
+            "intake_submitted" -> {
+                val app = applicationContext as? CallFollowCrmApplication
+                if (app != null) {
+                    CoroutineScope(Dispatchers.IO).launch {
+                        runCatching { app.container.intakeSyncManager.sync(applicationContext) }
+                    }
+                }
+            }
         }
     }
 }
