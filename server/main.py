@@ -8364,6 +8364,7 @@ async def _call_gemini_json_for_summary(
             "responseSchema": {
                 "type": "OBJECT",
                 "properties": {
+                    "title": {"type": "STRING"},  # 추가61 — 6~12자 짧은 제목 (앱 헤더용)
                     "one_line": {"type": "STRING"},
                     "bullets": {
                         "type": "ARRAY",
@@ -8371,7 +8372,7 @@ async def _call_gemini_json_for_summary(
                     },
                     "suggested_followup_sms": {"type": "STRING"},
                 },
-                "required": ["one_line", "bullets"],
+                "required": ["title", "one_line", "bullets"],
             },
         },
     }
@@ -8809,6 +8810,12 @@ CALL_SUMMARY_SYSTEM = """너는 1인 시공자(줄눈/타일) 사장님의 비�
 - 양쪽 다 인사하면: 보통 먼저 "여보세요/안녕하세요" 가 고객, 응답이 사장님
 
 규칙:
+- title: **6~12자** 짧은 제목 1줄. 앱의 통화카드 헤더에 굵게 표시.
+  통화 핵심 키워드만 (예: "욕실 줄눈 견적 문의", "잔금 입금 약속", "시공일 변경 요청", "부재중 콜백 요청").
+  · one_line 의 짧은 버전. 가격·평수 등 숫자 제외.
+  · 명사구 (동사로 끝나는 거 X). "~ 문의 / ~ 약속 / ~ 요청 / ~ 안내 / ~ 통화" 같은 끝.
+  · 부재중 = "부재중 (콜백 필요)" / "부재중 콜백" 류.
+
 - one_line: 18~28자. 이 통화의 핵심 결과 1줄 (예: "24평 화장실 줄눈 견적 65만원 안내", "수원-인천 출장비 협의 필요").
   단순 "견적 요청" 식 키워드 X — 결과까지 들어가야 한다.
 
@@ -8844,14 +8851,14 @@ __OWNER_TONE_SAMPLES__
 
 답 형식 — 반드시:
 - 응답 첫 글자는 '{' 로. 다른 텍스트 X.
-- {"one_line":"...","bullets":["🙋 ...","🏢 ..."],"suggested_followup_sms":"..."}
+- {"title":"...","one_line":"...","bullets":["🙋 ...","🏢 ..."],"suggested_followup_sms":"..."}
 """
 
 
 def _coerce_call_summary(parsed: dict) -> dict:
     """LLM 응답을 안전한 dict 로 정리. 누락 필드는 기본값 채움.
 
-    one_line, bullets, suggested_followup_sms 만 통과시킴 (extra 키 무시).
+    title, one_line, bullets, suggested_followup_sms 만 통과시킴 (extra 키 무시).
     """
     one_line = str(parsed.get("one_line") or "").strip()
     if not one_line:
@@ -8859,6 +8866,16 @@ def _coerce_call_summary(parsed: dict) -> dict:
     # 30자 안전 컷 (LLM 가 가끔 넘침)
     if len(one_line) > 40:
         one_line = one_line[:40].rstrip() + "…"
+
+    # 추가61 (2026-06-25) — title (6~12자 짧은 제목). 없으면 one_line 폴백.
+    title = str(parsed.get("title") or "").strip()
+    if title:
+        # 안전 컷 16자 (LLM 가 가끔 넘침). 길면 잘라 + …
+        if len(title) > 16:
+            title = title[:16].rstrip() + "…"
+    else:
+        # 폴백 = one_line 앞 14자 (앱이 헤더 표시할 게 필요)
+        title = one_line[:14].rstrip() + ("…" if len(one_line) > 14 else "")
 
     raw_bullets = parsed.get("bullets")
     bullets: list[str] = []
@@ -8882,6 +8899,7 @@ def _coerce_call_summary(parsed: dict) -> dict:
         fup = None
 
     return {
+        "title": title,  # 추가61 — 6~12자 짧은 제목
         "one_line": one_line,
         "bullets": bullets,
         "suggested_followup_sms": fup,
@@ -12616,9 +12634,13 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
         body: JSON.stringify(payload),
       }});
       if (resp.ok) {{
+        // 추가60 (2026-06-25) — 완료 화면 = 안내문 + [확인!] 버튼 (자연 종료)
         document.querySelector('.q-scroll').innerHTML =
           '<div class="status-page"><h2 style="color:#16C172">✅ 접수 완료!</h2>'
-          + '<p>시공접수서를 제출했어요.<br>사장님이 확인 후 시공일이 최종 확정돼요 😊</p></div>';
+          + '<p>시공접수서를 제출했어요.<br><br>'
+          + '사장님이 확인하면 <b>"확인했어요" 알림 문자</b>가<br>'
+          + '자동으로 전송돼요. 작성 후 잠시만 기다려주시면 돼요 😊</p>'
+          + '<button class="q-submit" style="max-width:220px;margin:22px auto 0" onclick="closeIntake()">확인!</button></div>';
       }} else {{
         var err = await resp.json().catch(function() {{ return {{}}; }});
         var msg = err.detail;
@@ -12640,6 +12662,18 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
 
   function requestEdit() {{
     alert('사장님께 수정 요청 연락 부탁드려요.\\n(이 화면을 닫고 사장님께 문자/전화 주세요)');
+  }}
+
+  // 추가60 (2026-06-25) — 완료 화면의 [확인!] 버튼 핸들러.
+  // 안내 메시지 보여주고 best-effort 닫기. 모바일에선 window.close() 가 막혀도
+  // "잠시만 기다려주세요" 메시지로 자연스럽게 끝나게.
+  function closeIntake() {{
+    document.querySelector('.q-scroll').innerHTML =
+      '<div class="status-page"><h2>네! 조금만 기다려주세요 😊</h2>'
+      + '<p>접수서 창을 종료할게요!</p></div>';
+    setTimeout(function() {{
+      try {{ window.open('', '_self'); window.close(); }} catch(e) {{}}
+    }}, 1200);
   }}
 </script>
 </body>

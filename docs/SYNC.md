@@ -5890,3 +5890,23 @@ commit: (pending)
   - 누르면 고객에 "사장님이 접수서를 확인했어요! + 시공일정/시공내용/시공현장주소 + 감사합니다." 발송(sendMessage 재사용→타임라인) + confirmedAt 기록 → 버튼 확인함 잠김(1회).
   - DB v34→v35: intake_events +itemsText(estimate_items names) +confirmedAt. 폰 마이그레이션 정상.
 - (선택, cowork) 웹 완료화면 문구 "접수 완료! 사장님이 확인하면 문자로 알려드릴게요"로 + 확인버튼 closeIntake 안내.
+## 2026-06-25 21:50 · cowork
+추가60 — 시공접수서 고객 완료화면 2단계 + 자연 종료.
+- 위치: /q/{token} HTML 의 submitQuote() resp.ok 블록 + 새 closeIntake() 함수.
+- 1단계 (제출 직후): "✅ 접수 완료! + 사장님 확인 시 자동 알림 문자" + [확인!] 버튼.
+- 2단계 ([확인!] 클릭): "네! 조금만 기다려주세요 😊 접수서 창을 종료할게요!" + 1.2초 후 best-effort window.close.
+- 모바일에서 window.close 막힐 수 있음 — 자연 종료 메시지로 끝.
+- v2 (§19.2) 다른 완료 화면 = grep 결과 한 곳만 있음 (12620). 한 곳만 적용 OK.
+- 변경: server/main.py 만.
+- commit: (pending)
+
+## 2026-06-25 22:10 · cowork (안드로이드 요청 응답)
+추가61 — /api/call-summary + /api/call-audio-summary 응답에 title 필드 추가.
+- CALL_SUMMARY_SYSTEM 프롬프트: title 규칙 (6~12자, 명사구, 가격·평수 X) + 답 형식.
+- Gemini schema (response_schema): title:STRING 추가, required 에 포함.
+- _coerce_call_summary: title 파싱 + 16자 안전 컷 + 폴백 (LLM 누락 시 one_line 앞 14자).
+- 두 endpoint 모두 _coerce_call_summary 공유 → 한 곳 박으면 둘 다.
+- 캐시: summary_cache 가 response dict 통째 저장 → title 자동 포함. schema 변경 X.
+- 옛 캐시 (title 없음): 캐시 hit 시 title 비어있을 수 있음 — 앱 측에서 one_line 폴백 권장. force_refresh=true 로 재요약하면 title 들어옴.
+- 변경: server/main.py 만.
+- commit: (pending)
