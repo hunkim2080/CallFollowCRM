@@ -5867,3 +5867,11 @@ commit: (pending)
 - 앱 RingGoFcmService 가 type=intake_submitted 받으면 즉시 sync → 60초 폴링 대기 X.
 - 변경: server/main.py 만.
 - commit: (pending)
+
+## 2026-06-28 · android — 통화 요약에 "한눈에 보는 제목" 표시
+- 사장님 요청: 통화 요약 좋은데 다 읽어야 함 → 각 요약에 제목 달기.
+- 앱(완료): 채팅 통화카드에 summary.title 을 굵은 헤더로 표시(+본문 중복줄 제거). 고객상세는 이미 title 표시 중이었음.
+  - title 파싱: /api/call-summary, /api/call-audio-summary 응답의 `title`(짧은 제목) 우선, 없으면 one_line 폴백.
+  - DB 마이그레이션 불필요(call_summaries.title 컬럼 이미 존재).
+- **cowork(선택, 품질↑)**: 두 요약 엔드포인트 응답에 짧은 제목 `title`(키워드 6~12자, 예 "욕실 줄눈 견적 문의") 추가하면 한눈에 더 잘 보임. 지금은 one_line(한 문장)으로 폴백 중.
+- commit: (아래)

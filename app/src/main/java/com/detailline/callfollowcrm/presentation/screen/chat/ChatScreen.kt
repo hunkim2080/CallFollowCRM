@@ -1579,6 +1579,10 @@ private fun CallSegment(
             ?.map { it.trim().trimStart('•', '·', '-', '*', ' ') }
             ?.filter { it.isNotEmpty() }
             ?: emptyList()
+        // 한눈에 보는 제목(2026-06-28 사장님) — summary.title 을 굵게 헤더로. 본문(불릿)에서 제목과 같은 줄은
+        //   빼서 중복 표시 방지(서버가 짧은 제목을 주기 전엔 title=한줄요약 이라 첫 줄과 겹칠 수 있음).
+        val summaryTitle = summary?.title?.takeIf { it.isNotBlank() }
+        val displayBullets = if (summaryTitle != null) bullets.filter { it != summaryTitle } else bullets
 
         // 부재중·거절·통화시간 0초는 요약할 내용(녹음/대화)이 없음 → 요약 버튼 숨김.
         val summarizable = type != com.detailline.callfollowcrm.domain.model.CallType.MISSED &&
@@ -1643,9 +1647,17 @@ private fun CallSegment(
                 }
             }
         } else {
-            // 요약됨 → cc-bul(불릿) + ✏️ 수정 + ghost 버튼 "이 통화 내용으로 후속 문자 쓰기"
+            // 요약됨 → 제목(굵게) + cc-bul(불릿) + ✏️ 수정 + ghost 버튼 "이 통화 내용으로 후속 문자 쓰기"
             Column(Modifier.padding(top = 10.dp)) {
-                bullets.forEach { line ->
+                if (summaryTitle != null) {
+                    Text(
+                        summaryTitle,
+                        fontSize = 14.sp, fontWeight = FontWeight.ExtraBold,
+                        color = TossTextPrimary, lineHeight = 20.sp,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                }
+                displayBullets.forEach { line ->
                     Row(Modifier.padding(bottom = 4.dp)) {
                         Text("• ", fontSize = 12.5.sp, color = Color(0xFF0A7D72), fontWeight = FontWeight.Bold)
                         Text(line, fontSize = 12.5.sp, color = TossTextSecondary, lineHeight = 19.sp, modifier = Modifier.weight(1f))

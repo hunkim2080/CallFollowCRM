@@ -36,7 +36,9 @@ class CallSummaryServerRepository(
     data class Summary(
         val oneLine: String?,
         val bullets: List<String>,
-        val followupSms: String?
+        val followupSms: String?,
+        /** 한눈에 보는 짧은 제목(서버 LLM). 없으면 앱이 oneLine 으로 폴백. (2026-06-28 사장님) */
+        val title: String? = null
     )
 
     suspend fun summarize(
@@ -76,7 +78,8 @@ class CallSummaryServerRepository(
                 Summary(
                     oneLine = obj.optString("one_line").takeIf { it.isNotBlank() },
                     bullets = bullets,
-                    followupSms = obj.optString("suggested_followup_sms").takeIf { it.isNotBlank() && it != "null" }
+                    followupSms = obj.optString("suggested_followup_sms").takeIf { it.isNotBlank() && it != "null" },
+                    title = obj.optString("title").takeIf { it.isNotBlank() && it != "null" }
                 )
             }
         }

@@ -102,7 +102,7 @@ object CallAudioSummarizer {
                 callRecordId = linkedCallRecordId ?: existing?.callRecordId,
                 phoneNumber = phone,
                 recordedAt = recordedAt,
-                title = res.oneLine ?: existing?.title,
+                title = res.title ?: res.oneLine ?: existing?.title,
                 summaryText = summaryText ?: existing?.summaryText,
                 recommendedMessage = res.followupSms ?: existing?.recommendedMessage,
                 transcriptText = res.transcript ?: existing?.transcriptText,
