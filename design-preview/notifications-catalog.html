@@ -44,6 +44,28 @@
   .tagrow{font-size:11.5px;color:var(--t2);margin:3px 0;}
   code{background:#EEF1F4;border-radius:4px;padding:1px 5px;font-size:11px;}
   .legend{font-size:11px;color:var(--t2);background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:8px 0;}
+  /* 🖼 이미지로 보기 — 알림 실제 모습 미리보기 */
+  .imgbtn{margin-left:8px;font-size:11px;font-weight:800;border:1px solid #C9DBF7;background:#fff;color:var(--blue);border-radius:6px;padding:3px 10px;cursor:pointer;vertical-align:middle;}
+  .imgbtn:hover{background:#F0F6FF;}
+  .noti-preview{display:none;margin-top:10px;}
+  .np-stage{background:linear-gradient(160deg,#2b3a67 0%,#3d5680 60%,#54749b 100%);border-radius:16px;padding:18px 14px;}
+  .np-noti{background:#fff;border-radius:15px;box-shadow:0 8px 22px rgba(0,0,0,.28);padding:11px 13px;max-width:370px;margin:0 auto;}
+  .np-noti + .np-noti{margin-top:10px;}
+  .np-head{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t3);margin-bottom:5px;}
+  .np-ic{width:19px;height:19px;border-radius:6px;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex:0 0 auto;}
+  .np-app{font-weight:800;color:var(--t2);}
+  .np-title{font-size:13.5px;font-weight:800;color:var(--t1);margin:1px 0 3px;}
+  .np-body{font-size:12.5px;color:var(--t2);}
+  .np-acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;border-top:1px solid var(--line);padding-top:7px;}
+  .np-act{font-size:12px;font-weight:800;color:var(--blue);padding:3px 9px;border-radius:6px;background:#F2F7FF;}
+  .np-pop{max-width:320px;}
+  .np-pop .np-acts{border-top:none;padding-top:9px;}
+  .np-pop .np-act.primary{background:var(--blue);color:#fff;}
+  .np-count{font-size:11.5px;color:var(--red);font-weight:800;margin-top:7px;}
+  .np-silent{display:inline-block;font-size:10.5px;font-weight:800;color:var(--gray);background:#EEF1F4;border-radius:5px;padding:1px 8px;margin-bottom:7px;}
+  .np-acct{color:var(--red);font-weight:800;background:#FBE4E5;border-radius:4px;padding:0 4px;}
+  .np-cap{font-size:11px;color:var(--t2);margin-top:8px;}
+  .np-cap.warn{color:var(--red);font-weight:700;}
 </style>
 </head>
 <body>
@@ -62,7 +84,7 @@
   </div>
 
   <!-- ============ 1. 요약표 ============ -->
-  <h2>1. 알림 전체 요약표 (17종)</h2>
+  <h2>1. 알림 전체 요약표 (16종)</h2>
   <div class="scroll">
   <table>
     <thead><tr>
@@ -71,9 +93,9 @@
     </tr></thead>
     <tbody>
       <tr><td class="c">1</td><td><b>새 문자</b></td><td>고객 SMS 수신 즉시</td><td class="c">상단푸시</td><td class="c"><span class="b urgent">긴급</span></td><td class="c no">X</td><td class="c yes">O</td><td>번호별 동일ID 갱신</td><td class="c p-high">높음</td><td class="c"><span class="b mvp1">1</span></td></tr>
-      <tr><td class="c">2</td><td><b>통화 후 카드</b></td><td>통화(수신·발신) 5초+ 종료</td><td class="c">팝업카드<br>(권한X→푸시)</td><td class="c"><span class="b important">중요</span></td><td class="c no">X</td><td class="c yes">O</td><td>떠있으면 무시</td><td class="c p-mid">중간</td><td class="c"><span class="b mvp1">1</span></td></tr>
-      <tr><td class="c">3</td><td><b>부재중 자동문자</b></td><td>부재중/첫통화 + 토글ON</td><td class="c">팝업카드/푸시<br>(10초 카운트)</td><td class="c"><span class="b important">중요</span></td><td class="c yes">O ⚠️</td><td class="c">취소가능</td><td>번호별 24h 쿨다운</td><td class="c p-low">낮음</td><td class="c"><span class="b mvp1">1</span></td></tr>
-      <tr><td class="c">4</td><td><b>접수서 회신 도착</b></td><td>고객 접수서 제출(60초 폴링)</td><td class="c">상단푸시</td><td class="c"><span class="b important">중요</span></td><td class="c no">X</td><td class="c yes">O</td><td>token별 1회</td><td class="c p-high">높음</td><td class="c"><span class="b mvp1">1</span></td></tr>
+      <tr><td class="c">2</td><td><b>통화 요약 준비됨</b></td><td>답한 통화(5초+) 자동요약 완료</td><td class="c">상단푸시<br>(4초 후 사라짐)</td><td class="c"><span class="b info">참고</span></td><td class="c no">X</td><td class="c no">X</td><td>통화별</td><td class="c p-low">낮음</td><td class="c"><span class="b mvp1">1</span></td></tr>
+      <tr><td class="c">3</td><td><b>부재중 자동문자</b></td><td>부재중/첫통화 + 토글ON</td><td class="c">푸시<br>(10초 카운트)</td><td class="c"><span class="b important">중요</span></td><td class="c yes">O ⚠️</td><td class="c">취소가능</td><td>번호별 24h 쿨다운</td><td class="c p-low">낮음</td><td class="c"><span class="b mvp1">1</span></td></tr>
+      <tr><td class="c">4</td><td><b>접수서 회신 도착</b></td><td>고객 접수서 제출(FCM 즉시·폴링 백업)</td><td class="c">상단푸시</td><td class="c"><span class="b important">중요</span></td><td class="c no">X</td><td class="c yes">O</td><td>token별 1회</td><td class="c p-high">높음</td><td class="c"><span class="b mvp1">1</span></td></tr>
       <tr><td class="c">5</td><td><b>협업 요청</b></td><td>상대 사장 현장 공유요청(FCM)</td><td class="c">상단푸시</td><td class="c"><span class="b urgent">긴급</span></td><td class="c no">X</td><td class="c yes">O</td><td>shareId·onlyAlertOnce</td><td class="c p-low">낮음</td><td class="c"><span class="b mvp1">1</span></td></tr>
       <tr><td class="c">6</td><td><b>잔금 미수</b></td><td>완료 3일+ 미입금 · 오전 10시</td><td class="c">상단푸시</td><td class="c"><span class="b info">참고</span></td><td class="c no">X</td><td class="c yes">O</td><td>고객별 1회</td><td class="c p-mid">중간</td><td class="c"><span class="b mvp1">1</span></td></tr>
       <tr><td class="c">7</td><td><b>시공 전날 D-1</b></td><td>전날 저녁(설정시각)·토글ON</td><td class="c">상단푸시</td><td class="c"><span class="b important">중요</span></td><td class="c no">X</td><td class="c yes">O</td><td>고객·날짜별 1회</td><td class="c p-mid">중간</td><td class="c"><span class="b mvp1">1</span></td></tr>
@@ -82,11 +104,10 @@
       <tr><td class="c">10</td><td>팀원 출발/도착/완료</td><td>팀원 링크화면 버튼</td><td class="c">상단푸시</td><td class="c"><span class="b info">참고</span></td><td class="c no">X</td><td class="c no">X</td><td>eventId·onlyAlertOnce</td><td class="c p-low">낮음</td><td class="c"><span class="b mvp2">2</span></td></tr>
       <tr><td class="c">11</td><td>마감 브리핑</td><td>밤 9시(내용 있을 때만)</td><td class="c">상단푸시</td><td class="c"><span class="b brief">브리핑</span></td><td class="c no">X</td><td class="c no">X</td><td>하루 1회(brief:날짜)</td><td class="c p-low">낮음</td><td class="c"><span class="b mvp2">2</span></td></tr>
       <tr><td class="c">12</td><td>정기문자 발송일</td><td>오전 9시(보낼 게 있을 때)</td><td class="c">상단푸시</td><td class="c"><span class="b brief">브리핑</span></td><td class="c no">X</td><td class="c yes">O</td><td>하루 1회</td><td class="c p-low">낮음</td><td class="c"><span class="b mvp2">2</span></td></tr>
-      <tr><td class="c">13</td><td>RING-GO 캐치!(후속 백업)</td><td>카드 권한X / 발신 첫통화</td><td class="c">상단푸시</td><td class="c"><span class="b info">참고</span></td><td class="c no">X</td><td class="c yes">O</td><td>callRecordId별</td><td class="c p-low">낮음</td><td class="c"><span class="b mvp2">2</span></td></tr>
-      <tr><td class="c">14</td><td>조용한 재통화 알림</td><td>2번째+ 미처리 통화</td><td class="c">조용한</td><td class="c"><span class="b info">참고</span></td><td class="c no">X</td><td class="c no">X</td><td>처리/일정 있으면 X</td><td class="c p-low">낮음</td><td class="c"><span class="b mvp3">후</span></td></tr>
-      <tr><td class="c">15</td><td>협업 입금완료 / 해제</td><td>주인 입금표시 / 협업 해제</td><td class="c">상단푸시</td><td class="c"><span class="b info">참고</span></td><td class="c no">X</td><td class="c no">X</td><td>shareId·onlyAlertOnce</td><td class="c p-low">낮음</td><td class="c"><span class="b mvp2">2</span></td></tr>
-      <tr><td class="c">16</td><td>현장 도착 5km(내 현장)</td><td>내 현장 5km 진입(GPS)</td><td class="c">상단푸시</td><td class="c"><span class="b info">참고</span></td><td class="c no">X</td><td class="c yes">O</td><td>고객별</td><td class="c p-mid">중간</td><td class="c"><span class="b mvp3">후</span></td></tr>
-      <tr><td class="c">17</td><td>협업 도착 자동확인(3km)</td><td>협업현장 3km 진입(GPS)</td><td class="c">상단푸시</td><td class="c"><span class="b info">참고</span></td><td class="c yes">O(전송)</td><td class="c no">X</td><td>shareId별</td><td class="c p-mid">중간</td><td class="c"><span class="b mvp3">후</span></td></tr>
+      <tr><td class="c">13</td><td>조용한 재통화 알림</td><td>2번째+ 미처리 통화</td><td class="c">조용한</td><td class="c"><span class="b info">참고</span></td><td class="c no">X</td><td class="c no">X</td><td>처리/일정 있으면 X</td><td class="c p-low">낮음</td><td class="c"><span class="b mvp3">후</span></td></tr>
+      <tr><td class="c">14</td><td>협업 입금완료 / 해제</td><td>주인 입금표시 / 협업 해제</td><td class="c">상단푸시</td><td class="c"><span class="b info">참고</span></td><td class="c no">X</td><td class="c no">X</td><td>shareId·onlyAlertOnce</td><td class="c p-low">낮음</td><td class="c"><span class="b mvp2">2</span></td></tr>
+      <tr><td class="c">15</td><td>현장 도착 5km(내 현장)</td><td>내 현장 5km 진입(GPS)</td><td class="c">상단푸시</td><td class="c"><span class="b info">참고</span></td><td class="c no">X</td><td class="c yes">O</td><td>고객별</td><td class="c p-mid">중간</td><td class="c"><span class="b mvp3">후</span></td></tr>
+      <tr><td class="c">16</td><td>협업 도착 자동확인(3km)</td><td>협업현장 3km 진입(GPS)</td><td class="c">상단푸시</td><td class="c"><span class="b info">참고</span></td><td class="c yes">O(전송)</td><td class="c no">X</td><td>shareId별</td><td class="c p-mid">중간</td><td class="c"><span class="b mvp3">후</span></td></tr>
     </tbody>
   </table>
   </div>
@@ -110,23 +131,44 @@
       <span class="k">추천 문구</span><span class="v">유지(“{이름} · 새 문자”)</span>
     </div>
     <span class="verdict v-fix">수정(조건·개인정보)</span>
+    <button class="imgbtn" onclick="togglePreview(this)">🖼 이미지로 보기</button>
+    <div class="noti-preview">
+      <div class="np-stage">
+        <div class="np-noti">
+          <div class="np-head"><span class="np-ic">막</span><span class="np-app">시공막내</span> · 지금</div>
+          <div class="np-title">김민수 · 새 문자</div>
+          <div class="np-body">화장실 줄눈이랑 코킹 견적 좀 부탁드려요 😊</div>
+          <div class="np-acts"><span class="np-act">💬 직접 답장</span></div>
+        </div>
+      </div>
+      <div class="np-cap warn">표시: 상단푸시(헤드업) · ⚠️ 지금은 잠금화면에도 이 본문이 그대로 노출됨</div>
+    </div>
   </div>
 
   <div class="spec">
-    <div class="nm">2. 통화 후 카드 <span class="b important">중요</span></div>
+    <div class="nm">2. 통화 요약 준비됨 <span class="b info">참고</span></div>
     <div class="g">
-      <span class="k">현재 문구</span><span class="v">“방금 통화 종료 · {번호}” + ✨통화 정리 중…</span>
-      <span class="k">언제</span><span class="v">통화(수신·발신) 5초 이상 후 종료</span>
-      <span class="k">왜</span><span class="v">상담 요약 + 후속문자 초안 제공</span>
-      <span class="k">표시/버튼</span><span class="v">팝업카드(권한X면 상단푸시 대체) · [다듬기][문자 보내기][닫기]</span>
-      <span class="k">자동실행</span><span class="v">없음(사장 확인 후 발송)</span>
-      <span class="k">중복방지</span><span class="v">이미 떠있으면 무시(showOrIgnore)</span>
-      <span class="k">개인정보</span><span class="v p-mid">중간 — 번호·요약 화면 표시</span>
-      <span class="k prob">문제점</span><span class="v prob">내가 건 발신 통화(자재상·가족 등 비고객)에도 매번 뜸 → 피로</span>
-      <span class="k fix">수정</span><span class="v fix">발신은 ‘고객이거나 문자 이력 있는 번호’일 때만</span>
-      <span class="k">추천 문구</span><span class="v">유지</span>
+      <span class="k">현재 문구</span><span class="v">“✨ 막내가 {이름}님의 통화 내용을 요약했어요!” / “탭하면 바로 확인할 수 있어요”</span>
+      <span class="k">언제</span><span class="v">답한 통화(수신·발신 5초+) 끝 → 자동 통화요약이 완료됐을 때만</span>
+      <span class="k">왜</span><span class="v">통화 끝 후속 카드/“RING-GO 캐치!”(제거됨) 대신, 요약이 진짜 다 됐을 때만 가볍게</span>
+      <span class="k">표시/버튼</span><span class="v">상단푸시 · 약 4초 뒤 자동 사라짐 · 버튼 없음(탭 → 그 번호 채팅방)</span>
+      <span class="k">자동실행</span><span class="v">없음</span>
+      <span class="k">중복방지</span><span class="v">통화별(callRecordId)</span>
+      <span class="k">개인정보</span><span class="v p-low">낮음 — 이름(없으면 끝 4자리)만</span>
+      <span class="k">문제점</span><span class="v">없음 — 옛 팝업카드/캐치를 대체한 가벼운 버전(수동요약·백필엔 안 뜸)</span>
     </div>
-    <span class="verdict v-fix">수정(발신 조건)</span>
+    <span class="verdict v-keep">유지</span>
+    <button class="imgbtn" onclick="togglePreview(this)">🖼 이미지로 보기</button>
+    <div class="noti-preview">
+      <div class="np-stage">
+        <div class="np-noti">
+          <div class="np-head"><span class="np-ic">막</span><span class="np-app">시공막내</span> · 지금</div>
+          <div class="np-title">✨ 막내가 김민수님의 통화 내용을 요약했어요!</div>
+          <div class="np-body">탭하면 바로 확인할 수 있어요</div>
+        </div>
+      </div>
+      <div class="np-cap">표시: 상단푸시 · 약 4초 뒤 스르륵 사라짐 · 탭하면 그 고객 채팅방</div>
+    </div>
   </div>
 
   <div class="spec">
@@ -144,13 +186,26 @@
       <span class="k">추천 문구</span><span class="v">유지</span>
     </div>
     <span class="verdict v-fix">수정(오발송 차단 — 오픈 전 필수)</span>
+    <button class="imgbtn" onclick="togglePreview(this)">🖼 이미지로 보기</button>
+    <div class="noti-preview">
+      <div class="np-stage">
+        <div class="np-noti np-pop">
+          <div class="np-head"><span class="np-ic">막</span><span class="np-app">시공막내</span></div>
+          <div class="np-title">부재중 자동 응답</div>
+          <div class="np-body">안녕하세요, 지금 현장이라 전화를 못 받았어요. 문자 남겨주시면 바로 연락드릴게요!</div>
+          <div class="np-count">⏱ 10초 후 자동 발송</div>
+          <div class="np-acts"><span class="np-act primary">지금 보내기</span><span class="np-act">취소</span></div>
+        </div>
+      </div>
+      <div class="np-cap warn">표시: 팝업카드/푸시(10초 카운트) · ⚠️ 10초 뒤 문자가 자동으로 나감 (비고객 오발송 주의)</div>
+    </div>
   </div>
 
   <div class="spec">
     <div class="nm">4. 접수서 회신 도착 <span class="b important">중요</span></div>
     <div class="g">
       <span class="k">현재 문구</span><span class="v">“시공접수서 회신 도착 🎉” + “{이름}…시공 희망 {날짜}·{금액}만원” + 📍주소</span>
-      <span class="k">언제</span><span class="v">고객이 접수서 제출(앱 60초 폴링 감지)</span>
+      <span class="k">언제</span><span class="v">고객이 접수서 제출 → <b>FCM 즉시 감지</b> · 60초 폴링은 백업 <span style="color:var(--amber)">(앱 완료 · 서버 푸시 발송은 cowork 작업 후 완전 가동)</span></span>
       <span class="k">왜</span><span class="v">주소·시공일·견적·계약금 자동 반영 알림</span>
       <span class="k">표시/버튼</span><span class="v">상단푸시 · [일정 확인]</span>
       <span class="k">자동실행</span><span class="v">없음(데이터 반영은 자동, 발송 아님)</span>
@@ -161,6 +216,18 @@
       <span class="k">추천 문구</span><span class="v">유지</span>
     </div>
     <span class="verdict v-fix">수정(개인정보)</span>
+    <button class="imgbtn" onclick="togglePreview(this)">🖼 이미지로 보기</button>
+    <div class="noti-preview">
+      <div class="np-stage">
+        <div class="np-noti">
+          <div class="np-head"><span class="np-ic">막</span><span class="np-app">시공막내</span> · 지금</div>
+          <div class="np-title">시공접수서 회신 도착 🎉</div>
+          <div class="np-body">김민수님 · 시공 희망 6/25 · 40만원 · 📍반포 래미안 101동</div>
+          <div class="np-acts"><span class="np-act">일정 확인</span></div>
+        </div>
+      </div>
+      <div class="np-cap warn">표시: 상단푸시(헤드업) · ⚠️ 주소·금액이 잠금화면에 그대로 노출됨</div>
+    </div>
   </div>
 
   <div class="spec">
@@ -177,6 +244,18 @@
       <span class="k fix">수정</span><span class="v">유지</span>
     </div>
     <span class="verdict v-keep">유지</span>
+    <button class="imgbtn" onclick="togglePreview(this)">🖼 이미지로 보기</button>
+    <div class="noti-preview">
+      <div class="np-stage">
+        <div class="np-noti">
+          <div class="np-head"><span class="np-ic">막</span><span class="np-app">시공막내</span> · 지금</div>
+          <div class="np-title">🤝 협업 요청이 왔어요</div>
+          <div class="np-body">박사장님이 ‘반포 욕실’ 협업을 요청했어요 · 수락하기</div>
+          <div class="np-acts"><span class="np-act">수락하러 가기</span></div>
+        </div>
+      </div>
+      <div class="np-cap">표시: 상단푸시(헤드업) · FCM 즉시 · 보낸사람+현장명만(고객정보 벽)</div>
+    </div>
   </div>
 
   <div class="spec">
@@ -192,6 +271,18 @@
       <span class="k">추천 문구</span><span class="v">묶음형으로 변경</span>
     </div>
     <span class="verdict v-fix">수정(묶기)</span>
+    <button class="imgbtn" onclick="togglePreview(this)">🖼 이미지로 보기</button>
+    <div class="noti-preview">
+      <div class="np-stage">
+        <div class="np-noti">
+          <div class="np-head"><span class="np-ic">막</span><span class="np-app">시공막내</span> · 지금</div>
+          <div class="np-title">아직 안 들어온 잔금이 있어요</div>
+          <div class="np-body">김민수 · 잔금 30만원 · 완료 후 3일째 미입금</div>
+          <div class="np-acts"><span class="np-act">잔금 요청 보내기</span></div>
+        </div>
+      </div>
+      <div class="np-cap">표시: 상단푸시 · 오전 10시경 · (수정안: 여러 건이면 “못 받은 잔금 3곳 · 합계 90만원”으로 묶기)</div>
+    </div>
   </div>
 
   <div class="spec">
@@ -207,6 +298,18 @@
       <span class="k">추천 문구</span><span class="v">유지(묶음 시 “내일 시공 N곳 — 안내 보낼까요?”)</span>
     </div>
     <span class="verdict v-fix">수정(묶기·개인정보)</span>
+    <button class="imgbtn" onclick="togglePreview(this)">🖼 이미지로 보기</button>
+    <div class="noti-preview">
+      <div class="np-stage">
+        <div class="np-noti">
+          <div class="np-head"><span class="np-ic">막</span><span class="np-app">시공막내</span> · 지금</div>
+          <div class="np-title">내일 시공 — 안내 문자 보낼까요?</div>
+          <div class="np-body">김민수 · 6/25 09:00 · 반포 래미안 101동</div>
+          <div class="np-acts"><span class="np-act">안내 보내기</span></div>
+        </div>
+      </div>
+      <div class="np-cap warn">표시: 상단푸시 · 전날 저녁 · ⚠️ 주소가 잠금화면 노출 (여러 건이면 “내일 시공 N곳”으로 묶기)</div>
+    </div>
   </div>
 
   <div class="spec">
@@ -221,6 +324,18 @@
       <span class="k">추천 문구</span><span class="v">“협업 완료 — 정산 계좌 확인” (계좌번호는 본문에서 빼기)</span>
     </div>
     <span class="verdict v-fix">수정(개인정보 — 오픈 전 필수)</span>
+    <button class="imgbtn" onclick="togglePreview(this)">🖼 이미지로 보기</button>
+    <div class="noti-preview">
+      <div class="np-stage">
+        <div class="np-noti">
+          <div class="np-head"><span class="np-ic">막</span><span class="np-app">시공막내</span> · 지금</div>
+          <div class="np-title">협업 작업 완료 ✅</div>
+          <div class="np-body">박사장님이 작업을 끝냈어요 · 계좌 <span class="np-acct">국민 123456-78-901234 박사장</span></div>
+          <div class="np-acts"><span class="np-act">협업 현장 보기</span></div>
+        </div>
+      </div>
+      <div class="np-cap warn">표시: 상단푸시 · ⚠️ 계좌번호가 알림/잠금화면에 그대로 — 촬영·노출 위험 (본문에서 빼고 앱 안에서만)</div>
+    </div>
   </div>
 
   <div class="spec">
@@ -232,6 +347,17 @@
       <span class="k fix">수정</span><span class="v fix">수락은 중요(헤드업), 출발/도착은 조용한 알림으로</span>
     </div>
     <span class="verdict v-fix">수정(강도 낮춤)</span>
+    <button class="imgbtn" onclick="togglePreview(this)">🖼 이미지로 보기</button>
+    <div class="noti-preview">
+      <div class="np-stage">
+        <div class="np-noti">
+          <div class="np-head"><span class="np-ic">막</span><span class="np-app">시공막내</span> · 지금</div>
+          <div class="np-title">박사장님 출발했어요</div>
+          <div class="np-body">‘반포 욕실’ 현장으로 이동 중</div>
+        </div>
+      </div>
+      <div class="np-cap">표시: 상단푸시(헤드업) · (수정안: 수락만 헤드업, 출발·도착은 조용한 알림으로)</div>
+    </div>
   </div>
 
   <div class="spec">
@@ -243,6 +369,17 @@
       <span class="k fix">수정</span><span class="v fix">‘출발’은 조용한/기본OFF, 도착·완료 유지. 종류별 ON/OFF</span>
     </div>
     <span class="verdict v-fix">수정(강도·묶기)</span>
+    <button class="imgbtn" onclick="togglePreview(this)">🖼 이미지로 보기</button>
+    <div class="noti-preview">
+      <div class="np-stage">
+        <div class="np-noti">
+          <div class="np-head"><span class="np-ic">막</span><span class="np-app">시공막내</span> · 지금</div>
+          <div class="np-title">김반장 도착</div>
+          <div class="np-body">반포 래미안 현장 도착 · 사진 1장</div>
+        </div>
+      </div>
+      <div class="np-cap">표시: 상단푸시 · (팀원 여럿이면 하루 폭주(3명×3=9건) → ‘출발’은 조용한/기본OFF, 종류별 ON/OFF)</div>
+    </div>
   </div>
 
   <div class="spec">
@@ -254,22 +391,26 @@
       <span class="k fix">수정</span><span class="v fix">시간 설정 + 종류별 ON/OFF</span>
     </div>
     <span class="verdict v-keep">유지(설정 추가)</span>
-  </div>
-
-  <div class="spec">
-    <div class="nm">13. RING-GO 캐치!(후속 백업) <span class="b info">참고</span></div>
-    <div class="g">
-      <span class="k">현재 문구</span><span class="v">“RING-GO 캐치!” / “RING-GO 캐치! · 부재중”</span>
-      <span class="k">언제</span><span class="v">팝업카드 권한 없음 / 발신 첫 통화</span>
-      <span class="k prob">문제점</span><span class="v prob">이름이 뭘 하라는지 안 보임 + 발신통화에도 뜸</span>
-      <span class="k fix">수정</span><span class="v fix">문구 변경 + 발신통화엔 끄기(고객일 때만)</span>
-      <span class="k">추천 문구</span><span class="v">“방금 통화 · 후속 문자 보낼까요?”</span>
+    <button class="imgbtn" onclick="togglePreview(this)">🖼 이미지로 보기</button>
+    <div class="noti-preview">
+      <div class="np-stage">
+        <div class="np-noti">
+          <div class="np-head"><span class="np-ic">막</span><span class="np-app">시공막내</span> · 밤 9:00</div>
+          <div class="np-title">오늘 마감 브리핑</div>
+          <div class="np-body">신규 문의 3 · 답장 대기 2 · 오늘 받은 돈 80만원</div>
+        </div>
+        <div class="np-noti">
+          <div class="np-head"><span class="np-ic">막</span><span class="np-app">시공막내</span> · 오전 9:00</div>
+          <div class="np-title">오늘 보낼 정기문자 2건</div>
+          <div class="np-body">시공 후 30일 안부 · 90일 점검 안내</div>
+        </div>
+      </div>
+      <div class="np-cap">표시: 상단푸시(브리핑) · 마감=밤 9시 / 정기문자=오전 9시 · 둘 다 내용 있을 때만</div>
     </div>
-    <span class="verdict v-fix">수정(문구·조건)</span>
   </div>
 
   <div class="spec">
-    <div class="nm">14. 조용한 재통화 알림 <span class="b info">참고</span></div>
+    <div class="nm">13. 조용한 재통화 알림 <span class="b info">참고</span></div>
     <div class="g">
       <span class="k">언제</span><span class="v">2번째+ 통화인데 미처리(답장·분류·일정 X)</span>
       <span class="k">표시</span><span class="v">조용한 알림(소리·헤드업 없음)</span>
@@ -277,20 +418,43 @@
       <span class="k">문제점</span><span class="v">없음(잘 설계됨)</span>
     </div>
     <span class="verdict v-keep">유지</span>
+    <button class="imgbtn" onclick="togglePreview(this)">🖼 이미지로 보기</button>
+    <div class="noti-preview">
+      <div class="np-stage">
+        <div class="np-noti">
+          <div class="np-head"><span class="np-ic">막</span><span class="np-app">시공막내</span></div>
+          <span class="np-silent">🔕 조용한 알림 (소리·헤드업 없음)</span>
+          <div class="np-title">다시 걸려온 전화</div>
+          <div class="np-body">010-3228-8224 · 2번째 통화인데 아직 정리 안 됨</div>
+        </div>
+      </div>
+      <div class="np-cap">표시: 조용한 알림 — 알림함에만 살짝 (소리·헤드업 없음). 처리/일정 있으면 안 뜸</div>
+    </div>
   </div>
 
   <div class="spec">
-    <div class="nm">15. 협업 입금완료 / 해제 <span class="b info">참고</span></div>
+    <div class="nm">14. 협업 입금완료 / 해제 <span class="b info">참고</span></div>
     <div class="g">
       <span class="k">언제</span><span class="v">주인이 입금완료 표시 / 협업 해제(FCM)</span>
       <span class="k">개인정보</span><span class="v p-low">낮음(현장명만)</span>
       <span class="k">문제점</span><span class="v">없음</span>
     </div>
     <span class="verdict v-keep">유지</span>
+    <button class="imgbtn" onclick="togglePreview(this)">🖼 이미지로 보기</button>
+    <div class="noti-preview">
+      <div class="np-stage">
+        <div class="np-noti">
+          <div class="np-head"><span class="np-ic">막</span><span class="np-app">시공막내</span> · 지금</div>
+          <div class="np-title">입금 완료</div>
+          <div class="np-body">‘반포 욕실’ 협업 정산이 완료됐어요</div>
+        </div>
+      </div>
+      <div class="np-cap">표시: 상단푸시 · 현장명만(개인정보 낮음)</div>
+    </div>
   </div>
 
   <div class="spec">
-    <div class="nm">16. 현장 도착 5km / 17. 협업 도착 3km <span class="b info">참고</span> · ⚠️ 위치 오탐</div>
+    <div class="nm">15. 현장 도착 5km / 16. 협업 도착 3km <span class="b info">참고</span> · ⚠️ 위치 오탐</div>
     <div class="g">
       <span class="k">언제</span><span class="v">내 현장 5km / 협업현장 3km 진입(GPS geofence)</span>
       <span class="k">자동실행</span><span class="v p-high">3km는 주인에게 ‘거의 도착’ 자동 전송</span>
@@ -298,6 +462,17 @@
       <span class="k fix">수정</span><span class="v fix">‘오늘 시공 예약된 현장’에만 활성 · 기본 OFF로 시작</span>
     </div>
     <span class="verdict v-low">후순위(기본 OFF)</span>
+    <button class="imgbtn" onclick="togglePreview(this)">🖼 이미지로 보기</button>
+    <div class="noti-preview">
+      <div class="np-stage">
+        <div class="np-noti">
+          <div class="np-head"><span class="np-ic">막</span><span class="np-app">시공막내</span> · 지금</div>
+          <div class="np-title">곧 현장 도착</div>
+          <div class="np-body">반포 래미안 5km 진입 · 김민수 현장</div>
+        </div>
+      </div>
+      <div class="np-cap warn">표시: 상단푸시 · ⚠️ 과거 고객 동네 지날 때 오탐 가능 · 배터리 소모 · 3km는 주인에게 자동 전송 → 기본 OFF 권장</div>
+    </div>
   </div>
 
   <!-- ============ 3. 위험 TOP 5 ============ -->
@@ -333,7 +508,6 @@
       <li>☐ <b>협업 완료 알림에서 계좌번호 빼기</b> (본문 → 앱 안에서 확인)</li>
       <li>☐ <b>부재중 자동문자</b>: 비고객·광고 번호 자동발송 차단</li>
       <li>☐ <b>새 문자</b>: 인증번호(OTP)·광고 발신 제외</li>
-      <li>☐ <b>발신 통화</b>: 통화 후 카드/“캐치” = 고객·이력 있을 때만</li>
       <li>☐ <b>위치 5km/3km</b>: 기본 OFF (또는 오늘 예약 현장만)</li>
     </ul>
   </div>
@@ -343,7 +517,6 @@
       <li>☐ 묶음: 잔금·D-1·팀원 진행을 한 알림으로</li>
       <li>☐ 종류별 ON/OFF (팀원 출발, 마감 브리핑 등)</li>
       <li>☐ 강도 조정: 협업/팀원 ‘출발·도착’ → 조용한 알림</li>
-      <li>☐ “RING-GO 캐치!” 문구 → “방금 통화 · 후속 문자 보낼까요?”</li>
       <li>☐ 마감 브리핑 시간 설정</li>
     </ul>
   </div>
@@ -363,10 +536,10 @@
     <thead><tr><th>정책</th><th>해당 알림</th></tr></thead>
     <tbody>
       <tr><td class="c"><b>강한 알림</b><br>(헤드업)</td><td>새 문자 · 부재중(자동문자 카운트다운) · 협업 요청 · 접수서 도착</td></tr>
-      <tr><td class="c"><b>일반 알림</b></td><td>통화 후 처리 · D-1 · 잔금 미수 · 협업 완료(정산)</td></tr>
+      <tr><td class="c"><b>일반 알림</b></td><td>통화 요약 준비 · D-1 · 잔금 미수 · 협업 완료(정산)</td></tr>
       <tr><td class="c"><b>조용한 알림</b></td><td>팀원 출발/도착 · 협업 출발/도착 · 재통화 미처리</td></tr>
       <tr><td class="c"><b>브리핑</b></td><td>마감 브리핑 · 정기문자 목록</td></tr>
-      <tr><td class="c"><b>사용자 확인 후 실행</b></td><td>D-1·도착·잔금 안내 문자(보낼까요?) · 통화 후 후속문자</td></tr>
+      <tr><td class="c"><b>사용자 확인 후 실행</b></td><td>D-1·도착·잔금 안내 문자(보낼까요?)</td></tr>
       <tr><td class="c"><b>자동 실행 OK</b></td><td>접수서 데이터 반영(알림 아님) · onlyAlertOnce 중복 억제</td></tr>
       <tr><td class="c"><b>자동 실행 ⚠️ 조건부</b></td><td>부재중 자동문자(고객만) · 3km 자동전송(오늘 현장만)</td></tr>
       <tr><td class="c"><b>기본 OFF로 시작</b></td><td>위치 5km/3km · 팀원 ‘출발’ · (선택) 마감 브리핑</td></tr>
@@ -376,5 +549,15 @@
 
   <p class="sub" style="margin-top:18px">작성 기준: 앱 코드(NotificationHelper·CallStateReceiver·ReminderWorker·SmsReceiver) 실제 동작. 사장님이 행마다 “유지/수정/삭제/OFF” 정해주시면 그대로 반영합니다.</p>
 </div>
+<script>
+  // 🖼 이미지로 보기 — 해당 알림 카드 안의 미리보기를 펼치고/접음
+  function togglePreview(btn){
+    var p = btn.parentElement.querySelector('.noti-preview');
+    if(!p) return;
+    var open = p.style.display === 'block';
+    p.style.display = open ? 'none' : 'block';
+    btn.textContent = open ? '🖼 이미지로 보기' : '🔼 미리보기 닫기';
+  }
+</script>
 </body>
 </html>
