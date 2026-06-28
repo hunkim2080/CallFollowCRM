@@ -3355,16 +3355,16 @@ private class EstimateDraft(initialCalMonth: Long) {
     }
 }
 
-/** 받은/보낸 문자 사진을 휴대폰 갤러리(사진/RING-GO)에 저장. 성공 true. (2026-06-23 사장님) */
+/** 받은/보낸 문자 사진을 휴대폰 갤러리(사진/시공막내)에 저장. 성공 true. (2026-06-23 사장님) */
 private suspend fun saveImageToGallery(context: android.content.Context, uri: android.net.Uri): Boolean =
     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         runCatching {
             val resolver = context.contentResolver
             val values = android.content.ContentValues().apply {
-                put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, "RINGGO_" + System.currentTimeMillis() + ".jpg")
+                put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, "시공막내_" + System.currentTimeMillis() + ".jpg")
                 put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                    put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES + "/RING-GO")
+                    put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES + "/시공막내")
                     put(android.provider.MediaStore.Images.Media.IS_PENDING, 1)
                 }
             }
