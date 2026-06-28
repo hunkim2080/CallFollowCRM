@@ -5875,3 +5875,11 @@ commit: (pending)
   - DB 마이그레이션 불필요(call_summaries.title 컬럼 이미 존재).
 - **cowork(선택, 품질↑)**: 두 요약 엔드포인트 응답에 짧은 제목 `title`(키워드 6~12자, 예 "욕실 줄눈 견적 문의") 추가하면 한눈에 더 잘 보임. 지금은 one_line(한 문장)으로 폴백 중.
 - commit: (아래)
+
+## 2026-06-28 · android — 접수 확인 문자(고객에게) 자동발송
+- 사장님: 고객이 접수서 제출하면 고객에게도 "접수 완료" 확인 문자 자동발송(사장님 지정 양식). 자동발송 선택.
+- 앱(완료): IntakeSyncManager 가 '새로 감지된 접수서'에서만(이미 imported 옛 건 제외 → 일괄발송 방지) token별 1회 SMS 발송 + MessageHistory 기록(타임라인).
+  - 시공내용 = 서버 /api/quote/submissions 응답의 estimate_items[].name (이미 내려옴 — 서버 변경 불필요). 시공일정/주소/메모도 채움.
+  - 발송=SmsSender.sendDirect, 중복가드=prefs.intakeConfirmSentTokens.
+- 서버 변경 불필요(estimate_items 이미 응답에 포함).
+- commit: (아래)

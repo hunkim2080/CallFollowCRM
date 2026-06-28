@@ -360,6 +360,10 @@ class AppPreferences(context: Context) {
     var intakeSyncSinceMs: Long
         get() = prefs.getLong("intake_sync_since_ms", 0L)
         set(value) = prefs.edit().putLong("intake_sync_since_ms", value).apply()
+    /** 접수 확인 문자(고객에게)를 이미 보낸 token — 중복 발송 방지. (2026-06-28 사장님) */
+    var intakeConfirmSentTokens: Set<String>
+        get() = prefs.getStringSet("intake_confirm_sent_tokens", emptySet()) ?: emptySet()
+        set(value) = prefs.edit().putStringSet("intake_confirm_sent_tokens", value).apply()
 
     // ── 시간 기반 알림(D-1·잔금·브리핑) 중복방지 — 이미 보낸 키(예 "d1:{id}:{dateMs}"). ──
     var reminderNotifiedKeys: Set<String>

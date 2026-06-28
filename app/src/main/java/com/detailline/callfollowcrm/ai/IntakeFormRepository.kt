@@ -156,7 +156,9 @@ class IntakeFormRepository(
         /** 계약금 — depositMode: none|ratio|fixed, depositValue: %(ratio) 또는 만원(fixed). 프로토 depVal 그대로. */
         val depositMode: String,
         val depositValue: Int,
-        val source: String?
+        val source: String?,
+        /** 견적서 발급 때 사장님이 고른 시공 항목 이름들 (접수 확인 문자 '시공내용'). 서버 estimate_items[].name. */
+        val estimateItems: List<String> = emptyList()
     )
 
     /** 사장님 폴링 — GET /api/quote/submissions. submittedAtMs 비-null = 고객 제출 완료. */
@@ -190,7 +192,12 @@ class IntakeFormRepository(
                             total = itObj.optInt("total"),
                             depositMode = itObj.optString("depositMode").takeIf { s -> s.isNotBlank() && s != "null" } ?: "none",
                             depositValue = itObj.optInt("depositValue"),
-                            source = survey.str("source")
+                            source = survey.str("source"),
+                            estimateItems = itObj.optJSONArray("estimate_items")?.let { arr ->
+                                (0 until arr.length()).mapNotNull { idx ->
+                                    arr.optJSONObject(idx)?.optString("name")?.takeIf { nm -> nm.isNotBlank() && nm != "null" }
+                                }
+                            } ?: emptyList()
                         )
                     }
                 }
