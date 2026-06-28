@@ -12071,13 +12071,14 @@ async def intake_form_submit(req: IntakeSubmitRequest) -> dict:
 
     now = _now_ms()
     with db_conn() as con:
+        # 추가59 (2026-06-25) — owner_phone 도 SELECT (제출 후 사장님 폰에 즉시 FCM)
         row = con.execute(
-            "SELECT phone, expires_at_ms, submitted_at_ms FROM intake_forms WHERE token = ?",
+            "SELECT phone, expires_at_ms, submitted_at_ms, owner_phone FROM intake_forms WHERE token = ?",
             (req.token,),
         ).fetchone()
         if not row:
             raise HTTPException(404, "유효하지 않은 토큰")
-        phone, expires_at, submitted_at = row
+        phone, expires_at, submitted_at, owner_phone = row
         if submitted_at is not None:
             raise HTTPException(409, "이미 제출된 접수서입니다")
         if now > expires_at:
@@ -12095,7 +12096,22 @@ async def intake_form_submit(req: IntakeSubmitRequest) -> dict:
             (now, json.dumps(payload, ensure_ascii=False), req.token),
         )
         con.commit()
-    print(f"[intake-form/submit] token={req.token} phone={phone} → submitted")
+    print(f"[intake-form/submit] token={req.token} phone={phone} owner={owner_phone} → submitted")
+
+    # 추가59 (2026-06-25) — 사장님 폰에 즉시 FCM data-only (60초 폴링 대기 X).
+    # 앱 (RingGoFcmService) 가 type=intake_submitted 받으면 즉시 sync.
+    # owner_phone 없으면 발급 phone 폴백. 실패해도 응답에 영향 X.
+    fcm_target = owner_phone or phone
+    if fcm_target:
+        try:
+            _send_fcm_data_to_phone(fcm_target, {
+                "type": "intake_submitted",
+                "token": req.token,
+                "customer_phone": contact_phone,
+            })
+        except Exception as e:
+            print(f"[intake-form/submit] FCM 발송 실패 (무시): {type(e).__name__}: {e}")
+
     return {"ok": True, "submitted_at_ms": now, "phone": phone}
 
 

@@ -5857,4 +5857,13 @@ commit: (pending)
 - **cowork 할 일**: `docs/SERVER_HANDOFF_intake_instant_push.md` 참조.
   - `intake_form_submit`(main.py ~11987) commit 직후, 토큰의 **owner_phone** 으로 `_send_fcm_data_to_phone(owner_phone, {"type":"intake_submitted","token":...})` 한 방(data-only).
   - 확인 1개: intake_forms.owner_phone = 사장님(발급자) 번호 = push_tokens.phone 키 맞는지. 비면 발급 phone 폴백 검증.
+
+## 2026-06-25 21:30 · cowork (안드로이드 ① 즉시 회신 응답)
+추가59 — 시공접수서 제출 시 사장님 폰에 즉시 FCM data-only.
+- 위치: main.py intake_form_submit (POST /api/intake-form/submit).
+- SELECT 에 owner_phone 추가 → con.commit() 후 _send_fcm_data_to_phone(target, {type:'intake_submitted', token, customer_phone}).
+- 폴백: owner_phone NULL 이면 발급 phone 사용.
+- data-only (notification 블록 X). _send_fcm_data_to_phone 가 자동 string 변환 + 실패 안 raise.
+- 앱 RingGoFcmService 가 type=intake_submitted 받으면 즉시 sync → 60초 폴링 대기 X.
+- 변경: server/main.py 만.
 - commit: (pending)
