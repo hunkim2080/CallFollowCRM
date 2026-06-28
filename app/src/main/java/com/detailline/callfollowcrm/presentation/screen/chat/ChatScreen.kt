@@ -726,7 +726,7 @@ fun ChatScreen(
                                     onEditSummary = { newText -> matched?.let { viewModel.updateCallSummary(it, newText) } }
                                 )
                             }
-                            is ChatTimelineItem.Intake -> IntakeSegment(ti.event)
+                            is ChatTimelineItem.Intake -> IntakeSegment(ti.event, onConfirm = { viewModel.confirmIntake(context, ti.event) })
                             is ChatTimelineItem.DateDivider -> ChatDateDivider(chatDateLabel(ti.dayStart))
                         }
                     }
@@ -1895,7 +1895,8 @@ private fun ZoomableAsyncImage(
  */
 @Composable
 private fun IntakeSegment(
-    event: com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity
+    event: com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity,
+    onConfirm: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -1946,6 +1947,29 @@ private fun IntakeSegment(
                     color = TossTextPrimary,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+        }
+        // 사장님이 직접 확인 → 고객에게 "확인했어요" 문자 발송(확인 후 발송 원칙). 보내면 '확인함'으로 잠김(1회). (2026-06-28 사장님)
+        val confirmedAt = event.confirmedAt
+        Spacer(Modifier.height(10.dp))
+        if (confirmedAt == null) {
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(TossBlue)
+                    .clickable { onConfirm() }.padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("✅ 확인했어요 — 고객에게 알리기", color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold)
+            }
+        } else {
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                    .background(TossBlue.copy(alpha = 0.10f)).padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "✅ 확인함 · ${DateTimeUtils.formatShort(confirmedAt)} 고객에게 알림 보냄",
+                    color = TossBlueDark, fontSize = 12.sp, fontWeight = FontWeight.Bold
                 )
             }
         }

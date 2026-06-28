@@ -32,5 +32,9 @@ data class IntakeEventEntity(
     val dateLabel: String? = null,
     /** 견적 총액(만원). 0 이하면 null 로 저장. */
     val totalManwon: Int? = null,
-    val createdAt: Long
+    val createdAt: Long,
+    /** 견적서 발급 때 사장님이 고른 시공 항목 이름들(", " 결합) — 확인 문자 '시공내용'. 없으면 null. (2026-06-28) */
+    val itemsText: String? = null,
+    /** 사장님이 '확인했어요' 눌러 고객에게 확인 문자를 보낸 시각. null = 아직 안 보냄. (2026-06-28) */
+    val confirmedAt: Long? = null
 )

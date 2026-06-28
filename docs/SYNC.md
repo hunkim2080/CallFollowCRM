@@ -5883,3 +5883,10 @@ commit: (pending)
   - 발송=SmsSender.sendDirect, 중복가드=prefs.intakeConfirmSentTokens.
 - 서버 변경 불필요(estimate_items 이미 응답에 포함).
 - commit: (아래)
+
+## 2026-06-28 · android — 접수 확인 문자: 자동발송 폐기 → 사장님 확인 버튼
+- 사장님 통찰: 자동발송은 "사장님이 실제로 봤는지" 보장 못 함 + 서버 변수. 사장님이 직접 확인 버튼 눌러야 고객에 문자(확인 후 발송 원칙).
+- 앱(완료): 자동발송 제거 + 접수서 회신 카드(IntakeSegment)에 [확인했어요—고객에게 알리기] 버튼.
+  - 누르면 고객에 "사장님이 접수서를 확인했어요! + 시공일정/시공내용/시공현장주소 + 감사합니다." 발송(sendMessage 재사용→타임라인) + confirmedAt 기록 → 버튼 확인함 잠김(1회).
+  - DB v34→v35: intake_events +itemsText(estimate_items names) +confirmedAt. 폰 마이그레이션 정상.
+- (선택, cowork) 웹 완료화면 문구 "접수 완료! 사장님이 확인하면 문자로 알려드릴게요"로 + 확인버튼 closeIntake 안내.

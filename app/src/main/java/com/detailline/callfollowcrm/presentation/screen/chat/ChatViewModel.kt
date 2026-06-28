@@ -483,6 +483,29 @@ class ChatViewModel(
      * 본문 전송. 성공 시 optimistic 으로 _messages 에 prepend.
      * Customer 없으면 NEW_INQUIRY 로 자동 생성 (첫 발송이 = 첫 후속 처리이므로).
      */
+    /**
+     * 접수서 회신 카드에서 사장님이 [확인했어요] → 고객에게 확인 문자 발송 + 확인 시각 기록(버튼 1회). (2026-06-28 사장님)
+     *   발송은 일반 문자 발송(sendMessage) 재사용 → 대화 타임라인에도 보낸 문자로 그대로 남음.
+     *   시공일정·시공내용·시공현장주소 3개 필수 포함.
+     */
+    fun confirmIntake(context: Context, event: com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity) {
+        if (event.confirmedAt != null) return  // 이미 확인·발송함 — 중복 방지
+        val body = buildString {
+            append("✅ 사장님이 접수서를 확인했어요!\n")
+            append("-\n")
+            append("시공일정: ${event.dateLabel?.takeIf { it.isNotBlank() } ?: "협의 예정"}\n")
+            append("시공내용: ${event.itemsText?.takeIf { it.isNotBlank() } ?: "협의 예정"}\n")
+            append("시공 현장 주소: ${event.address?.takeIf { it.isNotBlank() } ?: "미입력"}\n")
+            append("-\n")
+            append("감사합니다.")
+        }
+        sendMessage(context, body) { ok ->
+            if (ok) viewModelScope.launch(Dispatchers.IO) {
+                runCatching { container.intakeEventRepository.markConfirmed(event.token, System.currentTimeMillis()) }
+            }
+        }
+    }
+
     fun sendMessage(context: Context, body: String, onResult: (Boolean) -> Unit) {
         container.journeyEventRepository.track("button_click", screen = "chat", target = "send")
         val trimmed = body.trim()

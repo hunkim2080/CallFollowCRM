@@ -24,9 +24,6 @@ class IntakeSyncManager(private val container: AppContainer) {
         if (list.isEmpty()) return
 
         val imported = prefs.intakeImportedTokens.toMutableSet()
-        // 접수 확인 문자(고객에게)를 이미 보낸 token — 중복 발송 방지. (2026-06-28 사장님)
-        val confirmSent = prefs.intakeConfirmSentTokens.toMutableSet()
-        var confirmChanged = false
         var maxSubmitted = since
         var changed = false
         for (s in list) {
@@ -86,6 +83,7 @@ class IntakeSyncManager(private val container: AppContainer) {
                             address = fullAddr.ifBlank { null },
                             dateLabel = dateLabel,
                             totalManwon = s.total.takeIf { it > 0 },
+                            itemsText = s.estimateItems.joinToString(", ").takeIf { it.isNotBlank() },
                             createdAt = System.currentTimeMillis()
                         )
                     )
@@ -96,15 +94,6 @@ class IntakeSyncManager(private val container: AppContainer) {
                     address = fullAddr.ifBlank { "주소 미입력" },
                     dateLabel = dateLabel, totalManwon = s.total
                 )
-
-                // 접수 확인 문자(고객에게) 자동발송 — '새로 감지된 접수서'에서만(이미 imported 된 옛 건은 위 continue 로
-                //   여기 못 옴 → 업데이트 직후 옛 고객 일괄 발송 방지) · token별 1회. 발송 실패는 import 흐름과 분리(runCatching).
-                if (s.token !in confirmSent) {
-                    val sent = runCatching {
-                        sendIntakeConfirmation(context, s, workMs, fullAddr, c.id)
-                    }.getOrDefault(false)
-                    if (sent) { confirmSent.add(s.token); confirmChanged = true }
-                }
             }.onFailure {
                 android.util.Log.e("IntakeSync", "process token=${s.token} FAILED", it)
             }.isSuccess
@@ -118,49 +107,6 @@ class IntakeSyncManager(private val container: AppContainer) {
             prefs.intakeImportedTokens = imported
             prefs.intakeSyncSinceMs = maxSubmitted
         }
-        if (confirmChanged) prefs.intakeConfirmSentTokens = confirmSent
-    }
-
-    /**
-     * 접수 확인 문자(고객에게) 자동발송 — 사장님 지정 양식. (2026-06-28 사장님)
-     *   고객이 접수서를 제출하면(새로 감지된 건만) 영수증처럼 자동으로 확인 문자를 보냄.
-     *   발송 + MessageHistory 기록(채팅 타임라인에 남김). SmsSender.sendDirect 가 발송 + Sent provider INSERT 처리.
-     */
-    private suspend fun sendIntakeConfirmation(
-        context: Context,
-        s: IntakeFormRepository.QuoteSubmission,
-        workMs: Long?,
-        addr: String,
-        customerId: Long?
-    ): Boolean {
-        val dateLabel = workMs?.let {
-            SimpleDateFormat("M / d , EEEE", Locale.KOREA).format(java.util.Date(it))
-        } ?: "협의 예정"
-        val items = s.estimateItems.joinToString(", ").takeIf { it.isNotBlank() } ?: "협의 예정"
-        val body = buildString {
-            append("★ 접수서 등록완료\n")
-            append("접수서가 아래 내용으로 접수되었어요!\n")
-            append("-\n")
-            append("시공일정: $dateLabel\n")
-            append("접수된 주소: ${addr.ifBlank { "미입력" }}\n")
-            append("시공내용: $items\n")
-            if (!s.memo.isNullOrBlank()) append("메모: ${s.memo}\n")
-            append("-\n\n")
-            append("잘못 기재된 내용이 있다면 문자로 알려주세요!")
-        }
-        val sendOk = com.detailline.callfollowcrm.util.SmsSender.sendDirect(context, s.customerPhone, body)
-        runCatching {
-            container.messageHistoryRepository.recordAutoSend(
-                phoneNumber = s.customerPhone,
-                customerId = customerId,
-                templateId = null,
-                body = body,
-                status = if (sendOk) com.detailline.callfollowcrm.domain.model.MessageStatus.AUTO_SENT
-                else com.detailline.callfollowcrm.domain.model.MessageStatus.AUTO_FAILED
-            )
-        }
-        android.util.Log.i("IntakeSync", "confirm SMS to=${s.customerPhone} ok=$sendOk items=${s.estimateItems.size}")
-        return sendOk
     }
 
     /** confirmedDate(yyyy-MM-dd) 우선, 없으면 workYear/Month/Day → KST 0시 epoch. */

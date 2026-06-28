@@ -14,4 +14,7 @@ class IntakeEventRepository(private val dao: IntakeEventDao) {
         dao.observeBySuffix(phoneSuffix)
 
     suspend fun record(event: IntakeEventEntity): Long = dao.insert(event)
+
+    /** 사장님이 접수서를 확인하고 고객에게 확인 문자를 보낸 시각 기록. (2026-06-28) */
+    suspend fun markConfirmed(token: String, ts: Long) = dao.markConfirmed(token, ts)
 }
