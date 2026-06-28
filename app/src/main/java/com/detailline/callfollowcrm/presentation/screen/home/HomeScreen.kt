@@ -883,7 +883,7 @@ fun HomeScreen(
                                 viewModel.markSpam(item.record.phoneNumber, item.customer?.name?.takeIf { it.isNotBlank() }, "personal")
                                 scope.launch {
                                     val r = snackbarHostState.showSnackbar(
-                                        message = "사생활 번호로 옮겼어요 — 링고가 안 잡아요",
+                                        message = "사생활 번호로 옮겼어요 — 시공막내가 안 잡아요",
                                         actionLabel = "되돌리기",
                                         duration = SnackbarDuration.Short
                                     )
@@ -973,7 +973,7 @@ fun HomeScreen(
                                     onSecond = {
                                         viewModel.markSpam(rItem.record.phoneNumber, rName, "personal")
                                         scope.launch {
-                                            val r = snackbarHostState.showSnackbar("사생활 번호로 옮겼어요 — 링고가 안 잡아요", actionLabel = "되돌리기", duration = SnackbarDuration.Short)
+                                            val r = snackbarHostState.showSnackbar("사생활 번호로 옮겼어요 — 시공막내가 안 잡아요", actionLabel = "되돌리기", duration = SnackbarDuration.Short)
                                             if (r == SnackbarResult.ActionPerformed) viewModel.unmarkSpam(rItem.record.phoneNumber)
                                         }
                                     },

@@ -2927,7 +2927,7 @@ private fun CollabShareSheet(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(4.dp))
-                Text("RING-GO 쓰는 사장님이면 그 분 앱으로, 아니면 문자 링크로 가요.", fontSize = 11.sp, color = TossTextTertiary)
+                Text("시공막내 쓰는 사장님이면 그 분 앱으로, 아니면 문자 링크로 가요.", fontSize = 11.sp, color = TossTextTertiary)
 
                 // 그날 일당 — 번호 바로 밑(눈에 띄게). 불러오기 칩은 그 아래.
                 Spacer(Modifier.height(14.dp))

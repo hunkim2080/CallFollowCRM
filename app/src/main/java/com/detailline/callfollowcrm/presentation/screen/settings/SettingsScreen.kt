@@ -267,7 +267,7 @@ fun SettingsScreen(
                     LockRow(Icons.Filled.Block, Color(0xFFFFF1F3), Color(0xFFF0436A), "스팸 차단 번호",
                         "상담함에서 스팸 등록한 번호 · 잘못 넣었으면 여기서 풀기", onClick = onOpenSpamList)
                     LockRow(Icons.Filled.Person, Color(0xFFF1ECFE), Color(0xFF7C5CFC), "사생활 번호",
-                        "내 개인 연락처 · 링고가 안 잡음 · 풀려면 여기서", onClick = onOpenPersonalList)
+                        "내 개인 연락처 · 시공막내가 안 잡음 · 풀려면 여기서", onClick = onOpenPersonalList)
                 }
                 SettingsGroup("도움말") {
                     LockRow(Icons.AutoMirrored.Filled.Chat, TossGrayBg, TossTextTertiary, "알림 미리보기",

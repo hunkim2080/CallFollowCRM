@@ -207,7 +207,7 @@ private fun StoryStep(onStart: () -> Unit, onPageChanged: (Int) -> Unit) {
     )
 
     Column(Modifier.fillMaxSize()) {
-        Text("RING-GO", fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.2).sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+        Text("시공막내", fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.2).sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
         Spacer(Modifier.height(8.dp))
         Text("곁에 오래 둘수록, 나다워지는 AI 비서", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
         Spacer(Modifier.height(16.dp))

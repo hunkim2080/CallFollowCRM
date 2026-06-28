@@ -95,12 +95,12 @@ fun LoginScreen(onLoginPhone: (String) -> Unit, onProceed: () -> Unit) {
                 Spacer(Modifier.height(20.dp))
                 Text(
                     buildAnnotatedString {
-                        withStyle(SpanStyle(color = LogoInk)) { append("RING") }
-                        withStyle(SpanStyle(color = LoginBlue)) { append("GO") }
+                        withStyle(SpanStyle(color = LogoInk)) { append("시공") }
+                        withStyle(SpanStyle(color = LoginBlue)) { append("막내") }
                     },
                     fontSize = 33.sp,
                     fontWeight = FontWeight.Black,
-                    letterSpacing = (-1.4).sp
+                    letterSpacing = (-0.5).sp
                 )
                 Spacer(Modifier.height(12.dp))
                 Text(
