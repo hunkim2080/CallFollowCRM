@@ -240,6 +240,9 @@ fun HomeScreen(
             if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
                 viewModel.refreshSmsContacts()
                 viewModel.syncRecentCallLog(context)
+                // 백그라운드 동안 멈춰 있던 동기화(새 문자·접수서·협업)를 복귀 즉시 1회 실행 → 껐다 켠 효과.
+                //   (2026-06-28 사장님: 알림은 오는데 화면 미반영 → 60초/재시작 안 기다리고 바로 반영)
+                (context.applicationContext as? com.detailline.callfollowcrm.CallFollowCrmApplication)?.requestSyncNow()
             }
         }
         lifecycleOwner.lifecycle.addObserver(obs)

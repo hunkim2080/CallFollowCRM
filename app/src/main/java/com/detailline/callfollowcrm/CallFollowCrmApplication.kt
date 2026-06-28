@@ -299,16 +299,7 @@ class CallFollowCrmApplication : Application() {
         //   (완전 백그라운드(앱 종료 상태) 알림은 WorkManager/FCM 필요 — 추후.)
         appScope.launch {
             while (true) {
-                runCatching { container.intakeSyncManager.sync(this@CallFollowCrmApplication) }
-                // 팀원 출발 이벤트 — 새 출발이면 알림 + 상담함 배너 갱신 (사장님 요청 2026-06-06).
-                runCatching { container.teamEventCenter.poll(this@CallFollowCrmApplication) }
-                // 협업 현장 진행 이벤트 — 서버 owner-events 가 열리면 출발/도착/완료 알림 + 상담함 배너.
-                runCatching { container.collabEventCenter.poll(this@CallFollowCrmApplication) }
-                // 받은 협업 요청(pending) — 새 요청이면 "수락하시겠어요?" 알림 (with-me 폴링, 서버 변경 불필요).
-                runCatching { container.collabEventCenter.pollInvites(this@CallFollowCrmApplication) }
-                // 최근 SMS/MMS 캐시 self-heal — SmsReceiver 가 놓친 문자도 60초 내 "오늘 신규"에 반영.
-                runCatching { syncSmsContacts() }
-                runCatching { syncMmsContacts() }
+                syncAllOnce()
                 delay(60_000)
             }
         }
@@ -371,6 +362,26 @@ class CallFollowCrmApplication : Application() {
     private var mmsSyncJob: kotlinx.coroutines.Job? = null
     private var smsSyncJob: kotlinx.coroutines.Job? = null
     private var callLogSyncJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * 폴링 1회분(접수서·팀·협업·SMS/MMS self-heal)을 즉시 한 번 실행.
+     *   60초 루프 + 앱 복귀(ON_RESUME) 양쪽이 호출 → 백그라운드 동안 멈춰 있던 동기화를 화면 돌아오는 즉시
+     *   1회 돌려서, 놓친 새 문자/접수/협업을 바로 반영(앱 껐다 켠 것과 같은 효과).
+     *   (2026-06-28 사장님: "알림은 오는데 앱엔 반영 안 되고, 껐다 켜야 반영됨")
+     */
+    suspend fun syncAllOnce() {
+        runCatching { container.intakeSyncManager.sync(this) }
+        runCatching { container.teamEventCenter.poll(this) }
+        runCatching { container.collabEventCenter.poll(this) }
+        runCatching { container.collabEventCenter.pollInvites(this) }
+        runCatching { syncSmsContacts() }
+        runCatching { syncMmsContacts() }
+    }
+
+    /** 앱 복귀(ON_RESUME) 시 호출 — 위 동기화를 백그라운드로 1회 실행(논블로킹). */
+    fun requestSyncNow() {
+        appScope.launch { syncAllOnce() }
+    }
 
     /** 최근 SMS 연락처를 캐시에 머지 — SmsReceiver 가 놓친 문자도 "오늘 신규"·목록에 잡히게. */
     private suspend fun syncSmsContacts() {
