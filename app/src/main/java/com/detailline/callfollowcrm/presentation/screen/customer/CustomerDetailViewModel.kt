@@ -302,6 +302,12 @@ class CustomerDetailViewModel(
             )
             container.autoCategoryClassifier.reclassify(customerId)
         }
+        // 잔금 받음 처리 = 그 시점을 챗 타임라인에 카드로. (2026-06-30 사장님)
+        if (paid) {
+            val c = customer.value
+            val balanceWon = c?.balanceAmount ?: ((c?.totalAmount ?: 0L) - (c?.depositAmount ?: 0L))
+            recordTimelineEvent(type = "balance_paid", oldValue = null, newValue = wonLabel(balanceWon))
+        }
     }
 
     fun setBalancePaidAt(epochMs: Long) = viewModelScope.launch {
@@ -315,6 +321,57 @@ class CustomerDetailViewModel(
             container.customerRepository.updateBalanceAmount(customerId, amount)
             container.autoCategoryClassifier.reclassify(customerId)
         }
+    }
+
+    /**
+     * 변경/처리 이력을 챗 타임라인 카드로 기록 (2026-06-30 사장님) — 일정/금액/잔금이 바뀐 "시점"을 남김.
+     *   phoneSuffix = ChatViewModel 매칭과 동일(끝 8자리). 고객 없으면(suffix < 7) 조용히 skip.
+     */
+    private fun recordTimelineEvent(type: String, oldValue: String?, newValue: String?, reason: String? = null) {
+        val suffix = customer.value?.phoneNumber?.filter { it.isDigit() }?.takeLast(8) ?: return
+        if (suffix.length < 7) return
+        viewModelScope.launch {
+            withContext(NonCancellable) {
+                runCatching {
+                    container.timelineEventRepository.record(
+                        com.detailline.callfollowcrm.data.local.entity.TimelineEventEntity(
+                            phoneSuffix = suffix,
+                            type = type,
+                            oldValue = oldValue,
+                            newValue = newValue,
+                            reason = reason,
+                            createdAt = System.currentTimeMillis()
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    /** 만원 라벨 ("8만원"). 0 이하면 null. */
+    private fun wonLabel(won: Long?): String? =
+        (won ?: 0L).takeIf { it > 0 }?.let { "${it / 10000L}만원" }
+
+    /** 시공일정 라벨 "7/3(금) 오전 8시" (시간 없으면 날짜만). null = 일정 없음. */
+    private fun scheduleLabel(date: Long?, minutes: Int?): String? {
+        if (date == null) return null
+        val d = com.detailline.callfollowcrm.util.DateTimeUtils.formatDateLabel(date)
+        val t = minutes?.let { com.detailline.callfollowcrm.util.DateTimeUtils.formatWorkMinutes(it) }
+        return if (t != null) "$d $t" else d
+    }
+
+    /**
+     * 시공금액 변경 이력 카드 기록 (옛→새 + 선택 이유) — CustomerDetailScreen 이유 입력 후 호출. (2026-06-30 사장님)
+     *   이유는 사장님 본인 기억용(고객 알림엔 안 실음). 안 적으면 reason=null 로 그냥 기록.
+     */
+    fun recordAmountChange(oldWon: Long?, newWon: Long?, reason: String?) {
+        if ((oldWon ?: 0L) == (newWon ?: 0L)) return
+        recordTimelineEvent(
+            type = "amount",
+            oldValue = wonLabel(oldWon),
+            newValue = wonLabel(newWon),
+            reason = reason?.trim()?.takeIf { it.isNotBlank() }
+        )
     }
 
     /**
@@ -332,6 +389,19 @@ class CustomerDetailViewModel(
         withContext(NonCancellable) {
             container.customerRepository.updateScheduledWorkMinutes(customerId, minutes)
         }
+        // 방금 만든 일정 카드(날짜만)에 시간 채워넣기 — 날짜→시간 2단계라 시간은 여기서 옴. (2026-06-30 사장님)
+        val suffix = customer.value?.phoneNumber?.filter { it.isDigit() }?.takeLast(8)
+        val date = customer.value?.scheduledWorkDate
+        if (suffix != null && suffix.length >= 7 && date != null) {
+            val full = scheduleLabel(date, minutes) ?: return@launch
+            withContext(NonCancellable) {
+                runCatching {
+                    container.timelineEventRepository.updateLatestScheduleNewValue(
+                        suffix, full, System.currentTimeMillis() - 5 * 60 * 1000
+                    )
+                }
+            }
+        }
     }
 
     /**
@@ -340,6 +410,8 @@ class CustomerDetailViewModel(
      */
     fun updateScheduledWorkDate(epochMs: Long?) = viewModelScope.launch {
         val normalized = epochMs?.let { com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(it) }
+        val oldDate = customer.value?.scheduledWorkDate           // 변경 이력 카드용 (옛 일정)
+        val oldMinutes = customer.value?.scheduledWorkMinutes     // 옛 시공 시간
         // 캘린더 등록 KPI — 고객상세 날짜 픽커로 시공일 잡는 것도 한 건. 취소(null)는 제외. (2026-06-25 cowork 요청)
         if (normalized != null) {
             val c = customer.value
@@ -359,6 +431,14 @@ class CustomerDetailViewModel(
             }
             // 날짜 등록(계약) = "시공 대기" 자동 분류. 날짜 해제 시 자격 재평가. (2026-06-07 카테고리 규칙)
             container.autoCategoryClassifier.reclassify(customerId)
+        }
+        // 시공일정 이력 카드 (옛 != 새). oldValue=옛 날짜+시간, newValue=새 날짜(시간은 시간선택 후 채움). 첫 설정/취소도 기록. (2026-06-30 사장님)
+        if (oldDate != normalized) {
+            recordTimelineEvent(
+                type = "schedule",
+                oldValue = scheduleLabel(oldDate, oldMinutes),
+                newValue = normalized?.let { com.detailline.callfollowcrm.util.DateTimeUtils.formatDateLabel(it) }
+            )
         }
     }
 

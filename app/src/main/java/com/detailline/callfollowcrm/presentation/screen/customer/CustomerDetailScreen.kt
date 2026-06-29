@@ -151,6 +151,8 @@ fun CustomerDetailScreen(
     var categoryDialogOpen by remember { mutableStateOf(false) }
     // 일정·정산 카드 금액 편집 다이얼로그 — "total"(총금액) / "deposit"(계약금) / null(닫힘).
     var amountEditField by remember { mutableStateOf<String?>(null) }
+    // 시공금액 변경 시 이유 입력 다이얼로그 (oldWon, newWon). null = 닫힘. (2026-06-30 사장님)
+    var amountChangeReason by remember { mutableStateOf<Pair<Long, Long>?>(null) }
     // MMS 사진 풀스크린 뷰어 — 썸네일 탭하면 set, 다이얼로그가 보여줌. null 이면 닫힘.
     var fullscreenImageUri by remember { mutableStateOf<android.net.Uri?>(null) }
     // 팀/서버 현장사진(비트맵) 풀스크린 — base64 디코드본이라 Uri 가 아닌 Bitmap.
@@ -1153,10 +1155,26 @@ fun CustomerDetailScreen(
             title = if (field == "total") "총금액" else "계약금",
             initialWon = if (field == "total") (customer?.totalAmount ?: 0L) else (customer?.depositAmount ?: 0L),
             onSave = { won ->
-                if (field == "total") viewModel.setTotalAmount(won) else viewModel.setDepositAmount(won)
+                if (field == "total") {
+                    val old = customer?.totalAmount ?: 0L
+                    viewModel.setTotalAmount(won)
+                    // 시공금액이 "바뀌면"(첫 설정 제외) 이유 입력 띄움. 변경 이력 카드는 거기서 기록. (2026-06-30 사장님)
+                    if (won != old && old > 0L) amountChangeReason = old to won
+                } else {
+                    viewModel.setDepositAmount(won)
+                }
                 amountEditField = null
             },
             onDismiss = { amountEditField = null }
+        )
+    }
+    // 시공금액 변경 이유(선택) — 기록/그냥넘어가기/바깥탭 모두 변경 이력 카드 남김. 이유는 사장님 기억용. (2026-06-30 사장님)
+    amountChangeReason?.let { (oldWon, newWon) ->
+        AmountChangeReasonDialog(
+            oldWon = oldWon,
+            newWon = newWon,
+            onRecord = { reason -> viewModel.recordAmountChange(oldWon, newWon, reason); amountChangeReason = null },
+            onSkip = { viewModel.recordAmountChange(oldWon, newWon, null); amountChangeReason = null }
         )
     }
 
@@ -1751,6 +1769,38 @@ private fun AmountInputDialog(title: String, initialWon: Long, onSave: (Long) ->
             androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TossSecondaryButton(text = "취소", onClick = onDismiss, modifier = Modifier.weight(1f))
                 TossPrimaryButton(text = "저장", onClick = { onSave((text.toLongOrNull() ?: 0L) * 10000L) }, modifier = Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+/** 시공금액 변경 시 이유 입력(선택) — 적으면 변경 이력 카드에 남고, 안 적어도(그냥 넘어가기) 변경 자체는 기록. (2026-06-30 사장님) */
+@Composable
+private fun AmountChangeReasonDialog(oldWon: Long, newWon: Long, onRecord: (String) -> Unit, onSkip: () -> Unit) {
+    var reason by remember { mutableStateOf("") }
+    val arrow = if (oldWon > 0L) "${oldWon / 10000L}만원  →  ${newWon / 10000L}만원"
+                else "${newWon / 10000L}만원으로 정함"
+    androidx.compose.ui.window.Dialog(onDismissRequest = onSkip) {   // 바깥/뒤로 = 그냥 넘어가기(이력은 남김)
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color.White).padding(20.dp)) {
+            com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
+            Text("💰 시공금액을 바꿨어요", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            Spacer(Modifier.height(6.dp))
+            Text(arrow, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+            Spacer(Modifier.height(12.dp))
+            Text("왜 바꿨는지 적어두면 나중에 기억나요 (안 써도 돼요)", fontSize = 12.5.sp, color = TossTextTertiary)
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = reason,
+                onValueChange = { reason = it },
+                placeholder = { Text("예: 곰팡이 심해 부위 추가") },
+                minLines = 2,
+                modifier = Modifier.fillMaxWidth(),
+                colors = tossFieldColors()
+            )
+            Spacer(Modifier.height(14.dp))
+            androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TossSecondaryButton(text = "그냥 넘어가기", onClick = onSkip, modifier = Modifier.weight(1f))
+                TossPrimaryButton(text = "기록하기", onClick = { onRecord(reason) }, modifier = Modifier.weight(1f))
             }
         }
     }

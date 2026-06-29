@@ -3,7 +3,6 @@ package com.detailline.callfollowcrm.presentation.screen.login
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,7 +11,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -49,14 +51,17 @@ private val TagColor = Color(0xFF3A4250)
 private val SubColor = Color(0xFF8A93A2)
 
 /**
- * 로그인 (첫 화면) — 프로토타입 `.login` 그대로.
- *   막내 비서 캐릭터 + RINGGO 로고 + 태그라인 + 소셜 3종 + 둘러보기.
- *   소셜 OAuth 실제 연동은 서버 작업으로 별도. 지금은 화면 + 진입 흐름만:
- *   어떤 버튼/둘러보기든 누르면 onProceed() → 권한/홈으로.
+ * 로그인 (첫 화면) — 테스터는 할당받은 본인 핸드폰 번호로 시작.
+ *   번호 입력 → onLoginPhone(phone): bizPhone 저장 + FCM 등록 → 권한/홈.
+ *   (둘러보기 제거 2026-06-30: 번호 없이 진입하면 bizPhone 미설정 → 푸시·협업 먹통이라.)
+ *   onProceed 는 현재 미사용(스킵 훅 보존).
  */
 @Composable
 fun LoginScreen(onLoginPhone: (String) -> Unit, onProceed: () -> Unit) {
     var phone by remember { mutableStateOf("") }
+    // 키보드 올라오면 hero(마스코트/태그라인)를 컴팩트하게 — 안 그러면 위 공간이 줄어 로고가 짓눌려 겹침. 2026-06-30
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val imeVisible = WindowInsets.ime.getBottom(density) > 0
     Box(
         Modifier
             .fillMaxSize()
@@ -80,6 +85,7 @@ fun LoginScreen(onLoginPhone: (String) -> Unit, onProceed: () -> Unit) {
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
+                .imePadding()   // 키보드 올라오면 입력칸·버튼이 키보드 위로 (안 그러면 가림). 2026-06-30
                 .padding(horizontal = 28.dp)
                 .padding(bottom = 32.dp)
         ) {
@@ -91,31 +97,34 @@ fun LoginScreen(onLoginPhone: (String) -> Unit, onProceed: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Mascot(sizeDp = 96.dp)
-                Spacer(Modifier.height(20.dp))
+                Mascot(sizeDp = if (imeVisible) 60.dp else 96.dp)
+                Spacer(Modifier.height(if (imeVisible) 10.dp else 20.dp))
                 Text(
                     buildAnnotatedString {
                         withStyle(SpanStyle(color = LogoInk)) { append("시공") }
                         withStyle(SpanStyle(color = LoginBlue)) { append("막내") }
                     },
-                    fontSize = 33.sp,
+                    fontSize = if (imeVisible) 28.sp else 33.sp,
                     fontWeight = FontWeight.Black,
                     letterSpacing = (-0.5).sp
                 )
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    "곁에 오래 둘수록, 나다워지는 AI 비서",
-                    fontSize = 14.5.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = TagColor
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "전화·문자 상담, 이제 혼자 하지 마세요",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = SubColor
-                )
+                // 키보드 올라오면 태그라인 숨겨 hero 압축(겹침 방지). 키보드 내리면 다시 보임.
+                if (!imeVisible) {
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "곁에 오래 둘수록, 나다워지는 AI 비서",
+                        fontSize = 14.5.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = TagColor
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "전화·문자 상담, 이제 혼자 하지 마세요",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = SubColor
+                    )
+                }
             }
 
             // 테스터: 할당받은 본인 핸드폰 번호로 시작. (2026-06-14 사장님)
@@ -166,21 +175,8 @@ fun LoginScreen(onLoginPhone: (String) -> Unit, onProceed: () -> Unit) {
                 Spacer(Modifier.size(5.dp))
                 Text("사장님 한 분을 위한 계정이에요", fontSize = 11.5.sp, color = SubColor, fontWeight = FontWeight.Bold)
             }
-            Spacer(Modifier.height(16.dp))
-            Text(
-                "로그인 없이 둘러보기",
-                fontSize = 12.5.sp,
-                color = Color(0xFF9AA3AF),
-                fontWeight = FontWeight.Bold,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onProceed
-                    )
-            )
+            // "로그인 없이 둘러보기" 제거 (2026-06-30 사장님): 번호 없이 들어가면 bizPhone 미설정 →
+            //   푸시·협업·팀 기능 먹통 + hasSeenLogin=true 로 영구 진입. 테스터는 할당 번호로만 시작.
         }
     }
 }

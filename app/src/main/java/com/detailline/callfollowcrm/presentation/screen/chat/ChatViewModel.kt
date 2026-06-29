@@ -244,6 +244,16 @@ class ChatViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
+     * 변경/처리 이력 이벤트 (2026-06-30 사장님) — 고객 상세에서 일정/금액/잔금을 바꾸면
+     *   채팅 타임라인에 "📅 일정 변경 / 💰 금액 변경 / 💵 잔금 받음" 카드로 표시(처리 시각 기준).
+     */
+    val timelineEvents: StateFlow<List<com.detailline.callfollowcrm.data.local.entity.TimelineEventEntity>> = run {
+        val suffix = phoneNumber.filter { it.isDigit() }.takeLast(8)
+        if (suffix.length < 7) kotlinx.coroutines.flow.flowOf(emptyList())
+        else container.timelineEventRepository.observe(suffix)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
      * P0/P1/P2 AI 요약 — ChatScreen 상단 박스와 AI 제안 박스가 구독.
      * Room observe — 서버 응답이 캐시되면 자동 emit.
      * 서버 미구현이면 영구히 null → 화면에 아무 박스도 안 보임 (조용히 숨김).
@@ -502,6 +512,44 @@ class ChatViewModel(
         sendMessage(context, body) { ok ->
             if (ok) viewModelScope.launch(Dispatchers.IO) {
                 runCatching { container.intakeEventRepository.markConfirmed(event.token, System.currentTimeMillis()) }
+            }
+        }
+    }
+
+    /**
+     * 변경/처리 이력 카드의 [고객에게 알리기] — 사장님이 누르면 고객에게 안내 문자(확인 후 발송). 1회. (2026-06-30 사장님)
+     *   이유(reason)는 사장님 기억용이라 고객 문자엔 안 실음.
+     */
+    /** 변경 이력 → 고객 안내 문자 본문(미리보기 + 발송 공용). null = 보낼 게 없음. */
+    fun eventNotifyBody(event: com.detailline.callfollowcrm.data.local.entity.TimelineEventEntity): String? = when (event.type) {
+        "schedule" -> buildString {
+            append("📅 시공일정을 안내드려요\n")
+            append("-\n")
+            append("시공일정: ${event.newValue?.takeIf { it.isNotBlank() } ?: "협의 예정"}\n")
+            append("-\n")
+            append("위 일정으로 진행하겠습니다. 감사합니다.")
+        }
+        "amount" -> buildString {
+            append("💰 시공금액을 안내드려요\n")
+            append("-\n")
+            append("시공금액: ${event.newValue?.takeIf { it.isNotBlank() } ?: "협의 예정"}\n")
+            append("-\n")
+            append("감사합니다.")
+        }
+        "balance_paid" -> buildString {
+            append("💵 잔금 입금을 확인했습니다")
+            event.newValue?.takeIf { it.isNotBlank() }?.let { append(" ($it)") }
+            append("\n시공 마무리까지 잘 챙기겠습니다. 감사합니다!")
+        }
+        else -> null
+    }
+
+    fun notifyEvent(context: Context, event: com.detailline.callfollowcrm.data.local.entity.TimelineEventEntity) {
+        if (event.notifiedAt != null) return  // 이미 알림 보냄 — 중복 방지
+        val body = eventNotifyBody(event) ?: return
+        sendMessage(context, body) { ok ->
+            if (ok) viewModelScope.launch(Dispatchers.IO) {
+                runCatching { container.timelineEventRepository.markNotified(event.id, System.currentTimeMillis()) }
             }
         }
     }
@@ -1180,24 +1228,38 @@ class ChatViewModel(
                         runCatching { container.principleRepository.enabledTexts() }.getOrDefault(emptyList())
                     }.takeIf { it.isNotEmpty() }
                 )
+                // 새로고침은 손해 X (2026-06-29 사장님): 기존에 잘 나온 답변은 절대 안 지움.
+                //   실패/시간초과여도 기존 답변 유지 → 실패 플래그/에러토스트는 "보여줄 게 아무것도 없을 때"만.
+                val hadSuggestions = _suggestions.value?.suggestions?.isNotEmpty() == true
+
                 val prep = container.suggestionRepository.requestPrepare(ctx)
                 if (prep.isFailure) {
-                    _suggestionsFailed.value = true   // UI: "못 만들었어요 — 다시 시도"
-                    if (!auto) _toast.value = "AI 서버에 잠깐 연결이 안 돼요 — 인터넷 확인 후 잠시 뒤 다시 해보세요"
+                    if (hadSuggestions) {
+                        // 기존 답변 그대로 두고 조용히 안내만 (수동일 때만). 실패 플래그 X = 칩 안 흐려지고 에러 안 뜸.
+                        if (!auto) _toast.value = "연결이 잠깐 안 돼요 — 기존 답변은 그대로 둘게요"
+                    } else {
+                        _suggestionsFailed.value = true   // 보여줄 게 없을 때만 "못 만들었어요"
+                        if (!auto) _toast.value = "AI 서버에 잠깐 연결이 안 돼요 — 인터넷 확인 후 잠시 뒤 다시 해보세요"
+                    }
                     return@launch
                 }
-                // 2초 간격 폴링 — 최대 5회 (10초). gpt-oss 첫 로드 후엔 3~5초면 충분.
-                repeat(5) {
+                // 2초 간격 폴링 — 최대 10회 (20초). LLM(gemini/sonnet) 생성이 10초 넘기 쉬워 창을 넓힘. (2026-06-29)
+                repeat(10) {
                     delay(2_000)
                     val fetch = container.suggestionRepository.fetch(phoneNumber).getOrNull()
                     if (fetch?.status == SuggestionStatus.READY && fetch.suggestions != null) {
-                        _suggestions.value = fetch.suggestions
+                        _suggestions.value = fetch.suggestions   // 준비되면 살짝 바꿔치기
                         _suggestionsFailed.value = false
                         return@launch
                     }
                 }
-                _suggestionsFailed.value = true   // 시간 초과도 실패로 — 옛것만 계속 보이지 않게
-                if (!auto) _toast.value = "추천 답변 생성 시간 초과"
+                // 시간 초과: 기존 답변 있으면 그대로 유지(무서운 에러 X), 없을 때만 실패 표시.
+                if (hadSuggestions) {
+                    if (!auto) _toast.value = "아직 만드는 중이에요 — 기존 답변은 그대로 둘게요. 잠시 후 ↻ 다시"
+                } else {
+                    _suggestionsFailed.value = true
+                    if (!auto) _toast.value = "추천 답변 생성 시간 초과"
+                }
             } finally {
                 _suggestionsLoading.value = false
             }

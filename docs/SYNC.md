@@ -5938,3 +5938,15 @@ commit: (pending)
 
 변경: server/main.py 만 (약 60줄). 호출 호환성 유지 (status code 동일).
 commit: (pending)
+## 2026-06-29 · android — ⚠️ [cowork 확인요청] 추천 새로고침 "시간 초과" / prepare-reply 결과 안 나옴
+- 증상: 채팅 "✨ 이렇게 답해보세요" ↻ 새로고침 시 자주 "추천 답변 생성 시간 초과" (사장님 보고).
+- 앱 측 블랙박스 측정 (api.si0in.kr, owner_phone 없이 합성폰 01099998866):
+  - `POST /prepare-reply` → **200** `{"ok":true,"model":"gemini"}` (요청은 정상 접수)
+  - 직후 `GET /suggestions/01099998866` 2초 간격 폴링 → **40초 내내 `missing`** (READY/generating 도 아님, 결과物 자체가 안 생김)
+  - ⇒ prepare 는 받았는데 백그라운드 생성/캐시가 완료를 안 함.
+- 단, 이 테스트는 **owner_phone 미포함** — 서버가 "주인 없는 요청은 생성 skip" 했을 가능성 있음.
+  - **cowork 확인 부탁**: 실제 owner_phone 포함 요청에서 prepare-reply 가 (a) 정말 생성·캐시 완료되는지, (b) ready 까지 몇 초 걸리는지, (c) 실패 시 로그 에러(gemini 파싱/쿼터/예외) 있는지.
+  - 의심: 백그라운드 task 무음 실패 / 캐시 미기록 / 캐시키 불일치 / owner 게이팅이 생성 자체를 막음.
+- 앱 측은 이미 보강함(아래) — 이제 앱이 좋은 답변을 죽이진 않지만, 서버가 제때 결과를 내야 ↻ 가 실제로 새 답을 줌.
+- 변경(app): ChatViewModel.regenerateSuggestions — 폴링 5회(10초)→10회(20초), 시간초과/연결실패해도 기존 답변 유지(실패 플래그·에러토스트는 보여줄 게 없을 때만). ChatScreen SuggestionArea: 수동 새로고침 중 "✨ 새 답변 만드는 중… 기존 답변은 그대로 써도 돼요" 안내.
+- commit: (pending)

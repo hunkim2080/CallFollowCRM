@@ -91,6 +91,10 @@ object DateTimeUtils {
     private val dayHeaderKorYear by lazy { SimpleDateFormat("yyyy. M. d. EEEE", Locale.KOREAN) }
 
     /** 시공 예약일 — 안내문/다이얼로그 본문용. 다른 해면 yyyy 포함. 예: "5월 26일 (수)" */
+    private val dateLabelKor by lazy { SimpleDateFormat("M/d(E)", Locale.KOREAN) }
+    /** 짧은 시공일 라벨 "6/30(화)" — 접수서 dateLabel / 변경 이력 카드와 동일 형식. */
+    fun formatDateLabel(epoch: Long): String = dateLabelKor.format(Date(epoch))
+
     fun formatScheduledDate(epoch: Long, now: Long = System.currentTimeMillis()): String {
         val nowCal = Calendar.getInstance().apply { timeInMillis = now }
         val targetCal = Calendar.getInstance().apply { timeInMillis = epoch }

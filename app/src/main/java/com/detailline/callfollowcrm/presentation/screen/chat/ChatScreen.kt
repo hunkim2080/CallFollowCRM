@@ -183,6 +183,10 @@ fun ChatScreen(
     val callRecords by viewModel.callRecords.collectAsState()
     // 시공접수서 제출 이벤트 — 통화처럼 타임라인에 카드로 병합.
     val intakeEvents by viewModel.intakeEvents.collectAsState()
+    // 변경/처리 이력 이벤트 (2026-06-30) — 일정/금액/잔금 변경을 타임라인 카드로.
+    val timelineEvents by viewModel.timelineEvents.collectAsState()
+    // 변경 이력 [고객에게 알리기] 발송 전 확인 다이얼로그 — null=닫힘. (2026-06-30 사장님)
+    var notifyConfirm by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.TimelineEventEntity?>(null) }
     // 통화요약 — 통화 카드와 시각으로 짝지어 "AI 요약됨" 상태(불릿+후속문자) 표시.
     val callSummaries by viewModel.callSummaries.collectAsState()
     // 서버에서 요약 중인 통화 시각 — 통화카드가 "요약 중…" 스피너 표시.
@@ -192,8 +196,8 @@ fun ChatScreen(
     val autoSummaryActive = remember { viewModel.autoSummaryActive }
     val nowTick = remember { mutableStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(20_000); nowTick.value = System.currentTimeMillis() } }
-    val timelineItems = remember(messages, callRecords, intakeEvents) {
-        buildChatTimeline(messages, callRecords, intakeEvents)
+    val timelineItems = remember(messages, callRecords, intakeEvents, timelineEvents) {
+        buildChatTimeline(messages, callRecords, intakeEvents, timelineEvents)
     }
     // 통화 1건 ↔ 요약 1건 1:1 배정 (2026-06-15 버그: 가까운 두 통화가 같은 요약 하나를 공유 표시).
     //   ① callRecordId 로 명시 연결된 요약 먼저  ② 남은 통화엔 ±10분 내 '가장 가까운 미사용' 요약 1개.
@@ -650,6 +654,24 @@ fun ChatScreen(
                     listState.scrollToItem(0)
                 }
             }
+            // 스크롤 자동 숨김 (2026-06-29 사장님): 옛 메시지 보려 위로 올리면 칩+추천이 스르륵 숨고,
+            //   최신 쪽(아래)으로 내리거나 맨 아래면 다시 나옴. reverseLayout=true → index 0 = 최신(맨 아래).
+            //   ±6px 문턱으로 손떨림엔 안 반응. 새 메시지 도착 시 scrollToItem(0) → 자동 표시.
+            var controlsVisible by remember { mutableStateOf(true) }
+            LaunchedEffect(listState) {
+                var prevIndex = listState.firstVisibleItemIndex
+                var prevOffset = listState.firstVisibleItemScrollOffset
+                androidx.compose.runtime.snapshotFlow {
+                    listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+                }.collect { (idx, off) ->
+                    when {
+                        idx == 0 && off == 0 -> controlsVisible = true                                          // 맨 아래(최신) = 항상 표시
+                        idx > prevIndex || (idx == prevIndex && off > prevOffset + 6) -> controlsVisible = false // 위로(옛 메시지) = 숨김
+                        idx < prevIndex || (idx == prevIndex && off < prevOffset - 6) -> controlsVisible = true  // 아래로(최신) = 표시
+                    }
+                    prevIndex = idx; prevOffset = off
+                }
+            }
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
@@ -727,6 +749,7 @@ fun ChatScreen(
                                 )
                             }
                             is ChatTimelineItem.Intake -> IntakeSegment(ti.event, onConfirm = { viewModel.confirmIntake(context, ti.event) })
+                            is ChatTimelineItem.Event -> TimelineEventSegment(ti.event, onNotify = { notifyConfirm = ti.event })
                             is ChatTimelineItem.DateDivider -> ChatDateDivider(chatDateLabel(ti.dayStart))
                         }
                     }
@@ -740,16 +763,19 @@ fun ChatScreen(
             //
             // 프로토 chat-actions — 항상 보이는 고정 3칩 [견적 작성][내 일정 확인][문구 넣기].
             //   (사장님 2026-06-02 결정: 무조건 프로토 1:1 → ⚡토글/템플릿 인라인 제거)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(start = 14.dp, end = 14.dp, top = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                ActChip(Icons.Default.Description, "견적 작성") { triggerActionByType("send_estimate") }
-                ActChip(Icons.Default.DateRange, "내 일정 확인") { myScheduleOpen = true }
-                ActChip(Icons.AutoMirrored.Filled.Chat, "문구 넣기") { tplPickerOpen = true }
+            // 스크롤 자동 숨김 — 위로 올려 옛 메시지 보면 칩 숨고, 최신으로 내리면 다시 나옴.
+            androidx.compose.animation.AnimatedVisibility(visible = controlsVisible) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(start = 14.dp, end = 14.dp, top = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ActChip(Icons.Default.Description, "견적 작성") { triggerActionByType("send_estimate") }
+                    ActChip(Icons.Default.DateRange, "내 일정 확인") { myScheduleOpen = true }
+                    ActChip(Icons.AutoMirrored.Filled.Chat, "문구 넣기") { tplPickerOpen = true }
+                }
             }
 
             // AI 추천 답변 영역 — 가장 최신 메시지가 고객이 보낸 것일 때만 표시.
@@ -765,6 +791,8 @@ fun ChatScreen(
                 LaunchedEffect(inputNonBlank) {
                     suggestionsExpanded = !inputNonBlank
                 }
+                // 스크롤 자동 숨김 — 추천도 칩과 함께 숨고/나타남.
+                androidx.compose.animation.AnimatedVisibility(visible = controlsVisible) {
                 SuggestionArea(
                     suggestion = suggestion,
                     loading = suggestionsLoading,
@@ -784,6 +812,7 @@ fun ChatScreen(
                     },
                     onRegenerate = { viewModel.regenerateSuggestions() }
                 )
+                }
             }
 
             // (Phase 2) 원칙 발견 카드 — 추천과 다르게 보냈을 때 막내가 "이게 원칙이에요?" ⭕/❌/나중에. (2026-06-17 사장님)
@@ -821,6 +850,15 @@ fun ChatScreen(
                 onFocusChange = { focused -> composerFocused = focused }
             )
         }
+    }
+
+    // 변경 이력 [고객에게 알리기] — 발송 전 재확인 다이얼로그. (2026-06-30 사장님)
+    notifyConfirm?.let { ev ->
+        EventNotifyConfirmDialog(
+            body = viewModel.eventNotifyBody(ev) ?: "",
+            onSend = { viewModel.notifyEvent(context, ev); notifyConfirm = null },
+            onDismiss = { notifyConfirm = null }
+        )
     }
 
     // ▶ 보내기 확인 다이얼로그 — 사장님이 실수로 보내는 거 방지.
@@ -1440,6 +1478,10 @@ sealed interface ChatTimelineItem {
     data class Intake(val event: com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity) : ChatTimelineItem {
         override val timeMs: Long get() = event.submittedAtMs
     }
+    /** 변경/처리 이력 이벤트 (2026-06-30) — 일정/금액/잔금 변경을 처리 시각 기준 카드로. */
+    data class Event(val event: com.detailline.callfollowcrm.data.local.entity.TimelineEventEntity) : ChatTimelineItem {
+        override val timeMs: Long get() = event.createdAt
+    }
     /** 프로토 chat-date — 날짜 경계 구분선. 렌더 직전에만 끼워넣음(buildChatTimeline 은 생성 X). */
     data class DateDivider(val dayStart: Long) : ChatTimelineItem {
         override val timeMs: Long get() = dayStart
@@ -1484,13 +1526,15 @@ private fun chatDateLabel(dayStart: Long): String {
 private fun buildChatTimeline(
     messages: List<com.detailline.callfollowcrm.data.repository.SmsRepository.SmsMessage>,
     calls: List<com.detailline.callfollowcrm.data.local.entity.CallRecordEntity>,
-    intakeEvents: List<com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity>
+    intakeEvents: List<com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity>,
+    timelineEvents: List<com.detailline.callfollowcrm.data.local.entity.TimelineEventEntity>
 ): List<ChatTimelineItem> {
-    if (calls.isEmpty() && intakeEvents.isEmpty()) return messages.map { ChatTimelineItem.Msg(it) }
-    val merged = ArrayList<ChatTimelineItem>(messages.size + calls.size + intakeEvents.size)
+    if (calls.isEmpty() && intakeEvents.isEmpty() && timelineEvents.isEmpty()) return messages.map { ChatTimelineItem.Msg(it) }
+    val merged = ArrayList<ChatTimelineItem>(messages.size + calls.size + intakeEvents.size + timelineEvents.size)
     messages.forEach { merged += ChatTimelineItem.Msg(it) }
     calls.forEach { merged += ChatTimelineItem.Call(it) }
     intakeEvents.forEach { merged += ChatTimelineItem.Intake(it) }
+    timelineEvents.forEach { merged += ChatTimelineItem.Event(it) }
     return merged.sortedWith(compareByDescending<ChatTimelineItem> { it.timeMs }.thenBy { it is ChatTimelineItem.Msg })
 }
 
@@ -1976,6 +2020,115 @@ private fun IntakeSegment(
     }
 }
 
+/**
+ * 변경/처리 이력 카드 (2026-06-30 사장님) — 일정/금액/잔금 변경을 "처리 시각"과 함께 타임라인에.
+ *   type 별 색/이모지. 금액 변경은 이유(reason)도 표시. [고객에게 알리기] = 확인 후 발송(1회).
+ */
+@Composable
+private fun TimelineEventSegment(
+    event: com.detailline.callfollowcrm.data.local.entity.TimelineEventEntity,
+    onNotify: () -> Unit
+) {
+    val (emoji, title, accent) = when (event.type) {
+        "schedule" -> Triple("📅", if (event.oldValue == null) "시공일정 등록" else "시공일정 변경", Color(0xFF3182F6))
+        "amount" -> Triple("💰", if (event.oldValue == null) "시공금액 등록" else "시공금액 변경", Color(0xFFF59E0B))
+        "balance_paid" -> Triple("💵", "잔금 받음 처리", Color(0xFF12B886))
+        else -> Triple("📝", "변경", TossTextSecondary)
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(0xFFF7F8FA))
+            .border(1.dp, Color(0x14000000), RoundedCornerShape(14.dp))
+            .padding(horizontal = 12.dp, vertical = 11.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(accent.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(emoji, fontSize = 15.sp)
+            }
+            Spacer(Modifier.width(9.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                Text(
+                    DateTimeUtils.formatShort(event.createdAt),
+                    fontSize = 11.sp, color = TossTextTertiary, fontWeight = FontWeight.Bold
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        val changeText = when {
+            event.type == "balance_paid" -> "${event.newValue ?: "잔금"} 받음"
+            event.oldValue != null && event.newValue != null -> "${event.oldValue}  →  ${event.newValue}"
+            event.newValue != null -> event.newValue!!
+            event.oldValue != null -> "${event.oldValue}  →  (없음)"
+            else -> "-"
+        }
+        Text(changeText, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = accent)
+        event.reason?.takeIf { it.isNotBlank() }?.let {
+            Spacer(Modifier.height(4.dp))
+            Text("이유: $it", fontSize = 12.5.sp, color = TossTextPrimary, fontWeight = FontWeight.Medium)
+        }
+        Spacer(Modifier.height(10.dp))
+        val notifiedAt = event.notifiedAt
+        if (notifiedAt == null) {
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(accent)
+                    .clickable { onNotify() }.padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("📨 고객에게 알리기", color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold)
+            }
+        } else {
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                    .background(accent.copy(alpha = 0.10f)).padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "✅ ${DateTimeUtils.formatShort(notifiedAt)} 고객에게 알림 보냄",
+                    color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+/** 변경 이력 [고객에게 알리기] 발송 전 확인 — 보낼 문자 미리보기 + [보내기]. (2026-06-30 사장님) */
+@Composable
+private fun EventNotifyConfirmDialog(body: String, onSend: () -> Unit, onDismiss: () -> Unit) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("고객에게 보낼까요?", fontWeight = FontWeight.ExtraBold, color = TossTextPrimary) },
+        text = {
+            Column {
+                Text("아래 내용이 고객에게 문자로 발송돼요.", fontSize = 12.5.sp, color = TossTextTertiary)
+                Spacer(Modifier.height(8.dp))
+                Surface(color = Color(0xFFF2F4F6), shape = RoundedCornerShape(12.dp)) {
+                    Text(
+                        body, fontSize = 13.sp, color = TossTextPrimary, lineHeight = 19.sp,
+                        modifier = Modifier.fillMaxWidth().padding(12.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = onSend) {
+                Text("보내기", color = TossBlue, fontWeight = FontWeight.ExtraBold)
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text("취소", color = TossTextTertiary)
+            }
+        }
+    )
+}
+
 /** 통화 길이(초)를 "3분 12초"/"45초" 로. 0 이하(부재중/거절)면 null = 길이 생략. */
 private fun formatCallDuration(seconds: Long): String? {
     if (seconds <= 0L) return null
@@ -2200,6 +2353,7 @@ private fun SuggestionArea(
             val header = when {
                 failed -> "⚠️ 추천을 못 만들었어요 — ↻ 다시 시도해주세요"
                 isStale && effectiveLoading -> "📨 ${cntText} 안 반영 — 새 답변 만드는 중…"
+                effectiveLoading && hasSuggestions -> "✨ 새 답변 만드는 중… 기존 답변은 그대로 써도 돼요"
                 isStale && hasSuggestions -> "📨 ${cntText} 왔어요 — ↻ 새 답변 받기"
                 else -> null
             }

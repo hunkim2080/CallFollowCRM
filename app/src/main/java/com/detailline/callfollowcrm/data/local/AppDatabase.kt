@@ -60,9 +60,10 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         com.detailline.callfollowcrm.data.local.entity.SitePhotoEntity::class,
         com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity::class,
         com.detailline.callfollowcrm.data.local.entity.TeamAssignmentEntity::class,
-        com.detailline.callfollowcrm.data.local.entity.PrincipleEntity::class
+        com.detailline.callfollowcrm.data.local.entity.PrincipleEntity::class,
+        com.detailline.callfollowcrm.data.local.entity.TimelineEventEntity::class
     ],
-    version = 35,
+    version = 36,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -89,6 +90,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun intakeEventDao(): com.detailline.callfollowcrm.data.local.dao.IntakeEventDao
     abstract fun teamAssignmentDao(): com.detailline.callfollowcrm.data.local.dao.TeamAssignmentDao
     abstract fun principleDao(): com.detailline.callfollowcrm.data.local.dao.PrincipleDao
+    abstract fun timelineEventDao(): com.detailline.callfollowcrm.data.local.dao.TimelineEventDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -683,6 +685,27 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v36 — timeline_events 신설(일정/금액/잔금 변경 이력 카드). TimelineEventEntity 와 정확히 일치. (2026-06-30 사장님)
+        private val MIGRATION_35_36 = object : Migration(35, 36) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `timeline_events` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`phoneSuffix` TEXT NOT NULL, " +
+                        "`type` TEXT NOT NULL, " +
+                        "`oldValue` TEXT, " +
+                        "`newValue` TEXT, " +
+                        "`reason` TEXT, " +
+                        "`createdAt` INTEGER NOT NULL, " +
+                        "`notifiedAt` INTEGER)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_timeline_events_phoneSuffix` " +
+                        "ON `timeline_events` (`phoneSuffix`)"
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
@@ -698,7 +721,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27,
                     MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30,
                     MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34,
-                    MIGRATION_34_35
+                    MIGRATION_34_35, MIGRATION_35_36
                 )
                 .fallbackToDestructiveMigration()   // migration 실패 시 안전망 (개발 단계)
                 .build()
