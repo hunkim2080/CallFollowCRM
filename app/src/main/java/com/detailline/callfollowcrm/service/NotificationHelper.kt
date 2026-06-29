@@ -546,7 +546,7 @@ object NotificationHelper {
             accent = ACCENT_AMBER,
             title = "📷 사진을 못 받았어요",
             msg = "${who}이 보낸 사진(MMS)을 받지 못했어요.",
-            note = "삼성 메시지 앱을 '기본 문자앱'으로 두면 사진이 잘 들어와요. RING-GO 는 그 사진을 그대로 보여줘요."
+            note = "삼성 메시지 앱을 '기본 문자앱'으로 두면 사진이 잘 들어와요. 시공막내가 그 사진을 그대로 보여줘요."
         )
     }
 

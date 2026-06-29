@@ -271,7 +271,7 @@ fun SettingsScreen(
                 }
                 SettingsGroup("도움말") {
                     LockRow(Icons.AutoMirrored.Filled.Chat, TossGrayBg, TossTextTertiary, "알림 미리보기",
-                        "RING-GO 알림이 어떻게 오는지") { subPage = "noti" }
+                        "시공막내 알림이 어떻게 오는지") { subPage = "noti" }
                     LockRow(Icons.Filled.AutoAwesome, TossGrayBg, TossTextTertiary, "앱 소개 다시 보기",
                         null, onClick = onShowIntro)
                 }
@@ -560,15 +560,15 @@ private fun formatThousands(n: Long): String =
 private fun formatThousands(n: Int): String = formatThousands(n.toLong())
 
 /**
- * 2026-05-29 Phase A 2단계 Day 5 — RING-GO 를 기본 메시지 앱으로 전환하는 카드.
+ * 2026-05-29 Phase A 2단계 Day 5 — 시공막내 를 기본 메시지 앱으로 전환하는 카드.
  *
  * **활성화됨** (Day 1~4 의 자격 인프라 + klinker hook 다 박힘).
  * 토글 ON → RoleManager 다이얼로그 → 사장님 동의 → default. OFF → 시스템 default-apps Settings.
  *
  * 사장님 카피 변경 (Day 5):
- *   메인: "📱 RING-GO를 기본 메시지 앱으로 사용하기"
- *   설명 (default 일 때): "✅ RING-GO 가 SMS/MMS 를 받고 있어요. 갤메시지 알림은 시스템 설정에서 끄세요."
- *   설명 (default 아닐 때): "SMS/MMS 수신을 RING-GO 에서 관리합니다. 토글 켜면 시스템이 동의를 요청합니다."
+ *   메인: "📱 시공막내를 기본 메시지 앱으로 사용하기"
+ *   설명 (default 일 때): "✅ 시공막내 가 SMS/MMS 를 받고 있어요. 갤메시지 알림은 시스템 설정에서 끄세요."
+ *   설명 (default 아닐 때): "SMS/MMS 수신을 시공막내 에서 관리합니다. 토글 켜면 시스템이 동의를 요청합니다."
  *   수동 입력 expander: "🔧 MMS 서버 수동 입력 (선택)" — 자동 추출 실패 시 안전망.
  */
 @Composable
@@ -599,7 +599,7 @@ private fun DefaultSmsAppCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        "📱 RING-GO를 기본 메시지 앱으로 사용하기",
+                        "📱 시공막내를 기본 메시지 앱으로 사용하기",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = TossTextPrimary
@@ -607,9 +607,9 @@ private fun DefaultSmsAppCard(
                     Spacer(Modifier.height(4.dp))
                     Text(
                         if (isDefault)
-                            "✅ RING-GO 가 SMS/MMS 를 받고 있어요. 갤메시지 알림은 시스템 설정에서 끄세요."
+                            "✅ 시공막내 가 SMS/MMS 를 받고 있어요. 갤메시지 알림은 시스템 설정에서 끄세요."
                         else
-                            "SMS/MMS 수신을 RING-GO 에서 관리합니다. 토글 켜면 시스템이 동의를 요청합니다.",
+                            "SMS/MMS 수신을 시공막내 에서 관리합니다. 토글 켜면 시스템이 동의를 요청합니다.",
                         fontSize = 12.sp,
                         color = TossTextSecondary
                     )
@@ -898,7 +898,7 @@ private fun StatsBar(label: String, count: Int, total: Int, color: Color) {
  * 추후 cowork 가 prompt 개선 endpoint 박으면 [✏️ 개선 제안] 버튼 활성화.
  *
  * 사장님 가치:
- *   - "어떤 상황에서 RING-GO 가 잘 답하고, 어떤 상황에서 못 하는지" 한눈에.
+ *   - "어떤 상황에서 시공막내 가 잘 답하고, 어떤 상황에서 못 하는지" 한눈에.
  *   - 개선 우선순위 자동 — 사장님이 "Mac mini 한테 이 부분 개선해" 라고 말할 근거.
  */
 @Composable
@@ -922,7 +922,7 @@ private fun AutoLearningCard(
             }
             Spacer(Modifier.height(2.dp))
             Text(
-                "어떤 상황에서 사장님이 그대로 보내는지, 어떤 상황은 개선이 필요한지 RING-GO 가 직접 분석합니다.",
+                "어떤 상황에서 사장님이 그대로 보내는지, 어떤 상황은 개선이 필요한지 시공막내 가 직접 분석합니다.",
                 fontSize = 11.sp,
                 color = TossTextSecondary
             )
@@ -1562,7 +1562,7 @@ private fun AfterCallCard(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "통화 종료 알림(RING-GO 캐치)의 액션 버튼 3개. 탭하면 해당 템플릿 자동 선택된 채로 문자 화면 열림.",
+                    "통화 종료 알림(시공막내 캐치)의 액션 버튼 3개. 탭하면 해당 템플릿 자동 선택된 채로 문자 화면 열림.",
                     style = MaterialTheme.typography.bodySmall,
                     color = TossTextSecondary
                 )
@@ -1663,7 +1663,7 @@ private fun AfterCallCard(
 }
 
 /**
- * 사장님 톤 학습 — RING-GO 의 정체성 카드.
+ * 사장님 톤 학습 — 시공막내 의 정체성 카드.
  * 숫자는 의도적으로 노출 안 함 (사장님 결정 2026-05-24) — 한계처럼 보이지 않게.
  * 본질 = "사장님 말투 그대로" 강조.
  */
@@ -1885,7 +1885,7 @@ private fun OwnerToneRagCard(
 }
 
 /**
- * 수신 SMS 가 오면 RING-GO 자체 알림 + 빠른 답장 + AI 추천 답변 — 갤메시지 대체.
+ * 수신 SMS 가 오면 시공막내 자체 알림 + 빠른 답장 + AI 추천 답변 — 갤메시지 대체.
  * 사장님 결정 2026-05-25: 옵션 A. 갤메시지 알림은 시스템 설정에서 직접 꺼야.
  */
 @Composable
@@ -1910,7 +1910,7 @@ private fun IncomingSmsNotifyCard(enabled: Boolean, onToggle: (Boolean) -> Unit)
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                "RING-GO 가 갤메시지보다 풍부한 알림을 띄워요. AI 추천 답변 칩 + 빠른 답장 + 한 탭 전화.",
+                "시공막내 가 갤메시지보다 풍부한 알림을 띄워요. AI 추천 답변 칩 + 빠른 답장 + 한 탭 전화.",
                 style = MaterialTheme.typography.bodySmall,
                 color = TossTextSecondary
             )
@@ -1932,7 +1932,7 @@ private fun IncomingSmsNotifyCard(enabled: Boolean, onToggle: (Boolean) -> Unit)
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "안 끄면 RING-GO + 갤메시지 둘 다 알림이 떠요. 시스템 설정 → 앱 → 메시지 → 알림 OFF.",
+                        "안 끄면 시공막내 + 갤메시지 둘 다 알림이 떠요. 시스템 설정 → 앱 → 메시지 → 알림 OFF.",
                         color = Color(0xFF7A5C00),
                         fontSize = 12.sp
                     )
@@ -2043,7 +2043,7 @@ private fun NavAppPreferenceCard(
 }
 
 /**
- * RING-GO 알림이 왜 안 뜨는지 사장님이 직접 진단 — 권한/채널 상태 한눈에.
+ * 시공막내 알림이 왜 안 뜨는지 사장님이 직접 진단 — 권한/채널 상태 한눈에.
  * 2026-05-25 사장님 보고: 갤메시지 알림 끄고 새 빌드 깔았는데도 안 뜸 → 진단 필요.
  */
 @Composable
@@ -2207,7 +2207,7 @@ private fun NotificationDiagnosticCard() {
                     }
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "채팅+ 가 켜져 있으면 문자가 갤메시지 RCS 로만 가서 RING-GO 가 못 받습니다. " +
+                        "채팅+ 가 켜져 있으면 문자가 갤메시지 RCS 로만 가서 시공막내 가 못 받습니다. " +
                             "갤메시지 ≡ → 설정 → 채팅 기능 → 채팅+ OFF.",
                         style = MaterialTheme.typography.bodySmall,
                         color = TossTextPrimary
@@ -2229,7 +2229,7 @@ private fun NotificationDiagnosticCard() {
             if (!allOk) {
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    "❌ 표시된 항목 모두 ON + 채팅+ OFF — 이 두 가지가 충족되면 RING-GO 알림이 즉시 동작합니다.",
+                    "❌ 표시된 항목 모두 ON + 채팅+ OFF — 이 두 가지가 충족되면 시공막내 알림이 즉시 동작합니다.",
                     style = MaterialTheme.typography.bodySmall,
                     color = TossError,
                     fontWeight = FontWeight.Medium
@@ -2352,7 +2352,7 @@ private fun AppFooter() {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            "RING-GO 버전 ${com.detailline.callfollowcrm.BuildConfig.VERSION_NAME}",
+            "시공막내 버전 ${com.detailline.callfollowcrm.BuildConfig.VERSION_NAME}",
             color = TossTextSecondary,
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold
@@ -2638,7 +2638,7 @@ private fun SetupCheckCard() {
     data class SetupStep(val label: String, val done: Boolean, val action: () -> Unit)
     // 2026-06-18 사장님 결정: "기본 메시지 앱 설정" 권유 제거. 기본앱이 되면 MMS(사진) 직접 수신이
     //   통신사 한계로 실패해 고객 사진이 조용히 유실되는 치명적 위험 → 삼성 문자를 기본으로 두고
-    //   RING-GO 는 옆에서 읽는 '동반자' 포지션. (기본앱 진입 카드/헬퍼 코드는 Phase B 대비 남겨둠)
+    //   시공막내 는 옆에서 읽는 '동반자' 포지션. (기본앱 진입 카드/헬퍼 코드는 Phase B 대비 남겨둠)
     val steps = listOf(
         SetupStep("알림 권한", notiOn) {
             runCatching {

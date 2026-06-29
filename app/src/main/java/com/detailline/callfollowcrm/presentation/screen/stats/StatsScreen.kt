@@ -273,7 +273,7 @@ private fun TrendSection(t: StatsTrendState, onSelect: (StatPeriod) -> Unit) {
         ) {
             Text("📊 시장 비교", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary, modifier = Modifier.padding(bottom = 11.dp))
             MkRow("내 문의", "${if (t.deltaPct >= 0) "+" else ""}${t.deltaPct}%", if (t.deltaPct >= 0) TossSuccess else TossError)
-            MkRow("RING-GO 전국 평균", "모이는 중", TossTextTertiary)
+            MkRow("시공막내 전국 평균", "모이는 중", TossTextTertiary)
             Box(
                 modifier = Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(12.dp)
             ) {

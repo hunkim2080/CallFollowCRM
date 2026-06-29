@@ -56,7 +56,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * 링고가 안 보는 번호 목록 — 더보기 진입. kind="spam"(광고/스팸) / "personal"(사생활). (2026-06-23 사장님)
+ * 시공막내가 안 보는 번호 목록 — 더보기 진입. kind="spam"(광고/스팸) / "personal"(사생활). (2026-06-23 사장님)
  *   상담함에서 카드 밀어 '스팸'/'사생활' 누른 번호가 모이는 곳. 잘못 넣었으면 '해제'로 바로 복구.
  *   해제 = unmark → 다시 상담함·신규에 보임. 옛 데이터(phoneNumber="")는 suffix 로 표시.
  */
@@ -76,7 +76,7 @@ fun SpamListScreen(
     val title = if (isPersonal) "사생활 번호" else "스팸 차단 번호"
     val swipeWord = if (isPersonal) "'사생활'" else "'스팸'"
     val emptyTitle = if (isPersonal) "사생활로 옮긴 번호가 없어요" else "스팸으로 등록한 번호가 없어요"
-    val undoToast = if (isPersonal) "다시 링고가 잡아요" else "스팸을 풀었어요 — 다시 보여요"
+    val undoToast = if (isPersonal) "다시 시공막내가 잡아요" else "스팸을 풀었어요 — 다시 보여요"
 
     Scaffold(
         containerColor = TossGrayBg,
@@ -116,7 +116,7 @@ fun SpamListScreen(
             ) {
                 item {
                     val intro = if (isPersonal)
-                        "사생활(개인 연락처)로 옮긴 번호예요. 링고가 안 잡아요. '해제'하면 다시 보여요."
+                        "사생활(개인 연락처)로 옮긴 번호예요. 시공막내가 안 잡아요. '해제'하면 다시 보여요."
                     else
                         "잘못 등록했으면 '해제'를 누르세요 — 다시 상담함·신규에 보여요."
                     Text(
