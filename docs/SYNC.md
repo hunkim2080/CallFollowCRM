@@ -5910,3 +5910,31 @@ commit: (pending)
 - 옛 캐시 (title 없음): 캐시 hit 시 title 비어있을 수 있음 — 앱 측에서 one_line 폴백 권장. force_refresh=true 로 재요약하면 title 들어옴.
 - 변경: server/main.py 만.
 - commit: (pending)
+
+## 2026-06-29 · cowork (안드로이드 ⚠️ 진단요청 응답)
+추가62 — prepare-reply 추천 새로고침 "시간 초과" 원인 + fix.
+
+원인:
+- PREPARE_REPLY_DEFAULT_MODEL=gemini (옛 사장님 톤 비교 후 전환). 안드로이드가 본 model:"gemini" 정상.
+- 백그라운드 generate_and_cache 에서 Gemini 호출 실패 시 except → db_set_missing(phone) 호출 → status='missing' 박힘.
+- = 안드로이드가 본 "40초 내내 missing" 의 진짜 원인.
+- 옛 코드 = 실패 traceback 없이 type/msg 만 print. 정확한 원인 파악 어려움.
+- owner_phone 게이트는 정상 (빈 phone 이면 skip — block X).
+- cache key (phone=customer phone) 정상. GET 도 같은 key. 불일치 아님.
+
+조치:
+- generate_and_cache 재구조화: model='gemini' 실패 시 Sonnet 자동 폴백 + traceback 로그.
+- 모든 실패 케이스에 traceback.format_exc() 박음 → 다음 사고 시 정확한 원인 파악.
+- db_set_ready (추가58 가드) 의 saved=True/False 도 print → 0 rows 케이스 가시화.
+
+확인/측정 부탁:
+- 사장님 launchctl 로그 (또는 server.log) 의 [fallback/gemini→sonnet] [failed/all] 줄 — Gemini 가 진짜 어떤 예외 던지는지.
+- [ready/gemini] vs [ready/sonnet] 비율 확인 → Gemini 안정성 평가.
+- latency 평균 = print 의 latency=Xs 줄 grep.
+
+미해결 / 옵션:
+- 사장님이 임시 롤백 원하면 launchd plist 에 EnvironmentVariables: PREPARE_REPLY_MODEL=sonnet 박고 kickstart. = default Sonnet 으로 즉시 복귀.
+- Gemini 실패 패턴 보이면 (key 만료 / quota / API down) 추가 fix.
+
+변경: server/main.py 만 (약 60줄). 호출 호환성 유지 (status code 동일).
+commit: (pending)

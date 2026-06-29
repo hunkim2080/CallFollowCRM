@@ -2057,44 +2057,61 @@ def _log_gemini_suggestions_usage(usage_meta: dict, latency_sec: float) -> None:
 async def generate_and_cache(req: PrepareReplyRequest, model: str = "sonnet") -> None:
     """prepare-reply 백그라운드 처리.
 
-    model="sonnet" (기본) → Sonnet 4.6 + Anthropic SDK (기존 경로)
-    model="gemini"        → Gemini 2.5 Flash + response_schema (§49 A/B 비교)
+    추가62 (2026-06-29) — Gemini 실패 시 Sonnet 자동 폴백.
+    안드로이드 진단: ↻ 새로고침이 "시간 초과" — prepare-reply 백그라운드 Gemini 호출이
+    실패해서 db_set_missing 박혀버려 status='missing' 남는 경우. → Sonnet 으로 재시도.
+
+    model="sonnet" → Sonnet 4.6 + Anthropic SDK (기존 경로)
+    model="gemini" → Gemini 2.5 Flash + response_schema → 실패 시 Sonnet 폴백
     """
     phone = req.phone
     start_ms = _now_ms()
+    based_ts = getattr(req, "latestMessageReceivedAtMs", None)
+
+    async def _run_sonnet():
+        v2, response = await call_claude_for_suggestions_with_meta(req)
+        sec = (_now_ms() - start_ms) / 1000.0
+        log_usage(phone, "prepare-reply", response)
+        _log_llm_usage_from_response("prepare-reply", response)
+        saved = db_set_ready(phone, v2, based_on_received_at_ms=based_ts)
+        usage = response.usage
+        print(
+            f"[ready/sonnet] {phone} scenario={v2['scenario']} conf={v2['scenario_confidence']} "
+            f"intents={[s['intent_key'] for s in v2['suggestions']]} "
+            f"(in={getattr(usage,'input_tokens',0)} "
+            f"cache_read={getattr(usage,'cache_read_input_tokens',0)} "
+            f"out={getattr(usage,'output_tokens',0)} "
+            f"latency={sec:.1f}s saved={saved})"
+        )
+
+    async def _run_gemini():
+        v2, usage_meta = await call_gemini_for_suggestions_with_meta(req)
+        sec = (_now_ms() - start_ms) / 1000.0
+        _log_gemini_suggestions_usage(usage_meta, sec)
+        saved = db_set_ready(phone, v2, based_on_received_at_ms=based_ts)
+        print(
+            f"[ready/gemini] {phone} scenario={v2['scenario']} conf={v2['scenario_confidence']} "
+            f"intents={[s['intent_key'] for s in v2['suggestions']]} "
+            f"(in={usage_meta.get('promptTokenCount',0)} "
+            f"out={usage_meta.get('candidatesTokenCount',0)} "
+            f"latency={sec:.1f}s saved={saved})"
+        )
+
     try:
         check_rate_limit(phone)
-
-        # 추가58 — 덮어쓰기 가드용: 이번 prepare 의 기준 시각.
-        based_ts = getattr(req, "latestMessageReceivedAtMs", None)
         if model == "gemini":
-            v2, usage_meta = await call_gemini_for_suggestions_with_meta(req)
-            latency_sec = (_now_ms() - start_ms) / 1000.0
-            _log_gemini_suggestions_usage(usage_meta, latency_sec)
-            db_set_ready(phone, v2, based_on_received_at_ms=based_ts)
-            print(
-                f"[ready/gemini] {phone} scenario={v2['scenario']} conf={v2['scenario_confidence']} "
-                f"intents={[s['intent_key'] for s in v2['suggestions']]} "
-                f"(in={usage_meta.get('promptTokenCount',0)} "
-                f"out={usage_meta.get('candidatesTokenCount',0)} "
-                f"latency={latency_sec:.1f}s)"
-            )
+            try:
+                await _run_gemini()
+            except asyncio.CancelledError:
+                raise
+            except Exception as gemini_e:
+                # 추가62 — Gemini 실패 → Sonnet 자동 폴백. 사용자 영향 X.
+                import traceback
+                print(f"[fallback/gemini→sonnet] {phone}: {type(gemini_e).__name__}: {gemini_e}")
+                print(traceback.format_exc())
+                await _run_sonnet()
         else:
-            # 기본 = Sonnet (기존 경로)
-            v2, response = await call_claude_for_suggestions_with_meta(req)
-            latency_sec = (_now_ms() - start_ms) / 1000.0
-            log_usage(phone, "prepare-reply", response)
-            _log_llm_usage_from_response("prepare-reply", response)
-            db_set_ready(phone, v2, based_on_received_at_ms=based_ts)
-            usage = response.usage
-            print(
-                f"[ready/sonnet] {phone} scenario={v2['scenario']} conf={v2['scenario_confidence']} "
-                f"intents={[s['intent_key'] for s in v2['suggestions']]} "
-                f"(in={getattr(usage,'input_tokens',0)} "
-                f"cache_read={getattr(usage,'cache_read_input_tokens',0)} "
-                f"out={getattr(usage,'output_tokens',0)} "
-                f"latency={latency_sec:.1f}s)"
-            )
+            await _run_sonnet()
     except asyncio.CancelledError:
         print(f"[cancelled] {phone}")
         raise
@@ -2102,7 +2119,10 @@ async def generate_and_cache(req: PrepareReplyRequest, model: str = "sonnet") ->
         print(f"[rate-limit] {phone}: {e.detail}")
         db_set_missing(phone)
     except Exception as e:
-        print(f"[failed/{model}] {phone}: {type(e).__name__}: {e}")
+        # 추가62 — Sonnet 도 실패하면 = 진짜 missing. traceback 까지.
+        import traceback
+        print(f"[failed/all] {phone}: {type(e).__name__}: {e}")
+        print(traceback.format_exc())
         db_set_missing(phone)
     finally:
         cur = _inflight_tasks.get(phone)
