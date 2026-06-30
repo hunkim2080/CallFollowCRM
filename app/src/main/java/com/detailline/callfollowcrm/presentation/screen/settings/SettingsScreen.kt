@@ -6,6 +6,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.compose.material3.Switch
@@ -286,17 +287,28 @@ fun SettingsScreen(
                     val agentCard by viewModel.agentCard.collectAsState()
                     val toneProfile by viewModel.toneProfile.collectAsState()
                     LaunchedEffect(Unit) { viewModel.loadToneProfile() }
+                    // "지금 동기화" 결과 토스트 — 조용한 실패 제거(2026-06-30).
+                    val toneSyncMsg by viewModel.toneSyncMessage.collectAsState()
+                    val toneSyncCtx = LocalContext.current
+                    LaunchedEffect(toneSyncMsg) {
+                        toneSyncMsg?.let {
+                            android.widget.Toast.makeText(toneSyncCtx, it, android.widget.Toast.LENGTH_LONG).show()
+                            viewModel.consumeToneSyncMessage()
+                        }
+                    }
                     val toneRagConsented by viewModel.toneRagConsented.collectAsState()
                     val toneRagUploadedCount by viewModel.toneRagUploadedCount.collectAsState()
                     val toneRagAvailable by viewModel.toneRagAvailable.collectAsState()
                     val toneRagUploading by viewModel.toneRagUploading.collectAsState()
                     val toneRagProgress by viewModel.toneRagProgress.collectAsState()
+                    val toneSyncedUpTo by viewModel.toneSyncedUpTo.collectAsState()
                     ToneLearnProtoSection(
                         container = container,
                         profile = toneProfile,
                         tonePct = toneProfile?.learnRatePct ?: agentCard.tonePct,
                         ragUploadedCount = toneRagUploadedCount,
                         ragAvailable = toneRagAvailable,
+                        ragSyncedUpTo = toneSyncedUpTo,
                         ragConsented = toneRagConsented,
                         ragUploading = toneRagUploading,
                         ragProgress = toneRagProgress,
@@ -1234,8 +1246,11 @@ private fun AutoSmsSection(
     }
     Spacer(Modifier.height(8.dp))
 
-    // 에이닷 녹음(m4a) 폴더 연결 — 자동 녹음을 ↑ 없이 자동 요약하려면 필요. (2026-06-14 사장님 빈틈 보완)
+    // 통화 녹음 자동 찾기 — 오디오 권한 한 번이면 MediaStore 에서 통화녹음(에이닷·T전화·삼성)을 앱이 알아서 찾는다.
+    //   폴더를 직접 고를 필요 X (연세 있으신 분 배려, 2026-06-30). 폴더 직접 고르기는 fallback 으로 남김.
+    val recAppContainer = (ctx.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication).container
     var recFolderConnected by remember { mutableStateOf(com.detailline.callfollowcrm.recording.AdotFolderScanner.isConnected(ctx)) }
+    val recScope = androidx.compose.runtime.rememberCoroutineScope()
     val recFolderLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
@@ -1247,31 +1262,72 @@ private fun AutoSmsSection(
             ).show()
         }
     }
-    TossCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFFEDE9FE)),
-                contentAlignment = Alignment.Center) { Text("🎙️", fontSize = 16.sp) }
-            Spacer(Modifier.width(11.dp))
-            Column(Modifier.weight(1f)) {
-                Text("통화 녹음 폴더 ${if (recFolderConnected) "· 연결됨" else ""}", fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold, color = TossTextPrimary)
-                Text(
-                    if (recFolderConnected) "통화 끝나면 녹음으로 자동 요약돼요 (↑ 안 눌러도 됨)"
-                    else "통화 녹음을 ↑ 없이 자동 요약하려면 녹음 폴더를 한 번 연결하세요",
-                    fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp
-                )
+    val recAudioPermLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            com.detailline.callfollowcrm.recording.AdotFolderScanner.enableMediaStore(ctx)
+            recFolderConnected = true
+            recScope.launch {
+                val n = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    com.detailline.callfollowcrm.recording.AdotFolderScanner.countMediaStoreCandidates(ctx)
+                }
+                android.widget.Toast.makeText(
+                    ctx,
+                    if (n > 0) "통화 녹음 ${n}개를 찾았어요! 이제 통화 끝나면 자동으로 요약돼요 ✨"
+                    else "연결됐어요. 이제 통화 끝나면 녹음을 자동으로 요약해요.",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
             }
-            Spacer(Modifier.width(8.dp))
-            Box(
-                Modifier.clip(RoundedCornerShape(10.dp))
-                    .background(if (recFolderConnected) Color(0xFFEEF0F3) else Color(0xFF3182F6))
-                    .clickable { recFolderLauncher.launch(null) }
-                    .padding(horizontal = 14.dp, vertical = 9.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(if (recFolderConnected) "다시" else "연결하기",
-                    fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                    color = if (recFolderConnected) TossTextSecondary else Color.White)
+        } else {
+            android.widget.Toast.makeText(
+                ctx, "오디오 권한을 허용해야 통화 녹음을 찾을 수 있어요.", android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+    TossCard {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFFEDE9FE)),
+                    contentAlignment = Alignment.Center) { Text("🎙️", fontSize = 16.sp) }
+                Spacer(Modifier.width(11.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("통화 녹음 자동 찾기${if (recFolderConnected) " · 연결됨" else ""}", fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                    Text(
+                        if (recFolderConnected) "통화 끝나면 녹음으로 자동 요약돼요 (↑ 안 눌러도 됨)"
+                        else "버튼 한 번이면 통화 녹음을 앱이 알아서 찾아드려요. 폴더 안 찾아도 돼요.",
+                        fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Box(
+                    Modifier.clip(RoundedCornerShape(10.dp))
+                        .background(if (recFolderConnected) Color(0xFFEEF0F3) else Color(0xFF3182F6))
+                        .clickable {
+                            if (recFolderConnected) {
+                                com.detailline.callfollowcrm.recording.AdotFolderScanner.scanIfConnected(ctx, recAppContainer) { }
+                                android.widget.Toast.makeText(ctx, "통화 녹음을 보고 있어요 ✓", android.widget.Toast.LENGTH_SHORT).show()
+                            } else {
+                                recAudioPermLauncher.launch(
+                                    com.detailline.callfollowcrm.recording.AdotFolderScanner.audioPermission()
+                                )
+                            }
+                        }
+                        .padding(horizontal = 14.dp, vertical = 9.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(if (recFolderConnected) "다시 확인" else "자동으로 찾기",
+                        fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                        color = if (recFolderConnected) TossTextSecondary else Color.White)
+                }
+            }
+            // fallback — 자동으로 안 잡히는 기기/상황엔 폴더 직접 고르기.
+            if (!recFolderConnected) {
+                Spacer(Modifier.height(8.dp))
+                Text("자동으로 안 되면 → 폴더 직접 고르기",
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF3182F6),
+                    modifier = Modifier.clickable { recFolderLauncher.launch(null) }.padding(vertical = 2.dp))
             }
         }
     }
@@ -2716,6 +2772,7 @@ private fun ToneLearnProtoSection(
     tonePct: Int,
     ragUploadedCount: Int,
     ragAvailable: Int,
+    ragSyncedUpTo: Int,
     ragConsented: Boolean,
     ragUploading: Boolean,
     ragProgress: Pair<Int, Int>?,
@@ -2851,8 +2908,12 @@ private fun ToneLearnProtoSection(
                     TossPrimaryButton(text = "지금 학습 시작", onClick = onUpload)
                 }
                 else -> {
-                    if (ragAvailable > ragUploadedCount) {
-                        Text("새 메시지 ${ragAvailable - ragUploadedCount}건 대기", fontSize = 11.sp, color = TossTextSecondary)
+                    // "대기" = 마지막 동기화 이후 폰에 새로 쌓인 보낸문자. (available − 동기화완료선)
+                    //   서버가 빈/중복 문자를 걸러 uploadedCount 가 안 늘어도, 한 번 동기화하면 대기가 0이 된다.
+                    //   (옛 버그: available − uploadedCount 라 걸러진 만큼 "N건 대기"가 영영 안 닫혀 "동기화해도 변동 없음".)
+                    val pending = (ragAvailable - maxOf(ragUploadedCount, ragSyncedUpTo)).coerceAtLeast(0)
+                    if (pending > 0) {
+                        Text("새 메시지 ${pending}건 대기", fontSize = 11.sp, color = TossTextSecondary)
                         Spacer(Modifier.height(6.dp))
                         Text("지금 동기화", fontSize = 13.sp, fontWeight = FontWeight.Bold,
                             color = Color(0xFF7C5CFC), modifier = Modifier.clickable { onUpload() })

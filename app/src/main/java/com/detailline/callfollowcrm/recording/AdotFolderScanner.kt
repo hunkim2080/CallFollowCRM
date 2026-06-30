@@ -1,8 +1,14 @@
 package com.detailline.callfollowcrm.recording
 
+import android.Manifest
+import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
+import androidx.core.content.ContextCompat
 import androidx.documentfile.provider.DocumentFile
 import com.detailline.callfollowcrm.data.AppContainer
 import com.detailline.callfollowcrm.domain.model.RecordingSourceType
@@ -14,15 +20,19 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * 에이닷 통화녹음 폴더(TPhoneCallRecords)를 한 번만 사용자에게 권한 받고,
- * 이후 앱 켤 때마다 새 파일을 자동 import.
+ * 통화녹음(m4a) 자동 연결 — 두 경로:
  *
- * 흐름:
- *  1) 사용자가 Settings 에서 "에이닷 폴더 연결" 누름
- *  2) 시스템 OpenDocumentTree 다이얼로그 → TPhoneCallRecords 선택
- *  3) 우리는 그 treeUri 를 SharedPreferences 에 저장하고 persistable 권한 take
- *  4) 다음에 앱 켤 때 scanIfConnected() 가 폴더 안의 .m4a 파일들 중
- *     아직 우리 DB에 없는 것들을 RecordingMatcher 로 추가
+ *  ① 자동 찾기 (권장, 연세 있으신 분도 쉬움) — 오디오 권한 한 번만 허용하면
+ *     [MediaStore] 에서 통화녹음 파일을 **앱이 알아서 찾는다**. 폴더를 직접 고를 필요 없음.
+ *     기기/녹음앱(에이닷·T전화·삼성)에 상관없이 파일명이 [AdotFilenameParser] 로 해석되는 오디오만 추려서 본다.
+ *  ② 폴더 직접 연결 (fallback) — 옛 방식. OpenDocumentTree 로 폴더 하나를 골라 그 안의 .m4a 를 본다.
+ *     ①이 안 되는 기기/상황(MediaStore 미색인 등) 대비로 남겨둔다.
+ *
+ * 어느 경로든 [listCandidates] 로 통합돼서, 통화종료 자동요약(CallSummaryScanWorker)·통화카드 탭
+ * (summarizeCallNow)·번호 백필(scanByPhone) 이 그대로 둘 다에서 동작한다.
+ *
+ * cutoff: [connectedAt] 이후 녹음만 자동 import/요약(과거 녹음 대량 재과금 방지). 사용자가 명시적으로
+ *   끌어오는 summarizeCallNow/scanByPhone 은 cutoff 무시.
  */
 object AdotFolderScanner {
 
@@ -30,9 +40,62 @@ object AdotFolderScanner {
     private const val KEY_TREE_URI = "tree_uri"
     private const val KEY_LAST_SCAN = "last_scan"
     private const val KEY_CONNECTED_AT = "connected_at"
+    private const val KEY_MEDIASTORE = "mediastore_enabled"   // ① 자동 찾기 opt-in 플래그
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    /** 통합 후보 파일 — SAF 폴더든 MediaStore든 동일하게 (열 수 있는 uri, 파일명) 으로 본다. */
+    data class RecFile(val uriStr: String, val name: String)
+
+    // ── 권한 ──────────────────────────────────────────────────────────────────
+    /** 오디오 읽기 권한 (33+ READ_MEDIA_AUDIO, 그 이하 READ_EXTERNAL_STORAGE). */
+    fun audioPermission(): String =
+        if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO
+        else Manifest.permission.READ_EXTERNAL_STORAGE
+
+    fun hasAudioPermission(context: Context): Boolean =
+        ContextCompat.checkSelfPermission(context, audioPermission()) == PackageManager.PERMISSION_GRANTED
+
+    // ── ① 자동 찾기 (MediaStore) ────────────────────────────────────────────────
+    fun isMediaStoreEnabled(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_MEDIASTORE, false)
+
+    /**
+     * 사용자가 "자동으로 찾기" → 권한 허용까지 마쳤을 때 호출. 이후 이 폰은 MediaStore 에서 통화녹음을
+     * 자동으로 본다. connectedAt 을 지금으로 박아 **앞으로의 통화만** 자동 요약(과거 대량 처리 방지).
+     */
+    fun enableMediaStore(context: Context) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean(KEY_MEDIASTORE, true)
+            .putLong(KEY_CONNECTED_AT, System.currentTimeMillis())
+            .apply()
+    }
+
+    /** 지금 MediaStore 에서 보이는 통화녹음 후보 개수 — "N개 찾았어요" 안내용. */
+    fun countMediaStoreCandidates(context: Context): Int =
+        if (hasAudioPermission(context)) listFromMediaStore(context).size else 0
+
+    private fun listFromMediaStore(context: Context): List<RecFile> {
+        val out = ArrayList<RecFile>()
+        val col = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+        val proj = arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.DISPLAY_NAME)
+        runCatching {
+            // 통화녹음만: 파일명이 AdotFilenameParser 로 해석되는 것만(음악·알림음 등 제외). 폴더 경로는 기기마다
+            //   달라서 가정하지 않고, 파일명 패턴으로 거른다 → 에이닷/T전화/삼성 어디 저장돼도 잡힌다.
+            context.contentResolver.query(col, proj, null, null, "${MediaStore.Audio.Media.DATE_ADDED} DESC")?.use { c ->
+                val idCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                val nameCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
+                while (c.moveToNext()) {
+                    val name = c.getString(nameCol) ?: continue
+                    if (AdotFilenameParser.parse(name) == null) continue
+                    out.add(RecFile(ContentUris.withAppendedId(col, c.getLong(idCol)).toString(), name))
+                }
+            }
+        }
+        return out
+    }
+
+    // ── ② 폴더 직접 연결 (SAF, fallback) ─────────────────────────────────────────
     /** Settings 에서 OpenDocumentTree 결과로 얻은 URI 를 저장. 연결 시각도 함께 저장. */
     fun connectFolder(context: Context, treeUri: Uri) {
         runCatching {
@@ -67,10 +130,13 @@ object AdotFolderScanner {
         }
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .remove(KEY_TREE_URI)
+            .putBoolean(KEY_MEDIASTORE, false)
             .apply()
     }
 
-    fun isConnected(context: Context): Boolean = getTreeUri(context) != null
+    /** 연결됨 = 폴더 직접 연결했거나, 자동 찾기(권한+opt-in) 가 켜져 있음. */
+    fun isConnected(context: Context): Boolean =
+        getTreeUri(context) != null || (isMediaStoreEnabled(context) && hasAudioPermission(context))
 
     private fun getTreeUri(context: Context): Uri? {
         val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -79,7 +145,29 @@ object AdotFolderScanner {
     }
 
     /**
-     * 권한이 있으면 백그라운드에서 신규 파일 import. UI 블록하지 않음.
+     * 통합 후보 목록 — 폴더가 직접 연결돼 있으면 그 폴더, 아니면 (자동 찾기 켜졌고 권한 있으면) MediaStore.
+     *   둘 다 아니면 빈 목록. 호출부(스캔 루프)는 이 목록만 돌면 된다.
+     */
+    private fun listCandidates(context: Context): List<RecFile> {
+        val treeUri = getTreeUri(context)
+        if (treeUri != null) {
+            val tree = DocumentFile.fromTreeUri(context, treeUri) ?: return emptyList()
+            if (!tree.isDirectory) return emptyList()
+            return tree.listFiles().mapNotNull { f ->
+                if (!f.isFile) return@mapNotNull null
+                val n = f.name ?: return@mapNotNull null
+                RecFile(f.uri.toString(), n)
+            }
+        }
+        if (isMediaStoreEnabled(context) && hasAudioPermission(context)) return listFromMediaStore(context)
+        return emptyList()
+    }
+
+    private fun isAudioName(name: String): Boolean =
+        name.endsWith(".m4a", true) || name.endsWith(".mp3", true) || name.endsWith(".wav", true)
+
+    /**
+     * 권한/연결이 있으면 백그라운드에서 신규 파일 import. UI 블록하지 않음.
      * @param onComplete (importedCount) — 수동 스캔에서 결과 표시용. 자동 스캔은 null.
      */
     fun scanIfConnected(
@@ -87,15 +175,13 @@ object AdotFolderScanner {
         container: AppContainer,
         onComplete: ((Int) -> Unit)? = null
     ) {
-        val treeUri = getTreeUri(context)
-        if (treeUri == null) {
+        if (!isConnected(context)) {
             onComplete?.invoke(0)
             return
         }
         val appCtx = context.applicationContext
         scope.launch {
-            val count = runCatching { scanInternal(appCtx, container, treeUri) }
-                .getOrDefault(0)
+            val count = runCatching { scanInternal(appCtx, container) }.getOrDefault(0)
             // Toast 등 UI 콜백은 반드시 Main 스레드에서 호출.
             withContext(Dispatchers.Main) {
                 onComplete?.invoke(count)
@@ -105,12 +191,8 @@ object AdotFolderScanner {
 
     private suspend fun scanInternal(
         context: Context,
-        container: AppContainer,
-        treeUri: Uri
+        container: AppContainer
     ): Int {
-        val tree = DocumentFile.fromTreeUri(context, treeUri) ?: return 0
-        if (!tree.isDirectory) return 0
-
         // 폴더 연결 시점 이후 녹음만 import. 그 전의 과거 녹음은 무시.
         // 기존 사용자(connectedAt 미저장)는 이번 스캔 시각을 기준으로 자동 설정 → 이후엔 신규만 import.
         var connectedAt = connectedAt(context)
@@ -121,30 +203,23 @@ object AdotFolderScanner {
                 .apply()
         }
 
-        val files = tree.listFiles()
         var imported = 0
-        for (f in files) {
-            if (!f.isFile) continue
-            val name = f.name ?: continue
-            if (!name.endsWith(".m4a", ignoreCase = true) &&
-                !name.endsWith(".mp3", ignoreCase = true) &&
-                !name.endsWith(".wav", ignoreCase = true)
-            ) continue
+        for (rf in listCandidates(context)) {
+            val name = rf.name
+            if (!isAudioName(name)) continue
 
             // 파일명에서 녹음 시각 추출. 패턴 안 맞으면 안전하게 스킵.
             val parsed = AdotFilenameParser.parse(name) ?: continue
             // 연결 시점보다 오래된 파일은 무시 (과거 통화 묶음 차단).
             if (parsed.recordedAt < connectedAt) continue
 
-            val uriStr = f.uri.toString()
-
             // URI 기준 중복 체크 — 이미 import한 파일은 스킵
-            if (container.recordingRepository.existsByUri(uriStr)) continue
+            if (container.recordingRepository.existsByUri(rf.uriStr)) continue
 
             runCatching {
                 RecordingMatcher.attach(
                     container = container,
-                    fileUri = uriStr,
+                    fileUri = rf.uriStr,
                     displayName = name,
                     sourceType = RecordingSourceType.SHARED_FROM_ADOT
                 )
@@ -168,10 +243,8 @@ object AdotFolderScanner {
      *   결과를 await(suspend). @return 새로 요약한 건수.
      */
     suspend fun scanAndSummarizeNow(context: Context, container: AppContainer): Int {
-        val treeUri = getTreeUri(context) ?: return 0
+        if (!isConnected(context)) return 0
         val appCtx = context.applicationContext
-        val tree = DocumentFile.fromTreeUri(appCtx, treeUri) ?: return 0
-        if (!tree.isDirectory) return 0
 
         var connectedAt = connectedAt(appCtx)
         if (connectedAt == 0L) {
@@ -181,17 +254,13 @@ object AdotFolderScanner {
         }
 
         var summarized = 0
-        for (f in tree.listFiles()) {
-            if (!f.isFile) continue
-            val name = f.name ?: continue
-            if (!name.endsWith(".m4a", ignoreCase = true) &&
-                !name.endsWith(".mp3", ignoreCase = true) &&
-                !name.endsWith(".wav", ignoreCase = true)
-            ) continue
+        for (rf in listCandidates(appCtx)) {
+            val name = rf.name
+            if (!isAudioName(name)) continue
             val parsed = AdotFilenameParser.parse(name) ?: continue
             if (parsed.recordedAt < connectedAt) continue   // 연결 전 옛 통화 무시
 
-            val uriStr = f.uri.toString()
+            val uriStr = rf.uriStr
             // 녹음 첨부(없을 때만) — 기존 자동 import 와 동일하게 고객/통화기록 연결.
             if (!container.recordingRepository.existsByUri(uriStr)) {
                 runCatching {
@@ -226,8 +295,7 @@ object AdotFolderScanner {
         customerId: Long,
         onComplete: ((Int) -> Unit)? = null
     ) {
-        val treeUri = getTreeUri(context)
-        if (treeUri == null) {
+        if (!isConnected(context)) {
             onComplete?.invoke(0)
             return
         }
@@ -239,20 +307,14 @@ object AdotFolderScanner {
         val appCtx = context.applicationContext
         scope.launch {
             val count = runCatching {
-                val tree = DocumentFile.fromTreeUri(appCtx, treeUri) ?: return@runCatching 0
-                if (!tree.isDirectory) return@runCatching 0
                 var imported = 0
-                for (f in tree.listFiles()) {
-                    if (!f.isFile) continue
-                    val name = f.name ?: continue
-                    if (!name.endsWith(".m4a", ignoreCase = true) &&
-                        !name.endsWith(".mp3", ignoreCase = true) &&
-                        !name.endsWith(".wav", ignoreCase = true)
-                    ) continue
+                for (rf in listCandidates(appCtx)) {
+                    val name = rf.name
+                    if (!isAudioName(name)) continue
                     val parsed = AdotFilenameParser.parse(name) ?: continue
                     if (parsed.phoneNumber.takeLast(8) != target) continue
 
-                    val uriStr = f.uri.toString()
+                    val uriStr = rf.uriStr
                     if (container.recordingRepository.existsByUri(uriStr)) continue
 
                     container.recordingRepository.add(
@@ -276,9 +338,9 @@ object AdotFolderScanner {
     enum class SummarizeResult { OK, ALREADY, NO_FILE, NO_FOLDER, FAILED }
 
     /**
-     * 특정 통화 한 건을 폴더에서 찾아 즉시 요약(채팅에서 통화 카드 탭). 연결 시점 cutoff 무시(사용자 명시 의도).
+     * 특정 통화 한 건을 폴더/MediaStore 에서 찾아 즉시 요약(채팅에서 통화 카드 탭). 연결 시점 cutoff 무시(사용자 명시 의도).
      *   매칭 = 파일명 번호 끝 8자리 일치 + 녹음시각이 통화시각 ±30분. 가장 가까운 파일을 요약.
-     *   에이닷 들어가 '공유' 안 해도, 연결된 폴더에서 알아서 찾아 요약. (2026-06-14 사장님)
+     *   에이닷 들어가 '공유' 안 해도, 연결된 소스에서 알아서 찾아 요약. (2026-06-14 사장님)
      */
     suspend fun summarizeCallNow(
         context: Context,
@@ -287,10 +349,8 @@ object AdotFolderScanner {
         callAtMs: Long,
         callRecordId: Long? = null
     ): SummarizeResult {
-        val treeUri = getTreeUri(context) ?: return SummarizeResult.NO_FOLDER
+        if (!isConnected(context)) return SummarizeResult.NO_FOLDER
         val appCtx = context.applicationContext
-        val tree = DocumentFile.fromTreeUri(appCtx, treeUri) ?: return SummarizeResult.NO_FOLDER
-        if (!tree.isDirectory) return SummarizeResult.NO_FOLDER
         val target = phoneNumber.filter { it.isDigit() }.takeLast(8)
         if (target.length < 7) return SummarizeResult.NO_FILE
         val win = 30 * 60 * 1000L
@@ -298,15 +358,14 @@ object AdotFolderScanner {
         var bestName = ""
         var bestAt = 0L
         var bestDelta = Long.MAX_VALUE
-        for (f in tree.listFiles()) {
-            if (!f.isFile) continue
-            val name = f.name ?: continue
-            if (!name.endsWith(".m4a", true) && !name.endsWith(".mp3", true) && !name.endsWith(".wav", true)) continue
+        for (rf in listCandidates(appCtx)) {
+            val name = rf.name
+            if (!isAudioName(name)) continue
             val parsed = AdotFilenameParser.parse(name) ?: continue
             if (parsed.phoneNumber.takeLast(8) != target) continue
             val delta = kotlin.math.abs(parsed.recordedAt - callAtMs)
             if (delta <= win && delta < bestDelta) {
-                bestUri = f.uri.toString(); bestName = name; bestAt = parsed.recordedAt; bestDelta = delta
+                bestUri = rf.uriStr; bestName = name; bestAt = parsed.recordedAt; bestDelta = delta
             }
         }
         val uriStr = bestUri ?: return SummarizeResult.NO_FILE

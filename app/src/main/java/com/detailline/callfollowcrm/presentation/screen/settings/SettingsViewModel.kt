@@ -73,6 +73,18 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     val usageLoading: StateFlow<Boolean> = _usageLoading.asStateFlow()
 
     /**
+     * "지금 동기화"(말투 업로드) 결과 안내 — 화면에서 토스트로 띄우고 consume.
+     *   조용한 실패 제거(2026-06-30): 예전엔 onFailure 가 비어 있어 눌러도 아무 반응 없었음("변동 없음"의 정체).
+     */
+    private val _toneSyncMessage = MutableStateFlow<String?>(null)
+    val toneSyncMessage: StateFlow<String?> = _toneSyncMessage.asStateFlow()
+    fun consumeToneSyncMessage() { _toneSyncMessage.value = null }
+
+    /** 마지막 동기화 때 폰에 있던 보낸문자 개수 — "대기"를 '그 이후 새 문자'로 계산하기 위함. (2026-06-30) */
+    private val _toneSyncedUpTo = MutableStateFlow(container.preferences.toneSyncedUpToAvailable)
+    val toneSyncedUpTo: StateFlow<Int> = _toneSyncedUpTo.asStateFlow()
+
+    /**
      * 2026-05-29 킬러콘텐츠 3단계 후속 — 추천 답변 채택률 통계.
      * suggestion_events 테이블 (DB v17) 에서 기간별 집계.
      * null = 아직 load 안 함, total=0 = 데이터 없음 (사용자가 chip 한 번도 안 봤거나 아직 안 보냄).
@@ -208,7 +220,11 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
                             }
                     }.getOrDefault(emptyList())
                 }
-                if (messages.isEmpty()) return@launch
+                if (messages.isEmpty()) {
+                    _toneSyncMessage.value = "올릴 보낸 문자가 아직 없어요."
+                    return@launch
+                }
+                val before = _toneRagUploadedCount.value
                 val deviceId = container.preferences.deviceId  // 폰별 분리 (2026-06-17)
                 val result = container.ownerToneUploadRepository.batchUpload(
                     deviceId = deviceId,
@@ -226,10 +242,17 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
                         _toneRagUploadedCount.value = totalCount
                         _toneRagLastUploadedAt.value = container.preferences.toneLastUploadedAtMs
                         _toneRagEmbeddingsAvailable.value = ok.embeddingsAvailable
+                        // 방금 올린 available 수를 "동기화 완료선"으로 기록 → "대기"는 이후 새 문자만(유령갭 닫힘).
+                        container.preferences.toneSyncedUpToAvailable = messages.size
+                        _toneSyncedUpTo.value = messages.size
+                        // 성공 피드백 — 늘었으면 "학습", 그대로면 "이미 최신"(서버가 빈/중복 문자를 걸러 안 늘 수 있음).
+                        _toneSyncMessage.value =
+                            if (totalCount > before) "✓ 최신 말투까지 배웠어요 (총 ${totalCount}건)"
+                            else "이미 최신 상태예요 (총 ${totalCount}건)"
                     },
                     onFailure = {
-                        // 사장님은 토스트로 안내 — UI 가 SettingsScreen 의 LocalContext 라 별도 트리거.
-                        // 단순화 — 사장님이 다음번에 재시도. 진행 상태만 reset.
+                        // 조용한 실패 제거(2026-06-30) — 예전엔 여기가 비어 있어 눌러도 아무 반응 없었음.
+                        _toneSyncMessage.value = "동기화를 못 했어요 — 인터넷·서버 연결을 확인하고 잠시 후 다시 시도해주세요."
                     }
                 )
             } finally {

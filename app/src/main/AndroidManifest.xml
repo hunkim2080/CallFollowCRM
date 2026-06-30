@@ -35,6 +35,12 @@
     <!-- 채팅에서 고객에게 보낼 사진 고르기(카톡식 자체 갤러리). 33+ 는 READ_MEDIA_IMAGES, 그 이하(갤S9 등)는 READ_EXTERNAL_STORAGE. -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <!--
+        통화녹음 자동 찾기 (2026-06-30) — 오디오 권한 한 번 허용하면 MediaStore 에서 통화녹음(.m4a)을 앱이
+        알아서 찾는다(폴더 직접 선택 불필요 — 연세 있으신 분 배려). 33+ 는 READ_MEDIA_AUDIO, 그 이하는 위 READ_EXTERNAL_STORAGE.
+        통화 내용 요약(핵심 기능)에만 사용. 사용자가 "자동으로 찾기" 누를 때만 런타임 요청.
+    -->
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <!-- 현장 도착 안내(지오펜싱) — 시공 현장 5km 진입 감지. (foreground 위치만)
          ⚠️ ACCESS_BACKGROUND_LOCATION 은 2026-06-19 베타(Play 비공개 테스트) 출시 위해 제거.
             이유: Play 의 백그라운드 위치 선언 + 데모영상 심사를 피하기 위함. 도착 안내는 앱이 열려

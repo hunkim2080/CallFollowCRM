@@ -197,6 +197,16 @@ class AppPreferences(context: Context) {
         set(value) = prefs.edit().putInt(KEY_TONE_TOTAL_UPLOADED, value).apply()
 
     /**
+     * 마지막 동기화 때 폰에 있던 보낸문자(available) 개수. (2026-06-30)
+     *   "N건 대기" 표시는 (현재 available − 이 값) 으로 계산 = **마지막 동기화 이후 새로 온 문자**.
+     *   서버가 빈/중복 문자를 걸러 저장수(uploadedCount)가 안 늘어도, 한 번 동기화하면 "대기"가 0이 되게 한다.
+     *   (옛 버그: 대기 = available − uploadedCount 라, 걸러진 문자만큼 "24건 대기"가 영영 안 닫혀 "동기화해도 변동 없음"으로 보였음.)
+     */
+    var toneSyncedUpToAvailable: Int
+        get() = prefs.getInt("tone_synced_up_to_available", 0)
+        set(value) = prefs.edit().putInt("tone_synced_up_to_available", value).apply()
+
+    /**
      * 말투 사례집 자동 동기화 마지막 시도 시각(throttle 용). (2026-06-17 사장님)
      *   한 번 동의(toneUploadConsented)했으면, 앱 켤 때 하루 1번 새 문자만 조용히 자동 업로드.
      *   → 사장님이 '동기화'를 다시 안 눌러도 사례집이 최신 유지.
