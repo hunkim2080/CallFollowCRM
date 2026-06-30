@@ -5958,3 +5958,21 @@ commit: (pending)
 - 배포: release shigongmagne.apk **versionCode 754** 맥미니 /Users/hun/ringgo-server/apk/ 전송 완료(scp exit 0). /api/download/version size_bytes=20433851 mtime_iso="2026-07-01 08:12" 로컬과 일치 확인. SHA256=B6CA4D9F0B1F1CE7B8F442752EB48416E0648F4653AF7FC15BB56DE82E62BE93
 - commit: 91f7292
 - 다음 액션 (cowork/서버): **/api/download/version 의 표시 라벨이 옛값** — version="v0.3-beta", version_code=749 인데 실제 배포 파일은 754. 다운로드·mtime기반 업데이트감지는 정상이나 **표시 숫자만 stale** → apk/VERSION.txt + version_code 응답을 0.2.754 / 754 로 갱신 부탁.
+
+## 2026-07-01 08:30 · android — ⚠️ [cowork 긴급확인] 일당/협업 공유 "공유실패" = POST /api/shared/invite 가 403
+사장님 보고: "갑자기 일당 사장 공유가 공유실패로 뜬다." 앱 측 라이브 진단(api.si0in.kr 직접 호출):
+- `GET /api/shared/with-me?phone=...` → **200** {"sites":[]}
+- `GET /api/shared/by-me?phone=...` → **200** {"sites":[]}
+- `GET /api/owner/exists?phone=...` → **200** {"registered":false,...}
+- **`POST /api/shared/invite` → 403 Forbidden** (합성 payload owner=01000000001 partner=01000000002 로 테스트)
+- ⇒ 서버·shared 라우터는 살아있는데 **invite POST 만 403**.
+- 앱 SharedSiteRepository 의 OkHttpClient 는 **인증 헤더가 전혀 없음**(plain client) → 내 curl == 앱이 보내는 요청. 즉 **앱도 동일 403** 을 받아 onFailure → "공유 실패" 토스트. **앱 코드/이번 안드 변경(녹음·설정)과 무관.**
+- 앱은 invite 가 비-2xx 면 IOException 던지는 게 정상. 서버가 200/route 를 줘야 정상 동작.
+
+**의심(과거 패턴):** 2026-06-20 "403 = 베타 화이트리스트가 phone 검사" 버그와 동일 계열로 보임. invite 가 owner_phone 또는 **partner_phone(일당사장=미등록 번호)** 을 allowlist/auth 로 검사해 막는 듯. 협업 초대는 본질적으로 **상대가 미가입자**일 수 있어야 함(link 라우트).
+
+**cowork 확인/조치 부탁:**
+1. /api/shared/invite 에 최근 추가된 auth/allowlist/guard 가 있는지 (언제부터 403? = "갑자기"의 원인).
+2. owner_phone 게이팅인지 partner_phone 게이팅인지. partner 게이팅이면 제거(초대 대상은 미가입 허용이 정상).
+3. 서버 로그의 403 발생 줄 + 사유.
+- 변경(app): 없음(진단만). commit: (none)
