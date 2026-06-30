@@ -441,6 +441,7 @@ private fun TimeCustomDialog(initialMinutes: Int, onConfirm: (Int) -> Unit, onDi
     var err by remember { mutableStateOf(false) }
     Dialog(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).padding(20.dp)) {
+            com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
             Text("시간 직접 입력", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
             Spacer(Modifier.height(4.dp))
             Text("24시 기준 · 예: 14:30", fontSize = 12.sp, color = TossTextTertiary)
@@ -474,6 +475,7 @@ private fun DaysCustomDialog(initialDays: Int, onConfirm: (Int) -> Unit, onDismi
     var txt by remember { mutableStateOf(initialDays.toString()) }
     Dialog(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).padding(20.dp)) {
+            com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
             Text("시공 기간", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
             Spacer(Modifier.height(4.dp))
             Text("며칠 동안 하나요?", fontSize = 12.sp, color = TossTextTertiary)

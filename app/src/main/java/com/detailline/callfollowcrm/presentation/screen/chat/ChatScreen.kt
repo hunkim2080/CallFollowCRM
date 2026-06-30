@@ -187,6 +187,8 @@ fun ChatScreen(
     val timelineEvents by viewModel.timelineEvents.collectAsState()
     // 변경 이력 [고객에게 알리기] 발송 전 확인 다이얼로그 — null=닫힘. (2026-06-30 사장님)
     var notifyConfirm by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.TimelineEventEntity?>(null) }
+    // 접수서 [확인했어요] 발송 전 확인 다이얼로그 — null=닫힘. (변경 이력 알리기와 동일 패턴)
+    var intakeConfirm by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity?>(null) }
     // 통화요약 — 통화 카드와 시각으로 짝지어 "AI 요약됨" 상태(불릿+후속문자) 표시.
     val callSummaries by viewModel.callSummaries.collectAsState()
     // 서버에서 요약 중인 통화 시각 — 통화카드가 "요약 중…" 스피너 표시.
@@ -565,11 +567,21 @@ fun ChatScreen(
                     it.cardSummary.isNullOrBlank() &&
                     NextAction.parse(it.nextActionJson) == null
             } ?: false
+            // 요약이 아직 null 일 때: 진짜 생성 중이면 shimmer, 실패면 "다시" 버튼.
+            //   (추천 영역 failed UX 와 동일 — 옛 무한 shimmer 버그 fix, 2026-06-30)
+            val summaryFailed by viewModel.summaryFailed.collectAsState()
+            val summaryRefreshingTop by viewModel.isSummaryRefreshing.collectAsState()
             if (aiSummary == null && hasEnoughForSummary) {
-                SummaryLoadingPlaceholder(
-                    collapsed = composerFocused || summaryManualCollapsed,
-                    onToggleCollapsed = { summaryManualCollapsed = !summaryManualCollapsed }
-                )
+                if (summaryFailed && !summaryRefreshingTop) {
+                    SummaryFailedPlaceholder(
+                        onRetry = { viewModel.loadFullSummary() }
+                    )
+                } else {
+                    SummaryLoadingPlaceholder(
+                        collapsed = composerFocused || summaryManualCollapsed,
+                        onToggleCollapsed = { summaryManualCollapsed = !summaryManualCollapsed }
+                    )
+                }
             }
             // 2026-05-27 사장님 결정: 템플릿 chip row 의 [액션] 토글 칩과 공유.
             //   action_type 별 분기 — RINGGO_SERVER_P0P1P2_UPGRADE.md §4 매칭 시나리오.
@@ -748,7 +760,7 @@ fun ChatScreen(
                                     onEditSummary = { newText -> matched?.let { viewModel.updateCallSummary(it, newText) } }
                                 )
                             }
-                            is ChatTimelineItem.Intake -> IntakeSegment(ti.event, onConfirm = { viewModel.confirmIntake(context, ti.event) })
+                            is ChatTimelineItem.Intake -> IntakeSegment(ti.event, onConfirm = { intakeConfirm = ti.event })
                             is ChatTimelineItem.Event -> TimelineEventSegment(ti.event, onNotify = { notifyConfirm = ti.event })
                             is ChatTimelineItem.DateDivider -> ChatDateDivider(chatDateLabel(ti.dayStart))
                         }
@@ -858,6 +870,15 @@ fun ChatScreen(
             body = viewModel.eventNotifyBody(ev) ?: "",
             onSend = { viewModel.notifyEvent(context, ev); notifyConfirm = null },
             onDismiss = { notifyConfirm = null }
+        )
+    }
+
+    // 접수서 [확인했어요] — 발송 전 재확인 다이얼로그(변경 이력 알리기와 동일).
+    intakeConfirm?.let { ev ->
+        EventNotifyConfirmDialog(
+            body = viewModel.intakeConfirmBody(ev),
+            onSend = { viewModel.confirmIntake(context, ev); intakeConfirm = null },
+            onDismiss = { intakeConfirm = null }
         )
     }
 
@@ -2929,6 +2950,40 @@ private fun SummaryLoadingPlaceholder(
                 modifier = Modifier.fillMaxWidth(0.6f)
             )
         }
+    }
+}
+
+/**
+ * 요약 생성이 실패했을 때 placeholder — 무한 shimmer 대신 탭하면 다시 시도.
+ *   추천 영역 "⚠️ 추천을 못 만들었어요 — ↻ 다시" 와 동일 UX. (2026-06-30)
+ */
+@Composable
+private fun SummaryFailedPlaceholder(
+    onRetry: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White)
+            .clickable { onRetry() }
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            "⚠️ 요약을 못 만들었어요 · 다시",
+            color = Color(0xFFD9534F),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f)
+        )
+        Icon(
+            Icons.Default.Refresh,
+            contentDescription = "다시 시도",
+            tint = Color(0xFFD9534F),
+            modifier = Modifier.size(20.dp)
+        )
     }
 }
 

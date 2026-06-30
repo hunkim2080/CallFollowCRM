@@ -26,6 +26,8 @@ class RingGoFcmService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         val data = message.data
+        // 알림 빌드 중 어떤 예외든(OEM PendingIntent/채널 등) FCM 콜백 죽지 않게 통째 가드. (2026-06-30 안정성 점검)
+        runCatching {
         when (data["type"]) {
             "collab_invite" -> {
                 val shareId = data["share_id"].orEmpty()
@@ -96,6 +98,7 @@ class RingGoFcmService : FirebaseMessagingService() {
                     }
                 }
             }
+        }
         }
     }
 }

@@ -311,6 +311,11 @@ class ChatViewModel(
     private val _isSummaryRefreshing = MutableStateFlow(false)
     val isSummaryRefreshing = _isSummaryRefreshing.asStateFlow()
 
+    // 요약 생성 실패 — 서버 장애/타임아웃/크레딧 등. true 면 "요약을 못 만들었어요 · 다시" 표시
+    //   (옛 무한 shimmer 방지 — 추천 영역의 _suggestionsFailed 와 동일 UX). (2026-06-30)
+    private val _summaryFailed = MutableStateFlow(false)
+    val summaryFailed = _summaryFailed.asStateFlow()
+
     // 답변 추천 (Phase 1). 맥미니 캐시에서 가져온 마지막 ReplySuggestions.
     // ChatScreen 진입 시 loadSuggestions 로 채워짐. ↻ 누르면 regenerateSuggestions.
     //
@@ -498,19 +503,23 @@ class ChatViewModel(
      *   발송은 일반 문자 발송(sendMessage) 재사용 → 대화 타임라인에도 보낸 문자로 그대로 남음.
      *   시공일정·시공내용·시공현장주소 3개 필수 포함.
      */
+    /** 접수서 확인 → 고객 안내 문자 본문(미리보기 + 발송 공용). */
+    fun intakeConfirmBody(event: com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity): String = buildString {
+        append("✅ 사장님이 접수서를 확인했어요!\n")
+        append("-\n")
+        append("시공일정: ${event.dateLabel?.takeIf { it.isNotBlank() } ?: "협의 예정"}\n")
+        append("시공내용: ${event.itemsText?.takeIf { it.isNotBlank() } ?: "협의 예정"}\n")
+        append("시공 현장 주소: ${event.address?.takeIf { it.isNotBlank() } ?: "미입력"}\n")
+        append("-\n")
+        append("감사합니다.")
+    }
+
     fun confirmIntake(context: Context, event: com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity) {
         if (event.confirmedAt != null) return  // 이미 확인·발송함 — 중복 방지
-        val body = buildString {
-            append("✅ 사장님이 접수서를 확인했어요!\n")
-            append("-\n")
-            append("시공일정: ${event.dateLabel?.takeIf { it.isNotBlank() } ?: "협의 예정"}\n")
-            append("시공내용: ${event.itemsText?.takeIf { it.isNotBlank() } ?: "협의 예정"}\n")
-            append("시공 현장 주소: ${event.address?.takeIf { it.isNotBlank() } ?: "미입력"}\n")
-            append("-\n")
-            append("감사합니다.")
-        }
+        val body = intakeConfirmBody(event)
         sendMessage(context, body) { ok ->
-            if (ok) viewModelScope.launch(Dispatchers.IO) {
+            // 확인 발송 기록은 채팅 닫혀도(VM 취소) 반드시 커밋 — applicationScope. 안 그러면 재발송→고객 중복 문자. (2026-06-30 점검)
+            if (ok) container.applicationScope.launch {
                 runCatching { container.intakeEventRepository.markConfirmed(event.token, System.currentTimeMillis()) }
             }
         }
@@ -548,7 +557,8 @@ class ChatViewModel(
         if (event.notifiedAt != null) return  // 이미 알림 보냄 — 중복 방지
         val body = eventNotifyBody(event) ?: return
         sendMessage(context, body) { ok ->
-            if (ok) viewModelScope.launch(Dispatchers.IO) {
+            // "알림 보냄" 기록은 채팅 닫혀도(VM 취소) 반드시 커밋 — applicationScope. 안 그러면 재발송→고객 중복 문자. (2026-06-30 점검)
+            if (ok) container.applicationScope.launch {
                 runCatching { container.timelineEventRepository.markNotified(event.id, System.currentTimeMillis()) }
             }
         }
@@ -1093,6 +1103,7 @@ class ChatViewModel(
         if (msgs.isEmpty()) return@launch
 
         _isSummaryRefreshing.value = true
+        _summaryFailed.value = false   // 새 시도 시작 — 실패 표시 초기화
         try {
         val latestTs = msgs.maxOf { it.dateMs }
         val c = runCatching { container.customerRepository.findByPhone(phoneNumber) }.getOrNull()
@@ -1122,7 +1133,14 @@ class ChatViewModel(
             otherUpcomingSchedulesMs = otherSchedules,
             latestMessageTimestampMs = latestTs
         )
-        runCatching { container.conversationAiRepository.ensureFullSummary(ctx) }
+        // 결과가 실패면(또는 row 가 끝내 안 써져 aiSummary 가 계속 null 이면) 실패 표시 —
+        //   안 그러면 "✨ 대화 요약 작성 중…" shimmer 가 영원히 돈다(추천 영역 _suggestionsFailed 와 동일 처리).
+        val summaryResult = runCatching {
+            container.conversationAiRepository.ensureFullSummary(ctx).getOrThrow()
+        }
+        if (summaryResult.isFailure && aiSummary.value == null) {
+            _summaryFailed.value = true
+        }
 
         // 갤메시지 식 카테고리 자동 분류 (휴리스틱 1차) — 사장님이 이미 분류한 고객은 보존.
         //   서버 endpoint 정식 도입 전 임시 substring 매칭. 점수 0 이면 미분류 유지.

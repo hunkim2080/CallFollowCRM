@@ -180,6 +180,7 @@ fun TemplateListScreen(
             onDismissRequest = { renameTarget = null },
             title = { Text("템플릿 이름 수정", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
             text = {
+                com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
                 OutlinedTextField(value = name, onValueChange = { name = it },
                     placeholder = { Text("예: 주차 안내") }, modifier = Modifier.fillMaxWidth())
             },

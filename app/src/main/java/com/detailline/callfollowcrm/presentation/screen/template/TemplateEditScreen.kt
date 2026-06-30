@@ -119,6 +119,7 @@ fun TemplateEditScreen(
                 .fillMaxSize()
                 .background(TossGrayBg)
                 .verticalScroll(rememberScrollState())
+                .imePadding()
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {

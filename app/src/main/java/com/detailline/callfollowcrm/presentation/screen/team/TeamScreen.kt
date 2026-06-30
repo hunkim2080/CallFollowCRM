@@ -296,6 +296,7 @@ fun TeamScreen(
             title = { Text("팀원 이름 수정", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
             text = {
                 Column {
+                    com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
                     Text(PhoneNumberFormatter.format(m.phone), fontSize = 12.sp, color = TossTextTertiary)
                     Spacer(Modifier.height(10.dp))
                     com.detailline.callfollowcrm.presentation.component.SheetTextField(

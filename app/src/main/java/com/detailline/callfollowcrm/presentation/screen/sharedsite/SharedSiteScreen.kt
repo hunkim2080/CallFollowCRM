@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -126,6 +127,8 @@ fun SharedSiteScreen(
     var confirmRemoveSite by remember { mutableStateOf<SharedSiteRepository.SharedSite?>(null) }
     // 내가(A) 공유한 현장 내리기/삭제 확인 대상. null=닫힘. (2026-06-23 사장님)
     var confirmCancelMine by remember { mutableStateOf<SharedSiteRepository.SharedSite?>(null) }
+    // 완료 처리 확인 대상 — 완료를 누르면 등록한 계좌가 상대 사장님께 전달되므로 한 번 더 묻는다. null=닫힘. (2026-06-30 사장님)
+    var confirmComplete by remember { mutableStateOf<SharedSiteRepository.SharedSite?>(null) }
     // 일당 지급(입금) 계좌 — 화면에서 인라인 등록/수정. prefs 는 비반응형이라 화면 상태로 들고 즉시 반영.
     var navChooserAddr by remember { mutableStateOf<String?>(null) } // 길찾기 앱 선택 다이얼로그(주소)
     var payoutBank by remember { mutableStateOf(viewModel.accountBank) }
@@ -253,6 +256,7 @@ fun SharedSiteScreen(
                 .padding(inner)
                 .fillMaxSize()
                 .background(TossGrayBg)
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp, vertical = 6.dp)
         ) {
@@ -339,6 +343,9 @@ fun SharedSiteScreen(
                             android.widget.Toast.makeText(context, "아직 시공일이 아니에요. 출발은 시공 당일에 누를 수 있어요.", android.widget.Toast.LENGTH_LONG).show()
                         } else if (step == SharedSiteRepository.Progress.COMPLETED && payoutNo.isBlank()) {
                             android.widget.Toast.makeText(context, accountPrompt, android.widget.Toast.LENGTH_LONG).show()
+                        } else if (step == SharedSiteRepository.Progress.COMPLETED) {
+                            // 완료 = 등록한 계좌가 상대 사장님께 전달됨 → 바로 처리하지 말고 한 번 더 확인. (2026-06-30 사장님)
+                            confirmComplete = selected
                         } else {
                             viewModel.updateProgress(selected, step)
                             // §E: 출발 알리면 그 현장 3km 자동 도착 켜기(권한 받고). 도착/완료면 펜스 정리.
@@ -448,6 +455,28 @@ fun SharedSiteScreen(
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = { confirmCancelMine = null }) {
                     Text("그대로 둘게요", color = TossTextSecondary)
+                }
+            }
+        )
+    }
+
+    // 완료 처리 확인 — 완료로 바꾸면 등록한 계좌가 상대 사장님께 전달돼요. (2026-06-30 사장님)
+    confirmComplete?.let { s ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmComplete = null },
+            title = { Text("완료로 바꿀까요?", fontWeight = FontWeight.Bold) },
+            text = { Text("완료로 바꾸면 등록한 계좌가 상대 사장님께 전달돼요. 진행할까요?") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    confirmComplete = null
+                    viewModel.updateProgress(s, SharedSiteRepository.Progress.COMPLETED)
+                    // §E: 완료면 현장 3km 자동 도착 펜스 정리.
+                    com.detailline.callfollowcrm.service.GeofenceManager.removeCollabArrival(context, s.shareId)
+                }) { Text("완료 처리", color = ProtoSuccess, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { confirmComplete = null }) {
+                    Text("취소", color = TossTextSecondary)
                 }
             }
         )

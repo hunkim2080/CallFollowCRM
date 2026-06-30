@@ -71,7 +71,12 @@ fun WorkTimePickerDialog(
                 TextButton(onClick = { showClock = false }) { Text("취소", color = TossTextSecondary) }
             },
             title = { Text("시간 직접 입력", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
-            text = { TimeInput(state = tpState) }
+            text = {
+                Column {
+                    com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
+                    TimeInput(state = tpState)
+                }
+            }
         )
         return
     }

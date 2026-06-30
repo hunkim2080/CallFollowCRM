@@ -9,6 +9,7 @@ import com.detailline.callfollowcrm.domain.settlement.SettleRow
 import com.detailline.callfollowcrm.domain.settlement.SettlementCalc
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -30,6 +31,11 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
 
     private val filter = MutableStateFlow(SettleFilter.ALL)
     val filterState: StateFlow<SettleFilter> = filter
+
+    // 돈 기록 결과 알림 (저장 성공/실패). 화면이 collect 해서 스낵바로 띄움. ChatViewModel/TeamViewModel 패턴.
+    private val _toast = MutableStateFlow<String?>(null)
+    val toast = _toast.asStateFlow()
+    fun consumeToast() { _toast.value = null }
 
     private val customersFlow = container.customerRepository.observeAll()
 
@@ -223,9 +229,15 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
     /** 계약금 받음/안받음 토글. "지금" 받은 시각으로 기록, 끄면 null. */
     fun setDepositPaid(customerId: Long, paid: Boolean) = viewModelScope.launch {
         withContext(NonCancellable) {
-            container.customerRepository.updateDepositPaidAt(
-                customerId, if (paid) System.currentTimeMillis() else null
-            )
+            runCatching {
+                container.customerRepository.updateDepositPaidAt(
+                    customerId, if (paid) System.currentTimeMillis() else null
+                )
+            }.onSuccess {
+                if (paid) _toast.value = "받았어요 ✓"
+            }.onFailure {
+                _toast.value = "저장에 실패했어요 — 다시 시도해주세요"
+            }
             // 입금 변경 → 자동 카테고리 갱신 (시공 완료/대기 분류). 서버/분류기 없으면 silent.
             runCatching { container.autoCategoryClassifier.reclassify(customerId) }
         }
@@ -234,9 +246,15 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
     /** 잔금 받음/안받음 토글. 잔금까지 받으면 완납. 끄면 = 완납 취소. */
     fun setBalancePaid(customerId: Long, paid: Boolean) = viewModelScope.launch {
         withContext(NonCancellable) {
-            container.customerRepository.updateBalancePaidAt(
-                customerId, if (paid) System.currentTimeMillis() else null
-            )
+            runCatching {
+                container.customerRepository.updateBalancePaidAt(
+                    customerId, if (paid) System.currentTimeMillis() else null
+                )
+            }.onSuccess {
+                if (paid) _toast.value = "잔금을 받았어요 ✓"
+            }.onFailure {
+                _toast.value = "저장에 실패했어요 — 다시 시도해주세요"
+            }
             runCatching { container.autoCategoryClassifier.reclassify(customerId) }
         }
     }

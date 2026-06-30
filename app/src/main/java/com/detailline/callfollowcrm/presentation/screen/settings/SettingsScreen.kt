@@ -707,6 +707,7 @@ private fun DefaultSmsAppCard(
                     label = { Text("Proxy 포트 (선택)") },
                     placeholder = { Text("예: 9093") },
                     singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(10.dp))
@@ -3055,6 +3056,7 @@ private fun ToneInputDialog(
         title = { Text(title, fontWeight = FontWeight.Bold, color = TossTextPrimary) },
         text = {
             Column {
+                com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
                 Text(sub, fontSize = 13.sp, color = TossTextSecondary)
                 Spacer(Modifier.height(10.dp))
                 OutlinedTextField(

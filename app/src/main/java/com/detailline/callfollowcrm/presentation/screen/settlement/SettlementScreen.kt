@@ -33,11 +33,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -87,6 +90,13 @@ fun SettlementScreen(
     val filter by viewModel.filterState.collectAsState()
     val top by viewModel.settleTop.collectAsState()
 
+    // 돈 기록 결과(받음 ✓ / 저장 실패) 알림 — 실패가 더 이상 조용히 묻히지 않게. TeamScreen 패턴.
+    val snackbar = remember { SnackbarHostState() }
+    val toast by viewModel.toast.collectAsState()
+    LaunchedEffect(toast) {
+        toast?.let { snackbar.showSnackbar(it); viewModel.consumeToast() }
+    }
+
     // 잔금/전액 "확인" 누를 때 완납 확인 (오탭 방지).
     var confirmPayOff by remember { mutableStateOf<SettleItem?>(null) }
     var showGoalEditor by remember { mutableStateOf(false) }
@@ -97,6 +107,7 @@ fun SettlementScreen(
     Box(Modifier.fillMaxSize()) {
     Scaffold(
         containerColor = TossGrayBg,
+        snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
                 windowInsets = androidx.compose.foundation.layout.WindowInsets(top = 12.dp),

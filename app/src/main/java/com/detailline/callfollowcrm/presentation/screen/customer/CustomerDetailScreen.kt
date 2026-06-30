@@ -1651,6 +1651,7 @@ private fun NameEditDialog(
         onDismissRequest = onDismiss,
         title = { Text("고객명", color = TossTextPrimary, fontWeight = FontWeight.Bold) },
         text = {
+            com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
             OutlinedTextField(
                 value = draft,
                 onValueChange = { draft = it },
@@ -2464,6 +2465,7 @@ private fun CategoryNameInputDialog(
         title = { Text("카테고리 추가", color = TossTextPrimary, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
                 Text(
                     "이름만 적으면 AI 가 대화 내용 보고 알아서 분류해드려요.",
                     style = MaterialTheme.typography.bodySmall,

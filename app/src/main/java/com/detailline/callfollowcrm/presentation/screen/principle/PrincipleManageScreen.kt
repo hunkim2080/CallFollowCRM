@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -77,7 +78,7 @@ fun PrincipleManageScreen(
             )
         }
     ) { pad ->
-        Column(Modifier.fillMaxSize().padding(pad)) {
+        Column(Modifier.fillMaxSize().padding(pad).imePadding()) {
             LazyColumn(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
@@ -147,6 +148,7 @@ fun PrincipleManageScreen(
             onDismissRequest = { editing = null },
             title = { Text("원칙 수정", fontWeight = FontWeight.Bold) },
             text = {
+                com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
                 Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(12.dp)) {
                     BasicTextField(
                         value = draft, onValueChange = { draft = it },
