@@ -5950,3 +5950,11 @@ commit: (pending)
 - 앱 측은 이미 보강함(아래) — 이제 앱이 좋은 답변을 죽이진 않지만, 서버가 제때 결과를 내야 ↻ 가 실제로 새 답을 줌.
 - 변경(app): ChatViewModel.regenerateSuggestions — 폴링 5회(10초)→10회(20초), 시간초과/연결실패해도 기존 답변 유지(실패 플래그·에러토스트는 보여줄 게 없을 때만). ChatScreen SuggestionArea: 수동 새로고침 중 "✨ 새 답변 만드는 중… 기존 답변은 그대로 써도 돼요" 안내.
 - commit: (pending)
+
+## 2026-07-01 08:13 · android — 통화녹음 자동찾기 + 말투 동기화 fix (release 754 베타 배포)
+통화녹음 연결을 "폴더 직접선택" → "오디오 권한 한 번 MediaStore 자동탐지"로. 에이닷·삼성·T전화 둘 다, 폴더경로 무관 자동 인식(A폰 검증 370개=에이닷308+삼성63). 말투 "지금 동기화 눌러도 변동 없음" = 유령갭(available−uploaded, 서버가 빈/중복 걸러 안 닫힘) + 비어있던 onFailure(조용한 실패) fix.
+- 변경(app): AdotFolderScanner(MediaStore 소스 추가, isConnected/listCandidates 통합), AdotFilenameParser(토큰 파싱 재작성+단위테스트), AndroidManifest(READ_MEDIA_AUDIO 추가), SettingsScreen/ViewModel(자동찾기 UI + 동기화 결과 토스트 + 대기표시=마지막동기화이후 새문자), AppPreferences(toneSyncedUpToAvailable)
+- 서버 인터페이스 변경 **없음** (말투 업로드/통화요약 endpoint 그대로. /api/call-audio-summary 에 MediaStore content:// URI 의 m4a 바이트가 그대로 흘러감)
+- 배포: release shigongmagne.apk **versionCode 754** 맥미니 /Users/hun/ringgo-server/apk/ 전송 완료(scp exit 0). /api/download/version size_bytes=20433851 mtime_iso="2026-07-01 08:12" 로컬과 일치 확인. SHA256=B6CA4D9F0B1F1CE7B8F442752EB48416E0648F4653AF7FC15BB56DE82E62BE93
+- commit: 91f7292
+- 다음 액션 (cowork/서버): **/api/download/version 의 표시 라벨이 옛값** — version="v0.3-beta", version_code=749 인데 실제 배포 파일은 754. 다운로드·mtime기반 업데이트감지는 정상이나 **표시 숫자만 stale** → apk/VERSION.txt + version_code 응답을 0.2.754 / 754 로 갱신 부탁.
