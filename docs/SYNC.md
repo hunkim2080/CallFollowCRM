@@ -5976,3 +5976,43 @@ commit: (pending)
 2. owner_phone 게이팅인지 partner_phone 게이팅인지. partner 게이팅이면 제거(초대 대상은 미가입 허용이 정상).
 3. 서버 로그의 403 발생 줄 + 사유.
 - 변경(app): 없음(진단만). commit: (none)
+
+## 2026-06-29 · cowork (안드로이드 협업 카드 2단계 응답)
+추가63 — 협업 진행 → 파트너 채팅 타임라인 카드용 서버 작업.
+
+작업 (4개 다 완료):
+
+① 전환 시각 4개 추가:
+- shared_sites ALTER ADD: accepted_at_ms / departed_at_ms / arrived_at_ms / completed_at_ms (paid_at_ms 는 이미 있음).
+- respond endpoint: accept=true 시 accepted_at_ms = now.
+- progress endpoint: step 별 SET (departed/arrived/completed_at_ms = now).
+- 추가44 (완료 되돌리기 = completed → arrived) 시 completed_at_ms = NULL reset.
+
+② 상대 번호:
+- by-me 응답 = partner_phone **이미 노출 중** (line 9975, §A-3 부터). 안드로이드가 옛 빌드 보고 있을 듯.
+- with-me 응답 = owner_phone 이미 노출 (_shared_site_row_to_dict).
+
+③ 조회:
+- 기존 with-me/by-me 응답에 4 시각 + paid_at_ms + progress 추가만. 새 endpoint X.
+- _shared_site_row_to_dict 와 by-me 응답 dict 둘 다 확장.
+
+④ 계좌 보내기:
+- 기존 progress(step=completed, payload bank/account_no/holder) → A 에게 FCM 으로 계좌 전달 + by-me/with-me 응답 account 필드로 노출.
+- paid endpoint → A 가 입금 표시 시 paid_at_ms 박힘 (이미 됨).
+- = 기존 흐름으로 충분. 별도 endpoint 신설 불필요.
+
+응답 필드 (안드로이드 측 카드 만들 때 쓰기):
+- with-me / by-me 둘 다 다음 키들 (값 있을 때만):
+  - status (pending/accepted/declined/ended)
+  - progress (assigned/departed/arrived/completed)
+  - accepted_at_ms (수락 시각 — 🤝 카드)
+  - departed_at_ms (출발 시각 — 🚗 카드)
+  - arrived_at_ms (도착 시각 — 📍 카드)
+  - completed_at_ms (완료 시각 — ✅ 카드)
+  - paid_at_ms (입금 시각 — 💰 카드)
+  - account (bank/account_no/holder — completed 후)
+  - partner_phone (by-me — A 입장에서 B 번호. 채팅 키)
+  - owner_phone (with-me — B 입장에서 A 번호. 채팅 키)
+
+변경: server/main.py 만 (5곳).
+commit: (pending)

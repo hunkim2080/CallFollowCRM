@@ -567,6 +567,14 @@ def db_init() -> None:
             con.execute("ALTER TABLE shared_sites ADD COLUMN owner_name_raw TEXT")
         except Exception:
             pass
+        # 추가63 (2026-06-29) — 협업 진행 카드: 전환 시각 4개 추가.
+        # 안드로이드 "파트너 사장 채팅 타임라인 카드" 의 핵심 = "언제 처리됐나".
+        # respond/progress endpoint 가 각 step 시점에 박음. paid_at_ms 는 이미 있음.
+        for _col in ("accepted_at_ms", "departed_at_ms", "arrived_at_ms", "completed_at_ms"):
+            try:
+                con.execute(f"ALTER TABLE shared_sites ADD COLUMN {_col} INTEGER")
+            except Exception:
+                pass
         # 추가50 (2026-06-21) — 앱 onboarding 에서 사장님이 고른 업종 (ownerTrade) 저장.
         # 옛 ownerTrade 는 LLM 호출에만 inject 되고 저장 X. 이제 가장 최근 값 박음.
         # owner_phone + ownerTrade 같이 오는 LLM 호출에서 자동 저장.
@@ -9565,6 +9573,10 @@ def _shared_site_row_to_dict(row: tuple, viewer_kind: str = "partner") -> dict:
         owner_name_raw,             # §A-3 (2026-06-13)
         created_at_ms,
         updated_at_ms,
+        accepted_at_ms,             # 추가63 (2026-06-29) — 협업 진행 카드용 전환 시각
+        departed_at_ms,
+        arrived_at_ms,
+        completed_at_ms,
     ) = row
     # 시각 라벨 (HH:MM, 안드로이드 측 편의)
     # §A-2 (2026-06-13) — invite 시 받은 자연어 time_label_raw ('오전 9시') 우선, 없으면 HH:MM 자동.
@@ -9612,6 +9624,15 @@ def _shared_site_row_to_dict(row: tuple, viewer_kind: str = "partner") -> dict:
             out["daily_wage"] = int(daily_wage)
         except Exception:
             pass
+    # 추가63 (2026-06-29) — 전환 시각 echo (값 있을 때만, 앱 graceful)
+    if accepted_at_ms:
+        out["accepted_at_ms"] = accepted_at_ms
+    if departed_at_ms:
+        out["departed_at_ms"] = departed_at_ms
+    if arrived_at_ms:
+        out["arrived_at_ms"] = arrived_at_ms
+    if completed_at_ms:
+        out["completed_at_ms"] = completed_at_ms
     return out
 
 
@@ -9622,7 +9643,8 @@ _SHARED_SITES_COLS = (
     "daily_wage, "        # §A (2026-06-13)
     "time_label_raw, "    # §A-2 (2026-06-13)
     "owner_name_raw, "    # §A-3 (2026-06-13)
-    "created_at_ms, updated_at_ms"
+    "created_at_ms, updated_at_ms, "
+    "accepted_at_ms, departed_at_ms, arrived_at_ms, completed_at_ms"  # 추가63
 )
 
 
@@ -9892,15 +9914,18 @@ async def shared_respond(req: SharedRespondRequest) -> dict:
         site_title = row[3] or ""
         # §I (2026-06-18) — B 가 보낸 partner_name(상호) 박기 (있을 때만).
         partner_name_raw_val = (req.partner_name or "").strip() if hasattr(req, "partner_name") else ""
+        # 추가63 (2026-06-29) — accept=true 시 accepted_at_ms = now (협업 진행 카드용).
+        accepted_clause = ", accepted_at_ms = ?" if new_status == "accepted" else ""
+        accepted_param = (now,) if new_status == "accepted" else ()
         if partner_name_raw_val:
             con.execute(
-                "UPDATE shared_sites SET status = ?, partner_name_raw = ?, updated_at_ms = ? WHERE share_id = ?",
-                (new_status, partner_name_raw_val, now, share_id),
+                f"UPDATE shared_sites SET status = ?, partner_name_raw = ?, updated_at_ms = ?{accepted_clause} WHERE share_id = ?",
+                (new_status, partner_name_raw_val, now) + accepted_param + (share_id,),
             )
         else:
             con.execute(
-                "UPDATE shared_sites SET status = ?, updated_at_ms = ? WHERE share_id = ?",
-                (new_status, now, share_id),
+                f"UPDATE shared_sites SET status = ?, updated_at_ms = ?{accepted_clause} WHERE share_id = ?",
+                (new_status, now) + accepted_param + (share_id,),
             )
         con.commit()
     print(f"[shared/respond] share={share_id} {partner_phone} → {new_status} pn={partner_name_raw_val!r}")
@@ -9941,7 +9966,8 @@ async def shared_by_me(phone: str, since_ms: int = 0, limit: int = 100) -> dict:
             """
             SELECT share_id, partner_phone, title, scheduled_at_ms, status,
                    daily_wage, time_label_raw, owner_name_raw, partner_name_raw,
-                   created_at_ms, updated_at_ms
+                   created_at_ms, updated_at_ms, progress,
+                   accepted_at_ms, departed_at_ms, arrived_at_ms, completed_at_ms, paid_at_ms
             FROM shared_sites
             WHERE owner_phone = ? AND updated_at_ms > ?
             ORDER BY created_at_ms DESC
@@ -9953,7 +9979,8 @@ async def shared_by_me(phone: str, since_ms: int = 0, limit: int = 100) -> dict:
     for r in rows:
         (share_id, partner_phone, title, scheduled_at_ms, status,
          daily_wage, time_label_raw, owner_name_raw, partner_name_raw,
-         created_at_ms, updated_at_ms) = r
+         created_at_ms, updated_at_ms, progress,
+         accepted_at_ms, departed_at_ms, arrived_at_ms, completed_at_ms, paid_at_ms) = r
         # §I (2026-06-18) — B 가 respond/progress 에 박은 상호 (partner_name_raw) 우선.
         # 없으면 registered owner, 최종 fallback "협업 사장".
         partner_name = (
@@ -9976,6 +10003,7 @@ async def shared_by_me(phone: str, since_ms: int = 0, limit: int = 100) -> dict:
             "partner_name": partner_name,
             "owner_name": on,                  # §A-3 — by-me 도 echo (사장님 명시 요청)
             "status": status,                  # pending | accepted | declined
+            "progress": progress,              # 추가63 — 협업 진행 카드용
             "scheduled_at_ms": scheduled_at_ms or 0,
             "time_label": tl,
             "title": title or "",
@@ -9987,6 +10015,17 @@ async def shared_by_me(phone: str, since_ms: int = 0, limit: int = 100) -> dict:
                 item["daily_wage"] = int(daily_wage)
             except Exception:
                 pass
+        # 추가63 (2026-06-29) — 전환 시각 (값 있을 때만)
+        if accepted_at_ms:
+            item["accepted_at_ms"] = accepted_at_ms
+        if departed_at_ms:
+            item["departed_at_ms"] = departed_at_ms
+        if arrived_at_ms:
+            item["arrived_at_ms"] = arrived_at_ms
+        if completed_at_ms:
+            item["completed_at_ms"] = completed_at_ms
+        if paid_at_ms:
+            item["paid_at_ms"] = paid_at_ms
         sites.append(item)
     return {"sites": sites}
 
@@ -10051,6 +10090,10 @@ async def shared_progress(req: SharedProgressRequest) -> dict:
         event_bank = None
         event_account_no = None
         event_holder = None
+        # 추가63 (2026-06-29) — step 별 전환 시각 컬럼 매핑. 협업 진행 카드용.
+        # 한 step 시점에 그 컬럼만 박음 (다른 시각 컬럼은 그대로 유지).
+        _STEP_TS_COL = {"departed": "departed_at_ms", "arrived": "arrived_at_ms", "completed": "completed_at_ms"}
+        step_ts_col = _STEP_TS_COL.get(step)
         if step == "completed":
             payload = req.payload or SharedProgressPayload()
             bank = (payload.bank or "").strip()[:30]
@@ -10064,29 +10107,31 @@ async def shared_progress(req: SharedProgressRequest) -> dict:
                     """
                     UPDATE shared_sites SET
                       progress = ?, account_bank = ?, account_no = ?, account_holder = ?,
-                      partner_name_raw = ?, updated_at_ms = ?
+                      partner_name_raw = ?, updated_at_ms = ?, completed_at_ms = ?
                     WHERE share_id = ?
                     """,
-                    (step, event_bank, event_account_no, event_holder, partner_name_raw_val, now, share_id),
+                    (step, event_bank, event_account_no, event_holder, partner_name_raw_val, now, now, share_id),
                 )
             else:
                 con.execute(
                     """
                     UPDATE shared_sites SET
                       progress = ?, account_bank = ?, account_no = ?, account_holder = ?,
-                      updated_at_ms = ?
+                      updated_at_ms = ?, completed_at_ms = ?
                     WHERE share_id = ?
                     """,
-                    (step, event_bank, event_account_no, event_holder, now, share_id),
+                    (step, event_bank, event_account_no, event_holder, now, now, share_id),
                 )
         elif is_revert:
             # 추가44 (2026-06-21) — 완료 되돌리기. progress='arrived' + account_* NULL reset.
             # paid_at_ms 는 보존 (사장님 별도 액션). FCM 안 보냄 (사장님 요청: 불필요 재알림 X).
+            # 추가63 — 완료 되돌리기 시 completed_at_ms 도 NULL reset (다시 완료 시 새 시각 박힘).
             if partner_name_raw_val:
                 con.execute(
                     """
                     UPDATE shared_sites SET
                       progress = 'arrived', account_bank = NULL, account_no = NULL, account_holder = NULL,
+                      completed_at_ms = NULL,
                       partner_name_raw = ?, updated_at_ms = ?
                     WHERE share_id = ?
                     """,
@@ -10097,21 +10142,25 @@ async def shared_progress(req: SharedProgressRequest) -> dict:
                     """
                     UPDATE shared_sites SET
                       progress = 'arrived', account_bank = NULL, account_no = NULL, account_holder = NULL,
+                      completed_at_ms = NULL,
                       updated_at_ms = ?
                     WHERE share_id = ?
                     """,
                     (now, share_id),
                 )
         else:
+            # 추가63 — step 별 시각 컬럼 동적 추가 (departed_at_ms / arrived_at_ms).
+            ts_clause = f", {step_ts_col} = ?" if step_ts_col else ""
+            ts_param = (now,) if step_ts_col else ()
             if partner_name_raw_val:
                 con.execute(
-                    "UPDATE shared_sites SET progress = ?, partner_name_raw = ?, updated_at_ms = ? WHERE share_id = ?",
-                    (step, partner_name_raw_val, now, share_id),
+                    f"UPDATE shared_sites SET progress = ?, partner_name_raw = ?, updated_at_ms = ?{ts_clause} WHERE share_id = ?",
+                    (step, partner_name_raw_val, now) + ts_param + (share_id,),
                 )
             else:
                 con.execute(
-                    "UPDATE shared_sites SET progress = ?, updated_at_ms = ? WHERE share_id = ?",
-                    (step, now, share_id),
+                    f"UPDATE shared_sites SET progress = ?, updated_at_ms = ?{ts_clause} WHERE share_id = ?",
+                    (step, now) + ts_param + (share_id,),
                 )
         # 2) §28 — A 앞으로 이벤트 적재 (TeamEventCenter 패턴 폴링용)
         event_id = "evt_" + "".join(
