@@ -9786,8 +9786,9 @@ async def shared_invite(req: SharedInviteRequest) -> dict:
             INSERT INTO shared_sites
                 ({_SHARED_SITES_COLS})
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'assigned',
-                    NULL, NULL, NULL, NULL, ?, ?, ?, ?, ?)
-            """,
+                    NULL, NULL, NULL, NULL, ?, ?, ?, ?, ?,
+                    NULL, NULL, NULL, NULL)
+            """,  # 추가63 fix — 4 컬럼 (accepted/departed/arrived/completed_at_ms) 추가 후 VALUES 에 NULL 누락 → 500 fix.
             (
                 share_id,
                 owner_phone,
@@ -11152,14 +11153,16 @@ async def recruit_select(req: RecruitSelectRequest) -> dict:
                     INSERT INTO shared_sites
                         ({_SHARED_SITES_COLS})
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'accepted', 'assigned',
-                            NULL, NULL, NULL, NULL, ?, NULL, ?, ?)
-                    """,
+                            NULL, NULL, NULL, NULL, ?, NULL, NULL, ?, ?,
+                            ?, NULL, NULL, NULL)
+                    """,  # 추가63 fix — owner_name_raw=NULL + 4 컬럼 추가. accepted_at_ms=now (즉시 수락).
                     (
                         share_id, owner_phone, partner_phone,
                         title, full_addr or None, date_ms,
                         work or None, None, None,
                         daily_wage,
                         now, now,
+                        now,  # accepted_at_ms — recruit 선택 = 즉시 accepted
                     ),
                 )
                 # 2) recruit_applications UPDATE

@@ -6016,3 +6016,14 @@ commit: (pending)
 
 변경: server/main.py 만 (5곳).
 commit: (pending)
+
+## 2026-06-29 hotfix · cowork
+추가63 hotfix — shared_sites INSERT 500 fix.
+원인: 같은 cycle 에 _SHARED_SITES_COLS 에 4 컬럼 (accepted/departed/arrived/completed_at_ms) 추가했는데
+      INSERT 두 곳 (shared/invite, recruit/select) 의 VALUES 가 옛 갯수 그대로 → column mismatch → 500.
+사장님 보고: 6674 → 0131 / 2496 협업 invite 시도 시 "전문가배정 공유 실패". stderr.log 의 500 Internal Server Error.
+fix:
+- line 9787 (shared/invite): VALUES 끝에 `, NULL, NULL, NULL, NULL` 4 컬럼 추가.
+- line 11150 (recruit/select): owner_name_raw=NULL + 4 컬럼. accepted_at_ms=now (recruit 선택 = 즉시 수락).
+변경: server/main.py 만.
+commit: (pending)
