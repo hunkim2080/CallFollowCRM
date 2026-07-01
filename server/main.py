@@ -6275,21 +6275,32 @@ async def admin_adoption_data(
                WHERE event_name = 'screen_view' AND created_at_ms >= ?""",
             (cutoff,),
         ).fetchall()
-        screen_agg = {}  # normalized screen → {total, phones set}
+        # 추가71 (2026-06-29) — 사장님 통찰: "5명이 474회? 아님 1명이 400 나머지 74?"
+        # → 침투율 (penetration) + 인당 평균 + 최다 사용자 비율 추가.
+        screen_agg = {}  # normalized screen → phone → count
         for sr in screen_rows:
             norm = _norm(sr[0])
             if not norm:
                 continue
             if norm not in screen_agg:
-                screen_agg[norm] = {"total": 0, "phones": set()}
-            screen_agg[norm]["total"] += 1
-            screen_agg[norm]["phones"].add(sr[1])
-        top_screens = sorted(
-            [{"screen": k, "total": v["total"], "unique_users": len(v["phones"])}
-             for k, v in screen_agg.items()],
-            key=lambda x: x["total"],
-            reverse=True,
-        )[:10]
+                screen_agg[norm] = {}
+            phone = sr[1]
+            screen_agg[norm][phone] = screen_agg[norm].get(phone, 0) + 1
+
+        top_screens_raw = []
+        for scr, phone_map in screen_agg.items():
+            total = sum(phone_map.values())
+            unique = len(phone_map)
+            max_cnt = max(phone_map.values()) if phone_map else 0
+            top_screens_raw.append({
+                "screen": scr,
+                "total": total,
+                "unique_users": unique,
+                "penetration_pct": round(unique / total_users * 100, 1) if total_users else 0,
+                "per_user_avg": round(total / unique, 1) if unique else 0,
+                "max_user_share_pct": round(max_cnt / total * 100, 1) if total else 0,
+            })
+        top_screens = sorted(top_screens_raw, key=lambda x: x["total"], reverse=True)[:10]
 
     # at_risk 정렬 (미진입 오래된 순)
     at_risk_list.sort(key=lambda x: -(x["days_since_last"] or 999))
@@ -6355,8 +6366,16 @@ _ADOPTION_HTML = """<!doctype html>
                 font-size:13px; }
   .screen-row:last-child { border-bottom:0; }
   .screen-row .rank { width:22px; font-weight:800; color:var(--t3); }
-  .screen-row .name { flex:1; font-weight:700; }
-  .screen-row .n { color:var(--t2); font-size:12px; }
+  .screen-row .name { flex:1; font-weight:700; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .screen-row .n { color:var(--t2); font-size:11px; text-align:right; white-space:nowrap; }
+  .scr-badge { font-size:10.5px; font-weight:800; padding:2px 6px; border-radius:6px; }
+  .scr-badge.success { background:#E7F8EF; color:#0a8f44; }
+  .scr-badge.warn { background:#FFF3DF; color:#C9820B; }
+  .scr-badge.risk { background:#FDEAEF; color:var(--error); }
+  @media (max-width:600px) {
+    .screen-row { flex-direction:column; align-items:flex-start; gap:4px; }
+    .screen-row .n { text-align:left; }
+  }
   .risk-row { display:flex; align-items:center; padding:9px 0; border-bottom:1px solid var(--line);
               font-size:13px; }
   .risk-row:last-child { border-bottom:0; }
@@ -6484,14 +6503,24 @@ _ADOPTION_HTML = """<!doctype html>
         'customers':'고객 목록','new_leads':'신규 리드','visited':'방문 예정','search':'검색',
         'notebook':'노트','report':'리포트','templates':'템플릿','login':'로그인','onboarding':'온보딩',
       };
+      // 추가71 — 균등도 (진짜 인기 vs 한 명 폭주)
       var thtml = '';
       if (ts.length === 0) thtml = '<div class="empty">데이터 없음</div>';
       else for (var i=0; i<ts.length; i++) {
         var s = ts[i];
         var lbl = LBL[s.screen] || s.screen;
+        // 균등도 판정 — 최다 사용자 비율 기반
+        var badge, badgeClass;
+        if (s.max_user_share_pct <= 30) { badge = '🟢 균등'; badgeClass = 'success'; }
+        else if (s.max_user_share_pct <= 60) { badge = '🟡 보통'; badgeClass = 'warn'; }
+        else { badge = '🔴 한 명 폭주'; badgeClass = 'risk'; }
         thtml += '<div class="screen-row"><div class="rank">' + (i+1) + '</div>'
-              + '<div class="name">' + esc(lbl) + '</div>'
-              + '<div class="n">' + s.total + '회 · ' + s.unique_users + '명</div></div>';
+              + '<div class="name">' + esc(lbl)
+              + ' <span class="scr-badge ' + badgeClass + '">' + badge + '</span></div>'
+              + '<div class="n">' + s.total + '회 · '
+              + s.unique_users + '명 (' + s.penetration_pct + '%) · '
+              + '인당 ' + s.per_user_avg + '회 · 최다 ' + s.max_user_share_pct + '%'
+              + '</div></div>';
       }
       document.getElementById('topScreens').innerHTML = thtml;
 
