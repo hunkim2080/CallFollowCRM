@@ -120,7 +120,7 @@ fun SettlementScreen(
     ) { inner ->
         LazyColumn(
             modifier = Modifier
-                .padding(inner)
+                .padding(top = inner.calculateTopPadding())
                 .fillMaxSize()
                 .background(TossGrayBg),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)

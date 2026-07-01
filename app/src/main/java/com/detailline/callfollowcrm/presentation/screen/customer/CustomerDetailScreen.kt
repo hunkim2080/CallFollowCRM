@@ -246,7 +246,7 @@ fun CustomerDetailScreen(
         if (c == null) {
             Column(
                 Modifier
-                    .padding(inner)
+                    .padding(top = inner.calculateTopPadding())
                     .fillMaxSize()
                     .background(TossGrayBg),
                 verticalArrangement = Arrangement.Center

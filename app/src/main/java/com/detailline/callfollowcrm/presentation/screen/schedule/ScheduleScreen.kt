@@ -238,7 +238,7 @@ fun ScheduleScreen(
         //   그 날 일정은 selectedDayMs = initialDay 로 캘린더 아래에 이미 렌더되므로 자동 스크롤 불필요.
         LazyColumn(
             modifier = Modifier
-                .padding(inner)
+                .padding(top = inner.calculateTopPadding())
                 .fillMaxSize()
                 .background(TossGrayBg),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),

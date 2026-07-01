@@ -216,7 +216,7 @@ fun SettingsScreen(
     ) { inner ->
         Column(
             Modifier
-                .padding(inner)
+                .padding(top = inner.calculateTopPadding())
                 .fillMaxSize()
                 .background(TossGrayBg)
                 .imePadding()
