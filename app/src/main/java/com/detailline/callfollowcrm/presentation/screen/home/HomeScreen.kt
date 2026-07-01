@@ -359,7 +359,9 @@ fun HomeScreen(
     ) { inner ->
         Column(
             Modifier
-                .padding(inner)
+                // ⚠️ inner 전체를 넣으면 하단 내비바 인셋이 AppRoot 탭바 인셋과 '이중'으로 붙어
+                //    상담함 맨 아래 큰 흰 공백이 생김(사장님 반복 신고). 상단(탑바/상태바)만 적용. (2026-07-02)
+                .padding(top = inner.calculateTopPadding())
                 .fillMaxSize()
                 .background(TossGrayBg)
         ) {
