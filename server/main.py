@@ -6349,15 +6349,18 @@ async def admin_user_detail_data(
                LIMIT 50""",
             (target,),
         ).fetchall()
-        # 추가52 (2026-06-23) — screen 정규화 (URL route → 짧은 이름)
-        # 안드로이드가 "chat?phone={phone}&customerId={customerId}" 같이 route 그대로 보냄.
-        # ? 앞 + 마지막 segment 만 잘라서 SCREEN_LABEL 매칭되게.
+        # 추가52 (2026-06-23) — screen 정규화 (URL route → 짧은 이름).
+        # 추가66 (2026-06-29) — placeholder segment ({customerId}, {phone} 등) 무시.
+        # 예: "customer/{customerId}" → "customer" (마지막 실제 segment)
+        # 예: "chat/{phone}/{customerId}" → "chat"
         def _norm_screen(s):
             if not s:
                 return ""
             base = str(s).split("?")[0].split("&")[0].strip().rstrip("/")
             if "/" in base:
-                base = base.rsplit("/", 1)[-1]
+                # placeholder ({param}) 세그먼트 제외, 실제 이름만
+                segs = [x for x in base.split("/") if x and not (x.startswith("{") and x.endswith("}"))]
+                base = segs[-1] if segs else base.rsplit("/", 1)[-1]
             return base.lower()
 
         events_journey = []
@@ -6974,6 +6977,7 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
         'stats':           '통계',
         'profile':         '내 프로필',
         'business':        '업체 정보',
+        'business_info':   '업체 정보',   // 추가66
         'account':         '계좌',
         'notification':    '알림',
         'recruit':         '일당 모집',
@@ -6986,6 +6990,10 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
         'principle':       '원칙 발견',
         'photo':           '사진',
         'photo_gallery':   '사진 갤러리',
+        // 추가66 (2026-06-29) — 추가 발견
+        'collab_sites':    '협업현장',
+        'pricing_items':   '가격표',
+        'customers':       '고객 목록',
       };
 
       // 짧은 상대 시각 (방금 / 5분 전 / 2시간 전 / 어제 / N일 전)
