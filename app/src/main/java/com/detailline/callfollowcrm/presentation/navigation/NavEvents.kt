@@ -32,6 +32,11 @@ class NavEvents {
     fun requestCollabSites(shareId: String? = null, tab: String? = null) {
         channel.trySend(NavEvent.OpenCollabSites(shareId, tab))
     }
+
+    /** 특정 고객 상세로 바로 (협업 댓글/사진 알림 탭 → 주인은 늘 쓰는 고객정보 협업 탭으로). (2026-07-02 사장님) */
+    fun requestCustomerDetail(customerId: Long) {
+        channel.trySend(NavEvent.OpenCustomerDetail(customerId))
+    }
 }
 
 sealed interface NavEvent {
@@ -54,4 +59,6 @@ sealed interface NavEvent {
     object OpenClosingBrief : NavEvent
     /** 협업 현장 공유 링크 → 협업 현장 화면. shareId 있으면 그 현장 상세 자동 열기. tab="shared" 면 내가 공유한 현장 탭부터. */
     data class OpenCollabSites(val shareId: String? = null, val tab: String? = null) : NavEvent
+    /** 특정 고객 상세로 바로. (협업 댓글/사진 알림 탭 → 고객정보 협업 탭) */
+    data class OpenCustomerDetail(val customerId: Long) : NavEvent
 }

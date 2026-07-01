@@ -63,6 +63,7 @@ class MainActivity : ComponentActivity() {
                             text = incoming.text
                         )
                         is IncomingIntent.SharedSite -> container.navEvents.requestCollabSites(incoming.shareId)
+                        is IncomingIntent.OpenCustomer -> container.navEvents.requestCustomerDetail(incoming.customerId)
                         is IncomingIntent.CollabMine -> container.navEvents.requestCollabSites(tab = "shared")
                         is IncomingIntent.CollabEnded -> {
                             // 무엇이 해제됐는지 명확히 — 해제된 현장은 목록서 빠지므로 토스트로 알려줌 + 협업 현장 목록 열기. (2026-06-21 사장님)
@@ -143,9 +144,14 @@ class MainActivity : ComponentActivity() {
                 pendingIntentState.value = IncomingIntent.CollabMine
             }
             ACTION_COLLAB_SITE -> {
-                // 협업 댓글 등 특정 현장 알림 탭 → 그 현장 상세로 바로(초기 shareId). (2026-07-02 사장님)
+                // 협업 댓글/사진 알림 탭 → shareId 가 내 고객(내가 공유한 현장)이면 **고객정보 협업 탭**으로 바로(사장님이 늘 쓰는 자리).
+                //   아니면(내가 협업자 B) 협업 현장 상세로. (2026-07-02 사장님)
                 val sid = intent.getStringExtra(EXTRA_SHARE_ID).orEmpty()
-                pendingIntentState.value = IncomingIntent.SharedSite(sid.takeIf { it.isNotBlank() })
+                val cid = customerIdForShareId(sid)
+                android.util.Log.d("CollabDeepLink", "ACTION_COLLAB_SITE sid=$sid → customerId=$cid")
+                pendingIntentState.value =
+                    if (cid != null) IncomingIntent.OpenCustomer(cid)
+                    else IncomingIntent.SharedSite(sid.takeIf { it.isNotBlank() })
             }
             ACTION_COLLAB_ENDED -> {
                 // 협업 해제 알림 탭 → 무엇이 해제됐는지 토스트 + 목록. (2026-06-21 사장님)
@@ -239,10 +245,22 @@ class MainActivity : ComponentActivity() {
         object ClosingBrief : IncomingIntent
         /** 협업 현장 공유 App Link. shareId = /shared/{share_id} 의 마지막 조각(없으면 목록). */
         data class SharedSite(val shareId: String?) : IncomingIntent
+        /** 협업 댓글/사진 알림 탭 → 그 현장이 내 고객이면 고객정보로 바로. (2026-07-02 사장님) */
+        data class OpenCustomer(val customerId: Long) : IncomingIntent
         /** 협업 수락/진행 알림(주인 A가 받음) 탭 → 협업 현장 "내가 공유한 현장" 탭. (2026-06-20 사장님) */
         object CollabMine : IncomingIntent
         /** 협업 해제 알림 탭 → 무엇이/누가 해제했는지 안내 + 목록. (2026-06-21 사장님) */
         data class CollabEnded(val title: String, val byName: String) : IncomingIntent
+    }
+
+    /** shareId → 내 고객 id. collabAssignments("customerId|phone|name|shareId")에 있으면 내가 주인 → 그 고객 반환. 없으면 null(=협업자 B → 협업현장). */
+    private fun customerIdForShareId(shareId: String): Long? {
+        if (shareId.isBlank()) return null
+        val app = application as? CallFollowCrmApplication ?: return null
+        return app.container.preferences.collabAssignments.firstNotNullOfOrNull { e ->
+            val parts = e.split("|")
+            if (parts.size >= 4 && parts[3] == shareId) parts[0].toLongOrNull() else null
+        }
     }
 
     companion object {

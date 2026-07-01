@@ -162,8 +162,10 @@ fun SharedSiteScreen(
     val selectedMine = if (selected == null) mySharedSites.firstOrNull { it.shareId == selectedId } else null
     // 알림/링크 진입 자동 상세 오픈 — 받은현장·내가공유한현장 둘 다 매칭. (2026-07-02 사장님)
     LaunchedEffect(sites, mySharedSites, initialShareId) {
-        if (!consumedInitial && !initialShareId.isNullOrBlank() &&
-            (sites.any { it.shareId == initialShareId } || mySharedSites.any { it.shareId == initialShareId })) {
+        val inWith = sites.any { it.shareId == initialShareId }
+        val inMine = mySharedSites.any { it.shareId == initialShareId }
+        android.util.Log.d("CollabDeepLink", "autoOpen init=$initialShareId consumed=$consumedInitial inWith=$inWith inMine=$inMine sitesN=${sites.size} mineN=${mySharedSites.size}")
+        if (!consumedInitial && !initialShareId.isNullOrBlank() && (inWith || inMine)) {
             selectedId = initialShareId
             consumedInitial = true
         }
@@ -397,9 +399,13 @@ fun SharedSiteScreen(
                 val mine = selectedMine
                 OwnerSharedDetail(
                     site = mine,
+                    photos = photos,
+                    photoBusy = photoBusy,
                     comments = comments,
                     commentBusy = commentBusy,
                     myPhone = viewModel.myPhoneDigits,
+                    onPickPhoto = { pendingUploadShareId = mine.shareId; showPhotoPicker = true },
+                    onViewPhoto = { fullscreenPhoto = it },
                     onSendComment = { viewModel.postComment(mine.shareId, it) },
                     onCancel = { confirmCancelMine = mine }
                 )
@@ -1302,9 +1308,13 @@ private fun DetailBody(
 @Composable
 private fun OwnerSharedDetail(
     site: SharedSiteRepository.SharedSite,
+    photos: List<SharedSiteRepository.SharedPhoto>,
+    photoBusy: Boolean,
     comments: List<SharedSiteRepository.SiteComment>,
     commentBusy: Boolean,
     myPhone: String,
+    onPickPhoto: () -> Unit,
+    onViewPhoto: (android.graphics.Bitmap) -> Unit,
     onSendComment: (String) -> Unit,
     onCancel: () -> Unit
 ) {
@@ -1340,6 +1350,11 @@ private fun OwnerSharedDetail(
         Spacer(Modifier.height(10.dp))
         Text(statusText, fontSize = 12.5.sp, color = TossTextTertiary)
     }
+
+    // 📸 현장 사진 — 협업 사장(B)이 올린 증거사진을 A 도 여기서 보고, 필요하면 직접 추가. (2026-07-02 사장님: 사진 푸시 탭 → 여기)
+    Spacer(Modifier.height(18.dp))
+    SectionSub("📸 현장 사진 · 증거용" + (if (photos.isNotEmpty()) " (${photos.size})" else ""))
+    PhotoGrid(photos = photos, busy = photoBusy, onAdd = onPickPhoto, onView = onViewPhoto)
 
     // 협업 사장과 한 줄 논의
     Spacer(Modifier.height(18.dp))

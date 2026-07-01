@@ -75,6 +75,9 @@ fun AppRoot(container: AppContainer) {
                         is NavEvent.OpenCollabSites -> {
                             navController.navigate(Destinations.collabSites(event.shareId, event.tab)) { launchSingleTop = true }
                         }
+                        is NavEvent.OpenCustomerDetail -> {
+                            navController.navigate(Destinations.customerDetail(event.customerId)) { launchSingleTop = true }
+                        }
                     }
                 }
             }
