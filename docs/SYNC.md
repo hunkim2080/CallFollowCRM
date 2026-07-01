@@ -6087,3 +6087,14 @@ cowork 댓글 endpoint(POST /api/shared/comment, GET /api/shared/comments) 확�
   ```
 - 토큰 조회 = 기존 push_tokens (POST /api/push/register) 재사용. 상대 토큰 없으면 조용히 skip — 폴링(4초)이 안전망.
 - **작성자 본인에겐 push 금지.** 앱은 debug 만 설치(S9+). 베타 사이트 apk 는 754 그대로.
+
+## 2026-06-29 · cowork (안드로이드 요청 응답: 댓글 FCM 푸시)
+추가74b — 새 댓글 시 상대 참여자에게 FCM data 푸시.
+- POST /api/shared/comment 저장 후 con.commit() 뒤에 발송.
+- target = owner_phone/partner_phone 중 author_phone 아닌 쪽. author 본인 X.
+- 기존 push_tokens 재사용 (_send_fcm_data_to_phone 함수). 토큰 없으면 조용히 skip.
+- data-only, 문자열 자동 변환:
+  - type: "collab_comment"
+  - site_id, title, author_name, author_phone, body (60자 컷 + …)
+- 실패해도 응답 200 (폴링 안전망).
+- 변경: server/main.py 만. commit: (pending)

@@ -11330,7 +11330,10 @@ class SharedCommentPostRequest(BaseModel):
 
 @app.post("/api/shared/comment")
 async def shared_comment_post(req: SharedCommentPostRequest) -> dict:
-    """댓글 작성. site_id 참여자 (owner or partner) 만 가능."""
+    """댓글 작성. site_id 참여자 (owner or partner) 만 가능.
+
+    추가74b (2026-06-29) — 저장 성공 후 상대 참여자에게 FCM data 푸시.
+    """
     site_id = (req.site_id or "").strip()
     author_phone = _norm_phone(req.author_phone)
     author_name = (req.author_name or "").strip()[:60] or None
@@ -11344,14 +11347,16 @@ async def shared_comment_post(req: SharedCommentPostRequest) -> dict:
     if len(body) > 1000:
         raise HTTPException(413, "body 는 최대 1000자")
     with db_conn() as con:
+        # 추가74b — title 도 같이 (FCM 본문에 넣기 위해)
         row = con.execute(
-            "SELECT owner_phone, partner_phone FROM shared_sites WHERE share_id = ?",
+            "SELECT owner_phone, partner_phone, title FROM shared_sites WHERE share_id = ?",
             (site_id,),
         ).fetchone()
         if not row:
             raise HTTPException(404, "site_id 없음")
         owner_p = _norm_phone(row[0])
         partner_p = _norm_phone(row[1])
+        site_title = row[2] or "협업 현장"
         # 접근 제어: owner 또는 partner 만. 화이트리스트 검증 X (미가입 partner OK).
         if author_phone != owner_p and author_phone != partner_p:
             raise HTTPException(403, "이 현장의 참여자만 댓글 작성 가능")
@@ -11366,6 +11371,24 @@ async def shared_comment_post(req: SharedCommentPostRequest) -> dict:
         comment_id = cur.lastrowid
         con.commit()
     print(f"[shared/comment/post] site={site_id} author={author_phone} id={comment_id}")
+
+    # 추가74b (2026-06-29) — 상대 참여자에게 FCM data 푸시 (data-only, 문자열).
+    # 작성자 = owner 면 target = partner, 반대도. 실패해도 응답 영향 X (폴링 안전망).
+    target_phone = partner_p if author_phone == owner_p else owner_p
+    if target_phone:
+        try:
+            body_cut = body[:60] + ("…" if len(body) > 60 else "")
+            _send_fcm_data_to_phone(target_phone, {
+                "type": "collab_comment",
+                "site_id": site_id,
+                "title": site_title,
+                "author_name": author_name or "",
+                "author_phone": author_phone,
+                "body": body_cut,
+            })
+        except Exception as e:
+            print(f"[shared/comment/post] FCM 발송 실패 (무시): {type(e).__name__}: {e}")
+
     return {"ok": True, "comment_id": comment_id, "created_at": now}
 
 
