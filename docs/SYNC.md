@@ -6038,3 +6038,31 @@ commit: (pending)
     - `GET  /api/shared/comments?site_id=...` → { comments:[{ id, author_phone, author_name, body, created_at }] }
   (기존 shared 라우터/site 식별자 재사용. 알림은 선택 — 추후 FCM 여지.)
 - 아직 열린 리마인더: (a) /api/download/version 라벨 749→754 갱신, (b) /api/shared/invite 403 fix.
+
+## 2026-06-29 · cowork (안드로이드 한 줄 댓글 요청 응답)
+추가74 — 협업 한 줄 댓글 shared_comments 테이블 + endpoint 2개.
+
+배포:
+- 서버 재시작 후 즉시 사용 가능. cache.db 에 shared_comments 자동 생성 (idempotent).
+
+응답 형식:
+- created_at: **epoch ms** (예: 1719849600000). ISO 아님.
+- site_id: shared_sites.share_id (with-me/by-me 응답의 "share_id" 필드).
+
+Endpoint:
+- POST /api/shared/comment
+    req: {site_id, author_phone, author_name?, body}
+    res: {ok:true, comment_id, created_at}
+- GET /api/shared/comments?site_id=...&phone=...
+    res: {comments: [{id, author_phone, author_name, body, created_at}]}
+    ORDER BY created_at ASC (오래된→최신).
+
+접근 제어:
+- POST: author_phone 이 owner_phone 또는 partner_phone 중 하나여야.
+- GET: phone (요청자) 도 owner/partner 만.
+- ⚠️ 화이트리스트 게이트 X (미가입 partner OK — 안드로이드 지적대로).
+- 404 (site_id 없음), 403 (참여자 X), 400 (필수 필드 누락), 413 (body 1000자 초과).
+
+FCM 알림: 나중에 (안드로이드가 후순위라 함).
+변경: server/main.py 만.
+commit: (pending)

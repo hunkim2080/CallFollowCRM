@@ -675,6 +675,26 @@ def db_init() -> None:
             "CREATE INDEX IF NOT EXISTS idx_shared_owner_events_owner "
             "ON shared_owner_events(owner_phone, created_at_ms DESC)"
         )
+        # 추가74 (2026-06-29) — 협업 현장 "한 줄 댓글" (안드로이드 요청).
+        # A(owner) + B(partner) 둘이 현장 진행 얘기 나누는 채팅 스레드.
+        # 접근 제어: 그 site_id 의 owner_phone 또는 partner_phone 만 읽기/쓰기.
+        # 화이트리스트 게이트 X (미가입 partner 도 대화 가능).
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS shared_comments (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                site_id       TEXT NOT NULL,              -- shared_sites.share_id 와 같은 키
+                author_phone  TEXT NOT NULL,              -- digits only
+                author_name   TEXT,                       -- 표시용 (없으면 앱이 번호로)
+                body          TEXT NOT NULL,
+                created_at    INTEGER NOT NULL            -- epoch ms
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_shared_comments_site "
+            "ON shared_comments(site_id, created_at)"
+        )
         # §29 — 일당 마켓 Phase 1 (안드로이드 PLAN_labor_market 2026-06-11)
         # 직원/협업일당/협업사장 공통 흐름 — 완료·계좌 = 정산 스위치 + 번호별 이력 적립.
         # 키 = 전화 끝 8자리 (laborer.phone_suffix). 고객 정보 절대 미노출 (안전 라벨만).
@@ -11264,6 +11284,109 @@ async def shared_end(req: SharedEndRequest) -> dict:
         "by": by,
     })
     return {"ok": True, "share_id": share_id, "status": "ended", "updated_at_ms": now}
+
+
+# ============================================================================
+# 추가74 (2026-06-29) — 협업 현장 "한 줄 댓글" (안드로이드 요청)
+# ─────────────────────────────────────────────────────────────────────────────
+# A(owner) + B(partner) 가 공유 현장 상세에서 나누는 채팅 스레드.
+# 접근 제어: 그 site_id 의 owner_phone / partner_phone 만.
+# ⚠️ 화이트리스트 게이트 X — 협업은 본질적으로 미가입 partner 도 허용.
+#     안드로이드 지적: /api/shared/invite 403 계열 실수 주의.
+# ============================================================================
+
+
+class SharedCommentPostRequest(BaseModel):
+    site_id: str
+    author_phone: str
+    author_name: Optional[str] = None
+    body: str
+
+
+@app.post("/api/shared/comment")
+async def shared_comment_post(req: SharedCommentPostRequest) -> dict:
+    """댓글 작성. site_id 참여자 (owner or partner) 만 가능."""
+    site_id = (req.site_id or "").strip()
+    author_phone = _norm_phone(req.author_phone)
+    author_name = (req.author_name or "").strip()[:60] or None
+    body = (req.body or "").strip()
+    if not site_id:
+        raise HTTPException(400, "site_id 필수")
+    if not author_phone:
+        raise HTTPException(400, "author_phone 필수")
+    if not body:
+        raise HTTPException(400, "body 는 공백 불가")
+    if len(body) > 1000:
+        raise HTTPException(413, "body 는 최대 1000자")
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT owner_phone, partner_phone FROM shared_sites WHERE share_id = ?",
+            (site_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "site_id 없음")
+        owner_p = _norm_phone(row[0])
+        partner_p = _norm_phone(row[1])
+        # 접근 제어: owner 또는 partner 만. 화이트리스트 검증 X (미가입 partner OK).
+        if author_phone != owner_p and author_phone != partner_p:
+            raise HTTPException(403, "이 현장의 참여자만 댓글 작성 가능")
+        now = _now_ms()
+        cur = con.execute(
+            """
+            INSERT INTO shared_comments (site_id, author_phone, author_name, body, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (site_id, author_phone, author_name, body, now),
+        )
+        comment_id = cur.lastrowid
+        con.commit()
+    print(f"[shared/comment/post] site={site_id} author={author_phone} id={comment_id}")
+    return {"ok": True, "comment_id": comment_id, "created_at": now}
+
+
+@app.get("/api/shared/comments")
+async def shared_comments_list(site_id: str, phone: str) -> dict:
+    """댓글 목록. site_id 참여자만. 오래된→최신 순 (앱이 채팅처럼 아래로).
+
+    phone = 요청자 phone (접근 검증용. 화이트리스트 검증 X).
+    """
+    site_id = (site_id or "").strip()
+    caller_phone = _norm_phone(phone)
+    if not site_id:
+        raise HTTPException(400, "site_id 필수")
+    if not caller_phone:
+        raise HTTPException(400, "phone 필수")
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT owner_phone, partner_phone FROM shared_sites WHERE share_id = ?",
+            (site_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "site_id 없음")
+        owner_p = _norm_phone(row[0])
+        partner_p = _norm_phone(row[1])
+        if caller_phone != owner_p and caller_phone != partner_p:
+            raise HTTPException(403, "이 현장의 참여자만 조회 가능")
+        rows = con.execute(
+            """
+            SELECT id, author_phone, author_name, body, created_at
+            FROM shared_comments
+            WHERE site_id = ?
+            ORDER BY created_at ASC
+            """,
+            (site_id,),
+        ).fetchall()
+    comments = [
+        {
+            "id": r[0],
+            "author_phone": r[1],
+            "author_name": r[2] or "",
+            "body": r[3],
+            "created_at": r[4],
+        }
+        for r in rows
+    ]
+    return {"comments": comments}
 
 
 # ─── §D — 출동 2h 전 자동 알림 (uvicorn startup background task) ───
