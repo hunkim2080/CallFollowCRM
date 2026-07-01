@@ -83,7 +83,10 @@ class SmsCachePrefetcher(
                 cachedMessageRepository.replaceSmsOnlyForSuffix(suffix, freshSms)
             }
             runCatching {
-                val freshMms = smsRepository.queryMmsOnly(phoneNumber)
+                // 백그라운드 prefetch 는 최근 MMS 만 가볍게(scanLimit 축소) — 20연락처×2000 스캔이 MMS provider 를
+                //   40,000행 훑어 앱 전체를 느리게 했음. 최근 것만 캐시 → 활성 대화는 즉시 표시.
+                //   옛 사진 전체(2000)는 사용자가 실제로 그 대화 열 때 ChatViewModel stage 3 가 on-demand 로 채움. (2026-07-02 사장님)
+                val freshMms = smsRepository.queryMmsOnly(phoneNumber, scanLimit = PREFETCH_MMS_SCAN_LIMIT)
                 cachedMessageRepository.replaceMmsOnlyForSuffix(suffix, freshMms)
             }
             lastPrefetchedAtMs[suffix] = System.currentTimeMillis()
@@ -93,5 +96,10 @@ class SmsCachePrefetcher(
     companion object {
         /** 같은 번호 재요청 무시 윈도우 (60초). HomeScreen 스크롤로 인한 중복 호출 방지. */
         private const val DEDUP_WINDOW_MS = 60_000L
+        /**
+         * 백그라운드 prefetch 의 MMS 스캔 상한. on-demand(ChatViewModel)는 2000 그대로 —
+         * 여기선 최근 것만 가볍게 캐시해 앱 시작 시 MMS provider 부하(20연락처×2000)를 크게 줄임. (2026-07-02)
+         */
+        private const val PREFETCH_MMS_SCAN_LIMIT = 500
     }
 }
