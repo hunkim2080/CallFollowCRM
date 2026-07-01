@@ -755,7 +755,9 @@ fun HomeScreen(
                                     up = up,
                                     onOpen = openCollab,
                                     onCopy = {
-                                        val copyNo = up.accountNo?.takeIf { it.isNotBlank() } ?: (up.accountText ?: "")
+                                        // 하이픈·공백 빼고 숫자만 복사 → 은행 앱에 바로 붙여넣기. (2026-07-01 사장님)
+                                        val copyNo = up.accountNo?.takeIf { it.isNotBlank() }?.filter { it.isDigit() }
+                                            ?: (up.accountText ?: "")
                                         clipboard.setText(androidx.compose.ui.text.AnnotatedString(copyNo))
                                         android.widget.Toast.makeText(context, "계좌번호를 복사했어요", android.widget.Toast.LENGTH_SHORT).show()
                                     },
@@ -1017,7 +1019,7 @@ fun HomeScreen(
                     }
                 }
 
-                item(key = "fab-spacer") { Spacer(Modifier.height(80.dp)) } // FAB 공간
+                item(key = "fab-spacer") { Spacer(Modifier.height(16.dp)) } // 리스트 끝 여백(FAB 없음 → 80→16, 하단 흰 공백 제거. 2026-07-01 사장님)
             }
             // 2026-05-27 사장님 보고 fix:
             //   Material3 1.2.x PullToRefreshContainer 가 idle 일 때도 작은 회색 원으로 보이는 버그.
@@ -1073,7 +1075,8 @@ fun HomeScreen(
 
             // 협업 완료 [입금했어요] → 일당 지급 금액 입력 → 정산 자동 기록. (일당 마켓 Phase 1)
             payTarget?.let { up ->
-                var manwon by remember(up.eventId) { mutableStateOf("") }
+                // 보낼 금액(dailyWage, 만원)을 미리 채워둠 → 다시 입력할 필요 없이 [기록]만. (2026-07-01 사장님)
+                var manwon by remember(up.eventId) { mutableStateOf(up.dailyWage?.toString() ?: "") }
                 androidx.compose.material3.AlertDialog(
                     onDismissRequest = { payTarget = null },
                     title = { Text("일당 지급 기록", fontWeight = FontWeight.Bold, color = TossTextPrimary) },

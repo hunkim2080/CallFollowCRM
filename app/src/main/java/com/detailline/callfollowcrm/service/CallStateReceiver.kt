@@ -37,6 +37,18 @@ class CallStateReceiver : BroadcastReceiver() {
         val prev = lastState
         lastState = state
 
+        // 전화 오는 순간 "상대 정보 카드" 오버레이 (2026-07-01 사장님) —
+        //   RINGING 진입 시 EXTRA_INCOMING_NUMBER 로 카드 표시(READ_CALL_LOG 있어야 번호 옴).
+        //   응답(OFFHOOK)/종료(IDLE) 시 카드 제거. 권한·토글 없으면 onRinging 이 조용히 무시.
+        when (state) {
+            TelephonyManager.EXTRA_STATE_RINGING -> {
+                val incoming = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER)
+                IncomingCallOverlay.onRinging(context, incoming)
+            }
+            TelephonyManager.EXTRA_STATE_OFFHOOK, TelephonyManager.EXTRA_STATE_IDLE ->
+                IncomingCallOverlay.onCallGone(context)
+        }
+
         // 통화 종료 시점 판정:
         //  - OFFHOOK → IDLE: 일반 통화 종료 (수신 응답 후 끊음, 발신 후 끊음)
         //  - RINGING → IDLE: 부재중 (응답 안 함). 이 경우 CallLog type 이 MISSED 로 남는다.

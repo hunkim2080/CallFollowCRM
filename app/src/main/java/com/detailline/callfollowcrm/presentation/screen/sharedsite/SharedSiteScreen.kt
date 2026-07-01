@@ -57,6 +57,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.text.ClickableText
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.ai.SharedSiteRepository
@@ -482,18 +488,22 @@ fun SharedSiteScreen(
         )
     }
 
-    // 증거사진 풀스크린 뷰어
+    // 증거사진 풀스크린 뷰어 — 카톡식: 전체화면 검정 배경 + 사진 가운데, 아무데나 탭하면 닫힘. (2026-07-01 사장님)
+    //   usePlatformDefaultWidth=false 라야 다이얼로그가 화면 가득(예전엔 좁은 카드라 세로사진이 하단에 붙어 보였음).
     fullscreenPhoto?.let { bmp ->
-        androidx.compose.ui.window.Dialog(onDismissRequest = { fullscreenPhoto = null }) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { fullscreenPhoto = null },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
             Box(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.Black)
+                Modifier.fillMaxSize().background(Color.Black)
                     .clickable { fullscreenPhoto = null },
                 contentAlignment = Alignment.Center
             ) {
                 androidx.compose.foundation.Image(
                     bitmap = bmp.asImageBitmap(),
                     contentDescription = "현장 사진",
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxSize(),
                     contentScale = androidx.compose.ui.layout.ContentScale.Fit
                 )
             }
@@ -1024,7 +1034,8 @@ private fun DetailBody(
         ) {
             Text("📌 대표님 전달사항", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB4790A))
             Spacer(Modifier.height(5.dp))
-            Text(site.memo, fontSize = 14.sp, color = Color(0xFF5A4A1F), lineHeight = 21.sp)
+            // 전달사항 안 전화번호는 탭하면 다이얼러에 바로 채워져 통화 편하게. (2026-07-01 사장님)
+            LinkifiedMemo(site.memo, baseColor = Color(0xFF5A4A1F))
         }
     }
 
@@ -1540,3 +1551,43 @@ private fun timeText(site: SharedSiteRepository.SharedSite): String? =
 @Composable
 private fun rememberSaveableShareId() =
     androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
+
+/**
+ * 전달사항 텍스트를 그리되, 한국 전화번호(010-…, 02-…, 0507… 등)는 파란 밑줄 링크로.
+ *   탭하면 다이얼러에 그 번호가 채워진 채 열림(ACTION_DIAL — 통화 권한 불필요, 사용자가 통화 누름). (2026-07-01 사장님)
+ */
+@Composable
+private fun LinkifiedMemo(memo: String, baseColor: Color) {
+    val ctx = LocalContext.current
+    val annotated = remember(memo) {
+        // 0으로 시작하는 10~11자리(휴대폰/지역/안심번호). 구분자는 공백/하이픈 허용("010 8725 0878"·"010-8725-0878"·"01087250878").
+        val re = Regex("0\\d{1,2}[\\s-]?\\d{3,4}[\\s-]?\\d{4}")
+        buildAnnotatedString {
+            var last = 0
+            for (m in re.findAll(memo)) {
+                if (m.range.first > last) append(memo.substring(last, m.range.first))
+                pushStringAnnotation("tel", m.value.filter { it.isDigit() })
+                withStyle(SpanStyle(color = Color(0xFF1A6DD8), fontWeight = FontWeight.Bold, textDecoration = TextDecoration.Underline)) {
+                    append(m.value)
+                }
+                pop()
+                last = m.range.last + 1
+            }
+            if (last < memo.length) append(memo.substring(last))
+        }
+    }
+    ClickableText(
+        text = annotated,
+        style = TextStyle(color = baseColor, fontSize = 14.sp, lineHeight = 21.sp),
+        onClick = { offset ->
+            annotated.getStringAnnotations("tel", offset, offset).firstOrNull()?.let { ann ->
+                runCatching {
+                    ctx.startActivity(
+                        Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + ann.item))
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                }
+            }
+        }
+    )
+}

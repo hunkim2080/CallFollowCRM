@@ -66,6 +66,14 @@ class AppPreferences(context: Context) {
     var autoSummaryEnabled: Boolean
         get() = prefs.getBoolean("auto_summary_enabled", true)
         set(value) = prefs.edit().putBoolean("auto_summary_enabled", value).apply()
+    /**
+     * 전화 오는 순간 "상대 정보 카드"(둥둥 뜨는 오버레이) on/off. 기본 ON.
+     *   전화벨 울릴 때 번호로 고객·시공일정·최근 대화를 즉시 조회해 화면 위에 카드로 띄운다. (2026-07-01 사장님)
+     *   실제로 뜨려면 "다른 앱 위에 표시"(SYSTEM_ALERT_WINDOW) 권한이 있어야 함(설정에서 안내).
+     */
+    var incomingCallerCardEnabled: Boolean
+        get() = prefs.getBoolean("incoming_caller_card_enabled", true)
+        set(value) = prefs.edit().putBoolean("incoming_caller_card_enabled", value).apply()
     /** 막내 비서 현재 단계(0~9, 10레벨마다). 앱 시작 시 Mascot 변신 복원용. (2026-06-14) */
     var agentTier: Int
         get() = prefs.getInt("agent_tier", 0)

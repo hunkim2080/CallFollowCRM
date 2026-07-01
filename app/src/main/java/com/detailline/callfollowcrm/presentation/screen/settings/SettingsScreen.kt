@@ -1246,6 +1246,56 @@ private fun AutoSmsSection(
     }
     Spacer(Modifier.height(8.dp))
 
+    // ④-2 전화 오는 사람 미리보기 (2026-07-01 사장님) — 벨 울릴 때 상대 정보 카드를 통화화면 위에 띄움.
+    //   실제로 뜨려면 "다른 앱 위에 표시"(SYSTEM_ALERT_WINDOW) 특수 권한 필요 → 켰는데 없으면 안내+허용 버튼.
+    var callerCardOn by remember { mutableStateOf(prefs.incomingCallerCardEnabled) }
+    var overlayGranted by remember { mutableStateOf(com.detailline.callfollowcrm.util.PermissionHelper.hasOverlay(ctx)) }
+    val overlayPermLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { overlayGranted = com.detailline.callfollowcrm.util.PermissionHelper.hasOverlay(ctx) }
+    TossCard {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFFE8F1FE)),
+                    contentAlignment = Alignment.Center) { Text("📞", fontSize = 16.sp) }
+                Spacer(Modifier.width(11.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("전화 오는 사람 미리보기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                    Text("전화가 오면 화면 위에 '누구·시공 일정·최근 대화' 카드를 띄워, 받기 전에 알아차려요",
+                        fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp)
+                }
+                Spacer(Modifier.width(8.dp))
+                Switch(checked = callerCardOn, onCheckedChange = {
+                    callerCardOn = it; prefs.incomingCallerCardEnabled = it
+                })
+            }
+            if (callerCardOn && !overlayGranted) {
+                Spacer(Modifier.height(10.dp))
+                Box(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color(0xFFFFF4E5))
+                        .clickable {
+                            runCatching {
+                                overlayPermLauncher.launch(
+                                    android.content.Intent(
+                                        android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                        android.net.Uri.parse("package:${ctx.packageName}")
+                                    )
+                                )
+                            }
+                        }
+                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                ) {
+                    Column {
+                        Text("⚠️ '다른 앱 위에 표시' 권한이 필요해요", fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold, color = Color(0xFFB26A00))
+                        Text("여기를 눌러 허용하면 전화 올 때 카드가 떠요", fontSize = 12.sp, color = Color(0xFFB26A00))
+                    }
+                }
+            }
+        }
+    }
+    Spacer(Modifier.height(8.dp))
+
     // 통화 녹음 자동 찾기 — 오디오 권한 한 번이면 MediaStore 에서 통화녹음(에이닷·T전화·삼성)을 앱이 알아서 찾는다.
     //   폴더를 직접 고를 필요 X (연세 있으신 분 배려, 2026-06-30). 폴더 직접 고르기는 fallback 으로 남김.
     val recAppContainer = (ctx.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication).container

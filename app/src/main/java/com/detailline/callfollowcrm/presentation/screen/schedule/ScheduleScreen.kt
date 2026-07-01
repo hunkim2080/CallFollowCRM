@@ -24,6 +24,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -1108,8 +1113,9 @@ private fun AssignTeamSheet(
                 .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
                 .background(Color.White)
                 .clickable(interactionSource = noRipple, indication = null) { /* 카드 탭은 닫지 않음 */ }
-                .navigationBarsPadding()
-                .imePadding()
+                // 내비바+키보드를 따로 더하면(navigationBarsPadding+imePadding) 키보드 뜰 때 내비바 높이만큼
+                //   이중 여백이 생김(S23U에서 입력칸과 키보드 사이 큰 틈). 둘 중 큰 값만 적용해 제거. (2026-07-01)
+                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
                 .padding(horizontal = 20.dp)
                 .padding(top = 8.dp, bottom = 20.dp)
                 .heightIn(max = 660.dp)

@@ -676,7 +676,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         for (c in smsContacts) {
             if (c.normalizedSuffix in spam) continue
             if (com.detailline.callfollowcrm.util.SpamPrefix.isSpam(c.address, spamPrefixesFlow.value)) continue  // 스팸 앞자리
-            if (c.normalizedSuffix in scheduled) continue  // 2026-05-30 #3 — 시공일정 등록자 제외
+            // 시공일정 잡힌 고객도 '새 메시지가 오면' 답장 기다려요에 다시 뜨게. (2026-07-01 사장님 — 새 문의가 묻히지 않게)
+            //   일정만 있고 새 메시지 없으면 아래 freshIncoming 조건이 false 라 자동 제외(= 일정 카드로만 관리). 옛 #scheduled 무조건 제외 제거.
             // 사장님 의도: 마지막 메시지가 고객 수신이면 미확인. 이전에 답장 보낸 적은 무관.
             if (!c.lastSent && c.lastDateMs >= sevenDayWindowStart) {
                 result += c.normalizedSuffix

@@ -4128,6 +4128,9 @@ private fun EstSmallChip(label: String, selected: Boolean, onClick: () -> Unit) 
 
 private data class EstCell(val dayMs: Long, val dom: Int, val dow: Int, val inMonth: Boolean, val isToday: Boolean, val isPast: Boolean)
 
+private const val EST_PAGER_CENTER = 1200
+private const val EST_PAGER_COUNT = 2400   // ±100개월
+
 private fun estMonthAnchor(anyMs: Long): Long = java.util.Calendar.getInstance().apply {
     timeInMillis = anyMs
     set(java.util.Calendar.DAY_OF_MONTH, 1)
@@ -4159,15 +4162,23 @@ private fun buildEstCells(anchor: Long): List<EstCell> {
 /** 견적 시트 시공일 선택용 인라인 월 달력. */
 @Composable
 private fun EstInlineCalendar(monthAnchor: Long, selectedMs: Long?, onShiftMonth: (Int) -> Unit, onSelect: (Long) -> Unit) {
-    val cells = remember(monthAnchor) { buildEstCells(monthAnchor) }
+    // 월 전환 = HorizontalPager (일정 탭처럼 옆으로 쓸면 한 달씩). monthAnchor = 시작 월. (2026-06-30 사장님)
+    val base = remember { monthAnchor }
+    val pagerState = androidx.compose.foundation.pager.rememberPagerState(initialPage = EST_PAGER_CENTER) { EST_PAGER_COUNT }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val viewed by remember {
+        androidx.compose.runtime.derivedStateOf { estShiftMonth(base, pagerState.currentPage - EST_PAGER_CENTER) }
+    }
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(Color.White).clickable { onShiftMonth(-1) },
+            Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(Color.White)
+                .clickable { scope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) } },
                 contentAlignment = Alignment.Center) { Text("‹", fontSize = 16.sp, color = TossTextSecondary, fontWeight = FontWeight.Bold) }
-            Text(DateTimeUtils.formatMonthHeader(monthAnchor), modifier = Modifier.weight(1f),
+            Text(DateTimeUtils.formatMonthHeader(viewed), modifier = Modifier.weight(1f),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center, fontSize = 15.sp,
                 fontWeight = FontWeight.Bold, color = TossTextPrimary)
-            Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(Color.White).clickable { onShiftMonth(1) },
+            Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(Color.White)
+                .clickable { scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } },
                 contentAlignment = Alignment.Center) { Text("›", fontSize = 16.sp, color = TossTextSecondary, fontWeight = FontWeight.Bold) }
         }
         Row(Modifier.fillMaxWidth()) {
@@ -4177,25 +4188,30 @@ private fun EstInlineCalendar(monthAnchor: Long, selectedMs: Long?, onShiftMonth
                     color = when (i) { 0 -> TossError; 6 -> TossBlue; else -> TossTextSecondary }, fontWeight = FontWeight.SemiBold)
             }
         }
-        repeat(6) { w ->
-            Row(Modifier.fillMaxWidth()) {
-                cells.subList(w * 7, w * 7 + 7).forEach { cell ->
-                    val isSel = selectedMs?.let { DateTimeUtils.startOfDay(it) == cell.dayMs } == true
-                    val bg = when { isSel -> TossBlue; cell.isToday -> TossBlueSoft; else -> Color.Transparent }
-                    val fg = when {
-                        isSel -> Color.White
-                        !cell.inMonth || cell.isPast -> TossTextTertiary
-                        cell.dow == java.util.Calendar.SUNDAY -> TossError
-                        cell.dow == java.util.Calendar.SATURDAY -> TossBlue
-                        else -> TossTextPrimary
-                    }
-                    Box(
-                        Modifier.weight(1f).height(34.dp).padding(2.dp).clip(RoundedCornerShape(8.dp))
-                            .background(bg).clickable { onSelect(cell.dayMs) },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(cell.dom.toString(), color = fg, fontSize = 12.sp,
-                            fontWeight = if (isSel || cell.isToday) FontWeight.Bold else FontWeight.Medium)
+        androidx.compose.foundation.pager.HorizontalPager(state = pagerState, verticalAlignment = Alignment.Top) { page ->
+            val cells = buildEstCells(estShiftMonth(base, page - EST_PAGER_CENTER))
+            Column(Modifier.fillMaxWidth()) {
+                repeat(6) { w ->
+                    Row(Modifier.fillMaxWidth()) {
+                        cells.subList(w * 7, w * 7 + 7).forEach { cell ->
+                            val isSel = selectedMs?.let { DateTimeUtils.startOfDay(it) == cell.dayMs } == true
+                            val bg = when { isSel -> TossBlue; cell.isToday -> TossBlueSoft; else -> Color.Transparent }
+                            val fg = when {
+                                isSel -> Color.White
+                                !cell.inMonth || cell.isPast -> TossTextTertiary
+                                cell.dow == java.util.Calendar.SUNDAY -> TossError
+                                cell.dow == java.util.Calendar.SATURDAY -> TossBlue
+                                else -> TossTextPrimary
+                            }
+                            Box(
+                                Modifier.weight(1f).height(34.dp).padding(2.dp).clip(RoundedCornerShape(8.dp))
+                                    .background(bg).clickable { onSelect(cell.dayMs) },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(cell.dom.toString(), color = fg, fontSize = 12.sp,
+                                    fontWeight = if (isSel || cell.isToday) FontWeight.Bold else FontWeight.Medium)
+                            }
+                        }
                     }
                 }
             }

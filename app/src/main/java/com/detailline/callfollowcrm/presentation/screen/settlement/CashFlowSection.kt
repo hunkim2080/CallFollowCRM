@@ -492,10 +492,11 @@ private fun AddCashDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(14.dp))
-                // 완료/예정
+                // 완료/예정 — 수입/지출 방향에 맞춰 라벨을 명확히. (2026-07-01 사장님: "이미 오감/예정" 헷갈림)
                 CashFieldLabel("상태")
                 TwoToggle(
-                    leftLabel = "이미 오감", rightLabel = "예정",
+                    leftLabel = if (isIncome) "들어옴" else "지출 됨",
+                    rightLabel = if (isIncome) "들어올 예정" else "지출 예정",
                     leftSelected = isDone, onLeft = { isDone = true }, onRight = { isDone = false },
                     leftColor = TossBlue, rightColor = TossTextTertiary
                 )

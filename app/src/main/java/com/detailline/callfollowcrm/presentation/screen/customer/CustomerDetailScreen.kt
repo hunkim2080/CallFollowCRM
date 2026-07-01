@@ -451,7 +451,6 @@ fun CustomerDetailScreen(
                             partnerName = partnerName.ifBlank { "협업 사장님" },
                             siteTitle = siteTitle,
                             shareId = shareId,
-                            onViewPhoto = { fullscreenBitmap = it },
                             onRelease = {
                                 // 협업 해제(수락된 것도) — 서버 end → B 에게 알림 + 기록 보존 + 재요청 풀림. best-effort(서버 오면 동작).
                                 if (shareId.isNotBlank()) {
@@ -2696,13 +2695,12 @@ private fun AddressEditDialog(
  *   헤더(협업 중 + 이름)·일당·진행 stepper·영구보관 안내·해제. 진행/일당은 서버 owner-events(같은 현장 제목 매칭),
  *   서버 미가동/없으면 배정 단계만(graceful). 증거사진은 §F GET /api/shared/photos (A 는 보기만).
  */
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 private fun CollabAfterCard(
     partnerName: String,
     siteTitle: String,
     shareId: String,
-    onViewPhoto: (android.graphics.Bitmap) -> Unit,
     onRelease: () -> Unit
 ) {
     val context = LocalContext.current
@@ -2713,7 +2711,11 @@ private fun CollabAfterCard(
     var step by remember(siteTitle, partnerName) { mutableStateOf<String?>(null) }
     var wage by remember(siteTitle, partnerName) { mutableStateOf<Int?>(null) }
     var photos by remember(shareId, siteTitle) { mutableStateOf(emptyList<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedPhoto>()) }
+    // 수락 여부 — by-me 서버 status("pending"/"accepted"). 수락 전엔 '협업 중' 대신 작은 '수락 대기중' 카드. (2026-07-01 사장님)
+    var status by remember(shareId, siteTitle, partnerName) { mutableStateOf<String?>(null) }
     var confirmRelease by remember { mutableStateOf(false) }
+    // 사진 뷰어 — 열린 사진의 인덱스(null=닫힘). 좌우 스와이프로 다음/이전 사진. (2026-07-01 사장님)
+    var viewerIdx by remember { mutableStateOf<Int?>(null) }
     androidx.compose.runtime.LaunchedEffect(siteTitle, partnerName, shareId) {
         val owner = container.preferences.bizPhone.filter { it.isDigit() }
         if (owner.length >= 9) {
@@ -2729,10 +2731,59 @@ private fun CollabAfterCard(
             }
             // 증거사진 조회(§F) — A 는 보기만(프로토 a-after).
             if (sid.isNotBlank()) container.sharedSiteRepository.photos(sid, owner).onSuccess { photos = it }
+            // 수락 여부(by-me status) — shareId 우선, 없으면 제목+상대이름 매칭.
+            container.sharedSiteRepository.byMe(owner).onSuccess { mySites ->
+                val m = (if (sid.isNotBlank()) mySites.firstOrNull { it.shareId == sid } else null)
+                    ?: mySites.firstOrNull { it.title == siteTitle && (partnerName == "협업 사장님" || it.partnerName == partnerName) }
+                if (m != null) status = m.status
+            }
         }
     }
     val curIdx = when (step?.lowercase()) {
         "departed" -> 1; "arrived" -> 2; "completed" -> 3; else -> 0
+    }
+    // 확정된 accepted 이거나 진행 단계가 있으면 '협업 중' 전체 카드. 그 전(pending·확인 전)엔 작은 '수락 대기중'.
+    //   수락 전인데 협업중처럼 큰 카드가 떠서 '이미 함께 일하는 줄' 착각하는 문제 방지. (2026-07-01 사장님)
+    val collabActive = status == "accepted" || curIdx > 0
+    if (!collabActive) {
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White)
+                .border(1.dp, Color(0xFFF0E4C8), RoundedCornerShape(16.dp)).padding(15.dp)
+        ) {
+            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("🤝 ${partnerName} 사장님", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                Spacer(Modifier.weight(1f))
+                Box(Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFFCEEDC)).padding(horizontal = 10.dp, vertical = 4.dp)) {
+                    Text("수락 대기중", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB4790A))
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Text("아직 상대 사장님이 수락 전이에요. 수락하면 진행·사진이 여기 바로 떠요.",
+                fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp)
+            Spacer(Modifier.height(10.dp))
+            Text("요청 취소", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { confirmRelease = true }.padding(vertical = 10.dp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        }
+        if (confirmRelease) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { confirmRelease = false },
+                title = { Text("요청을 취소할까요?", fontWeight = FontWeight.Bold) },
+                text = { Text("${partnerName}님께 보낸 협업 요청을 취소해요. 나중에 다시 보낼 수 있어요.") },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(onClick = { confirmRelease = false; onRelease() }) {
+                        Text("요청 취소", color = Color(0xFFF0436A), fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    androidx.compose.material3.TextButton(onClick = { confirmRelease = false }) {
+                        Text("그대로 두기", color = TossTextSecondary)
+                    }
+                }
+            )
+        }
+        return
     }
 
     Column(
@@ -2787,12 +2838,14 @@ private fun CollabAfterCard(
                 Text("협업 사장님이 사진을 올리면 여기 보여요", fontSize = 11.5.sp, color = TossTextTertiary)
             }
         } else {
+            // 스와이프 뷰어용 — null 아닌 비트맵만 모아 인덱스로 연다.
+            val bmps = remember(photos) { photos.mapNotNull { it.bitmap } }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 photos.forEach { p ->
                     val bmp = p.bitmap
                     androidx.compose.foundation.layout.Box(
                         Modifier.size(92.dp).clip(RoundedCornerShape(11.dp)).background(Color(0xFFEDEFF3))
-                            .then(if (bmp != null) Modifier.clickable { onViewPhoto(bmp) } else Modifier),
+                            .then(if (bmp != null) Modifier.clickable { viewerIdx = bmps.indexOf(bmp).coerceAtLeast(0) } else Modifier),
                         contentAlignment = androidx.compose.ui.Alignment.Center
                     ) {
                         if (bmp != null) androidx.compose.foundation.Image(
@@ -2833,6 +2886,46 @@ private fun CollabAfterCard(
                 }
             }
         )
+    }
+    // 사진 스와이프 뷰어 — 전체화면 검정 + 좌우로 휙휙 넘김 + 페이지 표시 + 닫기(X). 카톡식. (2026-07-01 사장님)
+    viewerIdx?.let { startIdx ->
+        val bmps = remember(photos) { photos.mapNotNull { it.bitmap } }
+        if (bmps.isNotEmpty()) {
+            val pagerState = androidx.compose.foundation.pager.rememberPagerState(
+                initialPage = startIdx.coerceIn(0, bmps.size - 1)
+            ) { bmps.size }
+            androidx.compose.ui.window.Dialog(
+                onDismissRequest = { viewerIdx = null },
+                properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().background(Color.Black)) {
+                    androidx.compose.foundation.pager.HorizontalPager(
+                        state = pagerState, modifier = Modifier.fillMaxSize(), pageSpacing = 12.dp
+                    ) { page ->
+                        androidx.compose.foundation.Image(
+                            bitmap = bmps[page].asImageBitmap(),
+                            contentDescription = "현장 사진 ${page + 1}",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                        )
+                    }
+                    androidx.compose.foundation.layout.Box(
+                        Modifier.align(androidx.compose.ui.Alignment.TopCenter).padding(top = 18.dp)
+                            .clip(RoundedCornerShape(999.dp)).background(Color.Black.copy(alpha = 0.55f))
+                            .padding(horizontal = 14.dp, vertical = 6.dp)
+                    ) {
+                        Text("${pagerState.currentPage + 1} / ${bmps.size}", color = Color.White,
+                            fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+                    androidx.compose.foundation.layout.Box(
+                        Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(14.dp).size(38.dp)
+                            .clip(RoundedCornerShape(999.dp)).background(Color.Black.copy(alpha = 0.55f))
+                            .clickable { viewerIdx = null },
+                        contentAlignment = androidx.compose.ui.Alignment.Center
+                    ) { Text("✕", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+                }
+            }
+        }
     }
 }
 

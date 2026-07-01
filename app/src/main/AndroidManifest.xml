@@ -32,6 +32,12 @@
     <uses-permission android:name="android.permission.RECEIVE_WAP_PUSH" />
     <!-- 예약 확정 시 축하 진동 (normal permission, 런타임 요청 불필요) -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!--
+        전화 오는 순간 "상대 정보 카드"를 통화화면 위에 띄우기 (2026-07-01 사장님) — 벨 울릴 때
+        번호로 고객·시공일정·최근 대화를 즉시 조회해 화면 위에 카드로. 사용자가 설정에서 켜고
+        "다른 앱 위에 표시"를 허용해야만 뜬다. (특수 권한 — Settings.canDrawOverlays 로 확인/요청)
+    -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <!-- 채팅에서 고객에게 보낼 사진 고르기(카톡식 자체 갤러리). 33+ 는 READ_MEDIA_IMAGES, 그 이하(갤S9 등)는 READ_EXTERNAL_STORAGE. -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />

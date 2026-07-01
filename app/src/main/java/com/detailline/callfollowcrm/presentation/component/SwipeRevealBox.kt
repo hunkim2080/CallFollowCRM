@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -79,11 +80,14 @@ fun SwipeRevealBox(
             .clip(shape)
     ) {
         // 뒤: 오른쪽 끝 휴지통 버튼 (콘텐츠 높이에 자동 맞춤)
+        //   ⚠️ 밀기 전(offset==0)엔 완전히 숨김 → 안 카드 라운드(18)가 박스(12)보다 커도 모서리로 색이 안 비침.
+        //      (draw 단계 alpha 로 처리 — recomposition 없이. 2026-07-01 사장님 "파란 라인 비침")
         Box(Modifier.matchParentSize(), contentAlignment = Alignment.CenterEnd) {
             Box(
                 Modifier
                     .fillMaxHeight()
                     .width(revealDp)
+                    .graphicsLayer { alpha = if (offsetX.value < -0.5f) 1f else 0f }
                     .background(containerColor)
                     .clickable(enabled = opened) {
                         onAction()
@@ -170,8 +174,9 @@ fun SwipeRevealTwoBox(
             .clip(shape)
     ) {
         // 뒤: 오른쪽 끝 두 버튼 [first][second] (콘텐츠 높이에 자동 맞춤)
+        //   밀기 전엔 숨김(모서리 색 비침 방지). 2026-07-01
         Box(Modifier.matchParentSize(), contentAlignment = Alignment.CenterEnd) {
-            Row(Modifier.fillMaxHeight()) {
+            Row(Modifier.fillMaxHeight().graphicsLayer { alpha = if (offsetX.value < -0.5f) 1f else 0f }) {
                 RevealActionButton(buttonDp, firstColor, firstIcon, firstLabel, opened) {
                     onFirst()
                     opened = false
@@ -282,7 +287,7 @@ fun SwipeRevealThreeBox(
             .clip(shape)
     ) {
         Box(Modifier.matchParentSize(), contentAlignment = Alignment.CenterEnd) {
-            Row(Modifier.fillMaxHeight()) {
+            Row(Modifier.fillMaxHeight().graphicsLayer { alpha = if (offsetX.value < -0.5f) 1f else 0f }) {
                 RevealActionButton(buttonDp, firstColor, firstIcon, firstLabel, opened) {
                     onFirst(); opened = false; scope.launch { offsetX.animateTo(0f, tween(180)) }
                 }

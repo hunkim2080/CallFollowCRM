@@ -50,14 +50,18 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
+import kotlinx.coroutines.launch
 import java.util.Calendar
+
+private const val MINI_PAGER_CENTER = 1200
+private const val MINI_PAGER_COUNT = 2400   // ±100개월(~16년)
 
 /**
  * 채팅 중 "내 일정 확인" 바텀시트 (2026-06-01) — 프로토 openMySchedule 벤치마킹.
  *   고객과 대화하면서 빈 날/시공 있는 날을 미니 달력으로 즉시 확인 → 약속 잡기·가까운 현장 묶기.
  *   읽기 전용 (등록은 일정 화면 FAB). 여러 날 시공(scheduledWorkDays)도 기간 내 모든 날에 점.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun MyScheduleSheet(
     jobs: List<CustomerEntity>,
@@ -69,12 +73,15 @@ fun MyScheduleSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val nowMs = remember { System.currentTimeMillis() }
     val todayStart = remember(nowMs) { DateTimeUtils.startOfDay(nowMs) }
-    var viewedMonthAnchor by remember { mutableLongStateOf(miniMonthAnchor(nowMs)) }
+    // 월 전환 = HorizontalPager (일정 탭처럼 옆으로 쓸면 한 달씩 — 손가락 1:1, 놓으면 스냅). (2026-06-30 사장님)
+    val baseAnchor = remember(nowMs) { miniMonthAnchor(nowMs) }
+    val pagerState = androidx.compose.foundation.pager.rememberPagerState(initialPage = MINI_PAGER_CENTER) { MINI_PAGER_COUNT }
+    val pagerScope = androidx.compose.runtime.rememberCoroutineScope()
+    val viewedMonthAnchor by remember {
+        androidx.compose.runtime.derivedStateOf { miniShiftMonth(baseAnchor, pagerState.currentPage - MINI_PAGER_CENTER) }
+    }
     var selectedDayMs by remember { mutableStateOf<Long?>(todayStart) }
 
-    val cells = remember(viewedMonthAnchor, jobs) {
-        buildMiniCells(viewedMonthAnchor, jobs, todayStart)
-    }
     val jobsForSelected = remember(selectedDayMs, jobs) {
         val day = selectedDayMs ?: return@remember emptyList<CustomerEntity>()
         jobs.filter { miniJobCoversDay(it, day) }
@@ -104,7 +111,7 @@ fun MyScheduleSheet(
 
             // 월 헤더
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                IconButton(onClick = { viewedMonthAnchor = miniShiftMonth(viewedMonthAnchor, -1) }) {
+                IconButton(onClick = { pagerScope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) } }) {
                     Icon(Icons.Default.ChevronLeft, "이전 달", tint = TossTextSecondary)
                 }
                 Text(
@@ -114,7 +121,7 @@ fun MyScheduleSheet(
                     color = TossTextPrimary, fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center
                 )
-                IconButton(onClick = { viewedMonthAnchor = miniShiftMonth(viewedMonthAnchor, +1) }) {
+                IconButton(onClick = { pagerScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } }) {
                     Icon(Icons.Default.ChevronRight, "다음 달", tint = TossTextSecondary)
                 }
             }
@@ -131,16 +138,24 @@ fun MyScheduleSheet(
                 }
             }
 
-            // 6주 그리드
-            repeat(6) { week ->
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    cells.subList(week * 7, week * 7 + 7).forEach { cell ->
-                        MiniDay(
-                            cell = cell,
-                            isSelected = selectedDayMs == cell.dayStartMs,
-                            onClick = { selectedDayMs = cell.dayStartMs },
-                            modifier = Modifier.weight(1f)
-                        )
+            // 6주 그리드 = HorizontalPager (옆으로 쓸면 월 전환 — 일정 탭과 동일)
+            androidx.compose.foundation.pager.HorizontalPager(
+                state = pagerState,
+                verticalAlignment = Alignment.Top
+            ) { page ->
+                val pageCells = buildMiniCells(miniShiftMonth(baseAnchor, page - MINI_PAGER_CENTER), jobs, todayStart)
+                Column(Modifier.fillMaxWidth()) {
+                    repeat(6) { week ->
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            pageCells.subList(week * 7, week * 7 + 7).forEach { cell ->
+                                MiniDay(
+                                    cell = cell,
+                                    isSelected = selectedDayMs == cell.dayStartMs,
+                                    onClick = { selectedDayMs = cell.dayStartMs },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
                     }
                 }
             }
