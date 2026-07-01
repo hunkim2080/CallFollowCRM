@@ -6504,15 +6504,21 @@ _ADOPTION_HTML = """<!doctype html>
         'notebook':'노트','report':'리포트','templates':'템플릿','login':'로그인','onboarding':'온보딩',
       };
       // 추가71 — 균등도 (진짜 인기 vs 한 명 폭주)
+      // 추가72 (2026-06-29) — badge 기준 = 전체 사용자 수 상대적.
+      //   완전 균등 = 1/N. 균등 판정 = 1.5/N (5명이면 30%, 10명이면 15%).
+      //   폭주 판정 = 3/N (5명이면 60%, 10명이면 30%).
+      //   상하한 clamp: 균등 [15%, 40%], 폭주 [35%, 70%] (극단 사용자 수 방지).
+      var N = Math.max(1, d.stats.total_users || 1);
+      var evenTh  = Math.max(15, Math.min(40, 150 / N));
+      var surgeTh = Math.max(35, Math.min(70, 300 / N));
       var thtml = '';
       if (ts.length === 0) thtml = '<div class="empty">데이터 없음</div>';
       else for (var i=0; i<ts.length; i++) {
         var s = ts[i];
         var lbl = LBL[s.screen] || s.screen;
-        // 균등도 판정 — 최다 사용자 비율 기반
         var badge, badgeClass;
-        if (s.max_user_share_pct <= 30) { badge = '🟢 균등'; badgeClass = 'success'; }
-        else if (s.max_user_share_pct <= 60) { badge = '🟡 보통'; badgeClass = 'warn'; }
+        if (s.max_user_share_pct <= evenTh) { badge = '🟢 균등'; badgeClass = 'success'; }
+        else if (s.max_user_share_pct <= surgeTh) { badge = '🟡 보통'; badgeClass = 'warn'; }
         else { badge = '🔴 한 명 폭주'; badgeClass = 'risk'; }
         thtml += '<div class="screen-row"><div class="rank">' + (i+1) + '</div>'
               + '<div class="name">' + esc(lbl)
@@ -6522,6 +6528,10 @@ _ADOPTION_HTML = """<!doctype html>
               + '인당 ' + s.per_user_avg + '회 · 최다 ' + s.max_user_share_pct + '%'
               + '</div></div>';
       }
+      // 카드 밑에 판정 기준 안내 (사용자 수 반영 자동 조정 명시)
+      thtml += '<div style="margin-top:10px; font-size:10.5px; color:#9AA3AF; text-align:center;">'
+            + '판정 기준 (N=' + N + '명): 균등 ≤' + evenTh.toFixed(0) + '% · 폭주 >' + surgeTh.toFixed(0) + '%'
+            + '</div>';
       document.getElementById('topScreens').innerHTML = thtml;
 
       // 이탈 위험
