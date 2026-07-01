@@ -6158,6 +6158,376 @@ async def admin_beta_dashboard_page():
 
 
 # ============================================================================
+# 추가70 (2026-06-29) — /admin/adoption 정착 대시보드
+# ─────────────────────────────────────────────────────────────────────────────
+# 사장님 요청: Play Store 정식 출시 2일 앞. "사람들이 어떻게 적응하는지"
+# 실시간 파악 필요. 신규 vs 정착 vs 이탈 구분 + Top 화면 + 이탈 위험 사장님.
+# ============================================================================
+
+
+@app.get("/admin/adoption/data")
+async def admin_adoption_data(
+    authorization: Optional[str] = Header(default=None),
+    days: int = 30,
+) -> dict:
+    """정착 대시보드 데이터. Bearer 인증.
+
+    응답:
+      - new_users: {success, exploring, at_risk} — 7일 이내 가입 사용자 분류
+      - activation: {d1_3, d4_7, d8_plus, never} — 첫 시공일 등록까지 D+N 히스토그램
+      - top_screens: [{screen, total, unique_users}] — 자주 쓰는 화면 Top 10
+      - at_risk: [{phone, name, added_days_ago, days_since_last, schedule_count}] — 이탈 위험 사장님
+      - stats: {total_users, active_7d, activated} — 전체 요약
+    """
+    _admin_auth_bearer_from_header(authorization)
+    days = max(7, min(days, 90))
+    now = _now_ms()
+    seven_days_ago = now - 7 * 86400 * 1000
+    three_days_ago = now - 3 * 86400 * 1000
+    thirty_days_ago = now - 30 * 86400 * 1000
+
+    with sqlite3.connect(DB_PATH) as con:
+        con.row_factory = sqlite3.Row
+
+        # 1) 전체 사용자 + 정착 상태 (schedule_create 이벤트 있으면 정착)
+        # phone → {added, last_seen, schedule_count, first_schedule_at}
+        wl_rows = con.execute(
+            "SELECT phone, name, added_at_ms, first_seen_ms, last_seen_ms FROM beta_whitelist"
+        ).fetchall()
+
+        # phone 별 schedule_create 카운트 + 첫 등록 시각
+        sc_rows = con.execute(
+            """SELECT owner_phone, COUNT(*) as cnt, MIN(created_at_ms) as first_ms
+               FROM app_events WHERE event_name = 'schedule_create'
+               GROUP BY owner_phone"""
+        ).fetchall()
+        sc_map = {r[0]: {"cnt": r[1], "first_ms": r[2]} for r in sc_rows}
+
+        new_success = 0
+        new_exploring = 0
+        new_at_risk = 0
+        activation_hist = {"d1_3": 0, "d4_7": 0, "d8_plus": 0, "never": 0}
+        at_risk_list = []
+        total_users = len(wl_rows)
+        active_7d = 0
+        activated = 0
+
+        for wl in wl_rows:
+            phone = wl["phone"]
+            name = wl["name"] or ""
+            added = wl["added_at_ms"]
+            last = wl["last_seen_ms"] or 0
+            sc = sc_map.get(phone, {"cnt": 0, "first_ms": None})
+            sc_cnt = sc["cnt"]
+            sc_first = sc["first_ms"]
+
+            is_new = added >= seven_days_ago
+            has_scheduled = sc_cnt > 0
+
+            if last >= seven_days_ago:
+                active_7d += 1
+            if has_scheduled:
+                activated += 1
+
+            # 신규 사용자 분류
+            if is_new:
+                if has_scheduled:
+                    new_success += 1
+                elif last >= three_days_ago:
+                    new_exploring += 1
+                else:
+                    new_at_risk += 1
+                    at_risk_list.append({
+                        "phone": phone,
+                        "name": name,
+                        "added_days_ago": max(1, (now - added) // (86400 * 1000)),
+                        "days_since_last": (now - last) // (86400 * 1000) if last else None,
+                        "schedule_count": sc_cnt,
+                    })
+
+            # 정착 히스토그램 (첫 시공일 등록 D+N)
+            if has_scheduled and sc_first and added:
+                days_to = max(0, (sc_first - added) // (86400 * 1000))
+                if days_to <= 3:
+                    activation_hist["d1_3"] += 1
+                elif days_to <= 7:
+                    activation_hist["d4_7"] += 1
+                else:
+                    activation_hist["d8_plus"] += 1
+            elif added and (now - added) >= 7 * 86400 * 1000:
+                # 가입 7일 넘었는데 아직 시공일 X = "never" 카테고리
+                activation_hist["never"] += 1
+
+        # 2) 화면 인기 Top 10 (screen_view 이벤트 지난 N일)
+        cutoff = now - days * 86400 * 1000
+        # screen 정규화 (chat?phone=... → chat 등)
+        def _norm(s):
+            if not s:
+                return ""
+            base = str(s).split("?")[0].split("&")[0].strip().rstrip("/")
+            if "/" in base:
+                segs = [x for x in base.split("/") if x and not (x.startswith("{") and x.endswith("}"))]
+                base = segs[-1] if segs else base.rsplit("/", 1)[-1]
+            return base.lower()
+
+        screen_rows = con.execute(
+            """SELECT screen, owner_phone FROM app_events
+               WHERE event_name = 'screen_view' AND created_at_ms >= ?""",
+            (cutoff,),
+        ).fetchall()
+        screen_agg = {}  # normalized screen → {total, phones set}
+        for sr in screen_rows:
+            norm = _norm(sr[0])
+            if not norm:
+                continue
+            if norm not in screen_agg:
+                screen_agg[norm] = {"total": 0, "phones": set()}
+            screen_agg[norm]["total"] += 1
+            screen_agg[norm]["phones"].add(sr[1])
+        top_screens = sorted(
+            [{"screen": k, "total": v["total"], "unique_users": len(v["phones"])}
+             for k, v in screen_agg.items()],
+            key=lambda x: x["total"],
+            reverse=True,
+        )[:10]
+
+    # at_risk 정렬 (미진입 오래된 순)
+    at_risk_list.sort(key=lambda x: -(x["days_since_last"] or 999))
+
+    return {
+        "new_users": {
+            "success": new_success,
+            "exploring": new_exploring,
+            "at_risk": new_at_risk,
+        },
+        "activation": activation_hist,
+        "top_screens": top_screens,
+        "at_risk": at_risk_list[:20],
+        "stats": {
+            "total_users": total_users,
+            "active_7d": active_7d,
+            "activated": activated,
+            "activation_rate": round(activated / total_users * 100, 1) if total_users else 0,
+        },
+    }
+
+
+_ADOPTION_HTML = """<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>정착 대시보드 — RING-GO admin</title>
+<style>
+  :root { --blue:#3182F6; --bg:#F4F5F7; --card:#fff;
+          --t1:#0B0F19; --t2:#5A6472; --t3:#9AA3AF; --line:#EEF0F3;
+          --success:#16C172; --warn:#FF8B40; --error:#F0436A; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); font-family:'Pretendard',-apple-system,sans-serif;
+         color:var(--t1); line-height:1.5; }
+  .wrap { max-width:900px; margin:0 auto; padding:16px 14px 40px; }
+  .back { display:inline-block; font-size:13px; color:var(--blue); text-decoration:none; margin-bottom:8px; }
+  h1 { font-size:22px; font-weight:800; margin:0 0 4px; }
+  .sub { font-size:13px; color:var(--t2); margin-bottom:14px; }
+  .card { background:var(--card); border-radius:14px; padding:16px; margin-top:14px;
+          box-shadow:0 1px 3px rgba(0,0,0,.04); }
+  .card h2 { font-size:14px; font-weight:800; margin:0 0 12px; }
+  .stats-4 { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:12px; }
+  .stat { background:var(--card); border-radius:12px; padding:12px 10px; text-align:center;
+          box-shadow:0 1px 3px rgba(0,0,0,.04); }
+  .stat .v { font-size:22px; font-weight:800; }
+  .stat .lab { font-size:11px; color:var(--t3); font-weight:700; margin-top:4px; }
+  .seg { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .seg .s { padding:10px; border-radius:10px; }
+  .seg .s.success { background:#E7F8EF; color:#0a8f44; }
+  .seg .s.warn    { background:#FFF3DF; color:#C9820B; }
+  .seg .s.risk    { background:#FDEAEF; color:var(--error); }
+  .seg .s .v { font-size:24px; font-weight:800; }
+  .seg .s .lab { font-size:11.5px; font-weight:700; margin-top:2px; }
+  .hist { display:flex; align-items:flex-end; gap:10px; height:140px;
+          padding:8px 4px; border-bottom:1px solid var(--line); }
+  .hist .bar { flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; }
+  .hist .bar .b { width:100%; background:var(--blue); border-radius:6px 6px 0 0; min-height:2px; }
+  .hist .bar .b.risk { background:var(--error); }
+  .hist .bar .n { font-size:14px; font-weight:800; }
+  .hist-lbl { display:flex; gap:10px; padding:6px 4px 0; font-size:11px; color:var(--t3); }
+  .hist-lbl div { flex:1; text-align:center; font-weight:700; }
+  .screen-row { display:flex; align-items:center; padding:8px 0; border-bottom:1px solid var(--line);
+                font-size:13px; }
+  .screen-row:last-child { border-bottom:0; }
+  .screen-row .rank { width:22px; font-weight:800; color:var(--t3); }
+  .screen-row .name { flex:1; font-weight:700; }
+  .screen-row .n { color:var(--t2); font-size:12px; }
+  .risk-row { display:flex; align-items:center; padding:9px 0; border-bottom:1px solid var(--line);
+              font-size:13px; }
+  .risk-row:last-child { border-bottom:0; }
+  .risk-row .info { flex:1; }
+  .risk-row .name { font-weight:800; }
+  .risk-row .meta { font-size:11.5px; color:var(--error); font-weight:700; }
+  .risk-row a.link { color:var(--blue); text-decoration:none; font-size:12px; font-weight:800; }
+  .empty { color:var(--t3); font-size:13px; text-align:center; padding:14px 0; }
+  #tokenModal { position:fixed; inset:0; background:rgba(0,0,0,.5); display:none;
+                align-items:center; justify-content:center; z-index:50; }
+  #tokenModal.show { display:flex; }
+  #tokenModal .box { background:#fff; border-radius:14px; padding:22px; max-width:90vw; width:340px; }
+  #tokenModal input { width:100%; border:1.5px solid var(--line); border-radius:10px;
+                       padding:11px 12px; font-size:14px; font-family:inherit; }
+  #tokenModal button { width:100%; background:var(--blue); color:#fff; border:0;
+                       border-radius:10px; padding:11px; font-size:14px; font-weight:800;
+                       font-family:inherit; cursor:pointer; margin-top:10px; }
+</style></head>
+<body>
+<div id="tokenModal"><div class="box">
+  <h3 style="margin:0 0 8px">ADMIN_TOKEN 입력</h3>
+  <input id="tokenInput" type="password" placeholder="토큰">
+  <button onclick="saveToken()">저장</button>
+</div></div>
+
+<div class="wrap">
+  <a class="back" href="/admin">← admin 홈</a>
+  <h1>📊 정착 대시보드</h1>
+  <div class="sub" id="sub">로딩중…</div>
+
+  <div class="stats-4">
+    <div class="stat"><div class="v" id="sTotal">-</div><div class="lab">전체 사용자</div></div>
+    <div class="stat"><div class="v" id="sActive">-</div><div class="lab">7일 활동</div></div>
+    <div class="stat"><div class="v" id="sActivated">-</div><div class="lab">정착 성공</div></div>
+    <div class="stat"><div class="v" id="sRate">-</div><div class="lab">정착률</div></div>
+  </div>
+
+  <div class="card">
+    <h2>🆕 신규 사용자 (7일 이내 가입)</h2>
+    <div class="seg">
+      <div class="s success"><div class="v" id="nSuccess">-</div><div class="lab">🟢 정착 성공<br>(시공일 등록)</div></div>
+      <div class="s warn"><div class="v" id="nExploring">-</div><div class="lab">🟡 탐색중<br>(등록 X)</div></div>
+      <div class="s risk"><div class="v" id="nAtRisk">-</div><div class="lab">🔴 이탈 위험<br>(3일+ 안 켬)</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>⏱ 첫 시공일 등록까지</h2>
+    <div class="hist" id="histBars"></div>
+    <div class="hist-lbl">
+      <div>D+3 이내</div><div>D+4~7</div><div>D+8~</div><div>가입 7일+<br>미등록</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>🏆 자주 쓰는 화면 Top 10 (지난 30일)</h2>
+    <div id="topScreens"><div class="empty">로딩중…</div></div>
+  </div>
+
+  <div class="card">
+    <h2>🚨 이탈 위험 사장님 <span style="font-size:11px; color:var(--t3); font-weight:700;">— 신규 가입 + 3일+ 안 켬</span></h2>
+    <div id="atRisk"><div class="empty">로딩중…</div></div>
+  </div>
+</div>
+
+<script>
+  function getToken() { return sessionStorage.getItem('admin_token') || ''; }
+  function saveToken() {
+    var t = document.getElementById('tokenInput').value.trim();
+    if (!t) return;
+    sessionStorage.setItem('admin_token', t);
+    document.getElementById('tokenModal').classList.remove('show');
+    load();
+  }
+  function ensureToken() {
+    if (!getToken()) { document.getElementById('tokenModal').classList.add('show'); return false; }
+    return true;
+  }
+  function esc(s) { s = String(s||''); return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function fmtPhone(p) {
+    p = String(p||'').replace(/[^0-9]/g,'');
+    if (p.length === 11) return p.slice(0,3) + '-' + p.slice(3,7) + '-' + p.slice(7);
+    return p;
+  }
+
+  async function load() {
+    if (!ensureToken()) return;
+    try {
+      var r = await fetch('/admin/adoption/data', { headers: { 'Authorization': 'Bearer ' + getToken() } });
+      if (r.status === 401) { sessionStorage.removeItem('admin_token'); ensureToken(); return; }
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      var d = await r.json();
+
+      // 상단 4 stats
+      document.getElementById('sTotal').textContent     = d.stats.total_users;
+      document.getElementById('sActive').textContent    = d.stats.active_7d;
+      document.getElementById('sActivated').textContent = d.stats.activated;
+      document.getElementById('sRate').textContent      = d.stats.activation_rate + '%';
+
+      // 신규 사용자 3분류
+      document.getElementById('nSuccess').textContent   = d.new_users.success;
+      document.getElementById('nExploring').textContent = d.new_users.exploring;
+      document.getElementById('nAtRisk').textContent    = d.new_users.at_risk;
+
+      // 정착 히스토그램
+      var h = d.activation;
+      var vals = [h.d1_3, h.d4_7, h.d8_plus, h.never];
+      var max = Math.max.apply(null, vals.concat([1]));
+      var bars = '';
+      var classes = ['', '', '', 'risk'];
+      for (var i=0; i<vals.length; i++) {
+        var pct = Math.max(2, Math.round(vals[i] / max * 100));
+        bars += '<div class="bar"><div class="n">' + vals[i] + '</div><div class="b ' + classes[i]
+              + '" style="height:' + pct + '%"></div></div>';
+      }
+      document.getElementById('histBars').innerHTML = bars;
+
+      // Top 화면
+      var ts = d.top_screens || [];
+      var LBL = {
+        'home':'홈','chat':'채팅','collab':'협업현장','collab_inbox':'협업 인박스',
+        'intake_form':'접수서','schedule':'일정','customer':'고객 상세','customer_detail':'고객 상세',
+        'call':'통화상담','team':'팀원','settings':'설정','settlement':'정산','stats':'통계',
+        'business_info':'업체 정보','collab_sites':'협업현장','pricing_items':'가격표',
+        'customers':'고객 목록','new_leads':'신규 리드','visited':'방문 예정','search':'검색',
+        'notebook':'노트','report':'리포트','templates':'템플릿','login':'로그인','onboarding':'온보딩',
+      };
+      var thtml = '';
+      if (ts.length === 0) thtml = '<div class="empty">데이터 없음</div>';
+      else for (var i=0; i<ts.length; i++) {
+        var s = ts[i];
+        var lbl = LBL[s.screen] || s.screen;
+        thtml += '<div class="screen-row"><div class="rank">' + (i+1) + '</div>'
+              + '<div class="name">' + esc(lbl) + '</div>'
+              + '<div class="n">' + s.total + '회 · ' + s.unique_users + '명</div></div>';
+      }
+      document.getElementById('topScreens').innerHTML = thtml;
+
+      // 이탈 위험
+      var ar = d.at_risk || [];
+      var arhtml = '';
+      if (ar.length === 0) arhtml = '<div class="empty" style="color:var(--success)">🎉 이탈 위험 사장님 없음</div>';
+      else for (var i=0; i<ar.length; i++) {
+        var u = ar[i];
+        var displayName = u.name || fmtPhone(u.phone);
+        var meta = (u.days_since_last !== null ? u.days_since_last + '일 안 켬' : '진입 X')
+                 + ' · 가입 ' + u.added_days_ago + '일차 · 시공일 ' + u.schedule_count + '건';
+        arhtml += '<div class="risk-row"><div class="info">'
+              + '<div class="name">' + esc(displayName) + '</div>'
+              + '<div class="meta">' + esc(meta) + '</div></div>'
+              + '<a class="link" href="/admin/user/' + encodeURIComponent(u.phone) + '">보기 ›</a></div>';
+      }
+      document.getElementById('atRisk').innerHTML = arhtml;
+
+      document.getElementById('sub').textContent = '지난 30일 기준 · ' + new Date().toLocaleTimeString('ko');
+    } catch(e) {
+      document.getElementById('sub').textContent = '로드 실패: ' + e.message;
+    }
+  }
+  load();
+</script></body></html>
+"""
+
+
+@app.get("/admin/adoption", response_class=HTMLResponse, include_in_schema=False)
+async def admin_adoption_page():
+    """정착 대시보드 HTML."""
+    return HTMLResponse(content=_ADOPTION_HTML)
+
+
+# ============================================================================
 # 추가34 (2026-06-18) — /admin/user/{phone} 사용자 종합 활동 페이지
 # ─────────────────────────────────────────────────────────────────────────────
 # 사장님 요청: "베타테스터들 번호 클릭하면 스케줄 등록은 했는지 다 보였으면 좋겠어."
@@ -6340,13 +6710,15 @@ async def admin_user_detail_data(
         ).fetchall()
         recent_api = [{"endpoint": r[0], "created_at_ms": r[1]} for r in recent_rows]
 
-        # ── 6.5) 사용자 여정 events (추가51 — 최근 50건)
+        # ── 6.5) 사용자 여정 events (추가51 — 최근 N건)
+        # 추가69 (2026-06-29) — 50 → 200 확장. 활성 사용자 (일 이벤트 100~200 건) 도 어제/그저께까지 잡힘.
+        # 이벤트 하나 = 짧은 JSON, 200 건도 응답 20KB 미만 (프론트 렌더 부담 X).
         event_rows = con.execute(
             """SELECT event_name, screen, target, extra_json, created_at_ms
                FROM app_events
                WHERE owner_phone = ?
                ORDER BY created_at_ms DESC
-               LIMIT 50""",
+               LIMIT 200""",
             (target,),
         ).fetchall()
         # 추가52 (2026-06-23) — screen 정규화 (URL route → 짧은 이름).
@@ -7429,6 +7801,17 @@ _ADMIN_HOME_HTML = """<!doctype html>
 
     <!-- 추가56 (2026-06-25) — 베타 인테이크 폼 카드 제거. 페이지 (/admin/beta/intake) 자체는
          유지 (사장님이 직접 URL 치면 접근 가능). 사장님이 안 쓰는 죽은 카드라 admin 홈에서만 뺌. -->
+
+    <!-- 추가70 (2026-06-29) — 정착 대시보드 카드 -->
+    <a href="/admin/adoption" class="menu-card" style="text-decoration:none; color:inherit;">
+      <div class="icon purple">📊</div>
+      <div class="body">
+        <div class="title">정착 대시보드</div>
+        <div class="desc">신규 사용자 정착 상태 · 이탈 위험 사장님</div>
+        <div class="stats"><span id="adoStats">Play Store 정식 출시 대비</span></div>
+      </div>
+      <div class="arrow">›</div>
+    </a>
 
     <a href="/admin/usage-chart" class="menu-card" style="text-decoration:none; color:inherit;">
       <div class="icon green">📈</div>
