@@ -164,7 +164,7 @@ fun SettlementScreen(
                 onConfirmBalance = { confirmPayOff = it },
                 onUndoPaid = { viewModel.setBalancePaid(it.customerId, false) }
             )
-            item(key = "tail") { Spacer(Modifier.height(28.dp)) }
+            item(key = "tail") { Spacer(Modifier.height(12.dp)) }
         }
     }
 

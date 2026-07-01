@@ -386,7 +386,7 @@ fun ScheduleScreen(
             if (schedulesForSelected.isNotEmpty() || collabForSelected.isNotEmpty()) {
                 item(key = "day-add") { DayAddButton("이 날 일정 더 추가", { onAddSchedule(selectedDayMs) }) }
             }
-            item { Spacer(Modifier.height(40.dp)) }
+            item { Spacer(Modifier.height(12.dp)) }
         }
     }
 
