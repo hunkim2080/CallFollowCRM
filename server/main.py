@@ -6486,6 +6486,17 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
   .ev-err   { border-left-color:#F44336; }
   .ev-x     { background:var(--bg); border-radius:6px; padding:1px 6px;
               font-size:11px; font-weight:800; color:var(--t2); margin-left:6px; }
+  /* 추가65 (2026-06-29) — 세션 카운트 요약 + raw 접힘 */
+  .ses-summary { display:flex; flex-wrap:wrap; gap:6px 10px; padding:8px 2px 4px; }
+  .ses-cnt { background:var(--bg); border-radius:8px; padding:5px 10px;
+             font-size:12px; color:var(--t2); white-space:nowrap; }
+  .ses-cnt b { color:var(--t1); font-weight:800; margin-left:3px; }
+  details.ses-raw { margin:2px 0 8px; }
+  details.ses-raw > summary { padding:6px 4px; font-size:11.5px; color:var(--t3);
+                              cursor:pointer; list-style:none; font-weight:700; }
+  details.ses-raw > summary::-webkit-details-marker { display:none; }
+  details.ses-raw[open] > summary { color:var(--t2); }
+  details.ses-raw > summary:hover { color:var(--blue); }
   /* 추가54 (2026-06-23) — 페이지 재설계 (Hero / 숫자 / 탭 / 접힘) */
   .hero { background:linear-gradient(135deg, #0B0F19 0%, #1B2236 100%);
           color:#fff; border-radius:16px; padding:18px 18px 16px; margin-top:14px;
@@ -7052,6 +7063,8 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
           return out;
         }
         // 4) HTML — 세션은 최근(아래)→옛(위)순, 세션 안은 시간 흐름 그대로 (옛→새)
+        // 추가65 (2026-06-29) — 세션별 "화면 카운트 요약" + raw timeline 접힘.
+        // 사장님 의도: "이 사람이 뭐 하고 나갔는지 이해가 안 된다" — 21줄 나열 대신 한 줄 요약.
         for (var s=sessions.length-1; s>=0; s--) {
           var ses = sessions[s];
           var compressed = compress(ses.events);
@@ -7061,18 +7074,64 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
           else durLbl = Math.round(durSec/60) + '분';
           jhtml += '<div class="ses-hdr">🕐 ' + fmtSesHdr(ses.start_ms, ses.end_ms)
                 + '<span class="ses-meta">· ' + durLbl + ' · ' + ses.events.length + '건</span></div>';
-          for (var k=0; k<compressed.length; k++) {
-            var c = compressed[k];
-            var icon = EVENT_ICON[c.event_name] || '·';
-            var screen = SCREEN_LABEL[c.screen] || c.screen || '';
-            var lbl = EVENT_LABEL[c.event_name] || c.event_name;
-            var cls = EVENT_CLASS[c.event_name] || '';
-            var countTxt = c.count > 1 ? '<span class="ev-x">×' + c.count + '</span>' : '';
-            var tgtTxt = c.target ? ' · ' + esc(c.target) : '';
-            jhtml += '<div class="item ev-row ' + cls + '">'
-              + '<div class="title">' + icon + ' ' + esc(screen) + countTxt + tgtTxt + '</div>'
-              + '<div class="sub2">' + fmtShort(c.last_ms) + ' · ' + lbl + '</div></div>';
+
+          // 화면 카운트 집계 (event_name + screen 기준, target 무시)
+          var scCounts = {};  // key = "이모지 라벨" (또는 이벤트 라벨), value = 카운트
+          var scOrder = [];   // 최초 등장 순서 유지 (동률 정렬 X)
+          for (var i=0; i<ses.events.length; i++) {
+            var ev = ses.events[i];
+            var evIcon = EVENT_ICON[ev.event_name] || '·';
+            var evScreen = SCREEN_LABEL[ev.screen] || ev.screen || '(빈)';
+            // event_name 별로 다른 표기:
+            //  screen_view → "🏠 홈"
+            //  llm_use / feature_use → "⚙️ 채팅·AI" 같이 (screen 있으면 그 위에서)
+            //  button_click → "👆 버튼"
+            //  schedule_create → "📅 시공일 등록"
+            var scKey;
+            if (ev.event_name === 'llm_use' || ev.event_name === 'feature_use') {
+              scKey = '⚙️ AI 사용' + (evScreen && evScreen !== '(빈)' ? ' (' + evScreen + ')' : '');
+            } else if (ev.event_name === 'schedule_create') {
+              scKey = '📅 시공일 등록';
+            } else if (ev.event_name === 'screenshot') {
+              scKey = '📸 캡쳐' + (evScreen && evScreen !== '(빈)' ? ' (' + evScreen + ')' : '');
+            } else if (ev.event_name === 'button_click') {
+              scKey = '👆 버튼' + (ev.target ? ' (' + ev.target + ')' : '');
+            } else {
+              scKey = evIcon + ' ' + evScreen;
+            }
+            if (scCounts[scKey] === undefined) {
+              scCounts[scKey] = 0;
+              scOrder.push(scKey);
+            }
+            scCounts[scKey] += 1;
           }
+          // 카운트 내림차순 정렬 (동률 = 최초 등장 순)
+          scOrder.sort(function(a, b) {
+            var d = scCounts[b] - scCounts[a];
+            return d !== 0 ? d : scOrder.indexOf(a) - scOrder.indexOf(b);
+          });
+          var summaryHtml = '';
+          for (var m=0; m<scOrder.length; m++) {
+            var k = scOrder[m];
+            summaryHtml += '<div class="ses-cnt">' + esc(k) + ' <b>' + scCounts[k] + '회</b></div>';
+          }
+          jhtml += '<div class="ses-summary">' + summaryHtml + '</div>';
+
+          // Raw timeline = 접힘 (기본 닫힘). 필요 시 자세히 눌러서 열기.
+          var detailsHtml = '';
+          for (var k2=0; k2<compressed.length; k2++) {
+            var c = compressed[k2];
+            var icon2 = EVENT_ICON[c.event_name] || '·';
+            var screen2 = SCREEN_LABEL[c.screen] || c.screen || '';
+            var lbl2 = EVENT_LABEL[c.event_name] || c.event_name;
+            var cls2 = EVENT_CLASS[c.event_name] || '';
+            var countTxt2 = c.count > 1 ? '<span class="ev-x">×' + c.count + '</span>' : '';
+            var tgtTxt2 = c.target ? ' · ' + esc(c.target) : '';
+            detailsHtml += '<div class="item ev-row ' + cls2 + '">'
+              + '<div class="title">' + icon2 + ' ' + esc(screen2) + countTxt2 + tgtTxt2 + '</div>'
+              + '<div class="sub2">' + fmtShort(c.last_ms) + ' · ' + lbl2 + '</div></div>';
+          }
+          jhtml += '<details class="ses-raw"><summary>▸ 자세히 (한 건씩 보기)</summary>' + detailsHtml + '</details>';
         }
       }
       document.getElementById('journeyList').innerHTML = jhtml;
