@@ -77,6 +77,15 @@ class SharedSiteRepository(
         val uploadedAtMs: Long
     )
 
+    /** 협업 현장 한 줄 댓글 1건 — 협업 사장끼리 현장 논의. (2026-07-01, 서버 shared_comments) */
+    data class SiteComment(
+        val id: Long,
+        val authorPhone: String,     // 작성자 사장 번호(숫자만) — 나/상대 구분용
+        val authorName: String,
+        val body: String,
+        val createdAtMs: Long        // epoch ms
+    )
+
     /** 업체별(나를 부른 사장님) 집계 — 서버 §B. 전체 이력 기준(with-me 윈도우 밖 과거 포함). */
     data class Partner(
         val ownerPhone: String,
@@ -346,6 +355,43 @@ class SharedSiteRepository(
             put("share_id", shareId)
             put("phone", phoneKey(phone))
             put("by", if (asOwner) "owner" else "partner")
+        })
+
+    /** 그 협업 현장의 한 줄 댓글 목록(오래된→최신). 서버 미구현/실패 시 빈 목록(graceful). */
+    suspend fun comments(shareId: String, phone: String, limit: Int = 100): Result<List<SiteComment>> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val url = baseUrl.toHttpUrl().newBuilder()
+                    .addPathSegments("api/shared/comments")
+                    .addQueryParameter("site_id", shareId)
+                    .addQueryParameter("phone", phoneKey(phone))
+                    .addQueryParameter("limit", limit.toString())
+                    .build()
+                val req = Request.Builder().url(url).get().build()
+                client.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                    val arr = JSONObject(resp.body?.string().orEmpty()).optJSONArray("comments") ?: JSONArray()
+                    (0 until arr.length()).mapNotNull { i ->
+                        val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                        SiteComment(
+                            id = o.optLong("id"),
+                            authorPhone = phoneKey(o.optString("author_phone")),
+                            authorName = o.optString("author_name").takeIf { it.isNotBlank() && it != "null" } ?: "사장님",
+                            body = o.optString("body"),
+                            createdAtMs = o.optLong("created_at")
+                        )
+                    }
+                }
+            }
+        }
+
+    /** 협업 현장에 한 줄 댓글 작성. author_name 없으면 서버가 번호로 표시. 실패 시 Result 실패(화면이 안내). */
+    suspend fun postComment(shareId: String, authorPhone: String, authorName: String?, body: String): Result<Unit> =
+        post("$baseUrl/api/shared/comment", JSONObject().apply {
+            put("site_id", shareId)
+            put("author_phone", phoneKey(authorPhone))
+            authorName?.takeIf { it.isNotBlank() }?.let { put("author_name", it) }
+            put("body", body)
         })
 
     /** "data:image/jpeg;base64,XXXX" 또는 raw base64 → Bitmap. 실패 시 null. */

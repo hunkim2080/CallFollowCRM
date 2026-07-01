@@ -66,6 +66,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.ai.SharedSiteRepository
+import com.detailline.callfollowcrm.presentation.component.CollabCommentSection
 import com.detailline.callfollowcrm.ai.siteDisplayName
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
@@ -102,6 +103,8 @@ fun SharedSiteScreen(
     val toast by viewModel.toast.collectAsState()
     val photos by viewModel.photos.collectAsState()
     val photoBusy by viewModel.photoBusy.collectAsState()
+    val comments by viewModel.comments.collectAsState()
+    val commentBusy by viewModel.commentBusy.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var fullscreenPhoto by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
@@ -160,6 +163,8 @@ fun SharedSiteScreen(
     val serverPartners by viewModel.partners.collectAsState()
     val mySharedSites by viewModel.mySharedSites.collectAsState()
     val selected = sites.firstOrNull { it.shareId == selectedId }
+    // 내가(A) 공유한 현장을 열었을 때 — with-me 엔 없으니 by-me 에서 찾는다. 오너용 상세(댓글 중심). (2026-07-01 사장님)
+    val selectedMine = if (selected == null) mySharedSites.firstOrNull { it.shareId == selectedId } else null
     // 휴지통에 넣은 건 목록·집계에서 제외. 거절(declined)/해제(ended)된 협업도 활성 목록에서 제외(기록은 서버 보존).
     val gone = setOf("declined", "ended")
     val activeSites = remember(sites, trashed) { sites.filter { it.shareId !in trashed && it.status !in gone } }
@@ -188,16 +193,27 @@ fun SharedSiteScreen(
         else groupByPartner(acceptedSites)
     }
     val openPartner = partnerGroups.firstOrNull { it.key == bizPartner }
-    BackHandler(enabled = selected != null || bizPartner != null || showTrash) {
+    BackHandler(enabled = selected != null || selectedMine != null || bizPartner != null || showTrash) {
         when {
-            selected != null -> selectedId = null
+            selected != null || selectedMine != null -> selectedId = null
             showTrash -> showTrash = false
             else -> bizPartner = null
         }
     }
-    // 상세 열면 그 현장 증거사진 로드(닫히면 비움).
-    LaunchedEffect(selected?.shareId) {
-        selected?.let { viewModel.loadPhotos(it.shareId) } ?: run { /* 목록 — 비움은 다음 상세 열 때 */ }
+    // 상세 열면 그 현장 증거사진·댓글 로드(받은현장·내가공유한현장 둘 다).
+    LaunchedEffect(selectedId) {
+        val s = sites.firstOrNull { it.shareId == selectedId } ?: mySharedSites.firstOrNull { it.shareId == selectedId }
+        if (s != null) { viewModel.loadPhotos(s.shareId); viewModel.loadComments(s.shareId) }
+    }
+    // 댓글 자동 새로고침(폴링) — 카톡처럼 상대 댓글이 저절로 올라오게. 상세 열린 동안 4초 간격. (2026-07-01 사장님)
+    LaunchedEffect(selectedId) {
+        val id = selectedId
+        if (id.isNullOrBlank()) return@LaunchedEffect
+        if (sites.none { it.shareId == id } && mySharedSites.none { it.shareId == id }) return@LaunchedEffect
+        while (true) {
+            kotlinx.coroutines.delay(4000)
+            viewModel.loadComments(id)
+        }
     }
     // §E: 출발 누른 현장의 3km 자동 도착 펜스 등록(위치 권한 받은 뒤).
     val locationPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -224,6 +240,7 @@ fun SharedSiteScreen(
                     Text(
                         when {
                             selected != null -> siteDisplayName(selected)
+                            selectedMine != null -> siteDisplayName(selectedMine)
                             showTrash -> "휴지통"
                             openPartner != null -> openPartner.name
                             else -> "협업 현장"
@@ -234,7 +251,7 @@ fun SharedSiteScreen(
                 navigationIcon = {
                     IconButton(onClick = {
                         when {
-                            selected != null -> selectedId = null
+                            selected != null || selectedMine != null -> selectedId = null
                             showTrash -> showTrash = false
                             bizPartner != null -> bizPartner = null
                             else -> onBack()
@@ -245,7 +262,7 @@ fun SharedSiteScreen(
                 },
                 actions = {
                     // 휴지통 들어가기 — 메인 목록에서 휴지통에 뭔가 있을 때만.
-                    if (selected == null && !showTrash && bizPartner == null && trashedSites.isNotEmpty()) {
+                    if (selected == null && selectedMine == null && !showTrash && bizPartner == null && trashedSites.isNotEmpty()) {
                         IconButton(onClick = { showTrash = true }) {
                             Icon(Icons.Outlined.Delete, "휴지통", tint = TossTextSecondary)
                             Text("${trashedSites.size}", fontSize = 11.sp, fontWeight = FontWeight.Bold,
@@ -266,7 +283,7 @@ fun SharedSiteScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp, vertical = 6.dp)
         ) {
-            if (showTrash && selected == null) {
+            if (showTrash && selected == null && selectedMine == null) {
                 TrashView(
                     trashedSites = trashedSites,
                     onRestore = {
@@ -275,7 +292,7 @@ fun SharedSiteScreen(
                     },
                     onOpen = { selectedId = it.shareId }
                 )
-            } else if (selected == null) {
+            } else if (selected == null && selectedMine == null) {
                 // 1차 분리: [공유받은 현장] [내가 공유한 현장]. 업체별 드릴다운(openPartner) 중엔 숨김. (2026-06-18 사장님)
                 if (openPartner == null) {
                     CollabTopTabs(topMode, onSelect = { topMode = it; bizPartner = null })
@@ -286,6 +303,7 @@ fun SharedSiteScreen(
                         sites = myActiveShared,
                         loading = loading,
                         noBizPhone = viewModel.noBizPhone,
+                        onOpen = { selectedId = it.shareId },
                         onDelete = { confirmCancelMine = it }
                     )
                 } else {
@@ -318,7 +336,7 @@ fun SharedSiteScreen(
                         onTrash = { confirmRemoveSite = it }   // 바로 안 빼고 확인부터 — 수락된 협업은 상대에게 알림이 감. (2026-06-20 사장님)
                     )
                 }
-            } else {
+            } else if (selected != null) {
                 DetailBody(
                     site = selected,
                     hasAccount = payoutNo.isNotBlank(),
@@ -332,6 +350,10 @@ fun SharedSiteScreen(
                     acceptExpired = viewModel.acceptExpired(selected),
                     photos = photos,
                     photoBusy = photoBusy,
+                    comments = comments,
+                    commentBusy = commentBusy,
+                    myPhone = viewModel.myPhoneDigits,
+                    onSendComment = { viewModel.postComment(selected.shareId, it) },
                     onPickPhoto = {
                         pendingUploadShareId = selected.shareId
                         showPhotoPicker = true
@@ -366,6 +388,17 @@ fun SharedSiteScreen(
                     },
                     onRespond = { accept -> viewModel.respond(selected, accept); if (!accept) selectedId = null },
                     onLeave = { confirmRemoveSite = selected }
+                )
+            } else if (selectedMine != null) {
+                // 내가(A) 공유한 현장 상세 — 댓글 중심(협업 사장과 논의). (2026-07-01 사장님)
+                val mine = selectedMine
+                OwnerSharedDetail(
+                    site = mine,
+                    comments = comments,
+                    commentBusy = commentBusy,
+                    myPhone = viewModel.myPhoneDigits,
+                    onSendComment = { viewModel.postComment(mine.shareId, it) },
+                    onCancel = { confirmCancelMine = mine }
                 )
             }
             Spacer(Modifier.height(20.dp))
@@ -768,6 +801,7 @@ private fun MySharedArea(
     sites: List<SharedSiteRepository.SharedSite>,
     loading: Boolean,
     noBizPhone: Boolean,
+    onOpen: (SharedSiteRepository.SharedSite) -> Unit,
     onDelete: (SharedSiteRepository.SharedSite) -> Unit
 ) {
     when {
@@ -787,11 +821,11 @@ private fun MySharedArea(
             )
             sites.forEach { site ->
                 MySharedSwipeBox(onDelete = { onDelete(site) }) {
-                    MySharedRow(site)
+                    MySharedRow(site, onOpen = { onOpen(site) })
                 }
                 Spacer(Modifier.height(9.dp))
             }
-            Text("밀어서 '삭제'하면 내려요. 함께하는 사장님 이름·진행상태는 상대가 수락하면 채워져요.",
+            Text("탭하면 현장 상세·한마디, 밀면 '삭제'로 내려요. 함께하는 사장님 이름·진행상태는 상대가 수락하면 채워져요.",
                 fontSize = 11.sp, color = TossTextTertiary, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
         }
@@ -804,12 +838,12 @@ private fun MySharedSwipeBox(onDelete: () -> Unit, content: @Composable () -> Un
     com.detailline.callfollowcrm.presentation.component.SwipeRevealBox(onAction = onDelete, label = "삭제") { content() }
 }
 
-/** 내가 공유한 현장 1건 — 현장명 + 누구랑 + 날짜 + 상태. (탭 상세는 후속) */
+/** 내가 공유한 현장 1건 — 현장명 + 누구랑 + 날짜 + 상태. 탭 → 오너 상세(댓글). (2026-07-01 사장님) */
 @Composable
-private fun MySharedRow(site: SharedSiteRepository.SharedSite) {
+private fun MySharedRow(site: SharedSiteRepository.SharedSite, onOpen: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White)
-            .border(1.dp, Color(0xFFEEF0F3), RoundedCornerShape(14.dp)).padding(13.dp),
+            .border(1.dp, Color(0xFFEEF0F3), RoundedCornerShape(14.dp)).clickable { onOpen() }.padding(13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(CollabPurpleSoft), contentAlignment = Alignment.Center) {
@@ -1001,6 +1035,10 @@ private fun DetailBody(
     acceptExpired: Boolean,
     photos: List<SharedSiteRepository.SharedPhoto>,
     photoBusy: Boolean,
+    comments: List<SharedSiteRepository.SiteComment>,
+    commentBusy: Boolean,
+    myPhone: String,
+    onSendComment: (String) -> Unit,
     onPickPhoto: () -> Unit,
     onViewPhoto: (android.graphics.Bitmap) -> Unit,
     onNavigate: (String) -> Unit,
@@ -1239,6 +1277,10 @@ private fun DetailBody(
     Spacer(Modifier.height(10.dp))
     PhotoGrid(photos = photos, busy = photoBusy, onAdd = onPickPhoto, onView = onViewPhoto)
 
+    // 협업 사장끼리 현장 한 줄 논의 (2026-07-01 사장님) — 팀원 화면 코멘트처럼.
+    Spacer(Modifier.height(18.dp))
+    CollabCommentSection(comments = comments, myPhone = myPhone, busy = commentBusy, onSend = onSendComment)
+
     // 일당 지급계좌 — 맨 아래로 이동(이미 등록된 정보라 매번 위에 띄울 필요 없음). (2026-06-21 사장님)
     Spacer(Modifier.height(18.dp))
     CollabPayoutAccountSection(bank = payoutBank, no = payoutNo, holder = payoutHolder, onSave = onSavePayout)
@@ -1247,6 +1289,63 @@ private fun DetailBody(
     Spacer(Modifier.height(14.dp))
     Text("협업 그만하기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { onLeave() }.padding(vertical = 11.dp),
+        textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+}
+
+/**
+ * 내가(A) 공유한 현장 상세 — 협업 사장과 "한 줄 논의"(댓글) 중심 + 기본 정보. (2026-07-01 사장님)
+ *   B측 DetailBody 는 수락·진행 컨트롤이 있지만, A측은 이미 내 현장이라 정보 확인 + 댓글 + 내리기만.
+ */
+@Composable
+private fun OwnerSharedDetail(
+    site: SharedSiteRepository.SharedSite,
+    comments: List<SharedSiteRepository.SiteComment>,
+    commentBusy: Boolean,
+    myPhone: String,
+    onSendComment: (String) -> Unit,
+    onCancel: () -> Unit
+) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
+        PillStrong("내가 공유한 현장")
+        Spacer(Modifier.width(8.dp))
+        site.partnerName?.let { Text("🤝 ${it} 사장님과", fontSize = 12.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium) }
+    }
+    Spacer(Modifier.height(10.dp))
+    Card {
+        InfoRow("📅 날짜", buildString { append(dayLabel(site.scheduledAtMs)); timeText(site)?.let { append(" · "); append(it) } })
+        site.workSummary?.let { Spacer(Modifier.height(9.dp)); InfoRow("🔧 시공", it) }
+        site.dailyWage?.let { Spacer(Modifier.height(9.dp)); InfoRow("💰 그날 일당", "${it}만원") }
+    }
+    site.memo?.takeIf { it.isNotBlank() }?.let { memo ->
+        Spacer(Modifier.height(10.dp))
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                .background(Color(0xFFFFF8E8)).border(1.dp, Color(0xFFF6E4B8), RoundedCornerShape(14.dp)).padding(13.dp)
+        ) {
+            Text("📌 대표님 전달사항", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB4790A))
+            Spacer(Modifier.height(5.dp))
+            LinkifiedMemo(memo, baseColor = Color(0xFF5A4A1F))
+        }
+    }
+    val statusText = when {
+        site.status == "pending" -> "상대 사장님이 아직 수락 전이에요."
+        site.progress == SharedSiteRepository.Progress.COMPLETED -> "완료된 현장이에요."
+        site.status == "accepted" -> "함께 진행 중인 현장이에요."
+        else -> ""
+    }
+    if (statusText.isNotBlank()) {
+        Spacer(Modifier.height(10.dp))
+        Text(statusText, fontSize = 12.5.sp, color = TossTextTertiary)
+    }
+
+    // 협업 사장과 한 줄 논의
+    Spacer(Modifier.height(18.dp))
+    CollabCommentSection(comments = comments, myPhone = myPhone, busy = commentBusy, onSend = onSendComment)
+
+    // 이 현장 내리기(취소/해제) — DetailBody 의 '그만하기'와 같은 위치·톤.
+    Spacer(Modifier.height(14.dp))
+    Text("이 현장 내리기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { onCancel() }.padding(vertical = 11.dp),
         textAlign = androidx.compose.ui.text.style.TextAlign.Center)
 }
 

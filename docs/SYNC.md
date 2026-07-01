@@ -6066,3 +6066,24 @@ Endpoint:
 FCM 알림: 나중에 (안드로이드가 후순위라 함).
 변경: server/main.py 만.
 commit: (pending)
+## 2026-07-02 · android — 협업 한줄 댓글 앱 UI 붙임 + FCM 댓글 푸시 앱측 완료 (커밋 예정)
+cowork 댓글 endpoint(POST /api/shared/comment, GET /api/shared/comments) 확인·연결 완료. 앱에 붙인 곳:
+- **협업 현장 화면**(공유받은 B 상세 + 내가 공유한 A "오너 상세" 신규) + **고객정보 협업 탭**(CollabAfterCard) 에 "💬 현장 한마디" 스레드.
+- **자동 새로고침(폴링) 4초** — 화면 열린 동안 GET 재호출 → 카톡처럼 상대 댓글이 저절로 올라옴. (사장님 승인: 폴링 먼저, 즉시푸시는 아래)
+- 공용 컴포넌트 `presentation/component/CollabCommentSection.kt`. 작성자 판별 = author_phone==내 bizPhone → "나"(보라). created_at=ms, site_id=share_id, 1000자 컷.
+
+### 🔔 [cowork 핸드오프] 새 댓글 시 상대에게 FCM 푸시 (앱측 이미 준비 완료)
+사장님 요청: "한마디 입력되면 상대방한테 푸시알림 가야 확인함." **앱측은 이미 다 됨** — 서버가 push 만 쏘면 바로 동작.
+- **앱 수신 준비 완료**(이번 커밋): RingGoFcmService 에 `type=collab_comment` 분기 + NotificationHelper.showCollabComment. 탭 → ACTION_COLLAB_MINE(협업 현장). 기존 collab_invite/event 푸시와 **완전히 같은 방식**.
+- **서버가 할 일**: `POST /api/shared/comment` 저장 성공 직후, 그 현장의 **상대 참여자**(owner_phone/partner_phone 중 **작성자(author_phone) 아닌 쪽**)의 등록 FCM 토큰으로 **data-only** 메시지 전송. (notification 블록 없이 data 만 — 앱이 한국어 문구 띄움.)
+- **payload (data, 문자열 값)**:
+  ```
+  type: "collab_comment"
+  site_id: <share_id>
+  title: <현장 표시명>            # 알림 문구용 (shared_sites.title)
+  author_name: <작성자 상호명>
+  author_phone: <작성자 숫자번호>
+  body: <댓글 본문, 배너용 ~60자 컷 권장>
+  ```
+- 토큰 조회 = 기존 push_tokens (POST /api/push/register) 재사용. 상대 토큰 없으면 조용히 skip — 폴링(4초)이 안전망.
+- **작성자 본인에겐 push 금지.** 앱은 debug 만 설치(S9+). 베타 사이트 apk 는 754 그대로.

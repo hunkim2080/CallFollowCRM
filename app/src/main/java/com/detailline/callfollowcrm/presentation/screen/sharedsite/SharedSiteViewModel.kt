@@ -41,6 +41,15 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
     private val _photoBusy = MutableStateFlow(false)
     val photoBusy = _photoBusy.asStateFlow()
 
+    /** 현재 연 협업 현장의 한 줄 댓글(협업 사장끼리 논의). 상세 열 때 loadComments. (2026-07-01 사장님) */
+    private val _comments = MutableStateFlow<List<SharedSiteRepository.SiteComment>>(emptyList())
+    val comments = _comments.asStateFlow()
+    private val _commentBusy = MutableStateFlow(false)
+    val commentBusy = _commentBusy.asStateFlow()
+
+    /** 내 사장 번호(숫자만) — 댓글에서 나/상대 구분용. */
+    val myPhoneDigits: String get() = myPhone
+
     /** 휴지통에 넣은 협업 현장 share_id 들(목록에서 제외, 휴지통에 보관·복구 가능). */
     private val _trashed = MutableStateFlow(container.preferences.trashedSharedSiteIds)
     val trashed = _trashed.asStateFlow()
@@ -190,6 +199,25 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
     fun loadPhotos(shareId: String) {
         if (shareId.isBlank() || noBizPhone) { _photos.value = emptyList(); return }
         viewModelScope.launch { _photos.value = repo.photos(shareId, myPhone).getOrDefault(emptyList()) }
+    }
+
+    /** 상세 열 때 그 현장의 한 줄 댓글 로드. 다른 현장으로 바뀌면 비움. */
+    fun loadComments(shareId: String) {
+        if (shareId.isBlank() || noBizPhone) { _comments.value = emptyList(); return }
+        viewModelScope.launch { _comments.value = repo.comments(shareId, myPhone).getOrDefault(emptyList()) }
+    }
+
+    /** 한 줄 댓글 작성 → 목록 새로고침. 빈 글/미등록 번호면 무시. */
+    fun postComment(shareId: String, body: String) {
+        val text = body.trim()
+        if (shareId.isBlank() || noBizPhone || text.isBlank()) return
+        _commentBusy.value = true
+        viewModelScope.launch {
+            repo.postComment(shareId, myPhone, myBizName(), text)
+                .onSuccess { _comments.value = repo.comments(shareId, myPhone).getOrDefault(_comments.value) }
+                .onFailure { _toast.value = "댓글을 못 보냈어요 — 잠시 후 다시" }
+            _commentBusy.value = false
+        }
     }
 
     /** 증거 사진 업로드(§F) — base64 는 화면에서 변환해 넘김(VM 은 Context 없음). */

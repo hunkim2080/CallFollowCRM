@@ -38,6 +38,8 @@ object NotificationHelper {
     private const val DEPART_ID_OFFSET = 9_600_000
     private const val COLLAB_ID_OFFSET = 9_400_000
     private const val COLLAB_INVITE_ID_OFFSET = 9_450_000
+    /** 협업 현장 새 댓글 알림 — site_id hash 기준(현장당 한 스레드 알림, 새 댓글이면 update). (2026-07-02) */
+    private const val COLLAB_COMMENT_ID_OFFSET = 9_350_000
     /** SMS 알림 ID = 발신번호 hash + offset. 같은 번호 새 SMS = 같은 알림 update. */
     private const val SMS_ID_OFFSET = 10_000_000
     private const val MMS_FAIL_ID = 9_300_000
@@ -330,6 +332,36 @@ object NotificationHelper {
             msg = accountText?.let { "$msg · 계좌 $it" } ?: msg,
             contentIntent = pending,
             actions = listOf(PushAction("협업 현장 보기", pending))
+        )
+    }
+
+    /** 협업 현장 새 댓글 알림 — 상대 사장이 현장에 한 줄 댓글을 달면. 탭 → 협업 현장(내가 공유한 탭). (2026-07-02 사장님) */
+    fun showCollabComment(
+        context: Context,
+        siteId: String,
+        authorName: String,
+        siteTitle: String,
+        body: String
+    ) {
+        if (siteId.isBlank()) return
+        val notifId = COLLAB_COMMENT_ID_OFFSET + (siteId.hashCode() and 0x7FFFFF)
+        // 협업 진행 알림과 같은 딥링크 정책 — /shared/{id} 는 '공유받은 현장 없음' 버그가 있어 ACTION_COLLAB_MINE 로.
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            action = MainActivity.ACTION_COLLAB_MINE
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+        val pending = PendingIntent.getActivity(
+            context, notifId, openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val who = authorName.ifBlank { "협업 사장님" }
+        val where = siteTitle.ifBlank { "협업 현장" }
+        showProtoPush(
+            context, notifId, CHANNEL_REMINDER, ACCENT_PURPLE,
+            title = "💬 협업 현장 새 댓글",
+            msg = "${who}님 · ${where}: ${body.ifBlank { "(내용 없음)" }}",
+            contentIntent = pending,
+            actions = listOf(PushAction("댓글 보기", pending))
         )
     }
 

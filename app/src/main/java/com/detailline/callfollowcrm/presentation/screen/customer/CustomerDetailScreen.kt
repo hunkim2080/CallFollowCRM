@@ -2716,6 +2716,11 @@ private fun CollabAfterCard(
     var confirmRelease by remember { mutableStateOf(false) }
     // 사진 뷰어 — 열린 사진의 인덱스(null=닫힘). 좌우 스와이프로 다음/이전 사진. (2026-07-01 사장님)
     var viewerIdx by remember { mutableStateOf<Int?>(null) }
+    // 협업 사장과 현장 한 줄 논의(댓글) — 고객정보 협업 탭에서도. resolvedSid=실제 share_id(옛기록은 byMe로 보충). (2026-07-01 사장님)
+    var resolvedSid by remember(shareId, siteTitle) { mutableStateOf(shareId) }
+    var comments by remember(shareId, siteTitle) { mutableStateOf(emptyList<com.detailline.callfollowcrm.ai.SharedSiteRepository.SiteComment>()) }
+    var commentBusy by remember { mutableStateOf(false) }
+    val commentScope = rememberCoroutineScope()
     androidx.compose.runtime.LaunchedEffect(siteTitle, partnerName, shareId) {
         val owner = container.preferences.bizPhone.filter { it.isDigit() }
         if (owner.length >= 9) {
@@ -2737,6 +2742,18 @@ private fun CollabAfterCard(
                     ?: mySites.firstOrNull { it.title == siteTitle && (partnerName == "협업 사장님" || it.partnerName == partnerName) }
                 if (m != null) status = m.status
             }
+            resolvedSid = sid
+            if (sid.isNotBlank()) container.sharedSiteRepository.comments(sid, owner).onSuccess { comments = it }
+        }
+    }
+    // 자동 새로고침(폴링) — 카톡처럼 상대 댓글이 저절로 올라오게. 화면 열려있는 동안 4초 간격. (2026-07-01 사장님)
+    androidx.compose.runtime.LaunchedEffect(resolvedSid) {
+        val sid = resolvedSid
+        val ownerP = container.preferences.bizPhone.filter { it.isDigit() }
+        if (sid.isBlank() || ownerP.length < 9) return@LaunchedEffect
+        while (true) {
+            kotlinx.coroutines.delay(4000)
+            container.sharedSiteRepository.comments(sid, ownerP).onSuccess { comments = it }
         }
     }
     val curIdx = when (step?.lowercase()) {
@@ -2857,6 +2874,27 @@ private fun CollabAfterCard(
                 }
             }
         }
+        // 협업 사장과 현장 한 줄 논의 — 자동 새로고침(폴링)으로 카톡처럼 올라옴. (2026-07-01 사장님)
+        Spacer(Modifier.height(16.dp))
+        com.detailline.callfollowcrm.presentation.component.CollabCommentSection(
+            comments = comments,
+            myPhone = container.preferences.bizPhone.filter { it.isDigit() },
+            busy = commentBusy,
+            onSend = { body ->
+                val sid = resolvedSid
+                val ownerP = container.preferences.bizPhone.filter { it.isDigit() }
+                if (sid.isNotBlank() && ownerP.length >= 9) {
+                    val myName = container.preferences.bizName.takeIf { it.isNotBlank() } ?: container.preferences.bizOwner
+                    commentBusy = true
+                    commentScope.launch {
+                        container.sharedSiteRepository.postComment(sid, ownerP, myName, body)
+                            .onSuccess { container.sharedSiteRepository.comments(sid, ownerP).onSuccess { comments = it } }
+                        commentBusy = false
+                    }
+                }
+            }
+        )
+
         Spacer(Modifier.height(14.dp))
         // 영구보관 안내 (proto a-after verbatim)
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossBlueSoft).padding(13.dp)) {

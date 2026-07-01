@@ -86,6 +86,20 @@ class RingGoFcmService : FirebaseMessagingService() {
                     NotificationHelper.showCollabEnded(this, shareId, data["by_name"].orEmpty(), data["title"].orEmpty())
                 }
             }
+            // 협업 현장 새 댓글 — 상대 사장이 한 줄 댓글을 달면 받는 쪽에 즉시 알림(폴링 안 기다리고). (2026-07-02 사장님)
+            //   서버는 댓글 작성자 본인은 빼고 '상대 참여자' 번호로만 push. site_id = share_id.
+            "collab_comment" -> {
+                val siteId = (data["site_id"] ?: data["share_id"]).orEmpty()
+                if (siteId.isNotBlank()) {
+                    NotificationHelper.showCollabComment(
+                        context = this,
+                        siteId = siteId,
+                        authorName = data["author_name"].orEmpty(),
+                        siteTitle = data["title"].orEmpty(),
+                        body = data["body"].orEmpty()
+                    )
+                }
+            }
             // 시공접수서 제출 — 고객이 작성 완료하는 즉시(폴링 60초 안 기다리고) 동기화.
             //   서버가 제출 저장 직후 data push(type=intake_submitted)를 사장님 번호로 보냄 → 여기서 바로 sync().
             //   sync() 가 GET /api/quote/submissions 로 새 건을 가져와 고객 카드 반영 + 알림 + 채팅 타임라인 카드까지
