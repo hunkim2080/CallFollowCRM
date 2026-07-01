@@ -6958,6 +6958,23 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
         'team':            '팀원',
         'settings':        '설정',
         'onboarding':      '온보딩',
+        // 추가64 (2026-06-29) — 안드로이드 새 화면 매핑 (송도 사장님 여정 진단 후 발견)
+        'settlement':      '정산',
+        'stats':           '통계',
+        'profile':         '내 프로필',
+        'business':        '업체 정보',
+        'account':         '계좌',
+        'notification':    '알림',
+        'recruit':         '일당 모집',
+        'recruit_inbox':   '일당 지원함',
+        'laborer':         '팀원(일당)',
+        'billing':         '결제',
+        'help':            '도움말',
+        'privacy':         '개인정보',
+        'tone':            '톤 학습',
+        'principle':       '원칙 발견',
+        'photo':           '사진',
+        'photo_gallery':   '사진 갤러리',
       };
 
       // 짧은 상대 시각 (방금 / 5분 전 / 2시간 전 / 어제 / N일 전)
