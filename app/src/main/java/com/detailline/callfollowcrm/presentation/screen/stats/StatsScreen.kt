@@ -16,6 +16,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.add
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -63,7 +66,7 @@ fun StatsScreen(viewModel: StatsViewModel, onOpenVisited: () -> Unit = {}) {
         containerColor = TossGrayBg,
         topBar = {
             TopAppBar(
-                windowInsets = androidx.compose.foundation.layout.WindowInsets(top = 12.dp),
+                windowInsets = WindowInsets.statusBars.add(WindowInsets(top = 10.dp)),
                 title = { Text("통계", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.6).sp) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
             )

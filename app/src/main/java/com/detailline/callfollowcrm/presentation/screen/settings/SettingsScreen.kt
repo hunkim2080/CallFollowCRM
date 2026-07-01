@@ -28,6 +28,9 @@ import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossError
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.add
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -196,7 +199,7 @@ fun SettingsScreen(
         containerColor = TossGrayBg,
         topBar = {
             TopAppBar(
-                windowInsets = androidx.compose.foundation.layout.WindowInsets(top = 12.dp),
+                windowInsets = WindowInsets.statusBars.add(WindowInsets(top = 10.dp)),
                 title = {
                     Text(
                         subTitle,

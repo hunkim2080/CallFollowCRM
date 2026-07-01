@@ -27,6 +27,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.add
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.padding
@@ -191,7 +193,7 @@ fun ScheduleScreen(
                 java.text.SimpleDateFormat("M월 d일 (E)", java.util.Locale.KOREAN).format(java.util.Date())
             }
             TopAppBar(
-                windowInsets = androidx.compose.foundation.layout.WindowInsets(top = 12.dp),
+                windowInsets = WindowInsets.statusBars.add(WindowInsets(top = 10.dp)),
                 title = {
                     androidx.compose.foundation.layout.Column {
                         Text("일정", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.6).sp)

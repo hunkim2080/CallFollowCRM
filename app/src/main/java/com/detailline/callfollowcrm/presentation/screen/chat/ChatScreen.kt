@@ -185,8 +185,6 @@ fun ChatScreen(
     val intakeEvents by viewModel.intakeEvents.collectAsState()
     // 변경/처리 이력 이벤트 (2026-06-30) — 일정/금액/잔금 변경을 타임라인 카드로.
     val timelineEvents by viewModel.timelineEvents.collectAsState()
-    // 변경 이력 [고객에게 알리기] 발송 전 확인 다이얼로그 — null=닫힘. (2026-06-30 사장님)
-    var notifyConfirm by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.TimelineEventEntity?>(null) }
     // 접수서 [확인했어요] 발송 전 확인 다이얼로그 — null=닫힘. (변경 이력 알리기와 동일 패턴)
     var intakeConfirm by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity?>(null) }
     // 통화요약 — 통화 카드와 시각으로 짝지어 "AI 요약됨" 상태(불릿+후속문자) 표시.
@@ -761,7 +759,7 @@ fun ChatScreen(
                                 )
                             }
                             is ChatTimelineItem.Intake -> IntakeSegment(ti.event, onConfirm = { intakeConfirm = ti.event })
-                            is ChatTimelineItem.Event -> TimelineEventSegment(ti.event, onNotify = { notifyConfirm = ti.event })
+                            is ChatTimelineItem.Event -> TimelineEventSegment(ti.event)
                             is ChatTimelineItem.DateDivider -> ChatDateDivider(chatDateLabel(ti.dayStart))
                         }
                     }
@@ -862,15 +860,6 @@ fun ChatScreen(
                 onFocusChange = { focused -> composerFocused = focused }
             )
         }
-    }
-
-    // 변경 이력 [고객에게 알리기] — 발송 전 재확인 다이얼로그. (2026-06-30 사장님)
-    notifyConfirm?.let { ev ->
-        EventNotifyConfirmDialog(
-            body = viewModel.eventNotifyBody(ev) ?: "",
-            onSend = { viewModel.notifyEvent(context, ev); notifyConfirm = null },
-            onDismiss = { notifyConfirm = null }
-        )
     }
 
     // 접수서 [확인했어요] — 발송 전 재확인 다이얼로그(변경 이력 알리기와 동일).
@@ -2042,13 +2031,12 @@ private fun IntakeSegment(
 }
 
 /**
- * 변경/처리 이력 카드 (2026-06-30 사장님) — 일정/금액/잔금 변경을 "처리 시각"과 함께 타임라인에.
- *   type 별 색/이모지. 금액 변경은 이유(reason)도 표시. [고객에게 알리기] = 확인 후 발송(1회).
+ * 변경/처리 이력 카드 (2026-06-30 · 간결화 2026-07-02 사장님) — 일정/금액/잔금 변경을 처리 시각과 함께 한 줄로.
+ *   [고객에게 알리기] 버튼 제거(사장님: 버튼 많고 거슬림). 순수 이력 표시로 간결하게.
  */
 @Composable
 private fun TimelineEventSegment(
-    event: com.detailline.callfollowcrm.data.local.entity.TimelineEventEntity,
-    onNotify: () -> Unit
+    event: com.detailline.callfollowcrm.data.local.entity.TimelineEventEntity
 ) {
     val (emoji, title, accent) = when (event.type) {
         "schedule" -> Triple("📅", if (event.oldValue == null) "시공일정 등록" else "시공일정 변경", Color(0xFF3182F6))
@@ -2056,65 +2044,38 @@ private fun TimelineEventSegment(
         "balance_paid" -> Triple("💵", "잔금 받음 처리", Color(0xFF12B886))
         else -> Triple("📝", "변경", TossTextSecondary)
     }
+    val changeText = when {
+        event.type == "balance_paid" -> "${event.newValue ?: "잔금"} 받음"
+        event.oldValue != null && event.newValue != null -> "${event.oldValue} → ${event.newValue}"
+        event.newValue != null -> event.newValue!!
+        event.oldValue != null -> "${event.oldValue} → (없음)"
+        else -> "-"
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .padding(vertical = 4.dp)
+            .clip(RoundedCornerShape(12.dp))
             .background(Color(0xFFF7F8FA))
-            .border(1.dp, Color(0x14000000), RoundedCornerShape(14.dp))
-            .padding(horizontal = 12.dp, vertical = 11.dp)
+            .border(1.dp, Color(0x14000000), RoundedCornerShape(12.dp))
+            .padding(horizontal = 11.dp, vertical = 9.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(accent.copy(alpha = 0.14f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(emoji, fontSize = 15.sp)
-            }
-            Spacer(Modifier.width(9.dp))
-            Column(Modifier.weight(1f)) {
-                Text(title, fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
-                Text(
-                    DateTimeUtils.formatShort(event.createdAt),
-                    fontSize = 11.sp, color = TossTextTertiary, fontWeight = FontWeight.Bold
-                )
-            }
+            Text(emoji, fontSize = 13.sp)
+            Spacer(Modifier.width(7.dp))
+            Text(title, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
+                modifier = Modifier.weight(1f))
+            Text(DateTimeUtils.formatShort(event.createdAt), fontSize = 10.5.sp,
+                color = TossTextTertiary, fontWeight = FontWeight.Medium)
         }
-        Spacer(Modifier.height(8.dp))
-        val changeText = when {
-            event.type == "balance_paid" -> "${event.newValue ?: "잔금"} 받음"
-            event.oldValue != null && event.newValue != null -> "${event.oldValue}  →  ${event.newValue}"
-            event.newValue != null -> event.newValue!!
-            event.oldValue != null -> "${event.oldValue}  →  (없음)"
-            else -> "-"
-        }
-        Text(changeText, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = accent)
+        Spacer(Modifier.height(3.dp))
+        Text(changeText, fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = accent,
+            modifier = Modifier.padding(start = 20.dp))
         event.reason?.takeIf { it.isNotBlank() }?.let {
-            Spacer(Modifier.height(4.dp))
-            Text("이유: $it", fontSize = 12.5.sp, color = TossTextPrimary, fontWeight = FontWeight.Medium)
-        }
-        Spacer(Modifier.height(10.dp))
-        val notifiedAt = event.notifiedAt
-        if (notifiedAt == null) {
-            Box(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(accent)
-                    .clickable { onNotify() }.padding(vertical = 10.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("📨 고객에게 알리기", color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold)
-            }
-        } else {
-            Box(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
-                    .background(accent.copy(alpha = 0.10f)).padding(vertical = 10.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    "✅ ${DateTimeUtils.formatShort(notifiedAt)} 고객에게 알림 보냄",
-                    color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold
-                )
-            }
+            Spacer(Modifier.height(2.dp))
+            Text("이유: $it", fontSize = 11.5.sp, color = TossTextTertiary,
+                modifier = Modifier.padding(start = 20.dp),
+                maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
     }
 }
