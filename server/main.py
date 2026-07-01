@@ -5595,8 +5595,11 @@ async def admin_beta_dashboard_data(
 
         # ── 사용자별 활동 (top 50) ──
         # 각 phone 의 endpoint 별 호출 수 + last_seen + 활성 일수
+        # 추가75 (2026-06-29) — 사장님 지적: "지인 2496 = 초기부터 앱 사용, 그치만 활성 일수 2일"
+        #   원인: 옛 active_days 는 api_usage (LLM 호출) 기준. 앱은 켰지만 LLM 안 쓴 날 = 카운트 X.
+        #   fix: (1) 이름 = "AI 사용 일수" 로 명확화 (2) 진짜 "앱 사용 일수" (app_events 기준) 추가.
         per_user_calls: dict = {}
-        per_user_days: dict = {}
+        per_user_ai_days: dict = {}   # LLM 호출 유니크 날짜 (옛 active_days)
         per_user_cost: dict = {}
         for r in api_rows:
             phone, endpoint, _it, _ot, cost_usd, ts = r
@@ -5604,18 +5607,36 @@ async def admin_beta_dashboard_data(
             per_user_cost[phone] = per_user_cost.get(phone, 0.0) + (cost_usd or 0.0)
             try:
                 dt = _dt.datetime.utcfromtimestamp(ts / 1000) + _dt.timedelta(hours=9)
-                per_user_days.setdefault(phone, set()).add(dt.strftime("%Y-%m-%d"))
+                per_user_ai_days.setdefault(phone, set()).add(dt.strftime("%Y-%m-%d"))
             except Exception:
                 pass
+        # 추가75 — 진짜 "앱 사용 일수" = app_events 유니크 날짜 (screen_view 등)
+        per_user_app_days: dict = {}
+        if wl_phones:
+            placeholders_ap = ",".join(["?"] * len(wl_phones))
+            ap_rows = con.execute(
+                f"""SELECT owner_phone, created_at_ms FROM app_events
+                    WHERE owner_phone IN ({placeholders_ap}) AND created_at_ms >= ?""",
+                wl_phones + [cutoff],
+            ).fetchall()
+            for ar_row in ap_rows:
+                try:
+                    dt = _dt.datetime.utcfromtimestamp(ar_row[1] / 1000) + _dt.timedelta(hours=9)
+                    per_user_app_days.setdefault(ar_row[0], set()).add(dt.strftime("%Y-%m-%d"))
+                except Exception:
+                    pass
 
         users = []
         for r in wl_rows:
             # 추가50 (2026-06-21) — SELECT 에 owner_trade 컬럼 추가 (8개). unpack 도 8개로.
             phone, name, memo, added, first, last, uc, _ot = r
             calls = per_user_calls.get(phone, 0)
-            active_days = len(per_user_days.get(phone, set()))
-            # 평균 일일 호출 (활성 일수 기준 — 활성 안 한 날 빼고)
-            avg_per_active_day = round(calls / active_days, 1) if active_days > 0 else 0
+            ai_days = len(per_user_ai_days.get(phone, set()))
+            app_days = len(per_user_app_days.get(phone, set()))
+            # 옛 이름 유지 (안드로이드/앞 호환): active_days = AI 사용 일수 (LLM)
+            active_days = ai_days
+            # 평균 일일 호출 (AI 사용 날 기준 — 안 쓴 날 빼고)
+            avg_per_active_day = round(calls / ai_days, 1) if ai_days > 0 else 0
             # 평균 일일 호출 (전체 기간 기준 — 가입 이후)
             days_since_added = max(1, int((now - (added or now)) / 86_400_000))
             days_observed = min(days_since_added, days)
@@ -5633,7 +5654,9 @@ async def admin_beta_dashboard_data(
                 "last_seen_ms": last,
                 "use_count": uc or 0,
                 "calls": calls,
-                "active_days": active_days,
+                "active_days": active_days,   # 옛 호환 (= ai_days)
+                "ai_days": ai_days,           # 추가75 — AI 사용 일수 (명확한 이름)
+                "app_days": app_days,         # 추가75 — 진짜 앱 사용 일수 (app_events 기준)
                 "avg_per_day": avg_per_day,
                 "avg_per_active_day": avg_per_active_day,
                 "cost_usd": round(per_user_cost.get(phone, 0.0), 4),
@@ -5968,7 +5991,7 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
       kpiCard('', '활성화 (첫 진입)', kpi.activated, pct(kpi.activated, kpi.total_users) + '% 진입 완료') +
       kpiCard('blue', '총 LLM 호출', kpi.total_api_calls, '회 (' + d.days + '일)') +
       kpiCard('orange', '평균 LLM/사장님/일', kpi.avg_calls_per_user_per_day, '회 (활성자 기준)') +
-      kpiCard('green', '평균 활성 일수', kpi.avg_active_days_per_user, '일 / ' + d.days + '일 중') +
+      kpiCard('green', '평균 AI 사용 일수', kpi.avg_active_days_per_user, '일 / ' + d.days + '일 중 (LLM 호출한 날)') +
       kpiCard('blue', '평균 진입 횟수', kpi.avg_use_count, '회 (누적, 활성자 기준)');
 
     // Network 신호 (클릭 시 drill-down)
