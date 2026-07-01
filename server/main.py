@@ -6475,8 +6475,8 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
                        font-weight:800; font-family:inherit; cursor:pointer;
                        margin-top:10px; }
   /* 추가52 (2026-06-23) — 사용자 여정 가독성 */
-  .ses-hdr { font-weight:800; color:var(--t2); padding:10px 8px 6px;
-             border-top:1px dashed var(--line); margin-top:6px;
+  .ses-hdr { font-weight:800; color:var(--t2); padding:8px 6px 4px;
+             border-top:1px dashed var(--line); margin-top:4px;
              font-size:12.5px; letter-spacing:-0.2px; }
   .ses-hdr:first-child { border-top:0; margin-top:0; }
   .ses-meta { color:var(--t3); font-weight:600; font-size:11px; margin-left:6px; }
@@ -6490,13 +6490,14 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
   .ev-x     { background:var(--bg); border-radius:6px; padding:1px 6px;
               font-size:11px; font-weight:800; color:var(--t2); margin-left:6px; }
   /* 추가65 (2026-06-29) — 세션 카운트 요약 + raw 접힘 */
-  .ses-summary { display:flex; flex-wrap:wrap; gap:6px 10px; padding:8px 2px 4px; }
-  .ses-cnt { background:var(--bg); border-radius:8px; padding:5px 10px;
+  .ses-summary { display:flex; flex-wrap:wrap; gap:4px 6px; padding:4px 2px 2px; }
+  .ses-cnt { background:var(--bg); border-radius:7px; padding:3px 8px;
              font-size:12px; color:var(--t2); white-space:nowrap; }
   .ses-cnt b { color:var(--t1); font-weight:800; margin-left:3px; }
-  details.ses-raw { margin:2px 0 8px; }
-  details.ses-raw > summary { padding:6px 4px; font-size:11.5px; color:var(--t3);
-                              cursor:pointer; list-style:none; font-weight:700; }
+  details.ses-raw { margin:0 0 4px; }
+  details.ses-raw > summary { padding:3px 4px; font-size:10.5px; color:var(--t3);
+                              cursor:pointer; list-style:none; font-weight:700;
+                              text-align:right; }
   details.ses-raw > summary::-webkit-details-marker { display:none; }
   details.ses-raw[open] > summary { color:var(--t2); }
   details.ses-raw > summary:hover { color:var(--blue); }
@@ -7115,10 +7116,15 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
           // 추가67 — 1건 세션 = 인라인 축약 (헤더 옆 그 한 건 표시). 요약 카드 + 자세히 접힘 X.
           if (ses.events.length === 1) {
             var ev0 = ses.events[0];
-            var ic0 = EVENT_ICON[ev0.event_name] || '·';
             var sc0 = SCREEN_LABEL[ev0.screen] || ev0.screen || '(빈)';
+            var lbl0;
+            if (ev0.event_name === 'llm_use' || ev0.event_name === 'feature_use') lbl0 = '⚙️ AI · ' + sc0;
+            else if (ev0.event_name === 'schedule_create') lbl0 = '📅 시공일 등록';
+            else if (ev0.event_name === 'screenshot') lbl0 = '📸 캡쳐 · ' + sc0;
+            else if (ev0.event_name === 'button_click') lbl0 = '👆 ' + (ev0.target || '버튼');
+            else lbl0 = sc0;
             jhtml += '<div class="ses-hdr ses-single">🕐 ' + fmtSesHdr(ses.start_ms, ses.end_ms)
-                  + '<span class="ses-inline"> · ' + ic0 + ' ' + esc(sc0) + '</span></div>';
+                  + '<span class="ses-inline"> · ' + esc(lbl0) + '</span></div>';
             continue;
           }
 
@@ -7126,28 +7132,24 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
                 + '<span class="ses-meta">· ' + durLbl + ' · ' + ses.events.length + '건</span></div>';
 
           // 화면 카운트 집계 (event_name + screen 기준, target 무시)
-          var scCounts = {};  // key = "이모지 라벨" (또는 이벤트 라벨), value = 카운트
-          var scOrder = [];   // 최초 등장 순서 유지 (동률 정렬 X)
+          // 추가68 — screen_view 는 아이콘 없이 (default = 진입). 다른 event 만 아이콘.
+          var scCounts = {};
+          var scOrder = [];
           for (var i=0; i<ses.events.length; i++) {
             var ev = ses.events[i];
-            var evIcon = EVENT_ICON[ev.event_name] || '·';
             var evScreen = SCREEN_LABEL[ev.screen] || ev.screen || '(빈)';
-            // event_name 별로 다른 표기:
-            //  screen_view → "🏠 홈"
-            //  llm_use / feature_use → "⚙️ 채팅·AI" 같이 (screen 있으면 그 위에서)
-            //  button_click → "👆 버튼"
-            //  schedule_create → "📅 시공일 등록"
             var scKey;
             if (ev.event_name === 'llm_use' || ev.event_name === 'feature_use') {
-              scKey = '⚙️ AI 사용' + (evScreen && evScreen !== '(빈)' ? ' (' + evScreen + ')' : '');
+              scKey = '⚙️ AI · ' + evScreen;
             } else if (ev.event_name === 'schedule_create') {
               scKey = '📅 시공일 등록';
             } else if (ev.event_name === 'screenshot') {
-              scKey = '📸 캡쳐' + (evScreen && evScreen !== '(빈)' ? ' (' + evScreen + ')' : '');
+              scKey = '📸 캡쳐 · ' + evScreen;
             } else if (ev.event_name === 'button_click') {
-              scKey = '👆 버튼' + (ev.target ? ' (' + ev.target + ')' : '');
+              scKey = '👆 ' + (ev.target || '버튼');
             } else {
-              scKey = evIcon + ' ' + evScreen;
+              // screen_view = 아이콘 없이 이름만 (default 라 노이즈 제거)
+              scKey = evScreen;
             }
             if (scCounts[scKey] === undefined) {
               scCounts[scKey] = 0;
@@ -7181,7 +7183,7 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
               + '<div class="title">' + icon2 + ' ' + esc(screen2) + countTxt2 + tgtTxt2 + '</div>'
               + '<div class="sub2">' + fmtShort(c.last_ms) + ' · ' + lbl2 + '</div></div>';
           }
-          jhtml += '<details class="ses-raw"><summary>▸ 자세히 (한 건씩 보기)</summary>' + detailsHtml + '</details>';
+          jhtml += '<details class="ses-raw"><summary>⋯ 자세히</summary>' + detailsHtml + '</details>';
         }
       }
       document.getElementById('journeyList').innerHTML = jhtml;
