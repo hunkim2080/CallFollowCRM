@@ -6027,3 +6027,14 @@ fix:
 - line 11150 (recruit/select): owner_name_raw=NULL + 4 컬럼. accepted_at_ms=now (recruit 선택 = 즉시 수락).
 변경: server/main.py 만.
 commit: (pending)
+## 2026-07-01 23:10 · android — 전화 오는 사람 미리보기 오버레이 + 정산·UI 다듬기 (commit 56b5bfc)
+전화 벨 울릴 때 통화화면 위 "상대 정보 카드"(이름 / 시공일+D-day / 주소 / 받은 돈 / 최근 대화 3줄). SYSTEM_ALERT_WINDOW 재도입(설정 카드에서 허용). 감지=CallStateReceiver RINGING(EXTRA_INCOMING_NUMBER), 응답/종료 시 제거. 카드 위치 화면 28%+FLAG_SHOW_WHEN_LOCKED(삼성 InCallUI 가림 회피). 폰 실기기 확인 OK(사장님).
++ 입금 자동입력(보낼금액)/계좌복사 하이픈제거/정산 상태라벨(들어옴·들어올예정 / 지출됨·지출예정)/SwipeReveal 모서리 색 비침 제거/상담함 하단 여백/견적·내일정 미니달력 월 스와이프/협업 전화링크·사진 회전·좌우스와이프 뷰어 등.
+- 서버 인터페이스 변경 **없음** — 전화 카드는 전부 앱 로컬 DB·시스템 SMS 조회. 서버 호출 안 함.
+- 배포: 아직 debug 만 폰 설치. 베타 사이트 apk 는 **754 그대로(이번 변경 미포함)** — 재배포는 사장님 요청 시.
+- 다음 액션 (cowork/서버) — **신규 핸드오프: #3 협업 현장 "한줄 댓글"**
+  협업 사장끼리 현장에 대해 한 줄 댓글(팀원 화면 코멘트처럼). 앱 UI 는 서버 endpoint 나오면 붙임. 제안:
+    - `POST /api/shared/comment`  { site_id, author_phone, author_name, body } → { ok, comment_id, created_at }
+    - `GET  /api/shared/comments?site_id=...` → { comments:[{ id, author_phone, author_name, body, created_at }] }
+  (기존 shared 라우터/site 식별자 재사용. 알림은 선택 — 추후 FCM 여지.)
+- 아직 열린 리마인더: (a) /api/download/version 라벨 749→754 갱신, (b) /api/shared/invite 403 fix.
