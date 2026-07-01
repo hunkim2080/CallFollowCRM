@@ -6500,6 +6500,11 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
   details.ses-raw > summary::-webkit-details-marker { display:none; }
   details.ses-raw[open] > summary { color:var(--t2); }
   details.ses-raw > summary:hover { color:var(--blue); }
+  /* 추가67 — 1건 세션 인라인 (헤더 옆 화면 이름) */
+  .ses-hdr.ses-single { padding:8px 8px 6px; border-top:1px dashed var(--line);
+                        margin-top:2px; }
+  .ses-hdr.ses-single .ses-inline { color:var(--t1); font-weight:800;
+                                    font-size:12.5px; margin-left:4px; }
   /* 추가54 (2026-06-23) — 페이지 재설계 (Hero / 숫자 / 탭 / 접힘) */
   .hero { background:linear-gradient(135deg, #0B0F19 0%, #1B2236 100%);
           color:#fff; border-radius:16px; padding:18px 18px 16px; margin-top:14px;
@@ -6994,6 +6999,31 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
         'collab_sites':    '협업현장',
         'pricing_items':   '가격표',
         'customers':       '고객 목록',
+        // 추가67 (2026-06-29) — 안드로이드 답 (모든 route 목록 받음)
+        'visited':         '방문 예정',
+        'search':          '검색',
+        'new_leads':       '신규 리드',
+        'settings_autosms':'자동문자 설정',
+        'closing_brief':   '마감 브리핑',
+        'notebook':        '노트',
+        'report':          '리포트',
+        'trade_select':    '업종 선택',
+        'recurring':       '정기 반복',
+        'recurring_due':   '반복 예정',
+        'schedule_reminder':'일정 알림',
+        'estimate_followup':'견적 팔로업',
+        'ai_message':      'AI 메시지',
+        'style_learning':  '톤 학습',
+        'principles':      '원칙',
+        'spam_list':       '스팸 목록',
+        'personal_list':   '개인 목록',
+        'templates':       '템플릿',
+        'template_edit':   '템플릿 편집',
+        'schedule_add':    '일정 추가',
+        'login':           '로그인',
+        'permissions':     '권한 허용',
+        'follow_up':       '팔로업',
+        'call_summary':    '통화 요약',
       };
 
       // 짧은 상대 시각 (방금 / 5분 전 / 2시간 전 / 어제 / N일 전)
@@ -7072,6 +7102,7 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
         }
         // 4) HTML — 세션은 최근(아래)→옛(위)순, 세션 안은 시간 흐름 그대로 (옛→새)
         // 추가65 (2026-06-29) — 세션별 "화면 카운트 요약" + raw timeline 접힘.
+        // 추가67 (2026-06-29) — 1건 세션은 인라인 축약 (헤더 옆에 한 줄).
         // 사장님 의도: "이 사람이 뭐 하고 나갔는지 이해가 안 된다" — 21줄 나열 대신 한 줄 요약.
         for (var s=sessions.length-1; s>=0; s--) {
           var ses = sessions[s];
@@ -7080,6 +7111,17 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
           var durLbl;
           if (durSec < 60) durLbl = durSec + '초';
           else durLbl = Math.round(durSec/60) + '분';
+
+          // 추가67 — 1건 세션 = 인라인 축약 (헤더 옆 그 한 건 표시). 요약 카드 + 자세히 접힘 X.
+          if (ses.events.length === 1) {
+            var ev0 = ses.events[0];
+            var ic0 = EVENT_ICON[ev0.event_name] || '·';
+            var sc0 = SCREEN_LABEL[ev0.screen] || ev0.screen || '(빈)';
+            jhtml += '<div class="ses-hdr ses-single">🕐 ' + fmtSesHdr(ses.start_ms, ses.end_ms)
+                  + '<span class="ses-inline"> · ' + ic0 + ' ' + esc(sc0) + '</span></div>';
+            continue;
+          }
+
           jhtml += '<div class="ses-hdr">🕐 ' + fmtSesHdr(ses.start_ms, ses.end_ms)
                 + '<span class="ses-meta">· ' + durLbl + ' · ' + ses.events.length + '건</span></div>';
 
