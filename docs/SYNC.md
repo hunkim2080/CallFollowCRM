@@ -6098,3 +6098,19 @@ cowork 댓글 endpoint(POST /api/shared/comment, GET /api/shared/comments) 확�
   - site_id, title, author_name, author_phone, body (60자 컷 + …)
 - 실패해도 응답 200 (폴링 안전망).
 - 변경: server/main.py 만. commit: (pending)
+## 2026-07-02 · android — 댓글 푸시 딥링크 수정(→그 현장 상세로) + 사진 업로드 푸시 앱측 추가
+사장님 보고: 댓글 푸시 탭하면 "협업현장 목록"으로만 가고 댓글로 안 감 → **탭 시 그 현장 상세(댓글)로 바로** 가게 수정.
+- 신규 `ACTION_COLLAB_SITE` + `EXTRA_SHARE_ID` → SharedSiteScreen 이 initialShareId 로 상세 자동 오픈. **받은현장(B)·내가공유한현장(A) 둘 다 매칭**(전엔 with-me 만 봐서 오너가 탭하면 목록만 떴음).
+- showCollabComment / showCollabPhoto 둘 다 이 액션 사용. **서버 payload 변경 불필요**(기존 collab_comment 그대로).
+
+### 🔔 [cowork 핸드오프 2] 협업 사진 업로드 시 상대에게 FCM 푸시 (앱측 준비 완료)
+사장님 요청: "현장사진 올리면 협업사장이 올렸다고 푸시 와야." 댓글 푸시와 **완전히 동일한 방식**, type 만 다름.
+- **서버**: `POST /api/shared/photo` 저장 성공 직후, 그 현장 **상대 참여자**(업로더 본인 제외)의 등록 FCM 토큰으로 data-only push.
+- **payload (data)**:
+  ```
+  type: "collab_photo"
+  site_id: <share_id>
+  title: <현장 표시명 = shared_sites.title>
+  uploader_name: <업로더 상호명>       # 없으면 앱이 "협업 사장님"
+  ```
+- 앱 수신 준비 완료(이번 커밋): RingGoFcmService `type=collab_photo` → NotificationHelper.showCollabPhoto("📸 협업 현장 새 사진", 탭→그 현장 상세). 업로더 본인엔 push 금지, 토큰 없으면 skip.

@@ -145,14 +145,9 @@ fun SharedSiteScreen(
     var payoutHolder by remember { mutableStateOf(viewModel.accountHolder) }
 
     LaunchedEffect(Unit) { viewModel.load() }
-    // 링크로 진입 — 목록 로드 후 그 현장 상세 1회 자동 열기(사용자가 뒤로 가면 다시 안 엶).
+    // 링크/알림으로 진입 — 목록 로드 후 그 현장 상세 1회 자동 열기(사용자가 뒤로 가면 다시 안 엶).
+    //   ⚠️ 받은현장(sites)뿐 아니라 '내가 공유한'(mySharedSites)도 매칭 → 오너(A)가 댓글 알림 탭 시 오너 상세로. (2026-07-02)
     var consumedInitial by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(sites, initialShareId) {
-        if (!consumedInitial && !initialShareId.isNullOrBlank() && sites.any { it.shareId == initialShareId }) {
-            selectedId = initialShareId
-            consumedInitial = true
-        }
-    }
     LaunchedEffect(toast) {
         toast?.let {
             android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show()
@@ -165,6 +160,14 @@ fun SharedSiteScreen(
     val selected = sites.firstOrNull { it.shareId == selectedId }
     // 내가(A) 공유한 현장을 열었을 때 — with-me 엔 없으니 by-me 에서 찾는다. 오너용 상세(댓글 중심). (2026-07-01 사장님)
     val selectedMine = if (selected == null) mySharedSites.firstOrNull { it.shareId == selectedId } else null
+    // 알림/링크 진입 자동 상세 오픈 — 받은현장·내가공유한현장 둘 다 매칭. (2026-07-02 사장님)
+    LaunchedEffect(sites, mySharedSites, initialShareId) {
+        if (!consumedInitial && !initialShareId.isNullOrBlank() &&
+            (sites.any { it.shareId == initialShareId } || mySharedSites.any { it.shareId == initialShareId })) {
+            selectedId = initialShareId
+            consumedInitial = true
+        }
+    }
     // 휴지통에 넣은 건 목록·집계에서 제외. 거절(declined)/해제(ended)된 협업도 활성 목록에서 제외(기록은 서버 보존).
     val gone = setOf("declined", "ended")
     val activeSites = remember(sites, trashed) { sites.filter { it.shareId !in trashed && it.status !in gone } }

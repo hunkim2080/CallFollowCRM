@@ -142,6 +142,11 @@ class MainActivity : ComponentActivity() {
                 // 협업 수락/진행 알림(주인 A가 받음) 탭 → 협업 현장 "내가 공유한 현장" 탭. (2026-06-20 사장님)
                 pendingIntentState.value = IncomingIntent.CollabMine
             }
+            ACTION_COLLAB_SITE -> {
+                // 협업 댓글 등 특정 현장 알림 탭 → 그 현장 상세로 바로(초기 shareId). (2026-07-02 사장님)
+                val sid = intent.getStringExtra(EXTRA_SHARE_ID).orEmpty()
+                pendingIntentState.value = IncomingIntent.SharedSite(sid.takeIf { it.isNotBlank() })
+            }
             ACTION_COLLAB_ENDED -> {
                 // 협업 해제 알림 탭 → 무엇이 해제됐는지 토스트 + 목록. (2026-06-21 사장님)
                 pendingIntentState.value = IncomingIntent.CollabEnded(
@@ -247,6 +252,9 @@ class MainActivity : ComponentActivity() {
         const val ACTION_DAILY_BRIEF = "com.detailline.callfollowcrm.ACTION_DAILY_BRIEF"
         const val ACTION_COLLAB_MINE = "com.detailline.callfollowcrm.ACTION_COLLAB_MINE"
         const val ACTION_COLLAB_ENDED = "com.detailline.callfollowcrm.ACTION_COLLAB_ENDED"
+        /** 협업 현장 특정 shareId 로 바로 상세 열기(댓글 등). EXTRA_SHARE_ID 로 shareId 전달. (2026-07-02 사장님) */
+        const val ACTION_COLLAB_SITE = "com.detailline.callfollowcrm.ACTION_COLLAB_SITE"
+        const val EXTRA_SHARE_ID = "extra_share_id"
         const val EXTRA_COLLAB_TITLE = "extra_collab_title"
         const val EXTRA_COLLAB_BY = "extra_collab_by"
         const val EXTRA_PHONE_NUMBER = "extra_phone_number"

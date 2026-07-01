@@ -40,6 +40,8 @@ object NotificationHelper {
     private const val COLLAB_INVITE_ID_OFFSET = 9_450_000
     /** 협업 현장 새 댓글 알림 — site_id hash 기준(현장당 한 스레드 알림, 새 댓글이면 update). (2026-07-02) */
     private const val COLLAB_COMMENT_ID_OFFSET = 9_350_000
+    /** 협업 현장 새 사진 알림 — 상대가 현장 증거사진 올리면. (2026-07-02) */
+    private const val COLLAB_PHOTO_ID_OFFSET = 9_360_000
     /** SMS 알림 ID = 발신번호 hash + offset. 같은 번호 새 SMS = 같은 알림 update. */
     private const val SMS_ID_OFFSET = 10_000_000
     private const val MMS_FAIL_ID = 9_300_000
@@ -345,9 +347,11 @@ object NotificationHelper {
     ) {
         if (siteId.isBlank()) return
         val notifId = COLLAB_COMMENT_ID_OFFSET + (siteId.hashCode() and 0x7FFFFF)
-        // 협업 진행 알림과 같은 딥링크 정책 — /shared/{id} 는 '공유받은 현장 없음' 버그가 있어 ACTION_COLLAB_MINE 로.
+        // 탭 → 그 현장 상세(댓글)로 바로. ACTION_COLLAB_SITE + shareId → SharedSiteScreen 이 초기 shareId 로 상세 자동 오픈
+        //   (받은현장 B·내가공유한현장 A 둘 다 매칭). (2026-07-02 사장님 "댓글로 가야하는데 목록으로 감")
         val openIntent = Intent(context, MainActivity::class.java).apply {
-            action = MainActivity.ACTION_COLLAB_MINE
+            action = MainActivity.ACTION_COLLAB_SITE
+            putExtra(MainActivity.EXTRA_SHARE_ID, siteId)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
         val pending = PendingIntent.getActivity(
@@ -362,6 +366,35 @@ object NotificationHelper {
             msg = "${who}님 · ${where}: ${body.ifBlank { "(내용 없음)" }}",
             contentIntent = pending,
             actions = listOf(PushAction("댓글 보기", pending))
+        )
+    }
+
+    /** 협업 현장 새 사진 알림 — 상대 사장이 현장 증거사진을 올리면. 탭 → 그 현장 상세(사진). (2026-07-02 사장님) */
+    fun showCollabPhoto(
+        context: Context,
+        siteId: String,
+        uploaderName: String,
+        siteTitle: String
+    ) {
+        if (siteId.isBlank()) return
+        val notifId = COLLAB_PHOTO_ID_OFFSET + (siteId.hashCode() and 0x7FFFFF)
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            action = MainActivity.ACTION_COLLAB_SITE
+            putExtra(MainActivity.EXTRA_SHARE_ID, siteId)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+        val pending = PendingIntent.getActivity(
+            context, notifId, openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val who = uploaderName.ifBlank { "협업 사장님" }
+        val where = siteTitle.ifBlank { "협업 현장" }
+        showProtoPush(
+            context, notifId, CHANNEL_REMINDER, ACCENT_BLUE,
+            title = "📸 협업 현장 새 사진",
+            msg = "${who}님이 '${where}'에 현장 사진을 올렸어요",
+            contentIntent = pending,
+            actions = listOf(PushAction("사진 보기", pending))
         )
     }
 
