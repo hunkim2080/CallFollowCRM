@@ -162,10 +162,8 @@ fun SharedSiteScreen(
     val selectedMine = if (selected == null) mySharedSites.firstOrNull { it.shareId == selectedId } else null
     // 알림/링크 진입 자동 상세 오픈 — 받은현장·내가공유한현장 둘 다 매칭. (2026-07-02 사장님)
     LaunchedEffect(sites, mySharedSites, initialShareId) {
-        val inWith = sites.any { it.shareId == initialShareId }
-        val inMine = mySharedSites.any { it.shareId == initialShareId }
-        android.util.Log.d("CollabDeepLink", "autoOpen init=$initialShareId consumed=$consumedInitial inWith=$inWith inMine=$inMine sitesN=${sites.size} mineN=${mySharedSites.size}")
-        if (!consumedInitial && !initialShareId.isNullOrBlank() && (inWith || inMine)) {
+        if (!consumedInitial && !initialShareId.isNullOrBlank() &&
+            (sites.any { it.shareId == initialShareId } || mySharedSites.any { it.shareId == initialShareId })) {
             selectedId = initialShareId
             consumedInitial = true
         }

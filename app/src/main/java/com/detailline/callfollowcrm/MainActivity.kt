@@ -148,7 +148,6 @@ class MainActivity : ComponentActivity() {
                 //   아니면(내가 협업자 B) 협업 현장 상세로. (2026-07-02 사장님)
                 val sid = intent.getStringExtra(EXTRA_SHARE_ID).orEmpty()
                 val cid = customerIdForShareId(sid)
-                android.util.Log.d("CollabDeepLink", "ACTION_COLLAB_SITE sid=$sid → customerId=$cid")
                 pendingIntentState.value =
                     if (cid != null) IncomingIntent.OpenCustomer(cid)
                     else IncomingIntent.SharedSite(sid.takeIf { it.isNotBlank() })
