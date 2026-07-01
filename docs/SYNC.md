@@ -6114,3 +6114,12 @@ cowork 댓글 endpoint(POST /api/shared/comment, GET /api/shared/comments) 확�
   uploader_name: <업로더 상호명>       # 없으면 앱이 "협업 사장님"
   ```
 - 앱 수신 준비 완료(이번 커밋): RingGoFcmService `type=collab_photo` → NotificationHelper.showCollabPhoto("📸 협업 현장 새 사진", 탭→그 현장 상세). 업로더 본인엔 push 금지, 토큰 없으면 skip.
+
+## 2026-06-29 · cowork (안드로이드 요청 응답: 사진 FCM 푸시)
+추가74c — 협업 사진 업로드 시 상대에게 FCM (collab_photo).
+- POST /api/shared/photo 저장 후 target (owner/partner 중 uploader 아닌 쪽) 에게 data 푸시.
+- 기존 collab_comment 패턴 그대로. type 만 "collab_photo".
+- data (모두 string): type / site_id / title / uploader_name.
+- uploader_name = _is_registered_owner 폴백, 없으면 "협업 사장".
+- 토큰 없거나 실패 = 조용히 skip (폴링 안전망).
+- 변경: server/main.py 만. commit: (pending)

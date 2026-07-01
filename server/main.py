@@ -11095,6 +11095,7 @@ async def shared_photo_upload(req: SharedPhotoUploadRequest) -> dict:
         raise HTTPException(404, "share_id 없음")
     share_owner = _norm_phone(_row[0])
     share_partner = _norm_phone(_row[1])
+    site_title = _row[2] or "협업 현장"  # 추가74c — FCM 본문용
     if uploader_phone not in (share_owner, share_partner):
         raise HTTPException(403, "권한 없음 (이 협업 현장의 owner/partner 만 업로드 가능)")
     # 업로더 종류 결정 — owner 이면 member_id='OWNER', partner 이면 'PARTNER:{phone}' (구분용)
@@ -11131,6 +11132,22 @@ async def shared_photo_upload(req: SharedPhotoUploadRequest) -> dict:
         f"({'OWNER' if uploader_phone == share_owner else 'PARTNER'}) "
         f"photo_id={photo_id} label={label}"
     )
+
+    # 추가74c (2026-06-29) — 상대 참여자에게 FCM data 푸시 (collab_photo).
+    # 댓글 (collab_comment) 과 동일 패턴. type 만 다름.
+    target_phone = share_partner if uploader_phone == share_owner else share_owner
+    if target_phone:
+        try:
+            uploader_name = _is_registered_owner(uploader_phone) or "협업 사장"
+            _send_fcm_data_to_phone(target_phone, {
+                "type": "collab_photo",
+                "site_id": share_id,
+                "title": site_title,
+                "uploader_name": uploader_name,
+            })
+        except Exception as e:
+            print(f"[shared/photo] FCM 발송 실패 (무시): {type(e).__name__}: {e}")
+
     return {
         "ok": True,
         "photo_id": photo_id,
