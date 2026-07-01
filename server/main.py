@@ -5887,14 +5887,15 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
           <th>등록일</th>
           <th>첫 진입</th>
           <th>마지막 앱 실행</th>
-          <th>활성 일수</th>
+          <th title="AI (LLM 답장추천/통화요약 등) 를 실제 사용한 유니크 날짜 수">AI 사용일</th>
+          <th title="앱을 실제로 켠 유니크 날짜 수 (screen_view 이벤트 기준)">앱 사용일</th>
           <th class="right">진입 횟수</th>
           <th class="right">LLM 사용</th>
           <th class="right">일평균</th>
           <th class="right">비용 (USD)</th>
           <th>상태</th>
         </tr></thead>
-        <tbody id="userRows"><tr><td colspan="11" style="text-align:center; padding:30px; color:#9AA3AF">로딩중...</td></tr></tbody>
+        <tbody id="userRows"><tr><td colspan="12" style="text-align:center; padding:30px; color:#9AA3AF">로딩중...</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -6064,7 +6065,7 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
     // 사용자 테이블
     var users = d.users;
     if (users.length === 0) {
-      document.getElementById('userRows').innerHTML = '<tr><td colspan="10" style="text-align:center; padding:30px; color:#9AA3AF">등록된 테스터 없음</td></tr>';
+      document.getElementById('userRows').innerHTML = '<tr><td colspan="12" style="text-align:center; padding:30px; color:#9AA3AF">등록된 테스터 없음</td></tr>';
     } else {
       var html2 = '';
       var now = Date.now();
@@ -6088,6 +6089,7 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
               + '<td>' + first + '</td>'
               + '<td>' + last + '</td>'
               + '<td>' + u.active_days + '일</td>'
+              + '<td>' + (u.app_days || 0) + '일</td>'
               + '<td class="right">' + u.use_count + '</td>'
               + '<td class="right"><b>' + u.calls + '</b></td>'
               + '<td class="right" style="color:#1B64DA; font-weight:700">' + u.avg_per_day + '</td>'
