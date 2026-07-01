@@ -5348,8 +5348,10 @@ async def admin_beta_dashboard_data(
         active_30d = sum(1 for r in wl_rows if r[5] and r[5] >= now - 30 * 86_400_000)
 
         wl_phones = [r[0] for r in wl_rows]
-        # 추가49 (2026-06-21) — phone → industry 매핑 (beta_signups 에서). 사장님이 admin 에서
-        # 직접 추가한 phone 은 signups 에 없을 수 있음 → industry 빈 문자열.
+        # 추가49 (2026-06-21) — phone → industry 매핑.
+        # 추가73 fix (2026-06-29) — 사장님 지적: "업종 = 앱 onboarding (owner_trade) 우선".
+        #   옛: beta_signups.industry (모집 폼 자기보고) 만
+        #   새: 앱 onboarding 값 (beta_whitelist.owner_trade) 우선 + 모집 폼 폴백
         industry_map: dict = {}
         if wl_phones:
             placeholders_i = ",".join(["?"] * len(wl_phones))
@@ -5359,7 +5361,11 @@ async def admin_beta_dashboard_data(
             ).fetchall()
             for ir in industry_rows:
                 if ir[1]:
-                    industry_map[ir[0]] = ir[1]
+                    industry_map[ir[0]] = ir[1]  # 모집 폼 폴백
+        # 앱 onboarding + admin 수동 설정 (owner_trade) 우선. 덮어씀.
+        for _p, _trade in wl_trade_map.items():
+            if _trade:
+                industry_map[_p] = _trade
 
         # ── api_usage 데이터 (베타 phone 만) ──
         api_rows: list = []
@@ -5903,17 +5909,23 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
     // KPI 카드
     var kpi = d.kpi;
     var pct = function(n, tot) { return tot > 0 ? Math.round(n / tot * 100) : 0; };
-    // 추가48 (2026-06-21) — 사용자 유형 3종 분류 (사장님 요청)
+    // 추가48 (2026-06-21) — 사용자 유형 분류
+    // 추가73 fix (2026-06-29) — 사장님 지적: "진성+구경꾼+안쓰는사람 = 6 ≠ 7명 (누락 1명)".
+    //   원인: "7일 활동 + LLM 1~4회 사용자" 가 어디에도 안 속함.
+    //   fix: 4분류 mutually exclusive.
+    //     안 쓰는 사람 (7일 무활동) → 초심 (활동 + LLM 1-4) → 구경꾼 (활동 + LLM 0) → 진성 (LLM 5+)
     var nowMs = Date.now();
     var allUsers = d.users || [];
     var sevenAgo = nowMs - 7 * 86400000;
-    var sincere = allUsers.filter(function(u){ return (u.calls || 0) >= 5; }).length;
-    var watcher = allUsers.filter(function(u){
-      return (u.last_seen_ms && u.last_seen_ms >= sevenAgo) && (u.calls || 0) === 0;
-    }).length;
-    var dead = allUsers.filter(function(u){
-      return !u.last_seen_ms || u.last_seen_ms < sevenAgo;
-    }).length;
+    var dead = 0, watcher = 0, beginner = 0, sincere = 0;
+    allUsers.forEach(function(u){
+      var calls = u.calls || 0;
+      var active = u.last_seen_ms && u.last_seen_ms >= sevenAgo;
+      if (!active) dead++;
+      else if (calls >= 5) sincere++;
+      else if (calls === 0) watcher++;
+      else beginner++;  // 1~4회 사용자
+    });
     // 추가49 (2026-06-21) — 업종 분포 (가장 많은 업종 1개)
     var byIndustry = {};
     allUsers.forEach(function(u){
@@ -5927,6 +5939,7 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
       kpiCard('blue', '총 베타 사용자', kpi.total_users, '명') +
       kpiCard('blue', '🔧 가장 많은 업종', topIndustry, topIndustryCount + '명 · ' + industrySub) +
       kpiCard('green', '🟢 진성 사용자', sincere, 'LLM 5회+ 사용') +
+      kpiCard('blue', '🔵 초심 사용자', beginner, 'LLM 1~4회 사용') +
       kpiCard('orange', '🟡 구경꾼', watcher, '앱은 열지만 기능 X') +
       kpiCard('', '🔴 안 쓰는 사람', dead, '7일+ 무활동') +
       kpiCard('green', '활성 (7일)', kpi.active_7d, pct(kpi.active_7d, kpi.total_users) + '% 활성') +
