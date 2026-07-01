@@ -5670,8 +5670,10 @@ async def admin_beta_dashboard_data(
             avg_calls_per_user_per_day = round(
                 sum(u["calls"] for u in active_users) / len(active_users) / days, 2
             )
+            # 추가75+ (2026-06-29) — "AI 사용일" 헷갈림 지적. "평균 앱 사용 일수" 로 통일.
+            # app_days (app_events 기준 = 앱 진짜 켠 날 수) 평균으로 계산.
             avg_active_days_per_user = round(
-                sum(u["active_days"] for u in active_users) / len(active_users), 1
+                sum(u["app_days"] for u in active_users) / len(active_users), 1
             )
             avg_use_count = round(
                 sum(u["use_count"] for u in active_users) / len(active_users), 1
@@ -5887,15 +5889,14 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
           <th>등록일</th>
           <th>첫 진입</th>
           <th>마지막 앱 실행</th>
-          <th title="AI (LLM 답장추천/통화요약 등) 를 실제 사용한 유니크 날짜 수">AI 사용일</th>
           <th title="앱을 실제로 켠 유니크 날짜 수 (screen_view 이벤트 기준)">앱 사용일</th>
           <th class="right">진입 횟수</th>
-          <th class="right">LLM 사용</th>
+          <th class="right" title="AI 기능 (답장추천/통화요약 등) 을 사용한 총 회수">LLM 사용</th>
           <th class="right">일평균</th>
           <th class="right">비용 (USD)</th>
           <th>상태</th>
         </tr></thead>
-        <tbody id="userRows"><tr><td colspan="12" style="text-align:center; padding:30px; color:#9AA3AF">로딩중...</td></tr></tbody>
+        <tbody id="userRows"><tr><td colspan="11" style="text-align:center; padding:30px; color:#9AA3AF">로딩중...</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -5992,7 +5993,7 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
       kpiCard('', '활성화 (첫 진입)', kpi.activated, pct(kpi.activated, kpi.total_users) + '% 진입 완료') +
       kpiCard('blue', '총 LLM 호출', kpi.total_api_calls, '회 (' + d.days + '일)') +
       kpiCard('orange', '평균 LLM/사장님/일', kpi.avg_calls_per_user_per_day, '회 (활성자 기준)') +
-      kpiCard('green', '평균 AI 사용 일수', kpi.avg_active_days_per_user, '일 / ' + d.days + '일 중 (LLM 호출한 날)') +
+      kpiCard('green', '평균 앱 사용 일수', kpi.avg_active_days_per_user, '일 / ' + d.days + '일 중') +
       kpiCard('blue', '평균 진입 횟수', kpi.avg_use_count, '회 (누적, 활성자 기준)');
 
     // Network 신호 (클릭 시 drill-down)
@@ -6065,7 +6066,7 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
     // 사용자 테이블
     var users = d.users;
     if (users.length === 0) {
-      document.getElementById('userRows').innerHTML = '<tr><td colspan="12" style="text-align:center; padding:30px; color:#9AA3AF">등록된 테스터 없음</td></tr>';
+      document.getElementById('userRows').innerHTML = '<tr><td colspan="11" style="text-align:center; padding:30px; color:#9AA3AF">등록된 테스터 없음</td></tr>';
     } else {
       var html2 = '';
       var now = Date.now();
@@ -6088,7 +6089,6 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
               + '<td>' + added + '</td>'
               + '<td>' + first + '</td>'
               + '<td>' + last + '</td>'
-              + '<td>' + u.active_days + '일</td>'
               + '<td>' + (u.app_days || 0) + '일</td>'
               + '<td class="right">' + u.use_count + '</td>'
               + '<td class="right"><b>' + u.calls + '</b></td>'
