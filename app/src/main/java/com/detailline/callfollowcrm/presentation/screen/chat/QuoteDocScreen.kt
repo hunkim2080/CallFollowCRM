@@ -308,24 +308,38 @@ fun QuoteDocScreen(
                             Text(bizAddr, fontSize = 11.sp, color = TossTextTertiary)
                         }
                     }
-                    // 직인 — 진짜 도장 느낌: 이중 링 + 옅은 빨강 채움 + 2글자씩 정사각 배치. (2026-07-03 사장님)
-                    Box(Modifier.size(76.dp).rotate(-11f), contentAlignment = Alignment.Center) {
-                        // 바깥 굵은 링 + 옅은 채움
+                    // 직인 — 네모 도장(이중 사각 링 + 옅은 채움) + 업체명·대표자로 격식. (2026-07-03 사장님)
+                    Box(Modifier.size(80.dp).rotate(-8f), contentAlignment = Alignment.Center) {
+                        // 바깥 굵은 사각 링 + 옅은 채움
                         Box(
-                            Modifier.matchParentSize().clip(CircleShape)
+                            Modifier.matchParentSize().clip(RoundedCornerShape(9.dp))
                                 .background(SealRed.copy(alpha = 0.06f))
-                                .border(3.dp, SealRed, CircleShape)
+                                .border(3.dp, SealRed, RoundedCornerShape(9.dp))
                         )
-                        // 안쪽 얇은 링
+                        // 안쪽 얇은 사각 링
                         Box(
-                            Modifier.size(63.dp).clip(CircleShape).border(1.5.dp, SealRed, CircleShape),
+                            Modifier.size(68.dp).clip(RoundedCornerShape(6.dp))
+                                .border(1.dp, SealRed, RoundedCornerShape(6.dp))
+                                .padding(horizontal = 4.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                seal.replace(" ", "").chunked(2).joinToString("\n"),
-                                fontSize = 13.sp, fontWeight = FontWeight.Black, color = SealRed,
-                                textAlign = TextAlign.Center, lineHeight = 15.sp, letterSpacing = 1.sp
-                            )
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    seal.replace(" ", ""),
+                                    fontSize = 11.sp, fontWeight = FontWeight.Black, color = SealRed,
+                                    textAlign = TextAlign.Center, lineHeight = 13.sp, letterSpacing = 0.5.sp
+                                )
+                                if (bizOwner.isNotBlank()) {
+                                    Spacer(Modifier.height(3.dp))
+                                    Box(Modifier.width(34.dp).height(1.dp).background(SealRed.copy(alpha = 0.7f)))
+                                    Spacer(Modifier.height(3.dp))
+                                    Text(
+                                        "대표 $bizOwner",
+                                        fontSize = 9.sp, fontWeight = FontWeight.Bold, color = SealRed,
+                                        textAlign = TextAlign.Center, lineHeight = 10.sp
+                                    )
+                                }
+                            }
                         }
                     }
                 }
