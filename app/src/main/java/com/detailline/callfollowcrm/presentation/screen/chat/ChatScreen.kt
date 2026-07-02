@@ -2188,6 +2188,13 @@ private fun ChatBubble(
                                         model = imageUris[idx],
                                         contentDescription = "첨부 사진",
                                         contentScale = ContentScale.Crop,
+                                        onError = {
+                                            android.util.Log.w(
+                                                "MmsImg",
+                                                "load FAIL ${imageUris[idx]}",
+                                                it.result.throwable
+                                            )
+                                        },
                                         modifier = Modifier
                                             .size(80.dp)
                                             .clip(RoundedCornerShape(8.dp))

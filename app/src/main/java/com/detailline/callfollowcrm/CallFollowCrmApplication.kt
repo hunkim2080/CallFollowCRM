@@ -137,7 +137,14 @@ class CallFollowCrmApplication : Application() {
 
         // SMS/MMS 캐시 prefetch — 최근 20개 번호. ChatScreen 첫 진입을 즉시 보이게 하는 토대.
         // READ_SMS 권한 없으면 silent skip.
-        container.smsCachePrefetcher.prefetchRecentContacts(contactLimit = 20)
+        //   ⚠️ 콜드 스타트 직후 몇 초 미룸(2026-07-02 사장님): 재실행 직후 사용자가 사진방을 바로 열면 Coil 이 그 사진들을
+        //      MMS provider 에서 새로 읽어야 하는데(메모리 이미지캐시는 재실행 때 비워짐), 이 무거운 prefetch(20연락처×MMS스캔)가
+        //      같은 provider 를 동시에 두들겨 이미지 로딩과 경합 → "앱 재실행하면 사진이 회색으로 안 뜸". 캐시는 이미 영속돼
+        //      stage-1 즉시표시엔 지장 없어(prefetch 는 갱신용) 몇 초 양보해도 안전.
+        appScope.launch {
+            delay(4_000)
+            container.smsCachePrefetcher.prefetchRecentContacts(contactLimit = 20)
+        }
 
         // 2026-05-28 사장님 통점 fix: SMS 풀스캔 (17000건) 가 매번 느림.
         //   해결: sms_contacts_cache 테이블 (DB v16). 첫 실행 시 풀스캔 → 캐시 채움.
