@@ -417,7 +417,8 @@ fun ChatScreen(
     androidx.compose.runtime.DisposableEffect(Unit) {
         val resolver = context.contentResolver
         val handler = android.os.Handler(android.os.Looper.getMainLooper())
-        val reload = Runnable { viewModel.loadMessages() }
+        // 재조회는 얕은 증분 스캔(fullScan=false) — 방금 온/보낸 MMS 만 빠르게 반영. 전체 2000 스캔은 첫 진입만.
+        val reload = Runnable { viewModel.loadMessages(fullScan = false) }
         val observer = object : android.database.ContentObserver(handler) {
             override fun onChange(selfChange: Boolean) {
                 handler.removeCallbacks(reload)

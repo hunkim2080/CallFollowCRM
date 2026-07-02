@@ -423,7 +423,13 @@ class ChatViewModel(
      *  - 첫 진입 (prefetch 안 끝났으면 빈 캐시) → stage 2 의 SMS 가 가장 먼저 보임 (사진은 늦게)
      *  - 두 번째 진입 → stage 1 캐시로 즉시 모두 보임 → stage 2/3 가 조용히 갱신
      */
-    fun loadMessages() {
+    /**
+     * @param fullScan true(첫 진입) = MMS 전역 2000행 스캔 후 authoritative replace(삭제까지 반영).
+     *   false(화면 대기 중 provider 변화로 재조회) = 최근 소량만 얕게 스캔 → 캐시에 merge.
+     *   전체 스캔은 2000행 각각 주소조회라 사장님 폰(MMS 8900건)에서 수 초 걸림 → 재조회마다 돌면
+     *   "사진 하나 보냈는데 오래 걸림". 캐시가 옛 사진을 이미 갖고 있으니 재조회는 얕게. (2026-07-02 사장님)
+     */
+    fun loadMessages(fullScan: Boolean = true) {
         // SMS 권한은 onboarding 에서 기본 승인 (PermissionHelper.requiredPermissions()).
         // 그래도 시스템 설정에서 사장님이 끄면 silent skip.
         if (!container.smsRepository.hasReadPermission()) {
@@ -465,21 +471,35 @@ class ChatViewModel(
                 }
             }
 
-            // stage 3: MMS 백그라운드. 끝나면 SMS + MMS 합쳐서 다시 emit + MMS 캐시 교체.
-            //   ⚠️ 사진 깜빡임 버그 fix (2026-07-02 사장님): 화면이 떠 있는 동안 SMS/MMS provider 가 바뀔 때마다
-            //      loadMessages 가 다시 돈다(ChatScreen 의 ContentObserver). 이때 삼성이 MMS 를 동시에 쓰거나
-            //      provider 가 경합하면 queryMmsOnly 가 '일시적으로' 빈 결과를 준다(query() 가 null 반환 → emptyList).
-            //      그 빈 값을 그대로 emit 하면 이미 떠 있던 사진이 통째로 사라졌다가 다음 reload 때 되살아난다.
-            //      → 새 조회가 비었는데 캐시엔 MMS 가 있으면 = 일시 실패로 보고 덮어쓰지 않는다(캐시 유지, stage2 emit 그대로).
-            //      실제 새 MMS 는 freshMms 가 비지 않으므로 정상 반영되고, 그때만 캐시도 교체한다.
-            val freshMms = runCatching {
-                container.smsRepository.queryMmsOnly(phoneNumber)
-            }.getOrDefault(emptyList())
-            if (freshMms.isNotEmpty() || cachedMmsOnly.isEmpty()) {
-                _messages.value = mergeWithLocalSent(freshSms, localSent, freshMms)
-                runCatching {
-                    container.cachedMessageRepository.replaceMmsOnlyForSuffix(suffix, freshMms)
+            // stage 3: MMS.
+            if (fullScan) {
+                // 첫 진입 = 전체 2000 스캔 → authoritative replace(삭제까지 반영).
+                //   ⚠️ 깜빡임 가드: 전체 스캔이 일시 실패(빈 결과)인데 캐시엔 MMS 있으면 덮어쓰지 않음(캐시 유지).
+                //      (provider 경합으로 query() 가 null 반환 시 사진이 사라졌다 되살아나던 버그.)
+                val freshMms = runCatching {
+                    container.smsRepository.queryMmsOnly(phoneNumber)
+                }.getOrDefault(emptyList())
+                if (freshMms.isNotEmpty() || cachedMmsOnly.isEmpty()) {
+                    _messages.value = mergeWithLocalSent(freshSms, localSent, freshMms)
+                    runCatching {
+                        container.cachedMessageRepository.replaceMmsOnlyForSuffix(suffix, freshMms)
+                    }
                 }
+            } else {
+                // 화면 대기 중 재조회(새 문자/사진 감지) = 최근 소량(80행)만 얕게 스캔 → 캐시에 merge.
+                //   방금 보낸/받은 MMS 는 전역에서도 최근이라 80행 안에 있어 즉시 표시. 옛 사진은 캐시가 이미 보유.
+                //   전체 2000 스캔(각 행 주소조회)을 재조회마다 돌지 않아 "사진 하나 보냈는데 오래 걸림" 해소. (2026-07-02 사장님)
+                val recentMms = runCatching {
+                    container.smsRepository.queryMmsOnly(phoneNumber, scanLimit = RECENT_MMS_SCAN_LIMIT)
+                }.getOrDefault(emptyList())
+                if (recentMms.isNotEmpty()) {
+                    runCatching { container.cachedMessageRepository.mergeMmsForSuffix(suffix, recentMms) }
+                    val mergedMms = runCatching {
+                        container.cachedMessageRepository.loadMmsOnly(suffix)
+                    }.getOrDefault(cachedMmsOnly)
+                    _messages.value = mergeWithLocalSent(freshSms, localSent, mergedMms)
+                }
+                // recentMms 비면 stage2 의 cachedMmsOnly emit 그대로 (사진 유지).
             }
         }
     }
@@ -1414,6 +1434,12 @@ class ChatViewModel(
         private const val PRINCIPLE_MIN_EDIT_DISTANCE = 12
         /** 하루 최대 원칙 묻기 횟수 — 귀찮게 안 하기. */
         private const val PRINCIPLE_MAX_PER_DAY = 2
+
+        /**
+         * 화면 대기 중 재조회(fullScan=false)의 MMS 얕은 스캔 상한. 방금 보낸/받은 MMS 는 전역에서도
+         *   최근이라 이 안에 들어옴. 전체 2000 스캔(행마다 주소조회)을 피해 즉시 표시. (2026-07-02 사장님)
+         */
+        private const val RECENT_MMS_SCAN_LIMIT = 80
     }
 }
 
