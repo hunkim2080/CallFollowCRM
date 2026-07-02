@@ -6269,3 +6269,12 @@ deploy_phase1.sh — repo 에 plist 사본 없으면 (gitignore 라 repo 이동 
 - 대시보드 기능별 표에 'name-template' 한글 매핑은 다음 배포 때 추가 예정 (현재 "미분류 기능"으로 표시됨).
 - Python 3.9 Optional[] 준수. 변경: server/main.py 만. 배포 필요.
 - commit: (아래)
+
+## 2026-07-02 · cowork (사장님 보고: 템플릿 제목 잘림)
+추가81b — /name-template 제목 13자 제한.
+- 사장님 보고: 제목 길면 앱 UI 에서 글 잘림 → 13자 안으로 제한.
+- 서버: 프롬프트에 "절대 13자 넘기지 마라" + 후처리 컷 20→13자.
+- 다음 액션 (안드로이드): 앱 쪽도 동일 적용 부탁 —
+  ① 템플릿 제목 수동 입력칸 maxLength=13, ② 서버 title/휴리스틱 제목 저장 시 13자 컷 (기존 20자 컷 → 13).
+- 변경: server/main.py 만. 배포 필요.
+- commit: (아래)

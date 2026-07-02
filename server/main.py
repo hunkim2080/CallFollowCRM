@@ -17588,7 +17588,7 @@ async def pricing_starter(req: PricingStarterRequest) -> dict:
 # ============================================================================
 
 _NAME_TEMPLATE_SYSTEM = """너는 시공 사장님이 고객에게 보내는 문자에 짧은 제목을 붙이는 도우미다.
-문자의 '용도'를 나타내는 한글 제목만 출력해라(4~10자). 예: "예약금 안내", "입금 확인", "견적 안내", "시공 전 안내", "부재중 안내".
+문자의 '용도'를 나타내는 한글 제목만 출력해라(4~10자, 절대 13자 넘기지 마라). 예: "예약금 안내", "입금 확인", "견적 안내", "시공 전 안내", "부재중 안내".
 설명·따옴표·문장부호 없이 제목 텍스트만. 모르면 "안내 문자".
 """
 
@@ -17620,9 +17620,10 @@ async def name_template(req: NameTemplateRequest) -> dict:
     except Exception as e:
         print(f"[name-template] Haiku 실패: {type(e).__name__}: {e}")
         return {"title": "안내 문자"}  # 앱 계약: 200 + title (앱이 휴리스틱 유지 판단)
-    # 후처리 — 따옴표/개행/문장부호 제거, 20자 컷 (앱도 20자 컷하지만 이중 방어)
+    # 후처리 — 따옴표/개행/문장부호 제거.
+    # 13자 컷 (사장님 보고 2026-07-02: 긴 제목이 앱 UI 에서 잘림 → 13자 제한).
     title = " ".join(raw.split()).strip().strip("\"'""''「」.·:;!?")
-    title = title[:20].strip()
+    title = title[:13].strip()
     if not title:
         title = "안내 문자"
     return {"title": title}
