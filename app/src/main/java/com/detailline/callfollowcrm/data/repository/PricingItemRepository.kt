@@ -20,8 +20,7 @@ class PricingItemRepository(private val dao: PricingItemDao) {
             .sortedWith(compareBy({ it.category }, { it.displayOrder }))
         if (items.isEmpty()) return ""
         return items.joinToString("\n") { it ->
-            val won = if (it.price >= 10000 && it.price % 10000L == 0L) "${it.price / 10000}만원"
-                      else "${"%,d".format(it.price)}원"
+            val won = formatWon(it.price)
             val unit = if (it.unit == PricingItemEntity.UNIT_PYEONG) " (평당)" else ""
             val cat = when (it.category) { "NEW" -> "[신축] "; "OLD" -> "[구축] "; else -> "" }
             "- $cat${it.title}: $won$unit"
@@ -36,7 +35,8 @@ class PricingItemRepository(private val dao: PricingItemDao) {
         price: Long,
         category: String,
         displayOrder: Int = 0,
-        unit: String = PricingItemEntity.UNIT_FLAT
+        unit: String = PricingItemEntity.UNIT_FLAT,
+        isEstimated: Boolean = false
     ): Long {
         val now = System.currentTimeMillis()
         return dao.insert(
@@ -48,13 +48,15 @@ class PricingItemRepository(private val dao: PricingItemDao) {
                 displayOrder = displayOrder,
                 isActive = true,
                 createdAt = now,
-                updatedAt = now
+                updatedAt = now,
+                isEstimated = isEstimated
             )
         )
     }
 
+    /** 사장님이 값을 고치면 '추정' 해제(= 내가 확인한 값). update 가 항상 isEstimated=false 로 커밋. (2026-07-02 사장님) */
     suspend fun update(entity: PricingItemEntity) {
-        dao.update(entity.copy(updatedAt = System.currentTimeMillis()))
+        dao.update(entity.copy(isEstimated = false, updatedAt = System.currentTimeMillis()))
     }
 
     suspend fun setActive(id: Long, active: Boolean) {
@@ -64,6 +66,17 @@ class PricingItemRepository(private val dao: PricingItemDao) {
 
     suspend fun deleteById(id: Long) {
         dao.deleteById(id)
+    }
+
+    companion object {
+        /**
+         * 원 단위 가격 → 표시 문자열. 만원 배수면 "N만원", 아니면 "N,NNN원".
+         *   ⚠️ price 는 항상 '원 단위'라는 계약을 검증하는 순수함수(단위테스트). 서버/시드가 원 단위로 주고
+         *   앱은 ×10000 을 두 번 하지 않는다는 것을 여기 테스트로 못박음. (2026-07-02 가격 온보딩)
+         */
+        fun formatWon(price: Long): String =
+            if (price >= 10000 && price % 10000L == 0L) "${price / 10000}만원"
+            else "${"%,d".format(price)}원"
     }
 }
 

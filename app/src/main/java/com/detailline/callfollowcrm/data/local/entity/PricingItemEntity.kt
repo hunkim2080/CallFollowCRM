@@ -29,7 +29,12 @@ data class PricingItemEntity(
     val displayOrder: Int,
     val isActive: Boolean,
     val createdAt: Long,
-    val updatedAt: Long
+    val updatedAt: Long,
+    /**
+     * true = AI/업종 스타터가 대략값으로 자동 채운 '추정' 항목(가격표 온보딩, DB v37). 화면에 "추정" 배지 표시.
+     *   사장님이 가격을 한 번이라도 고치면 false 로 = '내가 확인한 진짜 값'. (2026-07-02 사장님)
+     */
+    val isEstimated: Boolean = false
 ) {
     companion object {
         const val UNIT_FLAT = "FLAT"

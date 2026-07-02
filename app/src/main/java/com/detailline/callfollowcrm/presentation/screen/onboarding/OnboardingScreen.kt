@@ -65,7 +65,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.detailline.callfollowcrm.CallFollowCrmApplication
 import com.detailline.callfollowcrm.data.preferences.AppPreferences
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
 import com.detailline.callfollowcrm.presentation.component.Mascot
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossBlueDark
@@ -111,6 +114,7 @@ fun OnboardingScreen(prefs: AppPreferences, onFinish: () -> Unit) {
     val selectedRegions = remember { mutableStateListOf<String>() }
     var bizName by remember { mutableStateOf(prefs.bizName) }
     var storyPage by remember { mutableStateOf(0) }
+    val context = LocalContext.current
     // 프로토 .ob::before — 슬라이드별 accent 로 0.5초에 걸쳐 색 전환(인트로 캐러셀 단계에서만).
     val bandAccent by animateColorAsState(
         targetValue = if (step == 0) ObAccents.getOrElse(storyPage) { ObAccent } else ObAccent,
@@ -148,7 +152,18 @@ fun OnboardingScreen(prefs: AppPreferences, onFinish: () -> Unit) {
                     selected = selectedTrades,
                     onBack = { step = 0 },
                     onNext = {
-                        prefs.ownerTrades = selectedTrades.toList().take(1)  // 하나만(라디오) — 대표 업종 1개
+                        val trade = selectedTrades.toList().take(1)
+                        prefs.ownerTrades = trade  // 하나만(라디오) — 대표 업종 1개
+                        // 업종 스타터(2026-07-02 사장님): 줄눈이면 가격표를 '추정값'으로 자동 채워 빈 표 이탈 방지.
+                        //   applicationScope 로 fire-and-forget → BornStep 배지 전에 완료. 타 업종은 서버 대기(현재 no-op).
+                        (context.applicationContext as? CallFollowCrmApplication)?.let { app ->
+                            app.applicationScope.launch {
+                                runCatching {
+                                    com.detailline.callfollowcrm.data.local.seed.DefaultPricingItems
+                                        .seedEstimatedIfEmpty(app.container.pricingItemRepository, trade.firstOrNull())
+                                }
+                            }
+                        }
                         step = 2
                     }
                 )
@@ -479,6 +494,28 @@ private fun BornStep(name: String, trades: List<String>, regions: List<String>, 
         if (regions.isNotEmpty()) {
             Spacer(Modifier.height(4.dp))
             Text("활동 지역 · ${regions.joinToString(", ")}", fontSize = 13.sp, color = TossTextTertiary, textAlign = TextAlign.Center)
+        }
+        // 가격표 스타터 배지 — 실제로 채워졌을 때만(거짓 배지 금지). 시드는 fire-and-forget 이라 잠깐 확인. (2026-07-02 사장님)
+        val ctx = LocalContext.current
+        var pricingCount by remember { mutableStateOf(0) }
+        LaunchedEffect(Unit) {
+            val app = ctx.applicationContext as? CallFollowCrmApplication ?: return@LaunchedEffect
+            repeat(8) {
+                val n = runCatching { app.container.pricingItemRepository.count() }.getOrDefault(0)
+                if (n > 0) { pricingCount = n; return@LaunchedEffect }
+                kotlinx.coroutines.delay(300)
+            }
+        }
+        if (pricingCount > 0) {
+            Spacer(Modifier.height(12.dp))
+            Box(
+                Modifier.background(TossBlueSoft, RoundedCornerShape(10.dp)).padding(horizontal = 12.dp, vertical = 7.dp)
+            ) {
+                Text(
+                    "가격표 ${pricingCount}개 준비됨 · 대략값이에요",
+                    fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossBlueDark
+                )
+            }
         }
         Spacer(Modifier.weight(1f))
         ObCta("14일 무료로 시작하기", onClick = onStart)

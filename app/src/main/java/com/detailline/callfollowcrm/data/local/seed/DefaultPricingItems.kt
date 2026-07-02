@@ -10,10 +10,28 @@ import com.detailline.callfollowcrm.data.repository.PricingItemRepository
  */
 object DefaultPricingItems {
 
+    /**
+     * 업종 스타터(가격 온보딩, 2026-07-02 사장님) — 가격표가 비어있고 업종이 줄눈이면 18항목을 '추정값'으로 자동 시드.
+     *   isEstimated=true → 가격표 화면에 "추정" 배지 + 사장님이 값 고치면 해제. 타 업종은 서버 /pricing/starter(cowork) 대기.
+     *   빈 표로 시작해 이탈하던 온보딩을 "이미 채워진 표"로 시작하게 함. docs/PLAN_price_onboarding.md
+     */
+    suspend fun seedEstimatedIfEmpty(repo: PricingItemRepository, trade: String?) {
+        if (repo.count() > 0) return
+        if (trade?.contains("줄눈") != true) return   // 현재 로컬 템플릿은 줄눈만
+        ZULNUN_ITEMS.forEachIndexed { idx, (cat, title, price) ->
+            repo.insert(title = title, price = price, category = cat.name, displayOrder = idx, isEstimated = true)
+        }
+    }
+
     suspend fun seedIfEmpty(repo: PricingItemRepository) {
         if (repo.count() > 0) return
+        ZULNUN_ITEMS.forEachIndexed { idx, (cat, title, price) ->
+            repo.insert(title = title, price = price, category = cat.name, displayOrder = idx)
+        }
+    }
 
-        val items: List<Triple<PricingCategory, String, Long>> = listOf(
+    private val ZULNUN_ITEMS: List<Triple<PricingCategory, String, Long>> by lazy {
+        listOf(
             // 신축
             Triple(PricingCategory.NEW, "욕조 있는 화장실 바닥 1곳", 400_000L),
             Triple(PricingCategory.NEW, "샤워부스 있는 화장실 바닥 1곳", 450_000L),
@@ -35,14 +53,5 @@ object DefaultPricingItems {
             Triple(PricingCategory.OLD, "현관", 100_000L),
             Triple(PricingCategory.OLD, "거실 타일", 1_500_000L)
         )
-
-        items.forEachIndexed { idx, (cat, title, price) ->
-            repo.insert(
-                title = title,
-                price = price,
-                category = cat.name,
-                displayOrder = idx
-            )
-        }
     }
 }

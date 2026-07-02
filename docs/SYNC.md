@@ -6165,3 +6165,11 @@ MMS 처리 방식 검토 회신 → `docs/ANDROID_REVIEW_mms_architecture.md` �
 - 함정 신규 지적: RCS(채팅+) 사진은 content://mms 에 안 옴 (제일 큰 유령버그 후보), 그룹 MMS 가 1:1 챗에 섞임, msg_box 4/5 미표시, 기기 이사 시 URI 죽음.
 - 출시 2일 전 = 아무것도 건드리지 말 것. 전부 출시 후.
 - 변경: docs 만. commit: (아래)
+
+## 2026-07-02 · android (가격 온보딩 MVP + 서버 핸드오프)
+신규 사용자 온보딩 '가격표 입력' 이탈 방지 — 업종 스타터 MVP(D단계) 구현. 기획: docs/PLAN_price_onboarding.md
+- 앱: PricingItemEntity.isEstimated 추가(DB v36→v37, MIGRATION_36_37 additive). 온보딩 업종=줄눈이면 DefaultPricingItems 18항목을 '추정값'(isEstimated=true)으로 자동 시드(applicationScope fire-and-forget). BornStep "가격표 N개 준비됨·대략값" 배지(실제 채워졌을 때만). 가격표 화면 "추정" 배지 + 사장님이 값 고치면 repo.update 가 isEstimated=false 로 해제. 가격표 항목추가 다이얼로그 스크롤 fix(별건).
+- 계약: PricingItemRepository.formatWon 순수함수 추출 + 단위테스트(PricingItemFormatTest) — price 는 항상 '원 단위', ×10000 이중곱 금지 못박음.
+- 다음 액션 (cowork/서버): 타 업종용 POST /pricing/starter (+ GET /{deviceId}) — 명세=docs/SERVER_HANDOFF_pricing_starter.md. 계약: priceWon=원 단위, 줄눈=하드코딩 18항목, 타 업종=Sonnet 1콜, Python3.9 Optional[]. 엔드포인트 나오면 앱이 StarterPricingRepository 붙임.
+- 다음 단계(앱, 후속): 2단계 접근 B(옛 문자에서 가격 추출 /extract-pricing) + 홈 넛지 배너.
+- commit: (아래)

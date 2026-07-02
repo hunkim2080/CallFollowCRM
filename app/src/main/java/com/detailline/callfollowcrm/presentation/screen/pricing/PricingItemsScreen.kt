@@ -281,6 +281,14 @@ private fun PricingItemRow(
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) { Text("평당", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossBlue) }
                 }
+                // 업종 스타터가 자동 채운 '추정' 항목 — 가격 고치면 사라짐. (2026-07-02 사장님)
+                if (item.isEstimated) {
+                    Spacer(Modifier.width(6.dp))
+                    Box(
+                        Modifier.clip(RoundedCornerShape(6.dp)).background(TossGrayBg)
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) { Text("추정", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary) }
+                }
             }
             Text(
                 formatWonShort(item.price),

@@ -63,7 +63,7 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         com.detailline.callfollowcrm.data.local.entity.PrincipleEntity::class,
         com.detailline.callfollowcrm.data.local.entity.TimelineEventEntity::class
     ],
-    version = 36,
+    version = 37,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -706,6 +706,13 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v37 — pricing_items 에 isEstimated 추가. 업종 스타터가 자동 채운 '추정' 항목 표시용. additive. (2026-07-02 사장님)
+        private val MIGRATION_36_37 = object : Migration(36, 37) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE pricing_items ADD COLUMN isEstimated INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
@@ -721,7 +728,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27,
                     MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30,
                     MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34,
-                    MIGRATION_34_35, MIGRATION_35_36
+                    MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37
                 )
                 .fallbackToDestructiveMigration()   // migration 실패 시 안전망 (개발 단계)
                 .build()
