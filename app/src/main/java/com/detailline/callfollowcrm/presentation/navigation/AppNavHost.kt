@@ -52,6 +52,8 @@ import com.detailline.callfollowcrm.presentation.screen.principle.PrincipleManag
 import com.detailline.callfollowcrm.presentation.screen.template.TemplateEditScreen
 import com.detailline.callfollowcrm.presentation.screen.template.TemplateEditViewModel
 import com.detailline.callfollowcrm.presentation.screen.template.TemplateListScreen
+import com.detailline.callfollowcrm.presentation.screen.template.TemplateDiscoverScreen
+import com.detailline.callfollowcrm.presentation.screen.template.TemplateDiscoverViewModel
 import com.detailline.callfollowcrm.presentation.screen.template.TemplateListViewModel
 import com.detailline.callfollowcrm.presentation.util.viewModelFactory
 
@@ -413,8 +415,15 @@ fun AppNavHost(
                 viewModel = vm,
                 onBack = { navController.popBackStack() },
                 onEdit = { id -> navController.navigate(Destinations.templateEdit(id)) },
-                onNew = { navController.navigate(Destinations.templateEdit(null)) }
+                onNew = { navController.navigate(Destinations.templateEdit(null)) },
+                onOpenDiscover = { navController.navigate(Destinations.TEMPLATE_DISCOVER) }
             )
+        }
+
+        // 자주 쓰는 문자 찾기 — 반복 발송 문자를 템플릿으로 저장 제안. (2026-07-02)
+        composable(Destinations.TEMPLATE_DISCOVER) {
+            val vm: TemplateDiscoverViewModel = viewModel(factory = viewModelFactory { TemplateDiscoverViewModel(container) })
+            TemplateDiscoverScreen(viewModel = vm, onBack = { navController.popBackStack() })
         }
 
         composable(

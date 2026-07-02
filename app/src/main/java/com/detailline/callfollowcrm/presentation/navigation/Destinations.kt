@@ -30,6 +30,8 @@ object Destinations {
     }
 
     const val TEMPLATE_LIST = "templates"
+    /** 자주 쓰는 문자 찾기 — 반복 발송 문자를 템플릿으로 저장 제안. 서버無, 폰 빈도집계. (2026-07-02) */
+    const val TEMPLATE_DISCOVER = "template_discover"
     const val TEMPLATE_EDIT_WITH_ARG = "template_edit?id={id}"
     fun templateEdit(id: Long?) = if (id == null) "template_edit" else "template_edit?id=$id"
 

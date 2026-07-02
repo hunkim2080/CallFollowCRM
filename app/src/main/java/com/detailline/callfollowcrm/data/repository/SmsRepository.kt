@@ -785,6 +785,99 @@ class SmsRepository(
     }
 
     /**
+     * 2026-07-02 문자 템플릿 자동 발굴 — 사장님이 '반복해서 보낸' 문자(=사실상 자기 템플릿)를 찾아 반환.
+     *   서버 불필요(순수 빈도 집계). 보낸 SMS + 보낸 MMS 텍스트를 모아 정규화 후 셈.
+     *   ⚠️ 변형 흡수: 예약금 안내처럼 날짜/금액만 바뀌는 템플릿도 한 그룹으로 잡히게, 숫자 제거 후
+     *      '안정적인 꼬리(끝 45자)'로 그룹핑(맨 위 날짜/요일 줄은 달라도 아래 안내문은 동일하므로).
+     *   성능: 가격추출과 동일 전략(최근것 위주 + 최신순 컷오프). MMS 는 최근 보낸 id 집합 ∩ text/plain 파트.
+     *   ⚠️ 호출부에서 Dispatchers.IO 로 감쌀 것.
+     */
+    data class TemplateCandidate(val body: String, val count: Int, val lastDateMs: Long)
+
+    fun queryFrequentSentTemplates(
+        monthsBack: Int = 12,
+        minCount: Int = 3,
+        maxResults: Int = 15,
+        smsScanLimit: Int = 3000
+    ): List<TemplateCandidate> {
+        if (!hasReadPermission()) return emptyList()
+        val nowMs = System.currentTimeMillis()
+        val cutoffMs = nowMs - monthsBack * 30L * 24 * 3600 * 1000
+        val cutoffSec = cutoffMs / 1000
+
+        class Agg(var count: Int, var lastMs: Long, var body: String)
+        val agg = HashMap<String, Agg>()
+        fun consume(rawBody: String, dateMs: Long) {
+            val body = rawBody.trim()
+            if (body.length < 20) return                                   // 짧은 인사·단답 제외
+            if (body.contains("si0in.kr") || body.contains("시공막내가 등장")) return  // 앱 홍보 제외
+            val norm = body.replace(Regex("[0-9]"), "").replace(Regex("\\s+"), "")
+            if (norm.length < 10) return
+            val key = if (norm.length > 45) norm.takeLast(45) else norm     // 날짜/금액 변형 흡수
+            val a = agg[key]
+            if (a == null) agg[key] = Agg(1, dateMs, body)
+            else { a.count++; if (dateMs > a.lastMs) { a.lastMs = dateMs; a.body = body } }
+        }
+
+        // 1) 보낸 SMS (짧은문자) — date 는 ms
+        runCatching {
+            context.contentResolver.query(
+                Uri.parse("content://sms/sent"), arrayOf(COL_BODY, COL_DATE),
+                dateDescSortArgs(smsScanLimit), null
+            )
+        }.getOrNull()?.use { c ->
+            val b = c.getColumnIndex(COL_BODY); val d = c.getColumnIndex(COL_DATE)
+            if (b >= 0 && d >= 0) while (c.moveToNext()) {
+                val dm = c.getLong(d)
+                if (dm < cutoffMs) break                                    // 최신순이라 컷오프 아래는 중단
+                consume(c.getString(b).orEmpty(), dm)
+            }
+        }
+
+        // 2) 보낸 MMS (긴문자/LMS) — date 는 초. 최근 보낸 id→ms 맵
+        val sentDates = HashMap<Long, Long>()
+        runCatching {
+            context.contentResolver.query(
+                Uri.parse("content://mms"), arrayOf(COL_ID, COL_DATE),
+                Bundle().apply {
+                    putString(ContentResolver.QUERY_ARG_SQL_SELECTION, "msg_box=? AND $COL_DATE>?")
+                    putStringArray(
+                        ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS,
+                        arrayOf(MMS_BOX_SENT.toString(), cutoffSec.toString())
+                    )
+                    putStringArray(ContentResolver.QUERY_ARG_SORT_COLUMNS, arrayOf(COL_DATE))
+                    putInt(ContentResolver.QUERY_ARG_SORT_DIRECTION, ContentResolver.QUERY_SORT_DIRECTION_DESCENDING)
+                    putInt(ContentResolver.QUERY_ARG_LIMIT, 2000)
+                }, null
+            )
+        }.getOrNull()?.use { c ->
+            val idIdx = c.getColumnIndex(COL_ID); val dIdx = c.getColumnIndex(COL_DATE)
+            if (idIdx >= 0 && dIdx >= 0) while (c.moveToNext()) sentDates[c.getLong(idIdx)] = c.getLong(dIdx) * 1000L
+        }
+        if (sentDates.isNotEmpty()) {
+            runCatching {
+                context.contentResolver.query(
+                    Uri.parse("content://mms/part"), arrayOf("mid", "text"),
+                    "ct=?", arrayOf("text/plain"), null
+                )
+            }.getOrNull()?.use { c ->
+                val midIdx = c.getColumnIndex("mid"); val txtIdx = c.getColumnIndex("text")
+                if (midIdx >= 0 && txtIdx >= 0) while (c.moveToNext()) {
+                    val dm = sentDates[c.getLong(midIdx)] ?: continue        // 최근 보낸것만
+                    consume(c.getString(txtIdx).orEmpty(), dm)
+                }
+            }
+        }
+
+        return agg.values.asSequence()
+            .filter { it.count >= minCount }
+            .sortedByDescending { it.count }
+            .take(maxResults)
+            .map { TemplateCandidate(it.body, it.count, it.lastMs) }
+            .toList()
+    }
+
+    /**
      * 디버그 진단 — 시스템 DB 가 진짜 어떻게 보이는지 한 번에 측정.
      * 갤S24/OneUI 6.1 에서 query 가 의심될 때 화면에 표시.
      *

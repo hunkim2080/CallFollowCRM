@@ -63,7 +63,8 @@ fun TemplateListScreen(
     viewModel: TemplateListViewModel,
     onBack: () -> Unit,
     onEdit: (Long) -> Unit,
-    onNew: () -> Unit
+    onNew: () -> Unit,
+    onOpenDiscover: () -> Unit = {}
 ) {
     val templates by viewModel.templates.collectAsState()
     var renameTarget by remember { mutableStateOf<MessageTemplateEntity?>(null) }
@@ -82,6 +83,10 @@ fun TemplateListScreen(
                     }
                 },
                 actions = {
+                    // 자주 쓰는 문자 자동 찾기(2026-07-02 사장님 요청 — 프로토 외 추가 흐름).
+                    TextButton(onClick = onOpenDiscover) {
+                        Text("✨ 찾기", color = TossBlue, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    }
                     // 프로토 앱바 + (addTemplate)
                     Box(
                         Modifier.padding(end = 12.dp).size(38.dp).clip(RoundedCornerShape(11.dp))
@@ -105,6 +110,19 @@ fun TemplateListScreen(
                         Spacer(Modifier.height(4.dp))
                         Text("위 + 버튼으로 새 템플릿을 만들어보세요",
                             style = MaterialTheme.typography.bodySmall, color = TossTextTertiary)
+                        Spacer(Modifier.height(20.dp))
+                        // 그동안 자주 보낸 문자를 자동으로 찾아 채우기 유도. (2026-07-02)
+                        androidx.compose.material3.Surface(
+                            onClick = onOpenDiscover,
+                            shape = RoundedCornerShape(14.dp),
+                            color = TossBlue
+                        ) {
+                            Text(
+                                "✨ 자주 쓰는 문자 자동으로 찾기",
+                                color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp,
+                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
+                            )
+                        }
                     }
                 }
             } else {
