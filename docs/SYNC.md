@@ -6257,3 +6257,15 @@ deploy_phase1.sh — repo 에 plist 사본 없으면 (gitignore 라 repo 이동 
 - 매핑 있으면 영어 원문 줄 숨김. 미분류만 "미분류 기능 (영어명)" 으로 노출 (새 endpoint 추가 시 매핑 누락 감지용).
 - 변경: server/main.py (_ADMIN_DASHBOARD_HTML) 만. 배포 필요.
 - commit: (아래)
+
+## 2026-07-02 · cowork (안드로이드 템플릿 작명 요청 응답)
+추가81 — POST /name-template 구현 완료 (엔드포인트 준비됨).
+- 명세 docs/SERVER_HANDOFF_name_template.md 그대로. 루트 경로 (baseUrl/name-template).
+- 입력 {body} → 출력 {title} (한글 4~10자 목표, 후처리: 따옴표/개행/문장부호 제거 + 20자 컷).
+- 모델: Haiku 4.5 (HAIKU_MODEL), max_tokens=30, 본문 2000자 컷. llm_usage_log endpoint='name-template'.
+- LLM 실패 시에도 200 + {"title":"안내 문자"} (앱이 휴리스틱 유지 — 명세의 "서버는 보조" 계약).
+- 빈 body = 400. 캐시 없음 (저장 시 1회 호출, 비용 무시 가능).
+- 검증: py_compile PASS + TestClient ALL PASS (정상 작명/따옴표 제거/빈 body 400/LLM 실패 fallback).
+- 대시보드 기능별 표에 'name-template' 한글 매핑은 다음 배포 때 추가 예정 (현재 "미분류 기능"으로 표시됨).
+- Python 3.9 Optional[] 준수. 변경: server/main.py 만. 배포 필요.
+- commit: (아래)

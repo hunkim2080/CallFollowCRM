@@ -17580,6 +17580,53 @@ async def pricing_starter(req: PricingStarterRequest) -> dict:
     return resp
 
 
+# ============================================================================
+# 추가81 — POST /name-template (템플릿 제목 자동 작명)
+# 명세: docs/SERVER_HANDOFF_name_template.md (2026-07-02 안드로이드 핸드오프)
+# Haiku 4.5 (초저가). 캐시 불필요 (저장 시 1회). 실패해도 앱은 휴리스틱 fallback.
+# ============================================================================
+
+_NAME_TEMPLATE_SYSTEM = """너는 시공 사장님이 고객에게 보내는 문자에 짧은 제목을 붙이는 도우미다.
+문자의 '용도'를 나타내는 한글 제목만 출력해라(4~10자). 예: "예약금 안내", "입금 확인", "견적 안내", "시공 전 안내", "부재중 안내".
+설명·따옴표·문장부호 없이 제목 텍스트만. 모르면 "안내 문자".
+"""
+
+
+class NameTemplateRequest(BaseModel):
+    body: str = ""
+
+
+@app.post("/name-template")
+async def name_template(req: NameTemplateRequest) -> dict:
+    """문자 본문 → 짧은 한글 제목 (Haiku 1콜)."""
+    body = (req.body or "").strip()
+    if not body:
+        raise HTTPException(400, "body 필수")
+    body = body[:2000]  # 토큰 예산 (제목 짓는 데 앞부분이면 충분)
+    try:
+        response = await claude_client.messages.create(
+            model=HAIKU_MODEL,
+            max_tokens=30,
+            timeout=CLAUDE_TIMEOUT,
+            system=[{"type": "text", "text": _NAME_TEMPLATE_SYSTEM,
+                     "cache_control": {"type": "ephemeral"}}],
+            messages=[{"role": "user", "content": f"문자: {body}"}],
+        )
+        _log_llm_usage_from_response("name-template", response)
+        parts = [getattr(b, "text", "") for b in response.content
+                 if getattr(b, "type", None) == "text"]
+        raw = "".join(parts)
+    except Exception as e:
+        print(f"[name-template] Haiku 실패: {type(e).__name__}: {e}")
+        return {"title": "안내 문자"}  # 앱 계약: 200 + title (앱이 휴리스틱 유지 판단)
+    # 후처리 — 따옴표/개행/문장부호 제거, 20자 컷 (앱도 20자 컷하지만 이중 방어)
+    title = " ".join(raw.split()).strip().strip("\"'""''「」.·:;!?")
+    title = title[:20].strip()
+    if not title:
+        title = "안내 문자"
+    return {"title": title}
+
+
 @app.get("/pricing/starter/{device_id}")
 async def pricing_starter_get(device_id: str) -> dict:
     """폴링/조회용 — 그 기기의 가장 최근 스타터 결과. 없으면 pending."""
