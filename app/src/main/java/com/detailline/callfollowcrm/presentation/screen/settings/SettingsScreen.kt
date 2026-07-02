@@ -189,7 +189,7 @@ fun SettingsScreen(
         "autosms" -> "자동 문자"
         "nav" -> "기본 네비 앱"
         "smsapp" -> "기본 문자 앱"
-        "noti" -> "알림 미리보기"
+        "noti" -> "고객 사진(문자) 받기"
         "server" -> "AI 서버 상태"
         else -> "더보기"
     }
@@ -274,8 +274,8 @@ fun SettingsScreen(
                         "내 개인 연락처 · 시공막내가 안 잡음 · 풀려면 여기서", onClick = onOpenPersonalList)
                 }
                 SettingsGroup("도움말") {
-                    LockRow(Icons.AutoMirrored.Filled.Chat, TossGrayBg, TossTextTertiary, "알림 미리보기",
-                        "시공막내 알림이 어떻게 오는지") { subPage = "noti" }
+                    LockRow(Icons.AutoMirrored.Filled.Chat, TossGrayBg, TossTextTertiary, "고객 사진(문자) 받기",
+                        "채팅+ 꺼서 고객 사진 놓치지 않기") { subPage = "noti" }
                     LockRow(Icons.Filled.AutoAwesome, TossGrayBg, TossTextTertiary, "앱 소개 다시 보기",
                         null, onClick = onShowIntro)
                 }
@@ -2159,92 +2159,14 @@ private fun NavAppPreferenceCard(
 @Composable
 private fun NotificationDiagnosticCard() {
     val ctx = LocalContext.current
-    // remember 가 아닌 매 composition 새로 계산 — 사장님이 권한 설정 다녀와도 즉시 반영.
-    val appNotifEnabled = androidx.core.app.NotificationManagerCompat.from(ctx)
-        .areNotificationsEnabled()
-    val smsChannelOk = remember(appNotifEnabled) {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            val mgr = ctx.getSystemService(android.app.NotificationManager::class.java)
-            val ch = mgr?.getNotificationChannel("incoming_sms")
-            ch != null && ch.importance != android.app.NotificationManager.IMPORTANCE_NONE
-        } else true
-    }
-    val receiveSmsOk = androidx.core.content.ContextCompat.checkSelfPermission(
-        ctx, Manifest.permission.RECEIVE_SMS
-    ) == PackageManager.PERMISSION_GRANTED
-    val readSmsOk = androidx.core.content.ContextCompat.checkSelfPermission(
-        ctx, Manifest.permission.READ_SMS
-    ) == PackageManager.PERMISSION_GRANTED
-    val sendSmsOk = androidx.core.content.ContextCompat.checkSelfPermission(
-        ctx, Manifest.permission.SEND_SMS
-    ) == PackageManager.PERMISSION_GRANTED
-    val postNotifOk =
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            androidx.core.content.ContextCompat.checkSelfPermission(
-                ctx, Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED
-        } else true
-
-    // 2026-05-25 사장님 피드백 — "어느 영역이지?", "버튼 안 눌림":
-    //   ACTION_APPLICATION_DETAILS_SETTINGS 로 보내면 사장님이 거기서 "알림" 메뉴로 잘못 빠짐.
-    //   ActivityCompat.requestPermissions 는 Activity callback 미등록 시 무반응.
-    //   → Compose-friendly rememberLauncherForActivityResult 로 권한 다이얼로그 직접 받기.
-    val activity = remember(ctx) { ctx.findActivityOrNull() }
-
-    val postNotifLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (!granted) Toast.makeText(ctx, "알림 권한이 거부됐어요", Toast.LENGTH_SHORT).show()
-    }
-    val receiveSmsLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (!granted) Toast.makeText(ctx, "SMS 수신 권한이 거부됐어요", Toast.LENGTH_SHORT).show()
-    }
-    val readSmsLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (!granted) Toast.makeText(ctx, "SMS 읽기 권한이 거부됐어요", Toast.LENGTH_SHORT).show()
-    }
-    val sendSmsDiagLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) Toast.makeText(ctx, "SMS 발송 권한 허용됨 — 이제 알림 답장 가능", Toast.LENGTH_SHORT).show()
-        else Toast.makeText(ctx, "SMS 발송 권한이 거부됐어요", Toast.LENGTH_SHORT).show()
-    }
-
-    fun requestOrSettings(
-        permission: String,
-        launcher: androidx.activity.result.ActivityResultLauncher<String>
-    ) {
-        // 영구 거부 (다시 묻지 않음) 감지 — Activity 가 있고, rationale 도 false 면서, 한 번 이상 요청 이력.
-        //   첫 요청은 무조건 launcher.launch 로 다이얼로그 시도.
-        val prefs = ctx.getSharedPreferences("perm_state", android.content.Context.MODE_PRIVATE)
-        val askedBefore = prefs.getBoolean("asked_$permission", false)
-        val permanentlyDenied = activity != null && askedBefore &&
-            !androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(activity, permission)
-        if (permanentlyDenied) {
-            Toast.makeText(
-                ctx,
-                "권한이 영구 거부 상태예요. 설정 → 권한에서 직접 켜주세요.",
-                Toast.LENGTH_LONG
-            ).show()
-            openAppPermissionSettings(ctx)
-        } else {
-            prefs.edit().putBoolean("asked_$permission", true).apply()
-            launcher.launch(permission)
-        }
-    }
-
-    val allOk = appNotifEnabled && smsChannelOk && receiveSmsOk && readSmsOk && sendSmsOk && postNotifOk
-
+    // 간소화(2026-07-02 사장님) — 기술적 권한 체크리스트 제거(온보딩 권한 흐름과 중복). 정말 중요한 채팅+ 안내만.
     TossCard {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(if (allOk) "🟢" else "🔍", fontSize = 16.sp)
+                Text("📷", fontSize = 16.sp)
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    if (allOk) "알림 정상" else "알림 진단",
+                    "고객 사진(문자) 잘 받기",
                     style = MaterialTheme.typography.titleLarge,
                     color = TossTextPrimary,
                     fontWeight = FontWeight.SemiBold
@@ -2252,51 +2174,9 @@ private fun NotificationDiagnosticCard() {
             }
             Spacer(Modifier.height(10.dp))
 
-            DiagnosticRow(
-                label = "앱 알림 허용",
-                ok = appNotifEnabled,
-                fixLabel = "→ 앱 알림 설정 열기",
-                onFix = { openAppNotificationSettings(ctx) }
-            )
-            DiagnosticRow(
-                label = "📩 새 문자 채널",
-                ok = smsChannelOk,
-                fixLabel = "→ 채널 설정 열기",
-                onFix = { openChannelSettings(ctx, "incoming_sms") }
-            )
-            DiagnosticRow(
-                label = "알림 게시 권한 (Android 13+)",
-                ok = postNotifOk,
-                fixLabel = "✓ 권한 허용하기",
-                onFix = {
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                        requestOrSettings(Manifest.permission.POST_NOTIFICATIONS, postNotifLauncher)
-                    }
-                }
-            )
-            DiagnosticRow(
-                label = "SMS 수신 권한",
-                ok = receiveSmsOk,
-                fixLabel = "✓ 권한 허용하기",
-                onFix = { requestOrSettings(Manifest.permission.RECEIVE_SMS, receiveSmsLauncher) }
-            )
-            DiagnosticRow(
-                label = "SMS 읽기 권한 (히스토리)",
-                ok = readSmsOk,
-                fixLabel = "✓ 권한 허용하기",
-                onFix = { requestOrSettings(Manifest.permission.READ_SMS, readSmsLauncher) }
-            )
-            DiagnosticRow(
-                label = "SMS 발송 권한 (알림 답장)",
-                ok = sendSmsOk,
-                fixLabel = "✓ 권한 허용하기",
-                onFix = { requestOrSettings(Manifest.permission.SEND_SMS, sendSmsDiagLauncher) }
-            )
-
             // 채팅+ (Samsung RCS) 안내 — 자동 감지 불가, 항상 표시.
-            //   채팅+ 가 켜져 있으면 SMS 가 IP 기반 RCS 로 라우팅되어 SMS_RECEIVED 가 안 뜬다.
+            //   채팅+ 가 켜져 있으면 문자·사진이 IP 기반 RCS 로 라우팅되어 앱이 못 받는다(고객 사진 유실).
             //   삼성/구글 RCS provider 는 외부 앱에 비공개라 흡수 불가 — 사장님이 직접 끄도록 안내.
-            Spacer(Modifier.height(12.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -2317,8 +2197,8 @@ private fun NotificationDiagnosticCard() {
                     }
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "채팅+ 가 켜져 있으면 문자가 갤메시지 RCS 로만 가서 시공막내 가 못 받습니다. " +
-                            "갤메시지 ≡ → 설정 → 채팅 기능 → 채팅+ OFF.",
+                        "채팅+ 가 켜져 있으면 고객이 보낸 문자·사진이 갤메시지로만 가서 시공막내가 못 받아요. " +
+                            "갤메시지 ≡ → 설정 → 채팅 기능 → 채팅+ 끄기.",
                         style = MaterialTheme.typography.bodySmall,
                         color = TossTextPrimary
                     )
@@ -2334,16 +2214,6 @@ private fun NotificationDiagnosticCard() {
                         )
                     }
                 }
-            }
-
-            if (!allOk) {
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "❌ 표시된 항목 모두 ON + 채팅+ OFF — 이 두 가지가 충족되면 시공막내 알림이 즉시 동작합니다.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TossError,
-                    fontWeight = FontWeight.Medium
-                )
             }
         }
     }
