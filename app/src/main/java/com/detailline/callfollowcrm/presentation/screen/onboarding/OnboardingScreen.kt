@@ -324,8 +324,8 @@ private fun TradeStep(
         TRADES.chunked(2).forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                 row.forEach { t ->
-                    // 테스터 빌드: 줄눈·에어컨만 선택 가능, 나머지 회색·비활성. 하나만 선택(라디오). (2026-06-22 사장님)
-                    TradeCell(t, selected.contains(t), enabled = t == "줄눈" || t == "에어컨 설치·청소", modifier = Modifier.weight(1f)) {
+                    // 15개 업종 전부 선택 가능(잠금 해제) + 하나만 선택(라디오). 업종별 스타터 가격표 내장됨. (2026-07-02 사장님)
+                    TradeCell(t, selected.contains(t), enabled = true, modifier = Modifier.weight(1f)) {
                         if (selected.contains(t)) selected.remove(t) else { selected.clear(); selected.add(t) }
                     }
                 }
