@@ -6246,3 +6246,7 @@ deploy_phase1.sh — repo 에 plist 사본 없으면 (gitignore 라 repo 이동 
 자주 보낸 문자를 찾아 템플릿 저장 제안(가격추출 파이프라인 재활용). **서버 액션 없음**(폰에서 빈도집계).
 - SmsRepository.queryFrequentSentTemplates(): 보낸 SMS+MMS 빈도집계, 숫자 제거 후 '끝 45자'로 그룹(예약금 등 날짜변형 흡수). TemplateDiscover VM+Screen. 진입=문자 템플릿 앱바 "✨찾기".
 - 실측: 예약금 524/입금확인 510회 발송. commit 14889dd. cowork 할 일 없음.
+
+## 2026-07-02 · android (템플릿: 기본시드 제거 + 제목 Haiku 작명)
+- 기본 문자 템플릿 자동 시드 중단(가격표와 동일 방침). 새 사용자=빈 템플릿→"✨찾기". 멀티에이전트로 0개 안전성 검증 완료(채팅픽커/자동문자/정기문자/견적/온보딩 모두 안전). commit b231456.
+- **다음 액션 (cowork/서버): POST /name-template — 명세=docs/SERVER_HANDOFF_name_template.md.** 입력 {body}, 출력 {title}(한글 4~10자). Haiku 4.5, 매우 저렴. 루트경로. 앱은 "템플릿으로 저장" 시 휴리스틱 제목 즉시저장 후 이걸로 갱신(없으면 휴리스틱 유지=오프라인 안전). commit 3c489a4.
