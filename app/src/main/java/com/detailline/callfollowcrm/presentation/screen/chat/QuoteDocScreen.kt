@@ -181,77 +181,115 @@ fun QuoteDocScreen(
                         val r = c.boundsInWindow()
                         docRect = Rect(r.left.toInt(), r.top.toInt(), r.right.toInt(), r.bottom.toInt())
                     }
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(16.dp))
                     .background(Color.White)
-                    .border(1.dp, Color(0xFFD8DEE8), RoundedCornerShape(8.dp))
-                    .padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 26.dp)
+                    .border(1.dp, Color(0xFFECEFF3), RoundedCornerShape(16.dp))
+                    .padding(start = 22.dp, end = 22.dp, top = 24.dp, bottom = 26.dp)
             ) {
-                // 제목
-                Text(
-                    "견 적 서",
-                    fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF111111),
-                    letterSpacing = 9.sp, textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
-                )
-                // meta
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("견적일자 : $today", fontSize = 11.sp, color = TossTextTertiary)
-                    Text("아래와 같이 견적서를 제출합니다.", fontSize = 11.sp, color = TossTextTertiary)
+                // ── 헤더: 좌 타이틀 / 우 회사 (레터헤드) ──
+                Row(Modifier.fillMaxWidth()) {
+                    Column(Modifier.weight(1f)) {
+                        Text("견적서", fontSize = 25.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF111111))
+                        Text("ESTIMATE", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+                            letterSpacing = 3.sp, modifier = Modifier.padding(top = 3.dp))
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(bizName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                        if (bizOwner.isNotBlank()) {
+                            Spacer(Modifier.height(2.dp))
+                            Text("대표 $bizOwner", fontSize = 11.sp, color = TossTextTertiary)
+                        }
+                        if (bizNo.isNotBlank()) {
+                            Spacer(Modifier.height(1.dp))
+                            Text("사업자 $bizNo", fontSize = 11.sp, color = TossTextTertiary)
+                        }
+                        if (bizPhone.isNotBlank()) {
+                            Spacer(Modifier.height(1.dp))
+                            Text(bizPhone, fontSize = 11.sp, color = TossTextTertiary)
+                        }
+                    }
                 }
                 Spacer(Modifier.height(14.dp))
-                // 고객님 귀하
-                Text(
-                    "고객님 귀하", fontSize = 15.sp, color = Color(0xFF111111),
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
-                )
-                Box(Modifier.fillMaxWidth().height(2.dp).background(Color(0xFF111111)))
-                Spacer(Modifier.height(2.dp))
-                // 표
+                Box(Modifier.fillMaxWidth().height(2.5.dp).clip(RoundedCornerShape(2.dp)).background(TossBlue))
+                Spacer(Modifier.height(18.dp))
+                // ── 수신 ──
+                Text("TO.  고객님 귀하", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF111111))
+                Spacer(Modifier.height(3.dp))
+                Text("아래와 같이 견적합니다.", fontSize = 12.sp, color = TossTextSecondary)
+                Spacer(Modifier.height(18.dp))
+                // ── 항목 표 (오픈형, 격자 없음) ──
                 QuoteTableHeader()
-                data.lines.forEach { line ->
-                    QuoteTableRow(line.name, line.spec, won(line.amountWon))
+                data.lines.forEachIndexed { i, line ->
+                    QuoteTableRow(line.name, line.spec, won(line.amountWon), i == data.lines.lastIndex)
                 }
-                // 합계
-                Row(Modifier.fillMaxWidth().background(Color(0xFFFAFBFC)).border(1.dp, DocBorder)) {
-                    Text("합계 (부가세 별도)", fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF111111),
-                        modifier = Modifier.weight(2f).padding(9.dp))
-                    Text(won(data.totalWon), fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue,
-                        textAlign = TextAlign.End, modifier = Modifier.weight(1f).padding(9.dp))
-                }
-                // notes
                 Spacer(Modifier.height(14.dp))
-                Text("· 시공 예정일 : 협의 후 확정", fontSize = 12.sp, color = TossTextSecondary, lineHeight = 22.sp)
-                if (data.depMode != "none") {
-                    val depText = "· 계약금 ${won(depWon)}원" +
-                        (if (data.depMode == "ratio") " (총액의 ${data.depVal}%)" else "") + " 입금 시 시공일 확정"
-                    Text(depText, fontSize = 12.sp, color = SealRed, fontWeight = FontWeight.Bold, lineHeight = 22.sp)
+                // ── 합계 요약 (우측 3줄, 부가세 명시) ──
+                val vat = Math.round(data.totalWon / 10.0)
+                val grand = data.totalWon + vat
+                Row(Modifier.fillMaxWidth()) {
+                    Spacer(Modifier.weight(1f))
+                    Column(Modifier.width(215.dp)) {
+                        SummaryRow("공급가액", "${won(data.totalWon)}원", false)
+                        Spacer(Modifier.height(5.dp))
+                        SummaryRow("부가세 (10%)", "${won(vat)}원", false)
+                        Spacer(Modifier.height(7.dp))
+                        Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFE5E9F0)))
+                        Spacer(Modifier.height(7.dp))
+                        SummaryRow("합계", "${won(grand)}원", true)
+                    }
                 }
-                Text("· 유효기간 : 발행일로부터 ${validDays}일", fontSize = 12.sp, color = TossTextSecondary, lineHeight = 22.sp)
-                // foot — 회사 + 직인
-                Spacer(Modifier.height(24.dp))
+                // ── 계약금 / 잔금 ──
+                if (data.depMode != "none") {
+                    Spacer(Modifier.height(12.dp))
+                    Column(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFFEEF4FF)).padding(14.dp)
+                    ) {
+                        Row(Modifier.fillMaxWidth()) {
+                            Text(
+                                "계약금" + (if (data.depMode == "ratio") " (${data.depVal}%)" else ""),
+                                fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = SealRed,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text("${won(depWon)}원", fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold,
+                                color = SealRed, textAlign = TextAlign.End)
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Row(Modifier.fillMaxWidth()) {
+                            Text("잔금", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF111111),
+                                modifier = Modifier.weight(1f))
+                            Text("${won(grand - depWon)}원", fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF111111), textAlign = TextAlign.End)
+                        }
+                    }
+                }
+                // ── 비고 ──
+                Spacer(Modifier.height(16.dp))
+                Text("비고", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
+                Spacer(Modifier.height(5.dp))
+                Text("· 시공 예정일 : 협의 후 확정", fontSize = 12.sp, color = TossTextSecondary, lineHeight = 21.sp)
+                if (data.depMode != "none") {
+                    Text("· 계약금 입금 시 시공일이 확정됩니다", fontSize = 12.sp, color = SealRed,
+                        fontWeight = FontWeight.Medium, lineHeight = 21.sp)
+                }
+                Text("· 유효기간 : 발행일로부터 ${validDays}일", fontSize = 12.sp, color = TossTextSecondary, lineHeight = 21.sp)
+                // ── 서명란: 견적일자 + 직인 ──
+                Spacer(Modifier.height(22.dp))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFE5E9F0)))
+                Spacer(Modifier.height(14.dp))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                     Column(Modifier.weight(1f)) {
-                        Text(bizName, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
-                        val line1 = buildList {
-                            if (bizOwner.isNotBlank()) add("대표 $bizOwner")
-                            if (bizNo.isNotBlank()) add("사업자 $bizNo")
-                        }.joinToString(" · ")
-                        if (line1.isNotBlank()) {
-                            Spacer(Modifier.height(2.dp))
-                            Text(line1, fontSize = 11.sp, color = TossTextTertiary)
-                        }
-                        val line2 = buildList {
-                            if (bizAddr.isNotBlank()) add(bizAddr)
-                            if (bizPhone.isNotBlank()) add(bizPhone)
-                        }.joinToString(" · ")
-                        if (line2.isNotBlank()) {
-                            Spacer(Modifier.height(2.dp))
-                            Text(line2, fontSize = 11.sp, color = TossTextTertiary)
+                        Text(today, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF111111))
+                        Spacer(Modifier.height(3.dp))
+                        Text("위와 같이 견적합니다.", fontSize = 12.sp, color = TossTextSecondary)
+                        if (bizAddr.isNotBlank()) {
+                            Spacer(Modifier.height(3.dp))
+                            Text(bizAddr, fontSize = 11.sp, color = TossTextTertiary)
                         }
                     }
                     // 직인
                     Box(
-                        Modifier.size(62.dp).rotate(-12f).clip(CircleShape)
+                        Modifier.size(64.dp).rotate(-12f).clip(CircleShape)
                             .border(2.5.dp, SealRed, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
@@ -283,24 +321,53 @@ fun QuoteDocScreen(
 
 @Composable
 private fun QuoteTableHeader() {
-    Row(Modifier.fillMaxWidth().background(DocHeaderBg).border(1.dp, DocBorder)) {
-        Text("품목", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
-            textAlign = TextAlign.Start, modifier = Modifier.weight(2f).padding(horizontal = 6.dp, vertical = 8.dp))
-        Text("규격", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
-            textAlign = TextAlign.Center, modifier = Modifier.weight(1.4f).padding(horizontal = 6.dp, vertical = 8.dp))
-        Text("금액(원)", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
-            textAlign = TextAlign.End, modifier = Modifier.weight(1.3f).padding(horizontal = 6.dp, vertical = 8.dp))
+    Column {
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
+                .background(Color(0xFFEEF4FF)).padding(vertical = 8.dp, horizontal = 4.dp)
+        ) {
+            Text("품목", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossBlue,
+                textAlign = TextAlign.Start, modifier = Modifier.weight(2f).padding(horizontal = 4.dp))
+            Text("규격", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossBlue,
+                textAlign = TextAlign.Center, modifier = Modifier.weight(1.2f).padding(horizontal = 4.dp))
+            Text("금액(원)", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossBlue,
+                textAlign = TextAlign.End, modifier = Modifier.weight(1.3f).padding(horizontal = 4.dp))
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(TossBlue))
     }
 }
 
 @Composable
-private fun QuoteTableRow(name: String, spec: String, amount: String) {
-    Row(Modifier.fillMaxWidth().border(1.dp, DocBorder)) {
-        Text(name, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
-            modifier = Modifier.weight(2f).padding(horizontal = 8.dp, vertical = 9.dp))
-        Text(spec, fontSize = 11.5.sp, color = TossTextTertiary, textAlign = TextAlign.Center,
-            modifier = Modifier.weight(1.4f).padding(horizontal = 8.dp, vertical = 9.dp))
-        Text(amount, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, textAlign = TextAlign.End,
-            modifier = Modifier.weight(1.3f).padding(horizontal = 8.dp, vertical = 9.dp))
+private fun QuoteTableRow(name: String, spec: String, amount: String, last: Boolean) {
+    Column {
+        Row(Modifier.fillMaxWidth().padding(vertical = 11.dp, horizontal = 4.dp)) {
+            Text(name, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF111111),
+                modifier = Modifier.weight(2f).padding(horizontal = 4.dp))
+            Text(spec, fontSize = 11.5.sp, color = TossTextTertiary, textAlign = TextAlign.Center,
+                modifier = Modifier.weight(1.2f).padding(horizontal = 4.dp))
+            Text(amount, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF111111), textAlign = TextAlign.End,
+                modifier = Modifier.weight(1.3f).padding(horizontal = 4.dp))
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(if (last) Color(0xFFD5DBE3) else Color(0xFFEDF0F4)))
+    }
+}
+
+@Composable
+private fun SummaryRow(label: String, value: String, emphasize: Boolean) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            label,
+            fontSize = if (emphasize) 13.sp else 11.5.sp,
+            fontWeight = if (emphasize) FontWeight.ExtraBold else FontWeight.Medium,
+            color = if (emphasize) Color(0xFF111111) else TossTextSecondary,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            value,
+            fontSize = if (emphasize) 16.sp else 12.5.sp,
+            fontWeight = if (emphasize) FontWeight.ExtraBold else FontWeight.Bold,
+            color = if (emphasize) TossBlue else Color(0xFF111111),
+            textAlign = TextAlign.End
+        )
     }
 }
