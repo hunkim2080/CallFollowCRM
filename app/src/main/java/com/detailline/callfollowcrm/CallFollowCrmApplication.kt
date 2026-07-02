@@ -225,12 +225,25 @@ class CallFollowCrmApplication : Application() {
             ) {
                 override fun onChange(selfChange: Boolean) {
                     mmsSyncJob?.cancel()
-                    mmsSyncJob = appScope.launch { delay(1500); syncMmsContacts() }
+                    // 두 번 스캔: 알림 직후(1.2초) + 늦게 끝나는 다운로드 보강(+5초).
+                    //   큰 사진 MMS 는 삼성이 저장을 여러 번에 나눠 알려, 첫 스캔 땐 아직 본문/주소가 안 박힌 케이스가 있음.
+                    mmsSyncJob = appScope.launch {
+                        delay(1200); syncMmsContacts()
+                        delay(5000); syncMmsContacts()
+                    }
                 }
             }
-            contentResolver.registerContentObserver(
-                android.net.Uri.parse("content://mms"), true, mmsObserver
-            )
+            // 삼성 메시지(기본앱)가 MMS 다운로드→저장 시 '변경'을 알리는 URI 가 기종마다 다름:
+            //   content://mms(직접) / content://mms-sms(SMS·MMS 통합) / content://mms/inbox.
+            //   하나(content://mms)만 관찰하면 그 알림을 놓쳐 감지가 60초 폴링까지 밀림(사장님 "1분/2분 들쭉날쭉"의 2차 원인).
+            //   세 URI 모두 같은 observer·같은 debounce 잡으로 등록 → 어느 경로로 알리든 ~1초 안에 감지. (2026-07-02 사장님)
+            for (u in listOf("content://mms-sms", "content://mms", "content://mms/inbox")) {
+                runCatching {
+                    contentResolver.registerContentObserver(
+                        android.net.Uri.parse(u), true, mmsObserver
+                    )
+                }
+            }
         }
 
         // content://sms 실시간 감지 (2026-06-14 사장님 통점: 기본 문자앱으로 대화하면 RING-GO 에 바로 반영 안 됨).
