@@ -3713,7 +3713,15 @@ private fun EstimateBuilderDialog(
                 EstInlineCalendar(estCalMonth, workDateMs,
                     onShiftMonth = { estCalMonth = estShiftMonth(estCalMonth, it) },
                     onSelect = { workDateMs = it })
-                Spacer(Modifier.height(8.dp))
+                // 시공 기간(며칠 걸리는 공사) — 라벨 없이 칩만 있으면 "이게 뭐지?" 혼란. (2026-07-02 사장님)
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("시공 기간", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
+                        modifier = Modifier.padding(start = 2.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("며칠 걸리는 공사인지 골라주세요", fontSize = 12.sp, color = TossTextTertiary)
+                }
+                Spacer(Modifier.height(6.dp))
                 Row(
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(7.dp)
