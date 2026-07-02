@@ -17100,3 +17100,198 @@ async def extract_pricing(req: ExtractPricingRequest) -> dict:
           f"candidates={len(cands)} items={len(items)} "
           f"latency={time.time() - t0:.1f}s")
     return resp
+
+
+# ============================================================================
+# 추가78 — POST /pricing/starter + GET /pricing/starter/{deviceId}
+# 명세: docs/SERVER_HANDOFF_pricing_starter.md (2026-07-02 안드로이드 핸드오프)
+# 용도: 온보딩 업종 스타터 가격표. 앱이 15개 업종 내장했으므로 실제로는
+#       "직접 입력한 커스텀 업종" 롱테일만 여기로 옴.
+# 계약: priceWon '원 단위' 정수 (만원 배수). unit=FLAT|PYEONG, category=NEW|OLD|COMMON.
+# 줄눈 = LLM 안 부르고 하드코딩 18항목 (앱 DefaultPricingItems 와 동일, 비용 0).
+# 캐시: summary_cache (phone=deviceId, endpoint='pricing-starter',
+#       latest_msg_ts=crc32(trade)) — 같은 기기·같은 업종 재요청 = 캐시 (재과금 방지).
+# ============================================================================
+
+_PRICING_STARTER_ENDPOINT = "pricing-starter"
+
+# 줄눈 하드코딩 (명세 그대로 — NEW 9 + OLD 9). confidence=0.95 (검증된 실측값).
+_JULNUN_STARTER_ITEMS = [
+    {"title": "욕조 있는 화장실 바닥 1곳", "priceWon": 400000, "unit": "FLAT", "category": "NEW", "confidence": 0.95},
+    {"title": "샤워부스 있는 화장실 바닥 1곳", "priceWon": 450000, "unit": "FLAT", "category": "NEW", "confidence": 0.95},
+    {"title": "샤워부스 벽 3면", "priceWon": 350000, "unit": "FLAT", "category": "NEW", "confidence": 0.95},
+    {"title": "욕조벽 3면", "priceWon": 350000, "unit": "FLAT", "category": "NEW", "confidence": 0.95},
+    {"title": "화장실 전체 벽 (추가 시)", "priceWon": 700000, "unit": "FLAT", "category": "NEW", "confidence": 0.95},
+    {"title": "세탁실 (폴리우레아)", "priceWon": 150000, "unit": "FLAT", "category": "NEW", "confidence": 0.95},
+    {"title": "베란다 (폴리우레아)", "priceWon": 150000, "unit": "FLAT", "category": "NEW", "confidence": 0.95},
+    {"title": "현관", "priceWon": 50000, "unit": "FLAT", "category": "NEW", "confidence": 0.95},
+    {"title": "거실 타일", "priceWon": 1500000, "unit": "FLAT", "category": "NEW", "confidence": 0.95},
+    {"title": "욕조 있는 화장실 바닥 1곳", "priceWon": 500000, "unit": "FLAT", "category": "OLD", "confidence": 0.95},
+    {"title": "샤워부스 있는 화장실 바닥 1곳", "priceWon": 550000, "unit": "FLAT", "category": "OLD", "confidence": 0.95},
+    {"title": "샤워부스 벽 3면", "priceWon": 350000, "unit": "FLAT", "category": "OLD", "confidence": 0.95},
+    {"title": "욕조벽 3면", "priceWon": 350000, "unit": "FLAT", "category": "OLD", "confidence": 0.95},
+    {"title": "화장실 전체 벽 (추가 시)", "priceWon": 700000, "unit": "FLAT", "category": "OLD", "confidence": 0.95},
+    {"title": "세탁실 (폴리우레아)", "priceWon": 150000, "unit": "FLAT", "category": "OLD", "confidence": 0.95},
+    {"title": "베란다 (폴리우레아)", "priceWon": 150000, "unit": "FLAT", "category": "OLD", "confidence": 0.95},
+    {"title": "현관", "priceWon": 100000, "unit": "FLAT", "category": "OLD", "confidence": 0.95},
+    {"title": "거실 타일", "priceWon": 1500000, "unit": "FLAT", "category": "OLD", "confidence": 0.95},
+]
+
+_PRICING_STARTER_SYSTEM = """너는 한국 인테리어/시공 견적 데이터 생성기다.
+항목명은 초보 사장님이 고객에게 그대로 읽어줄 수 있는 자연어.
+가격은 2025~2026 한국(수도권) 시세의 '보수적 중앙값'을 원 단위 정수(만원 배수)로.
+확신 없으면 항목을 만들지 마라. 없는 항목/가격을 지어내지 마라.
+
+출력은 아래 JSON 스키마만. 설명 문장 붙이지 마라:
+{"items": [{"title": "벽걸이 에어컨 설치", "priceWon": 100000, "unit": "FLAT", "category": "COMMON", "confidence": 0.7}]}
+- priceWon: 원 단위 정수(만원 배수). 10만원 → 100000.
+- unit: "FLAT"(정액/개당) | "PYEONG"(평당). 모르면 FLAT.
+- category: "NEW"(신축) | "OLD"(구축) | "COMMON"(공통). 모르면 COMMON.
+"""
+
+
+class PricingStarterRequest(BaseModel):
+    deviceId: str = ""
+    ownerTrade: str = ""
+    ownerRegions: list = []
+
+
+def _coerce_starter_items(raw_items) -> list:
+    """스타터용 보정 — 명세: confidence<0.4 버림, priceWon 만원 배수 반올림."""
+    out = []
+    if not isinstance(raw_items, list):
+        return out
+    for it in raw_items:
+        if not isinstance(it, dict):
+            continue
+        title = str(it.get("title") or "").strip()[:60]
+        if not title:
+            continue
+        try:
+            price = int(round(float(it.get("priceWon"))))
+        except (TypeError, ValueError):
+            continue
+        if price <= 0:
+            continue
+        if price < 10_000:
+            print(f"[pricing/starter] priceWon<1만 보정: {title} {price} → {price * 10000}")
+            price = price * 10_000
+        if price > 100_000_000:
+            continue
+        price = int(round(price / 10_000)) * 10_000  # 만원 배수 반올림
+        if price <= 0:
+            continue
+        unit = str(it.get("unit") or "").strip().upper()
+        if unit not in ("FLAT", "PYEONG"):
+            unit = "FLAT"
+        category = str(it.get("category") or "").strip().upper()
+        if category not in ("NEW", "OLD", "COMMON"):
+            category = "COMMON"
+        try:
+            confidence = float(it.get("confidence", 0.0))
+        except (TypeError, ValueError):
+            confidence = 0.0
+        if confidence < 0.4:
+            continue
+        out.append({
+            "title": title,
+            "priceWon": price,
+            "unit": unit,
+            "category": category,
+            "confidence": round(max(0.0, min(1.0, confidence)), 2),
+        })
+        if len(out) >= 15:
+            break
+    return out
+
+
+def _pricing_starter_cache_key(trade: str) -> int:
+    return binascii.crc32(trade.encode("utf-8"))
+
+
+@app.post("/pricing/starter")
+async def pricing_starter(req: PricingStarterRequest) -> dict:
+    """온보딩 업종 스타터 — 동기 반환 (명세 허용). 캐시 후 GET 으로도 조회 가능."""
+    device_id = (req.deviceId or "").strip()
+    if not device_id:
+        raise HTTPException(400, "deviceId 필수")
+    trade = (req.ownerTrade or "").strip()[:30]
+    if not trade:
+        raise HTTPException(400, "ownerTrade 필수")
+    regions = [str(r).strip()[:20] for r in (req.ownerRegions or [])[:5] if str(r).strip()]
+    trade_key = _pricing_starter_cache_key(trade)
+
+    # 캐시 (같은 기기 + 같은 업종)
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT response_json FROM summary_cache "
+            "WHERE phone = ? AND endpoint = ? AND latest_msg_ts = ? "
+            "ORDER BY generated_at_ms DESC LIMIT 1",
+            (device_id, _PRICING_STARTER_ENDPOINT, trade_key),
+        ).fetchone()
+    if row:
+        try:
+            cached = json.loads(row[0])
+            print(f"[pricing/starter] cache hit device={device_id[:12]}… trade={trade}")
+            return cached
+        except Exception:
+            pass
+
+    # 줄눈 = 하드코딩 (LLM X, 비용 0)
+    if "줄눈" in trade:
+        resp = {"status": "ready", "items": list(_JULNUN_STARTER_ITEMS)}
+    else:
+        user_msg = (
+            f"업종: {trade}"
+            + (f", 지역: {', '.join(regions)}" if regions else "")
+            + ". 이 업종에서 가장 흔한 견적 항목 6~12개를 위 JSON 스키마로."
+        )
+        t0 = time.time()
+        try:
+            parsed, response = await call_claude_json(
+                system_prompt=_PRICING_STARTER_SYSTEM,
+                user_msg=user_msg,
+                max_tokens=1500,
+                model=CLAUDE_MODEL,
+            )
+        except Exception as e:
+            print(f"[pricing/starter] LLM 실패 trade={trade} {type(e).__name__}: {e}")
+            raise HTTPException(502, "스타터 가격표 생성에 실패했습니다. 잠시 후 다시 시도해주세요.")
+        _log_llm_usage_from_response(_PRICING_STARTER_ENDPOINT, response)
+        items = _coerce_starter_items(parsed.get("items"))
+        resp = {"status": "ready", "items": items}
+        print(f"[pricing/starter] ready device={device_id[:12]}… trade={trade} "
+              f"items={len(items)} latency={time.time() - t0:.1f}s")
+
+    now = _now_ms()
+    with db_conn() as con:
+        con.execute(
+            "INSERT OR REPLACE INTO summary_cache "
+            "(phone, endpoint, latest_msg_ts, response_json, generated_at_ms) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (device_id, _PRICING_STARTER_ENDPOINT, trade_key,
+             json.dumps(resp, ensure_ascii=False), now),
+        )
+        con.commit()
+    return resp
+
+
+@app.get("/pricing/starter/{device_id}")
+async def pricing_starter_get(device_id: str) -> dict:
+    """폴링/조회용 — 그 기기의 가장 최근 스타터 결과. 없으면 pending."""
+    device_id = (device_id or "").strip()
+    if not device_id:
+        raise HTTPException(400, "deviceId 필수")
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT response_json FROM summary_cache "
+            "WHERE phone = ? AND endpoint = ? "
+            "ORDER BY generated_at_ms DESC LIMIT 1",
+            (device_id, _PRICING_STARTER_ENDPOINT),
+        ).fetchone()
+    if not row:
+        return {"status": "pending", "items": []}
+    try:
+        return json.loads(row[0])
+    except Exception:
+        return {"status": "pending", "items": []}

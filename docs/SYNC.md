@@ -6199,3 +6199,33 @@ MMS 처리 방식 검토 회신 → `docs/ANDROID_REVIEW_mms_architecture.md` �
 - Python 3.9 Optional[] 준수. 변경: server/main.py 만.
 - (참고) SERVER_HANDOFF_pricing_starter.md (POST /pricing/starter) 는 아직 미구현 — 다음 cycle.
 - commit: (아래)
+
+## 2026-07-02 · cowork (안드로이드 가격추출 요청 응답)
+추가77 — POST /extract-pricing 구현 완료 (엔드포인트 준비됨).
+- 명세 docs/SERVER_HANDOFF_extract_pricing.md 그대로. ⚠️ 루트 경로 (baseUrl/extract-pricing).
+- 입력: {deviceId, ownerTrade, candidates:[{body,dateMs}]} camelCase 그대로.
+- 출력: {status:"ready", items:[{title, priceWon(원단위 정수), unit(FLAT|PYEONG), category(NEW|OLD|COMMON), basisText(null 가능), confidence}]}.
+- 계약 방어 (서버 후처리):
+  - priceWon < 1만 이면 만원단위 실수로 보고 ×10000 복원 (+로그). 0 이하/1억 초과 항목 버림.
+  - unit/category 이상값 → FLAT/COMMON 보정. basisText 40자 컷+개행 제거. confidence<0.5 버림. 상한 20개.
+- 모델: Sonnet (CLAUDE_MODEL), call_claude_json 공용 헬퍼. llm_usage_log 에 endpoint='extract-pricing' 기록.
+- 캐시: summary_cache 재활용 (phone=deviceId, endpoint='extract-pricing'). 같은 deviceId 재요청 = 캐시 반환 (재과금 방지).
+  단, 후보에 캐시 기준(latest_msg_ts)보다 새 dateMs 있으면 재추출 (더 최신 견적문자 반영).
+- 프라이버시: 문자 본문 로그 출력 없음 (개수/latency 만). 캐시엔 추출 items 만 저장.
+- 검증: py_compile PASS + TestClient 스모크 ALL PASS (LLM mock — 정상추출/만원단위 보정/캐시 hit/새문자 miss/빈후보/400).
+- Python 3.9 Optional[] 준수. 변경: server/main.py 만.
+- commit: 2d0540b
+
+## 2026-07-02 · cowork (안드로이드 스타터 요청 응답)
+추가78 — POST /pricing/starter + GET /pricing/starter/{deviceId} 구현 완료.
+- 명세 docs/SERVER_HANDOFF_pricing_starter.md 그대로. 동기 반환 (명세 허용 옵션) + GET 조회 둘 다 제공.
+- POST 입력: {deviceId, ownerTrade, ownerRegions}. 출력: {status:"ready", items:[{title,priceWon,unit,category,confidence}]}.
+- 줄눈 = LLM 안 부르고 하드코딩 18항목 (명세 표 그대로, NEW 9 + OLD 9, confidence 0.95). 비용 0.
+- 타 업종 = Sonnet 1콜. 후처리: confidence<0.4 버림, priceWon 만원 배수 반올림 + <1만 ×10000 복원, unit/category 보정, 상한 15.
+- 캐시: summary_cache (phone=deviceId, endpoint='pricing-starter', latest_msg_ts=crc32(업종)) — 같은 기기+같은 업종 재요청 = 캐시. 업종 바뀌면 재생성.
+- GET: 그 기기 최근 결과 반환, 없으면 {status:"pending", items:[]}.
+- 검증: py_compile PASS + TestClient ALL PASS (줄눈 18항목 무LLM / 커스텀 업종 mock LLM+보정 / 캐시 hit / 업종 변경 재생성 / GET ready·pending / 400).
+- 배포: 사장님 deploy_phase1.sh 한 줄에 추가76·77·74c 와 같이 나감.
+- Python 3.9 Optional[] 준수. 변경: server/main.py 만.
+- 다음 액션 (안드로이드): 커스텀 업종일 때 StarterPricingRepository 배선 (POST 동기라 폴링 불필요, GET 은 보조).
+- commit: (아래)
