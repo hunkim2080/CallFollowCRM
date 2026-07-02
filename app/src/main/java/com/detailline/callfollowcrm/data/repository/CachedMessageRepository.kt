@@ -47,9 +47,23 @@ class CachedMessageRepository(private val dao: CachedMessageDao) {
         )
     }
 
-    /** MMS 만 교체. SMS 캐시는 유지. */
+    /** MMS 만 교체(전체 스냅샷). 챗 열 때 stage-3(2000 스캔) authoritative 경로에서만 사용 — 삭제도 반영. */
     suspend fun replaceMmsOnlyForSuffix(suffix: String, freshMms: List<SmsRepository.SmsMessage>) {
         dao.clearForSuffixByType(suffix, isMms = true)
+        val now = System.currentTimeMillis()
+        dao.insertAll(freshMms.map { it.toCachedEntity(suffix, isMms = true, cachedAtMs = now) })
+    }
+
+    /**
+     * MMS 를 캐시에 '누적'(merge) — 기존 것을 지우지 않고 새 MMS 만 upsert.
+     *   ⚠️ prefetch(부분 스캔, scanLimit 작음)가 replace(clear+insert)로 기존 완전한 캐시를 지워, 사장님이 사진을
+     *      계속 보내 전역 MMS 가 빠르게 쌓이면 이 대화의 예전 사진이 '최근 N(전역)' 밖으로 밀려 캐시가 쪼그라들고
+     *      "진입 시 예전 사진 안 보임" 버그가 났다(2026-07-02 사장님). merge 는 절대 캐시를 줄이지 않는다.
+     *   (systemId, isMms) unique index 라 insertAll(REPLACE)가 같은 원본 row 는 갱신, 새 row 는 추가,
+     *   안 스캔된 옛 row 는 유지. 삭제 반영/전체 스냅샷은 챗 열 때 replaceMmsOnlyForSuffix 가 담당.
+     */
+    suspend fun mergeMmsForSuffix(suffix: String, freshMms: List<SmsRepository.SmsMessage>) {
+        if (freshMms.isEmpty()) return
         val now = System.currentTimeMillis()
         dao.insertAll(freshMms.map { it.toCachedEntity(suffix, isMms = true, cachedAtMs = now) })
     }

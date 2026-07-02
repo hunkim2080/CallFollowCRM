@@ -85,9 +85,12 @@ class SmsCachePrefetcher(
             runCatching {
                 // 백그라운드 prefetch 는 최근 MMS 만 가볍게(scanLimit 축소) — 20연락처×2000 스캔이 MMS provider 를
                 //   40,000행 훑어 앱 전체를 느리게 했음. 최근 것만 캐시 → 활성 대화는 즉시 표시.
-                //   옛 사진 전체(2000)는 사용자가 실제로 그 대화 열 때 ChatViewModel stage 3 가 on-demand 로 채움. (2026-07-02 사장님)
+                //   ⚠️ merge 로 '누적'만 한다(replace 아님). 예전엔 replace(clear+insert)라, 사장님이 사진을 계속 보내
+                //      전역 MMS 가 빠르게 쌓이면 이 대화의 예전 사진이 최근 500(전역) 밖으로 밀려 캐시가 쪼그라들어
+                //      "홈 카드→진입 시 예전 사진 안 보임" 버그가 났다. merge 는 절대 캐시를 줄이지 않는다. (2026-07-02 사장님)
+                //   옛 사진 전체(2000)+삭제 반영은 사용자가 그 대화 열 때 ChatViewModel stage 3 replace 가 담당.
                 val freshMms = smsRepository.queryMmsOnly(phoneNumber, scanLimit = PREFETCH_MMS_SCAN_LIMIT)
-                cachedMessageRepository.replaceMmsOnlyForSuffix(suffix, freshMms)
+                cachedMessageRepository.mergeMmsForSuffix(suffix, freshMms)
             }
             lastPrefetchedAtMs[suffix] = System.currentTimeMillis()
         }
