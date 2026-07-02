@@ -345,10 +345,38 @@ class SmsRepository(
         return addrDigits.takeLast(shortest) == targetSuffix.takeLast(shortest)
     }
 
+    /**
+     * content provider query 를 짧게 재시도 — provider 경합 시 query() 가 일시적으로 null 을 반환해
+     *   MMS 주소/파트를 못 읽고 그 메시지(사진)가 목록에서 통째로 누락되는 깜빡임 버그를 흡수한다.
+     *   (2026-07-02 사장님: "받은 사진인데도 사라졌다가 기다리면 다시 보임" — getMmsParts/getMmsAddresses 의
+     *    query 가 null → 메시지 skip → 다음 스캔에 부활.)
+     *   성공(행이 0개여도 non-null 커서)이면 즉시 반환. null(=실패)일 때만 재시도.
+     *   IO 스레드에서만 호출됨(loadMessages/prefetch/worker) → Thread.sleep 안전.
+     */
+    private fun queryProviderWithRetry(
+        uri: Uri,
+        projection: Array<String>?,
+        selection: String?,
+        selectionArgs: Array<String>?,
+        attempts: Int = 3,
+        backoffMs: Long = 50L
+    ): android.database.Cursor? {
+        var i = 0
+        while (i < attempts) {
+            val c = runCatching {
+                context.contentResolver.query(uri, projection, selection, selectionArgs, null)
+            }.getOrNull()
+            if (c != null) return c
+            i++
+            if (i < attempts) runCatching { Thread.sleep(backoffMs) }
+        }
+        return null
+    }
+
     private fun getMmsAddresses(mmsId: Long): List<Pair<String, Int>> {
         val uri = Uri.parse("content://mms/$mmsId/addr")
         val proj = arrayOf("address", "type")
-        val cursor = context.contentResolver.query(uri, proj, null, null, null) ?: return emptyList()
+        val cursor = queryProviderWithRetry(uri, proj, null, null) ?: return emptyList()
         return cursor.use { c ->
             val addrIdx = c.getColumnIndex("address")
             val typeIdx = c.getColumnIndex("type")
@@ -375,8 +403,9 @@ class SmsRepository(
         // content://mms/part 는 모든 파트가 통합돼있어서 mid 로 필터해야 함.
         val partsUri = Uri.parse("content://mms/part")
         val proj = arrayOf("_id", "ct", "text")
-        val cursor = context.contentResolver.query(
-            partsUri, proj, "mid=?", arrayOf(mmsId.toString()), null
+        // ⚠️ 재시도 — 여기서 query 가 null 이면 사진 메시지가 통째로 누락돼 "사라졌다 생김" 깜빡임의 근원이었음. (2026-07-02 사장님)
+        val cursor = queryProviderWithRetry(
+            partsUri, proj, "mid=?", arrayOf(mmsId.toString())
         ) ?: return "" to emptyList()
         return cursor.use { c ->
             val pidIdx = c.getColumnIndex("_id")
