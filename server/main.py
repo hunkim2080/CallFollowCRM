@@ -16890,3 +16890,213 @@ async def intent_classify_stub(payload: Optional[dict] = None) -> dict:
 async def reply_suggest_stub(payload: Optional[dict] = None) -> dict:
     """답변 추천 (다른 채널) stub. 추후 구현 시 Claude 호출로 교체."""
     return {"ok": True, "suggestions": [], "note": "stub — use /prepare-reply instead"}
+
+
+# ============================================================================
+# 추가77 — POST /extract-pricing (문자 기반 가격 추출)
+# 명세: docs/SERVER_HANDOFF_extract_pricing.md (2026-07-02 안드로이드 핸드오프)
+# ⚠️ 루트 경로 (/api/ 밑 아님) — 앱이 baseUrl/extract-pricing 로 호출.
+# 계약:
+#   - priceWon = '원 단위' 정수 (35만원 → 350000). 앱은 ×10000 안 함.
+#   - unit = FLAT|PYEONG, category = NEW|OLD|COMMON (대문자). 이상값은 FLAT/COMMON 보정.
+#   - basisText = 조건 명시된 것만, 없으면 null. confidence<0.5 버림.
+#   - 캐시 키 = deviceId (summary_cache 재활용, endpoint='extract-pricing').
+#     같은 deviceId + 더 새 문자 없음(max dateMs <= 캐시 기준) → 캐시 반환 (재과금 방지).
+#   - 프라이버시: 문자 본문은 로그에 안 남김 (개수/latency 만 print). 캐시엔 items 만.
+# ============================================================================
+
+_EXTRACT_PRICING_SYSTEM = """너는 한국 인테리어/시공 사장님의 '보낸 문자'들을 읽고, 그 사장님의 가격표를 복원하는 추출기다.
+입력은 사장님이 고객에게 보낸 문자 여러 개다. 다음을 지켜라:
+
+1. 견적/단가 문자에서만 항목을 뽑아라. 아래는 '견적 아님' → 무시하라:
+   - 예약금/계약금 안내(예: "예약금 100,000원"), 잔금 통보(예: "잔금 125만원입니다"), 입금확인,
+     계좌 안내, 접수서 링크, 시공 완료 인사, 앱/서비스 홍보 문자.
+   - 즉 '특정 시공 항목의 단가'가 아니면 버려라. 총액·예약금·잔금은 항목이 아니다.
+2. 같은 항목이 여러 문자에 다른 가격으로 나오면: 가장 최근(dateMs 큰) 값을 우선. 신축/구축이 다르면 category 로 분리.
+3. 가격 '기준'(조건부 가격)이 문자에 명시되면 basisText 한 줄로. 없으면 null. 지어내지 마라.
+4. 확신 없으면 항목을 만들지 마라(confidence<0.5 는 버려라). 없는 항목/가격을 상상하지 마라.
+5. 항목명은 초보 사장님이 고객에게 그대로 읽어줄 자연어. 6~15개 정도로 정리(중복 병합).
+6. priceWon 은 원 단위 정수(만원 배수 권장). 35만원 → 350000.
+
+출력은 아래 JSON 스키마만. 설명 문장 붙이지 마라:
+{"items": [{"title": "샤워부스 벽 3면", "priceWon": 350000, "unit": "FLAT", "category": "COMMON", "basisText": null, "confidence": 0.9}]}
+- unit: "FLAT"(정액/개당) | "PYEONG"(평당). 모르면 FLAT.
+- category: "NEW"(신축) | "OLD"(구축) | "COMMON"(공통). 모르면 COMMON.
+"""
+
+_EXTRACT_PRICING_ENDPOINT = "extract-pricing"
+_EXTRACT_PRICING_MAX_CANDIDATES = 200   # 명세: 보통 수십~150개
+_EXTRACT_PRICING_BODY_CAP = 500         # 문자 1건 본문 컷 (토큰 예산)
+_EXTRACT_PRICING_TOTAL_CHAR_CAP = 80_000
+_EXTRACT_PRICING_MAX_ITEMS = 20
+_EXTRACT_PRICING_BASIS_CAP = 40
+
+
+class ExtractPricingCandidate(BaseModel):
+    body: str = ""
+    dateMs: Optional[int] = None
+
+
+class ExtractPricingRequest(BaseModel):
+    deviceId: str = ""
+    ownerTrade: Optional[str] = None
+    candidates: list = []  # [{body, dateMs}] — camelCase 그대로 (수동 파싱, 이상 행 skip)
+
+
+def _extract_pricing_cache_get(device_id: str, max_date_ms: int) -> Optional[dict]:
+    """summary_cache hit — 같은 deviceId 이고 캐시 생성 기준(latest_msg_ts)보다
+    새 문자가 없으면 반환. 더 새 문자가 오면 miss (재추출 허용)."""
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT latest_msg_ts, response_json FROM summary_cache "
+            "WHERE phone = ? AND endpoint = ? "
+            "ORDER BY generated_at_ms DESC LIMIT 1",
+            (device_id, _EXTRACT_PRICING_ENDPOINT),
+        ).fetchone()
+    if not row:
+        return None
+    cached_ts, response_json = row
+    if max_date_ms > (cached_ts or 0):
+        return None  # 캐시 이후 더 새 견적 문자 있음 → 재추출
+    try:
+        return json.loads(response_json)
+    except Exception:
+        return None
+
+
+def _extract_pricing_cache_set(device_id: str, max_date_ms: int, resp: dict) -> None:
+    now = _now_ms()
+    with db_conn() as con:
+        con.execute(
+            "INSERT OR REPLACE INTO summary_cache "
+            "(phone, endpoint, latest_msg_ts, response_json, generated_at_ms) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (device_id, _EXTRACT_PRICING_ENDPOINT, max_date_ms,
+             json.dumps(resp, ensure_ascii=False), now),
+        )
+        con.commit()
+
+
+def _coerce_pricing_items(raw_items) -> list:
+    """LLM 출력 → 계약 보정. priceWon 원 단위 검증이 최우선."""
+    out = []
+    if not isinstance(raw_items, list):
+        return out
+    for it in raw_items:
+        if not isinstance(it, dict):
+            continue
+        title = str(it.get("title") or "").strip()[:60]
+        if not title:
+            continue
+        # priceWon — 원 단위 정수. LLM 이 만원 단위로 미끄러진 경우(< 1만) 보정.
+        try:
+            price = int(round(float(it.get("priceWon"))))
+        except (TypeError, ValueError):
+            continue
+        if price <= 0:
+            continue
+        if price < 10_000:
+            # "35" / "35만" 식 만원 단위 실수 → 원 단위로 복원 (계약 방어)
+            print(f"[extract-pricing] priceWon<1만 보정: {title} {price} → {price * 10000}")
+            price = price * 10_000
+        if price > 100_000_000:
+            continue  # 1억 초과 단일 항목 = 오추출로 간주
+        unit = str(it.get("unit") or "").strip().upper()
+        if unit not in ("FLAT", "PYEONG"):
+            unit = "FLAT"
+        category = str(it.get("category") or "").strip().upper()
+        if category not in ("NEW", "OLD", "COMMON"):
+            category = "COMMON"
+        basis = it.get("basisText")
+        if basis is not None:
+            basis = " ".join(str(basis).split()).strip()[:_EXTRACT_PRICING_BASIS_CAP]
+            if not basis:
+                basis = None
+        try:
+            confidence = float(it.get("confidence", 0.0))
+        except (TypeError, ValueError):
+            confidence = 0.0
+        if confidence < 0.5:
+            continue
+        confidence = max(0.0, min(1.0, confidence))
+        out.append({
+            "title": title,
+            "priceWon": price,
+            "unit": unit,
+            "category": category,
+            "basisText": basis,
+            "confidence": round(confidence, 2),
+        })
+        if len(out) >= _EXTRACT_PRICING_MAX_ITEMS:
+            break
+    return out
+
+
+@app.post("/extract-pricing")
+async def extract_pricing(req: ExtractPricingRequest) -> dict:
+    """사장님이 보낸 견적 문자들 → Claude Sonnet 1콜 → 구조화 가격표 items."""
+    device_id = (req.deviceId or "").strip()
+    if not device_id:
+        raise HTTPException(400, "deviceId 필수")
+
+    # candidates 정리 (이상 행 skip, 본문 컷, 최신순 유지)
+    cands = []
+    for c in (req.candidates or [])[:_EXTRACT_PRICING_MAX_CANDIDATES]:
+        if not isinstance(c, dict):
+            continue
+        body = str(c.get("body") or "").strip()
+        if not body:
+            continue
+        try:
+            date_ms = int(c.get("dateMs") or 0)
+        except (TypeError, ValueError):
+            date_ms = 0
+        cands.append({"body": body[:_EXTRACT_PRICING_BODY_CAP], "dateMs": date_ms})
+    if not cands:
+        return {"status": "ready", "items": []}
+    max_date_ms = max(c["dateMs"] for c in cands)
+
+    # 캐시 (재과금 방지)
+    cached = _extract_pricing_cache_get(device_id, max_date_ms)
+    if cached is not None:
+        print(f"[extract-pricing] cache hit device={device_id[:12]}… "
+              f"items={len(cached.get('items') or [])}")
+        return cached
+
+    # user 메시지 — 본문은 여기서만 사용, 로그 금지 (프라이버시)
+    trade = (req.ownerTrade or "").strip()[:30]
+    lines = []
+    total_chars = 0
+    for c in cands:
+        line = f"[{c['dateMs']}] {c['body']}"
+        total_chars += len(line)
+        if total_chars > _EXTRACT_PRICING_TOTAL_CHAR_CAP:
+            break
+        lines.append(line)
+    user_msg = (
+        (f"[업종 힌트 (참고만, 문자 내용이 우선)] {trade}\n\n" if trade else "")
+        + "[사장님이 고객에게 보낸 문자 후보들 — 최신순, 형식: [dateMs] 본문]\n"
+        + "\n---\n".join(lines)
+    )
+
+    t0 = time.time()
+    try:
+        parsed, response = await call_claude_json(
+            system_prompt=_EXTRACT_PRICING_SYSTEM,
+            user_msg=user_msg,
+            max_tokens=2000,
+            model=CLAUDE_MODEL,
+        )
+    except Exception as e:
+        print(f"[extract-pricing] LLM 실패 device={device_id[:12]}… "
+              f"{type(e).__name__}: {e}")
+        raise HTTPException(502, "가격 추출에 실패했습니다. 잠시 후 다시 시도해주세요.")
+    _log_llm_usage_from_response(_EXTRACT_PRICING_ENDPOINT, response)
+
+    items = _coerce_pricing_items(parsed.get("items"))
+    resp = {"status": "ready", "items": items}
+    _extract_pricing_cache_set(device_id, max_date_ms, resp)
+    print(f"[extract-pricing] ready device={device_id[:12]}… "
+          f"candidates={len(cands)} items={len(items)} "
+          f"latency={time.time() - t0:.1f}s")
+    return resp
