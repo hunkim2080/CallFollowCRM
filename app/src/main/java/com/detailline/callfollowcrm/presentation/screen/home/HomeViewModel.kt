@@ -1218,6 +1218,10 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     private val _waitingReplies = MutableStateFlow<Map<String, String>>(emptyMap())
     val waitingReplies: StateFlow<Map<String, String>> = _waitingReplies
 
+    /** 대기 카드 추천답변 3개 후보(전략 라벨 포함) — '확인 후 발송' 다이얼로그에서 옆으로 넘겨 고르기. (2026-07-02 사장님) */
+    private val _waitingReplyChoices = MutableStateFlow<Map<String, List<com.detailline.callfollowcrm.ai.ReplyChoice>>>(emptyMap())
+    val waitingReplyChoices: StateFlow<Map<String, List<com.detailline.callfollowcrm.ai.ReplyChoice>>> = _waitingReplyChoices
+
     /** 새 버전 배너 — 하루 1회 체크 결과(서버 mtime_ms vs BUILD_TIMESTAMP). (2026-06-16) */
     private val _updateAvailable = MutableStateFlow(false)
     val updateAvailable: StateFlow<Boolean> = _updateAvailable
@@ -1239,12 +1243,13 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                     val suffix = phoneSuffix(phone)
                     if (!fetchedReplySuffixes.add(suffix)) continue
                     launch(Dispatchers.IO) {
-                        val top = runCatching {
+                        val choices = runCatching {
                             container.suggestionRepository.fetch(phone).getOrNull()
-                                ?.suggestions?.suggestions?.firstOrNull()?.text
-                        }.getOrNull()
-                        if (!top.isNullOrBlank()) {
-                            _waitingReplies.value = _waitingReplies.value + (suffix to top)
+                                ?.suggestions?.suggestions
+                        }.getOrNull().orEmpty().filter { it.text.isNotBlank() }.take(3)
+                        if (choices.isNotEmpty()) {
+                            _waitingReplies.value = _waitingReplies.value + (suffix to choices.first().text)
+                            _waitingReplyChoices.value = _waitingReplyChoices.value + (suffix to choices)
                         }
                     }
                 }
@@ -1276,6 +1281,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         val suffix = phoneSuffix(phone)
         _repliedAt.value = _repliedAt.value + (suffix to System.currentTimeMillis())
         _waitingReplies.value = _waitingReplies.value - suffix
+        _waitingReplyChoices.value = _waitingReplyChoices.value - suffix
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
                 container.messageHistoryRepository.recordAutoSend(

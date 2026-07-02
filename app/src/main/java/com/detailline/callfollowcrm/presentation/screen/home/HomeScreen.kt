@@ -2,6 +2,8 @@ package com.detailline.callfollowcrm.presentation.screen.home
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.ui.focus.FocusRequester
@@ -195,6 +197,7 @@ fun HomeScreen(
     // 카톡식 읽음 추적 (2026-06-08) — "최근 대화" 파란 점 계산. 채팅 열면 갱신 → 점 사라짐.
     val readStates by viewModel.readStates.collectAsState()
     val waitingReplies by viewModel.waitingReplies.collectAsState()
+    val waitingReplyChoices by viewModel.waitingReplyChoices.collectAsState()
     val categoriesById by viewModel.categories.collectAsState()
     val todayNew by viewModel.todayNewInquiryCount.collectAsState()
     val yesterdayNew by viewModel.yesterdayNewInquiryCount.collectAsState()
@@ -1164,13 +1167,18 @@ fun HomeScreen(
                 )
             }
 
-            // '확인 후 발송' — 받은 문자 원문 + 보낼 답변 전문 확인 후 발송/고쳐서/취소. (2026-07-02 사장님)
+            // '확인 후 발송' — 받은 문자 원문 + 추천답변 3개(옆으로 넘겨 고르기) 확인 후 발송/고쳐서/취소. (2026-07-02 사장님)
             waitingSendTarget?.let { target ->
                 val phone = target.record.phoneNumber
                 val suffix = phone.filter { it.isDigit() }.takeLast(8)
                 val nm = target.customer?.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(phone)
                 val incoming = target.lastBody?.takeIf { it.isNotBlank() }
-                val reply = waitingReplies[suffix]
+                // 추천답변 후보(최대 3). 후보 목록이 없으면 top 한 개로 폴백.
+                val choices = waitingReplyChoices[suffix].orEmpty().ifEmpty {
+                    waitingReplies[suffix]?.let { listOf(com.detailline.callfollowcrm.ai.ReplyChoice(text = it)) } ?: emptyList()
+                }
+                val pagerState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { maxOf(choices.size, 1) })
+                val currentReply = choices.getOrNull(pagerState.currentPage)?.text
                 androidx.compose.material3.AlertDialog(
                     onDismissRequest = { waitingSendTarget = null },
                     title = { Text("$nm 님께 보낼까요?", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
@@ -1184,23 +1192,59 @@ fun HomeScreen(
                                 }
                                 Spacer(Modifier.height(12.dp))
                             }
-                            Text("보낼 답변", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("보낼 답변", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                                if (choices.size > 1) {
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        "· 옆으로 넘겨 고르기 (${pagerState.currentPage + 1}/${choices.size})",
+                                        fontSize = 11.sp, color = TossTextTertiary
+                                    )
+                                }
+                            }
                             Spacer(Modifier.height(4.dp))
-                            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color(0xFFEEF4FF)).padding(11.dp)) {
-                                Text(
-                                    reply ?: "추천 답변이 아직 없어요 — 고쳐서 보내기로 채팅에서 직접 보내주세요",
-                                    fontSize = 13.5.sp, color = TossTextPrimary
-                                )
+                            if (choices.isEmpty()) {
+                                Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color(0xFFEEF4FF)).padding(11.dp)) {
+                                    Text("추천 답변이 아직 없어요 — 고쳐서 보내기로 채팅에서 직접 보내주세요", fontSize = 13.5.sp, color = TossTextPrimary)
+                                }
+                            } else {
+                                androidx.compose.foundation.pager.HorizontalPager(state = pagerState, pageSpacing = 8.dp) { page ->
+                                    val c = choices[page]
+                                    Column(
+                                        Modifier.fillMaxWidth().height(112.dp)
+                                            .clip(RoundedCornerShape(10.dp)).background(Color(0xFFEEF4FF))
+                                            .verticalScroll(androidx.compose.foundation.rememberScrollState())
+                                            .padding(11.dp)
+                                    ) {
+                                        c.label?.takeIf { it.isNotBlank() }?.let {
+                                            Text("${page + 1}. $it", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+                                            Spacer(Modifier.height(4.dp))
+                                        }
+                                        Text(c.text, fontSize = 13.5.sp, color = TossTextPrimary)
+                                    }
+                                }
+                                if (choices.size > 1) {
+                                    Spacer(Modifier.height(8.dp))
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                                        repeat(choices.size) { i ->
+                                            Box(
+                                                Modifier.padding(horizontal = 3.dp).size(7.dp)
+                                                    .clip(androidx.compose.foundation.shape.CircleShape)
+                                                    .background(if (i == pagerState.currentPage) TossBlue else Color(0xFFD5DDE8))
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     },
                     confirmButton = {
-                        if (!reply.isNullOrBlank()) {
+                        if (!currentReply.isNullOrBlank()) {
                             androidx.compose.material3.TextButton(onClick = {
                                 waitingSendTarget = null
-                                val ok = com.detailline.callfollowcrm.util.SmsSender.sendDirect(context, phone, reply)
+                                val ok = com.detailline.callfollowcrm.util.SmsSender.sendDirect(context, phone, currentReply)
                                 if (ok) {
-                                    viewModel.onWaitingReplySent(phone, reply, target.customer?.id)
+                                    viewModel.onWaitingReplySent(phone, currentReply, target.customer?.id)
                                     scope.launch { snackbarHostState.showSnackbar("$nm 님께 보냈어요 📩", duration = SnackbarDuration.Short) }
                                 } else {
                                     scope.launch { snackbarHostState.showSnackbar("문자 권한이 없어요 — 채팅에서 보내주세요", duration = SnackbarDuration.Short) }
@@ -1216,7 +1260,7 @@ fun HomeScreen(
                             }
                             androidx.compose.material3.TextButton(onClick = {
                                 waitingSendTarget = null
-                                if (!reply.isNullOrBlank()) viewModel.prefillChatDraft(phone, reply)
+                                if (!currentReply.isNullOrBlank()) viewModel.prefillChatDraft(phone, currentReply)
                                 onOpenChat(phone, target.customer?.id)
                             }) { Text("고쳐서 보내기", color = TossTextPrimary, fontWeight = FontWeight.Bold) }
                         }
