@@ -14409,25 +14409,41 @@ def _check_team_tier(owner_phone: str) -> None:
     """subscribers 의 plan_tier 가 team_99k 인지 검증. 미가입은 403.
 
     개발용 우회: ENV `TEAM_TIER_BYPASS=1` 이면 무조건 통과 (사장님 테스트 편의).
+    추가76 (2026-07-02) — 베타 화이트리스트 사장님은 코드 레벨에서 통과.
+      사고: launchd plist 재설치/재기동 시 TEAM_TIER_BYPASS env 소실 →
+            베타 사장님 협업 invite 가 "갑자기" 403 (사장님 보고: 일당 공유 실패).
+      env 의존 제거 — beta_whitelist 등록이면 team tier 게이트 skip.
+      정식 출시 시 이 블록 제거하면 유료(99k) 게이트 복원.
+      + 모든 403 에 print 로그 (다음 사고 시 stderr.log 로 원인 즉시 파악).
     """
     if os.environ.get("TEAM_TIER_BYPASS") == "1":
         return
     if not owner_phone:
         raise HTTPException(403, "owner_phone 필수")
+    phone_digits = _norm_phone(owner_phone) or owner_phone
     with db_conn() as con:
+        beta = con.execute(
+            "SELECT 1 FROM beta_whitelist WHERE phone = ?",
+            (phone_digits,),
+        ).fetchone()
+        if beta:
+            return  # 베타 사장님 = team tier 통과 (추가76)
         row = con.execute(
             "SELECT plan_tier, churned_at_ms FROM subscribers WHERE phone = ?",
             (owner_phone,),
         ).fetchone()
     if not row:
+        print(f"[team_tier_guard] BLOCK {phone_digits} (subscribers 미등록)")
         raise HTTPException(
             403,
             "subscribers 에 등록되지 않은 사장님입니다. 99k 가입 후 다시 시도해 주세요."
         )
     plan_tier, churned_at = row
     if churned_at is not None:
+        print(f"[team_tier_guard] BLOCK {phone_digits} (구독 해지, churned_at={churned_at})")
         raise HTTPException(403, "구독이 해지된 사장님입니다.")
     if plan_tier not in TEAM_TIER_NAMES:
+        print(f"[team_tier_guard] BLOCK {phone_digits} (tier={plan_tier})")
         raise HTTPException(403, f"99k(팀) 요금제 필요. 현재 tier: {plan_tier}")
 
 

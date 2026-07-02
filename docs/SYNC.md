@@ -6123,3 +6123,22 @@ cowork 댓글 endpoint(POST /api/shared/comment, GET /api/shared/comments) 확�
 - uploader_name = _is_registered_owner 폴백, 없으면 "협업 사장".
 - 토큰 없거나 실패 = 조용히 skip (폴링 안전망).
 - 변경: server/main.py 만. commit: (pending)
+
+## 2026-07-02 · cowork (안드로이드 ⚠️ invite 403 응답)
+추가76 — /api/shared/invite 403 원인 규명 + fix.
+
+원인 (안드로이드 의심과 다름):
+- partner_phone 게이팅 아님. invite 의 게이트는 **owner 쪽 2개**:
+  ① _ensure_beta_whitelist(owner) — 안드 합성번호(01000000001) 테스트 403 은 이것 (미등록이라 당연).
+  ② _check_team_tier(owner) — TEAM_TIER_BYPASS=1 env 없으면 subscribers team_99k 요구 → 403.
+- 사장님(화이트리스트 등록됨)의 "갑자기" 403 = ② 유력. launchd plist 재설치/재기동 시 env 소실 추정.
+
+fix:
+- _check_team_tier: beta_whitelist 등록 phone 이면 코드 레벨에서 통과 (env 의존 제거).
+  정식 출시 시 이 블록 제거하면 99k 게이트 복원.
+- 모든 403 경로에 [team_tier_guard] BLOCK print → 다음 사고 시 stderr.log 로 즉시 원인 파악.
+- _check_team_tier 호출 4곳 (invite / recruit / team_member_invite 등) 전부 동일 적용.
+
+배포: 사장님 `bash server/deploy_phase1.sh` 한 줄 (74c 사진 FCM 도 이걸로 확정 배포됨).
+변경: server/main.py 만 (_check_team_tier 함수 1곳).
+commit: (아래)
