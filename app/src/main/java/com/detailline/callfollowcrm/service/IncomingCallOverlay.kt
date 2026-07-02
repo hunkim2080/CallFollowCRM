@@ -133,6 +133,7 @@ object IncomingCallOverlay {
             val container = app.container
             val digits = number.filter { it.isDigit() }
             val national = if (digits.startsWith("82")) "0" + digits.removePrefix("82") else digits
+
             val customer = runCatching {
                 container.customerRepository.findByPhone(number)
                     ?: container.customerRepository.findByPhone(digits)
@@ -153,6 +154,13 @@ object IncomingCallOverlay {
 
             val name = customer?.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(number)
             val known = customer != null || msgs.isNotEmpty()
+            // 상태 = 색 결정. 완료(빨강) > 예정(초록) > 신규(노랑) > 그 외 기존(파랑).
+            val status = when {
+                !known -> CallerStatus.NEW
+                customer?.workCompletedAt != null -> CallerStatus.COMPLETED
+                (customer?.scheduledWorkDate ?: 0L) > 0L -> CallerStatus.SCHEDULED
+                else -> CallerStatus.EXISTING
+            }
 
             // 벨이 이미 끝났으면(카드 사라짐) 무시.
             if (currentNumber != number) return@launch
@@ -165,7 +173,8 @@ object IncomingCallOverlay {
                     moneyLabel = money,
                     messages = msgs,
                     customerId = customer?.id,
-                    loading = false
+                    loading = false,
+                    status = status
                 )
             }
         }
@@ -308,6 +317,9 @@ object IncomingCallOverlay {
 
     // ----- data -----
 
+    /** 카드 색·라벨을 정하는 고객 상태(2026-07-02 사장님). 멀리서도 알아보게 상태별 색. */
+    enum class CallerStatus { NEW, SCHEDULED, COMPLETED, EXISTING }
+
     data class CallerState(
         val phoneNumber: String,
         val displayName: String,
@@ -317,7 +329,8 @@ object IncomingCallOverlay {
         val moneyLabel: String?,      // "받은 돈 200만원" / "견적 150만원"
         val messages: List<MsgPreview>,
         val customerId: Long?,
-        val loading: Boolean
+        val loading: Boolean,
+        val status: CallerStatus = CallerStatus.EXISTING
     )
 
     data class MsgPreview(val body: String, val sent: Boolean)
@@ -332,10 +345,21 @@ private val TextSecondary = Color(0xFF4E5968)
 private val TextTertiary = Color(0xFF8B95A1)
 private val GrayBg = Color(0xFFF2F4F6)
 
-// 신규 전화(기록 없는 처음 보는 번호) = 따뜻한 앰버 톤으로 배경/강조를 바꿔 기존 고객(흰색·파랑)과 한눈에 구분. (2026-07-02 사장님)
-private val NewCallerBg = Color(0xFFFFF7E8)
-private val NewCallerSoft = Color(0xFFFFE9C2)
-private val NewCallerAccent = Color(0xFFF59E0B)
+// 상태별 카드 색(2026-07-02 사장님) — 벨 울릴 때 멀리서도 알아보게. 부드러운 배경 + 굵은 강조·라벨.
+//   완료=빨강 / 예정=초록 / 신규=노랑 / 그 외 기존=파랑(중립). 촌스럽지 않게 톤다운.
+private data class CardPalette(val bg: Color, val soft: Color, val accent: Color, val label: String)
+
+private val NeutralPalette = CardPalette(Color.White, CardBlueSoft, CardBlue, "전화 오는 중")
+private val NewPalette = CardPalette(Color(0xFFFFF3B0), Color(0xFFFCE588), Color(0xFFB7791F), "🆕 처음 오는 전화")
+private val ScheduledPalette = CardPalette(Color(0xFFDBF4E3), Color(0xFFAEE9C3), Color(0xFF128A50), "📅 시공 예정 고객")
+private val CompletedPalette = CardPalette(Color(0xFFFBDEDE), Color(0xFFF5C4C6), Color(0xFFD83A40), "✅ 시공했던 고객")
+
+private fun paletteFor(status: IncomingCallOverlay.CallerStatus): CardPalette = when (status) {
+    IncomingCallOverlay.CallerStatus.NEW -> NewPalette
+    IncomingCallOverlay.CallerStatus.SCHEDULED -> ScheduledPalette
+    IncomingCallOverlay.CallerStatus.COMPLETED -> CompletedPalette
+    IncomingCallOverlay.CallerStatus.EXISTING -> NeutralPalette
+}
 
 @Composable
 private fun IncomingCallCard(
@@ -343,107 +367,116 @@ private fun IncomingCallCard(
     onOpen: () -> Unit,
     onClose: () -> Unit
 ) {
-    // 로딩이 끝난 뒤에만 신규 판정(로딩 중엔 흰색 → 값 확정되면 색 전환, 깜빡임 방지).
-    val isNew = !state.loading && !state.isKnown
-    val cardBg = if (isNew) NewCallerBg else Color.White
-    val accent = if (isNew) NewCallerAccent else CardBlue
-    val accentSoft = if (isNew) NewCallerSoft else CardBlueSoft
-    Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+    // 로딩 중엔 중립(흰/파랑) → 값 확정되면 상태색으로 전환(깜빡임 방지). 완료=빨강·예정=초록·신규=노랑.
+    val pal = if (state.loading) NeutralPalette else paletteFor(state.status)
+    val isNew = !state.loading && state.status == IncomingCallOverlay.CallerStatus.NEW
+    val cardBg = pal.bg
+    val accent = pal.accent
+    val accentSoft = pal.soft
+    Box(Modifier.fillMaxWidth().padding(horizontal = 10.dp)) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .shadow(14.dp, RoundedCornerShape(22.dp), clip = false)
-                .clip(RoundedCornerShape(22.dp))
+                .shadow(18.dp, RoundedCornerShape(26.dp), clip = false)
+                .clip(RoundedCornerShape(26.dp))
                 .background(cardBg)
-                .padding(18.dp)
+                .padding(22.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    Modifier.size(44.dp).clip(CircleShape).background(accentSoft),
+                    Modifier.size(56.dp).clip(CircleShape).background(accentSoft),
                     contentAlignment = Alignment.Center
-                ) { Icon(Icons.Filled.Call, "전화", tint = accent, modifier = Modifier.size(22.dp)) }
-                Spacer(Modifier.size(12.dp))
+                ) { Icon(Icons.Filled.Call, "전화", tint = accent, modifier = Modifier.size(28.dp)) }
+                Spacer(Modifier.size(14.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
-                        if (isNew) "🆕 처음 오는 전화" else "전화 오는 중",
-                        fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = accent
+                        pal.label,
+                        fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = accent
                     )
                     Text(
-                        state.displayName, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold,
+                        state.displayName, fontSize = 27.sp, fontWeight = FontWeight.ExtraBold,
                         color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis
                     )
                 }
                 Box(
-                    Modifier.size(30.dp).clip(CircleShape).background(GrayBg).clickable { onClose() },
+                    Modifier.size(38.dp).clip(CircleShape).background(GrayBg).clickable { onClose() },
                     contentAlignment = Alignment.Center
-                ) { Icon(Icons.Filled.Close, "닫기", tint = TextTertiary, modifier = Modifier.size(17.dp)) }
+                ) { Icon(Icons.Filled.Close, "닫기", tint = TextTertiary, modifier = Modifier.size(22.dp)) }
             }
 
             state.scheduleLabel?.let { label ->
-                Spacer(Modifier.height(11.dp))
+                Spacer(Modifier.height(14.dp))
                 Text(
                     label,
-                    fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = CardBlue,
-                    modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(CardBlueSoft)
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                    fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = accent,
+                    modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(accentSoft)
+                        .padding(horizontal = 15.dp, vertical = 9.dp)
                 )
             }
 
             state.address?.let { addr ->
-                Spacer(Modifier.height(9.dp))
+                Spacer(Modifier.height(12.dp))
                 Text(
-                    "📍 $addr", fontSize = 13.sp, color = TextSecondary,
+                    "📍 $addr", fontSize = 16.sp, color = TextSecondary,
                     maxLines = 2, overflow = TextOverflow.Ellipsis
                 )
             }
 
             state.moneyLabel?.let { money ->
-                Spacer(Modifier.height(6.dp))
-                Text("💰 $money", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+                Spacer(Modifier.height(8.dp))
+                Text("💰 $money", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
             }
 
             when {
                 state.messages.isNotEmpty() -> {
-                    Spacer(Modifier.height(13.dp))
+                    Spacer(Modifier.height(16.dp))
                     Box(Modifier.fillMaxWidth().height(1.dp).background(GrayBg))
-                    Spacer(Modifier.height(11.dp))
-                    Text("최근 대화", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextTertiary)
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(13.dp))
+                    Text("최근 대화", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TextTertiary)
+                    Spacer(Modifier.height(8.dp))
                     state.messages.forEach { m ->
-                        Row(Modifier.padding(vertical = 2.dp)) {
+                        Row(Modifier.padding(vertical = 3.dp)) {
                             Text(
                                 if (m.sent) "나 " else "고객 ",
-                                fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
-                                color = if (m.sent) CardBlue else TextTertiary
+                                fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                                color = if (m.sent) accent else TextTertiary
                             )
                             Text(
-                                m.body, fontSize = 12.5.sp, color = TextSecondary,
+                                m.body, fontSize = 15.sp, color = TextSecondary,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
                 }
                 state.loading -> {
-                    Spacer(Modifier.height(11.dp))
-                    Text("정보 불러오는 중…", fontSize = 12.5.sp, color = TextTertiary)
+                    Spacer(Modifier.height(14.dp))
+                    Text("정보 불러오는 중…", fontSize = 15.sp, color = TextTertiary)
                 }
                 !state.isKnown -> {
-                    Spacer(Modifier.height(11.dp))
-                    Text("처음 보는 번호예요", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-                    Text("저장·문자 기록이 없어요", fontSize = 12.sp, color = TextTertiary)
+                    Spacer(Modifier.height(14.dp))
+                    Text("처음 보는 번호예요", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+                    Text("저장·문자 기록이 없어요", fontSize = 14.sp, color = TextTertiary)
                 }
                 else -> {
-                    Spacer(Modifier.height(11.dp))
-                    Text("아직 나눈 대화가 없어요", fontSize = 12.5.sp, color = TextTertiary)
+                    Spacer(Modifier.height(14.dp))
+                    Text("아직 나눈 대화가 없어요", fontSize = 15.sp, color = TextTertiary)
                 }
             }
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(18.dp))
+            // 신규면 열 '기록'이 없으니 "신규 전화예요!" 로. 앰버 하이라이트(카드색과 통일). 눌러도 대화는 열림. (2026-07-02 사장님)
             Box(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(GrayBg)
-                    .clickable { onOpen() }.padding(vertical = 12.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                    .background(if (isNew) accentSoft else GrayBg)
+                    .clickable { onOpen() }.padding(vertical = 16.dp),
                 contentAlignment = Alignment.Center
-            ) { Text("기록 열기", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextSecondary) }
+            ) {
+                Text(
+                    if (isNew) "신규 전화예요!" else "기록 열기",
+                    fontSize = 17.sp, fontWeight = FontWeight.Bold,
+                    color = if (isNew) accent else TextSecondary
+                )
+            }
         }
     }
 }
