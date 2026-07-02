@@ -49,6 +49,12 @@ step "1. main.py / requirements.txt 갱신"
 cp "$SRC/main.py"          "$TARGET/main.py"
 cp "$SRC/requirements.txt" "$TARGET/requirements.txt"
 ok "main.py + requirements.txt 복사"
+# 2026-07-02 (추가82) — static (랜딩/설치/개인정보 페이지) 도 같이 배포
+if [ -d "$SRC/static" ]; then
+    mkdir -p "$TARGET/static"
+    cp -R "$SRC/static/." "$TARGET/static/"
+    ok "static/ 복사 (landing.html 등)"
+fi
 
 # -----------------------------------------------------------------------------
 step "2. anthropic 패키지 설치"

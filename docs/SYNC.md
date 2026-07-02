@@ -6278,3 +6278,14 @@ deploy_phase1.sh — repo 에 plist 사본 없으면 (gitignore 라 repo 이동 
   ① 템플릿 제목 수동 입력칸 maxLength=13, ② 서버 title/휴리스틱 제목 저장 시 13자 컷 (기존 20자 컷 → 13).
 - 변경: server/main.py 만. 배포 필요.
 - commit: (아래)
+
+## 2026-07-02 · cowork (사장님 요청: 랜딩 신청 폼 3가지 수정)
+추가82 — 베타 신청 폼 (landing.html + /api/beta-signup) 개선.
+- ① 업체명 placeholder "예: 디테일라인 줄눈" 제거 (사장님 실제 상호가 예시로 노출되던 것).
+- ② 활동 지역: 자유 입력 → 권역 select 선택 (서울권/서울·경기권/수도권 전체/경기권/인천권/충청권/전라권/경상권/강원권/제주권/전국).
+- ③ 업종 "기타 시공업" 선택 시 "어떤 시공을 하시나요?" 입력칸 표시 (필수) → 서버에 industry="기타(방수)" 형태로 저장 (admin 신청자 목록에서 바로 보임).
+  - BetaSignupRequest.industry_detail (optional, 20자 컷) 추가. 기존 앱/페이지 호환 (필드 없어도 동작).
+- deploy_phase1.sh: static/ 복사 단계 추가 (landing.html 도 배포 한 줄로 나감).
+- 검증: py_compile PASS + TestClient (기타+상세 저장/상세 없음/일반 업종 무시) ALL PASS + landing JS node --check PASS.
+- 변경: server/main.py + server/static/landing.html + server/deploy_phase1.sh. 배포 필요.
+- commit: (아래)

@@ -4957,6 +4957,7 @@ class BetaSignupRequest(BaseModel):
     agreed: bool = False
     source: str = "landing/unknown"
     business_name: str = ""  # 추가57 — 업체명 (사장님이 admin 페이지에서 신청자 분간용)
+    industry_detail: str = ""  # 추가82 — 업종 '기타' 선택 시 구체 업종 (예: 방수)
 
 
 _VALID_INDUSTRIES = {"줄눈", "타일", "도배", "장판", "인테리어", "기타"}
@@ -5004,6 +5005,12 @@ async def beta_signup(req: BetaSignupRequest, request: Request):
         raise HTTPException(status_code=400, detail="활동 지역 입력 오류")
     note = (req.note or "").strip()[:500]  # 추가57 — 한말씀에 옛 앱 경험도 적게 → 300 → 500
     business_name = (req.business_name or "").strip()[:60]  # 추가57
+    # 추가82 — 업종 '기타' + 상세 업종이 오면 "기타(방수)" 형태로 저장 (admin 에서 바로 보임)
+    industry_stored = req.industry
+    if req.industry == "기타":
+        detail = (req.industry_detail or "").strip()[:20]
+        if detail:
+            industry_stored = f"기타({detail})"
 
     # 메타
     ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or (
@@ -5053,7 +5060,7 @@ async def beta_signup(req: BetaSignupRequest, request: Request):
             """,
             (
                 phone_digits,
-                req.industry,
+                industry_stored,
                 region,
                 req.monthly_inquiries,
                 note,
