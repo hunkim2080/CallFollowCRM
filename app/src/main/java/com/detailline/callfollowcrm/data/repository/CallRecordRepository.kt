@@ -39,6 +39,8 @@ class CallRecordRepository(private val dao: CallRecordDao) {
     fun observeMissedSince(from: Long): Flow<List<CallRecordEntity>> = dao.observeMissedSince(from)
     /** 들어온 통화(수신·부재중·거절) since — "오늘 신규 문의" 집계용 (발신 제외). */
     fun observeInboundSince(from: Long): Flow<List<CallRecordEntity>> = dao.observeInboundSince(from)
+    /** 통화로 응대한(수신 응답·발신) since — "답장 기다려요"에서 전화로 처리한 건 빼는 용도. */
+    fun observeHandledCallsSince(from: Long): Flow<List<CallRecordEntity>> = dao.observeHandledCallsSince(from)
     fun observeDistinctPhonesBefore(before: Long): Flow<List<String>> = dao.observeDistinctPhonesBefore(before)
 
     suspend fun findById(id: Long): CallRecordEntity? = dao.findById(id)

@@ -85,6 +85,13 @@ interface CallRecordDao {
     fun observeInboundSince(from: Long): Flow<List<CallRecordEntity>>
 
     /**
+     * 지정 시점 이후 "통화로 응대한" 기록 — 받은전화 응답(INCOMING)·내가 건 전화(OUTGOING).
+     *   부재중/미답문자 이후 이 통화가 있으면 = 전화로 처리한 것 → "답장 기다려요"에서 제외. (2026-07-02 사장님)
+     */
+    @Query("SELECT * FROM call_records WHERE endedAt >= :from AND callType IN ('INCOMING','OUTGOING') ORDER BY endedAt DESC")
+    fun observeHandledCallsSince(from: Long): Flow<List<CallRecordEntity>>
+
+    /**
      * 지정 시점 이전에 통화 기록이 있는 phone 들 (distinct).
      * "오늘 신규" 판정용 — 오늘 통화/SMS 받은 번호 중 이 set 에 없으면 = 진짜 신규.
      */

@@ -90,6 +90,23 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     /** 최근 7일 내 들어온 통화(수신·부재중·거절). "오늘/어제 신규 문의" 집계용 — 받은 전화도 포함. */
     private val inboundRecent = container.callRecordRepository.observeInboundSince(sevenDayWindowStart)
 
+    /** 최근 7일 내 통화로 응대한 기록(수신 응답·발신). "답장 기다려요"에서 전화로 처리한 건 빼는 용도. (2026-07-02 사장님) */
+    private val handledCallsRecent = container.callRecordRepository.observeHandledCallsSince(sevenDayWindowStart)
+
+    /**
+     * missed·inbound·(suffix→통화응대 최신시각) 묶음. 미확인=부재중(missed), 오늘신규=들어온통화(inbound),
+     *   그리고 "통화로 응대함" 판정을 위한 handledCallMs 를 한 combine 안에서 함께 공급(combine 5개 한도 회피).
+     *   OUTGOING(내가 콜백)은 missed/inbound 어디에도 없어 이 flow 가 있어야 콜백 시 목록이 재계산된다.
+     */
+    private val callsForFlags = combine(missedRecent, inboundRecent, handledCallsRecent) { m, i, handled ->
+        val handledMs = HashMap<String, Long>()
+        for (c in handled) {
+            val suf = phoneSuffix(c.phoneNumber)
+            if (c.endedAt > (handledMs[suf] ?: 0L)) handledMs[suf] = c.endedAt
+        }
+        Triple(m, i, handledMs as Map<String, Long>)
+    }
+
     /**
      * 사장님이 미확인 카드 swipe 로 "광고/스팸" 마킹한 phone suffix set.
      *   미확인 판정 / KPI 카운트에서 제외 — 다른 탭 (전체/카테고리) 에는 그대로 표시.
@@ -215,9 +232,10 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      * 사장님 결정 (2026-05-24) — 이전엔 CallRecord.handledStatus 기반이었으나 정의 변경.
      */
     val unhandledCount: StateFlow<Int> = combine(
-        smsContactsState, missedRecent, spamSuffixes, scheduledCustomerSuffixes, spamPrefixesFlow
-    ) { smsContacts, missed, spam, scheduled, _ ->
-        unconfirmedSuffixes(smsContacts, missed, spam, scheduled).size
+        smsContactsState, callsForFlags, spamSuffixes, scheduledCustomerSuffixes, spamPrefixesFlow
+    ) { smsContacts, calls, spam, scheduled, _ ->
+        val (missed, _, handledMs) = calls
+        unconfirmedSuffixes(smsContacts, missed, spam, scheduled, handledMs).size
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     /** 오늘 ~ 오늘+6일(7일 윈도우) 시공 예약된 고객 수. */
@@ -669,7 +687,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         smsContacts: List<SmsRepository.SmsContact>,
         missed: List<CallRecordEntity>,
         spam: Set<String> = emptySet(),
-        scheduled: Set<String> = emptySet()
+        scheduled: Set<String> = emptySet(),
+        handledCallMs: Map<String, Long> = emptyMap()
     ): Set<String> {
         val bySuffix = smsContacts.associateBy { it.normalizedSuffix }
         val result = HashSet<String>()
@@ -680,6 +699,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             //   일정만 있고 새 메시지 없으면 아래 freshIncoming 조건이 false 라 자동 제외(= 일정 카드로만 관리). 옛 #scheduled 무조건 제외 제거.
             // 사장님 의도: 마지막 메시지가 고객 수신이면 미확인. 이전에 답장 보낸 적은 무관.
             if (!c.lastSent && c.lastDateMs >= sevenDayWindowStart) {
+                // 그 문자 이후 전화로 응대(받은전화 응답/내가 콜백)했으면 처리된 것 → 제외. (2026-07-02 사장님)
+                if ((handledCallMs[c.normalizedSuffix] ?: 0L) >= c.lastDateMs) continue
                 result += c.normalizedSuffix
             }
         }
@@ -689,6 +710,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             if (suffix in spam) continue
             if (com.detailline.callfollowcrm.util.SpamPrefix.isSpam(m.phoneNumber, spamPrefixesFlow.value)) continue  // 스팸 앞자리
             if (suffix in scheduled) continue  // 2026-05-30 #3
+            // 부재중 이후 전화로 응대(응답/콜백)했으면 처리됨 → 제외. (문자 답장 hasOwnerReply 와 동일 취지) (2026-07-02 사장님)
+            if ((handledCallMs[suffix] ?: 0L) >= m.endedAt) continue
             val sms = bySuffix[suffix]
             if (sms == null || !sms.hasOwnerReply) result += suffix
         }
@@ -812,17 +835,15 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             out
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
-    // 미확인=부재중(missed) 기준, 오늘 신규=들어온 통화 전체(inbound: 수신·부재중·거절) 기준 — 둘 다 필요해
-    //   combine 5개 한도 안에서 쓰려고 두 통화 flow 를 미리 Pair 로 묶음.
-    //   (2026-06-06 버그픽스: 전엔 newToday 에도 missed 만 넘겨서 '받은 신규 전화'가 오늘 신규에 안 잡혔음.)
-    private val callsForFlags = combine(missedRecent, inboundRecent) { m, i -> m to i }
+    // callsForFlags(missed·inbound·handledMs 묶음)는 위(inboundRecent 아래)에서 선언 — KPI(unhandledCount)와
+    //   여기 timelineFlags 둘 다 쓰므로 앞으로 올림.
 
     private val timelineFlags: StateFlow<TimelineFlags> = combine(
         smsContactsState, callsForFlags, phonesWithCallsBeforeToday, excludedForUnconfirmed, scheduledCustomerSuffixes
     ) { smsContacts, calls, callsBefore, spam, scheduled ->
-        val (missed, inbound) = calls
+        val (missed, inbound, handledMs) = calls
         TimelineFlags(
-            unconfirmedSuffixes = unconfirmedSuffixes(smsContacts, missed, spam, scheduled),
+            unconfirmedSuffixes = unconfirmedSuffixes(smsContacts, missed, spam, scheduled, handledMs),
             newTodaySuffixes = newTodaySuffixes(smsContacts, inbound, callsBefore, spam)
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TimelineFlags(emptySet(), emptySet()))
