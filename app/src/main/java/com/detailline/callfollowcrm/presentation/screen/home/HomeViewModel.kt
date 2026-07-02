@@ -771,19 +771,45 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             com.detailline.callfollowcrm.util.SpamPrefix.isSpam(phone, prefixes)
     }
 
+    // ── 답장 기다려요 '제외'는 처리 시각과 함께 (2026-07-02 사장님) ─────────────────────────
+    //   답장했거나(1탭 발송) 밀어서 정리한 대화에 '새 고객 메시지'가 오면 다시 답장 기다려요로 올라와야 한다.
+    //   예전엔 제외가 영구(suffix만 저장)라 새 메시지(사진 등)가 와도 안 풀려 "최근 대화"에 굵게만 떴음.
+    //   → suffix→처리시각 으로 저장하고, contact.lastDateMs 가 그 시각보다 최신이면(=새 메시지) 제외 해제.
+    /** VM 생성 시각 — 옛 형식(시각 없는) 정리 항목의 기준. 이 이후 새 메시지에만 재노출. */
+    private val suppressionLoadMs = System.currentTimeMillis()
+
+    /** 홈 1탭 발송 직후 임시 제외 (suffix → 발송 시각). 이후 새 고객 메시지 오면 자동 해제. */
+    private val _repliedAt = MutableStateFlow<Map<String, Long>>(emptyMap())
+
+    /** "지금 답장 기다려요"에서 밀어서 정리한 suffix → 정리 시각 (영속). 이후 새 고객 메시지 오면 자동 재노출. */
+    private val _dismissedAt = MutableStateFlow(parseSuppressed(container.preferences.dismissedUnconfirmedSuffixes))
+
+    /** 정리 항목 파싱 — "suffix|ts". 옛 형식(suffix만)은 VM 생성 시각을 처리 시각으로 본다. */
+    private fun parseSuppressed(raw: Set<String>): Map<String, Long> =
+        raw.associate { e ->
+            val i = e.indexOf('|')
+            if (i > 0) e.substring(0, i) to (e.substring(i + 1).toLongOrNull() ?: suppressionLoadMs)
+            else e to suppressionLoadMs
+        }
+
+    private fun encodeSuppressed(m: Map<String, Long>): Set<String> =
+        m.map { "${it.key}|${it.value}" }.toSet()
+
     /**
-     * 대기 카드에서 홈 1탭 발송한 직후 그 suffix 를 미확인에서 즉시 제외 (낙관적).
-     *   다음 실제 SMS 스캔에서 lastSent=true 가 되면 자연히 빠지므로, 그때까지의 임시 제외.
+     * 미확인에서 뺄 suffix = 스팸(영구) ∪ '아직 유효한' 제외(답장/정리).
+     *   제외는 처리 시각 이후 새 고객 메시지(contact.lastDateMs 가 더 최신)가 없을 때만 유효.
+     *   → 새 메시지 오면 자동으로 다시 "답장 기다려요"에 뜬다.
      */
-    private val _repliedSuffixes = MutableStateFlow<Set<String>>(emptySet())
-
-    /** "지금 답장 기다려요"에서 밀어서 정리한 suffix (영속). 미확인에서만 숨김 — 스팸 아님. 2026-06-07 */
-    private val _dismissedUnconfirmed = MutableStateFlow(container.preferences.dismissedUnconfirmedSuffixes)
-
-    /** 미확인에서 빼야 할 suffix = 스팸(영구) ∪ 방금 답장(임시) ∪ 밀어서 정리(영속). */
     private val excludedForUnconfirmed: StateFlow<Set<String>> =
-        combine(spamSuffixes, _repliedSuffixes, _dismissedUnconfirmed) { spam, replied, dismissed ->
-            spam + replied + dismissed
+        combine(spamSuffixes, _repliedAt, _dismissedAt, smsContactsState) { spam, replied, dismissed, contacts ->
+            val lastBySuffix = contacts.associate { it.normalizedSuffix to it.lastDateMs }
+            val out = HashSet<String>(spam)
+            fun addStillHandled(m: Map<String, Long>) {
+                for ((suf, handledMs) in m) if ((lastBySuffix[suf] ?: 0L) <= handledMs) out += suf
+            }
+            addStillHandled(replied)
+            addStillHandled(dismissed)
+            out
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
     // 미확인=부재중(missed) 기준, 오늘 신규=들어온 통화 전체(inbound: 수신·부재중·거절) 기준 — 둘 다 필요해
@@ -976,16 +1002,19 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     fun dismissUnconfirmed(phoneNumber: String) {
         val suf = phoneSuffix(phoneNumber)
         if (suf.isBlank()) return
-        _dismissedUnconfirmed.value = _dismissedUnconfirmed.value + suf
-        container.preferences.dismissedUnconfirmedSuffixes = _dismissedUnconfirmed.value
+        // 정리 시각 기록 — 이 이후 새 고객 메시지가 오면 다시 대기목록에 뜬다.
+        val next = _dismissedAt.value + (suf to System.currentTimeMillis())
+        _dismissedAt.value = next
+        container.preferences.dismissedUnconfirmedSuffixes = encodeSuppressed(next)
     }
 
     /** 정리 취소(Undo). */
     fun undoDismissUnconfirmed(phoneNumber: String) {
         val suf = phoneSuffix(phoneNumber)
         if (suf.isBlank()) return
-        _dismissedUnconfirmed.value = _dismissedUnconfirmed.value - suf
-        container.preferences.dismissedUnconfirmedSuffixes = _dismissedUnconfirmed.value
+        val next = _dismissedAt.value - suf
+        _dismissedAt.value = next
+        container.preferences.dismissedUnconfirmedSuffixes = encodeSuppressed(next)
     }
 
     /**
@@ -1224,7 +1253,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     fun onWaitingReplySent(phone: String, body: String, customerId: Long?) {
         container.journeyEventRepository.track("button_click", screen = "home", target = "quick_reply")
         val suffix = phoneSuffix(phone)
-        _repliedSuffixes.value = _repliedSuffixes.value + suffix
+        _repliedAt.value = _repliedAt.value + (suffix to System.currentTimeMillis())
         _waitingReplies.value = _waitingReplies.value - suffix
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
