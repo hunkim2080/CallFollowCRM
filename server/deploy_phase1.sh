@@ -62,8 +62,18 @@ ok "anthropic ${ANTHROPIC_VER} 설치 완료"
 step "3. launchd plist 갱신 (CLAUDE_API_KEY 포함)"
 # -----------------------------------------------------------------------------
 mkdir -p "$HOME/Library/LaunchAgents"
-cp "$SRC/com.detailline.ringgo-server.plist" "$PLIST"
-ok "plist 복사 (CLAUDE_API_KEY env 포함)"
+# 2026-07-02 fix: plist 는 gitignore 라 repo 이동/재클론 시 사본이 없을 수 있음.
+# repo 에 없으면 이미 설치된 plist 를 그대로 사용 (env 변경 없는 일반 배포는 OK).
+if [ -f "$SRC/com.detailline.ringgo-server.plist" ]; then
+    cp "$SRC/com.detailline.ringgo-server.plist" "$PLIST"
+    ok "plist 복사 (CLAUDE_API_KEY env 포함)"
+elif [ -f "$PLIST" ]; then
+    warn "repo 에 plist 사본 없음 → 설치된 plist 그대로 사용"
+    warn "(env 바꿀 일 있으면: cp \"$PLIST\" \"$SRC/\" 후 수정해서 재배포)"
+else
+    fail "plist 가 repo 에도 LaunchAgents 에도 없습니다. 배포 중단."
+    exit 1
+fi
 
 # 키가 진짜 박혔는지 확인
 if /usr/libexec/PlistBuddy -c "Print :EnvironmentVariables:CLAUDE_API_KEY" "$PLIST" 2>/dev/null | grep -q "^sk-ant-"; then

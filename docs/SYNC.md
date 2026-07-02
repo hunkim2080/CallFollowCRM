@@ -6211,3 +6211,10 @@ MMS 처리 방식 검토 회신 → `docs/ANDROID_REVIEW_mms_architecture.md` �
 - Python 3.9 Optional[] 준수. 변경: server/main.py 만.
 - 다음 액션 (안드로이드): 커스텀 업종일 때 StarterPricingRepository 배선 (POST 동기라 폴링 불필요, GET 은 보조).
 - commit: (아래)
+
+## 2026-07-02 · cowork (배포 스크립트 hotfix)
+deploy_phase1.sh — repo 에 plist 사본 없으면 (gitignore 라 repo 이동 시 유실) 설치된
+~/Library/LaunchAgents plist 그대로 사용하고 진행. 둘 다 없을 때만 중단.
+- 사장님 배포 실패 원인: step 3 cp 가 plist 못 찾고 set -e 로 중단 → 재시작 안 됨.
+- 변경: server/deploy_phase1.sh 만.
+- commit: (아래)
