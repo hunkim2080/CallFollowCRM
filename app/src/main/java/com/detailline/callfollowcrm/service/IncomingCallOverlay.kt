@@ -332,29 +332,42 @@ private val TextSecondary = Color(0xFF4E5968)
 private val TextTertiary = Color(0xFF8B95A1)
 private val GrayBg = Color(0xFFF2F4F6)
 
+// 신규 전화(기록 없는 처음 보는 번호) = 따뜻한 앰버 톤으로 배경/강조를 바꿔 기존 고객(흰색·파랑)과 한눈에 구분. (2026-07-02 사장님)
+private val NewCallerBg = Color(0xFFFFF7E8)
+private val NewCallerSoft = Color(0xFFFFE9C2)
+private val NewCallerAccent = Color(0xFFF59E0B)
+
 @Composable
 private fun IncomingCallCard(
     state: IncomingCallOverlay.CallerState,
     onOpen: () -> Unit,
     onClose: () -> Unit
 ) {
+    // 로딩이 끝난 뒤에만 신규 판정(로딩 중엔 흰색 → 값 확정되면 색 전환, 깜빡임 방지).
+    val isNew = !state.loading && !state.isKnown
+    val cardBg = if (isNew) NewCallerBg else Color.White
+    val accent = if (isNew) NewCallerAccent else CardBlue
+    val accentSoft = if (isNew) NewCallerSoft else CardBlueSoft
     Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         Column(
             Modifier
                 .fillMaxWidth()
                 .shadow(14.dp, RoundedCornerShape(22.dp), clip = false)
                 .clip(RoundedCornerShape(22.dp))
-                .background(Color.White)
+                .background(cardBg)
                 .padding(18.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    Modifier.size(44.dp).clip(CircleShape).background(CardBlueSoft),
+                    Modifier.size(44.dp).clip(CircleShape).background(accentSoft),
                     contentAlignment = Alignment.Center
-                ) { Icon(Icons.Filled.Call, "전화", tint = CardBlue, modifier = Modifier.size(22.dp)) }
+                ) { Icon(Icons.Filled.Call, "전화", tint = accent, modifier = Modifier.size(22.dp)) }
                 Spacer(Modifier.size(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("전화 오는 중", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = CardBlue)
+                    Text(
+                        if (isNew) "🆕 처음 오는 전화" else "전화 오는 중",
+                        fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = accent
+                    )
                     Text(
                         state.displayName, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold,
                         color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis
