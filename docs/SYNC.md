@@ -6155,3 +6155,13 @@ CLAUDE.md §9 신설 — 사장님께 설명 시 "초등학생도 이해할 비�
 - 변경: docs 만. 서버 코드 변경 없음. 구현 = 안드로이드.
 - 다음 액션 (안드로이드): 위 핸드오프 문서 읽고 구현. 가짜 전화 팝업 = 전화 미리보기 오버레이 재활용.
 - commit: (아래)
+
+## 2026-07-02 · cowork (안드로이드 MMS 검토 요청 응답)
+MMS 처리 방식 검토 회신 → `docs/ANDROID_REVIEW_mms_architecture.md` 신규.
+- 총평: 현 구조(3-stage + merge-only) 유지. merge-only 를 핵심 불변식으로 승격.
+- Q1: thread 직접 조회 = 2단계로 감. ① thread 로스터 캐시(addr round-trip 제거, P0) ② 직접 조회(P1, merge-only 라 구조적 안전 — 발견은 얕은 전역 스캔이 계속 담당).
+- Q2: WorkManager addContentUriTrigger 로 프로세스 사후 감지 (15분 폴링 백스톱 불필요).
+- Q3: trim 은 Q1-b 이후에만 (지금 trim = 재획득 불가 = 사진 유실). 캐시는 메타만이라 크기 걱정 없음.
+- 함정 신규 지적: RCS(채팅+) 사진은 content://mms 에 안 옴 (제일 큰 유령버그 후보), 그룹 MMS 가 1:1 챗에 섞임, msg_box 4/5 미표시, 기기 이사 시 URI 죽음.
+- 출시 2일 전 = 아무것도 건드리지 말 것. 전부 출시 후.
+- 변경: docs 만. commit: (아래)
