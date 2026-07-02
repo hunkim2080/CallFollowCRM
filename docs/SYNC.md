@@ -6142,3 +6142,8 @@ fix:
 배포: 사장님 `bash server/deploy_phase1.sh` 한 줄 (74c 사진 FCM 도 이걸로 확정 배포됨).
 변경: server/main.py 만 (_check_team_tier 함수 1곳).
 commit: (아래)
+
+## 2026-07-02 · cowork
+CLAUDE.md §9 신설 — 사장님께 설명 시 "초등학생도 이해할 비유 먼저" 룰 (사장님 지시).
+- 변경: CLAUDE.md 만. 서버/앱 코드 변경 없음. 양쪽 Claude 모두 적용.
+- commit: (아래)
