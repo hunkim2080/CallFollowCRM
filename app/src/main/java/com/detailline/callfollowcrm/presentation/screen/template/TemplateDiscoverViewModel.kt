@@ -50,9 +50,11 @@ class TemplateDiscoverViewModel(private val container: AppContainer) : ViewModel
         if (row.saved) return
         viewModelScope.launch {
             val now = System.currentTimeMillis()
-            container.messageTemplateRepository.insert(
+            val heuristic = autoTitle(row.body)
+            // 1) 휴리스틱 제목으로 즉시 저장(오프라인·즉시). 버튼 바로 '저장됨' 표시.
+            val id = container.messageTemplateRepository.insert(
                 MessageTemplateEntity(
-                    title = autoTitle(row.body),
+                    title = heuristic,
                     body = row.body,
                     category = TemplateCategory.CUSTOM.name,
                     isDefault = false,
@@ -64,6 +66,12 @@ class TemplateDiscoverViewModel(private val container: AppContainer) : ViewModel
             _ui.value = _ui.value.copy(
                 rows = _ui.value.rows.map { if (it.key == key) it.copy(saved = true) else it }
             )
+            // 2) Haiku 로 더 나은 제목 갱신(실패/오프라인이면 휴리스틱 그대로). 목록 화면이 반응형으로 반영.
+            val nice = runCatching { container.templateNameRepository.suggestTitle(row.body) }.getOrNull()
+            if (!nice.isNullOrBlank() && nice != heuristic) {
+                val saved = container.messageTemplateRepository.findById(id)
+                if (saved != null) container.messageTemplateRepository.update(saved.copy(title = nice))
+            }
         }
     }
 
