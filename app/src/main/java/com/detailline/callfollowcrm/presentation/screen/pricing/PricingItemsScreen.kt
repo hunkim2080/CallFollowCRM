@@ -78,7 +78,8 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 @Composable
 fun PricingItemsScreen(
     viewModel: PricingItemsViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onOpenExtract: () -> Unit = {}
 ) {
     val items by viewModel.items.collectAsState()
     var editTarget by remember { mutableStateOf<PricingItemEntity?>(null) }
@@ -107,6 +108,10 @@ fun PricingItemsScreen(
                     }
                 },
                 actions = {
+                    // 문자에서 가격 불러오기(2026-07-02 사장님 요청 — 프로토 외 추가 흐름).
+                    TextButton(onClick = onOpenExtract) {
+                        Text("✨ 불러오기", color = TossBlue, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    }
                     // 프로토 s-pricing appbar 우상단 plus
                     IconButton(onClick = { showAddDialog = true }) {
                         Icon(Icons.Default.Add, "항목 추가", tint = TossTextPrimary)
@@ -137,6 +142,21 @@ fun PricingItemsScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = TossTextTertiary
                     )
+                    Spacer(Modifier.height(20.dp))
+                    // 빈 표 = 신규 사장님 이탈 지점 → 문자에서 자동으로 채우기 유도. (2026-07-02)
+                    Surface(
+                        onClick = onOpenExtract,
+                        shape = RoundedCornerShape(14.dp),
+                        color = TossBlue
+                    ) {
+                        Text(
+                            "✨ 문자에서 자동으로 채우기",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
+                        )
+                    }
                 }
             }
         } else {

@@ -6173,3 +6173,11 @@ MMS 처리 방식 검토 회신 → `docs/ANDROID_REVIEW_mms_architecture.md` �
 - 다음 액션 (cowork/서버): 타 업종용 POST /pricing/starter (+ GET /{deviceId}) — 명세=docs/SERVER_HANDOFF_pricing_starter.md. 계약: priceWon=원 단위, 줄눈=하드코딩 18항목, 타 업종=Sonnet 1콜, Python3.9 Optional[]. 엔드포인트 나오면 앱이 StarterPricingRepository 붙임.
 - 다음 단계(앱, 후속): 2단계 접근 B(옛 문자에서 가격 추출 /extract-pricing) + 홈 넛지 배너.
 - commit: (아래)
+
+## 2026-07-02 · android (문자 기반 가격 추출 — 앱측 완성 + 서버 핸드오프)
+접근 B(옛 문자에서 가격 추출) 앱측 전부 구현. 서버 /extract-pricing 만 대기.
+- 실측(사장님 폰): 보낸 MMS 4,835 / 짧은문자 7,146. 최근1년 보낸MMS 1,323, 가격신호 있는 것 ~900(받은것 포함). 그중 상당수가 반복 템플릿(예약금/입금확인/앱광고). 진짜 항목별 견적+기준("구축은 현장서 0~10만원 조정" 등) 실재 확인.
+- 앱: SmsRepository.querySentPricingCandidates() — 딱 2쿼리(보낸MMS 최근N개월 id+date / mms/part 가격신호 LIKE)로 교집합+dedup, 오래된폰 성능 배려. PricingItemEntity.basisText(가격기준) + DB v37→v38(MIGRATION_37_38 additive). priceListText() 가 basisText 를 AI prompt 에 "- 항목: 35만원 (기준)" 로 주입. PricingItemRepository.upsertEstimated()(스타터와 title 겹치면 덮어쓰기, 사장님 확인값 보호) + pricingKey() 단위테스트. PricingExtractRepository(POST /extract-pricing). 2단계 확인화면(PricingExtract VM+Screen): 1) 항목 확인(이름수정/삭제) 2) 가격+기준 확인. 진입=가격표 관리 "불러오기" 버튼 + 빈표 "문자에서 자동으로 채우기". 동의=toneUploadConsented 재사용.
+- 검증: compileDebugKotlin OK, PricingItemFormatTest 통과, 폰(R3CW201RMCW) -r 설치 OK(debug, 데이터보존).
+- 다음 액션 (cowork/서버): POST /extract-pricing 구현 — 명세=docs/SERVER_HANDOFF_extract_pricing.md. 입력=사장님 보낸 견적문자 배열, 출력=items[{title,priceWon(원단위),unit,category,basisText,confidence}]. 예약금/입금/잔금/앱광고는 걸러라. Claude Sonnet 4.6, Python3.9 Optional[]. 엔드포인트 나오면 앱 즉시 동작(현재는 서버 404 시 "준비중" 안내).
+- commit: (아래)

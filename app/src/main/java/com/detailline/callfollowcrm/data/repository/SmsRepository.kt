@@ -691,6 +691,100 @@ class SmsRepository(
     }
 
     /**
+     * 2026-07-02 가격 온보딩(문자 기반 가격 추출) — 사장님이 고객에게 보낸 '견적/단가 문자'만 골라 서버 추출용으로 반환.
+     *
+     * 실측(사장님 폰): 보낸 MMS 4,835 / 짧은문자 7,146. 전체 훑으면 오래된 폰 느림 → 절대 안 그런다.
+     * 성능 최우선 — 딱 2개의 프로바이더 쿼리로 끝낸다(MMS 1건마다 part 재조회 = 수천 쿼리 = 느림, 안 함):
+     *   1) 최근 monthsBack 개월 '보낸 MMS(LMS/긴문자)' id+date (msg_box=2, date>cutoff, 최신순 scanLimit).
+     *   2) content://mms/part 에서 가격신호(만원/천단위콤마/견적/단가) 들어간 text/plain 파트를 SQL LIKE 로 한 번에.
+     *   → 두 결과를 mid 로 교집합 + 본문 정규화 dedup(반복 템플릿: 예약금·입금확인·앱광고 등 접기) + 최신 maxCandidates 개.
+     * 견적 문자는 한국어 67자 초과라 대부분 MMS(LMS)로 감 → 짧은문자(sms/sent)는 여기서 안 본다.
+     * 고객여부(수신자) 필터는 성능상 생략 — 결과물은 '가격 항목'뿐이라 고객 PII 없음(업로드 동의는 별도 게이트).
+     * ⚠️ 프로바이더 접근이라 호출부에서 Dispatchers.IO 로 감쌀 것.
+     */
+    data class PricingCandidate(val body: String, val dateMs: Long)
+
+    fun querySentPricingCandidates(
+        monthsBack: Int = 12,
+        scanLimit: Int = 1500,
+        maxCandidates: Int = 200
+    ): List<PricingCandidate> {
+        if (!hasReadPermission()) return emptyList()
+        val nowSec = System.currentTimeMillis() / 1000L
+        val cutoffSec = nowSec - monthsBack * 30L * 24 * 3600  // MMS date 는 '초' 단위
+
+        // 1) 최근 보낸 MMS: id → dateMs(ms) 맵
+        val sentDates = HashMap<Long, Long>()
+        runCatching {
+            context.contentResolver.query(
+                Uri.parse("content://mms"),
+                arrayOf(COL_ID, COL_DATE),
+                Bundle().apply {
+                    putString(ContentResolver.QUERY_ARG_SQL_SELECTION, "msg_box=? AND $COL_DATE>?")
+                    putStringArray(
+                        ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS,
+                        arrayOf(MMS_BOX_SENT.toString(), cutoffSec.toString())
+                    )
+                    putStringArray(ContentResolver.QUERY_ARG_SORT_COLUMNS, arrayOf(COL_DATE))
+                    putInt(
+                        ContentResolver.QUERY_ARG_SORT_DIRECTION,
+                        ContentResolver.QUERY_SORT_DIRECTION_DESCENDING
+                    )
+                    putInt(ContentResolver.QUERY_ARG_LIMIT, scanLimit)
+                },
+                null
+            )
+        }.getOrNull()?.use { c ->
+            val idIdx = c.getColumnIndex(COL_ID)
+            val dIdx = c.getColumnIndex(COL_DATE)
+            if (idIdx >= 0 && dIdx >= 0) {
+                while (c.moveToNext()) sentDates[c.getLong(idIdx)] = c.getLong(dIdx) * 1000L
+            }
+        }
+        if (sentDates.isEmpty()) return emptyList()
+
+        // 2) 가격신호 있는 text/plain 파트 한 번에 → 최근 보낸것만 남기고 최신순 정렬 후 dedup
+        val collected = ArrayList<Pair<Long, String>>()
+        runCatching {
+            context.contentResolver.query(
+                Uri.parse("content://mms/part"),
+                arrayOf("mid", "text"),
+                "ct=? AND (text LIKE ? OR text LIKE ? OR text LIKE ? OR text LIKE ?)",
+                arrayOf("text/plain", "%만원%", "%,000%", "%견적%", "%단가%"),
+                null
+            )
+        }.getOrNull()?.use { c ->
+            val midIdx = c.getColumnIndex("mid")
+            val txtIdx = c.getColumnIndex("text")
+            if (midIdx >= 0 && txtIdx >= 0) {
+                while (c.moveToNext()) {
+                    val dateMs = sentDates[c.getLong(midIdx)] ?: continue  // 최근 보낸것만
+                    val body = c.getString(txtIdx).orEmpty().trim()
+                    if (body.length < 10 || !looksLikePriceQuote(body)) continue
+                    collected += dateMs to body
+                }
+            }
+        }
+        collected.sortByDescending { it.first }
+        val seen = HashSet<String>()
+        val out = ArrayList<PricingCandidate>()
+        for ((dateMs, body) in collected) {
+            val key = body.replace(Regex("\\s+"), " ").take(200)  // 공백 정규화 후 dedup
+            if (!seen.add(key)) continue
+            out += PricingCandidate(body, dateMs)
+            if (out.size >= maxCandidates) break
+        }
+        return out
+    }
+
+    /** 실제 견적/단가 문자만 통과 — 앱 자체 홍보문자(si0in.kr)는 항목 오인 유발이라 제외. */
+    private fun looksLikePriceQuote(body: String): Boolean {
+        if (body.contains("si0in.kr") || body.contains("시공막내가 등장")) return false
+        if (body.contains("견적") || body.contains("단가")) return true
+        return MONEY_REGEX.containsMatchIn(body)
+    }
+
+    /**
      * 디버그 진단 — 시스템 DB 가 진짜 어떻게 보이는지 한 번에 측정.
      * 갤S24/OneUI 6.1 에서 query 가 의심될 때 화면에 표시.
      *
@@ -864,6 +958,9 @@ class SmsRepository(
         private const val COL_TYPE = "type"
         private const val TYPE_INBOX = 1
         private const val TYPE_SENT = 2
+
+        // 견적 문자 판별 — "35만원", "100,000원" 같은 실제 금액 패턴.
+        private val MONEY_REGEX = Regex("""(\d+\s*만\s*원?)|(\d{1,3}(,\d{3})+\s*원?)""")
 
         // MMS msg_box 값
         private const val MMS_BOX_INBOX = 1

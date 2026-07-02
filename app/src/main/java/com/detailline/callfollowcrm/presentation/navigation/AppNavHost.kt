@@ -27,6 +27,8 @@ import com.detailline.callfollowcrm.presentation.screen.home.HomeViewModel
 import com.detailline.callfollowcrm.presentation.screen.onboarding.OnboardingPermissionScreen
 import com.detailline.callfollowcrm.presentation.screen.pricing.PricingItemsScreen
 import com.detailline.callfollowcrm.presentation.screen.pricing.PricingItemsViewModel
+import com.detailline.callfollowcrm.presentation.screen.pricing.PricingExtractScreen
+import com.detailline.callfollowcrm.presentation.screen.pricing.PricingExtractViewModel
 import com.detailline.callfollowcrm.presentation.screen.schedule.ScheduleScreen
 import com.detailline.callfollowcrm.presentation.screen.schedule.ScheduleViewModel
 import com.detailline.callfollowcrm.presentation.screen.schedule.ScheduleAddScreen
@@ -595,7 +597,18 @@ fun AppNavHost(
             val vm: PricingItemsViewModel = viewModel(factory = viewModelFactory { PricingItemsViewModel(container) })
             PricingItemsScreen(
                 viewModel = vm,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onOpenExtract = { navController.navigate(Destinations.PRICING_EXTRACT) }
+            )
+        }
+
+        // 문자에서 가격 불러오기 — 2단계 확인(문자 기반 가격 추출). (2026-07-02)
+        composable(Destinations.PRICING_EXTRACT) {
+            val vm: PricingExtractViewModel = viewModel(factory = viewModelFactory { PricingExtractViewModel(container) })
+            PricingExtractScreen(
+                viewModel = vm,
+                onBack = { navController.popBackStack() },
+                onDone = { navController.popBackStack() }
             )
         }
     }

@@ -39,6 +39,8 @@ object Destinations {
     /** 마감 브리핑 — 오늘 신규/입금/내일 시공 정리 화면. 마감 브리핑 알림 탭 진입. */
     const val CLOSING_BRIEF = "closing_brief"
     const val PRICING_ITEMS = "pricing_items"
+    /** 문자에서 가격 불러오기 — 2단계 확인 화면(문자 기반 가격 추출). 가격표 관리에서 진입. (2026-07-02) */
+    const val PRICING_EXTRACT = "pricing_extract"
     const val SCHEDULE = "schedule"
     /** 일정 탭 — day(ms) 주면 그 날 선택해서 진입(홈 "다음 시공" 카드). 인자 없으면 오늘. */
     const val SCHEDULE_WITH_ARG = "schedule?day={day}"

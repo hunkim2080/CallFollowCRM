@@ -23,7 +23,9 @@ class PricingItemRepository(private val dao: PricingItemDao) {
             val won = formatWon(it.price)
             val unit = if (it.unit == PricingItemEntity.UNIT_PYEONG) " (평당)" else ""
             val cat = when (it.category) { "NEW" -> "[신축] "; "OLD" -> "[구축] "; else -> "" }
-            "- $cat${it.title}: $won$unit"
+            // 가격 기준(basisText)이 있으면 뒤에 괄호로 붙여 "왜 그 가격인지"까지 AI 가 참고. (2026-07-02 문자 기반 추출)
+            val basis = it.basisText?.trim().takeUnless { s -> s.isNullOrBlank() }?.let { s -> " ($s)" } ?: ""
+            "- $cat${it.title}: $won$unit$basis"
         }
     }
 
@@ -36,7 +38,8 @@ class PricingItemRepository(private val dao: PricingItemDao) {
         category: String,
         displayOrder: Int = 0,
         unit: String = PricingItemEntity.UNIT_FLAT,
-        isEstimated: Boolean = false
+        isEstimated: Boolean = false,
+        basisText: String? = null
     ): Long {
         val now = System.currentTimeMillis()
         return dao.insert(
@@ -49,7 +52,8 @@ class PricingItemRepository(private val dao: PricingItemDao) {
                 isActive = true,
                 createdAt = now,
                 updatedAt = now,
-                isEstimated = isEstimated
+                isEstimated = isEstimated,
+                basisText = basisText?.trim().takeUnless { it.isNullOrBlank() }
             )
         )
     }
@@ -57,6 +61,50 @@ class PricingItemRepository(private val dao: PricingItemDao) {
     /** 사장님이 값을 고치면 '추정' 해제(= 내가 확인한 값). update 가 항상 isEstimated=false 로 커밋. (2026-07-02 사장님) */
     suspend fun update(entity: PricingItemEntity) {
         dao.update(entity.copy(isEstimated = false, updatedAt = System.currentTimeMillis()))
+    }
+
+    /** 문자 추출 결과 한 건 (upsert 입력). ai.PricingExtractRepository.ExtractedItem 을 이 계층 타입으로 변환해 넘김. */
+    data class ExtractedPricing(
+        val title: String,
+        val priceWon: Long,
+        val unit: String = PricingItemEntity.UNIT_FLAT,
+        val category: String = "COMMON",
+        val basisText: String? = null
+    )
+
+    /**
+     * 문자 기반 추출 결과를 가격표에 반영(2026-07-02). 같은 항목(제목+카테고리)이 있으면 덮어쓰고 없으면 추가.
+     *   - 사장님이 이미 확인한(!isEstimated) 항목은 절대 덮지 않음 — 손댄 진짜 값 보호.
+     *   - 새로 넣거나 추정값 위에 덮는 건 isEstimated=true → 화면에 "추정" 배지 유지(사장님이 고치면 해제).
+     * 스타터 시드(seedEstimatedIfEmpty)와 title 이 겹치면 여기서 실가격/기준으로 갱신된다.
+     */
+    suspend fun upsertEstimated(items: List<ExtractedPricing>) {
+        if (items.isEmpty()) return
+        val existing = runCatching { dao.observeAll().first() }.getOrDefault(emptyList())
+        val byKey = existing.associateBy { pricingKey(it.title, it.category) }
+        var order = (existing.maxOfOrNull { it.displayOrder } ?: -1) + 1
+        val now = System.currentTimeMillis()
+        for (it in items) {
+            if (it.title.isBlank() || it.priceWon <= 0) continue
+            val match = byKey[pricingKey(it.title, it.category)]
+            if (match != null) {
+                if (!match.isEstimated) continue  // 사장님이 확인한 값 보호
+                dao.update(
+                    match.copy(
+                        price = it.priceWon,
+                        unit = it.unit,
+                        basisText = it.basisText?.trim().takeUnless { s -> s.isNullOrBlank() },
+                        isEstimated = true,
+                        updatedAt = now
+                    )
+                )
+            } else {
+                insert(
+                    title = it.title, price = it.priceWon, category = it.category,
+                    displayOrder = order++, unit = it.unit, isEstimated = true, basisText = it.basisText
+                )
+            }
+        }
     }
 
     suspend fun setActive(id: Long, active: Boolean) {
@@ -77,6 +125,13 @@ class PricingItemRepository(private val dao: PricingItemDao) {
         fun formatWon(price: Long): String =
             if (price >= 10000 && price % 10000L == 0L) "${price / 10000}만원"
             else "${"%,d".format(price)}원"
+
+        /**
+         * 항목 dedup 키 — 공백 제거 + 소문자 제목 + 카테고리. 문자 추출 upsert 매칭용. (2026-07-02)
+         *   "샤워부스 벽 3면"/COMMON 과 "샤워부스벽3면"/COMMON 을 같은 항목으로 본다.
+         */
+        fun pricingKey(title: String, category: String): String =
+            title.replace(Regex("\\s+"), "").lowercase() + "|" + category.uppercase()
     }
 }
 

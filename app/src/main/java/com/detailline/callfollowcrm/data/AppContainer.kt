@@ -143,6 +143,9 @@ class AppContainer(context: Context) {
     // 2026-05-29 킬러콘텐츠 4단계 (Tone RAG) — 사장님 sent SMS 풀 batch upload (Mac mini).
     val ownerToneUploadRepository = com.detailline.callfollowcrm.ai.OwnerToneUploadRepository()
 
+    // 2026-07-02 문자 기반 가격 추출 — 보낸 견적 문자 → 서버 → 구조화 항목/가격/기준.
+    val pricingExtractRepository = com.detailline.callfollowcrm.ai.PricingExtractRepository()
+
     // 2026-05-29 킬러콘텐츠 5단계 — 고객 페르소나 (Haiku 자동 생성, cowork prepare-reply 가 책임).
     val customerPersonaRepository = com.detailline.callfollowcrm.ai.CustomerPersonaRepository()
 

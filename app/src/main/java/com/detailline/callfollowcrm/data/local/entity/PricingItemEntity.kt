@@ -34,7 +34,13 @@ data class PricingItemEntity(
      * true = AI/업종 스타터가 대략값으로 자동 채운 '추정' 항목(가격표 온보딩, DB v37). 화면에 "추정" 배지 표시.
      *   사장님이 가격을 한 번이라도 고치면 false 로 = '내가 확인한 진짜 값'. (2026-07-02 사장님)
      */
-    val isEstimated: Boolean = false
+    val isEstimated: Boolean = false,
+    /**
+     * 가격 '기준' 메모 (DB v38, 2026-07-02). 예: "오염도에 따라 다름", "구축은 현장서 0~10만원 조정", "평수에 따라 다름".
+     *   문자 기반 가격 추출(서버 /extract-pricing)이 사장님 견적 문자에서 뽑아온 판정 기준.
+     *   null/빈값이면 기준 없음. AI 답변 prompt(priceListText)에 항목 뒤 괄호로 주입되어 "왜 그 가격인지"까지 학습.
+     */
+    val basisText: String? = null
 ) {
     companion object {
         const val UNIT_FLAT = "FLAT"

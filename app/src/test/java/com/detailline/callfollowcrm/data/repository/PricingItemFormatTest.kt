@@ -1,6 +1,7 @@
 package com.detailline.callfollowcrm.data.repository
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
 /**
@@ -33,5 +34,25 @@ class PricingItemFormatTest {
         // 이중곱된 값(버그)은 절대 "30만원"이 아님을 확인.
         val doubled = 30_0000_0000L   // 30 * 10000 * 10000 (버그 시나리오)
         assertEquals("300000만원", PricingItemRepository.formatWon(doubled))
+    }
+
+    // ── 문자 추출 upsert dedup 키 (2026-07-02 문자 기반 가격 추출) ──
+
+    @Test
+    fun `pricingKey — 공백 차이는 같은 항목으로 본다`() {
+        // 스타터가 "샤워부스 벽 3면", 추출이 "샤워부스벽3면" 으로 와도 덮어써야(중복 항목 방지).
+        assertEquals(
+            PricingItemRepository.pricingKey("샤워부스 벽 3면", "COMMON"),
+            PricingItemRepository.pricingKey("샤워부스벽3면", "common")
+        )
+    }
+
+    @Test
+    fun `pricingKey — 카테고리 다르면 다른 항목(신축·구축 분리)`() {
+        // 같은 이름이라도 신축/구축은 가격이 달라 별도 항목.
+        assertNotEquals(
+            PricingItemRepository.pricingKey("욕조 있는 화장실 바닥 1곳", "NEW"),
+            PricingItemRepository.pricingKey("욕조 있는 화장실 바닥 1곳", "OLD")
+        )
     }
 }

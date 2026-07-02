@@ -63,7 +63,7 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         com.detailline.callfollowcrm.data.local.entity.PrincipleEntity::class,
         com.detailline.callfollowcrm.data.local.entity.TimelineEventEntity::class
     ],
-    version = 37,
+    version = 38,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -713,6 +713,13 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v38 — pricing_items 에 basisText 추가. 문자 기반 가격추출이 뽑은 '가격 기준' 메모(nullable). additive. (2026-07-02 사장님)
+        private val MIGRATION_37_38 = object : Migration(37, 38) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE pricing_items ADD COLUMN basisText TEXT")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
@@ -728,7 +735,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27,
                     MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30,
                     MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34,
-                    MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37
+                    MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38
                 )
                 .fallbackToDestructiveMigration()   // migration 실패 시 안전망 (개발 단계)
                 .build()
