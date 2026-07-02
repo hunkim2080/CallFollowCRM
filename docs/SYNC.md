@@ -6230,3 +6230,14 @@ deploy_phase1.sh — repo 에 plist 사본 없으면 (gitignore 라 repo 이동 
 - 검증: py_compile PASS + TestClient ALL PASS (인증 게이트/등록/구간별 사용액/2차 충전 후 구간 고정/400).
 - 앱 변경 없음. 변경: server/main.py 만. 배포 필요 (deploy_phase1.sh).
 - commit: (아래)
+
+## 2026-07-02 · cowork (사장님 요청: 대시보드 시각화 개선)
+추가80 — /admin/usage-chart 시각화 강화 (사장님: "눈에 안 들어온다").
+- 오늘 카드: 어제 대비 증감 배지 (▲빨강/▼초록, daily_trend 마지막 2일 비교) + 상단 색 스트립.
+- 모델별 카드: 이번 달 총비용 대비 비중 바 + % (모델별 색: 소넷 파랑/하이쿠 초록/제미나이 주황/카카오 보라).
+- 기능별 표: 기능명 아래 비용 비중 바 (최대 기능=100%) + 비용 셀에 월 비중 %.
+- 기능×모델 매트릭스: 호출수 비례 히트맵 색칠 (진할수록 많음, 0건은 ·), 기존 heatmapCellColor 재사용.
+- 7일 추이 차트: 오늘 막대 빨강 강조 + 7일 평균 점선 + 라벨은 최대일/오늘만 (어지러움 제거) + hover title (날짜·비용·건수).
+- 검증: py_compile PASS, TestClient /admin/usage-chart 200 + 신규 마크업 존재 확인, 인라인 JS node --check PASS.
+- 변경: server/main.py (_ADMIN_DASHBOARD_HTML) 만. 배포 필요.
+- commit: (아래)

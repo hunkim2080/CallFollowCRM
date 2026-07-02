@@ -2593,6 +2593,21 @@ _ADMIN_DASHBOARD_HTML = r"""<!DOCTYPE html>
   .bar.warn > span { background: var(--warn); }
   .bar.hot  > span { background: var(--hot); }
 
+  /* ─── 추가80 시각화 강화 ─── */
+  .hero.today { border-top: 3px solid var(--accent); }
+  .hero.all   { border-top: 3px solid #5e5ce6; }
+  .delta { font-size: 11px; font-weight: 700; margin-left: 6px; }
+  .delta.up   { color: var(--hot); }   /* 비용 증가 = 빨강 */
+  .delta.down { color: var(--ok); }
+  .share-bar {
+    grid-column: 1 / -1; height: 6px; border-radius: 3px;
+    background: var(--line); overflow: hidden; margin-top: 2px;
+  }
+  .share-bar > span { display:block; height:100%; border-radius:3px; transition: width .3s; }
+  .share-pct { font-size: 10px; color: var(--muted); grid-column: 1 / -1; margin-top: 2px; }
+  .ep-bar { height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; margin-top: 5px; max-width: 220px; }
+  .ep-bar > span { display:block; height:100%; background: var(--accent); border-radius:3px; }
+
   .kv { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; }
   .kv + .kv { border-top: 1px solid var(--line); }
   .kv .k { color: var(--muted); }
@@ -2633,7 +2648,7 @@ _ADMIN_DASHBOARD_HTML = r"""<!DOCTYPE html>
 
   <!-- 오늘 / 이번 달 / 전체 누적 비용 -->
   <div class="row">
-    <div class="hero"><div class="label">오늘</div>
+    <div class="hero today"><div class="label">오늘</div>
       <div class="price" id="todayCost">—</div><div class="sub" id="todayCalls">— 건</div></div>
     <div class="hero"><div class="label">이번 달</div>
       <div class="price" id="monthCost">—</div><div class="sub" id="monthCalls">— 건</div></div>
@@ -2888,11 +2903,33 @@ async function loadAll() {
 
     // ─── 오늘/이번달/전체 hero card ───
     document.getElementById('todayCost').textContent  = fmtKRW(today.total.cost_krw);
-    document.getElementById('todayCalls').textContent = fmt(today.total.calls) + ' 건';
     document.getElementById('monthCost').textContent  = fmtKRW(month.total.cost_krw);
     document.getElementById('monthCalls').textContent = fmt(month.total.calls) + ' 건';
     document.getElementById('allCost').textContent    = fmtKRW(allp.total.cost_krw);
     document.getElementById('allCalls').textContent   = fmt(allp.total.calls) + ' 건';
+
+    // 오늘 카드 — 어제 대비 증감 (추가80): month.daily_trend 의 마지막 두 날 비교
+    (function () {
+      const el = document.getElementById('todayCalls');
+      let deltaHtml = '';
+      const tr = month.daily_trend || [];
+      if (tr.length >= 2) {
+        const yst = tr[tr.length - 2].cost_krw;
+        const cur = today.total.cost_krw;
+        if (yst > 0) {
+          const diff = cur - yst;
+          const pct = Math.round(Math.abs(diff) / yst * 100);
+          if (Math.abs(diff) >= 1) {
+            deltaHtml = diff > 0
+              ? '<span class="delta up">▲ 어제보다 ' + pct + '%</span>'
+              : '<span class="delta down">▼ 어제보다 ' + pct + '%</span>';
+          } else {
+            deltaHtml = '<span class="delta" style="color:var(--muted)">어제와 비슷</span>';
+          }
+        }
+      }
+      el.innerHTML = fmt(today.total.calls) + ' 건' + deltaHtml;
+    })();
 
     // ─── 모델별 사용량 카드 ───
     // "사용 중" 판단 — 이번 달 호출수 > 0 인 모델은 모두 사용 중 (multi-model 지원)
@@ -2916,6 +2953,21 @@ async function loadAll() {
       return (modelStats[b]?.calls || 0) - (modelStats[a]?.calls || 0);
     });
 
+    // 추가80 — 모델별 비용 비중 바 (이번 달 총비용 대비 %)
+    const monthTotalCost = Math.max(1, month.total.cost_krw || 0);
+    const MODEL_BAR_COLOR = {
+      'claude-sonnet-4-6': 'var(--accent)',
+      'claude-haiku-4-5': 'var(--ok)',
+      'gemini-2.5-flash': 'var(--warn)',
+      'kakao-local': '#5e5ce6',
+    };
+    function modelBarColor(id) {
+      for (const k of Object.keys(MODEL_BAR_COLOR)) {
+        if (id.startsWith(k)) return MODEL_BAR_COLOR[k];
+      }
+      return 'var(--accent)';
+    }
+
     const cards = sortedIds.map(id => {
       const meta = resolveModelMeta(id);
       const s = modelStats[id];
@@ -2927,6 +2979,11 @@ async function loadAll() {
       const badge = empty
         ? ' (현재 사용 안 함)'
         : ' · <span style="color:var(--accent)">사용 중</span>';
+      const sharePct = empty ? 0 : Math.min(100, cost / monthTotalCost * 100);
+      const shareHtml = empty ? '' : `
+          <div class="share-bar"><span style="width:${sharePct.toFixed(1)}%;background:${modelBarColor(id)};"></span></div>
+          <div class="share-pct">이번 달 비용의 ${sharePct.toFixed(1)}%</div>
+      `;
       return `
         <div class="model-card ${empty ? 'empty' : ''}">
           <div class="model-name">
@@ -2936,6 +2993,7 @@ async function loadAll() {
           <div class="stat"><span class="v">${fmt(calls)}</span><span class="k">호출</span></div>
           <div class="stat"><span class="v">${fmtKRW(cost)}</span><span class="k">총 비용</span></div>
           <div class="stat"><span class="v">${empty ? '—' : fmtKRW2(avg)}</span><span class="k">건당 평균</span></div>
+          ${shareHtml}
         </div>
       `;
     }).join('');
@@ -2947,13 +3005,18 @@ async function loadAll() {
     if (eps.length === 0) {
       body.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:12px 0">이번 달 호출 없음</td></tr>';
     } else {
+      // 추가80 — 기능별 비용 비중 바 (최대 비용 기능 = 100%)
+      const epMaxCost = Math.max(1, ...eps.map(([, s]) => s.cost_krw));
       body.innerHTML = eps.map(([name, s]) => {
         const nameKo = EP_NAMES_KO[name] || name;
+        const w = Math.min(100, s.cost_krw / epMaxCost * 100);
+        const pctOfMonth = monthTotalCost > 1 ? (s.cost_krw / monthTotalCost * 100) : 0;
         return `
           <tr>
-            <td class="ep">${nameKo}<div class="ep-en">${name}</div></td>
+            <td class="ep">${nameKo}<div class="ep-en">${name}</div>
+              <div class="ep-bar"><span style="width:${w.toFixed(1)}%"></span></div></td>
             <td class="num">${fmt(s.calls)}</td>
-            <td class="num">${fmtKRW(s.cost_krw)}</td>
+            <td class="num">${fmtKRW(s.cost_krw)}<div style="font-size:10px;color:var(--muted)">${pctOfMonth.toFixed(0)}%</div></td>
           </tr>
         `;
       }).join('');
@@ -2991,7 +3054,9 @@ async function loadAll() {
           }).join('')}
         </tr>
       `;
-      // body rows
+      // body rows — 추가80: 히트맵 색칠 (호출수 비례, 진할수록 많음)
+      const matrixMax = Math.max(1, ...matrixEps.flatMap(ep =>
+        matrixModels.map(m => matrixData[ep][m]?.calls || 0)));
       matrixBody.innerHTML = matrixEps.map(ep => {
         const epKo = EP_NAMES_KO[ep] || ep;
         return `
@@ -3000,8 +3065,10 @@ async function loadAll() {
             ${matrixModels.map(m => {
               const cell = matrixData[ep][m];
               const calls = cell ? cell.calls : 0;
-              const styleEmpty = calls === 0 ? 'color:var(--line);' : '';
-              return `<td class="num" style="padding:6px 6px;${styleEmpty}">${fmt(calls)}</td>`;
+              const bg = heatmapCellColor(calls, matrixMax);
+              const ratio = calls / matrixMax;
+              const fg = calls === 0 ? 'var(--line)' : (ratio > 0.55 ? '#fff' : 'var(--text)');
+              return `<td class="num" style="padding:6px 6px;background:${bg};color:${fg};border-radius:4px;">${calls === 0 ? '·' : fmt(calls)}</td>`;
             }).join('')}
           </tr>
         `;
@@ -3030,21 +3097,39 @@ async function loadAll() {
       chart.innerHTML = '<text x="350" y="50" text-anchor="middle" font-size="12" fill="#86868b">데이터 없음</text>';
       labels.innerHTML = '';
     } else {
+      // 추가80 — 오늘(마지막) 막대 강조 + 7일 평균 점선 + 라벨은 최대/오늘만 (덜 어지럽게)
       const maxCost = Math.max(...trend.map(d => d.cost_krw), 1);
+      const avgCost = trend.reduce((a, d) => a + d.cost_krw, 0) / trend.length;
+      const maxIdx = trend.reduce((mi, d, i) => d.cost_krw > trend[mi].cost_krw ? i : mi, 0);
       const barWidth = 700 / Math.max(7, trend.length);
-      const barGap = barWidth * 0.2;
-      chart.innerHTML = trend.map((d, i) => {
-        const h = (d.cost_krw / maxCost) * 80;
+      const barGap = barWidth * 0.25;
+      const avgY = 90 - (avgCost / maxCost) * 80;
+      const bars = trend.map((d, i) => {
+        const isToday = i === trend.length - 1;
+        const h = Math.max(2, (d.cost_krw / maxCost) * 80);
         const x = i * barWidth + barGap / 2;
         const y = 90 - h;
+        const fill = isToday ? 'var(--hot)' : 'var(--accent)';
+        const opacity = isToday ? 1 : 0.75;
+        const showLabel = i === maxIdx || isToday;
+        const label = showLabel
+          ? `<text x="${(x + (barWidth - barGap) / 2).toFixed(1)}" y="${(y - 4).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="${isToday ? '#ff3b30' : '#1d1d1f'}">₩${fmt(Math.round(d.cost_krw))}</text>`
+          : '';
         return `
-          <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${(barWidth - barGap).toFixed(1)}" height="${h.toFixed(1)}" fill="var(--accent)" rx="2"/>
-          <text x="${(x + (barWidth - barGap) / 2).toFixed(1)}" y="${(y - 3).toFixed(1)}" text-anchor="middle" font-size="9" fill="#1d1d1f">₩${Math.round(d.cost_krw)}</text>
+          <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${(barWidth - barGap).toFixed(1)}" height="${h.toFixed(1)}" fill="${fill}" opacity="${opacity}" rx="3">
+            <title>${d.date} · ₩${fmt(Math.round(d.cost_krw))} · ${fmt(d.calls)}건</title>
+          </rect>
+          ${label}
         `;
       }).join('');
-      labels.innerHTML = trend.map(d => {
+      chart.innerHTML =
+        `<line x1="0" y1="${avgY.toFixed(1)}" x2="700" y2="${avgY.toFixed(1)}" stroke="#86868b" stroke-width="1" stroke-dasharray="4 4" opacity="0.6"/>` +
+        `<text x="698" y="${(avgY - 4).toFixed(1)}" text-anchor="end" font-size="9" fill="#86868b">7일 평균 ₩${fmt(Math.round(avgCost))}</text>` +
+        bars;
+      labels.innerHTML = trend.map((d, i) => {
         const dd = d.date.slice(5).replace('-', '/');  // "05/28"
-        return `<span style="flex:1;text-align:center;">${dd}</span>`;
+        const isToday = i === trend.length - 1;
+        return `<span style="flex:1;text-align:center;${isToday ? 'color:var(--hot);font-weight:700;' : ''}">${isToday ? '오늘' : dd}</span>`;
       }).join('');
     }
 
