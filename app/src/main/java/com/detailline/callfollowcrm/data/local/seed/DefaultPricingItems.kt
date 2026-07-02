@@ -17,9 +17,13 @@ object DefaultPricingItems {
      */
     suspend fun seedEstimatedIfEmpty(repo: PricingItemRepository, trade: String?) {
         if (repo.count() > 0) return
-        if (trade?.contains("줄눈") != true) return   // 현재 로컬 템플릿은 줄눈만
-        ZULNUN_ITEMS.forEachIndexed { idx, (cat, title, price) ->
-            repo.insert(title = title, price = price, category = cat.name, displayOrder = idx, isEstimated = true)
+        // 온보딩 15개 업종 전부 DefaultTradeTemplates 로 커버(줄눈 포함). 여기 없는 커스텀 업종은 빈 리스트 → 서버 대기.
+        val items = DefaultTradeTemplates.forTrade(trade)
+        items.forEachIndexed { idx, it ->
+            repo.insert(
+                title = it.title, price = it.priceWon, category = it.category.name,
+                displayOrder = idx, unit = it.unit, isEstimated = true
+            )
         }
     }
 

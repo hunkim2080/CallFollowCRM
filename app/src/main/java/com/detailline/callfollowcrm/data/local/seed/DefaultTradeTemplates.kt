@@ -1,0 +1,222 @@
+package com.detailline.callfollowcrm.data.local.seed
+
+import com.detailline.callfollowcrm.data.repository.PricingCategory
+
+/**
+ * 업종별 가격표 스타터 (가격 온보딩, 2026-07-02 사장님). 온보딩에서 업종 고르면 이 항목들이 '추정값'으로
+ *   자동 시드된다(isEstimated=true → 화면 "추정" 배지, 사장님이 값 고치면 해제).
+ *   값은 2025~2026 수도권 1인 시공 '보수적 중앙값' 추정 — 완벽 아님, 사장님 수정 전제. (병렬 생성 후 조립)
+ *   여기 없는 커스텀 업종은 서버 /pricing/starter(cowork, docs/SERVER_HANDOFF_pricing_starter.md) 대기.
+ */
+object DefaultTradeTemplates {
+
+    data class StarterItem(
+        val category: PricingCategory,
+        val title: String,
+        val priceWon: Long,
+        val unit: String   // "FLAT" | "PYEONG"
+    )
+
+    /** 업종명(온보딩 TRADES 값과 동일) → 스타터 항목. */
+    val byTrade: Map<String, List<StarterItem>> = mapOf(
+        "줄눈" to listOf(
+            StarterItem(PricingCategory.NEW, "욕조 있는 화장실 바닥 1곳", 400000L, "FLAT"),
+            StarterItem(PricingCategory.NEW, "샤워부스 있는 화장실 바닥 1곳", 450000L, "FLAT"),
+            StarterItem(PricingCategory.NEW, "샤워부스 벽 3면", 350000L, "FLAT"),
+            StarterItem(PricingCategory.NEW, "욕조벽 3면", 350000L, "FLAT"),
+            StarterItem(PricingCategory.NEW, "화장실 전체 벽 (추가 시)", 700000L, "FLAT"),
+            StarterItem(PricingCategory.NEW, "세탁실 (폴리우레아)", 150000L, "FLAT"),
+            StarterItem(PricingCategory.NEW, "베란다 (폴리우레아)", 150000L, "FLAT"),
+            StarterItem(PricingCategory.NEW, "현관", 50000L, "FLAT"),
+            StarterItem(PricingCategory.NEW, "거실 타일", 1500000L, "FLAT"),
+            StarterItem(PricingCategory.OLD, "욕조 있는 화장실 바닥 1곳", 500000L, "FLAT"),
+            StarterItem(PricingCategory.OLD, "샤워부스 있는 화장실 바닥 1곳", 550000L, "FLAT"),
+            StarterItem(PricingCategory.OLD, "샤워부스 벽 3면", 350000L, "FLAT"),
+            StarterItem(PricingCategory.OLD, "욕조벽 3면", 350000L, "FLAT"),
+            StarterItem(PricingCategory.OLD, "화장실 전체 벽 (추가 시)", 700000L, "FLAT"),
+            StarterItem(PricingCategory.OLD, "세탁실 (폴리우레아)", 150000L, "FLAT"),
+            StarterItem(PricingCategory.OLD, "베란다 (폴리우레아)", 150000L, "FLAT"),
+            StarterItem(PricingCategory.OLD, "현관", 100000L, "FLAT"),
+            StarterItem(PricingCategory.OLD, "거실 타일", 1500000L, "FLAT"),
+        ),
+        "실리콘·코킹" to listOf(
+            StarterItem(PricingCategory.COMMON, "화장실 전체 실리콘 재시공 (기존 제거 후 새로)", 150000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "주방 싱크대 상판·벽 실리콘 재시공", 80000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "베란다·발코니 창틀 코킹 (한 면)", 100000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "샷시(창호) 외부 방수 코킹 - 창 1개당", 50000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "욕실 욕조 둘레 실리콘 재시공", 60000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "타일 줄눈 사이 방수 실리콘 (부분 보수)", 50000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "현관·중문 문틀 코킹", 50000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "집 전체 실리콘 재시공 (24~34평 기준)", 400000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "곰팡이 실리콘 제거 후 재시공 (부위당 추가)", 30000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "출장·기본 시공비 (최소 시공)", 100000L, "FLAT"),
+        ),
+        "도배" to listOf(
+            StarterItem(PricingCategory.COMMON, "실크벽지 도배 (벽+천장, 인건비+자재 포함)", 90000L, "PYEONG"),
+            StarterItem(PricingCategory.COMMON, "합지벽지 도배 (벽+천장, 인건비+자재 포함)", 60000L, "PYEONG"),
+            StarterItem(PricingCategory.COMMON, "천장만 도배 (실크)", 40000L, "PYEONG"),
+            StarterItem(PricingCategory.COMMON, "부분 도배 (방 1칸 기준)", 200000L, "FLAT"),
+            StarterItem(PricingCategory.OLD, "기존 벽지 철거 (구축)", 10000L, "PYEONG"),
+            StarterItem(PricingCategory.COMMON, "초배지 (밑작업) 추가", 15000L, "PYEONG"),
+            StarterItem(PricingCategory.COMMON, "곰팡이 방지 처리 (부분)", 50000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "문/문틀 필름·도배 마감 (1개소)", 50000L, "FLAT"),
+        ),
+        "장판·마루" to listOf(
+            StarterItem(PricingCategory.COMMON, "장판(모노륨) 시공 - 1.8T 표준", 30000L, "PYEONG"),
+            StarterItem(PricingCategory.COMMON, "장판(모노륨) 시공 - 2.2T 고급", 40000L, "PYEONG"),
+            StarterItem(PricingCategory.COMMON, "강화마루 시공", 55000L, "PYEONG"),
+            StarterItem(PricingCategory.COMMON, "강마루(온돌마루) 시공", 75000L, "PYEONG"),
+            StarterItem(PricingCategory.COMMON, "SPC(데코타일) 시공", 60000L, "PYEONG"),
+            StarterItem(PricingCategory.OLD, "구축 철거(기존 바닥재 제거)", 10000L, "PYEONG"),
+            StarterItem(PricingCategory.COMMON, "바닥 평탄화(퍼티/셀프레벨링)", 15000L, "PYEONG"),
+            StarterItem(PricingCategory.COMMON, "걸레받이(굽도리) 교체", 8000L, "PYEONG"),
+            StarterItem(PricingCategory.COMMON, "문턱(문지방) 몰딩 마감", 20000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "출장비(소형 현장·최소 시공)", 50000L, "FLAT"),
+        ),
+        "타일" to listOf(
+            StarterItem(PricingCategory.COMMON, "화장실 벽·바닥 타일 시공 (300×600, 자재 제외)", 55000L, "PYEONG"),
+            StarterItem(PricingCategory.COMMON, "거실·주방 바닥 타일 시공 (600×600, 자재 제외)", 40000L, "PYEONG"),
+            StarterItem(PricingCategory.COMMON, "대형 타일 시공 (600×1200 이상, 자재 제외)", 60000L, "PYEONG"),
+            StarterItem(PricingCategory.OLD, "덧방 시공 (기존 타일 위 시공)", 45000L, "PYEONG"),
+            StarterItem(PricingCategory.OLD, "기존 타일 철거 + 폐기물 처리", 25000L, "PYEONG"),
+            StarterItem(PricingCategory.COMMON, "현관 바닥 타일 시공", 150000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "베란다·발코니 바닥 타일 시공", 130000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "주방 벽 타일 시공 (아트월·후드 주변)", 180000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "타일 부분 보수 (깨짐·들뜸 1~3장)", 100000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "줄눈(메지) 시공·보수", 120000L, "FLAT"),
+        ),
+        "욕실 리모델링" to listOf(
+            StarterItem(PricingCategory.COMMON, "욕실 전체 리모델링 (기본형·욕실 1개)", 3000000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "욕실 전체 리모델링 (고급형·욕실 1개)", 4500000L, "FLAT"),
+            StarterItem(PricingCategory.OLD, "기존 욕실 철거 및 폐기물 처리 (욕실 1개)", 500000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "욕실 방수 시공 (액체방수·욕실 1개)", 400000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "욕실 타일 시공 (덧방·욕실 1개)", 800000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "양변기 교체 (1대)", 250000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "세면대 교체 (1대)", 250000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "욕실 수전(샤워/세면) 교체 (1개소)", 120000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "욕실 천장(SMC 돔) 교체 (욕실 1개)", 250000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "욕실 도어(문) 교체 (1개)", 300000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "젠다이·선반 등 부속 설치 (1식)", 200000L, "FLAT"),
+        ),
+        "페인트·도색" to listOf(
+            StarterItem(PricingCategory.COMMON, "내부 벽면 도색 (기존 벽, 수성페인트)", 12000L, "PYEONG"),
+            StarterItem(PricingCategory.COMMON, "천장 도색 (수성페인트)", 10000L, "PYEONG"),
+            StarterItem(PricingCategory.COMMON, "방문·문틀 도색 (개당)", 60000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "몰딩·걸레받이 도색 (평당)", 5000L, "PYEONG"),
+            StarterItem(PricingCategory.OLD, "퍼티·밑작업 (면 고르기)", 8000L, "PYEONG"),
+            StarterItem(PricingCategory.COMMON, "베란다·다용도실 방수페인트", 20000L, "PYEONG"),
+            StarterItem(PricingCategory.COMMON, "외벽 도색 (수성/탄성)", 18000L, "PYEONG"),
+            StarterItem(PricingCategory.COMMON, "철재 계단·난간 도색 (유성/에나멜)", 150000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "가구·싱크대 리폼 도색 (개당)", 200000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "출장·소량 부분보수 (기본 출장비)", 100000L, "FLAT"),
+        ),
+        "인테리어 필름" to listOf(
+            StarterItem(PricingCategory.COMMON, "방문 문짝 1짝 (양면 필름)", 80000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "방문 문틀 1개 (문선 포함)", 70000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "현관문 안쪽 필름 (1짝)", 90000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "싱크대 상·하부장 필름 (주방 가구)", 400000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "붙박이장 필름 (1칸/1짝당)", 60000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "신발장 필름 (현관장 1세트)", 200000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "창틀·창호 필름 (창 1개소)", 90000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "몰딩·걸레받이 필름 (평당)", 15000L, "PYEONG"),
+            StarterItem(PricingCategory.COMMON, "벽면 필름 시공 (평당)", 40000L, "PYEONG"),
+            StarterItem(PricingCategory.COMMON, "베란다·발코니 벽 필름 (평당)", 35000L, "PYEONG"),
+        ),
+        "방충망·모기장" to listOf(
+            StarterItem(PricingCategory.COMMON, "일반 창문 방충망 그물 교체 (1창)", 30000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "미세방충망(촘촘망) 교체 (1창)", 40000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "방충망 틀 새로 제작 교체 (1창)", 60000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "발코니 큰 창(대형) 방충망 교체 (1창)", 70000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "현관 롤방충망(자동 감김) 설치 (1개소)", 200000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "미닫이 방충문 설치 (1짝)", 120000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "여닫이 방충문(경첩식) 설치 (1짝)", 130000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "시스템창 전용 방충망 교체 (1창)", 90000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "방충망 찢어진 곳 부분 보수 (1창)", 20000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "방충망 롤러·문틀 부속 교체 (1창)", 15000L, "FLAT"),
+        ),
+        "중문·샷시" to listOf(
+            StarterItem(PricingCategory.COMMON, "3연동 중문 (슬림/일반형) 설치", 1200000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "스윙(여닫이) 중문 설치", 900000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "슬라이딩(미닫이) 중문 설치", 1000000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "포켓(히든) 슬라이딩 중문 설치", 1500000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "발코니 샷시(이중창) 교체", 350000L, "PYEONG"),
+            StarterItem(PricingCategory.COMMON, "거실 샷시(이중창) 교체", 400000L, "PYEONG"),
+            StarterItem(PricingCategory.COMMON, "방(단창) 샷시 교체 - 개소당", 450000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "현관 방풍문(중문) 설치", 800000L, "FLAT"),
+            StarterItem(PricingCategory.OLD, "기존 샷시 철거 및 폐기", 100000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "실리콘 코킹 마감 (창호 1개소)", 50000L, "FLAT"),
+        ),
+        "에어컨 설치·청소" to listOf(
+            StarterItem(PricingCategory.COMMON, "벽걸이 에어컨 표준 설치 (배관 3m 이내)", 100000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "스탠드(거실) 에어컨 표준 설치 (배관 3m 이내)", 150000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "시스템(천장형) 에어컨 설치 1대", 250000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "추가 배관 (동배관, m당)", 20000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "에어컨 이전 설치 (철거+재설치)", 150000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "에어컨 철거 (탈거만)", 50000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "벽걸이 에어컨 분해 청소 1대", 80000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "스탠드 에어컨 분해 청소 1대", 130000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "시스템(천장형) 에어컨 분해 청소 1대", 120000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "냉매(가스) 충전", 80000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "실외기 이전/앵글(거치대) 설치", 60000L, "FLAT"),
+        ),
+        "입주·이사 청소" to listOf(
+            StarterItem(PricingCategory.NEW, "입주청소 (신축·빈집) 평당", 13000L, "PYEONG"),
+            StarterItem(PricingCategory.OLD, "이사청소 (거주하던 집·짐 있음) 평당", 15000L, "PYEONG"),
+            StarterItem(PricingCategory.OLD, "거주청소 (사는 집 부분·전체) 평당", 15000L, "PYEONG"),
+            StarterItem(PricingCategory.COMMON, "냉장고 내부 청소 (1대)", 30000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "벽걸이 에어컨 분해청소 (1대)", 60000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "스탠드 에어컨 분해청소 (1대)", 100000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "유리창 안팎 청소 (추가)", 50000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "베란다·발코니 추가 청소 (1곳)", 50000L, "FLAT"),
+            StarterItem(PricingCategory.OLD, "곰팡이 제거·실리콘 세척 (욕실 1곳)", 40000L, "FLAT"),
+            StarterItem(PricingCategory.NEW, "새집증후군 제거 (피톤치드·베이크아웃) 평당", 8000L, "PYEONG"),
+            StarterItem(PricingCategory.OLD, "주방 후드·가스레인지 기름때 청소 (추가)", 40000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "출장·기본 최소비용 (소형 원룸 등)", 200000L, "FLAT"),
+        ),
+        "누수·방수" to listOf(
+            StarterItem(PricingCategory.COMMON, "누수 탐지 (누수 위치 찾기)", 150000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "화장실 방수 (덧방·부분 재방수)", 400000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "베란다·발코니 방수", 350000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "옥상 우레탄 방수", 30000L, "PYEONG"),
+            StarterItem(PricingCategory.COMMON, "옥상 시트 방수", 45000L, "PYEONG"),
+            StarterItem(PricingCategory.COMMON, "크랙(균열) 보수 (주입식)", 100000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "외벽 방수 (탄성 도막)", 25000L, "PYEONG"),
+            StarterItem(PricingCategory.COMMON, "누수 배관 수리 (급수·배수)", 200000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "지하·주차장 누수 보수 (그라우팅)", 250000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "출장·현장 점검비", 50000L, "FLAT"),
+        ),
+        "도어·현관" to listOf(
+            StarterItem(PricingCategory.COMMON, "ABS 방문 교체 (문짝만, 표준 규격)", 220000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "ABS 방문 세트 교체 (문틀 포함)", 350000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "현관 중문 설치 (3연동, 표준)", 950000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "현관 중문 설치 (스윙/여닫이 1도어)", 650000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "현관 디지털 도어록 설치 (푸시풀)", 180000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "현관문 방화문 교체 (일반 세대현관)", 550000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "문 손잡이(레버) 교체", 60000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "경첩·문 처짐 조정 (수리)", 50000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "방문 도어클로저 설치", 80000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "문풍지·틈막이 시공", 40000L, "FLAT"),
+        ),
+        "조명·전기" to listOf(
+            StarterItem(PricingCategory.COMMON, "LED 평판등(방등) 교체 1개", 40000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "거실 LED 등(대형) 교체 1개", 70000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "매입등(다운라이트) 설치 1개", 25000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "레일조명 1세트(레일+등 3개)", 120000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "콘센트/스위치 교체 1구", 20000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "콘센트 증설(배선 포함) 1개소", 80000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "인덕션/전기레인지 전용선 증설", 200000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "두꺼비집(분전반·차단기) 교체", 250000L, "FLAT"),
+            StarterItem(PricingCategory.COMMON, "센서등/현관 감지등 설치 1개", 45000L, "FLAT"),
+            StarterItem(PricingCategory.OLD, "전체 전기배선 교체(구축)", 60000L, "PYEONG"),
+            StarterItem(PricingCategory.COMMON, "출장 점검·간단 수리비", 50000L, "FLAT"),
+        ),
+    )
+
+    /** 업종명 매칭 — 정확 일치 우선, 없으면 부분 포함. 없으면 빈 리스트. */
+    fun forTrade(trade: String?): List<StarterItem> {
+        val t = trade?.trim().orEmpty()
+        if (t.isEmpty()) return emptyList()
+        byTrade[t]?.let { return it }
+        return byTrade.entries.firstOrNull { (k, _) -> t.contains(k) || k.contains(t) }?.value ?: emptyList()
+    }
+}
