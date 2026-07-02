@@ -2,8 +2,6 @@ package com.detailline.callfollowcrm.presentation.screen.home
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.ui.focus.FocusRequester
@@ -288,8 +286,9 @@ fun HomeScreen(
     var payTarget by remember { mutableStateOf<com.detailline.callfollowcrm.ai.CollabEventCenter.CollabUpdate?>(null) }
     // 대기 카드 꾹 누르면 뜨는 '스팸 등록 / 정리' 선택. null=닫힘. (2026-06-23 사장님)
     var spamTarget by remember { mutableStateOf<HomeItem?>(null) }
-    // 대기카드 비행기 → '확인 후 발송' 다이얼로그 대상. (2026-07-02 사장님: 받은 문자·답변 전문 확인하고 보내게)
+    // 대기카드 비행기 → '확인 후 발송' 다이얼로그 대상 + 카드에서 고른 답변. (2026-07-02 사장님)
     var waitingSendTarget by remember { mutableStateOf<HomeItem?>(null) }
+    var waitingSendReply by remember { mutableStateOf<String?>(null) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
 
     Scaffold(
@@ -918,17 +917,19 @@ fun HomeScreen(
                                 }
                             },
                             content = {
-                                val reply = waitingReplies[suffix]
-                                val custName = item.customer?.name?.takeIf { it.isNotBlank() }
-                                    ?: PhoneNumberFormatter.format(item.record.phoneNumber)
+                                val choices = waitingReplyChoices[suffix].orEmpty().ifEmpty {
+                                    waitingReplies[suffix]?.let {
+                                        listOf(com.detailline.callfollowcrm.ai.ReplyChoice(text = it))
+                                    } ?: emptyList()
+                                }
                                 WaitingCard(
                                     item = item,
                                     aiSummary = aiCardSummaries[suffix],
-                                    suggestedReply = reply,
+                                    replyChoices = choices,
                                     onOpenChat = { onOpenChat(item.record.phoneNumber, item.customer?.id) },
                                     onCall = { dialHome(context, item.record.phoneNumber) },
-                                    // 비행기 = 바로 발송 X → '확인 후 발송' 다이얼로그(받은 문자·답변 전문 확인). (2026-07-02 사장님)
-                                    onQuickSend = { waitingSendTarget = item },
+                                    // 비행기 = 카드에서 지금 보고 있는 답변으로 '확인 후 발송' 다이얼로그. (2026-07-02 사장님)
+                                    onQuickSend = { text -> waitingSendReply = text; waitingSendTarget = item },
                                     onLongPress = { spamTarget = item }
                                 )
                             }
@@ -1167,18 +1168,15 @@ fun HomeScreen(
                 )
             }
 
-            // '확인 후 발송' — 받은 문자 원문 + 추천답변 3개(옆으로 넘겨 고르기) 확인 후 발송/고쳐서/취소. (2026-07-02 사장님)
+            // '확인 후 발송' — 받은 문자 원문 + (카드에서 고른) 답변 전문 확인 후 발송/고쳐서/취소. (2026-07-02 사장님)
             waitingSendTarget?.let { target ->
                 val phone = target.record.phoneNumber
                 val suffix = phone.filter { it.isDigit() }.takeLast(8)
                 val nm = target.customer?.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(phone)
                 val incoming = target.lastBody?.takeIf { it.isNotBlank() }
-                // 추천답변 후보(최대 3). 후보 목록이 없으면 top 한 개로 폴백.
-                val choices = waitingReplyChoices[suffix].orEmpty().ifEmpty {
-                    waitingReplies[suffix]?.let { listOf(com.detailline.callfollowcrm.ai.ReplyChoice(text = it)) } ?: emptyList()
-                }
-                val pagerState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { maxOf(choices.size, 1) })
-                val currentReply = choices.getOrNull(pagerState.currentPage)?.text
+                val reply = waitingSendReply
+                    ?: waitingReplyChoices[suffix]?.firstOrNull()?.text
+                    ?: waitingReplies[suffix]
                 androidx.compose.material3.AlertDialog(
                     onDismissRequest = { waitingSendTarget = null },
                     title = { Text("$nm 님께 보낼까요?", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
@@ -1192,59 +1190,24 @@ fun HomeScreen(
                                 }
                                 Spacer(Modifier.height(12.dp))
                             }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("보낼 답변", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossBlue)
-                                if (choices.size > 1) {
-                                    Spacer(Modifier.width(6.dp))
-                                    Text(
-                                        "· 옆으로 넘겨 고르기 (${pagerState.currentPage + 1}/${choices.size})",
-                                        fontSize = 11.sp, color = TossTextTertiary
-                                    )
-                                }
-                            }
+                            Text("보낼 답변", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossBlue)
                             Spacer(Modifier.height(4.dp))
-                            if (choices.isEmpty()) {
-                                Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color(0xFFEEF4FF)).padding(11.dp)) {
-                                    Text("추천 답변이 아직 없어요 — 고쳐서 보내기로 채팅에서 직접 보내주세요", fontSize = 13.5.sp, color = TossTextPrimary)
-                                }
-                            } else {
-                                androidx.compose.foundation.pager.HorizontalPager(state = pagerState, pageSpacing = 8.dp) { page ->
-                                    val c = choices[page]
-                                    Column(
-                                        Modifier.fillMaxWidth().height(112.dp)
-                                            .clip(RoundedCornerShape(10.dp)).background(Color(0xFFEEF4FF))
-                                            .verticalScroll(androidx.compose.foundation.rememberScrollState())
-                                            .padding(11.dp)
-                                    ) {
-                                        c.label?.takeIf { it.isNotBlank() }?.let {
-                                            Text("${page + 1}. $it", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
-                                            Spacer(Modifier.height(4.dp))
-                                        }
-                                        Text(c.text, fontSize = 13.5.sp, color = TossTextPrimary)
-                                    }
-                                }
-                                if (choices.size > 1) {
-                                    Spacer(Modifier.height(8.dp))
-                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                                        repeat(choices.size) { i ->
-                                            Box(
-                                                Modifier.padding(horizontal = 3.dp).size(7.dp)
-                                                    .clip(androidx.compose.foundation.shape.CircleShape)
-                                                    .background(if (i == pagerState.currentPage) TossBlue else Color(0xFFD5DDE8))
-                                            )
-                                        }
-                                    }
-                                }
+                            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color(0xFFEEF4FF)).padding(11.dp)) {
+                                Text(
+                                    reply ?: "추천 답변이 아직 없어요 — 고쳐서 보내기로 채팅에서 직접 보내주세요",
+                                    fontSize = 13.5.sp, color = TossTextPrimary,
+                                    maxLines = 8, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
                             }
                         }
                     },
                     confirmButton = {
-                        if (!currentReply.isNullOrBlank()) {
+                        if (!reply.isNullOrBlank()) {
                             androidx.compose.material3.TextButton(onClick = {
                                 waitingSendTarget = null
-                                val ok = com.detailline.callfollowcrm.util.SmsSender.sendDirect(context, phone, currentReply)
+                                val ok = com.detailline.callfollowcrm.util.SmsSender.sendDirect(context, phone, reply)
                                 if (ok) {
-                                    viewModel.onWaitingReplySent(phone, currentReply, target.customer?.id)
+                                    viewModel.onWaitingReplySent(phone, reply, target.customer?.id)
                                     scope.launch { snackbarHostState.showSnackbar("$nm 님께 보냈어요 📩", duration = SnackbarDuration.Short) }
                                 } else {
                                     scope.launch { snackbarHostState.showSnackbar("문자 권한이 없어요 — 채팅에서 보내주세요", duration = SnackbarDuration.Short) }
@@ -1260,7 +1223,7 @@ fun HomeScreen(
                             }
                             androidx.compose.material3.TextButton(onClick = {
                                 waitingSendTarget = null
-                                if (!currentReply.isNullOrBlank()) viewModel.prefillChatDraft(phone, currentReply)
+                                if (!reply.isNullOrBlank()) viewModel.prefillChatDraft(phone, reply)
                                 onOpenChat(phone, target.customer?.id)
                             }) { Text("고쳐서 보내기", color = TossTextPrimary, fontWeight = FontWeight.Bold) }
                         }
@@ -3133,10 +3096,10 @@ private fun dialHome(context: android.content.Context, phone: String) {
 private fun WaitingCard(
     item: HomeItem,
     aiSummary: String?,
-    suggestedReply: String?,
+    replyChoices: List<com.detailline.callfollowcrm.ai.ReplyChoice>,
     onOpenChat: () -> Unit,
     onCall: () -> Unit,
-    onQuickSend: () -> Unit,
+    onQuickSend: (String) -> Unit,
     onLongPress: () -> Unit = {}
 ) {
     val isNew = item.isNewToday
@@ -3202,8 +3165,11 @@ private fun WaitingCard(
             }
         }
         Spacer(Modifier.height(11.dp))
-        if (!suggestedReply.isNullOrBlank()) {
-            // 프로토 sugbox — ✨ AI 추천 답변 + 본문 + 비행기(1탭 발송).
+        if (replyChoices.isNotEmpty()) {
+            // 프로토 sugbox 확장 — ✨ AI 추천 답변 3개를 답변 영역에서 옆으로 넘겨 고르기 + 비행기(확인 후 발송). (2026-07-02 사장님)
+            //   페이저는 이 답변 박스에서만 → 카드 좌스와이프(스팸/정리)와 제스처 분리(안쪽 페이저가 드래그 먼저 소비).
+            val pagerState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { replyChoices.size })
+            val cur = replyChoices.getOrNull(pagerState.currentPage)
             Column(
                 Modifier
                     .fillMaxWidth()
@@ -3215,21 +3181,53 @@ private fun WaitingCard(
                     Icon(Icons.Default.AutoAwesome, null, tint = TossBlue, modifier = Modifier.size(13.dp))
                     Spacer(Modifier.width(5.dp))
                     Text("AI 추천 답변", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+                    if (cur?.label?.isNotBlank() == true) {
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "· ${cur.label}", fontSize = 11.sp, color = TossTextTertiary,
+                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                    } else {
+                        Spacer(Modifier.weight(1f))
+                    }
+                    if (replyChoices.size > 1) {
+                        Spacer(Modifier.width(6.dp))
+                        Text("${pagerState.currentPage + 1}/${replyChoices.size}", fontSize = 11.sp, color = TossTextTertiary)
+                    }
                 }
                 Spacer(Modifier.height(7.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        suggestedReply, fontSize = 13.5.sp, color = TossTextSecondary,
-                        maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
+                    androidx.compose.foundation.pager.HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.weight(1f),
+                        pageSpacing = 10.dp,
+                        verticalAlignment = Alignment.Top
+                    ) { page ->
+                        Text(
+                            replyChoices[page].text, fontSize = 13.5.sp, color = TossTextSecondary,
+                            maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    }
                     Spacer(Modifier.width(10.dp))
                     Box(
                         Modifier.size(40.dp).clip(androidx.compose.foundation.shape.CircleShape).background(TossBlue)
-                            .clickable { onQuickSend() },
+                            .clickable { cur?.text?.let { onQuickSend(it) } },
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(Icons.AutoMirrored.Filled.Send, "보내기", tint = Color.White, modifier = Modifier.size(18.dp))
+                    }
+                }
+                if (replyChoices.size > 1) {
+                    Spacer(Modifier.height(9.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                        repeat(replyChoices.size) { i ->
+                            Box(
+                                Modifier.padding(horizontal = 3.dp).size(6.dp)
+                                    .clip(androidx.compose.foundation.shape.CircleShape)
+                                    .background(if (i == pagerState.currentPage) TossBlue else Color(0xFFCED8E6))
+                            )
+                        }
                     }
                 }
             }
