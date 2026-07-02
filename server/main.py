@@ -2841,6 +2841,7 @@ const EP_NAMES_KO = {
   'tone-profile-traits':   '말투 특징 분석',
   'extract-pricing':       '문자에서 가격표 추출',
   'pricing-starter':       '업종 스타터 가격표',
+  'name-template':         '템플릿 제목 작명',
 };
 
 // prefix 매칭용 — model ID prefix 별 한글명 + 설명
