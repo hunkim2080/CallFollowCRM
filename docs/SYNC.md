@@ -6241,3 +6241,8 @@ deploy_phase1.sh — repo 에 plist 사본 없으면 (gitignore 라 repo 이동 
 - 검증: py_compile PASS, TestClient /admin/usage-chart 200 + 신규 마크업 존재 확인, 인라인 JS node --check PASS.
 - 변경: server/main.py (_ADMIN_DASHBOARD_HTML) 만. 배포 필요.
 - commit: (아래)
+
+## 2026-07-02 · android (문자 템플릿 자동 발굴 — 서버 무관, 참고용)
+자주 보낸 문자를 찾아 템플릿 저장 제안(가격추출 파이프라인 재활용). **서버 액션 없음**(폰에서 빈도집계).
+- SmsRepository.queryFrequentSentTemplates(): 보낸 SMS+MMS 빈도집계, 숫자 제거 후 '끝 45자'로 그룹(예약금 등 날짜변형 흡수). TemplateDiscover VM+Screen. 진입=문자 템플릿 앱바 "✨찾기".
+- 실측: 예약금 524/입금확인 510회 발송. commit 14889dd. cowork 할 일 없음.
