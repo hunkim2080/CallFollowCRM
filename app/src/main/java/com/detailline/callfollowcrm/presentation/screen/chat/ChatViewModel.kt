@@ -471,36 +471,25 @@ class ChatViewModel(
                 }
             }
 
-            // stage 3: MMS.
-            if (fullScan) {
-                // 첫 진입 = 전체 2000 스캔 → authoritative replace(삭제까지 반영).
-                //   ⚠️ 깜빡임 가드: 전체 스캔이 일시 실패(빈 결과)인데 캐시엔 MMS 있으면 덮어쓰지 않음(캐시 유지).
-                //      (provider 경합으로 query() 가 null 반환 시 사진이 사라졌다 되살아나던 버그.)
-                val freshMms = runCatching {
-                    container.smsRepository.queryMmsOnly(phoneNumber)
-                }.getOrDefault(emptyList())
-                if (freshMms.isNotEmpty() || cachedMmsOnly.isEmpty()) {
-                    _messages.value = mergeWithLocalSent(freshSms, localSent, freshMms)
-                    runCatching {
-                        container.cachedMessageRepository.replaceMmsOnlyForSuffix(suffix, freshMms)
-                    }
-                }
-            } else {
-                // 화면 대기 중 재조회(새 문자/사진 감지) = 최근 소량(80행)만 얕게 스캔 → 캐시에 merge.
-                //   방금 보낸/받은 MMS 는 전역에서도 최근이라 80행 안에 있어 즉시 표시. 옛 사진은 캐시가 이미 보유.
-                //   전체 2000 스캔(각 행 주소조회)을 재조회마다 돌지 않아 "사진 하나 보냈는데 오래 걸림" 해소. (2026-07-02 사장님)
-                val recentMms = runCatching {
-                    container.smsRepository.queryMmsOnly(phoneNumber, scanLimit = RECENT_MMS_SCAN_LIMIT)
-                }.getOrDefault(emptyList())
-                if (recentMms.isNotEmpty()) {
-                    runCatching { container.cachedMessageRepository.mergeMmsForSuffix(suffix, recentMms) }
-                    val mergedMms = runCatching {
-                        container.cachedMessageRepository.loadMmsOnly(suffix)
-                    }.getOrDefault(cachedMmsOnly)
-                    _messages.value = mergeWithLocalSent(freshSms, localSent, mergedMms)
-                }
-                // recentMms 비면 stage2 의 cachedMmsOnly emit 그대로 (사진 유지).
+            // stage 3: MMS — fullScan(첫 진입)=깊게 2000, 아니면 얕게(재조회). 둘 다 캐시에 '누적(merge)'만 하고
+            //   화면엔 항상 '캐시 전체'를 보여준다.
+            //   ⚠️ 예전엔 첫 진입에서 replace(clear+insert)로 덮었는데, 사장님 폰(MMS 8900건 + 계속 전송)에서 2000 스캔이
+            //      provider 경합으로 '불완전'(일부 사진 누락)하게 돌아오면 좋은 캐시를 부수어, 그 불완전한 결과가 화면·캐시를
+            //      덮어써 "재진입하면 사진 싹 없어졌다가 시간지나면 다시 뜸" 버그가 났다. 빈-결과 가드는 '완전 빈 것'만 막고
+            //      '일부만 온 것'은 못 막았음. → merge 는 절대 캐시를 줄이지 않으므로 스캔이 불완전해도 사진이 안 사라진다.
+            //      화면도 freshMms(그때그때 스캔) 말고 mergedMms(누적 캐시)를 보여줘 항상 전체 유지.
+            //      (삭제 즉시반영은 포기 — 사진 보존이 우선. 캐시는 다음 마일스톤에 trimOldest 로 상한 관리 가능.) (2026-07-02 사장님)
+            val mmsScan = if (fullScan) 2000 else RECENT_MMS_SCAN_LIMIT
+            val freshMms = runCatching {
+                container.smsRepository.queryMmsOnly(phoneNumber, scanLimit = mmsScan)
+            }.getOrDefault(emptyList())
+            if (freshMms.isNotEmpty()) {
+                runCatching { container.cachedMessageRepository.mergeMmsForSuffix(suffix, freshMms) }
             }
+            val mergedMms = runCatching {
+                container.cachedMessageRepository.loadMmsOnly(suffix)
+            }.getOrDefault(cachedMmsOnly)
+            _messages.value = mergeWithLocalSent(freshSms, localSent, mergedMms)
         }
     }
 
