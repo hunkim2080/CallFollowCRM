@@ -466,12 +466,20 @@ class ChatViewModel(
             }
 
             // stage 3: MMS 백그라운드. 끝나면 SMS + MMS 합쳐서 다시 emit + MMS 캐시 교체.
+            //   ⚠️ 사진 깜빡임 버그 fix (2026-07-02 사장님): 화면이 떠 있는 동안 SMS/MMS provider 가 바뀔 때마다
+            //      loadMessages 가 다시 돈다(ChatScreen 의 ContentObserver). 이때 삼성이 MMS 를 동시에 쓰거나
+            //      provider 가 경합하면 queryMmsOnly 가 '일시적으로' 빈 결과를 준다(query() 가 null 반환 → emptyList).
+            //      그 빈 값을 그대로 emit 하면 이미 떠 있던 사진이 통째로 사라졌다가 다음 reload 때 되살아난다.
+            //      → 새 조회가 비었는데 캐시엔 MMS 가 있으면 = 일시 실패로 보고 덮어쓰지 않는다(캐시 유지, stage2 emit 그대로).
+            //      실제 새 MMS 는 freshMms 가 비지 않으므로 정상 반영되고, 그때만 캐시도 교체한다.
             val freshMms = runCatching {
                 container.smsRepository.queryMmsOnly(phoneNumber)
             }.getOrDefault(emptyList())
-            _messages.value = mergeWithLocalSent(freshSms, localSent, freshMms)
-            runCatching {
-                container.cachedMessageRepository.replaceMmsOnlyForSuffix(suffix, freshMms)
+            if (freshMms.isNotEmpty() || cachedMmsOnly.isEmpty()) {
+                _messages.value = mergeWithLocalSent(freshSms, localSent, freshMms)
+                runCatching {
+                    container.cachedMessageRepository.replaceMmsOnlyForSuffix(suffix, freshMms)
+                }
             }
         }
     }
