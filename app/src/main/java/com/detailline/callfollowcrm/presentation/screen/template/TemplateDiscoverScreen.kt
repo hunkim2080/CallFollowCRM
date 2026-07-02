@@ -96,7 +96,8 @@ fun TemplateDiscoverScreen(
                         Text("💬  이 문자들을 자주 보내셨네요", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            "템플릿으로 저장하면 다음부턴 채팅·자동문자에서 한 번에 불러 써요.",
+                            "템플릿으로 저장하면 다음부턴 채팅·자동문자에서 한 번에 불러 써요.\n" +
+                                "숫자는 비슷하게 보낸 문자를 모두 합친 거예요. 아래는 예시 한 개이고, 날짜·금액은 저장 후 바꿔 쓰면 돼요.",
                             fontSize = 13.sp, color = TossTextSecondary, lineHeight = 19.sp
                         )
                     }
@@ -115,9 +116,11 @@ fun TemplateDiscoverScreen(
                                     Modifier.background(TossBlueSoft, RoundedCornerShape(8.dp))
                                         .padding(horizontal = 9.dp, vertical = 4.dp)
                                 ) {
-                                    Text("${row.count}번 보냈어요", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                                    Text("비슷한 문자 ${row.count}번", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossBlue)
                                 }
                                 Spacer(Modifier.height(10.dp))
+                                Text("예시", fontSize = 11.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
+                                Spacer(Modifier.height(3.dp))
                                 Text(
                                     row.body,
                                     fontSize = 14.sp, color = TossTextPrimary, lineHeight = 20.sp,
