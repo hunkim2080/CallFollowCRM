@@ -384,3 +384,39 @@ val ThousandsCommaTransformation = androidx.compose.ui.text.input.VisualTransfor
         }
     )
 }
+
+/**
+ * 위 ThousandsCommaTransformation 과 달리 커서를 중간에 놓고 편집할 수 있는 버전(정확한 OffsetMapping).
+ *   기존 것은 커서를 항상 끝으로 보내서(originalToTransformed=length) '새로 입력'엔 OK지만 '중간 수정'이 안 됨.
+ *   → 문자 기반 가격추출 확인화면에서 사장님이 이미 있는 금액의 중간을 고칠 수 있어야 해서 추가. (2026-07-02 사장님)
+ */
+val ThousandsCommaEditTransformation = androidx.compose.ui.text.input.VisualTransformation { text ->
+    val raw = text.text
+    val number = raw.toLongOrNull()
+    if (raw.isEmpty() || number == null) {
+        return@VisualTransformation androidx.compose.ui.text.input.TransformedText(
+            text, androidx.compose.ui.text.input.OffsetMapping.Identity
+        )
+    }
+    val formatted = java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(number)
+    // 원본(숫자만) index ↔ 포맷(콤마 포함) index 를 정확히 매핑 → 커서가 중간으로 이동 가능.
+    val o2t = IntArray(raw.length + 1)
+    var oi = 0
+    for (j in formatted.indices) {
+        if (formatted[j] != ',') { o2t[oi] = j; oi++ }
+    }
+    o2t[raw.length] = formatted.length
+    val t2o = IntArray(formatted.length + 1)
+    var count = 0
+    for (j in 0..formatted.length) {
+        t2o[j] = count
+        if (j < formatted.length && formatted[j] != ',') count++
+    }
+    androidx.compose.ui.text.input.TransformedText(
+        androidx.compose.ui.text.AnnotatedString(formatted),
+        object : androidx.compose.ui.text.input.OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int = o2t[offset.coerceIn(0, raw.length)]
+            override fun transformedToOriginal(offset: Int): Int = t2o[offset.coerceIn(0, formatted.length)]
+        }
+    )
+}

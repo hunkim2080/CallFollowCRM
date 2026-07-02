@@ -36,19 +36,24 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.data.local.entity.PricingItemEntity
 import com.detailline.callfollowcrm.data.repository.PricingItemRepository
-import com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation
+import com.detailline.callfollowcrm.presentation.component.ThousandsCommaEditTransformation
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
@@ -177,8 +182,8 @@ private fun ItemsBody(ui: PricingExtractViewModel.UiState, vm: PricingExtractVie
     Column(Modifier.fillMaxSize()) {
         HeaderCard(
             emoji = "🔎",
-            title = "이런 항목들을 파시는 것 같아요",
-            subtitle = "이름이 이상하면 고치고, 아닌 건 X로 빼주세요. (${ui.rows.size}개)"
+            title = "AI가 판단한 판매 항목이에요",
+            subtitle = "이름이 정확하지 않을 수 있으니 수정이 필요하면 수정해주세요.\n판매 항목이 아니라고 생각되면 X를 눌러주세요!"
         )
         LazyColumn(
             Modifier.weight(1f),
@@ -247,23 +252,30 @@ private fun PricesBody(ui: PricingExtractViewModel.UiState, vm: PricingExtractVi
                     }
                     Spacer(Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        val digits = if (row.priceWon > 0) row.priceWon.toString() else ""
+                        // 커서를 중간에 놓고 고칠 수 있게 로컬 TextFieldValue 로 관리(끝으로 튀는 문제 fix).
+                        // 박스 전체가 터치돼 키패드가 열리도록 fillMaxWidth. (2026-07-02 사장님)
+                        var priceField by remember(row.key) {
+                            mutableStateOf(TextFieldValue(if (row.priceWon > 0) row.priceWon.toString() else ""))
+                        }
                         Box(
-                            Modifier.background(TossGrayBg, RoundedCornerShape(10.dp))
+                            Modifier.weight(1f)
+                                .background(TossGrayBg, RoundedCornerShape(10.dp))
                                 .padding(horizontal = 12.dp, vertical = 10.dp)
-                                .weight(1f)
                         ) {
                             BasicTextField(
-                                value = digits,
-                                onValueChange = { new ->
-                                    val d = new.filter { it.isDigit() }.take(9)
-                                    vm.editPrice(row.key, d.toLongOrNull() ?: 0L)
+                                value = priceField,
+                                onValueChange = { nv ->
+                                    val d = nv.text.filter { it.isDigit() }
+                                    priceField = if (d == nv.text && d.length <= 9) nv
+                                    else TextFieldValue(d.take(9), TextRange(d.take(9).length))
+                                    vm.editPrice(row.key, priceField.text.toLongOrNull() ?: 0L)
                                 },
                                 textStyle = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary),
                                 singleLine = true,
                                 cursorBrush = SolidColor(TossBlue),
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                visualTransformation = ThousandsCommaTransformation
+                                visualTransformation = ThousandsCommaEditTransformation,
+                                modifier = Modifier.fillMaxWidth()
                             )
                         }
                         Spacer(Modifier.size(6.dp))
@@ -335,13 +347,15 @@ private fun EditField(
     modifier: Modifier = Modifier,
     bold: Boolean
 ) {
+    // 로컬 TextFieldValue 로 커서 유지(글자 중간 수정해도 끝으로 안 튐). 첫 값만 seed, 이후엔 사용자 편집이 소스.
+    var tfv by remember { mutableStateOf(TextFieldValue(value)) }
     Box(modifier) {
-        if (value.isEmpty()) {
+        if (tfv.text.isEmpty()) {
             Text(hint, color = TossTextTertiary, fontSize = if (bold) 15.sp else 14.sp)
         }
         BasicTextField(
-            value = value,
-            onValueChange = onChange,
+            value = tfv,
+            onValueChange = { tfv = it; onChange(it.text) },
             textStyle = TextStyle(
                 fontSize = if (bold) 15.sp else 14.sp,
                 fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,

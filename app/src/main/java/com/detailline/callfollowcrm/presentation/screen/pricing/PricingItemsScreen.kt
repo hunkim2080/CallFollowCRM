@@ -85,6 +85,8 @@ fun PricingItemsScreen(
     var editTarget by remember { mutableStateOf<PricingItemEntity?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<PricingItemEntity?>(null) }
+    // 복사 = 이 항목을 새 항목으로 복제(예: 공통 → 구축). 다이얼로그 pre-fill 후 카테고리만 바꿔 저장. (2026-07-02 사장님)
+    var copyTarget by remember { mutableStateOf<PricingItemEntity?>(null) }
 
     val grouped = remember(items) {
         items.groupBy { it.category }
@@ -235,7 +237,25 @@ fun PricingItemsScreen(
                 editTarget = null
                 deleteTarget = target
             },
+            onCopy = {
+                editTarget = null
+                copyTarget = target
+            },
             onDismiss = { editTarget = null }
+        )
+    }
+
+    // 복사 다이얼로그 — 원본 값 pre-fill, 저장 시 새 항목으로 add(카테고리만 바꾸면 공통→구축 복제 완성).
+    copyTarget?.let { source ->
+        PricingItemEditDialog(
+            title = "항목 복사",
+            initial = source,
+            confirmLabel = "복사해서 추가",
+            onConfirm = { t, p, u, c ->
+                viewModel.add(t, p, u, c)
+                copyTarget = null
+            },
+            onDismiss = { copyTarget = null }
         )
     }
 
@@ -337,6 +357,8 @@ private fun PricingItemEditDialog(
     initial: PricingItemEntity?,
     onConfirm: (String, Long, String, PricingCategory) -> Unit,
     onDelete: (() -> Unit)? = null,
+    onCopy: (() -> Unit)? = null,
+    confirmLabel: String? = null,
     onDismiss: () -> Unit
 ) {
     var titleInput by remember(initial?.id) { mutableStateOf(initial?.title.orEmpty()) }
@@ -424,10 +446,19 @@ private fun PricingItemEditDialog(
                         }
                     }
                 }
-                if (onDelete != null) {
+                if (onDelete != null || onCopy != null) {
                     Spacer(Modifier.height(4.dp))
-                    TextButton(onClick = onDelete) {
-                        Text("이 항목 삭제", color = TossError, fontSize = 13.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        if (onCopy != null) {
+                            TextButton(onClick = onCopy) {
+                                Text("항목 복사", color = TossBlue, fontSize = 13.sp)
+                            }
+                        }
+                        if (onDelete != null) {
+                            TextButton(onClick = onDelete) {
+                                Text("이 항목 삭제", color = TossError, fontSize = 13.sp)
+                            }
+                        }
                     }
                 }
             }
@@ -440,7 +471,7 @@ private fun PricingItemEditDialog(
                 enabled = canSave
             ) {
                 Text(
-                    if (initial == null) "추가" else "저장",
+                    confirmLabel ?: if (initial == null) "추가" else "저장",
                     color = if (canSave) TossBlue else TossTextTertiary,
                     fontWeight = FontWeight.Bold
                 )
