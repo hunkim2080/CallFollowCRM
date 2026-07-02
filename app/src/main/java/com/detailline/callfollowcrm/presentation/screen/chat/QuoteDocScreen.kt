@@ -67,7 +67,13 @@ data class QuoteDocData(
     val lines: List<QuoteLine>,
     val totalWon: Long,
     val depMode: String,
-    val depVal: Int
+    val depVal: Int,
+    /** true = 항목가에 부가세 포함(합계=총액, 역산 표기) / false = 별도(합계=총액+10%). (2026-07-03 사장님) */
+    val vatIncluded: Boolean = false,
+    /** 선택한 시공 예정일(ms). null=협의 후 확정. */
+    val workDateMs: Long? = null,
+    /** 받는 분(이름/번호). null·빈값=고객님. */
+    val recipient: String? = null
 )
 
 private val SealRed = Color(0xFFD6342C)
@@ -213,7 +219,8 @@ fun QuoteDocScreen(
                 Box(Modifier.fillMaxWidth().height(2.5.dp).clip(RoundedCornerShape(2.dp)).background(TossBlue))
                 Spacer(Modifier.height(18.dp))
                 // ── 수신 ──
-                Text("TO.  고객님 귀하", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF111111))
+                val recipientName = data.recipient?.takeIf { it.isNotBlank() } ?: "고객님"
+                Text("TO.  $recipientName 귀하", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF111111))
                 Spacer(Modifier.height(3.dp))
                 Text("아래와 같이 견적합니다.", fontSize = 12.sp, color = TossTextSecondary)
                 Spacer(Modifier.height(18.dp))
@@ -224,18 +231,29 @@ fun QuoteDocScreen(
                 }
                 Spacer(Modifier.height(14.dp))
                 // ── 합계 요약 (우측 3줄, 부가세 명시) ──
-                val vat = Math.round(data.totalWon / 10.0)
-                val grand = data.totalWon + vat
+                //   미포함=공급가에 10% 더함 / 포함=총액에서 역산. (2026-07-03 사장님)
+                val supply: Long
+                val vat: Long
+                val grand: Long
+                if (data.vatIncluded) {
+                    grand = data.totalWon
+                    supply = Math.round(data.totalWon / 1.1)
+                    vat = grand - supply
+                } else {
+                    supply = data.totalWon
+                    vat = Math.round(data.totalWon / 10.0)
+                    grand = supply + vat
+                }
                 Row(Modifier.fillMaxWidth()) {
                     Spacer(Modifier.weight(1f))
                     Column(Modifier.width(215.dp)) {
-                        SummaryRow("공급가액", "${won(data.totalWon)}원", false)
+                        SummaryRow("공급가액", "${won(supply)}원", false)
                         Spacer(Modifier.height(5.dp))
                         SummaryRow("부가세 (10%)", "${won(vat)}원", false)
                         Spacer(Modifier.height(7.dp))
                         Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFE5E9F0)))
                         Spacer(Modifier.height(7.dp))
-                        SummaryRow("합계", "${won(grand)}원", true)
+                        SummaryRow("합계 (부가세 포함)", "${won(grand)}원", true)
                     }
                 }
                 // ── 계약금 / 잔금 ──
@@ -267,7 +285,10 @@ fun QuoteDocScreen(
                 Spacer(Modifier.height(16.dp))
                 Text("비고", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
                 Spacer(Modifier.height(5.dp))
-                Text("· 시공 예정일 : 협의 후 확정", fontSize = 12.sp, color = TossTextSecondary, lineHeight = 21.sp)
+                val workDateText = data.workDateMs
+                    ?.let { SimpleDateFormat("M월 d일 (E)", Locale.KOREA).format(java.util.Date(it)) }
+                    ?: "협의 후 확정"
+                Text("· 시공 예정일 : $workDateText", fontSize = 12.sp, color = TossTextSecondary, lineHeight = 21.sp)
                 if (data.depMode != "none") {
                     Text("· 계약금 입금 시 시공일이 확정됩니다", fontSize = 12.sp, color = SealRed,
                         fontWeight = FontWeight.Medium, lineHeight = 21.sp)
@@ -287,17 +308,25 @@ fun QuoteDocScreen(
                             Text(bizAddr, fontSize = 11.sp, color = TossTextTertiary)
                         }
                     }
-                    // 직인
-                    Box(
-                        Modifier.size(64.dp).rotate(-12f).clip(CircleShape)
-                            .border(2.5.dp, SealRed, CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            seal.replace(" ", "\n"),
-                            fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = SealRed,
-                            textAlign = TextAlign.Center, lineHeight = 13.sp
+                    // 직인 — 진짜 도장 느낌: 이중 링 + 옅은 빨강 채움 + 2글자씩 정사각 배치. (2026-07-03 사장님)
+                    Box(Modifier.size(76.dp).rotate(-11f), contentAlignment = Alignment.Center) {
+                        // 바깥 굵은 링 + 옅은 채움
+                        Box(
+                            Modifier.matchParentSize().clip(CircleShape)
+                                .background(SealRed.copy(alpha = 0.06f))
+                                .border(3.dp, SealRed, CircleShape)
                         )
+                        // 안쪽 얇은 링
+                        Box(
+                            Modifier.size(63.dp).clip(CircleShape).border(1.5.dp, SealRed, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                seal.replace(" ", "").chunked(2).joinToString("\n"),
+                                fontSize = 13.sp, fontWeight = FontWeight.Black, color = SealRed,
+                                textAlign = TextAlign.Center, lineHeight = 15.sp, letterSpacing = 1.sp
+                            )
+                        }
                     }
                 }
             }

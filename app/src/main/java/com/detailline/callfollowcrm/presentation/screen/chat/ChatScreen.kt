@@ -1421,6 +1421,7 @@ fun ChatScreen(
             bizNo = estPrefs.bizNo,
             bizPhone = estPrefs.bizPhone,
             validDays = estPrefs.bizQuoteValidDays,
+            defaultRecipient = displayName,
             onUpdatePrice = { id, priceWon -> viewModel.updateItemPrice(id, priceWon) },
             onConfirm = { body ->
                 setInput(body)
@@ -3545,6 +3546,8 @@ private class EstimateDraft(initialCalMonth: Long) {
     val workDateMs = androidx.compose.runtime.mutableStateOf<Long?>(null)
     val workDays = androidx.compose.runtime.mutableStateOf(1)
     val estCalMonth = androidx.compose.runtime.mutableStateOf(initialCalMonth)
+    val vatIncluded = androidx.compose.runtime.mutableStateOf(false) // 견적서 부가세 별도(false)/포함(true). (2026-07-03 사장님)
+    val recipient = androidx.compose.runtime.mutableStateOf("")      // 견적서 받는 분(빈값=기본/고객님)
     val selectedQty = androidx.compose.runtime.mutableStateMapOf<Long, Int>()
     val customItems = androidx.compose.runtime.mutableStateListOf<EstCustomLine>()
     /** 항목 id → 이번 세션에서 그 자리에서 바꾼 가격(원). 즉시 우선 적용. DB 저장과 별개. (2026-06-25 사장님) */
@@ -3553,6 +3556,7 @@ private class EstimateDraft(initialCalMonth: Long) {
     fun reset(initialCalMonth: Long) {
         mode.value = "text"; depMode.value = "ratio"; depVal.value = "30"; depCustom.value = false
         workDateMs.value = null; workDays.value = 1; estCalMonth.value = initialCalMonth
+        vatIncluded.value = false; recipient.value = ""
         selectedQty.clear(); customItems.clear(); priceOverrides.clear()
     }
 }
@@ -3606,7 +3610,9 @@ private fun EstimateBuilderDialog(
     bizOwner: String = "",
     bizNo: String = "",
     bizPhone: String = "",
-    validDays: Int = 0
+    validDays: Int = 0,
+    /** 견적서 '받는 분' 기본값 — 고객 이름 또는 번호(빈값이면 '고객님'). (2026-07-03 사장님) */
+    defaultRecipient: String = ""
 ) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val noRipple = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
@@ -3621,6 +3627,8 @@ private fun EstimateBuilderDialog(
     var workDateMs by draft.workDateMs
     var workDays by draft.workDays
     var estCalMonth by draft.estCalMonth
+    var vatIncluded by draft.vatIncluded
+    var recipient by draft.recipient
     // 항목 id → 수량(평당=평수, 정액=1). 0/미존재 = 미선택.
     val selectedQty = draft.selectedQty
     // 가격표에 없는 즉석 항목(예: 실리콘) — 견적 만들기에서 바로 직접 추가. (2026-06-07 사장님 요청)
@@ -3655,7 +3663,12 @@ private fun EstimateBuilderDialog(
             val won = (c.manwon.toIntOrNull() ?: 0) * 10_000L
             if (c.name.isBlank() || won <= 0) null else QuoteLine(c.name.trim(), "1식", won)
         }
-        return QuoteDocData(lines + customLines, totalSum, depMode, depVal.toIntOrNull() ?: 0)
+        return QuoteDocData(
+            lines + customLines, totalSum, depMode, depVal.toIntOrNull() ?: 0,
+            vatIncluded = vatIncluded,
+            workDateMs = workDateMs,
+            recipient = recipient.ifBlank { defaultRecipient }.ifBlank { null }
+        )
     }
 
     // 뒤로가기 = 이 오버레이만 닫고 채팅으로 복귀. 없으면 시스템 back 이 NavHost 로 가 ChatScreen 까지 pop 됨(채팅이 꺼지던 버그). (2026-06-23 사장님)
@@ -3729,6 +3742,28 @@ private fun EstimateBuilderDialog(
                     listOf("당일" to 1, "2일" to 2, "3일" to 3, "4일" to 4, "5일" to 5, "일주일" to 7).forEach { (lbl, d) ->
                         EstSmallChip(lbl, workDays == d) { workDays = d }
                     }
+                }
+            }
+            // 받는 분 + 부가세 (견적서 전용) — (2026-07-03 사장님)
+            if (mode == "quote") {
+                Spacer(Modifier.height(11.dp))
+                Text("받는 분", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
+                    modifier = Modifier.padding(start = 2.dp))
+                Spacer(Modifier.height(6.dp))
+                com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                    recipient, { recipient = it },
+                    placeholder = defaultRecipient.ifBlank { "고객님" }
+                )
+                Spacer(Modifier.height(11.dp))
+                Text("부가세", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
+                    modifier = Modifier.padding(start = 2.dp))
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    EstSegTab("별도 (+10%)", !vatIncluded, Modifier.weight(1f)) { vatIncluded = false }
+                    EstSegTab("포함", vatIncluded, Modifier.weight(1f)) { vatIncluded = true }
                 }
             }
             // 계약금 설정 (시공접수서/견적서 탭) — 프로토 depMode
