@@ -5,6 +5,8 @@ package com.detailline.callfollowcrm.presentation.screen.pricing
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -329,7 +331,11 @@ private fun PricingItemEditDialog(
         onDismissRequest = onDismiss,
         title = { Text(title, color = TossTextPrimary, fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            // 키보드 올라오면 맨 아래 '카테고리'가 가리고 스크롤도 안 되던 문제 → 본문 스크롤 추가. (2026-07-02 사장님)
+            Column(
+                Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
                 // 프로토 sh-sub
                 Text(

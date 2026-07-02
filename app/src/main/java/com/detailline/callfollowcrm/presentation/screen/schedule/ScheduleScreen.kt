@@ -193,7 +193,9 @@ fun ScheduleScreen(
                 java.text.SimpleDateFormat("M월 d일 (E)", java.util.Locale.KOREAN).format(java.util.Date())
             }
             TopAppBar(
-                windowInsets = WindowInsets.statusBars.add(WindowInsets(top = 10.dp)),
+                // 일정은 제목이 2줄(제목+날짜)이라 TopAppBar 세로중앙정렬 시 1줄 탭보다 위로 붙음 → 상담함과 실측 정렬(top=22
+                //   에서 제목 y가 상담함과 일치). (2026-07-02 사장님: 일정 글씨가 너무 위)
+                windowInsets = WindowInsets.statusBars.add(WindowInsets(top = 22.dp)),
                 title = {
                     androidx.compose.foundation.layout.Column {
                         Text("일정", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.6).sp)
