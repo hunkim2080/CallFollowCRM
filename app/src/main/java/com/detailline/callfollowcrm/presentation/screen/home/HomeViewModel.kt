@@ -1289,6 +1289,12 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
+    /** 대기카드 '고쳐서 보내기' — 추천답변을 채팅 입력창 초안으로 넣어두고 채팅 열기. (2026-07-02 사장님) */
+    fun prefillChatDraft(phone: String, text: String) {
+        if (text.isBlank()) return
+        container.chatDraftStore.set(phone, text)
+    }
+
     companion object {
         /** 한 페이지 = 20개. 사장님 요청 (2026-05-24). */
         const val PAGE_SIZE = 20

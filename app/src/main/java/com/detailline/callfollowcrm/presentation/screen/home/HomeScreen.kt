@@ -285,6 +285,8 @@ fun HomeScreen(
     var payTarget by remember { mutableStateOf<com.detailline.callfollowcrm.ai.CollabEventCenter.CollabUpdate?>(null) }
     // 대기 카드 꾹 누르면 뜨는 '스팸 등록 / 정리' 선택. null=닫힘. (2026-06-23 사장님)
     var spamTarget by remember { mutableStateOf<HomeItem?>(null) }
+    // 대기카드 비행기 → '확인 후 발송' 다이얼로그 대상. (2026-07-02 사장님: 받은 문자·답변 전문 확인하고 보내게)
+    var waitingSendTarget by remember { mutableStateOf<HomeItem?>(null) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
 
     Scaffold(
@@ -922,24 +924,8 @@ fun HomeScreen(
                                     suggestedReply = reply,
                                     onOpenChat = { onOpenChat(item.record.phoneNumber, item.customer?.id) },
                                     onCall = { dialHome(context, item.record.phoneNumber) },
-                                    onQuickSend = {
-                                        val body = reply
-                                        if (!body.isNullOrBlank()) {
-                                            val ok = com.detailline.callfollowcrm.util.SmsSender
-                                                .sendDirect(context, item.record.phoneNumber, body)
-                                            if (ok) {
-                                                viewModel.onWaitingReplySent(item.record.phoneNumber, body, item.customer?.id)
-                                                scope.launch {
-                                                    snackbarHostState.showSnackbar("$custName 님께 보냈어요 📩", duration = SnackbarDuration.Short)
-                                                }
-                                            } else {
-                                                scope.launch {
-                                                    snackbarHostState.showSnackbar("문자 권한이 없어요 — 채팅에서 보내주세요", duration = SnackbarDuration.Short)
-                                                }
-                                                onOpenChat(item.record.phoneNumber, item.customer?.id)
-                                            }
-                                        }
-                                    },
+                                    // 비행기 = 바로 발송 X → '확인 후 발송' 다이얼로그(받은 문자·답변 전문 확인). (2026-07-02 사장님)
+                                    onQuickSend = { waitingSendTarget = item },
                                     onLongPress = { spamTarget = item }
                                 )
                             }
@@ -1172,6 +1158,67 @@ fun HomeScreen(
                     dismissButton = {
                         androidx.compose.material3.TextButton(onClick = { spamTarget = null }) {
                             Text("취소", color = TossTextSecondary)
+                        }
+                    },
+                    containerColor = Color.White
+                )
+            }
+
+            // '확인 후 발송' — 받은 문자 원문 + 보낼 답변 전문 확인 후 발송/고쳐서/취소. (2026-07-02 사장님)
+            waitingSendTarget?.let { target ->
+                val phone = target.record.phoneNumber
+                val suffix = phone.filter { it.isDigit() }.takeLast(8)
+                val nm = target.customer?.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(phone)
+                val incoming = target.lastBody?.takeIf { it.isNotBlank() }
+                val reply = waitingReplies[suffix]
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { waitingSendTarget = null },
+                    title = { Text("$nm 님께 보낼까요?", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
+                    text = {
+                        Column {
+                            if (!incoming.isNullOrBlank()) {
+                                Text("받은 문자", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
+                                Spacer(Modifier.height(4.dp))
+                                Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(TossGrayBg).padding(11.dp)) {
+                                    Text(incoming, fontSize = 13.5.sp, color = TossTextPrimary)
+                                }
+                                Spacer(Modifier.height(12.dp))
+                            }
+                            Text("보낼 답변", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                            Spacer(Modifier.height(4.dp))
+                            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color(0xFFEEF4FF)).padding(11.dp)) {
+                                Text(
+                                    reply ?: "추천 답변이 아직 없어요 — 고쳐서 보내기로 채팅에서 직접 보내주세요",
+                                    fontSize = 13.5.sp, color = TossTextPrimary
+                                )
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        if (!reply.isNullOrBlank()) {
+                            androidx.compose.material3.TextButton(onClick = {
+                                waitingSendTarget = null
+                                val ok = com.detailline.callfollowcrm.util.SmsSender.sendDirect(context, phone, reply)
+                                if (ok) {
+                                    viewModel.onWaitingReplySent(phone, reply, target.customer?.id)
+                                    scope.launch { snackbarHostState.showSnackbar("$nm 님께 보냈어요 📩", duration = SnackbarDuration.Short) }
+                                } else {
+                                    scope.launch { snackbarHostState.showSnackbar("문자 권한이 없어요 — 채팅에서 보내주세요", duration = SnackbarDuration.Short) }
+                                    onOpenChat(phone, target.customer?.id)
+                                }
+                            }) { Text("이대로 보내기", color = TossBlue, fontWeight = FontWeight.Bold) }
+                        }
+                    },
+                    dismissButton = {
+                        Row {
+                            androidx.compose.material3.TextButton(onClick = { waitingSendTarget = null }) {
+                                Text("취소", color = TossTextSecondary)
+                            }
+                            androidx.compose.material3.TextButton(onClick = {
+                                waitingSendTarget = null
+                                if (!reply.isNullOrBlank()) viewModel.prefillChatDraft(phone, reply)
+                                onOpenChat(phone, target.customer?.id)
+                            }) { Text("고쳐서 보내기", color = TossTextPrimary, fontWeight = FontWeight.Bold) }
                         }
                     },
                     containerColor = Color.White
@@ -3094,10 +3141,21 @@ private fun WaitingCard(
                 Icon(Icons.Default.Call, "전화", tint = TossTextSecondary, modifier = Modifier.size(17.dp))
             }
         }
-        // preview — 대화 요약 한 줄 (프로토 .preview).
-        if (!aiSummary.isNullOrBlank()) {
-            Spacer(Modifier.height(9.dp))
-            Text(aiSummary, fontSize = 13.5.sp, color = TossTextSecondary, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        // 받은 문자 — 고객이 실제로 보낸 마지막 문자 원문. "무슨 문자에 대한 답인지" 바로 알게. (2026-07-02 사장님)
+        //   원문 없으면(통화만 등) AI 대화요약으로 폴백.
+        val incoming = item.lastBody?.takeIf { it.isNotBlank() } ?: aiSummary
+        if (!incoming.isNullOrBlank()) {
+            Spacer(Modifier.height(10.dp))
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(TossGrayBg).padding(10.dp)
+            ) {
+                Text("받은 문자", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    incoming, fontSize = 13.5.sp, color = TossTextPrimary,
+                    maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
         }
         Spacer(Modifier.height(11.dp))
         if (!suggestedReply.isNullOrBlank()) {
