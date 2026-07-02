@@ -11,7 +11,6 @@ import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import com.detailline.callfollowcrm.data.AppContainer
 import com.detailline.callfollowcrm.data.local.seed.DefaultPricingItems
-import com.detailline.callfollowcrm.data.local.seed.DefaultTemplates
 import com.detailline.callfollowcrm.service.NotificationHelper
 import com.detailline.callfollowcrm.util.CallLogHelper
 import com.detailline.callfollowcrm.domain.model.HandledStatus
@@ -41,7 +40,10 @@ class CallFollowCrmApplication : Application() {
         com.detailline.callfollowcrm.presentation.component.MascotTierState.set(container.preferences.agentTier)
 
         appScope.launch {
-            DefaultTemplates.seedIfEmpty(container.messageTemplateRepository)
+            // 2026-07-02 기본 문자 템플릿 자동 시드 중단(사장님). 새 사장님은 빈 템플릿으로 시작 →
+            //   설정 → 문자 템플릿 → "✨ 찾기"로 자기 문자에서 자주 쓰는 걸 불러오거나 직접 추가.
+            //   (가격표와 동일 방침. 기존 폰엔 이미 들어있어 영향 없음 — 필요하면 목록에서 삭제)
+            // DefaultTemplates.seedIfEmpty(container.messageTemplateRepository)
             // 2026-06-17 멀티업종: 줄눈 기본 가격표 자동 시드 중단. 새 사장님(어느 업종이든)은 빈 가격표로
             //   시작해 직접 입력 → 서버 AI 가 그 가격을 씀. (기존 사장님 폰은 이미 입력돼 있어 영향 없음)
             // DefaultPricingItems.seedIfEmpty(container.pricingItemRepository)  // 줄눈 전용이라 비활성

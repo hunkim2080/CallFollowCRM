@@ -227,7 +227,7 @@ fun TemplateEditScreen(
 
             if (state.isDefault) {
                 Text(
-                    "기본 템플릿의 이름과 본문도 자유롭게 바꿀 수 있어요. v1 에서는 삭제는 지원하지 않아요.",
+                    "이름과 본문을 자유롭게 바꿀 수 있어요. 필요 없으면 목록에서 삭제해도 돼요.",
                     style = MaterialTheme.typography.bodySmall,
                     color = TossTextSecondary,
                     modifier = Modifier.padding(horizontal = 4.dp)
