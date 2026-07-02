@@ -2828,10 +2828,19 @@ const EP_NAMES_KO = {
   'conversation-summary':  '대화 상세 요약',
   'next-action-suggest':   '다음 액션 제안',
   'refine':                '✨ 다듬기',
-  'address-resolve':       '📍 주소 resolve',
+  'address-resolve':       '📍 주소 찾기',
   'intent-classify':       '의도 분류',
   'style-profile-learn':   '말투 학습',
   'reply-suggest':         '답변 추천 (보조)',
+  'call-summary':          '통화 요약 (문자로)',
+  'call-audio-summary':    '통화 녹음 요약',
+  'customer-persona':      '고객 성향 분석',
+  'infer-principle':       '사장님 원칙 추론',
+  'tone-profile-plain':    '말투 비교 (기본 답변)',
+  'tone-profile-mine':     '말투 비교 (사장님 톤)',
+  'tone-profile-traits':   '말투 특징 분석',
+  'extract-pricing':       '문자에서 가격표 추출',
+  'pricing-starter':       '업종 스타터 가격표',
 };
 
 // prefix 매칭용 — model ID prefix 별 한글명 + 설명
@@ -3008,12 +3017,13 @@ async function loadAll() {
       // 추가80 — 기능별 비용 비중 바 (최대 비용 기능 = 100%)
       const epMaxCost = Math.max(1, ...eps.map(([, s]) => s.cost_krw));
       body.innerHTML = eps.map(([name, s]) => {
-        const nameKo = EP_NAMES_KO[name] || name;
+        const nameKo = EP_NAMES_KO[name] || ('미분류 기능 (' + name + ')');
+        // 한글 이름 있으면 영어 원문 숨김 (사장님 요청 2026-07-02). 미분류만 원문 노출.
         const w = Math.min(100, s.cost_krw / epMaxCost * 100);
         const pctOfMonth = monthTotalCost > 1 ? (s.cost_krw / monthTotalCost * 100) : 0;
         return `
           <tr>
-            <td class="ep">${nameKo}<div class="ep-en">${name}</div>
+            <td class="ep">${nameKo}
               <div class="ep-bar"><span style="width:${w.toFixed(1)}%"></span></div></td>
             <td class="num">${fmt(s.calls)}</td>
             <td class="num">${fmtKRW(s.cost_krw)}<div style="font-size:10px;color:var(--muted)">${pctOfMonth.toFixed(0)}%</div></td>
