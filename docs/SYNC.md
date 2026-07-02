@@ -6195,24 +6195,6 @@ MMS 처리 방식 검토 회신 → `docs/ANDROID_REVIEW_mms_architecture.md` �
   단, 후보에 캐시 기준(latest_msg_ts)보다 새 dateMs 있으면 재추출 (더 최신 견적문자 반영).
 - 프라이버시: 문자 본문 로그 출력 없음 (개수/latency 만). 캐시엔 추출 items 만 저장.
 - 검증: py_compile PASS + TestClient 스모크 ALL PASS (LLM mock — 정상추출/만원단위 보정/캐시 hit/새문자 miss/빈후보/400).
-- 실 LLM 붙은 e2e 는 배포 후: 사장님 `bash server/deploy_phase1.sh` → 앱 "불러오기" 버튼으로 확인 부탁.
-- Python 3.9 Optional[] 준수. 변경: server/main.py 만.
-- (참고) SERVER_HANDOFF_pricing_starter.md (POST /pricing/starter) 는 아직 미구현 — 다음 cycle.
-- commit: (아래)
-
-## 2026-07-02 · cowork (안드로이드 가격추출 요청 응답)
-추가77 — POST /extract-pricing 구현 완료 (엔드포인트 준비됨).
-- 명세 docs/SERVER_HANDOFF_extract_pricing.md 그대로. ⚠️ 루트 경로 (baseUrl/extract-pricing).
-- 입력: {deviceId, ownerTrade, candidates:[{body,dateMs}]} camelCase 그대로.
-- 출력: {status:"ready", items:[{title, priceWon(원단위 정수), unit(FLAT|PYEONG), category(NEW|OLD|COMMON), basisText(null 가능), confidence}]}.
-- 계약 방어 (서버 후처리):
-  - priceWon < 1만 이면 만원단위 실수로 보고 ×10000 복원 (+로그). 0 이하/1억 초과 항목 버림.
-  - unit/category 이상값 → FLAT/COMMON 보정. basisText 40자 컷+개행 제거. confidence<0.5 버림. 상한 20개.
-- 모델: Sonnet (CLAUDE_MODEL), call_claude_json 공용 헬퍼. llm_usage_log 에 endpoint='extract-pricing' 기록.
-- 캐시: summary_cache 재활용 (phone=deviceId, endpoint='extract-pricing'). 같은 deviceId 재요청 = 캐시 반환 (재과금 방지).
-  단, 후보에 캐시 기준(latest_msg_ts)보다 새 dateMs 있으면 재추출 (더 최신 견적문자 반영).
-- 프라이버시: 문자 본문 로그 출력 없음 (개수/latency 만). 캐시엔 추출 items 만 저장.
-- 검증: py_compile PASS + TestClient 스모크 ALL PASS (LLM mock — 정상추출/만원단위 보정/캐시 hit/새문자 miss/빈후보/400).
 - Python 3.9 Optional[] 준수. 변경: server/main.py 만.
 - commit: 2d0540b
 
