@@ -203,6 +203,19 @@ def db_init() -> None:
             "CREATE INDEX IF NOT EXISTS idx_llm_usage_log_endpoint_ts "
             "ON llm_usage_log(endpoint, timestamp_ms)"
         )
+        # 추가79 (2026-07-02) — API 크레딧 충전 기록 (Anthropic 자동충전 크로스체크용).
+        # 사장님이 /admin 에서 [충전 등록] 클릭 → 그 시점 이후 llm_usage_log 사용액과
+        # 대조해 금액 누수(미추적 사용) 감지.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS api_recharges (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                amount_usd      REAL    NOT NULL,
+                note            TEXT,
+                recharged_at_ms INTEGER NOT NULL
+            )
+            """
+        )
         # §15 — subscribers 테이블 (사업 metric 의 기반)
         # 한 사용자 = 한 phone. plan 별 가격 정책 + lifecycle (started/churned) 추적.
         # MRR / ARPU / Margin / Churn 계산의 source of truth.
@@ -2694,6 +2707,39 @@ _ADMIN_DASHBOARD_HTML = r"""<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- 🔋 크레딧 크로스체크 (관리자만) -->
+  <div class="card admin-only" id="rechargeCard" style="display:none;">
+    <h2>🔋 크레딧 크로스체크</h2>
+    <div id="rechargeLast" style="font-size:13px;line-height:1.7;color:var(--muted);">로딩 중…</div>
+    <div style="background:var(--line);border-radius:6px;height:10px;margin:10px 0;overflow:hidden;">
+      <div id="rechargeBar" style="background:var(--ok);height:100%;width:0%;transition:width .3s;"></div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+      <span style="font-size:13px;">$</span>
+      <input id="rechargeAmount" type="number" step="0.01" value="11"
+        style="width:90px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:14px;" />
+      <input id="rechargeNote" type="text" placeholder="메모 (예: 자동충전)"
+        style="flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;" />
+      <button class="refresh" onclick="registerRecharge()">⚡ 충전 등록</button>
+    </div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead><tr style="color:var(--muted);text-align:left;">
+          <th style="padding:4px 6px;">충전일</th>
+          <th style="padding:4px 6px;" class="num">충전액</th>
+          <th style="padding:4px 6px;" class="num">그 후 가계부 사용액</th>
+          <th style="padding:4px 6px;">대조</th>
+        </tr></thead>
+        <tbody id="rechargeHistoryBody"></tbody>
+      </table>
+    </div>
+    <div style="margin-top:8px;font-size:11px;color:var(--muted);line-height:1.5;">
+      💡 사용법: Anthropic 자동충전 결제 알림이 오면 [⚡ 충전 등록] 클릭.
+      다음 충전이 왔을 때 "그 후 가계부 사용액"이 충전액과 비슷하면 정상,
+      가계부보다 훨씬 빨리 충전이 반복되면 <b>누수 의심</b> (외부에서 같은 API 키 사용 등).
+    </div>
+  </div>
+
   <!-- 모델별 사용량 (이번 달) -->
   <div class="card">
     <h2>🤖 모델별 사용량 (이번 달)</h2>
@@ -3029,6 +3075,72 @@ async function loadAll() {
   }
 }
 
+// ─── 🔋 크레딧 크로스체크 (추가79) ───
+async function loadRechargeCard(token) {
+  const s = await fetchJSON('/api/admin/recharge/status', {
+    headers: { 'X-Admin-Token': token },
+  });
+  const lastEl = document.getElementById('rechargeLast');
+  const bar = document.getElementById('rechargeBar');
+  const body = document.getElementById('rechargeHistoryBody');
+  if (!s.last) {
+    lastEl.innerHTML = '아직 충전 기록 없음 — Anthropic 결제가 확인되면 아래 [⚡ 충전 등록]을 눌러 시작하세요.';
+    bar.style.width = '0%';
+    body.innerHTML = '';
+    return;
+  }
+  const d = new Date(s.last.rechargedAtMs);
+  const dateStr = (d.getMonth()+1) + '/' + d.getDate() + ' ' +
+    String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  lastEl.innerHTML =
+    '마지막 충전: <b>$' + s.last.amountUsd.toFixed(2) + '</b> (' + dateStr +
+    (s.last.note ? ' · ' + s.last.note : '') + ')<br/>' +
+    '그 후 사용: <b>' + fmtKRW(s.last.usedSinceKrw) + '</b> (≈ $' + s.last.usedSinceUsd.toFixed(2) + ')' +
+    ' · 추정 잔여 <b>$' + s.last.remainingEstUsd.toFixed(2) + '</b> (' + s.last.usedPct + '% 소진)';
+  bar.style.width = s.last.usedPct + '%';
+  bar.style.background = s.last.usedPct >= 85 ? 'var(--hot)' :
+                         s.last.usedPct >= 60 ? 'var(--warn)' : 'var(--ok)';
+  body.innerHTML = s.history.map(function(h, i) {
+    const hd = new Date(h.rechargedAtMs);
+    const ds = hd.getFullYear() + '.' + (hd.getMonth()+1) + '.' + hd.getDate();
+    let check = '';
+    if (i === 0) {
+      check = '<span style="color:var(--muted)">진행 중</span>';
+    } else {
+      const ratio = h.amountUsd > 0 ? h.usedSinceUsd / h.amountUsd : 0;
+      check = (ratio >= 0.7 && ratio <= 1.3)
+        ? '<span style="color:var(--ok)">✓ 정상</span>'
+        : '<span style="color:var(--hot)">⚠ 차이 큼 (' + (ratio*100).toFixed(0) + '%)</span>';
+    }
+    return '<tr>' +
+      '<td style="padding:4px 6px;">' + ds + (h.note ? ' <span style="color:var(--muted)">' + h.note + '</span>' : '') + '</td>' +
+      '<td style="padding:4px 6px;" class="num">$' + h.amountUsd.toFixed(2) + '</td>' +
+      '<td style="padding:4px 6px;" class="num">' + fmtKRW(h.usedSinceKrw) + ' (≈$' + h.usedSinceUsd.toFixed(2) + ')</td>' +
+      '<td style="padding:4px 6px;">' + check + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+async function registerRecharge() {
+  const token = getAdminToken();
+  if (!token) { alert('관리자 토큰 필요'); return; }
+  const amount = parseFloat(document.getElementById('rechargeAmount').value);
+  if (!(amount > 0)) { alert('금액을 확인해주세요'); return; }
+  const note = document.getElementById('rechargeNote').value.trim();
+  if (!confirm('$' + amount.toFixed(2) + ' 충전을 지금 시각으로 등록할까요?')) return;
+  try {
+    await fetchJSON('/api/admin/recharge', {
+      method: 'POST',
+      headers: { 'X-Admin-Token': token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amountUsd: amount, note: note || null }),
+    });
+    document.getElementById('rechargeNote').value = '';
+    await loadRechargeCard(token);
+  } catch (e) {
+    alert('등록 실패: ' + e);
+  }
+}
+
 // ─── Admin section 로딩 (사업 건강도 + Top users + heatmap) ───
 async function loadAdminSection() {
   const token = getAdminToken();
@@ -3060,6 +3172,9 @@ async function loadAdminSection() {
   // 인증 성공 → admin 카드들 보이게
   lockCard.style.display = 'none';
   adminCards.forEach(c => c.style.display = 'block');
+
+  // 🔋 크레딧 크로스체크 (추가79) — 실패해도 다른 카드 안 막음
+  loadRechargeCard(token).catch(e => console.warn('recharge card', e));
 
   // 💼 사업 건강도
   document.getElementById('bizMrr').textContent = fmtKRW(stats.mrr_krw);
@@ -4220,6 +4335,100 @@ async def admin_usage() -> dict:
         "summaryCacheRows": cache_row_count,
         "dailyTotalLimit": DAILY_TOTAL_CALLS_LIMIT,
         "perPhoneDailyLimit": PER_PHONE_DAILY_LIMIT,
+    }
+
+
+# ============================================================================
+# 추가79 — 크레딧 충전 크로스체크 (Anthropic 자동충전 vs 우리 가계부)
+# 사장님 요청 (2026-07-02): 자동충전 결제가 오면 [충전 등록] 클릭 → 그 시점 기록
+# → 이후 사용액이 다시 쌓임 → 다음 충전 때 "가계부 사용액 vs 실제 결제" 대조로
+# 금액 누수 (같은 키 외부 사용, 단가표 오류 등) 감지.
+# ============================================================================
+
+class RechargeCreateRequest(BaseModel):
+    amountUsd: float = 11.0     # 기본 = $10 충전 + 부가세
+    note: Optional[str] = None
+
+
+@app.post("/api/admin/recharge")
+async def admin_recharge_create(
+    req: RechargeCreateRequest,
+    x_admin_token: Optional[str] = Header(None),
+) -> dict:
+    """충전 등록 — 사장님이 Anthropic 결제 확인한 시점에 클릭."""
+    _admin_auth(x_admin_token)
+    try:
+        amount = float(req.amountUsd)
+    except (TypeError, ValueError):
+        raise HTTPException(400, "amountUsd 숫자여야 합니다")
+    if not (0 < amount <= 10_000):
+        raise HTTPException(400, "amountUsd 는 0 초과 10,000 이하")
+    note = (req.note or "").strip()[:100] or None
+    now = _now_ms()
+    with db_conn() as con:
+        cur = con.execute(
+            "INSERT INTO api_recharges (amount_usd, note, recharged_at_ms) VALUES (?, ?, ?)",
+            (amount, note, now),
+        )
+        con.commit()
+        rid = cur.lastrowid
+    print(f"[recharge] 등록 id={rid} ${amount} note={note or '-'}")
+    return {"ok": True, "id": rid, "amountUsd": amount, "rechargedAtMs": now}
+
+
+@app.get("/api/admin/recharge/status")
+async def admin_recharge_status(
+    x_admin_token: Optional[str] = Header(None),
+) -> dict:
+    """마지막 충전 이후 사용액 + 충전 이력 (구간별 가계부 사용액 포함)."""
+    _admin_auth(x_admin_token)
+    now = _now_ms()
+    with db_conn() as con:
+        rows = con.execute(
+            "SELECT id, amount_usd, note, recharged_at_ms FROM api_recharges "
+            "ORDER BY recharged_at_ms DESC LIMIT 12"
+        ).fetchall()
+
+        def _usage_between(a_ms: int, b_ms: int) -> float:
+            r = con.execute(
+                "SELECT COALESCE(SUM(cost_krw), 0) FROM llm_usage_log "
+                "WHERE timestamp_ms >= ? AND timestamp_ms < ?",
+                (a_ms, b_ms),
+            ).fetchone()
+            return float(r[0] or 0.0)
+
+        history = []
+        prev_end = now  # rows 는 최신순 — 각 충전의 구간 = [이 충전, 다음(더 최신) 충전)
+        for r in rows:
+            used_krw = _usage_between(r["recharged_at_ms"], prev_end)
+            history.append({
+                "id": r["id"],
+                "amountUsd": round(r["amount_usd"], 2),
+                "note": r["note"],
+                "rechargedAtMs": r["recharged_at_ms"],
+                "usedSinceKrw": round(used_krw),
+                "usedSinceUsd": round(used_krw / KRW_PER_USD, 2),
+            })
+            prev_end = r["recharged_at_ms"]
+
+    if not history:
+        return {"ok": True, "last": None, "history": []}
+
+    last = history[0]
+    remaining = round(last["amountUsd"] - last["usedSinceUsd"], 2)
+    used_pct = (
+        round(min(100.0, last["usedSinceUsd"] / last["amountUsd"] * 100), 1)
+        if last["amountUsd"] > 0 else 0.0
+    )
+    return {
+        "ok": True,
+        "last": {
+            **last,
+            "remainingEstUsd": remaining,
+            "usedPct": used_pct,
+        },
+        "history": history,
+        "krwPerUsd": KRW_PER_USD,
     }
 
 

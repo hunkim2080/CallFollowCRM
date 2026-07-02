@@ -6218,3 +6218,15 @@ deploy_phase1.sh — repo 에 plist 사본 없으면 (gitignore 라 repo 이동 
 - 사장님 배포 실패 원인: step 3 cp 가 plist 못 찾고 set -e 로 중단 → 재시작 안 됨.
 - 변경: server/deploy_phase1.sh 만.
 - commit: (아래)
+
+## 2026-07-02 · cowork (사장님 요청: 크레딧 충전 크로스체크)
+추가79 — /admin 대시보드에 "🔋 크레딧 크로스체크" 카드 (관리자 전용).
+- 배경: Anthropic $11 자동충전 결제 → 사장님이 대시보드 사용액과 대조해 금액 누수 감지 원함.
+- 신규 테이블 api_recharges (amount_usd, note, recharged_at_ms). idempotent 자동 생성.
+- POST /api/admin/recharge {amountUsd, note} — 충전 등록 (X-Admin-Token).
+- GET /api/admin/recharge/status — 마지막 충전 이후 사용액(llm_usage_log cost_krw 합)·추정 잔여·소진 %·충전 이력 (구간별 가계부 사용액 + 정상/차이큼 대조 표시).
+- UI: 충전액 입력(기본 $11)+메모+[⚡ 충전 등록] 버튼, 소진 게이지 (60% 노랑/85% 빨강), 이력 테이블.
+- 대조 로직: 완료된 충전 구간의 (가계부 사용액 ÷ 충전액) 이 0.7~1.3 벗어나면 "⚠ 차이 큼" = 누수 의심.
+- 검증: py_compile PASS + TestClient ALL PASS (인증 게이트/등록/구간별 사용액/2차 충전 후 구간 고정/400).
+- 앱 변경 없음. 변경: server/main.py 만. 배포 필요 (deploy_phase1.sh).
+- commit: (아래)
