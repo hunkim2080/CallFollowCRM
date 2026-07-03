@@ -29,8 +29,9 @@ import java.nio.charset.CodingErrorAction
  *     UTF-8 로 먼저 시도(미래 대비) → 실패하면 MS949 → EUC-KR 순으로 디코드.
  *  2) **중복 안 함(=재과금 방지)** — 파일명의 전화번호+시각으로 이미 저장된 요약이 있으면 스킵.
  *     (이게 없으면 스캔할 때마다 같은 파일을 서버로 다시 보내 비용 발생.)
- *  3) **cutoff 없음** — 녹음과 달리, txt 는 사용자가 에이닷에서 "텍스트 저장"을 명시적으로 누른 것만 생긴다.
- *     즉 폴더에 있는 모든 txt 는 의도된 것이므로 통화 날짜와 무관하게 전부 가져온다(중복만 거름).
+ *  3) **연결 시각 cutoff (2026-07-03 사장님, 비용폭주 fix)** — 폴더 연결(connectedAt) 이후의 txt 만 자동 요약한다.
+ *     녹음(m4a) 경로와 동일. 연결 전 쌓여있던 옛 txt(신규 설치 폰에 수백 건) 를 첫 스캔에 전부 서버로 보내
+ *     비용 폭주하던 문제 방지. 과거 이력은 고객별 백필(AdotFolderScanner.scanByPhone)로 명시적으로만.
  */
 object AdotTextFolderScanner {
 
@@ -141,6 +142,16 @@ object AdotTextFolderScanner {
         val tree = DocumentFile.fromTreeUri(context, treeUri) ?: return 0
         if (!tree.isDirectory) return 0
 
+        // 연결 시각 기준선 — 연결 전(과거) txt 는 자동 재요약 안 함. 신규 설치 폰에 쌓여있던 옛 에이닷 요약
+        //   수백 건을 첫 스캔에 전부 서버로 보내 비용 폭주하던 문제 fix. 미설정(0)이면 지금으로 baseline.
+        //   과거 이력은 고객별 백필(scanByPhone)로 사용자가 명시적으로 끌어올 때만. (2026-07-03 사장님)
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        var connectedAt = prefs.getLong(KEY_CONNECTED_AT, 0L)
+        if (connectedAt == 0L) {
+            connectedAt = System.currentTimeMillis()
+            prefs.edit().putLong(KEY_CONNECTED_AT, connectedAt).apply()
+        }
+
         var imported = 0
         for (f in tree.listFiles()) {
             if (!f.isFile) continue
@@ -149,6 +160,9 @@ object AdotTextFolderScanner {
 
             // 파일명에서 전화번호+시각 추출. 패턴 안 맞으면 스킵(중복판정 불가 → 재과금 위험).
             val parsed = AdotFilenameParser.parse(name) ?: continue
+
+            // 연결 전 옛 통화 txt 는 무시 — 재과금(신규 설치 시 과거 요약 대량 처리) 방지.
+            if (parsed.recordedAt < connectedAt) continue
 
             // 이미 저장된 통화요약이면 스킵 — 서버 재호출(비용) 방지.
             if (container.callSummaryRepository.findExistingNear(parsed.phoneNumber, parsed.recordedAt) != null) continue
