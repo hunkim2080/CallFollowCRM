@@ -6669,15 +6669,27 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
     LAST_DETAILS = d.details || {};
     LAST_DETAILS['at_risk'] = atRiskList;  // 추가87 — 이탈 위험 명단 (KPI 카드 클릭)
     var n = d.network;
+    // 추가88 — 협업 깔때기 전환율 (요청→수락→완료 가 이야기가 되게) + 기간 명시 + 빈 박스 제거
+    var acceptPct = n.collab_total > 0 ? Math.round(n.collab_accepted / n.collab_total * 100) : 0;
+    var donePct = n.collab_accepted > 0 ? Math.round(n.collab_completed / n.collab_accepted * 100) : 0;
+    var funnelHtml = n.collab_total > 0
+      ? '<div style="grid-column:1 / -1; font-size:12px; color:#5A6472; padding:8px 10px; background:#EEF4FF; border-radius:10px;">'
+        + '🤝 협업 깔때기: 요청 ' + n.collab_total + ' → 수락 ' + n.collab_accepted
+        + ' (<b style="color:' + (acceptPct >= 60 ? '#16C172' : '#F59E0B') + '">' + acceptPct + '%</b>)'
+        + ' → 완료 ' + n.collab_completed
+        + ' (<b style="color:' + (donePct >= 60 ? '#16C172' : '#F59E0B') + '">' + donePct + '%</b>)'
+        + '</div>'
+      : '';
     document.getElementById('netGrid').innerHTML =
+      funnelHtml +
       netItem('🤝 협업 요청', n.collab_total, 'collab_total') +
       netItem('✓ 협업 수락', n.collab_accepted, 'collab_accepted') +
       netItem('🏁 협업 완료', n.collab_completed, 'collab_completed') +
+      netItem('📸 현장 사진', n.photos, 'photos') +
       netItem('📣 모집 공고', n.recruit_total, 'recruit_total') +
       netItem('👋 모집 지원', n.recruit_apps, 'recruit_apps') +
       netItem('👷 팀원 등록', n.team_members, 'team_members') +
-      netItem('📸 현장 사진', n.photos, 'photos') +
-      netItem('', '', '');
+      '<div class="net-item empty" style="display:flex; align-items:center; justify-content:center; font-size:11px; color:#9AA3AF;">기간: 최근 ' + d.days + '일</div>';
 
     // 일별 활성 차트
     if (CHART_REF) CHART_REF.destroy();
@@ -6698,37 +6710,57 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
         responsive: true, maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
         scales: {
-          y: { type: 'linear', position: 'left', title: { display: true, text: '활성' }, beginAtZero: true },
+          // 추가88 — 활성 사용자는 사람 수 → 정수 눈금만 (3.5명 금지)
+          y: { type: 'linear', position: 'left', title: { display: true, text: '활성' }, beginAtZero: true,
+               ticks: { stepSize: 1, precision: 0 } },
           y1: { type: 'linear', position: 'right', title: { display: true, text: 'API' }, beginAtZero: true, grid: { drawOnChartArea: false } },
         },
         plugins: { legend: { labels: { font: { size: 11 } } } },
       }
     });
 
-    // 기능 사용 막대
+    // 기능 사용 막대 — 추가88: 자동/수동 구분 (사장님: "많이 불림 ≠ 인기" 착시 제거)
+    // 수동 = 사용자가 버튼을 직접 누른 기능. 자동 = 앱이 알아서 부르는 기능.
+    var MANUAL_EPS = ['prepare-reply', 'refine', 'extract-pricing', 'pricing-starter',
+                      'name-template', 'reply-suggest', 'tone-import'];
     var feat = d.feature_usage;
     if (feat.length === 0) {
       document.getElementById('featList').innerHTML = '<div style="text-align:center; padding:20px; color:#9AA3AF; font-size:13px">아직 사용 데이터 없음</div>';
     } else {
+      var USD2KRW = 1450;
       var maxN = feat[0].count;
-      var html = '';
-      feat.forEach(function(f){
+      function featRow(f) {
         var pct2 = maxN > 0 ? Math.round(f.count / maxN * 100) : 0;
-        html += '<div class="feat-row">'
+        var costKrw = Math.round((f.cost_usd || 0) * USD2KRW);
+        return '<div class="feat-row">'
               + '<span class="name">' + escape(f.label) + '</span>'
               + '<span class="bar"><span class="fill" style="width:' + pct2 + '%; display:block"></span></span>'
-              + '<span class="num">' + f.count + '</span>'
+              + '<span class="num">' + f.count + '회<br><span style="font-size:10px; color:#9AA3AF; font-weight:400">₩' + costKrw.toLocaleString() + '</span></span>'
               + '</div>';
-      });
+      }
+      var manual = feat.filter(function(f){ return MANUAL_EPS.indexOf(f.endpoint) !== -1; });
+      var auto = feat.filter(function(f){ return MANUAL_EPS.indexOf(f.endpoint) === -1; });
+      var html = '';
+      html += '<div style="font-size:11.5px; font-weight:800; color:#1B64DA; margin-bottom:8px;">🖱 직접 사용 (사장님이 버튼 누른 것 — 진짜 인기 지표)</div>';
+      html += manual.length ? manual.map(featRow).join('')
+            : '<div style="font-size:12px; color:#9AA3AF; padding:4px 0 8px;">아직 없음</div>';
+      html += '<div style="font-size:11.5px; font-weight:800; color:#9AA3AF; margin:14px 0 8px;">⚙️ 자동 실행 (앱이 알아서 부르는 것 — 비용 지표)</div>';
+      html += auto.map(featRow).join('');
       document.getElementById('featList').innerHTML = html;
     }
 
-    // LLM 비용
+    // LLM 비용 — 추가88: 일평균 + 사용자당 (유료화 마진 계산 직결)
     var c = d.cost;
+    var activeMembersCnt = members.filter(function(u){ return (u.calls || 0) > 0; }).length;
+    var dailyAvgKrw = d.days > 0 ? c.period_krw / d.days : 0;
+    var perUserKrw = activeMembersCnt > 0 ? c.period_krw / activeMembersCnt : 0;
     document.getElementById('costBox').innerHTML =
       '<div style="margin-bottom:12px"><div style="font-size:11.5px; color:#9AA3AF; font-weight:700">기간 (' + d.days + '일)</div>'
       + '<div style="font-size:24px; font-weight:800; color:#1B64DA">' + Math.round(c.period_krw).toLocaleString() + '원</div>'
-      + '<div style="font-size:11.5px; color:#5A6472">' + c.period_calls + '회 호출</div></div>'
+      + '<div style="font-size:11.5px; color:#5A6472">' + c.period_calls + '회 호출 · 일평균 ' + Math.round(dailyAvgKrw).toLocaleString() + '원</div></div>'
+      + '<div style="margin-bottom:12px"><div style="font-size:11.5px; color:#9AA3AF; font-weight:700">사용자당 (' + d.days + '일, 활성 ' + activeMembersCnt + '명)</div>'
+      + '<div style="font-size:18px; font-weight:800; color:#0B0F19">' + Math.round(perUserKrw).toLocaleString() + '원</div>'
+      + '<div style="font-size:11.5px; color:#5A6472">월 5만원 구독 대비 ' + (perUserKrw > 0 ? (perUserKrw / 50000 * 100).toFixed(1) : '0') + '% 원가</div></div>'
       + '<div><div style="font-size:11.5px; color:#9AA3AF; font-weight:700">누적</div>'
       + '<div style="font-size:18px; font-weight:800; color:#0B0F19">' + Math.round(c.all_krw).toLocaleString() + '원</div>'
       + '<div style="font-size:11.5px; color:#5A6472">' + c.all_calls + '회 호출</div></div>';

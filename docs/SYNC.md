@@ -6409,3 +6409,12 @@ PRODUCT_MONETIZATION_DRAFT.md §9 신설 — 사장님 확정 사항 기록.
 - [앱] 템플릿 제목 13자 컷(추가81b 반영): 수동 입력칸(setTitle take13) + 서버 title(TemplateNameRepository 20→13) + 휴리스틱(autoTitle 14→13, ChatVM saveTextAsTemplate 14→13).
 - 사장님 액션(서버): plist SOLAPI_API_KEY/SECRET/SENDER 3개 추가 후 재시작해야 실발송.
 - commit: (이 커밋)
+
+## 2026-07-03 · cowork (사장님 요청: 대시보드 하단 개선)
+추가88 — 베타 대시보드 하단 4종.
+- 기능 사용량: 🖱 직접 사용(버튼 누른 것 = 진짜 인기) vs ⚙️ 자동 실행(앱이 부르는 것 = 비용) 그룹 분리 + 각 행에 비용(₩) 표시. "자동 호출이 1등 = 인기" 착시 제거.
+- Network: 협업 깔때기 한 줄 (요청→수락 N%→완료 N%, 60% 미만 주황) + 기간 표시 + 빈 박스 제거.
+- 일별 차트: 활성 사용자 Y축 정수 눈금 (3.5명 금지).
+- LLM 비용: 일평균 + 사용자당 (활성 기준) + "월 5만원 구독 대비 원가 %" — 유료화 마진 즉시 가늠.
+- 검증: 마크업/JS PASS. 변경: server/main.py 만. 배포 필요.
+- commit: (아래)
