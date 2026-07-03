@@ -186,7 +186,9 @@ fun HomeScreen(
     onOpenCollabSites: () -> Unit = {},
     onOpenCollabSiteDetail: (String) -> Unit = {},   // 협업 카드 각 줄 → 그 현장 상세 (2026-06-21 사장님)
     /** 상담함 "부재중 자동답장" 알림 길게누름 → 자동 문자 설정(부재중 응답 펼침). (2026-06-06) */
-    onOpenAutoSmsSettings: () -> Unit = {}
+    onOpenAutoSmsSettings: () -> Unit = {},
+    /** 막내 팁 카드 → 해당 기능 라우트로 이동(제네릭). (2026-07-04 사장님) */
+    onOpenRoute: (String) -> Unit = {}
 ) {
     val timeline by viewModel.timeline.collectAsState()
     val filter by viewModel.filterState.collectAsState()
@@ -226,6 +228,7 @@ fun HomeScreen(
     val serverHealth = remember {
         (context.applicationContext as CallFollowCrmApplication).container.serverHealth
     }
+    val prefs = remember { (context.applicationContext as CallFollowCrmApplication).container.preferences }
     val serverAlive by serverHealth.alive.collectAsState()
     val lastOkAtMs by serverHealth.lastOkAtMs.collectAsState()
 
@@ -437,6 +440,25 @@ fun HomeScreen(
             val listState = rememberLazyListState()
             // 최근 대화 스크롤 버벅임 fix: 한 카드에 전체를 한 프레임에 그리면 끊김 → 기본 일부만, 나머지는 "더 보기".
             var recentExpanded by remember { mutableStateOf(false) }
+            // 막내 팁 카드 — 눌러본(used)/닫은(dismissed) 건 prefs 로 영구 기억 + 화면 상태로 즉시 반영. (2026-07-04 사장님)
+            var tipUsed by remember { mutableStateOf(prefs.makneTipUsed) }
+            var tipDismissed by remember { mutableStateOf(prefs.makneTipDismissed) }
+            val eligibleTips = remember(tipUsed, tipDismissed) {
+                if (!prefs.makneTipsEnabled) emptyList()
+                else com.detailline.callfollowcrm.presentation.component.MAKNE_TIPS
+                    .filter { it.key !in tipUsed && it.key !in tipDismissed }
+            }
+            fun onTipGo(tip: com.detailline.callfollowcrm.presentation.component.MakneTip) {
+                tipUsed = tipUsed + tip.key; prefs.makneTipUsed = tipUsed
+                onOpenRoute(tip.route)
+                if (tip.key !in prefs.makneGuideSeen) {   // 안내판은 기능마다 처음 한 번만.
+                    prefs.makneGuideSeen = prefs.makneGuideSeen + tip.key
+                    com.detailline.callfollowcrm.presentation.component.MakneGuideController.show(tip)
+                }
+            }
+            fun onTipDismiss(tip: com.detailline.callfollowcrm.presentation.component.MakneTip) {
+                tipDismissed = tipDismissed + tip.key; prefs.makneTipDismissed = tipDismissed
+            }
 
             // 카드 탭 인라인 액션 — 한 번에 하나만 펼침. key 포맷은 LazyColumn key 와 동일.
             // 회전/recompose 살아남게 rememberSaveable. null = 모두 접힘.
@@ -957,70 +979,84 @@ fun HomeScreen(
                     item(key = "recent-head") { SecSub("최근 대화") }
                     item(key = "recent-card") {
                         val shownRecent = if (recentExpanded) recent else recent.take(12)
-                        Column(
-                            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White)
-                        ) {
-                            shownRecent.forEachIndexed { index, rItem ->
-                                if (index > 0) {
-                                    Box(
-                                        Modifier.fillMaxWidth().padding(start = 16.dp)
-                                            .height(1.dp).background(TossDivider)
-                                    )
-                                }
-                                val suffix = rItem.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8)
-                                // 카톡식 안 읽음: 고객이 마지막에 말함(lastSent==false) + 그 메시지가 마지막으로 읽은 시각보다 새것.
-                                val custMsgMs = rItem.lastActivityMs.takeIf { it > 0L } ?: rItem.record.endedAt
-                                val unread = rItem.lastSent == false && (readStates[suffix] ?: 0L) < custMsgMs
-                                // 최근 대화도 밀어서 [🚫 스팸][👤 사생활] — 스팸/개인일 수 있으니. (2026-06-23 사장님)
-                                //   정리(대기목록)는 최근엔 해당 없어 제외. 마킹하면 timeline 의 spam 필터로 최근에서도 자동 사라짐.
-                                val rName = rItem.customer?.name?.takeIf { it.isNotBlank() }
-                                com.detailline.callfollowcrm.presentation.component.SwipeRevealTwoBox(
-                                    onFirst = {
-                                        viewModel.markSpam(rItem.record.phoneNumber, rName, "spam")
-                                        scope.launch {
-                                            val r = snackbarHostState.showSnackbar("스팸으로 등록했어요 — 앞으로 안 보여요", actionLabel = "되돌리기", duration = SnackbarDuration.Short)
-                                            if (r == SnackbarResult.ActionPerformed) viewModel.unmarkSpam(rItem.record.phoneNumber)
-                                        }
-                                    },
-                                    onSecond = {
-                                        viewModel.markSpam(rItem.record.phoneNumber, rName, "personal")
-                                        scope.launch {
-                                            val r = snackbarHostState.showSnackbar("사생활 번호로 옮겼어요 — 시공막내가 안 잡아요", actionLabel = "되돌리기", duration = SnackbarDuration.Short)
-                                            if (r == SnackbarResult.ActionPerformed) viewModel.unmarkSpam(rItem.record.phoneNumber)
-                                        }
-                                    },
-                                    firstLabel = "스팸",
-                                    secondLabel = "사생활",
-                                    firstColor = TossError,
-                                    secondColor = Color(0xFF7C5CFC),
-                                    firstIcon = Icons.Filled.Block,
-                                    secondIcon = Icons.Filled.Person,
-                                    shape = androidx.compose.ui.graphics.RectangleShape
+                        // 최근 대화를 3개씩 흰 카드로 묶고, 그 사이에 막내 팁 카드를 끼운다(무심코 스크롤 중 기능 발견). 프로토 renderRecent 1:1. (2026-07-04 사장님)
+                        Column(Modifier.fillMaxWidth(), verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp)) {
+                            var tipIdx = 0
+                            shownRecent.chunked(3).forEachIndexed { gIdx, group ->
+                                Column(
+                                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White)
                                 ) {
-                                    Box(Modifier.fillMaxWidth().background(Color.White)) {
-                                        RecentRow(
-                                            item = rItem,
-                                            index = index,
-                                            unread = unread,
-                                            aiSummary = aiCardSummaries[suffix],
-                                            onOpenChat = { onOpenChat(rItem.record.phoneNumber, rItem.customer?.id) }
-                                        )
+                                    group.forEachIndexed { j, rItem ->
+                                        val index = gIdx * 3 + j
+                                        if (j > 0) {
+                                            Box(
+                                                Modifier.fillMaxWidth().padding(start = 16.dp)
+                                                    .height(1.dp).background(TossDivider)
+                                            )
+                                        }
+                                        val suffix = rItem.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8)
+                                        // 카톡식 안 읽음: 고객이 마지막에 말함(lastSent==false) + 그 메시지가 마지막으로 읽은 시각보다 새것.
+                                        val custMsgMs = rItem.lastActivityMs.takeIf { it > 0L } ?: rItem.record.endedAt
+                                        val unread = rItem.lastSent == false && (readStates[suffix] ?: 0L) < custMsgMs
+                                        // 최근 대화도 밀어서 [🚫 스팸][👤 사생활] — 스팸/개인일 수 있으니. (2026-06-23 사장님)
+                                        val rName = rItem.customer?.name?.takeIf { it.isNotBlank() }
+                                        com.detailline.callfollowcrm.presentation.component.SwipeRevealTwoBox(
+                                            onFirst = {
+                                                viewModel.markSpam(rItem.record.phoneNumber, rName, "spam")
+                                                scope.launch {
+                                                    val r = snackbarHostState.showSnackbar("스팸으로 등록했어요 — 앞으로 안 보여요", actionLabel = "되돌리기", duration = SnackbarDuration.Short)
+                                                    if (r == SnackbarResult.ActionPerformed) viewModel.unmarkSpam(rItem.record.phoneNumber)
+                                                }
+                                            },
+                                            onSecond = {
+                                                viewModel.markSpam(rItem.record.phoneNumber, rName, "personal")
+                                                scope.launch {
+                                                    val r = snackbarHostState.showSnackbar("사생활 번호로 옮겼어요 — 시공막내가 안 잡아요", actionLabel = "되돌리기", duration = SnackbarDuration.Short)
+                                                    if (r == SnackbarResult.ActionPerformed) viewModel.unmarkSpam(rItem.record.phoneNumber)
+                                                }
+                                            },
+                                            firstLabel = "스팸",
+                                            secondLabel = "사생활",
+                                            firstColor = TossError,
+                                            secondColor = Color(0xFF7C5CFC),
+                                            firstIcon = Icons.Filled.Block,
+                                            secondIcon = Icons.Filled.Person,
+                                            shape = androidx.compose.ui.graphics.RectangleShape
+                                        ) {
+                                            Box(Modifier.fillMaxWidth().background(Color.White)) {
+                                                RecentRow(
+                                                    item = rItem,
+                                                    index = index,
+                                                    unread = unread,
+                                                    aiSummary = aiCardSummaries[suffix],
+                                                    onOpenChat = { onOpenChat(rItem.record.phoneNumber, rItem.customer?.id) }
+                                                )
+                                            }
+                                        }
                                     }
+                                }
+                                // 그룹(대화 3개) 뒤에 안 써본 기능 팁 카드 하나. 프로토: 대화 3개마다 하나.
+                                if (tipIdx < eligibleTips.size) {
+                                    val tip = eligibleTips[tipIdx]; tipIdx++
+                                    com.detailline.callfollowcrm.presentation.component.MakneTipCard(
+                                        tip = tip,
+                                        onGo = { onTipGo(tip) },
+                                        onDismiss = { onTipDismiss(tip) }
+                                    )
                                 }
                             }
                             if (recent.size > shownRecent.size) {
                                 Box(
-                                    Modifier.fillMaxWidth().padding(start = 16.dp)
-                                        .height(1.dp).background(TossDivider)
-                                )
-                                Text(
-                                    "이전 대화 ${recent.size - shownRecent.size}개 더 보기",
-                                    fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TossBlue,
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                    modifier = Modifier.fillMaxWidth()
-                                        .clickable { recentExpanded = true }
-                                        .padding(vertical = 14.dp)
-                                )
+                                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White)
+                                        .clickable { recentExpanded = true }.padding(vertical = 14.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        "이전 대화 ${recent.size - shownRecent.size}개 더 보기",
+                                        fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TossBlue,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                    )
+                                }
                             }
                         }
                     }

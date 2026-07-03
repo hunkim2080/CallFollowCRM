@@ -212,7 +212,9 @@ fun AppNavHost(
                 onOpenTeam = { navController.navigate(Destinations.TEAM) },
                 onOpenCollabSites = { navController.navigate(Destinations.COLLAB_SITES) },
                 onOpenCollabSiteDetail = { shareId -> navController.navigate(Destinations.collabSites(shareId)) },
-                onOpenAutoSmsSettings = { navController.navigate(Destinations.SETTINGS_AUTOSMS) }
+                onOpenAutoSmsSettings = { navController.navigate(Destinations.SETTINGS_AUTOSMS) },
+                // 막내 팁 카드 → 해당 기능 라우트로 이동(제네릭). (2026-07-04 사장님)
+                onOpenRoute = { route -> navController.navigate(route) }
             )
         }
 

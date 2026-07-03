@@ -301,6 +301,24 @@ class AppPreferences(context: Context) {
             ?: com.detailline.callfollowcrm.util.SpamPrefix.SUGGESTED.toSet()
         set(value) { prefs.edit().putStringSet("spam_prefixes", value).commit() }
 
+    // ── 막내 팁 (상담함 기능 발견 카드 + 안내판, 2026-07-04 사장님) ──
+    /** 팁 카드 전체 on/off. */
+    var makneTipsEnabled: Boolean
+        get() = prefs.getBoolean("makne_tips_enabled", true)
+        set(value) { prefs.edit().putBoolean("makne_tips_enabled", value).apply() }
+    /** 눌러본(=이미 써본) 팁 key — 더는 광고 안 함(안 써본 것 우선). */
+    var makneTipUsed: Set<String>
+        get() = prefs.getStringSet("makne_tip_used", emptySet()) ?: emptySet()
+        set(value) { prefs.edit().putStringSet("makne_tip_used", value).apply() }
+    /** ×로 닫은 팁 key. */
+    var makneTipDismissed: Set<String>
+        get() = prefs.getStringSet("makne_tip_dismissed", emptySet()) ?: emptySet()
+        set(value) { prefs.edit().putStringSet("makne_tip_dismissed", value).apply() }
+    /** 안내판을 이미 본 팁 key — 기능마다 처음 한 번만. */
+    var makneGuideSeen: Set<String>
+        get() = prefs.getStringSet("makne_guide_seen", emptySet()) ?: emptySet()
+        set(value) { prefs.edit().putStringSet("makne_guide_seen", value).apply() }
+
     // ── 원칙 발견 (Phase 2, 2026-06-17) — 너무 자주 안 묻게 하루 한도 + 거절 후보 기억 ──
     /** 원칙 묻기 한도 추적용 — 마지막으로 카운트한 '날(자정 ms)'. */
     var principleAskDayStart: Long
