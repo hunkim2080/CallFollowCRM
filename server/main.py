@@ -6306,22 +6306,39 @@ async def admin_beta_dashboard_data(
                 continue
             scr_agg89.setdefault(nrm, {})
             scr_agg89[nrm][p89] = scr_agg89[nrm].get(p89, 0) + 1
-        tops89 = []
-        for scr, pm in scr_agg89.items():
-            total_s = sum(pm.values())
-            uniq = len(pm)
-            # 집중도(폭주) = 사장님 본인(STATS_EXCLUDE_PHONES) 제외하고 계산 — 벽지화 방지
-            pm_ex = {k: v for k, v in pm.items() if k not in STATS_EXCLUDE_PHONES}
-            tot_ex = sum(pm_ex.values())
-            tops89.append({
-                "screen": scr,
-                "total": total_s,
-                "users": uniq,
-                "users_pct": round(uniq / len(wl_phones) * 100) if wl_phones else 0,
-                "hot_share_ex_owner": round(max(pm_ex.values()) / tot_ex * 100, 1) if tot_ex else 0,
-                "ex_users": len(pm_ex),
+
+        # 추가90 — 기능 발견율 (사장님: "Top 화면 순위는 뻔한 결과" → "묻힌 기능 찾기"로 교체).
+        # 통과 화면(홈/채팅/로그인/온보딩/설정)은 제외. 카탈로그 기반이라
+        # 조회 0건인 기능도 "0명"으로 드러남 — 그게 진짜 묻힌 기능.
+        _FEATURE_CATALOG = [
+            ("schedule",  "일정 (시공일)",  {"schedule"}),
+            ("intake",    "접수서",        {"intake_form", "intake"}),
+            ("customer",  "고객 상세",      {"customer", "customer_detail", "customers"}),
+            ("collab",    "협업현장",       {"collab", "collab_sites", "collab_inbox"}),
+            ("settlement","정산",          {"settlement"}),
+            ("stats",     "통계",          {"stats"}),
+            ("pricing",   "가격표",        {"pricing_items", "pricing"}),
+            ("templates", "템플릿",        {"templates"}),
+            ("notebook",  "노트",          {"notebook"}),
+            ("team",      "팀원",          {"team"}),
+            ("report",    "리포트",        {"report"}),
+            ("search",    "검색",          {"search"}),
+        ]
+        feature_discovery = []
+        for _fk, _fl, _aliases in _FEATURE_CATALOG:
+            pm_all: dict = {}
+            for _al in _aliases:
+                for _p, _cnt in (scr_agg89.get(_al) or {}).items():
+                    pm_all[_p] = pm_all.get(_p, 0) + _cnt
+            _users = len(pm_all)
+            feature_discovery.append({
+                "key": _fk, "label": _fl,
+                "users": _users,
+                "users_pct": round(_users / len(wl_phones) * 100) if wl_phones else 0,
+                "total": sum(pm_all.values()),
             })
-        adoption["top_screens"] = sorted(tops89, key=lambda x: -x["total"])[:5]
+        feature_discovery.sort(key=lambda x: (-x["users"], -x["total"]))
+        adoption["feature_discovery"] = feature_discovery
 
         # 전체 평균 (KPI 카드용)
         active_users = [u for u in users if u["calls"] > 0]
@@ -6560,12 +6577,12 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
     </div>
   </div>
 
-  <!-- 추가89 — 📱 자주 쓰는 화면 Top 5 (정착 대시보드 흡수) -->
+  <!-- 추가90 — 🔍 기능 발견율 (Top 화면 순위 대체: "뻔한 결과" → "묻힌 기능 찾기") -->
   <div class="card" style="margin-bottom:18px">
-    <h2>📱 자주 쓰는 화면 Top 5</h2>
+    <h2>🔍 기능 발견율 — 묻힌 기능 찾기</h2>
     <div id="screenList"></div>
     <div style="margin-top:8px; font-size:11px; color:#9AA3AF;">
-      "몇 명이 쓰나"가 핵심 지표. ⚠️ 집중 배지 = 사장님 본인 제외하고도 한 명이 70%+ 쓸 때만.
+      홈·채팅 같은 통과 화면 제외, 일부러 만든 기능만. 📉 묻힌 기능 = 튜토리얼에 넣거나 · 버튼 위치 옮기거나 · 버리거나.
     </div>
   </div>
 
@@ -6852,33 +6869,35 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
       + '<div style="font-size:18px; font-weight:800; color:#0B0F19">' + Math.round(c.all_krw).toLocaleString() + '원</div>'
       + '<div style="font-size:11.5px; color:#5A6472">' + c.all_calls + '회 호출</div></div>';
 
-    // 추가89 — 📱 자주 쓰는 화면 Top 5 (본인 제외 집중도)
-    var SCREEN_KO = {
-      'home':'홈','chat':'채팅','collab':'협업현장','collab_inbox':'협업 인박스',
-      'intake_form':'접수서','schedule':'일정','customer':'고객 상세','customer_detail':'고객 상세',
-      'call':'통화상담','team':'팀원','settings':'설정','settlement':'정산','stats':'통계',
-      'business_info':'업체 정보','collab_sites':'협업현장','pricing_items':'가격표',
-      'customers':'고객 목록','new_leads':'신규 리드','visited':'방문 예정','search':'검색',
-      'notebook':'노트','report':'리포트','templates':'템플릿','login':'로그인','onboarding':'온보딩',
-    };
-    var scr = (d.adoption && d.adoption.top_screens) || [];
+    // 추가90 — 🔍 기능 발견율 (발견된 기능 = 막대 / 묻힌 기능 = 빨간 경고 줄)
+    var fd = (d.adoption && d.adoption.feature_discovery) || [];
     var scrEl = document.getElementById('screenList');
-    if (scr.length === 0) {
+    if (fd.length === 0) {
       scrEl.innerHTML = '<div style="text-align:center; padding:16px; color:#9AA3AF; font-size:13px">아직 화면 데이터 없음</div>';
     } else {
-      var maxScr = scr[0].total || 1;
-      scrEl.innerHTML = scr.map(function(s, i){
-        var nameKo = SCREEN_KO[s.screen] || s.screen;
-        var w = Math.round(s.total / maxScr * 100);
-        var hot = (s.hot_share_ex_owner >= 70 && s.ex_users >= 3)
-          ? ' <span style="background:#FFF2F5; color:#F0436A; padding:1px 7px; border-radius:6px; font-size:10.5px; font-weight:700;">⚠️ 한 명 집중 ' + Math.round(s.hot_share_ex_owner) + '%</span>'
-          : '';
-        return '<div class="feat-row">'
-          + '<span class="name">' + (i + 1) + '. ' + escape(nameKo) + hot + '</span>'
-          + '<span class="bar"><span class="fill" style="width:' + w + '%; display:block"></span></span>'
-          + '<span class="num"><b>' + s.users + '명</b> (' + s.users_pct + '%)<br><span style="font-size:10px; color:#9AA3AF; font-weight:400">' + s.total + '회</span></span>'
+      var found = fd.filter(function(f){ return f.users >= 2; });
+      var buried = fd.filter(function(f){ return f.users <= 1; });
+      var html89 = '';
+      if (found.length) {
+        html89 += '<div style="font-size:11.5px; font-weight:800; color:#16C172; margin-bottom:8px;">📈 발견된 기능 (2명+ 사용)</div>';
+        html89 += found.map(function(f){
+          return '<div class="feat-row">'
+            + '<span class="name">' + escape(f.label) + '</span>'
+            + '<span class="bar"><span class="fill" style="width:' + Math.min(100, f.users_pct) + '%; display:block"></span></span>'
+            + '<span class="num"><b>' + f.users + '명</b> (' + f.users_pct + '%)<br><span style="font-size:10px; color:#9AA3AF; font-weight:400">' + f.total + '회</span></span>'
+            + '</div>';
+        }).join('');
+      }
+      if (buried.length) {
+        html89 += '<div style="font-size:11.5px; font-weight:800; color:#F0436A; margin:14px 0 8px;">📉 묻힌 기능 (0~1명) — 만들었는데 못 찾는 것들</div>';
+        html89 += '<div style="display:flex; flex-wrap:wrap; gap:6px;">'
+          + buried.map(function(f){
+              return '<span style="background:#FFF2F5; color:#F0436A; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700;">'
+                + escape(f.label) + ' ' + f.users + '명</span>';
+            }).join('')
           + '</div>';
-      }).join('');
+      }
+      scrEl.innerHTML = html89;
     }
 
     // 추가83 — 전체 멤버 관리 (검색·정렬은 renderUsers 가 담당)
