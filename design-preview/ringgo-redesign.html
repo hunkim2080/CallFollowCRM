@@ -305,16 +305,15 @@
   .recent-row .rt { font-size:11px; color:var(--t3); margin-left:auto; flex:0 0 auto; font-weight:500; }
   .recent-row .rmsg { font-size:13px; color:var(--t2); margin-top:3px; }
   .recent-row .rmsg .me { color:var(--t3); }
-  /* 막내 팁 카드 — 상담함 '최근 대화' 사이에 끼우는 기능 발견(광고) 카드. (2026-07-04 사장님 아이디어) */
-  .mktip { position:relative; background:linear-gradient(135deg,#EAF2FF,#F1ECFF); border:1px solid #E0E7FB; border-radius:18px; padding:15px 16px 16px; margin-bottom:10px; cursor:pointer; box-shadow:var(--shadow); }
-  .mktip-tag { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:800; color:var(--blue-dark); margin-bottom:10px; letter-spacing:-.01em; }
-  .mktip-row { display:flex; align-items:flex-start; gap:12px; }
-  .mktip-ic { width:40px; height:40px; border-radius:12px; background:#fff; display:flex; align-items:center; justify-content:center; font-size:20px; flex:0 0 40px; box-shadow:0 1px 5px rgba(49,130,246,.14); }
+  /* 막내 팁 카드 — 상담함 '최근 대화' 사이 기능 발견 카드. 대화 줄과 비슷한 크기로 (광고 티 안 나게). (2026-07-04 사장님) */
+  .mktip { position:relative; display:flex; align-items:center; gap:11px; background:#F5F8FF; border:1px solid #E4EBF7; border-radius:14px; padding:11px 13px; margin-bottom:10px; cursor:pointer; }
+  .mktip-ic { width:36px; height:36px; border-radius:10px; background:#fff; display:flex; align-items:center; justify-content:center; font-size:18px; flex:0 0 36px; }
   .mktip-main { flex:1; min-width:0; }
-  .mktip-t { font-size:14.5px; font-weight:800; color:var(--t1); letter-spacing:-.02em; }
-  .mktip-d { font-size:12.5px; color:var(--t2); margin-top:4px; line-height:1.55; }
-  .mktip-cta { margin-top:13px; background:var(--blue); color:#fff; border-radius:11px; padding:11px 0; text-align:center; font-size:13px; font-weight:800; }
-  .mktip-x { position:absolute; top:9px; right:11px; width:26px; height:26px; display:flex; align-items:center; justify-content:center; color:var(--t3); font-size:18px; font-weight:700; border-radius:50%; }
+  .mktip-eyebrow { font-size:10.5px; font-weight:800; color:var(--blue-dark); letter-spacing:-.01em; }
+  .mktip-t { font-size:15px; font-weight:700; color:var(--t1); letter-spacing:-.02em; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mktip-d { font-size:13px; color:var(--t2); margin-top:2px; line-height:1.4; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mktip-go { font-size:12px; font-weight:800; color:var(--blue); flex:0 0 auto; align-self:center; margin-left:4px; }
+  .mktip-x { position:absolute; top:5px; right:7px; width:20px; height:20px; display:flex; align-items:center; justify-content:center; color:var(--t3); font-size:14px; font-weight:700; border-radius:50%; }
   .mktip-x:active { background:rgba(0,0,0,.06); }
   .tag { font-size:10.5px; font-weight:700; padding:3px 8px; border-radius:7px; flex:0 0 auto; }
   .tag.blue { color:var(--blue); background:#EAF2FE; } .tag.green { color:#0E9F56; background:#E5F8EE; }
@@ -1685,11 +1684,15 @@ var mkTips=[
 function tipEligible(){ return mkTips.filter(function(t){ return !tipUsed[t.key] && !tipDismissed[t.key]; }); }
 function tipCardHtml(t){
   return '<div class="mktip" onclick="tipGo(\''+t.key+'\')">'
+    +'<div class="mktip-ic">'+t.ic+'</div>'
+    +'<div class="mktip-main">'
+      +'<div class="mktip-eyebrow">💡 '+t.tag+'</div>'
+      +'<div class="mktip-t">'+t.t+'</div>'
+      +'<div class="mktip-d">'+t.d+'</div>'
+    +'</div>'
+    +'<span class="mktip-go">써보기 ›</span>'
     +'<div class="mktip-x" onclick="event.stopPropagation();tipDismiss(\''+t.key+'\')">×</div>'
-    +'<div class="mktip-tag">💡 '+t.tag+'</div>'
-    +'<div class="mktip-row"><div class="mktip-ic">'+t.ic+'</div>'
-    +'<div class="mktip-main"><div class="mktip-t">'+t.t+'</div><div class="mktip-d">'+t.d+'</div></div></div>'
-    +'<div class="mktip-cta">써볼래요 →</div></div>';
+  +'</div>';
 }
 function renderRecent(){
   var host=document.getElementById('recent-list'); if(!host) return;
