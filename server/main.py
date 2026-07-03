@@ -4114,7 +4114,8 @@ class SubscriberUpsertRequest(BaseModel):
     churned: bool = False        # True 면 churned_at_ms 박음 (해지 처리)
 
 
-VALID_PLAN_TIERS = {"founder", "beta", "pro", "enterprise", "team_99k"}
+VALID_PLAN_TIERS = {"founder", "beta", "pro", "enterprise", "team_99k",
+                    "standard_50k", "premium_100k"}  # 추가84 — 일반(5만)/특별(10만)
 
 
 @app.post("/api/admin/subscribers/upsert")
@@ -5626,6 +5627,89 @@ async def admin_beta_whitelist_page():
 # ============================================================================
 
 
+# ============================================================================
+# 추가84 — 멤버 등급 변경 (사장님 설계: 카페 등업처럼 한 곳에서 승급/강등)
+#   applicant(등업대기) → tester(베타) → standard(일반 5만) → premium(특별 10만)
+# 각 등급 전환이 실제로 하는 일:
+#   → tester   : beta_whitelist 등록 (앱 접근 허용). 유료였다면 subscribers 해지 처리.
+#   → standard : whitelist 유지/등록 + subscribers upsert (standard_50k, 50,000원).
+#   → premium  : whitelist 유지/등록 + subscribers upsert (premium_100k, 100,000원).
+#   → applicant: whitelist 제거 (앱 접근 차단) + subscribers 해지. 신청 기록은 남음.
+# ============================================================================
+
+_GRADE_TIER = {
+    "standard": ("standard_50k", 50_000),
+    "premium": ("premium_100k", 100_000),
+}
+
+
+class MemberGradeRequest(BaseModel):
+    phone: str = ""
+    grade: str = ""   # applicant | tester | standard | premium
+    name: Optional[str] = None  # 등업대기→베타 승급 시 이름 (신청 폼 business_name)
+
+
+@app.post("/api/admin/member/grade")
+async def admin_member_grade(
+    req: MemberGradeRequest,
+    authorization: Optional[str] = Header(default=None),
+) -> dict:
+    _admin_auth_bearer_from_header(authorization)
+    phone = _norm_phone(req.phone)
+    if not phone:
+        raise HTTPException(400, "phone 필수")
+    grade = (req.grade or "").strip()
+    if grade not in ("applicant", "tester", "standard", "premium"):
+        raise HTTPException(400, "grade = applicant|tester|standard|premium")
+    now = _now_ms()
+    with db_conn() as con:
+        # 이름 결정: 요청 name → whitelist name → 신청 폼 business_name
+        name = (req.name or "").strip()[:60] or None
+        if not name:
+            r = con.execute("SELECT name FROM beta_whitelist WHERE phone=?", (phone,)).fetchone()
+            name = (r[0] if r else None)
+        if not name:
+            r = con.execute("SELECT business_name FROM beta_signups WHERE phone=?", (phone,)).fetchone()
+            name = (r[0] if r else None)
+
+        if grade == "applicant":
+            con.execute("DELETE FROM beta_whitelist WHERE phone=?", (phone,))
+            con.execute(
+                "UPDATE subscribers SET churned_at_ms=?, updated_at_ms=? "
+                "WHERE phone=? AND churned_at_ms IS NULL", (now, now, phone))
+        else:
+            # tester/standard/premium 모두 앱 접근 필요 → whitelist 보장
+            exists = con.execute(
+                "SELECT 1 FROM beta_whitelist WHERE phone=?", (phone,)).fetchone()
+            if not exists:
+                con.execute(
+                    "INSERT INTO beta_whitelist (phone, name, memo, added_at_ms, use_count) "
+                    "VALUES (?, ?, ?, ?, 0)",
+                    (phone, name, "멤버관리 등업", now))
+            if grade == "tester":
+                con.execute(
+                    "UPDATE subscribers SET churned_at_ms=?, updated_at_ms=? "
+                    "WHERE phone=? AND churned_at_ms IS NULL", (now, now, phone))
+            else:
+                tier, price = _GRADE_TIER[grade]
+                sub = con.execute(
+                    "SELECT phone FROM subscribers WHERE phone=?", (phone,)).fetchone()
+                if sub:
+                    con.execute(
+                        "UPDATE subscribers SET plan_tier=?, monthly_price_krw=?, "
+                        "churned_at_ms=NULL, updated_at_ms=? WHERE phone=?",
+                        (tier, price, now, phone))
+                else:
+                    con.execute(
+                        "INSERT INTO subscribers (phone, plan_tier, monthly_price_krw, name, "
+                        "started_at_ms, churned_at_ms, created_at_ms, updated_at_ms) "
+                        "VALUES (?, ?, ?, ?, ?, NULL, ?, ?)",
+                        (phone, tier, price, name, now, now, now))
+        con.commit()
+    print(f"[member/grade] {phone} → {grade}")
+    return {"ok": True, "phone": phone, "grade": grade}
+
+
 @app.get("/admin/beta/dashboard/data")
 async def admin_beta_dashboard_data(
     days: int = 30,
@@ -5948,6 +6032,25 @@ async def admin_beta_dashboard_data(
                 except Exception:
                     pass
 
+        # 추가84 (2026-07-03) — 등급 4단계 (사장님 설계):
+        #   applicant = 등업대기 (beta_signups 만) / tester = 베타 테스터 (whitelist, 무료)
+        #   standard = 일반 사장님 (5만) / premium = 특별 사장님 (10만)
+        # subscribers 활성 행 기준: 10만+ 또는 premium tier → premium, 유료(>0) → standard.
+        sub_map: dict = {}
+        for sr in con.execute(
+            "SELECT phone, plan_tier, monthly_price_krw, churned_at_ms FROM subscribers"
+        ).fetchall():
+            sub_map[sr[0]] = {"tier": sr[1] or "", "price": sr[2] or 0, "churned": sr[3]}
+
+        def _grade_of(phone: str) -> str:
+            s = sub_map.get(phone)
+            if s and s["churned"] is None:
+                if s["price"] >= 100_000 or s["tier"] == "premium_100k":
+                    return "premium"
+                if s["price"] > 0 or s["tier"] in ("standard_50k", "pro"):
+                    return "standard"
+            return "tester"
+
         users = []
         for r in wl_rows:
             # 추가50 (2026-06-21) — SELECT 에 owner_trade 컬럼 추가 (8개). unpack 도 8개로.
@@ -5982,6 +6085,33 @@ async def admin_beta_dashboard_data(
                 "avg_per_day": avg_per_day,
                 "avg_per_active_day": avg_per_active_day,
                 "cost_usd": round(per_user_cost.get(phone, 0.0), 4),
+                "grade": _grade_of(phone),  # 추가84
+            })
+        # 추가84 — 등업대기자 (beta_signups 에만 있고 whitelist 에 없는 신청자) 도 명단에 포함
+        wl_set = set(wl_phones)
+        signup_rows = con.execute(
+            """SELECT phone, business_name, industry, note, created_at_ms, status
+               FROM beta_signups ORDER BY created_at_ms DESC"""
+        ).fetchall()
+        for sg in signup_rows:
+            if sg[0] in wl_set:
+                continue
+            users.append({
+                "phone": _fmt_phone(sg[0]),
+                "phone_raw": sg[0],
+                "name": sg[1] or "",
+                "industry": sg[2] or "",
+                "industry_source": "signup",
+                "memo": ("[신청 " + (sg[5] or "?") + "] " + (sg[3] or ""))[:120],
+                "added_at_ms": sg[4],
+                "first_seen_ms": None,
+                "last_seen_ms": None,
+                "use_count": 0,
+                "calls": 0,
+                "active_days": 0, "ai_days": 0, "app_days": 0,
+                "avg_per_day": 0, "avg_per_active_day": 0,
+                "cost_usd": 0.0,
+                "grade": "applicant",
             })
         # 정렬: 마지막 활동 최근순
         users.sort(key=lambda u: u["last_seen_ms"] or 0, reverse=True)
@@ -6082,6 +6212,11 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
                     border-radius:9px; font-size:13px; font-weight:700; cursor:pointer;
                     color:var(--t2); font-family:inherit; }
   .toolbar button.active { background:var(--blue); color:#fff; border-color:var(--blue); }
+  .gchip { background:#fff; border:1.5px solid var(--line); padding:6px 12px; border-radius:999px;
+           font-size:12px; font-weight:700; cursor:pointer; color:var(--t2); font-family:inherit; }
+  .gchip.active { background:var(--blue); color:#fff; border-color:var(--blue); }
+  th.sortable { cursor:pointer; user-select:none; }
+  th.sortable:hover { color:var(--blue); }
   .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:12px;
               margin-bottom:18px; }
   .kpi { background:var(--card); border-radius:12px; padding:14px 16px; box-shadow:var(--shadow); }
@@ -6202,7 +6337,7 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
 
   <!-- 추가83 — 전체 멤버 관리 (옛 화이트리스트 페이지 통합: 검색·정렬·추가·제거 여기서 다) -->
   <div class="card" style="margin-bottom:18px">
-    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
       <h2 style="margin:0">👥 전체 멤버 관리 <span id="memberCount" style="color:#3182F6"></span></h2>
       <div style="display:flex; gap:8px; flex:1; max-width:420px; min-width:220px;">
         <input id="memberSearch" type="search" placeholder="이름·전화·업종·메모 검색"
@@ -6211,10 +6346,19 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
         <button onclick="openAddModal()" style="background:var(--blue); color:#fff; border:0; border-radius:9px; padding:8px 14px; font-size:13px; font-weight:800; cursor:pointer; white-space:nowrap; font-family:inherit;">+ 멤버 추가</button>
       </div>
     </div>
+    <!-- 추가84 — 등급 필터 칩 (카페 멤버 등급 필터처럼) -->
+    <div id="gradeChips" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;">
+      <button data-grade="" class="gchip active" onclick="setGradeFilter('')">전체</button>
+      <button data-grade="applicant" class="gchip" onclick="setGradeFilter('applicant')">⏳ 등업대기</button>
+      <button data-grade="tester" class="gchip" onclick="setGradeFilter('tester')">🧪 베타 테스터</button>
+      <button data-grade="standard" class="gchip" onclick="setGradeFilter('standard')">💙 일반 사장님 (5만)</button>
+      <button data-grade="premium" class="gchip" onclick="setGradeFilter('premium')">👑 특별 사장님 (10만)</button>
+    </div>
     <div style="overflow-x:auto">
       <table>
         <thead><tr>
           <th>폰 · 이름</th>
+          <th>등급</th>
           <th>업종</th>
           <th>메모</th>
           <th class="sortable" data-sort="added_at_ms" onclick="setSort('added_at_ms')">등록일 ↕</th>
@@ -6226,7 +6370,7 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
           <th>상태</th>
           <th>관리</th>
         </tr></thead>
-        <tbody id="userRows"><tr><td colspan="11" style="text-align:center; padding:30px; color:#9AA3AF">로딩중...</td></tr></tbody>
+        <tbody id="userRows"><tr><td colspan="12" style="text-align:center; padding:30px; color:#9AA3AF">로딩중...</td></tr></tbody>
       </table>
     </div>
     <div style="margin-top:8px; font-size:11px; color:#9AA3AF;">
@@ -6420,10 +6564,24 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
     renderUsers();
   }
 
-  // ─── 추가83: 전체 멤버 관리 (검색 + 정렬 + 추가/제거) ───
+  // ─── 추가83/84: 전체 멤버 관리 (검색 + 등급 필터 + 정렬 + 추가/제거 + 등급 변경) ───
   var ALL_USERS = [];
   var SORT_KEY = 'last_seen_ms';
   var SORT_DESC = true;
+  var GRADE_FILTER = '';
+  var GRADE_META = {
+    applicant: { label: '⏳ 등업대기', bg: '#FFF8E1', fg: '#7A5A00' },
+    tester:    { label: '🧪 베타 테스터', bg: '#EEF4FF', fg: '#1B64DA' },
+    standard:  { label: '💙 일반 사장님', bg: '#E7F8EF', fg: '#0B7A45' },
+    premium:   { label: '👑 특별 사장님', bg: '#F3E8FF', fg: '#7C3AED' },
+  };
+  function setGradeFilter(g) {
+    GRADE_FILTER = g;
+    document.querySelectorAll('#gradeChips .gchip').forEach(function(b){
+      b.classList.toggle('active', b.dataset.grade === g);
+    });
+    renderUsers();
+  }
   function setSort(key) {
     if (SORT_KEY === key) SORT_DESC = !SORT_DESC;
     else { SORT_KEY = key; SORT_DESC = true; }
@@ -6432,8 +6590,10 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
   function renderUsers() {
     var q = (document.getElementById('memberSearch').value || '').trim().toLowerCase();
     var list = ALL_USERS.filter(function(u){
+      if (GRADE_FILTER && (u.grade || 'tester') !== GRADE_FILTER) return false;
       if (!q) return true;
-      return (u.phone_raw + ' ' + (u.name||'') + ' ' + (u.industry||'') + ' ' + (u.memo||''))
+      var gLabel = (GRADE_META[u.grade || 'tester'] || {}).label || '';
+      return (u.phone_raw + ' ' + (u.name||'') + ' ' + (u.industry||'') + ' ' + (u.memo||'') + ' ' + gLabel)
         .toLowerCase().indexOf(q) !== -1;
     });
     list = list.slice().sort(function(a,b){
@@ -6442,7 +6602,7 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
     });
     document.getElementById('memberCount').textContent = list.length + '명';
     if (list.length === 0) {
-      document.getElementById('userRows').innerHTML = '<tr><td colspan="11" style="text-align:center; padding:30px; color:#9AA3AF">' + (q ? '검색 결과 없음' : '등록된 멤버 없음') + '</td></tr>';
+      document.getElementById('userRows').innerHTML = '<tr><td colspan="12" style="text-align:center; padding:30px; color:#9AA3AF">' + (q ? '검색 결과 없음' : '등록된 멤버 없음') + '</td></tr>';
       return;
     }
     var html2 = '';
@@ -6457,8 +6617,19 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
       var industryHtml = u.industry
         ? '<span style="background:#EEF4FF; color:#1B64DA; padding:2px 7px; border-radius:6px; font-size:11px; font-weight:700;">' + escape(u.industry) + '</span>'
         : '<span style="color:#9AA3AF; font-size:11px;">-</span>';
+      // 추가84 — 등급 select (토글): 바꾸면 바로 등업/강등
+      var g = u.grade || 'tester';
+      var gm = GRADE_META[g];
+      var gradeSel = '<select onchange="changeGrade(\\'' + u.phone_raw + '\\', this, \\'' + g + '\\')" '
+        + 'style="border:1.5px solid ' + gm.fg + '33; background:' + gm.bg + '; color:' + gm.fg + '; '
+        + 'border-radius:8px; padding:4px 6px; font-size:11.5px; font-weight:700; font-family:inherit; cursor:pointer;">'
+        + ['applicant','tester','standard','premium'].map(function(k){
+            return '<option value="' + k + '"' + (k === g ? ' selected' : '') + '>' + GRADE_META[k].label + '</option>';
+          }).join('')
+        + '</select>';
       html2 += '<tr>'
             + '<td><a href="/admin/user/' + encodeURIComponent(u.phone_raw) + '" style="color:#3182F6; text-decoration:none"><b>' + u.phone + '</b></a><br><span style="font-size:11px; color:#5A6472">' + escape(u.name || '-') + '</span></td>'
+            + '<td>' + gradeSel + '</td>'
             + '<td>' + industryHtml + '</td>'
             + '<td style="font-size:11px; color:#5A6472; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' + escape(u.memo || '') + '">' + escape(u.memo || '-') + '</td>'
             + '<td>' + added + '</td>'
@@ -6468,7 +6639,10 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
             + '<td class="right"><b>' + u.calls + '</b></td>'
             + '<td class="right">$' + u.cost_usd.toFixed(3) + '</td>'
             + '<td>' + statusBadge + '</td>'
-            + '<td><button onclick="removeUser(\\'' + u.phone_raw + '\\', \\'' + escape(u.name || '') + '\\')" style="background:#fff; color:#F0436A; border:1.5px solid #F0436A; border-radius:7px; padding:4px 9px; font-size:11px; font-weight:700; cursor:pointer; font-family:inherit;">제거</button></td>'
+            + '<td>' + (g === 'applicant'
+                ? '<span style="font-size:11px; color:#9AA3AF;">등급▲로 승인</span>'
+                : '<button onclick="removeUser(\\'' + u.phone_raw + '\\', \\'' + escape(u.name || '') + '\\')" style="background:#fff; color:#F0436A; border:1.5px solid #F0436A; border-radius:7px; padding:4px 9px; font-size:11px; font-weight:700; cursor:pointer; font-family:inherit;">제거</button>')
+            + '</td>'
             + '</tr>';
     });
     document.getElementById('userRows').innerHTML = html2;
@@ -6505,6 +6679,30 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
       if (!r.ok) throw new Error('HTTP ' + r.status);
       load();
     } catch(e) { alert('제거 실패: ' + e.message); }
+  }
+  // 추가84 — 등급 변경 (등업/강등)
+  async function changeGrade(phone, sel, oldGrade) {
+    var newGrade = sel.value;
+    if (newGrade === oldGrade) return;
+    var msg = {
+      applicant: '등업대기로 강등 = 앱 진입 차단 + 유료 해지',
+      tester: '베타 테스터 (무료) 로 변경' + (oldGrade === 'applicant' ? ' = 등업 승인 (앱 진입 허용)' : ' (유료였다면 해지 처리)'),
+      standard: '일반 사장님 (월 5만) 으로 변경',
+      premium: '특별 사장님 (월 10만, 팀·협업 포함) 으로 변경',
+    }[newGrade];
+    if (!confirm(phone + '\\n→ ' + GRADE_META[newGrade].label + '\\n\\n' + msg + '\\n진행할까요?')) {
+      sel.value = oldGrade; return;
+    }
+    try {
+      var r = await fetch('/api/admin/member/grade', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + getToken(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: phone, grade: newGrade }),
+      });
+      var j = await r.json();
+      if (!r.ok) throw new Error(j.detail || ('HTTP ' + r.status));
+      load();
+    } catch(e) { alert('등급 변경 실패: ' + e.message); sel.value = oldGrade; }
   }
   function kpiCard(cls, lbl, val, sub) {
     return '<div class="kpi ' + cls + '">'
@@ -14678,7 +14876,8 @@ async def quote_doc_page(token: str) -> HTMLResponse:
 # ============================================================================
 
 TEAM_LINK_TOKEN_LEN = 10  # 팀원 링크는 좀 더 긴 토큰
-TEAM_TIER_NAMES = {"team_99k", "team", "team_99000"}  # 어느 식별자든 통과
+TEAM_TIER_NAMES = {"team_99k", "team", "team_99000",
+                   "premium_100k"}  # 추가84 — 특별 사장님(10만) = 팀/협업 포함. 어느 식별자든 통과
 
 
 def _generate_team_token() -> str:

@@ -6308,3 +6308,19 @@ deploy_phase1.sh — repo 에 plist 사본 없으면 (gitignore 라 repo 이동 
 - 검증: py_compile PASS + TestClient (마크업/리다이렉트/API 생존/허브 병합) PASS + JS node --check PASS.
 - 변경: server/main.py 만. 배포 필요.
 - commit: (아래)
+
+## 2026-07-03 · cowork (사장님 설계: 등급 4단계 + 신청자 통합)
+추가84 — 멤버 관리에 카페식 등급 시스템.
+- 등급 4단계 (사장님 정의): applicant(⏳등업대기=베타신청자) / tester(🧪베타 테스터=무료) /
+  standard(💙일반 사장님=월5만, plan_tier=standard_50k) / premium(👑특별 사장님=월10만, premium_100k).
+- premium_100k 는 TEAM_TIER_NAMES 에 포함 (특별 사장님 = 팀·협업 포함. 유료화 draft 와 정합).
+- 전체 멤버 관리에 등업대기자(beta_signups, 화이트리스트 미등록) 포함 — 메모에 [신청 상태]+한말씀.
+- 행별 등급 드롭다운 = 즉시 등업/강등 (confirm 후):
+  - →tester: whitelist 등록(이름=신청 폼 상호 승계)+유료 해지 / →standard·premium: whitelist 보장+subscribers upsert
+  - →applicant: whitelist 제거(앱 차단)+유료 해지. 신청 기록은 보존.
+- 등급 필터 칩 (전체/등업대기/베타/일반/특별) + 검색에 등급명 포함.
+- 신규 endpoint: POST /api/admin/member/grade {phone, grade} (Bearer).
+- 검증: TestClient 왕복 시나리오 (applicant→tester→premium→standard→applicant, whitelist/subscribers 상태 검증) ALL PASS + JS PASS.
+- 베타 신청자 페이지(/admin/beta/signups)는 신청 폼 원본(한말씀 전문 등) 보기용으로 유지 — 등업은 이제 멤버 관리에서.
+- 변경: server/main.py 만. 배포 필요.
+- commit: (아래)
