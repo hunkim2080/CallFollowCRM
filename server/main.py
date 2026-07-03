@@ -6038,9 +6038,47 @@ async def admin_beta_dashboard_data(
         # subscribers 활성 행 기준: 10만+ 또는 premium tier → premium, 유료(>0) → standard.
         sub_map: dict = {}
         for sr in con.execute(
-            "SELECT phone, plan_tier, monthly_price_krw, churned_at_ms FROM subscribers"
+            "SELECT phone, plan_tier, monthly_price_krw, churned_at_ms, started_at_ms "
+            "FROM subscribers"
         ).fetchall():
-            sub_map[sr[0]] = {"tier": sr[1] or "", "price": sr[2] or 0, "churned": sr[3]}
+            sub_map[sr[0]] = {"tier": sr[1] or "", "price": sr[2] or 0,
+                              "churned": sr[3], "started": sr[4]}
+
+        # 추가85 (2026-07-03) — 결제 주기 계산 (사장님: 결제일 + 재결제 D-00).
+        # 결제일 앵커 = 구독 시작일의 '일(day)'. 매달 그 날 재결제로 간주.
+        # (토스 실결제 붙으면 이 계산이 실제 빌링 날짜로 대체 — 응답 인터페이스는 동일 유지)
+        import calendar as _cal
+
+        def _billing_info(started_ms):
+            if not started_ms:
+                return None
+            start = _dt.datetime.fromtimestamp(started_ms / 1000, tz=_KST)
+            today = _dt.datetime.fromtimestamp(now / 1000, tz=_KST)
+            anchor_day = start.day
+            y, m = today.year, today.month
+            nxt = None
+            for _ in range(2):
+                last_day = _cal.monthrange(y, m)[1]
+                day = min(anchor_day, last_day)
+                cand = _dt.datetime(y, m, day, tzinfo=_KST)
+                if cand.date() >= today.date():
+                    nxt = cand
+                    break
+                m += 1
+                if m == 13:
+                    m, y = 1, y + 1
+            if nxt is None:
+                return None
+            d_day = (nxt.date() - today.date()).days
+            months_sub = (today.year - start.year) * 12 + (today.month - start.month)
+            if today.day < start.day:
+                months_sub -= 1
+            return {
+                "anchor_day": anchor_day,
+                "next_billing_ms": int(nxt.timestamp() * 1000),
+                "d_day": d_day,
+                "months_subscribed": max(0, months_sub),
+            }
 
         def _grade_of(phone: str) -> str:
             s = sub_map.get(phone)
@@ -6087,6 +6125,14 @@ async def admin_beta_dashboard_data(
                 "cost_usd": round(per_user_cost.get(phone, 0.0), 4),
                 "grade": _grade_of(phone),  # 추가84
             })
+            # 추가85 — 유료 회원이면 결제 주기 정보 부착
+            if users[-1]["grade"] in ("standard", "premium"):
+                _s = sub_map.get(phone) or {}
+                users[-1]["billing"] = _billing_info(_s.get("started"))
+                users[-1]["price_krw"] = _s.get("price") or 0
+            else:
+                users[-1]["billing"] = None
+                users[-1]["price_krw"] = 0
         # 추가84 — 등업대기자 (beta_signups 에만 있고 whitelist 에 없는 신청자) 도 명단에 포함
         wl_set = set(wl_phones)
         signup_rows = con.execute(
@@ -6112,9 +6158,67 @@ async def admin_beta_dashboard_data(
                 "avg_per_day": 0, "avg_per_active_day": 0,
                 "cost_usd": 0.0,
                 "grade": "applicant",
+                "billing": None, "price_krw": 0,
             })
         # 정렬: 마지막 활동 최근순
         users.sort(key=lambda u: u["last_seen_ms"] or 0, reverse=True)
+
+        # 추가85 — 💳 구독 관제 (사장님 요청 + cowork 판단으로 딥하게):
+        #   유료회원 수(등급별) / 이번 달 입금액(도래분) / 다음 달 예상(활성 합) /
+        #   재결제 D-7 임박 명단 / 신규 유료·해지 (이번 달) / 유료 휴면(돈 내는데 안 씀 = 이탈 위험).
+        wl_last_map = {r[0]: r[5] for r in wl_rows}
+        today_kst = _dt.datetime.fromtimestamp(now / 1000, tz=_KST)
+        month_start_ms = int(_dt.datetime(
+            today_kst.year, today_kst.month, 1, tzinfo=_KST).timestamp() * 1000)
+        paid_items = []
+        month_collected = 0
+        for p, s in sub_map.items():
+            if s["churned"] is not None or (s["price"] or 0) <= 0:
+                continue
+            bi = _billing_info(s["started"])
+            grade_p = _grade_of(p)
+            item = {
+                "phone": _fmt_phone(p), "phone_raw": p,
+                "name": _user_name(p, default=""),
+                "grade": grade_p, "price_krw": s["price"],
+                "billing": bi,
+                "last_seen_ms": wl_last_map.get(p),
+            }
+            paid_items.append(item)
+            # 이번 달 입금액 — 이번 달 결제일이 이미 지났으면(당일 포함) 입금된 것으로 간주
+            if bi:
+                last_day_cm = _cal.monthrange(today_kst.year, today_kst.month)[1]
+                bill_day_cm = min(bi["anchor_day"], last_day_cm)
+                bill_ms_cm = int(_dt.datetime(
+                    today_kst.year, today_kst.month, bill_day_cm, tzinfo=_KST).timestamp() * 1000)
+                if bill_ms_cm <= now and (s["started"] or 0) <= bill_ms_cm + 86_400_000:
+                    month_collected += s["price"]
+        due_soon = sorted(
+            [it for it in paid_items if it["billing"] and it["billing"]["d_day"] <= 7],
+            key=lambda it: it["billing"]["d_day"])
+        paid_dormant = [
+            it for it in paid_items
+            if not it["last_seen_ms"] or (now - it["last_seen_ms"]) > 7 * 86_400_000
+        ]
+        churned_this_month = sum(
+            1 for s in sub_map.values()
+            if s["churned"] is not None and s["churned"] >= month_start_ms)
+        new_paid_this_month = sum(
+            1 for s in sub_map.values()
+            if s["churned"] is None and (s["price"] or 0) > 0
+            and (s["started"] or 0) >= month_start_ms)
+        subscription = {
+            "paid_total": len(paid_items),
+            "paid_standard": sum(1 for it in paid_items if it["grade"] == "standard"),
+            "paid_premium": sum(1 for it in paid_items if it["grade"] == "premium"),
+            "month_collected_krw": month_collected,
+            "next_month_expected_krw": sum(it["price_krw"] for it in paid_items),
+            "due_7d_count": len(due_soon),
+            "new_paid_this_month": new_paid_this_month,
+            "churned_this_month": churned_this_month,
+            "due_soon": due_soon[:20],
+            "paid_dormant": paid_dormant[:20],
+        }
 
         # 전체 평균 (KPI 카드용)
         active_users = [u for u in users if u["calls"] > 0]
@@ -6148,6 +6252,7 @@ async def admin_beta_dashboard_data(
     return {
         "days": days,
         "generated_at_ms": now,
+        "subscription": subscription,  # 추가85 — 💳 구독 관제
         "kpi": {
             "total_users": total_users,
             "activated": activated,
@@ -6310,6 +6415,22 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
 
   <!-- KPI 카드 -->
   <div class="kpi-grid" id="kpiGrid"></div>
+
+  <!-- 추가85 — 💳 구독 관제 (유료회원 현금흐름 + 이탈 위험) -->
+  <div class="card" style="margin-bottom:18px">
+    <h2>💳 구독 관제</h2>
+    <div class="kpi-grid" id="subKpiGrid" style="margin-bottom:4px"></div>
+    <div class="row" style="margin-bottom:0">
+      <div>
+        <div style="font-size:13px; font-weight:800; margin:8px 0 8px;">⏰ 재결제 임박 (7일 이내) — 이탈 방지 전화 타이밍</div>
+        <div id="subDueList" style="font-size:13px;"></div>
+      </div>
+      <div>
+        <div style="font-size:13px; font-weight:800; margin:8px 0 8px;">😴 유료 휴면 — 돈은 내는데 안 씀 (해지 예고 신호)</div>
+        <div id="subDormantList" style="font-size:13px;"></div>
+      </div>
+    </div>
+  </div>
 
   <!-- 일별 활성 라인 차트 + Network 신호 -->
   <div class="row">
@@ -6562,6 +6683,60 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
     // 추가83 — 전체 멤버 관리 (검색·정렬은 renderUsers 가 담당)
     ALL_USERS = d.users || [];
     renderUsers();
+
+    // 추가85 — 💳 구독 관제
+    renderSubscription(d.subscription || {});
+  }
+
+  // ─── 추가85: 구독 관제 렌더 ───
+  function fmtWon(n) { return (n || 0).toLocaleString('ko-KR') + '원'; }
+  function ddayBadge(dday) {
+    var color = dday <= 3 ? '#F0436A' : dday <= 7 ? '#F59E0B' : '#5A6472';
+    var txt = dday === 0 ? 'D-DAY (오늘)' : 'D-' + dday;
+    return '<span style="color:' + color + '; font-weight:800;">' + txt + '</span>';
+  }
+  function renderSubscription(s) {
+    var g = document.getElementById('subKpiGrid');
+    if (!s || !s.paid_total) {
+      g.innerHTML = kpiCard('', '유료회원', '0명', '멤버 관리에서 등급을 올리면 여기가 채워져요');
+      document.getElementById('subDueList').innerHTML = '<span style="color:#9AA3AF">-</span>';
+      document.getElementById('subDormantList').innerHTML = '<span style="color:#9AA3AF">-</span>';
+      return;
+    }
+    g.innerHTML =
+        kpiCard('blue', '유료회원', s.paid_total + '명',
+                '💙 일반 ' + s.paid_standard + ' · 👑 특별 ' + s.paid_premium)
+      + kpiCard('orange', '재결제 임박 (7일)', s.due_7d_count + '명', '아래 명단 — 미리 챙기기')
+      + kpiCard('green', '이번 달 입금액', fmtWon(s.month_collected_krw), '결제일 도래분 합계')
+      + kpiCard('green', '다음 달 예상', fmtWon(s.next_month_expected_krw), '현재 구독 유지 가정')
+      + kpiCard('', '이번 달 신규 유료', '+' + s.new_paid_this_month + '명', '')
+      + kpiCard(s.churned_this_month > 0 ? 'orange' : '', '이번 달 해지', s.churned_this_month + '명', '');
+    var due = document.getElementById('subDueList');
+    if (!s.due_soon || s.due_soon.length === 0) {
+      due.innerHTML = '<span style="color:#9AA3AF">7일 안에 재결제 도래 없음</span>';
+    } else {
+      due.innerHTML = s.due_soon.map(function(it){
+        var b = it.billing || {};
+        return '<div style="display:flex; justify-content:space-between; gap:8px; padding:7px 0; border-bottom:1px solid var(--line);">'
+          + '<span><a href="/admin/user/' + encodeURIComponent(it.phone_raw) + '" style="color:#3182F6; text-decoration:none; font-weight:700;">' + escape(it.name || it.phone) + '</a>'
+          + ' <span style="font-size:11px; color:#9AA3AF">' + it.phone + '</span></span>'
+          + '<span>' + ddayBadge(b.d_day) + ' <span style="font-size:11px; color:#5A6472">매월 ' + b.anchor_day + '일 · ' + fmtWon(it.price_krw) + '</span></span>'
+          + '</div>';
+      }).join('');
+    }
+    var dor = document.getElementById('subDormantList');
+    if (!s.paid_dormant || s.paid_dormant.length === 0) {
+      dor.innerHTML = '<span style="color:#9AA3AF">유료 휴면 없음 — 모두 잘 쓰고 있어요 👍</span>';
+    } else {
+      dor.innerHTML = s.paid_dormant.map(function(it){
+        var lastTxt = it.last_seen_ms ? '마지막 접속 ' + timeAgo(Date.now() - it.last_seen_ms) : '접속 기록 없음';
+        return '<div style="display:flex; justify-content:space-between; gap:8px; padding:7px 0; border-bottom:1px solid var(--line);">'
+          + '<span><a href="/admin/user/' + encodeURIComponent(it.phone_raw) + '" style="color:#3182F6; text-decoration:none; font-weight:700;">' + escape(it.name || it.phone) + '</a>'
+          + ' <span style="font-size:11px; color:#9AA3AF">' + it.phone + '</span></span>'
+          + '<span style="color:#F0436A; font-size:12px; font-weight:700;">' + lastTxt + '</span>'
+          + '</div>';
+      }).join('');
+    }
   }
 
   // ─── 추가83/84: 전체 멤버 관리 (검색 + 등급 필터 + 정렬 + 추가/제거 + 등급 변경) ───
@@ -6627,9 +6802,17 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
             return '<option value="' + k + '"' + (k === g ? ' selected' : '') + '>' + GRADE_META[k].label + '</option>';
           }).join('')
         + '</select>';
+      // 추가85 — 유료회원이면 등급 아래에 결제일 + 재결제 D-day
+      var billingHtml = '';
+      if (u.billing) {
+        billingHtml = '<div style="font-size:10.5px; margin-top:3px; color:#5A6472;">💳 매월 '
+          + u.billing.anchor_day + '일 · ' + ddayBadge(u.billing.d_day)
+          + (u.billing.months_subscribed > 0 ? ' · ' + u.billing.months_subscribed + '개월째' : ' · 첫 달')
+          + '</div>';
+      }
       html2 += '<tr>'
             + '<td><a href="/admin/user/' + encodeURIComponent(u.phone_raw) + '" style="color:#3182F6; text-decoration:none"><b>' + u.phone + '</b></a><br><span style="font-size:11px; color:#5A6472">' + escape(u.name || '-') + '</span></td>'
-            + '<td>' + gradeSel + '</td>'
+            + '<td>' + gradeSel + billingHtml + '</td>'
             + '<td>' + industryHtml + '</td>'
             + '<td style="font-size:11px; color:#5A6472; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' + escape(u.memo || '') + '">' + escape(u.memo || '-') + '</td>'
             + '<td>' + added + '</td>'
