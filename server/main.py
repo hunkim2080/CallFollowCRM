@@ -17806,7 +17806,11 @@ async def auth_request_code(req: AuthCodeRequest) -> dict:
             (phone, code, now + AUTH_CODE_TTL_SEC * 1000, now, sent_today + 1, today),
         )
         con.commit()
-    await _send_sms_solapi(phone, f"[시공막내] 인증번호 [{code}] 를 입력해주세요. (5분 이내)")
+    # 추가86c — 브랜딩 문구 포함 (사장님 요청). 90바이트 이내 = 단문 SMS 요금 유지.
+    await _send_sms_solapi(
+        phone,
+        f"[시공막내] 인증번호 [{code}]\n사장님의 막내 비서, 시공막내입니다. (5분 이내 입력)"
+    )
     print(f"[auth/request] {phone} 발송 ({sent_today + 1}/{AUTH_CODE_MAX_PER_DAY})")
     return {"ok": True, "expiresInSec": AUTH_CODE_TTL_SEC}
 
