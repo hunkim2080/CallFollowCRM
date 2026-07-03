@@ -147,6 +147,8 @@ dependencies {
     implementation("com.google.android.gms:play-services-location:21.3.0")
     // 내 번호 자동입력 — 구글 전화번호 힌트(한 번 탭). (2026-06-12)
     implementation("com.google.android.gms:play-services-auth:21.2.0")
+    // 사업자등록증 자동 입력 — 온디바이스(무료) 한국어 OCR. 서버·API키 불필요, 오프라인 동작. (2026-07-04 사장님)
+    implementation("com.google.mlkit:text-recognition-korean:16.0.1")
 
     // 템플릿 첨부 사진 썸네일 로딩
     implementation("io.coil-kt:coil-compose:2.5.0")

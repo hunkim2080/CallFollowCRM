@@ -20,18 +20,21 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -78,6 +81,64 @@ fun BusinessInfoScreen(
     var bankQuery by remember { mutableStateOf("") }
     var accountNo by remember { mutableStateOf(prefs.bizAccountNo) }
     var accountHolder by remember { mutableStateOf(prefs.bizAccountHolder) }
+
+    // ── 사업자등록증 스캔 → 온디바이스 OCR 자동 입력 (2026-07-04 사장님) ──
+    val scope = rememberCoroutineScope()
+    var scanBusy by remember { mutableStateOf(false) }
+    var scanChooser by remember { mutableStateOf(false) }
+    // 카메라 촬영 임시 파일(FileProvider) — cacheDir/shared/ 는 file_paths.xml 에 공유 등록됨.
+    val cameraUri = remember {
+        val dir = java.io.File(context.cacheDir, "shared").apply { mkdirs() }
+        androidx.core.content.FileProvider.getUriForFile(
+            context, "${context.packageName}.fileprovider", java.io.File(dir, "bizcert.jpg")
+        )
+    }
+    fun runBizOcr(uri: android.net.Uri) {
+        scope.launch {
+            scanBusy = true
+            val text = com.detailline.callfollowcrm.util.BizCertOcr.recognize(context, uri)
+            scanBusy = false
+            val f = text?.let { com.detailline.callfollowcrm.util.BizCertOcr.parse(it) }
+            if (f == null || !f.any) {
+                android.widget.Toast.makeText(context, "글자를 잘 못 읽었어요. 밝은 곳에서 반듯하게 다시 찍어주세요", android.widget.Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            val filled = mutableListOf<String>()
+            f.name?.let { name = it; filled += "상호" }
+            f.owner?.let { owner = it; filled += "대표자" }
+            f.bizNo?.let { bizNo = formatBizNo(it); filled += "사업자번호" }
+            f.addr?.let { addr = it; filled += "주소" }
+            android.widget.Toast.makeText(context, "${filled.joinToString("·")} 자동 입력했어요 · 확인 후 저장하세요", android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+    val galleryLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri -> if (uri != null) runBizOcr(uri) }
+    val cameraLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { ok -> if (ok) runBizOcr(cameraUri) }
+    if (scanChooser) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { scanChooser = false },
+            title = { Text("사업자등록증 불러오기", fontWeight = FontWeight.Bold) },
+            text = { Text("등록증을 촬영하거나 앨범에서 골라주세요. 사업자번호·상호·대표자·주소를 자동으로 채워드려요. (사진은 저장 안 하고 글자만 읽어요)") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    scanChooser = false
+                    runCatching { cameraLauncher.launch(cameraUri) }
+                        .onFailure { android.widget.Toast.makeText(context, "카메라를 열 수 없어요. 앨범에서 선택해주세요", android.widget.Toast.LENGTH_SHORT).show() }
+                }) { Text("사진 촬영", fontWeight = FontWeight.Bold, color = TossBlue) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    scanChooser = false
+                    galleryLauncher.launch(
+                        androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                }) { Text("앨범에서 선택", color = TossTextSecondary) }
+            }
+        )
+    }
 
     // 전화번호 자동 채움 — 비어 있으면 유심에서 내 번호 읽기 시도(한국은 빈 값 자주 옴 → 실패해도 무해).
     LaunchedEffect(Unit) {
@@ -163,6 +224,10 @@ fun BusinessInfoScreen(
                 // 프로토 sh-sub
                 Text("한 번 등록해두면 견적서·접수서에 자동으로 들어가요. 비워둔 칸은 견적서에 표시 안 돼요.",
                     fontSize = 12.5.sp, color = TossTextTertiary)
+                Spacer(Modifier.height(14.dp))
+
+                // 사업자등록증 스캔 → OCR 자동 입력 (2026-07-04 사장님)
+                BizCertScanCard(busy = scanBusy) { scanChooser = true }
                 Spacer(Modifier.height(14.dp))
 
                 Field("상호 (업체명)", name, placeholder = "예: ○○ 줄눈") { name = it }
@@ -272,6 +337,31 @@ private fun FieldLabel(label: String) {
     // 프로토 .sheet-label
     Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
         modifier = Modifier.padding(start = 2.dp, bottom = 7.dp, top = 12.dp))
+}
+
+/** 사업자등록증 스캔 카드 — 탭하면 촬영/앨범 선택 → 온디바이스 OCR 자동 입력. (2026-07-04 사장님) */
+@Composable
+private fun BizCertScanCard(busy: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFEFF4FF))
+            .clickable(enabled = !busy) { onClick() }.padding(13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(Color.White), contentAlignment = Alignment.Center) {
+            Text("📷", fontSize = 19.sp)
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(if (busy) "등록증 읽는 중…" else "사업자등록증으로 자동 채우기",
+                fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            Spacer(Modifier.height(2.dp))
+            Text("찍으면 사업자번호·상호·대표자·주소를 자동 입력 (로컬 처리)",
+                fontSize = 11.5.sp, color = TossTextTertiary)
+        }
+        Spacer(Modifier.width(8.dp))
+        if (busy) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = TossBlue)
+        else Text("›", fontSize = 18.sp, color = TossTextTertiary)
+    }
 }
 
 @Composable
