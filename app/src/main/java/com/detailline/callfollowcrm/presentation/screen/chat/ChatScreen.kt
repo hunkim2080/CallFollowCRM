@@ -3777,7 +3777,9 @@ private fun EstimateBuilderDialog(
                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     EstSegTab("비율(%)", depMode == "ratio", Modifier.weight(1f)) { depMode = "ratio" }
-                    EstSegTab("정액", depMode == "fixed", Modifier.weight(1f)) { depMode = "fixed" }
+                    // 정액 진입 시 10만원 프리필 — depVal 은 비율(%)과 공유되므로, 비율값(예 30)이 그대로
+                    //   넘어와 "30만원"으로 뜨던 혼란 방지. 이미 정액이면(재탭) 사용자가 고친 값 보존. (2026-07-03 사장님)
+                    EstSegTab("정액", depMode == "fixed", Modifier.weight(1f)) { if (depMode != "fixed") depVal = "10"; depMode = "fixed" }
                     EstSegTab("없음", depMode == "none", Modifier.weight(1f)) { depMode = "none" }
                 }
                 if (depMode == "ratio") {

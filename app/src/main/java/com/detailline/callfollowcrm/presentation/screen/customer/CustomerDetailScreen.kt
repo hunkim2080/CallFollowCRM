@@ -2759,6 +2759,9 @@ private fun CollabAfterCard(
     val curIdx = when (step?.lowercase()) {
         "departed" -> 1; "arrived" -> 2; "completed" -> 3; else -> 0
     }
+    // 완료된 현장 = 헤더 '협업 완료'(초록) + 큰 stepper 접기. 끝난 현장인데 배정/출발/도착/완료가
+    //   그대로 떠서 카드만 커 보이던 것 정리. (2026-07-04 사장님)
+    val completed = curIdx >= 3
     // 확정된 accepted 이거나 진행 단계가 있으면 '협업 중' 전체 카드. 그 전(pending·확인 전)엔 작은 '수락 대기중'.
     //   수락 전인데 협업중처럼 큰 카드가 떠서 '이미 함께 일하는 줄' 착각하는 문제 방지. (2026-07-01 사장님)
     val collabActive = status == "accepted" || curIdx > 0
@@ -2810,8 +2813,8 @@ private fun CollabAfterCard(
         androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Text("🤝 협업 사장님", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
             Spacer(Modifier.weight(1f))
-            Box(Modifier.clip(RoundedCornerShape(999.dp)).background(purpleSoft).padding(horizontal = 10.dp, vertical = 4.dp)) {
-                Text("$partnerName · 협업 중", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
+            Box(Modifier.clip(RoundedCornerShape(999.dp)).background(if (completed) Color(0xFFE5F8EE) else purpleSoft).padding(horizontal = 10.dp, vertical = 4.dp)) {
+                Text("$partnerName · ${if (completed) "협업 완료" else "협업 중"}", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = if (completed) Color(0xFF0E9F56) else Color(0xFF6B4FD8))
             }
         }
         wage?.let {
@@ -2823,20 +2826,37 @@ private fun CollabAfterCard(
             }
         }
         Spacer(Modifier.height(8.dp))
-        Text("상대가 올린 진행·사진·메모가 여기 그대로 들어와요.", fontSize = 12.sp, color = TossTextTertiary)
-        Spacer(Modifier.height(12.dp))
-        // 진행 stepper (A가 보는 상대 진행)
-        androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-            listOf("배정", "출발", "도착", "완료").forEachIndexed { i, label ->
-                Column(Modifier.weight(1f), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
-                    val done = i < curIdx; val cur = i == curIdx
-                    val bg = when { done -> Color(0xFF16C172); cur -> Color(0xFF3182F6); else -> TossGrayBg }
-                    val fg = if (done || cur) Color.White else TossTextTertiary
-                    Box(Modifier.size(28.dp).clip(RoundedCornerShape(999.dp)).background(bg), contentAlignment = androidx.compose.ui.Alignment.Center) {
-                        Text(if (done) "✓" else "${i + 1}", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = fg)
+        if (completed) {
+            // 완료 = 배정~완료 다 끝남. 큰 4단 stepper 는 접고 초록 한 줄로. (2026-07-04 사장님)
+            androidx.compose.foundation.layout.Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFE9F9F1))
+                    .padding(horizontal = 13.dp, vertical = 11.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            ) {
+                Box(Modifier.size(22.dp).clip(RoundedCornerShape(999.dp)).background(Color(0xFF16C172)),
+                    contentAlignment = androidx.compose.ui.Alignment.Center) {
+                    Text("✓", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                }
+                Spacer(Modifier.width(9.dp))
+                Text("배정 · 출발 · 도착 · 완료까지 다 마친 현장이에요", fontSize = 12.5.sp,
+                    fontWeight = FontWeight.Bold, color = Color(0xFF0E9F56))
+            }
+        } else {
+            Text("상대가 올린 진행·사진·메모가 여기 그대로 들어와요.", fontSize = 12.sp, color = TossTextTertiary)
+            Spacer(Modifier.height(12.dp))
+            // 진행 stepper (A가 보는 상대 진행)
+            androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                listOf("배정", "출발", "도착", "완료").forEachIndexed { i, label ->
+                    Column(Modifier.weight(1f), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                        val done = i < curIdx; val cur = i == curIdx
+                        val bg = when { done -> Color(0xFF16C172); cur -> Color(0xFF3182F6); else -> TossGrayBg }
+                        val fg = if (done || cur) Color.White else TossTextTertiary
+                        Box(Modifier.size(28.dp).clip(RoundedCornerShape(999.dp)).background(bg), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                            Text(if (done) "✓" else "${i + 1}", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = fg)
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text(label, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = if (done || cur) TossTextPrimary else TossTextTertiary)
                     }
-                    Spacer(Modifier.height(4.dp))
-                    Text(label, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = if (done || cur) TossTextPrimary else TossTextTertiary)
                 }
             }
         }

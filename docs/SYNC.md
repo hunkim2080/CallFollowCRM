@@ -6336,3 +6336,11 @@ deploy_phase1.sh — repo 에 plist 사본 없으면 (gitignore 라 repo 이동 
 - 검증: TestClient 시뮬레이션 (유료 2명, 재결제 임박/휴면/입금액/다음달 예상) ALL PASS + JS PASS.
 - 변경: server/main.py 만. 배포 필요.
 - commit: (아래)
+## 2026-07-04 · android (사장님 접수서/협업 정리)
+접수서 계약금 기본값 + 협업 완료 표기 정리 (+ 서버 핸드오프 1건).
+- [앱] 견적 만들기: 정액 계약금 기본값 10만원 — 정액 탭 진입 시 프리필(비율%값 30이 그대로 넘어와 "30만원" 뜨던 혼란 제거). ChatScreen.kt.
+- [앱] 고객상세 협업 카드(CollabAfterCard): 완료된 현장이면 헤더 '협업 중'→'협업 완료'(초록) + 배정/출발/도착/완료 큰 4단 stepper 접어 초록 한 줄로. CustomerDetailScreen.kt. (사장님: 끝난 현장인데 stepper 그대로 떠 카드만 커 보임)
+- [서버 액션 필요] docs/SERVER_HANDOFF_intake_deposit_survey.md —
+  ① 접수서 계약금 안내문(_build_deposit_html): 있음="시공이 끝난 뒤 계약금 N원을 제외하고 입금해주시면 됩니다!" / 없음(none/0, 지금은 박스 안뜸)="시공이 끝난 뒤 입금해주세요!". 만원/원 표기는 사장님 확인 후 확정.
+  ② 마케팅 설문 오탭 되돌리기(renderSurvey/surveyBack): 한번 누르면 영구고정(특히 '지금은 바빠요'·done) → "← 다시 선택할래요" 추가.
+- commit: (이 커밋)
