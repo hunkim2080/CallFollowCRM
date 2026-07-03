@@ -43,34 +43,52 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
         if (hour < 21 || hour >= 23) return // 프로토 brief = 오후 9시.
 
         val todayStart = DateTimeUtils.startOfDay(now)
-        val todayEnd = todayStart + DateTimeUtils.DAY_MS
-        val tomorrowStart = todayEnd
-        val tomorrowEnd = tomorrowStart + DateTimeUtils.DAY_MS
         val prefs = container.preferences
         val keys = prefs.reminderNotifiedKeys.toMutableSet()
         val key = "brief:$todayStart"
         if (key in keys) return
 
-        val customers = runCatching { container.customerRepository.allOnce() }.getOrDefault(emptyList())
-        val newCustomers = customers.count { it.createdAt in todayStart until todayEnd }
-        val deposits = customers.count { c ->
-            (c.depositPaidAt?.let { it in todayStart until todayEnd } == true) ||
-                (c.balancePaidAt?.let { it in todayStart until todayEnd } == true)
+        if (showDailyBriefNow(applicationContext, container, respectQuietDay = true)) {
+            keys.add(key)
+            prefs.reminderNotifiedKeys = keys
         }
-        val tomorrowJobs = customers.filter {
-            it.scheduledWorkDate?.let { s -> DateTimeUtils.startOfDay(s) in tomorrowStart until tomorrowEnd } == true
-        }
-        if (newCustomers == 0 && deposits == 0 && tomorrowJobs.isEmpty()) return // 조용한 날 — 안 보냄
+    }
 
-        val firstJob = tomorrowJobs.minByOrNull { it.scheduledWorkDate ?: Long.MAX_VALUE }
-        val tomorrowLabel = firstJob?.let { c ->
-            val nm = c.name?.takeIf { it.isNotBlank() } ?: c.phoneNumber
-            val t = c.scheduledWorkMinutes?.let { DateTimeUtils.formatWorkMinutes(it) }
-            nm + (t?.let { " $it" } ?: "")
+    companion object {
+        /**
+         * 게이트(시간·중복) 없이 마감 브리핑을 계산·표시. 표시했으면 true. checkDailyBrief 와 디버그 트리거가 공유.
+         *   respectQuietDay=false 면 성과 0인 조용한 날도 강제로 띄움(디버그 미리보기용).
+         */
+        suspend fun showDailyBriefNow(
+            context: Context,
+            container: AppContainer,
+            respectQuietDay: Boolean
+        ): Boolean {
+            val now = System.currentTimeMillis()
+            val todayStart = DateTimeUtils.startOfDay(now)
+            val todayEnd = todayStart + DateTimeUtils.DAY_MS
+            val tomorrowStart = todayEnd
+            val tomorrowEnd = tomorrowStart + DateTimeUtils.DAY_MS
+            val customers = runCatching { container.customerRepository.allOnce() }.getOrDefault(emptyList())
+            val newCustomers = customers.count { it.createdAt in todayStart until todayEnd }
+            val deposits = customers.count { c ->
+                (c.depositPaidAt?.let { it in todayStart until todayEnd } == true) ||
+                    (c.balancePaidAt?.let { it in todayStart until todayEnd } == true)
+            }
+            val tomorrowJobs = customers.filter {
+                it.scheduledWorkDate?.let { s -> DateTimeUtils.startOfDay(s) in tomorrowStart until tomorrowEnd } == true
+            }
+            if (respectQuietDay && newCustomers == 0 && deposits == 0 && tomorrowJobs.isEmpty()) return false
+
+            val firstJob = tomorrowJobs.minByOrNull { it.scheduledWorkDate ?: Long.MAX_VALUE }
+            val tomorrowLabel = firstJob?.let { c ->
+                val nm = c.name?.takeIf { it.isNotBlank() } ?: c.phoneNumber
+                val t = c.scheduledWorkMinutes?.let { DateTimeUtils.formatWorkMinutes(it) }
+                nm + (t?.let { " $it" } ?: "")
+            }
+            NotificationHelper.showDailyBrief(context, newCustomers, deposits, tomorrowJobs.size, tomorrowLabel)
+            return true
         }
-        NotificationHelper.showDailyBrief(applicationContext, newCustomers, deposits, tomorrowJobs.size, tomorrowLabel)
-        keys.add(key)
-        prefs.reminderNotifiedKeys = keys
     }
 
     /** 정기 문자 발송 대상 — 시공일 + 주기 배수 = 오늘. 오전 9시경, 하루 1회 집계 알림. */
