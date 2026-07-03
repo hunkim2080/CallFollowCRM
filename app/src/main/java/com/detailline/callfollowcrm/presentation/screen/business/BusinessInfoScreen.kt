@@ -86,6 +86,8 @@ fun BusinessInfoScreen(
     val scope = rememberCoroutineScope()
     var scanBusy by remember { mutableStateOf(false) }
     var scanChooser by remember { mutableStateOf(false) }
+    // 고른/찍은 사진을 OCR 전에 크게 확인 — 맞는지 보고 채우기. (2026-07-04 사장님)
+    var previewUri by remember { mutableStateOf<android.net.Uri?>(null) }
     // 카메라 촬영 임시 파일(FileProvider) — cacheDir/shared/ 는 file_paths.xml 에 공유 등록됨.
     val cameraUri = remember {
         val dir = java.io.File(context.cacheDir, "shared").apply { mkdirs() }
@@ -113,10 +115,10 @@ fun BusinessInfoScreen(
     }
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
-    ) { uri -> if (uri != null) runBizOcr(uri) }
+    ) { uri -> if (uri != null) previewUri = uri }
     val cameraLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.TakePicture()
-    ) { ok -> if (ok) runBizOcr(cameraUri) }
+    ) { ok -> if (ok) previewUri = cameraUri }
     if (scanChooser) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { scanChooser = false },
@@ -138,6 +140,52 @@ fun BusinessInfoScreen(
                 }) { Text("앨범에서 선택", color = TossTextSecondary) }
             }
         )
+    }
+    // 사진 확인 미리보기 — 크게 보고 맞으면 채우기. 바깥 탭으론 안 닫힘, 뒤로가기/버튼으로만. (2026-07-04 사장님)
+    previewUri?.let { uri ->
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { previewUri = null },
+            properties = androidx.compose.ui.window.DialogProperties(
+                dismissOnClickOutside = false, dismissOnBackPress = true, usePlatformDefaultWidth = false
+            )
+        ) {
+            Column(Modifier.fillMaxSize().background(Color(0xFF0E1116))) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("이 사진이 맞나요?", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
+                        Text("아래로 넘겨 확인한 뒤 '자동 채우기'를 눌러요", color = Color(0xFFAEB6C2), fontSize = 12.sp)
+                    }
+                    Text("✕", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { previewUri = null }.padding(8.dp))
+                }
+                // 전체폭 이미지 — 세로 스크롤로 긴 등록증도 훑어봄(스크롤해도 안 닫힘).
+                Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+                    coil.compose.AsyncImage(
+                        model = uri, contentDescription = "사업자등록증 미리보기",
+                        modifier = Modifier.fillMaxWidth(),
+                        contentScale = androidx.compose.ui.layout.ContentScale.FillWidth
+                    )
+                }
+                Row(
+                    Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        Modifier.weight(1f).clip(RoundedCornerShape(13.dp)).background(Color(0xFF2A2F37))
+                            .clickable { previewUri = null; scanChooser = true }.padding(vertical = 14.dp),
+                        contentAlignment = Alignment.Center
+                    ) { Text("다시 선택", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+                    Box(
+                        Modifier.weight(1.6f).clip(RoundedCornerShape(13.dp)).background(TossBlue)
+                            .clickable { val u = uri; previewUri = null; runBizOcr(u) }.padding(vertical = 14.dp),
+                        contentAlignment = Alignment.Center
+                    ) { Text("이 사진으로 자동 채우기", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold) }
+                }
+            }
+        }
     }
 
     // 전화번호 자동 채움 — 비어 있으면 유심에서 내 번호 읽기 시도(한국은 빈 값 자주 옴 → 실패해도 무해).
