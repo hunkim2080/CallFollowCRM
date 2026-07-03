@@ -6360,3 +6360,9 @@ deploy_phase1.sh — repo 에 plist 사본 없으면 (gitignore 라 repo 이동 
 - 다음 액션 (사장님): SOLAPI 키 3개 plist 등록 (발신번호 사전등록 필요). (안드로이드): 핸드오프 문서로 가입 화면 구현.
 - 변경: server/main.py + docs/ANDROID_HANDOFF_signup_auth.md. 배포 필요.
 - commit: (아래)
+## 2026-07-04 · android (계약금 안내문 위치 확정)
+사장님 결정: 금액=만원 표기 / 위치=문자 견적·견적서에도.
+- [앱] 견적서(QuoteDocScreen) 비고: 계약금 있으면 "시공이 끝난 뒤 계약금 N만원을 제외하고 입금해주시면 됩니다"(만원 딱 안떨어지면 원), 없으면 "시공이 끝난 뒤 입금해주세요".
+- [앱] 문자 견적(buildEstimateBody): 프로토상 text 모드엔 계약금 칸 없음 → "시공이 끝난 뒤 입금해주세요 😊" 한 줄만.
+- [서버] 핸드오프 문서 갱신 — _man_or_won() 헬퍼로 만원 표기 확정. _build_deposit_html 참고.
+- commit: (이 커밋)

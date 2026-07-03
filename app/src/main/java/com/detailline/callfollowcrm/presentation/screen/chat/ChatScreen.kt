@@ -4275,7 +4275,9 @@ private fun buildEstimateBody(
         append("· ${c.name.trim()} ${formatWon(won)}\n")
     }
     append("합계 ${formatWon(totalSum)} (부가세 별도)\n")
-    append("\n방문 일정 잡아드릴까요? 😊")
+    // 잔금 안내 — 문자 견적은 프로토상 계약금 칸이 없어(가벼운 견적) '끝난 뒤 입금'만. 계약금 제외 안내는 견적서/접수서. (2026-07-04 사장님)
+    append("\n시공이 끝난 뒤 입금해주세요 😊")
+    append("\n\n방문 일정 잡아드릴까요? 😊")
 }
 
 /** 견적 만들기에서 직접 추가하는 즉석 항목 (가격표에 없는 것 — 예: 실리콘). name + manwon(만원). */

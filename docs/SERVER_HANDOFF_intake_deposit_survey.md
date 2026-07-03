@@ -27,30 +27,34 @@ def _build_deposit_html(deposit_mode, deposit_amount_krw, deposit_ratio_pct):
 - **계약금 있음** → `시공이 끝난 뒤 계약금 {N}만원을 제외하고 입금해주시면 됩니다!`
 - **계약금 없음(none/0)** → `시공이 끝난 뒤 입금해주세요!`  (지금은 박스 자체가 안 뜸 → **떠야 함**)
 
-### 요청 구현 (권장안)
+### 요청 구현 (사장님 결정 반영 · 2026-07-04)
+**사장님 확정: 금액은 "만원" 표기** (딱 만원 안 떨어지면 원 표기로 폴백). 앱 쪽(견적서/문자)도 동일 규칙으로 이미 반영함(`formatWon`: round→만원, else→원). 서버도 맞춰줘.
+
 ```python
+def _man_or_won(krw: int) -> str:
+    """만원 딱 떨어지면 '10만원', 아니면 '100,000원'. (앱 formatWon 과 동일 규칙)"""
+    if krw >= 10000 and krw % 10000 == 0:
+        return f"{krw // 10000}만원"
+    return f"{_format_won(krw)}원"
+
 def _build_deposit_html(deposit_mode, deposit_amount_krw, deposit_ratio_pct):
-    # 계약금 없음 → 잔금 안내만
+    # 계약금 없음 → 잔금 안내만 (지금은 박스 자체가 안 떴음 → 떠야 함)
     if deposit_mode == "none" or not deposit_amount_krw:
         return '<div class="q-deposit">시공이 끝난 뒤 입금해주세요!</div>'
-    amount = _format_won(deposit_amount_krw)                 # 예: "100,000"
+    amount = _format_won(deposit_amount_krw)                 # 예: "100,000" (기존 계약금 표시용, 그대로)
+    label = _man_or_won(deposit_amount_krw)                  # 예: "10만원" (잔금 안내용, 사장님 만원 표기)
     suffix = ""
     if deposit_mode == "ratio" and deposit_ratio_pct:
         suffix = f" (총액의 {int(deposit_ratio_pct)}%)"
-    # 1줄차 = 받은 계약금 표시 / 2줄차 = 잔금 안내 (사장님 verbatim)
+    # 1줄차 = 받은 계약금 표시 / 2줄차 = 잔금 안내 (사장님 verbatim, 만원 표기)
     return (
         f'<div class="q-deposit">계약금 {amount}원{suffix}'
         f' · 입금 계좌는 확정 후 안내드려요<br>'
-        f'시공이 끝난 뒤 계약금 {amount}원을 제외하고 입금해주시면 됩니다!</div>'
+        f'시공이 끝난 뒤 계약금 {label}을 제외하고 입금해주시면 됩니다!</div>'
     )
 ```
 
-**결정 필요(사장님께 확인해줘 / 애매하면 나(android)한테 SYNC 로):**
-- 사장님 원문은 "계약금 **00만원**을 제외하고". 정액은 딱 만원 단위라 `{man}만원`이 자연스럽지만,
-  **비율(%) 계약금은 만원 딱 안 떨어질 수 있음**(예: 총액 137만 × 30% = 41.1만). 그래서 위 권장안은
-  안전하게 `{amount}원`(콤마 원화)으로 통일함. 만약 사장님이 "만원" 표기를 원하면 정액만 `{krw//10000}만원`,
-  비율은 원화로 분기. → **이 미세 문구는 사장님 확인 후 확정 권장.**
-- "입금 계좌는 확정 후 안내드려요" 를 **남길지/뺄지**: 위 권장안은 남김(계좌는 아직 필요). 빼길 원하면 1줄로.
+참고(남은 미세 결정, 애매하면 SYNC 로): "입금 계좌는 확정 후 안내드려요" 는 **남김**(계좌 아직 필요). 빼길 원하면 그 조각만 제거.
 
 `_format_won` 위치/이름 그대로 사용. 호출부(견적 카드 line ~13536 `{deposit_html}`)는 그대로 두면 됨.
 

@@ -292,6 +292,12 @@ fun QuoteDocScreen(
                 if (data.depMode != "none") {
                     Text("· 계약금 입금 시 시공일이 확정됩니다", fontSize = 12.sp, color = SealRed,
                         fontWeight = FontWeight.Medium, lineHeight = 21.sp)
+                    // 잔금 안내 — 계약금 제외하고 시공 후 입금. 만원 딱 떨어지면 만원 표기. (2026-07-04 사장님)
+                    val depLabel = if (depWon % 10_000L == 0L) "${depWon / 10_000L}만원" else "${won(depWon)}원"
+                    Text("· 시공이 끝난 뒤 계약금 ${depLabel}을 제외하고 입금해주시면 됩니다", fontSize = 12.sp,
+                        color = TossTextSecondary, lineHeight = 21.sp)
+                } else {
+                    Text("· 시공이 끝난 뒤 입금해주세요", fontSize = 12.sp, color = TossTextSecondary, lineHeight = 21.sp)
                 }
                 Text("· 유효기간 : 발행일로부터 ${validDays}일", fontSize = 12.sp, color = TossTextSecondary, lineHeight = 21.sp)
                 // ── 서명란: 견적일자 + 직인 ──
