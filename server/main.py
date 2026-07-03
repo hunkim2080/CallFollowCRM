@@ -6614,11 +6614,19 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
     //   원인: "7일 활동 + LLM 1~4회 사용자" 가 어디에도 안 속함.
     //   fix: 4분류 mutually exclusive.
     //     안 쓰는 사람 (7일 무활동) → 초심 (활동 + LLM 1-4) → 구경꾼 (활동 + LLM 0) → 진성 (LLM 5+)
+    // 추가87 — KPI 12개 → 6개 정리 (사장님: "정리 필요").
+    //   원칙: 카드 1 = 질문 1. 분류 기준 = 접속(last_seen) 단일 체계 (모순 제거).
+    //   유형 4카드 → 막대 1카드. 사용량 지표(LLM 호출/평균 등) = 사용량 페이지와 중복 → 삭제.
+    //   ⏳ 등업대기(신청자)는 멤버 분류에서 제외 (총 멤버 카드의 sub 로만 표시).
     var nowMs = Date.now();
     var allUsers = d.users || [];
     var sevenAgo = nowMs - 7 * 86400000;
+    var members = allUsers.filter(function(u){ return (u.grade || 'tester') !== 'applicant'; });
+    var applicants = allUsers.length - members.length;
+    var paidStd = members.filter(function(u){ return u.grade === 'standard'; }).length;
+    var paidPre = members.filter(function(u){ return u.grade === 'premium'; }).length;
     var dead = 0, watcher = 0, beginner = 0, sincere = 0;
-    allUsers.forEach(function(u){
+    members.forEach(function(u){
       var calls = u.calls || 0;
       var active = u.last_seen_ms && u.last_seen_ms >= sevenAgo;
       if (!active) dead++;
@@ -6626,33 +6634,40 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
       else if (calls === 0) watcher++;
       else beginner++;  // 1~4회 사용자
     });
-    // 추가49 (2026-06-21) — 업종 분포 (가장 많은 업종 1개)
-    var byIndustry = {};
-    allUsers.forEach(function(u){
-      if (u.industry) byIndustry[u.industry] = (byIndustry[u.industry] || 0) + 1;
+    // ⚠️ 이탈 위험 명단 (클릭 → 모달)
+    var atRiskList = members.filter(function(u){
+      return !(u.last_seen_ms && u.last_seen_ms >= sevenAgo);
+    }).map(function(u){
+      return { name: u.name || '-', phone: u.phone, phone_raw: u.phone_raw,
+               last: u.last_seen_ms ? timeAgo(nowMs - u.last_seen_ms) : '접속 기록 없음' };
     });
-    var industryKeys = Object.keys(byIndustry).sort(function(a,b){ return byIndustry[b] - byIndustry[a]; });
-    var topIndustry = industryKeys[0] || '-';
-    var topIndustryCount = byIndustry[topIndustry] || 0;
-    var industrySub = industryKeys.length > 1 ? '+' + (industryKeys.length - 1) + '개 업종' : (topIndustryCount > 0 ? '단일 업종' : '미입력');
+    var mix = members.length;
+    function mixSeg(nv, color) {
+      var w = mix > 0 ? (nv / mix * 100) : 0;
+      return '<span style="display:inline-block; height:100%; width:' + w.toFixed(1) + '%; background:' + color + ';"></span>';
+    }
+    var mixCard =
+      '<div class="kpi"><div class="lbl">사용자 유형 (멤버 ' + mix + '명)</div>'
+      + '<div style="height:14px; border-radius:7px; overflow:hidden; background:var(--bg); margin:10px 0 8px; font-size:0; white-space:nowrap;">'
+      + mixSeg(sincere, '#16C172') + mixSeg(beginner, '#3182F6') + mixSeg(watcher, '#F59E0B') + mixSeg(dead, '#F0436A')
+      + '</div>'
+      + '<div class="sub2">🟢 진성 ' + sincere + ' · 🔵 초심 ' + beginner + ' · 🟡 구경꾼 ' + watcher + ' · 🔴 미접속 ' + dead + '</div>'
+      + '</div>';
     document.getElementById('kpiGrid').innerHTML =
-      kpiCard('blue', '총 베타 사용자', kpi.total_users, '명') +
-      kpiCard('blue', '🔧 가장 많은 업종', topIndustry, topIndustryCount + '명 · ' + industrySub) +
-      kpiCard('green', '🟢 진성 사용자', sincere, 'LLM 5회+ 사용') +
-      kpiCard('blue', '🔵 초심 사용자', beginner, 'LLM 1~4회 사용') +
-      kpiCard('orange', '🟡 구경꾼', watcher, '앱은 열지만 기능 X') +
-      kpiCard('', '🔴 안 쓰는 사람', dead, '7일+ 무활동') +
-      kpiCard('green', '활성 (7일)', kpi.active_7d, pct(kpi.active_7d, kpi.total_users) + '% 활성') +
-      kpiCard('green', '활성 (30일)', kpi.active_30d, pct(kpi.active_30d, kpi.total_users) + '% 활성') +
-      kpiCard('orange', '신규 (7일)', kpi.new_7d, '신규 가입') +
-      kpiCard('', '활성화 (첫 진입)', kpi.activated, pct(kpi.activated, kpi.total_users) + '% 진입 완료') +
-      kpiCard('blue', '총 LLM 호출', kpi.total_api_calls, '회 (' + d.days + '일)') +
-      kpiCard('orange', '평균 LLM/사장님/일', kpi.avg_calls_per_user_per_day, '회 (활성자 기준)') +
-      kpiCard('green', '평균 앱 사용 일수', kpi.avg_active_days_per_user, '일 / ' + d.days + '일 중') +
-      kpiCard('blue', '평균 진입 횟수', kpi.avg_use_count, '회 (누적, 활성자 기준)');
+      kpiCard('blue', '총 멤버', members.length + '명',
+              '💙 일반 ' + paidStd + ' · 👑 특별 ' + paidPre + ' · ⏳ 등업대기 ' + applicants) +
+      kpiCard('green', '이번 주 활성', kpi.active_7d + '명', pct(kpi.active_7d, kpi.total_users) + '% (접속 기준)') +
+      kpiCard('green', '🔥 진성 사용자', sincere, 'AI 5회+ 사용 (접속자 중)') +
+      '<div class="kpi" style="cursor:pointer;" onclick="openDrill(\\'at_risk\\', \\'⚠️ 이탈 위험 — 7일+ 미접속\\')">'
+        + '<div class="lbl">⚠️ 이탈 위험</div>'
+        + '<div class="val" style="color:' + (dead > 0 ? 'var(--error)' : 'var(--success)') + '">' + dead + '</div>'
+        + '<div class="sub2">7일+ 미접속 · 클릭 = 명단</div></div>' +
+      kpiCard('orange', '🆕 신규 (7일)', kpi.new_7d, '신규 가입') +
+      mixCard;
 
     // Network 신호 (클릭 시 drill-down)
     LAST_DETAILS = d.details || {};
+    LAST_DETAILS['at_risk'] = atRiskList;  // 추가87 — 이탈 위험 명단 (KPI 카드 클릭)
     var n = d.network;
     document.getElementById('netGrid').innerHTML =
       netItem('🤝 협업 요청', n.collab_total, 'collab_total') +
@@ -7011,6 +7026,14 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
         r.share_id ? '<span style="font-family:monospace; font-size:11px">' + escape(r.share_id.slice(0,12)) + '</span>' : '-',
         escape(r.uploader || '-'),
         escape(r.uploaded),
+      ]; };
+    } else if (kind === 'at_risk') {
+      // 추가87 — ⚠️ 이탈 위험 명단 (7일+ 미접속 멤버)
+      head = ['이름', '전화', '마지막 접속'];
+      cols = function(r){ return [
+        '<b>' + escape(r.name) + '</b>',
+        '<a href="/admin/user/' + encodeURIComponent(r.phone_raw) + '" style="color:#3182F6; text-decoration:none;">' + escape(r.phone) + '</a>',
+        '<span style="color:#F0436A; font-weight:700;">' + escape(r.last) + '</span>',
       ]; };
     } else {
       return '<div class="nodata">상세 데이터 없음</div>';
