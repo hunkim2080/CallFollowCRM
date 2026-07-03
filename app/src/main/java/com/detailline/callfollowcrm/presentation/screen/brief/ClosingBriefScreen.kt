@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
@@ -45,9 +46,13 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 
+private val GoalCardBg = Color(0xFF202632)
+private val WarnBg = Color(0xFFFFF7E6)
+private val WarnText = Color(0xFF8A5A00)
+private val WarnSub = Color(0xFFB07A1E)
+
 /**
- * 마감 브리핑 화면 — 프로토 brief 알림의 "오늘 정리 보기" 목적지.
- *   오늘 신규 / 오늘 입금 / 내일 시공 일정을 한 화면에. 탭하면 해당 목록·고객으로 이동.
+ * 마감 브리핑 화면 (2026-07-03 의미있게 재구성) — 오늘 성취 + 이번 달 목표 진행 + 내일 준비 + 못 받은 돈 챙김.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,26 +87,66 @@ fun ClosingBriefScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp, vertical = 12.dp)
         ) {
+            // ── 인사 + 오늘 성취 한 줄 ──
             Text("오늘도 정말 고생하셨어요.", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(3.dp))
             Text(state.dateLabel, fontSize = 13.sp, color = TossTextTertiary)
+            if (state.achievementLine != null) {
+                Spacer(Modifier.height(8.dp))
+                Text(state.achievementLine!!, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
+            } else if (state.loaded) {
+                Spacer(Modifier.height(8.dp))
+                Text("조용한 날도 사장님 하루예요. 푹 쉬세요 🌙", fontSize = 13.sp, color = TossTextTertiary)
+            }
             Spacer(Modifier.height(16.dp))
 
-            // 오늘 신규 / 오늘 입금 — 2칸
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                StatTile("오늘 신규 문의", "${state.newCount}건", "👋", Modifier.weight(1f)) { onOpenNewLeads() }
-                StatTile(
-                    "오늘 입금",
-                    "${state.depositCount}건",
-                    "💰",
-                    Modifier.weight(1f),
-                    sub = state.paidSumLabel
-                ) { onOpenSettlement() }
+            // ── 오늘의 성취 3칸 ──
+            Row(horizontalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.fillMaxWidth()) {
+                StatTile("오늘 새 문의", "${state.newCount}건", "👋", Modifier.weight(1f)) { onOpenNewLeads() }
+                StatTile("오늘 마무리", "${state.completedCount}건", "✅", Modifier.weight(1f)) { onOpenSchedule() }
+                StatTile("오늘 입금", "${state.depositCount}건", "💰", Modifier.weight(1f), sub = state.paidSumLabel) { onOpenSettlement() }
             }
             Spacer(Modifier.height(18.dp))
 
-            // 내일 시공
-            Text("내일 시공", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
+            // ── 이번 달 목표 진행 (다크 히어로 카드) ──
+            if (state.goalLabel.isNotEmpty()) {
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(GoalCardBg)
+                        .clickable { onOpenSettlement() }.padding(18.dp)
+                ) {
+                    Text("이번 달, 여기까지 왔어요", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.7f))
+                    Spacer(Modifier.height(10.dp))
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text(state.monthPaidLabel, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                        Spacer(Modifier.width(6.dp))
+                        Text("/ 목표 ${state.goalLabel}", fontSize = 13.sp, color = Color.White.copy(alpha = 0.55f),
+                            modifier = Modifier.padding(bottom = 4.dp))
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(999.dp)).background(Color.White.copy(alpha = 0.15f))) {
+                        Box(Modifier.fillMaxWidth(state.progressFraction).height(8.dp).clip(RoundedCornerShape(999.dp)).background(TossBlue))
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "${state.progressPct}%" + (state.progressLabel?.let { " · $it" } ?: ""),
+                            fontSize = 12.5.sp, color = Color.White.copy(alpha = 0.85f),
+                            modifier = Modifier.weight(1f)
+                        )
+                        state.todayContribLabel?.let {
+                            Spacer(Modifier.width(8.dp))
+                            Box(
+                                Modifier.clip(RoundedCornerShape(999.dp)).background(TossBlue.copy(alpha = 0.30f))
+                                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                            ) { Text(it, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(18.dp))
+            }
+
+            // ── 내일 준비 ──
+            Text("내일 준비", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
                 modifier = Modifier.padding(start = 2.dp, bottom = 8.dp))
             if (state.jobs.isEmpty()) {
                 Box(
@@ -128,8 +173,22 @@ fun ClosingBriefScreen(
                             contentAlignment = Alignment.Center) { Text("🔧", fontSize = 16.sp) }
                         Spacer(Modifier.width(11.dp))
                         Column(Modifier.weight(1f)) {
-                            Text(job.name, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
-                            Text(job.timeLabel, fontSize = 12.5.sp, color = TossTextSecondary, modifier = Modifier.padding(top = 2.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(job.name, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                                Spacer(Modifier.width(7.dp))
+                                Text(job.timeLabel, fontSize = 12.5.sp, color = TossTextSecondary)
+                            }
+                            job.addressLabel?.let {
+                                Text("📍 $it", fontSize = 12.sp, color = TossTextTertiary, maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
+                            }
+                            job.receivableLabel?.let {
+                                Spacer(Modifier.height(5.dp))
+                                Box(
+                                    Modifier.clip(RoundedCornerShape(999.dp)).background(TossBlueSoft)
+                                        .padding(horizontal = 9.dp, vertical = 3.dp)
+                                ) { Text(it, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossBlue) }
+                            }
                         }
                         Box(
                             Modifier.clip(RoundedCornerShape(999.dp)).background(TossBlueSoft)
@@ -144,7 +203,30 @@ fun ClosingBriefScreen(
                     contentAlignment = Alignment.Center
                 ) { Text("전체 일정 보기", color = TossBlueDark, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
             }
-            Spacer(Modifier.height(20.dp))
+
+            // ── 자기 전에 챙길 것: 못 받은 돈 ──
+            if (state.outstandingSumLabel != null) {
+                Spacer(Modifier.height(16.dp))
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(WarnBg)
+                        .clickable { onOpenSettlement() }.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("💡", fontSize = 15.sp)
+                    Spacer(Modifier.width(9.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "자기 전에 · 못 받은 돈 ${state.outstandingCount}건 · ${state.outstandingSumLabel}",
+                            fontSize = 13.sp, fontWeight = FontWeight.Bold, color = WarnText
+                        )
+                        state.outstandingExample?.let {
+                            Text("$it 아직 안 들어왔어요", fontSize = 11.5.sp, color = WarnSub, modifier = Modifier.padding(top = 2.dp))
+                        }
+                    }
+                    Text("정산 →", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = WarnText)
+                }
+            }
+            Spacer(Modifier.height(24.dp))
         }
     }
 }
@@ -164,16 +246,16 @@ private fun StatTile(
             .background(Color.White)
             .border(1.dp, TossDivider, RoundedCornerShape(14.dp))
             .clickable { onClick() }
-            .padding(14.dp)
+            .padding(vertical = 14.dp, horizontal = 11.dp)
     ) {
-        Text(emoji, fontSize = 18.sp)
+        Text(emoji, fontSize = 17.sp)
         Spacer(Modifier.height(8.dp))
-        Text(label, fontSize = 12.sp, color = TossTextTertiary, fontWeight = FontWeight.Bold)
+        Text(label, fontSize = 11.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Bold, maxLines = 1)
         Spacer(Modifier.height(3.dp))
-        Text(value, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+        Text(value, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
         if (sub != null) {
             Spacer(Modifier.height(2.dp))
-            Text(sub, fontSize = 11.5.sp, color = TossBlue, fontWeight = FontWeight.Bold)
+            Text(sub, fontSize = 11.sp, color = TossBlue, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
