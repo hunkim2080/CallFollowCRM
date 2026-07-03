@@ -38,6 +38,10 @@ class CallFollowCrmApplication : Application() {
         NotificationHelper.ensureChannels(this)
         // 막내 단계(변신) 복원 — 설정 안 열어도 앱 곳곳 막내가 현재 단계로 보이게. (2026-06-14)
         com.detailline.callfollowcrm.presentation.component.MascotTierState.set(container.preferences.agentTier)
+        // 수신 MMS 알림 기준선 — 첫 실행/업데이트 시 now 로 잡아, 설치 전 과거 MMS 는 알림 안 함. (2026-07-03 사장님)
+        if (container.preferences.lastNotifiedMmsMs == 0L) {
+            container.preferences.lastNotifiedMmsMs = System.currentTimeMillis()
+        }
 
         appScope.launch {
             // 2026-07-02 기본 문자 템플릿 자동 시드 중단(사장님). 새 사장님은 빈 템플릿으로 시작 →
@@ -237,8 +241,8 @@ class CallFollowCrmApplication : Application() {
                     // 두 번 스캔: 알림 직후(1.2초) + 늦게 끝나는 다운로드 보강(+5초).
                     //   큰 사진 MMS 는 삼성이 저장을 여러 번에 나눠 알려, 첫 스캔 땐 아직 본문/주소가 안 박힌 케이스가 있음.
                     mmsSyncJob = appScope.launch {
-                        delay(1200); syncMmsContacts()
-                        delay(5000); syncMmsContacts()
+                        delay(1200); syncMmsContacts(); notifyNewInboxMms()
+                        delay(5000); syncMmsContacts(); notifyNewInboxMms()
                     }
                 }
             }
@@ -419,6 +423,44 @@ class CallFollowCrmApplication : Application() {
             container.smsRepository.queryRecentMmsContacts(mmsScanLimit = 120, contactLimit = 120)
         }.getOrDefault(emptyList())
         for (c in contacts) runCatching { container.smsContactCacheRepository.upsertOne(c) }
+    }
+
+    /**
+     * 새 '수신 MMS'(사진 포함) 알림 — 사진만 온 MMS 는 SmsReceiver(SMS 전용)·WAP_PUSH(기본앱 전용)로 못 잡아
+     *   지금껏 알림이 안 떠 고객을 놓쳤음. ContentObserver 가 감지한 김에 여기서 알림을 띄운다. (2026-07-03 사장님)
+     *   lastNotifiedMmsMs 이후 도착한 inbox MMS 만, 스팸·알림OFF 는 건너뜀. 중복은 마커로 방지.
+     */
+    private suspend fun notifyNewInboxMms() {
+        val prefs = container.preferences
+        if (!prefs.incomingSmsNotifyEnabled) return
+        val since = prefs.lastNotifiedMmsMs
+        if (since <= 0L) { prefs.lastNotifiedMmsMs = System.currentTimeMillis(); return }
+        val newMms = runCatching { container.smsRepository.queryInboxMmsSince(since, limit = 10) }
+            .getOrDefault(emptyList())
+        if (newMms.isEmpty()) return
+        var maxMs = since
+        // 오래된→최신 순으로 띄워 최신이 위로.
+        for (m in newMms.sortedBy { it.dateMs }) {
+            if (m.dateMs <= since) continue
+            maxMs = maxOf(maxMs, m.dateMs)
+            if (com.detailline.callfollowcrm.util.SpamPrefix.isSpam(m.sender, prefs.spamPrefixes)) continue
+            val customer = runCatching { container.customerRepository.findByPhone(m.sender) }.getOrNull()
+            val categoryLabel = customer?.categoryId?.let { cid ->
+                runCatching { container.categoryRepository.findById(cid)?.name }.getOrNull()
+            }
+            runCatching {
+                NotificationHelper.showIncomingSms(
+                    context = this,
+                    phone = m.sender,
+                    displayName = customer?.name,
+                    body = m.preview,
+                    receivedAtMs = m.dateMs,
+                    categoryLabel = categoryLabel,
+                    isNewCustomer = customer == null
+                )
+            }
+        }
+        prefs.lastNotifiedMmsMs = maxMs
     }
 
     /** 시공 D-1 등 리마인더 — 주기 워커(~3시간) + 앱 켤 때 1회 즉시 점검. */

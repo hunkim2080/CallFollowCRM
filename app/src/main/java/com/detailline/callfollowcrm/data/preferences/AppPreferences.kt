@@ -155,6 +155,15 @@ class AppPreferences(context: Context) {
         set(value) = prefs.edit().putBoolean(KEY_INCOMING_SMS_NOTIFY, value).apply()
 
     /**
+     * 마지막으로 '수신 MMS 알림'을 띄운 시각(ms). 이 이후 도착한 inbox MMS 만 새로 알림.
+     *   MMS(사진)는 SmsReceiver·WAP_PUSH 로 못 잡아 ContentObserver 로 감지→알림하는데, 중복/과거분 방지용 마커.
+     *   0 = 미설정 → 앱 시작 시 now 로 기준선 잡음(설치 전 과거 MMS 는 알림 안 함). (2026-07-03 사장님)
+     */
+    var lastNotifiedMmsMs: Long
+        get() = prefs.getLong("last_notified_mms_ms", 0L)
+        set(value) = prefs.edit().putLong("last_notified_mms_ms", value).apply()
+
+    /**
      * 기본 네비 앱 (카드 펼침 [📍 길찾기] 가 사용할 외부 앱).
      * NavApp.key 문자열 저장. null = 아직 미선택 (첫 길찾기 탭 시 다이얼로그 띄움).
      * 사장님 결정 2026-05-27: 사용자마다 손에 익은 네비가 달라서 선택 가능하게.

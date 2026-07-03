@@ -398,6 +398,54 @@ class SmsRepository(
             ?: addresses.firstOrNull()?.first
     }
 
+    /**
+     * 2026-07-03 사장님 — 새 '수신 MMS'(사진 포함) 알림용. sinceMs 이후 도착한 inbox MMS 를 발신자·미리보기와 함께.
+     *   SmsReceiver 는 SMS 만 잡고 앱이 기본문자앱이 아니라 MMS WAP_PUSH 도 못 받음 → 이걸로 알림을 채운다.
+     *   미리보기: 텍스트 있으면 텍스트, 사진만이면 "📷 사진 N장을 보냈어요".
+     */
+    data class IncomingMms(val mmsId: Long, val sender: String, val preview: String, val dateMs: Long)
+
+    fun queryInboxMmsSince(sinceMs: Long, limit: Int = 10): List<IncomingMms> {
+        if (!hasReadPermission()) return emptyList()
+        val sinceSec = sinceMs / 1000L
+        val ids = ArrayList<Pair<Long, Long>>()  // (mmsId, dateMs)
+        runCatching {
+            context.contentResolver.query(
+                Uri.parse("content://mms"),
+                arrayOf(COL_ID, COL_DATE),
+                Bundle().apply {
+                    putString(ContentResolver.QUERY_ARG_SQL_SELECTION, "msg_box=? AND $COL_DATE>?")
+                    putStringArray(
+                        ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS,
+                        arrayOf(MMS_BOX_INBOX.toString(), sinceSec.toString())
+                    )
+                    putStringArray(ContentResolver.QUERY_ARG_SORT_COLUMNS, arrayOf(COL_DATE))
+                    putInt(ContentResolver.QUERY_ARG_SORT_DIRECTION, ContentResolver.QUERY_SORT_DIRECTION_DESCENDING)
+                    putInt(ContentResolver.QUERY_ARG_LIMIT, limit)
+                }, null
+            )
+        }.getOrNull()?.use { c ->
+            val idIdx = c.getColumnIndex(COL_ID)
+            val dIdx = c.getColumnIndex(COL_DATE)
+            if (idIdx >= 0 && dIdx >= 0) while (c.moveToNext()) ids += c.getLong(idIdx) to (c.getLong(dIdx) * 1000L)
+        }
+        if (ids.isEmpty()) return emptyList()
+        val out = ArrayList<IncomingMms>()
+        for ((id, dateMs) in ids) {
+            val sender = pickRelevantAddress(getMmsAddresses(id), MMS_BOX_INBOX) ?: continue
+            val (text, images) = getMmsParts(id)
+            val t = text.trim().replace("\n", " ")
+            val preview = when {
+                t.isNotBlank() && images.isNotEmpty() -> "📷 " + t.take(40)
+                t.isNotBlank() -> t.take(60)
+                images.isNotEmpty() -> "📷 사진 ${images.size}장을 보냈어요"
+                else -> "새 문자를 보냈어요"
+            }
+            out += IncomingMms(id, sender, preview, dateMs)
+        }
+        return out
+    }
+
     /** 한 MMS 의 모든 파트 읽어 텍스트 합치고 이미지 URI 모음. */
     private fun getMmsParts(mmsId: Long): Pair<String, List<Uri>> {
         // content://mms/part 는 모든 파트가 통합돼있어서 mid 로 필터해야 함.
