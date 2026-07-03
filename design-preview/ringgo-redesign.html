@@ -315,6 +315,19 @@
   .mktip-go { font-size:12px; font-weight:800; color:var(--blue); flex:0 0 auto; align-self:center; margin-left:4px; }
   .mktip-x { position:absolute; top:5px; right:7px; width:20px; height:20px; display:flex; align-items:center; justify-content:center; color:var(--t3); font-size:14px; font-weight:700; border-radius:50%; }
   .mktip-x:active { background:rgba(0,0,0,.06); }
+  /* 막내 안내판 — 기능 카드 누르면 뜨는 사용법 튜토리얼. (2026-07-04 사장님) */
+  .tg-scrim { position:absolute; inset:0; background:rgba(11,15,25,.5); opacity:0; pointer-events:none; transition:opacity .2s; z-index:200; }
+  .tg-scrim.show { opacity:1; pointer-events:auto; }
+  .tg-card { position:absolute; left:14px; right:14px; bottom:14px; background:#fff; border-radius:20px; padding:20px 18px 15px; box-shadow:0 14px 42px rgba(0,0,0,.24); transform:translateY(24px); opacity:0; pointer-events:none; transition:transform .24s, opacity .24s; z-index:201; }
+  .tg-card.show { transform:translateY(0); opacity:1; pointer-events:auto; }
+  .tg-ic { width:52px; height:52px; margin:0 auto; border-radius:15px; background:var(--blue-tint); display:flex; align-items:center; justify-content:center; font-size:26px; }
+  .tg-sub { text-align:center; font-size:11.5px; font-weight:800; color:var(--blue-dark); margin-top:11px; }
+  .tg-title { text-align:center; font-size:17px; font-weight:800; color:var(--t1); letter-spacing:-.02em; margin-top:3px; }
+  .tg-steps { margin:15px 0 2px; padding:0; list-style:none; counter-reset:s; }
+  .tg-steps li { position:relative; padding:1px 0 0 33px; margin-bottom:11px; font-size:13.5px; color:var(--t2); line-height:1.5; counter-increment:s; }
+  .tg-steps li::before { content:counter(s); position:absolute; left:0; top:0; width:23px; height:23px; border-radius:50%; background:var(--blue-tint); color:var(--blue); font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; }
+  .tg-cta { width:100%; margin-top:13px; background:var(--blue); color:#fff; border:0; border-radius:13px; padding:14px 0; font-size:14.5px; font-weight:800; font-family:inherit; cursor:pointer; }
+  .tg-skip { text-align:center; margin-top:8px; font-size:12.5px; color:var(--t3); font-weight:700; cursor:pointer; padding:6px; }
   .tag { font-size:10.5px; font-weight:700; padding:3px 8px; border-radius:7px; flex:0 0 auto; }
   .tag.blue { color:var(--blue); background:#EAF2FE; } .tag.green { color:#0E9F56; background:#E5F8EE; }
   .tag.amber { color:#B7791F; background:#FEF3E0; } .tag.gray { color:var(--t3); background:var(--bg); }
@@ -1490,6 +1503,9 @@
     <div class="scrim" id="scrim" onclick="closeSheet();closeModal();"></div>
     <div class="sheet" id="sheet"></div>
     <div class="modal-card" id="modal"></div>
+    <!-- 막내 안내판 (기능 카드 눌렀을 때 사용법 안내) -->
+    <div class="tg-scrim" id="tg-scrim" onclick="closeGuide()"></div>
+    <div class="tg-card" id="tg-card"></div>
 
     <!-- 로그인 (첫 화면) -->
     <div class="login" id="login">
@@ -1706,8 +1722,34 @@ function renderRecent(){
   if(ti<tips.length) html+=tipCardHtml(tips[ti++]);   // 끝까지 내렸을 때 하나 더
   host.innerHTML=html; fillIcons(host);
 }
-function tipGo(key){ var t=null; for(var i=0;i<mkTips.length;i++){ if(mkTips[i].key===key){ t=mkTips[i]; break; } } if(!t) return; tipUsed[key]=1; if(t.go) t.go(); }
+function tipGo(key){ var t=null; for(var i=0;i<mkTips.length;i++){ if(mkTips[i].key===key){ t=mkTips[i]; break; } } if(!t) return; tipUsed[key]=1; if(t.go) t.go(); setTimeout(function(){ showFeatureGuide(key); }, 90); }
 function tipDismiss(key){ tipDismissed[key]=1; renderRecent(); toast('이 팁은 그만 볼게요 · 안 써본 다른 기능을 대신 보여드려요'); }
+// 막내 안내판 — 기능 카드를 누르면 그 기능 화면 위에 사용법을 알려주는 튜토리얼. 실제 앱에선 기능마다 '처음 한 번만'.
+var tipGuides={
+  price:['가격표 화면 오른쪽 위 ✨ "문자에서 불러오기"를 눌러요.','예전에 보낸 견적 문자를 막내가 읽어 품목·가격을 뽑아와요.','맞는지 확인하고 저장하면 가격표 완성이에요!'],
+  quote:['상호·대표님 이름·직인 문구를 한 번만 입력해요.','저장하면 앞으로 견적서에 도장이 자동으로 찍혀요.','채팅에서 "견적 작성"만 누르면 정식 견적서 완성!'],
+  recur:['오른쪽 위 ＋로 보낼 문자와 날짜를 정해요.','명절·안부 문자를 단골에게 자동으로 보내드려요.','한 번 정해두면 막내가 알아서 챙겨요.'],
+  autosms:['부재중 응답·시공 D-1·도착 안내 중 원하는 걸 켜요.','정해둔 상황이 되면 문자가 자동으로 나가요.','깜빡해도 고객 응대가 빠지지 않아요.'],
+  settle:['위 "미수금"만 눌러 아직 못 받은 돈을 모아봐요.','계약금·잔금 받으면 "받음"으로 표시해요.','누가 안 줬는지 한눈에 — 떼일 걱정이 줄어요.'],
+  tpl:['오른쪽 위 ＋로 자주 쓰는 안내 문구를 저장해요.','채팅에서 "문구 넣기"로 한 번에 불러와요.','매번 안 쳐도 돼서 답장이 훨씬 빨라져요.'],
+  tone:['막내가 사장님의 지난 답장을 배워요.','추천 답변이 점점 사장님 말투로 바뀌어요.','쓸수록 더 사장님처럼 똑똑해져요.'],
+  report:['이번 달 매출·문의·전환율을 한눈에 봐요.','지난 기간과 비교해 장사 흐름을 알 수 있어요.','어떤 시공이 많은지도 자동으로 정리돼요.']
+};
+function showFeatureGuide(key){
+  var t=null; for(var i=0;i<mkTips.length;i++){ if(mkTips[i].key===key){ t=mkTips[i]; break; } }
+  var steps=tipGuides[key]; if(!t||!steps) return;
+  var lis=steps.map(function(s){ return '<li>'+s+'</li>'; }).join('');
+  document.getElementById('tg-card').innerHTML=
+     '<div class="tg-ic">'+t.ic+'</div>'
+    +'<div class="tg-sub">막내가 알려드릴게요 😊</div>'
+    +'<div class="tg-title">'+t.t+'</div>'
+    +'<ol class="tg-steps">'+lis+'</ol>'
+    +'<button class="tg-cta" onclick="closeGuide()">알겠어요, 해볼게요</button>'
+    +'<div class="tg-skip" onclick="closeGuide()">다음에 볼게요</div>';
+  document.getElementById('tg-scrim').classList.add('show');
+  document.getElementById('tg-card').classList.add('show');
+}
+function closeGuide(){ document.getElementById('tg-scrim').classList.remove('show'); document.getElementById('tg-card').classList.remove('show'); }
 function quickSend(id){ var el=document.getElementById('wc-'+id); if(el){ el.style.transition='transform .25s, opacity .25s'; el.style.opacity='0'; el.style.transform='translateX(40px)'; } toast('보냈어요'); setTimeout(function(){ var i=waiting.findIndex(function(w){return w.id===id;}); if(i>=0) waiting.splice(i,1); renderWaiting(); updateCount(); },280); }
 function updateCount(){ var n=waiting.length; var c=document.getElementById('waiting-count'); c.textContent=n; c.classList.toggle('zero', n===0); var b=document.getElementById('tabbadge'); if(n>0){ b.setAttribute('data-n',n); } else { b.removeAttribute('data-n'); } }
 
@@ -3083,7 +3125,7 @@ function loginWith(p){
 }
 function showLogin(){ var l=document.getElementById('login-loading'); if(l) l.remove(); var el=document.getElementById('login'); el.style.display='flex'; el.style.opacity=''; void el.offsetWidth; el.classList.remove('hide'); }
 
-function closeAllOverlays(){ ['sheet','modal','scrim','imodal','imodal-scrim'].forEach(function(id){ var el=document.getElementById(id); if(el) el.classList.remove('show'); }); _inputCb=null; }
+function closeAllOverlays(){ ['sheet','modal','scrim','imodal','imodal-scrim','tg-scrim','tg-card'].forEach(function(id){ var el=document.getElementById(id); if(el) el.classList.remove('show'); }); _inputCb=null; }
 // 데모 링크: 새 화면 열기 전에 열려있던 오버레이 전부 닫기 (z-index 충돌·중첩 방지)
 function demoReset(){ closeAllOverlays(); var q=document.getElementById('quote'); if(q) q.classList.remove('show'); var ob=document.getElementById('onboard'); if(ob) ob.classList.add('hide'); var lg=document.getElementById('login'); if(lg) lg.classList.add('hide'); try{ dismissPush(); }catch(e){} }
 function showScreen(id){ closeAllOverlays(); var ss=document.querySelectorAll('.screen'); for(var i=0;i<ss.length;i++) ss[i].classList.toggle('active', ss[i].id===id); }
