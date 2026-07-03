@@ -443,21 +443,27 @@ fun HomeScreen(
             // 막내 팁 카드 — 눌러본(used)/닫은(dismissed) 건 prefs 로 영구 기억 + 화면 상태로 즉시 반영. (2026-07-04 사장님)
             var tipUsed by remember { mutableStateOf(prefs.makneTipUsed) }
             var tipDismissed by remember { mutableStateOf(prefs.makneTipDismissed) }
+            var guideTip by remember { mutableStateOf<com.detailline.callfollowcrm.presentation.component.MakneTip?>(null) }
             val eligibleTips = remember(tipUsed, tipDismissed) {
                 if (!prefs.makneTipsEnabled) emptyList()
                 else com.detailline.callfollowcrm.presentation.component.MAKNE_TIPS
                     .filter { it.key !in tipUsed && it.key !in tipDismissed }
             }
-            fun onTipGo(tip: com.detailline.callfollowcrm.presentation.component.MakneTip) {
+            // 카드 탭 = 먼저 막내 안내판만(아직 이동 X). '해볼게요' 눌러야 기능으로 이동 + 안 써본 목록에서 뺌. (2026-07-04 사장님)
+            fun onTipProceed(tip: com.detailline.callfollowcrm.presentation.component.MakneTip) {
                 tipUsed = tipUsed + tip.key; prefs.makneTipUsed = tipUsed
                 onOpenRoute(tip.route)
-                if (tip.key !in prefs.makneGuideSeen) {   // 안내판은 기능마다 처음 한 번만.
-                    prefs.makneGuideSeen = prefs.makneGuideSeen + tip.key
-                    com.detailline.callfollowcrm.presentation.component.MakneGuideController.show(tip)
-                }
             }
             fun onTipDismiss(tip: com.detailline.callfollowcrm.presentation.component.MakneTip) {
                 tipDismissed = tipDismissed + tip.key; prefs.makneTipDismissed = tipDismissed
+            }
+            // 막내 안내판 — 카드 누르면 뜸. '해볼게요'=이동 / '다음에 볼게요'·바깥탭=닫힘(안 들어감).
+            guideTip?.let { tip ->
+                com.detailline.callfollowcrm.presentation.component.MakneGuideOverlay(
+                    tip = tip,
+                    onProceed = { guideTip = null; onTipProceed(tip) },
+                    onDismiss = { guideTip = null }
+                )
             }
 
             // 카드 탭 인라인 액션 — 한 번에 하나만 펼침. key 포맷은 LazyColumn key 와 동일.
@@ -1040,7 +1046,7 @@ fun HomeScreen(
                                     val tip = eligibleTips[tipIdx]; tipIdx++
                                     com.detailline.callfollowcrm.presentation.component.MakneTipCard(
                                         tip = tip,
-                                        onGo = { onTipGo(tip) },
+                                        onGo = { guideTip = tip },
                                         onDismiss = { onTipDismiss(tip) }
                                     )
                                 }

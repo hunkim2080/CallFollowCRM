@@ -36,9 +36,6 @@ import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * 막내 팁 — 상담함 '최근 대화' 사이에 끼우는 기능 발견 카드 + 누르면 뜨는 사용법 안내판.
@@ -142,17 +139,6 @@ val MAKNE_TIPS: List<MakneTip> = listOf(
     )
 )
 
-/**
- * 안내판 전역 표시 컨트롤러 — 팁 카드를 누르면(=기능 화면으로 이동) 그 화면 위에 안내판을 띄운다.
- *   AppRoot 가 pending 을 구독해 [MakneGuideOverlay] 를 최상단에 렌더. 프로토의 tg-card 오버레이와 동일.
- */
-object MakneGuideController {
-    private val _pending = MutableStateFlow<MakneTip?>(null)
-    val pending: StateFlow<MakneTip?> = _pending.asStateFlow()
-    fun show(tip: MakneTip) { _pending.value = tip }
-    fun dismiss() { _pending.value = null }
-}
-
 private val TipBg = Color(0xFFF5F8FF)
 private val TipBorder = Color(0xFFE4EBF7)
 private val TipTint = Color(0xFFEEF4FF)
@@ -190,9 +176,12 @@ fun MakneTipCard(tip: MakneTip, onGo: () -> Unit, onDismiss: () -> Unit) {
     }
 }
 
-/** 기능 카드 누르면 그 화면 위에 뜨는 막내 안내판 — 1-2-3 사용법. 프로토 .tg-card 1:1. */
+/**
+ * 막내 안내판 — 카드 누르면 (아직 기능 이동 전에) 뜨는 1-2-3 사용법. 프로토 .tg-card 1:1.
+ *   onProceed = '알겠어요, 해볼게요'(그때 기능으로 이동) / onDismiss = '다음에 볼게요'·바깥탭(닫힘, 안 들어감). (2026-07-04 사장님)
+ */
 @Composable
-fun MakneGuideOverlay(tip: MakneTip, onDismiss: () -> Unit) {
+fun MakneGuideOverlay(tip: MakneTip, onProceed: () -> Unit, onDismiss: () -> Unit) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Box(
             Modifier.fillMaxSize()
@@ -230,7 +219,7 @@ fun MakneGuideOverlay(tip: MakneTip, onDismiss: () -> Unit) {
                 Spacer(Modifier.height(2.dp))
                 Box(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(TossBlue)
-                        .clickable { onDismiss() }.padding(vertical = 14.dp),
+                        .clickable { onProceed() }.padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center
                 ) { Text("알겠어요, 해볼게요", fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, color = Color.White) }
                 Spacer(Modifier.height(8.dp))

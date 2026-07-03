@@ -33,8 +33,6 @@ fun AppRoot(container: AppContainer) {
         Surface(color = TossGrayBg) {
             val navController = rememberNavController()
             val context = LocalContext.current
-            // 막내 안내판(전역) — 상담함 팁 카드를 누르면 이동한 기능 화면 위에 사용법 안내가 뜬다.
-            val pendingGuide by com.detailline.callfollowcrm.presentation.component.MakneGuideController.pending.collectAsState()
 
             val permsMissing = PermissionHelper.allMissingNonNotification(context).isNotEmpty()
             val startDestination = when {
@@ -145,14 +143,6 @@ fun AppRoot(container: AppContainer) {
                     container = container,
                     startDestination = startDestination,
                     modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())
-                )
-            }
-
-            // 막내 안내판 — 팁 카드 누르면 그 기능 화면 위에 사용법 안내(전역 오버레이). (2026-07-04 사장님)
-            pendingGuide?.let { tip ->
-                com.detailline.callfollowcrm.presentation.component.MakneGuideOverlay(
-                    tip = tip,
-                    onDismiss = { com.detailline.callfollowcrm.presentation.component.MakneGuideController.dismiss() }
                 )
             }
         }

@@ -1699,7 +1699,7 @@ var mkTips=[
 ];
 function tipEligible(){ return mkTips.filter(function(t){ return !tipUsed[t.key] && !tipDismissed[t.key]; }); }
 function tipCardHtml(t){
-  return '<div class="mktip" onclick="tipGo(\''+t.key+'\')">'
+  return '<div class="mktip" onclick="tipTap(\''+t.key+'\')">'
     +'<div class="mktip-ic">'+t.ic+'</div>'
     +'<div class="mktip-main">'
       +'<div class="mktip-eyebrow">💡 '+t.tag+'</div>'
@@ -1722,7 +1722,10 @@ function renderRecent(){
   if(ti<tips.length) html+=tipCardHtml(tips[ti++]);   // 끝까지 내렸을 때 하나 더
   host.innerHTML=html; fillIcons(host);
 }
-function tipGo(key){ var t=null; for(var i=0;i<mkTips.length;i++){ if(mkTips[i].key===key){ t=mkTips[i]; break; } } if(!t) return; tipUsed[key]=1; if(t.go) t.go(); setTimeout(function(){ showFeatureGuide(key); }, 90); }
+// 카드 탭 = 먼저 안내판만(아직 기능으로 안 들어감). '해볼게요' 눌러야 이동. (2026-07-04 사장님)
+function tipTap(key){ showFeatureGuide(key); }
+// '알겠어요, 해볼게요' = 그때 기능으로 이동(+안 써본 목록에서 빼기). '다음에 볼게요'는 그냥 닫힘.
+function tipProceed(key){ var t=null; for(var i=0;i<mkTips.length;i++){ if(mkTips[i].key===key){ t=mkTips[i]; break; } } tipUsed[key]=1; closeGuide(); renderRecent(); if(t&&t.go) t.go(); }
 function tipDismiss(key){ tipDismissed[key]=1; renderRecent(); toast('이 팁은 그만 볼게요 · 안 써본 다른 기능을 대신 보여드려요'); }
 // 막내 안내판 — 기능 카드를 누르면 그 기능 화면 위에 사용법을 알려주는 튜토리얼. 실제 앱에선 기능마다 '처음 한 번만'.
 var tipGuides={
@@ -1744,7 +1747,7 @@ function showFeatureGuide(key){
     +'<div class="tg-sub">막내가 알려드릴게요 😊</div>'
     +'<div class="tg-title">'+t.t+'</div>'
     +'<ol class="tg-steps">'+lis+'</ol>'
-    +'<button class="tg-cta" onclick="closeGuide()">알겠어요, 해볼게요</button>'
+    +'<button class="tg-cta" onclick="tipProceed(\''+key+'\')">알겠어요, 해볼게요</button>'
     +'<div class="tg-skip" onclick="closeGuide()">다음에 볼게요</div>';
   document.getElementById('tg-scrim').classList.add('show');
   document.getElementById('tg-card').classList.add('show');
