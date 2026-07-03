@@ -93,7 +93,7 @@ class ChatViewModel(
         val body = text.trim()
         if (body.isBlank()) { _toast.value = "입력창에 문구를 먼저 쓰세요"; return@launch }
         val now = System.currentTimeMillis()
-        val title = body.replace("\n", " ").trim().take(14).ifBlank { "새 문구" }
+        val title = body.replace("\n", " ").trim().take(13).ifBlank { "새 문구" }   // 제목 13자 제한(SYNC 추가81b)
         runCatching {
             container.messageTemplateRepository.insert(
                 MessageTemplateEntity(

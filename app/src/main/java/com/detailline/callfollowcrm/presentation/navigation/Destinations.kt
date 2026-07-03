@@ -2,6 +2,8 @@ package com.detailline.callfollowcrm.presentation.navigation
 
 object Destinations {
     const val LOGIN = "login"
+    /** 회원가입(폰 인증번호) — Play 공개 첫 화면. (2026-07-04) */
+    const val SIGNUP = "signup"
     const val ONBOARDING = "onboarding"
     const val PERMISSIONS = "permissions"
     const val HOME = "home"

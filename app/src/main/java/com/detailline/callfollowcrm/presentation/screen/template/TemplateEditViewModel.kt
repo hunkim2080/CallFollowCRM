@@ -58,7 +58,8 @@ class TemplateEditViewModel(
         }
     }
 
-    fun setTitle(v: String) = _state.update { it.copy(title = v) }
+    // 제목 13자 제한 — 길면 앱 UI 에서 잘림(SYNC 추가81b, 2026-07-03 사장님 보고). 서버/휴리스틱도 13자 컷.
+    fun setTitle(v: String) = _state.update { it.copy(title = v.take(13)) }
     fun setBody(v: String) = _state.update { it.copy(body = v) }
     fun setActive(v: Boolean) = _state.update { it.copy(isActive = v) }
 

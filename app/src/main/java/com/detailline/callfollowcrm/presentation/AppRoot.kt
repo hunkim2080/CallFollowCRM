@@ -38,8 +38,10 @@ fun AppRoot(container: AppContainer) {
 
             val permsMissing = PermissionHelper.allMissingNonNotification(context).isNotEmpty()
             val startDestination = when {
-                // 전면 리뉴얼 흐름: 로그인 → 온보딩(스토리텔링/캐릭터) → 권한 → 홈. 각 단계 1회.
-                !container.preferences.hasSeenLogin -> Destinations.LOGIN
+                // Play 공개 흐름: 회원가입(폰 인증) → 온보딩 → 권한 → 홈. (2026-07-04)
+                //   미인증(bizPhone 없음) 또는 대기열이면 회원가입부터. 기존 사용자(bizPhone 있음)는 건너뜀.
+                container.preferences.pendingWaitlist -> Destinations.SIGNUP
+                container.preferences.bizPhone.isBlank() -> Destinations.SIGNUP
                 !container.preferences.hasOnboarded -> Destinations.ONBOARDING
                 permsMissing -> Destinations.PERMISSIONS
                 else -> Destinations.HOME

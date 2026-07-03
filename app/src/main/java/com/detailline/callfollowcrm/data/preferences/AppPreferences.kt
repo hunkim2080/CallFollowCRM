@@ -319,6 +319,16 @@ class AppPreferences(context: Context) {
         get() = prefs.getStringSet("makne_guide_seen", emptySet()) ?: emptySet()
         set(value) { prefs.edit().putStringSet("makne_guide_seen", value).apply() }
 
+    // ── 회원가입(폰 인증번호, 2026-07-04) — docs/ANDROID_HANDOFF_signup_auth.md ──
+    /** 인증됐지만 대기열(waitlisted) 상태 — 다음 실행에도 대기 화면부터. 등업되면 false. */
+    var pendingWaitlist: Boolean
+        get() = prefs.getBoolean("signup_pending_waitlist", false)
+        set(value) { prefs.edit().putBoolean("signup_pending_waitlist", value).apply() }
+    /** 무료 체험 만료 시각(ms) — 가입/등업 + 무료기간. 앱 내 "무료 D-xx" 표시용(추후). */
+    var signupFreeUntilMs: Long
+        get() = prefs.getLong("signup_free_until_ms", 0L)
+        set(value) { prefs.edit().putLong("signup_free_until_ms", value).apply() }
+
     // ── 원칙 발견 (Phase 2, 2026-06-17) — 너무 자주 안 묻게 하루 한도 + 거절 후보 기억 ──
     /** 원칙 묻기 한도 추적용 — 마지막으로 카운트한 '날(자정 ms)'. */
     var principleAskDayStart: Long

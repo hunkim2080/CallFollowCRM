@@ -82,6 +82,6 @@ class TemplateDiscoverViewModel(private val container: AppContainer) : ViewModel
         val line = body.trim().lineSequence().map { it.trim() }
             .firstOrNull { l -> l.count { ch -> ch in '가'..'힣' } >= 6 }
             ?: body.trim().replace(Regex("\\s+"), " ")
-        return line.take(14).ifBlank { "자주 쓰는 문자" }
+        return line.take(13).ifBlank { "자주 쓰는 문자" }   // 제목 13자 제한(SYNC 추가81b)
     }
 }

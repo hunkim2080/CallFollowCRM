@@ -155,6 +155,44 @@ fun AppNavHost(
             )
         }
 
+        // 회원가입 (폰 인증번호) — Play 공개 첫 화면. enrolled→온보딩 / member→홈 / waitlisted→대기(화면 내부). (2026-07-04)
+        composable(Destinations.SIGNUP) {
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            val vm: com.detailline.callfollowcrm.presentation.screen.signup.SignupViewModel =
+                viewModel(factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.signup.SignupViewModel(container) })
+            // 가입 성공 = 인증된 번호 저장 + FCM 등록(로그인 흐름과 동일).
+            fun completeSignup(phone: String) {
+                val ph = phone.filter { it.isDigit() }
+                container.preferences.bizPhone = ph
+                if (ph.length >= 9) runCatching {
+                    com.google.firebase.messaging.FirebaseMessaging.getInstance().token
+                        .addOnSuccessListener { token ->
+                            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                                runCatching { container.pushRegisterRepository.register(ph, token) }
+                            }
+                        }
+                }
+            }
+            com.detailline.callfollowcrm.presentation.screen.signup.SignupScreen(
+                viewModel = vm,
+                onEnrolled = { phone, _, _ ->
+                    completeSignup(phone)   // 신규 가입 → 온보딩(스토리텔링)부터
+                    navController.navigate(Destinations.ONBOARDING) {
+                        popUpTo(Destinations.SIGNUP) { inclusive = true }
+                    }
+                },
+                onMember = { phone, _ ->
+                    completeSignup(phone)
+                    container.preferences.hasOnboarded = true   // 기존 회원 → 온보딩 스킵, 바로 홈(권한 남았으면 권한)
+                    val next = if (com.detailline.callfollowcrm.util.PermissionHelper.allMissingNonNotification(ctx).isNotEmpty())
+                        Destinations.PERMISSIONS else Destinations.HOME
+                    navController.navigate(next) {
+                        popUpTo(Destinations.SIGNUP) { inclusive = true }
+                    }
+                }
+            )
+        }
+
         // 스토리텔링 온보딩 (캐러셀 → 업종 → 상호·지역 → 막내 비서 탄생)
         composable(Destinations.ONBOARDING) {
             val context = androidx.compose.ui.platform.LocalContext.current

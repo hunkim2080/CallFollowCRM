@@ -39,7 +39,7 @@ class TemplateNameRepository(
                 if (b.isBlank()) return@use null
                 JSONObject(b).optString("title").trim()
                     .replace("\n", " ")
-                    .take(20)
+                    .take(13)   // 제목 13자 제한(SYNC 추가81b) — 길면 앱 UI 에서 잘림.
                     .takeIf { it.isNotEmpty() }
             }
         }.getOrNull()

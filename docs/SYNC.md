@@ -6397,3 +6397,15 @@ PRODUCT_MONETIZATION_DRAFT.md §9 신설 — 사장님 확정 사항 기록.
 - 등업대기(신청자)는 유형 분류에서 제외 (총 멤버 sub 로만) — 신청자 병합으로 인한 숫자 왜곡 방지.
 - 검증: 마크업/중복삭제/JS PASS. 변경: server/main.py 만. 배포 필요.
 - commit: (아래)
+## 2026-07-04 · android (회원가입 화면 + 템플릿 13자)
+회원가입(폰 인증번호) 화면 완성 + 템플릿 제목 13자 제한. 핸드오프 docs/ANDROID_HANDOFF_signup_auth.md 반영.
+- [앱] 회원가입: 전화번호 → 인증번호 6자리 → enrolled(온보딩)/member(홈)/waitlisted(대기화면).
+  - AuthRepository(POST /api/auth/request-code, /verify-code) + SignupScreen/VM + Destinations.SIGNUP.
+  - SMS Retriever 대신 READ_SMS 자동읽기(서버 문자에 앱해시 없어 Retriever 불가) — '인증번호 NNNNNN' 자동입력+자동검증, 수동 항상 가능.
+  - 진입 게이트(AppRoot): bizPhone 없거나 pendingWaitlist → SIGNUP (기존 사용자는 건너뜀). enrolled/member 시 bizPhone 저장 + FCM 등록.
+  - 대기열: pendingWaitlist prefs 로 다음 실행에도 대기화면, [다시 확인] = /api/beta/check 폴링(등업되면 통과).
+  - freeUntilMs → signupFreeUntilMs 저장(무료 D-xx 표시용, 추후).
+  - 에러 detail 그대로 토스트. 503(SOLAPI 미설정) → "문자 발송 준비 중" 안내로 정상 처리.
+- [앱] 템플릿 제목 13자 컷(추가81b 반영): 수동 입력칸(setTitle take13) + 서버 title(TemplateNameRepository 20→13) + 휴리스틱(autoTitle 14→13, ChatVM saveTextAsTemplate 14→13).
+- 사장님 액션(서버): plist SOLAPI_API_KEY/SECRET/SENDER 3개 추가 후 재시작해야 실발송.
+- commit: (이 커밋)

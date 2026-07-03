@@ -166,6 +166,8 @@ class AppContainer(context: Context) {
 
     // 2026-06-21 cowork 요청 — 앱 진입(onResume)마다 /api/beta/check 핑 → admin 대시보드 사용 수/최근 실행 실시간.
     val betaCheckRepository = com.detailline.callfollowcrm.ai.BetaCheckRepository()
+    // 2026-07-04 회원가입(폰 인증번호) — docs/ANDROID_HANDOFF_signup_auth.md.
+    val authRepository = com.detailline.callfollowcrm.ai.AuthRepository()
     /** 팀원 출발 이벤트 폴링/알림 + 상담함 배너 소스 (2026-06-06). preferences 아래에서 생성. */
     val teamEventCenter by lazy {
         com.detailline.callfollowcrm.ai.TeamEventCenter(teamRepository, preferences)
