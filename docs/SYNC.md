@@ -6289,3 +6289,8 @@ deploy_phase1.sh — repo 에 plist 사본 없으면 (gitignore 라 repo 이동 
 - 검증: py_compile PASS + TestClient (기타+상세 저장/상세 없음/일반 업종 무시) ALL PASS + landing JS node --check PASS.
 - 변경: server/main.py + server/static/landing.html + server/deploy_phase1.sh. 배포 필요.
 - commit: (아래)
+
+## 2026-07-03 · cowork (사장님 보고: 사용량 페이지 뒤로가기 없음)
+추가82b — /admin/usage-chart 헤더에 ← 뒤로가기 버튼 (→ /admin 허브).
+- 변경: server/main.py (_ADMIN_DASHBOARD_HTML 헤더) 만. 배포 필요.
+- commit: (아래)

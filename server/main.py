@@ -2623,9 +2623,14 @@ _ADMIN_DASHBOARD_HTML = r"""<!DOCTYPE html>
 </head>
 <body>
   <header>
-    <div>
-      <h1>🛠 RING-GO 사용량</h1>
-      <div class="meta" id="meta">마지막 업데이트 -</div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <a href="/admin" style="text-decoration:none;font-size:20px;color:var(--accent);
+        background:var(--card);border-radius:10px;padding:6px 10px;box-shadow:var(--shadow);
+        line-height:1;-webkit-tap-highlight-color:transparent;">←</a>
+      <div>
+        <h1>🛠 RING-GO 사용량</h1>
+        <div class="meta" id="meta">마지막 업데이트 -</div>
+      </div>
     </div>
     <button class="refresh" id="refreshBtn" onclick="loadAll()">↻ 새로고침</button>
   </header>
