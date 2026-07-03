@@ -99,6 +99,11 @@ PER_PHONE_DAILY_LIMIT = int(os.environ.get("PER_PHONE_DAILY_LIMIT", "100"))     
 
 # 추가86 — 앱 가입 (SMS 인증번호) + 자동 등업 cap
 AUTO_ENROLL_CAP = int(os.environ.get("AUTO_ENROLL_CAP", "100"))   # 선착 자동 베타 등업 인원
+# 추가89 — 통계 집중도(폭주) 계산에서 제외할 번호 (사장님 본인 — 데이터 지배 방지)
+STATS_EXCLUDE_PHONES = set(
+    p.strip() for p in os.environ.get(
+        "STATS_EXCLUDE_PHONES", "01080056674,01064610131").split(",") if p.strip()
+)
 FREE_TRIAL_DAYS = int(os.environ.get("FREE_TRIAL_DAYS", "60"))    # 무료 체험 기간 (2개월)
 AUTH_CODE_TTL_SEC = 300           # 인증번호 유효 5분
 AUTH_CODE_MAX_PER_DAY = 5         # 번호당 하루 발송 한도 (문자폭탄 방지)
@@ -6258,6 +6263,66 @@ async def admin_beta_dashboard_data(
             "paid_dormant": paid_dormant[:20],
         }
 
+        # 추가89 — 🌱 정착 (시공일 등록) + 📱 자주 쓰는 화면 (adoption 페이지 흡수)
+        sc_rows89 = con.execute(
+            "SELECT owner_phone, COUNT(*) FROM app_events "
+            "WHERE event_name = 'schedule_create' GROUP BY owner_phone"
+        ).fetchall()
+        sc_map89 = {r[0]: r[1] for r in sc_rows89}
+        settled_phones = [p for p in wl_phones if sc_map89.get(p)]
+        unsettled_phones = [p for p in wl_phones if not sc_map89.get(p)]
+        adoption = {
+            "settled": len(settled_phones),
+            "total": len(wl_phones),
+            "rate_pct": round(len(settled_phones) / len(wl_phones) * 100, 1) if wl_phones else 0,
+            "unsettled": [
+                {
+                    "phone": _fmt_phone(p), "phone_raw": p,
+                    "name": _user_name(p, default="-"),
+                    "last": wl_last_map.get(p),
+                }
+                for p in unsettled_phones
+            ][:30],
+        }
+
+        def _norm_screen89(s):
+            if not s:
+                return ""
+            base = str(s).split("?")[0].split("&")[0].strip().rstrip("/")
+            if "/" in base:
+                segs = [x for x in base.split("/") if x and not (x.startswith("{") and x.endswith("}"))]
+                base = segs[-1] if segs else base.rsplit("/", 1)[-1]
+            return base.lower()
+
+        scr_rows89 = con.execute(
+            "SELECT screen, owner_phone FROM app_events "
+            "WHERE event_name = 'screen_view' AND created_at_ms >= ?",
+            (cutoff,),
+        ).fetchall()
+        scr_agg89: dict = {}
+        for s89, p89 in scr_rows89:
+            nrm = _norm_screen89(s89)
+            if not nrm:
+                continue
+            scr_agg89.setdefault(nrm, {})
+            scr_agg89[nrm][p89] = scr_agg89[nrm].get(p89, 0) + 1
+        tops89 = []
+        for scr, pm in scr_agg89.items():
+            total_s = sum(pm.values())
+            uniq = len(pm)
+            # 집중도(폭주) = 사장님 본인(STATS_EXCLUDE_PHONES) 제외하고 계산 — 벽지화 방지
+            pm_ex = {k: v for k, v in pm.items() if k not in STATS_EXCLUDE_PHONES}
+            tot_ex = sum(pm_ex.values())
+            tops89.append({
+                "screen": scr,
+                "total": total_s,
+                "users": uniq,
+                "users_pct": round(uniq / len(wl_phones) * 100) if wl_phones else 0,
+                "hot_share_ex_owner": round(max(pm_ex.values()) / tot_ex * 100, 1) if tot_ex else 0,
+                "ex_users": len(pm_ex),
+            })
+        adoption["top_screens"] = sorted(tops89, key=lambda x: -x["total"])[:5]
+
         # 전체 평균 (KPI 카드용)
         active_users = [u for u in users if u["calls"] > 0]
         if active_users:
@@ -6291,6 +6356,7 @@ async def admin_beta_dashboard_data(
         "days": days,
         "generated_at_ms": now,
         "subscription": subscription,  # 추가85 — 💳 구독 관제
+        "adoption": adoption,          # 추가89 — 🌱 정착 + 📱 화면 Top
         "kpi": {
             "total_users": total_users,
             "activated": activated,
@@ -6494,6 +6560,15 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
     </div>
   </div>
 
+  <!-- 추가89 — 📱 자주 쓰는 화면 Top 5 (정착 대시보드 흡수) -->
+  <div class="card" style="margin-bottom:18px">
+    <h2>📱 자주 쓰는 화면 Top 5</h2>
+    <div id="screenList"></div>
+    <div style="margin-top:8px; font-size:11px; color:#9AA3AF;">
+      "몇 명이 쓰나"가 핵심 지표. ⚠️ 집중 배지 = 사장님 본인 제외하고도 한 명이 70%+ 쓸 때만.
+    </div>
+  </div>
+
   <!-- 추가83 — 전체 멤버 관리 (옛 화이트리스트 페이지 통합: 검색·정렬·추가·제거 여기서 다) -->
   <div class="card" style="margin-bottom:18px">
     <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
@@ -6663,11 +6738,23 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
         + '<div class="val" style="color:' + (dead > 0 ? 'var(--error)' : 'var(--success)') + '">' + dead + '</div>'
         + '<div class="sub2">7일+ 미접속 · 클릭 = 명단</div></div>' +
       kpiCard('orange', '🆕 신규 (7일)', kpi.new_7d, '신규 가입') +
+      // 추가89 — 🌱 정착률 (시공일 등록 = 사장님 핵심 KPI). 클릭 = 미등록 명단.
+      '<div class="kpi" style="cursor:pointer;" onclick="openDrill(\\'unsettled\\', \\'🌱 시공일 미등록 — 전화/튜토리얼 대상\\')">'
+        + '<div class="lbl">🌱 정착률 (시공일 등록)</div>'
+        + '<div class="val" style="color:' + ((d.adoption && d.adoption.rate_pct >= 50) ? 'var(--success)' : 'var(--warning)') + '">'
+        + (d.adoption ? d.adoption.rate_pct : 0) + '%</div>'
+        + '<div class="sub2">' + (d.adoption ? d.adoption.settled + '/' + d.adoption.total : '-')
+        + '명 등록 · 클릭 = 미등록 명단</div></div>' +
       mixCard;
 
     // Network 신호 (클릭 시 drill-down)
     LAST_DETAILS = d.details || {};
     LAST_DETAILS['at_risk'] = atRiskList;  // 추가87 — 이탈 위험 명단 (KPI 카드 클릭)
+    // 추가89 — 시공일 미등록 명단 (정착률 카드 클릭)
+    LAST_DETAILS['unsettled'] = (d.adoption && d.adoption.unsettled || []).map(function(u){
+      return { name: u.name, phone: u.phone, phone_raw: u.phone_raw,
+               last: u.last ? timeAgo(Date.now() - u.last) : '접속 기록 없음' };
+    });
     var n = d.network;
     // 추가88 — 협업 깔때기 전환율 (요청→수락→완료 가 이야기가 되게) + 기간 명시 + 빈 박스 제거
     var acceptPct = n.collab_total > 0 ? Math.round(n.collab_accepted / n.collab_total * 100) : 0;
@@ -6764,6 +6851,35 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
       + '<div><div style="font-size:11.5px; color:#9AA3AF; font-weight:700">누적</div>'
       + '<div style="font-size:18px; font-weight:800; color:#0B0F19">' + Math.round(c.all_krw).toLocaleString() + '원</div>'
       + '<div style="font-size:11.5px; color:#5A6472">' + c.all_calls + '회 호출</div></div>';
+
+    // 추가89 — 📱 자주 쓰는 화면 Top 5 (본인 제외 집중도)
+    var SCREEN_KO = {
+      'home':'홈','chat':'채팅','collab':'협업현장','collab_inbox':'협업 인박스',
+      'intake_form':'접수서','schedule':'일정','customer':'고객 상세','customer_detail':'고객 상세',
+      'call':'통화상담','team':'팀원','settings':'설정','settlement':'정산','stats':'통계',
+      'business_info':'업체 정보','collab_sites':'협업현장','pricing_items':'가격표',
+      'customers':'고객 목록','new_leads':'신규 리드','visited':'방문 예정','search':'검색',
+      'notebook':'노트','report':'리포트','templates':'템플릿','login':'로그인','onboarding':'온보딩',
+    };
+    var scr = (d.adoption && d.adoption.top_screens) || [];
+    var scrEl = document.getElementById('screenList');
+    if (scr.length === 0) {
+      scrEl.innerHTML = '<div style="text-align:center; padding:16px; color:#9AA3AF; font-size:13px">아직 화면 데이터 없음</div>';
+    } else {
+      var maxScr = scr[0].total || 1;
+      scrEl.innerHTML = scr.map(function(s, i){
+        var nameKo = SCREEN_KO[s.screen] || s.screen;
+        var w = Math.round(s.total / maxScr * 100);
+        var hot = (s.hot_share_ex_owner >= 70 && s.ex_users >= 3)
+          ? ' <span style="background:#FFF2F5; color:#F0436A; padding:1px 7px; border-radius:6px; font-size:10.5px; font-weight:700;">⚠️ 한 명 집중 ' + Math.round(s.hot_share_ex_owner) + '%</span>'
+          : '';
+        return '<div class="feat-row">'
+          + '<span class="name">' + (i + 1) + '. ' + escape(nameKo) + hot + '</span>'
+          + '<span class="bar"><span class="fill" style="width:' + w + '%; display:block"></span></span>'
+          + '<span class="num"><b>' + s.users + '명</b> (' + s.users_pct + '%)<br><span style="font-size:10px; color:#9AA3AF; font-weight:400">' + s.total + '회</span></span>'
+          + '</div>';
+      }).join('');
+    }
 
     // 추가83 — 전체 멤버 관리 (검색·정렬은 renderUsers 가 담당)
     ALL_USERS = d.users || [];
@@ -7059,8 +7175,8 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
         escape(r.uploader || '-'),
         escape(r.uploaded),
       ]; };
-    } else if (kind === 'at_risk') {
-      // 추가87 — ⚠️ 이탈 위험 명단 (7일+ 미접속 멤버)
+    } else if (kind === 'at_risk' || kind === 'unsettled') {
+      // 추가87 — ⚠️ 이탈 위험 / 추가89 — 🌱 시공일 미등록 명단 (같은 컬럼)
       head = ['이름', '전화', '마지막 접속'];
       cols = function(r){ return [
         '<b>' + escape(r.name) + '</b>',
@@ -7508,8 +7624,13 @@ _ADOPTION_HTML = """<!doctype html>
 
 @app.get("/admin/adoption", response_class=HTMLResponse, include_in_schema=False)
 async def admin_adoption_page():
-    """정착 대시보드 HTML."""
-    return HTMLResponse(content=_ADOPTION_HTML)
+    """추가89 (2026-07-03) — 정착 대시보드는 종합 대시보드로 흡수.
+    (🌱 정착률 KPI 카드 + 📱 자주 쓰는 화면 Top 5). 옛 링크 호환 리다이렉트.
+    /admin/adoption/data 는 호환 위해 유지."""
+    return HTMLResponse(
+        content='<meta http-equiv="refresh" content="0; url=/admin/beta/dashboard">'
+                '<a href="/admin/beta/dashboard">종합 대시보드로 이동 →</a>'
+    )
 
 
 # ============================================================================
@@ -8778,16 +8899,8 @@ _ADMIN_HOME_HTML = """<!doctype html>
     <!-- 추가56 (2026-06-25) — 베타 인테이크 폼 카드 제거. 페이지 (/admin/beta/intake) 자체는
          유지 (사장님이 직접 URL 치면 접근 가능). 사장님이 안 쓰는 죽은 카드라 admin 홈에서만 뺌. -->
 
-    <!-- 추가70 (2026-06-29) — 정착 대시보드 카드 -->
-    <a href="/admin/adoption" class="menu-card" style="text-decoration:none; color:inherit;">
-      <div class="icon purple">📊</div>
-      <div class="body">
-        <div class="title">정착 대시보드</div>
-        <div class="desc">신규 사용자 정착 상태 · 이탈 위험 사장님</div>
-        <div class="stats"><span id="adoStats">Play Store 정식 출시 대비</span></div>
-      </div>
-      <div class="arrow">›</div>
-    </a>
+    <!-- 추가70 정착 대시보드 카드 → 추가89 (2026-07-03) 종합 대시보드로 흡수 (카드 제거).
+         /admin/adoption 은 리다이렉트로 호환. -->
 
     <a href="/admin/usage-chart" class="menu-card" style="text-decoration:none; color:inherit;">
       <div class="icon green">📈</div>

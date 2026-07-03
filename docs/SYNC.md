@@ -6418,3 +6418,13 @@ PRODUCT_MONETIZATION_DRAFT.md §9 신설 — 사장님 확정 사항 기록.
 - LLM 비용: 일평균 + 사용자당 (활성 기준) + "월 5만원 구독 대비 원가 %" — 유료화 마진 즉시 가늠.
 - 검증: 마크업/JS PASS. 변경: server/main.py 만. 배포 필요.
 - commit: (아래)
+
+## 2026-07-04 · cowork (사장님 요청: 정착 대시보드 통폐합)
+추가89 — /admin/adoption → 종합 대시보드 흡수 (아침에 열 페이지 = 하나).
+- KPI 에 "🌱 정착률 (시공일 등록)" 카드 — 사장님 핵심 KPI. 클릭 = 미등록 명단 모달 (전화/튜토리얼 대상).
+- "📱 자주 쓰는 화면 Top 5" 카드 — 표시 = "몇 명이 쓰나 (%)" 중심. ⚠️ 한 명 집중 배지는
+  STATS_EXCLUDE_PHONES (기본 = 사장님 두 번호) 제외하고 계산 — "전 행 폭주 배지 = 벽지" 문제 해결.
+- /admin/adoption = 리다이렉트 (data endpoint 는 호환 유지). 허브 카드 제거.
+- 검증: TestClient (정착률/미등록 명단/화면 집계/집중도/리다이렉트/허브) ALL PASS + JS PASS.
+- 변경: server/main.py 만. 배포 필요.
+- commit: (아래)
