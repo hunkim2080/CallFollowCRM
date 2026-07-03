@@ -91,9 +91,21 @@ COST_CACHED_INPUT_PER_M = 0.30
 COST_OUTPUT_PER_M = 15.0
 KRW_PER_USD = 1380  # 대략. 정확한 환율은 외부 API 로 교체 가능.
 
-# Rate limit
-DAILY_TOTAL_CALLS_LIMIT = 2500       # 폭주 차단
-PER_PHONE_DAILY_LIMIT = 200          # 한 사용자가 다 못 쓰게
+# Rate limit — 추가86: env 로 조절 가능 (plist 에 박아서 재시작 없이... 는 아니고 재시작 시 반영)
+DAILY_TOTAL_CALLS_LIMIT = int(os.environ.get("DAILY_TOTAL_CALLS_LIMIT", "2500"))  # 폭주 차단
+PER_PHONE_DAILY_LIMIT = int(os.environ.get("PER_PHONE_DAILY_LIMIT", "200"))       # 한 사용자가 다 못 쓰게
+
+# 추가86 — 앱 가입 (SMS 인증번호) + 자동 등업 cap
+AUTO_ENROLL_CAP = int(os.environ.get("AUTO_ENROLL_CAP", "100"))   # 선착 자동 베타 등업 인원
+FREE_TRIAL_DAYS = int(os.environ.get("FREE_TRIAL_DAYS", "60"))    # 무료 체험 기간 (2개월)
+AUTH_CODE_TTL_SEC = 300           # 인증번호 유효 5분
+AUTH_CODE_MAX_PER_DAY = 5         # 번호당 하루 발송 한도 (문자폭탄 방지)
+AUTH_CODE_MIN_INTERVAL_SEC = 60   # 재발송 최소 간격
+AUTH_CODE_GLOBAL_PER_DAY = 500    # 전체 하루 발송 한도 (비용 방파제)
+# SOLAPI (문자 발송) — plist EnvironmentVariables 에 박아야 활성화
+SOLAPI_API_KEY = os.environ.get("SOLAPI_API_KEY", "")
+SOLAPI_API_SECRET = os.environ.get("SOLAPI_API_SECRET", "")
+SOLAPI_SENDER = os.environ.get("SOLAPI_SENDER", "")  # 사전 등록된 발신번호
 
 # Anthropic 비동기 클라이언트 (asyncio 와 자연스럽게 통합. cancel 도 됨.)
 claude_client = anthropic.AsyncAnthropic(api_key=CLAUDE_API_KEY)
@@ -202,6 +214,20 @@ def db_init() -> None:
         con.execute(
             "CREATE INDEX IF NOT EXISTS idx_llm_usage_log_endpoint_ts "
             "ON llm_usage_log(endpoint, timestamp_ms)"
+        )
+        # 추가86 (2026-07-03) — 앱 가입 SMS 인증번호
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS auth_codes (
+                phone         TEXT PRIMARY KEY,
+                code          TEXT NOT NULL,
+                expires_at_ms INTEGER NOT NULL,
+                attempts      INTEGER NOT NULL DEFAULT 0,
+                last_sent_ms  INTEGER NOT NULL,
+                sent_today    INTEGER NOT NULL DEFAULT 0,
+                sent_day      TEXT
+            )
+            """
         )
         # 추가79 (2026-07-02) — API 크레딧 충전 기록 (Anthropic 자동충전 크로스체크용).
         # 사장님이 /admin 에서 [충전 등록] 클릭 → 그 시점 이후 llm_usage_log 사용액과
@@ -593,6 +619,11 @@ def db_init() -> None:
         # owner_phone + ownerTrade 같이 오는 LLM 호출에서 자동 저장.
         try:
             con.execute("ALTER TABLE beta_whitelist ADD COLUMN owner_trade TEXT")
+        except Exception:
+            pass
+        # 추가86 (2026-07-03) — 무료 체험 만료 시각 (앱 자동가입/등업 시 now+60일)
+        try:
+            con.execute("ALTER TABLE beta_whitelist ADD COLUMN free_until_ms INTEGER")
         except Exception:
             pass
         # §I (2026-06-18) 핸드오프 06-18 §1 — B(협업자) 가 respond/progress 시 보낸 본인 상호.
@@ -5682,10 +5713,13 @@ async def admin_member_grade(
             exists = con.execute(
                 "SELECT 1 FROM beta_whitelist WHERE phone=?", (phone,)).fetchone()
             if not exists:
+                # 추가86 — 등업 승인 시 무료 체험 60일 시작
                 con.execute(
-                    "INSERT INTO beta_whitelist (phone, name, memo, added_at_ms, use_count) "
-                    "VALUES (?, ?, ?, ?, 0)",
-                    (phone, name, "멤버관리 등업", now))
+                    "INSERT INTO beta_whitelist "
+                    "(phone, name, memo, added_at_ms, use_count, free_until_ms) "
+                    "VALUES (?, ?, ?, ?, 0, ?)",
+                    (phone, name, "멤버관리 등업", now,
+                     now + FREE_TRIAL_DAYS * 86_400_000))
             if grade == "tester":
                 con.execute(
                     "UPDATE subscribers SET churned_at_ms=?, updated_at_ms=? "
@@ -5753,7 +5787,7 @@ async def admin_beta_dashboard_data(
         wl_rows = con.execute(
             """
             SELECT phone, name, memo, added_at_ms, first_seen_ms, last_seen_ms, use_count,
-                   owner_trade
+                   owner_trade, free_until_ms
             FROM beta_whitelist ORDER BY added_at_ms DESC
             """
         ).fetchall()
@@ -6091,8 +6125,8 @@ async def admin_beta_dashboard_data(
 
         users = []
         for r in wl_rows:
-            # 추가50 (2026-06-21) — SELECT 에 owner_trade 컬럼 추가 (8개). unpack 도 8개로.
-            phone, name, memo, added, first, last, uc, _ot = r
+            # 추가50 — owner_trade / 추가86 — free_until_ms 컬럼 (9개). unpack 도 9개로.
+            phone, name, memo, added, first, last, uc, _ot, _fu = r
             calls = per_user_calls.get(phone, 0)
             ai_days = len(per_user_ai_days.get(phone, set()))
             app_days = len(per_user_app_days.get(phone, set()))
@@ -6133,6 +6167,7 @@ async def admin_beta_dashboard_data(
             else:
                 users[-1]["billing"] = None
                 users[-1]["price_krw"] = 0
+            users[-1]["free_until_ms"] = _fu  # 추가86 — 무료 체험 만료 시각
         # 추가84 — 등업대기자 (beta_signups 에만 있고 whitelist 에 없는 신청자) 도 명단에 포함
         wl_set = set(wl_phones)
         signup_rows = con.execute(
@@ -6159,6 +6194,7 @@ async def admin_beta_dashboard_data(
                 "cost_usd": 0.0,
                 "grade": "applicant",
                 "billing": None, "price_krw": 0,
+                "free_until_ms": None,
             })
         # 정렬: 마지막 활동 최근순
         users.sort(key=lambda u: u["last_seen_ms"] or 0, reverse=True)
@@ -6808,6 +6844,14 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
         billingHtml = '<div style="font-size:10.5px; margin-top:3px; color:#5A6472;">💳 매월 '
           + u.billing.anchor_day + '일 · ' + ddayBadge(u.billing.d_day)
           + (u.billing.months_subscribed > 0 ? ' · ' + u.billing.months_subscribed + '개월째' : ' · 첫 달')
+          + '</div>';
+      } else if (g === 'tester' && u.free_until_ms) {
+        // 추가86 — 무료 체험 D-day (만료 지나면 빨간 표시)
+        var freeD = Math.ceil((u.free_until_ms - Date.now()) / 86400000);
+        billingHtml = '<div style="font-size:10.5px; margin-top:3px;">'
+          + (freeD >= 0
+              ? '🎁 <span style="color:' + (freeD <= 7 ? '#F0436A' : '#5A6472') + '; font-weight:700;">무료 D-' + freeD + '</span>'
+              : '<span style="color:#F0436A; font-weight:800;">무료 만료 ' + Math.abs(freeD) + '일 지남</span>')
           + '</div>';
       }
       html2 += '<tr>'
@@ -17669,6 +17713,164 @@ async def intent_classify_stub(payload: Optional[dict] = None) -> dict:
 async def reply_suggest_stub(payload: Optional[dict] = None) -> dict:
     """답변 추천 (다른 채널) stub. 추후 구현 시 Claude 호출로 교체."""
     return {"ok": True, "suggestions": [], "note": "stub — use /prepare-reply instead"}
+
+
+# ============================================================================
+# 추가86 — 앱 회원가입: SMS 인증번호 + 자동 등업 cap
+#   POST /api/auth/request-code {phone} → 6자리 인증번호 문자 발송 (SOLAPI)
+#   POST /api/auth/verify-code {phone, code} → 검증 + 자동 등업:
+#     - 이미 멤버(whitelist) → status="member"
+#     - 신규 + 현원 < AUTO_ENROLL_CAP → whitelist 자동 등록 + 무료 60일 → status="enrolled"
+#     - cap 초과 → beta_signups 대기열 → status="waitlisted" (사장님이 멤버 관리에서 등업)
+# 어뷰징 방파제: 번호당 5회/일, 재발송 60초 간격, 전체 500회/일, 검증 5회 실패 시 폐기.
+# ============================================================================
+
+import hmac as _hmac  # noqa: E402
+import secrets as _secrets_auth  # noqa: E402
+
+
+async def _send_sms_solapi(to_phone: str, text: str) -> None:
+    """SOLAPI 문자 발송. env (SOLAPI_API_KEY/SECRET/SENDER) 없으면 503."""
+    if not (SOLAPI_API_KEY and SOLAPI_API_SECRET and SOLAPI_SENDER):
+        raise HTTPException(
+            503,
+            "문자 발송 설정이 아직 안 됐습니다 (SOLAPI env 필요 — plist 에 "
+            "SOLAPI_API_KEY / SOLAPI_API_SECRET / SOLAPI_SENDER 추가)"
+        )
+    date_iso = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    salt = _secrets_auth.token_hex(16)
+    signature = _hmac.new(
+        SOLAPI_API_SECRET.encode(), (date_iso + salt).encode(), hashlib.sha256
+    ).hexdigest()
+    headers = {
+        "Authorization": (
+            f"HMAC-SHA256 apiKey={SOLAPI_API_KEY}, date={date_iso}, "
+            f"salt={salt}, signature={signature}"
+        ),
+        "Content-Type": "application/json",
+    }
+    payload = {"message": {"to": to_phone, "from": SOLAPI_SENDER, "text": text}}
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        r = await client.post(
+            "https://api.solapi.com/messages/v4/send", json=payload, headers=headers
+        )
+        if r.status_code >= 400:
+            print(f"[auth/sms] SOLAPI 실패 {r.status_code}: {r.text[:200]}")
+            raise HTTPException(502, "인증 문자 발송에 실패했습니다. 잠시 후 다시 시도해주세요.")
+
+
+class AuthCodeRequest(BaseModel):
+    phone: str = ""
+
+
+class AuthVerifyRequest(BaseModel):
+    phone: str = ""
+    code: str = ""
+
+
+@app.post("/api/auth/request-code")
+async def auth_request_code(req: AuthCodeRequest) -> dict:
+    phone = _norm_phone(req.phone)
+    if not phone or len(phone) < 10:
+        raise HTTPException(400, "전화번호 형식 오류")
+    now = _now_ms()
+    today = _dt.datetime.fromtimestamp(now / 1000, tz=_KST).strftime("%Y-%m-%d")
+    with db_conn() as con:
+        # 전체 하루 발송 한도 (비용 방파제)
+        total_today = con.execute(
+            "SELECT COALESCE(SUM(sent_today),0) FROM auth_codes WHERE sent_day = ?",
+            (today,),
+        ).fetchone()[0]
+        if total_today >= AUTH_CODE_GLOBAL_PER_DAY:
+            print(f"[auth/request] GLOBAL CAP {total_today}")
+            raise HTTPException(429, "오늘 인증 요청이 몰렸어요. 내일 다시 시도해주세요.")
+        row = con.execute(
+            "SELECT last_sent_ms, sent_today, sent_day FROM auth_codes WHERE phone = ?",
+            (phone,),
+        ).fetchone()
+        sent_today = 0
+        if row:
+            last_sent, st, sd = row
+            if now - last_sent < AUTH_CODE_MIN_INTERVAL_SEC * 1000:
+                raise HTTPException(429, "잠시 후 다시 요청해주세요 (1분 간격)")
+            sent_today = st if sd == today else 0
+            if sent_today >= AUTH_CODE_MAX_PER_DAY:
+                raise HTTPException(429, "오늘 이 번호의 인증 요청 한도를 넘었어요 (하루 5회)")
+        code = f"{_secrets_auth.randbelow(1_000_000):06d}"
+        con.execute(
+            "INSERT OR REPLACE INTO auth_codes "
+            "(phone, code, expires_at_ms, attempts, last_sent_ms, sent_today, sent_day) "
+            "VALUES (?, ?, ?, 0, ?, ?, ?)",
+            (phone, code, now + AUTH_CODE_TTL_SEC * 1000, now, sent_today + 1, today),
+        )
+        con.commit()
+    await _send_sms_solapi(phone, f"[시공막내] 인증번호 [{code}] 를 입력해주세요. (5분 이내)")
+    print(f"[auth/request] {phone} 발송 ({sent_today + 1}/{AUTH_CODE_MAX_PER_DAY})")
+    return {"ok": True, "expiresInSec": AUTH_CODE_TTL_SEC}
+
+
+@app.post("/api/auth/verify-code")
+async def auth_verify_code(req: AuthVerifyRequest) -> dict:
+    phone = _norm_phone(req.phone)
+    code = (req.code or "").strip()
+    if not phone or not code:
+        raise HTTPException(400, "phone/code 필수")
+    now = _now_ms()
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT code, expires_at_ms, attempts FROM auth_codes WHERE phone = ?",
+            (phone,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(400, "인증번호를 먼저 요청해주세요")
+        real_code, expires, attempts = row
+        if now > expires:
+            raise HTTPException(400, "인증번호가 만료됐어요. 다시 요청해주세요")
+        if attempts >= 5:
+            raise HTTPException(429, "시도 횟수 초과 — 인증번호를 다시 요청해주세요")
+        if code != real_code:
+            con.execute(
+                "UPDATE auth_codes SET attempts = attempts + 1 WHERE phone = ?", (phone,))
+            con.commit()
+            raise HTTPException(400, "인증번호가 틀렸어요")
+        # 성공 — 코드 폐기 (재사용 방지)
+        con.execute("DELETE FROM auth_codes WHERE phone = ?", (phone,))
+
+        # ── 자동 등업 로직 ──
+        wl = con.execute(
+            "SELECT free_until_ms FROM beta_whitelist WHERE phone = ?", (phone,)
+        ).fetchone()
+        if wl:
+            con.commit()
+            print(f"[auth/verify] {phone} → member (기존)")
+            return {"ok": True, "status": "member", "freeUntilMs": wl[0]}
+        current = con.execute("SELECT COUNT(*) FROM beta_whitelist").fetchone()[0]
+        if current < AUTO_ENROLL_CAP:
+            free_until = now + FREE_TRIAL_DAYS * 86_400_000
+            con.execute(
+                "INSERT INTO beta_whitelist "
+                "(phone, name, memo, added_at_ms, use_count, free_until_ms) "
+                "VALUES (?, NULL, '앱 자동가입', ?, 0, ?)",
+                (phone, now, free_until),
+            )
+            con.commit()
+            print(f"[auth/verify] {phone} → enrolled (자동 등업 {current + 1}/{AUTO_ENROLL_CAP})")
+            return {"ok": True, "status": "enrolled", "freeUntilMs": free_until,
+                    "freeDays": FREE_TRIAL_DAYS}
+        # cap 초과 → 대기열 (beta_signups). 이미 신청돼 있으면 그대로.
+        existing_sg = con.execute(
+            "SELECT status FROM beta_signups WHERE phone = ?", (phone,)).fetchone()
+        if not existing_sg:
+            con.execute(
+                """INSERT INTO beta_signups
+                   (phone, industry, region, monthly_inquiries, note, agreed_at_ms,
+                    source, ip, ua, status, created_at_ms, updated_at_ms, business_name)
+                   VALUES (?, '', '', '', '', ?, 'app/auto-signup', '', '', 'waitlist', ?, ?, '')""",
+                (phone, now, now, now),
+            )
+        con.commit()
+        print(f"[auth/verify] {phone} → waitlisted (cap {AUTO_ENROLL_CAP} 초과)")
+        return {"ok": True, "status": "waitlisted"}
 
 
 # ============================================================================

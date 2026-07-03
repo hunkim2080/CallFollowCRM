@@ -6344,3 +6344,19 @@ deploy_phase1.sh — repo 에 plist 사본 없으면 (gitignore 라 repo 이동 
   ① 접수서 계약금 안내문(_build_deposit_html): 있음="시공이 끝난 뒤 계약금 N원을 제외하고 입금해주시면 됩니다!" / 없음(none/0, 지금은 박스 안뜸)="시공이 끝난 뒤 입금해주세요!". 만원/원 표기는 사장님 확인 후 확정.
   ② 마케팅 설문 오탭 되돌리기(renderSurvey/surveyBack): 한번 누르면 영구고정(특히 '지금은 바빠요'·done) → "← 다시 선택할래요" 추가.
 - commit: (이 커밋)
+
+## 2026-07-03 · cowork (출시 3종: 가입 인증 + 자동등업 + AI 한도)
+추가86 — 앱 회원가입 서버측 완료. 핸드오프 = docs/ANDROID_HANDOFF_signup_auth.md ⭐
+- POST /api/auth/request-code {phone} — 6자리 인증번호 SOLAPI 발송 (5분 유효).
+  방파제: 번호당 5회/일 · 60초 간격 · 전체 500회/일. SOLAPI env 없으면 503.
+- POST /api/auth/verify-code {phone, code} — 검증(5회 실패 폐기, 재사용 방지) 후 자동 분기:
+  member(기존) / enrolled(현원<AUTO_ENROLL_CAP → whitelist 자동등록 + 무료 60일) / waitlisted(대기열).
+- beta_whitelist.free_until_ms 신설 — 자동가입·등업 시 now+FREE_TRIAL_DAYS(60일).
+  멤버 관리 표에 "🎁 무료 D-xx" 표시 (D-7 빨강, 만료 지나면 경고). ⚠️ 만료 시 잠금 동작은 사장님 결정 대기.
+- 등업(멤버 관리 applicant→tester) 시에도 무료 60일 자동 시작.
+- AI 한도: 기존 2500/일·폰당 200/일 확인 — env (DAILY_TOTAL_CALLS_LIMIT/PER_PHONE_DAILY_LIMIT) 조절 가능화.
+- env 신설: AUTO_ENROLL_CAP(100) / FREE_TRIAL_DAYS(60) / SOLAPI_API_KEY·SECRET·SENDER.
+- 검증: TestClient 풀 시나리오 (발송→429간격→오답→성공enrolled→재사용방지→cap→waitlist→기존member→등업60일) ALL PASS + JS PASS.
+- 다음 액션 (사장님): SOLAPI 키 3개 plist 등록 (발신번호 사전등록 필요). (안드로이드): 핸드오프 문서로 가입 화면 구현.
+- 변경: server/main.py + docs/ANDROID_HANDOFF_signup_auth.md. 배포 필요.
+- commit: (아래)
