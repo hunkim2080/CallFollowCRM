@@ -58,3 +58,13 @@ Desktop.ini
 # RING-GO 폰 자동 확인 도구 부산물 (스크린샷 / DB dump — 개인정보 포함)
 /scripts/screens/
 /scripts/.dbpull/
+
+# 보안 — launchd plist (CLAUDE_API_KEY/SOLAPI 키 포함, 절대 커밋 금지)
+server/com.detailline.ringgo-server.plist
+*.plist
+
+# 서버 로컬 산출물
+server/cache.db
+server/venv/
+__pycache__/
+*.pyc
