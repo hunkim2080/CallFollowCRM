@@ -767,7 +767,22 @@ fun HomeScreen(
                                         clipboard.setText(androidx.compose.ui.text.AnnotatedString(copyNo))
                                         android.widget.Toast.makeText(context, "계좌번호를 복사했어요", android.widget.Toast.LENGTH_SHORT).show()
                                     },
-                                    onPaid = { payTarget = up }
+                                    onPaid = {
+                                        // 보낼 금액이 카드에 이미 있으면 다이얼로그 없이 바로 기록(또 적을 필요 X).
+                                        //   금액을 모를 때(dailyWage 없음)만 입력 다이얼로그. (2026-07-03 사장님)
+                                        val wage = up.dailyWage?.toLong() ?: 0L
+                                        if (wage > 0L) {
+                                            viewModel.recordLaborPayment(up.partnerName, wage, up.eventId)
+                                            scope.launch {
+                                                snackbarHostState.showSnackbar(
+                                                    "정산에 일당 지급을 기록했어요 ✓",
+                                                    duration = SnackbarDuration.Short
+                                                )
+                                            }
+                                        } else {
+                                            payTarget = up
+                                        }
+                                    }
                                 )
                             } else {
                                 InboxAlert(
