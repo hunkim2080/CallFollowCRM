@@ -815,7 +815,8 @@ object NotificationHelper {
         phoneNumber: String,
         displayName: String? = null,
         callRecordId: Long? = null,
-        customerId: Long? = null
+        customerId: Long? = null,
+        preview: String? = null
     ) {
         val notifId = (callRecordId?.toInt()?.and(0x7FFFFFFF) ?: 0) + SUMMARY_READY_ID_OFFSET
         // customerId 가 있으면 같이 실어 보냄 → 채팅이 번호 포맷 매칭이 아니라 '그 고객'으로 정확히 열림.
@@ -834,17 +835,19 @@ object NotificationHelper {
         val who = displayName?.takeIf { it.isNotBlank() }
             ?: phoneNumber.filter { it.isDigit() }.takeLast(4).takeIf { it.isNotBlank() }
             ?: "고객"
-        val title = "✨ 막내가 ${who}님의 통화 내용을 요약했어요!"
-        val text = "탭하면 바로 확인할 수 있어요"
+        val title = "✨ 막내가 ${who}님 통화를 요약했어요"
+        // 에이닷처럼 요약 주제를 본문에. 없으면 안내문. (2026-07-03 사장님 벤치마킹)
+        val body = preview?.trim()?.replace("\n", " ")?.takeIf { it.isNotBlank() } ?: "탭하면 통화 요약을 바로 확인할 수 있어요"
         val builder = NotificationCompat.Builder(context, CHANNEL_FOLLOW_UP)
             .setSmallIcon(R.drawable.ic_notification)
             .setColor(NOTIFICATION_BG_COLOR)
             .setContentTitle(title)
-            .setContentText(text)
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setAutoCancel(true)
-            .setTimeoutAfter(4000L)   // 잠깐(약 4초) 떴다 자동으로 사라짐
+            // 에이닷처럼 안 사라지고 알림창에 남게 — 4초 자동소멸(setTimeoutAfter) 제거. 탭하면 사라짐. (2026-07-03 사장님)
             .setContentIntent(pending)
         try {
             NotificationManagerCompat.from(context).notify(notifId, builder.build())

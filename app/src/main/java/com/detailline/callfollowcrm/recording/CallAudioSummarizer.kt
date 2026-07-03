@@ -158,7 +158,8 @@ object CallAudioSummarizer {
                     phoneNumber = phone,
                     displayName = customer?.name,
                     callRecordId = linkedCallRecordId,
-                    customerId = customer?.id   // 번호 포맷 무관하게 '그 고객'으로 정확히 열기(엉뚱한 곳 이동 방지).
+                    customerId = customer?.id,  // 번호 포맷 무관하게 '그 고객'으로 정확히 열기(엉뚱한 곳 이동 방지).
+                    preview = res.title?.takeIf { it.isNotBlank() } ?: res.oneLine  // 에이닷처럼 요약 주제 미리보기
                 )
             }
             Log.d(TAG, "saved audio summary: $phone @ $recordedAt cached=${res.cached} force=$forceRefresh notify=$notifyOnComplete")
