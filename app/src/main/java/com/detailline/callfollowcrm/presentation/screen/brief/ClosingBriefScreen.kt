@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -100,11 +102,14 @@ fun ClosingBriefScreen(
             }
             Spacer(Modifier.height(16.dp))
 
-            // ── 오늘의 성취 3칸 ──
-            Row(horizontalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.fillMaxWidth()) {
-                StatTile("오늘 새 문의", "${state.newCount}건", "👋", Modifier.weight(1f)) { onOpenNewLeads() }
-                StatTile("오늘 마무리", "${state.completedCount}건", "✅", Modifier.weight(1f)) { onOpenSchedule() }
-                StatTile("오늘 입금", "${state.depositCount}건", "💰", Modifier.weight(1f), sub = state.paidSumLabel) { onOpenSettlement() }
+            // ── 오늘의 성취 3칸 (높이 동일 — 입금칸만 '약 N만원'으로 커지던 것 fix) ──
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(9.dp),
+                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max)
+            ) {
+                StatTile("오늘 새 문의", "${state.newCount}건", "👋", Modifier.weight(1f).fillMaxHeight()) { onOpenNewLeads() }
+                StatTile("오늘 마무리", "${state.completedCount}건", "✅", Modifier.weight(1f).fillMaxHeight()) { onOpenSchedule() }
+                StatTile("오늘 입금", "${state.depositCount}건", "💰", Modifier.weight(1f).fillMaxHeight(), sub = state.paidSumLabel) { onOpenSettlement() }
             }
             Spacer(Modifier.height(18.dp))
 
