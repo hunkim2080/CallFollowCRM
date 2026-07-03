@@ -6366,3 +6366,9 @@ deploy_phase1.sh — repo 에 plist 사본 없으면 (gitignore 라 repo 이동 
 - [앱] 문자 견적(buildEstimateBody): 프로토상 text 모드엔 계약금 칸 없음 → "시공이 끝난 뒤 입금해주세요 😊" 한 줄만.
 - [서버] 핸드오프 문서 갱신 — _man_or_won() 헬퍼로 만원 표기 확정. _build_deposit_html 참고.
 - commit: (이 커밋)
+
+## 2026-07-03 · cowork
+추가86b — AI 폰당 일일 한도 200→100 (기본값).
+- 근거 (사장님): 본인 두 번호(0131/6674 = 최고 헤비유저)가 월 40~50건 = 피크 일 2~30건. 100 = 피크 3배 여유.
+- env PER_PHONE_DAILY_LIMIT 로 언제든 조절. 변경: server/main.py 한 줄.
+- commit: (아래)

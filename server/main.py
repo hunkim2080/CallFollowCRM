@@ -91,9 +91,11 @@ COST_CACHED_INPUT_PER_M = 0.30
 COST_OUTPUT_PER_M = 15.0
 KRW_PER_USD = 1380  # 대략. 정확한 환율은 외부 API 로 교체 가능.
 
-# Rate limit — 추가86: env 로 조절 가능 (plist 에 박아서 재시작 없이... 는 아니고 재시작 시 반영)
+# Rate limit — 추가86: env 로 조절 가능 (재시작 시 반영)
 DAILY_TOTAL_CALLS_LIMIT = int(os.environ.get("DAILY_TOTAL_CALLS_LIMIT", "2500"))  # 폭주 차단
-PER_PHONE_DAILY_LIMIT = int(os.environ.get("PER_PHONE_DAILY_LIMIT", "200"))       # 한 사용자가 다 못 쓰게
+# 추가86b — 폰당 한도 200→100 (사장님 실측 기준: 본인 두 번호(최고 헤비유저)가
+# 월 40~50건 = 피크 일 2~30건. 100 = 피크의 3배 여유. 정상 사용자는 절대 안 걸림.)
+PER_PHONE_DAILY_LIMIT = int(os.environ.get("PER_PHONE_DAILY_LIMIT", "100"))       # 한 사용자가 다 못 쓰게
 
 # 추가86 — 앱 가입 (SMS 인증번호) + 자동 등업 cap
 AUTO_ENROLL_CAP = int(os.environ.get("AUTO_ENROLL_CAP", "100"))   # 선착 자동 베타 등업 인원
