@@ -6294,3 +6294,17 @@ deploy_phase1.sh — repo 에 plist 사본 없으면 (gitignore 라 repo 이동 
 추가82b — /admin/usage-chart 헤더에 ← 뒤로가기 버튼 (→ /admin 허브).
 - 변경: server/main.py (_ADMIN_DASHBOARD_HTML 헤더) 만. 배포 필요.
 - commit: (아래)
+
+## 2026-07-03 · cowork (사장님 요청: 화이트리스트+종합대시보드 통합)
+추가83 — 카페 "전체 멤버 관리" 스타일로 페이지 통합.
+- 사장님 피드백: 화이트리스트(신규회원 페이지) 와 종합 대시보드(전체회원 페이지) 가 겹침 → 하나로.
+- /admin/beta/dashboard 의 사용자 표 → "👥 전체 멤버 관리" 로 확장:
+  - 검색창 (이름·전화·업종·메모 즉시 필터) + 멤버 수 표시.
+  - 열 제목 클릭 정렬 (등록일/마지막 실행/앱 사용일/진입/AI 사용/비용).
+  - [+ 멤버 추가] 모달 (기존 POST /admin/beta/whitelist 재사용) + 행별 [제거] (DELETE 재사용).
+  - 메모 컬럼 추가. 폰 클릭 = /admin/user/{phone} 상세 (기존 그대로).
+- /admin/beta/whitelist 페이지 = 대시보드로 리다이렉트 (옛 북마크 호환). API 4개는 유지.
+- /admin 허브: 카드 2개 → 1개 ("종합 대시보드 · 멤버 관리", 통계 두 줄 병합).
+- 검증: py_compile PASS + TestClient (마크업/리다이렉트/API 생존/허브 병합) PASS + JS node --check PASS.
+- 변경: server/main.py 만. 배포 필요.
+- commit: (아래)

@@ -5604,8 +5604,13 @@ _BETA_WHITELIST_HTML = """<!doctype html>
 
 @app.get("/admin/beta/whitelist", response_class=HTMLResponse, include_in_schema=False)
 async def admin_beta_whitelist_page():
-    """사장님 admin HTML — 테스터 폰번호 추가·제거·목록."""
-    return HTMLResponse(content=_BETA_WHITELIST_HTML)
+    """추가83 (2026-07-03) — 화이트리스트 페이지는 종합 대시보드 '전체 멤버 관리'로 통합.
+    옛 북마크/링크 호환 위해 리다이렉트만 남김. (추가/제거/목록 = 대시보드에서)
+    API endpoint (POST/DELETE/PATCH/data) 는 그대로 유지 — 통합 UI 가 사용."""
+    return HTMLResponse(
+        content='<meta http-equiv="refresh" content="0; url=/admin/beta/dashboard">'
+                '<a href="/admin/beta/dashboard">전체 멤버 관리로 이동 →</a>'
+    )
 
 
 # ============================================================================
@@ -6195,26 +6200,56 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
     </div>
   </div>
 
-  <!-- 사용자별 활동 테이블 -->
+  <!-- 추가83 — 전체 멤버 관리 (옛 화이트리스트 페이지 통합: 검색·정렬·추가·제거 여기서 다) -->
   <div class="card" style="margin-bottom:18px">
-    <h2>👥 베타 테스터 활동 상세</h2>
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+      <h2 style="margin:0">👥 전체 멤버 관리 <span id="memberCount" style="color:#3182F6"></span></h2>
+      <div style="display:flex; gap:8px; flex:1; max-width:420px; min-width:220px;">
+        <input id="memberSearch" type="search" placeholder="이름·전화·업종·메모 검색"
+          oninput="renderUsers()"
+          style="flex:1; border:1.5px solid var(--line); border-radius:9px; padding:8px 12px; font-size:13px; font-family:inherit;">
+        <button onclick="openAddModal()" style="background:var(--blue); color:#fff; border:0; border-radius:9px; padding:8px 14px; font-size:13px; font-weight:800; cursor:pointer; white-space:nowrap; font-family:inherit;">+ 멤버 추가</button>
+      </div>
+    </div>
     <div style="overflow-x:auto">
       <table>
         <thead><tr>
           <th>폰 · 이름</th>
           <th>업종</th>
-          <th>등록일</th>
-          <th>첫 진입</th>
-          <th>마지막 앱 실행</th>
-          <th title="앱을 실제로 켠 유니크 날짜 수 (screen_view 이벤트 기준)">앱 사용일</th>
-          <th class="right">진입 횟수</th>
-          <th class="right" title="AI 기능 (답장추천/통화요약 등) 을 사용한 총 회수">LLM 사용</th>
-          <th class="right">일평균</th>
-          <th class="right">비용 (USD)</th>
+          <th>메모</th>
+          <th class="sortable" data-sort="added_at_ms" onclick="setSort('added_at_ms')">등록일 ↕</th>
+          <th class="sortable" data-sort="last_seen_ms" onclick="setSort('last_seen_ms')">마지막 실행 ↕</th>
+          <th class="sortable right" data-sort="app_days" onclick="setSort('app_days')" title="앱을 실제로 켠 유니크 날짜 수">앱 사용일 ↕</th>
+          <th class="sortable right" data-sort="use_count" onclick="setSort('use_count')">진입 ↕</th>
+          <th class="sortable right" data-sort="calls" onclick="setSort('calls')" title="AI 기능 사용 총 회수">AI 사용 ↕</th>
+          <th class="sortable right" data-sort="cost_usd" onclick="setSort('cost_usd')">비용 ↕</th>
           <th>상태</th>
+          <th>관리</th>
         </tr></thead>
         <tbody id="userRows"><tr><td colspan="11" style="text-align:center; padding:30px; color:#9AA3AF">로딩중...</td></tr></tbody>
       </table>
+    </div>
+    <div style="margin-top:8px; font-size:11px; color:#9AA3AF;">
+      열 제목(↕) 클릭 = 정렬 · 폰번호 클릭 = 상세 페이지 · [제거] = 화이트리스트에서 삭제 (앱 접근 차단)
+    </div>
+  </div>
+</div>
+
+<!-- 추가83 — 멤버 추가 모달 -->
+<div class="modal" id="addModal" onclick="if(event.target.id==='addModal')closeAddModal()">
+  <div class="modal-box" style="max-width:420px;">
+    <div class="modal-head"><h3>+ 새 멤버 (베타 테스터) 추가</h3>
+      <button class="close" type="button" onclick="closeAddModal()">×</button></div>
+    <div style="padding:16px 20px 20px;">
+      <label style="display:block; font-size:12px; font-weight:700; color:#5A6472; margin:8px 0 4px;">폰번호 *</label>
+      <input id="addPhone" type="tel" inputmode="numeric" maxlength="13"
+        style="width:100%; border:1.5px solid var(--line); border-radius:10px; padding:11px 12px; font-size:14px; font-family:inherit;">
+      <label style="display:block; font-size:12px; font-weight:700; color:#5A6472; margin:10px 0 4px;">이름 (상호)</label>
+      <input id="addName" style="width:100%; border:1.5px solid var(--line); border-radius:10px; padding:11px 12px; font-size:14px; font-family:inherit;">
+      <label style="display:block; font-size:12px; font-weight:700; color:#5A6472; margin:10px 0 4px;">메모 (모집 경로 등)</label>
+      <input id="addMemo" style="width:100%; border:1.5px solid var(--line); border-radius:10px; padding:11px 12px; font-size:14px; font-family:inherit;">
+      <button onclick="submitAdd()" style="margin-top:14px; width:100%; background:var(--blue); color:#fff; border:0; border-radius:10px; padding:12px; font-size:14px; font-weight:800; cursor:pointer; font-family:inherit;">추가</button>
+      <div id="addMsg" style="margin-top:8px; font-size:13px;"></div>
     </div>
   </div>
 </div>
@@ -6380,42 +6415,96 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
       + '<div style="font-size:18px; font-weight:800; color:#0B0F19">' + Math.round(c.all_krw).toLocaleString() + '원</div>'
       + '<div style="font-size:11.5px; color:#5A6472">' + c.all_calls + '회 호출</div></div>';
 
-    // 사용자 테이블
-    var users = d.users;
-    if (users.length === 0) {
-      document.getElementById('userRows').innerHTML = '<tr><td colspan="11" style="text-align:center; padding:30px; color:#9AA3AF">등록된 테스터 없음</td></tr>';
-    } else {
-      var html2 = '';
-      var now = Date.now();
-      users.forEach(function(u){
-        var added = u.added_at_ms ? new Date(u.added_at_ms).toLocaleDateString('ko') : '-';
-        var first = u.first_seen_ms ? new Date(u.first_seen_ms).toLocaleDateString('ko') : '<span style="color:#9AA3AF">-</span>';
-        var last = u.last_seen_ms ? timeAgo(now - u.last_seen_ms) : '<span style="color:#9AA3AF">-</span>';
-        var statusBadge;
-        if (!u.first_seen_ms) statusBadge = '<span class="badge off">미진입</span>';
-        else if (u.last_seen_ms && (now - u.last_seen_ms) < 7 * 86400000) statusBadge = '<span class="badge on">활성</span>';
-        else statusBadge = '<span class="badge cool">휴면</span>';
-        // 추가34 (2026-06-18) — 폰번호 클릭 시 /admin/user/{phone} 으로 (스케줄·활동 다 보임)
-        // 추가49 (2026-06-21) — 업종 컬럼 추가
-        var industryHtml = u.industry
-          ? '<span style="background:#EEF4FF; color:#1B64DA; padding:2px 7px; border-radius:6px; font-size:11px; font-weight:700;">' + escape(u.industry) + '</span>'
-          : '<span style="color:#9AA3AF; font-size:11px;">-</span>';
-        html2 += '<tr>'
-              + '<td><a href="/admin/user/' + encodeURIComponent(u.phone_raw) + '" style="color:#3182F6; text-decoration:none"><b>' + u.phone + '</b></a><br><span style="font-size:11px; color:#5A6472">' + escape(u.name || '-') + '</span></td>'
-              + '<td>' + industryHtml + '</td>'
-              + '<td>' + added + '</td>'
-              + '<td>' + first + '</td>'
-              + '<td>' + last + '</td>'
-              + '<td>' + (u.app_days || 0) + '일</td>'
-              + '<td class="right">' + u.use_count + '</td>'
-              + '<td class="right"><b>' + u.calls + '</b></td>'
-              + '<td class="right" style="color:#1B64DA; font-weight:700">' + u.avg_per_day + '</td>'
-              + '<td class="right">$' + u.cost_usd.toFixed(3) + '</td>'
-              + '<td>' + statusBadge + '</td>'
-              + '</tr>';
-      });
-      document.getElementById('userRows').innerHTML = html2;
+    // 추가83 — 전체 멤버 관리 (검색·정렬은 renderUsers 가 담당)
+    ALL_USERS = d.users || [];
+    renderUsers();
+  }
+
+  // ─── 추가83: 전체 멤버 관리 (검색 + 정렬 + 추가/제거) ───
+  var ALL_USERS = [];
+  var SORT_KEY = 'last_seen_ms';
+  var SORT_DESC = true;
+  function setSort(key) {
+    if (SORT_KEY === key) SORT_DESC = !SORT_DESC;
+    else { SORT_KEY = key; SORT_DESC = true; }
+    renderUsers();
+  }
+  function renderUsers() {
+    var q = (document.getElementById('memberSearch').value || '').trim().toLowerCase();
+    var list = ALL_USERS.filter(function(u){
+      if (!q) return true;
+      return (u.phone_raw + ' ' + (u.name||'') + ' ' + (u.industry||'') + ' ' + (u.memo||''))
+        .toLowerCase().indexOf(q) !== -1;
+    });
+    list = list.slice().sort(function(a,b){
+      var av = a[SORT_KEY] || 0, bv = b[SORT_KEY] || 0;
+      return SORT_DESC ? (bv - av) : (av - bv);
+    });
+    document.getElementById('memberCount').textContent = list.length + '명';
+    if (list.length === 0) {
+      document.getElementById('userRows').innerHTML = '<tr><td colspan="11" style="text-align:center; padding:30px; color:#9AA3AF">' + (q ? '검색 결과 없음' : '등록된 멤버 없음') + '</td></tr>';
+      return;
     }
+    var html2 = '';
+    var now = Date.now();
+    list.forEach(function(u){
+      var added = u.added_at_ms ? new Date(u.added_at_ms).toLocaleDateString('ko') : '-';
+      var last = u.last_seen_ms ? timeAgo(now - u.last_seen_ms) : '<span style="color:#9AA3AF">미진입</span>';
+      var statusBadge;
+      if (!u.first_seen_ms) statusBadge = '<span class="badge off">미진입</span>';
+      else if (u.last_seen_ms && (now - u.last_seen_ms) < 7 * 86400000) statusBadge = '<span class="badge on">활성</span>';
+      else statusBadge = '<span class="badge cool">휴면</span>';
+      var industryHtml = u.industry
+        ? '<span style="background:#EEF4FF; color:#1B64DA; padding:2px 7px; border-radius:6px; font-size:11px; font-weight:700;">' + escape(u.industry) + '</span>'
+        : '<span style="color:#9AA3AF; font-size:11px;">-</span>';
+      html2 += '<tr>'
+            + '<td><a href="/admin/user/' + encodeURIComponent(u.phone_raw) + '" style="color:#3182F6; text-decoration:none"><b>' + u.phone + '</b></a><br><span style="font-size:11px; color:#5A6472">' + escape(u.name || '-') + '</span></td>'
+            + '<td>' + industryHtml + '</td>'
+            + '<td style="font-size:11px; color:#5A6472; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' + escape(u.memo || '') + '">' + escape(u.memo || '-') + '</td>'
+            + '<td>' + added + '</td>'
+            + '<td>' + last + '</td>'
+            + '<td class="right">' + (u.app_days || 0) + '일</td>'
+            + '<td class="right">' + u.use_count + '</td>'
+            + '<td class="right"><b>' + u.calls + '</b></td>'
+            + '<td class="right">$' + u.cost_usd.toFixed(3) + '</td>'
+            + '<td>' + statusBadge + '</td>'
+            + '<td><button onclick="removeUser(\\'' + u.phone_raw + '\\', \\'' + escape(u.name || '') + '\\')" style="background:#fff; color:#F0436A; border:1.5px solid #F0436A; border-radius:7px; padding:4px 9px; font-size:11px; font-weight:700; cursor:pointer; font-family:inherit;">제거</button></td>'
+            + '</tr>';
+    });
+    document.getElementById('userRows').innerHTML = html2;
+  }
+  function openAddModal() { document.getElementById('addModal').classList.add('show'); document.getElementById('addMsg').textContent = ''; }
+  function closeAddModal() { document.getElementById('addModal').classList.remove('show'); }
+  async function submitAdd() {
+    var phone = document.getElementById('addPhone').value.trim();
+    var name = document.getElementById('addName').value.trim();
+    var memo = document.getElementById('addMemo').value.trim();
+    var msg = document.getElementById('addMsg');
+    if (!phone) { msg.textContent = '폰번호를 입력해주세요.'; msg.style.color = '#F0436A'; return; }
+    try {
+      var r = await fetch('/admin/beta/whitelist', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + getToken(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: phone, name: name, memo: memo }),
+      });
+      var j = await r.json();
+      if (!r.ok) throw new Error(j.detail || ('HTTP ' + r.status));
+      msg.textContent = (j.action === 'added' ? '✓ 추가됨: ' : '✓ 갱신됨: ') + j.phone;
+      msg.style.color = '#16C172';
+      document.getElementById('addPhone').value = ''; document.getElementById('addName').value = ''; document.getElementById('addMemo').value = '';
+      load();
+    } catch(e) { msg.textContent = '실패: ' + e.message; msg.style.color = '#F0436A'; }
+  }
+  async function removeUser(phone, name) {
+    if (!confirm((name || phone) + ' 을(를) 화이트리스트에서 제거할까요?\\n제거하면 이 번호는 앱 진입이 차단됩니다.')) return;
+    try {
+      var r = await fetch('/admin/beta/whitelist/' + encodeURIComponent(phone), {
+        method: 'DELETE',
+        headers: { 'Authorization': 'Bearer ' + getToken() },
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      load();
+    } catch(e) { alert('제거 실패: ' + e.message); }
   }
   function kpiCard(cls, lbl, val, sub) {
     return '<div class="kpi ' + cls + '">'
@@ -8186,18 +8275,9 @@ _ADMIN_HOME_HTML = """<!doctype html>
     <a href="/admin/beta/dashboard" class="menu-card" style="text-decoration:none; color:inherit;">
       <div class="icon blue">📊</div>
       <div class="body">
-        <div class="title">베타 종합 대시보드</div>
-        <div class="desc">테스터 활동 · 기능 사용 · LLM 비용</div>
+        <div class="title">종합 대시보드 · 멤버 관리</div>
+        <div class="desc">테스터 활동 · 멤버 추가/제거 · LLM 비용</div>
         <div class="stats" id="statsDashboard">로딩...</div>
-      </div>
-      <div class="arrow">›</div>
-    </a>
-
-    <a href="/admin/beta/whitelist" class="menu-card" style="text-decoration:none; color:inherit;">
-      <div class="icon green">🧪</div>
-      <div class="body">
-        <div class="title">화이트리스트</div>
-        <div class="desc">베타 테스터 폰번호 추가·관리</div>
         <div class="stats" id="statsWhitelist">로딩...</div>
       </div>
       <div class="arrow">›</div>
