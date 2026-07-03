@@ -48,23 +48,38 @@ object BizCertOcr {
 
         val bizNo = BIZ_NO.find(text)?.value?.filter { it.isDigit() }
 
+        // 라벨은 공백 무시로 매칭 — 등록증은 "상 호", "성 명"처럼 띄어 인쇄돼 OCR 에 공백이 낌. (2026-07-04 사장님)
+        //   값은 원본에서 ':' 뒤를 취하고, 다른 필드 라벨이 섞여 오면 그 앞까지만.
         fun valueAfter(vararg labels: String): String? {
+            val wanted = labels.map { it.replace(" ", "") }
             for (i in lines.indices) {
                 val l = lines[i]
-                if (labels.none { l.contains(it) }) continue
-                var rest = if (l.contains(":")) l.substringAfter(":").trim()
-                else labels.fold(l) { acc, lb -> acc.replace(lb, "") }.trim(' ', '(', ')', ':', '·', '.', '/')
-                // 라벨만 있고 값은 다음 줄인 경우
-                if (rest.isBlank() && i + 1 < lines.size) rest = lines[i + 1].trim()
-                // 상호/대표자에 사업자번호가 섞여 오면 제거
-                rest = BIZ_NO.replace(rest, "").trim(' ', ':', '·', '(', ')')
+                val compact = l.replace(" ", "")
+                if (wanted.none { compact.contains(it) }) continue
+                var rest = if (l.contains(":")) {
+                    l.substringAfter(":").trim()
+                } else {
+                    // ':' 없으면 라벨(글자 사이 공백 허용)을 원본에서 제거 → 값의 공백은 보존.
+                    var r = l
+                    labels.forEach { lb ->
+                        val pat = lb.filter { it != ' ' }.map { Regex.escape(it.toString()) }.joinToString("\\s*")
+                        r = r.replace(Regex(pat), "")
+                    }
+                    r.trim(' ', '(', ')', ':', '·', '.', '/', '*', '①', '②', '③', '④', '⑤', '⑥')
+                }
+                // 라벨만 있고 값은 다음 줄인 경우(표 형식).
+                if (rest.isBlank() || rest.length < 2) rest = lines.getOrNull(i + 1)?.trim().orEmpty()
+                // 값에 다른 필드 라벨이 붙어오면 그 앞까지만(같은 줄에 여러 칸).
+                rest = rest.split(Regex("성\\s*명|대\\s*표|개\\s*업|사\\s*업\\s*장|소\\s*재|업\\s*태|종\\s*목|전\\s*화|생\\s*년"))[0].trim()
+                // 사업자번호가 섞여 오면 제거.
+                rest = BIZ_NO.replace(rest, "").trim(' ', ':', '·', '(', ')', '.')
                 if (rest.isNotBlank()) return rest
             }
             return null
         }
 
-        val name = valueAfter("상호(법인명)", "상호", "법인명")
-        val owner = valueAfter("대표자", "성  명", "성 명", "성명")?.let { o ->
+        val name = valueAfter("상호(법인명)", "상호", "법인명", "단체명")
+        val owner = valueAfter("성명(대표자)", "대표자", "성명", "대표")?.let { o ->
             // 대표자 뒤에 생년월일 등이 붙으면 첫 토큰(이름)만.
             o.split(Regex("\\s{2,}|\\(|\\d")).firstOrNull()?.trim()?.takeIf { it.isNotBlank() } ?: o
         }
@@ -73,7 +88,8 @@ object BizCertOcr {
         var addr: String? = null
         for (i in lines.indices) {
             val l = lines[i]
-            if (l.contains("소재지") || l.contains("사업장") || l.contains("소재")) {
+            val c = l.replace(" ", "")
+            if (c.contains("소재지") || c.contains("사업장") || c.contains("소재")) {
                 var a = if (l.contains(":")) l.substringAfter(":").trim() else l.replace("사업장 소재지", "").replace("소재지", "").replace("사업장", "").trim(' ', ':', '·')
                 if (a.isBlank() && i + 1 < lines.size) a = lines[i + 1].trim()
                 // 다음 줄이 주소 연장이면 붙임(라벨류 아님 + 주소 토큰 있음).
