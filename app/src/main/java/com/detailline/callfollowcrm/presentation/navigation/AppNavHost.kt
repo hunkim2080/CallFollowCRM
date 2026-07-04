@@ -597,7 +597,11 @@ fun AppNavHost(
 
         composable(Destinations.REPORT) {
             val vm: ReportViewModel = viewModel(factory = viewModelFactory { ReportViewModel(container) })
-            ReportScreen(viewModel = vm, onBack = { navController.popBackStack() })
+            ReportScreen(
+                viewModel = vm,
+                onBack = { navController.popBackStack() },
+                onOpenCustomer = { id -> navController.navigate(Destinations.customerDetail(id)) }
+            )
         }
 
         composable(Destinations.TRADE_SELECT) {
