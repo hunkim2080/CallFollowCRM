@@ -112,7 +112,7 @@ fun QuoteDocScreen(
     val bizOwner = prefs.bizOwner
     val bizNo = prefs.bizNo
     val bizAddr = prefs.bizAddr
-    val bizPhone = prefs.bizPhone
+    val bizPhone = prefs.displayPhone   // 대표번호 있으면 그것, 없으면 로그인 번호 (개인 휴대폰 노출 방지, 2026-07-04)
     val seal = prefs.bizSeal.ifBlank { bizName }
     val validDays = prefs.bizQuoteValidDays.takeIf { it > 0 } ?: 14
 

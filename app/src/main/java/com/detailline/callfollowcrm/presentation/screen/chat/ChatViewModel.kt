@@ -1353,7 +1353,7 @@ class ChatViewModel(
             workYear = workYear, workMonth = workMonth, workDay = workDay, workDays = workDays,
             depositMode = depositMode, depositValue = depositValue,
             bizName = prefs.bizName, bizOwner = prefs.bizOwner, bizNo = prefs.bizNo,
-            bizAddr = prefs.bizAddr, bizPhone = prefs.bizPhone, bizSeal = prefs.bizSeal,
+            bizAddr = prefs.bizAddr, bizPhone = prefs.displayPhone, bizSeal = prefs.bizSeal,   // 접수서 표시=대표번호 (2026-07-04)
             bizValidDays = prefs.bizQuoteValidDays,
             devicePhone = prefs.bizPhone, deviceId = prefs.deviceId
         )

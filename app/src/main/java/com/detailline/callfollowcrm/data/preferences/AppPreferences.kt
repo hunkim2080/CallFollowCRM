@@ -385,6 +385,12 @@ class AppPreferences(context: Context) {
     var bizPhone: String
         get() = prefs.getString(KEY_BIZ_PHONE, "") ?: ""
         set(value) = prefs.edit().putString(KEY_BIZ_PHONE, value.trim()).apply()
+    /** 대표 전화번호 — 고객 문서(견적서·접수서)에 표시. 비면 로그인 번호(bizPhone) 사용. 개인 휴대폰 노출 방지. (2026-07-04 사장님) */
+    var bizRepPhone: String
+        get() = prefs.getString("biz_rep_phone", "") ?: ""
+        set(value) = prefs.edit().putString("biz_rep_phone", value.trim()).apply()
+    /** 고객 문서에 표시할 전화 — 대표번호 있으면 그것, 없으면 로그인 번호. */
+    val displayPhone: String get() = bizRepPhone.ifBlank { bizPhone }
     /** 직인 문구 — 견적서 도장(.qd-seal)에 들어갈 글자. 프로토 bizInfo.seal. */
     var bizSeal: String
         get() = prefs.getString(KEY_BIZ_SEAL, "") ?: ""

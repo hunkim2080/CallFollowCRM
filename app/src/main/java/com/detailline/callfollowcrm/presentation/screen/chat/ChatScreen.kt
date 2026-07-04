@@ -1419,7 +1419,7 @@ fun ChatScreen(
             bizName = estPrefs.bizName,
             bizOwner = estPrefs.bizOwner,
             bizNo = estPrefs.bizNo,
-            bizPhone = estPrefs.bizPhone,
+            bizPhone = estPrefs.displayPhone,   // 견적/접수서 표시=대표번호 (개인 휴대폰 노출 방지, 2026-07-04)
             validDays = estPrefs.bizQuoteValidDays,
             defaultRecipient = displayName,
             onUpdatePrice = { id, priceWon -> viewModel.updateItemPrice(id, priceWon) },

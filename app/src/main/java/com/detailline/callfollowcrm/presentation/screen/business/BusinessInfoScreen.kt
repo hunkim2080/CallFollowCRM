@@ -73,7 +73,8 @@ fun BusinessInfoScreen(
     var bizNo by remember { mutableStateOf(prefs.bizNo) }
     var addr by remember { mutableStateOf(prefs.bizAddr) }
     // 숫자만 보관(표시는 PhoneHyphenTransformation 으로 하이픈). FormattedTextField 의 버퍼 재작성이 S23U IME 자리바뀜을 일으켜 교체. (2026-06-22)
-    var phone by remember { mutableStateOf(prefs.bizPhone.filter { it.isDigit() }) }
+    // 문서 표시용 대표번호 — 로그인/푸시용 bizPhone 과 분리(개인 휴대폰 노출 방지). 비면 로그인 번호로 시작. (2026-07-04 사장님)
+    var phone by remember { mutableStateOf(prefs.bizRepPhone.ifBlank { prefs.bizPhone }.filter { it.isDigit() }) }
     var seal by remember { mutableStateOf(prefs.bizSeal) }
     var validDays by remember { mutableStateOf(prefs.bizQuoteValidDays.toString()) }
     var bank by remember { mutableStateOf(prefs.bizBank) }
@@ -282,14 +283,19 @@ fun BusinessInfoScreen(
                 Field("대표자 이름", owner, placeholder = "예: 정민수") { owner = it }
                 FormattedField("사업자등록번호 (선택)", bizNo, ::formatBizNo, KeyboardType.Number, "123-45-67890") { bizNo = it }
                 Field("주소 (선택)", addr, placeholder = "예: 서울 강동구") { addr = it }
-                // 전화번호 — 숫자만 상태, 하이픈은 표시만(PhoneHyphenTransformation). 버퍼 재작성 없어 S23U 자리바뀜 X. (2026-06-22 사장님)
-                FieldLabel("전화번호")
+                // 대표 전화번호 — 견적서·접수서에 표시(고객에게 나감). 로그인/푸시용 개인번호와 분리. (2026-07-04 사장님)
+                FieldLabel("대표 전화번호")
                 SheetTextField(
                     value = phone,
                     onValueChange = { phone = it.filter { c -> c.isDigit() }.take(11) },
                     placeholder = "010-0000-0000",
                     keyboardType = KeyboardType.Phone,
                     visualTransformation = com.detailline.callfollowcrm.presentation.component.PhoneHyphenTransformation
+                )
+                Text(
+                    "견적서·접수서에 표시돼요. 개인 번호가 부담되면 대표(안내) 번호를 넣으세요. (로그인 번호는 안 바뀌어요)",
+                    fontSize = 11.5.sp, color = TossTextTertiary, lineHeight = 16.sp,
+                    modifier = Modifier.padding(top = 5.dp, start = 2.dp)
                 )
                 // 직접 입력 대신 한 번 탭으로 내 폰 번호 불러오기.
                 Text(
@@ -350,7 +356,7 @@ fun BusinessInfoScreen(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(TossBlue)
                         .clickable {
                             prefs.bizName = name; prefs.bizOwner = owner; prefs.bizNo = bizNo
-                            prefs.bizAddr = addr; prefs.bizPhone = formatPhoneInput(phone)
+                            prefs.bizAddr = addr; prefs.bizRepPhone = formatPhoneInput(phone)
                             prefs.bizSeal = seal.ifBlank { name }
                             prefs.bizQuoteValidDays = validDays.toIntOrNull()?.coerceIn(1, 365) ?: 14
                             prefs.bizBank = bank; prefs.bizAccountNo = accountNo; prefs.bizAccountHolder = accountHolder
