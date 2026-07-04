@@ -318,6 +318,16 @@ class AppPreferences(context: Context) {
     var makneGuideSeen: Set<String>
         get() = prefs.getStringSet("makne_guide_seen", emptySet()) ?: emptySet()
         set(value) { prefs.edit().putStringSet("makne_guide_seen", value).apply() }
+    /** 팁별 노출 횟수 — "여러 번 봐도 안 누르면 은퇴"(피로도 방지)용. "key:count;key:count" 인코딩. (2026-07-05 사장님) */
+    var makneTipImpressions: Map<String, Int>
+        get() = (prefs.getString("makne_tip_impr", "") ?: "").split(";")
+            .mapNotNull { e -> e.split(":").takeIf { it.size == 2 }?.let { it[0] to (it[1].toIntOrNull() ?: 0) } }
+            .toMap()
+        set(value) { prefs.edit().putString("makne_tip_impr", value.entries.joinToString(";") { "${it.key}:${it.value}" }).apply() }
+    /** 마지막으로 노출 카운트를 올린 시각 — 세션(스로틀)당 1회만 세려고. */
+    var lastTipImpressionMs: Long
+        get() = prefs.getLong("makne_tip_impr_ms", 0L)
+        set(value) { prefs.edit().putLong("makne_tip_impr_ms", value).apply() }
 
     // ── 회원가입(폰 인증번호, 2026-07-04) — docs/ANDROID_HANDOFF_signup_auth.md ──
     /** 인증됐지만 대기열(waitlisted) 상태 — 다음 실행에도 대기 화면부터. 등업되면 false. */

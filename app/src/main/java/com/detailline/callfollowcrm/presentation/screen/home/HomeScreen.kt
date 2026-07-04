@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import kotlinx.coroutines.flow.first
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -229,6 +230,7 @@ fun HomeScreen(
         (context.applicationContext as CallFollowCrmApplication).container.serverHealth
     }
     val prefs = remember { (context.applicationContext as CallFollowCrmApplication).container.preferences }
+    val makneContainer = remember { (context.applicationContext as CallFollowCrmApplication).container }
     val serverAlive by serverHealth.alive.collectAsState()
     val lastOkAtMs by serverHealth.lastOkAtMs.collectAsState()
 
@@ -443,12 +445,45 @@ fun HomeScreen(
             // 막내 팁 카드 — 눌러본(used)/닫은(dismissed) 건 prefs 로 영구 기억 + 화면 상태로 즉시 반영. (2026-07-04 사장님)
             var tipUsed by remember { mutableStateOf(prefs.makneTipUsed) }
             var tipDismissed by remember { mutableStateOf(prefs.makneTipDismissed) }
+            var tipImpressions by remember { mutableStateOf(prefs.makneTipImpressions) }
             var guideTip by remember { mutableStateOf<com.detailline.callfollowcrm.presentation.component.MakneTip?>(null) }
-            val eligibleTips = remember(tipUsed, tipDismissed) {
-                if (!prefs.makneTipsEnabled) emptyList()
-                else com.detailline.callfollowcrm.presentation.component.MAKNE_TIPS
-                    .filter { it.key !in tipUsed && it.key !in tipDismissed }
+            // "이미 쓰는 기능" 신호 — 이미 쓰는 건 광고 안 함(맥락 추천). 로컬 조회 1회. null=로딩중. (2026-07-05 사장님)
+            var tipUsingSignals by remember { mutableStateOf<Set<String>?>(null) }
+            LaunchedEffect(Unit) {
+                val using = mutableSetOf<String>()
+                runCatching { if (makneContainer.pricingItemRepository.observeActive().first().isNotEmpty()) using += "price" }
+                runCatching { if (makneContainer.recurringMessageRepository.observeRules().first().isNotEmpty()) using += "recur" }
+                runCatching { if (makneContainer.messageTemplateRepository.observeAll().first().any { !it.isDefault }) using += "tpl" }
+                if (prefs.bizName.isNotBlank() && prefs.bizSeal.isNotBlank()) using += "quote"
+                if (prefs.toneUploadConsented) using += "tone"
+                tipUsingSignals = using
             }
+            // 노출 대상: 안 눌러봄·안 닫음 + 노출캡(4회) 미만 + 이미 쓰는 기능 제외 + settle 은 미수금 있을 때만. 덜 본 것 먼저(로테이션). (2026-07-05 사장님)
+            fun computeTipCandidates(): List<com.detailline.callfollowcrm.presentation.component.MakneTip> {
+                val sig = tipUsingSignals
+                if (!prefs.makneTipsEnabled || sig == null) return emptyList()
+                return com.detailline.callfollowcrm.presentation.component.MAKNE_TIPS.filter { t ->
+                    t.key !in tipUsed && t.key !in tipDismissed &&
+                        (tipImpressions[t.key] ?: 0) < 4 &&
+                        t.key !in sig &&
+                        (t.key != "settle" || outstandingCount > 0)
+                }.sortedBy { tipImpressions[it.key] ?: 0 }
+            }
+            // 세션당 노출 카드 고정(화면 내 재정렬 방지) + 노출 카운트 1회(스로틀 20분). 여러 번 봐도 안 누르면 캡에서 은퇴.
+            var displayedTips by remember { mutableStateOf<List<com.detailline.callfollowcrm.presentation.component.MakneTip>>(emptyList()) }
+            LaunchedEffect(tipUsingSignals) {
+                if (tipUsingSignals == null) return@LaunchedEffect
+                val picks = computeTipCandidates().take(3)
+                displayedTips = picks
+                val now = System.currentTimeMillis()
+                if (picks.isNotEmpty() && now - prefs.lastTipImpressionMs >= 20 * 60 * 1000L) {
+                    val m = prefs.makneTipImpressions.toMutableMap()
+                    picks.forEach { m[it.key] = (m[it.key] ?: 0) + 1 }
+                    prefs.makneTipImpressions = m; prefs.lastTipImpressionMs = now; tipImpressions = m
+                }
+            }
+            // 눌렀거나 닫은 카드는 즉시 사라지게(세션 고정 목록에서 걸러 렌더).
+            val shownTips = displayedTips.filter { it.key !in tipUsed && it.key !in tipDismissed }
             // 카드 탭 = 먼저 막내 안내판만(아직 이동 X). '해볼게요' 눌러야 기능으로 이동 + 안 써본 목록에서 뺌. (2026-07-04 사장님)
             fun onTipProceed(tip: com.detailline.callfollowcrm.presentation.component.MakneTip) {
                 tipUsed = tipUsed + tip.key; prefs.makneTipUsed = tipUsed
@@ -1042,8 +1077,8 @@ fun HomeScreen(
                                     }
                                 }
                                 // 그룹(대화 3개) 뒤에 안 써본 기능 팁 카드 하나. 프로토: 대화 3개마다 하나.
-                                if (tipIdx < eligibleTips.size) {
-                                    val tip = eligibleTips[tipIdx]; tipIdx++
+                                if (tipIdx < shownTips.size) {
+                                    val tip = shownTips[tipIdx]; tipIdx++
                                     com.detailline.callfollowcrm.presentation.component.MakneTipCard(
                                         tip = tip,
                                         onGo = { guideTip = tip },
