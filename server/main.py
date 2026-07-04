@@ -8391,23 +8391,49 @@ _ADMIN_USER_DETAIL_HTML = """<!doctype html>
       }
       merged.sort(function(a,b){ return (b.scheduled_at_ms||0) - (a.scheduled_at_ms||0); });
       document.getElementById('cCollab').textContent = merged.length;
+      // 추가91 — 협업 탭 가독성 (사장님: "보기 어렵다")
+      //   ① 상태 2개(status+progress 영어) → 한글 한 개로 통합
+      //   ② 긴 주소 → 아파트명 크게 + 지역 작게
+      //   ③ 보냄/받음 → 색 칩 ("→ 내가 공유" / "← 받은 현장")
+      function collabState(s) {
+        if ((s.progress || '') === 'completed') return { t:'✅ 완료',     bg:'#E7F8EF', fg:'#0B7A45' };
+        if (s.status === 'pending')  return { t:'⏳ 수락 대기', bg:'#FFF8E1', fg:'#7A5A00' };
+        if (s.status === 'declined') return { t:'❌ 거절됨',   bg:'#FFF2F5', fg:'#F0436A' };
+        if (s.status === 'ended')    return { t:'⏹ 종료',     bg:'#F1F2F4', fg:'#5A6472' };
+        var p = { assigned:'🤝 배정됨', departed:'🚗 출발함', working:'🔨 작업 중' }[s.progress || ''];
+        return { t: p || '🤝 진행 중', bg:'#EEF4FF', fg:'#1B64DA' };
+      }
+      function collabTitle(t) {
+        t = (t || '협업 현장').replace(/\s*현장\s*$/, '');
+        var m = t.match(/\(([^)]+)\)/);
+        if (m) {
+          // "인천 부평구 원적로..." → 지역 앞 2단어만 부제로
+          var region = t.split(' ').slice(0, 2).join(' ');
+          return { main: m[1], sub: region };
+        }
+        return { main: t, sub: '' };
+      }
       var chtml = '';
       if (merged.length === 0) chtml = '<div class="empty">협업 현장 없음</div>';
       else {
         for (var i=0; i<merged.length; i++) {
           var s = merged[i];
-          var dirIcon = s._dir === 'sent' ? '→' : '←';
-          var dirLbl  = s._dir === 'sent' ? '보냄' : '받음';
           var counter = s._dir === 'sent' ? s.partner_name : s.owner_name;
+          var dirChip = s._dir === 'sent'
+            ? '<span style="background:#EEF4FF; color:#1B64DA; padding:2px 8px; border-radius:6px; font-size:10.5px; font-weight:800;">→ 내가 공유</span>'
+            : '<span style="background:#F3E8FF; color:#7C3AED; padding:2px 8px; border-radius:6px; font-size:10.5px; font-weight:800;">← 받은 현장</span>';
+          var tt = collabTitle(s.title);
+          var st = collabState(s);
           chtml += '<div class="item">'
-            + '<div class="title">' + dirIcon + ' ' + esc(s.title || '협업 현장')
-            + ' · ' + esc(counter || '-')
-            + ' <span style="color:#9AA3AF; font-size:11px; font-weight:600">(' + dirLbl + ')</span>'
+            + '<div class="title" style="display:flex; align-items:center; gap:7px; flex-wrap:wrap;">'
+            + dirChip
+            + '<span>' + esc(tt.main) + '</span>'
+            + (tt.sub ? '<span style="color:#9AA3AF; font-size:11.5px; font-weight:500;">' + esc(tt.sub) + '</span>' : '')
             + '</div>'
-            + '<div class="sub2">'
-            + (s.scheduled_at_ms ? fmtDate(s.scheduled_at_ms) + ' · ' : '')
-            + '<span class="pill ' + s.status + '">' + s.status + '</span>'
-            + ' · ' + (s.progress || '-')
+            + '<div class="sub2" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:3px;">'
+            + '<span style="background:' + st.bg + '; color:' + st.fg + '; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:700;">' + st.t + '</span>'
+            + (counter ? '<span>🤝 <b>' + esc(counter) + '</b></span>' : '')
+            + (s.scheduled_at_ms ? '<span>📅 시공 ' + fmtDate(s.scheduled_at_ms) + '</span>' : '')
             + '</div></div>';
         }
       }
