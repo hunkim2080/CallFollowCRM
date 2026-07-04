@@ -6450,3 +6450,10 @@ PRODUCT_MONETIZATION_DRAFT.md §9 신설 — 사장님 확정 사항 기록.
 - "→ (보냄)" → 색 칩: "→ 내가 공유" (파랑) / "← 받은 현장" (보라). 상대 상호 🤝 굵게, 시공일 📅.
 - 검증: 마크업/JS/제목·상태 로직 단위테스트 PASS. 변경: server/main.py 만. 배포 필요.
 - commit: (아래)
+## 2026-07-04 · android (버그fix: 접수서 계약금 10만원→"10원")
+사장님 보고: 고객에 나간 접수서에 계약금 10만원이 "10원"으로 표기됨.
+- 원인: /api/quote/issue 계약 = depositValue(fixed=원, ratio=%). 앱은 depVal(만원=10)을 그대로 보내 → 서버 _deposit_resolve_krw 의 fixed=int(value) 가 10원으로 렌더.
+- fix(앱): ChatViewModel.issueQuoteIntake 에서 fixed 는 원으로 환산해 전송(depositValue*10000). 서버 계약(fixed=원)과 일치. ratio/none 은 그대로.
+- ⚠️ cowork: 서버 _deposit_resolve_krw 는 그대로 두세요(고치지 마세요!). 앱이 이제 fixed=원으로 보내므로, 서버가 여기서 ×10000 추가하면 이중계산(→1,000,000원) 됩니다. 현행 `return int(value)` 유지가 맞음.
+- 이미 발급된 옛 접수서 링크는 잘못된 값이 저장돼 있어 그대로 → 사장님이 새로 발급/재전송해야 정상 표기.
+- commit: (이 커밋)

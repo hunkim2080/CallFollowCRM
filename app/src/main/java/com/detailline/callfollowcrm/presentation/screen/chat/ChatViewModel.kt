@@ -1347,11 +1347,14 @@ class ChatViewModel(
     ) = viewModelScope.launch {
         val prefs = container.preferences
         val name = customer.value?.name?.takeIf { it.isNotBlank() } ?: phoneNumber
+        // 서버 /api/quote/issue 계약: depositValue 는 fixed=원, ratio=%. 앱 depVal 은 만원 단위라
+        //   fixed 는 원으로 환산해 보낸다. 안 하면 서버가 계약금 10(만원)을 '10원'으로 렌더 → 고객 접수서 오표기. (2026-07-04 사장님 보고)
+        val depositValueForServer = if (depositMode == "fixed") depositValue * 10000 else depositValue
         val res = container.intakeFormRepository.issueQuote(
             customerName = name, customerPhone = phoneNumber,
             items = items, total = total,
             workYear = workYear, workMonth = workMonth, workDay = workDay, workDays = workDays,
-            depositMode = depositMode, depositValue = depositValue,
+            depositMode = depositMode, depositValue = depositValueForServer,
             bizName = prefs.bizName, bizOwner = prefs.bizOwner, bizNo = prefs.bizNo,
             bizAddr = prefs.bizAddr, bizPhone = prefs.displayPhone, bizSeal = prefs.bizSeal,   // 접수서 표시=대표번호 (2026-07-04)
             bizValidDays = prefs.bizQuoteValidDays,
