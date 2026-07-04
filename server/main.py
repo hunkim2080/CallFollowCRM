@@ -6441,6 +6441,11 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
   .gchip { background:#fff; border:1.5px solid var(--line); padding:6px 12px; border-radius:999px;
            font-size:12px; font-weight:700; cursor:pointer; color:var(--t2); font-family:inherit; }
   .gchip.active { background:var(--blue); color:#fff; border-color:var(--blue); }
+  /* 추가92 — 탭 (계기판 아래 3층) */
+  .tabbtn { background:none; border:0; border-bottom:3px solid transparent; padding:10px 16px 8px;
+            font-size:14.5px; font-weight:800; color:var(--t3); cursor:pointer; font-family:inherit;
+            margin-bottom:-2px; }
+  .tabbtn.active { color:var(--blue-dark); border-bottom-color:var(--blue); }
   th.sortable { cursor:pointer; user-select:none; }
   th.sortable:hover { color:var(--blue); }
   .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:12px;
@@ -6537,6 +6542,15 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
   <!-- KPI 카드 -->
   <div class="kpi-grid" id="kpiGrid"></div>
 
+  <!-- 추가92 — 3층 구조 (사장님: "난잡하다"): 계기판(KPI, 상시) + 탭 3개.
+       내용물은 그대로, 배치만 층 분리. 마지막 본 탭 기억 (localStorage). -->
+  <div id="tabBar" style="display:flex; gap:8px; margin:4px 0 16px; border-bottom:2px solid var(--line); padding-bottom:0;">
+    <button class="tabbtn" data-tab="members" onclick="setTab('members')">👥 멤버</button>
+    <button class="tabbtn" data-tab="subs" onclick="setTab('subs')">💳 구독</button>
+    <button class="tabbtn" data-tab="analytics" onclick="setTab('analytics')">📈 분석</button>
+  </div>
+
+  <div id="tab-subs" style="display:none;">
   <!-- 추가85 — 💳 구독 관제 (유료회원 현금흐름 + 이탈 위험) -->
   <div class="card" style="margin-bottom:18px">
     <h2>💳 구독 관제</h2>
@@ -6553,6 +6567,9 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
     </div>
   </div>
 
+  </div><!-- /tab-subs -->
+
+  <div id="tab-analytics" style="display:none;">
   <!-- 일별 활성 라인 차트 + Network 신호 -->
   <div class="row">
     <div class="card">
@@ -6586,6 +6603,9 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
     </div>
   </div>
 
+  </div><!-- /tab-analytics -->
+
+  <div id="tab-members">
   <!-- 추가83 — 전체 멤버 관리 (옛 화이트리스트 페이지 통합: 검색·정렬·추가·제거 여기서 다) -->
   <div class="card" style="margin-bottom:18px">
     <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
@@ -6628,6 +6648,7 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
       열 제목(↕) 클릭 = 정렬 · 폰번호 클릭 = 상세 페이지 · [제거] = 화이트리스트에서 삭제 (앱 접근 차단)
     </div>
   </div>
+  </div><!-- /tab-members -->
 </div>
 
 <!-- 추가83 — 멤버 추가 모달 -->
@@ -6683,6 +6704,27 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
       b.classList.toggle('active', Number(b.dataset.days) === d);
     });
     load();
+  }
+
+  // 추가92 — 탭 전환 (마지막 탭 기억)
+  function setTab(name) {
+    ['members', 'subs', 'analytics'].forEach(function(t){
+      var el = document.getElementById('tab-' + t);
+      if (el) el.style.display = (t === name) ? '' : 'none';
+    });
+    document.querySelectorAll('.tabbtn').forEach(function(b){
+      b.classList.toggle('active', b.dataset.tab === name);
+    });
+    try { localStorage.setItem('ringgo_dash_tab', name); } catch(e) {}
+    // 숨겨진 상태에서 그린 차트는 크기가 0 → 분석 탭 열 때 리사이즈
+    if (name === 'analytics' && CHART_REF) {
+      setTimeout(function(){ try { CHART_REF.resize(); } catch(e) {} }, 60);
+    }
+  }
+  function initTab() {
+    var saved = '';
+    try { saved = localStorage.getItem('ringgo_dash_tab') || ''; } catch(e) {}
+    setTab(['members','subs','analytics'].indexOf(saved) !== -1 ? saved : 'members');
   }
   async function load() {
     if (!ensureToken()) return;
@@ -7227,6 +7269,7 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
     return d + '일 전';
   }
   function escape(s) { s = String(s||''); return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  initTab();  // 추가92 — 마지막 본 탭 복원 (기본 = 멤버)
   load();
 </script></body></html>
 """
