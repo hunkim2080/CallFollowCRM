@@ -5,14 +5,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -20,21 +17,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,7 +45,6 @@ import com.detailline.callfollowcrm.presentation.component.SheetTextField
 import com.detailline.callfollowcrm.presentation.component.formatAccountNo
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
-import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
@@ -82,112 +75,6 @@ fun BusinessInfoScreen(
     var bankQuery by remember { mutableStateOf("") }
     var accountNo by remember { mutableStateOf(prefs.bizAccountNo) }
     var accountHolder by remember { mutableStateOf(prefs.bizAccountHolder) }
-
-    // ── 사업자등록증 스캔 → 온디바이스 OCR 자동 입력 (2026-07-04 사장님) ──
-    val scope = rememberCoroutineScope()
-    var scanBusy by remember { mutableStateOf(false) }
-    var scanChooser by remember { mutableStateOf(false) }
-    // 고른/찍은 사진을 OCR 전에 크게 확인 — 맞는지 보고 채우기. (2026-07-04 사장님)
-    var previewUri by remember { mutableStateOf<android.net.Uri?>(null) }
-    // 카메라 촬영 임시 파일(FileProvider) — cacheDir/shared/ 는 file_paths.xml 에 공유 등록됨.
-    val cameraUri = remember {
-        val dir = java.io.File(context.cacheDir, "shared").apply { mkdirs() }
-        androidx.core.content.FileProvider.getUriForFile(
-            context, "${context.packageName}.fileprovider", java.io.File(dir, "bizcert.jpg")
-        )
-    }
-    fun runBizOcr(uri: android.net.Uri) {
-        scope.launch {
-            scanBusy = true
-            val text = com.detailline.callfollowcrm.util.BizCertOcr.recognize(context, uri)
-            scanBusy = false
-            val f = text?.let { com.detailline.callfollowcrm.util.BizCertOcr.parse(it) }
-            if (f == null || !f.any) {
-                android.widget.Toast.makeText(context, "글자를 잘 못 읽었어요. 밝은 곳에서 반듯하게 다시 찍어주세요", android.widget.Toast.LENGTH_LONG).show()
-                return@launch
-            }
-            val filled = mutableListOf<String>()
-            f.name?.let { name = it; filled += "상호" }
-            f.owner?.let { owner = it; filled += "대표자" }
-            f.bizNo?.let { bizNo = formatBizNo(it); filled += "사업자번호" }
-            f.addr?.let { addr = it; filled += "주소" }
-            android.widget.Toast.makeText(context, "${filled.joinToString("·")} 자동 입력했어요 · 확인 후 저장하세요", android.widget.Toast.LENGTH_LONG).show()
-        }
-    }
-    val galleryLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickVisualMedia()
-    ) { uri -> if (uri != null) previewUri = uri }
-    val cameraLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.TakePicture()
-    ) { ok -> if (ok) previewUri = cameraUri }
-    if (scanChooser) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { scanChooser = false },
-            title = { Text("사업자등록증 불러오기", fontWeight = FontWeight.Bold) },
-            text = { Text("등록증을 촬영하거나 앨범에서 골라주세요. 사업자번호·상호·대표자·주소를 자동으로 채워드려요. (사진은 저장 안 하고 글자만 읽어요)") },
-            confirmButton = {
-                androidx.compose.material3.TextButton(onClick = {
-                    scanChooser = false
-                    runCatching { cameraLauncher.launch(cameraUri) }
-                        .onFailure { android.widget.Toast.makeText(context, "카메라를 열 수 없어요. 앨범에서 선택해주세요", android.widget.Toast.LENGTH_SHORT).show() }
-                }) { Text("사진 촬영", fontWeight = FontWeight.Bold, color = TossBlue) }
-            },
-            dismissButton = {
-                androidx.compose.material3.TextButton(onClick = {
-                    scanChooser = false
-                    galleryLauncher.launch(
-                        androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                    )
-                }) { Text("앨범에서 선택", color = TossTextSecondary) }
-            }
-        )
-    }
-    // 사진 확인 미리보기 — 크게 보고 맞으면 채우기. 바깥 탭으론 안 닫힘, 뒤로가기/버튼으로만. (2026-07-04 사장님)
-    previewUri?.let { uri ->
-        androidx.compose.ui.window.Dialog(
-            onDismissRequest = { previewUri = null },
-            properties = androidx.compose.ui.window.DialogProperties(
-                dismissOnClickOutside = false, dismissOnBackPress = true, usePlatformDefaultWidth = false
-            )
-        ) {
-            Column(Modifier.fillMaxSize().background(Color(0xFF0E1116))) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("이 사진이 맞나요?", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
-                        Text("아래로 넘겨 확인한 뒤 '자동 채우기'를 눌러요", color = Color(0xFFAEB6C2), fontSize = 12.sp)
-                    }
-                    Text("✕", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { previewUri = null }.padding(8.dp))
-                }
-                // 전체폭 이미지 — 세로 스크롤로 긴 등록증도 훑어봄(스크롤해도 안 닫힘).
-                Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
-                    coil.compose.AsyncImage(
-                        model = uri, contentDescription = "사업자등록증 미리보기",
-                        modifier = Modifier.fillMaxWidth(),
-                        contentScale = androidx.compose.ui.layout.ContentScale.FillWidth
-                    )
-                }
-                Row(
-                    Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Box(
-                        Modifier.weight(1f).clip(RoundedCornerShape(13.dp)).background(Color(0xFF2A2F37))
-                            .clickable { previewUri = null; scanChooser = true }.padding(vertical = 14.dp),
-                        contentAlignment = Alignment.Center
-                    ) { Text("다시 선택", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
-                    Box(
-                        Modifier.weight(1.6f).clip(RoundedCornerShape(13.dp)).background(TossBlue)
-                            .clickable { val u = uri; previewUri = null; runBizOcr(u) }.padding(vertical = 14.dp),
-                        contentAlignment = Alignment.Center
-                    ) { Text("이 사진으로 자동 채우기", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold) }
-                }
-            }
-        }
-    }
 
     // 전화번호 자동 채움 — 비어 있으면 유심에서 내 번호 읽기 시도(한국은 빈 값 자주 옴 → 실패해도 무해).
     LaunchedEffect(Unit) {
@@ -273,10 +160,6 @@ fun BusinessInfoScreen(
                 // 프로토 sh-sub
                 Text("한 번 등록해두면 견적서·접수서에 자동으로 들어가요. 비워둔 칸은 견적서에 표시 안 돼요.",
                     fontSize = 12.5.sp, color = TossTextTertiary)
-                Spacer(Modifier.height(14.dp))
-
-                // 사업자등록증 스캔 → OCR 자동 입력 (2026-07-04 사장님)
-                BizCertScanCard(busy = scanBusy) { scanChooser = true }
                 Spacer(Modifier.height(14.dp))
 
                 Field("상호 (업체명)", name, placeholder = "예: ○○ 줄눈") { name = it }
@@ -393,31 +276,6 @@ private fun FieldLabel(label: String) {
         modifier = Modifier.padding(start = 2.dp, bottom = 7.dp, top = 12.dp))
 }
 
-/** 사업자등록증 스캔 카드 — 탭하면 촬영/앨범 선택 → 온디바이스 OCR 자동 입력. (2026-07-04 사장님) */
-@Composable
-private fun BizCertScanCard(busy: Boolean, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFEFF4FF))
-            .clickable(enabled = !busy) { onClick() }.padding(13.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(Color.White), contentAlignment = Alignment.Center) {
-            Text("📷", fontSize = 19.sp)
-        }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(if (busy) "등록증 읽는 중…" else "사업자등록증으로 자동 채우기",
-                fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
-            Spacer(Modifier.height(2.dp))
-            Text("찍으면 사업자번호·상호·대표자·주소를 자동 입력 (로컬 처리)",
-                fontSize = 11.5.sp, color = TossTextTertiary)
-        }
-        Spacer(Modifier.width(8.dp))
-        if (busy) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = TossBlue)
-        else Text("›", fontSize = 18.sp, color = TossTextTertiary)
-    }
-}
-
 @Composable
 private fun Field(label: String, value: String, keyboard: KeyboardType = KeyboardType.Text, placeholder: String = "", onChange: (String) -> Unit) {
     // 프로토 .sheet-label + .sheet-input.
@@ -465,4 +323,3 @@ private fun formatPhoneInput(raw: String): String {
         else -> "${d.take(3)}-${d.substring(3, 7)}-${d.takeLast(4)}"
     }
 }
-

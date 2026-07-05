@@ -147,8 +147,9 @@ dependencies {
     implementation("com.google.android.gms:play-services-location:21.3.0")
     // 내 번호 자동입력 — 구글 전화번호 힌트(한 번 탭). (2026-06-12)
     implementation("com.google.android.gms:play-services-auth:21.2.0")
-    // 사업자등록증 자동 입력 — 온디바이스(무료) 한국어 OCR. 서버·API키 불필요, 오프라인 동작. (2026-07-04 사장님)
-    implementation("com.google.mlkit:text-recognition-korean:16.0.1")
+    // 2026-07-05: 사업자등록증 OCR(ML Kit text-recognition-korean) 제거 — 유일한 네이티브 .so 였고
+    //   그 부품 최신(16.0.1)도 16KB 페이지 미지원이라 Play 심사 거부(2025-11 의무화). 사업자정보는 수동 입력 유지.
+    //   구글이 16KB 대응 ML Kit 를 내면 재도입 검토. (사장님 결정)
 
     // 템플릿 첨부 사진 썸네일 로딩
     implementation("io.coil-kt:coil-compose:2.5.0")
