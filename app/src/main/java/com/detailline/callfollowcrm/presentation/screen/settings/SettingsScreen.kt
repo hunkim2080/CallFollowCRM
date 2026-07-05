@@ -2616,10 +2616,25 @@ private fun SetupCheckCard() {
     ) { refresh++ }
 
     data class SetupStep(val label: String, val done: Boolean, val action: () -> Unit)
-    // 2026-06-18 사장님 결정: "기본 메시지 앱 설정" 권유 제거. 기본앱이 되면 MMS(사진) 직접 수신이
-    //   통신사 한계로 실패해 고객 사진이 조용히 유실되는 치명적 위험 → 삼성 문자를 기본으로 두고
-    //   시공막내 는 옆에서 읽는 '동반자' 포지션. (기본앱 진입 카드/헬퍼 코드는 Phase B 대비 남겨둠)
+    // 2026-07-05 "기본 문자 앱 지정" 권장 단계 부활. (2026-06-18 엔 기본앱=MMS유실을 "통신사 한계"로 오인해
+    //   제거했으나, 실은 klinker 수신 버그였고 안드로이드 공식 API 로 해결됨 — commit 01136a2, S23U/KT 검증.)
+    //   Play 는 문자 읽기/보내기 권한에 "기본 SMS 핸들러" 자격을 요구 → 이 단계로 사용자·구글 심사자가 지정 가능.
+    //   건너뛰기 가능(권장일 뿐, done 안 돼도 다른 기능은 동작).
     val steps = listOf(
+        SetupStep("기본 문자 앱 지정 (자동문자·사진 받기)", smsDefault) {
+            val act = activity
+            if (act == null) {
+                Toast.makeText(context, "잠시 후 다시 시도해주세요", Toast.LENGTH_SHORT).show()
+            } else {
+                val intent = com.detailline.callfollowcrm.util.DefaultSmsAppHelper.createRequestIntent(act)
+                if (intent != null) {
+                    runCatching { roleLauncher.launch(intent) }
+                        .onFailure { Toast.makeText(context, "기본 문자앱 다이얼로그를 열 수 없어요", Toast.LENGTH_SHORT).show() }
+                } else {
+                    Toast.makeText(context, "이 기기는 기본 문자앱 전환을 지원하지 않아요", Toast.LENGTH_LONG).show()
+                }
+            }
+        },
         SetupStep("알림 권한", notiOn) {
             runCatching {
                 val i = android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
