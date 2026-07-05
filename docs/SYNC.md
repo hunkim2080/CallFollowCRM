@@ -6480,3 +6480,10 @@ PRODUCT_MONETIZATION_DRAFT.md §9 신설 — 사장님 확정 사항 기록.
 - 검증: TestClient (에러 기록/집계/추세 3종 시나리오) ALL PASS + JS PASS.
 - 변경: server/main.py. 배포 필요.
 - commit: (아래)
+
+## 2026-07-05 · android
+Play 심사 차단 3건 중 ③ 16KB 페이지 해결 (앱측 단독).
+- 원인: 앱 유일 네이티브 .so = ML Kit 사업자등록증 OCR(text-recognition-korean 16.0.1). 그 최신도 16KB 미대응.
+- 조치: OCR 기능 제거(화면 스캔카드+BizCertOcr.kt+의존성). 사업자정보는 수동 4칸 입력 유지. .so 0개 확인, AAB 37.6→18.9MB.
+- 남은 차단 2건(콘솔 폼, cowork 무관): (1) 민감권한(SMS/통화기록) 선언 양식 거부, (2) 데이터 보안 양식 거부 -> 사장님 콘솔 작성.
+- commit: f1c25c2 · versionCode 870
