@@ -236,6 +236,21 @@ def db_init() -> None:
             )
             """
         )
+        # 추가93 (2026-07-04) — 🩺 시스템 에러 기록 (5xx/미처리 예외 → 대시보드 건강 카드)
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS system_errors (
+                id     INTEGER PRIMARY KEY AUTOINCREMENT,
+                ts_ms  INTEGER NOT NULL,
+                path   TEXT,
+                status INTEGER,
+                detail TEXT
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_system_errors_ts ON system_errors(ts_ms)"
+        )
         # 추가79 (2026-07-02) — API 크레딧 충전 기록 (Anthropic 자동충전 크로스체크용).
         # 사장님이 /admin 에서 [충전 등록] 클릭 → 그 시점 이후 llm_usage_log 사용액과
         # 대조해 금액 누수(미추적 사용) 감지.
@@ -4572,6 +4587,41 @@ async def admin_recharge_status(
     }
 
 
+# ============================================================================
+# 추가93 — 🩺 시스템 에러 추적 미들웨어
+# 5xx 응답·미처리 예외를 system_errors 에 기록 → 대시보드 건강 카드가 보여줌.
+# 사장님이 stderr.log 를 열지 않아도 "서버 아픈지"를 대시보드에서 알 수 있게.
+# ============================================================================
+
+def _record_system_error(path: str, status: int, detail: str) -> None:
+    """에러 기록 — 절대 요청을 죽이지 않음 (기록 실패는 조용히 무시)."""
+    try:
+        now = _now_ms()
+        with db_conn() as con:
+            con.execute(
+                "INSERT INTO system_errors (ts_ms, path, status, detail) VALUES (?, ?, ?, ?)",
+                (now, (path or "")[:120], status, (detail or "")[:300]),
+            )
+            # 7일 지난 기록 정리 (테이블 비대 방지)
+            con.execute("DELETE FROM system_errors WHERE ts_ms < ?",
+                        (now - 7 * 86_400_000,))
+            con.commit()
+    except Exception:
+        pass
+
+
+@app.middleware("http")
+async def _error_tracking_middleware(request: Request, call_next):
+    try:
+        response = await call_next(request)
+    except Exception as e:
+        _record_system_error(request.url.path, 500, f"{type(e).__name__}: {e}")
+        raise
+    if response.status_code >= 500:
+        _record_system_error(request.url.path, response.status_code, "")
+    return response
+
+
 @app.get("/healthz")
 @app.get("/health")
 def healthz():
@@ -6340,6 +6390,70 @@ async def admin_beta_dashboard_data(
         feature_discovery.sort(key=lambda x: (-x["users"], -x["total"]))
         adoption["feature_discovery"] = feature_discovery
 
+        # 추가93 — 🩺 시스템 건강 (에러 미들웨어 기록 집계)
+        today_start_ms = int(_dt.datetime(
+            today_kst.year, today_kst.month, today_kst.day, tzinfo=_KST).timestamp() * 1000)
+        err_today = con.execute(
+            "SELECT COUNT(*) FROM system_errors WHERE ts_ms >= ?", (today_start_ms,)
+        ).fetchone()[0]
+        err_24h = con.execute(
+            "SELECT COUNT(*) FROM system_errors WHERE ts_ms >= ?", (now - 86_400_000,)
+        ).fetchone()[0]
+        recent_errs = con.execute(
+            "SELECT ts_ms, path, status, detail FROM system_errors "
+            "ORDER BY ts_ms DESC LIMIT 10"
+        ).fetchall()
+        system_health = {
+            "today_errors": err_today,
+            "errors_24h": err_24h,
+            "recent": [
+                {"ts_ms": r[0], "path": r[1], "status": r[2], "detail": r[3] or ""}
+                for r in recent_errs
+            ],
+        }
+
+        # 추가94 — 주간 추세 (이번 주 vs 지난주 — "사진 → 동영상")
+        wk_ms = 7 * 86_400_000
+        w1, w2 = now - wk_ms, now - 2 * wk_ms
+        _ph = ",".join(["?"] * len(wl_phones)) if wl_phones else ""
+
+        def _active_between(a_ms, b_ms):
+            if not wl_phones:
+                return 0
+            return con.execute(
+                f"SELECT COUNT(DISTINCT owner_phone) FROM app_events "
+                f"WHERE owner_phone IN ({_ph}) AND created_at_ms >= ? AND created_at_ms < ?",
+                (*wl_phones, a_ms, b_ms),
+            ).fetchone()[0]
+
+        def _sincere_between(a_ms, b_ms):
+            if not wl_phones:
+                return 0
+            return con.execute(
+                f"SELECT COUNT(*) FROM (SELECT phone FROM api_usage "
+                f"WHERE phone IN ({_ph}) AND created_at_ms >= ? AND created_at_ms < ? "
+                f"GROUP BY phone HAVING COUNT(*) >= 5)",
+                (*wl_phones, a_ms, b_ms),
+            ).fetchone()[0]
+
+        _wl_set94 = set(wl_phones)
+        first_sc94 = con.execute(
+            "SELECT owner_phone, MIN(created_at_ms) FROM app_events "
+            "WHERE event_name = 'schedule_create' GROUP BY owner_phone"
+        ).fetchall()
+        trends = {
+            "active": {"cur": _active_between(w1, now), "prev": _active_between(w2, w1)},
+            "sincere": {"cur": _sincere_between(w1, now), "prev": _sincere_between(w2, w1)},
+            "new": {
+                "cur": sum(1 for r in wl_rows if r[3] and r[3] >= w1),
+                "prev": sum(1 for r in wl_rows if r[3] and w2 <= r[3] < w1),
+            },
+            "settled": {
+                "cur": sum(1 for r in first_sc94 if r[0] in _wl_set94 and r[1] >= w1),
+                "prev": sum(1 for r in first_sc94 if r[0] in _wl_set94 and w2 <= r[1] < w1),
+            },
+        }
+
         # 전체 평균 (KPI 카드용)
         active_users = [u for u in users if u["calls"] > 0]
         if active_users:
@@ -6372,8 +6486,10 @@ async def admin_beta_dashboard_data(
     return {
         "days": days,
         "generated_at_ms": now,
-        "subscription": subscription,  # 추가85 — 💳 구독 관제
-        "adoption": adoption,          # 추가89 — 🌱 정착 + 📱 화면 Top
+        "subscription": subscription,     # 추가85 — 💳 구독 관제
+        "adoption": adoption,             # 추가89 — 🌱 정착 + 📱 화면 Top
+        "system_health": system_health,   # 추가93 — 🩺 시스템 건강
+        "trends": trends,                 # 추가94 — 주간 추세
         "kpi": {
             "total_users": total_users,
             "activated": activated,
@@ -6787,23 +6903,38 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
       + '</div>'
       + '<div class="sub2">🟢 진성 ' + sincere + ' · 🔵 초심 ' + beginner + ' · 🟡 구경꾼 ' + watcher + ' · 🔴 미접속 ' + dead + '</div>'
       + '</div>';
+    // 추가93 — 🩺 시스템 건강 카드 (에러 0 = 초록 한 줄, 있으면 빨강 + 클릭 명단)
+    var sh = d.system_health || { today_errors: 0, errors_24h: 0, recent: [] };
+    var healthCard = sh.today_errors === 0
+      ? '<div class="kpi"><div class="lbl">🩺 시스템</div>'
+        + '<div class="val" style="color:var(--success); font-size:20px;">정상</div>'
+        + '<div class="sub2">오늘 에러 0건' + (sh.errors_24h > 0 ? ' · 24시간 ' + sh.errors_24h + '건' : '') + '</div></div>'
+      : '<div class="kpi" style="cursor:pointer; border:1.5px solid var(--error);" onclick="openDrill(\\'sys_errors\\', \\'🩺 최근 서버 에러\\')">'
+        + '<div class="lbl">🩺 시스템</div>'
+        + '<div class="val" style="color:var(--error)">에러 ' + sh.today_errors + '건</div>'
+        + '<div class="sub2">오늘 발생 · 클릭 = 상세</div></div>';
+    var tr = d.trends || {};
     document.getElementById('kpiGrid').innerHTML =
       kpiCard('blue', '총 멤버', members.length + '명',
-              '💙 일반 ' + paidStd + ' · 👑 특별 ' + paidPre + ' · ⏳ 등업대기 ' + applicants) +
-      kpiCard('green', '이번 주 활성', kpi.active_7d + '명', pct(kpi.active_7d, kpi.total_users) + '% (접속 기준)') +
-      kpiCard('green', '🔥 진성 사용자', sincere, 'AI 5회+ 사용 (접속자 중)') +
+              '💙 일반 ' + paidStd + ' · 👑 특별 ' + paidPre + ' · ⏳ 등업대기 ' + applicants
+              + trendBadge(tr.new && { cur: tr.new.cur, prev: tr.new.prev })) +
+      kpiCard('green', '이번 주 활성', kpi.active_7d + '명',
+              pct(kpi.active_7d, kpi.total_users) + '% (접속 기준)' + trendBadge(tr.active)) +
+      kpiCard('green', '🔥 진성 사용자', sincere,
+              'AI 5회+ 사용' + trendBadge(tr.sincere)) +
       '<div class="kpi" style="cursor:pointer;" onclick="openDrill(\\'at_risk\\', \\'⚠️ 이탈 위험 — 7일+ 미접속\\')">'
         + '<div class="lbl">⚠️ 이탈 위험</div>'
         + '<div class="val" style="color:' + (dead > 0 ? 'var(--error)' : 'var(--success)') + '">' + dead + '</div>'
         + '<div class="sub2">7일+ 미접속 · 클릭 = 명단</div></div>' +
-      kpiCard('orange', '🆕 신규 (7일)', kpi.new_7d, '신규 가입') +
       // 추가89 — 🌱 정착률 (시공일 등록 = 사장님 핵심 KPI). 클릭 = 미등록 명단.
       '<div class="kpi" style="cursor:pointer;" onclick="openDrill(\\'unsettled\\', \\'🌱 시공일 미등록 — 전화/튜토리얼 대상\\')">'
         + '<div class="lbl">🌱 정착률 (시공일 등록)</div>'
         + '<div class="val" style="color:' + ((d.adoption && d.adoption.rate_pct >= 50) ? 'var(--success)' : 'var(--warning)') + '">'
         + (d.adoption ? d.adoption.rate_pct : 0) + '%</div>'
         + '<div class="sub2">' + (d.adoption ? d.adoption.settled + '/' + d.adoption.total : '-')
-        + '명 등록 · 클릭 = 미등록 명단</div></div>' +
+        + '명 등록 · 클릭 = 미등록 명단'
+        + trendBadge(tr.settled && { cur: tr.settled.cur, prev: tr.settled.prev }) + '</div></div>' +
+      healthCard +
       mixCard;
 
     // Network 신호 (클릭 시 drill-down)
@@ -6813,6 +6944,11 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
     LAST_DETAILS['unsettled'] = (d.adoption && d.adoption.unsettled || []).map(function(u){
       return { name: u.name, phone: u.phone, phone_raw: u.phone_raw,
                last: u.last ? timeAgo(Date.now() - u.last) : '접속 기록 없음' };
+    });
+    // 추가93 — 최근 서버 에러 (건강 카드 클릭)
+    LAST_DETAILS['sys_errors'] = (sh.recent || []).map(function(e){
+      return { t: new Date(e.ts_ms).toLocaleString('ko-KR', { hour12: false }),
+               path: e.path || '-', status: e.status, detail: e.detail || '-' };
     });
     var n = d.network;
     // 추가88 — 협업 깔때기 전환율 (요청→수락→완료 가 이야기가 되게) + 기간 명시 + 빈 박스 제거
@@ -7158,11 +7294,21 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
     } catch(e) { alert('등급 변경 실패: ' + e.message); sel.value = oldGrade; }
   }
   function kpiCard(cls, lbl, val, sub) {
+    // 추가94 — sub 는 raw HTML 허용 (추세 배지 삽입용. 호출부 전부 내부 문자열이라 안전)
     return '<div class="kpi ' + cls + '">'
          + '<div class="lbl">' + escape(lbl) + '</div>'
          + '<div class="val">' + val + '</div>'
-         + '<div class="sub2">' + escape(sub) + '</div>'
+         + '<div class="sub2">' + sub + '</div>'
          + '</div>';
+  }
+  // 추가94 — 주간 추세 배지 (지표는 늘면 초록 ▲, 줄면 빨강 ▼)
+  function trendBadge(t) {
+    if (!t || (t.cur === 0 && t.prev === 0)) return '';
+    var diff = t.cur - t.prev;
+    if (diff === 0) return '<br><span style="color:#9AA3AF; font-size:11px; font-weight:700;">지난주와 동일</span>';
+    var up = diff > 0;
+    return '<br><span style="color:' + (up ? 'var(--success)' : 'var(--error)') + '; font-size:11px; font-weight:800;">'
+         + (up ? '▲' : '▼') + ' 지난주 ' + t.prev + ' → 이번 주 ' + t.cur + '</span>';
   }
   function netItem(lbl, val, kind) {
     if (!lbl) return '<div class="net-item empty"></div>';
@@ -7235,6 +7381,15 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
         r.share_id ? '<span style="font-family:monospace; font-size:11px">' + escape(r.share_id.slice(0,12)) + '</span>' : '-',
         escape(r.uploader || '-'),
         escape(r.uploaded),
+      ]; };
+    } else if (kind === 'sys_errors') {
+      // 추가93 — 🩺 최근 서버 에러
+      head = ['시각', '경로', '상태', '내용'];
+      cols = function(r){ return [
+        '<span style="font-size:11px;">' + escape(r.t) + '</span>',
+        '<span style="font-family:monospace; font-size:11px;">' + escape(r.path) + '</span>',
+        '<span class="badge off">' + r.status + '</span>',
+        '<span style="font-size:11px; color:#5A6472;">' + escape(r.detail) + '</span>',
       ]; };
     } else if (kind === 'at_risk' || kind === 'unsettled') {
       // 추가87 — ⚠️ 이탈 위험 / 추가89 — 🌱 시공일 미등록 명단 (같은 컬럼)
