@@ -35,11 +35,12 @@ fun AppRoot(container: AppContainer) {
             val context = LocalContext.current
 
             val permsMissing = PermissionHelper.allMissingNonNotification(context).isNotEmpty()
+            val smsSignup = com.detailline.callfollowcrm.AppConfig.SMS_SIGNUP_ENABLED
             val startDestination = when {
-                // Play 공개 흐름: 회원가입(폰 인증) → 온보딩 → 권한 → 홈. (2026-07-04)
-                //   미인증(bizPhone 없음) 또는 대기열이면 회원가입부터. 기존 사용자(bizPhone 있음)는 건너뜀.
-                container.preferences.pendingWaitlist -> Destinations.SIGNUP
-                container.preferences.bizPhone.isBlank() -> Destinations.SIGNUP
+                // 문자 회원가입(SIGNUP)은 SOLAPI 준비 전까지 off — 그동안은 예전 간단 로그인(번호만)으로 진입.
+                //   심사자·테스터가 문자 없이도 앱에 들어올 수 있어야 함(Play 검토·베타 테스트). (2026-07-05 사장님)
+                smsSignup && container.preferences.pendingWaitlist -> Destinations.SIGNUP
+                container.preferences.bizPhone.isBlank() -> if (smsSignup) Destinations.SIGNUP else Destinations.LOGIN
                 !container.preferences.hasOnboarded -> Destinations.ONBOARDING
                 permsMissing -> Destinations.PERMISSIONS
                 else -> Destinations.HOME

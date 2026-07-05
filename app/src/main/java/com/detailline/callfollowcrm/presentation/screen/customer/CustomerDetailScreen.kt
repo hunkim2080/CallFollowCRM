@@ -670,16 +670,9 @@ fun CustomerDetailScreen(
             val launchPhotoPicker = { showPhotoPicker = true }
             val photoMax = viewModel.sitePhotoMax
             val photoTotal = sitePhotos.size + teamPhotos.size
-            if (showPhotoPicker) {
-                com.detailline.callfollowcrm.presentation.component.PhotoPickerSheet(
-                    maxSelectable = (photoMax - photoTotal).coerceAtLeast(0),
-                    onConfirm = { uris ->
-                        if (uris.isNotEmpty()) viewModel.addSitePhotos(uris)
-                        showPhotoPicker = false
-                    },
-                    onDismiss = { showPhotoPicker = false },
-                    onOpenFiles = { showPhotoPicker = false; photoPicker.launch("image/*") }
-                )
+            // 사진 첨부 = 시스템 선택기(권한 없음, Play 정책). 자체 갤러리 제거. (2026-07-05)
+            LaunchedEffect(showPhotoPicker) {
+                if (showPhotoPicker) { showPhotoPicker = false; photoPicker.launch("image/*") }
             }
             TossCard {
                 Column {

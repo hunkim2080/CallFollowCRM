@@ -13,4 +13,11 @@ package com.detailline.callfollowcrm
 object AppConfig {
     /** FastAPI 메인 서버 base URL (공개 도메인). */
     const val BASE_URL: String = "https://api.si0in.kr"
+
+    /**
+     * 문자 인증 회원가입 사용 여부. false = 예전 간단 로그인(번호만) 으로 진입.
+     *   지금 false 인 이유: SOLAPI(문자 발송)가 서버에 아직 안 켜짐 → 문자 회원가입은 아무도 못 씀(심사자·테스터 막힘).
+     *   SOLAPI + 대표번호(발신번호) 준비되면 true 로 바꿔 정식 출시 때 문자 회원가입 활성화. (2026-07-05 사장님)
+     */
+    const val SMS_SIGNUP_ENABLED: Boolean = false
 }

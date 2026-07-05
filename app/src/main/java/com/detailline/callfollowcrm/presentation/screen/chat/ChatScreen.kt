@@ -1163,19 +1163,12 @@ fun ChatScreen(
     }
 
     // 카톡식 자체 사진 피커 — 아래서 올라오는 바텀시트 갤러리. "파일에서"는 기존 시스템 피커로 fallback.
-    if (showPhotoPicker) {
-        com.detailline.callfollowcrm.presentation.component.PhotoPickerSheet(
-            maxSelectable = (5 - attachedPhotos.size).coerceAtLeast(0),
-            onConfirm = { uris ->
-                attachedPhotos = (attachedPhotos + uris).distinct().take(5)
-                showPhotoPicker = false
-            },
-            onDismiss = { showPhotoPicker = false },
-            onOpenFiles = {
-                showPhotoPicker = false
-                pickPhotos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-            }
-        )
+    // 사진 첨부 = 시스템 사진 선택기(권한 없음, Play 정책). 자체 갤러리 제거. (2026-07-05)
+    LaunchedEffect(showPhotoPicker) {
+        if (showPhotoPicker) {
+            showPhotoPicker = false
+            pickPhotos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        }
     }
 
     // 풀스크린 이미지 뷰어 — 한 번에 온 사진 전부 좌우 스와이프 + 핀치/더블탭 줌. (2026-06-16 사장님)

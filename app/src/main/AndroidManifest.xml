@@ -38,8 +38,8 @@
         "다른 앱 위에 표시"를 허용해야만 뜬다. (특수 권한 — Settings.canDrawOverlays 로 확인/요청)
     -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <!-- 채팅에서 고객에게 보낼 사진 고르기(카톡식 자체 갤러리). 33+ 는 READ_MEDIA_IMAGES, 그 이하(갤S9 등)는 READ_EXTERNAL_STORAGE. -->
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- 사진 선택은 시스템 사진 선택기(Photo Picker)로만 — READ_MEDIA_IMAGES 제거(Play 정책: 가끔 쓰는 이미지 선택은 권한 없이 Photo Picker). (2026-07-05)
+         아래 READ_EXTERNAL_STORAGE(<=32) 는 구형 기기(갤S9 등)의 통화녹음(오디오) 스캔용으로 유지. -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <!--
         통화녹음 자동 찾기 (2026-06-30) — 오디오 권한 한 번 허용하면 MediaStore 에서 통화녹음(.m4a)을 앱이

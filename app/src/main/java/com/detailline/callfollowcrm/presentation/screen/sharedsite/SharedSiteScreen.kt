@@ -551,29 +551,12 @@ fun SharedSiteScreen(
     }
 
     // 현장 사진 — 카톡식 바텀시트(아래서 위로 올라오는 갤러리). "파일에서"는 시스템 피커 fallback. (2026-06-14 사장님)
-    if (showPhotoPicker) {
-        com.detailline.callfollowcrm.presentation.component.PhotoPickerSheet(
-            maxSelectable = 10,
-            onConfirm = { uris ->
-                val sid = pendingUploadShareId
-                showPhotoPicker = false
-                if (sid.isNotBlank()) {
-                    uris.forEach { uri ->
-                        scope.launch {
-                            val b64 = withContext(Dispatchers.IO) {
-                                com.detailline.callfollowcrm.util.ImageEncoder.uriToJpegBase64(context, uri)
-                            }
-                            if (b64 != null) viewModel.uploadPhotoBase64(sid, b64)
-                        }
-                    }
-                }
-            },
-            onDismiss = { showPhotoPicker = false },
-            onOpenFiles = {
-                showPhotoPicker = false
-                photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-            }
-        )
+    // 현장 사진 첨부 = 시스템 사진 선택기(권한 없음, Play 정책). 자체 갤러리 제거. (2026-07-05)
+    LaunchedEffect(showPhotoPicker) {
+        if (showPhotoPicker) {
+            showPhotoPicker = false
+            photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        }
     }
 }
 
