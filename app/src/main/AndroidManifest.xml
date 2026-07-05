@@ -226,15 +226,15 @@
         </receiver>
 
         <!--
-            2026-05-29 Default SMS 앱 자격 컴포넌트 (2/4) — MMS WAP_PUSH receiver.
-            Default 가 아닐 때는 안 받음. Default 일 때만 WAP_PUSH_DELIVER 받음.
-
-            1단계 (Phase A): stub — PDU 파싱/첨부 다운로드 안 함. ContentObserver 가 system mms-sms provider 변경 감지로 fallback.
-            2단계 (Phase B): 본격 구현 — PDU 파싱 + MMSC 첨부 다운로드 + DB INSERT 직접.
-            ⚠️ Default 토글이 hidden 인 동안엔 이 receiver 가 호출 안 됨 → MMS 침묵 위험 없음.
+            2026-07-05 Default SMS 앱 MMS(사진) 수신 — 안드로이드 공식 API 경로 (klinker 수신 버그 우회).
+              MmsReceived(WAP_PUSH_DELIVER) → 알림 PDU 파싱 → SmsManager.downloadMultimediaMessage 로 다운로드
+              → 완료 시 MmsDownloadedReceiver(explicit PendingIntent) → PDU 파싱·content://mms persist·후속훅.
+            ⚠️ permission=BROADCAST_WAP_PUSH 필수 — 없으면 이 앱이 "기본 SMS 앱 자격" 을 잃어 role 지정 자체가 실패함
+               (RoleManager 가 4개 필수 컴포넌트의 권한까지 검사). WAP_PUSH_DELIVER 는 시스템만 발사(프레임워크 보호).
+            ⚠️ 옛 MmsReceiver→MmsDownloadService(klinker MmsReceivedService 직접 호출) 는 file_path=null NPE 로 사진 유실 → 제거.
         -->
         <receiver
-            android:name=".service.MmsReceiver"
+            android:name=".service.MmsReceived"
             android:exported="true"
             android:enabled="true"
             android:permission="android.permission.BROADCAST_WAP_PUSH">
@@ -243,6 +243,18 @@
                 <data android:mimeType="application/vnd.wap.mms-message" />
             </intent-filter>
         </receiver>
+
+        <!-- MMS 다운로드 완료 콜백 (MmsReceived 가 만든 explicit PendingIntent 로만 호출). intent-filter 불필요. -->
+        <receiver
+            android:name=".service.MmsDownloadedReceiver"
+            android:exported="false" />
+
+        <!-- MMS 다운로드 임시 PDU 파일 provider — SmsManager 가 여기로 다운로드본을 write. -->
+        <provider
+            android:name=".service.MmsDownloadFileProvider"
+            android:authorities="${applicationId}.mmsdownload"
+            android:exported="false"
+            android:grantUriPermissions="true" />
 
         <!--
             Step 2 (2026-05-25): 알림창 빠른 답장 RemoteInput 수신 → SmsManager 직접 발송.
@@ -283,17 +295,6 @@
                 <data android:scheme="mmsto" />
             </intent-filter>
         </service>
-
-        <!--
-            2026-05-29 Phase A 2단계 — MMS 다운로드 IntentService.
-            MmsReceiver (WAP_PUSH_DELIVER) → 여기로 forward → klinker MmsReceivedService 위임.
-            MMSC HTTP GET 이 수 초~수십 초 라 broadcast receiver scope 안에서 못 함 → IntentService 가 정석.
-
-            exported=false — 우리 MmsReceiver 만 trigger. 외부 앱이 직접 호출 못 함.
-        -->
-        <service
-            android:name=".service.MmsDownloadService"
-            android:exported="false" />
 
         <!-- 현장 도착 지오펜스 전이 수신. exported=false — 시스템 Geofencing 만 trigger. -->
         <receiver
