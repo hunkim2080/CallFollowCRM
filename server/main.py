@@ -236,6 +236,23 @@ def db_init() -> None:
             )
             """
         )
+        # 추가97 (2026-07-06) — 개인정보 동의 기록 (append-only 이력 = 동의 영수증)
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS consents (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                phone         TEXT NOT NULL,
+                doc_type      TEXT NOT NULL,
+                doc_version   TEXT NOT NULL,
+                agreed        INTEGER NOT NULL,
+                ip            TEXT,
+                created_at_ms INTEGER NOT NULL
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_consents_phone ON consents(phone, doc_type)"
+        )
         # 추가93 (2026-07-04) — 🩺 시스템 에러 기록 (5xx/미처리 예외 → 대시보드 건강 카드)
         con.execute(
             """
@@ -9510,6 +9527,89 @@ async def privacy_page():
             detail="privacy.html 없음 (server/static/privacy.html 확인).",
         )
     return _PRIVACY_HTML_PATH.read_text(encoding="utf-8")
+
+
+# ============================================================================
+# 추가97 — 개인정보 동의 세트 (사장님 요청, SKT AI메시지 동의 구조 벤치마킹)
+#   GET /consent/required  — (필수) 수집·이용 동의문
+#   GET /consent/optional  — (선택) 품질 향상 동의문
+#   POST /api/consent      — 동의/철회 기록 (append-only 이력 = 분쟁 대비 영수증)
+#   GET /api/consent/status — 최신 동의 상태 (앱 부팅 시 확인용)
+# ⚠️ 문안은 초안 — 정식 출시 전 privacy.go.kr 표준 양식 대조/전문가 검토 권장.
+# ============================================================================
+
+_CONSENT_DOC_VERSION = "2026-07-06"
+_CONSENT_DOC_TYPES = {"required", "optional_quality"}
+
+
+@app.get("/consent/required", response_class=HTMLResponse, include_in_schema=False)
+async def consent_required_page():
+    p = BASE_DIR / "static" / "consent_required.html"
+    if not p.exists():
+        raise HTTPException(500, "consent_required.html 없음")
+    return p.read_text(encoding="utf-8")
+
+
+@app.get("/consent/optional", response_class=HTMLResponse, include_in_schema=False)
+async def consent_optional_page():
+    p = BASE_DIR / "static" / "consent_optional.html"
+    if not p.exists():
+        raise HTTPException(500, "consent_optional.html 없음")
+    return p.read_text(encoding="utf-8")
+
+
+class ConsentRequest(BaseModel):
+    phone: str = ""
+    docType: str = ""        # "required" | "optional_quality"
+    docVersion: str = ""     # 앱이 표시한 문서 버전 (기본 = 서버 현재 버전)
+    agreed: bool = True      # False = 철회
+
+
+@app.post("/api/consent")
+async def consent_record(req: ConsentRequest, request: Request) -> dict:
+    phone = _norm_phone(req.phone)
+    if not phone:
+        raise HTTPException(400, "phone 필수")
+    if req.docType not in _CONSENT_DOC_TYPES:
+        raise HTTPException(400, f"docType 은 {sorted(_CONSENT_DOC_TYPES)}")
+    if req.docType == "required" and not req.agreed:
+        # 필수 동의 철회 = 탈퇴 절차로 처리해야 함 (기록만 남기고 안내)
+        pass
+    version = (req.docVersion or "").strip()[:20] or _CONSENT_DOC_VERSION
+    now = _now_ms()
+    ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or (
+        request.client.host if request.client else "")
+    with db_conn() as con:
+        con.execute(
+            "INSERT INTO consents (phone, doc_type, doc_version, agreed, ip, created_at_ms) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (phone, req.docType, version, 1 if req.agreed else 0, ip[:60], now),
+        )
+        con.commit()
+    print(f"[consent] {phone} {req.docType} v{version} agreed={req.agreed}")
+    return {"ok": True, "phone": phone, "docType": req.docType,
+            "docVersion": version, "agreed": req.agreed, "recordedAtMs": now}
+
+
+@app.get("/api/consent/status")
+async def consent_status(phone: str) -> dict:
+    phone_digits = _norm_phone(phone)
+    if not phone_digits:
+        raise HTTPException(400, "phone 필수")
+    out = {}
+    with db_conn() as con:
+        for dt_ in _CONSENT_DOC_TYPES:
+            row = con.execute(
+                "SELECT agreed, doc_version, created_at_ms FROM consents "
+                "WHERE phone = ? AND doc_type = ? ORDER BY created_at_ms DESC LIMIT 1",
+                (phone_digits, dt_),
+            ).fetchone()
+            out[dt_] = (
+                {"agreed": bool(row[0]), "docVersion": row[1], "recordedAtMs": row[2]}
+                if row else None
+            )
+    return {"phone": phone_digits, "currentDocVersion": _CONSENT_DOC_VERSION,
+            "consents": out}
 
 
 # ============================================================================

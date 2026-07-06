@@ -6537,3 +6537,16 @@ Play 심사 차단 ① 민감권한(SMS/통화기록) 대응 착수 + MMS 수신
 - 미구현 잠금 대상 (부재중 자동응답/시공 하루 전 안내/정기문자 예약)은 만들 때 _check_free_trial_gate 한 줄 삽입.
 - 검증: ENFORCE=1 (만료 402/초기베타 통과/유료 통과/접수서 402·200) + ENFORCE OFF (만료여도 통과) ALL PASS.
 - 변경: server/main.py 만. 배포해도 무변화 (스위치 OFF). commit: (아래)
+
+## 2026-07-06 · cowork (사장님 요청: 개인정보 동의 세트 — SKT 벤치마킹)
+추가97 — 동의 문서 2종 + 동의 기록 API + 방침 v2.
+- 페이지: GET /consent/required (필수 — 번호/인증기록/AI 처리, 국외 위탁 고지 포함) ·
+  GET /consent/optional (선택 — 톤 학습/품질 향상, 비식별 처리·2년 보유·철회 가능·거부해도 기본 기능 OK).
+- 동의 영수증: consents 테이블 (append-only 이력, ip 포함) + POST /api/consent {phone, docType, agreed}
+  + GET /api/consent/status. 문서 버전 = "2026-07-06".
+- privacy.html v2: 수탁자 표에 SOLAPI(국내, 문자 발송) 추가, 가입 인증 항목 반영, 개정일 갱신.
+- 안드로이드 핸드오프 = docs/ANDROID_HANDOFF_consent.md ⭐ (가입 바텀시트 체크 2개 + 웹뷰 링크 +
+  POST /api/consent + 설정 토글 + toneUploadConsented → optional_quality 통합 + 기존 사용자 1회 노출).
+- ⚠️ 문안은 초안 — 정식 출시 전 privacy.go.kr 표준 양식 대조/전문가 검토 권장 (사장님 인지).
+- 검증: 페이지 3종/기록/철회/상태/400 ALL PASS. 변경: server/main.py + static 3개 + docs. 배포 필요 (static 포함).
+- commit: (아래)
