@@ -174,6 +174,11 @@ fun CustomerDetailScreen(
     var photoToDelete by remember { mutableStateOf<Long?>(null) }
     // 팀원(서버) 사진 삭제 확인 — 사장님이 퇴사한 팀원 사진도 지울 수 있게. (2026-06-07)
     var teamPhotoToDelete by remember { mutableStateOf<Long?>(null) }
+    // 발행 이력(견적서/접수서) 다시 열람·삭제 상태. (2026-07-07 사장님)
+    var reviewQuoteDoc by remember { mutableStateOf<com.detailline.callfollowcrm.presentation.screen.chat.QuoteDocData?>(null) }
+    var intakeReviewDoc by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity?>(null) }
+    var issuedDocToDelete by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity?>(null) }
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
 
     // composer 는 bottomBar 로 이동됨. 스크롤 영향 안 받아 bringIntoView 등 복잡한 로직 불필요.
     val scrollState = rememberScrollState()
@@ -790,6 +795,45 @@ fun CustomerDetailScreen(
                 }
             }
 
+            // 6.55 발행 이력 (2026-07-07 사장님) — 이 고객에게 발행한 견적서/시공접수서. 탭하면 다시 열람(확인 개념).
+            val issuedDocs by viewModel.issuedDocs.collectAsState()
+            if (issuedDocs.isNotEmpty()) {
+                TossCard {
+                    Column {
+                        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Text("📄", fontSize = 13.sp)
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                "발행 이력 ${issuedDocs.size}건",
+                                fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
+                            )
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "보낸 견적서·시공접수서예요. 탭하면 다시 볼 수 있어요.",
+                            fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        issuedDocs.forEachIndexed { idx, doc ->
+                            if (idx > 0) Spacer(Modifier.height(8.dp))
+                            IssuedDocRow(
+                                doc = doc,
+                                onOpen = {
+                                    if (doc.kind == "quote") {
+                                        com.detailline.callfollowcrm.presentation.screen.chat.quoteDocDataFromIssuedJson(doc.docJson)
+                                            ?.let { reviewQuoteDoc = it }
+                                            ?: run { intakeReviewDoc = doc }  // JSON 깨졌으면 요약으로 폴백
+                                    } else {
+                                        intakeReviewDoc = doc
+                                    }
+                                },
+                                onDelete = { issuedDocToDelete = doc }
+                            )
+                        }
+                    }
+                }
+            }
+
             // 6.6 팀원 현장 메모 — 직원이 링크 화면에서 보낸 특이사항(2026-06-06). 있을 때만 카드.
             if (teamNotes.isNotEmpty()) {
                 TossCard {
@@ -1209,6 +1253,153 @@ fun CustomerDetailScreen(
         )
     }
 
+    // 발행 이력 → 견적서 다시 보기(직인 문서 재렌더, 재공유 가능). (2026-07-07 사장님)
+    reviewQuoteDoc?.let { data ->
+        com.detailline.callfollowcrm.presentation.screen.chat.QuoteDocScreen(
+            data = data,
+            onClose = { reviewQuoteDoc = null }
+            // onShared 생략 — 다시 보기는 이력에 이미 있어 재기록 안 함(재발송은 됨).
+        )
+    }
+
+    // 발행 이력 → 시공접수서 요약(확인 개념) + 링크 열기/복사.
+    intakeReviewDoc?.let { doc ->
+        IntakeReviewDialog(
+            doc = doc,
+            onCopyLink = { url ->
+                clipboard.setText(androidx.compose.ui.text.AnnotatedString(url))
+                android.widget.Toast.makeText(context, "링크를 복사했어요", android.widget.Toast.LENGTH_SHORT).show()
+                intakeReviewDoc = null
+            },
+            onOpenLink = { url ->
+                runCatching {
+                    context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                }.onFailure {
+                    android.widget.Toast.makeText(context, "링크를 열지 못했어요", android.widget.Toast.LENGTH_SHORT).show()
+                }
+                intakeReviewDoc = null
+            },
+            onDismiss = { intakeReviewDoc = null }
+        )
+    }
+
+    // 발행 이력 1건 삭제 확인.
+    issuedDocToDelete?.let { doc ->
+        AlertDialog(
+            onDismissRequest = { issuedDocToDelete = null },
+            title = { Text("발행 이력에서 지울까요?", fontWeight = FontWeight.Bold) },
+            text = { Text("이 발행 기록을 목록에서 지워요. 고객에게 이미 보낸 문서는 영향 없어요.") },
+            confirmButton = {
+                TextButton(onClick = { viewModel.deleteIssuedDoc(doc.id); issuedDocToDelete = null }) {
+                    Text("삭제", color = Color(0xFFF0436A), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { issuedDocToDelete = null }) { Text("취소", color = TossTextSecondary) }
+            }
+        )
+    }
+
+}
+
+/** 발행 이력 한 줄 — 견적서/시공접수서. 탭=다시 보기, 우측 ✕=이력에서 삭제. (2026-07-07 사장님) */
+@Composable
+private fun IssuedDocRow(
+    doc: com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity,
+    onOpen: () -> Unit,
+    onDelete: () -> Unit
+) {
+    val isQuote = doc.kind == "quote"
+    val icon = if (isQuote) "📜" else "📋"
+    val kindLabel = if (isQuote) "견적서" else "시공접수서"
+    val dateStr = remember(doc.issuedAtMs) {
+        java.text.SimpleDateFormat("M월 d일 HH:mm", java.util.Locale.KOREA).format(java.util.Date(doc.issuedAtMs))
+    }
+    androidx.compose.foundation.layout.Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFF5F7FB))
+            .clickable { onOpen() }.padding(12.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+    ) {
+        Text(icon, fontSize = 18.sp)
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text(kindLabel, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+                Spacer(Modifier.width(6.dp))
+                Text(dateStr, fontSize = 11.sp, color = TossTextTertiary)
+            }
+            val summary = buildString {
+                doc.itemsText?.takeIf { it.isNotBlank() }?.let { append(it) }
+                if (doc.totalWon > 0L) {
+                    if (isNotEmpty()) append(" · ")
+                    append("${java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(doc.totalWon)}원")
+                }
+            }
+            if (summary.isNotBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(summary, fontSize = 12.sp, color = TossTextSecondary, maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
+            doc.memo?.takeIf { it.isNotBlank() }?.let {
+                Spacer(Modifier.height(1.dp))
+                Text("· $it", fontSize = 11.5.sp, color = TossTextTertiary, maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
+        }
+        Spacer(Modifier.width(8.dp))
+        Text("다시 보기", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+        androidx.compose.foundation.layout.Box(
+            Modifier.padding(start = 4.dp).size(26.dp).clip(CircleShape).clickable { onDelete() },
+            contentAlignment = androidx.compose.ui.Alignment.Center
+        ) {
+            Icon(Icons.Default.Close, "삭제", tint = TossTextTertiary, modifier = Modifier.size(14.dp))
+        }
+    }
+}
+
+/** 시공접수서 발행 이력 다시 보기 — 보낸 내용 요약(확인 개념) + 링크 열기/복사. 고객이 채운 주소·상세는 링크(서버)에서. */
+@Composable
+private fun IntakeReviewDialog(
+    doc: com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity,
+    onCopyLink: (String) -> Unit,
+    onOpenLink: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val url = doc.url?.takeIf { it.isNotBlank() }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("시공접수서", fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                val dateStr = doc.workDateMs
+                    ?.let { java.text.SimpleDateFormat("M월 d일 (E)", java.util.Locale.KOREA).format(java.util.Date(it)) }
+                    ?: "협의 후 확정"
+                Text("· 시공 예정일 : $dateStr", fontSize = 13.sp, color = TossTextSecondary, lineHeight = 22.sp)
+                doc.itemsText?.takeIf { it.isNotBlank() }?.let {
+                    Text("· 견적 내용 : $it", fontSize = 13.sp, color = TossTextSecondary, lineHeight = 22.sp)
+                }
+                if (doc.totalWon > 0L) {
+                    Text("· 금액 : ${java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(doc.totalWon)}원",
+                        fontSize = 13.sp, color = TossTextSecondary, lineHeight = 22.sp)
+                }
+                doc.memo?.takeIf { it.isNotBlank() }?.let {
+                    Text("· 특이사항 : $it", fontSize = 13.sp, color = TossTextSecondary, lineHeight = 22.sp)
+                }
+                Spacer(Modifier.height(8.dp))
+                Text("고객이 작성한 주소·상세는 아래 링크에서 확인돼요.", fontSize = 11.5.sp, color = TossTextTertiary, lineHeight = 16.sp)
+            }
+        },
+        confirmButton = {
+            if (url != null) TextButton(onClick = { onOpenLink(url) }) {
+                Text("링크 열기", color = TossBlue, fontWeight = FontWeight.Bold)
+            } else TextButton(onClick = onDismiss) { Text("닫기", color = TossTextSecondary) }
+        },
+        dismissButton = {
+            if (url != null) TextButton(onClick = { onCopyLink(url) }) {
+                Text("링크 복사", color = TossTextSecondary)
+            }
+        }
+    )
 }
 
 /**

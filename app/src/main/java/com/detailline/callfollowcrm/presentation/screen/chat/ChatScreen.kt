@@ -1459,7 +1459,11 @@ fun ChatScreen(
     // 견적서(직인) 미리보기 오버레이.
     quoteDocData?.let { data ->
         // '미리보기 닫기' → 채팅이 아니라 견적 편집기로 복귀(선택 유지). (2026-06-08 #5)
-        QuoteDocScreen(data = data, onClose = { quoteDocData = null; showEstimateBuilder = true })
+        QuoteDocScreen(
+            data = data,
+            onClose = { quoteDocData = null; showEstimateBuilder = true },
+            onShared = { viewModel.recordIssuedQuote(data) }   // 발행 이력 저장 (2026-07-07 사장님)
+        )
     }
 }
 

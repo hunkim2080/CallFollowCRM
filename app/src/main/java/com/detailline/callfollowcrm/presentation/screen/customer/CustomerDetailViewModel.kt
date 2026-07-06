@@ -60,6 +60,16 @@ class CustomerDetailViewModel(
         container.sitePhotoRepository.observe(customerId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    // 발행 이력 — 이 고객에게 발행한 견적서/시공접수서. 2026-07-07 사장님.
+    val issuedDocs: kotlinx.coroutines.flow.StateFlow<List<com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity>> =
+        container.issuedDocRepository.observeByCustomer(customerId)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** 발행 이력 1건 삭제(잘못 발행/정리용). */
+    fun deleteIssuedDoc(id: Long) {
+        viewModelScope.launch { runCatching { container.issuedDocRepository.delete(id) } }
+    }
+
     /** 팀원+사장님이 서버에 올린 현장 사진(§25). 고객 상세 열 때 가져옴. 팀원 건은 파란 이름표. */
     private val _teamPhotos = MutableStateFlow<List<com.detailline.callfollowcrm.ai.SitePhotoServerRepository.RemotePhoto>>(emptyList())
     val teamPhotos = _teamPhotos.asStateFlow()

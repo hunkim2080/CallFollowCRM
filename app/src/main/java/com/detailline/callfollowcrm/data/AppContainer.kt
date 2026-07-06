@@ -59,6 +59,10 @@ class AppContainer(context: Context) {
     val timelineEventRepository = com.detailline.callfollowcrm.data.repository.TimelineEventRepository(
         db.timelineEventDao()
     )
+    // 발행 문서 이력 — 발행한 견적서/시공접수서 스냅샷(고객상세 이력 + 채팅 카드). 2026-07-07.
+    val issuedDocRepository = com.detailline.callfollowcrm.data.repository.IssuedDocRepository(
+        db.issuedDocDao()
+    )
     // 현장 사진 서버 조회(§25) — 고객 카드에 팀원+사장님 사진 표시. 2026-06-05.
     val sitePhotoServerRepository = com.detailline.callfollowcrm.ai.SitePhotoServerRepository()
     val callSummaryRepository = CallSummaryRepository(db.callSummaryDao())

@@ -1363,8 +1363,61 @@ class ChatViewModel(
             devicePhone = prefs.bizPhone, deviceId = prefs.deviceId,
             ownerMemo = ownerMemo, vatIncluded = vatIncluded
         )
+        // 발행 이력 — 접수서 링크 발급 성공 시 스냅샷 저장(고객상세 발행 이력 + 채팅 카드). (2026-07-07 사장님)
+        res.onSuccess { issued ->
+            val workMs = workDateMsOf(workYear, workMonth, workDay)
+            val docLines = items.map { it ->
+                val amt = it.price.toLong() * 10_000L * (it.area?.toLong() ?: 1L)
+                val spec = if (it.unit == "pyeong") "${it.price}만원/평 × ${(it.area ?: 0.0).toInt()}평" else "1식"
+                QuoteLine(it.name, spec, amt)
+            }
+            val docJson = QuoteDocData(
+                docLines, total.toLong() * 10_000L, depositMode, depositValue,
+                vatIncluded = vatIncluded, workDateMs = workMs, recipient = name,
+                memo = ownerMemo.ifBlank { null }
+            ).toIssuedJson()
+            recordIssued(
+                kind = "intake", recipient = name, totalWon = total.toLong() * 10_000L,
+                workDateMs = workMs,
+                itemsText = items.joinToString(", ") { it.name }.takeIf { s -> s.isNotBlank() },
+                memo = ownerMemo.ifBlank { null }, docJson = docJson, url = issued.url, token = issued.token
+            )
+        }
         onResult(res.map { it.smsDraft.ifBlank { "시공접수서 링크를 보냈어요." } })
     }
+
+    /** 발행 이력 — 견적서(직인 이미지) 보낼 때 스냅샷 저장. QuoteDocScreen 재열람용 docJson 포함. (2026-07-07 사장님) */
+    fun recordIssuedQuote(data: QuoteDocData) = viewModelScope.launch {
+        recordIssued(
+            kind = "quote", recipient = data.recipient, totalWon = data.totalWon,
+            workDateMs = data.workDateMs,
+            itemsText = data.lines.joinToString(", ") { it.name }.takeIf { s -> s.isNotBlank() },
+            memo = data.memo, docJson = data.toIssuedJson(), url = null, token = null
+        )
+    }
+
+    /** 발행 스냅샷 1건 저장 — customerId(ensure)+끝8자리. 실패해도 조용히(발송엔 영향 X). */
+    private suspend fun recordIssued(
+        kind: String, recipient: String?, totalWon: Long, workDateMs: Long?,
+        itemsText: String?, memo: String?, docJson: String, url: String?, token: String?
+    ) {
+        val cid = runCatching { ensureCustomerId() }.getOrNull()
+        val suffix = phoneNumber.filter { it.isDigit() }.takeLast(8)
+        runCatching {
+            container.issuedDocRepository.record(
+                com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity(
+                    phoneSuffix = suffix, customerId = cid, kind = kind, recipient = recipient,
+                    totalWon = totalWon, workDateMs = workDateMs, itemsText = itemsText, memo = memo,
+                    docJson = docJson, url = url, token = token, issuedAtMs = System.currentTimeMillis()
+                )
+            )
+        }
+    }
+
+    private fun workDateMsOf(y: Int, mo: Int, d: Int): Long? =
+        if (y > 0 && mo in 1..12 && d in 1..31)
+            java.util.Calendar.getInstance().apply { clear(); set(y, mo - 1, d, 12, 0, 0) }.timeInMillis
+        else null
 
     /**
      * AI 제안 박스의 [시공일 등록] 액션 (action_type=register_schedule) hookup.

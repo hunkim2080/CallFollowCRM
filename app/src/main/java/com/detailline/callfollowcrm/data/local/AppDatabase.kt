@@ -61,9 +61,10 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity::class,
         com.detailline.callfollowcrm.data.local.entity.TeamAssignmentEntity::class,
         com.detailline.callfollowcrm.data.local.entity.PrincipleEntity::class,
-        com.detailline.callfollowcrm.data.local.entity.TimelineEventEntity::class
+        com.detailline.callfollowcrm.data.local.entity.TimelineEventEntity::class,
+        com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity::class
     ],
-    version = 38,
+    version = 39,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -91,6 +92,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun teamAssignmentDao(): com.detailline.callfollowcrm.data.local.dao.TeamAssignmentDao
     abstract fun principleDao(): com.detailline.callfollowcrm.data.local.dao.PrincipleDao
     abstract fun timelineEventDao(): com.detailline.callfollowcrm.data.local.dao.TimelineEventDao
+    abstract fun issuedDocDao(): com.detailline.callfollowcrm.data.local.dao.IssuedDocDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -720,6 +722,30 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v39 — issued_docs 신설(발행한 견적서/시공접수서 스냅샷 → 발행 이력). IssuedDocEntity 와 정확히 일치. (2026-07-07 사장님)
+        private val MIGRATION_38_39 = object : Migration(38, 39) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `issued_docs` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`phoneSuffix` TEXT NOT NULL, " +
+                        "`customerId` INTEGER, " +
+                        "`kind` TEXT NOT NULL, " +
+                        "`recipient` TEXT, " +
+                        "`totalWon` INTEGER NOT NULL, " +
+                        "`workDateMs` INTEGER, " +
+                        "`itemsText` TEXT, " +
+                        "`memo` TEXT, " +
+                        "`docJson` TEXT NOT NULL, " +
+                        "`url` TEXT, " +
+                        "`token` TEXT, " +
+                        "`issuedAtMs` INTEGER NOT NULL)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_issued_docs_phoneSuffix` ON `issued_docs` (`phoneSuffix`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_issued_docs_customerId` ON `issued_docs` (`customerId`)")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
@@ -735,7 +761,8 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27,
                     MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30,
                     MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34,
-                    MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38
+                    MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38,
+                    MIGRATION_38_39
                 )
                 .fallbackToDestructiveMigration()   // migration 실패 시 안전망 (개발 단계)
                 .build()

@@ -101,7 +101,8 @@ private fun findActivity(ctx: Context): Activity? {
 @Composable
 fun QuoteDocScreen(
     data: QuoteDocData,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    onShared: () -> Unit = {}      // 이미지 공유(발송)한 순간 — 발행 이력 기록용. (2026-07-07 사장님)
 ) {
     // 뒤로가기 = 미리보기만 닫고 견적 편집기로 복귀. 없으면 back 이 ChatScreen 까지 pop 됨. (2026-06-23 사장님)
     androidx.activity.compose.BackHandler { onClose() }
@@ -148,6 +149,7 @@ fun QuoteDocScreen(
                             .putExtra(Intent.EXTRA_STREAM, uri)
                             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         context.startActivity(Intent.createChooser(send, "견적서 보내기"))
+                        onShared()   // 발행 이력에 이 견적서 스냅샷 저장
                     }.onFailure {
                         android.widget.Toast.makeText(context, "이미지 공유에 실패했어요", android.widget.Toast.LENGTH_SHORT).show()
                     }
