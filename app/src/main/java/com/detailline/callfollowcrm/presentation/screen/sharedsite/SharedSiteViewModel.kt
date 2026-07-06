@@ -235,6 +235,19 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
+    /** 증거 사진 삭제 — 올린 본인만(서버가 uploader 검증). 성공 시 목록 새로고침. (2026-07-07 사장님) */
+    fun deletePhoto(shareId: String, photoId: Long) {
+        if (shareId.isBlank() || noBizPhone || photoId <= 0L) return
+        viewModelScope.launch {
+            repo.deletePhoto(shareId, photoId, myPhone)
+                .onSuccess {
+                    _toast.value = "사진을 삭제했어요"
+                    _photos.value = repo.photos(shareId, myPhone).getOrDefault(_photos.value)
+                }
+                .onFailure { _toast.value = "사진 삭제 실패 — 잠시 후 다시" }
+        }
+    }
+
     companion object {
         /** 협업 요청 수락 유효시간 — 12시간. 그 이후엔 수락 불가("수락 시간이 지났어요"). (2026-06-14 사장님) */
         const val ACCEPT_VALID_MS = 12L * 60 * 60 * 1000

@@ -146,6 +146,8 @@ fun SharedSiteScreen(
     var confirmCancelMine by remember { mutableStateOf<SharedSiteRepository.SharedSite?>(null) }
     // 완료 처리 확인 대상 — 완료를 누르면 등록한 계좌가 상대 사장님께 전달되므로 한 번 더 묻는다. null=닫힘. (2026-06-30 사장님)
     var confirmComplete by remember { mutableStateOf<SharedSiteRepository.SharedSite?>(null) }
+    // 증거 사진 삭제 확인 — (shareId, 사진). null=닫힘. 내가 올린 사진만 ✕ 가 떠서 여기로 옴. (2026-07-07 사장님)
+    var confirmDeletePhoto by remember { mutableStateOf<Pair<String, SharedSiteRepository.SharedPhoto>?>(null) }
     // 일당 지급(입금) 계좌 — 화면에서 인라인 등록/수정. prefs 는 비반응형이라 화면 상태로 들고 즉시 반영.
     var navChooserAddr by remember { mutableStateOf<String?>(null) } // 길찾기 앱 선택 다이얼로그(주소)
     var payoutBank by remember { mutableStateOf(viewModel.accountBank) }
@@ -370,6 +372,7 @@ fun SharedSiteScreen(
                         showPhotoPicker = true
                     },
                     onViewPhoto = { fullscreenPhoto = it },
+                    onDeletePhoto = { confirmDeletePhoto = selected.shareId to it },
                     onNavigate = { addr ->
                         // 처음이면 지도앱 선택받고 기억, 다음부터 바로 그 앱으로. (2026-06-14 사장님)
                         val saved = viewModel.navApp()
@@ -412,6 +415,7 @@ fun SharedSiteScreen(
                     myPhone = viewModel.myPhoneDigits,
                     onPickPhoto = { pendingUploadShareId = mine.shareId; showPhotoPicker = true },
                     onViewPhoto = { fullscreenPhoto = it },
+                    onDeletePhoto = { confirmDeletePhoto = mine.shareId to it },
                     onSendComment = { viewModel.postComment(mine.shareId, it) },
                     onCancel = { confirmCancelMine = mine }
                 )
@@ -531,6 +535,26 @@ fun SharedSiteScreen(
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = { confirmComplete = null }) {
                     Text("취소", color = TossTextSecondary)
+                }
+            }
+        )
+    }
+
+    // 증거 사진 삭제 확인 — 내가 올린 사진 ✕ 탭 → 여기. 되돌릴 수 없어 한 번 더 묻는다. (2026-07-07 사장님)
+    confirmDeletePhoto?.let { (sid, photo) ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmDeletePhoto = null },
+            title = { Text("이 사진을 삭제할까요?", fontWeight = FontWeight.Bold) },
+            text = { Text("내가 올린 증거 사진을 지워요. 되돌릴 수 없어요.") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    viewModel.deletePhoto(sid, photo.photoId)
+                    confirmDeletePhoto = null
+                }) { Text("삭제", color = Color(0xFFF0436A), fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { confirmDeletePhoto = null }) {
+                    Text("그대로 두기", color = TossTextSecondary)
                 }
             }
         )
@@ -1039,6 +1063,7 @@ private fun DetailBody(
     onSendComment: (String) -> Unit,
     onPickPhoto: () -> Unit,
     onViewPhoto: (android.graphics.Bitmap) -> Unit,
+    onDeletePhoto: (SharedSiteRepository.SharedPhoto) -> Unit,
     onNavigate: (String) -> Unit,
     onProgress: (SharedSiteRepository.Progress) -> Unit,
     onRespond: (Boolean) -> Unit,
@@ -1281,7 +1306,8 @@ private fun DetailBody(
             fontSize = 13.sp, color = Color(0xFF5A4A1F), lineHeight = 20.sp)
     }
     Spacer(Modifier.height(10.dp))
-    PhotoGrid(photos = photos, busy = photoBusy, onAdd = onPickPhoto, onView = onViewPhoto)
+    PhotoGrid(photos = photos, busy = photoBusy, onAdd = onPickPhoto, onView = onViewPhoto,
+        myKind = "partner", onDelete = onDeletePhoto)   // B(협업자) 화면 → 내가 올린 = partner
 
     // 협업 사장끼리 현장 한 줄 논의 (2026-07-01 사장님) — 팀원 화면 코멘트처럼.
     Spacer(Modifier.height(18.dp))
@@ -1312,6 +1338,7 @@ private fun OwnerSharedDetail(
     myPhone: String,
     onPickPhoto: () -> Unit,
     onViewPhoto: (android.graphics.Bitmap) -> Unit,
+    onDeletePhoto: (SharedSiteRepository.SharedPhoto) -> Unit,
     onSendComment: (String) -> Unit,
     onCancel: () -> Unit
 ) {
@@ -1351,7 +1378,8 @@ private fun OwnerSharedDetail(
     // 📸 현장 사진 — 협업 사장(B)이 올린 증거사진을 A 도 여기서 보고, 필요하면 직접 추가. (2026-07-02 사장님: 사진 푸시 탭 → 여기)
     Spacer(Modifier.height(18.dp))
     SectionSub("📸 현장 사진 · 증거용" + (if (photos.isNotEmpty()) " (${photos.size})" else ""))
-    PhotoGrid(photos = photos, busy = photoBusy, onAdd = onPickPhoto, onView = onViewPhoto)
+    PhotoGrid(photos = photos, busy = photoBusy, onAdd = onPickPhoto, onView = onViewPhoto,
+        myKind = "owner", onDelete = onDeletePhoto)      // A(주인) 화면 → 내가 올린 = owner
 
     // 협업 사장과 한 줄 논의
     Spacer(Modifier.height(18.dp))
@@ -1371,7 +1399,9 @@ private fun PhotoGrid(
     photos: List<SharedSiteRepository.SharedPhoto>,
     busy: Boolean,
     onAdd: () -> Unit,
-    onView: (android.graphics.Bitmap) -> Unit
+    onView: (android.graphics.Bitmap) -> Unit,
+    myKind: String = "",                                          // "owner"(A) | "partner"(B) — 내가 올린 사진만 ✕ 삭제
+    onDelete: (SharedSiteRepository.SharedPhoto) -> Unit = {}
 ) {
     val cellMod = Modifier.size(96.dp).clip(RoundedCornerShape(12.dp))
     androidx.compose.foundation.layout.FlowRow(
@@ -1392,6 +1422,7 @@ private fun PhotoGrid(
         }
         photos.forEach { p ->
             val bmp = p.bitmap
+            val mine = myKind.isNotBlank() && p.uploaderKind == myKind   // 내가 올린 사진만 삭제 가능
             if (bmp != null) {
                 Box(cellMod.background(Color(0xFFEDEFF3)).clickable { onView(bmp) }, contentAlignment = Alignment.BottomStart) {
                     androidx.compose.foundation.Image(
@@ -1406,6 +1437,15 @@ private fun PhotoGrid(
                         modifier = Modifier.padding(4.dp).clip(RoundedCornerShape(6.dp))
                             .background(Color(0x99000000)).padding(horizontal = 5.dp, vertical = 1.dp)
                     )
+                    // 내가 올린 사진이면 우상단 ✕ 삭제 (탭하면 확인 다이얼로그)
+                    if (mine) {
+                        Box(
+                            Modifier.align(Alignment.TopEnd).padding(4.dp).size(22.dp)
+                                .clip(RoundedCornerShape(999.dp)).background(Color(0xCC000000))
+                                .clickable { onDelete(p) },
+                            contentAlignment = Alignment.Center
+                        ) { Text("✕", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold) }
+                    }
                 }
             } else {
                 Box(cellMod.background(Color(0xFFEDEFF3)), contentAlignment = Alignment.Center) {

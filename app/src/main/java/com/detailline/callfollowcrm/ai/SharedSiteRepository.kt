@@ -310,6 +310,15 @@ class SharedSiteRepository(
         note?.let { put("note", it) }
     })
 
+    /** 증거 사진 삭제(§F) — 올린 본인만(서버가 uploader 검증). 서버 미구현(404)/거부(403) 시 Result 실패 → 화면이 안내.
+     *   partner_phone = 삭제 요청자(=업로더) phone. upload 와 같은 필드명. (2026-07-07 사장님) */
+    suspend fun deletePhoto(shareId: String, photoId: Long, requesterPhone: String): Result<Unit> =
+        post("$baseUrl/api/shared/photo/delete", JSONObject().apply {
+            put("share_id", shareId)
+            put("photo_id", photoId)
+            put("partner_phone", phoneKey(requesterPhone))
+        })
+
     /** 그 협업 현장의 모든 증거 사진(owner+partner). 서버 미구현/실패 시 빈 목록(graceful). */
     suspend fun photos(shareId: String, phone: String, limit: Int = 50): Result<List<SharedPhoto>> =
         withContext(Dispatchers.IO) {
