@@ -40,10 +40,31 @@ def _workdate_to_epoch_ms(year, month, day):
 
 **증상:** 날짜 등 잘못 입력해 재발행하면 `POST /api/quote/issue` 가 **매번 새 token/url** 생성 → 고객·사장님 둘 다 "어느 링크 눌러야?" 혼란. 사장님 요청: **링크는 하나, 내용만 갱신**.
 
-**제안(서버):** issue 를 **upsert** 로.
-- `POST /api/quote/issue` 에 같은 고객(devicePhone + customerPhone)의 **아직 제출 안 된(submitted_at NULL)** 폼이 있으면 → **그 token 을 재사용**하고 필드만 UPDATE, **같은 url 반환**.
-- 이미 제출된 폼이 있으면 → 새로 생성(제출본 덮어쓰기 방지).
-- 앱은 변경 최소 — 서버가 phone 기준 dedup 하면 앱은 그대로 호출만. (또는 res 에 `reused: true` 내려주면 앱이 "기존 링크가 갱신됐어요" 안내 가능)
+**제안(서버):** issue 를 **upsert** 로. `POST /api/quote/issue` (`quote_issue`, main.py ~15069) 에서 token 생성 직전에:
+```python
+    now = _now_ms()
+    # ② 재발행: 같은 고객(owner+customer)의 아직 제출 안 된 접수서가 있으면 같은 링크 재사용 (내용만 갱신).
+    reused = False
+    with db_conn() as con:
+        _row = con.execute(
+            "SELECT token FROM intake_forms WHERE owner_phone = ? AND phone = ? "
+            "AND submitted_at_ms IS NULL ORDER BY created_at_ms DESC LIMIT 1",
+            (req.devicePhone, req.customerPhone),
+        ).fetchone()
+    if _row:
+        token = _row[0]
+        reused = True
+        with db_conn() as con:              # 같은 token 으로 재삽입(=같은 URL) 위해 옛 행 삭제
+            con.execute("DELETE FROM intake_forms WHERE token = ?", (token,))
+            con.commit()
+    else:
+        token = _generate_intake_token()
+    # (기존 valid_days/expires_at/_persist_quote_issue_to_db 그대로 — token 만 위에서 결정)
+    ...
+    return {..., "reused": reused}     # 응답에 reused 추가(앱이 "기존 링크 갱신" 안내용, 선택)
+```
+- 이미 제출된 폼(submitted_at NULL 아님)이 있으면 매칭 안 돼 → 새 token(제출본 보호). ✅
+- token 이 PK/UNIQUE 라 DELETE 후 재-INSERT 로 같은 URL 유지. 앱 호출은 그대로(서버가 phone 기준 dedup).
 
 **앱 쪽(선택):** 재발행 시 "이미 보낸 접수서가 갱신됐어요 — 고객은 같은 링크에서 새 내용을 봐요" 토스트. 서버 계약 확정 후 배선.
 
