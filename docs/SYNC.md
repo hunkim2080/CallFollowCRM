@@ -6602,3 +6602,9 @@ Play 심사 차단 ① 민감권한(SMS/통화기록) 대응 착수 + MMS 수신
 - 전문가 필수 3건 (검토자): 개인사업자의 소비자성 / 유료전환 동의 이행방식·증빙 / 인재풀 직업안정법 (사업구조 설계 문제).
 - 검증: /terms 신설 조항 전부 확인. 변경: static/terms.html 만. 배포 필요.
 - commit: (아래)
+## 2026-07-07 15:20 · android
+협업 완료표시 버그 fix + 협업 증거사진 개별 삭제(앱측) + 접수서 진행 매칭 정리.
+- 변경(서버 할 일): **`POST /api/shared/photo/delete` 신규** 필요 — 상세·auth·붙일 코드 전부 `docs/SERVER_HANDOFF_collab_photo_delete.md`. 앱은 이미 호출(내가 올린 사진 ✕). 서버 오기 전엔 '삭제 실패' 토스트(graceful).
+- 앱 단독 fix(서버 무관): 완료 눌러도 '협업 중'+배정에 멈추던 CollabAfterCard — title/이름 문자열매칭 → shareId 매칭으로 교체(785a736), 완료 안내문 짧게(2d8aac2).
+- commit: 785a736, 2d8aac2, 1563f82
+- 다음 액션(cowork): ① 위 photo/delete 엔드포인트, ② 기존 접수서 핸드오프(SERVER_HANDOFF_intake_fixes.md: 날짜-1·링크 upsert·owner_memo·vatIncluded·확인 영수증) 아직 대기 중이면 확인.
