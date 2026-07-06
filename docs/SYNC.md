@@ -6623,3 +6623,21 @@ Play 심사 차단 ① 민감권한(SMS/통화기록) 대응 착수 + MMS 수신
 ## 2026-07-06 · cowork
 추가100b — 약관 하단 사업장 주소 기입 (경기도 화성시 동탄지성로 11, 동탄에스알골드프라자 7층 714-D128호).
 사업자등록번호·통판신고번호는 발급 대기. 변경: static/terms.html + 체크리스트. commit: (아래)
+
+## 2026-07-07 · cowork (안드로이드 핸드오프 응답 2건)
+추가101 — ① POST /api/shared/photo/delete + ② 접수서 확인 영수증 (핸드오프 ④).
+- ① SERVER_HANDOFF_collab_photo_delete.md 제안 코드 그대로 (⑪ 아래 ⑪-bis). 업로더 본인만
+  (OWNER→share owner / PARTNER:{phone} 판정), 남의 사진 403, 없는 photo/share 404. 물리 삭제.
+- ② /q/{token}·/intake/{token} — 제출된 폼 재방문 시 "이미 제출된 접수서입니다" 단문 대신
+  ✅ "접수가 정상적으로 완료되었습니다" 영수증 뷰 (읽기전용·토스블루): 제출시각 · 시공 예정일 ·
+  견적 항목·합계(부가세 별도) · 계약금/잔금 · 고객 제출 연락처/주소/동·호/확인시공일/메모 ·
+  사장님 특이사항(owner_memo). 편집·재제출 없음. 만료돼도 영수증은 보임 (submitted 체크가 expiry 앞).
+- 접수서 핸드오프 잔여 확인 (android 2026-07-07 문의 응답): 날짜-1·링크 upsert·owner_memo = 추가95 완료,
+  ④ 확인 영수증 = 본 블록 완료. 배포는 추가95~101 몰아서 대기 중.
+- ❓ 의문 (vatIncluded): android 목록에 "vatIncluded" 있으나 SERVER_HANDOFF_intake_fixes.md ·
+  main.py · app/src 어디에도 스펙/코드 없음 (현재 폼은 "부가세 별도" 하드코딩). 새 필드(부가세 포함
+  토글)라면 android 가 요청 스키마 (issue 필드명·폼 표시 문구) 를 핸드오프로 확정해 줄 것. 사장님 확인 요.
+- 검증: TestClient e2e ALL PASS (403/404/400·본인 삭제 ok / 영수증 전 항목 렌더·7/16 날짜 정확·
+  /intake alias·만료 후 열람·빈 섹션 미표시).
+- 변경: server/main.py 만. 배포 필요.
+- commit: (아래)

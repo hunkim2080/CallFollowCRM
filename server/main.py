@@ -12642,6 +12642,55 @@ async def shared_photos_list(
     return {"photos": photos, "count": len(photos)}
 
 
+# ─── ⑪-bis POST /api/shared/photo/delete ───  (2026-07-07 사장님 — 개별 삭제)
+# 협업 증거사진 삭제. 올린 본인만. (앱은 내가 올린 사진에만 ✕ 노출)
+# 핸드오프: docs/SERVER_HANDOFF_collab_photo_delete.md 그대로.
+
+class SharedPhotoDeleteRequest(BaseModel):
+    share_id: str
+    photo_id: int
+    partner_phone: str            # 요청자(=업로더) phone
+
+
+@app.post("/api/shared/photo/delete")
+async def shared_photo_delete(req: SharedPhotoDeleteRequest) -> dict:
+    share_id = (req.share_id or "").strip()
+    requester = _norm_phone(req.partner_phone)
+    if not share_id or not req.photo_id or not requester:
+        raise HTTPException(400, "share_id, photo_id, partner_phone 필수")
+    with db_conn() as con:
+        srow = con.execute(
+            "SELECT owner_phone, partner_phone FROM shared_sites WHERE share_id = ?",
+            (share_id,),
+        ).fetchone()
+        if not srow:
+            raise HTTPException(404, "share_id 없음")
+        share_owner = _norm_phone(srow[0])
+        prow = con.execute(
+            "SELECT member_id FROM team_site_photos WHERE photo_id = ? AND share_id = ?",
+            (req.photo_id, share_id),
+        ).fetchone()
+        if not prow:
+            raise HTTPException(404, "photo 없음")
+        member_id = prow[0] or ""
+        # 업로더 판정
+        if member_id == "OWNER":
+            uploader = share_owner
+        elif member_id.startswith("PARTNER:"):
+            uploader = _norm_phone(member_id.split(":", 1)[1])
+        else:
+            uploader = ""
+        if requester != uploader:
+            raise HTTPException(403, "권한 없음 (올린 본인만 삭제 가능)")
+        con.execute(
+            "DELETE FROM team_site_photos WHERE photo_id = ? AND share_id = ?",
+            (req.photo_id, share_id),
+        )
+        con.commit()
+    print(f"[shared/photo/delete] share={share_id} photo_id={req.photo_id} by={requester}")
+    return {"ok": True}
+
+
 # ─── ⑫ POST /api/shared/cancel ───  (§dedup 2026-06-13)
 # A 가 보낸 협업 요청 취소 (B 가 아직 응답 안 한 pending 만).
 # 핸드오프 SYNC android 추가2: "(선택) 요청 취소 /api/shared/cancel → 상대 pending 제거"
@@ -15037,11 +15086,8 @@ async def intake_form_page(token: str) -> HTMLResponse:
     data = _intake_row_to_dict(row)
     now = _now_ms()
     if data["submitted_at_ms"] is not None:
-        return HTMLResponse(
-            content="<html><body style='font-family:sans-serif;padding:40px;text-align:center'>"
-                    "<h2 style='color:#16C172'>✅ 이미 제출된 접수서입니다</h2>"
-                    "<p>접수 내용 확인은 사장님께 연락 주세요.</p></body></html>",
-        )
+        # 추가101 (핸드오프 ④) — 확인용 영수증 (읽기전용, 만료 무관)
+        return HTMLResponse(content=_render_intake_receipt_html(data))
     if now > data["expires_at_ms"]:
         return HTMLResponse(
             content="<html><body style='font-family:sans-serif;padding:40px;text-align:center'>"
@@ -15446,6 +15492,121 @@ def _quote_status_page(title: str, body: str, status_code: int = 200) -> HTMLRes
     return HTMLResponse(content=html, status_code=status_code)
 
 
+def _render_intake_receipt_html(data: dict) -> str:
+    """추가101 (핸드오프 ④) — 제출 완료된 접수서 재방문 = 확인용 영수증 (읽기전용).
+
+    고객·사장님 둘 다 링크를 다시 눌러 내용을 확인. 편집·재제출 없음. 만료돼도 표시.
+    내용: 시공일 · 견적 항목·합계 · 계약금/잔금 · 고객 제출 주소/동·호/메모 · 사장님 특이사항.
+    """
+    import datetime
+    import html as _html
+    biz = _html.escape((data.get("biz_name") or "").strip() or "RING-GO 시공")
+    schedule_label = _html.escape(
+        _format_schedule_label(data.get("scheduled_at_ms") or 0, data.get("scheduled_days") or 1))
+    payload = data.get("payload") or {}
+
+    # 제출 시각 (KST)
+    submitted_label = ""
+    if data.get("submitted_at_ms"):
+        _dt = (datetime.datetime.utcfromtimestamp(data["submitted_at_ms"] / 1000)
+               + datetime.timedelta(hours=9))
+        submitted_label = f"{_dt.year}. {_dt.month}. {_dt.day}. {_dt.hour:02d}:{_dt.minute:02d} 접수"
+
+    # 견적 항목
+    items = data.get("estimate_items") or []
+    item_rows = []
+    for it in items:
+        name = _html.escape(str(it.get("name") or ""))
+        price = int(it.get("price_man") or 0)
+        unit = ""
+        if (it.get("unit") == "pyeong") and it.get("area"):
+            unit = f" <span style='color:#9AA3AF;font-size:12.5px'>({price}만원/평 × {it.get('area')}평)</span>"
+        item_rows.append(
+            "<div style='display:flex;justify-content:space-between;padding:9px 0;"
+            "border-bottom:1px solid #F1F3F6;font-size:14.5px'>"
+            f"<span style='color:#333D4B'>{name}{unit}</span>"
+            f"<span style='font-weight:700;color:#0B0F19'>{price}만원</span></div>")
+    if not item_rows:
+        item_rows.append("<div style='padding:9px 0;color:#9AA3AF;font-size:14px'>견적 항목이 등록되지 않았어요.</div>")
+    total_man = int(data.get("total_man") or 0)
+    total_won = total_man * 10000
+
+    # 계약금 / 잔금
+    deposit_html = ""
+    dep = int(data.get("deposit_amount_krw") or 0)
+    if (data.get("deposit_mode") or "none") != "none" and dep > 0:
+        suffix = ""
+        if data.get("deposit_mode") == "ratio" and data.get("deposit_ratio_pct"):
+            suffix = f" (총액의 {int(data['deposit_ratio_pct'])}%)"
+        remain = max(total_won - dep, 0)
+        deposit_html = (
+            "<div style='display:flex;justify-content:space-between;padding:9px 0;font-size:14px;color:#333D4B'>"
+            f"<span>계약금{suffix}</span><span style='font-weight:700'>{_format_won(dep)}원</span></div>"
+            "<div style='display:flex;justify-content:space-between;padding:2px 0 4px;font-size:14px;color:#333D4B'>"
+            f"<span>잔금</span><span style='font-weight:700'>{_format_won(remain)}원</span></div>")
+
+    def _row(label: str, value: str) -> str:
+        return ("<div style='display:flex;gap:12px;padding:8px 0;border-bottom:1px solid #F1F3F6;font-size:14.5px'>"
+                f"<span style='width:88px;flex:none;color:#8B95A1'>{label}</span>"
+                f"<span style='color:#0B0F19;white-space:pre-wrap'>{value}</span></div>")
+
+    # 고객 제출 정보
+    cust_rows = []
+    _phone = (payload.get("phone") or payload.get("contact_phone") or data.get("phone") or "")
+    if _phone:
+        cust_rows.append(_row("연락처", _html.escape(_fmt_phone_dashed(_phone))))
+    _addr = (payload.get("address") or payload.get("road_address") or "").strip()
+    _dong = (payload.get("dong") or payload.get("building_detail") or "").strip()
+    if _addr:
+        cust_rows.append(_row("시공 주소", _html.escape(_addr + (f" {_dong}" if _dong else ""))))
+    if (payload.get("confirmedDate") or "").strip():
+        cust_rows.append(_row("확인 시공일", _html.escape(payload["confirmedDate"].strip())))
+    if (payload.get("memo") or "").strip():
+        cust_rows.append(_row("남기신 메모", _html.escape(payload["memo"].strip())))
+
+    # 사장님 특이사항
+    owner_memo_html = ""
+    _om = (data.get("owner_memo") or "").strip()
+    if _om:
+        owner_memo_html = (
+            "<div class='card'><div class='card-h'>📌 사장님 특이사항</div>"
+            f"<div style='font-size:14.5px;line-height:1.6;color:#0B0F19;white-space:pre-wrap'>{_html.escape(_om)}</div></div>")
+
+    return f"""<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>접수 완료 — {biz}</title>
+<style>
+  body {{ font-family:-apple-system,'Pretendard',sans-serif; background:#F4F5F7; color:#0B0F19;
+         margin:0; padding:20px 16px 40px; }}
+  .wrap {{ max-width:480px; margin:0 auto; }}
+  .done {{ background:#fff; border-radius:16px; padding:26px 20px; text-align:center;
+          box-shadow:0 1px 3px rgba(0,0,0,.05); }}
+  .done .ic {{ font-size:40px; }}
+  .done h1 {{ font-size:18px; font-weight:800; margin:10px 0 4px; color:#0B0F19; }}
+  .done p {{ font-size:13px; color:#8B95A1; margin:0; }}
+  .card {{ background:#fff; border-radius:16px; padding:18px 20px; margin-top:12px;
+          box-shadow:0 1px 3px rgba(0,0,0,.05); }}
+  .card-h {{ font-size:14px; font-weight:800; color:#3182F6; margin-bottom:8px; }}
+  .total {{ display:flex; justify-content:space-between; padding:12px 0 2px; font-size:15px; font-weight:800; }}
+  .foot {{ text-align:center; font-size:12px; color:#9AA3AF; margin-top:20px; line-height:1.6; }}
+</style></head><body><div class="wrap">
+  <div class="done"><div class="ic">✅</div>
+    <h1>접수가 정상적으로 완료되었습니다</h1>
+    <p>{biz} · {submitted_label}</p>
+  </div>
+  <div class="card"><div class="card-h">🗓️ 시공 예정일</div>
+    <div style="font-size:16px;font-weight:800">{schedule_label}</div>
+  </div>
+  <div class="card"><div class="card-h">📋 견적 내용</div>
+    {''.join(item_rows)}
+    <div class="total"><span>합계 (부가세 별도)</span><span style="color:#3182F6">{_format_won(total_won)}원</span></div>
+    {deposit_html}
+  </div>
+  {("<div class='card'><div class='card-h'>🙋 접수하신 정보</div>" + ''.join(cust_rows) + "</div>") if cust_rows else ""}
+  {owner_memo_html}
+  <div class="foot">이 페이지는 확인용이에요. 내용 수정이 필요하면 사장님께 연락해 주세요.</div>
+</div></body></html>"""
+
+
 @app.get("/q/{token}", response_class=HTMLResponse)
 async def quote_page(token: str) -> HTMLResponse:
     """고객 브라우저용 접수서 폼 (프로토 openQuote 1:1)."""
@@ -15459,8 +15620,8 @@ async def quote_page(token: str) -> HTMLResponse:
     data = _intake_row_to_dict(row)
     now = _now_ms()
     if data["submitted_at_ms"] is not None:
-        return _quote_status_page("✅ 이미 제출된 접수서입니다",
-                                  "접수 내용 확인은 사장님께 연락 주세요.")
+        # 추가101 (핸드오프 ④) — 확인용 영수증 (읽기전용, 만료 무관)
+        return HTMLResponse(content=_render_intake_receipt_html(data))
     if now > data["expires_at_ms"]:
         return _quote_status_page("⌛ 만료된 링크",
                                   "이 접수서 링크는 만료되었어요. 사장님께 새 링크를 요청해 주세요.", 410)
