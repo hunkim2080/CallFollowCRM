@@ -501,6 +501,7 @@ def db_init() -> None:
             "biz_valid_days INTEGER",         # 프로토 bizInfo.validDays (견적서 유효기간)
             "confirmed_date_iso TEXT",        # 고객이 확인한 시공일 ISO (있으면)
             "survey_json TEXT",               # 고객 제출 시 유입경로 등 (finalizeQuote.src 구조)
+            "owner_memo TEXT",                # 추가95③ — 사장님 특이사항 메모 (폼에 표시)
         ]:
             col_name = col_def.split()[0]
             try:
@@ -14202,7 +14203,8 @@ def _intake_row_to_dict(row: tuple) -> dict:
     (token, phone, customer_name, issued_at_ms, expires_at_ms, submitted_at_ms,
      payload_json, device_id, owner_phone, created_at_ms,
      scheduled_at_ms, scheduled_days, estimate_items_json, total_man,
-     deposit_amount_krw, deposit_mode, deposit_ratio_pct, biz_name) = row
+     deposit_amount_krw, deposit_mode, deposit_ratio_pct, biz_name,
+     owner_memo) = row  # 추가95③ — owner_memo 컬럼 추가 (19개)
     payload = None
     if payload_json:
         try:
@@ -14232,6 +14234,7 @@ def _intake_row_to_dict(row: tuple) -> dict:
         "deposit_mode": deposit_mode or "none",
         "deposit_ratio_pct": deposit_ratio_pct,
         "biz_name": biz_name or "",
+        "owner_memo": owner_memo or "",  # 추가95③
     }
 
 
@@ -14239,7 +14242,8 @@ _INTAKE_SELECT_COLS = (
     "token, phone, customer_name, issued_at_ms, expires_at_ms, submitted_at_ms, "
     "payload_json, device_id, owner_phone, created_at_ms, "
     "scheduled_at_ms, scheduled_days, estimate_items_json, total_man, "
-    "deposit_amount_krw, deposit_mode, deposit_ratio_pct, biz_name"
+    "deposit_amount_krw, deposit_mode, deposit_ratio_pct, biz_name, "
+    "owner_memo"  # 추가95③
 )
 
 
@@ -14444,7 +14448,7 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
         <span class="qf-badge">확정</span>
       </div>
     </div>
-
+{owner_memo_html}
     <!-- 카드 2: 견적 내역 (표시만) -->
     <div class="q-card">
       <div class="q-card-h"><span class="q-step">2</span>견적 내역</div>
@@ -14855,8 +14859,24 @@ async def intake_form_page(token: str) -> HTMLResponse:
         deposit_html=deposit_html,
         token_js=_html.escape(token, quote=True),
         phone_html=_html.escape(_fmt_phone_dashed(data["phone"]), quote=True),
+        owner_memo_html=_build_owner_memo_html(data.get("owner_memo")),  # 추가95③
     )
     return HTMLResponse(content=page)
+
+
+def _build_owner_memo_html(memo) -> str:
+    """추가95③ — 사장님 특이사항 메모 카드 (있을 때만, 프로토 카드 톤)."""
+    import html as _html
+    m = (memo or "").strip()
+    if not m:
+        return ""
+    return (
+        '\n    <div class="q-card">'
+        '\n      <div class="q-card-h"><span class="q-step">📌</span>사장님 특이사항</div>'
+        '\n      <div style="padding:4px 2px; font-size:14.5px; line-height:1.6; '
+        'color:#0B0F19; white-space:pre-wrap;">' + _html.escape(m) + "</div>"
+        "\n    </div>"
+    )
 
 
 # ============================================================================
@@ -14930,6 +14950,7 @@ class QuoteIssueRequest(BaseModel):
     # 메타
     devicePhone: Optional[str] = None                  # 사장님 phone (앱 식별/티어 검증)
     deviceId: Optional[str] = None
+    ownerMemo: str = ""                                # 추가95③ — 특이사항 메모 (폼에 표시)
 
 
 class QuoteSubmitRequest(BaseModel):
@@ -14968,9 +14989,12 @@ def _workdate_to_epoch_ms(year: int, month: int, day: int) -> int:
     if not month or not day:
         return 0
     import datetime
+    # 추가95 (2026-07-06, P0 날짜 -1 fix) — 옛 코드는 naive dt 에서 손으로 -9h 한 뒤
+    # .timestamp() 가 서버 로컬(KST)로 해석하며 또 -9h 효과 → 이중 보정으로 전날로 밀림.
+    # tzinfo=KST 명시 = 서버 TZ 무관하게 항상 정확한 KST 자정.
     try:
-        dt = datetime.datetime(year or 2026, month, day, 0, 0, 0)
-        return int((dt - datetime.timedelta(hours=9)).timestamp() * 1000)
+        dt = datetime.datetime(year or 2026, month, day, 0, 0, 0, tzinfo=_KST)
+        return int(dt.timestamp() * 1000)
     except (ValueError, OverflowError):
         return 0
 
@@ -15016,10 +15040,10 @@ def _persist_quote_issue_to_db(
                 deposit_amount_krw, deposit_mode, deposit_ratio_pct, biz_name,
                 work_month, work_day, work_year, deposit_value,
                 biz_owner, biz_no, biz_addr, biz_phone, biz_seal, biz_valid_days,
-                confirmed_date_iso, survey_json
+                confirmed_date_iso, survey_json, owner_memo
             ) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?,
                       ?, ?, ?, ?, ?, ?, ?, ?,
-                      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)
+                      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)
             """,
             (
                 token, req.customerPhone, req.customerName, now, expires_at,
@@ -15041,6 +15065,7 @@ def _persist_quote_issue_to_db(
                 biz.get("phone") or None,
                 biz.get("seal") or None,
                 int(biz["validDays"]) if biz.get("validDays") else None,
+                (req.ownerMemo or "").strip()[:300] or None,  # 추가95③
             ),
         )
         con.commit()
@@ -15067,7 +15092,25 @@ async def quote_issue(req: QuoteIssueRequest) -> dict:
         raise HTTPException(400, "workDay 1~31")
 
     now = _now_ms()
-    token = _generate_intake_token()
+    # 추가95② — 재발행 upsert: 같은 고객(owner+customer)의 아직 미제출 접수서가 있으면
+    # 같은 링크(token) 재사용 + 내용만 갱신. 제출된 폼은 매칭 안 됨 (제출본 보호).
+    reused = False
+    _row_reuse = None
+    if req.devicePhone:
+        with db_conn() as con:
+            _row_reuse = con.execute(
+                "SELECT token FROM intake_forms WHERE owner_phone = ? AND phone = ? "
+                "AND submitted_at_ms IS NULL ORDER BY created_at_ms DESC LIMIT 1",
+                (req.devicePhone, req.customerPhone),
+            ).fetchone()
+    if _row_reuse:
+        token = _row_reuse[0]
+        reused = True
+        with db_conn() as con:  # 같은 token 으로 재-INSERT (=같은 URL) 위해 옛 행 삭제
+            con.execute("DELETE FROM intake_forms WHERE token = ?", (token,))
+            con.commit()
+    else:
+        token = _generate_intake_token()
     # 유효기간: biz.validDays 우선, 없으면 INTAKE_TTL_MS (7일)
     valid_days = (req.biz.validDays if (req.biz and req.biz.validDays) else None)
     if valid_days and valid_days > 0:
@@ -15085,13 +15128,15 @@ async def quote_issue(req: QuoteIssueRequest) -> dict:
         f"시공일 확정을 위해 접수서를 작성 부탁드려요. 1분이면 끝나요 😊\n"
         f"▶ {url}"
     )
-    print(f"[quote/issue] customerPhone={req.customerPhone} → token={token} url={url}")
+    print(f"[quote/issue] customerPhone={req.customerPhone} → token={token} url={url}"
+          + (" (재발행 — 기존 링크 재사용)" if reused else ""))
     return {
         "token": token,
         "url": url,
         "issuedAtMs": now,
         "expiresAtMs": expires_at,
         "smsDraft": sms_draft,
+        "reused": reused,  # 추가95② — 앱이 "기존 링크가 갱신됐어요" 안내용
     }
 
 
@@ -15131,6 +15176,7 @@ def _render_quote_form_html(token: str, row: tuple) -> str:
                 deposit_html=deposit_html,
                 token_js=_html.escape(token, quote=True),
                 phone_html=_html.escape(_fmt_phone_dashed(data["phone"]), quote=True),
+                owner_memo_html=_build_owner_memo_html(data.get("owner_memo")),  # 추가95③
             ))
     return page
 
@@ -15272,9 +15318,9 @@ async def quote_submissions_list(
         ).fetchall()
     items = []
     for r in rows:
-        base = _intake_row_to_dict(r[:18])  # 기존 18 컬럼
+        base = _intake_row_to_dict(r[:19])  # 추가95③ — owner_memo 포함 19 컬럼
         # 새 컬럼 12 개 (work_month..survey_json)
-        (wm, wd, wy, dv, bo, bn, ba, bp, bs, bvd, cdi, sj) = r[18:30]
+        (wm, wd, wy, dv, bo, bn, ba, bp, bs, bvd, cdi, sj) = r[19:31]
         survey = None
         if sj:
             try:
@@ -15298,6 +15344,7 @@ async def quote_submissions_list(
             },
             "confirmedDate": cdi,
             "survey": survey,
+            "ownerMemo": base.get("owner_memo") or "",  # 추가95③ — 앱 타임라인 카드용
         })
     return {"items": items, "count": len(items)}
 
@@ -15453,8 +15500,8 @@ async def quote_doc_page(token: str) -> HTMLResponse:
         ).fetchone()
     if not row:
         return _quote_status_page("❌ 유효하지 않은 견적서 링크", "사장님께 다시 링크를 받아 주세요.", 404)
-    base = _intake_row_to_dict(row[:18])
-    (biz_owner, biz_no, biz_addr, biz_phone, biz_seal) = row[18:23]
+    base = _intake_row_to_dict(row[:19])  # 추가95③ — owner_memo 포함 19 컬럼
+    (biz_owner, biz_no, biz_addr, biz_phone, biz_seal) = row[19:24]
 
     biz = (base["biz_name"] or "").strip() or "RING-GO 시공"
     customer = (base["customer_name"] or base["phone"] or "고객")

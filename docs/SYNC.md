@@ -6502,3 +6502,20 @@ Play 심사 차단 ① 민감권한(SMS/통화기록) 대응 착수 + MMS 수신
 - ②[P1] 접수서 재발행 링크 매번 새로 생성 → issue 를 upsert(미제출 폼이면 같은 token 재사용, 같은 url).
 - ③[P1] 접수서 owner_memo(특이사항) 컬럼+필드 추가 → 폼 표시. 앱은 EstSheet accept 모드에 메모칸(서버 필드 ownerMemo 확정 후 배선).
 - 서버 배포 후 SYNC 남기면 android 가 ②③ 앱측 배선.
+
+## 2026-07-06 · cowork (안드로이드 핸드오프 응답: 접수서 버그 3건)
+추가95 — SERVER_HANDOFF_intake_fixes.md 3건 전부 구현.
+- ① [P0] 시공일 -1 fix: _workdate_to_epoch_ms 를 tzinfo=_KST 로 (naive -9h 이중보정 제거).
+  16일 선택 → 폼에 1/16 정확 표시. TZ 무관 안전. 기존 저장분(-9h)은 새 발급부터 정상 (마이그레이션은 사장님 상의).
+- ② [P1] 재발행 upsert: POST /api/quote/issue — 같은 owner+customer 의 미제출 접수서 있으면
+  같은 token(=같은 URL) 재사용 + 내용 갱신. 제출본은 보호 (새 token). 응답에 "reused" 필드 추가.
+- ③ [P1] owner_memo: intake_forms.owner_memo 컬럼 + QuoteIssueRequest.ownerMemo (300자 컷).
+  고객 폼(/q, /intake 둘 다)에 "📌 사장님 특이사항" 카드 (메모 있을 때만, 프로토 카드 톤).
+  /api/quote/submissions 응답에 ownerMemo echo (앱 타임라인용).
+  ⚠️ _INTAKE_SELECT_COLS 19컬럼化 — submissions·/q/{token}/doc 의 인덱스 슬라이스 18→19 보정함.
+- 검증: TestClient e2e ALL PASS (1/16 렌더·15일 부재 / 재발행 동일링크+갱신 / 제출 후 새 token /
+  ownerMemo 표시·echo / 메모 없으면 섹션 미표시 / doc 페이지 정상).
+- 다음 액션 (안드로이드): ② "기존 링크 갱신" 토스트 (응답 reused=true 시), ③ EstSheet 접수 모드에
+  메모 입력칸 → issueQuote 에 ownerMemo 전달. 필드명 확정: "ownerMemo".
+- 변경: server/main.py 만. 배포 필요.
+- commit: (아래)
