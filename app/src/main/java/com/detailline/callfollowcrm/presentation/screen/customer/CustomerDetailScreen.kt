@@ -2840,7 +2840,7 @@ private fun CollabAfterCard(
                     Text("✓", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
                 }
                 Spacer(Modifier.width(9.dp))
-                Text("배정 · 출발 · 도착 · 완료까지 다 마친 현장이에요", fontSize = 12.5.sp,
+                Text("모든 진행이 끝난 현장이에요", fontSize = 12.5.sp,
                     fontWeight = FontWeight.Bold, color = Color(0xFF0E9F56))
             }
         } else {
