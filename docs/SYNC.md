@@ -6519,3 +6519,9 @@ Play 심사 차단 ① 민감권한(SMS/통화기록) 대응 착수 + MMS 수신
   메모 입력칸 → issueQuote 에 ownerMemo 전달. 필드명 확정: "ownerMemo".
 - 변경: server/main.py 만. 배포 필요.
 - commit: (아래)
+
+## 2026-07-06 · android
+접수서/견적서 특이사항 메모 앱측 완료 + 확인페이지(D) 핸드오프 추가.
+- 앱: EstSheet 특이사항 입력칸 1개 → 견적서(이미지) 비고 렌더(앱 단독 동작) + 접수서 issueQuote 에 ownerMemo 전송. commit 7c455b2.
+- cowork 대기: SERVER_HANDOFF_intake_fixes.md ①날짜-1(P0) ②링크upsert ③owner_memo컬럼+폼표시 ④제출완료 확인영수증 페이지(/q/{token} submitted 시 읽기전용 뷰).
+- 서버 배포 후 SYNC 남기면 android 가 링크갱신 토스트 등 마무리.
