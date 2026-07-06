@@ -2724,10 +2724,14 @@ private fun CollabAfterCard(
         if (owner.length >= 9) {
             var sid = shareId
             container.sharedSiteRepository.ownerEvents(owner).onSuccess { events ->
-                // 같은 현장(제목) 매칭. 이름이 구체적이면 사장님까지 일치시켜 여러 협업자 진행 섞임 방지.
-                val mine = events.filter {
-                    it.title == siteTitle && (partnerName == "협업 사장님" || it.partnerName == partnerName)
-                }.maxByOrNull { it.atMs }
+                // 진행 매칭은 shareId(고유키) 우선 — 제목/상대이름 문자열 일치는 깨지기 쉬움.
+                //   버그: 초대 때 굳은 title(그때 주소) vs 지금 주소로 다시 만든 siteTitle 이 다르거나,
+                //   로컬 상대이름("디테일라인 사장")과 서버 partner_name("디테일라인")이 달라 이벤트가 하나도
+                //   안 잡히면 → 완료를 눌러도 step=null → '배정'에 멈춰 '협업 중'으로 보임. (2026-07-06 사장님)
+                //   shareId 없는 옛 기록만 제목+상대이름으로 폴백.
+                val mine = (if (sid.isNotBlank()) events.filter { it.shareId == sid }
+                            else events.filter { it.title == siteTitle && (partnerName == "협업 사장님" || it.partnerName == partnerName) })
+                    .maxByOrNull { it.atMs }
                 step = mine?.step
                 wage = mine?.dailyWage
                 if (sid.isBlank()) sid = mine?.shareId.orEmpty()  // 옛 기록(shareId 없음) → 이벤트에서 보충
