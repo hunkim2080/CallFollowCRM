@@ -9538,8 +9538,17 @@ async def privacy_page():
 # ⚠️ 문안은 초안 — 정식 출시 전 privacy.go.kr 표준 양식 대조/전문가 검토 권장.
 # ============================================================================
 
-_CONSENT_DOC_VERSION = "2026-07-06"
+_CONSENT_DOC_VERSION = "2026-07-06.2"  # 추가97b — 법령 검토 반영 개정
 _CONSENT_DOC_TYPES = {"required", "optional_quality"}
+
+
+@app.get("/privacy/v1", response_class=HTMLResponse, include_in_schema=False)
+async def privacy_v1_page():
+    """추가97b — 이전 버전 처리방침 보관 (작성지침: 변경 이력 열람)."""
+    p = BASE_DIR / "static" / "privacy_v1.html"
+    if not p.exists():
+        raise HTTPException(500, "privacy_v1.html 없음")
+    return p.read_text(encoding="utf-8")
 
 
 @app.get("/consent/required", response_class=HTMLResponse, include_in_schema=False)
