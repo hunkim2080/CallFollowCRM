@@ -6581,3 +6581,11 @@ Play 심사 차단 ① 민감권한(SMS/통화기록) 대응 착수 + MMS 수신
   "AI가 만든 내용은 부정확할 수 있어요. 보내기 전에 확인해 주세요." (SKT 하단 고지 벤치마킹).
 - 검증: /terms·폼 동의 블록·영수증 기록·옛 페이지 호환·JS ALL PASS. 변경: server/main.py + static/terms.html. 배포 필요.
 - commit: (아래)
+
+## 2026-07-06 · cowork (추가95 후속: 과거 날짜 데이터 보정 도구)
+추가99 — POST /api/admin/intake/fix-dates (Bearer).
+- 옛 -9h 버그로 저장된 scheduled_at_ms 를 work_year/month/day (사장님이 고른 원본) 기준 재계산.
+- 정확히 -9h 인 행만 보정 (다른 이유로 어긋난 행은 안 건드림). {apply:false}=미리보기 / {apply:true}=적용. 멱등.
+- 검증: dry-run 탐지/미변경, apply 후 정상화, 비대상 보존, 재실행 0건 ALL PASS.
+- 배포 후 실행 계획: cowork 가 dry-run 결과 확인 → 사장님 보고 → apply.
+- 변경: server/main.py 만. commit: (아래)

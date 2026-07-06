@@ -15283,6 +15283,48 @@ def _persist_quote_issue_to_db(
         con.commit()
 
 
+# ============================================================================
+# 추가99 — 기존 접수서 날짜 -9h 보정 (추가95 P0 fix 의 과거 데이터 마이그레이션)
+# work_year/month/day (사장님이 고른 원본 값) 기준으로 재계산 →
+# 정확히 -9시간 밀린 행만 보정. dry-run(기본) → apply=true 2단계.
+# ============================================================================
+
+@app.post("/api/admin/intake/fix-dates")
+async def admin_intake_fix_dates(
+    payload: Optional[dict] = None,
+    authorization: Optional[str] = Header(default=None),
+) -> dict:
+    _admin_auth_bearer_from_header(authorization)
+    apply = bool((payload or {}).get("apply"))
+    nine_h = 9 * 3600 * 1000
+    fixed = []
+    with db_conn() as con:
+        rows = con.execute(
+            "SELECT token, work_year, work_month, work_day, scheduled_at_ms "
+            "FROM intake_forms "
+            "WHERE work_month IS NOT NULL AND work_day IS NOT NULL AND scheduled_at_ms > 0"
+        ).fetchall()
+        for tok, wy, wm, wd, cur in rows:
+            expected = _workdate_to_epoch_ms(wy or 2026, wm, wd)
+            if expected and cur == expected - nine_h:
+                fixed.append({
+                    "token": tok,
+                    "workDate": f"{wy or 2026}-{wm:02d}-{wd:02d}",
+                    "before_ms": cur,
+                    "after_ms": expected,
+                })
+                if apply:
+                    con.execute(
+                        "UPDATE intake_forms SET scheduled_at_ms = ? WHERE token = ?",
+                        (expected, tok),
+                    )
+        if apply:
+            con.commit()
+    print(f"[intake/fix-dates] apply={apply} 대상={len(fixed)}건")
+    return {"apply": apply, "count": len(fixed), "items": fixed[:100],
+            "note": "apply=false 는 미리보기만. 원본(work_*) 기준 재계산이라 정확히 -9h 인 행만 보정."}
+
+
 # ─── API 1: POST /api/quote/issue ───
 
 @app.post("/api/quote/issue")
