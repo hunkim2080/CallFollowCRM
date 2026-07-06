@@ -41,6 +41,8 @@ fun AppRoot(container: AppContainer) {
                 //   심사자·테스터가 문자 없이도 앱에 들어올 수 있어야 함(Play 검토·베타 테스트). (2026-07-05 사장님)
                 smsSignup && container.preferences.pendingWaitlist -> Destinations.SIGNUP
                 container.preferences.bizPhone.isBlank() -> if (smsSignup) Destinations.SIGNUP else Destinations.LOGIN
+                // 번호는 있는데 개인정보 동의 미완(기존 사용자 포함) → 동의 게이트 1회. (추가97 2026-07-06)
+                container.preferences.consentAgreedVersion != com.detailline.callfollowcrm.AppConfig.CONSENT_VERSION -> Destinations.CONSENT
                 !container.preferences.hasOnboarded -> Destinations.ONBOARDING
                 permsMissing -> Destinations.PERMISSIONS
                 else -> Destinations.HOME

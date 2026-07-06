@@ -127,6 +127,8 @@ fun AppNavHost(
             val goNext = {
                 container.preferences.hasSeenLogin = true
                 val next = when {
+                    // 개인정보 동의 미완 → 동의 게이트 먼저(추가97). 로그인 직후 번호가 있어 POST 가능.
+                    container.preferences.consentAgreedVersion != com.detailline.callfollowcrm.AppConfig.CONSENT_VERSION -> Destinations.CONSENT
                     !container.preferences.hasOnboarded -> Destinations.ONBOARDING
                     com.detailline.callfollowcrm.util.PermissionHelper
                         .allMissingNonNotification(context).isNotEmpty() -> Destinations.PERMISSIONS
@@ -176,19 +178,53 @@ fun AppNavHost(
             com.detailline.callfollowcrm.presentation.screen.signup.SignupScreen(
                 viewModel = vm,
                 onEnrolled = { phone, _, _ ->
-                    completeSignup(phone)   // 신규 가입 → 온보딩(스토리텔링)부터
-                    navController.navigate(Destinations.ONBOARDING) {
+                    completeSignup(phone)   // 신규 가입 → 동의 게이트 → 온보딩(스토리텔링)
+                    navController.navigate(Destinations.CONSENT) {
                         popUpTo(Destinations.SIGNUP) { inclusive = true }
                     }
                 },
                 onMember = { phone, _ ->
                     completeSignup(phone)
-                    container.preferences.hasOnboarded = true   // 기존 회원 → 온보딩 스킵, 바로 홈(권한 남았으면 권한)
-                    val next = if (com.detailline.callfollowcrm.util.PermissionHelper.allMissingNonNotification(ctx).isNotEmpty())
-                        Destinations.PERMISSIONS else Destinations.HOME
+                    container.preferences.hasOnboarded = true   // 기존 회원 → 온보딩 스킵
+                    // 동의 미완이면 게이트 먼저, 아니면 권한/홈.
+                    val next = when {
+                        container.preferences.consentAgreedVersion != com.detailline.callfollowcrm.AppConfig.CONSENT_VERSION -> Destinations.CONSENT
+                        com.detailline.callfollowcrm.util.PermissionHelper.allMissingNonNotification(ctx).isNotEmpty() -> Destinations.PERMISSIONS
+                        else -> Destinations.HOME
+                    }
                     navController.navigate(next) {
                         popUpTo(Destinations.SIGNUP) { inclusive = true }
                     }
+                }
+            )
+        }
+
+        // 개인정보 동의 게이트 (진입 1회) — 필수 동의해야 통과. 동의 = POST /api/consent + prefs 저장 + 다음 화면. (추가97)
+        composable(Destinations.CONSENT) {
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            val scope = androidx.compose.runtime.rememberCoroutineScope()
+            com.detailline.callfollowcrm.presentation.screen.consent.ConsentScreen(
+                optionalPreChecked = container.preferences.toneUploadConsented,
+                onOpenLink = { url ->
+                    runCatching {
+                        ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                    }
+                },
+                onAgree = { optionalAgreed ->
+                    container.preferences.consentAgreedVersion = com.detailline.callfollowcrm.AppConfig.CONSENT_VERSION
+                    container.preferences.toneUploadConsented = optionalAgreed
+                    val phone = container.preferences.bizPhone
+                    scope.launch {
+                        runCatching { container.authRepository.postConsent(phone, "required", true) }
+                        runCatching { container.authRepository.postConsent(phone, "optional_quality", optionalAgreed) }
+                    }
+                    val next = when {
+                        !container.preferences.hasOnboarded -> Destinations.ONBOARDING
+                        com.detailline.callfollowcrm.util.PermissionHelper
+                            .allMissingNonNotification(ctx).isNotEmpty() -> Destinations.PERMISSIONS
+                        else -> Destinations.HOME
+                    }
+                    navController.navigate(next) { popUpTo(Destinations.CONSENT) { inclusive = true } }
                 }
             )
         }

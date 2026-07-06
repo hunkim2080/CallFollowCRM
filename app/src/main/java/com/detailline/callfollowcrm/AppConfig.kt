@@ -20,4 +20,15 @@ object AppConfig {
      *   SOLAPI + 대표번호(발신번호) 준비되면 true 로 바꿔 정식 출시 때 문자 회원가입 활성화. (2026-07-05 사장님)
      */
     const val SMS_SIGNUP_ENABLED: Boolean = false
+
+    /**
+     * 개인정보 동의 문서 버전 (서버 docVersion 과 동일). 이 값이 바뀌면 다음 진입 때 동의 게이트 재노출.
+     *   현재 문안=초안. 정식 출시 전 표준양식 검토 후 갱신. (추가97 2026-07-06 cowork)
+     */
+    const val CONSENT_VERSION: String = "2026-07-06"
+
+    /** 동의문·처리방침 링크 (서버 static). */
+    const val CONSENT_REQUIRED_URL: String = "$BASE_URL/consent/required"
+    const val CONSENT_OPTIONAL_URL: String = "$BASE_URL/consent/optional"
+    const val PRIVACY_POLICY_URL: String = "$BASE_URL/privacy"
 }

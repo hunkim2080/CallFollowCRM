@@ -2325,12 +2325,28 @@ private fun AppFooter() {
                 .format(java.util.Date(com.detailline.callfollowcrm.BuildConfig.BUILD_TIMESTAMP))
         }.getOrDefault("")
     }
+    val linkCtx = androidx.compose.ui.platform.LocalContext.current
+    val openLink: (String) -> Unit = { url ->
+        runCatching { linkCtx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))) }
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // 동의·정책 링크 3종 — 필수 동의문 / 선택 동의문 / 처리방침. (추가97 2026-07-06 cowork)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("개인정보 수집·이용", color = TossTextTertiary, fontSize = 11.5.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable { openLink(com.detailline.callfollowcrm.AppConfig.CONSENT_REQUIRED_URL) }.padding(4.dp))
+            Text("·", color = TossTextTertiary, fontSize = 11.5.sp, modifier = Modifier.padding(horizontal = 2.dp))
+            Text("품질 향상 동의", color = TossTextTertiary, fontSize = 11.5.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable { openLink(com.detailline.callfollowcrm.AppConfig.CONSENT_OPTIONAL_URL) }.padding(4.dp))
+            Text("·", color = TossTextTertiary, fontSize = 11.5.sp, modifier = Modifier.padding(horizontal = 2.dp))
+            Text("처리방침", color = TossTextTertiary, fontSize = 11.5.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable { openLink(com.detailline.callfollowcrm.AppConfig.PRIVACY_POLICY_URL) }.padding(4.dp))
+        }
+        Spacer(Modifier.height(14.dp))
         Text(
             "시공막내 버전 ${com.detailline.callfollowcrm.BuildConfig.VERSION_NAME}",
             color = TossTextSecondary,

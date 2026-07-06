@@ -203,6 +203,14 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean(KEY_TONE_UPLOAD_CONSENTED, false)
         set(value) = prefs.edit().putBoolean(KEY_TONE_UPLOAD_CONSENTED, value).apply()
 
+    /**
+     * 개인정보 필수 동의를 완료한 문서 버전. "" = 미동의. [AppConfig.CONSENT_VERSION] 과 다르면
+     *   진입 시 동의 게이트(ConsentScreen) 1회 노출. (추가97 2026-07-06 cowork)
+     */
+    var consentAgreedVersion: String
+        get() = prefs.getString("consent_agreed_version", "") ?: ""
+        set(value) = prefs.edit().putString("consent_agreed_version", value).apply()
+
     /** 마지막 batch upload 완료 시각. 0 = 한 번도 안 함. */
     var toneLastUploadedAtMs: Long
         get() = prefs.getLong(KEY_TONE_LAST_UPLOADED_AT, 0L)

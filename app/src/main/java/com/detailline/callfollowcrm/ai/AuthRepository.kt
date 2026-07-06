@@ -75,6 +75,22 @@ class AuthRepository(
         }
     }
 
+    /** 개인정보 동의 기록 — POST /api/consent (docType: "required" | "optional_quality"). best-effort. (추가97 2026-07-06) */
+    suspend fun postConsent(phone: String, docType: String, agreed: Boolean): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val payload = JSONObject()
+                .put("phone", phone.filter { it.isDigit() })
+                .put("docType", docType)
+                .put("agreed", agreed)
+                .toString().toRequestBody(jsonMedia)
+            val req = Request.Builder().url("$baseUrl/api/consent").post(payload).build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) throw AuthException(resp.code, "동의 기록 실패")
+            }
+            Unit
+        }
+    }
+
     private fun parseBody(text: String?): JSONObject =
         runCatching { JSONObject(text ?: "{}") }.getOrDefault(JSONObject())
 }

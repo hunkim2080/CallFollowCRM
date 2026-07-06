@@ -4,6 +4,8 @@ object Destinations {
     const val LOGIN = "login"
     /** 회원가입(폰 인증번호) — Play 공개 첫 화면. (2026-07-04) */
     const val SIGNUP = "signup"
+    /** 개인정보 동의 게이트 — 진입 1회(필수+선택). (추가97 2026-07-06) */
+    const val CONSENT = "consent"
     const val ONBOARDING = "onboarding"
     const val PERMISSIONS = "permissions"
     const val HOME = "home"

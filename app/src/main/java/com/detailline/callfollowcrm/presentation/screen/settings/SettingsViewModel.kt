@@ -207,6 +207,8 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
                 if (consentNow) {
                     container.preferences.toneUploadConsented = true
                     _toneRagConsented.value = true
+                    // 선택(품질 향상) 동의를 서버에 기록 — optional_quality. 게이트/설정 어디서 켜든 남김. (추가97 2026-07-06)
+                    runCatching { container.authRepository.postConsent(container.preferences.bizPhone, "optional_quality", true) }
                 }
                 // 폰의 sent SMS 풀 가져오기 (최대 50000건 — 그 이상은 의미 없음).
                 val messages = withContext(Dispatchers.IO) {
