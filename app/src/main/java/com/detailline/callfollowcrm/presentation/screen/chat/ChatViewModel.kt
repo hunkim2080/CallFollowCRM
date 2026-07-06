@@ -254,6 +254,16 @@ class ChatViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
+     * 발행 이력 (2026-07-07 사장님) — 이 번호로 발행한 견적서/시공접수서를 채팅 타임라인에
+     *   "📜 견적서 발행 / 📋 시공접수서 발행" 카드로(발행 시각 기준). 탭하면 다시 열람.
+     */
+    val issuedDocs: StateFlow<List<com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity>> = run {
+        val suffix = phoneNumber.filter { it.isDigit() }.takeLast(8)
+        if (suffix.length < 7) kotlinx.coroutines.flow.flowOf(emptyList())
+        else container.issuedDocRepository.observeBySuffix(suffix)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
      * P0/P1/P2 AI 요약 — ChatScreen 상단 박스와 AI 제안 박스가 구독.
      * Room observe — 서버 응답이 캐시되면 자동 emit.
      * 서버 미구현이면 영구히 null → 화면에 아무 박스도 안 보임 (조용히 숨김).

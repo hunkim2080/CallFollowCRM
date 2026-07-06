@@ -185,6 +185,8 @@ fun ChatScreen(
     val intakeEvents by viewModel.intakeEvents.collectAsState()
     // 변경/처리 이력 이벤트 (2026-06-30) — 일정/금액/잔금 변경을 타임라인 카드로.
     val timelineEvents by viewModel.timelineEvents.collectAsState()
+    // 발행 이력 (2026-07-07) — 발행한 견적서/시공접수서를 타임라인 카드로.
+    val issuedDocs by viewModel.issuedDocs.collectAsState()
     // 접수서 [확인했어요] 발송 전 확인 다이얼로그 — null=닫힘. (변경 이력 알리기와 동일 패턴)
     var intakeConfirm by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity?>(null) }
     // 통화요약 — 통화 카드와 시각으로 짝지어 "AI 요약됨" 상태(불릿+후속문자) 표시.
@@ -196,8 +198,8 @@ fun ChatScreen(
     val autoSummaryActive = remember { viewModel.autoSummaryActive }
     val nowTick = remember { mutableStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(20_000); nowTick.value = System.currentTimeMillis() } }
-    val timelineItems = remember(messages, callRecords, intakeEvents, timelineEvents) {
-        buildChatTimeline(messages, callRecords, intakeEvents, timelineEvents)
+    val timelineItems = remember(messages, callRecords, intakeEvents, timelineEvents, issuedDocs) {
+        buildChatTimeline(messages, callRecords, intakeEvents, timelineEvents, issuedDocs)
     }
     // 통화 1건 ↔ 요약 1건 1:1 배정 (2026-06-15 버그: 가까운 두 통화가 같은 요약 하나를 공유 표시).
     //   ① callRecordId 로 명시 연결된 요약 먼저  ② 남은 통화엔 ±10분 내 '가장 가까운 미사용' 요약 1개.
@@ -329,6 +331,8 @@ fun ChatScreen(
     val estimateDraft = remember { EstimateDraft(estMonthAnchor(System.currentTimeMillis())) }
     // 견적서(직인) 미리보기 — null 아니면 QuoteDocScreen 오버레이 표시 (견적 2단계).
     var quoteDocData by remember { mutableStateOf<QuoteDocData?>(null) }
+    // 발행 이력 카드 → 견적서 '다시 보기' 리뷰 — 닫으면 채팅으로만 복귀(편집기 X). (2026-07-07 사장님)
+    var reviewIssuedDoc by remember { mutableStateOf<QuoteDocData?>(null) }
     // P3 — 시공일 등록 직후 "이 일정으로 계약금 안내문도 만들어드릴까요?" 다이얼로그.
     //   null 이 아니면 표시 + 그 시공일 ts 보관. 사장님이 "네" 누르면 RESERVATION picker 띄움.
     var showDepositFollowupForMs by remember { mutableStateOf<Long?>(null) }
@@ -761,6 +765,21 @@ fun ChatScreen(
                             }
                             is ChatTimelineItem.Intake -> IntakeSegment(ti.event, onConfirm = { intakeConfirm = ti.event })
                             is ChatTimelineItem.Event -> TimelineEventSegment(ti.event)
+                            is ChatTimelineItem.Issued -> IssuedDocSegment(
+                                doc = ti.doc,
+                                onOpen = {
+                                    if (ti.doc.kind == "quote") {
+                                        // 견적서 = 직인 문서 그대로 다시 보기(재공유 가능). 편집기로 안 돌아가는 별도 리뷰 상태.
+                                        quoteDocDataFromIssuedJson(ti.doc.docJson)?.let { reviewIssuedDoc = it }
+                                    } else {
+                                        // 접수서 = 서버 링크(고객이 작성한 실제 폼) 열기. 없으면 견적 요약 문서로.
+                                        val url = ti.doc.url?.takeIf { it.isNotBlank() }
+                                        if (url != null) runCatching {
+                                            context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                                        } else quoteDocDataFromIssuedJson(ti.doc.docJson)?.let { reviewIssuedDoc = it }
+                                    }
+                                }
+                            )
                             is ChatTimelineItem.DateDivider -> ChatDateDivider(chatDateLabel(ti.dayStart))
                         }
                     }
@@ -1468,6 +1487,11 @@ fun ChatScreen(
             onShared = { viewModel.recordIssuedQuote(data) }   // 발행 이력 저장 (2026-07-07 사장님)
         )
     }
+
+    // 발행 이력 카드 → 견적서 다시 보기(재렌더). 닫으면 채팅으로만 복귀(편집기 X), 재기록 안 함. (2026-07-07 사장님)
+    reviewIssuedDoc?.let { data ->
+        QuoteDocScreen(data = data, onClose = { reviewIssuedDoc = null })
+    }
 }
 
 /** 통화 구간 카드 색 — 문자(파랑)와 구분되는 청록. 프로토 .chat-call (#0E9E90/#EAF4F1). */
@@ -1493,6 +1517,10 @@ sealed interface ChatTimelineItem {
     /** 변경/처리 이력 이벤트 (2026-06-30) — 일정/금액/잔금 변경을 처리 시각 기준 카드로. */
     data class Event(val event: com.detailline.callfollowcrm.data.local.entity.TimelineEventEntity) : ChatTimelineItem {
         override val timeMs: Long get() = event.createdAt
+    }
+    /** 발행 이력 (2026-07-07) — 견적서/시공접수서 발행을 발행 시각 기준 카드로. 탭하면 다시 열람. */
+    data class Issued(val doc: com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity) : ChatTimelineItem {
+        override val timeMs: Long get() = doc.issuedAtMs
     }
     /** 프로토 chat-date — 날짜 경계 구분선. 렌더 직전에만 끼워넣음(buildChatTimeline 은 생성 X). */
     data class DateDivider(val dayStart: Long) : ChatTimelineItem {
@@ -1539,14 +1567,17 @@ private fun buildChatTimeline(
     messages: List<com.detailline.callfollowcrm.data.repository.SmsRepository.SmsMessage>,
     calls: List<com.detailline.callfollowcrm.data.local.entity.CallRecordEntity>,
     intakeEvents: List<com.detailline.callfollowcrm.data.local.entity.IntakeEventEntity>,
-    timelineEvents: List<com.detailline.callfollowcrm.data.local.entity.TimelineEventEntity>
+    timelineEvents: List<com.detailline.callfollowcrm.data.local.entity.TimelineEventEntity>,
+    issuedDocs: List<com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity>
 ): List<ChatTimelineItem> {
-    if (calls.isEmpty() && intakeEvents.isEmpty() && timelineEvents.isEmpty()) return messages.map { ChatTimelineItem.Msg(it) }
-    val merged = ArrayList<ChatTimelineItem>(messages.size + calls.size + intakeEvents.size + timelineEvents.size)
+    if (calls.isEmpty() && intakeEvents.isEmpty() && timelineEvents.isEmpty() && issuedDocs.isEmpty())
+        return messages.map { ChatTimelineItem.Msg(it) }
+    val merged = ArrayList<ChatTimelineItem>(messages.size + calls.size + intakeEvents.size + timelineEvents.size + issuedDocs.size)
     messages.forEach { merged += ChatTimelineItem.Msg(it) }
     calls.forEach { merged += ChatTimelineItem.Call(it) }
     intakeEvents.forEach { merged += ChatTimelineItem.Intake(it) }
     timelineEvents.forEach { merged += ChatTimelineItem.Event(it) }
+    issuedDocs.forEach { merged += ChatTimelineItem.Issued(it) }
     return merged.sortedWith(compareByDescending<ChatTimelineItem> { it.timeMs }.thenBy { it is ChatTimelineItem.Msg })
 }
 
@@ -2079,6 +2110,62 @@ private fun TimelineEventSegment(
                 modifier = Modifier.padding(start = 20.dp),
                 maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
+    }
+}
+
+/** 발행 이력 카드 (2026-07-07) — 견적서/시공접수서 발행을 타임라인에. 탭하면 다시 열람. */
+@Composable
+private fun IssuedDocSegment(
+    doc: com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity,
+    onOpen: () -> Unit
+) {
+    val isQuote = doc.kind == "quote"
+    val emoji = if (isQuote) "📜" else "📋"
+    val title = if (isQuote) "견적서 발행" else "시공접수서 발행"
+    val accent = if (isQuote) Color(0xFF3182F6) else Color(0xFF12B886)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFFF7F8FA))
+            .border(1.dp, Color(0x14000000), RoundedCornerShape(12.dp))
+            .clickable { onOpen() }
+            .padding(horizontal = 11.dp, vertical = 9.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(emoji, fontSize = 13.sp)
+            Spacer(Modifier.width(7.dp))
+            Text(title, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
+                modifier = Modifier.weight(1f))
+            Text(DateTimeUtils.formatShort(doc.issuedAtMs), fontSize = 10.5.sp,
+                color = TossTextTertiary, fontWeight = FontWeight.Medium)
+        }
+        val summary = buildString {
+            doc.itemsText?.takeIf { it.isNotBlank() }?.let { append(it) }
+            if (doc.totalWon > 0L) {
+                if (isNotEmpty()) append(" · ")
+                append("${java.text.NumberFormat.getNumberInstance(java.util.Locale.KOREA).format(doc.totalWon)}원")
+            }
+        }
+        if (summary.isNotBlank()) {
+            Spacer(Modifier.height(3.dp))
+            Text(summary, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = accent,
+                modifier = Modifier.padding(start = 20.dp), maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        }
+        doc.memo?.takeIf { it.isNotBlank() }?.let {
+            Spacer(Modifier.height(2.dp))
+            Text("특이사항: $it", fontSize = 11.5.sp, color = TossTextTertiary,
+                modifier = Modifier.padding(start = 20.dp), maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        }
+        Spacer(Modifier.height(3.dp))
+        Text(
+            if (isQuote) "탭하면 견적서 다시 보기 >" else "탭하면 접수 링크 열기 >",
+            fontSize = 11.sp, color = TossBlue, fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(start = 20.dp)
+        )
     }
 }
 
