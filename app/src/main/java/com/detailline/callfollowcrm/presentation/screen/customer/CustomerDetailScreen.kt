@@ -664,15 +664,20 @@ fun CustomerDetailScreen(
             val sitePhotos by viewModel.sitePhotos.collectAsState()
             // 카톡식 사진 첨부 시트(아래→위) — 기존 시스템 "내 파일" 피커는 권한 거부/구형 fallback 으로만 유지. (2026-06-11)
             var showPhotoPicker by remember { mutableStateOf(false) }
+            // 사진 첨부 = 시스템 Photo Picker(권한 없음, Play 정책 + 사진 우선 화면).
+            //   기존 GetMultipleContents(ACTION_GET_CONTENT)는 삼성 "항목 선택" 폴더 탐색기라 연세 있으신 분들이 헤맴
+            //   → PickMultipleVisualMedia(깔끔한 사진 그리드)로 교체. (2026-07-06 사장님)
             val photoPicker = rememberLauncherForActivityResult(
-                contract = ActivityResultContracts.GetMultipleContents()
+                ActivityResultContracts.PickMultipleVisualMedia(10)
             ) { uris -> if (uris.isNotEmpty()) viewModel.addSitePhotos(uris) }
             val launchPhotoPicker = { showPhotoPicker = true }
             val photoMax = viewModel.sitePhotoMax
             val photoTotal = sitePhotos.size + teamPhotos.size
-            // 사진 첨부 = 시스템 선택기(권한 없음, Play 정책). 자체 갤러리 제거. (2026-07-05)
             LaunchedEffect(showPhotoPicker) {
-                if (showPhotoPicker) { showPhotoPicker = false; photoPicker.launch("image/*") }
+                if (showPhotoPicker) {
+                    showPhotoPicker = false
+                    photoPicker.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                }
             }
             TossCard {
                 Column {

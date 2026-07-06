@@ -110,16 +110,24 @@ fun SharedSiteScreen(
     var fullscreenPhoto by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     var pendingUploadShareId by remember { mutableStateOf("") }
     var showPhotoPicker by remember { mutableStateOf(false) }  // 카톡식 사진첨부 바텀시트
-    // 증거사진 선택 → base64 변환(IO) → 업로드. 한 장씩.
-    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+    // 증거사진 선택 → base64 변환(IO) → 업로드. 여러 장 한 번에.
+    //   2026-07-06 사장님: 시스템 Photo Picker 전환 때 여기만 단일(PickVisualMedia)로 들어가 "한 장씩" 회귀 → 다중으로 복구.
+    val photoPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(10)
+    ) { uris ->
         val sid = pendingUploadShareId
-        if (uri != null && sid.isNotBlank()) {
+        if (uris.isNotEmpty() && sid.isNotBlank()) {
             scope.launch {
-                val b64 = withContext(Dispatchers.IO) {
-                    com.detailline.callfollowcrm.util.ImageEncoder.uriToJpegBase64(context, uri)
+                var ok = 0
+                for (uri in uris) {
+                    val b64 = withContext(Dispatchers.IO) {
+                        com.detailline.callfollowcrm.util.ImageEncoder.uriToJpegBase64(context, uri)
+                    }
+                    if (b64 != null) { viewModel.uploadPhotoBase64(sid, b64); ok++ }
                 }
-                if (b64 != null) viewModel.uploadPhotoBase64(sid, b64)
-                else android.widget.Toast.makeText(context, "사진을 불러오지 못했어요", android.widget.Toast.LENGTH_SHORT).show()
+                if (ok < uris.size) {
+                    android.widget.Toast.makeText(context, "일부 사진을 불러오지 못했어요 ($ok/${uris.size})", android.widget.Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
@@ -1146,13 +1154,21 @@ private fun DetailBody(
     val hasAddr = !site.addr.isNullOrBlank()
     when (site.progress) {
         SharedSiteRepository.Progress.ASSIGNED -> {
-            // 출발 알리기 = '출발했어요' 알림만. 길찾기 자동 열기와 분리 — 누를 때마다 네비가 켜지는 게 싫다는
-            //   사장님 요청(2026-06-26). 주소는 아래 카드에서 '복사' 해 원하는 지도앱에 붙여 쓰면 됨.
-            StepActionButton("🚗 출발 알리기", ProtoBlue, Color.White) {
+            // 출발 알리기 = '출발했어요' 알림만. 길찾기 자동 열기와 분리 (2026-06-26).
+            //   ⚠️ 출발은 시공 당일부터 — 그 전엔 버튼을 회색(비활성처럼)으로 보여 '눌러도 될 것처럼' 오해 방지. (2026-07-06 사장님)
+            //   실제 클릭 차단은 onProgress 가 그날 아니면 안내 토스트로 이미 함(억지 클릭 무해).
+            val beforeDay = isBeforeScheduledDay(site.scheduledAtMs)
+            StepActionButton(
+                if (beforeDay) "🚗 출발 알리기 (시공 당일부터)" else "🚗 출발 알리기",
+                if (beforeDay) Color(0xFFE5E8EF) else ProtoBlue,
+                if (beforeDay) TossTextTertiary else Color.White
+            ) {
                 onProgress(SharedSiteRepository.Progress.DEPARTED)
             }
             Spacer(Modifier.height(7.dp))
-            Text("누르면 주인 사장님께 '출발했어요' 알림이 가요. 이때부터 현장 3km에 들어가면 '거의 도착'이 자동으로 가요.",
+            Text(
+                if (beforeDay) "출발은 시공 당일에 누를 수 있어요. 당일이 되면 파랗게 켜져요."
+                else "누르면 주인 사장님께 '출발했어요' 알림이 가요. 이때부터 현장 3km에 들어가면 '거의 도착'이 자동으로 가요.",
                 fontSize = 11.5.sp, color = TossTextTertiary, lineHeight = 16.sp,
                 modifier = Modifier.padding(horizontal = 2.dp))
         }

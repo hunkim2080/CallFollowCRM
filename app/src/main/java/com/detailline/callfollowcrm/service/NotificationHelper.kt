@@ -835,9 +835,13 @@ object NotificationHelper {
         val who = displayName?.takeIf { it.isNotBlank() }
             ?: phoneNumber.filter { it.isDigit() }.takeLast(4).takeIf { it.isNotBlank() }
             ?: "고객"
-        val title = "✨ 막내가 ${who}님 통화를 요약했어요"
-        // 에이닷처럼 요약 주제를 본문에. 없으면 안내문. (2026-07-03 사장님 벤치마킹)
-        val body = preview?.trim()?.replace("\n", " ")?.takeIf { it.isNotBlank() } ?: "탭하면 통화 요약을 바로 확인할 수 있어요"
+        // 에이닷 벤치마킹 — 깔끔하게: 짧은 제목 + 본문에 요약 한 줄 · 누구. (2026-07-06 사장님)
+        //   기존 제목("막내가 X님 통화를 요약했어요")이 너무 길어 지저분 + 요약이 접힌 알림에서 잘림.
+        //   에이닷처럼 제목은 짧게("통화요약 완료!"), 요약 주제는 본문 한 줄로. (앱 상단에 이미 '시공막내' 표시됨)
+        val title = "✨ 통화요약 완료!"
+        val summaryLine = preview?.trim()?.replace("\n", " ")?.takeIf { it.isNotBlank() }
+        val body = if (summaryLine != null) "$summaryLine · ${who}님"
+                   else "${who}님 통화 요약이 준비됐어요 · 탭해서 확인"
         val builder = NotificationCompat.Builder(context, CHANNEL_FOLLOW_UP)
             .setSmallIcon(R.drawable.ic_notification)
             .setColor(NOTIFICATION_BG_COLOR)

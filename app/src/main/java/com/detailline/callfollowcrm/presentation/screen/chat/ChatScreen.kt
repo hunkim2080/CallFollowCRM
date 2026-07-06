@@ -620,9 +620,9 @@ fun ChatScreen(
                 val settled = (customer?.scheduledWorkDate ?: 0L) > 0L ||
                     customer?.balancePaidAt != null ||
                     balancePaidByMsg
-                val action = remember(s.nextActionJson, settled) {
-                    if (settled) null else NextAction.parse(s.nextActionJson)
-                }
+                // 2026-07-06 사장님: "다음 액션 하나도 안 쓴다 → 없애자". 요약만 보여주고 액션 권유는 숨김.
+                //   (파싱/카드 코드는 보존 — 향후 재활성 대비. 여기서 null 로 꺼 UI 에 안 뜨게.) settled 판정도 이제 미사용.
+                val action: NextAction? = null
                 val onActionHandler: (NextAction) -> Unit = { a -> triggerActionByType(a.actionType) }
                 val showCollapsed = composerFocused || summaryManualCollapsed
                 val isSummaryRefreshing by viewModel.isSummaryRefreshing.collectAsState()
@@ -1439,8 +1439,8 @@ fun ChatScreen(
                 quoteDocData = data
                 showEstimateBuilder = false
             },
-            onIssueIntake = { issItems, total, y, mo, d, days, dm, dv, mmo ->
-                viewModel.issueQuoteIntake(issItems, total, y, mo, d, days, dm, dv, mmo) { result ->
+            onIssueIntake = { issItems, total, y, mo, d, days, dm, dv, mmo, vat ->
+                viewModel.issueQuoteIntake(issItems, total, y, mo, d, days, dm, dv, mmo, vat) { result ->
                     result.onSuccess { draftLink ->
                         setInput(draftLink)
                         showEstimateBuilder = false
@@ -3598,8 +3598,8 @@ private fun EstimateBuilderDialog(
     onIssueIntake: (
         items: List<com.detailline.callfollowcrm.ai.IntakeFormRepository.QuoteIssueItem>,
         total: Int, workYear: Int, workMonth: Int, workDay: Int, workDays: Int,
-        depMode: String, depVal: Int, memo: String
-    ) -> Unit = { _, _, _, _, _, _, _, _, _ -> },
+        depMode: String, depVal: Int, memo: String, vatIncluded: Boolean
+    ) -> Unit = { _, _, _, _, _, _, _, _, _, _ -> },
     bizName: String = "",
     bizOwner: String = "",
     bizNo: String = "",
@@ -3740,7 +3740,7 @@ private fun EstimateBuilderDialog(
                     }
                 }
             }
-            // 받는 분 + 부가세 (견적서 전용) — (2026-07-03 사장님)
+            // 받는 분 (견적서 전용) — (2026-07-03 사장님)
             if (mode == "quote") {
                 Spacer(Modifier.height(11.dp))
                 Text("받는 분", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
@@ -3750,6 +3750,9 @@ private fun EstimateBuilderDialog(
                     recipient, { recipient = it },
                     placeholder = defaultRecipient.ifBlank { "고객님" }
                 )
+            }
+            // 부가세 (견적서 + 시공접수서 공용) — 나중에 분쟁 없게 접수서에도 별도/포함 명시. (2026-07-06 사장님)
+            if (mode != "text") {
                 Spacer(Modifier.height(11.dp))
                 Text("부가세", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
                     modifier = Modifier.padding(start = 2.dp))
@@ -3821,14 +3824,19 @@ private fun EstimateBuilderDialog(
                 }
             }
             // 특이사항 메모 (시공접수서/견적서 공용) — 견적서 비고에 표시 + 접수서엔 ownerMemo 로 전송. (2026-07-06 사장님)
+            //   ⚠️ 의미: 사장님이 고객에게 '미리 알릴' 약속·고지사항 (고객이 주는 정보 X). (2026-07-06 사장님 정정)
             if (mode != "text") {
                 Spacer(Modifier.height(11.dp))
                 Text("특이사항 (선택)", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
                     modifier = Modifier.padding(start = 2.dp))
+                Spacer(Modifier.height(3.dp))
+                Text("고객에게 미리 알릴 약속·안내를 적어요 (견적서·접수서에 표시)",
+                    fontSize = 11.sp, color = TossTextTertiary, lineHeight = 15.sp,
+                    modifier = Modifier.padding(start = 2.dp))
                 Spacer(Modifier.height(6.dp))
                 com.detailline.callfollowcrm.presentation.component.SheetTextField(
                     memo, { memo = it },
-                    placeholder = "예: 현관 비번 1234#, 2층 화장실만 시공"
+                    placeholder = "예: 사다리차 비용은 별도예요 · 주차공간 미리 부탁드려요"
                 )
             }
             Spacer(Modifier.height(6.dp))
@@ -3948,7 +3956,7 @@ private fun EstimateBuilderDialog(
                             cal?.get(java.util.Calendar.YEAR) ?: 0,
                             cal?.let { it.get(java.util.Calendar.MONTH) + 1 } ?: 0,
                             cal?.get(java.util.Calendar.DAY_OF_MONTH) ?: 0,
-                            workDays, depMode, depVal.toIntOrNull() ?: 0, memo
+                            workDays, depMode, depVal.toIntOrNull() ?: 0, memo, vatIncluded
                         )
                     }
                 }

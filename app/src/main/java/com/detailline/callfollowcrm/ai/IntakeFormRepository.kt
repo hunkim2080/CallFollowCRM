@@ -63,7 +63,8 @@ class IntakeFormRepository(
         bizName: String, bizOwner: String, bizNo: String, bizAddr: String,
         bizPhone: String, bizSeal: String, bizValidDays: Int,
         devicePhone: String, deviceId: String,
-        ownerMemo: String = ""
+        ownerMemo: String = "",
+        vatIncluded: Boolean = false
     ): Result<IssuedQuote> = withContext(Dispatchers.IO) {
         runCatching {
             val payload = JSONObject().apply {
@@ -92,6 +93,8 @@ class IntakeFormRepository(
                 put("deviceId", deviceId)
                 // 특이사항 메모 — 서버가 owner_memo 로 저장·폼 표시 (SERVER_HANDOFF_intake_fixes ③). (2026-07-06)
                 if (ownerMemo.isNotBlank()) put("ownerMemo", ownerMemo)
+                // 부가세 별도(false)/포함(true) — 서버가 접수서에 명시(분쟁 방지). (2026-07-06 사장님, 서버 render=cowork)
+                put("vatIncluded", vatIncluded)
             }
             val req = Request.Builder()
                 .url("$baseUrl/api/quote/issue")
