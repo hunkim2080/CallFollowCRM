@@ -9542,6 +9542,15 @@ _CONSENT_DOC_VERSION = "2026-07-06.2"  # 추가97b — 법령 검토 반영 개�
 _CONSENT_DOC_TYPES = {"required", "optional_quality"}
 
 
+@app.get("/terms", response_class=HTMLResponse, include_in_schema=False)
+async def terms_page():
+    """추가98 — 이용약관 (초안. AI 면책 §7 + 환불 §8 포함). PG 심사·결제 페이지에서 링크."""
+    p = BASE_DIR / "static" / "terms.html"
+    if not p.exists():
+        raise HTTPException(500, "terms.html 없음")
+    return p.read_text(encoding="utf-8")
+
+
 @app.get("/privacy/v1", response_class=HTMLResponse, include_in_schema=False)
 async def privacy_v1_page():
     """추가97b — 이전 버전 처리방침 보관 (작성지침: 변경 이력 열람)."""
@@ -9619,6 +9628,24 @@ async def consent_status(phone: str) -> dict:
             )
     return {"phone": phone_digits, "currentDocVersion": _CONSENT_DOC_VERSION,
             "consents": out}
+
+
+def _record_intake_consent(customer_phone: Optional[str]) -> None:
+    """추가98 — 접수서 폼에서 고객이 개인정보 동의 체크 시 영수증 기록.
+    doc_type='intake_customer'. 실패해도 접수 자체는 막지 않음."""
+    try:
+        p = _norm_phone(customer_phone)
+        if not p:
+            return
+        with db_conn() as con:
+            con.execute(
+                "INSERT INTO consents (phone, doc_type, doc_version, agreed, ip, created_at_ms) "
+                "VALUES (?, 'intake_customer', ?, 1, '', ?)",
+                (p, _CONSENT_DOC_VERSION, _now_ms()),
+            )
+            con.commit()
+    except Exception:
+        pass
 
 
 # ============================================================================
@@ -14230,6 +14257,7 @@ class IntakeSubmitRequest(BaseModel):
     building_detail: Optional[str] = None             # 동/호수 (선택)
     memo: Optional[str] = None                        # 현장 메모 (선택)
     source: Optional[str] = None                      # 유입 경로 합쳐서 (선택, finalizeQuote 의 src)
+    privacy_agreed: bool = False                      # 추가98 — 고객 개인정보 동의 (영수증 기록용)
 
 
 @app.post("/api/intake-form/issue")
@@ -14332,6 +14360,8 @@ async def intake_form_submit(req: IntakeSubmitRequest) -> dict:
         )
         con.commit()
     print(f"[intake-form/submit] token={req.token} phone={phone} owner={owner_phone} → submitted")
+    if req.privacy_agreed:
+        _record_intake_consent(contact_phone)  # 추가98 — 고객 동의 영수증
 
     # 추가59 (2026-06-25) — 사장님 폰에 즉시 FCM data-only (60초 폴링 대기 X).
     # 앱 (RingGoFcmService) 가 type=intake_submitted 받으면 즉시 sync.
@@ -14634,6 +14664,17 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
       <div id="qs-body"></div>
     </div>
 
+    <!-- 추가98 — (필수) 고객 개인정보 수집·이용 동의 (법정 필수 — 사장님 승인 하 프로토 외 추가) -->
+    <div class="q-agree" id="q-privacy" onclick="togglePrivacy()">
+      <span class="qa-box">✓</span>
+      <span>(필수) 개인정보 수집·이용 동의<br>
+        <span style="font-weight:500; font-size:12px; color:var(--t2); line-height:1.5;">
+        연락처·현장 주소·메모를 <b>시공 접수와 일정 확정</b> 목적으로 수집하며,
+        시공 완료 후 <b>최대 1년</b> 보관 후 파기합니다. 동의하지 않으면 접수가 불가능합니다.
+        <a href="/privacy" target="_blank" onclick="event.stopPropagation()" style="color:var(--blue-dark); font-weight:700;">자세히 보기</a>
+        </span></span>
+    </div>
+
     <!-- 동의 -->
     <div class="q-agree" id="q-agree" onclick="toggleAgree()">
       <span class="qa-box">✓</span>
@@ -14666,7 +14707,7 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
 <script>
   var TOKEN = "{token_js}";
   var BIZ = {biz_js};
-  var quoteSel = {{ agree:false }};
+  var quoteSel = {{ agree:false, privacy:false }};
   var quoteAddr = "";
   var quoteSurvey = {{ asked:false, busy:false, source:null, keyword:'', category:null, etc:'', done:false }};
   var pendingConfirm = null;
@@ -14704,10 +14745,17 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
     updateSubmit();
   }}
 
+  // 추가98 — (필수) 개인정보 동의
+  function togglePrivacy() {{
+    quoteSel.privacy = !quoteSel.privacy;
+    document.getElementById('q-privacy').classList.toggle('on', quoteSel.privacy);
+    updateSubmit();
+  }}
+
   function updateSubmit() {{
     var btn = document.getElementById('q-submit');
     if (!btn) return;
-    btn.disabled = !(quoteSel.agree && quoteAddr);
+    btn.disabled = !(quoteSel.agree && quoteSel.privacy && quoteAddr);
   }}
 
   // 유입경로 설문 (프로토 renderQuoteSurvey 1:1)
@@ -14821,6 +14869,7 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
 
   // 제출 (프로토 submitQuote → finalizeQuote)
   function submitQuote() {{
+    if (!quoteSel.privacy) {{ alert('개인정보 수집·이용 동의에 체크해주세요'); return; }}
     if (!quoteSel.agree) {{ alert('맨 아래 확인에 체크해주세요'); return; }}
     if (!quoteAddr)      {{ alert('현장 주소를 검색해 주세요'); return; }}
     var dong = (document.getElementById('q-dong').value || '').trim();
@@ -14846,6 +14895,7 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
       building_detail: dong || null,
       memo: memo || null,
       source: buildSrc() || null,
+      privacy_agreed: quoteSel.privacy === true,  // 추가98 — 고객 동의 영수증용
     }};
     try {{
       var resp = await fetch('/api/intake-form/submit', {{
@@ -15135,6 +15185,10 @@ class QuoteSubmitRequest(BaseModel):
     survey: Optional[dict] = None                      # 유입경로 {source, keyword?, category?, etc?}
     # 옛 폼 alias — source 문자열 (서버에서 survey:{source:...} 로 wrapping)
     source: Optional[str] = None
+    privacyAgreed: bool = Field(                       # 추가98 — 고객 개인정보 동의
+        default=False,
+        validation_alias=AliasChoices("privacyAgreed", "privacy_agreed"),
+    )
 
 
 # ─── helper ───
@@ -15431,6 +15485,8 @@ async def quote_submit(token: str, req: QuoteSubmitRequest) -> dict:
         )
         con.commit()
     print(f"[quote/submit] token={token} customerPhone={owner_customer_phone} → submitted")
+    if req.privacyAgreed:
+        _record_intake_consent(phone)  # 추가98 — 고객 동의 영수증
     return {"ok": True, "submittedAtMs": now, "customerPhone": owner_customer_phone}
 
 
