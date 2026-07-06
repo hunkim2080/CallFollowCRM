@@ -519,6 +519,7 @@ def db_init() -> None:
             "confirmed_date_iso TEXT",        # 고객이 확인한 시공일 ISO (있으면)
             "survey_json TEXT",               # 고객 제출 시 유입경로 등 (finalizeQuote.src 구조)
             "owner_memo TEXT",                # 추가95③ — 사장님 특이사항 메모 (폼에 표시)
+            "vat_included INTEGER",           # 추가102 — 부가세 포함(1)/별도(0). NULL=옛 발급분(별도 취급)
         ]:
             col_name = col_def.split()[0]
             try:
@@ -14441,7 +14442,7 @@ def _intake_row_to_dict(row: tuple) -> dict:
      payload_json, device_id, owner_phone, created_at_ms,
      scheduled_at_ms, scheduled_days, estimate_items_json, total_man,
      deposit_amount_krw, deposit_mode, deposit_ratio_pct, biz_name,
-     owner_memo) = row  # 추가95③ — owner_memo 컬럼 추가 (19개)
+     owner_memo, vat_included) = row  # 추가95③ owner_memo + 추가102 vat_included (20개)
     payload = None
     if payload_json:
         try:
@@ -14472,6 +14473,7 @@ def _intake_row_to_dict(row: tuple) -> dict:
         "deposit_ratio_pct": deposit_ratio_pct,
         "biz_name": biz_name or "",
         "owner_memo": owner_memo or "",  # 추가95③
+        "vat_included": bool(vat_included),  # 추가102 — NULL/0=별도, 1=포함
     }
 
 
@@ -14480,7 +14482,7 @@ _INTAKE_SELECT_COLS = (
     "payload_json, device_id, owner_phone, created_at_ms, "
     "scheduled_at_ms, scheduled_days, estimate_items_json, total_man, "
     "deposit_amount_krw, deposit_mode, deposit_ratio_pct, biz_name, "
-    "owner_memo"  # 추가95③
+    "owner_memo, vat_included"  # 추가95③ + 추가102 (20컬럼)
 )
 
 
@@ -14691,7 +14693,7 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
       <div class="q-card-h"><span class="q-step">2</span>견적 내역</div>
       {items_html}
       <div class="q-total"><span>합계</span><b>{total_man_html}만원</b></div>
-      <div class="q-vat">부가세 별도</div>
+      <div class="q-vat">{vat_label_html}</div>
       {deposit_html}
     </div>
 
@@ -15114,8 +15116,20 @@ async def intake_form_page(token: str) -> HTMLResponse:
         token_js=_html.escape(token, quote=True),
         phone_html=_html.escape(_fmt_phone_dashed(data["phone"]), quote=True),
         owner_memo_html=_build_owner_memo_html(data.get("owner_memo")),  # 추가95③
+        vat_label_html=_vat_label(data.get("vat_included")),  # 추가102
     )
     return HTMLResponse(content=page)
+
+
+def _vat_label(vat_included) -> str:
+    """추가102 — 부가세 별도/포함 한 줄 표기 (사장님 2026-07-07: 분쟁 방지 명시).
+
+    앱 견적서(QuoteDocScreen) 규칙과 일치:
+      별도(false): 합계 = 공급가 + VAT(공급가×10%) → 표기 "부가세 별도 (공급가의 10% 별도)"
+      포함(true):  합계 = 총액 (VAT 역산 포함)     → 표기 "부가세 포함"
+    NULL(옛 발급분) = 별도 취급 (기존 폼 하드코딩과 동일).
+    """
+    return "부가세 포함" if vat_included else "부가세 별도 (공급가의 10% 별도)"
 
 
 def _build_owner_memo_html(memo) -> str:
@@ -15205,6 +15219,7 @@ class QuoteIssueRequest(BaseModel):
     devicePhone: Optional[str] = None                  # 사장님 phone (앱 식별/티어 검증)
     deviceId: Optional[str] = None
     ownerMemo: str = ""                                # 추가95③ — 특이사항 메모 (폼에 표시)
+    vatIncluded: bool = False                          # 추가102 — 부가세 포함(true)/별도(false). 앱 default false
 
 
 class QuoteSubmitRequest(BaseModel):
@@ -15298,10 +15313,10 @@ def _persist_quote_issue_to_db(
                 deposit_amount_krw, deposit_mode, deposit_ratio_pct, biz_name,
                 work_month, work_day, work_year, deposit_value,
                 biz_owner, biz_no, biz_addr, biz_phone, biz_seal, biz_valid_days,
-                confirmed_date_iso, survey_json, owner_memo
+                confirmed_date_iso, survey_json, owner_memo, vat_included
             ) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?,
                       ?, ?, ?, ?, ?, ?, ?, ?,
-                      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)
+                      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?)
             """,
             (
                 token, req.customerPhone, req.customerName, now, expires_at,
@@ -15324,6 +15339,7 @@ def _persist_quote_issue_to_db(
                 biz.get("seal") or None,
                 int(biz["validDays"]) if biz.get("validDays") else None,
                 (req.ownerMemo or "").strip()[:300] or None,  # 추가95③
+                1 if req.vatIncluded else 0,  # 추가102 — 부가세 포함/별도
             ),
         )
         con.commit()
@@ -15478,6 +15494,7 @@ def _render_quote_form_html(token: str, row: tuple) -> str:
                 token_js=_html.escape(token, quote=True),
                 phone_html=_html.escape(_fmt_phone_dashed(data["phone"]), quote=True),
                 owner_memo_html=_build_owner_memo_html(data.get("owner_memo")),  # 추가95③
+                vat_label_html=_vat_label(data.get("vat_included")),  # 추가102
             ))
     return page
 
@@ -15598,7 +15615,8 @@ def _render_intake_receipt_html(data: dict) -> str:
   </div>
   <div class="card"><div class="card-h">📋 견적 내용</div>
     {''.join(item_rows)}
-    <div class="total"><span>합계 (부가세 별도)</span><span style="color:#3182F6">{_format_won(total_won)}원</span></div>
+    <div class="total"><span>합계</span><span style="color:#3182F6">{_format_won(total_won)}원</span></div>
+    <div style="text-align:right;font-size:12px;color:#9AA3AF;margin-top:2px">{_vat_label(data.get("vat_included"))}</div>
     {deposit_html}
   </div>
   {("<div class='card'><div class='card-h'>🙋 접수하신 정보</div>" + ''.join(cust_rows) + "</div>") if cust_rows else ""}
@@ -15736,9 +15754,9 @@ async def quote_submissions_list(
         ).fetchall()
     items = []
     for r in rows:
-        base = _intake_row_to_dict(r[:19])  # 추가95③ — owner_memo 포함 19 컬럼
+        base = _intake_row_to_dict(r[:20])  # 추가102 — vat_included 포함 20 컬럼
         # 새 컬럼 12 개 (work_month..survey_json)
-        (wm, wd, wy, dv, bo, bn, ba, bp, bs, bvd, cdi, sj) = r[19:31]
+        (wm, wd, wy, dv, bo, bn, ba, bp, bs, bvd, cdi, sj) = r[20:32]
         survey = None
         if sj:
             try:
@@ -15763,6 +15781,7 @@ async def quote_submissions_list(
             "confirmedDate": cdi,
             "survey": survey,
             "ownerMemo": base.get("owner_memo") or "",  # 추가95③ — 앱 타임라인 카드용
+            "vatIncluded": bool(base.get("vat_included")),  # 추가102 — 앱 이력 카드용
         })
     return {"items": items, "count": len(items)}
 
@@ -15829,7 +15848,7 @@ QUOTE_DOC_HTML_TEMPLATE = """<!doctype html>
     <tbody>
       {items_rows_html}
       <tr class="qd-sum">
-        <td colspan="2">합계 (부가세 별도)</td>
+        <td colspan="2">합계 ({vat_doc_label_html})</td>
         <td>{total_label_html}원</td>
       </tr>
     </tbody>
@@ -15918,8 +15937,8 @@ async def quote_doc_page(token: str) -> HTMLResponse:
         ).fetchone()
     if not row:
         return _quote_status_page("❌ 유효하지 않은 견적서 링크", "사장님께 다시 링크를 받아 주세요.", 404)
-    base = _intake_row_to_dict(row[:19])  # 추가95③ — owner_memo 포함 19 컬럼
-    (biz_owner, biz_no, biz_addr, biz_phone, biz_seal) = row[19:24]
+    base = _intake_row_to_dict(row[:20])  # 추가102 — vat_included 포함 20 컬럼
+    (biz_owner, biz_no, biz_addr, biz_phone, biz_seal) = row[20:25]
 
     biz = (base["biz_name"] or "").strip() or "RING-GO 시공"
     customer = (base["customer_name"] or base["phone"] or "고객")
@@ -15959,6 +15978,7 @@ async def quote_doc_page(token: str) -> HTMLResponse:
         addr_html=addr_html,
         phone_html=phone_html,
         seal_label_html=seal_label,
+        vat_doc_label_html=("부가세 포함" if base.get("vat_included") else "부가세 별도"),  # 추가102
     )
     return HTMLResponse(content=page)
 

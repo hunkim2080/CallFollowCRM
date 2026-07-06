@@ -6649,3 +6649,21 @@ Play 심사 차단 ① 민감권한(SMS/통화기록) 대응 착수 + MMS 수신
 - 남은 cowork→android(급하지 않음): 402 free_expired upsell 모달(게이팅 OFF라 여유).
 - commit: 785a736·2d8aac2(협업), 53d7c9d(발행이력), (링크갱신+AI고지), (동의게이트)
 - 다음 액션(cowork): 없음(위 3건은 서버 이미 완료분 앱 배선). photo/delete·intake_fixes 핸드오프는 여전히 대기 중이면 확인.
+
+## 2026-07-07 · cowork (사장님 요청: 접수서 부가세 별도/포함 표시)
+추가102 — vatIncluded 서버 수신 + 고객 노출 문서 전부 표기 (분쟁 방지).
+- ① intake_forms.vat_included 컬럼 (owner_memo 패턴, ALTER 마이그레이션). NULL(옛 발급분)=별도 취급.
+- ② POST /api/quote/issue 가 vatIncluded(bool, 앱 default false) 수신·저장. 재발행 upsert 시 함께 갱신.
+- ③ 표기 3곳: 접수서 폼(/q·/intake 합계 밑 q-vat) + 확인영수증(합계 밑) =
+  false "부가세 별도 (공급가의 10% 별도)" / true "부가세 포함".
+  견적서 직인(/q/{token}/doc) 합계 행도 하드코딩 "부가세 별도" → 별도/포함 동적 (포함 발급인데
+  웹 견적서가 '별도'로 찍히는 모순 = 분쟁 리스크라 함께 수정).
+  합계 숫자는 기존대로 totalMan 그대로 (공급가/VAT 분해 표는 앱 QuoteDocScreen 담당 — 규칙 일치 확인함:
+  별도 합계=공급가+10% / 포함 합계=총액 역산).
+- ④ GET /api/quote/submissions 에 vatIncluded echo (앱 이력 카드용).
+- ⚠️ _INTAKE_SELECT_COLS 20컬럼化 — submissions r[:20]/r[20:32], doc row[:20]/row[20:25] 슬라이스 보정.
+- 검증: TestClient ①~⑨ ALL PASS (별도/포함/생략/NULL 옛행/alias/doc/upsert 갱신/영수증/echo)
+  + 추가101 회귀 ALL PASS. 변경: server/main.py 만. 배포 필요.
+- 다음 액션 (android): 없음 (앱은 이미 전송 중 — 서버 배포되면 표기 자동 반영). 추가95②~추가102 로
+  접수서 요청 전건 닫힘.
+- commit: (아래)
