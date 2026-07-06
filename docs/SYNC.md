@@ -6525,3 +6525,15 @@ Play 심사 차단 ① 민감권한(SMS/통화기록) 대응 착수 + MMS 수신
 - 앱: EstSheet 특이사항 입력칸 1개 → 견적서(이미지) 비고 렌더(앱 단독 동작) + 접수서 issueQuote 에 ownerMemo 전송. commit 7c455b2.
 - cowork 대기: SERVER_HANDOFF_intake_fixes.md ①날짜-1(P0) ②링크upsert ③owner_memo컬럼+폼표시 ④제출완료 확인영수증 페이지(/q/{token} submitted 시 읽기전용 뷰).
 - 서버 배포 후 SYNC 남기면 android 가 링크갱신 토스트 등 마무리.
+
+## 2026-07-06 · cowork (등급 잠금 게이팅 1단계 — 스위치 OFF)
+추가96 — 무료 만료 잠금 enforcement 서버측 (PRODUCT_MONETIZATION_DRAFT §9 사장님 확정 목록).
+- env GATING_ENFORCE=1 일 때만 작동. 기본 OFF = 베타 기간 아무 변화 없음 (베타 무제한 철학 유지).
+- 규칙 (ON 시): tester + free_until_ms 경과 → 402. free_until NULL(초기 베타) = 무제한. 유료(standard/premium) = 통과.
+- 적용 지점: ① check_rate_limit (모든 LLM endpoint 초크포인트 = "AI 기능·통화 요약" 일괄)
+  ② POST /api/quote/issue (접수서 링크·견적서 발급). 견적서 doc 뷰는 발급 게이트로 충분 (이미 보낸 고객 열람은 안 막음).
+- 402 detail = JSON 문자열: {"code":"free_expired","message":"무료 체험 기간이 끝났어요...","freeUntilMs":N}.
+- 다음 액션 (안드로이드): 402 + code=free_expired 파싱 → upsell 모달 ("요금제 선택" 화면). 정식 전환 전까지 여유.
+- 미구현 잠금 대상 (부재중 자동응답/시공 하루 전 안내/정기문자 예약)은 만들 때 _check_free_trial_gate 한 줄 삽입.
+- 검증: ENFORCE=1 (만료 402/초기베타 통과/유료 통과/접수서 402·200) + ENFORCE OFF (만료여도 통과) ALL PASS.
+- 변경: server/main.py 만. 배포해도 무변화 (스위치 OFF). commit: (아래)

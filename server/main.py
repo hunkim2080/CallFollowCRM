@@ -972,8 +972,57 @@ def db_get(phone: str) -> Optional[dict]:
 # ============================================================================
 # Rate limit + 사용량 기록
 # ============================================================================
+# ============================================================================
+# 추가96 — 등급 잠금 게이팅 1단계 (사장님 확정 목록: PRODUCT_MONETIZATION_DRAFT §9)
+# 스위치: env GATING_ENFORCE=1 일 때만 작동. 기본 OFF = 베타 기간 아무 변화 없음.
+# 규칙 (OFF→ON 시):
+#   - tester(무료) 이고 free_until_ms 가 지났으면 → AI·접수서·견적서 402
+#   - free_until_ms 가 NULL 인 tester (초기 베타 사장님들) = 무제한 (베타 답례, 유료화 draft §7-1)
+#   - standard/premium (subscribers 활성 유료) = 통과
+# 402 응답 detail 은 JSON 문자열 {"code":"free_expired", ...} — 앱이 파싱해 upsell 모달.
+# ============================================================================
+
+GATING_ENFORCE = os.environ.get("GATING_ENFORCE", "0") == "1"
+
+
+def _check_free_trial_gate(phone: Optional[str]) -> None:
+    """무료 체험 만료 게이트. GATING_ENFORCE=1 + tester + free_until 경과 시 402."""
+    if not GATING_ENFORCE or not phone:
+        return
+    phone_digits = _norm_phone(phone)
+    if not phone_digits:
+        return
+    now = _now_ms()
+    with db_conn() as con:
+        sub = con.execute(
+            "SELECT monthly_price_krw, plan_tier FROM subscribers "
+            "WHERE phone = ? AND churned_at_ms IS NULL",
+            (phone_digits,),
+        ).fetchone()
+        if sub and ((sub[0] or 0) > 0 or sub[1] in ("standard_50k", "premium_100k", "pro")):
+            return  # 유료 = 통과
+        wl = con.execute(
+            "SELECT free_until_ms FROM beta_whitelist WHERE phone = ?",
+            (phone_digits,),
+        ).fetchone()
+    if not wl:
+        return  # 비멤버는 whitelist 게이트가 별도 처리
+    free_until = wl[0]
+    if free_until is None:
+        return  # 초기 베타 = 무제한
+    if now > free_until:
+        print(f"[gating] BLOCK {phone_digits} (무료 만료 {((now - free_until) // 86_400_000)}일 경과)")
+        raise HTTPException(402, json.dumps({
+            "code": "free_expired",
+            "message": "무료 체험 기간이 끝났어요. 요금제를 선택하면 계속 쓸 수 있어요.",
+            "freeUntilMs": free_until,
+        }, ensure_ascii=False))
+
+
 def check_rate_limit(phone: str) -> None:
-    """일일 한도 초과면 HTTPException(429) 던짐."""
+    """일일 한도 초과면 HTTPException(429) 던짐.
+    추가96 — AI 기능 잠금 초크포인트 겸용 (_check_free_trial_gate)."""
+    _check_free_trial_gate(phone)  # 추가96 — 모든 LLM endpoint 가 여길 지나감
     one_day_ms = 24 * 60 * 60 * 1000
     cutoff = _now_ms() - one_day_ms
     with db_conn() as conn:
@@ -15082,6 +15131,7 @@ async def quote_issue(req: QuoteIssueRequest) -> dict:
     """
     # 추가47 (2026-06-21) — 옛 빌드도 last_seen 잡힘 (devicePhone = 사장님 phone)
     _touch_beta_whitelist(req.devicePhone)
+    _check_free_trial_gate(req.devicePhone)  # 추가96 — 접수서·견적서 발급 잠금 (스위치 OFF 기본)
     if not (req.customerPhone or "").strip():
         raise HTTPException(400, "customerPhone 필수")
     if req.depositMode not in ("none", "ratio", "fixed"):
