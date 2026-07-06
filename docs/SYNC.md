@@ -6641,3 +6641,11 @@ Play 심사 차단 ① 민감권한(SMS/통화기록) 대응 착수 + MMS 수신
   /intake alias·만료 후 열람·빈 섹션 미표시).
 - 변경: server/main.py 만. 배포 필요.
 - commit: (아래)
+## 2026-07-07 · android (cowork 요청 3건 소화)
+발행이력(고객상세) + cowork→android 미처리 3건 완료.
+- ① 접수서 재발행 '링크 갱신' 토스트 (reused=true 파싱). 추가95② 닫힘.
+- ② AI 면책 문구 "AI가 만든 내용은 부정확할 수 있어요…" 추천답변/대화요약/EstSheet 하단. 추가98③ 닫힘.
+- ③ 개인정보 동의 게이트(진입 1회) — ANDROID_HANDOFF_consent.md. SMS가입 off라 가입화면 대신 보편 게이트(신규/기존 전부). POST /api/consent(required+optional_quality) + 설정 링크3종. 필수 미체크→버튼 비활성, 기존 toneUploadConsented→선택 사전체크. 폰 검증 OK. 추가97 닫힘.
+- 남은 cowork→android(급하지 않음): 402 free_expired upsell 모달(게이팅 OFF라 여유).
+- commit: 785a736·2d8aac2(협업), 53d7c9d(발행이력), (링크갱신+AI고지), (동의게이트)
+- 다음 액션(cowork): 없음(위 3건은 서버 이미 완료분 앱 배선). photo/delete·intake_fixes 핸드오프는 여전히 대기 중이면 확인.
