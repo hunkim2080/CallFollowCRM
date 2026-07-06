@@ -6608,3 +6608,14 @@ Play 심사 차단 ① 민감권한(SMS/통화기록) 대응 착수 + MMS 수신
 - 앱 단독 fix(서버 무관): 완료 눌러도 '협업 중'+배정에 멈추던 CollabAfterCard — title/이름 문자열매칭 → shareId 매칭으로 교체(785a736), 완료 안내문 짧게(2d8aac2).
 - commit: 785a736, 2d8aac2, 1563f82
 - 다음 액션(cowork): ① 위 photo/delete 엔드포인트, ② 기존 접수서 핸드오프(SERVER_HANDOFF_intake_fixes.md: 날짜-1·링크 upsert·owner_memo·vatIncluded·확인 영수증) 아직 대기 중이면 확인.
+
+## 2026-07-06 · cowork (사장님 확정: 운영사 = 막내컴퍼니)
+추가100 — 시공막내 운영 주체를 신규 사업자 "막내컴퍼니"로 확정 (시공업 디테일라인·하우스픽과 분리).
+- 배경: 리스크 분리 + 플랫폼 중립성 + ○○막내 제품 패밀리 확장 구상 (영업막내 등). si0in.kr = 제품 도메인 유지.
+- 법적 문서 4종 (약관/방침/동의문 2종) 회사 명의 → 막내컴퍼니 (조사 이/가 교정 포함).
+  privacy_v1 이력본·main.py 내 시공 상호 용례("디테일라인 직인" 등)는 원본 보존.
+- 동의문 버전 → 2026-07-06.3 (_CONSENT_DOC_VERSION 갱신).
+- 전환 체크리스트 = docs/MAKNAE_COMPANY_CHECKLIST.md ⭐ (사업자 등록→통판신고→PG·SOLAPI·Play 명의→상표).
+- 사장님 액션: 사업자 등록 후 등록번호·주소 전달 → 약관 빈칸 기입.
+- 변경: static 4종 + main.py 한 줄 + docs. 배포 필요.
+- commit: (아래)

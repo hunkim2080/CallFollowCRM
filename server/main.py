@@ -9538,7 +9538,7 @@ async def privacy_page():
 # ⚠️ 문안은 초안 — 정식 출시 전 privacy.go.kr 표준 양식 대조/전문가 검토 권장.
 # ============================================================================
 
-_CONSENT_DOC_VERSION = "2026-07-06.2"  # 추가97b — 법령 검토 반영 개정
+_CONSENT_DOC_VERSION = "2026-07-06.3"  # 추가100 — 운영사 막내컴퍼니 명의
 _CONSENT_DOC_TYPES = {"required", "optional_quality"}
 
 
