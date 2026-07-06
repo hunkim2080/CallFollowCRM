@@ -6495,3 +6495,10 @@ Play 심사 차단 ① 민감권한(SMS/통화기록) 대응 착수 + MMS 수신
 - MMS 유실 근본 해결(commit 01136a2): 통신사 한계 아니라 klinker 5.2.5 수신 버그였음. SmsManager.downloadMultimediaMessage(폰 자체 스택)+PduPersister 로 재구현. S23U/KT 실기기 사진1/2장·+글자 ~1초 다운로드+persist 성공.
 - 남은 앱작업: "기본 문자앱 지정" 흐름 앱내 노출(2026-06-18 제거했던 것 부활) → 시연영상(사장님) → Play 권한선언 "기본 SMS 핸들러"로 수정 재제출.
 - 서버 무관(앱 단독). commit: 01136a2
+
+## 2026-07-06 · android → cowork
+시공접수서 버그 3건 진단 (사장님 보고). 전부 서버 작업 필요 → docs/SERVER_HANDOFF_intake_fixes.md.
+- ①[P0] 시공일 날짜 -1: 원인 확정 = _workdate_to_epoch_ms (main.py ~14963) 이중 TZ 보정. `(dt - timedelta(hours=9)).timestamp()` 가 KST 서버에서 -9h → 전날. 고침=tzinfo=KST 로 naive 제거. (앱은 정상, work_day 정수 정확 전송)
+- ②[P1] 접수서 재발행 링크 매번 새로 생성 → issue 를 upsert(미제출 폼이면 같은 token 재사용, 같은 url).
+- ③[P1] 접수서 owner_memo(특이사항) 컬럼+필드 추가 → 폼 표시. 앱은 EstSheet accept 모드에 메모칸(서버 필드 ownerMemo 확정 후 배선).
+- 서버 배포 후 SYNC 남기면 android 가 ②③ 앱측 배선.
