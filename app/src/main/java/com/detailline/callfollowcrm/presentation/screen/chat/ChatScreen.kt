@@ -1441,11 +1441,14 @@ fun ChatScreen(
             },
             onIssueIntake = { issItems, total, y, mo, d, days, dm, dv, mmo, vat ->
                 viewModel.issueQuoteIntake(issItems, total, y, mo, d, days, dm, dv, mmo, vat) { result ->
-                    result.onSuccess { draftLink ->
+                    result.onSuccess { (draftLink, reused) ->
                         setInput(draftLink)
                         showEstimateBuilder = false
                         resetEstimateDraft()
-                        android.widget.Toast.makeText(estCtx, "접수서 링크를 문자에 넣었어요 · ▶ 눌러 보내세요", android.widget.Toast.LENGTH_SHORT).show()
+                        // 재발행이면 서버가 기존 링크를 재사용(갱신) → "새 링크가 계속 생기는 것처럼 보이던" 혼란 제거. (추가95② 2026-07-06)
+                        val msg = if (reused) "기존 접수서 링크를 갱신했어요 · ▶ 눌러 보내세요"
+                                  else "접수서 링크를 문자에 넣었어요 · ▶ 눌러 보내세요"
+                        android.widget.Toast.makeText(estCtx, msg, android.widget.Toast.LENGTH_SHORT).show()
                     }.onFailure {
                         android.widget.Toast.makeText(estCtx, "서버 연결 실패 — 잠시 후 다시 시도해주세요", android.widget.Toast.LENGTH_SHORT).show()
                     }
@@ -2388,6 +2391,7 @@ private fun SuggestionArea(
                             )
                         }
                     }
+                    AiDisclaimer(Modifier.padding(top = 6.dp))
                 }
                 effectiveLoading -> {
                     // 프로토 design-preview/ringgo-redesign.html :2810 (.think-row) 1:1.
@@ -2407,6 +2411,16 @@ private fun SuggestionArea(
             }
         }
     }
+}
+
+/** AI 생성물 하단 고정 면책 문구 — 추천답변·요약·접수서 생성 화면 공통. (추가98③ 2026-07-06 cowork, 법적) */
+@Composable
+private fun AiDisclaimer(modifier: Modifier = Modifier) {
+    Text(
+        "AI가 만든 내용은 부정확할 수 있어요. 보내기 전에 확인해 주세요.",
+        color = TossTextTertiary, fontSize = 10.5.sp, lineHeight = 14.sp,
+        modifier = modifier
+    )
 }
 
 /**
@@ -3154,6 +3168,11 @@ private fun UnifiedSummaryCard(
                     }
                 }
             }
+        }
+
+        if (hasSummary) {
+            Spacer(Modifier.height(8.dp))
+            AiDisclaimer()
         }
     }
 }
@@ -3971,6 +3990,8 @@ private fun EstimateBuilderDialog(
                     if (anySelected) onConfirm(composeBody()) else toast("항목을 한 개 이상 골라주세요")
                 }
             }
+            Spacer(Modifier.height(10.dp))
+            AiDisclaimer(Modifier.padding(horizontal = 2.dp))
         }
     }
 }

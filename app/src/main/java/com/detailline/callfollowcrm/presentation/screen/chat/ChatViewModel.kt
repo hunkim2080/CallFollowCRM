@@ -1345,7 +1345,7 @@ class ChatViewModel(
         depositMode: String, depositValue: Int,
         ownerMemo: String,
         vatIncluded: Boolean,
-        onResult: (Result<String>) -> Unit
+        onResult: (Result<Pair<String, Boolean>>) -> Unit   // (smsDraft, reused=기존 링크 갱신)
     ) = viewModelScope.launch {
         val prefs = container.preferences
         val name = customer.value?.name?.takeIf { it.isNotBlank() } ?: phoneNumber
@@ -1383,7 +1383,7 @@ class ChatViewModel(
                 memo = ownerMemo.ifBlank { null }, docJson = docJson, url = issued.url, token = issued.token
             )
         }
-        onResult(res.map { it.smsDraft.ifBlank { "시공접수서 링크를 보냈어요." } })
+        onResult(res.map { it.smsDraft.ifBlank { "시공접수서 링크를 보냈어요." } to it.reused })
     }
 
     /** 발행 이력 — 견적서(직인 이미지) 보낼 때 스냅샷 저장. QuoteDocScreen 재열람용 docJson 포함. (2026-07-07 사장님) */

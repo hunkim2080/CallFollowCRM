@@ -46,7 +46,9 @@ class IntakeFormRepository(
         val url: String,
         val smsDraft: String,
         val issuedAtMs: Long,
-        val expiresAtMs: Long
+        val expiresAtMs: Long,
+        /** 서버가 같은 현장 미제출 접수서가 있어 새로 안 만들고 기존 링크를 재사용(갱신)했는지. (추가95② 2026-07-06 cowork) */
+        val reused: Boolean = false
     )
 
     /**
@@ -108,7 +110,8 @@ class IntakeFormRepository(
                     url = obj.getString("url"),
                     smsDraft = obj.optString("smsDraft"),
                     issuedAtMs = obj.optLong("issuedAtMs"),
-                    expiresAtMs = obj.optLong("expiresAtMs")
+                    expiresAtMs = obj.optLong("expiresAtMs"),
+                    reused = obj.optBoolean("reused", false)
                 )
             }
         }
