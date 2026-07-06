@@ -62,7 +62,8 @@ class IntakeFormRepository(
         depositMode: String, depositValue: Int,
         bizName: String, bizOwner: String, bizNo: String, bizAddr: String,
         bizPhone: String, bizSeal: String, bizValidDays: Int,
-        devicePhone: String, deviceId: String
+        devicePhone: String, deviceId: String,
+        ownerMemo: String = ""
     ): Result<IssuedQuote> = withContext(Dispatchers.IO) {
         runCatching {
             val payload = JSONObject().apply {
@@ -89,6 +90,8 @@ class IntakeFormRepository(
                 })
                 put("devicePhone", devicePhone)
                 put("deviceId", deviceId)
+                // 특이사항 메모 — 서버가 owner_memo 로 저장·폼 표시 (SERVER_HANDOFF_intake_fixes ③). (2026-07-06)
+                if (ownerMemo.isNotBlank()) put("ownerMemo", ownerMemo)
             }
             val req = Request.Builder()
                 .url("$baseUrl/api/quote/issue")

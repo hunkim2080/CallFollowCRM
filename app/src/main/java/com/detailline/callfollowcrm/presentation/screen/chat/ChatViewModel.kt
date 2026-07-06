@@ -1343,6 +1343,7 @@ class ChatViewModel(
         items: List<com.detailline.callfollowcrm.ai.IntakeFormRepository.QuoteIssueItem>,
         total: Int, workYear: Int, workMonth: Int, workDay: Int, workDays: Int,
         depositMode: String, depositValue: Int,
+        ownerMemo: String,
         onResult: (Result<String>) -> Unit
     ) = viewModelScope.launch {
         val prefs = container.preferences
@@ -1358,7 +1359,8 @@ class ChatViewModel(
             bizName = prefs.bizName, bizOwner = prefs.bizOwner, bizNo = prefs.bizNo,
             bizAddr = prefs.bizAddr, bizPhone = prefs.displayPhone, bizSeal = prefs.bizSeal,   // 접수서 표시=대표번호 (2026-07-04)
             bizValidDays = prefs.bizQuoteValidDays,
-            devicePhone = prefs.bizPhone, deviceId = prefs.deviceId
+            devicePhone = prefs.bizPhone, deviceId = prefs.deviceId,
+            ownerMemo = ownerMemo
         )
         onResult(res.map { it.smsDraft.ifBlank { "시공접수서 링크를 보냈어요." } })
     }

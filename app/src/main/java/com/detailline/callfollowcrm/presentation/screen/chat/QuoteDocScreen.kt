@@ -73,7 +73,9 @@ data class QuoteDocData(
     /** 선택한 시공 예정일(ms). null=협의 후 확정. */
     val workDateMs: Long? = null,
     /** 받는 분(이름/번호). null·빈값=고객님. */
-    val recipient: String? = null
+    val recipient: String? = null,
+    /** 특이사항 메모 — 비고에 표시. null·빈값=표시 안 함. (2026-07-06 사장님) */
+    val memo: String? = null
 )
 
 private val SealRed = Color(0xFFD6342C)
@@ -300,6 +302,9 @@ fun QuoteDocScreen(
                     Text("· 시공이 끝난 뒤 입금해주세요", fontSize = 12.sp, color = TossTextSecondary, lineHeight = 21.sp)
                 }
                 Text("· 유효기간 : 발행일로부터 ${validDays}일", fontSize = 12.sp, color = TossTextSecondary, lineHeight = 21.sp)
+                data.memo?.takeIf { it.isNotBlank() }?.let { m ->
+                    Text("· 특이사항 : $m", fontSize = 12.sp, color = TossTextSecondary, lineHeight = 21.sp)
+                }
                 // ── 서명란: 견적일자 + 직인 ──
                 Spacer(Modifier.height(22.dp))
                 Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFE5E9F0)))

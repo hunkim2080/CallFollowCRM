@@ -1439,8 +1439,8 @@ fun ChatScreen(
                 quoteDocData = data
                 showEstimateBuilder = false
             },
-            onIssueIntake = { issItems, total, y, mo, d, days, dm, dv ->
-                viewModel.issueQuoteIntake(issItems, total, y, mo, d, days, dm, dv) { result ->
+            onIssueIntake = { issItems, total, y, mo, d, days, dm, dv, mmo ->
+                viewModel.issueQuoteIntake(issItems, total, y, mo, d, days, dm, dv, mmo) { result ->
                     result.onSuccess { draftLink ->
                         setInput(draftLink)
                         showEstimateBuilder = false
@@ -3541,6 +3541,7 @@ private class EstimateDraft(initialCalMonth: Long) {
     val estCalMonth = androidx.compose.runtime.mutableStateOf(initialCalMonth)
     val vatIncluded = androidx.compose.runtime.mutableStateOf(false) // 견적서 부가세 별도(false)/포함(true). (2026-07-03 사장님)
     val recipient = androidx.compose.runtime.mutableStateOf("")      // 견적서 받는 분(빈값=기본/고객님)
+    val memo = androidx.compose.runtime.mutableStateOf("")            // 특이사항 메모 — 견적서 비고 + 접수서 ownerMemo 공용. (2026-07-06 사장님)
     val selectedQty = androidx.compose.runtime.mutableStateMapOf<Long, Int>()
     val customItems = androidx.compose.runtime.mutableStateListOf<EstCustomLine>()
     /** 항목 id → 이번 세션에서 그 자리에서 바꾼 가격(원). 즉시 우선 적용. DB 저장과 별개. (2026-06-25 사장님) */
@@ -3549,7 +3550,7 @@ private class EstimateDraft(initialCalMonth: Long) {
     fun reset(initialCalMonth: Long) {
         mode.value = "text"; depMode.value = "ratio"; depVal.value = "30"; depCustom.value = false
         workDateMs.value = null; workDays.value = 1; estCalMonth.value = initialCalMonth
-        vatIncluded.value = false; recipient.value = ""
+        vatIncluded.value = false; recipient.value = ""; memo.value = ""
         selectedQty.clear(); customItems.clear(); priceOverrides.clear()
     }
 }
@@ -3597,8 +3598,8 @@ private fun EstimateBuilderDialog(
     onIssueIntake: (
         items: List<com.detailline.callfollowcrm.ai.IntakeFormRepository.QuoteIssueItem>,
         total: Int, workYear: Int, workMonth: Int, workDay: Int, workDays: Int,
-        depMode: String, depVal: Int
-    ) -> Unit = { _, _, _, _, _, _, _, _ -> },
+        depMode: String, depVal: Int, memo: String
+    ) -> Unit = { _, _, _, _, _, _, _, _, _ -> },
     bizName: String = "",
     bizOwner: String = "",
     bizNo: String = "",
@@ -3622,6 +3623,7 @@ private fun EstimateBuilderDialog(
     var estCalMonth by draft.estCalMonth
     var vatIncluded by draft.vatIncluded
     var recipient by draft.recipient
+    var memo by draft.memo   // 특이사항 (견적서 비고 + 접수서 ownerMemo)
     // 항목 id → 수량(평당=평수, 정액=1). 0/미존재 = 미선택.
     val selectedQty = draft.selectedQty
     // 가격표에 없는 즉석 항목(예: 실리콘) — 견적 만들기에서 바로 직접 추가. (2026-06-07 사장님 요청)
@@ -3660,7 +3662,8 @@ private fun EstimateBuilderDialog(
             lines + customLines, totalSum, depMode, depVal.toIntOrNull() ?: 0,
             vatIncluded = vatIncluded,
             workDateMs = workDateMs,
-            recipient = recipient.ifBlank { defaultRecipient }.ifBlank { null }
+            recipient = recipient.ifBlank { defaultRecipient }.ifBlank { null },
+            memo = memo.ifBlank { null }
         )
     }
 
@@ -3817,6 +3820,17 @@ private fun EstimateBuilderDialog(
                     )
                 }
             }
+            // 특이사항 메모 (시공접수서/견적서 공용) — 견적서 비고에 표시 + 접수서엔 ownerMemo 로 전송. (2026-07-06 사장님)
+            if (mode != "text") {
+                Spacer(Modifier.height(11.dp))
+                Text("특이사항 (선택)", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
+                    modifier = Modifier.padding(start = 2.dp))
+                Spacer(Modifier.height(6.dp))
+                com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                    memo, { memo = it },
+                    placeholder = "예: 현관 비번 1234#, 2층 화장실만 시공"
+                )
+            }
             Spacer(Modifier.height(6.dp))
             // 가격을 그 자리에서 고칠 수 있다는 힌트 한 줄 — 줄마다 ✏️ 빼고 여기로만 안내. (2026-06-25 사장님)
             Text("💡 가격을 탭하면 바로 고칠 수 있어요",
@@ -3934,7 +3948,7 @@ private fun EstimateBuilderDialog(
                             cal?.get(java.util.Calendar.YEAR) ?: 0,
                             cal?.let { it.get(java.util.Calendar.MONTH) + 1 } ?: 0,
                             cal?.get(java.util.Calendar.DAY_OF_MONTH) ?: 0,
-                            workDays, depMode, depVal.toIntOrNull() ?: 0
+                            workDays, depMode, depVal.toIntOrNull() ?: 0, memo
                         )
                     }
                 }
