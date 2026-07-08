@@ -409,6 +409,16 @@ fun ChatScreen(
         }
     }
 
+    // 사진을 보내려는데 기본 문자 앱이 아니면 '다른 앱 공유' 시트 대신 기본앱 지정 안내. (2026-07-08 사장님)
+    val sendActivity = remember(context) {
+        generateSequence(context) { (it as? android.content.ContextWrapper)?.baseContext }
+            .firstOrNull { it is android.app.Activity } as? android.app.Activity
+    }
+    val setDefaultForPhotoLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { /* 지정 후 다시 [보내기] 누르면 공식 MMS 경로로 발송됨 */ }
+    var showSetDefaultForPhoto by remember { mutableStateOf(false) }
+
     LaunchedEffect(Unit) {
         viewModel.loadMessages()
         viewModel.loadSuggestions()
@@ -454,27 +464,26 @@ fun ChatScreen(
     // 사진 첨부면 MMS (klinker → 갤럭시 메시지 fallback), 아니면 SMS.
     val performSend: (String, List<android.net.Uri>) -> Unit = { body, photos ->
         if (photos.isNotEmpty()) {
-            if (!com.detailline.callfollowcrm.util.SmsSender.hasPermission(context)) {
-                pendingSend = body
-                sendPermissionLauncher.launch(Manifest.permission.SEND_SMS)
-            } else {
-                viewModel.sendMessageWithPhotos(context, body, photos) { ok ->
-                    if (ok) {
-                        setInput("")
-                        attachedPhotos = emptyList()
-                        markIfEstimate(body)
-                    } else {
-                        // klinker 실패 → 갤럭시 메시지 fallback (사장님이 거기서 직접 ▶)
-                        val result = com.detailline.callfollowcrm.util.SmsIntentHelper
-                            .openSmsComposeWithAttachments(
-                                context = context,
-                                phoneNumber = viewModel.phoneNumber,
-                                body = body,
-                                attachmentUris = photos
-                            )
-                        if (result is com.detailline.callfollowcrm.util.SmsIntentHelper.Result.Opened) {
+            when {
+                !com.detailline.callfollowcrm.util.SmsSender.hasPermission(context) -> {
+                    pendingSend = body
+                    sendPermissionLauncher.launch(Manifest.permission.SEND_SMS)
+                }
+                // 기본 문자 앱이 아니면 공식 MMS 발송 불가 → '다른 앱 공유' 시트로 빠지던 것 대신 기본앱 지정 안내.
+                !com.detailline.callfollowcrm.util.DefaultSmsAppHelper.isCurrentDefault(context) -> {
+                    showSetDefaultForPhoto = true
+                }
+                else -> {
+                    viewModel.sendMessageWithPhotos(context, body, photos) { ok ->
+                        if (ok) {
                             setInput("")
                             attachedPhotos = emptyList()
+                            markIfEstimate(body)
+                        } else {
+                            // 기본앱인데도 발송 요청 실패(드묾) → 공유시트로 안 빠지고 안내만.
+                            android.widget.Toast.makeText(
+                                context, "사진 전송에 실패했어요. 잠시 후 다시 시도해주세요", android.widget.Toast.LENGTH_SHORT
+                            ).show()
                         }
                     }
                 }
@@ -1491,6 +1500,38 @@ fun ChatScreen(
     // 발행 이력 카드 → 견적서 다시 보기(재렌더). 닫으면 채팅으로만 복귀(편집기 X), 재기록 안 함. (2026-07-07 사장님)
     reviewIssuedDoc?.let { data ->
         QuoteDocScreen(data = data, onClose = { reviewIssuedDoc = null })
+    }
+
+    // 사진 발송 시 기본 문자 앱 아님 → 지정 안내. (2026-07-08 사장님: '다른 앱 공유' 시트가 뜨면 안 됨)
+    if (showSetDefaultForPhoto) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showSetDefaultForPhoto = false },
+            title = { Text("사진을 바로 보내려면", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
+            text = {
+                Text(
+                    "고객에게 사진을 앱에서 바로 보내려면 '시공막내'를 기본 문자 앱으로 지정해야 해요.\n\n지정하면 다음부터 [보내기]를 누르면 사진이 곧바로 고객에게 전송돼요. (지금은 다른 앱으로 공유하는 창이 떠서 헷갈려요.)",
+                    fontSize = 13.5.sp, color = TossTextSecondary, lineHeight = 20.sp
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    showSetDefaultForPhoto = false
+                    val act = sendActivity
+                    val intent = act?.let { com.detailline.callfollowcrm.util.DefaultSmsAppHelper.createRequestIntent(it) }
+                    if (intent != null) {
+                        runCatching { setDefaultForPhotoLauncher.launch(intent) }
+                            .onFailure { android.widget.Toast.makeText(context, "기본 문자앱 다이얼로그를 열 수 없어요", android.widget.Toast.LENGTH_SHORT).show() }
+                    } else {
+                        android.widget.Toast.makeText(context, "잠시 후 다시 시도해주세요", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }) { Text("기본 앱으로 지정", color = TossBlue, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showSetDefaultForPhoto = false }) {
+                    Text("나중에", color = TossTextSecondary)
+                }
+            }
+        )
     }
 }
 
