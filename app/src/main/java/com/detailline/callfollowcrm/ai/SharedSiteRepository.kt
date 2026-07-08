@@ -196,11 +196,13 @@ class SharedSiteRepository(
         }
     }
 
-    /** B 수락/거절. partnerName = B 사업자명(상호) → A 화면 "OO 사장님" 표기용(여러 협업자 구분). */
-    suspend fun respond(shareId: String, partnerPhone: String, accept: Boolean, partnerName: String? = null): Result<Unit> =
+    /** B 수락/거절. partnerName = B 사업자명(상호) → A 화면 "OO 사장님" 표기용(여러 협업자 구분).
+     *   reason = 거절 사유(선택) → A(요청자)에게 전달돼 "왜 거절했는지" 알림/표시. (2026-07-08 사장님, 서버=cowork) */
+    suspend fun respond(shareId: String, partnerPhone: String, accept: Boolean, partnerName: String? = null, reason: String? = null): Result<Unit> =
         post("$baseUrl/api/shared/respond", JSONObject().apply {
             put("share_id", shareId); put("partner_phone", phoneKey(partnerPhone)); put("accept", accept)
             partnerName?.takeIf { it.isNotBlank() }?.let { put("partner_name", it) }
+            if (!accept) reason?.trim()?.takeIf { it.isNotBlank() }?.let { put("reason", it) }
         })
 
     /** B 진행(출발/도착/완료). 완료 시 bank/account 를 payload 로 실어 보냄 → A 에게 계좌 전달.

@@ -280,6 +280,7 @@ object NotificationHelper {
         timeLabel: String,
         title: String,
         accountText: String? = null,
+        reason: String? = null,   // 거절 사유(declined) — A 에게 "왜 거절했는지" 표시. (2026-07-08 사장님)
         auto: Boolean = false
     ) {
         val notifId = COLLAB_ID_OFFSET + (eventId.hashCode() and 0x7FFFFF)
@@ -317,7 +318,7 @@ object NotificationHelper {
             )
             "declined" -> Triple(
                 "협업 요청 거절",
-                "${partnerName}님이 '${title}' 협업을 거절했어요.",
+                "${partnerName}님이 '${title}' 협업을 거절했어요." + (reason?.trim()?.takeIf { it.isNotBlank() }?.let { " — \"$it\"" } ?: ""),
                 ACCENT_PINK
             )
             "departed" -> Triple(

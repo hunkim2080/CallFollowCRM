@@ -161,6 +161,8 @@ fun SharedSiteScreen(
     // 딥링크(일정 등)로 특정 협업 상세를 바로 열고 들어온 경우 → 그 상세에서 뒤로가기 = 목록이 아니라 화면 자체를
     //   닫아 호출한 곳(일정)으로 돌아가야 함. 목록에서 탭해 연 상세는 뒤로=목록(기존). (2026-07-08 사장님 버그)
     var openedViaDeepLink by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    // 거절 사유 고르기 대상 — 거절 누르면 사유 선택 시트. 만료된 요청 '지우기'는 사유 없이 바로. null=닫힘. (2026-07-08 사장님)
+    var declineReasonTarget by remember { mutableStateOf<SharedSiteRepository.SharedSite?>(null) }
     LaunchedEffect(toast) {
         toast?.let {
             android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show()
@@ -338,7 +340,8 @@ fun SharedSiteScreen(
                                     android.widget.Toast.makeText(context, "수락 시간이 지났어요 — 12시간이 지나 만료됐어요", android.widget.Toast.LENGTH_LONG).show()
                                 } else viewModel.respond(site, true)
                             },
-                            onReject = { viewModel.respond(it, false) },
+                            // 거절 = 사유 고르기 시트(요청자에게 전달). 만료된 요청 '지우기'는 사유 없이 바로. (2026-07-08 사장님)
+                            onReject = { site -> if (viewModel.acceptExpired(site)) viewModel.respond(site, false) else declineReasonTarget = site },
                             onOpen = { selectedId = it.shareId }
                         )
                         Spacer(Modifier.height(16.dp))
@@ -408,7 +411,13 @@ fun SharedSiteScreen(
                             }
                         }
                     },
-                    onRespond = { accept -> viewModel.respond(selected, accept); if (!accept) selectedId = null },
+                    onRespond = { accept ->
+                        when {
+                            accept -> viewModel.respond(selected, true)
+                            viewModel.acceptExpired(selected) -> { viewModel.respond(selected, false); selectedId = null }  // 만료 '지우기'
+                            else -> declineReasonTarget = selected   // 거절 = 사유 고르기 시트
+                        }
+                    },
                     onLeave = { confirmRemoveSite = selected }
                 )
             } else if (selectedMine != null) {
@@ -466,6 +475,19 @@ fun SharedSiteScreen(
                     Text("취소", color = TossTextSecondary)
                 }
             }
+        )
+    }
+
+    // 거절 사유 고르기 — 고르면 요청자(A)에게 전달돼 "왜 거절했는지" 알게. (2026-07-08 사장님)
+    declineReasonTarget?.let { site ->
+        DeclineReasonSheet(
+            ownerName = site.ownerName,
+            onPick = { reason ->
+                viewModel.respond(site, false, reason)
+                declineReasonTarget = null
+                selectedId = null   // 상세에서 왔으면 닫기
+            },
+            onDismiss = { declineReasonTarget = null }
         )
     }
 
@@ -1752,4 +1774,72 @@ private fun LinkifiedMemo(memo: String, baseColor: Color) {
             }
         }
     )
+}
+
+/** 거절 사유 고르기 시트 (2026-07-08 사장님) — 프리셋 2개 + 기타(메모). 고른 사유는 요청자(A)에게 전달돼 "왜 거절했지?" 궁금증 해소. */
+@Composable
+private fun DeclineReasonSheet(
+    ownerName: String,
+    onPick: (String?) -> Unit,   // 사유(기타=메모). null = 사유 없이 거절.
+    onDismiss: () -> Unit
+) {
+    val presets = listOf("일정이 있어요. 다음에 함께 해요!", "너무 멀어요 죄송해요!")
+    var etcMode by remember { mutableStateOf(false) }
+    var memo by remember { mutableStateOf("") }
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color.White).padding(20.dp)) {
+            Text("거절 사유를 알려줄까요?", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            Spacer(Modifier.height(5.dp))
+            Text(
+                "${ownerName.ifBlank { "요청한" }} 사장님께 전달돼요. 이유를 알면 서로 서운함이 없어요 🙂",
+                fontSize = 12.5.sp, color = TossTextTertiary, lineHeight = 18.sp
+            )
+            Spacer(Modifier.height(16.dp))
+            if (!etcMode) {
+                presets.forEach { r ->
+                    ReasonRow(r) { onPick(r) }
+                    Spacer(Modifier.height(8.dp))
+                }
+                ReasonRow("기타 (직접 입력)") { etcMode = true }
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    "사유 없이 거절", fontSize = 13.sp, color = TossTextSecondary, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { onPick(null) }.padding(vertical = 9.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            } else {
+                androidx.compose.material3.OutlinedTextField(
+                    value = memo,
+                    onValueChange = { memo = it.take(100) },
+                    placeholder = { Text("거절 사유를 적어주세요", fontSize = 13.sp, color = TossTextTertiary) },
+                    modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 4
+                )
+                Spacer(Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Box(
+                        Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(Color(0xFFF2F4F6)).clickable { etcMode = false }.padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) { Text("뒤로", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) }
+                    val canSend = memo.isNotBlank()
+                    Box(
+                        Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
+                            .background(if (canSend) CollabPurple else Color(0xFFD9D3F0))
+                            .clickable(enabled = canSend) { onPick(memo.trim()) }.padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) { Text("이 사유로 거절", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = Color.White) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReasonRow(text: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFF5F3FF)).clickable { onClick() }.padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("· $text", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4A3E7A), modifier = Modifier.weight(1f))
+        Text("›", fontSize = 16.sp, color = CollabPurple, fontWeight = FontWeight.Bold)
+    }
 }

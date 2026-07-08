@@ -62,6 +62,7 @@ class RingGoFcmService : FirebaseMessagingService() {
                         timeLabel = data["time_label"]?.takeIf { it.isNotBlank() } ?: "방금",
                         title = data["title"].orEmpty(),
                         accountText = accountText,
+                        reason = data["decline_reason"]?.takeIf { it.isNotBlank() },   // 거절 사유(서버가 실어주면 표시) (2026-07-08)
                         auto = data["auto"] == "true"   // §E 3km 자동 도착 → "거의 도착해가요"
                     )
                 }
