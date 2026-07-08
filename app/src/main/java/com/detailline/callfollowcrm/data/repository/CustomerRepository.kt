@@ -122,6 +122,12 @@ class CustomerRepository(
         dao.update(c.copy(depositAmount = amount, updatedAt = System.currentTimeMillis()))
     }
 
+    /**
+     * 계약금 이중곱 오염 self-heal (2026-07-09) — 앱 시작 시 1회. 조건/근거는 CustomerDao.healDoubleMultipliedDeposits.
+     * @return 보정된 row 수 (정상 폰은 0)
+     */
+    suspend fun healCorruptedDeposits(): Int = dao.healDoubleMultipliedDeposits()
+
     /** paidAt = null 이면 "안 받음" 상태로 되돌리기. */
     suspend fun updateDepositPaidAt(id: Long, paidAt: Long?) {
         val c = dao.findById(id) ?: return

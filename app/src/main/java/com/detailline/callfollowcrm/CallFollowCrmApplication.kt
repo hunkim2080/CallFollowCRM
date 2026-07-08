@@ -304,6 +304,10 @@ class CallFollowCrmApplication : Application() {
         //   신규 중복은 CallRecordRepository.insertDeduped(Mutex) 로 원천 차단. 데이터(요약/녹음) 붙은 row 는 안 건드림.
         appScope.launch { runCatching { container.callRecordRepository.cleanupPhantomDuplicates() } }
 
+        // 계약금 이중곱 오염 보정 (2026-07-09 사장님 "계약금 100,000만원") — 2026-07-04~ intake 계약금 ×10000 이중적용된 row 를 앱 켤 때 1회 보정.
+        //   신규 오염은 IntakeSyncManager fixed 재환산 제거로 차단. 조건 엄격(만원배수+1억↑+총액초과)이라 정상값 미영향.
+        appScope.launch { runCatching { container.customerRepository.healCorruptedDeposits() } }
+
         // 2026-05-28 사장님 통점 fix: 정적 BroadcastReceiver (CallStateReceiver) 가
         //   Android 12+ / OneUI 에서 누락되는 케이스 多 → 통화 종료 감지 실패.
         //   Application 에서 TelephonyCallback (Android 12+) / PhoneStateListener (이하) 동적 등록 →

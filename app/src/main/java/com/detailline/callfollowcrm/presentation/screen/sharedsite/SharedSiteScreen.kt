@@ -189,7 +189,8 @@ fun SharedSiteScreen(
     val activeSites = remember(sites, trashed) { sites.filter { it.shareId !in trashed && it.status !in gone } }
     val trashedSites = remember(sites, trashed) { sites.filter { it.shareId in trashed && it.status !in gone } }
     // 응답 안 한 요청(inbox) vs 수락한 현장 분리 — 맨 위 inbox 로 끌어올려 묻히지 않게. (2026-06-18 사장님)
-    val pendingSites = remember(activeSites) { activeSites.filter { it.status == "pending" }.sortedByDescending { it.createdAtMs } }
+    //   48h 지난 요청은 카드 자체 제거(2026-07-09 사장님). 12~48h 는 "지났어요" 상태로 계속 보임.
+    val pendingSites = remember(activeSites) { activeSites.filter { it.status == "pending" && !viewModel.requestFullyExpired(it) }.sortedByDescending { it.createdAtMs } }
     val acceptedSites = remember(activeSites) { activeSites.filter { it.status != "pending" } }
     // 내가 공유한 현장(by-me) — 거절/종료 제외, 시공일 가까운 순. (2026-06-18 사장님)
     val myActiveShared = remember(mySharedSites) {

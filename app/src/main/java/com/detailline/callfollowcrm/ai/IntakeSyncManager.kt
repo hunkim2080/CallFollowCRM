@@ -56,10 +56,13 @@ class IntakeSyncManager(private val container: AppContainer) {
                 if (s.total > 0 && (c.totalAmount == null || c.totalAmount == 0L)) {
                     container.customerRepository.updateTotalAmount(c.id, totalWon)
                 }
-                // 계약금도 고객 카드에 반영. ratio → 총액 × %/100, fixed → depositValue(만원) × 10,000. 수동 입력분 존중. (2026-06-14 사장님)
+                // 계약금도 고객 카드에 반영. ratio → 총액 × %/100. 수동 입력분 존중. (2026-06-14 사장님)
+                //   fixed → depositValue 를 그대로(원 단위). 2026-07-04(c16bc39)부터 서버가 fixed 계약금을 '원'으로
+                //   저장/에코(_deposit_resolve_krw passthrough) → 여기서 ×10,000 하면 이중곱(10만원→10억)이 됨.
+                //   (2026-07-09 사장님 "계약금 100,000만원" 버그 fix. send 만 바뀌고 이 read-back 이 안 바뀐 비대칭이 원인.)
                 val depositWon = when (s.depositMode) {
                     "ratio" -> if (s.depositValue > 0 && totalWon > 0) totalWon * s.depositValue / 100 else 0L
-                    "fixed" -> if (s.depositValue > 0) s.depositValue.toLong() * 10_000L else 0L
+                    "fixed" -> if (s.depositValue > 0) s.depositValue.toLong() else 0L
                     else -> 0L
                 }
                 if (depositWon > 0 && (c.depositAmount == null || c.depositAmount == 0L)) {

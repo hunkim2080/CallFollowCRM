@@ -350,7 +350,7 @@ fun ScheduleScreen(
                             selectedDayMs = selectedDayMs,
                             todayStart = todayStart,
                             assignedMembers = assignmentsByCustomer[c.id].orEmpty(),
-                            collabPartnerNames = collabAssign[c.id].orEmpty().map { it.name },
+                            collabPartnerNames = collabAssign[c.id].orEmpty().map { it.name to it.accepted },
                             teamAvailable = teamMembers.isNotEmpty() || collabPartners.isNotEmpty(),
                             // 주소 있어야 팀원·일당 사장님 호출 가능 (2026-06-18 사장님: 주소 없는데 일당사장에게 알람이 갔음).
                             onAssign = {
@@ -820,7 +820,8 @@ private fun DayJobCard(
     selectedDayMs: Long?,
     todayStart: Long,
     assignedMembers: List<com.detailline.callfollowcrm.data.local.entity.TeamAssignmentEntity> = emptyList(),
-    collabPartnerNames: List<String> = emptyList(),
+    /** (이름, 수락됨) — 수락 안 된(pending) 협업은 "요청 중"으로 표시. (2026-07-09) */
+    collabPartnerNames: List<Pair<String, Boolean>> = emptyList(),
     teamAvailable: Boolean = false,
     onAssign: () -> Unit = {},
     onClick: () -> Unit
@@ -911,7 +912,9 @@ private fun DayJobCard(
                             Spacer(Modifier.width(8.dp))
                         }
                         Text(
-                            (assignedMembers.map { it.memberName } + collabPartnerNames.map { "🤝 $it" }).joinToString(", "),
+                            // 수락된 협업 = "🤝 이름", 아직 수락 안 된(pending) = "🤝 이름 · 요청 중". (2026-07-09 사장님)
+                            (assignedMembers.map { it.memberName } +
+                                collabPartnerNames.map { (nm, acc) -> if (acc) "🤝 $nm" else "🤝 $nm · 요청 중" }).joinToString(", "),
                             fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
                             maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)

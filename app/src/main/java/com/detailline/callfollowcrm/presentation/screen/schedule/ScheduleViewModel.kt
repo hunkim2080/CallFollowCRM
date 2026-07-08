@@ -70,8 +70,9 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         container.notebookRepository.observeWorkers()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** 협업 사장 배정(요청) 1건 — 일정 카드 "🤝 이름" + 중복요청 가드(phone). */
-    data class CollabAssign(val phone: String, val name: String)
+    /** 협업 사장 배정(요청) 1건 — 일정 카드 "🤝 이름" + 중복요청 가드(phone).
+     *   accepted = 상대가 수락했나(아니면 아직 "요청 중"). 수락 안 된 협업을 파트너처럼 표시하던 버그 fix용. (2026-07-09) */
+    data class CollabAssign(val phone: String, val name: String, val accepted: Boolean = false)
     /** 협업 사장 배정 — customerId → 배정들. (로컬 기록, 서버 수락확정은 추후). (2026-06-13) */
     private val _collabAssignByCustomer = MutableStateFlow<Map<Long, List<CollabAssign>>>(emptyMap())
     val collabAssignByCustomer = _collabAssignByCustomer.asStateFlow()
@@ -88,6 +89,10 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
      *   ⚠️ 반드시 init 블록보다 위에 선언해야 한다 — init → loadCollabAssignments() 가 이 값을 동기로 읽는데,
      *      init 아래에 두면 초기화 순서상 init 시점엔 null 이라 'Set.contains() on null' NPE 로 일정탭 진입 즉시 크래시. (2026-06-15 fix) */
     private var deadCollabShareIds: Set<String> = emptySet()
+    /** by-me status 가 "pending"(상대 아직 미수락)인 shareId — 일정 배지에서 "요청 중"으로 표시(수락된 파트너처럼 X). (2026-07-09 사장님)
+     *   ⚠️ deadCollabShareIds 와 같은 이유로 init 위에 선언(초기화 순서 NPE 방지). 초기값 emptySet 유지 =
+     *      미로딩/네트워크 실패 시 accepted 취급(빈 status 를 서버가 accepted 로 기본처리하므로 뒤집힘 방지). */
+    private var pendingCollabShareIds: Set<String> = emptySet()
 
     init { loadTeam(); loadCollab(); loadCollabAssignments() }  // loadCollab() 안에서 reconcile(거절 정리)도 같이 돈다
 
@@ -103,6 +108,8 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             val sites = container.sharedSiteRepository.byMe(owner).getOrNull() ?: return@launch
             val dead = sites.filter { it.status in DEAD_COLLAB_STATUS }.map { it.shareId }.toSet()
+            // 아직 상대가 수락 안 한(pending) 협업 = 일정 배지에 "요청 중"으로 표시(수락된 파트너처럼 X). (2026-07-09 사장님)
+            pendingCollabShareIds = sites.filter { it.status == "pending" }.map { it.shareId }.toSet()
             // 표시용 dead set 갱신 + 즉시 재필터 (prefs 정리와 무관하게 배지에서 바로 빠지게).
             deadCollabShareIds = dead
             loadCollabAssignments()
@@ -136,7 +143,9 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
                 if (phone.isNotBlank() && it.phone.isNotBlank()) it.phone.takeLast(8) == phone.takeLast(8)
                 else it.name == name
             }
-            if (!dup) list.add(CollabAssign(phone, name))
+            // 구버전 기록(shareId 없음)=기존 표시 유지(accepted=true, 회귀 방지). 그 외엔 pending 인 것만 미수락. (2026-07-09)
+            val accepted = shareId.isEmpty() || shareId !in pendingCollabShareIds
+            if (!dup) list.add(CollabAssign(phone, name, accepted))
         }
         _collabAssignByCustomer.value = map
     }

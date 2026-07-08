@@ -6736,3 +6736,17 @@ S9(메인폰) 실측 검증 중 발견: 통화기록 587건 중 184건이 유령
 - **S9 실측**: 587→403 (184 삭제), 중복그룹 0, 010-5234-0792 = 유령 604 삭제/데이터 605 보존, 114 = 146→1. 무크래시.
 - app 전용·서버 무관. DB 스키마 무변경(v39).
 - commit: (아래)
+
+## 2026-07-09 · android — 계약금 이중곱 + 협업 미수락 표기 + 받은요청 48h (버그 3건, 멀티에이전트 조사)
+멀티에이전트 워크플로(2 조사 + 적대검증)로 근본원인 확정 후 수정:
+1) **계약금 "100,000만원"(10억)** — 2026-07-04(c16bc39) send 경로만 fixed 계약금을 만원→원(×10000)으로 바꿨는데
+   read-back(IntakeSyncManager)이 여전히 ×10000 재적용 → 이중곱(10만원→10억). fix=IntakeSyncManager fixed 재환산 제거
+   (서버가 원 passthrough). + 기존 오염 row self-heal(CustomerDao.healDoubleMultipliedDeposits: 만원배수+1억↑+총액초과만 ÷10000,
+   앱시작 1회, idempotent). S9 실측 사본 시뮬: id=117 만 1e9→100,000 보정, 그 외 0건.
+2) **일정 카드 미수락 협업을 수락된 파트너처럼 표기** — collabAssign 배지가 요청 '보내는 순간' 로컬기록만 보고 그림.
+   reconcile 이 dead(거절/종료)만 걸러 pending(수락 전)은 안 걸렀음. fix=byMe status "pending" shareId 집합 만들어
+   CollabAssign.accepted 계산 → 미수락은 "🤝 이름 · 요청 중"(수락된 것만 "🤝 이름"). 구버전(shareId 없음)=accepted 유지(회귀방지).
+3) **받은 협업 요청 48h 자동 숨김** — SharedSiteViewModel.requestFullyExpired(앵커+48h)로 pendingSites 필터. (12~48h 는 "지났어요" 유지)
+- **대기(사장님 논의/서버)**: 12h 만료 시 "재요청하기" 버튼 = 받는 사람이 보낸 사람에게 재전송 요청 → 서버 endpoint 필요(cowork). 문구/동작 확정 후 앱+핸드오프.
+- 서버 무관(1~3). DB 스키마 무변경(v39). S23U 설치·무크래시. 계약금 self-heal 검증은 S9 재연결 시.
+- commit: (아래)

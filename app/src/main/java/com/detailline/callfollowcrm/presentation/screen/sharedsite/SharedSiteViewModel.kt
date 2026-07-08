@@ -129,6 +129,19 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
         return System.currentTimeMillis() - anchor >= ACCEPT_VALID_MS
     }
 
+    /**
+     * 받은 협업 요청이 48h 지나 inbox 에서 아예 사라져야 하는지 (2026-07-09 사장님 "48시간 되면 이 카드 없어지는거지").
+     *   앵커는 acceptExpired 와 동일(서버 created_at_ms 우선, 없으면 첫 관측). 앵커 0이면 숨기지 않음(안전).
+     *   화면(pendingSites)에서 이걸로 걸러 카드 자체를 제거. (12~48h 사이는 "지났어요" 상태로 계속 보임.)
+     */
+    fun requestFullyExpired(site: SharedSiteRepository.SharedSite): Boolean {
+        if (site.status != "pending") return false
+        val anchor = site.createdAtMs.takeIf { it > 0L }
+            ?: container.preferences.collabInviteFirstSeenMs(site.shareId)
+        if (anchor <= 0L) return false
+        return System.currentTimeMillis() - anchor >= REQUEST_EXPIRE_MS
+    }
+
     /** 내 사업자명(상호) → A 화면 "OO 사장님" 표기용. 없으면 대표자 이름. (2026-06-14) */
     private fun myBizName(): String =
         container.preferences.bizName.takeIf { it.isNotBlank() }
@@ -251,5 +264,7 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
     companion object {
         /** 협업 요청 수락 유효시간 — 12시간. 그 이후엔 수락 불가("수락 시간이 지났어요"). (2026-06-14 사장님) */
         const val ACCEPT_VALID_MS = 12L * 60 * 60 * 1000
+        /** 받은 협업 요청 완전 만료 — 48시간. 그 이후엔 inbox 에서 카드 자체가 사라짐. (2026-07-09 사장님) */
+        const val REQUEST_EXPIRE_MS = 48L * 60 * 60 * 1000
     }
 }
