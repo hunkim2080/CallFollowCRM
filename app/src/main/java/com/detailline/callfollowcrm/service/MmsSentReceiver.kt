@@ -26,6 +26,11 @@ class MmsSentReceiver : BroadcastReceiver() {
         } else {
             Log.e(TAG, "MMS sent FAILED: resultCode=$resultCode to=$phone images=$imageCount error=$error")
         }
+
+        // 공식 API 경로가 넘긴 임시 PDU 파일 정리(성공/실패 무관).
+        intent.getStringExtra(EXTRA_SEND_FILE)?.let { name ->
+            runCatching { java.io.File(context.cacheDir, java.io.File(name).name).delete() }
+        }
     }
 
     companion object {
@@ -33,6 +38,7 @@ class MmsSentReceiver : BroadcastReceiver() {
         const val EXTRA_PHONE = "extra_phone"
         const val EXTRA_BODY_PREVIEW = "extra_body_preview"
         const val EXTRA_IMAGE_COUNT = "extra_image_count"
+        const val EXTRA_SEND_FILE = "extra_send_file"
         private const val TAG = "MmsSentReceiver"
     }
 }

@@ -1,6 +1,7 @@
 package com.detailline.callfollowcrm.util
 
 import android.Manifest
+import android.app.PendingIntent
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -16,10 +17,16 @@ import android.util.Log
 import androidx.core.content.ContextCompat
 import com.detailline.callfollowcrm.CallFollowCrmApplication
 import com.detailline.callfollowcrm.service.MmsSentReceiver
-import com.klinker.android.send_message.Message
-import com.klinker.android.send_message.Settings
-import com.klinker.android.send_message.Transaction
+import com.google.android.mms.pdu_alt.CharacterSets
+import com.google.android.mms.pdu_alt.EncodedStringValue
+import com.google.android.mms.pdu_alt.PduBody
+import com.google.android.mms.pdu_alt.PduComposer
+import com.google.android.mms.pdu_alt.PduPart
+import com.google.android.mms.pdu_alt.PduPersister
+import com.google.android.mms.pdu_alt.SendReq
 import kotlinx.coroutines.launch
+import java.io.ByteArrayOutputStream
+import java.io.File
 
 /**
  * SMS 직접 발송 유틸. 정책상 발송이 허용된 경로 (첫 응대 자동 응답, 고객 상세 인라인 채팅)
@@ -132,11 +139,15 @@ object SmsSender {
     }
 
     /**
-     * 사진 첨부 메시지(MMS)를 우리 앱 안에서 직접 발송한다.
+     * 사진 첨부 메시지(MMS)를 우리 앱 안에서 직접 발송한다 — 안드로이드 **공식 API** 경로.
+     *   (2026-07-08) 예전 klinker Transaction 경로가 기본앱 실전에서 사진 유실(6/17) → 수신 fix 와 동일 철학으로 재구현.
      *
-     * 주의: Transaction.sendNewMessage 는 비동기라 이 반환값은 "발송 요청을 시스템/라이브러리에 넘겼다"는 뜻이다.
-     * 실제 성공/실패는 MmsSentReceiver 로그(ACTION_MMS_SENT)로 확인한다. 실패하면 ChatScreen 이 기존처럼
-     * 삼성 문자앱 작성 화면으로 fallback 한다.
+     * 흐름: 이미지 JPEG 압축 → SendReq PDU 작성(com.google.android.mms.pdu_alt) → PduComposer 로 직렬화 →
+     *   캐시파일 → content://…mmsdownload/…(읽기) → SmsManager.sendMultimediaMessage(완료 PendingIntent=MmsSentReceiver).
+     *   추가로 발신함(Telephony.Mms.Sent)에 PduPersister 로 저장(best-effort) → 재실행 후에도 스레드에 남음("발신 사라짐" 방지).
+     *
+     * 반환값은 "발송 요청을 시스템에 넘겼다"는 뜻(비동기). 실제 성공/실패는 MmsSentReceiver(resultCode)로 확인.
+     * 요청 자체가 실패하면 false → ChatScreen 이 기존처럼 삼성 문자앱 작성 화면으로 fallback.
      */
     fun sendMms(
         context: Context,
@@ -154,48 +165,97 @@ object SmsSender {
         }
         if (phoneNumber.isBlank() || uris.isEmpty()) return false
 
-        val app = context.applicationContext as? CallFollowCrmApplication
-        val bitmaps = uris.mapNotNull { uri ->
-            runCatching { decodeMmsBitmap(context, uri) }
-                .onFailure { Log.e(TAG, "MMS image decode failed: $uri", it) }
+        // 이미지 → 축소(1280) → JPEG 압축(장당 ~300KB 이하). 하나도 못 만들면 실패.
+        val jpegs = uris.mapNotNull { uri ->
+            runCatching { compressJpeg(decodeMmsBitmap(context, uri)) }
+                .onFailure { Log.e(TAG, "MMS image decode/compress failed: $uri", it) }
                 .getOrNull()
         }
-        if (bitmaps.isEmpty()) return false
+        if (jpegs.isEmpty()) return false
 
         return runCatching {
-            Settings.setDebugLogging(true, TAG)
-            val settings = Settings().apply {
-                setUseSystemSending(true)
-                setDeliveryReports(true)
-                app?.container?.preferences?.manualMmscUrl?.let { setMmsc(it) }
-                app?.container?.preferences?.manualMmscProxy?.let { setProxy(it) }
-                app?.container?.preferences?.manualMmscPort
-                    ?.takeIf { it > 0 }
-                    ?.let { setPort(it.toString()) }
-            }
+            val sendReq = buildSendReq(phoneNumber, body, jpegs)
+            val pdu = PduComposer(context, sendReq).make()
+            if (pdu == null || pdu.isEmpty()) { Log.e(TAG, "PduComposer produced empty PDU"); return@runCatching false }
 
-            val message = Message(body, arrayOf(phoneNumber), bitmaps.toTypedArray()).apply {
-                setSave(true)
-                setImageNames(Array(bitmaps.size) { i -> "ringgo_${System.currentTimeMillis()}_$i.jpg" })
-            }
+            // PDU 를 캐시파일에 쓰고 mmsdownload provider(읽기 모드)로 시스템에 넘긴다(AOSP MmsFileProvider 패턴).
+            val fileName = "mms_send_${System.currentTimeMillis()}.pdu"
+            File(context.cacheDir, fileName).writeBytes(pdu)
+            val contentUri = Uri.parse("content://${context.packageName}.mmsdownload/$fileName")
 
             val sentIntent = Intent(context, MmsSentReceiver::class.java).apply {
                 action = MmsSentReceiver.ACTION_MMS_SENT
                 putExtra(MmsSentReceiver.EXTRA_PHONE, phoneNumber)
                 putExtra(MmsSentReceiver.EXTRA_BODY_PREVIEW, body.take(80))
-                putExtra(MmsSentReceiver.EXTRA_IMAGE_COUNT, bitmaps.size)
+                putExtra(MmsSentReceiver.EXTRA_IMAGE_COUNT, jpegs.size)
+                putExtra(MmsSentReceiver.EXTRA_SEND_FILE, fileName)   // 완료 후 임시 PDU 삭제용
             }
+            val piFlags = PendingIntent.FLAG_UPDATE_CURRENT or
+                (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+            val sentPI = PendingIntent.getBroadcast(
+                context, (System.currentTimeMillis() and 0xffffff).toInt(), sentIntent, piFlags
+            )
 
-            Transaction(context.applicationContext, settings)
-                .setExplicitBroadcastForSentMms(sentIntent)
-                .sendNewMessage(message, Transaction.NO_THREAD_ID)
+            val smsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+                context.getSystemService(SmsManager::class.java)
+            else @Suppress("DEPRECATION") SmsManager.getDefault()
+            smsManager.sendMultimediaMessage(context, contentUri, null, null, sentPI)
 
-            Log.i(TAG, "MMS send requested: to=$phoneNumber images=${bitmaps.size} body=${body.length}")
+            // best-effort: 발신함에 저장(스레드 표시·durable). 실패해도 발송엔 영향 없음.
+            runCatching {
+                val subId = try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) SmsManager.getDefaultSmsSubscriptionId() else -1
+                } catch (e: Exception) { -1 }
+                PduPersister.getPduPersister(context)
+                    .persist(sendReq, Telephony.Mms.Sent.CONTENT_URI, true, true, null, subId)
+            }.onFailure { Log.w(TAG, "sent-box persist failed (non-fatal)", it) }
+
+            Log.i(TAG, "MMS (official) send requested: to=$phoneNumber images=${jpegs.size} body=${body.length}")
             true
         }.getOrElse { e ->
-            Log.e(TAG, "MMS send request failed", e)
+            Log.e(TAG, "MMS (official) send request failed", e)
             false
         }
+    }
+
+    /** 발신 MMS 의 SendReq PDU 구성 — 수신자 + (본문 텍스트 파트) + 이미지 파트들. */
+    private fun buildSendReq(phone: String, body: String, jpegs: List<ByteArray>): SendReq {
+        val req = SendReq()
+        req.addTo(EncodedStringValue(phone))
+        req.date = System.currentTimeMillis() / 1000L
+        val pduBody = PduBody()
+        if (body.isNotBlank()) {
+            val part = PduPart()
+            part.charset = CharacterSets.UTF_8
+            part.contentType = "text/plain".toByteArray()
+            part.contentLocation = "text_0.txt".toByteArray()
+            part.contentId = "text_0".toByteArray()
+            part.data = body.toByteArray(Charsets.UTF_8)
+            pduBody.addPart(part)
+        }
+        jpegs.forEachIndexed { i, bytes ->
+            val part = PduPart()
+            part.contentType = "image/jpeg".toByteArray()
+            part.contentLocation = "image_$i.jpg".toByteArray()
+            part.contentId = "image_$i".toByteArray()
+            part.data = bytes
+            pduBody.addPart(part)
+        }
+        req.body = pduBody
+        return req
+    }
+
+    /** 비트맵 → JPEG 바이트. maxBytes 초과 시 품질을 낮춰 재압축(통신사 MMS 용량 한계 대응). */
+    private fun compressJpeg(bitmap: Bitmap, maxBytes: Int = 300 * 1024): ByteArray {
+        var quality = 85
+        var out = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, quality, out)
+        while (out.size() > maxBytes && quality > 40) {
+            quality -= 15
+            out = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.JPEG, quality, out)
+        }
+        return out.toByteArray()
     }
 
     fun isDefaultSmsApp(context: Context): Boolean =
