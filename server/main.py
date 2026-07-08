@@ -5477,6 +5477,8 @@ _BLOG_WRITE_SYSTEM = """너는 '시공막내' 공식 블로그의 전속 작가�
 - 마무리: "이걸 손으로 다 하기 어렵다" → 자연스럽게 시공막내의 해당 기능 연결 (기승전-시공막내). 과장 광고 금지, 담백하게.
 - 숫자·계산 예시를 넣으면 좋음. 감탄사·이모지 남발 금지.
 - 허용 HTML: <h2> <p> <ul> <li> <b> <div class="box">(강조 박스). 다른 태그 금지.
+- 이해를 돕는 그림: 독자가 글만으로 이해하기 어려운 대목마다 <figure data-fig="키">한 줄 캡션</figure> 을 본문 중간에 2~3개 배치 (서버가 그림으로 바꿔줌). 키 종류:
+  calc(돈 계산·손실 크기) / flow(일 처리 3단계 흐름) / compare(나쁜 방식 vs 좋은 방식) / phone(고객과 문자 주고받기) / calendar(일정·날짜 겹침) / money(수금·정산 현황). 내용에 맞는 키만 사용.
 
 출력은 반드시 JSON 하나:
 {"title": "후킹형 제목 (35자 이내)", "description": "검색 결과에 보일 요약 (100자 내외, 키워드 포함)", "category": "고객 응대|견적|일정 관리|수금·정산|영업·단골 중 하나", "body_html": "<p>...</p><h2>...</h2>... (본문 전체, 1200~1800자, CTA 밴드는 넣지 말 것 — 서버가 붙임)"}"""
@@ -5521,6 +5523,9 @@ def _render_blog_post_html(post: dict) -> str:
         f'<article class="art"><span class="cat">{_html.escape(post["category"])}</span>'
         f'<h1>{title_esc}</h1>'
         f'<div class="meta">시공막내 · {date_label}</div>'
+        f'<img src="{post.get("thumb") or "/static/thumbs/default.png"}" alt="{title_esc}" '
+        'style="width:100%;height:auto;border-radius:16px;margin-bottom:26px;'
+        'box-shadow:0 6px 18px rgba(27,100,218,.18)">'
         + post["body_html"] +
         '<div class="cta-band"><h2>이 모든 걸, 막내가 대신합니다</h2>'
         '<p>60일 무료 · 카드 등록 없음 · 전화번호 인증이면 끝</p>'
@@ -5530,17 +5535,104 @@ def _render_blog_post_html(post: dict) -> str:
     )
 
 
-_ALLOWED_BLOG_TAGS = ("<h2>", "</h2>", "<p>", "</p>", "<ul>", "</ul>",
-                      "<li>", "</li>", "<b>", "</b>", '<div class="box">', "</div>")
+# ── 추가106 — 본문 중간 이해용 일러스트 세트 ──
+# Claude 가 <figure data-fig="키">캡션</figure> 로 위치만 고르면 서버가 SVG 로 치환.
+_FIG_SVG_COMMON = 'xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block"'
+_FIG_SVGS: dict[str, str] = {
+    # 돈 계산 인포그래픽 (놓친 매출/미수금 등)
+    "calc": f'''<svg viewBox="0 0 640 210" {_FIG_SVG_COMMON} role="img">
+<rect width="640" height="210" rx="16" fill="#EEF4FF"/>
+<rect x="24" y="30" width="150" height="150" rx="14" fill="#fff"/><text x="99" y="86" font-size="34" text-anchor="middle">📵</text><text x="99" y="122" font-size="14" text-anchor="middle" font-weight="800" fill="#0B0F19">놓친 전화</text><text x="99" y="146" font-size="12" text-anchor="middle" fill="#5A6472">월 10통</text>
+<text x="205" y="112" font-size="26" text-anchor="middle" fill="#1B64DA" font-weight="900">×</text>
+<rect x="236" y="30" width="150" height="150" rx="14" fill="#fff"/><text x="311" y="86" font-size="34" text-anchor="middle">🤝</text><text x="311" y="122" font-size="14" text-anchor="middle" font-weight="800" fill="#0B0F19">계약 전환</text><text x="311" y="146" font-size="12" text-anchor="middle" fill="#5A6472">약 30%</text>
+<text x="417" y="112" font-size="26" text-anchor="middle" fill="#1B64DA" font-weight="900">=</text>
+<rect x="448" y="30" width="168" height="150" rx="14" fill="#1B64DA"/><text x="532" y="86" font-size="34" text-anchor="middle">💸</text><text x="532" y="122" font-size="15" text-anchor="middle" font-weight="900" fill="#fff">증발한 매출</text><text x="532" y="146" font-size="12" text-anchor="middle" fill="#CFE0FF">매달 수백만 원</text></svg>''',
+    # 3단계 흐름
+    "flow": f'''<svg viewBox="0 0 640 190" {_FIG_SVG_COMMON} role="img">
+<rect width="640" height="190" rx="16" fill="#F4F5F7"/>
+<rect x="26" y="46" width="170" height="98" rx="14" fill="#fff"/><text x="111" y="88" font-size="28" text-anchor="middle">📞</text><text x="111" y="120" font-size="13" text-anchor="middle" font-weight="800" fill="#0B0F19">일이 생기는 순간</text>
+<path d="M206 95 h26 m-8 -7 l8 7 l-8 7" stroke="#3182F6" stroke-width="3" fill="none" stroke-linecap="round"/>
+<rect x="242" y="46" width="170" height="98" rx="14" fill="#fff"/><text x="327" y="88" font-size="28" text-anchor="middle">📝</text><text x="327" y="120" font-size="13" text-anchor="middle" font-weight="800" fill="#0B0F19">그 자리에서 기록</text>
+<path d="M422 95 h26 m-8 -7 l8 7 l-8 7" stroke="#3182F6" stroke-width="3" fill="none" stroke-linecap="round"/>
+<rect x="458" y="46" width="156" height="98" rx="14" fill="#1B64DA"/><text x="536" y="88" font-size="28" text-anchor="middle">✅</text><text x="536" y="120" font-size="13" text-anchor="middle" font-weight="900" fill="#fff">자동으로 처리</text></svg>''',
+    # 나쁜 예 vs 좋은 예
+    "compare": f'''<svg viewBox="0 0 640 230" {_FIG_SVG_COMMON} role="img">
+<rect width="640" height="230" rx="16" fill="#F4F5F7"/>
+<rect x="24" y="26" width="284" height="178" rx="14" fill="#fff"/><rect x="24" y="26" width="284" height="6" rx="3" fill="#F0436A"/>
+<text x="166" y="66" font-size="15" text-anchor="middle" font-weight="900" fill="#F0436A">❌ 이렇게 하면</text>
+<rect x="48" y="86" width="236" height="34" rx="10" fill="#FDE8ED"/><text x="166" y="108" font-size="12.5" text-anchor="middle" fill="#B01E45">말로만 · 기억에 의존 · 기록 없음</text>
+<text x="166" y="152" font-size="12.5" text-anchor="middle" fill="#5A6472">"그때 그렇게 말씀하셨잖아요"</text>
+<text x="166" y="176" font-size="12.5" text-anchor="middle" fill="#5A6472">분쟁 · 재작업 · 신뢰 하락</text>
+<rect x="332" y="26" width="284" height="178" rx="14" fill="#fff"/><rect x="332" y="26" width="284" height="6" rx="3" fill="#16C172"/>
+<text x="474" y="66" font-size="15" text-anchor="middle" font-weight="900" fill="#0B7A45">⭕ 이렇게 하면</text>
+<rect x="356" y="86" width="236" height="34" rx="10" fill="#E7F8EF"/><text x="474" y="108" font-size="12.5" text-anchor="middle" fill="#0B7A45">문서로 · 자동 기록 · 언제든 확인</text>
+<text x="474" y="152" font-size="12.5" text-anchor="middle" fill="#5A6472">"여기 적혀 있는 대로 진행할게요"</text>
+<text x="474" y="176" font-size="12.5" text-anchor="middle" fill="#5A6472">깔끔한 마무리 · 소개로 이어짐</text></svg>''',
+    # 폰 문자 주고받기
+    "phone": f'''<svg viewBox="0 0 640 220" {_FIG_SVG_COMMON} role="img">
+<rect width="640" height="220" rx="16" fill="#EEF4FF"/>
+<rect x="150" y="24" width="340" height="172" rx="18" fill="#fff"/>
+<rect x="174" y="48" width="200" height="40" rx="14" fill="#F4F5F7"/><text x="188" y="73" font-size="13" fill="#333D4B">사장님, 견적 얼마예요?</text>
+<rect x="266" y="100" width="200" height="40" rx="14" fill="#3182F6"/><text x="280" y="125" font-size="13" fill="#fff">견적서와 링크 보내드렸어요 📄</text>
+<rect x="174" y="152" width="130" height="30" rx="12" fill="#E7F8EF"/><text x="188" y="172" font-size="12" fill="#0B7A45">접수 완료 ✓</text></svg>''',
+    # 달력 겹침/일정
+    "calendar": f'''<svg viewBox="0 0 640 220" {_FIG_SVG_COMMON} role="img">
+<rect width="640" height="220" rx="16" fill="#F4F5F7"/>
+<rect x="60" y="28" width="520" height="164" rx="14" fill="#fff"/>
+<rect x="60" y="28" width="520" height="40" rx="14" fill="#1B64DA"/><text x="320" y="54" font-size="15" text-anchor="middle" fill="#fff" font-weight="800">7월</text>
+<g font-size="13" fill="#5A6472" text-anchor="middle"><text x="120" y="98">월</text><text x="220" y="98">화</text><text x="320" y="98">수</text><text x="420" y="98">목</text><text x="520" y="98">금</text></g>
+<rect x="285" y="112" width="70" height="30" rx="9" fill="#EEF4FF"/><text x="320" y="132" font-size="11.5" text-anchor="middle" fill="#1B64DA" font-weight="800">A 현장</text>
+<rect x="285" y="148" width="70" height="30" rx="9" fill="#FDE8ED"/><text x="320" y="168" font-size="11.5" text-anchor="middle" fill="#F0436A" font-weight="800">B 현장?!</text>
+<rect x="385" y="112" width="70" height="30" rx="9" fill="#E7F8EF"/><text x="420" y="132" font-size="11.5" text-anchor="middle" fill="#0B7A45" font-weight="800">자동 등록</text></svg>''',
+    # 돈/정산
+    "money": f'''<svg viewBox="0 0 640 200" {_FIG_SVG_COMMON} role="img">
+<rect width="640" height="200" rx="16" fill="#F4F5F7"/>
+<rect x="40" y="34" width="270" height="132" rx="14" fill="#fff"/>
+<text x="60" y="70" font-size="13.5" font-weight="800" fill="#0B0F19">동탄 욕실 — 잔금</text>
+<rect x="60" y="86" width="160" height="12" rx="6" fill="#FDE8ED"/><text x="290" y="97" font-size="13" text-anchor="end" font-weight="900" fill="#F0436A">90만 미수</text>
+<text x="60" y="140" font-size="12" fill="#9AA3AF">잊고 있으면 그냥 사라지는 돈</text>
+<rect x="330" y="34" width="270" height="132" rx="14" fill="#fff"/>
+<text x="350" y="70" font-size="13.5" font-weight="800" fill="#0B0F19">수원 타일 — 계약금</text>
+<rect x="350" y="86" width="200" height="12" rx="6" fill="#E7F8EF"/><text x="580" y="97" font-size="13" text-anchor="end" font-weight="900" fill="#0B7A45">입금 확인 ✓</text>
+<text x="350" y="140" font-size="12" fill="#9AA3AF">현장별로 화면에 남아 있는 돈</text></svg>''',
+}
+
+
+def _inject_blog_figures(body: str) -> str:
+    """<figure data-fig="키">캡션</figure> → 실제 SVG + 캡션으로 치환."""
+    import re as _re
+    import html as _html
+
+    def _rep(m):
+        key = m.group(1)
+        caption = m.group(2).strip()
+        svg = _FIG_SVGS.get(key)
+        if not svg:
+            return ""
+        cap = (f'<figcaption style="font-size:12.5px;color:#9AA3AF;text-align:center;'
+               f'margin-top:8px">{_html.escape(caption)}</figcaption>') if caption else ""
+        return (f'<figure style="margin:22px 0;border-radius:16px;overflow:hidden">'
+                f'{svg}{cap}</figure>')
+
+    return _re.sub(r'<figure data-fig="([a-z]+)">([\s\S]*?)</figure>', _rep, body)
 
 
 def _sanitize_blog_body(body: str) -> str:
-    """허용 태그 외 <script> 등 제거 (Claude 출력 방어)."""
+    """허용 태그 외 <script> 등 제거 (Claude 출력 방어). figure 는 먼저 SVG 치환."""
     import re as _re
     body = _re.sub(r"<script[\s\S]*?</script>", "", body, flags=_re.I)
-    body = _re.sub(r"<(?!/?(h2|p|ul|li|b|div)\b)[^>]*>", "", body)  # 화이트리스트 외 태그 제거
-    body = _re.sub(r'<div(?![^>]*class="box")[^>]*>', '<div class="box">', body)
-    return body
+    body = _inject_blog_figures(body)  # 추가106 — 치환된 figure/svg 는 신뢰 콘텐츠
+    # figure/svg 블록은 보호하고 나머지만 화이트리스트 필터
+    parts = _re.split(r"(<figure[\s\S]*?</figure>)", body)
+    cleaned = []
+    for i, part in enumerate(parts):
+        if part.startswith("<figure"):
+            cleaned.append(part)
+            continue
+        part = _re.sub(r"<(?!/?(h2|p|ul|li|b|div)\b)[^>]*>", "", part)
+        part = _re.sub(r'<div(?![^>]*class="box")[^>]*>', '<div class="box">', part)
+        cleaned.append(part)
+    return "".join(cleaned)
 
 
 async def _blog_generate_one(slug: Optional[str] = None) -> dict:
@@ -5642,15 +5734,15 @@ _BLOG_STATIC_META = [
     {"slug": "missed-call-cost", "category": "고객 응대",
      "title": "현장에서 놓친 전화 한 통, 얼마짜리인지 계산해 보셨나요",
      "description": "부재중 전화의 70%는 다시 걸려 오지 않습니다. 못 받는 건 어쩔 수 없어도, 놓치지 않는 방법은 있습니다.",
-     "date": "2026. 7. 8"},
+     "date": "2026. 7. 8", "thumb": "/static/thumbs/blog-missed-call-cost.png"},
     {"slug": "estimate-text-mistakes", "category": "견적",
      "title": "견적을 문자로 “300이요”라고 보내면 생기는 일 3가지",
      "description": "부가세 별도인지, 자재 포함인지, 언제까지 유효한지 — 한 줄 견적이 만드는 분쟁 3가지.",
-     "date": "2026. 7. 8"},
+     "date": "2026. 7. 8", "thumb": "/static/thumbs/blog-estimate-text-mistakes.png"},
     {"slug": "schedule-double-booking", "category": "일정 관리",
      "title": "시공일 겹침 사고, 달력 앱 탓이 아닙니다",
      "description": "문제는 기억력이 아니라 “잡히는 순간 기록되는 구조”가 없다는 것.",
-     "date": "2026. 7. 8"},
+     "date": "2026. 7. 8", "thumb": "/static/thumbs/blog-schedule-double-booking.png"},
 ]
 
 
@@ -5664,26 +5756,32 @@ def _render_blog_index_html() -> str:
     cards = []
     for slug, title, desc, cat, ms in rows:
         dt = _dt.datetime.utcfromtimestamp(ms / 1000) + _dt.timedelta(hours=9)
+        with db_conn() as con2:
+            trow = con2.execute("SELECT thumb FROM blog_posts WHERE slug = ?", (slug,)).fetchone()
         cards.append({"slug": slug, "title": title, "description": desc,
-                      "category": cat, "date": f"{dt.year}. {dt.month}. {dt.day}"})
+                      "category": cat, "date": f"{dt.year}. {dt.month}. {dt.day}",
+                      "thumb": (trow[0] if trow and trow[0] else "/static/thumbs/default.png")})
     cards += _BLOG_STATIC_META
     items = "".join(
         f'<a class="post" href="/blog/{c["slug"]}">'
-        f'<span class="cat">{_html.escape(c["category"])}</span>'
+        f'<img src="{c.get("thumb") or "/static/thumbs/default.png"}" alt="{_html.escape(c["title"])}" loading="lazy">'
+        f'<div class="pbody"><span class="cat">{_html.escape(c["category"])}</span>'
         f'<h2>{_html.escape(c["title"])}</h2>'
         f'<p>{_html.escape(c["description"])}</p>'
-        f'<div class="pmeta">{c["date"]} · 시공막내</div></a>'
+        f'<div class="pmeta">{c["date"]} · 시공막내</div></div></a>'
         for c in cards)
     extra_css = """
   .hero{max-width:920px;margin:0 auto;padding:48px 18px 6px;}
   .hero p{color:var(--t2);font-size:14.5px;margin-top:8px;}
-  .wrap{max-width:920px;margin:0 auto;padding:26px 18px 70px;}
-  .post{display:block;background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px 22px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.04);}
-  .post:hover{border-color:var(--blue);}
-  .post .cat{margin-bottom:10px;}
-  .post h2{font-size:18px;margin:0;line-height:1.45;}
-  .post p{font-size:13.8px;color:var(--t2);margin:8px 0 0;}
-  .post .pmeta{font-size:12px;color:var(--t3);margin-top:12px;}
+  .wrap{max-width:920px;margin:0 auto;padding:26px 18px 70px;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;align-items:start;}
+  .post{display:block;background:#fff;border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04);transition:transform .15s,border-color .15s;}
+  .post:hover{border-color:var(--blue);transform:translateY(-3px);}
+  .post img{width:100%;height:auto;display:block;aspect-ratio:1200/630;object-fit:cover;}
+  .post .pbody{padding:16px 18px 18px;}
+  .post .cat{margin-bottom:8px;}
+  .post h2{font-size:16.5px;margin:0;line-height:1.45;}
+  .post p{font-size:13.2px;color:var(--t2);margin:8px 0 0;}
+  .post .pmeta{font-size:11.5px;color:var(--t3);margin-top:10px;}
 """
     return (
         '<!doctype html><html lang="ko"><head><meta charset="utf-8">'
@@ -5758,13 +5856,15 @@ def _render_updates_dynamic() -> str:
             weeks[label] = []
             order.append(label)
         weeks[label].append((kind, text))
+    kind_icon = {"new": "✨", "fix": "🔧", "imp": "⚡"}
     blocks = []
     for label in order:
-        lis = "".join(
-            f'<li class="{k}">{_html.escape(t)}</li>' for k, t in weeks[label])
+        tiles = "".join(
+            f'<div class="tile {k}"><span class="tic">{kind_icon.get(k, "✨")}</span>'
+            f'<p>{_html.escape(t)}</p></div>' for k, t in weeks[label])
         blocks.append(
-            f'<div class="rel"><div class="date">{label}</div>'
-            f'<h2>이번 주의 막내</h2><ul>{lis}</ul></div>')
+            f'<div class="rel"><span class="date">{label}</span>'
+            f'<h2>이번 주의 막내</h2><div class="tiles">{tiles}</div></div>')
     return base.replace('<div class="wrap">', '<div class="wrap">' + "".join(blocks), 1)
 
 
