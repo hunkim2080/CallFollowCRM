@@ -158,6 +158,9 @@ fun SharedSiteScreen(
     // 링크/알림으로 진입 — 목록 로드 후 그 현장 상세 1회 자동 열기(사용자가 뒤로 가면 다시 안 엶).
     //   ⚠️ 받은현장(sites)뿐 아니라 '내가 공유한'(mySharedSites)도 매칭 → 오너(A)가 댓글 알림 탭 시 오너 상세로. (2026-07-02)
     var consumedInitial by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    // 딥링크(일정 등)로 특정 협업 상세를 바로 열고 들어온 경우 → 그 상세에서 뒤로가기 = 목록이 아니라 화면 자체를
+    //   닫아 호출한 곳(일정)으로 돌아가야 함. 목록에서 탭해 연 상세는 뒤로=목록(기존). (2026-07-08 사장님 버그)
+    var openedViaDeepLink by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(toast) {
         toast?.let {
             android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show()
@@ -176,6 +179,7 @@ fun SharedSiteScreen(
             (sites.any { it.shareId == initialShareId } || mySharedSites.any { it.shareId == initialShareId })) {
             selectedId = initialShareId
             consumedInitial = true
+            openedViaDeepLink = true   // 이 상세는 딥링크로 연 것 → 뒤로가기 시 화면 닫아 호출처(일정)로.
         }
     }
     // 휴지통에 넣은 건 목록·집계에서 제외. 거절(declined)/해제(ended)된 협업도 활성 목록에서 제외(기록은 서버 보존).
@@ -208,6 +212,8 @@ fun SharedSiteScreen(
     val openPartner = partnerGroups.firstOrNull { it.key == bizPartner }
     BackHandler(enabled = selected != null || selectedMine != null || bizPartner != null || showTrash) {
         when {
+            // 딥링크로 연 상세면 목록 말고 화면 자체를 닫아 호출처(일정)로. (2026-07-08 사장님)
+            (selected != null || selectedMine != null) && openedViaDeepLink -> { openedViaDeepLink = false; onBack() }
             selected != null || selectedMine != null -> selectedId = null
             showTrash -> showTrash = false
             else -> bizPartner = null
@@ -215,6 +221,7 @@ fun SharedSiteScreen(
     }
     // 상세 열면 그 현장 증거사진·댓글 로드(받은현장·내가공유한현장 둘 다).
     LaunchedEffect(selectedId) {
+        if (selectedId == null) openedViaDeepLink = false   // 상세 닫히면 딥링크 플래그도 해제(목록서 다시 탭한 건 정상 동작)
         val s = sites.firstOrNull { it.shareId == selectedId } ?: mySharedSites.firstOrNull { it.shareId == selectedId }
         if (s != null) { viewModel.loadPhotos(s.shareId); viewModel.loadComments(s.shareId) }
     }
@@ -264,6 +271,7 @@ fun SharedSiteScreen(
                 navigationIcon = {
                     IconButton(onClick = {
                         when {
+                            (selected != null || selectedMine != null) && openedViaDeepLink -> { openedViaDeepLink = false; onBack() }
                             selected != null || selectedMine != null -> selectedId = null
                             showTrash -> showTrash = false
                             bizPartner != null -> bizPartner = null
