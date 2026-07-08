@@ -6724,3 +6724,15 @@ Play 데이터보안 양식 ↔ 실제 수집 대조 감사 완료. 결과 = AND
    못 줄여 2줄로 길게 나옴. roughSite(대충 어디: 시/구+건물)로 축약 → 이름·주소·일당 한 줄. 주소 없으면 기존 fallback.
 - 둘 다 app 전용·서버 무관. 빌드 성공.
 - commit: (아래)
+
+## 2026-07-09 · android — 통화기록 중복 2차 fix (짧은번호 dedup 누락 + 청소 Kotlin 화)
+S9(메인폰) 실측 검증 중 발견: 통화기록 587건 중 184건이 유령 중복.
+- **원인2 (신규 발견)**: dedup 키가 "끝 8자리 미만이면 null(=dedup 스킵)" → "114"·"112"·"15xx" 등 짧은 번호가
+  sync 마다 재삽입돼 무한 증식. 실측 "114" 통화 1건이 **146 row**로 불어남. (원인1=race 는 어제 Mutex 로 fix)
+- **fix**: dedupKey(8자리↑ 끝8자리 / 미만 전체숫자) 로 짧은 번호도 dedup. insertDeduped·cleanup 공용.
+- **cleanup Kotlin 화**: 어제 @Query 자기참조 DELETE 가 기기(S9, 안드10) SQLite 에서 실행 안 됨(예외 삼켜짐) →
+  Kotlin 으로 재구현(allWithStartedAt + summary/recording linked id 셋 + groupBy dedupKey/startedAt →
+  유령만 deleteByIds) + Log. 데이터(요약/녹음) 붙은 row 절대 안 지움.
+- **S9 실측**: 587→403 (184 삭제), 중복그룹 0, 010-5234-0792 = 유령 604 삭제/데이터 605 보존, 114 = 146→1. 무크래시.
+- app 전용·서버 무관. DB 스키마 무변경(v39).
+- commit: (아래)

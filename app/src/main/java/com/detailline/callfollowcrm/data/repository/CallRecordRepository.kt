@@ -27,7 +27,17 @@ class CallRecordRepository(private val dao: CallRecordDao) {
     }
 
     /**
-     * 원자적 dedup insert — 같은 통화(끝 8자리+startedAt)면 기존 id, 아니면 새로 insert.
+     * 통화 dedup 비교 키 — 8자리 이상이면 끝 8자리(+82/010/하이픈 등 형식차 흡수), 그 미만이면 숫자 전체.
+     *   2026-07-09 fix: 예전엔 8자리 미만이면 dedup 을 아예 건너뛰어(null) "114"·"112"·"15xx" 같은 짧은 번호가
+     *   sync 마다 재삽입 → 한 통화가 수십~수백 row 로 불어났다(실측: 114 통화 1건이 146 row). 짧은 번호는 전체로 비교.
+     */
+    private fun dedupKey(phone: String): String {
+        val d = normDigits(phone)
+        return if (d.length >= 8) d.takeLast(8) else d
+    }
+
+    /**
+     * 원자적 dedup insert — 같은 통화(dedupKey+startedAt)면 기존 id, 아니면 새로 insert.
      *   검사+삽입 전체를 [insertLock] 안에서 실행해 동시 호출(정적 receiver / observer / callback)의 경합을 없앤다.
      * @return (row id, 새로 넣었으면 true / 기존이면 false)
      */
@@ -40,14 +50,14 @@ class CallRecordRepository(private val dao: CallRecordDao) {
     }
 
     /**
-     * 같은 통화가 이미 있으면 그 id. 번호 형식이 경로마다 달라도(원본/저장형식/+82) 끝 8자리 숫자 +
-     *   startedAt 으로 비교해 중복 INSERT 를 막는다. 끝 8자리 미만(번호 불명)이면 dedup 불가 → null.
+     * 같은 통화가 이미 있으면 그 id. 번호 형식이 경로마다 달라도(원본/저장형식/+82) dedupKey +
+     *   startedAt 으로 비교해 중복 INSERT 를 막는다. 숫자가 아예 없으면(번호없음) dedup 불가 → null.
      */
     private suspend fun existingIdSameCall(phone: String, startedAt: Long): Long? {
-        val target = normDigits(phone).takeLast(8)
-        if (target.length < 8) return null
+        val target = dedupKey(phone)
+        if (target.isEmpty()) return null
         return dao.findByStartedAt(startedAt)
-            .firstOrNull { normDigits(it.phoneNumber).takeLast(8) == target }
+            .firstOrNull { dedupKey(it.phoneNumber) == target }
             ?.id
     }
 
@@ -230,11 +240,35 @@ class CallRecordRepository(private val dao: CallRecordDao) {
     }
 
     /**
-     * 유령 중복 통화기록 정리 (2026-07-08) — race 로 이미 샌 "통화 1건 카드 2개" 를 앱 켤 때 self-heal.
-     *   같은 (번호, startedAt) 인데 요약도 녹음도 안 붙은 '유령' row 만 삭제한다. 데이터(요약/녹음)가
-     *   붙은 형제나 더 작은 id 형제가 있을 때만 지우므로 데이터는 절대 손실 없이 카드 1개로 수렴.
-     *   신규 중복은 insertDeduped(Mutex) 로 원천 차단되므로, 이건 과거분 청소용.
-     * @return 삭제된 row 수
+     * 유령 중복 통화기록 정리 — 앱 시작 시 self-heal. race(경합)·짧은번호 dedup 누락으로 이미 샌 중복을 청소.
+     *   같은 통화(dedupKey + startedAt) 그룹에서 **요약·녹음이 안 붙은 '유령' row 만** 삭제. 데이터가 붙은 형제
+     *   (전부 유령이면 min id)는 남긴다 → 데이터 손실 0, 카드 1개로 수렴. 신규 중복은 insertDeduped 로 원천 차단.
+     *   ※ Kotlin 으로 구현(자기참조 DELETE @Query 가 기기 SQLite 에서 실행 안 되던 문제 우회) + 결과 로그.
+     * @return 삭제한 row 수
      */
-    suspend fun cleanupPhantomDuplicates(): Int = dao.deletePhantomDuplicates()
+    suspend fun cleanupPhantomDuplicates(): Int {
+        val rows = dao.allWithStartedAt()
+        if (rows.size < 2) return 0
+        val linked = HashSet<Long>().apply {
+            addAll(dao.summaryLinkedRecordIds())      // 요약이 붙은 통화기록 id
+            addAll(dao.recordingLinkedRecordIds())    // 녹음이 붙은 통화기록 id
+        }
+        val toDelete = ArrayList<Long>()
+        rows.groupBy { dedupKey(it.phoneNumber) to it.startedAt }
+            .forEach forEachGroup@{ (_, group) ->
+                if (group.size < 2) return@forEachGroup
+                val withData = group.filter { it.id in linked }
+                val survivors: Set<Long> =
+                    if (withData.isNotEmpty()) withData.map { it.id }.toSet()
+                    else setOf(group.minOf { it.id })      // 전부 유령이면 min id 하나만 보존
+                for (r in group) {
+                    if (r.id !in survivors && r.id !in linked) toDelete.add(r.id)
+                }
+            }
+        if (toDelete.isEmpty()) return 0
+        var deleted = 0
+        toDelete.chunked(400).forEach { deleted += dao.deleteByIds(it) }   // IN(...) 변수 한도 회피
+        android.util.Log.i("CallDupCleanup", "removed $deleted phantom duplicate call_records (of ${rows.size})")
+        return deleted
+    }
 }
