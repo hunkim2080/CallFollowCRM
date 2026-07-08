@@ -258,8 +258,11 @@ object SmsSender {
         return out.toByteArray()
     }
 
+    // 기본 SMS 앱 판정은 RoleManager(ROLE_SMS) 기준 — Android 10+ 의 권위 소스.
+    //   삼성 등 일부 기기는 ROLE_SMS 는 우리 앱인데도 legacy getDefaultSmsPackage()/secure 설정이 null 을
+    //   반환해, 그걸로 검사하면 "기본앱 아님" 오판 → MMS 발송이 스스로 막히는 버그. (2026-07-08 S23U 확인)
     fun isDefaultSmsApp(context: Context): Boolean =
-        Telephony.Sms.getDefaultSmsPackage(context) == context.packageName
+        DefaultSmsAppHelper.isCurrentDefault(context)
 
     private fun decodeMmsBitmap(context: Context, uri: Uri): Bitmap {
         val raw = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
