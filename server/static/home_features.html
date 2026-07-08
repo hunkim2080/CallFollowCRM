@@ -3,12 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>기능 소개 — 시공막내 | 시공 사장님 전화·문자·견적·일정 올인원</title>
-<meta name="description" content="현장에서 전화 못 받아도 놓치지 않게. AI 통화 요약, 추천 답장, 시공접수서 링크, 직인 견적서, 일정·정산·협업까지 — 혼자 일하는 시공 사장님의 막내 비서, 시공막내의 기능을 소개합니다.">
+<title>기능 소개 — 시공막내 | 막내가 하는 일은 딱 3가지입니다</title>
+<meta name="description" content="① 전화: 놓쳐도 고객을 놓치지 않게 ② 견적: 문자 한 통이 계약서가 되게 ③ 일정·돈: 앱이 대신 지키게. 시공 사장님의 막내 비서, 시공막내의 기능을 3분에 이해하세요.">
 <link rel="canonical" href="https://si0in.kr/features">
 <meta property="og:type" content="website">
-<meta property="og:title" content="시공막내 기능 소개 — 전화·문자·견적·일정을 앱 하나로">
-<meta property="og:description" content="AI 통화 요약, 시공접수서, 직인 견적서, 일정 알림, 정산, 협업. 시공 사장님에게 필요한 것만 담았습니다.">
+<meta property="og:image" content="https://si0in.kr/static/thumbs/features.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="시공막내 기능 소개 — 막내가 하는 일은 딱 3가지">
+<meta name="twitter:description" content="전화 · 견적 · 일정과 돈. 시공 사장님에게 필요한 것만 담았습니다.">
+<meta name="twitter:image" content="https://si0in.kr/static/thumbs/features.png">
+<meta property="og:title" content="시공막내 기능 소개 — 막내가 하는 일은 딱 3가지">
+<meta property="og:description" content="전화 · 견적 · 일정과 돈. 시공 사장님에게 필요한 것만 담았습니다.">
 <meta property="og:url" content="https://si0in.kr/features">
 <meta property="og:site_name" content="시공막내">
 <script type="application/ld+json">
@@ -20,7 +27,7 @@
 </script>
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
 <style>
-  :root{--blue:#3182F6;--blue-dark:#1B64DA;--blue-tint:#EEF4FF;--bg:#FAFBFC;--t1:#0B0F19;--t2:#5A6472;--t3:#9AA3AF;--line:#EEF0F3;}
+  :root{--blue:#3182F6;--blue-dark:#1B64DA;--blue-tint:#EEF4FF;--bg:#FAFBFC;--t1:#0B0F19;--t2:#5A6472;--t3:#9AA3AF;--line:#EEF0F3;--green:#16C172;}
   *{box-sizing:border-box;margin:0;padding:0;}
   body{font-family:'Pretendard',-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--t1);line-height:1.65;}
   a{text-decoration:none;color:inherit;}
@@ -31,29 +38,41 @@
   .nav a.item{color:var(--t2);font-weight:600;}
   .nav a.item.on{color:var(--blue-dark);font-weight:800;}
   .nav a.cta{background:var(--blue);color:#fff;font-weight:800;padding:8px 14px;border-radius:9px;font-size:13.5px;}
-  .hero{max-width:920px;margin:0 auto;padding:52px 18px 10px;text-align:center;}
+  .hero{max-width:920px;margin:0 auto;padding:56px 18px 14px;text-align:center;}
   .hero .chip{display:inline-block;background:var(--blue-tint);color:var(--blue-dark);font-size:12.5px;font-weight:800;padding:6px 12px;border-radius:999px;margin-bottom:14px;}
-  h1{font-size:30px;font-weight:900;letter-spacing:-.03em;line-height:1.35;}
+  h1{font-size:32px;font-weight:900;letter-spacing:-.03em;line-height:1.35;}
   .hero p{color:var(--t2);font-size:15.5px;margin-top:12px;}
-  .wrap{max-width:920px;margin:0 auto;padding:34px 18px 70px;}
-  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px;margin-top:8px;}
-  .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px 20px;box-shadow:0 1px 3px rgba(0,0,0,.04);}
-  .card .ic{font-size:26px;}
-  .card h2{font-size:16.5px;font-weight:800;margin:10px 0 6px;letter-spacing:-.02em;}
-  .card h2 .tag{font-size:11px;color:var(--blue-dark);background:var(--blue-tint);border-radius:6px;padding:2px 7px;margin-left:6px;vertical-align:2px;}
-  .card p{font-size:13.8px;color:var(--t2);}
-  .sec-t{font-size:20px;font-weight:900;margin:44px 0 14px;letter-spacing:-.02em;}
-  .flow{background:#fff;border:1px solid var(--line);border-radius:16px;padding:24px 22px;}
-  .flow ol{margin-left:20px;}
-  .flow li{font-size:14.5px;color:var(--t2);margin-bottom:10px;}
-  .flow li b{color:var(--t1);}
+  .wrap{max-width:920px;margin:0 auto;padding:20px 18px 70px;}
+  .big{display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:22px;padding:34px 30px;margin-top:26px;box-shadow:0 1px 4px rgba(0,0,0,.04);}
+  .big .num{font-size:13px;font-weight:900;color:var(--blue-dark);background:var(--blue-tint);display:inline-block;padding:5px 12px;border-radius:999px;margin-bottom:12px;}
+  .big h2{font-size:24px;font-weight:900;letter-spacing:-.03em;line-height:1.4;}
+  .big .sub{font-size:14.5px;color:var(--t2);margin:10px 0 16px;}
+  .big ul{list-style:none;}
+  .big li{font-size:14.5px;color:var(--t2);padding:7px 0 7px 28px;position:relative;}
+  .big li::before{content:"✓";position:absolute;left:0;color:var(--green);font-weight:900;}
+  .big li b{color:var(--t1);}
+  .shot{display:flex;justify-content:center;}
+  .shot svg{width:100%;max-width:300px;height:auto;filter:drop-shadow(0 10px 24px rgba(11,15,25,.10));}
+  .etc{margin-top:40px;background:#fff;border:1px solid var(--line);border-radius:18px;padding:24px 24px;}
+  .etc h3{font-size:16px;font-weight:900;margin-bottom:14px;}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;}
+  .chips span{font-size:13px;font-weight:700;color:var(--t2);background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:7px 13px;}
+  .day{margin-top:44px;}
+  .day h3{font-size:20px;font-weight:900;margin-bottom:16px;letter-spacing:-.02em;}
+  .tl{position:relative;padding-left:26px;}
+  .tl::before{content:"";position:absolute;left:8px;top:6px;bottom:6px;width:2px;background:var(--line);}
+  .tl .t{position:relative;background:#fff;border:1px solid var(--line);border-radius:14px;padding:15px 18px;margin-bottom:10px;}
+  .tl .t::before{content:"";position:absolute;left:-22px;top:20px;width:10px;height:10px;border-radius:50%;background:var(--blue);}
+  .tl .t .h{font-size:12px;font-weight:900;color:var(--blue-dark);}
+  .tl .t p{font-size:14px;color:var(--t2);margin-top:3px;}
+  .tl .t p b{color:var(--t1);}
   .cta-band{margin-top:48px;background:linear-gradient(135deg,var(--blue),var(--blue-dark));border-radius:20px;padding:36px 24px;text-align:center;color:#fff;}
   .cta-band h2{font-size:21px;font-weight:900;margin-bottom:8px;}
   .cta-band p{font-size:14px;opacity:.9;margin-bottom:18px;}
   .cta-band a{display:inline-block;background:#fff;color:var(--blue-dark);font-weight:900;padding:13px 26px;border-radius:12px;font-size:15px;}
   footer{padding:32px 18px 60px;text-align:center;color:var(--t3);font-size:11.5px;line-height:1.7;background:#fff;border-top:1px solid var(--line);margin-top:60px;}
   footer a{color:var(--t3);text-decoration:underline;}
-  @media(max-width:560px){.nav a.item{display:none;} h1{font-size:24px;}}
+  @media(max-width:680px){.big{grid-template-columns:1fr;padding:26px 20px;} .big .shot{order:-1;} .nav a.item{display:none;} h1{font-size:25px;}}
 </style>
 </head>
 <body>
@@ -69,59 +88,161 @@
 
 <div class="hero">
   <span class="chip">시공 사장님 전용 · 60일 무료</span>
-  <h1>전화 받고, 견적 보내고, 일정 잡는 일<br>이제 막내한테 시키세요</h1>
-  <p>현장에서 손에 시멘트 묻히고 있는 동안에도, 시공막내가 고객 응대를 준비해 둡니다.</p>
+  <h1>막내가 하는 일은<br>딱 3가지입니다</h1>
+  <p>기능은 많지만, 외울 필요 없습니다. 사장님이 기억할 건 이 세 줄이 전부예요.</p>
 </div>
 
 <div class="wrap">
-  <div class="sec-t">📞 전화·문자 — 놓친 고객이 사라집니다</div>
-  <div class="grid">
-    <div class="card"><div class="ic">🪪</div><h2>전화 오면 고객 카드</h2>
-      <p>모르는 번호가 아니라 "지난주 욕실 방수 문의하신 분"으로 뜹니다. 받기 전에 누군지 알고 받으세요.</p></div>
-    <div class="card"><div class="ic">📝</div><h2>AI 통화 요약<span class="tag">AI</span></h2>
-      <p>통화 끝나면 녹음이 요약으로 바뀝니다. "평수·부위·희망일·예산"이 정리돼서 다시 들을 필요가 없어요.</p></div>
-    <div class="card"><div class="ic">💬</div><h2>추천 답장 + 말투 다듬기<span class="tag">AI</span></h2>
-      <p>고객 문자에 보낼 답 3개를 만들어 드립니다. 내 말투로 학습해서, 갈수록 사장님답게 씁니다.</p></div>
-    <div class="card"><div class="ic">🌙</div><h2>부재중 자동 응대</h2>
-      <p>현장이라 못 받은 전화에 "확인 후 연락드리겠습니다" 문자가 먼저 나갑니다. 고객이 다른 업체로 새지 않아요.</p></div>
+
+  <!-- ① 전화 -->
+  <section class="big">
+    <div>
+      <span class="num">하나</span>
+      <h2>전화를 놓쳐도,<br>고객은 놓치지 않게</h2>
+      <div class="sub">현장에서 손을 못 떼는 건 사장님 잘못이 아닙니다. 그동안 막내가 응대합니다.</div>
+      <ul>
+        <li>전화 오면 <b>"지난주 방수 문의하신 분"</b> — 고객 카드가 먼저 뜹니다</li>
+        <li>못 받으면 <b>자동 문자</b>가 나갑니다 — 고객이 다른 업체로 새지 않아요</li>
+        <li>통화가 끝나면 <b>AI가 요약</b> — 평수·부위·희망일이 글로 남습니다</li>
+        <li>답장은 <b>AI 추천 3개</b> 중 골라서 10초 — 내 말투로 다듬어 줍니다</li>
+      </ul>
+    </div>
+    <div class="shot">
+      <svg viewBox="0 0 300 380" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="전화 수신 화면 예시">
+        <rect x="10" y="6" width="280" height="368" rx="28" fill="#0B0F19"/>
+        <rect x="18" y="14" width="264" height="352" rx="22" fill="#F4F5F7"/>
+        <rect x="34" y="34" width="232" height="86" rx="14" fill="#fff"/>
+        <circle cx="66" cy="66" r="18" fill="#EEF4FF"/>
+        <text x="66" y="72" font-size="16" text-anchor="middle">👷</text>
+        <text x="94" y="60" font-size="13" font-weight="800" fill="#0B0F19">김민수 고객님</text>
+        <text x="94" y="78" font-size="10.5" fill="#5A6472">지난주 · 욕실 방수 문의</text>
+        <rect x="94" y="88" width="70" height="18" rx="9" fill="#EEF4FF"/>
+        <text x="129" y="101" font-size="9.5" text-anchor="middle" fill="#1B64DA" font-weight="700">견적 발송됨</text>
+        <rect x="34" y="132" width="232" height="66" rx="14" fill="#fff"/>
+        <text x="48" y="154" font-size="10.5" fill="#9AA3AF">📞 부재중 · 방금</text>
+        <rect x="48" y="162" width="204" height="26" rx="8" fill="#EEF4FF"/>
+        <text x="58" y="179" font-size="9.8" fill="#1B64DA" font-weight="700">"작업 중입니다. 확인 후 연락드릴게요" 자동 발송 ✓</text>
+        <rect x="34" y="210" width="232" height="104" rx="14" fill="#fff"/>
+        <text x="48" y="232" font-size="10.5" fill="#9AA3AF">🤖 AI 통화 요약</text>
+        <rect x="48" y="242" width="180" height="10" rx="5" fill="#E7EDF5"/>
+        <rect x="48" y="258" width="204" height="10" rx="5" fill="#E7EDF5"/>
+        <rect x="48" y="274" width="150" height="10" rx="5" fill="#E7EDF5"/>
+        <rect x="48" y="292" width="92" height="14" rx="7" fill="#EEF4FF"/>
+        <text x="94" y="303" font-size="9" text-anchor="middle" fill="#1B64DA" font-weight="700">34평 · 욕실 2곳 · 수요일</text>
+        <rect x="34" y="326" width="232" height="30" rx="12" fill="#3182F6"/>
+        <text x="150" y="345" font-size="11" text-anchor="middle" fill="#fff" font-weight="800">추천 답장 보기</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- ② 견적 -->
+  <section class="big">
+    <div>
+      <span class="num">둘</span>
+      <h2>문자 한 통이<br>계약서가 되게</h2>
+      <div class="sub">"300이요" 한 줄 대신, 직인 찍힌 문서가 나갑니다. 딴말이 안 나옵니다.</div>
+      <ul>
+        <li>항목 몇 개 고르면 <b>직인 견적서 이미지</b>가 30초 만에</li>
+        <li><b>부가세 별도/포함</b>이 버튼 하나로 명시 — 분쟁의 절반이 사라집니다</li>
+        <li>같이 나가는 <b>접수서 링크</b>에 고객이 주소·연락처를 직접 적습니다</li>
+        <li>제출된 내용은 <b>읽기 전용 영수증</b>으로 — "말이 달랐다"가 성립 안 해요</li>
+      </ul>
+    </div>
+    <div class="shot">
+      <svg viewBox="0 0 300 380" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="견적서 발행 예시">
+        <rect x="24" y="18" width="252" height="330" rx="14" fill="#fff" stroke="#CFD6DF"/>
+        <text x="150" y="58" font-size="20" text-anchor="middle" font-weight="900" fill="#111" letter-spacing="8">견 적 서</text>
+        <line x1="44" y1="76" x2="256" y2="76" stroke="#111" stroke-width="2"/>
+        <text x="44" y="98" font-size="11" fill="#5A6472">수신: 김민수 귀하</text>
+        <rect x="44" y="112" width="212" height="24" rx="4" fill="#F4F5F7"/>
+        <text x="52" y="128" font-size="10" font-weight="800" fill="#0B0F19">품목</text>
+        <text x="230" y="128" font-size="10" font-weight="800" fill="#0B0F19">금액</text>
+        <text x="52" y="156" font-size="10.5" fill="#333D4B">욕실 방수 재시공</text>
+        <text x="252" y="156" font-size="10.5" text-anchor="end" fill="#333D4B">180만원</text>
+        <text x="52" y="180" font-size="10.5" fill="#333D4B">타일 마감</text>
+        <text x="252" y="180" font-size="10.5" text-anchor="end" fill="#333D4B">90만원</text>
+        <line x1="44" y1="194" x2="256" y2="194" stroke="#EEF0F3"/>
+        <text x="52" y="216" font-size="11" font-weight="900" fill="#0B0F19">합계 (부가세 별도)</text>
+        <text x="252" y="216" font-size="12" text-anchor="end" font-weight="900" fill="#3182F6">2,700,000원</text>
+        <circle cx="228" cy="278" r="26" fill="none" stroke="#D6342C" stroke-width="2.5"/>
+        <text x="228" y="273" font-size="10" text-anchor="middle" fill="#D6342C" font-weight="800">동탄방수</text>
+        <text x="228" y="287" font-size="10" text-anchor="middle" fill="#D6342C" font-weight="800">직인</text>
+        <rect x="44" y="252" width="150" height="52" rx="10" fill="#EEF4FF"/>
+        <text x="56" y="272" font-size="9.5" fill="#1B64DA" font-weight="700">🔗 시공접수서 링크 첨부</text>
+        <text x="56" y="288" font-size="9" fill="#5A6472">고객이 주소·연락처 직접 입력</text>
+        <rect x="44" y="316" width="212" height="20" rx="8" fill="#E7F8EF"/>
+        <text x="150" y="330" font-size="9.5" text-anchor="middle" fill="#0B7A45" font-weight="700">✅ 접수 완료 — 일정에 자동 등록됨</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- ③ 일정·돈 -->
+  <section class="big">
+    <div>
+      <span class="num">셋</span>
+      <h2>일정과 돈은<br>앱이 대신 지키게</h2>
+      <div class="sub">사람의 기억력에 기대는 시스템은 성수기에 무너집니다. 구조가 지킵니다.</div>
+      <ul>
+        <li>접수서가 제출되면 <b>일정에 자동 등록</b> — 손으로 적는 단계가 없습니다</li>
+        <li>시공 하루 전, 고객에게 <b>안내 문자 자동 발송</b> — 겹침·펑크 예방</li>
+        <li>계약금·잔금이 현장별로 — <b>못 받은 돈</b>이 화면에 남아 있습니다</li>
+        <li>다른 사장님과 <b>협업 현장 공유</b> — 도착·완료·정산까지 한 화면</li>
+      </ul>
+    </div>
+    <div class="shot">
+      <svg viewBox="0 0 300 380" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="일정과 정산 화면 예시">
+        <rect x="10" y="6" width="280" height="368" rx="28" fill="#0B0F19"/>
+        <rect x="18" y="14" width="264" height="352" rx="22" fill="#F4F5F7"/>
+        <text x="36" y="46" font-size="13" font-weight="900" fill="#0B0F19">7월 둘째 주</text>
+        <rect x="34" y="58" width="232" height="58" rx="14" fill="#fff"/>
+        <rect x="34" y="58" width="6" height="58" rx="3" fill="#3182F6"/>
+        <text x="52" y="80" font-size="11" font-weight="800" fill="#0B0F19">수 · 동탄 욕실 방수</text>
+        <text x="52" y="98" font-size="9.5" fill="#5A6472">김민수 고객 · 09:00 · 접수서 자동 등록</text>
+        <rect x="34" y="124" width="232" height="58" rx="14" fill="#fff"/>
+        <rect x="34" y="124" width="6" height="58" rx="3" fill="#16C172"/>
+        <text x="52" y="146" font-size="11" font-weight="800" fill="#0B0F19">목 · 수원 타일 (협업)</text>
+        <text x="52" y="164" font-size="9.5" fill="#5A6472">박 사장님과 공유 · 도착 자동 표시</text>
+        <rect x="34" y="192" width="232" height="26" rx="10" fill="#EEF4FF"/>
+        <text x="46" y="209" font-size="9.5" fill="#1B64DA" font-weight="700">📨 내일 시공 안내 문자, 오늘 저녁 자동 발송</text>
+        <text x="36" y="248" font-size="13" font-weight="900" fill="#0B0F19">정산</text>
+        <rect x="34" y="258" width="232" height="44" rx="12" fill="#fff"/>
+        <text x="48" y="278" font-size="10.5" fill="#333D4B">동탄 욕실 — 잔금</text>
+        <text x="252" y="278" font-size="10.5" text-anchor="end" font-weight="800" fill="#F0436A">90만원 미수</text>
+        <rect x="48" y="286" width="100" height="8" rx="4" fill="#FDE8ED"/>
+        <rect x="34" y="310" width="232" height="44" rx="12" fill="#fff"/>
+        <text x="48" y="330" font-size="10.5" fill="#333D4B">수원 타일 — 계약금</text>
+        <text x="252" y="330" font-size="10.5" text-anchor="end" font-weight="800" fill="#0B7A45">30만원 입금 ✓</text>
+        <rect x="48" y="338" width="180" height="8" rx="4" fill="#E7F8EF"/>
+      </svg>
+    </div>
+  </section>
+
+  <div class="etc">
+    <h3>그 외에 막내가 조용히 하는 일들</h3>
+    <div class="chips">
+      <span>📌 발행 이력 — "그때 얼마였더라?" 3초</span>
+      <span>📮 정기 문자 예약 — AS·명절 인사</span>
+      <span>🤝 협업 증거사진·일당 정산</span>
+      <span>🗂️ 고객별 타임라인</span>
+      <span>✍️ 문자 템플릿 + AI 제목</span>
+      <span>🔔 수금 알림</span>
+    </div>
   </div>
 
-  <div class="sec-t">📄 견적·접수 — 종이 없이, 분쟁 없이</div>
-  <div class="grid">
-    <div class="card"><div class="ic">🧾</div><h2>직인 견적서 이미지</h2>
-      <p>항목 몇 개 고르면 직인 찍힌 견적서가 이미지로 나옵니다. 부가세 별도/포함까지 명시돼서 나중에 딴말이 안 나와요.</p></div>
-    <div class="card"><div class="ic">🔗</div><h2>시공접수서 링크</h2>
-      <p>고객에게 링크 하나 보내면 주소·연락처·희망사항을 고객이 직접 적어 냅니다. 제출되면 일정에 자동으로 들어가요.</p></div>
-    <div class="card"><div class="ic">✅</div><h2>제출 완료 영수증</h2>
-      <p>고객이 낸 접수서는 언제든 같은 링크에서 다시 확인. 시공일·금액·특이사항이 읽기 전용으로 남습니다.</p></div>
-    <div class="card"><div class="ic">📌</div><h2>발행 이력</h2>
-      <p>보낸 견적서·접수서가 고객별로 차곡차곡. "그때 얼마로 드렸더라?"가 3초면 나옵니다.</p></div>
+  <div class="day">
+    <h3>사장님의 하루에 이렇게 스며듭니다</h3>
+    <div class="tl">
+      <div class="t"><div class="h">07:30 이동 중</div><p>어제 놓친 문의에 <b>AI 추천 답장</b>으로 10초 만에 회신. 신호 대기에서 끝.</p></div>
+      <div class="t"><div class="h">10:00 시공 중</div><p>전화 두 통 부재중 — <b>자동 안내 문자</b>가 대신 나감. 고객 이탈 없음.</p></div>
+      <div class="t"><div class="h">12:30 점심</div><p>부재중 고객에게 전화. 통화 끝나자 <b>AI 요약</b>이 떠서 그 자리에서 <b>직인 견적서 + 접수서 링크</b> 발송.</p></div>
+      <div class="t"><div class="h">15:00 시공 중</div><p>고객이 접수서 제출 → <b>일정 자동 등록</b>. 사장님은 아무것도 안 했음.</p></div>
+      <div class="t"><div class="h">19:00 퇴근</div><p>내일 현장 고객에게 <b>하루 전 안내 문자</b> 자동 발송. 정산 화면엔 오늘 받을 잔금 체크.</p></div>
+    </div>
   </div>
-
-  <div class="sec-t">🗓️ 일정·정산·협업 — 사무실 없는 사무실</div>
-  <div class="grid">
-    <div class="card"><div class="ic">⏰</div><h2>일정 + 하루 전 안내</h2>
-      <p>시공 하루 전, 고객에게 안내 문자가 자동으로 나갑니다. "내일 가는 거 맞죠?" 전화를 안 받아도 됩니다.</p></div>
-    <div class="card"><div class="ic">💰</div><h2>수금·정산 관리</h2>
-      <p>계약금·잔금이 현장별로 정리됩니다. 못 받은 돈이 화면에 남아 있으니 잊고 넘어가는 일이 없어요.</p></div>
-    <div class="card"><div class="ic">🤝</div><h2>협업 현장 공유</h2>
-      <p>다른 사장님과 현장을 공유하고, 도착·완료·증거사진·일당 정산까지 한 화면에서. 전화 안 해도 진행이 보입니다.</p></div>
-    <div class="card"><div class="ic">📮</div><h2>정기 문자 예약</h2>
-      <p>AS 안내, 명절 인사, 시즌 점검 문자를 미리 걸어두세요. 단골은 이렇게 만들어집니다.</p></div>
-  </div>
-
-  <div class="sec-t">🔍 이렇게 흘러갑니다</div>
-  <div class="flow"><ol>
-    <li><b>전화가 옵니다</b> — 고객 카드가 뜨고, 못 받으면 자동 문자가 나갑니다.</li>
-    <li><b>통화가 끝납니다</b> — AI가 요약하고, 답장 추천을 준비합니다.</li>
-    <li><b>견적을 보냅니다</b> — 직인 견적서 이미지 + 시공접수서 링크를 문자 한 통으로.</li>
-    <li><b>고객이 접수서를 냅니다</b> — 일정에 자동 등록, 하루 전 안내 문자까지 예약됩니다.</li>
-    <li><b>시공이 끝납니다</b> — 잔금이 정산 목록에, 고객은 단골 목록에 남습니다.</li>
-  </ol></div>
 
   <div class="cta-band">
-    <h2>지금 시작하면 60일 무료</h2>
-    <p>설치하고 전화번호 인증만 하면 끝. 카드 등록도 없습니다.</p>
+    <h2>세 가지 다, 오늘부터 무료</h2>
+    <p>60일 무료 · 카드 등록 없음 · 전화번호 인증이면 끝</p>
     <a href="/">무료로 시작하기 →</a>
   </div>
 </div>

@@ -2305,10 +2305,14 @@ async def lifespan(app: FastAPI):
     # §D (2026-06-13) — 출동 2h 전 알림 poller. uvicorn 살아있는 동안 무한.
     remind_task = asyncio.create_task(_remind_poller_loop())
     print(f"[boot] §D remind poller scheduled")
+    # 추가105 — 블로그 매일 07:30 자동 발행 (BLOG_AUTOPUBLISH=0 으로 off)
+    blog_task = asyncio.create_task(_blog_autopublish_loop())
+    print(f"[boot] blog autopublish scheduled (enabled={_BLOG_AUTOPUBLISH})")
     try:
         yield
     finally:
         remind_task.cancel()
+        blog_task.cancel()
 
 
 app = FastAPI(title="RING-GO Server (Claude Sonnet 4.6)", lifespan=lifespan)
@@ -5185,20 +5189,32 @@ async def home_pricing():
 
 @app.get("/blog", response_class=HTMLResponse, include_in_schema=False)
 async def home_blog():
-    return _serve_home_page(_HOME_STATIC_PAGES["blog"])
+    # 추가105 — DB 자동 발행분 + 초기 3편 합쳐 동적 렌더
+    return HTMLResponse(content=_render_blog_index_html())
 
 
 @app.get("/updates", response_class=HTMLResponse, include_in_schema=False)
 async def home_updates():
-    return _serve_home_page(_HOME_STATIC_PAGES["updates"])
+    # 추가105 — app_updates 주 단위 자동 그룹을 상단에 주입
+    return HTMLResponse(content=_render_updates_dynamic())
 
 
 @app.get("/blog/{slug}", response_class=HTMLResponse, include_in_schema=False)
 async def home_blog_post(slug: str):
     filename = _BLOG_POST_PAGES.get(slug)
-    if not filename:
+    if filename:
+        return _serve_home_page(filename)
+    # 추가105 — 자동 발행분 (DB)
+    _blog_db_init()
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT slug, title, description, category, body_html, thumb, created_at_ms "
+            "FROM blog_posts WHERE slug = ?", (slug,)).fetchone()
+    if not row:
         raise HTTPException(404, "글을 찾을 수 없습니다")
-    return _serve_home_page(filename)
+    post = dict(zip(
+        ("slug", "title", "description", "category", "body_html", "thumb", "created_at_ms"), row))
+    return HTMLResponse(content=_render_blog_post_html(post))
 
 
 @app.get("/sitemap.xml", include_in_schema=False)
@@ -5206,6 +5222,13 @@ async def sitemap_xml():
     base = "https://si0in.kr"
     urls = ["/", "/features", "/pricing", "/blog", "/updates", "/terms", "/privacy"]
     urls += [f"/blog/{s}" for s in _BLOG_POST_PAGES]
+    # 추가105 — 자동 발행분 포함
+    try:
+        _blog_db_init()
+        with db_conn() as con:
+            urls += [f"/blog/{r[0]}" for r in con.execute("SELECT slug FROM blog_posts").fetchall()]
+    except Exception:
+        pass
     body = "".join(
         f"<url><loc>{base}{u}</loc><changefreq>weekly</changefreq></url>" for u in urls
     )
@@ -5230,6 +5253,519 @@ async def robots_txt():
         ),
         media_type="text/plain",
     )
+
+
+# ============================================================================
+# 추가105 — 블로그 매일 자동 발행 + 대표 섬네일 + 업데이트 주간 정리 (사장님 2026-07-09)
+# ─────────────────────────────────────────────────────────────────────────────
+# ① 매일 07:30 KST 주제 큐에서 1개 → Claude 로 글 생성 → blog_posts 저장 (+섬네일 PNG)
+#    env BLOG_AUTOPUBLISH=0 으로 끌 수 있음 (기본 ON). 수동: POST /api/admin/blog/generate
+# ② 섬네일: Pillow 로 1200×630 브랜드 이미지 (제목 텍스트 자동 줄바꿈·축소).
+#    Pillow 없으면 default.png fallback. (deploy 스크립트가 pillow 설치 보장)
+# ③ /updates = app_updates 테이블을 주 단위 자동 그룹 렌더 (이번 주 항목이 쌓이면
+#    자동으로 "N째 주" 블록이 됨). 등록: POST /api/admin/updates/entry (cowork 가 배포마다)
+# ============================================================================
+
+_HOME_BASE = "https://si0in.kr"
+_BLOG_AUTOPUBLISH = os.environ.get("BLOG_AUTOPUBLISH", "1") == "1"
+_THUMBS_DIR = BASE_DIR / "static" / "thumbs"
+
+# 주제 큐 — (slug, 주제/각도, 검색 키워드, 연결할 기능)
+_BLOG_TOPIC_QUEUE: list[tuple[str, str, str, str]] = [
+    ("deposit-no-show", "계약금 없이 날짜부터 잡아주면 생기는 노쇼 문제와 계약금 제안 화법", "시공 계약금 노쇼", "접수서 계약금 표시"),
+    ("as-call-regulars", "시공 끝나고 3개월 뒤 AS 안부 문자가 단골을 만드는 이유", "인테리어 AS 관리 단골", "정기 문자 예약"),
+    ("photo-before-after", "시공 전후 사진을 남기는 사장님이 분쟁에서 이기는 이유", "시공 전후 사진 분쟁", "협업 증거사진"),
+    ("kakao-vs-sms", "고객 응대, 카톡으로 할까 문자로 할까 — 시공업의 정답", "시공 고객 카톡 문자", "추천 답장"),
+    ("unpaid-balance", "잔금 못 받는 사장님의 공통점 3가지", "시공 잔금 미수금", "수금·정산 관리"),
+    ("estimate-visit-fee", "실측 방문비, 받아야 하나 말아야 하나", "실측 방문비 견적", "접수서 링크"),
+    ("winter-offseason", "비수기에 일감 만드는 사장님들의 문자 습관", "시공 비수기 영업", "정기 문자 예약"),
+    ("review-request", "시공 끝나고 리뷰 부탁, 언제 어떻게 말해야 자연스러울까", "인테리어 리뷰 요청 문자", "추천 답장"),
+    ("collab-day-rate", "일당 사장님과 협업할 때 돈 문제 안 생기게 하는 법", "시공 일당 정산 협업", "협업 현장 공유"),
+    ("phone-only-business", "명함도 사무실도 없이 전화 하나로 연 매출 올리는 구조", "1인 시공업 운영", "고객 카드·통화 요약"),
+    ("customer-memo", "고객마다 '현관 비번·주차·특이사항'을 기억하는 법", "시공 고객 관리 메모", "특이사항 메모"),
+    ("double-quote", "같은 고객에게 견적을 두 번 보내게 될 때 실수 안 하는 법", "견적 재발행", "접수서 링크 갱신"),
+    ("morning-brief", "하루 5분, 아침에 이것만 확인하면 펑크가 없다", "시공 일정 아침 루틴", "일정·하루 전 안내"),
+    ("voice-memo-dead", "운전 중에 들은 고객 요청, 저녁까지 살아남게 하는 법", "통화 메모 요약", "AI 통화 요약"),
+    ("price-haggle", "\"좀 깎아주세요\"에 손해 안 보고 답하는 문자 화법", "시공 가격 흥정 대응", "추천 답장"),
+    ("no-show-day", "고객이 시공일에 집에 없을 때 — 헛걸음 막는 전날 확인 절차", "시공 헛걸음 방지", "하루 전 안내 문자"),
+    ("tax-invoice-basic", "개인사업자 시공 사장님의 부가세 기초 — 견적서에 별도/포함부터", "시공 부가세 별도 포함", "견적서 부가세 표기"),
+    ("referral-engine", "소개가 소개를 부르는 구조 만들기 — 시공 후 30일 플랜", "인테리어 소개 영업", "정기 문자 예약"),
+    ("busy-season-triage", "성수기에 문의가 몰릴 때, 어떤 고객부터 잡아야 하나", "시공 문의 우선순위", "고객 카드·발행 이력"),
+    ("estimate-speed", "견적은 빠른 놈이 이긴다 — 첫 응답 30분의 법칙", "견적 빨리 보내는 법", "직인 견적서"),
+    ("old-customer-db", "폰에 잠든 옛 고객 연락처가 사실 금광인 이유", "기존 고객 재영업", "고객 타임라인"),
+    ("dispute-evidence", "말싸움이 아니라 기록싸움 — 분쟁에서 이기는 문서 3종", "시공 분쟁 대응", "접수서 영수증"),
+    ("family-help-out", "사모님이 전화 받아주던 시절을 졸업하는 법", "부부 시공업 전화 응대", "부재중 자동 응대"),
+    ("first-impression-sms", "첫 문자가 견적보다 중요하다 — 신규 문의 첫 응대 문장", "시공 첫 문의 응대", "추천 답장"),
+    ("area-expand", "옆 동네까지 상권 넓힐 때 문자로 미리 씨 뿌리는 법", "시공 상권 확장", "정기 문자 예약"),
+    ("subcontract-clear", "하도급 일 받을 때 돈 떼이지 않는 최소 장치", "하도급 대금 정산", "협업 정산"),
+    ("app-vs-paper", "수첩 사장님이 앱 사장님에게 밀리는 진짜 이유", "시공 고객 관리 앱", "발행 이력"),
+    ("night-message", "밤 9시 넘어 온 문의, 바로 답해도 될까 — 야간 응대 원칙", "야간 고객 문자", "부재중 자동 응대"),
+    ("season-checkup", "장마 전 점검 문자 한 통이 만드는 7월 매출", "장마 방수 점검 영업", "정기 문자 예약"),
+    ("quote-followup", "견적 보내고 답 없는 고객, 며칠 뒤에 어떻게 찔러볼까", "견적 후 팔로업 문자", "추천 답장"),
+]
+
+_BLOG_CATEGORIES = ["고객 응대", "견적", "일정 관리", "수금·정산", "영업·단골"]
+
+# ── 공통 셸 (토큰 치환 방식 — CSS 중괄호 이슈 회피) ──
+_BLOG_SHELL_CSS = """
+  :root{--blue:#3182F6;--blue-dark:#1B64DA;--blue-tint:#EEF4FF;--bg:#FAFBFC;--t1:#0B0F19;--t2:#5A6472;--t3:#9AA3AF;--line:#EEF0F3;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Pretendard',-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--t1);line-height:1.8;}
+  a{text-decoration:none;color:inherit;}
+  .nav{position:sticky;top:0;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);z-index:10;}
+  .nav-in{max-width:920px;margin:0 auto;display:flex;align-items:center;gap:18px;padding:13px 18px;font-size:14px;}
+  .nav-logo{font-weight:900;font-size:16px;letter-spacing:-.04em;margin-right:auto;}
+  .nav-logo .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--blue);margin-right:6px;vertical-align:middle;}
+  .nav a.item{color:var(--t2);font-weight:600;}
+  .nav a.item.on{color:var(--blue-dark);font-weight:800;}
+  .nav a.cta{background:var(--blue);color:#fff;font-weight:800;padding:8px 14px;border-radius:9px;font-size:13.5px;}
+  .art{max-width:680px;margin:0 auto;padding:46px 18px 70px;}
+  .cat{font-size:12px;font-weight:800;color:var(--blue-dark);background:var(--blue-tint);border-radius:6px;padding:3px 9px;display:inline-block;margin-bottom:12px;}
+  h1{font-size:26px;font-weight:900;letter-spacing:-.03em;line-height:1.45;}
+  .meta{font-size:12.5px;color:var(--t3);margin:12px 0 30px;}
+  h2{font-size:19px;font-weight:900;margin:36px 0 10px;letter-spacing:-.02em;}
+  p{font-size:15px;color:#333D4B;margin-bottom:14px;}
+  p b{color:var(--t1);}
+  .box{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin:18px 0;font-size:14.5px;color:var(--t2);}
+  .box b{color:var(--t1);}
+  ul{margin:0 0 14px 20px;}
+  li{font-size:15px;color:#333D4B;margin-bottom:8px;}
+  .cta-band{margin-top:44px;background:linear-gradient(135deg,var(--blue),var(--blue-dark));border-radius:18px;padding:30px 22px;text-align:center;color:#fff;}
+  .cta-band h2{font-size:19px;font-weight:900;margin:0 0 8px;}
+  .cta-band p{font-size:13.5px;opacity:.9;color:#fff;margin-bottom:16px;}
+  .cta-band a{display:inline-block;background:#fff;color:var(--blue-dark);font-weight:900;padding:12px 24px;border-radius:11px;font-size:14.5px;}
+  footer{padding:32px 18px 60px;text-align:center;color:var(--t3);font-size:11.5px;line-height:1.7;background:#fff;border-top:1px solid var(--line);margin-top:50px;}
+  footer a{color:var(--t3);text-decoration:underline;}
+  @media(max-width:560px){.nav a.item{display:none;} h1{font-size:22px;}}
+"""
+
+_HOME_NAV = """<nav class="nav"><div class="nav-in">
+  <a class="nav-logo" href="/"><span class="dot"></span>시공막내</a>
+  <a class="item" href="/features">기능</a>
+  <a class="item" href="/pricing">요금제</a>
+  <a class="item on" href="/blog">블로그</a>
+  <a class="item" href="/updates">업데이트</a>
+  <a class="cta" href="/">무료로 시작하기</a>
+</div></nav>"""
+
+_HOME_FOOTER = """<footer>
+  <div>상호: 막내컴퍼니 | 대표: 김상훈 | 사업자등록번호: 454-07-03372<br>
+  주소: 경기도 화성시 동탄지성로 11, 동탄에스알골드프라자 7층 714-D128호 | 전화: 010-8005-6674</div>
+  <div style="margin-top:6px;"><a href="/terms">이용약관</a> · <a href="/privacy">개인정보 처리방침</a> · <a href="/blog">블로그 홈</a></div>
+  <div style="margin-top:6px;">© 2026 막내컴퍼니 · 시공막내</div>
+</footer>"""
+
+
+def _blog_db_init() -> None:
+    with db_conn() as con:
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS blog_posts (
+                slug          TEXT PRIMARY KEY,
+                title         TEXT NOT NULL,
+                description   TEXT NOT NULL,
+                category      TEXT NOT NULL,
+                body_html     TEXT NOT NULL,
+                thumb         TEXT,
+                created_at_ms INTEGER NOT NULL
+            )""")
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS app_updates (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                kind          TEXT NOT NULL DEFAULT 'new',   -- new|fix|imp
+                text          TEXT NOT NULL,
+                created_at_ms INTEGER NOT NULL
+            )""")
+        con.commit()
+
+
+def _kst_now() -> "_dt.datetime":
+    return _dt.datetime.utcnow() + _dt.timedelta(hours=9)
+
+
+def _make_blog_thumb(title: str, category: str, slug: str) -> str:
+    """1200×630 대표 섬네일 PNG 생성. 실패 시 default.png fallback."""
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+    except ImportError:
+        print("[blog/thumb] Pillow 없음 → default.png fallback")
+        return "/static/thumbs/default.png"
+    try:
+        W, H = 1200, 630
+        font_candidates = [
+            "/System/Library/Fonts/AppleSDGothicNeo.ttc",              # macOS
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",     # linux
+            "/Library/Fonts/AppleGothic.ttf",
+        ]
+        fpath = next((p for p in font_candidates if Path(p).exists()), None)
+        if not fpath:
+            return "/static/thumbs/default.png"
+
+        img = Image.new("RGB", (W, H))
+        d = ImageDraw.Draw(img)
+        c1, c2 = (49, 130, 246), (23, 88, 196)
+        for y in range(H):
+            t = y / H
+            d.line([(0, y), (W, y)], fill=(
+                int(c1[0] + (c2[0] - c1[0]) * t),
+                int(c1[1] + (c2[1] - c1[1]) * t),
+                int(c1[2] + (c2[2] - c1[2]) * t)))
+        ov = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        od = ImageDraw.Draw(ov)
+        od.ellipse([880, -160, 1440, 400], fill=(255, 255, 255, 20))
+        od.ellipse([980, 60, 1380, 460], fill=(255, 255, 255, 15))
+        img = img.convert("RGBA")
+        img.alpha_composite(ov)
+        d = ImageDraw.Draw(img)
+
+        def _font(sz):
+            return ImageFont.truetype(fpath, sz)
+
+        def _wrap(text, font, maxw):
+            lines = []
+            for para in text.split("\n"):
+                line = ""
+                for word in para.split(" "):
+                    t = (line + " " + word).strip()
+                    if d.textlength(t, font=font) > maxw and line:
+                        lines.append(line)
+                        line = word
+                    else:
+                        line = t
+                lines.append(line)
+            return lines
+
+        d.ellipse([70, 64, 102, 96], fill="white")
+        d.text((118, 50), "시공막내", font=_font(44), fill="white")
+        top = 170
+        if category:
+            f = _font(30)
+            tw = d.textlength(category, font=f)
+            d.rounded_rectangle([70, top, 70 + tw + 48, top + 58], radius=29, fill="white")
+            d.text((94, top + 9), category, font=f, fill=(27, 100, 218))
+            top += 92
+        ts = 84
+        lines = [title]
+        f = _font(ts)
+        while ts >= 50:
+            f = _font(ts)
+            lines = _wrap(title, f, 1040)
+            if top + len(lines) * int(ts * 1.3) <= H - 130 and len(lines) <= 3:
+                break
+            ts -= 6
+        y = top + 6
+        for ln in lines[:3]:
+            d.text((70, y), ln, font=f, fill="white")
+            y += int(ts * 1.3)
+        d.text((70, H - 80), "시공 사장님의 막내 비서 · si0in.kr",
+               font=ImageFont.truetype(fpath, 30), fill=(255, 255, 255))
+        _THUMBS_DIR.mkdir(parents=True, exist_ok=True)
+        out = _THUMBS_DIR / f"post-{slug}.png"
+        img.convert("RGB").save(out, "PNG", optimize=True)
+        return f"/static/thumbs/post-{slug}.png"
+    except Exception as e:
+        print(f"[blog/thumb] 생성 실패 ({e}) → default.png")
+        return "/static/thumbs/default.png"
+
+
+_BLOG_WRITE_SYSTEM = """너는 '시공막내' 공식 블로그의 전속 작가다. 독자는 혼자 일하는 한국의 시공·인테리어 사장님 (40~60대, 현장직, 존댓말 선호).
+
+시공막내 = 시공 사장님의 막내 비서 앱. 기능: 전화 오면 고객 카드, 부재중 자동 문자, AI 통화 요약, AI 추천 답장(말투 학습), 직인 견적서 이미지(부가세 별도/포함 명시), 시공접수서 링크(고객이 작성→일정 자동 등록→읽기전용 영수증), 시공 하루 전 자동 안내 문자, 계약금·잔금 정산 관리, 협업 현장 공유(도착·증거사진·일당 정산), 정기 문자 예약. 60일 무료.
+
+글 스타일 (반드시):
+- 도입: 사장님이 겪는 구체적 장면으로 공감 후킹 (2~3문단)
+- 본론: 진짜 유용한 팁 2~4개 (h2 소제목) — 팁 자체로 가치가 있어야 함
+- 마무리: "이걸 손으로 다 하기 어렵다" → 자연스럽게 시공막내의 해당 기능 연결 (기승전-시공막내). 과장 광고 금지, 담백하게.
+- 숫자·계산 예시를 넣으면 좋음. 감탄사·이모지 남발 금지.
+- 허용 HTML: <h2> <p> <ul> <li> <b> <div class="box">(강조 박스). 다른 태그 금지.
+
+출력은 반드시 JSON 하나:
+{"title": "후킹형 제목 (35자 이내)", "description": "검색 결과에 보일 요약 (100자 내외, 키워드 포함)", "category": "고객 응대|견적|일정 관리|수금·정산|영업·단골 중 하나", "body_html": "<p>...</p><h2>...</h2>... (본문 전체, 1200~1800자, CTA 밴드는 넣지 말 것 — 서버가 붙임)"}"""
+
+
+def _render_blog_post_html(post: dict) -> str:
+    created = _dt.datetime.utcfromtimestamp(post["created_at_ms"] / 1000) + _dt.timedelta(hours=9)
+    date_label = f"{created.year}. {created.month}. {created.day}"
+    thumb_url = _HOME_BASE + (post.get("thumb") or "/static/thumbs/default.png")
+    url = f"{_HOME_BASE}/blog/{post['slug']}"
+    import html as _html
+    title_esc = _html.escape(post["title"])
+    desc_esc = _html.escape(post["description"])
+    ld = json.dumps({
+        "@context": "https://schema.org", "@type": "BlogPosting",
+        "headline": post["title"], "datePublished": created.strftime("%Y-%m-%d"),
+        "dateModified": created.strftime("%Y-%m-%d"),
+        "author": {"@type": "Organization", "name": "시공막내"},
+        "publisher": {"@type": "Organization", "name": "막내컴퍼니"},
+        "image": thumb_url, "mainEntityOfPage": url,
+    }, ensure_ascii=False)
+    return (
+        '<!doctype html><html lang="ko"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        f'<title>{title_esc} — 시공막내 블로그</title>'
+        f'<meta name="description" content="{desc_esc}">'
+        f'<link rel="canonical" href="{url}">'
+        '<meta property="og:type" content="article">'
+        f'<meta property="og:title" content="{title_esc}">'
+        f'<meta property="og:description" content="{desc_esc}">'
+        f'<meta property="og:url" content="{url}">'
+        '<meta property="og:site_name" content="시공막내">'
+        f'<meta property="og:image" content="{thumb_url}">'
+        '<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">'
+        '<meta name="twitter:card" content="summary_large_image">'
+        f'<meta name="twitter:title" content="{title_esc}">'
+        f'<meta name="twitter:image" content="{thumb_url}">'
+        f'<script type="application/ld+json">{ld}</script>'
+        '<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">'
+        f'<style>{_BLOG_SHELL_CSS}</style></head><body>'
+        + _HOME_NAV +
+        f'<article class="art"><span class="cat">{_html.escape(post["category"])}</span>'
+        f'<h1>{title_esc}</h1>'
+        f'<div class="meta">시공막내 · {date_label}</div>'
+        + post["body_html"] +
+        '<div class="cta-band"><h2>이 모든 걸, 막내가 대신합니다</h2>'
+        '<p>60일 무료 · 카드 등록 없음 · 전화번호 인증이면 끝</p>'
+        '<a href="/">시공막내 무료로 시작하기 →</a></div>'
+        '<div style="margin-top:34px;font-size:14px;"><a href="/blog" style="color:var(--blue-dark);font-weight:700;">← 블로그 목록으로</a></div>'
+        '</article>' + _HOME_FOOTER + '</body></html>'
+    )
+
+
+_ALLOWED_BLOG_TAGS = ("<h2>", "</h2>", "<p>", "</p>", "<ul>", "</ul>",
+                      "<li>", "</li>", "<b>", "</b>", '<div class="box">', "</div>")
+
+
+def _sanitize_blog_body(body: str) -> str:
+    """허용 태그 외 <script> 등 제거 (Claude 출력 방어)."""
+    import re as _re
+    body = _re.sub(r"<script[\s\S]*?</script>", "", body, flags=_re.I)
+    body = _re.sub(r"<(?!/?(h2|p|ul|li|b|div)\b)[^>]*>", "", body)  # 화이트리스트 외 태그 제거
+    body = _re.sub(r'<div(?![^>]*class="box")[^>]*>', '<div class="box">', body)
+    return body
+
+
+async def _blog_generate_one(slug: Optional[str] = None) -> dict:
+    """주제 큐에서 미발행 1개(또는 지정 slug) 를 Claude 로 생성해 저장."""
+    _blog_db_init()
+    with db_conn() as con:
+        done = {r[0] for r in con.execute("SELECT slug FROM blog_posts").fetchall()}
+    if slug:
+        topic = next((t for t in _BLOG_TOPIC_QUEUE if t[0] == slug), None)
+        if not topic:
+            raise HTTPException(404, f"주제 큐에 없는 slug: {slug}")
+        if slug in done:
+            raise HTTPException(409, f"이미 발행됨: {slug}")
+    else:
+        topic = next((t for t in _BLOG_TOPIC_QUEUE if t[0] not in done), None)
+        if not topic:
+            return {"ok": False, "reason": "주제 큐 소진 — cowork 에게 주제 보충 요청"}
+    tslug, angle, keyword, feature = topic
+    user_msg = (f"주제: {angle}\n노릴 검색 키워드: {keyword}\n"
+                f"기승전으로 연결할 시공막내 기능: {feature}\n"
+                f"위 스타일 규칙대로 JSON 으로 글을 써줘.")
+    parsed, response = await call_claude_json(
+        system_prompt=_BLOG_WRITE_SYSTEM, user_msg=user_msg, max_tokens=3000)
+    _log_llm_usage_from_response("blog-autopublish", response)
+    title = (parsed.get("title") or angle)[:60].strip()
+    desc = (parsed.get("description") or "")[:160].strip()
+    category = parsed.get("category") if parsed.get("category") in _BLOG_CATEGORIES else "영업·단골"
+    body = _sanitize_blog_body(parsed.get("body_html") or "")
+    if len(body) < 400:
+        raise HTTPException(502, "생성 본문이 너무 짧음 — 재시도 필요")
+    thumb = _make_blog_thumb(title, category, tslug)
+    now = _now_ms()
+    with db_conn() as con:
+        con.execute(
+            "INSERT OR REPLACE INTO blog_posts (slug, title, description, category, body_html, thumb, created_at_ms) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (tslug, title, desc, category, body, thumb, now))
+        con.commit()
+    print(f"[blog/autopublish] 발행: {tslug} — {title!r}")
+    return {"ok": True, "slug": tslug, "title": title, "url": f"{_HOME_BASE}/blog/{tslug}"}
+
+
+async def _blog_autopublish_loop() -> None:
+    """매일 07:30 KST 에 1편 자동 발행. (uvicorn 살아있는 동안)"""
+    while True:
+        try:
+            now = _kst_now()
+            target = now.replace(hour=7, minute=30, second=0, microsecond=0)
+            if now >= target:
+                target += _dt.timedelta(days=1)
+            await asyncio.sleep((target - now).total_seconds())
+            if not _BLOG_AUTOPUBLISH:
+                continue
+            # 오늘 이미 발행됐으면 skip (수동 트리거 중복 방지)
+            _blog_db_init()
+            today0 = int(_kst_now().replace(hour=0, minute=0, second=0, microsecond=0)
+                         .replace(tzinfo=_dt.timezone(_dt.timedelta(hours=9))).timestamp() * 1000)
+            with db_conn() as con:
+                n = con.execute("SELECT COUNT(*) FROM blog_posts WHERE created_at_ms >= ?",
+                                (today0,)).fetchone()[0]
+            if n:
+                print("[blog/autopublish] 오늘 발행분 있음 — skip")
+                continue
+            await _blog_generate_one()
+        except asyncio.CancelledError:
+            return
+        except Exception as e:
+            print(f"[blog/autopublish] 오류: {e}")
+            await asyncio.sleep(3600)
+
+
+@app.post("/api/admin/blog/generate")
+async def admin_blog_generate(
+    payload: Optional[dict] = None,
+    authorization: Optional[str] = Header(default=None),
+) -> dict:
+    """수동 발행 트리거 (다음 주제 1개, 또는 {slug} 지정)."""
+    _admin_auth_bearer_from_header(authorization)
+    return await _blog_generate_one((payload or {}).get("slug"))
+
+
+# ── 동적 라우트: 섬네일 / 블로그 / 업데이트 / sitemap ──
+
+@app.get("/static/thumbs/{name}", include_in_schema=False)
+async def serve_thumb(name: str):
+    if not name.replace("-", "").replace("_", "").replace(".", "").isalnum() or not name.endswith(".png"):
+        raise HTTPException(404)
+    path = _THUMBS_DIR / name
+    if not path.exists():
+        path = _THUMBS_DIR / "default.png"
+        if not path.exists():
+            raise HTTPException(404)
+    return FileResponse(path, media_type="image/png",
+                        headers={"Cache-Control": "public, max-age=86400"})
+
+
+# 초기 3편 (정적 파일) 의 인덱스 메타
+_BLOG_STATIC_META = [
+    {"slug": "missed-call-cost", "category": "고객 응대",
+     "title": "현장에서 놓친 전화 한 통, 얼마짜리인지 계산해 보셨나요",
+     "description": "부재중 전화의 70%는 다시 걸려 오지 않습니다. 못 받는 건 어쩔 수 없어도, 놓치지 않는 방법은 있습니다.",
+     "date": "2026. 7. 8"},
+    {"slug": "estimate-text-mistakes", "category": "견적",
+     "title": "견적을 문자로 “300이요”라고 보내면 생기는 일 3가지",
+     "description": "부가세 별도인지, 자재 포함인지, 언제까지 유효한지 — 한 줄 견적이 만드는 분쟁 3가지.",
+     "date": "2026. 7. 8"},
+    {"slug": "schedule-double-booking", "category": "일정 관리",
+     "title": "시공일 겹침 사고, 달력 앱 탓이 아닙니다",
+     "description": "문제는 기억력이 아니라 “잡히는 순간 기록되는 구조”가 없다는 것.",
+     "date": "2026. 7. 8"},
+]
+
+
+def _render_blog_index_html() -> str:
+    import html as _html
+    _blog_db_init()
+    with db_conn() as con:
+        rows = con.execute(
+            "SELECT slug, title, description, category, created_at_ms FROM blog_posts "
+            "ORDER BY created_at_ms DESC").fetchall()
+    cards = []
+    for slug, title, desc, cat, ms in rows:
+        dt = _dt.datetime.utcfromtimestamp(ms / 1000) + _dt.timedelta(hours=9)
+        cards.append({"slug": slug, "title": title, "description": desc,
+                      "category": cat, "date": f"{dt.year}. {dt.month}. {dt.day}"})
+    cards += _BLOG_STATIC_META
+    items = "".join(
+        f'<a class="post" href="/blog/{c["slug"]}">'
+        f'<span class="cat">{_html.escape(c["category"])}</span>'
+        f'<h2>{_html.escape(c["title"])}</h2>'
+        f'<p>{_html.escape(c["description"])}</p>'
+        f'<div class="pmeta">{c["date"]} · 시공막내</div></a>'
+        for c in cards)
+    extra_css = """
+  .hero{max-width:920px;margin:0 auto;padding:48px 18px 6px;}
+  .hero p{color:var(--t2);font-size:14.5px;margin-top:8px;}
+  .wrap{max-width:920px;margin:0 auto;padding:26px 18px 70px;}
+  .post{display:block;background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px 22px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.04);}
+  .post:hover{border-color:var(--blue);}
+  .post .cat{margin-bottom:10px;}
+  .post h2{font-size:18px;margin:0;line-height:1.45;}
+  .post p{font-size:13.8px;color:var(--t2);margin:8px 0 0;}
+  .post .pmeta{font-size:12px;color:var(--t3);margin-top:12px;}
+"""
+    return (
+        '<!doctype html><html lang="ko"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<title>시공막내 블로그 — 시공 사장님을 위한 영업·응대·운영 팁</title>'
+        '<meta name="description" content="혼자 일하는 시공·인테리어 사장님을 위한 실전 팁. 부재중 전화 응대, 견적서, 일정 관리, 수금까지 매일 한 편씩.">'
+        f'<link rel="canonical" href="{_HOME_BASE}/blog">'
+        '<meta property="og:type" content="website">'
+        '<meta property="og:title" content="시공막내 블로그 — 시공 사장님 실전 운영 팁">'
+        '<meta property="og:description" content="현장 뛰면서 놓치는 돈 줄이는 법을 매일 씁니다.">'
+        f'<meta property="og:url" content="{_HOME_BASE}/blog">'
+        '<meta property="og:site_name" content="시공막내">'
+        f'<meta property="og:image" content="{_HOME_BASE}/static/thumbs/blog.png">'
+        '<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">'
+        '<meta name="twitter:card" content="summary_large_image">'
+        f'<meta name="twitter:image" content="{_HOME_BASE}/static/thumbs/blog.png">'
+        '<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">'
+        f'<style>{_BLOG_SHELL_CSS}{extra_css}</style></head><body>'
+        + _HOME_NAV +
+        '<div class="hero"><h1>시공 사장님을 위한 실전 노트</h1>'
+        '<p>영업 잘하는 법 말고, 현장 뛰면서 놓치는 돈 줄이는 법을 씁니다. 매일 아침 한 편.</p></div>'
+        f'<div class="wrap">{items}</div>'
+        + _HOME_FOOTER + '</body></html>'
+    )
+
+
+_UPDATE_KIND_ICON = {"new": "✨", "fix": "🔧", "imp": "⚡"}
+_WEEK_KO = ["첫째", "둘째", "셋째", "넷째", "다섯째"]
+
+
+@app.post("/api/admin/updates/entry")
+async def admin_updates_entry(
+    payload: dict,
+    authorization: Optional[str] = Header(default=None),
+) -> dict:
+    """업데이트 소식 등록. {items: [{kind: new|fix|imp, text: "..."}]}"""
+    _admin_auth_bearer_from_header(authorization)
+    _blog_db_init()
+    items = payload.get("items") or []
+    if not items:
+        raise HTTPException(400, "items 필수")
+    now = _now_ms()
+    with db_conn() as con:
+        for it in items:
+            kind = it.get("kind") if it.get("kind") in _UPDATE_KIND_ICON else "new"
+            text = (it.get("text") or "").strip()
+            if text:
+                con.execute("INSERT INTO app_updates (kind, text, created_at_ms) VALUES (?,?,?)",
+                            (kind, text, now))
+        con.commit()
+    return {"ok": True, "count": len(items)}
+
+
+def _render_updates_dynamic() -> str:
+    """app_updates 를 주 단위로 자동 그룹 → home_updates.html 상단에 주입."""
+    import html as _html
+    base_path = BASE_DIR / "static" / "home_updates.html"
+    base = base_path.read_text(encoding="utf-8") if base_path.exists() else ""
+    _blog_db_init()
+    with db_conn() as con:
+        rows = con.execute(
+            "SELECT kind, text, created_at_ms FROM app_updates ORDER BY created_at_ms DESC").fetchall()
+    if not rows or not base:
+        return base
+    weeks: dict[str, list] = {}
+    order: list[str] = []
+    for kind, text, ms in rows:
+        dt = _dt.datetime.utcfromtimestamp(ms / 1000) + _dt.timedelta(hours=9)
+        wk_idx = min((dt.day - 1) // 7, 4)
+        label = f"{dt.year}. {dt.month}. {_WEEK_KO[wk_idx]} 주"
+        if label not in weeks:
+            weeks[label] = []
+            order.append(label)
+        weeks[label].append((kind, text))
+    blocks = []
+    for label in order:
+        lis = "".join(
+            f'<li class="{k}">{_html.escape(t)}</li>' for k, t in weeks[label])
+        blocks.append(
+            f'<div class="rel"><div class="date">{label}</div>'
+            f'<h2>이번 주의 막내</h2><ul>{lis}</ul></div>')
+    return base.replace('<div class="wrap">', '<div class="wrap">' + "".join(blocks), 1)
 
 
 @app.post("/api/beta-signup")

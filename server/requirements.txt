@@ -18,3 +18,4 @@ faster-whisper
 # 협업 invite/progress/paid 시점에 앱 꺼져 있어도 즉시 알림.
 # Firebase service account JSON 경로 = ENV FCM_SERVICE_ACCOUNT_JSON.
 firebase-admin
+pillow>=10.0

@@ -6765,3 +6765,23 @@ S9(메인폰) 실측 검증 중 발견: 통화기록 587건 중 184건이 유령
 - 검증: TestClient 7페이지 렌더 + sitemap/robots + 내부 링크 전수 + 404 ALL PASS. 배포 필요.
 - 사장님 리뷰 포인트: 문구 톤 / 요금제 표현 / 블로그 주제 추가 여부 (글은 계속 늘릴 수 있는 구조).
 - commit: (아래)
+
+## 2026-07-09 · cowork (사장님 지시: 홈페이지 v2 — 이미지·자동화)
+추가105 — 섬네일 전수 + 기능 재구성 + 블로그 매일 자동 발행 + 업데이트 주간 정리.
+- ① 메타태그 감사: og:image 가 전 페이지 0개였음 → 8개 페이지 전부 og:image(1200×630)
+  + twitter:card(summary_large_image) + landing canonical 추가. 카톡/문자 공유 시 대표 이미지 뜸.
+- ② 대표 섬네일 8종 제작 (static/thumbs/*.png) — 브랜드 블루 그라데이션 + 로고 + 카테고리 칩 + 제목.
+- ③ /features 전면 재구성: 카드 12장 나열 → "막내가 하는 일 딱 3가지" (전화/견적/일정·돈)
+  + 폰 목업 SVG 3종 (수신카드·직인견적서·일정정산) + "사장님의 하루" 타임라인. 이미지 중심.
+- ④ 블로그 매일 자동 발행: 주제 큐 30개 → 매일 07:30 KST Claude(sonnet) 생성 → blog_posts 저장
+  → 섬네일 PNG 자동 생성(Pillow, macOS/linux 폰트 자동 탐지, 실패 시 default) → /blog 인덱스·
+  /blog/{slug}·sitemap 자동 반영. 태그 화이트리스트 새니타이즈. env BLOG_AUTOPUBLISH=0 으로 off.
+  수동 트리거: POST /api/admin/blog/generate (Bearer). llm_usage_log 에 "blog-autopublish" 기록.
+- ⑤ /updates 주간 자동 정리: app_updates 테이블 → "YYYY. M. N째 주" 자동 그룹 렌더 (기존 정적
+  블록은 하단 유지). 등록: POST /api/admin/updates/entry {items:[{kind:new|fix|imp, text}]} —
+  cowork 가 배포마다 등록하는 운영 룰.
+- requirements.txt 에 pillow 추가 (deploy 가 자동 설치).
+- 검증: TestClient ①~⑨ ALL PASS (mock 발행→렌더→새니타이즈→인덱스 순서→섬네일 실생성·서빙·
+  경로탐색 차단→sitemap→중복 409→주간 그룹→기능 새 구조→메타 전수).
+- ⚠️ 주제 큐 30개 = 한 달 분량. 소진 전 cowork 가 보충. 변경: main.py + requirements + static 다수. 배포 필요.
+- commit: (아래)
