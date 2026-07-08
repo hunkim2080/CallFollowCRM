@@ -66,6 +66,37 @@ interface CallRecordDao {
     @Query("SELECT * FROM call_records WHERE startedAt = :startedAt")
     suspend fun findByStartedAt(startedAt: Long): List<CallRecordEntity>
 
+    /**
+     * 유령 중복 통화기록 삭제 (2026-07-08 "통화 1건 카드 2개" self-heal).
+     *   같은 통화(끝 8자리 + startedAt) 형제가 있고, THIS row 엔 요약(call_summaries)도 녹음(recording_attachments)도
+     *   안 붙어 있으며, 그 형제가 '데이터를 가졌거나 더 작은 id' 일 때만 삭제 → 데이터 보존 + 카드 1개 수렴.
+     *   (둘 다 유령이면 min(id) 만 남고 나머지 삭제. 둘 다 데이터 보유면 아무 것도 안 지움 = 안전.)
+     *   번호 비교는 형식 무시 — '-'·' '·'+' 제거 후 끝 8자리 일치(채팅 카드 페어링과 동일 기준). 하이픈 저장(고객
+     *   상세 백필)과 raw 저장(수신기)이 섞인 중복도 잡는다. startedAt 은 같은 CallLog DATE 라 정확일치.
+     *   id IN (SELECT …) 형태로 삭제 대상 id 를 먼저 확정 후 삭제(같은 테이블 수정 안전).
+     */
+    @Query("""
+        DELETE FROM call_records WHERE id IN (
+            SELECT cr.id FROM call_records cr
+            WHERE cr.startedAt IS NOT NULL
+              AND NOT EXISTS (SELECT 1 FROM call_summaries s WHERE s.callRecordId = cr.id)
+              AND NOT EXISTS (SELECT 1 FROM recording_attachments r WHERE r.callRecordId = cr.id)
+              AND EXISTS (
+                  SELECT 1 FROM call_records o
+                  WHERE o.id <> cr.id
+                    AND o.startedAt = cr.startedAt
+                    AND substr(replace(replace(replace(o.phoneNumber,'-',''),' ',''),'+',''), -8)
+                      = substr(replace(replace(replace(cr.phoneNumber,'-',''),' ',''),'+',''), -8)
+                    AND (
+                        EXISTS (SELECT 1 FROM call_summaries s2 WHERE s2.callRecordId = o.id)
+                        OR EXISTS (SELECT 1 FROM recording_attachments r2 WHERE r2.callRecordId = o.id)
+                        OR o.id < cr.id
+                    )
+              )
+        )
+    """)
+    suspend fun deletePhantomDuplicates(): Int
+
     /** 해당 번호의 통화 기록 총 개수. "첫 통화 감지"용 (== 1 이면 방금 만든 게 처음). */
     @Query("SELECT COUNT(*) FROM call_records WHERE phoneNumber = :phone")
     suspend fun countByPhone(phone: String): Int

@@ -7,14 +7,36 @@ import com.detailline.callfollowcrm.domain.model.CallType
 import com.detailline.callfollowcrm.domain.model.HandledStatus
 import com.detailline.callfollowcrm.util.CallLogHelper
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class CallRecordRepository(private val dao: CallRecordDao) {
+
+    // 2026-07-08 사장님 "통화 1건인데 카드 2개" 재발 fix — dedup 검사+삽입을 원자적으로 직렬화.
+    //   통화 종료 시 CallStateReceiver(정적) + CallLog ContentObserver(syncRecentCallLog) +
+    //   TelephonyCallback(syncFromCallLog) 셋이 각자 delay(1500) 뒤 ~동시에 깨어나 같은 CallLog 를 읽고,
+    //   각자 "기존 없음" 확인 → 각자 insert 하는 check-then-insert 경합. exact-startedAt dedup 은 맞지만
+    //   원자적이지 않아 겹치면 2 row 가 들어감(카드 2개). Mutex 로 검사~삽입을 한 번에 하나만 실행.
+    private val insertLock = Mutex()
 
     /** 번호를 숫자만 + (82→0) 정규화. 통화 dedup 비교용(형식 무시). */
     private fun normDigits(phone: String): String {
         var d = phone.filter { it.isDigit() }
         if (d.startsWith("82")) d = "0" + d.substring(2)
         return d
+    }
+
+    /**
+     * 원자적 dedup insert — 같은 통화(끝 8자리+startedAt)면 기존 id, 아니면 새로 insert.
+     *   검사+삽입 전체를 [insertLock] 안에서 실행해 동시 호출(정적 receiver / observer / callback)의 경합을 없앤다.
+     * @return (row id, 새로 넣었으면 true / 기존이면 false)
+     */
+    private suspend fun insertDeduped(entity: CallRecordEntity): Pair<Long, Boolean> = insertLock.withLock {
+        val started = entity.startedAt
+        if (started != null) {
+            existingIdSameCall(entity.phoneNumber, started)?.let { return@withLock it to false }
+        }
+        dao.insert(entity) to true
     }
 
     /**
@@ -66,10 +88,7 @@ class CallRecordRepository(private val dao: CallRecordDao) {
         //   2026-06-10: 번호 형식 무시(normDigits) 로 비교 — CallStateReceiver(원본)와
         //     syncFromCallLog(고객 저장형식)가 형식이 달라 dedup 빗나가 발신통화 2개 되던 것 fix.
         //   startedAt == null 케이스 (번호없음/권한 X) 는 dedup 불가 — 그대로 INSERT (rare path).
-        if (startedAt != null) {
-            val existingId = existingIdSameCall(phoneNumber, startedAt)
-            if (existingId != null) return existingId
-        }
+        //   2026-07-08: 검사+삽입을 insertDeduped(Mutex) 로 원자화 — 동시 호출 경합으로 카드 2개 되던 것 fix.
         val entity = CallRecordEntity(
             phoneNumber = phoneNumber,
             callType = callType.name,
@@ -79,7 +98,7 @@ class CallRecordRepository(private val dao: CallRecordDao) {
             handledStatus = handledStatus.name,
             linkedCustomerId = linkedCustomerId
         )
-        return dao.insert(entity)
+        return insertDeduped(entity).first
     }
 
     suspend fun markHandled(id: Long, status: HandledStatus, linkedCustomerId: Long? = null) {
@@ -120,9 +139,8 @@ class CallRecordRepository(private val dao: CallRecordDao) {
 
         var inserted = 0
         for (e in entries) {
-            // startedAt + 끝 8자리 dedup (번호 형식 무시 — CallLog DATE = 통화 시작 시각)
-            if (existingIdSameCall(phoneNumber, e.date) != null) continue
-            dao.insert(
+            // startedAt + 끝 8자리 dedup (번호 형식 무시 — CallLog DATE = 통화 시작 시각). insertDeduped 로 원자화.
+            val (_, isNew) = insertDeduped(
                 CallRecordEntity(
                     phoneNumber = phoneNumber,
                     callType = e.type.name,
@@ -133,7 +151,7 @@ class CallRecordRepository(private val dao: CallRecordDao) {
                     linkedCustomerId = linkedCustomerId
                 )
             )
-            inserted++
+            if (isNew) inserted++
         }
         return inserted
     }
@@ -169,8 +187,7 @@ class CallRecordRepository(private val dao: CallRecordDao) {
         for (e in entries) {
             val phone = e.phoneNumber
             if (phone.isBlank()) continue
-            if (existingIdSameCall(phone, e.date) != null) continue
-            dao.insert(
+            val (_, isNew) = insertDeduped(
                 CallRecordEntity(
                     phoneNumber = phone,
                     callType = e.type.name,
@@ -181,7 +198,7 @@ class CallRecordRepository(private val dao: CallRecordDao) {
                     linkedCustomerId = null
                 )
             )
-            inserted++
+            if (isNew) inserted++
         }
         return inserted
     }
@@ -194,8 +211,7 @@ class CallRecordRepository(private val dao: CallRecordDao) {
         for (e in entries) {
             val phone = e.phoneNumber
             if (phone.isBlank()) continue
-            if (existingIdSameCall(phone, e.date) != null) continue
-            dao.insert(
+            val (_, isNew) = insertDeduped(
                 CallRecordEntity(
                     phoneNumber = phone,
                     callType = e.type.name,
@@ -208,8 +224,17 @@ class CallRecordRepository(private val dao: CallRecordDao) {
                     linkedCustomerId = null
                 )
             )
-            inserted++
+            if (isNew) inserted++
         }
         return inserted
     }
+
+    /**
+     * 유령 중복 통화기록 정리 (2026-07-08) — race 로 이미 샌 "통화 1건 카드 2개" 를 앱 켤 때 self-heal.
+     *   같은 (번호, startedAt) 인데 요약도 녹음도 안 붙은 '유령' row 만 삭제한다. 데이터(요약/녹음)가
+     *   붙은 형제나 더 작은 id 형제가 있을 때만 지우므로 데이터는 절대 손실 없이 카드 1개로 수렴.
+     *   신규 중복은 insertDeduped(Mutex) 로 원천 차단되므로, 이건 과거분 청소용.
+     * @return 삭제된 row 수
+     */
+    suspend fun cleanupPhantomDuplicates(): Int = dao.deletePhantomDuplicates()
 }

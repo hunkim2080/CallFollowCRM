@@ -6696,3 +6696,22 @@ Play 데이터보안 양식 ↔ 실제 수집 대조 감사 완료. 결과 = AND
 → 양식 "삭제 가능=예" 근거 OK, 방침 수정 불필요. 감사 결론 = 허위신고 없음, 조치 2건(위치 use-case
 권한선언·심사 통과 후)은 android 몫으로 유지. ⚠️ 라이브 /privacy 는 배포해야 v3 반영 (배포 대기 중).
 - commit: (아래)
+
+## 2026-07-08 · android — "통화 1건인데 통화카드 2개" 재발 fix (race)
+사장님 스샷: 발신 1건(1분55초, 16:16)인데 채팅 통화카드 2개(하나=녹음+AI요약됨, 하나=계속 "요약 중").
+- 진단: 채팅 통화카드 = call_records 1건당 1개(buildChatTimeline). 카드 2개 = call_records 중복 2 row.
+  통화 종료 시 CallStateReceiver(정적) + CallLog ContentObserver(syncRecentCallLog) + TelephonyCallback(syncFromCallLog)
+  셋이 각자 delay(1500) 뒤 ~동시에 깨어나 같은 CallLog 를 읽고, 각자 "기존 없음" 확인 후 각자 insert.
+  exact-startedAt dedup 은 맞지만 원자적이지 않아(check-then-insert race) 겹치면 2 row. 2026-05-30 dedup/
+  migration 은 순차 케이스만 막았고 동시 케이스는 못 막음. (요약은 recordSummary 1:1 배정이라 한 카드만 붙고
+  나머지 카드는 autoPending 스피너로 영영 "요약 중").
+- fix (app 전용, 서버 무관):
+  - CallRecordRepository.insertDeduped(Mutex) — dedup 검사+삽입을 원자적으로 직렬화. create()/syncFromCallLog/
+    importCallLogSince/syncRecentCallLog 전부 이걸로 경유 → 신규 중복 원천 차단.
+  - CallRecordDao.deletePhantomDuplicates() — 과거 race 로 샌 중복 self-heal. 같은(끝8자리+startedAt) 형제 중
+    요약도 녹음도 안 붙은 유령 row 만 삭제(데이터 붙은 형제/작은 id 우선 보존). 앱 시작 시 1회 실행.
+    번호는 형식무시(하이픈/공백/+ 제거 후 끝8자리)로 비교 → 하이픈저장(백필)+raw저장(수신기) 섞인 중복도 잡음.
+- DB 스키마 변경 없음(쿼리만 추가) → 버전 유지 v39, 마이그레이션 불필요.
+- 검증: S23U(테스트폰) 디버그 설치/재실행 무크래시, 기존 126 row 0건 오삭제(안전). 실제 중복은 사장님 메인폰(S9,
+  에이닷)에 있어 그 폰 재설치 후 자동 정리됨. Room 이 SQL 컴파일검증 통과.
+- commit: (아래)
