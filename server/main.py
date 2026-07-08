@@ -5336,7 +5336,7 @@ _BLOG_SHELL_CSS = """
   .cta-band a{display:inline-block;background:#fff;color:var(--blue-dark);font-weight:900;padding:12px 24px;border-radius:11px;font-size:14.5px;}
   footer{padding:32px 18px 60px;text-align:center;color:var(--t3);font-size:11.5px;line-height:1.7;background:#fff;border-top:1px solid var(--line);margin-top:50px;}
   footer a{color:var(--t3);text-decoration:underline;}
-  @media(max-width:560px){.nav a.item{display:none;} h1{font-size:22px;}}
+  @media(max-width:560px){.nav-in{gap:11px;overflow-x:auto;-webkit-overflow-scrolling:touch;}.nav-logo{margin-right:6px;}.nav a.item{font-size:13px;}.nav a.cta{padding:7px 10px;font-size:12px;white-space:nowrap;} h1{font-size:22px;}}
 """
 
 _HOME_NAV = """<nav class="nav"><div class="nav-in">

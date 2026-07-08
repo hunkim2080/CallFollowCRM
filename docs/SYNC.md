@@ -6798,3 +6798,13 @@ S9(메인폰) 실측 검증 중 발견: 통화기록 587건 중 184건이 유령
   동적 주간 블록도 동일 타일로 렌더.
 - 검증: TestClient 추가106 ①~④ + 추가105 회귀 ALL PASS. 변경: main.py + static (blog 3편·updates). 배포 필요.
 - commit: (아래)
+
+## 2026-07-09 · cowork (사장님: 페이지 간 이동 버튼 없음)
+추가107 — 상단 네비게이션 전 페이지 노출 fix.
+- 원인: nav 메뉴(기능/요금제/블로그/업데이트)가 @media(max-width) 에서 display:none 으로 숨겨져 있었음
+  → 모바일에서 메뉴 통째로 사라짐 (사장님이 폰으로 보고 "버튼 없다").
+- 수정: 모바일에서도 항상 노출 — 가로 스크롤 + 글씨/패딩 축소로 로고+4링크+CTA 유지.
+  static 7종 + main.py _BLOG_SHELL_CSS(자동발행/블로그 인덱스) 일괄 적용.
+- landing 은 별도 topbar → 로고 옆에 기능/요금제/블로그/업데이트 nav 신설 (footer 링크는 유지).
+- 검증: 전 페이지(/,/features,/pricing,/blog,/updates,/blog/{slug}) 4링크 노출 + display:none 잔존 0 확인.
+- 변경: static 8종 + main.py. 배포 필요. commit: (아래)
