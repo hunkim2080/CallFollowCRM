@@ -1015,6 +1015,16 @@ class ChatViewModel(
      * aiPolishing StateFlow 가 true 동안 ChatScreen 이 로딩 표시.
      * 실패의 절대다수는 인터넷 끊김 / 서버 일시 다운 (ConnectException/UnknownHost). 사장님 입장 단순화 위해 한 메시지로 통합.
      */
+    /** 다듬기 진행 중인 코루틴 — [cancelPolish] 로 취소. (2026-07-08 사장님) */
+    private var polishJob: kotlinx.coroutines.Job? = null
+
+    /** 다듬는 중 취소 — 진행 코루틴 취소 + 상태 원복. 본문은 그대로 둠. (2026-07-08 사장님) */
+    fun cancelPolish() {
+        polishJob?.cancel()
+        polishJob = null
+        _aiPolishing.value = false
+    }
+
     fun aiPolish(rawBody: String, onPolished: (String) -> Unit) {
         if (rawBody.isBlank()) {
             _toast.value = "다듬을 본문이 비어 있어요"
@@ -1025,7 +1035,7 @@ class ChatViewModel(
         //   send 시 REFINED_THEN_SENT 로 분류. picked 가 null 이면 사장님이 직접 친 거 다듬는 거라 무관.
         if (pickedChoice != null) pickedRefined = true
         _aiPolishing.value = true
-        viewModelScope.launch {
+        polishJob = viewModelScope.launch {
             // 2026-05-28 사장님 결정: ✨ 다듬기에도 컨텍스트 전송 → "사장님 톤 + 흐름 맞춤".
             //   - recent_messages: 최근 20건 (AI chips 와 동일 규모)
             //   - owner_tone_samples: 다른 고객들에게 보낸 SMS 50건 (톤 학습 코퍼스)

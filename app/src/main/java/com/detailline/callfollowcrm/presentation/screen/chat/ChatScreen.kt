@@ -348,6 +348,9 @@ fun ChatScreen(
     // ▶ 보내기 확인 다이얼로그 — null 이면 안 떠 있음.
     //   사장님이 ▶ 탭하면 (body, photos) 스냅샷 저장 + 다이얼로그 표시. [보내기] 탭해야 진짜 발송.
     var sendConfirm by remember { mutableStateOf<Pair<String, List<android.net.Uri>>?>(null) }
+    // ✨ 다듬기 확인/취소 다이얼로그 상태. (2026-07-08 사장님)
+    var showPolishConfirm by remember { mutableStateOf(false) }
+    var showPolishCancel by remember { mutableStateOf(false) }
 
     val pickPhotos = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 5)
@@ -688,10 +691,15 @@ fun ChatScreen(
                 androidx.compose.runtime.snapshotFlow {
                     listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
                 }.collect { (idx, off) ->
+                    // ⚠️ 깜빡임 fix (2026-07-08 사장님): 자동숨김이 칩/추천을 숨기면 메시지 목록 뷰포트가 커져
+                    //   offset 이 다시 바뀌고 → 그게 또 토글을 부르는 되먹임(oscillation)으로 추천 3종이 깜빡였음.
+                    //   해법 = "사용자가 실제로 스크롤 중(isScrollInProgress)"일 때만 숨김/표시 토글. 레이아웃 흔들림은 무시.
+                    val scrolling = listState.isScrollInProgress
                     when {
                         idx == 0 && off == 0 -> controlsVisible = true                                          // 맨 아래(최신) = 항상 표시
-                        idx > prevIndex || (idx == prevIndex && off > prevOffset + 6) -> controlsVisible = false // 위로(옛 메시지) = 숨김
-                        idx < prevIndex || (idx == prevIndex && off < prevOffset - 6) -> controlsVisible = true  // 아래로(최신) = 표시
+                        !scrolling -> {}                                                                        // 레이아웃 변화로 인한 offset 흔들림 무시
+                        idx > prevIndex || (idx == prevIndex && off > prevOffset + 12) -> controlsVisible = false // 위로(옛 메시지) = 숨김
+                        idx < prevIndex || (idx == prevIndex && off < prevOffset - 12) -> controlsVisible = true  // 아래로(최신) = 표시
                     }
                     prevIndex = idx; prevOffset = off
                 }
@@ -873,7 +881,12 @@ fun ChatScreen(
                 onSelectionChange = { inputSelection = it },
                 isPolishing = polishing,
                 onAiPolish = {
-                    viewModel.aiPolish(input) { polished -> setInput(polished) }
+                    // 실수 탭 방지 + 취소 지원 (2026-07-08 사장님): 누르면 확인, 다듬는 중 누르면 취소 물어봄.
+                    when {
+                        polishing -> showPolishCancel = true
+                        input.isBlank() -> android.widget.Toast.makeText(context, "다듬을 내용이 없어요", android.widget.Toast.LENGTH_SHORT).show()
+                        else -> showPolishConfirm = true
+                    }
                 },
                 onAttachPhoto = { showPhotoPicker = true },
                 attachments = attachedPhotos,
@@ -1500,6 +1513,46 @@ fun ChatScreen(
     // 발행 이력 카드 → 견적서 다시 보기(재렌더). 닫으면 채팅으로만 복귀(편집기 X), 재기록 안 함. (2026-07-07 사장님)
     reviewIssuedDoc?.let { data ->
         QuoteDocScreen(data = data, onClose = { reviewIssuedDoc = null })
+    }
+
+    // ✨ 다듬기 확인 — 실수 탭으로 본문이 바뀌지 않게 한 번 물어봄. (2026-07-08 사장님)
+    if (showPolishConfirm) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showPolishConfirm = false },
+            title = { Text("글을 이쁘게 다듬어드릴까요?", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
+            text = { Text("입력한 내용을 사장님 말투로 자연스럽게 다듬어요. 다듬은 뒤에도 고칠 수 있어요.", fontSize = 13.5.sp, color = TossTextSecondary, lineHeight = 20.sp) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    showPolishConfirm = false
+                    viewModel.aiPolish(input) { polished -> setInput(polished) }
+                }) { Text("다듬기 ✨", color = TossBlue, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showPolishConfirm = false }) {
+                    Text("취소", color = TossTextSecondary)
+                }
+            }
+        )
+    }
+
+    // ✨ 다듬는 중 취소. (2026-07-08 사장님: 한 번 더 누르면 '취소할까요?')
+    if (showPolishCancel) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showPolishCancel = false },
+            title = { Text("다듬는 중이에요", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
+            text = { Text("다듬기를 취소할까요? 원래 쓰던 글은 그대로 남아요.", fontSize = 13.5.sp, color = TossTextSecondary, lineHeight = 20.sp) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    showPolishCancel = false
+                    viewModel.cancelPolish()
+                }) { Text("취소하기", color = Color(0xFFF0436A), fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showPolishCancel = false }) {
+                    Text("계속 다듬기", color = TossTextSecondary)
+                }
+            }
+        )
     }
 
     // 사진 발송 시 기본 문자 앱 아님 → 지정 안내. (2026-07-08 사장님: '다른 앱 공유' 시트가 뜨면 안 됨)
@@ -2899,14 +2952,16 @@ private fun Composer(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(9.dp)
             ) {
-                // ✨ AI 다듬기 (왼쪽)
-                if (isPolishing) {
-                    CircularProgressIndicator(color = TossBlue, strokeWidth = 2.dp, modifier = Modifier.size(19.dp))
-                } else {
-                    Icon(
-                        Icons.Default.AutoAwesome, "AI 다듬기", tint = TossBlue,
-                        modifier = Modifier.size(19.dp).clickable(enabled = !isPolishing) { onAiPolish() }
-                    )
+                // ✨ AI 다듬기 (왼쪽) — 탭 영역 넉넉히(작아서 잘 안 눌리던 것) + 다듬는 중에도 탭(취소용). (2026-07-08 사장님)
+                Box(
+                    modifier = Modifier.size(34.dp).clip(androidx.compose.foundation.shape.CircleShape).clickable { onAiPolish() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isPolishing) {
+                        CircularProgressIndicator(color = TossBlue, strokeWidth = 2.dp, modifier = Modifier.size(19.dp))
+                    } else {
+                        Icon(Icons.Default.AutoAwesome, "AI 다듬기", tint = TossBlue, modifier = Modifier.size(19.dp))
+                    }
                 }
                 // 한글 조합(composition) 보존 — value 를 매 입력마다 새 TextFieldValue 로 만들면 조합영역이 끊겨
                 //   "ㄱㅣㄷㅏㄹㅕ"처럼 자모가 분리됨. IME 가 준 TextFieldValue 를 그대로 들고 있어야 합쳐진다. (2026-06-17 사장님 버그)
