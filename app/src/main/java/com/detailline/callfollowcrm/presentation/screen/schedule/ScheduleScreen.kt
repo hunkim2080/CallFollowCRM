@@ -1,6 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.schedule
 
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -143,8 +144,13 @@ fun ScheduleScreen(
     val cardSummaries by viewModel.cardSummariesByPhoneSuffix.collectAsState()
     val nowMs = remember { System.currentTimeMillis() }
     val todayStart = remember(nowMs) { DateTimeUtils.startOfDay(nowMs) }
+    // 협업(수락/요청) 실시간 반영 — 일정탭 보는 동안 주기 폴링. 탭 벗어나면(컴포지션 해제) 자동 정지, 돌아오면 재개.
+    //   (다른 폰에서 방금 보낸 협업 요청도 화면 그대로 두고 ~12초 안에 주황 마커로 뜸.) (2026-07-08 사장님)
     androidx.compose.runtime.LaunchedEffect(Unit) {
-        viewModel.loadCollab()
+        while (true) {
+            viewModel.loadCollab()
+            kotlinx.coroutines.delay(12_000)
+        }
     }
     // 홈 "다음 시공" 카드로 들어온 경우 그 시공일을 시작 선택값으로(자정 정규화). 아니면 오늘.
     val initialDay = remember(initialSelectedDayMs) {
@@ -697,7 +703,7 @@ private fun CalendarDay(
                         when {
                             // 막대는 날짜 동그라미 '밖(아래)' 흰 배경 위 → 선택돼도 흰색이면 안 보임(사장님 신고).
                             //   선택 여부와 무관하게 색 유지(협업=보라/지난=회색/다가올=초록).
-                            lane == pendingLane -> CalBar(BarSeg.SINGLE, Color(0xFFFF8A00))   // 응답 대기 협업 = 주황
+                            lane == pendingLane -> PendingCalBar()   // 응답 대기 협업 = 주황 + 은은한 깜빡임(눈길 끌기)
                             lane == collabLane -> CalBar(BarSeg.SINGLE, Color(0xFF7C5CFC))
                             else -> {
                                 val bar = cell.bars.firstOrNull { it.lane == lane }
@@ -715,6 +721,23 @@ private fun CalendarDay(
             }
         }
     }
+}
+
+/** 응답 대기 협업 막대 — 주황 + 은은한 깜빡임(알파 0.3↔1.0). "뭐지?" 하고 눈길 가서 탭하게. (2026-07-08 사장님)
+ *   pending 칸에서만 렌더 → 애니메이션도 그 칸만 (전체 42칸 부하 없음). */
+@Composable
+private fun PendingCalBar() {
+    val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "pendingCollabPulse")
+    val alpha by pulse.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 1f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(750),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+        ),
+        label = "pendingCollabAlpha"
+    )
+    CalBar(BarSeg.SINGLE, Color(0xFFFF8A00).copy(alpha = alpha))
 }
 
 /** 캘린더 막대 한 줄 — SINGLE=가운데 16dp 알약, 여러날 START/MID/END=칸 가득(가로로 이어짐). */
