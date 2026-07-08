@@ -309,6 +309,11 @@ class AppPreferences(context: Context) {
             ?: com.detailline.callfollowcrm.util.SpamPrefix.SUGGESTED.toSet()
         set(value) { prefs.edit().putStringSet("spam_prefixes", value).commit() }
 
+    /** "이건 광고 아냐" 로 사장님이 되살린 번호(끝8자리) — AdHeuristics 자동 광고분류 예외. (2026-07-08 사장님) */
+    var adAllowlistSuffixes: Set<String>
+        get() = prefs.getStringSet("ad_allowlist_suffixes", emptySet()) ?: emptySet()
+        set(value) { prefs.edit().putStringSet("ad_allowlist_suffixes", value).commit() }
+
     // ── 막내 팁 (상담함 기능 발견 카드 + 안내판, 2026-07-04 사장님) ──
     /** 팁 카드 전체 on/off. */
     var makneTipsEnabled: Boolean

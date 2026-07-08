@@ -118,6 +118,19 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      *   prefs 는 비반응형 → StateFlow 로 들고 새로고침(refreshSmsContacts) 때 다시 읽어 즉시 반영. (2026-06-17 사장님) */
     private val spamPrefixesFlow = MutableStateFlow(container.preferences.spamPrefixes)
 
+    /** "이건 광고 아냐" 되살림 목록(끝8자리) — 자동 광고분류 예외. prefs 비반응형 → StateFlow. (2026-07-08 사장님) */
+    private val _adAllowlist = MutableStateFlow(container.preferences.adAllowlistSuffixes)
+    val adAllowlist: StateFlow<Set<String>> = _adAllowlist
+
+    /** 사장님이 광고함에서 "이건 광고 아냐" → 그 번호를 예외로 등록(상담함으로 복귀). (2026-07-08 사장님) */
+    fun markNotAd(phone: String) {
+        val s = phone.filter { it.isDigit() }.takeLast(8)
+        if (s.isBlank()) return
+        val next = container.preferences.adAllowlistSuffixes + s
+        container.preferences.adAllowlistSuffixes = next
+        _adAllowlist.value = next
+    }
+
     /**
      * 스팸 판정 = swipe 마킹(suffix) ∪ 앞자리 등록(prefix). 둘 중 하나라도 걸리면 상담함 목록·집계에서 제외.
      *   2026-06-17 사장님: "스팸 등록되면 상담함에 들어오지 못함" — 들어오지 못하니 추천도 준비 안 함.

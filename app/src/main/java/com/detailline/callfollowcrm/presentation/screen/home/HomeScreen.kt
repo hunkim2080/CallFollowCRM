@@ -193,6 +193,9 @@ fun HomeScreen(
 ) {
     val timeline by viewModel.timeline.collectAsState()
     val filter by viewModel.filterState.collectAsState()
+    // 광고 자동감지 — "이건 광고 아냐" 예외 목록 + 광고함 펼침 상태. (2026-07-08 사장님)
+    val adAllowlist by viewModel.adAllowlist.collectAsState()
+    var adBoxExpanded by rememberSaveable { mutableStateOf(false) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val aiCardSummaries by viewModel.cardSummariesByPhoneSuffix.collectAsState()
     // 카톡식 읽음 추적 (2026-06-08) — "최근 대화" 파란 점 계산. 채팅 열면 갱신 → 점 사라짐.
@@ -941,10 +944,20 @@ fun HomeScreen(
                 // 번호당 1줄만 (가장 최근). flatItems 는 최신순 → distinctBy 가 최신 1개 유지.
                 //   (2026-06-08 #4: 고객이 연속 문자/통화 시 같은 번호가 2줄 차지하던 현상 방지.)
                 val dedupItems = flatItems.distinctBy { it.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8) }
-                val waiting = dedupItems.filter { it.isUnconfirmed }
+                // 자동 광고 분류 — 매우 보수적(오탐 방지 3중 가드): 저장 안 된 낯선 번호 + 내가 답장 안 함 +
+                //   "광고 아냐" 예외 아님 + 내용이 뻔한 광고(isLikelyAd). 하나라도 아니면 상담함에 그대로 남김. (2026-07-08 사장님)
+                val ads = dedupItems.filter { row ->
+                    val suffix = row.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8)
+                    row.customer == null && row.lastSent != true && suffix !in adAllowlist &&
+                        com.detailline.callfollowcrm.util.isLikelyAd(row.lastBody ?: "", row.record.phoneNumber)
+                }
+                val adSuffixes = ads.mapTo(HashSet()) { it.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8) }
+                fun notAd(it: com.detailline.callfollowcrm.presentation.screen.home.HomeItem) =
+                    it.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8) !in adSuffixes
+                val waiting = dedupItems.filter { it.isUnconfirmed && notAd(it) }
                 // 최근 대화 = 시간순 그대로(카톡식). 안 읽음은 순서 안 바꾸고 파란 점+굵게로만 표시.
                 //   (사장님 2026-06-08 결정: "맨 위로 모으기" 빼고 시간순 유지 → 카톡과 더 동일.)
-                val recent = dedupItems.filter { !it.isUnconfirmed }
+                val recent = dedupItems.filter { !it.isUnconfirmed && notAd(it) }
 
                 // 지금 답장 기다려요 — waiting-head(제목+카운트+밀어서 정리) + 카드(왼쪽 밀기=정리). 비면 막내.
                 item(key = "waiting-head") { WaitingHeader(count = waiting.size) }
@@ -1096,6 +1109,30 @@ fun HomeScreen(
                                         "이전 대화 ${recent.size - shownRecent.size}개 더 보기",
                                         fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TossBlue,
                                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 📁 광고함 — 자동으로 걸러낸 광고. 기본 접힘. 탭 펼침 → 확인·"광고 아님" 되살리기. (2026-07-08 사장님)
+                if (ads.isNotEmpty()) {
+                    item(key = "ad-box-head") {
+                        AdBoxHeader(count = ads.size, expanded = adBoxExpanded, onToggle = { adBoxExpanded = !adBoxExpanded })
+                    }
+                    if (adBoxExpanded) {
+                        item(key = "ad-box-card") {
+                            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White)) {
+                                ads.forEachIndexed { i, adItem ->
+                                    if (i > 0) Box(Modifier.fillMaxWidth().padding(start = 16.dp).height(1.dp).background(TossDivider))
+                                    AdRow(
+                                        item = adItem,
+                                        onOpenChat = { onOpenChat(adItem.record.phoneNumber, adItem.customer?.id) },
+                                        onNotAd = {
+                                            viewModel.markNotAd(adItem.record.phoneNumber)
+                                            scope.launch { snackbarHostState.showSnackbar("상담함으로 되살렸어요 — 이 번호는 앞으로 광고로 안 걸러요") }
+                                        }
                                     )
                                 }
                             }
@@ -3168,6 +3205,48 @@ private fun SecSub(text: String) {
         color = TossTextSecondary,
         modifier = Modifier.padding(top = 16.dp, bottom = 4.dp, start = 4.dp)
     )
+}
+
+/** 📁 광고함 헤더 — 접이식. 자동으로 걸러낸 광고 개수 + 펼치기. (2026-07-08 사장님) */
+@Composable
+private fun AdBoxHeader(count: Int, expanded: Boolean, onToggle: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 6.dp)
+            .clip(RoundedCornerShape(10.dp)).clickable { onToggle() }.padding(vertical = 4.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("📁 광고 ${count}건 자동으로 치웠어요", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold,
+            color = TossTextTertiary, modifier = Modifier.weight(1f))
+        Text(if (expanded) "접기 ▾" else "확인 ▸", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
+    }
+}
+
+/** 광고함 한 줄 — 발신·미리보기 + [광고 아님](되살리기). 탭 = 대화 열기. (2026-07-08 사장님) */
+@Composable
+private fun AdRow(item: HomeItem, onOpenChat: () -> Unit, onNotAd: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable { onOpenChat() }.padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                item.customer?.name?.takeIf { it.isNotBlank() } ?: item.record.phoneNumber,
+                fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+            item.lastBody?.takeIf { it.isNotBlank() }?.let {
+                Spacer(Modifier.height(2.dp))
+                Text(it, fontSize = 12.sp, color = TossTextTertiary, maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(
+            "광고 아님", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossBlue,
+            modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(TossBlueSoft)
+                .clickable { onNotAd() }.padding(horizontal = 10.dp, vertical = 6.dp)
+        )
+    }
 }
 
 private fun dialHome(context: android.content.Context, phone: String) {
