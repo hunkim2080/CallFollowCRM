@@ -51,6 +51,14 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
     private val _collabSites = MutableStateFlow<List<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite>>(emptyList())
     val collabSites = _collabSites.asStateFlow()
 
+    /** 아직 응답(수락/거절) 안 한 협업 요청의 날짜(startOfDay) — 캘린더 주황 마커. 푸시 놓친 요청도 일정 보다 catch. (2026-07-08 사장님) */
+    private val _pendingCollabDayStarts = MutableStateFlow<Set<Long>>(emptySet())
+    val pendingCollabDayStarts = _pendingCollabDayStarts.asStateFlow()
+
+    /** 응답 안 한 협업 요청 목록 — 날짜 선택 시 '확인하기' 카드로. */
+    private val _pendingCollabSites = MutableStateFlow<List<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite>>(emptyList())
+    val pendingCollabSites = _pendingCollabSites.asStateFlow()
+
     /** 고객(현장)별 배정된 팀원 — 일정 카드 배정 줄이 구독. */
     val assignmentsByCustomer: StateFlow<Map<Long, List<TeamAssignmentEntity>>> =
         container.teamAssignmentRepository.observeAll()
@@ -149,6 +157,10 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             container.sharedSiteRepository.withMe(ownerPhone).onSuccess { sites ->
                 allAcceptedCollab = sites.filter { it.status == "accepted" && it.scheduledAtMs > 0L }
+                // 응답 안 한 요청(pending) — 캘린더 주황 마커 + 선택 시 확인 카드. (2026-07-08 사장님)
+                val pending = sites.filter { it.status == "pending" && it.scheduledAtMs > 0L }
+                _pendingCollabSites.value = pending
+                _pendingCollabDayStarts.value = pending.map { DateTimeUtils.startOfDay(it.scheduledAtMs) }.toSet()
                 applyCollabFilter()
             }
         }

@@ -136,6 +136,8 @@ fun ScheduleScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val collabDays by viewModel.collabDayStarts.collectAsState()   // 캘린더 협업 보라점 (#7)
+    val pendingCollabDays by viewModel.pendingCollabDayStarts.collectAsState()  // 응답 안 한 협업 요청 = 주황 마커 (2026-07-08 사장님)
+    val pendingCollabSites by viewModel.pendingCollabSites.collectAsState()
     val collabAssign by viewModel.collabAssignByCustomer.collectAsState()   // 협업 사장 배정 → 카드 "🤝 이름"
     val collabSites by viewModel.collabSites.collectAsState()
     val cardSummaries by viewModel.cardSummariesByPhoneSuffix.collectAsState()
@@ -234,6 +236,11 @@ fun ScheduleScreen(
             collabSites.filter { DateTimeUtils.startOfDay(it.scheduledAtMs) == day }
                 .sortedBy { it.timeLabel ?: "" }
         }
+        // 이 날 응답 안 한 협업 요청 — 주황 마커 탭 시 확인 카드로. (2026-07-08 사장님)
+        val pendingForSelected = remember(selectedDayMs, pendingCollabSites) {
+            val day = selectedDayMs ?: return@remember emptyList()
+            pendingCollabSites.filter { DateTimeUtils.startOfDay(it.scheduledAtMs) == day }
+        }
 
         // 2026-06-08 사장님 통점(투명막 진범): LazyColumn 에 initialFirstVisibleItemIndex=1 을 주면 안 됨.
         //   index0(캘린더 블록)이 뷰포트보다 큰 단일 item 인데, 첫 컴포지션 땐 그 아래 데이터가 비어
@@ -284,6 +291,7 @@ fun ScheduleScreen(
                                         cells = monthCells.subList(week * 7, week * 7 + 7),
                                         selectedDayMs = selectedDayMs,
                                         collabDays = collabDays,
+                                        pendingCollabDays = pendingCollabDays,
                                         onSelect = { dayMs -> selectedDayMs = dayMs },
                                         onLongSelect = { dayMs -> selectedDayMs = dayMs; onAddSchedule(dayMs) }
                                     )
@@ -386,6 +394,19 @@ fun ScheduleScreen(
                     }
                 }
             }
+            // 응답 안 한 협업 요청 — 주황 카드로 눈에 띄게 + 탭 시 협업 화면(수락/거절). 푸시 놓쳐도 여기서 catch. (2026-07-08 사장님)
+            if (pendingForSelected.isNotEmpty()) {
+                item(key = "pending-collab-label") {
+                    Text(
+                        "🤝 협업 요청 ${pendingForSelected.size}건 · 아직 응답 안 함",
+                        fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFE07A00),
+                        modifier = Modifier.padding(start = 2.dp, top = 6.dp, bottom = 11.dp)
+                    )
+                }
+                items(pendingForSelected, key = { "pend-${it.shareId}" }) { site ->
+                    PendingCollabDayCard(site = site, onClick = { onOpenCollabSites(site.shareId) })
+                }
+            }
             // "더 추가"는 이미 일정/협업이 있을 때만. 아무것도 없으면 DayEmpty 의 "이 날 일정 등록"만 노출(중복 방지).
             if (schedulesForSelected.isNotEmpty() || collabForSelected.isNotEmpty()) {
                 item(key = "day-add") { DayAddButton("이 날 일정 더 추가", { onAddSchedule(selectedDayMs) }) }
@@ -486,6 +507,36 @@ private fun CollabDayCard(
     }
 }
 
+/** 응답 안 한 협업 요청 카드 — 주황(눈에 띄게) + '확인하기'. 탭 시 협업 화면(수락/거절). 푸시 놓쳐도 일정에서 catch. (2026-07-08 사장님) */
+@Composable
+private fun PendingCollabDayCard(
+    site: com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite,
+    onClick: () -> Unit
+) {
+    TossCard(onClick = onClick) {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(9.dp).clip(CircleShape).background(Color(0xFFFF8A00)))
+                Spacer(Modifier.width(10.dp))
+                Text(com.detailline.callfollowcrm.ai.siteDisplayName(site), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, modifier = Modifier.weight(1f))
+                Text(
+                    "요청 · 확인하기",
+                    fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFE07A00),
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(Color(0xFFFFF1DE)).padding(horizontal = 9.dp, vertical = 4.dp)
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                listOfNotNull(site.ownerName.takeIf { it.isNotBlank() }?.let { "$it 사장님이 요청" }, site.timeLabel, site.addr).joinToString(" · "),
+                fontSize = 13.sp, color = TossTextSecondary, maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(6.dp))
+            Text("탭해서 수락/거절하기 →", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE07A00))
+        }
+    }
+}
+
 /**
  * 협업 카드 우→좌 swipe → 숨김. 빨강 "삭제" affordance.
  *   confirmValueChange=false 로 원위치 복귀(데이터 흐름이 카드를 제거) + 스낵바 "되돌리기" 로 복구.
@@ -571,6 +622,7 @@ private fun CalendarWeekRow(
     cells: List<CalendarCell>,
     selectedDayMs: Long?,
     collabDays: Set<Long>,
+    pendingCollabDays: Set<Long>,
     onSelect: (Long) -> Unit,
     onLongSelect: (Long) -> Unit
 ) {
@@ -580,6 +632,7 @@ private fun CalendarWeekRow(
                 cell = cell,
                 isSelected = selectedDayMs == cell.dayStartMs,
                 isCollab = cell.dayStartMs in collabDays,
+                isPendingCollab = cell.dayStartMs in pendingCollabDays,
                 onClick = { onSelect(cell.dayStartMs) },
                 onLongClick = { onLongSelect(cell.dayStartMs) },
                 modifier = Modifier.weight(1f)
@@ -594,6 +647,7 @@ private fun CalendarDay(
     cell: CalendarCell,
     isSelected: Boolean,
     isCollab: Boolean = false,
+    isPendingCollab: Boolean = false,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -614,7 +668,9 @@ private fun CalendarDay(
     //   선택칸 막대는 흰색, 지난 시공은 회색, 다가올 시공은 초록, 협업은 보라.
     val schedMaxLane = cell.bars.maxOfOrNull { it.lane } ?: -1
     val collabLane = if (isCollab) schedMaxLane + 1 else -1
-    val lastLane = minOf(maxOf(schedMaxLane, collabLane), 2) // 최대 3줄(lane 0~2)
+    // 응답 안 한 협업 요청 = 주황 막대(초록 일정·보라 협업과 확실히 구분). 푸시 놓쳐도 일정 보다 눈에 띄게. (2026-07-08 사장님)
+    val pendingLane = if (isPendingCollab) maxOf(schedMaxLane, collabLane) + 1 else -1
+    val lastLane = minOf(maxOf(maxOf(schedMaxLane, collabLane), pendingLane), 2) // 최대 3줄(lane 0~2)
     Box(
         modifier = modifier
             .height(52.dp)
@@ -641,6 +697,7 @@ private fun CalendarDay(
                         when {
                             // 막대는 날짜 동그라미 '밖(아래)' 흰 배경 위 → 선택돼도 흰색이면 안 보임(사장님 신고).
                             //   선택 여부와 무관하게 색 유지(협업=보라/지난=회색/다가올=초록).
+                            lane == pendingLane -> CalBar(BarSeg.SINGLE, Color(0xFFFF8A00))   // 응답 대기 협업 = 주황
                             lane == collabLane -> CalBar(BarSeg.SINGLE, Color(0xFF7C5CFC))
                             else -> {
                                 val bar = cell.bars.firstOrNull { it.lane == lane }
