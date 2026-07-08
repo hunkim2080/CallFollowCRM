@@ -6750,3 +6750,18 @@ S9(메인폰) 실측 검증 중 발견: 통화기록 587건 중 184건이 유령
 - **대기(사장님 논의/서버)**: 12h 만료 시 "재요청하기" 버튼 = 받는 사람이 보낸 사람에게 재전송 요청 → 서버 endpoint 필요(cowork). 문구/동작 확정 후 앱+핸드오프.
 - 서버 무관(1~3). DB 스키마 무변경(v39). S23U 설치·무크래시. 계약금 self-heal 검증은 S9 재연결 시.
 - commit: (아래)
+
+## 2026-07-08 · cowork (사장님 숙제: 마케팅 홈페이지 초안)
+추가104 — 검색 노출용 홈페이지 4카테고리 (pluuug 벤치마킹, 사장님 저녁 리뷰 대기).
+- 페이지: /features (기능 12종 카드+흐름) · /pricing (무료60일/스탠다드5만/프리미엄10만 + FAQ,
+  §9 확정 요금제 반영, "베타 무료·동의 없인 결제 없음" 명시) · /blog (인덱스+글 3편) · /updates (체인지로그 4묶음).
+- 블로그 3편 (팁 → 기승전-시공막내): missed-call-cost (부재중 전화 비용) /
+  estimate-text-mistakes ("300이요" 견적 분쟁 3가지 — 추가102 부가세 표기 연계) /
+  schedule-double-booking (일정 겹침 = 구조 문제).
+- SEO: 페이지별 meta description·OG·canonical(si0in.kr) + JSON-LD (SoftwareApplication/BlogPosting)
+  + /sitemap.xml + /robots.txt (admin·api·q·intake 차단). 랜딩 footer 에 4페이지 링크 (크롤 경로).
+- 라우트: main.py 추가104 블록 (/features /pricing /blog /blog/{slug} /updates /sitemap.xml /robots.txt).
+- 파일: static/home_*.html 4종 + blog_*.html 3종 + landing.html footer + main.py.
+- 검증: TestClient 7페이지 렌더 + sitemap/robots + 내부 링크 전수 + 404 ALL PASS. 배포 필요.
+- 사장님 리뷰 포인트: 문구 톤 / 요금제 표현 / 블로그 주제 추가 여부 (글은 계속 늘릴 수 있는 구조).
+- commit: (아래)

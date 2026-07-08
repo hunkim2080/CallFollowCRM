@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>기능 소개 — 시공막내 | 시공 사장님 전화·문자·견적·일정 올인원</title>
+<meta name="description" content="현장에서 전화 못 받아도 놓치지 않게. AI 통화 요약, 추천 답장, 시공접수서 링크, 직인 견적서, 일정·정산·협업까지 — 혼자 일하는 시공 사장님의 막내 비서, 시공막내의 기능을 소개합니다.">
+<link rel="canonical" href="https://si0in.kr/features">
+<meta property="og:type" content="website">
+<meta property="og:title" content="시공막내 기능 소개 — 전화·문자·견적·일정을 앱 하나로">
+<meta property="og:description" content="AI 통화 요약, 시공접수서, 직인 견적서, 일정 알림, 정산, 협업. 시공 사장님에게 필요한 것만 담았습니다.">
+<meta property="og:url" content="https://si0in.kr/features">
+<meta property="og:site_name" content="시공막내">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"시공막내",
+"operatingSystem":"Android","applicationCategory":"BusinessApplication",
+"description":"시공 사장님을 위한 전화·문자·견적·일정·정산 올인원 비서 앱",
+"offers":{"@type":"Offer","price":"0","priceCurrency":"KRW","description":"60일 무료 체험"},
+"publisher":{"@type":"Organization","name":"막내컴퍼니"}}
+</script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  :root{--blue:#3182F6;--blue-dark:#1B64DA;--blue-tint:#EEF4FF;--bg:#FAFBFC;--t1:#0B0F19;--t2:#5A6472;--t3:#9AA3AF;--line:#EEF0F3;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Pretendard',-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--t1);line-height:1.65;}
+  a{text-decoration:none;color:inherit;}
+  .nav{position:sticky;top:0;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);z-index:10;}
+  .nav-in{max-width:920px;margin:0 auto;display:flex;align-items:center;gap:18px;padding:13px 18px;font-size:14px;}
+  .nav-logo{font-weight:900;font-size:16px;letter-spacing:-.04em;margin-right:auto;}
+  .nav-logo .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--blue);margin-right:6px;vertical-align:middle;}
+  .nav a.item{color:var(--t2);font-weight:600;}
+  .nav a.item.on{color:var(--blue-dark);font-weight:800;}
+  .nav a.cta{background:var(--blue);color:#fff;font-weight:800;padding:8px 14px;border-radius:9px;font-size:13.5px;}
+  .hero{max-width:920px;margin:0 auto;padding:52px 18px 10px;text-align:center;}
+  .hero .chip{display:inline-block;background:var(--blue-tint);color:var(--blue-dark);font-size:12.5px;font-weight:800;padding:6px 12px;border-radius:999px;margin-bottom:14px;}
+  h1{font-size:30px;font-weight:900;letter-spacing:-.03em;line-height:1.35;}
+  .hero p{color:var(--t2);font-size:15.5px;margin-top:12px;}
+  .wrap{max-width:920px;margin:0 auto;padding:34px 18px 70px;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px;margin-top:8px;}
+  .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px 20px;box-shadow:0 1px 3px rgba(0,0,0,.04);}
+  .card .ic{font-size:26px;}
+  .card h2{font-size:16.5px;font-weight:800;margin:10px 0 6px;letter-spacing:-.02em;}
+  .card h2 .tag{font-size:11px;color:var(--blue-dark);background:var(--blue-tint);border-radius:6px;padding:2px 7px;margin-left:6px;vertical-align:2px;}
+  .card p{font-size:13.8px;color:var(--t2);}
+  .sec-t{font-size:20px;font-weight:900;margin:44px 0 14px;letter-spacing:-.02em;}
+  .flow{background:#fff;border:1px solid var(--line);border-radius:16px;padding:24px 22px;}
+  .flow ol{margin-left:20px;}
+  .flow li{font-size:14.5px;color:var(--t2);margin-bottom:10px;}
+  .flow li b{color:var(--t1);}
+  .cta-band{margin-top:48px;background:linear-gradient(135deg,var(--blue),var(--blue-dark));border-radius:20px;padding:36px 24px;text-align:center;color:#fff;}
+  .cta-band h2{font-size:21px;font-weight:900;margin-bottom:8px;}
+  .cta-band p{font-size:14px;opacity:.9;margin-bottom:18px;}
+  .cta-band a{display:inline-block;background:#fff;color:var(--blue-dark);font-weight:900;padding:13px 26px;border-radius:12px;font-size:15px;}
+  footer{padding:32px 18px 60px;text-align:center;color:var(--t3);font-size:11.5px;line-height:1.7;background:#fff;border-top:1px solid var(--line);margin-top:60px;}
+  footer a{color:var(--t3);text-decoration:underline;}
+  @media(max-width:560px){.nav a.item{display:none;} h1{font-size:24px;}}
+</style>
+</head>
+<body>
+
+<nav class="nav"><div class="nav-in">
+  <a class="nav-logo" href="/"><span class="dot"></span>시공막내</a>
+  <a class="item on" href="/features">기능</a>
+  <a class="item" href="/pricing">요금제</a>
+  <a class="item" href="/blog">블로그</a>
+  <a class="item" href="/updates">업데이트</a>
+  <a class="cta" href="/">무료로 시작하기</a>
+</div></nav>
+
+<div class="hero">
+  <span class="chip">시공 사장님 전용 · 60일 무료</span>
+  <h1>전화 받고, 견적 보내고, 일정 잡는 일<br>이제 막내한테 시키세요</h1>
+  <p>현장에서 손에 시멘트 묻히고 있는 동안에도, 시공막내가 고객 응대를 준비해 둡니다.</p>
+</div>
+
+<div class="wrap">
+  <div class="sec-t">📞 전화·문자 — 놓친 고객이 사라집니다</div>
+  <div class="grid">
+    <div class="card"><div class="ic">🪪</div><h2>전화 오면 고객 카드</h2>
+      <p>모르는 번호가 아니라 "지난주 욕실 방수 문의하신 분"으로 뜹니다. 받기 전에 누군지 알고 받으세요.</p></div>
+    <div class="card"><div class="ic">📝</div><h2>AI 통화 요약<span class="tag">AI</span></h2>
+      <p>통화 끝나면 녹음이 요약으로 바뀝니다. "평수·부위·희망일·예산"이 정리돼서 다시 들을 필요가 없어요.</p></div>
+    <div class="card"><div class="ic">💬</div><h2>추천 답장 + 말투 다듬기<span class="tag">AI</span></h2>
+      <p>고객 문자에 보낼 답 3개를 만들어 드립니다. 내 말투로 학습해서, 갈수록 사장님답게 씁니다.</p></div>
+    <div class="card"><div class="ic">🌙</div><h2>부재중 자동 응대</h2>
+      <p>현장이라 못 받은 전화에 "확인 후 연락드리겠습니다" 문자가 먼저 나갑니다. 고객이 다른 업체로 새지 않아요.</p></div>
+  </div>
+
+  <div class="sec-t">📄 견적·접수 — 종이 없이, 분쟁 없이</div>
+  <div class="grid">
+    <div class="card"><div class="ic">🧾</div><h2>직인 견적서 이미지</h2>
+      <p>항목 몇 개 고르면 직인 찍힌 견적서가 이미지로 나옵니다. 부가세 별도/포함까지 명시돼서 나중에 딴말이 안 나와요.</p></div>
+    <div class="card"><div class="ic">🔗</div><h2>시공접수서 링크</h2>
+      <p>고객에게 링크 하나 보내면 주소·연락처·희망사항을 고객이 직접 적어 냅니다. 제출되면 일정에 자동으로 들어가요.</p></div>
+    <div class="card"><div class="ic">✅</div><h2>제출 완료 영수증</h2>
+      <p>고객이 낸 접수서는 언제든 같은 링크에서 다시 확인. 시공일·금액·특이사항이 읽기 전용으로 남습니다.</p></div>
+    <div class="card"><div class="ic">📌</div><h2>발행 이력</h2>
+      <p>보낸 견적서·접수서가 고객별로 차곡차곡. "그때 얼마로 드렸더라?"가 3초면 나옵니다.</p></div>
+  </div>
+
+  <div class="sec-t">🗓️ 일정·정산·협업 — 사무실 없는 사무실</div>
+  <div class="grid">
+    <div class="card"><div class="ic">⏰</div><h2>일정 + 하루 전 안내</h2>
+      <p>시공 하루 전, 고객에게 안내 문자가 자동으로 나갑니다. "내일 가는 거 맞죠?" 전화를 안 받아도 됩니다.</p></div>
+    <div class="card"><div class="ic">💰</div><h2>수금·정산 관리</h2>
+      <p>계약금·잔금이 현장별로 정리됩니다. 못 받은 돈이 화면에 남아 있으니 잊고 넘어가는 일이 없어요.</p></div>
+    <div class="card"><div class="ic">🤝</div><h2>협업 현장 공유</h2>
+      <p>다른 사장님과 현장을 공유하고, 도착·완료·증거사진·일당 정산까지 한 화면에서. 전화 안 해도 진행이 보입니다.</p></div>
+    <div class="card"><div class="ic">📮</div><h2>정기 문자 예약</h2>
+      <p>AS 안내, 명절 인사, 시즌 점검 문자를 미리 걸어두세요. 단골은 이렇게 만들어집니다.</p></div>
+  </div>
+
+  <div class="sec-t">🔍 이렇게 흘러갑니다</div>
+  <div class="flow"><ol>
+    <li><b>전화가 옵니다</b> — 고객 카드가 뜨고, 못 받으면 자동 문자가 나갑니다.</li>
+    <li><b>통화가 끝납니다</b> — AI가 요약하고, 답장 추천을 준비합니다.</li>
+    <li><b>견적을 보냅니다</b> — 직인 견적서 이미지 + 시공접수서 링크를 문자 한 통으로.</li>
+    <li><b>고객이 접수서를 냅니다</b> — 일정에 자동 등록, 하루 전 안내 문자까지 예약됩니다.</li>
+    <li><b>시공이 끝납니다</b> — 잔금이 정산 목록에, 고객은 단골 목록에 남습니다.</li>
+  </ol></div>
+
+  <div class="cta-band">
+    <h2>지금 시작하면 60일 무료</h2>
+    <p>설치하고 전화번호 인증만 하면 끝. 카드 등록도 없습니다.</p>
+    <a href="/">무료로 시작하기 →</a>
+  </div>
+</div>
+
+<footer>
+  <div>상호: 막내컴퍼니 | 대표: 김상훈 | 사업자등록번호: 454-07-03372<br>
+  주소: 경기도 화성시 동탄지성로 11, 동탄에스알골드프라자 7층 714-D128호 | 전화: 010-8005-6674</div>
+  <div style="margin-top:6px;"><a href="/terms">이용약관</a> · <a href="/privacy">개인정보 처리방침</a> · <a href="/blog">블로그</a> · <a href="/updates">업데이트</a></div>
+  <div style="margin-top:6px;">© 2026 막내컴퍼니 · 시공막내</div>
+</footer>
+</body>
+</html>

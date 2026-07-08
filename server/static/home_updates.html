@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>업데이트 소식 — 시공막내 | 매주 좋아지는 막내</title>
+<meta name="description" content="시공막내 업데이트 내역. 접수서 부가세 표기, 제출 완료 영수증, 협업 사진 관리, 발행 이력 등 — 사장님들 피드백으로 매주 좋아지고 있습니다.">
+<link rel="canonical" href="https://si0in.kr/updates">
+<meta property="og:type" content="website">
+<meta property="og:title" content="시공막내 업데이트 소식">
+<meta property="og:description" content="사장님들 피드백으로 매주 좋아지는 시공막내의 변경 내역입니다.">
+<meta property="og:url" content="https://si0in.kr/updates">
+<meta property="og:site_name" content="시공막내">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  :root{--blue:#3182F6;--blue-dark:#1B64DA;--blue-tint:#EEF4FF;--bg:#FAFBFC;--t1:#0B0F19;--t2:#5A6472;--t3:#9AA3AF;--line:#EEF0F3;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Pretendard',-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--t1);line-height:1.65;}
+  a{text-decoration:none;color:inherit;}
+  .nav{position:sticky;top:0;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);z-index:10;}
+  .nav-in{max-width:920px;margin:0 auto;display:flex;align-items:center;gap:18px;padding:13px 18px;font-size:14px;}
+  .nav-logo{font-weight:900;font-size:16px;letter-spacing:-.04em;margin-right:auto;}
+  .nav-logo .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--blue);margin-right:6px;vertical-align:middle;}
+  .nav a.item{color:var(--t2);font-weight:600;}
+  .nav a.item.on{color:var(--blue-dark);font-weight:800;}
+  .nav a.cta{background:var(--blue);color:#fff;font-weight:800;padding:8px 14px;border-radius:9px;font-size:13.5px;}
+  .hero{max-width:760px;margin:0 auto;padding:48px 18px 6px;}
+  h1{font-size:26px;font-weight:900;letter-spacing:-.03em;}
+  .hero p{color:var(--t2);font-size:14.5px;margin-top:8px;}
+  .wrap{max-width:760px;margin:0 auto;padding:26px 18px 70px;}
+  .rel{background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px 22px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.04);}
+  .rel .date{font-size:12px;font-weight:800;color:var(--blue-dark);margin-bottom:6px;}
+  .rel h2{font-size:17px;font-weight:900;letter-spacing:-.02em;margin-bottom:10px;}
+  .rel ul{list-style:none;}
+  .rel li{font-size:14px;color:var(--t2);padding:5px 0;padding-left:24px;position:relative;}
+  .rel li::before{position:absolute;left:0;}
+  .rel li.new::before{content:"✨";}
+  .rel li.fix::before{content:"🔧";}
+  .rel li.imp::before{content:"⚡";}
+  .rel li b{color:var(--t1);}
+  footer{padding:32px 18px 60px;text-align:center;color:var(--t3);font-size:11.5px;line-height:1.7;background:#fff;border-top:1px solid var(--line);margin-top:60px;}
+  footer a{color:var(--t3);text-decoration:underline;}
+  @media(max-width:560px){.nav a.item{display:none;}}
+</style>
+</head>
+<body>
+
+<nav class="nav"><div class="nav-in">
+  <a class="nav-logo" href="/"><span class="dot"></span>시공막내</a>
+  <a class="item" href="/features">기능</a>
+  <a class="item" href="/pricing">요금제</a>
+  <a class="item" href="/blog">블로그</a>
+  <a class="item on" href="/updates">업데이트</a>
+  <a class="cta" href="/">무료로 시작하기</a>
+</div></nav>
+
+<div class="hero">
+  <h1>업데이트 소식</h1>
+  <p>사장님들이 "이거 되면 좋겠다" 하신 것들이 이렇게 됩니다. 매주 좋아지는 막내입니다.</p>
+</div>
+
+<div class="wrap">
+  <div class="rel">
+    <div class="date">2026. 7. 둘째 주</div>
+    <h2>견적서에 부가세 별도/포함 명시 — 분쟁 예방 업데이트</h2>
+    <ul>
+      <li class="new">견적서·시공접수서에 <b>부가세 별도/포함</b>이 명확히 표시됩니다. 발행할 때 버튼 하나로 선택하세요.</li>
+      <li class="new">고객이 제출을 마친 접수서 링크를 다시 열면 <b>확인용 영수증</b>이 보입니다 — 시공일·금액·특이사항을 언제든 다시 확인.</li>
+      <li class="new">협업 현장에 올린 <b>증거사진을 개별 삭제</b>할 수 있습니다 (내가 올린 사진만).</li>
+      <li class="fix">삼성 기기에서 사진 문자(MMS) 발송이 차단되던 문제를 해결했습니다.</li>
+      <li class="imp">추천 답장 화면 깜빡임과 "다듬기" 버튼이 작아 누르기 어렵던 부분을 개선했습니다.</li>
+    </ul>
+  </div>
+
+  <div class="rel">
+    <div class="date">2026. 7. 첫째 주</div>
+    <h2>발행 이력 — "그때 얼마로 드렸더라?"가 3초</h2>
+    <ul>
+      <li class="new">보낸 <b>견적서·접수서가 고객별로 저장</b>됩니다. 고객 상세의 "발행 이력"에서 언제든 다시 열람·재공유.</li>
+      <li class="new">접수서에 <b>사장님 특이사항 메모</b>를 담을 수 있습니다 (예: "2층 화장실만", "주차는 후문").</li>
+      <li class="new">접수서를 재발행해도 <b>링크는 그대로</b> — 고객이 헷갈릴 일이 없습니다. 내용만 갱신돼요.</li>
+      <li class="fix">시공일이 하루 밀려 표시되던 문제를 해결했습니다.</li>
+      <li class="imp">개인정보 보호 강화 — 동의 절차 정비, AI 안내 문구 추가. 사장님과 고객 모두를 지키는 업데이트입니다.</li>
+    </ul>
+  </div>
+
+  <div class="rel">
+    <div class="date">2026. 6.</div>
+    <h2>협업 — 다른 사장님과 현장을 함께</h2>
+    <ul>
+      <li class="new"><b>협업 현장 공유</b>: 일감을 나눌 사장님에게 현장 정보를 링크로 공유하고, 도착·완료·정산까지 한 화면에서.</li>
+      <li class="new">협업 상대가 현장 <b>3km 안에 들어오면 자동 도착 표시</b> — 전화로 "어디쯤이세요?" 안 해도 됩니다.</li>
+      <li class="new">완료 시 <b>증거사진·계좌 전달</b>로 일당 정산까지 매끄럽게.</li>
+    </ul>
+  </div>
+
+  <div class="rel">
+    <div class="date">2026. 5. ~</div>
+    <h2>시공막내의 기본기</h2>
+    <ul>
+      <li class="new">전화 오면 <b>고객 정보 카드</b>, 통화 끝나면 <b>AI 요약</b>, 답장은 <b>AI 추천 3개</b>.</li>
+      <li class="new"><b>직인 견적서 이미지</b> + <b>시공접수서 링크</b> — 문자 한 통으로 견적부터 접수까지.</li>
+      <li class="new">접수서 제출 시 <b>일정 자동 등록</b>, 시공 하루 전 <b>자동 안내 문자</b>.</li>
+      <li class="new">계약금·잔금 <b>정산 관리</b>, 정기 문자 예약.</li>
+    </ul>
+  </div>
+</div>
+
+<footer>
+  <div>상호: 막내컴퍼니 | 대표: 김상훈 | 사업자등록번호: 454-07-03372<br>
+  주소: 경기도 화성시 동탄지성로 11, 동탄에스알골드프라자 7층 714-D128호 | 전화: 010-8005-6674</div>
+  <div style="margin-top:6px;"><a href="/terms">이용약관</a> · <a href="/privacy">개인정보 처리방침</a> · <a href="/features">기능</a> · <a href="/blog">블로그</a></div>
+  <div style="margin-top:6px;">© 2026 막내컴퍼니 · 시공막내</div>
+</footer>
+</body>
+</html>

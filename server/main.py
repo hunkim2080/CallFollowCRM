@@ -5149,6 +5149,89 @@ async def landing_alias():
     return await landing_root()
 
 
+# ─── 추가104 — 마케팅 홈페이지 (사장님 2026-07-08 숙제) ───
+# 검색 노출용 페이지 4종: 기능소개 / 요금제 / 블로그 / 업데이트 + SEO (sitemap, robots).
+# 블로그 = 팁 글 → 기승전-시공막내 (pluuug 인사이트 벤치마킹). 파일 = static/home_*.html, blog_*.html.
+
+_HOME_STATIC_PAGES = {
+    "features": "home_features.html",
+    "pricing": "home_pricing.html",
+    "blog": "home_blog.html",
+    "updates": "home_updates.html",
+}
+_BLOG_POST_PAGES = {
+    "missed-call-cost": "blog_missed_call_cost.html",
+    "estimate-text-mistakes": "blog_estimate_text_mistakes.html",
+    "schedule-double-booking": "blog_schedule_double_booking.html",
+}
+
+
+def _serve_home_page(filename: str) -> HTMLResponse:
+    path = BASE_DIR / "static" / filename
+    if not path.exists():
+        raise HTTPException(404, "페이지 준비 중입니다")
+    return HTMLResponse(content=path.read_text(encoding="utf-8"))
+
+
+@app.get("/features", response_class=HTMLResponse, include_in_schema=False)
+async def home_features():
+    return _serve_home_page(_HOME_STATIC_PAGES["features"])
+
+
+@app.get("/pricing", response_class=HTMLResponse, include_in_schema=False)
+async def home_pricing():
+    return _serve_home_page(_HOME_STATIC_PAGES["pricing"])
+
+
+@app.get("/blog", response_class=HTMLResponse, include_in_schema=False)
+async def home_blog():
+    return _serve_home_page(_HOME_STATIC_PAGES["blog"])
+
+
+@app.get("/updates", response_class=HTMLResponse, include_in_schema=False)
+async def home_updates():
+    return _serve_home_page(_HOME_STATIC_PAGES["updates"])
+
+
+@app.get("/blog/{slug}", response_class=HTMLResponse, include_in_schema=False)
+async def home_blog_post(slug: str):
+    filename = _BLOG_POST_PAGES.get(slug)
+    if not filename:
+        raise HTTPException(404, "글을 찾을 수 없습니다")
+    return _serve_home_page(filename)
+
+
+@app.get("/sitemap.xml", include_in_schema=False)
+async def sitemap_xml():
+    base = "https://si0in.kr"
+    urls = ["/", "/features", "/pricing", "/blog", "/updates", "/terms", "/privacy"]
+    urls += [f"/blog/{s}" for s in _BLOG_POST_PAGES]
+    body = "".join(
+        f"<url><loc>{base}{u}</loc><changefreq>weekly</changefreq></url>" for u in urls
+    )
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + body + "</urlset>"
+    )
+    return Response(content=xml, media_type="application/xml")
+
+
+@app.get("/robots.txt", include_in_schema=False)
+async def robots_txt():
+    return Response(
+        content=(
+            "User-agent: *\n"
+            "Allow: /\n"
+            "Disallow: /admin\n"
+            "Disallow: /api/\n"
+            "Disallow: /q/\n"
+            "Disallow: /intake/\n"
+            "Sitemap: https://si0in.kr/sitemap.xml\n"
+        ),
+        media_type="text/plain",
+    )
+
+
 @app.post("/api/beta-signup")
 async def beta_signup(req: BetaSignupRequest, request: Request):
     """랜딩페이지 신청 저장. phone PK = 중복 시 UPSERT (가장 최근 응답 keep)."""
