@@ -802,7 +802,13 @@ fun HomeScreen(
                             title = "🤝 받은 협업 요청",
                             tagText = "수락 대기",
                             tagBg = Color(0xFFF1ECFE), tagFg = Color(0xFF7C5CFC),
-                            sub = "${inv.ownerName}님 · ${com.detailline.callfollowcrm.ai.siteDisplayName(inv)}" + (inv.dailyWage?.let { " · 일당 ${it}만원" } ?: ""),
+                            // 주소는 짧게 — 이름·주소·일당이 한 줄에 다 들어가게 roughSite(대충 어디)로 축약.
+                            //   (siteDisplayName=siteLabel 은 도로명주소를 못 줄여 2줄로 길게 나오던 것 fix. 2026-07-08 사장님)
+                            sub = run {
+                                val place = com.detailline.callfollowcrm.util.AddressExtractor.roughSite(inv.addr).takeIf { it.isNotBlank() }
+                                    ?: com.detailline.callfollowcrm.ai.siteDisplayName(inv)
+                                "${inv.ownerName}님 · $place" + (inv.dailyWage?.let { " · 일당 ${it}만원" } ?: "")
+                            },
                             goLabel = "수락하러 가기",
                             onClick = onOpenCollabSites
                         )
@@ -1033,70 +1039,89 @@ fun HomeScreen(
                     item(key = "recent-head") { SecSub("최근 대화") }
                     item(key = "recent-card") {
                         val shownRecent = if (recentExpanded) recent else recent.take(12)
-                        // 최근 대화를 3개씩 흰 카드로 묶고, 그 사이에 막내 팁 카드를 끼운다(무심코 스크롤 중 기능 발견). 프로토 renderRecent 1:1. (2026-07-04 사장님)
+                        // 프로토 renderRecent 1:1 — 대화 3개마다 팁 하나. 단, 팁이 실제로 끼일 때만 카드를 끊고(flush),
+                        //   팁이 없거나 다 떨어지면 남은 대화는 한 카드로 쭉 이어진다. (2026-07-08 사장님: 팁 없을 때
+                        //   chunked(3) 가 무조건 쪼개 빈 단락/틈 = 촌스러운 구분이 생기던 것 → 프로토대로 tip 있을 때만 분할)
+                        val recentBlocks = buildList<Any> {
+                            var bucket = ArrayList<Pair<Int, HomeItem>>()
+                            var ti = 0
+                            shownRecent.forEachIndexed { idx, rItem ->
+                                bucket.add(idx to rItem)
+                                if ((idx + 1) % 3 == 0 && ti < shownTips.size) {
+                                    add(bucket.toList()); bucket = ArrayList()
+                                    add(shownTips[ti]); ti++
+                                }
+                            }
+                            if (bucket.isNotEmpty()) add(bucket.toList())
+                            if (ti < shownTips.size) add(shownTips[ti])   // 끝까지 내렸을 때 하나 더 (프로토 동일)
+                        }
                         Column(Modifier.fillMaxWidth(), verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp)) {
-                            var tipIdx = 0
-                            shownRecent.chunked(3).forEachIndexed { gIdx, group ->
-                                Column(
-                                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White)
-                                ) {
-                                    group.forEachIndexed { j, rItem ->
-                                        val index = gIdx * 3 + j
-                                        if (j > 0) {
-                                            Box(
-                                                Modifier.fillMaxWidth().padding(start = 16.dp)
-                                                    .height(1.dp).background(TossDivider)
-                                            )
-                                        }
-                                        val suffix = rItem.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8)
-                                        // 카톡식 안 읽음: 고객이 마지막에 말함(lastSent==false) + 그 메시지가 마지막으로 읽은 시각보다 새것.
-                                        val custMsgMs = rItem.lastActivityMs.takeIf { it > 0L } ?: rItem.record.endedAt
-                                        val unread = rItem.lastSent == false && (readStates[suffix] ?: 0L) < custMsgMs
-                                        // 최근 대화도 밀어서 [🚫 스팸][👤 사생활] — 스팸/개인일 수 있으니. (2026-06-23 사장님)
-                                        val rName = rItem.customer?.name?.takeIf { it.isNotBlank() }
-                                        com.detailline.callfollowcrm.presentation.component.SwipeRevealTwoBox(
-                                            onFirst = {
-                                                viewModel.markSpam(rItem.record.phoneNumber, rName, "spam")
-                                                scope.launch {
-                                                    val r = snackbarHostState.showSnackbar("스팸으로 등록했어요 — 앞으로 안 보여요", actionLabel = "되돌리기", duration = SnackbarDuration.Short)
-                                                    if (r == SnackbarResult.ActionPerformed) viewModel.unmarkSpam(rItem.record.phoneNumber)
-                                                }
-                                            },
-                                            onSecond = {
-                                                viewModel.markSpam(rItem.record.phoneNumber, rName, "personal")
-                                                scope.launch {
-                                                    val r = snackbarHostState.showSnackbar("사생활 번호로 옮겼어요 — 시공막내가 안 잡아요", actionLabel = "되돌리기", duration = SnackbarDuration.Short)
-                                                    if (r == SnackbarResult.ActionPerformed) viewModel.unmarkSpam(rItem.record.phoneNumber)
-                                                }
-                                            },
-                                            firstLabel = "스팸",
-                                            secondLabel = "사생활",
-                                            firstColor = TossError,
-                                            secondColor = Color(0xFF7C5CFC),
-                                            firstIcon = Icons.Filled.Block,
-                                            secondIcon = Icons.Filled.Person,
-                                            shape = androidx.compose.ui.graphics.RectangleShape
+                            recentBlocks.forEach { block ->
+                                when (block) {
+                                    is com.detailline.callfollowcrm.presentation.component.MakneTip -> {
+                                        com.detailline.callfollowcrm.presentation.component.MakneTipCard(
+                                            tip = block,
+                                            onGo = { guideTip = block },
+                                            onDismiss = { onTipDismiss(block) }
+                                        )
+                                    }
+                                    is List<*> -> {
+                                        Column(
+                                            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White)
                                         ) {
-                                            Box(Modifier.fillMaxWidth().background(Color.White)) {
-                                                RecentRow(
-                                                    item = rItem,
-                                                    index = index,
-                                                    unread = unread,
-                                                    aiSummary = aiCardSummaries[suffix],
-                                                    onOpenChat = { onOpenChat(rItem.record.phoneNumber, rItem.customer?.id) }
-                                                )
+                                            block.forEachIndexed { j, any ->
+                                                @Suppress("UNCHECKED_CAST")
+                                                val entry = any as Pair<Int, HomeItem>
+                                                val index = entry.first
+                                                val rItem = entry.second
+                                                if (j > 0) {
+                                                    Box(
+                                                        Modifier.fillMaxWidth().padding(start = 16.dp)
+                                                            .height(1.dp).background(TossDivider)
+                                                    )
+                                                }
+                                                val suffix = rItem.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8)
+                                                // 카톡식 안 읽음: 고객이 마지막에 말함(lastSent==false) + 그 메시지가 마지막으로 읽은 시각보다 새것.
+                                                val custMsgMs = rItem.lastActivityMs.takeIf { it > 0L } ?: rItem.record.endedAt
+                                                val unread = rItem.lastSent == false && (readStates[suffix] ?: 0L) < custMsgMs
+                                                // 최근 대화도 밀어서 [🚫 스팸][👤 사생활] — 스팸/개인일 수 있으니. (2026-06-23 사장님)
+                                                val rName = rItem.customer?.name?.takeIf { it.isNotBlank() }
+                                                com.detailline.callfollowcrm.presentation.component.SwipeRevealTwoBox(
+                                                    onFirst = {
+                                                        viewModel.markSpam(rItem.record.phoneNumber, rName, "spam")
+                                                        scope.launch {
+                                                            val r = snackbarHostState.showSnackbar("스팸으로 등록했어요 — 앞으로 안 보여요", actionLabel = "되돌리기", duration = SnackbarDuration.Short)
+                                                            if (r == SnackbarResult.ActionPerformed) viewModel.unmarkSpam(rItem.record.phoneNumber)
+                                                        }
+                                                    },
+                                                    onSecond = {
+                                                        viewModel.markSpam(rItem.record.phoneNumber, rName, "personal")
+                                                        scope.launch {
+                                                            val r = snackbarHostState.showSnackbar("사생활 번호로 옮겼어요 — 시공막내가 안 잡아요", actionLabel = "되돌리기", duration = SnackbarDuration.Short)
+                                                            if (r == SnackbarResult.ActionPerformed) viewModel.unmarkSpam(rItem.record.phoneNumber)
+                                                        }
+                                                    },
+                                                    firstLabel = "스팸",
+                                                    secondLabel = "사생활",
+                                                    firstColor = TossError,
+                                                    secondColor = Color(0xFF7C5CFC),
+                                                    firstIcon = Icons.Filled.Block,
+                                                    secondIcon = Icons.Filled.Person,
+                                                    shape = androidx.compose.ui.graphics.RectangleShape
+                                                ) {
+                                                    Box(Modifier.fillMaxWidth().background(Color.White)) {
+                                                        RecentRow(
+                                                            item = rItem,
+                                                            index = index,
+                                                            unread = unread,
+                                                            aiSummary = aiCardSummaries[suffix],
+                                                            onOpenChat = { onOpenChat(rItem.record.phoneNumber, rItem.customer?.id) }
+                                                        )
+                                                    }
+                                                }
                                             }
                                         }
                                     }
-                                }
-                                // 그룹(대화 3개) 뒤에 안 써본 기능 팁 카드 하나. 프로토: 대화 3개마다 하나.
-                                if (tipIdx < shownTips.size) {
-                                    val tip = shownTips[tipIdx]; tipIdx++
-                                    com.detailline.callfollowcrm.presentation.component.MakneTipCard(
-                                        tip = tip,
-                                        onGo = { guideTip = tip },
-                                        onDismiss = { onTipDismiss(tip) }
-                                    )
                                 }
                             }
                             if (recent.size > shownRecent.size) {
