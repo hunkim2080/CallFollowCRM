@@ -5144,7 +5144,7 @@ async def landing_root():
                 "server/static/landing.html 확인."
             ),
         )
-    return _LANDING_HTML_PATH.read_text(encoding="utf-8")
+    return _inject_site_verify(_LANDING_HTML_PATH.read_text(encoding="utf-8"))
 
 
 @app.get("/landing", response_class=HTMLResponse, include_in_schema=False)
@@ -5174,7 +5174,7 @@ def _serve_home_page(filename: str) -> HTMLResponse:
     path = BASE_DIR / "static" / filename
     if not path.exists():
         raise HTTPException(404, "페이지 준비 중입니다")
-    return HTMLResponse(content=path.read_text(encoding="utf-8"))
+    return HTMLResponse(content=_inject_site_verify(path.read_text(encoding="utf-8")))
 
 
 @app.get("/features", response_class=HTMLResponse, include_in_schema=False)
@@ -5208,25 +5208,112 @@ async def home_blog_post(slug: str):
     _blog_db_init()
     with db_conn() as con:
         row = con.execute(
-            "SELECT slug, title, description, category, body_html, thumb, created_at_ms "
+            "SELECT slug, title, description, category, body_html, thumb, created_at_ms, tags "
             "FROM blog_posts WHERE slug = ?", (slug,)).fetchone()
     if not row:
         raise HTTPException(404, "글을 찾을 수 없습니다")
     post = dict(zip(
-        ("slug", "title", "description", "category", "body_html", "thumb", "created_at_ms"), row))
+        ("slug", "title", "description", "category", "body_html", "thumb", "created_at_ms", "tags"), row))
     return HTMLResponse(content=_render_blog_post_html(post))
+
+
+# 추가109 — 정적 3편의 태그 (자동발행분은 DB tags)
+_STATIC_POST_TAGS = {
+    "missed-call-cost": ["부재중 문자", "시공 어플", "고객 응대", "자동 응답"],
+    "estimate-text-mistakes": ["견적서 양식", "시공 견적", "부가세 별도", "시공 어플"],
+    "schedule-double-booking": ["시공 캘린더", "공수 캘린더", "일정 관리", "시공 어플"],
+}
+
+
+def _all_tags_index() -> dict:
+    """태그 slug → (표시명, [(post_slug,title,thumb,desc,cat)...]) 인덱스."""
+    _blog_db_init()
+    idx: dict = {}
+
+    def _add(tag, post):
+        s = _tag_slug(tag)
+        if not s:
+            return
+        if s not in idx:
+            idx[s] = {"name": tag.strip(), "posts": []}
+        idx[s]["posts"].append(post)
+
+    with db_conn() as con:
+        rows = con.execute(
+            "SELECT slug, title, thumb, description, category, tags, created_at_ms "
+            "FROM blog_posts ORDER BY created_at_ms DESC").fetchall()
+    for slug, title, thumb, desc, cat, tags, ms in rows:
+        p = {"slug": slug, "title": title, "thumb": thumb or "/static/thumbs/default.png",
+             "description": desc, "category": cat}
+        for t in (tags or "").split(","):
+            if t.strip():
+                _add(t, p)
+    for slug, meta in _BLOG_STATIC_META_MAP.items():
+        p = {"slug": slug, "title": meta["title"], "thumb": meta["thumb"],
+             "description": meta["description"], "category": meta["category"]}
+        for t in _STATIC_POST_TAGS.get(slug, []):
+            _add(t, p)
+    return idx
+
+
+@app.get("/tag/{tag_slug}", response_class=HTMLResponse, include_in_schema=False)
+async def home_tag_page(tag_slug: str):
+    import html as _html
+    idx = _all_tags_index()
+    entry = idx.get(tag_slug)
+    if not entry:
+        raise HTTPException(404, "해당 키워드의 글이 아직 없습니다")
+    name = entry["name"]
+    cards = "".join(
+        f'<a class="post" href="/blog/{p["slug"]}">'
+        f'<img src="{p["thumb"]}" alt="{_html.escape(p["title"])}" loading="lazy">'
+        f'<div class="pbody"><span class="cat">{_html.escape(p["category"])}</span>'
+        f'<h2>{_html.escape(p["title"])}</h2><p>{_html.escape(p["description"])}</p></div></a>'
+        for p in entry["posts"])
+    extra_css = """
+  .hero{max-width:920px;margin:0 auto;padding:48px 18px 6px;}
+  .hero p{color:var(--t2);font-size:14.5px;margin-top:8px;}
+  .wrap{max-width:920px;margin:0 auto;padding:26px 18px 70px;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;align-items:start;}
+  .post{display:block;background:#fff;border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04);transition:transform .15s,border-color .15s;}
+  .post:hover{border-color:var(--blue);transform:translateY(-3px);}
+  .post img{width:100%;height:auto;display:block;aspect-ratio:1200/630;object-fit:cover;}
+  .post .pbody{padding:16px 18px 18px;}
+  .post .cat{margin-bottom:8px;}.post h2{font-size:16.5px;margin:0;line-height:1.45;}
+  .post p{font-size:13.2px;color:var(--t2);margin:8px 0 0;}
+"""
+    html = (
+        '<!doctype html><html lang="ko"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        f'<title>#{_html.escape(name)} 관련 글 — 시공막내 블로그</title>'
+        f'<meta name="description" content="{_html.escape(name)} 관련 시공 사장님 실전 팁 모음. 시공막내 블로그.">'
+        f'<link rel="canonical" href="{_HOME_BASE}/tag/{tag_slug}">'
+        '<meta property="og:type" content="website">'
+        f'<meta property="og:title" content="#{_html.escape(name)} — 시공막내 블로그">'
+        f'<meta property="og:image" content="{_HOME_BASE}/static/thumbs/blog.png">'
+        '<meta name="twitter:card" content="summary_large_image">'
+        f'<meta name="twitter:image" content="{_HOME_BASE}/static/thumbs/blog.png">'
+        '<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">'
+        f'<style>{_BLOG_SHELL_CSS}{extra_css}</style></head><body>'
+        + _HOME_NAV +
+        f'<div class="hero"><h1>#{_html.escape(name)}</h1>'
+        f'<p>{_html.escape(name)} 관련 시공 사장님 실전 글 모음이에요.</p></div>'
+        f'<div class="wrap">{cards}</div>' + _HOME_FOOTER + '</body></html>'
+    )
+    return HTMLResponse(content=_inject_site_verify(html))
 
 
 @app.get("/sitemap.xml", include_in_schema=False)
 async def sitemap_xml():
     base = "https://si0in.kr"
     urls = ["/", "/features", "/pricing", "/blog", "/updates", "/terms", "/privacy"]
+    urls += _KEYWORD_LANDING_URLS + _TOOL_URLS  # 추가110·111
     urls += [f"/blog/{s}" for s in _BLOG_POST_PAGES]
-    # 추가105 — 자동 발행분 포함
+    # 추가105 — 자동 발행분 포함 + 추가109 태그 페이지
     try:
         _blog_db_init()
         with db_conn() as con:
             urls += [f"/blog/{r[0]}" for r in con.execute("SELECT slug FROM blog_posts").fetchall()]
+        urls += [f"/tag/{s}" for s in _all_tags_index().keys()]
     except Exception:
         pass
     body = "".join(
@@ -5256,6 +5343,51 @@ async def robots_txt():
 
 
 # ============================================================================
+# 추가110 — 키워드 직격 랜딩 + 추가111 — 무료 계산기 도구
+# ============================================================================
+_KEYWORD_LANDINGS = {
+    "시공어플": "kw_construction_app.html",
+    "공사어플": "kw_construction_app2.html",
+    "시공캘린더": "kw_construction_calendar.html",
+    "공수캘린더": "kw_manday_calendar.html",
+}
+_KEYWORD_LANDING_URLS = [f"/{k}" for k in _KEYWORD_LANDINGS]
+
+_TOOLS = {
+    "tools": "tool_index.html",
+    "manday": "tool_manday.html",       # 공수 계산기
+    "vat": "tool_vat.html",             # 부가세 계산기
+    "daywage": "tool_daywage.html",     # 일당 정산 계산기
+}
+_TOOL_URLS = ["/tools", "/tools/manday", "/tools/vat", "/tools/daywage"]
+
+
+@app.get("/시공어플", response_class=HTMLResponse, include_in_schema=False)
+async def kw_1(): return _serve_home_page(_KEYWORD_LANDINGS["시공어플"])
+
+@app.get("/공사어플", response_class=HTMLResponse, include_in_schema=False)
+async def kw_2(): return _serve_home_page(_KEYWORD_LANDINGS["공사어플"])
+
+@app.get("/시공캘린더", response_class=HTMLResponse, include_in_schema=False)
+async def kw_3(): return _serve_home_page(_KEYWORD_LANDINGS["시공캘린더"])
+
+@app.get("/공수캘린더", response_class=HTMLResponse, include_in_schema=False)
+async def kw_4(): return _serve_home_page(_KEYWORD_LANDINGS["공수캘린더"])
+
+@app.get("/tools", response_class=HTMLResponse, include_in_schema=False)
+async def tool_index(): return _serve_home_page(_TOOLS["tools"])
+
+@app.get("/tools/manday", response_class=HTMLResponse, include_in_schema=False)
+async def tool_manday(): return _serve_home_page(_TOOLS["manday"])
+
+@app.get("/tools/vat", response_class=HTMLResponse, include_in_schema=False)
+async def tool_vat(): return _serve_home_page(_TOOLS["vat"])
+
+@app.get("/tools/daywage", response_class=HTMLResponse, include_in_schema=False)
+async def tool_daywage(): return _serve_home_page(_TOOLS["daywage"])
+
+
+# ============================================================================
 # 추가105 — 블로그 매일 자동 발행 + 대표 섬네일 + 업데이트 주간 정리 (사장님 2026-07-09)
 # ─────────────────────────────────────────────────────────────────────────────
 # ① 매일 07:30 KST 주제 큐에서 1개 → Claude 로 글 생성 → blog_posts 저장 (+섬네일 PNG)
@@ -5269,6 +5401,22 @@ async def robots_txt():
 _HOME_BASE = "https://si0in.kr"
 _BLOG_AUTOPUBLISH = os.environ.get("BLOG_AUTOPUBLISH", "1") == "1"
 _THUMBS_DIR = BASE_DIR / "static" / "thumbs"
+
+# 추가108 — 검색엔진 소유확인 (env 로 값만 넣으면 <head> 에 meta 자동 삽입)
+_NAVER_SITE_VERIFY = os.environ.get("NAVER_SITE_VERIFY", "").strip()
+_GOOGLE_SITE_VERIFY = os.environ.get("GOOGLE_SITE_VERIFY", "").strip()
+
+
+def _inject_site_verify(html: str) -> str:
+    """홈/정적 페이지 <head> 에 네이버·구글 소유확인 meta 삽입 (env 있을 때만)."""
+    tags = ""
+    if _NAVER_SITE_VERIFY:
+        tags += f'<meta name="naver-site-verification" content="{_NAVER_SITE_VERIFY}">'
+    if _GOOGLE_SITE_VERIFY:
+        tags += f'<meta name="google-site-verification" content="{_GOOGLE_SITE_VERIFY}">'
+    if tags and "</head>" in html:
+        return html.replace("</head>", tags + "</head>", 1)
+    return html
 
 # 주제 큐 — (slug, 주제/각도, 검색 키워드, 연결할 기능)
 _BLOG_TOPIC_QUEUE: list[tuple[str, str, str, str]] = [
@@ -5344,6 +5492,7 @@ _HOME_NAV = """<nav class="nav"><div class="nav-in">
   <a class="item" href="/features">기능</a>
   <a class="item" href="/pricing">요금제</a>
   <a class="item on" href="/blog">블로그</a>
+  <a class="item" href="/tools">계산기</a>
   <a class="item" href="/updates">업데이트</a>
   <a class="cta" href="/">무료로 시작하기</a>
 </div></nav>"""
@@ -5368,6 +5517,10 @@ def _blog_db_init() -> None:
                 thumb         TEXT,
                 created_at_ms INTEGER NOT NULL
             )""")
+        try:
+            con.execute("ALTER TABLE blog_posts ADD COLUMN tags TEXT")  # 추가109 — 해시태그(콤마 구분)
+        except sqlite3.OperationalError:
+            pass
         con.execute("""
             CREATE TABLE IF NOT EXISTS app_updates (
                 id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -5481,7 +5634,7 @@ _BLOG_WRITE_SYSTEM = """너는 '시공막내' 공식 블로그의 전속 작가�
   calc(돈 계산·손실 크기) / flow(일 처리 3단계 흐름) / compare(나쁜 방식 vs 좋은 방식) / phone(고객과 문자 주고받기) / calendar(일정·날짜 겹침) / money(수금·정산 현황). 내용에 맞는 키만 사용.
 
 출력은 반드시 JSON 하나:
-{"title": "후킹형 제목 (35자 이내)", "description": "검색 결과에 보일 요약 (100자 내외, 키워드 포함)", "category": "고객 응대|견적|일정 관리|수금·정산|영업·단골 중 하나", "body_html": "<p>...</p><h2>...</h2>... (본문 전체, 1200~1800자, CTA 밴드는 넣지 말 것 — 서버가 붙임)"}"""
+{"title": "후킹형 제목 (35자 이내)", "description": "검색 결과에 보일 요약 (100자 내외, 키워드 포함)", "category": "고객 응대|견적|일정 관리|수금·정산|영업·단골 중 하나", "tags": ["시공 사장님이 검색할 법한 키워드 4~6개 (예: 시공 어플, 공수 계산, 견적서 양식, 부재중 문자, 인테리어 단골). # 없이 단어만"], "body_html": "<p>...</p><h2>...</h2>... (본문 전체, 1200~1800자, CTA 밴드는 넣지 말 것 — 서버가 붙임)"}"""
 
 
 def _render_blog_post_html(post: dict) -> str:
@@ -5527,12 +5680,38 @@ def _render_blog_post_html(post: dict) -> str:
         'style="width:100%;height:auto;border-radius:16px;margin-bottom:26px;'
         'box-shadow:0 6px 18px rgba(27,100,218,.18)">'
         + post["body_html"] +
+        _render_tag_chips(post.get("tags")) +
         '<div class="cta-band"><h2>이 모든 걸, 막내가 대신합니다</h2>'
         '<p>60일 무료 · 카드 등록 없음 · 전화번호 인증이면 끝</p>'
         '<a href="/">시공막내 무료로 시작하기 →</a></div>'
         '<div style="margin-top:34px;font-size:14px;"><a href="/blog" style="color:var(--blue-dark);font-weight:700;">← 블로그 목록으로</a></div>'
         '</article>' + _HOME_FOOTER + '</body></html>'
     )
+
+
+def _tag_slug(tag: str) -> str:
+    """태그 → URL slug (한글 유지, 공백→-, 소문자)."""
+    import re as _re
+    s = tag.strip().lower().replace(" ", "-")
+    return _re.sub(r"[^0-9a-z가-힣\-]", "", s)
+
+
+def _render_tag_chips(tags) -> str:
+    import html as _html
+    if not tags:
+        return ""
+    items = (tags.split(",") if isinstance(tags, str) else tags)
+    chips = "".join(
+        f'<a href="/tag/{_tag_slug(t)}" style="display:inline-block;font-size:13px;'
+        f'font-weight:700;color:var(--blue-dark);background:var(--blue-tint);'
+        f'border-radius:999px;padding:7px 14px;margin:4px 6px 4px 0;text-decoration:none">'
+        f'#{_html.escape(t.strip())}</a>'
+        for t in items if t.strip())
+    if not chips:
+        return ""
+    return ('<div style="margin-top:36px;padding-top:20px;border-top:1px solid var(--line)">'
+            '<div style="font-size:13px;font-weight:800;color:var(--t3);margin-bottom:8px">관련 키워드</div>'
+            + chips + '</div>')
 
 
 # ── 추가106 — 본문 중간 이해용 일러스트 세트 ──
@@ -5663,13 +5842,24 @@ async def _blog_generate_one(slug: Optional[str] = None) -> dict:
     body = _sanitize_blog_body(parsed.get("body_html") or "")
     if len(body) < 400:
         raise HTTPException(502, "생성 본문이 너무 짧음 — 재시도 필요")
+    # 추가109 — 태그 정제 (# 제거, 12자 컷, 최대 6개, 키워드 매핑)
+    raw_tags = parsed.get("tags") or []
+    if isinstance(raw_tags, str):
+        raw_tags = [t for t in raw_tags.replace("#", "").split(",")]
+    tags = []
+    for t in raw_tags:
+        t = str(t).replace("#", "").strip()[:14]
+        if t and t not in tags:
+            tags.append(t)
+    tags = tags[:6]
+    tags_str = ",".join(tags)
     thumb = _make_blog_thumb(title, category, tslug)
     now = _now_ms()
     with db_conn() as con:
         con.execute(
-            "INSERT OR REPLACE INTO blog_posts (slug, title, description, category, body_html, thumb, created_at_ms) "
-            "VALUES (?,?,?,?,?,?,?)",
-            (tslug, title, desc, category, body, thumb, now))
+            "INSERT OR REPLACE INTO blog_posts (slug, title, description, category, body_html, thumb, created_at_ms, tags) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            (tslug, title, desc, category, body, thumb, now, tags_str))
         con.commit()
     print(f"[blog/autopublish] 발행: {tslug} — {title!r}")
     return {"ok": True, "slug": tslug, "title": title, "url": f"{_HOME_BASE}/blog/{tslug}"}
@@ -5744,6 +5934,7 @@ _BLOG_STATIC_META = [
      "description": "문제는 기억력이 아니라 “잡히는 순간 기록되는 구조”가 없다는 것.",
      "date": "2026. 7. 8", "thumb": "/static/thumbs/blog-schedule-double-booking.png"},
 ]
+_BLOG_STATIC_META_MAP = {m["slug"]: m for m in _BLOG_STATIC_META}
 
 
 def _render_blog_index_html() -> str:

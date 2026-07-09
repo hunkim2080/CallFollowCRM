@@ -6808,3 +6808,18 @@ S9(메인폰) 실측 검증 중 발견: 통화기록 587건 중 184건이 유령
 - landing 은 별도 topbar → 로고 옆에 기능/요금제/블로그/업데이트 nav 신설 (footer 링크는 유지).
 - 검증: 전 페이지(/,/features,/pricing,/blog,/updates,/blog/{slug}) 4링크 노출 + display:none 잔존 0 확인.
 - 변경: static 8종 + main.py. 배포 필요. commit: (아래)
+
+## 2026-07-09 · cowork (사장님: SEO 강화 4종)
+추가108~111 — 검색 노출 강화 4종 (사장님 키워드: 시공어플·공사어플·시공캘린더·공수캘린더).
+- 108 검색엔진 등록 준비: env NAVER_SITE_VERIFY / GOOGLE_SITE_VERIFY → 홈·정적 <head> 자동 meta 주입.
+  ⚠️ 사장님 액션: 네이버 서치어드바이저·구글 서치콘솔에서 사이트 등록 → 소유확인 값 받아서 나에게 주면 env 세팅.
+- 109 블로그 태그/해시태그: blog_posts.tags 컬럼, 자동발행 프롬프트가 태그 4~6개 생성(#·중복·14자 정제),
+  글 하단 #태그칩 → GET /tag/{slug} 모음 페이지 (자동발행+정적글 통합 인덱스). sitemap 포함.
+- 110 키워드 직격 랜딩 4종: /시공어플 /공사어플 /시공캘린더 /공수캘린더 (kw_*.html). 각 제목·h1·본문·FAQ
+  schema 로 해당 검색어 최적화 + 섬네일. → /blog·/tools 로 내부링크.
+- 111 무료 계산기 4종: /tools(인덱스) /tools/manday(공수) /tools/vat(부가세) /tools/daywage(일당 정산).
+  JS 인터랙티브 + SEO 설명글(공수란?·별도vs포함 등) + 기승전-시공막내. 검색 미끼 콘텐츠.
+- 라우트는 명시적 등록 (catch-all 금지 — 뒤 수백 라우트 shadow 방지). nav 에 "계산기" 링크 추가.
+- 섬네일 8종 추가 생성 (kw-*, tool-*).
+- 검증: TestClient 소유확인 meta/키워드4/계산기4/태그 정제·칩·모음·404/sitemap 포함/기존 라우트 무결 ALL PASS.
+- 변경: main.py + static 12종(랜딩4·툴4·태그없음) + thumbs. 배포 필요. commit: (아래)
