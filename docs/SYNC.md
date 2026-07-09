@@ -6823,3 +6823,11 @@ S9(메인폰) 실측 검증 중 발견: 통화기록 587건 중 184건이 유령
 - 섬네일 8종 추가 생성 (kw-*, tool-*).
 - 검증: TestClient 소유확인 meta/키워드4/계산기4/태그 정제·칩·모음·404/sitemap 포함/기존 라우트 무결 ALL PASS.
 - 변경: main.py + static 12종(랜딩4·툴4·태그없음) + thumbs. 배포 필요. commit: (아래)
+
+## 2026-07-09 · cowork (네이버 소유확인 값 반영)
+추가108b — 사장님이 네이버 서치어드바이저 소유확인 코드 전달 → plist EnvironmentVariables 에
+NAVER_SITE_VERIFY 삽입 (값=공개용, 비밀 아님). 배포 시 launchd 가 env 로드 → _inject_site_verify 가
+홈·정적 <head> 에 <meta name="naver-site-verification"> 자동 출력.
+- ⚠️ plist 는 gitignore (로컬 Mac mini 전용) — 이 변경은 commit 안 됨. 배포로만 반영.
+- 사장님 다음 액션: ① deploy_phase1.sh 배포 → ② 네이버에서 '확인' 클릭(통과) →
+  ③ 네이버 사이트맵 제출: https://si0in.kr/sitemap.xml. 구글 서치콘솔 코드는 아직 대기(GOOGLE_SITE_VERIFY).
