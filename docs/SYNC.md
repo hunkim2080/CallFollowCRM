@@ -6842,3 +6842,18 @@ SmsManager.getSmsSetting → ISms.getSmsSettingForSubscriber(**binder IPC**) →
   알림까지 하고 finishOnce()→무거운 prepare 는 이후 계속. MmsDownloadedReceiver 는 이미 전부 IO 라 무관(같은 큐라 덩달아 timeout 뜬 것).
 - S23U 설치·무크래시. 실측 재현은 어려우나 구조적으로 main-thread binder 호출 제거. **S9(메인·default앱) 재연결 시 설치 필요.**
 - 서버 무관. commit: (아래)
+
+## 2026-07-09 · cowork (사장님: 대시보드 TOP 의 9999 번호 = 테스트 데이터)
+추가112 — 테스트 합성번호 통계 오염 정리.
+- 정체: 01099999991/992=deploy_phase1.sh 채점, 912/913/914=test_section12.sh, 999/9866=SYNC 예제,
+  +4127225226=외부 스캐너. 실 고객 아님. 배포할수록 api_usage 에 쌓여 TOP·비용 오염.
+- ① TEST_SYNTHETIC_PHONES set 정의 + STATS_EXCLUDE_PHONES 기본값에 테스트번호·봇 포함(기존엔 정의만
+  되고 미적용이라 사장님 본인 번호도 TOP 에 떴음). TOP 사용자 쿼리에 phone NOT IN (제외) 적용.
+- ② POST /api/admin/stats/purge-test-usage (Bearer, apply dry-run) — api_usage/llm_usage_log 에서
+  합성번호 행 삭제. 실 고객 무관. 멱등.
+- ③ deploy_phase1.sh 끝에 자가 청소 단계 (sqlite3 로 cache.db 의 합성번호 행 DELETE) — 앞으로 배포해도
+  안 쌓임.
+- 비용 메모: 실제 지출은 배포 채점(prepare-reply 등 수 콜)이라 소액이나, 누적 표시로 커 보였음.
+  더 줄이려면 deploy 채점을 haiku 로 or 스킵 옵션 — 사장님 결정 대기.
+- 검증: TestClient purge(합성만·실고객보존·멱등·인증) + TOP 제외 + deploy.sh 문법 ALL PASS.
+- 변경: main.py + deploy_phase1.sh. 배포 필요. commit: (아래)

@@ -234,6 +234,21 @@ else
 fi
 
 # -----------------------------------------------------------------------------
+step "§청소  테스트 합성번호 사용기록 제거 (대시보드 오염 방지)"
+# -----------------------------------------------------------------------------
+# 추가112 — 위 회귀 테스트(991/992/912~914 등)가 api_usage 에 남긴 흔적을 삭제.
+# 실 고객 데이터는 안 건드림. cache.db 직접 접근(이 스크립트는 서버 호스트에서 실행).
+TEST_PH="'01099999912','01099999913','01099999914','01099999991','01099999992','01099999999','01099998866','01000000000'"
+if command -v sqlite3 >/dev/null 2>&1 && [ -f "$TARGET/cache.db" ]; then
+    BEFORE=$(sqlite3 "$TARGET/cache.db" "SELECT COUNT(*) FROM api_usage WHERE phone IN ($TEST_PH);" 2>/dev/null || echo 0)
+    sqlite3 "$TARGET/cache.db" "DELETE FROM api_usage WHERE phone IN ($TEST_PH);" 2>/dev/null || true
+    sqlite3 "$TARGET/cache.db" "DELETE FROM llm_usage_log WHERE phone IN ($TEST_PH);" 2>/dev/null || true
+    ok "테스트 사용기록 $BEFORE 건 삭제 (배포 자가 청소)"
+else
+    warn "sqlite3 없거나 cache.db 못 찾음 — 청소 스킵 (대시보드 /admin 에서 수동 청소 가능)"
+fi
+
+# -----------------------------------------------------------------------------
 step "끝"
 # -----------------------------------------------------------------------------
 cat <<EOF

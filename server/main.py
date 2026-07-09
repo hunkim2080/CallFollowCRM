@@ -99,10 +99,23 @@ PER_PHONE_DAILY_LIMIT = int(os.environ.get("PER_PHONE_DAILY_LIMIT", "100"))     
 
 # 추가86 — 앱 가입 (SMS 인증번호) + 자동 등업 cap
 AUTO_ENROLL_CAP = int(os.environ.get("AUTO_ENROLL_CAP", "100"))   # 선착 자동 베타 등업 인원
-# 추가89 — 통계 집중도(폭주) 계산에서 제외할 번호 (사장님 본인 — 데이터 지배 방지)
+# 추가112 — 배포/회귀 테스트가 찍는 합성(가짜) 번호. 통계 제외 + 자가 청소 대상.
+#   deploy_phase1.sh(991/992) · test_section12.sh(912/913/914) · SYNC 예제 curl(999/9866) 등.
+TEST_SYNTHETIC_PHONES = {
+    "01099999912", "01099999913", "01099999914",
+    "01099999991", "01099999992", "01099999999",
+    "01099998866", "01000000000",
+}
+# 추가89 — 통계 집중도(폭주) 계산에서 제외할 번호 (사장님 본인 + 테스트 합성번호 + 외부 봇)
+#   → 데이터 지배/오염 방지. env 로 덮어쓰기 가능(콤마 구분). 기본값에 테스트번호·봇 포함.
+_DEFAULT_EXCLUDE = ",".join([
+    "01080056674", "01064610131",              # 사장님 본인 테스트 폰
+    *sorted(TEST_SYNTHETIC_PHONES),            # 배포/회귀 합성 번호
+    "+4127225226", "4127225226",               # 외부 스캐너/봇 (미국 412)
+])
 STATS_EXCLUDE_PHONES = set(
     p.strip() for p in os.environ.get(
-        "STATS_EXCLUDE_PHONES", "01080056674,01064610131").split(",") if p.strip()
+        "STATS_EXCLUDE_PHONES", _DEFAULT_EXCLUDE).split(",") if p.strip()
 )
 FREE_TRIAL_DAYS = int(os.environ.get("FREE_TRIAL_DAYS", "60"))    # 무료 체험 기간 (2개월)
 AUTH_CODE_TTL_SEC = 300           # 인증번호 유효 5분
@@ -4434,11 +4447,12 @@ async def admin_business_stats(
             FROM api_usage au
             LEFT JOIN subscribers s ON s.phone = au.phone
             WHERE au.created_at_ms >= ?
+              AND au.phone NOT IN (%s)
             GROUP BY au.phone
             ORDER BY calls DESC
             LIMIT 10
-            """,
-            (KRW_PER_USD, month_start_ms),
+            """ % (",".join("?" * len(STATS_EXCLUDE_PHONES)) or "''"),
+            (KRW_PER_USD, month_start_ms, *STATS_EXCLUDE_PHONES),
         ).fetchall()
         top_users = []
         for r in top_user_rows:
@@ -16260,6 +16274,44 @@ def _persist_quote_issue_to_db(
 # work_year/month/day (사장님이 고른 원본 값) 기준으로 재계산 →
 # 정확히 -9시간 밀린 행만 보정. dry-run(기본) → apply=true 2단계.
 # ============================================================================
+
+@app.post("/api/admin/stats/purge-test-usage")
+async def admin_purge_test_usage(
+    payload: Optional[dict] = None,
+    authorization: Optional[str] = Header(default=None),
+) -> dict:
+    """추가112 — 배포/회귀 테스트가 남긴 합성 번호의 사용 기록 청소.
+
+    api_usage + llm_usage_log(있으면) 에서 TEST_SYNTHETIC_PHONES 행 삭제.
+    {apply:false}=미리보기(건수만) / {apply:true}=실제 삭제. 실 고객 데이터는 안 건드림.
+    """
+    _admin_auth_bearer_from_header(authorization)
+    apply = bool((payload or {}).get("apply"))
+    phones = sorted(TEST_SYNTHETIC_PHONES)
+    ph_ph = ",".join("?" * len(phones))
+    result = {}
+    with db_conn() as con:
+        n_api = con.execute(
+            f"SELECT COUNT(*) FROM api_usage WHERE phone IN ({ph_ph})", phones
+        ).fetchone()[0]
+        result["api_usage"] = n_api
+        # llm_usage_log 는 phone 컬럼이 있을 때만
+        try:
+            n_llm = con.execute(
+                f"SELECT COUNT(*) FROM llm_usage_log WHERE phone IN ({ph_ph})", phones
+            ).fetchone()[0]
+            result["llm_usage_log"] = n_llm
+        except sqlite3.OperationalError:
+            result["llm_usage_log"] = None
+        if apply:
+            con.execute(f"DELETE FROM api_usage WHERE phone IN ({ph_ph})", phones)
+            if result.get("llm_usage_log") is not None:
+                con.execute(f"DELETE FROM llm_usage_log WHERE phone IN ({ph_ph})", phones)
+            con.commit()
+    print(f"[stats/purge-test] apply={apply} phones={len(phones)} rows={result}")
+    return {"apply": apply, "phones": phones, "counts": result,
+            "note": "apply=false 는 미리보기. TEST_SYNTHETIC_PHONES 만 삭제 (실 고객 무관)."}
+
 
 @app.post("/api/admin/intake/fix-dates")
 async def admin_intake_fix_dates(
