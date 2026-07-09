@@ -35,105 +35,93 @@ class SmsReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         // 2026-05-29 Phase A 1단계 — 두 액션 분기:
-        //   SMS_RECEIVED : default 가 아닐 때 (현재 상태). 시스템 갤메시지가 DB INSERT 책임.
-        //   SMS_DELIVER  : default 일 때만. RING-GO 가 SMS provider DB INSERT 책임 + 기존 prepare-reply.
-        // 두 액션 다 메시지 본문 추출은 동일 — getMessagesFromIntent 가 양쪽 다 처리.
+        //   SMS_RECEIVED : default 가 아닐 때. 시스템 갤메시지가 DB INSERT 책임.
+        //   SMS_DELIVER  : default 일 때만. RING-GO 가 SMS provider DB INSERT 책임 + prepare-reply.
         val action = intent.action
         val isDeliver = action == Telephony.Sms.Intents.SMS_DELIVER_ACTION
         if (action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION && !isDeliver) return
-        val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent) ?: return
-        if (messages.isEmpty()) return
-
-        // 한 번에 여러 PDU 가 와도 보통 같은 sender. 첫 메시지에서 phone + ts 추출.
-        val first = messages.first()
-        val sender = first.originatingAddress ?: return
-        val combinedBody = messages.joinToString("") { it.messageBody.orEmpty() }
-        val receivedAtMs = first.timestampMillis
-        if (sender.isBlank() || combinedBody.isBlank()) return
-
         val app = context.applicationContext as? CallFollowCrmApplication ?: return
+        val appCtx = context.applicationContext
 
-        // 2026-05-30 사장님 ANR 보고 fix: SMS provider INSERT 를 main thread 에서 호출하면 binder IPC
-        //   동기 대기로 ANR 위험. default SMS 앱 인수 후 SMS 빈도 ↑ → 누적 영향.
-        //   해결: scope.launch (IO) 안으로 이동. broadcast onReceive 자체는 빠르게 끝남.
-        //   주의: INSERT 가 후속 작업과 race 가능하나 우리 cache upsert / prepare-reply 와 무관.
-        if (isDeliver) {
-            scope.launch {
-                runCatching {
-                    val values = ContentValues().apply {
-                        put(Telephony.Sms.ADDRESS, sender)
-                        put(Telephony.Sms.BODY, combinedBody)
-                        put(Telephony.Sms.DATE, receivedAtMs)
-                        put(Telephony.Sms.DATE_SENT, receivedAtMs)
-                        put(Telephony.Sms.READ, 0)
-                        put(Telephony.Sms.SEEN, 0)
-                        put(Telephony.Sms.TYPE, Telephony.Sms.MESSAGE_TYPE_INBOX)
-                    }
-                    context.contentResolver.insert(Telephony.Sms.Inbox.CONTENT_URI, values)
-                }.onFailure { e ->
-                    Log.e(TAG, "SMS provider INSERT failed (default app responsibility)", e)
-                }
-            }
-        }
-
-        // 2026-05-28 본격 fix: sms_contacts_cache (Room) 즉시 upsert → HomeScreen Room observe 자동 emit.
-        //   pendingNewSmsContacts in-memory 는 더 이상 필요 X (Room upsert → emit 이 ms 단위).
-        //   재시작 후에도 데이터 영속 → cold start 도 instant.
-        val digits = sender.filter { it.isDigit() }
-        val suffix = if (digits.length >= 8) digits.takeLast(8) else digits
-        val newContact = com.detailline.callfollowcrm.data.repository.SmsRepository.SmsContact(
-            address = sender,
-            normalizedSuffix = suffix,
-            lastBody = combinedBody,
-            lastDateMs = receivedAtMs,
-            lastSent = false,
-            hasOwnerReply = false,
-            firstDateMsInScan = receivedAtMs
-        )
-        // 비동기 upsert — onReceive 가 빨리 끝나야 PHONE_STATE 다음 broadcast 안 막힘.
-        //   주의: 이 launch 는 goAsync 와 별개 scope 라 BroadcastReceiver 생명주기 무관 — Application scope.
-        scope.launch {
-            runCatching { app.container.smsContactCacheRepository.upsertOne(newContact) }
-        }
-
+        // 2026-07-09 ANR 긴급 fix (사장님 실측): getMessagesFromIntent(=PDU 파싱)이 내부적으로 telephony 서비스에
+        //   동기 binder 호출(SmsMessage.parsePdu → SmsManager.getSmsSetting → ISms.getSmsSettingForSubscriber)을 한다.
+        //   그 서비스가 느리면 main thread 가 그 자리(ioctl)에서 막혀 ANR. default SMS 앱이라 문자 올 때마다 이 경로 →
+        //   다발 수신 시 브로드캐스트 큐가 밀려 ANR("응답하지 않음"). 2026-05-30 fix 는 INSERT 만 IO 로 옮기고 '파싱'은
+        //   여전히 main 에 남아 있던 게 원인.
+        //   → goAsync 를 먼저 잡고 파싱부터 전부 IO 코루틴에서 한다. onReceive 본체는 즉시 반환(빈 손).
         val pending = goAsync()
         scope.launch {
-            val container = app.container
-            // 스팸 앞자리(070 등) = 광고로 보고 알림·AI 준비 모두 건너뜀. (2026-06-07 사장님 요청)
-            val isSpam = com.detailline.callfollowcrm.util.SpamPrefix.isSpam(sender, container.preferences.spamPrefixes)
-            val notifyEnabled = container.preferences.incomingSmsNotifyEnabled && !isSpam
-            // 고객/카테고리 = 초기 알림 + 이후 prepare 둘 다 사용 → 한 번만 조회 (기존엔 findByPhone 2번).
-            val customer = runCatching { container.customerRepository.findByPhone(sender) }.getOrNull()
-            val categoryLabel = customer?.categoryId?.let { cid ->
-                runCatching { container.categoryRepository.findById(cid)?.name }.getOrNull()
-            }
-
-            // 1) 알림을 '수신 즉시' 띄운다 — 카톡처럼 바로 헤드업. (2026-06-15 사장님)
-            //   2026-06-09 엔 갤 기본알림 중복을 피하려 AI 폴링(최대 30초) 끝나야 띄웠는데, 그게 "늦게/안 울림"의
-            //   원인이었음. 이제 추천을 알림에 안 넣으니(깔끔) 기다릴 게 없어 즉시 1번 띄운다. 추천은 탭→문자방에서.
-            //   (비-기본 SMS 앱이면 갤 메시지 알림과 겹칠 수 있어 '갤 메시지 알림 끄기' 안내 — 채널 설명.)
-            //   ANR: 알림 즉시 후 pending.finish() — 무거운 작업(prepare)은 Application scope 에서 계속.
+            var finished = false
+            fun finishOnce() { if (!finished) { finished = true; runCatching { pending.finish() } } }
             try {
-                if (notifyEnabled) {
-                    NotificationHelper.showIncomingSms(
-                        context = context.applicationContext,
-                        phone = sender,
-                        displayName = customer?.name,
-                        body = combinedBody,
-                        receivedAtMs = receivedAtMs,
-                        categoryLabel = categoryLabel,
-                        isNewCustomer = customer == null
-                    )
+                // ── PDU 파싱 (여기가 binder 호출 지점 — 이제 IO 스레드라 main 안 막힘) ──
+                val messages = runCatching { Telephony.Sms.Intents.getMessagesFromIntent(intent) }
+                    .onFailure { Log.e(TAG, "getMessagesFromIntent failed", it) }.getOrNull()
+                if (messages.isNullOrEmpty()) return@launch
+                val first = messages.first()
+                val sender = first.originatingAddress
+                val combinedBody = messages.joinToString("") { it.messageBody.orEmpty() }
+                val receivedAtMs = first.timestampMillis
+                if (sender.isNullOrBlank() || combinedBody.isBlank()) return@launch
+
+                // default SMS 앱(SMS_DELIVER)일 때 provider DB INSERT 책임. (IO 라 안전)
+                if (isDeliver) {
+                    runCatching {
+                        val values = ContentValues().apply {
+                            put(Telephony.Sms.ADDRESS, sender)
+                            put(Telephony.Sms.BODY, combinedBody)
+                            put(Telephony.Sms.DATE, receivedAtMs)
+                            put(Telephony.Sms.DATE_SENT, receivedAtMs)
+                            put(Telephony.Sms.READ, 0)
+                            put(Telephony.Sms.SEEN, 0)
+                            put(Telephony.Sms.TYPE, Telephony.Sms.MESSAGE_TYPE_INBOX)
+                        }
+                        appCtx.contentResolver.insert(Telephony.Sms.Inbox.CONTENT_URI, values)
+                    }.onFailure { e -> Log.e(TAG, "SMS provider INSERT failed (default app responsibility)", e) }
                 }
-            } finally {
-                pending.finish()
-            }
 
-            // 스팸 앞자리면 AI 추천 준비·폴링 전부 건너뜀(자동메세지 준비 X).
-            if (isSpam) return@launch
+                // sms_contacts_cache (Room) 즉시 upsert → HomeScreen Room observe 자동 emit.
+                val digits = sender.filter { it.isDigit() }
+                val suffix = if (digits.length >= 8) digits.takeLast(8) else digits
+                val newContact = com.detailline.callfollowcrm.data.repository.SmsRepository.SmsContact(
+                    address = sender,
+                    normalizedSuffix = suffix,
+                    lastBody = combinedBody,
+                    lastDateMs = receivedAtMs,
+                    lastSent = false,
+                    hasOwnerReply = false,
+                    firstDateMsInScan = receivedAtMs
+                )
+                runCatching { app.container.smsContactCacheRepository.upsertOne(newContact) }
 
-            // 2) 무거운 작업 (히스토리·톤·prepare·prefetch·polling) — broadcast 종료 후 계속.
-            try {
+                val container = app.container
+                // 스팸 앞자리(070 등) = 광고로 보고 알림·AI 준비 모두 건너뜀. (2026-06-07 사장님)
+                val isSpam = com.detailline.callfollowcrm.util.SpamPrefix.isSpam(sender, container.preferences.spamPrefixes)
+                val notifyEnabled = container.preferences.incomingSmsNotifyEnabled && !isSpam
+                val customer = runCatching { container.customerRepository.findByPhone(sender) }.getOrNull()
+                val categoryLabel = customer?.categoryId?.let { cid ->
+                    runCatching { container.categoryRepository.findById(cid)?.name }.getOrNull()
+                }
+
+                // 1) 알림 '수신 즉시' 헤드업. (2026-06-15 사장님)
+                if (notifyEnabled) {
+                    runCatching {
+                        NotificationHelper.showIncomingSms(
+                            context = appCtx,
+                            phone = sender,
+                            displayName = customer?.name,
+                            body = combinedBody,
+                            receivedAtMs = receivedAtMs,
+                            categoryLabel = categoryLabel,
+                            isNewCustomer = customer == null
+                        )
+                    }
+                }
+                // 브로드캐스트 종료 — 무거운 prepare 는 이 scope(Application 수명) 에서 계속. pending 은 여기서 놓아줌.
+                finishOnce()
+                if (isSpam) return@launch
+
+                // 2) 무거운 작업 (히스토리·톤·prepare·prefetch) — broadcast 종료 후 계속.
                 val canReadSms = container.smsRepository.hasReadPermission()
                 val history = if (canReadSms) {
                     container.smsRepository.queryByPhone(sender, scanLimit = 100)
@@ -190,12 +178,13 @@ class SmsReceiver : BroadcastReceiver() {
                         .getOrDefault(emptyList()).takeIf { it.isNotEmpty() }
                 )
 
-                // 추천 답변은 미리 준비만 해둔다(문자방 진입 시 바로 보이게). 알림엔 더 이상 안 넣음 → 폴링 제거.
-                container.suggestionRepository.requestPrepare(ctx)  // fire-and-forget
+                // 추천 답변은 미리 준비만 해둔다(문자방 진입 시 바로 보이게). fire-and-forget.
+                container.suggestionRepository.requestPrepare(ctx)
                 container.smsCachePrefetcher.prefetchForNumber(sender)
             } catch (e: Throwable) {
-                // 알림은 위에서 이미 즉시 띄웠으므로 여기선 로그만 (prepare 실패해도 알림/문자방은 정상).
-                Log.e(TAG, "prepare failed (broadcast already finished)", e)
+                Log.e(TAG, "onReceive async failed", e)
+            } finally {
+                finishOnce()
             }
         }
     }

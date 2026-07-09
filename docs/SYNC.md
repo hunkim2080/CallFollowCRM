@@ -6831,3 +6831,14 @@ NAVER_SITE_VERIFY 삽입 (값=공개용, 비밀 아님). 배포 시 launchd 가 
 - ⚠️ plist 는 gitignore (로컬 Mac mini 전용) — 이 변경은 commit 안 됨. 배포로만 반영.
 - 사장님 다음 액션: ① deploy_phase1.sh 배포 → ② 네이버에서 '확인' 클릭(통과) →
   ③ 네이버 사이트맵 제출: https://si0in.kr/sitemap.xml. 구글 서치콘솔 코드는 아직 대기(GOOGLE_SITE_VERIFY).
+## 2026-07-09 · android — 🚨 긴급 ANR fix (SMS 수신 시 앱 응답없음)
+사장님 실측 ANR("시공막내이가 응답하지 않음"). DropBox ANR 트레이스 분석:
+main thread 가 SmsReceiver.onReceive(:44) → Telephony.Sms.Intents.getMessagesFromIntent → SmsMessage.parsePdu →
+SmsManager.getSmsSetting → ISms.getSmsSettingForSubscriber(**binder IPC**) → ioctl 대기에서 블록.
+- 원인: **PDU 파싱(getMessagesFromIntent)이 내부적으로 telephony 서비스에 동기 binder 호출**을 하는데 이게 main
+  thread 에서 실행됨. default SMS 앱이라 문자마다 이 경로 → 서비스 지연/다발 수신 시 브로드캐스트 큐 밀려 ANR.
+  (2026-05-30 fix 는 INSERT 만 IO 로 옮기고 '파싱'은 main 에 남겨둔 게 화근. 이번 세션 변경과 무관한 잠복 버그.)
+- fix: goAsync 를 **먼저** 잡고 getMessagesFromIntent 부터 전부 IO 코루틴에서. onReceive 본체 즉시 반환.
+  알림까지 하고 finishOnce()→무거운 prepare 는 이후 계속. MmsDownloadedReceiver 는 이미 전부 IO 라 무관(같은 큐라 덩달아 timeout 뜬 것).
+- S23U 설치·무크래시. 실측 재현은 어려우나 구조적으로 main-thread binder 호출 제거. **S9(메인·default앱) 재연결 시 설치 필요.**
+- 서버 무관. commit: (아래)
