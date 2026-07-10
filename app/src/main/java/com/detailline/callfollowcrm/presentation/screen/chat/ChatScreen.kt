@@ -1457,6 +1457,7 @@ fun ChatScreen(
             validDays = estPrefs.bizQuoteValidDays,
             defaultRecipient = displayName,
             onUpdatePrice = { id, priceWon -> viewModel.updateItemPrice(id, priceWon) },
+            onUpdateTitle = { id, title -> viewModel.updateItemTitle(id, title) },
             onConfirm = { body ->
                 setInput(body)
                 // composer 채우기만 — 아직 발송 아님. 실제 발송 성공 시 markIfEstimate 가 기록.
@@ -3752,12 +3753,14 @@ private class EstimateDraft(initialCalMonth: Long) {
     val customItems = androidx.compose.runtime.mutableStateListOf<EstCustomLine>()
     /** 항목 id → 이번 세션에서 그 자리에서 바꾼 가격(원). 즉시 우선 적용. DB 저장과 별개. (2026-06-25 사장님) */
     val priceOverrides = androidx.compose.runtime.mutableStateMapOf<Long, Long>()
+    /** 항목 id → 이번 세션에서 그 자리에서 바꾼 이름(라벨). 즉시 우선 적용. DB 저장과 별개. (2026-07-10 사장님) */
+    val titleOverrides = androidx.compose.runtime.mutableStateMapOf<Long, String>()
     /** 견적을 보냈거나(또는 진짜 닫았을 때) 다음을 위해 초기화. 미리보기 왕복 때는 호출 안 함. */
     fun reset(initialCalMonth: Long) {
         mode.value = "text"; depMode.value = "ratio"; depVal.value = "30"; depCustom.value = false
         workDateMs.value = null; workDays.value = 1; estCalMonth.value = initialCalMonth
         vatIncluded.value = false; recipient.value = ""; memo.value = ""
-        selectedQty.clear(); customItems.clear(); priceOverrides.clear()
+        selectedQty.clear(); customItems.clear(); priceOverrides.clear(); titleOverrides.clear()
     }
 }
 
@@ -3800,6 +3803,8 @@ private fun EstimateBuilderDialog(
     onDismiss: () -> Unit,
     /** 항목 가격을 그 자리에서 고침 → 가격표에 저장(원 단위). (2026-06-25 사장님) */
     onUpdatePrice: (id: Long, priceWon: Long) -> Unit = { _, _ -> },
+    /** 항목 이름을 그 자리에서 고침 → 가격표에 저장. (2026-07-10 사장님) */
+    onUpdateTitle: (id: Long, title: String) -> Unit = { _, _ -> },
     onQuoteDoc: (QuoteDocData) -> Unit = {},
     onIssueIntake: (
         items: List<com.detailline.callfollowcrm.ai.IntakeFormRepository.QuoteIssueItem>,
@@ -3839,7 +3844,7 @@ private fun EstimateBuilderDialog(
     // 그 자리에서 바꾼 가격은 이번 세션에 즉시 우선 적용 — DB 저장은 비동기(다음 기억용)라, 지금 보낼 견적은
     //   override 로 바로 반영해 레이스(옛 값으로 들어감)를 없앤다. visibleItems 가 곧 '효과적 가격' 리스트라
     //   본문·견적서·접수서 전부 자동으로 바뀐 값을 쓴다. (2026-06-25 사장님)
-    val visibleItems = baseItems.map { it.copy(price = draft.priceOverrides[it.id] ?: it.price) }
+    val visibleItems = baseItems.map { it.copy(price = draft.priceOverrides[it.id] ?: it.price, title = draft.titleOverrides[it.id] ?: it.title) }
     val totalSum = visibleItems.sumOf { (selectedQty[it.id] ?: 0) * it.price } +
         customItems.sumOf { (it.manwon.toIntOrNull() ?: 0) * 10_000L }
     val anySelected = selectedQty.values.any { it > 0 } ||
@@ -4075,6 +4080,13 @@ private fun EstimateBuilderDialog(
                             val won = manwon * 10_000L
                             draft.priceOverrides[item.id] = won   // 이번 세션 즉시 반영(레이스 없음)
                             onUpdatePrice(item.id, won)           // DB 저장 — 다음에도 기억
+                        },
+                        onEditTitle = { newTitle ->
+                            val t = newTitle.trim()
+                            if (t.isNotBlank()) {
+                                draft.titleOverrides[item.id] = t   // 이번 세션 즉시 반영
+                                onUpdateTitle(item.id, t)           // DB 저장 — 다음에도 기억
+                            }
                         }
                     )
                 }
@@ -4219,14 +4231,18 @@ private fun EstimateItemRow(
     onToggle: () -> Unit,
     onIncrement: () -> Unit,
     onDecrement: () -> Unit,
-    onEditPrice: (manwon: Int) -> Unit = {}
+    onEditPrice: (manwon: Int) -> Unit = {},
+    onEditTitle: (String) -> Unit = {}
 ) {
     val checked = quantity > 0
     val isPyeong = unit == com.detailline.callfollowcrm.data.local.entity.PricingItemEntity.UNIT_PYEONG
     // 가격 자리에서 직접 수정 — 탭하면 입력칸으로 바뀜. 저장하면 가격표(단일 기준)에 반영. (2026-06-25 사장님)
     var editingPrice by remember { mutableStateOf(false) }
+    // 이름 자리에서 직접 수정 — 가격과 동일 패턴. 탭하면 입력칸. (2026-07-10 사장님)
+    var editingTitle by remember { mutableStateOf(false) }
     // 편집 진입 시 입력칸이 새로 그려지면서 첫 탭으로는 포커스를 못 받아 숫자패드가 안 뜸 → 자동 포커스+키보드. (2026-06-25 사장님 버그)
     val priceFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+    val titleFocus = remember { androidx.compose.ui.focus.FocusRequester() }
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     Column(Modifier.fillMaxWidth()) {
         // 프로토 .est-item — [체크박스] 이름(flex) 가격(우측)
@@ -4237,21 +4253,52 @@ private fun EstimateItemRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(
-                Modifier.weight(1f).clickable(onClick = onToggle),
+                Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 프로토 .est-box — 24dp rounded8, on=파랑 채움+체크
+                // 프로토 .est-box — 24dp rounded8, on=파랑 채움+체크. 체크(선택)는 이 박스 탭. (이름 탭은 수정으로 분리, 2026-07-10)
                 Box(
                     Modifier.size(24.dp).clip(RoundedCornerShape(8.dp))
                         .background(if (checked) TossBlue else Color.White)
-                        .border(2.dp, if (checked) TossBlue else TossDivider, RoundedCornerShape(8.dp)),
+                        .border(2.dp, if (checked) TossBlue else TossDivider, RoundedCornerShape(8.dp))
+                        .clickable(onClick = onToggle),
                     contentAlignment = Alignment.Center
                 ) {
                     if (checked) Text("✓", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
                 Spacer(Modifier.width(12.dp))
-                Text(title, color = TossTextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f))
+                if (editingTitle) {
+                    // 이름 그 자리에서 수정 — 가격 수정과 동일 패턴(탭→입력칸, ✓/포커스아웃 시 저장·닫힘). (2026-07-10 사장님)
+                    val initT = title
+                    var draftT by remember { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(initT, androidx.compose.ui.text.TextRange(initT.length))) }
+                    var wasFocusedT by remember { mutableStateOf(false) }
+                    LaunchedEffect(Unit) {
+                        androidx.compose.runtime.withFrameNanos { }
+                        kotlinx.coroutines.delay(80)
+                        runCatching { titleFocus.requestFocus() }
+                        keyboard?.show()
+                    }
+                    Box(Modifier.weight(1f)) {
+                        com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                            value = draftT,
+                            onValueChange = { draftT = it },
+                            placeholder = "항목 이름",
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Text,
+                            modifier = Modifier.focusRequester(titleFocus).onFocusChanged { st ->
+                                if (st.isFocused) wasFocusedT = true
+                                else if (wasFocusedT) { onEditTitle(draftT.text); editingTitle = false }
+                            }
+                        )
+                    }
+                    Text("✓", fontSize = 17.sp, color = TossBlue, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable {
+                            onEditTitle(draftT.text); editingTitle = false; keyboard?.hide()
+                        }.padding(horizontal = 7.dp, vertical = 4.dp))
+                } else {
+                    // 탭 = 이름 그 자리에서 수정(가격과 동일). 선택은 왼쪽 체크박스로.
+                    Text(title, color = TossTextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).clickable { editingTitle = true }.padding(vertical = 2.dp))
+                }
             }
             if (editingPrice) {
                 // 만원 단위 입력 — 한 글자 칠 때마다 즉시 반영(✓ 안 눌러도 적용됨). 평당이면 평당 단가.

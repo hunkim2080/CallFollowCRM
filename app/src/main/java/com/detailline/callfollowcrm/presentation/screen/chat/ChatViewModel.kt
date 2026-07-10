@@ -135,6 +135,20 @@ class ChatViewModel(
         }
     }
 
+    /**
+     * 견적 만들기에서 항목 이름(라벨)을 그 자리에서 고침 → 가격표에 바로 저장(가격 수정과 동일 패턴). (2026-07-10 사장님)
+     *   빈 이름은 무시(실수로 다 지우면 원래 이름 유지).
+     */
+    fun updateItemTitle(id: Long, title: String) {
+        val t = title.trim()
+        if (id <= 0L || t.isBlank()) return
+        viewModelScope.launch {
+            val item = container.pricingItemRepository.findById(id) ?: return@launch
+            if (item.title == t) return@launch
+            container.pricingItemRepository.update(item.copy(title = t))
+        }
+    }
+
     /** ⭐ 별표된 메시지 목록 (이 번호 한정). */
     val starred: kotlinx.coroutines.flow.StateFlow<List<ImportantMessageEntity>> =
         container.importantMessageRepository.observeByPhone(phoneNumber)
