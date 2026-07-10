@@ -15722,11 +15722,14 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
     <div class="q-agree" id="q-privacy" onclick="togglePrivacy()">
       <span class="qa-box">✓</span>
       <span>(필수) 개인정보 수집·이용 동의<br>
-        <span style="font-weight:500; font-size:12px; color:var(--t2); line-height:1.5;">
-        <b>{biz_html}</b>이(가) <b>시공 접수·일정 확정</b>을 위해 연락처·현장 주소·메모를 수집·이용합니다.
-        앱 운영사 <b>막내컴퍼니</b>가 이를 위탁받아 안전하게 보관·처리하며(처리위탁),
-        시공 완료 후 <b>최대 1년</b> 뒤 파기합니다. 동의하지 않으면 접수가 불가능합니다.
-        <a href="/privacy" target="_blank" onclick="event.stopPropagation()" style="color:var(--blue-dark); font-weight:700;">자세히 보기</a>
+        <span style="font-weight:500; font-size:12px; color:var(--t2); line-height:1.6;">
+        <b>수집·이용 주체(개인정보처리자):</b> {biz_html} (접수서를 발행한 시공업체)<br>
+        <b>목적:</b> 시공 접수, 상담 연락, 일정 확정<br>
+        <b>항목:</b> 휴대전화 번호, 현장 주소, 현장 메모(고객이 직접 입력한 내용)<br>
+        <b>보유·이용 기간:</b> 시공 완료일부터 1년(시공이 진행되지 않은 경우 접수일부터 6개월)이 지난 때 지체 없이 파기. 고객 또는 {biz_html}의 삭제 요청 시 즉시 파기.<br>
+        <b>처리 위탁:</b> 앱 운영사 막내컴퍼니가 {biz_html}으로부터 위탁받아 시공막내 서버에 보관·처리합니다(개인정보 보호법 제26조). 막내컴퍼니는 위탁 목적 외로 이 정보를 이용하지 않으며, AI 자동응대에 사용하지 않습니다.<br>
+        귀하는 동의를 거부할 권리가 있습니다. 다만 필수 항목 동의를 거부하시면 시공 접수가 불가능합니다.
+        <a href="/privacy" target="_blank" onclick="event.stopPropagation()" style="color:var(--blue-dark); font-weight:700;">개인정보 처리방침 보기</a>
         </span></span>
     </div>
 
