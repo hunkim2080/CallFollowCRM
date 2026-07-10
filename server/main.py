@@ -2837,13 +2837,14 @@ _ADMIN_DASHBOARD_HTML = r"""<!DOCTYPE html>
         <thead>
           <tr>
             <th style="text-align:left;">사용자</th>
+            <th style="text-align:left;">상호 · 업종</th>
             <th class="num">호출</th>
             <th class="num">비용</th>
             <th class="num">구독료</th>
             <th class="num">유저 마진</th>
           </tr>
         </thead>
-        <tbody id="topUsersBody"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:12px 0">로딩 중…</td></tr></tbody>
+        <tbody id="topUsersBody"><tr><td colspan="6" style="text-align:center;color:var(--muted);padding:12px 0">로딩 중…</td></tr></tbody>
       </table>
     </div>
     <div style="margin-top:8px;font-size:11px;color:var(--muted);line-height:1.5;">
@@ -3446,7 +3447,7 @@ async function loadAdminSection() {
   // 👥 Top 사용자
   const topBody = document.getElementById('topUsersBody');
   if (!stats.top_users || stats.top_users.length === 0) {
-    topBody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:12px 0">이번 달 사용 기록 없음</td></tr>';
+    topBody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:12px 0">이번 달 사용 기록 없음</td></tr>';
   } else {
     topBody.innerHTML = stats.top_users.map(u => {
       const heavy = u.heavy_user;
@@ -3457,9 +3458,20 @@ async function loadAdminSection() {
             ? `<span style="color:var(--ok);">${u.user_margin_pct}%</span>`
             : `<span style="color:var(--hot);">${u.user_margin_pct}%</span>`);
       const rowStyle = heavy ? 'background:rgba(255,59,48,0.06);' : '';
+      // 추가113 — 상호·업종 셀 (여러 소스에서 해석). 없으면 '미확인'.
+      const esc = (s) => (s || '').replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+      let bizCell;
+      if (u.biz_name || u.trade) {
+        const nm = u.biz_name ? `<b style="color:var(--fg);">${esc(u.biz_name)}</b>` : '';
+        const tr = u.trade ? `<span style="display:inline-block;font-size:10px;color:var(--accent,#3182F6);background:rgba(49,130,246,.1);border-radius:6px;padding:1px 6px;margin-left:${u.biz_name?'4px':'0'};">${esc(u.trade)}</span>` : '';
+        bizCell = `${nm}${tr}`;
+      } else {
+        bizCell = '<span style="color:var(--muted);font-size:11px;">미확인</span>';
+      }
       return `
         <tr style="${rowStyle}">
           <td class="ep" style="padding:6px 4px;">${heavy ? '🔥 ' : ''}${phoneDisp}<div style="font-size:10px;color:var(--muted);">${u.plan_tier}</div></td>
+          <td style="padding:6px 4px;">${bizCell}</td>
           <td class="num">${fmt(u.calls)}</td>
           <td class="num">${fmtKRW2(u.cost_krw)}</td>
           <td class="num">${u.monthly_price_krw > 0 ? fmtKRW(u.monthly_price_krw) : '—'}</td>
@@ -4454,6 +4466,33 @@ async def admin_business_stats(
             """ % (",".join("?" * len(STATS_EXCLUDE_PHONES)) or "''"),
             (KRW_PER_USD, month_start_ms, *STATS_EXCLUDE_PHONES),
         ).fetchall()
+        # 추가113 — 미등록 사용자도 식별되게: 상호/업종을 여러 소스에서 해석.
+        #   subscribers.company/name → 최근 intake_forms.biz_name(발행 시 입력한 상호)
+        #   → beta_whitelist 의 name/owner_trade. 하나라도 있으면 표시.
+        def _resolve_biz(phone: str) -> dict:
+            biz, trade = "", ""
+            row = conn.execute(
+                "SELECT company, name FROM subscribers WHERE phone = ?", (phone,)
+            ).fetchone()
+            if row:
+                biz = (row["company"] or row["name"] or "").strip()
+            if not biz:
+                row = conn.execute(
+                    "SELECT biz_name FROM intake_forms WHERE owner_phone = ? "
+                    "AND biz_name IS NOT NULL AND TRIM(biz_name) != '' "
+                    "ORDER BY created_at_ms DESC LIMIT 1", (phone,)
+                ).fetchone()
+                if row:
+                    biz = (row["biz_name"] or "").strip()
+            row = conn.execute(
+                "SELECT owner_trade, name FROM beta_whitelist WHERE phone = ?", (phone,)
+            ).fetchone()
+            if row:
+                trade = (row["owner_trade"] or "").strip()
+                if not biz:
+                    biz = (row["name"] or "").strip()
+            return {"biz_name": biz, "trade": trade}
+
         top_users = []
         for r in top_user_rows:
             cost_k = round(r["cost_krw"], 2)
@@ -4465,9 +4504,12 @@ async def admin_business_stats(
             else:
                 user_margin = None
                 heavy = cost_k > 1000
+            biz = _resolve_biz(r["phone"])
             top_users.append({
                 "phone":             r["phone"],
                 "name":              r["name"],
+                "biz_name":          biz["biz_name"],   # 추가113
+                "trade":             biz["trade"],      # 추가113
                 "plan_tier":         r["plan_tier"] or "(미등록)",
                 "monthly_price_krw": price_k,
                 "calls":             r["calls"],

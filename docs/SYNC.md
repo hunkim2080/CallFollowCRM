@@ -6857,3 +6857,12 @@ SmsManager.getSmsSetting → ISms.getSmsSettingForSubscriber(**binder IPC**) →
   더 줄이려면 deploy 채점을 haiku 로 or 스킵 옵션 — 사장님 결정 대기.
 - 검증: TestClient purge(합성만·실고객보존·멱등·인증) + TOP 제외 + deploy.sh 문법 ALL PASS.
 - 변경: main.py + deploy_phase1.sh. 배포 필요. commit: (아래)
+
+## 2026-07-09 · cowork (사장님: TOP 사용자 식별 — 상호 표기)
+추가113 — admin_business_stats TOP 사용자 표에 "상호·업종" 셀 신설.
+- 상호 해석 우선순위: subscribers.company/name → 최근 intake_forms.biz_name(견적 발행 시 입력한 상호,
+  '미등록' 회원도 이걸로 식별됨) → beta_whitelist.name/owner_trade(업종 칩).
+- top_users 응답에 biz_name·trade 추가. 대시보드 JS: 사용자 옆 셀에 상호(굵게)+업종(파란 칩), 없으면 '미확인'.
+  colspan 5→6. XSS escape 처리.
+- 검증: TestClient 3케이스(등록회원 상호+업종 / 미등록이나 견적이력 상호 / 진짜 미확인) + 합성번호 제외 ALL PASS.
+- 변경: main.py 만. 배포 필요. commit: (아래)
