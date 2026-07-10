@@ -17,21 +17,8 @@ interface CustomerDao {
     @Update
     suspend fun update(customer: CustomerEntity)
 
-    /**
-     * 계약금 이중곱 오염 self-heal (2026-07-09) — 2026-07-04~ intake fixed 계약금이 서버왕복 후 ×10000 두 번
-     *   적용돼 원값이 10만원→10억(1e9)으로 저장된 row 보정. 오탐0 조건: 만원 배수 + 1억(1e8) 이상(이 도메인
-     *   계약금으로 비현실적=이중곱 산물만 도달) + 총액 초과(진짜 계약금은 총액 못 넘음). 보정=÷10000.
-     *   같은 row 컬럼만 비교하는 단순 UPDATE(서브쿼리 없음) → 기기 SQLite 에서 안전. 정상값은 미달로 미트리거,
-     *   보정 후 값도 1e8 미만이라 재실행해도 idempotent.
-     */
-    @Query("""
-        UPDATE customers SET depositAmount = depositAmount / 10000
-        WHERE depositAmount IS NOT NULL
-          AND depositAmount % 10000 = 0
-          AND depositAmount >= 100000000
-          AND totalAmount IS NOT NULL AND depositAmount > totalAmount
-    """)
-    suspend fun healDoubleMultipliedDeposits(): Int
+    // 계약금 이중곱 self-heal 은 repository(Kotlin)에서 allOnce()+update() 로 처리 — @Query UPDATE 가 기기에서
+    //   조용히 실행 안 되던 문제 우회. (2026-07-10)
 
     @Query("SELECT * FROM customers WHERE phoneNumber = :phoneNumber LIMIT 1")
     suspend fun findByPhone(phoneNumber: String): CustomerEntity?

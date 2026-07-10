@@ -123,10 +123,24 @@ class CustomerRepository(
     }
 
     /**
-     * 계약금 이중곱 오염 self-heal (2026-07-09) — 앱 시작 시 1회. 조건/근거는 CustomerDao.healDoubleMultipliedDeposits.
+     * 계약금 이중곱 오염 self-heal (2026-07-09) — 앱 시작 시 1회. 2026-07-04~ intake fixed 계약금이 서버왕복 후
+     *   ×10000 이중적용돼 원값이 10만원→10억(1e9)으로 저장된 row 를 ÷10000 보정. 오탐0 조건(모두 AND):
+     *   만원 배수 + 1억(1e8) 이상(이 도메인 계약금으로 비현실적=이중곱 산물만) + 총액 초과(진짜 계약금은 총액 못 넘음).
+     *   ※ @Query UPDATE 가 기기(S9/안드10) 에서 조용히 실행 안 되던 문제로 Kotlin(allOnce+update)으로 구현 + 로그. (2026-07-10)
      * @return 보정된 row 수 (정상 폰은 0)
      */
-    suspend fun healCorruptedDeposits(): Int = dao.healDoubleMultipliedDeposits()
+    suspend fun healCorruptedDeposits(): Int {
+        val corrupted = dao.allOnce().filter { c ->
+            val d = c.depositAmount
+            val t = c.totalAmount
+            d != null && t != null && d % 10000L == 0L && d >= 100_000_000L && d > t
+        }
+        for (c in corrupted) {
+            dao.update(c.copy(depositAmount = c.depositAmount!! / 10000L, updatedAt = System.currentTimeMillis()))
+        }
+        android.util.Log.i("DepositHeal", "healed ${corrupted.size} double-mul deposits: ids=${corrupted.map { it.id }}")
+        return corrupted.size
+    }
 
     /** paidAt = null 이면 "안 받음" 상태로 되돌리기. */
     suspend fun updateDepositPaidAt(id: Long, paidAt: Long?) {

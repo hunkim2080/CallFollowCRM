@@ -6866,3 +6866,10 @@ SmsManager.getSmsSetting → ISms.getSmsSettingForSubscriber(**binder IPC**) →
   colspan 5→6. XSS escape 처리.
 - 검증: TestClient 3케이스(등록회원 상호+업종 / 미등록이나 견적이력 상호 / 진짜 미확인) + 합성번호 제외 ALL PASS.
 - 변경: main.py 만. 배포 필요. commit: (아래)
+## 2026-07-10 · android — 계약금 self-heal 을 Kotlin 으로 (S9 실측 재검증)
+S9(사장님 메인폰)가 계약금 fix 빌드를 못 받은 채(중간 연결끊김) 구버전(916)으로 지내며 새 intake 고객
+2건(id 120·121)이 또 1e9 로 오염. 최신 빌드 설치 후 self-heal 로 120·121 → 100,000(10만원) 보정 확인, 잔여 0.
+- healCorruptedDeposits 를 @Query UPDATE → Kotlin(allOnce+update+Log)으로 교체. (@Query DML 이 기기에서 지연/침묵
+  가능성 → 로그로 실행 확인 가능하게. 조건 동일: 만원배수+1억↑+총액초과 ÷10000.)
+- 교훈 재확인: 폰별 빌드 최신화 확인 필수(S9 vs S23U 버전 갈림). 검증은 relaunch 후 넉넉히 대기+DepositHeal 로그.
+- commit: (아래)
