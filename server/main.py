@@ -15723,8 +15723,9 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
       <span class="qa-box">✓</span>
       <span>(필수) 개인정보 수집·이용 동의<br>
         <span style="font-weight:500; font-size:12px; color:var(--t2); line-height:1.5;">
-        연락처·현장 주소·메모를 <b>시공 접수와 일정 확정</b> 목적으로 수집하며,
-        시공 완료 후 <b>최대 1년</b> 보관 후 파기합니다. 동의하지 않으면 접수가 불가능합니다.
+        <b>{biz_html}</b>이(가) <b>시공 접수·일정 확정</b>을 위해 연락처·현장 주소·메모를 수집·이용합니다.
+        앱 운영사 <b>막내컴퍼니</b>가 이를 위탁받아 안전하게 보관·처리하며(처리위탁),
+        시공 완료 후 <b>최대 1년</b> 뒤 파기합니다. 동의하지 않으면 접수가 불가능합니다.
         <a href="/privacy" target="_blank" onclick="event.stopPropagation()" style="color:var(--blue-dark); font-weight:700;">자세히 보기</a>
         </span></span>
     </div>
@@ -15870,7 +15871,27 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
         + '<input class="q-input" id="qs-etc" placeholder="예: 아파트 게시판 전단, 친구 추천 등">'
         + '<button class="qs-ok" style="width:100%;margin-top:10px" onclick="surveyEtc()">완료</button>';
     }}
+    // 추가115 (핸드오프③) — 제출 전 오조작 복구: 뒤로가기/재선택
+    if (s.done || s.busy) {{
+      h += '<button class="qs-skip" style="margin-top:10px;width:100%" onclick="surveyReset()">↺ 다시 선택할래요</button>';
+    }} else if (s.asked) {{
+      h += '<div style="margin-top:8px;text-align:center"><span onclick="surveyBack()" style="font-size:12.5px;color:var(--t3);cursor:pointer;text-decoration:underline">← 이전으로</span></div>';
+    }}
     b.innerHTML = h;
+  }}
+  function surveyReset() {{
+    quoteSurvey = {{ asked:false, busy:false, source:null, keyword:'', category:null, etc:'', done:false }};
+    renderSurvey();
+  }}
+  function surveyBack() {{
+    var s = quoteSurvey;
+    if (s.done) {{ s.done = false; if (s.etc) {{ s.etc = ''; }} else if (s.category) {{ s.category = null; }} }}
+    else if (s.etc) {{ s.etc = ''; }}
+    else if (s.category) {{ s.category = null; }}
+    else if (s.keyword) {{ s.keyword = ''; }}
+    else if (s.source) {{ s.source = null; }}
+    else if (s.asked) {{ s.asked = false; }}
+    renderSurvey();
   }}
   function surveyAsk()   {{ quoteSurvey.asked = true;  renderSurvey(); }}
   function surveyBusy()  {{ quoteSurvey.busy  = true;  renderSurvey(); }}
@@ -16054,18 +16075,24 @@ def _build_items_html(items: list[dict]) -> str:
 
 
 def _build_deposit_html(deposit_mode: str, deposit_amount_krw: int,
-                       deposit_ratio_pct: Optional[int]) -> str:
-    """계약금 안내 박스 HTML (프로토 q-deposit 1:1)."""
+                       deposit_ratio_pct: Optional[int], total_won: int = 0) -> str:
+    """계약금 안내 박스 HTML (프로토 q-deposit 1:1).
+
+    추가115 (핸드오프②) — 접수서는 계약금 이미 받은 뒤 작성 흐름.
+    "입금 계좌 확정 후 안내"(모순) → "계약금 받음 · 시공 종료 후 잔금(총액−계약금) 입금".
+    """
     if deposit_mode == "none" or not deposit_amount_krw:
         return ""
     amount = _format_won(deposit_amount_krw)
     suffix = ""
     if deposit_mode == "ratio" and deposit_ratio_pct:
         suffix = f" (총액의 {int(deposit_ratio_pct)}%)"
-    return (
-        f'<div class="q-deposit">계약금 {amount}원{suffix}'
-        f' · 입금 계좌는 확정 후 안내드려요</div>'
-    )
+    remain = max(int(total_won or 0) - int(deposit_amount_krw or 0), 0)
+    if total_won and remain > 0:
+        tail = f' · 시공 종료 후 잔금 {_format_won(remain)}원을 입금해주시면 됩니다'
+    else:
+        tail = ' · 시공 종료 후 잔금을 입금해주시면 됩니다'
+    return f'<div class="q-deposit">계약금 {amount}원{suffix}{tail}</div>'
 
 
 @app.get("/intake/{token}", response_class=HTMLResponse)
@@ -16106,7 +16133,8 @@ async def intake_form_page(token: str) -> HTMLResponse:
     schedule_label = _format_schedule_label(data["scheduled_at_ms"], data["scheduled_days"])
     items_html = _build_items_html(data["estimate_items"])
     deposit_html = _build_deposit_html(
-        data["deposit_mode"], data["deposit_amount_krw"], data["deposit_ratio_pct"]
+        data["deposit_mode"], data["deposit_amount_krw"], data["deposit_ratio_pct"],
+        int(data.get("total_man") or 0) * 10000,  # 추가115 — 잔금 동적
     )
 
     page = INTAKE_FORM_HTML_TEMPLATE.format(
@@ -16519,7 +16547,8 @@ def _render_quote_form_html(token: str, row: tuple) -> str:
     schedule_label = _format_schedule_label(data["scheduled_at_ms"], data["scheduled_days"])
     items_html = _build_items_html(data["estimate_items"])
     deposit_html = _build_deposit_html(
-        data["deposit_mode"], data["deposit_amount_krw"], data["deposit_ratio_pct"]
+        data["deposit_mode"], data["deposit_amount_krw"], data["deposit_ratio_pct"],
+        int(data.get("total_man") or 0) * 10000,  # 추가115 — 잔금 동적
     )
     # 폼 제출 경로 = /q/{token}/submit
     submit_path = f"/q/{token}/submit"
