@@ -33,6 +33,8 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
         // 받은 협업 요청(pending) — 앱 꺼져 있어도 주기 워커가 새 요청 잡아 "수락하시겠어요?" 알림.
         runCatching { app.container.collabEventCenter.pollInvites(applicationContext) }
         runCatching { GeofenceManager.refresh(applicationContext) }
+        // 오늘의 현장 상시 알림 갱신 (2026-07-10 사장님) — 오늘 시공 현장 주소를 상단에 계속.
+        runCatching { refreshTodaySites(applicationContext, app.container) }
         return Result.success()
     }
 
@@ -88,6 +90,30 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
             }
             NotificationHelper.showDailyBrief(context, newCustomers, deposits, tomorrowJobs.size, tomorrowLabel)
             return true
+        }
+
+        /**
+         * 오늘의 현장 상시 알림 갱신 (2026-07-10 사장님) — 오늘 시공(주소 있는) 현장을 무음·상단고정 알림으로.
+         *   현장에서 "몇동 몇호였지?" 를 앱 안 열고 상단에서 바로 확인. 오늘 현장 없으면 알림 내림.
+         *   호출: ReminderWorker(주기 ~3h) + 앱 시작(Application). 시각순 정렬, 주소는 동/호까지 그대로(tidyAddress).
+         */
+        suspend fun refreshTodaySites(context: Context, container: AppContainer) {
+            val now = System.currentTimeMillis()
+            val todayStart = DateTimeUtils.startOfDay(now)
+            val todayEnd = todayStart + DateTimeUtils.DAY_MS
+            val customers = runCatching { container.customerRepository.allOnce() }.getOrDefault(emptyList())
+            val today = customers.filter { c ->
+                val s = c.scheduledWorkDate ?: return@filter false
+                DateTimeUtils.startOfDay(s) in todayStart until todayEnd && !c.address.isNullOrBlank()
+            }.sortedBy { it.scheduledWorkMinutes ?: 0 }
+            if (today.isEmpty()) { NotificationHelper.clearTodaySites(context); return }
+            val lines = today.map { c ->
+                val nm = c.name?.takeIf { it.isNotBlank() } ?: c.phoneNumber
+                val t = c.scheduledWorkMinutes?.let { " ${DateTimeUtils.formatWorkMinutes(it)}" } ?: ""
+                val addr = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(c.address)
+                "📍 $addr\n$nm$t"
+            }
+            NotificationHelper.showTodaySites(context, today.size, lines, today.first().phoneNumber)
         }
     }
 

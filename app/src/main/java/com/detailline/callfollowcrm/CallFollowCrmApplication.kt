@@ -308,6 +308,9 @@ class CallFollowCrmApplication : Application() {
         //   신규 오염은 IntakeSyncManager fixed 재환산 제거로 차단. 조건 엄격(만원배수+1억↑+총액초과)이라 정상값 미영향.
         appScope.launch { runCatching { container.customerRepository.healCorruptedDeposits() } }
 
+        // 오늘의 현장 상시 알림 (2026-07-10 사장님) — 앱 시작 시 갱신(오늘 현장 있으면 상단 고정, 없으면 내림). 주기 갱신은 ReminderWorker.
+        appScope.launch { runCatching { com.detailline.callfollowcrm.service.ReminderWorker.refreshTodaySites(this@CallFollowCrmApplication, container) } }
+
         // 2026-05-28 사장님 통점 fix: 정적 BroadcastReceiver (CallStateReceiver) 가
         //   Android 12+ / OneUI 에서 누락되는 케이스 多 → 통화 종료 감지 실패.
         //   Application 에서 TelephonyCallback (Android 12+) / PhoneStateListener (이하) 동적 등록 →

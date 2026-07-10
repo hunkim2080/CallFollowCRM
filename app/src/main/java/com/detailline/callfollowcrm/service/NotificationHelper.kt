@@ -45,6 +45,9 @@ object NotificationHelper {
     /** SMS 알림 ID = 발신번호 hash + offset. 같은 번호 새 SMS = 같은 알림 update. */
     private const val SMS_ID_OFFSET = 10_000_000
     private const val MMS_FAIL_ID = 9_300_000
+    /** 오늘의 현장 상시 알림 — 현장에서 주소(동/호) 계속 확인용. 무음·상단고정(ongoing), 하루 1건. (2026-07-10 사장님) */
+    private const val CHANNEL_TODAY_SITE = "today_site"
+    private const val TODAY_SITE_ID = 9_200_000
 
     // 알림 배너 배경 — 파스텔 블루 (Material Blue 100).
     // setColorized(true) 와 함께 쓰면 OneUI 등 일부 시스템이 배너 전체 배경으로 사용.
@@ -123,6 +126,16 @@ object NotificationHelper {
                     description = "내일 시공 안내·잔금 미수·마감 브리핑을 제때 알려줘요"
                     setSound(snd(R.raw.sound_reminder), audioAttrs)
                     setShowBadge(true)
+                })
+            }
+            // 오늘의 현장 — 무음·낮은 중요도(상단 조용히 고정). 소리/배지 없음. (2026-07-10 사장님)
+            if (manager.getNotificationChannel(CHANNEL_TODAY_SITE) == null) {
+                manager.createNotificationChannel(NotificationChannel(
+                    CHANNEL_TODAY_SITE, "오늘의 현장", NotificationManager.IMPORTANCE_LOW
+                ).apply {
+                    description = "오늘 시공 현장 주소(동·호)를 상단에 계속 띄워 현장에서 바로 확인해요"
+                    setShowBadge(false)
+                    setSound(null, null)
                 })
             }
         }
@@ -595,6 +608,48 @@ object NotificationHelper {
         try {
             NotificationManagerCompat.from(context).notify(id, builder.build())
         } catch (_: SecurityException) { /* POST_NOTIFICATIONS 없음 — 무시 */ }
+    }
+
+    /**
+     * 오늘의 현장 상시 알림 (2026-07-10 사장님) — 오늘 시공(주소 있는) 현장 주소(동·호)를 상단에 계속 띄워
+     *   현장에서 "몇동 몇호였지?" 바로 확인. 무음·상단고정(ongoing)·배지 없음. 탭 = 첫 현장 채팅.
+     *   갱신/철거는 ReminderWorker.refreshTodaySites 가 담당(주기+앱시작).
+     */
+    fun showTodaySites(context: Context, count: Int, lines: List<String>, openPhone: String?) {
+        if (lines.isEmpty()) { clearTodaySites(context); return }
+        val title = if (count <= 1) "오늘의 현장" else "오늘의 현장 ${count}곳"
+        val body = lines.joinToString("\n")
+        val pending = openPhone?.takeIf { it.isNotBlank() }?.let {
+            val intent = Intent(context, MainActivity::class.java).apply {
+                action = MainActivity.ACTION_CHAT
+                putExtra(MainActivity.EXTRA_PHONE_NUMBER, it)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            PendingIntent.getActivity(
+                context, TODAY_SITE_ID, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        }
+        val builder = NotificationCompat.Builder(context, CHANNEL_TODAY_SITE)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setColor(ACCENT_TEAL)
+            .setContentTitle(title)
+            .setContentText(lines.first())
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOngoing(true)        // 상단 고정(스와이프로 안 지워짐) — "계속 나오게"
+            .setOnlyAlertOnce(true)
+            .setSilent(true)
+            .setShowWhen(false)
+        pending?.let { builder.setContentIntent(it) }
+        try {
+            NotificationManagerCompat.from(context).notify(TODAY_SITE_ID, builder.build())
+        } catch (_: SecurityException) { }
+    }
+
+    /** 오늘의 현장 상시 알림 내리기 — 오늘 현장이 없거나 날짜가 지났을 때. */
+    fun clearTodaySites(context: Context) {
+        runCatching { NotificationManagerCompat.from(context).cancel(TODAY_SITE_ID) }
     }
 
     /**
