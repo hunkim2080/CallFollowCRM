@@ -283,36 +283,65 @@ fun NotebookContent(
         )
     }
 
+    // 일당 사장 협업 이력 — 전체 화면 페이지(예전엔 좁은 팝업). 탭하면 그 사람과 언제·어디서·얼마에 했는지. (2026-07-10 사장님)
     sitesTarget?.let { target ->
         val sites = sitesByWorker[target.id].orEmpty()
-        AlertDialog(
+        val totalWage = sites.sumOf { it.wage }
+        androidx.compose.ui.window.Dialog(
             onDismissRequest = { sitesTarget = null },
-            title = { Text("${target.name} · 함께한 현장 ${sites.size}회", fontWeight = FontWeight.Bold) },
-            text = {
-                Column {
-                    if (sites.isEmpty()) {
-                        Text("아직 배정 기록이 없어요", color = TossTextTertiary)
-                    } else {
-                        sites.forEach { s ->
-                            Row(
-                                Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(s.customerName, style = MaterialTheme.typography.bodyMedium,
-                                        color = TossTextPrimary, fontWeight = FontWeight.SemiBold)
-                                    Text(DateTimeUtils.formatKoreanDate(s.dayStartMs),
-                                        style = MaterialTheme.typography.labelSmall, color = TossTextTertiary)
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Column(Modifier.fillMaxSize().background(TossGrayBg)) {
+                // 상단바 — 뒤로 + 제목
+                Row(
+                    Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 14.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("‹  뒤로", color = TossTextSecondary, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable { sitesTarget = null })
+                    Spacer(Modifier.width(12.dp))
+                    Text("${target.name}님과 함께한 현장", fontWeight = FontWeight.ExtraBold, fontSize = 17.sp, color = TossTextPrimary)
+                }
+                if (sites.isEmpty()) {
+                    Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("🤝", fontSize = 42.sp)
+                            Spacer(Modifier.height(8.dp))
+                            Text("아직 함께한 현장 기록이 없어요", color = TossTextSecondary, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.height(4.dp))
+                            Text("일정에서 이 분을 일당으로 배정하면 여기 쌓여요", color = TossTextTertiary, fontSize = 12.5.sp)
+                        }
+                    }
+                } else {
+                    // 요약 — 총 횟수 · 일당 합계
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("함께한 현장 ${sites.size}회", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                        Spacer(Modifier.weight(1f))
+                        Text("일당 합계 ${totalWage / 10_000L}만원", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossError)
+                    }
+                    LazyColumn(
+                        Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(sites) { s ->
+                            TossCard {
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(s.customerName, style = MaterialTheme.typography.bodyMedium,
+                                            color = TossTextPrimary, fontWeight = FontWeight.SemiBold)
+                                        Text(DateTimeUtils.formatKoreanDate(s.dayStartMs),
+                                            style = MaterialTheme.typography.labelSmall, color = TossTextTertiary)
+                                    }
+                                    Text(MoneyFormatter.won(s.wage), style = MaterialTheme.typography.bodyMedium,
+                                        color = TossError, fontWeight = FontWeight.Bold)
                                 }
-                                Text(MoneyFormatter.won(s.wage), style = MaterialTheme.typography.bodyMedium,
-                                    color = TossError, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
                 }
-            },
-            confirmButton = { TextButton(onClick = { sitesTarget = null }) { Text("닫기", color = TossTextSecondary) } }
-        )
+            }
+        }
     }
 }
 
@@ -404,8 +433,11 @@ private fun ContactCard(
     val tint = AV_TINTS[((c.id % AV_TINTS.size).toInt() + AV_TINTS.size) % AV_TINTS.size]
     TossCard {
         Column {
-            // 프로토 wk-head — 아바타 + 이름·분류·번호·현장 + 단가
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // 프로토 wk-head — 아바타 + 이름·분류·번호·현장 + 단가. 일당은 헤더 탭 = 협업 이력 페이지. (2026-07-10 사장님)
+            Row(
+                modifier = if (isWorker) Modifier.fillMaxWidth().clickable { onSites() } else Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Box(Modifier.size(40.dp).clip(CircleShape).background(tint.first), contentAlignment = Alignment.Center) {
                     Text(c.name.take(1), color = tint.second, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
                 }
@@ -429,11 +461,12 @@ private fun ContactCard(
                             Text(PhoneNumberFormatter.format(c.phone),
                                 style = MaterialTheme.typography.bodySmall, color = TossTextSecondary)
                         }
-                        if (isWorker && siteCount > 0) {
+                        if (isWorker) {
                             if (c.phone.isNotBlank()) {
                                 Text(" · ", style = MaterialTheme.typography.bodySmall, color = TossTextTertiary)
                             }
-                            Text("함께한 현장 ${siteCount}회 ›", style = MaterialTheme.typography.labelSmall,
+                            Text(if (siteCount > 0) "함께한 현장 ${siteCount}회 ›" else "함께한 현장 보기 ›",
+                                style = MaterialTheme.typography.labelSmall,
                                 color = TossBlue, fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier.clickable { onSites() })
                         }
