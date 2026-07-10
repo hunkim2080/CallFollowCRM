@@ -160,7 +160,9 @@ import kotlinx.coroutines.launch
 fun ChatScreen(
     viewModel: ChatViewModel,
     onBack: () -> Unit,
-    onOpenCustomerDetail: (Long) -> Unit
+    onOpenCustomerDetail: (Long) -> Unit,
+    /** >0 이면 그 발행 이력(접수서)을 "수정하기"로 EstSheet 재오픈. 고객상세 발행이력 수정에서 넘어옴. (2026-07-10 사장님) */
+    editIssuedId: Long = -1L
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -333,6 +335,23 @@ fun ChatScreen(
     var quoteDocData by remember { mutableStateOf<QuoteDocData?>(null) }
     // 발행 이력 카드 → 견적서 '다시 보기' 리뷰 — 닫으면 채팅으로만 복귀(편집기 X). (2026-07-07 사장님)
     var reviewIssuedDoc by remember { mutableStateOf<QuoteDocData?>(null) }
+    // "이미 보낸 접수서 수정하기" — null 아니면 그 접수서 내용으로 EstSheet 재오픈해 고쳐 재발행(같은 링크 갱신). (2026-07-10 사장님)
+    var editingIssuedDoc by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity?>(null) }
+    // editingIssuedDoc 이 정해지면 draft 를 그 내용으로 채우고 편집기 오픈.
+    androidx.compose.runtime.LaunchedEffect(editingIssuedDoc) {
+        editingIssuedDoc?.let { estimateDraft.loadFromIssuedDoc(it); showEstimateBuilder = true }
+    }
+    // 고객상세 "수정" → 채팅 진입 인자(editIssuedId)로 넘어온 경우: 발행 이력 로드되면 딱 한 번만 편집기 오픈.
+    //   한 번 소비(consumed)하면 재발행으로 목록이 바뀌어도 다시 열지 않음(무한 재오픈 방지).
+    var editIssuedConsumed by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(issuedDocs, editIssuedId) {
+        if (editIssuedId > 0 && !editIssuedConsumed) {
+            issuedDocs.firstOrNull { it.id == editIssuedId }?.let {
+                editIssuedConsumed = true
+                editingIssuedDoc = it
+            }
+        }
+    }
     // P3 — 시공일 등록 직후 "이 일정으로 계약금 안내문도 만들어드릴까요?" 다이얼로그.
     //   null 이 아니면 표시 + 그 시공일 ts 보관. 사장님이 "네" 누르면 RESERVATION picker 띄움.
     var showDepositFollowupForMs by remember { mutableStateOf<Long?>(null) }
@@ -795,7 +814,9 @@ fun ChatScreen(
                                             context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
                                         } else quoteDocDataFromIssuedJson(ti.doc.docJson)?.let { reviewIssuedDoc = it }
                                     }
-                                }
+                                },
+                                // 이미 보낸 접수서 수정하기 — intake 만. (2026-07-10 사장님)
+                                onEdit = if (ti.doc.kind == "intake") ({ editingIssuedDoc = ti.doc }) else null
                             )
                             is ChatTimelineItem.DateDivider -> ChatDateDivider(chatDateLabel(ti.dayStart))
                         }
@@ -1464,6 +1485,7 @@ fun ChatScreen(
                 estimateBody = body
                 showEstimateBuilder = false
                 resetEstimateDraft()
+                editingIssuedDoc = null
             },
             onShare = { body ->
                 runCatching {
@@ -1475,20 +1497,24 @@ fun ChatScreen(
                 viewModel.recordEstimateSent(body)
                 showEstimateBuilder = false
                 resetEstimateDraft()
+                editingIssuedDoc = null
             },
             onQuoteDoc = { data ->
-                // 미리보기로 — sheet 만 닫고 draft 는 유지(닫기 시 복귀 위해).
+                // 미리보기로 — sheet 만 닫고 draft 는 유지(닫기 시 복귀 위해). editingIssuedDoc 도 유지.
                 quoteDocData = data
                 showEstimateBuilder = false
             },
             onIssueIntake = { issItems, total, y, mo, d, days, dm, dv, mmo, vat ->
+                val wasEditing = editingIssuedDoc != null
                 viewModel.issueQuoteIntake(issItems, total, y, mo, d, days, dm, dv, mmo, vat) { result ->
                     result.onSuccess { (draftLink, reused) ->
                         setInput(draftLink)
                         showEstimateBuilder = false
                         resetEstimateDraft()
+                        editingIssuedDoc = null
                         // 재발행이면 서버가 기존 링크를 재사용(갱신) → "새 링크가 계속 생기는 것처럼 보이던" 혼란 제거. (추가95② 2026-07-06)
-                        val msg = if (reused) "기존 접수서 링크를 갱신했어요 · ▶ 눌러 보내세요"
+                        val msg = if (wasEditing && reused) "접수서를 수정해 다시 만들었어요 · ▶ 눌러 보내세요"
+                                  else if (reused) "기존 접수서 링크를 갱신했어요 · ▶ 눌러 보내세요"
                                   else "접수서 링크를 문자에 넣었어요 · ▶ 눌러 보내세요"
                         android.widget.Toast.makeText(estCtx, msg, android.widget.Toast.LENGTH_SHORT).show()
                     }.onFailure {
@@ -1497,7 +1523,7 @@ fun ChatScreen(
                 }
             },
             // 뒤로/바깥 탭 = 채팅으로 복귀, 선택은 유지(다시 열면 그대로). 초기화는 발송 시에만. (2026-06-23 사장님)
-            onDismiss = { showEstimateBuilder = false }
+            onDismiss = { showEstimateBuilder = false; editingIssuedDoc = null }
         )
     }
 
@@ -2212,7 +2238,9 @@ private fun TimelineEventSegment(
 @Composable
 private fun IssuedDocSegment(
     doc: com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity,
-    onOpen: () -> Unit
+    onOpen: () -> Unit,
+    /** 접수서(intake)만 — "수정" 탭 시 그 내용으로 편집기 재오픈. null=수정 버튼 숨김. (2026-07-10 사장님) */
+    onEdit: (() -> Unit)? = null
 ) {
     val isQuote = doc.kind == "quote"
     val emoji = if (isQuote) "📜" else "📋"
@@ -2256,11 +2284,27 @@ private fun IssuedDocSegment(
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
         Spacer(Modifier.height(3.dp))
-        Text(
-            if (isQuote) "탭하면 견적서 다시 보기 >" else "탭하면 접수 링크 열기 >",
-            fontSize = 11.sp, color = TossBlue, fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(start = 20.dp)
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                if (isQuote) "탭하면 견적서 다시 보기 >" else "탭하면 접수 링크 열기 >",
+                fontSize = 11.sp, color = TossBlue, fontWeight = FontWeight.Bold
+            )
+            // 이미 보낸 접수서 수정하기 — intake 만. 카드 바깥 clickable 에 안 먹히게 별도 clickable. (2026-07-10 사장님)
+            if (onEdit != null) {
+                Spacer(Modifier.weight(1f))
+                Text(
+                    "수정",
+                    fontSize = 11.sp, color = TossBlue, fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onEdit() }
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                )
+            }
+        }
     }
 }
 
@@ -3760,6 +3804,27 @@ private class EstimateDraft(initialCalMonth: Long) {
         mode.value = "text"; depMode.value = "ratio"; depVal.value = "30"; depCustom.value = false
         workDateMs.value = null; workDays.value = 1; estCalMonth.value = initialCalMonth
         vatIncluded.value = false; recipient.value = ""; memo.value = ""
+        selectedQty.clear(); customItems.clear(); priceOverrides.clear(); titleOverrides.clear()
+    }
+
+    /**
+     * 이미 발행한 접수서(intake) 내용으로 편집기 상태를 채운다 — "수정하기" 재발행용. (2026-07-10 사장님)
+     *   docJson 엔 항목/수량(selectedQty)이 없으므로 항목 체크는 복원 못 함(사장님이 다시 고름) →
+     *   계약금(depMode/depVal)·시공일·부가세·메모·받는분만 부분 복원. 접수서라 mode="accept" 로 연다.
+     *   (QuoteDocData.depMode = ratio|fixed|none, depVal = %(ratio)/만원(fixed) — EstimateDraft 규칙 동일.)
+     */
+    fun loadFromIssuedDoc(doc: com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity) {
+        val data = quoteDocDataFromIssuedJson(doc.docJson) ?: return
+        mode.value = "accept"
+        depMode.value = data.depMode.ifBlank { "none" }
+        depVal.value = data.depVal.toString()
+        depCustom.value = false
+        workDateMs.value = data.workDateMs ?: doc.workDateMs
+        workDays.value = 1
+        vatIncluded.value = data.vatIncluded
+        recipient.value = data.recipient ?: doc.recipient ?: ""
+        memo.value = (data.memo ?: doc.memo).orEmpty()
+        // 항목/수량/직접항목/가격·이름 override 는 docJson 에 없음 → 비움(사장님이 다시 선택).
         selectedQty.clear(); customItems.clear(); priceOverrides.clear(); titleOverrides.clear()
     }
 }

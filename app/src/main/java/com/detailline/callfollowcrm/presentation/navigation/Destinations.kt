@@ -25,12 +25,14 @@ object Destinations {
     /**
      * 메인 채팅 화면. 번호는 필수, customerId 는 있으면 빠른 로드용 (없으면 phone 으로 lookup).
      * customerId = -1 sentinel = 없음.
+     * editIssuedId = 발행 이력 id — 채팅 열면서 그 접수서를 "수정하기"로 바로 EstSheet 재오픈. -1=없음. (2026-07-10 사장님)
      */
-    const val CHAT_WITH_ARG = "chat?phone={phone}&customerId={customerId}"
-    fun chat(phone: String, customerId: Long? = null): String {
+    const val CHAT_WITH_ARG = "chat?phone={phone}&customerId={customerId}&editIssuedId={editIssuedId}"
+    fun chat(phone: String, customerId: Long? = null, editIssuedId: Long? = null): String {
         val safePhone = phone.ifBlank { "" }
         val cid = customerId ?: -1L
-        return "chat?phone=$safePhone&customerId=$cid"
+        val eid = editIssuedId ?: -1L
+        return "chat?phone=$safePhone&customerId=$cid&editIssuedId=$eid"
     }
 
     const val TEMPLATE_LIST = "templates"
@@ -42,6 +44,8 @@ object Destinations {
     const val SETTINGS = "settings"
     /** 더보기 → 자동 문자(부재중 자동 응답 펼친 상태). 상담함 자동답장 알림 길게누름 진입. */
     const val SETTINGS_AUTOSMS = "settings_autosms"
+    /** 더보기 → 알림 소리 — 알림 종류별 소리 고르기 + 미리듣기. (2026-07-10 사장님) */
+    const val SOUND_SETTINGS = "sound_settings"
     /** 마감 브리핑 — 오늘 신규/입금/내일 시공 정리 화면. 마감 브리핑 알림 탭 진입. */
     const val CLOSING_BRIEF = "closing_brief"
     const val PRICING_ITEMS = "pricing_items"

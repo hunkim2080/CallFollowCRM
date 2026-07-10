@@ -593,6 +593,14 @@ class AppPreferences(context: Context) {
         get() = readPhrases(KEY_VENDOR_PHRASES, DEFAULT_VENDOR_PHRASES)
         set(value) = writePhrases(KEY_VENDOR_PHRASES, value)
 
+    // ── 알림 종류별 소리 (더보기 → 알림 소리, 2026-07-10) ──
+    /** 알림 슬롯 key(new_inquiry/reply/…)에 고른 소리(raw 리소스명 or "silent"). 없으면 default. */
+    fun notificationSound(key: String, default: String): String =
+        prefs.getString("ntf_snd_$key", default) ?: default
+    fun setNotificationSound(key: String, value: String) {
+        prefs.edit().putString("ntf_snd_$key", value).apply()
+    }
+
     private fun readPhrases(key: String, default: List<String>): List<String> {
         val raw = prefs.getString(key, null) ?: return default
         return raw.split(PHRASE_SEP).filter { it.isNotBlank() }

@@ -128,7 +128,9 @@ fun CustomerDetailScreen(
     viewModel: CustomerDetailViewModel,
     onBack: () -> Unit,
     /** "💬 문자 보내기" 탭 시 ChatScreen 으로 이동. customerId 알고 있으므로 같이 전달. */
-    onOpenChat: (phone: String, customerId: Long) -> Unit
+    onOpenChat: (phone: String, customerId: Long) -> Unit,
+    /** 발행 이력 "수정" 탭 시 채팅으로 이동하며 그 접수서를 편집기로 재오픈. (2026-07-10 사장님) */
+    onOpenChatEditIssued: (phone: String, customerId: Long, issuedId: Long) -> Unit = { _, _, _ -> }
 ) {
     val customer by viewModel.customer.collectAsState()
     val records by viewModel.callRecords.collectAsState()
@@ -827,6 +829,8 @@ fun CustomerDetailScreen(
                                         intakeReviewDoc = doc
                                     }
                                 },
+                                // 이미 보낸 접수서 수정하기 — intake 만. 채팅으로 이동하며 그 접수서 편집기 재오픈. (2026-07-10 사장님)
+                                onEdit = if (doc.kind == "intake") ({ onOpenChatEditIssued(c.phoneNumber, c.id, doc.id) }) else null,
                                 onDelete = { issuedDocToDelete = doc }
                             )
                         }
@@ -1307,6 +1311,8 @@ fun CustomerDetailScreen(
 private fun IssuedDocRow(
     doc: com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity,
     onOpen: () -> Unit,
+    /** 접수서(intake)만 — "수정" 탭 시 채팅으로 이동해 편집기 재오픈. null=수정 버튼 숨김. (2026-07-10 사장님) */
+    onEdit: (() -> Unit)? = null,
     onDelete: () -> Unit
 ) {
     val isQuote = doc.kind == "quote"
@@ -1347,6 +1353,15 @@ private fun IssuedDocRow(
             }
         }
         Spacer(Modifier.width(8.dp))
+        // 이미 보낸 접수서 수정하기 — intake 만. 행 clickable(다시 보기) 에 안 먹히게 별도 clickable. (2026-07-10 사장님)
+        if (onEdit != null) {
+            Text(
+                "수정", fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue,
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onEdit() }
+                    .padding(horizontal = 6.dp, vertical = 3.dp)
+            )
+            Spacer(Modifier.width(4.dp))
+        }
         Text("다시 보기", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossBlue)
         androidx.compose.foundation.layout.Box(
             Modifier.padding(start = 4.dp).size(26.dp).clip(CircleShape).clickable { onDelete() },

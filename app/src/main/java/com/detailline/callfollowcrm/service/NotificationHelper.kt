@@ -58,6 +58,61 @@ object NotificationHelper {
     /** AutoReply 알림은 callRecordId 기반 + offset 으로 후속 알림과 분리. */
     private const val AUTO_REPLY_ID_OFFSET = 5_000_000
 
+    // ══════════════ 알림 종류별 소리 (더보기 → 알림 소리, 2026-07-10 사장님) ══════════════
+    /** 소리를 고를 수 있는 알림 슬롯. key=prefs 저장 키, defaultRes=기본 raw 리소스명. */
+    data class SoundSlot(val key: String, val label: String, val defaultRes: String)
+    val SOUND_SLOTS = listOf(
+        SoundSlot("new_inquiry", "신규 문의 문자", "sound_new_inquiry"),
+        SoundSlot("reply", "고객 답장 문자", "sound_reply"),
+        SoundSlot("auto_reply", "자동 응답 발송", "sound_auto_reply"),
+        SoundSlot("intake", "접수서 작성 완료", "sound_intake"),
+        SoundSlot("reminder", "시공·정산 리마인더", "sound_reminder"),
+    )
+    /** 고를 수 있는 소리(값=raw 리소스명, "silent"=무음). */
+    val SOUND_OPTIONS = listOf(
+        "sound_new_inquiry" to "신규문의 소리",
+        "sound_reply" to "답장 소리",
+        "sound_auto_reply" to "자동응답 소리",
+        "sound_intake" to "접수서 소리",
+        "sound_reminder" to "리마인더 소리",
+        "silent" to "무음",
+    )
+    private val SLOT_CHANNEL = mapOf(
+        "new_inquiry" to CHANNEL_INCOMING_SMS_NEW, "reply" to CHANNEL_INCOMING_SMS,
+        "auto_reply" to CHANNEL_AUTO_REPLY, "intake" to CHANNEL_INTAKE, "reminder" to CHANNEL_REMINDER,
+    )
+
+    /** slot 선택값(앱 prefs)을 소리 Uri 로. "silent"=null. 선택 리소스가 없으면 기본 리소스로 폴백. */
+    private fun chosenSound(context: Context, key: String, defaultRes: String): android.net.Uri? {
+        val prefs = (context.applicationContext as? com.detailline.callfollowcrm.CallFollowCrmApplication)?.container?.preferences
+        val choice = prefs?.notificationSound(key, defaultRes) ?: defaultRes
+        if (choice == "silent") return null
+        fun snd(resId: Int) = Uri.parse("android.resource://${context.packageName}/$resId")
+        val id = context.resources.getIdentifier(choice, "raw", context.packageName)
+        return if (id > 0) snd(id) else snd(context.resources.getIdentifier(defaultRes, "raw", context.packageName))
+    }
+
+    /** 소리 변경 적용 — 채널은 생성 후 불변이라 소리 바꾸려면 삭제 후 prefs 소리로 재생성. */
+    fun applySoundChanges(context: Context) {
+        val m = context.getSystemService(NotificationManager::class.java) ?: return
+        SLOT_CHANNEL.values.forEach { runCatching { m.deleteNotificationChannel(it) } }
+        ensureChannels(context)   // 삭제된 채널을 prefs 소리로 재생성(나머지는 이미 있어 skip)
+    }
+
+    // ── 미리듣기 (화면에서 [▶] 탭 시) ──
+    private var previewPlayer: android.media.MediaPlayer? = null
+    fun previewSound(context: Context, res: String) {
+        stopPreview()
+        if (res == "silent") return
+        val id = context.resources.getIdentifier(res, "raw", context.packageName)
+        if (id <= 0) return
+        previewPlayer = android.media.MediaPlayer.create(context, id)?.apply {
+            setOnCompletionListener { runCatching { it.release() }; if (previewPlayer === it) previewPlayer = null }
+            start()
+        }
+    }
+    fun stopPreview() { runCatching { previewPlayer?.release() }; previewPlayer = null }
+
     fun ensureChannels(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = context.getSystemService(NotificationManager::class.java) ?: return
@@ -77,7 +132,8 @@ object NotificationHelper {
                     CHANNEL_AUTO_REPLY, "자동 응답 문자", NotificationManager.IMPORTANCE_HIGH
                 ).apply {
                     description = "처음 연락온 고객 자동 응답 발송 안내 (취소 가능)"
-                    setSound(snd(R.raw.sound_auto_reply), audioAttrs)
+                    val u = chosenSound(context, "auto_reply", "sound_auto_reply")
+                    if (u != null) setSound(u, audioAttrs) else setSound(null, null)
                 })
             }
             // quiet 후속 안내 — 2번째 이후 통화이지만 사장님이 아직 답장/분류 안 한 경우.
@@ -96,7 +152,8 @@ object NotificationHelper {
                     CHANNEL_INCOMING_SMS, "📩 새 문자", NotificationManager.IMPORTANCE_HIGH
                 ).apply {
                     description = "고객 SMS 가 오면 AI 추천 답변과 함께 표시 — 갤메시지 알림은 끄고 사용하세요"
-                    setSound(snd(R.raw.sound_reply), audioAttrs)
+                    val u = chosenSound(context, "reply", "sound_reply")
+                    if (u != null) setSound(u, audioAttrs) else setSound(null, null)
                     setShowBadge(true)
                 })
             }
@@ -106,7 +163,8 @@ object NotificationHelper {
                     CHANNEL_INCOMING_SMS_NEW, "📩 신규 문의", NotificationManager.IMPORTANCE_HIGH
                 ).apply {
                     description = "처음 연락온 신규 고객 문자 — 바로 답장해요"
-                    setSound(snd(R.raw.sound_new_inquiry), audioAttrs)
+                    val u = chosenSound(context, "new_inquiry", "sound_new_inquiry")
+                    if (u != null) setSound(u, audioAttrs) else setSound(null, null)
                     setShowBadge(true)
                 })
             }
@@ -115,7 +173,8 @@ object NotificationHelper {
                     CHANNEL_INTAKE, "📋 접수서 작성됨", NotificationManager.IMPORTANCE_HIGH
                 ).apply {
                     description = "고객이 시공접수서를 작성하면 알려줘요"
-                    setSound(snd(R.raw.sound_intake), audioAttrs)
+                    val u = chosenSound(context, "intake", "sound_intake")
+                    if (u != null) setSound(u, audioAttrs) else setSound(null, null)
                     setShowBadge(true)
                 })
             }
@@ -124,7 +183,8 @@ object NotificationHelper {
                     CHANNEL_REMINDER, "⏰ 시공·정산 리마인더", NotificationManager.IMPORTANCE_HIGH
                 ).apply {
                     description = "내일 시공 안내·잔금 미수·마감 브리핑을 제때 알려줘요"
-                    setSound(snd(R.raw.sound_reminder), audioAttrs)
+                    val u = chosenSound(context, "reminder", "sound_reminder")
+                    if (u != null) setSound(u, audioAttrs) else setSound(null, null)
                     setShowBadge(true)
                 })
             }

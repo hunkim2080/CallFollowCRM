@@ -63,6 +63,7 @@ import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Navigation
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Group
@@ -143,6 +144,7 @@ fun SettingsScreen(
     onOpenPrinciples: () -> Unit = {},
     onOpenSpamList: () -> Unit = {},
     onOpenPersonalList: () -> Unit = {},
+    onOpenSoundSettings: () -> Unit = {},
     onShowIntro: () -> Unit = {},
     /** 진입 시 바로 열 서브페이지 ("autosms" = 자동 문자, 부재중 응답 펼침). null = 일반 더보기. */
     initialSubPage: String? = null
@@ -258,6 +260,8 @@ fun SettingsScreen(
                         "상호·대표·사업자번호·직인 · 견적서에 자동 표시", onClick = onOpenBusinessInfo)
                     LockRow(Icons.AutoMirrored.Filled.Send, TossBlueSoft, TossBlue, "자동 문자",
                         "부재중 응답 · 시공 D-1 · 도착 안내 · 정기 문자") { subPage = "autosms" }
+                    LockRow(Icons.Filled.Notifications, TossBlueSoft, TossBlue, "알림 소리",
+                        "알림 종류별 소리 고르기 · 미리듣기", onClick = onOpenSoundSettings)
                     LockRow(Icons.Filled.AutoAwesome, Color(0xFFF1ECFF), Color(0xFF7C5CFC), "내 말투 학습",
                         "나처럼 답하는 AI", tier = "프로") { subPage = "tone" }
                 }

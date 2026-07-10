@@ -340,18 +340,21 @@ fun AppNavHost(
             route = Destinations.CHAT_WITH_ARG,
             arguments = listOf(
                 navArgument("phone") { type = NavType.StringType; defaultValue = "" },
-                navArgument("customerId") { type = NavType.LongType; defaultValue = -1L }
+                navArgument("customerId") { type = NavType.LongType; defaultValue = -1L },
+                navArgument("editIssuedId") { type = NavType.LongType; defaultValue = -1L }
             )
         ) { backStack ->
             val phone = backStack.arguments?.getString("phone").orEmpty()
             val customerId = backStack.arguments?.getLong("customerId")?.takeIf { it > 0 }
+            val editIssuedId = backStack.arguments?.getLong("editIssuedId") ?: -1L
             val vm: ChatViewModel = viewModel(
                 factory = viewModelFactory { ChatViewModel(container, phone, customerId) }
             )
             ChatScreen(
                 viewModel = vm,
                 onBack = { navController.popBackStack() },
-                onOpenCustomerDetail = { id -> navController.navigate(Destinations.customerDetail(id)) }
+                onOpenCustomerDetail = { id -> navController.navigate(Destinations.customerDetail(id)) },
+                editIssuedId = editIssuedId
             )
         }
 
@@ -481,7 +484,11 @@ fun AppNavHost(
                 viewModel = vm,
                 onBack = { navController.popBackStack() },
                 // CustomerDetail 의 하단 "문자 보내기" 는 이제 ChatScreen 으로 (메인 대화 채널).
-                onOpenChat = { phone, customerId -> navController.navigate(Destinations.chat(phone, customerId)) }
+                onOpenChat = { phone, customerId -> navController.navigate(Destinations.chat(phone, customerId)) },
+                // 발행 이력 "수정" → 채팅으로 이동하며 그 접수서 편집기 재오픈. (2026-07-10 사장님)
+                onOpenChatEditIssued = { phone, customerId, issuedId ->
+                    navController.navigate(Destinations.chat(phone, customerId, issuedId))
+                }
             )
         }
 
@@ -531,7 +538,16 @@ fun AppNavHost(
                 onOpenPrinciples = { navController.navigate(Destinations.PRINCIPLES) },
                 onOpenSpamList = { navController.navigate(Destinations.SPAM_LIST) },
                 onOpenPersonalList = { navController.navigate(Destinations.PERSONAL_LIST) },
+                onOpenSoundSettings = { navController.navigate(Destinations.SOUND_SETTINGS) },
                 onShowIntro = { navController.navigate(Destinations.ONBOARDING) }
+            )
+        }
+
+        // 더보기 → 알림 소리 — 알림 종류별 소리 고르기 + 미리듣기. (2026-07-10 사장님)
+        composable(Destinations.SOUND_SETTINGS) {
+            com.detailline.callfollowcrm.presentation.screen.settings.SoundSettingsScreen(
+                prefs = container.preferences,
+                onBack = { navController.popBackStack() }
             )
         }
 
