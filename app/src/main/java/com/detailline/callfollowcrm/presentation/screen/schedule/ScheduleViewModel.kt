@@ -93,6 +93,10 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
      *   ⚠️ deadCollabShareIds 와 같은 이유로 init 위에 선언(초기화 순서 NPE 방지). 초기값 emptySet 유지 =
      *      미로딩/네트워크 실패 시 accepted 취급(빈 status 를 서버가 accepted 로 기본처리하므로 뒤집힘 방지). */
     private var pendingCollabShareIds: Set<String> = emptySet()
+    /** by-me pending 인데 수락유효시간(12h)이 지나 상대가 더는 수락 못 하는 = 만료된 요청 shareId.
+     *   status 는 서버상 계속 "pending" 이라 구분 안 됨 → createdAtMs 로 시각 판정. 만료건은 배지에서 제거(요청 중 아님).
+     *   (2026-07-10 사장님: 만료된 요청이 계속 "요청 중"으로 떠서.) ⚠️ init 위에 선언(초기화 순서 NPE 방지). */
+    private var expiredPendingShareIds: Set<String> = emptySet()
 
     init { loadTeam(); loadCollab(); loadCollabAssignments() }  // loadCollab() 안에서 reconcile(거절 정리)도 같이 돈다
 
@@ -108,8 +112,15 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             val sites = container.sharedSiteRepository.byMe(owner).getOrNull() ?: return@launch
             val dead = sites.filter { it.status in DEAD_COLLAB_STATUS }.map { it.shareId }.toSet()
-            // 아직 상대가 수락 안 한(pending) 협업 = 일정 배지에 "요청 중"으로 표시(수락된 파트너처럼 X). (2026-07-09 사장님)
-            pendingCollabShareIds = sites.filter { it.status == "pending" }.map { it.shareId }.toSet()
+            val now = System.currentTimeMillis()
+            // pending 이지만 수락유효시간(12h) 지난 = 만료 → 배지에서 제거(더는 "요청 중" 아님). createdAtMs 없으면(0) 만료판정 보류. (2026-07-10 사장님)
+            expiredPendingShareIds = sites.filter {
+                it.status == "pending" && it.createdAtMs > 0L && now - it.createdAtMs >= COLLAB_ACCEPT_MS
+            }.map { it.shareId }.toSet()
+            // 아직 살아있는(수락 가능) pending 만 "요청 중"으로 표시(수락된 파트너처럼 X, 만료건도 X). (2026-07-09 사장님)
+            pendingCollabShareIds = sites.filter {
+                it.status == "pending" && (it.createdAtMs <= 0L || now - it.createdAtMs < COLLAB_ACCEPT_MS)
+            }.map { it.shareId }.toSet()
             // 표시용 dead set 갱신 + 즉시 재필터 (prefs 정리와 무관하게 배지에서 바로 빠지게).
             deadCollabShareIds = dead
             loadCollabAssignments()
@@ -134,7 +145,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             val parts = e.split('|')
             val id = parts.getOrNull(0)?.toLongOrNull() ?: continue
             val shareId = parts.getOrNull(3)?.trim().orEmpty()
-            if (shareId.isNotEmpty() && shareId in deadCollabShareIds) continue  // 거절/종료된 협업은 배지에서 제외
+            if (shareId.isNotEmpty() && (shareId in deadCollabShareIds || shareId in expiredPendingShareIds)) continue  // 거절/종료/만료(12h) 협업은 배지에서 제외
             val phone = if (parts.size >= 3) parts[1].filter { it.isDigit() } else ""
             val name = if (parts.size >= 3) parts[2] else parts.getOrNull(1).orEmpty()
             if (name.isBlank()) continue
@@ -466,6 +477,8 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
     companion object {
         /** 일정 뱃지에서 더는 안 띄울(=정리할) 협업 상태 — 거절/종료/취소. */
         private val DEAD_COLLAB_STATUS = setOf("declined", "ended", "cancelled", "canceled")
+        /** 협업 요청 수락 유효시간 — 12h. 지나면 상대가 수락 못 함 = 만료 → 일정 배지에서 "요청 중" 제거. (SharedSiteViewModel.ACCEPT_VALID_MS 와 동일 값) */
+        private const val COLLAB_ACCEPT_MS = 12L * 60 * 60 * 1000
     }
 }
 
