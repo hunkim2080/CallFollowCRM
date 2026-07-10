@@ -5461,18 +5461,55 @@ _THUMBS_DIR = BASE_DIR / "static" / "thumbs"
 # 추가108 — 검색엔진 소유확인 (env 로 값만 넣으면 <head> 에 meta 자동 삽입)
 _NAVER_SITE_VERIFY = os.environ.get("NAVER_SITE_VERIFY", "").strip()
 _GOOGLE_SITE_VERIFY = os.environ.get("GOOGLE_SITE_VERIFY", "").strip()
+# 추가114 — 방문자 분석 (env 로 ID 만 넣으면 전 페이지에 자동 삽입)
+_GA4_ID = os.environ.get("GA4_MEASUREMENT_ID", "").strip()          # 예: G-XXXXXXX
+_NAVER_ANALYTICS_ID = os.environ.get("NAVER_ANALYTICS_ID", "").strip()  # 네이버 애널리틱스 wa 값
+
+# 추가114 — 사이트 공통 구조화 데이터 (검색결과 로고·사이트링크 노출용). 항상 삽입.
+_SITE_JSONLD = (
+    '<script type="application/ld+json">'
+    '{"@context":"https://schema.org","@type":"Organization",'
+    '"name":"시공막내","alternateName":"막내컴퍼니","url":"https://si0in.kr",'
+    '"logo":"https://si0in.kr/static/thumbs/default.png",'
+    '"description":"시공 사장님을 위한 전화·문자·견적·일정·정산 올인원 비서 앱",'
+    '"contactPoint":{"@type":"ContactPoint","email":"hello@si0in.kr","contactType":"customer support"}}'
+    '</script>'
+    '<script type="application/ld+json">'
+    '{"@context":"https://schema.org","@type":"WebSite","name":"시공막내",'
+    '"url":"https://si0in.kr"}'
+    '</script>'
+)
+
+
+def _analytics_snippet() -> str:
+    s = ""
+    if _GA4_ID:
+        s += (f'<script async src="https://www.googletagmanager.com/gtag/js?id={_GA4_ID}"></script>'
+              '<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}'
+              f"gtag('js',new Date());gtag('config','{_GA4_ID}');</script>")
+    if _NAVER_ANALYTICS_ID:
+        s += ('<script src="//wcs.naver.net/wcslog.js"></script>'
+              '<script>if(!window.wcs_add)var wcs_add={};'
+              f'wcs_add["wa"]="{_NAVER_ANALYTICS_ID}";'
+              'if(window.wcs){window.wcs_do();}</script>')
+    return s
 
 
 def _inject_site_verify(html: str) -> str:
-    """홈/정적 페이지 <head> 에 네이버·구글 소유확인 meta 삽입 (env 있을 때만)."""
+    """홈/정적 페이지 <head> 에 소유확인 meta + 구조화데이터 + 방문자분석 삽입.
+
+    (함수명은 추가108 호환 유지 — 실제로는 head 공통 주입기 역할)
+    """
+    if "</head>" not in html:
+        return html
     tags = ""
     if _NAVER_SITE_VERIFY:
         tags += f'<meta name="naver-site-verification" content="{_NAVER_SITE_VERIFY}">'
     if _GOOGLE_SITE_VERIFY:
         tags += f'<meta name="google-site-verification" content="{_GOOGLE_SITE_VERIFY}">'
-    if tags and "</head>" in html:
-        return html.replace("</head>", tags + "</head>", 1)
-    return html
+    tags += _SITE_JSONLD              # 항상
+    tags += _analytics_snippet()     # env 있을 때만
+    return html.replace("</head>", tags + "</head>", 1)
 
 # 주제 큐 — (slug, 주제/각도, 검색 키워드, 연결할 기능)
 _BLOG_TOPIC_QUEUE: list[tuple[str, str, str, str]] = [
