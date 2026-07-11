@@ -206,9 +206,10 @@ fun AppNavHost(
             com.detailline.callfollowcrm.presentation.screen.consent.ConsentScreen(
                 optionalPreChecked = container.preferences.toneUploadConsented,
                 onOpenLink = { url ->
-                    runCatching {
-                        ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
-                    }
+                    // 외부 브라우저 대신 앱 내 웹뷰 — 크롬 없는 기기(심사 포함)에서도 항상 표시. (2026-07-11)
+                    com.detailline.callfollowcrm.presentation.screen.web.DocWebViewActivity.open(
+                        ctx, url, com.detailline.callfollowcrm.presentation.screen.web.DocWebViewActivity.titleFor(url)
+                    )
                 },
                 onAgree = { optionalAgreed ->
                     container.preferences.consentAgreedVersion = com.detailline.callfollowcrm.AppConfig.CONSENT_VERSION

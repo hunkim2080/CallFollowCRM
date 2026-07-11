@@ -2330,8 +2330,11 @@ private fun AppFooter() {
         }.getOrDefault("")
     }
     val linkCtx = androidx.compose.ui.platform.LocalContext.current
+    // 동의문·처리방침은 앱 내 웹뷰로 — 크롬 없는 기기에서도 항상 열림. (2026-07-11)
     val openLink: (String) -> Unit = { url ->
-        runCatching { linkCtx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))) }
+        com.detailline.callfollowcrm.presentation.screen.web.DocWebViewActivity.open(
+            linkCtx, url, com.detailline.callfollowcrm.presentation.screen.web.DocWebViewActivity.titleFor(url)
+        )
     }
     Column(
         modifier = Modifier

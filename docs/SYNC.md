@@ -6964,4 +6964,11 @@ Play 심사 거부(민감권한 SMS/통화기록) 원인·해결 — 온보딩 �
 - 앱 핸드오프 = docs/ANDROID_HANDOFF_paid_conversion.md (noticeDue 시 D-14 안내+동의 모달).
 - 검증: TestClient status/consent/거부/admin목록/인증 ALL PASS. 변경: main.py + 핸드오프. 배포 필요.
 - 결제준비 잔여: 토스 가맹(C1 사장님)→빌링 연동(C2), 전문가 확정(A DPA·국외이전·인재풀 F), Play 인앱결제 최종 확정(D3).
+## 2026-07-11 10:26 · android
+동의/처리방침 앱 내 웹뷰 전환(크롬 없어도 표시) + 무료체험 14→60일 + 재제출 AAB(0.2.942).
+- 사장님 지적: 크롬 없는 기기에서 동의 "자세히"·처리방침이 ACTION_VIEW(외부 브라우저)라 안 열려 심사 반려 위험.
+  → DocWebViewActivity(앱 내 웹뷰) 신설, ConsentScreen·설정 문서링크를 이걸로. 주소는 공개 api.si0in.kr.
+- 온보딩 "14일 무료" 2곳 → "60일 무료" (사장님 지시).
+- 매니페스트 activity 추가. 서버 무관(cowork 영향 없음).
+- AAB: app/build/outputs/bundle/release/app-release.aab (versionCode 942). 심사 재제출용.
 - commit: (아래)

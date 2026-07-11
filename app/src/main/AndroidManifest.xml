@@ -199,6 +199,12 @@
             </intent-filter>
         </receiver>
 
+        <!-- 동의문·처리방침 앱 내 웹뷰 (외부 브라우저 없이 표시). 내부 전용. (2026-07-11) -->
+        <activity
+            android:name=".presentation.screen.web.DocWebViewActivity"
+            android:exported="false"
+            android:theme="@style/Theme.CallFollowCRM" />
+
         <!-- 자동 응답 문자 알림의 "취소" 액션 수신. 내부 전용이라 exported=false. -->
         <receiver
             android:name=".service.AutoReplyCancelReceiver"

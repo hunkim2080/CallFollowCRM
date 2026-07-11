@@ -301,7 +301,7 @@ private fun StoryStep(onStart: () -> Unit, onPageChanged: (Int) -> Unit) {
         Spacer(Modifier.height(16.dp))
         ObCta("시작하기", onClick = onStart)
         Spacer(Modifier.height(13.dp))
-        Text("← 옆으로 넘겨보세요 · 카드 등록 없이 14일 무료", fontSize = 12.sp, color = TossTextTertiary, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+        Text("← 옆으로 넘겨보세요 · 카드 등록 없이 60일 무료", fontSize = 12.sp, color = TossTextTertiary, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
     }
 }
 
@@ -518,7 +518,7 @@ private fun BornStep(name: String, trades: List<String>, regions: List<String>, 
             }
         }
         Spacer(Modifier.weight(1f))
-        ObCta("14일 무료로 시작하기", onClick = onStart)
+        ObCta("60일 무료로 시작하기", onClick = onStart)
     }
 }
 
