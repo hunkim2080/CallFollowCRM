@@ -15729,7 +15729,7 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
         <b>보유·이용 기간:</b> 시공 완료일부터 1년(시공이 진행되지 않은 경우 접수일부터 6개월)이 지난 때 지체 없이 파기. 고객 또는 {biz_html}의 삭제 요청 시 즉시 파기.<br>
         <b>처리 위탁:</b> 앱 운영사 막내컴퍼니가 {biz_html}으로부터 위탁받아 시공막내 서버에 보관·처리합니다(개인정보 보호법 제26조). 막내컴퍼니는 위탁 목적 외로 이 정보를 이용하지 않으며, AI 자동응대에 사용하지 않습니다.<br>
         귀하는 동의를 거부할 권리가 있습니다. 다만 필수 항목 동의를 거부하시면 시공 접수가 불가능합니다.
-        <a href="/privacy" target="_blank" onclick="event.stopPropagation()" style="color:var(--blue-dark); font-weight:700;">개인정보 처리방침 보기</a>
+        <a href="/q/{token_js}/privacy" target="_blank" onclick="event.stopPropagation()" style="color:var(--blue-dark); font-weight:700;">{biz_html} 개인정보 처리방침 보기</a>
         </span></span>
     </div>
 
@@ -16717,6 +16717,62 @@ async def quote_page(token: str) -> HTMLResponse:
         return _quote_status_page("⌛ 만료된 링크",
                                   "이 접수서 링크는 만료되었어요. 사장님께 새 링크를 요청해 주세요.", 410)
     return HTMLResponse(content=_render_quote_form_html(token, row))
+
+
+@app.get("/q/{token}/privacy", response_class=HTMLResponse)
+async def quote_owner_privacy(token: str) -> HTMLResponse:
+    """추가116 (B1) — 접수서 발행 업체(사장님)별 개인정보 처리방침.
+
+    개인정보처리자=업체 명의의 표준 처리방침을 상호·연락처 치환해 렌더.
+    (막내컴퍼니=수탁자 구조. 법률 사전점검 반영본. 전문가 확정 전 draft.)
+    """
+    import html as _html
+    with db_conn() as con:
+        row = con.execute(
+            f"SELECT {_INTAKE_SELECT_COLS} FROM intake_forms WHERE token = ?", (token,)
+        ).fetchone()
+    if not row:
+        return _quote_status_page("❌ 유효하지 않은 링크", "사장님께 다시 링크를 받아 주세요.", 404)
+    data = _intake_row_to_dict(row)
+    biz = _html.escape((data.get("biz_name") or "").strip() or "시공업체")
+    with db_conn() as con:
+        _op = con.execute("SELECT owner_phone FROM intake_forms WHERE token = ?", (token,)).fetchone()
+    owner_phone = _fmt_phone_dashed((_op[0] if _op else "") or "")
+    css = ("body{font-family:'Pretendard',-apple-system,system-ui,sans-serif;background:#FAFBFC;"
+           "color:#0B0F19;line-height:1.7;margin:0;padding:0 16px 60px}.w{max-width:680px;margin:0 auto;padding-top:32px}"
+           "h1{font-size:22px;font-weight:800}h2{font-size:16px;font-weight:800;margin:24px 0 8px;color:#1B64DA}"
+           "p,li{font-size:14px;color:#333D4B}.tag{display:inline-block;background:#EEF4FF;color:#1B64DA;font-size:12px;"
+           "font-weight:700;border-radius:6px;padding:3px 9px;margin-bottom:10px}"
+           ".muted{font-size:12px;color:#9AA3AF}a{color:#1B64DA;font-weight:700}")
+    html = (
+        f'<!doctype html><html lang="ko"><head><meta charset="utf-8">'
+        f'<meta name="viewport" content="width=device-width,initial-scale=1">'
+        f'<title>{biz} 개인정보 처리방침</title>'
+        f'<meta name="robots" content="noindex">'
+        f'<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">'
+        f'<style>{css}</style></head><body><div class="w">'
+        f'<span class="tag">시공접수서 개인정보 처리방침</span>'
+        f'<h1>{biz} 개인정보 처리방침</h1>'
+        f'<p class="muted">본 방침은 <b>{biz}</b>(개인정보처리자)이 시공접수서를 통해 수집하는 고객 개인정보에 적용됩니다. '
+        f'앱 운영사 막내컴퍼니가 수탁자로서 시공막내 서버에 보관·처리합니다.</p>'
+        f'<h2>1. 수집 항목 및 목적</h2>'
+        f'<p>휴대전화 번호, 현장 주소, 현장 메모를 <b>시공 접수·상담 연락·일정 확정</b> 목적으로 수집·이용합니다.</p>'
+        f'<h2>2. 보유 및 파기</h2>'
+        f'<p>시공 완료일부터 1년(시공이 진행되지 않은 경우 접수일부터 6개월)이 지난 때 지체 없이 파기합니다. '
+        f'고객 또는 {biz}의 삭제 요청 시 즉시 파기합니다.</p>'
+        f'<h2>3. 처리 위탁 (수탁자)</h2>'
+        f'<p>{biz}은(는) 개인정보 처리를 <b>막내컴퍼니</b>에 위탁합니다(개인정보 보호법 제26조). '
+        f'막내컴퍼니는 위탁 목적 외로 이 정보를 이용하지 않으며, 시공막내 앱·서버로 안전하게 보관·처리합니다. '
+        f'접수서 정보는 AI 자동응대에 사용하지 않습니다.</p>'
+        f'<h2>4. 정보주체의 권리</h2>'
+        f'<p>고객은 접수를 받은 {biz} 또는 막내컴퍼니(hello@si0in.kr)에 열람·정정·삭제·처리정지를 요구할 수 있습니다.</p>'
+        f'<h2>5. 연락처</h2>'
+        f'<p>업체: {biz} (연락처 {_html.escape(owner_phone)})<br>수탁자: 막내컴퍼니 · hello@si0in.kr</p>'
+        f'<p style="margin-top:24px"><a href="/privacy">시공막내(막내컴퍼니) 개인정보 처리방침 전문 →</a></p>'
+        f'<p class="muted" style="margin-top:20px">※ 본 방침은 초안이며 정식 출시 전 전문가 검토를 거쳐 확정됩니다.</p>'
+        f'</div></body></html>'
+    )
+    return HTMLResponse(content=html)
 
 
 # ─── API 3: POST /q/{token}/submit ───
