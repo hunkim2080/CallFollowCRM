@@ -266,6 +266,10 @@ def db_init() -> None:
         con.execute(
             "CREATE INDEX IF NOT EXISTS idx_consents_phone ON consents(phone, doc_type)"
         )
+        # 추가118 (Q12) — 동의 시점의 고지 문안 스냅샷·해시 보관용 컬럼 (idempotent)
+        _cc = {r[1] for r in con.execute("PRAGMA table_info(consents)").fetchall()}
+        if "detail_json" not in _cc:
+            con.execute("ALTER TABLE consents ADD COLUMN detail_json TEXT")
         # 추가93 (2026-07-04) — 🩺 시스템 에러 기록 (5xx/미처리 예외 → 대시보드 건강 카드)
         con.execute(
             """
@@ -10645,8 +10649,50 @@ async def consent_status(phone: str) -> dict:
 # ============================================================================
 _CONVERSION_NOTICE_DAYS = 14
 _CONVERSION_DOC_TYPE = "paid_conversion"
-_CONVERSION_DOC_VERSION = "2026-07-10.1"
+_CONVERSION_DOC_VERSION = "2026-07-11.1"   # Q9 법정고지 완비(변동전후·해지조건효과·부가세포함 총액)
 _VALID_PLANS = {"standard_50k", "premium_100k"}
+
+# Q9 — 전상법 §13조의2·시행령 §20조의2 법정 고지 문안(서버 원본).
+# 다크패턴 규제(순차공개 가격) 대비: 첫 화면부터 '부가세 포함 총액' 표시.
+_PLAN_INFO = {
+    "standard_50k": {"label": "스탠다드", "supplyKrw": 50000, "totalKrw": 55000},
+    "premium_100k": {"label": "프리미엄", "supplyKrw": 100000, "totalKrw": 110000},
+}
+_CANCEL_NOTICE = (
+    "언제든지 앱 설정 > 구독 관리에서 해지할 수 있습니다. "
+    "다음 결제일 전 해지 시 추가 결제가 없으며, 결제 후 중도 해지 시 이용 일수를 공제한 잔액을 환불합니다. "
+    "결제 후 7일 이내 미사용 시 전액 환불됩니다."
+)
+_PRICE_INCREASE_NOTE = (
+    "향후 요금이 인상되는 경우 인상 30일 전에 별도로 동의를 받으며, 동의가 없으면 인상된 금액으로 결제되지 않습니다."
+)
+
+
+def _conversion_notice(plan: str, free_until_ms: Optional[int]) -> Optional[dict]:
+    """유료전환 법정 고지 1건(요금제별) — 앱 모달이 이 문안 그대로 표시하고, 동의 시 스냅샷 저장."""
+    info = _PLAN_INFO.get(plan)
+    if not info:
+        return None
+    start_txt = None
+    if free_until_ms:
+        import datetime as _dt
+        _d = _dt.datetime.fromtimestamp(free_until_ms / 1000)
+        start_txt = f"{_d.year}년 {_d.month}월 {_d.day}일"
+    after = (f"{start_txt + '부터 ' if start_txt else ''}"
+             f"월 {info['totalKrw']:,}원(부가세 포함)")
+    return {
+        "plan": plan,
+        "planLabel": info["label"],
+        "beforeText": "현재 무료 체험 (0원)",           # 변동 전 대금
+        "afterText": after,                              # 변동 후 대금 (부가세 포함 총액)
+        "totalKrwVatIncluded": info["totalKrw"],
+        "supplyKrw": info["supplyKrw"],
+        "cycle": "월 1회 정기결제",
+        "startAtMs": free_until_ms,
+        "cancel": _CANCEL_NOTICE,                        # 해지 조건·방법·효과
+        "priceIncreaseNote": _PRICE_INCREASE_NOTE,
+        "docVersion": _CONVERSION_DOC_VERSION,
+    }
 
 
 def _free_until_for(phone_digits: str) -> Optional[int]:
@@ -10686,6 +10732,10 @@ async def conversion_status(phone: str) -> dict:
         "consented": bool(row[0]) if row else False,
         "consentedPlan": (row[1].split("|")[-1] if row and "|" in (row[1] or "") else None),
         "consentDocVersion": _CONVERSION_DOC_VERSION,
+        # Q9 — 모달이 이 문안을 그대로 표시(변동 전후 대금·해지 조건·효과·부가세 포함 총액).
+        "plans": [n for n in (_conversion_notice(p, free_until)
+                              for p in ("standard_50k", "premium_100k")) if n],
+        "cancelNotice": _CANCEL_NOTICE,
     }
 
 
@@ -10709,18 +10759,32 @@ async def conversion_consent(req: ConversionConsentRequest, request: Request) ->
     now = _now_ms()
     ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or (
         request.client.host if request.client else "")
+    ua = (request.headers.get("user-agent", "") or "")[:200]
     # doc_version 에 요금제 태그를 붙여 어떤 요금제로 동의했는지 남김
     ver = f"{_CONVERSION_DOC_VERSION}|{req.plan}" if req.agreed else _CONVERSION_DOC_VERSION
+    # Q12 — '무엇에 동의했는지' 재현용: 당시 표시된 고지 문안 스냅샷 + 해시 + 기기정보 보관.
+    # (전상법 시행령 §6에 따라 계약·청약철회 기록으로 5년 보존 대상)
+    import hashlib as _hashlib
+    snapshot = _conversion_notice(req.plan, _free_until_for(pd)) if req.agreed else None
+    snap_str = json.dumps(snapshot, ensure_ascii=False, sort_keys=True) if snapshot else ""
+    detail = {
+        "snapshot": snapshot,
+        "snapshotSha256": _hashlib.sha256(snap_str.encode("utf-8")).hexdigest() if snap_str else None,
+        "userAgent": ua,
+        "retention": "전상법 시행령 §6 · 계약/청약철회 기록 5년 보존",
+    }
     with db_conn() as con:
         con.execute(
-            "INSERT INTO consents (phone, doc_type, doc_version, agreed, ip, created_at_ms) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (pd, _CONVERSION_DOC_TYPE, ver[:40], 1 if req.agreed else 0, ip[:60], now),
+            "INSERT INTO consents (phone, doc_type, doc_version, agreed, ip, created_at_ms, detail_json) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (pd, _CONVERSION_DOC_TYPE, ver[:40], 1 if req.agreed else 0, ip[:60], now,
+             json.dumps(detail, ensure_ascii=False)),
         )
         con.commit()
-    print(f"[conversion/consent] {pd} plan={req.plan} agreed={req.agreed}")
+    print(f"[conversion/consent] {pd} plan={req.plan} agreed={req.agreed} snap={detail['snapshotSha256']}")
     return {"ok": True, "phone": pd, "plan": req.plan if req.agreed else None,
-            "agreed": req.agreed, "recordedAtMs": now}
+            "agreed": req.agreed, "recordedAtMs": now,
+            "snapshotSha256": detail["snapshotSha256"]}
 
 
 @app.get("/api/admin/conversion/upcoming")
@@ -16856,9 +16920,7 @@ async def quote_owner_privacy(token: str) -> HTMLResponse:
         return _quote_status_page("❌ 유효하지 않은 링크", "사장님께 다시 링크를 받아 주세요.", 404)
     data = _intake_row_to_dict(row)
     biz = _html.escape((data.get("biz_name") or "").strip() or "시공업체")
-    with db_conn() as con:
-        _op = con.execute("SELECT owner_phone FROM intake_forms WHERE token = ?", (token,)).fetchone()
-    owner_phone = _fmt_phone_dashed((_op[0] if _op else "") or "")
+    _eff_date = "2026. 7. 11"   # 처리방침 시행일 (버전 표기용)
     css = ("body{font-family:'Pretendard',-apple-system,system-ui,sans-serif;background:#FAFBFC;"
            "color:#0B0F19;line-height:1.7;margin:0;padding:0 16px 60px}.w{max-width:680px;margin:0 auto;padding-top:32px}"
            "h1{font-size:22px;font-weight:800}h2{font-size:16px;font-weight:800;margin:24px 0 8px;color:#1B64DA}"
@@ -16878,17 +16940,29 @@ async def quote_owner_privacy(token: str) -> HTMLResponse:
         f'앱 운영사 막내컴퍼니가 수탁자로서 시공막내 서버에 보관·처리합니다.</p>'
         f'<h2>1. 수집 항목 및 목적</h2>'
         f'<p>휴대전화 번호, 현장 주소, 현장 메모를 <b>시공 접수·상담 연락·일정 확정</b> 목적으로 수집·이용합니다.</p>'
-        f'<h2>2. 보유 및 파기</h2>'
+        f'<h2>2. 보유 기간 및 파기 절차·방법</h2>'
         f'<p>시공 완료일부터 1년(시공이 진행되지 않은 경우 접수일부터 6개월)이 지난 때 지체 없이 파기합니다. '
-        f'고객 또는 {biz}의 삭제 요청 시 즉시 파기합니다.</p>'
+        f'고객 또는 {biz}의 삭제 요청 시 즉시 파기합니다. '
+        f'보유 기간이 지난 개인정보는 복구할 수 없는 방법으로 서버에서 완전 삭제(전자적 파일은 영구 삭제)합니다.</p>'
         f'<h2>3. 처리 위탁 (수탁자)</h2>'
         f'<p>{biz}은(는) 개인정보 처리를 <b>막내컴퍼니</b>에 위탁합니다(개인정보 보호법 제26조). '
         f'막내컴퍼니는 위탁 목적 외로 이 정보를 이용하지 않으며, 시공막내 앱·서버로 안전하게 보관·처리합니다. '
-        f'접수서 정보는 AI 자동응대에 사용하지 않습니다.</p>'
-        f'<h2>4. 정보주체의 권리</h2>'
+        f'접수서로 수집된 정보는 AI 자동응대에 사용하지 않습니다.</p>'
+        f'<h2>4. 개인정보의 안전성 확보조치</h2>'
+        f'<p>이 정보는 수탁자 막내컴퍼니의 시스템에서 전송구간 암호화(TLS), 접근 권한 통제, '
+        f'접속기록 보관(1년 이상), 악성프로그램 방지 등의 조치로 보호됩니다.</p>'
+        f'<h2>5. 정보주체의 권리</h2>'
         f'<p>고객은 접수를 받은 {biz} 또는 막내컴퍼니(hello@si0in.kr)에 열람·정정·삭제·처리정지를 요구할 수 있습니다.</p>'
-        f'<h2>5. 연락처</h2>'
-        f'<p>업체: {biz} (연락처 {_html.escape(owner_phone)})<br>수탁자: 막내컴퍼니 · hello@si0in.kr</p>'
+        f'<h2>6. 권익침해 구제방법</h2>'
+        f'<p>개인정보 침해로 인한 분쟁 조정·상담이 필요하면 개인정보분쟁조정위원회(1833-6972), '
+        f'개인정보침해신고센터(118)에 신청할 수 있습니다.</p>'
+        f'<h2>7. 자동 수집 사항</h2>'
+        f'<p>접수서 웹페이지는 서비스 제공에 필요한 최소한의 접속 기록 외에 쿠키 등 자동 수집 장치를 사용하지 않습니다.</p>'
+        f'<h2>8. 문의 연락처</h2>'
+        f'<p>이 접수서 처리에 관한 문의는 <b>{biz}</b>(접수서를 보내드린 연락처) 또는 '
+        f'수탁자 막내컴퍼니(hello@si0in.kr)로 해주시면 됩니다.</p>'
+        f'<h2>9. 처리방침의 변경</h2>'
+        f'<p>이 방침이 변경되는 경우 이 페이지에 시행일과 함께 게시합니다. (현재 버전 시행일: {_eff_date})</p>'
         f'<p style="margin-top:24px"><a href="/privacy">시공막내(막내컴퍼니) 개인정보 처리방침 전문 →</a></p>'
         f'<p class="muted" style="margin-top:20px">※ 본 방침은 초안이며 정식 출시 전 전문가 검토를 거쳐 확정됩니다.</p>'
         f'</div></body></html>'
