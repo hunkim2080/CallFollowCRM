@@ -6954,3 +6954,14 @@ Play 심사 거부(민감권한 SMS/통화기록) 원인·해결 — 온보딩 �
 - 검증: TestClient B1 ALL PASS. 변경: main.py + docs 2개. 배포 필요.
 - 남은 결제준비: B2(D-14 동의 flow), 토스 연동(C, 사장님 가맹 후), 전문가 확정(A DPA·국외이전·인재풀).
 - commit: (아래)
+
+## 2026-07-10 · cowork (결제 준비: B2 유료전환 D-14 동의)
+추가117 — 유료전환 사전 동의 인프라 (전상법 §13조의2, 약관 §8 이행). 실제 결제는 토스 연동 후.
+- GET /api/conversion/status?phone= : 무료 만료 D-day, noticeDue(≤14일), consented/consentedPlan.
+- POST /api/conversion/consent {phone,plan,agreed} : 동의/거부 영수증(consents doc_type=paid_conversion).
+  미동의면 결제 연동 후에도 자동전환 금지.
+- GET /api/admin/conversion/upcoming?days=14 (Bearer) : 만료 임박자 목록(알림 발송용).
+- 앱 핸드오프 = docs/ANDROID_HANDOFF_paid_conversion.md (noticeDue 시 D-14 안내+동의 모달).
+- 검증: TestClient status/consent/거부/admin목록/인증 ALL PASS. 변경: main.py + 핸드오프. 배포 필요.
+- 결제준비 잔여: 토스 가맹(C1 사장님)→빌링 연동(C2), 전문가 확정(A DPA·국외이전·인재풀 F), Play 인앱결제 최종 확정(D3).
+- commit: (아래)

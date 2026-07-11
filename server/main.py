@@ -10634,6 +10634,127 @@ async def consent_status(phone: str) -> dict:
             "consents": out}
 
 
+# ============================================================================
+# 추가117 (B2) — 유료전환 D-14 사전 동의 (전상법 §13조의2, 약관 §8 이행)
+# ─────────────────────────────────────────────────────────────────────────────
+# 무료 체험 만료 14일 전에 대금·결제주기·해지조건을 고지하고 동의를 수집해야
+# 자동 유료전환·결제가 가능. (실제 결제 = 토스 연동 후. 지금은 동의 인프라만.)
+#   - GET  /api/conversion/status?phone=      : 무료 만료 D-day / 고지 도래 / 동의 여부
+#   - POST /api/conversion/consent            : 유료전환 사전 동의/철회 기록 (consents 테이블)
+#   - GET  /api/admin/conversion/upcoming     : 14일 내 만료 예정자 목록 (알림 발송용, Bearer)
+# ============================================================================
+_CONVERSION_NOTICE_DAYS = 14
+_CONVERSION_DOC_TYPE = "paid_conversion"
+_CONVERSION_DOC_VERSION = "2026-07-10.1"
+_VALID_PLANS = {"standard_50k", "premium_100k"}
+
+
+def _free_until_for(phone_digits: str) -> Optional[int]:
+    with db_conn() as con:
+        wl = con.execute(
+            "SELECT free_until_ms FROM beta_whitelist WHERE phone = ?", (phone_digits,)
+        ).fetchone()
+    return wl[0] if wl else None
+
+
+def _latest_conversion_consent(phone_digits: str) -> Optional[tuple]:
+    with db_conn() as con:
+        return con.execute(
+            "SELECT agreed, doc_version, created_at_ms FROM consents "
+            "WHERE phone = ? AND doc_type = ? ORDER BY created_at_ms DESC LIMIT 1",
+            (phone_digits, _CONVERSION_DOC_TYPE),
+        ).fetchone()
+
+
+@app.get("/api/conversion/status")
+async def conversion_status(phone: str) -> dict:
+    """무료 만료 D-day + 유료전환 고지 도래(≤14일) + 사전 동의 여부."""
+    pd = _norm_phone(phone)
+    if not pd:
+        raise HTTPException(400, "phone 필수")
+    free_until = _free_until_for(pd)
+    now = _now_ms()
+    days_left = None if free_until is None else (free_until - now) // 86_400_000
+    notice_due = free_until is not None and days_left is not None and days_left <= _CONVERSION_NOTICE_DAYS
+    row = _latest_conversion_consent(pd)
+    return {
+        "phone": pd,
+        "freeUntilMs": free_until,          # None = 초기 베타(무제한)
+        "daysLeft": days_left,
+        "noticeDueDays": _CONVERSION_NOTICE_DAYS,
+        "noticeDue": bool(notice_due),      # True면 앱이 D-14 유료전환 안내+동의 화면 노출
+        "consented": bool(row[0]) if row else False,
+        "consentedPlan": (row[1].split("|")[-1] if row and "|" in (row[1] or "") else None),
+        "consentDocVersion": _CONVERSION_DOC_VERSION,
+    }
+
+
+class ConversionConsentRequest(BaseModel):
+    phone: str = ""
+    plan: str = ""             # standard_50k | premium_100k
+    agreed: bool = True        # False = 전환 거부(자동결제 안 함)
+
+
+@app.post("/api/conversion/consent")
+async def conversion_consent(req: ConversionConsentRequest, request: Request) -> dict:
+    """유료전환 사전 동의/철회 기록. 대금·주기·해지 고지 후 앱이 호출.
+
+    동의가 없으면(또는 거부) 결제 연동 후에도 자동 유료전환·결제가 이루어지지 않음.
+    """
+    pd = _norm_phone(req.phone)
+    if not pd:
+        raise HTTPException(400, "phone 필수")
+    if req.agreed and req.plan not in _VALID_PLANS:
+        raise HTTPException(400, f"plan 은 {sorted(_VALID_PLANS)}")
+    now = _now_ms()
+    ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or (
+        request.client.host if request.client else "")
+    # doc_version 에 요금제 태그를 붙여 어떤 요금제로 동의했는지 남김
+    ver = f"{_CONVERSION_DOC_VERSION}|{req.plan}" if req.agreed else _CONVERSION_DOC_VERSION
+    with db_conn() as con:
+        con.execute(
+            "INSERT INTO consents (phone, doc_type, doc_version, agreed, ip, created_at_ms) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (pd, _CONVERSION_DOC_TYPE, ver[:40], 1 if req.agreed else 0, ip[:60], now),
+        )
+        con.commit()
+    print(f"[conversion/consent] {pd} plan={req.plan} agreed={req.agreed}")
+    return {"ok": True, "phone": pd, "plan": req.plan if req.agreed else None,
+            "agreed": req.agreed, "recordedAtMs": now}
+
+
+@app.get("/api/admin/conversion/upcoming")
+async def admin_conversion_upcoming(
+    days: int = 14,
+    authorization: Optional[str] = Header(default=None),
+) -> dict:
+    """무료 만료 N일 내 예정자 목록 (D-14 안내 발송용). 이미 동의/거부한 사람은 표시만."""
+    _admin_auth_bearer_from_header(authorization)
+    days = max(1, min(days, 60))
+    now = _now_ms()
+    horizon = now + days * 86_400_000
+    out = []
+    with db_conn() as con:
+        rows = con.execute(
+            "SELECT phone, free_until_ms FROM beta_whitelist "
+            "WHERE free_until_ms IS NOT NULL AND free_until_ms <= ? "
+            "ORDER BY free_until_ms ASC", (horizon,)
+        ).fetchall()
+        for ph, fu in rows:
+            crow = con.execute(
+                "SELECT agreed FROM consents WHERE phone = ? AND doc_type = ? "
+                "ORDER BY created_at_ms DESC LIMIT 1", (ph, _CONVERSION_DOC_TYPE)
+            ).fetchone()
+            out.append({
+                "phone": ph,
+                "freeUntilMs": fu,
+                "daysLeft": (fu - now) // 86_400_000,
+                "expired": fu < now,
+                "consented": bool(crow[0]) if crow else False,
+            })
+    return {"days": days, "count": len(out), "items": out}
+
+
 def _record_intake_consent(customer_phone: Optional[str]) -> None:
     """추가98 — 접수서 폼에서 고객이 개인정보 동의 체크 시 영수증 기록.
     doc_type='intake_customer'. 실패해도 접수 자체는 막지 않음."""
