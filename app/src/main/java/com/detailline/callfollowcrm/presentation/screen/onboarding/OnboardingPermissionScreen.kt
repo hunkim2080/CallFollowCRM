@@ -36,16 +36,39 @@ import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
+import com.detailline.callfollowcrm.util.DefaultSmsAppHelper
 import com.detailline.callfollowcrm.util.PermissionHelper
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun OnboardingPermissionScreen(onContinue: () -> Unit) {
     val appCtx = LocalContext.current
-    val launcher = rememberLauncherForActivityResult(
+    // ── Play 정책(기본 SMS 핸들러) 2026-07-11 ──────────────────────────────────────
+    //   구글 거부 사유: "런타임 권한 다이얼로그보다 '기본 문자 앱으로 설정' 다이얼로그가 먼저 떠야 함".
+    //   순서를 고정: ① ROLE_SMS(기본 문자 앱) 다이얼로그 → (수락/거부 무관) → ② 런타임 권한(통화기록·전화상태·알림).
+    //   기본 문자 앱이 되면 SMS 그룹 권한은 시스템이 자동 부여(창 안 뜸). 거부하면 수동 모드.
+    val runtimeLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { _ ->
         onContinue()
+    }
+    val roleLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { _ ->
+        // 기본 문자 앱 다이얼로그가 닫힌 뒤(동의/거부 무관) 런타임 권한을 요청한다.
+        runtimeLauncher.launch(PermissionHelper.requiredPermissions())
+    }
+    fun startPermissionFlow() {
+        val activity = appCtx as? android.app.Activity
+        val roleIntent = activity?.let { DefaultSmsAppHelper.createRequestIntent(it) }
+        if (roleIntent != null) {
+            // 반드시 기본 핸들러 다이얼로그 먼저. 실패(구형/미지원)하면 런타임 권한으로 폴백.
+            runCatching { roleLauncher.launch(roleIntent) }
+                .onFailure { runtimeLauncher.launch(PermissionHelper.requiredPermissions()) }
+        } else {
+            // 이미 기본 문자 앱이거나(=SMS 권한 자동 보유) 미지원 기기 → 바로 런타임 권한.
+            runtimeLauncher.launch(PermissionHelper.requiredPermissions())
+        }
     }
 
     Scaffold(containerColor = TossGrayBg) { inner ->
@@ -100,6 +123,7 @@ fun OnboardingPermissionScreen(onContinue: () -> Unit) {
 
                 TossCard {
                     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        PermRow("📨", "기본 문자 앱", "고객 문자·사진을 시공막내에서 받아 한 화면에서 관리해요 (다음 화면에서 여쭤봐요)")
                         PermRow("📱", "전화 상태", "통화 종료를 감지하기 위해 필요해요")
                         PermRow("📋", "통화 기록", "방금 통화한 번호를 자동으로 채워줘요")
                         PermRow("💬", "주고받은 문자", "고객 대화를 한 화면에서 보고 답장 추천을 받기 위해 필요해요")
@@ -142,7 +166,7 @@ fun OnboardingPermissionScreen(onContinue: () -> Unit) {
             ) {
                 TossPrimaryButton(
                     text = "권한 허용하고 시작하기",
-                    onClick = { launcher.launch(PermissionHelper.requiredPermissions()) }
+                    onClick = { startPermissionFlow() }
                 )
                 Spacer(Modifier.height(8.dp))
                 TossTextButton(
