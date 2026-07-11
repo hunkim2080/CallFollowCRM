@@ -62,9 +62,10 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         com.detailline.callfollowcrm.data.local.entity.TeamAssignmentEntity::class,
         com.detailline.callfollowcrm.data.local.entity.PrincipleEntity::class,
         com.detailline.callfollowcrm.data.local.entity.TimelineEventEntity::class,
-        com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity::class
+        com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity::class,
+        com.detailline.callfollowcrm.data.local.entity.ThreadBucketEntity::class
     ],
-    version = 39,
+    version = 40,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -93,6 +94,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun principleDao(): com.detailline.callfollowcrm.data.local.dao.PrincipleDao
     abstract fun timelineEventDao(): com.detailline.callfollowcrm.data.local.dao.TimelineEventDao
     abstract fun issuedDocDao(): com.detailline.callfollowcrm.data.local.dao.IssuedDocDao
+    abstract fun threadBucketDao(): com.detailline.callfollowcrm.data.local.dao.ThreadBucketDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -746,6 +748,21 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v40 — thread_buckets 신설(상담함/문자함 분류). ThreadBucketEntity 와 정확히 일치. index 없음(PK만). (2026-07-11 사장님)
+        private val MIGRATION_39_40 = object : Migration(39, 40) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `thread_buckets` (" +
+                        "`suffix` TEXT PRIMARY KEY NOT NULL, " +
+                        "`bucket` TEXT NOT NULL, " +
+                        "`source` TEXT NOT NULL, " +
+                        "`reason` TEXT, " +
+                        "`decidedAt` INTEGER NOT NULL, " +
+                        "`classifiedBodyHash` INTEGER)"
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
@@ -762,7 +779,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30,
                     MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34,
                     MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38,
-                    MIGRATION_38_39
+                    MIGRATION_38_39, MIGRATION_39_40
                 )
                 .fallbackToDestructiveMigration()   // migration 실패 시 안전망 (개발 단계)
                 .build()

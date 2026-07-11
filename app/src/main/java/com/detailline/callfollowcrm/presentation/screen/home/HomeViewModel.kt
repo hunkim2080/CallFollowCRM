@@ -139,6 +139,22 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         combine(spamSuffixes, spamPrefixesFlow) { suf, pre -> SpamGate(suf, pre) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SpamGate(emptySet(), emptySet()))
 
+    // ── 상담함/문자함 분류 (2026-07-11 사장님) ───────────────────────────────────────
+    /** 분류 전체(suffix→행). 문자함 목록/배지가 GENERAL 행을 쓴다. */
+    private val bucketMap: StateFlow<Map<String, com.detailline.callfollowcrm.data.local.entity.ThreadBucketEntity>> =
+        container.threadBucketRepository.observeBuckets()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    /** 문자함(GENERAL)으로 분류된 suffix — 상담함 목록·KPI·답장대기에서 스팸처럼 제외. */
+    private val generalSuffixes: StateFlow<Set<String>> = bucketMap
+        .map { m -> m.filterValues { it.bucket == com.detailline.callfollowcrm.domain.inbox.BucketPolicy.GENERAL }.keys }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
+    /** 상담함에서 숨길 suffix = 스팸 마킹 ∪ 문자함(GENERAL). KPI·답장대기에 함께 적용. */
+    private val hiddenForConsult: StateFlow<Set<String>> =
+        combine(spamSuffixes, generalSuffixes) { spam, general -> spam + general }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
     /** 오늘 이전에 통화 기록이 있는 phone suffix set. "오늘 신규" 판정 negative side. */
     private val phonesWithCallsBeforeToday: StateFlow<Set<String>> = container.callRecordRepository
         .observeDistinctPhonesBefore(todayStart)
@@ -201,7 +217,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      *   주의: "신규"=처음 연락온 번호. 전에 연락온 적 있는 번호는 제외(설계 = 부제 "새 번호 기준").
      */
     val todayNewInquiryCount: StateFlow<Int> = combine(
-        smsContactsState, inboundRecent, phonesWithCallsBeforeToday, spamSuffixes, spamPrefixesFlow
+        smsContactsState, inboundRecent, phonesWithCallsBeforeToday, hiddenForConsult, spamPrefixesFlow
     ) { smsContacts, inbound, callsBefore, spam, _ ->
         newTodaySuffixes(smsContacts, inbound, callsBefore, spam).size
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
@@ -245,7 +261,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      * 사장님 결정 (2026-05-24) — 이전엔 CallRecord.handledStatus 기반이었으나 정의 변경.
      */
     val unhandledCount: StateFlow<Int> = combine(
-        smsContactsState, callsForFlags, spamSuffixes, scheduledCustomerSuffixes, spamPrefixesFlow
+        smsContactsState, callsForFlags, hiddenForConsult, scheduledCustomerSuffixes, spamPrefixesFlow
     ) { smsContacts, calls, spam, scheduled, _ ->
         val (missed, _, handledMs) = calls
         unconfirmedSuffixes(smsContacts, missed, spam, scheduled, handledMs).size
@@ -837,7 +853,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      *   → 새 메시지 오면 자동으로 다시 "답장 기다려요"에 뜬다.
      */
     private val excludedForUnconfirmed: StateFlow<Set<String>> =
-        combine(spamSuffixes, _repliedAt, _dismissedAt, smsContactsState) { spam, replied, dismissed, contacts ->
+        combine(hiddenForConsult, _repliedAt, _dismissedAt, smsContactsState) { spam, replied, dismissed, contacts ->
             val lastBySuffix = contacts.associate { it.normalizedSuffix to it.lastDateMs }
             val out = HashSet<String>(spam)
             fun addStillHandled(m: Map<String, Long>) {
@@ -861,13 +877,15 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TimelineFlags(emptySet(), emptySet()))
 
-    /** timelineFlags + 스팸 게이트 — combine 5개 한도 안에서 목록에 스팸 필터를 함께 적용. (2026-06-17) */
-    private val timelineFlagsAndSpam = combine(timelineFlags, spamGate) { flags, spam -> flags to spam }
+    /** timelineFlags + 스팸 게이트 + 문자함(GENERAL) — combine 5개 한도 안에서 목록 필터를 함께 적용. (2026-06-17 / 2026-07-11) */
+    private val timelineFlagsAndSpam = combine(timelineFlags, spamGate, generalSuffixes) { flags, spam, general ->
+        Triple(flags, spam, general)
+    }
 
     val timeline = combine(
         recentRecords, customers, filter, smsContactsState, timelineFlagsAndSpam
     ) { records, custs, f, smsContacts, flagsAndSpam ->
-        val (flags, spam) = flagsAndSpam
+        val (flags, spam, general) = flagsAndSpam
         val byPhone = custs.associateBy { it.phoneNumber }
         val callPhonesNormalized = records.map { phoneSuffix(it.phoneNumber) }.toHashSet()
         // 안 A (2026-06-08): 통화 있는 번호도 SMS 의 lastSent/lastBody 가 필요 → suffix 로 조회.
@@ -937,6 +955,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         (callItems + smsOnlyItems)
             // 스팸 등록(앞자리/마킹) 번호는 상담함 목록에서 제외 — 들어오지도, 추천 준비도 안 함. (2026-06-17 사장님)
             .filterNot { spam.isSpam(it.record.phoneNumber, phoneSuffix(it.record.phoneNumber)) }
+            // 문자함(고객 아님)으로 분류된 번호는 상담함에서 제외 → 문자함 탭에만 표시. (2026-07-11 사장님)
+            .filterNot { phoneSuffix(it.record.phoneNumber) in general }
             .filter { f.accept(it) }
             .map { item ->
                 val suffix = phoneSuffix(item.record.phoneNumber)
@@ -957,6 +977,44 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      *   HomeScreen 이 collect 해서 row 별 안 읽음 = (lastSent==false && 고객 마지막 메시지 > 읽은 시각) 계산.
      */
     val readStates: StateFlow<Map<String, Long>> = container.readStateStore.readStates
+
+    // ── 문자함(고객 아님) 목록 + 배지 (2026-07-11 사장님) ─────────────────────────
+    /** 문자함 스레드 — GENERAL 분류된 SMS 연락처. 삼성 기본 메시지처럼 단순 목록. 스팸은 여기서도 숨김. */
+    val generalThreads: StateFlow<List<GeneralThread>> = combine(
+        smsContactsState, bucketMap, customers, readStates, spamGate
+    ) { contacts, buckets, custs, reads, spam ->
+        val custBySuffix = custs.associateBy { phoneSuffix(it.phoneNumber) }
+        contacts.mapNotNull { c ->
+            val b = buckets[c.normalizedSuffix] ?: return@mapNotNull null
+            if (b.bucket != com.detailline.callfollowcrm.domain.inbox.BucketPolicy.GENERAL) return@mapNotNull null
+            if (spam.isSpam(c.address, c.normalizedSuffix)) return@mapNotNull null   // 스팸은 문자함에도 안 보임
+            val readMs = reads[c.normalizedSuffix] ?: 0L
+            GeneralThread(
+                phone = c.address,
+                suffix = c.normalizedSuffix,
+                displayName = custBySuffix[c.normalizedSuffix]?.name?.takeIf { it.isNotBlank() },
+                lastBody = c.lastBody,
+                lastDateMs = c.lastDateMs,
+                lastSent = c.lastSent,
+                isAd = b.reason == "광고",
+                unread = !c.lastSent && c.lastDateMs > readMs
+            )
+        }.sortedByDescending { it.lastDateMs }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** 문자함 배지 = 안 읽은 문자함 스레드 수(크롬 탭 옆 숫자). */
+    val generalUnreadCount: StateFlow<Int> =
+        generalThreads.map { list -> list.count { it.unread } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    /** 상담함 카드 → 문자함으로(사장님이 "고객 아님"). 영구(OWNER) — 자동 재분류가 못 되돌림. */
+    fun moveToGeneral(phoneNumber: String) = viewModelScope.launch(Dispatchers.IO) {
+        runCatching { container.threadBucketRepository.moveToGeneral(phoneNumber) }
+    }
+    /** 문자함 스레드 → 상담함으로(사장님이 "고객 맞음"). 영구(OWNER). */
+    fun moveToConsult(phoneNumber: String) = viewModelScope.launch(Dispatchers.IO) {
+        runCatching { container.threadBucketRepository.moveToConsult(phoneNumber) }
+    }
 
     private fun phoneSuffix(phone: String): String {
         val digits = phone.filter { it.isDigit() }
@@ -1327,6 +1385,18 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
 data class DayGroup(
     val dayStartMs: Long,
     val items: List<HomeItem>
+)
+
+/** 문자함 스레드 한 줄 (고객 아님). 삼성 기본 메시지처럼 단순. (2026-07-11 사장님) */
+data class GeneralThread(
+    val phone: String,
+    val suffix: String,
+    val displayName: String?,
+    val lastBody: String,
+    val lastDateMs: Long,
+    val lastSent: Boolean,
+    val isAd: Boolean,        // 광고로 걸러진 것 → '광고' 딱지
+    val unread: Boolean
 )
 
 /**

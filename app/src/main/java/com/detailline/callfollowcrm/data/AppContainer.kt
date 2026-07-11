@@ -99,6 +99,8 @@ class AppContainer(context: Context) {
     // 정기문자 (DB v25) — 시공 후 주기 안부/점검. 포그라운드 계산, 자동발송 X.
     val recurringMessageRepository = com.detailline.callfollowcrm.data.repository.RecurringMessageRepository(db.recurringMessageDao())
     val smsContactCacheRepository = com.detailline.callfollowcrm.data.repository.SmsContactCacheRepository(db.smsContactCacheDao())
+    // 상담함/문자함 분류(2026-07-11 사장님) — 기본 문자앱이 되며 고객/일반 문자 분리.
+    val threadBucketRepository = com.detailline.callfollowcrm.data.repository.ThreadBucketRepository(db.threadBucketDao())
     // 2026-05-29 킬러콘텐츠 3단계 — chip 행동 시그널 저장 (DB v17).
     val suggestionEventRepository = com.detailline.callfollowcrm.data.repository.SuggestionEventRepository(db.suggestionEventDao())
     val usageStatsRepository = com.detailline.callfollowcrm.ai.UsageStatsRepository()

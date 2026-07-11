@@ -6988,3 +6988,13 @@ Play 심사 거부(민감권한 SMS/통화기록) 원인·해결 — 온보딩 �
 인재풀 = 미도입(계획 단계) 명확화 — 사장님 확정: **유료회원 1,000명 시점 착수**.
 - 결제 오픈/법률 검토의 선결 조건 아님. 어떤 문서·고지에도 인재풀 넣지 않음.
 - 변경: docs/PAYMENT_LAUNCH_CHECKLIST.md §F 만. 서버 코드 변경 없음(배포 불필요).
+## 2026-07-11 19:00 · android
+상담함/문자함 2박스 분리 Phase 1 (앱 단독) — 기본 문자앱이 되며 고객/일반 문자 섞임 해소. (Fable 5 설계 논의)
+- 분류: 수신 시 로컬 1차(InboxClassifier). 저장고객/답장이력=상담함, 대표번호(15xx)/영숫자/짧은코드/isLikelyAd=문자함(GENERAL),
+  애매=상담함(precision 최우선). thread_buckets 사이드테이블(DB v40, suffix PK). BucketPolicy 우선순위(OWNER>HAIKU>LOCAL, 강등은 강신호만).
+- UI: HomeScreen 상단 크롬탭식 [상담함|문자함] + 배지, 문자함=삼성메시지식 단순목록(MessageBoxSection) '광고' 딱지. 광고함 제거(문자함 흡수).
+- 알림: 문자함=조용한 알림(CHANNEL_GENERAL_SMS, 무음·헤드업X)+배지. GENERAL은 서버 prepare/prefetch 스킵(서버비↓).
+- 되돌리기: 문자함 ⋮→상담함으로/스팸으로(OWNER 영구). Application 시작 백필(로컬규칙, ≤500, idempotent)+adAllowlist 이관.
+- 실기(S9+) 검증: 1522/1544/1566 대표번호 자동 문자함행 로그 확인, 크래시·마이그레이션오류 0, 단위테스트 20 통과.
+- Phase 2 (cowork 대기): 서버 /api/thread/classify (Haiku, Optional[] 표기) — 애매(UNSURE)만 비동기 정정. 핸드오프 예정.
+- commit: (아래)

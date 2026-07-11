@@ -25,6 +25,8 @@ object NotificationHelper {
     private const val CHANNEL_INCOMING_SMS = "incoming_sms_2"
     /** 처음 연락온 신규 고객 — 별도 소리로 구분. */
     private const val CHANNEL_INCOMING_SMS_NEW = "incoming_sms_new"
+    /** 문자함(고객 아님) 새 문자 — 조용히(소리·헤드업 X) 알림함에만 + 배지. (2026-07-11 사장님) */
+    private const val CHANNEL_GENERAL_SMS = "general_sms_box"
     /** 고객이 시공접수서를 작성·제출했을 때 알림. */
     private const val CHANNEL_INTAKE = "intake_submitted_2"
     private const val INTAKE_ID_OFFSET = 8_000_000
@@ -154,6 +156,17 @@ object NotificationHelper {
                     description = "고객 SMS 가 오면 AI 추천 답변과 함께 표시 — 갤메시지 알림은 끄고 사용하세요"
                     val u = chosenSound(context, "reply", "sound_reply")
                     if (u != null) setSound(u, audioAttrs) else setSound(null, null)
+                    setShowBadge(true)
+                })
+            }
+            // 문자함(고객 아님) 새 문자 — 조용히: 헤드업 X, 소리 X, 알림함에만 + 배지. (2026-07-11 사장님)
+            if (manager.getNotificationChannel(CHANNEL_GENERAL_SMS) == null) {
+                manager.createNotificationChannel(NotificationChannel(
+                    CHANNEL_GENERAL_SMS, "🗂️ 문자함", NotificationManager.IMPORTANCE_LOW
+                ).apply {
+                    description = "고객이 아닌 문자(광고·인증·알림) — 조용히 알림함에만 표시"
+                    setSound(null, null)
+                    enableVibration(false)
                     setShowBadge(true)
                 })
             }
@@ -862,6 +875,45 @@ object NotificationHelper {
         runCatching {
             NotificationManagerCompat.from(context)
                 .notify(smsNotificationId(phone), builder.build())
+        }
+    }
+
+    /**
+     * 문자함(고객 아님) 새 문자 — 조용한 알림. (2026-07-11 사장님 결정: "조용히 알림 + 배지")
+     *   헤드업·소리·진동 없음. 알림함에만 쌓이고 탭하면 그 대화로. 인증번호 등 바로 봐야 할 때 대비해 알림은 남김.
+     */
+    fun showGeneralSms(
+        context: Context,
+        phone: String,
+        displayName: String?,
+        body: String,
+        receivedAtMs: Long
+    ) {
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            action = MainActivity.ACTION_CHAT
+            putExtra(MainActivity.EXTRA_PHONE_NUMBER, phone)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val openPending = PendingIntent.getActivity(
+            context, phone.hashCode(), openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val title = (displayName?.takeIf { it.isNotBlank() } ?: formatPhone(phone)) + " · 문자함"
+        val builder = NotificationCompat.Builder(context, CHANNEL_GENERAL_SMS)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(title)
+            .setContentText(body.take(60))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setWhen(receivedAtMs)
+            .setShowWhen(true)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setContentIntent(openPending)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setSilent(true)
+            .setAutoCancel(true)
+        runCatching {
+            NotificationManagerCompat.from(context).notify(smsNotificationId(phone), builder.build())
         }
     }
 

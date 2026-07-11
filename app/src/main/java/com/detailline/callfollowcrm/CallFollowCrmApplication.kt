@@ -311,6 +311,25 @@ class CallFollowCrmApplication : Application() {
         // 오늘의 현장 상시 알림 (2026-07-10 사장님) — 앱 시작 시 갱신(오늘 현장 있으면 상단 고정, 없으면 내림). 주기 갱신은 ReminderWorker.
         appScope.launch { runCatching { com.detailline.callfollowcrm.service.ReminderWorker.refreshTodaySites(this@CallFollowCrmApplication, container) } }
 
+        // 상담함/문자함 분류 백필 (2026-07-11 사장님) — 기존 문자(광고·대표번호·서비스알림)를 로컬 규칙으로 문자함에 분류.
+        //   Haiku 대량호출 없이 로컬만(통화요약 신규설치 burst 교훈). classifyLocal 은 idempotent(변화 없으면 noop).
+        //   저장 고객이 생기면 자동 상담함 복귀. adAllowlist("광고 아님" 예외)는 상담함으로 영구 보호 이관.
+        appScope.launch {
+            delay(6_000)   // 풀스캔/머지가 sms 캐시를 채운 뒤
+            runCatching {
+                val contacts = container.smsContactCacheRepository.observeAll(limit = 500).first()
+                for (c in contacts) {
+                    val saved = runCatching { container.customerRepository.findByPhone(c.address) != null }.getOrDefault(false)
+                    runCatching { container.threadBucketRepository.classifyLocal(c.address, c.lastBody, saved, c.hasOwnerReply) }
+                }
+            }
+            runCatching {
+                for (suf in container.preferences.adAllowlistSuffixes) {
+                    container.threadBucketRepository.protectAsConsult(suf)
+                }
+            }
+        }
+
         // 2026-05-28 사장님 통점 fix: 정적 BroadcastReceiver (CallStateReceiver) 가
         //   Android 12+ / OneUI 에서 누락되는 케이스 多 → 통화 종료 감지 실패.
         //   Application 에서 TelephonyCallback (Android 12+) / PhoneStateListener (이하) 동적 등록 →

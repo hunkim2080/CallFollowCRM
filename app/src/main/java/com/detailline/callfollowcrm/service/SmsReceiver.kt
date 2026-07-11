@@ -97,29 +97,53 @@ class SmsReceiver : BroadcastReceiver() {
                 val container = app.container
                 // 스팸 앞자리(070 등) = 광고로 보고 알림·AI 준비 모두 건너뜀. (2026-06-07 사장님)
                 val isSpam = com.detailline.callfollowcrm.util.SpamPrefix.isSpam(sender, container.preferences.spamPrefixes)
-                val notifyEnabled = container.preferences.incomingSmsNotifyEnabled && !isSpam
                 val customer = runCatching { container.customerRepository.findByPhone(sender) }.getOrNull()
                 val categoryLabel = customer?.categoryId?.let { cid ->
                     runCatching { container.categoryRepository.findById(cid)?.name }.getOrNull()
                 }
 
-                // 1) 알림 '수신 즉시' 헤드업. (2026-06-15 사장님)
+                // 상담함/문자함 1차 분류 (2026-07-11 사장님). GENERAL=고객 아님(문자함) → 조용한 알림 + AI 준비 스킵.
+                //   저장 고객이면 무조건 상담함. 애매하면 상담함(=UNSURE). 대표번호/광고 등 확실한 비고객만 GENERAL.
+                val verdict = runCatching {
+                    container.threadBucketRepository.classifyLocal(
+                        phone = sender,
+                        body = combinedBody,
+                        isSavedCustomer = customer != null,
+                        hasOwnerReply = false
+                    )
+                }.getOrDefault(com.detailline.callfollowcrm.domain.inbox.InboxClassifier.Verdict.UNSURE)
+                val isGeneral = verdict == com.detailline.callfollowcrm.domain.inbox.InboxClassifier.Verdict.GENERAL
+
+                val notifyEnabled = container.preferences.incomingSmsNotifyEnabled && !isSpam
+
+                // 1) 알림 — 상담함은 수신 즉시 헤드업, 문자함(고객 아님)은 조용히(알림함+배지만). (2026-06-15 / 2026-07-11 사장님)
                 if (notifyEnabled) {
                     runCatching {
-                        NotificationHelper.showIncomingSms(
-                            context = appCtx,
-                            phone = sender,
-                            displayName = customer?.name,
-                            body = combinedBody,
-                            receivedAtMs = receivedAtMs,
-                            categoryLabel = categoryLabel,
-                            isNewCustomer = customer == null
-                        )
+                        if (isGeneral) {
+                            NotificationHelper.showGeneralSms(
+                                context = appCtx,
+                                phone = sender,
+                                displayName = customer?.name,
+                                body = combinedBody,
+                                receivedAtMs = receivedAtMs
+                            )
+                        } else {
+                            NotificationHelper.showIncomingSms(
+                                context = appCtx,
+                                phone = sender,
+                                displayName = customer?.name,
+                                body = combinedBody,
+                                receivedAtMs = receivedAtMs,
+                                categoryLabel = categoryLabel,
+                                isNewCustomer = customer == null
+                            )
+                        }
                     }
                 }
                 // 브로드캐스트 종료 — 무거운 prepare 는 이 scope(Application 수명) 에서 계속. pending 은 여기서 놓아줌.
                 finishOnce()
-                if (isSpam) return@launch
+                // 스팸이거나 문자함(고객 아님)이면 AI 답변 준비·프리페치 스킵(서버비 절감). (2026-07-11 사장님)
+                if (isSpam || isGeneral) return@launch
 
                 // 2) 무거운 작업 (히스토리·톤·prepare·prefetch) — broadcast 종료 후 계속.
                 val canReadSms = container.smsRepository.hasReadPermission()

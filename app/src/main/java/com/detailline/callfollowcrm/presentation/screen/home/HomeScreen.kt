@@ -196,6 +196,10 @@ fun HomeScreen(
     // 광고 자동감지 — "이건 광고 아냐" 예외 목록 + 광고함 펼침 상태. (2026-07-08 사장님)
     val adAllowlist by viewModel.adAllowlist.collectAsState()
     var adBoxExpanded by rememberSaveable { mutableStateOf(false) }
+    // 상담함/문자함 전환 (2026-07-11 사장님) — 0=상담함, 1=문자함(고객 아님).
+    val generalThreads by viewModel.generalThreads.collectAsState()
+    val generalUnread by viewModel.generalUnreadCount.collectAsState()
+    var inboxTab by rememberSaveable { mutableStateOf(0) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val aiCardSummaries by viewModel.cardSummariesByPhoneSuffix.collectAsState()
     // 카톡식 읽음 추적 (2026-06-08) — "최근 대화" 파란 점 계산. 채팅 열면 갱신 → 점 사라짐.
@@ -323,7 +327,7 @@ fun HomeScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("상담함", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.6).sp)
+                    Text(if (inboxTab == 0) "상담함" else "문자함", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.6).sp)
                     Text(todayLabel, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
                 }
                 AiBadge(
@@ -416,6 +420,26 @@ fun HomeScreen(
                             .padding(horizontal = 14.dp, vertical = 6.dp)
                     ) { Text("받기", color = TossBlue, fontWeight = FontWeight.ExtraBold, fontSize = 12.5.sp) }
                 }
+            }
+
+            // 상담함 | 문자함 폴더 탭 (크롬 탭식 전환) — 2026-07-11 사장님.
+            InboxFolderTabs(selected = inboxTab, onSelect = { inboxTab = it }, generalBadge = generalUnread)
+            if (inboxTab == 1) {
+                // 문자함(고객 아님) — 삼성 기본 메시지식 단순 목록. 아래 상담함 본문은 건너뛴다.
+                MessageBoxSection(
+                    threads = generalThreads,
+                    onOpen = { phone -> onOpenChat(phone, null) },
+                    onMoveToConsult = { phone ->
+                        viewModel.moveToConsult(phone)
+                        scope.launch { snackbarHostState.showSnackbar("상담함으로 옮겼어요") }
+                    },
+                    onMoveToSpam = { phone, name ->
+                        viewModel.markSpam(phone, name)
+                        scope.launch { snackbarHostState.showSnackbar("스팸으로 옮겼어요") }
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+                return@Column
             }
 
             // 2026-05-28 사장님 통점 fix: 앱 첫 진입 시 SMS 풀스캔 (10000건) 가 수 초 걸려
@@ -1141,29 +1165,8 @@ fun HomeScreen(
                     }
                 }
 
-                // 📁 광고함 — 자동으로 걸러낸 광고. 기본 접힘. 탭 펼침 → 확인·"광고 아님" 되살리기. (2026-07-08 사장님)
-                if (ads.isNotEmpty()) {
-                    item(key = "ad-box-head") {
-                        AdBoxHeader(count = ads.size, expanded = adBoxExpanded, onToggle = { adBoxExpanded = !adBoxExpanded })
-                    }
-                    if (adBoxExpanded) {
-                        item(key = "ad-box-card") {
-                            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White)) {
-                                ads.forEachIndexed { i, adItem ->
-                                    if (i > 0) Box(Modifier.fillMaxWidth().padding(start = 16.dp).height(1.dp).background(TossDivider))
-                                    AdRow(
-                                        item = adItem,
-                                        onOpenChat = { onOpenChat(adItem.record.phoneNumber, adItem.customer?.id) },
-                                        onNotAd = {
-                                            viewModel.markNotAd(adItem.record.phoneNumber)
-                                            scope.launch { snackbarHostState.showSnackbar("상담함으로 되살렸어요 — 이 번호는 앞으로 광고로 안 걸러요") }
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
+                // 📁 광고함 제거 (2026-07-11 사장님) — 걸러낸 광고는 이제 '문자함' 탭에 '광고' 딱지로 표시.
+                //   상담함에서 광고를 빼는 렌더 필터(ads/adSuffixes)는 유지 → 상담함은 계속 깨끗.
 
                 item(key = "fab-spacer") { Spacer(Modifier.height(16.dp)) } // 리스트 끝 여백(FAB 없음 → 80→16, 하단 흰 공백 제거. 2026-07-01 사장님)
             }
