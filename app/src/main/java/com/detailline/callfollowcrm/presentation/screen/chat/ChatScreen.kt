@@ -316,7 +316,13 @@ fun ChatScreen(
     //   (전엔 composer 채우기만 해도 기록돼 안 보낸 사람이 견적회신에 떴음. 2026-06-06 fix).
     var estimateBody by remember { mutableStateOf<String?>(null) }
     // 사진 첨부 — Photo Picker 로 선택된 URI 들. 발송 시 갤럭시 메시지로 본문+사진 같이 전달.
-    var attachedPhotos by remember { mutableStateOf<List<android.net.Uri>>(emptyList()) }
+    //   통화 후 템플릿이 사진을 넣어뒀으면 진입 시 미리 붙임(1회 소비). (2026-07-12 사장님)
+    var attachedPhotos by remember {
+        mutableStateOf<List<android.net.Uri>>(
+            viewModel.loadPhotoDraft()?.let { runCatching { listOf(android.net.Uri.parse(it)) }.getOrDefault(emptyList()) }
+                ?: emptyList()
+        )
+    }
     // 카톡식 자체 사진 피커(아래서 올라오는 바텀시트) 표시 여부. 2026-06-11 사장님 요청.
     var showPhotoPicker by remember { mutableStateOf(false) }
     // AI 제안 박스의 [버튼] 액션 — null 이면 다이얼로그 안 떠 있는 상태.

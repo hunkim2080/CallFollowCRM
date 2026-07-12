@@ -220,12 +220,12 @@ class CallStateReceiver : BroadcastReceiver() {
         //   자동발송 아님(버튼 탭 → 채팅에 채워짐 → 확인 발송). 부재중(MISSED)은 자동문자 담당이라 제외.
         //   조건: 토글 ON + 수신 응답(INCOMING) + 새 번호(저장 고객 아님) + 개인휴대폰(010) + 스팸앞자리 아님 + 템플릿 있음.
         if (!isMissed && prefs.postCallPickerEnabled) {
-            val templates = prefs.postCallTemplates
+            val items = prefs.postCallItems
             val isNew = runCatching { app.container.customerRepository.findByPhone(phoneNumber) }.getOrNull() == null
             val isMobile = com.detailline.callfollowcrm.domain.inbox.NonCustomerHeuristics.isPersonalMobile(phoneNumber)
             val notSpam = !com.detailline.callfollowcrm.util.SpamPrefix.isSpam(phoneNumber, prefs.spamPrefixes)
-            if (templates.isNotEmpty() && isNew && isMobile && notSpam) {
-                NotificationHelper.showPostCallTemplatePicker(context, phoneNumber, null, templates)
+            if (items.isNotEmpty() && isNew && isMobile && notSpam) {
+                NotificationHelper.showPostCallTemplatePicker(context, phoneNumber, null, items)
             }
         }
     }

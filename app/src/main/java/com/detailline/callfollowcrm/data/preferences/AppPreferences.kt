@@ -51,7 +51,24 @@ class AppPreferences(context: Context) {
     var postCallTemplate3: String
         get() = prefs.getString("postcall_tpl_3", "") ?: ""
         set(value) = prefs.edit().putString("postcall_tpl_3", value).apply()
-    /** 설정한 통화 후 템플릿(빈 것 제외). */
+    // 통화 후 템플릿별 첨부 사진 URI(선택). 빈 값 = 사진 없음. (2026-07-12 사장님)
+    var postCallPhoto1: String
+        get() = prefs.getString("postcall_photo_1", "") ?: ""
+        set(value) = prefs.edit().putString("postcall_photo_1", value).apply()
+    var postCallPhoto2: String
+        get() = prefs.getString("postcall_photo_2", "") ?: ""
+        set(value) = prefs.edit().putString("postcall_photo_2", value).apply()
+    var postCallPhoto3: String
+        get() = prefs.getString("postcall_photo_3", "") ?: ""
+        set(value) = prefs.edit().putString("postcall_photo_3", value).apply()
+    /** 설정한 통화 후 템플릿(텍스트,사진URI?) — 텍스트나 사진 하나라도 있으면 포함. (2026-07-12 사장님) */
+    val postCallItems: List<Pair<String, String?>>
+        get() = listOf(
+            postCallTemplate1 to postCallPhoto1.ifBlank { null },
+            postCallTemplate2 to postCallPhoto2.ifBlank { null },
+            postCallTemplate3 to postCallPhoto3.ifBlank { null }
+        ).filter { it.first.isNotBlank() || it.second != null }
+    /** 설정한 통화 후 템플릿(빈 것 제외) — 텍스트만. */
     val postCallTemplates: List<String>
         get() = listOf(postCallTemplate1, postCallTemplate2, postCallTemplate3).filter { it.isNotBlank() }
 

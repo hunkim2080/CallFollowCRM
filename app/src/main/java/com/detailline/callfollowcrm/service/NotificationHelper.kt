@@ -934,9 +934,9 @@ object NotificationHelper {
         context: Context,
         phone: String,
         displayName: String?,
-        templates: List<String>
+        items: List<Pair<String, String?>>   // (본문, 사진 URI?) — 사진만 있는 템플릿도 허용
     ) {
-        if (templates.isEmpty()) return
+        if (items.isEmpty()) return
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
         val who = displayName?.takeIf { it.isNotBlank() } ?: formatPhone(phone)
         val nid = POSTCALL_ID_BASE + (phone.hashCode() and 0xFFFF)
@@ -948,20 +948,22 @@ object NotificationHelper {
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
-        templates.take(3).forEachIndexed { i, tpl ->
+        items.take(3).forEachIndexed { i, (tpl, photo) ->
             val openIntent = Intent(context, MainActivity::class.java).apply {
                 action = MainActivity.ACTION_CHAT
                 putExtra(MainActivity.EXTRA_PHONE_NUMBER, phone)
-                putExtra(MainActivity.EXTRA_PREFILL_BODY, tpl)
+                if (tpl.isNotBlank()) putExtra(MainActivity.EXTRA_PREFILL_BODY, tpl)
+                if (!photo.isNullOrBlank()) putExtra(MainActivity.EXTRA_PREFILL_PHOTO, photo)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
             val pending = PendingIntent.getActivity(
                 context, nid + i + 1, openIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            // 버튼 라벨 = "1: {미리보기}" (한 줄, 12자 컷). 어떤 문구인지 바로 알아보게.
-            val preview = tpl.replace("\n", " ").trim().take(12)
-            builder.addAction(R.drawable.ic_notification, "${i + 1}. $preview", pending)
+            // 버튼 라벨 = "1. {미리보기}" (+📷 사진 있으면). 어떤 문구인지 바로 알아보게.
+            val preview = tpl.replace("\n", " ").trim().take(12).ifBlank { "사진" }
+            val label = "${i + 1}. " + (if (!photo.isNullOrBlank()) "📷 " else "") + preview
+            builder.addAction(R.drawable.ic_notification, label, pending)
         }
         // 본체 탭 = 그냥 채팅 열기(템플릿 없이).
         val plainOpen = Intent(context, MainActivity::class.java).apply {

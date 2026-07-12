@@ -131,9 +131,11 @@ class MainActivity : ComponentActivity() {
                 val customerId = intent.getLongExtra(EXTRA_CUSTOMER_ID, -1L).takeIf { it > 0 }
                 // 통화 후 템플릿 선택 등 — 본문 prefill(빈 draft 일 때만). 채팅 열리며 입력창에 채워짐, 확인 후 발송. (2026-07-12 사장님)
                 val prefill = intent.getStringExtra(EXTRA_PREFILL_BODY)?.takeIf { it.isNotBlank() }
-                if (prefill != null && phone.isNotBlank()) {
+                val prefillPhoto = intent.getStringExtra(EXTRA_PREFILL_PHOTO)?.takeIf { it.isNotBlank() }
+                if (phone.isNotBlank() && (prefill != null || prefillPhoto != null)) {
                     val container = (application as CallFollowCrmApplication).container
-                    if (container.chatDraftStore.get(phone).isEmpty()) container.chatDraftStore.set(phone, prefill)
+                    if (prefill != null && container.chatDraftStore.get(phone).isEmpty()) container.chatDraftStore.set(phone, prefill)
+                    if (prefillPhoto != null) container.chatDraftStore.setPhoto(phone, prefillPhoto)
                 }
                 pendingIntentState.value = IncomingIntent.Chat(phone, customerId)
             }
@@ -285,6 +287,8 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_TEMPLATE_ID = "extra_template_id"
         /** 채팅 열면서 입력창에 미리 채울 본문(통화 후 템플릿 선택 등). (2026-07-12) */
         const val EXTRA_PREFILL_BODY = "extra_prefill_body"
+        /** 채팅 열면서 미리 첨부할 사진 URI(통화 후 템플릿 사진). (2026-07-12) */
+        const val EXTRA_PREFILL_PHOTO = "extra_prefill_photo"
         const val EXTRA_CUSTOMER_ID = "extra_customer_id"
         const val EXTRA_DISPLAY_NAME = "extra_display_name"
     }

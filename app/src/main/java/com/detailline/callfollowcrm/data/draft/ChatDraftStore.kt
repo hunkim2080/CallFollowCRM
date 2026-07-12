@@ -16,6 +16,8 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class ChatDraftStore {
     private val drafts = ConcurrentHashMap<String, String>()
+    // phone → 미리 붙일 사진 URI (통화 후 템플릿 사진 등). 채팅 진입 시 1회 소비. (2026-07-12 사장님)
+    private val photoDrafts = ConcurrentHashMap<String, String>()
 
     fun get(phone: String): String = drafts[phone].orEmpty()
 
@@ -29,5 +31,15 @@ class ChatDraftStore {
 
     fun clear(phone: String) {
         drafts.remove(phone)
+    }
+
+    fun getPhoto(phone: String): String? = photoDrafts[phone]
+
+    fun setPhoto(phone: String, uri: String?) {
+        if (uri.isNullOrBlank()) photoDrafts.remove(phone) else photoDrafts[phone] = uri
+    }
+
+    fun clearPhoto(phone: String) {
+        photoDrafts.remove(phone)
     }
 }

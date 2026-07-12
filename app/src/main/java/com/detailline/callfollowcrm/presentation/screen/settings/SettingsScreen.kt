@@ -599,10 +599,39 @@ private fun formatThousands(n: Int): String = formatThousands(n.toLong())
  */
 @Composable
 private fun PostCallTemplateCard(prefs: com.detailline.callfollowcrm.data.preferences.AppPreferences) {
+    val context = LocalContext.current
     var enabled by remember { mutableStateOf(prefs.postCallPickerEnabled) }
     var t1 by remember { mutableStateOf(prefs.postCallTemplate1) }
     var t2 by remember { mutableStateOf(prefs.postCallTemplate2) }
     var t3 by remember { mutableStateOf(prefs.postCallTemplate3) }
+    var p1 by remember { mutableStateOf(prefs.postCallPhoto1) }
+    var p2 by remember { mutableStateOf(prefs.postCallPhoto2) }
+    var p3 by remember { mutableStateOf(prefs.postCallPhoto3) }
+    var pickIndex by remember { mutableStateOf(0) }
+    // 시스템 사진 선택기(권한 없음, Play 정책). 고른 사진은 나중에도 읽게 지속 권한 확보. (2026-07-12 사장님)
+    val photoLauncher = rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()
+    ) { uri: android.net.Uri? ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            val s = uri.toString()
+            when (pickIndex) {
+                1 -> { p1 = s; prefs.postCallPhoto1 = s }
+                2 -> { p2 = s; prefs.postCallPhoto2 = s }
+                3 -> { p3 = s; prefs.postCallPhoto3 = s }
+            }
+        }
+    }
+    fun pickPhoto(idx: Int) {
+        pickIndex = idx
+        photoLauncher.launch(
+            androidx.activity.result.PickVisualMediaRequest(
+                androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
+            )
+        )
+    }
     TossCard {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -619,20 +648,30 @@ private fun PostCallTemplateCard(prefs: com.detailline.callfollowcrm.data.prefer
             }
             if (enabled) {
                 Spacer(Modifier.height(12.dp))
-                PostCallTemplateField("템플릿 1", t1) { t1 = it; prefs.postCallTemplate1 = it }
+                PostCallTemplateField("템플릿 1", t1, { t1 = it; prefs.postCallTemplate1 = it },
+                    p1.isNotBlank(), { pickPhoto(1) }, { p1 = ""; prefs.postCallPhoto1 = "" })
+                Spacer(Modifier.height(10.dp))
+                PostCallTemplateField("템플릿 2", t2, { t2 = it; prefs.postCallTemplate2 = it },
+                    p2.isNotBlank(), { pickPhoto(2) }, { p2 = ""; prefs.postCallPhoto2 = "" })
+                Spacer(Modifier.height(10.dp))
+                PostCallTemplateField("템플릿 3", t3, { t3 = it; prefs.postCallTemplate3 = it },
+                    p3.isNotBlank(), { pickPhoto(3) }, { p3 = ""; prefs.postCallPhoto3 = "" })
                 Spacer(Modifier.height(8.dp))
-                PostCallTemplateField("템플릿 2", t2) { t2 = it; prefs.postCallTemplate2 = it }
-                Spacer(Modifier.height(8.dp))
-                PostCallTemplateField("템플릿 3", t3) { t3 = it; prefs.postCallTemplate3 = it }
-                Spacer(Modifier.height(8.dp))
-                Text("비워둔 칸은 알림에 버튼으로 안 나와요.", fontSize = 11.sp, color = TossTextTertiary)
+                Text("비워둔 칸은 알림에 버튼으로 안 나와요. 사진만 넣어도 보낼 수 있어요.", fontSize = 11.sp, color = TossTextTertiary)
             }
         }
     }
 }
 
 @Composable
-private fun PostCallTemplateField(label: String, value: String, onChange: (String) -> Unit) {
+private fun PostCallTemplateField(
+    label: String,
+    value: String,
+    onChange: (String) -> Unit,
+    hasPhoto: Boolean,
+    onPickPhoto: () -> Unit,
+    onClearPhoto: () -> Unit
+) {
     androidx.compose.material3.OutlinedTextField(
         value = value,
         onValueChange = onChange,
@@ -644,6 +683,18 @@ private fun PostCallTemplateField(label: String, value: String, onChange: (Strin
         textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp),
         shape = RoundedCornerShape(12.dp)
     )
+    Spacer(Modifier.height(4.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        if (hasPhoto) {
+            Text("📷 사진 첨부됨", fontSize = 12.sp, color = TossBlue, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(10.dp))
+            Text("지우기", fontSize = 12.sp, color = TossTextTertiary, fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable { onClearPhoto() }.padding(2.dp))
+        } else {
+            Text("📷 사진 첨부하기", fontSize = 12.sp, color = TossBlue, fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable { onPickPhoto() }.padding(2.dp))
+        }
+    }
 }
 
 @Composable
