@@ -9,8 +9,13 @@ import android.os.Looper
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,8 +32,10 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -71,7 +78,7 @@ import kotlinx.coroutines.launch
 object PostCallTemplateOverlay {
 
     private const val TAG = "PostCallOverlay"
-    private const val SAFETY_TIMEOUT_MS = 90_000L
+    const val SAFETY_TIMEOUT_MS = 45_000L   // 자동 닫힘 — 카드 상단 카운트다운 바와 동기. (2026-07-12 사장님)
 
     private val main = Handler(Looper.getMainLooper())
     private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -136,7 +143,7 @@ object PostCallTemplateOverlay {
             setViewTreeSavedStateRegistryOwner(owner)
             setContent {
                 val st by state.collectAsState()
-                st?.let { PostCallCard(it, onPick = ::onPick, onClose = ::onClose) }
+                st?.let { PostCallCard(it, timeoutMs = SAFETY_TIMEOUT_MS, onPick = ::onPick, onClose = ::onClose) }
             }
         }
         val params = WindowManager.LayoutParams(
@@ -186,12 +193,25 @@ private val PSub = Color(0xFF4E5968)
 private val PTertiary = Color(0xFF8B95A1)
 private val PGrayBg = Color(0xFFF2F4F6)
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PostCallCard(
     state: PostCallTemplateOverlay.PickerState,
+    timeoutMs: Long,
     onPick: (Int) -> Unit,
     onClose: () -> Unit
 ) {
+    // 자동 닫힘 카운트다운 — 가로 바가 1f→0f 로 줄어듦(사장님 2026-07-12). 안전타임아웃과 동기.
+    val progress = remember { androidx.compose.animation.core.Animatable(1f) }
+    LaunchedEffect(Unit) {
+        progress.animateTo(
+            0f,
+            animationSpec = androidx.compose.animation.core.tween(
+                durationMillis = timeoutMs.toInt(),
+                easing = androidx.compose.animation.core.LinearEasing
+            )
+        )
+    }
     Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp)) {
         Column(
             Modifier
@@ -199,60 +219,102 @@ private fun PostCallCard(
                 .shadow(20.dp, RoundedCornerShape(26.dp), clip = false)
                 .clip(RoundedCornerShape(26.dp))
                 .background(Color.White)
-                .padding(22.dp)
+                .padding(20.dp)
         ) {
-            // ── 시공막내 브랜딩 헤더 (사장님 2026-07-12: 우리 서비스라고 나와야) ──
+            // ── 시공막내 브랜딩 헤더 + 닫기 ──
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFE8F1FE))
                         .padding(horizontal = 11.dp, vertical = 5.dp)
-                ) {
-                    Text("✨ 시공막내", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = PBlue)
-                }
+                ) { Text("✨ 시공막내", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = PBlue) }
                 Spacer(Modifier.weight(1f))
                 Box(
                     Modifier.size(38.dp).clip(CircleShape).background(PGrayBg).clickable { onClose() },
                     contentAlignment = Alignment.Center
                 ) { Icon(Icons.Filled.Close, "닫기", tint = PTertiary, modifier = Modifier.size(22.dp)) }
             }
+            Spacer(Modifier.height(10.dp))
+            // 카운트다운 바 (점점 줄어듦)
+            Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)).background(Color(0xFFEDF0F3))) {
+                Box(Modifier.fillMaxWidth(progress.value).height(4.dp).clip(RoundedCornerShape(2.dp)).background(PBlue))
+            }
             Spacer(Modifier.height(14.dp))
             Text(
-                "📞 ${state.title}", fontSize = 21.sp, fontWeight = FontWeight.ExtraBold,
+                "📞 ${state.title}", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold,
                 color = PInk, maxLines = 2, overflow = TextOverflow.Ellipsis
             )
-            Spacer(Modifier.height(8.dp))
-            // 바로 발송 경고 (사장님 2026-07-12: 클릭하면 바로 발송됩니다!)
-            Box(
-                Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFFFF3B0))
-                    .padding(horizontal = 12.dp, vertical = 7.dp)
-            ) {
-                Text("👆 누르면 바로 발송돼요!", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB7791F))
-            }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(14.dp))
 
-            state.templates.forEachIndexed { i, tpl ->
-                if (i > 0) Spacer(Modifier.height(10.dp))
-                val preview = tpl.text.replace("\n", " ").trim()
-                Column(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-                        .background(PGrayBg).clickable { onPick(i) }.padding(16.dp)
-                ) {
-                    Text(
-                        "${i + 1}번 문자 · 눌러서 보내기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PBlue
-                    )
-                    if (preview.isNotBlank()) {
-                        Spacer(Modifier.height(5.dp))
-                        Text(preview, fontSize = 16.sp, color = PInk, maxLines = 3, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
-                    }
-                    if (tpl.photos.isNotEmpty()) {
-                        Spacer(Modifier.height(6.dp))
-                        Text("📷 사진 ${tpl.photos.size}장 첨부", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = PSub)
+            // 옆으로 넘기는 템플릿 카드(페이저) — 한 장씩 깔끔하게. (사장님 2026-07-12)
+            val pager = rememberPagerState(pageCount = { state.templates.size })
+            HorizontalPager(
+                state = pager,
+                pageSpacing = 10.dp,
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                    end = if (state.templates.size > 1) 30.dp else 0.dp
+                )
+            ) { page ->
+                TemplatePage(page + 1, state.templates.size, state.templates[page], onSend = { onPick(page) })
+            }
+
+            if (state.templates.size > 1) {
+                Spacer(Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                    repeat(state.templates.size) { i ->
+                        Box(
+                            Modifier.padding(horizontal = 3.dp)
+                                .size(if (i == pager.currentPage) 8.dp else 6.dp)
+                                .clip(CircleShape)
+                                .background(if (i == pager.currentPage) PBlue else Color(0xFFD1D6DB))
+                        )
                     }
                 }
+                Spacer(Modifier.height(5.dp))
+                Text("← 옆으로 넘겨 다른 문자 보기", fontSize = 11.5.sp, color = PTertiary,
+                    modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             }
-            Spacer(Modifier.height(14.dp))
-            Text("시공막내가 도와드리는 서비스예요", fontSize = 12.sp, color = PTertiary,
+            Spacer(Modifier.height(12.dp))
+            Text("시공막내가 도와드리는 서비스예요", fontSize = 11.5.sp, color = PTertiary,
                 modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        }
+    }
+}
+
+@Composable
+private fun TemplatePage(index: Int, total: Int, tpl: PostCallTemplateOverlay.Tpl, onSend: () -> Unit) {
+    val preview = tpl.text.replace("\n", " ").trim()
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(PGrayBg).padding(16.dp)
+    ) {
+        Text("$index / $total", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = PBlue)
+        if (preview.isNotBlank()) {
+            Spacer(Modifier.height(7.dp))
+            Text(preview, fontSize = 15.sp, color = PInk, maxLines = 4, overflow = TextOverflow.Ellipsis,
+                fontWeight = FontWeight.Medium, lineHeight = 21.sp)
+        }
+        if (tpl.photos.isNotEmpty()) {
+            Spacer(Modifier.height(10.dp))
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                tpl.photos.forEach { uri ->
+                    coil.compose.AsyncImage(
+                        model = android.net.Uri.parse(uri),
+                        contentDescription = "보낼 사진",
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier.size(58.dp).clip(RoundedCornerShape(10.dp)).background(Color.White)
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        Box(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(PBlue)
+                .clickable { onSend() }.padding(vertical = 14.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("👆 이 문자 바로 보내기", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
         }
     }
 }
