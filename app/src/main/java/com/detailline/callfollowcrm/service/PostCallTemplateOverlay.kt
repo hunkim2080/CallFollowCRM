@@ -98,19 +98,28 @@ object PostCallTemplateOverlay {
         return true
     }
 
+    /** 템플릿 탭 = 바로 발송 (확인 없이). 사장님 2026-07-12: "복붙 말고 바로 전송". 사진 있으면 MMS, 없으면 SMS. */
     private fun onPick(index: Int) {
         val st = _state.value ?: return
         val tpl = st.templates.getOrNull(index) ?: return
         val ctx = currentView?.context?.applicationContext ?: return
-        runCatching {
-            val intent = Intent(ctx, MainActivity::class.java).apply {
-                action = MainActivity.ACTION_CHAT
-                putExtra(MainActivity.EXTRA_PHONE_NUMBER, st.phone)
-                if (tpl.text.isNotBlank()) putExtra(MainActivity.EXTRA_PREFILL_BODY, tpl.text)
-                if (tpl.photos.isNotEmpty()) putExtra(MainActivity.EXTRA_PREFILL_PHOTO, tpl.photos.joinToString("\n"))
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        val phone = st.phone
+        ioScope.launch {
+            val ok = if (tpl.photos.isEmpty()) {
+                com.detailline.callfollowcrm.util.SmsSender.sendDirect(ctx, phone, tpl.text)
+            } else {
+                val uris = tpl.photos.mapNotNull { runCatching { android.net.Uri.parse(it) }.getOrNull() }
+                val mmsOk = runCatching { com.detailline.callfollowcrm.util.SmsSender.sendMms(ctx, phone, tpl.text, uris) }.getOrDefault(false)
+                // 사진(MMS) 못 보냈고(기본 문자앱 아님 등) 글이라도 있으면 글만이라도 보냄.
+                if (!mmsOk && tpl.text.isNotBlank()) com.detailline.callfollowcrm.util.SmsSender.sendDirect(ctx, phone, tpl.text) else mmsOk
             }
-            ctx.startActivity(intent)
+            main.post {
+                android.widget.Toast.makeText(
+                    ctx,
+                    if (ok) "문자를 보냈어요 ✓" else "발송 실패 — 잠시 후 다시 시도하거나 채팅에서 보내주세요",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
         }
         main.post { actuallyHide() }
     }
@@ -192,21 +201,33 @@ private fun PostCallCard(
                 .background(Color.White)
                 .padding(22.dp)
         ) {
+            // ── 시공막내 브랜딩 헤더 (사장님 2026-07-12: 우리 서비스라고 나와야) ──
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("📞", fontSize = 26.sp)
-                Spacer(Modifier.size(12.dp))
-                Text(
-                    state.title, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold,
-                    color = PInk, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
+                Box(
+                    Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFE8F1FE))
+                        .padding(horizontal = 11.dp, vertical = 5.dp)
+                ) {
+                    Text("✨ 시공막내", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = PBlue)
+                }
+                Spacer(Modifier.weight(1f))
                 Box(
                     Modifier.size(38.dp).clip(CircleShape).background(PGrayBg).clickable { onClose() },
                     contentAlignment = Alignment.Center
                 ) { Icon(Icons.Filled.Close, "닫기", tint = PTertiary, modifier = Modifier.size(22.dp)) }
             }
-            Spacer(Modifier.height(6.dp))
-            Text("보낼 문자를 고르면 확인 후 보낼 수 있어요", fontSize = 14.sp, color = PTertiary)
+            Spacer(Modifier.height(14.dp))
+            Text(
+                "📞 ${state.title}", fontSize = 21.sp, fontWeight = FontWeight.ExtraBold,
+                color = PInk, maxLines = 2, overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(8.dp))
+            // 바로 발송 경고 (사장님 2026-07-12: 클릭하면 바로 발송됩니다!)
+            Box(
+                Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFFFF3B0))
+                    .padding(horizontal = 12.dp, vertical = 7.dp)
+            ) {
+                Text("👆 누르면 바로 발송돼요!", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB7791F))
+            }
             Spacer(Modifier.height(16.dp))
 
             state.templates.forEachIndexed { i, tpl ->
@@ -217,7 +238,7 @@ private fun PostCallCard(
                         .background(PGrayBg).clickable { onPick(i) }.padding(16.dp)
                 ) {
                     Text(
-                        "${i + 1}번 문자", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PBlue
+                        "${i + 1}번 문자 · 눌러서 보내기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PBlue
                     )
                     if (preview.isNotBlank()) {
                         Spacer(Modifier.height(5.dp))
@@ -229,7 +250,9 @@ private fun PostCallCard(
                     }
                 }
             }
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(14.dp))
+            Text("시공막내가 도와드리는 서비스예요", fontSize = 12.sp, color = PTertiary,
+                modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         }
     }
 }
