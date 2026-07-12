@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver.PendingResult
 import android.content.Context
 import android.content.Intent
 import android.telephony.TelephonyManager
+import android.util.Log
 import com.detailline.callfollowcrm.CallFollowCrmApplication
 import com.detailline.callfollowcrm.domain.model.CallType
 import com.detailline.callfollowcrm.util.CallLogHelper
@@ -119,6 +120,7 @@ class CallStateReceiver : BroadcastReceiver() {
                         //   첫 부재중/미응대만 자동문자 경로, 재통화는 조용한 알림.
                         val answered = (recent?.type == CallType.INCOMING || recent?.type == CallType.OUTGOING) &&
                             (recent?.duration ?: 0L) >= 5L
+                        Log.i("PostCall", "call end phone=$phone type=${recent?.type} dur=${recent?.duration} answered=$answered")
                         if (!answered) {
                             val callCount = app.container.callRecordRepository.countByPhone(phone!!)
                             val isMissedType = recent?.type == CallType.MISSED
@@ -232,15 +234,26 @@ class CallStateReceiver : BroadcastReceiver() {
         callType: CallType
     ) {
         val prefs = app.container.preferences
-        if (!prefs.postCallPickerEnabled) return
-        if (callType != CallType.INCOMING && callType != CallType.OUTGOING) return
+        if (!prefs.postCallPickerEnabled) { Log.i("PostCall", "skip: 토글 OFF"); return }
+        if (callType != CallType.INCOMING && callType != CallType.OUTGOING) { Log.i("PostCall", "skip: type=$callType"); return }
         val items = prefs.postCallItems
-        if (items.isEmpty()) return
-        val isNew = runCatching { app.container.customerRepository.findByPhone(phoneNumber) }.getOrNull() == null
-        if (!isNew) return
-        if (!com.detailline.callfollowcrm.domain.inbox.NonCustomerHeuristics.isPersonalMobile(phoneNumber)) return
-        if (com.detailline.callfollowcrm.util.SpamPrefix.isSpam(phoneNumber, prefs.spamPrefixes)) return
-        NotificationHelper.showPostCallTemplatePicker(context, phoneNumber, null, items)
+        if (items.isEmpty()) { Log.i("PostCall", "skip: 템플릿 0개"); return }
+        // '새 번호' = 이름 붙은 진짜 고객이 아님. 통화/부재중으로 자동 생성된 이름 없는 stub 은 여전히 새 번호로 본다.
+        //   (부재중 자동문자가 stub 을 만들어 정작 통화 땐 '이미 고객'이 되던 문제. 2026-07-12 사장님 실측)
+        val cust = runCatching { app.container.customerRepository.findByPhone(phoneNumber) }.getOrNull()
+        val isNew = cust == null || cust.name.isNullOrBlank()
+        if (!isNew) { Log.i("PostCall", "skip: 이름 붙은 고객(새 번호 아님) — ${cust?.name}"); return }
+        if (!com.detailline.callfollowcrm.domain.inbox.NonCustomerHeuristics.isPersonalMobile(phoneNumber)) { Log.i("PostCall", "skip: 개인휴대폰(010) 아님 — $phoneNumber"); return }
+        if (com.detailline.callfollowcrm.util.SpamPrefix.isSpam(phoneNumber, prefs.spamPrefixes)) { Log.i("PostCall", "skip: 스팸앞자리"); return }
+        Log.i("PostCall", "SHOW picker: $phoneNumber items=${items.size}")
+        // 큼직한 오버레이 우선(사장님 2026-07-12) — '다른 앱 위에 표시' 권한 있으면 화면 위에 크게.
+        //   권한 없으면 알림으로 폴백(작지만 뜨긴 뜸).
+        val shownAsOverlay = runCatching {
+            PostCallTemplateOverlay.show(context, phoneNumber, null, items)
+        }.getOrDefault(false)
+        if (!shownAsOverlay) {
+            NotificationHelper.showPostCallTemplatePicker(context, phoneNumber, null, items)
+        }
     }
 
     /**
