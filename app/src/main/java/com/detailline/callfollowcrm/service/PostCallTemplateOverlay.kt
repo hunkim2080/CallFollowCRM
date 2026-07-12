@@ -91,15 +91,24 @@ object PostCallTemplateOverlay {
     val state = _state.asStateFlow()
 
     data class Tpl(val text: String, val photos: List<String>)
-    data class PickerState(val phone: String, val title: String, val templates: List<Tpl>)
+    data class PickerState(val phone: String, val title: String, val templates: List<Tpl>, val preview: Boolean = false)
 
-    /** 큼직한 통화 후 템플릿 카드를 띄운다. 권한 없으면 false 반환(호출부가 알림 폴백). */
-    fun show(context: Context, phone: String, displayName: String?, items: List<Pair<String, List<String>>>): Boolean {
+    /**
+     * 큼직한 통화 후 템플릿 카드를 띄운다. 권한 없으면 false 반환(호출부가 알림 폴백).
+     * @param preview true = 미리보기(설정에서 확인용). 탭해도 실제 발송 안 하고 안내만.
+     */
+    fun show(
+        context: Context,
+        phone: String,
+        displayName: String?,
+        items: List<Pair<String, List<String>>>,
+        preview: Boolean = false
+    ): Boolean {
         val appCtx = context.applicationContext
         if (!PermissionHelper.hasOverlay(appCtx)) return false
         if (items.isEmpty()) return false
         val who = displayName?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(phone)
-        _state.value = PickerState(phone, "${who}님께 문자 보낼까요?", items.take(3).map { Tpl(it.first, it.second) })
+        _state.value = PickerState(phone, "${who}님께 문자 보낼까요?", items.take(3).map { Tpl(it.first, it.second) }, preview)
         main.post { if (currentView == null) actuallyShow(appCtx) }
         startSafety()
         return true
@@ -110,6 +119,13 @@ object PostCallTemplateOverlay {
         val st = _state.value ?: return
         val tpl = st.templates.getOrNull(index) ?: return
         val ctx = currentView?.context?.applicationContext ?: return
+        if (st.preview) {
+            main.post {
+                android.widget.Toast.makeText(ctx, "미리보기예요 — 실제 통화 땐 여기서 바로 발송돼요", android.widget.Toast.LENGTH_SHORT).show()
+                actuallyHide()
+            }
+            return
+        }
         val phone = st.phone
         ioScope.launch {
             val ok = if (tpl.photos.isEmpty()) {

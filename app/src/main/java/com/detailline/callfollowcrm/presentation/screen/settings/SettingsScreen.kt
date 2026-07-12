@@ -659,6 +659,27 @@ private fun PostCallTemplateCard(prefs: com.detailline.callfollowcrm.data.prefer
                 PostCallTemplateField("템플릿 2", t2, { t2 = it; prefs.postCallTemplate2 = it }, ph2, { addPhotos(2) }, { removePhoto(2, it) })
                 Spacer(Modifier.height(10.dp))
                 PostCallTemplateField("템플릿 3", t3, { t3 = it; prefs.postCallTemplate3 = it }, ph3, { addPhotos(3) }, { removePhoto(3, it) })
+                Spacer(Modifier.height(12.dp))
+                // 통화 없이 카드 미리보기 (사장님 2026-07-12: 매번 전화 걸어 테스트하지 않게). 미리보기는 눌러도 발송 X.
+                Box(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFE8F1FE))
+                        .clickable {
+                            val items = prefs.postCallItems
+                            if (items.isEmpty()) {
+                                android.widget.Toast.makeText(context, "먼저 템플릿을 채워주세요", android.widget.Toast.LENGTH_SHORT).show()
+                            } else {
+                                val shown = com.detailline.callfollowcrm.service.PostCallTemplateOverlay.show(
+                                    context, "01000000000", "홍길동", items, preview = true
+                                )
+                                if (!shown) android.widget.Toast.makeText(context,
+                                    "‘다른 앱 위에 표시’ 권한을 켜야 큰 카드로 미리보기가 떠요 (전화 미리보기 토글에서 켜기)",
+                                    android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        }.padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("👀 통화 후 카드 미리보기", fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+                }
                 Spacer(Modifier.height(8.dp))
                 Text("비워둔 칸은 알림에 버튼으로 안 나와요. 사진만 넣어도 보낼 수 있어요. (한 템플릿 5장까지)", fontSize = 11.sp, color = TossTextTertiary)
             }
