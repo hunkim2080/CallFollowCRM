@@ -369,6 +369,9 @@ fun SettingsScreen(
                         }
                     )
                     Spacer(Modifier.height(16.dp))
+                    // 통화 후 문자 보내기 — 새 번호와 통화 끝나면 템플릿 3개 중 골라 보내기. (2026-07-12 사장님)
+                    PostCallTemplateCard(prefs = container.preferences)
+                    Spacer(Modifier.height(16.dp))
                 }
                 // ══════════════ 기본 네비 앱 ══════════════
                 "nav" -> {
@@ -590,6 +593,59 @@ private fun formatThousands(n: Int): String = formatThousands(n.toLong())
  *   설명 (default 아닐 때): "SMS/MMS 수신을 시공막내 에서 관리합니다. 토글 켜면 시스템이 동의를 요청합니다."
  *   수동 입력 expander: "🔧 MMS 서버 수동 입력 (선택)" — 자동 추출 실패 시 안전망.
  */
+/**
+ * 통화 후 문자 보내기 — 새 번호와 통화가 끝나면 "문자 보낼까요?" 알림 + 템플릿 3개 중 선택. (2026-07-12 사장님)
+ *   자동발송 아님(고르면 채팅에 채워짐 → ▶ 확인 발송). prefs 직접 읽기/쓰기(변경 즉시 저장).
+ */
+@Composable
+private fun PostCallTemplateCard(prefs: com.detailline.callfollowcrm.data.preferences.AppPreferences) {
+    var enabled by remember { mutableStateOf(prefs.postCallPickerEnabled) }
+    var t1 by remember { mutableStateOf(prefs.postCallTemplate1) }
+    var t2 by remember { mutableStateOf(prefs.postCallTemplate2) }
+    var t3 by remember { mutableStateOf(prefs.postCallTemplate3) }
+    TossCard {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("📞 통화 후 문자 보내기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                    Spacer(Modifier.height(2.dp))
+                    Text("새 번호와 통화가 끝나면 ‘문자 보낼까요?’ 알림 → 3개 중 골라 확인 후 발송",
+                        fontSize = 12.sp, color = TossTextTertiary, lineHeight = 16.sp)
+                }
+                androidx.compose.material3.Switch(
+                    checked = enabled,
+                    onCheckedChange = { enabled = it; prefs.postCallPickerEnabled = it }
+                )
+            }
+            if (enabled) {
+                Spacer(Modifier.height(12.dp))
+                PostCallTemplateField("템플릿 1", t1) { t1 = it; prefs.postCallTemplate1 = it }
+                Spacer(Modifier.height(8.dp))
+                PostCallTemplateField("템플릿 2", t2) { t2 = it; prefs.postCallTemplate2 = it }
+                Spacer(Modifier.height(8.dp))
+                PostCallTemplateField("템플릿 3", t3) { t3 = it; prefs.postCallTemplate3 = it }
+                Spacer(Modifier.height(8.dp))
+                Text("비워둔 칸은 알림에 버튼으로 안 나와요.", fontSize = 11.sp, color = TossTextTertiary)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PostCallTemplateField(label: String, value: String, onChange: (String) -> Unit) {
+    androidx.compose.material3.OutlinedTextField(
+        value = value,
+        onValueChange = onChange,
+        label = { Text(label, fontSize = 12.sp) },
+        placeholder = { Text("예: 안녕하세요 😊 방금 통화드린 OO입니다. 저희 시공 소개 보내드려요!", fontSize = 12.sp, color = TossTextTertiary) },
+        modifier = Modifier.fillMaxWidth(),
+        minLines = 2,
+        maxLines = 5,
+        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp),
+        shape = RoundedCornerShape(12.dp)
+    )
+}
+
 @Composable
 private fun DefaultSmsAppCard(
     preferences: com.detailline.callfollowcrm.data.preferences.AppPreferences

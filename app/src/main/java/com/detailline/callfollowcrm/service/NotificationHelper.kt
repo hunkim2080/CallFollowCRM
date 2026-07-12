@@ -27,6 +27,9 @@ object NotificationHelper {
     private const val CHANNEL_INCOMING_SMS_NEW = "incoming_sms_new"
     /** 문자함(고객 아님) 새 문자 — 조용히(소리·헤드업 X) 알림함에만 + 배지. (2026-07-11 사장님) */
     private const val CHANNEL_GENERAL_SMS = "general_sms_box"
+    /** 통화 후 문자 보내기 — 새 번호 통화 끝나면 "문자 보낼까요?" + 템플릿 선택. (2026-07-12 사장님) */
+    private const val CHANNEL_POSTCALL = "postcall_picker"
+    private const val POSTCALL_ID_BASE = 9_300_000
     /** 고객이 시공접수서를 작성·제출했을 때 알림. */
     private const val CHANNEL_INTAKE = "intake_submitted_2"
     private const val INTAKE_ID_OFFSET = 8_000_000
@@ -169,6 +172,12 @@ object NotificationHelper {
                     enableVibration(false)
                     setShowBadge(true)
                 })
+            }
+            // 통화 후 문자 보내기 — 새 번호 통화 끝나면 헤드업으로 "문자 보낼까요?" + 템플릿 선택. (2026-07-12 사장님)
+            if (manager.getNotificationChannel(CHANNEL_POSTCALL) == null) {
+                manager.createNotificationChannel(NotificationChannel(
+                    CHANNEL_POSTCALL, "통화 후 문자", NotificationManager.IMPORTANCE_HIGH
+                ).apply { description = "새 번호와 통화가 끝나면 보낼 문자 템플릿을 고르라고 알려줘요" })
             }
             // 신규 문의 — 처음 연락온 고객, 별도 소리로 구분.
             if (manager.getNotificationChannel(CHANNEL_INCOMING_SMS_NEW) == null) {
@@ -915,6 +924,56 @@ object NotificationHelper {
         runCatching {
             NotificationManagerCompat.from(context).notify(smsNotificationId(phone), builder.build())
         }
+    }
+
+    /**
+     * 통화 후 문자 보내기 — 새 번호와 통화 끝나면 "○○님께 문자 보낼까요?" + 템플릿 최대 3개 버튼. (2026-07-12 사장님)
+     *   버튼 탭 = 그 템플릿을 입력창에 채운 채 채팅 열림(자동발송 X, 사장님이 ▶ 확인 발송).
+     */
+    fun showPostCallTemplatePicker(
+        context: Context,
+        phone: String,
+        displayName: String?,
+        templates: List<String>
+    ) {
+        if (templates.isEmpty()) return
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
+        val who = displayName?.takeIf { it.isNotBlank() } ?: formatPhone(phone)
+        val nid = POSTCALL_ID_BASE + (phone.hashCode() and 0xFFFF)
+        val builder = NotificationCompat.Builder(context, CHANNEL_POSTCALL)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("${who}님께 문자 보낼까요?")
+            .setContentText("보낼 문자를 고르면 확인 후 보낼 수 있어요")
+            .setColor(NOTIFICATION_BG_COLOR)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+        templates.take(3).forEachIndexed { i, tpl ->
+            val openIntent = Intent(context, MainActivity::class.java).apply {
+                action = MainActivity.ACTION_CHAT
+                putExtra(MainActivity.EXTRA_PHONE_NUMBER, phone)
+                putExtra(MainActivity.EXTRA_PREFILL_BODY, tpl)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val pending = PendingIntent.getActivity(
+                context, nid + i + 1, openIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            // 버튼 라벨 = "1: {미리보기}" (한 줄, 12자 컷). 어떤 문구인지 바로 알아보게.
+            val preview = tpl.replace("\n", " ").trim().take(12)
+            builder.addAction(R.drawable.ic_notification, "${i + 1}. $preview", pending)
+        }
+        // 본체 탭 = 그냥 채팅 열기(템플릿 없이).
+        val plainOpen = Intent(context, MainActivity::class.java).apply {
+            action = MainActivity.ACTION_CHAT
+            putExtra(MainActivity.EXTRA_PHONE_NUMBER, phone)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        builder.setContentIntent(
+            PendingIntent.getActivity(context, nid, plainOpen,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        )
+        runCatching { NotificationManagerCompat.from(context).notify(nid, builder.build()) }
     }
 
     /** "010-1234-5678" 식 포맷 — 알림 제목용 단순 포맷터. */

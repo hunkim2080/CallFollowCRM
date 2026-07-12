@@ -301,7 +301,7 @@ private fun StoryStep(onStart: () -> Unit, onPageChanged: (Int) -> Unit) {
         Spacer(Modifier.height(16.dp))
         ObCta("시작하기", onClick = onStart)
         Spacer(Modifier.height(13.dp))
-        Text("← 옆으로 넘겨보세요 · 카드 등록 없이 60일 무료", fontSize = 12.sp, color = TossTextTertiary, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+        Text("← 옆으로 넘겨보세요 · 카드 등록 없이 · 핵심 기능 평생 무료", fontSize = 12.sp, color = TossTextTertiary, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
     }
 }
 
@@ -518,7 +518,11 @@ private fun BornStep(name: String, trades: List<String>, regions: List<String>, 
             }
         }
         Spacer(Modifier.weight(1f))
-        ObCta("60일 무료로 시작하기", onClick = onStart)
+        // 프레이밍(2026-07-12 사장님): "60일 무료(카운트다운)" → freemium("무료로 시작 + 평생 무료").
+        //   Slack/Notion/Figma 등이 쓰는 방식 — 첫 화면에 기한을 앞세우면 거부감. 60일 프로체험은 프로기능 만났을 때 맥락 노출.
+        ObCta("무료로 시작하기", onClick = onStart)
+        Spacer(Modifier.height(10.dp))
+        Text("카드 등록 없이 · 핵심 기능은 평생 무료", fontSize = 12.sp, color = TossTextTertiary, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
     }
 }
 

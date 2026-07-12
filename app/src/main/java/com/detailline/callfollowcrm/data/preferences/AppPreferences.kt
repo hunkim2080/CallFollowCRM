@@ -37,6 +37,24 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean(KEY_AUTO_FIRST_REPLY, false)
         set(value) = prefs.edit().putBoolean(KEY_AUTO_FIRST_REPLY, value).apply()
 
+    // 통화 후 문자 보내기 — 새 번호와 통화 끝나면 "문자 보낼까요?" + 템플릿 3개 선택. (2026-07-12 사장님)
+    //   자동발송 아님(선택 후 채팅에서 확인 발송). 업체 소개 등 매번 보내는 문자를 한 번에.
+    var postCallPickerEnabled: Boolean
+        get() = prefs.getBoolean("postcall_picker_on", false)
+        set(value) = prefs.edit().putBoolean("postcall_picker_on", value).apply()
+    var postCallTemplate1: String
+        get() = prefs.getString("postcall_tpl_1", "") ?: ""
+        set(value) = prefs.edit().putString("postcall_tpl_1", value).apply()
+    var postCallTemplate2: String
+        get() = prefs.getString("postcall_tpl_2", "") ?: ""
+        set(value) = prefs.edit().putString("postcall_tpl_2", value).apply()
+    var postCallTemplate3: String
+        get() = prefs.getString("postcall_tpl_3", "") ?: ""
+        set(value) = prefs.edit().putString("postcall_tpl_3", value).apply()
+    /** 설정한 통화 후 템플릿(빈 것 제외). */
+    val postCallTemplates: List<String>
+        get() = listOf(postCallTemplate1, postCallTemplate2, postCallTemplate3).filter { it.isNotBlank() }
+
     /** 수신 통화 첫 응대용 템플릿 ID. -1L = 미지정(해당 케이스 자동 발송 X). */
     var firstReplyIncomingTemplateId: Long
         get() = prefs.getLong(KEY_FIRST_REPLY_INCOMING_TPL, -1L)
