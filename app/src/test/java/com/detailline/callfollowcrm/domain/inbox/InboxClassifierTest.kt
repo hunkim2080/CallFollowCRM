@@ -50,9 +50,18 @@ class InboxClassifierTest {
         assertEquals(InboxClassifier.Verdict.UNSURE, v("줄눈 시공 문의드려요 얼마인가요?", "010-2222-3333"))
     }
 
-    @Test fun `개인폰이 포워딩한 입금알림은 애매(상담함)`() {
-        // 발신이 010 이면 서비스알림 내용이어도 고객 포워딩 가능 → 상담함.
-        assertEquals(InboxClassifier.Verdict.UNSURE, v("[Web발신] 입금 50,000원 잔액 120,000원", "01055551234"))
+    @Test fun `웹발신은 개인번호여도 무조건 문자함`() {
+        // 사장님 2026-07-12: [Web발신] = 웹 게이트웨이. 고객은 웹발신으로 안 보냄 → 무조건 문자함.
+        assertEquals(InboxClassifier.Verdict.GENERAL, v("[Web발신] 입금 50,000원 잔액 120,000원", "01055551234"))
+    }
+
+    @Test fun `웹발신 헤더는 저장고객이어도 문자함`() {
+        assertEquals(InboxClassifier.Verdict.GENERAL, v("[Web발신] 안내 말씀입니다", "01011112222", saved = true))
+    }
+
+    @Test fun `웹발신 헤더 없는 서비스알림 내용은 애매(상담함)`() {
+        // 헤더 없이 내용만 서비스알림이면 여전히 애매 — 고객 포워딩 가능.
+        assertEquals(InboxClassifier.Verdict.UNSURE, v("입금 50,000원 잔액 120,000원", "01055551234"))
     }
 
     @Test fun `지역번호(유선) 발신은 애매 - 가게 사장 고객 가능`() {

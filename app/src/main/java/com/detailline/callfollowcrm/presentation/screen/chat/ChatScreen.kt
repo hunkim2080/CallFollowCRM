@@ -266,6 +266,8 @@ fun ChatScreen(
     val polishing by viewModel.aiPolishing.collectAsState()
     val isSending by viewModel.isSending.collectAsState()
     val suggestion by viewModel.effectiveSuggestions.collectAsState()
+    // 문자함(고객 아님) 대화면 상담 기능(AI 추천·고객카드·견적·액션) 전부 숨김 — 순수 문자만. (2026-07-12 사장님)
+    val isPlainThread by viewModel.isPlainThread.collectAsState()
     val suggestionsStale by viewModel.suggestionsAreStale.collectAsState()
     val suggestionsLoading by viewModel.suggestionsLoading.collectAsState()
     val suggestionsFailed by viewModel.suggestionsFailed.collectAsState()
@@ -561,7 +563,8 @@ fun ChatScreen(
                     IconButton(onClick = { dialPhone(context, viewModel.phoneNumber) }) {
                         Icon(Icons.Default.Phone, "전화 걸기", tint = TossBlue)
                     }
-                    IconButton(onClick = {
+                    // 문자함(고객 아님)은 고객 카드 없음. (2026-07-12 사장님)
+                    if (!isPlainThread) IconButton(onClick = {
                         // Customer 없으면 upsert 후 진입 (ChatScreen 의 [ⓘ] 는 항상 진입 가능)
                         scope.launch {
                             val id = viewModel.ensureCustomerId()
@@ -605,7 +608,8 @@ fun ChatScreen(
             //   (추천 영역 failed UX 와 동일 — 옛 무한 shimmer 버그 fix, 2026-06-30)
             val summaryFailed by viewModel.summaryFailed.collectAsState()
             val summaryRefreshingTop by viewModel.isSummaryRefreshing.collectAsState()
-            if (aiSummary == null && hasEnoughForSummary) {
+            // 문자함(고객 아님)은 AI 대화요약 바도 숨김. (2026-07-12 사장님)
+            if (!isPlainThread && aiSummary == null && hasEnoughForSummary) {
                 if (summaryFailed && !summaryRefreshingTop) {
                     SummaryFailedPlaceholder(
                         onRetry = { viewModel.loadFullSummary() }
@@ -638,7 +642,8 @@ fun ChatScreen(
                 }
             }
             // 2026-05-30 #8 통점 fix: 빈 sentinel = 표시 X (114 같은 광고 메시지에서 빈 카드 방지).
-            aiSummary?.takeUnless { isEmptySentinel }?.let { s ->
+            // 문자함(고객 아님)은 요약 카드 숨김. (2026-07-12 사장님)
+            if (!isPlainThread) aiSummary?.takeUnless { isEmptySentinel }?.let { s ->
                 // 2026-05-30 사장님 #3 통점 — 시공일정 등록된 고객 = "상황 종료" → NextActionBox 표시 X.
                 //   사장님 결정: 일정 잡혔으니 다음 액션 권유 불필요.
                 // 2026-06-06 사장님 통점 — 잔금 입금까지 끝났는데 "일정 답장하기" 가 계속 뜨던 버그.
@@ -832,7 +837,8 @@ fun ChatScreen(
             // 프로토 chat-actions — 항상 보이는 고정 3칩 [견적 작성][내 일정 확인][문구 넣기].
             //   (사장님 2026-06-02 결정: 무조건 프로토 1:1 → ⚡토글/템플릿 인라인 제거)
             // 스크롤 자동 숨김 — 위로 올려 옛 메시지 보면 칩 숨고, 최신으로 내리면 다시 나옴.
-            androidx.compose.animation.AnimatedVisibility(visible = controlsVisible) {
+            // 문자함(고객 아님)은 상담용 액션칩(견적·일정·문구) 숨김 — 순수 문자만. (2026-07-12 사장님)
+            androidx.compose.animation.AnimatedVisibility(visible = controlsVisible && !isPlainThread) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -852,7 +858,8 @@ fun ChatScreen(
             //
             // 2026-05-25 자동 접힘: 사장님이 직접 타이핑 시작 (input.isNotBlank()) = 추천 안 보고 싶음
             //   → 1줄 헤더로 접힘. composer 비우면 자동 펼침. 또는 헤더 탭으로 수동 토글.
-            val showSuggestionArea = messages.firstOrNull()?.sent == false
+            // 문자함(고객 아님)은 AI 답변 추천 영역 자체를 안 띄움. (2026-07-12 사장님)
+            val showSuggestionArea = messages.firstOrNull()?.sent == false && !isPlainThread
             if (showSuggestionArea) {
                 var suggestionsExpanded by remember { mutableStateOf(true) }
                 val inputNonBlank = input.isNotBlank()
@@ -884,7 +891,8 @@ fun ChatScreen(
             }
 
             // (Phase 2) 원칙 발견 카드 — 추천과 다르게 보냈을 때 막내가 "이게 원칙이에요?" ⭕/❌/나중에. (2026-06-17 사장님)
-            principleDiscovery?.let { disc ->
+            //   문자함(고객 아님)은 학습/원칙 기능 없음. (2026-07-12 사장님)
+            if (!isPlainThread) principleDiscovery?.let { disc ->
                 PrincipleDiscoveryCard(
                     discovery = disc,
                     onAccept = { viewModel.acceptPrinciple() },
@@ -920,7 +928,8 @@ fun ChatScreen(
                     }
                 },
                 isSending = isSending,
-                onFocusChange = { focused -> composerFocused = focused }
+                onFocusChange = { focused -> composerFocused = focused },
+                showAiPolish = !isPlainThread   // 문자함(고객 아님)은 ✨ AI 다듬기 숨김. (2026-07-12 사장님)
             )
         }
     }
@@ -2926,7 +2935,8 @@ private fun Composer(
     onRemoveAttachment: (android.net.Uri) -> Unit,
     onSend: () -> Unit,
     isSending: Boolean = false,
-    onFocusChange: (Boolean) -> Unit = {}
+    onFocusChange: (Boolean) -> Unit = {},
+    showAiPolish: Boolean = true   // 문자함(고객 아님)이면 false → ✨ AI 다듬기 숨김. (2026-07-12 사장님)
 ) {
     // 프로토 .composer — 흰 바 + 상단 테두리 + padding 9/14/16.
     Column(
@@ -2998,7 +3008,8 @@ private fun Composer(
                 horizontalArrangement = Arrangement.spacedBy(9.dp)
             ) {
                 // ✨ AI 다듬기 (왼쪽) — 탭 영역 넉넉히(작아서 잘 안 눌리던 것) + 다듬는 중에도 탭(취소용). (2026-07-08 사장님)
-                Box(
+                //   문자함(고객 아님)이면 AI 기능이라 숨김. (2026-07-12 사장님)
+                if (showAiPolish) Box(
                     modifier = Modifier.size(34.dp).clip(androidx.compose.foundation.shape.CircleShape).clickable { onAiPolish() },
                     contentAlignment = Alignment.Center
                 ) {

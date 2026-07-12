@@ -25,6 +25,10 @@ object InboxClassifier {
         isSavedCustomer: Boolean,
         hasOwnerReply: Boolean
     ): Verdict {
+        // ⓪ [Web발신] = 웹 게이트웨이 채널. 개인 고객은 절대 못 붙이는 머신 헤더 → 무조건 문자함. (사장님 2026-07-12)
+        //   저장 고객보다 먼저 본다("무조건"). 그래도 사장님이 수동으로 상담함 고정(OWNER)하면 BucketPolicy 가 보호.
+        if (NonCustomerHeuristics.isWebSend(body)) return Verdict.GENERAL
+
         // ① 고객 확실 → 상담함. (강등 절대 금지 신호 — 저장고객/답장이력)
         if (isSavedCustomer || hasOwnerReply) return Verdict.CONSULT
 
@@ -38,6 +42,7 @@ object InboxClassifier {
 
     /** GENERAL 판정 근거 라벨(복구 UI·디버그용). */
     fun generalReason(body: String, address: String): String = when {
+        NonCustomerHeuristics.isWebSend(body) -> "웹발신(고객 아님)"
         NonCustomerHeuristics.isNonPersonalSender(address) -> {
             val d = address.filter { it.isDigit() }.take(4)
             if (d.isNotBlank()) "대표·서비스번호($d)" else "비개인 발신"

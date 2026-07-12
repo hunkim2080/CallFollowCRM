@@ -79,6 +79,16 @@ class ChatViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    /**
+     * 문자함(고객 아님) 대화인가 — GENERAL 분류면 true. (2026-07-12 사장님)
+     *   true 면 AI 답변 추천·고객 정보 카드 등 상담 기능을 전부 끄고 순수 문자 송수신만.
+     *   반응형 — 사장님이 ⋮로 상담함/문자함 이동하면 즉시 반영.
+     */
+    private val mySuffix = phoneNumber.filter { it.isDigit() }.let { if (it.length >= 8) it.takeLast(8) else it }
+    val isPlainThread: StateFlow<Boolean> = container.threadBucketRepository.observeBuckets()
+        .map { it[mySuffix]?.bucket == com.detailline.callfollowcrm.domain.inbox.BucketPolicy.GENERAL }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     val templates = container.messageTemplateRepository.observeActive()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList<MessageTemplateEntity>())
 
@@ -1099,6 +1109,11 @@ class ChatViewModel(
         container.journeyEventRepository.track(eventName, screen = "chat", target = target)
 
     fun loadSuggestions() = viewModelScope.launch {
+        // 문자함(고객 아님) 대화면 AI 답변 추천을 아예 안 함 — 순수 문자만. (2026-07-12 사장님)
+        if (runCatching { container.threadBucketRepository.isGeneral(phoneNumber) }.getOrDefault(false)) {
+            _suggestions.value = null
+            return@launch
+        }
         // 통화로 끝난 대화면 답할 문자가 없음 → 추천 준비 안 함(스피너 X). (2026-06-17 사장님)
         if (lastActivityIsCall.value) return@launch
         // (A 정책) 캐시가 옛 메시지 기준이면 자동으로 새 추천 생성 — 옛것은 화면에 흐리게 남고 스르륵 교체됨. (2026-06-27)
@@ -1145,6 +1160,8 @@ class ChatViewModel(
      * 미구현 시 silent — 박스 안 보임. 기존 캐시 있으면 그대로 표시.
      */
     fun loadFullSummary() = viewModelScope.launch(Dispatchers.IO) {
+        // 문자함(고객 아님)은 AI 대화요약도 안 만듦. (2026-07-12 사장님)
+        if (runCatching { container.threadBucketRepository.isGeneral(phoneNumber) }.getOrDefault(false)) return@launch
         val digits = phoneNumber.filter { it.isDigit() }
         if (digits.length < 7) return@launch
         val suffix = digits.takeLast(8)

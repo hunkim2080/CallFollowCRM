@@ -20,6 +20,13 @@ class ThreadBucketRepository(private val dao: ThreadBucketDao) {
 
     suspend fun allOnce(): List<ThreadBucketEntity> = runCatching { dao.allOnce() }.getOrDefault(emptyList())
 
+    /** 이 번호가 문자함(GENERAL)으로 분류돼 있는가 — 문자함 채팅은 AI·고객정보 다 끄기 판단용. (2026-07-12 사장님) */
+    suspend fun isGeneral(phone: String): Boolean {
+        val suffix = suffixOf(phone)
+        if (suffix.isBlank()) return false
+        return runCatching { dao.findBySuffix(suffix)?.bucket == BucketPolicy.GENERAL }.getOrDefault(false)
+    }
+
     /**
      * 수신 문자 1차 분류 적용(로컬). GENERAL 이면 문자함으로, 자동 CONSULT 승격이면 기존 GENERAL 제거.
      *   UNSURE 는 아무것도 안 함(상담함 유지). OWNER 이동은 이 함수가 절대 덮지 않는다(BucketPolicy).
