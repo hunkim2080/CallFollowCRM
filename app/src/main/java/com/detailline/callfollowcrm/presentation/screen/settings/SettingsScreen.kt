@@ -649,13 +649,13 @@ private fun PostCallTemplateCard(prefs: com.detailline.callfollowcrm.data.prefer
             if (enabled) {
                 Spacer(Modifier.height(12.dp))
                 PostCallTemplateField("템플릿 1", t1, { t1 = it; prefs.postCallTemplate1 = it },
-                    p1.isNotBlank(), { pickPhoto(1) }, { p1 = ""; prefs.postCallPhoto1 = "" })
+                    p1, { pickPhoto(1) }, { p1 = ""; prefs.postCallPhoto1 = "" })
                 Spacer(Modifier.height(10.dp))
                 PostCallTemplateField("템플릿 2", t2, { t2 = it; prefs.postCallTemplate2 = it },
-                    p2.isNotBlank(), { pickPhoto(2) }, { p2 = ""; prefs.postCallPhoto2 = "" })
+                    p2, { pickPhoto(2) }, { p2 = ""; prefs.postCallPhoto2 = "" })
                 Spacer(Modifier.height(10.dp))
                 PostCallTemplateField("템플릿 3", t3, { t3 = it; prefs.postCallTemplate3 = it },
-                    p3.isNotBlank(), { pickPhoto(3) }, { p3 = ""; prefs.postCallPhoto3 = "" })
+                    p3, { pickPhoto(3) }, { p3 = ""; prefs.postCallPhoto3 = "" })
                 Spacer(Modifier.height(8.dp))
                 Text("비워둔 칸은 알림에 버튼으로 안 나와요. 사진만 넣어도 보낼 수 있어요.", fontSize = 11.sp, color = TossTextTertiary)
             }
@@ -668,7 +668,7 @@ private fun PostCallTemplateField(
     label: String,
     value: String,
     onChange: (String) -> Unit,
-    hasPhoto: Boolean,
+    photoUri: String,
     onPickPhoto: () -> Unit,
     onClearPhoto: () -> Unit
 ) {
@@ -683,16 +683,36 @@ private fun PostCallTemplateField(
         textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp),
         shape = RoundedCornerShape(12.dp)
     )
-    Spacer(Modifier.height(4.dp))
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        if (hasPhoto) {
-            Text("📷 사진 첨부됨", fontSize = 12.sp, color = TossBlue, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.width(10.dp))
-            Text("지우기", fontSize = 12.sp, color = TossTextTertiary, fontWeight = FontWeight.Bold,
-                modifier = Modifier.clickable { onClearPhoto() }.padding(2.dp))
-        } else {
-            Text("📷 사진 첨부하기", fontSize = 12.sp, color = TossBlue, fontWeight = FontWeight.Bold,
-                modifier = Modifier.clickable { onPickPhoto() }.padding(2.dp))
+    Spacer(Modifier.height(6.dp))
+    // 첨부 사진 = 썸네일로 뭘 넣었는지 보이게 + ✕ 로 지우기. 없으면 현장사진 스타일 [+사진] 타일. (2026-07-12 사장님)
+    if (photoUri.isNotBlank()) {
+        Box(
+            Modifier.size(76.dp).clip(RoundedCornerShape(10.dp)).background(TossGrayBg)
+        ) {
+            coil.compose.AsyncImage(
+                model = android.net.Uri.parse(photoUri),
+                contentDescription = "첨부한 사진",
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            Box(
+                Modifier.align(Alignment.TopEnd).padding(3.dp).size(22.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(Color.Black.copy(alpha = 0.5f)).clickable { onClearPhoto() },
+                contentAlignment = Alignment.Center
+            ) { Text("✕", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+        }
+    } else {
+        Box(
+            Modifier.size(76.dp).clip(RoundedCornerShape(10.dp)).background(TossGrayBg)
+                .border(1.5.dp, Color(0xFFC8D3E2), RoundedCornerShape(10.dp))
+                .clickable { onPickPhoto() },
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("＋", fontSize = 20.sp, color = TossBlue, fontWeight = FontWeight.Bold)
+                Text("사진", fontSize = 11.sp, color = TossBlue, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
