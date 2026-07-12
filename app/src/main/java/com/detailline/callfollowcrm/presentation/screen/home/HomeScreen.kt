@@ -423,24 +423,9 @@ fun HomeScreen(
             }
 
             // 상담함 | 문자함 폴더 탭 (크롬 탭식 전환) — 2026-07-11 사장님.
+            //   ⚠️ 본문 전환은 아래 Box(nestedScroll)를 if/else 로 감싼다. Composable 안에서 early return@Column 하면
+            //      슬롯테이블 group 이 어긋나 recompose 시 크래시(Stack.pop AIOOBE) — 반드시 if/else 로. (2026-07-12)
             InboxFolderTabs(selected = inboxTab, onSelect = { inboxTab = it }, generalBadge = generalUnread)
-            if (inboxTab == 1) {
-                // 문자함(고객 아님) — 삼성 기본 메시지식 단순 목록. 아래 상담함 본문은 건너뛴다.
-                MessageBoxSection(
-                    threads = generalThreads,
-                    onOpen = { phone -> onOpenChat(phone, null) },
-                    onMoveToConsult = { phone ->
-                        viewModel.moveToConsult(phone)
-                        scope.launch { snackbarHostState.showSnackbar("상담함으로 옮겼어요") }
-                    },
-                    onMoveToSpam = { phone, name ->
-                        viewModel.markSpam(phone, name)
-                        scope.launch { snackbarHostState.showSnackbar("스팸으로 옮겼어요") }
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-                return@Column
-            }
 
             // 2026-05-28 사장님 통점 fix: 앱 첫 진입 시 SMS 풀스캔 (10000건) 가 수 초 걸려
             //   "처음엔 옛 통화만, 잠시 후 SMS 카드 스르륵 추가" 깜빡임 인지.
@@ -683,6 +668,8 @@ fun HomeScreen(
             //   .fillMaxSize() 는 Column 의 chip row 영역까지 침범 → PullToRefreshContainer 의
             //   TopCenter indicator 가 chip row 와 겹쳐 회색 원처럼 보임 (디자인 깨짐).
             //   .weight(1f) + .fillMaxWidth() = Column 의 남은 공간만 차지 → indicator 가 KPI 위에 정상.
+            // 상담함이면 아래 Box(리스트+다이얼로그), 문자함이면 MessageBoxSection. if/else 로 group 균형 유지. (2026-07-12)
+            if (inboxTab == 0) {
             androidx.compose.foundation.layout.Box(
                 modifier = Modifier
                     .weight(1f)
@@ -1389,6 +1376,22 @@ fun HomeScreen(
                 )
             }
             } // end Box(nestedScroll)
+            } else {
+                // 문자함(고객 아님) — 삼성 기본 메시지식 단순 목록.
+                MessageBoxSection(
+                    threads = generalThreads,
+                    onOpen = { phone -> onOpenChat(phone, null) },
+                    onMoveToConsult = { phone ->
+                        viewModel.moveToConsult(phone)
+                        scope.launch { snackbarHostState.showSnackbar("상담함으로 옮겼어요") }
+                    },
+                    onMoveToSpam = { phone, name ->
+                        viewModel.markSpam(phone, name)
+                        scope.launch { snackbarHostState.showSnackbar("스팸으로 옮겼어요") }
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
 }
