@@ -824,11 +824,10 @@ fun ChatScreen(
                                         // 견적서 = 직인 문서 그대로 다시 보기(재공유 가능). 편집기로 안 돌아가는 별도 리뷰 상태.
                                         quoteDocDataFromIssuedJson(ti.doc.docJson)?.let { reviewIssuedDoc = it }
                                     } else {
-                                        // 접수서 = 서버 링크(고객이 작성한 실제 폼) 열기. 없으면 견적 요약 문서로.
+                                        // 접수서 = 서버 링크(고객이 작성한 실제 폼) 열기 — 앱 내 웹뷰(브라우저 없어도 열림). 없으면 견적 요약 문서로. (2026-07-13 사장님: 크롬 의존 제거)
                                         val url = ti.doc.url?.takeIf { it.isNotBlank() }
-                                        if (url != null) runCatching {
-                                            context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
-                                        } else quoteDocDataFromIssuedJson(ti.doc.docJson)?.let { reviewIssuedDoc = it }
+                                        if (url != null) com.detailline.callfollowcrm.presentation.screen.web.DocWebViewActivity.open(context, url, "시공접수서")
+                                        else quoteDocDataFromIssuedJson(ti.doc.docJson)?.let { reviewIssuedDoc = it }
                                     }
                                 },
                                 // 이미 보낸 접수서 수정하기 — intake 만. (2026-07-10 사장님)
@@ -4159,7 +4158,7 @@ private fun EstimateBuilderDialog(
             }
             Spacer(Modifier.height(6.dp))
             // 가격을 그 자리에서 고칠 수 있다는 힌트 한 줄 — 줄마다 ✏️ 빼고 여기로만 안내. (2026-06-25 사장님)
-            Text("💡 가격을 탭하면 바로 고칠 수 있어요",
+            Text("💡 이름·가격을 꾹 누르면 고칠 수 있어요",
                 fontSize = 11.5.sp, color = TossTextTertiary,
                 modifier = Modifier.padding(start = 2.dp, bottom = 4.dp))
             // 항목 리스트 (프로토 est-row + 평당 est-area)
@@ -4391,6 +4390,8 @@ private fun EstimateItemRow(
                             onValueChange = { draftT = it },
                             placeholder = "항목 이름",
                             keyboardType = androidx.compose.ui.text.input.KeyboardType.Text,
+                            imeAction = androidx.compose.ui.text.input.ImeAction.Done,
+                            onImeAction = { onEditTitle(draftT.text); editingTitle = false; keyboard?.hide() },
                             modifier = Modifier.focusRequester(titleFocus).onFocusChanged { st ->
                                 if (st.isFocused) wasFocusedT = true
                                 else if (wasFocusedT) { onEditTitle(draftT.text); editingTitle = false }
@@ -4402,9 +4403,11 @@ private fun EstimateItemRow(
                             onEditTitle(draftT.text); editingTitle = false; keyboard?.hide()
                         }.padding(horizontal = 7.dp, vertical = 4.dp))
                 } else {
-                    // 탭 = 이름 그 자리에서 수정(가격과 동일). 선택은 왼쪽 체크박스로.
+                    // 꾹(롱프레스) = 이름 그 자리에서 수정. 그냥 탭은 무시 — 스크롤 중 실수 편집 방지. 선택은 왼쪽 체크박스로. (2026-07-13 사장님)
                     Text(title, color = TossTextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).clickable { editingTitle = true }.padding(vertical = 2.dp))
+                        modifier = Modifier.weight(1f).clip(RoundedCornerShape(8.dp))
+                            .combinedClickable(onClick = {}, onLongClick = { editingTitle = true })
+                            .padding(vertical = 2.dp))
                 }
             }
             if (editingPrice) {
@@ -4443,6 +4446,8 @@ private fun EstimateItemRow(
                         },
                         placeholder = "만원",
                         keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                        imeAction = androidx.compose.ui.text.input.ImeAction.Done,
+                        onImeAction = { editingPrice = false; keyboard?.hide() },
                         modifier = Modifier.focusRequester(priceFocus).onFocusChanged { st ->
                             // 다른 곳을 누르면 편집칸 닫힘(값은 이미 반영됨). 진입 직후 0프레임 isFocused=false 로 닫히지 않게 가드.
                             if (st.isFocused) wasFocused = true
@@ -4460,11 +4465,12 @@ private fun EstimateItemRow(
                     }.padding(horizontal = 7.dp, vertical = 4.dp)
                 )
             } else {
-                // 탭 = 그 자리에서 가격 수정. 연필 아이콘 없이 가격만 — 안내는 상단 힌트 한 줄로. (2026-06-25 사장님: 조잡함 제거)
+                // 꾹(롱프레스) = 그 자리에서 가격 수정. 그냥 탭은 무시 — 스크롤 중 실수 편집 방지. (2026-07-13 사장님)
                 Text(
                     if (isPyeong) "${formatWon(price)}/평" else formatWon(price),
                     color = TossTextSecondary, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { editingPrice = true }
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp))
+                        .combinedClickable(onClick = {}, onLongClick = { editingPrice = true })
                         .padding(horizontal = 6.dp, vertical = 4.dp)
                 )
             }

@@ -253,7 +253,10 @@ fun SheetTextField(
     placeholder: String,
     modifier: Modifier = Modifier,
     keyboardType: KeyboardType = KeyboardType.Text,
-    singleLine: Boolean = true
+    singleLine: Boolean = true,
+    // 키보드 '완료' 키 처리 — 누르면 편집칸 닫힘/저장. 지정 시 IME 액션을 Done 으로 요청. (2026-07-13 사장님)
+    imeAction: androidx.compose.ui.text.input.ImeAction = androidx.compose.ui.text.input.ImeAction.Default,
+    onImeAction: (() -> Unit)? = null
 ) {
     BasicTextField(
         value = value,
@@ -261,7 +264,10 @@ fun SheetTextField(
         textStyle = TextStyle(fontSize = 15.sp, color = TossTextPrimary),
         cursorBrush = SolidColor(TossBlue),
         singleLine = singleLine,
-        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = imeAction),
+        keyboardActions = if (onImeAction != null)
+            androidx.compose.foundation.text.KeyboardActions(onDone = { onImeAction() })
+        else androidx.compose.foundation.text.KeyboardActions.Default,
         modifier = modifier.sheetInputBox(0),
         decorationBox = { inner ->
             if (value.text.isEmpty()) Text(placeholder, color = TossTextTertiary, fontSize = 15.sp)

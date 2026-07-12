@@ -1276,11 +1276,8 @@ fun CustomerDetailScreen(
                 intakeReviewDoc = null
             },
             onOpenLink = { url ->
-                runCatching {
-                    context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
-                }.onFailure {
-                    android.widget.Toast.makeText(context, "링크를 열지 못했어요", android.widget.Toast.LENGTH_SHORT).show()
-                }
+                // 앱 내 웹뷰로 열기 — 브라우저 없어도 항상 열림. (2026-07-13 사장님: 크롬 의존 제거)
+                com.detailline.callfollowcrm.presentation.screen.web.DocWebViewActivity.open(context, url, "시공접수서")
                 intakeReviewDoc = null
             },
             onDismiss = { intakeReviewDoc = null }
