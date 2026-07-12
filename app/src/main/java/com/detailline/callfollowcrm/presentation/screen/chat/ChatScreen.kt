@@ -162,9 +162,13 @@ fun ChatScreen(
     onBack: () -> Unit,
     onOpenCustomerDetail: (Long) -> Unit,
     /** >0 이면 그 발행 이력(접수서)을 "수정하기"로 EstSheet 재오픈. 고객상세 발행이력 수정에서 넘어옴. (2026-07-10 사장님) */
-    editIssuedId: Long = -1L
+    editIssuedId: Long = -1L,
+    /** 통화녹음 미연결 시 통화카드 "연결 설정하러 가기" → 설정(자동 문자/녹음) 열기. (2026-07-12 사장님) */
+    onOpenRecordingSettings: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    // 통화녹음 폴더/자동찾기 연결 여부 — 미연결이면 통화카드가 '요약하기' 대신 '연결하기' 안내. (2026-07-12 사장님)
+    val recordingConnected = remember { com.detailline.callfollowcrm.recording.AdotFolderScanner.isConnected(context) }
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
     val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
@@ -319,8 +323,7 @@ fun ChatScreen(
     //   통화 후 템플릿이 사진을 넣어뒀으면 진입 시 미리 붙임(1회 소비). (2026-07-12 사장님)
     var attachedPhotos by remember {
         mutableStateOf<List<android.net.Uri>>(
-            viewModel.loadPhotoDraft()?.let { runCatching { listOf(android.net.Uri.parse(it)) }.getOrDefault(emptyList()) }
-                ?: emptyList()
+            viewModel.loadPhotoDrafts().mapNotNull { runCatching { android.net.Uri.parse(it) }.getOrNull() }
         )
     }
     // 카톡식 자체 사진 피커(아래서 올라오는 바텀시트) 표시 여부. 2026-06-11 사장님 요청.
@@ -807,7 +810,9 @@ fun ChatScreen(
                                         setInput(if (input.isBlank()) msg else input + "\n" + msg)
                                     },
                                     onSummarizeCall = { viewModel.summarizeCall(ti.record, context) },
-                                    onEditSummary = { newText -> matched?.let { viewModel.updateCallSummary(it, newText) } }
+                                    onEditSummary = { newText -> matched?.let { viewModel.updateCallSummary(it, newText) } },
+                                    recordingConnected = recordingConnected,
+                                    onConnectRecording = onOpenRecordingSettings
                                 )
                             }
                             is ChatTimelineItem.Intake -> IntakeSegment(ti.event, onConfirm = { intakeConfirm = ti.event })
@@ -1748,7 +1753,9 @@ private fun CallSegment(
     audioDurationMs: Long? = null,
     onUseAsDraft: (String) -> Unit = {},
     onSummarizeCall: () -> Unit = {},
-    onEditSummary: (String) -> Unit = {}
+    onEditSummary: (String) -> Unit = {},
+    recordingConnected: Boolean = true,
+    onConnectRecording: () -> Unit = {}
 ) {
     // 사장님이 잘못된 통화 요약을 직접 고치는 인라인 편집 상태. (2026-06-23 사장님)
     var editing by remember(summary?.id) { mutableStateOf(false) }
@@ -1827,8 +1834,9 @@ private fun CallSegment(
                         Text("통화 내용 요약 중…", color = Color(0xFF0A7D72), fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold)
                     }
                 }
-                // 미요약 + 요약 가능한 통화 → 탭하면 연결된 녹음 폴더에서 찾아 바로 요약(에이닷 공유 불필요). (2026-06-14 사장님)
-                summarizable -> {
+                // 미요약 + 요약 가능한 통화 → 녹음 연결돼 있으면 탭하면 폴더에서 찾아 바로 요약. (2026-06-14 사장님)
+                //   녹음 미연결이면 '요약하기' 대신 '연결하기' 안내(눌러도 실패 토스트만 뜨던 혼란 제거). (2026-07-12 사장님)
+                summarizable && recordingConnected -> {
                     Box(
                         Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(10.dp))
                             .background(Color.White).border(1.dp, Color(0xFFBCE0D8), RoundedCornerShape(10.dp))
@@ -1836,6 +1844,23 @@ private fun CallSegment(
                         contentAlignment = Alignment.Center
                     ) {
                         Text("✨ 이 통화 요약하기", color = Color(0xFF0A7D72), fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold)
+                    }
+                }
+                summarizable -> {
+                    Column(
+                        Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFFF3F5F9)).padding(12.dp)
+                    ) {
+                        Text("🎙️ 통화 녹음을 연결하면 요약된 내용을 확인할 수 있어요!",
+                            color = TossTextSecondary, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, lineHeight = 18.sp)
+                        Spacer(Modifier.height(8.dp))
+                        Box(
+                            Modifier.clip(RoundedCornerShape(9.dp)).background(TossBlue)
+                                .clickable { onConnectRecording() }.padding(horizontal = 14.dp, vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("연결 설정하러 가기", color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold)
+                        }
                     }
                 }
             }

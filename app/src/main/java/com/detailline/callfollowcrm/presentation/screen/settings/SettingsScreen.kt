@@ -27,6 +27,7 @@ import com.detailline.callfollowcrm.data.local.entity.MessageTemplateEntity
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossError
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.add
@@ -604,33 +605,38 @@ private fun PostCallTemplateCard(prefs: com.detailline.callfollowcrm.data.prefer
     var t1 by remember { mutableStateOf(prefs.postCallTemplate1) }
     var t2 by remember { mutableStateOf(prefs.postCallTemplate2) }
     var t3 by remember { mutableStateOf(prefs.postCallTemplate3) }
-    var p1 by remember { mutableStateOf(prefs.postCallPhoto1) }
-    var p2 by remember { mutableStateOf(prefs.postCallPhoto2) }
-    var p3 by remember { mutableStateOf(prefs.postCallPhoto3) }
+    var ph1 by remember { mutableStateOf(prefs.postCallPhotos1) }
+    var ph2 by remember { mutableStateOf(prefs.postCallPhotos2) }
+    var ph3 by remember { mutableStateOf(prefs.postCallPhotos3) }
     var pickIndex by remember { mutableStateOf(0) }
-    // 시스템 사진 선택기(권한 없음, Play 정책). 고른 사진은 나중에도 읽게 지속 권한 확보. (2026-07-12 사장님)
+    // 시스템 사진 선택기(권한 없음, Play 정책) — 여러 장 선택(템플릿당 5장까지). 지속 권한 확보. (2026-07-12 사장님)
     val photoLauncher = rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()
-    ) { uri: android.net.Uri? ->
-        if (uri != null) {
-            runCatching {
-                context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            val s = uri.toString()
+        androidx.activity.result.contract.ActivityResultContracts.PickMultipleVisualMedia(5)
+    ) { uris: List<android.net.Uri> ->
+        if (uris.isNotEmpty()) {
+            uris.forEach { u -> runCatching { context.contentResolver.takePersistableUriPermission(u, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) } }
+            val added = uris.map { it.toString() }
             when (pickIndex) {
-                1 -> { p1 = s; prefs.postCallPhoto1 = s }
-                2 -> { p2 = s; prefs.postCallPhoto2 = s }
-                3 -> { p3 = s; prefs.postCallPhoto3 = s }
+                1 -> { val m = (ph1 + added).distinct().take(5); ph1 = m; prefs.postCallPhotos1 = m }
+                2 -> { val m = (ph2 + added).distinct().take(5); ph2 = m; prefs.postCallPhotos2 = m }
+                3 -> { val m = (ph3 + added).distinct().take(5); ph3 = m; prefs.postCallPhotos3 = m }
             }
         }
     }
-    fun pickPhoto(idx: Int) {
+    fun addPhotos(idx: Int) {
         pickIndex = idx
         photoLauncher.launch(
             androidx.activity.result.PickVisualMediaRequest(
                 androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
             )
         )
+    }
+    fun removePhoto(idx: Int, uri: String) {
+        when (idx) {
+            1 -> { val m = ph1 - uri; ph1 = m; prefs.postCallPhotos1 = m }
+            2 -> { val m = ph2 - uri; ph2 = m; prefs.postCallPhotos2 = m }
+            3 -> { val m = ph3 - uri; ph3 = m; prefs.postCallPhotos3 = m }
+        }
     }
     TossCard {
         Column {
@@ -648,16 +654,13 @@ private fun PostCallTemplateCard(prefs: com.detailline.callfollowcrm.data.prefer
             }
             if (enabled) {
                 Spacer(Modifier.height(12.dp))
-                PostCallTemplateField("템플릿 1", t1, { t1 = it; prefs.postCallTemplate1 = it },
-                    p1, { pickPhoto(1) }, { p1 = ""; prefs.postCallPhoto1 = "" })
+                PostCallTemplateField("템플릿 1", t1, { t1 = it; prefs.postCallTemplate1 = it }, ph1, { addPhotos(1) }, { removePhoto(1, it) })
                 Spacer(Modifier.height(10.dp))
-                PostCallTemplateField("템플릿 2", t2, { t2 = it; prefs.postCallTemplate2 = it },
-                    p2, { pickPhoto(2) }, { p2 = ""; prefs.postCallPhoto2 = "" })
+                PostCallTemplateField("템플릿 2", t2, { t2 = it; prefs.postCallTemplate2 = it }, ph2, { addPhotos(2) }, { removePhoto(2, it) })
                 Spacer(Modifier.height(10.dp))
-                PostCallTemplateField("템플릿 3", t3, { t3 = it; prefs.postCallTemplate3 = it },
-                    p3, { pickPhoto(3) }, { p3 = ""; prefs.postCallPhoto3 = "" })
+                PostCallTemplateField("템플릿 3", t3, { t3 = it; prefs.postCallTemplate3 = it }, ph3, { addPhotos(3) }, { removePhoto(3, it) })
                 Spacer(Modifier.height(8.dp))
-                Text("비워둔 칸은 알림에 버튼으로 안 나와요. 사진만 넣어도 보낼 수 있어요.", fontSize = 11.sp, color = TossTextTertiary)
+                Text("비워둔 칸은 알림에 버튼으로 안 나와요. 사진만 넣어도 보낼 수 있어요. (한 템플릿 5장까지)", fontSize = 11.sp, color = TossTextTertiary)
             }
         }
     }
@@ -668,9 +671,9 @@ private fun PostCallTemplateField(
     label: String,
     value: String,
     onChange: (String) -> Unit,
-    photoUri: String,
-    onPickPhoto: () -> Unit,
-    onClearPhoto: () -> Unit
+    photos: List<String>,
+    onAddPhoto: () -> Unit,
+    onRemovePhoto: (String) -> Unit
 ) {
     androidx.compose.material3.OutlinedTextField(
         value = value,
@@ -684,34 +687,39 @@ private fun PostCallTemplateField(
         shape = RoundedCornerShape(12.dp)
     )
     Spacer(Modifier.height(6.dp))
-    // 첨부 사진 = 썸네일로 뭘 넣었는지 보이게 + ✕ 로 지우기. 없으면 현장사진 스타일 [+사진] 타일. (2026-07-12 사장님)
-    if (photoUri.isNotBlank()) {
-        Box(
-            Modifier.size(76.dp).clip(RoundedCornerShape(10.dp)).background(TossGrayBg)
-        ) {
-            coil.compose.AsyncImage(
-                model = android.net.Uri.parse(photoUri),
-                contentDescription = "첨부한 사진",
-                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-            Box(
-                Modifier.align(Alignment.TopEnd).padding(3.dp).size(22.dp)
-                    .clip(androidx.compose.foundation.shape.CircleShape)
-                    .background(Color.Black.copy(alpha = 0.5f)).clickable { onClearPhoto() },
-                contentAlignment = Alignment.Center
-            ) { Text("✕", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+    // 첨부 사진 썸네일들(각 ✕) + [＋사진] 타일(5장 미만일 때). 가로 스크롤. (2026-07-12 사장님)
+    val hScroll = androidx.compose.foundation.rememberScrollState()
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(hScroll),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        photos.forEach { uri ->
+            Box(Modifier.size(64.dp).clip(RoundedCornerShape(10.dp)).background(TossGrayBg)) {
+                coil.compose.AsyncImage(
+                    model = android.net.Uri.parse(uri),
+                    contentDescription = "첨부한 사진",
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+                Box(
+                    Modifier.align(Alignment.TopEnd).padding(2.dp).size(20.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(Color.Black.copy(alpha = 0.5f)).clickable { onRemovePhoto(uri) },
+                    contentAlignment = Alignment.Center
+                ) { Text("✕", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+            }
         }
-    } else {
-        Box(
-            Modifier.size(76.dp).clip(RoundedCornerShape(10.dp)).background(TossGrayBg)
-                .border(1.5.dp, Color(0xFFC8D3E2), RoundedCornerShape(10.dp))
-                .clickable { onPickPhoto() },
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("＋", fontSize = 20.sp, color = TossBlue, fontWeight = FontWeight.Bold)
-                Text("사진", fontSize = 11.sp, color = TossBlue, fontWeight = FontWeight.Bold)
+        if (photos.size < 5) {
+            Box(
+                Modifier.size(64.dp).clip(RoundedCornerShape(10.dp)).background(TossGrayBg)
+                    .border(1.5.dp, Color(0xFFC8D3E2), RoundedCornerShape(10.dp))
+                    .clickable { onAddPhoto() },
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("＋", fontSize = 18.sp, color = TossBlue, fontWeight = FontWeight.Bold)
+                    Text("사진", fontSize = 10.sp, color = TossBlue, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
@@ -1399,8 +1407,19 @@ private fun AutoSmsSection(
                         fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp)
                 }
                 Spacer(Modifier.width(8.dp))
-                Switch(checked = callerCardOn, onCheckedChange = {
-                    callerCardOn = it; prefs.incomingCallerCardEnabled = it
+                Switch(checked = callerCardOn, onCheckedChange = { want ->
+                    callerCardOn = want; prefs.incomingCallerCardEnabled = want
+                    // 켜는데 '다른 앱 위에 표시' 권한 없으면 바로 승인 창으로. (2026-07-12 사장님)
+                    if (want && !overlayGranted) {
+                        runCatching {
+                            overlayPermLauncher.launch(
+                                android.content.Intent(
+                                    android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                    android.net.Uri.parse("package:${ctx.packageName}")
+                                )
+                            )
+                        }
+                    }
                 })
             }
             if (callerCardOn && !overlayGranted) {
@@ -1434,6 +1453,8 @@ private fun AutoSmsSection(
     //   폴더를 직접 고를 필요 X (연세 있으신 분 배려, 2026-06-30). 폴더 직접 고르기는 fallback 으로 남김.
     val recAppContainer = (ctx.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication).container
     var recFolderConnected by remember { mutableStateOf(com.detailline.callfollowcrm.recording.AdotFolderScanner.isConnected(ctx)) }
+    // 무엇이 연결됐는지 사람이 읽는 한 줄(폴더 이름/자동찾기 + 녹음 개수) — 사장님이 확인 가능하게. (2026-07-12 사장님)
+    var recLabel by remember { mutableStateOf(com.detailline.callfollowcrm.recording.AdotFolderScanner.connectedLabel(ctx)) }
     val recScope = androidx.compose.runtime.rememberCoroutineScope()
     val recFolderLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
@@ -1441,8 +1462,10 @@ private fun AutoSmsSection(
         if (uri != null) {
             com.detailline.callfollowcrm.recording.AdotFolderScanner.connectFolder(ctx, uri)
             recFolderConnected = true
+            recLabel = com.detailline.callfollowcrm.recording.AdotFolderScanner.connectedLabel(ctx)
             android.widget.Toast.makeText(
-                ctx, "녹음 폴더 연결됐어요. 이제 통화 끝나면 자동으로 요약돼요.", android.widget.Toast.LENGTH_LONG
+                ctx, recLabel?.let { "연결됐어요 ✓  $it" } ?: "녹음 폴더 연결됐어요. 이제 통화 끝나면 자동으로 요약돼요.",
+                android.widget.Toast.LENGTH_LONG
             ).show()
         }
     }
@@ -1453,9 +1476,11 @@ private fun AutoSmsSection(
             com.detailline.callfollowcrm.recording.AdotFolderScanner.enableMediaStore(ctx)
             recFolderConnected = true
             recScope.launch {
-                val n = withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    com.detailline.callfollowcrm.recording.AdotFolderScanner.countMediaStoreCandidates(ctx)
+                val label = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    com.detailline.callfollowcrm.recording.AdotFolderScanner.connectedLabel(ctx)
                 }
+                recLabel = label
+                val n = label?.substringAfter("녹음 ", "")?.substringBefore("개")?.toIntOrNull() ?: 0
                 android.widget.Toast.makeText(
                     ctx,
                     if (n > 0) "통화 녹음 ${n}개를 찾았어요! 이제 통화 끝나면 자동으로 요약돼요 ✨"
@@ -1479,7 +1504,7 @@ private fun AutoSmsSection(
                     Text("통화 녹음 자동 찾기${if (recFolderConnected) " · 연결됨" else ""}", fontSize = 15.sp,
                         fontWeight = FontWeight.Bold, color = TossTextPrimary)
                     Text(
-                        if (recFolderConnected) "통화 끝나면 녹음으로 자동 요약돼요 (↑ 안 눌러도 됨)"
+                        if (recFolderConnected) (recLabel?.let { "✅ $it" } ?: "통화 끝나면 녹음으로 자동 요약돼요 (↑ 안 눌러도 됨)")
                         else "버튼 한 번이면 통화 녹음을 앱이 알아서 찾아드려요. 폴더 안 찾아도 돼요.",
                         fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp
                     )
@@ -1491,7 +1516,10 @@ private fun AutoSmsSection(
                         .clickable {
                             if (recFolderConnected) {
                                 com.detailline.callfollowcrm.recording.AdotFolderScanner.scanIfConnected(ctx, recAppContainer) { }
-                                android.widget.Toast.makeText(ctx, "통화 녹음을 보고 있어요 ✓", android.widget.Toast.LENGTH_SHORT).show()
+                                recLabel = com.detailline.callfollowcrm.recording.AdotFolderScanner.connectedLabel(ctx)
+                                android.widget.Toast.makeText(ctx,
+                                    recLabel?.let { "확인했어요 ✓  $it" } ?: "통화 녹음을 보고 있어요 ✓",
+                                    android.widget.Toast.LENGTH_LONG).show()
                             } else {
                                 recAudioPermLauncher.launch(
                                     com.detailline.callfollowcrm.recording.AdotFolderScanner.audioPermission()

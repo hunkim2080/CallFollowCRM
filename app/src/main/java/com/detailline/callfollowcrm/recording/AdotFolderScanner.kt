@@ -138,6 +138,24 @@ object AdotFolderScanner {
     fun isConnected(context: Context): Boolean =
         getTreeUri(context) != null || (isMediaStoreEnabled(context) && hasAudioPermission(context))
 
+    /**
+     * 무엇이 연결됐는지 사람이 읽을 수 있는 한 줄 — 사장님이 "제대로 연결됐나" 확인용. (2026-07-12 사장님)
+     *   SAF 폴더면 폴더 이름 + 발견 개수, 자동찾기면 "자동 찾기 · 녹음 N개 발견". 미연결이면 null.
+     */
+    fun connectedLabel(context: Context): String? {
+        val tree = getTreeUri(context)
+        if (tree != null) {
+            val name = runCatching { DocumentFile.fromTreeUri(context, tree)?.name }.getOrNull()
+            val n = runCatching { listCandidates(context).size }.getOrDefault(0)
+            return "폴더: ${name ?: "직접 연결한 폴더"} · 녹음 ${n}개 발견"
+        }
+        if (isMediaStoreEnabled(context) && hasAudioPermission(context)) {
+            val n = runCatching { countMediaStoreCandidates(context) }.getOrDefault(0)
+            return "자동 찾기 · 녹음 ${n}개 발견"
+        }
+        return null
+    }
+
     private fun getTreeUri(context: Context): Uri? {
         val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getString(KEY_TREE_URI, null) ?: return null

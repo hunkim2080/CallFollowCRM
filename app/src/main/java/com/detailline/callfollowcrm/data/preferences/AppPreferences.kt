@@ -52,22 +52,33 @@ class AppPreferences(context: Context) {
         get() = prefs.getString("postcall_tpl_3", "") ?: ""
         set(value) = prefs.edit().putString("postcall_tpl_3", value).apply()
     // 통화 후 템플릿별 첨부 사진 URI(선택). 빈 값 = 사진 없음. (2026-07-12 사장님)
-    var postCallPhoto1: String
+    // 사진은 템플릿당 최대 5장 — 내부적으로 "\n" 조인 저장(URI엔 개행 없음). (2026-07-12 사장님)
+    private var postCallPhoto1Raw: String
         get() = prefs.getString("postcall_photo_1", "") ?: ""
         set(value) = prefs.edit().putString("postcall_photo_1", value).apply()
-    var postCallPhoto2: String
+    private var postCallPhoto2Raw: String
         get() = prefs.getString("postcall_photo_2", "") ?: ""
         set(value) = prefs.edit().putString("postcall_photo_2", value).apply()
-    var postCallPhoto3: String
+    private var postCallPhoto3Raw: String
         get() = prefs.getString("postcall_photo_3", "") ?: ""
         set(value) = prefs.edit().putString("postcall_photo_3", value).apply()
-    /** 설정한 통화 후 템플릿(텍스트,사진URI?) — 텍스트나 사진 하나라도 있으면 포함. (2026-07-12 사장님) */
-    val postCallItems: List<Pair<String, String?>>
+    private fun photosOf(raw: String): List<String> = raw.split("\n").map { it.trim() }.filter { it.isNotBlank() }
+    var postCallPhotos1: List<String>
+        get() = photosOf(postCallPhoto1Raw)
+        set(v) { postCallPhoto1Raw = v.distinct().take(5).joinToString("\n") }
+    var postCallPhotos2: List<String>
+        get() = photosOf(postCallPhoto2Raw)
+        set(v) { postCallPhoto2Raw = v.distinct().take(5).joinToString("\n") }
+    var postCallPhotos3: List<String>
+        get() = photosOf(postCallPhoto3Raw)
+        set(v) { postCallPhoto3Raw = v.distinct().take(5).joinToString("\n") }
+    /** 설정한 통화 후 템플릿(텍스트, 사진 URI 목록 최대 5) — 텍스트나 사진 하나라도 있으면 포함. (2026-07-12 사장님) */
+    val postCallItems: List<Pair<String, List<String>>>
         get() = listOf(
-            postCallTemplate1 to postCallPhoto1.ifBlank { null },
-            postCallTemplate2 to postCallPhoto2.ifBlank { null },
-            postCallTemplate3 to postCallPhoto3.ifBlank { null }
-        ).filter { it.first.isNotBlank() || it.second != null }
+            postCallTemplate1 to postCallPhotos1,
+            postCallTemplate2 to postCallPhotos2,
+            postCallTemplate3 to postCallPhotos3
+        ).filter { it.first.isNotBlank() || it.second.isNotEmpty() }
     /** 설정한 통화 후 템플릿(빈 것 제외) — 텍스트만. */
     val postCallTemplates: List<String>
         get() = listOf(postCallTemplate1, postCallTemplate2, postCallTemplate3).filter { it.isNotBlank() }
@@ -102,12 +113,13 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("auto_summary_enabled", true)
         set(value) = prefs.edit().putBoolean("auto_summary_enabled", value).apply()
     /**
-     * 전화 오는 순간 "상대 정보 카드"(둥둥 뜨는 오버레이) on/off. 기본 ON.
+     * 전화 오는 순간 "상대 정보 카드"(둥둥 뜨는 오버레이) on/off. **기본 OFF** (2026-07-12 사장님).
      *   전화벨 울릴 때 번호로 고객·시공일정·최근 대화를 즉시 조회해 화면 위에 카드로 띄운다. (2026-07-01 사장님)
-     *   실제로 뜨려면 "다른 앱 위에 표시"(SYSTEM_ALERT_WINDOW) 권한이 있어야 함(설정에서 안내).
+     *   실제로 뜨려면 "다른 앱 위에 표시"(SYSTEM_ALERT_WINDOW) 권한 필요 → 토글 켜면 바로 승인 창을 띄운다.
+     *   기본 ON 이면 권한 없는데 켜진 것처럼 보여 혼란 → 기본 OFF + 켤 때 권한 요청으로 변경.
      */
     var incomingCallerCardEnabled: Boolean
-        get() = prefs.getBoolean("incoming_caller_card_enabled", true)
+        get() = prefs.getBoolean("incoming_caller_card_enabled", false)
         set(value) = prefs.edit().putBoolean("incoming_caller_card_enabled", value).apply()
     /** 막내 비서 현재 단계(0~9, 10레벨마다). 앱 시작 시 Mascot 변신 복원용. (2026-06-14) */
     var agentTier: Int

@@ -33,10 +33,11 @@ class ChatDraftStore {
         drafts.remove(phone)
     }
 
-    fun getPhoto(phone: String): String? = photoDrafts[phone]
+    fun getPhotos(phone: String): List<String> =
+        photoDrafts[phone]?.split("\n")?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList()
 
-    fun setPhoto(phone: String, uri: String?) {
-        if (uri.isNullOrBlank()) photoDrafts.remove(phone) else photoDrafts[phone] = uri
+    fun setPhotos(phone: String, uris: List<String>) {
+        if (uris.isEmpty()) photoDrafts.remove(phone) else photoDrafts[phone] = uris.joinToString("\n")
     }
 
     fun clearPhoto(phone: String) {

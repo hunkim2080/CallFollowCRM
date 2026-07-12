@@ -355,7 +355,9 @@ fun AppNavHost(
                 viewModel = vm,
                 onBack = { navController.popBackStack() },
                 onOpenCustomerDetail = { id -> navController.navigate(Destinations.customerDetail(id)) },
-                editIssuedId = editIssuedId
+                editIssuedId = editIssuedId,
+                // 통화녹음 미연결 통화카드 "연결 설정하러 가기" → 자동 문자/녹음 설정. (2026-07-12 사장님)
+                onOpenRecordingSettings = { navController.navigate(Destinations.SETTINGS_AUTOSMS) }
             )
         }
 

@@ -314,11 +314,11 @@ class ChatViewModel(
     fun saveDraft(text: String) { container.chatDraftStore.set(phoneNumber, text) }
     fun clearDraft() { container.chatDraftStore.clear(phoneNumber) }
 
-    /** 진입 시 1회 소비 — 통화 후 템플릿이 넣어둔 미리 붙일 사진 URI(없으면 null). (2026-07-12 사장님) */
-    fun loadPhotoDraft(): String? {
-        val uri = container.chatDraftStore.getPhoto(phoneNumber)
-        if (uri != null) container.chatDraftStore.clearPhoto(phoneNumber)
-        return uri
+    /** 진입 시 1회 소비 — 통화 후 템플릿이 넣어둔 미리 붙일 사진 URI 목록(없으면 빈 목록). (2026-07-12 사장님) */
+    fun loadPhotoDrafts(): List<String> {
+        val uris = container.chatDraftStore.getPhotos(phoneNumber)
+        if (uris.isNotEmpty()) container.chatDraftStore.clearPhoto(phoneNumber)
+        return uris
     }
 
     // AI 다듬기 ✨ 진행 중 여부. ChatScreen 의 ✨ 버튼이 이 값을 구독해서 로딩 인디케이터 표시.

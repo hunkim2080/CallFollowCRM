@@ -147,6 +147,9 @@ class CallStateReceiver : BroadcastReceiver() {
                                     callType = recent!!.type
                                 )
                             }
+                        } else {
+                            // 답한 통화(수신 응답·발신 5초+) — 통화 후 문자 보내기 피커. (2026-07-12 사장님)
+                            maybeShowPostCallPicker(context, app, phone!!, recent!!.type)
                         }
                     }
                 } catch (_: Throwable) {
@@ -215,19 +218,29 @@ class CallStateReceiver : BroadcastReceiver() {
                 isMissed = isMissed
             )
         }
+    }
 
-        // 통화 후 문자 보내기 (2026-07-12 사장님) — 새 번호와 '통화(수신 응답)' 끝나면 "문자 보낼까요?" + 템플릿 선택.
-        //   자동발송 아님(버튼 탭 → 채팅에 채워짐 → 확인 발송). 부재중(MISSED)은 자동문자 담당이라 제외.
-        //   조건: 토글 ON + 수신 응답(INCOMING) + 새 번호(저장 고객 아님) + 개인휴대폰(010) + 스팸앞자리 아님 + 템플릿 있음.
-        if (!isMissed && prefs.postCallPickerEnabled) {
-            val items = prefs.postCallItems
-            val isNew = runCatching { app.container.customerRepository.findByPhone(phoneNumber) }.getOrNull() == null
-            val isMobile = com.detailline.callfollowcrm.domain.inbox.NonCustomerHeuristics.isPersonalMobile(phoneNumber)
-            val notSpam = !com.detailline.callfollowcrm.util.SpamPrefix.isSpam(phoneNumber, prefs.spamPrefixes)
-            if (items.isNotEmpty() && isNew && isMobile && notSpam) {
-                NotificationHelper.showPostCallTemplatePicker(context, phoneNumber, null, items)
-            }
-        }
+    /**
+     * 통화 후 문자 보내기 피커 (2026-07-12 사장님) — '통화한'(수신 응답 or 내가 건 전화, 5초+) 새 번호에.
+     *   답한 통화 경로에서 호출(부재중/미응대는 자동문자 담당). 자동발송 아님(버튼 탭 → 채팅에 채워짐 → 확인 발송).
+     *   조건: 토글 ON + INCOMING/OUTGOING + 새 번호(저장 고객 아님) + 개인휴대폰(010) + 스팸앞자리 아님 + 템플릿/사진 있음.
+     */
+    private suspend fun maybeShowPostCallPicker(
+        context: Context,
+        app: CallFollowCrmApplication,
+        phoneNumber: String,
+        callType: CallType
+    ) {
+        val prefs = app.container.preferences
+        if (!prefs.postCallPickerEnabled) return
+        if (callType != CallType.INCOMING && callType != CallType.OUTGOING) return
+        val items = prefs.postCallItems
+        if (items.isEmpty()) return
+        val isNew = runCatching { app.container.customerRepository.findByPhone(phoneNumber) }.getOrNull() == null
+        if (!isNew) return
+        if (!com.detailline.callfollowcrm.domain.inbox.NonCustomerHeuristics.isPersonalMobile(phoneNumber)) return
+        if (com.detailline.callfollowcrm.util.SpamPrefix.isSpam(phoneNumber, prefs.spamPrefixes)) return
+        NotificationHelper.showPostCallTemplatePicker(context, phoneNumber, null, items)
     }
 
     /**

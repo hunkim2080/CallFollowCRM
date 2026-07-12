@@ -131,11 +131,13 @@ class MainActivity : ComponentActivity() {
                 val customerId = intent.getLongExtra(EXTRA_CUSTOMER_ID, -1L).takeIf { it > 0 }
                 // 통화 후 템플릿 선택 등 — 본문 prefill(빈 draft 일 때만). 채팅 열리며 입력창에 채워짐, 확인 후 발송. (2026-07-12 사장님)
                 val prefill = intent.getStringExtra(EXTRA_PREFILL_BODY)?.takeIf { it.isNotBlank() }
-                val prefillPhoto = intent.getStringExtra(EXTRA_PREFILL_PHOTO)?.takeIf { it.isNotBlank() }
-                if (phone.isNotBlank() && (prefill != null || prefillPhoto != null)) {
+                // 사진은 "\n" 조인 목록(최대 5). (2026-07-12 사장님)
+                val prefillPhotos = intent.getStringExtra(EXTRA_PREFILL_PHOTO)
+                    ?.split("\n")?.map { it.trim() }?.filter { it.isNotBlank() }.orEmpty()
+                if (phone.isNotBlank() && (prefill != null || prefillPhotos.isNotEmpty())) {
                     val container = (application as CallFollowCrmApplication).container
                     if (prefill != null && container.chatDraftStore.get(phone).isEmpty()) container.chatDraftStore.set(phone, prefill)
-                    if (prefillPhoto != null) container.chatDraftStore.setPhoto(phone, prefillPhoto)
+                    if (prefillPhotos.isNotEmpty()) container.chatDraftStore.setPhotos(phone, prefillPhotos)
                 }
                 pendingIntentState.value = IncomingIntent.Chat(phone, customerId)
             }
