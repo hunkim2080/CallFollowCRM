@@ -425,7 +425,7 @@ fun HomeScreen(
             // 상담함 | 문자함 폴더 탭 (크롬 탭식 전환) — 2026-07-11 사장님.
             //   ⚠️ 본문 전환은 아래 Box(nestedScroll)를 if/else 로 감싼다. Composable 안에서 early return@Column 하면
             //      슬롯테이블 group 이 어긋나 recompose 시 크래시(Stack.pop AIOOBE) — 반드시 if/else 로. (2026-07-12)
-            InboxFolderTabs(selected = inboxTab, onSelect = { inboxTab = it }, generalBadge = generalUnread)
+            InboxFolderTabs(selected = inboxTab, onSelect = { inboxTab = it }, consultBadge = unhandled, generalBadge = generalUnread)
 
             // 2026-05-28 사장님 통점 fix: 앱 첫 진입 시 SMS 풀스캔 (10000건) 가 수 초 걸려
             //   "처음엔 옛 통화만, 잠시 후 SMS 카드 스르륵 추가" 깜빡임 인지.

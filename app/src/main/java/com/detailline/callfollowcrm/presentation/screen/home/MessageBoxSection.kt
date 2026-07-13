@@ -47,14 +47,15 @@ import com.detailline.callfollowcrm.util.PhoneNumberFormatter
  *   활성 탭 = 흰색(본문에 붙은 느낌), 비활성 = 톤다운. 문자함엔 안 읽음 배지.
  */
 @Composable
-fun InboxFolderTabs(selected: Int, onSelect: (Int) -> Unit, generalBadge: Int) {
+fun InboxFolderTabs(selected: Int, onSelect: (Int) -> Unit, consultBadge: Int, generalBadge: Int) {
     Row(
         Modifier
             .fillMaxWidth()
             .padding(start = 14.dp, end = 14.dp, top = 2.dp, bottom = 0.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        FolderTab("상담함", selected == 0, badge = 0, modifier = Modifier.weight(1f)) { onSelect(0) }
+        // 두 탭 다 미확인/안읽음 숫자 배지 — 다른 탭에 쌓여도 안 놓치게. (2026-07-13 사장님)
+        FolderTab("상담함", selected == 0, badge = consultBadge, modifier = Modifier.weight(1f)) { onSelect(0) }
         FolderTab("문자함", selected == 1, badge = generalBadge, modifier = Modifier.weight(1f)) { onSelect(1) }
     }
 }
