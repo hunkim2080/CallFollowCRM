@@ -1011,6 +1011,23 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         generalThreads.map { list -> list.count { it.unread } }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
+    /**
+     * 상담함 배지 = 안 읽은 상담함 스레드 수. 문자함과 **동일하게 읽으면(챗 열면) 줄어든다**. (2026-07-13 사장님)
+     *   ⚠️ 예전엔 unhandledCount(미확인=답장 안 한 문의, 7일 윈도우)를 배지로 썼는데, 그건 '읽어도 안 줄고 답장해야 줄어'
+     *      "확인했는데 안 지워진다"는 혼란을 줬음. 배지 = 안 읽음(readState 기준)으로 통일.
+     *   상담함 = 스팸/문자함(GENERAL) 제외 + 마지막이 고객 메시지 + 그 시각 > 읽은 시각.
+     */
+    val consultUnreadCount: StateFlow<Int> = combine(
+        smsContactsState, hiddenForConsult, spamGate, readStates
+    ) { contacts, hidden, spam, reads ->
+        contacts.count { c ->
+            if (c.normalizedSuffix in hidden) return@count false
+            if (spam.isSpam(c.address, c.normalizedSuffix)) return@count false
+            val readMs = reads[c.normalizedSuffix] ?: 0L
+            !c.lastSent && c.lastDateMs > readMs
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
     /** 상담함 카드 → 문자함으로(사장님이 "고객 아님"). 영구(OWNER) — 자동 재분류가 못 되돌림. */
     fun moveToGeneral(phoneNumber: String) = viewModelScope.launch(Dispatchers.IO) {
         runCatching { container.threadBucketRepository.moveToGeneral(phoneNumber) }
