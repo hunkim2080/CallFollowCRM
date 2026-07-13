@@ -80,6 +80,13 @@ object NotificationHelper {
         "sound_auto_reply" to "자동응답 소리",
         "sound_intake" to "접수서 소리",
         "sound_reminder" to "리마인더 소리",
+        // 새로 추가한 소리들 (2026-07-13 사장님 제작 MP3)
+        "sound_new_inquiry_2" to "신규 문자 문의",
+        "sound_new_inquiry_3" to "신규 고객 문의",
+        "sound_intake_arrived" to "접수서 도착",
+        "sound_call_summary" to "통화 요약 완료",
+        "sound_collab_accepted" to "협업 수락",
+        "sound_collab_declined" to "협업 거절",
         "silent" to "무음",
     )
     private val SLOT_CHANNEL = mapOf(
