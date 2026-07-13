@@ -192,15 +192,18 @@ private fun GeneralRow(
                     Box(Modifier.size(8.dp).clip(CircleShape).background(TossBlue))
                 }
             }
-            // 길게누름 = 메뉴 열기 (삼성식 단순 — 별도 스와이프 UI 없이).
+            // ⋮ 탭 = 메뉴 열기. 메뉴를 이 버튼 Box 안에 둬야 버튼 옆(오른쪽)에 뜸.
+            //   밖(행 전체 Box)에 두면 그 Box 왼쪽 위에 떠서 엉뚱한 위치에 나왔음. (2026-07-13 사장님)
             Box(
                 Modifier.size(28.dp).clickable { menu = true },
                 contentAlignment = Alignment.Center
-            ) { Text("⋮", fontSize = 18.sp, color = TossTextTertiary) }
-        }
-        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-            DropdownMenuItem(text = { Text("상담함으로 옮기기") }, onClick = { menu = false; onMoveToConsult() })
-            DropdownMenuItem(text = { Text("스팸으로") }, onClick = { menu = false; onMoveToSpam() })
+            ) {
+                Text("⋮", fontSize = 18.sp, color = TossTextTertiary)
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    DropdownMenuItem(text = { Text("상담함으로 옮기기") }, onClick = { menu = false; onMoveToConsult() })
+                    DropdownMenuItem(text = { Text("스팸으로") }, onClick = { menu = false; onMoveToSpam() })
+                }
+            }
         }
     }
 }
