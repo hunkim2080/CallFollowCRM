@@ -53,6 +53,10 @@ object NotificationHelper {
     /** 오늘의 현장 상시 알림 — 현장에서 주소(동/호) 계속 확인용. 무음·상단고정(ongoing), 하루 1건. (2026-07-10 사장님) */
     private const val CHANNEL_TODAY_SITE = "today_site"
     private const val TODAY_SITE_ID = 9_200_000
+    // 전용 소리 슬롯 채널 (2026-07-13 사장님) — 통화요약/협업수락/협업거절 각각 소리 고르게. 새 채널 id 라 첫 생성부터 소리 적용.
+    private const val CHANNEL_CALL_SUMMARY = "call_summary_snd"
+    private const val CHANNEL_COLLAB_ACCEPTED = "collab_accepted_snd"
+    private const val CHANNEL_COLLAB_DECLINED = "collab_declined_snd"
 
     // 알림 배너 배경 — 파스텔 블루 (Material Blue 100).
     // setColorized(true) 와 함께 쓰면 OneUI 등 일부 시스템이 배너 전체 배경으로 사용.
@@ -72,6 +76,9 @@ object NotificationHelper {
         SoundSlot("auto_reply", "자동 응답 발송", "sound_auto_reply"),
         SoundSlot("intake", "접수서 작성 완료", "sound_intake"),
         SoundSlot("reminder", "시공·정산 리마인더", "sound_reminder"),
+        SoundSlot("call_summary", "통화 요약 완료", "sound_call_summary"),
+        SoundSlot("collab_accepted", "협업 수락", "sound_collab_accepted"),
+        SoundSlot("collab_declined", "협업 거절", "sound_collab_declined"),
     )
     /** 고를 수 있는 소리(값=raw 리소스명, "silent"=무음). */
     val SOUND_OPTIONS = listOf(
@@ -92,6 +99,8 @@ object NotificationHelper {
     private val SLOT_CHANNEL = mapOf(
         "new_inquiry" to CHANNEL_INCOMING_SMS_NEW, "reply" to CHANNEL_INCOMING_SMS,
         "auto_reply" to CHANNEL_AUTO_REPLY, "intake" to CHANNEL_INTAKE, "reminder" to CHANNEL_REMINDER,
+        "call_summary" to CHANNEL_CALL_SUMMARY,
+        "collab_accepted" to CHANNEL_COLLAB_ACCEPTED, "collab_declined" to CHANNEL_COLLAB_DECLINED,
     )
 
     /** slot 선택값(앱 prefs)을 소리 Uri 로. "silent"=null. 선택 리소스가 없으면 기본 리소스로 폴백. */
@@ -225,6 +234,39 @@ object NotificationHelper {
                     description = "오늘 시공 현장 주소(동·호)를 상단에 계속 띄워 현장에서 바로 확인해요"
                     setShowBadge(false)
                     setSound(null, null)
+                })
+            }
+            // 통화 요약 완료 — 전용 소리 슬롯. (2026-07-13 사장님)
+            if (manager.getNotificationChannel(CHANNEL_CALL_SUMMARY) == null) {
+                manager.createNotificationChannel(NotificationChannel(
+                    CHANNEL_CALL_SUMMARY, "✨ 통화 요약 완료", NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "통화 내용 요약이 준비되면 알려줘요"
+                    val u = chosenSound(context, "call_summary", "sound_call_summary")
+                    if (u != null) setSound(u, audioAttrs) else setSound(null, null)
+                    setShowBadge(true)
+                })
+            }
+            // 협업 수락 — 전용 소리 슬롯. (2026-07-13 사장님)
+            if (manager.getNotificationChannel(CHANNEL_COLLAB_ACCEPTED) == null) {
+                manager.createNotificationChannel(NotificationChannel(
+                    CHANNEL_COLLAB_ACCEPTED, "🤝 협업 수락", NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "상대 사장님이 협업을 수락하면 알려줘요"
+                    val u = chosenSound(context, "collab_accepted", "sound_collab_accepted")
+                    if (u != null) setSound(u, audioAttrs) else setSound(null, null)
+                    setShowBadge(true)
+                })
+            }
+            // 협업 거절 — 전용 소리 슬롯. (2026-07-13 사장님)
+            if (manager.getNotificationChannel(CHANNEL_COLLAB_DECLINED) == null) {
+                manager.createNotificationChannel(NotificationChannel(
+                    CHANNEL_COLLAB_DECLINED, "협업 거절", NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "상대 사장님이 협업을 거절하면 알려줘요"
+                    val u = chosenSound(context, "collab_declined", "sound_collab_declined")
+                    if (u != null) setSound(u, audioAttrs) else setSound(null, null)
+                    setShowBadge(true)
                 })
             }
         }
@@ -431,8 +473,14 @@ object NotificationHelper {
             // 모르는 step 은 "출발"로 잘못 표시하지 말고 무시. (2026-06-20 버그 fix: B가 거절(declined)하면 A에 "출발" 푸시가 뜨던 것 — else 가 출발로 떨어져서)
             else -> return
         }
+        // 수락/거절은 각자 전용 채널(소리 따로 고르게). 나머지(출발/도착/완료)는 기존 리마인더 소리. (2026-07-13 사장님)
+        val channel = when (kind) {
+            "accepted" -> CHANNEL_COLLAB_ACCEPTED
+            "declined" -> CHANNEL_COLLAB_DECLINED
+            else -> CHANNEL_REMINDER
+        }
         showProtoPush(
-            context, notifId, CHANNEL_REMINDER, accent,
+            context, notifId, channel, accent,
             title = pushTitle,
             msg = accountText?.let { "$msg · 계좌 $it" } ?: msg,
             contentIntent = pending,
@@ -1078,7 +1126,7 @@ object NotificationHelper {
         val summaryLine = preview?.trim()?.replace("\n", " ")?.takeIf { it.isNotBlank() }
         val body = if (summaryLine != null) "$summaryLine · ${who}님"
                    else "${who}님 통화 요약이 준비됐어요 · 탭해서 확인"
-        val builder = NotificationCompat.Builder(context, CHANNEL_FOLLOW_UP)
+        val builder = NotificationCompat.Builder(context, CHANNEL_CALL_SUMMARY)
             .setSmallIcon(R.drawable.ic_notification)
             .setColor(NOTIFICATION_BG_COLOR)
             .setContentTitle(title)
