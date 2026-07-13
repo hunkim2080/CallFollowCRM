@@ -18,5 +18,8 @@ class IssuedDocRepository(private val dao: IssuedDocDao) {
 
     suspend fun record(doc: IssuedDocEntity): Long = dao.insert(doc)
 
+    /** 같은 접수서 링크(token) 카드 전체 — 수정 시 카드 하나로 합치기용. */
+    suspend fun findAllByToken(token: String): List<IssuedDocEntity> = dao.findAllByToken(token)
+
     suspend fun delete(id: Long) = dao.delete(id)
 }

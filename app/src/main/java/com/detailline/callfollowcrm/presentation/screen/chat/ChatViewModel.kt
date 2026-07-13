@@ -1462,13 +1462,22 @@ class ChatViewModel(
         val cid = runCatching { ensureCustomerId() }.getOrNull()
         val suffix = phoneNumber.filter { it.isDigit() }.takeLast(8)
         runCatching {
+            // "수정"은 서버가 같은 링크(token)를 재사용 → 카드도 새로 만들지 말고 기존 카드를 갱신해야 함.
+            //   같은 token 카드가 있으면 그 id 재사용(REPLACE=갱신) + 중복(2개 이상)은 정리 → 카드 하나로 유지. (2026-07-13 사장님)
+            val existing = token?.takeIf { it.isNotBlank() }
+                ?.let { runCatching { container.issuedDocRepository.findAllByToken(it) }.getOrNull() }
+                .orEmpty()
+            val keepId = existing.firstOrNull()?.id ?: 0L
             container.issuedDocRepository.record(
                 com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity(
+                    id = keepId,
                     phoneSuffix = suffix, customerId = cid, kind = kind, recipient = recipient,
                     totalWon = totalWon, workDateMs = workDateMs, itemsText = itemsText, memo = memo,
                     docJson = docJson, url = url, token = token, issuedAtMs = System.currentTimeMillis()
                 )
             )
+            // 예전에 중복 발행돼 쌓인 같은 링크 카드들 정리(맨 앞 1개만 남김).
+            existing.drop(1).forEach { runCatching { container.issuedDocRepository.delete(it.id) } }
         }
     }
 

@@ -20,6 +20,10 @@ interface IssuedDocDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(doc: IssuedDocEntity): Long
 
+    /** 같은 접수서 링크(token) 카드 모두 — 수정 시 하나로 합치기(upsert+중복정리)용. 오래된 순. */
+    @Query("SELECT * FROM issued_docs WHERE token = :token ORDER BY issuedAtMs ASC")
+    suspend fun findAllByToken(token: String): List<IssuedDocEntity>
+
     @Query("DELETE FROM issued_docs WHERE id = :id")
     suspend fun delete(id: Long)
 }
