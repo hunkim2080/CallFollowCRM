@@ -350,7 +350,7 @@ fun ChatScreen(
     var editingIssuedDoc by remember { mutableStateOf<com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity?>(null) }
     // editingIssuedDoc 이 정해지면 draft 를 그 내용으로 채우고 편집기 오픈.
     androidx.compose.runtime.LaunchedEffect(editingIssuedDoc) {
-        editingIssuedDoc?.let { estimateDraft.loadFromIssuedDoc(it); showEstimateBuilder = true }
+        editingIssuedDoc?.let { estimateDraft.loadFromIssuedDoc(it, pricingItems); showEstimateBuilder = true }
     }
     // 고객상세 "수정" → 채팅 진입 인자(editIssuedId)로 넘어온 경우: 발행 이력 로드되면 딱 한 번만 편집기 오픈.
     //   한 번 소비(consumed)하면 재발행으로 목록이 바뀌어도 다시 열지 않음(무한 재오픈 방지).
@@ -3916,11 +3916,14 @@ private class EstimateDraft(initialCalMonth: Long) {
 
     /**
      * 이미 발행한 접수서(intake) 내용으로 편집기 상태를 채운다 — "수정하기" 재발행용. (2026-07-10 사장님)
-     *   docJson 엔 항목/수량(selectedQty)이 없으므로 항목 체크는 복원 못 함(사장님이 다시 고름) →
-     *   계약금(depMode/depVal)·시공일·부가세·메모·받는분만 부분 복원. 접수서라 mode="accept" 로 연다.
+     *   계약금·시공일·부가세·메모·받는분 + **품목(선택/평수/가격)까지 복원** → 수정 눌러도 빈 창 아님. (2026-07-13 사장님)
+     *   docJson.lines 를 가격표 항목(이름 매칭)에 되살리고, 가격표에 없는 건 직접추가로 복원. 접수서라 mode="accept".
      *   (QuoteDocData.depMode = ratio|fixed|none, depVal = %(ratio)/만원(fixed) — EstimateDraft 규칙 동일.)
      */
-    fun loadFromIssuedDoc(doc: com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity) {
+    fun loadFromIssuedDoc(
+        doc: com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity,
+        pricing: List<com.detailline.callfollowcrm.data.local.entity.PricingItemEntity>
+    ) {
         val data = quoteDocDataFromIssuedJson(doc.docJson) ?: return
         mode.value = "accept"
         depMode.value = data.depMode.ifBlank { "none" }
@@ -3931,8 +3934,27 @@ private class EstimateDraft(initialCalMonth: Long) {
         vatIncluded.value = data.vatIncluded
         recipient.value = data.recipient ?: doc.recipient ?: ""
         memo.value = (data.memo ?: doc.memo).orEmpty()
-        // 항목/수량/직접항목/가격·이름 override 는 docJson 에 없음 → 비움(사장님이 다시 선택).
         selectedQty.clear(); customItems.clear(); priceOverrides.clear(); titleOverrides.clear()
+        // 품목 복원 — 발행 스냅샷(docJson.lines)의 각 줄을 가격표 항목에 이름으로 되살림.
+        val pyeongUnit = com.detailline.callfollowcrm.data.local.entity.PricingItemEntity.UNIT_PYEONG
+        for (line in data.lines) {
+            val item = pricing.firstOrNull { it.title == line.name }
+            if (item != null) {
+                if (item.unit == pyeongUnit) {
+                    val area = Regex("×\\s*(\\d+)\\s*평").find(line.spec)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 1
+                    selectedQty[item.id] = area
+                    val unitManwon = Regex("(\\d+)\\s*만원/평").find(line.spec)?.groupValues?.getOrNull(1)?.toIntOrNull()
+                    if (unitManwon != null && unitManwon * 10_000L != item.price) priceOverrides[item.id] = unitManwon * 10_000L
+                } else {
+                    selectedQty[item.id] = 1
+                    if (line.amountWon > 0 && line.amountWon != item.price) priceOverrides[item.id] = line.amountWon
+                }
+            } else {
+                // 가격표에 없는 항목 = 직접 추가 항목으로 복원(만원 단위).
+                val manwon = (line.amountWon / 10_000L).coerceAtLeast(0L).toString()
+                customItems.add(EstCustomLine(name = line.name, manwon = manwon))
+            }
+        }
     }
 }
 
