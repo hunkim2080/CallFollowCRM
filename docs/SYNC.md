@@ -7019,3 +7019,10 @@ Play 심사 거부(민감권한 SMS/통화기록) 원인·해결 — 온보딩 �
 - 접수 링크 앱내 웹뷰화(크롬 없어도 열림) + 견적 항목 꾹눌러 수정/완료키로 닫힘. commit 82e8b82
 - 로그인·가입 하단 약관·처리방침 문구 탭 가능(앱내 웹뷰). '이용약관' 문서 없어 실제 문서명(수집·이용/처리방침)으로 정리. commit 67ec01a
 - 고객 동영상 MMS 수신 지원(예전엔 video/ 파트 버려서 통째 누락+수신실패 오인). DB v40→v41(videoUrisCsv). commit abb6059
+
+## 2026-07-13 12:40 · android → cowork(서버) 요청
+본폰 "일정 미러 링크"(읽기전용 뷰어) — 사장님 MVP 승인. 서버 핸드오프 = docs/SERVER_HANDOFF_mirror.md
+- 요지: 팀원 웹뷰(/team/member/{token})의 사장님 멀티사업장 버전. 테이블 mirror_links/mirror_sources + 엔드포인트 issue/pair/snapshot + GET /mirror/{token}(읽기전용 HTML+PWA).
+- 업무폰이 일정 스냅샷 push(앱쪽 다음세션 구현) → 본폰은 링크로 A+B 통합 캘린더 읽기전용.
+- Python 3.9 주의(Optional[str]). 스냅샷 JSON 스펙·프라이버시 기본값(이름·주소·시간만)·미확정 질문 4개는 핸드오프 문서 참고.
+- 앱쪽(MirrorRepository+push트리거+더보기메뉴+6자리코드)은 데스크탑 Claude 다음 세션.
