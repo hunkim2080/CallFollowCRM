@@ -86,7 +86,16 @@ private fun FolderTab(label: String, active: Boolean, badge: Int, modifier: Modi
                 ) {
                     Text(
                         if (badge > 9) "9+" else "$badge",
-                        color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold
+                        color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        // 기본 font padding(위아래 여백)을 끄고 라인 높이를 중앙정렬 → 숫자가 원 정중앙. (2026-07-13 사장님)
+                        style = androidx.compose.ui.text.TextStyle(
+                            platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = false),
+                            lineHeightStyle = androidx.compose.ui.text.style.LineHeightStyle(
+                                alignment = androidx.compose.ui.text.style.LineHeightStyle.Alignment.Center,
+                                trim = androidx.compose.ui.text.style.LineHeightStyle.Trim.None
+                            )
+                        )
                     )
                 }
             }
