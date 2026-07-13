@@ -640,6 +640,37 @@ class AppPreferences(context: Context) {
         get() = readPhrases(KEY_VENDOR_PHRASES, DEFAULT_VENDOR_PHRASES)
         set(value) = writePhrases(KEY_VENDOR_PHRASES, value)
 
+    // ── 본폰 "일정 미러 링크" (더보기 → 본폰에서 일정 보기, 2026-07-13) — docs/ANDROID_HANDOFF_mirror_app.md ──
+    //   ⚠️ 옵트인 필수. 기본 꺼짐 = 사장님이 직접 켤 때만 발급/전송(처리방침 §2-2-2). 자동 활성화 금지.
+    /** 미러 링크 켜짐 여부. token 이 있고 이 값이 true 일 때만 스냅샷 push. */
+    var mirrorEnabled: Boolean
+        get() = prefs.getBoolean("mirror_enabled", false)
+        set(value) { prefs.edit().putBoolean("mirror_enabled", value).apply() }
+    /** 발급받은 링크 토큰(폐기·활성 판단용). null/빈값 = 아직 발급 안 함. */
+    var mirrorToken: String?
+        get() = prefs.getString("mirror_token", null)?.takeIf { it.isNotBlank() }
+        set(value) { prefs.edit().putString("mirror_token", value).apply() }
+    /** 본폰에 공유할 링크 URL. */
+    var mirrorUrl: String?
+        get() = prefs.getString("mirror_url", null)?.takeIf { it.isNotBlank() }
+        set(value) { prefs.edit().putString("mirror_url", value).apply() }
+    /** 이 업무폰(사업장) 라벨 — 뷰어 칩·색점 이름. 비면 상호(bizName) 또는 "내 일정". */
+    var mirrorLabel: String
+        get() = prefs.getString("mirror_label", "") ?: ""
+        set(value) { prefs.edit().putString("mirror_label", value.trim()).apply() }
+    /** 이 업무폰 색 index(뷰어 색점). 발급=0, 합류=1 기본. */
+    var mirrorTint: Int
+        get() = prefs.getInt("mirror_tint", 0)
+        set(value) { prefs.edit().putInt("mirror_tint", value).apply() }
+    /** 마지막 스냅샷 전송 시각(ms). "마지막 전송 n분 전" 표시. */
+    var mirrorLastPushMs: Long
+        get() = prefs.getLong("mirror_last_push_ms", 0L)
+        set(value) { prefs.edit().putLong("mirror_last_push_ms", value).apply() }
+    /** 마지막으로 전송한 스냅샷 내용 해시 — 바뀐 것 없으면 다시 안 보냄(디바운스+절약). */
+    var mirrorLastHash: String?
+        get() = prefs.getString("mirror_last_hash", null)
+        set(value) { prefs.edit().putString("mirror_last_hash", value).apply() }
+
     // ── 알림 종류별 소리 (더보기 → 알림 소리, 2026-07-10) ──
     /** 알림 슬롯 key(new_inquiry/reply/…)에 고른 소리(raw 리소스명 or "silent"). 없으면 default. */
     fun notificationSound(key: String, default: String): String =

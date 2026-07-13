@@ -35,6 +35,8 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
         runCatching { GeofenceManager.refresh(applicationContext) }
         // 오늘의 현장 상시 알림 갱신 (2026-07-10 사장님) — 오늘 시공 현장 주소를 상단에 계속.
         runCatching { refreshTodaySites(applicationContext, app.container) }
+        // 본폰 미러 링크 백업 전송 (2026-07-13) — 앱 꺼진 동안 놓친 변경/실패분을 주기(~3h)로 재전송. 옵트인 아니면 skip.
+        runCatching { app.container.mirrorSyncManager.pushNow(force = false) }
         return Result.success()
     }
 

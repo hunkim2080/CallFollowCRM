@@ -69,6 +69,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -194,6 +195,7 @@ fun SettingsScreen(
         "smsapp" -> "기본 문자 앱"
         "noti" -> "고객 사진(문자) 받기"
         "server" -> "AI 서버 상태"
+        "mirror" -> "본폰에서 일정 보기"
         else -> "더보기"
     }
     BackHandler(enabled = subPage != null) { subPage = null }
@@ -247,6 +249,8 @@ fun SettingsScreen(
                         "거래처 — 자재·협력·장비 자주 거래하는 곳", onClick = onOpenNotebook)
                     LockRow(Icons.Filled.Group, Color(0xFFF1ECFE), Color(0xFF7C5CFC), "협업 현장",
                         "다른 사장님과 현장 하나만 같이 보기", tier = "비즈니스", onClick = onOpenCollabSites)
+                    LockRow(Icons.Filled.PhoneAndroid, TossBlueSoft, TossBlue, "본폰에서 일정 보기",
+                        "업무폰 일정을 본폰에서 읽기전용으로 · 수정 안 됨") { subPage = "mirror" }
                 }
                 SettingsGroup("장사 분석") {
                     LockRow(Icons.Filled.BarChart, TossBlueSoft, TossBlue, "상세 리포트",
@@ -390,6 +394,11 @@ fun SettingsScreen(
                 // ══════════════ 알림 미리보기/진단 ══════════════
                 "noti" -> {
                     NotificationDiagnosticCard()
+                    Spacer(Modifier.height(16.dp))
+                }
+                // ══════════════ 본폰에서 일정 보기 (미러 링크) ══════════════
+                "mirror" -> {
+                    MirrorSection(container = container)
                     Spacer(Modifier.height(16.dp))
                 }
                 // ══════════════ AI 서버 상태 + 토큰 ══════════════
@@ -897,6 +906,278 @@ private fun DefaultSmsAppCard(
                 )
             }
         }
+    }
+}
+
+/**
+ * 본폰에서 일정 보기 (미러 링크, 2026-07-13) — docs/ANDROID_HANDOFF_mirror_app.md.
+ *   업무폰 일정을 본폰에서 읽기전용으로. 서버가 뷰어(/mirror/{token})까지 그림 — 앱은 발급/공유/스냅샷만.
+ *   옵트인: 사장님이 켤 때만 발급·전송. 비번 4자리는 발급 응답에서 딱 1회 → 크게 보여주고 저장 안 함.
+ */
+@Composable
+private fun MirrorSection(container: AppContainer) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val prefs = container.preferences
+
+    var enabled by remember { mutableStateOf(prefs.mirrorEnabled) }
+    var token by remember { mutableStateOf(prefs.mirrorToken) }
+    var url by remember { mutableStateOf(prefs.mirrorUrl) }
+    var label by remember { mutableStateOf(prefs.mirrorLabel.ifBlank { prefs.bizName }) }
+    var lastPushMs by remember { mutableStateOf(prefs.mirrorLastPushMs) }
+    var busy by remember { mutableStateOf(false) }
+
+    var pinToShow by remember { mutableStateOf<String?>(null) }
+    var pairCodeToShow by remember { mutableStateOf<String?>(null) }
+    var showJoin by remember { mutableStateOf(false) }
+    var joinCode by remember { mutableStateOf("") }
+    var confirmRevoke by remember { mutableStateOf(false) }
+
+    fun toast(msg: String) = Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+
+    fun pushSoon() {
+        scope.launch {
+            runCatching { container.mirrorSyncManager.pushNow(force = true) }
+            lastPushMs = prefs.mirrorLastPushMs
+        }
+    }
+
+    fun issueLink() {
+        val op = prefs.bizPhone.trim()
+        if (op.filter { it.isDigit() }.length < 9) { toast("먼저 내 번호(로그인)가 필요해요"); return }
+        val lbl = label.trim().ifBlank { "내 일정" }
+        busy = true
+        scope.launch {
+            val r = container.mirrorRepository.issue(op, lbl, tint = 0)
+            busy = false
+            r.onSuccess { res ->
+                prefs.mirrorToken = res.token; token = res.token
+                prefs.mirrorUrl = res.url; url = res.url
+                prefs.mirrorLabel = lbl; label = lbl
+                prefs.mirrorTint = 0
+                prefs.mirrorEnabled = true; enabled = true
+                res.pin?.let { pinToShow = it }
+                pushSoon()
+            }.onFailure { toast("링크 발급 실패 — 잠시 후 다시 시도해주세요") }
+        }
+    }
+
+    fun joinLink() {
+        val op = prefs.bizPhone.trim()
+        if (op.filter { it.isDigit() }.length < 9) { toast("먼저 내 번호(로그인)가 필요해요"); return }
+        val code = joinCode.trim()
+        if (code.length < 4) { toast("코드를 입력해주세요"); return }
+        val lbl = label.trim().ifBlank { "내 일정" }
+        busy = true
+        scope.launch {
+            val r = container.mirrorRepository.pair(code, op, lbl, tint = 1)
+            busy = false
+            r.onSuccess { tk ->
+                prefs.mirrorToken = tk.ifBlank { "paired" }; token = prefs.mirrorToken
+                prefs.mirrorTint = 1
+                prefs.mirrorLabel = lbl; label = lbl
+                prefs.mirrorEnabled = true; enabled = true
+                showJoin = false; joinCode = ""
+                pushSoon()
+                toast("합류했어요 — 두 폰 일정이 한 화면에 모여요")
+            }.onFailure { toast("코드가 틀렸거나 만료됐어요") }
+        }
+    }
+
+    fun makePairCode() {
+        val op = prefs.bizPhone.trim()
+        busy = true
+        scope.launch {
+            val r = container.mirrorRepository.pairCode(op)
+            busy = false
+            r.onSuccess { pairCodeToShow = it.code }
+                .onFailure { toast("코드 발급 실패 — 잠시 후 다시") }
+        }
+    }
+
+    fun revokeLink() {
+        val tk = token
+        busy = true
+        scope.launch {
+            if (tk != null) runCatching { container.mirrorRepository.revoke(prefs.bizPhone.trim(), tk) }
+            busy = false
+            prefs.mirrorToken = null; prefs.mirrorUrl = null
+            prefs.mirrorEnabled = false; prefs.mirrorLastHash = null; prefs.mirrorLastPushMs = 0L
+            token = null; url = null; enabled = false; lastPushMs = 0L
+            confirmRevoke = false
+            toast("링크를 폐기했어요")
+        }
+    }
+
+    fun shareLink() {
+        val u = url ?: return
+        val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(android.content.Intent.EXTRA_TEXT, "제 시공 일정이에요 (읽기 전용)\n$u")
+        }
+        runCatching { context.startActivity(android.content.Intent.createChooser(send, "링크 공유")) }
+    }
+
+    TossCard {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("📱 본폰에서 일정 보기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                    Spacer(Modifier.height(2.dp))
+                    Text("업무폰 일정을 본폰에서 읽기 전용으로 봐요. 본폰에선 수정 못 해요.",
+                        fontSize = 12.sp, color = TossTextTertiary, lineHeight = 16.sp)
+                }
+                Switch(
+                    checked = enabled,
+                    onCheckedChange = { want ->
+                        if (want) {
+                            if (token.isNullOrBlank()) issueLink()
+                            else { prefs.mirrorEnabled = true; enabled = true; pushSoon() }
+                        } else {
+                            prefs.mirrorEnabled = false; enabled = false
+                        }
+                    }
+                )
+            }
+
+            if (enabled && !url.isNullOrBlank()) {
+                Spacer(Modifier.height(12.dp))
+                Box(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(12.dp)
+                ) {
+                    Column {
+                        Text("본폰에 보낼 링크 (${label.ifBlank { "내 일정" }})", fontSize = 11.sp, color = TossTextTertiary)
+                        Spacer(Modifier.height(4.dp))
+                        Text(url ?: "", fontSize = 12.sp, color = TossBlue, fontWeight = FontWeight.Medium)
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                TossPrimaryButton(text = "링크 공유", onClick = { shareLink() })
+                Spacer(Modifier.height(8.dp))
+                Text("마지막 전송: ${mirrorAgoLabel(lastPushMs)}", fontSize = 11.sp, color = TossTextSecondary)
+                Spacer(Modifier.height(12.dp))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { makePairCode() }.padding(vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Filled.Add, null, tint = TossBlue, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("사업장 추가 (업무폰 하나 더 합치기)", fontSize = 13.sp, color = TossBlue, fontWeight = FontWeight.SemiBold)
+                }
+                Spacer(Modifier.height(4.dp))
+                Text("링크 폐기 (본폰 분실 시)", fontSize = 12.sp, color = TossError, fontWeight = FontWeight.Medium,
+                    modifier = Modifier.clickable { confirmRevoke = true }.padding(vertical = 6.dp))
+            } else {
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = label, onValueChange = { label = it },
+                    label = { Text("이 폰 이름 (예: 디테일라인)", fontSize = 12.sp) },
+                    singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                Spacer(Modifier.height(8.dp))
+                Text("켜면 본폰에서 처음 열 때 쓸 4자리 비번을 딱 한 번 보여드려요. 꼭 메모하세요.",
+                    fontSize = 11.sp, color = TossTextTertiary, lineHeight = 15.sp)
+                Spacer(Modifier.height(10.dp))
+                Text("다른 업무폰 링크에 합류하기", fontSize = 12.sp, color = TossBlue, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clickable { showJoin = true }.padding(vertical = 6.dp))
+            }
+
+            if (busy) {
+                Spacer(Modifier.height(10.dp))
+                androidx.compose.material3.CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = TossBlue
+                )
+            }
+        }
+    }
+
+    pinToShow?.let { pin ->
+        AlertDialog(
+            onDismissRequest = { pinToShow = null },
+            title = { Text("본폰 열기 비번", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text("본폰에서 링크를 처음 열 때 입력하세요. 이 번호는 다시 볼 수 없어요.",
+                        fontSize = 13.sp, color = TossTextSecondary)
+                    Spacer(Modifier.height(16.dp))
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Text(pin, fontSize = 40.sp, fontWeight = FontWeight.Bold, color = TossBlue, letterSpacing = 8.sp)
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { pinToShow = null }) { Text("메모했어요") } }
+        )
+    }
+
+    pairCodeToShow?.let { code ->
+        AlertDialog(
+            onDismissRequest = { pairCodeToShow = null },
+            title = { Text("사업장 추가 코드", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text("합칠 다른 업무폰에서 이 화면 → [다른 업무폰 링크에 합류하기]에 이 코드를 입력하세요. (10분 안에)",
+                        fontSize = 13.sp, color = TossTextSecondary)
+                    Spacer(Modifier.height(16.dp))
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Text(code, fontSize = 36.sp, fontWeight = FontWeight.Bold, color = TossBlue, letterSpacing = 6.sp)
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { pairCodeToShow = null }) { Text("확인") } }
+        )
+    }
+
+    if (showJoin) {
+        AlertDialog(
+            onDismissRequest = { showJoin = false },
+            title = { Text("다른 업무폰 링크에 합류", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text("이미 링크를 만든 폰에서 [사업장 추가]로 받은 6자리 코드를 입력하세요.",
+                        fontSize = 13.sp, color = TossTextSecondary)
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = joinCode, onValueChange = { joinCode = it.filter { c -> c.isDigit() }.take(6) },
+                        label = { Text("6자리 코드") }, singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = label, onValueChange = { label = it },
+                        label = { Text("이 폰 이름 (예: 하우스픽)") }, singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = { TextButton(onClick = { joinLink() }) { Text("합류") } },
+            dismissButton = { TextButton(onClick = { showJoin = false }) { Text("취소") } }
+        )
+    }
+
+    if (confirmRevoke) {
+        AlertDialog(
+            onDismissRequest = { confirmRevoke = false },
+            title = { Text("링크를 폐기할까요?", fontWeight = FontWeight.Bold) },
+            text = { Text("본폰에서 더는 일정이 안 보여요. 다시 켜면 새 링크·새 비번이 발급돼요.", fontSize = 13.sp, color = TossTextSecondary) },
+            confirmButton = { TextButton(onClick = { revokeLink() }) { Text("폐기", color = TossError) } },
+            dismissButton = { TextButton(onClick = { confirmRevoke = false }) { Text("취소") } }
+        )
+    }
+}
+
+private fun mirrorAgoLabel(ms: Long): String {
+    if (ms <= 0L) return "아직 전송 전"
+    val diff = System.currentTimeMillis() - ms
+    return when {
+        diff < 60_000L -> "방금"
+        diff < 3_600_000L -> "${diff / 60_000L}분 전"
+        diff < 86_400_000L -> "${diff / 3_600_000L}시간 전"
+        else -> "${diff / 86_400_000L}일 전"
     }
 }
 

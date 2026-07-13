@@ -170,6 +170,15 @@ class AppContainer(context: Context) {
     // 2026-06-08 협업 현장(사장↔사장) — 공유 요청/수락/진행/입금. 서버 endpoint 대기(SERVER_HANDOFF_collab_sites.md).
     val sharedSiteRepository = com.detailline.callfollowcrm.ai.SharedSiteRepository()
 
+    // 2026-07-13 본폰 미러 링크 — 업무폰 일정을 본폰에서 읽기전용으로. 서버 완료(docs/ANDROID_HANDOFF_mirror_app.md).
+    val mirrorRepository = com.detailline.callfollowcrm.ai.MirrorRepository()
+    /** 일정/돈 스냅샷 자동 전송(30초 디바운스 + 해시). Application.onCreate 에서 start(). 옵트인일 때만 동작. */
+    val mirrorSyncManager by lazy {
+        com.detailline.callfollowcrm.ai.MirrorSyncManager(
+            mirrorRepository, preferences, customerRepository, manualCashRepository
+        )
+    }
+
     // 2026-06-21 cowork 요청 — 앱 진입(onResume)마다 /api/beta/check 핑 → admin 대시보드 사용 수/최근 실행 실시간.
     val betaCheckRepository = com.detailline.callfollowcrm.ai.BetaCheckRepository()
     // 2026-07-04 회원가입(폰 인증번호) — docs/ANDROID_HANDOFF_signup_auth.md.

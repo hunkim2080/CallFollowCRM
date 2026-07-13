@@ -363,6 +363,10 @@ class CallFollowCrmApplication : Application() {
         // 시간 기반 알림(시공 D-1 등) — WorkManager 주기 실행(앱 종료 상태에서도).
         scheduleReminders()
 
+        // 본폰 미러 링크 (2026-07-13) — 일정/직접현금 변경을 30초 디바운스로 서버 스냅샷 전송(옵트인일 때만).
+        //   ReminderWorker(~3h) 가 앱 종료 상태 백업. 꺼져 있으면 조용히 skip.
+        container.mirrorSyncManager.start(appScope)
+
         // 현장 도착 지오펜스 — 다가오는 시공 현장 5km 등록(권한·토글 있을 때만).
         appScope.launch {
             runCatching { com.detailline.callfollowcrm.service.GeofenceManager.refresh(this@CallFollowCrmApplication) }
