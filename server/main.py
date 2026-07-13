@@ -270,6 +270,55 @@ def db_init() -> None:
         _cc = {r[1] for r in con.execute("PRAGMA table_info(consents)").fetchall()}
         if "detail_json" not in _cc:
             con.execute("ALTER TABLE consents ADD COLUMN detail_json TEXT")
+        # ── 추가119 (2026-07-13) — 본폰 "일정 미러 링크" (읽기전용 뷰어) ──
+        # 업무폰 N대가 일정+돈 스냅샷을 push → 본폰이 링크 하나로 통합 열람(수정 불가).
+        # 사장님 확정: 4자리 비번 O / 전화·메모 포함 / 범위 = 일정 + 돈 요약.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS mirror_links (
+                token            TEXT PRIMARY KEY,
+                main_key         TEXT NOT NULL,     -- 여러 사업장을 묶는 그룹키
+                pin_hash         TEXT,              -- 4자리 비번 sha256(salt+pin). NULL=비번없음
+                pin_salt         TEXT,
+                created_at_ms    INTEGER NOT NULL,
+                last_accessed_ms INTEGER,
+                revoked          INTEGER NOT NULL DEFAULT 0
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS mirror_sources (
+                token         TEXT NOT NULL,        -- mirror_links.token
+                owner_phone   TEXT NOT NULL,        -- 업무폰(사업장) 식별
+                label         TEXT,                 -- 상호 (칩에 표시)
+                tint          INTEGER DEFAULT 0,    -- 사업장 색 인덱스
+                snapshot_json TEXT,                 -- 일정 items[] (덮어쓰기)
+                money_json    TEXT,                 -- 돈 요약 {todayIn, unpaid, unpaidCount}
+                updated_at_ms INTEGER NOT NULL,
+                PRIMARY KEY (token, owner_phone)
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS mirror_pair_codes (
+                code          TEXT PRIMARY KEY,     -- 6자리
+                token         TEXT NOT NULL,
+                expires_at_ms INTEGER NOT NULL,
+                used_at_ms    INTEGER
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_mirror_src_owner "
+            "ON mirror_sources(owner_phone)"
+        )
+        # 뷰어 쿠키 서명용 서버 시크릿 (최초 1회 생성 후 재사용)
+        con.execute(
+            "CREATE TABLE IF NOT EXISTS server_kv ("
+            "k TEXT PRIMARY KEY, v TEXT NOT NULL)"
+        )
         # 추가93 (2026-07-04) — 🩺 시스템 에러 기록 (5xx/미처리 예외 → 대시보드 건강 카드)
         con.execute(
             """
@@ -20550,3 +20599,687 @@ async def pricing_starter_get(device_id: str) -> dict:
         return json.loads(row[0])
     except Exception:
         return {"status": "pending", "items": []}
+
+
+# ============================================================================
+# 추가119 (2026-07-13) — 본폰 "일정 미러 링크" (읽기전용 뷰어)
+# ─────────────────────────────────────────────────────────────────────────────
+# 핸드오프: docs/SERVER_HANDOFF_mirror.md
+# 사장님 확정: ① 4자리 비번 1회 ② 전화·메모 포함(전부) ③ 범위 = 일정 + 돈 요약
+#
+#   POST /api/mirror/issue        업무폰A: 링크 발급(+비번) / 이미 있으면 재사용
+#   POST /api/mirror/pair/code    업무폰A(또는 뷰어): 6자리 페어 코드 발급
+#   POST /api/mirror/pair         업무폰B: 코드로 기존 링크에 합류
+#   POST /api/mirror/snapshot     업무폰: 일정+돈 스냅샷 덮어쓰기
+#   POST /api/mirror/revoke       링크 폐기 (본폰 분실 대비)
+#   GET  /mirror/{token}          본폰: 비번 게이트 → 읽기전용 통합 캘린더 (PWA)
+#   POST /mirror/{token}/unlock   비번 확인 → 쿠키 1회 기억
+#   GET  /api/mirror/data/{token} 60초 자동 새로고침용 JSON (쿠키 필요)
+# ============================================================================
+MIRROR_TOKEN_LEN = 12
+_MIRROR_PIN_FAILS: dict = {}          # {token: [실패횟수, 최근시각ms]} — 무차별 대입 방지
+_MIRROR_PIN_MAX_FAILS = 10
+_MIRROR_COOKIE_MAX_AGE = 180 * 24 * 3600   # 180일 — "1회 입력 후 그 폰에서는 기억"
+
+
+def _mirror_secret() -> str:
+    """뷰어 쿠키 서명용 서버 시크릿. 최초 1회 생성해 server_kv 에 보관."""
+    import secrets
+    with db_conn() as con:
+        row = con.execute("SELECT v FROM server_kv WHERE k = 'mirror_secret'").fetchone()
+        if row:
+            return row[0]
+        val = secrets.token_urlsafe(32)
+        con.execute("INSERT OR REPLACE INTO server_kv (k, v) VALUES ('mirror_secret', ?)", (val,))
+        con.commit()
+    return val
+
+
+def _generate_mirror_token() -> str:
+    import secrets
+    for _ in range(8):
+        tok = "".join(secrets.choice(INTAKE_TOKEN_ALPHABET) for _ in range(MIRROR_TOKEN_LEN))
+        with db_conn() as con:
+            if not con.execute("SELECT 1 FROM mirror_links WHERE token = ?", (tok,)).fetchone():
+                return tok
+    raise HTTPException(500, "미러 토큰 생성 실패")
+
+
+def _mirror_pin_hash(salt: str, pin: str) -> str:
+    return hashlib.sha256((salt + "|" + pin).encode("utf-8")).hexdigest()
+
+
+def _mirror_cookie_name(token: str) -> str:
+    return "mv_" + token
+
+
+def _mirror_cookie_value(token: str, pin_hash: str) -> str:
+    import hmac
+    return hmac.new(_mirror_secret().encode("utf-8"),
+                    (token + "|" + (pin_hash or "")).encode("utf-8"),
+                    hashlib.sha256).hexdigest()
+
+
+def _mirror_unlocked(request: Request, token: str, pin_hash: Optional[str]) -> bool:
+    """비번이 없으면 항상 통과. 있으면 쿠키 서명 일치해야 통과."""
+    if not pin_hash:
+        return True
+    import hmac as _hmac
+    got = request.cookies.get(_mirror_cookie_name(token)) or ""
+    return _hmac.compare_digest(got, _mirror_cookie_value(token, pin_hash))
+
+
+def _mirror_link_row(token: str) -> Optional[tuple]:
+    with db_conn() as con:
+        return con.execute(
+            "SELECT token, main_key, pin_hash, pin_salt, revoked FROM mirror_links WHERE token = ?",
+            (token,),
+        ).fetchone()
+
+
+def _mirror_payload(token: str) -> dict:
+    """뷰어/새로고침 공통 — 사업장별 최신 스냅샷 + 돈 요약 합산."""
+    with db_conn() as con:
+        rows = con.execute(
+            "SELECT owner_phone, label, tint, snapshot_json, money_json, updated_at_ms "
+            "FROM mirror_sources WHERE token = ? ORDER BY updated_at_ms DESC",
+            (token,),
+        ).fetchall()
+    sources = []
+    total_today_in = 0
+    total_unpaid = 0
+    total_unpaid_cnt = 0
+    for (ophone, label, tint, snap, money, upd) in rows:
+        try:
+            items = json.loads(snap) if snap else []
+        except json.JSONDecodeError:
+            items = []
+        try:
+            m = json.loads(money) if money else {}
+        except json.JSONDecodeError:
+            m = {}
+        total_today_in += int(m.get("todayIn") or 0)
+        total_unpaid += int(m.get("unpaid") or 0)
+        total_unpaid_cnt += int(m.get("unpaidCount") or 0)
+        sources.append({
+            "ownerPhone": ophone,
+            "label": (label or "사업장"),
+            "tint": int(tint or 0),
+            "items": items,
+            "money": m,
+            "updatedAtMs": upd,
+        })
+    return {
+        "token": token,
+        "sources": sources,
+        "money": {"todayIn": total_today_in, "unpaid": total_unpaid,
+                  "unpaidCount": total_unpaid_cnt},
+        "serverNowMs": _now_ms(),
+    }
+
+
+class MirrorIssueRequest(BaseModel):
+    owner_phone: str = ""
+    label: str = ""
+    pin: Optional[str] = None      # 4자리. 없으면 서버가 랜덤 발급해 응답에 1회만 내려줌
+    tint: int = 0
+
+
+class MirrorPairCodeRequest(BaseModel):
+    owner_phone: str = ""          # 이미 등록된 업무폰A (그 폰의 token 을 찾는다)
+    token: Optional[str] = None
+
+
+class MirrorPairRequest(BaseModel):
+    code: str = ""
+    owner_phone: str = ""          # 합류할 업무폰B
+    label: str = ""
+    tint: int = 1
+
+
+class MirrorSnapshotRequest(BaseModel):
+    owner_phone: str = ""
+    token: Optional[str] = None
+    label: Optional[str] = None
+    items: list = Field(default_factory=list)
+    money: Optional[dict] = None
+
+
+class MirrorRevokeRequest(BaseModel):
+    owner_phone: str = ""
+    token: str = ""
+
+
+@app.post("/api/mirror/issue")
+async def mirror_issue(req: MirrorIssueRequest) -> dict:
+    """업무폰A — 본폰용 미러 링크 발급(없으면 생성). 그 사업장을 source 로 등록.
+
+    pin 을 안 주면 서버가 4자리를 만들어 **이 응답에서 딱 한 번** 내려준다(해시만 저장).
+    """
+    import secrets
+    ophone = _norm_phone(req.owner_phone)
+    if not ophone:
+        raise HTTPException(400, "owner_phone 필수")
+    label = (req.label or "").strip()[:20] or "내 사업장"
+    now = _now_ms()
+
+    with db_conn() as con:
+        # 이 업무폰이 이미 어떤 미러 링크에 속해 있으면 그걸 재사용
+        row = con.execute(
+            "SELECT s.token FROM mirror_sources s JOIN mirror_links l ON l.token = s.token "
+            "WHERE s.owner_phone = ? AND l.revoked = 0 LIMIT 1",
+            (ophone,),
+        ).fetchone()
+        pin_plain = None
+        if row:
+            token = row[0]
+            con.execute(
+                "UPDATE mirror_sources SET label = ?, tint = ?, updated_at_ms = ? "
+                "WHERE token = ? AND owner_phone = ?",
+                (label, int(req.tint or 0), now, token, ophone),
+            )
+        else:
+            token = _generate_mirror_token()
+            pin_plain = (req.pin or "").strip() or ("%04d" % secrets.randbelow(10000))
+            if not (pin_plain.isdigit() and len(pin_plain) == 4):
+                raise HTTPException(400, "pin 은 4자리 숫자")
+            salt = secrets.token_hex(8)
+            con.execute(
+                "INSERT INTO mirror_links (token, main_key, pin_hash, pin_salt, created_at_ms, revoked) "
+                "VALUES (?, ?, ?, ?, ?, 0)",
+                (token, "mk_" + secrets.token_hex(6), _mirror_pin_hash(salt, pin_plain), salt, now),
+            )
+            con.execute(
+                "INSERT INTO mirror_sources (token, owner_phone, label, tint, snapshot_json, "
+                "money_json, updated_at_ms) VALUES (?, ?, ?, ?, NULL, NULL, ?)",
+                (token, ophone, label, int(req.tint or 0), now),
+            )
+        con.commit()
+
+    url = f"{INTAKE_PUBLIC_BASE_URL.rstrip('/')}/mirror/{token}"
+    print(f"[mirror/issue] {ophone} ({label}) → token={token} new_pin={'Y' if pin_plain else 'N'}")
+    out = {"ok": True, "token": token, "url": url, "label": label}
+    if pin_plain:
+        out["pin"] = pin_plain          # 최초 1회만. 앱이 사장님께 보여주고 저장 안 함.
+        out["pinNotice"] = "본폰에서 처음 열 때 한 번 입력하면 그 폰에서는 계속 기억합니다."
+    return out
+
+
+@app.post("/api/mirror/pair/code")
+async def mirror_pair_code(req: MirrorPairCodeRequest) -> dict:
+    """두 번째 업무폰을 합치기 위한 6자리 코드 발급 (10분 유효)."""
+    import secrets
+    token = (req.token or "").strip()
+    if not token:
+        ophone = _norm_phone(req.owner_phone)
+        if not ophone:
+            raise HTTPException(400, "owner_phone 또는 token 필수")
+        with db_conn() as con:
+            row = con.execute(
+                "SELECT s.token FROM mirror_sources s JOIN mirror_links l ON l.token = s.token "
+                "WHERE s.owner_phone = ? AND l.revoked = 0 LIMIT 1",
+                (ophone,),
+            ).fetchone()
+        if not row:
+            raise HTTPException(404, "먼저 /api/mirror/issue 로 링크를 발급하세요")
+        token = row[0]
+    code = "%06d" % secrets.randbelow(1000000)
+    expires = _now_ms() + 10 * 60 * 1000
+    with db_conn() as con:
+        con.execute(
+            "INSERT OR REPLACE INTO mirror_pair_codes (code, token, expires_at_ms, used_at_ms) "
+            "VALUES (?, ?, ?, NULL)",
+            (code, token, expires),
+        )
+        con.commit()
+    return {"ok": True, "code": code, "token": token, "expiresAtMs": expires,
+            "validMinutes": 10}
+
+
+@app.post("/api/mirror/pair")
+async def mirror_pair(req: MirrorPairRequest) -> dict:
+    """업무폰B — 6자리 코드로 기존 미러 링크에 합류(= source 추가)."""
+    code = (req.code or "").strip()
+    ophone = _norm_phone(req.owner_phone)
+    if not code or not ophone:
+        raise HTTPException(400, "code, owner_phone 필수")
+    now = _now_ms()
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT token, expires_at_ms, used_at_ms FROM mirror_pair_codes WHERE code = ?",
+            (code,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "코드가 올바르지 않습니다")
+        token, expires, used = row
+        if used is not None:
+            raise HTTPException(410, "이미 사용된 코드입니다")
+        if now > expires:
+            raise HTTPException(410, "만료된 코드입니다 (10분)")
+        label = (req.label or "").strip()[:20] or "사업장 2"
+        con.execute(
+            "INSERT OR REPLACE INTO mirror_sources (token, owner_phone, label, tint, "
+            "snapshot_json, money_json, updated_at_ms) "
+            "VALUES (?, ?, ?, ?, COALESCE((SELECT snapshot_json FROM mirror_sources "
+            "WHERE token=? AND owner_phone=?), NULL), NULL, ?)",
+            (token, ophone, label, int(req.tint or 1), token, ophone, now),
+        )
+        con.execute("UPDATE mirror_pair_codes SET used_at_ms = ? WHERE code = ?", (now, code))
+        con.commit()
+    url = f"{INTAKE_PUBLIC_BASE_URL.rstrip('/')}/mirror/{token}"
+    print(f"[mirror/pair] {ophone} ({label}) → token={token}")
+    return {"ok": True, "token": token, "url": url, "label": label}
+
+
+@app.post("/api/mirror/snapshot")
+async def mirror_snapshot(req: MirrorSnapshotRequest) -> dict:
+    """업무폰 — 일정 items[] + 돈 요약 덮어쓰기 (팀원 schedule-snapshot 과 동일 컨셉).
+
+    items: [{date:"2026-07-15", time:"09:00", days:1, name, address, phone, memo, completed}]
+    money: {todayIn, unpaid, unpaidCount}
+    """
+    ophone = _norm_phone(req.owner_phone)
+    if not ophone:
+        raise HTTPException(400, "owner_phone 필수")
+    now = _now_ms()
+    with db_conn() as con:
+        if req.token:
+            row = con.execute(
+                "SELECT token FROM mirror_sources WHERE token = ? AND owner_phone = ?",
+                (req.token, ophone),
+            ).fetchone()
+        else:
+            row = con.execute(
+                "SELECT s.token FROM mirror_sources s JOIN mirror_links l ON l.token = s.token "
+                "WHERE s.owner_phone = ? AND l.revoked = 0 LIMIT 1",
+                (ophone,),
+            ).fetchone()
+        if not row:
+            raise HTTPException(404, "미러 링크 없음 — /api/mirror/issue 먼저 호출")
+        token = row[0]
+        sets = ["snapshot_json = ?", "money_json = ?", "updated_at_ms = ?"]
+        vals = [json.dumps(req.items or [], ensure_ascii=False),
+                json.dumps(req.money or {}, ensure_ascii=False), now]
+        if (req.label or "").strip():
+            sets.append("label = ?")
+            vals.append((req.label or "").strip()[:20])
+        vals.extend([token, ophone])
+        con.execute(
+            f"UPDATE mirror_sources SET {', '.join(sets)} WHERE token = ? AND owner_phone = ?",
+            vals,
+        )
+        con.commit()
+    return {"ok": True, "token": token, "itemsCount": len(req.items or []),
+            "updatedAtMs": now}
+
+
+@app.post("/api/mirror/revoke")
+async def mirror_revoke(req: MirrorRevokeRequest) -> dict:
+    """본폰 분실 등 — 링크 폐기. 이후 /mirror/{token} 은 410."""
+    ophone = _norm_phone(req.owner_phone)
+    token = (req.token or "").strip()
+    if not ophone or not token:
+        raise HTTPException(400, "owner_phone, token 필수")
+    with db_conn() as con:
+        own = con.execute(
+            "SELECT 1 FROM mirror_sources WHERE token = ? AND owner_phone = ?",
+            (token, ophone),
+        ).fetchone()
+        if not own:
+            raise HTTPException(403, "이 링크의 사업장이 아닙니다")
+        con.execute("UPDATE mirror_links SET revoked = 1 WHERE token = ?", (token,))
+        con.commit()
+    print(f"[mirror/revoke] {ophone} → token={token}")
+    return {"ok": True, "token": token, "revoked": True}
+
+
+def _mirror_gate_page(token: str, err: str = "") -> HTMLResponse:
+    """4자리 비번 입력 화면 (본폰에서 최초 1회)."""
+    import html as _html
+    err_html = (f'<div class="err">{_html.escape(err)}</div>' if err else "")
+    css = (
+        "body{font-family:'Pretendard',-apple-system,system-ui,sans-serif;background:#FAFBFC;"
+        "margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}"
+        ".card{background:#fff;border:1px solid #EEF0F3;border-radius:20px;padding:34px 26px;"
+        "max-width:340px;width:100%;text-align:center;box-shadow:0 2px 10px rgba(0,0,0,.05)}"
+        ".ic{font-size:34px}h1{font-size:19px;font-weight:900;margin:12px 0 6px;color:#0B0F19}"
+        "p{font-size:13.5px;color:#5A6472;margin:0 0 20px;line-height:1.6}"
+        "input{width:100%;padding:15px;font-size:26px;letter-spacing:12px;text-align:center;"
+        "border:1px solid #EEF0F3;border-radius:12px;font-weight:800;box-sizing:border-box}"
+        "button{width:100%;margin-top:12px;padding:14px;border:0;border-radius:12px;background:#3182F6;"
+        "color:#fff;font-size:15px;font-weight:800;cursor:pointer}"
+        ".err{background:#FDECEA;color:#C8352B;font-size:12.5px;font-weight:700;border-radius:9px;"
+        "padding:9px;margin-bottom:12px}"
+        ".mut{font-size:11.5px;color:#9AA3AF;margin-top:14px}"
+    )
+    html = (
+        '<!doctype html><html lang="ko"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<meta name="robots" content="noindex"><title>일정 미러 · 잠금</title>'
+        '<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">'
+        f'<style>{css}</style></head><body><div class="card">'
+        '<div class="ic">🔒</div><h1>일정 미러</h1>'
+        '<p>사장님만 보는 화면이에요.<br>4자리 비밀번호를 입력해 주세요.</p>'
+        f'{err_html}'
+        f'<form method="post" action="/mirror/{token}/unlock">'
+        '<input name="pin" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="4" '
+        'autocomplete="off" autofocus placeholder="····">'
+        '<button type="submit">열기</button></form>'
+        '<div class="mut">한 번 입력하면 이 폰에서는 계속 기억합니다.</div>'
+        '</div></body></html>'
+    )
+    return HTMLResponse(content=html, status_code=200)
+
+
+def _mirror_msg_page(icon: str, title: str, desc: str, status: int) -> HTMLResponse:
+    import html as _html
+    html = (
+        '<!doctype html><html lang="ko"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<meta name="robots" content="noindex">'
+        '<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">'
+        "</head><body style=\"font-family:'Pretendard',sans-serif;padding:60px 24px;text-align:center;"
+        'background:#FAFBFC;color:#0B0F19">'
+        f'<div style="font-size:40px">{icon}</div>'
+        f'<h2 style="font-size:19px;margin:14px 0 6px">{_html.escape(title)}</h2>'
+        f'<p style="font-size:13.5px;color:#5A6472">{_html.escape(desc)}</p>'
+        '</body></html>'
+    )
+    return HTMLResponse(content=html, status_code=status)
+
+
+@app.post("/mirror/{token}/unlock", response_class=HTMLResponse)
+async def mirror_unlock(token: str, pin: str = Form(default="")) -> Response:
+    """비번 확인 → 쿠키 심고 뷰어로 리다이렉트."""
+    row = _mirror_link_row(token)
+    if not row:
+        return _mirror_msg_page("❌", "유효하지 않은 링크", "업무폰에서 링크를 다시 받아 주세요.", 404)
+    _tok, _mk, pin_hash, pin_salt, revoked = row
+    if revoked:
+        return _mirror_msg_page("🔒", "폐기된 링크", "업무폰에서 새 링크를 발급해 주세요.", 410)
+
+    fails = _MIRROR_PIN_FAILS.get(token, [0, 0])
+    if fails[0] >= _MIRROR_PIN_MAX_FAILS and (_now_ms() - fails[1]) < 10 * 60 * 1000:
+        return _mirror_gate_page(token, "시도가 너무 많습니다. 10분 뒤 다시 시도해 주세요.")
+
+    pin = (pin or "").strip()
+    if not pin_hash or _mirror_pin_hash(pin_salt or "", pin) != pin_hash:
+        _MIRROR_PIN_FAILS[token] = [fails[0] + 1, _now_ms()]
+        return _mirror_gate_page(token, "비밀번호가 맞지 않습니다.")
+
+    _MIRROR_PIN_FAILS.pop(token, None)
+    resp = Response(status_code=303, headers={"Location": f"/mirror/{token}"})
+    resp.set_cookie(
+        key=_mirror_cookie_name(token),
+        value=_mirror_cookie_value(token, pin_hash),
+        max_age=_MIRROR_COOKIE_MAX_AGE, httponly=True, samesite="lax", path="/",
+    )
+    return resp
+
+
+@app.get("/api/mirror/data/{token}")
+async def mirror_data(token: str, request: Request) -> dict:
+    """60초 자동 새로고침용. 비번 쿠키 없으면 401."""
+    row = _mirror_link_row(token)
+    if not row:
+        raise HTTPException(404, "유효하지 않은 링크")
+    _tok, _mk, pin_hash, _salt, revoked = row
+    if revoked:
+        raise HTTPException(410, "폐기된 링크")
+    if not _mirror_unlocked(request, token, pin_hash):
+        raise HTTPException(401, "잠김")
+    with db_conn() as con:
+        con.execute("UPDATE mirror_links SET last_accessed_ms = ? WHERE token = ?",
+                    (_now_ms(), token))
+        con.commit()
+    return _mirror_payload(token)
+
+
+@app.get("/mirror/{token}", response_class=HTMLResponse)
+async def mirror_page(token: str, request: Request) -> HTMLResponse:
+    """본폰 — 읽기전용 통합 캘린더 (수정 UI 없음). 사업장 N개 통합."""
+    row = _mirror_link_row(token)
+    if not row:
+        return _mirror_msg_page("❌", "유효하지 않은 링크", "업무폰에서 링크를 다시 받아 주세요.", 404)
+    _tok, _mk, pin_hash, _salt, revoked = row
+    if revoked:
+        return _mirror_msg_page("🔒", "폐기된 링크", "업무폰에서 새 링크를 발급해 주세요.", 410)
+    if not _mirror_unlocked(request, token, pin_hash):
+        return _mirror_gate_page(token)
+
+    with db_conn() as con:
+        con.execute("UPDATE mirror_links SET last_accessed_ms = ? WHERE token = ?",
+                    (_now_ms(), token))
+        con.commit()
+    data = _mirror_payload(token)
+    boot = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
+    html = MIRROR_VIEW_HTML.replace("__TOKEN__", token).replace("__BOOT__", boot)
+    return HTMLResponse(content=html)
+
+
+@app.get("/manifest/mirror.webmanifest")
+async def mirror_manifest():
+    """본폰 홈화면 추가용 PWA manifest."""
+    return JSONResponse(content={
+        "name": "일정 미러 — 시공막내",
+        "short_name": "일정 미러",
+        "start_url": "/",
+        "display": "standalone",
+        "background_color": "#FAFBFC",
+        "theme_color": "#3182F6",
+        "icons": [
+            {"src": "/manifest/admin-icon.svg", "sizes": "any", "type": "image/svg+xml",
+             "purpose": "any maskable"},
+            {"src": "/manifest/admin-icon.svg", "sizes": "192x192", "type": "image/svg+xml"},
+            {"src": "/manifest/admin-icon.svg", "sizes": "512x512", "type": "image/svg+xml"},
+        ],
+    }, media_type="application/manifest+json")
+
+
+# 뷰어 HTML — 서버는 boot JSON 만 박고, 달력/카드는 JS 가 그린다(60초 새로고침 재사용).
+MIRROR_VIEW_HTML = r"""<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>일정 미러 — 시공막내</title>
+<link rel="manifest" href="/manifest/mirror.webmanifest">
+<meta name="theme-color" content="#3182F6">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  :root{--blue:#3182F6;--blue-dark:#1B64DA;--tint:#EEF4FF;--bg:#FAFBFC;--t1:#0B0F19;
+        --t2:#5A6472;--t3:#9AA3AF;--line:#EEF0F3;--green:#16C172;--red:#F0436A;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Pretendard',-apple-system,system-ui,sans-serif;background:var(--bg);
+       color:var(--t1);line-height:1.6;padding-bottom:40px;}
+  .top{position:sticky;top:0;z-index:9;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);
+       border-bottom:1px solid var(--line);padding:12px 16px 10px;}
+  .ttl{font-size:16px;font-weight:900;letter-spacing:-.03em;display:flex;align-items:center;gap:6px;}
+  .ro{font-size:10.5px;font-weight:800;color:var(--t3);background:#F1F3F5;border-radius:999px;padding:2px 8px;}
+  .upd{font-size:11px;color:var(--t3);margin-top:3px;}
+  .chips{display:flex;gap:6px;margin-top:9px;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .chip{flex:none;font-size:12.5px;font-weight:800;border:1px solid var(--line);background:#fff;
+        color:var(--t2);border-radius:999px;padding:6px 12px;cursor:pointer;display:flex;align-items:center;gap:5px;}
+  .chip.on{background:var(--tint);border-color:var(--blue);color:var(--blue-dark);}
+  .dot{width:7px;height:7px;border-radius:50%;}
+  .wrap{max-width:560px;margin:0 auto;padding:14px 16px;}
+  .money{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:14px;}
+  .mcard{background:#fff;border:1px solid var(--line);border-radius:14px;padding:13px 14px;}
+  .mcard .k{font-size:11.5px;color:var(--t3);font-weight:700;}
+  .mcard .v{font-size:17px;font-weight:900;margin-top:2px;letter-spacing:-.02em;}
+  .mcard.in .v{color:var(--green);} .mcard.un .v{color:var(--red);}
+  .mcard .s{font-size:11px;color:var(--t3);margin-top:1px;}
+  .sec{font-size:13px;font-weight:900;margin:16px 0 8px;color:var(--t2);}
+  .cal{background:#fff;border:1px solid var(--line);border-radius:16px;padding:12px 10px;}
+  .calhd{display:flex;align-items:center;justify-content:space-between;padding:2px 6px 8px;}
+  .calhd b{font-size:14px;font-weight:900;}
+  .calhd button{border:0;background:#F1F3F5;color:var(--t2);border-radius:8px;width:30px;height:28px;
+                font-size:14px;font-weight:800;cursor:pointer;}
+  .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+  .dow{font-size:10.5px;color:var(--t3);text-align:center;font-weight:800;padding-bottom:4px;}
+  .day{aspect-ratio:1;border-radius:9px;display:flex;flex-direction:column;align-items:center;
+       justify-content:center;font-size:12.5px;font-weight:700;color:var(--t1);cursor:pointer;position:relative;}
+  .day.off{color:#D6DAE0;} .day.sel{background:var(--blue);color:#fff;}
+  .day.today{outline:1.5px solid var(--blue);}
+  .day .pips{display:flex;gap:2px;margin-top:2px;height:4px;}
+  .day .pips i{width:4px;height:4px;border-radius:50%;display:block;}
+  .day.sel .pips i{background:#fff !important;}
+  .cards{margin-top:12px;}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:13px 14px;
+        margin-bottom:8px;border-left:4px solid var(--blue);}
+  .card.done{opacity:.6;}
+  .c1{display:flex;align-items:center;gap:7px;}
+  .c1 .nm{font-size:14.5px;font-weight:900;}
+  .c1 .tm{font-size:12px;font-weight:800;color:var(--blue-dark);background:var(--tint);
+          border-radius:6px;padding:2px 7px;}
+  .c1 .dd{font-size:11px;font-weight:800;color:var(--t3);}
+  .c1 .ok{font-size:11px;font-weight:800;color:var(--green);margin-left:auto;}
+  .c2{font-size:12.5px;color:var(--t2);margin-top:5px;}
+  .c3{font-size:12px;color:var(--t3);margin-top:4px;display:flex;gap:10px;flex-wrap:wrap;}
+  .c3 a{color:var(--blue-dark);font-weight:700;text-decoration:none;}
+  .memo{font-size:12px;color:var(--t2);background:#FFF9E6;border-radius:8px;padding:6px 9px;margin-top:6px;}
+  .empty{text-align:center;color:var(--t3);font-size:13px;padding:26px 0;}
+  .lbl{font-size:10.5px;font-weight:800;border-radius:5px;padding:1px 6px;}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="ttl">📅 일정 미러 <span class="ro">읽기 전용</span></div>
+  <div class="upd" id="upd">불러오는 중…</div>
+  <div class="chips" id="chips"></div>
+</div>
+
+<div class="wrap">
+  <div class="money">
+    <div class="mcard in"><div class="k">오늘 입금</div><div class="v" id="mIn">-</div></div>
+    <div class="mcard un"><div class="k">미수금</div><div class="v" id="mUn">-</div><div class="s" id="mUc"></div></div>
+  </div>
+
+  <div class="cal">
+    <div class="calhd">
+      <button id="prev">‹</button><b id="ym"></b><button id="next">›</button>
+    </div>
+    <div class="grid" id="dows"></div>
+    <div class="grid" id="days"></div>
+  </div>
+
+  <div class="sec" id="secTitle">오늘 현장</div>
+  <div class="cards" id="cards"></div>
+</div>
+
+<script>
+const TOKEN="__TOKEN__";
+let DATA=__BOOT__;
+const TINTS=["#3182F6","#16C172","#F5A623","#9B51E0","#F0436A"];
+let filter="all", sel=null, cur=null;
+
+const won=n=>(n||0).toLocaleString("ko-KR")+"원";
+const ymd=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+function ago(ms){const s=Math.max(0,Math.floor((Date.now()-ms)/1000));
+  if(s<60)return"방금";if(s<3600)return Math.floor(s/60)+"분 전";
+  if(s<86400)return Math.floor(s/3600)+"시간 전";return Math.floor(s/86400)+"일 전";}
+
+// 소스별 items 를 하나로 합치고 sourceIdx 를 심는다 (N일짜리는 날짜 확장)
+function allItems(){
+  const out=[];
+  (DATA.sources||[]).forEach((s,si)=>{
+    if(filter!=="all" && filter!==String(si)) return;
+    (s.items||[]).forEach(it=>{
+      const days=Math.max(1,parseInt(it.days||1));
+      const base=new Date((it.date||"")+"T00:00:00");
+      if(isNaN(base)) return;
+      for(let k=0;k<days;k++){
+        const d=new Date(base); d.setDate(d.getDate()+k);
+        out.push(Object.assign({},it,{_d:ymd(d),_si:si,_k:k,_days:days}));
+      }
+    });
+  });
+  return out;
+}
+function byDate(){const m={};allItems().forEach(it=>{(m[it._d]=m[it._d]||[]).push(it);});return m;}
+
+function render(){
+  const srcs=DATA.sources||[];
+  document.getElementById("upd").textContent = srcs.length
+    ? "마지막 업데이트: " + srcs.map(s=>s.label+" "+ago(s.updatedAtMs)).join(" · ")
+    : "업무폰에서 아직 일정을 보내지 않았어요";
+
+  const ch=document.getElementById("chips");
+  ch.innerHTML = '<div class="chip'+(filter==="all"?" on":"")+'" data-f="all">전체</div>' +
+    srcs.map((s,i)=>'<div class="chip'+(filter===String(i)?" on":"")+'" data-f="'+i+'">'+
+      '<span class="dot" style="background:'+TINTS[s.tint%5]+'"></span>'+esc(s.label)+'</div>').join("");
+  ch.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{filter=c.dataset.f;render();});
+
+  const M=DATA.money||{};
+  document.getElementById("mIn").textContent=won(M.todayIn);
+  document.getElementById("mUn").textContent=won(M.unpaid);
+  document.getElementById("mUc").textContent=(M.unpaidCount||0)+"건";
+
+  const today=new Date(); if(!sel) sel=ymd(today); if(!cur) cur=new Date(today.getFullYear(),today.getMonth(),1);
+  drawCal(); drawCards();
+}
+function esc(s){const d=document.createElement("div");d.textContent=s==null?"":s;return d.innerHTML;}
+
+function drawCal(){
+  document.getElementById("ym").textContent=cur.getFullYear()+"년 "+(cur.getMonth()+1)+"월";
+  const dw=document.getElementById("dows");
+  dw.innerHTML=["일","월","화","수","목","금","토"].map(d=>'<div class="dow">'+d+"</div>").join("");
+  const map=byDate(), tstr=ymd(new Date());
+  const first=new Date(cur.getFullYear(),cur.getMonth(),1);
+  const start=new Date(first); start.setDate(1-first.getDay());
+  let h="";
+  for(let i=0;i<42;i++){
+    const d=new Date(start); d.setDate(start.getDate()+i);
+    const k=ymd(d), off=d.getMonth()!==cur.getMonth();
+    const its=map[k]||[];
+    const pips=[...new Set(its.map(x=>x._si))].slice(0,3)
+      .map(si=>'<i style="background:'+TINTS[(DATA.sources[si]||{}).tint%5||0]+'"></i>').join("");
+    h+='<div class="day'+(off?" off":"")+(k===sel?" sel":"")+(k===tstr?" today":"")+'" data-d="'+k+'">'+
+       d.getDate()+'<span class="pips">'+pips+'</span></div>';
+  }
+  const g=document.getElementById("days"); g.innerHTML=h;
+  g.querySelectorAll(".day").forEach(e=>e.onclick=()=>{sel=e.dataset.d;drawCal();drawCards();});
+}
+
+function drawCards(){
+  const map=byDate(), its=(map[sel]||[]).sort((a,b)=>(a.time||"").localeCompare(b.time||""));
+  const tstr=ymd(new Date());
+  document.getElementById("secTitle").textContent =
+    (sel===tstr?"오늘":sel.slice(5).replace("-","월 ")+"일")+" 현장 "+(its.length?"("+its.length+")":"");
+  const box=document.getElementById("cards");
+  if(!its.length){box.innerHTML='<div class="empty">이 날은 잡힌 현장이 없어요</div>';return;}
+  box.innerHTML=its.map(it=>{
+    const s=DATA.sources[it._si]||{}, col=TINTS[(s.tint||0)%5];
+    const dd=it._days>1?'<span class="dd">'+(it._k+1)+"/"+it._days+"일차</span>":"";
+    const tm=it.time?'<span class="tm">'+esc(it.time)+"</span>":"";
+    const ok=it.completed?'<span class="ok">✓ 완료</span>':"";
+    const ph=it.phone?'<a href="tel:'+esc(it.phone)+'">📞 '+esc(it.phone)+"</a>":"";
+    const ad=it.address?'<div class="c2">📍 '+esc(it.address)+"</div>":"";
+    const mm=it.memo?'<div class="memo">📝 '+esc(it.memo)+"</div>":"";
+    const lb=(DATA.sources.length>1)?'<span class="lbl" style="background:'+col+'22;color:'+col+'">'+esc(s.label)+"</span>":"";
+    return '<div class="card'+(it.completed?" done":"")+'" style="border-left-color:'+col+'">'+
+      '<div class="c1"><span class="nm">'+esc(it.name||"현장")+"</span>"+tm+dd+ok+"</div>"+
+      ad+(ph?'<div class="c3">'+ph+"</div>":"")+mm+
+      (lb?'<div class="c3">'+lb+"</div>":"")+"</div>";
+  }).join("");
+}
+
+document.getElementById("prev").onclick=()=>{cur=new Date(cur.getFullYear(),cur.getMonth()-1,1);drawCal();};
+document.getElementById("next").onclick=()=>{cur=new Date(cur.getFullYear(),cur.getMonth()+1,1);drawCal();};
+
+async function refresh(){
+  try{
+    const r=await fetch("/api/mirror/data/"+TOKEN,{cache:"no-store"});
+    if(r.status===401){location.reload();return;}
+    if(!r.ok) return;
+    DATA=await r.json(); render();
+  }catch(e){}
+}
+setInterval(refresh,60000);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)refresh();});
+render();
+</script>
+</body>
+</html>
+"""

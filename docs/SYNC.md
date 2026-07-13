@@ -7026,3 +7026,15 @@ Play 심사 거부(민감권한 SMS/통화기록) 원인·해결 — 온보딩 �
 - 업무폰이 일정 스냅샷 push(앱쪽 다음세션 구현) → 본폰은 링크로 A+B 통합 캘린더 읽기전용.
 - Python 3.9 주의(Optional[str]). 스냅샷 JSON 스펙·프라이버시 기본값(이름·주소·시간만)·미확정 질문 4개는 핸드오프 문서 참고.
 - 앱쪽(MirrorRepository+push트리거+더보기메뉴+6자리코드)은 데스크탑 Claude 다음 세션.
+
+## 2026-07-14 00:55 · cowork
+추가119 — 본폰 "일정 미러 링크" **서버 완성** (docs/SERVER_HANDOFF_mirror.md 이행).
+- 사장님 확정(미확정 4개 답변): ① 링크보안=**4자리 비번 1회** ② 노출=**전부(전화·메모 포함)** ③ 1차범위=**일정+돈 요약** ④ 처리방침=cowork 반영.
+- 테이블: mirror_links(token,main_key,pin_hash/salt,revoked) / mirror_sources(token,owner_phone,label,tint,snapshot_json,money_json,updated_at_ms) / mirror_pair_codes(6자리,10분,1회용) / server_kv(쿠키서명 시크릿).
+- API: POST /api/mirror/issue(링크+비번 발급·재사용) · /api/mirror/pair/code · /api/mirror/pair(업무폰B 합류) · /api/mirror/snapshot(일정+돈 덮어쓰기) · /api/mirror/revoke(분실 대비).
+- 뷰어: GET /mirror/{token} — 비번 게이트(쿠키 180일 기억, 10회 오입력 시 10분 차단) → 읽기전용 통합 캘린더(사업장 칩·돈 요약 합산·월 캘린더·N일 자동 전개·전화 탭 통화·메모·마지막 업데이트·60초 새로고침·PWA). 수정 UI 없음.
+- GET /api/mirror/data/{token} = 새로고침 JSON(쿠키 없으면 401).
+- privacy.html §2-2-2 신설: 미러 보관 항목·목적·안전조치(비번/폐기)·파기. **기본값 꺼짐 = 앱도 옵트인 필수.**
+- 검증 12단계 통과(issue→snapshot→pair→게이트→틀린비번거부→unlock→뷰어→합산→폐기410).
+- commit: (아래)
+- 다음 액션(android): **docs/ANDROID_HANDOFF_mirror_app.md** 대로 배선 — 더보기 옵트인 토글 + issue(비번 4자리 1회 표시, 저장 금지) + 링크공유 + 6자리 페어 + observeScheduled 30초 디바운스 snapshot push + WorkManager 12h + [링크 폐기]. 본폰 화면은 서버가 다 그림(앱 작업 없음).
