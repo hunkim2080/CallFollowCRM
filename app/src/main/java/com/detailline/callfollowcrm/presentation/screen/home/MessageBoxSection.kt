@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -80,18 +79,14 @@ private fun FolderTab(label: String, active: Boolean, badge: Int, modifier: Modi
             )
             if (badge > 0) {
                 Spacer(Modifier.size(6.dp))
-                // 한 자리는 정원(18x18), 여러 자리는 좌우만 늘어나는 알약 — 세로 눌린 타원 방지. (2026-07-13 사장님)
+                // 고정 18x18 = 항상 정원. 글자 여백 주면 옆으로 늘어나 타원 되므로 여백 없이 중앙정렬. (2026-07-13 사장님)
                 Box(
-                    Modifier
-                        .defaultMinSize(minWidth = 18.dp, minHeight = 18.dp)
-                        .clip(CircleShape)
-                        .background(TossBlue),
+                    Modifier.size(18.dp).clip(CircleShape).background(TossBlue),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        if (badge > 99) "99+" else "$badge",
-                        color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 5.dp)
+                        if (badge > 9) "9+" else "$badge",
+                        color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold
                     )
                 }
             }
