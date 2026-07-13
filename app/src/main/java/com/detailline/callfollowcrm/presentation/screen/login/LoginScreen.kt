@@ -156,8 +156,29 @@ fun LoginScreen(onLoginPhone: (String) -> Unit, onProceed: () -> Unit) {
             }
 
             Spacer(Modifier.height(20.dp))
+            // 수집·이용 동의 / 처리방침 — 탭하면 앱 내 웹뷰로 열림(브라우저 없어도). '이용약관' 문서는 없어 실제 문서명으로 표기. (2026-07-13 사장님)
+            val linkCtx = androidx.compose.ui.platform.LocalContext.current
+            val openDoc: (String) -> Unit = { url ->
+                com.detailline.callfollowcrm.presentation.screen.web.DocWebViewActivity.open(
+                    linkCtx, url, com.detailline.callfollowcrm.presentation.screen.web.DocWebViewActivity.titleFor(url)
+                )
+            }
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("개인정보 수집·이용", fontSize = 11.sp, color = LoginBlue, fontWeight = FontWeight.Bold,
+                    textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                    modifier = Modifier.clickable { openDoc(com.detailline.callfollowcrm.AppConfig.CONSENT_REQUIRED_URL) }.padding(4.dp))
+                Text("·", fontSize = 11.sp, color = Color(0xFF9AA3AF), modifier = Modifier.padding(horizontal = 2.dp))
+                Text("개인정보처리방침", fontSize = 11.sp, color = LoginBlue, fontWeight = FontWeight.Bold,
+                    textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                    modifier = Modifier.clickable { openDoc(com.detailline.callfollowcrm.AppConfig.PRIVACY_POLICY_URL) }.padding(4.dp))
+            }
+            Spacer(Modifier.height(4.dp))
             Text(
-                "로그인하면 이용약관 · 개인정보처리방침에\n동의하는 것으로 봐요",
+                "로그인하면 위 내용에 동의하는 것으로 봐요",
                 fontSize = 11.sp,
                 color = Color(0xFF9AA3AF),
                 fontWeight = FontWeight.Medium,
