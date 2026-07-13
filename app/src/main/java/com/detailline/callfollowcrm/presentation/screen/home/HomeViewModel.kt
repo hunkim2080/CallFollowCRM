@@ -371,7 +371,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
     val teamUpdates: StateFlow<List<com.detailline.callfollowcrm.ai.TeamEventCenter.TeamUpdate>> =
         combine(container.teamEventCenter.todayUpdates, dismissedTeamDepartIds) { list, dismissed ->
-            list.filter { it.eventId !in dismissed }.sortedByDescending { it.createdAtMs }
+            // 출발/도착은 홈 카드에 안 쌓음 — 푸시로만 알림(쿠팡이츠식). 지우는 피로 제거. 완료·메모는 액션이라 유지. (2026-07-13 사장님)
+            list.filter { it.eventId !in dismissed && it.kind != "departed" && it.kind != "arrived" }
+                .sortedByDescending { it.createdAtMs }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // ────────────────────────────────────────────────────────
@@ -408,7 +410,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
     val collabUpdates: StateFlow<List<com.detailline.callfollowcrm.ai.CollabEventCenter.CollabUpdate>> =
         combine(container.collabEventCenter.todayUpdates, dismissedCollabEventIds) { list, dismissed ->
-            list.filter { it.eventId !in dismissed }.sortedByDescending { it.createdAtMs }
+            // 출발/도착은 홈 카드에 안 쌓음 — 푸시로만(쿠팡이츠식). 완료(+계좌=정산)는 결제 액션이라 유지. (2026-07-13 사장님)
+            list.filter { it.eventId !in dismissed && it.kind != "departed" && it.kind != "arrived" }
+                .sortedByDescending { it.createdAtMs }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** 받은 협업 요청(수락 대기) — 상담함 카드. 푸시를 실수로 지워도 여기서 찾아 수락. 응답하면 자동으로 빠짐. (2026-06-14) */
