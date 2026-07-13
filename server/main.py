@@ -319,6 +319,17 @@ def db_init() -> None:
             "CREATE TABLE IF NOT EXISTS server_kv ("
             "k TEXT PRIMARY KEY, v TEXT NOT NULL)"
         )
+        # ── 추가121 (2026-07-13) — 상담함/문자함 Haiku 분류 캐시 (같은 내용 재호출 0) ──
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS thread_classify_cache (
+                cache_key     TEXT PRIMARY KEY,   -- sha256(suffix + 본문)
+                suffix        TEXT,
+                result_json   TEXT NOT NULL,      -- {bucket, confidence, reason}
+                created_at_ms INTEGER NOT NULL
+            )
+            """
+        )
         # 추가93 (2026-07-04) — 🩺 시스템 에러 기록 (5xx/미처리 예외 → 대시보드 건강 카드)
         con.execute(
             """
@@ -15955,8 +15966,11 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
     <!-- 추가98 — (필수) 고객 개인정보 수집·이용 동의 (법정 필수 — 사장님 승인 하 프로토 외 추가) -->
     <div class="q-agree" id="q-privacy" onclick="togglePrivacy()">
       <span class="qa-box">✓</span>
-      <span>(필수) 개인정보 수집·이용 동의<br>
-        <span style="font-weight:500; font-size:12px; color:var(--t2); line-height:1.6;">
+      <span>(필수) 개인정보 수집·이용 동의
+        <a href="javascript:void(0)" id="q-priv-more"
+           onclick="event.stopPropagation(); togglePrivacyDetail();"
+           style="margin-left:6px; font-size:12px; font-weight:700; color:var(--blue-dark);">자세히 ▾</a><br>
+        <span id="q-priv-detail" style="display:none; font-weight:500; font-size:12px; color:var(--t2); line-height:1.6;">
         <b>수집·이용 주체(개인정보처리자):</b> {biz_html} (접수서를 발행한 시공업체)<br>
         <b>목적:</b> 시공 접수, 상담 연락, 일정 확정<br>
         <b>항목:</b> 휴대전화 번호, 현장 주소, 현장 메모(고객이 직접 입력한 내용)<br>
@@ -16042,6 +16056,16 @@ INTAKE_FORM_HTML_TEMPLATE = """<!doctype html>
     quoteSel.privacy = !quoteSel.privacy;
     document.getElementById('q-privacy').classList.toggle('on', quoteSel.privacy);
     updateSubmit();
+  }}
+
+  // 추가120 (사장님 2026-07-13) — 동의 상세는 기본 접힘. [자세히 ▾] 로만 펼침.
+  // 체크(togglePrivacy)와 분리 — 이 링크의 onclick 에서 stopPropagation 함.
+  function togglePrivacyDetail() {{
+    var d = document.getElementById('q-priv-detail');
+    var a = document.getElementById('q-priv-more');
+    var open = (d.style.display !== 'none');
+    d.style.display = open ? 'none' : 'inline';
+    a.textContent = open ? '자세히 ▾' : '접기 ▴';
   }}
 
   function updateSubmit() {{
@@ -21074,6 +21098,193 @@ async def mirror_manifest():
             {"src": "/manifest/admin-icon.svg", "sizes": "512x512", "type": "image/svg+xml"},
         ],
     }, media_type="application/manifest+json")
+
+
+# ============================================================================
+# 추가121 (2026-07-13) — 상담함/문자함 분류 Phase 2 (Haiku)
+# ─────────────────────────────────────────────────────────────────────────────
+# 핸드오프: docs/SERVER_HANDOFF_inbox_classify.md
+# 앱이 로컬 1차 분류로 "애매(UNSURE)"라 둔 것만 넘어온다 → Haiku 가 2차 정정.
+# precision 최우선: 시공 문의 가능성이 조금이라도 있으면 consult.
+#   general 은 확신 ≥0.9 일 때만 (앱도 0.9 미만이면 강등 안 함).
+#   POST /api/thread/classify        1건
+#   POST /api/thread/classify-batch  최대 20건 (재접속/백필)
+# 캐시: thread_classify_cache (key = suffix + 본문해시) → 같은 내용 재요청 0.
+# ============================================================================
+_CLASSIFY_ENDPOINT = "thread/classify"
+_CLASSIFY_BATCH_MAX = 20
+
+THREAD_CLASSIFY_SYSTEM = """너는 1인 시공 사장님(줄눈·타일·도배·방수 등)의 문자 분류기다.
+문자 스레드 하나를 보고 "상담함(consult)" 인지 "문자함(general)" 인지 판정한다.
+
+[상담함 consult]
+- 시공 문의·상담·견적·일정·현장 관련 대화일 가능성이 조금이라도 있는 것.
+- 개인(고객)이 보낸 것으로 보이는 문자.
+- 애매하면 무조건 consult.
+
+[문자함 general]
+- 명백히 고객 상담이 아닌 것만: 광고·홍보·스팸, 인증번호(OTP), 은행·카드 알림,
+  택배·배송 알림, 정부·공공 안내, 보험·대출 등 세일즈 콜, [Web발신] 대량문자.
+
+[가장 중요한 원칙 — precision]
+- 고객 문의를 문자함으로 잘못 보내면 사장님이 일감을 놓친다. 이건 최악이다.
+- 광고를 상담함에 남기는 건 사소한 불편일 뿐이다.
+- 따라서 **general 은 확신할 때만**(confidence ≥ 0.9). 조금이라도 헷갈리면 consult.
+
+반드시 아래 JSON 만 출력한다:
+{"bucket":"consult"|"general","confidence":0.0~1.0,"reason":"짧은 한국어 사유"}"""
+
+
+def _classify_cache_key(suffix: str, messages: list) -> str:
+    body = "\n".join(
+        ((m.get("role") or "") + ":" + (m.get("body") or ""))
+        for m in (messages or []) if isinstance(m, dict)
+    )
+    return hashlib.sha256(((suffix or "") + "|" + body).encode("utf-8")).hexdigest()
+
+
+def _classify_cache_get(key: str) -> Optional[dict]:
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT result_json FROM thread_classify_cache WHERE cache_key = ?", (key,)
+        ).fetchone()
+    if not row:
+        return None
+    try:
+        out = json.loads(row[0])
+        out["cached"] = True
+        return out
+    except json.JSONDecodeError:
+        return None
+
+
+def _classify_cache_put(key: str, suffix: str, result: dict) -> None:
+    with db_conn() as con:
+        con.execute(
+            "INSERT OR REPLACE INTO thread_classify_cache "
+            "(cache_key, suffix, result_json, created_at_ms) VALUES (?, ?, ?, ?)",
+            (key, (suffix or "")[:20],
+             json.dumps(result, ensure_ascii=False), _now_ms()),
+        )
+        con.commit()
+
+
+class ThreadClassifyMessage(BaseModel):
+    role: str = "customer"          # customer | owner
+    body: str = ""
+    ts: int = 0
+
+
+class ThreadClassifyRequest(BaseModel):
+    device_phone: Optional[str] = None
+    suffix: str = ""
+    address: Optional[str] = None
+    is_saved_customer: bool = False
+    has_owner_reply: bool = False
+    messages: list = Field(default_factory=list)   # 최근 ≤5, 시간순
+
+
+class ThreadClassifyBatchRequest(BaseModel):
+    device_phone: Optional[str] = None
+    threads: list = Field(default_factory=list)    # ThreadClassifyRequest 형태 dict 들
+
+
+def _classify_safe_result(bucket: str, conf: float, reason: str) -> dict:
+    """general 은 confidence ≥0.9 일 때만 허용 — 그 외엔 consult 로 되돌림(precision)."""
+    b = "general" if (bucket or "").strip().lower() == "general" else "consult"
+    try:
+        c = float(conf)
+    except (TypeError, ValueError):
+        c = 0.0
+    c = max(0.0, min(1.0, c))
+    if b == "general" and c < 0.9:
+        return {"bucket": "consult", "confidence": c,
+                "reason": f"확신 부족({c:.2f}) — 상담함 유지"}
+    return {"bucket": b, "confidence": c, "reason": (reason or "")[:60]}
+
+
+async def _classify_one(req: ThreadClassifyRequest) -> dict:
+    # 안전장치 — 앱이 안 보내지만, 저장고객/답장이력이면 무조건 consult (AI 호출 X)
+    if req.is_saved_customer or req.has_owner_reply:
+        return {"bucket": "consult", "confidence": 1.0,
+                "reason": "저장 고객 또는 답장 이력 있음", "cached": False}
+
+    msgs = [m for m in (req.messages or []) if isinstance(m, dict)][-5:]
+    if not msgs:
+        return {"bucket": "consult", "confidence": 0.0,
+                "reason": "본문 없음 — 상담함 유지", "cached": False}
+
+    key = _classify_cache_key(req.suffix, msgs)
+    hit = _classify_cache_get(key)
+    if hit:
+        return hit
+
+    lines = []
+    for m in msgs:
+        who = "사장님" if (m.get("role") == "owner") else "상대"
+        lines.append(f"[{who}] {(m.get('body') or '')[:300]}")
+    user_msg = (
+        f"발신번호: {(req.address or '알 수 없음')}\n"
+        f"저장된 고객: {'예' if req.is_saved_customer else '아니오'}\n"
+        f"사장님이 답장한 적: {'예' if req.has_owner_reply else '아니오'}\n"
+        f"--- 최근 메시지 ---\n" + "\n".join(lines)
+    )
+    parsed, response = await call_claude_json(
+        system_prompt=THREAD_CLASSIFY_SYSTEM,
+        user_msg=user_msg,
+        max_tokens=150,
+        model=HAIKU_MODEL,
+    )
+    _log_llm_usage_from_response(_CLASSIFY_ENDPOINT, response)
+    out = _classify_safe_result(
+        parsed.get("bucket", "consult"),
+        parsed.get("confidence", 0.0),
+        parsed.get("reason", ""),
+    )
+    out["cached"] = False
+    _classify_cache_put(key, req.suffix, out)
+    return out
+
+
+@app.post("/api/thread/classify")
+async def thread_classify(req: ThreadClassifyRequest) -> dict:
+    """애매(UNSURE) 스레드 1건 → consult / general 판정.
+
+    실패 시에도 500 안 내고 consult(=안전) 로 응답 — 앱이 상담함 유지하면 되므로.
+    """
+    try:
+        out = await _classify_one(req)
+    except Exception as e:  # noqa: BLE001 — 분류 실패가 사장님 일감을 막으면 안 됨
+        print(f"[thread/classify] 실패 → consult 유지: {type(e).__name__}: {e}")
+        out = {"bucket": "consult", "confidence": 0.0,
+               "reason": "분류 실패 — 상담함 유지", "cached": False}
+    out["suffix"] = req.suffix
+    return out
+
+
+@app.post("/api/thread/classify-batch")
+async def thread_classify_batch(req: ThreadClassifyBatchRequest) -> dict:
+    """재접속/백필용 — 최대 20건. 개별 실패는 consult 로 떨어뜨리고 계속 진행."""
+    threads = (req.threads or [])[:_CLASSIFY_BATCH_MAX]
+    if not threads:
+        return {"ok": True, "count": 0, "results": []}
+    results = []
+    for t in threads:
+        if not isinstance(t, dict):
+            continue
+        try:
+            one = ThreadClassifyRequest(**t)
+        except Exception:  # noqa: BLE001
+            continue
+        try:
+            out = await _classify_one(one)
+        except Exception as e:  # noqa: BLE001
+            print(f"[thread/classify-batch] {one.suffix} 실패 → consult: {type(e).__name__}: {e}")
+            out = {"bucket": "consult", "confidence": 0.0,
+                   "reason": "분류 실패 — 상담함 유지", "cached": False}
+        out["suffix"] = one.suffix
+        results.append(out)
+    return {"ok": True, "count": len(results), "results": results}
 
 
 # 뷰어 HTML — 서버는 boot JSON 만 박고, 달력/카드는 JS 가 그린다(60초 새로고침 재사용).

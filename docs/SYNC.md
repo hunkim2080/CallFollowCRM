@@ -7038,3 +7038,16 @@ Play 심사 거부(민감권한 SMS/통화기록) 원인·해결 — 온보딩 �
 - 검증 12단계 통과(issue→snapshot→pair→게이트→틀린비번거부→unlock→뷰어→합산→폐기410).
 - commit: (아래)
 - 다음 액션(android): **docs/ANDROID_HANDOFF_mirror_app.md** 대로 배선 — 더보기 옵트인 토글 + issue(비번 4자리 1회 표시, 저장 금지) + 링크공유 + 6자리 페어 + observeScheduled 30초 디바운스 snapshot push + WorkManager 12h + [링크 폐기]. 본폰 화면은 서버가 다 그림(앱 작업 없음).
+
+## 2026-07-14 07:20 · cowork
+추가120·121 — 안드로이드 대기 요청 2건 처리 (미러링 외 잔여분 클리어).
+- **추가120 (사장님 직접 요청)**: 접수서 폼 개인정보 동의 상세 **기본 접힘**. 라벨 옆 [자세히 ▾] 탭 시 펼침/접기.
+  togglePrivacyDetail() 신설, 링크 onclick 에서 event.stopPropagation() → 체크(togglePrivacy)와 완전 분리.
+  **법정 항목(수집주체·목적·항목·보유기간·처리위탁·거부권·처리방침 링크)은 문구 그대로 유지** — 표시만 접음.
+- **추가121 (SERVER_HANDOFF_inbox_classify.md 이행)**: POST /api/thread/classify + /api/thread/classify-batch(≤20).
+  Haiku 4.5. precision 최우선 — **general 은 confidence≥0.9 일 때만 통과, 미만이면 서버가 consult 로 되돌림**(일감 놓침 방지).
+  저장고객/답장이력=true 면 AI 호출 없이 consult 강제. 실패·예외 시에도 500 대신 consult 응답(상담함 유지).
+  캐시 thread_classify_cache(key=suffix+본문해시) → 같은 내용 재호출 0. llm_usage_log 에 endpoint="thread/classify" 기록.
+- 검증: 접수서 접힘/법정항목/체크분리 + 분류 6종(시공문의·명백광고·확신0.6되돌림·저장고객강제·캐시적중·배치) 전부 통과.
+- commit: (아래)
+- 다음 액션(android): ThreadClassifyRepository 배선 — UNSURE 만 큐잉, confidence≥0.9 general 만 자동 강등, classifiedBodyHash 로 중복 호출 방지.
