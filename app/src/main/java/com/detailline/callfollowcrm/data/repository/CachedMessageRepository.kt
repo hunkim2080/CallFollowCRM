@@ -71,13 +71,16 @@ class CachedMessageRepository(private val dao: CachedMessageDao) {
     private fun CachedMessageEntity.toSmsMessage(): SmsRepository.SmsMessage {
         val uris = if (imageUrisCsv.isBlank()) emptyList()
         else imageUrisCsv.split("|").mapNotNull { runCatching { Uri.parse(it) }.getOrNull() }
+        val vids = if (videoUrisCsv.isBlank()) emptyList()
+        else videoUrisCsv.split("|").mapNotNull { runCatching { Uri.parse(it) }.getOrNull() }
         return SmsRepository.SmsMessage(
             id = systemId,
             address = address,
             body = body,
             dateMs = dateMs,
             sent = sent,
-            imageUris = uris
+            imageUris = uris,
+            videoUris = vids
         )
     }
 
@@ -94,6 +97,7 @@ class CachedMessageRepository(private val dao: CachedMessageDao) {
         dateMs = dateMs,
         sent = sent,
         imageUrisCsv = imageUris.joinToString("|") { it.toString() },
+        videoUrisCsv = videoUris.joinToString("|") { it.toString() },
         cachedAtMs = cachedAtMs
     )
 }

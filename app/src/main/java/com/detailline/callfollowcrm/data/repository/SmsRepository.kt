@@ -41,8 +41,8 @@ class SmsRepository(
 
     /**
      * 시스템 SMS / MMS 한 건. direction 으로 송/수신 구분.
-     * MMS 의 경우 body 는 텍스트 파트 모두 합친 것, imageUris 는 첨부 이미지 part URI 들.
-     * SMS 는 imageUris = empty.
+     * MMS 의 경우 body 는 텍스트 파트 모두 합친 것, imageUris 는 첨부 이미지 part URI 들, videoUris 는 첨부 동영상 part URI 들.
+     * SMS 는 imageUris/videoUris = empty.
      */
     data class SmsMessage(
         val id: Long,
@@ -50,7 +50,8 @@ class SmsRepository(
         val body: String,
         val dateMs: Long,
         val sent: Boolean,
-        val imageUris: List<Uri> = emptyList()
+        val imageUris: List<Uri> = emptyList(),
+        val videoUris: List<Uri> = emptyList()
     )
 
     fun hasReadPermission(): Boolean = ContextCompat.checkSelfPermission(
@@ -127,16 +128,17 @@ class SmsRepository(
                 val dateMs = c.getLong(dateIdx) * 1000L
                 val addresses = runCatching { getMmsAddresses(id) }.getOrDefault(emptyList())
                 val sender = pickRelevantAddress(addresses, MMS_BOX_INBOX) ?: continue
-                val (text, imageUris) = runCatching { getMmsParts(id) }
-                    .getOrDefault("" to emptyList())
-                if (text.isBlank() && imageUris.isEmpty()) continue
+                val (text, imageUris, videoUris) = runCatching { getMmsParts(id) }
+                    .getOrDefault(MmsParts("", emptyList(), emptyList()))
+                if (text.isBlank() && imageUris.isEmpty() && videoUris.isEmpty()) continue
                 return@use SmsMessage(
                     id = id,
                     address = sender,
                     body = text,
                     dateMs = dateMs,
                     sent = false,
-                    imageUris = imageUris
+                    imageUris = imageUris,
+                    videoUris = videoUris
                 )
             }
             null
@@ -284,12 +286,12 @@ class SmsRepository(
                 }
             }
 
-            // 최종 SmsMessage 변환 — parts 가져와서 body/imageUris 채움.
+            // 최종 SmsMessage 변환 — parts 가져와서 body/imageUris/videoUris 채움.
             val result = mutableListOf<SmsMessage>()
             for (row in pickedById.values) {
-                val (text, imageUris) = runCatching { getMmsParts(row.id) }
-                    .getOrDefault("" to emptyList())
-                if (text.isBlank() && imageUris.isEmpty()) continue
+                val (text, imageUris, videoUris) = runCatching { getMmsParts(row.id) }
+                    .getOrDefault(MmsParts("", emptyList(), emptyList()))
+                if (text.isBlank() && imageUris.isEmpty() && videoUris.isEmpty()) continue
                 val displayAddress = pickRelevantAddress(addressesOf(row.id), row.box) ?: ""
                 result += SmsMessage(
                     id = row.id,
@@ -297,7 +299,8 @@ class SmsRepository(
                     body = text,
                     dateMs = row.dateMs,
                     sent = row.box == MMS_BOX_SENT,
-                    imageUris = imageUris
+                    imageUris = imageUris,
+                    videoUris = videoUris
                 )
             }
             result
@@ -446,22 +449,26 @@ class SmsRepository(
         return out
     }
 
-    /** 한 MMS 의 모든 파트 읽어 텍스트 합치고 이미지 URI 모음. */
-    private fun getMmsParts(mmsId: Long): Pair<String, List<Uri>> {
+    /** 한 MMS 파싱 결과 — 텍스트 + 이미지 URI + 동영상 URI. */
+    data class MmsParts(val text: String, val imageUris: List<Uri>, val videoUris: List<Uri>)
+
+    /** 한 MMS 의 모든 파트 읽어 텍스트 합치고 이미지·동영상 URI 모음. */
+    private fun getMmsParts(mmsId: Long): MmsParts {
         // content://mms/part 는 모든 파트가 통합돼있어서 mid 로 필터해야 함.
         val partsUri = Uri.parse("content://mms/part")
         val proj = arrayOf("_id", "ct", "text")
         // ⚠️ 재시도 — 여기서 query 가 null 이면 사진 메시지가 통째로 누락돼 "사라졌다 생김" 깜빡임의 근원이었음. (2026-07-02 사장님)
         val cursor = queryProviderWithRetry(
             partsUri, proj, "mid=?", arrayOf(mmsId.toString())
-        ) ?: return "" to emptyList()
+        ) ?: return MmsParts("", emptyList(), emptyList())
         return cursor.use { c ->
             val pidIdx = c.getColumnIndex("_id")
             val ctIdx = c.getColumnIndex("ct")
             val textIdx = c.getColumnIndex("text")
-            if (pidIdx < 0 || ctIdx < 0) return@use "" to emptyList()
+            if (pidIdx < 0 || ctIdx < 0) return@use MmsParts("", emptyList(), emptyList())
             val textParts = mutableListOf<String>()
             val imageUris = mutableListOf<Uri>()
+            val videoUris = mutableListOf<Uri>()
             while (c.moveToNext()) {
                 val ct = c.getString(ctIdx).orEmpty()
                 val partId = c.getLong(pidIdx)
@@ -483,10 +490,14 @@ class SmsRepository(
                     ct.startsWith("image/") -> {
                         imageUris += Uri.parse("content://mms/part/$partId")
                     }
+                    // 동영상 첨부 — 예전엔 "그 외"로 버려서 동영상만 온 MMS 가 통째로 누락됐음(수신 실패로 오인). (2026-07-13 사장님)
+                    ct.startsWith("video/") -> {
+                        videoUris += Uri.parse("content://mms/part/$partId")
+                    }
                     // 그 외(application/smil, application/vnd.*) 는 무시.
                 }
             }
-            textParts.joinToString("\n") to imageUris
+            MmsParts(textParts.joinToString("\n"), imageUris, videoUris)
         }
     }
 

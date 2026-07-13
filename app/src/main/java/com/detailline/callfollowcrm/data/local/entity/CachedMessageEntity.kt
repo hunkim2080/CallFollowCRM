@@ -34,5 +34,7 @@ data class CachedMessageEntity(
     val sent: Boolean,
     /** MMS image URI 들을 "|" 로 join 한 CSV. 빈 문자열 = 첨부 없음. */
     val imageUrisCsv: String,
+    /** MMS 동영상 URI 들을 "|" 로 join 한 CSV. 빈 문자열 = 동영상 없음. (2026-07-13 사장님) */
+    val videoUrisCsv: String = "",
     val cachedAtMs: Long
 )

@@ -774,6 +774,7 @@ fun ChatScreen(
                                     timeMs = msg.dateMs,
                                     sent = msg.sent,
                                     imageUris = msg.imageUris,
+                                    videoUris = msg.videoUris,
                                     isStarred = starredKeys.contains(msg.dateMs to msg.sent),
                                     onImageTap = { uris, idx -> fullscreenImages = uris; fullscreenStart = idx },
                                     onLongPress = {
@@ -2395,8 +2396,10 @@ private fun ChatBubble(
     imageUris: List<android.net.Uri>,
     isStarred: Boolean,
     onImageTap: (List<android.net.Uri>, Int) -> Unit,
-    onLongPress: () -> Unit
+    onLongPress: () -> Unit,
+    videoUris: List<android.net.Uri> = emptyList()
 ) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     // 프로토 .brow/.bubble — 시각(btime)은 말풍선 밖(옆 아래), 별표는 바깥쪽.
     //   me=파랑/우측 꼬리, cust=흰색+그림자/좌측 꼬리. radius19 + 꼬리 6.
     val bubbleShape = if (sent) {
@@ -2471,6 +2474,30 @@ private fun ChatBubble(
                             }
                         }
                     }
+                    if (body.isNotBlank() || videoUris.isNotEmpty()) Spacer(Modifier.height(6.dp))
+                }
+                if (videoUris.isNotEmpty()) {
+                    // 동영상 첨부 — coil-video 미탑재라 프레임 썸네일 대신 어두운 카드+▶. 탭하면 재생기로 연다. (2026-07-13 사장님)
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        videoUris.forEach { vUri ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color(0xFF1F2937))
+                                    .clickable { playMmsVideo(ctx, vUri) }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                            ) {
+                                Box(
+                                    Modifier.size(30.dp).clip(androidx.compose.foundation.shape.CircleShape)
+                                        .background(Color(0x33FFFFFF)),
+                                    contentAlignment = Alignment.Center
+                                ) { Text("▶", color = Color.White, fontSize = 13.sp) }
+                                Spacer(Modifier.width(9.dp))
+                                Text("동영상 · 탭해서 재생", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                     if (body.isNotBlank()) Spacer(Modifier.height(6.dp))
                 }
                 if (body.isNotBlank()) {
@@ -2487,6 +2514,37 @@ private fun ChatBubble(
             Spacer(Modifier.width(6.dp)); timeText()
             if (isStarred) { Spacer(Modifier.width(4.dp)); star() }
         }
+    }
+}
+
+/**
+ * MMS 동영상 파트 재생 — content://mms/part/{id} 는 기본문자앱(우리)만 읽을 수 있어 외부 재생기에 직접 못 넘긴다.
+ *   → 앱 캐시(shared/)로 복사한 뒤 FileProvider URI 로 재생기에 넘겨(권한 grant) 연다. (2026-07-13 사장님)
+ */
+private fun playMmsVideo(context: android.content.Context, partUri: android.net.Uri) {
+    runCatching {
+        val dir = java.io.File(context.cacheDir, "shared").apply { mkdirs() }
+        val out = java.io.File(dir, "mmsvid_${System.nanoTime()}.mp4")
+        val copied = context.contentResolver.openInputStream(partUri)?.use { input ->
+            out.outputStream().use { input.copyTo(it) }; true
+        } ?: false
+        if (!copied || out.length() == 0L) {
+            android.widget.Toast.makeText(context, "동영상을 열지 못했어요", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        val shareUri = androidx.core.content.FileProvider.getUriForFile(
+            context, context.packageName + ".fileprovider", out
+        )
+        context.startActivity(
+            android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                setDataAndType(shareUri, "video/*")
+                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        )
+    }.onFailure {
+        android.util.Log.w("MmsVid", "play failed", it)
+        android.widget.Toast.makeText(context, "동영상을 열지 못했어요", android.widget.Toast.LENGTH_SHORT).show()
     }
 }
 

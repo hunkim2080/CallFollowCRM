@@ -65,7 +65,7 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity::class,
         com.detailline.callfollowcrm.data.local.entity.ThreadBucketEntity::class
     ],
-    version = 40,
+    version = 41,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -763,6 +763,13 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v41 — cached_messages 에 동영상 첨부 URI 컬럼 추가(동영상 MMS 수신 지원). (2026-07-13 사장님)
+        private val MIGRATION_40_41 = object : Migration(40, 41) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `cached_messages` ADD COLUMN `videoUrisCsv` TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
@@ -779,7 +786,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30,
                     MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34,
                     MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38,
-                    MIGRATION_38_39, MIGRATION_39_40
+                    MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41
                 )
                 .fallbackToDestructiveMigration()   // migration 실패 시 안전망 (개발 단계)
                 .build()

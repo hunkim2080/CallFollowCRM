@@ -84,14 +84,19 @@ class MmsDownloadedReceiver : BroadcastReceiver() {
         val sender = mms.address.orEmpty()
         if (sender.isBlank()) { Log.w(TAG, "MMS sender blank — abort hook"); return }
         val rawBody = mms.body
-        val attachCount = mms.imageUris.size
+        val imageCount = mms.imageUris.size
+        val videoCount = mms.videoUris.size
+        val attachLabel = buildString {
+            if (imageCount > 0) append("📎 사진 ${imageCount}장")
+            if (videoCount > 0) { if (isNotEmpty()) append(" · "); append("🎬 동영상 ${videoCount}개") }
+        }
         val displayBody = when {
-            attachCount > 0 && rawBody.isNotBlank() -> "📎 사진 ${attachCount}장\n\n$rawBody"
-            attachCount > 0 -> "📎 사진 ${attachCount}장"
+            attachLabel.isNotEmpty() && rawBody.isNotBlank() -> "$attachLabel\n\n$rawBody"
+            attachLabel.isNotEmpty() -> attachLabel
             else -> rawBody
         }
         val receivedAtMs = mms.dateMs
-        Log.i(TAG, "MMS hook — sender=$sender attach=$attachCount body.len=${rawBody.length}")
+        Log.i(TAG, "MMS hook — sender=$sender img=$imageCount vid=$videoCount body.len=${rawBody.length}")
 
         // 1) 알림 (SmsReceiver 와 같은 채널/빌더).
         if (container.preferences.incomingSmsNotifyEnabled) {
