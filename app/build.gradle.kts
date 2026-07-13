@@ -153,6 +153,8 @@ dependencies {
 
     // 템플릿 첨부 사진 썸네일 로딩
     implementation("io.coil-kt:coil-compose:2.5.0")
+    // MMS 동영상 첫 프레임 썸네일(삼성 메시지처럼) — VideoFrameDecoder. (2026-07-13 사장님)
+    implementation("io.coil-kt:coil-video:2.5.0")
 
     // 예약 확정 시 팡파레 애니메이션
     implementation("nl.dionsegijn:konfetti-compose:2.0.4")

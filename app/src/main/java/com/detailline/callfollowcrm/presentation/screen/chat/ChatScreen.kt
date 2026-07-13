@@ -2477,24 +2477,32 @@ private fun ChatBubble(
                     if (body.isNotBlank() || videoUris.isNotEmpty()) Spacer(Modifier.height(6.dp))
                 }
                 if (videoUris.isNotEmpty()) {
-                    // 동영상 첨부 — coil-video 미탑재라 프레임 썸네일 대신 어두운 카드+▶. 탭하면 재생기로 연다. (2026-07-13 사장님)
+                    // 동영상 첨부 — 삼성 메시지처럼 첫 프레임 썸네일(coil-video VideoFrameDecoder) + ▶ 오버레이. 탭하면 재생. (2026-07-13 사장님)
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         videoUris.forEach { vUri ->
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
+                            Box(
+                                contentAlignment = Alignment.Center,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(Color(0xFF1F2937))
                                     .clickable { playMmsVideo(ctx, vUri) }
-                                    .padding(horizontal = 12.dp, vertical = 10.dp)
                             ) {
+                                AsyncImage(
+                                    model = coil.request.ImageRequest.Builder(ctx)
+                                        .data(vUri)
+                                        .decoderFactory(coil.decode.VideoFrameDecoder.Factory())
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = "동영상 미리보기",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.size(width = 210.dp, height = 132.dp)
+                                )
+                                // 반투명 ▶ 재생 버튼
                                 Box(
-                                    Modifier.size(30.dp).clip(androidx.compose.foundation.shape.CircleShape)
-                                        .background(Color(0x33FFFFFF)),
+                                    Modifier.size(46.dp).clip(androidx.compose.foundation.shape.CircleShape)
+                                        .background(Color(0x99000000)),
                                     contentAlignment = Alignment.Center
-                                ) { Text("▶", color = Color.White, fontSize = 13.sp) }
-                                Spacer(Modifier.width(9.dp))
-                                Text("동영상 · 탭해서 재생", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                ) { Text("▶", color = Color.White, fontSize = 19.sp) }
                             }
                         }
                     }
