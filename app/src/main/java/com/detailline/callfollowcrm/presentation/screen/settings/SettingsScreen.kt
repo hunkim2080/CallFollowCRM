@@ -26,6 +26,8 @@ import androidx.compose.foundation.BorderStroke
 import com.detailline.callfollowcrm.data.local.entity.MessageTemplateEntity
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossError
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -924,6 +926,7 @@ private fun MirrorSection(container: AppContainer) {
     var enabled by remember { mutableStateOf(prefs.mirrorEnabled) }
     var label by remember { mutableStateOf(prefs.mirrorLabel.ifBlank { prefs.bizName }) }
     var code by remember { mutableStateOf(prefs.mirrorCode) }
+    var qrUrl by remember { mutableStateOf(prefs.mirrorQrUrl) }
     var busy by remember { mutableStateOf(false) }
     var pending by remember { mutableStateOf<List<com.detailline.callfollowcrm.ai.MirrorRepository.ShareRequest>>(emptyList()) }
     var accepted by remember { mutableStateOf<List<com.detailline.callfollowcrm.ai.MirrorRepository.Connection>>(emptyList()) }
@@ -941,17 +944,19 @@ private fun MirrorSection(container: AppContainer) {
     fun enableMirror() {
         if (ownerPhone.filter { it.isDigit() }.length < 9) { toast("먼저 내 번호(로그인)가 필요해요"); return }
         val lbl = label.trim().ifBlank { "내 일정" }
+        // 옵티미스틱 — 서버가 잠깐 안 돼도 '켜짐'은 유지하고, 코드는 준비되는 대로 채운다(LaunchedEffect 재시도).
+        prefs.mirrorLabel = lbl; label = lbl
+        prefs.mirrorEnabled = true; enabled = true
         busy = true
         scope.launch {
             val r = container.mirrorRepository.myCode(ownerPhone, lbl, tint = 0)
             busy = false
-            r.onSuccess { c ->
-                prefs.mirrorLabel = lbl; label = lbl
-                prefs.mirrorCode = c; code = c
-                prefs.mirrorEnabled = true; enabled = true
+            r.onSuccess { mc ->
+                prefs.mirrorCode = mc.code; code = mc.code
+                prefs.mirrorQrUrl = mc.qrUrl; qrUrl = mc.qrUrl
                 runCatching { container.mirrorSyncManager.pushNow(force = true) }
                 refreshShares()
-            }.onFailure { toast("코드 발급 실패 — 잠시 후 다시 시도해주세요") }
+            }.onFailure { toast("코드는 곧 준비돼요 (서버 연결 중)") }
         }
     }
 
@@ -981,7 +986,10 @@ private fun MirrorSection(container: AppContainer) {
     LaunchedEffect(enabled) {
         if (enabled && code.isNullOrBlank() && ownerPhone.filter { it.isDigit() }.length >= 9) {
             container.mirrorRepository.myCode(ownerPhone, label.trim().ifBlank { "내 일정" }, 0)
-                .onSuccess { prefs.mirrorCode = it; code = it }
+                .onSuccess { mc ->
+                    prefs.mirrorCode = mc.code; code = mc.code
+                    prefs.mirrorQrUrl = mc.qrUrl; qrUrl = mc.qrUrl
+                }
         }
         while (enabled) {
             refreshShares()
@@ -1009,14 +1017,27 @@ private fun MirrorSection(container: AppContainer) {
 
             if (enabled) {
                 Spacer(Modifier.height(12.dp))
-                // 내 공유 코드 — 본폰에 넣을 고정 코드.
+                // 내 공유 코드 + QR — 본폰 카메라로 QR을 찍으면 바로 열림(주소 타이핑·검색 X). 코드는 백업.
                 Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(14.dp)) {
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("본폰 카메라로 이 QR을 찍으세요", fontSize = 12.sp, color = TossTextSecondary, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(10.dp))
+                        // QR = 서버가 준 qrUrl(자동수락 시크릿 포함) 우선, 없으면 homeUrl?code= 폴백.
+                        val qrText = qrUrl ?: ("https://api.si0in.kr/mirror" + (code?.let { "?code=$it" } ?: ""))
+                        val qr = remember(qrText) { com.detailline.callfollowcrm.util.QrGen.bitmap(qrText, 520) }
+                        if (qr != null) {
+                            Image(
+                                bitmap = qr.asImageBitmap(),
+                                contentDescription = "본폰 접속 QR",
+                                modifier = Modifier.size(180.dp).clip(RoundedCornerShape(8.dp)).background(Color.White)
+                            )
+                        }
+                        Spacer(Modifier.height(12.dp))
                         Text("내 공유 코드", fontSize = 11.sp, color = TossTextTertiary)
-                        Spacer(Modifier.height(4.dp))
-                        Text(code ?: "…", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = TossBlue, letterSpacing = 6.sp)
+                        Spacer(Modifier.height(2.dp))
+                        Text(code ?: "…", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = TossBlue, letterSpacing = 4.sp)
                         Spacer(Modifier.height(6.dp))
-                        Text("본폰에서 api.si0in.kr/mirror 열고 이 코드를 넣으면 신청이 와요.",
+                        Text("QR이 안 되면 본폰에서 api.si0in.kr/mirror 열고 위 코드를 넣어도 돼요.",
                             fontSize = 11.sp, color = TossTextTertiary, lineHeight = 15.sp)
                     }
                 }

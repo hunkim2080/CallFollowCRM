@@ -43,7 +43,8 @@ mirror_sources(owner_phone PK, label, tint, snapshot_json, money_json, updated_a
 
 ## 엔드포인트 — 업무폰(앱)이 호출
 1. `POST /api/mirror/mycode` `{owner_phone, label, tint}` → `{code, label, tint}`
-   - 고정 코드 조회/생성(idempotent). 없으면 새 6자리 만들어 저장, 있으면 그대로 + label·tint 갱신. 앱이 "내 공유 코드: 000000" 표시용으로 호출.
+   - 고정 코드 조회/생성(idempotent). 없으면 새로 만들어 저장, 있으면 그대로 + label·tint 갱신. 앱이 "내 공유 코드"+QR 표시용으로 호출.
+   - **응답에 `qrUrl` 추가(2026-07-15 사장님 확정 = 하이브리드)**: 앱은 이 qrUrl로 QR을 그림. qrUrl엔 **자동수락 시크릿**을 담아라(아래 §7 QR자동수락). 예: `https://api.si0in.kr/mirror?code={code}&k={autoSecret}`. (없으면 앱이 `homeUrl?code=` 로 폴백 → 그 경우 자동수락 안 됨.)
 2. `GET /api/mirror/shares?owner_phone=X` → `{pending:[{id, home_phone, created_at_ms}], accepted:[{id, home_phone, since_ms}]}`
    - 수락 대기 신청 + 현재 공유중 목록. 앱이 폴링(포그라운드 + 워커).
 3. `POST /api/mirror/respond` `{owner_phone, share_id, accept}` → `{ok}`
@@ -55,8 +56,13 @@ mirror_sources(owner_phone PK, label, tint, snapshot_json, money_json, updated_a
 
 ## 본폰(웹) — 서버가 렌더 + 본폰 전용 엔드포인트
 6. `GET /mirror` — **빈 달력 페이지**. 쿠키(home_phone) 없으면 "본폰 번호 입력" → 서명 쿠키 set. 화면에 **[일정 공유 코드 입력]** 칸.
-7. `POST /api/mirror/join` `{home_phone, code}` → `{ok, status, label}`
-   - 그 code의 owner_phone에 **pending share 생성**(이미 accepted면 그대로, rejected였으면 재신청 rate-limit). 본폰엔 "○○에 공유를 신청했어요(수락 대기)" 표시.
+   - **`?code=XXXX` 지원(QR용, 사장님 결정 2026-07-15)**: 앱이 업무폰 화면에 `https://api.si0in.kr/mirror?code={code}` QR을 띄움 → 본폰 카메라로 찍으면 이 페이지가 열리며 **코드 입력칸이 자동 채워짐**. (40~50대가 URL 타이핑·네이버 검색 못 하는 문제 해결. URL은 사람이 안 침 = QR로만.) 본폰 번호는 최초 1회만 물어보고 쿠키 기억.
+7. `POST /api/mirror/join` `{home_phone, code, k?}` → `{ok, status, label}`
+   - **하이브리드 자동수락(2026-07-15 사장님 확정):**
+     - **QR로 들어옴(유효한 `k`=autoSecret 동봉) → 즉시 `status='accepted'`** (수락 단계 건너뜀). 이유: QR은 업무폰 화면을 봐야만 찍을 수 있어 이미 승인으로 간주. 사장님 본인 2폰은 원터치.
+     - **코드를 손으로 쳐서 들어옴(`k` 없음) → `status='pending'`** (기존대로 업무폰에서 수락 필요). 추측·유출 방어선 유지.
+   - **거절 후 재연결 반드시 허용(2026-07-15 버그 수정):** 이전에 rejected여도 재신청/재QR 되게. **영구차단 금지**(사장님이 실수로 거절하거나 나중에 다시 붙이고 싶을 때 막히는 문제). 도배 방지는 짧은 rate-limit/쿨다운으로만.
+   - 본폰엔 status에 따라 "연결됐어요"(accepted) / "신청함(수락 대기)"(pending) 표시.
 8. `GET /api/mirror/board?home_phone=X` (쿠키 필수) → accepted된 owner_phone들의 snapshot/money를 **합산**해 통합 캘린더 데이터. 60초 새로고침.
    - 표시 개선(2026-07-14 SYNC): 현장별 **총금액**(items.total), 주소 탭 → **지도앱**(T맵/네이버/카카오, 주소 문자열 검색 URL), 전화 **하이픈**.
 9. (선택) `POST /api/mirror/home-pin` `{home_phone, pin}` — 본폰 열기 비번 설정(기본 없음).
@@ -70,10 +76,11 @@ mirror_sources(owner_phone PK, label, tint, snapshot_json, money_json, updated_a
 업무폰: "📅 010-xxxx와 공유중" + [일정 공유 해제하기] → POST /disconnect
 ```
 
-## 보안
-- 코드 유출돼도 **수락 안 하면 무해**(신청만 뜸). 업무폰(사장님 기기)에서만 수락.
-- join rate-limit(IP당 10회/10분). **거절(rejected)한 home_phone 재신청 차단**(도배 방지).
-- home_phone = 미검증 이름표(수락 화면에 "누가 신청했나" 보여주기용). 실제 게이트 = 업무폰 수락 + 본폰 쿠키.
+## 보안 (하이브리드 기준, 2026-07-15)
+- **QR 경로(k 포함) = 자동수락.** QR은 업무폰 화면을 봐야 찍음 = 물리적 승인. autoSecret(k)는 추측 불가능한 랜덤(코드와 별개). qrUrl/코드가 사진으로 유출되면 그 사람도 붙을 수 있으나(1인 사장 본인 데이터), 업무폰 "공유중"에서 언제든 해제.
+- **손입력 코드 경로(k 없음) = 수락 필요.** 6자리 코드는 추측 가능성 있어 반드시 게이트. 코드 유출돼도 수락 안 하면 무해.
+- join rate-limit(IP당 10회/10분). **rejected여도 재신청 허용**(영구차단 금지 — 재연결 막힘 버그). 도배는 쿨다운으로만.
+- home_phone = 미검증 이름표. 실제 게이트 = (QR)autoSecret / (손입력)업무폰 수락 + 본폰 쿠키.
 - 본폰 열기 비번 = 선택(기본 없음). 켜면 /board 에 비번 게이트.
 
 ## 마이그레이션

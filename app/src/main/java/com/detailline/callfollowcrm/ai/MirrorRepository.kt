@@ -43,6 +43,9 @@ class MirrorRepository(
 
     data class Shares(val pending: List<ShareRequest>, val accepted: List<Connection>)
 
+    /** mycode 응답 — code=본폰에 넣을 코드, qrUrl=QR에 실을 URL(서버가 QR 자동수락용 시크릿을 넣을 수 있음). */
+    data class MyCode(val code: String, val qrUrl: String?)
+
     /** 뷰어에 그릴 현장 1건. date=YYYY-MM-DD(필수). total=총금액(원, 0=미입력). phone=하이픈 포함. */
     data class MirrorItem(
         val date: String,
@@ -56,8 +59,8 @@ class MirrorRepository(
         val total: Long
     )
 
-    /** 이 업무폰의 고정 공유 코드 조회/생성. label·tint 갱신. 앱이 "내 공유 코드" 표시용으로 호출. */
-    suspend fun myCode(ownerPhone: String, label: String, tint: Int = 0): Result<String> =
+    /** 이 업무폰의 고정 공유 코드 조회/생성. label·tint 갱신. 앱이 "내 공유 코드"+QR 표시용으로 호출. */
+    suspend fun myCode(ownerPhone: String, label: String, tint: Int = 0): Result<MyCode> =
         withContext(Dispatchers.IO) {
             runCatching {
                 val payload = JSONObject().apply {
@@ -71,7 +74,12 @@ class MirrorRepository(
                     .build()
                 client.newCall(req).execute().use { resp ->
                     if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
-                    JSONObject(resp.body?.string().orEmpty()).optString("code")
+                    val o = JSONObject(resp.body?.string().orEmpty())
+                    MyCode(
+                        code = o.optString("code"),
+                        // 서버가 qrUrl(자동수락 시크릿 포함)을 주면 그걸 QR에, 없으면 앱이 homeUrl?code= 로 폴백.
+                        qrUrl = o.optString("qrUrl").takeIf { it.isNotBlank() && it != "null" }
+                    )
                 }
             }
         }

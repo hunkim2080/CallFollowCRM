@@ -156,6 +156,9 @@ dependencies {
     // MMS 동영상 첫 프레임 썸네일(삼성 메시지처럼) — VideoFrameDecoder. (2026-07-13 사장님)
     implementation("io.coil-kt:coil-video:2.5.0")
 
+    // 본폰 미러 QR — 업무폰 화면에 QR 표시(본폰 카메라로 찍어 열기). 인코더만(카메라 X). (2026-07-15 사장님)
+    implementation("com.google.zxing:core:3.5.3")
+
     // 예약 확정 시 팡파레 애니메이션
     implementation("nl.dionsegijn:konfetti-compose:2.0.4")
 

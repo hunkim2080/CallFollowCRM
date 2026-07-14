@@ -674,6 +674,10 @@ class AppPreferences(context: Context) {
     var mirrorCode: String?
         get() = prefs.getString("mirror_code", null)?.takeIf { it.isNotBlank() }
         set(value) { prefs.edit().putString("mirror_code", value).apply() }
+    /** v2: QR에 실을 URL(서버가 자동수락 시크릿 포함해 내려줌). 없으면 앱이 homeUrl?code= 로 폴백. */
+    var mirrorQrUrl: String?
+        get() = prefs.getString("mirror_qr_url", null)?.takeIf { it.isNotBlank() }
+        set(value) { prefs.edit().putString("mirror_qr_url", value).apply() }
     /** v2: 이미 알림 띄운 공유 신청 share_id 들 — 중복 알림 방지. */
     var mirrorSeenShareIds: Set<String>
         get() = prefs.getStringSet("mirror_seen_share_ids", emptySet()) ?: emptySet()
