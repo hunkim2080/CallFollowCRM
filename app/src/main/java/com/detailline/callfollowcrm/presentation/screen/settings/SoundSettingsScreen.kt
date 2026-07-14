@@ -104,7 +104,8 @@ fun SoundSettingsScreen(prefs: AppPreferences, onBack: () -> Unit) {
                     onSelect = { res ->
                         selections[slot.key] = res
                         prefs.setNotificationSound(slot.key, res)
-                        NotificationHelper.applySoundChanges(context)
+                        // 버전 올려 '새 채널'로 재생성 → 새 소리가 실제로 적용됨(옛 채널 버그 우회).
+                        NotificationHelper.applySlotSound(context, slot.key)
                         Toast.makeText(context, "소리를 바꿨어요", Toast.LENGTH_SHORT).show()
                     }
                 )

@@ -115,11 +115,66 @@ object NotificationHelper {
         return if (id > 0) snd(id) else snd(context.resources.getIdentifier(defaultRes, "raw", context.packageName))
     }
 
-    /** 소리 변경 적용 — 채널은 생성 후 불변이라 소리 바꾸려면 삭제 후 prefs 소리로 재생성. */
-    fun applySoundChanges(context: Context) {
+    // ── 소리 슬롯 채널 버전화 (2026-07-15 사장님) ──
+    //   안드로이드는 채널을 삭제 후 '같은 id'로 재생성하면 옛 설정(소리 포함)을 그대로 되살린다(공식 동작).
+    //   그래서 delete+recreate 로는 소리가 안 바뀐다(사장님 "고른 소리가 안 울림"의 진짜 원인).
+    //   → 소리를 바꿀 때마다 '새 id'(버전 붙임) 채널을 만든다. 버전 0 = 기존 base id 그대로(소리 안 바꾼 사용자엔 변화 0).
+
+    private val prefsOf: (Context) -> com.detailline.callfollowcrm.data.preferences.AppPreferences? = { ctx ->
+        (ctx.applicationContext as? com.detailline.callfollowcrm.CallFollowCrmApplication)?.container?.preferences
+    }
+
+    /** slot 의 현재 소리가 반영된 채널 id (없으면 생성). 소리 발사 직전 항상 이걸로 채널을 고른다. */
+    fun channelForSlot(context: Context, slotKey: String): String {
+        val base = SLOT_CHANNEL[slotKey] ?: return CHANNEL_REMINDER
+        val ver = prefsOf(context)?.soundChannelVersion(slotKey) ?: 0
+        val id = if (ver == 0) base else "${base}_v$ver"
+        ensureSlotChannel(context, slotKey, id)
+        return id
+    }
+
+    /** 넘어온 channelId 가 소리 슬롯의 base 면 → 현재 버전 채널로 치환. 아니면 그대로(비-슬롯 채널). */
+    private fun resolveChannel(context: Context, channelId: String): String {
+        val slotKey = SLOT_CHANNEL.entries.firstOrNull { it.value == channelId }?.key ?: return channelId
+        return channelForSlot(context, slotKey)
+    }
+
+    /** slot 채널 하나를 (없을 때만) 현재 고른 소리로 생성. */
+    private fun ensureSlotChannel(context: Context, slotKey: String, channelId: String) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val m = context.getSystemService(NotificationManager::class.java) ?: return
-        SLOT_CHANNEL.values.forEach { runCatching { m.deleteNotificationChannel(it) } }
-        ensureChannels(context)   // 삭제된 채널을 prefs 소리로 재생성(나머지는 이미 있어 skip)
+        if (m.getNotificationChannel(channelId) != null) return
+        val slot = SOUND_SLOTS.firstOrNull { it.key == slotKey } ?: return
+        val audioAttrs = AudioAttributes.Builder()
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .setUsage(AudioAttributes.USAGE_NOTIFICATION).build()
+        m.createNotificationChannel(NotificationChannel(channelId, slot.label, NotificationManager.IMPORTANCE_HIGH).apply {
+            val u = chosenSound(context, slotKey, slot.defaultRes)
+            if (u != null) setSound(u, audioAttrs) else setSound(null, null)
+            setShowBadge(true)
+        })
+    }
+
+    /** 소리 변경 적용 — 그 슬롯 버전 +1 → '새 id' 채널을 새 소리로 생성. 이전 '버전' 채널은 삭제(누적 방지). (설정 화면에서 호출) */
+    fun applySlotSound(context: Context, slotKey: String) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val m = context.getSystemService(NotificationManager::class.java) ?: return
+        val prefs = prefsOf(context) ?: return
+        val base = SLOT_CHANNEL[slotKey] ?: return
+        val prevVer = prefs.soundChannelVersion(slotKey)
+        if (prevVer > 0) runCatching { m.deleteNotificationChannel("${base}_v$prevVer") }
+        val newVer = prefs.bumpSoundChannelVersion(slotKey)
+        ensureSlotChannel(context, slotKey, "${base}_v$newVer")
+    }
+
+    /** 기존에 고른(그러나 옛 채널 버그로 안 먹던) 소리를 1회 실제 적용 — 커스텀한 슬롯만 v1 채널로. */
+    fun migrateSlotSoundsOnce(context: Context) {
+        val prefs = prefsOf(context) ?: return
+        if (prefs.soundChannelVersion("_migrated") > 0) return
+        SOUND_SLOTS.forEach { slot ->
+            if (prefs.notificationSound(slot.key, slot.defaultRes) != slot.defaultRes) applySlotSound(context, slot.key)
+        }
+        prefs.bumpSoundChannelVersion("_migrated")
     }
 
     // ── 미리듣기 (화면에서 [▶] 탭 시) ──
@@ -271,6 +326,8 @@ object NotificationHelper {
                     setShowBadge(true)
                 })
             }
+            // 기존에 고른 소리가 옛 채널 버그로 안 먹던 것 1회 살림(커스텀 슬롯만 v1 채널로 재생성).
+            runCatching { migrateSlotSoundsOnce(context) }
         }
     }
 
@@ -752,7 +809,7 @@ object NotificationHelper {
             append(msg)
             if (!note.isNullOrBlank()) append("\n$note")
         }
-        val builder = NotificationCompat.Builder(context, channelId)
+        val builder = NotificationCompat.Builder(context, resolveChannel(context, channelId))
             .setSmallIcon(R.drawable.ic_notification)
             .setColor(accent)
             .setColorized(true)
@@ -943,7 +1000,7 @@ object NotificationHelper {
         val bigText = body
 
         val smsChannel = if (isNewCustomer) CHANNEL_INCOMING_SMS_NEW else CHANNEL_INCOMING_SMS
-        val builder = NotificationCompat.Builder(context, smsChannel)
+        val builder = NotificationCompat.Builder(context, resolveChannel(context, smsChannel))
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(body.take(60))
@@ -1151,7 +1208,7 @@ object NotificationHelper {
         val summaryLine = preview?.trim()?.replace("\n", " ")?.takeIf { it.isNotBlank() }
         val body = if (summaryLine != null) "$summaryLine · ${who}님"
                    else "${who}님 통화 요약이 준비됐어요 · 탭해서 확인"
-        val builder = NotificationCompat.Builder(context, CHANNEL_CALL_SUMMARY)
+        val builder = NotificationCompat.Builder(context, resolveChannel(context, CHANNEL_CALL_SUMMARY))
             .setSmallIcon(R.drawable.ic_notification)
             .setColor(NOTIFICATION_BG_COLOR)
             .setContentTitle(title)
@@ -1212,7 +1269,7 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val builder = NotificationCompat.Builder(context, CHANNEL_AUTO_REPLY)
+        val builder = NotificationCompat.Builder(context, resolveChannel(context, CHANNEL_AUTO_REPLY))
             .setSmallIcon(R.drawable.ic_notification)
             .setColor(NOTIFICATION_BG_COLOR)
             .setColorized(true)

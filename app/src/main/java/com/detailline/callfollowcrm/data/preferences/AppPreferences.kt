@@ -690,6 +690,14 @@ class AppPreferences(context: Context) {
     fun setNotificationSound(key: String, value: String) {
         prefs.edit().putString("ntf_snd_$key", value).apply()
     }
+    /** 슬롯 채널 버전 — 소리 바꿀 때마다 +1. 안드로이드는 같은 채널 id 재생성 시 옛 소리를 되살려서(공식 동작),
+     *   버전을 붙인 '새 id' 채널을 만들어야 새 소리가 실제로 적용됨. (2026-07-15 사장님) */
+    fun soundChannelVersion(key: String): Int = prefs.getInt("ntf_snd_ver_$key", 0)
+    fun bumpSoundChannelVersion(key: String): Int {
+        val v = soundChannelVersion(key) + 1
+        prefs.edit().putInt("ntf_snd_ver_$key", v).apply()
+        return v
+    }
 
     private fun readPhrases(key: String, default: List<String>): List<String> {
         val raw = prefs.getString(key, null) ?: return default
