@@ -1022,7 +1022,7 @@ private fun MirrorSection(container: AppContainer) {
                 Text("공유중", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
                 if (accepted.isEmpty()) {
                     Spacer(Modifier.height(6.dp))
-                    Text("아직 공유 중인 본폰이 없어요. 아래 QR을 본폰 카메라로 찍으면 연결돼요.",
+                    Text("아직 공유 중인 본폰이 없어요. 아래 [본폰 연결하기]를 눌러 QR을 띄우고, 본폰 카메라로 찍으세요.",
                         fontSize = 11.sp, color = TossTextTertiary, lineHeight = 15.sp)
                 } else {
                     accepted.forEach { conn ->
@@ -1064,19 +1064,19 @@ private fun MirrorSection(container: AppContainer) {
                 Spacer(Modifier.height(14.dp))
                 Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
                 Spacer(Modifier.height(4.dp))
-                val firstTime = accepted.isEmpty()
-                val qrOpen = firstTime || addExpanded
+                // 기본 접힘 — 사장님 피드백("코드 칸이 자리 너무 차지"). 처음부터 버튼만, 눌러야 QR 펼침.
+                val qrOpen = addExpanded
                 Row(
                     Modifier.fillMaxWidth()
-                        .clickable(enabled = !firstTime) { addExpanded = !addExpanded }
-                        .padding(vertical = 8.dp),
+                        .clickable { addExpanded = !addExpanded }
+                        .padding(vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(Icons.Filled.Add, null, tint = TossBlue, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text(if (firstTime) "본폰 연결하기 (QR)" else "본폰 추가 (QR 보기)",
+                    Text(if (accepted.isEmpty()) "본폰 연결하기 (QR 띄우기)" else "본폰 추가 (QR 띄우기)",
                         fontSize = 13.sp, color = TossBlue, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    if (!firstTime) Text(if (qrOpen) "▾" else "▸", fontSize = 13.sp, color = TossBlue)
+                    Text(if (qrOpen) "▾" else "▸", fontSize = 13.sp, color = TossBlue)
                 }
                 if (qrOpen) {
                     Spacer(Modifier.height(6.dp))
