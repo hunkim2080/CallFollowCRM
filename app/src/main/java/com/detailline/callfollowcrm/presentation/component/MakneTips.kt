@@ -1,6 +1,7 @@
 package com.detailline.callfollowcrm.presentation.component
 
 import androidx.compose.foundation.background
+import com.detailline.callfollowcrm.presentation.util.bottomBarClearance
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -189,7 +190,8 @@ fun MakneGuideOverlay(tip: MakneTip, onProceed: () -> Unit, onDismiss: () -> Uni
             contentAlignment = Alignment.BottomCenter
         ) {
             Column(
-                Modifier.fillMaxWidth().padding(14.dp)
+                // Dialog(별도 창)라 S9에서 navigationBarsPadding=0 → 버튼이 내비바에 딱 붙음. 리소스 폴백 헬퍼로 띄움. (2026-07-15 사장님)
+                Modifier.fillMaxWidth().bottomBarClearance(extra = 12.dp).padding(14.dp)
                     .clip(RoundedCornerShape(20.dp)).background(Color.White)
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { /* 카드 탭은 닫지 않음 */ }
                     .padding(horizontal = 18.dp, vertical = 18.dp)

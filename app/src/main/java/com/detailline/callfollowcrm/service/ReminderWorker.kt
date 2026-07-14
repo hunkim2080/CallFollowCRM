@@ -108,14 +108,19 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
             val customers = runCatching { container.customerRepository.allOnce() }.getOrDefault(emptyList())
             val today = customers.filter { c ->
                 val s = c.scheduledWorkDate ?: return@filter false
-                DateTimeUtils.startOfDay(s) in todayStart until todayEnd && !c.address.isNullOrBlank()
+                if (DateTimeUtils.startOfDay(s) !in todayStart until todayEnd || c.address.isNullOrBlank()) return@filter false
+                // 잔금까지 다 받은(완납) 현장은 제외 — 마무리된 곳은 오늘의 현장에서 내림. (2026-07-15 사장님)
+                !(com.detailline.callfollowcrm.domain.settlement.SettlementCalc.hasMoney(c) &&
+                    com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(c).isPaidOff)
             }.sortedBy { it.scheduledWorkMinutes ?: 0 }
             if (today.isEmpty()) { NotificationHelper.clearTodaySites(context); return }
             val lines = today.map { c ->
-                val nm = c.name?.takeIf { it.isNotBlank() } ?: c.phoneNumber
-                val t = c.scheduledWorkMinutes?.let { " ${DateTimeUtils.formatWorkMinutes(it)}" } ?: ""
+                // 전화번호는 표시 안 함(탭하면 어차피 문자로 감). 이름 없으면 주소만. (2026-07-15 사장님)
+                val nm = c.name?.takeIf { it.isNotBlank() } ?: ""
+                val t = c.scheduledWorkMinutes?.let { DateTimeUtils.formatWorkMinutes(it) } ?: ""
                 val addr = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(c.address)
-                "📍 $addr\n$nm$t"
+                val second = listOf(nm, t).filter { it.isNotBlank() }.joinToString(" ")
+                if (second.isNotBlank()) "📍 $addr\n$second" else "📍 $addr"
             }
             NotificationHelper.showTodaySites(context, today.size, lines, today.first().phoneNumber)
         }

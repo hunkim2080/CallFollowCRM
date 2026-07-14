@@ -3652,6 +3652,11 @@ private fun TemplatePickerDialog(
 
     val noRipple = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     androidx.activity.compose.BackHandler { onDismiss() }
+    // 저장 직후 버튼 자리에서 "✓ 저장됐어요!" 1.6초 표시 — 토스트를 다들 못 봐서. (2026-07-15 사장님)
+    val savedFlash = remember { androidx.compose.runtime.mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(savedFlash.value) {
+        if (savedFlash.value) { kotlinx.coroutines.delay(1600); savedFlash.value = false }
+    }
     Box(
         Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f))
             .clickable(interactionSource = noRipple, indication = null) { onDismiss() }
@@ -3669,20 +3674,29 @@ private fun TemplatePickerDialog(
             Text(title, color = TossTextPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
             Spacer(Modifier.height(12.dp))
                 // ＋ 새 문구 — 입력창에 쓴 글을 그대로 문구로 저장(키보드 없이, 채팅 흐름 그대로).
+                val flashing = savedFlash.value
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(10.dp))
-                        .background(TossBlueSoft)
-                        .clickable { onSaveCurrent() }
+                        .background(if (flashing) Color(0xFFE6F7EF) else TossBlueSoft)
+                        .clickable {
+                            val ok = canSaveCurrent
+                            onSaveCurrent()
+                            if (ok) savedFlash.value = true
+                        }
                         .padding(horizontal = 12.dp, vertical = 11.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("＋", color = TossBlue, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(if (flashing) "✓" else "＋", color = if (flashing) Color(0xFF12B886) else TossBlue, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        if (canSaveCurrent) "지금 입력창에 쓴 글을 문구로 저장" else "입력창에 글을 쓴 뒤 누르면 문구로 저장돼요",
-                        color = TossBlue, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                        when {
+                            flashing -> "문구로 저장됐어요!"
+                            canSaveCurrent -> "지금 입력창에 쓴 글을 문구로 저장"
+                            else -> "입력창에 글을 쓴 뒤 누르면 문구로 저장돼요"
+                        },
+                        color = if (flashing) Color(0xFF12B886) else TossBlue, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                         maxLines = 1, overflow = TextOverflow.Ellipsis
                     )
                 }
