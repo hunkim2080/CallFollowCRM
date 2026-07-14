@@ -49,8 +49,8 @@ class MirrorSyncManager(
         }
     }
 
-    private fun isActive(): Boolean =
-        prefs.mirrorEnabled && !prefs.mirrorToken.isNullOrBlank()
+    // v2: 옵트인 토글만으로 판정(token 개념 없음). 본폰이 수락하면 이 스냅샷을 봄.
+    private fun isActive(): Boolean = prefs.mirrorEnabled
 
     /**
      * 스냅샷 1회 전송. force=false 면 직전 전송과 내용이 같을 때 skip(해시 비교).
@@ -109,6 +109,23 @@ class MirrorSyncManager(
         } else {
             false
         }
+    }
+
+    /**
+     * 새 '일정 공유 신청' 폴 → 알림. 포그라운드 60초 루프 + ReminderWorker(~3h)에서 호출.
+     *   이미 알림 띄운 share_id(mirrorSeenShareIds)는 건너뜀. 옵트인 꺼져 있으면 skip.
+     */
+    suspend fun pollShareRequests(context: android.content.Context) {
+        if (!prefs.mirrorEnabled) return
+        val owner = prefs.bizPhone.trim()
+        if (owner.filter { it.isDigit() }.length < 9) return
+        val shares = repo.shares(owner).getOrNull() ?: return
+        val seen = prefs.mirrorSeenShareIds
+        val fresh = shares.pending.filter { it.id.toString() !in seen }
+        if (fresh.isEmpty()) return
+        val label = PhoneNumberFormatter.format(fresh.first().homePhone)
+        com.detailline.callfollowcrm.service.NotificationHelper.showMirrorShareRequest(context, label, fresh.size)
+        prefs.mirrorSeenShareIds = seen + fresh.map { it.id.toString() }
     }
 
     /** 내용 지문 — 바뀐 게 없으면 재전송 안 하려고. items 순서·필드 + 돈 요약 전부 반영. */

@@ -37,6 +37,8 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
         runCatching { refreshTodaySites(applicationContext, app.container) }
         // 본폰 미러 링크 백업 전송 (2026-07-13) — 앱 꺼진 동안 놓친 변경/실패분을 주기(~3h)로 재전송. 옵트인 아니면 skip.
         runCatching { app.container.mirrorSyncManager.pushNow(force = false) }
+        // 본폰 미러 v2 — 새 공유 신청 폴 → 알림(앱 꺼져 있어도). (2026-07-14)
+        runCatching { app.container.mirrorSyncManager.pollShareRequests(applicationContext) }
         return Result.success()
     }
 

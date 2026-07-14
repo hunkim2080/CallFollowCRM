@@ -13,17 +13,16 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
- * 본폰 "일정 미러 링크" (2026-07-13) — 업무폰 일정을 읽기전용으로 본폰에서 보기.
- *   서버(cowork 추가119)가 링크·비번게이트·뷰어 HTML(/mirror/{token})을 전부 그림. 앱은 스냅샷만 push.
- *   설계: docs/SERVER_HANDOFF_mirror.md · 앱측 지시: docs/ANDROID_HANDOFF_mirror_app.md.
+ * 본폰 미러 v2 "공유 신청/수락" (2026-07-14, 사장님 확정) — docs/SERVER_HANDOFF_mirror_v2.md.
+ *   본폰(빈 달력, 웹)이 업무폰 고정 코드를 입력해 "공유 신청" → 업무폰이 수락 → 공유.
+ *   협업 현장 요청(수락/거절) 시스템과 동일 컨셉. 규칙: "업무폰이 코드 만들고, 본폰이 넣는다."
+ *   옵트인 필수(사장님이 켤 때만). 본폰 열기 비번은 선택(기본 없음).
  *
- * 옵트인 필수 — 사장님이 직접 켤 때만 발급/전송. 자동 활성화 금지(처리방침 §2-2-2 명시).
- *
- *   POST /api/mirror/issue        링크 발급(비번 1회 내려줌 · 해시만 저장 = 다시 못 봄)
- *   POST /api/mirror/pair/code    두 번째 업무폰 합치기용 6자리 코드(10분)
- *   POST /api/mirror/pair         코드로 기존 링크에 합류
- *   POST /api/mirror/snapshot     일정+돈 스냅샷 통째 갱신(덮어쓰기)
- *   POST /api/mirror/revoke       링크 폐기(본폰 분실) → 이후 410
+ *   POST /api/mirror/mycode      업무폰 고정 공유 코드 조회/생성(idempotent)
+ *   GET  /api/mirror/shares      수락 대기 신청 + 공유중 목록(앱이 폴링)
+ *   POST /api/mirror/respond     신청 수락/거절
+ *   POST /api/mirror/disconnect  공유중 해제(그 본폰에서 이 사업장 빠짐)
+ *   POST /api/mirror/snapshot    일정+돈 스냅샷 갱신(기존 유지)
  */
 class MirrorRepository(
     private val baseUrl: String = AppConfig.BASE_URL
@@ -36,18 +35,15 @@ class MirrorRepository(
 
     private val jsonMedia = "application/json; charset=utf-8".toMediaType()
 
-    /** 발급 결과. pin 은 서버가 만들었을 때만(딱 한 번) 내려옴 — 저장 금지, 사장님께 크게 보여주고 버림. */
-    data class IssueResult(
-        val token: String,
-        val url: String,
-        val label: String,
-        val pin: String?,
-        val pinNotice: String?
-    )
+    /** 공유 신청 1건(수락 대기). home_phone = 신청한 본폰 번호(이름표). */
+    data class ShareRequest(val id: Long, val homePhone: String, val createdAtMs: Long)
 
-    data class PairCodeResult(val code: String, val validMinutes: Int)
+    /** 공유중 연결 1건. */
+    data class Connection(val id: Long, val homePhone: String, val sinceMs: Long)
 
-    /** 뷰어에 그릴 현장 1건. date=YYYY-MM-DD(필수). 나머지 선택. total=총금액(원, 0=미입력). phone=하이픈 포함. */
+    data class Shares(val pending: List<ShareRequest>, val accepted: List<Connection>)
+
+    /** 뷰어에 그릴 현장 1건. date=YYYY-MM-DD(필수). total=총금액(원, 0=미입력). phone=하이픈 포함. */
     data class MirrorItem(
         val date: String,
         val time: String?,
@@ -60,84 +56,93 @@ class MirrorRepository(
         val total: Long
     )
 
-    /** 링크 발급. 이미 그 업무폰이 링크에 속하면 서버가 기존 것 재사용(label 만 갱신). */
-    suspend fun issue(
-        ownerPhone: String,
-        label: String,
-        tint: Int = 0,
-        pin: String? = null
-    ): Result<IssueResult> = withContext(Dispatchers.IO) {
-        runCatching {
-            val payload = JSONObject().apply {
-                put("owner_phone", ownerPhone)
-                put("label", label)
-                put("tint", tint)
-                pin?.takeIf { it.isNotBlank() }?.let { put("pin", it) }
+    /** 이 업무폰의 고정 공유 코드 조회/생성. label·tint 갱신. 앱이 "내 공유 코드" 표시용으로 호출. */
+    suspend fun myCode(ownerPhone: String, label: String, tint: Int = 0): Result<String> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val payload = JSONObject().apply {
+                    put("owner_phone", ownerPhone)
+                    put("label", label)
+                    put("tint", tint)
+                }
+                val req = Request.Builder()
+                    .url("$baseUrl/api/mirror/mycode")
+                    .post(payload.toString().toRequestBody(jsonMedia))
+                    .build()
+                client.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                    JSONObject(resp.body?.string().orEmpty()).optString("code")
+                }
             }
+        }
+
+    /** 수락 대기 신청 + 공유중 목록. */
+    suspend fun shares(ownerPhone: String): Result<Shares> = withContext(Dispatchers.IO) {
+        runCatching {
+            val op = java.net.URLEncoder.encode(ownerPhone, "UTF-8")
             val req = Request.Builder()
-                .url("$baseUrl/api/mirror/issue")
-                .post(payload.toString().toRequestBody(jsonMedia))
-                .build()
+                .url("$baseUrl/api/mirror/shares?owner_phone=$op")
+                .get().build()
             client.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
                 val o = JSONObject(resp.body?.string().orEmpty())
-                IssueResult(
-                    token = o.getString("token"),
-                    url = o.optString("url"),
-                    label = o.optString("label", label),
-                    pin = o.optString("pin").takeIf { it.isNotBlank() && it != "null" },
-                    pinNotice = o.optString("pinNotice").takeIf { it.isNotBlank() && it != "null" }
-                )
+                val pending = (o.optJSONArray("pending") ?: JSONArray()).let { arr ->
+                    (0 until arr.length()).map { i ->
+                        val e = arr.getJSONObject(i)
+                        ShareRequest(e.optLong("id"), e.optString("home_phone"), e.optLong("created_at_ms"))
+                    }
+                }
+                val accepted = (o.optJSONArray("accepted") ?: JSONArray()).let { arr ->
+                    (0 until arr.length()).map { i ->
+                        val e = arr.getJSONObject(i)
+                        Connection(e.optLong("id"), e.optString("home_phone"), e.optLong("since_ms"))
+                    }
+                }
+                Shares(pending, accepted)
             }
         }
     }
 
-    /** 두 번째 업무폰 합치기용 코드 발급(6자리·10분·1회). 이 폰(또는 이미 등록된 폰)에서 호출. */
-    suspend fun pairCode(ownerPhone: String): Result<PairCodeResult> = withContext(Dispatchers.IO) {
-        runCatching {
-            val payload = JSONObject().apply { put("owner_phone", ownerPhone) }
-            val req = Request.Builder()
-                .url("$baseUrl/api/mirror/pair/code")
-                .post(payload.toString().toRequestBody(jsonMedia))
-                .build()
-            client.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
-                val o = JSONObject(resp.body?.string().orEmpty())
-                PairCodeResult(
-                    code = o.optString("code"),
-                    validMinutes = o.optInt("validMinutes", 10)
-                )
+    /** 신청 수락(accept=true) / 거절(false). */
+    suspend fun respond(ownerPhone: String, shareId: Long, accept: Boolean): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val payload = JSONObject().apply {
+                    put("owner_phone", ownerPhone)
+                    put("share_id", shareId)
+                    put("accept", accept)
+                }
+                val req = Request.Builder()
+                    .url("$baseUrl/api/mirror/respond")
+                    .post(payload.toString().toRequestBody(jsonMedia))
+                    .build()
+                client.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                    Unit
+                }
             }
         }
-    }
 
-    /** 코드로 기존 링크에 합류(두 번째 업무폰). 성공하면 이 폰도 같은 token 을 씀 → 서버가 token 반환. */
-    suspend fun pair(
-        code: String,
-        ownerPhone: String,
-        label: String,
-        tint: Int = 1
-    ): Result<String> = withContext(Dispatchers.IO) {
-        runCatching {
-            val payload = JSONObject().apply {
-                put("code", code)
-                put("owner_phone", ownerPhone)
-                put("label", label)
-                put("tint", tint)
-            }
-            val req = Request.Builder()
-                .url("$baseUrl/api/mirror/pair")
-                .post(payload.toString().toRequestBody(jsonMedia))
-                .build()
-            client.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
-                val o = JSONObject(resp.body?.string().orEmpty())
-                o.optString("token")
+    /** 공유중 해제 — 그 본폰 달력에서 이 사업장이 빠짐. */
+    suspend fun disconnect(ownerPhone: String, shareId: Long): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val payload = JSONObject().apply {
+                    put("owner_phone", ownerPhone)
+                    put("share_id", shareId)
+                }
+                val req = Request.Builder()
+                    .url("$baseUrl/api/mirror/disconnect")
+                    .post(payload.toString().toRequestBody(jsonMedia))
+                    .build()
+                client.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                    Unit
+                }
             }
         }
-    }
 
-    /** 일정+돈 스냅샷 통째 갱신(덮어쓰기). 항상 전체를 보낸다. money 는 사업장별 → 뷰어가 합산. */
+    /** 일정+돈 스냅샷 통째 갱신(덮어쓰기). 본폰이 수락하면 이 데이터를 봄. */
     suspend fun pushSnapshot(
         ownerPhone: String,
         label: String,
@@ -173,24 +178,6 @@ class MirrorRepository(
             }
             val req = Request.Builder()
                 .url("$baseUrl/api/mirror/snapshot")
-                .post(payload.toString().toRequestBody(jsonMedia))
-                .build()
-            client.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
-                Unit
-            }
-        }
-    }
-
-    /** 링크 폐기(본폰 분실). 이후 그 링크는 410. */
-    suspend fun revoke(ownerPhone: String, token: String): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
-            val payload = JSONObject().apply {
-                put("owner_phone", ownerPhone)
-                put("token", token)
-            }
-            val req = Request.Builder()
-                .url("$baseUrl/api/mirror/revoke")
                 .post(payload.toString().toRequestBody(jsonMedia))
                 .build()
             client.newCall(req).execute().use { resp ->

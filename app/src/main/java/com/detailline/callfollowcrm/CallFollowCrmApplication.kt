@@ -434,6 +434,7 @@ class CallFollowCrmApplication : Application() {
         runCatching { container.teamEventCenter.poll(this) }
         runCatching { container.collabEventCenter.poll(this) }
         runCatching { container.collabEventCenter.pollInvites(this) }
+        runCatching { container.mirrorSyncManager.pollShareRequests(this) }
         runCatching { syncSmsContacts() }
         runCatching { syncMmsContacts() }
     }

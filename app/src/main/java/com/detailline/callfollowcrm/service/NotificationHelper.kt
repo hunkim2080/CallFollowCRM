@@ -43,6 +43,8 @@ object NotificationHelper {
     private const val DEPART_ID_OFFSET = 9_600_000
     private const val COLLAB_ID_OFFSET = 9_400_000
     private const val COLLAB_INVITE_ID_OFFSET = 9_450_000
+    /** 본폰 미러 v2 — 새 공유 신청 알림(한 스레드, 갱신). (2026-07-14) */
+    private const val MIRROR_SHARE_ID = 9_910_000
     /** 협업 현장 새 댓글 알림 — site_id hash 기준(현장당 한 스레드 알림, 새 댓글이면 update). (2026-07-02) */
     private const val COLLAB_COMMENT_ID_OFFSET = 9_350_000
     /** 협업 현장 새 사진 알림 — 상대가 현장 증거사진 올리면. (2026-07-02) */
@@ -485,6 +487,29 @@ object NotificationHelper {
             msg = accountText?.let { "$msg · 계좌 $it" } ?: msg,
             contentIntent = pending,
             actions = listOf(PushAction("협업 현장 보기", pending))
+        )
+    }
+
+    /** 본폰 미러 v2 — 새 '일정 공유 신청' 알림. 탭 → 앱 열기(더보기 → 본폰에서 일정 보기에서 수락). (2026-07-14 사장님) */
+    fun showMirrorShareRequest(context: Context, homePhoneLabel: String, count: Int) {
+        val notifId = MIRROR_SHARE_ID
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+        val pending = PendingIntent.getActivity(
+            context, notifId, openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val msg = if (count > 1)
+            "${homePhoneLabel} 외 ${count - 1}건이 일정 공유를 신청했어요. 더보기 → 본폰에서 일정 보기에서 수락하세요."
+        else
+            "${homePhoneLabel}가 일정 공유를 신청했어요. 더보기 → 본폰에서 일정 보기에서 수락하세요."
+        showProtoPush(
+            context, notifId, CHANNEL_REMINDER, ACCENT_BLUE,
+            title = "📩 일정 공유 신청",
+            msg = msg,
+            contentIntent = pending,
+            actions = listOf(PushAction("확인", pending))
         )
     }
 

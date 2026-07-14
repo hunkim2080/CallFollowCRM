@@ -670,6 +670,14 @@ class AppPreferences(context: Context) {
     var mirrorLastHash: String?
         get() = prefs.getString("mirror_last_hash", null)
         set(value) { prefs.edit().putString("mirror_last_hash", value).apply() }
+    /** v2: 이 업무폰의 고정 공유 코드(서버 부여, 표시용 캐시). 본폰이 이 코드로 공유 신청. */
+    var mirrorCode: String?
+        get() = prefs.getString("mirror_code", null)?.takeIf { it.isNotBlank() }
+        set(value) { prefs.edit().putString("mirror_code", value).apply() }
+    /** v2: 이미 알림 띄운 공유 신청 share_id 들 — 중복 알림 방지. */
+    var mirrorSeenShareIds: Set<String>
+        get() = prefs.getStringSet("mirror_seen_share_ids", emptySet()) ?: emptySet()
+        set(value) { prefs.edit().putStringSet("mirror_seen_share_ids", value).commit() }
 
     // ── 알림 종류별 소리 (더보기 → 알림 소리, 2026-07-10) ──
     /** 알림 슬롯 key(new_inquiry/reply/…)에 고른 소리(raw 리소스명 or "silent"). 없으면 default. */
