@@ -982,9 +982,9 @@ private fun MirrorSection(container: AppContainer) {
         }
     }
 
-    // 화면 진입 시 코드가 없으면 서버에서 채우고, 켜져 있는 동안 8초마다 신청/연결 갱신(라이브).
+    // 화면 진입 시 코드·QR을 서버에서 최신화(옛 6자리→신규 8자리·qrUrl 반영), 켜져 있는 동안 8초마다 신청/연결 갱신.
     LaunchedEffect(enabled) {
-        if (enabled && code.isNullOrBlank() && ownerPhone.filter { it.isDigit() }.length >= 9) {
+        if (enabled && ownerPhone.filter { it.isDigit() }.length >= 9) {
             container.mirrorRepository.myCode(ownerPhone, label.trim().ifBlank { "내 일정" }, 0)
                 .onSuccess { mc ->
                     prefs.mirrorCode = mc.code; code = mc.code
