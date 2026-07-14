@@ -47,7 +47,7 @@ class MirrorRepository(
 
     data class PairCodeResult(val code: String, val validMinutes: Int)
 
-    /** 뷰어에 그릴 현장 1건. date=YYYY-MM-DD(필수). 나머지 선택. */
+    /** 뷰어에 그릴 현장 1건. date=YYYY-MM-DD(필수). 나머지 선택. total=총금액(원, 0=미입력). phone=하이픈 포함. */
     data class MirrorItem(
         val date: String,
         val time: String?,
@@ -56,7 +56,8 @@ class MirrorRepository(
         val address: String?,
         val phone: String?,
         val memo: String?,
-        val completed: Boolean
+        val completed: Boolean,
+        val total: Long
     )
 
     /** 링크 발급. 이미 그 업무폰이 링크에 속하면 서버가 기존 것 재사용(label 만 갱신). */
@@ -157,6 +158,7 @@ class MirrorRepository(
                     it.phone?.let { p -> put("phone", p) }
                     it.memo?.let { m -> put("memo", m) }
                     put("completed", it.completed)
+                    if (it.total > 0L) put("total", it.total)   // 총금액(원) — 뷰어가 "얼마짜리 현장" 표시
                 })
             }
             val payload = JSONObject().apply {

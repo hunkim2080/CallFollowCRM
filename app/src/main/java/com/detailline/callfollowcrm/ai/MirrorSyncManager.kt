@@ -6,6 +6,7 @@ import com.detailline.callfollowcrm.data.repository.ManualCashRepository
 import com.detailline.callfollowcrm.domain.settlement.CashFlowCalc
 import com.detailline.callfollowcrm.domain.settlement.SettlementCalc
 import com.detailline.callfollowcrm.util.DateTimeUtils
+import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -78,9 +79,12 @@ class MirrorSyncManager(
                     days = c.scheduledWorkDays.coerceAtLeast(1),
                     name = c.name?.takeIf { it.isNotBlank() } ?: "현장",
                     address = c.address?.takeIf { it.isNotBlank() },
-                    phone = c.phoneNumber.takeIf { it.isNotBlank() },
+                    // 고객 전화 = 하이픈 포함으로(사장님 요청). tel: 링크는 하이픈 있어도 동작.
+                    phone = c.phoneNumber.takeIf { it.isNotBlank() }?.let { PhoneNumberFormatter.format(it) },
                     memo = c.memo.takeIf { it.isNotBlank() },
-                    completed = c.workCompletedAt != null
+                    completed = c.workCompletedAt != null,
+                    // 총금액 = 정산과 같은 계산(총액 없으면 계약금+잔금). 0=미입력 → 뷰어가 숨김.
+                    total = SettlementCalc.rowOf(c).total
                 )
             }
 
@@ -122,7 +126,7 @@ class MirrorSyncManager(
                 .append(it.date).append('~').append(it.time ?: "").append('~').append(it.days)
                 .append('~').append(it.name).append('~').append(it.address ?: "")
                 .append('~').append(it.phone ?: "").append('~').append(it.memo ?: "")
-                .append('~').append(it.completed)
+                .append('~').append(it.completed).append('~').append(it.total)
         }
         return sb.toString().hashCode().toString()
     }
