@@ -319,6 +319,64 @@ def db_init() -> None:
             "CREATE TABLE IF NOT EXISTS server_kv ("
             "k TEXT PRIMARY KEY, v TEXT NOT NULL)"
         )
+        # ── 추가122 (2026-07-14) — 미러 v2 "공유 신청/수락" (SERVER_HANDOFF_mirror_v2.md) ──
+        # 규칙: 업무폰이 고정 코드를 만들고, 본폰이 그 코드를 넣어 신청, 업무폰이 수락.
+        # 코드가 새도 수락 안 하면 무해 → v1 의 링크+비번 대신 "수락"이 게이트.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS mirror_codes (
+                owner_phone   TEXT PRIMARY KEY,   -- 업무폰
+                code          TEXT NOT NULL UNIQUE,  -- 고정 6자리 (안 바뀜)
+                label         TEXT,
+                tint          INTEGER DEFAULT 0,
+                updated_at_ms INTEGER NOT NULL
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS mirror_shares (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                owner_phone   TEXT NOT NULL,
+                home_phone    TEXT NOT NULL,      -- 신청한 본폰 (이름표 · 미검증)
+                status        TEXT NOT NULL,      -- pending | accepted | rejected
+                created_at_ms INTEGER NOT NULL,
+                decided_at_ms INTEGER,
+                UNIQUE (owner_phone, home_phone)
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_mirror_shares_owner "
+            "ON mirror_shares(owner_phone, status)"
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_mirror_shares_home "
+            "ON mirror_shares(home_phone, status)"
+        )
+        # v2 스냅샷 저장소 — owner_phone 키 (v1 mirror_sources 는 존치·병행 갱신)
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS mirror_snapshots (
+                owner_phone   TEXT PRIMARY KEY,
+                label         TEXT,
+                tint          INTEGER DEFAULT 0,
+                snapshot_json TEXT,
+                money_json    TEXT,
+                updated_at_ms INTEGER NOT NULL
+            )
+            """
+        )
+        # 본폰 열기 비번 (선택 — 기본 없음)
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS mirror_home (
+                home_phone TEXT PRIMARY KEY,
+                pin_hash   TEXT,
+                pin_salt   TEXT
+            )
+            """
+        )
         # ── 추가121 (2026-07-13) — 상담함/문자함 Haiku 분류 캐시 (같은 내용 재호출 0) ──
         con.execute(
             """
@@ -20899,42 +20957,65 @@ async def mirror_pair(req: MirrorPairRequest) -> dict:
 async def mirror_snapshot(req: MirrorSnapshotRequest) -> dict:
     """업무폰 — 일정 items[] + 돈 요약 덮어쓰기 (팀원 schedule-snapshot 과 동일 컨셉).
 
-    items: [{date:"2026-07-15", time:"09:00", days:1, name, address, phone, memo, completed}]
+    items: [{date:"2026-07-15", time:"09:00", days:1, name, address, phone, memo,
+             total(원), completed}]
     money: {todayIn, unpaid, unpaidCount}
+
+    추가122(v2): **owner_phone 만으로 동작** — v2 앱은 issue/pair 를 안 하므로 404 내면 안 됨.
+      · 항상 mirror_snapshots(owner_phone PK) upsert  ← v2 본폰 /board 가 읽는 곳
+      · v1 링크(mirror_sources)가 남아 있으면 거기도 같이 갱신 (구 배포본 하위호환)
     """
     ophone = _norm_phone(req.owner_phone)
     if not ophone:
         raise HTTPException(400, "owner_phone 필수")
     now = _now_ms()
+    items_str = json.dumps(req.items or [], ensure_ascii=False)
+    money_str = json.dumps(req.money or {}, ensure_ascii=False)
+    label = (req.label or "").strip()[:20]
+    v1_tokens = []
     with db_conn() as con:
-        if req.token:
-            row = con.execute(
-                "SELECT token FROM mirror_sources WHERE token = ? AND owner_phone = ?",
-                (req.token, ophone),
+        # ① v2 저장소 (항상)
+        prev = con.execute(
+            "SELECT label, tint FROM mirror_snapshots WHERE owner_phone = ?", (ophone,)
+        ).fetchone()
+        keep_label = label or (prev[0] if prev else None) or "내 사업장"
+        keep_tint = prev[1] if prev else 0
+        if not prev:
+            # 코드 등록 시 정한 label/tint 가 있으면 그걸 우선
+            crow = con.execute(
+                "SELECT label, tint FROM mirror_codes WHERE owner_phone = ?", (ophone,)
             ).fetchone()
-        else:
-            row = con.execute(
-                "SELECT s.token FROM mirror_sources s JOIN mirror_links l ON l.token = s.token "
-                "WHERE s.owner_phone = ? AND l.revoked = 0 LIMIT 1",
-                (ophone,),
-            ).fetchone()
-        if not row:
-            raise HTTPException(404, "미러 링크 없음 — /api/mirror/issue 먼저 호출")
-        token = row[0]
-        sets = ["snapshot_json = ?", "money_json = ?", "updated_at_ms = ?"]
-        vals = [json.dumps(req.items or [], ensure_ascii=False),
-                json.dumps(req.money or {}, ensure_ascii=False), now]
-        if (req.label or "").strip():
-            sets.append("label = ?")
-            vals.append((req.label or "").strip()[:20])
-        vals.extend([token, ophone])
+            if crow:
+                keep_label = label or (crow[0] or keep_label)
+                keep_tint = crow[1] or 0
         con.execute(
-            f"UPDATE mirror_sources SET {', '.join(sets)} WHERE token = ? AND owner_phone = ?",
-            vals,
+            "INSERT OR REPLACE INTO mirror_snapshots "
+            "(owner_phone, label, tint, snapshot_json, money_json, updated_at_ms) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (ophone, keep_label, keep_tint, items_str, money_str, now),
         )
+        # ② v1 하위호환 — 기존 링크가 있으면 같이 갱신 (사장님 폰 구버전 뷰어용)
+        rows = con.execute(
+            "SELECT s.token FROM mirror_sources s JOIN mirror_links l ON l.token = s.token "
+            "WHERE s.owner_phone = ? AND l.revoked = 0",
+            (ophone,),
+        ).fetchall()
+        v1_tokens = [r[0] for r in rows]
+        for tk in v1_tokens:
+            sets = ["snapshot_json = ?", "money_json = ?", "updated_at_ms = ?"]
+            vals = [items_str, money_str, now]
+            if label:
+                sets.append("label = ?")
+                vals.append(label)
+            vals.extend([tk, ophone])
+            con.execute(
+                f"UPDATE mirror_sources SET {', '.join(sets)} WHERE token = ? AND owner_phone = ?",
+                vals,
+            )
         con.commit()
-    return {"ok": True, "token": token, "itemsCount": len(req.items or []),
-            "updatedAtMs": now}
+    return {"ok": True, "ownerPhone": ophone, "itemsCount": len(req.items or []),
+            "updatedAtMs": now, "v1TokensUpdated": len(v1_tokens),
+            "token": (v1_tokens[0] if v1_tokens else None)}
 
 
 @app.post("/api/mirror/revoke")
@@ -21098,6 +21179,682 @@ async def mirror_manifest():
             {"src": "/manifest/admin-icon.svg", "sizes": "512x512", "type": "image/svg+xml"},
         ],
     }, media_type="application/manifest+json")
+
+
+# ============================================================================
+# 추가122 (2026-07-14) — 미러 v2 "공유 신청/수락"  (docs/SERVER_HANDOFF_mirror_v2.md)
+# ─────────────────────────────────────────────────────────────────────────────
+# 한 줄: **업무폰이 고정 코드를 만들고, 본폰이 그 코드를 넣어 신청하고, 업무폰이 수락한다.**
+# 코드가 유출돼도 수락 안 하면 무해 → v1 의 "링크+비번" 대신 "수락"이 게이트.
+#
+#   업무폰(앱):  POST /api/mirror/mycode      고정 코드 조회·생성 (idempotent)
+#                GET  /api/mirror/shares      신청함/공유중 폴링
+#                POST /api/mirror/respond     수락 / 거절
+#                POST /api/mirror/disconnect  공유 해제
+#                POST /api/mirror/snapshot    (위 — owner_phone 만으로 동작)
+#   본폰(웹):    GET  /mirror                 고정 주소 · 빈 달력 (앱 불필요)
+#                POST /mirror/identify        본폰 번호 1회 입력 → 서명 쿠키
+#                POST /api/mirror/join        코드 넣어 공유 신청
+#                GET  /api/mirror/board       수락된 사업장 합산 캘린더 (60초 새로고침)
+#
+# v1(issue/pair/revoke, /mirror/{token})은 사장님 폰 구버전 호환 위해 **존치**.
+# ============================================================================
+_MIRROR_HOME_COOKIE = "mh"
+_MIRROR_JOIN_RATE: dict = {}          # {ip: [횟수, 최초시각ms]} — 10회/10분
+
+
+def _mirror_gen_code() -> str:
+    """고정 6자리 공유 코드 (충돌 회피)."""
+    import secrets
+    for _ in range(20):
+        code = "%06d" % secrets.randbelow(1000000)
+        with db_conn() as con:
+            if not con.execute("SELECT 1 FROM mirror_codes WHERE code = ?", (code,)).fetchone():
+                return code
+    raise HTTPException(500, "공유 코드 생성 실패")
+
+
+def _home_cookie_value(home_phone: str) -> str:
+    import hmac
+    return home_phone + "." + hmac.new(
+        _mirror_secret().encode("utf-8"), home_phone.encode("utf-8"), hashlib.sha256
+    ).hexdigest()[:24]
+
+
+def _home_from_cookie(request: Request) -> Optional[str]:
+    """서명 쿠키에서 본폰 번호 복원. 위조면 None."""
+    import hmac as _hmac
+    raw = request.cookies.get(_MIRROR_HOME_COOKIE) or ""
+    if "." not in raw:
+        return None
+    phone, _sep, _sig = raw.partition(".")
+    phone = _norm_phone(phone)
+    if not phone:
+        return None
+    if not _hmac.compare_digest(raw, _home_cookie_value(phone)):
+        return None
+    return phone
+
+
+class MirrorMyCodeRequest(BaseModel):
+    owner_phone: str = ""
+    label: str = ""
+    tint: int = 0
+
+
+class MirrorRespondRequest(BaseModel):
+    owner_phone: str = ""
+    share_id: int = 0
+    accept: bool = False
+
+
+class MirrorDisconnectRequest(BaseModel):
+    owner_phone: str = ""
+    share_id: int = 0
+
+
+class MirrorJoinRequest(BaseModel):
+    home_phone: str = ""
+    code: str = ""
+
+
+class MirrorHomePinRequest(BaseModel):
+    home_phone: str = ""
+    pin: Optional[str] = None      # None/"" = 비번 해제
+
+
+# ─── 업무폰(앱) ───
+
+@app.post("/api/mirror/mycode")
+async def mirror_mycode(req: MirrorMyCodeRequest) -> dict:
+    """내 고정 공유 코드 (없으면 생성, 있으면 그대로 + label/tint 갱신). 앱이 항상 표시."""
+    ophone = _norm_phone(req.owner_phone)
+    if not ophone:
+        raise HTTPException(400, "owner_phone 필수")
+    label = (req.label or "").strip()[:20] or "내 사업장"
+    tint = int(req.tint or 0)
+    now = _now_ms()
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT code FROM mirror_codes WHERE owner_phone = ?", (ophone,)
+        ).fetchone()
+        if row:
+            code = row[0]
+            con.execute(
+                "UPDATE mirror_codes SET label = ?, tint = ?, updated_at_ms = ? "
+                "WHERE owner_phone = ?", (label, tint, now, ophone),
+            )
+        else:
+            code = _mirror_gen_code()
+            con.execute(
+                "INSERT INTO mirror_codes (owner_phone, code, label, tint, updated_at_ms) "
+                "VALUES (?, ?, ?, ?, ?)", (ophone, code, label, tint, now),
+            )
+        con.commit()
+    return {"ok": True, "code": code, "label": label, "tint": tint,
+            "homeUrl": f"{INTAKE_PUBLIC_BASE_URL.rstrip('/')}/mirror"}
+
+
+@app.get("/api/mirror/shares")
+async def mirror_shares(owner_phone: str) -> dict:
+    """수락 대기 신청 + 현재 공유중 목록. 앱이 폴링해서 알림 띄움."""
+    ophone = _norm_phone(owner_phone)
+    if not ophone:
+        raise HTTPException(400, "owner_phone 필수")
+    pending, accepted = [], []
+    with db_conn() as con:
+        rows = con.execute(
+            "SELECT id, home_phone, status, created_at_ms, decided_at_ms "
+            "FROM mirror_shares WHERE owner_phone = ? AND status IN ('pending','accepted') "
+            "ORDER BY created_at_ms DESC", (ophone,),
+        ).fetchall()
+    for (sid, hphone, status, created, decided) in rows:
+        item = {"id": sid, "home_phone": hphone,
+                "home_phone_display": _fmt_phone_dashed(hphone),
+                "created_at_ms": created}
+        if status == "pending":
+            pending.append(item)
+        else:
+            item["since_ms"] = decided or created
+            accepted.append(item)
+    return {"ok": True, "pending": pending, "accepted": accepted,
+            "pendingCount": len(pending), "acceptedCount": len(accepted)}
+
+
+@app.post("/api/mirror/respond")
+async def mirror_respond(req: MirrorRespondRequest) -> dict:
+    """업무폰이 수락/거절. **여기가 유일한 게이트** — 수락 전엔 본폰에 아무것도 안 보임."""
+    ophone = _norm_phone(req.owner_phone)
+    if not ophone or not req.share_id:
+        raise HTTPException(400, "owner_phone, share_id 필수")
+    now = _now_ms()
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT owner_phone, home_phone, status FROM mirror_shares WHERE id = ?",
+            (req.share_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "신청 없음")
+        if row[0] != ophone:
+            raise HTTPException(403, "내 사업장의 신청이 아닙니다")
+        new_status = "accepted" if req.accept else "rejected"
+        con.execute(
+            "UPDATE mirror_shares SET status = ?, decided_at_ms = ? WHERE id = ?",
+            (new_status, now, req.share_id),
+        )
+        con.commit()
+    print(f"[mirror/respond] {ophone} share={req.share_id} → {new_status}")
+    return {"ok": True, "share_id": req.share_id, "status": new_status,
+            "home_phone": row[1]}
+
+
+@app.post("/api/mirror/disconnect")
+async def mirror_disconnect(req: MirrorDisconnectRequest) -> dict:
+    """공유 해제 — 그 본폰 달력에서 이 사업장이 빠짐."""
+    ophone = _norm_phone(req.owner_phone)
+    if not ophone or not req.share_id:
+        raise HTTPException(400, "owner_phone, share_id 필수")
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT owner_phone FROM mirror_shares WHERE id = ?", (req.share_id,)
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "공유 없음")
+        if row[0] != ophone:
+            raise HTTPException(403, "내 사업장의 공유가 아닙니다")
+        con.execute(
+            "UPDATE mirror_shares SET status = 'rejected', decided_at_ms = ? WHERE id = ?",
+            (_now_ms(), req.share_id),
+        )
+        con.commit()
+    print(f"[mirror/disconnect] {ophone} share={req.share_id}")
+    return {"ok": True, "share_id": req.share_id, "status": "rejected"}
+
+
+# ─── 본폰(웹) ───
+
+@app.post("/api/mirror/join")
+async def mirror_join(req: MirrorJoinRequest, request: Request) -> dict:
+    """본폰이 코드를 넣어 공유 신청 → pending. 업무폰이 수락해야 보이기 시작.
+
+    home_phone 은 **서명 쿠키 우선** (웹에서 임의 번호로 신청하는 것 방지).
+    """
+    hphone = _home_from_cookie(request) or _norm_phone(req.home_phone)
+    code = (req.code or "").strip()
+    if not hphone:
+        raise HTTPException(401, "본폰 번호 확인 필요")
+    if not code:
+        raise HTTPException(400, "code 필수")
+
+    # rate limit — 코드 무차별 대입 방지 (IP당 10회/10분)
+    ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or (
+        request.client.host if request.client else "?")
+    now = _now_ms()
+    cnt, since = _MIRROR_JOIN_RATE.get(ip, [0, now])
+    if now - since > 10 * 60 * 1000:
+        cnt, since = 0, now
+    if cnt >= 10:
+        raise HTTPException(429, "시도가 너무 많습니다. 10분 뒤 다시 해주세요.")
+    _MIRROR_JOIN_RATE[ip] = [cnt + 1, since]
+
+    with db_conn() as con:
+        crow = con.execute(
+            "SELECT owner_phone, label FROM mirror_codes WHERE code = ?", (code,)
+        ).fetchone()
+        if not crow:
+            raise HTTPException(404, "코드가 올바르지 않습니다")
+        ophone, label = crow[0], (crow[1] or "사업장")
+        if ophone == hphone:
+            raise HTTPException(400, "본인 업무폰 번호로는 신청할 수 없어요")
+
+        srow = con.execute(
+            "SELECT id, status FROM mirror_shares WHERE owner_phone = ? AND home_phone = ?",
+            (ophone, hphone),
+        ).fetchone()
+        if srow:
+            sid, status = srow
+            if status == "accepted":
+                return {"ok": True, "status": "accepted", "label": label, "share_id": sid}
+            if status == "rejected":
+                # 도배 방지 — 거절당한 번호는 재신청 차단
+                raise HTTPException(403, "이 사업장에서 공유가 거절되었거나 해제되었어요. "
+                                         "업무폰 사장님께 직접 문의해 주세요.")
+            return {"ok": True, "status": "pending", "label": label, "share_id": sid}
+
+        cur = con.execute(
+            "INSERT INTO mirror_shares (owner_phone, home_phone, status, created_at_ms) "
+            "VALUES (?, ?, 'pending', ?)", (ophone, hphone, now),
+        )
+        sid = cur.lastrowid
+        con.commit()
+    print(f"[mirror/join] {hphone} → {ophone} ({label}) pending id={sid}")
+    return {"ok": True, "status": "pending", "label": label, "share_id": sid}
+
+
+def _mirror_board_payload(home_phone: str) -> dict:
+    """수락된 업무폰들의 스냅샷을 합산 — 본폰 통합 캘린더 데이터."""
+    with db_conn() as con:
+        shares = con.execute(
+            "SELECT owner_phone, status FROM mirror_shares WHERE home_phone = ? "
+            "AND status IN ('pending','accepted')", (home_phone,),
+        ).fetchall()
+        accepted = [s[0] for s in shares if s[1] == "accepted"]
+        pending_owners = [s[0] for s in shares if s[1] == "pending"]
+        pending = []
+        for op in pending_owners:
+            lab = con.execute(
+                "SELECT label FROM mirror_codes WHERE owner_phone = ?", (op,)
+            ).fetchone()
+            pending.append({"label": (lab[0] if lab else "사업장")})
+
+        sources = []
+        t_in = t_unpaid = t_cnt = 0
+        for op in accepted:
+            row = con.execute(
+                "SELECT label, tint, snapshot_json, money_json, updated_at_ms "
+                "FROM mirror_snapshots WHERE owner_phone = ?", (op,),
+            ).fetchone()
+            if not row:
+                lab = con.execute(
+                    "SELECT label, tint FROM mirror_codes WHERE owner_phone = ?", (op,)
+                ).fetchone()
+                sources.append({"label": (lab[0] if lab else "사업장"),
+                                "tint": (lab[1] if lab else 0),
+                                "items": [], "money": {}, "updatedAtMs": None})
+                continue
+            label, tint, snap, money, upd = row
+            try:
+                items = json.loads(snap) if snap else []
+            except json.JSONDecodeError:
+                items = []
+            try:
+                m = json.loads(money) if money else {}
+            except json.JSONDecodeError:
+                m = {}
+            t_in += int(m.get("todayIn") or 0)
+            t_unpaid += int(m.get("unpaid") or 0)
+            t_cnt += int(m.get("unpaidCount") or 0)
+            sources.append({"label": label or "사업장", "tint": int(tint or 0),
+                            "items": items, "money": m, "updatedAtMs": upd})
+    return {
+        "homePhone": home_phone,
+        "sources": sources,
+        "pending": pending,
+        "money": {"todayIn": t_in, "unpaid": t_unpaid, "unpaidCount": t_cnt},
+        "serverNowMs": _now_ms(),
+    }
+
+
+@app.get("/api/mirror/board")
+async def mirror_board(request: Request) -> dict:
+    """본폰 통합 캘린더 데이터 (60초 새로고침). 쿠키의 home_phone 만 신뢰."""
+    hphone = _home_from_cookie(request)
+    if not hphone:
+        raise HTTPException(401, "본폰 번호 확인 필요")
+    return _mirror_board_payload(hphone)
+
+
+@app.post("/api/mirror/home-pin")
+async def mirror_home_pin(req: MirrorHomePinRequest, request: Request) -> dict:
+    """(선택) 본폰 열기 비번 설정/해제. 기본은 비번 없음."""
+    import secrets
+    hphone = _home_from_cookie(request) or _norm_phone(req.home_phone)
+    if not hphone:
+        raise HTTPException(400, "home_phone 필수")
+    pin = (req.pin or "").strip()
+    with db_conn() as con:
+        if not pin:
+            con.execute("DELETE FROM mirror_home WHERE home_phone = ?", (hphone,))
+            con.commit()
+            return {"ok": True, "pinSet": False}
+        if not (pin.isdigit() and len(pin) == 4):
+            raise HTTPException(400, "pin 은 4자리 숫자")
+        salt = secrets.token_hex(8)
+        con.execute(
+            "INSERT OR REPLACE INTO mirror_home (home_phone, pin_hash, pin_salt) "
+            "VALUES (?, ?, ?)", (hphone, _mirror_pin_hash(salt, pin), salt),
+        )
+        con.commit()
+    return {"ok": True, "pinSet": True}
+
+
+@app.post("/mirror/identify")
+async def mirror_identify(phone: str = Form(default="")) -> Response:
+    """본폰 번호 1회 입력 → 서명 쿠키. (미검증 이름표 — 실제 게이트는 업무폰 수락)"""
+    hphone = _norm_phone(phone)
+    if not hphone:
+        return Response(status_code=303, headers={"Location": "/mirror?e=1"})
+    resp = Response(status_code=303, headers={"Location": "/mirror"})
+    resp.set_cookie(
+        key=_MIRROR_HOME_COOKIE, value=_home_cookie_value(hphone),
+        max_age=_MIRROR_COOKIE_MAX_AGE, httponly=True, samesite="lax", path="/",
+    )
+    return resp
+
+
+@app.post("/mirror/forget")
+async def mirror_forget() -> Response:
+    """이 폰에서 로그아웃(번호 잊기)."""
+    resp = Response(status_code=303, headers={"Location": "/mirror"})
+    resp.delete_cookie(key=_MIRROR_HOME_COOKIE, path="/")
+    return resp
+
+
+@app.get("/mirror", response_class=HTMLResponse)
+async def mirror_home_page(request: Request) -> HTMLResponse:
+    """본폰 — 고정 주소. 앱 설치 불필요. 번호 1회 입력 → 코드 넣어 신청 → 수락되면 달력."""
+    hphone = _home_from_cookie(request)
+    if not hphone:
+        err = "번호를 다시 확인해 주세요." if request.query_params.get("e") else ""
+        return HTMLResponse(content=MIRROR_IDENTIFY_HTML.replace("__ERR__", err))
+    data = _mirror_board_payload(hphone)
+    boot = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
+    html = (MIRROR_HOME_HTML
+            .replace("__BOOT__", boot)
+            .replace("__PHONE__", _fmt_phone_dashed(hphone)))
+    return HTMLResponse(content=html)
+
+
+MIRROR_IDENTIFY_HTML = r"""<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>일정 미러 — 시공막내</title>
+<link rel="manifest" href="/manifest/mirror.webmanifest">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+ body{font-family:'Pretendard',-apple-system,system-ui,sans-serif;background:#FAFBFC;margin:0;
+      min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;color:#0B0F19}
+ .c{background:#fff;border:1px solid #EEF0F3;border-radius:20px;padding:34px 26px;max-width:360px;
+    width:100%;text-align:center;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+ .ic{font-size:36px} h1{font-size:20px;font-weight:900;margin:12px 0 6px}
+ p{font-size:13.5px;color:#5A6472;margin:0 0 20px;line-height:1.6}
+ input{width:100%;padding:14px;font-size:17px;text-align:center;border:1px solid #EEF0F3;
+       border-radius:12px;font-weight:800;box-sizing:border-box;font-family:inherit}
+ button{width:100%;margin-top:10px;padding:14px;border:0;border-radius:12px;background:#3182F6;
+        color:#fff;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit}
+ .e{background:#FDECEA;color:#C8352B;font-size:12.5px;font-weight:700;border-radius:9px;padding:9px;margin-bottom:12px}
+ .m{font-size:11.5px;color:#9AA3AF;margin-top:14px;line-height:1.6}
+</style></head><body>
+<div class="c">
+  <div class="ic">📅</div>
+  <h1>일정 미러</h1>
+  <p>업무폰 일정을 이 폰에서 <b>보기만</b> 하는 화면이에요.<br>먼저 이 폰(본폰) 번호를 알려주세요.</p>
+  <div id="err">__ERR__</div>
+  <form method="post" action="/mirror/identify">
+    <input name="phone" type="tel" inputmode="numeric" autocomplete="tel"
+           placeholder="010-0000-0000" autofocus>
+    <button type="submit">다음</button>
+  </form>
+  <div class="m">이 번호는 업무폰 사장님이 <b>"누가 신청했는지"</b> 알아보는 이름표예요.<br>
+  일정은 업무폰에서 <b>수락해야만</b> 보입니다.</div>
+</div>
+<script>
+ var e=document.getElementById('err');
+ if(e.textContent.trim()) e.className='e'; else e.remove();
+</script>
+</body></html>
+"""
+
+
+MIRROR_HOME_HTML = r"""<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>일정 미러 — 시공막내</title>
+<link rel="manifest" href="/manifest/mirror.webmanifest">
+<meta name="theme-color" content="#3182F6">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  :root{--blue:#3182F6;--blue-dark:#1B64DA;--tint:#EEF4FF;--bg:#FAFBFC;--t1:#0B0F19;
+        --t2:#5A6472;--t3:#9AA3AF;--line:#EEF0F3;--green:#16C172;--red:#F0436A;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Pretendard',-apple-system,system-ui,sans-serif;background:var(--bg);
+       color:var(--t1);line-height:1.6;padding-bottom:40px;}
+  .top{position:sticky;top:0;z-index:9;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);
+       border-bottom:1px solid var(--line);padding:12px 16px 10px;}
+  .ttl{font-size:16px;font-weight:900;letter-spacing:-.03em;display:flex;align-items:center;gap:6px;}
+  .ro{font-size:10.5px;font-weight:800;color:var(--t3);background:#F1F3F5;border-radius:999px;padding:2px 8px;}
+  .me{margin-left:auto;font-size:11px;color:var(--t3);font-weight:700;}
+  .upd{font-size:11px;color:var(--t3);margin-top:3px;}
+  .chips{display:flex;gap:6px;margin-top:9px;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .chip{flex:none;font-size:12.5px;font-weight:800;border:1px solid var(--line);background:#fff;
+        color:var(--t2);border-radius:999px;padding:6px 12px;cursor:pointer;display:flex;align-items:center;gap:5px;}
+  .chip.on{background:var(--tint);border-color:var(--blue);color:var(--blue-dark);}
+  .dot{width:7px;height:7px;border-radius:50%;}
+  .wrap{max-width:560px;margin:0 auto;padding:14px 16px;}
+  .join{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px;}
+  .join h3{font-size:14px;font-weight:900;margin-bottom:4px;}
+  .join p{font-size:12px;color:var(--t3);margin-bottom:10px;line-height:1.5;}
+  .jrow{display:flex;gap:7px;}
+  .jrow input{flex:1;padding:12px;border:1px solid var(--line);border-radius:11px;font-size:17px;
+              font-weight:800;letter-spacing:5px;text-align:center;font-family:inherit;min-width:0;}
+  .jrow button{flex:none;padding:12px 16px;border:0;border-radius:11px;background:var(--blue);
+               color:#fff;font-weight:800;font-size:14px;cursor:pointer;font-family:inherit;}
+  .msg{font-size:12.5px;font-weight:700;border-radius:9px;padding:9px 11px;margin-top:9px;display:none;}
+  .msg.ok{background:#E7F8EF;color:#0B7A45;display:block;}
+  .msg.no{background:#FDECEA;color:#C8352B;display:block;}
+  .pend{background:#FFF9E6;border:1px solid #FFE9A8;border-radius:12px;padding:11px 13px;
+        font-size:12.5px;color:#8A6A00;font-weight:700;margin-bottom:12px;}
+  .money{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:14px;}
+  .mcard{background:#fff;border:1px solid var(--line);border-radius:14px;padding:13px 14px;}
+  .mcard .k{font-size:11.5px;color:var(--t3);font-weight:700;}
+  .mcard .v{font-size:17px;font-weight:900;margin-top:2px;letter-spacing:-.02em;}
+  .mcard.in .v{color:var(--green);} .mcard.un .v{color:var(--red);}
+  .mcard .s{font-size:11px;color:var(--t3);margin-top:1px;}
+  .sec{font-size:13px;font-weight:900;margin:16px 0 8px;color:var(--t2);}
+  .cal{background:#fff;border:1px solid var(--line);border-radius:16px;padding:12px 10px;}
+  .calhd{display:flex;align-items:center;justify-content:space-between;padding:2px 6px 8px;}
+  .calhd b{font-size:14px;font-weight:900;}
+  .calhd button{border:0;background:#F1F3F5;color:var(--t2);border-radius:8px;width:30px;height:28px;
+                font-size:14px;font-weight:800;cursor:pointer;}
+  .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+  .dow{font-size:10.5px;color:var(--t3);text-align:center;font-weight:800;padding-bottom:4px;}
+  .day{aspect-ratio:1;border-radius:9px;display:flex;flex-direction:column;align-items:center;
+       justify-content:center;font-size:12.5px;font-weight:700;cursor:pointer;}
+  .day.off{color:#D6DAE0;} .day.sel{background:var(--blue);color:#fff;}
+  .day.today{outline:1.5px solid var(--blue);}
+  .day .pips{display:flex;gap:2px;margin-top:2px;height:4px;}
+  .day .pips i{width:4px;height:4px;border-radius:50%;display:block;}
+  .day.sel .pips i{background:#fff !important;}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:13px 14px;
+        margin-bottom:8px;border-left:4px solid var(--blue);}
+  .card.done{opacity:.6;}
+  .c1{display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
+  .c1 .nm{font-size:14.5px;font-weight:900;}
+  .c1 .tm{font-size:12px;font-weight:800;color:var(--blue-dark);background:var(--tint);border-radius:6px;padding:2px 7px;}
+  .c1 .dd{font-size:11px;font-weight:800;color:var(--t3);}
+  .c1 .ok{font-size:11px;font-weight:800;color:var(--green);margin-left:auto;}
+  .tot{font-size:13px;font-weight:900;color:var(--t1);margin-top:5px;}
+  .c3{font-size:12.5px;margin-top:5px;display:flex;gap:12px;flex-wrap:wrap;}
+  .c3 a{color:var(--blue-dark);font-weight:700;text-decoration:none;}
+  .memo{font-size:12px;color:var(--t2);background:#FFF9E6;border-radius:8px;padding:6px 9px;margin-top:6px;}
+  .empty{text-align:center;color:var(--t3);font-size:13px;padding:26px 0;}
+  .lbl{font-size:10.5px;font-weight:800;border-radius:5px;padding:1px 6px;}
+  .foot{text-align:center;margin-top:24px;}
+  .foot button{background:none;border:0;color:var(--t3);font-size:11.5px;text-decoration:underline;
+               cursor:pointer;font-family:inherit;}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="ttl">📅 일정 미러 <span class="ro">읽기 전용</span><span class="me">__PHONE__</span></div>
+  <div class="upd" id="upd">불러오는 중…</div>
+  <div class="chips" id="chips"></div>
+</div>
+
+<div class="wrap">
+  <div class="join">
+    <h3>일정 공유 코드 입력</h3>
+    <p>업무폰 앱에 뜬 <b>6자리 코드</b>를 넣으면 신청돼요. 업무폰에서 <b>수락</b>하면 일정이 보입니다.</p>
+    <div class="jrow">
+      <input id="code" type="tel" inputmode="numeric" maxlength="6" placeholder="000000">
+      <button id="joinBtn">신청</button>
+    </div>
+    <div class="msg" id="jmsg"></div>
+  </div>
+
+  <div id="pendBox"></div>
+
+  <div class="money">
+    <div class="mcard in"><div class="k">오늘 입금</div><div class="v" id="mIn">-</div></div>
+    <div class="mcard un"><div class="k">미수금</div><div class="v" id="mUn">-</div><div class="s" id="mUc"></div></div>
+  </div>
+
+  <div class="cal">
+    <div class="calhd"><button id="prev">‹</button><b id="ym"></b><button id="next">›</button></div>
+    <div class="grid" id="dows"></div>
+    <div class="grid" id="days"></div>
+  </div>
+
+  <div class="sec" id="secTitle">오늘 현장</div>
+  <div id="cards"></div>
+
+  <div class="foot">
+    <form method="post" action="/mirror/forget"><button type="submit">이 폰에서 번호 잊기</button></form>
+  </div>
+</div>
+
+<script>
+let DATA=__BOOT__;
+const TINTS=["#3182F6","#16C172","#F5A623","#9B51E0","#F0436A"];
+let filter="all", sel=null, cur=null;
+
+const won=n=>(n||0).toLocaleString("ko-KR")+"원";
+const ymd=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+function esc(s){const d=document.createElement("div");d.textContent=s==null?"":s;return d.innerHTML;}
+function ago(ms){if(!ms)return"아직 없음";const s=Math.max(0,Math.floor((Date.now()-ms)/1000));
+  if(s<60)return"방금";if(s<3600)return Math.floor(s/60)+"분 전";
+  if(s<86400)return Math.floor(s/3600)+"시간 전";return Math.floor(s/86400)+"일 전";}
+
+function allItems(){
+  const out=[];
+  (DATA.sources||[]).forEach((s,si)=>{
+    if(filter!=="all" && filter!==String(si)) return;
+    (s.items||[]).forEach(it=>{
+      const days=Math.max(1,parseInt(it.days||1));
+      const base=new Date((it.date||"")+"T00:00:00");
+      if(isNaN(base)) return;
+      for(let k=0;k<days;k++){
+        const d=new Date(base); d.setDate(d.getDate()+k);
+        out.push(Object.assign({},it,{_d:ymd(d),_si:si,_k:k,_days:days}));
+      }
+    });
+  });
+  return out;
+}
+function byDate(){const m={};allItems().forEach(it=>{(m[it._d]=m[it._d]||[]).push(it);});return m;}
+
+function render(){
+  const srcs=DATA.sources||[];
+  document.getElementById("upd").textContent = srcs.length
+    ? "마지막 업데이트: " + srcs.map(s=>s.label+" "+ago(s.updatedAtMs)).join(" · ")
+    : "아직 공유중인 업무폰이 없어요 — 아래에 코드를 넣어주세요";
+
+  const pb=document.getElementById("pendBox");
+  pb.innerHTML=(DATA.pending||[]).length
+    ? '<div class="pend">⏳ '+(DATA.pending||[]).map(p=>esc(p.label)).join(", ")+
+      '에 공유를 신청했어요. 업무폰에서 수락하면 일정이 나타납니다.</div>' : "";
+
+  const ch=document.getElementById("chips");
+  ch.innerHTML = srcs.length ? ('<div class="chip'+(filter==="all"?" on":"")+'" data-f="all">전체</div>' +
+    srcs.map((s,i)=>'<div class="chip'+(filter===String(i)?" on":"")+'" data-f="'+i+'">'+
+      '<span class="dot" style="background:'+TINTS[s.tint%5]+'"></span>'+esc(s.label)+'</div>').join("")) : "";
+  ch.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{filter=c.dataset.f;render();});
+
+  const M=DATA.money||{};
+  document.getElementById("mIn").textContent=won(M.todayIn);
+  document.getElementById("mUn").textContent=won(M.unpaid);
+  document.getElementById("mUc").textContent=(M.unpaidCount||0)+"건";
+
+  const today=new Date(); if(!sel) sel=ymd(today);
+  if(!cur) cur=new Date(today.getFullYear(),today.getMonth(),1);
+  drawCal(); drawCards();
+}
+
+function drawCal(){
+  document.getElementById("ym").textContent=cur.getFullYear()+"년 "+(cur.getMonth()+1)+"월";
+  document.getElementById("dows").innerHTML=
+    ["일","월","화","수","목","금","토"].map(d=>'<div class="dow">'+d+"</div>").join("");
+  const map=byDate(), tstr=ymd(new Date());
+  const first=new Date(cur.getFullYear(),cur.getMonth(),1);
+  const start=new Date(first); start.setDate(1-first.getDay());
+  let h="";
+  for(let i=0;i<42;i++){
+    const d=new Date(start); d.setDate(start.getDate()+i);
+    const k=ymd(d), off=d.getMonth()!==cur.getMonth(), its=map[k]||[];
+    const pips=[...new Set(its.map(x=>x._si))].slice(0,3)
+      .map(si=>'<i style="background:'+TINTS[((DATA.sources[si]||{}).tint||0)%5]+'"></i>').join("");
+    h+='<div class="day'+(off?" off":"")+(k===sel?" sel":"")+(k===tstr?" today":"")+'" data-d="'+k+'">'+
+       d.getDate()+'<span class="pips">'+pips+'</span></div>';
+  }
+  const g=document.getElementById("days"); g.innerHTML=h;
+  g.querySelectorAll(".day").forEach(e=>e.onclick=()=>{sel=e.dataset.d;drawCal();drawCards();});
+}
+
+function drawCards(){
+  const map=byDate(), its=(map[sel]||[]).sort((a,b)=>(a.time||"").localeCompare(b.time||""));
+  const tstr=ymd(new Date());
+  document.getElementById("secTitle").textContent =
+    (sel===tstr?"오늘":sel.slice(5).replace("-","월 ")+"일")+" 현장 "+(its.length?"("+its.length+")":"");
+  const box=document.getElementById("cards");
+  if(!its.length){box.innerHTML='<div class="empty">이 날은 잡힌 현장이 없어요</div>';return;}
+  box.innerHTML=its.map(it=>{
+    const s=DATA.sources[it._si]||{}, col=TINTS[(s.tint||0)%5];
+    const dd=it._days>1?'<span class="dd">'+(it._k+1)+"/"+it._days+"일차</span>":"";
+    const tm=it.time?'<span class="tm">'+esc(it.time)+"</span>":"";
+    const ok=it.completed?'<span class="ok">✓ 완료</span>':"";
+    const tot=(it.total?'<div class="tot">💰 '+won(it.total)+"</div>":"");
+    // 주소 탭 → 지도앱(웹 검색 URL — T맵/네이버/카카오 어디서든 열림)
+    const ad=it.address?'<a href="https://map.naver.com/p/search/'+encodeURIComponent(it.address)+
+      '" target="_blank" rel="noopener">📍 '+esc(it.address)+"</a>":"";
+    const ph=it.phone?'<a href="tel:'+esc(String(it.phone).replace(/[^0-9+]/g,""))+'">📞 '+esc(it.phone)+"</a>":"";
+    const mm=it.memo?'<div class="memo">📝 '+esc(it.memo)+"</div>":"";
+    const lb=(DATA.sources.length>1)?'<span class="lbl" style="background:'+col+'22;color:'+col+'">'+esc(s.label)+"</span>":"";
+    return '<div class="card'+(it.completed?" done":"")+'" style="border-left-color:'+col+'">'+
+      '<div class="c1"><span class="nm">'+esc(it.name||"현장")+"</span>"+tm+dd+ok+"</div>"+
+      tot+((ad||ph)?'<div class="c3">'+ad+ph+"</div>":"")+mm+
+      (lb?'<div class="c3">'+lb+"</div>":"")+"</div>";
+  }).join("");
+}
+
+document.getElementById("prev").onclick=()=>{cur=new Date(cur.getFullYear(),cur.getMonth()-1,1);drawCal();};
+document.getElementById("next").onclick=()=>{cur=new Date(cur.getFullYear(),cur.getMonth()+1,1);drawCal();};
+
+document.getElementById("joinBtn").onclick=async()=>{
+  const code=(document.getElementById("code").value||"").trim();
+  const m=document.getElementById("jmsg");
+  if(code.length!==6){m.className="msg no";m.textContent="6자리 코드를 넣어주세요.";return;}
+  try{
+    const r=await fetch("/api/mirror/join",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({home_phone:"",code:code})});
+    const j=await r.json();
+    if(!r.ok){m.className="msg no";m.textContent=j.detail||"신청에 실패했어요.";return;}
+    m.className="msg ok";
+    m.textContent = j.status==="accepted"
+      ? (j.label+" — 이미 공유중이에요.")
+      : (j.label+"에 신청했어요. 업무폰에서 수락하면 일정이 보여요.");
+    document.getElementById("code").value="";
+    refresh();
+  }catch(e){m.className="msg no";m.textContent="네트워크 오류예요.";}
+};
+
+async function refresh(){
+  try{
+    const r=await fetch("/api/mirror/board",{cache:"no-store"});
+    if(r.status===401){location.reload();return;}
+    if(!r.ok) return;
+    DATA=await r.json(); render();
+  }catch(e){}
+}
+setInterval(refresh,60000);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)refresh();});
+render();
+</script>
+</body>
+</html>
+"""
 
 
 # ============================================================================

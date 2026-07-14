@@ -7051,3 +7051,17 @@ Play 심사 거부(민감권한 SMS/통화기록) 원인·해결 — 온보딩 �
 - 검증: 접수서 접힘/법정항목/체크분리 + 분류 6종(시공문의·명백광고·확신0.6되돌림·저장고객강제·캐시적중·배치) 전부 통과.
 - commit: (아래)
 - 다음 액션(android): ThreadClassifyRepository 배선 — UNSURE 만 큐잉, confidence≥0.9 general 만 자동 강등, classifiedBodyHash 로 중복 호출 방지.
+
+## 2026-07-15 00:06 · cowork
+추가122 — **미러 v2 "공유 신청/수락"** 서버 완성 (docs/SERVER_HANDOFF_mirror_v2.md 이행).
+- 컨셉: **업무폰이 고정 코드를 만들고, 본폰이 넣어 신청하고, 업무폰이 수락한다.** 코드 유출돼도 수락 안 하면 무해 → "수락"이 유일한 게이트.
+- 테이블: mirror_codes(owner_phone PK, 고정 6자리 UNIQUE, label, tint) / mirror_shares(owner+home UNIQUE, pending|accepted|rejected) / mirror_snapshots(owner_phone PK) / mirror_home(선택 비번).
+- 업무폰 API: POST /api/mirror/mycode(idempotent 고정코드) · GET /api/mirror/shares(pending/accepted 폴링) · POST /api/mirror/respond(수락/거절) · POST /api/mirror/disconnect(해제).
+- **/api/mirror/snapshot 개편**: v2 앱은 issue/pair 안 하므로 owner_phone 만으로 동작(404 제거). mirror_snapshots upsert + v1 mirror_sources 있으면 병행 갱신(구 배포본 호환). items.total(총금액)·phone(하이픈) 수용.
+- 본폰 웹: **GET /mirror 고정 주소**(앱 불필요) → 번호 1회 입력(서명 쿠키) → [일정 공유 코드 입력] → 신청(대기 배너) → 수락되면 통합 캘린더. 현장 카드에 **총금액·전화(하이픈, 탭→통화)·주소(탭→네이버지도)·메모**. 60초 새로고침·PWA. POST /api/mirror/join · GET /api/mirror/board(쿠키 필수) · POST /api/mirror/home-pin(선택) · /mirror/identify · /mirror/forget.
+- 보안: join IP 10회/10분 rate-limit · 거절/해제된 home_phone **재신청 차단**(도배 방지) · 본인 업무폰 코드로 신청 400 · 남의 신청 수락 시도 403 · home_phone 은 서명 쿠키만 신뢰.
+- **v1 존치**(issue/pair/pair-code/revoke, GET /mirror/{token}) — 사장님 폰 구버전 호환. 새 앱 실기검증 후 제거 예정.
+- privacy.html §2-2-2 안전조치 문구를 v2(수락 게이트·해제·재신청 차단) 기준으로 갱신.
+- 검증 14단계 통과: 고정코드 idempotent → snapshot(issue 없이) → 번호 전 노출 X → 신청해도 **수락 전 0건** → 폴링 → 남의 수락 403 → 수락 시 표시 → 2사업장 합산 → 총금액·지도·하이픈 → 해제 시 사라짐 → 재신청 403 → 본인코드 400 → v1 생존.
+- commit: (아래)
+- 다음 액션(android): v2 배선분 실기검증. v1 제거 시점은 안드로이드가 알려주면 cowork 가 정리.
