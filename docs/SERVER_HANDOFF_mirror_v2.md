@@ -89,5 +89,17 @@ mirror_sources(owner_phone PK, label, tint, snapshot_json, money_json, updated_a
 
 ## 앱쪽 상태 (이 커밋)
 - MirrorRepository = mycode/shares/respond/disconnect (+ snapshot 유지). issue/pair/revoke 제거.
-- 미러 설정 화면 = 옵트인 토글 + "내 공유 코드" + 수락/거절 + 공유중/해제. 신청 폴링(포그라운드+워커) → 알림.
+- 미러 설정 화면 = 옵트인 토글 + "내 공유 코드" + 수락/거절 + 공유중/해제. 신청 폴링(포그라운드+워커) → 알림. QR은 [본폰 추가]로 기본 접힘.
 - owner_phone = AppPreferences.bizPhone.
+
+## 2026-07-15 추가 요청 (본폰 뷰어 = cowork · 실사용 중 발견)
+### A. ★버그: 업무폰 [공유 해제] 눌러도 본폰 화면에 계속 보임
+- 재현: 업무폰 앱에서 `POST /api/mirror/disconnect {owner_phone, share_id}` 호출(공유중 목록에서 해제) → 업무폰 UI에선 빠짐. **그런데 본폰(GET /mirror 뷰어)엔 그 사업장 일정이 계속 보임.**
+- 앱쪽은 정상(disconnect 호출 + shares 재조회로 업무폰 목록 갱신됨). **서버 board/disconnect 문제로 추정.**
+- 확인 포인트: ① disconnect 가 share.status 를 accepted→해제로 실제 바꾸는지 ② `GET /api/mirror/board` 가 **accepted 상태인 owner 만** 합치는지(해제된 건 제외) ③ 본폰 뷰어가 캐시(localStorage/쿠키)로 옛 스냅샷을 계속 그리는 건 아닌지(해제 시 즉시 반영 or 다음 refresh 때 사라지게) ④ 해제된 owner 의 mirror_snapshots 를 board 가 무시하는지.
+- 기대: 업무폰 해제 → 본폰에서 그 사업장 일정이 (늦어도 다음 60초 refresh에) 사라짐.
+
+### B. 본폰 뷰어 "일정 공유 코드 입력" 칸 = 기본 접힘 (사장님 진짜 요청)
+- 사장님 원문: "일정 공유 코드 입력은 한 번 쓰던지, 폰이 더 늘어나면 쓰는 건데 **너무 큰 자리를 차지**한다. 디자인 개선 필요." → 이건 **본폰(GET /mirror) 화면의 코드 입력 박스**를 가리킴(업무폰 아님).
+- 요청: 본폰 달력 화면에서 코드 입력 박스를 **평소엔 접어두고**, 캘린더/일정을 위주로 크게. **[+ 사업장 추가]** 같은 작은 버튼/링크만 두고, 누르면 코드 입력칸 펼침(첫 연결·폰 추가 때만 씀).
+- 즉 본폰 화면 = 통합 캘린더가 주(主), 코드 입력은 접힌 보조. (업무폰 앱도 같은 취지로 QR/코드를 [본폰 추가]로 접어둠 — 참고.)
