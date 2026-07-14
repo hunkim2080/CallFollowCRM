@@ -326,13 +326,17 @@ def db_init() -> None:
             """
             CREATE TABLE IF NOT EXISTS mirror_codes (
                 owner_phone   TEXT PRIMARY KEY,   -- 업무폰
-                code          TEXT NOT NULL UNIQUE,  -- 고정 6자리 (안 바뀜)
+                code          TEXT NOT NULL UNIQUE,  -- 고정 코드 (전역 UNIQUE · 8자리↑ · 랜덤)
                 label         TEXT,
                 tint          INTEGER DEFAULT 0,
                 updated_at_ms INTEGER NOT NULL
             )
             """
         )
+        # 추가123 — QR 자동수락용 시크릿 (코드와 별개, 추측 불가). QR 로 들어오면 수락 생략.
+        _mc = {r[1] for r in con.execute("PRAGMA table_info(mirror_codes)").fetchall()}
+        if "auto_secret" not in _mc:
+            con.execute("ALTER TABLE mirror_codes ADD COLUMN auto_secret TEXT")
         con.execute(
             """
             CREATE TABLE IF NOT EXISTS mirror_shares (
@@ -21201,13 +21205,17 @@ async def mirror_manifest():
 # ============================================================================
 _MIRROR_HOME_COOKIE = "mh"
 _MIRROR_JOIN_RATE: dict = {}          # {ip: [횟수, 최초시각ms]} — 10회/10분
+_MIRROR_REJOIN_COOLDOWN_MS = 60_000   # 거절/해제 후 재신청 쿨다운 (영구차단 X — 재연결 보장)
+
+
+_MIRROR_CODE_LEN = 8            # 사장님 우려("코드 겹치면?") → 8자리 = 1억 공간, 순차 아닌 랜덤
 
 
 def _mirror_gen_code() -> str:
-    """고정 6자리 공유 코드 (충돌 회피)."""
+    """고정 공유 코드 — **전역 UNIQUE · 8자리 · 랜덤**(순차/예측 금지). 충돌 시 재추출."""
     import secrets
-    for _ in range(20):
-        code = "%06d" % secrets.randbelow(1000000)
+    for _ in range(30):
+        code = str(secrets.randbelow(10 ** _MIRROR_CODE_LEN)).zfill(_MIRROR_CODE_LEN)
         with db_conn() as con:
             if not con.execute("SELECT 1 FROM mirror_codes WHERE code = ?", (code,)).fetchone():
                 return code
@@ -21256,6 +21264,7 @@ class MirrorDisconnectRequest(BaseModel):
 class MirrorJoinRequest(BaseModel):
     home_phone: str = ""
     code: str = ""
+    k: Optional[str] = None        # QR 자동수락 시크릿 (손입력이면 없음)
 
 
 class MirrorHomePinRequest(BaseModel):
@@ -21267,7 +21276,13 @@ class MirrorHomePinRequest(BaseModel):
 
 @app.post("/api/mirror/mycode")
 async def mirror_mycode(req: MirrorMyCodeRequest) -> dict:
-    """내 고정 공유 코드 (없으면 생성, 있으면 그대로 + label/tint 갱신). 앱이 항상 표시."""
+    """내 고정 공유 코드 + QR URL (없으면 생성, 있으면 그대로 + label/tint 갱신).
+
+    추가123 — 앱이 이 qrUrl 로 QR 을 그린다. qrUrl 엔 **자동수락 시크릿(k)** 이 들어있어
+    본폰이 QR 을 찍으면 수락 단계 없이 바로 연결된다(QR = 업무폰 화면을 봐야 찍음 = 물리적 승인).
+    손으로 코드를 친 경우엔 k 가 없으므로 기존대로 업무폰 수락이 필요하다.
+    """
+    import secrets
     ophone = _norm_phone(req.owner_phone)
     if not ophone:
         raise HTTPException(400, "owner_phone 필수")
@@ -21276,23 +21291,35 @@ async def mirror_mycode(req: MirrorMyCodeRequest) -> dict:
     now = _now_ms()
     with db_conn() as con:
         row = con.execute(
-            "SELECT code FROM mirror_codes WHERE owner_phone = ?", (ophone,)
+            "SELECT code, auto_secret FROM mirror_codes WHERE owner_phone = ?", (ophone,)
         ).fetchone()
         if row:
-            code = row[0]
+            code, secret = row[0], row[1]
+            # 구 6자리 코드가 남아 있으면 8자리로 재발급 (아직 배포 전이라 안전)
+            if not code or len(code) < _MIRROR_CODE_LEN:
+                code = _mirror_gen_code()
+            if not secret:
+                secret = secrets.token_urlsafe(16)
             con.execute(
-                "UPDATE mirror_codes SET label = ?, tint = ?, updated_at_ms = ? "
-                "WHERE owner_phone = ?", (label, tint, now, ophone),
+                "UPDATE mirror_codes SET code = ?, auto_secret = ?, label = ?, tint = ?, "
+                "updated_at_ms = ? WHERE owner_phone = ?",
+                (code, secret, label, tint, now, ophone),
             )
         else:
             code = _mirror_gen_code()
+            secret = secrets.token_urlsafe(16)
             con.execute(
-                "INSERT INTO mirror_codes (owner_phone, code, label, tint, updated_at_ms) "
-                "VALUES (?, ?, ?, ?, ?)", (ophone, code, label, tint, now),
+                "INSERT INTO mirror_codes (owner_phone, code, auto_secret, label, tint, updated_at_ms) "
+                "VALUES (?, ?, ?, ?, ?, ?)", (ophone, code, secret, label, tint, now),
             )
         con.commit()
-    return {"ok": True, "code": code, "label": label, "tint": tint,
-            "homeUrl": f"{INTAKE_PUBLIC_BASE_URL.rstrip('/')}/mirror"}
+    base = INTAKE_PUBLIC_BASE_URL.rstrip("/")
+    return {
+        "ok": True, "code": code, "label": label, "tint": tint,
+        "homeUrl": f"{base}/mirror",
+        # 앱은 이걸 QR 로 그림 → 본폰 카메라로 찍으면 자동수락
+        "qrUrl": f"{base}/mirror?code={code}&k={urllib.parse.quote(secret)}",
+    }
 
 
 @app.get("/api/mirror/shares")
@@ -21397,38 +21424,59 @@ async def mirror_join(req: MirrorJoinRequest, request: Request) -> dict:
         raise HTTPException(429, "시도가 너무 많습니다. 10분 뒤 다시 해주세요.")
     _MIRROR_JOIN_RATE[ip] = [cnt + 1, since]
 
+    import hmac as _hmac
     with db_conn() as con:
         crow = con.execute(
-            "SELECT owner_phone, label FROM mirror_codes WHERE code = ?", (code,)
+            "SELECT owner_phone, label, auto_secret FROM mirror_codes WHERE code = ?", (code,)
         ).fetchone()
         if not crow:
             raise HTTPException(404, "코드가 올바르지 않습니다")
-        ophone, label = crow[0], (crow[1] or "사업장")
+        ophone, label, secret = crow[0], (crow[1] or "사업장"), (crow[2] or "")
         if ophone == hphone:
             raise HTTPException(400, "본인 업무폰 번호로는 신청할 수 없어요")
 
+        # 추가123 — QR 경로(유효한 k) = 자동수락. 손입력(k 없음) = 수락 필요.
+        via_qr = bool(secret) and bool(req.k) and _hmac.compare_digest(str(req.k), secret)
+        new_status = "accepted" if via_qr else "pending"
+
         srow = con.execute(
-            "SELECT id, status FROM mirror_shares WHERE owner_phone = ? AND home_phone = ?",
-            (ophone, hphone),
+            "SELECT id, status, decided_at_ms FROM mirror_shares "
+            "WHERE owner_phone = ? AND home_phone = ?", (ophone, hphone),
         ).fetchone()
         if srow:
-            sid, status = srow
+            sid, status, decided = srow
             if status == "accepted":
-                return {"ok": True, "status": "accepted", "label": label, "share_id": sid}
-            if status == "rejected":
-                # 도배 방지 — 거절당한 번호는 재신청 차단
-                raise HTTPException(403, "이 사업장에서 공유가 거절되었거나 해제되었어요. "
-                                         "업무폰 사장님께 직접 문의해 주세요.")
-            return {"ok": True, "status": "pending", "label": label, "share_id": sid}
+                return {"ok": True, "status": "accepted", "label": label, "share_id": sid,
+                        "viaQr": via_qr}
+            if status == "pending" and not via_qr:
+                return {"ok": True, "status": "pending", "label": label, "share_id": sid,
+                        "viaQr": False}
+            # 추가123 (버그 수정) — 거절/해제됐어도 **재연결 허용**. 영구차단 금지.
+            #   (사장님이 실수로 거절했거나 나중에 다시 붙이고 싶을 때 막히면 안 됨.)
+            #   도배 방지는 짧은 쿨다운으로만. QR 경로는 쿨다운도 면제(본인 물리 승인).
+            if status == "rejected" and not via_qr:
+                if decided and (now - decided) < _MIRROR_REJOIN_COOLDOWN_MS:
+                    wait_s = int((_MIRROR_REJOIN_COOLDOWN_MS - (now - decided)) / 1000) + 1
+                    raise HTTPException(429, f"방금 해제된 연결이에요. {wait_s}초 뒤 다시 신청해 주세요.")
+            con.execute(
+                "UPDATE mirror_shares SET status = ?, created_at_ms = ?, decided_at_ms = ? "
+                "WHERE id = ?",
+                (new_status, now, (now if via_qr else None), sid),
+            )
+            con.commit()
+            print(f"[mirror/join] {hphone} → {ophone} ({label}) 재연결 {new_status} id={sid} qr={via_qr}")
+            return {"ok": True, "status": new_status, "label": label, "share_id": sid,
+                    "viaQr": via_qr}
 
         cur = con.execute(
-            "INSERT INTO mirror_shares (owner_phone, home_phone, status, created_at_ms) "
-            "VALUES (?, ?, 'pending', ?)", (ophone, hphone, now),
+            "INSERT INTO mirror_shares (owner_phone, home_phone, status, created_at_ms, decided_at_ms) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (ophone, hphone, new_status, now, (now if via_qr else None)),
         )
         sid = cur.lastrowid
         con.commit()
-    print(f"[mirror/join] {hphone} → {ophone} ({label}) pending id={sid}")
-    return {"ok": True, "status": "pending", "label": label, "share_id": sid}
+    print(f"[mirror/join] {hphone} → {ophone} ({label}) {new_status} id={sid} qr={via_qr}")
+    return {"ok": True, "status": new_status, "label": label, "share_id": sid, "viaQr": via_qr}
 
 
 def _mirror_board_payload(home_phone: str) -> dict:
@@ -21518,13 +21566,29 @@ async def mirror_home_pin(req: MirrorHomePinRequest, request: Request) -> dict:
     return {"ok": True, "pinSet": True}
 
 
+def _mirror_qs(code: str, k: str) -> str:
+    """QR 로 들어온 code/k 를 번호 입력 단계 뒤에도 유지하기 위한 쿼리스트링."""
+    parts = []
+    if code:
+        parts.append("code=" + urllib.parse.quote(code))
+    if k:
+        parts.append("k=" + urllib.parse.quote(k))
+    return ("?" + "&".join(parts)) if parts else ""
+
+
 @app.post("/mirror/identify")
-async def mirror_identify(phone: str = Form(default="")) -> Response:
-    """본폰 번호 1회 입력 → 서명 쿠키. (미검증 이름표 — 실제 게이트는 업무폰 수락)"""
+async def mirror_identify(
+    phone: str = Form(default=""),
+    code: str = Form(default=""),
+    k: str = Form(default=""),
+) -> Response:
+    """본폰 번호 1회 입력 → 서명 쿠키. QR 로 온 code/k 는 그대로 물고 넘어간다."""
     hphone = _norm_phone(phone)
+    qs = _mirror_qs((code or "").strip(), (k or "").strip())
     if not hphone:
-        return Response(status_code=303, headers={"Location": "/mirror?e=1"})
-    resp = Response(status_code=303, headers={"Location": "/mirror"})
+        sep = "&" if qs else "?"
+        return Response(status_code=303, headers={"Location": f"/mirror{qs}{sep}e=1"})
+    resp = Response(status_code=303, headers={"Location": f"/mirror{qs}"})
     resp.set_cookie(
         key=_MIRROR_HOME_COOKIE, value=_home_cookie_value(hphone),
         max_age=_MIRROR_COOKIE_MAX_AGE, httponly=True, samesite="lax", path="/",
@@ -21542,16 +21606,67 @@ async def mirror_forget() -> Response:
 
 @app.get("/mirror", response_class=HTMLResponse)
 async def mirror_home_page(request: Request) -> HTMLResponse:
-    """본폰 — 고정 주소. 앱 설치 불필요. 번호 1회 입력 → 코드 넣어 신청 → 수락되면 달력."""
+    """본폰 — 고정 주소. 앱 설치 불필요.
+
+    추가123 — QR 진입 지원:
+      · `?code=XXXXXXXX`      → 코드 입력칸 자동 채움 (손입력 대신. 40~50대 URL 타이핑 문제 해결)
+      · `?code=..&k=<secret>` → **자동수락**. 서버가 즉시 연결하고 "연결됐어요" 표시.
+    번호 쿠키가 없으면 번호 입력 화면을 먼저 띄우되 code/k 를 그대로 물고 넘어간다.
+    """
+    import html as _html
+    import hmac as _hmac
+    q_code = (request.query_params.get("code") or "").strip()[:32]
+    q_k = (request.query_params.get("k") or "").strip()[:64]
+
     hphone = _home_from_cookie(request)
     if not hphone:
         err = "번호를 다시 확인해 주세요." if request.query_params.get("e") else ""
-        return HTMLResponse(content=MIRROR_IDENTIFY_HTML.replace("__ERR__", err))
+        return HTMLResponse(content=(
+            MIRROR_IDENTIFY_HTML
+            .replace("__ERR__", err)
+            .replace("__CODE__", _html.escape(q_code, quote=True))
+            .replace("__K__", _html.escape(q_k, quote=True))
+        ))
+
+    # QR(k 동봉) 로 들어왔으면 여기서 바로 연결 — 업무폰 수락 단계 생략
+    flash = ""
+    if q_code and q_k:
+        now = _now_ms()
+        with db_conn() as con:
+            crow = con.execute(
+                "SELECT owner_phone, label, auto_secret FROM mirror_codes WHERE code = ?",
+                (q_code,),
+            ).fetchone()
+            if crow and crow[2] and _hmac.compare_digest(q_k, crow[2]) and crow[0] != hphone:
+                ophone, label = crow[0], (crow[1] or "사업장")
+                srow = con.execute(
+                    "SELECT id, status FROM mirror_shares WHERE owner_phone = ? AND home_phone = ?",
+                    (ophone, hphone),
+                ).fetchone()
+                if srow:
+                    con.execute(
+                        "UPDATE mirror_shares SET status = 'accepted', decided_at_ms = ? WHERE id = ?",
+                        (now, srow[0]),
+                    )
+                else:
+                    con.execute(
+                        "INSERT INTO mirror_shares (owner_phone, home_phone, status, "
+                        "created_at_ms, decided_at_ms) VALUES (?, ?, 'accepted', ?, ?)",
+                        (ophone, hphone, now, now),
+                    )
+                con.commit()
+                flash = f"✅ {label} 일정이 연결됐어요."
+                print(f"[mirror/qr] {hphone} → {ophone} ({label}) 자동수락")
+            else:
+                flash = "⚠️ QR 정보가 올바르지 않아요. 아래에 코드를 직접 넣어주세요."
+
     data = _mirror_board_payload(hphone)
     boot = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
     html = (MIRROR_HOME_HTML
             .replace("__BOOT__", boot)
-            .replace("__PHONE__", _fmt_phone_dashed(hphone)))
+            .replace("__PHONE__", _html.escape(_fmt_phone_dashed(hphone)))
+            .replace("__PRECODE__", _html.escape(q_code if not q_k else "", quote=True))
+            .replace("__FLASH__", _html.escape(flash)))
     return HTMLResponse(content=html)
 
 
@@ -21583,6 +21698,8 @@ MIRROR_IDENTIFY_HTML = r"""<!doctype html>
   <form method="post" action="/mirror/identify">
     <input name="phone" type="tel" inputmode="numeric" autocomplete="tel"
            placeholder="010-0000-0000" autofocus>
+    <input type="hidden" name="code" value="__CODE__">
+    <input type="hidden" name="k" value="__K__">
     <button type="submit">다음</button>
   </form>
   <div class="m">이 번호는 업무폰 사장님이 <b>"누가 신청했는지"</b> 알아보는 이름표예요.<br>
@@ -21635,6 +21752,8 @@ MIRROR_HOME_HTML = r"""<!doctype html>
   .msg{font-size:12.5px;font-weight:700;border-radius:9px;padding:9px 11px;margin-top:9px;display:none;}
   .msg.ok{background:#E7F8EF;color:#0B7A45;display:block;}
   .msg.no{background:#FDECEA;color:#C8352B;display:block;}
+  .flash{display:none;background:#E7F8EF;color:#0B7A45;font-size:13px;font-weight:800;
+         border-radius:12px;padding:12px 14px;margin-bottom:12px;}
   .pend{background:#FFF9E6;border:1px solid #FFE9A8;border-radius:12px;padding:11px 13px;
         font-size:12.5px;color:#8A6A00;font-weight:700;margin-bottom:12px;}
   .money{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:14px;}
@@ -21685,11 +21804,14 @@ MIRROR_HOME_HTML = r"""<!doctype html>
 </div>
 
 <div class="wrap">
+  <div class="flash" id="flash">__FLASH__</div>
+
   <div class="join">
     <h3>일정 공유 코드 입력</h3>
-    <p>업무폰 앱에 뜬 <b>6자리 코드</b>를 넣으면 신청돼요. 업무폰에서 <b>수락</b>하면 일정이 보입니다.</p>
+    <p>업무폰 앱의 <b>QR을 찍으면</b> 바로 연결돼요. 코드를 직접 넣으면 업무폰에서 <b>수락</b>해야 보입니다.</p>
     <div class="jrow">
-      <input id="code" type="tel" inputmode="numeric" maxlength="6" placeholder="000000">
+      <input id="code" type="tel" inputmode="numeric" maxlength="8" placeholder="00000000"
+             value="__PRECODE__">
       <button id="joinBtn">신청</button>
     </div>
     <div class="msg" id="jmsg"></div>
@@ -21822,10 +21944,16 @@ function drawCards(){
 document.getElementById("prev").onclick=()=>{cur=new Date(cur.getFullYear(),cur.getMonth()-1,1);drawCal();};
 document.getElementById("next").onclick=()=>{cur=new Date(cur.getFullYear(),cur.getMonth()+1,1);drawCal();};
 
+// QR 진입 시 서버가 심어준 안내 (연결됨 / QR 오류)
+(function(){const f=document.getElementById("flash");
+  if(f && f.textContent.trim()){f.style.display="block";
+    if(f.textContent.indexOf("⚠️")===0){f.style.background="#FDECEA";f.style.color="#C8352B";}}
+})();
+
 document.getElementById("joinBtn").onclick=async()=>{
   const code=(document.getElementById("code").value||"").trim();
   const m=document.getElementById("jmsg");
-  if(code.length!==6){m.className="msg no";m.textContent="6자리 코드를 넣어주세요.";return;}
+  if(code.length<6){m.className="msg no";m.textContent="코드를 정확히 넣어주세요.";return;}
   try{
     const r=await fetch("/api/mirror/join",{method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({home_phone:"",code:code})});
@@ -21833,7 +21961,7 @@ document.getElementById("joinBtn").onclick=async()=>{
     if(!r.ok){m.className="msg no";m.textContent=j.detail||"신청에 실패했어요.";return;}
     m.className="msg ok";
     m.textContent = j.status==="accepted"
-      ? (j.label+" — 이미 공유중이에요.")
+      ? (j.label+" — 연결됐어요.")
       : (j.label+"에 신청했어요. 업무폰에서 수락하면 일정이 보여요.");
     document.getElementById("code").value="";
     refresh();
