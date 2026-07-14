@@ -93,15 +93,28 @@ class MirrorSyncManager(
         val todayIn = cashItems
             .filter { it.isIncome && it.isDone && it.dayStartMs == todayStart }
             .sumOf { it.amount }
-        val rows = customers.filter { SettlementCalc.hasMoney(it) }.map { SettlementCalc.rowOf(it) }
-        val unpaid = rows.sumOf { it.outstanding }
-        val unpaidCount = rows.count { it.outstanding > 0L }
+        val moneyRows = customers.filter { SettlementCalc.hasMoney(it) }.map { it to SettlementCalc.rowOf(it) }
+        val unpaid = moneyRows.sumOf { it.second.outstanding }
+        val unpaidCount = moneyRows.count { it.second.outstanding > 0L }
+        // 미수 현장 목록 — 큰 금액순. 뷰어 "미수금 N건" 탭 시 어디서 얼마 못 받았나.
+        val receivables = moneyRows
+            .filter { it.second.outstanding > 0L }
+            .map { (c, row) ->
+                MirrorRepository.Receivable(
+                    name = c.name?.takeIf { it.isNotBlank() } ?: "현장",
+                    amount = row.outstanding,
+                    address = c.address?.takeIf { it.isNotBlank() },
+                    phone = c.phoneNumber.takeIf { it.isNotBlank() }?.let { PhoneNumberFormatter.format(it) },
+                    overdueDays = SettlementCalc.overdueDays(c, todayStart)
+                )
+            }
+            .sortedByDescending { it.amount }
 
         val label = prefs.mirrorLabel.ifBlank { prefs.bizName.ifBlank { "내 일정" } }
-        val hash = buildHash(label, items, todayIn, unpaid, unpaidCount)
+        val hash = buildHash(label, items, todayIn, unpaid, unpaidCount, receivables)
         if (!force && hash == prefs.mirrorLastHash) return false
 
-        val res = repo.pushSnapshot(ownerPhone, label, items, todayIn, unpaid, unpaidCount)
+        val res = repo.pushSnapshot(ownerPhone, label, items, todayIn, unpaid, unpaidCount, receivables)
         return if (res.isSuccess) {
             prefs.mirrorLastHash = hash
             prefs.mirrorLastPushMs = System.currentTimeMillis()
@@ -134,10 +147,14 @@ class MirrorSyncManager(
         items: List<MirrorRepository.MirrorItem>,
         todayIn: Long,
         unpaid: Long,
-        unpaidCount: Int
+        unpaidCount: Int,
+        receivables: List<MirrorRepository.Receivable>
     ): String {
         val sb = StringBuilder()
         sb.append(label).append('|').append(todayIn).append('|').append(unpaid).append('|').append(unpaidCount)
+        for (r in receivables) {
+            sb.append('₩').append(r.name).append('~').append(r.amount).append('~').append(r.overdueDays ?: -1)
+        }
         for (it in items) {
             sb.append('¶')
                 .append(it.date).append('~').append(it.time ?: "").append('~').append(it.days)

@@ -46,6 +46,15 @@ class MirrorRepository(
     /** mycode 응답 — code=본폰에 넣을 코드, qrUrl=QR에 실을 URL(서버가 QR 자동수락용 시크릿을 넣을 수 있음). */
     data class MyCode(val code: String, val qrUrl: String?)
 
+    /** 미수 현장 1건 — 본폰 뷰어의 "미수금 N건" 탭 시 "어디서 얼마 못 받았나" 목록용. */
+    data class Receivable(
+        val name: String,
+        val amount: Long,          // 미수 잔액(원)
+        val address: String?,
+        val phone: String?,        // 하이픈 포함
+        val overdueDays: Int?      // 시공/완료 후 경과일(있으면)
+    )
+
     /** 뷰어에 그릴 현장 1건. date=YYYY-MM-DD(필수). total=총금액(원, 0=미입력). phone=하이픈 포함. */
     data class MirrorItem(
         val date: String,
@@ -157,7 +166,8 @@ class MirrorRepository(
         items: List<MirrorItem>,
         todayIn: Long,
         unpaid: Long,
-        unpaidCount: Int
+        unpaidCount: Int,
+        receivables: List<Receivable> = emptyList()
     ): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             val arr = JSONArray()
@@ -182,6 +192,20 @@ class MirrorRepository(
                     put("todayIn", todayIn)
                     put("unpaid", unpaid)
                     put("unpaidCount", unpaidCount)
+                    // 미수 현장 목록 — 뷰어 "미수금 N건" 탭 시 어디서 얼마 못 받았나 표시.
+                    if (receivables.isNotEmpty()) {
+                        put("receivables", JSONArray().apply {
+                            receivables.forEach { r ->
+                                put(JSONObject().apply {
+                                    put("name", r.name)
+                                    put("amount", r.amount)
+                                    r.address?.let { put("address", it) }
+                                    r.phone?.let { put("phone", it) }
+                                    r.overdueDays?.let { put("overdueDays", it) }
+                                })
+                            }
+                        })
+                    }
                 })
             }
             val req = Request.Builder()
