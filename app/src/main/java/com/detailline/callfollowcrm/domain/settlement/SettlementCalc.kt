@@ -53,7 +53,14 @@ object SettlementCalc {
             c.balanceAmount?.coerceAtLeast(0L) ?: 0L
         }
         val total = c.totalAmount ?: (deposit + balance)
-        val received = (if (depositPaid) deposit else 0L) + (if (balancePaid) balance else 0L)
+        // 잔금(마지막 지불)까지 받았으면 = 전액 받은 것(완납). 계약금 '받음' 표시가 없어도 완납으로 본다.
+        //   (완납 원탭이 잔금만 받음처리 → 계약금 10만원이 미수로 남던 버그 fix, 2026-07-15 사장님.
+        //    상세화면 allPaid = balPaid 기준과도 일치. 계약금만 받음(잔금 미수)은 그대로 deposit 만 반영.)
+        val received = when {
+            balancePaid -> total
+            depositPaid -> deposit
+            else -> 0L
+        }
         val outstanding = (total - received).coerceAtLeast(0L)
         val isPaidOff = total > 0L && received >= total
 

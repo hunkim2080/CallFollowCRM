@@ -108,6 +108,18 @@ class SettlementCalcTest {
         assertTrue(r.isPaidOff)
     }
 
+    @Test fun `완납 원탭 - 잔금만 받음표시여도 계약금 미수로 안 남고 전액 완납`() {
+        // 사장님 신고(2026-07-15): 총 130만 / 계약금 10만, '완납' 원탭은 잔금만 받음처리 →
+        //   계약금 10만이 미수로 남던 버그. 잔금(마지막 지불) 받음 = 전액 완납 = 미수 0.
+        val r = SettlementCalc.rowOf(
+            customer(total = 1_300_000, deposit = 100_000, depositPaid = false, balancePaid = true)
+        )
+        assertEquals(1_300_000, r.total)
+        assertEquals(1_300_000, r.received)
+        assertEquals(0, r.outstanding)
+        assertTrue(r.isPaidOff)
+    }
+
     @Test fun `받은게 총액 초과해도 미수는 음수 안됨`() {
         // 총액 100k 인데 계약금 300k 받음으로 박힘 (이상 입력) → outstanding 0.
         val r = SettlementCalc.rowOf(
