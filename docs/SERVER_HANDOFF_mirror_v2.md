@@ -17,11 +17,16 @@ v1의 "업무폰A 코드 발급 → 업무폰B 입력"이 너무 헷갈림. 새 
 ```
 mirror_codes(
   owner_phone TEXT PRIMARY KEY,   -- 업무폰(_norm_phone)
-  code        TEXT UNIQUE,         -- 고정 6자리(서버 생성, 충돌 안 나게). 안 바뀜
+  code        TEXT UNIQUE,         -- 고정 코드(서버 생성, 안 바뀜)
   label       TEXT,                -- 본폰 달력에 보일 이름(예: 디테일라인)
   tint        INTEGER,             -- 색 index
   updated_at_ms INTEGER
 )
+-- ⚠️ code 발급 규칙(사장님 우려 = "다들 같은 /mirror 주소인데 코드 겹치면?"):
+--    ① 전역 UNIQUE 필수. 생성 시 충돌 나면 재추출(INSERT OR retry). 절대 중복 발급 금지.
+--    ② 길이 = **8자리 이상 권장**(10만 사용자×1~2코드 → 6자리 1M 공간은 빡빡+추측 쉬움). 8자리 숫자(1억) 또는 영숫자면 충분.
+--    ③ 순차/예측 가능 금지(랜덤). 추측 스팸은 수락 게이트가 막지만, 코드 공간이 크면 그 시도조차 무의미해짐.
+--    (데이터 격리는 코드가 아니라 home_phone 쿠키 + accepted share 로 보장 — 코드는 "누구 업무폰이냐" 지목용 + 수락 트리거일 뿐)
 mirror_shares(
   id          INTEGER PRIMARY KEY,
   owner_phone TEXT,                -- 어느 업무폰(mirror_codes.owner_phone)
