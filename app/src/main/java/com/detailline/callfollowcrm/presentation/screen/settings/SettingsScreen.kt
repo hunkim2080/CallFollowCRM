@@ -927,6 +927,7 @@ private fun MirrorSection(container: AppContainer) {
     var lastPushMs by remember { mutableStateOf(prefs.mirrorLastPushMs) }
     var busy by remember { mutableStateOf(false) }
 
+    var pinInput by remember { mutableStateOf("") }
     var pinToShow by remember { mutableStateOf<String?>(null) }
     var pairCodeToShow by remember { mutableStateOf<String?>(null) }
     var showJoin by remember { mutableStateOf(false) }
@@ -946,9 +947,10 @@ private fun MirrorSection(container: AppContainer) {
         val op = prefs.bizPhone.trim()
         if (op.filter { it.isDigit() }.length < 9) { toast("먼저 내 번호(로그인)가 필요해요"); return }
         val lbl = label.trim().ifBlank { "내 일정" }
+        val chosenPin = pinInput.trim().takeIf { it.length == 4 }
         busy = true
         scope.launch {
-            val r = container.mirrorRepository.issue(op, lbl, tint = 0)
+            val r = container.mirrorRepository.issue(op, lbl, tint = 0, pin = chosenPin)
             busy = false
             r.onSuccess { res ->
                 prefs.mirrorToken = res.token; token = res.token
@@ -956,7 +958,12 @@ private fun MirrorSection(container: AppContainer) {
                 prefs.mirrorLabel = lbl; label = lbl
                 prefs.mirrorTint = 0
                 prefs.mirrorEnabled = true; enabled = true
-                res.pin?.let { pinToShow = it }
+                when {
+                    // 사장님이 직접 정한 비번 → 이미 알고 있으니 확인만(서버가 그 값을 그대로 echo 함).
+                    chosenPin != null -> toast("비번 ${chosenPin} 로 켰어요. 본폰에서 이 비번을 입력하세요")
+                    // 비워서 서버가 자동 생성한 경우만 → 딱 한 번 크게 노출(다시 못 봄).
+                    res.pin != null -> pinToShow = res.pin
+                }
                 pushSoon()
             }.onFailure { toast("링크 발급 실패 — 잠시 후 다시 시도해주세요") }
         }
@@ -1079,7 +1086,16 @@ private fun MirrorSection(container: AppContainer) {
                     shape = RoundedCornerShape(12.dp)
                 )
                 Spacer(Modifier.height(8.dp))
-                Text("켜면 본폰에서 처음 열 때 쓸 4자리 비번을 딱 한 번 보여드려요. 꼭 메모하세요.",
+                OutlinedTextField(
+                    value = pinInput, onValueChange = { pinInput = it.filter { c -> c.isDigit() }.take(4) },
+                    label = { Text("본폰 열기 비번 4자리 (직접 정하기)", fontSize = 12.sp) },
+                    singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                Spacer(Modifier.height(8.dp))
+                Text("본폰에서 링크 열 때 이 비번을 입력해요. 비우면 자동으로 만들어 한 번만 보여드려요(까먹기 쉬우니 직접 정하길 권해요).",
                     fontSize = 11.sp, color = TossTextTertiary, lineHeight = 15.sp)
                 Spacer(Modifier.height(10.dp))
                 Text("다른 업무폰 링크에 합류하기", fontSize = 12.sp, color = TossBlue, fontWeight = FontWeight.SemiBold,
