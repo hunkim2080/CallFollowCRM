@@ -928,6 +928,7 @@ private fun MirrorSection(container: AppContainer) {
     var code by remember { mutableStateOf(prefs.mirrorCode) }
     var qrUrl by remember { mutableStateOf(prefs.mirrorQrUrl) }
     var busy by remember { mutableStateOf(false) }
+    var addExpanded by remember { mutableStateOf(false) }   // 본폰 추가(QR) 펼침 — 연결 있으면 기본 접힘
     var pending by remember { mutableStateOf<List<com.detailline.callfollowcrm.ai.MirrorRepository.ShareRequest>>(emptyList()) }
     var accepted by remember { mutableStateOf<List<com.detailline.callfollowcrm.ai.MirrorRepository.Connection>>(emptyList()) }
 
@@ -1016,33 +1017,27 @@ private fun MirrorSection(container: AppContainer) {
             }
 
             if (enabled) {
-                Spacer(Modifier.height(12.dp))
-                // 내 공유 코드 + QR — 본폰 카메라로 QR을 찍으면 바로 열림(주소 타이핑·검색 X). 코드는 백업.
-                Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(14.dp)) {
-                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("본폰 카메라로 이 QR을 찍으세요", fontSize = 12.sp, color = TossTextSecondary, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.height(10.dp))
-                        // QR = 서버가 준 qrUrl(자동수락 시크릿 포함) 우선, 없으면 homeUrl?code= 폴백.
-                        val qrText = qrUrl ?: ("https://api.si0in.kr/mirror" + (code?.let { "?code=$it" } ?: ""))
-                        val qr = remember(qrText) { com.detailline.callfollowcrm.util.QrGen.bitmap(qrText, 520) }
-                        if (qr != null) {
-                            Image(
-                                bitmap = qr.asImageBitmap(),
-                                contentDescription = "본폰 접속 QR",
-                                modifier = Modifier.size(180.dp).clip(RoundedCornerShape(8.dp)).background(Color.White)
-                            )
+                Spacer(Modifier.height(14.dp))
+                // ── 공유중 (지금 상태 = 주 콘텐츠, 위로) ──
+                Text("공유중", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                if (accepted.isEmpty()) {
+                    Spacer(Modifier.height(6.dp))
+                    Text("아직 공유 중인 본폰이 없어요. 아래 QR을 본폰 카메라로 찍으면 연결돼요.",
+                        fontSize = 11.sp, color = TossTextTertiary, lineHeight = 15.sp)
+                } else {
+                    accepted.forEach { conn ->
+                        Spacer(Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("📅 ${fmtPhone(conn.homePhone)}와 일정 공유중",
+                                fontSize = 13.sp, color = TossTextPrimary, fontWeight = FontWeight.Medium,
+                                modifier = Modifier.weight(1f))
+                            Text("공유 해제", fontSize = 12.sp, color = TossError, fontWeight = FontWeight.Medium,
+                                modifier = Modifier.clickable { disconnectConn(conn) }.padding(4.dp))
                         }
-                        Spacer(Modifier.height(12.dp))
-                        Text("내 공유 코드", fontSize = 11.sp, color = TossTextTertiary)
-                        Spacer(Modifier.height(2.dp))
-                        Text(code ?: "…", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = TossBlue, letterSpacing = 4.sp)
-                        Spacer(Modifier.height(6.dp))
-                        Text("QR이 안 되면 본폰에서 api.si0in.kr/mirror 열고 위 코드를 넣어도 돼요.",
-                            fontSize = 11.sp, color = TossTextTertiary, lineHeight = 15.sp)
                     }
                 }
 
-                // 공유 신청(수락 대기)
+                // ── 공유 신청(수락 대기) — 있을 때만 ──
                 if (pending.isNotEmpty()) {
                     Spacer(Modifier.height(14.dp))
                     Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
@@ -1065,27 +1060,49 @@ private fun MirrorSection(container: AppContainer) {
                     }
                 }
 
-                // 공유중
+                // ── 본폰 추가/연결 (QR) — 처음(연결 0개)엔 펼침, 이후엔 [➕ 본폰 추가]로 접힘 ──
                 Spacer(Modifier.height(14.dp))
                 Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
-                Spacer(Modifier.height(10.dp))
-                Text("공유중", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-                if (accepted.isEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                val firstTime = accepted.isEmpty()
+                val qrOpen = firstTime || addExpanded
+                Row(
+                    Modifier.fillMaxWidth()
+                        .clickable(enabled = !firstTime) { addExpanded = !addExpanded }
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Filled.Add, null, tint = TossBlue, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (firstTime) "본폰 연결하기 (QR)" else "본폰 추가 (QR 보기)",
+                        fontSize = 13.sp, color = TossBlue, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    if (!firstTime) Text(if (qrOpen) "▾" else "▸", fontSize = 13.sp, color = TossBlue)
+                }
+                if (qrOpen) {
                     Spacer(Modifier.height(6.dp))
-                    Text("아직 공유 중인 본폰이 없어요. 본폰에서 위 코드를 넣고 신청하면 여기서 수락하세요.",
-                        fontSize = 11.sp, color = TossTextTertiary, lineHeight = 15.sp)
-                } else {
-                    accepted.forEach { conn ->
-                        Spacer(Modifier.height(8.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("📅 ${fmtPhone(conn.homePhone)}와 일정 공유중",
-                                fontSize = 13.sp, color = TossTextPrimary, fontWeight = FontWeight.Medium,
-                                modifier = Modifier.weight(1f))
-                            Text("공유 해제", fontSize = 12.sp, color = TossError, fontWeight = FontWeight.Medium,
-                                modifier = Modifier.clickable { disconnectConn(conn) }.padding(4.dp))
+                    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(14.dp)) {
+                        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("본폰 카메라로 이 QR을 찍으세요", fontSize = 12.sp, color = TossTextSecondary, fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.height(10.dp))
+                            // QR = 서버가 준 qrUrl(자동수락 시크릿 포함) 우선, 없으면 homeUrl?code= 폴백.
+                            val qrText = qrUrl ?: ("https://api.si0in.kr/mirror" + (code?.let { "?code=$it" } ?: ""))
+                            val qr = remember(qrText) { com.detailline.callfollowcrm.util.QrGen.bitmap(qrText, 520) }
+                            if (qr != null) {
+                                Image(
+                                    bitmap = qr.asImageBitmap(),
+                                    contentDescription = "본폰 접속 QR",
+                                    modifier = Modifier.size(170.dp).clip(RoundedCornerShape(8.dp)).background(Color.White)
+                                )
+                            }
+                            Spacer(Modifier.height(10.dp))
+                            Text("내 공유 코드  ${code ?: "…"}", fontSize = 13.sp, color = TossTextSecondary, fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.height(4.dp))
+                            Text("QR이 안 되면 본폰에서 api.si0in.kr/mirror 열고 위 코드를 넣어도 돼요.",
+                                fontSize = 11.sp, color = TossTextTertiary, lineHeight = 15.sp)
                         }
                     }
                 }
+
                 Spacer(Modifier.height(12.dp))
                 Text("마지막 전송: ${mirrorAgoLabel(prefs.mirrorLastPushMs)}", fontSize = 11.sp, color = TossTextSecondary)
             } else {
