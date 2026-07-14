@@ -21628,10 +21628,13 @@ async def mirror_home_page(request: Request) -> HTMLResponse:
             .replace("__K__", _html.escape(q_k, quote=True))
         ))
 
-    # QR(k 동봉) 로 들어왔으면 여기서 바로 연결 — 업무폰 수락 단계 생략
-    flash = ""
+    # ── QR(k 동봉) 로 들어왔으면 바로 연결 → **깨끗한 /mirror 로 303 리다이렉트** ──
+    # 추가125 (★해제 미반영 버그 원인): 리다이렉트 안 하면 주소창에 ?code=&k= 가 남아
+    #   새로고침·홈화면 바로가기로 다시 열 때마다 서버가 재수락 → 업무폰에서 해제해도 되살아남.
+    #   "QR 을 찍었을 때"만 연결되고, "그 페이지를 다시 열 때"는 연결되면 안 된다.
     if q_code and q_k:
         now = _now_ms()
+        flash = ""
         with db_conn() as con:
             crow = con.execute(
                 "SELECT owner_phone, label, auto_secret FROM mirror_codes WHERE code = ?",
@@ -21658,16 +21661,31 @@ async def mirror_home_page(request: Request) -> HTMLResponse:
                 flash = f"✅ {label} 일정이 연결됐어요."
                 print(f"[mirror/qr] {hphone} → {ophone} ({label}) 자동수락")
             else:
-                flash = "⚠️ QR 정보가 올바르지 않아요. 아래에 코드를 직접 넣어주세요."
+                flash = "⚠️ QR 정보가 올바르지 않아요. [+ 사업장 추가]에서 코드를 직접 넣어주세요."
+        resp = Response(status_code=303, headers={"Location": "/mirror"})
+        # 안내문은 1회용 쿠키로 넘김 (URL 에 안 남김)
+        resp.set_cookie(key="mfl", value=urllib.parse.quote(flash), max_age=20,
+                        samesite="lax", path="/")
+        return resp
+
+    # 1회용 flash 쿠키 소비
+    flash = urllib.parse.unquote(request.cookies.get("mfl") or "")
 
     data = _mirror_board_payload(hphone)
     boot = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
+    # 코드 입력칸은 기본 접힘([+ 사업장 추가]). 단 ①아직 아무것도 안 붙었거나
+    # ②코드가 URL 로 들어온 경우엔 펼쳐둔다(첫 사용자가 못 찾으면 안 되므로).
+    join_open = "on" if (q_code or (not data.get("sources") and not data.get("pending"))) else ""
     html = (MIRROR_HOME_HTML
             .replace("__BOOT__", boot)
             .replace("__PHONE__", _html.escape(_fmt_phone_dashed(hphone)))
-            .replace("__PRECODE__", _html.escape(q_code if not q_k else "", quote=True))
+            .replace("__PRECODE__", _html.escape(q_code, quote=True))
+            .replace("__JOINOPEN__", join_open)
             .replace("__FLASH__", _html.escape(flash)))
-    return HTMLResponse(content=html)
+    resp = HTMLResponse(content=html)
+    if flash:
+        resp.delete_cookie(key="mfl", path="/")
+    return resp
 
 
 MIRROR_IDENTIFY_HTML = r"""<!doctype html>
@@ -21741,7 +21759,11 @@ MIRROR_HOME_HTML = r"""<!doctype html>
   .chip.on{background:var(--tint);border-color:var(--blue);color:var(--blue-dark);}
   .dot{width:7px;height:7px;border-radius:50%;}
   .wrap{max-width:560px;margin:0 auto;padding:14px 16px;}
-  .join{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px;}
+  .addbiz{width:100%;margin-bottom:12px;padding:12px;border:1px dashed var(--line);border-radius:14px;
+          background:#fff;color:var(--t2);font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;}
+  .addbiz:active{background:var(--bg);}
+  .join{display:none;background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px;}
+  .join.on{display:block;}
   .join h3{font-size:14px;font-weight:900;margin-bottom:4px;}
   .join p{font-size:12px;color:var(--t3);margin-bottom:10px;line-height:1.5;}
   .jrow{display:flex;gap:7px;}
@@ -21825,7 +21847,9 @@ MIRROR_HOME_HTML = r"""<!doctype html>
 <div class="wrap">
   <div class="flash" id="flash">__FLASH__</div>
 
-  <div class="join">
+  <!-- 추가125 B — 코드 입력은 기본 접힘. 달력이 주인공. -->
+  <button class="addbiz" id="addBizBtn">+ 사업장 추가</button>
+  <div class="join __JOINOPEN__" id="joinBox">
     <h3>일정 공유 코드 입력</h3>
     <p>업무폰 앱의 <b>QR을 찍으면</b> 바로 연결돼요. 코드를 직접 넣으면 업무폰에서 <b>수락</b>해야 보입니다.</p>
     <div class="jrow">
@@ -22015,6 +22039,15 @@ document.getElementById("next").onclick=()=>{cur=new Date(cur.getFullYear(),cur.
 (function(){const f=document.getElementById("flash");
   if(f && f.textContent.trim()){f.style.display="block";
     if(f.textContent.indexOf("⚠️")===0){f.style.background="#FDECEA";f.style.color="#C8352B";}}
+})();
+
+// 추가125 B — [+ 사업장 추가] 로 코드 입력칸 펼치기/접기 (기본 접힘, 달력을 크게)
+(function(){
+  const btn=document.getElementById("addBizBtn"), box=document.getElementById("joinBox");
+  const sync=()=>{btn.textContent = box.classList.contains("on") ? "− 닫기" : "+ 사업장 추가";};
+  btn.onclick=()=>{box.classList.toggle("on"); sync();
+    if(box.classList.contains("on")) document.getElementById("code").focus();};
+  sync();
 })();
 
 document.getElementById("joinBtn").onclick=async()=>{
