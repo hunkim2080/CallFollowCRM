@@ -21794,6 +21794,25 @@ MIRROR_HOME_HTML = r"""<!doctype html>
   .foot{text-align:center;margin-top:24px;}
   .foot button{background:none;border:0;color:var(--t3);font-size:11.5px;text-decoration:underline;
                cursor:pointer;font-family:inherit;}
+  /* 추가124 — 주소 탭 → 지도앱 3종 고르기 시트 (본폰에 깔린 걸로 열림) */
+  .sheet-bg{display:none;position:fixed;inset:0;background:rgba(11,15,25,.45);z-index:50;}
+  .sheet-bg.on{display:block;}
+  .sheet{position:fixed;left:0;right:0;bottom:0;z-index:51;background:#fff;
+         border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));
+         transform:translateY(100%);transition:transform .18s ease-out;}
+  .sheet.on{transform:translateY(0);}
+  .sheet .sh-a{font-size:13px;font-weight:800;color:var(--t2);text-align:center;
+               padding-bottom:12px;border-bottom:1px solid var(--line);margin-bottom:12px;
+               word-break:keep-all;line-height:1.5;}
+  .sheet .sh-b{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;}
+  .sheet .mapb{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 6px;
+               border:1px solid var(--line);border-radius:14px;background:var(--bg);
+               font-size:12.5px;font-weight:800;color:var(--t1);cursor:pointer;font-family:inherit;}
+  .sheet .mapb .mi{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;
+                   justify-content:center;font-size:15px;font-weight:900;color:#fff;}
+  .sheet .cancel{width:100%;margin-top:10px;padding:13px;border:0;border-radius:12px;
+                 background:#F1F3F5;color:var(--t2);font-size:14px;font-weight:800;
+                 cursor:pointer;font-family:inherit;}
 </style>
 </head>
 <body>
@@ -21836,6 +21855,18 @@ MIRROR_HOME_HTML = r"""<!doctype html>
   <div class="foot">
     <form method="post" action="/mirror/forget"><button type="submit">이 폰에서 번호 잊기</button></form>
   </div>
+</div>
+
+<!-- 추가124 — 지도앱 고르기 시트 -->
+<div class="sheet-bg" id="shbg"></div>
+<div class="sheet" id="sheet">
+  <div class="sh-a" id="shaddr"></div>
+  <div class="sh-b">
+    <button class="mapb" data-m="tmap"><span class="mi" style="background:#0D6EFD">T</span>T맵</button>
+    <button class="mapb" data-m="naver"><span class="mi" style="background:#03C75A">N</span>네이버지도</button>
+    <button class="mapb" data-m="kakao"><span class="mi" style="background:#FEE500;color:#3C1E1E">K</span>카카오맵</button>
+  </div>
+  <button class="cancel" id="shcancel">닫기</button>
 </div>
 
 <script>
@@ -21928,9 +21959,10 @@ function drawCards(){
     const tm=it.time?'<span class="tm">'+esc(it.time)+"</span>":"";
     const ok=it.completed?'<span class="ok">✓ 완료</span>':"";
     const tot=(it.total?'<div class="tot">💰 '+won(it.total)+"</div>":"");
-    // 주소 탭 → 지도앱(웹 검색 URL — T맵/네이버/카카오 어디서든 열림)
-    const ad=it.address?'<a href="https://map.naver.com/p/search/'+encodeURIComponent(it.address)+
-      '" target="_blank" rel="noopener">📍 '+esc(it.address)+"</a>":"";
+    // 추가124 — 주소 탭 → 지도앱 3종(T맵/네이버/카카오) 고르기 시트.
+    //   본폰은 서버 웹이라 앱의 '기본 네비' 설정이 안 닿음 → 3개 다 주고 깔린 걸로 열게 함.
+    const ad=it.address?'<a href="javascript:void(0)" data-addr="'+esc(it.address)+
+      '" class="addr">📍 '+esc(it.address)+"</a>":"";
     const ph=it.phone?'<a href="tel:'+esc(String(it.phone).replace(/[^0-9+]/g,""))+'">📞 '+esc(it.phone)+"</a>":"";
     const mm=it.memo?'<div class="memo">📝 '+esc(it.memo)+"</div>":"";
     const lb=(DATA.sources.length>1)?'<span class="lbl" style="background:'+col+'22;color:'+col+'">'+esc(s.label)+"</span>":"";
@@ -21939,7 +21971,42 @@ function drawCards(){
       tot+((ad||ph)?'<div class="c3">'+ad+ph+"</div>":"")+mm+
       (lb?'<div class="c3">'+lb+"</div>":"")+"</div>";
   }).join("");
+  box.querySelectorAll("a.addr").forEach(a=>a.onclick=()=>openMapSheet(a.dataset.addr));
 }
+
+// ─── 추가124 — 지도앱 3종 시트 ───
+let _mapAddr="";
+function openMapSheet(addr){
+  _mapAddr=addr||"";
+  document.getElementById("shaddr").textContent="📍 "+_mapAddr;
+  document.getElementById("shbg").classList.add("on");
+  document.getElementById("sheet").classList.add("on");
+}
+function closeMapSheet(){
+  document.getElementById("shbg").classList.remove("on");
+  document.getElementById("sheet").classList.remove("on");
+}
+document.getElementById("shbg").onclick=closeMapSheet;
+document.getElementById("shcancel").onclick=closeMapSheet;
+
+document.querySelectorAll(".mapb").forEach(b=>b.onclick=()=>{
+  const a=encodeURIComponent(_mapAddr||"");
+  if(!a){closeMapSheet();return;}
+  const m=b.dataset.m;
+  if(m==="naver"){ window.open("https://map.naver.com/p/search/"+a,"_blank","noopener"); }
+  else if(m==="kakao"){ window.open("https://map.kakao.com/?q="+a,"_blank","noopener"); }
+  else if(m==="tmap"){
+    // 앱 스킴 먼저, 안 열리면(=미설치) 웹 지도로 폴백
+    const t=Date.now();
+    location.href="tmap://search?name="+a;
+    setTimeout(()=>{
+      if(!document.hidden && Date.now()-t < 2000){
+        window.open("https://map.naver.com/p/search/"+a,"_blank","noopener");
+      }
+    },1200);
+  }
+  closeMapSheet();
+});
 
 document.getElementById("prev").onclick=()=>{cur=new Date(cur.getFullYear(),cur.getMonth()-1,1);drawCal();};
 document.getElementById("next").onclick=()=>{cur=new Date(cur.getFullYear(),cur.getMonth()+1,1);drawCal();};
