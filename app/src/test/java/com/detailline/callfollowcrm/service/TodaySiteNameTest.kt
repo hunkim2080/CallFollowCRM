@@ -1,5 +1,7 @@
 package com.detailline.callfollowcrm.service
 
+import com.detailline.callfollowcrm.util.PhoneNumberFormatter
+
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -15,26 +17,26 @@ import org.junit.Test
 class TodaySiteNameTest {
 
     @Test fun `번호만 있는 이름은 번호로 본다 - 알림에서 뺀다`() {
-        assertTrue(ReminderWorker.looksLikePhone("01054790582"))
-        assertTrue(ReminderWorker.looksLikePhone("010-5479-0582"))
-        assertTrue(ReminderWorker.looksLikePhone("010 5479 0582"))
-        assertTrue(ReminderWorker.looksLikePhone(" 01054790582 "))
-        assertTrue(ReminderWorker.looksLikePhone("+82 10-5479-0582"))
-        assertTrue(ReminderWorker.looksLikePhone("(02)123-4567"))
+        assertTrue(PhoneNumberFormatter.looksLikePhone("01054790582"))
+        assertTrue(PhoneNumberFormatter.looksLikePhone("010-5479-0582"))
+        assertTrue(PhoneNumberFormatter.looksLikePhone("010 5479 0582"))
+        assertTrue(PhoneNumberFormatter.looksLikePhone(" 01054790582 "))
+        assertTrue(PhoneNumberFormatter.looksLikePhone("+82 10-5479-0582"))
+        assertTrue(PhoneNumberFormatter.looksLikePhone("(02)123-4567"))
     }
 
     @Test fun `진짜 이름은 살린다`() {
-        assertFalse(ReminderWorker.looksLikePhone("김철수"))
-        assertFalse(ReminderWorker.looksLikePhone("하우스픽"))
-        assertFalse(ReminderWorker.looksLikePhone("101동 김사장"))
+        assertFalse(PhoneNumberFormatter.looksLikePhone("김철수"))
+        assertFalse(PhoneNumberFormatter.looksLikePhone("하우스픽"))
+        assertFalse(PhoneNumberFormatter.looksLikePhone("101동 김사장"))
         // 이름 + 번호가 섞였으면 이름으로 본다(사장님이 일부러 적어둔 것 — 지우면 정보 손실).
-        assertFalse(ReminderWorker.looksLikePhone("김철수 010-5479-0582"))
+        assertFalse(PhoneNumberFormatter.looksLikePhone("김철수 010-5479-0582"))
     }
 
     @Test fun `빈 값이나 짧은 숫자는 번호가 아니다`() {
-        assertFalse(ReminderWorker.looksLikePhone(""))
-        assertFalse(ReminderWorker.looksLikePhone("   "))
-        assertFalse(ReminderWorker.looksLikePhone("101"))      // 동·호수
-        assertFalse(ReminderWorker.looksLikePhone("1-2"))
+        assertFalse(PhoneNumberFormatter.looksLikePhone(""))
+        assertFalse(PhoneNumberFormatter.looksLikePhone("   "))
+        assertFalse(PhoneNumberFormatter.looksLikePhone("101"))      // 동·호수
+        assertFalse(PhoneNumberFormatter.looksLikePhone("1-2"))
     }
 }

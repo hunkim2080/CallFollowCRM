@@ -756,19 +756,21 @@ private fun ContactDialog(
                 )
             }
         }
-    }
 
-    // 시공막내 명부에서 고르기 — 폼 위에 겹쳐 띄우고, 고르면 이름/번호만 채우고 닫는다(저장은 사장님이).
-    if (pickerOpen) {
-        SavedPeoplePicker(
-            people = savedPeople,
-            onPick = { p ->
-                if (p.name.isNotBlank()) name = p.name
-                phone = PhoneNumberFormatter.formatProgressive(p.phone)
-                pickerOpen = false
-            },
-            onDismiss = { pickerOpen = false }
-        )
+        // 시공막내 명부에서 고르기 — 고르면 이름/번호만 채우고 닫는다(저장은 사장님이).
+        //   ⚠️ 반드시 이 Box **안**에 둘 것. ContactDialog 의 부모가 Column 이라 밖에 두면
+        //   오버레이가 아니라 폼 '아래'로 흘러가 화면 밖에 그려진다(=눌러도 안 뜸).
+        if (pickerOpen) {
+            SavedPeoplePicker(
+                people = savedPeople,
+                onPick = { p ->
+                    if (p.name.isNotBlank()) name = p.name
+                    phone = PhoneNumberFormatter.formatProgressive(p.phone)
+                    pickerOpen = false
+                },
+                onDismiss = { pickerOpen = false }
+            )
+        }
     }
 }
 

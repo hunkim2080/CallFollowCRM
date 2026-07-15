@@ -17,6 +17,20 @@ package com.detailline.callfollowcrm.util
  */
 object PhoneNumberFormatter {
 
+    /**
+     * 이 문자열이 사실상 '전화번호'인가 — **이름 칸에 번호가 들어있는 고객이 많다**(이름 없이 저장되면
+     *   번호가 이름 자리를 차지). 그런 건 사람 이름으로 취급하면 안 된다.
+     *   숫자/하이픈/공백/+/괄호만으로 이뤄지고 숫자가 8자리 이상이면 번호.
+     *   "김철수 010-…" 처럼 이름이 섞였으면 이름으로 본다(사장님이 일부러 적어둔 정보 — 지우면 손실).
+     *   (2026-07-15 오늘의 현장 알림 + 일당 사람 고르기 양쪽에서 필요해 여기로 모음.)
+     */
+    fun looksLikePhone(s: String): Boolean {
+        val t = s.trim()
+        if (t.isEmpty()) return false
+        if (!t.all { it.isDigit() || it == '-' || it == ' ' || it == '+' || it == '(' || it == ')' }) return false
+        return t.count { it.isDigit() } >= 8
+    }
+
     fun format(raw: String): String {
         if (raw.isBlank()) return raw
         val digits = raw.filter { it.isDigit() }
