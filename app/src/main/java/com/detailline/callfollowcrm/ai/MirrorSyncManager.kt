@@ -92,11 +92,14 @@ class MirrorSyncManager(
             compareBy({ it.date }, { it.time ?: "" })
         )
 
-        // 돈 — 오늘 입금(확정 수입, 오늘자) / 미수금(받을 돈 남은 합계 + 건수). 정산과 동일 계산.
+        // 돈 — 오늘 입금 / **지금까지 받은 돈 누적** / 미수금(합계+건수). 전부 정산과 동일 계산(숫자 어긋남 방지).
         val cashItems = CashFlowCalc.buildItems(customers, manual, emptyList(), todayStart)
         val todayIn = cashItems
             .filter { it.isIncome && it.isDone && it.dayStartMs == todayStart }
             .sumOf { it.amount }
+        // 사장님: "오늘 입금이 아니라 지금까지 입금된 금액이 나와야 할 듯" → 날짜 제한 없이 '실제로 받은 것'만 합산.
+        //   isDone=false(받을 예정)는 아직 안 받은 돈이라 제외 — 미수금 칸이 그걸 보여준다.
+        val totalIn = cashItems.filter { it.isIncome && it.isDone }.sumOf { it.amount }
         val moneyRows = customers.filter { SettlementCalc.hasMoney(it) }.map { it to SettlementCalc.rowOf(it) }
         val unpaid = moneyRows.sumOf { it.second.outstanding }
         val unpaidCount = moneyRows.count { it.second.outstanding > 0L }
@@ -109,16 +112,21 @@ class MirrorSyncManager(
                     amount = row.outstanding,
                     address = c.address?.takeIf { it.isNotBlank() },
                     phone = c.phoneNumber.takeIf { it.isNotBlank() }?.let { PhoneNumberFormatter.format(it) },
-                    overdueDays = SettlementCalc.overdueDays(c, todayStart)
+                    overdueDays = SettlementCalc.overdueDays(c, todayStart),
+                    // 미수가 걸린 날 = 완료일 우선, 없으면 시공 예약일 (overdueDays 와 같은 기준).
+                    //   뷰어가 달력에 연한 빨강으로 칠하는 데 씀.
+                    date = (c.workCompletedAt ?: c.scheduledWorkDate)
+                        ?.takeIf { it > 0L }
+                        ?.let { dateFmt.format(Date(DateTimeUtils.startOfDay(it))) }
                 )
             }
             .sortedByDescending { it.amount }
 
         val label = prefs.mirrorLabel.ifBlank { prefs.bizName.ifBlank { "내 일정" } }
-        val hash = buildHash(label, items, todayIn, unpaid, unpaidCount, receivables)
+        val hash = buildHash(label, items, todayIn, totalIn, unpaid, unpaidCount, receivables)
         if (!force && hash == prefs.mirrorLastHash) return false
 
-        val res = repo.pushSnapshot(ownerPhone, label, items, todayIn, unpaid, unpaidCount, receivables)
+        val res = repo.pushSnapshot(ownerPhone, label, items, todayIn, totalIn, unpaid, unpaidCount, receivables)
         return if (res.isSuccess) {
             prefs.mirrorLastHash = hash
             prefs.mirrorLastPushMs = System.currentTimeMillis()
@@ -210,14 +218,17 @@ class MirrorSyncManager(
         label: String,
         items: List<MirrorRepository.MirrorItem>,
         todayIn: Long,
+        totalIn: Long,
         unpaid: Long,
         unpaidCount: Int,
         receivables: List<MirrorRepository.Receivable>
     ): String {
         val sb = StringBuilder()
-        sb.append(label).append('|').append(todayIn).append('|').append(unpaid).append('|').append(unpaidCount)
+        sb.append(label).append('|').append(todayIn).append('|').append(totalIn)
+            .append('|').append(unpaid).append('|').append(unpaidCount)
         for (r in receivables) {
             sb.append('₩').append(r.name).append('~').append(r.amount).append('~').append(r.overdueDays ?: -1)
+                .append('~').append(r.date ?: "")   // 날짜만 바뀌어도 재전송되게
         }
         for (it in items) {
             sb.append('¶')

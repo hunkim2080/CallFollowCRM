@@ -115,14 +115,28 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
             }.sortedBy { it.scheduledWorkMinutes ?: 0 }
             if (today.isEmpty()) { NotificationHelper.clearTodaySites(context); return }
             val lines = today.map { c ->
-                // 전화번호는 표시 안 함(탭하면 어차피 문자로 감). 이름 없으면 주소만. (2026-07-15 사장님)
-                val nm = c.name?.takeIf { it.isNotBlank() } ?: ""
+                // 전화번호는 표시 안 함(탭하면 어차피 문자로 감) — "주소만 딱 잘 보이게". (2026-07-15 사장님)
+                //   ⚠️ 이름 칸에 번호가 들어있는 고객이 많다(이름 없이 저장되면 번호가 이름이 됨).
+                //   그래서 c.phoneNumber 만 빼는 걸론 부족 — 이름이 '번호 모양'이면 그것도 뺀다.
+                //   (사장님 신고 2026-07-15: 번호 뺐다는데 알림에 "…24 A동 1호 01054790582" 가 계속 떴음)
+                val nm = c.name?.takeIf { it.isNotBlank() && !looksLikePhone(it) } ?: ""
                 val t = c.scheduledWorkMinutes?.let { DateTimeUtils.formatWorkMinutes(it) } ?: ""
                 val addr = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(c.address)
                 val second = listOf(nm, t).filter { it.isNotBlank() }.joinToString(" ")
                 if (second.isNotBlank()) "📍 $addr\n$second" else "📍 $addr"
             }
             NotificationHelper.showTodaySites(context, today.size, lines, today.first().phoneNumber)
+        }
+
+        /**
+         * "이름"이 사실은 전화번호인가 — 이름 없이 저장된 고객은 번호가 이름 자리에 들어간다.
+         *   숫자/하이픈/공백/+ 만으로 이뤄지고 숫자가 8자리 이상이면 번호로 본다("김철수 010-…" 같은 건 이름으로 살림).
+         */
+        internal fun looksLikePhone(s: String): Boolean {
+            val t = s.trim()
+            if (t.isEmpty()) return false
+            if (!t.all { it.isDigit() || it == '-' || it == ' ' || it == '+' || it == '(' || it == ')' }) return false
+            return t.count { it.isDigit() } >= 8
         }
     }
 

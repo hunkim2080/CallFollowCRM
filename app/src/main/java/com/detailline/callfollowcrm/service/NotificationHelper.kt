@@ -926,7 +926,9 @@ object NotificationHelper {
     fun showTodaySites(context: Context, count: Int, lines: List<String>, openPhone: String?) {
         if (lines.isEmpty()) { clearTodaySites(context); return }
         val title = if (count <= 1) "오늘의 현장" else "오늘의 현장 ${count}곳"
-        val body = lines.joinToString("\n")
+        // 왜 안 지워지는지 + 언제 사라지는지 알려준다 — 상시(ongoing) 알림이라 스와이프로 안 지워져서
+        //   안내가 없으면 "이거 왜 계속 있지?" 가 된다. (2026-07-15 사장님 "안내가 어디 있으면 좋을듯")
+        val body = lines.joinToString("\n") + "\n\n잔금까지 받으면 자동으로 사라져요"
         val pending = openPhone?.takeIf { it.isNotBlank() }?.let {
             val intent = Intent(context, MainActivity::class.java).apply {
                 action = MainActivity.ACTION_CHAT

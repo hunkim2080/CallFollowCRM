@@ -52,7 +52,10 @@ class MirrorRepository(
         val amount: Long,          // 미수 잔액(원)
         val address: String?,
         val phone: String?,        // 하이픈 포함
-        val overdueDays: Int?      // 시공/완료 후 경과일(있으면)
+        val overdueDays: Int?,     // 시공/완료 후 경과일(있으면)
+        // 이 미수가 걸린 날 = YYYY-MM-DD (완료일 우선, 없으면 시공 예약일. 둘 다 없으면 null).
+        //   뷰어가 "미수금 탭 → 달력에 그 날짜를 연한 빨강으로" 칠하는 데 쓴다. (2026-07-15 사장님)
+        val date: String? = null
     )
 
     /**
@@ -168,12 +171,16 @@ class MirrorRepository(
             }
         }
 
-    /** 일정+돈 스냅샷 통째 갱신(덮어쓰기). 본폰이 수락하면 이 데이터를 봄. */
+    /**
+     * 일정+돈 스냅샷 통째 갱신(덮어쓰기). 본폰이 수락하면 이 데이터를 봄.
+     *   todayIn=오늘 들어온 돈(원), totalIn=지금까지 받은 돈 누적(원, 사장님이 보고 싶어하는 값).
+     */
     suspend fun pushSnapshot(
         ownerPhone: String,
         label: String,
         items: List<MirrorItem>,
         todayIn: Long,
+        totalIn: Long,
         unpaid: Long,
         unpaidCount: Int,
         receivables: List<Receivable> = emptyList()
@@ -201,6 +208,9 @@ class MirrorRepository(
                 put("items", arr)
                 put("money", JSONObject().apply {
                     put("todayIn", todayIn)
+                    // 지금까지 받은 돈 누적(원) — 사장님: "오늘 입금이 아니라 지금까지 입금된 금액이 나와야 할 듯".
+                    //   todayIn 도 같이 보내 뷰어가 갈아탈 때까지 깨지지 않게(기존 키 유지).
+                    put("totalIn", totalIn)
                     put("unpaid", unpaid)
                     put("unpaidCount", unpaidCount)
                     // 미수 현장 목록 — 뷰어 "미수금 N건" 탭 시 어디서 얼마 못 받았나 표시.
@@ -213,6 +223,7 @@ class MirrorRepository(
                                     r.address?.let { put("address", it) }
                                     r.phone?.let { put("phone", it) }
                                     r.overdueDays?.let { put("overdueDays", it) }
+                                    r.date?.let { put("date", it) }   // 달력에 미수 날짜 칠하기용
                                 })
                             }
                         })
