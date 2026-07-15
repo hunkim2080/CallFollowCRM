@@ -10596,9 +10596,116 @@ async def download_apk():
     )
 
 
+_APK_VC_CACHE: dict = {}      # {mtime_ns: (version_code, version_name)} — 재파싱 방지
+
+
+def _apk_version_from_binary(apk_path: Path) -> tuple:
+    """APK 에서 versionCode/versionName 을 **직접** 읽는다 (VERSION_CODE.txt stale 재발 방지).
+
+    aapt 가 있으면 그걸 쓰고, 없으면 AndroidManifest.xml(바이너리 AXML)을 직접 파싱.
+    실패하면 (0, "") 반환 → 호출부가 VERSION_CODE.txt 로 폴백.
+    반환: (version_code:int, version_name:str)
+    """
+    import struct
+    import zipfile
+    import shutil
+    import subprocess
+    # 1) aapt 우선 (있으면 가장 확실)
+    aapt = shutil.which("aapt") or shutil.which("aapt2")
+    if aapt:
+        try:
+            out = subprocess.run([aapt, "dump", "badging", str(apk_path)],
+                                 capture_output=True, text=True, timeout=15).stdout
+            import re as _re
+            mc = _re.search(r"versionCode='(\d+)'", out)
+            mn = _re.search(r"versionName='([^']*)'", out)
+            if mc:
+                return int(mc.group(1)), (mn.group(1) if mn else "")
+        except Exception as e:  # noqa: BLE001
+            print(f"[download/version] aapt 실패, AXML 파싱으로 폴백: {e}")
+    # 2) AndroidManifest.xml (바이너리 AXML) 직접 파싱 — versionCode 리소스ID = 0x0101021b
+    try:
+        with zipfile.ZipFile(apk_path) as z:
+            axml = z.read("AndroidManifest.xml")
+    except Exception:
+        return 0, ""
+    try:
+        VC_RES, VN_RES = 0x0101021B, 0x0101021C
+        total = len(axml)
+        res_map = []
+        str_pool = []
+        pos = 8                                   # 파일 magic(4) + 파일크기(4) 건너뜀
+        vcode, vname = 0, ""
+        guard = 0
+        while pos + 8 <= total and guard < 100000:
+            guard += 1
+            ctype, hsize, csize = struct.unpack_from("<HHI", axml, pos)
+            if csize < 8 or pos + csize > total or hsize < 8 or hsize > csize:
+                break
+            if ctype == 0x0001:                   # 문자열 풀
+                scount, _sc, sflags, sstart, _sty = struct.unpack_from("<IIIII", axml, pos + 8)
+                # 상한·범위 검증 — 어긋난 바이트에서 거대한 배열 할당 방지
+                if scount > 20000 or pos + hsize + scount * 4 > pos + csize:
+                    pos += csize
+                    continue
+                utf8 = bool(sflags & (1 << 8))
+                offs = struct.unpack_from("<%dI" % scount, axml, pos + hsize)
+                base = pos + sstart
+                for o in offs:
+                    p = base + o
+                    try:
+                        if utf8:
+                            n = axml[p + 1]
+                            s = axml[p + 2:p + 2 + n].decode("utf-8", "replace")
+                        else:
+                            n = struct.unpack_from("<H", axml, p)[0]
+                            if n > 5000:
+                                s = ""
+                            else:
+                                s = axml[p + 2:p + 2 + n * 2].decode("utf-16-le", "replace")
+                    except Exception:  # noqa: BLE001
+                        s = ""
+                    str_pool.append(s)
+            elif ctype == 0x0180:                 # 리소스 맵
+                n = min((csize - hsize) // 4, 20000)
+                if n > 0:
+                    res_map = list(struct.unpack_from("<%dI" % n, axml, pos + hsize))
+            elif ctype == 0x0102:                 # start element
+                body = pos + hsize                # hsize=16 (node 헤더)
+                attr_start, _asz, attr_cnt = struct.unpack_from("<HHH", axml, body + 8)
+                if attr_cnt <= 200:
+                    abase = body + attr_start
+                    for i in range(attr_cnt):
+                        ap = abase + i * 20
+                        if ap + 20 > total:
+                            break
+                        a_name = struct.unpack_from("<I", axml, ap + 4)[0]
+                        a_data = struct.unpack_from("<I", axml, ap + 16)[0]
+                        res = res_map[a_name] if a_name < len(res_map) else 0
+                        if res == VC_RES and not vcode:
+                            vcode = a_data
+                        elif res == VN_RES and not vname:
+                            vname = str_pool[a_data] if a_data < len(str_pool) else ""
+                if vcode:
+                    break
+            pos += csize
+        # 그럴듯한 versionCode 범위만 신뢰 (오탐 방지). 벗어나면 0 → txt 폴백.
+        if not (1 <= vcode <= 10_000_000):
+            return 0, (vname or "")
+        return vcode, vname
+    except Exception as e:  # noqa: BLE001
+        print(f"[download/version] AXML 파싱 실패: {e}")
+        return 0, ""
+
+
 @app.get("/api/download/version", include_in_schema=False)
 async def download_apk_version():
-    """현재 서빙 중인 APK 메타 정보 (size, mtime, optional VERSION.txt)."""
+    """현재 서빙 중인 APK 메타 정보 (size, mtime, versionCode/Name).
+
+    추가126 F — versionCode 는 **APK 에서 직접 추출**(캐시). VERSION_CODE.txt(수동)가
+    갱신 안 돼 stale 이던 문제(6/29 749 고정 → 업데이트 배너 안 뜸) 재발 방지.
+    추출 실패 시에만 VERSION_CODE.txt 로 폴백.
+    """
     if not _APK_PATH.exists():
         return {"available": False}
     stat = _APK_PATH.stat()
@@ -10608,15 +10715,26 @@ async def download_apk_version():
             version_text = _APK_VERSION_PATH.read_text(encoding="utf-8").strip()[:80]
         except Exception:
             pass
-    # 추가58 (2026-06-25) — version_code (int) 추가. mtime 폴백 오탐 (재업로드 시) 해소.
-    # 안드로이드가 빌드 시 VERSION_CODE.txt 옆 파일에 박아서 함께 올림.
+    # 추가126 F — APK 에서 직접 추출 (mtime 키로 캐시). 실패 시 VERSION_CODE.txt 폴백.
     version_code = 0
-    if _APK_VERSION_CODE_PATH.exists():
-        try:
-            raw = _APK_VERSION_CODE_PATH.read_text(encoding="utf-8").strip()
-            version_code = int(raw) if raw else 0
-        except Exception as e:
-            print(f"[download/version] VERSION_CODE.txt 파싱 실패: {e}")
+    src = "apk"
+    ck = stat.st_mtime_ns
+    if ck in _APK_VC_CACHE:
+        version_code, vn = _APK_VC_CACHE[ck]
+    else:
+        version_code, vn = _apk_version_from_binary(_APK_PATH)
+        _APK_VC_CACHE.clear()                       # APK 하나뿐 — 옛 캐시 비움
+        _APK_VC_CACHE[ck] = (version_code, vn)
+    if vn and not version_text:                     # AXML 에서 얻은 versionName 로 표기 보강
+        version_text = vn[:80]
+    if not version_code:                            # 추출 실패 → 수동 txt 폴백
+        src = "txt"
+        if _APK_VERSION_CODE_PATH.exists():
+            try:
+                raw = _APK_VERSION_CODE_PATH.read_text(encoding="utf-8").strip()
+                version_code = int(raw) if raw else 0
+            except Exception as e:  # noqa: BLE001
+                print(f"[download/version] VERSION_CODE.txt 파싱 실패: {e}")
     return {
         "available": True,
         "size_bytes": stat.st_size,
@@ -10626,7 +10744,8 @@ async def download_apk_version():
             "%Y-%m-%d %H:%M"
         ),
         "version": version_text or "v0.2-beta",  # §3 (2026-06-18) — VERSION.txt 없을 때 fallback.
-        "version_code": version_code,  # 추가58 — int. 0 이면 VERSION_CODE.txt 없음 (안드로이드는 mtime 폴백).
+        "version_code": version_code,  # 추가126 — APK 에서 직접 추출 (0 이면 안드로이드는 mtime 폴백).
+        "version_code_source": src,    # apk = APK 직접 추출, txt = VERSION_CODE.txt 폴백
     }
 
 
@@ -21497,6 +21616,7 @@ def _mirror_board_payload(home_phone: str) -> dict:
 
         sources = []
         t_in = t_unpaid = t_cnt = 0
+        t_recv = []                       # 추가126 D — 미수 현장 목록 합산
         for op in accepted:
             row = con.execute(
                 "SELECT label, tint, snapshot_json, money_json, updated_at_ms "
@@ -21522,13 +21642,21 @@ def _mirror_board_payload(home_phone: str) -> dict:
             t_in += int(m.get("todayIn") or 0)
             t_unpaid += int(m.get("unpaid") or 0)
             t_cnt += int(m.get("unpaidCount") or 0)
+            for rv in (m.get("receivables") or []):
+                if isinstance(rv, dict):
+                    r2 = dict(rv)
+                    if len(accepted) > 1:      # 사업장 여러 개면 어느 업체 미수인지 표시
+                        r2["_biz"] = label or "사업장"
+                    t_recv.append(r2)
             sources.append({"label": label or "사업장", "tint": int(tint or 0),
                             "items": items, "money": m, "updatedAtMs": upd})
+    t_recv.sort(key=lambda r: -(int(r.get("amount") or 0)))    # 큰 금액순
     return {
         "homePhone": home_phone,
         "sources": sources,
         "pending": pending,
-        "money": {"todayIn": t_in, "unpaid": t_unpaid, "unpaidCount": t_cnt},
+        "money": {"todayIn": t_in, "unpaid": t_unpaid, "unpaidCount": t_cnt,
+                  "receivables": t_recv},
         "serverNowMs": _now_ms(),
     }
 
@@ -21764,6 +21892,17 @@ MIRROR_HOME_HTML = r"""<!doctype html>
   .addbiz:active{background:var(--bg);}
   .join{display:none;background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px;}
   .join.on{display:block;}
+  .mcard.un.tapable{cursor:pointer;}
+  .tapmore{font-size:11px;font-weight:800;color:var(--blue-dark);}
+  .recv{display:none;background:#fff;border:1px solid var(--line);border-radius:14px;
+        padding:4px 4px;margin:-4px 0 14px;}
+  .recv.on{display:block;}
+  .recv .rv{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);}
+  .recv .rv:last-child{border-bottom:0;}
+  .recv .rv .rn{font-size:13.5px;font-weight:800;color:var(--t1);}
+  .recv .rv .rs{font-size:11px;color:var(--t3);margin-top:1px;}
+  .recv .rv .ra{margin-left:auto;font-size:14px;font-weight:900;color:var(--red);white-space:nowrap;}
+  #cal{touch-action:pan-y;}
   .join h3{font-size:14px;font-weight:900;margin-bottom:4px;}
   .join p{font-size:12px;color:var(--t3);margin-bottom:10px;line-height:1.5;}
   .jrow{display:flex;gap:7px;}
@@ -21864,10 +22003,12 @@ MIRROR_HOME_HTML = r"""<!doctype html>
 
   <div class="money">
     <div class="mcard in"><div class="k">오늘 입금</div><div class="v" id="mIn">-</div></div>
-    <div class="mcard un"><div class="k">미수금</div><div class="v" id="mUn">-</div><div class="s" id="mUc"></div></div>
+    <div class="mcard un" id="unCard"><div class="k">미수금 <span class="tapmore" id="unMore"></span></div>
+      <div class="v" id="mUn">-</div><div class="s" id="mUc"></div></div>
   </div>
+  <div class="recv" id="recvBox"></div>
 
-  <div class="cal">
+  <div class="cal" id="cal">
     <div class="calhd"><button id="prev">‹</button><b id="ym"></b><button id="next">›</button></div>
     <div class="grid" id="dows"></div>
     <div class="grid" id="days"></div>
@@ -21944,10 +22085,34 @@ function render(){
   document.getElementById("mIn").textContent=won(M.todayIn);
   document.getElementById("mUn").textContent=won(M.unpaid);
   document.getElementById("mUc").textContent=(M.unpaidCount||0)+"건";
+  drawRecv(M);
 
   const today=new Date(); if(!sel) sel=ymd(today);
   if(!cur) cur=new Date(today.getFullYear(),today.getMonth(),1);
   drawCal(); drawCards();
+}
+
+// 추가126 D — 미수금 카드 탭 → 어느 현장이 얼마 미수인지 목록
+let recvOpen=false;
+function manwon(n){n=n||0; return n>=10000?(Math.round(n/1000)/10)+"만원":won(n);}
+function drawRecv(M){
+  const list=(M.receivables||[]), card=document.getElementById("unCard"),
+        more=document.getElementById("unMore"), box=document.getElementById("recvBox");
+  if(!list.length){ more.textContent=""; card.classList.remove("tapable");
+    box.classList.remove("on"); box.innerHTML=""; card.onclick=null; return; }
+  more.textContent = recvOpen? "▲" : "▼ 내역";
+  card.classList.add("tapable");
+  card.onclick=()=>{ recvOpen=!recvOpen; box.classList.toggle("on",recvOpen);
+    more.textContent = recvOpen? "▲" : "▼ 내역"; };
+  box.classList.toggle("on",recvOpen);
+  box.innerHTML=list.map(r=>{
+    const sub=[]; if(r._biz)sub.push(esc(r._biz));
+    if(r.overdueDays!=null)sub.push(r.overdueDays+"일 경과");
+    if(r.address)sub.push(esc(r.address));
+    return '<div class="rv"><div><div class="rn">'+esc(r.name||"현장")+"</div>"+
+      (sub.length?'<div class="rs">'+sub.join(" · ")+"</div>":"")+
+      "</div><div class=\"ra\">"+manwon(r.amount)+"</div></div>";
+  }).join("");
 }
 
 function drawCal(){
@@ -21992,7 +22157,7 @@ function drawCards(){
     const lb=(DATA.sources.length>1)?'<span class="lbl" style="background:'+col+'22;color:'+col+'">'+esc(s.label)+"</span>":"";
     return '<div class="card'+(it.completed?" done":"")+'" style="border-left-color:'+col+'">'+
       '<div class="c1"><span class="nm">'+esc(it.name||"현장")+"</span>"+tm+dd+ok+"</div>"+
-      tot+((ad||ph)?'<div class="c3">'+ad+ph+"</div>":"")+mm+
+      tot+(ad?'<div class="c3">'+ad+"</div>":"")+(ph?'<div class="c3">'+ph+"</div>":"")+mm+
       (lb?'<div class="c3">'+lb+"</div>":"")+"</div>";
   }).join("");
   box.querySelectorAll("a.addr").forEach(a=>a.onclick=()=>openMapSheet(a.dataset.addr));
@@ -22032,8 +22197,20 @@ document.querySelectorAll(".mapb").forEach(b=>b.onclick=()=>{
   closeMapSheet();
 });
 
-document.getElementById("prev").onclick=()=>{cur=new Date(cur.getFullYear(),cur.getMonth()-1,1);drawCal();};
-document.getElementById("next").onclick=()=>{cur=new Date(cur.getFullYear(),cur.getMonth()+1,1);drawCal();};
+function moveMonth(d){cur=new Date(cur.getFullYear(),cur.getMonth()+d,1);drawCal();}
+document.getElementById("prev").onclick=()=>moveMonth(-1);
+document.getElementById("next").onclick=()=>moveMonth(1);
+
+// 추가126 C — 달력 좌우 스와이프로 월 이동 (좌=다음 달 / 우=이전 달). 세로 스크롤과 충돌 방지.
+(function(){
+  const cal=document.getElementById("cal"); let sx=0,sy=0,tracking=false;
+  cal.addEventListener("touchstart",e=>{const t=e.changedTouches[0];sx=t.clientX;sy=t.clientY;tracking=true;},{passive:true});
+  cal.addEventListener("touchend",e=>{
+    if(!tracking)return; tracking=false;
+    const t=e.changedTouches[0], dx=t.clientX-sx, dy=t.clientY-sy;
+    if(Math.abs(dx)>50 && Math.abs(dx)>Math.abs(dy)){ moveMonth(dx<0?1:-1); }  // board 재렌더만(추가 fetch X)
+  },{passive:true});
+})();
 
 // QR 진입 시 서버가 심어준 안내 (연결됨 / QR 오류)
 (function(){const f=document.getElementById("flash");

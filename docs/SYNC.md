@@ -7150,3 +7150,14 @@ Play 심사 거부(민감권한 SMS/통화기록) 원인·해결 — 온보딩 �
   + 다운로드 파일명에 버전 넣기(Content-Disposition: shigongmagne-0.2.1002.apk) — 지금은 항상 같은 이름이라
   테스터 폰에 shigongmagne-20.apk 까지 쌓임(혼란). 사장님 승인 대기 중인 건.
 - commit: 2800efb
+
+## 2026-07-15 12:38 · cowork
+추가126 — 본폰 뷰어 4건(C·D·E) + APK versionCode 자동추출(F).
+- **C 달력 좌우 스와이프**: #cal 에 touchstart/end, |dx|>50 && |dx|>|dy| → 좌=다음달/우=이전달. < > 버튼 유지. board 재렌더만(추가 fetch X). touch-action:pan-y 로 세로스크롤 공존.
+- **D 미수금 카드 탭 → 미수 현장 목록**: board 가 각 사업장 money.receivables[{name,amount,address?,phone?,overdueDays?}] 합산+큰금액순 정렬(+2사업장이면 _biz 태깅). 뷰어 "미수금" 카드 탭 시 목록 펼침(현장명·만원표기·경과일/업체/주소). 0건이면 탭 비활성.
+- **E 주소·전화 각각 한 줄**: 현장 카드 주소 행·전화 행을 항상 별도 c3 라인으로(짧아도 안 붙음).
+- **F VERSION_CODE 자동추출 (stale 재발 방지)**: /api/download/version 이 VERSION_CODE.txt(수동) 대신 **APK 에서 versionCode 직접 추출**(mtime 캐시). aapt 있으면 우선, 없으면 AndroidManifest.xml(바이너리 AXML) 직접 파싱(리소스ID 0x0101021b). 추출 실패 시에만 txt 폴백. 응답에 version_code_source(apk|txt) 추가.
+  · 하드닝: pos+=csize 누락(무한루프·OOM 원인) 수정 + 배열 상한·범위검증 + versionCode 1~1000만 범위만 신뢰(오탐 방지). 깨진 바이트 → 0 반환.
+- 검증: 뷰어 C/D/E(합산·정렬·별도라인·스와이프 임계치) + F는 **pyaxml 로 만든 진짜 바이너리 매니페스트에서 1000 정확 추출** + 깨진 매니페스트 OOM 없이 0. 회귀(2사업장·8자리·QR자동수락) 통과.
+- commit: (아래)
+- 다음 액션(android): F 확인 — 이제 APK 만 올리면 versionCode 자동 인식(VERSION_CODE.txt 수동 갱신 불필요). mac mini 에 aapt 있으면 그걸, 없으면 서버 내장 파서가 처리.
