@@ -200,12 +200,23 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
     fun hideCollab(shareId: String) {
         container.preferences.hiddenCollabShareIds = container.preferences.hiddenCollabShareIds + shareId
         applyCollabFilter()
+        pushMirror()
     }
 
     /** 숨김 되돌리기(토스트의 "되돌리기"). */
     fun unhideCollab(shareId: String) {
         container.preferences.hiddenCollabShareIds = container.preferences.hiddenCollabShareIds - shareId
         applyCollabFilter()
+        pushMirror()
+    }
+
+    /**
+     * 본폰 미러 즉시 갱신 — 미러도 이 '숨김' 목록을 그대로 따르므로(MirrorSyncManager.mapCollabSites)
+     *   여기서 안 찔러주면 일정 화면에선 사라졌는데 본폰엔 ~3시간 남아있게 된다(두 화면 불일치).
+     *   미러 자동전송은 '내 고객/현금 변경'만 구독해서 협업 변경엔 안 걸림. 옵트인 꺼져있으면 내부에서 skip.
+     */
+    private fun pushMirror() {
+        viewModelScope.launch { runCatching { container.mirrorSyncManager.pushNow(force = true) } }
     }
 
     /** 협업 카드 "그만두기"(밀어서) — 수락된 협업을 끝냄(서버 end → 상대=주인 A 에게 "해제" 알림) + 내 일정에서 숨김.

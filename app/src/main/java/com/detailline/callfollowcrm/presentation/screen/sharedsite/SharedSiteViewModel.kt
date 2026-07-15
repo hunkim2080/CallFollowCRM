@@ -76,6 +76,8 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             runCatching { repo.endCollab(site.shareId, myPhone, asOwner = false) }
             _toast.value = "협업을 그만뒀어요 — 사장님께 알려드렸어요"
+            // 그만둔 현장은 내 일정이 아니다 → 본폰 미러에서도 즉시 내림(안 그러면 ~3h 동안 남아있음).
+            runCatching { container.mirrorSyncManager.pushNow(force = true) }
         }
     }
 
@@ -155,6 +157,11 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
                     // 수락/거절 즉시 상담함 카드·뱃지·알림에서 제거(다음 폴 안 기다리게). (2026-06-14 버그)
                     container.collabEventCenter.markResponded(container.appContext, site.shareId)
                     load()
+                    // 본폰 미러도 즉시 갱신 — 수락한 협업 현장은 곧 내 일정이니까. (2026-07-15 사장님)
+                    //   미러 자동전송은 '내 고객/현금 변경'만 구독해서 협업 수락엔 안 걸린다
+                    //   → 안 찔러주면 ReminderWorker(~3h) 올 때까지 본폰에 안 뜸.
+                    //   force=true: 해시가 같아도 무조건 보냄(협업만 바뀐 경우 skip 방지).
+                    runCatching { container.mirrorSyncManager.pushNow(force = true) }
                 }
                 .onFailure { _toast.value = "처리 못했어요 — 잠시 후 다시" }
         }
@@ -187,6 +194,10 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
                     else -> "알렸어요"
                 }
                 load()
+                // 미러에 협업 현장의 '완료' 표시가 나가므로 완료/되돌리기도 즉시 반영. (수락과 같은 이유)
+                if (step == SharedSiteRepository.Progress.COMPLETED || reverting) {
+                    runCatching { container.mirrorSyncManager.pushNow(force = true) }
+                }
             }.onFailure { _toast.value = "전송 실패 — 잠시 후 다시" }
         }
     }
