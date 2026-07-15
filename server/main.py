@@ -21291,7 +21291,8 @@ async def mirror_manifest():
     return JSONResponse(content={
         "name": "일정 미러 — 시공막내",
         "short_name": "일정 미러",
-        "start_url": "/",
+        "start_url": "/mirror",          # 추가127 ① — 홈화면 바로가기가 미러로 열리게 ("/"=시공인 홈 아님)
+        "scope": "/mirror",
         "display": "standalone",
         "background_color": "#FAFBFC",
         "theme_color": "#3182F6",
@@ -21756,13 +21757,15 @@ async def mirror_home_page(request: Request) -> HTMLResponse:
             .replace("__K__", _html.escape(q_k, quote=True))
         ))
 
-    # ── QR(k 동봉) 로 들어왔으면 바로 연결 → **깨끗한 /mirror 로 303 리다이렉트** ──
-    # 추가125 (★해제 미반영 버그 원인): 리다이렉트 안 하면 주소창에 ?code=&k= 가 남아
-    #   새로고침·홈화면 바로가기로 다시 열 때마다 서버가 재수락 → 업무폰에서 해제해도 되살아남.
-    #   "QR 을 찍었을 때"만 연결되고, "그 페이지를 다시 열 때"는 연결되면 안 된다.
+    # ── QR(k 동봉) 로 들어왔으면 바로 연결 ──
+    # 추가127 ②: 연결 성공 시 code·k·번호를 localStorage 에 저장하고 history.replaceState 로
+    #   주소창의 ?code=&k= 를 지운다. → (a) 홈화면 바로가기·재방문 때 저장값으로 자동 복원,
+    #   (b) 주소에 파라미터가 안 남으므로 새로고침 시 재수락 루프 없음(추가125 버그도 계속 예방).
+    flash = ""
+    save_js = ""
+    precode = ""
     if q_code and q_k:
         now = _now_ms()
-        flash = ""
         with db_conn() as con:
             crow = con.execute(
                 "SELECT owner_phone, label, auto_secret FROM mirror_codes WHERE code = ?",
@@ -21788,32 +21791,29 @@ async def mirror_home_page(request: Request) -> HTMLResponse:
                 con.commit()
                 flash = f"✅ {label} 일정이 연결됐어요."
                 print(f"[mirror/qr] {hphone} → {ophone} ({label}) 자동수락")
+                _payload = json.dumps({"code": q_code, "k": q_k, "phone": hphone},
+                                      ensure_ascii=False)
+                save_js = ("try{localStorage.setItem('mirror_join',JSON.stringify(%s));"
+                           "sessionStorage.removeItem('mv_auto');}catch(e){}"
+                           "try{history.replaceState({},'','/mirror');}catch(e){}"
+                           % _payload)
             else:
                 flash = "⚠️ QR 정보가 올바르지 않아요. [+ 사업장 추가]에서 코드를 직접 넣어주세요."
-        resp = Response(status_code=303, headers={"Location": "/mirror"})
-        # 안내문은 1회용 쿠키로 넘김 (URL 에 안 남김)
-        resp.set_cookie(key="mfl", value=urllib.parse.quote(flash), max_age=20,
-                        samesite="lax", path="/")
-        return resp
-
-    # 1회용 flash 쿠키 소비
-    flash = urllib.parse.unquote(request.cookies.get("mfl") or "")
+                precode = q_code
 
     data = _mirror_board_payload(hphone)
     boot = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
-    # 코드 입력칸은 기본 접힘([+ 사업장 추가]). 단 ①아직 아무것도 안 붙었거나
-    # ②코드가 URL 로 들어온 경우엔 펼쳐둔다(첫 사용자가 못 찾으면 안 되므로).
-    join_open = "on" if (q_code or (not data.get("sources") and not data.get("pending"))) else ""
+    # 코드 입력칸은 기본 접힘([+ 사업장 추가]). 단 ①아직 아무것도 안 붙었거나 ②코드 오류로 재입력 유도.
+    join_open = "on" if (precode or (not data.get("sources") and not data.get("pending"))) else ""
     html = (MIRROR_HOME_HTML
             .replace("__BOOT__", boot)
             .replace("__PHONE__", _html.escape(_fmt_phone_dashed(hphone)))
-            .replace("__PRECODE__", _html.escape(q_code, quote=True))
+            .replace("__PHONEDIGITS__", _html.escape(hphone, quote=True))
+            .replace("__PRECODE__", _html.escape(precode, quote=True))
             .replace("__JOINOPEN__", join_open)
+            .replace("__RESTORE__", save_js)
             .replace("__FLASH__", _html.escape(flash)))
-    resp = HTMLResponse(content=html)
-    if flash:
-        resp.delete_cookie(key="mfl", path="/")
-    return resp
+    return HTMLResponse(content=html)
 
 
 MIRROR_IDENTIFY_HTML = r"""<!doctype html>
@@ -21854,6 +21854,22 @@ MIRROR_IDENTIFY_HTML = r"""<!doctype html>
 <script>
  var e=document.getElementById('err');
  if(e.textContent.trim()) e.className='e'; else e.remove();
+ // 추가127 ② — 저장된 번호(+code·k)로 자동 복원. 홈화면 바로가기(쿠키 없는 PWA) 대응.
+ (function(){
+   try{
+     if(location.search.indexOf('e=1')>=0){ sessionStorage.setItem('mv_auto','1'); return; } // 실패 시 자동재시도 중단
+     if(sessionStorage.getItem('mv_auto')) return;                                            // 한 번만
+     var j=JSON.parse(localStorage.getItem('mirror_join')||'{}');
+     if(j && j.phone){
+       sessionStorage.setItem('mv_auto','1');
+       var f=document.forms[0];
+       f.phone.value=j.phone;
+       if(j.code) f.code.value=j.code;
+       if(j.k) f.k.value=j.k;
+       f.submit();     // 번호 제출 → 쿠키 설정 → (code·k 있으면) 자동수락 → 일정 화면
+     }
+   }catch(_){}
+ })();
 </script>
 </body></html>
 """
@@ -22018,7 +22034,9 @@ MIRROR_HOME_HTML = r"""<!doctype html>
   <div id="cards"></div>
 
   <div class="foot">
-    <form method="post" action="/mirror/forget"><button type="submit">이 폰에서 번호 잊기</button></form>
+    <form method="post" action="/mirror/forget"
+          onsubmit="try{localStorage.removeItem('mirror_join');sessionStorage.removeItem('mv_auto');}catch(e){}">
+      <button type="submit">이 폰에서 번호 잊기</button></form>
   </div>
 </div>
 
@@ -22035,6 +22053,14 @@ MIRROR_HOME_HTML = r"""<!doctype html>
 </div>
 
 <script>
+// 추가127 ② — QR 연결 성공 시 code·k·번호 저장 + 주소창 정리 (서버가 심어줌; 없으면 빈 문자열)
+__RESTORE__
+// 매 방문마다 번호를 저장값에 갱신 → 홈화면 바로가기(쿠키 없는 PWA)에서 자동 복원에 사용
+try{var _mj=JSON.parse(localStorage.getItem('mirror_join')||'{}');
+  if("__PHONEDIGITS__") _mj.phone="__PHONEDIGITS__";
+  localStorage.setItem('mirror_join',JSON.stringify(_mj));
+  sessionStorage.removeItem('mv_auto');   // 여기까지 왔으면 복원 성공 → 재시도 가드 해제
+}catch(e){}
 let DATA=__BOOT__;
 const TINTS=["#3182F6","#16C172","#F5A623","#9B51E0","#F0436A"];
 let filter="all", sel=null, cur=null;

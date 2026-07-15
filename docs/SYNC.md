@@ -7187,3 +7187,16 @@ manifest 를 코드별로 생성해야 해서 비추 — localStorage 가 단순
 - 확인 방법: 본폰에서 QR → 일정 뜸 → 홈화면 추가 → 앱 종료 → 바로가기 탭 → **일정이 바로 떠야 정상**.
 - 앱(app/) 측 변경 없음. 사장님께는 "임시로 QR 다시 찍으면 됨" 안내함.
 - 참고: /api/download/version 의 versionCode 자동추출(APK 파싱) 잘 동작 확인 — version_code_source:"apk", 1010.
+
+## 2026-07-15 22:21 · cowork
+추가127 — 본폰 미러 "바탕화면 바로가기가 홈페이지로 감" 버그 fix (android 긴급, 원인 2가지 서버 몫).
+- **① manifest start_url="/" → "/mirror" (+scope "/mirror")**: 홈화면 추가 시 안드로이드 Chrome 은 현재 URL 이 아니라 manifest 의 start_url 로 바로가기를 만듦 → 일정 화면에서 추가해도 "/"(시공인 홈)로 감. 이제 /mirror 로.
+- **② 뷰어 localStorage 복원 (사장님 확정: code+k 다 저장)**: QR(?code=&k=) 자동수락 성공 시
+  `localStorage['mirror_join']={code,k,phone}` 저장 + `history.replaceState('/mirror')` 로 주소창 정리.
+  · 파라미터 없이 열림(홈화면 바로가기·재방문) → 식별 화면이 저장된 번호(+code·k)로 **자동 제출** → 쿠키 설정 → (code·k 있으면)자동수락 → 일정 바로 뜸. 매 board 방문마다 번호 저장 갱신.
+  · 무한 제출 방지: sessionStorage 'mv_auto' 원샷 가드 + 실패(?e=1) 시 중단. board 도달 시 가드 해제.
+  · '번호 잊기' → localStorage 삭제. 위조 k → 저장 안 함 + 경고 + 코드 재입력칸 펼침.
+  · replaceState 로 URL 을 지우므로 추가125 재수락 루프도 계속 예방(해제 후 파라미터 없는 재방문 = 안 되살아남 재확인).
+- 검증 8종 통과(manifest·식별 자동복원·QR저장+URL정리·재방문 즉시표시·해제 후 미부활·잊기 삭제·위조k). 회귀 OK.
+- commit: (아래)
+- 다음 액션(android): 확인 — 본폰 QR→일정→홈화면 추가→앱종료→바로가기 탭 = 일정 바로 떠야 정상.
