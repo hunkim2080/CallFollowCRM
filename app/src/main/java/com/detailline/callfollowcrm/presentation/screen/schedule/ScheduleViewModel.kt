@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -65,10 +66,42 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             .map { list -> list.groupBy { it.customerId } }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
-    /** 인원 관리 "일당사장"(수첩 WORKER) 전체 — 전문가 배정 시트에서 탭하면 이 현장 협업 요청. (2026-06-13: "협업" 태그 필터 제거 — 등록한 일당사장 다 뜨게) */
+    /** 인원 관리 "일당사장"(수첩 WORKER) 전체 — 전문가 배정 시트에서 탭해 [내가 부른 일당] 또는 [협업 요청]. (2026-06-13: "협업" 태그 필터 제거 — 등록한 일당사장 다 뜨게) */
     val collabPartners: StateFlow<List<com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity>> =
         container.notebookRepository.observeWorkers()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
+     * 고객(현장)별 **내가 부른 일당** 배정 — 일정 카드/배정 시트가 구독. (2026-07-16 사장님)
+     *   협업 요청(collabAssignByCustomer)과 다른 것: 이건 로컬 기록이고 정산에 −지출로 잡히며
+     *   "함께한 현장"에 쌓인다. 수락 같은 건 없다(내가 부른 사람이니까).
+     */
+    val jobCrewByCustomer: StateFlow<Map<Long, List<com.detailline.callfollowcrm.data.local.entity.JobCrewEntity>>> =
+        container.jobCrewRepository.observeAll()
+            .map { list -> list.groupBy { it.customerId } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    /**
+     * 이 시공(고객+시공일)의 일당 배정을 통째로 맞춘다 — 고른 사람은 배정(금액 갱신), 뺀 사람은 배정 해제.
+     *   assign 이 멱등이라(JobCrewRepository) 연타/재배정해도 일당이 두 번 빠지지 않는다.
+     *   wageByWorkerId 는 **원** 단위.
+     */
+    fun setJobCrew(customer: CustomerEntity, dayMs: Long, wageByWorkerId: Map<Long, Long>) {
+        viewModelScope.launch {
+            runCatching {
+                val existing = container.jobCrewRepository.observeByJob(customer.id, dayMs).first()
+                // 뺀 사람 정리
+                existing.filter { it.workerId !in wageByWorkerId.keys }
+                    .forEach { container.jobCrewRepository.unassign(it.workerId, customer.id, dayMs) }
+                // 고른 사람 배정/갱신
+                val byId = collabPartners.value.associateBy { it.id }
+                wageByWorkerId.forEach { (wid, wage) ->
+                    val nm = byId[wid]?.name ?: existing.firstOrNull { it.workerId == wid }?.workerName ?: "일당"
+                    container.jobCrewRepository.assign(wid, nm, customer.id, dayMs, wage)
+                }
+            }.onFailure { _toast.value = "일당 배정을 저장하지 못했어요" }
+        }
+    }
 
     /** 협업 사장 배정(요청) 1건 — 일정 카드 "🤝 이름" + 중복요청 가드(phone).
      *   accepted = 상대가 수락했나(아니면 아직 "요청 중"). 수락 안 된 협업을 파트너처럼 표시하던 버그 fix용. (2026-07-09) */
