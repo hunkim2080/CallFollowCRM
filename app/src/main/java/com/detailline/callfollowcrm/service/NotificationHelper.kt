@@ -73,6 +73,15 @@ object NotificationHelper {
     private const val CHANNEL_COLLAB_COMPLETED = "collab_completed_snd"  // 작업 완료
     private const val CHANNEL_COLLAB_ENDED = "collab_ended_snd"          // 협업 해제
     private const val CHANNEL_COLLAB_PAID = "collab_paid_snd"            // 입금 완료
+    /**
+     * 리마인더에서 분리한 전용 소리 채널. (2026-07-15 사장님 지시)
+     *   "시공·정산 리마인더" 한 칸이 D-1·잔금·5km도착·브리핑·정기문자·팀원·본폰공유신청 7가지를 다 울려서
+     *   무슨 일인지 소리로 구분이 안 됐다 → 사장님이 고른 3가지를 먼저 분리.
+     *   (팀원 소식 분리는 "사장 버전 끝내고" — 사장님 보류 지시.)
+     */
+    private const val CHANNEL_INSTALL_D1 = "install_d1_snd"              // 내일 시공 안내
+    private const val CHANNEL_DAILY_BRIEF = "daily_brief_snd"            // 마감 브리핑
+    private const val CHANNEL_RECURRING = "recurring_sms_snd"            // 정기문자
 
     // 알림 배너 배경 — 파스텔 블루 (Material Blue 100).
     // setColorized(true) 와 함께 쓰면 OneUI 등 일부 시스템이 배너 전체 배경으로 사용.
@@ -104,8 +113,16 @@ object NotificationHelper {
             "자동 응답 문자", "처음 연락온 고객 자동 응답 발송 안내 (취소 가능)"),
         SoundSlot("intake", "접수서 작성 완료", "sound_intake",
             "📋 접수서 작성됨", "고객이 시공접수서를 작성하면 알려줘요"),
+        // 남은 리마인더 = 잔금 미수 · 현장 5km 도착 안내 · 본폰 일정공유 신청 · 팀원 소식(분리 예정).
         SoundSlot("reminder", "시공·정산 리마인더", "sound_reminder",
-            "⏰ 시공·정산 리마인더", "내일 시공 안내·잔금 미수·마감 브리핑을 제때 알려줘요"),
+            "⏰ 시공·정산 리마인더", "잔금 미수·현장 도착 안내 등을 제때 알려줘요"),
+        // ── 리마인더에서 분리 (2026-07-15 사장님) — 소리 만드시는 중이라 기본값은 기존 리마인더 소리 유지.
+        SoundSlot("install_d1", "내일 시공 안내", "sound_reminder",
+            "📅 내일 시공 안내", "시공 하루 전, 고객에게 안내 문자를 보낼지 알려줘요"),
+        SoundSlot("daily_brief", "마감 브리핑", "sound_reminder",
+            "🌙 마감 브리핑", "저녁에 오늘 하루를 정리해서 알려줘요"),
+        SoundSlot("recurring", "정기문자", "sound_reminder",
+            "🔁 정기문자", "정기문자 보낼 때가 되면 알려줘요"),
         SoundSlot("call_summary", "통화 요약 완료", "sound_call_summary",
             "✨ 통화 요약 완료", "통화 내용 요약이 준비되면 알려줘요"),
         SoundSlot("collab_accepted", "협업 수락", "sound_collab_accepted",
@@ -182,6 +199,8 @@ object NotificationHelper {
         "collab_departed" to CHANNEL_COLLAB_DEPARTED, "collab_arrived" to CHANNEL_COLLAB_ARRIVED,
         "collab_completed" to CHANNEL_COLLAB_COMPLETED, "collab_ended" to CHANNEL_COLLAB_ENDED,
         "collab_paid" to CHANNEL_COLLAB_PAID,
+        "install_d1" to CHANNEL_INSTALL_D1, "daily_brief" to CHANNEL_DAILY_BRIEF,
+        "recurring" to CHANNEL_RECURRING,
     )
 
     /** slot 이 지금 울려야 할 raw 리소스 ID. 0 = 무음. 고른 소리가 없어졌으면 기본으로 폴백. */
@@ -438,7 +457,7 @@ object NotificationHelper {
         )
         val msg = "${name}님 · $dateLabel${timeLabel?.let { " $it" } ?: ""} · $address"
         showProtoPush(
-            context, notifId, CHANNEL_REMINDER, ACCENT_AMBER,
+            context, notifId, CHANNEL_INSTALL_D1, ACCENT_AMBER,
             title = "내일 시공 — 안내 문자 보낼까요?",
             msg = msg,
             note = "무음 자동발송 안 해요 · 사장님이 확인하면 보내요",
@@ -844,7 +863,7 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         showProtoPush(
-            context, BRIEF_ID, CHANNEL_REMINDER, ACCENT_BLUE,
+            context, BRIEF_ID, CHANNEL_DAILY_BRIEF, ACCENT_BLUE,
             title = "오늘 하루 마감 브리핑 🌙",
             msg = msg, note = note,
             contentIntent = pending,
@@ -857,7 +876,7 @@ object NotificationHelper {
         val pending = appOpenPending(context, RECUR_ID)
         val prefix = if (ruleNames.isNotBlank()) "$ruleNames · " else ""
         showProtoPush(
-            context, RECUR_ID, CHANNEL_REMINDER, ACCENT_TEAL,
+            context, RECUR_ID, CHANNEL_RECURRING, ACCENT_TEAL,
             title = "오늘 정기 문자 보낼 고객 ${count}명",
             msg = "${prefix}오늘 ${count}명 · {고객명} 자동 채움 · 보내기 전에 한 번 봐주세요",
             contentIntent = pending,
