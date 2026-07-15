@@ -116,10 +116,11 @@ object NotificationHelper {
         // 남은 리마인더 = 잔금 미수 · 현장 5km 도착 안내 · 본폰 일정공유 신청 · 팀원 소식(분리 예정).
         SoundSlot("reminder", "시공·정산 리마인더", "sound_reminder",
             "⏰ 시공·정산 리마인더", "잔금 미수·현장 도착 안내 등을 제때 알려줘요"),
-        // ── 리마인더에서 분리 (2026-07-15 사장님) — 소리 만드시는 중이라 기본값은 기존 리마인더 소리 유지.
-        SoundSlot("install_d1", "내일 시공 안내", "sound_reminder",
+        // ── 리마인더에서 분리 (2026-07-15 사장님). 내일시공/마감브리핑은 사장님 전용 소리(내일시공은 2안).
+        //    정기문자는 아직 소리 없음 → 기본 리마인더 소리 유지(사장님 "정기문자 빼고").
+        SoundSlot("install_d1", "내일 시공 안내", "sound_install_d1",
             "📅 내일 시공 안내", "시공 하루 전, 고객에게 안내 문자를 보낼지 알려줘요"),
-        SoundSlot("daily_brief", "마감 브리핑", "sound_reminder",
+        SoundSlot("daily_brief", "마감 브리핑", "sound_daily_brief",
             "🌙 마감 브리핑", "저녁에 오늘 하루를 정리해서 알려줘요"),
         SoundSlot("recurring", "정기문자", "sound_reminder",
             "🔁 정기문자", "정기문자 보낼 때가 되면 알려줘요"),
@@ -166,6 +167,9 @@ object NotificationHelper {
         "sound_intake_arrived" to "접수서 도착",
         // ── 리마인더 · 자동응답 ──
         "sound_reminder" to "리마인더",
+        "sound_install_d1" to "리마인더 - 내일시공",
+        "sound_install_d1_1" to "리마인더 - 내일시공1",
+        "sound_daily_brief" to "리마인더 - 마감브리핑",
         "sound_auto_reply" to "자동응답",
         // ── 통화 요약 ──
         "sound_call_summary" to "통화요약 완료",
