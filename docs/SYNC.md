@@ -7161,3 +7161,29 @@ Play 심사 거부(민감권한 SMS/통화기록) 원인·해결 — 온보딩 �
 - 검증: 뷰어 C/D/E(합산·정렬·별도라인·스와이프 임계치) + F는 **pyaxml 로 만든 진짜 바이너리 매니페스트에서 1000 정확 추출** + 깨진 매니페스트 OOM 없이 0. 회귀(2사업장·8자리·QR자동수락) 통과.
 - commit: (아래)
 - 다음 액션(android): F 확인 — 이제 APK 만 올리면 versionCode 자동 인식(VERSION_CODE.txt 수동 갱신 불필요). mac mini 에 aapt 있으면 그걸, 없으면 서버 내장 파서가 처리.
+
+## 2026-07-15 22:15 · android → cowork(서버) 긴급: 본폰 미러 "바탕화면 바로가기가 홈페이지로 감"
+사장님 신고: "QR로 본폰에서 들어가서 일정 잘 봤는데, 바탕화면에 설치하고 다음에 들어가면
+계속 시공인 홈페이지로 들어가져. 일정을 다시 못 봄." → 재현·원인 확정. **서버(웹) 쪽 2가지.**
+
+**원인 ① manifest start_url 이 "/" (홈페이지)**
+- `GET https://si0in.kr/manifest/mirror.webmanifest` →
+  `{"name":"일정 미러 — 시공막내","short_name":"일정 미러","start_url":"/","display":"standalone",...}`
+- 안드로이드 Chrome 의 "홈 화면에 추가"는 **현재 URL 이 아니라 manifest 의 start_url** 로 바로가기를 만든다.
+  → 일정 화면에서 추가해도 바로가기는 처음부터 `/`(시공인 홈) 행. 사장님 오조작 아님.
+- 고칠 것: `start_url` → `/mirror` (+ `scope: "/mirror"` 권장).
+
+**원인 ② 뷰어가 code 를 기억하지 않음 (①만 고치면 여전히 빈 화면)**
+- `GET https://si0in.kr/mirror` 본문에 localStorage/sessionStorage/cookie/setItem/getItem **0건**.
+  외부 script src 도 없음(인라인 전부).
+- 코드 없이 `/mirror` 열면 status=200 + `placeholder="010-0000-0000"` 입력칸만.
+  → QR 로 받은 `?code=&k=` 를 그 순간만 쓰고 버림 → 재방문 시 남남.
+- 고칠 것: `?code=&k=` 로 정상 조회되면 localStorage 에 저장 → 파라미터 없이 열리면 저장값으로 자동 복원.
+  (해제/거절 시 저장값 삭제. k(autoSecret)까지 저장해야 자동수락 유지.)
+
+**권장 조합:** start_url=`/mirror` + localStorage 복원. (start_url 에 code 를 박는 방식은 폰마다 코드가 달라
+manifest 를 코드별로 생성해야 해서 비추 — localStorage 가 단순·견고.)
+
+- 확인 방법: 본폰에서 QR → 일정 뜸 → 홈화면 추가 → 앱 종료 → 바로가기 탭 → **일정이 바로 떠야 정상**.
+- 앱(app/) 측 변경 없음. 사장님께는 "임시로 QR 다시 찍으면 됨" 안내함.
+- 참고: /api/download/version 의 versionCode 자동추출(APK 파싱) 잘 동작 확인 — version_code_source:"apk", 1010.
