@@ -7135,3 +7135,18 @@ Play 심사 거부(민감권한 SMS/통화기록) 원인·해결 — 온보딩 �
 - 요청(서버측 검토): APK 업로드 시 VERSION_CODE.txt 를 aapt 로 자동 추출·갱신하거나,
   /api/download/version 이 APK 에서 versionCode 를 직접 읽게 하면 재발 방지됨. (지금은 수동)
 - commit: fc5c786 (알림음 12개), 6c147f8 (채널 버전화), e921b76 (잔금)
+
+## 2026-07-15 12:35 · android
+긴급 3건 fix + 사이트 재배포 (0.2.1002)
+- **통화요약 재과금/알림폭주** (서버 비용 직결 — cowork 참고): 앱이 이미 요약한 옛 통화를 앱 열 때마다
+  다시 /summarize 로 보내고 있었음. 원인=저장 recordedAt(본문, 분단위 초=0) vs 조회 키(파일명, 초단위) 불일치
+  + 중복창 ±20초 → 초 21~59(약 65%) 미스. update 경로라 행은 안 늘고 청구서만 늘던 상태.
+  앱측 fix(2800efb): 파일명 시각 우선 저장 + 레거시 row 는 분 정각으로 구제 + 기존 요약 있으면 LLM 미호출.
+  → 맥미니 api_usage/llm_usage_log 에서 7/3~7/15 구간 summarize 호출량이 실제로 과다했는지 확인 부탁(비용 회수/원인 대조용).
+- 업데이트 배너 "0.2.1000 → 0.2.1000" 무한 재다운로드 fix (prefs 캐시 stale + 10분 throttle).
+- 협업 댓글/사진/요청/진행 알림에 전용 소리 채널(collab_news_snd) 신설 — 리마인더 채널 빌려쓰던 것.
+- 배포: shigongmagne.apk 0.2.1002 (sha256 311f8c8e…dd7e) + VERSION_CODE.txt=1002. https://si0in.kr/install 확인.
+- 요청(서버측): APK 업로드 시 VERSION_CODE.txt 자동 갱신(또는 /api/download/version 이 APK 에서 직접 추출).
+  + 다운로드 파일명에 버전 넣기(Content-Disposition: shigongmagne-0.2.1002.apk) — 지금은 항상 같은 이름이라
+  테스터 폰에 shigongmagne-20.apk 까지 쌓임(혼란). 사장님 승인 대기 중인 건.
+- commit: 2800efb
