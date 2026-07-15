@@ -84,18 +84,35 @@ object NotificationHelper {
     )
     /** 고를 수 있는 소리(값=raw 리소스명, "silent"=무음). */
     val SOUND_OPTIONS = listOf(
-        "sound_new_inquiry" to "신규문의 소리",
-        "sound_reply" to "답장 소리",
-        "sound_auto_reply" to "자동응답 소리",
-        "sound_intake" to "접수서 소리",
-        "sound_reminder" to "리마인더 소리",
-        // 새로 추가한 소리들 (2026-07-13 사장님 제작 MP3)
-        "sound_new_inquiry_2" to "신규 문자 문의",
-        "sound_new_inquiry_3" to "신규 고객 문의",
+        // ── 신규 문의 ──
+        "sound_new_inquiry" to "신규문의 (기본)",
+        "sound_new_inquiry_2" to "신규문의 - 신규고객 문자 문의",
+        "sound_new_inquiry_3" to "신규문의 - 신규고객 문의",
+        "sound_new_inquiry_matjip" to "신규문의 - 시공맛집",
+        "sound_new_inquiry_received" to "신규문의 - 신규문의 접수",
+        "sound_new_inquiry_wow" to "신규문의 - 우와 신규다",
+        // ── 고객 답장 ──
+        "sound_reply" to "답장 (기본)",
+        "sound_reply_sabu" to "답장 - 싸부",
+        "sound_reply_ddallang" to "답장 - 딸랑딸랑",
+        "sound_reply_hyungnim" to "답장 - 행님아",
+        "sound_reply_customer" to "답장 - 손님답장이요",
+        // ── 접수서 ──
+        "sound_intake" to "접수서 (기본)",
         "sound_intake_arrived" to "접수서 도착",
-        "sound_call_summary" to "통화 요약 완료",
+        // ── 리마인더 · 자동응답 ──
+        "sound_reminder" to "리마인더",
+        "sound_auto_reply" to "자동응답",
+        // ── 통화 요약 ──
+        "sound_call_summary" to "통화요약 완료",
+        "sound_call_summary_1" to "통화요약 - 1",
+        "sound_call_summary_2" to "통화요약 - 2",
+        // ── 협업 ──
         "sound_collab_accepted" to "협업 수락",
+        "sound_collab_accepted_alliance" to "협업수락 - 동맹체결",
         "sound_collab_declined" to "협업 거절",
+        "sound_collab_declined_ppaenji" to "협업거절 - 뺀찌",
+        "sound_collab_declined_sogeun" to "협업거절 - 소근소근",
         "silent" to "무음",
     )
     private val SLOT_CHANNEL = mapOf(
