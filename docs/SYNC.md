@@ -7125,3 +7125,13 @@ Play 심사 거부(민감권한 SMS/통화기록) 원인·해결 — 온보딩 �
 - **D. 미수금 N건 탭 → 미수 현장 목록.** 앱이 이제 `money.receivables=[{name,amount,address?,phone?(하이픈),overdueDays?}]`(큰 금액순) 실어 보냄(commit 6af9966). 뷰어 "못 받은 돈/미수금" 카드 탭하면 목록 펼쳐 어느 현장이 얼마 미수인지 표시.
 - **E. 현장 카드 주소·전화 각각 한 셀(줄).** 짧아도 주소 한 줄, 전화 한 줄 별도로(같이 안 붙게). 뷰어 레이아웃만, 앱 무관.
 - 상세 = docs/SERVER_HANDOFF_mirror_v2.md §D,§E.
+
+## 2026-07-15 12:05 · android
+베타 사이트에 최신 APK 업로드 (0.2.1000) — 알림음 12개 추가 + 잔금/알림음 버그 fix 포함
+- 배포: shigongmagne.apk (22,554,683 B, sha256 c2460597…6968B) → 맥미니 /Users/hun/ringgo-server/apk/, https://si0in.kr/install 반영 확인
+- ⚠️ 발견: apk/VERSION_CODE.txt 가 749(6/29)로 stale → /api/download/version 이 749 를 계속 리턴.
+  앱 UpdateChecker 는 serverCode > BuildConfig.VERSION_CODE 로 배너 판단 → 6/29 이후 올린 빌드들은
+  베타테스터에게 "새 버전 있어요" 배너가 안 떴음. 이번에 1000 으로 갱신함(배너 정상 동작 확인).
+- 요청(서버측 검토): APK 업로드 시 VERSION_CODE.txt 를 aapt 로 자동 추출·갱신하거나,
+  /api/download/version 이 APK 에서 versionCode 를 직접 읽게 하면 재발 방지됨. (지금은 수동)
+- commit: fc5c786 (알림음 12개), 6c147f8 (채널 버전화), e921b76 (잔금)
