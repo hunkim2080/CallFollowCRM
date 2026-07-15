@@ -7270,3 +7270,11 @@ manifest 를 코드별로 생성해야 해서 비추 — localStorage 가 단순
 - 신규 라우트 GET /static/{name}.png (홈아이콘 등 static 루트 PNG 서빙; thumbs 하위라우트·traversal 방어 유지).
 - 검증: 아이콘 서빙(512/192)·manifest 교체·apple-touch-icon·thumbs 회귀·traversal 방어 통과.
 - commit: (아래)
+
+## 2026-07-16 00:20 · cowork
+추가131 — /admin/usage 진단 확장 ("왜 갑자기 대화 2배?" 파보기용).
+- 기존 byEndpoint 에 더해 **byPhone(번호별 TOP15·테스트/사장님 제외) · byHourKst(시간대별) · distinctPhones · avgCallsPerPhone · cacheHitRatePct** 추가.
+- 목적: 오늘 AI 호출 급증이 ①특정 한 번호 폭주인지 ②여러 명 실사용인지 ③특정 시각 몰림인지 즉판. (llm_usage_log=시각, api_usage=번호 기반)
+- 인증 불필요(deploy 도 curl 로 쓰는 그 엔드포인트) → 사장님이 `curl -s localhost:8000/admin/usage | python3 -m json.tool` 그대로 재실행하면 보임.
+- 검증: 테스트번호 제외 · 번호별 집계·정렬 · 시간대 집계 통과. 서버 로직만(앱·UI 무관).
+- commit: (아래)

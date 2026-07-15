@@ -4723,6 +4723,42 @@ async def admin_usage() -> dict:
         cache_row_count = conn.execute(
             "SELECT COUNT(*) FROM summary_cache"
         ).fetchone()[0]
+        # 추가131 — "왜 갑자기 늘었나" 진단: 번호별 TOP + 시간대별 (테스트/사장님 번호 제외)
+        _ex = sorted(STATS_EXCLUDE_PHONES) if STATS_EXCLUDE_PHONES else [""]
+        _ph = ",".join("?" * len(_ex))
+        per_phone_rows = conn.execute(
+            f"""
+            SELECT phone, COUNT(*) AS calls, COALESCE(SUM(cost_usd),0) AS cost_usd
+            FROM api_usage WHERE created_at_ms > ? AND phone NOT IN ({_ph})
+            GROUP BY phone ORDER BY calls DESC LIMIT 15
+            """,
+            (cutoff, *_ex),
+        ).fetchall()
+        distinct_phones = conn.execute(
+            f"SELECT COUNT(DISTINCT phone) FROM api_usage "
+            f"WHERE created_at_ms > ? AND phone NOT IN ({_ph})",
+            (cutoff, *_ex),
+        ).fetchone()[0]
+        # 시간대별(KST) 호출수·비용 — 언제 몰렸나
+        per_hour_rows = conn.execute(
+            """
+            SELECT CAST(((timestamp_ms + 9*3600*1000) / 3600000) % 24 AS INTEGER) AS hour_kst,
+                   COUNT(*) AS calls, COALESCE(SUM(cost_krw),0) AS cost_krw
+            FROM llm_usage_log WHERE timestamp_ms > ?
+            GROUP BY hour_kst ORDER BY calls DESC
+            """,
+            (cutoff,),
+        ).fetchall()
+
+    by_phone = [
+        {"phone": _fmt_phone_dashed(r["phone"]),
+         "calls": r["calls"], "costKrw": round(r["cost_usd"] * KRW_PER_USD)}
+        for r in per_phone_rows
+    ]
+    by_hour = [
+        {"hourKst": r["hour_kst"], "calls": r["calls"], "costKrw": round(r["cost_krw"])}
+        for r in per_hour_rows
+    ]
 
     by_endpoint = {
         r["endpoint"]: {
@@ -4741,6 +4777,14 @@ async def admin_usage() -> dict:
         "costUsd": round(row["cost_usd"], 4),
         "costKrw": round(row["cost_usd"] * KRW_PER_USD),
         "byEndpoint": by_endpoint,
+        # 추가131 — 진단용
+        "distinctPhones": distinct_phones,
+        "avgCallsPerPhone": (round(row["calls"] / distinct_phones, 1) if distinct_phones else 0),
+        "byPhone": by_phone,          # 번호별 호출 TOP15 (테스트/사장님 제외)
+        "byHourKst": by_hour,         # 시간대별 — 언제 몰렸나
+        "cacheHitRatePct": (round(row["cached_input_tokens"] * 100.0 /
+                                  (row["input_tokens"] + row["cached_input_tokens"]), 1)
+                            if (row["input_tokens"] + row["cached_input_tokens"]) else 0),
         "summaryCacheRows": cache_row_count,
         "dailyTotalLimit": DAILY_TOTAL_CALLS_LIMIT,
         "perPhoneDailyLimit": PER_PHONE_DAILY_LIMIT,
