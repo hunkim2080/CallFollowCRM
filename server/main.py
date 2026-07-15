@@ -21932,6 +21932,11 @@ MIRROR_HOME_HTML = r"""<!doctype html>
   .recv .rv .rs{font-size:11px;color:var(--t3);margin-top:1px;}
   .recv .rv .ra{margin-left:auto;font-size:14px;font-weight:900;color:var(--red);white-space:nowrap;}
   #cal{touch-action:pan-y;}
+  /* 추가129 — 주소는 탭하면 길찾기(지도앱)로 열림을 UI 로 안내 */
+  .c3 a.addr{display:inline-flex;align-items:center;gap:6px;background:var(--tint);
+    border:1px solid #E0EAFF;border-radius:9px;padding:5px 9px;color:var(--blue-dark);}
+  .c3 a.addr .navhint{font-size:11px;font-weight:800;color:#fff;background:var(--blue);
+    border-radius:6px;padding:1px 6px;white-space:nowrap;}
   .join h3{font-size:14px;font-weight:900;margin-bottom:4px;}
   .join p{font-size:12px;color:var(--t3);margin-bottom:10px;line-height:1.5;}
   .jrow{display:flex;gap:7px;}
@@ -22195,16 +22200,18 @@ function drawCards(){
     const dd=it._days>1?'<span class="dd">'+(it._k+1)+"/"+it._days+"일차</span>":"";
     const tm=it.time?'<span class="tm">'+esc(it.time)+"</span>":"";
     const ok=it.completed?'<span class="ok">✓ 완료</span>':"";
-    const tot=(it.total?'<div class="tot">💰 '+won(it.total)+"</div>":"");
-    // 추가124 — 주소 탭 → 지도앱 3종(T맵/네이버/카카오) 고르기 시트.
-    //   본폰은 서버 웹이라 앱의 '기본 네비' 설정이 안 닿음 → 3개 다 주고 깔린 걸로 열게 함.
+    // 추가129 — 협업 현장(collab): total = '총금액' 이 아니라 '내 일당' · 전화번호 없음 · '협업' 딱지.
+    const collab=!!it.collab;
+    const tot=(it.total?'<div class="tot">'+(collab?"🤝 일당 ":"💰 ")+won(it.total)+"</div>":"");
+    // 주소 탭 → 지도앱 3종 시트. '길찾기 ›' 힌트로 탭 가능함을 안내.
     const ad=it.address?'<a href="javascript:void(0)" data-addr="'+esc(it.address)+
-      '" class="addr">📍 '+esc(it.address)+"</a>":"";
-    const ph=it.phone?'<a href="tel:'+esc(String(it.phone).replace(/[^0-9+]/g,""))+'">📞 '+esc(it.phone)+"</a>":"";
+      '" class="addr">📍 '+esc(it.address)+'<span class="navhint">길찾기 ›</span></a>':"";
+    const ph=(!collab && it.phone)?'<a href="tel:'+esc(String(it.phone).replace(/[^0-9+]/g,""))+'">📞 '+esc(it.phone)+"</a>":"";
     const mm=it.memo?'<div class="memo">📝 '+esc(it.memo)+"</div>":"";
+    const cc=collab?'<span class="lbl" style="background:#FFF4D6;color:#8A6A00">협업</span>':"";
     const lb=(DATA.sources.length>1)?'<span class="lbl" style="background:'+col+'22;color:'+col+'">'+esc(s.label)+"</span>":"";
     return '<div class="card'+(it.completed?" done":"")+'" style="border-left-color:'+col+'">'+
-      '<div class="c1"><span class="nm">'+esc(it.name||"현장")+"</span>"+tm+dd+ok+"</div>"+
+      '<div class="c1"><span class="nm">'+esc(it.name||"현장")+"</span>"+cc+tm+dd+ok+"</div>"+
       tot+(ad?'<div class="c3">'+ad+"</div>":"")+(ph?'<div class="c3">'+ph+"</div>":"")+mm+
       (lb?'<div class="c3">'+lb+"</div>":"")+"</div>";
   }).join("");
