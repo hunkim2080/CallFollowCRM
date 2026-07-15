@@ -24,8 +24,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -609,8 +612,12 @@ private fun ContactDialog(
                 .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
                 .background(Color.White)
                 .clickable(interactionSource = noRipple, indication = null) { }
-                .navigationBarsPadding()
-                .imePadding()
+                // ⚠️ .navigationBarsPadding().imePadding() 를 이어 붙이면 두 여백이 **더해진다**.
+                //   키보드가 올라오면 키보드가 내비바를 이미 덮으므로, 더하면 내비바 높이만큼이
+                //   빈 공간으로 남는다(사장님 2026-07-15 "여기도 빈공간있다").
+                //   → union = 둘 중 **큰 쪽**만. 키보드 올라오면 키보드 높이, 내려가면 내비바 높이.
+                //   (Android 15+/targetSdk35 는 adjustResize 를 안 쓰고 앱이 인셋을 직접 처리한다.)
+                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
                 .padding(horizontal = 20.dp)
                 .padding(top = 8.dp, bottom = 20.dp)
                 .heightIn(max = 620.dp)
@@ -811,8 +818,7 @@ private fun SavedPeoplePicker(
                 .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
                 .background(Color.White)
                 .clickable(interactionSource = noRipple, indication = null) { }
-                .navigationBarsPadding()
-                .imePadding()
+                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))  // 합치면 안 됨(위 주석)
                 .padding(horizontal = 20.dp)
                 .padding(top = 8.dp, bottom = 20.dp)
                 .heightIn(max = 620.dp)

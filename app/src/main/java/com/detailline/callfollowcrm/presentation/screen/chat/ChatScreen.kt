@@ -20,6 +20,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -4100,8 +4101,9 @@ private fun EstimateBuilderDialog(
                 .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
                 .background(Color.White)
                 .clickable(interactionSource = noRipple, indication = null) { /* 카드 탭은 닫지 않음 */ }
-                .navigationBarsPadding()
-                .imePadding()
+                // 더하면 안 됨 — 키보드가 올라오면 내비바를 이미 덮으므로 둘 중 큰 쪽만(union).
+                //   이어 붙이면 내비바 높이만큼 빈 공간이 생긴다. (2026-07-15 사장님)
+                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
                 .heightIn(max = 640.dp)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp).padding(top = 6.dp, bottom = 22.dp)

@@ -3,6 +3,10 @@ package com.detailline.callfollowcrm.presentation.screen.settlement
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -669,8 +673,8 @@ private fun GoalEditSheet(
                 .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
                 .background(Color.White)
                 .clickable(interactionSource = cardClick, indication = null) { /* 카드 탭은 닫힘 막기 */ }
-                .navigationBarsPadding()
-                .imePadding()
+                // 더하면 안 됨 — 키보드가 내비바를 덮으므로 둘 중 큰 쪽만(union). (2026-07-15 사장님)
+                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
                 .padding(start = 22.dp, end = 22.dp, top = 10.dp, bottom = 18.dp)
         ) {
             Box(

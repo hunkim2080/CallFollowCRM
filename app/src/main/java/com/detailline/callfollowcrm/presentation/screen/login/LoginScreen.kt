@@ -3,6 +3,9 @@ package com.detailline.callfollowcrm.presentation.screen.login
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -84,8 +87,9 @@ fun LoginScreen(onLoginPhone: (String) -> Unit, onProceed: () -> Unit) {
             Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
-                .navigationBarsPadding()
-                .imePadding()   // 키보드 올라오면 입력칸·버튼이 키보드 위로 (안 그러면 가림). 2026-06-30
+                // 키보드 올라오면 입력칸·버튼이 키보드 위로 (안 그러면 가림). 2026-06-30
+                //   내비바+키보드를 더하면 키보드가 내비바를 덮는 만큼 빈 공간이 생김 → union(둘 중 큰 쪽). 2026-07-15
+                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
                 .padding(horizontal = 28.dp)
                 .padding(bottom = 32.dp)
         ) {

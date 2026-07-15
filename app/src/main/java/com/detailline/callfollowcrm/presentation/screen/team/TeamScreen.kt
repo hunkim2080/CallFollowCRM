@@ -9,6 +9,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -569,8 +574,8 @@ private fun AddMemberOverlay(
                 .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
                 .background(Color.White)
                 .clickable(interactionSource = noRipple, indication = null) { /* 카드 탭은 닫지 않음 */ }
-                .navigationBarsPadding()
-                .imePadding()
+                // 더하면 안 됨 — 키보드가 내비바를 덮으므로 둘 중 큰 쪽만(union). (2026-07-15 사장님)
+                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
                 .padding(horizontal = 20.dp)
                 .padding(top = 8.dp, bottom = 20.dp)
                 .heightIn(max = 600.dp)

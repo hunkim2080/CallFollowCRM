@@ -2,6 +2,11 @@ package com.detailline.callfollowcrm.presentation.screen.signup
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -92,7 +97,9 @@ fun SignupScreen(
             )
         )
         Column(
-            Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()
+            // 내비바+키보드를 더하면 빈 공간이 생김(키보드가 내비바를 덮음) → union. 2026-07-15
+            Modifier.fillMaxSize().statusBarsPadding()
+                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
                 .padding(horizontal = 28.dp).padding(bottom = 32.dp)
         ) {
             when (s.phase) {
