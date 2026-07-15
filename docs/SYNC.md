@@ -7261,3 +7261,12 @@ manifest 를 코드별로 생성해야 해서 비추 — localStorage 가 단순
    (상세 목록 펼치기는 이미 receivables 로 가능 — 둘 중 사장님이 고르실 수 있게 해도 좋음)
 
 - 앱측 변경 없음. 스냅샷 계약만 확장(기존 키 유지 = 뷰어 안 고쳐도 안 깨짐).
+
+## 2026-07-15 23:41 · cowork
+추가130 — 본폰 미러 홈 화면 아이콘 = 전용 디자인(사장님 선택 ③: 안전모+체크 달력).
+- static/mirror-icon.png(512)·mirror-icon-192.png = 파랑 그라디언트 풀블리드(마스커블) + 안전모(세로 골·앞챙) + 체크 달력 배지. 시공막내+일정 융합.
+- mirror.webmanifest icons = admin R 아이콘 → 전용 PNG(192/512, purpose "any maskable"), background_color 파랑.
+- 뷰어/식별/구뷰어 3곳에 apple-touch-icon(iOS 홈아이콘) 링크.
+- 신규 라우트 GET /static/{name}.png (홈아이콘 등 static 루트 PNG 서빙; thumbs 하위라우트·traversal 방어 유지).
+- 검증: 아이콘 서빙(512/192)·manifest 교체·apple-touch-icon·thumbs 회귀·traversal 방어 통과.
+- commit: (아래)

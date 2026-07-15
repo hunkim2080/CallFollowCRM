@@ -6125,6 +6125,20 @@ async def admin_blog_generate(
 
 # ── 동적 라우트: 섬네일 / 블로그 / 업데이트 / sitemap ──
 
+@app.get("/static/{name}", include_in_schema=False)
+async def serve_static_png(name: str):
+    """추가130 — static 루트 PNG 서빙 (홈 아이콘 등). thumbs 는 하위 라우트가 처리."""
+    if name == "thumbs" or "/" in name or ".." in name:
+        raise HTTPException(404)
+    if not name.replace("-", "").replace("_", "").replace(".", "").isalnum() or not name.endswith(".png"):
+        raise HTTPException(404)
+    path = BASE_DIR / "static" / name
+    if not path.exists():
+        raise HTTPException(404)
+    return FileResponse(path, media_type="image/png",
+                        headers={"Cache-Control": "public, max-age=86400"})
+
+
 @app.get("/static/thumbs/{name}", include_in_schema=False)
 async def serve_thumb(name: str):
     if not name.replace("-", "").replace("_", "").replace(".", "").isalnum() or not name.endswith(".png"):
@@ -21294,13 +21308,14 @@ async def mirror_manifest():
         "start_url": "/mirror",          # 추가127 ① — 홈화면 바로가기가 미러로 열리게 ("/"=시공인 홈 아님)
         "scope": "/mirror",
         "display": "standalone",
-        "background_color": "#FAFBFC",
+        "background_color": "#3182F6",
         "theme_color": "#3182F6",
         "icons": [
-            {"src": "/manifest/admin-icon.svg", "sizes": "any", "type": "image/svg+xml",
+            # 추가130 — 전용 홈 아이콘(안전모+체크 달력). 풀블리드 PNG = 안드로이드 마스커블.
+            {"src": "/static/mirror-icon-192.png", "sizes": "192x192", "type": "image/png",
              "purpose": "any maskable"},
-            {"src": "/manifest/admin-icon.svg", "sizes": "192x192", "type": "image/svg+xml"},
-            {"src": "/manifest/admin-icon.svg", "sizes": "512x512", "type": "image/svg+xml"},
+            {"src": "/static/mirror-icon.png", "sizes": "512x512", "type": "image/png",
+             "purpose": "any maskable"},
         ],
     }, media_type="application/manifest+json")
 
@@ -21821,6 +21836,7 @@ MIRROR_IDENTIFY_HTML = r"""<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex"><title>일정 미러 — 시공막내</title>
 <link rel="manifest" href="/manifest/mirror.webmanifest">
+<link rel="apple-touch-icon" href="/static/mirror-icon.png">
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
 <style>
  body{font-family:'Pretendard',-apple-system,system-ui,sans-serif;background:#FAFBFC;margin:0;
@@ -21883,6 +21899,7 @@ MIRROR_HOME_HTML = r"""<!doctype html>
 <meta name="robots" content="noindex">
 <title>일정 미러 — 시공막내</title>
 <link rel="manifest" href="/manifest/mirror.webmanifest">
+<link rel="apple-touch-icon" href="/static/mirror-icon.png">
 <meta name="theme-color" content="#3182F6">
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
 <style>
@@ -22539,6 +22556,7 @@ MIRROR_VIEW_HTML = r"""<!doctype html>
 <meta name="robots" content="noindex">
 <title>일정 미러 — 시공막내</title>
 <link rel="manifest" href="/manifest/mirror.webmanifest">
+<link rel="apple-touch-icon" href="/static/mirror-icon.png">
 <meta name="theme-color" content="#3182F6">
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
 <style>
