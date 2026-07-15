@@ -21984,6 +21984,8 @@ MIRROR_HOME_HTML = r"""<!doctype html>
   .join.on{display:block;}
   .mcard.un.tapable{cursor:pointer;}
   .tapmore{font-size:11px;font-weight:800;color:var(--blue-dark);}
+  .amtbtn{display:block;margin:0 0 8px auto;background:#F1F3F5;border:0;border-radius:9px;
+    padding:7px 12px;font-size:12px;font-weight:800;color:var(--t2);cursor:pointer;font-family:inherit;}
   .recv{display:none;background:#fff;border:1px solid var(--line);border-radius:14px;
         padding:4px 4px;margin:-4px 0 14px;}
   .recv.on{display:block;}
@@ -22105,6 +22107,7 @@ MIRROR_HOME_HTML = r"""<!doctype html>
 
   <div id="pendBox"></div>
 
+  <button class="amtbtn" id="amtBtn">👁 금액 보기</button>
   <div class="money">
     <div class="mcard in"><div class="k">오늘 입금</div><div class="v" id="mIn">-</div></div>
     <div class="mcard un" id="unCard"><div class="k">미수금 <span class="tapmore" id="unMore"></span></div>
@@ -22151,9 +22154,16 @@ try{var _mj=JSON.parse(localStorage.getItem('mirror_join')||'{}');
 }catch(e){}
 let DATA=__BOOT__;
 const TINTS=["#3182F6","#16C172","#F5A623","#9B51E0","#F0436A"];
+const COLLAB_COL="#7C3AED";   // 추가132 ③ — 협업 일정 전용 색(보라). 내 현장과 구분.
 let filter="all", sel=null, cur=null;
+// 추가132 ② — 금액 감추기(기본 감춤). 남에게 보여줄 때 대비. localStorage 로 기억.
+let amtHidden=true;
+try{ var _ah=localStorage.getItem('mv_amt_hidden'); amtHidden=(_ah===null?true:_ah==='1'); }catch(e){}
 
 const won=n=>(n||0).toLocaleString("ko-KR")+"원";
+function amt(n){ return amtHidden ? "•••••" : won(n); }
+function syncAmtBtn(){ var b=document.getElementById("amtBtn");
+  if(b) b.textContent = amtHidden ? "👁 금액 보기" : "🙈 금액 가리기"; }
 const ymd=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 function esc(s){const d=document.createElement("div");d.textContent=s==null?"":s;return d.innerHTML;}
 function ago(ms){if(!ms)return"아직 없음";const s=Math.max(0,Math.floor((Date.now()-ms)/1000));
@@ -22195,10 +22205,12 @@ function render(){
       '<span class="dot" style="background:'+TINTS[s.tint%5]+'"></span>'+esc(s.label)+'</div>').join("")) : "";
   ch.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{filter=c.dataset.f;render();});
 
-  const M=DATA.money||{};
-  document.getElementById("mIn").textContent=won(M.todayIn);
-  document.getElementById("mUn").textContent=won(M.unpaid);
+  // 추가132 ① — 사업장 선택 시 그 사업장 money 만. "전체" 칩일 때만 합산.
+  const M = (filter==="all") ? (DATA.money||{}) : (((DATA.sources[+filter]||{}).money)||{});
+  document.getElementById("mIn").textContent=amt(M.todayIn);
+  document.getElementById("mUn").textContent=amt(M.unpaid);
   document.getElementById("mUc").textContent=(M.unpaidCount||0)+"건";
+  syncAmtBtn();
   drawRecv(M);
 
   const today=new Date(); if(!sel) sel=ymd(today);
@@ -22225,7 +22237,7 @@ function drawRecv(M){
     if(r.address)sub.push(esc(r.address));
     return '<div class="rv"><div><div class="rn">'+esc(r.name||"현장")+"</div>"+
       (sub.length?'<div class="rs">'+sub.join(" · ")+"</div>":"")+
-      "</div><div class=\"ra\">"+manwon(r.amount)+"</div></div>";
+      "</div><div class=\"ra\">"+(amtHidden?"•••":manwon(r.amount))+"</div></div>";
   }).join("");
 }
 
@@ -22240,8 +22252,9 @@ function drawCal(){
   for(let i=0;i<42;i++){
     const d=new Date(start); d.setDate(start.getDate()+i);
     const k=ymd(d), off=d.getMonth()!==cur.getMonth(), its=map[k]||[];
-    const pips=[...new Set(its.map(x=>x._si))].slice(0,3)
-      .map(si=>'<i style="background:'+TINTS[((DATA.sources[si]||{}).tint||0)%5]+'"></i>').join("");
+    const pips=[...new Set(its.map(x=> x.collab ? COLLAB_COL
+        : TINTS[((DATA.sources[x._si]||{}).tint||0)%5]))].slice(0,3)
+      .map(c=>'<i style="background:'+c+'"></i>').join("");
     h+='<div class="day'+(off?" off":"")+(k===sel?" sel":"")+(k===tstr?" today":"")+'" data-d="'+k+'">'+
        d.getDate()+'<span class="pips">'+pips+'</span></div>';
   }
@@ -22257,13 +22270,14 @@ function drawCards(){
   const box=document.getElementById("cards");
   if(!its.length){box.innerHTML='<div class="empty">이 날은 잡힌 현장이 없어요</div>';return;}
   box.innerHTML=its.map(it=>{
-    const s=DATA.sources[it._si]||{}, col=TINTS[(s.tint||0)%5];
+    const s=DATA.sources[it._si]||{};
+    // 추가129/132 — 협업 현장(collab): 색 구분(보라) · total='내 일당' · 전화번호 없음 · '협업' 딱지.
+    const collab=!!it.collab;
+    const col= collab ? COLLAB_COL : TINTS[(s.tint||0)%5];
     const dd=it._days>1?'<span class="dd">'+(it._k+1)+"/"+it._days+"일차</span>":"";
     const tm=it.time?'<span class="tm">'+esc(it.time)+"</span>":"";
     const ok=it.completed?'<span class="ok">✓ 완료</span>':"";
-    // 추가129 — 협업 현장(collab): total = '총금액' 이 아니라 '내 일당' · 전화번호 없음 · '협업' 딱지.
-    const collab=!!it.collab;
-    const tot=(it.total?'<div class="tot">'+(collab?"🤝 일당 ":"💰 ")+won(it.total)+"</div>":"");
+    const tot=(it.total?'<div class="tot">'+(collab?"🤝 일당 ":"💰 ")+amt(it.total)+"</div>":"");
     // 주소 탭 → 지도앱 3종 시트. '길찾기 ›' 힌트로 탭 가능함을 안내.
     const ad=it.address?'<a href="javascript:void(0)" data-addr="'+esc(it.address)+
       '" class="addr">📍 '+esc(it.address)+'<span class="navhint">길찾기 ›</span></a>':"";
@@ -22368,6 +22382,13 @@ document.getElementById("next").onclick=()=>moveMonth(1);
     if(box.classList.contains("on")) document.getElementById("code").focus();};
   sync();
 })();
+
+// 추가132 ② — 금액 보기/가리기 토글 (기본 가림, localStorage 기억)
+document.getElementById("amtBtn").onclick=function(){
+  amtHidden=!amtHidden;
+  try{localStorage.setItem('mv_amt_hidden', amtHidden?'1':'0');}catch(e){}
+  render();
+};
 
 document.getElementById("joinBtn").onclick=async()=>{
   const code=(document.getElementById("code").value||"").trim();
