@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -46,6 +47,24 @@ class NotebookViewModel(private val container: AppContainer) : ViewModel() {
                 }
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    /** 앱에 저장된 사람 1명 — "시공막내에서 고르기" 피커용. */
+    data class PickPerson(val name: String, val phone: String)
+
+    /**
+     * 시공막내에 저장된 고객 = 일당·알바 추가 때 골라 담을 후보.
+     *   (2026-07-15 사장님: "업무폰에서 저장을 안 해서 연락처에 데이터가 없네. 시공막내에 저장해둔
+     *    사람들이 나오면 선택하기 편할 것 같은데" — 업무폰은 폰 연락처를 안 쓰니 앱 명부가 진짜 주소록이다.)
+     *   최근에 손댄 순 — 방금 통화/문자한 사람을 바로 담는 게 흔한 흐름이라 위로 올린다.
+     */
+    val savedPeople: StateFlow<List<PickPerson>> =
+        container.customerRepository.observeAll()
+            .map { list ->
+                list.filter { it.phoneNumber.isNotBlank() }
+                    .sortedByDescending { it.updatedAt }
+                    .map { PickPerson(name = it.name?.trim().orEmpty(), phone = it.phoneNumber) }
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun add(kind: String, name: String, phone: String, tag: String, memo: String,
             wage: Long? = null, wageType: String = NotebookContactEntity.WAGE_DAILY) = viewModelScope.launch {

@@ -254,8 +254,10 @@ fun NotebookContent(
         }
     // ── 시트들(편집/문자/현장) — NotebookContent 안에서 그대로 ──
     editing?.let { target ->
+        val savedPeople by viewModel.savedPeople.collectAsState()
         ContactDialog(
             target = target,
+            savedPeople = savedPeople,
             onSave = { name, phone, tag, memo, wage, wageType ->
                 if (target.id > 0) viewModel.update(target.id, name, phone, tag, memo, wage, wageType)
                 else viewModel.add(target.kind, name, phone, tag, memo, wage, wageType)
@@ -537,6 +539,7 @@ private val VENDOR_TAGS = listOf("자재", "협력", "장비", "운송", "기타
 @Composable
 private fun ContactDialog(
     target: NotebookContactEntity,
+    savedPeople: List<NotebookViewModel.PickPerson>,
     onSave: (name: String, phone: String, tag: String, memo: String, wage: Long?, wageType: String) -> Unit,
     onDelete: (() -> Unit)?,
     onDismiss: () -> Unit
@@ -577,13 +580,16 @@ private fun ContactDialog(
         }
     }
 
+    // 시공막내에 저장된 사람 고르기 (2026-07-15 사장님 — 업무폰엔 폰 연락처가 없다).
+    var pickerOpen by remember { mutableStateOf(false) }
+
     val isEdit = target.id > 0
     val title = if (isEdit) (if (isWorker) "${target.name} 정보" else target.name)
     else (if (isWorker) "일당·알바 추가" else "거래처 추가")
     val sub = when {
         isEdit && isWorker -> "다음에 부를 때 보고 판단할 메모예요."
         isEdit -> "자주 쓰는 거래처 메모예요."
-        isWorker -> "번호 외울 필요 없어요. 연락처에서 골라 담으세요."
+        isWorker -> "번호 외울 필요 없어요. 저장해둔 사람이나 연락처에서 골라 담으세요."
         else -> "자재상·협력업체·장비 렌탈 — 자주 쓰는 곳을 담아요."
     }
     val catHint = if (isWorker) "전기·목공처럼 하는 일로, 또는 보조·기공·반장처럼 본인 방식대로 나눠도 돼요."
@@ -619,11 +625,26 @@ private fun ContactDialog(
             Spacer(Modifier.height(4.dp))
             Text(sub, fontSize = 13.sp, color = TossTextTertiary)
             Spacer(Modifier.height(14.dp))
-            // 연락처에서 불러오기 (추가일 때만)
+            // 불러오기 (추가일 때만) — 시공막내 명부 먼저, 폰 연락처는 보조.
+            //   업무폰엔 폰 연락처를 안 쓰는 경우가 많다(사장님 실제 상황) → 앱 명부가 진짜 주소록.
             if (!isEdit) {
+                if (savedPeople.isNotEmpty()) {
+                    Row(
+                        Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(12.dp))
+                            .background(TossBlueSoft)
+                            .clickable { pickerOpen = true },
+                        horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Person, null, tint = TossBlue, modifier = Modifier.size(17.dp))
+                        Spacer(Modifier.width(7.dp))
+                        Text("시공막내에서 고르기 (${savedPeople.size}명)",
+                            fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
                 Row(
                     Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(12.dp))
-                        .background(TossBlueSoft)
+                        .background(TossGrayBg)
                         .clickable {
                             runCatching {
                                 pickContact.launch(Intent(Intent.ACTION_PICK, ContactsContract.CommonDataKinds.Phone.CONTENT_URI))
@@ -631,9 +652,9 @@ private fun ContactDialog(
                         },
                     horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.Person, null, tint = TossBlue, modifier = Modifier.size(17.dp))
+                    Icon(Icons.Default.Person, null, tint = TossTextSecondary, modifier = Modifier.size(17.dp))
                     Spacer(Modifier.width(7.dp))
-                    Text("연락처에서 불러오기", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                    Text("폰 연락처에서 불러오기", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
                 }
                 Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.weight(1f).height(1.dp).background(TossDivider))
@@ -733,6 +754,104 @@ private fun ContactDialog(
                     modifier = Modifier.fillMaxWidth().clickable { onDelete() }.padding(vertical = 2.dp),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
+            }
+        }
+    }
+
+    // 시공막내 명부에서 고르기 — 폼 위에 겹쳐 띄우고, 고르면 이름/번호만 채우고 닫는다(저장은 사장님이).
+    if (pickerOpen) {
+        SavedPeoplePicker(
+            people = savedPeople,
+            onPick = { p ->
+                if (p.name.isNotBlank()) name = p.name
+                phone = PhoneNumberFormatter.formatProgressive(p.phone)
+                pickerOpen = false
+            },
+            onDismiss = { pickerOpen = false }
+        )
+    }
+}
+
+/**
+ * 시공막내에 저장된 사람 고르기 — 일당·알바 추가 시 이름/번호 채우기. (2026-07-15 사장님)
+ *   업무폰엔 폰 연락처가 비어 있어 ACTION_PICK 이 쓸모없다 → 앱 명부(고객)에서 고른다.
+ *   ContactDialog 와 같은 인라인 오버레이 방식(ModalBottomSheet 는 갤S9 에서 키보드가 가림).
+ */
+@Composable
+private fun SavedPeoplePicker(
+    people: List<NotebookViewModel.PickPerson>,
+    onPick: (NotebookViewModel.PickPerson) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var q by remember { mutableStateOf("") }
+    val noRipple = remember { MutableInteractionSource() }
+    BackHandler(enabled = true) { onDismiss() }
+
+    // 이름/번호 아무거나로 검색. 번호는 하이픈 빼고 비교(사장님이 "1234" 만 쳐도 찾히게).
+    val filtered = remember(q, people) {
+        val k = q.trim()
+        if (k.isBlank()) people
+        else {
+            val digits = k.filter { it.isDigit() }
+            people.filter { p ->
+                p.name.contains(k, ignoreCase = true) ||
+                    (digits.isNotEmpty() && p.phone.filter { it.isDigit() }.contains(digits))
+            }
+        }
+    }
+
+    Box(
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f))
+            .clickable(interactionSource = noRipple, indication = null) { onDismiss() }
+    ) {
+        Column(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
+                .background(Color.White)
+                .clickable(interactionSource = noRipple, indication = null) { }
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(horizontal = 20.dp)
+                .padding(top = 8.dp, bottom = 20.dp)
+                .heightIn(max = 620.dp)
+        ) {
+            Box(
+                Modifier.align(Alignment.CenterHorizontally).padding(bottom = 12.dp)
+                    .width(38.dp).height(4.dp).clip(RoundedCornerShape(999.dp)).background(TossDivider)
+            )
+            Text("시공막내에서 고르기", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            Spacer(Modifier.height(4.dp))
+            Text("저장해둔 사람 중에서 골라요. 이름이나 번호로 찾으세요.", fontSize = 13.sp, color = TossTextTertiary)
+            Spacer(Modifier.height(12.dp))
+            com.detailline.callfollowcrm.presentation.component.SheetTextField(
+                q, { q = it }, placeholder = "이름 또는 번호"
+            )
+            Spacer(Modifier.height(8.dp))
+            if (filtered.isEmpty()) {
+                Box(Modifier.fillMaxWidth().padding(vertical = 28.dp), contentAlignment = Alignment.Center) {
+                    Text(if (people.isEmpty()) "아직 저장된 사람이 없어요" else "찾는 사람이 없어요",
+                        fontSize = 13.sp, color = TossTextTertiary)
+                }
+            } else {
+                androidx.compose.foundation.lazy.LazyColumn(Modifier.weight(1f, fill = false)) {
+                    items(filtered, key = { it.phone }) { p ->
+                        val shown = p.name.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(p.phone)
+                        Row(
+                            Modifier.fillMaxWidth().clickable { onPick(p) }.padding(vertical = 13.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(shown, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                                if (p.name.isNotBlank()) {
+                                    Spacer(Modifier.height(2.dp))
+                                    Text(PhoneNumberFormatter.format(p.phone), fontSize = 12.5.sp, color = TossTextSecondary)
+                                }
+                            }
+                            Text("담기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                        }
+                        Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+                    }
+                }
             }
         }
     }
