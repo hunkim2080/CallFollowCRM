@@ -21903,6 +21903,19 @@ MIRROR_HOME_HTML = r"""<!doctype html>
   .chip.on{background:var(--tint);border-color:var(--blue);color:var(--blue-dark);}
   .dot{width:7px;height:7px;border-radius:50%;}
   .wrap{max-width:560px;margin:0 auto;padding:14px 16px;}
+  /* 추가128 — 홈 화면에 추가 배너 (원탭 설치) */
+  .installbar{display:none;align-items:center;gap:10px;
+    background:linear-gradient(135deg,#EEF4FF,#fff);border:1px solid #CFE0FF;
+    border-radius:14px;padding:11px 12px;margin-bottom:14px;}
+  .installbar.on{display:flex;}
+  .installbar .ib-ic{font-size:22px;flex:none;}
+  .installbar .ib-t{font-size:12.8px;font-weight:800;color:var(--blue-dark);line-height:1.35;}
+  .installbar .ib-t small{display:block;font-weight:600;color:var(--t2);font-size:11px;margin-top:1px;}
+  .installbar .ib-go{margin-left:auto;flex:none;background:var(--blue);color:#fff;border:0;
+    border-radius:10px;padding:9px 14px;font-size:13px;font-weight:800;cursor:pointer;
+    font-family:inherit;white-space:nowrap;}
+  .installbar .ib-x{flex:none;background:none;border:0;color:var(--t3);font-size:15px;
+    cursor:pointer;padding:2px 4px;font-family:inherit;}
   .addbiz{width:100%;margin-bottom:12px;padding:12px;border:1px dashed var(--line);border-radius:14px;
           background:#fff;color:var(--t2);font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;}
   .addbiz:active{background:var(--bg);}
@@ -22000,6 +22013,15 @@ MIRROR_HOME_HTML = r"""<!doctype html>
 </div>
 
 <div class="wrap">
+  <!-- 추가128 — 홈 화면에 추가 배너 (원탭 설치, 상단 노출) -->
+  <div class="installbar" id="installBar">
+    <span class="ib-ic">📲</span>
+    <div class="ib-t">홈 화면에 추가해 두세요
+      <small id="ibSub">누르면 매일 여기서 일정이 바로 열려요</small></div>
+    <button class="ib-go" id="ibGo">추가하기</button>
+    <button class="ib-x" id="ibX" aria-label="닫기">✕</button>
+  </div>
+
   <div class="flash" id="flash">__FLASH__</div>
 
   <!-- 추가125 B — 코드 입력은 기본 접힘. 달력이 주인공. -->
@@ -22242,6 +22264,32 @@ document.getElementById("next").onclick=()=>moveMonth(1);
 (function(){const f=document.getElementById("flash");
   if(f && f.textContent.trim()){f.style.display="block";
     if(f.textContent.indexOf("⚠️")===0){f.style.background="#FDECEA";f.style.color="#C8352B";}}
+})();
+
+// 추가128 — "홈 화면에 추가" 배너: ⋮ 찾을 필요 없이 [추가하기] 원탭 설치.
+(function(){
+  var bar=document.getElementById("installBar"), go=document.getElementById("ibGo"),
+      x=document.getElementById("ibX"), sub=document.getElementById("ibSub");
+  function standalone(){return window.matchMedia("(display-mode: standalone)").matches
+      || window.navigator.standalone===true;}
+  if(standalone()) return;                                   // 이미 홈화면 앱으로 열림
+  try{ if(localStorage.getItem("mv_install_x")) return; }catch(e){}  // 사장님이 닫음
+  var deferred=null;
+  window.addEventListener("beforeinstallprompt",function(e){
+    e.preventDefault(); deferred=e; bar.classList.add("on");  // 크롬: 원탭 설치 가능
+  });
+  go.onclick=async function(){
+    if(deferred){ deferred.prompt(); try{await deferred.userChoice;}catch(e){}
+      deferred=null; bar.classList.remove("on"); }
+    else { sub.textContent='오른쪽 위 ⋮ 를 눌러 "홈 화면에 추가"를 선택하세요'; }
+  };
+  x.onclick=function(){ bar.classList.remove("on");
+    try{localStorage.setItem("mv_install_x","1");}catch(e){} };
+  // iOS 사파리는 beforeinstallprompt 가 없음 → 안내형 배너
+  if(/iPhone|iPad|iPod/.test(navigator.userAgent||"") && !standalone()){
+    sub.textContent='아래 공유 버튼(↑) → "홈 화면에 추가"를 눌러주세요';
+    go.style.display="none"; bar.classList.add("on");
+  }
 })();
 
 // 추가125 B — [+ 사업장 추가] 로 코드 입력칸 펼치기/접기 (기본 접힘, 달력을 크게)
