@@ -1359,8 +1359,16 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 prefs.updateAvailable = info.available
                 if (info.latestCode > 0) prefs.latestVersionCode = info.latestCode
             }
-            _updateAvailable.value = prefs.updateAvailable
-            _latestVersionCode.value = prefs.latestVersionCode
+            // 배너 판단은 '캐시된 boolean' 이 아니라 항상 최신코드 vs 내 버전으로 다시 계산 (UpdateChecker.shouldShowBanner 주석 참고).
+            val latest = prefs.latestVersionCode
+            val stillOld = com.detailline.callfollowcrm.util.UpdateChecker.shouldShowBanner(
+                latestCode = latest,
+                myCode = com.detailline.callfollowcrm.BuildConfig.VERSION_CODE,
+                cachedAvailable = prefs.updateAvailable
+            )
+            if (!stillOld) prefs.updateAvailable = false   // 낡은 true 즉시 청소(다음 화면·다음 실행에도 안 뜨게)
+            _updateAvailable.value = stillOld
+            _latestVersionCode.value = latest
         }
     }
 

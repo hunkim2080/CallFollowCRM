@@ -59,6 +59,12 @@ object NotificationHelper {
     private const val CHANNEL_CALL_SUMMARY = "call_summary_snd"
     private const val CHANNEL_COLLAB_ACCEPTED = "collab_accepted_snd"
     private const val CHANNEL_COLLAB_DECLINED = "collab_declined_snd"
+    /**
+     * 협업 현장 소식 — 댓글·사진·요청·진행(출발/도착/완료). 수락/거절만 위 전용 채널.
+     *   (2026-07-15 사장님 "현장 한마디에 댓글 다는데 시공·정산 리마인더 효과음이 나오네":
+     *    이 알림들이 자기 소리 칸이 없어 CHANNEL_REMINDER 를 빌려 쓰던 것 → 협업용 칸 신설.)
+     */
+    private const val CHANNEL_COLLAB_NEWS = "collab_news_snd"
 
     // 알림 배너 배경 — 파스텔 블루 (Material Blue 100).
     // setColorized(true) 와 함께 쓰면 OneUI 등 일부 시스템이 배너 전체 배경으로 사용.
@@ -81,6 +87,9 @@ object NotificationHelper {
         SoundSlot("call_summary", "통화 요약 완료", "sound_call_summary"),
         SoundSlot("collab_accepted", "협업 수락", "sound_collab_accepted"),
         SoundSlot("collab_declined", "협업 거절", "sound_collab_declined"),
+        // 협업 현장 소식(댓글·사진·요청·출발/도착/완료). 기본값은 예전과 같은 리마인더 소리 = 이번 업데이트로
+        //   소리가 멋대로 바뀌는 사람 없음. 사장님이 원하는 소리를 고르면 그때부터 리마인더와 갈라짐. (2026-07-15)
+        SoundSlot("collab_news", "협업 현장 소식", "sound_reminder"),
     )
     /** 고를 수 있는 소리(값=raw 리소스명, "silent"=무음). */
     val SOUND_OPTIONS = listOf(
@@ -120,6 +129,7 @@ object NotificationHelper {
         "auto_reply" to CHANNEL_AUTO_REPLY, "intake" to CHANNEL_INTAKE, "reminder" to CHANNEL_REMINDER,
         "call_summary" to CHANNEL_CALL_SUMMARY,
         "collab_accepted" to CHANNEL_COLLAB_ACCEPTED, "collab_declined" to CHANNEL_COLLAB_DECLINED,
+        "collab_news" to CHANNEL_COLLAB_NEWS,
     )
 
     /** slot 선택값(앱 prefs)을 소리 Uri 로. "silent"=null. 선택 리소스가 없으면 기본 리소스로 폴백. */
@@ -343,6 +353,17 @@ object NotificationHelper {
                     setShowBadge(true)
                 })
             }
+            // 협업 현장 소식(댓글·사진·요청·진행) — 전용 소리 슬롯. (2026-07-15 사장님)
+            if (manager.getNotificationChannel(CHANNEL_COLLAB_NEWS) == null) {
+                manager.createNotificationChannel(NotificationChannel(
+                    CHANNEL_COLLAB_NEWS, "💬 협업 현장 소식", NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "협업 현장의 댓글·사진·요청·진행(출발/도착/완료)을 알려줘요"
+                    val u = chosenSound(context, "collab_news", "sound_reminder")
+                    if (u != null) setSound(u, audioAttrs) else setSound(null, null)
+                    setShowBadge(true)
+                })
+            }
             // 기존에 고른 소리가 옛 채널 버그로 안 먹던 것 1회 살림(커스텀 슬롯만 v1 채널로 재생성).
             runCatching { migrateSlotSoundsOnce(context) }
         }
@@ -549,11 +570,11 @@ object NotificationHelper {
             // 모르는 step 은 "출발"로 잘못 표시하지 말고 무시. (2026-06-20 버그 fix: B가 거절(declined)하면 A에 "출발" 푸시가 뜨던 것 — else 가 출발로 떨어져서)
             else -> return
         }
-        // 수락/거절은 각자 전용 채널(소리 따로 고르게). 나머지(출발/도착/완료)는 기존 리마인더 소리. (2026-07-13 사장님)
+        // 수락/거절은 각자 전용 채널(소리 따로 고르게). 나머지(출발/도착/완료)는 협업 현장 소식 채널. (2026-07-15 사장님)
         val channel = when (kind) {
             "accepted" -> CHANNEL_COLLAB_ACCEPTED
             "declined" -> CHANNEL_COLLAB_DECLINED
-            else -> CHANNEL_REMINDER
+            else -> CHANNEL_COLLAB_NEWS
         }
         showProtoPush(
             context, notifId, channel, accent,
@@ -611,7 +632,7 @@ object NotificationHelper {
         val who = authorName.ifBlank { "협업 사장님" }
         val where = siteTitle.ifBlank { "협업 현장" }
         showProtoPush(
-            context, notifId, CHANNEL_REMINDER, ACCENT_PURPLE,
+            context, notifId, CHANNEL_COLLAB_NEWS, ACCENT_PURPLE,
             title = "💬 협업 현장 새 댓글",
             msg = "${who}님 · ${where}: ${body.ifBlank { "(내용 없음)" }}",
             contentIntent = pending,
@@ -640,7 +661,7 @@ object NotificationHelper {
         val who = uploaderName.ifBlank { "협업 사장님" }
         val where = siteTitle.ifBlank { "협업 현장" }
         showProtoPush(
-            context, notifId, CHANNEL_REMINDER, ACCENT_BLUE,
+            context, notifId, CHANNEL_COLLAB_NEWS, ACCENT_BLUE,
             title = "📸 협업 현장 새 사진",
             msg = "${who}님이 '${where}'에 현장 사진을 올렸어요",
             contentIntent = pending,
@@ -667,7 +688,7 @@ object NotificationHelper {
         val who = ownerName.takeIf { it.isNotBlank() }?.let { "$it 사장님" } ?: "다른 사장님"
         val site = title.takeIf { it.isNotBlank() } ?: "현장"
         showProtoPush(
-            context, notifId, CHANNEL_REMINDER, ACCENT_PURPLE,
+            context, notifId, CHANNEL_COLLAB_NEWS, ACCENT_PURPLE,
             title = "🤝 협업 요청이 왔어요",
             msg = "${who}이 '${site}' 협업을 요청했어요. 눌러서 수락하기",
             contentIntent = pending,
@@ -698,7 +719,7 @@ object NotificationHelper {
         )
         val site = title.takeIf { it.isNotBlank() } ?: "협업 현장"
         showProtoPush(
-            context, notifId, CHANNEL_REMINDER, ACCENT_GREEN,
+            context, notifId, CHANNEL_COLLAB_NEWS, ACCENT_GREEN,
             title = "📍 사장님께 알려드렸어요",
             msg = "${site} 3km 진입 · 자동으로 전송됐어요. 도착 버튼은 안 눌러도 돼요 😊",
             contentIntent = pending,
@@ -724,7 +745,7 @@ object NotificationHelper {
         val who = byName.takeIf { it.isNotBlank() } ?: "상대 사장님"
         val site = title.takeIf { it.isNotBlank() } ?: "협업 현장"
         showProtoPush(
-            context, notifId, CHANNEL_REMINDER, ACCENT_PURPLE,
+            context, notifId, CHANNEL_COLLAB_NEWS, ACCENT_PURPLE,
             title = "협업이 해제됐어요",
             msg = "${who}이 '${site}' 협업을 해제했어요 — 기록(사진·메모)은 남아있어요",
             contentIntent = pending,
@@ -746,7 +767,7 @@ object NotificationHelper {
         )
         val site = title.takeIf { it.isNotBlank() } ?: "협업 현장"
         showProtoPush(
-            context, notifId, CHANNEL_REMINDER, ACCENT_GREEN,
+            context, notifId, CHANNEL_COLLAB_NEWS, ACCENT_GREEN,
             title = "💰 입금 완료",
             msg = "'${site}' 정산 입금이 완료됐어요",
             contentIntent = pending,

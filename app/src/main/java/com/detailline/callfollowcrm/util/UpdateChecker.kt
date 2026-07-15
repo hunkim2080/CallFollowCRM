@@ -48,5 +48,19 @@ object UpdateChecker {
     /** 하위 호환 — Boolean 만 필요한 곳 (내부 폴백용). */
     suspend fun isNewerAvailable(): Boolean = checkUpdate().available
 
+    /**
+     * 배너를 띄울지 최종 판단 — 화면이 매번 다시 계산한다(캐시된 boolean 을 그대로 믿지 않는다).
+     *
+     * 왜: `available` 을 prefs 에 저장해두면 **업데이트를 깔아도 그 true 가 남는다.**
+     *   재체크는 10분 throttle 이라 그 사이 "0.2.1000 → 0.2.1000 업데이트 하세요" 가 뜨고,
+     *   테스터는 배너를 믿고 또 받고 → 또 뜨고 → 무한 재다운로드.
+     *   (2026-07-15 사장님 신고 + 테스터 다운로드 폴더에 shigongmagne-20.apk 까지 쌓인 진짜 원인.)
+     *
+     * 서버가 최신 versionCode 를 알려줬으면(>0) **그걸로 내 버전과 직접 비교** → 캐시가 뭐라 하든 정확.
+     * 못 받았으면(0) 그때만 캐시(mtime 기반 판단)로 폴백.
+     */
+    fun shouldShowBanner(latestCode: Int, myCode: Int, cachedAvailable: Boolean): Boolean =
+        if (latestCode > 0) latestCode > myCode else cachedAvailable
+
     data class UpdateInfo(val available: Boolean, val latestCode: Int)
 }

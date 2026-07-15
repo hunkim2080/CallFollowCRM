@@ -99,10 +99,19 @@ object AdotSummaryImporter {
         knownRecordedAt: Long? = null
     ): Result {
         val parsedRaw = AdotShareTextParser.parse(text)
-        // 파일명에서 받은 전화번호/시각을 fallback 으로 채움(본문 파싱 실패 대비). 파일명이 가장 신뢰도 높음.
+        // 파일명이 가장 신뢰도 높음 → 파일명에서 온 번호/시각이 있으면 그게 이긴다. 본문은 파일명이 없을 때만(공유 경로).
+        //
+        // ⚠️ 예전엔 본문(parsedRaw)이 이겼는데, 이게 "요약 알림 폭주 + 재과금"의 진짜 원인이었다. (2026-07-15 사장님/테스터)
+        //   본문 시각은 "5. 15.(금) 오전 11:16" 라 **분 단위(초=0)** 로만 저장된다(AdotShareTextParser:143).
+        //   그런데 스캐너들은 **파일명 시각(초까지)** 으로 중복을 찾는다(AdotTextFolderScanner:168, AdotFolderScanner:289).
+        //   저장 11:16:00 vs 조회 11:16:37 → 37초 차이 > ±20초 창(2026-06-18 ecbf653 에서 ±2분→±20초로 좁힘) → **못 찾음**.
+        //   → 이미 요약한 옛 통화를 앱 열 때마다 다시 요약(서버 LLM=돈) + "✨ 통화요약 완료!" 알림 재발사.
+        //   파일명 초가 21~59 인 통화(약 65%)가 전부 해당됐다.
+        //   파일명 시각을 저장하면 조회 키와 정확히 같아져(±0초) 중복이 확실히 잡힌다.
+        //   (번호도 같은 이유로 파일명 우선 — 본문 phoneRegex 는 대화 중 언급된 남의 번호를 잡을 수 있다.)
         val parsed = parsedRaw.copy(
-            phoneNumber = parsedRaw.phoneNumber ?: knownPhone?.filter { it.isDigit() }?.takeIf { it.isNotBlank() },
-            recordedAt = parsedRaw.recordedAt ?: knownRecordedAt
+            phoneNumber = knownPhone?.filter { it.isDigit() }?.takeIf { it.isNotBlank() } ?: parsedRaw.phoneNumber,
+            recordedAt = knownRecordedAt ?: parsedRaw.recordedAt
         )
         val now = System.currentTimeMillis()
 
@@ -132,7 +141,10 @@ object AdotSummaryImporter {
 
         // §18 맥미니 통화요약 — 에이닷 원문을 Haiku 로 한 줄+불릿+후속문자 초안으로 압축 (best-effort).
         //   실패하면 parsed.summaryText 그대로 사용 (graceful). 캐시: 같은 통화 재호출은 LLM 비용 0.
-        val serverSummary = if (!parsed.phoneNumber.isNullOrBlank() && !parsed.rawText.isNullOrBlank()) {
+        //   ⚠️ 이미 요약이 저장된 통화면 서버를 아예 안 부른다 — 예전엔 existingNear 가 있어도(=update 경로라
+        //      화면엔 아무 변화 없음) 무조건 호출해서, 조용히 돈만 나갔다. (2026-07-15 재과금 fix)
+        val alreadySummarized = existingNear != null && !existingNear.summaryText.isNullOrBlank()
+        val serverSummary = if (!alreadySummarized && !parsed.phoneNumber.isNullOrBlank() && !parsed.rawText.isNullOrBlank()) {
             val name = runCatching { container.customerRepository.findByPhone(parsed.phoneNumber!!)?.name }.getOrNull()
             container.callSummaryServerRepository.summarize(
                 phone = parsed.phoneNumber!!,

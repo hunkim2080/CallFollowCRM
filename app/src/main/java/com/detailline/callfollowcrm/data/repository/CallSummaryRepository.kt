@@ -33,7 +33,20 @@ class CallSummaryRepository(private val dao: CallSummaryDao) {
      */
     suspend fun findExistingNear(phoneNumber: String, recordedAt: Long): CallSummaryEntity? {
         val window = 20 * 1000L
-        return dao.findByPhoneAndTime(phoneNumber, recordedAt - window, recordedAt + window)
+        dao.findByPhoneAndTime(phoneNumber, recordedAt - window, recordedAt + window)?.let { return it }
+        // 레거시 row 구제 (2026-07-15) — 2026-07-15 이전 텍스트 경로는 **본문 시각(분 단위, 초=0)** 으로 저장했다.
+        //   조회는 파일명 시각(초까지)이라 최대 59초가 어긋나 위 ±20초 창으로는 못 찾고,
+        //   → 이미 요약한 옛 통화를 다시 요약(돈) + "통화요약 완료" 알림이 계속 떴다.
+        //   그 '분'의 정각(초=0)에 딱 걸린 row 는 같은 통화의 레거시 기록으로 본다.
+        //   (그 시절 저장 방식이 분 안을 구분하지 못했으므로 어차피 같은 분의 통화는 한 row 로 합쳐져 있다.)
+        val minute = minuteFloor(recordedAt)
+        if (minute == recordedAt) return null   // 초=0 통화는 위 창에서 이미 확인됨
+        return dao.findByPhoneAndTime(phoneNumber, minute, minute)
+    }
+
+    companion object {
+        /** 그 시각이 속한 '분'의 정각(초·밀리초 버림). 레거시(분 단위) 요약 row 를 찾을 때 쓴다. */
+        fun minuteFloor(ms: Long): Long = ms - Math.floorMod(ms, 60_000L)
     }
 
     /** 같은 번호의 orphan 요약을 customerId 로 일괄 연결. */
