@@ -28,7 +28,8 @@ class MirrorSyncManager(
     private val repo: MirrorRepository,
     private val prefs: AppPreferences,
     private val customerRepository: CustomerRepository,
-    private val manualCashRepository: ManualCashRepository
+    private val manualCashRepository: ManualCashRepository,
+    private val sharedSiteRepository: SharedSiteRepository
 ) {
     private val dateFmt = SimpleDateFormat("yyyy-MM-dd", Locale.KOREA)
 
@@ -68,9 +69,8 @@ class MirrorSyncManager(
         val manual = runCatching { manualCashRepository.observeAll().first() }.getOrDefault(emptyList())
 
         // 일정 — 시공일이 잡힌 현장 전부(본폰은 사장님 본인 폰 → 전화·메모까지 포함, 처리방침 확정).
-        val items = customers
+        val ownItems = customers
             .filter { (it.scheduledWorkDate ?: 0L) > 0L }
-            .sortedBy { it.scheduledWorkDate }
             .map { c ->
                 val day = DateTimeUtils.startOfDay(c.scheduledWorkDate!!)
                 MirrorRepository.MirrorItem(
@@ -87,6 +87,10 @@ class MirrorSyncManager(
                     total = SettlementCalc.rowOf(c).total
                 )
             }
+
+        val items = (ownItems + collabItems(ownerPhone)).sortedWith(
+            compareBy({ it.date }, { it.time ?: "" })
+        )
 
         // 돈 — 오늘 입금(확정 수입, 오늘자) / 미수금(받을 돈 남은 합계 + 건수). 정산과 동일 계산.
         val cashItems = CashFlowCalc.buildItems(customers, manual, emptyList(), todayStart)
@@ -121,6 +125,66 @@ class MirrorSyncManager(
             true
         } else {
             false
+        }
+    }
+
+    /**
+     * 협업 현장(내가 수락한 것)도 일정이다 → 미러에 같이 실어 보낸다.
+     *   (2026-07-15 사장님 신고: "협업현장으로 수락한 현장도 일정인데 노출이 안 되고 있어".
+     *    원인 = 스냅샷을 customers 에서만 만들어서 — 협업 현장은 고객이 아니라 SharedSite 라 아예 안 실렸음.)
+     *
+     * 규칙:
+     *  - 내가 **수락한**(accepted) + 날짜 잡힌 것만. 일정 화면(ScheduleViewModel)과 같은 필터.
+     *  - 일정 화면에서 밀어서 숨긴 협업(hiddenCollabShareIds)은 미러에서도 숨김 → 두 화면이 항상 같게.
+     *  - **금액 = 내 일당만**(사장님: "협업은 내가 받아야 할 돈(일당)만 보이면 되는거지").
+     *    dailyWage 는 **만원 단위** → 원으로 환산(×10000). 남의 고객 시공비는 안 보냄.
+     *  - **전화번호 없음** — 협업 현장엔 고객 번호 자체가 없다(벽, SPEC §1). phone=null 로 고정.
+     *  - 미수금/오늘입금 계산엔 안 섞는다(정산 1단계 제외, SPEC §3) → 정산 화면 숫자와 어긋나지 않게.
+     *  - 네트워크 실패해도 스냅샷 전체를 죽이지 않는다(내 현장만 나가고 다음 기회에 재시도).
+     */
+    private suspend fun collabItems(ownerPhone: String): List<MirrorRepository.MirrorItem> {
+        val sites = runCatching { sharedSiteRepository.withMe(ownerPhone).getOrDefault(emptyList()) }
+            .getOrDefault(emptyList())
+        return mapCollabSites(sites, prefs.hiddenCollabShareIds)
+    }
+
+    companion object {
+        /**
+         * 협업 현장 → 미러 아이템 (순수 함수 — 네트워크/프레임워크 없음, 단위테스트 대상: [MirrorCollabMapTest]).
+         *   금액 단위 환산(만원→원)이 있어서 반드시 테스트로 고정한다.
+         *   (과거 사고: 접수서 계약금이 만원↔원 이중 환산돼 10억으로 저장됨 — 단위는 항상 양쪽을 맞춰 검증.)
+         */
+        fun mapCollabSites(
+            sites: List<SharedSiteRepository.SharedSite>,
+            hidden: Set<String>
+        ): List<MirrorRepository.MirrorItem> {
+            val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.KOREA)
+            return sites
+                .filter { it.status == "accepted" && it.scheduledAtMs > 0L && it.shareId !in hidden }
+                .map { s ->
+                    MirrorRepository.MirrorItem(
+                        date = fmt.format(Date(DateTimeUtils.startOfDay(s.scheduledAtMs))),
+                        time = collabTime(s),
+                        days = 1,                       // 협업 현장엔 기간(일수) 개념이 아직 없음(서버 미구현)
+                        name = siteDisplayName(s),      // 주소라벨 > 현장명 > 주소 — 일정 화면과 같은 규칙
+                        address = s.addr?.takeIf { it.isNotBlank() },
+                        phone = null,                   // 벽 — 협업 현장은 고객 번호를 갖지 않는다
+                        memo = s.memo?.takeIf { it.isNotBlank() },
+                        completed = s.progress == SharedSiteRepository.Progress.COMPLETED,
+                        // 일당: dailyWage 는 **만원 단위**, MirrorItem.total 은 **원** → ×10000. 없으면 0(뷰어가 숨김).
+                        total = s.dailyWage?.takeIf { it > 0 }?.let { it * 10_000L } ?: 0L,
+                        collab = true
+                    )
+                }
+        }
+
+        /** 협업 현장 시각 "HH:mm" — scheduledAtMs 에 박힌 시각 우선, 자정(미설정)이면 서버 timeLabel. 없으면 null. */
+        private fun collabTime(s: SharedSiteRepository.SharedSite): String? {
+            val cal = java.util.Calendar.getInstance().apply { timeInMillis = s.scheduledAtMs }
+            val h = cal.get(java.util.Calendar.HOUR_OF_DAY)
+            val m = cal.get(java.util.Calendar.MINUTE)
+            if (h != 0 || m != 0) return "%02d:%02d".format(h, m)
+            return s.timeLabel?.takeIf { it.isNotBlank() && it != "00:00" && it != "0:00" }
         }
     }
 
@@ -161,6 +225,7 @@ class MirrorSyncManager(
                 .append('~').append(it.name).append('~').append(it.address ?: "")
                 .append('~').append(it.phone ?: "").append('~').append(it.memo ?: "")
                 .append('~').append(it.completed).append('~').append(it.total)
+                .append('~').append(it.collab)   // 협업 여부도 지문에 — 빠지면 협업만 바뀌었을 때 전송이 스킵된다
         }
         return sb.toString().hashCode().toString()
     }

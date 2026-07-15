@@ -55,7 +55,15 @@ class MirrorRepository(
         val overdueDays: Int?      // 시공/완료 후 경과일(있으면)
     )
 
-    /** 뷰어에 그릴 현장 1건. date=YYYY-MM-DD(필수). total=총금액(원, 0=미입력). phone=하이픈 포함. */
+    /**
+     * 뷰어에 그릴 현장 1건. date=YYYY-MM-DD(필수). phone=하이픈 포함.
+     *
+     * total 의 뜻이 collab 여부에 따라 다르다:
+     *   - collab=false (내 고객)  → **총금액**(받을 시공비 전체, 원). 0=미입력.
+     *   - collab=true  (협업 현장) → **내 일당**(원). 남의 고객 시공비는 안 보내고 알 필요도 없다. 0=미입력.
+     * 그래서 뷰어는 collab 이면 금액 라벨을 "일당"으로 그려야 한다(안 그러면 남의 매출로 오해).
+     * collab=true 는 phone 이 항상 null (고객 번호는 벽 — SPEC_shared_sites_owner_to_owner.md §1).
+     */
     data class MirrorItem(
         val date: String,
         val time: String?,
@@ -65,7 +73,8 @@ class MirrorRepository(
         val phone: String?,
         val memo: String?,
         val completed: Boolean,
-        val total: Long
+        val total: Long,
+        val collab: Boolean = false
     )
 
     /** 이 업무폰의 고정 공유 코드 조회/생성. label·tint 갱신. 앱이 "내 공유 코드"+QR 표시용으로 호출. */
@@ -181,7 +190,9 @@ class MirrorRepository(
                     it.phone?.let { p -> put("phone", p) }
                     it.memo?.let { m -> put("memo", m) }
                     put("completed", it.completed)
-                    if (it.total > 0L) put("total", it.total)   // 총금액(원) — 뷰어가 "얼마짜리 현장" 표시
+                    // 금액(원). collab=false 면 총금액, collab=true 면 내 일당 — 뜻이 다르니 뷰어는 collab 을 보고 라벨을 정한다.
+                    if (it.total > 0L) put("total", it.total)
+                    if (it.collab) put("collab", true)          // 협업 현장 딱지 (없으면 내 현장)
                 })
             }
             val payload = JSONObject().apply {

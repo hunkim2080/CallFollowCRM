@@ -175,7 +175,7 @@ class AppContainer(context: Context) {
     /** 일정/돈 스냅샷 자동 전송(30초 디바운스 + 해시). Application.onCreate 에서 start(). 옵트인일 때만 동작. */
     val mirrorSyncManager by lazy {
         com.detailline.callfollowcrm.ai.MirrorSyncManager(
-            mirrorRepository, preferences, customerRepository, manualCashRepository
+            mirrorRepository, preferences, customerRepository, manualCashRepository, sharedSiteRepository
         )
     }
 
