@@ -76,20 +76,38 @@ object NotificationHelper {
     private const val AUTO_REPLY_ID_OFFSET = 5_000_000
 
     // ══════════════ 알림 종류별 소리 (더보기 → 알림 소리, 2026-07-10 사장님) ══════════════
-    /** 소리를 고를 수 있는 알림 슬롯. key=prefs 저장 키, defaultRes=기본 raw 리소스명. */
-    data class SoundSlot(val key: String, val label: String, val defaultRes: String)
+    /**
+     * 소리를 고를 수 있는 알림 슬롯. key=prefs 저장 키, label=설정화면 목록용, defaultRes=기본 raw 리소스명,
+     * channelName/channelDesc = 안드로이드 시스템 알림설정에 보이는 이름·설명.
+     */
+    data class SoundSlot(
+        val key: String,
+        val label: String,
+        val defaultRes: String,
+        val channelName: String,
+        val channelDesc: String
+    )
     val SOUND_SLOTS = listOf(
-        SoundSlot("new_inquiry", "신규 문의 문자", "sound_new_inquiry"),
-        SoundSlot("reply", "고객 답장 문자", "sound_reply"),
-        SoundSlot("auto_reply", "자동 응답 발송", "sound_auto_reply"),
-        SoundSlot("intake", "접수서 작성 완료", "sound_intake"),
-        SoundSlot("reminder", "시공·정산 리마인더", "sound_reminder"),
-        SoundSlot("call_summary", "통화 요약 완료", "sound_call_summary"),
-        SoundSlot("collab_accepted", "협업 수락", "sound_collab_accepted"),
-        SoundSlot("collab_declined", "협업 거절", "sound_collab_declined"),
+        SoundSlot("new_inquiry", "신규 문의 문자", "sound_new_inquiry",
+            "📩 신규 문의", "처음 연락온 신규 고객 문자 — 바로 답장해요"),
+        SoundSlot("reply", "고객 답장 문자", "sound_reply",
+            "📩 새 문자", "고객 SMS 가 오면 AI 추천 답변과 함께 표시 — 갤메시지 알림은 끄고 사용하세요"),
+        SoundSlot("auto_reply", "자동 응답 발송", "sound_auto_reply",
+            "자동 응답 문자", "처음 연락온 고객 자동 응답 발송 안내 (취소 가능)"),
+        SoundSlot("intake", "접수서 작성 완료", "sound_intake",
+            "📋 접수서 작성됨", "고객이 시공접수서를 작성하면 알려줘요"),
+        SoundSlot("reminder", "시공·정산 리마인더", "sound_reminder",
+            "⏰ 시공·정산 리마인더", "내일 시공 안내·잔금 미수·마감 브리핑을 제때 알려줘요"),
+        SoundSlot("call_summary", "통화 요약 완료", "sound_call_summary",
+            "✨ 통화 요약 완료", "통화 내용 요약이 준비되면 알려줘요"),
+        SoundSlot("collab_accepted", "협업 수락", "sound_collab_accepted",
+            "🤝 협업 수락", "상대 사장님이 협업을 수락하면 알려줘요"),
+        SoundSlot("collab_declined", "협업 거절", "sound_collab_declined",
+            "협업 거절", "상대 사장님이 협업을 거절하면 알려줘요"),
         // 협업 현장 소식(댓글·사진·요청·출발/도착/완료). 기본값은 예전과 같은 리마인더 소리 = 이번 업데이트로
         //   소리가 멋대로 바뀌는 사람 없음. 사장님이 원하는 소리를 고르면 그때부터 리마인더와 갈라짐. (2026-07-15)
-        SoundSlot("collab_news", "협업 현장 소식", "sound_reminder"),
+        SoundSlot("collab_news", "협업 현장 소식", "sound_reminder",
+            "💬 협업 현장 소식", "협업 현장의 댓글·사진·요청·진행(출발/도착/완료)을 알려줘요"),
     )
     /** 고를 수 있는 소리(값=raw 리소스명, "silent"=무음). */
     val SOUND_OPTIONS = listOf(
@@ -132,20 +150,38 @@ object NotificationHelper {
         "collab_news" to CHANNEL_COLLAB_NEWS,
     )
 
-    /** slot 선택값(앱 prefs)을 소리 Uri 로. "silent"=null. 선택 리소스가 없으면 기본 리소스로 폴백. */
-    private fun chosenSound(context: Context, key: String, defaultRes: String): android.net.Uri? {
-        val prefs = (context.applicationContext as? com.detailline.callfollowcrm.CallFollowCrmApplication)?.container?.preferences
+    /** slot 이 지금 울려야 할 raw 리소스 ID. 0 = 무음. 고른 소리가 없어졌으면 기본으로 폴백. */
+    private fun soundResId(context: Context, key: String, defaultRes: String): Int {
+        val prefs = prefsOf(context)
         val choice = prefs?.notificationSound(key, defaultRes) ?: defaultRes
-        if (choice == "silent") return null
-        fun snd(resId: Int) = Uri.parse("android.resource://${context.packageName}/$resId")
+        if (choice == "silent") return 0
         val id = context.resources.getIdentifier(choice, "raw", context.packageName)
-        return if (id > 0) snd(id) else snd(context.resources.getIdentifier(defaultRes, "raw", context.packageName))
+        return if (id > 0) id else context.resources.getIdentifier(defaultRes, "raw", context.packageName)
     }
 
-    // ── 소리 슬롯 채널 버전화 (2026-07-15 사장님) ──
-    //   안드로이드는 채널을 삭제 후 '같은 id'로 재생성하면 옛 설정(소리 포함)을 그대로 되살린다(공식 동작).
-    //   그래서 delete+recreate 로는 소리가 안 바뀐다(사장님 "고른 소리가 안 울림"의 진짜 원인).
-    //   → 소리를 바꿀 때마다 '새 id'(버전 붙임) 채널을 만든다. 버전 0 = 기존 base id 그대로(소리 안 바꾼 사용자엔 변화 0).
+    /** slot 선택값(앱 prefs)을 소리 Uri 로. "silent"=null. */
+    private fun chosenSound(context: Context, key: String, defaultRes: String): android.net.Uri? {
+        val id = soundResId(context, key, defaultRes)
+        if (id <= 0) return null
+        return Uri.parse("android.resource://${context.packageName}/$id")
+    }
+
+    // ══════════════ 소리 슬롯 채널 — id 에 '소리 번호'를 박는다 (2026-07-15 사장님) ══════════════
+    //
+    // 안드로이드 제약 2가지가 겹쳐서 "고른 소리가 안 울린다 / 답장인데 협업 소리" 가 났다:
+    //  (1) NotificationChannel 은 **만든 뒤 소리를 못 바꾼다.** 같은 id 로 지웠다 다시 만들면 옛 설정이 그대로 부활(공식 동작).
+    //  (2) 채널이 저장하는 소리 URI 는 `android.resource://pkg/<숫자 리소스 ID>` 인데, raw 리소스 ID 는
+    //      **알파벳순 자동 부여**라 소리 파일을 하나만 추가해도 그 뒤 번호가 전부 밀린다.
+    //      채널은 앱 업데이트 후에도 살아남으므로 → 옛 채널이 든 옛 번호가 **다른 파일**을 가리키게 된다.
+    //      실제 사고: 소리 12개 추가 → `sound_reply`(알파벳 뒤)의 옛 번호가 `sound_collab_*`(앞) 자리로 떨어져
+    //      **"고객 답장 문자인데 협업 거절 소리"**. (2026-07-15 사장님)
+    //
+    // 해법: **채널 id = "${base}_s${지금 빌드의 소리 리소스 번호}"**.
+    //   → 채널 id 와 그 안의 URI 번호가 **항상 한 몸**이라 어긋날 수가 없다(불변식).
+    //   → 소리를 바꾸거나(번호 다름) 빌드에서 번호가 밀리면 **id 가 저절로 달라져 새 채널이 생기고**,
+    //      그 순간 '지금 빌드의 올바른 번호'로 URI 가 박힌다. 별도 마이그레이션·버전 카운터가 필요 없다.
+    //   → 예전 소리로 되돌리면 옛 `_s{번호}` 채널이 부활(un-delete)하는데, 그 채널의 URI 도 같은 번호라 정확하다.
+    //   URI 형식은 지금까지 실제로 울리던 '숫자' 형식 그대로 유지(검증 안 된 이름 URI 로 바꾸지 않는다).
 
     private val prefsOf: (Context) -> com.detailline.callfollowcrm.data.preferences.AppPreferences? = { ctx ->
         (ctx.applicationContext as? com.detailline.callfollowcrm.CallFollowCrmApplication)?.container?.preferences
@@ -154,10 +190,23 @@ object NotificationHelper {
     /** slot 의 현재 소리가 반영된 채널 id (없으면 생성). 소리 발사 직전 항상 이걸로 채널을 고른다. */
     fun channelForSlot(context: Context, slotKey: String): String {
         val base = SLOT_CHANNEL[slotKey] ?: return CHANNEL_REMINDER
-        val ver = prefsOf(context)?.soundChannelVersion(slotKey) ?: 0
-        val id = if (ver == 0) base else "${base}_v$ver"
+        val slot = SOUND_SLOTS.firstOrNull { it.key == slotKey } ?: return base
+        val id = "${base}_s${soundResId(context, slotKey, slot.defaultRes)}"   // 0 = 무음
         ensureSlotChannel(context, slotKey, id)
         return id
+    }
+
+    /** 이 slot 의 옛 채널(숫자 URI 가 어긋난 base·_v·다른 _s) 정리 — 시스템 알림설정에 유령이 안 남게. */
+    private fun pruneOldSlotChannels(context: Context, slotKey: String, keepId: String) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val m = context.getSystemService(NotificationManager::class.java) ?: return
+        val base = SLOT_CHANNEL[slotKey] ?: return
+        m.notificationChannels.forEach { ch ->
+            val cid = ch.id
+            if (cid != keepId && (cid == base || cid.startsWith("${base}_"))) {
+                runCatching { m.deleteNotificationChannel(cid) }
+            }
+        }
     }
 
     /** 넘어온 channelId 가 소리 슬롯의 base 면 → 현재 버전 채널로 치환. 아니면 그대로(비-슬롯 채널). */
@@ -175,33 +224,70 @@ object NotificationHelper {
         val audioAttrs = AudioAttributes.Builder()
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
             .setUsage(AudioAttributes.USAGE_NOTIFICATION).build()
-        m.createNotificationChannel(NotificationChannel(channelId, slot.label, NotificationManager.IMPORTANCE_HIGH).apply {
+        m.createNotificationChannel(NotificationChannel(channelId, slot.channelName, NotificationManager.IMPORTANCE_HIGH).apply {
+            description = slot.channelDesc
             val u = chosenSound(context, slotKey, slot.defaultRes)
             if (u != null) setSound(u, audioAttrs) else setSound(null, null)
             setShowBadge(true)
         })
     }
 
-    /** 소리 변경 적용 — 그 슬롯 버전 +1 → '새 id' 채널을 새 소리로 생성. 이전 '버전' 채널은 삭제(누적 방지). (설정 화면에서 호출) */
-    fun applySlotSound(context: Context, slotKey: String) {
+    /**
+     * 디버그 빌드 전용 — "어떤 알림이 어떤 소리로 잡혀있나"를 실제 채널에서 읽어 찍는다.
+     *   소리 매칭 사고(2026-07-15)를 눈으로 확인하려고 추가. `adb logcat -s NTFSND` 로 확인.
+     *   채널이 든 소리 URI 의 숫자를 **지금 빌드의 리소스 이름으로 되짚어** 찍으므로 어긋나면 바로 보인다.
+     */
+    private fun logSlotChannels(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val m = context.getSystemService(NotificationManager::class.java) ?: return
-        val prefs = prefsOf(context) ?: return
-        val base = SLOT_CHANNEL[slotKey] ?: return
-        val prevVer = prefs.soundChannelVersion(slotKey)
-        if (prevVer > 0) runCatching { m.deleteNotificationChannel("${base}_v$prevVer") }
-        val newVer = prefs.bumpSoundChannelVersion(slotKey)
-        ensureSlotChannel(context, slotKey, "${base}_v$newVer")
+        SOUND_SLOTS.forEach { slot ->
+            val id = channelForSlot(context, slot.key)
+            val ch = m.getNotificationChannel(id)
+            val uri = ch?.sound
+            val resName = uri?.lastPathSegment?.toIntOrNull()?.let { rid ->
+                runCatching { context.resources.getResourceEntryName(rid) }.getOrNull()
+            } ?: "(무음/알수없음)"
+            val want = prefsOf(context)?.notificationSound(slot.key, slot.defaultRes) ?: slot.defaultRes
+            val ok = if (want == "silent") uri == null else resName == want
+            android.util.Log.d("NTFSND", "${if (ok) "OK " else "MISMATCH"} slot=${slot.key} ch=$id 원함=$want 실제=$resName uri=$uri")
+        }
     }
 
-    /** 기존에 고른(그러나 옛 채널 버그로 안 먹던) 소리를 1회 실제 적용 — 커스텀한 슬롯만 v1 채널로. */
-    fun migrateSlotSoundsOnce(context: Context) {
-        val prefs = prefsOf(context) ?: return
-        if (prefs.soundChannelVersion("_migrated") > 0) return
-        SOUND_SLOTS.forEach { slot ->
-            if (prefs.notificationSound(slot.key, slot.defaultRes) != slot.defaultRes) applySlotSound(context, slot.key)
-        }
-        prefs.bumpSoundChannelVersion("_migrated")
+    /** 소리 테스트 알림 id — 슬롯마다 하나(연타해도 안 쌓이고 갱신). */
+    private const val SOUND_TEST_ID_BASE = 9_920_000
+
+    /**
+     * **진짜 알림을 쏴서 소리를 확인** — 설정 화면 [테스트] 버튼. (2026-07-15 사장님 "테스트를 어떻게 해야 하나")
+     *
+     * 왜 필요하냐: 소리 고를 때 나오는 '미리듣기'는 MediaPlayer 로 **파일을 직접** 튼다 → 채널이 깨져 있어도
+     *   항상 정상으로 들려서 "답장인데 협업 소리" 같은 사고를 **절대 못 잡는다**(2026-07-15 사고를 놓친 이유).
+     *   이 함수는 실제 문자/협업 알림과 **똑같이 channelForSlot 채널로 발사**하므로, 여기서 맞으면 실전도 맞다.
+     */
+    fun testSlotSound(context: Context, slotKey: String) {
+        val idx = SOUND_SLOTS.indexOfFirst { it.key == slotKey }
+        val slot = SOUND_SLOTS.getOrNull(idx) ?: return
+        val chosen = prefsOf(context)?.notificationSound(slotKey, slot.defaultRes) ?: slot.defaultRes
+        val soundLabel = SOUND_OPTIONS.firstOrNull { it.first == chosen }?.second ?: "무음"
+        val notifId = SOUND_TEST_ID_BASE + idx
+        showProtoPush(
+            context, notifId, SLOT_CHANNEL[slotKey] ?: CHANNEL_REMINDER, ACCENT_BLUE,
+            title = "🔔 소리 테스트 · ${slot.label}",
+            msg = "지금 이 소리 = $soundLabel",
+            note = "실제 알림과 똑같이 울린 거예요. 다르면 소리를 다시 고르세요.",
+            contentIntent = appOpenPending(context, notifId),
+            timeoutMs = 30_000L
+        )
+    }
+
+    /**
+     * 소리 변경 적용 (설정 화면에서 호출) — 고른 소리의 번호로 '새 id' 채널을 만들고 옛 채널은 정리.
+     *   채널은 만든 뒤 소리를 못 바꾸므로 '새 id 로 새로 만들기'가 유일한 방법 (위 불변식 참고).
+     *   별도 마이그레이션 불필요: id 가 소리 번호를 품고 있어 앱 업데이트로 번호가 밀려도 저절로 새 채널이 선다.
+     */
+    fun applySlotSound(context: Context, slotKey: String) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val id = channelForSlot(context, slotKey)   // 없으면 지금 소리로 생성
+        pruneOldSlotChannels(context, slotKey, keepId = id)
     }
 
     // ── 미리듣기 (화면에서 [▶] 탭 시) ──
@@ -221,25 +307,11 @@ object NotificationHelper {
     fun ensureChannels(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = context.getSystemService(NotificationManager::class.java) ?: return
-            val audioAttrs = AudioAttributes.Builder()
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
-                .build()
-            fun snd(resId: Int) = Uri.parse("android.resource://${context.packageName}/$resId")
-
+            // 소리 있는 채널은 전부 SOUND_SLOTS + ensureSlotChannel 담당 (아래) — 여기선 무음/기본 채널만.
             if (manager.getNotificationChannel(CHANNEL_FOLLOW_UP) == null) {
                 manager.createNotificationChannel(NotificationChannel(
                     CHANNEL_FOLLOW_UP, "통화 후속 안내", NotificationManager.IMPORTANCE_HIGH
                 ).apply { description = "방금 끝난 통화에 대한 후속 문자 안내" })
-            }
-            if (manager.getNotificationChannel(CHANNEL_AUTO_REPLY) == null) {
-                manager.createNotificationChannel(NotificationChannel(
-                    CHANNEL_AUTO_REPLY, "자동 응답 문자", NotificationManager.IMPORTANCE_HIGH
-                ).apply {
-                    description = "처음 연락온 고객 자동 응답 발송 안내 (취소 가능)"
-                    val u = chosenSound(context, "auto_reply", "sound_auto_reply")
-                    if (u != null) setSound(u, audioAttrs) else setSound(null, null)
-                })
             }
             // quiet 후속 안내 — 2번째 이후 통화이지만 사장님이 아직 답장/분류 안 한 경우.
             // 배너 X (heads-up 없음), 사운드 X, 알림함에만 조용히 쌓임.
@@ -248,17 +320,6 @@ object NotificationHelper {
                     CHANNEL_FOLLOW_UP_QUIET, "후속 미처리 안내", NotificationManager.IMPORTANCE_LOW
                 ).apply {
                     description = "답장 못 한 손님이 또 연락 왔을 때 조용히 알려줘요"
-                    setShowBadge(true)
-                })
-            }
-            // 기존 고객 답장 — 갤메시지 대체 알림.
-            if (manager.getNotificationChannel(CHANNEL_INCOMING_SMS) == null) {
-                manager.createNotificationChannel(NotificationChannel(
-                    CHANNEL_INCOMING_SMS, "📩 새 문자", NotificationManager.IMPORTANCE_HIGH
-                ).apply {
-                    description = "고객 SMS 가 오면 AI 추천 답변과 함께 표시 — 갤메시지 알림은 끄고 사용하세요"
-                    val u = chosenSound(context, "reply", "sound_reply")
-                    if (u != null) setSound(u, audioAttrs) else setSound(null, null)
                     setShowBadge(true)
                 })
             }
@@ -279,37 +340,6 @@ object NotificationHelper {
                     CHANNEL_POSTCALL, "통화 후 문자", NotificationManager.IMPORTANCE_HIGH
                 ).apply { description = "새 번호와 통화가 끝나면 보낼 문자 템플릿을 고르라고 알려줘요" })
             }
-            // 신규 문의 — 처음 연락온 고객, 별도 소리로 구분.
-            if (manager.getNotificationChannel(CHANNEL_INCOMING_SMS_NEW) == null) {
-                manager.createNotificationChannel(NotificationChannel(
-                    CHANNEL_INCOMING_SMS_NEW, "📩 신규 문의", NotificationManager.IMPORTANCE_HIGH
-                ).apply {
-                    description = "처음 연락온 신규 고객 문자 — 바로 답장해요"
-                    val u = chosenSound(context, "new_inquiry", "sound_new_inquiry")
-                    if (u != null) setSound(u, audioAttrs) else setSound(null, null)
-                    setShowBadge(true)
-                })
-            }
-            if (manager.getNotificationChannel(CHANNEL_INTAKE) == null) {
-                manager.createNotificationChannel(NotificationChannel(
-                    CHANNEL_INTAKE, "📋 접수서 작성됨", NotificationManager.IMPORTANCE_HIGH
-                ).apply {
-                    description = "고객이 시공접수서를 작성하면 알려줘요"
-                    val u = chosenSound(context, "intake", "sound_intake")
-                    if (u != null) setSound(u, audioAttrs) else setSound(null, null)
-                    setShowBadge(true)
-                })
-            }
-            if (manager.getNotificationChannel(CHANNEL_REMINDER) == null) {
-                manager.createNotificationChannel(NotificationChannel(
-                    CHANNEL_REMINDER, "⏰ 시공·정산 리마인더", NotificationManager.IMPORTANCE_HIGH
-                ).apply {
-                    description = "내일 시공 안내·잔금 미수·마감 브리핑을 제때 알려줘요"
-                    val u = chosenSound(context, "reminder", "sound_reminder")
-                    if (u != null) setSound(u, audioAttrs) else setSound(null, null)
-                    setShowBadge(true)
-                })
-            }
             // 오늘의 현장 — 무음·낮은 중요도(상단 조용히 고정). 소리/배지 없음. (2026-07-10 사장님)
             if (manager.getNotificationChannel(CHANNEL_TODAY_SITE) == null) {
                 manager.createNotificationChannel(NotificationChannel(
@@ -320,52 +350,14 @@ object NotificationHelper {
                     setSound(null, null)
                 })
             }
-            // 통화 요약 완료 — 전용 소리 슬롯. (2026-07-13 사장님)
-            if (manager.getNotificationChannel(CHANNEL_CALL_SUMMARY) == null) {
-                manager.createNotificationChannel(NotificationChannel(
-                    CHANNEL_CALL_SUMMARY, "✨ 통화 요약 완료", NotificationManager.IMPORTANCE_HIGH
-                ).apply {
-                    description = "통화 내용 요약이 준비되면 알려줘요"
-                    val u = chosenSound(context, "call_summary", "sound_call_summary")
-                    if (u != null) setSound(u, audioAttrs) else setSound(null, null)
-                    setShowBadge(true)
-                })
+            // ── 소리 고를 수 있는 채널들 (SOUND_SLOTS 가 유일한 정의) ──
+            //   여기서 base id 로 직접 만들지 않는다 — 소리 번호가 어긋난 옛 채널을 되살릴 뿐이다.
+            //   channelForSlot 이 '지금 소리 번호'를 품은 id 로 만들고, prune 이 옛 채널(base·_v·옛 _s)을 치운다.
+            //   앱을 열 때마다 돌아서, 업데이트로 번호가 밀려도 그 자리에서 스스로 바로잡힌다. (2026-07-15)
+            SOUND_SLOTS.forEach { slot ->
+                runCatching { pruneOldSlotChannels(context, slot.key, keepId = channelForSlot(context, slot.key)) }
             }
-            // 협업 수락 — 전용 소리 슬롯. (2026-07-13 사장님)
-            if (manager.getNotificationChannel(CHANNEL_COLLAB_ACCEPTED) == null) {
-                manager.createNotificationChannel(NotificationChannel(
-                    CHANNEL_COLLAB_ACCEPTED, "🤝 협업 수락", NotificationManager.IMPORTANCE_HIGH
-                ).apply {
-                    description = "상대 사장님이 협업을 수락하면 알려줘요"
-                    val u = chosenSound(context, "collab_accepted", "sound_collab_accepted")
-                    if (u != null) setSound(u, audioAttrs) else setSound(null, null)
-                    setShowBadge(true)
-                })
-            }
-            // 협업 거절 — 전용 소리 슬롯. (2026-07-13 사장님)
-            if (manager.getNotificationChannel(CHANNEL_COLLAB_DECLINED) == null) {
-                manager.createNotificationChannel(NotificationChannel(
-                    CHANNEL_COLLAB_DECLINED, "협업 거절", NotificationManager.IMPORTANCE_HIGH
-                ).apply {
-                    description = "상대 사장님이 협업을 거절하면 알려줘요"
-                    val u = chosenSound(context, "collab_declined", "sound_collab_declined")
-                    if (u != null) setSound(u, audioAttrs) else setSound(null, null)
-                    setShowBadge(true)
-                })
-            }
-            // 협업 현장 소식(댓글·사진·요청·진행) — 전용 소리 슬롯. (2026-07-15 사장님)
-            if (manager.getNotificationChannel(CHANNEL_COLLAB_NEWS) == null) {
-                manager.createNotificationChannel(NotificationChannel(
-                    CHANNEL_COLLAB_NEWS, "💬 협업 현장 소식", NotificationManager.IMPORTANCE_HIGH
-                ).apply {
-                    description = "협업 현장의 댓글·사진·요청·진행(출발/도착/완료)을 알려줘요"
-                    val u = chosenSound(context, "collab_news", "sound_reminder")
-                    if (u != null) setSound(u, audioAttrs) else setSound(null, null)
-                    setShowBadge(true)
-                })
-            }
-            // 기존에 고른 소리가 옛 채널 버그로 안 먹던 것 1회 살림(커스텀 슬롯만 v1 채널로 재생성).
-            runCatching { migrateSlotSoundsOnce(context) }
+            if (com.detailline.callfollowcrm.BuildConfig.DEBUG) runCatching { logSlotChannels(context) }
         }
     }
 
