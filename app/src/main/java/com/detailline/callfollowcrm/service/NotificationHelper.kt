@@ -112,22 +112,21 @@ object NotificationHelper {
             "🤝 협업 수락", "상대 사장님이 협업을 수락하면 알려줘요"),
         SoundSlot("collab_declined", "협업 거절", "sound_collab_declined",
             "협업 거절", "상대 사장님이 협업을 거절하면 알려줘요"),
-        // ── 협업 현장 세분화 (2026-07-15 사장님) — 사장님이 소리 7개를 새로 만드는 중.
-        //    새 소리가 들어오기 전까지 기본값 = sound_reminder(예전 "협업 현장 소식"과 같은 소리) →
-        //    이 업데이트로 베타테스터 소리가 멋대로 바뀌지 않는다. 소리 파일이 오면 defaultRes 만 갈아끼우면 됨.
-        SoundSlot("collab_comment", "협업 현장 댓글·사진", "sound_reminder",
+        // ── 협업 현장 세분화 (2026-07-15 사장님) — 사장님이 만든 전용 소리가 기본값.
+        //    요청/출발/완료는 2안씩 만드셔서 기본은 첫 안, 나머지는 목록(SOUND_OPTIONS)에서 고르면 됨.
+        SoundSlot("collab_comment", "협업 현장 댓글·사진", "sound_collab_comment",
             "💬 협업 현장 댓글·사진", "협업 사장님이 현장에 댓글을 달거나 사진을 올리면 알려줘요"),
-        SoundSlot("collab_invite", "협업 요청 옴", "sound_reminder",
+        SoundSlot("collab_invite", "협업 요청 옴", "sound_collab_invite",
             "🤝 협업 요청", "다른 사장님이 나에게 협업을 요청하면 알려줘요"),
-        SoundSlot("collab_departed", "협업 상대 출발", "sound_reminder",
+        SoundSlot("collab_departed", "협업 상대 출발", "sound_collab_departed",
             "🚗 협업 상대 출발", "협업 사장님이 현장으로 출발하면 알려줘요"),
-        SoundSlot("collab_arrived", "협업 상대 도착", "sound_reminder",
+        SoundSlot("collab_arrived", "협업 상대 도착", "sound_collab_arrived",
             "📍 협업 상대 도착", "협업 사장님이 현장에 도착(또는 거의 도착)하면 알려줘요"),
-        SoundSlot("collab_completed", "협업 작업 완료", "sound_reminder",
+        SoundSlot("collab_completed", "협업 작업 완료", "sound_collab_completed",
             "✅ 협업 작업 완료", "협업 사장님이 현장 작업을 끝내면 알려줘요"),
-        SoundSlot("collab_ended", "협업 해제", "sound_reminder",
+        SoundSlot("collab_ended", "협업 해제", "sound_collab_ended",
             "협업 해제", "상대가 협업을 해제하면 알려줘요 (기록은 남아요)"),
-        SoundSlot("collab_paid", "협업 입금 완료", "sound_reminder",
+        SoundSlot("collab_paid", "협업 입금 완료", "sound_collab_paid",
             "💰 협업 입금 완료", "협업 현장 정산 입금이 완료되면 알려줘요"),
     )
     /** 고를 수 있는 소리(값=raw 리소스명, "silent"=무음). */
@@ -155,12 +154,23 @@ object NotificationHelper {
         "sound_call_summary" to "통화요약 완료",
         "sound_call_summary_1" to "통화요약 - 1",
         "sound_call_summary_2" to "통화요약 - 2",
-        // ── 협업 ──
+        // ── 협업 수락/거절 ──
         "sound_collab_accepted" to "협업 수락",
         "sound_collab_accepted_alliance" to "협업수락 - 동맹체결",
         "sound_collab_declined" to "협업 거절",
         "sound_collab_declined_ppaenji" to "협업거절 - 뺀찌",
         "sound_collab_declined_sogeun" to "협업거절 - 소근소근",
+        // ── 협업 현장 (2026-07-15 사장님이 새로 만든 10개 — 요청·출발·완료는 2안씩) ──
+        "sound_collab_comment" to "협업 - 댓글사진",
+        "sound_collab_invite" to "협업 - 요청",
+        "sound_collab_invite_1" to "협업 - 요청1",
+        "sound_collab_departed" to "협업 - 출발",
+        "sound_collab_departed_1" to "협업 - 출발1",
+        "sound_collab_arrived" to "협업 - 도착",
+        "sound_collab_completed" to "협업 - 완료",
+        "sound_collab_completed_1" to "협업 - 완료1",
+        "sound_collab_ended" to "협업 - 해제",
+        "sound_collab_paid" to "협업 - 입금완료",
         "silent" to "무음",
     )
     private val SLOT_CHANNEL = mapOf(
