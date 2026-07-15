@@ -102,8 +102,8 @@ fun SoundSettingsScreen(prefs: AppPreferences, onBack: () -> Unit) {
             ) {
                 item {
                     Text(
-                        "알림 종류를 눌러서 소리를 고르세요.\n[테스트] 를 누르면 실제 알림이 그대로 울려요 — 문자 안 기다려도 돼요.",
-                        fontSize = 13.sp, color = TossTextSecondary, lineHeight = 19.sp,
+                        "알림 종류를 눌러서 소리를 고르세요.",
+                        fontSize = 13.sp, color = TossTextSecondary,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
                     )
                 }
@@ -114,24 +114,12 @@ fun SoundSettingsScreen(prefs: AppPreferences, onBack: () -> Unit) {
                     Row(
                         Modifier.fillMaxWidth().background(Color.White)
                             .clickable { picking = s }
-                            .padding(start = 20.dp, end = 12.dp, top = 16.dp, bottom = 16.dp),
+                            .padding(horizontal = 20.dp, vertical = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(s.label, fontSize = 15.sp, color = TossTextPrimary)
-                            Spacer(Modifier.height(3.dp))
-                            Text(curLabel, fontSize = 13.sp, color = TossBlue, fontWeight = FontWeight.SemiBold)
-                        }
-                        // 진짜 알림을 쏜다(미리듣기와 다름) — 채널이 어긋나면 여기서 바로 들통난다.
-                        Text(
-                            "테스트",
-                            fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(999.dp))
-                                .background(TossGrayBg)
-                                .clickable { NotificationHelper.testSlotSound(context, s.key) }
-                                .padding(horizontal = 12.dp, vertical = 7.dp)
-                        )
+                        Text(s.label, fontSize = 15.sp, color = TossTextPrimary, modifier = Modifier.weight(1f))
+                        Text(curLabel, fontSize = 14.sp, color = TossBlue, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.width(4.dp))
                         Icon(Icons.Filled.ChevronRight, null, tint = TossTextTertiary, modifier = Modifier.size(18.dp))
                     }
                     RowDivider()

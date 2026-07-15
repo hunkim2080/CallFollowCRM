@@ -104,17 +104,22 @@ object NotificationHelper {
         val channelName: String,
         val channelDesc: String
     )
+    // ⚠️ defaultRes = **사장님이 직접 고른 값**(2026-07-15, 사장님 폰 설정을 그대로 읽어서 박음).
+    //    "베타테스터가 받으면 처음부터 이 상태로" — 사장님 지시. 새로 깔면 아무것도 안 골라도 이 소리가 난다.
+    //    (이미 쓰던 사람은 저장된 선택이 우선이라 영향 없음: notificationSound(key, default) 는 저장값 우선.)
+    //    바꿀 땐 res/raw 에 파일이 실제로 있어야 함 — SoundSlotDefaultsTest 가 오타·누락을 잡는다.
     val SOUND_SLOTS = listOf(
-        SoundSlot("new_inquiry", "신규 문의 문자", "sound_new_inquiry",
+        SoundSlot("new_inquiry", "신규 문의 문자", "sound_new_inquiry_2",
             "📩 신규 문의", "처음 연락온 신규 고객 문자 — 바로 답장해요"),
-        SoundSlot("reply", "고객 답장 문자", "sound_reply",
+        SoundSlot("reply", "고객 답장 문자", "sound_reply_sabu",
             "📩 새 문자", "고객 SMS 가 오면 AI 추천 답변과 함께 표시 — 갤메시지 알림은 끄고 사용하세요"),
         SoundSlot("auto_reply", "자동 응답 발송", "sound_auto_reply",
             "자동 응답 문자", "처음 연락온 고객 자동 응답 발송 안내 (취소 가능)"),
-        SoundSlot("intake", "접수서 작성 완료", "sound_intake",
+        SoundSlot("intake", "접수서 작성 완료", "sound_intake_arrived",
             "📋 접수서 작성됨", "고객이 시공접수서를 작성하면 알려줘요"),
         // 남은 리마인더 = 잔금 미수 · 현장 5km 도착 안내 · 본폰 일정공유 신청 · 팀원 소식(분리 예정).
-        SoundSlot("reminder", "시공·정산 리마인더", "sound_reminder",
+        //   기본값 sound_auto_reply 는 사장님이 직접 고른 값 그대로.
+        SoundSlot("reminder", "시공·정산 리마인더", "sound_auto_reply",
             "⏰ 시공·정산 리마인더", "잔금 미수·현장 도착 안내 등을 제때 알려줘요"),
         // ── 리마인더에서 분리 (2026-07-15 사장님). 내일시공/마감브리핑은 사장님 전용 소리(내일시공은 2안).
         //    정기문자는 아직 소리 없음 → 기본 리마인더 소리 유지(사장님 "정기문자 빼고").
@@ -124,11 +129,11 @@ object NotificationHelper {
             "🌙 마감 브리핑", "저녁에 오늘 하루를 정리해서 알려줘요"),
         SoundSlot("recurring", "정기문자", "sound_reminder",
             "🔁 정기문자", "정기문자 보낼 때가 되면 알려줘요"),
-        SoundSlot("call_summary", "통화 요약 완료", "sound_call_summary",
+        SoundSlot("call_summary", "통화 요약 완료", "sound_call_summary_2",
             "✨ 통화 요약 완료", "통화 내용 요약이 준비되면 알려줘요"),
         SoundSlot("collab_accepted", "협업 수락", "sound_collab_accepted",
             "🤝 협업 수락", "상대 사장님이 협업을 수락하면 알려줘요"),
-        SoundSlot("collab_declined", "협업 거절", "sound_collab_declined",
+        SoundSlot("collab_declined", "협업 거절", "sound_collab_declined_ppaenji",
             "협업 거절", "상대 사장님이 협업을 거절하면 알려줘요"),
         // ── 협업 현장 세분화 (2026-07-15 사장님) — 사장님이 만든 전용 소리가 기본값.
         //    요청/출발/완료는 2안씩 만드셔서 기본은 첫 안, 나머지는 목록(SOUND_OPTIONS)에서 고르면 됨.
@@ -325,32 +330,6 @@ object NotificationHelper {
             val ok = if (want == "silent") uri == null else resName == want
             android.util.Log.d("NTFSND", "${if (ok) "OK " else "MISMATCH"} slot=${slot.key} ch=$id 원함=$want 실제=$resName uri=$uri")
         }
-    }
-
-    /** 소리 테스트 알림 id — 슬롯마다 하나(연타해도 안 쌓이고 갱신). */
-    private const val SOUND_TEST_ID_BASE = 9_920_000
-
-    /**
-     * **진짜 알림을 쏴서 소리를 확인** — 설정 화면 [테스트] 버튼. (2026-07-15 사장님 "테스트를 어떻게 해야 하나")
-     *
-     * 왜 필요하냐: 소리 고를 때 나오는 '미리듣기'는 MediaPlayer 로 **파일을 직접** 튼다 → 채널이 깨져 있어도
-     *   항상 정상으로 들려서 "답장인데 협업 소리" 같은 사고를 **절대 못 잡는다**(2026-07-15 사고를 놓친 이유).
-     *   이 함수는 실제 문자/협업 알림과 **똑같이 channelForSlot 채널로 발사**하므로, 여기서 맞으면 실전도 맞다.
-     */
-    fun testSlotSound(context: Context, slotKey: String) {
-        val idx = SOUND_SLOTS.indexOfFirst { it.key == slotKey }
-        val slot = SOUND_SLOTS.getOrNull(idx) ?: return
-        val chosen = prefsOf(context)?.notificationSound(slotKey, slot.defaultRes) ?: slot.defaultRes
-        val soundLabel = SOUND_OPTIONS.firstOrNull { it.first == chosen }?.second ?: "무음"
-        val notifId = SOUND_TEST_ID_BASE + idx
-        showProtoPush(
-            context, notifId, SLOT_CHANNEL[slotKey] ?: CHANNEL_REMINDER, ACCENT_BLUE,
-            title = "🔔 소리 테스트 · ${slot.label}",
-            msg = "지금 이 소리 = $soundLabel",
-            note = "실제 알림과 똑같이 울린 거예요. 다르면 소리를 다시 고르세요.",
-            contentIntent = appOpenPending(context, notifId),
-            timeoutMs = 30_000L
-        )
     }
 
     /**
