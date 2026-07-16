@@ -314,6 +314,24 @@ class ChatViewModel(
     fun saveDraft(text: String) { container.chatDraftStore.set(phoneNumber, text) }
     fun clearDraft() { container.chatDraftStore.clear(phoneNumber) }
 
+    /**
+     * [문구 넣기] 로 고른 문구에 **붙여둔 사진**들. 글자만 오고 사진이 안 따라오던 것 fix. (2026-07-16 사장님)
+     *   통화 후 문자(오버레이·알림)는 이미 이 사진들을 같이 보내는데, 채팅 문구 넣기만 빠져 있었다.
+     *   URI 는 문구 편집 때 persistable 권한을 잡아둬서(TemplateEditViewModel.addAttachment) 나중에도 읽힌다.
+     * @param onLoaded 사진 URI 목록(없으면 빈 목록) — 메인 스레드에서 호출됨(입력창 첨부에 바로 얹음).
+     */
+    fun loadTemplatePhotos(templateId: Long, onLoaded: (List<String>) -> Unit) {
+        viewModelScope.launch {
+            val uris = runCatching {
+                container.templateAttachmentRepository.findByTemplate(templateId)
+            }.getOrDefault(emptyList())
+                .filter { it.mimeType.startsWith("image/") }   // 사진만 (문서 등이 섞여 있어도 안전)
+                .sortedBy { it.sortOrder }
+                .map { it.fileUri }
+            onLoaded(uris)
+        }
+    }
+
     /** 진입 시 1회 소비 — 통화 후 템플릿이 넣어둔 미리 붙일 사진 URI 목록(없으면 빈 목록). (2026-07-12 사장님) */
     fun loadPhotoDrafts(): List<String> {
         val uris = container.chatDraftStore.getPhotos(phoneNumber)

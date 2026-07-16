@@ -1162,7 +1162,18 @@ fun ChatScreen(
         TemplatePickerDialog(
             category = "",
             templates = templates,
-            onPick = { tpl -> setInput(if (input.isBlank()) tpl.body else input + "\n" + tpl.body); tplPickerOpen = false },
+            // 글자 + **그 문구에 붙여둔 사진**을 같이 올린다. 예전엔 글자만 와서 사진은 📷로 다시 골라야 했음.
+            //   (통화 후 문자는 이미 사진을 같이 보내는데 채팅 문구 넣기만 빠져 있었다. 2026-07-16 사장님)
+            //   바로 발송은 안 함 — 사장님이 ▶ 누르고 확인창에서 '사진 N장' 보고 보냄(기존 발송 흐름 그대로).
+            onPick = { tpl ->
+                setInput(if (input.isBlank()) tpl.body else input + "\n" + tpl.body)
+                viewModel.loadTemplatePhotos(tpl.id) { uris ->
+                    val add = uris.mapNotNull { runCatching { android.net.Uri.parse(it) }.getOrNull() }
+                        .filter { it !in attachedPhotos }   // 같은 문구를 두 번 넣어도 사진은 안 겹침
+                    if (add.isNotEmpty()) attachedPhotos = attachedPhotos + add
+                }
+                tplPickerOpen = false
+            },
             onDelete = { id -> viewModel.deleteTemplate(id) },
             onSaveCurrent = { viewModel.saveTextAsTemplate(input) },
             canSaveCurrent = input.isNotBlank(),
@@ -1330,6 +1341,13 @@ fun ChatScreen(
                 // 본문 앞에 "예약 일정: 5월 26일 (수)" 한 줄 자동 prepend.
                 val ms = depositPrefillScheduledMs
                 setInput(if (ms != null) prependScheduleNote(tpl.body, ms) else tpl.body)
+                // 문구에 붙여둔 사진도 같이 — [문구 넣기] 와 동작을 맞춘다(같은 문구인데 들어온 문에 따라
+                //   사진이 왔다 안 왔다 하면 사장님이 헷갈림). (2026-07-16)
+                viewModel.loadTemplatePhotos(tpl.id) { uris ->
+                    val add = uris.mapNotNull { runCatching { android.net.Uri.parse(it) }.getOrNull() }
+                        .filter { it !in attachedPhotos }
+                    if (add.isNotEmpty()) attachedPhotos = attachedPhotos + add
+                }
                 depositPrefillScheduledMs = null
                 templatePickerCategory = null
             },

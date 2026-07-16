@@ -7380,3 +7380,19 @@ manifest 를 코드별로 생성해야 해서 비추 — localStorage 가 단순
   `docs/HANDOFF_manual_recording_link.md` 에 있음.
 - 문의(사장님 보고): "전화 오는 사람 미리보기 카드가 새 폰에서 안 뜬다" = **정상**. 토글 기본 OFF
   (2026-07-12 사장님 결정, AppPreferences.incomingCallerCardEnabled) → 설정에서 켜면 권한 창 뜸.
+
+## 2026-07-16 12:50 · android
+[문구 넣기] 로 문구 고를 때 **붙여둔 사진도 같이** 입력창에 올림 (사장님: "문구넣기에 사진 들어가는건 아직 안됐나")
+
+- 있던 것: 문구에 사진 붙여두기(TemplateEditScreen, SAF `OpenDocument` → persistable 권한) +
+  통화 후 문자(PostCallTemplateOverlay)가 그 사진을 같이 발송(7/12 "5장 첨부").
+- **빠져 있던 것**: 채팅 [문구 넣기] → `onPick` 이 `tpl.body`(글자)만 입력창에 넣고 사진은 안 봄 → 사장님이 📷로 다시 골라야 했음.
+- fix: `ChatViewModel.loadTemplatePhotos(templateId, onLoaded)` 신설 → 채팅의 기존 사진 첨부 자리(`attachedPhotos`)에 얹음.
+  - **두 picker 모두** 적용: [문구 넣기](전체) + AI 제안 액션의 카테고리 picker — 같은 문구인데 들어온 문에 따라
+    사진이 왔다 안 왔다 하면 헷갈리므로 통일.
+  - 이미지(mimeType image/*)만, sortOrder 순, **이미 붙은 사진과 중복 제외**(같은 문구 두 번 넣어도 안 겹침).
+  - 바로 발송 안 함 — ▶ → 확인창("사진 N장") → 발송. 기존 발송 흐름 그대로. 발송도 기존 `SmsSender.sendMms`
+    (통화후문자가 쓰는 그 함수, 같은 종류의 SAF URI) → 새 위험 없음.
+- 검증: 컴파일 + 단위테스트 209건 통과. release 0.2.1031 빌드·S9+ 설치.
+  ⚠️ **미검증**: 실제 [문구 넣기] → 사진이 입력창에 뜨는 화면 확인 — 여기 스페어폰은 잠금 + 문구/사진 데이터가
+  없어 UI 구동 불가. 사장님 폰에서 사진 붙은 문구로 한 번 봐주셔야 확실.
