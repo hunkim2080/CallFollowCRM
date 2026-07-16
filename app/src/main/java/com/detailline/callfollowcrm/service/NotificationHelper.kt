@@ -826,6 +826,47 @@ object NotificationHelper {
         )
     }
 
+    /**
+     * A(현장 주인)가 시공일정을 바꿈 → 협업 사장(B)에게 "일정 변경: 옛→새" 알림. (2026-07-16 사장님)
+     *   서버 FCM(type=collab_reschedule)로 옴. 소리는 우선 '협업 현장 소식'(comment) 채널 재사용 —
+     *   전용 '일정 변경' 소리 분리는 사장님 확인 후(§SYNC). 탭 = 그 협업 현장.
+     * @param oldLabel/newLabel "6/21(수)" 같은 라벨(서버가 못 주면 at_ms 로 앱이 포맷).
+     */
+    fun showCollabReschedule(
+        context: Context,
+        shareId: String,
+        title: String,
+        oldLabel: String?,
+        newLabel: String?,
+        timeLabel: String?
+    ) {
+        val notifId = COLLAB_ID_OFFSET + ("reschedule:$shareId".hashCode() and 0x7FFFFF)
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            action = Intent.ACTION_VIEW
+            data = Uri.parse("${AppConfig.BASE_URL.trimEnd('/')}/shared/$shareId")
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pending = PendingIntent.getActivity(
+            context, notifId, openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val site = title.takeIf { it.isNotBlank() } ?: "협업 현장"
+        val newWithTime = listOfNotNull(newLabel?.takeIf { it.isNotBlank() }, timeLabel?.takeIf { it.isNotBlank() })
+            .joinToString(" ").takeIf { it.isNotBlank() }
+        val msg = when {
+            !oldLabel.isNullOrBlank() && newWithTime != null -> "'${site}' 일정이 ${oldLabel} → ${newWithTime} 로 바뀌었어요"
+            newWithTime != null -> "'${site}' 일정이 ${newWithTime} 로 바뀌었어요"
+            else -> "'${site}' 시공 일정이 바뀌었어요 — 확인해 주세요"
+        }
+        showProtoPush(
+            context, notifId, CHANNEL_COLLAB_COMMENT, ACCENT_PURPLE,
+            title = "📅 협업 현장 일정 변경",
+            msg = msg,
+            contentIntent = pending,
+            actions = listOf(PushAction("협업 현장 보기", pending))
+        )
+    }
+
     /** 마감 브리핑 — 프로토 PUSH.brief 형식(파랑, 저녁 9시). 확실한 데이터만. */
     fun showDailyBrief(context: Context, newCustomers: Int, deposits: Int, tomorrowJobs: Int, tomorrowLabel: String?) {
         val parts = buildList {

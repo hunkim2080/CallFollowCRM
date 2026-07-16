@@ -237,6 +237,27 @@ class SharedSiteRepository(
             put("share_id", shareId); put("owner_phone", phoneKey(ownerPhone))
         })
 
+    /**
+     * A(현장 주인)가 시공일정을 바꾸면 → 그 현장 협업 사장(B)에게 "일정 변경: 옛날짜 → 새날짜" 알림. (2026-07-16 사장님)
+     *   서버: shared_sites.scheduled_at_ms 갱신 + FCM(type=collab_reschedule) 을 B(참여자)에게 push.
+     *   old_at_ms 를 같이 보내 서버/B 가 "21일(수) → 23일(금)" 처럼 옛→새를 보여줄 수 있게 한다.
+     *   서버 미구현(404) 시 Result 실패 → 호출부가 조용히 무시(로컬 일정은 이미 바뀌어 있음).
+     *   ⚠️ 서버 핸드오프: docs/SERVER_HANDOFF_collab_reschedule.md
+     */
+    suspend fun reschedule(
+        shareId: String,
+        ownerPhone: String,
+        newScheduledAtMs: Long,
+        oldScheduledAtMs: Long? = null,
+        timeLabel: String? = null
+    ): Result<Unit> = post("$baseUrl/api/shared/reschedule", JSONObject().apply {
+        put("share_id", shareId)
+        put("owner_phone", phoneKey(ownerPhone))
+        put("scheduled_at_ms", newScheduledAtMs)
+        oldScheduledAtMs?.let { put("old_scheduled_at_ms", it) }
+        timeLabel?.takeIf { it.isNotBlank() }?.let { put("time_label", it) }
+    })
+
     /** A(현장 주인)용 협업 진행 이벤트. 서버 미구현(404) 시 Result 실패 → 호출부가 조용히 무시. */
     suspend fun ownerEvents(ownerPhone: String, sinceMs: Long = 0L, limit: Int = 50): Result<List<OwnerEvent>> =
         withContext(Dispatchers.IO) {

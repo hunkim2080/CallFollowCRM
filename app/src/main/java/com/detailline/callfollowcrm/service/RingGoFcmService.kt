@@ -80,6 +80,29 @@ class RingGoFcmService : FirebaseMessagingService() {
                     NotificationHelper.showCollabPaid(this, shareId, data["title"].orEmpty())
                 }
             }
+            // A(현장 주인)가 시공일정을 바꿈 → 협업 사장(B)에게 "일정 변경: 옛→새" 알림. (2026-07-16 사장님)
+            //   서버가 라벨을 주면 그대로, 없으면 at_ms 로 앱이 "6/21(수)" 포맷. site_id 는 share_id 와 동일.
+            "collab_reschedule" -> {
+                val shareId = data["share_id"].orEmpty()
+                if (shareId.isNotBlank()) {
+                    fun labelOf(key: String): String? =
+                        data["${key}_label"]?.takeIf { it.isNotBlank() }
+                            ?: data["${key}_at_ms"]?.toLongOrNull()?.let {
+                                com.detailline.callfollowcrm.util.DateTimeUtils.formatDateLabel(it)
+                            }
+                    NotificationHelper.showCollabReschedule(
+                        context = this,
+                        shareId = shareId,
+                        title = data["title"].orEmpty(),
+                        oldLabel = labelOf("old"),
+                        newLabel = labelOf("new").takeIf { !it.isNullOrBlank() }
+                            ?: data["scheduled_at_ms"]?.toLongOrNull()?.let {
+                                com.detailline.callfollowcrm.util.DateTimeUtils.formatDateLabel(it)
+                            },
+                        timeLabel = data["time_label"]?.takeIf { it.isNotBlank() }
+                    )
+                }
+            }
             // 협업 해제됨 — 상대가 끝냄(A 해제 / B 그만하기). 받는 쪽에 알림.
             "collab_ended" -> {
                 val shareId = data["share_id"].orEmpty()

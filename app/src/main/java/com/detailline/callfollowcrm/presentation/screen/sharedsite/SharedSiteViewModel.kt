@@ -193,6 +193,14 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
                     step == SharedSiteRepository.Progress.COMPLETED -> "완료 알렸어요 — 주인 사장님께 계좌가 전달돼요"
                     else -> "알렸어요"
                 }
+                // 완료를 누른 본인(B) 폰에서도 '됐다' 확인음. (2026-07-16 사장님) 되돌리기(reverting)엔 안 울림.
+                //   주인(A)은 서버 FCM 으로 완료 알림음이 따로 울림(별개 경로) — 여긴 B의 로컬 동작 피드백.
+                if (step == SharedSiteRepository.Progress.COMPLETED && !reverting) {
+                    com.detailline.callfollowcrm.util.LocalCue.play(
+                        container.appContext,
+                        com.detailline.callfollowcrm.R.raw.sound_collab_completed
+                    )
+                }
                 load()
                 // 미러에 협업 현장의 '완료' 표시가 나가므로 완료/되돌리기도 즉시 반영. (수락과 같은 이유)
                 if (step == SharedSiteRepository.Progress.COMPLETED || reverting) {

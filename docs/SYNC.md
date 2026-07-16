@@ -7396,3 +7396,32 @@ manifest 를 코드별로 생성해야 해서 비추 — localStorage 가 단순
 - 검증: 컴파일 + 단위테스트 209건 통과. release 0.2.1031 빌드·S9+ 설치.
   ⚠️ **미검증**: 실제 [문구 넣기] → 사진이 입력창에 뜨는 화면 확인 — 여기 스페어폰은 잠금 + 문구/사진 데이터가
   없어 UI 구동 불가. 사장님 폰에서 사진 붙은 문구로 한 번 봐주셔야 확실.
+
+## 2026-07-16 14:10 · android → cowork(1건)
+협업 3종 처리 — ①일정변경 알림(서버 필요) ②받은문자알림 정체 규명 ③완료 확인음(B폰)
+
+**① [신규] 시공일정 바꾸면 협업 사장(B)에게 "일정 변경: 6/21(수)→6/23(금)" 알림 — 앱 양쪽 완성, 서버 대기**
+- 사장님 요청. 지금은 A가 일정 바꿔도 B는 옛 날짜를 그대로 들고 있었음(완료/입금/댓글/사진/해제는 알림 가는데 일정변경만 없었음).
+- 앱: A측 CustomerDetailViewModel.updateScheduledWorkDate → collabAssignments 에서 shareId 찾아 SharedSiteRepository.reschedule 호출.
+  B측 RingGoFcmService "collab_reschedule" → NotificationHelper.showCollabReschedule. **서버 404여도 graceful**(로컬 일정은 바뀜).
+- **cowork 필요**: `POST /api/shared/reschedule` (share_id, owner_phone, scheduled_at_ms, old_scheduled_at_ms?, time_label?) →
+  shared_sites 갱신 + **accepted 협업에만** FCM(type=collab_reschedule) push. 명세: **docs/SERVER_HANDOFF_collab_reschedule.md**
+- ⚠️ B 알림 소리는 우선 collab_comment 채널 재사용 — 전용 "일정 변경" 소리는 사장님 확인 후.
+
+**② "받은 문자 알림" 껐는데 마스코트가 도는 애니 — 버그 아님, 정체 규명**
+- 그 토글(incomingSmsNotifyEnabled)은 **알림창만** 끔(SmsReceiver:120). 문자 오면 도는 **AI 답변 준비**(SmsReceiver:206
+  requestPrepare)는 이 토글과 무관하게 계속 돎 → 그 "준비 중"이 마스코트 로딩 애니(ChatScreen MascotThinkingRow).
+- 사장님은 "받은문자알림 = 마스코트 답변 준비 끄는 버튼"으로 알고 계셨음. **그 버튼은 현재 앱에 없음.**
+- 사장님이 "일단 설명만 듣고 결정" → **AI 답변 준비 끄기 스위치 신설은 사장님 결정 대기.** 미착수.
+
+**③ 협업 완료 확인음이 완료 누른 B가 아니라 A(주인)한테만 나던 것 → B폰에도 확인음 추가**
+- 원래 설계: B 완료 누르면 B는 토스트만, A가 FCM 완료 알림음. (라우팅 자체는 정상 = 버그 아니었음)
+- 사장님: "완료 누른 B도 확인음이 나야" → SharedSiteViewModel.updateProgress(COMPLETED) 성공 시 B폰 로컬 확인음
+  (LocalCue.play + sound_collab_completed). 되돌리기(revert)엔 안 울림. A쪽 FCM 알림음은 그대로(별개 경로).
+- 신규 util: LocalCue — 알림 아닌 '내 동작 확인음'(MediaPlayer 1회 재생·자동 release).
+- (참고) 사운드 조사 중 발견: COLLAB_ID_OFFSET(9_400_000) vs COLLAB_INVITE_ID_OFFSET(9_450_000) 간격 5만인데
+  해시범위 0x7FFFFF(838만)라 알림 ID 공간 겹칠 수 있음(희박). 다른 협업 이벤트 알림이 충돌하면 뒤 소리가 눌릴 수
+  있음(엉뚱한 소리 아님). offset 간격 벌리는 게 안전 — 이번엔 미조치, 기록만.
+
+- 검증: 단위테스트 전체 통과(실패 0). release 0.2.1032 S9+ 설치·실행·크래시 0.
+  ⚠️ 미검증: ①은 서버 대기라 end-to-end 불가 / ③은 실기 두 폰(A·B) 필요 — 여기선 확인 못 함.

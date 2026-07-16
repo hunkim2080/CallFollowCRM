@@ -449,6 +449,35 @@ class CustomerDetailViewModel(
                 oldValue = scheduleLabel(oldDate, oldMinutes),
                 newValue = normalized?.let { com.detailline.callfollowcrm.util.DateTimeUtils.formatDateLabel(it) }
             )
+            // 이 현장에 협업 사장(B)이 배정돼 있으면 "일정 변경: 옛→새" 알림을 보낸다. (2026-07-16 사장님)
+            //   날짜가 실제로 바뀌었고(위 조건) 새 날짜가 있을 때만(취소는 기존 로직이 협업을 이미 정리).
+            if (normalized != null && oldDate != null) notifyCollabReschedule(oldDate, normalized)
+        }
+    }
+
+    /**
+     * 이 고객 현장의 협업 사장(들)에게 일정 변경 알림 전송. (2026-07-16 사장님)
+     *   collabAssignments("customerId|phone|name|shareId") 에서 이 고객의 살아있는 shareId 를 찾아 서버로.
+     *   서버가 shared_sites 갱신 + B 에게 FCM(type=collab_reschedule) push. 서버 미구현이면 조용히 무시.
+     *   ⚠️ 서버는 accepted 협업에만 push (거절/종료/pending 은 서버가 skip) — docs/SERVER_HANDOFF_collab_reschedule.md
+     */
+    private fun notifyCollabReschedule(oldAtMs: Long, newAtMs: Long) {
+        val owner = container.preferences.bizPhone.filter { it.isDigit() }
+        if (owner.length < 9) return
+        val shareIds = container.preferences.collabAssignments.mapNotNull { e ->
+            val p = e.split('|')
+            if (p.getOrNull(0)?.toLongOrNull() == customerId) p.getOrNull(3)?.trim()?.takeIf { it.isNotBlank() } else null
+        }.distinct()
+        if (shareIds.isEmpty()) return
+        val timeLabel = customer.value?.scheduledWorkMinutes?.let {
+            com.detailline.callfollowcrm.util.DateTimeUtils.formatWorkMinutes(it)
+        }
+        viewModelScope.launch {
+            shareIds.forEach { sid ->
+                runCatching {
+                    container.sharedSiteRepository.reschedule(sid, owner, newAtMs, oldAtMs, timeLabel)
+                }
+            }
         }
     }
 
