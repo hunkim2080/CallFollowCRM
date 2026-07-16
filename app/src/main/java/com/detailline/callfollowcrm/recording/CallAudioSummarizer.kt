@@ -28,7 +28,10 @@ object CallAudioSummarizer {
     /**
      * @param interactive true(공유 경로)=이미 요약 있으면 "다시 요약?" 다이얼로그로 물음.
      *   false(통화종료 자동 스캔)=백그라운드라 묻지 않고 이미 있으면 조용히 스킵(재과금 방지).
-     * @return 새로 저장했으면 true. (이미 있음/파일명 패턴 불일치/서버 실패 = false)
+     * @param phoneOverride 파일명에 번호가 없을 때(연락처 이름만 든 녹음) 호출부가 통화기록에서 되찾아 넘기는 번호.
+     *   주면 파일명 파싱 없이 이걸 쓴다. (2026-07-16 — 폰마다 저장 규칙이 달라 번호를 안 넣는 기기가 있음)
+     * @param recordedAtOverride 같은 이유의 녹음 시각. 파일명 시각이 있으면 보통 그걸 그대로 넘긴다.
+     * @return 새로 저장했으면 true. (이미 있음/번호·시각 못 구함/서버 실패 = false)
      */
     suspend fun summarizeAndSave(
         context: Context,
@@ -36,11 +39,15 @@ object CallAudioSummarizer {
         audioUri: String,
         fileName: String,
         interactive: Boolean = true,
-        notifyOnComplete: Boolean = false
+        notifyOnComplete: Boolean = false,
+        phoneOverride: String? = null,
+        recordedAtOverride: Long? = null
     ): Boolean {
-        val parsed = AdotFilenameParser.parse(fileName) ?: return false
-        val phone = parsed.phoneNumber
-        val recordedAt = parsed.recordedAt
+        // 번호·시각은 override 우선. 서버는 파일명을 안 보고 이 둘을 폼 필드로 받아 쓴다(§26).
+        val parsed = AdotFilenameParser.parse(fileName)
+        val phone = phoneOverride?.filter { it.isDigit() }?.takeIf { it.isNotEmpty() }
+            ?: parsed?.phoneNumber ?: return false
+        val recordedAt = recordedAtOverride ?: parsed?.recordedAt ?: return false
 
         // 이미 처리된 통화(로컬에 요약 있음)를 재공유한 경우 → 조용히 건너뛰지 않고
         //   "다시 요약해드릴까요?" 를 묻는다(채팅 다이얼로그). 아니오면 기존 유지, 예면 force_refresh.

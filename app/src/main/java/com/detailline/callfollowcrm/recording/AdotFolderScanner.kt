@@ -82,12 +82,16 @@ object AdotFolderScanner {
         runCatching {
             // 통화녹음만: 파일명이 AdotFilenameParser 로 해석되는 것만(음악·알림음 등 제외). 폴더 경로는 기기마다
             //   달라서 가정하지 않고, 파일명 패턴으로 거른다 → 에이닷/T전화/삼성 어디 저장돼도 잡힌다.
+            // 2026-07-16: parse(번호 필수) → parseLoose(시각만 있어도 통과). 연락처에 저장된 사람이면 번호 대신
+            //   이름을 넣는 폰(`통화 남이편_260716_112558.m4a`)의 녹음이 통째로 안 보이던 것 fix. 번호는 나중에
+            //   통화기록으로 되찾는다(findCallAtTime). 개수 표시("녹음 N개 발견")도 이 기준이라 이제 안 속인다.
             context.contentResolver.query(col, proj, null, null, "${MediaStore.Audio.Media.DATE_ADDED} DESC")?.use { c ->
                 val idCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
                 val nameCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
                 while (c.moveToNext()) {
                     val name = c.getString(nameCol) ?: continue
-                    if (AdotFilenameParser.parse(name) == null) continue
+                    if (!isAudioName(name)) continue
+                    if (AdotFilenameParser.parseLoose(name) == null) continue
                     out.add(RecFile(ContentUris.withAppendedId(col, c.getLong(idCol)).toString(), name))
                 }
             }
@@ -146,7 +150,9 @@ object AdotFolderScanner {
         val tree = getTreeUri(context)
         if (tree != null) {
             val name = runCatching { DocumentFile.fromTreeUri(context, tree)?.name }.getOrNull()
-            val n = runCatching { listCandidates(context).size }.getOrDefault(0)
+            // 2026-07-16 fix: 예전엔 폴더 안 **파일 전부**를 세서(오디오인지·해석되는지 안 봄) "N개 발견"이
+            //   거짓말이었다 → "찾았다면서 왜 못 찾냐". 실제로 쓸 수 있는 녹음만 센다(요약이 쓰는 기준과 동일).
+            val n = runCatching { listCandidates(context).count { isUsableRecording(it.name) } }.getOrDefault(0)
             return "폴더: ${name ?: "직접 연결한 폴더"} · 녹음 ${n}개 발견"
         }
         if (isMediaStoreEnabled(context) && hasAudioPermission(context)) {
@@ -167,19 +173,33 @@ object AdotFolderScanner {
      *   둘 다 아니면 빈 목록. 호출부(스캔 루프)는 이 목록만 돌면 된다.
      */
     private fun listCandidates(context: Context): List<RecFile> {
-        val treeUri = getTreeUri(context)
-        if (treeUri != null) {
-            val tree = DocumentFile.fromTreeUri(context, treeUri) ?: return emptyList()
-            if (!tree.isDirectory) return emptyList()
-            return tree.listFiles().mapNotNull { f ->
+        val fromTree = listFromTree(context)
+        // 2026-07-16 fix: 예전엔 폴더가 연결돼 있으면 **무조건** 그 폴더만 봤다 → 한 번 잘못/빈 폴더를 고르면
+        //   나중에 "자동으로 찾기"를 켜도 MediaStore 를 영영 안 봐서 계속 "녹음 못 찾음". 폴더에 쓸 녹음이
+        //   하나도 없으면 자동 찾기로 폴백한다(폴더 우선은 유지 — 사장님이 직접 고른 게 1순위).
+        if (fromTree.any { isUsableRecording(it.name) }) return fromTree
+        if (isMediaStoreEnabled(context) && hasAudioPermission(context)) {
+            return listFromMediaStore(context).ifEmpty { fromTree }
+        }
+        return fromTree
+    }
+
+    private fun listFromTree(context: Context): List<RecFile> {
+        val treeUri = getTreeUri(context) ?: return emptyList()
+        val tree = runCatching { DocumentFile.fromTreeUri(context, treeUri) }.getOrNull() ?: return emptyList()
+        if (!tree.isDirectory) return emptyList()
+        return runCatching {
+            tree.listFiles().mapNotNull { f ->
                 if (!f.isFile) return@mapNotNull null
                 val n = f.name ?: return@mapNotNull null
                 RecFile(f.uri.toString(), n)
             }
-        }
-        if (isMediaStoreEnabled(context) && hasAudioPermission(context)) return listFromMediaStore(context)
-        return emptyList()
+        }.getOrDefault(emptyList())
     }
+
+    /** 요약에 실제로 쓸 수 있는 녹음인가 = 오디오 + 파일명에서 최소한 '시각'은 나온다. 개수 표시도 이 기준. */
+    private fun isUsableRecording(name: String): Boolean =
+        isAudioName(name) && AdotFilenameParser.parseLoose(name) != null
 
     private fun isAudioName(name: String): Boolean =
         name.endsWith(".m4a", true) || name.endsWith(".mp3", true) || name.endsWith(".wav", true)
@@ -227,7 +247,8 @@ object AdotFolderScanner {
             if (!isAudioName(name)) continue
 
             // 파일명에서 녹음 시각 추출. 패턴 안 맞으면 안전하게 스킵.
-            val parsed = AdotFilenameParser.parse(name) ?: continue
+            //   (2026-07-16) 번호가 없어도 시각만 나오면 통과 — 번호는 RecordingMatcher 가 통화기록으로 되찾는다.
+            val parsed = AdotFilenameParser.parseLoose(name) ?: continue
             // 연결 시점보다 오래된 파일은 무시 (과거 통화 묶음 차단).
             if (parsed.recordedAt < connectedAt) continue
 
@@ -275,8 +296,14 @@ object AdotFolderScanner {
         for (rf in listCandidates(appCtx)) {
             val name = rf.name
             if (!isAudioName(name)) continue
-            val parsed = AdotFilenameParser.parse(name) ?: continue
-            if (parsed.recordedAt < connectedAt) continue   // 연결 전 옛 통화 무시
+            val loose = AdotFilenameParser.parseLoose(name) ?: continue
+            if (loose.recordedAt < connectedAt) continue   // 연결 전 옛 통화 무시
+
+            // 번호가 파일명에 없으면(연락처 이름만 든 녹음) 그 시각에 하던 통화에서 번호를 되찾는다.
+            //   못 찾거나 애매하면 건너뜀 — 엉뚱한 고객에 붙이느니 안 붙인다. (2026-07-16 사장님 현장)
+            val phone = loose.phoneNumber
+                ?: container.callRecordRepository.findCallAtTime(loose.recordedAt)?.phoneNumber
+                ?: continue
 
             val uriStr = rf.uriStr
             // 녹음 첨부(없을 때만) — 기존 자동 import 와 동일하게 고객/통화기록 연결.
@@ -286,10 +313,14 @@ object AdotFolderScanner {
                 }
             }
             // 이미 요약 있으면 스킵(텍스트 경로가 먼저 요약했을 수 있음) — 비용 0.
-            if (container.callSummaryRepository.findExistingNear(parsed.phoneNumber, parsed.recordedAt) != null) continue
-            // 서버 받아쓰기+요약 (비대화형: 묻지 않음).
+            if (container.callSummaryRepository.findExistingNear(phone, loose.recordedAt) != null) continue
+            // 서버 받아쓰기+요약 (비대화형: 묻지 않음). 번호 없는 파일은 되찾은 번호·시각을 넘긴다.
             val ok = runCatching {
-                CallAudioSummarizer.summarizeAndSave(appCtx, container, uriStr, name, interactive = false, notifyOnComplete = true)
+                CallAudioSummarizer.summarizeAndSave(
+                    appCtx, container, uriStr, name, interactive = false, notifyOnComplete = true,
+                    phoneOverride = if (loose.phoneNumber == null) phone else null,
+                    recordedAtOverride = if (loose.phoneNumber == null) loose.recordedAt else null
+                )
             }.getOrDefault(false)
             if (ok) summarized++
         }
@@ -359,6 +390,11 @@ object AdotFolderScanner {
      * 특정 통화 한 건을 폴더/MediaStore 에서 찾아 즉시 요약(채팅에서 통화 카드 탭). 연결 시점 cutoff 무시(사용자 명시 의도).
      *   매칭 = 파일명 번호 끝 8자리 일치 + 녹음시각이 통화시각 ±30분. 가장 가까운 파일을 요약.
      *   에이닷 들어가 '공유' 안 해도, 연결된 소스에서 알아서 찾아 요약. (2026-06-14 사장님)
+     *
+     * 2단계 매칭 (2026-07-16 사장님 현장 — `통화 남이편_260716_112558.m4a`):
+     *  ① 이름에 **번호**가 있는 파일 → 예전 그대로(번호 끝 8자리 + ±30분).
+     *  ② ①이 없으면 이름에 **번호가 없는**(연락처 이름만 든) 파일 → [CallRecordRepository.findCallAtTime] 으로
+     *     "그 시각에 하던 통화"가 **바로 이 통화**일 때만 쓴다. 폰은 한 번에 한 통화만 하므로 시각이 곧 신원.
      */
     suspend fun summarizeCallNow(
         context: Context,
@@ -376,14 +412,30 @@ object AdotFolderScanner {
         var bestName = ""
         var bestAt = 0L
         var bestDelta = Long.MAX_VALUE
-        for (rf in listCandidates(appCtx)) {
-            val name = rf.name
-            if (!isAudioName(name)) continue
-            val parsed = AdotFilenameParser.parse(name) ?: continue
+        val candidates = listCandidates(appCtx).filter { isAudioName(it.name) }
+        for (rf in candidates) {
+            val parsed = AdotFilenameParser.parse(rf.name) ?: continue
             if (parsed.phoneNumber.takeLast(8) != target) continue
             val delta = kotlin.math.abs(parsed.recordedAt - callAtMs)
             if (delta <= win && delta < bestDelta) {
-                bestUri = rf.uriStr; bestName = name; bestAt = parsed.recordedAt; bestDelta = delta
+                bestUri = rf.uriStr; bestName = rf.name; bestAt = parsed.recordedAt; bestDelta = delta
+            }
+        }
+        // ② 번호 없는 녹음 — 시각으로 되찾기. ①로 찾았으면 건너뜀(번호가 확실한 쪽이 항상 우선).
+        var looseMatch = false
+        if (bestUri == null) {
+            for (rf in candidates) {
+                val loose = AdotFilenameParser.parseLoose(rf.name) ?: continue
+                if (loose.phoneNumber != null) continue          // 번호 있는 건 ①에서 이미 판정 끝
+                val delta = kotlin.math.abs(loose.recordedAt - callAtMs)
+                if (delta > win || delta >= bestDelta) continue
+                // 이 시각의 통화가 '탭한 그 통화'가 맞는지 통화기록으로 확인 — 아니면 안 붙인다(엉뚱한 고객 방지).
+                val owner = container.callRecordRepository.findCallAtTime(loose.recordedAt) ?: continue
+                val sameCall = if (callRecordId != null) owner.id == callRecordId
+                else owner.phoneNumber.filter { it.isDigit() }.takeLast(8) == target
+                if (!sameCall) continue
+                bestUri = rf.uriStr; bestName = rf.name; bestAt = loose.recordedAt; bestDelta = delta
+                looseMatch = true
             }
         }
         val uriStr = bestUri ?: return SummarizeResult.NO_FILE
@@ -400,7 +452,12 @@ object AdotFolderScanner {
         }
         val ok = runCatching {
             // notifyOnComplete=true — 탭으로 요약해도 끝나면 "막내가 OO님 통화 요약했어요!" 푸시(앱 켜져 있어도). (2026-06-18 사장님)
-            CallAudioSummarizer.summarizeAndSave(appCtx, container, uriStr, bestName, interactive = false, notifyOnComplete = true)
+            // ②(번호 없는 파일)일 때만 번호·시각을 넘긴다 — ①은 기존 동작 그대로 두려고 override 안 씀.
+            CallAudioSummarizer.summarizeAndSave(
+                appCtx, container, uriStr, bestName, interactive = false, notifyOnComplete = true,
+                phoneOverride = if (looseMatch) phoneNumber else null,
+                recordedAtOverride = if (looseMatch) bestAt else null
+            )
         }.getOrDefault(false)
         // 파일은 찾았으나 요약 실패 = 서버(/api/call-audio-summary, 맥미니 Whisper STT) 오류·네트워크·오디오 읽기 실패 등.
         //   이걸 NO_FILE("녹음 못 찾음")로 뭉뚱그리면 진짜 원인(주로 서버)을 가려 오진됨

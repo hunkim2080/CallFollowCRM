@@ -37,6 +37,13 @@ interface CallRecordDao {
     @Query("SELECT * FROM call_records ORDER BY endedAt DESC LIMIT :limit")
     fun observeRecent(limit: Int = 50): Flow<List<CallRecordEntity>>
 
+    /**
+     * [from~to] 사이에 끝난 통화 (일회성 조회). 번호 없이 **이름만** 든 녹음 파일을
+     *   "그 시각에 하던 통화" 로 되찾을 때 씀. (2026-07-16, CallRecordRepository.findCallAtTime)
+     */
+    @Query("SELECT * FROM call_records WHERE endedAt BETWEEN :from AND :to ORDER BY endedAt DESC")
+    suspend fun findEndedBetween(from: Long, to: Long): List<CallRecordEntity>
+
     @Query("SELECT * FROM call_records WHERE endedAt BETWEEN :from AND :to ORDER BY endedAt DESC")
     fun observeBetween(from: Long, to: Long): Flow<List<CallRecordEntity>>
 

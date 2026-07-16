@@ -77,6 +77,38 @@ class CallRecordRepository(private val dao: CallRecordDao) {
 
     suspend fun findById(id: Long): CallRecordEntity? = dao.findById(id)
 
+    /**
+     * **그 시각에 하던 통화 1건** — 파일명에 번호 없이 연락처 이름만 든 녹음
+     * (`통화 남이편_260716_112558.m4a`) 을 통화에 되찾아 붙일 때 쓴다. (2026-07-16 사장님 현장)
+     *
+     * 근거: 폰은 한 번에 한 통화만 한다 → **녹음된 시각이 곧 신원**. 파일명 번호에 의존하지 않는다.
+     *   (폰마다 저장 규칙이 달라 번호를 안 넣는 기기가 있음 = "녹음 파일 못 찾음"의 진짜 원인)
+     *
+     * 안전장치 — 조금이라도 애매하면 **null(= 안 붙임)**. 엉뚱한 고객 통화에 붙는 사고가 더 나쁘다:
+     *  - 받은/건 통화 + 통화시간 > 0 만 후보 (부재중·거절은 녹음 자체가 없음)
+     *  - 녹음 시각이 [통화 시작 - slack ~ 통화 종료 + slack] 안
+     *  - 그 창에 **서로 다른 번호**의 통화가 둘 이상 겹치면(통화 중 대기 등) 판단 포기 → null
+     *
+     * @param atMs 녹음 시각(파일명 기준)
+     * @param slackMs 통화 시각과의 허용 오차. 기본 2분 — 녹음 시작이 응답 직후라 시작보다 조금 늦을 수 있음.
+     */
+    suspend fun findCallAtTime(atMs: Long, slackMs: Long = 2 * 60 * 1000L): CallRecordEntity? {
+        val span = 6 * 60 * 60 * 1000L   // 하루치를 다 읽지 않게 앞뒤 6시간만(긴 통화 여유 포함).
+        val rows = runCatching { dao.findEndedBetween(atMs - span, atMs + span) }.getOrDefault(emptyList())
+        val cands = rows.filter { r ->
+            (r.callType == CallType.INCOMING.name || r.callType == CallType.OUTGOING.name) &&
+                r.duration > 0 &&
+                run {
+                    val s = r.startedAt ?: r.endedAt
+                    atMs >= s - slackMs && atMs <= r.endedAt + slackMs
+                }
+        }
+        if (cands.isEmpty()) return null
+        // 같은 통화가 형식 차이로 2 row 인 것(중복 sync)은 한 통화로 본다. 진짜 다른 번호가 겹치면 포기.
+        if (cands.distinctBy { dedupKey(it.phoneNumber) }.size > 1) return null
+        return cands.minByOrNull { kotlin.math.abs((it.startedAt ?: it.endedAt) - atMs) }
+    }
+
     /** 이 번호로 통화 기록이 몇 번 있는지. 1 이면 방금 만든 게 처음. */
     suspend fun countByPhone(phone: String): Int = dao.countByPhone(phone)
 
