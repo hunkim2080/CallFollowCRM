@@ -345,27 +345,8 @@ fun ScheduleAddScreen(
                     visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation)
             }
 
-            // 일당 배정(앱 추가 기능) — 수첩 일당 있으면.
-            if (workers.isNotEmpty()) {
-                Spacer(Modifier.height(16.dp))
-                FieldLabel("일당 배정 (선택) — 정산 현금흐름에 자동 −지출")
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    workers.forEach { w ->
-                        val sel = selectedWorkerIds.contains(w.id)
-                        FChip(w.name, sel) {
-                            if (sel) selectedWorkerIds.remove(w.id) else selectedWorkerIds.add(w.id)
-                        }
-                    }
-                }
-                if (selectedWorkerIds.isNotEmpty()) {
-                    Spacer(Modifier.height(10.dp))
-                    FieldLabel("1인 일당 (원)")
-                    SheetTextField(crewWageText, { crewWageText = it.filter { c -> c.isDigit() } },
-                        placeholder = "예: 200000",
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
-                        visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation)
-                }
-            }
+            // '내가 부른 일당' 배정은 없앴다 (2026-07-17 사장님 "협업만"). 일당은 일정 카드 → 전문가 배정에서 협업으로.
+            //   기존 JobCrew 데이터·정산은 그대로 보존(여기서 새로 만들지 않을 뿐).
 
             // .sheet-cta — 일정 등록
             Spacer(Modifier.height(20.dp))
@@ -388,8 +369,8 @@ fun ScheduleAddScreen(
                             totalAmount = totalManwon.toLongOrNull()?.let { it * 10_000 },
                             depositAmount = if (depositReceived) depositManwon.toLongOrNull()?.let { it * 10_000 } else null,
                             depositPaid = depositReceived,
-                            crewWorkers = workers.filter { selectedWorkerIds.contains(it.id) },
-                            crewWage = crewWageText.toLongOrNull() ?: 0L,
+                            crewWorkers = emptyList(),   // '내가 부른 일당' 제거 (2026-07-17 사장님)
+                            crewWage = 0L,
                             onDone = onDone
                         )
                     }

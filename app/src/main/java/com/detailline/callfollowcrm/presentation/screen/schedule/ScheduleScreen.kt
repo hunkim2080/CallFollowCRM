@@ -1135,24 +1135,6 @@ private fun buildCalendarCells(
  * 팀원 현장 배정 시트 — 프로토 openAssign/renderAssign 1:1 (팀원 칩 토글).
  *   저장 시 ScheduleViewModel.assignTeam → 로컬 기록 + 서버 schedule-snapshot push.
  */
-/** 일당사장을 이 현장에 어떻게 붙일지 — 내가 부른 일당(로컬·정산) vs 협업 요청(서버·수락 필요). */
-private const val MODE_WAGE = "wage"
-private const val MODE_COLLAB = "collab"
-
-/** 배정 시트의 [내가 부른 일당 | 협업 요청] 선택 알약. */
-@Composable
-private fun ModePill(label: String, on: Boolean, accent: Color, onClick: () -> Unit) {
-    Box(
-        Modifier.clip(RoundedCornerShape(999.dp))
-            .background(if (on) accent else TossGrayBg)
-            .clickable { onClick() }
-            .padding(horizontal = 13.dp, vertical = 8.dp)
-    ) {
-        Text(label, fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
-            color = if (on) Color.White else TossTextSecondary, maxLines = 1)
-    }
-}
-
 /**
  * 현장 배정 시트 — 팀원 칩 토글 + 직원 전달 메모.
  *   ModalBottomSheet(별도 윈도우)는 갤S9/안드10 에서 키보드가 입력칸을 가림(reference_modalbottomsheet_keyboard).
@@ -1183,26 +1165,11 @@ private fun AssignTeamSheet(
     fun key(phone: String) = phone.filter { it.isDigit() }.takeLast(8)
     // 이미 요청한 일당사장 = 처음부터 '선택됨'으로 보여줌(요청함). 해제하면 취소.
     val reqKeys = remember(assignedCollabPhones) { assignedCollabPhones.map { key(it) }.filter { it.isNotEmpty() }.toSet() }
-    // 이미 '내가 부른 일당'으로 배정된 사람 = 처음부터 선택 + 일당 모드.
-    val crewKeys = remember(crewWagesByWorkerId, collabPartners) {
-        collabPartners.filter { it.id in crewWagesByWorkerId.keys }.map { key(it.phone) }.toSet()
-    }
-
     var selectedWorkers by remember { mutableStateOf(initiallySelected) }
-    var selectedPartners by remember { mutableStateOf(reqKeys + crewKeys) }   // 일당사장 phone last8 키
-
-    // 사람마다 무엇으로 할지 — MODE_WAGE=내가 부른 일당(정산 −지출·함께한 현장), MODE_COLLAB=협업 요청(상대 수락 필요).
-    //   (2026-07-16 사장님 "한 시트에서 둘 다": 같은 일당사장 명단이 두 가지로 쓰여 헷갈리던 것 → 고를 때 명시.)
-    //   기본은 일당 — 사장님이 부르는 게 흔하고, 협업은 '상대 사장님과 같이'라는 특별한 경우.
-    //   단 이미 요청 보낸 사람은 협업으로 고정 표시(되돌리면 요청 취소가 되므로).
-    var partnerModes by remember {
-        mutableStateOf(
-            collabPartners.associate { p ->
-                val k = key(p.phone)
-                k to if (k in reqKeys) MODE_COLLAB else MODE_WAGE
-            }
-        )
-    }
+    // 협업만 남김 (2026-07-17 사장님 "내가 부른 일당 안 씀 → 협업만"). 이미 요청 보낸 사람만 처음부터 선택.
+    //   ⚠️ '내가 부른 일당'(JobCrew) 데이터는 지우지 않고 그대로 둔다(정산 이력 보존·되돌리기 가능) — 이 시트에서
+    //      만들지/건드리지 않을 뿐. 그래서 crewKeys 프리선택·onSaveCrew 호출을 뺐다.
+    var selectedPartners by remember { mutableStateOf(reqKeys) }   // 협업 사장 phone last8 키
     // 일당사장별 일당(만원, 문자열) — 저장값 자동 채움, 사장님이 이 현장만 바꿀 수 있음.
     var partnerWages by remember {
         mutableStateOf(
@@ -1224,9 +1191,8 @@ private fun AssignTeamSheet(
 
     val anySelected = selectedWorkers.isNotEmpty() || selectedPartners.isNotEmpty()
     val totalCount = selectedWorkers.size + selectedPartners.size
-    // 협업(일당사장)을 새로 보낼 땐 현장 주소가 꼭 있어야 함 — 없으면 상대가 못 찾고 현장명이 "협업 현장"으로 떠서. (2026-06-20 사장님)
-    //   ⚠️ '내가 부른 일당'(MODE_WAGE)은 서버로 안 보내니 주소가 필요 없다 → 주소 없다고 막으면 안 됨. (2026-07-16)
-    val invitingNewCollab = selectedPartners.any { it !in reqKeys && (partnerModes[it] ?: MODE_WAGE) == MODE_COLLAB }
+    // 협업을 새로 보낼 땐 현장 주소가 꼭 있어야 함 — 없으면 상대가 못 찾고 현장명이 "협업 현장"으로 떠서. (2026-06-20 사장님)
+    val invitingNewCollab = selectedPartners.any { it !in reqKeys }
     val needAddress = invitingNewCollab && siteAddress.isNullOrBlank() && siteAddrInput.isBlank()
     val purple = Color(0xFF7C5CFC); val purpleLight = Color(0xFFF1ECFF)
 
@@ -1405,38 +1371,25 @@ private fun AssignTeamSheet(
                 Text("선택한 모두에게 같이 전달돼요.",
                     fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 6.dp, start = 2.dp))
 
-                // 일당사장별 — 무엇으로 할지(일당/협업) + 일당 금액. 제일 중요(자동 채움, 이 현장만 바꿀 수 있음).
+                // 협업 사장별 — 전달할 일당(만원). 협업만 남겨 모드 선택은 없앴다. (2026-07-17 사장님)
                 val selectedPartnerList = collabPartners.filter { key(it.phone) in selectedPartners }
                 if (selectedPartnerList.isNotEmpty()) {
                     Spacer(Modifier.height(16.dp))
-                    SheetFieldLabel("어떻게 할까요? (사람마다)")
+                    SheetFieldLabel("협업 사장님 (일당 전달용)")
                     selectedPartnerList.forEach { p ->
                         val k = key(p.phone)
-                        val mode = partnerModes[k] ?: MODE_WAGE
                         val wasReq = k in reqKeys
                         Column(Modifier.fillMaxWidth().padding(top = 10.dp)) {
                             Text(p.name, fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
                             Spacer(Modifier.height(6.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                                ModePill("내가 부른 일당", mode == MODE_WAGE, purple) {
-                                    partnerModes = partnerModes + (k to MODE_WAGE)
-                                }
-                                ModePill("협업 요청", mode == MODE_COLLAB, purple) {
-                                    partnerModes = partnerModes + (k to MODE_COLLAB)
-                                }
-                            }
-                            Spacer(Modifier.height(6.dp))
                             Text(
-                                when {
-                                    mode == MODE_WAGE -> "내가 불러서 일당 드리는 분 → 정산에서 일당만큼 빠지고, 이 분 ‘함께한 현장’에 쌓여요."
-                                    wasReq -> "이미 요청 보냈어요. 상대 사장님이 수락하면 협업 현장이 돼요."
-                                    else -> "상대 사장님께 협업 요청을 보내요. 수락해야 성립하고, 정산엔 안 잡혀요."
-                                },
+                                if (wasReq) "이미 요청 보냈어요. 상대 사장님이 수락하면 협업 현장이 돼요."
+                                else "상대 사장님께 협업 요청을 보내요. 수락해야 성립하고, 정산엔 안 잡혀요.",
                                 fontSize = 11.5.sp, color = TossTextTertiary, lineHeight = 16.sp
                             )
                             Spacer(Modifier.height(8.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(if (mode == MODE_WAGE) "일당" else "일당 (전달용)",
+                                Text("일당 (전달용)",
                                     fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
                                     modifier = Modifier.weight(1f))
                                 Box(Modifier.width(120.dp)) {
@@ -1467,25 +1420,17 @@ private fun AssignTeamSheet(
                 val addrToSend = siteAddrInput.trim().takeIf { it.isNotBlank() }
                 // 팀원 배정 저장(있거나 원래 있었으면 — 비우기 포함). 메모 공통.
                 if (selectedWorkers.isNotEmpty() || initiallySelected.isNotEmpty()) onSave(selectedWorkers, memo)
-                // 고른 일당사장을 모드별로 갈라 보낸다. (2026-07-16 사장님 "한 시트에서 둘 다")
-                //   MODE_WAGE  = 내가 부른 일당 → 로컬 배정(정산 −지출 + 함께한 현장). 수락 개념 없음.
-                //   MODE_COLLAB = 협업 요청 → 서버로 초대(상대 수락 필요). 정산엔 안 잡힘.
-                val crew = mutableMapOf<Long, Long>()
+                // 고른 사람은 전부 협업 요청(서버 초대, 상대 수락 필요). '내가 부른 일당'은 없앴다. (2026-07-17 사장님)
+                //   ⚠️ onSaveCrew 는 호출하지 않는다 — 기존 JobCrew(일당) 데이터를 건드리지 않고 그대로 보존.
                 selectedPartners.forEach { k ->
+                    if (k in reqKeys) return@forEach                       // 이미 보낸 요청은 그대로
                     val p = collabPartners.firstOrNull { key(it.phone) == k } ?: return@forEach
                     val manwon = partnerWages[k]?.toIntOrNull() ?: 0
-                    if ((partnerModes[k] ?: MODE_WAGE) == MODE_WAGE) {
-                        crew[p.id] = manwon * 10_000L        // 만원 → 원 (JobCrew/정산은 원 단위)
-                    } else if (k !in reqKeys) {
-                        onInviteCollab(p.phone, false, memo, manwon.takeIf { it > 0 }, startHour, addrToSend)
-                    }
+                    onInviteCollab(p.phone, false, memo, manwon.takeIf { it > 0 }, startHour, addrToSend)
                 }
-                // 일당은 통째로 맞춘다(고른 사람만 남기고 나머지는 해제) → 재배정해도 중복/유령이 안 생김.
-                onSaveCrew(crew)
-                // 요청했었다가 해제하거나 일당으로 바꾼 일당사장 → 협업 요청 취소(서버에도 알림).
+                // 보냈던 요청을 뺐으면 협업 요청 취소(서버에도 알림).
                 reqKeys.forEach { k ->
-                    val stillCollab = k in selectedPartners && (partnerModes[k] ?: MODE_WAGE) == MODE_COLLAB
-                    if (!stillCollab) collabPartners.firstOrNull { key(it.phone) == k }?.let { p ->
+                    if (k !in selectedPartners) collabPartners.firstOrNull { key(it.phone) == k }?.let { p ->
                         onCancelCollab(p.phone)
                     }
                 }
