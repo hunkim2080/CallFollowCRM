@@ -3595,8 +3595,8 @@ async function loadAdminSection() {
         bizCell = '<span style="color:var(--muted);font-size:11px;">미확인</span>';
       }
       return `
-        <tr style="${rowStyle}">
-          <td class="ep" style="padding:6px 4px;">${heavy ? '🔥 ' : ''}${phoneDisp}<div style="font-size:10px;color:var(--muted);">${u.plan_tier}</div></td>
+        <tr style="${rowStyle}cursor:pointer;" onclick="location.href='/admin/user/' + encodeURIComponent('${u.phone}')" title="클릭 → 이 사용자 상세 페이지">
+          <td class="ep" style="padding:6px 4px;">${heavy ? '🔥 ' : ''}${phoneDisp}<div style="font-size:10px;color:var(--muted);">${u.plan_tier} · 상세 ›</div></td>
           <td style="padding:6px 4px;">${bizCell}</td>
           <td class="num">${fmt(u.calls)}</td>
           <td class="num">${fmtKRW2(u.cost_krw)}</td>

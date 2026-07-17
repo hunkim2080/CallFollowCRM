@@ -7520,3 +7520,10 @@ manifest 를 코드별로 생성해야 해서 비추 — localStorage 가 단순
   ⚠️ 미검증(실기): 문구목록 썸네일·저장, 팀원 안 보임 — 사장님 폰 확인 권장.
 
 **남은 요청:** ①고객정보 화면 UI 재구성(프로토 확인 후 시안) ②업데이트 배너 '변경 내역' 표시 ③비고객 AI 프레임(논의).
+
+## 2026-07-18 00:27 · cowork
+추가136 — RING-GO 사용량 대시보드 TOP 사용자 행 **클릭 → 사용자 상세**(사장님 요청).
+- /admin/usage-chart 의 TOP 사용자 표 각 행에 cursor:pointer + onclick=location.href '/admin/user/{phone}'. plan_tier 옆에 '상세 ›' 힌트.
+- top_users.phone(원본 숫자) 그대로 사용 → 기존 /admin/user/{phone} 상세로 연결. 
+- 검증: 행 클릭 배선 · 상세 페이지 200 통과. 서버 렌더만.
+- commit: (아래)
