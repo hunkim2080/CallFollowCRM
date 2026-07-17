@@ -28,21 +28,35 @@ object UpdateChecker {
         .readTimeout(8, TimeUnit.SECONDS)
         .build()
 
-    /** version_code 가 있으면 반환 (없으면 0). */
+    /** version_code 가 있으면 반환 (없으면 0). notes = 이번(최신) 버전 변경 내역(서버가 주면). */
     suspend fun checkUpdate(): UpdateInfo = withContext(Dispatchers.IO) {
         runCatching {
             val req = Request.Builder().url(URL).get().build()
             client.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) return@use UpdateInfo(false, 0)
                 val json = JSONObject(resp.body?.string().orEmpty())
+                val notes = parseNotes(json)   // 서버가 notes 를 주면 변경 내역, 없으면 빈 목록
                 val serverCode = json.optInt("version_code", 0)
                 if (serverCode > 0) {
-                    return@use UpdateInfo(serverCode > BuildConfig.VERSION_CODE, serverCode)
+                    return@use UpdateInfo(serverCode > BuildConfig.VERSION_CODE, serverCode, notes)
                 }
                 val mtime = json.optLong("mtime_ms", 0L)
-                UpdateInfo(mtime > BuildConfig.BUILD_TIMESTAMP + MARGIN_MS, 0)
+                UpdateInfo(mtime > BuildConfig.BUILD_TIMESTAMP + MARGIN_MS, 0, notes)
             }
         }.getOrDefault(UpdateInfo(false, 0))
+    }
+
+    /** notes 파싱 — 배열["줄","줄"] 또는 줄바꿈 텍스트 둘 다 허용. 각 줄 앞의 -, •, · 는 정리. (2026-07-18 사장님) */
+    private fun parseNotes(json: JSONObject): List<String> {
+        val arr = json.optJSONArray("notes")
+        val raw: List<String> = when {
+            arr != null -> (0 until arr.length()).mapNotNull { arr.optString(it) }
+            json.optString("notes").isNotBlank() -> json.optString("notes").split("\n")
+            else -> emptyList()
+        }
+        return raw.map { it.trim().removePrefix("-").removePrefix("•").removePrefix("·").trim() }
+            .filter { it.isNotBlank() }
+            .take(8)
     }
 
     /** 하위 호환 — Boolean 만 필요한 곳 (내부 폴백용). */
@@ -62,5 +76,5 @@ object UpdateChecker {
     fun shouldShowBanner(latestCode: Int, myCode: Int, cachedAvailable: Boolean): Boolean =
         if (latestCode > 0) latestCode > myCode else cachedAvailable
 
-    data class UpdateInfo(val available: Boolean, val latestCode: Int)
+    data class UpdateInfo(val available: Boolean, val latestCode: Int, val notes: List<String> = emptyList())
 }

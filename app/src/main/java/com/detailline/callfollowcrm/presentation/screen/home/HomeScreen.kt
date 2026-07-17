@@ -391,35 +391,53 @@ fun HomeScreen(
                 } else {
                     "$currentVer → 최신 버전으로 업데이트 하세요!"
                 }
-                Row(
-                    Modifier.fillMaxWidth().background(TossBlue).padding(horizontal = 16.dp, vertical = 11.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(bannerText, color = Color.White, fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp, modifier = Modifier.weight(1f))
-                    Box(
-                        Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White)
-                            .clickable {
-                                // Custom Tabs 로 열기 — Chrome 모바일 엔진으로 렌더해 외부 브라우저의 '데스크톱 사이트'
-                                //   모드로 PC 처럼 보이던 문제 방지(설치 페이지 viewport 는 정상). 실패 시 일반 보기로 폴백. (2026-06-26 사장님)
-                                val uri = android.net.Uri.parse("https://si0in.kr/install")
-                                runCatching {
-                                    androidx.browser.customtabs.CustomTabsIntent.Builder()
-                                        .setShowTitle(true)
-                                        .build()
-                                        .apply { intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK) }
-                                        .launchUrl(context, uri)
-                                }.onFailure {
-                                    runCatching {
-                                        context.startActivity(
-                                            android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
-                                                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                                        )
-                                    }
-                                }
+                val releaseNotes by viewModel.latestReleaseNotes.collectAsState()
+                val goInstall = {
+                    // Custom Tabs 로 열기 — Chrome 모바일 엔진으로 렌더해 외부 브라우저의 '데스크톱 사이트'
+                    //   모드로 PC 처럼 보이던 문제 방지(설치 페이지 viewport 는 정상). 실패 시 일반 보기로 폴백. (2026-06-26 사장님)
+                    val uri = android.net.Uri.parse("https://si0in.kr/install")
+                    runCatching {
+                        androidx.browser.customtabs.CustomTabsIntent.Builder()
+                            .setShowTitle(true)
+                            .build()
+                            .apply { intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK) }
+                            .launchUrl(context, uri)
+                    }.onFailure {
+                        runCatching {
+                            context.startActivity(
+                                android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
+                                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        }
+                    }
+                }
+                Column(Modifier.fillMaxWidth().background(TossBlue).padding(horizontal = 16.dp, vertical = 11.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(bannerText, color = Color.White, fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp, modifier = Modifier.weight(1f))
+                        Box(
+                            Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White)
+                                .clickable { goInstall() }
+                                .padding(horizontal = 14.dp, vertical = 6.dp)
+                        ) { Text("받기", color = TossBlue, fontWeight = FontWeight.ExtraBold, fontSize = 12.5.sp) }
+                    }
+                    // 변경 내역 — 서버가 notes 를 주면 "무엇이 바뀌었나" 를 보여줘 안심하고 받게. (2026-07-18 사장님)
+                    if (releaseNotes.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        Text("이번 업데이트 내용", color = Color.White.copy(alpha = 0.9f),
+                            fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
+                        Spacer(Modifier.height(4.dp))
+                        releaseNotes.take(5).forEach { line ->
+                            Row(Modifier.padding(top = 2.dp)) {
+                                Text("· ", color = Color.White.copy(alpha = 0.9f), fontSize = 12.sp)
+                                Text(line, color = Color.White.copy(alpha = 0.95f), fontSize = 12.sp, lineHeight = 17.sp)
                             }
-                            .padding(horizontal = 14.dp, vertical = 6.dp)
-                    ) { Text("받기", color = TossBlue, fontWeight = FontWeight.ExtraBold, fontSize = 12.5.sp) }
+                        }
+                        if (releaseNotes.size > 5) {
+                            Text("…외 ${releaseNotes.size - 5}건", color = Color.White.copy(alpha = 0.8f),
+                                fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp, start = 8.dp))
+                        }
+                    }
                 }
             }
 

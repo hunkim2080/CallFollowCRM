@@ -1320,6 +1320,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     /** 서버가 알려준 최신 versionCode (0 = 모름). 배너에 "현재→최신" 표시용. */
     private val _latestVersionCode = MutableStateFlow(0)
     val latestVersionCode: StateFlow<Int> = _latestVersionCode
+    /** 최신 버전 변경 내역 — 배너에서 "무엇이 바뀌었나" 표시. 서버 notes 없으면 빈 목록. (2026-07-18 사장님) */
+    private val _latestReleaseNotes = MutableStateFlow<List<String>>(emptyList())
+    val latestReleaseNotes: StateFlow<List<String>> = _latestReleaseNotes
 
     /** 이미 fetch 시도한 suffix (중복 호출 방지). */
     private val fetchedReplySuffixes = java.util.Collections.synchronizedSet(HashSet<String>())
@@ -1358,6 +1361,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 val info = com.detailline.callfollowcrm.util.UpdateChecker.checkUpdate()
                 prefs.updateAvailable = info.available
                 if (info.latestCode > 0) prefs.latestVersionCode = info.latestCode
+                prefs.latestReleaseNotes = info.notes   // 변경 내역 저장(서버가 주면). 없으면 빈 목록.
             }
             // 배너 판단은 '캐시된 boolean' 이 아니라 항상 최신코드 vs 내 버전으로 다시 계산 (UpdateChecker.shouldShowBanner 주석 참고).
             val latest = prefs.latestVersionCode
@@ -1369,6 +1373,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             if (!stillOld) prefs.updateAvailable = false   // 낡은 true 즉시 청소(다음 화면·다음 실행에도 안 뜨게)
             _updateAvailable.value = stillOld
             _latestVersionCode.value = latest
+            _latestReleaseNotes.value = if (stillOld) prefs.latestReleaseNotes else emptyList()
         }
     }
 

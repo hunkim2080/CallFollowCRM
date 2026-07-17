@@ -175,6 +175,10 @@ class AppPreferences(context: Context) {
     var latestVersionCode: Int
         get() = prefs.getInt("latest_version_code", 0)
         set(value) = prefs.edit().putInt("latest_version_code", value).apply()
+    /** 최신 버전 변경 내역(서버가 주면). 배너에 "무엇이 바뀌었나" 표시용. 줄바꿈으로 이어붙여 저장. (2026-07-18 사장님) */
+    var latestReleaseNotes: List<String>
+        get() = prefs.getString("latest_release_notes", "")?.split("\n")?.filter { it.isNotBlank() } ?: emptyList()
+        set(value) = prefs.edit().putString("latest_release_notes", value.joinToString("\n")).apply()
 
     /**
      * 후속 처리 알림 (두 번째 통화부터)의 빠른 액션 버튼 3개에 표시할 템플릿 ID.
