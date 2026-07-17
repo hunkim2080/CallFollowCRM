@@ -2447,6 +2447,9 @@ async def lifespan(app: FastAPI):
     # 추가105 — 블로그 매일 07:30 자동 발행 (BLOG_AUTOPUBLISH=0 으로 off)
     blog_task = asyncio.create_task(_blog_autopublish_loop())
     print(f"[boot] blog autopublish scheduled (enabled={_BLOG_AUTOPUBLISH})")
+    # 추가137 P2 — 비용 폭주 경보 (COST_ALERT_KRW_PER_DAY 기준, 슬랙)
+    cost_alert_task = asyncio.create_task(_cost_alert_loop())
+    print(f"[boot] cost alert scheduled (threshold=₩{COST_ALERT_KRW})")
     try:
         yield
     finally:
@@ -2927,31 +2930,34 @@ _ADMIN_DASHBOARD_HTML = r"""<!DOCTYPE html>
 
   <!-- 💼 사업 건강도 (관리자만) -->
   <div class="card admin-only" id="businessHealthCard" style="display:none;">
-    <h2>💼 사업 건강도 (이번 달)</h2>
+    <h2>💼 이번 달 살림 (사업 건강도)</h2>
+    <!-- 추가137 P3 — 사장님 한 문장 요약 (한국어 우선) -->
+    <div id="bizSummary" style="font-size:14px;line-height:1.7;background:var(--tint,#EEF4FF);
+         border-radius:12px;padding:12px 14px;margin-bottom:14px;color:var(--fg);">—</div>
     <div class="row" style="grid-template-columns:1fr 1fr 1fr;">
       <div class="hero" style="padding:10px;">
-        <div class="label">MRR</div>
+        <div class="label">이번 달 구독 수입 <span style="color:var(--muted);font-weight:400;">(MRR)</span></div>
         <div class="price" id="bizMrr" style="font-size:20px;">—</div>
         <div class="sub"><span id="bizActiveCount">—</span>명 활성</div>
       </div>
       <div class="hero" style="padding:10px;">
-        <div class="label">COGS (LLM 비용)</div>
+        <div class="label">AI 원가 <span style="color:var(--muted);font-weight:400;">(내가 낸 API비)</span></div>
         <div class="price" id="bizCogs" style="font-size:20px;">—</div>
         <div class="sub" id="bizCallsMonth">— 건</div>
       </div>
       <div class="hero" style="padding:10px;">
-        <div class="label">Gross Margin</div>
+        <div class="label">남는 비율 <span style="color:var(--muted);font-weight:400;">(마진)</span></div>
         <div class="price" id="bizMargin" style="font-size:20px;">—</div>
         <div class="sub" id="bizMarginStatus">—</div>
       </div>
     </div>
     <div style="margin-top:14px;">
-      <div class="kv"><span class="k">ARPU (사용자당 매출)</span><span class="v" id="bizArpu">—</span></div>
-      <div class="kv"><span class="k">Cost per user (사용자당 비용)</span><span class="v" id="bizCostPerUser">—</span></div>
-      <div class="kv"><span class="k">Churned (해지)</span><span class="v" id="bizChurned">—</span></div>
+      <div class="kv"><span class="k">1인당 수입 <span style="color:var(--muted);">(ARPU)</span></span><span class="v" id="bizArpu">—</span></div>
+      <div class="kv"><span class="k">1인당 AI 비용</span><span class="v" id="bizCostPerUser">—</span></div>
+      <div class="kv"><span class="k">이탈 <span style="color:var(--muted);">(해지)</span></span><span class="v" id="bizChurned">—</span></div>
     </div>
     <div style="margin-top:12px;font-size:11px;color:var(--muted);line-height:1.6;">
-      💡 SaaS 건강 기준선: Gross Margin <b>80%+</b> = 좋음, 50-80% = 주의, 50% 미만 = 단가 인상 또는 모델 다운그레이드 검토.
+      💡 "남는 비율"이 <b>80% 이상</b>이면 좋음, 50~80% 주의, 50% 미만이면 요금을 올리거나 더 싼 AI 모델로 바꾸는 걸 검토하세요.
     </div>
   </div>
 
@@ -3188,24 +3194,29 @@ async function loadAll() {
     document.getElementById('allCost').textContent    = fmtKRW(allp.total.cost_krw);
     document.getElementById('allCalls').textContent   = fmt(allp.total.calls) + ' 건';
 
-    // 오늘 카드 — 어제 대비 증감 (추가80): month.daily_trend 의 마지막 두 날 비교
+    // 오늘 카드 — 어제 "비용" 대비 증감 (추가137 P1 fix):
+    //   ① 어제를 날짜로 정확히 찾음(기존 tr[length-2] 는 오늘 기록 없으면 '그저께'가 되는 버그)
+    //   ② 오늘 사용 0 이면 매일 '▼100%' 뜨던 것 → '오늘 아직 사용 없음'
+    //   ③ 비용(₩) 증감을 건수 옆에 붙이던 혼란 제거 — '비용' 명시
     (function () {
       const el = document.getElementById('todayCalls');
-      let deltaHtml = '';
       const tr = month.daily_trend || [];
-      if (tr.length >= 2) {
-        const yst = tr[tr.length - 2].cost_krw;
-        const cur = today.total.cost_krw;
-        if (yst > 0) {
-          const diff = cur - yst;
-          const pct = Math.round(Math.abs(diff) / yst * 100);
-          if (Math.abs(diff) >= 1) {
-            deltaHtml = diff > 0
-              ? '<span class="delta up">▲ 어제보다 ' + pct + '%</span>'
-              : '<span class="delta down">▼ 어제보다 ' + pct + '%</span>';
-          } else {
-            deltaHtml = '<span class="delta" style="color:var(--muted)">어제와 비슷</span>';
-          }
+      const kstNow = new Date(Date.now() + 9 * 3600 * 1000);
+      const ymd = new Date(kstNow.getTime() - 24 * 3600 * 1000).toISOString().slice(0, 10);
+      const yRow = tr.find(d => d.date === ymd);
+      const cur = today.total.cost_krw;
+      let deltaHtml = '';
+      if (cur <= 0) {
+        deltaHtml = '<div class="delta" style="color:var(--muted)">오늘 아직 사용 없음</div>';
+      } else if (yRow && yRow.cost_krw > 0) {
+        const diff = cur - yRow.cost_krw;
+        const pct = Math.round(Math.abs(diff) / yRow.cost_krw * 100);
+        if (Math.abs(diff) < 1) {
+          deltaHtml = '<div class="delta" style="color:var(--muted)">어제 비용과 비슷</div>';
+        } else {
+          deltaHtml = diff > 0
+            ? '<div class="delta up">어제 대비 비용 ▲ ' + pct + '%</div>'
+            : '<div class="delta down">어제 대비 비용 ▼ ' + pct + '%</div>';
         }
       }
       el.innerHTML = fmt(today.total.calls) + ' 건' + deltaHtml;
@@ -3543,6 +3554,21 @@ async function loadAdminSection() {
   loadRechargeCard(token).catch(e => console.warn('recharge card', e));
 
   // 💼 사업 건강도
+  // 추가137 P3 — 사장님 한 문장 요약 (한국어)
+  (function () {
+    const s = document.getElementById('bizSummary');
+    if (!s) return;
+    const income = stats.mrr_krw || 0, cogs = stats.month_cogs_krw || 0;
+    const left = income - cogs;
+    if (income <= 0) {
+      s.innerHTML = '이번 달 아직 구독 수입이 없어요. AI 원가만 <b>' + fmtKRW(cogs) + '</b> 나갔습니다.';
+    } else {
+      const pct = stats.gross_margin_pct == null ? null : stats.gross_margin_pct.toFixed(0);
+      const tag = (pct == null) ? '' : (pct >= 80 ? ' · 건강 ✅' : (pct >= 50 ? ' · 주의 ⚠️' : ' · 적자 위험 🔥'));
+      s.innerHTML = '이번 달 <b>번 돈 ' + fmtKRW(income) + '</b> − <b>AI비 ' + fmtKRW(cogs) +
+        '</b> = <b>남은 돈 ' + fmtKRW(left) + '</b>' + (pct != null ? ' (' + pct + '%' + tag + ')' : '');
+    }
+  })();
   document.getElementById('bizMrr').textContent = fmtKRW(stats.mrr_krw);
   document.getElementById('bizActiveCount').textContent = fmt(stats.active_subscribers);
   document.getElementById('bizCogs').textContent = fmtKRW(stats.month_cogs_krw);
@@ -6339,19 +6365,74 @@ def _render_updates_dynamic() -> str:
 # 추가133 — 새 베타 신청 시 슬랙 알림 (Incoming Webhook). env 없으면 무동작 = 안전.
 #   사장님이 Slack Incoming Webhook URL 을 plist EnvironmentVariables 에 넣으면 켜짐.
 SLACK_SIGNUP_WEBHOOK = os.environ.get("SLACK_SIGNUP_WEBHOOK_URL", "").strip()
+# 추가137 P2 — 비용 경보 (없으면 신청 웹훅 재사용). 기준 초과 시 서버가 먼저 슬랙 알림.
+COST_ALERT_WEBHOOK = os.environ.get("COST_ALERT_WEBHOOK_URL", "").strip()
+try:
+    COST_ALERT_KRW = int(os.environ.get("COST_ALERT_KRW_PER_DAY", "15000") or "0")
+except ValueError:
+    COST_ALERT_KRW = 15000
+_COST_ALERT_LAST_DATE = ""
 _BG_TASKS: set = set()
 
 
-async def _slack_post(payload) -> None:
-    """payload = 문자열(text) 또는 dict(blocks 포함 전체 바디)."""
-    if not SLACK_SIGNUP_WEBHOOK:
+async def _slack_send(url: str, payload) -> None:
+    """url 로 슬랙 전송. payload = 문자열(text) 또는 dict(blocks 포함)."""
+    if not url:
         return
     body = {"text": payload} if isinstance(payload, str) else payload
     try:
         async with httpx.AsyncClient(timeout=8) as _c:
-            await _c.post(SLACK_SIGNUP_WEBHOOK, json=body)
-    except Exception as e:  # noqa: BLE001 — 알림 실패가 신청 접수를 막으면 안 됨
+            await _c.post(url, json=body)
+    except Exception as e:  # noqa: BLE001 — 알림 실패가 본 기능을 막으면 안 됨
         print(f"[slack] 알림 전송 실패(무시): {type(e).__name__}: {e}")
+
+
+async def _slack_post(payload) -> None:
+    """베타 신청 채널로 전송."""
+    await _slack_send(SLACK_SIGNUP_WEBHOOK, payload)
+
+
+def _today_cost_krw() -> tuple:
+    """오늘(KST 자정 이후) 누적 AI 비용(원)·호출수."""
+    kst_now = _dt.datetime.now(_KST)
+    day_start = kst_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    day_start_ms = int(day_start.timestamp() * 1000)
+    with db_conn() as con:
+        r = con.execute(
+            "SELECT COALESCE(SUM(cost_usd),0), COUNT(*) FROM api_usage WHERE created_at_ms >= ?",
+            (day_start_ms,),
+        ).fetchone()
+    return round((r[0] or 0) * KRW_PER_USD), (r[1] or 0)
+
+
+async def _cost_alert_loop() -> None:
+    """1시간마다 오늘 비용 체크 → 기준 초과 시 슬랙 경보(하루 1회). 서버가 먼저 알림."""
+    global _COST_ALERT_LAST_DATE
+    await asyncio.sleep(60)
+    while True:
+        try:
+            url = COST_ALERT_WEBHOOK or SLACK_SIGNUP_WEBHOOK
+            if COST_ALERT_KRW > 0 and url:
+                krw, calls = _today_cost_krw()
+                today_str = _dt.datetime.now(_KST).strftime("%Y-%m-%d")
+                if krw > COST_ALERT_KRW and _COST_ALERT_LAST_DATE != today_str:
+                    _COST_ALERT_LAST_DATE = today_str
+                    base = INTAKE_PUBLIC_BASE_URL.rstrip("/")
+                    await _slack_send(url, {
+                        "text": f"🚨 오늘 AI 비용 ₩{krw:,} — 기준 ₩{COST_ALERT_KRW:,} 초과",
+                        "blocks": [
+                            {"type": "section", "text": {"type": "mrkdwn", "text":
+                                f"🚨 *AI 비용 경보*\n오늘 누적 *₩{krw:,}* ({calls}건) — 기준 ₩{COST_ALERT_KRW:,} 초과.\n"
+                                "어디서 늘었는지 확인해 보세요."}},
+                            {"type": "actions", "elements": [
+                                {"type": "button", "text": {"type": "plain_text", "text": "사용량 보기"},
+                                 "url": f"{base}/admin/usage-chart"}]},
+                        ],
+                    })
+                    print(f"[cost-alert] 발송: ₩{krw} > ₩{COST_ALERT_KRW}")
+        except Exception as e:  # noqa: BLE001
+            print(f"[cost-alert] 오류(무시): {type(e).__name__}: {e}")
+        await asyncio.sleep(3600)
 
 
 def _fire_bg(coro) -> None:
@@ -8010,6 +8091,13 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
   th, td { text-align:left; padding:9px 8px; border-bottom:1px solid var(--line); }
   th { font-size:11px; color:var(--t3); font-weight:700; text-transform:uppercase; }
   td.right { text-align:right; }
+  /* 추가137 P5 — 모바일 가독성: 좁은 화면에서 글자·여백 축소 + 부드러운 가로 스크롤 */
+  @media(max-width:640px){
+    table { font-size:11px; }
+    th, td { padding:7px 6px; white-space:nowrap; }
+    div[style*="overflow-x"] { -webkit-overflow-scrolling:touch; }
+    button { min-height:30px; }
+  }
   .badge { display:inline-block; padding:2px 7px; border-radius:6px; font-size:11px; font-weight:700; }
   .badge.on { background:#E7F8EF; color:var(--success); }
   .badge.off { background:#FFF2F5; color:var(--error); }
@@ -10377,6 +10465,11 @@ async def admin_home_data(authorization: Optional[str] = Header(default=None)) -
         signup_7d = con.execute(
             "SELECT COUNT(*) FROM beta_signups WHERE created_at_ms >= ?", (cutoff_7d,)
         ).fetchone()[0]
+        # 추가137 P4 — 확인할 신청(거절 아님 + 아직 테스터(화이트리스트) 아님) = 사장님 할 일
+        signup_todo = con.execute(
+            "SELECT COUNT(*) FROM beta_signups WHERE status != 'rejected' "
+            "AND phone NOT IN (SELECT phone FROM beta_whitelist)"
+        ).fetchone()[0]
         # 대시보드 미리보기 — 활성 사용자 + 7일 호출
         api_7d = con.execute(
             "SELECT COUNT(*) FROM api_usage WHERE created_at_ms >= ?", (cutoff_7d,)
@@ -10387,7 +10480,8 @@ async def admin_home_data(authorization: Optional[str] = Header(default=None)) -
         ).fetchone()[0]
     return {
         "whitelist": {"total": wl_total, "active_7d": wl_active, "pending": wl_pending},
-        "signups": {"total": signup_total, "pending": signup_pending, "new_7d": signup_7d},
+        "signups": {"total": signup_total, "pending": signup_pending, "new_7d": signup_7d,
+                    "todo": signup_todo},
         "dashboard": {"active_7d": wl_active, "api_calls_7d": api_7d, "cost_krw_7d": round(cost_7d or 0, 0)},
     }
 
@@ -10642,8 +10736,10 @@ https://si0in.kr</textarea>
         '활성 <b>' + d.dashboard.active_7d + '</b>명 · 호출 <b>' + d.dashboard.api_calls_7d.toLocaleString() + '</b>건 · ' + Math.round(d.dashboard.cost_krw_7d).toLocaleString() + '원 (7일)';
       document.getElementById('statsWhitelist').innerHTML =
         '등록 <b>' + d.whitelist.total + '</b>명 · 활성 <b>' + d.whitelist.active_7d + '</b>명 · 미진입 <b>' + d.whitelist.pending + '</b>명';
+      var sTodo = d.signups.todo || 0;
       document.getElementById('statsSignups').innerHTML =
-        '총 <b>' + d.signups.total + '</b>건 · 대기 <b>' + d.signups.pending + '</b>건 · 신규 <b>' + d.signups.new_7d + '</b>건 (7일)';
+        (sTodo > 0 ? '<b style="color:#F0436A;">🔔 확인할 신청 ' + sTodo + '명</b> · ' : '') +
+        '총 <b>' + d.signups.total + '</b>건 · 신규 <b>' + d.signups.new_7d + '</b>건 (7일)';
     } catch(e) {
       console.error(e);
       document.querySelectorAll('.stats').forEach(function(el){ el.textContent = '통계 로드 실패'; });

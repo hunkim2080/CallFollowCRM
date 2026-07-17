@@ -7527,3 +7527,13 @@ manifest 를 코드별로 생성해야 해서 비추 — localStorage 가 단순
 - top_users.phone(원본 숫자) 그대로 사용 → 기존 /admin/user/{phone} 상세로 연결. 
 - 검증: 행 클릭 배선 · 상세 페이지 200 통과. 서버 렌더만.
 - commit: (아래)
+
+## 2026-07-18 00:47 · cowork
+추가137 — 관리자 페이지 Fable 5 평가 반영 (P1~P5).
+- **P1 [버그fix] 오늘 카드 '▼100%'**: 어제를 tr[length-2](그저께 오류) 대신 **날짜로 정확히 매칭**. 오늘 0이면 '오늘 아직 사용 없음'(매일 뜨던 가짜 급감 제거). 비용 증감을 건수 옆에 붙이던 것 → '어제 대비 비용 ▲/▼'로 단위 명시.
+- **P3 사업 건강도 한글화**: MRR→이번 달 구독 수입 / COGS→AI 원가 / Gross Margin→남는 비율 / ARPU→1인당 수입 / Churned→이탈. 상단 요약 한 문장 신설: "이번 달 번 돈 −AI비 = 남은 돈 (N% · 건강/주의/적자)". 계산 로직 무변경.
+- **P2 [신규] 비용 폭주 슬랙 경보**: _cost_alert_loop (1시간마다) — 오늘 비용 > COST_ALERT_KRW_PER_DAY(기본 ₩15,000) 초과 시 슬랙 1일 1회 경보(웹훅 = COST_ALERT_WEBHOOK_URL 없으면 신청 웹훅 재사용). 서버가 먼저 알림.
+- **P4 홈 '확인할 신청' 뱃지**: admin_home_data 에 todo(신청했지만 아직 테스터 아님) 추가 → /admin 홈 베타 카드에 🔔 확인할 신청 N명.
+- **P5 모바일 가독성**: 멤버 대시보드 @media(max-width:640px) 글자·여백 축소 + 터치 스크롤 + 버튼 최소 높이. (표는 이미 overflow-x 스크롤, 삭제·제거 confirm 기존 유지.)
+- 검증: P1 날짜매칭/0표시/단위 · P3 한글화+요약 · P2 루프/오늘비용계산 · P4 홈 todo/뱃지 · P5 미디어쿼리 통과.
+- commit: (아래) · ⚠️ P2 경보 세기 조절: env COST_ALERT_KRW_PER_DAY. 별도 채널 원하면 COST_ALERT_WEBHOOK_URL.
