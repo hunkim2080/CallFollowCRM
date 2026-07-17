@@ -115,6 +115,11 @@ class ChatViewModel(
     fun saveTextAsTemplate(text: String, photoUris: List<String> = emptyList()) = viewModelScope.launch {
         val body = text.trim()
         if (body.isBlank() && photoUris.isEmpty()) { _toast.value = "입력창에 문구를 먼저 쓰세요"; return@launch }
+        // 같은 본문 문구가 이미 있으면 새로 안 만듦 — "누르는 만큼 저장" 중복 방지(가드 시간 지나 또 눌러도). (2026-07-18 사장님)
+        //   사진만(본문 없음)인 경우는 본문 비교 불가 → 이 dedup 건너뜀.
+        if (body.isNotBlank() && templates.value.any { it.body.trim() == body }) {
+            _toast.value = "이미 저장된 문구예요"; return@launch
+        }
         val now = System.currentTimeMillis()
         val title = body.replace("\n", " ").trim().take(13).ifBlank { "사진 문구" }   // 제목 13자 제한(SYNC 추가81b)
         val result = runCatching {

@@ -3706,10 +3706,11 @@ private fun TemplatePickerDialog(
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(10.dp))
                         .background(if (flashing) Color(0xFFE6F7EF) else TossBlueSoft)
+                        // 중복 저장 방지: 저장 직후(flashing 1.6초) 재탭 무시 — "누르는 만큼 저장"되던 버그. (2026-07-18 사장님)
                         .clickable {
-                            val ok = canSaveCurrent
+                            if (flashing || !canSaveCurrent) return@clickable
                             onSaveCurrent()
-                            if (ok) savedFlash.value = true
+                            savedFlash.value = true
                         }
                         .padding(horizontal = 12.dp, vertical = 11.dp),
                     verticalAlignment = Alignment.CenterVertically
