@@ -92,27 +92,54 @@ class ChatViewModel(
     val templates = container.messageTemplateRepository.observeActive()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList<MessageTemplateEntity>())
 
+    /** 문구ID → 그 문구의 **첫 사진 URI**. 문구 넣기 목록에서 사진 썸네일 표시용. (2026-07-18 사장님) */
+    val templatePhotoByTemplate: StateFlow<Map<Long, String>> =
+        container.templateAttachmentRepository.observeAll()
+            .map { list ->
+                list.filter { it.mimeType.startsWith("image/") }
+                    .groupBy { it.templateId }
+                    .mapValues { (_, atts) -> atts.minByOrNull { it.sortOrder }!!.fileUri }
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
     /** 문구 넣기 시트에서 바로 문구 삭제 (2026-06-07). */
     fun deleteTemplate(id: Long) = viewModelScope.launch {
         runCatching { container.messageTemplateRepository.deleteById(id) }
         _toast.value = "문구를 지웠어요"
     }
 
-    /** 입력창에 쓴 내용을 새 문구(템플릿)로 바로 저장 — 키보드 없이, 채팅 흐름 그대로. (2026-06-07) */
-    fun saveTextAsTemplate(text: String) = viewModelScope.launch {
+    /**
+     * 입력창에 쓴 내용 + **붙인 사진**을 새 문구(템플릿)로 저장 — 키보드 없이, 채팅 흐름 그대로. (2026-06-07 / 사진 2026-07-18 사장님)
+     *   사진은 앱 내부로 복사해 영구 보관(TemplatePhotoStore) → 나중에 그 문구 쓸 때도 딸려감.
+     */
+    fun saveTextAsTemplate(text: String, photoUris: List<String> = emptyList()) = viewModelScope.launch {
         val body = text.trim()
-        if (body.isBlank()) { _toast.value = "입력창에 문구를 먼저 쓰세요"; return@launch }
+        if (body.isBlank() && photoUris.isEmpty()) { _toast.value = "입력창에 문구를 먼저 쓰세요"; return@launch }
         val now = System.currentTimeMillis()
-        val title = body.replace("\n", " ").trim().take(13).ifBlank { "새 문구" }   // 제목 13자 제한(SYNC 추가81b)
-        runCatching {
-            container.messageTemplateRepository.insert(
+        val title = body.replace("\n", " ").trim().take(13).ifBlank { "사진 문구" }   // 제목 13자 제한(SYNC 추가81b)
+        val result = runCatching {
+            val id = container.messageTemplateRepository.insert(
                 MessageTemplateEntity(
                     title = title, body = body,
                     category = com.detailline.callfollowcrm.domain.model.TemplateCategory.CUSTOM.name,
                     isDefault = false, isActive = true, createdAt = now, updatedAt = now
                 )
             )
-        }.onSuccess { _toast.value = "문구로 저장했어요 ✓" }.onFailure { _toast.value = "저장 실패" }
+            // 붙인 사진을 앱 내부로 복사 후 이 문구에 첨부 (IO).
+            if (photoUris.isNotEmpty()) withContext(Dispatchers.IO) {
+                photoUris.forEach { u ->
+                    val copied = com.detailline.callfollowcrm.util.TemplatePhotoStore
+                        .copyToAppStorage(container.appContext, android.net.Uri.parse(u)) ?: return@forEach
+                    container.templateAttachmentRepository.add(
+                        templateId = id, fileUri = copied.uri,
+                        displayName = copied.displayName, mimeType = copied.mimeType
+                    )
+                }
+            }
+        }
+        result.onSuccess {
+            _toast.value = if (photoUris.isEmpty()) "문구로 저장했어요 ✓" else "문구+사진 저장했어요 ✓"
+        }.onFailure { _toast.value = "저장 실패" }
     }
 
     /**

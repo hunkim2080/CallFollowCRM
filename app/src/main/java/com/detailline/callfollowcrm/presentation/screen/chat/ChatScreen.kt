@@ -1161,9 +1161,11 @@ fun ChatScreen(
 
     // 프로토 [문구 넣기] → 템플릿 picker (기존 TemplatePickerDialog 재사용, 전체 카테고리).
     if (tplPickerOpen) {
+        val tplPhotoByTemplate by viewModel.templatePhotoByTemplate.collectAsState()
         TemplatePickerDialog(
             category = "",
             templates = templates,
+            photoByTemplate = tplPhotoByTemplate,   // 목록에 사진 썸네일 표시용
             // 글자 + **그 문구에 붙여둔 사진**을 같이 올린다. 예전엔 글자만 와서 사진은 📷로 다시 골라야 했음.
             //   (통화 후 문자는 이미 사진을 같이 보내는데 채팅 문구 넣기만 빠져 있었다. 2026-07-16 사장님)
             //   바로 발송은 안 함 — 사장님이 ▶ 누르고 확인창에서 '사진 N장' 보고 보냄(기존 발송 흐름 그대로).
@@ -1177,8 +1179,9 @@ fun ChatScreen(
                 tplPickerOpen = false
             },
             onDelete = { id -> viewModel.deleteTemplate(id) },
-            onSaveCurrent = { viewModel.saveTextAsTemplate(input) },
-            canSaveCurrent = input.isNotBlank(),
+            // 입력창 글 + 지금 붙인 사진을 같이 문구로 저장. (2026-07-18 사장님)
+            onSaveCurrent = { viewModel.saveTextAsTemplate(input, attachedPhotos.map { it.toString() }) },
+            canSaveCurrent = input.isNotBlank() || attachedPhotos.isNotEmpty(),
             onDismiss = { tplPickerOpen = false }
         )
     }
@@ -3660,6 +3663,8 @@ private fun TemplatePickerDialog(
     onDelete: (Long) -> Unit = {},
     onSaveCurrent: () -> Unit = {},
     canSaveCurrent: Boolean = false,
+    /** 문구ID → 첫 사진 URI. 있으면 목록 행에 썸네일 표시. (2026-07-18 사장님) */
+    photoByTemplate: Map<Long, String> = emptyMap(),
     onDismiss: () -> Unit
 ) {
     val filtered = remember(templates, category) {
@@ -3734,6 +3739,7 @@ private fun TemplatePickerDialog(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         items(filtered, key = { it.id }) { tpl ->
+                            val photoUri = photoByTemplate[tpl.id]
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -3741,18 +3747,31 @@ private fun TemplatePickerDialog(
                                     .background(TossGrayBg),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column(
-                                    modifier = Modifier.weight(1f).clickable { onPick(tpl) }.padding(12.dp)
+                                Row(
+                                    modifier = Modifier.weight(1f).clickable { onPick(tpl) }.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        tpl.title, color = TossBlue,
-                                        fontWeight = FontWeight.SemiBold, fontSize = 14.sp
-                                    )
-                                    Spacer(Modifier.height(4.dp))
-                                    Text(
-                                        tpl.body, color = TossTextSecondary, fontSize = 13.sp,
-                                        maxLines = 3, overflow = TextOverflow.Ellipsis
-                                    )
+                                    // 사진 붙은 문구면 썸네일 — 목록에서 바로 "사진 있는 문구"임을 알게. (2026-07-18 사장님)
+                                    if (photoUri != null) {
+                                        AsyncImage(
+                                            model = photoUri,
+                                            contentDescription = "문구 사진",
+                                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                            modifier = Modifier.size(40.dp).clip(RoundedCornerShape(8.dp))
+                                        )
+                                        Spacer(Modifier.width(10.dp))
+                                    }
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            tpl.title, color = TossBlue,
+                                            fontWeight = FontWeight.SemiBold, fontSize = 14.sp
+                                        )
+                                        Spacer(Modifier.height(4.dp))
+                                        Text(
+                                            tpl.body.ifBlank { "📷 사진" }, color = TossTextSecondary, fontSize = 13.sp,
+                                            maxLines = 3, overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
                                 }
                                 // ✕ 삭제 — 그 자리에서 바로. (확인창 없이 toast — 다시 ＋ 로 복구 가능)
                                 Box(

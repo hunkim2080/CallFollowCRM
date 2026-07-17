@@ -28,4 +28,8 @@ interface TemplateAttachmentDao {
 
     @Query("SELECT * FROM template_attachments WHERE templateId = :templateId ORDER BY sortOrder ASC, id ASC")
     suspend fun findByTemplate(templateId: Long): List<TemplateAttachmentEntity>
+
+    /** 전체 첨부(문구 목록에서 '사진 있음' 썸네일 표시용). templateId→첫 사진을 호출부가 골라 씀. (2026-07-18) */
+    @Query("SELECT * FROM template_attachments ORDER BY templateId ASC, sortOrder ASC, id ASC")
+    fun observeAll(): Flow<List<TemplateAttachmentEntity>>
 }

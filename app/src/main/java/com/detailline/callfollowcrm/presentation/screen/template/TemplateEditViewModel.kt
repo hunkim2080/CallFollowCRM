@@ -72,59 +72,33 @@ class TemplateEditViewModel(
     fun addAttachment(context: Context, uri: Uri) {
         val appCtx = context.applicationContext
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            val local = runCatching { copyToAppStorage(appCtx, uri) }.getOrNull() ?: return@launch
+            val copied = runCatching {
+                com.detailline.callfollowcrm.util.TemplatePhotoStore.copyToAppStorage(appCtx, uri)
+            }.getOrNull() ?: return@launch
             _pending.update { current ->
-                if (current.any { it.uri == local.uri }) current   // 중복 추가 방지
-                else current + local
+                if (current.any { it.uri == copied.uri }) current   // 중복 추가 방지
+                else current + PendingAttachment(copied.uri, copied.displayName, copied.mimeType)
             }
         }
-    }
-
-    /** 고른 사진을 filesDir/template_photos 로 복사하고 FileProvider URI 로 감싼다. 실패 시 null. */
-    private fun copyToAppStorage(context: Context, src: Uri): PendingAttachment? {
-        val mime = context.contentResolver.getType(src) ?: "image/jpeg"
-        val ext = when {
-            mime.contains("png") -> "png"; mime.contains("webp") -> "webp"; else -> "jpg"
-        }
-        val dir = java.io.File(context.filesDir, "template_photos").apply { mkdirs() }
-        val file = java.io.File(dir, "tpl_${System.currentTimeMillis()}_${(0..999999).random()}.$ext")
-        val ok = runCatching {
-            context.contentResolver.openInputStream(src)?.use { input ->
-                file.outputStream().use { output -> input.copyTo(output) }
-            } != null
-        }.getOrDefault(false)
-        if (!ok || !file.exists() || file.length() == 0L) { runCatching { file.delete() }; return null }
-        val fpUri = androidx.core.content.FileProvider.getUriForFile(
-            context, "${context.packageName}.fileprovider", file
-        )
-        return PendingAttachment(uri = fpUri.toString(), displayName = file.name, mimeType = mime)
     }
 
     fun removePendingAttachment(uri: String) {
         _pending.update { it.filterNot { p -> p.uri == uri } }
         // 방금 복사한 앱 내부 파일도 정리(pending 은 항상 우리가 복사한 것).
-        runCatching { fileFromDisplayNameOrUri(uri)?.delete() }
+        runCatching { com.detailline.callfollowcrm.util.TemplatePhotoStore.fileFor(container.appContext, uri)?.delete() }
     }
 
     fun removeSavedAttachment(context: Context, entity: TemplateAttachmentEntity) {
         viewModelScope.launch {
             container.templateAttachmentRepository.remove(entity.id)
             // 앱 내부 복사본이면 파일 삭제. 옛 SAF URI 면 persistable 권한 해제(둘 다 best-effort).
-            runCatching { fileFromDisplayNameOrUri(entity.fileUri)?.delete() }
+            runCatching { com.detailline.callfollowcrm.util.TemplatePhotoStore.fileFor(context, entity.fileUri)?.delete() }
             runCatching {
                 context.contentResolver.releasePersistableUriPermission(
                     Uri.parse(entity.fileUri), Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
             }
         }
-    }
-
-    /** 우리 앱 내부 template_photos 파일이면 그 File, 아니면 null(옛 SAF URI 등). */
-    private fun fileFromDisplayNameOrUri(uriStr: String): java.io.File? {
-        val ctx = container.appContext
-        val name = uriStr.substringAfterLast('/').substringBefore('?').takeIf { it.startsWith("tpl_") } ?: return null
-        val f = java.io.File(java.io.File(ctx.filesDir, "template_photos"), name)
-        return if (f.exists()) f else null
     }
 
     fun save(onDone: () -> Unit) {

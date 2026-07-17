@@ -9,6 +9,9 @@ class TemplateAttachmentRepository(private val dao: TemplateAttachmentDao) {
     fun observeByTemplate(templateId: Long): Flow<List<TemplateAttachmentEntity>> =
         dao.observeByTemplate(templateId)
 
+    /** 전체 첨부 — 문구 목록의 '사진 있음' 썸네일용. (2026-07-18) */
+    fun observeAll(): Flow<List<TemplateAttachmentEntity>> = dao.observeAll()
+
     suspend fun findByTemplate(templateId: Long): List<TemplateAttachmentEntity> =
         dao.findByTemplate(templateId)
 
