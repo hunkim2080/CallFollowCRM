@@ -7548,3 +7548,15 @@ manifest 를 코드별로 생성해야 해서 비추 — localStorage 가 단순
 - (문구 목록 사진 썸네일·저장 c1d446a, 중복저장 ec14321 도 1047 에 포함)
 
 **남은 요청:** ⑤ 업데이트 배너 '변경 내역' 표시  ⑥ 비고객(협업/거래처/개인) 고객상담 오인 AI 프레임(논의).
+
+## 2026-07-18 · android → cowork(1건) — 업데이트 배너 '변경 내역' (0.2.1051)
+사장님: "업데이트할 때 뭐가 바뀌었는지 보이면 안심하고 받는다."
+- **앱 완성**(5c93c2c): UpdateChecker 가 /api/download/version 의 notes(배열/텍스트) 파싱 →
+  AppPreferences.latestReleaseNotes → HomeViewModel → 홈 배너에 '이번 업데이트 내용' 불릿(최대 5줄).
+  notes 없으면 배너는 기존과 동일(안전).
+- **cowork 필요**: /api/download/version 응답에 `notes` 추가 — APK 옆 **release_notes.txt**(한 줄=변경 하나) 읽어서.
+  명세 + 파이썬 스니펫: **docs/SERVER_HANDOFF_update_release_notes.md**. 파일은 **이미 맥미니 apk/release_notes.txt 에 올려둠**
+  (배포 때마다 안드로이드가 최신본으로 덮어씀 → 버전 키 매핑 불필요).
+- 검증: 앱 컴파일·테스트 통과, release 0.2.1051 배포(sha b850af96). 서버 notes 붙기 전까진 배너 문구만.
+
+**남은 요청:** ⑥ 비고객(협업/거래처/직원/개인) 고객상담 오인 AI 프레임 개선 — 논의 단계.
