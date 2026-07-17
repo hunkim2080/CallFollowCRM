@@ -1226,7 +1226,8 @@ private fun AssignTeamSheet(
                 fontSize = 13.sp, color = TossTextTertiary, lineHeight = 19.sp)
             Spacer(Modifier.height(18.dp))
 
-            // ── 👷 팀원 ── (토글 + 끝에 + 추가)
+            // ── 👷 팀원 ── (토글 + 끝에 + 추가) — 숨김(부활 가능). (2026-07-18 사장님)
+            if (com.detailline.callfollowcrm.presentation.FeatureFlags.SHOW_TEAM_MEMBERS) {
             Text("👷 팀원", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary,
                 modifier = Modifier.padding(start = 2.dp, bottom = 9.dp))
             FlowRow(
@@ -1269,11 +1270,12 @@ private fun AssignTeamSheet(
                     onSubmit = { onAddTeamMember(newName, newPhone); addTeamOpen = false; newName = ""; newPhone = "" }
                 )
             }
-
-            // ── 🤝 일당사장 ── (토글 + 끝에 + 추가)
             Spacer(Modifier.height(16.dp))
             Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
             Spacer(Modifier.height(16.dp))
+            }
+
+            // ── 🤝 일당사장(= 협업 사장) ──
             Text("🤝 일당사장", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextSecondary,
                 modifier = Modifier.padding(start = 2.dp, bottom = 4.dp))
             Text("탭하면 부를 사장님 선택, 다시 탭하면 취소. 고객 번호·대화는 안 보내요.",

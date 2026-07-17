@@ -245,8 +245,12 @@ fun SettingsScreen(
                 SetupCheckCard()
 
                 SettingsGroup("함께 일하는 사람") {
+                    // '팀원' 숨김(2026-07-18 사장님) → 라벨에서 팀원 뺌. 부활 시 FeatureFlags.SHOW_TEAM_MEMBERS.
                     LockRow(Icons.Filled.Group, TossBlueSoft, TossBlue, "인원 관리",
-                        "팀원 · 일당사장 — 현장에 보낼 사람 관리", tier = "비즈니스", onClick = onOpenTeam)
+                        if (com.detailline.callfollowcrm.presentation.FeatureFlags.SHOW_TEAM_MEMBERS)
+                            "팀원 · 일당사장 — 현장에 보낼 사람 관리"
+                        else "일당사장 — 현장에 부를 사람(협업 사장) 관리",
+                        tier = "비즈니스", onClick = onOpenTeam)
                     LockRow(Icons.Filled.Group, Color(0xFFFFF3DF), Color(0xFFF6A609), "수첩",
                         "거래처 — 자재·협력·장비 자주 거래하는 곳", onClick = onOpenNotebook)
                     LockRow(Icons.Filled.Group, Color(0xFFF1ECFE), Color(0xFF7C5CFC), "협업 현장",

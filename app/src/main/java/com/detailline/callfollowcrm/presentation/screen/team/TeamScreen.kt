@@ -118,7 +118,9 @@ fun TeamScreen(
     val departures by viewModel.departures.collectAsState()
     val toast by viewModel.toast.collectAsState()
     var addSheetOpen by remember { mutableStateOf(false) }
-    var peopleTab by remember { mutableStateOf("team") } // "team" 팀원 | "worker" 일당사장
+    // 팀원 숨김이면 일당사장만. (2026-07-18 사장님) FeatureFlags.SHOW_TEAM_MEMBERS 로 부활.
+    val showTeamTab = com.detailline.callfollowcrm.presentation.FeatureFlags.SHOW_TEAM_MEMBERS
+    var peopleTab by remember { mutableStateOf(if (showTeamTab) "team" else "worker") } // "team" 팀원 | "worker" 일당사장
     var renameTarget by remember { mutableStateOf<TeamRepository.TeamMember?>(null) } // 이름 수정 대상. null=닫힘.
 
     LaunchedEffect(Unit) { viewModel.load() }
@@ -144,7 +146,7 @@ fun TeamScreen(
         }
     ) { inner ->
         Column(Modifier.padding(inner).fillMaxSize()) {
-          PeopleToggle(peopleTab) { peopleTab = it }
+          if (showTeamTab) PeopleToggle(peopleTab) { peopleTab = it }
           if (peopleTab == "worker") {
             com.detailline.callfollowcrm.presentation.screen.notebook.NotebookContent(
                 notebookViewModel,
