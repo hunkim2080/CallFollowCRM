@@ -1133,7 +1133,16 @@ class ChatViewModel(
     fun trackJourney(eventName: String, target: String? = null) =
         container.journeyEventRepository.track(eventName, screen = "chat", target = target)
 
+    /** 'AI 답변 준비' 스위치(더보기 → 설정). OFF 면 추천 준비/로딩/마스코트 전부 안 함. (2026-07-16 사장님) */
+    val aiReplyPrepEnabled: Boolean get() = container.preferences.aiReplyPrepEnabled
+
     fun loadSuggestions() = viewModelScope.launch {
+        // 'AI 답변 준비' OFF — 추천을 아예 안 만든다(마스코트 로딩·서버 호출 없음). (2026-07-16 사장님)
+        if (!container.preferences.aiReplyPrepEnabled) {
+            _suggestions.value = null
+            _suggestionsLoading.value = false
+            return@launch
+        }
         // 문자함(고객 아님) 대화면 AI 답변 추천을 아예 안 함 — 순수 문자만. (2026-07-12 사장님)
         if (runCatching { container.threadBucketRepository.isGeneral(phoneNumber) }.getOrDefault(false)) {
             _suggestions.value = null
@@ -1273,6 +1282,12 @@ class ChatViewModel(
      * 컨텍스트 구성은 SmsReceiver 와 같은 로직 (최근 20건 + customer hint).
      */
     fun regenerateSuggestions(auto: Boolean = false) {
+        // 'AI 답변 준비' OFF — 자동 재생성(stale)·↻ 모두 안 함. (2026-07-16 사장님)
+        if (!container.preferences.aiReplyPrepEnabled) {
+            _suggestionsLoading.value = false
+            if (!auto) _toast.value = "AI 답변 준비를 꺼두셨어요 — 더보기 → 설정에서 켤 수 있어요"
+            return
+        }
         // 통화로 끝난 대화 — 답할 문자가 없으니 준비하지 않고 안내만. (2026-06-17 사장님)
         if (lastActivityIsCall.value) {
             if (!auto) _toast.value = "통화로 끝난 대화예요 — 고객이 문자를 보내면 추천 답변을 준비할게요"

@@ -1580,6 +1580,7 @@ private fun AutoSmsSection(
     var d1Hour by remember { mutableStateOf(prefs.d1SendHour) }
     var d1Text by remember { mutableStateOf(prefs.d1AutoText) }
     var arrOn by remember { mutableStateOf(prefs.arrivalAutoEnabled) }
+    var aiPrepOn by remember { mutableStateOf(prefs.aiReplyPrepEnabled) }
     var arrText by remember { mutableStateOf(prefs.arrivalAutoText) }
     var spamPrefixes by remember { mutableStateOf(prefs.spamPrefixes) }
     var newSpamPrefix by remember { mutableStateOf("") }
@@ -1824,14 +1825,40 @@ private fun AutoSmsSection(
     }
     Spacer(Modifier.height(14.dp))
 
-    // 받은 문자 알림 (보존)
+    // 받은 문자 알림 (보존) — 설명 명확화: 이건 '알림창'만 담당(AI 준비와 별개). (2026-07-16 사장님 혼동)
     TossCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("받은 문자 알림", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-                Text("고객 문자가 오면 AI 추천 답변과 함께 알림", fontSize = 12.sp, color = TossTextTertiary)
+                Text("고객 문자가 오면 알림창을 띄워요 (알림만 — AI 준비는 아래 스위치)", fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp)
             }
             Switch(checked = incomingNotifyOn, onCheckedChange = onIncomingNotifyToggle)
+        }
+    }
+    Spacer(Modifier.height(14.dp))
+
+    // AI 답변 준비 (2026-07-16 사장님) — 문자 오면 막내가 추천 답변을 미리 만들지 여부. '받은 문자 알림'과 별개.
+    //   OFF = 마스코트 '답변 준비 중' 애니·홈 "AI 답변 준비 중"·서버 호출 전부 없음.
+    TossCard {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(Color(0xFFEDE9FE)),
+                    contentAlignment = Alignment.Center) { Text("✨", fontSize = 15.sp) }
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("AI 답변 준비", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                    Text(
+                        if (aiPrepOn) "문자가 오면 막내가 추천 답변을 미리 만들어둬요 (문자방 열면 바로 보여요)"
+                        else "꺼짐 — 추천을 안 만들어요. 마스코트 '준비 중' 애니도 안 떠요",
+                        fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Switch(checked = aiPrepOn, onCheckedChange = {
+                    aiPrepOn = it
+                    prefs.aiReplyPrepEnabled = it
+                })
+            }
         }
     }
     Spacer(Modifier.height(14.dp))

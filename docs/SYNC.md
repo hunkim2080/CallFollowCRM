@@ -7425,3 +7425,19 @@ manifest 를 코드별로 생성해야 해서 비추 — localStorage 가 단순
 
 - 검증: 단위테스트 전체 통과(실패 0). release 0.2.1032 S9+ 설치·실행·크래시 0.
   ⚠️ 미검증: ①은 서버 대기라 end-to-end 불가 / ③은 실기 두 폰(A·B) 필요 — 여기선 확인 못 함.
+
+## 2026-07-16 15:40 · android
+'AI 답변 준비' 스위치 신설 + 기본 끄기 요청 반영 — 사장님이 찾던 "마스코트 답변 준비 끄는 버튼"
+
+- 배경: 사장님이 "받은 문자 알림"을 마스코트 답변준비 끄는 버튼으로 알고 껐는데 계속 돌았음. 그 버튼은 **없었음**.
+- 신설: `AppPreferences.aiReplyPrepEnabled`(기본 ON). 더보기 → 설정 → "✨ AI 답변 준비" 스위치. '받은 문자 알림' 바로 아래.
+  - '받은 문자 알림' 설명도 명확화: "알림창을 띄워요 (알림만 — AI 준비는 아래 스위치)".
+- OFF 시 **생성 경로 전부 차단**(읽기 경로·문자캐시는 유지):
+  - SmsReceiver.requestPrepare / MmsDownloadedReceiver prepare 블록 — skip (prefetch=문자·사진 캐시는 유지).
+  - ChatViewModel.loadSuggestions / regenerateSuggestions — early return (stale 자동재생성·↻ 포함).
+  - ChatScreen 추천 영역(SuggestionArea) 통째 숨김 → 마스코트 로딩 안 뜸.
+  - 홈 대기카드 "AI 답변 준비 중…" → "새 문자 · 답장하기"(준비 안 하므로 거짓 표시 제거).
+  - 홈 init 의 fetch(1338)는 캐시 읽기만이라 안 건드림(OFF면 캐시 비어 자연히 빈 목록).
+- 검증: 컴파일 + 단위테스트 전체 통과(실패 0). release 0.2.1033 빌드.
+  ⚠️ **미검증(실기)**: 스페어폰(S9+)이 연결 해제돼 토글 실제 동작(껐을 때 마스코트 안 뜨는지)을 이번엔 폰에서 못 몰았음.
+      사장님 폰/재연결 후 확인 필요. 코드 경로는 위처럼 전수 차단.

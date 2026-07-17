@@ -203,7 +203,11 @@ class SmsReceiver : BroadcastReceiver() {
                 )
 
                 // 추천 답변은 미리 준비만 해둔다(문자방 진입 시 바로 보이게). fire-and-forget.
-                container.suggestionRepository.requestPrepare(ctx)
+                //   'AI 답변 준비' OFF 면 미리 안 만듦 — 마스코트 로딩·서버 호출 없음. (2026-07-16 사장님)
+                //   prefetch(문자·사진 캐시 데우기)는 AI 와 무관 → OFF 여도 그대로(문자방 빨리 뜨게).
+                if (container.preferences.aiReplyPrepEnabled) {
+                    container.suggestionRepository.requestPrepare(ctx)
+                }
                 container.smsCachePrefetcher.prefetchForNumber(sender)
             } catch (e: Throwable) {
                 Log.e(TAG, "onReceive async failed", e)

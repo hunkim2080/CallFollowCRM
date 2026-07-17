@@ -1035,6 +1035,7 @@ fun HomeScreen(
                                     item = item,
                                     aiSummary = aiCardSummaries[suffix],
                                     replyChoices = choices,
+                                    aiPrepEnabled = prefs.aiReplyPrepEnabled,
                                     onOpenChat = { onOpenChat(item.record.phoneNumber, item.customer?.id) },
                                     onCall = { dialHome(context, item.record.phoneNumber) },
                                     // 비행기 = 카드에서 지금 보고 있는 답변으로 '확인 후 발송' 다이얼로그. (2026-07-02 사장님)
@@ -3300,6 +3301,7 @@ private fun WaitingCard(
     item: HomeItem,
     aiSummary: String?,
     replyChoices: List<com.detailline.callfollowcrm.ai.ReplyChoice>,
+    aiPrepEnabled: Boolean = true,
     onOpenChat: () -> Unit,
     onCall: () -> Unit,
     onQuickSend: (String) -> Unit,
@@ -3457,10 +3459,17 @@ private fun WaitingCard(
             }
         } else {
             // 프로토 preparing — 문자 받았고 추천 준비 전: "AI 답변 준비 중…" + [답장하기].
+            //   'AI 답변 준비' OFF 면 준비 자체를 안 하므로 "준비 중"은 거짓 → 담백하게 "새 문자". (2026-07-16 사장님)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.AutoAwesome, null, tint = TossTextTertiary, modifier = Modifier.size(13.dp))
-                Spacer(Modifier.width(5.dp))
-                Text("AI 답변 준비 중…", fontSize = 13.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
+                if (aiPrepEnabled) {
+                    Icon(Icons.Default.AutoAwesome, null, tint = TossTextTertiary, modifier = Modifier.size(13.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text("AI 답변 준비 중…", fontSize = 13.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
+                } else {
+                    Icon(Icons.AutoMirrored.Filled.Chat, null, tint = TossTextTertiary, modifier = Modifier.size(13.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text("새 문자 · 답장하기", fontSize = 13.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
+                }
                 Spacer(Modifier.weight(1f))
                 Box(
                     Modifier

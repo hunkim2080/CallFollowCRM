@@ -202,6 +202,16 @@ class AppPreferences(context: Context) {
         set(value) = prefs.edit().putBoolean(KEY_INCOMING_SMS_NOTIFY, value).apply()
 
     /**
+     * AI 답변 준비 on/off — 기본 ON. (2026-07-16 사장님: "받은 문자 알림"과 별개인 걸 몰라 이 스위치를 찾고 있었음)
+     *   ON: 고객 문자가 오면 백그라운드에서 서버가 추천 답변을 미리 만들어둠(문자방 열면 바로 보임 + 마스코트 '준비 중' 애니).
+     *   OFF: 아예 안 만듦 — 마스코트 로딩·홈 "AI 답변 준비 중"·서버 호출 전부 없음. 완전 수동.
+     *   ※ "받은 문자 알림"(incomingSmsNotifyEnabled)은 알림창만 담당 — 이것과 완전 별개.
+     */
+    var aiReplyPrepEnabled: Boolean
+        get() = prefs.getBoolean(KEY_AI_REPLY_PREP, true)
+        set(value) = prefs.edit().putBoolean(KEY_AI_REPLY_PREP, value).apply()
+
+    /**
      * 마지막으로 '수신 MMS 알림'을 띄운 시각(ms). 이 이후 도착한 inbox MMS 만 새로 알림.
      *   MMS(사진)는 SmsReceiver·WAP_PUSH 로 못 잡아 ContentObserver 로 감지→알림하는데, 중복/과거분 방지용 마커.
      *   0 = 미설정 → 앱 시작 시 now 로 기준선 잡음(설치 전 과거 MMS 는 알림 안 함). (2026-07-03 사장님)
@@ -711,6 +721,7 @@ class AppPreferences(context: Context) {
         private const val KEY_QUICK_ACTION_TPL_2 = "quick_action_tpl_id_2"
         private const val KEY_QUICK_ACTION_TPL_3 = "quick_action_tpl_id_3"
         private const val KEY_INCOMING_SMS_NOTIFY = "incoming_sms_notify_enabled"
+        private const val KEY_AI_REPLY_PREP = "ai_reply_prep_enabled"
         private const val KEY_DEFAULT_NAV_APP = "default_nav_app_key"
         private const val KEY_MANUAL_MMSC_URL = "manual_mmsc_url"
         private const val KEY_MANUAL_MMSC_PROXY = "manual_mmsc_proxy"

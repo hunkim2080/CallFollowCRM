@@ -871,7 +871,9 @@ fun ChatScreen(
             // 2026-05-25 자동 접힘: 사장님이 직접 타이핑 시작 (input.isNotBlank()) = 추천 안 보고 싶음
             //   → 1줄 헤더로 접힘. composer 비우면 자동 펼침. 또는 헤더 탭으로 수동 토글.
             // 문자함(고객 아님)은 AI 답변 추천 영역 자체를 안 띄움. (2026-07-12 사장님)
-            val showSuggestionArea = messages.firstOrNull()?.sent == false && !isPlainThread
+            // 'AI 답변 준비' OFF 면 추천 영역 통째로 숨김 — 마스코트 로딩·↻ 없음(사장님이 끈 것). (2026-07-16 사장님)
+            val showSuggestionArea = messages.firstOrNull()?.sent == false && !isPlainThread &&
+                viewModel.aiReplyPrepEnabled
             if (showSuggestionArea) {
                 var suggestionsExpanded by remember { mutableStateOf(true) }
                 val inputNonBlank = input.isNotBlank()
