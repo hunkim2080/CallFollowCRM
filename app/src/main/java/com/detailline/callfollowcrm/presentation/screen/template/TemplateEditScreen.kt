@@ -1,6 +1,7 @@
 package com.detailline.callfollowcrm.presentation.screen.template
 
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -71,8 +72,9 @@ fun TemplateEditScreen(
     val context = LocalContext.current
     val canSave = state.title.isNotBlank() && state.body.isNotBlank()
 
+    // 갤러리 바로 열기(PickVisualMedia). 예전 OpenDocument 는 '파일 탐색기'라 갤러리를 못 찾던 문제. (2026-07-17 사장님)
     val pickImage = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
+        contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         uri?.let { viewModel.addAttachment(context, it) }
     }
@@ -181,7 +183,9 @@ fun TemplateEditScreen(
                         }
                         item {
                             AddAttachmentTile(onClick = {
-                                pickImage.launch(arrayOf("image/*"))
+                                pickImage.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                )
                             })
                         }
                     }

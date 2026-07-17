@@ -2,4 +2,6 @@
 <paths>
     <!-- 견적서 이미지 등 앱 캐시에 만든 파일을 외부 앱(문자/공유)에 임시 공유. -->
     <cache-path name="shared" path="shared/" />
+    <!-- 문구(템플릿) 첨부 사진 — 앱 내부 영구 저장. 갤러리에서 고른 사진을 여기 복사해 몇 주 뒤에도 딸려가게. (2026-07-17) -->
+    <files-path name="template_photos" path="template_photos/" />
 </paths>

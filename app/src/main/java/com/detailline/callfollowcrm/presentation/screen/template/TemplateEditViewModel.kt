@@ -64,37 +64,67 @@ class TemplateEditViewModel(
     fun setActive(v: Boolean) = _state.update { it.copy(isActive = v) }
 
     /**
-     * 갤러리/사진 picker 로 선택한 URI 를 첨부에 추가.
-     * persistable URI 권한을 즉시 잡아 두어야 다음에 앱 켜도 접근 가능.
+     * 갤러리(PickVisualMedia)로 고른 사진을 첨부에 추가. (2026-07-17 사장님)
+     *   ★ 예전엔 SAF(OpenDocument) URI 를 그대로 저장 → (a)파일 탐색기가 떠 갤러리 못 찾음 (b)나중에 그 문구 쓸 때
+     *     권한이 풀려 사진이 안 딸려오던 문제. 이제 **앱 내부에 복사**해 몇 주 뒤에도 확실히 읽히게 한다.
+     *   FileProvider(${applicationId}.fileprovider) URI 로 보관 → 발송(SmsSender.decodeMmsBitmap)·미리보기 모두 앱이 읽음.
      */
     fun addAttachment(context: Context, uri: Uri) {
-        runCatching {
-            context.contentResolver.takePersistableUriPermission(
-                uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
-            )
+        val appCtx = context.applicationContext
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val local = runCatching { copyToAppStorage(appCtx, uri) }.getOrNull() ?: return@launch
+            _pending.update { current ->
+                if (current.any { it.uri == local.uri }) current   // 중복 추가 방지
+                else current + local
+            }
         }
-        val (name, mime) = queryFileInfo(context, uri)
-        _pending.update { current ->
-            // 중복 추가 방지
-            if (current.any { it.uri == uri.toString() }) current
-            else current + PendingAttachment(uri = uri.toString(), displayName = name, mimeType = mime)
+    }
+
+    /** 고른 사진을 filesDir/template_photos 로 복사하고 FileProvider URI 로 감싼다. 실패 시 null. */
+    private fun copyToAppStorage(context: Context, src: Uri): PendingAttachment? {
+        val mime = context.contentResolver.getType(src) ?: "image/jpeg"
+        val ext = when {
+            mime.contains("png") -> "png"; mime.contains("webp") -> "webp"; else -> "jpg"
         }
+        val dir = java.io.File(context.filesDir, "template_photos").apply { mkdirs() }
+        val file = java.io.File(dir, "tpl_${System.currentTimeMillis()}_${(0..999999).random()}.$ext")
+        val ok = runCatching {
+            context.contentResolver.openInputStream(src)?.use { input ->
+                file.outputStream().use { output -> input.copyTo(output) }
+            } != null
+        }.getOrDefault(false)
+        if (!ok || !file.exists() || file.length() == 0L) { runCatching { file.delete() }; return null }
+        val fpUri = androidx.core.content.FileProvider.getUriForFile(
+            context, "${context.packageName}.fileprovider", file
+        )
+        return PendingAttachment(uri = fpUri.toString(), displayName = file.name, mimeType = mime)
     }
 
     fun removePendingAttachment(uri: String) {
         _pending.update { it.filterNot { p -> p.uri == uri } }
+        // 방금 복사한 앱 내부 파일도 정리(pending 은 항상 우리가 복사한 것).
+        runCatching { fileFromDisplayNameOrUri(uri)?.delete() }
     }
 
     fun removeSavedAttachment(context: Context, entity: TemplateAttachmentEntity) {
         viewModelScope.launch {
             container.templateAttachmentRepository.remove(entity.id)
+            // 앱 내부 복사본이면 파일 삭제. 옛 SAF URI 면 persistable 권한 해제(둘 다 best-effort).
+            runCatching { fileFromDisplayNameOrUri(entity.fileUri)?.delete() }
             runCatching {
                 context.contentResolver.releasePersistableUriPermission(
-                    Uri.parse(entity.fileUri),
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    Uri.parse(entity.fileUri), Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
             }
         }
+    }
+
+    /** 우리 앱 내부 template_photos 파일이면 그 File, 아니면 null(옛 SAF URI 등). */
+    private fun fileFromDisplayNameOrUri(uriStr: String): java.io.File? {
+        val ctx = container.appContext
+        val name = uriStr.substringAfterLast('/').substringBefore('?').takeIf { it.startsWith("tpl_") } ?: return null
+        val f = java.io.File(java.io.File(ctx.filesDir, "template_photos"), name)
+        return if (f.exists()) f else null
     }
 
     fun save(onDone: () -> Unit) {
