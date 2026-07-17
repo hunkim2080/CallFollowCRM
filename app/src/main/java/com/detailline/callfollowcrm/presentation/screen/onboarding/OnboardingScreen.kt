@@ -154,16 +154,9 @@ fun OnboardingScreen(prefs: AppPreferences, onFinish: () -> Unit) {
                     onNext = {
                         val trade = selectedTrades.toList().take(1)
                         prefs.ownerTrades = trade  // 하나만(라디오) — 대표 업종 1개
-                        // 업종 스타터(2026-07-02 사장님): 줄눈이면 가격표를 '추정값'으로 자동 채워 빈 표 이탈 방지.
-                        //   applicationScope 로 fire-and-forget → BornStep 배지 전에 완료. 타 업종은 서버 대기(현재 no-op).
-                        (context.applicationContext as? CallFollowCrmApplication)?.let { app ->
-                            app.applicationScope.launch {
-                                runCatching {
-                                    com.detailline.callfollowcrm.data.local.seed.DefaultPricingItems
-                                        .seedEstimatedIfEmpty(app.container.pricingItemRepository, trade.firstOrNull())
-                                }
-                            }
-                        }
+                        // 가격표는 '빈 표로 시작'. (2026-07-17 사장님) 예전엔 업종 스타터로 예시가격을 깔았는데,
+                        //   그 줄눈 예시가 사장님(junjun) 실제 가격이라 "다른 사장님 폰에 내 가격이 등록돼 있다" 문제.
+                        //   → 시드 안 함. 빈 화면의 "✨ 문자에서 자동으로 채우기"로 각자 본인 가격을 채운다.
                         step = 2
                     }
                 )
