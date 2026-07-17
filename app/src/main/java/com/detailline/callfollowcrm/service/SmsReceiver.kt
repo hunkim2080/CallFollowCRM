@@ -204,8 +204,9 @@ class SmsReceiver : BroadcastReceiver() {
 
                 // 추천 답변은 미리 준비만 해둔다(문자방 진입 시 바로 보이게). fire-and-forget.
                 //   'AI 답변 준비' OFF 면 미리 안 만듦 — 마스코트 로딩·서버 호출 없음. (2026-07-16 사장님)
-                //   prefetch(문자·사진 캐시 데우기)는 AI 와 무관 → OFF 여도 그대로(문자방 빨리 뜨게).
-                if (container.preferences.aiReplyPrepEnabled) {
+                //   '고객 아님'(협업사장·거래처 등) 번호도 고객상담 추천 안 만듦. (2026-07-18 사장님) 통화요약은 별개라 유지.
+                //   prefetch(문자·사진 캐시 데우기)는 AI 와 무관 → 위 OFF 여도 그대로(문자방 빨리 뜨게).
+                if (container.preferences.aiReplyPrepEnabled && !container.preferences.isNonCustomer(sender)) {
                     container.suggestionRepository.requestPrepare(ctx)
                 }
                 container.smsCachePrefetcher.prefetchForNumber(sender)

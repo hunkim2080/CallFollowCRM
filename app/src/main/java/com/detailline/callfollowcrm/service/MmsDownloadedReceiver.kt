@@ -135,9 +135,9 @@ class MmsDownloadedReceiver : BroadcastReceiver() {
         runCatching { runBlocking { container.cachedMessageRepository.mergeMmsForSuffix(suffix, listOf(mms)) } }
             .onFailure { e -> Log.e(TAG, "direct MMS cache merge failed", e) }
 
-        // 3) prepare-reply (fire-and-forget). 'AI 답변 준비' OFF 면 스킵 — 서버 호출·마스코트 로딩 없음. (2026-07-16 사장님)
-        //   문자·사진 캐시(위 2번 mergeMms)는 이미 끝났으니 여긴 AI 준비만 담당 → 통째로 return 안전.
-        if (!container.preferences.aiReplyPrepEnabled) return
+        // 3) prepare-reply (fire-and-forget). 'AI 답변 준비' OFF 또는 '고객 아님' 번호면 스킵. (2026-07-16/18 사장님)
+        //   문자·사진 캐시(위 2번 mergeMms)는 이미 끝났으니 여긴 AI 준비만 담당 → 통째로 return 안전. 통화요약은 별개라 유지.
+        if (!container.preferences.aiReplyPrepEnabled || container.preferences.isNonCustomer(sender)) return
         runCatching {
             val customer = runBlocking { container.customerRepository.findByPhone(sender) }
             val history = runBlocking {

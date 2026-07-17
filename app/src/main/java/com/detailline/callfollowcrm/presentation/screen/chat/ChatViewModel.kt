@@ -210,6 +210,34 @@ class ChatViewModel(
         else container.callRecordRepository.observeByPhoneSuffix(suffix)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    // ── '이 사람 고객인가요?' 조용한 줄 (2026-07-18 사장님) ── (callRecords 아래 선언 = 초기화 순서 NPE 방지)
+    //   모르는 새 번호가 한 번(문자·통화) 오간 뒤 물어본다. 저장 고객·문자함(대표번호/광고)·이미 답한 번호는 안 물음.
+    //   "고객 아님" 이면 고객상담 AI(페르소나·추천)만 끄고 통화요약은 유지.
+    private val _customerAskDismissed = MutableStateFlow(false)
+    val showCustomerAsk: StateFlow<Boolean> =
+        combine(customer, messages, isPlainThread, callRecords, _customerAskDismissed) { cust, msgs, plain, calls, dismissed ->
+            val suffix = phoneNumber.filter { it.isDigit() }.takeLast(8)
+            // 확실한 고객(시공일·금액·계약금 있음)은 안 물음 — 물어볼 필요 없음. 앱은 모든 연락처에 record 를 만들어서
+            //   'record 있음'만으론 고객 확정이 아니다. 미확정(문의 단계) 번호에만 물어 협업/거래처/지인을 걸러낸다.
+            val confirmedCustomer = cust != null &&
+                (cust.scheduledWorkDate != null || (cust.totalAmount ?: 0L) > 0L || cust.depositAmount != null)
+            !dismissed && suffix.length >= 7 &&
+                suffix !in container.preferences.customerAskedSuffixes &&
+                !container.preferences.isNonCustomer(phoneNumber) &&
+                !confirmedCustomer && !plain &&
+                (msgs.isNotEmpty() || calls.isNotEmpty())
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /** '고객인가요?' 답 — isNonCustomer=true 면 고객상담 AI 끔, false 면 고객(기본). 양쪽 다 다시 안 물음. (2026-07-18 사장님) */
+    fun answerCustomerAsk(isNonCustomer: Boolean) {
+        container.preferences.answerCustomerAsk(phoneNumber, isNonCustomer)
+        _customerAskDismissed.value = true
+        if (isNonCustomer) { _suggestions.value = null; _suggestionsLoading.value = false }
+        _toast.value = if (isNonCustomer)
+            "고객 아님으로 표시했어요 — 추천·페르소나는 안 만들어요 (통화 요약은 그대로)"
+        else "고객으로 뒀어요"
+    }
+
     /** 통화 녹음 첨부 (2026-06-16) — 통화 카드에 재생 플레이어를 띄우기 위함. suffix 매칭. */
     val recordings: StateFlow<List<com.detailline.callfollowcrm.data.local.entity.RecordingAttachmentEntity>> = run {
         val suffix = phoneNumber.filter { it.isDigit() }.takeLast(8)
@@ -1165,12 +1193,14 @@ class ChatViewModel(
     fun trackJourney(eventName: String, target: String? = null) =
         container.journeyEventRepository.track(eventName, screen = "chat", target = target)
 
-    /** 'AI 답변 준비' 스위치(더보기 → 설정). OFF 면 추천 준비/로딩/마스코트 전부 안 함. (2026-07-16 사장님) */
-    val aiReplyPrepEnabled: Boolean get() = container.preferences.aiReplyPrepEnabled
+    /** 'AI 답변 준비' 스위치(더보기 → 설정). OFF 면 추천 준비/로딩/마스코트 전부 안 함. (2026-07-16 사장님)
+     *   '고객 아님'(협업사장·거래처 등) 번호도 고객상담 추천을 안 만든다. (2026-07-18 사장님) */
+    val aiReplyPrepEnabled: Boolean
+        get() = container.preferences.aiReplyPrepEnabled && !container.preferences.isNonCustomer(phoneNumber)
 
     fun loadSuggestions() = viewModelScope.launch {
-        // 'AI 답변 준비' OFF — 추천을 아예 안 만든다(마스코트 로딩·서버 호출 없음). (2026-07-16 사장님)
-        if (!container.preferences.aiReplyPrepEnabled) {
+        // 'AI 답변 준비' OFF 또는 '고객 아님' 번호 — 추천을 아예 안 만든다. (2026-07-16/18 사장님)
+        if (!aiReplyPrepEnabled) {
             _suggestions.value = null
             _suggestionsLoading.value = false
             return@launch
@@ -1314,10 +1344,12 @@ class ChatViewModel(
      * 컨텍스트 구성은 SmsReceiver 와 같은 로직 (최근 20건 + customer hint).
      */
     fun regenerateSuggestions(auto: Boolean = false) {
-        // 'AI 답변 준비' OFF — 자동 재생성(stale)·↻ 모두 안 함. (2026-07-16 사장님)
-        if (!container.preferences.aiReplyPrepEnabled) {
+        // 'AI 답변 준비' OFF 또는 '고객 아님' 번호 — 자동 재생성(stale)·↻ 모두 안 함. (2026-07-16/18 사장님)
+        if (!aiReplyPrepEnabled) {
             _suggestionsLoading.value = false
-            if (!auto) _toast.value = "AI 답변 준비를 꺼두셨어요 — 더보기 → 설정에서 켤 수 있어요"
+            if (!auto) _toast.value = if (container.preferences.isNonCustomer(phoneNumber))
+                "'고객 아님'으로 표시된 번호예요 — 추천은 안 만들어요"
+            else "AI 답변 준비를 꺼두셨어요 — 더보기 → 설정에서 켤 수 있어요"
             return
         }
         // 통화로 끝난 대화 — 답할 문자가 없으니 준비하지 않고 안내만. (2026-06-17 사장님)

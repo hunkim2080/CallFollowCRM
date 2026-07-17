@@ -215,6 +215,34 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean(KEY_AI_REPLY_PREP, true)
         set(value) = prefs.edit().putBoolean(KEY_AI_REPLY_PREP, value).apply()
 
+    // ── '이 사람 고객 아님' (2026-07-18 사장님) — 협업사장·거래처·지인 등을 고객 상담으로 오인하는 AI 방지 ──
+    //   '고객 아님' 표시된 번호는 고객상담 AI(페르소나·추천답변)를 안 만든다. 통화요약 같은 중립 기능은 유지.
+    //   기본 = 고객(안전). 모르는 새 번호가 한 번 오간 뒤 대화방 조용한 줄로 물어 본다.
+    private fun suffixOf(phone: String): String = phone.filter { it.isDigit() }.takeLast(8)
+
+    /** '고객 아님'으로 표시된 번호(끝 8자리) 집합. */
+    var nonCustomerSuffixes: Set<String>
+        get() = prefs.getStringSet(KEY_NON_CUSTOMER, emptySet()) ?: emptySet()
+        set(value) = prefs.edit().putStringSet(KEY_NON_CUSTOMER, value).apply()
+
+    /** 이 번호가 '고객 아님'인가. */
+    fun isNonCustomer(phone: String): Boolean {
+        val s = suffixOf(phone)
+        return s.length >= 7 && s in nonCustomerSuffixes
+    }
+
+    /** '고객?' 질문에 답한(고객/아님) 번호 — 다시 안 물음. */
+    var customerAskedSuffixes: Set<String>
+        get() = prefs.getStringSet(KEY_CUSTOMER_ASKED, emptySet()) ?: emptySet()
+        set(value) = prefs.edit().putStringSet(KEY_CUSTOMER_ASKED, value).apply()
+
+    /** 사장님이 대화방에서 답함. non=true → 고객 아님(AI 끔), false → 고객(기본, 태그만 해제). 양쪽 다 '물음 완료' 기록. */
+    fun answerCustomerAsk(phone: String, isNonCustomer: Boolean) {
+        val s = suffixOf(phone); if (s.length < 7) return
+        nonCustomerSuffixes = if (isNonCustomer) nonCustomerSuffixes + s else nonCustomerSuffixes - s
+        customerAskedSuffixes = customerAskedSuffixes + s
+    }
+
     /**
      * 마지막으로 '수신 MMS 알림'을 띄운 시각(ms). 이 이후 도착한 inbox MMS 만 새로 알림.
      *   MMS(사진)는 SmsReceiver·WAP_PUSH 로 못 잡아 ContentObserver 로 감지→알림하는데, 중복/과거분 방지용 마커.
@@ -726,6 +754,8 @@ class AppPreferences(context: Context) {
         private const val KEY_QUICK_ACTION_TPL_3 = "quick_action_tpl_id_3"
         private const val KEY_INCOMING_SMS_NOTIFY = "incoming_sms_notify_enabled"
         private const val KEY_AI_REPLY_PREP = "ai_reply_prep_enabled"
+        private const val KEY_NON_CUSTOMER = "non_customer_suffixes"
+        private const val KEY_CUSTOMER_ASKED = "customer_asked_suffixes"
         private const val KEY_DEFAULT_NAV_APP = "default_nav_app_key"
         private const val KEY_MANUAL_MMSC_URL = "manual_mmsc_url"
         private const val KEY_MANUAL_MMSC_PROXY = "manual_mmsc_proxy"

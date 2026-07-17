@@ -864,6 +864,28 @@ fun ChatScreen(
                 }
             }
 
+            // '이 사람 고객인가요?' 조용한 줄 (2026-07-18 사장님) — 모르는 새 번호에만, 방해 안 되게 작은 줄로.
+            //   "고객 아님"(협업사장·거래처·지인) → 페르소나·추천 같은 고객상담 AI 안 만듦(통화요약은 유지).
+            val showCustomerAsk by viewModel.showCustomerAsk.collectAsState()
+            if (showCustomerAsk) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
+                        .clip(RoundedCornerShape(12.dp)).background(TossBlueSoft)
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("이 사람 고객인가요?", fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
+                        color = TossBlue, modifier = Modifier.weight(1f))
+                    Box(Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White)
+                        .clickable { viewModel.answerCustomerAsk(false) }.padding(horizontal = 13.dp, vertical = 6.dp)
+                    ) { Text("고객", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue) }
+                    Spacer(Modifier.width(6.dp))
+                    Box(Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFEEF0F3))
+                        .clickable { viewModel.answerCustomerAsk(true) }.padding(horizontal = 13.dp, vertical = 6.dp)
+                    ) { Text("고객 아님", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) }
+                }
+            }
+
             // AI 추천 답변 영역 — 가장 최신 메시지가 고객이 보낸 것일 때만 표시.
             // SmsReceiver 가 백그라운드에서 서버에 prepare 트리거 → ChatScreen 진입 시 fetch.
             // 없거나 stale 이면 사장님이 ↻ 로 재생성.
