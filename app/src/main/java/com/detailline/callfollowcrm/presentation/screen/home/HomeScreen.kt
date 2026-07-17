@@ -86,6 +86,17 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.compose.ui.platform.LocalView
+import com.detailline.callfollowcrm.presentation.util.bottomBarClearance
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -139,6 +150,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossWarning
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -149,6 +161,28 @@ import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 import com.detailline.callfollowcrm.util.MoneyFormatter
 import androidx.compose.material.icons.filled.ChevronRight
+
+/**
+ * 설치 페이지 열기 — 업데이트 배너/시트의 '받기' 공용. (2026-06-26 Custom Tabs, 2026-07-18 추출)
+ *   Custom Tabs(크롬 엔진)로 열어 외부 브라우저 '데스크톱 모드' 오작동 방지. 실패 시 일반 ACTION_VIEW 폴백.
+ */
+private fun openInstallPage(context: android.content.Context) {
+    val uri = android.net.Uri.parse("https://si0in.kr/install")
+    runCatching {
+        androidx.browser.customtabs.CustomTabsIntent.Builder()
+            .setShowTitle(true)
+            .build()
+            .apply { intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK) }
+            .launchUrl(context, uri)
+    }.onFailure {
+        runCatching {
+            context.startActivity(
+                android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -230,6 +264,15 @@ fun HomeScreen(
     val isInitialSmsLoading by viewModel.isInitialSmsLoading.collectAsState()
     val updateAvailable by viewModel.updateAvailable.collectAsState()
     val latestVersionCode by viewModel.latestVersionCode.collectAsState()
+    val latestReleaseNotes by viewModel.latestReleaseNotes.collectAsState()
+    // '새로워졌어요' 시트 — 새 버전 + 변경내역이 있고, 이 버전에 대해 아직 안 띄웠으면 앱 열 때 한 번 '짠'. (2026-07-18 사장님)
+    var showUpdateSheet by remember { mutableStateOf(false) }
+    LaunchedEffect(updateAvailable, latestVersionCode, latestReleaseNotes) {
+        if (updateAvailable && latestReleaseNotes.isNotEmpty() &&
+            viewModel.shouldShowUpdateSheet(latestVersionCode)) {
+            showUpdateSheet = true
+        }
+    }
 
     // 서버 상태 indicator — AppContainer 의 ServerHealthMonitor 를 직접 구독.
     // 30초마다 GET /health 호출 → 결과 반영. 사장님만 알아볼 작은 동그라미. tap = Toast 안내.
@@ -304,6 +347,8 @@ fun HomeScreen(
     var waitingSendReply by remember { mutableStateOf<String?>(null) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
 
+    // Scaffold 를 Box 로 감싸 그 위(홈 콘텐츠 전체를 덮는 z-레벨)에 업데이트 시트를 오버레이. (2026-07-18 사장님)
+    androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
     Scaffold(
         containerColor = TossGrayBg,
         topBar = {
@@ -382,60 +427,39 @@ fun HomeScreen(
                 .fillMaxSize()
                 .background(TossGrayBg)
         ) {
-            // 새 버전 배너 (2026-06-16 사장님) — 서버 mtime_ms > BUILD_TIMESTAMP 면 "받기"→브라우저 si0in.kr/install.
+            // 새 버전 배너 (2026-06-16) — "받기"→si0in.kr/install. 문구는 '이렇게 좋아져요' 안심 프레임. (2026-07-18 사장님)
             if (updateAvailable) {
-                val currentVer = com.detailline.callfollowcrm.BuildConfig.VERSION_NAME
-                val latestVer = if (latestVersionCode > 0) "0.2.$latestVersionCode" else null
-                val bannerText = if (latestVer != null) {
-                    "$currentVer → $latestVer 업데이트 하세요!"
-                } else {
-                    "$currentVer → 최신 버전으로 업데이트 하세요!"
-                }
-                val releaseNotes by viewModel.latestReleaseNotes.collectAsState()
-                val goInstall = {
-                    // Custom Tabs 로 열기 — Chrome 모바일 엔진으로 렌더해 외부 브라우저의 '데스크톱 사이트'
-                    //   모드로 PC 처럼 보이던 문제 방지(설치 페이지 viewport 는 정상). 실패 시 일반 보기로 폴백. (2026-06-26 사장님)
-                    val uri = android.net.Uri.parse("https://si0in.kr/install")
-                    runCatching {
-                        androidx.browser.customtabs.CustomTabsIntent.Builder()
-                            .setShowTitle(true)
-                            .build()
-                            .apply { intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK) }
-                            .launchUrl(context, uri)
-                    }.onFailure {
-                        runCatching {
-                            context.startActivity(
-                                android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
-                                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                            )
-                        }
-                    }
-                }
                 Column(Modifier.fillMaxWidth().background(TossBlue).padding(horizontal = 16.dp, vertical = 11.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(bannerText, color = Color.White, fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp, modifier = Modifier.weight(1f))
-                        Box(
-                            Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White)
-                                .clickable { goInstall() }
-                                .padding(horizontal = 14.dp, vertical = 6.dp)
-                        ) { Text("받기", color = TossBlue, fontWeight = FontWeight.ExtraBold, fontSize = 12.5.sp) }
-                    }
-                    // 변경 내역 — 서버가 notes 를 주면 "무엇이 바뀌었나" 를 보여줘 안심하고 받게. (2026-07-18 사장님)
-                    if (releaseNotes.isNotEmpty()) {
-                        Spacer(Modifier.height(8.dp))
-                        Text("이번 업데이트 내용", color = Color.White.copy(alpha = 0.9f),
-                            fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
-                        Spacer(Modifier.height(4.dp))
-                        releaseNotes.take(5).forEach { line ->
-                            Row(Modifier.padding(top = 2.dp)) {
-                                Text("· ", color = Color.White.copy(alpha = 0.9f), fontSize = 12.sp)
-                                Text(line, color = Color.White.copy(alpha = 0.95f), fontSize = 12.sp, lineHeight = 17.sp)
+                        Column(Modifier.weight(1f)) {
+                            Text("✨ 새 버전이 나왔어요!", color = Color.White, fontWeight = FontWeight.ExtraBold,
+                                fontSize = 14.sp)
+                            if (latestVersionCode > 0) {
+                                Text("0.2.$latestVersionCode", color = Color.White.copy(alpha = 0.85f),
+                                    fontSize = 11.sp, modifier = Modifier.padding(top = 1.dp))
                             }
                         }
-                        if (releaseNotes.size > 5) {
-                            Text("…외 ${releaseNotes.size - 5}건", color = Color.White.copy(alpha = 0.8f),
-                                fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp, start = 8.dp))
+                        Box(
+                            Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White)
+                                .clickable { openInstallPage(context) }
+                                .padding(horizontal = 16.dp, vertical = 7.dp)
+                        ) { Text("지금 받기", color = TossBlue, fontWeight = FontWeight.ExtraBold, fontSize = 12.5.sp) }
+                    }
+                    // 변경 내역 — "업데이트하면 이렇게 좋아져요" 로 받고 싶어지게. (2026-07-18 사장님)
+                    if (latestReleaseNotes.isNotEmpty()) {
+                        Spacer(Modifier.height(9.dp))
+                        Text("업데이트하면 이렇게 좋아져요", color = Color.White,
+                            fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold)
+                        Spacer(Modifier.height(5.dp))
+                        latestReleaseNotes.take(5).forEach { line ->
+                            Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.Top) {
+                                Text("✅ ", color = Color.White, fontSize = 12.sp)
+                                Text(line, color = Color.White.copy(alpha = 0.97f), fontSize = 12.sp, lineHeight = 17.sp)
+                            }
+                        }
+                        if (latestReleaseNotes.size > 5) {
+                            Text("…외 ${latestReleaseNotes.size - 5}가지 더 좋아졌어요", color = Color.White.copy(alpha = 0.85f),
+                                fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp, start = 6.dp))
                         }
                     }
                 }
@@ -1411,6 +1435,145 @@ fun HomeScreen(
                     },
                     modifier = Modifier.weight(1f)
                 )
+            }
+        }
+    }
+
+        // ── 업데이트 '새로워졌어요' 시트 — Scaffold 위 오버레이(홈 콘텐츠를 덮음). 새 버전 첫 진입에 한 번 '짠'. (2026-07-18 사장님)
+        UpdateWhatsNewSheet(
+            visible = showUpdateSheet,
+            latestVersionCode = latestVersionCode,
+            notes = latestReleaseNotes,
+            onGet = {
+                openInstallPage(context)
+                viewModel.markUpdateSheetShown(latestVersionCode)
+                showUpdateSheet = false
+            },
+            onLater = {
+                viewModel.markUpdateSheetShown(latestVersionCode)
+                showUpdateSheet = false
+            }
+        )
+    }
+}
+
+/**
+ * 업데이트 '새로워졌어요' 시트 (2026-07-18 사장님) — 새 버전이 나오면 앱 열 때 한 번 아래에서 '짠' 올라오는 안내.
+ *   "이번 업데이트 하면 이렇게 좋아져요!" 느낌으로 받고 싶어지게. [지금 받기] = 설치 페이지, [나중에] = 닫기(같은 버전 재노출 X).
+ *
+ *   ⚠️ ModalBottomSheet 안 씀 — 갤S9 에서 스크림 먹통/내비바 가림/키보드 이슈 잦음(메모). 대신 액티비티 창 안 오버레이 Box.
+ *   scrim = 반투명 검정(탭하면 나중에). 카드 = 아래에서 slide-up. 카드 탭이 scrim 으로 새지 않게 카드에 clickable 흡수.
+ */
+@Composable
+private fun UpdateWhatsNewSheet(
+    visible: Boolean,
+    latestVersionCode: Int,
+    notes: List<String>,
+    onGet: () -> Unit,
+    onLater: () -> Unit
+) {
+    if (!visible) return
+    // Dialog = 액티비티 창 위 별도 창 → 앱 하단 탭바(상담함/일정/…)까지 덮는다(HomeScreen 안 오버레이는 탭바에 가림).
+    //   usePlatformDefaultWidth=false → 전체폭. 기본 dim 은 끄고 내 스크림(0.45)만 → 예측 가능한 톤.
+    Dialog(
+        onDismissRequest = onLater,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        val dialogView = LocalView.current
+        LaunchedEffect(dialogView) {
+            (dialogView.parent as? DialogWindowProvider)?.window?.setDimAmount(0f)
+        }
+        var shown by remember { mutableStateOf(false) }   // 카드 slide-up 트리거(창 뜬 뒤 true)
+        LaunchedEffect(Unit) { shown = true }
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.45f))
+                // scrim 탭 = 나중에. ripple 없이(indication=null).
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { onLater() },
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            AnimatedVisibility(
+                visible = shown,
+                enter = slideInVertically { it },
+                exit = slideOutVertically { it }
+            ) {
+                // 카드 최대높이 = 화면의 85%(갤S9 등 작은 화면도 넘치지 않게). 내용 짧으면 그만큼만.
+                val maxCardH = (LocalConfiguration.current.screenHeightDp * 0.85f).dp
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                        .background(Color.White)
+                        // 카드 안 탭이 scrim(나중에)으로 전파되지 않게 흡수. (클릭해도 아무 일 없음)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {}
+                        .heightIn(max = maxCardH)
+                        .padding(horizontal = 22.dp)
+                        .padding(top = 22.dp)
+                        // Dialog 창 안에선 navigationBarsPadding 이 0 될 수 있음(갤S9) → 리소스 fallback 헬퍼.
+                        .bottomBarClearance(extra = 16.dp)
+                ) {
+                    // 위쪽(제목+변경목록)만 스크롤 — 목록이 많아도 버튼은 아래 항상 고정. weight(fill=false)=짧으면 그만큼만.
+                    Column(
+                        Modifier
+                            .weight(1f, fill = false)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        Text("🎉", fontSize = 34.sp)
+                        Spacer(Modifier.height(8.dp))
+                        Text("새 버전이 나왔어요!", fontWeight = FontWeight.ExtraBold, fontSize = 21.sp, color = TossTextPrimary)
+                        if (latestVersionCode > 0) {
+                            Spacer(Modifier.height(3.dp))
+                            Text("0.2.$latestVersionCode", color = TossTextTertiary, fontSize = 13.sp)
+                        }
+                        Spacer(Modifier.height(20.dp))
+                        Text("업데이트하면 이렇게 좋아져요 ✨", fontWeight = FontWeight.ExtraBold, fontSize = 14.5.sp, color = TossBlue)
+                        Spacer(Modifier.height(10.dp))
+                        notes.take(6).forEach { line ->
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(TossGrayBg)
+                                    .padding(horizontal = 14.dp, vertical = 13.dp),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Text("✅ ", fontSize = 14.sp)
+                                Text(
+                                    line, fontSize = 13.5.sp, color = TossTextPrimary, lineHeight = 19.sp,
+                                    fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+                    // 버튼 — 스크롤 밖 = 항상 보임.
+                    Spacer(Modifier.height(16.dp))
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(TossBlue)
+                            .clickable { onGet() }
+                            .padding(vertical = 15.dp),
+                        contentAlignment = Alignment.Center
+                    ) { Text("지금 받기", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 15.5.sp) }
+                    Spacer(Modifier.height(4.dp))
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable { onLater() }
+                            .padding(vertical = 13.dp),
+                        contentAlignment = Alignment.Center
+                    ) { Text("나중에 하기", color = TossTextTertiary, fontWeight = FontWeight.Medium, fontSize = 14.sp) }
+                }
             }
         }
     }

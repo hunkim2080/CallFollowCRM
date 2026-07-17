@@ -1324,6 +1324,14 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     private val _latestReleaseNotes = MutableStateFlow<List<String>>(emptyList())
     val latestReleaseNotes: StateFlow<List<String>> = _latestReleaseNotes
 
+    /** '새로워졌어요' 시트를 이 버전에 대해 아직 안 띄웠으면 true. (한 버전당 한 번만 '짠'). (2026-07-18 사장님) */
+    fun shouldShowUpdateSheet(latestCode: Int): Boolean =
+        latestCode > 0 && container.preferences.updateSheetShownForCode != latestCode
+    /** 시트를 띄웠음(또는 사용자가 닫음) 기록 — 같은 버전엔 다시 안 뜸. */
+    fun markUpdateSheetShown(latestCode: Int) {
+        if (latestCode > 0) container.preferences.updateSheetShownForCode = latestCode
+    }
+
     /** 이미 fetch 시도한 suffix (중복 호출 방지). */
     private val fetchedReplySuffixes = java.util.Collections.synchronizedSet(HashSet<String>())
 

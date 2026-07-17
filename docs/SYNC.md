@@ -7590,3 +7590,16 @@ manifest 를 코드별로 생성해야 해서 비추 — localStorage 가 단순
 - FCM 값은 문자열(str) 로. notified = sent>0. 기존 /api/shared/paid 패턴 그대로.
 - 검증: accepted→FCM+DB갱신 · pending→갱신만·push0 · 남의현장 403 · 없는share 404 통과.
 - commit: (아래) · 다음: A 폰 일정변경 → B 폰 "일정 변경" 알림 실기 확인(두 폰 필요).
+## 2026-07-18 03:00 · android — 업데이트 안내 리디자인: '새로워졌어요' 시트 + 배너 (0.2.1054)
+사장님: "이번 업데이트 하면 이렇게 좋아져요!" 하고 받고 싶어지는 느낌 원함(딱딱한 변경목록 X). 시트+배너 둘 다 채택.
+- **시트(짠)**: 새 버전+notes 있으면 앱 첫 진입에 한 번 아래에서 slide-up. 🎉 "새 버전이 나왔어요!" + "업데이트하면 이렇게 좋아져요 ✨"
+  + ✅ 변경 카드 + [지금 받기]/[나중에]. 같은 버전엔 재노출 X(prefs.updateSheetShownForCode).
+- **배너**: 기존 자리 유지, 문구를 "✨ 새 버전이 나왔어요! / 업데이트하면 이렇게 좋아져요 / ✅…" + [지금 받기]로 프레임 개선.
+- 구현: HomeScreen Scaffold 를 Box 로 감싸 그 위 오버레이. **ModalBottomSheet 대신 Dialog**(usePlatformDefaultWidth=false,
+  기본 dim off + 자체 스크림 0.45) — 앱 하단 탭바까지 덮고 갤S9 스크림/내비바 이슈 회피. 카드 하단=bottomBarClearance(SystemBars).
+  버튼은 스크롤 밖 고정, 내용만 스크롤(카드 max=화면85%). openInstallPage 공용 헬퍼로 추출(배너+시트 공유).
+- prefs.updateSheetShownForCode + HomeViewModel.shouldShowUpdateSheet/markUpdateSheetShown.
+- **폰 실기 검증(S23U 스샷)**: 시트 렌더·전항목 보임·버튼 고정·스크림탭 닫힘·닫은 뒤 홈/탭 정상(일정 열림)·크래시0. 강제표시 임시코드로 확인 후 제거.
+- 배포 release 0.2.1054(sha 31b13f41, 맥미니 반영·notes 6줄 유지). ⚠️ 주의: 시트/새배너는 **1054부터 실행되는 폰**에서 보임
+  (구버전→1054 업데이트 시엔 구버전 코드가 렌더 → 그 다음 업데이트부터 새 안내). cowork 무관(서버 notes 이미 동작).
+- 서버 참고: cowork 가 /api/download/version 에 notes 필드 이미 배포함(확인 완료) — 앱은 그대로 소비만.

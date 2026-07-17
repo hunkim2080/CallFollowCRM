@@ -179,6 +179,10 @@ class AppPreferences(context: Context) {
     var latestReleaseNotes: List<String>
         get() = prefs.getString("latest_release_notes", "")?.split("\n")?.filter { it.isNotBlank() } ?: emptyList()
         set(value) = prefs.edit().putString("latest_release_notes", value.joinToString("\n")).apply()
+    /** '새로워졌어요' 시트를 이미 띄운 versionCode — 같은 버전엔 다시 안 뜨게(한 번만 짠). 0 = 아직 없음. (2026-07-18 사장님) */
+    var updateSheetShownForCode: Int
+        get() = prefs.getInt("update_sheet_shown_code", 0)
+        set(value) = prefs.edit().putInt("update_sheet_shown_code", value).apply()
 
     /**
      * 후속 처리 알림 (두 번째 통화부터)의 빠른 액션 버튼 3개에 표시할 템플릿 ID.
