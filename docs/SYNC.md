@@ -7560,3 +7560,17 @@ manifest 를 코드별로 생성해야 해서 비추 — localStorage 가 단순
 - 검증: 앱 컴파일·테스트 통과, release 0.2.1051 배포(sha b850af96). 서버 notes 붙기 전까진 배너 문구만.
 
 **남은 요청:** ⑥ 비고객(협업/거래처/직원/개인) 고객상담 오인 AI 프레임 개선 — 논의 단계.
+
+## 2026-07-18 · android — 비고객 AI 프레임 개선 배포 (0.2.1053)
+사장님: 업무폰엔 고객만 오는 게 아닌데 AI가 다 '고객 상담'으로 오인. 방향=사장님 아이디어(첫 접촉 때 물어보기)+안전장치.
+- '이 사람 고객인가요?' **조용한 줄**(대화방 안, 팝업 아님) — 모르는 미확정 번호가 한 번(문자·통화) 오간 뒤.
+  확실한 고객(시공일·금액·계약금)·문자함(대표번호/광고)·이미 답한 번호는 안 물음.
+- '고객 아님'(협업사장·거래처·지인) → 고객상담 AI(페르소나·추천답변) 안 만듦. **통화요약 등 중립 기능은 유지**(사장님 6번 동의).
+  기본=고객(안전), 되돌리기 가능.
+- 게이팅: SmsReceiver/MmsDownloadedReceiver requestPrepare + ChatViewModel loadSuggestions/regenerate 에 isNonCustomer 체크.
+- prefs: nonCustomerSuffixes/customerAskedSuffixes + answerCustomerAsk. showCustomerAsk 는 callRecords 아래 선언(init NPE 방지).
+- 검증: 컴파일·단위테스트 통과, 크래시0(런치). ⚠️ 질문 줄 실제 노출(문의 단계 대화)은 예비폰 드롭으로 스샷 못 함 — 사장님 폰 확인 권장.
+- 배포 0.2.1053(sha a391f42). release_notes.txt 에 이 기능 줄 추가(업데이트 배너용).
+
+**오늘 세션 총정리:** 1039~1053 배포. 통화요약(이름파일)·문구사진(갤러리/썸네일/저장/중복방지)·팀원숨김·가격표빈표·
+  고객정보탭·업데이트변경내역(앱)·비고객AI. cowork 대기: ①일정변경알림 ②업데이트 notes 필드.
