@@ -7581,3 +7581,12 @@ manifest 를 코드별로 생성해야 해서 비추 — localStorage 가 단순
 - **파일 없으면 notes 키 생략**(앱 배너는 기존 문구만 = 안전). 항상 현재 APK 기준(안드로이드가 배포 때 최신본 덮어씀) → 버전 키 매핑 불필요.
 - 검증: notes 3건 파싱(불릿정리·빈줄무시) · 파일 없을 때 키 생략 통과.
 - commit: (아래) · 다음: 안드로이드가 release_notes.txt 올린 뒤 curl 로 notes 확인.
+
+## 2026-07-18 02:02 · cowork
+추가139 — 협업 현장 "일정 변경" 알림 (SERVER_HANDOFF_collab_reschedule.md 이행).
+- **POST /api/shared/reschedule** {share_id, owner_phone, scheduled_at_ms, old_scheduled_at_ms?, time_label?}.
+- 권한: share 의 owner_phone 일치해야 진행(남의 현장 403), 없는 share 404.
+- shared_sites.scheduled_at_ms 갱신(→ B 의 with-me 새 날짜) + **accepted 협업에만** FCM data(type=collab_reschedule, new_at_ms/old_at_ms/time_label). pending/declined/ended 는 갱신만·push X(거절자 알림 방지).
+- FCM 값은 문자열(str) 로. notified = sent>0. 기존 /api/shared/paid 패턴 그대로.
+- 검증: accepted→FCM+DB갱신 · pending→갱신만·push0 · 남의현장 403 · 없는share 404 통과.
+- commit: (아래) · 다음: A 폰 일정변경 → B 폰 "일정 변경" 알림 실기 확인(두 폰 필요).

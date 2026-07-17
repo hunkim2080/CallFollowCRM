@@ -14060,6 +14060,59 @@ async def shared_paid(req: SharedPaidRequest) -> dict:
     return {"ok": True, "share_id": share_id, "paid_at_ms": now}
 
 
+# ─── 추가139 — 협업 현장 "일정 변경" 알림 (SERVER_HANDOFF_collab_reschedule.md) ───
+class SharedRescheduleRequest(BaseModel):
+    share_id: str
+    owner_phone: str
+    scheduled_at_ms: int
+    old_scheduled_at_ms: Optional[int] = None
+    time_label: Optional[str] = None
+
+
+@app.post("/api/shared/reschedule")
+async def shared_reschedule(req: SharedRescheduleRequest) -> dict:
+    """A 가 시공일 변경 → shared_sites 갱신 + accepted 협업 B 에게 FCM(collab_reschedule)."""
+    share_id = (req.share_id or "").strip()
+    owner_phone = _norm_phone(req.owner_phone)
+    if not share_id or not owner_phone or not req.scheduled_at_ms:
+        raise HTTPException(400, "share_id, owner_phone, scheduled_at_ms 필수")
+    now = _now_ms()
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT owner_phone, status, partner_phone, title FROM shared_sites WHERE share_id = ?",
+            (share_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "share_id 없음")
+        if row[0] != owner_phone:
+            raise HTTPException(403, "권한 없음")  # 남의 현장 못 바꿈
+        con.execute(
+            "UPDATE shared_sites SET scheduled_at_ms = ?, updated_at_ms = ? WHERE share_id = ?",
+            (int(req.scheduled_at_ms), now, share_id),
+        )
+        con.commit()
+    status, partner_phone, title = row[1], row[2], row[3]
+    print(f"[shared/reschedule] share={share_id} {owner_phone} → {req.scheduled_at_ms} (status={status})")
+    # accepted(수락됨) 협업에만 push — pending/declined/ended 에는 안 보냄 (거절자 알림 방지)
+    notified = 0
+    if status == "accepted" and partner_phone:
+        data = {
+            "type": "collab_reschedule",
+            "share_id": share_id,
+            "title": title or "협업 현장",
+            "scheduled_at_ms": str(int(req.scheduled_at_ms)),
+            "new_at_ms": str(int(req.scheduled_at_ms)),
+        }
+        if req.old_scheduled_at_ms:
+            data["old_at_ms"] = str(int(req.old_scheduled_at_ms))
+        if (req.time_label or "").strip():
+            data["time_label"] = req.time_label.strip()[:20]
+        res = _send_fcm_data_to_phone(partner_phone, data)
+        if isinstance(res, dict) and res.get("sent", 0) > 0:
+            notified = 1
+    return {"ok": True, "share_id": share_id, "notified": notified}
+
+
 # ─── ⑦ GET /api/shared/owner-events ───
 # A(현장 주인) 폴링 — B 의 진행(departed/arrived/completed) 이벤트 받음.
 # TeamEventCenter 패턴. since_ms 이후만, 최신순.
