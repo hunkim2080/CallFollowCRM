@@ -7493,3 +7493,13 @@ manifest 를 코드별로 생성해야 해서 비추 — localStorage 가 단순
 
 **남은 요청(다음):** ①고객정보 화면 UI 재구성(자주쓰는 정보만 위+나머지 탭/접기) — 프로토 확인 후 시안
 ②업데이트 배너에 '변경 내역' 표시 ③비고객(협업/거래처/개인)을 고객상담으로 오인하는 AI 프레임 개선(논의).
+
+## 2026-07-17 23:58 · cowork
+추가134 — 슬랙 베타 신청 알림에 [✅ 선정 / ❌ 거절] 버튼 (사장님 요청: 바로 승인).
+- 알림을 Block Kit 으로 변경 → 버튼 3개([✅ 선정](primary)·[❌ 거절](danger)·[관리자 열기]). URL 버튼이라 슬랙 interactivity 설정 불필요.
+- GET /admin/beta/act?phone=&a=accept|reject&sig= — **HMAC 서명 링크(로그인 불필요, 위조 방지)**. _mirror_secret 재사용.
+  · 선정 = beta_signups.status='accepted' + beta_whitelist 등록(앱 사용 가능). 거절 = status='rejected' + 화이트리스트 제거.
+  · 처리 후 확인 페이지 + **한 탭 되돌리기(반대 액션 서명 링크)** — 오눌러도 즉시 복구. (선정·거절 모두 가역)
+- _slack_post 가 dict(blocks) 도 받게 확장. 신규 신청만 알림(재신청 제외)은 그대로.
+- 검증: 버튼3개·서명링크 · 위조서명 403 · 선정→accepted+화이트리스트 · 거절→rejected+제거 · 되돌리기 통과.
+- commit: (아래) · ⚠️ 켜지려면 plist 의 SLACK_SIGNUP_WEBHOOK_URL 필요(이미 넣음) + 배포.

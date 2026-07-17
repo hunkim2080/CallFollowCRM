@@ -6342,12 +6342,14 @@ SLACK_SIGNUP_WEBHOOK = os.environ.get("SLACK_SIGNUP_WEBHOOK_URL", "").strip()
 _BG_TASKS: set = set()
 
 
-async def _slack_post(text: str) -> None:
+async def _slack_post(payload) -> None:
+    """payload = 문자열(text) 또는 dict(blocks 포함 전체 바디)."""
     if not SLACK_SIGNUP_WEBHOOK:
         return
+    body = {"text": payload} if isinstance(payload, str) else payload
     try:
         async with httpx.AsyncClient(timeout=8) as _c:
-            await _c.post(SLACK_SIGNUP_WEBHOOK, json={"text": text})
+            await _c.post(SLACK_SIGNUP_WEBHOOK, json=body)
     except Exception as e:  # noqa: BLE001 — 알림 실패가 신청 접수를 막으면 안 됨
         print(f"[slack] 알림 전송 실패(무시): {type(e).__name__}: {e}")
 
@@ -6458,21 +6460,35 @@ async def beta_signup(req: BetaSignupRequest, request: Request):
         f"[beta_signup] phone={phone_digits} industry={req.industry} "
         f"region={region[:20]} status={new_status} total={count}"
     )
-    # 추가133 — 신규 신청만 슬랙 알림 (재신청 UPSERT 는 제외)
+    # 추가133/134 — 신규 신청만 슬랙 알림 + [선정/거절] 버튼 (재신청 UPSERT 는 제외)
     if existing_status is None:
+        _base = INTAKE_PUBLIC_BASE_URL.rstrip("/")
         _biz = f" · {business_name}" if business_name else ""
         _note = f"\n• 한말씀: {note}" if note else ""
         _stat = ("즉시 설치 가능 ✅" if new_status == "accepted"
                  else ("대기자 ⏳" if new_status == "waitlist" else new_status))
-        _fire_bg(_slack_post(
-            "🎙️ *새 베타 신청!*\n"
-            f"• 번호: {_fmt_phone_dashed(phone_digits)}\n"
-            f"• 업종: {industry_stored}{_biz}\n"
-            f"• 지역: {region}\n"
-            f"• 한달 문의: {req.monthly_inquiries}건\n"
-            f"• 상태: {_stat} (현재 {count}명)"
-            f"{_note}\n"
-            f"👉 {INTAKE_PUBLIC_BASE_URL.rstrip('/')}/admin/beta/signups"))
+        _txt = ("🎙️ *새 베타 신청!*\n"
+                f"• 번호: {_fmt_phone_dashed(phone_digits)}\n"
+                f"• 업종: {industry_stored}{_biz}\n"
+                f"• 지역: {region}\n"
+                f"• 한달 문의: {req.monthly_inquiries}건\n"
+                f"• 상태: {_stat} (현재 {count}명){_note}")
+        _acc = f"{_base}/admin/beta/act?phone={phone_digits}&a=accept&sig={_beta_act_sig(phone_digits,'accept')}"
+        _rej = f"{_base}/admin/beta/act?phone={phone_digits}&a=reject&sig={_beta_act_sig(phone_digits,'reject')}"
+        _fire_bg(_slack_post({
+            "text": f"🎙️ 새 베타 신청! {_fmt_phone_dashed(phone_digits)}",
+            "blocks": [
+                {"type": "section", "text": {"type": "mrkdwn", "text": _txt}},
+                {"type": "actions", "elements": [
+                    {"type": "button", "text": {"type": "plain_text", "text": "✅ 선정", "emoji": True},
+                     "style": "primary", "url": _acc},
+                    {"type": "button", "text": {"type": "plain_text", "text": "❌ 거절", "emoji": True},
+                     "style": "danger", "url": _rej},
+                    {"type": "button", "text": {"type": "plain_text", "text": "관리자 열기", "emoji": True},
+                     "url": f"{_base}/admin/beta/signups"},
+                ]},
+            ],
+        }))
     install_url = "/install" if new_status == "accepted" else None
     return {
         "ok": True,
@@ -6630,6 +6646,72 @@ async def admin_beta_signups_patch(
         con.commit()
     print(f"[admin/beta/signups] {phone_digits} → status={new_status}")
     return {"ok": True, "phone": phone_digits, "status": new_status}
+
+
+# ── 추가134 — 슬랙 알림 버튼에서 즉시 선정/거절 (서명 링크, 로그인 불필요) ──
+def _beta_act_sig(phone: str, action: str) -> str:
+    """phone|action 서명 (서버 시크릿 HMAC). 위조 링크 방지."""
+    import hmac as _hm
+    return _hm.new(_mirror_secret().encode("utf-8"),
+                   (str(phone) + "|" + action).encode("utf-8"),
+                   hashlib.sha256).hexdigest()[:24]
+
+
+def _beta_act_page(icon: str, title: str, sub_html: str, status: int) -> HTMLResponse:
+    import html as _eh
+    html = (
+        '<!doctype html><html lang="ko"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<meta name="robots" content="noindex">'
+        '<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">'
+        "</head><body style=\"font-family:'Pretendard',sans-serif;background:#FAFBFC;color:#0B0F19;"
+        'display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0;padding:24px">'
+        '<div style="background:#fff;border:1px solid #EEF0F3;border-radius:18px;padding:30px 26px;'
+        'max-width:360px;width:100%;text-align:center;box-shadow:0 2px 10px rgba(0,0,0,.05)">'
+        f'<div style="font-size:38px">{icon}</div>'
+        f'<h2 style="font-size:18px;margin:10px 0 8px">{_eh.escape(title)}</h2>'
+        f'<div style="font-size:14px;color:#5A6472;line-height:1.7">{sub_html}</div>'
+        '</div></body></html>'
+    )
+    return HTMLResponse(content=html, status_code=status)
+
+
+@app.get("/admin/beta/act", response_class=HTMLResponse, include_in_schema=False)
+async def beta_act(phone: str, a: str, sig: str) -> HTMLResponse:
+    """슬랙 알림 [선정/거절] 버튼 → 서명 검증 후 즉시 처리. 오눌러도 한 탭 되돌리기."""
+    import hmac as _hm
+    if a not in ("accept", "reject"):
+        return _beta_act_page("⚠️", "잘못된 요청", "", 400)
+    if not _hm.compare_digest(sig, _beta_act_sig(phone, a)):
+        return _beta_act_page("🔒", "링크가 올바르지 않아요", "오래됐거나 변형된 링크예요.", 403)
+    pd = "".join(c for c in str(phone) if c.isdigit())
+    now = _now_ms()
+    with db_conn() as con:
+        row = con.execute("SELECT status FROM beta_signups WHERE phone = ?", (pd,)).fetchone()
+        if not row:
+            return _beta_act_page("❓", "신청자를 찾을 수 없어요", _fmt_phone_dashed(pd), 404)
+        if a == "accept":
+            con.execute("UPDATE beta_signups SET status='accepted', updated_at_ms=? WHERE phone=?", (now, pd))
+            if not con.execute("SELECT phone FROM beta_whitelist WHERE phone=?", (pd,)).fetchone():
+                con.execute("INSERT INTO beta_whitelist (phone, name, memo, added_at_ms, use_count) "
+                            "VALUES (?, ?, ?, ?, 0)", (pd, None, None, now))
+        else:
+            con.execute("UPDATE beta_signups SET status='rejected', updated_at_ms=? WHERE phone=?", (now, pd))
+            con.execute("DELETE FROM beta_whitelist WHERE phone=?", (pd,))
+        con.commit()
+    print(f"[beta/act] {pd} → {a}")
+    _opp = "reject" if a == "accept" else "accept"
+    _opp_label = "거절로 바꾸기" if a == "accept" else "선정으로 바꾸기"
+    _opp_url = f"/admin/beta/act?phone={pd}&a={_opp}&sig={_beta_act_sig(pd, _opp)}"
+    icon = "✅" if a == "accept" else "❌"
+    title = "선정 완료" if a == "accept" else "거절 처리됨"
+    extra = " · 앱 사용 가능(테스터 등록)" if a == "accept" else " · 테스터에서 제외"
+    sub = (f"<b>{_fmt_phone_dashed(pd)}</b><br>{title}{extra}"
+           f'<br><br><a href="{_opp_url}" style="color:#9AA3AF;font-size:12.5px;text-decoration:underline">'
+           f'↩ {_opp_label}</a>'
+           f'<br><a href="/admin/beta/signups" style="color:#3182F6;font-weight:700;font-size:13px">'
+           f'전체 목록 열기 →</a>')
+    return _beta_act_page(icon, title, sub, 200)
 
 
 # ============================================================================
