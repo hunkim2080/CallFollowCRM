@@ -7457,3 +7457,12 @@ manifest 를 코드별로 생성해야 해서 비추 — localStorage 가 단순
 - 곁 관찰: call-audio-summary 는 gemini 먼저 시도하는데 JSONDecodeError(Unterminated string)로 실패 후 Haiku
   fallback → Haiku가 한도에 막힘. **gemini JSON 파싱 실패는 별개 이슈**(한도 풀린 뒤에도 gemini 경로는 점검 필요, cowork).
 - 앱 영향: 통화요약·추천답변·요약 전부 이 기간 동안 502. 한도 풀면 즉시 정상.
+
+## 2026-07-17 23:15 · cowork
+추가133 — 새 베타 신청 시 슬랙 알림 (사장님 요청).
+- /api/beta-signup 에서 **신규 신청만**(재신청 UPSERT 제외) Slack Incoming Webhook 으로 알림. fire-and-forget(응답 지연 X), 실패해도 신청 접수엔 영향 없음.
+- 메시지: 번호·업종(+업체명)·지역·한달문의·상태(즉시설치/대기)·한말씀 + /admin/beta/signups 링크.
+- **env `SLACK_SIGNUP_WEBHOOK_URL` 없으면 완전 무동작**(안전) → 사장님이 웹훅 URL 을 plist EnvironmentVariables 에 넣으면 켜짐.
+- 검증: 신규→알림 1건 · 재신청→알림 0 · env없음→no-op 통과.
+- **사장님 액션 대기**: Slack Incoming Webhook 생성 → URL 전달(plist 에 넣고 재기동해야 켜짐).
+- commit: (아래)

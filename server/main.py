@@ -6336,6 +6336,32 @@ def _render_updates_dynamic() -> str:
     return base.replace('<div class="wrap">', '<div class="wrap">' + "".join(blocks), 1)
 
 
+# 추가133 — 새 베타 신청 시 슬랙 알림 (Incoming Webhook). env 없으면 무동작 = 안전.
+#   사장님이 Slack Incoming Webhook URL 을 plist EnvironmentVariables 에 넣으면 켜짐.
+SLACK_SIGNUP_WEBHOOK = os.environ.get("SLACK_SIGNUP_WEBHOOK_URL", "").strip()
+_BG_TASKS: set = set()
+
+
+async def _slack_post(text: str) -> None:
+    if not SLACK_SIGNUP_WEBHOOK:
+        return
+    try:
+        async with httpx.AsyncClient(timeout=8) as _c:
+            await _c.post(SLACK_SIGNUP_WEBHOOK, json={"text": text})
+    except Exception as e:  # noqa: BLE001 — 알림 실패가 신청 접수를 막으면 안 됨
+        print(f"[slack] 알림 전송 실패(무시): {type(e).__name__}: {e}")
+
+
+def _fire_bg(coro) -> None:
+    """응답을 지연시키지 않는 fire-and-forget (GC 방지 위해 참조 보관)."""
+    try:
+        t = asyncio.create_task(coro)
+        _BG_TASKS.add(t)
+        t.add_done_callback(_BG_TASKS.discard)
+    except RuntimeError:
+        pass
+
+
 @app.post("/api/beta-signup")
 async def beta_signup(req: BetaSignupRequest, request: Request):
     """랜딩페이지 신청 저장. phone PK = 중복 시 UPSERT (가장 최근 응답 keep)."""
@@ -6432,6 +6458,21 @@ async def beta_signup(req: BetaSignupRequest, request: Request):
         f"[beta_signup] phone={phone_digits} industry={req.industry} "
         f"region={region[:20]} status={new_status} total={count}"
     )
+    # 추가133 — 신규 신청만 슬랙 알림 (재신청 UPSERT 는 제외)
+    if existing_status is None:
+        _biz = f" · {business_name}" if business_name else ""
+        _note = f"\n• 한말씀: {note}" if note else ""
+        _stat = ("즉시 설치 가능 ✅" if new_status == "accepted"
+                 else ("대기자 ⏳" if new_status == "waitlist" else new_status))
+        _fire_bg(_slack_post(
+            "🎙️ *새 베타 신청!*\n"
+            f"• 번호: {_fmt_phone_dashed(phone_digits)}\n"
+            f"• 업종: {industry_stored}{_biz}\n"
+            f"• 지역: {region}\n"
+            f"• 한달 문의: {req.monthly_inquiries}건\n"
+            f"• 상태: {_stat} (현재 {count}명)"
+            f"{_note}\n"
+            f"👉 {INTAKE_PUBLIC_BASE_URL.rstrip('/')}/admin/beta/signups"))
     install_url = "/install" if new_status == "accepted" else None
     return {
         "ok": True,
