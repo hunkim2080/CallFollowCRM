@@ -6648,6 +6648,25 @@ async def admin_beta_signups_patch(
     return {"ok": True, "phone": phone_digits, "status": new_status}
 
 
+@app.delete("/admin/beta/signups/{phone}")
+async def admin_beta_signups_delete(
+    phone: str,
+    authorization: Optional[str] = Header(default=None),
+):
+    """추가135 — 신청 레코드 완전 삭제 (중복·오입력 정리용). 화이트리스트는 [제거] 로 별도."""
+    _admin_auth_bearer_from_header(authorization)
+    phone_digits = "".join(ch for ch in phone if ch.isdigit())
+    if not phone_digits:
+        raise HTTPException(400, "phone 필수")
+    with sqlite3.connect(DB_PATH) as con:
+        cur = con.execute("DELETE FROM beta_signups WHERE phone = ?", (phone_digits,))
+        con.commit()
+    if cur.rowcount == 0:
+        raise HTTPException(404, "해당 phone 신청자 없음")
+    print(f"[admin/beta/signups] DELETE {phone_digits} (신청 삭제)")
+    return {"ok": True, "phone": phone_digits, "deleted": cur.rowcount}
+
+
 # ── 추가134 — 슬랙 알림 버튼에서 즉시 선정/거절 (서명 링크, 로그인 불필요) ──
 def _beta_act_sig(phone: str, action: str) -> str:
     """phone|action 서명 (서버 시크릿 HMAC). 위조 링크 방지."""
@@ -8608,6 +8627,7 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
             + '<td>' + statusBadge + '</td>'
             + '<td>' + (g === 'applicant'
                 ? '<span style="font-size:11px; color:#9AA3AF;">등급▲로 승인</span>'
+                  + ' <button onclick="deleteSignup(\\'' + u.phone_raw + '\\', \\'' + escape(u.name || '') + '\\')" style="background:#fff; color:#F0436A; border:1px solid #F0436A; border-radius:7px; padding:3px 8px; font-size:11px; font-weight:700; cursor:pointer; font-family:inherit; margin-left:6px;">🗑 삭제</button>'
                 : '<button onclick="removeUser(\\'' + u.phone_raw + '\\', \\'' + escape(u.name || '') + '\\')" style="background:#fff; color:#F0436A; border:1.5px solid #F0436A; border-radius:7px; padding:4px 9px; font-size:11px; font-weight:700; cursor:pointer; font-family:inherit;">제거</button>')
             + '</td>'
             + '</tr>';
@@ -8646,6 +8666,17 @@ _BETA_DASHBOARD_HTML = """<!doctype html>
       if (!r.ok) throw new Error('HTTP ' + r.status);
       load();
     } catch(e) { alert('제거 실패: ' + e.message); }
+  }
+  async function deleteSignup(phone, name) {
+    if (!confirm((name || phone) + ' 신청을 완전히 삭제할까요?\\n중복·오입력 신청 정리용이며 되돌릴 수 없어요.')) return;
+    try {
+      var r = await fetch('/admin/beta/signups/' + encodeURIComponent(phone), {
+        method: 'DELETE',
+        headers: { 'Authorization': 'Bearer ' + getToken() },
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      load();
+    } catch(e) { alert('삭제 실패: ' + e.message); }
   }
   // 추가84 — 등급 변경 (등업/강등)
   async function changeGrade(phone, sel, oldGrade) {
