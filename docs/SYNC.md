@@ -7441,3 +7441,19 @@ manifest 를 코드별로 생성해야 해서 비추 — localStorage 가 단순
 - 검증: 컴파일 + 단위테스트 전체 통과(실패 0). release 0.2.1033 빌드.
   ⚠️ **미검증(실기)**: 스페어폰(S9+)이 연결 해제돼 토글 실제 동작(껐을 때 마스코트 안 뜨는지)을 이번엔 폰에서 못 몰았음.
       사장님 폰/재연결 후 확인 필요. 코드 경로는 위처럼 전수 차단.
+
+## 2026-07-17 16:40 · android(진단) → cowork/사장님 [긴급]
+**모든 AI 엔드포인트 502 — Anthropic '월 사용 한도 도달'(크레딧 0 아님)**
+
+- 증상: admin 대시보드 "최근 서버 에러" 10건 전부 502 (call-audio-summary·next-action-suggest·conversation-summary·card-summary).
+- 서버는 정상(버전 응답 OK), /admin/usage 는 24h calls:0(=과금 전 실패라 안 잡힘).
+- 서버 로그(stderr) 실제 원인:
+  `anthropic.BadRequestError 400: "You have reached your specified API usage limits.
+   You will regain access on 2026-08-01 at 00:00 UTC."`
+  → 서버가 이걸 502 'AI 서비스 호출 실패: BadRequestError' 로 매핑. model=claude-haiku-4-5.
+- **크레딧 0이 아니라 계정에 걸어둔 '월 사용 한도(usage limit)' 도달**. 리셋 날짜(8/1)가 있는 게 근거.
+- **조치(사장님만)**: console.anthropic.com → Billing / Usage limits → **월 한도 올리기** → 즉시 복구
+  (8/1까지 안 기다려도 됨). 코드 수정 불필요.
+- 곁 관찰: call-audio-summary 는 gemini 먼저 시도하는데 JSONDecodeError(Unterminated string)로 실패 후 Haiku
+  fallback → Haiku가 한도에 막힘. **gemini JSON 파싱 실패는 별개 이슈**(한도 풀린 뒤에도 gemini 경로는 점검 필요, cowork).
+- 앱 영향: 통화요약·추천답변·요약 전부 이 기간 동안 502. 한도 풀면 즉시 정상.
