@@ -11043,7 +11043,19 @@ async def download_apk_version():
                 version_code = int(raw) if raw else 0
             except Exception as e:  # noqa: BLE001
                 print(f"[download/version] VERSION_CODE.txt 파싱 실패: {e}")
-    return {
+    # 추가138 — 업데이트 배너 '변경 내역' (SERVER_HANDOFF_update_release_notes.md).
+    #   APK 옆 release_notes.txt (한 줄 = 변경 하나) 를 읽어 notes 배열로. 항상 현재 APK 기준.
+    notes = []
+    _notes_path = _APK_DIR / "release_notes.txt"
+    if _notes_path.exists():
+        try:
+            for _ln in _notes_path.read_text(encoding="utf-8").splitlines():
+                _s = _ln.strip().lstrip("-·•").strip()
+                if _s:
+                    notes.append(_s[:120])
+        except Exception as e:  # noqa: BLE001
+            print(f"[download/version] release_notes.txt 읽기 실패(무시): {e}")
+    resp = {
         "available": True,
         "size_bytes": stat.st_size,
         "size_mb": round(stat.st_size / 1024 / 1024, 1),
@@ -11055,6 +11067,9 @@ async def download_apk_version():
         "version_code": version_code,  # 추가126 — APK 에서 직접 추출 (0 이면 안드로이드는 mtime 폴백).
         "version_code_source": src,    # apk = APK 직접 추출, txt = VERSION_CODE.txt 폴백
     }
+    if notes:                          # 있을 때만 (없으면 앱 배너는 문구만 = 안전)
+        resp["notes"] = notes[:8]
+    return resp
 
 
 @app.get("/install", response_class=HTMLResponse, include_in_schema=False)
