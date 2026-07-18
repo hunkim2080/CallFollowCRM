@@ -1332,6 +1332,15 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         if (latestCode > 0) container.preferences.updateSheetShownForCode = latestCode
     }
 
+    /** 이 앱이 Google Play 로 설치됐나 → 그러면 업데이트는 플레이가 자동 처리(우리 사이드로드 배너 X).
+     *   getInstallerPackageName = 구식이지만 minSdk26 포함 전 버전 호환. 플레이 = "com.android.vending". (2026-07-18) */
+    private fun isInstalledFromPlayStore(): Boolean = runCatching {
+        val ctx = container.appContext
+        @Suppress("DEPRECATION")
+        val installer = ctx.packageManager.getInstallerPackageName(ctx.packageName)
+        installer == "com.android.vending"
+    }.getOrDefault(false)
+
     /** 이미 fetch 시도한 suffix (중복 호출 방지). */
     private val fetchedReplySuffixes = java.util.Collections.synchronizedSet(HashSet<String>())
 
@@ -1362,6 +1371,13 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         // 새 버전 체크 — 앱 열 때마다(홈 진입) 체크하되 10분 연타만 방지. (2026-06-21 사장님: 베타 빨리 받게)
         //   서버 mtime_ms > BUILD_TIMESTAMP(+여유) 면 배너 ON. (기존 24시간 throttle → 테스터가 하루 늦게 받던 것)
         viewModelScope.launch {
+            // 플레이스토어로 설치된 앱은 업데이트를 플레이가 자동 처리 → 우리 사이드로드 배너/시트 안 띄움.
+            //   플레이 앱은 구글 서명이라 si0in APK 로 못 덮어씀(설치 실패·혼란). 사이드로드(베타)만 배너. (2026-07-18 사장님·플레이 통일)
+            if (isInstalledFromPlayStore()) {
+                _updateAvailable.value = false
+                _latestReleaseNotes.value = emptyList()
+                return@launch
+            }
             val prefs = container.preferences
             val now = System.currentTimeMillis()
             if (now - prefs.lastUpdateCheckMs > 10L * 60 * 1000) {
