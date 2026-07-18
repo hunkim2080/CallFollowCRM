@@ -427,41 +427,29 @@ fun HomeScreen(
                 .fillMaxSize()
                 .background(TossGrayBg)
         ) {
-            // 새 버전 배너 (2026-06-16) — "받기"→si0in.kr/install. 문구는 '이렇게 좋아져요' 안심 프레임. (2026-07-18 사장님)
+            // 새 버전 배너 — 한 줄로 간결(홈 안 어수선). 배너 탭 = '새로워졌어요' 시트 열기(자세한 변경내역),
+            //   [지금 받기] = 바로 다운로드. 변경내역 나열은 시트로 몰아 홈은 깔끔. (2026-07-18 사장님 + Fable5 논의)
             if (updateAvailable) {
-                Column(Modifier.fillMaxWidth().background(TossBlue).padding(horizontal = 16.dp, vertical = 11.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("✨ 새 버전이 나왔어요!", color = Color.White, fontWeight = FontWeight.ExtraBold,
-                                fontSize = 14.sp)
-                            if (latestVersionCode > 0) {
-                                Text("0.2.$latestVersionCode", color = Color.White.copy(alpha = 0.85f),
-                                    fontSize = 11.sp, modifier = Modifier.padding(top = 1.dp))
-                            }
-                        }
-                        Box(
-                            Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White)
-                                .clickable { openInstallPage(context) }
-                                .padding(horizontal = 16.dp, vertical = 7.dp)
-                        ) { Text("지금 받기", color = TossBlue, fontWeight = FontWeight.ExtraBold, fontSize = 12.5.sp) }
-                    }
-                    // 변경 내역 — "업데이트하면 이렇게 좋아져요" 로 받고 싶어지게. (2026-07-18 사장님)
-                    if (latestReleaseNotes.isNotEmpty()) {
-                        Spacer(Modifier.height(9.dp))
-                        Text("업데이트하면 이렇게 좋아져요", color = Color.White,
-                            fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold)
-                        Spacer(Modifier.height(5.dp))
-                        latestReleaseNotes.take(5).forEach { line ->
-                            Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.Top) {
-                                Text("✅ ", color = Color.White, fontSize = 12.sp)
-                                Text(line, color = Color.White.copy(alpha = 0.97f), fontSize = 12.sp, lineHeight = 17.sp)
-                            }
-                        }
-                        if (latestReleaseNotes.size > 5) {
-                            Text("…외 ${latestReleaseNotes.size - 5}가지 더 좋아졌어요", color = Color.White.copy(alpha = 0.85f),
-                                fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp, start = 6.dp))
-                        }
-                    }
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(TossBlue)
+                        .clickable { showUpdateSheet = true }   // 배너 누르면 시트 다시 열림(내역 깔끔히)
+                        .padding(horizontal = 16.dp, vertical = 13.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("✨ 새 버전이 나왔어요!", color = Color.White, fontWeight = FontWeight.ExtraBold,
+                        fontSize = 14.sp, maxLines = 1, modifier = Modifier.weight(1f))
+                    Icon(
+                        Icons.Filled.ChevronRight, contentDescription = null,
+                        tint = Color.White.copy(alpha = 0.85f),
+                        modifier = Modifier.size(18.dp).padding(end = 2.dp)
+                    )
+                    Box(
+                        Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White)
+                            .clickable { openInstallPage(context) }
+                            .padding(horizontal = 16.dp, vertical = 7.dp)
+                    ) { Text("지금 받기", color = TossBlue, fontWeight = FontWeight.ExtraBold, fontSize = 12.5.sp) }
                 }
             }
 
