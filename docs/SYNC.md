@@ -7635,3 +7635,12 @@ manifest 를 코드별로 생성해야 해서 비추 — localStorage 가 단순
 
 **cowork 참고(서버 비효율)**: call-audio-summary 에서 **Gemini가 매번 JSONDecodeError(Unterminated string)로 실패→Haiku 폴백**.
   작동은 하나 Gemini 호출이 낭비됨. Gemini 프롬프트/JSON 파싱 한 번 봐주세요.
+
+## 2026-07-19 01:20 · cowork
+추가140 — call-audio-summary Gemini 헛호출 낭비 fix (android 참고 반영).
+- 증상: 통화요약 1차 Gemini 2.5 Flash 가 **매번 JSONDecodeError(Unterminated string)** → Haiku 폴백. Gemini 호출 낭비(비용·지연).
+- 원인: **Gemini 2.5 Flash 의 'thinking' 토큰이 maxOutputTokens(2000)를 먹어치워** 정작 JSON 답변이 잘림.
+- fix: `_call_gemini_json_for_summary` generationConfig 에 **`thinkingConfig:{thinkingBudget:0}`**(요약은 추론 불필요) → 출력 전량이 JSON 에 쓰여 완성.
+  + 파싱부 보강: JSONDecodeError 시 finishReason·thoughtsTokenCount·candidatesTokenCount·len 을 로그로(재발 시 즉진단).
+- 최악에도 Haiku 폴백 그대로 = 무회귀. 라이브 Gemini 검증은 배포 후 로그로("→ gemini OK" 뜨는지, "gemini 실패" 사라지는지).
+- commit: (아래)

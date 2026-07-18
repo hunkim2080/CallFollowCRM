@@ -12170,6 +12170,10 @@ async def _call_gemini_json_for_summary(
             "temperature": 0.3,
             "maxOutputTokens": max_output_tokens,
             "topP": 0.9,
+            # 추가140 — Gemini 2.5 Flash 는 'thinking' 토큰이 maxOutputTokens 를 먹어치워
+            #   JSON 답변이 잘림(Unterminated string) → 매번 실패·Haiku 폴백 낭비.
+            #   요약은 추론 불필요 → thinking 0 으로 끄면 출력 전량이 JSON 에 쓰여 완성됨.
+            "thinkingConfig": {"thinkingBudget": 0},
             "responseMimeType": "application/json",
             "responseSchema": {
                 "type": "OBJECT",
@@ -12202,13 +12206,22 @@ async def _call_gemini_json_for_summary(
     content = candidates[0].get("content") or {}
     parts = content.get("parts") or []
     raw = "".join(p.get("text", "") for p in parts).strip()
-    if not raw:
-        finish = candidates[0].get("finishReason", "?")
-        raise RuntimeError(
-            f"Gemini empty response (finishReason={finish}): {str(data)[:300]}"
-        )
-    parsed = json.loads(raw)
+    finish = candidates[0].get("finishReason", "?")
     usage_meta = data.get("usageMetadata") or {}
+    if not raw:
+        raise RuntimeError(
+            f"Gemini empty response (finishReason={finish}, "
+            f"thoughts={usage_meta.get('thoughtsTokenCount','?')}): {str(data)[:200]}"
+        )
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as e:
+        # 잘림(MAX_TOKENS) 이면 원인 명확히 — thinkingBudget=0 이후엔 안 나야 정상
+        raise RuntimeError(
+            f"Gemini JSON 파싱 실패 (finishReason={finish}, "
+            f"thoughts={usage_meta.get('thoughtsTokenCount','?')}, "
+            f"out={usage_meta.get('candidatesTokenCount','?')}, len={len(raw)}): {e}"
+        ) from e
     return parsed, usage_meta
 
 
