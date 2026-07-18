@@ -42,6 +42,10 @@ object AdotFolderScanner {
     private const val KEY_CONNECTED_AT = "connected_at"
     private const val KEY_MEDIASTORE = "mediastore_enabled"   // ① 자동 찾기 opt-in 플래그
 
+    // 방금 끝난 통화만 "요약 완료" 알림 — 이보다 오래된 녹음(밀린 backlog 캐치업)은 조용히 요약만. (2026-07-19 사장님)
+    //   502(사용한도) 복구 후 쌓인 요약이 한꺼번에 처리되며 알림이 우르르 뜨던 것 방지. 요약 저장 자체는 그대로.
+    private const val RECENT_NOTIFY_WINDOW_MS = 10 * 60 * 1000L
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /** 통합 후보 파일 — SAF 폴더든 MediaStore든 동일하게 (열 수 있는 uri, 파일명) 으로 본다. */
@@ -314,10 +318,12 @@ object AdotFolderScanner {
             }
             // 이미 요약 있으면 스킵(텍스트 경로가 먼저 요약했을 수 있음) — 비용 0.
             if (container.callSummaryRepository.findExistingNear(phone, loose.recordedAt) != null) continue
+            // 방금 끝난 통화(최근 10분 내)만 완료 알림. 밀린 옛 녹음 캐치업은 조용히(알림 폭주 방지). (2026-07-19 사장님)
+            val isRecentCall = System.currentTimeMillis() - loose.recordedAt < RECENT_NOTIFY_WINDOW_MS
             // 서버 받아쓰기+요약 (비대화형: 묻지 않음). 번호 없는 파일은 되찾은 번호·시각을 넘긴다.
             val ok = runCatching {
                 CallAudioSummarizer.summarizeAndSave(
-                    appCtx, container, uriStr, name, interactive = false, notifyOnComplete = true,
+                    appCtx, container, uriStr, name, interactive = false, notifyOnComplete = isRecentCall,
                     phoneOverride = if (loose.phoneNumber == null) phone else null,
                     recordedAtOverride = if (loose.phoneNumber == null) loose.recordedAt else null
                 )

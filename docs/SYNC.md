@@ -7623,3 +7623,15 @@ manifest 를 코드별로 생성해야 해서 비추 — localStorage 가 단순
 - 사이트 release 1059 도 배포(sha b357a886) — 사이트 설치는 여전히 배너 정상(installer≠vending).
 - **폰 아이콘**: 이미 새 마스코트(mipmap 6/28). **스토어 페이지 아이콘(512)은 콘솔 별도 업로드** — 옛것 그대로라 교체 필요(마스코트 원본 432px).
 - ⚠️ S23U 재연결 시 debug 1059 설치 필요(이번엔 폰 드롭으로 미설치).
+
+## 2026-07-19 00:xx · android — 통화요약 밀린 캐치업 알림 폭주 방지 (0.2.1060)
+사장님 "특정 시간(자정)에 3폰 전부 갑자기 통화요약". 진단(서버 llm_usage_log):
+- 7/18 502(Anthropic 사용한도)로 요약 대부분 실패(그날 1건만) → 녹음이 "요약 안 됨"으로 쌓임.
+- 7/19 00:01~00:05 한도 복구+통화 종료 스캔 → 밀린 7건 한꺼번에 요약(53원). **7일 추이상 자정 burst는 이날 하루뿐 = 일회성 캐치업**(반복버그 아님, dedup 정상).
+- 유일한 문제 = 캐치업 시 "요약 완료" 알림이 우르르 뜬 것.
+- **fix**: AdotFolderScanner.scanAndSummarizeNow — 방금 끝난 통화(최근 10분 RECENT_NOTIFY_WINDOW_MS)만 완료 알림,
+  그보다 오래된 backlog는 조용히 요약만(notifyOnComplete=false). 텍스트 경로는 원래 알림 없음.
+- 배포: 사이트 release 0.2.1060(sha d0496eba). **플레이 AAB는 방금 1059 올린 상태라 미재업 — 다음 Play 업데이트에 포함.**
+
+**cowork 참고(서버 비효율)**: call-audio-summary 에서 **Gemini가 매번 JSONDecodeError(Unterminated string)로 실패→Haiku 폴백**.
+  작동은 하나 Gemini 호출이 낭비됨. Gemini 프롬프트/JSON 파싱 한 번 봐주세요.
