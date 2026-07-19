@@ -7644,3 +7644,10 @@ manifest 를 코드별로 생성해야 해서 비추 — localStorage 가 단순
   + 파싱부 보강: JSONDecodeError 시 finishReason·thoughtsTokenCount·candidatesTokenCount·len 을 로그로(재발 시 즉진단).
 - 최악에도 Haiku 폴백 그대로 = 무회귀. 라이브 Gemini 검증은 배포 후 로그로("→ gemini OK" 뜨는지, "gemini 실패" 사라지는지).
 - commit: (아래)
+## 2026-07-19 · android — Play 콘솔 권장조치 ①비트맵 최적화 fix (0.2.1061)
+Play 출시 대시보드 '권장 조치' 2개(거부 아님, 품질 권장):
+- ①비트맵: SmsSender.decodeMmsBitmap 이 원본 해상도 통째 디코딩 후 축소 → 큰 사진 MMS 시 OOM 위험.
+  **fix**: 디코딩 단계 다운샘플링(ImageDecoder.setTargetSampleSize / API26~27은 inJustDecodeBounds+inSampleSize)
+  후 남은 초과분만 createScaledBitmap. 출력 동일(≤1280px), 메모리 스파이크만 제거. commit 아래.
+- ②R8(minify): isMinifyEnabled=false. 켜면 품질↑지만 reflection(Room/mms PDU/JSON) 깨질 위험 → **전용 테스트 패스 필요, 출시 중 성급히 X. 보류 권장.**
+- 배포 사이트 release 0.2.1061. 권장조치는 현재 1059 심사 안 막음 → 다음 Play 업데이트에 포함.

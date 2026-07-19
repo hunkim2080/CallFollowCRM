@@ -264,26 +264,43 @@ object SmsSender {
     fun isDefaultSmsApp(context: Context): Boolean =
         DefaultSmsAppHelper.isCurrentDefault(context)
 
+    private const val MMS_MAX_SIDE = 1280
+
+    /** 2의 배수 sampleSize — 원본 긴 변이 목표의 2배 이상이면 절반씩 줄여 디코딩 부담↓. */
+    private fun sampleSizeFor(longer: Int): Int {
+        var s = 1
+        while (longer > 0 && longer / (s * 2) >= MMS_MAX_SIDE) s *= 2
+        return s
+    }
+
+    /**
+     * MMS 첨부용 비트맵 로드 — **디코딩 단계에서 바로 다운샘플링**해 원본 해상도를 통째로 메모리에 안 올린다.
+     *   (예전엔 4000×3000 원본을 ~48MB 로 먼저 디코딩 후 축소 → 저사양 폰 OOM 위험. Play 콘솔 '비트맵 최적화' 권장.)
+     *   sampleSize(2배수) 로 대략 축소 후, 남은 초과분만 createScaledBitmap 으로 정확히 MMS_MAX_SIDE 에 맞춘다.
+     */
     private fun decodeMmsBitmap(context: Context, uri: Uri): Bitmap {
         val raw = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { decoder, _, _ ->
+            ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { decoder, info, _ ->
                 decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                val s = sampleSizeFor(maxOf(info.size.width, info.size.height))
+                if (s > 1) decoder.setTargetSampleSize(s)
             }
         } else {
+            // API 26~27 — 크기만 먼저 읽어(inJustDecodeBounds) inSampleSize 로 축소 디코딩.
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            context.contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it, null, bounds) }
+            val opts = BitmapFactory.Options().apply { inSampleSize = sampleSizeFor(maxOf(bounds.outWidth, bounds.outHeight)) }
             context.contentResolver.openInputStream(uri).use { input ->
-                BitmapFactory.decodeStream(input) ?: error("BitmapFactory returned null")
+                BitmapFactory.decodeStream(input, null, opts) ?: error("BitmapFactory returned null")
             }
         }
-        val maxSide = 1280
-        val width = raw.width
-        val height = raw.height
-        val longer = maxOf(width, height)
-        if (longer <= maxSide) return raw
-        val scale = maxSide.toFloat() / longer.toFloat()
+        val longer = maxOf(raw.width, raw.height)
+        if (longer <= MMS_MAX_SIDE) return raw
+        val scale = MMS_MAX_SIDE.toFloat() / longer.toFloat()
         return Bitmap.createScaledBitmap(
             raw,
-            (width * scale).toInt().coerceAtLeast(1),
-            (height * scale).toInt().coerceAtLeast(1),
+            (raw.width * scale).toInt().coerceAtLeast(1),
+            (raw.height * scale).toInt().coerceAtLeast(1),
             true
         ).also {
             if (it !== raw) raw.recycle()
