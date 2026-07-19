@@ -238,10 +238,11 @@ class CallFollowCrmApplication : Application() {
             ) {
                 override fun onChange(selfChange: Boolean) {
                     mmsSyncJob?.cancel()
-                    // 두 번 스캔: 알림 직후(1.2초) + 늦게 끝나는 다운로드 보강(+5초).
+                    // 두 번 스캔: 알림 빨리(450ms) + 늦게 끝나는 다운로드 보강(+5초).
                     //   큰 사진 MMS 는 삼성이 저장을 여러 번에 나눠 알려, 첫 스캔 땐 아직 본문/주소가 안 박힌 케이스가 있음.
+                    //   → 챗은 저장 즉시 뜨는데 알림만 1.2초 늦어 "푸시가 한박자 느림" 신고. 우리가 기본앱이면 저장이 완전하니 단축. (2026-07-19 사장님)
                     mmsSyncJob = appScope.launch {
-                        delay(1200); syncMmsContacts(); notifyNewInboxMms()
+                        delay(450); syncMmsContacts(); notifyNewInboxMms()
                         delay(5000); syncMmsContacts(); notifyNewInboxMms()
                     }
                 }

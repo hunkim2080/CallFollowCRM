@@ -77,7 +77,7 @@ class MmsDownloadedReceiver : BroadcastReceiver() {
 
     private fun runMmsHook(app: CallFollowCrmApplication) {
         val container = app.container
-        val mms = pollLatestInboxMms(container, maxAttempts = 6, delayMs = 400L)
+        val mms = pollLatestInboxMms(container, maxAttempts = 8, delayMs = 150L)
         if (mms == null) {
             Log.w(TAG, "persisted but no inbox MMS row found — notify (no silent loss)"); notifyFail(app); return
         }
