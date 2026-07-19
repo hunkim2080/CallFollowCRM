@@ -7651,3 +7651,16 @@ Play 출시 대시보드 '권장 조치' 2개(거부 아님, 품질 권장):
   후 남은 초과분만 createScaledBitmap. 출력 동일(≤1280px), 메모리 스파이크만 제거. commit 아래.
 - ②R8(minify): isMinifyEnabled=false. 켜면 품질↑지만 reflection(Room/mms PDU/JSON) 깨질 위험 → **전용 테스트 패스 필요, 출시 중 성급히 X. 보류 권장.**
 - 배포 사이트 release 0.2.1061. 권장조치는 현재 1059 심사 안 막음 → 다음 Play 업데이트에 포함.
+
+## 2026-07-19 · android — SMS 중복 알림 fix + 버그 트리아지 (0.2.1062)
+사장님 "문자 알림 두 번·한박자 느림". 원인=SmsReceiver 가 SMS_RECEIVED·SMS_DELIVER 둘 다 등록 →
+  **기본 문자앱이면 시스템이 둘 다 보내 → 둘 다 처리 = 알림/INSERT 2번(중복)**. 기본앱 아니면 삼성+우리=2번(우리 건 처리 후라 느림).
+- **fix**: 기본앱(DefaultSmsAppHelper.isCurrentDefault)이면 SMS_RECEIVED 무시, SMS_DELIVER 로만 처리. (비기본앱은 그대로)
+- ⚠️ 비기본앱(삼성 default) 중복(삼성+우리)은 제품 결정 필요 — 우리 알림 끌지/기본앱 유도할지. 사장님 확인 대기.
+- 배포 release 0.2.1062(sha aca6ab3f).
+
+**트리아지(같은 세션 다발 신고):**
+- 밀린 통화 재요약 = 반복 과금 아님(7일 5~12건 안정, 오늘12=어제502 backlog 캐치업). 알림 폭주는 **폰이 <1060**이라 억제 fix 미적용 → 폰 1062로 업뎃하면 조용. [[reference_call_summary_cost_cutoff]]
+- admin '기종'(SM-S911N) = 버그 아님. 앱은 기종 전송 X(okhttp), 서버는 **베타신청/약관동의 웹폼 User-Agent**에서만 기종 저장 → '웹 연 폰'이지 '앱 폰' 아님. (개선안: 앱이 Build.MODEL+deviceId 전송하게 = 지원 편해짐, 미구현)
+- 협업 일정변경 알림 = 서버 /api/shared/reschedule 존재(cowork 추가139)+앱 배선 완료. 실동작 2폰 테스트 대기.
+- MMS 사진 알림 지연(챗은 빨리 뜨는데 푸시 늦음) = 조사 대기(MmsDownloadedReceiver 폴링 2.4s+다운로드 지연 추정).

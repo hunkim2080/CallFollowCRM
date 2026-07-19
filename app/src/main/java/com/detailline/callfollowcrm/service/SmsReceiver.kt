@@ -43,6 +43,11 @@ class SmsReceiver : BroadcastReceiver() {
         val app = context.applicationContext as? CallFollowCrmApplication ?: return
         val appCtx = context.applicationContext
 
+        // 기본 문자앱이면 SMS_DELIVER 로만 처리한다. (2026-07-19 사장님 "알림 두 번·한박자 느림")
+        //   기본앱은 SMS_DELIVER + SMS_RECEIVED 를 둘 다 받는데, 둘 다 처리하면 provider INSERT·알림이 2번 발생 = 중복.
+        //   → RECEIVED 는 무시(DELIVER 가 담당). 기본앱 아닐 땐 애초에 DELIVER 안 오므로 RECEIVED 로 정상 처리.
+        if (!isDeliver && com.detailline.callfollowcrm.util.DefaultSmsAppHelper.isCurrentDefault(appCtx)) return
+
         // 2026-07-09 ANR 긴급 fix (사장님 실측): getMessagesFromIntent(=PDU 파싱)이 내부적으로 telephony 서비스에
         //   동기 binder 호출(SmsMessage.parsePdu → SmsManager.getSmsSetting → ISms.getSmsSettingForSubscriber)을 한다.
         //   그 서비스가 느리면 main thread 가 그 자리(ioctl)에서 막혀 ANR. default SMS 앱이라 문자 올 때마다 이 경로 →
