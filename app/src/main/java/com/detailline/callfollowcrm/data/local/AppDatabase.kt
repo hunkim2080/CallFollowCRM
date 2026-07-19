@@ -788,7 +788,13 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38,
                     MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41
                 )
-                .fallbackToDestructiveMigration()   // migration 실패 시 안전망 (개발 단계)
+                // 2026-07-19 데이터 전멸 지뢰 제거 (프로덕션 감사 by Fable 5).
+                //   기존 .fallbackToDestructiveMigration() 은 "어떤 migration 이든 실패하면 DB 전체를 조용히 삭제"였다.
+                //   → 앞으로 41→42 등에서 migration SQL 하나만 틀려도 고객·정산 데이터가 소리 없이 증발.
+                //   실전 앱에선 '삭제'보다 '크래시'가 백배 낫다(크래시는 보고받고 고쳐 재배포 가능, 삭제는 복구 불가).
+                //   단, MIGRATION_1_2/2_3 이 애초에 없어(v1·v2 경로 부재) 통째로 떼면 그 옛 사용자가 크래시 →
+                //   v1·v2 에서 올라올 때만 예외로 삭제 허용, 그 외(v3~ 및 미래 실수)는 IllegalStateException 으로 멈춤.
+                .fallbackToDestructiveMigrationFrom(1, 2)
                 .build()
                 .also { instance = it }
         }

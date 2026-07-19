@@ -5,6 +5,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
     id("com.google.gms.google-services")
+    id("com.google.firebase.crashlytics")
 }
 
 // 릴리즈 서명 — keystore.properties (git 제외) 가 있으면 정식 키로 서명. 없으면 미서명(unsigned).
@@ -115,6 +116,9 @@ dependencies {
     // Firebase Cloud Messaging — 즉시 푸시(협업 요청/진행). google-services.json 으로 설정. (2026-06-12)
     implementation(platform("com.google.firebase:firebase-bom:33.1.2"))
     implementation("com.google.firebase:firebase-messaging-ktx")
+    // 크래시 자동 수집(블랙박스). 자동 초기화(ContentProvider) — 코드 배선 불필요. minify OFF 라 mapping 업로드 없음.
+    //   Firebase 콘솔 > Crashlytics 에서 프로젝트 활성화 필요(첫 크래시 보고 시 자동). (2026-07-19)
+    implementation("com.google.firebase:firebase-crashlytics-ktx")
 
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.activity:activity-compose:1.8.2")

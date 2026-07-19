@@ -7675,3 +7675,12 @@ Play 출시 대시보드 '권장 조치' 2개(거부 아님, 품질 권장):
 **남은(코드변경 보류):**
 - 벨소리 안 울림 = **S22(SM-S901)** 확인. 미리보기 카드(오버레이·FLAG_SHOW_WHEN_LOCKED)가 One UI 통화화면/벨과 충돌 추정. 카드 default OFF라 켠 사람만 영향. **즉시완화=카드 끄기.** 코드수정(카드 지연/락플래그 제거)은 S22 실기 테스트 필요 → 보류.
 - SMS 비기본앱 중복(삼성+우리): 사장님 폰은 기본앱=시공막내라 1062 fix 로 해결됨. (비기본앱 케이스는 해당 없음)
+
+## 2026-07-19 · android — 프로덕션 준비도 감사(Fable 5) + 상위 2건 처리 (0.2.1064)
+사장님 "표준/기본인데 우리가 안 한 게 뭐냐? 앱 검토 하자. fable5 소환". 종합 별 2.5/5 — 최대 약점 = "터졌을 때 신호·복구수단 없음". 전체 감사·체크리스트 = **docs/PRODUCTION_AUDIT_2026-07-19.md** (SoT).
+- ✅ **데이터 통삭제 지뢰 제거**: AppDatabase `.fallbackToDestructiveMigration()`(migration 실패 시 고객·정산 DB 전체 조용히 삭제) → `.fallbackToDestructiveMigrationFrom(1,2)`. v1·v2(경로 부재)만 예외삭제, 그 외·미래 실수는 크래시로 멈춤(복구 가능). ⚠️ 앞으로 DB 버전 올릴 때 migration 빠지면 이제 **크래시**(=의도된 fail-loud). exportSchema=true+migration 테스트는 ⑦에서.
+- ✅ **Crashlytics(블랙박스) 추가**: 플러그인 `com.google.firebase.crashlytics` 3.0.2 + `firebase-crashlytics-ktx`(firebase-bom 33.1.2). 자동초기화. 🔵사장님: Firebase 콘솔 ringgo-2844c > Crashlytics 활성화 확인.
+- 확인: ④ 업데이트배너 vs Play 충돌은 이미 방어됨(7/18 isInstalledFromPlayStore 게이트).
+- 배포 release **0.2.1064**(sha b0f9fe32, size 24,375,599, 서버 version_code=1064 확인).
+- **다음(대기)**: ⑤compileSdk35 · ⑥R8(Crashlytics 안착 후) · ⑦돈경로 테스트+CI+exportSchema · ⑧릴리즈 로그 마스킹 · ①인앱 백업 · 🔵keystore 3파일 백업 · 🔵Play App Signing/assetlinks/데이터안전 확인.
+- server 무관(앱 전용). Play 반영은 AAB 별도 업로드 필요(사장님 요청 시 bundleRelease).
