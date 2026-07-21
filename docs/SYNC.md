@@ -7693,3 +7693,11 @@ Play 출시 대시보드 '권장 조치' 2개(거부 아님, 품질 권장):
 - ⚠️ **실기 마이그레이션 검증 대기**(폰 분리) → 연결 시 최우선. **사이트/사용자 미배포**.
 - ⚠️ CustomerDetailScreen 수정 = 사장님 확인 필요(옛 잠금목록 CustomerDetailActivity 현존X). Phase2·남은 결정 6개 = PLAN 문서.
 - server 무관. 접수서 read-back/완료·입금 경로 archive 훅은 미연결(필요 시 확장).
+
+## 2026-07-21 · android — 저장된 삼성 연락처 이름 자동 반영 (READ_CONTACTS, commit 7c14697)
+사장님 "연락처에 저장돼 있으면 그대로 반영"(골라넣기 아님). 이름은 삼성에 두고 시공막내가 비춰주기.
+- ContactNameResolver(PhoneLookup+캐시) + CustomerRepository.fillBlankNamesFromContacts(이름 빈 고객만, 자체저장 이름 불변) → name 표시 40여곳 자동 반영. 통화카드/문자알림은 실시간 조회.
+- READ_CONTACTS = **선택 권한**(차단X). 신규=온보딩 배치, 기존=AppRoot 진입 시 1회 요청. 앱 시작 백필.
+- ⚠️ **폰 재분리로 실기 검증 대기** → 연결 시 설치+권한 켜고 확인. **미배포**.
+- ⚠️ **Play 데이터안전 갱신 필요**(배포 전): 연락처=로컬 표시용, 서버 전송/저장 안 함.
+- server 무관.
