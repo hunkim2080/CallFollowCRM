@@ -309,6 +309,10 @@ class CallFollowCrmApplication : Application() {
         //   신규 오염은 IntakeSyncManager fixed 재환산 제거로 차단. 조건 엄격(만원배수+1억↑+총액초과)이라 정상값 미영향.
         appScope.launch { runCatching { container.customerRepository.healCorruptedDeposits() } }
 
+        // 저장된 연락처 이름 반영 (2026-07-21 사장님) — 이름 비어있는 고객을 기기 연락처(삼성)에서 채움.
+        //   READ_CONTACTS 없으면 no-op. 자체 저장 이름은 안 건드림. name 쓰는 모든 표시 자리가 자동 반영.
+        appScope.launch { runCatching { container.customerRepository.fillBlankNamesFromContacts(this@CallFollowCrmApplication) } }
+
         // 오늘의 현장 상시 알림 (2026-07-10 사장님) — 앱 시작 시 갱신(오늘 현장 있으면 상단 고정, 없으면 내림). 주기 갱신은 ReminderWorker.
         appScope.launch { runCatching { com.detailline.callfollowcrm.service.ReminderWorker.refreshTodaySites(this@CallFollowCrmApplication, container) } }
 

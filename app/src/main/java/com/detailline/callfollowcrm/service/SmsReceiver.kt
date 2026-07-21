@@ -121,6 +121,10 @@ class SmsReceiver : BroadcastReceiver() {
 
                 val notifyEnabled = container.preferences.incomingSmsNotifyEnabled && !isSpam
 
+                // 저장 이름 없으면 기기 연락처(삼성)에서 조회해 알림에 표시 — "저장돼 있으면 그대로 반영". (2026-07-21 사장님)
+                val notifyName = customer?.name?.takeIf { it.isNotBlank() }
+                    ?: com.detailline.callfollowcrm.util.ContactNameResolver.lookup(appCtx, sender)
+
                 // 1) 알림 — 상담함은 수신 즉시 헤드업, 문자함(고객 아님)은 조용히(알림함+배지만). (2026-06-15 / 2026-07-11 사장님)
                 if (notifyEnabled) {
                     runCatching {
@@ -128,7 +132,7 @@ class SmsReceiver : BroadcastReceiver() {
                             NotificationHelper.showGeneralSms(
                                 context = appCtx,
                                 phone = sender,
-                                displayName = customer?.name,
+                                displayName = notifyName,
                                 body = combinedBody,
                                 receivedAtMs = receivedAtMs
                             )
@@ -136,7 +140,7 @@ class SmsReceiver : BroadcastReceiver() {
                             NotificationHelper.showIncomingSms(
                                 context = appCtx,
                                 phone = sender,
-                                displayName = customer?.name,
+                                displayName = notifyName,
                                 body = combinedBody,
                                 receivedAtMs = receivedAtMs,
                                 categoryLabel = categoryLabel,

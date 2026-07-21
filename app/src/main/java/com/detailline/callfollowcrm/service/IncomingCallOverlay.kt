@@ -152,7 +152,10 @@ object IncomingCallOverlay {
                     .reversed()
             }.getOrDefault(emptyList())
 
-            val name = customer?.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(number)
+            // 저장 이름 없으면 기기 연락처(삼성)에서 조회 — "저장돼 있으면 그대로 반영". (2026-07-21 사장님)
+            val name = customer?.name?.takeIf { it.isNotBlank() }
+                ?: com.detailline.callfollowcrm.util.ContactNameResolver.lookup(container.appContext, number)
+                ?: PhoneNumberFormatter.format(number)
             val known = customer != null || msgs.isNotEmpty()
             // 상태 = 색 결정. 완료(빨강) > 예정(초록) > 신규(노랑) > 그 외 기존(파랑).
             val status = when {

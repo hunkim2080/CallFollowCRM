@@ -26,8 +26,14 @@ object PermissionHelper {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             list += Manifest.permission.POST_NOTIFICATIONS
         }
+        // READ_CONTACTS — 저장된 연락처 이름 반영(선택). 온보딩 배치에 포함해 신규 사용자에게 함께 요청.
+        //   거부해도 앱 정상(번호/자체저장 이름). 그래서 allMissingNonNotification(차단 조건)엔 넣지 않음. (2026-07-21)
+        list += Manifest.permission.READ_CONTACTS
         return list.toTypedArray()
     }
+
+    /** 저장된 연락처 이름 반영용 READ_CONTACTS 보유 여부(선택 권한). */
+    fun hasContacts(context: Context) = isGranted(context, Manifest.permission.READ_CONTACTS)
 
     fun isGranted(context: Context, permission: String): Boolean =
         ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED

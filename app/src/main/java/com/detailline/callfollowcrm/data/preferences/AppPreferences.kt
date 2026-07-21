@@ -42,6 +42,11 @@ class AppPreferences(context: Context) {
     var postCallPickerEnabled: Boolean
         get() = prefs.getBoolean("postcall_picker_on", false)
         set(value) = prefs.edit().putBoolean("postcall_picker_on", value).apply()
+
+    /** 연락처 이름 반영(READ_CONTACTS)을 기존 사용자에게 1회만 요청했는지. 신규는 온보딩 배치에서 요청. (2026-07-21) */
+    var contactsPermissionAsked: Boolean
+        get() = prefs.getBoolean("contacts_permission_asked", false)
+        set(value) = prefs.edit().putBoolean("contacts_permission_asked", value).apply()
     var postCallTemplate1: String
         get() = prefs.getString("postcall_tpl_1", "") ?: ""
         set(value) = prefs.edit().putString("postcall_tpl_1", value).apply()

@@ -25,6 +25,24 @@ class CustomerRepository(
     fun observeScheduled(): Flow<List<CustomerEntity>> = dao.observeScheduled()
 
     /**
+     * 이름이 비어있는 고객의 이름을 기기 연락처(삼성)에서 채운다 — "저장돼 있으면 그대로 반영". 2026-07-21 사장님.
+     *   READ_CONTACTS 있을 때만. **자체 저장한 이름(비어있지 않음)은 절대 안 건드림**(수동 우선).
+     *   name 을 쓰는 표시 자리(고객목록·카드·알림 등 40여 곳)가 이걸로 자동 반영된다.
+     *   @return 채운 건수.
+     */
+    suspend fun fillBlankNamesFromContacts(context: android.content.Context): Int {
+        if (!com.detailline.callfollowcrm.util.ContactNameResolver.hasPermission(context)) return 0
+        val all = runCatching { dao.allOnce() }.getOrDefault(emptyList())
+        var filled = 0
+        for (c in all) {
+            if (!c.name.isNullOrBlank()) continue
+            val nm = com.detailline.callfollowcrm.util.ContactNameResolver.lookup(context, c.phoneNumber) ?: continue
+            runCatching { dao.update(c.copy(name = nm, updatedAt = System.currentTimeMillis())) }.onSuccess { filled++ }
+        }
+        return filled
+    }
+
+    /**
      * P3 — 사장님의 다른 시공 일정 (현재 고객 제외, 오늘부터 N일 내) 만 epoch ms 로.
      * AI 답변 추천 / 대화 요약의 일정 응답 근거.
      * 다른 고객 이름은 leak 금지 → ms 만 반환. 서버가 요일/오전오후로 가공.

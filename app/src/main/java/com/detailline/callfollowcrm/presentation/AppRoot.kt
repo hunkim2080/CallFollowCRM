@@ -1,8 +1,13 @@
 package com.detailline.callfollowcrm.presentation
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -33,6 +38,27 @@ fun AppRoot(container: AppContainer) {
         Surface(color = TossGrayBg) {
             val navController = rememberNavController()
             val context = LocalContext.current
+
+            // 연락처 이름 자동 반영(READ_CONTACTS) — 온보딩 마친 기존 사용자에게 1회만 요청(선택 권한, 거부해도 앱 정상).
+            //   신규 사용자는 온보딩 배치에서 함께 요청됨. 허가되면 즉시 이름 백필. (2026-07-21 사장님)
+            val bgScope = rememberCoroutineScope()
+            val contactsLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.RequestPermission()
+            ) { granted ->
+                if (granted) bgScope.launch(Dispatchers.IO) {
+                    com.detailline.callfollowcrm.util.ContactNameResolver.clearCache()
+                    runCatching { container.customerRepository.fillBlankNamesFromContacts(context) }
+                }
+            }
+            LaunchedEffect(Unit) {
+                if (container.preferences.hasOnboarded &&
+                    !PermissionHelper.hasContacts(context) &&
+                    !container.preferences.contactsPermissionAsked
+                ) {
+                    container.preferences.contactsPermissionAsked = true
+                    runCatching { contactsLauncher.launch(android.Manifest.permission.READ_CONTACTS) }
+                }
+            }
 
             val permsMissing = PermissionHelper.allMissingNonNotification(context).isNotEmpty()
             val smsSignup = com.detailline.callfollowcrm.AppConfig.SMS_SIGNUP_ENABLED
