@@ -435,6 +435,11 @@ class CustomerDetailViewModel(
             container.journeyEventRepository.track("schedule_create", screen = "customer_detail", target = label)
         }
         withContext(NonCancellable) {
+            // 재방문/추가 시공: 실제 새 일정을 잡을 때(취소 아님), 현재 시공이 이미 '완료'면 완료 건을
+            //   이력(jobs)으로 보관하고 고객 필드를 리셋 → 첫 시공이 유실되지 않고 "지난 시공"으로 남는다. (2026-07-20 사장님)
+            if (normalized != null) {
+                container.jobRepository.archiveCompletedBeforeNewSchedule(customerId, System.currentTimeMillis())
+            }
             container.customerRepository.updateScheduledWorkDate(customerId, normalized)
             markTodayCallsAsHandled()
             // 예약(일정) 취소 시 = 그 현장의 전문가 배정(팀원 + 협업 요청)도 전부 정리. 일정 없는데 배정만 남으면 안 됨. (2026-06-15 사장님)
