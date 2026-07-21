@@ -7684,3 +7684,12 @@ Play 출시 대시보드 '권장 조치' 2개(거부 아님, 품질 권장):
 - 배포 release **0.2.1064**(sha b0f9fe32, size 24,375,599, 서버 version_code=1064 확인).
 - **다음(대기)**: ⑤compileSdk35 · ⑥R8(Crashlytics 안착 후) · ⑦돈경로 테스트+CI+exportSchema · ⑧릴리즈 로그 마스킹 · ①인앱 백업 · 🔵keystore 3파일 백업 · 🔵Play App Signing/assetlinks/데이터안전 확인.
 - server 무관(앱 전용). Play 반영은 AAB 별도 업로드 필요(사장님 요청 시 bundleRelease).
+
+## 2026-07-20 · android — 재방문/추가 시공: 시공 건(jobs) 이력 테이블 Phase 1 (DB v42, commit 8ae4a31)
+사장님 실전 케이스 "한 고객이 완료 후 다른 날·다른 장소에 시공 하나 더". 설계 SoT = **docs/PLAN_repeat_jobs.md**. Fable5 논의(프로토=건 중심 vs 앱=고객당 1건).
+- **원인**: 시공 정보가 CustomerEntity 단일 컬럼 → 두 번째 일정 등록 시 첫 건 덮여 유실.
+- **Phase 1**: JobEntity/JobDao/JobRepository + DB v41→v42(jobs 테이블 CREATE만, 기존 데이터 무영향). 규칙 = 일정 등록 직전 현재 시공이 '완료'면 jobs로 보관+고객필드 리셋(archiveCompletedBeforeNewSchedule). ScheduleAddViewModel 훅. 고객상세 "지난 시공 N건"(CustomerDetailScreen). 단위테스트 3건 통과.
+- **결정(사장님)**: 패턴="첫 시공 끝난 뒤 또"(동시 2건 드묾) → Phase1 충분.
+- ⚠️ **실기 마이그레이션 검증 대기**(폰 분리) → 연결 시 최우선. **사이트/사용자 미배포**.
+- ⚠️ CustomerDetailScreen 수정 = 사장님 확인 필요(옛 잠금목록 CustomerDetailActivity 현존X). Phase2·남은 결정 6개 = PLAN 문서.
+- server 무관. 접수서 read-back/완료·입금 경로 archive 훅은 미연결(필요 시 확장).
