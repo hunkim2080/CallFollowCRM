@@ -55,6 +55,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -141,6 +142,7 @@ fun SettingsScreen(
     onOpenBusinessInfo: () -> Unit = {},
     onOpenNotebook: () -> Unit = {},
     onOpenTeam: () -> Unit = {},
+    onOpenExpo: () -> Unit = {},
     onOpenCollabSites: () -> Unit = {},
     onOpenReport: () -> Unit = {},
     onOpenTradeSelect: () -> Unit = {},
@@ -245,6 +247,9 @@ fun SettingsScreen(
                 SetupCheckCard()
 
                 SettingsGroup("함께 일하는 사람") {
+                    // 박람회 — 별세계(완전 분리) 진입. 카톡 스타일 전용 창구. (2026-07-21 사장님)
+                    LockRow(Icons.Filled.Storefront, Color(0xFFFFF3C4), Color(0xFFC9A200), "박람회",
+                        "박람회 팀 — 상담·계약·분배를 카톡처럼", onClick = onOpenExpo)
                     // '팀원' 숨김(2026-07-18 사장님) → 라벨에서 팀원 뺌. 부활 시 FeatureFlags.SHOW_TEAM_MEMBERS.
                     LockRow(Icons.Filled.Group, TossBlueSoft, TossBlue, "인원 관리",
                         if (com.detailline.callfollowcrm.presentation.FeatureFlags.SHOW_TEAM_MEMBERS)

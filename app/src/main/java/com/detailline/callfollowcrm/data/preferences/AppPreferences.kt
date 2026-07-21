@@ -47,6 +47,12 @@ class AppPreferences(context: Context) {
     var contactsPermissionAsked: Boolean
         get() = prefs.getBoolean("contacts_permission_asked", false)
         set(value) = prefs.edit().putBoolean("contacts_permission_asked", value).apply()
+
+    /** 박람회 현장 목록(로컬, Phase 1). "|||" 로 구분해 저장(현장명엔 안 쓰는 구분자). 추후 서버/Room 이관. (2026-07-21) */
+    var expoSites: List<String>
+        get() = prefs.getString("expo_sites", "").orEmpty().split("|||").filter { it.isNotBlank() }
+        set(value) = prefs.edit().putString("expo_sites", value.joinToString("|||")).apply()
+
     var postCallTemplate1: String
         get() = prefs.getString("postcall_tpl_1", "") ?: ""
         set(value) = prefs.edit().putString("postcall_tpl_1", value).apply()

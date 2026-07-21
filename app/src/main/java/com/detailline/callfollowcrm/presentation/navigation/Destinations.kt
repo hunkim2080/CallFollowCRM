@@ -69,6 +69,9 @@ object Destinations {
     const val BUSINESS_INFO = "business_info"
     const val NOTEBOOK = "notebook"
     const val TEAM = "team"
+
+    /** 더보기 → 박람회 모드 — 박람회 팀 전용 창구(완전 별개 공간, 카톡 스타일). (2026-07-21 사장님) */
+    const val EXPO = "expo"
     const val COLLAB_SITES = "collab_sites"
     /** 협업 현장 — share 로 그 현장 자동 열기, tab="shared" 면 "내가 공유한 현장" 탭부터. 더보기 진입은 인자 없음. */
     const val COLLAB_SITES_WITH_ARG = "collab_sites?share={share}&tab={tab}"

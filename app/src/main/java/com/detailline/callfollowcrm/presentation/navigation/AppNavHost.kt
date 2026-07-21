@@ -542,7 +542,16 @@ fun AppNavHost(
                 onOpenSpamList = { navController.navigate(Destinations.SPAM_LIST) },
                 onOpenPersonalList = { navController.navigate(Destinations.PERSONAL_LIST) },
                 onOpenSoundSettings = { navController.navigate(Destinations.SOUND_SETTINGS) },
+                onOpenExpo = { navController.navigate(Destinations.EXPO) },
                 onShowIntro = { navController.navigate(Destinations.ONBOARDING) }
+            )
+        }
+
+        // 더보기 → 박람회 — 박람회 팀 전용 창구(완전 별개 공간, 카톡 스타일). 하단 탭 없음. (2026-07-21 사장님)
+        composable(Destinations.EXPO) {
+            com.detailline.callfollowcrm.presentation.screen.expo.ExpoScreen(
+                container = container,
+                onExit = { navController.popBackStack() }
             )
         }
 
