@@ -96,6 +96,9 @@ class ScheduleAddViewModel(private val container: AppContainer) : ViewModel() {
                     name = name.trim().takeIf { it.isNotBlank() }
                 )
                 val id = customer.id
+                // 재방문(추가 시공): 이 고객의 현재 시공이 이미 "완료" 상태면, 그 완료 건을 이력(jobs)으로 보관하고
+                //   고객 필드를 리셋 → 아래 등록이 첫 시공을 덮어 지우지 않고 "새 건"으로 쌓인다. (2026-07-20 사장님)
+                container.jobRepository.archiveCompletedBeforeNewSchedule(id, System.currentTimeMillis())
                 container.customerRepository.updateScheduledWorkDate(id, DateTimeUtils.startOfDay(dayMs))
                 container.customerRepository.updateScheduledWorkTiming(id, workMinutes, workDays)
                 if (address.isNotBlank()) container.customerRepository.updateAddress(id, address)

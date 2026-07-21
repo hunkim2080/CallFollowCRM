@@ -96,6 +96,8 @@ class AppContainer(context: Context) {
     val notebookRepository = com.detailline.callfollowcrm.data.repository.NotebookRepository(db.notebookContactDao())
     // 일당 배정 (DB v23) — 함께한 현장 + 일당 자동차감.
     val jobCrewRepository = com.detailline.callfollowcrm.data.repository.JobCrewRepository(db.jobCrewDao())
+    // 시공 건(이력) (DB v42) — 재방문/추가 시공 시 첫 시공 유실 방지(완료 건을 이력으로 보관). (2026-07-20)
+    val jobRepository = com.detailline.callfollowcrm.data.repository.JobRepository(db.jobDao(), db.customerDao())
     // 정기문자 (DB v25) — 시공 후 주기 안부/점검. 포그라운드 계산, 자동발송 X.
     val recurringMessageRepository = com.detailline.callfollowcrm.data.repository.RecurringMessageRepository(db.recurringMessageDao())
     val smsContactCacheRepository = com.detailline.callfollowcrm.data.repository.SmsContactCacheRepository(db.smsContactCacheDao())

@@ -63,9 +63,10 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         com.detailline.callfollowcrm.data.local.entity.PrincipleEntity::class,
         com.detailline.callfollowcrm.data.local.entity.TimelineEventEntity::class,
         com.detailline.callfollowcrm.data.local.entity.IssuedDocEntity::class,
-        com.detailline.callfollowcrm.data.local.entity.ThreadBucketEntity::class
+        com.detailline.callfollowcrm.data.local.entity.ThreadBucketEntity::class,
+        com.detailline.callfollowcrm.data.local.entity.JobEntity::class
     ],
-    version = 41,
+    version = 42,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -95,6 +96,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun timelineEventDao(): com.detailline.callfollowcrm.data.local.dao.TimelineEventDao
     abstract fun issuedDocDao(): com.detailline.callfollowcrm.data.local.dao.IssuedDocDao
     abstract fun threadBucketDao(): com.detailline.callfollowcrm.data.local.dao.ThreadBucketDao
+    abstract fun jobDao(): com.detailline.callfollowcrm.data.local.dao.JobDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -770,6 +772,36 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v42 — 시공 "건(job)" 이력 테이블 신설(재방문/추가 시공 대비). 순수 추가(additive) — 기존 데이터 영향 없음.
+        //   컬럼은 CustomerEntity 시공 필드와 1:1. index 이름은 JobEntity @Index name 과 정확히 일치해야 함
+        //   (불일치 시 첫 query 에서 "Migration didn't properly handle" crash). (2026-07-20 사장님 — 재방문 케이스)
+        private val MIGRATION_41_42 = object : Migration(41, 42) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS jobs (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        customerId INTEGER NOT NULL,
+                        scheduledWorkDate INTEGER,
+                        scheduledWorkMinutes INTEGER,
+                        scheduledWorkDays INTEGER NOT NULL,
+                        address TEXT,
+                        totalAmount INTEGER,
+                        depositAmount INTEGER,
+                        depositPaidAt INTEGER,
+                        balanceAmount INTEGER,
+                        balancePaidAt INTEGER,
+                        workCompletedAt INTEGER,
+                        createdAt INTEGER NOT NULL,
+                        updatedAt INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_jobs_customerId ON jobs(customerId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_jobs_scheduledWorkDate ON jobs(scheduledWorkDate)")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
@@ -786,7 +818,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30,
                     MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34,
                     MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38,
-                    MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41
+                    MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42
                 )
                 // 2026-07-19 데이터 전멸 지뢰 제거 (프로덕션 감사 by Fable 5).
                 //   기존 .fallbackToDestructiveMigration() 은 "어떤 migration 이든 실패하면 DB 전체를 조용히 삭제"였다.

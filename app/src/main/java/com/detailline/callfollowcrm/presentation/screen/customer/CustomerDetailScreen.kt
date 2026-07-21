@@ -779,6 +779,52 @@ fun CustomerDetailScreen(
                 }
             }
 
+            // 6.52 지난 시공 이력 (2026-07-20 사장님 — 재방문/추가 시공) · [일정·정산] 탭.
+            //   완료한 시공에 새 일정을 잡으면 완료 건이 여기로 보관됨(jobs, DB v42) → 첫 시공이 유실되지 않음.
+            val pastJobs by viewModel.pastJobs.collectAsState()
+            if (detailTab == 0 && pastJobs.isNotEmpty()) {
+                TossCard {
+                    Column {
+                        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Text("🧾", fontSize = 13.sp)
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                "지난 시공 ${pastJobs.size}건",
+                                fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary
+                            )
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "이전에 완료한 시공이에요. 새 시공을 잡아도 이 기록은 남아요.",
+                            fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        pastJobs.forEachIndexed { idx, job ->
+                            if (idx > 0) Spacer(Modifier.height(10.dp))
+                            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                Text(
+                                    job.scheduledWorkDate?.let { DateTimeUtils.formatKoreanDate(it) } ?: "날짜 미상",
+                                    fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary
+                                )
+                                Spacer(Modifier.weight(1f))
+                                val won = job.totalAmount ?: 0L
+                                if (won > 0L) Text(
+                                    "총 ${manwonLabel(won)}",
+                                    fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TossTextSecondary
+                                )
+                            }
+                            if (!job.address.isNullOrBlank()) {
+                                Spacer(Modifier.height(3.dp))
+                                Text(
+                                    "📍 ${job.address}",
+                                    fontSize = 12.sp, color = TossTextTertiary, lineHeight = 16.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // 6.55 발행 이력 (2026-07-07 사장님) — 이 고객에게 발행한 견적서/시공접수서. · [시공접수서] 탭 (2026-07-18)
             val issuedDocs by viewModel.issuedDocs.collectAsState()
             if (detailTab == 2 && issuedDocs.isNotEmpty()) {

@@ -65,6 +65,11 @@ class CustomerDetailViewModel(
         container.issuedDocRepository.observeByCustomer(customerId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    // 지난 시공 이력 — 재방문/추가 시공 시 보관된 완료 건(DB v42). "지난 시공 N건"으로 표시. (2026-07-20 사장님)
+    val pastJobs: kotlinx.coroutines.flow.StateFlow<List<com.detailline.callfollowcrm.data.local.entity.JobEntity>> =
+        container.jobRepository.observeByCustomer(customerId)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     /** 발행 이력 1건 삭제(잘못 발행/정리용). */
     fun deleteIssuedDoc(id: Long) {
         viewModelScope.launch { runCatching { container.issuedDocRepository.delete(id) } }
