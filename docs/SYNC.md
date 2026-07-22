@@ -7767,3 +7767,13 @@ deploy_phase1.sh — **배포 끝에 "무엇이 배포됐나" 요약 추가** (�
 - 배포 검증 2종: (a) SRC vs TARGET main.py md5 일치 → "서버 코드=방금 코드", (b) /healthz HTTP 코드.
 - 최근 커밋 5개 목록(맨 위=방금 것). $TARGET/DEPLOYED.txt 로도 기록(cat 으로 재확인).
 - commit: (아래)
+
+## 2026-07-22 12:10 · android
+자동문자 인코딩 깨짐 2차 fix(그물 넓힘) + 진단 보내기 기능 — 0.2.1082 사이트 배포
+- 변경: (앱 전용, 서버 인터페이스 변화 없음)
+  · AppPreferences.healCorruptedAutoTexts: U+FFFD-only → 한자(漢字) mojibake·깨진 서로게이트도 감지(looksEncodingCorrupted). 1081이 못 잡던 EUC-KR mojibake("怒졸컬..誘몃━") 원인.
+  · Application: heal 을 동기 호출로(홈 D-1 카드가 켜자마자 읽으므로 async 경합 방지).
+  · 신규 DiagnosticsReporter + 더보기>도움말>"문제 신고 / 진단 보내기": 버전·기기·자동문자 원문+코드포인트덤프를 공유시트로. 개인정보 미포함. (크래시 자동수집 Crashlytics 의 수동 짝)
+- commit: (이 커밋)
+- 다음 액션: (서버 없음). 진단 리포트가 메일로 오면 자동문자 코드덤프로 깨짐 원인 정밀 확인 가능
+- 별건(서버 무관): Play API36(targetSdk36) 요구 — Gradle 8.2→업그레이드 필요, 마감 2026-08-31, 별도 신중 작업 예정

@@ -56,6 +56,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -192,6 +193,8 @@ fun SettingsScreen(
     // 프로토 더보기 = 깔끔한 메뉴만. 진단/기능 카드는 메뉴 탭 시 서브페이지로(자체 라우트 없이 내부 전환).
     //   2026-06-02 사장님 결정("프로토처럼 완전 깔끔하게").
     var subPage by remember { mutableStateOf(initialSubPage) }
+    // 문제 신고 / 진단 보내기 다이얼로그 (2026-07-22 사장님) — 크래시 아닌 '이상 동작' 수동 신고.
+    var showDiagnostics by remember { mutableStateOf(false) }
     val subTitle = when (subPage) {
         "tone" -> "내 말투 학습"
         "autosms" -> "자동 문자"
@@ -203,6 +206,19 @@ fun SettingsScreen(
         else -> "더보기"
     }
     BackHandler(enabled = subPage != null) { subPage = null }
+
+    if (showDiagnostics) {
+        DiagnosticsDialog(
+            onDismiss = { showDiagnostics = false },
+            onSend = { note ->
+                showDiagnostics = false
+                com.detailline.callfollowcrm.util.DiagnosticsReporter.share(
+                    context,
+                    com.detailline.callfollowcrm.util.DiagnosticsReporter.buildReport(container.preferences, note)
+                )
+            }
+        )
+    }
 
     Scaffold(
         containerColor = TossGrayBg,
@@ -298,6 +314,9 @@ fun SettingsScreen(
                         "채팅+ 꺼서 고객 사진 놓치지 않기") { subPage = "noti" }
                     LockRow(Icons.Filled.AutoAwesome, TossGrayBg, TossTextTertiary, "앱 소개 다시 보기",
                         null, onClick = onShowIntro)
+                    // 문제 신고 / 진단 보내기 (2026-07-22 사장님) — 앱이 안 죽는 '이상 동작'을 직접 신고. Crashlytics(자동) 의 짝.
+                    LockRow(Icons.Filled.BugReport, Color(0xFFFFF1F3), Color(0xFFF0436A), "문제 신고 / 진단 보내기",
+                        "문자가 깨지는 등 이상하면 눌러서 알려주세요") { showDiagnostics = true }
                 }
 
                 AppFooter()
@@ -3543,6 +3562,40 @@ private fun ToneInputDialog(
         confirmButton = {
             TextButton(onClick = { onConfirm(text) }) {
                 Text("저장", color = TossBlue, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("취소", color = TossTextSecondary) } },
+        containerColor = Color.White
+    )
+}
+
+/** 문제 신고 / 진단 보내기 (2026-07-22 사장님). 메모(선택) + '보내기' → 공유 시트로 진단 리포트 전송. */
+@Composable
+private fun DiagnosticsDialog(
+    onDismiss: () -> Unit, onSend: (String) -> Unit
+) {
+    var note by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("문제 신고 / 진단 보내기", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
+        text = {
+            Column {
+                com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
+                Text(
+                    "어떤 문제인지 간단히 적어주세요. '보내기'를 누르면 앱 버전·기기·자동문자 설정값이 함께 전송돼요. (고객 이름·번호·대화 내용은 포함되지 않아요.)",
+                    fontSize = 13.sp, color = TossTextSecondary
+                )
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = note, onValueChange = { note = it },
+                    placeholder = { Text("예: D-1 안내 문자가 깨져서 나와요", fontSize = 13.sp) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSend(note) }) {
+                Text("보내기", color = TossBlue, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("취소", color = TossTextSecondary) } },

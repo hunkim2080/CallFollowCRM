@@ -310,7 +310,9 @@ class CallFollowCrmApplication : Application() {
         appScope.launch { runCatching { container.customerRepository.healCorruptedDeposits() } }
 
         // 자동문자 인코딩 손상 자가복구 (2026-07-22 베타 D-1 문자 �깨짐) — 손상된 자동문자 pref 를 기본값으로 되돌림.
-        appScope.launch { runCatching { container.preferences.healCorruptedAutoTexts() } }
+        //   ⚠️ 동기 호출: 홈 D-1 카드가 켜자마자 이 값을 그리므로, UI/워커가 읽기 전에 청소가 끝나야 함(async 경합 방지).
+        //   비용 = 짧은 문자열 4개 스캔(마이크로초). 그물 넓힘은 AppPreferences.looksEncodingCorrupted 참고.
+        runCatching { container.preferences.healCorruptedAutoTexts() }
 
         // 저장된 연락처 이름 반영 (2026-07-21 사장님) — 이름 비어있는 고객을 기기 연락처(삼성)에서 채움.
         //   READ_CONTACTS 없으면 no-op. 자체 저장 이름은 안 건드림. name 쓰는 모든 표시 자리가 자동 반영.

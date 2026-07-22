@@ -167,15 +167,45 @@ class AppPreferences(context: Context) {
         set(value) = prefs.edit().putString("d1_auto_text", value).apply()
 
     /**
-     * 인코딩 손상(U+FFFD '�') 든 자동문자 pref 를 제거 → 기본값(멀쩡한 소스 상수)으로 복구. (2026-07-22 베타 D-1 문자 깨짐)
-     *   증상: 저장된 자동문자가 바이트 손상돼 �로 깨져 표시됨. 소스 기본값·표시경로는 정상 → 저장값만 문제.
-     *   키를 remove 하면 다음 getString 이 기본값을 반환. 앱 시작 시 1회 호출.
+     * 인코딩 손상 자동문자 pref 를 제거 → 기본값(멀쩡한 소스 상수)으로 복구. (2026-07-22 베타 D-1 문자 깨짐)
+     *   증상: 저장된 자동문자가 바이트 손상돼 깨져 표시됨(예: UTF-8→EUC-KR mojibake "怒졸컬..誘몃━.."). 소스 기본값·표시경로는 정상 → 저장값만 문제.
+     *   키를 remove 하면 다음 getString 이 기본값을 반환. 앱 시작 시 1회(동기) 호출.
+     *   ⚠️ 그물 넓힘(2026-07-22 2차): U+FFFD 뿐 아니라 한자(漢字) mojibake·깨진 서로게이트도 잡음 — 우리 기본 문구엔 한자가 없음.
+     *     (1차 U+FFFD-only 는 한자 위주 mojibake 를 놓쳐서 1081 에서도 안 고쳐졌던 원인.)
      */
     fun healCorruptedAutoTexts() {
         for (key in listOf("d1_auto_text", "auto_missed_new_text", "auto_missed_return_text", "arrival_auto_text")) {
             val v = prefs.getString(key, null)
-            if (v != null && v.any { it.code == 0xFFFD }) prefs.edit().remove(key).apply()
+            if (v != null && looksEncodingCorrupted(v)) prefs.edit().remove(key).apply()
         }
+    }
+
+    /**
+     * 자동문자 값이 인코딩 손상으로 깨졌는지 판정. 우리 기본/정상 문구는 한글·이모지·기본 문장부호뿐이라
+     * 아래 신호가 있으면 손상으로 본다:
+     *   - U+FFFD(�) 치환문자 → 확정 손상
+     *   - 짝 없는 서로게이트(깨진 이모지) → 확정 손상
+     *   - CJK 한자(漢字, 우리 문구엔 안 씀)가 2자 이상 → UTF-8 을 EUC-KR 로 잘못 읽은 mojibake 신호
+     */
+    private fun looksEncodingCorrupted(s: String): Boolean {
+        var hanja = 0
+        var i = 0
+        while (i < s.length) {
+            val ch = s[i]
+            val c = ch.code
+            when {
+                c == 0xFFFD -> return true
+                ch.isHighSurrogate() -> {
+                    val next = if (i + 1 < s.length) s[i + 1] else null
+                    if (next == null || !next.isLowSurrogate()) return true
+                    i++ // 정상 이모지 쌍은 통째로 건너뜀
+                }
+                ch.isLowSurrogate() -> return true
+                c in 0x4E00..0x9FFF || c in 0x3400..0x4DBF -> hanja++
+            }
+            i++
+        }
+        return hanja >= 2
     }
     /** 현장 도착 안내(위치 기반) on/off. 트리거는 추후. */
     var arrivalAutoEnabled: Boolean
