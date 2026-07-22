@@ -46,6 +46,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
@@ -309,94 +310,124 @@ private fun ColumnScope.RoomDetailView(
         if (n.role == "owner") repo.rooms(myPhone).onSuccess { list -> code = list.find { it.roomId == n.roomId }?.code }
     }
 
+    var memOpen by remember { mutableStateOf(false) }
     val d = detail
     LazyColumn(
         Modifier.weight(1f).fillMaxWidth(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(14.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // 방장: 초대코드 카드
-        if (n.role == "owner" && code != null) item {
-            Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(18.dp)).padding(18.dp),
-                horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("팀원 초대코드", fontSize = 12.sp, color = T2, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(6.dp))
-                Text(code!!, fontSize = 40.sp, fontWeight = FontWeight.Black, color = T1, letterSpacing = 6.sp)
-                Spacer(Modifier.height(10.dp))
-                Box(
-                    Modifier.background(Kk, RoundedCornerShape(12.dp)).clickable {
-                        val share = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_TEXT,
-                                "[시공막내 박람회] '${n.name}' 방 초대코드: ${code}\n앱에서 박람회 → '초대코드로 합류'에 입력하세요.")
+        if (d == null) {
+            item { Box(Modifier.fillMaxWidth().padding(40.dp), Alignment.Center) { CircularProgressIndicator(color = AccentBlue) } }
+        } else {
+            // ── ① 방 정보: 초대코드(방장) + 팀원(접기) ──
+            item {
+                Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(18.dp)).padding(16.dp)) {
+                    if (n.role == "owner" && code != null) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("팀원 초대코드", fontSize = 11.5.sp, color = T3, fontWeight = FontWeight.Bold)
+                                Text(code!!, fontSize = 26.sp, fontWeight = FontWeight.Black, color = T1, letterSpacing = 4.sp)
+                            }
+                            Box(
+                                Modifier.background(Kk, RoundedCornerShape(10.dp)).clickable {
+                                    val share = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_TEXT,
+                                            "[시공막내 박람회] '${n.name}' 방 초대코드: $code\n앱에서 박람회 → '초대코드로 합류'에 입력하세요.")
+                                    }
+                                    ctx.startActivity(Intent.createChooser(share, "초대코드 공유").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                }.padding(horizontal = 14.dp, vertical = 8.dp)
+                            ) { Text("공유", fontSize = 13.sp, fontWeight = FontWeight.Black, color = KkInk) }
                         }
-                        ctx.startActivity(Intent.createChooser(share, "초대코드 공유").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                    }.padding(horizontal = 20.dp, vertical = 10.dp)
-                ) { Text("코드 공유", fontSize = 14.sp, fontWeight = FontWeight.Black, color = KkInk) }
-            }
-        }
-
-        // 계약서 열기 (상담원 = 모두)
-        item {
-            val hasCatalog = (d?.catalog?.size ?: 0) > 0
-            Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(18.dp)).padding(16.dp)) {
-                Text("고객 계약서 받기", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = T1)
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    if (hasCatalog) "QR을 띄워 고객 폰으로 찍게 하면, 사장님이 상품을 고르고 고객은 실시간으로 보며 서명해요."
-                    else "방장이 상품·서비스를 먼저 등록해야 계약서를 열 수 있어요.",
-                    fontSize = 12.5.sp, color = T2, lineHeight = 18.sp
-                )
-                Spacer(Modifier.height(12.dp))
-                BigButton("계약서 열기 (QR)", enabled = hasCatalog && !opening, bg = if (hasCatalog) Kk else Field,
-                    fg = if (hasCatalog) KkInk else T3) {
-                    opening = true
-                    scope.launch {
-                        repo.createSession(n.roomId, myPhone)
-                            .onSuccess { opening = false; onQr(it) }
-                            .onFailure { opening = false; toast("계약서 열기 실패: ${it.message?.take(60)}") }
+                        Spacer(Modifier.height(12.dp))
+                        Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFF0F1F3)))
+                        Spacer(Modifier.height(12.dp))
                     }
-                }
-            }
-        }
-
-        // 우리 팀 접수서
-        item {
-            MenuCard("우리 팀 접수서", "팀이 지금까지 받은 계약을 모아 봐요 (번호 뒷자리 가림)", onSubs)
-        }
-        // 박람회 달력
-        item {
-            MenuCard("박람회 달력", "팀 시공 일정을 날짜별로 한눈에 📅", onCalendar)
-        }
-
-        // 방장: 상품 준비
-        if (n.role == "owner") item {
-            val cnt = d?.catalog?.size ?: 0
-            MenuCard("상품·서비스 준비", if (cnt > 0) "등록된 항목 ${cnt}개 · 수정" else "계약서에 쓸 상품·단가를 등록하세요", onProducts)
-        }
-
-        // 팀원 목록
-        if (d != null) item {
-            Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(18.dp)).padding(16.dp)) {
-                Text("팀원 ${d.members.size}명", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = T1)
-                Spacer(Modifier.height(8.dp))
-                d.members.forEach { m ->
-                    Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(m.name.ifBlank { "이름없음" }, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
-                        if (m.role == "owner") {
-                            Spacer(Modifier.width(6.dp))
-                            Text("방장", fontSize = 9.sp, fontWeight = FontWeight.Black, color = Color(0xFFB58A00),
-                                modifier = Modifier.background(Color(0xFFFFF6D6), RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
-                        }
+                    Row(Modifier.fillMaxWidth().clickable { memOpen = !memOpen }, verticalAlignment = Alignment.CenterVertically) {
+                        Text("팀원 ${d.members.size}명", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = T1)
                         Spacer(Modifier.weight(1f))
-                        Text(m.phone, fontSize = 12.sp, color = T3)
+                        Text(if (memOpen) "접기 ▴" else "보기 ▾", fontSize = 12.sp, color = T3)
+                    }
+                    if (memOpen) {
+                        Spacer(Modifier.height(4.dp))
+                        d.members.forEach { m ->
+                            Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(m.name.ifBlank { "이름없음" }, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
+                                if (m.role == "owner") {
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("방장", fontSize = 9.sp, fontWeight = FontWeight.Black, color = Color(0xFFB58A00),
+                                        modifier = Modifier.background(Color(0xFFFFF6D6), RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
+                                }
+                                Spacer(Modifier.weight(1f))
+                                Text(m.phone, fontSize = 12.sp, color = T3)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── ② 고객 계약서 (주 액션) ──
+            item {
+                val hasCatalog = d.catalog.isNotEmpty()
+                Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(18.dp)).padding(16.dp)) {
+                    Text("고객 계약서 받기", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = T1)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        if (hasCatalog) "QR을 띄워 고객 폰으로 찍게 하면, 사장님이 상품을 고르고 고객은 실시간으로 보며 서명해요."
+                        else "방장이 상품·서비스를 먼저 등록해야 계약서를 열 수 있어요.",
+                        fontSize = 12.5.sp, color = T2, lineHeight = 18.sp
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    BigButton("계약서 열기 (QR)", enabled = hasCatalog && !opening, bg = if (hasCatalog) Kk else Field,
+                        fg = if (hasCatalog) KkInk else T3) {
+                        opening = true
+                        scope.launch {
+                            repo.createSession(n.roomId, myPhone)
+                                .onSuccess { opening = false; onQr(it) }
+                                .onFailure { opening = false; toast("계약서 열기 실패: ${it.message?.take(60)}") }
+                        }
+                    }
+                }
+            }
+
+            // ── ③ 팀 관리 (그룹 메뉴) ──
+            item {
+                Column {
+                    Text("팀 관리", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = T2,
+                        modifier = Modifier.padding(start = 4.dp, bottom = 6.dp))
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Panel)) {
+                        GroupRow("우리 팀 접수서", "받은 계약 모아보기 (번호 뒷자리 가림)", onSubs)
+                        RowDivider()
+                        GroupRow("박람회 달력", "시공 일정을 날짜별로 한눈에 📅", onCalendar)
+                        if (n.role == "owner") {
+                            RowDivider()
+                            val cnt = d.catalog.size
+                            GroupRow("상품·서비스 준비", if (cnt > 0) "등록된 항목 ${cnt}개 · 수정" else "계약서에 쓸 상품·단가 등록", onProducts)
+                        }
                     }
                 }
             }
         }
-
-        if (d == null) item { Box(Modifier.fillMaxWidth().padding(40.dp), Alignment.Center) { CircularProgressIndicator(color = AccentBlue) } }
     }
+}
+
+/** 그룹 카드 안 컴팩트 메뉴 행 (아이콘 없이 제목+설명+›). */
+@Composable
+private fun GroupRow(title: String, desc: String, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = T1)
+            Text(desc, fontSize = 11.5.sp, color = T3)
+        }
+        Text("›", fontSize = 20.sp, color = T3, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun RowDivider() {
+    Box(Modifier.fillMaxWidth().padding(start = 16.dp).height(1.dp).background(Color(0xFFF0F1F3)))
 }
 
 // ══════════════ 상품·서비스 준비 (방장) ══════════════
