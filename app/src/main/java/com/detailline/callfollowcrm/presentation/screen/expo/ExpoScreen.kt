@@ -38,6 +38,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -114,7 +115,7 @@ fun ExpoScreen(container: AppContainer, onExit: () -> Unit) {
             is Nav.List -> "박람회"
             is Nav.RoomView -> n.name
             is Nav.Products -> "상품·서비스 준비"
-            is Nav.Qr -> "계약서 QR"
+            is Nav.Qr -> "계약서 작성"
             is Nav.Subs -> "우리 팀 접수서"
         }
         val sub = if (nav is Nav.List) "팀으로 상담·계약을 한 번에" else null
@@ -335,7 +336,7 @@ private fun ColumnScope.RoomDetailView(
                 Text("고객 계약서 받기", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = T1)
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    if (hasCatalog) "QR을 띄워 고객 폰으로 찍게 하면, 고객이 상품을 고르고 서명해요."
+                    if (hasCatalog) "QR을 띄워 고객 폰으로 찍게 하면, 사장님이 상품을 고르고 고객은 실시간으로 보며 서명해요."
                     else "방장이 상품·서비스를 먼저 등록해야 계약서를 열 수 있어요.",
                     fontSize = 12.5.sp, color = T2, lineHeight = 18.sp
                 )
@@ -491,52 +492,184 @@ private fun KindChip(label: String, on: Boolean, onClick: () -> Unit) {
 @Composable
 private fun ColumnScope.QrView(repo: ExpoRepository, n: Nav.Qr, myPhone: String, toast: (String) -> Unit) {
     val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val sid = n.session.sessionId
+    val sec = n.session.secret
     val qr = remember(n.session.qrUrl) { QrGen.bitmap(n.session.qrUrl, 640) }
-    var baseline by remember { mutableStateOf<Int?>(null) }
-    var newContractId by remember { mutableStateOf<Long?>(null) }
 
-    // 제출 감지: 접수 건수가 baseline 보다 늘면 최신 계약서 = 방금 제출.
-    LaunchedEffect(n.session.sessionId) {
-        repo.submissions(n.roomId, myPhone).onSuccess { baseline = it.count }
-        while (newContractId == null) {
-            delay(3000)
-            repo.submissions(n.roomId, myPhone).onSuccess { s ->
-                val b = baseline
-                if (b != null && s.count > b && s.items.isNotEmpty()) {
-                    newContractId = s.items.maxByOrNull { it.createdAtMs }?.contractId
-                }
-            }
+    var catalog by remember { mutableStateOf<List<ExpoRepository.Product>>(emptyList()) }
+    val qty = remember { mutableStateMapOf<Long, Int>() }        // product_id -> 수량
+    var discountText by remember { mutableStateOf("") }
+    var depositOn by remember { mutableStateOf(false) }
+    var depositText by remember { mutableStateOf("") }
+    var live by remember { mutableStateOf<ExpoRepository.LiveState?>(null) }
+    var shownFinal by remember { mutableStateOf(0L) }
+    var finalized by remember { mutableStateOf<ExpoRepository.Finalized?>(null) }
+    var finalizing by remember { mutableStateOf(false) }
+
+    LaunchedEffect(n.roomId) { repo.getProducts(n.roomId).onSuccess { catalog = it } }
+
+    // 디바운스 push — 선택/할인/계약금 바뀌면 400ms 후 서버로(고객 웹에 실시간 반영).
+    val pushKey = qty.entries.sortedBy { it.key }.joinToString(",") { "${it.key}:${it.value}" } +
+        "|$discountText|$depositOn|$depositText"
+    LaunchedEffect(pushKey) {
+        delay(400)
+        val items = qty.filter { it.value > 0 }.map { it.key to it.value }
+        repo.liveAgentPush(sid, sec, items, discountText.digitsToLong(), depositOn, depositText.digitsToLong())
+            .onSuccess { shownFinal = it.finalAmount }
+    }
+
+    // 라이브 폴링 — 고객 정보·서명 도착 확인(1.5초).
+    LaunchedEffect(sid) {
+        while (finalized == null) {
+            repo.liveGet(sid, sec).onSuccess { live = it; shownFinal = it.finalAmount }
+            delay(1500)
         }
     }
 
-    Column(Modifier.weight(1f).fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        val done = newContractId
-        if (done == null) {
-            Spacer(Modifier.height(8.dp))
-            Text("고객 폰으로 이 QR을 찍어주세요", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = T1)
-            Spacer(Modifier.height(4.dp))
-            Text("고객이 상품을 고르고 서명하면 자동으로 넘어가요", fontSize = 12.5.sp, color = T3, textAlign = TextAlign.Center)
-            Spacer(Modifier.height(20.dp))
-            Box(Modifier.background(Color.White, RoundedCornerShape(18.dp)).padding(16.dp)) {
-                if (qr != null) Image(qr.asImageBitmap(), "계약서 QR", Modifier.size(260.dp))
-                else Box(Modifier.size(260.dp), Alignment.Center) { Text("QR 생성 실패", color = T3) }
-            }
-            Spacer(Modifier.height(18.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                CircularProgressIndicator(color = AccentBlue, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("고객 제출을 기다리는 중…", fontSize = 12.sp, color = T2)
-            }
-        } else {
-            Spacer(Modifier.height(30.dp))
+    val done = finalized
+    if (done != null) {
+        Column(Modifier.weight(1f).fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Spacer(Modifier.height(36.dp))
             Text("✅", fontSize = 52.sp)
             Spacer(Modifier.height(12.dp))
-            Text("계약서가 제출됐어요!", fontSize = 18.sp, fontWeight = FontWeight.Black, color = T1)
-            Spacer(Modifier.height(20.dp))
-            BigButton("계약서 보기", enabled = true, bg = Kk, fg = KkInk) {
-                openUrl(ctx, repo.receiptUrl(done))
+            Text("계약 완료!", fontSize = 20.sp, fontWeight = FontWeight.Black, color = T1)
+            Spacer(Modifier.height(6.dp))
+            Text("${won(done.finalAmount)} · 계약서가 저장됐어요", fontSize = 13.sp, color = T2)
+            Spacer(Modifier.height(24.dp))
+            BigButton("계약서 보기 · 공유 (PDF)", enabled = true, bg = Kk, fg = KkInk) {
+                shareUrl(ctx, repo.receiptUrl(done.contractId))
             }
         }
+    } else {
+        LazyColumn(
+            Modifier.weight(1f).fillMaxWidth(),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // QR + 고객 연결 상태
+            item {
+                Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(18.dp)).padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("고객이 이 QR을 찍으면 같은 화면을 봐요", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
+                    Spacer(Modifier.height(10.dp))
+                    if (qr != null) Image(qr.asImageBitmap(), "계약서 QR", Modifier.size(170.dp))
+                    else Box(Modifier.size(170.dp), Alignment.Center) { Text("QR 생성 실패", color = T3) }
+                    Spacer(Modifier.height(10.dp))
+                    val custName = live?.customerName?.takeIf { it.isNotBlank() }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(8.dp).background(if (custName != null) Color(0xFF13C47B) else T3, RoundedCornerShape(4.dp)))
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            when {
+                                custName != null && live?.signaturePresent == true -> "고객: $custName · 서명 완료 ✓"
+                                custName != null -> "고객: $custName · 서명 대기"
+                                else -> "고객 연결 대기중…"
+                            },
+                            fontSize = 12.sp, color = T2, fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+            item { Text("상품·서비스 (탭해서 선택)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = T2) }
+            items(catalog) { p ->
+                val q = qty[p.productId] ?: 0
+                val sel = q > 0
+                Column(
+                    Modifier.fillMaxWidth()
+                        .background(if (sel) Color(0xFFFFFBEA) else Panel, RoundedCornerShape(14.dp))
+                        .clickable { if (sel) qty.remove(p.productId) else qty[p.productId] = 1 }
+                        .padding(14.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(22.dp).background(if (sel) Kk else Field, RoundedCornerShape(6.dp)),
+                            contentAlignment = Alignment.Center) {
+                            if (sel) Text("✓", fontSize = 13.sp, fontWeight = FontWeight.Black, color = KkInk)
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(p.name.ifBlank { "(이름없음)" }, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = T1)
+                            Text(if (p.kind == "service") "서비스" else won(p.unitPrice), fontSize = 12.sp, color = T3)
+                        }
+                        if (sel && p.kind == "product") {
+                            Stepper(q, { qty[p.productId] = (q - 1).coerceAtLeast(1) }, { qty[p.productId] = q + 1 })
+                        }
+                    }
+                }
+            }
+            // 할인 · 계약금 · 최종금액
+            item {
+                Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
+                    MoneyField("총액 할인", discountText) { discountText = it }
+                    Spacer(Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("계약금 받기", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = T1, modifier = Modifier.weight(1f))
+                        KindChip("끔", !depositOn) { depositOn = false }
+                        Spacer(Modifier.width(6.dp))
+                        KindChip("켬", depositOn) { depositOn = true }
+                    }
+                    if (depositOn) { Spacer(Modifier.height(10.dp)); MoneyField("계약금", depositText) { depositText = it } }
+                    Spacer(Modifier.height(14.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("최종 금액", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = T1, modifier = Modifier.weight(1f))
+                        Text(won(shownFinal), fontSize = 20.sp, fontWeight = FontWeight.Black, color = AccentBlue)
+                    }
+                }
+            }
+            item {
+                BigButton(
+                    if (finalizing) "완료 처리 중…" else "완료 · 계약 확정",
+                    enabled = qty.values.any { it > 0 } && !finalizing, bg = Kk, fg = KkInk
+                ) {
+                    finalizing = true
+                    scope.launch {
+                        repo.finalize(sid, sec)
+                            .onSuccess { finalized = it }
+                            .onFailure { finalizing = false; toast("완료 실패: ${it.message?.take(50)}") }
+                    }
+                }
+                Spacer(Modifier.height(20.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun Stepper(q: Int, onMinus: () -> Unit, onPlus: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        StepBtn("−", onMinus)
+        Text("$q", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = T1, modifier = Modifier.padding(horizontal = 12.dp))
+        StepBtn("+", onPlus)
+    }
+}
+
+@Composable
+private fun StepBtn(s: String, onClick: () -> Unit) {
+    Box(Modifier.size(28.dp).background(Field, RoundedCornerShape(8.dp)).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center) { Text(s, fontSize = 16.sp, fontWeight = FontWeight.Black, color = T1) }
+}
+
+@Composable
+private fun MoneyField(label: String, value: String, onChange: (String) -> Unit) {
+    OutlinedTextField(
+        value = value, onValueChange = { onChange(it.filter { c -> c.isDigit() }) },
+        label = { Text(label, fontSize = 12.sp) },
+        placeholder = { Text("0", fontSize = 13.sp) },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        singleLine = true, modifier = Modifier.fillMaxWidth()
+    )
+}
+
+private fun String.digitsToLong(): Long = filter { it.isDigit() }.toLongOrNull() ?: 0L
+
+private fun shareUrl(ctx: android.content.Context, url: String) {
+    if (url.isBlank()) return
+    runCatching {
+        ctx.startActivity(
+            Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"; putExtra(Intent.EXTRA_TEXT, url)
+            }, "계약서 공유").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
     }
 }
 
@@ -550,46 +683,70 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
         repo.submissions(n.roomId, myPhone).onSuccess { data = it }.onFailure { data = ExpoRepository.Submissions(0, 0L, emptyList()) }
     }
 
+    var expanded by remember { mutableStateOf<Long?>(null) }
     val d = data
     if (d == null) {
         Box(Modifier.weight(1f).fillMaxWidth(), Alignment.Center) { CircularProgressIndicator(color = AccentBlue) }
     } else {
         Column(Modifier.weight(1f).fillMaxWidth()) {
-        // 합계 헤더
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("총 ${d.count}건", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = T1)
-            Spacer(Modifier.weight(1f))
-            Text("합계 ${won(d.totalAmount)}", fontSize = 14.sp, fontWeight = FontWeight.Black, color = AccentBlue)
-        }
-        if (d.items.isEmpty()) {
-            Box(Modifier.weight(1f).fillMaxWidth(), Alignment.Center) {
-                Text("아직 접수된 계약서가 없어요", fontSize = 14.sp, color = T3, fontWeight = FontWeight.Medium)
+            // 합계 헤더
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("총 ${d.count}건", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = T1)
+                Spacer(Modifier.weight(1f))
+                Text("합계 ${won(d.totalAmount)}", fontSize = 14.sp, fontWeight = FontWeight.Black, color = AccentBlue)
             }
-        } else LazyColumn(
-            Modifier.weight(1f).fillMaxWidth(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 12.dp, end = 12.dp, bottom = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(d.items) { s ->
-                Column(
-                    Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(14.dp))
-                        .clickable { openUrl(ctx, repo.receiptUrl(s.contractId)) }.padding(14.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(s.customerName.ifBlank { "고객" }, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = T1)
-                        Spacer(Modifier.width(8.dp))
-                        Text(s.customerPhoneMasked, fontSize = 12.sp, color = T3)
-                        Spacer(Modifier.weight(1f))
-                        Text(won(s.finalAmount), fontSize = 14.sp, fontWeight = FontWeight.Black, color = AccentBlue)
+            if (d.items.isEmpty()) {
+                Box(Modifier.weight(1f).fillMaxWidth(), Alignment.Center) {
+                    Text("아직 접수된 계약서가 없어요", fontSize = 14.sp, color = T3, fontWeight = FontWeight.Medium)
+                }
+            } else LazyColumn(
+                Modifier.weight(1f).fillMaxWidth(),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 12.dp, end = 12.dp, bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(d.items) { s ->
+                    val open = expanded == s.contractId
+                    Column(
+                        Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(14.dp))
+                            .clickable { expanded = if (open) null else s.contractId }.padding(14.dp)
+                    ) {
+                        // 목록 = 이름 + 계약자 + 금액 (시공내역은 클릭해서 펼침)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(s.customerName.ifBlank { "고객" }, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = T1)
+                                Text("계약자 ${s.agentName.ifBlank { "-" }}", fontSize = 11.5.sp, color = T3)
+                            }
+                            Text(won(s.finalAmount), fontSize = 14.sp, fontWeight = FontWeight.Black, color = AccentBlue)
+                            Spacer(Modifier.width(6.dp))
+                            Text(if (open) "▴" else "▾", fontSize = 12.sp, color = T3)
+                        }
+                        if (open) {
+                            Spacer(Modifier.height(12.dp))
+                            Box(Modifier.fillMaxWidth().height(1.dp).background(ExpoBg))
+                            Spacer(Modifier.height(12.dp))
+                            SubRow("시공 상품", s.products.ifBlank { "-" })
+                            val site = listOf(s.apartment, s.dongHo).filter { it.isNotBlank() }.joinToString(" ")
+                            SubRow("현장", site.ifBlank { s.address.ifBlank { "-" } })
+                            SubRow("전화", s.customerPhoneMasked.ifBlank { "-" })
+                            Spacer(Modifier.height(12.dp))
+                            Box(
+                                Modifier.fillMaxWidth().background(Field, RoundedCornerShape(12.dp))
+                                    .clickable { openUrl(ctx, repo.receiptUrl(s.contractId)) }.padding(vertical = 11.dp),
+                                contentAlignment = Alignment.Center
+                            ) { Text("계약서 보기 · PDF", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1) }
+                        }
                     }
-                    Spacer(Modifier.height(4.dp))
-                    Text(s.products.ifBlank { "상품 없음" }, fontSize = 12.sp, color = T2, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Spacer(Modifier.height(2.dp))
-                    Text("상담: ${s.agentName.ifBlank { "-" }}", fontSize = 11.sp, color = T3)
                 }
             }
         }
     }
+}
+
+@Composable
+private fun SubRow(label: String, value: String) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+        Text(label, fontSize = 12.sp, color = T3, modifier = Modifier.width(66.dp))
+        Text(value, fontSize = 12.5.sp, color = T1, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
     }
 }
 

@@ -7820,3 +7820,12 @@ Play API36 대응 — 툴체인 상향(AGP/Gradle) + compileSdk/targetSdk 36. 0.
 - 미배포: bash server/deploy_phase1.sh
 - 앱: 상담사 네이티브 계약서화면(live/agent+폴링+finalize) + 접수서 네이티브(submissions apartment/dong_ho) 착수.
 - commit: (아래)
+
+## 2026-07-22 14:10 · android
+박람회 Phase 4 실시간 계약서 **앱측 완성 + S9 실기검증**. (사이트 미배포 — 사장님 요청 대기)
+- ExpoRepository: liveAgentPush·liveGet·finalize 추가 + submissions apartment/dong_ho/address 파싱.
+- 상담사 네이티브 계약서 화면(기존 QrView 교체): QR + 상품 체크리스트(수량 스테퍼) + 총액할인 + 계약금 on/off + 라이브 폴링(고객 연결·서명 도착 표시) + 최종금액(서버 재계산) + 완료(finalize)→안드로이드 공유시트.
+- 우리 팀 접수서 네이티브 펼침(웹뷰 제거): 이름+계약자 / 클릭 시 아파트명+동호수+시공상품 + [계약서 보기·PDF](receiptUrl).
+- 검증: S9(Android10) 실기 — 상품선택→최종금액 150,000 서버재계산 표시, 한글 round-trip 정상, 크래시0. 서버 live API 전 흐름 curl 확인(agent push·live get·customer·finalize·submissions apartment).
+- 남음: 폰 2대 고객 미러링 실사용(사장님). Phase1 "계약서 열기 QR(고객제출)" → 이 상담사화면으로 교체 완료.
+- commit: (이 커밋)

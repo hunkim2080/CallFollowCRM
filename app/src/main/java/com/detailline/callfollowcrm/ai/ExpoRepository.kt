@@ -45,11 +45,27 @@ class ExpoRepository(
     data class Submission(
         val contractId: Long, val customerName: String, val customerPhoneMasked: String,
         val products: String, val finalAmount: Long, val status: String,
-        val agentName: String, val assignedName: String?, val createdAtMs: Long
+        val agentName: String, val assignedName: String?, val createdAtMs: Long,
+        val apartment: String, val dongHo: String, val address: String
     )
     data class Submissions(val count: Int, val totalAmount: Long, val items: List<Submission>)
     /** 상품 등록 입력(방장) — product_id 없이 kind/name/unit_price 만 보냄. */
     data class ProductDraft(val kind: String, val name: String, val unitPrice: Long)
+
+    // ── 실시간 계약서 (Phase 4) ──
+    data class LiveItem(val productId: Long, val kind: String, val name: String, val unitPrice: Long, val qty: Int, val line: Long)
+    data class LiveState(
+        val status: String, val contractId: Long?,
+        val catalog: List<Product>, val items: List<LiveItem>,
+        val productTotal: Long, val discount: Long,
+        val depositEnabled: Boolean, val depositAmount: Long, val finalAmount: Long,
+        val customerName: String, val customerPhone: String,
+        val apartment: String, val dongHo: String, val address: String,
+        val signaturePresent: Boolean
+    )
+    /** 상담사 상품 선택(체크/수량/할인/계약금) — 서버에 push. 서버가 final_amount 재계산. */
+    data class AgentPush(val productTotal: Long, val discount: Long, val finalAmount: Long)
+    data class Finalized(val contractId: Long, val finalAmount: Long, val receiptUrl: String)
 
     // ── 공통 ──
     private fun digits(s: String) = s.filter { it.isDigit() }
@@ -195,7 +211,10 @@ class ExpoRepository(
                         status = s.optString("status", "submitted"),
                         agentName = s.optString("agent_name"),
                         assignedName = s.optString("assigned_name").takeIf { it.isNotBlank() && it != "null" },
-                        createdAtMs = s.optLong("created_at_ms")
+                        createdAtMs = s.optLong("created_at_ms"),
+                        apartment = s.optString("apartment"),
+                        dongHo = s.optString("dong_ho"),
+                        address = s.optString("address")
                     )
                 }
             } ?: emptyList()
@@ -203,6 +222,65 @@ class ExpoRepository(
         }
     }
 
-    /** 계약서 사본/영수증 웹 URL (앱은 브라우저로 열기만). */
+    // ── 실시간 계약서 API (상담사 앱) ──
+    /** 상담사 선택 push — 체크/수량/할인/계약금. 서버가 final_amount 재계산해 반환. (디바운스 권장) */
+    suspend fun liveAgentPush(
+        sessionId: String, secret: String, items: List<Pair<Long, Int>>,
+        discount: Long, depositEnabled: Boolean, depositAmount: Long
+    ): Result<AgentPush> = withContext(Dispatchers.IO) {
+        runCatching {
+            val arr = JSONArray()
+            items.forEach { (pid, qty) -> arr.put(JSONObject().put("product_id", pid).put("qty", qty)) }
+            val o = postJson("/api/expo/contract/live/agent", JSONObject().apply {
+                put("session_id", sessionId); put("secret", secret)
+                put("items", arr); put("discount", discount)
+                put("deposit_enabled", depositEnabled); put("deposit_amount", depositAmount)
+            })
+            AgentPush(o.optLong("product_total"), o.optLong("discount"), o.optLong("final_amount"))
+        }
+    }
+
+    /** 합쳐진 라이브 상태 (앱·웹이 1.5초 폴링). 고객 정보·서명 도착 여부 포함. */
+    suspend fun liveGet(sessionId: String, secret: String): Result<LiveState> = withContext(Dispatchers.IO) {
+        runCatching {
+            val o = getJson("/api/expo/contract/live/$sessionId?k=$secret")
+            val items = o.optJSONArray("items")?.let { arr ->
+                (0 until arr.length()).map { i ->
+                    val it = arr.getJSONObject(i)
+                    LiveItem(it.optLong("product_id"), it.optString("kind", "product"), it.optString("name"),
+                        it.optLong("unit_price"), it.optInt("qty"), it.optLong("line"))
+                }
+            } ?: emptyList()
+            LiveState(
+                status = o.optString("status", "live"),
+                contractId = o.optLong("contract_id").takeIf { it > 0 },
+                catalog = o.catalog(),
+                items = items,
+                productTotal = o.optLong("product_total"),
+                discount = o.optLong("discount"),
+                depositEnabled = o.optBoolean("deposit_enabled"),
+                depositAmount = o.optLong("deposit_amount"),
+                finalAmount = o.optLong("final_amount"),
+                customerName = o.optString("customer_name"),
+                customerPhone = o.optString("customer_phone"),
+                apartment = o.optString("apartment"),
+                dongHo = o.optString("dong_ho"),
+                address = o.optString("address"),
+                signaturePresent = o.optBoolean("signature_present")
+            )
+        }
+    }
+
+    /** 상담사 [완료] — 라이브 상태를 계약서로 굳힘. 이미 완료면 already 로 안전. */
+    suspend fun finalize(sessionId: String, secret: String): Result<Finalized> = withContext(Dispatchers.IO) {
+        runCatching {
+            val o = postJson("/api/expo/contract/finalize", JSONObject().apply {
+                put("session_id", sessionId); put("secret", secret)
+            })
+            Finalized(o.optLong("contract_id"), o.optLong("final_amount"), o.optString("receiptUrl"))
+        }
+    }
+
+    /** 계약서 사본/영수증 웹 URL (PDF·공유용). */
     fun receiptUrl(contractId: Long): String = "$baseUrl/expo/r/$contractId"
 }
