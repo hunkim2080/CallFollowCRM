@@ -504,6 +504,9 @@ def db_init() -> None:
             ("live_signature", "live_signature TEXT"),
             ("live_agent_ms", "live_agent_ms INTEGER"),   # 상담사 마지막 갱신
             ("live_cust_ms", "live_cust_ms INTEGER"),     # 고객 마지막 갱신
+            # 추가144 — 비고 + 완료 상태머신 (핸드오프 2·3차)
+            ("live_note", "live_note TEXT"),                          # 특이사항/비고(상담사)
+            ("live_customer_confirmed", "live_customer_confirmed INTEGER NOT NULL DEFAULT 0"),
         ]:
             if col not in _ecs:
                 con.execute(f"ALTER TABLE expo_contract_sessions ADD COLUMN {ddl}")
@@ -23660,7 +23663,7 @@ async def expo_submissions(room_id: str, phone: str) -> dict:
         rows = con.execute(
             "SELECT contract_id, customer_name, customer_phone, items_json, "
             "final_amount, status, agent_phone, created_at_ms, assigned_phone, "
-            "apartment, dong_ho, address "
+            "apartment, dong_ho, address, memo "
             "FROM expo_contracts WHERE room_id = ? ORDER BY created_at_ms DESC", (room_id,),
         ).fetchall()
         agent_names = {}
@@ -23691,6 +23694,7 @@ async def expo_submissions(room_id: str, phone: str) -> dict:
             "apartment": r[9] or "",
             "dong_ho": r[10] or "",
             "address": r[11] or "",
+            "note": r[12] or "",   # 특이사항/비고
         })
     return {"ok": True, "count": len(out), "totalAmount": total, "items": out}
 
@@ -23806,6 +23810,8 @@ async def expo_contract_page(session_id: str, k: Optional[str] = None) -> HTMLRe
         "<div class=l><span>할인</span><span id=sDisc>0원</span></div>"
         "<div class=l fin><span>최종 금액</span><span id=sFinal>0원</span></div>"
         "<div class=l id=depLine style='display:none'><span>계약금</span><span id=sDep>0원</span></div></div></div>"
+        "<div class=card id=noteCard style='display:none'><h2>📝 상담사 메모</h2>"
+        "<div id=noteText style='font-size:14px;color:#5A6472;white-space:pre-wrap'></div></div>"
         "<div class=card><h2>🙋 고객 정보</h2>"
         "<label class=fl>성함</label><input type=text id=cname placeholder='고객 성함' oninput='push()'>"
         "<label class=fl>연락처</label><input type=tel id=cphone inputmode=numeric placeholder='010-0000-0000' oninput='push()'>"
@@ -23824,9 +23830,10 @@ async def expo_contract_page(session_id: str, k: Optional[str] = None) -> HTMLRe
         "· 동의를 거부할 수 있으나, 거부 시 계약 진행이 어렵습니다.</p></details>"
         "<button class=clr onclick='sigClr()'>지우기</button>"
         "<canvas class=sig id=sig></canvas><div class=sighint id=sigHint>동의 후 위 칸에 손가락으로 서명해 주세요</div></div>"
+        "<div style='text-align:center;color:#9AA3AF;font-size:12px;padding:0 0 10px'>작성일 <span id=wdate></span></div>"
         "</div>"
         "<div class=bar><div class=in><div class=amt><small>최종 금액</small><b id=bAmt>0원</b></div>"
-        "<div id=statusPill style='font-size:13px;font-weight:800;color:#5A6472;padding:12px 16px;background:#F5F7F9;border-radius:12px'>상담사 확정 대기 중</div></div></div>"
+        "<button id=doneBtn onclick='done()' disabled style='background:#3182F6;color:#fff;border:0;border-radius:12px;padding:14px 22px;font-size:15px;font-weight:800;cursor:pointer'>작성 완료</button></div></div>"
         "<script src='https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js'></script>"
         "<script>var SID=" + json.dumps(session_id) + ",K=" + json.dumps(k or "") + ",BASE=" + json.dumps(base) + ";</script>"
         "<script>" + _EXPO_CONTRACT_JS + "</script>"
@@ -23872,12 +23879,39 @@ fit();
 function pos(e){var r=cv.getBoundingClientRect();var t=e.touches?e.touches[0]:e;return{x:t.clientX-r.left,y:t.clientY-r.top};}
 function start(e){if(!agreed){alert('개인정보 수집·이용에 먼저 동의해 주세요.');return;}drawing=true;var p=pos(e);cx.beginPath();cx.moveTo(p.x,p.y);e.preventDefault();}
 function move(e){if(!drawing)return;var p=pos(e);cx.lineTo(p.x,p.y);cx.stroke();sigHas=true;sigDirty=true;e.preventDefault();}
-function end(){if(drawing){drawing=false;if(sigDirty){sigDirty=false;pushSig();}}}
+function end(){if(drawing){drawing=false;if(sigDirty){sigDirty=false;pushSig();}updateDone();}}
 cv.addEventListener('mousedown',start);cv.addEventListener('mousemove',move);window.addEventListener('mouseup',end);
 cv.addEventListener('touchstart',start,{passive:false});cv.addEventListener('touchmove',move,{passive:false});cv.addEventListener('touchend',end);
-function sigClr(){cx.clearRect(0,0,cv.width,cv.height);sigHas=false;pushSig();}
+function sigClr(){cx.clearRect(0,0,cv.width,cv.height);sigHas=false;pushSig();updateDone();}
 function agTog(){agreed=!agreed;var c=document.getElementById('agChk');c.classList.toggle('on',agreed);c.textContent=agreed?'✓':'';
-  document.getElementById('sigHint').textContent=agreed?'위 칸에 손가락으로 서명해 주세요':'동의 후 위 칸에 손가락으로 서명해 주세요';}
+  document.getElementById('sigHint').textContent=agreed?'위 칸에 손가락으로 서명해 주세요':'동의 후 위 칸에 손가락으로 서명해 주세요';updateDone();}
+// ── 필수 4항목(성함·연락처·주소·서명) 다 채워야 [작성 완료] 활성 ──
+var confirmed=false;
+function reqOk(){
+  var nm=document.getElementById('cname').value.trim();
+  var ph=document.getElementById('cphone').value.replace(/[^0-9]/g,'');
+  return nm && ph.length>=10 && address && sigHas && agreed;
+}
+function updateDone(){
+  var b=document.getElementById('doneBtn');
+  if(confirmed){b.disabled=true;b.textContent='작성 완료됨 ✓';b.style.background='#12B76A';return;}
+  b.disabled=!reqOk();b.textContent='작성 완료';b.style.background=b.disabled?'#C7D2DE':'#3182F6';
+}
+function done(){
+  if(!reqOk()){alert('성함·연락처·주소·서명을 모두 입력해 주세요.');return;}
+  var b=document.getElementById('doneBtn');b.disabled=true;b.textContent='확인 중...';
+  // 마지막 정보+서명 먼저 확정 전송 → 그 다음 완료 확정
+  fetch('/api/expo/contract/live/customer',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({session_id:SID,k:K,
+      customer_name:document.getElementById('cname').value.trim(),
+      customer_phone:document.getElementById('cphone').value.replace(/[^0-9]/g,''),
+      apartment:apartment,address:address,dong_ho:document.getElementById('dongho').value.trim(),
+      signature:sigHas?cv.toDataURL('image/png'):''})})
+  .then(function(){return fetch('/api/expo/contract/live/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:SID,k:K})});})
+  .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j};});})
+  .then(function(res){if(res.ok){confirmed=true;updateDone();}else{alert(res.j.detail||'완료 실패');updateDone();}})
+  .catch(function(){alert('네트워크 오류');updateDone();});
+}
 // ── 다음(카카오) 우편번호 ──
 function findAddr(){
   new daum.Postcode({oncomplete:function(data){
@@ -23893,7 +23927,7 @@ function findAddr(){
 }
 // ── 고객 입력을 서버 라이브로 push (디바운스) ──
 var pt=null;
-function push(){clearTimeout(pt);pt=setTimeout(sendCust,400);}
+function push(){updateDone();clearTimeout(pt);pt=setTimeout(sendCust,400);}
 function sendCust(extra){
   var body={session_id:SID,k:K,
     customer_name:document.getElementById('cname').value.trim(),
@@ -23912,8 +23946,15 @@ function poll(){
     if(!st)return;
     if(st.status==='finalized'&&st.contract_id){location.href=BASE+'/expo/r/'+st.contract_id;return;}
     renderItems(st);
+    // 상담사 메모
+    var nc=document.getElementById('noteCard');
+    if(st.note){nc.style.display='block';document.getElementById('noteText').textContent=st.note;}else{nc.style.display='none';}
+    // 서버가 완료확정을 리셋했으면(상담사 수정) 로컬도 반영
+    if(!st.customer_confirmed&&confirmed){confirmed=false;updateDone();}
+    else if(st.customer_confirmed&&!confirmed){confirmed=true;updateDone();}
   }).catch(function(){});
 }
+document.getElementById('wdate').textContent=new Date().toLocaleDateString('ko-KR');
 poll();setInterval(poll,1500);
 document.addEventListener('visibilitychange',function(){if(!document.hidden)poll();});
 """
@@ -23926,7 +23967,7 @@ async def expo_contract_receipt(contract_id: int) -> HTMLResponse:
         c = con.execute(
             "SELECT room_id, customer_name, customer_phone, address, items_json, "
             "product_total, discount, deposit_enabled, deposit_amount, final_amount, "
-            "signature_data, consent_json, created_at_ms, apartment, dong_ho "
+            "signature_data, consent_json, created_at_ms, apartment, dong_ho, memo "
             "FROM expo_contracts WHERE contract_id = ?",
             (contract_id,),
         ).fetchone()
@@ -23958,6 +23999,10 @@ async def expo_contract_receipt(contract_id: int) -> HTMLResponse:
     if c[14]:
         addr_full += " " + _h(c[14])
     addr_full = addr_full.strip() or "-"
+    note_card = ""
+    if len(c) > 15 and (c[15] or "").strip():
+        note_card = ("<div class=card><h2>📝 특이사항</h2>"
+                     "<div style='font-size:14px;color:#5A6472;white-space:pre-wrap'>" + _h(c[15]) + "</div></div>")
     body = (
         "<div class=top><div class=rm>" + _h(room_name) + " · 계약서 사본</div>"
         "<h1>" + _h(c[1] or "고객") + " 님 계약서</h1></div>"
@@ -23966,6 +24011,7 @@ async def expo_contract_receipt(contract_id: int) -> HTMLResponse:
         "<div class=sum><div class=l><span>상품 합계</span><span>" + format(int(c[5] or 0), ",") + "원</span></div>"
         "<div class=l><span>할인</span><span>" + format(int(c[6] or 0), ",") + "원</span></div>"
         "<div class=l fin><span>최종 금액</span><span>" + format(int(c[9] or 0), ",") + "원</span></div>" + dep + "</div></div>"
+        + note_card +
         "<div class=card><h2>🙋 고객 정보</h2>"
         "<div class=row><div class=nm>성함</div><span class=pr>" + _h(c[1] or "-") + "</span></div>"
         "<div class=row><div class=nm>연락처</div><span class=pr>" + _fmt_phone(c[2]) + "</span></div>"
@@ -23992,7 +24038,8 @@ def _expo_session_row(session_id: str):
             "SELECT session_id, secret, room_id, agent_phone, expires_at_ms, contract_id, "
             "live_items_json, live_discount, live_deposit_enabled, live_deposit_amount, "
             "live_customer_name, live_customer_phone, live_apartment, live_dong_ho, "
-            "live_address, live_signature, live_agent_ms, live_cust_ms "
+            "live_address, live_signature, live_agent_ms, live_cust_ms, "
+            "live_note, live_customer_confirmed "
             "FROM expo_contract_sessions WHERE session_id = ?", (session_id,),
         ).fetchone()
 
@@ -24029,6 +24076,7 @@ class ExpoLiveAgent(BaseModel):
     discount: Optional[int] = 0
     deposit_enabled: Optional[bool] = False
     deposit_amount: Optional[int] = 0
+    note: Optional[str] = None
 
 
 class ExpoLiveCustomer(BaseModel):
@@ -24064,13 +24112,16 @@ async def expo_live_agent(req: ExpoLiveAgent) -> dict:
         dep_amt = max(0, int(req.deposit_amount or 0)) if dep_on else 0
     except (ValueError, TypeError):
         dep_amt = 0
+    # 상담사가 계약 내용을 바꾸면 → 고객 재확인 필요 → customer_confirmed 리셋 (핸드오프 3차 A-3)
+    sets = ("live_items_json = ?, live_discount = ?, live_deposit_enabled = ?, "
+            "live_deposit_amount = ?, live_agent_ms = ?, live_customer_confirmed = 0")
+    vals = [json.dumps(norm, ensure_ascii=False), disc, dep_on, dep_amt, now]
+    if req.note is not None:
+        sets += ", live_note = ?"
+        vals.append((req.note or "").strip()[:500])
+    vals.append(req.session_id)
     with db_conn() as con:
-        con.execute(
-            "UPDATE expo_contract_sessions SET live_items_json = ?, live_discount = ?, "
-            "live_deposit_enabled = ?, live_deposit_amount = ?, live_agent_ms = ? "
-            "WHERE session_id = ?",
-            (json.dumps(norm, ensure_ascii=False), disc, dep_on, dep_amt, now, req.session_id),
-        )
+        con.execute("UPDATE expo_contract_sessions SET " + sets + " WHERE session_id = ?", vals)
         con.commit()
     return {"ok": True, "product_total": total, "discount": disc, "final_amount": final}
 
@@ -24103,6 +24154,8 @@ async def expo_live_customer(req: ExpoLiveCustomer) -> dict:
         _put("live_address", req.address, 160)
     if req.signature is not None:
         sets.append("live_signature = ?"); vals.append((req.signature or "")[:200000])
+    # 고객이 내용을 바꾸면 완료 확정도 리셋(다시 [완료] 눌러야 함)
+    sets.append("live_customer_confirmed = 0")
     sets.append("live_cust_ms = ?"); vals.append(now)
     vals.append(req.session_id)
     with db_conn() as con:
@@ -24110,6 +24163,39 @@ async def expo_live_customer(req: ExpoLiveCustomer) -> dict:
                     " WHERE session_id = ?", vals)
         con.commit()
     return {"ok": True}
+
+
+class ExpoLiveConfirm(BaseModel):
+    session_id: str
+    k: Optional[str] = None
+
+
+@app.post("/api/expo/contract/live/confirm")
+async def expo_live_confirm(req: ExpoLiveConfirm) -> dict:
+    """고객 웹 [완료] — 필수 4항목(성함·연락처·주소·서명) 검증 후 customer_confirmed=1."""
+    row = _expo_session_row(req.session_id)
+    if not row:
+        raise HTTPException(404, "세션 없음")
+    if req.k and not _hmac.compare_digest(req.k, row[1]):
+        raise HTTPException(403, "세션 검증 실패")
+    if row[5]:
+        raise HTTPException(409, "이미 완료된 계약서입니다")
+    missing = []
+    if not (row[10] or "").strip():
+        missing.append("성함")
+    if len(_norm_phone(row[11])) < 10:
+        missing.append("연락처")
+    if not (row[14] or "").strip():
+        missing.append("주소")
+    if not row[15]:
+        missing.append("서명")
+    if missing:
+        raise HTTPException(400, "필수 항목이 비었습니다: " + ", ".join(missing))
+    with db_conn() as con:
+        con.execute("UPDATE expo_contract_sessions SET live_customer_confirmed = 1, live_cust_ms = ? "
+                    "WHERE session_id = ?", (_now_ms(), req.session_id))
+        con.commit()
+    return {"ok": True, "customer_confirmed": True}
 
 
 def _expo_live_state(row) -> dict:
@@ -24139,6 +24225,11 @@ def _expo_live_state(row) -> dict:
         "signature_present": bool(row[15]),
         "agent_updated_ms": row[16],
         "customer_updated_ms": row[17],
+        "note": row[18] or "",
+        "customer_confirmed": bool(row[19]),
+        # 필수 4항목(성함·연락처·주소·서명) 충족 여부 — 앱 체크표시·완료 게이트
+        "required_ok": bool((row[10] or "").strip() and len(_norm_phone(row[11])) >= 10
+                            and (row[14] or "").strip() and row[15]),
     }
 
 
@@ -24161,7 +24252,8 @@ async def expo_finalize(req: ExpoFinalize) -> dict:
         row = con.execute(
             "SELECT secret, room_id, agent_phone, contract_id, live_items_json, live_discount, "
             "live_deposit_enabled, live_deposit_amount, live_customer_name, live_customer_phone, "
-            "live_apartment, live_dong_ho, live_address, live_signature "
+            "live_apartment, live_dong_ho, live_address, live_signature, live_note, "
+            "live_customer_confirmed "
             "FROM expo_contract_sessions WHERE session_id = ?", (req.session_id,),
         ).fetchone()
         if not row:
@@ -24172,6 +24264,9 @@ async def expo_finalize(req: ExpoFinalize) -> dict:
             base = INTAKE_PUBLIC_BASE_URL.rstrip("/")
             return {"ok": True, "contract_id": row[3], "already": True,
                     "receiptUrl": f"{base}/expo/r/{row[3]}"}
+        # 완료 상태머신 게이트 (핸드오프 3차 A-4): 고객 확정 안 됐으면 보관 금지
+        if not row[15]:
+            raise HTTPException(409, "고객이 아직 작성 완료를 하지 않았습니다")
         room_id = row[1]
         try:
             live_items = json.loads(row[4] or "[]")
@@ -24180,18 +24275,31 @@ async def expo_finalize(req: ExpoFinalize) -> dict:
         norm, total, disc, final = _expo_price_items(room_id, live_items, row[5])
         if not norm:
             raise HTTPException(400, "선택한 상품이 없습니다")
+        # 필수 4항목 방어 검증 (핸드오프 3차 B)
+        _miss = []
+        if not (row[8] or "").strip():
+            _miss.append("성함")
+        if len(_norm_phone(row[9])) < 10:
+            _miss.append("연락처")
+        if not (row[12] or "").strip():
+            _miss.append("주소")
+        if not row[13]:
+            _miss.append("서명")
+        if _miss:
+            raise HTTPException(400, "필수 항목이 비었습니다: " + ", ".join(_miss))
         dep_on = 1 if row[6] else 0
         dep_amt = int(row[7] or 0) if dep_on else 0
         cur = con.execute(
             "INSERT INTO expo_contracts "
             "(room_id, agent_phone, customer_name, customer_phone, address, apartment, dong_ho, "
             " items_json, product_total, discount, deposit_enabled, deposit_amount, final_amount, "
-            " signature_data, consent_json, status, created_at_ms) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted', ?)",
+            " signature_data, consent_json, memo, status, created_at_ms) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted', ?)",
             (room_id, row[2], (row[8] or "").strip()[:40], _norm_phone(row[9]),
              (row[12] or "").strip()[:160], (row[10] or "").strip()[:80], (row[11] or "").strip()[:40],
              json.dumps(norm, ensure_ascii=False), total, disc, dep_on, dep_amt, final,
-             (row[13] or "")[:200000], json.dumps({"privacy": True, "ts": now}, ensure_ascii=False), now),
+             (row[13] or "")[:200000], json.dumps({"privacy": True, "ts": now}, ensure_ascii=False),
+             (row[14] or "").strip()[:500], now),
         )
         contract_id = cur.lastrowid
         con.execute("UPDATE expo_contract_sessions SET contract_id = ? WHERE session_id = ?",

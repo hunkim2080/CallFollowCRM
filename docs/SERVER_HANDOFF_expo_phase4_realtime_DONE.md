@@ -52,3 +52,27 @@
 - TestClient 29항목 ALL OK (live/agent·customer·GET·finalize·재계산 330,000·아파트동호수·마스킹·PDF버튼·완료감지).
 - 기존 `POST /api/expo/contract/submit`(Phase1 단방향)도 여전히 동작(하위호환) — 앱 교체 전까지 안 깨짐.
 - Python 3.9 `Optional[...]` 유지. 미배포 → `bash server/deploy_phase1.sh`.
+
+---
+
+## 추가 반영 (2026-07-22, 핸드오프 2·3차 — 추가144)
+
+### note (특이사항/비고)
+- `POST /api/expo/contract/live/agent` 에 `note`(string) 저장. (앱이 이미 보내던 값 — 이제 살아남)
+- `GET /api/expo/contract/live/{sid}` 응답에 `note` 포함. 고객 웹 viewer 에 **[상담사 메모]** 카드로 표시.
+- `finalize` 시 계약서(memo)에 굳혀 저장 → 영수증(`/expo/r`)에 **[특이사항]** 카드, `submissions` item 에 `note` 포함.
+
+### 완료 상태머신 (customer_confirmed)
+- `GET live` 에 `customer_confirmed`(bool) + `required_ok`(bool, 필수4 충족) 추가.
+- **고객 웹 [작성 완료] 버튼** → `POST /api/expo/contract/live/confirm {session_id, k}` → `customer_confirmed=true`.
+  - 필수 4항목(성함·연락처·주소·서명) 미충족이면 **400** (누락 항목명 반환).
+- **`live/agent` 호출(상담사 수정) 시 `customer_confirmed` 자동 리셋** → 고객 재확인 필요. (`live/customer` 로 고객이 바꿔도 리셋)
+- **`finalize` 는 `customer_confirmed=true` 일 때만 허용**, 아니면 **409**. 추가로 필수4 방어검증(누락 시 400).
+  - 앱은 [계약서 보관하기] 버튼을 `enabled = customer_confirmed` 로 하드게이트하면 됨.
+
+### 필수 4항목
+- 고객 웹: 성함·연락처·주소·서명 다 채워야 [작성 완료] 활성(클라 게이트) + 서버 confirm/finalize 이중 검증.
+- finalize 후 영수증·submissions 에 성함·연락처(마스킹)·주소(아파트명+동호수)·서명 모두 포함.
+
+### 검증
+- TestClient 22항목(신규) + 회귀 3항목 ALL OK. note 저장/노출, confirm 게이트(400/409), 상담사·고객 수정 시 리셋, finalize 게이트, 영수증·submissions note/필수4 포함.

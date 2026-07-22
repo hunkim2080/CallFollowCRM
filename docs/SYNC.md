@@ -7843,3 +7843,13 @@ Play API36 대응 — 툴체인 상향(AGP/Gradle) + compileSdk/targetSdk 36. 0.
 - 앱 완료: LiveState.customerConfirmed 파싱 + 상담사 화면(고객 필수항목 성함·연락처·주소·서명 체크표시 + 완료배너 + "계약서 보관하기" + "정상 체결" 성공문구).
 - cowork 요청(SERVER_HANDOFF 3차): GET live 에 customer_confirmed · 고객웹 [완료]버튼 · live/agent 시 customer_confirmed 리셋 · finalize customer_confirmed 게이트 · 필수4항목 고객웹 검증+영수증/submissions 포함 · note 웹/영수증/submissions 노출.
 - commit: (이 커밋)
+
+## 2026-07-22 14:56 · cowork
+추가144 — 박람회 계약서 **note + 완료 상태머신 + 필수4항목** (핸드오프 2·3차). 회신 갱신: SERVER_HANDOFF_expo_phase4_realtime_DONE.md.
+- note: live/agent 저장 → GET live·finalize(memo)·영수증[특이사항]·submissions·고객웹[상담사 메모] 전부 노출.
+- 완료 상태머신: GET live 에 customer_confirmed·required_ok 추가. 고객웹 [작성 완료]→POST live/confirm(필수4 검증, 미충족 400). live/agent(상담사 수정)·live/customer(고객 수정) 시 customer_confirmed 자동 리셋. finalize 는 confirmed 아니면 409 + 필수4 방어검증.
+- 고객웹 viewer: [작성 완료] 버튼(필수4 게이트, 확정 시 초록 '작성 완료됨 ✓')·상담사 메모 카드·작성일. 서버 리셋 감지해 버튼 자동 원복.
+- DB: expo_contract_sessions 에 live_note·live_customer_confirmed ALTER. note 는 expo_contracts.memo 재사용.
+- 앱: [계약서 보관하기]=finalize 를 enabled=customer_confirmed 로 하드게이트만 하면 끝(나머지 자동 작동).
+- 검증 TestClient 22 신규 + 회귀 3 ALL OK. 미배포: bash server/deploy_phase1.sh
+- commit: (아래)
