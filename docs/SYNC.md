@@ -7752,3 +7752,11 @@ Play 출시 대시보드 '권장 조치' 2개(거부 아님, 품질 권장):
 - 미배포. 사장님 배포: `bash server/deploy_phase1.sh`
 - 다음(앱): ExpoScreen 에 방/상품/QR/접수서목록 배선. Phase 2(분배)·3(일정) 은 사장님 남은결정(균등기준·확정권한·취소규칙·cap) 후.
 - commit: (아래)
+
+## 2026-07-22 · android — 통화요약 수정 시 후속문자 스테일 버그 fix (긴급, 0.2.1079 배포)
+베타 신고: 통화요약 수정 후 '이 통화 내용으로 후속 문자 쓰기' → **수정 전 내용**으로 문자 나옴.
+- 원인: `updateCallSummary`는 `summaryText`만 교체, 근데 후속문자 버튼(ChatScreen:1971)은 통화 직후 서버가 만든 `recommendedMessage`(원본)를 씀 → 스테일.
+- fix: updateCallSummary 가 수정된 요약으로 **후속문자 재생성**(callSummaryServerRepository.summarize → followupSms) → recommendedMessage 갱신. 카드는 DB observe라 자동 반영. commit daf1e57.
+- 배포 release **0.2.1079**(sha ed445826, site). 이 릴리즈에 이번 세션 것들 동봉: 재방문 jobs(DB v42)·연락처 이름 반영(READ_CONTACTS)·박람회 진입 골격.
+- ⚠️ 실기 재현검증 미완(폰 분리 + 실통화·서버 필요) — 코드상 원인 명확·fix 확실하나 베타/사장님 재현 확인 권장.
+- server 무관.
