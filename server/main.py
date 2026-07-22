@@ -23663,7 +23663,7 @@ async def expo_submissions(room_id: str, phone: str) -> dict:
         rows = con.execute(
             "SELECT contract_id, customer_name, customer_phone, items_json, "
             "final_amount, status, agent_phone, created_at_ms, assigned_phone, "
-            "apartment, dong_ho, address, memo "
+            "apartment, dong_ho, address, memo, scheduled_at_ms "
             "FROM expo_contracts WHERE room_id = ? ORDER BY created_at_ms DESC", (room_id,),
         ).fetchall()
         agent_names = {}
@@ -23695,6 +23695,7 @@ async def expo_submissions(room_id: str, phone: str) -> dict:
             "dong_ho": r[10] or "",
             "address": r[11] or "",
             "note": r[12] or "",   # 특이사항/비고
+            "scheduled_at_ms": int(r[13] or 0),   # 시공일(0=미정) — 박람회 달력용
         })
     return {"ok": True, "count": len(out), "totalAmount": total, "items": out}
 
@@ -24308,3 +24309,49 @@ async def expo_finalize(req: ExpoFinalize) -> dict:
     base = INTAKE_PUBLIC_BASE_URL.rstrip("/")
     return {"ok": True, "contract_id": contract_id, "final_amount": final,
             "receiptUrl": f"{base}/expo/r/{contract_id}"}
+
+
+# ── 추가145 (2026-07-22) — 박람회 달력: 시공일 지정 (핸드오프 4차) ──
+class ExpoSchedule(BaseModel):
+    contract_id: int
+    phone: str
+    scheduled_at_ms: Optional[int] = 0   # 0 = 미정 해제
+
+
+@app.post("/api/expo/contract/schedule")
+async def expo_schedule(req: ExpoSchedule) -> dict:
+    """접수서(계약)에 시공일 지정/해제. 방 멤버만. 팀 공유 달력이 이 값을 씀."""
+    with db_conn() as con:
+        c = con.execute(
+            "SELECT room_id FROM expo_contracts WHERE contract_id = ?", (req.contract_id,),
+        ).fetchone()
+        if not c:
+            raise HTTPException(404, "계약 없음")
+        room_id = c[0]
+        if not _expo_room_member(room_id, req.phone):
+            raise HTTPException(403, "이 방의 멤버가 아닙니다")
+        try:
+            sched = int(req.scheduled_at_ms or 0)
+        except (ValueError, TypeError):
+            sched = 0
+        if sched < 0:
+            sched = 0
+        # 상태 전이(확정8): 시공일 잡으면 scheduled, 해제하면 다시 submitted (done 은 유지)
+        new_status = None
+        cur_status = con.execute(
+            "SELECT status FROM expo_contracts WHERE contract_id = ?", (req.contract_id,),
+        ).fetchone()[0]
+        if cur_status not in ("done",):
+            new_status = "scheduled" if sched > 0 else "submitted"
+        if new_status:
+            con.execute(
+                "UPDATE expo_contracts SET scheduled_at_ms = ?, status = ? WHERE contract_id = ?",
+                (sched if sched > 0 else None, new_status, req.contract_id),
+            )
+        else:
+            con.execute(
+                "UPDATE expo_contracts SET scheduled_at_ms = ? WHERE contract_id = ?",
+                (sched if sched > 0 else None, req.contract_id),
+            )
+        con.commit()
+    return {"ok": True, "contract_id": req.contract_id, "scheduled_at_ms": sched}

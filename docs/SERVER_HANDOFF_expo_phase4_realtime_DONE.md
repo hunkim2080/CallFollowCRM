@@ -76,3 +76,12 @@
 
 ### 검증
 - TestClient 22항목(신규) + 회귀 3항목 ALL OK. note 저장/노출, confirm 게이트(400/409), 상담사·고객 수정 시 리셋, finalize 게이트, 영수증·submissions note/필수4 포함.
+
+---
+
+## 추가 반영 (2026-07-22, 핸드오프 4차 — 추가145) · 박람회 달력
+- `POST /api/expo/contract/schedule` `{contract_id, phone, scheduled_at_ms}` → `{ok, contract_id, scheduled_at_ms}`
+  - phone = 방 멤버만(아니면 403). 계약 없으면 404. `scheduled_at_ms=0` 이면 시공일 해제.
+  - 상태 전이(확정8): 시공일 지정 → `status=scheduled`, 해제 → `submitted` 복귀(단 `done` 은 유지).
+- `GET /api/expo/submissions` 각 item 에 **`scheduled_at_ms`(0=미정)** 추가 → 앱이 박람회 달력(월 그리드·날짜밑 아파트명) 렌더.
+- 검증 TestClient 11항목 ALL OK (지정·반영·전이·해제·복귀·비멤버403·404·방장).

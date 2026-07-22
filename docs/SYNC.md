@@ -7867,3 +7867,10 @@ deploy_phase1.sh — 배포 요약 '커밋' 표시 버그 fix. (사장님: "5bb1
 - cowork 요청(SERVER_HANDOFF 4차): ①POST /api/expo/contract/schedule(contract_id,phone,scheduled_at_ms) ②submissions item 에 scheduled_at_ms 추가.
 - 주야(교대) 캘린더는 사장님 보류.
 - commit: (이 커밋)
+
+## 2026-07-22 15:42 · cowork
+추가145 — 박람회 달력용 **시공일 API + submissions.scheduled_at_ms** (핸드오프 4차). 회신 갱신.
+- POST /api/expo/contract/schedule {contract_id, phone, scheduled_at_ms} — 방멤버만(403), 404, 0=해제. status 전이(scheduled↔submitted, done 유지).
+- GET /api/expo/submissions item 에 scheduled_at_ms(0=미정) 추가 → 앱 박람회 달력.
+- 검증 TestClient 11 ALL OK. 미배포: bash server/deploy_phase1.sh
+- commit: (아래)
