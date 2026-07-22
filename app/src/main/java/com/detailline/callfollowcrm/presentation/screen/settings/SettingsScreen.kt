@@ -210,11 +210,12 @@ fun SettingsScreen(
     if (showDiagnostics) {
         DiagnosticsDialog(
             onDismiss = { showDiagnostics = false },
-            onSend = { note ->
+            onSend = { note, shotUri ->
                 showDiagnostics = false
                 com.detailline.callfollowcrm.util.DiagnosticsReporter.share(
                     context,
-                    com.detailline.callfollowcrm.util.DiagnosticsReporter.buildReport(container.preferences, note)
+                    com.detailline.callfollowcrm.util.DiagnosticsReporter.buildReport(container.preferences, note),
+                    shotUri
                 )
             }
         )
@@ -3569,12 +3570,16 @@ private fun ToneInputDialog(
     )
 }
 
-/** 문제 신고 / 진단 보내기 (2026-07-22 사장님). 메모(선택) + '보내기' → 공유 시트로 진단 리포트 전송. */
+/** 문제 신고 / 진단 보내기 (2026-07-22 사장님). 메모(선택) + 스크린샷 첨부(선택) + '보내기' → 공유 시트로 전송. */
 @Composable
 private fun DiagnosticsDialog(
-    onDismiss: () -> Unit, onSend: (String) -> Unit
+    onDismiss: () -> Unit, onSend: (String, android.net.Uri?) -> Unit
 ) {
     var note by remember { mutableStateOf("") }
+    var shot by remember { mutableStateOf<android.net.Uri?>(null) }
+    val picker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri -> if (uri != null) shot = uri }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("문제 신고 / 진단 보내기", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
@@ -3591,10 +3596,29 @@ private fun DiagnosticsDialog(
                     placeholder = { Text("예: D-1 안내 문자가 깨져서 나와요", fontSize = 13.sp) },
                     modifier = Modifier.fillMaxWidth()
                 )
+                Spacer(Modifier.height(6.dp))
+                // 스크린샷 첨부(선택) — 깨진 화면을 직접 보여주기. (2026-07-22 사장님)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = {
+                        picker.launch(
+                            androidx.activity.result.PickVisualMediaRequest(
+                                ActivityResultContracts.PickVisualMedia.ImageOnly
+                            )
+                        )
+                    }) {
+                        Text(if (shot == null) "🖼  스크린샷 첨부" else "🖼  스크린샷 첨부됨 ✓",
+                            color = TossBlue, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    }
+                    if (shot != null) {
+                        TextButton(onClick = { shot = null }) {
+                            Text("빼기", color = TossTextTertiary, fontSize = 12.sp)
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSend(note) }) {
+            TextButton(onClick = { onSend(note, shot) }) {
                 Text("보내기", color = TossBlue, fontWeight = FontWeight.Bold)
             }
         },

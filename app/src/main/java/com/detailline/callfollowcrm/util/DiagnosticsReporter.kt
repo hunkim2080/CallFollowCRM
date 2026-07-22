@@ -2,6 +2,7 @@ package com.detailline.callfollowcrm.util
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import com.detailline.callfollowcrm.BuildConfig
 import com.detailline.callfollowcrm.data.preferences.AppPreferences
@@ -61,10 +62,19 @@ object DiagnosticsReporter {
         return sb.toString().trim()
     }
 
-    /** 공유 시트(이메일·카톡 등)로 진단 리포트 보내기. */
-    fun share(context: Context, report: String) {
+    /**
+     * 공유 시트(이메일·카톡 등)로 진단 리포트 보내기.
+     * @param imageUri 스크린샷 등 첨부 이미지(선택). 있으면 이미지+본문을 함께 전송(이미지 타입), 없으면 본문만 텍스트로 전송.
+     */
+    fun share(context: Context, report: String, imageUri: Uri? = null) {
         val send = Intent(Intent.ACTION_SEND).apply {
-            type = "text/plain"
+            if (imageUri != null) {
+                type = "image/*"
+                putExtra(Intent.EXTRA_STREAM, imageUri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } else {
+                type = "text/plain"
+            }
             putExtra(Intent.EXTRA_EMAIL, arrayOf(TARGET_EMAIL))
             putExtra(Intent.EXTRA_SUBJECT, "[시공막내] 문제 신고 / 진단")
             putExtra(Intent.EXTRA_TEXT, report)

@@ -7787,3 +7787,14 @@ Play API36 대응 — 툴체인 상향(AGP/Gradle) + compileSdk/targetSdk 36. 0.
   · 검증: debug+release+AAB 빌드 성공(lintVitalRelease 통과), S23U(Android16/SDK36) 설치+실행 무크래시
 - commit: (이 커밋)
 - 다음 액션: 사장님 = Play 콘솔에 AAB(app/build/outputs/bundle/release/app-release.aab) 업로드 → API36 경고 해소. / 추후 = 정식 edge-to-edge(인셋) 전환
+
+## 2026-07-22 13:20 · android
+박람회 Phase 1 앱 연동 완성 + 진단 보내기 스크린샷 첨부. 0.2.1084 사이트 배포.
+- 변경: (앱 전용, 서버는 이미 라이브)
+  · 신규 ExpoRepository — 박람회 서버 API 8종(SERVER_HANDOFF_expo_phase1) 연동: 방 create/join/rooms/detail · 상품 set/get · 계약서 session(QR) · 접수서 목록. OkHttp+org.json.
+  · ExpoScreen 전면 재작성(로컬 껍데기→서버연동): 방 목록/개설(코드 크게+공유)/합류(코드입력) + 내부 네비게이션. 방상세=계약서 QR(폴링으로 제출감지→계약서보기)·상품/서비스 준비(방장·단가)·우리팀 접수서(뒷4자리 마스킹)·팀원목록. 카톡 옐로 스타일 유지.
+  · 진단 보내기: 스크린샷 첨부(PickVisualMedia) → 이미지+본문 공유.
+  · 검증: 컴파일 OK · 서버 API 응답모양 앱파싱과 일치(curl 전 엔드포인트) · 서버 한글 round-trip 정상(byte hex 검증) · S23U(Android16) 설치·실행 무크래시. ⚠️UI 클릭검증 미완(폰 잠금) → 사장님 실사용 테스트 필요.
+  · 분배·진행률(확정6·8)은 Phase 3 → 미구현(서버도 스키마만).
+- commit: (이 커밋)
+- cowork FYI: expo 한글 저장 서버 round-trip 정상 확인(bytes). 앱은 charset=utf-8 로 송신. 테스트 방(healthcheck 등) expo_* 격리라 무해.
