@@ -307,13 +307,34 @@ class ChatViewModel(
         }
     }
 
-    /** 통화 요약을 사장님이 직접 고침(잘못된 요약 정정). summaryText 만 교체 → 채팅·고객정보·미리보기 모든 화면 자동 반영. (2026-06-23 사장님) */
+    /** 통화 요약을 사장님이 직접 고침(잘못된 요약 정정). summaryText 교체 → 채팅·고객정보·미리보기 자동 반영.
+     *   + 후속문자(recommendedMessage)도 **수정본 기준으로 재생성**. (2026-06-23 요약 교체 / 2026-07-22 버그fix)
+     *   ⚠️ fix 전: 요약을 고쳐도 '이 통화 내용으로 후속 문자 쓰기'가 통화 직후 만든 recommendedMessage(원본)를 써서
+     *      수정 전 내용으로 문자가 나왔음(베타 신고). → 요약 수정 시 후속문자도 새 요약으로 다시 정리한다. */
     fun updateCallSummary(summary: com.detailline.callfollowcrm.data.local.entity.CallSummaryEntity, newText: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            container.callSummaryRepository.update(
-                summary.copy(summaryText = newText.trim(), updatedAt = System.currentTimeMillis())
-            )
-            _toast.value = "통화 요약을 수정했어요 ✓"
+            val trimmed = newText.trim()
+            val edited = summary.copy(summaryText = trimmed, updatedAt = System.currentTimeMillis())
+            container.callSummaryRepository.update(edited)   // 요약 즉시 반영
+            _toast.value = "통화 요약 수정 ✓ 후속문자도 다시 정리 중…"
+            // 후속문자를 수정된 요약 기준으로 재생성 → DB 갱신되면 카드 버튼이 자동으로 새 문자를 씀(요약 카드는 DB observe).
+            val phone = summary.phoneNumber
+            val fresh = if (phone.isNullOrBlank()) null else runCatching {
+                val customer = container.customerRepository.findByPhone(phone)
+                container.callSummaryServerRepository.summarize(
+                    phone = phone,
+                    rawText = trimmed,
+                    startedAtMs = summary.recordedAt ?: System.currentTimeMillis(),
+                    customerName = customer?.name,
+                    customerMemo = customer?.memo
+                ).getOrNull()?.followupSms?.takeIf { it.isNotBlank() }
+            }.getOrNull()
+            if (fresh != null) {
+                container.callSummaryRepository.update(edited.copy(recommendedMessage = fresh, updatedAt = System.currentTimeMillis()))
+                _toast.value = "요약·후속문자 새로 정리 완료 ✓"
+            } else {
+                _toast.value = "통화 요약을 수정했어요 ✓"
+            }
         }
     }
 
