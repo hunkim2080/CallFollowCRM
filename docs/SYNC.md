@@ -7807,3 +7807,16 @@ Play API36 대응 — 툴체인 상향(AGP/Gradle) + compileSdk/targetSdk 36. 0.
 - 앱측: 위 API 나오면 상담사 네이티브 계약서화면 + 접수서 네이티브 + 공유시트 착수. Phase1 방/상품/접수서는 유지.
 - ⚠️ 기존 앱 "계약서 열기 QR"(고객 제출 폴링) 화면은 이 재설계로 교체 예정.
 - 확정 기록: EXPO_DECISIONS.md 확정 9.
+
+## 2026-07-22 13:40 · cowork
+추가143 — **박람회 Phase 4 실시간 계약서 서버 완료** (확정9). 회신: `docs/SERVER_HANDOFF_expo_phase4_realtime_DONE.md`.
+- 라이브 세션 API 4종: live/agent(상담사 상품 push)·live/customer(고객 정보·서명 push)·GET live/{sid}(합쳐진 상태, 앱·웹 1.5s 폴링)·finalize(계약 굳힘, submit 대체).
+- 고객 웹 `/expo/c/{sid}` **viewer 재설계**: 상품 읽기전용 실시간 반영(초록 라이브 점) + 고객은 이름·전화·**다음(카카오) 우편번호 주소(아파트명·동호수 구조화)**·서명만. finalize 감지 시 영수증 자동이동.
+- submissions 에 apartment·dong_ho·address 추가(앱 네이티브 접수서용). 마스킹·계약자(agent_name) 유지.
+- 영수증 [PDF저장/인쇄] 버튼 + @media print A4 + 계약번호.
+- DB: expo_contract_sessions 에 live_* 12컬럼, expo_contracts 에 apartment·dong_ho ALTER(기존 데이터 안전).
+- final_amount 는 항상 서버가 카탈로그 단가로 재계산(단가 신뢰). 서명 원본 GET 미노출(signature_present 만).
+- 하위호환: 기존 submit(Phase1) 여전히 동작. 검증 TestClient 29 ALL OK.
+- 미배포: bash server/deploy_phase1.sh
+- 앱: 상담사 네이티브 계약서화면(live/agent+폴링+finalize) + 접수서 네이티브(submissions apartment/dong_ho) 착수.
+- commit: (아래)
