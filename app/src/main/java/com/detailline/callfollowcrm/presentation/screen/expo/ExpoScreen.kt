@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -897,7 +899,19 @@ private fun ColumnScope.CalendarView(repo: ExpoRepository, n: Nav.Calendar, myPh
                 }
             }
             // 날짜 그리드 — 화면을 꽉 채워 넓게(타임트리식). 셀에 시공 텍스트를 여러 줄로 직접 표시.
-            Column(Modifier.weight(1f).fillMaxWidth()) {
+            //   좌우 스와이프로 달 넘김(왼쪽=다음달, 오른쪽=이전달). 셀 탭(클릭)과는 slop 으로 구분됨.
+            Column(
+                Modifier.weight(1f).fillMaxWidth().pointerInput(Unit) {
+                    var total = 0f
+                    detectHorizontalDragGestures(
+                        onDragStart = { total = 0f },
+                        onDragEnd = {
+                            if (total <= -50f) { if (month == 11) { month = 0; year++ } else month++ }
+                            else if (total >= 50f) { if (month == 0) { month = 11; year-- } else month-- }
+                        }
+                    ) { _, drag -> total += drag }
+                }
+            ) {
                 for (r in 0 until gridRows) {
                     Row(Modifier.weight(1f).fillMaxWidth()) {
                         for (col in 0 until 7) {
