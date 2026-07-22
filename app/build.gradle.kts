@@ -47,12 +47,12 @@ if (wantsReleaseBuild) {
 
 android {
     namespace = "com.detailline.callfollowcrm"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.detailline.callfollowcrm"
         minSdk = 26
-        targetSdk = 35  // Play Store 요구(2026-06-18): 신규/업데이트는 API 35+ 타겟 필수
+        targetSdk = 36  // Play Store 요구(2026-07-22 메일): API 36(Android16) 마감 2026-08-31. edge-to-edge 강제는 테마 opt-out 으로 보류
         versionCode = appVersionCode
         versionName = "0.2.$appVersionCode"
         buildConfigField("long", "BUILD_TIMESTAMP", "${buildTimeMs}L")

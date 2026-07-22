@@ -7777,3 +7777,13 @@ deploy_phase1.sh — **배포 끝에 "무엇이 배포됐나" 요약 추가** (�
 - commit: (이 커밋)
 - 다음 액션: (서버 없음). 진단 리포트가 메일로 오면 자동문자 코드덤프로 깨짐 원인 정밀 확인 가능
 - 별건(서버 무관): Play API36(targetSdk36) 요구 — Gradle 8.2→업그레이드 필요, 마감 2026-08-31, 별도 신중 작업 예정
+
+## 2026-07-22 12:40 · android
+Play API36 대응 — 툴체인 상향(AGP/Gradle) + compileSdk/targetSdk 36. 0.2.1083 (APK 사이트 + AAB Play용)
+- 변경: (앱 빌드 설정만, 서버 인터페이스 무관)
+  · AGP 8.2.2→8.9.2, Gradle 8.2→8.11.1 (Kotlin 1.9.22·Compose compiler 1.5.10·KSP·Compose BOM 2024.06.00 그대로 = 최소 churn)
+  · compileSdk 34→36, targetSdk 35→36 (구글 메일 마감 2026-08-31 대응)
+  · Android16 edge-to-edge 강제 → 테마 windowOptOutEdgeToEdgeEnforcement=true 로 기존 레이아웃 보존(임시, 추후 정식 인셋 전환 필요)
+  · 검증: debug+release+AAB 빌드 성공(lintVitalRelease 통과), S23U(Android16/SDK36) 설치+실행 무크래시
+- commit: (이 커밋)
+- 다음 액션: 사장님 = Play 콘솔에 AAB(app/build/outputs/bundle/release/app-release.aab) 업로드 → API36 경고 해소. / 추후 = 정식 edge-to-edge(인셋) 전환
