@@ -744,11 +744,14 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var data by remember { mutableStateOf<ExpoRepository.Submissions?>(null) }
+    var members by remember { mutableStateOf<List<ExpoRepository.Member>>(emptyList()) }
     var reloadTick by remember { mutableStateOf(0) }
+    var assignTarget by remember { mutableStateOf<ExpoRepository.Submission?>(null) }   // 시공자 배정 대상
 
     LaunchedEffect(n.roomId, reloadTick) {
         repo.submissions(n.roomId, myPhone).onSuccess { data = it }.onFailure { data = ExpoRepository.Submissions(0, 0L, emptyList()) }
     }
+    LaunchedEffect(n.roomId) { repo.roomDetail(n.roomId, myPhone).onSuccess { members = it.members } }
 
     var expanded by remember { mutableStateOf<Long?>(null) }
     val d = data
@@ -778,11 +781,21 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                         Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(14.dp))
                             .clickable { expanded = if (open) null else s.contractId }.padding(14.dp)
                     ) {
-                        // 목록 = 이름 + 계약자·접수시각 + 금액 (시공내역=현장은 클릭해서 펼침)
+                        // 목록 = 이름 + 일정배지 + 계약자·시공자 + 금액 (상세는 클릭해서 펼침)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text(s.customerName.ifBlank { "고객" }, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = T1)
-                                Text("계약자 ${s.agentName.ifBlank { "-" }} · ${hhmm(s.createdAtMs)}", fontSize = 11.5.sp, color = T3)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(s.customerName.ifBlank { "고객" }, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = T1)
+                                    Spacer(Modifier.width(6.dp))
+                                    val scheduled = s.scheduledAtMs > 0L
+                                    Text(if (scheduled) "일정 ${dateShort(s.scheduledAtMs)}" else "일정 미정",
+                                        fontSize = 9.5.sp, fontWeight = FontWeight.Black,
+                                        color = if (scheduled) Color(0xFF0E9B63) else Color(0xFFB58A00),
+                                        modifier = Modifier.background(if (scheduled) Color(0xFFE9FBF2) else Color(0xFFFFF6D6), RoundedCornerShape(6.dp))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp))
+                                }
+                                Text("계약자 ${s.agentName.ifBlank { "-" }}" + (s.assignedName?.let { " · 시공자 $it" } ?: " · 시공자 미배정"),
+                                    fontSize = 11.5.sp, color = T3)
                             }
                             Text(won(s.finalAmount), fontSize = 14.sp, fontWeight = FontWeight.Black, color = AccentBlue)
                             Spacer(Modifier.width(6.dp))
@@ -796,8 +809,17 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                             SubRow("시공 상품", s.products.ifBlank { "-" })
                             if (s.note.isNotBlank()) SubRow("비고", s.note)
                             SubRow("시공일", if (s.scheduledAtMs > 0L) dateKo(s.scheduledAtMs) else "미정")
+                            SubRow("계약자", s.agentName.ifBlank { "-" })
+                            SubRow("시공자", s.assignedName ?: "미배정")
                             SubRow("접수", "${dateShort(s.createdAtMs)} ${hhmm(s.createdAtMs)}")
-                            SubRow("전화", s.customerPhoneMasked.ifBlank { "-" })
+                            // 전화 (탭 → 통화)
+                            Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("전화", fontSize = 12.sp, color = T3, modifier = Modifier.width(66.dp))
+                                val fp = s.customerPhone
+                                Text("📞 ${fp.ifBlank { s.customerPhoneMasked.ifBlank { "-" } }}", fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Bold, color = if (fp.isNotBlank()) AccentBlue else T1,
+                                    modifier = Modifier.clickable(enabled = fp.isNotBlank()) { dialPhone(ctx, fp) })
+                            }
                             Spacer(Modifier.height(12.dp))
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Box(
@@ -814,15 +836,70 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                                     contentAlignment = Alignment.Center
                                 ) { Text(if (s.scheduledAtMs > 0L) "시공일 변경" else "시공일 잡기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AccentBlue) }
                                 Box(
-                                    Modifier.weight(1f).background(Field, RoundedCornerShape(12.dp))
-                                        .clickable { openUrl(ctx, repo.receiptUrl(s.contractId)) }.padding(vertical = 11.dp),
+                                    Modifier.weight(1f).background(Color(0xFFEFEAFE), RoundedCornerShape(12.dp))
+                                        .clickable { assignTarget = s }.padding(vertical = 11.dp),
                                     contentAlignment = Alignment.Center
-                                ) { Text("계약서 · PDF", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1) }
+                                ) { Text("시공자 배정", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF7C5CFC)) }
                             }
+                            Spacer(Modifier.height(8.dp))
+                            Box(
+                                Modifier.fillMaxWidth().background(Field, RoundedCornerShape(12.dp))
+                                    .clickable { openUrl(ctx, repo.receiptUrl(s.contractId)) }.padding(vertical = 11.dp),
+                                contentAlignment = Alignment.Center
+                            ) { Text("계약서 · PDF", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1) }
                         }
                     }
                 }
             }
+        }
+
+        // 시공자 배정(분배) — 팀원 중 시공자 고르기. 계약자≠시공자.
+        val at = assignTarget
+        if (at != null) {
+            AlertDialog(
+                onDismissRequest = { assignTarget = null },
+                title = { Text("시공자 배정", fontWeight = FontWeight.ExtraBold, color = T1) },
+                text = {
+                    Column {
+                        com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
+                        val site2 = listOf(at.apartment, at.dongHo).filter { it.isNotBlank() }.joinToString(" ")
+                        Text("${at.customerName.ifBlank { "고객" }}${if (site2.isNotBlank()) " ($site2)" else ""} 을(를) 시공할 팀원을 고르세요.",
+                            fontSize = 12.5.sp, color = T2)
+                        Spacer(Modifier.height(10.dp))
+                        if (members.isEmpty()) Text("팀원 정보를 불러오는 중…", fontSize = 12.sp, color = T3)
+                        members.forEach { m ->
+                            Row(Modifier.fillMaxWidth().clickable {
+                                scope.launch {
+                                    repo.assign(at.contractId, myPhone, m.phone)
+                                        .onSuccess { toast("${m.name.ifBlank { "팀원" }} 배정됨"); assignTarget = null; reloadTick++ }
+                                        .onFailure { toast("배정 실패: ${it.message?.take(40)}") }
+                                }
+                            }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(m.name.ifBlank { "이름없음" }, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = T1)
+                                if (m.role == "owner") {
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("방장", fontSize = 9.sp, fontWeight = FontWeight.Black, color = Color(0xFFB58A00),
+                                        modifier = Modifier.background(Color(0xFFFFF6D6), RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
+                                }
+                                Spacer(Modifier.weight(1f))
+                                if (at.assignedName != null && at.assignedName == m.name)
+                                    Text("현재 ✓", fontSize = 11.sp, color = AccentBlue, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        if (at.assignedName != null) {
+                            Box(Modifier.fillMaxWidth().clickable {
+                                scope.launch {
+                                    repo.assign(at.contractId, myPhone, "")
+                                        .onSuccess { toast("배정 해제됨"); assignTarget = null; reloadTick++ }
+                                        .onFailure { toast("실패: ${it.message?.take(40)}") }
+                                }
+                            }.padding(vertical = 10.dp)) { Text("배정 해제", fontSize = 13.sp, color = T3) }
+                        }
+                    }
+                },
+                confirmButton = { TextButton(onClick = { assignTarget = null }) { Text("닫기", color = AccentBlue, fontWeight = FontWeight.Bold) } },
+                containerColor = Color.White
+            )
         }
     }
 }
@@ -934,8 +1011,9 @@ private fun ColumnScope.CalendarView(repo: ExpoRepository, n: Nav.Calendar, myPh
                                         modifier = if (isToday) Modifier.background(Kk, RoundedCornerShape(7.dp)).padding(horizontal = 6.dp, vertical = 1.dp) else Modifier)
                                     Spacer(Modifier.height(2.dp))
                                     dayItems.take(3).forEach { s ->
+                                        // 그날 몇동 몇호 시공인지 바로 보이게 = 동호수 우선.
                                         Text(
-                                            s.apartment.ifBlank { s.customerName.ifBlank { "고객" } },
+                                            s.dongHo.ifBlank { s.apartment.ifBlank { s.customerName.ifBlank { "고객" } } },
                                             fontSize = 9.5.sp, color = Color(0xFF2B59D6), fontWeight = FontWeight.Medium,
                                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                                             modifier = Modifier.fillMaxWidth()
@@ -964,13 +1042,27 @@ private fun ColumnScope.CalendarView(repo: ExpoRepository, n: Nav.Calendar, myPh
                 title = { Text("${month + 1}/$dd 시공 ${dayItems.size}건", fontWeight = FontWeight.ExtraBold, color = T1) },
                 text = {
                     Column {
-                        dayItems.forEach { s ->
+                        com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
+                        dayItems.forEachIndexed { i, s ->
                             val site = listOf(s.apartment, s.dongHo).filter { it.isNotBlank() }.joinToString(" ")
-                            Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)
-                                .clickable { openUrl(ctx, repo.receiptUrl(s.contractId)) }) {
-                                Text(site.ifBlank { s.customerName.ifBlank { "고객" } }, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = T1)
-                                Text("${s.customerName} · 계약자 ${s.agentName.ifBlank { "-" }} · ${won(s.finalAmount)}", fontSize = 12.sp, color = T3)
+                            val fullPhone = s.customerPhone
+                            Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                                Text(site.ifBlank { s.customerName.ifBlank { "고객" } }, fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = T1)
+                                if (s.products.isNotBlank()) {
+                                    Spacer(Modifier.height(2.dp))
+                                    Text("시공 · ${s.products}", fontSize = 12.sp, color = T2)
+                                }
+                                Spacer(Modifier.height(3.dp))
+                                Text("📞 ${fullPhone.ifBlank { s.customerPhoneMasked.ifBlank { "-" } }}",
+                                    fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                                    color = if (fullPhone.isNotBlank()) AccentBlue else T3,
+                                    modifier = Modifier.clickable(enabled = fullPhone.isNotBlank()) { dialPhone(ctx, fullPhone) })
+                                Text("계약자 ${s.agentName.ifBlank { "-" }} · 시공자 ${s.assignedName ?: "미배정"} · ${won(s.finalAmount)}",
+                                    fontSize = 11.5.sp, color = T3, modifier = Modifier.padding(top = 3.dp))
+                                Text("계약서 보기 ›", fontSize = 12.sp, color = AccentBlue, fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.padding(top = 4.dp).clickable { openUrl(ctx, repo.receiptUrl(s.contractId)) })
                             }
+                            if (i < dayItems.size - 1) Box(Modifier.fillMaxWidth().height(1.dp).background(ExpoBg))
                         }
                     }
                 },
@@ -1072,5 +1164,14 @@ private fun openUrl(ctx: android.content.Context, url: String) {
     if (url.isBlank()) return
     runCatching {
         ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+}
+
+/** 전화번호 탭 → 다이얼러(번호 채워진 채) 열기. */
+private fun dialPhone(ctx: android.content.Context, phone: String) {
+    val digits = phone.filter { it.isDigit() || it == '+' }
+    if (digits.isBlank()) return
+    runCatching {
+        ctx.startActivity(Intent(Intent.ACTION_DIAL, android.net.Uri.parse("tel:$digits")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 }

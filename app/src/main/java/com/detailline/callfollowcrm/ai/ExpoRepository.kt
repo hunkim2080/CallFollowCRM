@@ -48,7 +48,9 @@ class ExpoRepository(
         val agentName: String, val assignedName: String?, val createdAtMs: Long,
         val apartment: String, val dongHo: String, val address: String, val note: String,
         /** 시공 예정일(ms). 0 = 미정. 박람회 달력에 이 날짜로 표시. */
-        val scheduledAtMs: Long
+        val scheduledAtMs: Long,
+        /** 고객 전화(전체) — 팀이 전화 걸 수 있게. 서버가 내려주면 채워짐(없으면 masked 만). */
+        val customerPhone: String
     )
     data class Submissions(val count: Int, val totalAmount: Long, val items: List<Submission>)
     /** 상품 등록 입력(방장) — product_id 없이 kind/name/unit_price 만 보냄. */
@@ -220,7 +222,8 @@ class ExpoRepository(
                         dongHo = s.optString("dong_ho"),
                         address = s.optString("address"),
                         note = s.optString("note"),
-                        scheduledAtMs = s.optLong("scheduled_at_ms")
+                        scheduledAtMs = s.optLong("scheduled_at_ms"),
+                        customerPhone = s.optString("customer_phone")
                     )
                 }
             } ?: emptyList()
@@ -297,6 +300,18 @@ class ExpoRepository(
                 put("contract_id", contractId)
                 put("phone", digits(phone))
                 put("scheduled_at_ms", scheduledAtMs)
+            })
+            Unit
+        }
+    }
+
+    /** 시공자 배정(분배) — 계약을 팀원에게. assignedPhone="" 이면 배정 해제. 계약자≠시공자. 방 멤버만. */
+    suspend fun assign(contractId: Long, phone: String, assignedPhone: String): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            postJson("/api/expo/contract/assign", JSONObject().apply {
+                put("contract_id", contractId)
+                put("phone", digits(phone))
+                put("assigned_phone", digits(assignedPhone))
             })
             Unit
         }

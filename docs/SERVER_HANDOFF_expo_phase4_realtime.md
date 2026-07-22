@@ -115,3 +115,18 @@
 ## 앱 상태 (4차분)
 - 접수서 상세에 "시공일 잡기/변경"(삼성 DatePicker) → `schedule` 호출. 접수서에 "시공일" 표시.
 - **박람회 달력**(방 상세 → 박람회 달력): 월 그리드, 시공 잡힌 날에 아파트명 표시, 날짜 탭 → 그날 시공 목록. = **완료(미배포)**. 서버가 schedule + submissions.scheduled_at_ms 붙이면 자동 작동.
+
+---
+
+## 추가 요청 (2026-07-22 저녁 5차, 사장님) — 주소버그 · 전화 · 분배
+1. **계약서 웹(`/expo/r/{id}`) 시공주소 오른쪽 넘침 버그** — 긴 주소("경기 파주시 하늘채길 1 하늘채아파트 201동 10..")가 화면 밖으로 잘림. 우측정렬 값에 `word-break/overflow-wrap` 또는 줄바꿈 처리 필요. (앱 아님, 서버 렌더)
+2. **submissions 에 전체 `customer_phone` 추가** — 팀이 고객에게 전화 걸 수 있게. (영수증엔 이미 전체번호 노출됨 = 데이터는 있음). 앱은 `customer_phone`(전체) 있으면 탭→전화(dial), 없으면 masked 표시만.
+3. **분배(시공자 배정) endpoint** — 계약자≠시공자. 팀원끼리 분배:
+   - `POST /api/expo/contract/assign {contract_id, phone(행위자), assigned_phone}` (assigned_phone="" = 해제) → `expo_contracts.assigned_phone/assigned_name` 저장. 방멤버만.
+   - submissions 의 `assigned_name` 은 이미 있음(앱이 시공자로 표시).
+   - ⚠️ **팀원 식별 문제**: roomDetail members 의 `phone` 이 팀원에겐 마스킹(010-1234-****)이라, 팀원이 배정할 때 앱이 `assigned_phone`(원본)을 못 보냄. 해결 택1:
+     (a) roomDetail members `phone` 을 **방 멤버 전체에 원본** 제공(동료라 팀내 공유 OK), 또는
+     (b) members 에 **member_id** 추가하고 assign 이 `assigned_member_id` 받기. → **사장님/코워크 결정 요망.**
+
+## 앱 상태 (5차분)
+- 달력 셀=동/호수 표시, 달력 팝업=전화(탭→통화)+계약내용+시공자. 접수서=일정 잡힘(초록)/미정(노랑) 배지 + 계약자/시공자 + 전화(탭→통화) + [시공자 배정] 팀원 선택 다이얼로그 = **완료(미배포)**. 전화·배정은 서버(2·3) 붙으면 작동.

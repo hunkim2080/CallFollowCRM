@@ -7874,3 +7874,9 @@ deploy_phase1.sh — 배포 요약 '커밋' 표시 버그 fix. (사장님: "5bb1
 - GET /api/expo/submissions item 에 scheduled_at_ms(0=미정) 추가 → 앱 박람회 달력.
 - 검증 TestClient 11 ALL OK. 미배포: bash server/deploy_phase1.sh
 - commit: (아래)
+
+## 2026-07-22 19:50 · android
+박람회 추가 5건(사장님) — 앱 반영(미배포) + cowork 3건.
+- 앱 완료: ①달력 셀 동/호수 표시(고객명 아님) ②달력 팝업에 전화(탭→통화)+계약내용+시공자 ③접수서 일정 잡힘/미정 배지 ④접수서 계약자/시공자 구분+전화 탭통화 ⑤시공자 배정(분배) UI(팀원 선택 다이얼로그). ExpoRepository customerPhone/assign() 추가.
+- cowork 요청(SERVER_HANDOFF 5차): ①계약서 웹 /expo/r 시공주소 넘침 버그 fix ②submissions에 전체 customer_phone ③분배 endpoint POST /api/expo/contract/assign(+팀원 식별: members 원본phone or member_id 결정요망).
+- commit: (이 커밋)
