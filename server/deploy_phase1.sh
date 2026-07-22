@@ -43,6 +43,16 @@ if [ ! -d "$TARGET/venv" ]; then
 fi
 ok "기존 ~/ringgo-server 발견"
 
+# 무엇을 배포하는지 지금 잡아둔다 (git 기준). 맨 끝 요약에서 다시 보여줌.
+DEPLOY_COMMIT="$(git -C "$SRC" rev-parse --short HEAD 2>/dev/null || echo '?')"
+DEPLOY_SUBJECT="$(git -C "$SRC" log -1 --pretty=%s 2>/dev/null || echo '(git 정보 없음)')"
+DEPLOY_CDATE="$(git -C "$SRC" log -1 --pretty=%cd --date=format:'%Y-%m-%d %H:%M' 2>/dev/null || echo '?')"
+DEPLOY_DIRTY=""
+if ! git -C "$SRC" diff --quiet 2>/dev/null || ! git -C "$SRC" diff --cached --quiet 2>/dev/null; then
+    DEPLOY_DIRTY=" (커밋 안 된 수정 포함)"
+fi
+DEPLOY_STARTED="$(date '+%Y-%m-%d %H:%M:%S')"
+
 # -----------------------------------------------------------------------------
 step "1. main.py / requirements.txt 갱신"
 # -----------------------------------------------------------------------------
@@ -249,26 +259,62 @@ else
 fi
 
 # -----------------------------------------------------------------------------
+step "무엇이 배포됐나 (배포 확인용)"
+# -----------------------------------------------------------------------------
+# 사장님이 개발을 많이 해서 "방금 배포가 먹었나?" 헷갈림 → 여기서 딱 보여줌.
+DEPLOY_FINISHED="$(date '+%Y-%m-%d %H:%M:%S')"
+
+# (a) 복사가 실제로 됐는지 = SRC 와 TARGET 의 main.py 가 같은지 확인
+SRC_SUM="$(md5 -q "$SRC/main.py" 2>/dev/null || md5sum "$SRC/main.py" 2>/dev/null | awk '{print $1}')"
+TGT_SUM="$(md5 -q "$TARGET/main.py" 2>/dev/null || md5sum "$TARGET/main.py" 2>/dev/null | awk '{print $1}')"
+if [ -n "$SRC_SUM" ] && [ "$SRC_SUM" = "$TGT_SUM" ]; then
+    COPY_STATE="✓ 서버의 main.py = 방금 코드와 일치 (${SRC_SUM:0:8})"
+else
+    COPY_STATE="✗ 불일치! 복사가 안 먹었을 수 있음 (src ${SRC_SUM:0:8} / live ${TGT_SUM:0:8})"
+fi
+
+# (b) 서버가 지금 살아있는 시각(부팅 후 healthz 응답 = 방금 재기동된 것)
+LIVE_STATE="$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/healthz 2>/dev/null || echo '000')"
+
+# (c) 배포 기록을 파일로도 남김 (나중에 cat 으로 확인 가능)
+{
+    echo "commit   : $DEPLOY_COMMIT  $DEPLOY_SUBJECT$DEPLOY_DIRTY"
+    echo "committed: $DEPLOY_CDATE"
+    echo "deployed : $DEPLOY_FINISHED"
+    echo "main.py  : ${SRC_SUM:0:12}"
+} > "$TARGET/DEPLOYED.txt" 2>/dev/null || true
+
+# -----------------------------------------------------------------------------
 step "끝"
 # -----------------------------------------------------------------------------
 cat <<EOF
 
 ┌──────────────────────────────────────────────────────────────────────┐
-│ RING-GO 백엔드 — Phase 1 (Claude Sonnet 4.6) 배포 완료              │
+│ RING-GO 백엔드 — 배포 완료                                          │
+├──────────────────────────────────────────────────────────────────────┤
+│ ▶ 방금 배포한 커밋                                                   │
+│   $DEPLOY_COMMIT  $DEPLOY_SUBJECT$DEPLOY_DIRTY
+│   (커밋 시각 $DEPLOY_CDATE)
+│
+│ ▶ 배포 검증                                                          │
+│   $COPY_STATE
+│   서버 응답(/healthz) : HTTP $LIVE_STATE   (200 이면 재기동 정상)
+│   배포 완료 시각      : $DEPLOY_FINISHED
 ├──────────────────────────────────────────────────────────────────────┤
 │ 디렉터리          : $TARGET
 │ 로컬 URL          : http://localhost:8000
 │ Tailnet URL (폰용): http://100.86.114.49:8000
 │ launchd Label     : com.detailline.ringgo-server
-│ 로그              : $TARGET/stdout.log
-│                    $TARGET/stderr.log
+│ 로그              : $TARGET/stdout.log · stderr.log
 │ 가격표 편집       : $TARGET/pricing.md  (수정 즉시 반영)
-│ 사용량 확인       : curl http://localhost:8000/admin/usage
+│ 배포 기록 다시보기: cat $TARGET/DEPLOYED.txt
 └──────────────────────────────────────────────────────────────────────┘
 
+최근 커밋 5개 (맨 위 = 방금 배포된 것):
+$(git -C "$SRC" log -5 --pretty='  %C(auto)%h%Creset  %cd  %s' --date=format:'%m-%d %H:%M' 2>/dev/null || echo '  (git 로그 없음)')
+
 다음 할 일:
-  1. §8.1 결과: '40' 보이면 가격표 OK.
-  2. §8.2 결과: 사장님이 직접 보고 "내가 쓴 거 같다" 라고 느껴야 통과.
-  3. §8.3: 1번 짧은 답 / 2번 친절 / 3번 전환 유도 — 방향 차이 보이면 통과.
-  4. 폰에서 '추천답변 받기' 다시 눌러서 실제 사용해보기.
+  1. 맨 위 커밋이 내가 방금 작업한 그거면 → 배포 성공.
+  2. '배포 검증'에 ✓ 와 HTTP 200 둘 다 보이면 확실히 먹은 것.
+  3. §8 검증 결과(위쪽)도 통과면 기능도 정상.
 EOF
