@@ -61,7 +61,9 @@ class ExpoRepository(
         val depositEnabled: Boolean, val depositAmount: Long, val finalAmount: Long,
         val customerName: String, val customerPhone: String,
         val apartment: String, val dongHo: String, val address: String,
-        val signaturePresent: Boolean, val note: String
+        val signaturePresent: Boolean, val note: String,
+        /** 고객이 서명 후 [완료]를 눌렀는지. 상담사가 수정(live/agent)하면 서버가 false 로 되돌림. (Phase4 완료흐름) */
+        val customerConfirmed: Boolean
     )
     /** 상담사 상품 선택(체크/수량/할인/계약금) — 서버에 push. 서버가 final_amount 재계산. */
     data class AgentPush(val productTotal: Long, val discount: Long, val finalAmount: Long)
@@ -269,7 +271,8 @@ class ExpoRepository(
                 dongHo = o.optString("dong_ho"),
                 address = o.optString("address"),
                 signaturePresent = o.optBoolean("signature_present"),
-                note = o.optString("note")
+                note = o.optString("note"),
+                customerConfirmed = o.optBoolean("customer_confirmed")
             )
         }
     }

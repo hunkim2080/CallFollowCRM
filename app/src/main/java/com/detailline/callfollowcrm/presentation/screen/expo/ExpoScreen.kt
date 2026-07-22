@@ -532,11 +532,11 @@ private fun ColumnScope.QrView(repo: ExpoRepository, n: Nav.Qr, myPhone: String,
     if (done != null) {
         Column(Modifier.weight(1f).fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Spacer(Modifier.height(36.dp))
-            Text("✅", fontSize = 52.sp)
+            Text("🎉", fontSize = 52.sp)
             Spacer(Modifier.height(12.dp))
-            Text("계약 완료!", fontSize = 20.sp, fontWeight = FontWeight.Black, color = T1)
+            Text("계약이 정상적으로 체결되었어요!", fontSize = 19.sp, fontWeight = FontWeight.Black, color = T1, textAlign = TextAlign.Center)
             Spacer(Modifier.height(6.dp))
-            Text("${won(done.finalAmount)} · 계약서가 저장됐어요", fontSize = 13.sp, color = T2)
+            Text("${won(done.finalAmount)} · 계약서가 보관됐어요", fontSize = 13.sp, color = T2)
             Spacer(Modifier.height(24.dp))
             BigButton("계약서 보기 · 공유 (PDF)", enabled = true, bg = Kk, fg = KkInk) {
                 shareUrl(ctx, repo.receiptUrl(done.contractId))
@@ -557,18 +557,23 @@ private fun ColumnScope.QrView(repo: ExpoRepository, n: Nav.Qr, myPhone: String,
                     if (qr != null) Image(qr.asImageBitmap(), "계약서 QR", Modifier.size(170.dp))
                     else Box(Modifier.size(170.dp), Alignment.Center) { Text("QR 생성 실패", color = T3) }
                     Spacer(Modifier.height(10.dp))
-                    val custName = live?.customerName?.takeIf { it.isNotBlank() }
+                    val l = live
+                    val connected = l != null && (l.customerName.isNotBlank() || l.signaturePresent || l.customerPhone.isNotBlank())
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(8.dp).background(if (custName != null) Color(0xFF13C47B) else T3, RoundedCornerShape(4.dp)))
+                        Box(Modifier.size(8.dp).background(if (connected) Color(0xFF13C47B) else T3, RoundedCornerShape(4.dp)))
                         Spacer(Modifier.width(6.dp))
-                        Text(
-                            when {
-                                custName != null && live?.signaturePresent == true -> "고객: $custName · 서명 완료 ✓"
-                                custName != null -> "고객: $custName · 서명 대기"
-                                else -> "고객 연결 대기중…"
-                            },
-                            fontSize = 12.sp, color = T2, fontWeight = FontWeight.Medium
-                        )
+                        Text(if (connected) "고객 연결됨" else "고객 연결 대기중…",
+                            fontSize = 12.sp, color = T2, fontWeight = FontWeight.Medium)
+                    }
+                    if (connected && l != null) {
+                        Spacer(Modifier.height(10.dp))
+                        val site = listOf(l.apartment, l.dongHo).filter { it.isNotBlank() }.joinToString(" ").ifBlank { l.address }
+                        Column(Modifier.fillMaxWidth().background(Field, RoundedCornerShape(12.dp)).padding(12.dp)) {
+                            ChkRow("성함", l.customerName)
+                            ChkRow("연락처", l.customerPhone)
+                            ChkRow("시공주소", site)
+                            ChkRow("서명", if (l.signaturePresent) "완료" else "")
+                        }
                     }
                 }
             }
@@ -625,15 +630,23 @@ private fun ColumnScope.QrView(repo: ExpoRepository, n: Nav.Qr, myPhone: String,
                 }
             }
             item {
+                // 고객이 서명·완료를 누르면 서버가 customer_confirmed=true → 배너 표시. 상담사가 수정하면 서버가 풀음.
+                if (live?.customerConfirmed == true) {
+                    Box(Modifier.fillMaxWidth().background(Color(0xFFE9FBF2), RoundedCornerShape(12.dp)).padding(14.dp)) {
+                        Text("✅ 고객이 계약서 작성을 완료했어요 · 수정사항 없으신가요?",
+                            fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0E9B63))
+                    }
+                    Spacer(Modifier.height(10.dp))
+                }
                 BigButton(
-                    if (finalizing) "완료 처리 중…" else "완료 · 계약 확정",
+                    if (finalizing) "보관 중…" else "계약서 보관하기",
                     enabled = qty.values.any { it > 0 } && !finalizing, bg = Kk, fg = KkInk
                 ) {
                     finalizing = true
                     scope.launch {
                         repo.finalize(sid, sec)
                             .onSuccess { finalized = it }
-                            .onFailure { finalizing = false; toast("완료 실패: ${it.message?.take(50)}") }
+                            .onFailure { finalizing = false; toast("보관 실패: ${it.message?.take(50)}") }
                     }
                 }
                 Spacer(Modifier.height(20.dp))
@@ -757,6 +770,17 @@ private fun SubRow(label: String, value: String) {
     Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
         Text(label, fontSize = 12.sp, color = T3, modifier = Modifier.width(66.dp))
         Text(value, fontSize = 12.5.sp, color = T1, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+    }
+}
+
+/** 상담사 화면에서 고객이 채운 필수 항목(성함·연락처·주소·서명) 확인 표시. 채우면 초록, 비면 '대기'. */
+@Composable
+private fun ChkRow(label: String, value: String) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, fontSize = 11.5.sp, color = T3, modifier = Modifier.width(64.dp))
+        val ok = value.isNotBlank()
+        Text(if (ok) value else "대기", fontSize = 12.sp,
+            color = if (ok) Color(0xFF13C47B) else T3, fontWeight = if (ok) FontWeight.Bold else FontWeight.Normal)
     }
 }
 

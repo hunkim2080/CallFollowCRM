@@ -7836,3 +7836,10 @@ Play API36 대응 — 툴체인 상향(AGP/Gradle) + compileSdk/targetSdk 36. 0.
 - cowork 요청: live/agent 가 note 저장 → GET live·finalize·submissions·고객웹·영수증에 note 노출. (SERVER_HANDOFF_expo_phase4_realtime.md 추가요청 참고). 접수시각은 영수증 이미 있음.
 - ⚠️ 사장님이 "고객제출 기다리는중"·"상품명 노출"로 본 건 사이트 옛버전(1084). 새 실시간버전 미배포 상태 → 배포해야 신흐름 테스트 가능.
 - commit: (이 커밋)
+
+## 2026-07-22 15:00 · android
+박람회 완료흐름 재설계(사장님) — 앱측 반영(미배포) + cowork 상태머신 요청.
+- 흐름: 고객이 서명+완료 → 상담사 "고객 완료·수정없나?" 배너 → 상담사 수정 시 고객완료 풀림 → 상담사 "계약서 보관하기" → 둘 다 "계약 정상 체결!".
+- 앱 완료: LiveState.customerConfirmed 파싱 + 상담사 화면(고객 필수항목 성함·연락처·주소·서명 체크표시 + 완료배너 + "계약서 보관하기" + "정상 체결" 성공문구).
+- cowork 요청(SERVER_HANDOFF 3차): GET live 에 customer_confirmed · 고객웹 [완료]버튼 · live/agent 시 customer_confirmed 리셋 · finalize customer_confirmed 게이트 · 필수4항목 고객웹 검증+영수증/submissions 포함 · note 웹/영수증/submissions 노출.
+- commit: (이 커밋)

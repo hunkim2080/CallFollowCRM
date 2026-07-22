@@ -76,3 +76,27 @@
 
 ## 앱 상태 (이 요청분)
 - 앱은 비고 입력칸(상담사 화면) + `note` 전송 + 접수서에 접수시각(HH:MM)·현장(아파트명 동호수) 표시 = **완료(미배포)**. note 는 서버가 저장 붙이면 자동으로 살아남(앱 재작업 없음).
+
+---
+
+## 추가 요청 (2026-07-22 오후 3차, 사장님) — 완료 흐름 + 필수항목
+
+### A. 계약 완료(체결) 흐름 = 서버 상태머신 (핵심)
+지금은 "상담사가 완료 누름"인데, 바뀐 방식:
+1. **고객**이 서명 후 웹에서 **[완료]** 누름 → 서버 `customer_confirmed=true`.
+2. 상담사 앱은 `GET live` 의 `customer_confirmed` 로 **"고객이 작성 완료 · 수정사항 없으신가요?"** 배너 표시.(앱 완료)
+3. 상담사가 **수정(live/agent 호출)** 하면 → 서버가 `customer_confirmed=false` **로 되돌림**(고객 재확인 필요).
+4. 상담사가 **[계약서 보관하기]** = `finalize` → **`customer_confirmed=true` 일 때만 허용**(아니면 409). 성공 시 status=finalized → 앱·웹 둘 다 **"계약이 정상적으로 체결되었어요!"**.
+
+→ **서버 할 일**: `GET live` 에 `customer_confirmed` 추가 · 고객 웹에 [완료] 버튼(→ customer_confirmed=true) · **live/agent 호출 시 customer_confirmed 리셋** · finalize 를 customer_confirmed 게이트. (앱은 `customer_confirmed` 읽어 배너/라벨 이미 반영, 보관 버튼 하드게이트는 서버 확정되면 앱이 `enabled=customer_confirmed` 로 한 줄 추가.)
+
+### B. 계약서 필수 항목 (사장님 "필수")
+계약서에 **고객 성함 · 연락처 · 시공주소 · 고객 서명** 이 반드시 담겨야 함.
+- 고객 웹: 이 4개 다 채워야 **[완료]** 가능(미입력 시 완료 막기). 앱 상담사 화면은 이 4개 도착 상태를 체크표시로 보여줌(앱 완료).
+- 이 값들이 finalize 후 영수증(`/expo/r`) + `submissions` 에 포함돼야 함.
+
+### C. 특이사항/비고 노출
+- (2차 요청 재확인) `note` 를 고객 웹 viewer · 영수증 · submissions 에 **표시**. 앱 접수서·상담사 화면은 이미 note 반영.
+
+## 앱 상태 (3차분)
+- 상담사 화면: 고객 필수항목(성함·연락처·주소·서명) 체크표시 + "고객 작성완료" 배너(customer_confirmed) + 버튼 "계약서 보관하기" + 성공 "계약이 정상적으로 체결되었어요!" = **완료(미배포)**. 서버가 customer_confirmed·note 붙이면 자동 작동.
