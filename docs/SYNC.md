@@ -7798,3 +7798,12 @@ Play API36 대응 — 툴체인 상향(AGP/Gradle) + compileSdk/targetSdk 36. 0.
   · 분배·진행률(확정6·8)은 Phase 3 → 미구현(서버도 스키마만).
 - commit: (이 커밋)
 - cowork FYI: expo 한글 저장 서버 round-trip 정상 확인(bytes). 앱은 charset=utf-8 로 송신. 테스트 방(healthcheck 등) expo_* 격리라 무해.
+
+## 2026-07-22 15:40 · android
+🔴 박람회 계약서 **재설계 요청 (Phase 4 실시간)** — 사장님이 방식 전환. 서버(코워크) 착수 필요.
+- 결정: 고객=viewer(QR 웹), 상담사가 시공막내 앱에서 상품 체크→고객 웹에 **실시간 반영**. 고객은 고객정보+서명만. 주소=다음지도(고객 웹). 완료=카톡/PDF.
+- 우리팀 접수서 = **앱 네이티브**(웹뷰 X): 이름+계약자 / 클릭 시 아파트명+동호수.
+- **cowork 요청(SERVER_HANDOFF_expo_phase4_realtime.md)**: ①실시간 세션상태 API(폴링 권장: live/agent·live/customer·live/{sid} GET·finalize) ②고객 웹페이지 viewer 재설계+주소 카카오 ③submissions 에 apartment·dong_ho 추가 ④PDF/공유.
+- 앱측: 위 API 나오면 상담사 네이티브 계약서화면 + 접수서 네이티브 + 공유시트 착수. Phase1 방/상품/접수서는 유지.
+- ⚠️ 기존 앱 "계약서 열기 QR"(고객 제출 폴링) 화면은 이 재설계로 교체 예정.
+- 확정 기록: EXPO_DECISIONS.md 확정 9.
