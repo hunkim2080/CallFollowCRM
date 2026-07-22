@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -825,7 +826,7 @@ private fun ColumnScope.CalendarView(repo: ExpoRepository, n: Nav.Calendar, myPh
     val today = remember { java.util.Calendar.getInstance() }
     var year by remember { mutableStateOf(today.get(java.util.Calendar.YEAR)) }
     var month by remember { mutableStateOf(today.get(java.util.Calendar.MONTH)) }   // 0-based
-    var selDay by remember { mutableStateOf(today.get(java.util.Calendar.DAY_OF_MONTH)) }
+    var dialogDay by remember { mutableStateOf<Int?>(null) }   // 탭한 날짜(그날 시공 목록 다이얼로그)
 
     val list = items
     if (list == null) {
@@ -845,76 +846,92 @@ private fun ColumnScope.CalendarView(repo: ExpoRepository, n: Nav.Calendar, myPh
         val daysInMonth = cal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
         val gridRows = (firstDow + daysInMonth + 6) / 7
 
-        Column(Modifier.weight(1f).fillMaxWidth()) {
+        Column(Modifier.weight(1f).fillMaxWidth().background(Panel)) {
             // 월 이동 헤더
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(34.dp).clickable { if (month == 0) { month = 11; year-- } else month--; selDay = -1 },
+                Box(Modifier.size(34.dp).clickable { if (month == 0) { month = 11; year-- } else month-- },
                     contentAlignment = Alignment.Center) { Text("◀", fontSize = 16.sp, color = T2) }
                 Spacer(Modifier.weight(1f))
-                Text("${year}년 ${month + 1}월", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = T1)
+                Text("${year}년 ${month + 1}월", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = T1)
                 Spacer(Modifier.weight(1f))
-                Box(Modifier.size(34.dp).clickable { if (month == 11) { month = 0; year++ } else month++; selDay = -1 },
+                Box(Modifier.size(34.dp).clickable { if (month == 11) { month = 0; year++ } else month++ },
                     contentAlignment = Alignment.Center) { Text("▶", fontSize = 16.sp, color = T2) }
             }
             // 요일
-            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp)) {
                 listOf("일", "월", "화", "수", "목", "금", "토").forEachIndexed { i, d ->
                     Text(d, fontSize = 11.sp, fontWeight = FontWeight.Bold,
                         color = if (i == 0) Color(0xFFE1483B) else T3,
                         textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
                 }
             }
-            Spacer(Modifier.height(4.dp))
-            // 날짜 그리드
-            for (r in 0 until gridRows) {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp)) {
-                    for (col in 0 until 7) {
-                        val day = r * 7 + col - firstDow + 1
-                        if (day in 1..daysInMonth) {
-                            val dayItems = byDay[day] ?: emptyList()
-                            val isSel = day == selDay
-                            Column(
-                                Modifier.weight(1f).height(58.dp).padding(2.dp)
-                                    .background(if (isSel) Color(0xFFFFF6D6) else Color.Transparent, RoundedCornerShape(8.dp))
-                                    .clickable { selDay = day }.padding(3.dp)
-                            ) {
-                                Text("$day", fontSize = 12.sp, fontWeight = if (isSel) FontWeight.Black else FontWeight.Medium,
-                                    color = if (col == 0) Color(0xFFE1483B) else T1)
-                                if (dayItems.isNotEmpty()) {
-                                    Text(dayItems.first().apartment.ifBlank { dayItems.first().customerName }.take(5),
-                                        fontSize = 8.5.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.fillMaxWidth().background(AccentBlue, RoundedCornerShape(3.dp)).padding(horizontal = 2.dp, vertical = 1.dp))
-                                    if (dayItems.size > 1) Text("+${dayItems.size - 1}", fontSize = 8.sp, color = T3)
+            // 날짜 그리드 — 화면을 꽉 채워 넓게(타임트리식). 셀에 시공 텍스트를 여러 줄로 직접 표시.
+            Column(Modifier.weight(1f).fillMaxWidth()) {
+                for (r in 0 until gridRows) {
+                    Row(Modifier.weight(1f).fillMaxWidth()) {
+                        for (col in 0 until 7) {
+                            val day = r * 7 + col - firstDow + 1
+                            if (day in 1..daysInMonth) {
+                                val dayItems = byDay[day] ?: emptyList()
+                                val isToday = year == today.get(java.util.Calendar.YEAR) &&
+                                    month == today.get(java.util.Calendar.MONTH) &&
+                                    day == today.get(java.util.Calendar.DAY_OF_MONTH)
+                                Column(
+                                    Modifier.weight(1f).fillMaxHeight()
+                                        .padding(0.5.dp)
+                                        .background(Color(0xFFFAFBFC))
+                                        .clickable(enabled = dayItems.isNotEmpty()) { dialogDay = day }
+                                        .padding(horizontal = 2.dp, vertical = 3.dp)
+                                ) {
+                                    Text("$day", fontSize = 12.sp,
+                                        fontWeight = if (isToday) FontWeight.Black else FontWeight.Medium,
+                                        color = if (isToday) KkInk else if (col == 0) Color(0xFFE1483B) else T1,
+                                        modifier = if (isToday) Modifier.background(Kk, RoundedCornerShape(7.dp)).padding(horizontal = 6.dp, vertical = 1.dp) else Modifier)
+                                    Spacer(Modifier.height(2.dp))
+                                    dayItems.take(3).forEach { s ->
+                                        Text(
+                                            s.apartment.ifBlank { s.customerName.ifBlank { "고객" } },
+                                            fontSize = 9.5.sp, color = Color(0xFF2B59D6), fontWeight = FontWeight.Medium,
+                                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.fillMaxWidth()
+                                                .background(Color(0xFFE8EEFF), RoundedCornerShape(3.dp))
+                                                .padding(horizontal = 3.dp, vertical = 1.dp)
+                                        )
+                                        Spacer(Modifier.height(2.dp))
+                                    }
+                                    if (dayItems.size > 3) Text("+${dayItems.size - 3}", fontSize = 9.sp, color = T3)
                                 }
+                            } else {
+                                Box(Modifier.weight(1f).fillMaxHeight().padding(0.5.dp).background(Color(0xFFF3F4F6)))
                             }
-                        } else {
-                            Box(Modifier.weight(1f).height(58.dp))
                         }
                     }
                 }
             }
-            Spacer(Modifier.height(8.dp))
-            Box(Modifier.fillMaxWidth().height(1.dp).background(ExpoBg))
-            // 선택 날짜 시공 목록
-            val dayItems = if (selDay > 0) (byDay[selDay] ?: emptyList()) else emptyList()
-            Text(if (selDay > 0) "${month + 1}/${selDay} 시공 ${dayItems.size}건" else "날짜를 눌러보세요",
-                fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = T1, modifier = Modifier.padding(16.dp))
-            LazyColumn(Modifier.weight(1f).fillMaxWidth(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 12.dp, end = 12.dp, bottom = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(dayItems) { s ->
-                    val site = listOf(s.apartment, s.dongHo).filter { it.isNotBlank() }.joinToString(" ")
-                    Row(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(12.dp))
-                        .clickable { openUrl(ctx, repo.receiptUrl(s.contractId)) }.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(site.ifBlank { s.customerName.ifBlank { "고객" } }, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
-                            Text("${s.customerName} · 계약자 ${s.agentName.ifBlank { "-" }}", fontSize = 11.sp, color = T3)
+        }
+
+        // 날짜 탭 → 그날 시공 목록 다이얼로그
+        val dd = dialogDay
+        if (dd != null) {
+            val dayItems = byDay[dd] ?: emptyList()
+            AlertDialog(
+                onDismissRequest = { dialogDay = null },
+                title = { Text("${month + 1}/$dd 시공 ${dayItems.size}건", fontWeight = FontWeight.ExtraBold, color = T1) },
+                text = {
+                    Column {
+                        dayItems.forEach { s ->
+                            val site = listOf(s.apartment, s.dongHo).filter { it.isNotBlank() }.joinToString(" ")
+                            Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)
+                                .clickable { openUrl(ctx, repo.receiptUrl(s.contractId)) }) {
+                                Text(site.ifBlank { s.customerName.ifBlank { "고객" } }, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = T1)
+                                Text("${s.customerName} · 계약자 ${s.agentName.ifBlank { "-" }} · ${won(s.finalAmount)}", fontSize = 12.sp, color = T3)
+                            }
                         }
-                        Text(won(s.finalAmount), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AccentBlue)
                     }
-                }
-            }
+                },
+                confirmButton = { TextButton(onClick = { dialogDay = null }) { Text("닫기", color = AccentBlue, fontWeight = FontWeight.Bold) } },
+                containerColor = Color.White
+            )
         }
     }
 }
