@@ -7853,3 +7853,10 @@ Play API36 대응 — 툴체인 상향(AGP/Gradle) + compileSdk/targetSdk 36. 0.
 - 앱: [계약서 보관하기]=finalize 를 enabled=customer_confirmed 로 하드게이트만 하면 끝(나머지 자동 작동).
 - 검증 TestClient 22 신규 + 회귀 3 ALL OK. 미배포: bash server/deploy_phase1.sh
 - commit: (아래)
+
+## 2026-07-22 15:16 · cowork
+deploy_phase1.sh — 배포 요약 '커밋' 표시 버그 fix. (사장님: "5bb1967 07-02 로 뜨는데 배포된건가?")
+- 원인: cowork push 방식이 origin 만 갱신 → Mac mini **로컬 HEAD 가 5bb1967(07-02)에 멈춤**. 스크립트가 로컬 HEAD 를 읽어 옛 커밋 표기. **실제 파일은 최신(md5 91a22edf 일치 = 배포 정상)**, 표시만 틀렸음.
+- fix: 로컬 HEAD 대신 (1) git fetch 후 **origin/main** 커밋 (2) **main.py 안의 추가NNN 마커**(파일 자체 진실) 를 표기. 최근 커밋도 origin/main 기준. DIRTY 판정도 origin/main 대비.
+- 안내문 갱신: "✓ main.py 일치 + HTTP 200 = 진짜 배포 신호" 강조.
+- commit: (아래)

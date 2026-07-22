@@ -43,14 +43,23 @@ if [ ! -d "$TARGET/venv" ]; then
 fi
 ok "기존 ~/ringgo-server 발견"
 
-# 무엇을 배포하는지 지금 잡아둔다 (git 기준). 맨 끝 요약에서 다시 보여줌.
-DEPLOY_COMMIT="$(git -C "$SRC" rev-parse --short HEAD 2>/dev/null || echo '?')"
-DEPLOY_SUBJECT="$(git -C "$SRC" log -1 --pretty=%s 2>/dev/null || echo '(git 정보 없음)')"
-DEPLOY_CDATE="$(git -C "$SRC" log -1 --pretty=%cd --date=format:'%Y-%m-%d %H:%M' 2>/dev/null || echo '?')"
+# 무엇을 배포하는지 지금 잡아둔다.
+# ⚠️ 로컬 HEAD 는 cowork 의 push 방식(원격만 갱신) 탓에 옛날에 멈춰있을 수 있음 →
+#    "실제로 배포되는 파일"의 진실은 (1) origin/main 최신 (2) main.py 안의 추가NNN 마커.
+#    로컬 HEAD 대신 이 둘을 본다.
+git -C "$SRC" fetch origin -q 2>/dev/null || true
+DEPLOY_COMMIT="$(git -C "$SRC" rev-parse --short origin/main 2>/dev/null || echo '?')"
+DEPLOY_SUBJECT="$(git -C "$SRC" log -1 --pretty=%s origin/main 2>/dev/null || echo '(git 정보 없음)')"
+DEPLOY_CDATE="$(git -C "$SRC" log -1 --pretty=%cd --date=format:'%Y-%m-%d %H:%M' origin/main 2>/dev/null || echo '?')"
+# 배포되는 실제 파일이 origin/main 과 같은가? (다르면 커밋 안 된 로컬 수정)
 DEPLOY_DIRTY=""
-if ! git -C "$SRC" diff --quiet 2>/dev/null || ! git -C "$SRC" diff --cached --quiet 2>/dev/null; then
-    DEPLOY_DIRTY=" (커밋 안 된 수정 포함)"
+if ! git -C "$SRC" diff --quiet origin/main -- main.py 2>/dev/null; then
+    DEPLOY_DIRTY=" (origin 과 다른 로컬 수정 포함)"
 fi
+# 파일 자체에서 최신 코드 마커 추출 (git 상태와 무관하게 '진짜 들어있는 것')
+CODE_MARKER_N="$(grep -oE '추가[0-9]{2,}' "$SRC/main.py" 2>/dev/null | grep -oE '[0-9]+' | sort -n | tail -1)"
+CODE_MARKER="${CODE_MARKER_N:+추가${CODE_MARKER_N}}"
+[ -z "$CODE_MARKER" ] && CODE_MARKER="(마커 없음)"
 DEPLOY_STARTED="$(date '+%Y-%m-%d %H:%M:%S')"
 
 # -----------------------------------------------------------------------------
@@ -292,9 +301,9 @@ cat <<EOF
 ┌──────────────────────────────────────────────────────────────────────┐
 │ RING-GO 백엔드 — 배포 완료                                          │
 ├──────────────────────────────────────────────────────────────────────┤
-│ ▶ 방금 배포한 커밋                                                   │
+│ ▶ 방금 배포한 코드                                                   │
 │   $DEPLOY_COMMIT  $DEPLOY_SUBJECT$DEPLOY_DIRTY
-│   (커밋 시각 $DEPLOY_CDATE)
+│   (원격 최신 커밋 $DEPLOY_CDATE · 파일 마커 $CODE_MARKER)
 │
 │ ▶ 배포 검증                                                          │
 │   $COPY_STATE
@@ -310,11 +319,11 @@ cat <<EOF
 │ 배포 기록 다시보기: cat $TARGET/DEPLOYED.txt
 └──────────────────────────────────────────────────────────────────────┘
 
-최근 커밋 5개 (맨 위 = 방금 배포된 것):
-$(git -C "$SRC" log -5 --pretty='  %C(auto)%h%Creset  %cd  %s' --date=format:'%m-%d %H:%M' 2>/dev/null || echo '  (git 로그 없음)')
+최근 커밋 5개 (origin/main 기준 · 맨 위 = 방금 배포된 것):
+$(git -C "$SRC" log -5 --pretty='  %h  %cd  %s' --date=format:'%m-%d %H:%M' origin/main 2>/dev/null || echo '  (git 로그 없음)')
 
 다음 할 일:
-  1. 맨 위 커밋이 내가 방금 작업한 그거면 → 배포 성공.
-  2. '배포 검증'에 ✓ 와 HTTP 200 둘 다 보이면 확실히 먹은 것.
+  1. '배포 검증'에 ✓(main.py 일치) 와 HTTP 200 둘 다면 → 확실히 배포됨. (이게 진짜 신호)
+  2. 위 '방금 배포한 코드' 커밋/마커가 내가 방금 작업한 그거면 최신까지 반영된 것.
   3. §8 검증 결과(위쪽)도 통과면 기능도 정상.
 EOF
