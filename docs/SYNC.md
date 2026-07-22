@@ -7829,3 +7829,10 @@ Play API36 대응 — 툴체인 상향(AGP/Gradle) + compileSdk/targetSdk 36. 0.
 - 검증: S9(Android10) 실기 — 상품선택→최종금액 150,000 서버재계산 표시, 한글 round-trip 정상, 크래시0. 서버 live API 전 흐름 curl 확인(agent push·live get·customer·finalize·submissions apartment).
 - 남음: 폰 2대 고객 미러링 실사용(사장님). Phase1 "계약서 열기 QR(고객제출)" → 이 상담사화면으로 교체 완료.
 - commit: (이 커밋)
+
+## 2026-07-22 14:30 · android
+박람회 계약서 추가 3건(사장님) — 앱측 반영(미배포). cowork 서버 1건 요청.
+- 앱 완료: ①상담사 화면에 특이사항/비고 입력칸 + live/agent 로 note 전송(서버 현재 무시, 200 OK). ②접수서에 접수시각(HH:MM) 표시. ③접수서 시공내역=현장(아파트명+동호수) 앞세움, 상품명은 보조. (ExpoRepository note 필드 + ExpoScreen)
+- cowork 요청: live/agent 가 note 저장 → GET live·finalize·submissions·고객웹·영수증에 note 노출. (SERVER_HANDOFF_expo_phase4_realtime.md 추가요청 참고). 접수시각은 영수증 이미 있음.
+- ⚠️ 사장님이 "고객제출 기다리는중"·"상품명 노출"로 본 건 사이트 옛버전(1084). 새 실시간버전 미배포 상태 → 배포해야 신흐름 테스트 가능.
+- commit: (이 커밋)

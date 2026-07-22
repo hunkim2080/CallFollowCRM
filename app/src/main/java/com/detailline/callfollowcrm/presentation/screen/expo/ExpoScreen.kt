@@ -502,6 +502,7 @@ private fun ColumnScope.QrView(repo: ExpoRepository, n: Nav.Qr, myPhone: String,
     var discountText by remember { mutableStateOf("") }
     var depositOn by remember { mutableStateOf(false) }
     var depositText by remember { mutableStateOf("") }
+    var noteText by remember { mutableStateOf("") }
     var live by remember { mutableStateOf<ExpoRepository.LiveState?>(null) }
     var shownFinal by remember { mutableStateOf(0L) }
     var finalized by remember { mutableStateOf<ExpoRepository.Finalized?>(null) }
@@ -511,11 +512,11 @@ private fun ColumnScope.QrView(repo: ExpoRepository, n: Nav.Qr, myPhone: String,
 
     // 디바운스 push — 선택/할인/계약금 바뀌면 400ms 후 서버로(고객 웹에 실시간 반영).
     val pushKey = qty.entries.sortedBy { it.key }.joinToString(",") { "${it.key}:${it.value}" } +
-        "|$discountText|$depositOn|$depositText"
+        "|$discountText|$depositOn|$depositText|$noteText"
     LaunchedEffect(pushKey) {
         delay(400)
         val items = qty.filter { it.value > 0 }.map { it.key to it.value }
-        repo.liveAgentPush(sid, sec, items, discountText.digitsToLong(), depositOn, depositText.digitsToLong())
+        repo.liveAgentPush(sid, sec, items, discountText.digitsToLong(), depositOn, depositText.digitsToLong(), noteText.trim())
             .onSuccess { shownFinal = it.finalAmount }
     }
 
@@ -609,6 +610,13 @@ private fun ColumnScope.QrView(repo: ExpoRepository, n: Nav.Qr, myPhone: String,
                         KindChip("켬", depositOn) { depositOn = true }
                     }
                     if (depositOn) { Spacer(Modifier.height(10.dp)); MoneyField("계약금", depositText) { depositText = it } }
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = noteText, onValueChange = { noteText = it },
+                        label = { Text("특이사항 · 비고 (선택)", fontSize = 12.sp) },
+                        placeholder = { Text("예: 현관 좁아 자재 반입 주의", fontSize = 13.sp) },
+                        minLines = 2, modifier = Modifier.fillMaxWidth()
+                    )
                     Spacer(Modifier.height(14.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("최종 금액", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = T1, modifier = Modifier.weight(1f))
@@ -706,15 +714,16 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
             ) {
                 items(d.items) { s ->
                     val open = expanded == s.contractId
+                    val site = listOf(s.apartment, s.dongHo).filter { it.isNotBlank() }.joinToString(" ")
                     Column(
                         Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(14.dp))
                             .clickable { expanded = if (open) null else s.contractId }.padding(14.dp)
                     ) {
-                        // 목록 = 이름 + 계약자 + 금액 (시공내역은 클릭해서 펼침)
+                        // 목록 = 이름 + 계약자·접수시각 + 금액 (시공내역=현장은 클릭해서 펼침)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(s.customerName.ifBlank { "고객" }, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = T1)
-                                Text("계약자 ${s.agentName.ifBlank { "-" }}", fontSize = 11.5.sp, color = T3)
+                                Text("계약자 ${s.agentName.ifBlank { "-" }} · ${hhmm(s.createdAtMs)}", fontSize = 11.5.sp, color = T3)
                             }
                             Text(won(s.finalAmount), fontSize = 14.sp, fontWeight = FontWeight.Black, color = AccentBlue)
                             Spacer(Modifier.width(6.dp))
@@ -724,9 +733,10 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                             Spacer(Modifier.height(12.dp))
                             Box(Modifier.fillMaxWidth().height(1.dp).background(ExpoBg))
                             Spacer(Modifier.height(12.dp))
+                            SubRow("현장", site.ifBlank { s.address.ifBlank { "-" } })   // 아파트명 동호수
                             SubRow("시공 상품", s.products.ifBlank { "-" })
-                            val site = listOf(s.apartment, s.dongHo).filter { it.isNotBlank() }.joinToString(" ")
-                            SubRow("현장", site.ifBlank { s.address.ifBlank { "-" } })
+                            if (s.note.isNotBlank()) SubRow("비고", s.note)
+                            SubRow("접수", "${dateShort(s.createdAtMs)} ${hhmm(s.createdAtMs)}")
                             SubRow("전화", s.customerPhoneMasked.ifBlank { "-" })
                             Spacer(Modifier.height(12.dp))
                             Box(
@@ -806,6 +816,19 @@ private fun InputDialog(
 }
 
 private fun won(amount: Long): String = "%,d원".format(amount)
+
+private fun hhmm(ms: Long): String {
+    if (ms <= 0L) return "-"
+    val c = java.util.Calendar.getInstance().apply { timeInMillis = ms }
+    val h = c.get(java.util.Calendar.HOUR_OF_DAY); val m = c.get(java.util.Calendar.MINUTE)
+    return "%s %d:%02d".format(if (h < 12) "오전" else "오후", ((h + 11) % 12) + 1, m)
+}
+
+private fun dateShort(ms: Long): String {
+    if (ms <= 0L) return "-"
+    val c = java.util.Calendar.getInstance().apply { timeInMillis = ms }
+    return "${c.get(java.util.Calendar.MONTH) + 1}/${c.get(java.util.Calendar.DAY_OF_MONTH)}"
+}
 
 private fun openUrl(ctx: android.content.Context, url: String) {
     if (url.isBlank()) return

@@ -46,7 +46,7 @@ class ExpoRepository(
         val contractId: Long, val customerName: String, val customerPhoneMasked: String,
         val products: String, val finalAmount: Long, val status: String,
         val agentName: String, val assignedName: String?, val createdAtMs: Long,
-        val apartment: String, val dongHo: String, val address: String
+        val apartment: String, val dongHo: String, val address: String, val note: String
     )
     data class Submissions(val count: Int, val totalAmount: Long, val items: List<Submission>)
     /** 상품 등록 입력(방장) — product_id 없이 kind/name/unit_price 만 보냄. */
@@ -61,7 +61,7 @@ class ExpoRepository(
         val depositEnabled: Boolean, val depositAmount: Long, val finalAmount: Long,
         val customerName: String, val customerPhone: String,
         val apartment: String, val dongHo: String, val address: String,
-        val signaturePresent: Boolean
+        val signaturePresent: Boolean, val note: String
     )
     /** 상담사 상품 선택(체크/수량/할인/계약금) — 서버에 push. 서버가 final_amount 재계산. */
     data class AgentPush(val productTotal: Long, val discount: Long, val finalAmount: Long)
@@ -214,7 +214,8 @@ class ExpoRepository(
                         createdAtMs = s.optLong("created_at_ms"),
                         apartment = s.optString("apartment"),
                         dongHo = s.optString("dong_ho"),
-                        address = s.optString("address")
+                        address = s.optString("address"),
+                        note = s.optString("note")
                     )
                 }
             } ?: emptyList()
@@ -226,7 +227,7 @@ class ExpoRepository(
     /** 상담사 선택 push — 체크/수량/할인/계약금. 서버가 final_amount 재계산해 반환. (디바운스 권장) */
     suspend fun liveAgentPush(
         sessionId: String, secret: String, items: List<Pair<Long, Int>>,
-        discount: Long, depositEnabled: Boolean, depositAmount: Long
+        discount: Long, depositEnabled: Boolean, depositAmount: Long, note: String = ""
     ): Result<AgentPush> = withContext(Dispatchers.IO) {
         runCatching {
             val arr = JSONArray()
@@ -235,6 +236,7 @@ class ExpoRepository(
                 put("session_id", sessionId); put("secret", secret)
                 put("items", arr); put("discount", discount)
                 put("deposit_enabled", depositEnabled); put("deposit_amount", depositAmount)
+                put("note", note)   // 특이사항/비고. 서버 저장은 cowork 대기(현재 무시돼도 안전).
             })
             AgentPush(o.optLong("product_total"), o.optLong("discount"), o.optLong("final_amount"))
         }
@@ -266,7 +268,8 @@ class ExpoRepository(
                 apartment = o.optString("apartment"),
                 dongHo = o.optString("dong_ho"),
                 address = o.optString("address"),
-                signaturePresent = o.optBoolean("signature_present")
+                signaturePresent = o.optBoolean("signature_present"),
+                note = o.optString("note")
             )
         }
     }
