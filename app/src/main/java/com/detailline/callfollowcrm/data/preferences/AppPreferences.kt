@@ -165,6 +165,18 @@ class AppPreferences(context: Context) {
         get() = prefs.getString("d1_auto_text",
             "고객님, 내일 시공 예정입니다 😊 현장 정리(가구·물건 비움) 부탁드리고, 주차 가능 여부만 미리 알려주세요.") ?: ""
         set(value) = prefs.edit().putString("d1_auto_text", value).apply()
+
+    /**
+     * 인코딩 손상(U+FFFD '�') 든 자동문자 pref 를 제거 → 기본값(멀쩡한 소스 상수)으로 복구. (2026-07-22 베타 D-1 문자 깨짐)
+     *   증상: 저장된 자동문자가 바이트 손상돼 �로 깨져 표시됨. 소스 기본값·표시경로는 정상 → 저장값만 문제.
+     *   키를 remove 하면 다음 getString 이 기본값을 반환. 앱 시작 시 1회 호출.
+     */
+    fun healCorruptedAutoTexts() {
+        for (key in listOf("d1_auto_text", "auto_missed_new_text", "auto_missed_return_text", "arrival_auto_text")) {
+            val v = prefs.getString(key, null)
+            if (v != null && v.any { it.code == 0xFFFD }) prefs.edit().remove(key).apply()
+        }
+    }
     /** 현장 도착 안내(위치 기반) on/off. 트리거는 추후. */
     var arrivalAutoEnabled: Boolean
         get() = prefs.getBoolean("arrival_auto_enabled", false)
