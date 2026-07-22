@@ -86,6 +86,7 @@ private sealed class Nav {
     data class Products(val roomId: String, val name: String) : Nav()
     data class Qr(val roomId: String, val name: String, val session: ExpoRepository.Session) : Nav()
     data class Subs(val roomId: String, val name: String) : Nav()
+    data class Calendar(val roomId: String, val name: String) : Nav()
 }
 
 @Composable
@@ -106,6 +107,7 @@ fun ExpoScreen(container: AppContainer, onExit: () -> Unit) {
             is Nav.Products -> Nav.RoomView(n.roomId, n.name, "owner")
             is Nav.Qr -> Nav.RoomView(n.roomId, n.name, "member")
             is Nav.Subs -> Nav.RoomView(n.roomId, n.name, "member")
+            is Nav.Calendar -> Nav.RoomView(n.roomId, n.name, "member")
         }
     }
 
@@ -117,6 +119,7 @@ fun ExpoScreen(container: AppContainer, onExit: () -> Unit) {
             is Nav.Products -> "상품·서비스 준비"
             is Nav.Qr -> "계약서 작성"
             is Nav.Subs -> "우리 팀 접수서"
+            is Nav.Calendar -> "박람회 달력"
         }
         val sub = if (nav is Nav.List) "팀으로 상담·계약을 한 번에" else null
         ExpoTopBar(title, sub, isRoot = nav is Nav.List) {
@@ -127,6 +130,7 @@ fun ExpoScreen(container: AppContainer, onExit: () -> Unit) {
                 is Nav.Products -> Nav.RoomView(n.roomId, n.name, "owner")
                 is Nav.Qr -> Nav.RoomView(n.roomId, n.name, "member")
                 is Nav.Subs -> Nav.RoomView(n.roomId, n.name, "member")
+                is Nav.Calendar -> Nav.RoomView(n.roomId, n.name, "member")
             }
         }
 
@@ -136,11 +140,13 @@ fun ExpoScreen(container: AppContainer, onExit: () -> Unit) {
             is Nav.RoomView -> RoomDetailView(repo, n, myPhone, myName, ::toast,
                 onProducts = { nav = Nav.Products(n.roomId, n.name) },
                 onQr = { nav = Nav.Qr(n.roomId, n.name, it) },
-                onSubs = { nav = Nav.Subs(n.roomId, n.name) })
+                onSubs = { nav = Nav.Subs(n.roomId, n.name) },
+                onCalendar = { nav = Nav.Calendar(n.roomId, n.name) })
             is Nav.Products -> ProductsEditorView(repo, n, myPhone, ::toast,
                 onDone = { nav = Nav.RoomView(n.roomId, n.name, "owner") })
             is Nav.Qr -> QrView(repo, n, myPhone, ::toast)
             is Nav.Subs -> SubmissionsView(repo, n, myPhone, ::toast)
+            is Nav.Calendar -> CalendarView(repo, n, myPhone)
         }
     }
 }
@@ -288,7 +294,7 @@ private fun RoomRow(r: ExpoRepository.Room, onClick: () -> Unit) {
 @Composable
 private fun ColumnScope.RoomDetailView(
     repo: ExpoRepository, n: Nav.RoomView, myPhone: String, myName: String, toast: (String) -> Unit,
-    onProducts: () -> Unit, onQr: (ExpoRepository.Session) -> Unit, onSubs: () -> Unit
+    onProducts: () -> Unit, onQr: (ExpoRepository.Session) -> Unit, onSubs: () -> Unit, onCalendar: () -> Unit
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -356,6 +362,10 @@ private fun ColumnScope.RoomDetailView(
         // 우리 팀 접수서
         item {
             MenuCard("우리 팀 접수서", "팀이 지금까지 받은 계약을 모아 봐요 (번호 뒷자리 가림)", onSubs)
+        }
+        // 박람회 달력
+        item {
+            MenuCard("박람회 달력", "팀 시공 일정을 날짜별로 한눈에 📅", onCalendar)
         }
 
         // 방장: 상품 준비
@@ -698,9 +708,11 @@ private fun shareUrl(ctx: android.content.Context, url: String) {
 @Composable
 private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPhone: String, toast: (String) -> Unit) {
     val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
     var data by remember { mutableStateOf<ExpoRepository.Submissions?>(null) }
+    var reloadTick by remember { mutableStateOf(0) }
 
-    LaunchedEffect(n.roomId) {
+    LaunchedEffect(n.roomId, reloadTick) {
         repo.submissions(n.roomId, myPhone).onSuccess { data = it }.onFailure { data = ExpoRepository.Submissions(0, 0L, emptyList()) }
     }
 
@@ -749,14 +761,30 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                             SubRow("현장", site.ifBlank { s.address.ifBlank { "-" } })   // 아파트명 동호수
                             SubRow("시공 상품", s.products.ifBlank { "-" })
                             if (s.note.isNotBlank()) SubRow("비고", s.note)
+                            SubRow("시공일", if (s.scheduledAtMs > 0L) dateKo(s.scheduledAtMs) else "미정")
                             SubRow("접수", "${dateShort(s.createdAtMs)} ${hhmm(s.createdAtMs)}")
                             SubRow("전화", s.customerPhoneMasked.ifBlank { "-" })
                             Spacer(Modifier.height(12.dp))
-                            Box(
-                                Modifier.fillMaxWidth().background(Field, RoundedCornerShape(12.dp))
-                                    .clickable { openUrl(ctx, repo.receiptUrl(s.contractId)) }.padding(vertical = 11.dp),
-                                contentAlignment = Alignment.Center
-                            ) { Text("계약서 보기 · PDF", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1) }
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Box(
+                                    Modifier.weight(1f).background(Color(0xFFEDF2FF), RoundedCornerShape(12.dp))
+                                        .clickable {
+                                            pickDate(ctx, s.scheduledAtMs) { picked ->
+                                                scope.launch {
+                                                    repo.schedule(s.contractId, myPhone, picked)
+                                                        .onSuccess { toast("시공일 저장됐어요"); reloadTick++ }
+                                                        .onFailure { toast("실패: ${it.message?.take(40)}") }
+                                                }
+                                            }
+                                        }.padding(vertical = 11.dp),
+                                    contentAlignment = Alignment.Center
+                                ) { Text(if (s.scheduledAtMs > 0L) "시공일 변경" else "시공일 잡기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AccentBlue) }
+                                Box(
+                                    Modifier.weight(1f).background(Field, RoundedCornerShape(12.dp))
+                                        .clickable { openUrl(ctx, repo.receiptUrl(s.contractId)) }.padding(vertical = 11.dp),
+                                    contentAlignment = Alignment.Center
+                                ) { Text("계약서 · PDF", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1) }
+                            }
                         }
                     }
                 }
@@ -782,6 +810,130 @@ private fun ChkRow(label: String, value: String) {
         Text(if (ok) value else "대기", fontSize = 12.sp,
             color = if (ok) Color(0xFF13C47B) else T3, fontWeight = if (ok) FontWeight.Bold else FontWeight.Normal)
     }
+}
+
+// ══════════════ 박람회 달력 ══════════════
+@Composable
+private fun ColumnScope.CalendarView(repo: ExpoRepository, n: Nav.Calendar, myPhone: String) {
+    val ctx = LocalContext.current
+    var items by remember { mutableStateOf<List<ExpoRepository.Submission>?>(null) }
+    LaunchedEffect(n.roomId) {
+        repo.submissions(n.roomId, myPhone)
+            .onSuccess { r -> items = r.items.filter { it.scheduledAtMs > 0L } }
+            .onFailure { items = emptyList() }
+    }
+    val today = remember { java.util.Calendar.getInstance() }
+    var year by remember { mutableStateOf(today.get(java.util.Calendar.YEAR)) }
+    var month by remember { mutableStateOf(today.get(java.util.Calendar.MONTH)) }   // 0-based
+    var selDay by remember { mutableStateOf(today.get(java.util.Calendar.DAY_OF_MONTH)) }
+
+    val list = items
+    if (list == null) {
+        Box(Modifier.weight(1f).fillMaxWidth(), Alignment.Center) { CircularProgressIndicator(color = AccentBlue) }
+    } else {
+        val byDay = remember(list, year, month) {
+            val m = HashMap<Int, MutableList<ExpoRepository.Submission>>()
+            for (s in list) {
+                val c = java.util.Calendar.getInstance().apply { timeInMillis = s.scheduledAtMs }
+                if (c.get(java.util.Calendar.YEAR) == year && c.get(java.util.Calendar.MONTH) == month)
+                    m.getOrPut(c.get(java.util.Calendar.DAY_OF_MONTH)) { mutableListOf() }.add(s)
+            }
+            m
+        }
+        val cal = java.util.Calendar.getInstance().apply { clear(); set(year, month, 1) }
+        val firstDow = cal.get(java.util.Calendar.DAY_OF_WEEK) - 1   // 0=일
+        val daysInMonth = cal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
+        val gridRows = (firstDow + daysInMonth + 6) / 7
+
+        Column(Modifier.weight(1f).fillMaxWidth()) {
+            // 월 이동 헤더
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(34.dp).clickable { if (month == 0) { month = 11; year-- } else month--; selDay = -1 },
+                    contentAlignment = Alignment.Center) { Text("◀", fontSize = 16.sp, color = T2) }
+                Spacer(Modifier.weight(1f))
+                Text("${year}년 ${month + 1}월", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = T1)
+                Spacer(Modifier.weight(1f))
+                Box(Modifier.size(34.dp).clickable { if (month == 11) { month = 0; year++ } else month++; selDay = -1 },
+                    contentAlignment = Alignment.Center) { Text("▶", fontSize = 16.sp, color = T2) }
+            }
+            // 요일
+            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+                listOf("일", "월", "화", "수", "목", "금", "토").forEachIndexed { i, d ->
+                    Text(d, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                        color = if (i == 0) Color(0xFFE1483B) else T3,
+                        textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            // 날짜 그리드
+            for (r in 0 until gridRows) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp)) {
+                    for (col in 0 until 7) {
+                        val day = r * 7 + col - firstDow + 1
+                        if (day in 1..daysInMonth) {
+                            val dayItems = byDay[day] ?: emptyList()
+                            val isSel = day == selDay
+                            Column(
+                                Modifier.weight(1f).height(58.dp).padding(2.dp)
+                                    .background(if (isSel) Color(0xFFFFF6D6) else Color.Transparent, RoundedCornerShape(8.dp))
+                                    .clickable { selDay = day }.padding(3.dp)
+                            ) {
+                                Text("$day", fontSize = 12.sp, fontWeight = if (isSel) FontWeight.Black else FontWeight.Medium,
+                                    color = if (col == 0) Color(0xFFE1483B) else T1)
+                                if (dayItems.isNotEmpty()) {
+                                    Text(dayItems.first().apartment.ifBlank { dayItems.first().customerName }.take(5),
+                                        fontSize = 8.5.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.fillMaxWidth().background(AccentBlue, RoundedCornerShape(3.dp)).padding(horizontal = 2.dp, vertical = 1.dp))
+                                    if (dayItems.size > 1) Text("+${dayItems.size - 1}", fontSize = 8.sp, color = T3)
+                                }
+                            }
+                        } else {
+                            Box(Modifier.weight(1f).height(58.dp))
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(ExpoBg))
+            // 선택 날짜 시공 목록
+            val dayItems = if (selDay > 0) (byDay[selDay] ?: emptyList()) else emptyList()
+            Text(if (selDay > 0) "${month + 1}/${selDay} 시공 ${dayItems.size}건" else "날짜를 눌러보세요",
+                fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = T1, modifier = Modifier.padding(16.dp))
+            LazyColumn(Modifier.weight(1f).fillMaxWidth(),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 12.dp, end = 12.dp, bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(dayItems) { s ->
+                    val site = listOf(s.apartment, s.dongHo).filter { it.isNotBlank() }.joinToString(" ")
+                    Row(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(12.dp))
+                        .clickable { openUrl(ctx, repo.receiptUrl(s.contractId)) }.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(site.ifBlank { s.customerName.ifBlank { "고객" } }, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
+                            Text("${s.customerName} · 계약자 ${s.agentName.ifBlank { "-" }}", fontSize = 11.sp, color = T3)
+                        }
+                        Text(won(s.finalAmount), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AccentBlue)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 날짜 선택(삼성 기본 DatePicker). 저장된 값 있으면 그 날짜로 시작. */
+private fun pickDate(ctx: android.content.Context, currentMs: Long, onPicked: (Long) -> Unit) {
+    val c = java.util.Calendar.getInstance().apply { if (currentMs > 0L) timeInMillis = currentMs }
+    android.app.DatePickerDialog(ctx, { _, y, mo, d ->
+        val picked = java.util.Calendar.getInstance().apply { clear(); set(y, mo, d, 9, 0) }.timeInMillis
+        onPicked(picked)
+    }, c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH), c.get(java.util.Calendar.DAY_OF_MONTH)).show()
+}
+
+/** ms → "M/d(요일)". */
+private fun dateKo(ms: Long): String {
+    if (ms <= 0L) return "미정"
+    val c = java.util.Calendar.getInstance().apply { timeInMillis = ms }
+    val dow = arrayOf("일", "월", "화", "수", "목", "금", "토")[c.get(java.util.Calendar.DAY_OF_WEEK) - 1]
+    return "${c.get(java.util.Calendar.MONTH) + 1}/${c.get(java.util.Calendar.DAY_OF_MONTH)}($dow)"
 }
 
 // ══════════════ 공통 조각 ══════════════

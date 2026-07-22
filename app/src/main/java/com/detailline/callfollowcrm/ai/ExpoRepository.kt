@@ -46,7 +46,9 @@ class ExpoRepository(
         val contractId: Long, val customerName: String, val customerPhoneMasked: String,
         val products: String, val finalAmount: Long, val status: String,
         val agentName: String, val assignedName: String?, val createdAtMs: Long,
-        val apartment: String, val dongHo: String, val address: String, val note: String
+        val apartment: String, val dongHo: String, val address: String, val note: String,
+        /** 시공 예정일(ms). 0 = 미정. 박람회 달력에 이 날짜로 표시. */
+        val scheduledAtMs: Long
     )
     data class Submissions(val count: Int, val totalAmount: Long, val items: List<Submission>)
     /** 상품 등록 입력(방장) — product_id 없이 kind/name/unit_price 만 보냄. */
@@ -217,7 +219,8 @@ class ExpoRepository(
                         apartment = s.optString("apartment"),
                         dongHo = s.optString("dong_ho"),
                         address = s.optString("address"),
-                        note = s.optString("note")
+                        note = s.optString("note"),
+                        scheduledAtMs = s.optLong("scheduled_at_ms")
                     )
                 }
             } ?: emptyList()
@@ -284,6 +287,18 @@ class ExpoRepository(
                 put("session_id", sessionId); put("secret", secret)
             })
             Finalized(o.optLong("contract_id"), o.optLong("final_amount"), o.optString("receiptUrl"))
+        }
+    }
+
+    /** 계약에 시공 예정일 지정(박람회 달력용). scheduledAtMs=0 이면 미정으로 되돌림. 방 멤버(phone)만. */
+    suspend fun schedule(contractId: Long, phone: String, scheduledAtMs: Long): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            postJson("/api/expo/contract/schedule", JSONObject().apply {
+                put("contract_id", contractId)
+                put("phone", digits(phone))
+                put("scheduled_at_ms", scheduledAtMs)
+            })
+            Unit
         }
     }
 

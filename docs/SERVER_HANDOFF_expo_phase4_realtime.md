@@ -100,3 +100,18 @@
 
 ## 앱 상태 (3차분)
 - 상담사 화면: 고객 필수항목(성함·연락처·주소·서명) 체크표시 + "고객 작성완료" 배너(customer_confirmed) + 버튼 "계약서 보관하기" + 성공 "계약이 정상적으로 체결되었어요!" = **완료(미배포)**. 서버가 customer_confirmed·note 붙이면 자동 작동.
+
+---
+
+## 추가 요청 (2026-07-22 오후 4차, 사장님) — 박람회 달력 (시공 일정)
+사장님 결정: 시공 날짜는 **접수 후 따로** — 우리 팀 접수서에서 계약 열어 "시공일 잡기"로 지정 → 팀 공유 달력에 표시.
+
+### 서버 요청 (schema 이미 있음: expo_contracts.scheduled_at_ms)
+1. `POST /api/expo/contract/schedule` `{contract_id, phone, scheduled_at_ms}` (scheduled_at_ms=0 이면 미정 해제)
+   - phone = 방 멤버만 허용(아니면 403). → `expo_contracts.scheduled_at_ms` 저장. 반환 `{ok}`.
+2. `GET /api/expo/submissions` 각 item 에 **`scheduled_at_ms`(0=미정)** 추가.
+   - 앱이 이 값으로 박람회 달력(월 그리드, 날짜 밑 아파트명 텍스트) 을 그림. 팀원 누구나 공유해서 봄.
+
+## 앱 상태 (4차분)
+- 접수서 상세에 "시공일 잡기/변경"(삼성 DatePicker) → `schedule` 호출. 접수서에 "시공일" 표시.
+- **박람회 달력**(방 상세 → 박람회 달력): 월 그리드, 시공 잡힌 날에 아파트명 표시, 날짜 탭 → 그날 시공 목록. = **완료(미배포)**. 서버가 schedule + submissions.scheduled_at_ms 붙이면 자동 작동.

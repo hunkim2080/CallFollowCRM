@@ -7860,3 +7860,10 @@ deploy_phase1.sh — 배포 요약 '커밋' 표시 버그 fix. (사장님: "5bb1
 - fix: 로컬 HEAD 대신 (1) git fetch 후 **origin/main** 커밋 (2) **main.py 안의 추가NNN 마커**(파일 자체 진실) 를 표기. 최근 커밋도 origin/main 기준. DIRTY 판정도 origin/main 대비.
 - 안내문 갱신: "✓ main.py 일치 + HTTP 200 = 진짜 배포 신호" 강조.
 - commit: (아래)
+## 2026-07-22 15:30 · android
+박람회 달력 신설(사장님 "박람회달력 고고") — 앱측 완료(미배포) + cowork 서버 2건.
+- 결정: 시공날짜=접수 후 따로(접수서에서 '시공일 잡기'). 달력=팀공유 월그리드, 날짜밑 아파트명(TimeTree식).
+- 앱 완료: 접수서 상세 '시공일 잡기'(삼성 DatePicker)→schedule 호출·시공일 표시. 박람회 달력 화면(방상세→박람회 달력): 월그리드+날짜별 시공목록. ExpoRepository.schedule() + Submission.scheduledAtMs.
+- cowork 요청(SERVER_HANDOFF 4차): ①POST /api/expo/contract/schedule(contract_id,phone,scheduled_at_ms) ②submissions item 에 scheduled_at_ms 추가.
+- 주야(교대) 캘린더는 사장님 보류.
+- commit: (이 커밋)
