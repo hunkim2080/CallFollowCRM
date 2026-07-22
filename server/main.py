@@ -381,6 +381,111 @@ def db_init() -> None:
             )
             """
         )
+        # ── 추가142 (2026-07-22) — 박람회 팀 시공 Phase 1 (docs/EXPO_DECISIONS.md) ──
+        # 사장님 확정: ①정산 완전격리(expo_* 테이블에만 저장, 기존 정산/고객에 안 섞음)
+        # ②분배=팀별 ③계약서=상품카탈로그 체크형+서명+동의 ④방장이 방개설·계약서준비
+        # ⑤팀 접수서 목록(뒷4자리 마스킹) ⑥진행률 2종 ⑦단가 사전등록+총액할인 ⑧2눈금
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS expo_rooms (
+                room_id       TEXT PRIMARY KEY,       -- 'er_' + 8자
+                code          TEXT NOT NULL UNIQUE,   -- 초대 코드 (6자리 숫자)
+                owner_phone   TEXT NOT NULL,          -- 방장
+                name          TEXT NOT NULL,          -- 방 이름(행사/팀명)
+                created_at_ms INTEGER NOT NULL,
+                closed_at_ms  INTEGER                 -- NULL=진행중
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_expo_rooms_owner ON expo_rooms(owner_phone)"
+        )
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS expo_room_members (
+                room_id       TEXT NOT NULL,
+                phone         TEXT NOT NULL,          -- 팀원 phone (방장이면 owner)
+                name          TEXT NOT NULL,
+                role          TEXT NOT NULL,          -- 'owner' | 'member'
+                created_at_ms INTEGER NOT NULL,
+                removed_at_ms INTEGER,                -- NULL=활성
+                PRIMARY KEY (room_id, phone)
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_expo_members_phone "
+            "ON expo_room_members(phone, removed_at_ms)"
+        )
+        # 상품·서비스 카탈로그 — 방 단위 1벌, 방장이 관리 (단가 사전등록)
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS expo_products (
+                product_id    INTEGER PRIMARY KEY AUTOINCREMENT,
+                room_id       TEXT NOT NULL,
+                kind          TEXT NOT NULL,          -- 'product' | 'service'
+                name          TEXT NOT NULL,
+                unit_price    INTEGER NOT NULL DEFAULT 0,  -- 서비스는 0 가능
+                sort          INTEGER NOT NULL DEFAULT 0,
+                created_at_ms INTEGER NOT NULL,
+                removed_at_ms INTEGER                 -- NULL=활성 (교체 시 soft delete)
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_expo_products_room "
+            "ON expo_products(room_id, removed_at_ms, sort)"
+        )
+        # QR 계약서 세션 — 상담원이 [계약서 열기] → QR → 고객폰이 이 세션을 연다
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS expo_contract_sessions (
+                session_id    TEXT PRIMARY KEY,       -- 'ecs_' + 12자
+                secret        TEXT NOT NULL,          -- QR 자동 진입 시크릿(k)
+                room_id       TEXT NOT NULL,
+                agent_phone   TEXT NOT NULL,          -- 상담원(작성 사장님)
+                created_at_ms INTEGER NOT NULL,
+                expires_at_ms INTEGER NOT NULL,       -- 세션 유효(기본 2시간)
+                contract_id   INTEGER                 -- 제출되면 그 계약 id (재사용 방지)
+            )
+            """
+        )
+        # 계약서 본문 — 제출 시 굳혀 저장. 박람회 전용, 기존 정산/고객과 완전 분리.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS expo_contracts (
+                contract_id     INTEGER PRIMARY KEY AUTOINCREMENT,
+                room_id         TEXT NOT NULL,
+                agent_phone     TEXT NOT NULL,          -- 작성 상담원
+                customer_name   TEXT,
+                customer_phone  TEXT,                   -- 원본(서버 저장), 목록엔 마스킹해 노출
+                address         TEXT,
+                items_json      TEXT,                   -- [{product_id,kind,name,unit_price,qty}]
+                product_total   INTEGER NOT NULL DEFAULT 0,
+                discount        INTEGER NOT NULL DEFAULT 0,  -- 총액 할인(현장)
+                deposit_enabled INTEGER NOT NULL DEFAULT 0,  -- 계약금란 on/off(현장)
+                deposit_amount  INTEGER NOT NULL DEFAULT 0,
+                final_amount    INTEGER NOT NULL DEFAULT 0,  -- product_total - discount
+                signature_data  TEXT,                   -- 서명 dataURL(png)
+                consent_json    TEXT,                   -- 개인정보 수집·이용 동의 기록
+                memo            TEXT,
+                status          TEXT NOT NULL DEFAULT 'submitted',
+                                -- submitted → assigned → scheduled → done (Phase2/3)
+                assigned_phone  TEXT,                   -- 분배 담당(Phase2)
+                scheduled_at_ms INTEGER,                -- 일정 등록(Phase3)
+                done_at_ms      INTEGER,                -- 시공 완료
+                created_at_ms   INTEGER NOT NULL
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_expo_contracts_room "
+            "ON expo_contracts(room_id, created_at_ms)"
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_expo_contracts_assigned "
+            "ON expo_contracts(assigned_phone, status)"
+        )
         # ── 추가121 (2026-07-13) — 상담함/문자함 Haiku 분류 캐시 (같은 내용 재호출 0) ──
         con.execute(
             """
@@ -23151,3 +23256,667 @@ render();
 </body>
 </html>
 """
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 추가142 (2026-07-22) — 박람회 팀 시공 Phase 1 (종이 없애기)
+# 설계: docs/PLAN_expo_team.md · 확정: docs/EXPO_DECISIONS.md
+# 흐름: 방장 방개설 → 상품카탈로그 등록 → 팀원 초대 → 상담원 [계약서 열기]
+#       → QR → 고객폰 웹계약서(체크+서명+동의) → 제출 → 상담원앱 자동수신 + 고객사본
+# 격리: 박람회 데이터는 expo_* 에만. 기존 정산/고객 테이블과 안 섞음.
+# ══════════════════════════════════════════════════════════════════════════
+
+def _expo_gen_room_code() -> str:
+    """방 초대코드 — 6자리 숫자, expo_rooms 전역 UNIQUE."""
+    import secrets
+    for _ in range(30):
+        code = str(secrets.randbelow(10 ** 6)).zfill(6)
+        with db_conn() as con:
+            if not con.execute("SELECT 1 FROM expo_rooms WHERE code = ?", (code,)).fetchone():
+                return code
+    raise HTTPException(500, "방 코드 생성 실패")
+
+
+def _expo_mask_phone(p: Optional[str]) -> str:
+    """전화번호 뒷 4자리 마스킹 — 010-1234-**** (팀 접수서 목록 노출용).
+    서버가 마스킹해서 내려준다(앱에 원본을 안 보냄 = 유출 경로 차단)."""
+    d = _norm_phone(p)
+    if len(d) == 11:
+        return f"{d[:3]}-{d[3:7]}-****"
+    if len(d) == 10:
+        return f"{d[:3]}-{d[3:6]}-****"
+    if len(d) >= 4:
+        return d[:-4] + "****"
+    return "****"
+
+
+def _expo_room_member(room_id: str, phone: str) -> Optional[sqlite3.Row]:
+    d = _norm_phone(phone)
+    if not room_id or not d:
+        return None
+    with db_conn() as con:
+        return con.execute(
+            "SELECT room_id, phone, name, role FROM expo_room_members "
+            "WHERE room_id = ? AND phone = ? AND removed_at_ms IS NULL",
+            (room_id, d),
+        ).fetchone()
+
+
+def _expo_catalog(room_id: str) -> list:
+    with db_conn() as con:
+        rows = con.execute(
+            "SELECT product_id, kind, name, unit_price, sort FROM expo_products "
+            "WHERE room_id = ? AND removed_at_ms IS NULL ORDER BY kind DESC, sort, product_id",
+            (room_id,),
+        ).fetchall()
+    return [
+        {"product_id": r[0], "kind": r[1], "name": r[2],
+         "unit_price": int(r[3] or 0), "sort": int(r[4] or 0)}
+        for r in rows
+    ]
+
+
+class ExpoRoomCreate(BaseModel):
+    owner_phone: str
+    name: str
+    owner_name: Optional[str] = None
+
+
+class ExpoRoomJoin(BaseModel):
+    code: str
+    phone: str
+    name: str
+
+
+class ExpoProductsSet(BaseModel):
+    room_id: str
+    owner_phone: str
+    products: list           # [{kind:'product'|'service', name, unit_price}]
+
+
+class ExpoContractSessionReq(BaseModel):
+    room_id: str
+    agent_phone: str
+
+
+class ExpoContractSubmit(BaseModel):
+    session_id: str
+    secret: Optional[str] = None
+    customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
+    address: Optional[str] = None
+    items: list                             # [{product_id, qty}]
+    discount: Optional[int] = 0
+    deposit_enabled: Optional[bool] = False
+    deposit_amount: Optional[int] = 0
+    signature: Optional[str] = None         # dataURL png
+    consent: Optional[dict] = None          # {privacy:true, ts:...}
+    memo: Optional[str] = None
+
+
+@app.post("/api/expo/room/create")
+async def expo_room_create(req: ExpoRoomCreate) -> dict:
+    """방장이 박람회 방을 개설. 방장 자신이 owner 멤버로 등록된다."""
+    import secrets
+    ophone = _norm_phone(req.owner_phone)
+    if not ophone:
+        raise HTTPException(400, "owner_phone 필수")
+    name = (req.name or "").strip()[:40] or "박람회"
+    oname = (req.owner_name or "").strip()[:20] or "방장"
+    now = _now_ms()
+    room_id = "er_" + secrets.token_hex(4)
+    code = _expo_gen_room_code()
+    with db_conn() as con:
+        con.execute(
+            "INSERT INTO expo_rooms (room_id, code, owner_phone, name, created_at_ms) "
+            "VALUES (?, ?, ?, ?, ?)", (room_id, code, ophone, name, now),
+        )
+        con.execute(
+            "INSERT OR REPLACE INTO expo_room_members "
+            "(room_id, phone, name, role, created_at_ms, removed_at_ms) "
+            "VALUES (?, ?, ?, 'owner', ?, NULL)", (room_id, ophone, oname, now),
+        )
+        con.commit()
+    return {"ok": True, "room_id": room_id, "code": code, "name": name}
+
+
+@app.post("/api/expo/room/join")
+async def expo_room_join(req: ExpoRoomJoin) -> dict:
+    """팀원이 초대코드로 방에 합류."""
+    d = _norm_phone(req.phone)
+    code = (req.code or "").strip()
+    name = (req.name or "").strip()[:20] or "팀원"
+    if not d or not code:
+        raise HTTPException(400, "code, phone 필수")
+    now = _now_ms()
+    with db_conn() as con:
+        room = con.execute(
+            "SELECT room_id, name, owner_phone, closed_at_ms FROM expo_rooms WHERE code = ?",
+            (code,),
+        ).fetchone()
+        if not room:
+            raise HTTPException(404, "그런 방 코드가 없습니다")
+        if room[3]:
+            raise HTTPException(410, "이미 종료된 방입니다")
+        role = "owner" if _norm_phone(room[2]) == d else "member"
+        con.execute(
+            "INSERT INTO expo_room_members (room_id, phone, name, role, created_at_ms, removed_at_ms) "
+            "VALUES (?, ?, ?, ?, ?, NULL) "
+            "ON CONFLICT(room_id, phone) DO UPDATE SET "
+            "name=excluded.name, removed_at_ms=NULL", (room[0], d, name, role, now),
+        )
+        con.commit()
+    return {"ok": True, "room_id": room[0], "name": room[1], "role": role}
+
+
+@app.get("/api/expo/rooms")
+async def expo_rooms(phone: str) -> dict:
+    """내가 속한 박람회 방 목록 (방장/팀원 구분)."""
+    d = _norm_phone(phone)
+    if not d:
+        raise HTTPException(400, "phone 필수")
+    out = []
+    with db_conn() as con:
+        rows = con.execute(
+            "SELECT m.room_id, m.role, r.name, r.code, r.owner_phone, r.closed_at_ms, r.created_at_ms "
+            "FROM expo_room_members m JOIN expo_rooms r ON r.room_id = m.room_id "
+            "WHERE m.phone = ? AND m.removed_at_ms IS NULL ORDER BY r.created_at_ms DESC",
+            (d,),
+        ).fetchall()
+        for r in rows:
+            mc = con.execute(
+                "SELECT COUNT(*) FROM expo_room_members WHERE room_id = ? AND removed_at_ms IS NULL",
+                (r[0],),
+            ).fetchone()[0]
+            pc = con.execute(
+                "SELECT COUNT(*) FROM expo_products WHERE room_id = ? AND removed_at_ms IS NULL",
+                (r[0],),
+            ).fetchone()[0]
+            cc = con.execute(
+                "SELECT COUNT(*) FROM expo_contracts WHERE room_id = ?", (r[0],),
+            ).fetchone()[0]
+            out.append({
+                "room_id": r[0], "role": r[1], "name": r[2],
+                "code": r[3] if r[1] == "owner" else None,  # 코드는 방장에게만
+                "closed": bool(r[5]), "created_at_ms": r[6],
+                "memberCount": mc, "productCount": pc, "contractCount": cc,
+            })
+    return {"ok": True, "rooms": out}
+
+
+@app.get("/api/expo/room/{room_id}")
+async def expo_room_detail(room_id: str, phone: str) -> dict:
+    """방 상세 — 멤버 목록 + 카탈로그 유무. 방 멤버만."""
+    me = _expo_room_member(room_id, phone)
+    if not me:
+        raise HTTPException(403, "이 방의 멤버가 아닙니다")
+    with db_conn() as con:
+        room = con.execute(
+            "SELECT room_id, code, owner_phone, name, closed_at_ms FROM expo_rooms WHERE room_id = ?",
+            (room_id,),
+        ).fetchone()
+        if not room:
+            raise HTTPException(404, "방 없음")
+        members = con.execute(
+            "SELECT phone, name, role, created_at_ms FROM expo_room_members "
+            "WHERE room_id = ? AND removed_at_ms IS NULL ORDER BY role DESC, created_at_ms",
+            (room_id,),
+        ).fetchall()
+    is_owner = (me["role"] == "owner")
+    return {
+        "ok": True, "room_id": room[0],
+        "code": room[1] if is_owner else None,
+        "name": room[3], "closed": bool(room[4]),
+        "myRole": me["role"],
+        "members": [
+            {"name": m[1], "role": m[2],
+             "phone": (m[0] if is_owner else _expo_mask_phone(m[0]))}
+            for m in members
+        ],
+        "catalog": _expo_catalog(room_id),
+    }
+
+
+@app.post("/api/expo/products/set")
+async def expo_products_set(req: ExpoProductsSet) -> dict:
+    """방장이 상품·서비스 카탈로그를 통째로 교체(덮어쓰기). 방장만."""
+    me = _expo_room_member(req.room_id, req.owner_phone)
+    if not me or me["role"] != "owner":
+        raise HTTPException(403, "방장만 계약서를 준비할 수 있습니다")
+    now = _now_ms()
+    cleaned = []
+    for i, p in enumerate(req.products or []):
+        name = str(p.get("name", "")).strip()[:60]
+        if not name:
+            continue
+        kind = "service" if str(p.get("kind", "product")) == "service" else "product"
+        try:
+            price = max(0, int(p.get("unit_price", 0) or 0))
+        except (ValueError, TypeError):
+            price = 0
+        cleaned.append((kind, name, price, i))
+    with db_conn() as con:
+        con.execute(
+            "UPDATE expo_products SET removed_at_ms = ? WHERE room_id = ? AND removed_at_ms IS NULL",
+            (now, req.room_id),
+        )
+        for (kind, name, price, sort) in cleaned:
+            con.execute(
+                "INSERT INTO expo_products (room_id, kind, name, unit_price, sort, created_at_ms) "
+                "VALUES (?, ?, ?, ?, ?, ?)", (req.room_id, kind, name, price, sort, now),
+            )
+        con.commit()
+    return {"ok": True, "count": len(cleaned), "catalog": _expo_catalog(req.room_id)}
+
+
+@app.get("/api/expo/products")
+async def expo_products_get(room_id: str) -> dict:
+    """카탈로그 조회 (공개 — 계약서 웹페이지도 사용)."""
+    return {"ok": True, "catalog": _expo_catalog(room_id)}
+
+
+@app.post("/api/expo/contract/session")
+async def expo_contract_session(req: ExpoContractSessionReq) -> dict:
+    """상담원이 [계약서 열기] → QR 세션 생성. 상담원은 방 멤버여야 한다."""
+    import secrets
+    me = _expo_room_member(req.room_id, req.agent_phone)
+    if not me:
+        raise HTTPException(403, "이 방의 멤버가 아닙니다")
+    if not _expo_catalog(req.room_id):
+        raise HTTPException(409, "방장이 아직 상품 목록을 등록하지 않았습니다")
+    now = _now_ms()
+    session_id = "ecs_" + secrets.token_hex(6)
+    secret = secrets.token_urlsafe(12)
+    with db_conn() as con:
+        con.execute(
+            "INSERT INTO expo_contract_sessions "
+            "(session_id, secret, room_id, agent_phone, created_at_ms, expires_at_ms) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (session_id, secret, req.room_id, _norm_phone(req.agent_phone),
+             now, now + 2 * 3600 * 1000),
+        )
+        con.commit()
+    base = INTAKE_PUBLIC_BASE_URL.rstrip("/")
+    url = f"{base}/expo/c/{session_id}?k={urllib.parse.quote(secret)}"
+    return {"ok": True, "session_id": session_id, "secret": secret, "url": url, "qrUrl": url}
+
+
+@app.post("/api/expo/contract/submit")
+async def expo_contract_submit(req: ExpoContractSubmit) -> dict:
+    """고객폰에서 계약서 제출 → 굳혀 저장. 금액은 서버가 카탈로그 단가로 재계산."""
+    now = _now_ms()
+    with db_conn() as con:
+        sess = con.execute(
+            "SELECT session_id, secret, room_id, agent_phone, expires_at_ms, contract_id "
+            "FROM expo_contract_sessions WHERE session_id = ?", (req.session_id,),
+        ).fetchone()
+        if not sess:
+            raise HTTPException(404, "세션 없음")
+        if sess[5]:
+            raise HTTPException(409, "이미 제출된 계약서입니다")
+        if req.secret and not _hmac.compare_digest(req.secret, sess[1]):
+            raise HTTPException(403, "세션 검증 실패")
+        if now > sess[4]:
+            raise HTTPException(410, "세션이 만료되었습니다")
+        room_id, agent_phone = sess[2], sess[3]
+        # 카탈로그 단가로 금액 재계산 (클라이언트 금액 불신)
+        catalog = {p["product_id"]: p for p in _expo_catalog(room_id)}
+        norm_items, product_total = [], 0
+        for it in (req.items or []):
+            pid = it.get("product_id")
+            try:
+                qty = max(0, int(it.get("qty", 1) or 0))
+            except (ValueError, TypeError):
+                qty = 0
+            p = catalog.get(pid)
+            if not p or qty <= 0:
+                continue
+            line = p["unit_price"] * qty
+            product_total += line
+            norm_items.append({
+                "product_id": pid, "kind": p["kind"], "name": p["name"],
+                "unit_price": p["unit_price"], "qty": qty, "line": line,
+            })
+        if not norm_items:
+            raise HTTPException(400, "선택한 상품이 없습니다")
+        try:
+            discount = max(0, int(req.discount or 0))
+        except (ValueError, TypeError):
+            discount = 0
+        discount = min(discount, product_total)
+        final_amount = product_total - discount
+        dep_on = 1 if req.deposit_enabled else 0
+        try:
+            dep_amt = max(0, int(req.deposit_amount or 0)) if dep_on else 0
+        except (ValueError, TypeError):
+            dep_amt = 0
+        cur = con.execute(
+            "INSERT INTO expo_contracts "
+            "(room_id, agent_phone, customer_name, customer_phone, address, items_json, "
+            " product_total, discount, deposit_enabled, deposit_amount, final_amount, "
+            " signature_data, consent_json, memo, status, created_at_ms) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted', ?)",
+            (room_id, agent_phone,
+             (req.customer_name or "").strip()[:40],
+             _norm_phone(req.customer_phone),
+             (req.address or "").strip()[:120],
+             json.dumps(norm_items, ensure_ascii=False),
+             product_total, discount, dep_on, dep_amt, final_amount,
+             (req.signature or "")[:200000],
+             json.dumps(req.consent or {}, ensure_ascii=False),
+             (req.memo or "").strip()[:500], now),
+        )
+        contract_id = cur.lastrowid
+        con.execute(
+            "UPDATE expo_contract_sessions SET contract_id = ? WHERE session_id = ?",
+            (contract_id, req.session_id),
+        )
+        con.commit()
+    base = INTAKE_PUBLIC_BASE_URL.rstrip("/")
+    return {"ok": True, "contract_id": contract_id,
+            "final_amount": final_amount,
+            "receiptUrl": f"{base}/expo/r/{contract_id}"}
+
+
+@app.get("/api/expo/submissions")
+async def expo_submissions(room_id: str, phone: str) -> dict:
+    """우리 팀 수집된 접수서 목록 — 방 멤버 누구나(분배 전에도).
+    전화번호는 서버가 뒷4자리 마스킹해서 내려준다."""
+    me = _expo_room_member(room_id, phone)
+    if not me:
+        raise HTTPException(403, "이 방의 멤버가 아닙니다")
+    out = []
+    total = 0
+    with db_conn() as con:
+        rows = con.execute(
+            "SELECT contract_id, customer_name, customer_phone, items_json, "
+            "final_amount, status, agent_phone, created_at_ms, assigned_phone "
+            "FROM expo_contracts WHERE room_id = ? ORDER BY created_at_ms DESC", (room_id,),
+        ).fetchall()
+        agent_names = {}
+        for m in con.execute(
+            "SELECT phone, name FROM expo_room_members WHERE room_id = ?", (room_id,)
+        ).fetchall():
+            agent_names[_norm_phone(m[0])] = m[1]
+    for r in rows:
+        try:
+            items = json.loads(r[3] or "[]")
+        except Exception:
+            items = []
+        prod_names = ", ".join(
+            it.get("name", "") for it in items if it.get("kind") == "product"
+        ) or "—"
+        total += int(r[4] or 0)
+        out.append({
+            "contract_id": r[0],
+            "customer_name": r[1] or "고객",
+            "customer_phone_masked": _expo_mask_phone(r[2]),
+            "products": prod_names,
+            "final_amount": int(r[4] or 0),
+            "status": r[5],
+            "agent_name": agent_names.get(_norm_phone(r[6]), "?"),
+            "created_at_ms": r[7],
+            "assigned_name": agent_names.get(_norm_phone(r[8]), None) if r[8] else None,
+        })
+    return {"ok": True, "count": len(out), "totalAmount": total, "items": out}
+
+
+# ── 박람회 계약서 웹페이지 (고객폰) + 영수증(고객 사본) ──
+_EXPO_CONTRACT_CSS = """
+:root{--blue:#3182F6;--blue-dark:#1B64DA;--tint:#EEF4FF;--bg:#F5F7F9;--t1:#0B0F19;
+--t2:#5A6472;--t3:#9AA3AF;--line:#E7EAEE;--ok:#12B76A;--warn:#F79009;}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{font-family:'Pretendard',-apple-system,system-ui,sans-serif;background:var(--bg);
+color:var(--t1);line-height:1.6;padding-bottom:110px;}
+.top{background:linear-gradient(135deg,#3182F6,#1B64DA);color:#fff;padding:20px 18px 22px;}
+.top .rm{font-size:13px;opacity:.85;font-weight:600;}
+.top h1{font-size:20px;font-weight:900;margin-top:4px;letter-spacing:-.02em;}
+.wrap{max-width:560px;margin:0 auto;padding:16px 14px;}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:12px;}
+.card h2{font-size:15px;font-weight:800;margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+.row{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px dashed var(--line);}
+.row:last-child{border-bottom:0;}
+.row .nm{flex:1;font-size:14.5px;font-weight:600;}
+.row .pr{font-size:13px;color:var(--t2);white-space:nowrap;}
+.chk{width:24px;height:24px;border:2px solid var(--line);border-radius:7px;flex:none;
+display:flex;align-items:center;justify-content:center;font-size:15px;color:#fff;cursor:pointer;transition:.12s;}
+.chk.on{background:var(--blue);border-color:var(--blue);}
+.qty{display:none;align-items:center;gap:8px;}
+.row.on .qty{display:flex;}
+.qty button{width:30px;height:30px;border:1px solid var(--line);background:#fff;border-radius:8px;
+font-size:17px;font-weight:800;color:var(--blue-dark);cursor:pointer;}
+.qty span{min-width:22px;text-align:center;font-weight:800;font-size:15px;}
+input[type=text],input[type=tel],input[type=number]{width:100%;border:1px solid var(--line);
+border-radius:10px;padding:12px;font-size:15px;font-family:inherit;margin-top:8px;}
+label.fl{font-size:12.5px;color:var(--t2);font-weight:700;margin-top:12px;display:block;}
+label.fl:first-child{margin-top:0;}
+.toggle{display:flex;align-items:center;justify-content:space-between;padding:6px 0;}
+.sw{width:46px;height:26px;border-radius:99px;background:var(--line);position:relative;cursor:pointer;transition:.15s;flex:none;}
+.sw.on{background:var(--blue);}
+.sw i{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.15s;}
+.sw.on i{left:23px;}
+.sum{background:var(--tint);border-radius:12px;padding:14px;margin-top:4px;}
+.sum .l{display:flex;justify-content:space-between;font-size:14px;color:var(--t2);padding:3px 0;}
+.sum .l.fin{font-size:19px;font-weight:900;color:var(--t1);border-top:1px solid #D6E4FF;margin-top:6px;padding-top:10px;}
+.sig{border:1.5px dashed var(--blue);border-radius:12px;background:#fff;touch-action:none;width:100%;height:170px;display:block;}
+.sighint{font-size:12px;color:var(--t3);text-align:center;margin-top:6px;}
+.clr{font-size:12.5px;color:var(--blue-dark);font-weight:700;background:none;border:0;cursor:pointer;float:right;}
+.cs summary{font-size:13px;color:var(--t2);cursor:pointer;font-weight:700;}
+.cs p{font-size:12.5px;color:var(--t3);margin-top:8px;line-height:1.7;}
+.agree{display:flex;align-items:flex-start;gap:10px;margin-top:12px;cursor:pointer;}
+.bar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);
+padding:12px 14px;padding-bottom:max(12px,env(safe-area-inset-bottom));}
+.bar .in{max-width:560px;margin:0 auto;display:flex;align-items:center;gap:12px;}
+.bar .amt{flex:1;}
+.bar .amt small{font-size:11px;color:var(--t3);display:block;}
+.bar .amt b{font-size:18px;font-weight:900;}
+.bar button{background:var(--blue);color:#fff;border:0;border-radius:12px;padding:14px 22px;
+font-size:15px;font-weight:800;cursor:pointer;}
+.bar button:disabled{background:#C7D2DE;}
+.empty{text-align:center;padding:60px 20px;color:var(--t3);}
+"""
+
+def _expo_page_shell(title: str, body: str) -> str:
+    return (
+        "<!doctype html><html lang=ko><head><meta charset=utf-8>"
+        "<meta name=viewport content='width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no'>"
+        "<title>" + title + "</title>"
+        "<link href='https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css' rel=stylesheet>"
+        "<style>" + _EXPO_CONTRACT_CSS + "</style></head><body>" + body + "</body></html>"
+    )
+
+
+@app.get("/expo/c/{session_id}", response_class=HTMLResponse, include_in_schema=False)
+async def expo_contract_page(session_id: str, k: Optional[str] = None) -> HTMLResponse:
+    """고객폰 계약서 작성 화면 (QR 진입)."""
+    with db_conn() as con:
+        sess = con.execute(
+            "SELECT secret, room_id, agent_phone, expires_at_ms, contract_id "
+            "FROM expo_contract_sessions WHERE session_id = ?", (session_id,),
+        ).fetchone()
+    if not sess:
+        return HTMLResponse(_expo_page_shell("계약서",
+            "<div class=empty>계약서를 찾을 수 없습니다.<br>QR을 다시 받아주세요.</div>"), status_code=404)
+    if k and not _hmac.compare_digest(k, sess[0]):
+        return HTMLResponse(_expo_page_shell("계약서",
+            "<div class=empty>잘못된 접근입니다.</div>"), status_code=403)
+    if sess[4]:
+        base = INTAKE_PUBLIC_BASE_URL.rstrip("/")
+        return HTMLResponse(_expo_page_shell("계약서",
+            "<div class=empty>이미 작성이 완료된 계약서입니다.<br>"
+            "<a href='" + base + "/expo/r/" + str(sess[4]) + "' style='color:#1B64DA;font-weight:700'>내 계약서 보기 →</a></div>"))
+    if _now_ms() > sess[3]:
+        return HTMLResponse(_expo_page_shell("계약서",
+            "<div class=empty>계약서 유효시간이 지났습니다.<br>QR을 다시 받아주세요.</div>"), status_code=410)
+    room_id = sess[1]
+    with db_conn() as con:
+        room = con.execute("SELECT name FROM expo_rooms WHERE room_id = ?", (room_id,)).fetchone()
+    room_name = (room[0] if room else "박람회")
+    catalog = _expo_catalog(room_id)
+    products = [p for p in catalog if p["kind"] == "product"]
+    services = [p for p in catalog if p["kind"] == "service"]
+
+    def _rows(lst, show_price):
+        if not lst:
+            return "<div style='font-size:13px;color:#9AA3AF;padding:8px 0'>등록된 항목이 없습니다</div>"
+        h = ""
+        for p in lst:
+            pr = ("<span class=pr>" + format(p["unit_price"], ",") + "원</span>") if (show_price and p["unit_price"] > 0) else ""
+            h += (
+                "<div class=row data-pid=" + str(p["product_id"]) + " data-price=" + str(p["unit_price"]) + ">"
+                "<div class=chk onclick='tog(this)'></div>"
+                "<div class=nm>" + _h(p["name"]) + "</div>" + pr +
+                "<div class=qty><button onclick='qd(this,-1)'>−</button><span>1</span>"
+                "<button onclick='qd(this,1)'>+</button></div></div>"
+            )
+        return h
+
+    body = (
+        "<div class=top><div class=rm>" + _h(room_name) + " · 시공 계약서</div>"
+        "<h1>상담사와 함께 확인해 주세요</h1></div>"
+        "<div class=wrap>"
+        "<div class=card><h2>📦 시공 상품</h2>" + _rows(products, True) + "</div>"
+        + ("<div class=card><h2>🧰 서비스 항목</h2>" + _rows(services, False) + "</div>" if services else "")
+        + "<div class=card><h2>💰 금액</h2>"
+        "<label class=fl>총액 할인 (현장 할인, 원)</label>"
+        "<input type=number id=discount inputmode=numeric placeholder='0' oninput='calc()'>"
+        "<div class=toggle style='margin-top:14px'><div><b style='font-size:14px'>계약금 받기</b>"
+        "<div style='font-size:12px;color:#9AA3AF'>현장에서 계약금을 받는 경우만 켜세요</div></div>"
+        "<div class=sw id=depSw onclick='depTog()'><i></i></div></div>"
+        "<div id=depWrap style='display:none'><label class=fl>계약금 (원)</label>"
+        "<input type=number id=deposit inputmode=numeric placeholder='0' oninput='calc()'></div>"
+        "<div class=sum><div class=l><span>상품 합계</span><span id=sTotal>0원</span></div>"
+        "<div class=l><span>할인</span><span id=sDisc>0원</span></div>"
+        "<div class=l fin><span>최종 금액</span><span id=sFinal>0원</span></div>"
+        "<div class=l id=depLine style='display:none'><span>계약금</span><span id=sDep>0원</span></div></div></div>"
+        "<div class=card><h2>🙋 고객 정보</h2>"
+        "<label class=fl>성함</label><input type=text id=cname placeholder='고객 성함' oninput='calc()'>"
+        "<label class=fl>연락처</label><input type=tel id=cphone inputmode=numeric placeholder='010-0000-0000' oninput='calc()'>"
+        "<label class=fl>시공 주소</label><input type=text id=caddr placeholder='주소'></div>"
+        "<div class=card><h2>✍️ 서명</h2>"
+        "<button class=clr onclick='sigClr()'>지우기</button>"
+        "<canvas class=sig id=sig></canvas><div class=sighint>위 칸에 손가락으로 서명해 주세요</div>"
+        "<label class=agree><div class=chk id=agChk onclick='agTog()'></div>"
+        "<div style='font-size:13px;color:#5A6472'><b>개인정보 수집·이용 동의</b> (필수) — "
+        "계약 이행·시공 연락을 위해 성함·연락처·주소를 수집합니다.</div></label>"
+        "<details class=cs style='margin-top:10px'><summary>자세히 보기</summary>"
+        "<p>· 수집 항목: 성함, 연락처, 시공 주소, 계약 내역<br>"
+        "· 이용 목적: 시공 계약 이행 및 일정·시공 관련 연락<br>"
+        "· 보유 기간: 계약 완료 후 관련 법령에 따른 기간<br>"
+        "· 동의를 거부할 수 있으나, 거부 시 계약 진행이 어렵습니다.</p></details></div>"
+        "</div>"
+        "<div class=bar><div class=in><div class=amt><small>최종 금액</small><b id=bAmt>0원</b></div>"
+        "<button id=submit onclick='submit()' disabled>계약서 제출</button></div></div>"
+        "<script>var SID=" + json.dumps(session_id) + ",K=" + json.dumps(k or "") + ";</script>"
+        "<script>" + _EXPO_CONTRACT_JS + "</script>"
+    )
+    return HTMLResponse(_expo_page_shell("시공 계약서 · " + room_name, body))
+
+
+def _h(s) -> str:
+    return (str(s or "").replace("&", "&amp;").replace("<", "&lt;")
+            .replace(">", "&gt;").replace('"', "&quot;"))
+
+
+_EXPO_CONTRACT_JS = r"""
+function won(n){return (n||0).toLocaleString('ko-KR')+'원';}
+function tog(el){var r=el.closest('.row');r.classList.toggle('on');el.classList.toggle('on');el.textContent=el.classList.contains('on')?'✓':'';calc();}
+function qd(b,d){var s=b.parentNode.querySelector('span');var v=Math.max(1,(parseInt(s.textContent)||1)+d);s.textContent=v;event.stopPropagation();calc();}
+function depTog(){var s=document.getElementById('depSw');s.classList.toggle('on');document.getElementById('depWrap').style.display=s.classList.contains('on')?'block':'none';document.getElementById('depLine').style.display=s.classList.contains('on')?'flex':'none';calc();}
+var agreed=false;
+function agTog(){agreed=!agreed;var c=document.getElementById('agChk');c.classList.toggle('on',agreed);c.textContent=agreed?'✓':'';calc();}
+function items(){var out=[];document.querySelectorAll('.row.on').forEach(function(r){var pid=r.getAttribute('data-pid');if(!pid)return;var q=parseInt(r.querySelector('.qty span').textContent)||1;out.push({product_id:parseInt(pid),qty:q,price:parseInt(r.getAttribute('data-price'))||0});});return out;}
+function calc(){var its=items();var tot=0;its.forEach(function(x){tot+=x.price*x.qty;});
+var disc=Math.max(0,parseInt(document.getElementById('discount').value)||0);if(disc>tot)disc=tot;
+var fin=tot-disc;
+document.getElementById('sTotal').textContent=won(tot);
+document.getElementById('sDisc').textContent=won(disc);
+document.getElementById('sFinal').textContent=won(fin);
+document.getElementById('bAmt').textContent=won(fin);
+var depOn=document.getElementById('depSw').classList.contains('on');
+if(depOn){document.getElementById('sDep').textContent=won(Math.max(0,parseInt(document.getElementById('deposit').value)||0));}
+var nm=document.getElementById('cname').value.trim();
+var ph=document.getElementById('cphone').value.replace(/[^0-9]/g,'');
+var ok=its.length>0 && nm && ph.length>=10 && agreed && sigHas;
+document.getElementById('submit').disabled=!ok;}
+// 서명 canvas
+var cv=document.getElementById('sig'),cx=cv.getContext('2d'),drawing=false,sigHas=false;
+function fit(){var r=cv.getBoundingClientRect();cv.width=r.width*2;cv.height=r.height*2;cx.scale(2,2);cx.lineWidth=2.2;cx.lineCap='round';cx.strokeStyle='#0B0F19';}
+fit();
+function pos(e){var r=cv.getBoundingClientRect();var t=e.touches?e.touches[0]:e;return{x:t.clientX-r.left,y:t.clientY-r.top};}
+function start(e){drawing=true;var p=pos(e);cx.beginPath();cx.moveTo(p.x,p.y);e.preventDefault();}
+function move(e){if(!drawing)return;var p=pos(e);cx.lineTo(p.x,p.y);cx.stroke();sigHas=true;e.preventDefault();}
+function end(){if(drawing){drawing=false;calc();}}
+cv.addEventListener('mousedown',start);cv.addEventListener('mousemove',move);window.addEventListener('mouseup',end);
+cv.addEventListener('touchstart',start,{passive:false});cv.addEventListener('touchmove',move,{passive:false});cv.addEventListener('touchend',end);
+function sigClr(){cx.clearRect(0,0,cv.width,cv.height);sigHas=false;calc();}
+function submit(){
+var btn=document.getElementById('submit');btn.disabled=true;btn.textContent='제출 중...';
+var depOn=document.getElementById('depSw').classList.contains('on');
+var body={session_id:SID,secret:K,
+customer_name:document.getElementById('cname').value.trim(),
+customer_phone:document.getElementById('cphone').value.replace(/[^0-9]/g,''),
+address:document.getElementById('caddr').value.trim(),
+items:items().map(function(x){return{product_id:x.product_id,qty:x.qty};}),
+discount:Math.max(0,parseInt(document.getElementById('discount').value)||0),
+deposit_enabled:depOn,
+deposit_amount:depOn?(Math.max(0,parseInt(document.getElementById('deposit').value)||0)):0,
+signature:sigHas?cv.toDataURL('image/png'):null,
+consent:{privacy:true,ts:Date.now()}};
+fetch('/api/expo/contract/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+.then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j};});})
+.then(function(res){if(res.ok&&res.j.receiptUrl){location.href=res.j.receiptUrl;}else{alert(res.j.detail||'제출 실패');btn.disabled=false;btn.textContent='계약서 제출';}})
+.catch(function(){alert('네트워크 오류');btn.disabled=false;btn.textContent='계약서 제출';});
+}
+calc();
+"""
+
+
+@app.get("/expo/r/{contract_id}", response_class=HTMLResponse, include_in_schema=False)
+async def expo_contract_receipt(contract_id: int) -> HTMLResponse:
+    """계약서 사본(고객·상담원 열람용) — 읽기전용."""
+    with db_conn() as con:
+        c = con.execute(
+            "SELECT room_id, customer_name, customer_phone, address, items_json, "
+            "product_total, discount, deposit_enabled, deposit_amount, final_amount, "
+            "signature_data, consent_json, created_at_ms FROM expo_contracts WHERE contract_id = ?",
+            (contract_id,),
+        ).fetchone()
+        room = con.execute("SELECT name FROM expo_rooms WHERE room_id = ?", (c[0],)).fetchone() if c else None
+    if not c:
+        return HTMLResponse(_expo_page_shell("계약서",
+            "<div class=empty>계약서를 찾을 수 없습니다.</div>"), status_code=404)
+    room_name = room[0] if room else "박람회"
+    try:
+        items = json.loads(c[4] or "[]")
+    except Exception:
+        items = []
+    import datetime as _dt
+    dt = _dt.datetime.fromtimestamp((c[12] or 0) / 1000 + 9 * 3600).strftime("%Y-%m-%d %H:%M")
+    lines = ""
+    for it in items:
+        lines += ("<div class=row><div class=nm>" + _h(it.get("name", "")) +
+                  " <span style='color:#9AA3AF;font-size:12px'>×" + str(it.get("qty", 1)) + "</span></div>"
+                  "<span class=pr>" + format(int(it.get("line", 0)), ",") + "원</span></div>")
+    dep = ""
+    if c[7]:
+        dep = ("<div class=l><span>계약금</span><span>" + format(int(c[8] or 0), ",") + "원</span></div>")
+    sig = ("<img src='" + c[10] + "' style='max-width:200px;border:1px solid #E7EAEE;border-radius:8px'>") if c[10] else "<span style='color:#9AA3AF'>서명 없음</span>"
+    body = (
+        "<div class=top><div class=rm>" + _h(room_name) + " · 계약서 사본</div>"
+        "<h1>" + _h(c[1] or "고객") + " 님 계약서</h1></div>"
+        "<div class=wrap>"
+        "<div class=card><h2>📦 계약 내역</h2>" + (lines or "<div style='color:#9AA3AF'>내역 없음</div>") +
+        "<div class=sum><div class=l><span>상품 합계</span><span>" + format(int(c[5] or 0), ",") + "원</span></div>"
+        "<div class=l><span>할인</span><span>" + format(int(c[6] or 0), ",") + "원</span></div>"
+        "<div class=l fin><span>최종 금액</span><span>" + format(int(c[9] or 0), ",") + "원</span></div>" + dep + "</div></div>"
+        "<div class=card><h2>🙋 고객 정보</h2>"
+        "<div class=row><div class=nm>성함</div><span class=pr>" + _h(c[1] or "-") + "</span></div>"
+        "<div class=row><div class=nm>연락처</div><span class=pr>" + _fmt_phone(c[2]) + "</span></div>"
+        "<div class=row><div class=nm>시공 주소</div><span class=pr>" + _h(c[3] or "-") + "</span></div></div>"
+        "<div class=card><h2>✍️ 서명</h2>" + sig +
+        "<div style='font-size:12px;color:#9AA3AF;margin-top:10px'>개인정보 수집·이용 동의 완료 · " + dt + "</div></div>"
+        "<div style='text-align:center;color:#9AA3AF;font-size:12px;padding:8px 0 30px'>시공막내 · 박람회 계약서</div>"
+        "</div>"
+    )
+    return HTMLResponse(_expo_page_shell("계약서 사본 · " + (c[1] or ""), body))

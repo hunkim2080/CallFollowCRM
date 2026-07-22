@@ -7741,3 +7741,14 @@ Play 출시 대시보드 '권장 조치' 2개(거부 아님, 품질 권장):
 - ⑧ **진행률 눈금 2종**: (1)일정 등록률=scheduled+done/assigned, (2)시공 완료율=done/assigned. 상태 assigned→scheduled→done.
 - → 박람회 8개 확정 전부 완료. cowork 서버 Phase 1 착수(방개설·상품카탈로그·QR계약서·서명/사본·팀접수서목록).
 - commit: (아래)
+
+## 2026-07-22 09:37 · cowork
+추가142 — **박람회 Phase 1 서버 구현 완료** (종이 없애기). ⭐ android 배선용 핸드오프: `docs/SERVER_HANDOFF_expo_phase1.md`.
+- DB 신규 5테이블: expo_rooms/expo_room_members/expo_products/expo_contract_sessions/expo_contracts. **전부 expo_* 격리**(기존 정산·고객·submissions 무접촉).
+- API: 방 create/join/rooms/detail · 상품 set/get(방장만) · 계약서 session(QR) · **고객폰 계약서 웹페이지 GET /expo/c/{sid}** · submit(서버가 단가 재계산) · **영수증 GET /expo/r/{cid}** · 팀 접수서 목록(뒷4자리 서버 마스킹).
+- 계약서 = 상품 카탈로그 체크 + 수량 + 총액할인 + 계약금 현장 on/off + 서명 canvas + 개인정보 동의. 금액=Σ(단가×수량)−할인, 서버 재계산(클라 불신).
+- 보안: QR secret(k) HMAC 검증, 세션 2h·1회용(재제출 409), 팀 목록/상세는 멤버 아니면 403, 코드·원본번호는 방장에게만.
+- 검증: TestClient 22항목 ALL OK (개설/합류/권한/카탈로그/QR세션/페이지/제출/금액재계산/재제출차단/영수증/마스킹/멤버권한/빈카탈로그).
+- 미배포. 사장님 배포: `bash server/deploy_phase1.sh`
+- 다음(앱): ExpoScreen 에 방/상품/QR/접수서목록 배선. Phase 2(분배)·3(일정) 은 사장님 남은결정(균등기준·확정권한·취소규칙·cap) 후.
+- commit: (아래)
