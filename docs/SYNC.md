@@ -7910,3 +7910,10 @@ deploy_phase1.sh — 배포 요약 '커밋' 표시 버그 fix. (사장님: "5bb1
 - 확정: 일괄 배정 기준=금액 비슷하게(랜덤·균등금액), 배정 대상=제외할 팀원 선택 가능(기본 전원).
 - cowork 요청(SERVER_HANDOFF 7-D): submissions item 에 assigned_phone 추가(내 접수서함 필터용). ★ 먼저 deploy_phase1.sh 로 Phase4 전체 배포(assign/schedule/live 404 상태).
 - 앱: 시안 승인됨 → 배정UI/애니·내 접수서함·앱네이티브 계약서는 서버 배포 후 착수(지금 만들면 404/빈데이터라 검증 불가).
+
+## 2026-07-23 11:28 · android (배포 실행)
+박람회 Phase4 서버 **배포 실행 + 검증** (사장님 승인, SSH). — 서버 코드는 cowork 것, android 는 배포만.
+- 실행: ssh 맥미니 → bash server/deploy_phase1.sh (cp main.py + launchctl reload). 프로세스 11:24:29 재기동, /healthz 200, main.py 해시 b9c7a836 일치.
+- 검증(응답 본문): assign/schedule=`{"detail":"계약 없음"}`, live/agent=`{"detail":"세션 없음"}`, finalize/confirm/customer/submissions 라우트 openapi 등록 확인. 없는 경로만 `Not Found`. api.si0in.kr(공개)도 동일 → 라이브.
+- 정정: 앞서 android 가 "Phase4 전체 404=미배포"라 본 건 상태코드만 본 판단. 이 라우트들은 가짜 ID로 찌르면 원래 404(계약/세션 없음)라 코드만으론 구분 불가였음. 실제로 assign/schedule(추가145·146)은 cowork 표기대로 미배포였고 이번에 라이브됨. live류(추가143·144)는 이미 떠있었을 가능성.
+- 결과: 실시간 계약서·달력·시공자배정 전부 라이브. 사장님 2폰 테스트 가능. 남은 cowork: submissions.assigned_phone(내 접수서함) + 서명판/완료UX(7차).
