@@ -102,6 +102,17 @@ private sealed class Nav {
     data class RoomForm(val roomId: String, val name: String) : Nav()
 }
 
+/**
+ * 재진입 즉시 렌더용 인메모리 캐시 (stale-while-revalidate).
+ * 화면은 마지막으로 본 값을 즉시 그리고, 뒤에서 새로고침해 최신으로 교체 → 재진입 시 스켈레톤/스피너 안 보임.
+ * 앱 프로세스 동안만 유지(휘발). 데이터가 바뀌는 액션(배정·시공일·메모 등)은 각 화면이 다시 fetch 하므로 최신 반영.
+ */
+private object ExpoCache {
+    var rooms: List<ExpoRepository.Room>? = null
+    val details = HashMap<String, ExpoRepository.RoomDetail>()
+    val submissions = HashMap<String, ExpoRepository.Submissions>()
+}
+
 @Composable
 fun ExpoScreen(container: AppContainer, onExit: () -> Unit) {
     val ctx = LocalContext.current
@@ -211,12 +222,13 @@ private fun ColumnScope.RoomListView(
     onOpen: (ExpoRepository.Room) -> Unit, onCreated: (ExpoRepository.Room) -> Unit
 ) {
     val scope = rememberCoroutineScope()
-    var rooms by remember { mutableStateOf<List<ExpoRepository.Room>?>(null) }
+    var rooms by remember { mutableStateOf(ExpoCache.rooms) }
     var showCreate by remember { mutableStateOf(false) }
     var showJoin by remember { mutableStateOf(false) }
 
     fun reload() = scope.launch {
-        repo.rooms(myPhone).onSuccess { rooms = it }.onFailure { rooms = emptyList(); toast("목록을 불러오지 못했어요") }
+        repo.rooms(myPhone).onSuccess { rooms = it; ExpoCache.rooms = it }
+            .onFailure { if (rooms == null) rooms = emptyList(); toast("목록을 불러오지 못했어요") }
     }
     LaunchedEffect(Unit) { reload() }
 
@@ -352,13 +364,14 @@ private fun ColumnScope.RoomDetailView(
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-    var detail by remember { mutableStateOf<ExpoRepository.RoomDetail?>(null) }
+    var detail by remember { mutableStateOf(ExpoCache.details[n.roomId]) }
     var code by remember { mutableStateOf<String?>(null) }
     var opening by remember { mutableStateOf(false) }
 
     LaunchedEffect(n.roomId) {
         repo.roomDetail(n.roomId, myPhone).onSuccess { dt ->
             detail = dt
+            ExpoCache.details[n.roomId] = dt
             // 방장이면 초대코드도 (rooms 목록에서 code 내려오지만 상세엔 없음 → rooms 재조회).
             // ⚠️ role 판정은 n.role 말고 서버가 준 dt.myRole 로. n.role 은 접수서/달력 갔다 뒤로가기 때
             //    "member" 로 덮여서, 돌아오면 방장 기능(상품등록·초대코드)이 사라지는 버그가 있었음.
@@ -810,13 +823,14 @@ private fun shareUrl(ctx: android.content.Context, url: String) {
 private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPhone: String, toast: (String) -> Unit, onContract: (Long) -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-    var data by remember { mutableStateOf<ExpoRepository.Submissions?>(null) }
+    var data by remember { mutableStateOf(ExpoCache.submissions[n.roomId]) }
     var members by remember { mutableStateOf<List<ExpoRepository.Member>>(emptyList()) }
     var reloadTick by remember { mutableStateOf(0) }
     var assignTarget by remember { mutableStateOf<ExpoRepository.Submission?>(null) }   // 시공자 배정 대상
 
     LaunchedEffect(n.roomId, reloadTick) {
-        repo.submissions(n.roomId, myPhone).onSuccess { data = it }.onFailure { data = ExpoRepository.Submissions(0, 0L, emptyList()) }
+        repo.submissions(n.roomId, myPhone).onSuccess { data = it; ExpoCache.submissions[n.roomId] = it }
+            .onFailure { if (data == null) data = ExpoRepository.Submissions(0, 0L, emptyList()) }
     }
     LaunchedEffect(n.roomId) { repo.roomDetail(n.roomId, myPhone).onSuccess { members = it.members } }
 
@@ -1199,24 +1213,26 @@ private fun ColumnScope.RoomFormView(
 private fun ColumnScope.ContractView(repo: ExpoRepository, n: Nav.Contract, myPhone: String, toast: (String) -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-    var sub by remember { mutableStateOf<ExpoRepository.Submission?>(null) }
+    val cachedSub = ExpoCache.submissions[n.roomId]?.items?.find { it.contractId == n.contractId }
+    var sub by remember { mutableStateOf(cachedSub) }
     var loadErr by remember { mutableStateOf(false) }
-    var memo by remember { mutableStateOf("") }
-    var memoInit by remember { mutableStateOf(false) }
+    var memo by remember { mutableStateOf(cachedSub?.note ?: "") }
+    var memoInit by remember { mutableStateOf(cachedSub != null) }
     var savingMemo by remember { mutableStateOf(false) }
-    var info by remember { mutableStateOf<ExpoRepository.RoomInfo?>(null) }
+    var info by remember { mutableStateOf(ExpoCache.details[n.roomId]?.info) }
 
     LaunchedEffect(n.contractId) {
         repo.submissions(n.roomId, myPhone)
             .onSuccess { data ->
+                ExpoCache.submissions[n.roomId] = data
                 val found = data.items.find { it.contractId == n.contractId }
-                if (found == null) loadErr = true
+                if (found == null) { if (sub == null) loadErr = true }
                 else { sub = found; if (!memoInit) { memo = found.note; memoInit = true } }
             }
-            .onFailure { loadErr = true }
+            .onFailure { if (sub == null) loadErr = true }
     }
     LaunchedEffect(n.roomId) {
-        repo.roomDetail(n.roomId, myPhone).onSuccess { info = it.info }
+        repo.roomDetail(n.roomId, myPhone).onSuccess { info = it.info; ExpoCache.details[n.roomId] = it }
     }
 
     val s = sub
@@ -1342,11 +1358,11 @@ private fun ColumnScope.ContractView(repo: ExpoRepository, n: Nav.Contract, myPh
 @Composable
 private fun ColumnScope.CalendarView(repo: ExpoRepository, n: Nav.Calendar, myPhone: String, onContract: (Long) -> Unit) {
     val ctx = LocalContext.current
-    var items by remember { mutableStateOf<List<ExpoRepository.Submission>?>(null) }
+    var items by remember { mutableStateOf(ExpoCache.submissions[n.roomId]?.items?.filter { it.scheduledAtMs > 0L }) }
     LaunchedEffect(n.roomId) {
         repo.submissions(n.roomId, myPhone)
-            .onSuccess { r -> items = r.items.filter { it.scheduledAtMs > 0L } }
-            .onFailure { items = emptyList() }
+            .onSuccess { r -> items = r.items.filter { it.scheduledAtMs > 0L }; ExpoCache.submissions[n.roomId] = r }
+            .onFailure { if (items == null) items = emptyList() }
     }
     val today = remember { java.util.Calendar.getInstance() }
     var year by remember { mutableStateOf(today.get(java.util.Calendar.YEAR)) }
