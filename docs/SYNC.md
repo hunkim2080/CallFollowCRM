@@ -7967,3 +7967,9 @@ deploy_phase1.sh — 배포 요약 '커밋' 표시 버그 fix. (사장님: "5bb1
 - 약관: 사진→OCR→terms 텍스트 채움. 사업자등록증: 사진→OCR→업체명·사업자번호 자동채움.
 - cowork endpoint안: POST /api/expo/ocr/terms{image}→{text}, POST /api/expo/ocr/bizreg{image}→{biz_name,biz_no,...}. Vision 기존 라우팅 재사용. 방 저장은 room/info 그대로.
 - 앱: 폼에 [사진으로 채우기]·[사업자등록증 촬영] 버튼 = OCR endpoint 나오면 착수.
+
+## 2026-07-23 13:45 · android
+박람회 폼/계약서 개선(사장님 실사용) — 앱 3건 완료 + 코워크 3건(웹).
+- 앱 완료(설치 0.2.1111): ①상품 단가·총액할인·계약금 콤마(ThousandsCommaTransformation) ②네이티브 계약서에 업체정보(상단)·약관(하단) 노출 — 방 기본정보 로딩 추가 ③(상품은 원래 배치저장=항목 여러개 추가 후 저장 1회, 콤마만 없었음).
+- cowork 요청(SERVER_HANDOFF 9=G): G1)고객 QR 스캔 시 고객정보 먼저 입력→그다음 계약서 같이보기(순서) G2)동/호수 [__]동[__]호 분리+숫자패드 G3)웹 영수증/viewer 약관 실노출 확인. + F보강: OCR 이미지 소스 사진촬영/앨범 둘 다 선택.
+- 방 생성→기본정보 폼 이동은 이미 동작(onCreated→RoomForm).
