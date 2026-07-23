@@ -954,6 +954,53 @@ private fun ChkRow(label: String, value: String) {
     }
 }
 
+/** 사업자번호 하이픈 000-00-00000 (입력 중 점진). */
+private fun bizNoHyphen(raw: String): String {
+    val d = raw.filter { it.isDigit() }.take(10)
+    return when {
+        d.length <= 3 -> d
+        d.length <= 5 -> "${d.take(3)}-${d.drop(3)}"
+        else -> "${d.take(3)}-${d.substring(3, 5)}-${d.drop(5)}"
+    }
+}
+
+/** 대표/사무실 번호 하이픈 — 8자리 로컬 0000-0000, 핸드폰(01) 000-0000-0000, 서울(02), 기타 지역(0xx). 입력 중 점진. */
+private fun bizPhoneHyphen(raw: String): String {
+    val d = raw.filter { it.isDigit() }
+    return when {
+        d.startsWith("02") -> {
+            val x = d.take(10)
+            when (x.length) {
+                in 0..2 -> x
+                in 3..5 -> "${x.take(2)}-${x.drop(2)}"
+                in 6..9 -> "${x.take(2)}-${x.substring(2, 5)}-${x.drop(5)}"
+                else -> "${x.take(2)}-${x.substring(2, 6)}-${x.drop(6)}"
+            }
+        }
+        d.startsWith("01") -> {
+            val x = d.take(11)
+            when (x.length) {
+                in 0..3 -> x
+                in 4..7 -> "${x.take(3)}-${x.drop(3)}"
+                else -> "${x.take(3)}-${x.substring(3, 7)}-${x.drop(7)}"
+            }
+        }
+        d.startsWith("0") -> {
+            val x = d.take(11)
+            when (x.length) {
+                in 0..3 -> x
+                in 4..6 -> "${x.take(3)}-${x.drop(3)}"
+                in 7..10 -> "${x.take(3)}-${x.substring(3, 6)}-${x.drop(6)}"
+                else -> "${x.take(3)}-${x.substring(3, 7)}-${x.drop(7)}"
+            }
+        }
+        else -> {
+            val x = d.take(8)
+            if (x.length <= 4) x else "${x.take(4)}-${x.drop(4)}"
+        }
+    }
+}
+
 // ══════════════ 박람회 기본정보 폼 (방장) ══════════════
 @Composable
 private fun ColumnScope.RoomFormView(
@@ -974,15 +1021,15 @@ private fun ColumnScope.RoomFormView(
         repo.roomDetail(n.roomId, myPhone).onSuccess { d ->
             d.info?.let { info ->
                 apartment = info.apartment; terms = info.terms
-                bizName = info.bizName; bizNo = info.bizNo
-                repPhone = ph(info.repPhone); officePhone = ph(info.officePhone)
+                bizName = info.bizName; bizNo = bizNoHyphen(info.bizNo)
+                repPhone = bizPhoneHyphen(info.repPhone); officePhone = bizPhoneHyphen(info.officePhone)
                 types.clear(); types.addAll(info.unitTypes)
             }
         }
     }
-    fun addType() {
-        val t = typeInput.trim()
-        if (t.isNotEmpty() && !types.contains(t) && types.size < 20) { types.add(t); typeInput = "" }
+    fun addTypeVal(t: String) {
+        val v = t.trim().take(20)
+        if (v.isNotEmpty() && !types.contains(v) && types.size < 20) types.add(v)
     }
 
     LazyColumn(
@@ -1008,26 +1055,40 @@ private fun ColumnScope.RoomFormView(
         item {
             Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
                 Text("타입(평형) 목록", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
-                Text("고객이 여기서 하나 골라요. (예: 84A, 84B, 59)", fontSize = 11.5.sp, color = T3)
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(value = typeInput, onValueChange = { typeInput = it },
-                        placeholder = { Text("타입 입력", fontSize = 13.sp) }, singleLine = true,
-                        modifier = Modifier.weight(1f))
-                    Spacer(Modifier.width(8.dp))
-                    Box(Modifier.background(Kk, RoundedCornerShape(10.dp)).clickable { addType() }
-                        .padding(horizontal = 16.dp, vertical = 14.dp)) {
-                        Text("추가", fontSize = 13.sp, fontWeight = FontWeight.Black, color = KkInk)
+                Text("자주 쓰는 평형은 눌러서 바로 추가. 여러 개는 쉼표로 한 번에.", fontSize = 11.5.sp, color = T3)
+                Spacer(Modifier.height(10.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("59", "74", "84", "101", "114").forEach { p ->
+                        val on = types.contains(p)
+                        Box(
+                            Modifier.weight(1f).background(if (on) Kk else Field, RoundedCornerShape(9.dp))
+                                .clickable { if (on) types.remove(p) else addTypeVal(p) }.padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) { Text(p, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (on) KkInk else T2) }
                     }
                 }
-                types.forEach { t ->
-                    Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.background(Field, RoundedCornerShape(8.dp)).padding(horizontal = 12.dp, vertical = 7.dp)) {
-                            Text(t, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = typeInput,
+                    onValueChange = { v ->
+                        if (v.any { it == ',' || it == ' ' || it == '\n' }) {
+                            v.split(',', ' ', '\n').forEach { addTypeVal(it) }; typeInput = ""
+                        } else typeInput = v.take(20)
+                    },
+                    placeholder = { Text("직접 입력 (예: 84A, 84B)", fontSize = 13.sp) },
+                    singleLine = true, modifier = Modifier.fillMaxWidth()
+                )
+                if (types.isNotEmpty()) {
+                    Spacer(Modifier.height(6.dp))
+                    types.forEach { t ->
+                        Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.background(Field, RoundedCornerShape(8.dp)).padding(horizontal = 12.dp, vertical = 7.dp)) {
+                                Text(t, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
+                            }
+                            Spacer(Modifier.weight(1f))
+                            Text("삭제", fontSize = 12.sp, color = Color(0xFFE1483B), fontWeight = FontWeight.Bold,
+                                modifier = Modifier.clickable { types.remove(t) })
                         }
-                        Spacer(Modifier.weight(1f))
-                        Text("삭제", fontSize = 12.sp, color = Color(0xFFE1483B), fontWeight = FontWeight.Bold,
-                            modifier = Modifier.clickable { types.remove(t) })
                     }
                 }
             }
@@ -1035,21 +1096,21 @@ private fun ColumnScope.RoomFormView(
         item {
             Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
                 Text("시공업체 정보", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
-                Spacer(Modifier.height(8.dp))
+                Text("빈칸으로 두면 계약서에 표시되지 않아요 — 없는 항목은 비워두세요.", fontSize = 11.5.sp, color = T3, lineHeight = 16.sp)
+                Spacer(Modifier.height(10.dp))
                 OutlinedTextField(value = bizName, onValueChange = { bizName = it },
                     label = { Text("업체명", fontSize = 12.sp) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = bizNo, onValueChange = { bizNo = it },
-                    label = { Text("사업자번호", fontSize = 12.sp) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                OutlinedTextField(value = bizNo, onValueChange = { bizNo = bizNoHyphen(it) },
+                    label = { Text("사업자번호", fontSize = 12.sp) }, placeholder = { Text("000-00-00000", fontSize = 13.sp) },
+                    singleLine = true, modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = repPhone,
-                    onValueChange = { repPhone = com.detailline.callfollowcrm.util.PhoneNumberFormatter.formatProgressive(it) },
+                OutlinedTextField(value = repPhone, onValueChange = { repPhone = bizPhoneHyphen(it) },
                     label = { Text("대표번호", fontSize = 12.sp) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone))
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = officePhone,
-                    onValueChange = { officePhone = com.detailline.callfollowcrm.util.PhoneNumberFormatter.formatProgressive(it) },
+                OutlinedTextField(value = officePhone, onValueChange = { officePhone = bizPhoneHyphen(it) },
                     label = { Text("사무실번호", fontSize = 12.sp) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone))
             }
