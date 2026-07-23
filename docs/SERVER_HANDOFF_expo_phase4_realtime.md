@@ -177,3 +177,9 @@
 ### (참고) 앱측 대응
 - 상담사 [계약서 보관하기] 실패 메시지 이미 사람말투로 교체(409=고객 미완료 / 400=필수누락 / 404=계약없음·미배포). — android 완료.
 - 앱 "계약서 보기"는 **웹 안 열고 앱 안 네이티브 렌더 + 하단 [카톡 공유]/[PDF 저장]** 로 바꿀 예정(사장님 시안 승인 대기). 이건 앱 몫.
+
+### D. submissions 에 `assigned_phone` 추가 요청 (내 접수서함용)
+- 사장님 승인: 접수서 **일괄 랜덤 배정**(금액 비슷하게, 제외할 팀원 선택 가능) + **내 접수서함**(나에게 배정된 것만).
+- 앱이 "내 것"을 거르려면 `submissions` item 에 **`assigned_phone`**(원본, 방 멤버 전용)이 필요. 지금은 `assigned_name` 만 있어 이름 겹치면 오분류.
+- 요청: `GET /api/expo/submissions` item 에 `assigned_phone` 추가(미배정=""). 그럼 앱이 `assigned_phone==myPhone` 로 내 접수서함 필터.
+- 배정 자체는 기존 `assign`(추가146) 을 앱이 미배정 건마다 루프 호출 → **★ 우선 `deploy_phase1.sh` 로 assign·submissions 배포부터** (현재 404).

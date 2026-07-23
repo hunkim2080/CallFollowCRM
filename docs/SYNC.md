@@ -7904,3 +7904,9 @@ deploy_phase1.sh — 배포 요약 '커밋' 표시 버그 fix. (사장님: "5bb1
 - 앱 설계 대기(사장님 시안 승인 후 착수): ①우리팀 접수서 총건수·총금액+[N명에게 나눠 배정] 랜덤(휙휙 애니) ②내 접수서함(배정받은 것만) ③앱 "계약서 보기"=웹 안 열고 네이티브 렌더+하단 공유/PDF. 시안=scratchpad/expo_assign_mock.png.
 - 미결정(사장님): 배정 기준(금액균등 vs 건수균등), 계약자 본인도 시공자 대상 포함 여부.
 - commit: (이 커밋)
+
+## 2026-07-23 11:35 · android
+박람회 배정 설계 확정(사장님) + 코워크 submissions.assigned_phone 요청.
+- 확정: 일괄 배정 기준=금액 비슷하게(랜덤·균등금액), 배정 대상=제외할 팀원 선택 가능(기본 전원).
+- cowork 요청(SERVER_HANDOFF 7-D): submissions item 에 assigned_phone 추가(내 접수서함 필터용). ★ 먼저 deploy_phase1.sh 로 Phase4 전체 배포(assign/schedule/live 404 상태).
+- 앱: 시안 승인됨 → 배정UI/애니·내 접수서함·앱네이티브 계약서는 서버 배포 후 착수(지금 만들면 404/빈데이터라 검증 불가).
