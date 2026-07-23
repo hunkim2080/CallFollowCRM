@@ -212,11 +212,22 @@ fun SettingsScreen(
             onDismiss = { showDiagnostics = false },
             onSend = { note, shotUri ->
                 showDiagnostics = false
-                com.detailline.callfollowcrm.util.DiagnosticsReporter.share(
-                    context,
-                    com.detailline.callfollowcrm.util.DiagnosticsReporter.buildReport(container.preferences, note),
-                    shotUri
-                )
+                Toast.makeText(context, "진단을 보내는 중…", Toast.LENGTH_SHORT).show()
+                settingsScope.launch {
+                    val ok = com.detailline.callfollowcrm.util.DiagnosticsReporter
+                        .sendToServer(context, container.preferences, note, shotUri)
+                    if (ok) {
+                        Toast.makeText(context, "진단을 보냈어요. 감사합니다! 🙏", Toast.LENGTH_LONG).show()
+                    } else {
+                        // 서버 전송 실패 → 공유 시트로 폴백(리포트 유실 방지)
+                        Toast.makeText(context, "바로 전송이 안 돼 공유로 열었어요", Toast.LENGTH_LONG).show()
+                        com.detailline.callfollowcrm.util.DiagnosticsReporter.share(
+                            context,
+                            com.detailline.callfollowcrm.util.DiagnosticsReporter.buildReport(container.preferences, note),
+                            shotUri
+                        )
+                    }
+                }
             }
         )
     }

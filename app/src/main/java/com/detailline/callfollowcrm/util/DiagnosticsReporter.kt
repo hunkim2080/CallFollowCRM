@@ -4,8 +4,18 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.util.Base64
+import com.detailline.callfollowcrm.AppConfig
 import com.detailline.callfollowcrm.BuildConfig
 import com.detailline.callfollowcrm.data.preferences.AppPreferences
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
+import java.util.concurrent.TimeUnit
 
 /**
  * 문제 신고 / 진단 보내기 (2026-07-22 사장님) — 앱이 죽지 않는 "이상 동작"(예: 자동문자 인코딩 깨짐)을
@@ -15,12 +25,19 @@ import com.detailline.callfollowcrm.data.preferences.AppPreferences
  *   - 개인 고객정보(이름/번호/주소/대화)는 담지 않는다. 앱 버전·기기·"자동문자 설정값"만.
  *   - 자동문자는 코드포인트 덤프(U+XXXX)도 함께 넣어, 이메일/카톡에서 다시 mojibake 로 렌더돼도
  *     우리가 원문(어느 바이트가 깨졌는지)을 복원할 수 있게 한다. (이번 D-1 깨짐 같은 케이스 진단용)
- *   - 전송은 공유 시트(이메일·카톡 등) — 사용자가 눈으로 보고 직접 보냄(동의형).
+ *   - 전송 = **버튼 한 번에 서버로 바로 전송(캐치)**. (2026-07-23 사장님: 공유 시트는 사용자가 어떻게
+ *     보낼지 몰라 불편 → 직송으로 바꿈.) 서버 실패 시에만 공유 시트로 폴백.
  */
 object DiagnosticsReporter {
 
-    /** 진단 리포트 수신처(사장님). 이메일 앱을 고르면 자동 채워짐. */
+    /** 서버 전송 실패 시 폴백용 이메일 수신처(사장님). */
     private const val TARGET_EMAIL = "hugman2080@gmail.com"
+
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(5, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
+        .writeTimeout(15, TimeUnit.SECONDS)
+        .build()
 
     fun buildReport(prefs: AppPreferences, userNote: String): String {
         val sb = StringBuilder()
@@ -63,8 +80,42 @@ object DiagnosticsReporter {
     }
 
     /**
-     * 공유 시트(이메일·카톡 등)로 진단 리포트 보내기.
-     * @param imageUri 스크린샷 등 첨부 이미지(선택). 있으면 이미지+본문을 함께 전송(이미지 타입), 없으면 본문만 텍스트로 전송.
+     * 버튼 한 번에 진단 리포트를 **서버로 직접 전송**한다. 성공하면 true.
+     * @param imageUri 스크린샷 등(선택) — 있으면 base64(dataURL)로 함께 전송(5MB 이하).
+     * 서버: POST /api/diagnostics/report {phone, version, device, android, note, report, image?}
+     */
+    suspend fun sendToServer(context: Context, prefs: AppPreferences, note: String, imageUri: Uri?): Boolean =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val body = JSONObject().apply {
+                    put("phone", prefs.bizPhone.filter { it.isDigit() })
+                    put("version", "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
+                    put("device", "${Build.MANUFACTURER} ${Build.MODEL}")
+                    put("android", "${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
+                    put("note", note.trim())
+                    put("report", buildReport(prefs, note))
+                    if (imageUri != null) {
+                        runCatching {
+                            context.contentResolver.openInputStream(imageUri)?.use { ins ->
+                                val bytes = ins.readBytes()
+                                if (bytes.isNotEmpty() && bytes.size <= 5_000_000) {
+                                    put("image", "data:image/*;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP))
+                                }
+                            }
+                        }
+                    }
+                }
+                val req = Request.Builder()
+                    .url("${AppConfig.BASE_URL}/api/diagnostics/report")
+                    .post(body.toString().toRequestBody("application/json; charset=utf-8".toMediaType()))
+                    .build()
+                client.newCall(req).execute().use { it.isSuccessful }
+            }.getOrDefault(false)
+        }
+
+    /**
+     * 공유 시트(이메일·카톡 등)로 진단 리포트 보내기. **서버 직송 실패 시 폴백**으로만 사용.
+     * @param imageUri 스크린샷 등 첨부 이미지(선택). 있으면 이미지+본문, 없으면 본문만 텍스트.
      */
     fun share(context: Context, report: String, imageUri: Uri? = null) {
         val send = Intent(Intent.ACTION_SEND).apply {
