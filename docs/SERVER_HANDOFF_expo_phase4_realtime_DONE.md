@@ -97,3 +97,31 @@
 4. **⚠️ 팀원 식별 결정 = (a)** — `GET /api/expo/room/{id}` 의 members `phone` 을 **방 멤버 전체에 원본 제공**(전엔 팀원에게 마스킹). 동료끼리 배정·연락 목적. member_id 안 만듦. 앱은 이 원본 phone 을 assign 의 assigned_phone 으로 그대로 사용.
    - (code=초대코드는 여전히 방장에게만.)
 - 검증 TestClient 13항목 ALL OK.
+
+---
+
+## 추가 반영 (2026-07-23, 핸드오프 6·7·8차 — 추가147) · 기본정보·완료UX·서명·주소
+
+### 8차 — 방 단위 박람회 기본정보 + 주소 간소화
+- `POST /api/expo/room/create` 확장: `apartment, unit_types[], terms, biz_name, biz_no, rep_phone, office_phone` 저장. 응답에 `info`.
+- **신규** `POST /api/expo/room/info {room_id, owner_phone, ...}` — 방장이 개설 후 기본정보 수정(부분 갱신). 방장만(403).
+- `GET /api/expo/room/{id}` 응답에 `info` 포함. `GET /api/expo/contract/live/{sid}` 에 `room_info`·`unit_type` 포함.
+- **고객 웹 `/expo/c`**: 다음지도 주소검색 **제거**. 아파트명 고정 표시 + **동·호수 입력 + 타입 select(방장 정의 목록)**.
+- `dong_ho` + **`unit_type` 신규**. finalize 시 apartment=방 기본정보(고정), unit_type=고객선택 저장.
+- submissions item 에 `unit_type` 추가. 영수증(`/expo/r`): 상단 **시공업체 정보**(업체명·사업자번호·대표/사무실번호) + 하단 **약관** + 주소=아파트명+동호수+[타입].
+- 필수항목 판정: 주소 → **동·호수**로 변경(아파트는 고정이므로).
+
+### 7차 — 고객 웹 완료 UX
+- **A. 완료 후 잠금**: [작성 완료] 누르면 이름·연락처·동호수·타입·서명 전부 잠김(초록 '작성 완료됨 ✓').
+- **B. [수정하기]**: 잠금 해제 + `customer_confirmed=false` 리셋(상담사 배너도 내려감).
+- **C. finalize 축하 전환**: 상담사 [계약서 보관하기] → 고객 화면이 **🎉 "계약이 완료되었어요!" 전체화면** + [내 계약서 보기/PDF] · [공유하기] 크게. (영수증 이동 대신 축하 오버레이)
+
+### 6차 — 서명·전화
+- 서명판 스와이프 낙서 fix: `touch-action:none`(기존) + **완료 후 서명 잠금**(pointer-events off) + preventDefault.
+- 웹 전화번호 하이픈: 고객 입력 자동 하이픈(`010-1234-5678`) + 영수증 전화 `_fmt_phone`.
+
+### 7차 D — 내 접수서함
+- submissions item 에 **`assigned_phone`**(원본, 방 멤버 전용, 미배정="") 추가 → 앱이 `assigned_phone==myPhone` 로 내 것 필터.
+
+### 검증
+- TestClient 25항목(신규) + 회귀 8항목 ALL OK. 하위호환(기본정보 없는 방·Phase1 submit) 유지.

@@ -515,9 +515,27 @@ def db_init() -> None:
         for col, ddl in [
             ("apartment", "apartment TEXT"),
             ("dong_ho", "dong_ho TEXT"),
+            ("unit_type", "unit_type TEXT"),          # 추가147 (8차) — 평형 타입
         ]:
             if col not in _ec:
                 con.execute(f"ALTER TABLE expo_contracts ADD COLUMN {ddl}")
+        # 추가147 (2026-07-23) — 8차: 방 단위 박람회 기본정보 (아파트명·타입목록·약관·업체정보)
+        _er = {r[1] for r in con.execute("PRAGMA table_info(expo_rooms)").fetchall()}
+        for col, ddl in [
+            ("apartment", "apartment TEXT"),           # 단지명(시공주소 고정 앞부분)
+            ("unit_types_json", "unit_types_json TEXT"),  # 방장이 정의한 타입 목록[]
+            ("terms", "terms TEXT"),                   # 계약 약관(방장 자유입력)
+            ("biz_name", "biz_name TEXT"),             # 시공업체명
+            ("biz_no", "biz_no TEXT"),                 # 사업자번호
+            ("rep_phone", "rep_phone TEXT"),           # 대표번호
+            ("office_phone", "office_phone TEXT"),     # 사무실번호
+        ]:
+            if col not in _er:
+                con.execute(f"ALTER TABLE expo_rooms ADD COLUMN {ddl}")
+        # 라이브 세션 — 고객이 고르는 타입
+        _ecs2 = {r[1] for r in con.execute("PRAGMA table_info(expo_contract_sessions)").fetchall()}
+        if "live_unit_type" not in _ecs2:
+            con.execute("ALTER TABLE expo_contract_sessions ADD COLUMN live_unit_type TEXT")
         # ── 추가121 (2026-07-13) — 상담함/문자함 Haiku 분류 캐시 (같은 내용 재호출 0) ──
         con.execute(
             """
@@ -23348,10 +23366,62 @@ def _expo_catalog(room_id: str) -> list:
     ]
 
 
+def _expo_clean_types(lst) -> list:
+    """타입 목록 정규화 — 문자열만, 공백 제거, 중복 제거, 최대 20개."""
+    out, seen = [], set()
+    for t in (lst or []):
+        s = str(t).strip()[:20]
+        if s and s not in seen:
+            seen.add(s); out.append(s)
+        if len(out) >= 20:
+            break
+    return out
+
+
+def _expo_room_info(room_id: str) -> dict:
+    """방 기본정보(8차) — 고객웹·영수증·앱 공용."""
+    with db_conn() as con:
+        r = con.execute(
+            "SELECT name, apartment, unit_types_json, terms, biz_name, biz_no, "
+            "rep_phone, office_phone FROM expo_rooms WHERE room_id = ?", (room_id,),
+        ).fetchone()
+    if not r:
+        return {}
+    try:
+        types = json.loads(r[2] or "[]")
+    except Exception:
+        types = []
+    return {
+        "name": r[0] or "", "apartment": r[1] or "", "unit_types": types,
+        "terms": r[3] or "", "biz_name": r[4] or "", "biz_no": r[5] or "",
+        "rep_phone": _norm_phone(r[6]), "office_phone": _norm_phone(r[7]),
+    }
+
+
 class ExpoRoomCreate(BaseModel):
     owner_phone: str
     name: str
     owner_name: Optional[str] = None
+    # 추가147 (8차) — 박람회 기본정보 (방 단위)
+    apartment: Optional[str] = None          # 단지명(시공주소 고정)
+    unit_types: Optional[list] = None        # 타입 목록 ["84A","84B","59"]
+    terms: Optional[str] = None              # 계약 약관(자유입력)
+    biz_name: Optional[str] = None
+    biz_no: Optional[str] = None
+    rep_phone: Optional[str] = None
+    office_phone: Optional[str] = None
+
+
+class ExpoRoomInfoSet(BaseModel):
+    room_id: str
+    owner_phone: str
+    apartment: Optional[str] = None
+    unit_types: Optional[list] = None
+    terms: Optional[str] = None
+    biz_name: Optional[str] = None
+    biz_no: Optional[str] = None
+    rep_phone: Optional[str] = None
+    office_phone: Optional[str] = None
 
 
 class ExpoRoomJoin(BaseModel):
@@ -23398,10 +23468,18 @@ async def expo_room_create(req: ExpoRoomCreate) -> dict:
     now = _now_ms()
     room_id = "er_" + secrets.token_hex(4)
     code = _expo_gen_room_code()
+    types = _expo_clean_types(req.unit_types)
     with db_conn() as con:
         con.execute(
-            "INSERT INTO expo_rooms (room_id, code, owner_phone, name, created_at_ms) "
-            "VALUES (?, ?, ?, ?, ?)", (room_id, code, ophone, name, now),
+            "INSERT INTO expo_rooms (room_id, code, owner_phone, name, created_at_ms, "
+            "apartment, unit_types_json, terms, biz_name, biz_no, rep_phone, office_phone) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (room_id, code, ophone, name, now,
+             (req.apartment or "").strip()[:60],
+             json.dumps(types, ensure_ascii=False),
+             (req.terms or "").strip()[:4000],
+             (req.biz_name or "").strip()[:60], (req.biz_no or "").strip()[:20],
+             _norm_phone(req.rep_phone), _norm_phone(req.office_phone)),
         )
         con.execute(
             "INSERT OR REPLACE INTO expo_room_members "
@@ -23409,7 +23487,41 @@ async def expo_room_create(req: ExpoRoomCreate) -> dict:
             "VALUES (?, ?, ?, 'owner', ?, NULL)", (room_id, ophone, oname, now),
         )
         con.commit()
-    return {"ok": True, "room_id": room_id, "code": code, "name": name}
+    return {"ok": True, "room_id": room_id, "code": code, "name": name,
+            "info": _expo_room_info(room_id)}
+
+
+@app.post("/api/expo/room/info")
+async def expo_room_info_set(req: ExpoRoomInfoSet) -> dict:
+    """방장이 박람회 기본정보 수정(개설 후 변경). 방장만."""
+    me = _expo_room_member(req.room_id, req.owner_phone)
+    if not me or me["role"] != "owner":
+        raise HTTPException(403, "방장만 기본정보를 바꿀 수 있습니다")
+    sets, vals = [], []
+    def _put(col, val, maxlen, phone=False):
+        sets.append(f"{col} = ?")
+        vals.append(_norm_phone(val) if phone else (val or "").strip()[:maxlen])
+    if req.apartment is not None:
+        _put("apartment", req.apartment, 60)
+    if req.unit_types is not None:
+        sets.append("unit_types_json = ?")
+        vals.append(json.dumps(_expo_clean_types(req.unit_types), ensure_ascii=False))
+    if req.terms is not None:
+        _put("terms", req.terms, 4000)
+    if req.biz_name is not None:
+        _put("biz_name", req.biz_name, 60)
+    if req.biz_no is not None:
+        _put("biz_no", req.biz_no, 20)
+    if req.rep_phone is not None:
+        _put("rep_phone", req.rep_phone, 20, phone=True)
+    if req.office_phone is not None:
+        _put("office_phone", req.office_phone, 20, phone=True)
+    if sets:
+        vals.append(req.room_id)
+        with db_conn() as con:
+            con.execute("UPDATE expo_rooms SET " + ", ".join(sets) + " WHERE room_id = ?", vals)
+            con.commit()
+    return {"ok": True, "info": _expo_room_info(req.room_id)}
 
 
 @app.post("/api/expo/room/join")
@@ -23506,6 +23618,7 @@ async def expo_room_detail(room_id: str, phone: str) -> dict:
             for m in members
         ],
         "catalog": _expo_catalog(room_id),
+        "info": _expo_room_info(room_id),   # 추가147 (8차) 박람회 기본정보
     }
 
 
@@ -23663,7 +23776,7 @@ async def expo_submissions(room_id: str, phone: str) -> dict:
         rows = con.execute(
             "SELECT contract_id, customer_name, customer_phone, items_json, "
             "final_amount, status, agent_phone, created_at_ms, assigned_phone, "
-            "apartment, dong_ho, address, memo, scheduled_at_ms "
+            "apartment, dong_ho, address, memo, scheduled_at_ms, unit_type "
             "FROM expo_contracts WHERE room_id = ? ORDER BY created_at_ms DESC", (room_id,),
         ).fetchall()
         agent_names = {}
@@ -23691,9 +23804,11 @@ async def expo_submissions(room_id: str, phone: str) -> dict:
             "agent_name": agent_names.get(_norm_phone(r[6]), "?"),   # 계약자
             "created_at_ms": r[7],
             "assigned_name": agent_names.get(_norm_phone(r[8]), None) if r[8] else None,
+            "assigned_phone": _norm_phone(r[8]),   # 내 접수서함 필터용(방 멤버 전용). 미배정=""
             # 확정5 보강 — 앱 네이티브 상세용 상세주소 구조화
             "apartment": r[9] or "",
             "dong_ho": r[10] or "",
+            "unit_type": (r[14] if len(r) > 14 else "") or "",   # 8차 평형 타입
             "address": r[11] or "",
             "note": r[12] or "",   # 특이사항/비고
             "scheduled_at_ms": int(r[13] or 0),   # 시공일(0=미정) — 박람회 달력용
@@ -23800,6 +23915,23 @@ async def expo_contract_page(session_id: str, k: Optional[str] = None) -> HTMLRe
     with db_conn() as con:
         room = con.execute("SELECT name FROM expo_rooms WHERE room_id = ?", (room_id,)).fetchone()
     room_name = (room[0] if room else "박람회")
+    rinfo = _expo_room_info(room_id)   # 8차 기본정보
+    apt = rinfo.get("apartment") or ""
+    types = rinfo.get("unit_types") or []
+    # 아파트명 고정 표시 (있으면)
+    apt_fixed = ("<div style='width:100%;border:1px solid var(--line);border-radius:10px;padding:12px;"
+                 "font-size:15px;margin-top:8px;background:#F5F7F9;color:#0B0F19;font-weight:700'>"
+                 + _h(apt) + "</div>") if apt else ""
+    # 타입 선택 (방장이 정의한 목록)
+    if types:
+        opts = "<option value=''>타입 선택</option>" + "".join(
+            "<option value='" + _h(t) + "'>" + _h(t) + "</option>" for t in types)
+        type_field = ("<label class=fl>타입</label>"
+                      "<select id=utype onchange='push()' style='width:100%;border:1px solid var(--line);"
+                      "border-radius:10px;padding:12px;font-size:15px;font-family:inherit;margin-top:8px;background:#fff'>"
+                      + opts + "</select>")
+    else:
+        type_field = "<input type=hidden id=utype value=''>"
 
     body = (
         "<div class=top><div class=rm>" + _h(room_name) + " · 시공 계약서</div>"
@@ -23814,13 +23946,13 @@ async def expo_contract_page(session_id: str, k: Optional[str] = None) -> HTMLRe
         "<div class=l id=depLine style='display:none'><span>계약금</span><span id=sDep>0원</span></div></div></div>"
         "<div class=card id=noteCard style='display:none'><h2>📝 상담사 메모</h2>"
         "<div id=noteText style='font-size:14px;color:#5A6472;white-space:pre-wrap'></div></div>"
-        "<div class=card><h2>🙋 고객 정보</h2>"
+        "<div class=card id=custCard><h2>🙋 고객 정보</h2>"
         "<label class=fl>성함</label><input type=text id=cname placeholder='고객 성함' oninput='push()'>"
-        "<label class=fl>연락처</label><input type=tel id=cphone inputmode=numeric placeholder='010-0000-0000' oninput='push()'>"
-        "<label class=fl>시공 주소</label>"
-        "<button type=button id=addrBtn onclick='findAddr()' style='width:100%;border:1px solid var(--line);border-radius:10px;padding:12px;font-size:15px;font-family:inherit;margin-top:8px;background:#fff;text-align:left;color:#9AA3AF;cursor:pointer'>주소 찾기 (우편번호 검색)</button>"
-        "<input type=text id=addrView placeholder='선택된 주소' readonly style='display:none;background:#F5F7F9'>"
-        "<input type=text id=dongho placeholder='동·호수 (예: 101동 1203호)' oninput='push()' style='display:none'></div>"
+        "<label class=fl>연락처</label><input type=tel id=cphone inputmode=numeric placeholder='010-0000-0000' oninput='hyp(this);push()'>"
+        + ("<label class=fl>시공 현장 (아파트)</label>" + apt_fixed if apt else "")
+        + "<label class=fl>동·호수</label>"
+        "<input type=text id=dongho placeholder='예: 101동 1203호' oninput='push()'>"
+        + type_field + "</div>"
         "<div class=card><h2>✍️ 서명</h2>"
         "<label class=agree style='margin-top:0'><div class=chk id=agChk onclick='agTog()'></div>"
         "<div style='font-size:13px;color:#5A6472'><b>개인정보 수집·이용 동의</b> (필수) — "
@@ -23834,10 +23966,19 @@ async def expo_contract_page(session_id: str, k: Optional[str] = None) -> HTMLRe
         "<canvas class=sig id=sig></canvas><div class=sighint id=sigHint>동의 후 위 칸에 손가락으로 서명해 주세요</div></div>"
         "<div style='text-align:center;color:#9AA3AF;font-size:12px;padding:0 0 10px'>작성일 <span id=wdate></span></div>"
         "</div>"
-        "<div class=bar><div class=in><div class=amt><small>최종 금액</small><b id=bAmt>0원</b></div>"
+        # 완료(finalize) 시 전체 전환되는 축하 화면 (7차 C)
+        "<div id=doneScreen style='display:none;position:fixed;inset:0;background:linear-gradient(160deg,#3182F6,#1B64DA);color:#fff;z-index:50;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center'>"
+        "<div style='font-size:64px;margin-bottom:8px'>🎉</div>"
+        "<div style='font-size:24px;font-weight:900;letter-spacing:-.02em'>계약이 완료되었어요!</div>"
+        "<div style='font-size:14px;opacity:.9;margin-top:8px;line-height:1.6'>계약서를 저장하거나 카톡으로 보관하세요.</div>"
+        "<a id=goReceipt href='#' style='display:block;width:100%;max-width:320px;margin-top:28px;background:#fff;color:#1B64DA;font-weight:900;font-size:16px;padding:16px;border-radius:14px'>내 계약서 보기 / PDF 저장</a>"
+        "<button onclick='shareKakao()' style='width:100%;max-width:320px;margin-top:12px;background:rgba(255,255,255,.18);color:#fff;font-weight:800;font-size:15px;padding:15px;border:1px solid rgba(255,255,255,.4);border-radius:14px;cursor:pointer'>공유하기</button>"
+        "</div>"
+        "<div class=bar id=actionBar><div class=in><div class=amt><small>최종 금액</small><b id=bAmt>0원</b></div>"
+        "<button id=editBtn onclick='editUnlock()' style='display:none;background:#EEF4FF;color:#1B64DA;border:0;border-radius:12px;padding:14px 18px;font-size:14px;font-weight:800;cursor:pointer;margin-right:8px'>수정하기</button>"
         "<button id=doneBtn onclick='done()' disabled style='background:#3182F6;color:#fff;border:0;border-radius:12px;padding:14px 22px;font-size:15px;font-weight:800;cursor:pointer'>작성 완료</button></div></div>"
-        "<script src='https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js'></script>"
-        "<script>var SID=" + json.dumps(session_id) + ",K=" + json.dumps(k or "") + ",BASE=" + json.dumps(base) + ";</script>"
+        "<script>var SID=" + json.dumps(session_id) + ",K=" + json.dumps(k or "") + ",BASE=" + json.dumps(base)
+        + ",APT=" + json.dumps(apt) + ";</script>"
         "<script>" + _EXPO_CONTRACT_JS + "</script>"
     )
     return HTMLResponse(_expo_page_shell("시공 계약서 · " + room_name, body))
@@ -23851,112 +23992,123 @@ def _h(s) -> str:
 _EXPO_CONTRACT_JS = r"""
 function won(n){return (n||0).toLocaleString('ko-KR')+'원';}
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-var agreed=false, apartment='', address='';
-// ── 실시간 상품/금액 렌더 (상담사가 보낸 라이브 상태) ──
+function $(id){return document.getElementById(id);}
+var agreed=false, confirmed=false;
+// 전화번호 하이픈 자동 (6차)
+function hyp(el){var d=el.value.replace(/[^0-9]/g,'').slice(0,11);var o=d;
+  if(d.length>=11)o=d.slice(0,3)+'-'+d.slice(3,7)+'-'+d.slice(7);
+  else if(d.length>=7)o=d.slice(0,3)+'-'+d.slice(3,7)+'-'+d.slice(7);
+  else if(d.length>=4)o=d.slice(0,3)+'-'+d.slice(3);
+  el.value=o;}
+function utypeVal(){var e=$('utype');return e?(e.value||'').trim():'';}
+function typeRequired(){var e=$('utype');return e&&e.tagName==='SELECT';}
+// ── 실시간 상품/금액 렌더 ──
 function renderItems(st){
-  var box=document.getElementById('itemBox');
-  var its=st.items||[];
+  var box=$('itemBox');var its=st.items||[];
   if(!its.length){box.innerHTML="<div style='font-size:13px;color:#9AA3AF;padding:10px 0'>상담사가 상품을 선택하면 여기에 표시됩니다…</div>";}
-  else{
-    var h='';
-    its.forEach(function(it){
-      var q=(it.kind==='service')?'':(" <span style='color:#9AA3AF;font-size:12px'>×"+it.qty+"</span>");
-      var pr=(it.line>0)?("<span class=pr>"+won(it.line)+"</span>"):"";
-      h+="<div class=row><div class=nm>"+esc(it.name)+q+"</div>"+pr+"</div>";
-    });
-    box.innerHTML=h;
-  }
-  document.getElementById('sTotal').textContent=won(st.product_total);
-  document.getElementById('sDisc').textContent=won(st.discount);
-  document.getElementById('sFinal').textContent=won(st.final_amount);
-  document.getElementById('bAmt').textContent=won(st.final_amount);
-  var dl=document.getElementById('depLine');
-  if(st.deposit_enabled){dl.style.display='flex';document.getElementById('sDep').textContent=won(st.deposit_amount);}
+  else{var h='';its.forEach(function(it){
+    var q=(it.kind==='service')?'':(" <span style='color:#9AA3AF;font-size:12px'>×"+it.qty+"</span>");
+    var pr=(it.line>0)?("<span class=pr>"+won(it.line)+"</span>"):"";
+    h+="<div class=row><div class=nm>"+esc(it.name)+q+"</div>"+pr+"</div>";});box.innerHTML=h;}
+  $('sTotal').textContent=won(st.product_total);
+  $('sDisc').textContent=won(st.discount);
+  $('sFinal').textContent=won(st.final_amount);
+  $('bAmt').textContent=won(st.final_amount);
+  var dl=$('depLine');
+  if(st.deposit_enabled){dl.style.display='flex';$('sDep').textContent=won(st.deposit_amount);}
   else{dl.style.display='none';}
 }
-// ── 서명 canvas ──
-var cv=document.getElementById('sig'),cx=cv.getContext('2d'),drawing=false,sigHas=false,sigDirty=false;
+// ── 서명 canvas (touch-action:none + preventDefault 로 스와이프 낙서 차단, 6차) ──
+var cv=$('sig'),cx=cv.getContext('2d'),drawing=false,sigHas=false,sigDirty=false;
 function fit(){var r=cv.getBoundingClientRect();cv.width=r.width*2;cv.height=r.height*2;cx.scale(2,2);cx.lineWidth=2.2;cx.lineCap='round';cx.strokeStyle='#0B0F19';}
 fit();
 function pos(e){var r=cv.getBoundingClientRect();var t=e.touches?e.touches[0]:e;return{x:t.clientX-r.left,y:t.clientY-r.top};}
-function start(e){if(!agreed){alert('개인정보 수집·이용에 먼저 동의해 주세요.');return;}drawing=true;var p=pos(e);cx.beginPath();cx.moveTo(p.x,p.y);e.preventDefault();}
+function start(e){if(confirmed)return;if(!agreed){alert('개인정보 수집·이용에 먼저 동의해 주세요.');return;}drawing=true;var p=pos(e);cx.beginPath();cx.moveTo(p.x,p.y);e.preventDefault();}
 function move(e){if(!drawing)return;var p=pos(e);cx.lineTo(p.x,p.y);cx.stroke();sigHas=true;sigDirty=true;e.preventDefault();}
 function end(){if(drawing){drawing=false;if(sigDirty){sigDirty=false;pushSig();}updateDone();}}
 cv.addEventListener('mousedown',start);cv.addEventListener('mousemove',move);window.addEventListener('mouseup',end);
 cv.addEventListener('touchstart',start,{passive:false});cv.addEventListener('touchmove',move,{passive:false});cv.addEventListener('touchend',end);
-function sigClr(){cx.clearRect(0,0,cv.width,cv.height);sigHas=false;pushSig();updateDone();}
-function agTog(){agreed=!agreed;var c=document.getElementById('agChk');c.classList.toggle('on',agreed);c.textContent=agreed?'✓':'';
-  document.getElementById('sigHint').textContent=agreed?'위 칸에 손가락으로 서명해 주세요':'동의 후 위 칸에 손가락으로 서명해 주세요';updateDone();}
-// ── 필수 4항목(성함·연락처·주소·서명) 다 채워야 [작성 완료] 활성 ──
-var confirmed=false;
+function sigClr(){if(confirmed)return;cx.clearRect(0,0,cv.width,cv.height);sigHas=false;pushSig();updateDone();}
+function agTog(){if(confirmed)return;agreed=!agreed;var c=$('agChk');c.classList.toggle('on',agreed);c.textContent=agreed?'✓':'';
+  $('sigHint').textContent=agreed?'위 칸에 손가락으로 서명해 주세요':'동의 후 위 칸에 손가락으로 서명해 주세요';updateDone();}
+// ── 필수: 성함·연락처·동호수·서명 (+타입 있으면 타입) ──
 function reqOk(){
-  var nm=document.getElementById('cname').value.trim();
-  var ph=document.getElementById('cphone').value.replace(/[^0-9]/g,'');
-  return nm && ph.length>=10 && address && sigHas && agreed;
+  var nm=$('cname').value.trim();
+  var ph=$('cphone').value.replace(/[^0-9]/g,'');
+  var dh=$('dongho').value.trim();
+  var typeOk=typeRequired()?!!utypeVal():true;
+  return nm && ph.length>=10 && dh && typeOk && sigHas && agreed;
 }
 function updateDone(){
-  var b=document.getElementById('doneBtn');
+  var b=$('doneBtn');
   if(confirmed){b.disabled=true;b.textContent='작성 완료됨 ✓';b.style.background='#12B76A';return;}
   b.disabled=!reqOk();b.textContent='작성 완료';b.style.background=b.disabled?'#C7D2DE':'#3182F6';
 }
+// ── 완료 후 입력 잠금 / 수정하기 (7차 A·B) ──
+function lockUI(lock){
+  ['cname','cphone','dongho','utype'].forEach(function(id){var e=$(id);if(e){e.disabled=lock;e.style.opacity=lock?'.6':'1';}});
+  cv.style.pointerEvents=lock?'none':'auto';
+  $('editBtn').style.display=lock?'inline-block':'none';
+  $('sigHint').textContent=lock?'작성 완료됨 — 수정하려면 아래 [수정하기]':(agreed?'위 칸에 손가락으로 서명해 주세요':'동의 후 위 칸에 손가락으로 서명해 주세요');
+}
+function editUnlock(){
+  confirmed=false;lockUI(false);updateDone();
+  // 고객이 수정 시작 → 서버 customer_confirmed 리셋(빈 push 로 트리거)
+  sendCust();
+}
 function done(){
-  if(!reqOk()){alert('성함·연락처·주소·서명을 모두 입력해 주세요.');return;}
-  var b=document.getElementById('doneBtn');b.disabled=true;b.textContent='확인 중...';
-  // 마지막 정보+서명 먼저 확정 전송 → 그 다음 완료 확정
+  if(!reqOk()){alert('성함·연락처·동호수'+(typeRequired()?'·타입':'')+'·서명을 모두 입력해 주세요.');return;}
+  var b=$('doneBtn');b.disabled=true;b.textContent='확인 중...';
   fetch('/api/expo/contract/live/customer',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({session_id:SID,k:K,
-      customer_name:document.getElementById('cname').value.trim(),
-      customer_phone:document.getElementById('cphone').value.replace(/[^0-9]/g,''),
-      apartment:apartment,address:address,dong_ho:document.getElementById('dongho').value.trim(),
+      customer_name:$('cname').value.trim(),
+      customer_phone:$('cphone').value.replace(/[^0-9]/g,''),
+      apartment:APT,dong_ho:$('dongho').value.trim(),unit_type:utypeVal(),
       signature:sigHas?cv.toDataURL('image/png'):''})})
   .then(function(){return fetch('/api/expo/contract/live/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:SID,k:K})});})
   .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j};});})
-  .then(function(res){if(res.ok){confirmed=true;updateDone();}else{alert(res.j.detail||'완료 실패');updateDone();}})
+  .then(function(res){if(res.ok){confirmed=true;lockUI(true);updateDone();}else{alert(res.j.detail||'완료 실패');updateDone();}})
   .catch(function(){alert('네트워크 오류');updateDone();});
 }
-// ── 다음(카카오) 우편번호 ──
-function findAddr(){
-  new daum.Postcode({oncomplete:function(data){
-    address=data.roadAddress||data.jibunAddress||'';
-    apartment=data.buildingName||'';
-    var v=document.getElementById('addrView');
-    v.style.display='block';v.value=address+(apartment?(' ('+apartment+')'):'');
-    document.getElementById('dongho').style.display='block';
-    document.getElementById('addrBtn').textContent='주소 다시 찾기';
-    document.getElementById('addrBtn').style.color='#3182F6';
-    push();
-  }}).open();
-}
-// ── 고객 입력을 서버 라이브로 push (디바운스) ──
+// ── 고객 입력 → 서버 라이브 push (디바운스) ──
 var pt=null;
-function push(){updateDone();clearTimeout(pt);pt=setTimeout(sendCust,400);}
+function push(){updateDone();clearTimeout(pt);pt=setTimeout(function(){sendCust();},400);}
 function sendCust(extra){
   var body={session_id:SID,k:K,
-    customer_name:document.getElementById('cname').value.trim(),
-    customer_phone:document.getElementById('cphone').value.replace(/[^0-9]/g,''),
-    apartment:apartment,address:address,
-    dong_ho:document.getElementById('dongho').value.trim()};
+    customer_name:$('cname').value.trim(),
+    customer_phone:$('cphone').value.replace(/[^0-9]/g,''),
+    apartment:APT,dong_ho:$('dongho').value.trim(),unit_type:utypeVal()};
   if(extra)for(var kk in extra)body[kk]=extra[kk];
   fetch('/api/expo/contract/live/customer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).catch(function(){});
 }
 function pushSig(){sendCust({signature:sigHas?cv.toDataURL('image/png'):''});}
-// ── 폴링: 상담사가 바꾼 상품/금액 반영 + 완료 감지 ──
+// ── 완료(finalize) 시 축하 화면 전환 (7차 C) ──
+function showDone(cid){
+  $('goReceipt').href=BASE+'/expo/r/'+cid;
+  window.__cid=cid;
+  var ds=$('doneScreen');ds.style.display='flex';
+}
+function shareKakao(){
+  var url=BASE+'/expo/r/'+(window.__cid||'');
+  if(navigator.share){navigator.share({title:'시공 계약서',url:url}).catch(function(){});}
+  else{location.href=url;}
+}
+// ── 폴링 ──
 function poll(){
   fetch('/api/expo/contract/live/'+SID+'?k='+encodeURIComponent(K),{cache:'no-store'})
   .then(function(r){return r.ok?r.json():null;})
   .then(function(st){
     if(!st)return;
-    if(st.status==='finalized'&&st.contract_id){location.href=BASE+'/expo/r/'+st.contract_id;return;}
+    if(st.status==='finalized'&&st.contract_id){showDone(st.contract_id);return;}
     renderItems(st);
-    // 상담사 메모
-    var nc=document.getElementById('noteCard');
-    if(st.note){nc.style.display='block';document.getElementById('noteText').textContent=st.note;}else{nc.style.display='none';}
-    // 서버가 완료확정을 리셋했으면(상담사 수정) 로컬도 반영
-    if(!st.customer_confirmed&&confirmed){confirmed=false;updateDone();}
-    else if(st.customer_confirmed&&!confirmed){confirmed=true;updateDone();}
+    var nc=$('noteCard');
+    if(st.note){nc.style.display='block';$('noteText').textContent=st.note;}else{nc.style.display='none';}
+    // 서버가 완료확정을 리셋했으면(상담사 수정) 로컬도 반영 + 잠금 해제
+    if(!st.customer_confirmed&&confirmed){confirmed=false;lockUI(false);updateDone();}
+    else if(st.customer_confirmed&&!confirmed){confirmed=true;lockUI(true);updateDone();}
   }).catch(function(){});
 }
-document.getElementById('wdate').textContent=new Date().toLocaleDateString('ko-KR');
+$('wdate').textContent=new Date().toLocaleDateString('ko-KR');
 poll();setInterval(poll,1500);
 document.addEventListener('visibilitychange',function(){if(!document.hidden)poll();});
 """
@@ -23969,15 +24121,15 @@ async def expo_contract_receipt(contract_id: int) -> HTMLResponse:
         c = con.execute(
             "SELECT room_id, customer_name, customer_phone, address, items_json, "
             "product_total, discount, deposit_enabled, deposit_amount, final_amount, "
-            "signature_data, consent_json, created_at_ms, apartment, dong_ho, memo "
+            "signature_data, consent_json, created_at_ms, apartment, dong_ho, memo, unit_type "
             "FROM expo_contracts WHERE contract_id = ?",
             (contract_id,),
         ).fetchone()
-        room = con.execute("SELECT name FROM expo_rooms WHERE room_id = ?", (c[0],)).fetchone() if c else None
     if not c:
         return HTMLResponse(_expo_page_shell("계약서",
             "<div class=empty>계약서를 찾을 수 없습니다.</div>"), status_code=404)
-    room_name = room[0] if room else "박람회"
+    rinfo = _expo_room_info(c[0])
+    room_name = rinfo.get("name") or "박람회"
     try:
         items = json.loads(c[4] or "[]")
     except Exception:
@@ -23994,21 +24146,40 @@ async def expo_contract_receipt(contract_id: int) -> HTMLResponse:
     if c[7]:
         dep = ("<div class=l><span>계약금</span><span>" + format(int(c[8] or 0), ",") + "원</span></div>")
     sig = ("<img src='" + c[10] + "' style='max-width:200px;border:1px solid #E7EAEE;border-radius:8px'>") if c[10] else "<span style='color:#9AA3AF'>서명 없음</span>"
-    # 상세주소: 도로명 + (아파트명) 동호수
-    addr_full = (c[3] or "").strip()
-    if c[13]:
-        addr_full += (" (" + _h(c[13]) + ")")
-    if c[14]:
-        addr_full += " " + _h(c[14])
-    addr_full = addr_full.strip() or "-"
+    # 8차 주소: 아파트명(고정) + 동/호수 + 타입. (구 계약은 address fallback)
+    unit_type = (c[16] if len(c) > 16 else "") or ""
+    apt = (c[13] or rinfo.get("apartment") or "").strip()
+    addr_parts = [p for p in [apt, (c[14] or "").strip(),
+                              ("[" + unit_type + "]") if unit_type else ""] if p]
+    addr_full = " ".join(addr_parts).strip()
+    if not addr_full:
+        addr_full = (c[3] or "").strip() or "-"
     note_card = ""
-    if len(c) > 15 and (c[15] or "").strip():
+    if (c[15] or "").strip():
         note_card = ("<div class=card><h2>📝 특이사항</h2>"
                      "<div style='font-size:14px;color:#5A6472;white-space:pre-wrap'>" + _h(c[15]) + "</div></div>")
+    # 8차: 시공업체 정보(상단) + 약관(하단)
+    biz_card = ""
+    if rinfo.get("biz_name") or rinfo.get("biz_no") or rinfo.get("rep_phone"):
+        biz_rows = ""
+        if rinfo.get("biz_name"):
+            biz_rows += "<div class=row><div class=nm>업체명</div><span class=pr>" + _h(rinfo["biz_name"]) + "</span></div>"
+        if rinfo.get("biz_no"):
+            biz_rows += "<div class=row><div class=nm>사업자번호</div><span class=pr>" + _h(rinfo["biz_no"]) + "</span></div>"
+        if rinfo.get("rep_phone"):
+            biz_rows += "<div class=row><div class=nm>대표번호</div><span class=pr>" + _fmt_phone(rinfo["rep_phone"]) + "</span></div>"
+        if rinfo.get("office_phone"):
+            biz_rows += "<div class=row><div class=nm>사무실</div><span class=pr>" + _fmt_phone(rinfo["office_phone"]) + "</span></div>"
+        biz_card = "<div class=card><h2>🏢 시공업체</h2>" + biz_rows + "</div>"
+    terms_card = ""
+    if (rinfo.get("terms") or "").strip():
+        terms_card = ("<div class=card><h2>📄 계약 약관</h2>"
+                      "<div style='font-size:12.5px;color:#5A6472;white-space:pre-wrap;line-height:1.7'>" + _h(rinfo["terms"]) + "</div></div>")
     body = (
         "<div class=top><div class=rm>" + _h(room_name) + " · 계약서 사본</div>"
         "<h1>" + _h(c[1] or "고객") + " 님 계약서</h1></div>"
         "<div class=wrap>"
+        + biz_card +
         "<div class=card><h2>📦 계약 내역</h2>" + (lines or "<div style='color:#9AA3AF'>내역 없음</div>") +
         "<div class=sum><div class=l><span>상품 합계</span><span>" + format(int(c[5] or 0), ",") + "원</span></div>"
         "<div class=l><span>할인</span><span>" + format(int(c[6] or 0), ",") + "원</span></div>"
@@ -24021,6 +24192,7 @@ async def expo_contract_receipt(contract_id: int) -> HTMLResponse:
         "<span class=pr style='text-align:right;flex:1;white-space:normal;word-break:keep-all;overflow-wrap:anywhere;line-height:1.5'>" + addr_full + "</span></div></div>"
         "<div class=card><h2>✍️ 서명</h2>" + sig +
         "<div style='font-size:12px;color:#9AA3AF;margin-top:10px'>개인정보 수집·이용 동의 완료 · " + dt + "</div></div>"
+        + terms_card +
         "<button onclick='window.print()' class='noprint' style='width:100%;background:#3182F6;color:#fff;border:0;border-radius:12px;padding:14px;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:10px'>PDF로 저장 / 인쇄</button>"
         "<div style='text-align:center;color:#9AA3AF;font-size:12px;padding:0 0 30px'>시공막내 · 박람회 계약서 · No." + str(contract_id) + "</div>"
         "</div>"
@@ -24042,7 +24214,7 @@ def _expo_session_row(session_id: str):
             "live_items_json, live_discount, live_deposit_enabled, live_deposit_amount, "
             "live_customer_name, live_customer_phone, live_apartment, live_dong_ho, "
             "live_address, live_signature, live_agent_ms, live_cust_ms, "
-            "live_note, live_customer_confirmed "
+            "live_note, live_customer_confirmed, live_unit_type "
             "FROM expo_contract_sessions WHERE session_id = ?", (session_id,),
         ).fetchone()
 
@@ -24089,6 +24261,7 @@ class ExpoLiveCustomer(BaseModel):
     customer_phone: Optional[str] = None
     apartment: Optional[str] = None
     dong_ho: Optional[str] = None
+    unit_type: Optional[str] = None
     address: Optional[str] = None
     signature: Optional[str] = None
 
@@ -24153,6 +24326,8 @@ async def expo_live_customer(req: ExpoLiveCustomer) -> dict:
         _put("live_apartment", req.apartment, 80)
     if req.dong_ho is not None:
         _put("live_dong_ho", req.dong_ho, 40)
+    if req.unit_type is not None:
+        _put("live_unit_type", req.unit_type, 20)
     if req.address is not None:
         _put("live_address", req.address, 160)
     if req.signature is not None:
@@ -24188,8 +24363,8 @@ async def expo_live_confirm(req: ExpoLiveConfirm) -> dict:
         missing.append("성함")
     if len(_norm_phone(row[11])) < 10:
         missing.append("연락처")
-    if not (row[14] or "").strip():
-        missing.append("주소")
+    if not (row[13] or "").strip():   # 동/호수 (8차: 주소=아파트명 고정+동호수)
+        missing.append("동·호수")
     if not row[15]:
         missing.append("서명")
     if missing:
@@ -24230,9 +24405,12 @@ def _expo_live_state(row) -> dict:
         "customer_updated_ms": row[17],
         "note": row[18] or "",
         "customer_confirmed": bool(row[19]),
-        # 필수 4항목(성함·연락처·주소·서명) 충족 여부 — 앱 체크표시·완료 게이트
+        "unit_type": (row[20] if len(row) > 20 else "") or "",
+        # 방 기본정보(8차) — 아파트명 고정 + 타입 선택지 + 업체정보(고객웹·영수증)
+        "room_info": _expo_room_info(room_id),
+        # 필수 4항목(성함·연락처·주소·서명) 충족 여부 — 주소=동/호수(dong_ho)로 판정
         "required_ok": bool((row[10] or "").strip() and len(_norm_phone(row[11])) >= 10
-                            and (row[14] or "").strip() and row[15]),
+                            and (row[13] or "").strip() and row[15]),
     }
 
 
@@ -24256,7 +24434,7 @@ async def expo_finalize(req: ExpoFinalize) -> dict:
             "SELECT secret, room_id, agent_phone, contract_id, live_items_json, live_discount, "
             "live_deposit_enabled, live_deposit_amount, live_customer_name, live_customer_phone, "
             "live_apartment, live_dong_ho, live_address, live_signature, live_note, "
-            "live_customer_confirmed "
+            "live_customer_confirmed, live_unit_type "
             "FROM expo_contract_sessions WHERE session_id = ?", (req.session_id,),
         ).fetchone()
         if not row:
@@ -24278,28 +24456,32 @@ async def expo_finalize(req: ExpoFinalize) -> dict:
         norm, total, disc, final = _expo_price_items(room_id, live_items, row[5])
         if not norm:
             raise HTTPException(400, "선택한 상품이 없습니다")
-        # 필수 4항목 방어 검증 (핸드오프 3차 B)
+        # 필수 4항목 방어 검증 (핸드오프 3차 B): 주소=동/호수(8차)
         _miss = []
         if not (row[8] or "").strip():
             _miss.append("성함")
         if len(_norm_phone(row[9])) < 10:
             _miss.append("연락처")
-        if not (row[12] or "").strip():
-            _miss.append("주소")
+        if not (row[11] or "").strip():
+            _miss.append("동·호수")
         if not row[13]:
             _miss.append("서명")
         if _miss:
             raise HTTPException(400, "필수 항목이 비었습니다: " + ", ".join(_miss))
+        # 8차: 아파트명은 방 기본정보에서 고정(고객 입력 아님). 없으면 고객 live_apartment fallback.
+        _rinfo = _expo_room_info(room_id)
+        apt = (_rinfo.get("apartment") or (row[10] or "")).strip()[:80]
         dep_on = 1 if row[6] else 0
         dep_amt = int(row[7] or 0) if dep_on else 0
         cur = con.execute(
             "INSERT INTO expo_contracts "
             "(room_id, agent_phone, customer_name, customer_phone, address, apartment, dong_ho, "
-            " items_json, product_total, discount, deposit_enabled, deposit_amount, final_amount, "
-            " signature_data, consent_json, memo, status, created_at_ms) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted', ?)",
+            " unit_type, items_json, product_total, discount, deposit_enabled, deposit_amount, "
+            " final_amount, signature_data, consent_json, memo, status, created_at_ms) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted', ?)",
             (room_id, row[2], (row[8] or "").strip()[:40], _norm_phone(row[9]),
-             (row[12] or "").strip()[:160], (row[10] or "").strip()[:80], (row[11] or "").strip()[:40],
+             (row[12] or "").strip()[:160], apt, (row[11] or "").strip()[:40],
+             (row[16] or "").strip()[:20],
              json.dumps(norm, ensure_ascii=False), total, disc, dep_on, dep_amt, final,
              (row[13] or "")[:200000], json.dumps({"privacy": True, "ts": now}, ensure_ascii=False),
              (row[14] or "").strip()[:500], now),

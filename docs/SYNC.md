@@ -7930,3 +7930,13 @@ deploy_phase1.sh — 배포 요약 '커밋' 표시 버그 fix. (사장님: "5bb1
 - 확정: 타입=방장이 목록 미리 정의(고객 선택), 약관=방장 자유입력(템플릿 없음).
 - 방 기본정보 필드 = 아파트명·타입목록[]·약관(자유텍스트)·업체명·사업자번호·대표번호·사무실번호.
 - 데이터모델 변경 → cowork 먼저(room 저장/서빙 + 고객웹 주소=아파트명고정+동호수+타입선택 + 영수증 업체정보/약관/타입). 그 뒤 앱 방개설 폼.
+
+## 2026-07-23 11:50 · cowork
+추가147 — 박람회 6·7·8차 대량 반영 (방 기본정보 + 완료UX + 서명·주소). 회신 갱신.
+- 8차: room/create 확장(apartment·unit_types[]·terms·업체정보) + 신규 room/info(방장) + room/{id}·live 에 info/unit_type. 고객웹 **다음지도 제거→아파트명고정+동호수+타입select**. finalize apartment=방고정·unit_type저장. submissions·영수증(업체정보 상단·약관 하단·주소=아파트+동호수+[타입]).
+- 7차: 완료 후 입력 전부 잠금 + [수정하기](confirmed 리셋) + finalize 시 고객화면 **🎉 축하 전체전환**([계약서보기/PDF]·[공유]). submissions.assigned_phone(내 접수서함).
+- 6차: 서명 스와이프 낙서 fix(완료 후 서명 잠금) + 웹 전화 하이픈(입력 자동+영수증).
+- 필수항목: 주소→동·호수 기준(아파트 고정).
+- 검증 TestClient 25 + 회귀 8 ALL OK. 하위호환 유지. 미배포: bash server/deploy_phase1.sh
+- 앱 다음: 방개설 폼에 기본정보 입력 → room/create 확장 호출. (나머지 unit_type·assigned_phone 자동)
+- commit: (아래)
