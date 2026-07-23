@@ -7987,3 +7987,12 @@ deploy_phase1.sh — 배포 요약 '커밋' 표시 버그 fix. (사장님: "5bb1
 ① 박람회 폼 fix 4건 앱완료(f6b36c7, 폰분리로 미설치): 타입 프리셋 A/B, OCR 표기(준비중 문구), 약관 키패드 가림·저장버튼 내비바 가림 = windowInsetsPadding(ime union navigationBars).
 ② 추가148 서버 배포 실행+검증(SSH): memo=`계약없음`(작동)·ocr/terms·ocr/bizreg=400(라우트 정상). → 메모저장·고객웹 2스텝/동호분리/약관·OCR endpoint 전부 라이브.
 - 다음 앱: OCR [사진촬영/앨범] 버튼(서버 준비됨) → 폼 자동채움. + 로딩 개선(화면 먼저·데이터 나중). OCR은 GEMINI_API_KEY 서버환경 필요(실이미지 테스트 때 확인).
+
+## 2026-07-23 14:30 · android
+문제 신고/진단 = 공유시트 → **서버 직송(캐치)** 로 변경 (사장님: "공유버튼 나오면 사용자가 어떻게 보내는지 모름. 서버로 바로 캐치돼야").
+- 앱 완료(commit 7bd3167, 폰분리 미설치): [보내기] 누르면 DiagnosticsReporter.sendToServer → POST 로 서버 직송. 실패 시에만 공유 시트 폴백(리포트 유실 방지).
+- ★ cowork 요청: **POST /api/diagnostics/report** 신설.
+  - body(JSON): `{phone, version, device, android, note, report(전문 텍스트), image?(dataURL base64, 5MB↓, 선택)}`
+  - 동작: 저장(진단 테이블 등) + **알림**(가능하면 hugman2080@gmail.com 자동보고 메일 or /admin 노출) = "캐치".
+  - 응답: `{ok:true}`. 빈 report 400.
+- 이거 배포돼야 진짜 직송(그전엔 폴백=공유). 나오면 android 가 배포/검증.
