@@ -93,6 +93,8 @@ private sealed class Nav {
     data class Calendar(val roomId: String, val name: String) : Nav()
     /** 앱 안 네이티브 계약서 보기 (웹 안 열고). fromCalendar=달력에서 왔는지(뒤로가기 목적지). */
     data class Contract(val roomId: String, val name: String, val contractId: Long, val fromCalendar: Boolean) : Nav()
+    /** 박람회 기본정보 폼 (방장) — 방 개설 직후 or 방 상세에서 수정. */
+    data class RoomForm(val roomId: String, val name: String) : Nav()
 }
 
 @Composable
@@ -115,6 +117,7 @@ fun ExpoScreen(container: AppContainer, onExit: () -> Unit) {
             is Nav.Subs -> Nav.RoomView(n.roomId, n.name, "member")
             is Nav.Calendar -> Nav.RoomView(n.roomId, n.name, "member")
             is Nav.Contract -> if (n.fromCalendar) Nav.Calendar(n.roomId, n.name) else Nav.Subs(n.roomId, n.name)
+            is Nav.RoomForm -> Nav.RoomView(n.roomId, n.name, "owner")
         }
     }
 
@@ -128,6 +131,7 @@ fun ExpoScreen(container: AppContainer, onExit: () -> Unit) {
             is Nav.Subs -> "우리 팀 접수서"
             is Nav.Calendar -> "박람회 달력"
             is Nav.Contract -> "계약서"
+            is Nav.RoomForm -> "박람회 기본정보"
         }
         val sub = if (nav is Nav.List) "팀으로 상담·계약을 한 번에" else null
         ExpoTopBar(title, sub, isRoot = nav is Nav.List) {
@@ -140,17 +144,20 @@ fun ExpoScreen(container: AppContainer, onExit: () -> Unit) {
                 is Nav.Subs -> Nav.RoomView(n.roomId, n.name, "member")
                 is Nav.Calendar -> Nav.RoomView(n.roomId, n.name, "member")
                 is Nav.Contract -> if (n.fromCalendar) Nav.Calendar(n.roomId, n.name) else Nav.Subs(n.roomId, n.name)
+                is Nav.RoomForm -> Nav.RoomView(n.roomId, n.name, "owner")
             }
         }
 
         when (val n = nav) {
             is Nav.List -> RoomListView(repo, myPhone, myName, ::toast,
-                onOpen = { nav = Nav.RoomView(it.roomId, it.name, it.role) })
+                onOpen = { nav = Nav.RoomView(it.roomId, it.name, it.role) },
+                onCreated = { nav = Nav.RoomForm(it.roomId, it.name) })
             is Nav.RoomView -> RoomDetailView(repo, n, myPhone, myName, ::toast,
                 onProducts = { nav = Nav.Products(n.roomId, n.name) },
                 onQr = { nav = Nav.Qr(n.roomId, n.name, it) },
                 onSubs = { nav = Nav.Subs(n.roomId, n.name) },
-                onCalendar = { nav = Nav.Calendar(n.roomId, n.name) })
+                onCalendar = { nav = Nav.Calendar(n.roomId, n.name) },
+                onEditInfo = { nav = Nav.RoomForm(n.roomId, n.name) })
             is Nav.Products -> ProductsEditorView(repo, n, myPhone, ::toast,
                 onDone = { nav = Nav.RoomView(n.roomId, n.name, "owner") })
             is Nav.Qr -> QrView(repo, n, myPhone, ::toast)
@@ -159,6 +166,8 @@ fun ExpoScreen(container: AppContainer, onExit: () -> Unit) {
             is Nav.Calendar -> CalendarView(repo, n, myPhone,
                 onContract = { nav = Nav.Contract(n.roomId, n.name, it, fromCalendar = true) })
             is Nav.Contract -> ContractView(repo, n, myPhone, ::toast)
+            is Nav.RoomForm -> RoomFormView(repo, n, myPhone, ::toast,
+                onSaved = { nav = Nav.RoomView(n.roomId, n.name, "owner") })
         }
     }
 }
@@ -194,7 +203,7 @@ private fun ExpoTopBar(title: String, sub: String?, isRoot: Boolean, onNav: () -
 @Composable
 private fun ColumnScope.RoomListView(
     repo: ExpoRepository, myPhone: String, myName: String, toast: (String) -> Unit,
-    onOpen: (ExpoRepository.Room) -> Unit
+    onOpen: (ExpoRepository.Room) -> Unit, onCreated: (ExpoRepository.Room) -> Unit
 ) {
     val scope = rememberCoroutineScope()
     var rooms by remember { mutableStateOf<List<ExpoRepository.Room>?>(null) }
@@ -262,7 +271,7 @@ private fun ColumnScope.RoomListView(
             showCreate = false
             scope.launch {
                 repo.createRoom(myPhone, name, myName)
-                    .onSuccess { toast("방이 만들어졌어요"); reload(); onOpen(it) }
+                    .onSuccess { toast("방이 만들어졌어요 · 기본정보를 채워주세요"); reload(); onCreated(it) }
                     .onFailure { toast("방 만들기 실패: ${it.message}") }
             }
         }
@@ -310,7 +319,8 @@ private fun RoomRow(r: ExpoRepository.Room, onClick: () -> Unit) {
 @Composable
 private fun ColumnScope.RoomDetailView(
     repo: ExpoRepository, n: Nav.RoomView, myPhone: String, myName: String, toast: (String) -> Unit,
-    onProducts: () -> Unit, onQr: (ExpoRepository.Session) -> Unit, onSubs: () -> Unit, onCalendar: () -> Unit
+    onProducts: () -> Unit, onQr: (ExpoRepository.Session) -> Unit, onSubs: () -> Unit, onCalendar: () -> Unit,
+    onEditInfo: () -> Unit
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -419,6 +429,11 @@ private fun ColumnScope.RoomDetailView(
                         RowDivider()
                         GroupRow("박람회 달력", "시공 일정을 날짜별로 한눈에 📅", onCalendar)
                         if (d.myRole == "owner") {
+                            RowDivider()
+                            val ap = d.info?.apartment ?: ""
+                            GroupRow("박람회 기본정보",
+                                if (ap.isBlank()) "아파트명·타입·약관·업체정보 설정"
+                                else "$ap · 타입 ${d.info?.unitTypes?.size ?: 0}개 · 수정", onEditInfo)
                             RowDivider()
                             val cnt = d.catalog.size
                             GroupRow("상품·서비스 준비", if (cnt > 0) "등록된 항목 ${cnt}개 · 수정" else "계약서에 쓸 상품·단가 등록", onProducts)
@@ -936,6 +951,135 @@ private fun ChkRow(label: String, value: String) {
         val ok = value.isNotBlank()
         Text(if (ok) value else "대기", fontSize = 12.sp,
             color = if (ok) Color(0xFF13C47B) else T3, fontWeight = if (ok) FontWeight.Bold else FontWeight.Normal)
+    }
+}
+
+// ══════════════ 박람회 기본정보 폼 (방장) ══════════════
+@Composable
+private fun ColumnScope.RoomFormView(
+    repo: ExpoRepository, n: Nav.RoomForm, myPhone: String, toast: (String) -> Unit, onSaved: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    var apartment by remember { mutableStateOf("") }
+    val types = remember { mutableStateListOf<String>() }
+    var typeInput by remember { mutableStateOf("") }
+    var terms by remember { mutableStateOf("") }
+    var bizName by remember { mutableStateOf("") }
+    var bizNo by remember { mutableStateOf("") }
+    var repPhone by remember { mutableStateOf("") }
+    var officePhone by remember { mutableStateOf("") }
+    var saving by remember { mutableStateOf(false) }
+
+    LaunchedEffect(n.roomId) {
+        repo.roomDetail(n.roomId, myPhone).onSuccess { d ->
+            d.info?.let { info ->
+                apartment = info.apartment; terms = info.terms
+                bizName = info.bizName; bizNo = info.bizNo
+                repPhone = ph(info.repPhone); officePhone = ph(info.officePhone)
+                types.clear(); types.addAll(info.unitTypes)
+            }
+        }
+    }
+    fun addType() {
+        val t = typeInput.trim()
+        if (t.isNotEmpty() && !types.contains(t) && types.size < 20) { types.add(t); typeInput = "" }
+    }
+
+    LazyColumn(
+        Modifier.weight(1f).fillMaxWidth(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        item {
+            Box(Modifier.fillMaxWidth().background(Color(0xFFFFFBEA), RoundedCornerShape(12.dp)).padding(14.dp)) {
+                Text("여기서 정한 아파트명·타입·업체정보·약관이 고객 계약서에 그대로 들어가요. 박람회는 보통 한 단지라, 주소는 아파트명 고정 + 고객은 동/호수·타입만 골라요.",
+                    fontSize = 12.sp, color = Color(0xFF7A6A15), lineHeight = 18.sp)
+            }
+        }
+        item {
+            Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
+                Text("아파트(단지)명", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(value = apartment, onValueChange = { apartment = it },
+                    placeholder = { Text("예: 동탄에스알골드", fontSize = 13.sp) },
+                    singleLine = true, modifier = Modifier.fillMaxWidth())
+            }
+        }
+        item {
+            Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
+                Text("타입(평형) 목록", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
+                Text("고객이 여기서 하나 골라요. (예: 84A, 84B, 59)", fontSize = 11.5.sp, color = T3)
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(value = typeInput, onValueChange = { typeInput = it },
+                        placeholder = { Text("타입 입력", fontSize = 13.sp) }, singleLine = true,
+                        modifier = Modifier.weight(1f))
+                    Spacer(Modifier.width(8.dp))
+                    Box(Modifier.background(Kk, RoundedCornerShape(10.dp)).clickable { addType() }
+                        .padding(horizontal = 16.dp, vertical = 14.dp)) {
+                        Text("추가", fontSize = 13.sp, fontWeight = FontWeight.Black, color = KkInk)
+                    }
+                }
+                types.forEach { t ->
+                    Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.background(Field, RoundedCornerShape(8.dp)).padding(horizontal = 12.dp, vertical = 7.dp)) {
+                            Text(t, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
+                        }
+                        Spacer(Modifier.weight(1f))
+                        Text("삭제", fontSize = 12.sp, color = Color(0xFFE1483B), fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clickable { types.remove(t) })
+                    }
+                }
+            }
+        }
+        item {
+            Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
+                Text("시공업체 정보", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(value = bizName, onValueChange = { bizName = it },
+                    label = { Text("업체명", fontSize = 12.sp) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(value = bizNo, onValueChange = { bizNo = it },
+                    label = { Text("사업자번호", fontSize = 12.sp) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(value = repPhone,
+                    onValueChange = { repPhone = com.detailline.callfollowcrm.util.PhoneNumberFormatter.formatProgressive(it) },
+                    label = { Text("대표번호", fontSize = 12.sp) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone))
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(value = officePhone,
+                    onValueChange = { officePhone = com.detailline.callfollowcrm.util.PhoneNumberFormatter.formatProgressive(it) },
+                    label = { Text("사무실번호", fontSize = 12.sp) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone))
+            }
+        }
+        item {
+            Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
+                Text("계약 약관", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
+                Text("계약서 하단에 그대로 들어가요.", fontSize = 11.5.sp, color = T3)
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(value = terms, onValueChange = { terms = it },
+                    placeholder = { Text("예: 잔금은 시공 완료 당일 지급합니다…", fontSize = 13.sp) },
+                    minLines = 4, modifier = Modifier.fillMaxWidth())
+            }
+        }
+        item { Spacer(Modifier.height(2.dp)) }
+    }
+    Box(Modifier.fillMaxWidth().background(Panel).padding(14.dp)) {
+        BigButton(if (saving) "저장 중…" else "기본정보 저장", enabled = !saving, bg = Kk, fg = KkInk) {
+            if (apartment.isBlank()) {
+                toast("아파트(단지)명을 입력해 주세요")
+            } else {
+                saving = true
+                scope.launch {
+                    repo.setRoomInfo(n.roomId, myPhone,
+                        ExpoRepository.RoomInfo(apartment, types.toList(), terms, bizName, bizNo, repPhone, officePhone))
+                        .onSuccess { saving = false; toast("기본정보를 저장했어요"); onSaved() }
+                        .onFailure { saving = false; toast("저장 실패 · 다시 시도해 주세요") }
+                }
+            }
+        }
     }
 }
 

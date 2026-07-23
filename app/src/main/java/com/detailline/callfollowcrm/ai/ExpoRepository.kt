@@ -40,7 +40,12 @@ class ExpoRepository(
     )
     data class Member(val name: String, val role: String, val phone: String) // phone: 팀원에겐 마스킹
     data class Product(val productId: Long, val kind: String, val name: String, val unitPrice: Long, val sort: Int)
-    data class RoomDetail(val name: String, val myRole: String, val members: List<Member>, val catalog: List<Product>)
+    /** 방 단위 박람회 기본정보(8차) — 방장이 설정, 고객·계약서 공용. */
+    data class RoomInfo(
+        val apartment: String, val unitTypes: List<String>, val terms: String,
+        val bizName: String, val bizNo: String, val repPhone: String, val officePhone: String
+    )
+    data class RoomDetail(val name: String, val myRole: String, val members: List<Member>, val catalog: List<Product>, val info: RoomInfo?)
     data class Session(val sessionId: String, val secret: String, val url: String, val qrUrl: String)
     data class Submission(
         val contractId: Long, val customerName: String, val customerPhoneMasked: String,
@@ -161,7 +166,38 @@ class ExpoRepository(
                     Member(m.optString("name"), m.optString("role", "member"), m.optString("phone"))
                 }
             } ?: emptyList()
-            RoomDetail(o.optString("name"), o.optString("myRole", "member"), members, o.catalog())
+            RoomDetail(o.optString("name"), o.optString("myRole", "member"), members, o.catalog(), parseRoomInfo(o.optJSONObject("info")))
+        }
+    }
+
+    private fun parseRoomInfo(o: JSONObject?): RoomInfo? {
+        if (o == null) return null
+        val types = o.optJSONArray("unit_types")?.let { arr ->
+            (0 until arr.length()).map { arr.optString(it) }.filter { it.isNotBlank() }
+        } ?: emptyList()
+        return RoomInfo(
+            apartment = o.optString("apartment"), unitTypes = types, terms = o.optString("terms"),
+            bizName = o.optString("biz_name"), bizNo = o.optString("biz_no"),
+            repPhone = o.optString("rep_phone"), officePhone = o.optString("office_phone")
+        )
+    }
+
+    /** 방장이 박람회 기본정보 설정/수정 (개설 후). 방장만. */
+    suspend fun setRoomInfo(roomId: String, ownerPhone: String, info: RoomInfo): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val types = JSONArray().apply { info.unitTypes.forEach { put(it) } }
+            postJson("/api/expo/room/info", JSONObject().apply {
+                put("room_id", roomId)
+                put("owner_phone", digits(ownerPhone))
+                put("apartment", info.apartment.trim())
+                put("unit_types", types)
+                put("terms", info.terms.trim())
+                put("biz_name", info.bizName.trim())
+                put("biz_no", info.bizNo.trim())
+                put("rep_phone", digits(info.repPhone))
+                put("office_phone", digits(info.officePhone))
+            })
+            Unit
         }
     }
 
