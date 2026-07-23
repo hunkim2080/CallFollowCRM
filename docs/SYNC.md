@@ -7996,3 +7996,9 @@ deploy_phase1.sh — 배포 요약 '커밋' 표시 버그 fix. (사장님: "5bb1
   - 동작: 저장(진단 테이블 등) + **알림**(가능하면 hugman2080@gmail.com 자동보고 메일 or /admin 노출) = "캐치".
   - 응답: `{ok:true}`. 빈 report 400.
 - 이거 배포돼야 진짜 직송(그전엔 폴백=공유). 나오면 android 가 배포/검증.
+
+## 2026-07-23 14:02 · cowork
+fix(박람회 고객웹) — 정보 다 입력해도 [다음:계약서 확인] 안 눌리던 버그 (사장님 신고).
+- 원인: 타입 select 의 onchange 가 push()(2스텝 함수) 호출 → 타입 고른 뒤 nextBtn 재검증(chk1) 누락. 타입 있는 방에서 타입을 마지막에 고르면 버튼 계속 회색.
+- fix: 타입 select onchange = chk1(). JS node --check 통과.
+- commit: (아래)

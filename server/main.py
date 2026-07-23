@@ -23927,7 +23927,7 @@ async def expo_contract_page(session_id: str, k: Optional[str] = None) -> HTMLRe
         opts = "<option value=''>타입 선택</option>" + "".join(
             "<option value='" + _h(t) + "'>" + _h(t) + "</option>" for t in types)
         type_field = ("<label class=fl>타입</label>"
-                      "<select id=utype onchange='push()' style='width:100%;border:1px solid var(--line);"
+                      "<select id=utype onchange='chk1()' style='width:100%;border:1px solid var(--line);"
                       "border-radius:10px;padding:12px;font-size:15px;font-family:inherit;margin-top:8px;background:#fff'>"
                       + opts + "</select>")
     else:
