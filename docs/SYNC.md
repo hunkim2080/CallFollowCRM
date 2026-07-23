@@ -7961,3 +7961,9 @@ deploy_phase1.sh — 배포 요약 '커밋' 표시 버그 fix. (사장님: "5bb1
 - cowork 요청(SERVER_HANDOFF 8-F): 약관 사진첨부(권장 이미지 그대로→영수증 하단) + 사업자등록증 OCR(Vision→업체명·사업자번호 자동채움). endpoint안 2개. 앱은 사진 pick/업로드 UI 대기.
 - ❓사장님: 약관 이미지 그대로(권장) vs OCR 텍스트화.
 - 메모 endpoint(8-E)도 여전히 대기(현재 /contract/memo Not Found).
+
+## 2026-07-23 13:20 · android
+박람회 8-F 확정(사장님): 약관·사업자등록증 둘 다 사진→OCR.
+- 약관: 사진→OCR→terms 텍스트 채움. 사업자등록증: 사진→OCR→업체명·사업자번호 자동채움.
+- cowork endpoint안: POST /api/expo/ocr/terms{image}→{text}, POST /api/expo/ocr/bizreg{image}→{biz_name,biz_no,...}. Vision 기존 라우팅 재사용. 방 저장은 room/info 그대로.
+- 앱: 폼에 [사진으로 채우기]·[사업자등록증 촬영] 버튼 = OCR endpoint 나오면 착수.

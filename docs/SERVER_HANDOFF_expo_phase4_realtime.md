@@ -219,13 +219,14 @@
 ### F. 약관·사업자등록증 사진 첨부 (기본정보 폼) — 요청 (사장님 2026-07-23)
 사장님: 약관은 길어서 타이핑 어렵고, 사업자정보도 "사진 찍거나 앨범에서 첨부하면 알아서" 되면 좋겠다.
 **앱측 개선(타이핑 편의)은 완료**(타입 원탭+쉼표, 사업자번호 3-2-5 하이픈, 전화 8→4-4/11→3-4-4, 공란 안내). 사진 방식은 서버 필요:
-- **약관 = 사진 첨부(권장: OCR 없이 이미지 그대로)**: 방장이 약관 종이를 촬영/앨범첨부 → 서버에 업로드 → **계약서(`/expo/r`) 하단에 약관 이미지**로 표시. (긴 약관 OCR은 오탐 많아 이미지가 확실. terms 텍스트와 병행 가능: 텍스트 있으면 텍스트, 없고 이미지 있으면 이미지.)
-- **사업자등록증 = 사진 → OCR 자동추출(권장)**: 방장이 사업자등록증 촬영/첨부 → 서버 Vision(예: Gemini Flash Vision)이 **업체명·사업자번호(·대표자·주소)** 추출 → 앱 폼에 자동 채움(방장이 확인/수정). 
+**✅ 사장님 확정(2026-07-23): 약관·사업자등록증 둘 다 사진 → OCR 텍스트화.**
+- **약관 = 사진 → OCR → terms 텍스트**: 방장이 약관 종이 촬영/앨범첨부 → 서버 Vision OCR → **terms 필드 텍스트로 채움**(방장이 확인/수정 후 저장). 계약서엔 기존처럼 terms 텍스트로 표시.
+- **사업자등록증 = 사진 → OCR 추출**: 서버 Vision → **업체명·사업자번호(·대표자·주소)** 추출 → 앱 폼 자동 채움(방장이 확인/수정).
 - 필요 endpoint(안):
-  - `POST /api/expo/room/terms_image {room_id, owner_phone, image(dataURL/multipart)}` → 저장 + 영수증 표시.
-  - `POST /api/expo/ocr/bizreg {image}` → `{biz_name, biz_no, rep_name?, address?}` (Vision OCR).
-- 앱측(대기): 폼에 [약관 사진], [사업자등록증 촬영] 버튼 = PickVisualMedia/카메라 → 업로드 → (bizreg는 응답으로 폼 자동채움). 서버 endpoint 나오면 착수.
-- ❓ 사장님 확인: 약관을 **이미지 그대로**(권장) vs OCR로 텍스트화 — 어느 쪽?
+  - `POST /api/expo/ocr/terms {image(dataURL/multipart)}` → `{text}` (약관 전문 OCR).
+  - `POST /api/expo/ocr/bizreg {image}` → `{biz_name, biz_no, rep_name?, address?}` (사업자등록증 OCR).
+  - Vision 모델 = 기존 라우팅(Gemini Flash Vision 등) 재사용. 방 저장은 기존 room/info(terms·biz_*)로 그대로.
+- 앱측(대기): 폼 약관칸에 [사진으로 채우기], 업체정보에 [사업자등록증 촬영] 버튼 = PickVisualMedia/카메라 → 업로드 → 응답으로 폼 자동채움 → 방장 확인 → 저장. **서버 OCR endpoint 나오면 착수.**
 
 ### E. 계약서 메모 편집 endpoint (앱 네이티브 계약서용) — 요청
 - 사장님: 앱 안 네이티브 계약서 화면에 **편집 가능한 메모칸**(고객 특이사항 생기면 적어둠, 팀 공유).
