@@ -85,3 +85,15 @@
   - 상태 전이(확정8): 시공일 지정 → `status=scheduled`, 해제 → `submitted` 복귀(단 `done` 은 유지).
 - `GET /api/expo/submissions` 각 item 에 **`scheduled_at_ms`(0=미정)** 추가 → 앱이 박람회 달력(월 그리드·날짜밑 아파트명) 렌더.
 - 검증 TestClient 11항목 ALL OK (지정·반영·전이·해제·복귀·비멤버403·404·방장).
+
+---
+
+## 추가 반영 (2026-07-22, 핸드오프 5차 — 추가146) · 주소버그·전화·분배
+1. **영수증 시공주소 넘침 fix** — `/expo/r/{id}` 주소 span 을 `word-break:keep-all; overflow-wrap:anywhere; white-space:normal` + row `align-items:flex-start` 로. 긴 주소도 잘림 없이 줄바꿈.
+2. **submissions 전체 `customer_phone` 추가** — 방 멤버 전용 목록이라 전체번호 제공(탭→통화). `customer_phone_masked` 도 유지(표시 선택).
+3. **시공자 배정 API** `POST /api/expo/contract/assign {contract_id, phone, assigned_phone}` → `{assigned_phone, assigned_name}`.
+   - `assigned_phone="" / 생략` = 배정 해제. 행위자·배정대상 모두 방 멤버여야(아니면 403/400). 없는 계약 404.
+   - status 는 안 건드림(schedule 과 충돌 방지 — 배정은 assigned_phone 필드로만 표현).
+4. **⚠️ 팀원 식별 결정 = (a)** — `GET /api/expo/room/{id}` 의 members `phone` 을 **방 멤버 전체에 원본 제공**(전엔 팀원에게 마스킹). 동료끼리 배정·연락 목적. member_id 안 만듦. 앱은 이 원본 phone 을 assign 의 assigned_phone 으로 그대로 사용.
+   - (code=초대코드는 여전히 방장에게만.)
+- 검증 TestClient 13항목 ALL OK.

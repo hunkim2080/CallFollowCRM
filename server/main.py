@@ -23500,9 +23500,9 @@ async def expo_room_detail(room_id: str, phone: str) -> dict:
         "code": room[1] if is_owner else None,
         "name": room[3], "closed": bool(room[4]),
         "myRole": me["role"],
+        # 팀원 원본 phone 을 방 멤버 전체에 제공 (동료끼리 배정·연락 — 5차 결정 a).
         "members": [
-            {"name": m[1], "role": m[2],
-             "phone": (m[0] if is_owner else _expo_mask_phone(m[0]))}
+            {"name": m[1], "role": m[2], "phone": m[0]}
             for m in members
         ],
         "catalog": _expo_catalog(room_id),
@@ -23684,6 +23684,7 @@ async def expo_submissions(room_id: str, phone: str) -> dict:
             "contract_id": r[0],
             "customer_name": r[1] or "고객",
             "customer_phone_masked": _expo_mask_phone(r[2]),
+            "customer_phone": _norm_phone(r[2]),   # 전체(방 멤버 전용) — 탭→통화용
             "products": prod_names,
             "final_amount": int(r[4] or 0),
             "status": r[5],
@@ -24016,7 +24017,8 @@ async def expo_contract_receipt(contract_id: int) -> HTMLResponse:
         "<div class=card><h2>🙋 고객 정보</h2>"
         "<div class=row><div class=nm>성함</div><span class=pr>" + _h(c[1] or "-") + "</span></div>"
         "<div class=row><div class=nm>연락처</div><span class=pr>" + _fmt_phone(c[2]) + "</span></div>"
-        "<div class=row><div class=nm>시공 주소</div><span class=pr style='text-align:right;max-width:60%'>" + addr_full + "</span></div></div>"
+        "<div class=row style='align-items:flex-start'><div class=nm style='flex:none;min-width:64px'>시공 주소</div>"
+        "<span class=pr style='text-align:right;flex:1;white-space:normal;word-break:keep-all;overflow-wrap:anywhere;line-height:1.5'>" + addr_full + "</span></div></div>"
         "<div class=card><h2>✍️ 서명</h2>" + sig +
         "<div style='font-size:12px;color:#9AA3AF;margin-top:10px'>개인정보 수집·이용 동의 완료 · " + dt + "</div></div>"
         "<button onclick='window.print()' class='noprint' style='width:100%;background:#3182F6;color:#fff;border:0;border-radius:12px;padding:14px;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:10px'>PDF로 저장 / 인쇄</button>"
@@ -24355,3 +24357,44 @@ async def expo_schedule(req: ExpoSchedule) -> dict:
             )
         con.commit()
     return {"ok": True, "contract_id": req.contract_id, "scheduled_at_ms": sched}
+
+
+# ── 추가146 (2026-07-22) — 박람회 시공자 배정 (분배, 핸드오프 5차) ──
+# 계약자(작성자) ≠ 시공자. 팀원끼리 분배. 팀원 식별 = phone (member_id 없음, 결정 a).
+class ExpoAssign(BaseModel):
+    contract_id: int
+    phone: str                       # 행위자(방 멤버)
+    assigned_phone: Optional[str] = None   # "" 또는 None = 배정 해제
+
+
+@app.post("/api/expo/contract/assign")
+async def expo_assign(req: ExpoAssign) -> dict:
+    """계약에 시공자(팀원) 배정/해제. 방 멤버만. 배정 대상도 방 멤버여야."""
+    with db_conn() as con:
+        c = con.execute(
+            "SELECT room_id FROM expo_contracts WHERE contract_id = ?", (req.contract_id,),
+        ).fetchone()
+        if not c:
+            raise HTTPException(404, "계약 없음")
+        room_id = c[0]
+        if not _expo_room_member(room_id, req.phone):
+            raise HTTPException(403, "이 방의 멤버가 아닙니다")
+        assignee = _norm_phone(req.assigned_phone)
+        assignee_name = None
+        if assignee:
+            am = _expo_room_member(room_id, assignee)
+            if not am:
+                raise HTTPException(400, "배정 대상이 이 방의 팀원이 아닙니다")
+            assignee_name = am["name"]
+            con.execute(
+                "UPDATE expo_contracts SET assigned_phone = ? WHERE contract_id = ?",
+                (assignee, req.contract_id),
+            )
+        else:
+            con.execute(
+                "UPDATE expo_contracts SET assigned_phone = NULL WHERE contract_id = ?",
+                (req.contract_id,),
+            )
+        con.commit()
+    return {"ok": True, "contract_id": req.contract_id,
+            "assigned_phone": assignee, "assigned_name": assignee_name}

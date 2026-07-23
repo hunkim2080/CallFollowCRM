@@ -7880,3 +7880,12 @@ deploy_phase1.sh — 배포 요약 '커밋' 표시 버그 fix. (사장님: "5bb1
 - 앱 완료: ①달력 셀 동/호수 표시(고객명 아님) ②달력 팝업에 전화(탭→통화)+계약내용+시공자 ③접수서 일정 잡힘/미정 배지 ④접수서 계약자/시공자 구분+전화 탭통화 ⑤시공자 배정(분배) UI(팀원 선택 다이얼로그). ExpoRepository customerPhone/assign() 추가.
 - cowork 요청(SERVER_HANDOFF 5차): ①계약서 웹 /expo/r 시공주소 넘침 버그 fix ②submissions에 전체 customer_phone ③분배 endpoint POST /api/expo/contract/assign(+팀원 식별: members 원본phone or member_id 결정요망).
 - commit: (이 커밋)
+
+## 2026-07-23 09:30 · cowork
+추가146 — 박람회 주소버그·전화·분배 (핸드오프 5차 3건 + 팀원식별 결정). 회신 갱신.
+- ① 영수증 /expo/r 시공주소 넘침 fix (word-break/overflow-wrap, row flex-start).
+- ② submissions 에 전체 customer_phone 추가(방 멤버 전용, 탭→통화). masked 유지.
+- ③ POST /api/expo/contract/assign {contract_id, phone, assigned_phone} — 시공자 배정/해제(""=해제). 행위자·대상 방멤버(403/400), 404. status 무변경. submissions.assigned_name 반영.
+- ★ 팀원 식별 결정 = **(a) roomDetail members phone 을 방 멤버 전체에 원본 제공**(팀원 마스킹 제거). member_id 안 만듦. code 는 방장 전용 유지. → 앱은 이 phone 을 assigned_phone 으로 사용.
+- 검증 TestClient 13 ALL OK. 미배포: bash server/deploy_phase1.sh
+- commit: (아래)
