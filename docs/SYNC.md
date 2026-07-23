@@ -7982,3 +7982,8 @@ deploy_phase1.sh — 배포 요약 '커밋' 표시 버그 fix. (사장님: "5bb1
 - 검증 TestClient 15+회귀 6 ALL OK. 미배포: bash server/deploy_phase1.sh
 - 앱: OCR [사진으로 채우기]/[사업자등록증 촬영] 버튼 → endpoint 호출·폼 자동채움. 메모칸 이미 호출중(이제 200).
 - commit: (아래)
+
+## 2026-07-23 14:05 · android
+① 박람회 폼 fix 4건 앱완료(f6b36c7, 폰분리로 미설치): 타입 프리셋 A/B, OCR 표기(준비중 문구), 약관 키패드 가림·저장버튼 내비바 가림 = windowInsetsPadding(ime union navigationBars).
+② 추가148 서버 배포 실행+검증(SSH): memo=`계약없음`(작동)·ocr/terms·ocr/bizreg=400(라우트 정상). → 메모저장·고객웹 2스텝/동호분리/약관·OCR endpoint 전부 라이브.
+- 다음 앱: OCR [사진촬영/앨범] 버튼(서버 준비됨) → 폼 자동채움. + 로딩 개선(화면 먼저·데이터 나중). OCR은 GEMINI_API_KEY 서버환경 필요(실이미지 테스트 때 확인).
