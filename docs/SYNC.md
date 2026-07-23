@@ -7954,3 +7954,10 @@ deploy_phase1.sh — 배포 요약 '커밋' 표시 버그 fix. (사장님: "5bb1
 - 이제 라이브: 방 기본정보(room/create·room/info) + 고객웹 주소간소화(동호수+타입) + 완료UX(잠금·수정·축하) + 서명 스와이프fix + 웹 전화 하이픈 + submissions.assigned_phone.
 - 남은 cowork: /contract/memo(8-E, 현재 Not Found).
 - 앱 다음: 방개설 기본정보 폼(apartment·unit_types[]·terms·biz_name·biz_no·rep_phone·office_phone → room/info) + 내 접수서함(assigned_phone) + 일괄 배정 UI.
+
+## 2026-07-23 13:10 · android
+박람회 기본정보 폼 UX 개선(사장님) + 사진첨부 코워크 요청.
+- 앱 완료(설치 0.2.1108): 타입=자주쓰는 평형 원탭(59/74/84/101/114)+쉼표로 여러개 / 사업자번호 000-00-00000 하이픈 / 대표·사무실번호 8자리→0000-0000·11자리→000-0000-0000 하이픈 / "빈칸은 계약서에 표시 안 됨" 안내.
+- cowork 요청(SERVER_HANDOFF 8-F): 약관 사진첨부(권장 이미지 그대로→영수증 하단) + 사업자등록증 OCR(Vision→업체명·사업자번호 자동채움). endpoint안 2개. 앱은 사진 pick/업로드 UI 대기.
+- ❓사장님: 약관 이미지 그대로(권장) vs OCR 텍스트화.
+- 메모 endpoint(8-E)도 여전히 대기(현재 /contract/memo Not Found).
