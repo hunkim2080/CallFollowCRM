@@ -317,6 +317,18 @@ class ExpoRepository(
         }
     }
 
+    /** 계약서 메모(특이사항) 저장/수정 — 방 멤버. 서버 /contract/memo 엔드포인트 필요(대기). */
+    suspend fun setMemo(contractId: Long, phone: String, memo: String): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            postJson("/api/expo/contract/memo", JSONObject().apply {
+                put("contract_id", contractId)
+                put("phone", digits(phone))
+                put("memo", memo)
+            })
+            Unit
+        }
+    }
+
     /** 계약서 사본/영수증 웹 URL (PDF·공유용). */
     fun receiptUrl(contractId: Long): String = "$baseUrl/expo/r/$contractId"
 }

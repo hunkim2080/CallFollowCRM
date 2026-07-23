@@ -91,6 +91,8 @@ private sealed class Nav {
     data class Qr(val roomId: String, val name: String, val session: ExpoRepository.Session) : Nav()
     data class Subs(val roomId: String, val name: String) : Nav()
     data class Calendar(val roomId: String, val name: String) : Nav()
+    /** 앱 안 네이티브 계약서 보기 (웹 안 열고). fromCalendar=달력에서 왔는지(뒤로가기 목적지). */
+    data class Contract(val roomId: String, val name: String, val contractId: Long, val fromCalendar: Boolean) : Nav()
 }
 
 @Composable
@@ -112,6 +114,7 @@ fun ExpoScreen(container: AppContainer, onExit: () -> Unit) {
             is Nav.Qr -> Nav.RoomView(n.roomId, n.name, "member")
             is Nav.Subs -> Nav.RoomView(n.roomId, n.name, "member")
             is Nav.Calendar -> Nav.RoomView(n.roomId, n.name, "member")
+            is Nav.Contract -> if (n.fromCalendar) Nav.Calendar(n.roomId, n.name) else Nav.Subs(n.roomId, n.name)
         }
     }
 
@@ -124,6 +127,7 @@ fun ExpoScreen(container: AppContainer, onExit: () -> Unit) {
             is Nav.Qr -> "계약서 작성"
             is Nav.Subs -> "우리 팀 접수서"
             is Nav.Calendar -> "박람회 달력"
+            is Nav.Contract -> "계약서"
         }
         val sub = if (nav is Nav.List) "팀으로 상담·계약을 한 번에" else null
         ExpoTopBar(title, sub, isRoot = nav is Nav.List) {
@@ -135,6 +139,7 @@ fun ExpoScreen(container: AppContainer, onExit: () -> Unit) {
                 is Nav.Qr -> Nav.RoomView(n.roomId, n.name, "member")
                 is Nav.Subs -> Nav.RoomView(n.roomId, n.name, "member")
                 is Nav.Calendar -> Nav.RoomView(n.roomId, n.name, "member")
+                is Nav.Contract -> if (n.fromCalendar) Nav.Calendar(n.roomId, n.name) else Nav.Subs(n.roomId, n.name)
             }
         }
 
@@ -149,8 +154,11 @@ fun ExpoScreen(container: AppContainer, onExit: () -> Unit) {
             is Nav.Products -> ProductsEditorView(repo, n, myPhone, ::toast,
                 onDone = { nav = Nav.RoomView(n.roomId, n.name, "owner") })
             is Nav.Qr -> QrView(repo, n, myPhone, ::toast)
-            is Nav.Subs -> SubmissionsView(repo, n, myPhone, ::toast)
-            is Nav.Calendar -> CalendarView(repo, n, myPhone)
+            is Nav.Subs -> SubmissionsView(repo, n, myPhone, ::toast,
+                onContract = { nav = Nav.Contract(n.roomId, n.name, it, fromCalendar = false) })
+            is Nav.Calendar -> CalendarView(repo, n, myPhone,
+                onContract = { nav = Nav.Contract(n.roomId, n.name, it, fromCalendar = true) })
+            is Nav.Contract -> ContractView(repo, n, myPhone, ::toast)
         }
     }
 }
@@ -288,9 +296,13 @@ private fun RoomRow(r: ExpoRepository.Room, onClick: () -> Unit) {
             Text("팀원 ${r.memberCount} · 상품 ${r.productCount} · 접수 ${r.contractCount}",
                 fontSize = 11.5.sp, color = T3, fontWeight = FontWeight.Medium)
         }
-        val badge = if (r.role == "owner") "방장" else "팀원"
-        Text(badge, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB58A00),
-            modifier = Modifier.background(Color(0xFFFFF6D6), RoundedCornerShape(7.dp)).padding(horizontal = 8.dp, vertical = 3.dp))
+        val isOwner = r.role == "owner"
+        val badge = if (isOwner) "방장" else "팀원"
+        // 방장=금색, 팀원=파랑 (색으로 역할 구분)
+        val badgeFg = if (isOwner) Color(0xFFB58A00) else Color(0xFF2F6FDB)
+        val badgeBg = if (isOwner) Color(0xFFFFF6D6) else Color(0xFFE7F0FB)
+        Text(badge, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = badgeFg,
+            modifier = Modifier.background(badgeBg, RoundedCornerShape(7.dp)).padding(horizontal = 8.dp, vertical = 3.dp))
     }
 }
 
@@ -307,9 +319,13 @@ private fun ColumnScope.RoomDetailView(
     var opening by remember { mutableStateOf(false) }
 
     LaunchedEffect(n.roomId) {
-        repo.roomDetail(n.roomId, myPhone).onSuccess { detail = it }.onFailure { toast("방 정보를 못 불러왔어요") }
-        // 방장이면 초대코드도 (rooms 목록에서 code 내려오지만 상세엔 없음 → rooms 재조회)
-        if (n.role == "owner") repo.rooms(myPhone).onSuccess { list -> code = list.find { it.roomId == n.roomId }?.code }
+        repo.roomDetail(n.roomId, myPhone).onSuccess { dt ->
+            detail = dt
+            // 방장이면 초대코드도 (rooms 목록에서 code 내려오지만 상세엔 없음 → rooms 재조회).
+            // ⚠️ role 판정은 n.role 말고 서버가 준 dt.myRole 로. n.role 은 접수서/달력 갔다 뒤로가기 때
+            //    "member" 로 덮여서, 돌아오면 방장 기능(상품등록·초대코드)이 사라지는 버그가 있었음.
+            if (dt.myRole == "owner") repo.rooms(myPhone).onSuccess { list -> code = list.find { it.roomId == n.roomId }?.code }
+        }.onFailure { toast("방 정보를 못 불러왔어요") }
     }
 
     var memOpen by remember { mutableStateOf(false) }
@@ -325,7 +341,7 @@ private fun ColumnScope.RoomDetailView(
             // ── ① 방 정보: 초대코드(방장) + 팀원(접기) ──
             item {
                 Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(18.dp)).padding(16.dp)) {
-                    if (n.role == "owner" && code != null) {
+                    if (d.myRole == "owner" && code != null) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text("팀원 초대코드", fontSize = 11.5.sp, color = T3, fontWeight = FontWeight.Bold)
@@ -402,7 +418,7 @@ private fun ColumnScope.RoomDetailView(
                         GroupRow("우리 팀 접수서", "받은 계약 모아보기 (번호 뒷자리 가림)", onSubs)
                         RowDivider()
                         GroupRow("박람회 달력", "시공 일정을 날짜별로 한눈에 📅", onCalendar)
-                        if (n.role == "owner") {
+                        if (d.myRole == "owner") {
                             RowDivider()
                             val cnt = d.catalog.size
                             GroupRow("상품·서비스 준비", if (cnt > 0) "등록된 항목 ${cnt}개 · 수정" else "계약서에 쓸 상품·단가 등록", onProducts)
@@ -740,7 +756,7 @@ private fun shareUrl(ctx: android.content.Context, url: String) {
 
 // ══════════════ 우리 팀 접수서 ══════════════
 @Composable
-private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPhone: String, toast: (String) -> Unit) {
+private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPhone: String, toast: (String) -> Unit, onContract: (Long) -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var data by remember { mutableStateOf<ExpoRepository.Submissions?>(null) }
@@ -844,9 +860,9 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                             Spacer(Modifier.height(8.dp))
                             Box(
                                 Modifier.fillMaxWidth().background(Field, RoundedCornerShape(12.dp))
-                                    .clickable { openUrl(ctx, repo.receiptUrl(s.contractId)) }.padding(vertical = 11.dp),
+                                    .clickable { onContract(s.contractId) }.padding(vertical = 11.dp),
                                 contentAlignment = Alignment.Center
-                            ) { Text("계약서 · PDF", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1) }
+                            ) { Text("계약서 보기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1) }
                         }
                     }
                 }
@@ -923,9 +939,122 @@ private fun ChkRow(label: String, value: String) {
     }
 }
 
+// ══════════════ 앱 안 네이티브 계약서 (웹 안 열고) ══════════════
+@Composable
+private fun ColumnScope.ContractView(repo: ExpoRepository, n: Nav.Contract, myPhone: String, toast: (String) -> Unit) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var sub by remember { mutableStateOf<ExpoRepository.Submission?>(null) }
+    var loadErr by remember { mutableStateOf(false) }
+    var memo by remember { mutableStateOf("") }
+    var memoInit by remember { mutableStateOf(false) }
+    var savingMemo by remember { mutableStateOf(false) }
+
+    LaunchedEffect(n.contractId) {
+        repo.submissions(n.roomId, myPhone)
+            .onSuccess { data ->
+                val found = data.items.find { it.contractId == n.contractId }
+                if (found == null) loadErr = true
+                else { sub = found; if (!memoInit) { memo = found.note; memoInit = true } }
+            }
+            .onFailure { loadErr = true }
+    }
+
+    val s = sub
+    if (s == null) {
+        Box(Modifier.weight(1f).fillMaxWidth(), Alignment.Center) {
+            if (loadErr) Text("계약서를 불러오지 못했어요", fontSize = 14.sp, color = T3)
+            else CircularProgressIndicator(color = AccentBlue)
+        }
+    } else {
+        val site = listOf(s.apartment, s.dongHo).filter { it.isNotBlank() }.joinToString(" ").ifBlank { s.address }
+        LazyColumn(
+            Modifier.weight(1f).fillMaxWidth(),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(18.dp)).padding(18.dp)) {
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text("시공 계약서", fontSize = 17.sp, fontWeight = FontWeight.Black, color = T1, modifier = Modifier.weight(1f))
+                        Text("No. ${s.contractId}", fontSize = 11.sp, color = T3, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    SubRow("성함", s.customerName.ifBlank { "-" })
+                    SubRow("연락처", ph(s.customerPhone).ifBlank { ph(s.customerPhoneMasked).ifBlank { "-" } })
+                    SubRow("시공주소", site.ifBlank { "-" })
+                    SubRow("시공일", if (s.scheduledAtMs > 0L) dateKo(s.scheduledAtMs) else "미정")
+                    Spacer(Modifier.height(10.dp))
+                    Text("시공 내역", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = T2)
+                    Spacer(Modifier.height(4.dp))
+                    Text(s.products.ifBlank { "-" }, fontSize = 13.sp, color = T1, fontWeight = FontWeight.Medium, lineHeight = 19.sp)
+                    Spacer(Modifier.height(12.dp))
+                    Row(
+                        Modifier.fillMaxWidth().background(Field, RoundedCornerShape(12.dp)).padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("최종 금액", fontSize = 14.sp, fontWeight = FontWeight.Black, color = T1, modifier = Modifier.weight(1f))
+                        Text(won(s.finalAmount), fontSize = 19.sp, fontWeight = FontWeight.Black, color = AccentBlue)
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text("계약자 ${s.agentName.ifBlank { "-" }} · 시공자 ${s.assignedName ?: "미배정"}", fontSize = 11.5.sp, color = T3)
+                    if (s.note.isNotBlank()) {
+                        Spacer(Modifier.height(10.dp))
+                        Text("특이사항 · 비고", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = T2)
+                        Spacer(Modifier.height(3.dp))
+                        Text(s.note, fontSize = 12.5.sp, color = T1, lineHeight = 18.sp)
+                    }
+                }
+            }
+            // 메모 (편집 — 팀이 특이사항 적어두기)
+            item {
+                Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(18.dp)).padding(16.dp)) {
+                    Text("메모 · 특이사항", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = T1)
+                    Text("고객 특이사항이 생기면 여기 적어두세요. (팀 공유)", fontSize = 11.5.sp, color = T3)
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = memo, onValueChange = { memo = it },
+                        placeholder = { Text("예: 오전만 시공 가능, 반려동물 있음", fontSize = 13.sp) },
+                        minLines = 3, modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    BigButton(if (savingMemo) "저장 중…" else "메모 저장", enabled = !savingMemo, bg = Kk, fg = KkInk) {
+                        savingMemo = true
+                        scope.launch {
+                            repo.setMemo(s.contractId, myPhone, memo)
+                                .onSuccess { savingMemo = false; toast("메모를 저장했어요") }
+                                .onFailure {
+                                    savingMemo = false
+                                    toast(if ((it.message ?: "").contains("HTTP 404")) "메모 저장은 서버 업데이트 후 가능해요 (곧)" else "저장 실패 · 다시 시도해 주세요")
+                                }
+                        }
+                    }
+                }
+            }
+            item { Spacer(Modifier.height(2.dp)) }
+        }
+        // ── 하단 고정: 공유 / PDF ──
+        Row(
+            Modifier.fillMaxWidth().background(Panel).padding(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Box(
+                Modifier.weight(1f).background(Kk, RoundedCornerShape(14.dp))
+                    .clickable { shareUrl(ctx, repo.receiptUrl(s.contractId)) }.padding(vertical = 15.dp),
+                contentAlignment = Alignment.Center
+            ) { Text("카톡 공유", fontSize = 14.5.sp, fontWeight = FontWeight.Black, color = KkInk) }
+            Box(
+                Modifier.weight(1f).background(Field, RoundedCornerShape(14.dp))
+                    .clickable { openUrl(ctx, repo.receiptUrl(s.contractId)) }.padding(vertical = 15.dp),
+                contentAlignment = Alignment.Center
+            ) { Text("PDF · 인쇄", fontSize = 14.5.sp, fontWeight = FontWeight.Black, color = T1) }
+        }
+    }
+}
+
 // ══════════════ 박람회 달력 ══════════════
 @Composable
-private fun ColumnScope.CalendarView(repo: ExpoRepository, n: Nav.Calendar, myPhone: String) {
+private fun ColumnScope.CalendarView(repo: ExpoRepository, n: Nav.Calendar, myPhone: String, onContract: (Long) -> Unit) {
     val ctx = LocalContext.current
     var items by remember { mutableStateOf<List<ExpoRepository.Submission>?>(null) }
     LaunchedEffect(n.roomId) {
@@ -1046,7 +1175,7 @@ private fun ColumnScope.CalendarView(repo: ExpoRepository, n: Nav.Calendar, myPh
                         dayItems.forEachIndexed { i, s ->
                             val site = listOf(s.apartment, s.dongHo).filter { it.isNotBlank() }.joinToString(" ")
                             val fullPhone = s.customerPhone
-                            Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                            Column(Modifier.fillMaxWidth().clickable { dialogDay = null; onContract(s.contractId) }.padding(vertical = 8.dp)) {
                                 Text(site.ifBlank { s.customerName.ifBlank { "고객" } }, fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = T1)
                                 if (s.products.isNotBlank()) {
                                     Spacer(Modifier.height(2.dp))
@@ -1059,8 +1188,8 @@ private fun ColumnScope.CalendarView(repo: ExpoRepository, n: Nav.Calendar, myPh
                                     modifier = Modifier.clickable(enabled = fullPhone.isNotBlank()) { dialPhone(ctx, fullPhone) })
                                 Text("계약자 ${s.agentName.ifBlank { "-" }} · 시공자 ${s.assignedName ?: "미배정"} · ${won(s.finalAmount)}",
                                     fontSize = 11.5.sp, color = T3, modifier = Modifier.padding(top = 3.dp))
-                                Text("계약서 보기 ›", fontSize = 12.sp, color = AccentBlue, fontWeight = FontWeight.Medium,
-                                    modifier = Modifier.padding(top = 4.dp).clickable { openUrl(ctx, repo.receiptUrl(s.contractId)) })
+                                Text("탭해서 계약서 보기 ›", fontSize = 12.sp, color = AccentBlue, fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.padding(top = 4.dp))
                             }
                             if (i < dayItems.size - 1) Box(Modifier.fillMaxWidth().height(1.dp).background(ExpoBg))
                         }

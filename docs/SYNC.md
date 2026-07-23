@@ -7940,3 +7940,10 @@ deploy_phase1.sh — 배포 요약 '커밋' 표시 버그 fix. (사장님: "5bb1
 - 검증 TestClient 25 + 회귀 8 ALL OK. 하위호환 유지. 미배포: bash server/deploy_phase1.sh
 - 앱 다음: 방개설 폼에 기본정보 입력 → room/create 확장 호출. (나머지 unit_type·assigned_phone 자동)
 - commit: (아래)
+## 2026-07-23 12:20 · android
+박람회 앱: role 버그 fix + 배지색 + 네이티브 계약서 + 메모(코워크 endpoint 1건).
+- 버그 fix: [상품·서비스 준비]/초대코드가 접수서·달력 갔다 뒤로가기하면 사라지던 것 — n.role(뒤로가기때 "member"로 덮임) 대신 서버가 준 d.myRole 사용.
+- 방 목록 방장/팀원 배지 색 구분(방장=금색, 팀원=파랑).
+- 앱 네이티브 계약서(ContractView): 달력 항목/접수서에서 탭 → 웹 안 열고 앱 안에서 렌더(성함·연락처·주소·시공일·내역·금액·계약자/시공자·특이사항) + 하단 [카톡 공유][PDF·인쇄] + 편집 메모칸.
+- cowork 요청(SERVER_HANDOFF 8-E): POST /api/expo/contract/memo {contract_id, phone, memo} → submissions.note(expo_contracts.memo) 갱신. 현재 404라 앱은 안내로 처리.
+- 미설치(폰 분리) — 다음 연결 때 설치. commit: (이 커밋)
