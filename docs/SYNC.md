@@ -7947,3 +7947,10 @@ deploy_phase1.sh — 배포 요약 '커밋' 표시 버그 fix. (사장님: "5bb1
 - 앱 네이티브 계약서(ContractView): 달력 항목/접수서에서 탭 → 웹 안 열고 앱 안에서 렌더(성함·연락처·주소·시공일·내역·금액·계약자/시공자·특이사항) + 하단 [카톡 공유][PDF·인쇄] + 편집 메모칸.
 - cowork 요청(SERVER_HANDOFF 8-E): POST /api/expo/contract/memo {contract_id, phone, memo} → submissions.note(expo_contracts.memo) 갱신. 현재 404라 앱은 안내로 처리.
 - 미설치(폰 분리) — 다음 연결 때 설치. commit: (이 커밋)
+
+## 2026-07-23 12:35 · android (배포 실행)
+추가147(6·7·8차) 서버 배포 실행+검증 (사장님 승인 SSH). — 코드는 cowork, android 는 배포만.
+- deploy_phase1.sh 재기동. 검증: room/info 라이브(422=owner_phone 요구=라우트 정상), Phase4 유지.
+- 이제 라이브: 방 기본정보(room/create·room/info) + 고객웹 주소간소화(동호수+타입) + 완료UX(잠금·수정·축하) + 서명 스와이프fix + 웹 전화 하이픈 + submissions.assigned_phone.
+- 남은 cowork: /contract/memo(8-E, 현재 Not Found).
+- 앱 다음: 방개설 기본정보 폼(apartment·unit_types[]·terms·biz_name·biz_no·rep_phone·office_phone → room/info) + 내 접수서함(assigned_phone) + 일괄 배정 UI.
