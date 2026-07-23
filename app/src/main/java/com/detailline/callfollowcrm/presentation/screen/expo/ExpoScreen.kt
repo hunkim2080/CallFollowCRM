@@ -518,6 +518,7 @@ private fun ColumnScope.ProductsEditorView(
                             value = row.priceText, onValueChange = { v -> rows[i] = row.copy(priceText = v.filter { it.isDigit() }) },
                             placeholder = { Text("단가 (원)", fontSize = 13.sp) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation,
                             singleLine = true, modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -752,6 +753,7 @@ private fun MoneyField(label: String, value: String, onChange: (String) -> Unit)
         label = { Text(label, fontSize = 12.sp) },
         placeholder = { Text("0", fontSize = 13.sp) },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation,
         singleLine = true, modifier = Modifier.fillMaxWidth()
     )
 }
@@ -1154,6 +1156,7 @@ private fun ColumnScope.ContractView(repo: ExpoRepository, n: Nav.Contract, myPh
     var memo by remember { mutableStateOf("") }
     var memoInit by remember { mutableStateOf(false) }
     var savingMemo by remember { mutableStateOf(false) }
+    var info by remember { mutableStateOf<ExpoRepository.RoomInfo?>(null) }
 
     LaunchedEffect(n.contractId) {
         repo.submissions(n.roomId, myPhone)
@@ -1163,6 +1166,9 @@ private fun ColumnScope.ContractView(repo: ExpoRepository, n: Nav.Contract, myPh
                 else { sub = found; if (!memoInit) { memo = found.note; memoInit = true } }
             }
             .onFailure { loadErr = true }
+    }
+    LaunchedEffect(n.roomId) {
+        repo.roomDetail(n.roomId, myPhone).onSuccess { info = it.info }
     }
 
     val s = sub
@@ -1183,6 +1189,18 @@ private fun ColumnScope.ContractView(repo: ExpoRepository, n: Nav.Contract, myPh
                     Row(verticalAlignment = Alignment.Bottom) {
                         Text("시공 계약서", fontSize = 17.sp, fontWeight = FontWeight.Black, color = T1, modifier = Modifier.weight(1f))
                         Text("No. ${s.contractId}", fontSize = 11.sp, color = T3, fontWeight = FontWeight.Bold)
+                    }
+                    info?.let { inf ->
+                        val hasBiz = inf.bizName.isNotBlank() || inf.bizNo.isNotBlank() || inf.repPhone.isNotBlank() || inf.officePhone.isNotBlank()
+                        if (hasBiz) {
+                            Spacer(Modifier.height(10.dp))
+                            Column(Modifier.fillMaxWidth().background(Field, RoundedCornerShape(10.dp)).padding(12.dp)) {
+                                if (inf.bizName.isNotBlank()) Text(inf.bizName, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
+                                if (inf.bizNo.isNotBlank()) Text("사업자번호 ${bizNoHyphen(inf.bizNo)}", fontSize = 11.sp, color = T3)
+                                val phones = listOf(inf.repPhone, inf.officePhone).filter { it.isNotBlank() }.joinToString("  ·  ") { ph(it) }
+                                if (phones.isNotBlank()) Text(phones, fontSize = 11.sp, color = T3)
+                            }
+                        }
                     }
                     Spacer(Modifier.height(12.dp))
                     SubRow("성함", s.customerName.ifBlank { "-" })
@@ -1208,6 +1226,14 @@ private fun ColumnScope.ContractView(repo: ExpoRepository, n: Nav.Contract, myPh
                         Text("특이사항 · 비고", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = T2)
                         Spacer(Modifier.height(3.dp))
                         Text(s.note, fontSize = 12.5.sp, color = T1, lineHeight = 18.sp)
+                    }
+                    info?.terms?.takeIf { it.isNotBlank() }?.let { t ->
+                        Spacer(Modifier.height(12.dp))
+                        Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFEEF0F3)))
+                        Spacer(Modifier.height(10.dp))
+                        Text("계약 약관", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = T2)
+                        Spacer(Modifier.height(3.dp))
+                        Text(t, fontSize = 11.5.sp, color = T2, lineHeight = 17.sp)
                     }
                 }
             }
