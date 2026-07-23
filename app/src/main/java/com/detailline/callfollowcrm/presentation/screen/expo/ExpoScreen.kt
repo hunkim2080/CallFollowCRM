@@ -56,6 +56,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -1055,6 +1058,26 @@ private fun bizPhoneHyphen(raw: String): String {
     }
 }
 
+/** 사진→OCR 자동입력 버튼(촬영·앨범) + 인식중 표시. 사업자등록증/약관 공용. */
+@Composable
+private fun OcrButtons(busy: Boolean, hint: String, onCamera: () -> Unit, onGallery: () -> Unit) {
+    Column {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.weight(1f).background(Color(0xFFEAF0FF), RoundedCornerShape(10.dp))
+                .clickable(enabled = !busy) { onCamera() }.padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
+                Text("📷 촬영", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (busy) T3 else Color(0xFF2F6FDB))
+            }
+            Box(Modifier.weight(1f).background(Color(0xFFEAF0FF), RoundedCornerShape(10.dp))
+                .clickable(enabled = !busy) { onGallery() }.padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
+                Text("🖼 앨범", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (busy) T3 else Color(0xFF2F6FDB))
+            }
+        }
+        Text(if (busy) "🔎 사진에서 읽는 중… (몇 초 걸려요)" else "📷 $hint 사진 찍으면 자동으로 채워져요",
+            fontSize = 11.sp, color = if (busy) Color(0xFF2F6FDB) else T3, fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(top = 5.dp))
+    }
+}
+
 // ══════════════ 박람회 기본정보 폼 (방장) ══════════════
 @Composable
 private fun ColumnScope.RoomFormView(
@@ -1070,6 +1093,61 @@ private fun ColumnScope.RoomFormView(
     var repPhone by remember { mutableStateOf("") }
     var officePhone by remember { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
+
+    // ── OCR (사업자등록증·약관 사진→자동입력). 서버 Vision. 촬영/앨범 둘 다. ──
+    val context = LocalContext.current
+    var ocrBusy by remember { mutableStateOf(false) }
+    var ocrTarget by remember { mutableStateOf("") }   // "biz" | "terms"
+    var cameraUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    fun runOcr(uri: android.net.Uri) {
+        val dataUrl = uriToDataUrl(context, uri)
+        if (dataUrl == null) { toast("이미지를 읽지 못했어요"); return }
+        val target = ocrTarget
+        ocrBusy = true
+        scope.launch {
+            if (target == "biz") {
+                repo.ocrBizReg(dataUrl)
+                    .onSuccess { r ->
+                        ocrBusy = false
+                        if (r.bizName.isBlank() && r.bizNo.isBlank()) toast("사업자등록증을 인식하지 못했어요")
+                        else {
+                            if (r.bizName.isNotBlank()) bizName = r.bizName
+                            if (r.bizNo.isNotBlank()) bizNo = bizNoHyphen(r.bizNo)
+                            toast("사업자등록증에서 정보를 채웠어요 · 확인 후 저장")
+                        }
+                    }
+                    .onFailure { ocrBusy = false; toast("인식 실패 · 또렷하게 다시 찍어주세요") }
+            } else {
+                repo.ocrTerms(dataUrl)
+                    .onSuccess { t ->
+                        ocrBusy = false
+                        if (t.isBlank()) toast("약관 글자를 인식하지 못했어요")
+                        else { terms = t; toast("약관을 채웠어요 · 확인 후 저장") }
+                    }
+                    .onFailure { ocrBusy = false; toast("인식 실패 · 또렷하게 다시 찍어주세요") }
+            }
+        }
+    }
+    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) runOcr(uri)
+    }
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        if (ok) cameraUri?.let { runOcr(it) }
+    }
+    fun pickGallery(target: String) {
+        ocrTarget = target
+        galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+    }
+    fun pickCamera(target: String) {
+        ocrTarget = target
+        runCatching {
+            val dir = java.io.File(context.cacheDir, "shared").apply { mkdirs() }
+            val f = java.io.File(dir, "ocr_capture.jpg")
+            val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", f)
+            cameraUri = uri
+            cameraLauncher.launch(uri)
+        }.onFailure { toast("카메라를 열지 못했어요") }
+    }
 
     LaunchedEffect(n.roomId) {
         repo.roomDetail(n.roomId, myPhone).onSuccess { d ->
@@ -1154,8 +1232,8 @@ private fun ColumnScope.RoomFormView(
             Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
                 Text("시공업체 정보", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
                 Text("빈칸으로 두면 계약서에 표시되지 않아요 — 없는 항목은 비워두세요.", fontSize = 11.5.sp, color = T3, lineHeight = 16.sp)
-                Text("📷 사업자등록증 사진으로 자동입력 — 준비 중 (곧 지원)", fontSize = 11.sp, color = AccentBlue,
-                    fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 4.dp))
+                Spacer(Modifier.height(8.dp))
+                OcrButtons(ocrBusy && ocrTarget == "biz", "사업자등록증", { pickCamera("biz") }, { pickGallery("biz") })
                 Spacer(Modifier.height(10.dp))
                 OutlinedTextField(value = bizName, onValueChange = { bizName = it },
                     label = { Text("업체명", fontSize = 12.sp) }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -1178,8 +1256,8 @@ private fun ColumnScope.RoomFormView(
             Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
                 Text("계약 약관", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
                 Text("계약서 하단에 그대로 들어가요.", fontSize = 11.5.sp, color = T3)
-                Text("📷 약관 사진으로 채우기 — 준비 중 (곧 지원)", fontSize = 11.sp, color = AccentBlue,
-                    fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 3.dp))
+                Spacer(Modifier.height(8.dp))
+                OcrButtons(ocrBusy && ocrTarget == "terms", "약관", { pickCamera("terms") }, { pickGallery("terms") })
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(value = terms, onValueChange = { terms = it },
                     placeholder = { Text("예: 잔금은 시공 완료 당일 지급합니다…", fontSize = 13.sp) },
@@ -1401,8 +1479,8 @@ private fun ColumnScope.CalendarView(repo: ExpoRepository, n: Nav.Calendar, myPh
                 Box(Modifier.size(34.dp).clickable { if (month == 11) { month = 0; year++ } else month++ },
                     contentAlignment = Alignment.Center) { Text("▶", fontSize = 16.sp, color = T2) }
             }
-            // 요일
-            Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp)) {
+            // 요일 — 그리드와 좌우 패딩 0 으로 통일(요일 라벨이 날짜 열과 정확히 정렬되게). 4dp 차이로 그리드가 왼쪽 밀려 보이던 버그.
+            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                 listOf("일", "월", "화", "수", "목", "금", "토").forEachIndexed { i, d ->
                     Text(d, fontSize = 11.sp, fontWeight = FontWeight.Bold,
                         color = if (i == 0) Color(0xFFE1483B) else T3,
@@ -1583,6 +1661,15 @@ private fun won(amount: Long): String = "%,d원".format(amount)
 
 /** 표시용 전화번호 하이픈 (가독성). 빈 값/알 수 없는 형식이면 그대로. */
 private fun ph(raw: String): String = com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(raw)
+
+/** 이미지 Uri → base64 dataURL (OCR 업로드용). 열기 실패/8MB 초과면 null. */
+private fun uriToDataUrl(ctx: android.content.Context, uri: android.net.Uri): String? = runCatching {
+    ctx.contentResolver.openInputStream(uri)?.use { ins ->
+        val bytes = ins.readBytes()
+        if (bytes.isEmpty() || bytes.size > 8_000_000) null
+        else "data:image/*;base64," + android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+    }
+}.getOrNull()
 
 /** 계약서 보관 실패를 원인별 사람 말투로 (예외에 HTTP 코드가 박혀 옴). */
 private fun finalizeErrorText(e: Throwable): String {

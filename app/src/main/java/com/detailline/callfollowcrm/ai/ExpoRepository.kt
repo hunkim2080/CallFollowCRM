@@ -29,6 +29,13 @@ class ExpoRepository(
         .writeTimeout(15, TimeUnit.SECONDS)
         .build()
 
+    /** OCR(Vision) 는 응답이 느려 별도 긴 타임아웃. */
+    private val ocrClient = OkHttpClient.Builder()
+        .connectTimeout(5, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .build()
+
     private val jsonMedia = "application/json; charset=utf-8".toMediaType()
 
     // ── 데이터 모델 ──
@@ -85,6 +92,17 @@ class ExpoRepository(
         val req = Request.Builder().url("$baseUrl$path")
             .post(payload.toString().toRequestBody(jsonMedia)).build()
         client.newCall(req).execute().use { resp ->
+            val body = resp.body?.string().orEmpty()
+            if (!resp.isSuccessful) throw IOException("HTTP ${resp.code} ${body.take(200)}")
+            if (body.isBlank()) throw IOException("empty body")
+            return JSONObject(body)
+        }
+    }
+
+    private fun postJsonOcr(path: String, payload: JSONObject): JSONObject {
+        val req = Request.Builder().url("$baseUrl$path")
+            .post(payload.toString().toRequestBody(jsonMedia)).build()
+        ocrClient.newCall(req).execute().use { resp ->
             val body = resp.body?.string().orEmpty()
             if (!resp.isSuccessful) throw IOException("HTTP ${resp.code} ${body.take(200)}")
             if (body.isBlank()) throw IOException("empty body")
@@ -362,6 +380,23 @@ class ExpoRepository(
                 put("memo", memo)
             })
             Unit
+        }
+    }
+
+    data class BizReg(val bizName: String, val bizNo: String, val repName: String, val address: String)
+
+    /** 사업자등록증 사진 OCR → 업체명·사업자번호 등 추출. image=dataURL(base64). 서버 Vision(Gemini). */
+    suspend fun ocrBizReg(imageDataUrl: String): Result<BizReg> = withContext(Dispatchers.IO) {
+        runCatching {
+            val o = postJsonOcr("/api/expo/ocr/bizreg", JSONObject().apply { put("image", imageDataUrl) })
+            BizReg(o.optString("biz_name"), o.optString("biz_no"), o.optString("rep_name"), o.optString("address"))
+        }
+    }
+
+    /** 약관 사진 OCR → 약관 전문 텍스트. */
+    suspend fun ocrTerms(imageDataUrl: String): Result<String> = withContext(Dispatchers.IO) {
+        runCatching {
+            postJsonOcr("/api/expo/ocr/terms", JSONObject().apply { put("image", imageDataUrl) }).optString("text")
         }
     }
 
