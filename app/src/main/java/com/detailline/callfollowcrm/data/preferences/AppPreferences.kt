@@ -107,13 +107,13 @@ class AppPreferences(context: Context) {
     // ── 자동 문자 — 프로토 자동문자 시트(인라인 텍스트). 비면 위 템플릿ID fallback. (2026-06-03) ──
     /** 부재중 자동응답 — 처음 연락한 고객(신규). */
     var autoMissedNewText: String
-        get() = prefs.getString("auto_missed_new_text",
-            "안녕하세요 😊 지금 시공 중이라 전화를 못 받았어요. 어떤 시공 문의신지 문자로 남겨주시면 바로 견적 안내드릴게요!") ?: ""
+        get() = healedAutoText("auto_missed_new_text",
+            "안녕하세요 😊 지금 시공 중이라 전화를 못 받았어요. 어떤 시공 문의신지 문자로 남겨주시면 바로 견적 안내드릴게요!")
         set(value) = prefs.edit().putString("auto_missed_new_text", value).apply()
     /** 부재중 자동응답 — 다시 연락한 고객(단골·기존). */
     var autoMissedReturnText: String
-        get() = prefs.getString("auto_missed_return_text",
-            "고객님, 전화 못 받아 죄송해요! 지금 시공 중이라 마치는 대로 바로 연락드릴게요. 급하시면 문자로 남겨주세요 😊") ?: ""
+        get() = healedAutoText("auto_missed_return_text",
+            "고객님, 전화 못 받아 죄송해요! 지금 시공 중이라 마치는 대로 바로 연락드릴게요. 급하시면 문자로 남겨주세요 😊")
         set(value) = prefs.edit().putString("auto_missed_return_text", value).apply()
     /** 시공 D-1 안내 on/off (알림으로 "보낼까요?" 물어봄). */
     var d1AutoEnabled: Boolean
@@ -162,8 +162,8 @@ class AppPreferences(context: Context) {
         set(value) = prefs.edit().putInt("d1_send_hour", value).apply()
     /** D-1 안내 문자 본문. */
     var d1AutoText: String
-        get() = prefs.getString("d1_auto_text",
-            "고객님, 내일 시공 예정입니다 😊 현장 정리(가구·물건 비움) 부탁드리고, 주차 가능 여부만 미리 알려주세요.") ?: ""
+        get() = healedAutoText("d1_auto_text",
+            "고객님, 내일 시공 예정입니다 😊 현장 정리(가구·물건 비움) 부탁드리고, 주차 가능 여부만 미리 알려주세요.")
         set(value) = prefs.edit().putString("d1_auto_text", value).apply()
 
     /**
@@ -207,13 +207,27 @@ class AppPreferences(context: Context) {
         }
         return hanja >= 2
     }
+
+    /**
+     * 자동문자 **읽기 시점 방어** — 저장값이 인코딩 손상(mojibake)이면 손상값 대신 멀쩡한 기본값을 돌려준다.
+     * 시작 시 healCorruptedAutoTexts 가 어떤 이유로든 놓쳐도(타이밍·재오염 등) 발송·표시·진단 **어디로도 깨진 값이 안 나감**.
+     * (2026-07-23 베타 진단 직송: 0.2.1119 에서도 D-1 이 깨져 들어옴 → 시작 heal 만으로 부족 → 읽기 시점 방어 추가.)
+     */
+    private fun healedAutoText(key: String, default: String): String {
+        val v = prefs.getString(key, default) ?: default
+        if (looksEncodingCorrupted(v)) {
+            prefs.edit().remove(key).apply()   // 손상값 영구 제거(자기복구) → 다음부터 기본값
+            return default
+        }
+        return v
+    }
     /** 현장 도착 안내(위치 기반) on/off. 트리거는 추후. */
     var arrivalAutoEnabled: Boolean
         get() = prefs.getBoolean("arrival_auto_enabled", false)
         set(value) = prefs.edit().putBoolean("arrival_auto_enabled", value).apply()
     var arrivalAutoText: String
-        get() = prefs.getString("arrival_auto_text",
-            "고객님, 30분 뒤 도착 예정입니다 😊 잠시 후 뵐게요!") ?: ""
+        get() = healedAutoText("arrival_auto_text",
+            "고객님, 30분 뒤 도착 예정입니다 😊 잠시 후 뵐게요!")
         set(value) = prefs.edit().putString("arrival_auto_text", value).apply()
 
     /** 새 버전 체크 마지막 시각(ms) — 하루 1회 throttle. (2026-06-16) */
