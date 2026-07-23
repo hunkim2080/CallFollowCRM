@@ -223,7 +223,24 @@ private fun ColumnScope.RoomListView(
     Box(Modifier.weight(1f).fillMaxWidth()) {
         val list = rooms
         when {
-            list == null -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator(color = AccentBlue) }
+            list == null -> LazyColumn(
+                Modifier.fillMaxSize(),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(4) {
+                    Row(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(13.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Skel(Modifier.size(46.dp), 16)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Skel(Modifier.fillMaxWidth(0.55f).height(15.dp))
+                            Spacer(Modifier.height(8.dp))
+                            Skel(Modifier.fillMaxWidth(0.75f).height(11.dp))
+                        }
+                    }
+                }
+            }
             list.isEmpty() -> Column(
                 Modifier.fillMaxSize().padding(28.dp),
                 verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally
@@ -295,6 +312,12 @@ private fun ColumnScope.RoomListView(
     )
 }
 
+/** 로딩 스켈레톤 조각 — 꽉 찬 스피너 대신 화면 구조를 먼저 보여줌(끊김 느낌 제거). */
+@Composable
+private fun Skel(modifier: Modifier, corner: Int = 10) {
+    Box(modifier.clip(RoundedCornerShape(corner.dp)).background(Color(0xFFE4E7EC)))
+}
+
 @Composable
 private fun RoomRow(r: ExpoRepository.Room, onClick: () -> Unit) {
     Row(
@@ -351,7 +374,13 @@ private fun ColumnScope.RoomDetailView(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         if (d == null) {
-            item { Box(Modifier.fillMaxWidth().padding(40.dp), Alignment.Center) { CircularProgressIndicator(color = AccentBlue) } }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Skel(Modifier.fillMaxWidth().height(92.dp), 18)
+                    Skel(Modifier.fillMaxWidth().height(118.dp), 18)
+                    Skel(Modifier.fillMaxWidth().height(150.dp), 18)
+                }
+            }
         } else {
             // ── ① 방 정보: 초대코드(방장) + 팀원(접기) ──
             item {
@@ -794,7 +823,11 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
     var expanded by remember { mutableStateOf<Long?>(null) }
     val d = data
     if (d == null) {
-        Box(Modifier.weight(1f).fillMaxWidth(), Alignment.Center) { CircularProgressIndicator(color = AccentBlue) }
+        Column(Modifier.weight(1f).fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Skel(Modifier.fillMaxWidth(0.5f).height(18.dp))
+            Spacer(Modifier.height(2.dp))
+            repeat(3) { Skel(Modifier.fillMaxWidth().height(78.dp), 14) }
+        }
     } else {
         Column(Modifier.weight(1f).fillMaxWidth()) {
             // 합계 헤더
@@ -1188,9 +1221,15 @@ private fun ColumnScope.ContractView(repo: ExpoRepository, n: Nav.Contract, myPh
 
     val s = sub
     if (s == null) {
-        Box(Modifier.weight(1f).fillMaxWidth(), Alignment.Center) {
-            if (loadErr) Text("계약서를 불러오지 못했어요", fontSize = 14.sp, color = T3)
-            else CircularProgressIndicator(color = AccentBlue)
+        if (loadErr) {
+            Box(Modifier.weight(1f).fillMaxWidth(), Alignment.Center) {
+                Text("계약서를 불러오지 못했어요", fontSize = 14.sp, color = T3)
+            }
+        } else {
+            Column(Modifier.weight(1f).fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Skel(Modifier.fillMaxWidth().height(280.dp), 18)
+                Skel(Modifier.fillMaxWidth().height(120.dp), 18)
+            }
         }
     } else {
         val site = listOf(s.apartment, s.dongHo).filter { it.isNotBlank() }.joinToString(" ").ifBlank { s.address }
@@ -1316,7 +1355,10 @@ private fun ColumnScope.CalendarView(repo: ExpoRepository, n: Nav.Calendar, myPh
 
     val list = items
     if (list == null) {
-        Box(Modifier.weight(1f).fillMaxWidth(), Alignment.Center) { CircularProgressIndicator(color = AccentBlue) }
+        Column(Modifier.weight(1f).fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Skel(Modifier.fillMaxWidth(0.5f).height(20.dp))
+            Skel(Modifier.fillMaxWidth().height(380.dp), 14)
+        }
     } else {
         val byDay = remember(list, year, month) {
             val m = HashMap<Int, MutableList<ExpoRepository.Submission>>()
