@@ -1116,7 +1116,7 @@ private fun ColumnScope.RoomFormView(
                             toast("사업자등록증에서 정보를 채웠어요 · 확인 후 저장")
                         }
                     }
-                    .onFailure { ocrBusy = false; toast("인식 실패 · 또렷하게 다시 찍어주세요") }
+                    .onFailure { ocrBusy = false; toast(ocrErrorText(it)) }
             } else {
                 repo.ocrTerms(dataUrl)
                     .onSuccess { t ->
@@ -1124,7 +1124,7 @@ private fun ColumnScope.RoomFormView(
                         if (t.isBlank()) toast("약관 글자를 인식하지 못했어요")
                         else { terms = t; toast("약관을 채웠어요 · 확인 후 저장") }
                     }
-                    .onFailure { ocrBusy = false; toast("인식 실패 · 또렷하게 다시 찍어주세요") }
+                    .onFailure { ocrBusy = false; toast(ocrErrorText(it)) }
             }
         }
     }
@@ -1662,14 +1662,43 @@ private fun won(amount: Long): String = "%,d원".format(amount)
 /** 표시용 전화번호 하이픈 (가독성). 빈 값/알 수 없는 형식이면 그대로. */
 private fun ph(raw: String): String = com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(raw)
 
-/** 이미지 Uri → base64 dataURL (OCR 업로드용). 열기 실패/8MB 초과면 null. */
+/**
+ * 이미지 Uri → **다운스케일** base64 JPEG dataURL (OCR 업로드용).
+ * 앨범 원본은 수 MB라 업로드 실패/타임아웃 원인 → 최대 1600px·JPEG85% 로 줄여 ~수백KB 로. OCR 인식엔 충분.
+ */
 private fun uriToDataUrl(ctx: android.content.Context, uri: android.net.Uri): String? = runCatching {
-    ctx.contentResolver.openInputStream(uri)?.use { ins ->
-        val bytes = ins.readBytes()
-        if (bytes.isEmpty() || bytes.size > 8_000_000) null
-        else "data:image/*;base64," + android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
-    }
+    val cr = ctx.contentResolver
+    val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    cr.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it, null, bounds) }
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@runCatching null
+    val maxDim = 1600
+    var sample = 1
+    while (bounds.outWidth / sample > maxDim || bounds.outHeight / sample > maxDim) sample *= 2
+    val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
+    val bmp = cr.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it, null, opts) }
+        ?: return@runCatching null
+    val baos = java.io.ByteArrayOutputStream()
+    bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, baos)
+    bmp.recycle()
+    "data:image/jpeg;base64," + android.util.Base64.encodeToString(baos.toByteArray(), android.util.Base64.NO_WRAP)
 }.getOrNull()
+
+/** OCR 실패 원인을 사람 말투로 (예외에 HTTP 코드/타임아웃 박혀 옴). */
+private fun ocrErrorText(e: Throwable): String {
+    val m = e.message ?: ""
+    val low = m.lowercase()
+    return when {
+        "timeout" in low || "timed out" in low -> "시간 초과예요 — 사진이 크거나 서버가 느려요. 잠시 후 다시 시도해 주세요."
+        "HTTP 413" in m || "too large" in low -> "사진이 너무 커요. 더 작게 찍어 다시 시도해 주세요."
+        "HTTP 400" in m -> "이미지를 읽지 못했어요. 다른 사진으로 시도해 주세요."
+        "HTTP 401" in m || "HTTP 403" in m || "key" in low || "quota" in low || "api" in low ->
+            "서버 인식 키/한도 문제일 수 있어요. 사장님께 알려주세요."
+        "HTTP 5" in m -> "서버 인식 오류예요. 잠시 후 다시 시도해 주세요."
+        "unable to resolve host" in low || "failed to connect" in low -> "인터넷 연결을 확인해 주세요."
+        m.isBlank() -> "인식 실패 — 네트워크를 확인해 주세요."
+        else -> "인식 실패: ${m.take(90)}"
+    }
+}
 
 /** 계약서 보관 실패를 원인별 사람 말투로 (예외에 HTTP 코드가 박혀 옴). */
 private fun finalizeErrorText(e: Throwable): String {
