@@ -18,6 +18,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -1057,16 +1062,19 @@ private fun ColumnScope.RoomFormView(
         item {
             Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
                 Text("타입(평형) 목록", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
-                Text("자주 쓰는 평형은 눌러서 바로 추가. 여러 개는 쉼표로 한 번에.", fontSize = 11.5.sp, color = T3)
+                Text("자주 쓰는 평형은 눌러서 바로 추가 (A·B 포함). 여러 개는 쉼표로 한 번에.", fontSize = 11.5.sp, color = T3)
                 Spacer(Modifier.height(10.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf("59", "74", "84", "101", "114").forEach { p ->
-                        val on = types.contains(p)
-                        Box(
-                            Modifier.weight(1f).background(if (on) Kk else Field, RoundedCornerShape(9.dp))
-                                .clickable { if (on) types.remove(p) else addTypeVal(p) }.padding(vertical = 10.dp),
-                            contentAlignment = Alignment.Center
-                        ) { Text(p, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (on) KkInk else T2) }
+                listOf("59", "59A", "59B", "74", "74A", "84", "84A", "84B", "101", "114").chunked(4).forEach { rowItems ->
+                    Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        rowItems.forEach { p ->
+                            val on = types.contains(p)
+                            Box(
+                                Modifier.weight(1f).background(if (on) Kk else Field, RoundedCornerShape(9.dp))
+                                    .clickable { if (on) types.remove(p) else addTypeVal(p) }.padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) { Text(p, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (on) KkInk else T2) }
+                        }
+                        repeat(4 - rowItems.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
                 Spacer(Modifier.height(10.dp))
@@ -1099,6 +1107,8 @@ private fun ColumnScope.RoomFormView(
             Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
                 Text("시공업체 정보", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
                 Text("빈칸으로 두면 계약서에 표시되지 않아요 — 없는 항목은 비워두세요.", fontSize = 11.5.sp, color = T3, lineHeight = 16.sp)
+                Text("📷 사업자등록증 사진으로 자동입력 — 준비 중 (곧 지원)", fontSize = 11.sp, color = AccentBlue,
+                    fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 4.dp))
                 Spacer(Modifier.height(10.dp))
                 OutlinedTextField(value = bizName, onValueChange = { bizName = it },
                     label = { Text("업체명", fontSize = 12.sp) }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -1121,6 +1131,8 @@ private fun ColumnScope.RoomFormView(
             Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
                 Text("계약 약관", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
                 Text("계약서 하단에 그대로 들어가요.", fontSize = 11.5.sp, color = T3)
+                Text("📷 약관 사진으로 채우기 — 준비 중 (곧 지원)", fontSize = 11.sp, color = AccentBlue,
+                    fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 3.dp))
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(value = terms, onValueChange = { terms = it },
                     placeholder = { Text("예: 잔금은 시공 완료 당일 지급합니다…", fontSize = 13.sp) },
@@ -1129,7 +1141,10 @@ private fun ColumnScope.RoomFormView(
         }
         item { Spacer(Modifier.height(2.dp)) }
     }
-    Box(Modifier.fillMaxWidth().background(Panel).padding(14.dp)) {
+    Box(
+        Modifier.fillMaxWidth().background(Panel)
+            .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars)).padding(14.dp)
+    ) {
         BigButton(if (saving) "저장 중…" else "기본정보 저장", enabled = !saving, bg = Kk, fg = KkInk) {
             if (apartment.isBlank()) {
                 toast("아파트(단지)명을 입력해 주세요")
@@ -1266,7 +1281,8 @@ private fun ColumnScope.ContractView(repo: ExpoRepository, n: Nav.Contract, myPh
         }
         // ── 하단 고정: 공유 / PDF ──
         Row(
-            Modifier.fillMaxWidth().background(Panel).padding(14.dp),
+            Modifier.fillMaxWidth().background(Panel)
+                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars)).padding(14.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Box(
