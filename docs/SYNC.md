@@ -7896,3 +7896,11 @@ deploy_phase1.sh — 배포 요약 '커밋' 표시 버그 fix. (사장님: "5bb1
 - ⚠️ 발견: 박람회 Phase4 전체(추가143~146) 실서버 미배포 확인 — live/agent·schedule·assign 이 api.si0in.kr·맥미니:8000 둘 다 404. Phase1(submissions)·download/version 만 200. → deploy_phase1.sh 필요(사장님 2폰 테스트 블로커).
 - cowork 요청(SERVER_HANDOFF 6차): ①서명판 스와이프 낙서 방지(touch-action:none + 서명완료후 캔버스 잠금) ②웹 영수증/viewer 전화 하이픈 ③위 배포.
 - commit: (이 커밋)
+
+## 2026-07-23 11:20 · android
+박람회 계약서 UX 지적(사장님) — 앱 1건 완료 + 코워크 3건(웹) + 앱 설계 대기 3건.
+- 앱 완료(미배포): [계약서 보관하기] 실패 메시지 사람말투 원인별(409 고객미완료/400 필수누락/404 계약없음·미배포). finalizeErrorText().
+- cowork 요청(SERVER_HANDOFF 7차, 전부 /expo/c viewer): A)작성완료 후 입력 잠금 B)[수정하기]로 잠금해제+customer_confirmed 리셋 C)상담사 finalize 시 고객화면 전체전환→축하+[카톡공유][PDF저장] 버튼 강조.
+- 앱 설계 대기(사장님 시안 승인 후 착수): ①우리팀 접수서 총건수·총금액+[N명에게 나눠 배정] 랜덤(휙휙 애니) ②내 접수서함(배정받은 것만) ③앱 "계약서 보기"=웹 안 열고 네이티브 렌더+하단 공유/PDF. 시안=scratchpad/expo_assign_mock.png.
+- 미결정(사장님): 배정 기준(금액균등 vs 건수균등), 계약자 본인도 시공자 대상 포함 여부.
+- commit: (이 커밋)

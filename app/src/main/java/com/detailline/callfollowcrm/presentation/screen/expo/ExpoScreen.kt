@@ -690,7 +690,7 @@ private fun ColumnScope.QrView(repo: ExpoRepository, n: Nav.Qr, myPhone: String,
                     scope.launch {
                         repo.finalize(sid, sec)
                             .onSuccess { finalized = it }
-                            .onFailure { finalizing = false; toast("보관 실패: ${it.message?.take(50)}") }
+                            .onFailure { finalizing = false; toast(finalizeErrorText(it)) }
                     }
                 }
                 Spacer(Modifier.height(20.dp))
@@ -1149,6 +1149,17 @@ private fun won(amount: Long): String = "%,d원".format(amount)
 
 /** 표시용 전화번호 하이픈 (가독성). 빈 값/알 수 없는 형식이면 그대로. */
 private fun ph(raw: String): String = com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(raw)
+
+/** 계약서 보관 실패를 원인별 사람 말투로 (예외에 HTTP 코드가 박혀 옴). */
+private fun finalizeErrorText(e: Throwable): String {
+    val m = e.message ?: ""
+    return when {
+        "HTTP 409" in m -> "고객이 아직 계약서 작성을 끝내지 않았어요. 고객 화면에서 [작성 완료]를 눌러야 보관돼요."
+        "HTTP 400" in m -> "필수 항목이 빠졌어요. 상품 선택과 고객 정보(성함·연락처·주소·서명)를 확인해 주세요."
+        "HTTP 404" in m -> "계약 정보를 찾지 못했어요. 잠시 후 다시 시도해 주세요."
+        else -> "계약서를 보관하지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요."
+    }
+}
 
 private fun hhmm(ms: Long): String {
     if (ms <= 0L) return "-"
