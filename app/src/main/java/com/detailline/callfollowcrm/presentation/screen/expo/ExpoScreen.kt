@@ -91,6 +91,14 @@ private val T2 = Color(0xFF5F666D)
 private val T3 = Color(0xFF9AA0A6)
 private val Field = Color(0xFFF1F3F5)
 private val AccentBlue = Color(0xFF5B7CFA)
+private val OcrFill = Color(0xFFFFF7D6)      // OCR로 채운 칸 형광(연한 노랑) 하이라이트
+
+/** OCR로 채운 입력칸 하이라이트 컬러. on 이면 연한 형광 배경. */
+@Composable
+private fun ocrFieldColors(on: Boolean) = if (on)
+    androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+        unfocusedContainerColor = OcrFill, focusedContainerColor = OcrFill)
+else androidx.compose.material3.OutlinedTextFieldDefaults.colors()
 
 private sealed class Nav {
     object List : Nav()
@@ -1099,6 +1107,8 @@ private fun ColumnScope.RoomFormView(
     var ocrBusy by remember { mutableStateOf(false) }
     var ocrTarget by remember { mutableStateOf("") }   // "biz" | "terms"
     var cameraUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var bizFromOcr by remember { mutableStateOf(false) }    // 사업자등록증 OCR로 채운 칸 하이라이트
+    var termsFromOcr by remember { mutableStateOf(false) }  // 약관 OCR로 채운 칸 하이라이트
     fun runOcr(uri: android.net.Uri) {
         val dataUrl = uriToDataUrl(context, uri)
         if (dataUrl == null) { toast("이미지를 읽지 못했어요"); return }
@@ -1113,6 +1123,7 @@ private fun ColumnScope.RoomFormView(
                         else {
                             if (r.bizName.isNotBlank()) bizName = r.bizName
                             if (r.bizNo.isNotBlank()) bizNo = bizNoHyphen(r.bizNo)
+                            bizFromOcr = true
                             toast("사업자등록증에서 정보를 채웠어요 · 확인 후 저장")
                         }
                     }
@@ -1122,7 +1133,7 @@ private fun ColumnScope.RoomFormView(
                     .onSuccess { t ->
                         ocrBusy = false
                         if (t.isBlank()) toast("약관 글자를 인식하지 못했어요")
-                        else { terms = t; toast("약관을 채웠어요 · 확인 후 저장") }
+                        else { terms = t; termsFromOcr = true; toast("약관을 채웠어요 · 확인 후 저장") }
                     }
                     .onFailure { ocrBusy = false; toast(ocrErrorText(it)) }
             }
@@ -1147,6 +1158,22 @@ private fun ColumnScope.RoomFormView(
             cameraUri = uri
             cameraLauncher.launch(uri)
         }.onFailure { toast("카메라를 열지 못했어요") }
+    }
+
+    // 인식 중 로딩 모달 — "멈춘 것 같다" 방지. 스피너 + 안내.
+    if (ocrBusy) {
+        androidx.compose.ui.window.Dialog(onDismissRequest = { }) {
+            Column(
+                Modifier.background(Color.White, RoundedCornerShape(20.dp)).padding(horizontal = 34.dp, vertical = 28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                CircularProgressIndicator(color = AccentBlue)
+                Spacer(Modifier.height(16.dp))
+                Text("사진에서 글자를 읽고 있어요", fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = T1)
+                Spacer(Modifier.height(3.dp))
+                Text("보통 5~10초 걸려요 · 잠시만요 🙂", fontSize = 12.sp, color = T3)
+            }
+        }
     }
 
     LaunchedEffect(n.roomId) {
@@ -1234,13 +1261,16 @@ private fun ColumnScope.RoomFormView(
                 Text("빈칸으로 두면 계약서에 표시되지 않아요 — 없는 항목은 비워두세요.", fontSize = 11.5.sp, color = T3, lineHeight = 16.sp)
                 Spacer(Modifier.height(8.dp))
                 OcrButtons(ocrBusy && ocrTarget == "biz", "사업자등록증", { pickCamera("biz") }, { pickGallery("biz") })
+                if (bizFromOcr) Text("✨ 형광 칸 = 사진에서 자동으로 채운 값이에요 (확인 후 저장)",
+                    fontSize = 11.sp, color = Color(0xFFB58A00), fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 6.dp))
                 Spacer(Modifier.height(10.dp))
-                OutlinedTextField(value = bizName, onValueChange = { bizName = it },
-                    label = { Text("업체명", fontSize = 12.sp) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = bizName, onValueChange = { bizName = it; bizFromOcr = false },
+                    label = { Text("업체명", fontSize = 12.sp) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    colors = ocrFieldColors(bizFromOcr))
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = bizNo, onValueChange = { bizNo = bizNoHyphen(it) },
+                OutlinedTextField(value = bizNo, onValueChange = { bizNo = bizNoHyphen(it); bizFromOcr = false },
                     label = { Text("사업자번호", fontSize = 12.sp) }, placeholder = { Text("000-00-00000", fontSize = 13.sp) },
-                    singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, modifier = Modifier.fillMaxWidth(), colors = ocrFieldColors(bizFromOcr),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(value = repPhone, onValueChange = { repPhone = bizPhoneHyphen(it) },
@@ -1258,10 +1288,12 @@ private fun ColumnScope.RoomFormView(
                 Text("계약서 하단에 그대로 들어가요.", fontSize = 11.5.sp, color = T3)
                 Spacer(Modifier.height(8.dp))
                 OcrButtons(ocrBusy && ocrTarget == "terms", "약관", { pickCamera("terms") }, { pickGallery("terms") })
+                if (termsFromOcr) Text("✨ 형광 칸 = 사진에서 자동으로 읽은 약관이에요 (확인 후 저장)",
+                    fontSize = 11.sp, color = Color(0xFFB58A00), fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 6.dp))
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = terms, onValueChange = { terms = it },
+                OutlinedTextField(value = terms, onValueChange = { terms = it; termsFromOcr = false },
                     placeholder = { Text("예: 잔금은 시공 완료 당일 지급합니다…", fontSize = 13.sp) },
-                    minLines = 4, modifier = Modifier.fillMaxWidth())
+                    minLines = 4, modifier = Modifier.fillMaxWidth(), colors = ocrFieldColors(termsFromOcr))
             }
         }
         item { Spacer(Modifier.height(2.dp)) }
