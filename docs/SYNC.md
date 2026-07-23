@@ -8002,3 +8002,13 @@ fix(박람회 고객웹) — 정보 다 입력해도 [다음:계약서 확인] �
 - 원인: 타입 select 의 onchange 가 push()(2스텝 함수) 호출 → 타입 고른 뒤 nextBtn 재검증(chk1) 누락. 타입 있는 방에서 타입을 마지막에 고르면 버튼 계속 회색.
 - fix: 타입 select onchange = chk1(). JS node --check 통과.
 - commit: (아래)
+
+## 2026-07-23 14:05 · cowork
+추가149 — 문제 신고/진단 **서버 직송** endpoint (핸드오프: 공유시트→캐치). 회신: SERVER_HANDOFF_diagnostics_report.md.
+- POST /api/diagnostics/report {report(필수),phone,version,device,android,note,image?} → {ok,id}. 빈 report 400.
+- 저장: diagnostics_reports 테이블 + 슬랙 캐치 알림(신청 웹훅 재사용) + 이미지 디스크(diag_images/).
+- GET /admin/diagnostics?limit= — 최근 신고 목록(JSON).
+- 이메일 직접발송은 서버에 경로 없음 → 슬랙+/admin 로 캐치. (원하면 cowork 스케줄 폴링→메일 가능)
+- 검증 TestClient 7 ALL OK. 미배포: bash server/deploy_phase1.sh
+- 앱: sendToServer 이 endpoint 로. 나오면 android 배포/검증.
+- commit: (아래)

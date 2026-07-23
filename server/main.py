@@ -536,6 +536,26 @@ def db_init() -> None:
         _ecs2 = {r[1] for r in con.execute("PRAGMA table_info(expo_contract_sessions)").fetchall()}
         if "live_unit_type" not in _ecs2:
             con.execute("ALTER TABLE expo_contract_sessions ADD COLUMN live_unit_type TEXT")
+        # 추가149 (2026-07-23) — 문제 신고/진단 서버 직송 (앱 [보내기]→서버 캐치)
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS diagnostics_reports (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                phone         TEXT,
+                version       TEXT,
+                device        TEXT,
+                android       TEXT,
+                note          TEXT,       -- 사용자가 적은 한 줄
+                report        TEXT,       -- 진단 전문(코드포인트 덤프 등)
+                image_path    TEXT,       -- 첨부 스샷(있으면 디스크 경로)
+                created_at_ms INTEGER NOT NULL
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_diag_created "
+            "ON diagnostics_reports(created_at_ms DESC)"
+        )
         # ── 추가121 (2026-07-13) — 상담함/문자함 Haiku 분류 캐시 (같은 내용 재호출 0) ──
         con.execute(
             """
@@ -24740,3 +24760,80 @@ async def expo_ocr_bizreg(req: ExpoOcr) -> dict:
             "biz_no": (out.get("biz_no") or "").strip()[:20],
             "rep_name": (out.get("rep_name") or "").strip()[:30],
             "address": (out.get("address") or "").strip()[:120]}
+
+
+# ── 추가149 (2026-07-23) — 문제 신고/진단 서버 직송 (핸드오프: 공유시트→서버 캐치) ──
+class DiagnosticsReport(BaseModel):
+    report: str
+    phone: Optional[str] = None
+    version: Optional[str] = None
+    device: Optional[str] = None
+    android: Optional[str] = None
+    note: Optional[str] = None
+    image: Optional[str] = None   # dataURL base64 (선택, 5MB↓)
+
+
+@app.post("/api/diagnostics/report")
+async def diagnostics_report(req: DiagnosticsReport) -> dict:
+    """앱 [문제 신고 보내기] → 서버 직송 저장 + 슬랙 캐치 알림. 빈 report 400."""
+    report = (req.report or "").strip()
+    if not report:
+        raise HTTPException(400, "report 필요")
+    now = _now_ms()
+    image_path = None
+    # 첨부 이미지(선택) → 디스크 저장 (base64 는 DB 에 안 넣음)
+    if req.image:
+        try:
+            import base64
+            _, b64 = _expo_ocr_strip_dataurl(req.image)
+            raw = base64.b64decode(b64, validate=False) if b64 else b""
+            if 0 < len(raw) <= 5 * 1024 * 1024:
+                ddir = BASE_DIR / "diag_images"
+                ddir.mkdir(exist_ok=True)
+                fp = ddir / f"diag_{now}.jpg"
+                fp.write_bytes(raw)
+                image_path = str(fp)
+        except Exception as e:  # noqa: BLE001 — 이미지 실패해도 리포트는 저장
+            print(f"[diag] image save fail (ignored): {type(e).__name__}: {e}")
+    with db_conn() as con:
+        cur = con.execute(
+            "INSERT INTO diagnostics_reports "
+            "(phone, version, device, android, note, report, image_path, created_at_ms) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (_norm_phone(req.phone), (req.version or "")[:40], (req.device or "")[:80],
+             (req.android or "")[:40], (req.note or "")[:500], report[:20000], image_path, now),
+        )
+        rid = cur.lastrowid
+        con.commit()
+    # 슬랙 캐치 알림 (best-effort — 실패해도 저장은 됨)
+    import datetime as _dt
+    when = _dt.datetime.fromtimestamp(now / 1000 + 9 * 3600).strftime("%m-%d %H:%M")
+    who = _fmt_phone(req.phone) or "번호미상"
+    head = f"🐞 문제 신고 #{rid} · {who} · v{req.version or '?'} · {req.device or '?'} (Android {req.android or '?'}) · {when}"
+    body_txt = ""
+    if (req.note or "").strip():
+        body_txt += f"메모: {req.note.strip()[:300]}\n"
+    body_txt += "```" + report[:1500] + "```"
+    if image_path:
+        body_txt += "\n📎 스크린샷 첨부됨"
+    await _slack_post(head + "\n" + body_txt)
+    return {"ok": True, "id": rid}
+
+
+@app.get("/admin/diagnostics")
+async def admin_diagnostics(limit: int = 30) -> dict:
+    """최근 문제 신고 목록 (관리자 확인용)."""
+    limit = max(1, min(int(limit or 30), 200))
+    with db_conn() as con:
+        rows = con.execute(
+            "SELECT id, phone, version, device, android, note, report, image_path, created_at_ms "
+            "FROM diagnostics_reports ORDER BY created_at_ms DESC LIMIT ?", (limit,),
+        ).fetchall()
+    out = []
+    for r in rows:
+        out.append({
+            "id": r[0], "phone": _fmt_phone(r[1]), "version": r[2], "device": r[3],
+            "android": r[4], "note": r[5] or "", "report": (r[6] or "")[:4000],
+            "has_image": bool(r[7]), "created_at_ms": r[8],
+        })
+    return {"ok": True, "count": len(out), "reports": out}
