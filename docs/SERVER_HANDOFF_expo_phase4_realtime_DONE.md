@@ -125,3 +125,24 @@
 
 ### 검증
 - TestClient 25항목(신규) + 회귀 8항목 ALL OK. 하위호환(기본정보 없는 방·Phase1 submit) 유지.
+
+---
+
+## 추가 반영 (2026-07-23, 핸드오프 8-E·8-F·9(G) — 추가148) · 메모·OCR·고객웹 흐름
+
+### 8-E 계약서 메모 편집
+- `POST /api/expo/contract/memo {contract_id, phone, memo}` → `{memo}`. 방 멤버만(403), 404. `expo_contracts.memo` 갱신 → submissions.note·영수증 특이사항 즉시 반영.
+
+### 8-F OCR (Gemini Flash Vision 재사용)
+- `POST /api/expo/ocr/terms {image}` → `{text}` — 약관 종이 사진 → 전문 텍스트. 방장이 확인/수정 후 room/info(terms)로 저장.
+- `POST /api/expo/ocr/bizreg {image}` → `{biz_name, biz_no, rep_name, address}` — 사업자등록증 사진 → 자동 채움.
+- `image` = dataURL(`data:image/...;base64,`) 또는 순수 base64. 소스(촬영/앨범) 무관, 이미지 1장.
+- **GEMINI_API_KEY 필요** — 통화요약에서 이미 쓰는 그 키. 키 없으면 503, 빈 이미지 400.
+
+### 9차 G — 고객 웹 흐름·입력 개선
+- **G1 고객정보 먼저(2스텝)**: QR 진입 → `stepInfo`(성함·연락처·동/호·타입) [다음: 계약서 확인 →] → `stepMain`(실시간 계약내역·약관·서명). [정보 수정]으로 1스텝 복귀.
+- **G2 동/호 분리 + 숫자패드**: `[  ]동 [  ]호` 두 칸(inputmode=numeric) → `N동 M호` 합성.
+- **G3 약관 노출**: 고객 viewer `stepMain` 에 방 약관 카드(스크롤) + 영수증 하단 약관(추가147, 실렌더 확인). 
+
+### 검증
+- TestClient 15항목 + 회귀 6항목 ALL OK. 메모 권한/반영, OCR 라우트·검증, G1/G2/G3 렌더.

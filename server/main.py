@@ -23933,11 +23933,32 @@ async def expo_contract_page(session_id: str, k: Optional[str] = None) -> HTMLRe
     else:
         type_field = "<input type=hidden id=utype value=''>"
 
+    # 약관(방장 등록) — viewer·영수증 실노출 (G3)
+    terms_view = ""
+    if (rinfo.get("terms") or "").strip():
+        terms_view = ("<div class=card><h2>📄 계약 약관</h2>"
+                      "<div style='font-size:12.5px;color:#5A6472;white-space:pre-wrap;line-height:1.7;"
+                      "max-height:220px;overflow:auto'>" + _h(rinfo["terms"]) + "</div></div>")
     body = (
         "<div class=top><div class=rm>" + _h(room_name) + " · 시공 계약서</div>"
-        "<h1>상담사 화면과 실시간으로 연결돼요</h1>"
-        "<div style='font-size:12.5px;opacity:.85;margin-top:4px'>상담사가 선택하는 상품이 아래에 바로 나타납니다</div></div>"
+        "<h1 id=topTitle>고객 정보를 입력해 주세요</h1>"
+        "<div id=topSub style='font-size:12.5px;opacity:.85;margin-top:4px'>먼저 정보를 입력하면 상담사와 계약서를 함께 봅니다</div></div>"
         "<div class=wrap>"
+        # ── STEP 1: 고객정보 먼저 (G1) ──
+        "<div id=stepInfo>"
+        "<div class=card><h2>🙋 고객 정보</h2>"
+        "<label class=fl>성함</label><input type=text id=cname placeholder='고객 성함' oninput='chk1()'>"
+        "<label class=fl>연락처</label><input type=tel id=cphone inputmode=numeric placeholder='010-0000-0000' oninput='hyp(this);chk1()'>"
+        + ("<label class=fl>시공 현장 (아파트)</label>" + apt_fixed if apt else "")
+        + "<label class=fl>동·호수</label>"
+        "<div style='display:flex;gap:8px;align-items:center;margin-top:8px'>"
+        "<input type=text id=dongInput inputmode=numeric placeholder='동' oninput='chk1()' style='flex:1;text-align:center'>"
+        "<span style='color:#5A6472;font-weight:700'>동</span>"
+        "<input type=text id=hoInput inputmode=numeric placeholder='호' oninput='chk1()' style='flex:1;text-align:center'>"
+        "<span style='color:#5A6472;font-weight:700'>호</span></div>"
+        + type_field + "</div></div>"
+        # ── STEP 2: 계약서 (숨김) ──
+        "<div id=stepMain style='display:none'>"
         "<div class=card><h2>📦 계약 내역 <span id=liveDot style='width:8px;height:8px;border-radius:50%;background:#12B76A;display:inline-block;margin-left:2px' title='실시간'></span></h2>"
         "<div id=itemBox><div style='font-size:13px;color:#9AA3AF;padding:10px 0'>상담사가 상품을 선택하면 여기에 표시됩니다…</div></div>"
         "<div class=sum><div class=l><span>상품 합계</span><span id=sTotal>0원</span></div>"
@@ -23946,13 +23967,7 @@ async def expo_contract_page(session_id: str, k: Optional[str] = None) -> HTMLRe
         "<div class=l id=depLine style='display:none'><span>계약금</span><span id=sDep>0원</span></div></div></div>"
         "<div class=card id=noteCard style='display:none'><h2>📝 상담사 메모</h2>"
         "<div id=noteText style='font-size:14px;color:#5A6472;white-space:pre-wrap'></div></div>"
-        "<div class=card id=custCard><h2>🙋 고객 정보</h2>"
-        "<label class=fl>성함</label><input type=text id=cname placeholder='고객 성함' oninput='push()'>"
-        "<label class=fl>연락처</label><input type=tel id=cphone inputmode=numeric placeholder='010-0000-0000' oninput='hyp(this);push()'>"
-        + ("<label class=fl>시공 현장 (아파트)</label>" + apt_fixed if apt else "")
-        + "<label class=fl>동·호수</label>"
-        "<input type=text id=dongho placeholder='예: 101동 1203호' oninput='push()'>"
-        + type_field + "</div>"
+        + terms_view +
         "<div class=card><h2>✍️ 서명</h2>"
         "<label class=agree style='margin-top:0'><div class=chk id=agChk onclick='agTog()'></div>"
         "<div style='font-size:13px;color:#5A6472'><b>개인정보 수집·이용 동의</b> (필수) — "
@@ -23966,6 +23981,7 @@ async def expo_contract_page(session_id: str, k: Optional[str] = None) -> HTMLRe
         "<canvas class=sig id=sig></canvas><div class=sighint id=sigHint>동의 후 위 칸에 손가락으로 서명해 주세요</div></div>"
         "<div style='text-align:center;color:#9AA3AF;font-size:12px;padding:0 0 10px'>작성일 <span id=wdate></span></div>"
         "</div>"
+        "</div>"
         # 완료(finalize) 시 전체 전환되는 축하 화면 (7차 C)
         "<div id=doneScreen style='display:none;position:fixed;inset:0;background:linear-gradient(160deg,#3182F6,#1B64DA);color:#fff;z-index:50;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center'>"
         "<div style='font-size:64px;margin-bottom:8px'>🎉</div>"
@@ -23974,9 +23990,15 @@ async def expo_contract_page(session_id: str, k: Optional[str] = None) -> HTMLRe
         "<a id=goReceipt href='#' style='display:block;width:100%;max-width:320px;margin-top:28px;background:#fff;color:#1B64DA;font-weight:900;font-size:16px;padding:16px;border-radius:14px'>내 계약서 보기 / PDF 저장</a>"
         "<button onclick='shareKakao()' style='width:100%;max-width:320px;margin-top:12px;background:rgba(255,255,255,.18);color:#fff;font-weight:800;font-size:15px;padding:15px;border:1px solid rgba(255,255,255,.4);border-radius:14px;cursor:pointer'>공유하기</button>"
         "</div>"
-        "<div class=bar id=actionBar><div class=in><div class=amt><small>최종 금액</small><b id=bAmt>0원</b></div>"
-        "<button id=editBtn onclick='editUnlock()' style='display:none;background:#EEF4FF;color:#1B64DA;border:0;border-radius:12px;padding:14px 18px;font-size:14px;font-weight:800;cursor:pointer;margin-right:8px'>수정하기</button>"
-        "<button id=doneBtn onclick='done()' disabled style='background:#3182F6;color:#fff;border:0;border-radius:12px;padding:14px 22px;font-size:15px;font-weight:800;cursor:pointer'>작성 완료</button></div></div>"
+        # 액션 바 — 스텝별 내용 토글
+        "<div class=bar id=actionBar><div class=in>"
+        "<button id=nextBtn onclick='goStep2()' disabled style='width:100%;background:#3182F6;color:#fff;border:0;border-radius:12px;padding:15px;font-size:15px;font-weight:800;cursor:pointer'>다음 : 계약서 확인 →</button>"
+        "<div id=barMain style='display:none;width:100%;align-items:center'>"
+        "<button id=infoBackBtn onclick='goStep1()' style='background:#EEF4FF;color:#1B64DA;border:0;border-radius:12px;padding:14px 14px;font-size:13.5px;font-weight:800;cursor:pointer;margin-right:8px'>정보 수정</button>"
+        "<div class=amt style='flex:1'><small>최종 금액</small><b id=bAmt>0원</b></div>"
+        "<button id=editBtn onclick='editUnlock()' style='display:none;background:#EEF4FF;color:#1B64DA;border:0;border-radius:12px;padding:14px 16px;font-size:13.5px;font-weight:800;cursor:pointer;margin-right:8px'>수정하기</button>"
+        "<button id=doneBtn onclick='done()' disabled style='background:#3182F6;color:#fff;border:0;border-radius:12px;padding:14px 20px;font-size:15px;font-weight:800;cursor:pointer'>작성 완료</button>"
+        "</div></div></div>"
         "<script>var SID=" + json.dumps(session_id) + ",K=" + json.dumps(k or "") + ",BASE=" + json.dumps(base)
         + ",APT=" + json.dumps(apt) + ";</script>"
         "<script>" + _EXPO_CONTRACT_JS + "</script>"
@@ -24002,6 +24024,26 @@ function hyp(el){var d=el.value.replace(/[^0-9]/g,'').slice(0,11);var o=d;
   el.value=o;}
 function utypeVal(){var e=$('utype');return e?(e.value||'').trim():'';}
 function typeRequired(){var e=$('utype');return e&&e.tagName==='SELECT';}
+// ── 동/호 분리 입력 → 합성 (G2) ──
+function dongho(){var d=($('dongInput').value||'').trim();var h=($('hoInput').value||'').trim();
+  if(!d&&!h)return '';return (d?d+'동':'')+(d&&h?' ':'')+(h?h+'호':'');}
+// ── 스텝1(고객정보) 검증 + 스텝 전환 (G1) ──
+function info1Ok(){var nm=$('cname').value.trim();var ph=$('cphone').value.replace(/[^0-9]/g,'');
+  var d=($('dongInput').value||'').trim();var h=($('hoInput').value||'').trim();
+  var t=typeRequired()?!!utypeVal():true;return nm&&ph.length>=10&&d&&h&&t;}
+function chk1(){var ok=info1Ok();$('nextBtn').disabled=!ok;$('nextBtn').style.background=ok?'#3182F6':'#C7D2DE';}
+function goStep2(){if(!info1Ok())return;
+  $('stepInfo').style.display='none';$('stepMain').style.display='block';
+  $('nextBtn').style.display='none';$('barMain').style.display='flex';
+  $('topTitle').textContent='상담사와 계약서를 함께 확인하세요';
+  $('topSub').textContent='상담사가 선택하는 상품이 실시간으로 표시됩니다';
+  sendCust();fit();updateDone();window.scrollTo(0,0);}
+function goStep1(){if(confirmed){editUnlock();}
+  $('stepMain').style.display='none';$('stepInfo').style.display='block';
+  $('barMain').style.display='none';$('nextBtn').style.display='block';
+  $('topTitle').textContent='고객 정보를 입력해 주세요';
+  $('topSub').textContent='먼저 정보를 입력하면 상담사와 계약서를 함께 봅니다';
+  chk1();window.scrollTo(0,0);}
 // ── 실시간 상품/금액 렌더 ──
 function renderItems(st){
   var box=$('itemBox');var its=st.items||[];
@@ -24035,7 +24077,7 @@ function agTog(){if(confirmed)return;agreed=!agreed;var c=$('agChk');c.classList
 function reqOk(){
   var nm=$('cname').value.trim();
   var ph=$('cphone').value.replace(/[^0-9]/g,'');
-  var dh=$('dongho').value.trim();
+  var dh=dongho();
   var typeOk=typeRequired()?!!utypeVal():true;
   return nm && ph.length>=10 && dh && typeOk && sigHas && agreed;
 }
@@ -24046,7 +24088,7 @@ function updateDone(){
 }
 // ── 완료 후 입력 잠금 / 수정하기 (7차 A·B) ──
 function lockUI(lock){
-  ['cname','cphone','dongho','utype'].forEach(function(id){var e=$(id);if(e){e.disabled=lock;e.style.opacity=lock?'.6':'1';}});
+  ['cname','cphone','dongInput','hoInput','utype'].forEach(function(id){var e=$(id);if(e){e.disabled=lock;e.style.opacity=lock?'.6':'1';}});
   cv.style.pointerEvents=lock?'none':'auto';
   $('editBtn').style.display=lock?'inline-block':'none';
   $('sigHint').textContent=lock?'작성 완료됨 — 수정하려면 아래 [수정하기]':(agreed?'위 칸에 손가락으로 서명해 주세요':'동의 후 위 칸에 손가락으로 서명해 주세요');
@@ -24063,7 +24105,7 @@ function done(){
     body:JSON.stringify({session_id:SID,k:K,
       customer_name:$('cname').value.trim(),
       customer_phone:$('cphone').value.replace(/[^0-9]/g,''),
-      apartment:APT,dong_ho:$('dongho').value.trim(),unit_type:utypeVal(),
+      apartment:APT,dong_ho:dongho(),unit_type:utypeVal(),
       signature:sigHas?cv.toDataURL('image/png'):''})})
   .then(function(){return fetch('/api/expo/contract/live/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:SID,k:K})});})
   .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j};});})
@@ -24077,7 +24119,7 @@ function sendCust(extra){
   var body={session_id:SID,k:K,
     customer_name:$('cname').value.trim(),
     customer_phone:$('cphone').value.replace(/[^0-9]/g,''),
-    apartment:APT,dong_ho:$('dongho').value.trim(),unit_type:utypeVal()};
+    apartment:APT,dong_ho:dongho(),unit_type:utypeVal()};
   if(extra)for(var kk in extra)body[kk]=extra[kk];
   fetch('/api/expo/contract/live/customer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).catch(function(){});
 }
@@ -24109,6 +24151,7 @@ function poll(){
   }).catch(function(){});
 }
 $('wdate').textContent=new Date().toLocaleDateString('ko-KR');
+chk1();
 poll();setInterval(poll,1500);
 document.addEventListener('visibilitychange',function(){if(!document.hidden)poll();});
 """
@@ -24580,3 +24623,120 @@ async def expo_assign(req: ExpoAssign) -> dict:
         con.commit()
     return {"ok": True, "contract_id": req.contract_id,
             "assigned_phone": assignee, "assigned_name": assignee_name}
+
+
+# ── 추가148 (2026-07-23) — 박람회 계약서 메모 편집 (8-E) ──
+class ExpoMemo(BaseModel):
+    contract_id: int
+    phone: str
+    memo: Optional[str] = None
+
+
+@app.post("/api/expo/contract/memo")
+async def expo_memo(req: ExpoMemo) -> dict:
+    """앱 네이티브 계약서의 편집 메모칸 → expo_contracts.memo 갱신. 방 멤버만.
+    submissions 의 note(=memo) 에 그대로 반영."""
+    with db_conn() as con:
+        c = con.execute(
+            "SELECT room_id FROM expo_contracts WHERE contract_id = ?", (req.contract_id,),
+        ).fetchone()
+        if not c:
+            raise HTTPException(404, "계약 없음")
+        if not _expo_room_member(c[0], req.phone):
+            raise HTTPException(403, "이 방의 멤버가 아닙니다")
+        memo = (req.memo or "").strip()[:500]
+        con.execute("UPDATE expo_contracts SET memo = ? WHERE contract_id = ?",
+                    (memo, req.contract_id))
+        con.commit()
+    return {"ok": True, "contract_id": req.contract_id, "memo": memo}
+
+
+# ── 추가148 (2026-07-23) — 박람회 기본정보 OCR (8-F): 약관·사업자등록증 사진 → 텍스트 ──
+def _expo_ocr_strip_dataurl(image: str) -> tuple:
+    """dataURL('data:image/png;base64,...') 또는 순수 base64 → (mime, b64)."""
+    s = (image or "").strip()
+    mime = "image/jpeg"
+    if s.startswith("data:"):
+        try:
+            head, b64 = s.split(",", 1)
+            mime = head[5:].split(";", 1)[0] or "image/jpeg"
+            return mime, b64
+        except ValueError:
+            return mime, ""
+    return mime, s
+
+
+async def _expo_gemini_vision(mime: str, b64: str, prompt: str,
+                              schema: Optional[dict] = None, max_tokens: int = 2000) -> dict:
+    """Gemini Flash Vision — 이미지 1장 + 프롬프트. schema 주면 JSON 강제, 없으면 {text}."""
+    if not GEMINI_API_KEY:
+        raise HTTPException(503, "OCR 미설정(GEMINI_API_KEY 없음)")
+    url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+           f"{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}")
+    gen = {"temperature": 0.0, "maxOutputTokens": max_tokens,
+           "thinkingConfig": {"thinkingBudget": 0}}
+    if schema:
+        gen["responseMimeType"] = "application/json"
+        gen["responseSchema"] = schema
+    payload = {
+        "contents": [{"role": "user", "parts": [
+            {"text": prompt},
+            {"inlineData": {"mimeType": mime, "data": b64}},
+        ]}],
+        "generationConfig": gen,
+    }
+    async with httpx.AsyncClient(timeout=GEMINI_TIMEOUT_SEC) as client:
+        resp = await client.post(url, json=payload, headers={"Content-Type": "application/json"})
+    if resp.status_code != 200:
+        raise HTTPException(502, f"OCR 실패(Vision {resp.status_code})")
+    data = resp.json()
+    cands = data.get("candidates") or []
+    if not cands:
+        raise HTTPException(502, "OCR 결과 없음")
+    parts = (cands[0].get("content") or {}).get("parts") or []
+    raw = "".join(p.get("text", "") for p in parts).strip()
+    if schema:
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            raise HTTPException(502, "OCR JSON 파싱 실패")
+    return {"text": raw}
+
+
+class ExpoOcr(BaseModel):
+    image: str          # dataURL 또는 base64
+    phone: Optional[str] = None
+
+
+@app.post("/api/expo/ocr/terms")
+async def expo_ocr_terms(req: ExpoOcr) -> dict:
+    """약관 종이 사진 → OCR → 전문 텍스트. (방장이 확인/수정 후 room/info 로 저장)"""
+    mime, b64 = _expo_ocr_strip_dataurl(req.image)
+    if not b64:
+        raise HTTPException(400, "이미지 필요")
+    prompt = ("이 이미지는 시공 계약 약관 문서입니다. 문서에 적힌 모든 텍스트를 "
+              "줄바꿈·문단을 살려 그대로 정확히 옮겨 적어 주세요. 해설·요약 없이 원문만.")
+    out = await _expo_gemini_vision(mime, b64, prompt, max_tokens=4000)
+    return {"ok": True, "text": (out.get("text") or "").strip()[:4000]}
+
+
+@app.post("/api/expo/ocr/bizreg")
+async def expo_ocr_bizreg(req: ExpoOcr) -> dict:
+    """사업자등록증 사진 → OCR → 업체명·사업자번호·대표자·주소 추출."""
+    mime, b64 = _expo_ocr_strip_dataurl(req.image)
+    if not b64:
+        raise HTTPException(400, "이미지 필요")
+    prompt = ("이 이미지는 대한민국 사업자등록증입니다. 다음 항목을 추출하세요. "
+              "없으면 빈 문자열. 사업자번호는 000-00-00000 형식으로.")
+    schema = {"type": "OBJECT", "properties": {
+        "biz_name": {"type": "STRING"},   # 상호(법인명)
+        "biz_no": {"type": "STRING"},     # 등록번호
+        "rep_name": {"type": "STRING"},   # 대표자
+        "address": {"type": "STRING"},    # 사업장 소재지
+    }, "required": ["biz_name", "biz_no"]}
+    out = await _expo_gemini_vision(mime, b64, prompt, schema=schema, max_tokens=800)
+    return {"ok": True,
+            "biz_name": (out.get("biz_name") or "").strip()[:60],
+            "biz_no": (out.get("biz_no") or "").strip()[:20],
+            "rep_name": (out.get("rep_name") or "").strip()[:30],
+            "address": (out.get("address") or "").strip()[:120]}

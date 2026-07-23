@@ -7973,3 +7973,12 @@ deploy_phase1.sh — 배포 요약 '커밋' 표시 버그 fix. (사장님: "5bb1
 - 앱 완료(설치 0.2.1111): ①상품 단가·총액할인·계약금 콤마(ThousandsCommaTransformation) ②네이티브 계약서에 업체정보(상단)·약관(하단) 노출 — 방 기본정보 로딩 추가 ③(상품은 원래 배치저장=항목 여러개 추가 후 저장 1회, 콤마만 없었음).
 - cowork 요청(SERVER_HANDOFF 9=G): G1)고객 QR 스캔 시 고객정보 먼저 입력→그다음 계약서 같이보기(순서) G2)동/호수 [__]동[__]호 분리+숫자패드 G3)웹 영수증/viewer 약관 실노출 확인. + F보강: OCR 이미지 소스 사진촬영/앨범 둘 다 선택.
 - 방 생성→기본정보 폼 이동은 이미 동작(onCreated→RoomForm).
+
+## 2026-07-23 13:17 · cowork
+추가148 — 박람회 메모·OCR·고객웹흐름 (8-E·8-F·9G). 회신 갱신.
+- 8-E: POST /api/expo/contract/memo {contract_id,phone,memo} → memo 갱신(방멤버, 403/404). submissions.note·영수증 반영.
+- 8-F OCR(Gemini Vision 재사용): POST /api/expo/ocr/terms{image}→{text}, /api/expo/ocr/bizreg{image}→{biz_name,biz_no,rep_name,address}. dataURL/base64, GEMINI_API_KEY(통화요약 키) 필요, 빈이미지 400.
+- 9G 고객웹: G1 2스텝(고객정보 먼저→계약서), G2 동[__]호[__] 분리 숫자패드, G3 viewer/영수증 약관 실노출.
+- 검증 TestClient 15+회귀 6 ALL OK. 미배포: bash server/deploy_phase1.sh
+- 앱: OCR [사진으로 채우기]/[사업자등록증 촬영] 버튼 → endpoint 호출·폼 자동채움. 메모칸 이미 호출중(이제 200).
+- commit: (아래)
