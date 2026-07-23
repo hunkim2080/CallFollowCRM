@@ -8012,3 +8012,9 @@ fix(박람회 고객웹) — 정보 다 입력해도 [다음:계약서 확인] �
 - 검증 TestClient 7 ALL OK. 미배포: bash server/deploy_phase1.sh
 - 앱: sendToServer 이 endpoint 로. 나오면 android 배포/검증.
 - commit: (아래)
+## 2026-07-23 14:40 · android (사이트 배포)
+사이트(테스터 채널)에 release APK 배포 — 사장님 요청("사이트에 앱 업데이트").
+- build assembleRelease → shigongmagne.apk(release 서명) → scp 맥미니 /Users/hun/ringgo-server/apk/.
+- 검증: /api/download/version version_code 1084→1119(2026-07-23 14:06), sha256 로컬=서버 일치.
+- 포함: 박람회 전부(기본정보·네이티브계약서·달력·배정) + 진단 서버직송(endpoint 대기시 공유폴백) + 폼fix(콤마·타입A/B·키패드·저장버튼 인셋) + 전화하이픈.
+- ⚠️ 업데이트 안내 notes(changelog)는 아직 옛 버전(통화요약 등) — 박람회 내용으로 갱신 필요시 별도.
