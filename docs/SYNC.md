@@ -7889,3 +7889,10 @@ deploy_phase1.sh — 배포 요약 '커밋' 표시 버그 fix. (사장님: "5bb1
 - ★ 팀원 식별 결정 = **(a) roomDetail members phone 을 방 멤버 전체에 원본 제공**(팀원 마스킹 제거). member_id 안 만듦. code 는 방장 전용 유지. → 앱은 이 phone 을 assigned_phone 으로 사용.
 - 검증 TestClient 13 ALL OK. 미배포: bash server/deploy_phase1.sh
 - commit: (아래)
+
+## 2026-07-23 11:05 · android
+박람회 전화 하이픈(사장님) + 서명판/배포 코워크 3건.
+- 앱 완료(미배포): 박람회 표시 전화번호 전부 하이픈 — 팀원 목록·상담사 계약서 연락처·접수서 전화·달력 팝업 전화. 공용 PhoneNumberFormatter.format() 재사용(ExpoScreen ph() 헬퍼). 마스킹 fallback 은 그대로.
+- ⚠️ 발견: 박람회 Phase4 전체(추가143~146) 실서버 미배포 확인 — live/agent·schedule·assign 이 api.si0in.kr·맥미니:8000 둘 다 404. Phase1(submissions)·download/version 만 200. → deploy_phase1.sh 필요(사장님 2폰 테스트 블로커).
+- cowork 요청(SERVER_HANDOFF 6차): ①서명판 스와이프 낙서 방지(touch-action:none + 서명완료후 캔버스 잠금) ②웹 영수증/viewer 전화 하이픈 ③위 배포.
+- commit: (이 커밋)

@@ -362,7 +362,7 @@ private fun ColumnScope.RoomDetailView(
                                         modifier = Modifier.background(Color(0xFFFFF6D6), RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
                                 }
                                 Spacer(Modifier.weight(1f))
-                                Text(m.phone, fontSize = 12.sp, color = T3)
+                                Text(ph(m.phone), fontSize = 12.sp, color = T3)
                             }
                         }
                     }
@@ -614,7 +614,7 @@ private fun ColumnScope.QrView(repo: ExpoRepository, n: Nav.Qr, myPhone: String,
                         val site = listOf(l.apartment, l.dongHo).filter { it.isNotBlank() }.joinToString(" ").ifBlank { l.address }
                         Column(Modifier.fillMaxWidth().background(Field, RoundedCornerShape(12.dp)).padding(12.dp)) {
                             ChkRow("성함", l.customerName)
-                            ChkRow("연락처", l.customerPhone)
+                            ChkRow("연락처", ph(l.customerPhone))
                             ChkRow("시공주소", site)
                             ChkRow("서명", if (l.signaturePresent) "완료" else "")
                         }
@@ -816,7 +816,7 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                             Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text("전화", fontSize = 12.sp, color = T3, modifier = Modifier.width(66.dp))
                                 val fp = s.customerPhone
-                                Text("📞 ${fp.ifBlank { s.customerPhoneMasked.ifBlank { "-" } }}", fontSize = 12.5.sp,
+                                Text("📞 ${ph(fp).ifBlank { ph(s.customerPhoneMasked).ifBlank { "-" } }}", fontSize = 12.5.sp,
                                     fontWeight = FontWeight.Bold, color = if (fp.isNotBlank()) AccentBlue else T1,
                                     modifier = Modifier.clickable(enabled = fp.isNotBlank()) { dialPhone(ctx, fp) })
                             }
@@ -1053,7 +1053,7 @@ private fun ColumnScope.CalendarView(repo: ExpoRepository, n: Nav.Calendar, myPh
                                     Text("시공 · ${s.products}", fontSize = 12.sp, color = T2)
                                 }
                                 Spacer(Modifier.height(3.dp))
-                                Text("📞 ${fullPhone.ifBlank { s.customerPhoneMasked.ifBlank { "-" } }}",
+                                Text("📞 ${ph(fullPhone).ifBlank { ph(s.customerPhoneMasked).ifBlank { "-" } }}",
                                     fontSize = 13.sp, fontWeight = FontWeight.Bold,
                                     color = if (fullPhone.isNotBlank()) AccentBlue else T3,
                                     modifier = Modifier.clickable(enabled = fullPhone.isNotBlank()) { dialPhone(ctx, fullPhone) })
@@ -1146,6 +1146,9 @@ private fun InputDialog(
 }
 
 private fun won(amount: Long): String = "%,d원".format(amount)
+
+/** 표시용 전화번호 하이픈 (가독성). 빈 값/알 수 없는 형식이면 그대로. */
+private fun ph(raw: String): String = com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(raw)
 
 private fun hhmm(ms: Long): String {
     if (ms <= 0L) return "-"
