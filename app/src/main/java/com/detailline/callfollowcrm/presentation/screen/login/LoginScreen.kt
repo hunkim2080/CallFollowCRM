@@ -3,11 +3,15 @@ package com.detailline.callfollowcrm.presentation.screen.login
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -62,6 +66,7 @@ private val SubColor = Color(0xFF8A93A2)
 @Composable
 fun LoginScreen(onLoginPhone: (String) -> Unit, onProceed: () -> Unit) {
     var phone by remember { mutableStateOf("") }
+    var showBeta by remember { mutableStateOf(false) }   // 베타 테스터 신청 창
     // 키보드 올라오면 hero(마스코트/태그라인)를 컴팩트하게 — 안 그러면 위 공간이 줄어 로고가 짓눌려 겹침. 2026-06-30
     val density = androidx.compose.ui.platform.LocalDensity.current
     val imeVisible = WindowInsets.ime.getBottom(density) > 0
@@ -202,7 +207,149 @@ fun LoginScreen(onLoginPhone: (String) -> Unit, onProceed: () -> Unit) {
             }
             // "로그인 없이 둘러보기" 제거 (2026-06-30 사장님): 번호 없이 들어가면 bizPhone 미설정 →
             //   푸시·협업·팀 기능 먹통 + hasSeenLogin=true 로 영구 진입. 테스터는 할당 번호로만 시작.
+
+            // 베타 신청 — 화이트리스트에 없는 사람이 신청 문자를 보내는 경로 (2026-07-25 사장님).
+            Spacer(Modifier.height(14.dp))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFEEF1F5)))
+            Spacer(Modifier.height(12.dp))
+            Row(
+                Modifier.fillMaxWidth().clickable { showBeta = true },
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("아직 테스터가 아니세요?", fontSize = 12.sp, color = SubColor, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.size(5.dp))
+                Text(
+                    "베타 신청하기", fontSize = 12.5.sp, color = LoginBlue, fontWeight = FontWeight.Black,
+                    textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline
+                )
+            }
         }
+
+        if (showBeta) BetaApplySheet(onClose = { showBeta = false })
+    }
+}
+
+@Composable
+private fun BetaFieldLabel(t: String) {
+    Text(
+        t, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF5A6472),
+        modifier = Modifier.padding(top = 15.dp, bottom = 6.dp)
+    )
+}
+
+/** 베타 테스터 신청 창 — 이름·연락처·업종을 적어 '문자 보내기'하면 사장님 번호로 SMS 앱이 열림. */
+@Composable
+private fun BoxScope.BetaApplySheet(onClose: () -> Unit) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var name by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
+    var trade by remember { mutableStateOf("") }
+    var memo by remember { mutableStateOf("") }
+    val trades = listOf("줄눈", "청소", "필름", "도배", "탄성", "기타")
+    val canSend = name.trim().isNotEmpty() && phone.filter { it.isDigit() }.length >= 10
+
+    fun send() {
+        val body = buildString {
+            append("[시공막내 베타 신청]\n")
+            append("이름/상호: ").append(name.trim()).append("\n")
+            append("연락처: ").append(phone.trim())
+            if (trade.isNotBlank()) append("\n업종: ").append(trade)
+            if (memo.trim().isNotEmpty()) append("\n한마디: ").append(memo.trim())
+        }
+        val intent = android.content.Intent(
+            android.content.Intent.ACTION_SENDTO,
+            android.net.Uri.parse("smsto:" + com.detailline.callfollowcrm.AppConfig.BETA_APPLY_PHONE)
+        ).apply { putExtra("sms_body", body) }
+        runCatching { ctx.startActivity(intent) }
+            .onFailure { android.widget.Toast.makeText(ctx, "문자 앱을 열 수 없어요", android.widget.Toast.LENGTH_SHORT).show() }
+        onClose()
+    }
+
+    // 스크림 (탭하면 닫힘)
+    Box(
+        Modifier.fillMaxSize().background(Color(0x730B0F19))
+            .clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                indication = null
+            ) { onClose() }
+    )
+    // 시트 (하단, 키보드 위로 밀림)
+    Column(
+        Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .background(Color.White)
+            .clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                indication = null
+            ) { /* 시트 내부 탭은 스크림으로 전달 안 함 */ }
+            .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+            .padding(horizontal = 22.dp)
+            .padding(top = 22.dp, bottom = 24.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
+        Text("베타 테스터 신청 🐣", fontSize = 19.sp, fontWeight = FontWeight.Black, color = LogoInk, letterSpacing = (-0.4).sp)
+        Spacer(Modifier.height(5.dp))
+        Text(
+            "아직 초대받은 분만 쓰는 베타예요. 아래를 적어 신청하면 사장님이 확인하고 등록해 드려요.",
+            fontSize = 12.5.sp, color = SubColor, fontWeight = FontWeight.SemiBold, lineHeight = 18.sp
+        )
+
+        BetaFieldLabel("이름 / 상호")
+        com.detailline.callfollowcrm.presentation.component.SheetTextField(
+            value = name, onValueChange = { name = it }, placeholder = "예: 홍길동 · 디테일라인"
+        )
+
+        BetaFieldLabel("연락처 (문자 받을 번호)")
+        com.detailline.callfollowcrm.presentation.component.FormattedTextField(
+            value = phone, onValueChange = { phone = it },
+            format = com.detailline.callfollowcrm.util.PhoneNumberFormatter::formatProgressive,
+            placeholder = "010-0000-0000",
+            keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone
+        )
+
+        BetaFieldLabel("업종")
+        trades.chunked(3).forEach { rowItems ->
+            Row(Modifier.fillMaxWidth().padding(top = 7.dp), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                rowItems.forEach { tr ->
+                    val on = trade == tr
+                    Box(
+                        Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
+                            .background(if (on) Color(0xFFEAF1FF) else Color(0xFFF1F4F8))
+                            .border(1.4.dp, if (on) Color(0xFFB9D0FF) else Color(0xFFF1F4F8), RoundedCornerShape(10.dp))
+                            .clickable { trade = if (on) "" else tr }
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) { Text(tr, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = if (on) Color(0xFF1B64DA) else Color(0xFF5A6472)) }
+                }
+                repeat(3 - rowItems.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+
+        BetaFieldLabel("한마디 (선택)")
+        com.detailline.callfollowcrm.presentation.component.SheetTextField(
+            value = memo, onValueChange = { memo = it }, placeholder = "예: 인스타 보고 왔어요"
+        )
+
+        Spacer(Modifier.height(20.dp))
+        Box(
+            Modifier.fillMaxWidth().height(52.dp)
+                .background(if (canSend) LoginBlue else Color(0xFFCBD5E1), RoundedCornerShape(14.dp))
+                .clickable(enabled = canSend) { send() },
+            contentAlignment = Alignment.Center
+        ) { Text("💬 신청 문자 보내기", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Black) }
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "누르면 문자 앱이 열리고, 적으신 내용이 사장님께 문자로 전송돼요",
+            fontSize = 11.sp, color = Color(0xFFB0B8C4), fontWeight = FontWeight.Medium, lineHeight = 16.sp,
+            modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "닫기", fontSize = 13.sp, color = Color(0xFF9AA3AF), fontWeight = FontWeight.Bold,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().clickable { onClose() }.padding(6.dp)
+        )
     }
 }
 
