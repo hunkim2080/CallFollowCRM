@@ -24547,6 +24547,21 @@ async def expo_contract_receipt(contract_id: int) -> HTMLResponse:
         if rinfo.get("office_phone"):
             biz_rows += "<div class=row><div class=nm>사무실</div><span class=pr>" + _fmt_phone(rinfo["office_phone"]) + "</span></div>"
         biz_card = "<div class=card><h2>🏢 시공업체</h2>" + biz_rows + "</div>"
+    # 템플릿(조밀 계약서)은 업체를 상단 카드 대신 하단 푸터로 (프로토 v3)
+    biz_foot = ""
+    if is_tpl and (rinfo.get("biz_name") or rinfo.get("biz_no") or rinfo.get("rep_phone")):
+        parts = []
+        if rinfo.get("biz_name"):
+            parts.append("<b style='color:#0B0F19'>" + _h(rinfo["biz_name"]) + "</b>")
+        if rinfo.get("biz_no"):
+            parts.append("사업자 " + _h(rinfo["biz_no"]))
+        if rinfo.get("rep_phone"):
+            parts.append("대표 " + _fmt_phone(rinfo["rep_phone"]))
+        if rinfo.get("office_phone"):
+            parts.append("사무실 " + _fmt_phone(rinfo["office_phone"]))
+        biz_foot = ("<div style='text-align:center;font-size:11px;color:#5A6472;margin:2px 0 12px;line-height:1.6'>"
+                    + " · ".join(parts) + "</div>")
+        biz_card = ""
     terms_card = ""
     if (rinfo.get("terms") or "").strip():
         terms_card = ("<div class=card><h2>📄 계약 약관</h2>"
@@ -24605,7 +24620,8 @@ async def expo_contract_receipt(contract_id: int) -> HTMLResponse:
         + cust_card +
         "<div class=card><h2>✍️ 서명</h2>" + sig +
         "<div style='font-size:12px;color:#9AA3AF;margin-top:10px'>개인정보 수집·이용 동의 완료 · " + dt + "</div></div>"
-        + terms_card +
+        + terms_card
+        + biz_foot +
         "<button onclick='window.print()' class='noprint' style='width:100%;background:#3182F6;color:#fff;border:0;border-radius:12px;padding:14px;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:10px'>PDF로 저장 / 인쇄</button>"
         "<div style='text-align:center;color:#9AA3AF;font-size:12px;padding:0 0 30px'>시공막내 · 박람회 계약서 · No." + str(contract_id) + "</div>"
         "</div>"
