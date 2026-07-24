@@ -8100,3 +8100,13 @@ diag_template_encoding.sh 결과 = **전 층 정상. 손댈 것 없음.**
 - API 왕복 curl 검증: room/create(카탈로그없이 세션OK)·live/agent(ok,final=1400000)·live GET(template_id·선택·prices round-trip) 정상.
 - ⚠️ cowork 확인요망: **GET live/{sid} 의 top-level `final_amount` 가 템플릿 계약에서 0** (live/agent 응답은 grand_total 정상). 폴링이 0으로 덮어서 앱은 로컬 합계로 표시 중. 영수증/submissions 는 grand_total 이라 문제없어 보이나, live GET final_amount 도 grand_total 로 맞춰주면 깔끔.
 - 남음(android): 앱 네이티브 계약서(ContractView) 구조화 렌더(템플릿 선택 표시).
+
+## 2026-07-24 18:50 · android
+박람회 계약서 '양식 가시화' — 사장님 신고 "가격 넣는 곳 없어짐 / 템플릿 어디서 골라" 해결
+- 원인: 서버가 모든 방 template_id=julnun 기본 → 템플릿 방은 '상품·서비스 준비'(가격등록) 메뉴를 숨겨서 모든 방에서 사라짐 + 어떤 양식인지 표시 전무. (서버/데이터/배포는 정상, 순수 앱 가시성 문제)
+- 변경: 앱 UI만. 서버 인터페이스 변경 없음.
+  - 방화면 팀관리: 템플릿 방 → '계약서 양식 · 줄눈 시공 표준 · 가격은 계약할 때 입력' 줄
+  - 기본정보 상단 '계약서 양식' 카드 (활성 양식 + 가격은 계약서에서 + 타업종 요청안내)
+  - 고객계약서 카드 설명 템플릿용, QrView 는 방 template_id 즉시 로드(빈 카탈로그 깜빡임 제거)
+- commit: 9a953c4 · 빌드 0.2.1145 (S23U 설치, DEX 신규 한글 7종 정상)
+- 다음 액션 (cowork · 낮은 우선순위): POST /api/expo/room/info 가 template_id 를 안 받음(현재 create 전용). 나중에 방 양식을 다른 업종으로 '전환'하려면 room/info 에 template_id 처리 추가 필요. 지금은 julnun 단일이라 무방.
