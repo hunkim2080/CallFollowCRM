@@ -24162,49 +24162,91 @@ def _won(v) -> str:
         return "0원"
 
 
-def _expo_tpl_receipt_html(tdef: dict, sel: dict, grand: int) -> str:
-    """템플릿(줄눈) 계약서 영수증 — 구조화 렌더. tdef=정의, sel=선택결과."""
+def _expo_tpl_receipt_html(tdef: dict, sel: dict, grand: int, hdr: dict = None) -> str:
+    """템플릿(줄눈) 계약서 영수증 — 조밀 계약서(v3) 구조화 렌더. 라이브 뷰어(renderContract)와 동일 레이아웃."""
     if not tdef:
         return "<div class=card><h2>📦 계약 내역</h2><div style='color:#9AA3AF'>템플릿 정보 없음</div></div>"
     sel = sel or {}
-    html = ""
-    for sec in tdef.get("sections", []):
-        key = sec.get("key"); rows = ""
-        picked = sel.get(key) or []
-        if sec.get("type") == "matrix":
-            for it in picked:
-                if isinstance(it, dict):
-                    nm = it.get("item", ""); mat = it.get("material", "")
-                else:
-                    nm, mat = str(it), ""
-                if not nm:
-                    continue
-                chip = ("<span class=pr style='color:#1B64DA;font-weight:700'>" + _h(mat) + "</span>") if mat else ""
-                rows += "<div class=row><div class=nm>" + _h(nm) + "</div>" + chip + "</div>"
-        else:  # checklist
-            for it in picked:
-                nm = it.get("item") if isinstance(it, dict) else str(it)
-                if nm:
-                    rows += "<div class=row><div class=nm>✓ " + _h(nm) + "</div></div>"
-        if not rows:
-            rows = "<div style='font-size:13px;color:#9AA3AF;padding:6px 0'>선택 없음</div>"
-        html += "<div class=card><h2>" + _h(sec.get("title", "")) + "</h2>" + rows + "</div>"
-    # 가격 그룹
+    hdr = hdr or {}
+    SECT = {"julnun": "줄눈 시공", "silicone": "실리콘 오염 방지", "cleaning": "입주 청소"}
+    PGT = {"julnun": "줄눈", "cleaning": "청소"}
+
+    def mk_label(m):
+        return {"폴리우레아": "P", "케라폭시": "K"}.get(m, (m or "")[:1])
+
+    h = ""
+    # 헤더 (단지·타입·고객·연락처·주소·입주·계약일)
+    hrows = [("단지", hdr.get("apt")), ("타입", hdr.get("unit_type")), ("고객", hdr.get("name")),
+             ("연락처", hdr.get("phone")), ("주소", hdr.get("dong_ho")), ("입주", hdr.get("move_in"))]
+    hrows = [(k, v) for k, v in hrows if (v or "").strip()]
+    if hrows:
+        h += "<div class=hgrid>"
+        for k, v in hrows:
+            h += "<div class=f><b>" + k + "</b><span>" + _h(v) + "</span></div>"
+        if (hdr.get("date") or "").strip():
+            h += "<div class='f full'><b>계약일</b><span>" + _h(hdr["date"]) + "</span></div>"
+        h += "</div>"
+    secmap = {s.get("key"): s for s in tdef.get("sections", [])}
+    # 줄눈 2열 격자 (전체 항목, 선택 P/K 강조)
+    jd = secmap.get("julnun") or {}
+    jm = jd.get("materials") or []
+    jitems = jd.get("items") or []
+    jsel = {}
+    for it in (sel.get("julnun") or []):
+        if isinstance(it, dict):
+            jsel[it.get("item")] = it.get("material")
+    if jitems:
+        h += "<div class=sec><span class=d></span>" + SECT["julnun"]
+        if jm:
+            h += "<span class=mat>" + " · ".join(mk_label(m) + "=" + _h(m) for m in jm) + "</span>"
+        h += "</div><div class=jgrid>"
+        for it in jitems:
+            chosen = jsel.get(it)
+            h += "<div class='jrow" + ("" if chosen else " off") + "'><span class=in>" + _h(it) + "</span>"
+            for i, m in enumerate(jm):
+                cls = ("p" if i == 0 else "k") if chosen == m else "off"
+                h += "<span class='mk " + cls + "'>" + mk_label(m) + "</span>"
+            h += "</div>"
+        h += "</div>"
+    # 실리콘 / 청소 칩 (전체, 선택 강조)
+    for key in ("silicone", "cleaning"):
+        sd = secmap.get(key) or {}
+        items = sd.get("items") or []
+        if not items:
+            continue
+        picked = set()
+        for it in (sel.get(key) or []):
+            picked.add(it.get("item") if isinstance(it, dict) else it)
+        h += "<div class=sec><span class=d></span>" + SECT.get(key, key) + "</div><div class=chips>"
+        for it in items:
+            on = it in picked
+            h += "<span class='chip " + ("on" if on else "off") + "'>" + ("✓ " if on else "") + _h(it) + "</span>"
+        h += "</div>"
+    # 특이사항
+    if (hdr.get("note") or "").strip():
+        h += "<div class=sec><span class=d></span>특이사항</div><div class=memo>" + _h(hdr["note"]) + "</div>"
+    # 금액 조밀 표
     prices = sel.get("prices") or {}
-    prow = ""
-    for pg in tdef.get("price_groups", []):
-        g = prices.get(pg.get("key")) or {}
-        prow += ("<div class=l style='font-weight:800;color:#0B0F19;border-top:1px solid #EEF0F3;margin-top:4px;padding-top:8px'>"
-                 "<span>" + _h(pg.get("title", "")) + "</span><span></span></div>")
-        labels = {"total": "시공금액", "deposit": "예약금", "balance": "잔금"}
-        for f in pg.get("fields", []):
-            prow += "<div class=l><span>" + labels.get(f, f) + "</span><span>" + _won(g.get(f)) + "</span></div>"
+
+    def _has(g):
+        return any(int(g.get(f) or 0) > 0 for f in ("total", "deposit", "balance"))
+    prows = [k for k in ("julnun", "cleaning") if _has(prices.get(k) or {})]
+    if prows:
+        h += ("<div class=sec><span class=d></span>금액</div><div class=ptbl>"
+              "<div class=ph><div class=l></div><div>시공금액</div><div>예약금</div><div>잔금</div></div>")
+        for k in prows:
+            g = prices.get(k) or {}
+            h += ("<div class=pr><div class=l>" + _h(PGT.get(k, k)) + "</div>"
+                  "<div>" + format(int(g.get("total") or 0), ",") + "</div>"
+                  "<div>" + format(int(g.get("deposit") or 0), ",") + "</div>"
+                  "<div>" + format(int(g.get("balance") or 0), ",") + "</div></div>")
+        h += "</div>"
+    h += ("<div class=ptot><span class=l>총 금액</span><span class=r>"
+          + format(int(grand or 0), ",") + "원</span></div>")
     payer = prices.get("payer") or ""
-    html += ("<div class=card><h2>💰 금액</h2><div class=sum>" + prow +
-             "<div class=l fin><span>총 금액</span><span>" + _won(grand) + "</span></div>" +
-             ("<div class=l><span>입금자명</span><span>" + _h(payer) + "</span></div>" if payer else "") +
-             "</div></div>")
-    return html
+    if payer:
+        h += "<div class=payer><b>입금자</b><span>" + _h(payer) + "</span></div>"
+    return "<div class=card><h2>📋 시공 계약서</h2><div class=tplc>" + h + "</div></div>"
 
 
 _EXPO_CONTRACT_JS = r"""
@@ -24476,8 +24518,16 @@ async def expo_contract_receipt(contract_id: int) -> HTMLResponse:
     except Exception:
         tpl_sel = None
     move_in = (c[19] if len(c) > 19 else "") or ""
-    if tpl_id and tpl_sel is not None:
-        detail_card = _expo_tpl_receipt_html(_expo_template(tpl_id), tpl_sel, int(c[9] or 0))
+    is_tpl = bool(tpl_id and tpl_sel is not None)
+    if is_tpl:
+        hdr = {
+            "apt": apt, "unit_type": unit_type, "name": (c[1] or "").strip(),
+            "phone": _fmt_phone(c[2]) if c[2] else "",
+            "dong_ho": (c[14] or "").strip(), "move_in": move_in,
+            "note": (c[15] or "").strip(), "date": dt.split(" ")[0],
+        }
+        detail_card = _expo_tpl_receipt_html(_expo_template(tpl_id), tpl_sel, int(c[9] or 0), hdr)
+        note_card = ""   # 특이사항은 조밀 계약서 안에 포함
     else:
         detail_card = (
             "<div class=card><h2>📦 계약 내역</h2>" + (lines or "<div style='color:#9AA3AF'>내역 없음</div>") +
@@ -24501,20 +24551,58 @@ async def expo_contract_receipt(contract_id: int) -> HTMLResponse:
     if (rinfo.get("terms") or "").strip():
         terms_card = ("<div class=card><h2>📄 계약 약관</h2>"
                       "<div style='font-size:12.5px;color:#5A6472;white-space:pre-wrap;line-height:1.7'>" + _h(rinfo["terms"]) + "</div></div>")
-    body = (
-        "<div class=top><div class=rm>" + _h(room_name) + " · 계약서 사본</div>"
-        "<h1>" + _h(c[1] or "고객") + " 님 계약서</h1></div>"
-        "<div class=wrap>"
-        + biz_card
-        + detail_card
-        + note_card +
+    # 템플릿 모드: 고객정보는 조밀 계약서 헤더에 포함 → 별도 카드 생략
+    cust_card = "" if is_tpl else (
         "<div class=card><h2>🙋 고객 정보</h2>"
         "<div class=row><div class=nm>성함</div><span class=pr>" + _h(c[1] or "-") + "</span></div>"
         "<div class=row><div class=nm>연락처</div><span class=pr>" + _fmt_phone(c[2]) + "</span></div>"
         "<div class=row style='align-items:flex-start'><div class=nm style='flex:none;min-width:64px'>시공 주소</div>"
         "<span class=pr style='text-align:right;flex:1;white-space:normal;word-break:keep-all;overflow-wrap:anywhere;line-height:1.5'>" + addr_full + "</span></div>"
         + ("<div class=row><div class=nm>입주일</div><span class=pr>" + _h(move_in) + "</span></div>" if move_in else "")
-        + "</div>"
+        + "</div>")
+    # 조밀 계약서(.tplc) 스코프 CSS — 라이브 뷰어와 동일 레이아웃
+    tpl_css = (
+        "<style>"
+        ".tplc .hgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:2px 12px;border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-bottom:10px}"
+        ".tplc .hgrid .f{display:flex;font-size:12px;padding:2px 0;min-width:0}"
+        ".tplc .hgrid .f.full{grid-column:1/-1}"
+        ".tplc .hgrid .f b{color:#9AA3AF;font-weight:700;width:52px;flex:none}"
+        ".tplc .hgrid .f span{color:#0B0F19;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
+        ".tplc .sec{font-size:12px;font-weight:900;color:#0B0F19;display:flex;align-items:center;gap:6px;margin:12px 0 6px}"
+        ".tplc .sec .d{width:4px;height:13px;background:#3182F6;border-radius:2px}"
+        ".tplc .sec .mat{margin-left:auto;font-size:10px;color:#9AA3AF;font-weight:700}"
+        ".tplc .jgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px 8px}"
+        ".tplc .jrow{display:flex;align-items:center;font-size:11.5px;padding:5px 7px;border-radius:7px;background:#F7F8FA;min-width:0}"
+        ".tplc .jrow .in{flex:1;min-width:0;color:#0B0F19;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
+        ".tplc .jrow.off{background:#FAFBFC}.tplc .jrow.off .in{color:#C2C6CC}"
+        ".tplc .mk{font-size:9px;font-weight:800;padding:2px 5px;border-radius:5px;margin-left:3px}"
+        ".tplc .mk.p{background:#E8EEFF;color:#2B59D6}.tplc .mk.k{background:#FFF0E6;color:#E07B39}.tplc .mk.off{background:#EFF1F4;color:#C2C6CC}"
+        ".tplc .chips{display:flex;flex-wrap:wrap;gap:5px}"
+        ".tplc .chip{font-size:11px;padding:5px 9px;border-radius:8px;font-weight:700}"
+        ".tplc .chip.on{background:#EAF1FF;color:#1B64DA;border:1px solid #B9D0FF}"
+        ".tplc .chip.off{background:#F5F6F8;color:#B4B9C0;border:1px solid #F5F6F8}"
+        ".tplc .ptbl{border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:4px}"
+        ".tplc .ptbl .ph{display:grid;grid-template-columns:44px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);background:#F7F8FA}"
+        ".tplc .ptbl .ph div{font-size:9.5px;color:#9AA3AF;font-weight:700;text-align:right;padding:5px 6px;min-width:0}"
+        ".tplc .ptbl .ph div.l{text-align:left}"
+        ".tplc .ptbl .pr{display:grid;grid-template-columns:44px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);border-top:1px solid #F1F2F4}"
+        ".tplc .ptbl .pr div{font-size:11.5px;font-weight:800;color:#0B0F19;text-align:right;padding:6px 6px;min-width:0;font-variant-numeric:tabular-nums}"
+        ".tplc .ptbl .pr div.l{text-align:left}"
+        ".tplc .memo{font-size:11.5px;color:#444;line-height:1.5;background:#F7F8FA;border-radius:8px;padding:8px 10px}"
+        ".tplc .ptot{display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding:0 3px}"
+        ".tplc .ptot .l{font-size:14px;font-weight:900;color:#0B0F19}.tplc .ptot .r{font-size:18px;font-weight:900;color:#1B64DA}"
+        ".tplc .payer{display:flex;justify-content:space-between;font-size:12px;margin-top:9px;padding:0 3px}"
+        ".tplc .payer b{color:#9AA3AF;font-weight:700}.tplc .payer span{color:#0B0F19;font-weight:800}"
+        "</style>") if is_tpl else ""
+    body = (
+        tpl_css +
+        "<div class=top><div class=rm>" + _h(room_name) + " · 계약서 사본</div>"
+        "<h1>" + _h(c[1] or "고객") + " 님 계약서</h1></div>"
+        "<div class=wrap>"
+        + biz_card
+        + detail_card
+        + note_card
+        + cust_card +
         "<div class=card><h2>✍️ 서명</h2>" + sig +
         "<div style='font-size:12px;color:#9AA3AF;margin-top:10px'>개인정보 수집·이용 동의 완료 · " + dt + "</div></div>"
         + terms_card +
