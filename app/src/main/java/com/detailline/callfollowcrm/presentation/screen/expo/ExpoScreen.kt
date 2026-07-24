@@ -462,8 +462,11 @@ private fun ColumnScope.RoomDetailView(
                     Text("고객 계약서 받기", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = T1)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        if (canOpen) "QR을 띄워 고객 폰으로 찍게 하면, 사장님이 항목을 고르고 고객은 실시간으로 보며 서명해요."
-                        else "방장이 상품·서비스를 먼저 등록해야 계약서를 열 수 있어요.",
+                        when {
+                            isTplRoom -> "QR을 고객 폰으로 찍게 하면, 사장님이 줄눈 항목을 체크하고 시공·예약금·잔금을 입력해요. 고객은 실시간으로 보며 서명해요."
+                            canOpen -> "QR을 띄워 고객 폰으로 찍게 하면, 사장님이 항목을 고르고 고객은 실시간으로 보며 서명해요."
+                            else -> "방장이 상품·서비스를 먼저 등록해야 계약서를 열 수 있어요."
+                        },
                         fontSize = 12.5.sp, color = T2, lineHeight = 18.sp
                     )
                     Spacer(Modifier.height(12.dp))
@@ -494,10 +497,12 @@ private fun ColumnScope.RoomDetailView(
                             GroupRow("박람회 기본정보",
                                 if (ap.isBlank()) "아파트명·타입·약관·업체정보 설정"
                                 else "$ap · 타입 ${d.info?.unitTypes?.size ?: 0}개 · 수정", onEditInfo)
-                            if (d.info?.templateId.isNullOrBlank()) {   // 템플릿 방(줄눈)은 항목=템플릿 → 상품등록 불필요, 숨김
-                                RowDivider()
+                            RowDivider()
+                            if (d.info?.templateId.isNullOrBlank()) {   // 자유상품 방 → 상품·단가 미리 등록
                                 val cnt = d.catalog.size
                                 GroupRow("상품·서비스 준비", if (cnt > 0) "등록된 항목 ${cnt}개 · 수정" else "계약서에 쓸 상품·단가 등록", onProducts)
+                            } else {                                    // 템플릿 방(줄눈) → 상품등록 불필요, 대신 '어떤 양식인지' 보여줌. 가격은 계약서에서.
+                                GroupRow("계약서 양식", "${templateName(d.info?.templateId)} · 가격은 계약할 때 입력", onEditInfo)
                             }
                         }
                     }
@@ -656,7 +661,14 @@ private fun ColumnScope.QrView(repo: ExpoRepository, n: Nav.Qr, myPhone: String,
     val isTpl = tpl != null
 
     LaunchedEffect(n.roomId) { repo.getProducts(n.roomId).onSuccess { catalog = it } }
-    // 방이 템플릿이면 정의 로드 (live GET 의 template_id 로 판단)
+    // 방 template_id 를 미리 읽어 tpl 즉시 로드 — live 폴링(1.5초) 기다리는 동안 빈 카탈로그가 잠깐 보이던 것 방지.
+    LaunchedEffect(n.roomId) {
+        repo.roomDetail(n.roomId, myPhone).onSuccess { d ->
+            val tid = d.info?.templateId ?: ""
+            if (tid.isNotBlank() && tpl?.id != tid) repo.getTemplate(tid).onSuccess { tpl = it }
+        }
+    }
+    // 방이 템플릿이면 정의 로드 (live GET 의 template_id 로도 판단 — 위 즉시 로드 실패 대비 백업)
     val liveTplId = live?.templateId ?: ""
     LaunchedEffect(liveTplId) {
         if (liveTplId.isNotBlank() && tpl?.id != liveTplId) repo.getTemplate(liveTplId).onSuccess { tpl = it }
@@ -1214,6 +1226,7 @@ private fun ColumnScope.RoomFormView(
 ) {
     val scope = rememberCoroutineScope()
     var apartment by remember { mutableStateOf("") }
+    var templateId by remember { mutableStateOf("julnun") }   // 방 계약서 양식 (서버 기본 julnun). 라벨 표시용.
     val types = remember { mutableStateListOf<String>() }
     var typeInput by remember { mutableStateOf("") }
     var terms by remember { mutableStateOf("") }
@@ -1309,6 +1322,7 @@ private fun ColumnScope.RoomFormView(
                 bizName = info.bizName; bizNo = bizNoHyphen(info.bizNo)
                 repPhone = bizPhoneHyphen(info.repPhone); officePhone = bizPhoneHyphen(info.officePhone)
                 types.clear(); types.addAll(info.unitTypes)
+                if (info.templateId.isNotBlank()) templateId = info.templateId
             }
         }
     }
@@ -1326,6 +1340,22 @@ private fun ColumnScope.RoomFormView(
             Box(Modifier.fillMaxWidth().background(Color(0xFFFFFBEA), RoundedCornerShape(12.dp)).padding(14.dp)) {
                 Text("여기서 정한 아파트명·타입·업체정보·약관이 고객 계약서에 그대로 들어가요. 박람회는 보통 한 단지라, 주소는 아파트명 고정 + 고객은 동/호수·타입만 골라요.",
                     fontSize = 12.sp, color = Color(0xFF7A6A15), lineHeight = 18.sp)
+            }
+        }
+        item {
+            // 계약서 양식 — 이 방이 어떤 양식을 쓰는지 보여줌. 줄눈은 상품 미리등록 없이 계약서에서 항목·가격 입력.
+            Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
+                Text("계약서 양식", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
+                Spacer(Modifier.height(9.dp))
+                Box(Modifier.background(T1, RoundedCornerShape(9.dp)).padding(horizontal = 12.dp, vertical = 7.dp)) {
+                    Text("✓ ${templateName(templateId)}", fontSize = 12.5.sp, fontWeight = FontWeight.Black, color = Color.White)
+                }
+                Spacer(Modifier.height(9.dp))
+                Text("이 방 계약서는 이 양식으로 만들어져요. 상품을 미리 등록하지 않고, 계약서를 열 때 줄눈 항목을 체크하고 시공·예약금·잔금 가격만 넣으면 돼요.",
+                    fontSize = 11.5.sp, color = T3, lineHeight = 17.sp)
+                Spacer(Modifier.height(6.dp))
+                Text("다른 업종(청소·필름 등) 양식이 필요하면 알려주세요 — 맞춰서 만들어 드려요.",
+                    fontSize = 11.5.sp, color = T3, lineHeight = 17.sp)
             }
         }
         item {
@@ -1822,6 +1852,13 @@ private fun won(amount: Long): String = "%,d원".format(amount)
 
 /** 표시용 전화번호 하이픈 (가독성). 빈 값/알 수 없는 형식이면 그대로. */
 private fun ph(raw: String): String = com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(raw)
+
+/** 계약서 양식 표시 이름 (라벨용). 실제 양식 정의는 서버(GET /api/expo/template/{id}). 현재 줄눈 하나. */
+private fun templateName(id: String?): String = when ((id ?: "").trim()) {
+    "julnun" -> "줄눈 시공 표준"
+    "" -> "자유 상품"
+    else -> "표준 양식"
+}
 
 /**
  * 이미지 Uri → **다운스케일** base64 JPEG dataURL (OCR 업로드용).
