@@ -8082,3 +8082,9 @@ android 긴급건 — 검증 결과 **cowork 소스는 안 깨졌음. 깨짐은 
 - ★ Mac mini 에서 진단 실행: `bash ~/paperclip-company/workspaces/CallFollowCRM/diag_template_encoding.sh` → `_diag_template.txt` (cowork 가 읽어 어디서 깨지는지 판정).
   - [1]origin=정상인데 [3]배포본=깨짐/낡음 → 복구: `cd repo && git stash && git pull --rebase && bash server/deploy_phase1.sh`.
 - 상수 재입력 불필요(이미 정상). 배포본만 origin 과 맞추면 해결될 것으로 추정 → 진단으로 확정.
+
+## 2026-07-24 16:25 · cowork (✅ 템플릿 mojibake 해결확인)
+diag_template_encoding.sh 결과 = **전 층 정상. 손댈 것 없음.**
+- 로케일 ko_KR.UTF-8 / Python utf-8. [1]origin '현관바닥'=1 · [2]작업트리=1 · [3]배포본=1(origin과 동일) · **[4]라이브 GET /api/expo/template/julnun → name="줄눈 시공 표준", 첫항목="현관바닥", lone surrogate 0·한자 0.**
+- 판정: 아까 앱이 본 mojibake = **재기동 전 옛 프로세스 or 테스트 도구 문자셋** 일시현상. 현재 서버는 정상 한글 반환.
+- android: 지금 다시 template/julnun 찍으면 정상. 앱 HTTP 클라이언트가 응답을 UTF-8 로 파싱하는지만 확인 요망(charset). 상수 재입력·재배포 불필요.
