@@ -456,17 +456,19 @@ private fun ColumnScope.RoomDetailView(
             // ── ② 고객 계약서 (주 액션) ──
             item {
                 val hasCatalog = d.catalog.isNotEmpty()
+                val isTplRoom = d.info?.templateId?.isNotBlank() == true   // 줄눈 등 템플릿 방 = 카탈로그 없이도 계약 가능
+                val canOpen = hasCatalog || isTplRoom
                 Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(18.dp)).padding(16.dp)) {
                     Text("고객 계약서 받기", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = T1)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        if (hasCatalog) "QR을 띄워 고객 폰으로 찍게 하면, 사장님이 상품을 고르고 고객은 실시간으로 보며 서명해요."
+                        if (canOpen) "QR을 띄워 고객 폰으로 찍게 하면, 사장님이 항목을 고르고 고객은 실시간으로 보며 서명해요."
                         else "방장이 상품·서비스를 먼저 등록해야 계약서를 열 수 있어요.",
                         fontSize = 12.5.sp, color = T2, lineHeight = 18.sp
                     )
                     Spacer(Modifier.height(12.dp))
-                    BigButton("계약서 열기 (QR)", enabled = hasCatalog && !opening, bg = if (hasCatalog) Kk else Field,
-                        fg = if (hasCatalog) KkInk else T3) {
+                    BigButton("계약서 열기 (QR)", enabled = canOpen && !opening, bg = if (canOpen) Kk else Field,
+                        fg = if (canOpen) KkInk else T3) {
                         opening = true
                         scope.launch {
                             repo.createSession(n.roomId, myPhone)
@@ -492,9 +494,11 @@ private fun ColumnScope.RoomDetailView(
                             GroupRow("박람회 기본정보",
                                 if (ap.isBlank()) "아파트명·타입·약관·업체정보 설정"
                                 else "$ap · 타입 ${d.info?.unitTypes?.size ?: 0}개 · 수정", onEditInfo)
-                            RowDivider()
-                            val cnt = d.catalog.size
-                            GroupRow("상품·서비스 준비", if (cnt > 0) "등록된 항목 ${cnt}개 · 수정" else "계약서에 쓸 상품·단가 등록", onProducts)
+                            if (d.info?.templateId.isNullOrBlank()) {   // 템플릿 방(줄눈)은 항목=템플릿 → 상품등록 불필요, 숨김
+                                RowDivider()
+                                val cnt = d.catalog.size
+                                GroupRow("상품·서비스 준비", if (cnt > 0) "등록된 항목 ${cnt}개 · 수정" else "계약서에 쓸 상품·단가 등록", onProducts)
+                            }
                         }
                     }
                 }

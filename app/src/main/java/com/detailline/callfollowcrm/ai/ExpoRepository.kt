@@ -50,7 +50,9 @@ class ExpoRepository(
     /** 방 단위 박람회 기본정보(8차) — 방장이 설정, 고객·계약서 공용. */
     data class RoomInfo(
         val apartment: String, val unitTypes: List<String>, val terms: String,
-        val bizName: String, val bizNo: String, val repPhone: String, val officePhone: String
+        val bizName: String, val bizNo: String, val repPhone: String, val officePhone: String,
+        /** 방 템플릿(줄눈 등). 비면 자유상품 방. 새 방은 기본 "julnun". */
+        val templateId: String = ""
     )
     data class RoomDetail(val name: String, val myRole: String, val members: List<Member>, val catalog: List<Product>, val info: RoomInfo?)
     data class Session(val sessionId: String, val secret: String, val url: String, val qrUrl: String)
@@ -216,7 +218,8 @@ class ExpoRepository(
         return RoomInfo(
             apartment = o.optString("apartment"), unitTypes = types, terms = o.optString("terms"),
             bizName = o.optString("biz_name"), bizNo = o.optString("biz_no"),
-            repPhone = o.optString("rep_phone"), officePhone = o.optString("office_phone")
+            repPhone = o.optString("rep_phone"), officePhone = o.optString("office_phone"),
+            templateId = o.optString("template_id")
         )
     }
 
