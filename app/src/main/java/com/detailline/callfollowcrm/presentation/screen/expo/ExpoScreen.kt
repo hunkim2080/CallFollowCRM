@@ -596,7 +596,8 @@ private fun ColumnScope.ProductsEditorView(
                 }
             }
         }
-        Box(Modifier.background(ExpoBg).navigationBarsPadding().padding(14.dp)) {
+        Box(Modifier.background(ExpoBg)
+            .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars)).padding(14.dp)) {
             BigButton(if (saving) "저장 중…" else "저장", enabled = loaded && !saving, bg = Kk, fg = KkInk) {
                 val drafts = rows.mapNotNull { r ->
                     val nm = r.name.trim()
@@ -1160,18 +1161,23 @@ private fun ColumnScope.RoomFormView(
         }.onFailure { toast("카메라를 열지 못했어요") }
     }
 
-    // 인식 중 로딩 모달 — "멈춘 것 같다" 방지. 스피너 + 안내.
+    // 인식 중 로딩 모달 — 화면 정중앙(스크림 위). "멈춘 것 같다" 방지.
     if (ocrBusy) {
-        androidx.compose.ui.window.Dialog(onDismissRequest = { }) {
-            Column(
-                Modifier.background(Color.White, RoundedCornerShape(20.dp)).padding(horizontal = 34.dp, vertical = 28.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                CircularProgressIndicator(color = AccentBlue)
-                Spacer(Modifier.height(16.dp))
-                Text("사진에서 글자를 읽고 있어요", fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = T1)
-                Spacer(Modifier.height(3.dp))
-                Text("보통 5~10초 걸려요 · 잠시만요 🙂", fontSize = 12.sp, color = T3)
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(
+                    Modifier.background(Color.White, RoundedCornerShape(20.dp)).padding(horizontal = 34.dp, vertical = 28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    CircularProgressIndicator(color = AccentBlue)
+                    Spacer(Modifier.height(16.dp))
+                    Text("사진에서 글자를 읽고 있어요", fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = T1)
+                    Spacer(Modifier.height(3.dp))
+                    Text("보통 5~10초 걸려요 · 잠시만요 🙂", fontSize = 12.sp, color = T3)
+                }
             }
         }
     }
