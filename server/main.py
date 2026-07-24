@@ -24074,8 +24074,8 @@ async def expo_contract_page(session_id: str, k: Optional[str] = None) -> HTMLRe
         "<div id=stepMain style='display:none'>"
         "<div class=card><h2>📦 계약 내역 <span id=liveDot style='width:8px;height:8px;border-radius:50%;background:#12B76A;display:inline-block;margin-left:2px' title='실시간'></span></h2>"
         "<div id=itemBox><div style='font-size:13px;color:#9AA3AF;padding:10px 0'>상담사가 상품을 선택하면 여기에 표시됩니다…</div></div>"
-        "<div class=sum><div class=l><span>상품 합계</span><span id=sTotal>0원</span></div>"
-        "<div class=l><span>할인</span><span id=sDisc>0원</span></div>"
+        "<div class=sum><div class=l id=totLine><span>상품 합계</span><span id=sTotal>0원</span></div>"
+        "<div class=l id=discLine><span>할인</span><span id=sDisc>0원</span></div>"
         "<div class=l fin><span>최종 금액</span><span id=sFinal>0원</span></div>"
         "<div class=l id=depLine style='display:none'><span>계약금</span><span id=sDep>0원</span></div></div></div>"
         "<div class=card id=noteCard style='display:none'><h2>📝 상담사 메모</h2>"
@@ -24210,8 +24210,46 @@ function goStep1(){if(confirmed){editUnlock();}
   $('topSub').textContent='먼저 정보를 입력하면 상담사와 계약서를 함께 봅니다';
   chk1();window.scrollTo(0,0);}
 // ── 실시간 상품/금액 렌더 ──
+// 추가152 — 템플릿(줄눈) 계약이면 st.template(선택결과)로 견적서 구조화 렌더. 아니면 기존 자유상품(st.items).
+var TPL_SEC={julnun:'줄눈 시공',silicone:'실리콘 오염 방지',cleaning:'입주 청소'};
+var TPL_PF={total:'시공금액',deposit:'예약금',balance:'잔금'};
+function tplGrand(t){if(!t)return 0;var p=t.prices||{};
+  if(p.grand_total!=null&&p.grand_total!=='')return +p.grand_total||0;
+  var g=0;['julnun','cleaning'].forEach(function(k){if(p[k]&&p[k].total)g+=(+p[k].total||0);});return g;}
+function hasTpl(st){var t=st.template;if(!t)return false;
+  return (t.julnun&&t.julnun.length)||(t.silicone&&t.silicone.length)||(t.cleaning&&t.cleaning.length)||tplGrand(t)>0;}
+function renderTemplate(st){
+  var t=st.template||{},h='';
+  function sec(x){return "<div style='font-size:12px;font-weight:800;color:#5A6472;margin:12px 0 6px'>"+esc(x)+"</div>";}
+  if(t.julnun&&t.julnun.length){h+=sec(TPL_SEC.julnun);
+    t.julnun.forEach(function(x){h+="<div class=row><div class=nm>"+esc(x.item)+"</div>"
+      +"<span style='background:#EEF4FF;color:#1B64DA;font-size:12px;font-weight:800;padding:3px 9px;border-radius:8px'>"+esc(x.material)+"</span></div>";});}
+  ['silicone','cleaning'].forEach(function(k){var a=t[k];if(a&&a.length){
+    h+=sec(TPL_SEC[k])+"<div style='display:flex;flex-wrap:wrap;gap:6px'>";
+    a.forEach(function(it){h+="<span style='background:#F5F7F9;color:#0B0F19;font-size:12.5px;font-weight:700;padding:5px 10px;border-radius:8px'>"+esc(it)+"</span>";});
+    h+="</div>";}});
+  var p=t.prices||{};
+  ['julnun','cleaning'].forEach(function(k){var g=p[k];if(g&&(+g.total>0||+g.deposit>0||+g.balance>0)){
+    h+="<div style='margin-top:12px;padding-top:10px;border-top:1px solid var(--line)'>";
+    h+="<div style='font-size:12.5px;font-weight:800;color:#0B0F19;margin-bottom:4px'>"+esc(TPL_SEC[k])+" 금액</div>";
+    ['total','deposit','balance'].forEach(function(f){if(+g[f]>0)
+      h+="<div class=row><div class=nm style='color:#5A6472;font-size:13px'>"+TPL_PF[f]+"</div><span class=pr>"+won(g[f])+"</span></div>";});
+    h+="</div>";}});
+  if(p.payer)h+="<div class=row style='margin-top:8px'><div class=nm style='color:#5A6472;font-size:13px'>입금자</div><span style='font-weight:700'>"+esc(p.payer)+"</span></div>";
+  if(!h)h="<div style='font-size:13px;color:#9AA3AF;padding:10px 0'>상담사가 항목을 선택하면 여기에 표시됩니다…</div>";
+  return h;
+}
 function renderItems(st){
-  var box=$('itemBox');var its=st.items||[];
+  var box=$('itemBox');
+  if(hasTpl(st)){
+    box.innerHTML=renderTemplate(st);
+    var g=tplGrand(st.template);
+    $('totLine').style.display='none';$('discLine').style.display='none';$('depLine').style.display='none';
+    $('sFinal').textContent=won(g);$('bAmt').textContent=won(g);
+    return;
+  }
+  $('totLine').style.display='';$('discLine').style.display='';
+  var its=st.items||[];
   if(!its.length){box.innerHTML="<div style='font-size:13px;color:#9AA3AF;padding:10px 0'>상담사가 상품을 선택하면 여기에 표시됩니다…</div>";}
   else{var h='';its.forEach(function(it){
     var q=(it.kind==='service')?'':(" <span style='color:#9AA3AF;font-size:12px'>×"+it.qty+"</span>");
