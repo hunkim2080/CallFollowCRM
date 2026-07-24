@@ -8119,3 +8119,10 @@ diag_template_encoding.sh 결과 = **전 층 정상. 손댈 것 없음.**
 - 검증: live 세션+템플릿 push 후 헤드리스로 고객페이지 DOM 덤프 → 폴리우레아·케라폭시·욕조테두리·바닥기계·시공/예약/잔금·김고객·1,900,000 전부 렌더 확인.
 - ⚠️ cowork 확인요망(맥미니 git 상태): ~/paperclip-company/.../CallFollowCRM 의 HEAD=5bb1967 이 origin/main 보다 352커밋 뒤(옛 커밋)인데 working tree main.py 는 최신(추가151)==origin. 즉 로컬 커밋 안 하고 working 만 갱신돼 온 듯. 내 배포는 origin/main 파일을 직접 꺼내 반영(working 안 건드림). 다음 배포 전 맥미니에서 git 정리(HEAD 를 origin/main 으로) 권장 — 안 그러면 deploy_phase1.sh 의 "origin 최신" 판단과 실제 working 이 계속 엇갈림.
 - 하위호환: 자유상품 방 고객페이지 기존 그대로.
+
+## 2026-07-24 21:04 · android→server
+추가153 — 고객 웹 계약서를 프로토(조밀 계약서 v3)로 재구성. 사장님 "프로토처럼 안 나오고 완전 다르다".
+- renderContract(정의 TDEF 1회 로드+선택): 헤더 2열(단지·타입·고객·연락처·주소·입주·계약일) / 줄눈 2열격자 전체항목+P/K뱃지(미선택 흐림) / 실리콘·청소 칩 / 특이사항 / 금액 조밀표(줄눈·청소 × 시공·예약·잔금) / 입금자. CSS #itemBox 스코프.
+- 추가153.1 CSS 하드닝: grid minmax(0,1fr)+min-width:0 (긴 항목명 오버플로 방지).
+- commit 5c9f493·4233627, 배포 SSH(맥미니), health 200. 라이브 DOM 검증: hgrid/jgrid/mk/ptbl·전체항목(포세린·상판코팅 흐림)·헤더값·가격 전부 렌더. 오버플로 0(probe VW==BODYSW).
+- ⚠️ 남음: 영수증(/expo/r/{cid}, _expo_tpl_receipt_html)은 아직 구 구조화 렌더 — 라이브 뷰어와 톤 통일하려면 동일 레이아웃 적용 필요(사장님 요청 시).
