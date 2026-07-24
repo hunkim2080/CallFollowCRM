@@ -8110,3 +8110,12 @@ diag_template_encoding.sh 결과 = **전 층 정상. 손댈 것 없음.**
   - 고객계약서 카드 설명 템플릿용, QrView 는 방 template_id 즉시 로드(빈 카탈로그 깜빡임 제거)
 - commit: 9a953c4 · 빌드 0.2.1145 (S23U 설치, DEX 신규 한글 7종 정상)
 - 다음 액션 (cowork · 낮은 우선순위): POST /api/expo/room/info 가 template_id 를 안 받음(현재 create 전용). 나중에 방 양식을 다른 업종으로 '전환'하려면 room/info 에 template_id 처리 추가 필요. 지금은 julnun 단일이라 무방.
+
+## 2026-07-24 20:24 · android→server (사장님 지시로 android 가 직접 서버 수정·배포)
+추가152 — 고객 웹 계약서에 줄눈 '견적서' 실시간 렌더 (사장님 신고 "고객 화면 하나도 안 바뀜 / 견적서 안 나옴")
+- 원인: 고객 웹 뷰어(_EXPO_CONTRACT_JS renderItems)가 st.items(자유상품)만 읽고 st.template 무시 → 템플릿 계약은 고객화면 백지+최종0원. (receipt /expo/r 만 구조화, live viewer 는 미구현이었음)
+- 수정(server/main.py): renderItems→hasTpl 분기+renderTemplate(줄눈 항목·재질칩/실리콘·청소칩/시공·예약·잔금/입금자), 총액=tplGrand(grand_total), 템플릿모드 상품합계/할인 라인 숨김.
+- commit: 8a6bca4 (origin/main). 배포: SSH 맥미니 → origin/main:main.py 추출·py3.9 컴파일확인 → ~/ringgo-server/main.py 교체 → launchctl reload. health 200.
+- 검증: live 세션+템플릿 push 후 헤드리스로 고객페이지 DOM 덤프 → 폴리우레아·케라폭시·욕조테두리·바닥기계·시공/예약/잔금·김고객·1,900,000 전부 렌더 확인.
+- ⚠️ cowork 확인요망(맥미니 git 상태): ~/paperclip-company/.../CallFollowCRM 의 HEAD=5bb1967 이 origin/main 보다 352커밋 뒤(옛 커밋)인데 working tree main.py 는 최신(추가151)==origin. 즉 로컬 커밋 안 하고 working 만 갱신돼 온 듯. 내 배포는 origin/main 파일을 직접 꺼내 반영(working 안 건드림). 다음 배포 전 맥미니에서 git 정리(HEAD 를 origin/main 으로) 권장 — 안 그러면 deploy_phase1.sh 의 "origin 최신" 판단과 실제 working 이 계속 엇갈림.
+- 하위호환: 자유상품 방 고객페이지 기존 그대로.
