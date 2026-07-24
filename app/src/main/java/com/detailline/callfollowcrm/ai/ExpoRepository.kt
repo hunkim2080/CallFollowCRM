@@ -62,7 +62,9 @@ class ExpoRepository(
         /** 시공 예정일(ms). 0 = 미정. 박람회 달력에 이 날짜로 표시. */
         val scheduledAtMs: Long,
         /** 고객 전화(전체) — 팀이 전화 걸 수 있게. 서버가 내려주면 채워짐(없으면 masked 만). */
-        val customerPhone: String
+        val customerPhone: String,
+        /** 템플릿 계약이면 template_id (submissions 요약). 자유상품이면 "". */
+        val templateId: String = ""
     )
     data class Submissions(val count: Int, val totalAmount: Long, val items: List<Submission>)
     /** 상품 등록 입력(방장) — product_id 없이 kind/name/unit_price 만 보냄. */
@@ -79,7 +81,25 @@ class ExpoRepository(
         val apartment: String, val dongHo: String, val address: String,
         val signaturePresent: Boolean, val note: String,
         /** 고객이 서명 후 [완료]를 눌렀는지. 상담사가 수정(live/agent)하면 서버가 false 로 되돌림. (Phase4 완료흐름) */
-        val customerConfirmed: Boolean
+        val customerConfirmed: Boolean,
+        /** 템플릿 방(줄눈 등)이면 template_id·선택결과. 자유상품 방이면 templateId="" (기존 items 사용). */
+        val templateId: String = "", val moveInDate: String = "", val templateSel: TemplateSel? = null
+    )
+
+    // ── 계약서 템플릿 (추가151) ──
+    /** 템플릿 정의 — 앱이 이걸로 체크리스트 렌더. section.type = matrix(항목×재질) | checklist(항목만). */
+    data class TplSection(val key: String, val type: String, val title: String, val materials: List<String>, val items: List<String>)
+    data class TplPriceGroup(val key: String, val title: String, val fields: List<String>)  // fields 예: [total,deposit,balance]
+    data class TemplateDef(
+        val id: String, val name: String, val headerFields: List<String>,
+        val sections: List<TplSection>, val priceGroups: List<TplPriceGroup>, val totals: List<String>
+    )
+    /** 선택 결과(서버 저장분 파싱) — 계약서 렌더용. matrix: 섹션키→[(항목,재질)], checklist: 섹션키→[항목], prices: 그룹키→(필드→금액). */
+    data class TemplateSel(
+        val matrix: Map<String, List<Pair<String, String>>>,
+        val checklist: Map<String, List<String>>,
+        val prices: Map<String, Map<String, Long>>,
+        val grandTotal: Long, val payer: String
     )
     /** 상담사 상품 선택(체크/수량/할인/계약금) — 서버에 push. 서버가 final_amount 재계산. */
     data class AgentPush(val productTotal: Long, val discount: Long, val finalAmount: Long)
@@ -244,6 +264,66 @@ class ExpoRepository(
         runCatching { getJson("/api/expo/products?room_id=$roomId").catalog() }
     }
 
+    // ── 템플릿 (추가151) ──
+    private fun JSONObject.strList(key: String): List<String> =
+        optJSONArray(key)?.let { a -> (0 until a.length()).map { a.optString(it) } } ?: emptyList()
+
+    /** 템플릿 정의 로드 (앱이 체크리스트 렌더). 없으면 실패. */
+    suspend fun getTemplate(id: String): Result<TemplateDef> = withContext(Dispatchers.IO) {
+        runCatching {
+            val t = getJson("/api/expo/template/$id").getJSONObject("template")
+            val sections = t.optJSONArray("sections")?.let { arr ->
+                (0 until arr.length()).map { i ->
+                    val s = arr.getJSONObject(i)
+                    TplSection(s.optString("key"), s.optString("type"), s.optString("title"), s.strList("materials"), s.strList("items"))
+                }
+            } ?: emptyList()
+            val pg = t.optJSONArray("price_groups")?.let { arr ->
+                (0 until arr.length()).map { i ->
+                    val p = arr.getJSONObject(i)
+                    TplPriceGroup(p.optString("key"), p.optString("title"), p.strList("fields"))
+                }
+            } ?: emptyList()
+            TemplateDef(t.optString("id"), t.optString("name"), t.strList("header_fields"), sections, pg, t.strList("totals"))
+        }
+    }
+
+    /** live GET 의 template dict(선택결과) → TemplateSel. matrix=오브젝트배열, checklist=문자열배열. */
+    private fun parseTemplateSel(t: JSONObject?): TemplateSel? {
+        if (t == null) return null
+        val matrix = HashMap<String, List<Pair<String, String>>>()
+        val checklist = HashMap<String, List<String>>()
+        val prices = HashMap<String, Map<String, Long>>()
+        var grand = 0L; var payer = ""
+        val keys = t.keys()
+        while (keys.hasNext()) {
+            val k = keys.next()
+            if (k == "prices") {
+                val p = t.optJSONObject("prices") ?: continue
+                val pk = p.keys()
+                while (pk.hasNext()) {
+                    val gk = pk.next()
+                    when (gk) {
+                        "grand_total" -> grand = p.optLong("grand_total")
+                        "payer" -> payer = p.optString("payer")
+                        else -> p.optJSONObject(gk)?.let { g ->
+                            val m = HashMap<String, Long>(); val fk = g.keys()
+                            while (fk.hasNext()) { val f = fk.next(); m[f] = g.optLong(f) }
+                            prices[gk] = m
+                        }
+                    }
+                }
+            } else {
+                val arr = t.optJSONArray(k) ?: continue
+                if (arr.length() > 0 && arr.optJSONObject(0) != null)
+                    matrix[k] = (0 until arr.length()).map { val o = arr.getJSONObject(it); o.optString("item") to o.optString("material") }
+                else
+                    checklist[k] = (0 until arr.length()).map { arr.optString(it) }
+            }
+        }
+        return TemplateSel(matrix, checklist, prices, grand, payer)
+    }
+
     // ── 계약서 세션 (QR) ──
     suspend fun createSession(roomId: String, agentPhone: String): Result<Session> = withContext(Dispatchers.IO) {
         runCatching {
@@ -277,7 +357,8 @@ class ExpoRepository(
                         address = s.optString("address"),
                         note = s.optString("note"),
                         scheduledAtMs = s.optLong("scheduled_at_ms"),
-                        customerPhone = s.optString("customer_phone")
+                        customerPhone = s.optString("customer_phone"),
+                        templateId = s.optString("template_id")
                     )
                 }
             } ?: emptyList()
@@ -299,6 +380,36 @@ class ExpoRepository(
                 put("items", arr); put("discount", discount)
                 put("deposit_enabled", depositEnabled); put("deposit_amount", depositAmount)
                 put("note", note)   // 특이사항/비고. 서버 저장은 cowork 대기(현재 무시돼도 안전).
+            })
+            AgentPush(o.optLong("product_total"), o.optLong("discount"), o.optLong("final_amount"))
+        }
+    }
+
+    /** 템플릿 계약 — 상담사 체크+가격 push. matrix: 섹션키→(항목→재질), checklist: 섹션키→선택항목, prices: 그룹키→(필드→금액). 서버가 grand_total 로 final 저장. */
+    suspend fun liveAgentTemplate(
+        sessionId: String, secret: String,
+        matrix: Map<String, Map<String, String>>,
+        checklist: Map<String, Set<String>>,
+        prices: Map<String, Map<String, Long>>,
+        grandTotal: Long, payer: String, note: String = ""
+    ): Result<AgentPush> = withContext(Dispatchers.IO) {
+        runCatching {
+            val tpl = JSONObject()
+            matrix.forEach { (secKey, itemMat) ->
+                val arr = JSONArray()
+                itemMat.forEach { (item, mat) -> arr.put(JSONObject().put("item", item).put("material", mat)) }
+                tpl.put(secKey, arr)
+            }
+            checklist.forEach { (secKey, items) ->
+                val arr = JSONArray(); items.forEach { arr.put(it) }; tpl.put(secKey, arr)
+            }
+            val pricesObj = JSONObject()
+            prices.forEach { (gk, fields) -> val g = JSONObject(); fields.forEach { (f, v) -> g.put(f, v) }; pricesObj.put(gk, g) }
+            pricesObj.put("grand_total", grandTotal); pricesObj.put("payer", payer)
+            tpl.put("prices", pricesObj)
+            val o = postJson("/api/expo/contract/live/agent", JSONObject().apply {
+                put("session_id", sessionId); put("secret", secret)
+                put("template", tpl); put("note", note)
             })
             AgentPush(o.optLong("product_total"), o.optLong("discount"), o.optLong("final_amount"))
         }
@@ -332,7 +443,10 @@ class ExpoRepository(
                 address = o.optString("address"),
                 signaturePresent = o.optBoolean("signature_present"),
                 note = o.optString("note"),
-                customerConfirmed = o.optBoolean("customer_confirmed")
+                customerConfirmed = o.optBoolean("customer_confirmed"),
+                templateId = o.optString("template_id"),
+                moveInDate = o.optString("move_in_date"),
+                templateSel = parseTemplateSel(o.optJSONObject("template"))
             )
         }
     }
