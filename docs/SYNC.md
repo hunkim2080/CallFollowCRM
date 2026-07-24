@@ -8093,3 +8093,10 @@ diag_template_encoding.sh 결과 = **전 층 정상. 손댈 것 없음.**
 - 원인: Windows Git Bash 에서 `curl ... | python -c "json.load(sys.stdin)"` → stdin 이 cp949 로 UTF-8 응답을 읽어 lone surrogate 화면 표시. **실제 응답 바이트는 정상 UTF-8**.
 - 검증: `curl -o file` 후 `json.load(open(file, encoding='utf-8'))` → name="줄눈 시공 표준", items 정상, lone surrogate 0. raw `head -c` 도 정상.
 - 결론: 서버 재입력/재배포 불필요. **템플릿 API 정상 → 앱 화면 착수.** 코워크 시간 뺏어 미안.
+
+## 2026-07-24 · android
+박람회 계약서 템플릿 **상담사 체크리스트 화면 완성** (QrView 템플릿 분기).
+- 템플릿 방이면 카탈로그 대신: 줄눈 matrix(항목별 재질 P/K 토글) + 실리콘/청소 체크칩 + 가격그룹(시공/예약/잔금) + 입금자 + 비고. liveAgentTemplate 로 디바운스 push.
+- API 왕복 curl 검증: room/create(카탈로그없이 세션OK)·live/agent(ok,final=1400000)·live GET(template_id·선택·prices round-trip) 정상.
+- ⚠️ cowork 확인요망: **GET live/{sid} 의 top-level `final_amount` 가 템플릿 계약에서 0** (live/agent 응답은 grand_total 정상). 폴링이 0으로 덮어서 앱은 로컬 합계로 표시 중. 영수증/submissions 는 grand_total 이라 문제없어 보이나, live GET final_amount 도 grand_total 로 맞춰주면 깔끔.
+- 남음(android): 앱 네이티브 계약서(ContractView) 구조화 렌더(템플릿 선택 표시).

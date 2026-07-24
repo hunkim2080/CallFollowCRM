@@ -643,15 +643,51 @@ private fun ColumnScope.QrView(repo: ExpoRepository, n: Nav.Qr, myPhone: String,
     var finalized by remember { mutableStateOf<ExpoRepository.Finalized?>(null) }
     var finalizing by remember { mutableStateOf(false) }
 
-    LaunchedEffect(n.roomId) { repo.getProducts(n.roomId).onSuccess { catalog = it } }
+    // ── 템플릿 방(줄눈 등) — 카탈로그 대신 체크리스트+가격 ──
+    var tpl by remember { mutableStateOf<ExpoRepository.TemplateDef?>(null) }
+    val matrixSel = remember { mutableStateMapOf<String, String>() }   // "$secKey$item" → 재질
+    val checkSel = remember { mutableStateMapOf<String, Boolean>() }   // "$secKey$item" → 체크
+    val priceSel = remember { mutableStateMapOf<String, String>() }    // "$grpKey$field" → 금액(숫자문자)
+    var payerText by remember { mutableStateOf("") }
+    val isTpl = tpl != null
 
-    // 디바운스 push — 선택/할인/계약금 바뀌면 400ms 후 서버로(고객 웹에 실시간 반영).
+    LaunchedEffect(n.roomId) { repo.getProducts(n.roomId).onSuccess { catalog = it } }
+    // 방이 템플릿이면 정의 로드 (live GET 의 template_id 로 판단)
+    val liveTplId = live?.templateId ?: ""
+    LaunchedEffect(liveTplId) {
+        if (liveTplId.isNotBlank() && tpl?.id != liveTplId) repo.getTemplate(liveTplId).onSuccess { tpl = it }
+    }
+
+    // 디바운스 push (자유상품 방) — 선택/할인/계약금 바뀌면 400ms 후 서버로. 템플릿 방은 스킵.
     val pushKey = qty.entries.sortedBy { it.key }.joinToString(",") { "${it.key}:${it.value}" } +
         "|$discountText|$depositOn|$depositText|$noteText"
-    LaunchedEffect(pushKey) {
+    LaunchedEffect(pushKey, isTpl) {
+        if (isTpl) return@LaunchedEffect
         delay(400)
         val items = qty.filter { it.value > 0 }.map { it.key to it.value }
         repo.liveAgentPush(sid, sec, items, discountText.digitsToLong(), depositOn, depositText.digitsToLong(), noteText.trim())
+            .onSuccess { shownFinal = it.finalAmount }
+    }
+    // 디바운스 push (템플릿 방) — 체크/재질/가격 바뀌면 400ms 후 서버로. 키 형식 = "섹션키::항목" / "그룹키::필드".
+    val tplKey = matrixSel.entries.sortedBy { it.key }.joinToString(",") { "${it.key}=${it.value}" } + "|" +
+        checkSel.filter { it.value }.keys.sorted().joinToString(",") + "|" +
+        priceSel.entries.sortedBy { it.key }.joinToString(",") { "${it.key}=${it.value}" } + "|$payerText|$noteText"
+    LaunchedEffect(tplKey, isTpl) {
+        val t = tpl ?: return@LaunchedEffect
+        delay(400)
+        val matrix = HashMap<String, MutableMap<String, String>>()
+        val checklist = HashMap<String, MutableSet<String>>()
+        for (sc in t.sections) {
+            if (sc.type == "matrix") for (it2 in sc.items) matrixSel["${sc.key}::$it2"]?.let { mat -> matrix.getOrPut(sc.key) { HashMap() }[it2] = mat }
+            else for (it2 in sc.items) if (checkSel["${sc.key}::$it2"] == true) checklist.getOrPut(sc.key) { HashSet() }.add(it2)
+        }
+        val prices = HashMap<String, MutableMap<String, Long>>()
+        var grand = 0L
+        for (g in t.priceGroups) {
+            for (f in g.fields) { val v = priceSel["${g.key}::$f"]?.digitsToLong() ?: 0L; if (v > 0) prices.getOrPut(g.key) { HashMap() }[f] = v }
+            grand += priceSel["${g.key}::${g.fields.firstOrNull() ?: "total"}"]?.digitsToLong() ?: 0L
+        }
+        repo.liveAgentTemplate(sid, sec, matrix, checklist, prices, grand, payerText.trim(), noteText.trim())
             .onSuccess { shownFinal = it.finalAmount }
     }
 
@@ -712,6 +748,7 @@ private fun ColumnScope.QrView(repo: ExpoRepository, n: Nav.Qr, myPhone: String,
                     }
                 }
             }
+            if (!isTpl) {
             item { Text("상품·서비스 (탭해서 선택)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = T2) }
             items(catalog) { p ->
                 val q = qty[p.productId] ?: 0
@@ -764,6 +801,79 @@ private fun ColumnScope.QrView(repo: ExpoRepository, n: Nav.Qr, myPhone: String,
                     }
                 }
             }
+            } else {
+                // ── 템플릿 방(줄눈 등): 체크리스트 + 가격 ──
+                val t = tpl!!
+                t.sections.forEach { sc ->
+                    item {
+                        Text(sc.title, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = T2, modifier = Modifier.padding(top = 4.dp))
+                    }
+                    if (sc.type == "matrix") {
+                        items(sc.items) { it2 ->
+                            val curMat = matrixSel["${sc.key}::$it2"]
+                            Column(Modifier.fillMaxWidth().background(if (curMat != null) Color(0xFFFFFBEA) else Panel, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 9.dp)) {
+                                Text(it2, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = if (curMat != null) T1 else T2)
+                                Spacer(Modifier.height(7.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    sc.materials.forEach { mat ->
+                                        val on = curMat == mat
+                                        Box(Modifier.background(if (on) Kk else Field, RoundedCornerShape(8.dp))
+                                            .clickable { if (on) matrixSel.remove("${sc.key}::$it2") else matrixSel["${sc.key}::$it2"] = mat }
+                                            .padding(horizontal = 12.dp, vertical = 6.dp)) {
+                                            Text((if (on) "✓ " else "") + mat, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (on) KkInk else T2)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        item {
+                            Column {
+                                sc.items.chunked(3).forEach { rowItems ->
+                                    Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        rowItems.forEach { it2 ->
+                                            val on = checkSel["${sc.key}::$it2"] == true
+                                            Box(Modifier.weight(1f).background(if (on) Color(0xFFFFF6D6) else Field, RoundedCornerShape(8.dp))
+                                                .clickable { checkSel["${sc.key}::$it2"] = !on }.padding(vertical = 9.dp), contentAlignment = Alignment.Center) {
+                                                Text((if (on) "✓ " else "") + it2, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = if (on) T1 else T3, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                            }
+                                        }
+                                        repeat(3 - rowItems.size) { Spacer(Modifier.weight(1f)) }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                item {
+                    Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
+                        t.priceGroups.forEach { g ->
+                            Text(g.title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
+                            Spacer(Modifier.height(6.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                                g.fields.forEach { f ->
+                                    Box(Modifier.weight(1f)) {
+                                        MoneyField(priceFieldLabel(f), priceSel["${g.key}::$f"] ?: "") { priceSel["${g.key}::$f"] = it }
+                                    }
+                                }
+                            }
+                            Spacer(Modifier.height(12.dp))
+                        }
+                        OutlinedTextField(value = payerText, onValueChange = { payerText = it },
+                            label = { Text("입금자명", fontSize = 12.sp) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(10.dp))
+                        OutlinedTextField(value = noteText, onValueChange = { noteText = it },
+                            label = { Text("특이사항 · 비고 (선택)", fontSize = 12.sp) }, minLines = 2, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(14.dp))
+                        // 총금액 = 각 그룹 시공금액 합(로컬 계산). 서버 live GET final_amount 는 템플릿에서 0 이라 안 씀.
+                        val tplGrand = t.priceGroups.sumOf { g -> priceSel["${g.key}::${g.fields.firstOrNull() ?: "total"}"]?.digitsToLong() ?: 0L }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("총 금액", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = T1, modifier = Modifier.weight(1f))
+                            Text(won(tplGrand), fontSize = 20.sp, fontWeight = FontWeight.Black, color = AccentBlue)
+                        }
+                    }
+                }
+            }
             item {
                 // 고객이 서명·완료를 누르면 서버가 customer_confirmed=true → 배너 표시. 상담사가 수정하면 서버가 풀음.
                 if (live?.customerConfirmed == true) {
@@ -773,9 +883,10 @@ private fun ColumnScope.QrView(repo: ExpoRepository, n: Nav.Qr, myPhone: String,
                     }
                     Spacer(Modifier.height(10.dp))
                 }
+                val hasSel = if (isTpl) (matrixSel.isNotEmpty() || checkSel.any { it.value }) else qty.values.any { it > 0 }
                 BigButton(
                     if (finalizing) "보관 중…" else "계약서 보관하기",
-                    enabled = qty.values.any { it > 0 } && !finalizing, bg = Kk, fg = KkInk
+                    enabled = hasSel && !finalizing, bg = Kk, fg = KkInk
                 ) {
                     finalizing = true
                     scope.launch {
@@ -788,6 +899,11 @@ private fun ColumnScope.QrView(repo: ExpoRepository, n: Nav.Qr, myPhone: String,
             }
         }
     }
+}
+
+/** 템플릿 가격 필드 라벨 (total=시공금액·deposit=예약금·balance=잔금). */
+private fun priceFieldLabel(f: String): String = when (f) {
+    "total" -> "시공금액"; "deposit" -> "예약금"; "balance" -> "잔금"; else -> f
 }
 
 @Composable
