@@ -8055,3 +8055,14 @@ fix(박람회 고객웹) — 정보 다 입력해도 [다음:계약서 확인] �
    - 방향: 줄눈 표준 템플릿 고정(다른 업종은 다른 template_id 추가). 상담사=항목 체크+가격만 입력.
    - **cowork 착수 요청(서버 데이터 모델)**: (1) template 정의 제공(GET /api/expo/template/{id}, julnun 상수) (2) room.template_id(기본 julnun) (3) 계약 선택 저장(줄눈 matrix[{item,material}]·실리콘/청소 checklist·가격그룹 줄눈/청소{시공,예약,잔금}+총액+입금자명+입주날짜) — live/agent 확장 or 신규 (4) 영수증 구조화 렌더. 상세=EXPO_TEMPLATE_DESIGN.md.
    - 앱: 서버 API 셰이프 나오면 상담사 체크화면·네이티브 계약서 착수. 기존 자유상품 방식은 하위호환 유지.
+
+## 2026-07-24 15:40 · cowork
+추가151 — 박람회 계약서 **템플릿 방식(줄눈)** 서버 착수 완료 (EXPO_TEMPLATE_DESIGN). 회신: SERVER_HANDOFF_expo_template_DONE.md.
+- 템플릿=서버 상수 _EXPO_TEMPLATES[julnun](matrix 줄눈13×재질2 + checklist 실리콘5·청소12 + 가격그룹). GET /api/expo/template/{id}, /api/expo/templates.
+- room.template_id(기본 julnun) — create/room/{id}/info. **템플릿 방은 카탈로그 없이 세션 발급 OK**.
+- 선택 저장: live/agent 에 template dict(체크+가격) → final=grand_total. live/customer 에 move_in_date. live GET·finalize·영수증·submissions 반영.
+- 영수증 구조화 렌더(줄눈 항목·재질 / 실리콘·청소 체크 / 가격 시공·예약·잔금·총액·입금자 / 입주일). submissions template_id + 요약.
+- 하위호환: 자유상품 방/계약 그대로(검증). 새 업종=서버 상수 추가.
+- 검증 TestClient 14 ALL OK. 미배포: bash server/deploy_phase1.sh
+- 앱: template/{id} 로드 → 상담사 체크리스트 화면(줄눈 matrix+청소 checklist+가격) live/agent push → 네이티브 계약서 구조화 렌더.
+- commit: (아래)

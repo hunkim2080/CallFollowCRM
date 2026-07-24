@@ -516,6 +516,9 @@ def db_init() -> None:
             ("apartment", "apartment TEXT"),
             ("dong_ho", "dong_ho TEXT"),
             ("unit_type", "unit_type TEXT"),          # 추가147 (8차) — 평형 타입
+            ("template_id", "template_id TEXT"),       # 추가151 — 템플릿 방식
+            ("template_json", "template_json TEXT"),   # 선택 결과(줄눈matrix·청소·가격)
+            ("move_in_date", "move_in_date TEXT"),     # 입주일
         ]:
             if col not in _ec:
                 con.execute(f"ALTER TABLE expo_contracts ADD COLUMN {ddl}")
@@ -529,13 +532,19 @@ def db_init() -> None:
             ("biz_no", "biz_no TEXT"),                 # 사업자번호
             ("rep_phone", "rep_phone TEXT"),           # 대표번호
             ("office_phone", "office_phone TEXT"),     # 사무실번호
+            ("template_id", "template_id TEXT"),       # 추가151 — 계약서 템플릿(기본 julnun)
         ]:
             if col not in _er:
                 con.execute(f"ALTER TABLE expo_rooms ADD COLUMN {ddl}")
-        # 라이브 세션 — 고객이 고르는 타입
+        # 라이브 세션 — 고객 타입 + 템플릿 선택 + 입주일
         _ecs2 = {r[1] for r in con.execute("PRAGMA table_info(expo_contract_sessions)").fetchall()}
-        if "live_unit_type" not in _ecs2:
-            con.execute("ALTER TABLE expo_contract_sessions ADD COLUMN live_unit_type TEXT")
+        for col, ddl in [
+            ("live_unit_type", "live_unit_type TEXT"),
+            ("live_template_json", "live_template_json TEXT"),  # 추가151 상담사 선택(체크+가격)
+            ("live_move_in", "live_move_in TEXT"),              # 입주일(고객)
+        ]:
+            if col not in _ecs2:
+                con.execute(f"ALTER TABLE expo_contract_sessions ADD COLUMN {ddl}")
         # 추가149 (2026-07-23) — 문제 신고/진단 서버 직송 (앱 [보내기]→서버 캐치)
         con.execute(
             """
@@ -23399,6 +23408,58 @@ def _expo_catalog(room_id: str) -> list:
     ]
 
 
+# ── 추가151 (2026-07-24) — 박람회 계약서 템플릿 (docs/EXPO_TEMPLATE_DESIGN.md) ──
+# 템플릿 = 서버 데이터. 새 업종 틀 = 여기 추가하면 앱 업뎃 없이 적용.
+_EXPO_TEMPLATES = {
+    "julnun": {
+        "id": "julnun",
+        "name": "줄눈 시공 표준",
+        "header_fields": ["apartment", "unit_type", "customer_name",
+                          "customer_phone", "dong_ho", "contract_date",
+                          "agent", "move_in_date"],
+        "sections": [
+            {"key": "julnun", "type": "matrix", "title": "줄눈 시공",
+             "materials": ["폴리우레아", "케라폭시"],
+             "items": ["현관바닥", "욕실바닥(공용)", "욕실바닥(부부)", "샤워부스 3면벽",
+                       "욕조 3면벽", "욕실전체벽(공용)", "욕실전체벽(부부)", "세탁실",
+                       "베란다", "주방벽", "아트월", "거실폴리싱", "포세린"]},
+            {"key": "silicone", "type": "checklist", "title": "실리콘 오염 방지",
+             "items": ["욕조테두리", "변기테두리", "욕실선반", "욕조모서리 세로2줄", "세면대"]},
+            {"key": "cleaning", "type": "checklist", "title": "입주 청소",
+             "items": ["바닥기계", "피톤치드", "하자체크", "나노코팅", "친환경파인솔",
+                       "UV살균케어", "새집증후군", "마루거실코팅", "에어컨",
+                       "붙박이장", "탄성", "상판코팅"]},
+        ],
+        "price_groups": [
+            {"key": "julnun", "title": "줄눈", "fields": ["total", "deposit", "balance"]},
+            {"key": "cleaning", "title": "청소", "fields": ["total", "deposit", "balance"]},
+        ],
+        "totals": ["grand_total", "payer"],
+    },
+}
+_EXPO_DEFAULT_TEMPLATE = "julnun"
+
+
+def _expo_template(tid: Optional[str]) -> dict:
+    return _EXPO_TEMPLATES.get((tid or "").strip() or _EXPO_DEFAULT_TEMPLATE, {})
+
+
+@app.get("/api/expo/template/{template_id}")
+async def expo_template_get(template_id: str) -> dict:
+    """계약서 템플릿 정의 (앱이 이걸로 체크리스트 렌더). 없으면 404."""
+    t = _EXPO_TEMPLATES.get((template_id or "").strip())
+    if not t:
+        raise HTTPException(404, "그런 템플릿이 없습니다")
+    return {"ok": True, "template": t}
+
+
+@app.get("/api/expo/templates")
+async def expo_templates_list() -> dict:
+    """사용 가능한 템플릿 목록(id·name)."""
+    return {"ok": True, "templates": [
+        {"id": t["id"], "name": t["name"]} for t in _EXPO_TEMPLATES.values()]}
+
+
 def _expo_clean_types(lst) -> list:
     """타입 목록 정규화 — 문자열만, 공백 제거, 중복 제거, 최대 20개."""
     out, seen = [], set()
@@ -23416,7 +23477,7 @@ def _expo_room_info(room_id: str) -> dict:
     with db_conn() as con:
         r = con.execute(
             "SELECT name, apartment, unit_types_json, terms, biz_name, biz_no, "
-            "rep_phone, office_phone FROM expo_rooms WHERE room_id = ?", (room_id,),
+            "rep_phone, office_phone, template_id FROM expo_rooms WHERE room_id = ?", (room_id,),
         ).fetchone()
     if not r:
         return {}
@@ -23428,6 +23489,7 @@ def _expo_room_info(room_id: str) -> dict:
         "name": r[0] or "", "apartment": r[1] or "", "unit_types": types,
         "terms": r[3] or "", "biz_name": r[4] or "", "biz_no": r[5] or "",
         "rep_phone": _norm_phone(r[6]), "office_phone": _norm_phone(r[7]),
+        "template_id": (r[8] or _EXPO_DEFAULT_TEMPLATE),
     }
 
 
@@ -23443,6 +23505,7 @@ class ExpoRoomCreate(BaseModel):
     biz_no: Optional[str] = None
     rep_phone: Optional[str] = None
     office_phone: Optional[str] = None
+    template_id: Optional[str] = None    # 추가151 (기본 julnun)
 
 
 class ExpoRoomInfoSet(BaseModel):
@@ -23502,17 +23565,20 @@ async def expo_room_create(req: ExpoRoomCreate) -> dict:
     room_id = "er_" + secrets.token_hex(4)
     code = _expo_gen_room_code()
     types = _expo_clean_types(req.unit_types)
+    tid = (req.template_id or "").strip()
+    if tid not in _EXPO_TEMPLATES:
+        tid = _EXPO_DEFAULT_TEMPLATE
     with db_conn() as con:
         con.execute(
             "INSERT INTO expo_rooms (room_id, code, owner_phone, name, created_at_ms, "
-            "apartment, unit_types_json, terms, biz_name, biz_no, rep_phone, office_phone) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "apartment, unit_types_json, terms, biz_name, biz_no, rep_phone, office_phone, template_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (room_id, code, ophone, name, now,
              (req.apartment or "").strip()[:60],
              json.dumps(types, ensure_ascii=False),
              (req.terms or "").strip()[:4000],
              (req.biz_name or "").strip()[:60], (req.biz_no or "").strip()[:20],
-             _norm_phone(req.rep_phone), _norm_phone(req.office_phone)),
+             _norm_phone(req.rep_phone), _norm_phone(req.office_phone), tid),
         )
         con.execute(
             "INSERT OR REPLACE INTO expo_room_members "
@@ -23700,7 +23766,9 @@ async def expo_contract_session(req: ExpoContractSessionReq) -> dict:
     me = _expo_room_member(req.room_id, req.agent_phone)
     if not me:
         raise HTTPException(403, "이 방의 멤버가 아닙니다")
-    if not _expo_catalog(req.room_id):
+    # 템플릿 방(줄눈 등)은 상품 카탈로그 없이도 계약서를 연다(항목=템플릿). 자유상품 방만 카탈로그 필요.
+    _rt = _expo_room_info(req.room_id).get("template_id")
+    if not (_rt and _rt in _EXPO_TEMPLATES) and not _expo_catalog(req.room_id):
         raise HTTPException(409, "방장이 아직 상품 목록을 등록하지 않았습니다")
     now = _now_ms()
     session_id = "ecs_" + secrets.token_hex(6)
@@ -23809,7 +23877,8 @@ async def expo_submissions(room_id: str, phone: str) -> dict:
         rows = con.execute(
             "SELECT contract_id, customer_name, customer_phone, items_json, "
             "final_amount, status, agent_phone, created_at_ms, assigned_phone, "
-            "apartment, dong_ho, address, memo, scheduled_at_ms, unit_type "
+            "apartment, dong_ho, address, memo, scheduled_at_ms, unit_type, "
+            "template_id, template_json "
             "FROM expo_contracts WHERE room_id = ? ORDER BY created_at_ms DESC", (room_id,),
         ).fetchall()
         agent_names = {}
@@ -23822,9 +23891,19 @@ async def expo_submissions(room_id: str, phone: str) -> dict:
             items = json.loads(r[3] or "[]")
         except Exception:
             items = []
-        prod_names = ", ".join(
-            it.get("name", "") for it in items if it.get("kind") == "product"
-        ) or "—"
+        tpl_id = (r[15] if len(r) > 15 else None)
+        if tpl_id and len(r) > 16 and r[16]:
+            # 템플릿 모드 요약 — 체크 개수
+            try:
+                sel = json.loads(r[16])
+            except Exception:
+                sel = {}
+            cnt = sum(len(sel.get(k) or []) for k in ("julnun", "silicone", "cleaning"))
+            prod_names = f"{_expo_template(tpl_id).get('name','계약')} · {cnt}개 항목"
+        else:
+            prod_names = ", ".join(
+                it.get("name", "") for it in items if it.get("kind") == "product"
+            ) or "—"
         total += int(r[4] or 0)
         out.append({
             "contract_id": r[0],
@@ -23845,6 +23924,7 @@ async def expo_submissions(room_id: str, phone: str) -> dict:
             "address": r[11] or "",
             "note": r[12] or "",   # 특이사항/비고
             "scheduled_at_ms": int(r[13] or 0),   # 시공일(0=미정) — 박람회 달력용
+            "template_id": tpl_id or "",   # 추가151 — 템플릿 방식이면 template_id
         })
     return {"ok": True, "count": len(out), "totalAmount": total, "items": out}
 
@@ -24044,6 +24124,58 @@ def _h(s) -> str:
             .replace(">", "&gt;").replace('"', "&quot;"))
 
 
+def _won(v) -> str:
+    try:
+        return format(int(v or 0), ",") + "원"
+    except (ValueError, TypeError):
+        return "0원"
+
+
+def _expo_tpl_receipt_html(tdef: dict, sel: dict, grand: int) -> str:
+    """템플릿(줄눈) 계약서 영수증 — 구조화 렌더. tdef=정의, sel=선택결과."""
+    if not tdef:
+        return "<div class=card><h2>📦 계약 내역</h2><div style='color:#9AA3AF'>템플릿 정보 없음</div></div>"
+    sel = sel or {}
+    html = ""
+    for sec in tdef.get("sections", []):
+        key = sec.get("key"); rows = ""
+        picked = sel.get(key) or []
+        if sec.get("type") == "matrix":
+            for it in picked:
+                if isinstance(it, dict):
+                    nm = it.get("item", ""); mat = it.get("material", "")
+                else:
+                    nm, mat = str(it), ""
+                if not nm:
+                    continue
+                chip = ("<span class=pr style='color:#1B64DA;font-weight:700'>" + _h(mat) + "</span>") if mat else ""
+                rows += "<div class=row><div class=nm>" + _h(nm) + "</div>" + chip + "</div>"
+        else:  # checklist
+            for it in picked:
+                nm = it.get("item") if isinstance(it, dict) else str(it)
+                if nm:
+                    rows += "<div class=row><div class=nm>✓ " + _h(nm) + "</div></div>"
+        if not rows:
+            rows = "<div style='font-size:13px;color:#9AA3AF;padding:6px 0'>선택 없음</div>"
+        html += "<div class=card><h2>" + _h(sec.get("title", "")) + "</h2>" + rows + "</div>"
+    # 가격 그룹
+    prices = sel.get("prices") or {}
+    prow = ""
+    for pg in tdef.get("price_groups", []):
+        g = prices.get(pg.get("key")) or {}
+        prow += ("<div class=l style='font-weight:800;color:#0B0F19;border-top:1px solid #EEF0F3;margin-top:4px;padding-top:8px'>"
+                 "<span>" + _h(pg.get("title", "")) + "</span><span></span></div>")
+        labels = {"total": "시공금액", "deposit": "예약금", "balance": "잔금"}
+        for f in pg.get("fields", []):
+            prow += "<div class=l><span>" + labels.get(f, f) + "</span><span>" + _won(g.get(f)) + "</span></div>"
+    payer = prices.get("payer") or ""
+    html += ("<div class=card><h2>💰 금액</h2><div class=sum>" + prow +
+             "<div class=l fin><span>총 금액</span><span>" + _won(grand) + "</span></div>" +
+             ("<div class=l><span>입금자명</span><span>" + _h(payer) + "</span></div>" if payer else "") +
+             "</div></div>")
+    return html
+
+
 _EXPO_CONTRACT_JS = r"""
 function won(n){return (n||0).toLocaleString('ko-KR')+'원';}
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
@@ -24197,7 +24329,8 @@ async def expo_contract_receipt(contract_id: int) -> HTMLResponse:
         c = con.execute(
             "SELECT room_id, customer_name, customer_phone, address, items_json, "
             "product_total, discount, deposit_enabled, deposit_amount, final_amount, "
-            "signature_data, consent_json, created_at_ms, apartment, dong_ho, memo, unit_type "
+            "signature_data, consent_json, created_at_ms, apartment, dong_ho, memo, unit_type, "
+            "template_id, template_json, move_in_date "
             "FROM expo_contracts WHERE contract_id = ?",
             (contract_id,),
         ).fetchone()
@@ -24234,6 +24367,21 @@ async def expo_contract_receipt(contract_id: int) -> HTMLResponse:
     if (c[15] or "").strip():
         note_card = ("<div class=card><h2>📝 특이사항</h2>"
                      "<div style='font-size:14px;color:#5A6472;white-space:pre-wrap'>" + _h(c[15]) + "</div></div>")
+    # 추가151 — 템플릿(줄눈) 모드면 구조화 렌더, 아니면 기존 자유상품 카드.
+    tpl_id = (c[17] if len(c) > 17 else None)
+    try:
+        tpl_sel = json.loads(c[18]) if (len(c) > 18 and c[18]) else None
+    except Exception:
+        tpl_sel = None
+    move_in = (c[19] if len(c) > 19 else "") or ""
+    if tpl_id and tpl_sel is not None:
+        detail_card = _expo_tpl_receipt_html(_expo_template(tpl_id), tpl_sel, int(c[9] or 0))
+    else:
+        detail_card = (
+            "<div class=card><h2>📦 계약 내역</h2>" + (lines or "<div style='color:#9AA3AF'>내역 없음</div>") +
+            "<div class=sum><div class=l><span>상품 합계</span><span>" + format(int(c[5] or 0), ",") + "원</span></div>"
+            "<div class=l><span>할인</span><span>" + format(int(c[6] or 0), ",") + "원</span></div>"
+            "<div class=l fin><span>최종 금액</span><span>" + format(int(c[9] or 0), ",") + "원</span></div>" + dep + "</div></div>")
     # 8차: 시공업체 정보(상단) + 약관(하단)
     biz_card = ""
     if rinfo.get("biz_name") or rinfo.get("biz_no") or rinfo.get("rep_phone"):
@@ -24255,17 +24403,16 @@ async def expo_contract_receipt(contract_id: int) -> HTMLResponse:
         "<div class=top><div class=rm>" + _h(room_name) + " · 계약서 사본</div>"
         "<h1>" + _h(c[1] or "고객") + " 님 계약서</h1></div>"
         "<div class=wrap>"
-        + biz_card +
-        "<div class=card><h2>📦 계약 내역</h2>" + (lines or "<div style='color:#9AA3AF'>내역 없음</div>") +
-        "<div class=sum><div class=l><span>상품 합계</span><span>" + format(int(c[5] or 0), ",") + "원</span></div>"
-        "<div class=l><span>할인</span><span>" + format(int(c[6] or 0), ",") + "원</span></div>"
-        "<div class=l fin><span>최종 금액</span><span>" + format(int(c[9] or 0), ",") + "원</span></div>" + dep + "</div></div>"
+        + biz_card
+        + detail_card
         + note_card +
         "<div class=card><h2>🙋 고객 정보</h2>"
         "<div class=row><div class=nm>성함</div><span class=pr>" + _h(c[1] or "-") + "</span></div>"
         "<div class=row><div class=nm>연락처</div><span class=pr>" + _fmt_phone(c[2]) + "</span></div>"
         "<div class=row style='align-items:flex-start'><div class=nm style='flex:none;min-width:64px'>시공 주소</div>"
-        "<span class=pr style='text-align:right;flex:1;white-space:normal;word-break:keep-all;overflow-wrap:anywhere;line-height:1.5'>" + addr_full + "</span></div></div>"
+        "<span class=pr style='text-align:right;flex:1;white-space:normal;word-break:keep-all;overflow-wrap:anywhere;line-height:1.5'>" + addr_full + "</span></div>"
+        + ("<div class=row><div class=nm>입주일</div><span class=pr>" + _h(move_in) + "</span></div>" if move_in else "")
+        + "</div>"
         "<div class=card><h2>✍️ 서명</h2>" + sig +
         "<div style='font-size:12px;color:#9AA3AF;margin-top:10px'>개인정보 수집·이용 동의 완료 · " + dt + "</div></div>"
         + terms_card +
@@ -24290,7 +24437,8 @@ def _expo_session_row(session_id: str):
             "live_items_json, live_discount, live_deposit_enabled, live_deposit_amount, "
             "live_customer_name, live_customer_phone, live_apartment, live_dong_ho, "
             "live_address, live_signature, live_agent_ms, live_cust_ms, "
-            "live_note, live_customer_confirmed, live_unit_type "
+            "live_note, live_customer_confirmed, live_unit_type, "
+            "live_template_json, live_move_in "
             "FROM expo_contract_sessions WHERE session_id = ?", (session_id,),
         ).fetchone()
 
@@ -24328,6 +24476,7 @@ class ExpoLiveAgent(BaseModel):
     deposit_enabled: Optional[bool] = False
     deposit_amount: Optional[int] = 0
     note: Optional[str] = None
+    template: Optional[dict] = None    # 추가151 템플릿 선택(줄눈 matrix·청소·가격)
 
 
 class ExpoLiveCustomer(BaseModel):
@@ -24340,6 +24489,7 @@ class ExpoLiveCustomer(BaseModel):
     unit_type: Optional[str] = None
     address: Optional[str] = None
     signature: Optional[str] = None
+    move_in_date: Optional[str] = None    # 추가151 입주일(고객)
 
 
 class ExpoFinalize(BaseModel):
@@ -24371,11 +24521,36 @@ async def expo_live_agent(req: ExpoLiveAgent) -> dict:
     if req.note is not None:
         sets += ", live_note = ?"
         vals.append((req.note or "").strip()[:500])
+    # 추가151 — 템플릿 선택(줄눈 체크+가격) 저장. 이 모드는 금액=템플릿 grand_total.
+    if req.template is not None:
+        sets += ", live_template_json = ?"
+        vals.append(json.dumps(req.template, ensure_ascii=False)[:20000])
+        tg = _expo_template_grand_total(req.template)
+        if tg is not None:
+            final = tg
     vals.append(req.session_id)
     with db_conn() as con:
         con.execute("UPDATE expo_contract_sessions SET " + sets + " WHERE session_id = ?", vals)
         con.commit()
     return {"ok": True, "product_total": total, "discount": disc, "final_amount": final}
+
+
+def _expo_template_grand_total(tpl: Optional[dict]) -> Optional[int]:
+    """템플릿 선택의 총금액 — prices.grand_total (없으면 줄눈+청소 total 합)."""
+    if not isinstance(tpl, dict):
+        return None
+    pr = tpl.get("prices") or {}
+    def _i(v):
+        try:
+            return max(0, int(v or 0))
+        except (ValueError, TypeError):
+            return 0
+    if pr.get("grand_total") not in (None, ""):
+        return _i(pr.get("grand_total"))
+    total = 0
+    for g in ("julnun", "cleaning"):
+        total += _i((pr.get(g) or {}).get("total"))
+    return total if total else None
 
 
 @app.post("/api/expo/contract/live/customer")
@@ -24404,6 +24579,8 @@ async def expo_live_customer(req: ExpoLiveCustomer) -> dict:
         _put("live_dong_ho", req.dong_ho, 40)
     if req.unit_type is not None:
         _put("live_unit_type", req.unit_type, 20)
+    if req.move_in_date is not None:
+        _put("live_move_in", req.move_in_date, 20)
     if req.address is not None:
         _put("live_address", req.address, 160)
     if req.signature is not None:
@@ -24459,6 +24636,10 @@ def _expo_live_state(row) -> dict:
         items = json.loads(row[6] or "[]")
     except Exception:
         items = []
+    try:
+        _tpl = json.loads(row[21]) if (len(row) > 21 and row[21]) else None
+    except Exception:
+        _tpl = None
     _, total, disc, final = _expo_price_items(room_id, items, row[7])
     return {
         "session_id": row[0], "room_id": room_id,
@@ -24482,6 +24663,10 @@ def _expo_live_state(row) -> dict:
         "note": row[18] or "",
         "customer_confirmed": bool(row[19]),
         "unit_type": (row[20] if len(row) > 20 else "") or "",
+        # 추가151 — 템플릿 방식(줄눈): 상담사 선택(체크+가격) + 입주일
+        "template_id": _expo_room_info(room_id).get("template_id"),
+        "template": _tpl,
+        "move_in_date": (row[22] if len(row) > 22 else "") or "",
         # 방 기본정보(8차) — 아파트명 고정 + 타입 선택지 + 업체정보(고객웹·영수증)
         "room_info": _expo_room_info(room_id),
         # 필수 4항목(성함·연락처·주소·서명) 충족 여부 — 주소=동/호수(dong_ho)로 판정
@@ -24510,7 +24695,7 @@ async def expo_finalize(req: ExpoFinalize) -> dict:
             "SELECT secret, room_id, agent_phone, contract_id, live_items_json, live_discount, "
             "live_deposit_enabled, live_deposit_amount, live_customer_name, live_customer_phone, "
             "live_apartment, live_dong_ho, live_address, live_signature, live_note, "
-            "live_customer_confirmed, live_unit_type "
+            "live_customer_confirmed, live_unit_type, live_template_json, live_move_in "
             "FROM expo_contract_sessions WHERE session_id = ?", (req.session_id,),
         ).fetchone()
         if not row:
@@ -24529,8 +24714,18 @@ async def expo_finalize(req: ExpoFinalize) -> dict:
             live_items = json.loads(row[4] or "[]")
         except Exception:
             live_items = []
+        # 추가151 — 템플릿 방식(줄눈): 선택 결과 + grand_total. 자유상품 모드와 분기.
+        try:
+            tpl = json.loads(row[17]) if row[17] else None
+        except Exception:
+            tpl = None
+        is_template = bool(tpl)
         norm, total, disc, final = _expo_price_items(room_id, live_items, row[5])
-        if not norm:
+        if is_template:
+            tg = _expo_template_grand_total(tpl)
+            final = tg if tg is not None else final
+            total = final; disc = 0
+        elif not norm:
             raise HTTPException(400, "선택한 상품이 없습니다")
         # 필수 4항목 방어 검증 (핸드오프 3차 B): 주소=동/호수(8차)
         _miss = []
@@ -24549,18 +24744,22 @@ async def expo_finalize(req: ExpoFinalize) -> dict:
         apt = (_rinfo.get("apartment") or (row[10] or "")).strip()[:80]
         dep_on = 1 if row[6] else 0
         dep_amt = int(row[7] or 0) if dep_on else 0
+        tid = _rinfo.get("template_id") if is_template else None
         cur = con.execute(
             "INSERT INTO expo_contracts "
             "(room_id, agent_phone, customer_name, customer_phone, address, apartment, dong_ho, "
             " unit_type, items_json, product_total, discount, deposit_enabled, deposit_amount, "
-            " final_amount, signature_data, consent_json, memo, status, created_at_ms) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted', ?)",
+            " final_amount, signature_data, consent_json, memo, template_id, template_json, "
+            " move_in_date, status, created_at_ms) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted', ?)",
             (room_id, row[2], (row[8] or "").strip()[:40], _norm_phone(row[9]),
              (row[12] or "").strip()[:160], apt, (row[11] or "").strip()[:40],
              (row[16] or "").strip()[:20],
              json.dumps(norm, ensure_ascii=False), total, disc, dep_on, dep_amt, final,
              (row[13] or "")[:200000], json.dumps({"privacy": True, "ts": now}, ensure_ascii=False),
-             (row[14] or "").strip()[:500], now),
+             (row[14] or "").strip()[:500], tid,
+             (json.dumps(tpl, ensure_ascii=False)[:20000] if is_template else None),
+             (row[18] or "").strip()[:20], now),
         )
         contract_id = cur.lastrowid
         con.execute("UPDATE expo_contract_sessions SET contract_id = ? WHERE session_id = ?",
