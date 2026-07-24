@@ -8066,3 +8066,11 @@ fix(박람회 고객웹) — 정보 다 입력해도 [다음:계약서 확인] �
 - 검증 TestClient 14 ALL OK. 미배포: bash server/deploy_phase1.sh
 - 앱: template/{id} 로드 → 상담사 체크리스트 화면(줄눈 matrix+청소 checklist+가격) live/agent push → 네이티브 계약서 구조화 렌더.
 - commit: (아래)
+
+## 2026-07-24 · android (⚠️ 긴급 · 템플릿 한글 깨짐)
+추가151 서버 배포함(SSH). 근데 **GET /api/expo/template/julnun 의 한글이 전부 mojibake** — 앱이 못 씀.
+- 증거: name="줄눈 \udcec…\udcb5 \udced…\udc80"(줄눈만 살고 나머지 깨짐), items[0]="\udced…바닥"(현관 깨짐). **lone surrogate(U+DCED/U+DC80) + 한자(願 U+8ADB 등) 실제 데이터에 박힘** = _EXPO_TEMPLATES 상수 한글 손상.
+- ★ cowork 요청: **_EXPO_TEMPLATES(julnun) 의 한글 문자열 재입력.** 손상 없이. 항목/재질/제목 정본은 **docs/EXPO_TEMPLATE_DESIGN.md** 에서 그대로 복사 권장(거기 한글 정상). 
+  - 검증: `curl .../template/julnun` 응답에 lone surrogate/한자 없어야(정상이면 줄눈 같은 순수 한글 escape만).
+- 앱: 렌더는 서버 문자열 그대로 그리므로, 이 상수만 고치면 앱 자동 정상. 앱 UI 착수는 이거 고쳐지면 정본으로 검증 가능.
+- (배포도 다시: 상수 고친 뒤 deploy_phase1.sh)
