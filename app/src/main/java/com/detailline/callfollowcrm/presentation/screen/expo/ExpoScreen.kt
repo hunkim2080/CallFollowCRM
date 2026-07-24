@@ -1555,7 +1555,8 @@ private fun ColumnScope.CalendarView(repo: ExpoRepository, n: Nav.Calendar, myPh
                                         .padding(0.5.dp)
                                         .background(Color(0xFFFAFBFC))
                                         .clickable(enabled = dayItems.isNotEmpty()) { dialogDay = day }
-                                        .padding(horizontal = 2.dp, vertical = 3.dp)
+                                        .padding(horizontal = 2.dp, vertical = 3.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally   // 날짜 숫자를 요일 라벨(가운데)과 정렬 (치우침 방지)
                                 ) {
                                     Text("$day", fontSize = 12.sp,
                                         fontWeight = if (isToday) FontWeight.Black else FontWeight.Medium,
