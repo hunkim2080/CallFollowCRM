@@ -24053,6 +24053,37 @@ async def expo_contract_page(session_id: str, k: Optional[str] = None) -> HTMLRe
                       "<div style='font-size:12.5px;color:#5A6472;white-space:pre-wrap;line-height:1.7;"
                       "max-height:220px;overflow:auto'>" + _h(rinfo["terms"]) + "</div></div>")
     body = (
+        # 추가153 — 조밀 계약서(줄눈 견적서) 스타일. #itemBox 로 스코프해 기존 shell CSS 와 충돌 방지.
+        "<style>"
+        "#itemBox .hgrid{display:grid;grid-template-columns:1fr 1fr;gap:2px 12px;border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-bottom:10px}"
+        "#itemBox .hgrid .f{display:flex;font-size:12px;padding:2px 0}"
+        "#itemBox .hgrid .f.full{grid-column:1/-1}"
+        "#itemBox .hgrid .f b{color:#9AA3AF;font-weight:700;width:52px;flex:none}"
+        "#itemBox .hgrid .f span{color:#0B0F19;font-weight:700}"
+        "#itemBox .sec{font-size:12px;font-weight:900;color:#0B0F19;display:flex;align-items:center;gap:6px;margin:12px 0 6px}"
+        "#itemBox .sec .d{width:4px;height:13px;background:#3182F6;border-radius:2px}"
+        "#itemBox .sec .mat{margin-left:auto;font-size:10px;color:#9AA3AF;font-weight:700}"
+        "#itemBox .jgrid{display:grid;grid-template-columns:1fr 1fr;gap:4px 8px}"
+        "#itemBox .jrow{display:flex;align-items:center;font-size:11.5px;padding:5px 7px;border-radius:7px;background:#F7F8FA}"
+        "#itemBox .jrow .in{flex:1;color:#0B0F19;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
+        "#itemBox .jrow.off{background:#FAFBFC}#itemBox .jrow.off .in{color:#C2C6CC}"
+        "#itemBox .mk{font-size:9px;font-weight:800;padding:2px 5px;border-radius:5px;margin-left:3px}"
+        "#itemBox .mk.p{background:#E8EEFF;color:#2B59D6}#itemBox .mk.k{background:#FFF0E6;color:#E07B39}#itemBox .mk.off{background:#EFF1F4;color:#C2C6CC}"
+        "#itemBox .chips{display:flex;flex-wrap:wrap;gap:5px}"
+        "#itemBox .chip{font-size:11px;padding:5px 9px;border-radius:8px;font-weight:700}"
+        "#itemBox .chip.on{background:#EAF1FF;color:#1B64DA;border:1px solid #B9D0FF}"
+        "#itemBox .chip.off{background:#F5F6F8;color:#B4B9C0;border:1px solid #F5F6F8}"
+        "#itemBox .ptbl{border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:4px}"
+        "#itemBox .ptbl .ph{display:grid;grid-template-columns:46px 1fr 1fr 1fr;background:#F7F8FA}"
+        "#itemBox .ptbl .ph div{font-size:9.5px;color:#9AA3AF;font-weight:700;text-align:right;padding:5px 8px}"
+        "#itemBox .ptbl .ph div.l{text-align:left}"
+        "#itemBox .ptbl .pr{display:grid;grid-template-columns:46px 1fr 1fr 1fr;border-top:1px solid #F1F2F4}"
+        "#itemBox .ptbl .pr div{font-size:12px;font-weight:800;color:#0B0F19;text-align:right;padding:6px 8px;font-variant-numeric:tabular-nums}"
+        "#itemBox .ptbl .pr div.l{text-align:left}"
+        "#itemBox .memo{font-size:11.5px;color:#444;line-height:1.5;background:#F7F8FA;border-radius:8px;padding:8px 10px}"
+        "#itemBox .payer{display:flex;justify-content:space-between;font-size:12px;margin-top:9px;padding:0 3px}"
+        "#itemBox .payer b{color:#9AA3AF;font-weight:700}#itemBox .payer span{color:#0B0F19;font-weight:800}"
+        "</style>"
         "<div class=top><div class=rm>" + _h(room_name) + " · 시공 계약서</div>"
         "<h1 id=topTitle>고객 정보를 입력해 주세요</h1>"
         "<div id=topSub style='font-size:12.5px;opacity:.85;margin-top:4px'>먼저 정보를 입력하면 상담사와 계약서를 함께 봅니다</div></div>"
@@ -24210,39 +24241,69 @@ function goStep1(){if(confirmed){editUnlock();}
   $('topSub').textContent='먼저 정보를 입력하면 상담사와 계약서를 함께 봅니다';
   chk1();window.scrollTo(0,0);}
 // ── 실시간 상품/금액 렌더 ──
-// 추가152 — 템플릿(줄눈) 계약이면 st.template(선택결과)로 견적서 구조화 렌더. 아니면 기존 자유상품(st.items).
-var TPL_SEC={julnun:'줄눈 시공',silicone:'실리콘 오염 방지',cleaning:'입주 청소'};
-var TPL_PF={total:'시공금액',deposit:'예약금',balance:'잔금'};
+// 추가153 — 템플릿(줄눈) 계약이면 정의(TDEF)+선택으로 '조밀 계약서' 렌더(프로토 v3: 헤더·2열격자·P/K뱃지·칩·금액표). 아니면 자유상품(st.items).
+var TDEF=null, TSECT={julnun:'줄눈 시공',silicone:'실리콘 오염 방지',cleaning:'입주 청소'}, TPGT={julnun:'줄눈',cleaning:'청소'};
+function wonN(n){return (n||0).toLocaleString('ko-KR');}
+function normDef(t){var o={};(t.sections||[]).forEach(function(s){o[s.key]={items:s.items||[],materials:s.materials||[]};});return o;}
 function tplGrand(t){if(!t)return 0;var p=t.prices||{};
   if(p.grand_total!=null&&p.grand_total!=='')return +p.grand_total||0;
   var g=0;['julnun','cleaning'].forEach(function(k){if(p[k]&&p[k].total)g+=(+p[k].total||0);});return g;}
 function hasTpl(st){var t=st.template;if(!t)return false;
   return (t.julnun&&t.julnun.length)||(t.silicone&&t.silicone.length)||(t.cleaning&&t.cleaning.length)||tplGrand(t)>0;}
-function renderTemplate(st){
-  var t=st.template||{},h='';
-  function sec(x){return "<div style='font-size:12px;font-weight:800;color:#5A6472;margin:12px 0 6px'>"+esc(x)+"</div>";}
-  if(t.julnun&&t.julnun.length){h+=sec(TPL_SEC.julnun);
-    t.julnun.forEach(function(x){h+="<div class=row><div class=nm>"+esc(x.item)+"</div>"
-      +"<span style='background:#EEF4FF;color:#1B64DA;font-size:12px;font-weight:800;padding:3px 9px;border-radius:8px'>"+esc(x.material)+"</span></div>";});}
-  ['silicone','cleaning'].forEach(function(k){var a=t[k];if(a&&a.length){
-    h+=sec(TPL_SEC[k])+"<div style='display:flex;flex-wrap:wrap;gap:6px'>";
-    a.forEach(function(it){h+="<span style='background:#F5F7F9;color:#0B0F19;font-size:12.5px;font-weight:700;padding:5px 10px;border-radius:8px'>"+esc(it)+"</span>";});
-    h+="</div>";}});
-  var p=t.prices||{};
-  ['julnun','cleaning'].forEach(function(k){var g=p[k];if(g&&(+g.total>0||+g.deposit>0||+g.balance>0)){
-    h+="<div style='margin-top:12px;padding-top:10px;border-top:1px solid var(--line)'>";
-    h+="<div style='font-size:12.5px;font-weight:800;color:#0B0F19;margin-bottom:4px'>"+esc(TPL_SEC[k])+" 금액</div>";
-    ['total','deposit','balance'].forEach(function(f){if(+g[f]>0)
-      h+="<div class=row><div class=nm style='color:#5A6472;font-size:13px'>"+TPL_PF[f]+"</div><span class=pr>"+won(g[f])+"</span></div>";});
-    h+="</div>";}});
-  if(p.payer)h+="<div class=row style='margin-top:8px'><div class=nm style='color:#5A6472;font-size:13px'>입금자</div><span style='font-weight:700'>"+esc(p.payer)+"</span></div>";
+function mkLabel(m){var x={'폴리우레아':'P','케라폭시':'K'};return x[m]||String(m||'').slice(0,1);}
+function hyd(p){var d=String(p||'').replace(/[^0-9]/g,'');if(d.length<10)return p||'';
+  return d.length>=11?d.slice(0,3)+'-'+d.slice(3,7)+'-'+d.slice(7):d.slice(0,3)+'-'+d.slice(3,6)+'-'+d.slice(6);}
+function tHeader(st){
+  var ri=st.room_info||{};
+  var rows=[['단지',st.apartment||ri.apartment||''],['타입',st.unit_type||''],['고객',st.customer_name||''],
+    ['연락처',st.customer_phone?hyd(st.customer_phone):''],['주소',st.dong_ho||''],['입주',st.move_in_date||'']]
+    .filter(function(r){return r[1];});
+  if(!rows.length)return '';
+  var h="<div class=hgrid>";
+  rows.forEach(function(r){h+="<div class=f><b>"+r[0]+"</b><span>"+esc(r[1])+"</span></div>";});
+  h+="<div class='f full'><b>계약일</b><span>"+new Date().toLocaleDateString('ko-KR')+"</span></div></div>";
+  return h;
+}
+function renderContract(st){
+  var sel=st.template||{}, def=TDEF||{}, h=tHeader(st);
+  var jd=def.julnun||{items:[],materials:[]}, jm=jd.materials||[];
+  var jsel={}; (sel.julnun||[]).forEach(function(x){jsel[x.item]=x.material;});
+  var items=(jd.items&&jd.items.length)?jd.items:(sel.julnun||[]).map(function(x){return x.item;});
+  if(items.length){
+    h+="<div class=sec><span class=d></span>"+TSECT.julnun;
+    if(jm.length)h+="<span class=mat>"+jm.map(function(m){return mkLabel(m)+"="+esc(m);}).join(' · ')+"</span>";
+    h+="</div><div class=jgrid>";
+    items.forEach(function(it){var chosen=jsel[it];var off=!chosen;
+      h+="<div class='jrow"+(off?" off":"")+"'><span class=in>"+esc(it)+"</span>";
+      var mats=jm.length?jm:(chosen?[chosen]:[]);
+      mats.forEach(function(m,i){var on=(chosen===m);h+="<span class='mk "+(on?(i===0?'p':'k'):'off')+"'>"+mkLabel(m)+"</span>";});
+      h+="</div>";});
+    h+="</div>";
+  }
+  ['silicone','cleaning'].forEach(function(k){
+    var d=def[k]||{items:[]}; var on={}; (sel[k]||[]).forEach(function(x){on[x]=1;});
+    var its=(d.items&&d.items.length)?d.items:(sel[k]||[]);
+    if(!its.length)return;
+    h+="<div class=sec><span class=d></span>"+TSECT[k]+"</div><div class=chips>";
+    its.forEach(function(it){var o=on[it];h+="<span class='chip "+(o?'on':'off')+"'>"+(o?'✓ ':'')+esc(it)+"</span>";});
+    h+="</div>";
+  });
+  if(st.note){h+="<div class=sec><span class=d></span>특이사항</div><div class=memo>"+esc(st.note)+"</div>";}
+  var p=sel.prices||{};
+  var rows=['julnun','cleaning'].filter(function(k){var g=p[k];return g&&(+g.total>0||+g.deposit>0||+g.balance>0);});
+  if(rows.length){
+    h+="<div class=sec><span class=d></span>금액</div><div class=ptbl><div class=ph><div class=l></div><div>시공금액</div><div>예약금</div><div>잔금</div></div>";
+    rows.forEach(function(k){var g=p[k];h+="<div class=pr><div class=l>"+esc(TPGT[k]||k)+"</div><div>"+wonN(g.total)+"</div><div>"+wonN(g.deposit)+"</div><div>"+wonN(g.balance)+"</div></div>";});
+    h+="</div>";
+  }
+  if(p.payer)h+="<div class=payer><b>입금자</b><span>"+esc(p.payer)+"</span></div>";
   if(!h)h="<div style='font-size:13px;color:#9AA3AF;padding:10px 0'>상담사가 항목을 선택하면 여기에 표시됩니다…</div>";
   return h;
 }
 function renderItems(st){
   var box=$('itemBox');
   if(hasTpl(st)){
-    box.innerHTML=renderTemplate(st);
+    box.innerHTML=renderContract(st);
     var g=tplGrand(st.template);
     $('totLine').style.display='none';$('discLine').style.display='none';$('depLine').style.display='none';
     $('sFinal').textContent=won(g);$('bAmt').textContent=won(g);
@@ -24345,9 +24406,12 @@ function poll(){
   .then(function(st){
     if(!st)return;
     if(st.status==='finalized'&&st.contract_id){showDone(st.contract_id);return;}
+    // 템플릿 방이면 정의(전체 항목/재질) 1회 로드 → 견적서 2열 격자에 미선택 항목까지 흐리게 표시
+    if(st.template_id&&!TDEF){fetch('/api/expo/template/'+encodeURIComponent(st.template_id),{cache:'no-store'})
+      .then(function(r){return r.ok?r.json():null;}).then(function(d){if(d&&d.template){TDEF=normDef(d.template);renderItems(st);}}).catch(function(){});}
     renderItems(st);
     var nc=$('noteCard');
-    if(st.note){nc.style.display='block';$('noteText').textContent=st.note;}else{nc.style.display='none';}
+    if(st.note&&!hasTpl(st)){nc.style.display='block';$('noteText').textContent=st.note;}else{nc.style.display='none';}
     // 서버가 완료확정을 리셋했으면(상담사 수정) 로컬도 반영 + 잠금 해제
     if(!st.customer_confirmed&&confirmed){confirmed=false;lockUI(false);updateDone();}
     else if(st.customer_confirmed&&!confirmed){confirmed=true;lockUI(true);updateDone();}
