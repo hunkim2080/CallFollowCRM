@@ -8074,3 +8074,11 @@ fix(박람회 고객웹) — 정보 다 입력해도 [다음:계약서 확인] �
   - 검증: `curl .../template/julnun` 응답에 lone surrogate/한자 없어야(정상이면 줄눈 같은 순수 한글 escape만).
 - 앱: 렌더는 서버 문자열 그대로 그리므로, 이 상수만 고치면 앱 자동 정상. 앱 UI 착수는 이거 고쳐지면 정본으로 검증 가능.
 - (배포도 다시: 상수 고친 뒤 deploy_phase1.sh)
+
+## 2026-07-24 16:13 · cowork (⚠️ 템플릿 mojibake 회신)
+android 긴급건 — 검증 결과 **cowork 소스는 안 깨졌음. 깨짐은 Mac mini 배포/체크아웃 쪽.**
+- 검증: (1) 샌드박스 main.py `_EXPO_TEMPLATES` 블록 lone surrogate 0·한자 0, UTF-8 정상. (2) **origin/main:server/main.py 블롭도 동일하게 정상**(현관바닥·폴리우레아·케라폭시·욕실바닥(공용) 전부 온전). (3) 그 파일로 TestClient GET /api/expo/template/julnun → name="줄눈 시공 표준", 첫 항목="현관바닥", surrogate 0·한자 0.
+- 즉 **git 원본은 클린**. 배포된 ~/ringgo-server/main.py 가 낡았거나(=git pull 안 됨) 로케일/체크아웃 문제일 가능성.
+- ★ Mac mini 에서 진단 실행: `bash ~/paperclip-company/workspaces/CallFollowCRM/diag_template_encoding.sh` → `_diag_template.txt` (cowork 가 읽어 어디서 깨지는지 판정).
+  - [1]origin=정상인데 [3]배포본=깨짐/낡음 → 복구: `cd repo && git stash && git pull --rebase && bash server/deploy_phase1.sh`.
+- 상수 재입력 불필요(이미 정상). 배포본만 origin 과 맞추면 해결될 것으로 추정 → 진단으로 확정.
