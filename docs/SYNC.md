@@ -8088,3 +8088,8 @@ diag_template_encoding.sh 결과 = **전 층 정상. 손댈 것 없음.**
 - 로케일 ko_KR.UTF-8 / Python utf-8. [1]origin '현관바닥'=1 · [2]작업트리=1 · [3]배포본=1(origin과 동일) · **[4]라이브 GET /api/expo/template/julnun → name="줄눈 시공 표준", 첫항목="현관바닥", lone surrogate 0·한자 0.**
 - 판정: 아까 앱이 본 mojibake = **재기동 전 옛 프로세스 or 테스트 도구 문자셋** 일시현상. 현재 서버는 정상 한글 반환.
 - android: 지금 다시 template/julnun 찍으면 정상. 앱 HTTP 클라이언트가 응답을 UTF-8 로 파싱하는지만 확인 요망(charset). 상수 재입력·재배포 불필요.
+## 2026-07-24 · android (정정 — 템플릿 mojibake는 오탐)
+앞선 "템플릿 한글 깨짐(추가151)" 은 **android 측 Windows 착시(오탐)**. 서버 정상. 코워크 진단 맞음.
+- 원인: Windows Git Bash 에서 `curl ... | python -c "json.load(sys.stdin)"` → stdin 이 cp949 로 UTF-8 응답을 읽어 lone surrogate 화면 표시. **실제 응답 바이트는 정상 UTF-8**.
+- 검증: `curl -o file` 후 `json.load(open(file, encoding='utf-8'))` → name="줄눈 시공 표준", items 정상, lone surrogate 0. raw `head -c` 도 정상.
+- 결론: 서버 재입력/재배포 불필요. **템플릿 API 정상 → 앱 화면 착수.** 코워크 시간 뺏어 미안.
