@@ -13478,11 +13478,24 @@ def _fmt_phone(p: Optional[str]) -> str:
     module-level (NameError 방지 — 다른 nested _fmt_phone 가 있어 module 호출 시 못 찾는 케이스 fix).
     """
     s = _norm_phone(p)
-    if len(s) == 11 and s.startswith("010"):
+    if not s:
+        return ""
+    # 휴대폰 11자리 (010-XXXX-XXXX 등)
+    if len(s) == 11:
         return f"{s[:3]}-{s[3:7]}-{s[7:]}"
+    # 대표번호 8자리 (예: 1577-3965, 1588-1588) → 4-4
+    if len(s) == 8:
+        return f"{s[:4]}-{s[4:]}"
+    # 서울 지역번호 02 (02-XXX-XXXX / 02-XXXX-XXXX)
+    if s.startswith("02"):
+        if len(s) == 9:
+            return f"02-{s[2:5]}-{s[5:]}"
+        if len(s) == 10:
+            return f"02-{s[2:6]}-{s[6:]}"
+    # 그 외 지역번호/구형 (10자리 3-3-4, 11 위에서 처리)
     if len(s) == 10:
         return f"{s[:3]}-{s[3:6]}-{s[6:]}"
-    return s or ""
+    return s
 
 
 def _is_registered_owner(phone_digits: str) -> Optional[str]:
@@ -24734,8 +24747,11 @@ async def expo_ocr_terms(req: ExpoOcr) -> dict:
     mime, b64 = _expo_ocr_strip_dataurl(req.image)
     if not b64:
         raise HTTPException(400, "이미지 필요")
-    prompt = ("이 이미지는 시공 계약 약관 문서입니다. 문서에 적힌 모든 텍스트를 "
-              "줄바꿈·문단을 살려 그대로 정확히 옮겨 적어 주세요. 해설·요약 없이 원문만.")
+    # 할루시네이션 방지 — "약관이다"라고 단정하지 말고 '보이는 글자만 전사'.
+    prompt = ("이미지에 실제로 보이는 글자를 그대로 정확히 옮겨 적으세요(전사). "
+              "줄바꿈·문단을 유지하고, 해설·요약·추측·보충은 하지 마세요. "
+              "이미지에 읽을 수 있는 글자가 없거나 판독 불가능하면 아무것도 지어내지 말고 "
+              "정확히 빈 문자열('')만 반환하세요.")
     out = await _expo_gemini_vision(mime, b64, prompt, max_tokens=4000)
     return {"ok": True, "text": (out.get("text") or "").strip()[:4000]}
 
@@ -24746,8 +24762,9 @@ async def expo_ocr_bizreg(req: ExpoOcr) -> dict:
     mime, b64 = _expo_ocr_strip_dataurl(req.image)
     if not b64:
         raise HTTPException(400, "이미지 필요")
-    prompt = ("이 이미지는 대한민국 사업자등록증입니다. 다음 항목을 추출하세요. "
-              "없으면 빈 문자열. 사업자번호는 000-00-00000 형식으로.")
+    prompt = ("이 이미지에서 사업자등록증 정보를 추출하세요. **이미지에 실제로 보이는 값만** "
+              "적고, 보이지 않거나 확실하지 않은 항목은 절대 지어내지 말고 빈 문자열('')로 두세요. "
+              "사업자번호가 보이면 000-00-00000 형식으로. 계약 관련 문서이므로 추측/생성 금지.")
     schema = {"type": "OBJECT", "properties": {
         "biz_name": {"type": "STRING"},   # 상호(법인명)
         "biz_no": {"type": "STRING"},     # 등록번호
