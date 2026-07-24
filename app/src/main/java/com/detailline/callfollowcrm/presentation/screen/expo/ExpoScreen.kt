@@ -1066,9 +1066,9 @@ private fun bizPhoneHyphen(raw: String): String {
     }
 }
 
-/** 사진→OCR 자동입력 버튼(촬영·앨범) + 인식중 표시. 사업자등록증/약관 공용. */
+/** 사진→OCR 자동입력 버튼(촬영·앨범) + 인식중 표시. 사업자등록증/약관 공용. guide=인식률 안내. */
 @Composable
-private fun OcrButtons(busy: Boolean, hint: String, onCamera: () -> Unit, onGallery: () -> Unit) {
+private fun OcrButtons(busy: Boolean, guide: String, onCamera: () -> Unit, onGallery: () -> Unit) {
     Column {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.weight(1f).background(Color(0xFFEAF0FF), RoundedCornerShape(10.dp))
@@ -1080,9 +1080,9 @@ private fun OcrButtons(busy: Boolean, hint: String, onCamera: () -> Unit, onGall
                 Text("🖼 앨범", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (busy) T3 else Color(0xFF2F6FDB))
             }
         }
-        Text(if (busy) "🔎 사진에서 읽는 중… (몇 초 걸려요)" else "📷 $hint 사진 찍으면 자동으로 채워져요",
+        Text(if (busy) "🔎 사진에서 읽는 중… (몇 초 걸려요)" else guide,
             fontSize = 11.sp, color = if (busy) Color(0xFF2F6FDB) else T3, fontWeight = FontWeight.Medium,
-            modifier = Modifier.padding(top = 5.dp))
+            lineHeight = 15.sp, modifier = Modifier.padding(top = 5.dp))
     }
 }
 
@@ -1260,7 +1260,8 @@ private fun ColumnScope.RoomFormView(
                 Text("시공업체 정보", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
                 Text("빈칸으로 두면 계약서에 표시되지 않아요 — 없는 항목은 비워두세요.", fontSize = 11.5.sp, color = T3, lineHeight = 16.sp)
                 Spacer(Modifier.height(8.dp))
-                OcrButtons(ocrBusy && ocrTarget == "biz", "사업자등록증", { pickCamera("biz") }, { pickGallery("biz") })
+                OcrButtons(ocrBusy && ocrTarget == "biz", "📷 사업자등록증이 화면에 꽉 차고 또렷하게 보이게 찍어 올려주세요",
+                    { pickCamera("biz") }, { pickGallery("biz") })
                 if (bizFromOcr) Text("✨ 형광 칸 = 사진에서 자동으로 채운 값이에요 (확인 후 저장)",
                     fontSize = 11.sp, color = Color(0xFFB58A00), fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 6.dp))
                 Spacer(Modifier.height(10.dp))
@@ -1287,7 +1288,8 @@ private fun ColumnScope.RoomFormView(
                 Text("계약 약관", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
                 Text("계약서 하단에 그대로 들어가요.", fontSize = 11.5.sp, color = T3)
                 Spacer(Modifier.height(8.dp))
-                OcrButtons(ocrBusy && ocrTarget == "terms", "약관", { pickCamera("terms") }, { pickGallery("terms") })
+                OcrButtons(ocrBusy && ocrTarget == "terms", "📷 인식할 약관 부분만 또렷하게 찍거나 잘라서 올려주세요 (인식률 ↑)",
+                    { pickCamera("terms") }, { pickGallery("terms") })
                 if (termsFromOcr) Text("✨ 형광 칸 = 사진에서 자동으로 읽은 약관이에요 (확인 후 저장)",
                     fontSize = 11.sp, color = Color(0xFFB58A00), fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 6.dp))
                 Spacer(Modifier.height(8.dp))
