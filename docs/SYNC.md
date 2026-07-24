@@ -8048,3 +8048,10 @@ fix(박람회 고객웹) — 정보 다 입력해도 [다음:계약서 확인] �
 - _fmt_phone 확장: **8자리 대표번호(1577-3965/1588-1588)→4-4**, 서울 02(9/10자리) 하이픈, 그 외 지역번호. 11자리는 전부 3-4-4. → 영수증/viewer 대표·사무실번호 하이픈 복구. (모듈 공용 함수라 기존 10/11 동작 불변 = 안전)
 - 검증 TestClient 14 ALL OK. 미배포: bash server/deploy_phase1.sh
 - commit: (아래)
+
+## 2026-07-24 · android
+① 박람회 달력 우측 치우침 fix (날짜 숫자 가운데정렬=요일라벨과 정렬). 설치 0.2.1132.
+② ★ 박람회 계약서 = **템플릿 방식 재설계 착수**(사장님 "고고"). 설계 확정본: **docs/EXPO_TEMPLATE_DESIGN.md** + 시안 아티팩트/expo_contract_v3.png.
+   - 방향: 줄눈 표준 템플릿 고정(다른 업종은 다른 template_id 추가). 상담사=항목 체크+가격만 입력.
+   - **cowork 착수 요청(서버 데이터 모델)**: (1) template 정의 제공(GET /api/expo/template/{id}, julnun 상수) (2) room.template_id(기본 julnun) (3) 계약 선택 저장(줄눈 matrix[{item,material}]·실리콘/청소 checklist·가격그룹 줄눈/청소{시공,예약,잔금}+총액+입금자명+입주날짜) — live/agent 확장 or 신규 (4) 영수증 구조화 렌더. 상세=EXPO_TEMPLATE_DESIGN.md.
+   - 앱: 서버 API 셰이프 나오면 상담사 체크화면·네이티브 계약서 착수. 기존 자유상품 방식은 하위호환 유지.
