@@ -679,7 +679,7 @@ private fun ColumnScope.QrView(repo: ExpoRepository, n: Nav.Qr, myPhone: String,
         }
     } else {
         LazyColumn(
-            Modifier.weight(1f).fillMaxWidth(),
+            Modifier.weight(1f).fillMaxWidth().windowInsetsPadding(WindowInsets.ime),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
