@@ -66,7 +66,15 @@ class ExpoRepository(
         /** 고객 전화(전체) — 팀이 전화 걸 수 있게. 서버가 내려주면 채워짐(없으면 masked 만). */
         val customerPhone: String,
         /** 템플릿 계약이면 template_id (submissions 요약). 자유상품이면 "". */
-        val templateId: String = ""
+        val templateId: String = "",
+        /** 템플릿 계약의 실제 선택(줄눈 항목·재질/실리콘/청소) — 앱 계약서 '시공 내역' 구조화용. */
+        val tplPick: TplPick? = null
+    )
+    /** 시공 내역(계약서 상세) — 줄눈=항목·재질, 실리콘/청소=항목명. */
+    data class TplPick(
+        val julnun: List<Pair<String, String>>,   // (항목, 재질)
+        val silicone: List<String>,
+        val cleaning: List<String>
     )
     data class Submissions(val count: Int, val totalAmount: Long, val items: List<Submission>)
     /** 상품 등록 입력(방장) — product_id 없이 kind/name/unit_price 만 보냄. */
@@ -339,6 +347,24 @@ class ExpoRepository(
     }
 
     // ── 팀 접수서 목록 ──
+    /** submissions item 의 template(선택결과) → TplPick. 없으면 null. */
+    private fun parseTplPick(o: JSONObject?): TplPick? {
+        if (o == null) return null
+        val julnun = o.optJSONArray("julnun")?.let { a ->
+            (0 until a.length()).mapNotNull { i ->
+                val x = a.optJSONObject(i) ?: return@mapNotNull null
+                val item = x.optString("item"); if (item.isBlank()) return@mapNotNull null
+                item to x.optString("material")
+            }
+        } ?: emptyList()
+        fun strs(key: String): List<String> = o.optJSONArray(key)?.let { a ->
+            (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() }
+        } ?: emptyList()
+        val sili = strs("silicone"); val clean = strs("cleaning")
+        if (julnun.isEmpty() && sili.isEmpty() && clean.isEmpty()) return null
+        return TplPick(julnun, sili, clean)
+    }
+
     suspend fun submissions(roomId: String, phone: String): Result<Submissions> = withContext(Dispatchers.IO) {
         runCatching {
             val o = getJson("/api/expo/submissions?room_id=$roomId&phone=${digits(phone)}")
@@ -361,7 +387,8 @@ class ExpoRepository(
                         note = s.optString("note"),
                         scheduledAtMs = s.optLong("scheduled_at_ms"),
                         customerPhone = s.optString("customer_phone"),
-                        templateId = s.optString("template_id")
+                        templateId = s.optString("template_id"),
+                        tplPick = parseTplPick(s.optJSONObject("template"))
                     )
                 }
             } ?: emptyList()

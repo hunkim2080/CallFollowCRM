@@ -23892,13 +23892,14 @@ async def expo_submissions(room_id: str, phone: str) -> dict:
         except Exception:
             items = []
         tpl_id = (r[15] if len(r) > 15 else None)
+        tpl_sel = None
         if tpl_id and len(r) > 16 and r[16]:
             # 템플릿 모드 요약 — 체크 개수
             try:
-                sel = json.loads(r[16])
+                tpl_sel = json.loads(r[16])
             except Exception:
-                sel = {}
-            cnt = sum(len(sel.get(k) or []) for k in ("julnun", "silicone", "cleaning"))
+                tpl_sel = {}
+            cnt = sum(len(tpl_sel.get(k) or []) for k in ("julnun", "silicone", "cleaning"))
             prod_names = f"{_expo_template(tpl_id).get('name','계약')} · {cnt}개 항목"
         else:
             prod_names = ", ".join(
@@ -23925,6 +23926,7 @@ async def expo_submissions(room_id: str, phone: str) -> dict:
             "note": r[12] or "",   # 특이사항/비고
             "scheduled_at_ms": int(r[13] or 0),   # 시공일(0=미정) — 박람회 달력용
             "template_id": tpl_id or "",   # 추가151 — 템플릿 방식이면 template_id
+            "template": tpl_sel,   # 추가155 — 앱 네이티브 계약서 '시공 내역' 구조화용(줄눈 항목·재질·실리콘·청소)
         })
     return {"ok": True, "count": len(out), "totalAmount": total, "items": out}
 
@@ -24551,16 +24553,18 @@ async def expo_contract_receipt(contract_id: int) -> HTMLResponse:
     biz_foot = ""
     if is_tpl and (rinfo.get("biz_name") or rinfo.get("biz_no") or rinfo.get("rep_phone")):
         parts = []
-        if rinfo.get("biz_name"):
-            parts.append("<b style='color:#0B0F19'>" + _h(rinfo["biz_name"]) + "</b>")
         if rinfo.get("biz_no"):
-            parts.append("사업자 " + _h(rinfo["biz_no"]))
+            parts.append("사업자번호 " + _h(rinfo["biz_no"]))
         if rinfo.get("rep_phone"):
-            parts.append("대표 " + _fmt_phone(rinfo["rep_phone"]))
+            parts.append("대표번호 " + _fmt_phone(rinfo["rep_phone"]))
         if rinfo.get("office_phone"):
-            parts.append("사무실 " + _fmt_phone(rinfo["office_phone"]))
-        biz_foot = ("<div style='text-align:center;font-size:11px;color:#5A6472;margin:2px 0 12px;line-height:1.6'>"
-                    + " · ".join(parts) + "</div>")
+            parts.append("사무실번호 " + _fmt_phone(rinfo["office_phone"]))
+        line2 = " · ".join(parts)
+        biz_foot = (
+            "<div style='text-align:center;margin:8px 0 14px'>"
+            + ("<div style='font-size:12.5px;color:#0B0F19;font-weight:800;margin-bottom:5px'>" + _h(rinfo["biz_name"]) + "</div>" if rinfo.get("biz_name") else "")
+            + ("<div style='font-size:11px;color:#5A6472;line-height:1.7'>" + line2 + "</div>" if line2 else "")
+            + "</div>")
         biz_card = ""
     terms_card = ""
     if (rinfo.get("terms") or "").strip():
@@ -24622,7 +24626,11 @@ async def expo_contract_receipt(contract_id: int) -> HTMLResponse:
         "<div style='font-size:12px;color:#9AA3AF;margin-top:10px'>개인정보 수집·이용 동의 완료 · " + dt + "</div></div>"
         + terms_card
         + biz_foot +
-        "<button onclick='window.print()' class='noprint' style='width:100%;background:#3182F6;color:#fff;border:0;border-radius:12px;padding:14px;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:10px'>PDF로 저장 / 인쇄</button>"
+        "<button onclick='xprint()' class='noprint' style='width:100%;background:#3182F6;color:#fff;border:0;border-radius:12px;padding:14px;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:10px'>PDF로 저장 / 인쇄</button>"
+        "<script>function xprint(){var ua=navigator.userAgent||'';"
+        "if(/KAKAOTALK|NAVER|Instagram|FBAN|FBAV|Line|DaumApps|; wv\\)/i.test(ua)){"
+        "alert('카톡 등 앱 안 화면에서는 저장/인쇄가 막혀 있어요.\\n\\n오른쪽 위 ⋮(더보기) → \\'다른 브라우저로 열기\\' 를 누른 뒤 저장해 주세요.');return;}"
+        "try{window.print();}catch(e){alert('오른쪽 위 메뉴에서 인쇄/저장을 눌러주세요.');}}</script>"
         "<div style='text-align:center;color:#9AA3AF;font-size:12px;padding:0 0 30px'>시공막내 · 박람회 계약서 · No." + str(contract_id) + "</div>"
         "</div>"
     )

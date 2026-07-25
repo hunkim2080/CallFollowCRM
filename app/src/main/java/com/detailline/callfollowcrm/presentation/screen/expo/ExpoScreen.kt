@@ -1547,8 +1547,42 @@ private fun ColumnScope.ContractView(repo: ExpoRepository, n: Nav.Contract, myPh
                     SubRow("시공일", if (s.scheduledAtMs > 0L) dateKo(s.scheduledAtMs) else "미정")
                     Spacer(Modifier.height(10.dp))
                     Text("시공 내역", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = T2)
-                    Spacer(Modifier.height(4.dp))
-                    Text(s.products.ifBlank { "-" }, fontSize = 13.sp, color = T1, fontWeight = FontWeight.Medium, lineHeight = 19.sp)
+                    Spacer(Modifier.height(6.dp))
+                    val pick = s.tplPick
+                    if (pick != null) {
+                        // 줄눈 항목 · 재질 (어디를 무슨 재질로 시공하는지) — 현장에서 이거 보고 시공
+                        if (pick.julnun.isNotEmpty()) {
+                            Text("줄눈 시공", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = T3)
+                            Spacer(Modifier.height(3.dp))
+                            pick.julnun.forEach { (item, mat) ->
+                                Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Text(item, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = T1, modifier = Modifier.weight(1f))
+                                    if (mat.isNotBlank()) Box(Modifier.background(Color(0xFFEEF4FF), RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 3.dp)) {
+                                        Text(mat, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = AccentBlue)
+                                    }
+                                }
+                            }
+                        }
+                        listOf("실리콘 오염 방지" to pick.silicone, "입주 청소" to pick.cleaning).forEach { (title, list) ->
+                            if (list.isNotEmpty()) {
+                                Spacer(Modifier.height(9.dp))
+                                Text(title, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = T3)
+                                Spacer(Modifier.height(4.dp))
+                                list.chunked(2).forEach { rowItems ->
+                                    Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        rowItems.forEach { it2 ->
+                                            Box(Modifier.weight(1f).background(Field, RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 7.dp)) {
+                                                Text("✓ $it2", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = T1, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                            }
+                                        }
+                                        repeat(2 - rowItems.size) { Spacer(Modifier.weight(1f)) }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        Text(s.products.ifBlank { "-" }, fontSize = 13.sp, color = T1, fontWeight = FontWeight.Medium, lineHeight = 19.sp)
+                    }
                     Spacer(Modifier.height(12.dp))
                     Row(
                         Modifier.fillMaxWidth().background(Field, RoundedCornerShape(12.dp)).padding(14.dp),
