@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -53,6 +54,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
@@ -106,6 +114,7 @@ private sealed class Nav {
     data class Products(val roomId: String, val name: String) : Nav()
     data class Qr(val roomId: String, val name: String, val session: ExpoRepository.Session) : Nav()
     data class Subs(val roomId: String, val name: String) : Nav()
+    data class MyInbox(val roomId: String, val name: String) : Nav()   // 내 접수서함(배정받은 것만)
     data class Calendar(val roomId: String, val name: String) : Nav()
     /** 앱 안 네이티브 계약서 보기 (웹 안 열고). fromCalendar=달력에서 왔는지(뒤로가기 목적지). */
     data class Contract(val roomId: String, val name: String, val contractId: Long, val fromCalendar: Boolean) : Nav()
@@ -142,6 +151,7 @@ fun ExpoScreen(container: AppContainer, onExit: () -> Unit) {
             is Nav.Products -> Nav.RoomView(n.roomId, n.name, "owner")
             is Nav.Qr -> Nav.RoomView(n.roomId, n.name, "member")
             is Nav.Subs -> Nav.RoomView(n.roomId, n.name, "member")
+            is Nav.MyInbox -> Nav.RoomView(n.roomId, n.name, "member")
             is Nav.Calendar -> Nav.RoomView(n.roomId, n.name, "member")
             is Nav.Contract -> if (n.fromCalendar) Nav.Calendar(n.roomId, n.name) else Nav.Subs(n.roomId, n.name)
             is Nav.RoomForm -> Nav.RoomView(n.roomId, n.name, "owner")
@@ -156,6 +166,7 @@ fun ExpoScreen(container: AppContainer, onExit: () -> Unit) {
             is Nav.Products -> "상품·서비스 준비"
             is Nav.Qr -> "계약서 작성"
             is Nav.Subs -> "우리 팀 접수서"
+            is Nav.MyInbox -> "내 접수서함"
             is Nav.Calendar -> "박람회 달력"
             is Nav.Contract -> "계약서"
             is Nav.RoomForm -> "박람회 기본정보"
@@ -169,6 +180,7 @@ fun ExpoScreen(container: AppContainer, onExit: () -> Unit) {
                 is Nav.Products -> Nav.RoomView(n.roomId, n.name, "owner")
                 is Nav.Qr -> Nav.RoomView(n.roomId, n.name, "member")
                 is Nav.Subs -> Nav.RoomView(n.roomId, n.name, "member")
+                is Nav.MyInbox -> Nav.RoomView(n.roomId, n.name, "member")
                 is Nav.Calendar -> Nav.RoomView(n.roomId, n.name, "member")
                 is Nav.Contract -> if (n.fromCalendar) Nav.Calendar(n.roomId, n.name) else Nav.Subs(n.roomId, n.name)
                 is Nav.RoomForm -> Nav.RoomView(n.roomId, n.name, "owner")
@@ -183,12 +195,15 @@ fun ExpoScreen(container: AppContainer, onExit: () -> Unit) {
                 onProducts = { nav = Nav.Products(n.roomId, n.name) },
                 onQr = { nav = Nav.Qr(n.roomId, n.name, it) },
                 onSubs = { nav = Nav.Subs(n.roomId, n.name) },
+                onMyInbox = { nav = Nav.MyInbox(n.roomId, n.name) },
                 onCalendar = { nav = Nav.Calendar(n.roomId, n.name) },
                 onEditInfo = { nav = Nav.RoomForm(n.roomId, n.name) })
             is Nav.Products -> ProductsEditorView(repo, n, myPhone, ::toast,
                 onDone = { nav = Nav.RoomView(n.roomId, n.name, "owner") })
             is Nav.Qr -> QrView(repo, n, myPhone, ::toast)
             is Nav.Subs -> SubmissionsView(repo, n, myPhone, ::toast,
+                onContract = { nav = Nav.Contract(n.roomId, n.name, it, fromCalendar = false) })
+            is Nav.MyInbox -> MyInboxView(repo, n, myPhone, ::toast,
                 onContract = { nav = Nav.Contract(n.roomId, n.name, it, fromCalendar = false) })
             is Nav.Calendar -> CalendarView(repo, n, myPhone,
                 onContract = { nav = Nav.Contract(n.roomId, n.name, it, fromCalendar = true) })
@@ -370,7 +385,7 @@ private fun RoomRow(r: ExpoRepository.Room, onClick: () -> Unit) {
 @Composable
 private fun ColumnScope.RoomDetailView(
     repo: ExpoRepository, n: Nav.RoomView, myPhone: String, myName: String, toast: (String) -> Unit,
-    onProducts: () -> Unit, onQr: (ExpoRepository.Session) -> Unit, onSubs: () -> Unit, onCalendar: () -> Unit,
+    onProducts: () -> Unit, onQr: (ExpoRepository.Session) -> Unit, onSubs: () -> Unit, onMyInbox: () -> Unit, onCalendar: () -> Unit,
     onEditInfo: () -> Unit
 ) {
     val ctx = LocalContext.current
@@ -488,7 +503,9 @@ private fun ColumnScope.RoomDetailView(
                     Text("팀 관리", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = T2,
                         modifier = Modifier.padding(start = 4.dp, bottom = 6.dp))
                     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Panel)) {
-                        GroupRow("우리 팀 접수서", "받은 계약 모아보기 (번호 뒷자리 가림)", onSubs)
+                        GroupRow("우리 팀 접수서", "받은 계약 모아보기 · 시공자에게 나눠 배정", onSubs)
+                        RowDivider()
+                        GroupRow("내 접수서함", "나에게 배정된 시공만 모아보기", onMyInbox)
                         RowDivider()
                         GroupRow("박람회 달력", "시공 일정을 날짜별로 한눈에 📅", onCalendar)
                         if (d.myRole == "owner") {
@@ -971,12 +988,17 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
     var members by remember { mutableStateOf<List<ExpoRepository.Member>>(emptyList()) }
     var reloadTick by remember { mutableStateOf(0) }
     var assignTarget by remember { mutableStateOf<ExpoRepository.Submission?>(null) }   // 시공자 배정 대상
+    var myRole by remember { mutableStateOf("member") }
+    var pickCrew by remember { mutableStateOf(false) }                 // 시공자 선택 시트 (방장만)
+    val crewSel = remember { mutableStateListOf<String>() }            // 선택된 시공자 phone
+    var crewInit by remember { mutableStateOf(false) }
+    var animPlan by remember { mutableStateOf<List<Pair<ExpoRepository.Submission, ExpoRepository.Member>>?>(null) }
 
     LaunchedEffect(n.roomId, reloadTick) {
         repo.submissions(n.roomId, myPhone).onSuccess { data = it; ExpoCache.submissions[n.roomId] = it }
             .onFailure { if (data == null) data = ExpoRepository.Submissions(0, 0L, emptyList()) }
     }
-    LaunchedEffect(n.roomId) { repo.roomDetail(n.roomId, myPhone).onSuccess { members = it.members } }
+    LaunchedEffect(n.roomId) { repo.roomDetail(n.roomId, myPhone).onSuccess { members = it.members; myRole = it.myRole } }
 
     var expanded by remember { mutableStateOf<Long?>(null) }
     val d = data
@@ -987,12 +1009,43 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
             repeat(3) { Skel(Modifier.fillMaxWidth().height(78.dp), 14) }
         }
     } else {
+        val unassigned = d.items.filter { it.assignedPhone.isBlank() }
+        val assignedCnt = d.count - unassigned.size
         Column(Modifier.weight(1f).fillMaxWidth()) {
-            // 합계 헤더
-            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("총 ${d.count}건", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = T1)
-                Spacer(Modifier.weight(1f))
-                Text("합계 ${won(d.totalAmount)}", fontSize = 14.sp, fontWeight = FontWeight.Black, color = AccentBlue)
+            // 요약 카드 + 나눠 배정 (프로토 ①)
+            Column(Modifier.fillMaxWidth().padding(14.dp)) {
+                Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("이번 박람회 접수", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = T3)
+                    Spacer(Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text("총 ${d.count}건 · ", fontSize = 21.sp, fontWeight = FontWeight.Black, color = T1)
+                        Text(won(d.totalAmount), fontSize = 21.sp, fontWeight = FontWeight.Black, color = AccentBlue)
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Row {
+                        if (unassigned.isNotEmpty()) {
+                            Text("미배정 ${unassigned.size}건", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE1483B))
+                            Text("  ·  ", fontSize = 12.sp, color = T3)
+                        }
+                        Text("배정완료 ${assignedCnt}건", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = T3)
+                    }
+                    if (myRole == "owner" && unassigned.isNotEmpty() && members.size >= 2) {
+                        Spacer(Modifier.height(13.dp))
+                        Box(
+                            Modifier.fillMaxWidth().background(AccentBlue, RoundedCornerShape(13.dp)).clickable {
+                                if (!crewInit) { crewSel.clear(); crewSel.addAll(members.filter { it.role != "owner" }.map { it.phone }); crewInit = true }
+                                pickCrew = true
+                            }.padding(vertical = 13.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("미배정 ${unassigned.size}건, 시공자에게 나눠 배정", fontSize = 14.sp, fontWeight = FontWeight.Black, color = Color.White)
+                                Text("랜덤 · 금액 비슷하게 자동 분배", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Color(0xCCFFFFFF))
+                            }
+                        }
+                    }
+                }
             }
             if (d.items.isEmpty()) {
                 Box(Modifier.weight(1f).fillMaxWidth(), Alignment.Center) {
@@ -1130,6 +1183,137 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                 containerColor = Color.White
             )
         }
+
+        // ── 시공자 선택 (방장) → 선택한 사람들에게 미배정 나눠 배정 (프로토 ①) ──
+        if (pickCrew) {
+            AlertDialog(
+                onDismissRequest = { pickCrew = false },
+                title = { Text("나눠 가질 시공자 선택", fontWeight = FontWeight.ExtraBold, color = T1) },
+                text = {
+                    Column {
+                        com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
+                        Text("접수서를 나눠 가질 시공자만 체크하세요. 상담만 하는 분은 빼고요.", fontSize = 12.5.sp, color = T2, lineHeight = 18.sp)
+                        Spacer(Modifier.height(12.dp))
+                        members.forEach { m ->
+                            val on = crewSel.contains(m.phone)
+                            Row(Modifier.fillMaxWidth().clickable { if (on) crewSel.remove(m.phone) else crewSel.add(m.phone) }.padding(vertical = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(22.dp).background(if (on) AccentBlue else Field, RoundedCornerShape(6.dp)), contentAlignment = Alignment.Center) {
+                                    if (on) Text("✓", fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color.White)
+                                }
+                                Spacer(Modifier.width(10.dp))
+                                Text(m.name.ifBlank { "이름없음" }, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = T1)
+                                if (m.role == "owner") {
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("방장", fontSize = 9.sp, fontWeight = FontWeight.Black, color = Color(0xFFB58A00),
+                                        modifier = Modifier.background(Color(0xFFFFF6D6), RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(enabled = crewSel.isNotEmpty(), onClick = {
+                        val targets = members.filter { crewSel.contains(it.phone) }
+                        if (unassigned.isNotEmpty() && targets.isNotEmpty()) {
+                            val load = HashMap<String, Long>().apply { targets.forEach { put(it.phone, 0L) } }
+                            val plan = ArrayList<Pair<ExpoRepository.Submission, ExpoRepository.Member>>()
+                            unassigned.sortedByDescending { it.finalAmount }.forEach { sub ->
+                                val t = targets.shuffled().minByOrNull { load[it.phone] ?: 0L }!!
+                                plan.add(sub to t); load[t.phone] = (load[t.phone] ?: 0L) + sub.finalAmount
+                            }
+                            pickCrew = false
+                            animPlan = plan
+                            scope.launch { plan.forEach { (sub, m) -> repo.assign(sub.contractId, myPhone, m.phone) } }
+                        } else pickCrew = false
+                    }) { Text("${crewSel.size}명에게 나눠 배정", color = AccentBlue, fontWeight = FontWeight.Black) }
+                },
+                dismissButton = { TextButton(onClick = { pickCrew = false }) { Text("취소", color = T3) } },
+                containerColor = Color.White
+            )
+        }
+        // ── 휙휙 배정 애니메이션 (프로토 ②) ──
+        animPlan?.let { plan ->
+            val crew = members.filter { m -> plan.any { it.second.phone == m.phone } }
+            AssignAnimOverlay(plan, crew) { animPlan = null; reloadTick++; toast("${plan.size}건 배정 완료 📩") }
+        }
+    }
+}
+
+/** 휙휙 배정 애니메이션 — 접수서 카드가 시공자 아바타로 날아가 꽂힘. (프로토 ②) */
+@Composable
+private fun AssignAnimOverlay(
+    plan: List<Pair<ExpoRepository.Submission, ExpoRepository.Member>>,
+    crew: List<ExpoRepository.Member>,
+    onDone: () -> Unit
+) {
+    val idxOf = remember(crew) { crew.withIndex().associate { (i, m) -> m.phone to i } }
+    val counts = remember { mutableStateListOf<Int>().apply { repeat(crew.size) { add(0) } } }
+    var step by remember { mutableStateOf(0) }
+    val fly = remember { Animatable(0f) }
+    val avg = if (crew.isNotEmpty()) plan.sumOf { it.first.finalAmount } / crew.size else 0L
+
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = { },
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        BoxWithConstraints(Modifier.fillMaxSize().background(Color(0xF7FFFFFF))) {
+            val W = maxWidth; val H = maxHeight
+            val done = step >= plan.size
+            Column(Modifier.align(Alignment.TopCenter).padding(top = 76.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(if (done) "🎉 배정 완료!" else "배정 중…", fontSize = 22.sp, fontWeight = FontWeight.Black, color = T1)
+                Spacer(Modifier.height(8.dp))
+                Text("${crew.size}명에게 나눠드려요", fontSize = 15.sp, fontWeight = FontWeight.Black, color = AccentBlue)
+                Text("약 ${won(avg)}씩 · 랜덤", fontSize = 12.5.sp, color = T3, fontWeight = FontWeight.Medium)
+            }
+            // 날아가는 카드
+            if (!done) {
+                val (sub, m) = plan[step]
+                val ti = idxOf[m.phone] ?: 0
+                val n = crew.size.coerceAtLeast(1)
+                val t = fly.value
+                val startX = W * 0.5f; val startY = H * 0.40f
+                val endX = W * ((ti + 0.5f) / n); val endY = H - 172.dp
+                val curX = startX + (endX - startX) * t
+                val curY = startY + (endY - startY) * t
+                val sc = 1f - 0.62f * t
+                Box(
+                    Modifier.align(Alignment.TopStart)
+                        .offset(x = curX - 82.dp, y = curY)
+                        .scale(sc).alpha(1f - 0.65f * t)
+                        .width(164.dp).background(Color.White, RoundedCornerShape(14.dp))
+                        .border(1.5.dp, Color(0xFFE3E8EF), RoundedCornerShape(14.dp)).padding(13.dp)
+                ) {
+                    Column {
+                        Text(sub.customerName.ifBlank { "고객" }, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = T1, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(won(sub.finalAmount), fontSize = 13.5.sp, fontWeight = FontWeight.Black, color = AccentBlue)
+                    }
+                }
+            }
+            // 하단 시공자 아바타 + 카운트
+            Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = 64.dp, start = 8.dp, end = 8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Top) {
+                crew.forEachIndexed { i, m ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(Modifier.size(58.dp).background(Kk, RoundedCornerShape(29.dp)), contentAlignment = Alignment.Center) {
+                            Text(m.name.take(1).ifBlank { "?" }, fontSize = 23.sp, fontWeight = FontWeight.Black, color = KkInk)
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Text(m.name.ifBlank { "팀원" }, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = T1, maxLines = 1)
+                        Text("+${counts.getOrElse(i) { 0 }}건", fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color(0xFF0E9B63))
+                    }
+                }
+            }
+        }
+    }
+    LaunchedEffect(step) {
+        if (step >= plan.size) { delay(750); onDone(); return@LaunchedEffect }
+        fly.snapTo(0f)
+        fly.animateTo(1f, tween(340, easing = FastOutSlowInEasing))
+        val ti = idxOf[plan[step].second.phone] ?: 0
+        if (ti < counts.size) counts[ti] = counts[ti] + 1
+        delay(70)
+        step++
     }
 }
 
@@ -1138,6 +1322,83 @@ private fun SubRow(label: String, value: String) {
     Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
         Text(label, fontSize = 12.sp, color = T3, modifier = Modifier.width(66.dp))
         Text(value, fontSize = 12.5.sp, color = T1, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+    }
+}
+
+/** 내 접수서함 — 나에게 배정된 시공만 (프로토 ③). */
+@Composable
+private fun ColumnScope.MyInboxView(repo: ExpoRepository, n: Nav.MyInbox, myPhone: String, toast: (String) -> Unit, onContract: (Long) -> Unit) {
+    val ctx = LocalContext.current
+    var data by remember { mutableStateOf(ExpoCache.submissions[n.roomId]) }
+    LaunchedEffect(n.roomId) {
+        repo.submissions(n.roomId, myPhone).onSuccess { data = it; ExpoCache.submissions[n.roomId] = it }
+            .onFailure { if (data == null) data = ExpoRepository.Submissions(0, 0L, emptyList()) }
+    }
+    val myDigits = myPhone.filter { it.isDigit() }
+    val d = data
+    if (d == null) {
+        Column(Modifier.weight(1f).fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Skel(Modifier.fillMaxWidth(0.5f).height(18.dp)); repeat(3) { Skel(Modifier.fillMaxWidth().height(78.dp), 14) }
+        }
+    } else {
+        val mine = d.items.filter { it.assignedPhone.filter { c -> c.isDigit() } == myDigits }
+        val total = mine.sumOf { it.finalAmount }
+        val scheduled = mine.count { it.scheduledAtMs > 0L }
+        Column(Modifier.weight(1f).fillMaxWidth()) {
+            Column(Modifier.fillMaxWidth().padding(14.dp)) {
+                Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("나에게 배정된 시공", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = T3)
+                    Spacer(Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text("${mine.size}건 · ", fontSize = 21.sp, fontWeight = FontWeight.Black, color = T1)
+                        Text(won(total), fontSize = 21.sp, fontWeight = FontWeight.Black, color = AccentBlue)
+                    }
+                    if (mine.isNotEmpty()) {
+                        Spacer(Modifier.height(6.dp))
+                        Text("일정 잡힘 ${scheduled}건  ·  일정 미정 ${mine.size - scheduled}건", fontSize = 12.sp, color = T3, fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+            if (mine.isEmpty()) {
+                Box(Modifier.weight(1f).fillMaxWidth(), Alignment.Center) {
+                    Text("아직 배정받은 시공이 없어요", fontSize = 14.sp, color = T3, fontWeight = FontWeight.Medium)
+                }
+            } else LazyColumn(
+                Modifier.weight(1f).fillMaxWidth(),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 12.dp, end = 12.dp, bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(mine) { s ->
+                    val site = listOf(s.apartment, s.dongHo).filter { it.isNotBlank() }.joinToString(" ")
+                    Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(14.dp)).padding(14.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            val sch = s.scheduledAtMs > 0L
+                            Text(if (sch) "${dateShort(s.scheduledAtMs)} 시공" else "일정 미정",
+                                fontSize = 9.5.sp, fontWeight = FontWeight.Black,
+                                color = if (sch) Color(0xFF0E9B63) else Color(0xFFB58A00),
+                                modifier = Modifier.background(if (sch) Color(0xFFE9FBF2) else Color(0xFFFFF6D6), RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
+                            Spacer(Modifier.weight(1f))
+                            Text(won(s.finalAmount), fontSize = 14.sp, fontWeight = FontWeight.Black, color = AccentBlue)
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text(site.ifBlank { s.customerName.ifBlank { "고객" } }, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = T1)
+                        Text(s.products.ifBlank { "-" }, fontSize = 12.sp, color = T3, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Spacer(Modifier.height(10.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            val fp = s.customerPhone
+                            Box(Modifier.weight(1f).background(Color(0xFFEDF2FF), RoundedCornerShape(12.dp))
+                                .clickable(enabled = fp.isNotBlank()) { dialPhone(ctx, fp) }.padding(vertical = 11.dp), contentAlignment = Alignment.Center) {
+                                Text("📞 전화", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (fp.isNotBlank()) AccentBlue else T3)
+                            }
+                            Box(Modifier.weight(1f).background(Field, RoundedCornerShape(12.dp))
+                                .clickable { onContract(s.contractId) }.padding(vertical = 11.dp), contentAlignment = Alignment.Center) {
+                                Text("계약서 보기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

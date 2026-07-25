@@ -59,7 +59,7 @@ class ExpoRepository(
     data class Submission(
         val contractId: Long, val customerName: String, val customerPhoneMasked: String,
         val products: String, val finalAmount: Long, val status: String,
-        val agentName: String, val assignedName: String?, val createdAtMs: Long,
+        val agentName: String, val assignedName: String?, val assignedPhone: String = "", val createdAtMs: Long,
         val apartment: String, val dongHo: String, val address: String, val note: String,
         /** 시공 예정일(ms). 0 = 미정. 박람회 달력에 이 날짜로 표시. */
         val scheduledAtMs: Long,
@@ -380,6 +380,7 @@ class ExpoRepository(
                         status = s.optString("status", "submitted"),
                         agentName = s.optString("agent_name"),
                         assignedName = s.optString("assigned_name").takeIf { it.isNotBlank() && it != "null" },
+                        assignedPhone = s.optString("assigned_phone"),
                         createdAtMs = s.optLong("created_at_ms"),
                         apartment = s.optString("apartment"),
                         dongHo = s.optString("dong_ho"),
