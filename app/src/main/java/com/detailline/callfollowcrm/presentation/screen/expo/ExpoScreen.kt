@@ -55,7 +55,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
+import kotlin.math.sin
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -993,6 +995,18 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
     val crewSel = remember { mutableStateListOf<String>() }            // 선택된 시공자 phone
     var crewInit by remember { mutableStateOf(false) }
     var animPlan by remember { mutableStateOf<List<Pair<ExpoRepository.Submission, ExpoRepository.Member>>?>(null) }
+    var confirmReset by remember { mutableStateOf(false) }                 // 배정 초기화 확인
+
+    // 금액 비슷하게 + 랜덤 타이브레이크 (누를 때마다 조합이 달라짐) → 다시 돌리기용
+    fun makePlan(subs: List<ExpoRepository.Submission>, targets: List<ExpoRepository.Member>): List<Pair<ExpoRepository.Submission, ExpoRepository.Member>> {
+        val load = HashMap<String, Long>().apply { targets.forEach { put(it.phone, 0L) } }
+        val plan = ArrayList<Pair<ExpoRepository.Submission, ExpoRepository.Member>>()
+        subs.sortedByDescending { it.finalAmount }.forEach { sub ->
+            val t = targets.shuffled().minByOrNull { load[it.phone] ?: 0L } ?: return@forEach
+            plan.add(sub to t); load[t.phone] = (load[t.phone] ?: 0L) + sub.finalAmount
+        }
+        return plan
+    }
 
     LaunchedEffect(n.roomId, reloadTick) {
         repo.submissions(n.roomId, myPhone).onSuccess { data = it; ExpoCache.submissions[n.roomId] = it }
@@ -1043,6 +1057,29 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                                 Text("미배정 ${unassigned.size}건, 시공자에게 나눠 배정", fontSize = 14.sp, fontWeight = FontWeight.Black, color = Color.White)
                                 Text("랜덤 · 금액 비슷하게 자동 분배", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Color(0xCCFFFFFF))
                             }
+                        }
+                    }
+                    // 배정된 게 있으면 → 다시 돌리기(재분배) / 초기화(미배정으로 리셋) (방장만)
+                    if (myRole == "owner" && assignedCnt > 0) {
+                        Spacer(Modifier.height(if (unassigned.isNotEmpty()) 8.dp else 13.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Box(
+                                Modifier.weight(1f).background(Color(0xFFEFF3F8), RoundedCornerShape(11.dp)).clickable {
+                                    val targets = if (crewSel.isNotEmpty()) members.filter { crewSel.contains(it.phone) }
+                                        else members.filter { m -> d.items.any { it.assignedPhone.filter { c -> c.isDigit() } == m.phone.filter { c -> c.isDigit() } } }
+                                    if (targets.size >= 2) {
+                                        val plan = makePlan(d.items, targets)
+                                        animPlan = plan
+                                        scope.launch { plan.forEach { (sub, mem) -> repo.assign(sub.contractId, myPhone, mem.phone) } }
+                                    } else { crewInit = false; pickCrew = true }
+                                }.padding(vertical = 11.dp),
+                                contentAlignment = Alignment.Center
+                            ) { Text("🎲 다시 돌리기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1) }
+                            Box(
+                                Modifier.weight(1f).background(Color(0xFFFFF0F0), RoundedCornerShape(11.dp))
+                                    .clickable { confirmReset = true }.padding(vertical = 11.dp),
+                                contentAlignment = Alignment.Center
+                            ) { Text("↺ 초기화", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE1483B)) }
                         }
                     }
                 }
@@ -1216,12 +1253,7 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                     TextButton(enabled = crewSel.isNotEmpty(), onClick = {
                         val targets = members.filter { crewSel.contains(it.phone) }
                         if (unassigned.isNotEmpty() && targets.isNotEmpty()) {
-                            val load = HashMap<String, Long>().apply { targets.forEach { put(it.phone, 0L) } }
-                            val plan = ArrayList<Pair<ExpoRepository.Submission, ExpoRepository.Member>>()
-                            unassigned.sortedByDescending { it.finalAmount }.forEach { sub ->
-                                val t = targets.shuffled().minByOrNull { load[it.phone] ?: 0L }!!
-                                plan.add(sub to t); load[t.phone] = (load[t.phone] ?: 0L) + sub.finalAmount
-                            }
+                            val plan = makePlan(unassigned, targets)
                             pickCrew = false
                             animPlan = plan
                             scope.launch { plan.forEach { (sub, m) -> repo.assign(sub.contractId, myPhone, m.phone) } }
@@ -1232,7 +1264,32 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                 containerColor = Color.White
             )
         }
-        // ── 휙휙 배정 애니메이션 (프로토 ②) ──
+        // ── 배정 초기화 확인 (방장) ──
+        if (confirmReset) {
+            AlertDialog(
+                onDismissRequest = { confirmReset = false },
+                title = { Text("배정 초기화", fontWeight = FontWeight.ExtraBold, color = T1) },
+                text = {
+                    Column {
+                        com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
+                        Text("모든 시공자 배정을 풀고 미배정 상태로 되돌릴까요?\n그 다음 시공자를 다시 골라 나눠 배정할 수 있어요.", fontSize = 13.sp, color = T2, lineHeight = 19.sp)
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        confirmReset = false
+                        scope.launch {
+                            d.items.forEach { repo.assign(it.contractId, myPhone, "") }
+                            reloadTick++; toast("배정을 초기화했어요")
+                        }
+                    }) { Text("초기화", color = Color(0xFFE1483B), fontWeight = FontWeight.Black) }
+                },
+                dismissButton = { TextButton(onClick = { confirmReset = false }) { Text("취소", color = T3) } },
+                containerColor = Color.White
+            )
+        }
+
+        // ── 배분 애니메이션 (종이 한 장씩) (프로토 ②) ──
         animPlan?.let { plan ->
             val crew = members.filter { m -> plan.any { it.second.phone == m.phone } }
             AssignAnimOverlay(plan, crew) { animPlan = null; reloadTick++; toast("${plan.size}건 배정 완료 📩") }
@@ -1240,7 +1297,8 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
     }
 }
 
-/** 휙휙 배정 애니메이션 — 접수서 카드가 시공자 아바타로 날아가 꽂힘. (프로토 ②) */
+/** 배분 애니메이션 — 종이 접수서가 위 뭉치에서 한 장씩 날아가 시공자 트레이에 꽂힘.
+ *  많으면(>16) 12장부터는 촤르륵 빠르게. (프로토 ②) */
 @Composable
 private fun AssignAnimOverlay(
     plan: List<Pair<ExpoRepository.Submission, ExpoRepository.Member>>,
@@ -1251,69 +1309,122 @@ private fun AssignAnimOverlay(
     val counts = remember { mutableStateListOf<Int>().apply { repeat(crew.size) { add(0) } } }
     var step by remember { mutableStateOf(0) }
     val fly = remember { Animatable(0f) }
-    val avg = if (crew.isNotEmpty()) plan.sumOf { it.first.finalAmount } / crew.size else 0L
+    val total = plan.size
+    val big = total > 16
 
     androidx.compose.ui.window.Dialog(
         onDismissRequest = { },
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        BoxWithConstraints(Modifier.fillMaxSize().background(Color(0xF7FFFFFF))) {
+        BoxWithConstraints(Modifier.fillMaxSize().background(Color(0xFAFFFFFF))) {
             val W = maxWidth; val H = maxHeight
-            val done = step >= plan.size
-            Column(Modifier.align(Alignment.TopCenter).padding(top = 76.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(if (done) "🎉 배정 완료!" else "배정 중…", fontSize = 22.sp, fontWeight = FontWeight.Black, color = T1)
-                Spacer(Modifier.height(8.dp))
-                Text("${crew.size}명에게 나눠드려요", fontSize = 15.sp, fontWeight = FontWeight.Black, color = AccentBlue)
-                Text("약 ${won(avg)}씩 · 랜덤", fontSize = 12.5.sp, color = T3, fontWeight = FontWeight.Medium)
+            val n = crew.size.coerceAtLeast(1)
+            val done = step >= total
+            val burst = big && step >= 12
+            val remain = (total - step).coerceAtLeast(0)
+            val stackTop = 150.dp
+            val trayY = H - 156.dp
+
+            // 제목 + 남은 장수
+            Column(Modifier.align(Alignment.TopCenter).padding(top = 58.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(if (done) "✓ 배정 완료 · ${total}건" else "접수서 나눠 배정",
+                    fontSize = 20.sp, fontWeight = FontWeight.Black, color = if (done) Color(0xFF0CA678) else T1)
+                Spacer(Modifier.height(6.dp))
+                Text(if (done) "${n}명에게 나눠드렸어요" else "$remain 장 남음 · 한 장씩",
+                    fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (done) AccentBlue else T3)
             }
-            // 날아가는 카드
+
+            // 위 종이 뭉치 (남을수록 두껍게)
             if (!done) {
-                val (sub, m) = plan[step]
-                val ti = idxOf[m.phone] ?: 0
-                val n = crew.size.coerceAtLeast(1)
-                val t = fly.value
-                val startX = W * 0.5f; val startY = H * 0.40f
-                val endX = W * ((ti + 0.5f) / n); val endY = H - 172.dp
-                val curX = startX + (endX - startX) * t
-                val curY = startY + (endY - startY) * t
-                val sc = 1f - 0.62f * t
-                Box(
-                    Modifier.align(Alignment.TopStart)
-                        .offset(x = curX - 82.dp, y = curY)
-                        .scale(sc).alpha(1f - 0.65f * t)
-                        .width(164.dp).background(Color.White, RoundedCornerShape(14.dp))
-                        .border(1.5.dp, Color(0xFFE3E8EF), RoundedCornerShape(14.dp)).padding(13.dp)
-                ) {
-                    Column {
-                        Text(sub.customerName.ifBlank { "고객" }, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = T1, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(won(sub.finalAmount), fontSize = 13.5.sp, fontWeight = FontWeight.Black, color = AccentBlue)
+                Box(Modifier.align(Alignment.TopCenter).offset(y = stackTop).size(width = 96.dp, height = 96.dp), contentAlignment = Alignment.TopCenter) {
+                    val depth = remain.coerceIn(1, 4)
+                    for (i in depth downTo 1) {
+                        Box(Modifier.offset(x = (i * 3 - 6).dp, y = (i * 3).dp).size(width = 72.dp, height = 90.dp)
+                            .background(Color.White, RoundedCornerShape(8.dp))
+                            .border(1.dp, Color(0xFFE3E8EF), RoundedCornerShape(8.dp)))
                     }
                 }
             }
-            // 하단 시공자 아바타 + 카운트
-            Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = 64.dp, start = 8.dp, end = 8.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Top) {
+
+            // 날아가는 종이 한 장 (버스트 중엔 안 그림 — 촤르륵)
+            if (!done && !burst && step < total) {
+                val (sub, m) = plan[step]
+                val ti = idxOf[m.phone] ?: 0
+                val t = fly.value
+                val startX = W * 0.5f
+                val endX = W * ((ti + 0.5f) / n)
+                val curX = startX + (endX - startX) * t
+                val curY = stackTop + (trayY - stackTop) * t
+                val arcDp = (sin(t * Math.PI).toFloat() * 74f).dp
+                PaperSheet(
+                    name = sub.customerName.ifBlank { "고객" },
+                    amount = won(sub.finalAmount),
+                    modifier = Modifier.align(Alignment.TopStart)
+                        .offset(x = curX - 58.dp, y = curY - arcDp)
+                        .rotate(-7f + 12f * t).scale(1f - 0.34f * t).alpha(1f - 0.30f * t)
+                )
+            }
+
+            // 하단 시공자 트레이 (종이 쌓임 + 건수)
+            Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = 40.dp, start = 4.dp, end = 4.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Bottom) {
                 crew.forEachIndexed { i, m ->
+                    val c = counts.getOrElse(i) { 0 }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(Modifier.size(58.dp).background(Kk, RoundedCornerShape(29.dp)), contentAlignment = Alignment.Center) {
-                            Text(m.name.take(1).ifBlank { "?" }, fontSize = 23.sp, fontWeight = FontWeight.Black, color = KkInk)
+                        // 쌓인 종이 더미
+                        Box(Modifier.height(60.dp).width(72.dp), contentAlignment = Alignment.BottomCenter) {
+                            if (c == 0) Box(Modifier.size(width = 56.dp, height = 12.dp).background(Color(0xFFEEF1F4), RoundedCornerShape(6.dp)))
+                            for (k in 0 until c.coerceAtMost(6)) {
+                                Box(Modifier.offset(y = -(k * 7).dp).size(width = 52.dp, height = 30.dp)
+                                    .background(Color.White, RoundedCornerShape(5.dp))
+                                    .border(1.dp, Color(0xFFDBE1E8), RoundedCornerShape(5.dp)))
+                            }
                         }
                         Spacer(Modifier.height(6.dp))
-                        Text(m.name.ifBlank { "팀원" }, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = T1, maxLines = 1)
-                        Text("+${counts.getOrElse(i) { 0 }}건", fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color(0xFF0E9B63))
+                        Box(Modifier.size(50.dp).background(Kk, RoundedCornerShape(25.dp)), contentAlignment = Alignment.Center) {
+                            Text(m.name.take(1).ifBlank { "?" }, fontSize = 20.sp, fontWeight = FontWeight.Black, color = KkInk)
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text(m.name.ifBlank { "팀원" }, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = T1, maxLines = 1)
+                        Text("${c}건", fontSize = 12.5.sp, fontWeight = FontWeight.Black, color = Color(0xFF0E9B63))
                     }
                 }
             }
         }
     }
+
     LaunchedEffect(step) {
-        if (step >= plan.size) { delay(750); onDone(); return@LaunchedEffect }
-        fly.snapTo(0f)
-        fly.animateTo(1f, tween(340, easing = FastOutSlowInEasing))
-        val ti = idxOf[plan[step].second.phone] ?: 0
-        if (ti < counts.size) counts[ti] = counts[ti] + 1
-        delay(70)
-        step++
+        if (step >= total) { delay(650); onDone(); return@LaunchedEffect }
+        if (big && step >= 12) {                                   // 촤르륵 — 카운트만 빠르게
+            val ti = idxOf[plan[step].second.phone] ?: 0
+            if (ti < counts.size) counts[ti] = counts[ti] + 1
+            delay(45); step++
+        } else {
+            val dur = (520 - step * 34).coerceAtLeast(150)          // 뒤로 갈수록 빨라짐
+            val gap = (150 - step * 16).coerceAtLeast(40)
+            fly.snapTo(0f)
+            fly.animateTo(1f, tween(dur, easing = FastOutSlowInEasing))
+            val ti = idxOf[plan[step].second.phone] ?: 0
+            if (ti < counts.size) counts[ti] = counts[ti] + 1
+            delay(gap.toLong()); step++
+        }
+    }
+}
+
+/** 접수서 한 장 (종이 느낌 — 이름·금액·본문 줄). */
+@Composable
+private fun PaperSheet(name: String, amount: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier.width(116.dp).background(Color.White, RoundedCornerShape(10.dp))
+            .border(1.5.dp, Color(0xFFDBE1E8), RoundedCornerShape(10.dp)).padding(11.dp)
+    ) {
+        Text(name, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = T1, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.height(7.dp))
+        Box(Modifier.fillMaxWidth(0.82f).height(4.dp).background(Color(0xFFEDF0F4), RoundedCornerShape(2.dp)))
+        Spacer(Modifier.height(4.dp))
+        Box(Modifier.fillMaxWidth(0.58f).height(4.dp).background(Color(0xFFEDF0F4), RoundedCornerShape(2.dp)))
+        Spacer(Modifier.height(9.dp))
+        Text(amount, fontSize = 13.sp, fontWeight = FontWeight.Black, color = AccentBlue)
     }
 }
 
