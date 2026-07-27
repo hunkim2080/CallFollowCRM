@@ -8142,3 +8142,18 @@ diag_template_encoding.sh 결과 = **전 층 정상. 손댈 것 없음.**
   · server 추가155: submissions item 에 template(선택결과 json) 포함.
   · app: Submission.tplPick 파싱 + ContractView 구조화 렌더.
 - 배포: 서버 SSH(health 200, 영수증14 검증 OK). 앱 빌드 완료·폰 분리로 미설치(재연결 시 설치).
+
+## 2026-07-27 10:30 · android→server
+접수서 즉시알림 fix — commit 04a317c (사장님 실기 신고: "앱 켤 때만 접수서 완료 알림 울림, 문자처럼 바로 와야")
+- 원인: FCM 푸시(type=intake_submitted)가 legacy /api/intake-form/submit 에만 있고,
+  실제 라이브 플로우 quote_submit(/q/{token}/submit)엔 없어서 60초 폴링만 됨.
+  폴링은 앱 프로세스 살아있을 때만 도는 appScope loop → 앱 켤 때(syncAllOnce)만 알림.
+  (docs/SERVER_HANDOFF_intake_instant_push.md 가 legacy 핸들러를 지목 → 죽은 경로에 구현됐던 것)
+- 수정: quote_submit 에서 owner_phone SELECT 추가 + con.commit 후
+  _send_fcm_data_to_phone(owner_phone or phone, {type:intake_submitted, token, customer_phone}).
+  try/except 로 감싸 제출 응답 영향 X. **앱 수정 불필요**(RingGoFcmService 이미 처리).
+- 배포: 맥미니 SSH — 사전 sha 비교로 코워크 미커밋 작업 없음 확인(served==origin~1),
+  백업(main.py.bak_20260727_fcmfix), venv Python3.9.6 py_compile OK, kickstart 재시작, health 200.
+- **종단 검증**: 로컬 issue(token on3atLyy, owner 01064610131) → /q/.../submit →
+  로그 `[fcm] 01064610131 type=intake_submitted sent=1 failed=0`. 즉시 푸시 실발송 확인.
+- ⚠️ 정리 대기: 테스트 접수서(token on3atLyy, 고객 01099998888 "푸시테스트")가 사장님 접수서 목록에 남음. 사장님 확인 후 삭제 가능.
