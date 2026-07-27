@@ -8157,3 +8157,15 @@ diag_template_encoding.sh 결과 = **전 층 정상. 손댈 것 없음.**
 - **종단 검증**: 로컬 issue(token on3atLyy, owner 01064610131) → /q/.../submit →
   로그 `[fcm] 01064610131 type=intake_submitted sent=1 failed=0`. 즉시 푸시 실발송 확인.
 - ⚠️ 정리 대기: 테스트 접수서(token on3atLyy, 고객 01099998888 "푸시테스트")가 사장님 접수서 목록에 남음. 사장님 확인 후 삭제 가능.
+
+## 2026-07-27 11:30 · android→server
+즉시알림 전수감사 후속 fix 2건 — commit a3b5a14 (사장님 선택 ②③; ① 직원 이벤트는 사장님이 보류)
+- 감사: 서버 _send_fcm_data_to_phone 16곳 + 앱 RingGoFcmService 핸들러 9종 크로스체크.
+  협업(사장↔사장)·모집 도메인은 즉시푸시 완비 OK. 공백=팀원현장이벤트·일당완료·박람회배정·미러손입력·모집지원.
+- ② 일당 완료+계좌 → 사장님: labor_complete(→shared_owner_events) 후 push(type=owner_event).
+  앱: RingGoFcmService "owner_event" → collabEventCenter.poll() 즉시(기존 완료+계좌 알림 렌더). 앱 빌드 필요.
+- ③ 박람회 배정 → 시공자: expo_assign 후 배정대상 폰으로 push(type=expo_assigned, room_id·room_name).
+  앱: NotificationHelper.showExpoAssigned 신설(방 기준 같은 알림ID=배분 여러건 합침), RingGoFcmService "expo_assigned". 앱 빌드 필요.
+- 서버 배포: SSH 안전배포(served==직전 c776e07a 가드 통과, 백업 main.py.bak_20260727_push2, venv py_compile OK, kickstart, health 200, served=223a148a).
+- 검증: expo_assign cid25→01064610131 → 로그 `[fcm] 01064610131 type=expo_assigned sent=1`. (테스트 후 원복)
+- ⚠️ 앱: 새 APK 빌드 완료(EXIT 0)·폰 분리로 미설치. **owner_event/expo_assigned 는 새 앱 설치돼야 폰에 표시됨**(서버 푸시는 이미 나감). 재연결 시 설치+실기 검증 필요.
