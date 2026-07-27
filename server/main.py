@@ -17825,12 +17825,12 @@ async def quote_submit(token: str, req: QuoteSubmitRequest) -> dict:
     now = _now_ms()
     with db_conn() as con:
         row = con.execute(
-            "SELECT phone, expires_at_ms, submitted_at_ms FROM intake_forms WHERE token = ?",
+            "SELECT phone, expires_at_ms, submitted_at_ms, owner_phone FROM intake_forms WHERE token = ?",
             (token,),
         ).fetchone()
         if not row:
             raise HTTPException(404, "유효하지 않은 토큰")
-        owner_customer_phone, expires_at, submitted_at = row
+        owner_customer_phone, expires_at, submitted_at, owner_phone = row
         if submitted_at is not None:
             raise HTTPException(409, "이미 제출된 접수서입니다")
         if now > expires_at:
@@ -17869,9 +17869,25 @@ async def quote_submit(token: str, req: QuoteSubmitRequest) -> dict:
              token),
         )
         con.commit()
-    print(f"[quote/submit] token={token} customerPhone={owner_customer_phone} → submitted")
+    print(f"[quote/submit] token={token} customerPhone={owner_customer_phone} owner={owner_phone} → submitted")
     if req.privacyAgreed:
         _record_intake_consent(phone)  # 추가98 — 고객 동의 영수증
+
+    # 추가156 (2026-07-27) — 사장님 폰에 즉시 FCM data-only (60초 폴링 대기 X).
+    # 앱 (RingGoFcmService) 가 type=intake_submitted 받으면 즉시 sync → 문자처럼 바로 알림.
+    # 그동안 legacy /api/intake-form/submit 에만 있어서 실제 /q 제출은 폴링만 됐음(앱 켤 때만 알림).
+    # owner_phone 없으면 발급 phone 폴백. 실패해도 응답에 영향 X.
+    fcm_target = owner_phone or owner_customer_phone
+    if fcm_target:
+        try:
+            _send_fcm_data_to_phone(fcm_target, {
+                "type": "intake_submitted",
+                "token": token,
+                "customer_phone": phone,
+            })
+        except Exception as e:
+            print(f"[quote/submit] FCM 발송 실패 (무시): {type(e).__name__}: {e}")
+
     return {"ok": True, "submittedAtMs": now, "customerPhone": owner_customer_phone}
 
 
