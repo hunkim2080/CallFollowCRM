@@ -149,6 +149,28 @@ class RingGoFcmService : FirebaseMessagingService() {
                     }
                 }
             }
+            // 일당 완료 + 계좌 도착 — 사장님이 owner-events 폴링(60초/3h) 안 기다리게 즉시 동기화. (2026-07-27)
+            //   서버가 labor/complete 저장 직후 사장님 번호로 push(type=owner_event) → 여기서 바로 collabEventCenter.poll().
+            //   poll() 이 GET /api/shared/owner-events 로 완료+계좌를 가져와 기존 알림(showCollabEvent)으로 렌더.
+            //   중복 가드(seen id)가 있어 폴링과 겹쳐도 이중 알림 없음. 폴링은 안전망으로 유지.
+            "owner_event" -> {
+                val app = applicationContext as? CallFollowCrmApplication
+                if (app != null) {
+                    CoroutineScope(Dispatchers.IO).launch {
+                        runCatching { app.container.collabEventCenter.poll(applicationContext) }
+                    }
+                }
+            }
+            // 박람회 계약 시공자 배정 — 방장이 나눠 배정하면 배정된 시공자에게 즉시 알림. (2026-07-27)
+            //   서버가 contract/assign 직후 배정 대상 폰으로 push(type=expo_assigned, room_id, room_name).
+            //   배분은 건별로 여러 번 오지만 방 기준 같은 알림 ID 라 한 개로 합쳐짐(스팸 방지).
+            "expo_assigned" -> {
+                NotificationHelper.showExpoAssigned(
+                    context = this,
+                    roomId = data["room_id"].orEmpty().ifBlank { "expo" },
+                    roomName = data["room_name"].orEmpty()
+                )
+            }
         }
         }
     }

@@ -15631,6 +15631,16 @@ async def labor_complete(req: LaborCompleteRequest) -> dict:
         f"[labor/complete] token={token[:10]}.. suffix={phone_suffix} "
         f"owner={owner_phone} event={event_id} site={site_id}"
     )
+
+    # 추가157 (2026-07-27) — 일당 완료+계좌 즉시 알림. 사장님이 owner-events 폴링(60초/ReminderWorker 3h)
+    # 기다리지 않게 FCM data(type=owner_event) 발송 → 앱 RingGoFcmService 가 collabEventCenter.poll() 즉시 실행
+    # → 기존 완료+계좌 알림(showCollabEvent)을 바로 렌더. 실패해도 응답 영향 X.
+    if owner_phone:
+        try:
+            _send_fcm_data_to_phone(owner_phone, {"type": "owner_event", "event": "labor_completed"})
+        except Exception as e:
+            print(f"[labor/complete] FCM 발송 실패 (무시): {type(e).__name__}: {e}")
+
     return {
         "ok": True,
         "site_id": site_id,
@@ -25064,6 +25074,8 @@ async def expo_assign(req: ExpoAssign) -> dict:
         if not c:
             raise HTTPException(404, "계약 없음")
         room_id = c[0]
+        rn = con.execute("SELECT name FROM expo_rooms WHERE room_id = ?", (room_id,)).fetchone()
+        room_name = rn[0] if rn else ""
         if not _expo_room_member(room_id, req.phone):
             raise HTTPException(403, "이 방의 멤버가 아닙니다")
         assignee = _norm_phone(req.assigned_phone)
@@ -25083,6 +25095,19 @@ async def expo_assign(req: ExpoAssign) -> dict:
                 (req.contract_id,),
             )
         con.commit()
+
+    # 추가157 (2026-07-27) — 시공자 배정 즉시 알림. 배정된 시공자 폰으로 FCM(type=expo_assigned).
+    # 배분은 건별로 여러 번 호출됨 → 앱이 방(room_id) 기준 같은 알림 ID 로 합쳐 스팸 방지. 해제(assignee 없음)면 안 보냄.
+    if assignee:
+        try:
+            _send_fcm_data_to_phone(assignee, {
+                "type": "expo_assigned",
+                "room_id": room_id,
+                "room_name": room_name or "",
+            })
+        except Exception as e:
+            print(f"[expo/assign] FCM 발송 실패 (무시): {type(e).__name__}: {e}")
+
     return {"ok": True, "contract_id": req.contract_id,
             "assigned_phone": assignee, "assigned_name": assignee_name}
 

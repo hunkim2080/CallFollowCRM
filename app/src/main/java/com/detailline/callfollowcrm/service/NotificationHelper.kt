@@ -49,6 +49,8 @@ object NotificationHelper {
     private const val COLLAB_COMMENT_ID_OFFSET = 9_350_000
     /** 협업 현장 새 사진 알림 — 상대가 현장 증거사진 올리면. (2026-07-02) */
     private const val COLLAB_PHOTO_ID_OFFSET = 9_360_000
+    /** 박람회 시공자 배정 알림 — 방(room_id) hash 기준(방당 한 스레드, 배분 여러 건이면 update). (2026-07-27) */
+    private const val EXPO_ASSIGN_ID_OFFSET = 9_700_000
     /** SMS 알림 ID = 발신번호 hash + offset. 같은 번호 새 SMS = 같은 알림 update. */
     private const val SMS_ID_OFFSET = 10_000_000
     private const val MMS_FAIL_ID = 9_300_000
@@ -823,6 +825,29 @@ object NotificationHelper {
             msg = "'${site}' 정산 입금이 완료됐어요",
             contentIntent = pending,
             actions = listOf(PushAction("협업 현장 보기", pending))
+        )
+    }
+
+    /** 박람회 계약 시공자 배정 — 방장이 나눠 배정하면 배정된 시공자에게 "새 시공 배정" 알림. (2026-07-27)
+     *  서버 FCM(type=expo_assigned)로 옴. 배분은 건별로 여러 번 오므로 방(room_id) 기준 같은 ID 로 update(한 개로 합쳐짐).
+     *  탭 = 앱 열기(박람회 > 내 접수서함에서 확인). 소리는 '협업 요청' 채널 재사용(전용 분리는 추후). */
+    fun showExpoAssigned(context: Context, roomId: String, roomName: String) {
+        val notifId = EXPO_ASSIGN_ID_OFFSET + (roomId.hashCode() and 0x7FFFFF)
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pending = PendingIntent.getActivity(
+            context, notifId, openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val room = roomName.takeIf { it.isNotBlank() } ?: "박람회"
+        showProtoPush(
+            context, notifId, CHANNEL_COLLAB_INVITE, ACCENT_PURPLE,
+            title = "🔨 시공 배정",
+            msg = "'${room}'에서 시공이 배정됐어요",
+            note = "박람회 > 내 접수서함에서 확인하세요.",
+            contentIntent = pending,
+            actions = listOf(PushAction("확인", pending))
         )
     }
 
