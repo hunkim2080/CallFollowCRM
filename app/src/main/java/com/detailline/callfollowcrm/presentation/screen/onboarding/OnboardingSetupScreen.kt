@@ -1,10 +1,13 @@
 package com.detailline.callfollowcrm.presentation.screen.onboarding
 
+import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,6 +46,7 @@ fun OnboardingSetupScreen(onFinish: () -> Unit) {
     var step by remember { mutableStateOf(0) }            // 0 안내, 1 통화녹음, 2 완료
     var recResult by remember { mutableStateOf<Int?>(null) }   // null=미스캔, N=찾은 개수(0 포함)
     var scanning by remember { mutableStateOf(false) }
+    var guide by remember { mutableStateOf<String?>(null) }     // 0개 안내: null=방식선택, "samsung"/"adot"
 
     fun doScan() {
         scanning = true
@@ -113,36 +117,19 @@ fun OnboardingSetupScreen(onFinish: () -> Unit) {
                         primaryGreen = true,
                         onPrimary = { step = 2 }
                     )
-                    // 2-c. 0개 → 삼성 통화녹음 켜기 안내
-                    else -> StepScaffold(
-                        icon = "🎙️", iconBg = SoftBlue,
-                        title = "통화 녹음을 먼저 켜주세요",
-                        sub = "아직 녹음 파일이 없어요.\n전화 앱에서 통화 녹음을 켜면 막내가 자동으로 요약해드려요.",
-                        primaryText = "통화 녹음 설정 열기",
-                        onPrimary = {
-                            runCatching {
-                                ctx.startActivity(
-                                    Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                )
-                            }
-                        },
-                        laterText = "나중에 할게요",
-                        onLater = { step = 2 }
-                    ) {
-                        Column(Modifier.padding(top = 4.dp)) {
-                            HintBar("삼성 전화 앱 → 설정 → 통화 녹음 → '자동 녹음' 켜기")
-                            Spacer(Modifier.height(10.dp))
-                            Box(
-                                Modifier.fillMaxWidth().background(SoftBlue, RoundedCornerShape(14.dp))
-                                    .clickable(enabled = !scanning) { tryFind() }
-                                    .padding(vertical = 15.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    if (scanning) "찾는 중…" else "🔄 다시 찾기",
-                                    fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Blue
-                                )
-                            }
+                    // 2-c. 0개 → 방식 고르기 + 켜기 안내 (홍보 유입 첫 이탈 방어선)
+                    else -> {
+                        if (guide == null) {
+                            RecMethodPicker(onPick = { guide = it }, onLater = { step = 2 })
+                        } else {
+                            RecGuide(
+                                method = guide!!,
+                                scanning = scanning,
+                                onOpen = { if (guide == "adot") openAdot(ctx) else openSamsungDialer(ctx) },
+                                onRescan = { if (!scanning) tryFind() },
+                                onSwitch = { guide = if (guide == "adot") "samsung" else "adot" },
+                                onLater = { step = 2 }
+                            )
                         }
                     }
                 }
@@ -258,5 +245,143 @@ private fun HintBar(text: String) {
             .padding(horizontal = 13.dp, vertical = 11.dp)
     ) {
         Text(text, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF2F6FDB), lineHeight = 18.sp)
+    }
+}
+
+// ── 0개 안내: 방식 고르기 ──
+@Composable
+private fun ColumnScope.RecMethodPicker(onPick: (String) -> Unit, onLater: () -> Unit) {
+    Spacer(Modifier.height(40.dp))
+    Box(
+        Modifier.align(Alignment.CenterHorizontally).size(92.dp).background(SoftBlue, RoundedCornerShape(26.dp)),
+        contentAlignment = Alignment.Center
+    ) { Text("🎙️", fontSize = 46.sp) }
+    Spacer(Modifier.height(22.dp))
+    Text(
+        "통화 녹음을 먼저 켜주세요", fontSize = 23.sp, fontWeight = FontWeight.Black, color = Ink,
+        textAlign = TextAlign.Center, letterSpacing = (-0.5).sp, modifier = Modifier.fillMaxWidth()
+    )
+    Spacer(Modifier.height(12.dp))
+    Text(
+        "아직 녹음이 없어요. 딱 한 번만 켜두면\n통화가 끝날 때마다 자동으로 요약돼요.",
+        fontSize = 15.sp, color = Sub, lineHeight = 22.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
+    )
+    Spacer(Modifier.height(24.dp))
+    Text("어떤 걸로 녹음하세요?", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8B95A1), modifier = Modifier.fillMaxWidth())
+    MethodCard("🅣", "에이닷 전화", "에이닷 앱으로 녹음") { onPick("adot") }
+    MethodCard("📞", "삼성 전화", "갤럭시 기본 녹음") { onPick("samsung") }
+    MethodCard("🤔", "잘 모르겠어요", "둘 다 알려드릴게요") { onPick("samsung") }
+    Spacer(Modifier.weight(1f))
+    Box(Modifier.fillMaxWidth().clickable { onLater() }.padding(vertical = 14.dp), contentAlignment = Alignment.Center) {
+        Text("나중에 할게요", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF8B95A1))
+    }
+}
+
+@Composable
+private fun MethodCard(emoji: String, t1: String, t2: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(top = 12.dp)
+            .background(Color(0xFFF7F9FB), RoundedCornerShape(16.dp))
+            .border(1.5.dp, Color(0xFFEAEEF2), RoundedCornerShape(16.dp))
+            .clickable { onClick() }.padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier.size(46.dp).background(Color.White, RoundedCornerShape(13.dp))
+                .border(1.dp, Color(0xFFEEEEEE), RoundedCornerShape(13.dp)),
+            contentAlignment = Alignment.Center
+        ) { Text(emoji, fontSize = 24.sp) }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(t1, fontSize = 16.sp, fontWeight = FontWeight.Black, color = Ink)
+            Text(t2, fontSize = 12.5.sp, color = Color(0xFF8B95A1))
+        }
+        Text("›", fontSize = 22.sp, fontWeight = FontWeight.Black, color = Color(0xFFC4CCD4))
+    }
+}
+
+// ── 0개 안내: 방식별 켜기 단계 (사장님 확인 실제 경로) ──
+@Composable
+private fun ColumnScope.RecGuide(
+    method: String, scanning: Boolean,
+    onOpen: () -> Unit, onRescan: () -> Unit, onSwitch: () -> Unit, onLater: () -> Unit
+) {
+    val adot = method == "adot"
+    Spacer(Modifier.height(36.dp))
+    Box(
+        Modifier.align(Alignment.CenterHorizontally).size(80.dp).background(SoftBlue, RoundedCornerShape(24.dp)),
+        contentAlignment = Alignment.Center
+    ) { Text(if (adot) "🅣" else "📞", fontSize = 40.sp) }
+    Spacer(Modifier.height(18.dp))
+    Text(
+        if (adot) "에이닷 통화 녹음 켜기" else "삼성 통화 녹음 켜기",
+        fontSize = 22.sp, fontWeight = FontWeight.Black, color = Ink, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
+    )
+    Spacer(Modifier.height(10.dp))
+    Text(
+        if (adot) "에이닷 앱에서 한 번만 설정하면 돼요." else "아래 순서대로 한 번만 해주세요.",
+        fontSize = 14.sp, color = Sub, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
+    )
+    if (adot) {
+        RecStepRow(1, "에이닷 앱 → 아래 설정 탭 (없으면 설치)")
+        RecStepRow(2, "통화 설정 → 통화녹음")
+        RecStepRow(3, "자동 통화녹음 켜기 → 모든 통화 자동녹음")
+    } else {
+        RecStepRow(1, "전화 앱 → 오른쪽 위 ⋮ 누르기")
+        RecStepRow(2, "통화 설정 → 통화 녹음")
+        RecStepRow(3, "통화 자동 녹음 켜기")
+    }
+    Spacer(Modifier.height(16.dp))
+    Box(
+        Modifier.fillMaxWidth().background(SoftGreen, RoundedCornerShape(12.dp)).padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center
+    ) { Text("한 번만 켜두면 계속 자동이에요 👍", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Green) }
+    Spacer(Modifier.height(6.dp))
+    Box(Modifier.fillMaxWidth().clickable { onSwitch() }.padding(vertical = 6.dp), contentAlignment = Alignment.Center) {
+        Text(if (adot) "삼성 전화 쓰세요? 삼성 방법 보기" else "에이닷 쓰세요? 에이닷 방법 보기",
+            fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Blue)
+    }
+    Spacer(Modifier.weight(1f))
+    Box(
+        Modifier.fillMaxWidth().background(Blue, RoundedCornerShape(15.dp)).clickable { onOpen() }.padding(vertical = 16.dp),
+        contentAlignment = Alignment.Center
+    ) { Text(if (adot) "에이닷 열기" else "전화 설정 열기", fontSize = 16.5.sp, fontWeight = FontWeight.Black, color = Color.White) }
+    Box(
+        Modifier.fillMaxWidth().clickable(enabled = !scanning) { onRescan() }.padding(vertical = 13.dp),
+        contentAlignment = Alignment.Center
+    ) { Text(if (scanning) "찾는 중…" else "다 켰어요 · 다시 찾기 🔄", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8B95A1)) }
+}
+
+@Composable
+private fun RecStepRow(n: Int, text: String) {
+    Row(Modifier.fillMaxWidth().padding(top = 14.dp), verticalAlignment = Alignment.Top) {
+        Box(Modifier.size(28.dp).background(Blue, RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
+            Text("$n", fontSize = 14.sp, fontWeight = FontWeight.Black, color = Color.White)
+        }
+        Spacer(Modifier.width(13.dp))
+        Text(text, fontSize = 15.sp, color = Color(0xFF333D4B), fontWeight = FontWeight.Medium, lineHeight = 22.sp, modifier = Modifier.padding(top = 2.dp))
+    }
+}
+
+/** 삼성 전화 앱 열기(사용자가 ⋮→통화 설정→통화 녹음). 없으면 다이얼러/설정 폴백. */
+private fun openSamsungDialer(ctx: Context) {
+    val launch = ctx.packageManager.getLaunchIntentForPackage("com.samsung.android.dialer")
+    runCatching {
+        ctx.startActivity((launch ?: Intent(Intent.ACTION_DIAL)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }.onFailure {
+        runCatching { ctx.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+    }
+}
+
+/** 에이닷 앱 열기. 없으면 Play 스토어 검색. */
+private fun openAdot(ctx: Context) {
+    for (p in listOf("com.skt.prod.dialer", "com.skt.aidot", "com.skt.tapp.adot")) {
+        val i = ctx.packageManager.getLaunchIntentForPackage(p)
+        if (i != null) { runCatching { ctx.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }; return }
+    }
+    runCatching {
+        ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://search?q=에이닷 전화")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }.onFailure {
+        runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/search?q=에이닷")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
     }
 }
