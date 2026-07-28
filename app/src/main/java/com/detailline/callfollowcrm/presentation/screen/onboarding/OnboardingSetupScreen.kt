@@ -21,6 +21,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.detailline.callfollowcrm.data.preferences.AppPreferences
+import com.detailline.callfollowcrm.presentation.component.InlineDiagPrompt
 import com.detailline.callfollowcrm.recording.AdotFolderScanner
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -39,7 +41,10 @@ private val SoftBlue = Color(0xFFEEF4FF)
 private val SoftGreen = Color(0xFFEAFBF2)
 
 @Composable
-fun OnboardingSetupScreen(onFinish: () -> Unit) {
+fun OnboardingSetupScreen(
+    onFinish: () -> Unit,
+    preferences: AppPreferences
+) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -47,6 +52,8 @@ fun OnboardingSetupScreen(onFinish: () -> Unit) {
     var recResult by remember { mutableStateOf<Int?>(null) }   // null=미스캔, N=찾은 개수(0 포함)
     var scanning by remember { mutableStateOf(false) }
     var guide by remember { mutableStateOf<String?>(null) }     // 0개 안내: null=방식선택, "samsung"/"adot"
+    // 가이드(켜기 안내)를 보고 "다시 찾기" 했는데도 또 0개면 = 우리 코드가 못 잡는 것 → 진단 보내기 노출. (2026-07-29 사장님)
+    var guideRescanFailed by remember { mutableStateOf(false) }
 
     fun doScan() {
         scanning = true
@@ -56,6 +63,7 @@ fun OnboardingSetupScreen(onFinish: () -> Unit) {
                 runCatching { AdotFolderScanner.countMediaStoreCandidates(ctx) }.getOrDefault(0)
             }
             recResult = n
+            if (n == 0 && guide != null) guideRescanFailed = true   // 가이드 화면에서 재시도했는데 여전히 0개
             scanning = false
         }
     }
@@ -128,7 +136,9 @@ fun OnboardingSetupScreen(onFinish: () -> Unit) {
                                 onOpen = { if (guide == "adot") openAdot(ctx) else openSamsungDialer(ctx) },
                                 onRescan = { if (!scanning) tryFind() },
                                 onSwitch = { guide = if (guide == "adot") "samsung" else "adot" },
-                                onLater = { step = 2 }
+                                onLater = { step = 2 },
+                                showDiag = guideRescanFailed,
+                                preferences = preferences
                             )
                         }
                     }
@@ -304,7 +314,8 @@ private fun MethodCard(emoji: String, t1: String, t2: String, onClick: () -> Uni
 @Composable
 private fun ColumnScope.RecGuide(
     method: String, scanning: Boolean,
-    onOpen: () -> Unit, onRescan: () -> Unit, onSwitch: () -> Unit, onLater: () -> Unit
+    onOpen: () -> Unit, onRescan: () -> Unit, onSwitch: () -> Unit, onLater: () -> Unit,
+    showDiag: Boolean, preferences: AppPreferences
 ) {
     val adot = method == "adot"
     Spacer(Modifier.height(36.dp))
@@ -350,6 +361,21 @@ private fun ColumnScope.RecGuide(
         Modifier.fillMaxWidth().clickable(enabled = !scanning) { onRescan() }.padding(vertical = 13.dp),
         contentAlignment = Alignment.Center
     ) { Text(if (scanning) "찾는 중…" else "다 켰어요 · 다시 찾기 🔄", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8B95A1)) }
+    // 켜고 다시 찾아도 계속 0개 = 우리가 못 잡는 것 → 원인(파일없음/파서미스+가린 파일명) 자동 진단. (2026-07-29 사장님)
+    if (showDiag) {
+        val ctx = LocalContext.current
+        // '다시 찾기'와 붙으면 오터치 → 명확히 띄우고 옅은 구분선 얹음.
+        Spacer(Modifier.height(10.dp))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFF0F2F5)))
+        Spacer(Modifier.height(6.dp))
+        InlineDiagPrompt(
+            prefs = preferences,
+            tag = "온보딩-녹음연결(0개)",
+            prompt = "이렇게 해도 계속 안 잡히나요?",
+            buildExtra = { AdotFolderScanner.recordingDiag(ctx) }
+        )
+        Spacer(Modifier.height(6.dp))
+    }
 }
 
 @Composable

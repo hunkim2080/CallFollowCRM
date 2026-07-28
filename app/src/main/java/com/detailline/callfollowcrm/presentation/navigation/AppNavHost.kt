@@ -265,7 +265,8 @@ fun AppNavHost(
                     navController.navigate(Destinations.HOME) {
                         popUpTo(Destinations.SETUP) { inclusive = true }
                     }
-                }
+                },
+                preferences = container.preferences
             )
         }
 

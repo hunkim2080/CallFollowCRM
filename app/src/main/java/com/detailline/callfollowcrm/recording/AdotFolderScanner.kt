@@ -166,6 +166,53 @@ object AdotFolderScanner {
         return null
     }
 
+    /**
+     * "녹음이 왜 0개인지" 진단 요약 (개인정보 없음) — 사용자가 켰다고 하는데도 계속 0개일 때
+     *   [com.detailline.callfollowcrm.util.DiagnosticsReporter] 로 보내 원인을 사장님이 바로 파악.
+     *   - 오디오 권한 / 자동찾기(opt-in) / 폴더 직접연결 상태
+     *   - MediaStore 오디오 파일 총 개수 vs '녹음으로 인식된' 개수 → **파일 자체가 없음** vs **있는데 파일명 패턴 미스**(파서 개선감) 구분
+     *   - 파일명 샘플 최대 5개 — 숫자(전화번호·날짜)를 #으로 가려 형식만(개인정보 배제).
+     */
+    fun recordingDiag(context: Context): String {
+        val sb = StringBuilder()
+        val hasPerm = hasAudioPermission(context)
+        sb.append("녹음 권한: ${if (hasPerm) "있음" else "없음"} · ")
+        sb.append("자동찾기: ${if (isMediaStoreEnabled(context)) "켜짐" else "꺼짐"} · ")
+        sb.append("폴더연결: ${if (getTreeUri(context) != null) "있음" else "없음"}\n")
+        if (!hasPerm) { sb.append("→ 권한이 없어 스캔 불가.\n"); return sb.toString() }
+        val all = runCatching { allAudioNamesFromMediaStore(context) }.getOrDefault(emptyList())
+        val usable = all.count { AdotFilenameParser.parseLoose(it) != null }
+        sb.append("오디오 파일 총 ${all.size}개 · 녹음 인식 ${usable}개\n")
+        when {
+            all.isEmpty() -> sb.append("→ MediaStore 에 오디오 0개 (녹음이 다른 곳/권한 범위 밖 저장 의심).\n")
+            usable == 0 -> sb.append("→ 파일은 있으나 파일명이 녹음 패턴과 안 맞음 (파서 개선 필요).\n")
+        }
+        val samples = all.take(5).map { redactDigits(it) }
+        if (samples.isNotEmpty()) sb.append("파일명 샘플: ${samples.joinToString(" | ")}")
+        return sb.toString()
+    }
+
+    /** MediaStore 의 모든 오디오 파일명(녹음 파서 필터 전) — recordingDiag 의 '총 개수' 산출용. */
+    private fun allAudioNamesFromMediaStore(context: Context): List<String> {
+        val out = ArrayList<String>()
+        val col = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+        val proj = arrayOf(MediaStore.Audio.Media.DISPLAY_NAME)
+        runCatching {
+            context.contentResolver.query(col, proj, null, null, "${MediaStore.Audio.Media.DATE_ADDED} DESC")?.use { c ->
+                val nameCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
+                while (c.moveToNext()) {
+                    val n = c.getString(nameCol) ?: continue
+                    if (isAudioName(n)) out.add(n)
+                }
+            }
+        }
+        return out
+    }
+
+    /** 파일명의 숫자(전화번호·날짜·시각)를 #으로 가림 — 형식만 진단, 개인정보 배제. */
+    private fun redactDigits(name: String): String =
+        buildString { for (ch in name) append(if (ch.isDigit()) '#' else ch) }
+
     private fun getTreeUri(context: Context): Uri? {
         val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getString(KEY_TREE_URI, null) ?: return null

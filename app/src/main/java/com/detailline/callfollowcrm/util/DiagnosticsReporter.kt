@@ -63,6 +63,20 @@ object DiagnosticsReporter {
         return sb.toString()
     }
 
+    /**
+     * "막힌 자리에서" 자동 진단 직송 (2026-07-29 사장님) — 사용자가 더보기까지 안 가도,
+     *   코딩한 흐름이 안 될 때(예: 녹음 켰는데 계속 0개) 그 화면에서 바로 보낸다.
+     * @param tag  어디서 막혔나 (예: "온보딩-녹음연결", "가격표-자동생성").
+     * @param extra 상황별 진단 텍스트(개인정보 배제). 예: [com.detailline.callfollowcrm.recording.AdotFolderScanner.recordingDiag].
+     * @return 서버 전송 성공 여부. 실패 시 호출부가 [share] 폴백.
+     */
+    suspend fun sendAuto(context: Context, prefs: AppPreferences, tag: String, extra: String): Boolean =
+        sendToServer(context, prefs, note = "[막힘 자동진단] $tag\n$extra", imageUri = null)
+
+    /** 자동 진단 폴백(공유 시트)용 리포트 — 서버 직송 실패 시 [share] 에 넘길 본문. */
+    fun autoReport(prefs: AppPreferences, tag: String, extra: String): String =
+        buildReport(prefs, "[막힘 자동진단] $tag\n$extra")
+
     /** 문자열을 U+XXXX 나열로 (앞 80 코드포인트). 이메일/카톡이 다시 깨뜨려도 원문 복원 가능. */
     private fun codepointDump(s: String): String {
         if (s.isEmpty()) return "(빈 값)"
