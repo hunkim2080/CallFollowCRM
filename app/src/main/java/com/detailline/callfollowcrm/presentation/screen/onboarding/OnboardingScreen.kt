@@ -480,7 +480,7 @@ private fun BornStep(name: String, trades: List<String>, regions: List<String>, 
             buildAnnotatedString {
                 append((name.ifBlank { "사장님" }) + " · ")
                 withStyle(SpanStyle(fontWeight = FontWeight.ExtraBold)) { append("$primary$extra") }
-                append(" 전문으로 세팅 완료\n가격표·답변 템플릿이 자동으로 만들어졌어요")
+                append(" 전문으로 세팅했어요\n이제 마지막으로 몇 가지만 연결하면 돼요")
             },
             fontSize = 14.sp, color = TossTextSecondary, lineHeight = 21.sp, textAlign = TextAlign.Center
         )

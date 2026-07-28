@@ -247,12 +247,23 @@ fun AppNavHost(
             )
         }
 
-        // 권한 요청 (기존 화면) — 온보딩 다음 단계
+        // 권한 요청 (기존 화면) — 온보딩 다음 단계 → 연결 마법사(SETUP)로
         composable(Destinations.PERMISSIONS) {
             OnboardingPermissionScreen(
                 onContinue = {
-                    navController.navigate(Destinations.HOME) {
+                    navController.navigate(Destinations.SETUP) {
                         popUpTo(Destinations.PERMISSIONS) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        // 연결 마법사 (통화녹음 연결 등) — 신규 사용자 온보딩 마지막 단계. (2026-07-28)
+        composable(Destinations.SETUP) {
+            com.detailline.callfollowcrm.presentation.screen.onboarding.OnboardingSetupScreen(
+                onFinish = {
+                    navController.navigate(Destinations.HOME) {
+                        popUpTo(Destinations.SETUP) { inclusive = true }
                     }
                 }
             )

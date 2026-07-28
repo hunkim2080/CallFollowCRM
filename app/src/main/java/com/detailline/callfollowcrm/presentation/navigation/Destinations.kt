@@ -8,6 +8,7 @@ object Destinations {
     const val CONSENT = "consent"
     const val ONBOARDING = "onboarding"
     const val PERMISSIONS = "permissions"
+    const val SETUP = "setup"                 // 연결 마법사 (권한 다음 — 통화녹음 연결)
     const val HOME = "home"
     const val FOLLOW_UP = "follow_up"
     const val FOLLOW_UP_WITH_ARG = "follow_up?phone={phone}&callRecordId={callRecordId}&templateId={templateId}"
