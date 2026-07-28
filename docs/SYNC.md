@@ -8195,3 +8195,8 @@ diag_template_encoding.sh 결과 = **전 층 정상. 손댈 것 없음.**
   - `POST /admin/diagnostics/resolve {id,resolved}` 신설 — 개선여부 토글.
 - 배포: 라이브 sha==repo HEAD(223a148a) 확인 후 백업(main.py.bak_20260729_005337_diagpage)+scp+venv(3.9.6) py_compile OK+kickstart+health200. 종단검증(HTML렌더·토글 id=2·data JSON resolved 반영).
 - ⚠️ 진단함에 실사용 신고 id=1(010-2197-2496, 갤A32 v0.2.1119): "다음날 시공 현장 안내 메시지 버그" — D-1 자동문자 계열. 확인 필요. id=2는 파이프라인 테스트(개선함 처리).
+
+## 2026-07-29 · android→server (후속) — 진단함 스크린샷 서빙
+- `GET /admin/diagnostics/image/{id}` 신설(diag_images 폴더 파일만, 경로탈출 방지). 페이지 '첨부됨' 글자→실제 <img> 인라인+탭시 원본.
+- 배포: 가드(라이브==HEAD b80ab927)·백업 bak_..diagimg·3.9 py_compile·kickstart·health200. 라이브 sha=c1675118.
+- 진단 확인: id=1(갤A32 v1119) 첨부사진 = D-1 자동문자 mojibake 육안확인. **이미 1124 읽기방어(084eaa5)로 수정됨 — 신고자가 구버전(1119)일 뿐. 추가 앱수정 불필요.**
