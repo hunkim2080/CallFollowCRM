@@ -159,6 +159,9 @@ fun SettingsScreen(
     val state by viewModel.state.collectAsState()
     val templates by viewModel.templates.collectAsState()
     val serverAlive by viewModel.serverAlive.collectAsState()
+    // 시작 체크(SetupCheckCard) 확장 — 마법사에서 "나중에" 누른 가격표 항목을 홈에서 재권유하기 위한 실시간 개수.
+    val pricingItemsForSetup by container.pricingItemRepository.observeActive()
+        .collectAsState(initial = emptyList())
     val toneSampleCount by viewModel.ownerToneSampleCount.collectAsState()
     val context = LocalContext.current
 
@@ -272,7 +275,13 @@ fun SettingsScreen(
                 AgentMiniCard(card = agentCard, onClick = { subPage = "tone" })
 
                 // 프로토 setup-check — 시작 체크 (실제 권한 상태). 다 되면 한 줄로 접힘.
-                SetupCheckCard()
+                //   + 마법사에서 "나중에" 누른 연결 항목(녹음·가격표·답장)도 실시간 감지해 재권유. (2026-07-28)
+                SetupCheckCard(
+                    templateCount = templates.size,
+                    pricingCount = pricingItemsForSetup.size,
+                    onOpenTemplates = onOpenTemplates,
+                    onOpenPricingItems = onOpenPricingItems
+                )
 
                 SettingsGroup("함께 일하는 사람") {
                     // 박람회 — 별세계(완전 분리) 진입. 카톡 스타일 전용 창구. (2026-07-21 사장님)
@@ -3091,12 +3100,19 @@ private fun TierTag(label: String, bg: Color) {
 
 // ════════════════════════ 프로토 setup-check (시작 체크) ════════════════════════
 /**
- * 프로토 renderSetupCheck — 시작 체크리스트. 실제 권한 상태로 채움 (가짜 done 없음).
- *   항목: 기본 메시지 앱 / 알림 권한 / 다른 앱 위에 표시. ON_RESUME 마다 재검사.
- *   다 되면 "시작 준비 다 됐어요" 한 줄로 접힘. (갤메시지 채팅+ 끄기는 자동 감지 불가라 제외)
+ * 프로토 renderSetupCheck — 시작 체크리스트. 실제 상태로 채움 (가짜 done 없음). ON_RESUME 마다 재검사.
+ *   필수: 기본 메시지 앱 / 알림 권한.
+ *   추천(2026-07-28 확장): 통화 녹음 연결 / 가격표 / 자주 쓰는 답장 — 온보딩 마법사에서 "나중에" 누른 항목을
+ *     홈에서 다시 권유. done 감지 = AdotFolderScanner.isConnected / pricingCount>0 / templateCount>0.
+ *   다 되면 "시작 준비 다 됐어요" 한 줄로 접힘.
  */
 @Composable
-private fun SetupCheckCard() {
+private fun SetupCheckCard(
+    templateCount: Int,
+    pricingCount: Int,
+    onOpenTemplates: () -> Unit,
+    onOpenPricingItems: () -> Unit
+) {
     val context = LocalContext.current
     val activity = context as? android.app.Activity
     var refresh by remember { mutableStateOf(0) }
@@ -3121,7 +3137,28 @@ private fun SetupCheckCard() {
         contract = ActivityResultContracts.StartActivityForResult()
     ) { refresh++ }
 
-    data class SetupStep(val label: String, val done: Boolean, val action: () -> Unit)
+    // 통화 녹음 연결 상태 — 폴더 직접 연결 or 자동찾기(권한+opt-in). ON_RESUME/스캔 후 재검사.
+    val recConnected = remember(refresh) {
+        runCatching { com.detailline.callfollowcrm.recording.AdotFolderScanner.isConnected(context) }.getOrDefault(false)
+    }
+    // "녹음 연결" 액션 = 온보딩 마법사 doScan 과 동일: 오디오 권한 → MediaStore 자동찾기 켜기 → 개수 토스트.
+    val scanner = com.detailline.callfollowcrm.recording.AdotFolderScanner
+    val runRecordingScan: () -> Unit = {
+        scanner.enableMediaStore(context)
+        val n = runCatching { scanner.countMediaStoreCandidates(context) }.getOrDefault(0)
+        refresh++
+        if (n > 0) Toast.makeText(context, "녹음 ${n}개를 찾았어요 🎉 통화가 끝나면 자동 요약돼요", Toast.LENGTH_LONG).show()
+        else Toast.makeText(context, "아직 녹음이 없어요. 통화 녹음을 먼저 켜주세요 (전화 설정)", Toast.LENGTH_LONG).show()
+    }
+    val audioLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted -> if (granted) runRecordingScan() else Toast.makeText(context, "녹음 접근 권한이 필요해요", Toast.LENGTH_SHORT).show() }
+    val connectRecording: () -> Unit = {
+        if (scanner.hasAudioPermission(context)) runRecordingScan()
+        else runCatching { audioLauncher.launch(scanner.audioPermission()) }
+    }
+
+    data class SetupStep(val label: String, val done: Boolean, val actionLabel: String = "설정", val action: () -> Unit)
     // 2026-07-05 "기본 문자 앱 지정" 권장 단계 부활. (2026-06-18 엔 기본앱=MMS유실을 "통신사 한계"로 오인해
     //   제거했으나, 실은 klinker 수신 버그였고 안드로이드 공식 API 로 해결됨 — commit 01136a2, S23U/KT 검증.)
     //   Play 는 문자 읽기/보내기 권한에 "기본 SMS 핸들러" 자격을 요구 → 이 단계로 사용자·구글 심사자가 지정 가능.
@@ -3148,7 +3185,11 @@ private fun SetupCheckCard() {
                     .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                 context.startActivity(i)
             }
-        }
+        },
+        // 추천 연결 항목 — 마법사에서 "나중에" 눌러도 여기서 재권유. 실제 데이터 감지되면 초록 체크로 사라짐.
+        SetupStep("통화 녹음 연결 · 통화 끝나면 자동 요약", recConnected, actionLabel = "연결") { connectRecording() },
+        SetupStep("가격표 만들기 · 견적 자동 완성", pricingCount > 0, actionLabel = "만들기") { onOpenPricingItems() },
+        SetupStep("자주 쓰는 답장 만들기", templateCount > 0, actionLabel = "만들기") { onOpenTemplates() }
     )
     val doneN = steps.count { it.done }
     val total = steps.size
@@ -3183,7 +3224,7 @@ private fun SetupCheckCard() {
                     CheckDot(s.done)
                     Spacer(Modifier.width(9.dp))
                     Text(s.label, fontSize = 14.sp, color = TossTextPrimary, modifier = Modifier.weight(1f))
-                    if (!s.done) Text("설정", fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
+                    if (!s.done) Text(s.actionLabel, fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
                         color = TossBlue, modifier = Modifier.clickable { s.action() })
                 }
             }
