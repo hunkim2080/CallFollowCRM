@@ -565,6 +565,12 @@ def db_init() -> None:
             "CREATE INDEX IF NOT EXISTS idx_diag_created "
             "ON diagnostics_reports(created_at_ms DESC)"
         )
+        # 추가160 (2026-07-29) — 진단 '개선 여부' 표시 (관리자 페이지에서 토글). 무손실 컬럼 추가.
+        _dc = {r[1] for r in con.execute("PRAGMA table_info(diagnostics_reports)").fetchall()}
+        if "resolved" not in _dc:
+            con.execute("ALTER TABLE diagnostics_reports ADD COLUMN resolved INTEGER DEFAULT 0")
+        if "resolved_at_ms" not in _dc:
+            con.execute("ALTER TABLE diagnostics_reports ADD COLUMN resolved_at_ms INTEGER")
         # ── 추가121 (2026-07-13) — 상담함/문자함 Haiku 분류 캐시 (같은 내용 재호출 0) ──
         con.execute(
             """
@@ -25291,20 +25297,140 @@ async def diagnostics_report(req: DiagnosticsReport) -> dict:
     return {"ok": True, "id": rid}
 
 
-@app.get("/admin/diagnostics")
-async def admin_diagnostics(limit: int = 30) -> dict:
-    """최근 문제 신고 목록 (관리자 확인용)."""
-    limit = max(1, min(int(limit or 30), 200))
+class DiagResolve(BaseModel):
+    id: int
+    resolved: bool = True
+
+
+_DIAG_CSS = """<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#f2f4f6;font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#191f28;padding:0 0 44px}
+  header{position:sticky;top:0;background:#fff;border-bottom:1px solid #eaedf1;padding:16px 18px 12px;z-index:9}
+  h1{font-size:19px;font-weight:800;letter-spacing:-.4px}
+  .counts{font-size:13px;color:#8b95a1;margin-top:3px}
+  .counts b{color:#f0436a;font-size:15px}
+  .filters{margin-top:11px;display:flex;gap:8px}
+  .fbtn{border:0;background:#f2f4f6;color:#4e5968;font-size:13px;font-weight:700;padding:7px 14px;border-radius:999px;cursor:pointer}
+  .fbtn.on{background:#3182f6;color:#fff}
+  main{padding:14px 14px 0;display:flex;flex-direction:column;gap:12px;max-width:640px;margin:0 auto}
+  .card{background:#fff;border-radius:16px;padding:15px 16px;box-shadow:0 1px 2px rgba(20,30,50,.05)}
+  .card.open{border-left:4px solid #f0436a}
+  .card.done{opacity:.6;border-left:4px solid #12b886}
+  .top{display:flex;align-items:center;gap:8px}
+  .pill{font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;flex:none}
+  .pill.open{background:#ffe9ee;color:#f0436a}
+  .pill.done{background:#e7f9f1;color:#0ca678}
+  .meta{font-size:12.5px;color:#8b95a1;font-weight:600}
+  .sub{font-size:12px;color:#adb5bd;margin-top:5px}
+  .note{margin-top:10px;font-size:15px;font-weight:700;line-height:1.5;background:#f8f9fb;border-radius:10px;padding:11px 13px;white-space:pre-wrap;word-break:break-word}
+  .img{margin-top:8px;font-size:12px;color:#3182f6;font-weight:700}
+  details{margin-top:10px}
+  summary{font-size:12.5px;color:#3182f6;font-weight:700;cursor:pointer}
+  pre{margin-top:8px;background:#0f1720;color:#d7e0ea;border-radius:10px;padding:12px;font-size:11.5px;line-height:1.55;overflow-x:auto;white-space:pre-wrap;word-break:break-word}
+  .actions{margin-top:12px}
+  .btn{border:0;border-radius:10px;font-size:13.5px;font-weight:800;padding:10px 14px;cursor:pointer;width:100%}
+  .btn.resolve{background:#12b886;color:#fff}
+  .btn.reopen{background:#f2f4f6;color:#8b95a1}
+  .empty{text-align:center;color:#adb5bd;font-size:14px;padding:60px 0}
+</style>"""
+
+_DIAG_JS = """<script>
+function mark(id,val){
+  fetch('/admin/diagnostics/resolve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id,resolved:!!val})})
+   .then(function(r){return r.json();}).then(function(){location.reload();})
+   .catch(function(){alert('실패 — 다시 시도해주세요');});
+}
+function filt(m){
+  document.getElementById('f-all').classList.toggle('on',m==='all');
+  document.getElementById('f-open').classList.toggle('on',m==='open');
+  var cs=document.querySelectorAll('.card');
+  for(var i=0;i<cs.length;i++){cs[i].style.display=(m==='open'&&cs[i].dataset.done==='1')?'none':'';}
+}
+</script>"""
+
+
+def _render_diag_html(rows) -> str:
+    import html as _h
+    import datetime as _dt
+    total = len(rows)
+    unresolved = sum(1 for r in rows if not r[9])
+    cards = []
+    for r in rows:
+        rid, phone, version, device, android, note, report, image_path, cms, resolved = r
+        when = _dt.datetime.utcfromtimestamp((cms or 0) / 1000 + 9 * 3600).strftime("%m/%d %H:%M")
+        done = bool(resolved)
+        cls = "done" if done else "open"
+        pill = ('<span class="pill done">✓ 개선함</span>' if done
+                else '<span class="pill open">미개선</span>')
+        btn = (f'<button class="btn reopen" onclick="mark({rid},0)">미개선으로 되돌리기</button>' if done
+               else f'<button class="btn resolve" onclick="mark({rid},1)">✓ 개선함으로 표시</button>')
+        meta = _h.escape(f'#{rid} · {when} · {_fmt_phone(phone) or "번호미상"}')
+        sub = _h.escape(f'v{version or "?"} · {device or "?"} · Android {android or "?"}')
+        note_html = (f'<div class="note">{_h.escape(note)}</div>' if (note or "").strip() else '')
+        rep = _h.escape((report or "")[:8000])
+        img = '<div class="img">📎 스크린샷 첨부됨</div>' if image_path else ''
+        cards.append(
+            f'<div class="card {cls}" data-done="{1 if done else 0}">'
+            f'<div class="top">{pill}<div class="meta">{meta}</div></div>'
+            f'<div class="sub">{sub}</div>{note_html}{img}'
+            f'<details><summary>진단 상세 보기</summary><pre>{rep}</pre></details>'
+            f'<div class="actions">{btn}</div></div>'
+        )
+    body = "\n".join(cards) if cards else '<div class="empty">아직 신고가 없어요.</div>'
+    head = (
+        '<!doctype html><html lang="ko"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        '<title>문제 신고 / 진단</title>' + _DIAG_CSS + '</head>'
+    )
+    header = (
+        '<body><header><h1>🐞 문제 신고 · 진단</h1>'
+        f'<div class="counts"><b>{unresolved}</b> 미개선 · 전체 {total}</div>'
+        '<div class="filters">'
+        "<button id=\"f-all\" class=\"fbtn on\" onclick=\"filt('all')\">전체</button>"
+        "<button id=\"f-open\" class=\"fbtn\" onclick=\"filt('open')\">미개선만</button>"
+        '</div></header>'
+    )
+    return head + header + '<main>' + body + '</main>' + _DIAG_JS + '</body></html>'
+
+
+@app.get("/admin/diagnostics", response_class=HTMLResponse)
+async def admin_diagnostics(limit: int = 50) -> HTMLResponse:
+    """문제 신고/진단 — 관리자 확인 페이지(개선 여부 뱃지·토글). JSON 은 /admin/diagnostics/data."""
+    limit = max(1, min(int(limit or 50), 200))
     with db_conn() as con:
         rows = con.execute(
-            "SELECT id, phone, version, device, android, note, report, image_path, created_at_ms "
-            "FROM diagnostics_reports ORDER BY created_at_ms DESC LIMIT ?", (limit,),
+            "SELECT id, phone, version, device, android, note, report, image_path, created_at_ms, "
+            "COALESCE(resolved, 0) FROM diagnostics_reports ORDER BY created_at_ms DESC LIMIT ?",
+            (limit,),
         ).fetchall()
-    out = []
-    for r in rows:
-        out.append({
-            "id": r[0], "phone": _fmt_phone(r[1]), "version": r[2], "device": r[3],
-            "android": r[4], "note": r[5] or "", "report": (r[6] or "")[:4000],
-            "has_image": bool(r[7]), "created_at_ms": r[8],
-        })
+    return HTMLResponse(content=_render_diag_html(rows))
+
+
+@app.get("/admin/diagnostics/data")
+async def admin_diagnostics_data(limit: int = 50) -> dict:
+    """진단 목록 JSON(프로그램용). 사람이 보는 건 /admin/diagnostics."""
+    limit = max(1, min(int(limit or 50), 200))
+    with db_conn() as con:
+        rows = con.execute(
+            "SELECT id, phone, version, device, android, note, report, image_path, created_at_ms, "
+            "COALESCE(resolved, 0) FROM diagnostics_reports ORDER BY created_at_ms DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    out = [{
+        "id": r[0], "phone": _fmt_phone(r[1]), "version": r[2], "device": r[3],
+        "android": r[4], "note": r[5] or "", "report": (r[6] or "")[:4000],
+        "has_image": bool(r[7]), "created_at_ms": r[8], "resolved": bool(r[9]),
+    } for r in rows]
     return {"ok": True, "count": len(out), "reports": out}
+
+
+@app.post("/admin/diagnostics/resolve")
+async def admin_diagnostics_resolve(req: DiagResolve) -> dict:
+    """진단 신고 '개선 여부' 토글 (관리자 페이지 버튼)."""
+    with db_conn() as con:
+        con.execute(
+            "UPDATE diagnostics_reports SET resolved = ?, resolved_at_ms = ? WHERE id = ?",
+            (1 if req.resolved else 0, (_now_ms() if req.resolved else None), req.id),
+        )
+        con.commit()
+    return {"ok": True, "id": req.id, "resolved": req.resolved}

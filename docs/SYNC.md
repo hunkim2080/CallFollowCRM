@@ -8187,3 +8187,11 @@ diag_template_encoding.sh 결과 = **전 층 정상. 손댈 것 없음.**
 - 붙인 곳: 온보딩 녹음0개·홈 시작체크·가격표 자동생성 ERROR·통화요약 실패. 답장=로컬이라 제외.
 - **서버 참고**: 기존 `/api/diagnostics/report` 그대로 사용(수동진단 엔드포인트). tag 앞 `[막힘 자동진단]` 로 자동/수동 구분. curl 실측 {ok,id:2}. 서버 작업 불필요.
 - commit 2b00980·9b3de34·3a991b0. S23U: 부품+온보딩/홈 렌더검증, 가격표/통화요약=에러상태라 컴파일+동일부품.
+
+## 2026-07-29 · android→server (사장님 지시로 서버 직접 수정+배포)
+진단함(/admin/diagnostics)을 예쁜 모바일 HTML + '개선 여부' 토글로. 사장님 "예쁘게 보게 + 개선했는지 한 화면에".
+- 변경: diagnostics_reports 에 `resolved`(+resolved_at_ms) 컬럼 추가(무손실 ALTER, PRAGMA 가드).
+  - `GET /admin/diagnostics` = JSON→**HTML 페이지**(카드·미개선/개선함 뱃지·전체/미개선만 필터). JSON은 `GET /admin/diagnostics/data`로 이전(신설).
+  - `POST /admin/diagnostics/resolve {id,resolved}` 신설 — 개선여부 토글.
+- 배포: 라이브 sha==repo HEAD(223a148a) 확인 후 백업(main.py.bak_20260729_005337_diagpage)+scp+venv(3.9.6) py_compile OK+kickstart+health200. 종단검증(HTML렌더·토글 id=2·data JSON resolved 반영).
+- ⚠️ 진단함에 실사용 신고 id=1(010-2197-2496, 갤A32 v0.2.1119): "다음날 시공 현장 안내 메시지 버그" — D-1 자동문자 계열. 확인 필요. id=2는 파이프라인 테스트(개선함 처리).
