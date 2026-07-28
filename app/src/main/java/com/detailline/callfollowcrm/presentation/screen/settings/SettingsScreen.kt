@@ -277,6 +277,7 @@ fun SettingsScreen(
                 // 프로토 setup-check — 시작 체크 (실제 권한 상태). 다 되면 한 줄로 접힘.
                 //   + 마법사에서 "나중에" 누른 연결 항목(녹음·가격표·답장)도 실시간 감지해 재권유. (2026-07-28)
                 SetupCheckCard(
+                    preferences = container.preferences,
                     templateCount = templates.size,
                     pricingCount = pricingItemsForSetup.size,
                     onOpenTemplates = onOpenTemplates,
@@ -3108,6 +3109,7 @@ private fun TierTag(label: String, bg: Color) {
  */
 @Composable
 private fun SetupCheckCard(
+    preferences: com.detailline.callfollowcrm.data.preferences.AppPreferences,
     templateCount: Int,
     pricingCount: Int,
     onOpenTemplates: () -> Unit,
@@ -3116,6 +3118,8 @@ private fun SetupCheckCard(
     val context = LocalContext.current
     val activity = context as? android.app.Activity
     var refresh by remember { mutableStateOf(0) }
+    // 녹음 "연결" 눌러 스캔했는데 0개면 = 우리가 못 잡는 것 → 진단 보내기 노출. (2026-07-29 사장님)
+    var recScanFailed by remember { mutableStateOf(false) }
 
     // 설정 다녀오면 반영 — ON_RESUME 마다 재검사.
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -3147,6 +3151,7 @@ private fun SetupCheckCard(
         scanner.enableMediaStore(context)
         val n = runCatching { scanner.countMediaStoreCandidates(context) }.getOrDefault(0)
         refresh++
+        recScanFailed = n == 0
         if (n > 0) Toast.makeText(context, "녹음 ${n}개를 찾았어요 🎉 통화가 끝나면 자동 요약돼요", Toast.LENGTH_LONG).show()
         else Toast.makeText(context, "아직 녹음이 없어요. 통화 녹음을 먼저 켜주세요 (전화 설정)", Toast.LENGTH_LONG).show()
     }
@@ -3227,6 +3232,17 @@ private fun SetupCheckCard(
                     if (!s.done) Text(s.actionLabel, fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
                         color = TossBlue, modifier = Modifier.clickable { s.action() })
                 }
+            }
+            // 녹음 "연결" 눌러도 계속 0개면 원인 자동 진단(파일없음/파서미스 + 가린 파일명). (2026-07-29 사장님)
+            if (recScanFailed) {
+                Spacer(Modifier.height(4.dp))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFF0F2F5)))
+                com.detailline.callfollowcrm.presentation.component.InlineDiagPrompt(
+                    prefs = preferences,
+                    tag = "홈-녹음연결(0개)",
+                    prompt = "녹음이 계속 안 잡히나요?",
+                    buildExtra = { com.detailline.callfollowcrm.recording.AdotFolderScanner.recordingDiag(context) }
+                )
             }
         }
     }
