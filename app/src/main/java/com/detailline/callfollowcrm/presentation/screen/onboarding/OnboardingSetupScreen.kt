@@ -81,7 +81,7 @@ fun OnboardingSetupScreen(onFinish: () -> Unit) {
                 primaryText = "시작하기",
                 onPrimary = { step = 1 }
             ) {
-                Column(Modifier.padding(top = 22.dp)) {
+                Column(Modifier.align(Alignment.CenterHorizontally).padding(top = 26.dp)) {
                     ReadyRow("✓", "기본 문자 앱", done = true)
                     ReadyRow("✓", "권한 허용", done = true)
                     ReadyRow("3", "통화 녹음 연결", done = false)
@@ -157,7 +157,7 @@ fun OnboardingSetupScreen(onFinish: () -> Unit) {
                 primaryGreen = true,
                 onPrimary = onFinish
             ) {
-                Column(Modifier.padding(top = 20.dp)) {
+                Column(Modifier.align(Alignment.CenterHorizontally).padding(top = 24.dp)) {
                     ReadyRow("✓", "기본 문자 앱", done = true)
                     ReadyRow("✓", "권한 허용", done = true)
                     ReadyRow(
@@ -166,7 +166,7 @@ fun OnboardingSetupScreen(onFinish: () -> Unit) {
                         done = (recResult ?: 0) > 0
                     )
                 }
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(16.dp))
                 Text(
                     "가격표·자주 쓰는 답장은 홈에서 언제든 자동으로 만들 수 있어요.",
                     fontSize = 13.sp, color = Sub, textAlign = TextAlign.Center,
@@ -189,30 +189,31 @@ private fun ColumnScope.StepScaffold(
     primaryGreen: Boolean = false,
     laterText: String? = null,
     onLater: (() -> Unit)? = null,
-    content: (@Composable () -> Unit)? = null
+    content: (@Composable ColumnScope.() -> Unit)? = null
 ) {
-    Spacer(Modifier.height(if (big) 60.dp else 30.dp))
+    Spacer(Modifier.height(if (big) 56.dp else 44.dp))
+    // 아이콘 — 항상 가운데
     if (big) {
         Text(icon, fontSize = 64.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
     } else {
         Box(
-            Modifier.size(96.dp).background(iconBg, RoundedCornerShape(28.dp)),
+            Modifier.align(Alignment.CenterHorizontally).size(92.dp).background(iconBg, RoundedCornerShape(26.dp)),
             contentAlignment = Alignment.Center
-        ) { Text(icon, fontSize = 50.sp) }
+        ) { Text(icon, fontSize = 46.sp) }
     }
-    Spacer(Modifier.height(20.dp))
+    Spacer(Modifier.height(22.dp))
     Text(
         title, fontSize = 23.sp, fontWeight = FontWeight.Black, color = Ink,
-        lineHeight = 31.sp, textAlign = if (big) TextAlign.Center else TextAlign.Start,
-        modifier = if (big) Modifier.fillMaxWidth() else Modifier
+        lineHeight = 31.sp, textAlign = TextAlign.Center, letterSpacing = (-0.5).sp,
+        modifier = Modifier.fillMaxWidth()
     )
     Spacer(Modifier.height(12.dp))
     Text(
-        sub, fontSize = 14.5.sp, color = Sub, lineHeight = 22.sp,
-        textAlign = if (big) TextAlign.Center else TextAlign.Start,
-        modifier = if (big) Modifier.fillMaxWidth() else Modifier
+        sub, fontSize = 15.sp, color = Sub, lineHeight = 22.sp,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth()
     )
-    content?.invoke()
+    content?.invoke(this)
     Spacer(Modifier.weight(1f))
     Box(
         Modifier.fillMaxWidth()
