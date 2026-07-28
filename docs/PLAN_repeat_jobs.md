@@ -37,3 +37,40 @@
 6. 두 번째 접수서에 이전 건 흔적(단골 할인 등) 표기? (프로토 기본 = 안 넣음)
 
 관련 파일: `CustomerEntity.kt`, `JobEntity.kt`, `JobRepository.kt`, `ScheduleAddViewModel.kt`, `ScheduleViewModel.kt`, `SettlementCalc.kt`, `CustomerDetailScreen.kt`, `design-preview/ringgo-redesign.html`(openAddSchedule/submitSchedule/openQuote).
+
+---
+
+## Phase 2 확정 설계 (2026-07-28 사장님 결정) — "같은 사람 미리 두 날짜"
+
+> 사장님: **"같은 사람이 두 날짜를 미리 잡는 경우도 많아."** → Phase 1 한계 ③(첫 시공 완료 전 두 번째 예약 시 덮어씀)이 실사용 빈발.
+> 결정: **프로토대로 '건 중심' 정식 구현**. "반만" 옵션 없음 — 정산(미수금)이 틀리면 사장님이 가장 싫어하는 돈 버그라, 정산까지 맞추는 게 작업의 대부분이라 절반 버전이 무의미. **며칠짜리.**
+> 시점: **홍보용 온보딩 마무리 후 바로 착수**(2026-07-28 이 시점엔 설계만 못박고 손은 온보딩으로).
+
+### 목업 = 프로토 그대로 (지어내지 말 것, §0)
+프로토가 이미 완전한 건 중심 설계임 = 이게 목업이자 스펙. 출처 지목:
+- `jobs = { 날짜: [건,건,...] }` 배열([:3028](../design-preview/ringgo-redesign.html#L3028)), `jobsOn(d)`([:3036](../design-preview/ringgo-redesign.html#L3036)), `jobsCovering(d)`(멀티데이 span, [:3038](../design-preview/ringgo-redesign.html#L3038)), `computeLanes()`(겹침 lane, [:3040](../design-preview/ringgo-redesign.html#L3040)).
+- 한 날 여러 건 UI: "이 날 일정 더 추가"([:3106](../design-preview/ringgo-redesign.html#L3106)), 빈 날 "이 날 일정 등록"([:3108](../design-preview/ringgo-redesign.html#L3108)).
+- 등록/수정: `openAddSchedule(day, idx)`([:3448](../design-preview/ringgo-redesign.html#L3448)) — idx 있으면 그 건 편집, 없으면 새 건. `submitSchedule()`([:3546](../design-preview/ringgo-redesign.html#L3546)), `delSchedule(day, idx)`([:3568](../design-preview/ringgo-redesign.html#L3568)).
+- 정산: `settle[]` 를 **건(`sid`)별**로 잡음(고객별 아님). `delSchedule` 이 그 sid 정산도 같이 삭제.
+- 월별 보관: `jobsArchive[calMon]`([:3041](../design-preview/ringgo-redesign.html#L3041), [:3045](../design-preview/ringgo-redesign.html#L3045)) — 지난 달 완료 건 그대로 남김.
+
+### 구조 = "미러(mirror)" 방식 (기존 화면 무중단이 핵심)
+- **jobs 테이블 = 모든 시공 건(과거·현재·미래)의 SoT.** 지금은 완료 보관만 하는데, Phase 2에선 예정/진행 건도 여기 들어옴.
+- **CustomerEntity 시공 필드 = 그 고객의 "대표 건" 미러**(= 가장 가까운 예정 건; 예정 없으면 가장 최근 건). CustomerEntity.scheduledWorkDate 를 읽는 **~10개 리더는 무변경**으로 대표 건을 계속 봄: 홈 히어로/HomeViewModel, 챗/ChatViewModel, 통화 前 카드/IncomingCallOverlay, 접수서/IntakeSyncManager, 미러/MirrorSyncManager, 브리핑/ClosingBriefViewModel 등.
+- **쓰기(등록·완료·입금·잔금)는 특정 job 대상** → 매번 그 고객 대표 건 재계산 후 CustomerEntity 미러 재기록. (불변식: jobs 가 바뀌면 항상 미러 재계산)
+
+### 바뀌는 곳 (must — 여기가 작업 대부분)
+1. **마이그레이션 v42→v43** — 각 고객의 현재 활성 시공(`scheduledWorkDate != null`)을 jobs 행으로 INSERT(이미 보관된 완료건과 중복 방지). **CREATE + COPY 만, 기존 컬럼 유지 → 무손실.** (v41→v42 job 패턴 검증됨, 동일 방식) ⚠️ 실기 오픈 크래시 검증 필수(데이터 안전 지뢰).
+2. **달력/ScheduleViewModel·ScheduleScreen** — jobs 읽어 한 날 여러 건 + 멀티데이 lane. (지금 CustomerEntity 단건 읽음)
+3. **정산/SettlementViewModel·SettlementCalc** — 건별 합산으로. ❗**돈 경로 = 순수함수 단위테스트 필수**(미수금·매출이 모든 건 합산). 절반 불가 이유가 여기.
+4. **알람/ReminderWorker** — D-1·잔금 알람을 **건별로** 발사(두 번째 날짜도 울려야 함).
+5. **등록/ScheduleAddViewModel.submit** — `updateScheduledWorkDate`(덮어쓰기) 제거 → **새 job INSERT** + 미러 재계산. `archiveCompletedBeforeNewSchedule` 훅은 흡수/폐기.
+
+### 단계 배포 (각 단계 폰 검증 후 다음)
+- **Stage A**: jobs=SoT + 미러 + 마이그레이션 + 등록=INSERT(덮어쓰기 제거) + 달력이 jobs 읽기. → "두 날짜 저장·달력 노출" 달성.
+- **Stage B**: 정산 건별(테스트) + 알람 건별. → "미수금·알람 정확" 달성.
+- **Stage C**: 고객상세 건 목록 UI(프로토) + 멀티데이 lane 렌더 폴리시.
+
+### 프로토 따르는 결정(이미 답 나옴 — 다시 안 물음)
+- 완료 건 과거 달에 남김(jobsArchive). 정산 건별 분리(고객 합산 뷰는 추후 필요 시). 두 번째 접수서에 이전 건 흔적 안 넣음.
+- 여전히 물을 것: "단골" 자동 전환 규칙(누적 2건부터 자동?) — Stage C 때.

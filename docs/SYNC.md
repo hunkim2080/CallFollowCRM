@@ -8169,3 +8169,9 @@ diag_template_encoding.sh 결과 = **전 층 정상. 손댈 것 없음.**
 - 서버 배포: SSH 안전배포(served==직전 c776e07a 가드 통과, 백업 main.py.bak_20260727_push2, venv py_compile OK, kickstart, health 200, served=223a148a).
 - 검증: expo_assign cid25→01064610131 → 로그 `[fcm] 01064610131 type=expo_assigned sent=1`. (테스트 후 원복)
 - ⚠️ 앱: 새 APK 빌드 완료(EXIT 0)·폰 분리로 미설치. **owner_event/expo_assigned 는 새 앱 설치돼야 폰에 표시됨**(서버 푸시는 이미 나감). 재연결 시 설치+실기 검증 필요.
+
+## 2026-07-28 · android
+같은 고객 "미리 두 날짜" 정식화 설계 확정 + 온보딩 시작체크 확장(WIP)
+- **결정(사장님)**: "같은 사람이 두 날짜 미리 잡는 경우 많아" → 재방문 Phase2(프로토대로 건 중심) 정식 구현 확정. 절반옵션 없음(정산·미수금 정확성). **홍보용 온보딩 마무리 후 착수**. 설계=docs/PLAN_repeat_jobs.md "Phase 2 확정 설계"(미러 방식·마이그v43·달력/정산/알람·Stage A/B/C). **전부 앱 로컬(서버 영향 없음)**.
+- 온보딩: 홈 시작체크(SetupCheckCard)에 녹음연결·가격표·답장 3항목 추가(마법사 "나중에" 재권유). done감지=AdotFolderScanner.isConnected/pricingCount/templateCount. 컴파일 OK. ⚠️폰 분리로 **미검증**(0개 안내 화면 검증과 함께 폰 연결 시 처리). 미커밋.
+- commit: 설계 doc만(PLAN_repeat_jobs.md). 체크리스트 코드는 폰 검증 후 커밋.
