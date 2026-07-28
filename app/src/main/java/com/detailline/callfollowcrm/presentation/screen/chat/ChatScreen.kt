@@ -3323,28 +3323,42 @@ private fun SummaryLoadingPlaceholder(
 private fun SummaryFailedPlaceholder(
     onRetry: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 6.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color.White)
-            .clickable { onRetry() }
-            .padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            "⚠️ 요약을 못 만들었어요 · 다시",
-            color = Color(0xFFD9534F),
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.weight(1f)
-        )
-        Icon(
-            Icons.Default.Refresh,
-            contentDescription = "다시 시도",
-            tint = Color(0xFFD9534F),
-            modifier = Modifier.size(20.dp)
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 6.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color.White)
+                .clickable { onRetry() }
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "⚠️ 요약을 못 만들었어요 · 다시",
+                color = Color(0xFFD9534F),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                Icons.Default.Refresh,
+                contentDescription = "다시 시도",
+                tint = Color(0xFFD9534F),
+                modifier = Modifier.size(20.dp)
+            )
+        }
+        // 계속 실패하면(서버 크레딧/네트워크/오디오 읽기 등) 앱 안에서 바로 진단 보내기. (2026-07-29 사장님)
+        val ctx = androidx.compose.ui.platform.LocalContext.current
+        val diagPrefs = remember {
+            (ctx.applicationContext as com.detailline.callfollowcrm.CallFollowCrmApplication).container.preferences
+        }
+        com.detailline.callfollowcrm.presentation.component.InlineDiagPrompt(
+            prefs = diagPrefs,
+            tag = "통화요약 실패",
+            modifier = Modifier.padding(horizontal = 14.dp),
+            prompt = "계속 안 되나요?",
+            buildExtra = { "통화 요약 실패 — 서버 STT/요약 응답 실패(크레딧/네트워크/오디오 읽기 등)" }
         )
     }
 }

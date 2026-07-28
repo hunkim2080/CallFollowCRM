@@ -737,7 +737,8 @@ fun AppNavHost(
             PricingExtractScreen(
                 viewModel = vm,
                 onBack = { navController.popBackStack() },
-                onDone = { navController.popBackStack() }
+                onDone = { navController.popBackStack() },
+                preferences = container.preferences
             )
         }
     }

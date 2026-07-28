@@ -71,7 +71,8 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 fun PricingExtractScreen(
     viewModel: PricingExtractViewModel,
     onBack: () -> Unit,
-    onDone: () -> Unit
+    onDone: () -> Unit,
+    preferences: com.detailline.callfollowcrm.data.preferences.AppPreferences
 ) {
     val ui by viewModel.ui.collectAsState()
     val phase = ui.phase
@@ -104,9 +105,20 @@ fun PricingExtractScreen(
                 PricingExtractViewModel.Phase.CONSENT -> ConsentBody(onAgree = viewModel::agreeAndStart, onBack = onBack)
                 PricingExtractViewModel.Phase.ITEMS -> ItemsBody(ui, viewModel)
                 PricingExtractViewModel.Phase.PRICES -> PricesBody(ui, viewModel)
-                PricingExtractViewModel.Phase.EMPTY,
-                PricingExtractViewModel.Phase.ERROR -> CenterStatus(
+                PricingExtractViewModel.Phase.EMPTY -> CenterStatus(
                     loading = false, message = ui.message, actionLabel = "직접 입력하기", onAction = onBack
+                )
+                // 서버 분석 실패(EMPTY=뽑을 게 없음과 구분) → 막힌 자리에서 바로 진단. (2026-07-29 사장님)
+                PricingExtractViewModel.Phase.ERROR -> CenterStatus(
+                    loading = false, message = ui.message, actionLabel = "직접 입력하기", onAction = onBack,
+                    diag = {
+                        com.detailline.callfollowcrm.presentation.component.InlineDiagPrompt(
+                            prefs = preferences,
+                            tag = "가격표-자동생성 실패",
+                            prompt = "계속 안 되나요?",
+                            buildExtra = { "가격표 자동생성 실패(분석 서버 응답 없음/오류) · 후보 문자 ${ui.candidateCount}개" }
+                        )
+                    }
                 )
                 PricingExtractViewModel.Phase.DONE -> CenterStatus(
                     loading = false,
@@ -123,7 +135,8 @@ private fun CenterStatus(
     loading: Boolean,
     message: String,
     actionLabel: String? = null,
-    onAction: (() -> Unit)? = null
+    onAction: (() -> Unit)? = null,
+    diag: (@Composable () -> Unit)? = null
 ) {
     Column(
         Modifier.fillMaxSize().padding(32.dp),
@@ -142,6 +155,10 @@ private fun CenterStatus(
                 colors = ButtonDefaults.buttonColors(containerColor = TossBlue),
                 shape = RoundedCornerShape(12.dp)
             ) { Text(actionLabel, color = Color.White, fontWeight = FontWeight.Bold) }
+        }
+        if (diag != null) {
+            Spacer(Modifier.height(14.dp))
+            diag()
         }
     }
 }
