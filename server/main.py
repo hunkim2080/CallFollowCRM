@@ -25324,6 +25324,8 @@ _DIAG_CSS = """<style>
   .sub{font-size:12px;color:#adb5bd;margin-top:5px}
   .note{margin-top:10px;font-size:15px;font-weight:700;line-height:1.5;background:#f8f9fb;border-radius:10px;padding:11px 13px;white-space:pre-wrap;word-break:break-word}
   .img{margin-top:8px;font-size:12px;color:#3182f6;font-weight:700}
+  .shot{display:block;margin-top:10px}
+  .shot img{max-width:100%;border-radius:10px;display:block;border:1px solid #eaedf1}
   details{margin-top:10px}
   summary{font-size:12.5px;color:#3182f6;font-weight:700;cursor:pointer}
   pre{margin-top:8px;background:#0f1720;color:#d7e0ea;border-radius:10px;padding:12px;font-size:11.5px;line-height:1.55;overflow-x:auto;white-space:pre-wrap;word-break:break-word}
@@ -25368,7 +25370,9 @@ def _render_diag_html(rows) -> str:
         sub = _h.escape(f'v{version or "?"} · {device or "?"} · Android {android or "?"}')
         note_html = (f'<div class="note">{_h.escape(note)}</div>' if (note or "").strip() else '')
         rep = _h.escape((report or "")[:8000])
-        img = '<div class="img">📎 스크린샷 첨부됨</div>' if image_path else ''
+        img = (f'<a class="shot" href="/admin/diagnostics/image/{rid}" target="_blank">'
+               f'<img src="/admin/diagnostics/image/{rid}" loading="lazy" alt="첨부 스크린샷"></a>'
+               if image_path else '')
         cards.append(
             f'<div class="card {cls}" data-done="{1 if done else 0}">'
             f'<div class="top">{pill}<div class="meta">{meta}</div></div>'
@@ -25434,3 +25438,21 @@ async def admin_diagnostics_resolve(req: DiagResolve) -> dict:
         )
         con.commit()
     return {"ok": True, "id": req.id, "resolved": req.resolved}
+
+
+@app.get("/admin/diagnostics/image/{rid}")
+async def admin_diagnostics_image(rid: int):
+    """진단 첨부 스크린샷 서빙 — 관리자 페이지 인라인 표시용."""
+    import os
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT image_path FROM diagnostics_reports WHERE id = ?", (rid,)
+        ).fetchone()
+    if not row or not row[0]:
+        raise HTTPException(404, "이미지 없음")
+    p = str(row[0])
+    # 안전: diag_images 폴더 안의 실제 파일만 서빙(경로 탈출 방지).
+    safe_dir = os.path.realpath(str(BASE_DIR / "diag_images"))
+    if not (os.path.realpath(p).startswith(safe_dir) and os.path.isfile(p)):
+        raise HTTPException(404, "파일 없음")
+    return FileResponse(p, media_type="image/jpeg")
