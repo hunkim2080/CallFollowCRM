@@ -3194,11 +3194,13 @@ private fun Composer(
                         inner()
                     }
                 )
-                // 📷 사진 첨부 (오른쪽)
-                Icon(
-                    Icons.Default.Image, "사진 첨부", tint = TossTextTertiary,
-                    modifier = Modifier.size(19.dp).clickable { onAttachPhoto() }
-                )
+                // 📷 사진 첨부 (오른쪽) — 터치영역 44dp 로(19dp는 거친 손가락이 못 누름). 2026-07-30
+                androidx.compose.foundation.layout.Box(
+                    Modifier.size(44.dp).clickable { onAttachPhoto() },
+                    contentAlignment = androidx.compose.ui.Alignment.Center
+                ) {
+                    Icon(Icons.Default.Image, "사진 첨부", tint = TossTextTertiary, modifier = Modifier.size(22.dp))
+                }
             }
             // 40px 파란 발송 원 — 프로토 .snd: 항상 파랑 + 흰 아이콘 + 파란 glow.
             Surface(

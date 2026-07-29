@@ -3615,7 +3615,7 @@ private fun recentStatusTag(c: com.detailline.callfollowcrm.data.local.entity.Cu
         return when {
             days > 0 -> RecentTag("시공 D-$days", blueFg, blueBg)
             days == 0 -> RecentTag("시공 D-DAY", blueFg, blueBg)
-            else -> RecentTag("완료", grayFg, grayBg)
+            else -> if (c.workCompletedAt != null) RecentTag("완료", grayFg, grayBg) else RecentTag("지남", grayFg, grayBg)
         }
     }
     if (c.balancePaidAt != null) return RecentTag("완료", grayFg, grayBg)

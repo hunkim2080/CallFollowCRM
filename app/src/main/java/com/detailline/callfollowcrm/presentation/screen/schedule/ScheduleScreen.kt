@@ -863,7 +863,8 @@ private fun DayJobCard(
                         modifier = Modifier.padding(end = 8.dp))
                 }
                 // 태그 (완료 / D-day)
-                val tagText = if (isPast) "완료" else DateTimeUtils.dDayLabel(scheduled)
+                // 날짜만 지나면 "완료"라 놓친 현장도 완료로 보이던 것 → 진짜 완료 처리만 "완료", 나머지 지난 건 "지남". 2026-07-30
+                val tagText = if (customer.workCompletedAt != null) "완료" else if (isPast) "지남" else DateTimeUtils.dDayLabel(scheduled)
                 Box(
                     Modifier.clip(RoundedCornerShape(8.dp))
                         .background(if (isPast) TossGrayBg else Color(0xFFE5F8EE))
