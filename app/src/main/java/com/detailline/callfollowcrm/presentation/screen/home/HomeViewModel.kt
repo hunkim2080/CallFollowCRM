@@ -440,7 +440,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     fun completeCollabSite(site: com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite) {
         val accountNo = container.preferences.bizAccountNo
         if (accountNo.isBlank()) {
-            _collabCompleteToast.tryEmit("계좌를 먼저 등록해야 완료 알림을 보낼 수 있어요 → 더보기 > 내 정보")
+            _collabCompleteToast.tryEmit("계좌를 먼저 등록해야 완료 알림을 보낼 수 있어요 → 더보기 > 견적서·사업자 정보")
             return
         }
         viewModelScope.launch {

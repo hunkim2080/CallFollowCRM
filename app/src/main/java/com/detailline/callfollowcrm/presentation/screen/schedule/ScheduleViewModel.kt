@@ -300,7 +300,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         onLink: (String, String) -> Unit
     ) {
         val owner = ownerPhone.filter { it.isDigit() }
-        if (owner.length < 9) { _toast.value = "먼저 더보기 → 사업자 정보에서 내 전화번호를 등록해주세요"; return }
+        if (owner.length < 9) { _toast.value = "먼저 더보기 → 견적서·사업자 정보에서 내 전화번호를 등록해주세요"; return }
         val partner = partnerPhone.filter { it.isDigit() }
         if (partner.length < 9) { _toast.value = "협업 사장님 번호를 확인해주세요"; return }
         // 중복 요청 가드 — 이미 이 현장에 이 사장님께 요청했으면 막음(같은 사람 계속 신청·수락되던 버그).
@@ -385,7 +385,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
     /** 전문가 배정 시트 안 "+추가" — 팀원 즉시 등록(서버 invite). 등록 후 칩에 바로 뜸. (2026-06-14) */
     fun addTeamMember(name: String, phone: String) {
         val owner = ownerPhone.filter { it.isDigit() }
-        if (owner.length < 9) { _toast.value = "먼저 더보기 → 사업자 정보에서 내 전화번호를 등록해주세요"; return }
+        if (owner.length < 9) { _toast.value = "먼저 더보기 → 견적서·사업자 정보에서 내 전화번호를 등록해주세요"; return }
         val nm = name.trim(); val ph = phone.filter { it.isDigit() }
         if (nm.isBlank()) { _toast.value = "이름을 입력해주세요"; return }
         if (ph.length < 9) { _toast.value = "전화번호를 확인해주세요"; return }

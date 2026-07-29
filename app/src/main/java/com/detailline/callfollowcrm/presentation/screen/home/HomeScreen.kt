@@ -3378,7 +3378,7 @@ private fun WaitingCard(
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(TossGrayBg).padding(10.dp)
             ) {
-                Text("받은 문자", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
+                Text(if (item.lastBody.isNullOrBlank()) "✨ 통화 요약" else "받은 문자", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
                 Spacer(Modifier.height(3.dp))
                 Text(
                     incoming, fontSize = 13.5.sp, color = TossTextPrimary,

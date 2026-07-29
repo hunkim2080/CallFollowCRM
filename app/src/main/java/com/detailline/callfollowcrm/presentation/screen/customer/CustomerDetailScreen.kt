@@ -3285,7 +3285,7 @@ private fun CollabShareSheet(
         if (sending) return
         val owner = container.preferences.bizPhone.filter { it.isDigit() }
         if (owner.length < 9) {
-            android.widget.Toast.makeText(context, "먼저 더보기 → 사업자 정보에서 내 전화번호를 등록해주세요", android.widget.Toast.LENGTH_LONG).show()
+            android.widget.Toast.makeText(context, "먼저 더보기 → 견적서·사업자 정보에서 내 전화번호를 등록해주세요", android.widget.Toast.LENGTH_LONG).show()
             return
         }
         val partner = partnerPhone.filter { it.isDigit() }

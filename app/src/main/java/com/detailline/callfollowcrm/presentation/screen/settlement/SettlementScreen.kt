@@ -351,7 +351,7 @@ private fun SettleTopCard(
         // sout
         if (top.isLiveMonth) {
             Row {
-                Text("아직 받을 돈 ", fontSize = 13.sp, color = Color.White.copy(alpha = 0.82f))
+                Text("전체 아직 받을 돈 ", fontSize = 13.sp, color = Color.White.copy(alpha = 0.82f))
                 Text("${top.outstandingManwon.toCommaString()}만원", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
                 Text(" · 미수 ", fontSize = 13.sp, color = Color.White.copy(alpha = 0.82f))
                 Text("${top.outstandingCount}건", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
@@ -507,7 +507,7 @@ private fun SettleRow(
             ) {
                 Icon(Icons.Outlined.CalendarMonth, null, tint = TossBlue, modifier = Modifier.size(14.dp))
                 Spacer(Modifier.width(5.dp))
-                Text("이 시공 일정 보기", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                Text("고객 정보 보기", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossBlue)
                 Spacer(Modifier.weight(1f))
                 Icon(Icons.Default.ChevronRight, null, tint = TossBlue.copy(alpha = 0.6f), modifier = Modifier.size(16.dp))
             }

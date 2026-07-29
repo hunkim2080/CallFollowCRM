@@ -812,7 +812,7 @@ class ChatViewModel(
                 maybeInferPrinciple(trimmed)  // (Phase 2) 추천과 다르게 보냈으면 '원칙' 추론. (2026-06-17 사장님)
             }
 
-            _toast.value = if (ok) "보냈어요" else "발송 실패"
+            _toast.value = if (ok) "보냈어요" else "문자를 못 보냈어요 — 신호 확인하고 다시 눌러주세요"
             onResult(ok)
             } finally {
                 _isSending.value = false
