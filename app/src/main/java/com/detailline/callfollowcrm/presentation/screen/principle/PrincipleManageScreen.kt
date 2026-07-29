@@ -62,6 +62,7 @@ fun PrincipleManageScreen(
 ) {
     val principles by viewModel.principles.collectAsState()
     var editing by remember { mutableStateOf<PrincipleEntity?>(null) }
+    var deleting by remember { mutableStateOf<PrincipleEntity?>(null) }   // 삭제 확인 (막내 학습 자산 — 실수 방지). 2026-07-30
     var newText by remember { mutableStateOf("") }
 
     Scaffold(
@@ -109,7 +110,7 @@ fun PrincipleManageScreen(
                         p = p,
                         onToggle = { viewModel.setEnabled(p.id, it) },
                         onEdit = { editing = p },
-                        onDelete = { viewModel.delete(p.id) }
+                        onDelete = { deleting = p }
                     )
                 }
             }
@@ -164,6 +165,21 @@ fun PrincipleManageScreen(
                 }
             },
             dismissButton = { TextButton(onClick = { editing = null }) { Text("취소", color = TossTextSecondary) } }
+        )
+    }
+
+    // 원칙 삭제 확인 — 막내가 대화를 보고 학습한 자산이라 실수 삭제 방지(끄기 대안 안내). 2026-07-30
+    deleting?.let { p ->
+        AlertDialog(
+            onDismissRequest = { deleting = null },
+            title = { Text("이 원칙을 지울까요?", fontWeight = FontWeight.Bold) },
+            text = { Text("막내가 대화를 보고 배운 내용이에요. 잠깐 끄기(스위치)만 해도 돼요. 지우면 다시 안 생겨요.") },
+            confirmButton = {
+                TextButton(onClick = { viewModel.delete(p.id); deleting = null }) {
+                    Text("지울게요", color = com.detailline.callfollowcrm.presentation.theme.TossError, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text("취소", color = TossTextSecondary) } }
         )
     }
 }
