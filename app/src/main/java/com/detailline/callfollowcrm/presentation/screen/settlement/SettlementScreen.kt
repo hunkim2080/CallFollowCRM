@@ -106,6 +106,7 @@ fun SettlementScreen(
 
     // 잔금/전액 "확인" 누를 때 완납 확인 (오탭 방지).
     var confirmPayOff by remember { mutableStateOf<SettleItem?>(null) }
+    var confirmDeposit by remember { mutableStateOf<SettleItem?>(null) }   // 계약금도 잔금처럼 한 번 묻기(실수 즉시확정 방지). 2026-07-30
     var showGoalEditor by remember { mutableStateOf(false) }
 
     val active = remember(state.rows) { state.rows.filter { !it.calc.isPaidOff } }
@@ -167,7 +168,7 @@ fun SettlementScreen(
                 active = active,
                 done = done,
                 onOpenCustomer = onOpenCustomer,
-                onConfirmDeposit = { viewModel.setDepositPaid(it.customerId, true) },
+                onConfirmDeposit = { confirmDeposit = it },
                 onConfirmBalance = { confirmPayOff = it },
                 onUndoPaid = { viewModel.setBalancePaid(it.customerId, false) }
             )
@@ -194,6 +195,31 @@ fun SettlementScreen(
             },
             dismissButton = {
                 TextButton(onClick = { confirmPayOff = null }) {
+                    Text("취소", color = TossTextSecondary)
+                }
+            }
+        )
+    }
+
+    // 계약금 받음 확인 (잔금과 동일 — 실수로 즉시 '받음' 처리되던 것 방지). 2026-07-30
+    confirmDeposit?.let { item ->
+        AlertDialog(
+            onDismissRequest = { confirmDeposit = null },
+            title = { Text("계약금 받았어요?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "${item.name ?: PhoneNumberFormatter.format(item.phone)} 님 계약금을 받은 걸로 " +
+                        "체크할까요? (계약금 ${manwonText(item.calc.depositAmount)})"
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.setDepositPaid(item.customerId, true)
+                    confirmDeposit = null
+                }) { Text("네, 받았어요", color = TossBlue, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDeposit = null }) {
                     Text("취소", color = TossTextSecondary)
                 }
             }
@@ -544,9 +570,9 @@ private fun PayBlock(
                 "완납 취소", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
                 modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onUndoPaid() }.padding(horizontal = 6.dp, vertical = 6.dp)
             )
-            hasDeposit && !c.depositPaid -> PayAct("계약금 확인", onConfirmDeposit)
-            hasDeposit -> PayAct("잔금 확인", onConfirmBalance)
-            else -> PayAct("전액 확인", onConfirmBalance)
+            hasDeposit && !c.depositPaid -> PayAct("계약금 받았어요", onConfirmDeposit)
+            hasDeposit -> PayAct("잔금 받았어요", onConfirmBalance)
+            else -> PayAct("전액 받았어요", onConfirmBalance)
         }
     }
 }

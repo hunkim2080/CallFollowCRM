@@ -74,8 +74,10 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
     fun leaveCollab(site: SharedSiteRepository.SharedSite) {
         trash(site.shareId) // 즉시 목록에서 빠짐
         viewModelScope.launch {
-            runCatching { repo.endCollab(site.shareId, myPhone, asOwner = false) }
-            _toast.value = "협업을 그만뒀어요 — 사장님께 알려드렸어요"
+            // 서버 결과 확인 후 토스트 — 실패해도 "알려드렸어요"라 하던 거짓 안심 제거. (2026-07-30)
+            val ok = repo.endCollab(site.shareId, myPhone, asOwner = false).isSuccess
+            _toast.value = if (ok) "협업을 그만뒀어요 — 사장님께 알려드렸어요"
+                else "지금 연결이 안 돼 사장님께 알림을 못 보냈어요 — 잠시 후 다시 시도해주세요"
             // 그만둔 현장은 내 일정이 아니다 → 본폰 미러에서도 즉시 내림(안 그러면 ~3h 동안 남아있음).
             runCatching { container.mirrorSyncManager.pushNow(force = true) }
         }
@@ -85,10 +87,13 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
     fun cancelMyShared(site: SharedSiteRepository.SharedSite) {
         _mySharedSites.value = _mySharedSites.value.filterNot { it.shareId == site.shareId }  // 즉시 목록에서 빠짐
         viewModelScope.launch {
-            runCatching { repo.endCollab(site.shareId, myPhone, asOwner = true) }
+            val ok = repo.endCollab(site.shareId, myPhone, asOwner = true).isSuccess
             container.collabEventCenter.markTrashed(site.shareId)  // 일정/홈 협업 카드에서도 즉시 정리
-            _toast.value = if (site.status == "pending") "공유를 취소했어요"
-                else "${site.partnerName ?: "상대"} 사장님께 해제 알림을 보냈어요"
+            _toast.value = when {
+                !ok -> "지금 연결이 안 돼 처리를 못 했어요 — 잠시 후 다시 시도해주세요"
+                site.status == "pending" -> "공유를 취소했어요"
+                else -> "${site.partnerName ?: "상대"} 사장님께 해제 알림을 보냈어요"
+            }
             load()
         }
     }

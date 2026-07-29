@@ -604,14 +604,14 @@ fun CustomerDetailScreen(
                                 if (allPaid) {
                                     TossSecondaryButton(text = "완납 취소", onClick = { viewModel.setBalancePaid(false) })
                                 } else if (depositWon > 0L && !depPaid) {
-                                    TossPrimaryButton(text = "계약금 확인", onClick = { viewModel.setDepositPaid(true) })
+                                    TossPrimaryButton(text = "계약금 받았어요", onClick = { viewModel.setDepositPaid(true) })
                                 } else if (depositWon > 0L) {
-                                    TossPrimaryButton(text = "잔금 확인", onClick = {
+                                    TossPrimaryButton(text = "잔금 받았어요", onClick = {
                                         if (c.balanceAmount == null && balanceWon > 0L) viewModel.setBalanceAmount(balanceWon)
                                         viewModel.setBalancePaid(true)
                                     })
                                 } else {
-                                    TossPrimaryButton(text = "전액 확인", onClick = {
+                                    TossPrimaryButton(text = "전액 받았어요", onClick = {
                                         if (c.balanceAmount == null && totalWon > 0L) viewModel.setBalanceAmount(totalWon)
                                         viewModel.setBalancePaid(true)
                                     })

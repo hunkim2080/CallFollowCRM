@@ -259,8 +259,9 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         val owner = ownerPhone.filter { it.isDigit() }
         if (owner.length < 9 || site.shareId.isBlank()) return
         viewModelScope.launch {
-            runCatching { container.sharedSiteRepository.endCollab(site.shareId, owner, asOwner = false) }
-            _toast.value = "협업을 그만뒀어요 — 사장님께 알려드렸어요"
+            val ok = container.sharedSiteRepository.endCollab(site.shareId, owner, asOwner = false).isSuccess
+            _toast.value = if (ok) "협업을 그만뒀어요 — 사장님께 알려드렸어요"
+                else "지금 연결이 안 돼 사장님께 알림을 못 보냈어요 — 잠시 후 다시 시도해주세요"
         }
     }
 
@@ -375,11 +376,18 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         val owner = ownerPhone.filter { it.isDigit() }
         if (shareId != null && owner.length >= 9) {
             viewModelScope.launch {
+                // 서버 결과 확인 후 토스트 — 실패해도 "취소했어요"라 하던 거짓 안심 제거 + 취소/해제 구분. (2026-07-30)
                 val cancelled = container.sharedSiteRepository.cancel(shareId, owner).isSuccess
-                if (!cancelled) runCatching { container.sharedSiteRepository.endCollab(shareId, owner, asOwner = true) }
+                val ended = if (!cancelled) container.sharedSiteRepository.endCollab(shareId, owner, asOwner = true).isSuccess else false
+                _toast.value = when {
+                    cancelled -> "협업 요청을 취소했어요"
+                    ended -> "협업을 해제했어요 — 상대 사장님께 알림이 가요"
+                    else -> "지금 연결이 안 돼 처리를 못 했어요 — 잠시 후 다시 시도해주세요"
+                }
             }
+        } else {
+            _toast.value = "협업 요청을 취소했어요"
         }
-        _toast.value = "협업 요청을 취소했어요"
     }
 
     /** 전문가 배정 시트 안 "+추가" — 팀원 즉시 등록(서버 invite). 등록 후 칩에 바로 뜸. (2026-06-14) */

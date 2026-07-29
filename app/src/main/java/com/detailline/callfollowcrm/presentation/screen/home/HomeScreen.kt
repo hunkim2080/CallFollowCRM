@@ -954,7 +954,7 @@ fun HomeScreen(
                             title = "아직 안 들어온 잔금",
                             tagText = "${due.daysSince}일째",
                             tagBg = Color(0xFFFDE7EC), tagFg = Color(0xFFF0436A),
-                            sub = (due.whereLabel?.let { "$it · " } ?: "") + "잔금 ${MoneyFormatter.won(due.outstandingWon)}",
+                            sub = (due.whereLabel?.let { "$it · " } ?: "") + "잔금 ${MoneyFormatter.won(due.outstandingWon)} · 꾹 누르면 '받음' 처리",
                             goLabel = "잔금 요청",
                             onClick = { onOpenChat(due.phone, due.customerId) },
                             onLongClick = {
