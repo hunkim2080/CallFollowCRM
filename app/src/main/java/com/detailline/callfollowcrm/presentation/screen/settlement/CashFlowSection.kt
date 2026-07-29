@@ -95,6 +95,7 @@ fun CashFlowCard(
     var monthAnchor by remember { mutableLongStateOf(monthAnchorOf(nowMs)) }
     var selectedDay by remember { mutableStateOf<Long?>(todayStart) }
     var showAddFor by remember { mutableStateOf<Long?>(null) }
+    var confirmDeleteCash by remember { mutableStateOf<Long?>(null) }   // 돈 기록 삭제 확인(즉시삭제 방지). 2026-07-30
 
     val byDay = remember(items) { CashFlowCalc.byDay(items) }
     val monthAgg = remember(items, monthAnchor) { monthAggregate(items, monthAnchor) }
@@ -139,11 +140,26 @@ fun CashFlowCard(
                 CashItemRow(
                     item = ci,
                     onToggleDone = { viewModel.toggleManualDone(ci.refId, !ci.isDone) },
-                    onDelete = { viewModel.deleteManualCash(ci.refId) },
+                    onDelete = { confirmDeleteCash = ci.refId },
                     onOpenCustomer = { onOpenCustomer(ci.refId) }
                 )
             }
         }
+    }
+
+    // 돈 기록 삭제 확인 — 확인·되돌리기 없이 즉시 사라져 장부가 틀어지던 것 방지. 2026-07-30
+    confirmDeleteCash?.let { refId ->
+        AlertDialog(
+            onDismissRequest = { confirmDeleteCash = null },
+            title = { Text("이 기록을 지울까요?", fontWeight = FontWeight.Bold) },
+            text = { Text("직접 적은 돈 기록이에요. 지우면 되돌릴 수 없어요.") },
+            confirmButton = {
+                TextButton(onClick = { viewModel.deleteManualCash(refId); confirmDeleteCash = null }) {
+                    Text("지울게요", color = com.detailline.callfollowcrm.presentation.theme.TossError, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmDeleteCash = null }) { Text("취소", color = TossTextSecondary) } }
+        )
     }
 
     showAddFor?.let { day ->
