@@ -10668,11 +10668,17 @@ async def admin_home_data(authorization: Optional[str] = Header(default=None)) -
             "SELECT COALESCE(SUM(cost_krw),0) FROM llm_usage_log WHERE timestamp_ms >= ?",
             (cutoff_7d,),
         ).fetchone()[0]
+        # 진단함(문제 신고) — 미개선 수 (허브 카드 뱃지용)
+        diag_open = con.execute(
+            "SELECT COUNT(*) FROM diagnostics_reports WHERE COALESCE(resolved,0)=0"
+        ).fetchone()[0]
+        diag_total = con.execute("SELECT COUNT(*) FROM diagnostics_reports").fetchone()[0]
     return {
         "whitelist": {"total": wl_total, "active_7d": wl_active, "pending": wl_pending},
         "signups": {"total": signup_total, "pending": signup_pending, "new_7d": signup_7d,
                     "todo": signup_todo},
         "dashboard": {"active_7d": wl_active, "api_calls_7d": api_7d, "cost_krw_7d": round(cost_7d or 0, 0)},
+        "diagnostics": {"open": diag_open, "total": diag_total},
     }
 
 
@@ -10724,6 +10730,7 @@ _ADMIN_HOME_HTML = """<!doctype html>
   .menu-card .icon.blue { background:var(--blue-tint); }
   .menu-card .icon.green { background:#E7F8EF; }
   .menu-card .icon.orange { background:#FFF8E1; }
+  .menu-card .icon.red { background:#FFECEF; }
   .menu-card .body { flex:1; min-width:0; }
   .menu-card .title { font-size:16px; font-weight:800; color:var(--t1); margin-bottom:2px; }
   .menu-card .desc { font-size:12.5px; color:var(--t2); margin-bottom:6px; }
@@ -10847,6 +10854,16 @@ _ADMIN_HOME_HTML = """<!doctype html>
       </div>
       <div class="arrow">›</div>
     </a>
+
+    <a href="/admin/diagnostics" class="menu-card" style="text-decoration:none; color:inherit;">
+      <div class="icon red">🐞</div>
+      <div class="body">
+        <div class="title">문제 신고 · 진단함</div>
+        <div class="desc">사용자 신고 · 미개선/개선함 · 첨부 스크린샷</div>
+        <div class="stats" id="statsDiag">로딩...</div>
+      </div>
+      <div class="arrow">›</div>
+    </a>
   </div>
 
   <!-- 베타 모집 링크 공유 -->
@@ -10930,6 +10947,11 @@ https://si0in.kr</textarea>
       document.getElementById('statsSignups').innerHTML =
         (sTodo > 0 ? '<b style="color:#F0436A;">🔔 확인할 신청 ' + sTodo + '명</b> · ' : '') +
         '총 <b>' + d.signups.total + '</b>건 · 신규 <b>' + d.signups.new_7d + '</b>건 (7일)';
+      var dOpen = (d.diagnostics && d.diagnostics.open) || 0;
+      var dTot = (d.diagnostics && d.diagnostics.total) || 0;
+      document.getElementById('statsDiag').innerHTML =
+        (dOpen > 0 ? '<b style="color:#F0436A;">🔔 미개선 ' + dOpen + '건</b> · ' : '개선 완료 · ') +
+        '총 <b>' + dTot + '</b>건';
     } catch(e) {
       console.error(e);
       document.querySelectorAll('.stats').forEach(function(el){ el.textContent = '통계 로드 실패'; });
