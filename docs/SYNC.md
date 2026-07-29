@@ -8200,3 +8200,8 @@ diag_template_encoding.sh 결과 = **전 층 정상. 손댈 것 없음.**
 - `GET /admin/diagnostics/image/{id}` 신설(diag_images 폴더 파일만, 경로탈출 방지). 페이지 '첨부됨' 글자→실제 <img> 인라인+탭시 원본.
 - 배포: 가드(라이브==HEAD b80ab927)·백업 bak_..diagimg·3.9 py_compile·kickstart·health200. 라이브 sha=c1675118.
 - 진단 확인: id=1(갤A32 v1119) 첨부사진 = D-1 자동문자 mojibake 육안확인. **이미 1124 읽기방어(084eaa5)로 수정됨 — 신고자가 구버전(1119)일 뿐. 추가 앱수정 불필요.**
+
+## 2026-07-29 · android→server (후속) — admin 허브에 진단함 카드
+- _ADMIN_HOME_HTML(/admin) 메뉴그리드에 "🐞 문제 신고·진단함"(/admin/diagnostics) 카드 추가. /admin/home/data 에 diagnostics.open/total → '미개선 N건' 뱃지.
+- 배포: 가드(live==HEAD c1675118)·백업 bak_..diaghub·3.9 py_compile·kickstart·health200. live sha=4d0dafb. 허브에 카드 렌더 확인.
+- ⚠️ 미해결(사장님 결정): /admin/* 인증 없음(진단함 전화번호 노출) — 홍보 전 비번 권장.
