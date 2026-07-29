@@ -85,6 +85,9 @@ jobs:
           releaseFiles: app/build/outputs/bundle/release/*.aab
           track: ${{ github.event.inputs.track || 'internal' }}
           status: completed
+          # Play 스토어 "새로운 기능" 문구 — distribution/whatsnew/whatsnew-ko-KR 내용이 올라감.
+          #   배포 전에 그 파일에 이번 변경 한 줄 적으면 됨(빈칸이면 문구 없이 올라감).
+          whatsNewDirectory: distribution/whatsnew
 
       - name: AAB 아티팩트 보관 (Actions 에서 다운로드 가능)
         if: always()

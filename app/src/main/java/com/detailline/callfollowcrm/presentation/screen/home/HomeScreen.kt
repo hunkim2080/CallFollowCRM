@@ -263,16 +263,7 @@ fun HomeScreen(
     val recurringDueDismissed by viewModel.recurringDueDismissed.collectAsState()
     val isInitialSmsLoading by viewModel.isInitialSmsLoading.collectAsState()
     val updateAvailable by viewModel.updateAvailable.collectAsState()
-    val latestVersionCode by viewModel.latestVersionCode.collectAsState()
-    val latestReleaseNotes by viewModel.latestReleaseNotes.collectAsState()
-    // '새로워졌어요' 시트 — 새 버전 + 변경내역이 있고, 이 버전에 대해 아직 안 띄웠으면 앱 열 때 한 번 '짠'. (2026-07-18 사장님)
-    var showUpdateSheet by remember { mutableStateOf(false) }
-    LaunchedEffect(updateAvailable, latestVersionCode, latestReleaseNotes) {
-        if (updateAvailable && latestReleaseNotes.isNotEmpty() &&
-            viewModel.shouldShowUpdateSheet(latestVersionCode)) {
-            showUpdateSheet = true
-        }
-    }
+    // '새로워졌어요' 시트 제거 (2026-07-29 사장님 — Play 배포로 이관, 앱 팝업 불필요). 배너([지금 받기])만 유지.
 
     // 서버 상태 indicator — AppContainer 의 ServerHealthMonitor 를 직접 구독.
     // 30초마다 GET /health 호출 → 결과 반영. 사장님만 알아볼 작은 동그라미. tap = Toast 안내.
@@ -427,24 +418,17 @@ fun HomeScreen(
                 .fillMaxSize()
                 .background(TossGrayBg)
         ) {
-            // 새 버전 배너 — 한 줄로 간결(홈 안 어수선). 배너 탭 = '새로워졌어요' 시트 열기(자세한 변경내역),
-            //   [지금 받기] = 바로 다운로드. 변경내역 나열은 시트로 몰아 홈은 깔끔. (2026-07-18 사장님 + Fable5 논의)
+            // 새 버전 배너 — 한 줄로 간결. [지금 받기] = 바로 다운로드. ('새로워졌어요' 시트는 2026-07-29 제거)
             if (updateAvailable) {
                 Row(
                     Modifier
                         .fillMaxWidth()
                         .background(TossBlue)
-                        .clickable { showUpdateSheet = true }   // 배너 누르면 시트 다시 열림(내역 깔끔히)
                         .padding(horizontal = 16.dp, vertical = 13.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("✨ 새 버전이 나왔어요!", color = Color.White, fontWeight = FontWeight.ExtraBold,
                         fontSize = 14.sp, maxLines = 1, modifier = Modifier.weight(1f))
-                    Icon(
-                        Icons.Filled.ChevronRight, contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.85f),
-                        modifier = Modifier.size(18.dp).padding(end = 2.dp)
-                    )
                     Box(
                         Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White)
                             .clickable { openInstallPage(context) }
@@ -1427,143 +1411,7 @@ fun HomeScreen(
         }
     }
 
-        // ── 업데이트 '새로워졌어요' 시트 — Scaffold 위 오버레이(홈 콘텐츠를 덮음). 새 버전 첫 진입에 한 번 '짠'. (2026-07-18 사장님)
-        UpdateWhatsNewSheet(
-            visible = showUpdateSheet,
-            latestVersionCode = latestVersionCode,
-            notes = latestReleaseNotes,
-            onGet = {
-                openInstallPage(context)
-                viewModel.markUpdateSheetShown(latestVersionCode)
-                showUpdateSheet = false
-            },
-            onLater = {
-                viewModel.markUpdateSheetShown(latestVersionCode)
-                showUpdateSheet = false
-            }
-        )
-    }
-}
-
-/**
- * 업데이트 '새로워졌어요' 시트 (2026-07-18 사장님) — 새 버전이 나오면 앱 열 때 한 번 아래에서 '짠' 올라오는 안내.
- *   "이번 업데이트 하면 이렇게 좋아져요!" 느낌으로 받고 싶어지게. [지금 받기] = 설치 페이지, [나중에] = 닫기(같은 버전 재노출 X).
- *
- *   ⚠️ ModalBottomSheet 안 씀 — 갤S9 에서 스크림 먹통/내비바 가림/키보드 이슈 잦음(메모). 대신 액티비티 창 안 오버레이 Box.
- *   scrim = 반투명 검정(탭하면 나중에). 카드 = 아래에서 slide-up. 카드 탭이 scrim 으로 새지 않게 카드에 clickable 흡수.
- */
-@Composable
-private fun UpdateWhatsNewSheet(
-    visible: Boolean,
-    latestVersionCode: Int,
-    notes: List<String>,
-    onGet: () -> Unit,
-    onLater: () -> Unit
-) {
-    if (!visible) return
-    // Dialog = 액티비티 창 위 별도 창 → 앱 하단 탭바(상담함/일정/…)까지 덮는다(HomeScreen 안 오버레이는 탭바에 가림).
-    //   usePlatformDefaultWidth=false → 전체폭. 기본 dim 은 끄고 내 스크림(0.45)만 → 예측 가능한 톤.
-    Dialog(
-        onDismissRequest = onLater,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        val dialogView = LocalView.current
-        LaunchedEffect(dialogView) {
-            (dialogView.parent as? DialogWindowProvider)?.window?.setDimAmount(0f)
-        }
-        var shown by remember { mutableStateOf(false) }   // 카드 slide-up 트리거(창 뜬 뒤 true)
-        LaunchedEffect(Unit) { shown = true }
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.45f))
-                // scrim 탭 = 나중에. ripple 없이(indication=null).
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) { onLater() },
-            contentAlignment = Alignment.BottomCenter
-        ) {
-            AnimatedVisibility(
-                visible = shown,
-                enter = slideInVertically { it },
-                exit = slideOutVertically { it }
-            ) {
-                // 카드 최대높이 = 화면의 85%(갤S9 등 작은 화면도 넘치지 않게). 내용 짧으면 그만큼만.
-                val maxCardH = (LocalConfiguration.current.screenHeightDp * 0.85f).dp
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
-                        .background(Color.White)
-                        // 카드 안 탭이 scrim(나중에)으로 전파되지 않게 흡수. (클릭해도 아무 일 없음)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {}
-                        .heightIn(max = maxCardH)
-                        .padding(horizontal = 22.dp)
-                        .padding(top = 22.dp)
-                        // Dialog 창 안에선 navigationBarsPadding 이 0 될 수 있음(갤S9) → 리소스 fallback 헬퍼.
-                        .bottomBarClearance(extra = 16.dp)
-                ) {
-                    // 위쪽(제목+변경목록)만 스크롤 — 목록이 많아도 버튼은 아래 항상 고정. weight(fill=false)=짧으면 그만큼만.
-                    Column(
-                        Modifier
-                            .weight(1f, fill = false)
-                            .verticalScroll(rememberScrollState())
-                    ) {
-                        Text("🎉", fontSize = 34.sp)
-                        Spacer(Modifier.height(8.dp))
-                        Text("새 버전이 나왔어요!", fontWeight = FontWeight.ExtraBold, fontSize = 21.sp, color = TossTextPrimary)
-                        if (latestVersionCode > 0) {
-                            Spacer(Modifier.height(3.dp))
-                            Text("0.2.$latestVersionCode", color = TossTextTertiary, fontSize = 13.sp)
-                        }
-                        Spacer(Modifier.height(20.dp))
-                        Text("업데이트하면 이렇게 좋아져요 ✨", fontWeight = FontWeight.ExtraBold, fontSize = 14.5.sp, color = TossBlue)
-                        Spacer(Modifier.height(10.dp))
-                        notes.take(6).forEach { line ->
-                            Row(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(TossGrayBg)
-                                    .padding(horizontal = 14.dp, vertical = 13.dp),
-                                verticalAlignment = Alignment.Top
-                            ) {
-                                Text("✅ ", fontSize = 14.sp)
-                                Text(
-                                    line, fontSize = 13.5.sp, color = TossTextPrimary, lineHeight = 19.sp,
-                                    fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
-                    }
-                    // 버튼 — 스크롤 밖 = 항상 보임.
-                    Spacer(Modifier.height(16.dp))
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(TossBlue)
-                            .clickable { onGet() }
-                            .padding(vertical = 15.dp),
-                        contentAlignment = Alignment.Center
-                    ) { Text("지금 받기", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 15.5.sp) }
-                    Spacer(Modifier.height(4.dp))
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .clickable { onLater() }
-                            .padding(vertical = 13.dp),
-                        contentAlignment = Alignment.Center
-                    ) { Text("나중에 하기", color = TossTextTertiary, fontWeight = FontWeight.Medium, fontSize = 14.sp) }
-                }
-            }
-        }
+        // '새로워졌어요' 시트 제거됨 (2026-07-29 사장님 — Play 배포로 이관).
     }
 }
 
