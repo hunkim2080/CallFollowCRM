@@ -300,6 +300,12 @@ fun SettingsScreen(
                         "다른 사장님과 현장 하나만 같이 보기", tier = "비즈니스", onClick = onOpenCollabSites)
                     LockRow(Icons.Filled.PhoneAndroid, TossBlueSoft, TossBlue, "본폰에서 일정 보기",
                         "업무폰 일정을 본폰에서 읽기전용으로 · 수정 안 됨") { subPage = "mirror" }
+                    // '비즈니스' 배지를 유료로 오해해 핵심 기능을 안 누르던 것 → 베타 무료 안내. 2026-07-30
+                    Text(
+                        "'비즈니스' 표시가 있어도 베타 기간엔 모두 무료로 열려 있어요.",
+                        fontSize = 11.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 2.dp)
+                    )
                 }
                 SettingsGroup("장사 분석") {
                     LockRow(Icons.Filled.BarChart, TossBlueSoft, TossBlue, "상세 리포트",

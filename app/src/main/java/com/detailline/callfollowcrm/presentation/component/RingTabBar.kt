@@ -131,7 +131,7 @@ private fun RingTabItem(
         Text(
             tab.label,
             color = tint,
-            fontSize = 10.5.sp,
+            fontSize = 12.sp,   // 10.5→12 어르신 가독성(하단 탭 라벨이 흐리게 작던 것). 2026-07-30
             fontWeight = FontWeight.SemiBold
         )
     }

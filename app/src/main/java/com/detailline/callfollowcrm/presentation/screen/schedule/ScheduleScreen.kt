@@ -315,6 +315,21 @@ fun ScheduleScreen(
                         Text("길게 누르면", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
                         Text(" 그 날 일정을 바로 등록해요", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = TossTextTertiary)
                     }
+                    // 캘린더 막대 색 범례 — 색만으론 뜻을 못 알아봄. 2026-07-30
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        listOf(
+                            TossSuccess to "시공", TossTextTertiary to "지난",
+                            Color(0xFF7C5CFC) to "협업", Color(0xFFF6A609) to "요청"
+                        ).forEach { (col, lbl) ->
+                            Box(Modifier.padding(start = 9.dp).size(7.dp).clip(CircleShape).background(col))
+                            Spacer(Modifier.width(3.dp))
+                            Text(lbl, fontSize = 10.5.sp, color = TossTextSecondary, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
                 }
             }
             // 4) 선택된 날 라벨 + 시공 카드 (프로토 cal-day-label + cal-day-jobs)
