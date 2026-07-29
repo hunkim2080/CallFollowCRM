@@ -8205,3 +8205,14 @@ diag_template_encoding.sh 결과 = **전 층 정상. 손댈 것 없음.**
 - _ADMIN_HOME_HTML(/admin) 메뉴그리드에 "🐞 문제 신고·진단함"(/admin/diagnostics) 카드 추가. /admin/home/data 에 diagnostics.open/total → '미개선 N건' 뱃지.
 - 배포: 가드(live==HEAD c1675118)·백업 bak_..diaghub·3.9 py_compile·kickstart·health200. live sha=4d0dafb. 허브에 카드 렌더 확인.
 - ⚠️ 미해결(사장님 결정): /admin/* 인증 없음(진단함 전화번호 노출) — 홍보 전 비번 권장.
+
+## 2026-07-30 · android → server (🔒 보안 감사 · cowork 핸드오프)
+페이블5 5각도 전수 보안감사 — **앱↔서버 사실상 전부 무인증(54경로 중 인증 1개)**. 사장님 공폰+본인번호로 협업·잔금 노출 재현.
+- **전체 보고서(비공개 아티팩트)**: https://claude.ai/code/artifact/094f6ba4-db8f-4b28-bbd3-d27c060fdce2
+- **서버 할 일 = `docs/SECURITY_HANDOFF_2026-07-30.md` (cowork 담당, 상세+main.py 줄번호):**
+  - §A 즉시핫픽스: `/admin/usage`(4909)·`/admin/diagnostics*`(25422~25465) 인증 누락 → 기존 `_admin_auth` 추가. *(진단함은 내가 만든 것=내 실수, 미안)*
+  - §B 근본: verify-code(20932)가 **세션토큰 발급** → 데이터 엔드포인트(shared/team/quote/intake/persona/suggestions/mirror/push 등 15+)가 **토큰=번호 검증**. 재사용패턴=`_expo_room_member`·capability 토큰.
+  - §B-3 데이터 GET 레이트리밋, §B-4 `/docs` 비활성.
+- **⚠️ cowork→android 회신 필요**: §B-1 **토큰 계약**(응답 필드명·헤더=`Authorization: Bearer`?·형식/만료). 정해지면 앱이 로그인 OTP게이트+토큰부착 착수.
+- **앱쪽 android 선처리(서버 무관, 커밋 예정)**: PII 로그 마스킹(LogRedact — 문자본문 제거·번호 `***1234`), 디버그 리시버 `exported=false`, 문서 웹뷰 si0in.kr allowlist+파일접근 차단. compileDebugKotlin OK.
+- 변경(서버 영향): 없음(앱은 아직 토큰 안 보냄 — 서버 인증 도입해도 앱 하위호환 유지되게 §B 롤아웃 순서 협의 필요).

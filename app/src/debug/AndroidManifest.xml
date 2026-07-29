@@ -3,14 +3,14 @@
     <application>
         <receiver
             android:name=".debug.DebugMmsSendReceiver"
-            android:exported="true">
+            android:exported="false">
             <intent-filter>
                 <action android:name="com.detailline.callfollowcrm.debug.SEND_TEST_MMS" />
             </intent-filter>
         </receiver>
         <receiver
             android:name=".debug.DebugBriefReceiver"
-            android:exported="true">
+            android:exported="false">
             <intent-filter>
                 <action android:name="com.detailline.callfollowcrm.debug.SHOW_BRIEF" />
             </intent-filter>

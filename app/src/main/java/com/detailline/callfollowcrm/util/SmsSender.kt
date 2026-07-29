@@ -210,7 +210,7 @@ object SmsSender {
                     .persist(sendReq, Telephony.Mms.Sent.CONTENT_URI, true, true, null, subId)
             }.onFailure { Log.w(TAG, "sent-box persist failed (non-fatal)", it) }
 
-            Log.i(TAG, "MMS (official) send requested: to=$phoneNumber images=${jpegs.size} body=${body.length}")
+            Log.i(TAG, "MMS (official) send requested: to=${LogRedact.phone(phoneNumber)} images=${jpegs.size} body=${body.length}")
             true
         }.getOrElse { e ->
             Log.e(TAG, "MMS (official) send request failed", e)

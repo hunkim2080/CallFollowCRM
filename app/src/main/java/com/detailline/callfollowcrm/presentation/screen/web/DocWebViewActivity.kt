@@ -77,7 +77,19 @@ class DocWebViewActivity : ComponentActivity() {
         val webView = WebView(this).apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
+            // 보안(2026-07-30): 우리 도메인(si0in.kr) https 로만 이동 허용 + 로컬 파일 접근 차단.
+            settings.allowFileAccess = false
+            settings.allowContentAccess = false
             webViewClient = object : WebViewClient() {
+                override fun shouldOverrideUrlLoading(
+                    view: WebView?, request: WebResourceRequest?
+                ): Boolean {
+                    val u = request?.url ?: return true
+                    val host = u.host.orEmpty()
+                    val allowed = u.scheme == "https" &&
+                        (host == "si0in.kr" || host.endsWith(".si0in.kr"))
+                    return !allowed   // 허용 도메인만 웹뷰가 로드, 그 외 네비게이션은 차단
+                }
                 override fun onReceivedError(
                     view: WebView?, request: WebResourceRequest?, error: WebResourceError?
                 ) {

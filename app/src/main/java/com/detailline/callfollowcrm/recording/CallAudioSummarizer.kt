@@ -3,6 +3,7 @@ package com.detailline.callfollowcrm.recording
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import com.detailline.callfollowcrm.util.LogRedact
 import com.detailline.callfollowcrm.data.AppContainer
 import com.detailline.callfollowcrm.data.local.entity.CallSummaryEntity
 import com.detailline.callfollowcrm.domain.model.SummarySourceType
@@ -169,7 +170,7 @@ object CallAudioSummarizer {
                     preview = res.title?.takeIf { it.isNotBlank() } ?: res.oneLine  // 에이닷처럼 요약 주제 미리보기
                 )
             }
-            Log.d(TAG, "saved audio summary: $phone @ $recordedAt cached=${res.cached} force=$forceRefresh notify=$notifyOnComplete")
+            Log.d(TAG, "saved audio summary: ${LogRedact.phone(phone)} @ $recordedAt cached=${res.cached} force=$forceRefresh notify=$notifyOnComplete")
             return true
         } finally {
             CallSummaryProgress.end(phone, recordedAt)

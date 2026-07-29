@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
 import android.util.Log
+import com.detailline.callfollowcrm.util.LogRedact
 import com.detailline.callfollowcrm.CallFollowCrmApplication
 import com.detailline.callfollowcrm.ai.CustomerHint
 import com.detailline.callfollowcrm.ai.HistoryMessage
@@ -96,7 +97,7 @@ class MmsDownloadedReceiver : BroadcastReceiver() {
             else -> rawBody
         }
         val receivedAtMs = mms.dateMs
-        Log.i(TAG, "MMS hook — sender=$sender img=$imageCount vid=$videoCount body.len=${rawBody.length}")
+        Log.i(TAG, "MMS hook — sender=${LogRedact.phone(sender)} img=$imageCount vid=$videoCount body.len=${rawBody.length}")
 
         // 1) 알림 (SmsReceiver 와 같은 채널/빌더).
         if (container.preferences.incomingSmsNotifyEnabled) {

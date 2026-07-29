@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import com.detailline.callfollowcrm.util.LogRedact
 import com.klinker.android.send_message.Transaction
 
 /**
@@ -16,15 +17,14 @@ class MmsSentReceiver : BroadcastReceiver() {
         if (intent.action != ACTION_MMS_SENT) return
 
         val phone = intent.getStringExtra(EXTRA_PHONE).orEmpty()
-        val preview = intent.getStringExtra(EXTRA_BODY_PREVIEW).orEmpty()
         val imageCount = intent.getIntExtra(EXTRA_IMAGE_COUNT, 0)
         val error = intent.getStringExtra(Transaction.MMS_ERROR)
             ?: intent.extras?.keySet()?.joinToString { key -> "$key=${intent.extras?.get(key)}" }.orEmpty()
 
         if (resultCode == Activity.RESULT_OK) {
-            Log.i(TAG, "MMS sent OK: to=$phone images=$imageCount body='$preview'")
+            Log.i(TAG, "MMS sent OK: to=${LogRedact.phone(phone)} images=$imageCount")
         } else {
-            Log.e(TAG, "MMS sent FAILED: resultCode=$resultCode to=$phone images=$imageCount error=$error")
+            Log.e(TAG, "MMS sent FAILED: resultCode=$resultCode to=${LogRedact.phone(phone)} images=$imageCount error=$error")
         }
 
         // 공식 API 경로가 넘긴 임시 PDU 파일 정리(성공/실패 무관).
