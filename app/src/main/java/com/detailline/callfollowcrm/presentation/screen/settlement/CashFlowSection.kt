@@ -226,7 +226,7 @@ private fun CashCalendar(
             // 프로토 cc-unit
             Spacer(Modifier.height(10.dp))
             Text(
-                "단위: 만원 · 날짜 탭=내역 보기 · 꾹 누르면 그 날 기록 추가",
+                "단위: 만원 · 날짜 탭=내역 보기",
                 style = MaterialTheme.typography.labelSmall, color = TossTextTertiary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 2.dp)

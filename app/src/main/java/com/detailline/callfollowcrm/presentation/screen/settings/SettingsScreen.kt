@@ -1109,9 +1109,9 @@ private fun MirrorSection(container: AppContainer) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Box(Modifier.weight(1f)) { TossPrimaryButton(text = "수락", onClick = { respondReq(req, true) }) }
                             Box(
-                                Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
-                                    .border(1.dp, TossDivider, RoundedCornerShape(12.dp))
-                                    .clickable { respondReq(req, false) }.padding(vertical = 12.dp),
+                                Modifier.weight(1f).height(56.dp).clip(RoundedCornerShape(14.dp))
+                                    .border(1.dp, TossDivider, RoundedCornerShape(14.dp))
+                                    .clickable { respondReq(req, false) },
                                 contentAlignment = Alignment.Center
                             ) { Text("거절", fontSize = 14.sp, color = TossTextSecondary, fontWeight = FontWeight.SemiBold) }
                         }

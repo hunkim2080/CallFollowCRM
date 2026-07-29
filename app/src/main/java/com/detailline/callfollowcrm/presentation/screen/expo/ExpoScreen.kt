@@ -334,7 +334,7 @@ private fun ColumnScope.RoomListView(
             scope.launch {
                 repo.createRoom(myPhone, name, myName)
                     .onSuccess { toast("방이 만들어졌어요 · 기본정보를 채워주세요"); reload(); onCreated(it) }
-                    .onFailure { toast("방 만들기 실패: ${it.message}") }
+                    .onFailure { toast("방을 만들지 못했어요 — 잠시 후 다시 시도해주세요") }
             }
         }
     )

@@ -792,7 +792,7 @@ private fun PendingInbox(
                 .clickable { onOpen(site) }
                 .padding(14.dp)
         ) {
-            Text("🤝 ${site.ownerName}이 함께 하재요", fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
+            Text("🤝 ${site.ownerName} 사장님이 함께 하재요", fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
             Spacer(Modifier.height(4.dp))
             val line = buildString {
                 append(siteDisplayName(site)); append(" · "); append(dayLabel(site.scheduledAtMs))
@@ -865,7 +865,7 @@ private fun MySharedArea(
         sites.isEmpty() && loading -> EmptyCard("불러오는 중…", "")
         sites.isEmpty() -> EmptyCard(
             "내가 공유한 현장이 없어요",
-            "일정·고객 화면에서 '협업 현장으로 공유'를 누르면, 그 현장을 함께할 사장님과 여기에 모여요."
+            "고객 화면의 '협업 현장으로 공유', 일정 화면의 '전문가 배정'에서 부르면, 그 현장을 함께할 사장님과 여기에 모여요."
         )
         else -> {
             Text(
@@ -1138,7 +1138,7 @@ private fun DetailBody(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(CollabPurpleSoft)
                 .border(1.dp, Color(0xFFE2D8FB), RoundedCornerShape(14.dp)).padding(14.dp)
         ) {
-            Text("🤝 ${site.ownerName}이 함께 하재요", fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
+            Text("🤝 ${site.ownerName} 사장님이 함께 하재요", fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
             Spacer(Modifier.height(4.dp))
             // "이 현장" 대신 실제 현장명(주소) + 날짜를 보여줌(사장님 요청 2026-06-18·06-20).
             Text("${siteDisplayName(site)} · ${dayLabel(site.scheduledAtMs)}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5A4A7A))

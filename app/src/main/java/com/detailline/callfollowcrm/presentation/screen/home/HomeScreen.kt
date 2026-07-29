@@ -319,7 +319,7 @@ fun HomeScreen(
         } else {
             lastBackAt = now
             android.widget.Toast.makeText(
-                context, "한 번 더 누르면 종료됩니다", android.widget.Toast.LENGTH_SHORT
+                context, "한 번 더 누르면 앱이 꺼져요", android.widget.Toast.LENGTH_SHORT
             ).show()
         }
     }
@@ -3240,7 +3240,7 @@ private fun WaitingHeader(count: Int) {
         }
         Spacer(Modifier.weight(1f))
         // 프로토 .swipe-hint — 회색칩 배경
-        Text("← 밀어서 스팸·정리", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = TossTextTertiary,
+        Text("← 밀어서 스팸·사생활·정리", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = TossTextTertiary,
             modifier = Modifier.background(TossGrayBg, RoundedCornerShape(999.dp)).padding(horizontal = 9.dp, vertical = 3.dp))
     }
 }

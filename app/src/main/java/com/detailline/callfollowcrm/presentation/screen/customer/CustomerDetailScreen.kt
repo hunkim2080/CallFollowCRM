@@ -3317,13 +3317,13 @@ private fun CollabShareSheet(
             sending = false
             res.onSuccess { r ->
                 val partnerName = workers.firstOrNull { it.phone.filter { ch -> ch.isDigit() }.takeLast(8) == partner.takeLast(8) }?.name
-                    ?: "협업 사장님"
+                    ?: partner
                 val existsInNotebook = workers.any { it.phone.filter { ch -> ch.isDigit() }.takeLast(8) == partner.takeLast(8) }
                 if (!existsInNotebook) {
                     runCatching {
                         container.notebookRepository.add(
                             kind = com.detailline.callfollowcrm.data.local.entity.NotebookContactEntity.KIND_WORKER,
-                            name = "협업 사장님",
+                            name = partner,
                             phone = partner,
                             tag = "협업",
                             memo = "협업 현장으로 함께 일한 사장님"

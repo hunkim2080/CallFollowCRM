@@ -357,7 +357,7 @@ private fun SettleTopCard(
                 Text("${top.outstandingCount}건", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
             }
         } else {
-            Text("지난달 정산 모두 완료 ✓", fontSize = 13.sp, color = Color.White.copy(alpha = 0.82f))
+            Text("지난 달 정산 내역이에요", fontSize = 13.sp, color = Color.White.copy(alpha = 0.82f))
         }
     }
 }
