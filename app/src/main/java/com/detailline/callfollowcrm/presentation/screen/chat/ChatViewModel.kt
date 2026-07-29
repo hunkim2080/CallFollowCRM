@@ -234,7 +234,7 @@ class ChatViewModel(
         _customerAskDismissed.value = true
         if (isNonCustomer) { _suggestions.value = null; _suggestionsLoading.value = false }
         _toast.value = if (isNonCustomer)
-            "고객 아님으로 표시했어요 — 추천·페르소나는 안 만들어요 (통화 요약은 그대로)"
+            "고객 아님으로 표시했어요 — 추천 답변·고객 분석은 안 만들어요 (통화 요약은 그대로)"
         else "고객으로 뒀어요"
     }
 

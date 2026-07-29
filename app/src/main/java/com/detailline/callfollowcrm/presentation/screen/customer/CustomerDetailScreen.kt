@@ -553,10 +553,12 @@ fun CustomerDetailScreen(
                 val depositWon = c.depositAmount ?: 0L
                 // 총금액 또는 계약금 중 하나라도 입력되면 정산 영역을 펼친다(계약금만 따로 넣는 경우 포함).
                 val hasAmount = totalWon > 0L || depositWon > 0L
-                val balanceWon = c.balanceAmount ?: (totalWon - depositWon).coerceAtLeast(0L)
+                // 잔금·완납은 정산 단일 출처(SettlementCalc)로 — 화면마다 잔금이 다르던 버그 통일. (2026-07-30)
+                val settle = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(c)
+                val balanceWon = settle.balanceAmount
                 val depPaid = c.depositPaidAt != null
                 val balPaid = c.balancePaidAt != null
-                val allPaid = balPaid || (depPaid && balanceWon <= 0L)
+                val allPaid = settle.isPaidOff
                 TossCard {
                     Column {
                         androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {

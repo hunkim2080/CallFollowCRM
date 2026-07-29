@@ -187,8 +187,8 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
             val total = c.totalAmount ?: 0L
             if (total <= 0L) continue
             if (c.balancePaidAt != null) continue // 완납
-            val deposit = c.depositAmount ?: 0L
-            val remaining = c.balanceAmount ?: (total - deposit).coerceAtLeast(0L)
+            // 미수 금액은 정산 단일 출처(SettlementCalc)로 — 정산탭/홈/알림 금액 불일치 제거. (2026-07-30)
+            val remaining = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(c).outstanding
             if (remaining <= 0L) continue
             val scheduled = c.scheduledWorkDate ?: continue
             if (DateTimeUtils.startOfDay(scheduled) > threshold) continue // 아직 3일 안 지남(또는 미래)

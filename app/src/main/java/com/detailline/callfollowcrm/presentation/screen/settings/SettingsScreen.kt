@@ -173,7 +173,7 @@ fun SettingsScreen(
             Toast.makeText(context, "자동 응답 켜졌어요. 첫 통화 후 10초 카운트다운 뒤 발송돼요.", Toast.LENGTH_LONG).show()
         } else {
             viewModel.setAutoFirstReplyEnabled(false)
-            Toast.makeText(context, "SEND_SMS 권한이 거부되어 켤 수 없어요", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "문자 보내기 권한을 허용해야 자동 응답을 켤 수 있어요", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -1013,22 +1013,31 @@ private fun MirrorSection(container: AppContainer) {
     fun respondReq(req: com.detailline.callfollowcrm.ai.MirrorRepository.ShareRequest, accept: Boolean) {
         busy = true
         scope.launch {
-            container.mirrorRepository.respond(ownerPhone, req.id, accept)
+            // 서버 결과를 확인하고 토스트 — 실패해도 "됐어요"라 하던 거짓 피드백 제거. (2026-07-30)
+            val r = container.mirrorRepository.respond(ownerPhone, req.id, accept)
             busy = false
-            prefs.mirrorSeenShareIds = prefs.mirrorSeenShareIds + req.id.toString()
-            if (accept) runCatching { container.mirrorSyncManager.pushNow(force = true) }
+            if (r.isSuccess) {
+                prefs.mirrorSeenShareIds = prefs.mirrorSeenShareIds + req.id.toString()
+                if (accept) runCatching { container.mirrorSyncManager.pushNow(force = true) }
+            }
             refreshShares()
-            toast(if (accept) "수락했어요 — 본폰에 일정이 보여요" else "거절했어요")
+            toast(
+                when {
+                    r.isFailure -> "연결이 안 됐어요 — 잠시 후 다시 시도해주세요"
+                    accept -> "수락했어요 — 본폰에 일정이 보여요"
+                    else -> "거절했어요"
+                }
+            )
         }
     }
 
     fun disconnectConn(conn: com.detailline.callfollowcrm.ai.MirrorRepository.Connection) {
         busy = true
         scope.launch {
-            container.mirrorRepository.disconnect(ownerPhone, conn.id)
+            val r = container.mirrorRepository.disconnect(ownerPhone, conn.id)
             busy = false
             refreshShares()
-            toast("공유를 해제했어요")
+            toast(if (r.isFailure) "해제가 안 됐어요 — 잠시 후 다시 시도해주세요" else "공유를 해제했어요")
         }
     }
 

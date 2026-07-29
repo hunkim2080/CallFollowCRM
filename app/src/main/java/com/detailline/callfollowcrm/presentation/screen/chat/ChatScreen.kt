@@ -4139,7 +4139,7 @@ private fun EstimateBuilderDialog(
         "quote" -> "고객이 보고용으로 쓰는 직인 찍힌 정식 견적서를 만들어 보내요."
         else -> "링크 없이 견적 내용만 문자로 보내요. (가볍게 견적만 물어볼 때)"
     }
-    fun composeBody() = buildEstimateBody(visibleItems, selectedQty.toMap(), totalSum, bizName, customItems.toList())
+    fun composeBody() = buildEstimateBody(visibleItems, selectedQty.toMap(), totalSum, bizName, customItems.toList(), vatIncluded)
     fun toast(msg: String) = android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_SHORT).show()
     fun quoteDocData(): QuoteDocData {
         val lines = visibleItems.mapNotNull { item ->
@@ -4815,7 +4815,8 @@ private fun buildEstimateBody(
     quantities: Map<Long, Int>,
     totalSum: Long,
     bizName: String = "",
-    custom: List<EstCustomLine> = emptyList()
+    custom: List<EstCustomLine> = emptyList(),
+    vatIncluded: Boolean = false
 ): String = buildString {
     // 프로토 makeEstimate — 친근한 인사 + 항목 나열 + 합계(부가세 별도) + 방문 제안.
     if (bizName.isNotBlank()) append("안녕하세요, ${bizName}입니다 😊\n")
@@ -4837,7 +4838,7 @@ private fun buildEstimateBody(
         if (c.name.isBlank() || won <= 0) continue
         append("· ${c.name.trim()} ${formatWon(won)}\n")
     }
-    append("합계 ${formatWon(totalSum)} (부가세 별도)\n")
+    append("합계 ${formatWon(totalSum)} (${if (vatIncluded) "부가세 포함" else "부가세 별도"})\n")
     // 잔금 안내 — 문자 견적은 프로토상 계약금 칸이 없어(가벼운 견적) '끝난 뒤 입금'만. 계약금 제외 안내는 견적서/접수서. (2026-07-04 사장님)
     append("\n시공이 끝난 뒤 입금해주세요 😊")
     append("\n\n방문 일정 잡아드릴까요? 😊")

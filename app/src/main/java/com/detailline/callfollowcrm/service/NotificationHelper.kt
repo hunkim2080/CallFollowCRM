@@ -927,7 +927,7 @@ object NotificationHelper {
         showProtoPush(
             context, RECUR_ID, CHANNEL_RECURRING, ACCENT_TEAL,
             title = "오늘 정기 문자 보낼 고객 ${count}명",
-            msg = "${prefix}오늘 ${count}명 · {고객명} 자동 채움 · 보내기 전에 한 번 봐주세요",
+            msg = "${prefix}오늘 ${count}명 · 고객 이름은 자동으로 채워드려요 · 보내기 전에 한 번 봐주세요",
             contentIntent = pending,
             actions = listOf(PushAction("검토하고 보내기", pending))
         )
@@ -1291,6 +1291,19 @@ object NotificationHelper {
      *
      * 같은 번호의 같은 통화에 대해 중복 알림 방지를 위해 unique id 는 callRecordId 기반.
      */
+    /** 그 번호의 채팅(ChatScreen)으로 여는 PendingIntent. 자동문자 성공/실패 알림 등에서 재사용(데드엔드 방지). */
+    private fun chatPending(context: Context, phoneNumber: String, reqId: Int): PendingIntent {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            action = MainActivity.ACTION_CHAT
+            putExtra(MainActivity.EXTRA_PHONE_NUMBER, phoneNumber)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        return PendingIntent.getActivity(
+            context, reqId, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
     fun showQuietFollowUpNotification(
         context: Context,
         callRecordId: Long?,
@@ -1310,8 +1323,8 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val title = if (isMissed) "📵 답장 안 한 손님 부재중 통화" else "📞 답장 안 한 손님 재통화"
-        val text = "$phoneNumber · 메시지 확인하기"
+        val title = if (isMissed) "📵 아직 답장 못 한 고객이 부재중 전화했어요" else "📞 아직 답장 못 한 고객이 다시 전화했어요"
+        val text = "${formatPhone(phoneNumber)} · 메시지 확인하기"
 
         val builder = NotificationCompat.Builder(context, CHANNEL_FOLLOW_UP_QUIET)
             .setSmallIcon(R.drawable.ic_notification)
@@ -1453,8 +1466,9 @@ object NotificationHelper {
         showProtoPush(
             context, autoReplyIdFor(callRecordId), CHANNEL_AUTO_REPLY, ACCENT_GREEN,
             title = "부재중 전화 — 막내가 대신 답장했어요",
-            msg = "$phoneNumber 님께 인사 + 상호 안내를 자동으로 보냈어요.",
-            note = "전화 못 받아도 놓치지 않았어요.",
+            msg = "${formatPhone(phoneNumber)} 님께 자동으로 답장을 보냈어요.",
+            note = "탭하면 보낸 내용을 볼 수 있어요.",
+            contentIntent = chatPending(context, phoneNumber, autoReplyIdFor(callRecordId)),
             timeoutMs = 8_000L
         )
     }
@@ -1472,7 +1486,8 @@ object NotificationHelper {
         showProtoPush(
             context, autoReplyIdFor(callRecordId), CHANNEL_AUTO_REPLY, ACCENT_PINK,
             title = "⚠️ 자동 응답 발송 실패",
-            msg = "$phoneNumber — 수동으로 다시 보내주세요."
+            msg = "${formatPhone(phoneNumber)} — 탭해서 직접 보내주세요.",
+            contentIntent = chatPending(context, phoneNumber, autoReplyIdFor(callRecordId))
         )
     }
 }

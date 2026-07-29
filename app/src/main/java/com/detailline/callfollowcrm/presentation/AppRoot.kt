@@ -34,7 +34,9 @@ import com.detailline.callfollowcrm.util.PermissionHelper
 
 @Composable
 fun AppRoot(container: AppContainer) {
-    CallFollowCrmTheme {
+    // 다크모드 임시 강제 라이트(2026-07-30): 화면 다수가 Color.White 를 하드코딩해 시스템 다크에서
+    //   흰 바탕에 흰 글씨(입력 안 보임)·다이얼로그 색 얼룩이 생김. 토큰 완전 이관 전까지 라이트 고정(정직함).
+    CallFollowCrmTheme(darkOverride = false) {
         Surface(color = TossGrayBg) {
             val navController = rememberNavController()
             val context = LocalContext.current
