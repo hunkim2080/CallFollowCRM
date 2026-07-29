@@ -221,6 +221,7 @@ private fun RuleEditorDialog(
 ) {
     var name by remember { mutableStateOf(initial?.name ?: "") }
     var interval by remember { mutableStateOf(initial?.intervalDays ?: 30) }
+    var confirmDelete by remember { mutableStateOf(false) }   // 규칙 삭제 확인(앱 기조 통일). 2026-07-30
     var minutes by remember { mutableStateOf(initial?.sendMinutes ?: 600) }
     var categoryId by remember { mutableStateOf(initial?.targetCategoryId) }
     var body by remember { mutableStateOf(initial?.bodyTemplate ?: "{고객명}님, 안녕하세요 😊 시공하신 지 한 달 됐어요. 줄눈 상태 점검 도와드릴까요?") }
@@ -289,9 +290,16 @@ private fun RuleEditorDialog(
 
                 if (onDelete != null) {
                     Spacer(Modifier.height(6.dp))
-                    TextButton(onClick = onDelete, modifier = Modifier.fillMaxWidth()) {
+                    TextButton(onClick = { confirmDelete = true }, modifier = Modifier.fillMaxWidth()) {
                         Text("이 규칙 삭제", color = TossError, fontWeight = FontWeight.SemiBold)
                     }
+                    if (confirmDelete) androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { confirmDelete = false },
+                        title = { Text("이 규칙을 지울까요?", fontWeight = FontWeight.Bold) },
+                        text = { Text("이 정기문자 규칙이 삭제돼요. 잠깐 끄기만 할 수도 있어요.") },
+                        confirmButton = { TextButton(onClick = { confirmDelete = false; onDelete() }) { Text("지울게요", color = TossError, fontWeight = FontWeight.Bold) } },
+                        dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("취소", color = TossTextSecondary) } }
+                    )
                 }
                 TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
                     Text("닫기", color = TossTextSecondary)

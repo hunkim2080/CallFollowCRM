@@ -553,6 +553,7 @@ private fun ContactDialog(
     val tagList = if (isWorker) WORKER_TAGS else VENDOR_TAGS
     var name by remember { mutableStateOf(target.name) }
     var phone by remember { mutableStateOf(target.phone) }
+    var confirmDelete by remember { mutableStateOf(false) }   // 삭제 확인(앱 기조 통일). 2026-07-30
     var tag by remember { mutableStateOf(target.tag) }
     var memo by remember { mutableStateOf(target.memo) }
     var wageType by remember { mutableStateOf(target.wageType) }
@@ -758,8 +759,15 @@ private fun ContactDialog(
                 Text(
                     if (isWorker) "이 사람 빼기" else "이 거래처 빼기",
                     fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossError,
-                    modifier = Modifier.fillMaxWidth().clickable { onDelete() }.padding(vertical = 2.dp),
+                    modifier = Modifier.fillMaxWidth().clickable { confirmDelete = true }.padding(vertical = 2.dp),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                if (confirmDelete) AlertDialog(
+                    onDismissRequest = { confirmDelete = false },
+                    title = { Text(if (isWorker) "이 사람을 뺄까요?" else "이 거래처를 뺄까요?", fontWeight = FontWeight.Bold) },
+                    text = { Text("수첩에서 빼도 함께한 현장 기록은 남아요.") },
+                    confirmButton = { TextButton(onClick = { confirmDelete = false; onDelete() }) { Text("뺄게요", color = TossError, fontWeight = FontWeight.Bold) } },
+                    dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("취소", color = TossTextSecondary) } }
                 )
             }
         }
