@@ -994,7 +994,7 @@ fun HomeScreen(
                 // 지금 답장 기다려요 — waiting-head(제목+카운트+밀어서 정리) + 카드(왼쪽 밀기=정리). 비면 막내.
                 item(key = "waiting-head") { WaitingHeader(count = waiting.size) }
                 if (waiting.isEmpty()) {
-                    item(key = "waiting-empty") { WaitingEmptyMascot() }
+                    item(key = "waiting-empty") { WaitingEmptyMascot(newUser = recent.isEmpty()) }
                 } else {
                     items(waiting, key = { "wait-${it.record.id}-${it.record.phoneNumber}" }) { item ->
                         val suffix = item.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8)
@@ -3636,7 +3636,7 @@ private fun recentTimeLabel(ms: Long): String {
 
 /** 프로토 renderWaiting 빈 상태(.empty-mascot) — 막내 + 말풍선(em-speech) + 보조문구(em-sub). */
 @Composable
-private fun WaitingEmptyMascot() {
+private fun WaitingEmptyMascot(newUser: Boolean = false) {
     Box(
         Modifier.fillMaxWidth().padding(top = 30.dp, bottom = 40.dp),
         contentAlignment = Alignment.Center
@@ -3663,7 +3663,8 @@ private fun WaitingEmptyMascot() {
                         .padding(horizontal = 16.dp, vertical = 10.dp)
                 ) {
                     Text(
-                        "사장님, 오늘 상담 다 끝냈어요! 👏",
+                        // 완전 신규(대화 이력 0)에게 "다 끝냈어요"는 앞뒤가 안 맞음 → 환영 문구로 분기. 기존 문구(프로토)는 그대로.
+                        if (newUser) "사장님, 잘 부탁드려요! 👋" else "사장님, 오늘 상담 다 끝냈어요! 👏",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = TossBlueDark

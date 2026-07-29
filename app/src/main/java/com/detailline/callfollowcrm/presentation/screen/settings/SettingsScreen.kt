@@ -560,15 +560,14 @@ private fun UsageStatsCard(
                 }
                 result.isFailure -> {
                     Text(
-                        "서버 모니터링 미구현 또는 연결 실패",
+                        "지금은 사용량 정보를 불러올 수 없어요",
                         style = MaterialTheme.typography.bodyMedium,
                         color = TossError,
                         fontWeight = FontWeight.Medium
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "맥미니 서버에 GET /api/usage-stats endpoint 추가 필요 " +
-                            "(RINGGO_SERVER_P0P1P2_UPGRADE.md §12)",
+                        "잠시 후 다시 확인해 주세요.",
                         style = MaterialTheme.typography.bodySmall,
                         color = TossTextTertiary
                     )

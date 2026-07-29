@@ -50,12 +50,13 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.presentation.component.Mascot
+import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 
 private val LoginBg = Color(0xFFFBFCFE)
 private val LogoInk = Color(0xFF0B0F19)
 private val LoginBlue = Color(0xFF3182F6)
 private val TagColor = Color(0xFF3A4250)
-private val SubColor = Color(0xFF8A93A2)
+private val SubColor = TossTextSecondary
 
 /**
  * 로그인 (첫 화면) — 테스터는 할당받은 본인 핸드폰 번호로 시작.
@@ -157,7 +158,7 @@ fun LoginScreen(onLoginPhone: (String) -> Unit, onProceed: () -> Unit) {
                 Modifier
                     .fillMaxWidth()
                     .height(53.dp)
-                    .background(if (phoneOk) LoginBlue else Color(0xFFCBD5E1), RoundedCornerShape(15.dp))
+                    .background(if (phoneOk) LoginBlue else Color(0xFFCBD5E1), RoundedCornerShape(16.dp))
                     .clickable(enabled = phoneOk) { onLoginPhone(phone) },
                 contentAlignment = Alignment.Center
             ) {

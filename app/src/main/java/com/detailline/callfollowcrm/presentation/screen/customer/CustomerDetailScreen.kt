@@ -471,7 +471,9 @@ fun CustomerDetailScreen(
 
             // ── 상단 탭 (2026-07-18 사장님 "크롬 탭식") — 위 정보는 항상, 아래 4개 섹션만 탭으로 전환 ──
             run {
-                val detailTabs = listOf("일정·정산", "협업", "시공접수서", "블로그")
+                // "블로그"(비즈니스 요금제 예정) 탭은 출시 전까지 숨김 — 눌러도 "곧 제공" 토스트만 뜨는 데드엔드였음.
+                //   아래 detailTab==3 블로그 lockcard 블록은 탭이 없어 자동으로 도달 불가(코드는 유지). 2026-07-29.
+                val detailTabs = listOf("일정·정산", "협업", "시공접수서")
                 androidx.compose.foundation.layout.Row(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color.White).padding(4.dp),
                     horizontalArrangement = Arrangement.spacedBy(2.dp)

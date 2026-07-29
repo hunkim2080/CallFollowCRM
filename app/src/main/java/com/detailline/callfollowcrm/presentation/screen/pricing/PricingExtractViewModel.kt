@@ -102,7 +102,7 @@ class PricingExtractViewModel(private val container: AppContainer) : ViewModel()
             }.onFailure {
                 _ui.value = UiState(
                     phase = Phase.ERROR,
-                    message = "지금은 분석 서버가 준비 중이에요.\n잠시 후 다시 시도하거나 가격표에 직접 추가해 주세요."
+                    message = "지금은 자동 분석이 잠시 어려워요.\n잠시 후 다시 시도하거나 가격표에 직접 추가해 주세요."
                 )
             }
         }

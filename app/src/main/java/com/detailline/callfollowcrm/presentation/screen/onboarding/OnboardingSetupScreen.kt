@@ -24,6 +24,13 @@ import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.data.preferences.AppPreferences
 import com.detailline.callfollowcrm.presentation.component.InlineDiagPrompt
 import com.detailline.callfollowcrm.recording.AdotFolderScanner
+import com.detailline.callfollowcrm.presentation.theme.TossBlue
+import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
+import com.detailline.callfollowcrm.presentation.theme.TossSuccess
+import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
+import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
+import com.detailline.callfollowcrm.util.DefaultSmsAppHelper
+import com.detailline.callfollowcrm.util.PermissionHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -33,12 +40,13 @@ import kotlinx.coroutines.withContext
  * 어르신도 쉽게: 한 화면 = 한 가지 + 큰 버튼 하나 + 쉬운 말 + "나중에" 탈출구.
  * v1 = 통화녹음 연결(묻혀있던 핵심가치를 앞으로) + 녹음 0개 시 삼성 통화녹음 켜기 안내. (가격표·답장은 후속 증분)
  */
-private val Blue = Color(0xFF3182F6)
-private val Green = Color(0xFF12B886)
-private val Ink = Color(0xFF191F28)
-private val Sub = Color(0xFF6B7684)
-private val SoftBlue = Color(0xFFEEF4FF)
-private val SoftGreen = Color(0xFFEAFBF2)
+// 색은 디자인 토큰(프로토 :root)과 일치시킴 — 화면마다 다른 먹색/초록/회색 드리프트 제거(2026-07-29).
+private val Blue = TossBlue                  // #3182F6
+private val Green = TossSuccess              // #16C172 (기존 #12B886 드리프트 → 토큰)
+private val Ink = TossTextPrimary            // #0B0F19 (기존 #191F28 드리프트 → 토큰)
+private val Sub = TossTextSecondary          // #5A6472 (기존 #6B7684 드리프트 → 토큰)
+private val SoftBlue = TossBlueSoft          // #EEF4FF
+private val SoftGreen = Color(0xFFEAFBF2)    // 성공 틴트 — 전용 토큰 없어 유지
 
 @Composable
 fun OnboardingSetupScreen(
@@ -47,6 +55,10 @@ fun OnboardingSetupScreen(
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
+
+    // 체크리스트를 실제 상태로 — 거짓 "완료 ✓" 금지(수동 모드로 건너뛰었으면 미완료로 정직하게 표시). 2026-07-29.
+    val smsDefault = DefaultSmsAppHelper.isCurrentDefault(ctx)
+    val permsOk = PermissionHelper.allMissingNonNotification(ctx).isEmpty()
 
     var step by remember { mutableStateOf(0) }            // 0 안내, 1 통화녹음, 2 완료
     var recResult by remember { mutableStateOf<Int?>(null) }   // null=미스캔, N=찾은 개수(0 포함)
@@ -94,8 +106,8 @@ fun OnboardingSetupScreen(
                 onPrimary = { step = 1 }
             ) {
                 Column(Modifier.align(Alignment.CenterHorizontally).padding(top = 26.dp)) {
-                    ReadyRow("✓", "기본 문자 앱", done = true)
-                    ReadyRow("✓", "권한 허용", done = true)
+                    ReadyRow(if (smsDefault) "✓" else "–", "기본 문자 앱", done = smsDefault)
+                    ReadyRow(if (permsOk) "✓" else "–", "권한 허용", done = permsOk)
                     ReadyRow("3", "통화 녹음 연결", done = false)
                 }
             }
@@ -155,10 +167,10 @@ fun OnboardingSetupScreen(
                 onPrimary = onFinish
             ) {
                 Column(Modifier.align(Alignment.CenterHorizontally).padding(top = 24.dp)) {
-                    ReadyRow("✓", "기본 문자 앱", done = true)
-                    ReadyRow("✓", "권한 허용", done = true)
+                    ReadyRow(if (smsDefault) "✓" else "–", "기본 문자 앱", done = smsDefault)
+                    ReadyRow(if (permsOk) "✓" else "–", "권한 허용", done = permsOk)
                     ReadyRow(
-                        "✓",
+                        if ((recResult ?: 0) > 0) "✓" else "–",
                         recResult?.let { if (it > 0) "통화 녹음 (${it}개)" else "통화 녹음 (나중에)" } ?: "통화 녹음 (나중에)",
                         done = (recResult ?: 0) > 0
                     )

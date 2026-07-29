@@ -87,43 +87,28 @@ fun OnboardingPermissionScreen(onContinue: () -> Unit) {
                     .padding(horizontal = 24.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-                Spacer(Modifier.height(24.dp))
-
-                // 스토리텔링 인트로 — 막내 비서 + 핵심 가치 4장 (swipe). 2026-06-01.
-                val storyPager = androidx.compose.foundation.pager.rememberPagerState(pageCount = { 4 })
-                androidx.compose.foundation.pager.HorizontalPager(
-                    state = storyPager,
-                    modifier = Modifier.fillMaxWidth().height(300.dp)
-                ) { page -> StorySlide(page) }
-                Spacer(Modifier.height(10.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                    repeat(4) { i ->
-                        Box(
-                            Modifier
-                                .padding(horizontal = 3.dp)
-                                .size(if (i == storyPager.currentPage) 8.dp else 6.dp)
-                                .background(
-                                    if (i == storyPager.currentPage) TossBlue else TossTextTertiary.copy(alpha = 0.4f),
-                                    CircleShape
-                                )
-                        )
-                    }
-                }
-
                 Spacer(Modifier.height(8.dp))
 
-                // 통화 후속 처리 권한 — RING-GO 의 부가 기능. 작은 sub-header 로 연결.
-                Text(
-                    "통화 후속도 함께 챙겨요",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = TossTextSecondary,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(start = 4.dp)
-                )
+                // 제목 — 권한이 왜 필요한지 한 줄로. 가치 소개 캐러셀은 온보딩 스토리 한 곳으로 단일화(중복 제거, 2026-07-29).
+                Column {
+                    Text(
+                        "몇 가지 권한이 필요해요",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TossTextPrimary,
+                        letterSpacing = (-0.5).sp
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "전화·문자를 한 화면에서 챙기기 위해서예요",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TossTextSecondary
+                    )
+                }
 
                 TossCard {
                     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        PermRow("📨", "기본 문자 앱", "고객 문자·사진을 시공막내에서 받아 한 화면에서 관리해요 (다음 화면에서 여쭤봐요)")
+                        PermRow("📨", "기본 문자 앱", "고객 문자·사진을 시공막내에서 받아 한 화면에서 관리해요")
                         PermRow("📱", "전화 상태", "통화 종료를 감지하기 위해 필요해요")
                         PermRow("📋", "통화 기록", "방금 통화한 번호를 자동으로 채워줘요")
                         PermRow("💬", "주고받은 문자", "고객 대화를 한 화면에서 보고 답장 추천을 받기 위해 필요해요")
@@ -170,53 +155,12 @@ fun OnboardingPermissionScreen(onContinue: () -> Unit) {
                 )
                 Spacer(Modifier.height(8.dp))
                 TossTextButton(
-                    text = "수동 모드로 시작",
+                    text = "권한 없이 둘러볼게요",
                     onClick = onContinue,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun StorySlide(page: Int) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
-    ) {
-        if (page == 0) {
-            Box(
-                Modifier.size(112.dp).background(TossBlueSoft, CircleShape),
-                contentAlignment = Alignment.Center
-            ) { com.detailline.callfollowcrm.presentation.component.Mascot(sizeDp = 96.dp) }
-            Spacer(Modifier.height(10.dp))
-            Box(
-                Modifier.background(TossBlue, androidx.compose.foundation.shape.RoundedCornerShape(999.dp))
-                    .padding(horizontal = 12.dp, vertical = 5.dp)
-            ) {
-                Text("막내 비서 탄생!", color = androidx.compose.ui.graphics.Color.White,
-                    fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            }
-        } else {
-            val emoji = when (page) { 1 -> "💬"; 2 -> "💰"; else -> "📅" }
-            Box(
-                Modifier.size(96.dp).background(TossBlueSoft, CircleShape),
-                contentAlignment = Alignment.Center
-            ) { Text(emoji, fontSize = 44.sp) }
-        }
-        Spacer(Modifier.height(16.dp))
-        val (title, body) = when (page) {
-            0 -> "딸깍의 시대" to "사장님 말투를 배우는 막내 비서가\n가장 자연스러운 답장을 미리 만들어요."
-            1 -> "답장, 고민 끝" to "고객 문자에 딱 맞는 답장을\nAI가 미리 만들어둬요. 탭 한 번."
-            2 -> "누가 돈 안 줬지?" to "미수금을 자동으로 추적.\n계약금·잔금 받음만 체크하면 끝."
-            else -> "일정도 현금흐름도" to "오늘 시공·받을 돈·나갈 돈을\n달력 한 장에서 한눈에."
-        }
-        Text(title, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-        Spacer(Modifier.height(10.dp))
-        Text(body, style = MaterialTheme.typography.bodyMedium, color = TossTextSecondary,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center)
     }
 }
 
