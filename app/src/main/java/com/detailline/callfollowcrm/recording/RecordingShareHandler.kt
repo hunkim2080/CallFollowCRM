@@ -77,10 +77,10 @@ object RecordingShareHandler {
             }
 
             val message = buildString {
-                append("녹음 ${uris.size - skipped}개 저장")
-                if (matched > 0) append(" · 번호 인식 ${matched}건")
-                if (linked > 0) append(" · 기존 고객 연결 ${linked}건")
-                if (skipped > 0) append(" · 중복 ${skipped}개 건너뜀")
+                val saved = uris.size - skipped
+                append("녹음 ${saved}개 받았어요")
+                if (linked > 0) append(" · 고객 통화방에 정리해뒀어요")
+                if (skipped > 0) append(" · 이미 있는 ${skipped}개는 건너뛰었어요")
             }
             withContext(Dispatchers.Main) {
                 Toast.makeText(appCtx, message, Toast.LENGTH_LONG).show()

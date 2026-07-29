@@ -3162,6 +3162,10 @@ private fun CollabAfterCard(
                     commentScope.launch {
                         container.sharedSiteRepository.postComment(sid, ownerP, myName, body)
                             .onSuccess { container.sharedSiteRepository.comments(sid, ownerP).onSuccess { comments = it } }
+                            .onFailure {
+                                // 실패해도 조용히 넘어가 쓴 글이 사라지던 것 → 안내. (2026-07-30)
+                                android.widget.Toast.makeText(context, "한마디가 안 올라갔어요 — 잠시 후 다시 시도해주세요", android.widget.Toast.LENGTH_SHORT).show()
+                            }
                         commentBusy = false
                     }
                 }

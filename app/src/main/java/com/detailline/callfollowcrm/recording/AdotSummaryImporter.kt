@@ -207,9 +207,8 @@ object AdotSummaryImporter {
     private fun buildMessage(r: Result?): String {
         if (r == null) return "에이닷 요약을 가져오지 못했어요"
         return buildString {
-            append(if (r.updatedExisting) "기존 요약 업데이트" else "에이닷 요약 저장")
-            if (r.customerId == null) append(" · 고객 미연결 (후속 처리 시 자동 연결)")
-            if (r.callRecordLinked) append(" · 통화기록 연결")
+            append(if (r.updatedExisting) "통화 요약을 새로 정리했어요" else "통화 요약을 저장했어요")
+            if (r.customerId != null) append(" · 고객 통화방에 넣어뒀어요")
         }
     }
 }

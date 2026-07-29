@@ -1326,7 +1326,10 @@ private fun AssignTeamSheet(
                     onCancel = { addWorkerOpen = false },
                     onSubmit = {
                         onAddWorker(newName, newPhone, newWage.toIntOrNull())
-                        addWorkerOpen = false; newName = ""; newPhone = ""; newWage = ""
+                        // 이름/번호 유효할 때만 닫고 비우기 — 검증 실패 시 입력이 증발하던 것 방지. (2026-07-30)
+                        if (newName.trim().isNotBlank() && newPhone.filter { c -> c.isDigit() }.length >= 9) {
+                            addWorkerOpen = false; newName = ""; newPhone = ""; newWage = ""
+                        }
                     }
                 )
             }

@@ -4433,8 +4433,14 @@ private fun EstimateBuilderDialog(
                 if (!anySelected) { toast("항목을 한 개 이상 골라주세요"); return@EstSheetCta }
                 when (mode) {
                     "text" -> onConfirm(composeBody())
-                    "quote" -> onQuoteDoc(quoteDocData())
+                    "quote" -> {
+                        // 상호 없이 발행하면 견적서에 "상호 미설정"·빈 직인이 고객에게 나감 → 사업자 정보 먼저. (2026-07-30)
+                        if (bizName.isBlank()) { toast("사업자 정보(상호)를 먼저 등록해주세요"); return@EstSheetCta }
+                        onQuoteDoc(quoteDocData())
+                    }
                     else -> {
+                        // 시공일 안 고르면 0년 0월 0일로 나감 → 먼저 고르게. (2026-07-30)
+                        if (workDateMs == null) { toast("시공일을 먼저 골라주세요"); return@EstSheetCta }
                         // 시공접수서 — 서버 발급 → smsDraft prefill (호출부에서 처리)
                         val cal = workDateMs?.let { java.util.Calendar.getInstance().apply { timeInMillis = it } }
                         val issItems = visibleItems.mapNotNull { item ->
