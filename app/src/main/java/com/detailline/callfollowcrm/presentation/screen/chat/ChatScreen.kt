@@ -378,6 +378,7 @@ fun ChatScreen(
     var composerFocused by remember { mutableStateOf(false) }
     // 프로토 chat-actions [문구 넣기] → 템플릿 picker 시트.
     var tplPickerOpen by remember { mutableStateOf(false) }
+    var confirmDeleteTpl by remember { mutableStateOf<Long?>(null) }   // 자주 쓰는 문구 삭제 확인(앱 기조: 삭제류 확인창). (2026-07-30)
     // ▶ 보내기 확인 다이얼로그 — null 이면 안 떠 있음.
     //   사장님이 ▶ 탭하면 (body, photos) 스냅샷 저장 + 다이얼로그 표시. [보내기] 탭해야 진짜 발송.
     var sendConfirm by remember { mutableStateOf<Pair<String, List<android.net.Uri>>?>(null) }
@@ -1202,11 +1203,28 @@ fun ChatScreen(
                 }
                 tplPickerOpen = false
             },
-            onDelete = { id -> viewModel.deleteTemplate(id) },
+            onDelete = { id -> confirmDeleteTpl = id },
             // 입력창 글 + 지금 붙인 사진을 같이 문구로 저장. (2026-07-18 사장님)
             onSaveCurrent = { viewModel.saveTextAsTemplate(input, attachedPhotos.map { it.toString() }) },
             canSaveCurrent = input.isNotBlank() || attachedPhotos.isNotEmpty(),
             onDismiss = { tplPickerOpen = false }
+        )
+    }
+
+    // 자주 쓰는 문구 삭제 확인창 (앱 기조: 삭제류는 한 번 물어봄). 시트 2곳의 onDelete 가 여기로 모임. (2026-07-30)
+    confirmDeleteTpl?.let { tplId ->
+        AlertDialog(
+            onDismissRequest = { confirmDeleteTpl = null },
+            title = { Text("이 문구를 지울까요?", fontWeight = FontWeight.Bold) },
+            text = { Text("저장한 자주 쓰는 문구가 삭제돼요.") },
+            confirmButton = {
+                TextButton(onClick = { viewModel.deleteTemplate(tplId); confirmDeleteTpl = null }) {
+                    Text("삭제", color = TossError, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDeleteTpl = null }) { Text("취소") }
+            }
         )
     }
 
@@ -1380,7 +1398,7 @@ fun ChatScreen(
                 depositPrefillScheduledMs = null
                 templatePickerCategory = null
             },
-            onDelete = { id -> viewModel.deleteTemplate(id) },
+            onDelete = { id -> confirmDeleteTpl = id },
             onSaveCurrent = { viewModel.saveTextAsTemplate(input) },
             canSaveCurrent = input.isNotBlank(),
             onDismiss = {
