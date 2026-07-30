@@ -140,6 +140,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossError
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
+import com.detailline.callfollowcrm.presentation.theme.TossWarning
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
@@ -3520,8 +3521,8 @@ private fun UnifiedSummaryCard(
         if (hasAction) {
             val a = action!!
             val accent = when (a.urgency) {
-                "high" -> Color(0xFFEF4444)
-                "medium" -> Color(0xFFF59E0B)
+                "high" -> TossError
+                "medium" -> TossWarning
                 else -> TossBlue
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -3619,14 +3620,14 @@ private fun ConversationSummaryBox(
 private fun NextActionBox(json: String?, onAction: (NextAction) -> Unit) {
     val action = NextAction.parse(json) ?: return
     val accent = when (action.urgency) {
-        "high" -> Color(0xFFEF4444)
-        "medium" -> Color(0xFFF59E0B)
+        "high" -> TossError
+        "medium" -> TossWarning
         else -> TossBlue
     }
     val bg = when (action.urgency) {
-        "high" -> Color(0xFFFEF2F2)
-        "medium" -> Color(0xFFFFF7ED)
-        else -> Color(0xFFEEF4FF)
+        "high" -> Color(0xFFFDEAEF)
+        "medium" -> Color(0xFFFFF3DF)
+        else -> TossBlueSoft
     }
     Row(
         modifier = Modifier

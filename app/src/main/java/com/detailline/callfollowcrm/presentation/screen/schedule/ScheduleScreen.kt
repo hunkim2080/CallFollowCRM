@@ -98,6 +98,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossError
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossSuccess
+import com.detailline.callfollowcrm.presentation.theme.TossWarning
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
@@ -414,7 +415,7 @@ fun ScheduleScreen(
                 item(key = "pending-collab-label") {
                     Text(
                         "🤝 협업 요청 ${pendingForSelected.size}건 · 아직 응답 안 함",
-                        fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFE07A00),
+                        fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A),
                         modifier = Modifier.padding(start = 2.dp, top = 6.dp, bottom = 11.dp)
                     )
                 }
@@ -538,13 +539,13 @@ private fun PendingCollabDayCard(
     TossCard(onClick = onClick) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(9.dp).clip(CircleShape).background(Color(0xFFFF8A00)))
+                Box(Modifier.size(9.dp).clip(CircleShape).background(TossWarning))
                 Spacer(Modifier.width(10.dp))
                 Text(com.detailline.callfollowcrm.ai.siteDisplayName(site), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary, modifier = Modifier.weight(1f))
                 Text(
                     "요청 · 확인하기",
-                    fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFE07A00),
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(Color(0xFFFFF1DE)).padding(horizontal = 9.dp, vertical = 4.dp)
+                    fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A),
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(Color(0xFFFFF3DF)).padding(horizontal = 9.dp, vertical = 4.dp)
                 )
             }
             Spacer(Modifier.height(8.dp))
@@ -554,7 +555,7 @@ private fun PendingCollabDayCard(
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
             Spacer(Modifier.height(6.dp))
-            Text("탭해서 수락/거절하기 →", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE07A00))
+            Text("탭해서 수락/거절하기 →", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFB8780A))
         }
     }
 }
@@ -753,7 +754,7 @@ private fun PendingCalBar() {
         ),
         label = "pendingCollabAlpha"
     )
-    CalBar(BarSeg.SINGLE, Color(0xFFFF8A00).copy(alpha = alpha))
+    CalBar(BarSeg.SINGLE, TossWarning.copy(alpha = alpha))
 }
 
 /** 캘린더 막대 한 줄 — SINGLE=가운데 16dp 알약, 여러날 START/MID/END=칸 가득(가로로 이어짐). */
