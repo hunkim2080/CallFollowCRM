@@ -4907,8 +4907,9 @@ async def admin_business_stats(
 
 
 @app.get("/admin/usage")
-async def admin_usage() -> dict:
+async def admin_usage(authorization: Optional[str] = Header(None)) -> dict:
     """최근 24시간 API 호출수 + 토큰 + 비용 (USD/KRW) + endpoint 별 breakdown."""
+    _admin_auth_bearer_from_header(authorization)   # 보안 §A — 무인증 PII 노출 차단
     one_day_ms = 24 * 60 * 60 * 1000
     cutoff = _now_ms() - one_day_ms
     with db_conn() as conn:
@@ -5435,6 +5436,11 @@ def _compare_render_html(results: list[dict], tone_samples_count: int) -> str:
 # ============================================================================
 
 _BETA_INTAKE_HTML_PATH = BASE_DIR / "static" / "admin_beta_intake.html"
+
+
+def _admin_ok(tok: Optional[str]) -> bool:
+    """관리자 토큰 일치 여부 (쿼리토큰/이미지 등 헤더 못 실을 때). ADMIN_TOKEN 미설정이면 False."""
+    return bool(ADMIN_TOKEN) and (tok == ADMIN_TOKEN)
 
 
 def _admin_auth_bearer_from_header(authorization: Optional[str]) -> None:
@@ -25360,9 +25366,9 @@ _DIAG_CSS = """<style>
 
 _DIAG_JS = """<script>
 function mark(id,val){
-  fetch('/admin/diagnostics/resolve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id,resolved:!!val})})
-   .then(function(r){return r.json();}).then(function(){location.reload();})
-   .catch(function(){alert('실패 — 다시 시도해주세요');});
+  fetch('/admin/diagnostics/resolve',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(window.DIAG_TOK||'')},body:JSON.stringify({id:id,resolved:!!val})})
+   .then(function(r){if(!r.ok)throw 0;return r.json();}).then(function(){location.reload();})
+   .catch(function(){alert('실패 — 토큰이 만료됐을 수 있어요');});
 }
 function filt(m){
   document.getElementById('f-all').classList.toggle('on',m==='all');
@@ -25373,7 +25379,28 @@ function filt(m){
 </script>"""
 
 
-def _render_diag_html(rows) -> str:
+def _diag_token_gate_html() -> str:
+    """토큰 미입력/오류 시 — 토큰 입력 페이지(입력→?t= 로 재진입). 데이터 노출 0."""
+    return (
+        '<!doctype html><html lang="ko"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<title>관리자 인증</title></head>'
+        '<body style="font-family:-apple-system,sans-serif;background:#f2f4f6;'
+        'display:flex;align-items:center;justify-content:center;height:100vh;margin:0">'
+        '<div style="background:#fff;padding:28px 24px;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,.08);width:300px">'
+        '<div style="font-size:17px;font-weight:800;margin-bottom:14px">🔒 관리자 인증</div>'
+        '<input id="tk" type="password" placeholder="관리자 토큰" '
+        'style="width:100%;padding:12px;border:1px solid #dbe0e6;border-radius:10px;font-size:15px">'
+        '<button onclick="go()" style="width:100%;margin-top:12px;padding:12px;border:0;'
+        'border-radius:10px;background:#3182f6;color:#fff;font-size:15px;font-weight:800;cursor:pointer">확인</button>'
+        '<script>function go(){var v=document.getElementById("tk").value.trim();'
+        'if(v)location.search="?t="+encodeURIComponent(v);}'
+        'document.getElementById("tk").addEventListener("keydown",function(e){if(e.key==="Enter")go();});</script>'
+        '</div></body></html>'
+    )
+
+
+def _render_diag_html(rows, token: str = "") -> str:
     import html as _h
     import datetime as _dt
     total = len(rows)
@@ -25392,8 +25419,9 @@ def _render_diag_html(rows) -> str:
         sub = _h.escape(f'v{version or "?"} · {device or "?"} · Android {android or "?"}')
         note_html = (f'<div class="note">{_h.escape(note)}</div>' if (note or "").strip() else '')
         rep = _h.escape((report or "")[:8000])
-        img = (f'<a class="shot" href="/admin/diagnostics/image/{rid}" target="_blank">'
-               f'<img src="/admin/diagnostics/image/{rid}" loading="lazy" alt="첨부 스크린샷"></a>'
+        _tq = ("?t=" + urllib.parse.quote(token)) if token else ""
+        img = (f'<a class="shot" href="/admin/diagnostics/image/{rid}{_tq}" target="_blank">'
+               f'<img src="/admin/diagnostics/image/{rid}{_tq}" loading="lazy" alt="첨부 스크린샷"></a>'
                if image_path else '')
         cards.append(
             f'<div class="card {cls}" data-done="{1 if done else 0}">'
@@ -25416,12 +25444,15 @@ def _render_diag_html(rows) -> str:
         "<button id=\"f-open\" class=\"fbtn\" onclick=\"filt('open')\">미개선만</button>"
         '</div></header>'
     )
-    return head + header + '<main>' + body + '</main>' + _DIAG_JS + '</body></html>'
+    tok_js = "<script>window.DIAG_TOK=" + json.dumps(token) + ";</script>"
+    return head + header + '<main>' + body + '</main>' + tok_js + _DIAG_JS + '</body></html>'
 
 
 @app.get("/admin/diagnostics", response_class=HTMLResponse)
-async def admin_diagnostics(limit: int = 50) -> HTMLResponse:
-    """문제 신고/진단 — 관리자 확인 페이지(개선 여부 뱃지·토글). JSON 은 /admin/diagnostics/data."""
+async def admin_diagnostics(limit: int = 50, t: Optional[str] = None) -> HTMLResponse:
+    """문제 신고/진단 — 관리자 확인 페이지. 보안 §A: 쿼리 토큰(?t=) 없으면 데이터 없이 인증 페이지만."""
+    if not _admin_ok(t):
+        return HTMLResponse(content=_diag_token_gate_html(), status_code=200)
     limit = max(1, min(int(limit or 50), 200))
     with db_conn() as con:
         rows = con.execute(
@@ -25429,12 +25460,14 @@ async def admin_diagnostics(limit: int = 50) -> HTMLResponse:
             "COALESCE(resolved, 0) FROM diagnostics_reports ORDER BY created_at_ms DESC LIMIT ?",
             (limit,),
         ).fetchall()
-    return HTMLResponse(content=_render_diag_html(rows))
+    return HTMLResponse(content=_render_diag_html(rows, t))
 
 
 @app.get("/admin/diagnostics/data")
-async def admin_diagnostics_data(limit: int = 50) -> dict:
+async def admin_diagnostics_data(limit: int = 50,
+                                 authorization: Optional[str] = Header(None)) -> dict:
     """진단 목록 JSON(프로그램용). 사람이 보는 건 /admin/diagnostics."""
+    _admin_auth_bearer_from_header(authorization)   # 보안 §A
     limit = max(1, min(int(limit or 50), 200))
     with db_conn() as con:
         rows = con.execute(
@@ -25451,8 +25484,10 @@ async def admin_diagnostics_data(limit: int = 50) -> dict:
 
 
 @app.post("/admin/diagnostics/resolve")
-async def admin_diagnostics_resolve(req: DiagResolve) -> dict:
+async def admin_diagnostics_resolve(req: DiagResolve,
+                                    authorization: Optional[str] = Header(None)) -> dict:
     """진단 신고 '개선 여부' 토글 (관리자 페이지 버튼)."""
+    _admin_auth_bearer_from_header(authorization)   # 보안 §A
     with db_conn() as con:
         con.execute(
             "UPDATE diagnostics_reports SET resolved = ?, resolved_at_ms = ? WHERE id = ?",
@@ -25463,8 +25498,11 @@ async def admin_diagnostics_resolve(req: DiagResolve) -> dict:
 
 
 @app.get("/admin/diagnostics/image/{rid}")
-async def admin_diagnostics_image(rid: int):
-    """진단 첨부 스크린샷 서빙 — 관리자 페이지 인라인 표시용."""
+async def admin_diagnostics_image(rid: int, t: Optional[str] = None):
+    """진단 첨부 스크린샷 서빙 — 관리자 페이지 인라인 표시용.
+    <img> 는 헤더를 못 실으므로 쿼리 토큰(?t=)으로 인증(보안 §A)."""
+    if not _admin_ok(t):
+        raise HTTPException(401, "관리자 토큰 필요")
     import os
     with db_conn() as con:
         row = con.execute(

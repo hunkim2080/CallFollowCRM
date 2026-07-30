@@ -8224,3 +8224,14 @@ diag_template_encoding.sh 결과 = **전 층 정상. 손댈 것 없음.**
   - 순서: **①[cowork] SOLAPI(문자발송) 켜기 — 최우선 병목** ②[cowork] verify-code 토큰발급(§B-1)+토큰계약 회신 ③[cowork] 엔드포인트 토큰검증(§B-2) ④[android] `SMS_SIGNUP_ENABLED=true` 전환+토큰 저장/부착(서버 끝나면 하루 내).
 - 앱쪽 로그인 검토 소소 수정(커밋 f263956, 0.2.1223): 비활성 버튼 흰글자→회색(가독성)·죽은코드 LoginButton 삭제·버튼 radius 15.
 - **⚠️ cowork 회신 대기**: §D-1 SOLAPI 켤 수 있나 + §B-1/§D-2 토큰 계약(필드명·헤더·만료).
+
+## 2026-07-30 20:13 · cowork (🔒 보안 §A 핫픽스)
+SECURITY_HANDOFF_2026-07-30 §A — 무인증으로 새던 관리자 데이터에 인증 강제. 배포 후 즉시 닫힘.
+- /admin/usage → Bearer(_admin_auth_bearer_from_header). (고객 TOP15 전화·비용 노출 차단)
+- /admin/diagnostics/data → Bearer. /admin/diagnostics/resolve → Bearer(+HTML mark() 가 window.DIAG_TOK 로 Bearer 전송).
+- /admin/diagnostics/image/{rid} → **쿼리토큰 ?t=**(img 는 헤더 못 실음). HTML img src 에 ?t= 부착.
+- /admin/diagnostics HTML → **?t= 토큰 게이트**: 무토큰/오토큰이면 데이터 0 인 인증 입력페이지만. 정상 토큰이어야 신고 데이터 렌더(전엔 무인증 인라인 렌더 = 최대 누수였음).
+- ADMIN_TOKEN env(plist) 사용. 미설정 시 503. 검증 TestClient 13 ALL OK.
+- ⚠️ 배포 후 사장님이 진단함 열 때: 주소 뒤 ?t=관리자토큰 (또는 인증 입력페이지에 토큰 입력). 대시보드(getToken sessionStorage)는 기존대로.
+- 남은 보안: §B/§D(세션토큰·SOLAPI·전 엔드포인트 인증) — 결정 필요(아래 사장님 질의). 미배포: bash server/deploy_phase1.sh
+- commit: (아래)
