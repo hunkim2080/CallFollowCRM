@@ -91,7 +91,8 @@ import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 fun SettlementScreen(
     viewModel: SettlementViewModel,
     onBack: () -> Unit,
-    onOpenCustomer: (Long) -> Unit
+    onOpenCustomer: (Long) -> Unit,
+    onOpenScheduleAtDay: (Long) -> Unit = {}   // srow-go "이 시공 일정 보기" → 그 시공일의 일정 화면 (프로토 .srow-go)
 ) {
     val state by viewModel.state.collectAsState()
     val filter by viewModel.filterState.collectAsState()
@@ -168,6 +169,7 @@ fun SettlementScreen(
                 active = active,
                 done = done,
                 onOpenCustomer = onOpenCustomer,
+                onOpenScheduleAtDay = onOpenScheduleAtDay,
                 onConfirmDeposit = { confirmDeposit = it },
                 onConfirmBalance = { confirmPayOff = it },
                 onUndoPaid = { viewModel.setBalancePaid(it.customerId, false) }
@@ -433,6 +435,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settleList(
     active: List<SettleItem>,
     done: List<SettleItem>,
     onOpenCustomer: (Long) -> Unit,
+    onOpenScheduleAtDay: (Long) -> Unit,
     onConfirmDeposit: (SettleItem) -> Unit,
     onConfirmBalance: (SettleItem) -> Unit,
     onUndoPaid: (SettleItem) -> Unit
@@ -452,6 +455,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settleList(
             SettleRow(
                 item = item, index = idx,
                 onOpenCustomer = { onOpenCustomer(item.customerId) },
+                onOpenSchedule = { onOpenScheduleAtDay(item.scheduledWorkDate ?: 0L) },
                 onConfirmDeposit = { onConfirmDeposit(item) },
                 onConfirmBalance = { onConfirmBalance(item) },
                 onUndoPaid = { onUndoPaid(item) }
@@ -483,6 +487,7 @@ private fun SettleRow(
     item: SettleItem,
     index: Int,
     onOpenCustomer: () -> Unit,
+    onOpenSchedule: () -> Unit,
     onConfirmDeposit: () -> Unit,
     onConfirmBalance: () -> Unit,
     onUndoPaid: () -> Unit
@@ -528,12 +533,12 @@ private fun SettleRow(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onOpenCustomer() }
+                    .clickable { onOpenSchedule() }
                     .padding(top = 10.dp)
             ) {
                 Icon(Icons.Outlined.CalendarMonth, null, tint = TossBlue, modifier = Modifier.size(14.dp))
                 Spacer(Modifier.width(5.dp))
-                Text("고객 정보 보기", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                Text("이 시공 일정 보기", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TossBlue)
                 Spacer(Modifier.weight(1f))
                 Icon(Icons.Default.ChevronRight, null, tint = TossBlue.copy(alpha = 0.6f), modifier = Modifier.size(16.dp))
             }
@@ -570,9 +575,9 @@ private fun PayBlock(
                 "완납 취소", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
                 modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onUndoPaid() }.padding(horizontal = 6.dp, vertical = 6.dp)
             )
-            hasDeposit && !c.depositPaid -> PayAct("계약금 받았어요", onConfirmDeposit)
-            hasDeposit -> PayAct("잔금 받았어요", onConfirmBalance)
-            else -> PayAct("전액 받았어요", onConfirmBalance)
+            hasDeposit && !c.depositPaid -> PayAct("계약금 확인", onConfirmDeposit)
+            hasDeposit -> PayAct("잔금 확인", onConfirmBalance)
+            else -> PayAct("전액 확인", onConfirmBalance)
         }
     }
 }

@@ -407,7 +407,11 @@ fun AppNavHost(
             SettlementScreen(
                 viewModel = vm,
                 onBack = { navController.popBackStack() },
-                onOpenCustomer = { id -> navController.navigate(Destinations.customerDetail(id)) }
+                onOpenCustomer = { id -> navController.navigate(Destinations.customerDetail(id)) },
+                onOpenScheduleAtDay = { dayMs ->
+                    if (dayMs > 0L) navController.navigate(Destinations.schedule(dayMs))
+                    else navController.navigate(Destinations.SCHEDULE)
+                }
             )
         }
 

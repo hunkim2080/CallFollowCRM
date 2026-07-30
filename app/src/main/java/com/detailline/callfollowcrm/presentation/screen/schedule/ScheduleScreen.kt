@@ -922,7 +922,7 @@ private fun DayJobCard(
                 ) {
                     if (assignedMembers.isEmpty() && collabPartnerNames.isEmpty()) {
                         Text("아직 배정 안 함", fontSize = 13.sp, color = TossTextTertiary, modifier = Modifier.weight(1f))
-                        AssignBtn("전문가 배정", filled = true, onClick = onAssign)
+                        AssignBtn("팀원·일당 배정", filled = true, onClick = onAssign)
                     } else {
                         if (assignedMembers.isNotEmpty()) {
                             AssignAvatars(assignedMembers)
