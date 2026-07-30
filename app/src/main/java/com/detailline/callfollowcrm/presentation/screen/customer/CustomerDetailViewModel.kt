@@ -448,6 +448,14 @@ class CustomerDetailViewModel(
                 val before = container.preferences.collabAssignments
                 val after = before.filterNot { it.split('|').getOrNull(0)?.toLongOrNull() == customerId }.toSet()
                 if (after.size != before.size) container.preferences.collabAssignments = after
+                // 예약 취소 = 이 시공 '없던 일' → 총금액·잔금을 0 으로 비워 정산 '미수금'에 계속 뜨던 것 제거. (2026-07-30 사장님)
+                //   단 이미 '받은' 돈은 보존(데이터 보존): 계약금/잔금 중 받음 표시(paidAt≠null)된 건 금액을 안 지운다
+                //   (환불해주거나 보관 중인 실제 현금 기록이므로). 안 받은 금액만 0.
+                val depositReceived = customer.value?.depositPaidAt != null
+                val balanceReceived = customer.value?.balancePaidAt != null
+                container.customerRepository.updateTotalAmount(customerId, null)
+                if (!depositReceived) container.customerRepository.updateDepositAmount(customerId, null)
+                if (!balanceReceived) container.customerRepository.updateBalanceAmount(customerId, null)
             }
             // 날짜 등록(계약) = "시공 대기" 자동 분류. 날짜 해제 시 자격 재평가. (2026-06-07 카테고리 규칙)
             container.autoCategoryClassifier.reclassify(customerId)
