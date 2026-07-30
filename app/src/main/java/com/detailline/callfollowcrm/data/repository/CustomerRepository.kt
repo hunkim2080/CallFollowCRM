@@ -179,7 +179,17 @@ class CustomerRepository(
 
     suspend fun updateBalancePaidAt(id: Long, paidAt: Long?) {
         val c = dao.findById(id) ?: return
-        dao.update(c.copy(balancePaidAt = paidAt, updatedAt = System.currentTimeMillis()))
+        // 완납(잔금 받음) 처리 시, 계약금이 아직 '받음' 미표시(depositPaidAt=null)면서 계약금이 있으면 같이 찍는다.
+        //   안 그러면 완납인데도 계약금 몫이 '입금일 기준' 집계(현금흐름·이번 달 받은 돈·리포트·마감브리핑)에서
+        //   누락돼 증발함(정산 목록만 30만, 나머지는 20만). 이미 받은 날짜가 있으면 존중(안 덮음). (2026-07-30 버그감사)
+        val alsoDeposit = paidAt != null && c.depositPaidAt == null && (c.depositAmount ?: 0L) > 0L
+        dao.update(
+            c.copy(
+                balancePaidAt = paidAt,
+                depositPaidAt = if (alsoDeposit) paidAt else c.depositPaidAt,
+                updatedAt = System.currentTimeMillis()
+            )
+        )
     }
 
     /**
