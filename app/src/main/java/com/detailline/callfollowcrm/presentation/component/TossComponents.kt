@@ -118,17 +118,17 @@ fun TossTextButton(
     }
 }
 
-/** 흰색 카드 + 16dp 라운드 + 그림자 없음. 토스 시그니처 섹션. */
+/** 흰색 카드 + 18dp 라운드 + 그림자 없음. 토스 시그니처 섹션. (프로토 .card = padding 16 / radius 18) */
 @Composable
 fun TossCard(
     modifier: Modifier = Modifier,
-    contentPadding: PaddingValues = PaddingValues(20.dp),
+    contentPadding: PaddingValues = PaddingValues(16.dp),
     onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
     val base = modifier
         .fillMaxWidth()
-        .background(Color.White, RoundedCornerShape(16.dp))
+        .background(Color.White, RoundedCornerShape(18.dp))
     val clickable = if (onClick != null) base.clickable(onClick = onClick) else base
     Box(modifier = clickable.padding(contentPadding)) {
         content()

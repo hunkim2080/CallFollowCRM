@@ -360,7 +360,7 @@ fun HomeScreen(
                     .background(TossGrayBg)
                     .statusBarsPadding()
                     // top 여백 ↑ — 엣지투엣지 OFF 라 statusBarsPadding=0, 제목이 상태바에 붙던 것 완화(2026-06-04).
-                    .padding(start = 18.dp, end = 14.dp, top = 28.dp, bottom = 10.dp),
+                    .padding(start = 18.dp, end = 18.dp, top = 28.dp, bottom = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {
@@ -2414,7 +2414,7 @@ private fun InboxAlert(
     ) {
         Box(Modifier.width(4.dp).fillMaxHeight().background(accent))
         Row(
-            modifier = Modifier.weight(1f).padding(start = 10.dp, top = 13.dp, end = 14.dp, bottom = 13.dp),
+            modifier = Modifier.weight(1f).padding(start = 14.dp, top = 13.dp, end = 14.dp, bottom = 13.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
@@ -3214,9 +3214,9 @@ private fun TodayNewCard(todayNew: Int, yesterdayNew: Int, onClick: () -> Unit) 
             Text("새 번호 기준 · 어제 ${yesterdayNew}통", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = TossTextTertiary)
         }
         Box(
-            Modifier.background(deltaBg, RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 3.dp)
+            Modifier.background(deltaBg, RoundedCornerShape(999.dp)).padding(horizontal = 10.dp, vertical = 5.dp)
         ) {
-            Text(deltaText, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, color = deltaFg)
+            Text(deltaText, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = deltaFg)
         }
     }
 }
@@ -3230,7 +3230,7 @@ private fun WaitingHeader(count: Int) {
             .padding(top = 10.dp, bottom = 4.dp, start = 4.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("지금 답장 기다려요", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+        Text("지금 답장 기다려요", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
         Spacer(Modifier.width(8.dp))
         // 프로토 .count-pill — 빨강(bg #FDEAEF / fg error)
         Box(
@@ -3252,7 +3252,7 @@ private fun SecSub(text: String) {
         text,
         fontSize = 13.sp,
         fontWeight = FontWeight.Bold,
-        color = TossTextSecondary,
+        color = TossTextTertiary,
         modifier = Modifier.padding(top = 16.dp, bottom = 4.dp, start = 4.dp)
     )
 }
@@ -3501,11 +3501,12 @@ private fun WaitingCard(
     }
 }
 
-private val AV_TINTS = listOf(
-    Color(0xFFEAF2FE) to TossBlue,
-    Color(0xFFE5F8EE) to Color(0xFF0E9F56),
-    Color(0xFFFEF3E0) to Color(0xFFB7791F),
-    Color(0xFFF1ECFE) to Color(0xFF6B4FD8)
+private val AV_TINTS = listOf(   // 프로토 avatarHtml 팔레트 5색 (정산·일정과 동일 — 같은 고객 아바타 색 일치)
+    Color(0xFFE6EFFF) to Color(0xFF3182F6),
+    Color(0xFFE7F8EE) to Color(0xFF16A765),
+    Color(0xFFFDEAEF) to Color(0xFFF0436A),
+    Color(0xFFF1ECFE) to Color(0xFF7C5CFC),
+    Color(0xFFFEF3E0) to Color(0xFFE0920C),
 )
 
 /** 프로토 avatarHtml — 이름 있으면 컬러 이니셜 원, 없으면 회색 사람 아이콘. */

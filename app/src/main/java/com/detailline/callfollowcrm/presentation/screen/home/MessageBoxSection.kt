@@ -51,7 +51,7 @@ fun InboxFolderTabs(selected: Int, onSelect: (Int) -> Unit, consultBadge: Int, g
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(start = 14.dp, end = 14.dp, top = 2.dp, bottom = 0.dp),
+            .padding(start = 18.dp, end = 18.dp, top = 2.dp, bottom = 0.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         // 두 탭 다 미확인/안읽음 숫자 배지 — 다른 탭에 쌓여도 안 놓치게. (2026-07-13 사장님)
