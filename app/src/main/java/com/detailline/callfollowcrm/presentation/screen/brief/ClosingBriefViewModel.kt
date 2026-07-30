@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.detailline.callfollowcrm.data.AppContainer
 import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
+import com.detailline.callfollowcrm.domain.settlement.SettlementCalc
 import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 import kotlinx.coroutines.flow.SharingStarted
@@ -36,25 +37,25 @@ class ClosingBriefViewModel(container: AppContainer) : ViewModel() {
             .map { build(it) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ClosingBriefState())
 
-    /** 이 고객이 지금까지 실제로 낸 돈(계약금 paidAt + 잔금 paidAt). */
-    private fun paidOf(c: CustomerEntity): Long {
-        var p = 0L
-        if (c.depositPaidAt != null) p += (c.depositAmount ?: 0L)
-        if (c.balancePaidAt != null)
-            p += (c.balanceAmount ?: ((c.totalAmount ?: 0L) - (c.depositAmount ?: 0L)).coerceAtLeast(0L))
-        return p
-    }
+    // 마감 브리핑 금액 = 정산 화면과 '같은 계산'(SettlementCalc). 옛날엔 자체 계산이라 정산에선 고쳐진 버그 2개가
+    //   여기선 살아있었음: ①stale 잔금(총액 수정 후 옛 balanceAmount 남음) ②잔금만 받음=완납 미반영. (2026-07-30 버그감사)
 
-    /** 이 고객이 내야 할 총액(견적). */
-    private fun owedOf(c: CustomerEntity): Long =
-        c.totalAmount ?: ((c.depositAmount ?: 0L) + (c.balanceAmount ?: 0L))
+    /** 이 고객이 지금까지 받은 돈(정산 계산 기준 = 완납이면 총액, 계약금만 받았으면 계약금). */
+    private fun paidOf(c: CustomerEntity): Long = SettlementCalc.rowOf(c).received
 
-    /** [from, until) 안에 입금된 금액(계약금/잔금 각각 그 시각이 범위 안일 때). */
+    /** 이 고객이 내야 할 총액(정산 계산 기준). */
+    private fun owedOf(c: CustomerEntity): Long = SettlementCalc.rowOf(c).total
+
+    /** [from, until) 안에 받은 금액(계약금/잔금 각각 받은 시각이 범위 안일 때). 정산 계산의 non-stale 금액 사용. */
     private fun paidInRange(c: CustomerEntity, from: Long, until: Long): Long {
+        val row = SettlementCalc.rowOf(c)
         var p = 0L
-        if (c.depositPaidAt?.let { it in from until until } == true) p += (c.depositAmount ?: 0L)
-        if (c.balancePaidAt?.let { it in from until until } == true)
-            p += (c.balanceAmount ?: ((c.totalAmount ?: 0L) - (c.depositAmount ?: 0L)).coerceAtLeast(0L))
+        if (c.depositPaidAt?.let { it in from until until } == true) p += row.depositAmount
+        if (c.balancePaidAt?.let { it in from until until } == true) {
+            p += row.balanceAmount
+            // 완납인데 계약금 '받음' 미표시(옛 데이터)면 계약금도 '잔금 받은 날'에 귀속 — 안 그러면 그 몫이 증발. (버그감사 돈#1 과 짝)
+            if (c.depositPaidAt == null) p += row.depositAmount
+        }
         return p
     }
 
