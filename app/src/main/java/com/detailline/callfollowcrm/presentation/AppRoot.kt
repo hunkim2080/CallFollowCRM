@@ -64,16 +64,21 @@ fun AppRoot(container: AppContainer) {
 
             val permsMissing = PermissionHelper.allMissingNonNotification(context).isNotEmpty()
             val smsSignup = com.detailline.callfollowcrm.AppConfig.SMS_SIGNUP_ENABLED
-            val startDestination = when {
-                // 문자 회원가입(SIGNUP)은 SOLAPI 준비 전까지 off — 그동안은 예전 간단 로그인(번호만)으로 진입.
-                //   심사자·테스터가 문자 없이도 앱에 들어올 수 있어야 함(Play 검토·베타 테스트). (2026-07-05 사장님)
-                smsSignup && container.preferences.pendingWaitlist -> Destinations.SIGNUP
-                container.preferences.bizPhone.isBlank() -> if (smsSignup) Destinations.SIGNUP else Destinations.LOGIN
-                // 번호는 있는데 개인정보 동의 미완(기존 사용자 포함) → 동의 게이트 1회. (추가97 2026-07-06)
-                container.preferences.consentAgreedVersion != com.detailline.callfollowcrm.AppConfig.CONSENT_VERSION -> Destinations.CONSENT
-                !container.preferences.hasOnboarded -> Destinations.ONBOARDING
-                permsMissing -> Destinations.PERMISSIONS
-                else -> Destinations.HOME
+            // ⚠️ 진입 화면은 앱 켤 때 '1회만' 결정(remember) — 매 recomposition 재계산하면 값(permsMissing·hasOnboarded 등)이
+            //   중간에 바뀔 때 NavHost 가 그래프를 재세팅해 백스택을 통째 리셋함 = 온보딩 마법사 스킵·"권한 허용하면 홈으로 튐"의 원인.
+            //   이후 단계 전환(로그인→동의→온보딩→권한→홈)은 각 화면의 명시적 navigate(popUpTo) 가 담당하므로 동작 불변. (2026-07-30 버그감사)
+            val startDestination = remember {
+                when {
+                    // 문자 회원가입(SIGNUP)은 SOLAPI 준비 전까지 off — 그동안은 예전 간단 로그인(번호만)으로 진입.
+                    //   심사자·테스터가 문자 없이도 앱에 들어올 수 있어야 함(Play 검토·베타 테스트). (2026-07-05 사장님)
+                    smsSignup && container.preferences.pendingWaitlist -> Destinations.SIGNUP
+                    container.preferences.bizPhone.isBlank() -> if (smsSignup) Destinations.SIGNUP else Destinations.LOGIN
+                    // 번호는 있는데 개인정보 동의 미완(기존 사용자 포함) → 동의 게이트 1회. (추가97 2026-07-06)
+                    container.preferences.consentAgreedVersion != com.detailline.callfollowcrm.AppConfig.CONSENT_VERSION -> Destinations.CONSENT
+                    !container.preferences.hasOnboarded -> Destinations.ONBOARDING
+                    permsMissing -> Destinations.PERMISSIONS
+                    else -> Destinations.HOME
+                }
             }
 
             LaunchedEffect(Unit) {

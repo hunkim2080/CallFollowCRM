@@ -91,11 +91,17 @@ class CustomerRepository(
                 updatedAt = now
             )
             val id = dao.insert(entity)
-            // 같은 번호로 먼저 들어와 있던 orphan 녹음/요약을 이 고객으로 자동 연결.
-            // (정책: 녹음/요약 import 는 Customer 를 자동 생성하지 않는다.)
-            recordingDao?.linkOrphansToCustomer(phoneNumber, id)
-            callSummaryDao?.linkOrphansToCustomer(phoneNumber, id)
-            entity.copy(id = id)
+            if (id == -1L) {
+                // 동시 생성 경합(unique phoneNumber 충돌 → @Insert(IGNORE) 가 -1 반환). 이미 만들어진 행을 재조회해 반환
+                //   — id=-1 로 orphan 연결·이후 일정/금액 update 가 무음 증발하던 것 방지. (2026-07-30 버그감사)
+                dao.findByPhone(phoneNumber) ?: entity.copy(id = id)
+            } else {
+                // 같은 번호로 먼저 들어와 있던 orphan 녹음/요약을 이 고객으로 자동 연결.
+                // (정책: 녹음/요약 import 는 Customer 를 자동 생성하지 않는다.)
+                recordingDao?.linkOrphansToCustomer(phoneNumber, id)
+                callSummaryDao?.linkOrphansToCustomer(phoneNumber, id)
+                entity.copy(id = id)
+            }
         } else {
             val mergedMemo = when {
                 memo.isNullOrBlank() -> existing.memo

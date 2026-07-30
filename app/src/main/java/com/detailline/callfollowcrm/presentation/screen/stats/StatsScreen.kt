@@ -329,12 +329,12 @@ private fun StatTypes(s: StatsUiState) {
     Column(
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color.White).padding(18.dp)
     ) {
+        // early return@Column 은 빈→로드 전환 시 슬롯테이블 그룹 어긋나 AIOOBE 크래시(홈서 고친 패턴). if/else 로 감쌈. (2026-07-30 버그감사)
         if (s.types.isEmpty()) {
             Box(Modifier.fillMaxWidth().padding(vertical = 14.dp), contentAlignment = Alignment.Center) {
                 Text("이번 달 시공 기록이 아직 없어요", fontSize = 13.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
             }
-            return@Column
-        }
+        } else {
         // wt-hero
         s.topType?.let { top ->
             val heroSub = when {
@@ -361,6 +361,7 @@ private fun StatTypes(s: StatsUiState) {
         s.types.forEachIndexed { i, t ->
             if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
             WtRow(t, max)
+        }
         }
     }
 }
