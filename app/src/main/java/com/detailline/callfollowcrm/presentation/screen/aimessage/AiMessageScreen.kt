@@ -90,9 +90,11 @@ fun AiMessageScreen(
                     state.customerMessage, viewModel::onMessageChange, placeholder = "고객 문의 내용",
                     singleLine = false, minHeightDp = 56)
             }
-            Button(onClick = viewModel::loadSuggestions, enabled = !state.loading) {
-                Text(if (state.loading) "생성 중..." else "답변 3개 생성")
-            }
+            com.detailline.callfollowcrm.presentation.component.TossPrimaryButton(
+                text = if (state.loading) "생성 중..." else "답변 3개 생성",
+                onClick = viewModel::loadSuggestions,
+                enabled = !state.loading
+            )
             if (state.intents.isNotEmpty()) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     state.intents.forEach { label ->
@@ -167,7 +169,8 @@ fun AiMessageScreen(
                 }
             }
 
-            Button(
+            com.detailline.callfollowcrm.presentation.component.TossPrimaryButton(
+                text = "문자앱에서 전송하기",
                 onClick = {
                     openSms(
                         context = context,
@@ -175,11 +178,8 @@ fun AiMessageScreen(
                         body = state.selectedReply
                     )
                 },
-                enabled = state.selectedReply.isNotBlank() && state.customerPhone.isNotBlank(),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("문자앱에서 전송하기")
-            }
+                enabled = state.selectedReply.isNotBlank() && state.customerPhone.isNotBlank()
+            )
         }
     }
 }

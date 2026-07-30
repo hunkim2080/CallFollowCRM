@@ -638,7 +638,7 @@ private fun ContactDialog(
             if (!isEdit) {
                 if (savedPeople.isNotEmpty()) {
                     Row(
-                        Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(12.dp))
+                        Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(14.dp))
                             .background(TossBlueSoft)
                             .clickable { pickerOpen = true },
                         horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically
@@ -651,7 +651,7 @@ private fun ContactDialog(
                     Spacer(Modifier.height(8.dp))
                 }
                 Row(
-                    Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(12.dp))
+                    Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(14.dp))
                         .background(TossGrayBg)
                         .clickable {
                             runCatching {
