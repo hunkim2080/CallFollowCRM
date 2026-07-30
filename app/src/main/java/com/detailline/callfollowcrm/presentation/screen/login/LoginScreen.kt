@@ -158,11 +158,12 @@ fun LoginScreen(onLoginPhone: (String) -> Unit, onProceed: () -> Unit) {
                 Modifier
                     .fillMaxWidth()
                     .height(53.dp)
-                    .background(if (phoneOk) LoginBlue else Color(0xFFE2E6EC), RoundedCornerShape(16.dp))
+                    .background(if (phoneOk) LoginBlue else Color(0xFFE2E6EC), RoundedCornerShape(15.dp))
                     .clickable(enabled = phoneOk) { onLoginPhone(phone) },
                 contentAlignment = Alignment.Center
             ) {
-                Text("이 번호로 시작하기", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.3).sp)
+                // 비활성(번호 입력 전)엔 흰 글자면 연한 회색 배경에 안 보임 → 회색 글자로. (2026-07-30 로그인 검토)
+                Text("이 번호로 시작하기", color = if (phoneOk) Color.White else Color(0xFF8B95A3), fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.3).sp)
             }
 
             Spacer(Modifier.height(20.dp))
@@ -338,7 +339,7 @@ private fun BoxScope.BetaApplySheet(onClose: () -> Unit) {
                 .background(if (canSend) LoginBlue else Color(0xFFE2E6EC), RoundedCornerShape(14.dp))
                 .clickable(enabled = canSend) { send() },
             contentAlignment = Alignment.Center
-        ) { Text("💬 신청 문자 보내기", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Black) }
+        ) { Text("💬 신청 문자 보내기", color = if (canSend) Color.White else Color(0xFF8B95A3), fontSize = 15.sp, fontWeight = FontWeight.Black) }
         Spacer(Modifier.height(10.dp))
         Text(
             "누르면 문자 앱이 열리고, 적으신 내용이 사장님께 문자로 전송돼요",
@@ -354,45 +355,3 @@ private fun BoxScope.BetaApplySheet(onClose: () -> Unit) {
     }
 }
 
-@Composable
-private fun LoginButton(
-    bg: Color,
-    fg: Color,
-    label: String,
-    onClick: () -> Unit,
-    chip: String? = null,
-    borderColor: Color? = null,
-    icon: @Composable () -> Unit
-) {
-    Box(Modifier.fillMaxWidth()) {
-        val base = Modifier
-            .fillMaxWidth()
-            .height(53.dp)
-            .background(bg, RoundedCornerShape(15.dp))
-            .clickable(onClick = onClick)
-        val withBorder = if (borderColor != null) {
-            base.then(
-                Modifier.border(1.dp, borderColor, RoundedCornerShape(15.dp))
-            )
-        } else base
-        Box(withBorder, contentAlignment = Alignment.Center) {
-            // 아이콘은 왼쪽 고정, 라벨은 가운데 (프로토 .lbtn .lico 절대배치 재현)
-            Box(Modifier.fillMaxWidth().padding(start = 18.dp), contentAlignment = Alignment.CenterStart) {
-                icon()
-            }
-            Text(label, color = fg, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.3).sp)
-        }
-        if (chip != null) {
-            Box(
-                Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(end = 16.dp)
-                    .offset(y = (-9).dp)
-                    .background(LoginBlue, RoundedCornerShape(99.dp))
-                    .padding(horizontal = 9.dp, vertical = 2.dp)
-            ) {
-                Text(chip, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
-            }
-        }
-    }
-}
