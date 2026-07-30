@@ -1122,9 +1122,9 @@ private fun DetailBody(
         Spacer(Modifier.height(10.dp))
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                .background(Color(0xFFFFF8E8)).border(1.dp, Color(0xFFF6E4B8), RoundedCornerShape(14.dp)).padding(13.dp)
+                .background(Color(0xFFFFF3DF)).border(1.dp, Color(0xFFF6E4B8), RoundedCornerShape(14.dp)).padding(13.dp)
         ) {
-            Text("📌 대표님 전달사항", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB4790A))
+            Text("📌 대표님 전달사항", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A))
             Spacer(Modifier.height(5.dp))
             // 전달사항 안 전화번호는 탭하면 다이얼러에 바로 채워져 통화 편하게. (2026-07-01 사장님)
             LinkifiedMemo(site.memo, baseColor = Color(0xFF5A4A1F))
@@ -1329,9 +1329,9 @@ private fun DetailBody(
     SectionSub("📸 현장 사진 · 증거용" + (if (photos.isNotEmpty()) " (${photos.size})" else ""))
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-            .background(Color(0xFFFFF8E8)).border(1.dp, Color(0xFFF6E4B8), RoundedCornerShape(14.dp)).padding(13.dp)
+            .background(Color(0xFFFFF3DF)).border(1.dp, Color(0xFFF6E4B8), RoundedCornerShape(14.dp)).padding(13.dp)
     ) {
-        Text("📌 왜 찍어두나요?", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB4790A))
+        Text("📌 왜 찍어두나요?", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A))
         Spacer(Modifier.height(5.dp))
         Text("시공 전·작업 중 현장 상태를 미리 찍어두면 \"이건 원래 그랬어요\" 증거가 돼요. 나중에 \"여기 망가뜨렸죠?\" 같은 누명·분쟁을 막아줍니다.",
             fontSize = 13.sp, color = Color(0xFF5A4A1F), lineHeight = 20.sp)
@@ -1388,9 +1388,9 @@ private fun OwnerSharedDetail(
         Spacer(Modifier.height(10.dp))
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                .background(Color(0xFFFFF8E8)).border(1.dp, Color(0xFFF6E4B8), RoundedCornerShape(14.dp)).padding(13.dp)
+                .background(Color(0xFFFFF3DF)).border(1.dp, Color(0xFFF6E4B8), RoundedCornerShape(14.dp)).padding(13.dp)
         ) {
-            Text("📌 대표님 전달사항", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB4790A))
+            Text("📌 대표님 전달사항", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A))
             Spacer(Modifier.height(5.dp))
             LinkifiedMemo(memo, baseColor = Color(0xFF5A4A1F))
         }
@@ -1517,7 +1517,7 @@ private fun PhotoGrid(
 
 @Composable private fun Pill(text: String) {
     Box(Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFFEF3E0)).padding(horizontal = 9.dp, vertical = 3.dp)) {
-        Text(text, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB4790A))
+        Text(text, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A))
     }
 }
 @Composable private fun PillStrong(text: String) {

@@ -1428,7 +1428,7 @@ private fun AutoLearningCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFFFFF8E1))
+                            .background(Color(0xFFFFF3DF))
                             .padding(12.dp)
                     ) {
                         Column {
@@ -1436,14 +1436,14 @@ private fun AutoLearningCard(
                                 "💡 개선 후보 ${needsImprovement.size}개 시나리오",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF8B6F00)
+                                color = Color(0xFFB8780A)
                             )
                             Spacer(Modifier.height(4.dp))
                             needsImprovement.forEach { s ->
                                 Text(
                                     "• ${scenarioLabel(s.scenario)} — ${(s.adoptionRate * 100).toInt()}% (${s.total}건)",
                                     fontSize = 11.sp,
-                                    color = Color(0xFF8B6F00)
+                                    color = Color(0xFFB8780A)
                                 )
                             }
                             Spacer(Modifier.height(6.dp))
@@ -1751,7 +1751,7 @@ private fun AutoSmsSection(
             if (callerCardOn && !overlayGranted) {
                 Spacer(Modifier.height(10.dp))
                 Box(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color(0xFFFFF4E5))
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color(0xFFFFF3DF))
                         .clickable {
                             runCatching {
                                 overlayPermLauncher.launch(
@@ -1766,8 +1766,8 @@ private fun AutoSmsSection(
                 ) {
                     Column {
                         Text("⚠️ '다른 앱 위에 표시' 권한이 필요해요", fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold, color = Color(0xFFB26A00))
-                        Text("여기를 눌러 허용하면 전화 올 때 카드가 떠요", fontSize = 12.sp, color = Color(0xFFB26A00))
+                            fontWeight = FontWeight.Bold, color = Color(0xFFB8780A))
+                        Text("여기를 눌러 허용하면 전화 올 때 카드가 떠요", fontSize = 12.sp, color = Color(0xFFB8780A))
                     }
                 }
             }
@@ -2451,14 +2451,14 @@ private fun OwnerToneRagCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFFFFF8E1))
+                            .background(Color(0xFFFFF3DF))
                             .padding(12.dp)
                     ) {
                         Text(
                             "⚠️ 임베딩 검색 비활성 — Mac mini 에 'pip install FlagEmbedding sqlite-vec' 후 launchctl reload 필요. " +
                                 "메시지는 저장되어 있어 install 후 자동 활성화됩니다.",
                             fontSize = 11.sp,
-                            color = Color(0xFF8B6F00)
+                            color = Color(0xFFB8780A)
                         )
                     }
                 }
@@ -2541,20 +2541,20 @@ private fun IncomingSmsNotifyCard(enabled: Boolean, onToggle: (Boolean) -> Unit)
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0xFFFFF8E1))  // 연한 노랑 — 안내 톤
+                    .background(Color(0xFFFFF3DF))  // 연한 노랑 — 안내 톤
                     .padding(horizontal = 12.dp, vertical = 10.dp)
             ) {
                 Column {
                     Text(
                         "⚠️ 갤메시지 알림은 직접 꺼주세요",
-                        color = Color(0xFF7A5C00),
+                        color = Color(0xFFB8780A),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
                         "안 끄면 시공막내 + 갤메시지 둘 다 알림이 떠요. 시스템 설정 → 앱 → 메시지 → 알림 OFF.",
-                        color = Color(0xFF7A5C00),
+                        color = Color(0xFFB8780A),
                         fontSize = 12.sp
                     )
                     Spacer(Modifier.height(8.dp))
@@ -2587,7 +2587,7 @@ private fun IncomingSmsNotifyCard(enabled: Boolean, onToggle: (Boolean) -> Unit)
                     ) {
                         Text(
                             "→ 갤메시지 알림 설정 열기",
-                            color = Color(0xFF7A5C00),
+                            color = Color(0xFFB8780A),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold
                         )

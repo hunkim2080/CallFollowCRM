@@ -892,11 +892,11 @@ fun CustomerDetailScreen(
                             if (idx > 0) Spacer(Modifier.height(8.dp))
                             androidx.compose.foundation.layout.Box(
                                 Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                                    .background(Color(0xFFFFF8E1)).padding(12.dp)
+                                    .background(Color(0xFFFFF3DF)).padding(12.dp)
                             ) {
                                 Column {
                                     androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                        Text(note.memberName, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFA66B00))
+                                        Text(note.memberName, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFB8780A))
                                         Spacer(Modifier.width(6.dp))
                                         Text(
                                             com.detailline.callfollowcrm.util.DateTimeUtils.formatShort(note.createdAtMs),
@@ -943,9 +943,9 @@ fun CustomerDetailScreen(
                                             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                                         ) {
                                             androidx.compose.material3.Icon(Icons.AutoMirrored.Filled.Reply, null,
-                                                tint = Color(0xFFA66B00), modifier = Modifier.size(15.dp))
+                                                tint = Color(0xFFB8780A), modifier = Modifier.size(15.dp))
                                             Spacer(Modifier.width(5.dp))
-                                            Text("답글 달기", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFA66B00))
+                                            Text("답글 달기", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFB8780A))
                                         }
                                     }
 
@@ -3027,8 +3027,8 @@ private fun CollabAfterCard(
                 Text("🤝 ${partnerName} 사장님", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary,
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 Spacer(Modifier.weight(1f))
-                Box(Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFFCEEDC)).padding(horizontal = 10.dp, vertical = 4.dp)) {
-                    Text("수락 대기중", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB4790A))
+                Box(Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFFFF3DF)).padding(horizontal = 10.dp, vertical = 4.dp)) {
+                    Text("수락 대기중", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A))
                 }
             }
             Spacer(Modifier.height(8.dp))

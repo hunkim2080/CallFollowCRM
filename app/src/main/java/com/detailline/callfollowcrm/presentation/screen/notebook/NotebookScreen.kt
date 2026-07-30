@@ -453,10 +453,10 @@ private fun ContactCard(
                             color = TossTextPrimary, fontWeight = FontWeight.Bold)
                         if (c.tag.isNotBlank()) {
                             Spacer(Modifier.width(6.dp))
-                            Box(Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFFFF3D6))
+                            Box(Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFFFF3DF))
                                 .padding(horizontal = 8.dp, vertical = 2.dp)) {
                                 Text(c.tag, style = MaterialTheme.typography.labelSmall,
-                                    color = Color(0xFFB07D00), fontWeight = FontWeight.Bold)
+                                    color = Color(0xFFB8780A), fontWeight = FontWeight.Bold)
                             }
                         }
                     }

@@ -49,9 +49,9 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 
 private val GoalCardBg = Color(0xFF202632)
-private val WarnBg = Color(0xFFFFF7E6)
-private val WarnText = Color(0xFF8A5A00)
-private val WarnSub = Color(0xFFB07A1E)
+private val WarnBg = Color(0xFFFFF3DF)
+private val WarnText = Color(0xFFB8780A)
+private val WarnSub = Color(0xFFC9820B)
 
 /**
  * 마감 브리핑 화면 (2026-07-03 의미있게 재구성) — 오늘 성취 + 이번 달 목표 진행 + 내일 준비 + 못 받은 돈 챙김.
