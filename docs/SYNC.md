@@ -8253,3 +8253,9 @@ SECURITY_HANDOFF_2026-07-30 §A — 무인증으로 새던 관리자 데이터�
 - ★ 켜는 순서: 앱이 Bearer 부착 배포 완료 후 → plist AUTH_ENFORCE=1 재기동. 그 전 금지(전 기능 401).
 - 검증 OFF/ON TestClient 14 ALL OK. 미배포: bash server/deploy_phase1.sh
 - commit: (아래)
+## 2026-07-31 · android
+docs/ 정리 — 끝난 핸드오프 50개를 docs/archive/ 로 이동 (삭제 아님, git mv 라 되돌리기·열람 자유)
+- 변경: 6월 전체 + 7월초 완료 기능 핸드오프(SERVER_HANDOFF_* / ANDROID_HANDOFF_* / DECISIONS_* / IR_DECK v1·v2 등)가 이제 `docs/archive/` 아래. 옛 핸드오프 참조 시 경로만 `docs/archive/` 로 바뀜.
+- 그대로 둔 활성문서: SYNC · ONEONE_STATUS · SECURITY_HANDOFF_2026-07-30 · expo 묶음 · PLAN_*(재방문·온보딩·가격·공유캘린더) · Play/DPA 컴플라이언스 · signup_auth · IR_DECK_v3.
+- commit: 이 커밋
+- 다음 액션: 없음 (경로만 참고)
