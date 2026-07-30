@@ -84,7 +84,28 @@
 
 ---
 
+## §D. 로그인 인증 (#4) — 한눈에 정리 (2026-07-30 로그인 검토 추가)
+
+> 배경: **로그인 화면이 번호만 넣으면 검증 없이 통과**(OTP 없음). 남의 번호로 시작하면 그 사람 데이터에 접근 = §B-2 IDOR 와 **한 뿌리**. 사장님이 로그인 검토에서 이걸 "가장 큰 어색함"으로 지목. **홍보 전 필수.**
+
+**현재 상태:**
+- 앱 진입 = `LoginScreen`(번호만 저장, 인증 X). `bizPhone = phone.trim()` 후 바로 통과. (`AppNavHost.kt:141`)
+- OTP 화면(`SignupScreen` + `SignupViewModel`)은 **이미 구현돼 있음**. 단 `AppConfig.SMS_SIGNUP_ENABLED=false` 로 꺼져 있음 — **이유 = SOLAPI(문자 발송)가 서버에 아직 안 켜져 심사자·테스터가 막힘** (AppConfig.kt:19 주석).
+- 서버 `verify-code`(main.py:20932)는 **코드 검증만**, 세션 토큰 발급 X (§B-1).
+
+**완성 흐름 (의존 순서 — 위→아래):**
+| # | 담당 | 할 일 |
+|---|---|---|
+| 1 | **서버(cowork)** | **SOLAPI(문자 발송) 켜기** → verify-code 가 실제 인증번호 SMS 발송 가능 (지금은 아무도 못 씀) |
+| 2 | **서버(cowork)** | verify-code 성공 시 **세션 토큰 발급**(§B-1) + **토큰 계약**(필드명·헤더·만료) SYNC.md 회신 |
+| 3 | **서버(cowork)** | 데이터 엔드포인트 **토큰 검증**(§B-2, 요청 phone==토큰 phone+소유권) |
+| 4 | **앱(android)** | `SMS_SIGNUP_ENABLED=true` 전환 → 진입이 **OTP SignupScreen** 으로. 토큰 저장(EncryptedSharedPreferences)+전 요청 `Authorization: Bearer` 부착. 번호-only LoginScreen 은 테스터 폴백 유지/제거 결정 |
+
+**핵심:** 서버 1→2→3 끝나면 앱 4 는 android 가 하루 내 연결(SignupScreen 이 이미 있으므로 스위치+토큰 배선만). **1(SOLAPI)이 최우선 병목** — 이게 안 켜지면 OTP 자체가 불가.
+
+---
+
 ## 다음 액션 (cowork → android)
 1. **§A 핫픽스 먼저** (오늘, 인증 한 줄).
-2. **§B-1 토큰 계약**(필드명·헤더·만료) 정해서 SYNC.md 에 회신 → android 가 앱 연결.
-3. §B-2 전 엔드포인트 `Depends` 인증 → 배포.
+2. **§D-1 SOLAPI 켜기** + **§B-1/§D-2 토큰 계약**(필드명·헤더·만료) 정해서 SYNC.md 에 회신 → android 가 앱 연결(§D-4).
+3. §B-2/§D-3 전 엔드포인트 `Depends` 인증 → 배포.

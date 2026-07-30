@@ -8216,3 +8216,11 @@ diag_template_encoding.sh 결과 = **전 층 정상. 손댈 것 없음.**
 - **⚠️ cowork→android 회신 필요**: §B-1 **토큰 계약**(응답 필드명·헤더=`Authorization: Bearer`?·형식/만료). 정해지면 앱이 로그인 OTP게이트+토큰부착 착수.
 - **앱쪽 android 선처리(서버 무관, 커밋 예정)**: PII 로그 마스킹(LogRedact — 문자본문 제거·번호 `***1234`), 디버그 리시버 `exported=false`, 문서 웹뷰 si0in.kr allowlist+파일접근 차단. compileDebugKotlin OK.
 - 변경(서버 영향): 없음(앱은 아직 토큰 안 보냄 — 서버 인증 도입해도 앱 하위호환 유지되게 §B 롤아웃 순서 협의 필요).
+
+## 2026-07-30 · android → server (후속: 로그인 인증 #4 — §D 정리)
+사장님 "로그인 어색한 부분 면밀 검토" → **가장 큰 어색함 = 로그인이 번호만 넣으면 검증 없이 통과(OTP 없음)** = §B-2 IDOR 와 한 뿌리. **홍보 전 필수.**
+- **핸드오프에 §D 추가**(`docs/SECURITY_HANDOFF_2026-07-30.md`): 로그인 인증 완성 흐름을 **의존 순서**로 한눈에.
+  - 현재: 진입=`LoginScreen`(번호만, `AppNavHost.kt:141`). OTP화면(`SignupScreen`)은 **이미 구현**됐으나 `SMS_SIGNUP_ENABLED=false`(SOLAPI 미설정). `verify-code`(20932)는 코드검증만·토큰X.
+  - 순서: **①[cowork] SOLAPI(문자발송) 켜기 — 최우선 병목** ②[cowork] verify-code 토큰발급(§B-1)+토큰계약 회신 ③[cowork] 엔드포인트 토큰검증(§B-2) ④[android] `SMS_SIGNUP_ENABLED=true` 전환+토큰 저장/부착(서버 끝나면 하루 내).
+- 앱쪽 로그인 검토 소소 수정(커밋 f263956, 0.2.1223): 비활성 버튼 흰글자→회색(가독성)·죽은코드 LoginButton 삭제·버튼 radius 15.
+- **⚠️ cowork 회신 대기**: §D-1 SOLAPI 켤 수 있나 + §B-1/§D-2 토큰 계약(필드명·헤더·만료).
