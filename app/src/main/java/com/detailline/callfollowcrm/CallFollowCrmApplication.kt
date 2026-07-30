@@ -544,6 +544,8 @@ class CallFollowCrmApplication : Application() {
             wm.enqueue(
                 androidx.work.OneTimeWorkRequestBuilder<com.detailline.callfollowcrm.service.ReminderWorker>().build()
             )
+            // 마감 브리핑은 밤 9시 정조준 전용 워커로 예약(주기워커 위상함정·랜덤시각 회피). (2026-07-30 버그감사)
+            com.detailline.callfollowcrm.service.ReminderWorker.scheduleDailyBrief(this)
         }
     }
 

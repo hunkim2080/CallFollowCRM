@@ -2,7 +2,12 @@ package com.detailline.callfollowcrm.service
 
 import android.content.Context
 import androidx.work.CoroutineWorker
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
+import java.util.concurrent.TimeUnit
 import com.detailline.callfollowcrm.CallFollowCrmApplication
 import com.detailline.callfollowcrm.data.AppContainer
 import com.detailline.callfollowcrm.util.DateTimeUtils
@@ -22,6 +27,13 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
 
     override suspend fun doWork(): Result {
         val app = applicationContext as? CallFollowCrmApplication ?: return Result.success()
+        // 마감 브리핑 정시 실행(밤 9시 타겟, 매 실행 후 스스로 다음날 재등록). 주기워커의 '우연히 21~23시에 걸려야 발사'
+        //   위상함정·랜덤시각을 해결. inputData 로 이 전용 실행을 구분. (2026-07-30 버그감사 — 사장님 "마감 시각 부정확")
+        if (inputData.getBoolean(KEY_BRIEF_ONLY, false)) {
+            runCatching { checkDailyBrief(app.container, ignoreHourGate = true) }
+            scheduleDailyBrief(applicationContext)
+            return Result.success()
+        }
         runCatching { checkInstallD1(app.container) }
         runCatching { checkBalanceDue(app.container) }
         runCatching { checkDailyBrief(app.container) }
@@ -43,10 +55,12 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
     }
 
     /** 마감 브리핑 — 저녁 9시경, 하루 1회. 확실한 데이터(새 고객·입금·내일 시공). */
-    private suspend fun checkDailyBrief(container: AppContainer) {
+    private suspend fun checkDailyBrief(container: AppContainer, ignoreHourGate: Boolean = false) {
         val now = System.currentTimeMillis()
         val hour = Calendar.getInstance().apply { timeInMillis = now }.get(Calendar.HOUR_OF_DAY)
-        if (hour < 21 || hour >= 23) return // 프로토 brief = 오후 9시.
+        // 전용 워커(정시)면 게이트 무시(Doze 로 좀 늦어도 그날 밤 발사). 주기워커=백스톱이면 21시 이후 아무 때나
+        //   (상한 23시 제거 — 정시 워커가 놓친 날/늦은 밤도 그날 안에 구제). 중복은 아래 brief:날짜 키로 방지. (2026-07-30)
+        if (!ignoreHourGate && hour < 21) return // 프로토 brief = 오후 9시.
 
         val todayStart = DateTimeUtils.startOfDay(now)
         val prefs = container.preferences
@@ -61,6 +75,32 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
     }
 
     companion object {
+        const val KEY_BRIEF_ONLY = "brief_only"
+
+        /**
+         * 마감 브리핑을 '다음 밤 9시'에 정확히 1회 실행하도록 예약(전용 유니크 워커, 매 실행 후 재등록).
+         *   기존 3시간 주기 워커가 hour∈[21,23) 에 우연히 걸려야만 발사하던 위상함정(며칠씩 안 옴)·랜덤시각을 해결.
+         *   WorkManager 라 앱 종료·재부팅에도 예약 보존. Doze 로 약간 늦어도 그날 밤 안엔 발사. (2026-07-30 버그감사)
+         */
+        fun scheduleDailyBrief(context: Context) {
+            runCatching {
+                val now = System.currentTimeMillis()
+                val cal = Calendar.getInstance().apply {
+                    timeInMillis = now
+                    set(Calendar.HOUR_OF_DAY, 21); set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+                }
+                if (cal.timeInMillis <= now) cal.add(Calendar.DAY_OF_MONTH, 1) // 오늘 9시 지났으면 내일 9시
+                val req = OneTimeWorkRequestBuilder<ReminderWorker>()
+                    .setInitialDelay(cal.timeInMillis - now, TimeUnit.MILLISECONDS)
+                    .setInputData(workDataOf(KEY_BRIEF_ONLY to true))
+                    .build()
+                WorkManager.getInstance(context).enqueueUniqueWork(
+                    "dailyBrief", ExistingWorkPolicy.REPLACE, req
+                )
+            }
+        }
+
         /**
          * 게이트(시간·중복) 없이 마감 브리핑을 계산·표시. 표시했으면 true. checkDailyBrief 와 디버그 트리거가 공유.
          *   respectQuietDay=false 면 성과 0인 조용한 날도 강제로 띄움(디버그 미리보기용).
