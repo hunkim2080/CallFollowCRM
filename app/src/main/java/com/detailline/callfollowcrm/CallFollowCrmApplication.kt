@@ -451,7 +451,13 @@ class CallFollowCrmApplication : Application() {
      *   1회 돌려서, 놓친 새 문자/접수/협업을 바로 반영(앱 껐다 켠 것과 같은 효과).
      *   (2026-06-28 사장님: "알림은 오는데 앱엔 반영 안 되고, 껐다 켜야 반영됨")
      */
+    private val syncMutex = kotlinx.coroutines.sync.Mutex()
+
     suspend fun syncAllOnce() {
+        // 60초 폴링 + 화면복귀(ON_RESUME) + FCM 이 같은 sync 를 동시에 돌리면 하위 레이스(중복·유실·이중차감).
+        //   single-flight: 이미 도는 중이면 이번 호출 skip(진행 중 실행이 곧 전부 커버). (2026-07-30 버그감사)
+        if (!syncMutex.tryLock()) return
+        try {
         runCatching { container.intakeSyncManager.sync(this) }
         runCatching { container.teamEventCenter.poll(this) }
         runCatching { container.collabEventCenter.poll(this) }
@@ -459,6 +465,7 @@ class CallFollowCrmApplication : Application() {
         runCatching { container.mirrorSyncManager.pollShareRequests(this) }
         runCatching { syncSmsContacts() }
         runCatching { syncMmsContacts() }
+        } finally { syncMutex.unlock() }
     }
 
     /** 앱 복귀(ON_RESUME) 시 호출 — 위 동기화를 백그라운드로 1회 실행(논블로킹). */

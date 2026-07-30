@@ -25,6 +25,7 @@ class IntakeSyncManager(private val container: AppContainer) {
 
         val imported = prefs.intakeImportedTokens.toMutableSet()
         var maxSubmitted = since
+        var failedFloor = Long.MAX_VALUE   // 처리 '실패'한 건의 최소 제출시각 — 마커가 이 앞을 못 넘게(다음 폴링 재시도=유실 방지). (2026-07-30 버그감사)
         var changed = false
         for (s in list) {
             val submitted = s.submittedAtMs ?: continue
@@ -104,11 +105,17 @@ class IntakeSyncManager(private val container: AppContainer) {
             if (processed) {
                 imported.add(s.token)
                 changed = true
+            } else {
+                // 처리 예외(DB 오류 등) — 이 건을 잃지 않게 마커 전진을 이 시각 앞에서 멈춘다.
+                if (submitted < failedFloor) failedFloor = submitted
             }
         }
-        if (changed || maxSubmitted != since) {
+        // 실패 건이 있으면 그 '직전'까지만 마커 전진 → 실패한 접수서(주소·시공일·계약금)가 다음 폴링서 다시 잡혀 재시도.
+        //   성공/처리불가(빈 번호)만이면 정상 전진. 기존엔 실패해도 maxSubmitted 로 전진해 영구 유실됐음. (2026-07-30 버그감사)
+        val newSince = if (failedFloor == Long.MAX_VALUE) maxSubmitted else minOf(maxSubmitted, failedFloor - 1)
+        if (changed || newSince != since) {
             prefs.intakeImportedTokens = imported
-            prefs.intakeSyncSinceMs = maxSubmitted
+            prefs.intakeSyncSinceMs = newSince.coerceAtLeast(since)
         }
     }
 
