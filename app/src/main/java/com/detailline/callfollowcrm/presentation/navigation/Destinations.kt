@@ -13,7 +13,7 @@ object Destinations {
     const val FOLLOW_UP = "follow_up"
     const val FOLLOW_UP_WITH_ARG = "follow_up?phone={phone}&callRecordId={callRecordId}&templateId={templateId}"
     fun followUp(phone: String? = null, callRecordId: Long? = null, templateId: Long? = null): String {
-        val p = phone?.let { "phone=$it" }.orEmpty()
+        val p = phone?.let { "phone=${android.net.Uri.encode(it)}" }.orEmpty()   // 알파뉴메릭 발신ID·특수문자(&#?) route 깨짐 방지 (callSummary 와 통일). (2026-07-30 버그감사)
         val c = callRecordId?.let { "callRecordId=$it" }.orEmpty()
         val t = templateId?.let { "templateId=$it" }.orEmpty()
         val query = listOf(p, c, t).filter { it.isNotEmpty() }.joinToString("&")
@@ -33,7 +33,7 @@ object Destinations {
         val safePhone = phone.ifBlank { "" }
         val cid = customerId ?: -1L
         val eid = editIssuedId ?: -1L
-        return "chat?phone=$safePhone&customerId=$cid&editIssuedId=$eid"
+        return "chat?phone=${android.net.Uri.encode(safePhone)}&customerId=$cid&editIssuedId=$eid"
     }
 
     const val TEMPLATE_LIST = "templates"

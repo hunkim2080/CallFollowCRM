@@ -311,8 +311,9 @@ private fun customerSubLine(c: CustomerEntity, status: String): String {
         val d = SimpleDateFormat("M/d", Locale.KOREA).format(it)
         parts += if (status == "완료") "$d 시공 완료" else "시공 $d"
     }
-    val bal = c.balanceAmount
-    if (bal != null && bal > 0 && c.balancePaidAt == null) parts += "잔금 ${bal / 10000}만 미수"
+    // 정산 공용계산(SettlementCalc)의 non-stale 잔금 사용 — raw balanceAmount 는 총액 수정 후 옛 값이 남아 틀릴 수 있음. (2026-07-30 버그감사)
+    val row = com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(c)
+    if (c.balancePaidAt == null && row.balanceAmount > 0L) parts += "잔금 ${row.balanceAmount / 10000}만 미수"
     if (parts.isEmpty() && c.memo.isNotBlank()) parts += c.memo
     if (parts.isEmpty()) parts += PhoneNumberFormatter.format(c.phoneNumber)
     return parts.joinToString(" · ")

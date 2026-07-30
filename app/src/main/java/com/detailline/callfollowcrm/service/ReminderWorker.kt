@@ -175,7 +175,7 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
     private suspend fun checkRecurringDue(container: AppContainer) {
         val now = System.currentTimeMillis()
         val hour = Calendar.getInstance().apply { timeInMillis = now }.get(Calendar.HOUR_OF_DAY)
-        if (hour < 9 || hour >= 11) return // 프로토 recur = 오전 9시.
+        if (hour < 9) return // 프로토 recur = 오전 9시. 상한(11시) 제거 — 3h주기×2h창 위상함정(특정 위상이면 며칠 안 옴) 방지. 하루 1회 dedup. (2026-07-30 버그감사)
 
         val todayStart = DateTimeUtils.startOfDay(now)
         val prefs = container.preferences
