@@ -99,14 +99,16 @@ private val TossDarkColors = darkColorScheme(
  *   이유: Roboto 는 한글 합성 폰트(Noto Sans CJK fallback)로 표시돼 자간/굵기 위계가 어색.
  *        Pretendard 는 한글 전용 + 영문/숫자 동일 그리드 → 토스 스타일 일관 톤.
  *
- * 파일 위치: res/font/pretendard_regular.otf ~ pretendard_bold.otf (4개 두께)
- * 크기 영향: APK +6MB (1.5MB × 4). 사장님 결정 = 시각 품질 우선.
+ * 파일 위치: res/font/pretendard_regular.otf ~ pretendard_extrabold.otf (5개 두께)
+ * 크기 영향: APK +7.5MB (1.5MB × 5). 사장님 결정 = 시각 품질 우선.
+ * 2026-07-30 ExtraBold(800) 추가 — 프로토 시그니처 제목 굵기. 없을 땐 800/900 요청이 700으로 강등됐음(디자인 감사 #1).
  */
 private val Pretendard = FontFamily(
     Font(R.font.pretendard_regular, FontWeight.Normal),
     Font(R.font.pretendard_medium, FontWeight.Medium),
     Font(R.font.pretendard_semibold, FontWeight.SemiBold),
-    Font(R.font.pretendard_bold, FontWeight.Bold)
+    Font(R.font.pretendard_bold, FontWeight.Bold),
+    Font(R.font.pretendard_extrabold, FontWeight.ExtraBold)
 )
 
 private val TossTypography = Typography(
