@@ -393,7 +393,11 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      *   (일당 마켓 Phase 1 — 완료·계좌 = 정산 스위치. docs/PLAN_labor_market.md)
      *   manwon = 만원 단위. 0 이면 금액 없이 알림만 정리.
      */
+    private val recordedLaborEventIds = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+
     fun recordLaborPayment(partnerName: String, manwon: Long, eventId: String) = viewModelScope.launch {
+        // 연타/이중 기록 방지 — 같은 eventId 는 한 번만 지출 기록(멱등). dismiss 가 비동기라 연타 창이 있음. (2026-07-30 버그감사)
+        if (!recordedLaborEventIds.add(eventId)) return@launch
         if (manwon > 0L) {
             runCatching {
                 container.manualCashRepository.add(

@@ -4,9 +4,13 @@ import com.detailline.callfollowcrm.data.local.dao.JobCrewDao
 import com.detailline.callfollowcrm.data.local.entity.JobCrewEntity
 import com.detailline.callfollowcrm.util.DateTimeUtils
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.sync.withLock
 
 /** 일당 배정 — 시공(고객+날짜)에 일당 배정. 함께한 현장 + 일당 자동차감의 단일 출처. */
 class JobCrewRepository(private val dao: JobCrewDao) {
+
+    // assign 의 findAssignment→insert 는 비원자 → 연타/동시호출 시 2행 삽입(일당 이중차감). Mutex 로 직렬화. (2026-07-30 버그감사)
+    private val assignMutex = kotlinx.coroutines.sync.Mutex()
 
     fun observeAll(): Flow<List<JobCrewEntity>> = dao.observeAll()
     fun observeByWorker(workerId: Long): Flow<List<JobCrewEntity>> = dao.observeByWorker(workerId)
@@ -25,15 +29,15 @@ class JobCrewRepository(private val dao: JobCrewDao) {
      *   스키마(유니크 인덱스)로 막는 게 정석이나 마이그레이션 위험이 있어, 우선 여기서 한 곳으로 막는다.
      *   (2026-07-16 — 기존 일정에 일당 배정 UI 를 붙이면서 발견. 배정 UI 는 연타/재배정이 흔하다.)
      */
-    suspend fun assign(workerId: Long, workerName: String, customerId: Long, dayMs: Long, wage: Long): Long {
+    suspend fun assign(workerId: Long, workerName: String, customerId: Long, dayMs: Long, wage: Long): Long = assignMutex.withLock {
         val day = DateTimeUtils.startOfDay(dayMs)
         val w = wage.coerceAtLeast(0L)
         val existing = dao.findAssignment(workerId, customerId, day)
         if (existing != null) {
             if (existing.wage != w) dao.updateWage(existing.id, w)
-            return existing.id
+            return@withLock existing.id
         }
-        return dao.insert(
+        dao.insert(
             JobCrewEntity(
                 workerId = workerId,
                 workerName = workerName,
