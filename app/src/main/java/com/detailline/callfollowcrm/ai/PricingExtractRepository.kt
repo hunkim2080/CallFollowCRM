@@ -25,7 +25,7 @@ class PricingExtractRepository(
     private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL
 ) {
 
-    private val client: OkHttpClient = OkHttpClient.Builder()
+    private val client: OkHttpClient = Net.builder()
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(90, TimeUnit.SECONDS)   // Claude 1콜 추출에 시간 걸릴 수 있음
         .writeTimeout(30, TimeUnit.SECONDS)

@@ -27,7 +27,7 @@ class ServerSuggestionRepository(
 ) : SuggestionRepository {
 
     // prepare 는 폰이 빠르게 끊겨야 하므로 짧은 타임아웃, fetch 도 단순 GET 이라 짧게.
-    private val client: OkHttpClient = OkHttpClient.Builder()
+    private val client: OkHttpClient = Net.builder()
         .connectTimeout(3, TimeUnit.SECONDS)
         .readTimeout(5, TimeUnit.SECONDS)
         .writeTimeout(5, TimeUnit.SECONDS)

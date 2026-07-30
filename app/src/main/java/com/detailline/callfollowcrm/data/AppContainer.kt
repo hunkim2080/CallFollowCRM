@@ -110,6 +110,13 @@ class AppContainer(context: Context) {
     val preferences = AppPreferences(context)
 
     /**
+     * 로그인 세션 토큰 저장고(보안 §D-4). verify-code 성공 시 저장 → SessionAuthInterceptor 가 모든
+     *   api.si0in.kr 요청에 `Authorization: Bearer` 부착. OTP 로그인 꺼진 동안은 토큰이 없어 무영향.
+     *   여기서 만들면 프로세스 전역 INSTANCE 가 세팅돼 인터셉터가 첫 요청부터 읽을 수 있다.
+     */
+    val sessionTokenStore = com.detailline.callfollowcrm.data.SessionTokenStore.get(context)
+
+    /**
      * ChatScreen composer 의 phone 별 임시저장 (2026-05-27 사장님 통점).
      *   ChatViewModel 는 navigation pop/push 마다 새 인스턴스라 local state 가 날아간다.
      *   AppContainer 는 Application 수명 = 앱 실행 동안만 보관 (재시작 시 비움).

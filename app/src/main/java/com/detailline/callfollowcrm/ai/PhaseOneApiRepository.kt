@@ -42,7 +42,7 @@ data class ToneProfile(
 class PhaseOneApiRepository(
     private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL
 ) {
-    private val client = OkHttpClient.Builder()
+    private val client = Net.builder()
         .connectTimeout(3, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .writeTimeout(10, TimeUnit.SECONDS)

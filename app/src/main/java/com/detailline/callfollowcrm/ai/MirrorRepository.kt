@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit
 class MirrorRepository(
     private val baseUrl: String = AppConfig.BASE_URL
 ) {
-    private val client = OkHttpClient.Builder()
+    private val client = Net.builder()
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .writeTimeout(15, TimeUnit.SECONDS)

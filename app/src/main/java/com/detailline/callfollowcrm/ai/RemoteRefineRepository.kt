@@ -40,7 +40,7 @@ class RemoteRefineRepository(
     private val ownerPhone: () -> String = { "" }
 ) : RefineRepository {
 
-    private val client: OkHttpClient = OkHttpClient.Builder()
+    private val client: OkHttpClient = Net.builder()
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(10, TimeUnit.SECONDS)

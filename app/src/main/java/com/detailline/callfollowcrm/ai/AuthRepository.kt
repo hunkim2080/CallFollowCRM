@@ -29,7 +29,14 @@ class AuthRepository(
     private val jsonMedia = "application/json; charset=utf-8".toMediaType()
 
     data class CodeRequested(val expiresInSec: Int)
-    data class Verified(val status: String, val freeUntilMs: Long?, val freeDays: Int?)
+    data class Verified(
+        val status: String,
+        val freeUntilMs: Long?,
+        val freeDays: Int?,
+        // 보안 §B-1 계약: 인증 성공(member/enrolled) 시 서버가 세션토큰 발급. waitlisted 는 토큰 없음(=미인증).
+        val sessionToken: String?,
+        val sessionTokenExpMs: Long
+    )
 
     private fun defaultMsg(code: Int): String = when (code) {
         400 -> "입력을 확인해주세요"
@@ -69,7 +76,9 @@ class AuthRepository(
                 Verified(
                     status = o.optString("status").ifBlank { "member" },
                     freeUntilMs = if (o.has("freeUntilMs") && !o.isNull("freeUntilMs")) o.optLong("freeUntilMs") else null,
-                    freeDays = if (o.has("freeDays") && !o.isNull("freeDays")) o.optInt("freeDays") else null
+                    freeDays = if (o.has("freeDays") && !o.isNull("freeDays")) o.optInt("freeDays") else null,
+                    sessionToken = o.optString("sessionToken").ifBlank { null },
+                    sessionTokenExpMs = if (o.has("sessionTokenExpMs") && !o.isNull("sessionTokenExpMs")) o.optLong("sessionTokenExpMs") else 0L
                 )
             }
         }

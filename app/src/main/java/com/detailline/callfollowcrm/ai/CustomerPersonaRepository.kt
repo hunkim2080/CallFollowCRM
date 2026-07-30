@@ -25,7 +25,7 @@ class CustomerPersonaRepository(
     private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL
 ) {
 
-    private val client: OkHttpClient = OkHttpClient.Builder()
+    private val client: OkHttpClient = Net.builder()
         .connectTimeout(3, TimeUnit.SECONDS)
         .readTimeout(5, TimeUnit.SECONDS)
         .build()

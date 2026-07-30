@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit
 class TemplateNameRepository(
     private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL
 ) {
-    private val client: OkHttpClient = OkHttpClient.Builder()
+    private val client: OkHttpClient = Net.builder()
         .connectTimeout(4, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .writeTimeout(10, TimeUnit.SECONDS)

@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit
 class UsageStatsRepository(
     private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL
 ) {
-    private val client = OkHttpClient.Builder()
+    private val client = Net.builder()
         .connectTimeout(3, TimeUnit.SECONDS)
         .readTimeout(8, TimeUnit.SECONDS)
         .build()

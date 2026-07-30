@@ -120,6 +120,22 @@ fun AppRoot(container: AppContainer) {
                 }
             }
 
+            // 세션 토큰 만료·무효(서버 401) → 재로그인(OTP) 유도. (보안 §D-4)
+            //   OTP 로그인이 켜진 뒤에만 활성 — 그전엔 토큰 자체가 없어 needsReauth 가 뜨지 않음(무영향).
+            //   그래프 준비(첫 백스택 엔트리) 후 수집 → 콜드스타트 "graph not set" 크래시 방지.
+            LaunchedEffect(Unit) {
+                navController.currentBackStackEntryFlow.first()
+                container.sessionTokenStore.needsReauth.collect { needs ->
+                    if (needs && com.detailline.callfollowcrm.AppConfig.SMS_SIGNUP_ENABLED) {
+                        navController.navigate(Destinations.SIGNUP) {
+                            popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                        container.sessionTokenStore.clearReauthFlag()
+                    }
+                }
+            }
+
             // 현재 라우트 → 하단 탭바 표시 여부 + 활성 탭 판단.
             val currentEntry by navController.currentBackStackEntryAsState()
             // 인자 있는 탭 라우트("schedule?day=...") 도 같은 탭으로 인식 — "?" 앞 기준으로 비교.

@@ -108,6 +108,10 @@ class SignupViewModel(private val container: AppContainer) : ViewModel() {
                         else -> { // enrolled / member
                             container.preferences.pendingWaitlist = false
                             v.freeUntilMs?.let { container.preferences.signupFreeUntilMs = it }
+                            // 보안 §D-4: 세션토큰 저장 → 이후 모든 요청에 Bearer 자동 부착(SessionAuthInterceptor).
+                            if (!v.sessionToken.isNullOrBlank()) {
+                                container.sessionTokenStore.save(v.sessionToken, v.sessionTokenExpMs)
+                            }
                             _state.update { st -> st.copy(loading = false) }
                             _outcomes.tryEmit(Outcome(v.status, s.phone.filter { it.isDigit() }, v.freeUntilMs, v.freeDays))
                         }

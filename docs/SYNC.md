@@ -8259,3 +8259,12 @@ docs/ 정리 — 끝난 핸드오프 50개를 docs/archive/ 로 이동 (삭제 �
 - 그대로 둔 활성문서: SYNC · ONEONE_STATUS · SECURITY_HANDOFF_2026-07-30 · expo 묶음 · PLAN_*(재방문·온보딩·가격·공유캘린더) · Play/DPA 컴플라이언스 · signup_auth · IR_DECK_v3.
 - commit: 이 커밋
 - 다음 액션: 없음 (경로만 참고)
+
+## 2026-07-31 · android
+로그인 세션토큰 앱 배선 완료 (보안 §D-4) — verify-code 토큰 저장 + 모든 요청 Bearer 부착 + 401 재로그인. **무해 배포**: SMS_SIGNUP_ENABLED=false 유지라 토큰이 안 생겨 동작 불변(S9 설치·홈 정상·크래시0·서버통신 정상).
+- 신규 파일: `SessionTokenStore`(EncryptedSharedPreferences, 실패 시 일반 prefs 폴백) · `SessionAuthInterceptor`(api.si0in.kr 요청에 `Authorization: Bearer`, 401→토큰폐기+재로그인, **SMS_SIGNUP 켜진 뒤에만** 401 처리) · `Net.builder()`.
+- 적용: `ai/` 저장소 19개가 `Net.builder()` 사용(enforce 대상 shared/team/mirror/intake/site-photo/push/owner-tone/suggestions/persona 전부 포함). Auth·Expo·Ollama·util 제외.
+- 계약 준수(docs/SERVER_HANDOFF_session_token.md): sessionToken 저장만(파싱X) · `Authorization: Bearer` · 90일.
+- commit: 이 커밋
+- ⚠️ **켜는 순서(반드시)**: ① 사장님 SOLAPI 실측(문자 실제 발송 확인) → ② 앱 `SMS_SIGNUP_ENABLED=true` 배포 → ③ **그 뒤에야** 서버 `AUTH_ENFORCE=1`. **②전에 ③ 켜면 전 기능 401.**
+- 코워크 액션: enforce(③)는 앱이 ② 배포 완료한 걸 SYNC로 확인한 뒤 켜주세요. **지금은 켜지 마세요.**

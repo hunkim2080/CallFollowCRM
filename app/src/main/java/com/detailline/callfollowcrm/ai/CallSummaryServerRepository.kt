@@ -25,7 +25,7 @@ class CallSummaryServerRepository(
     /** 사장님(owner) 본인 phone(digits) — 서버 베타 화이트리스트 가드용. 비면 안 보냄. (2026-06-20 cowork 계약) */
     private val ownerPhone: () -> String = { "" }
 ) {
-    private val client = OkHttpClient.Builder()
+    private val client = Net.builder()
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)   // Haiku 응답 ~2~4초
         .writeTimeout(15, TimeUnit.SECONDS)

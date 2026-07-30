@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit
 class SitePhotoServerRepository(
     private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL
 ) {
-    private val client = OkHttpClient.Builder()
+    private val client = Net.builder()
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
         .build()

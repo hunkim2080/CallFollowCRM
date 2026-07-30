@@ -31,7 +31,7 @@ class OwnerToneUploadRepository(
     private val baseUrl: String = com.detailline.callfollowcrm.AppConfig.BASE_URL
 ) {
 
-    private val client: OkHttpClient = OkHttpClient.Builder()
+    private val client: OkHttpClient = Net.builder()
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)   // 임베딩 chunk 처리에 시간 걸릴 수 있음
         .writeTimeout(30, TimeUnit.SECONDS)

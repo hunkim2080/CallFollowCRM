@@ -175,6 +175,10 @@ dependencies {
     // 호출 1개(/api/chat)뿐이라 Retrofit 생략하고 OkHttp 만 사용. JSON 은 android 내장 org.json.
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
+    // 로그인 세션 토큰 안전 저장 — EncryptedSharedPreferences(AndroidKeyStore 기반 암호화). (2026-07-31 보안 §D-4)
+    //   실패(기기 keystore 손상) 시 SessionTokenStore 가 일반 SharedPreferences 로 폴백해 동작 우선.
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
     testImplementation("junit:junit:4.13.2")
     // Repository / DAO 를 가짜로 만들어 ViewModel/Repository 로직 테스트하기 위함.
     //   2026-05-30 D 코스 — 자동 회귀 테스트 인프라 구축.

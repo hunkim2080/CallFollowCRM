@@ -33,7 +33,7 @@ class ConversationAiRepository(
     /** 사장님(owner) 본인 phone(digits) — 서버 베타 화이트리스트 가드용. 비면 안 보냄. card/conversation/next-action 3개 공통. (2026-06-20 cowork 계약) */
     private val ownerPhone: () -> String = { "" }
 ) {
-    private val client = OkHttpClient.Builder()
+    private val client = Net.builder()
         .connectTimeout(3, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(10, TimeUnit.SECONDS)

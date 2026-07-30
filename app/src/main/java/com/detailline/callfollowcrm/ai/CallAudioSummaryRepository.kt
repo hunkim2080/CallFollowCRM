@@ -26,7 +26,7 @@ class CallAudioSummaryRepository(
     /** 사장님(owner) 본인 phone(digits) — 서버 베타 화이트리스트 가드용. 비면 안 보냄. (2026-06-20 cowork 계약) */
     private val ownerPhone: () -> String = { "" }
 ) {
-    private val client = OkHttpClient.Builder()
+    private val client = Net.builder()
         .connectTimeout(5, TimeUnit.SECONDS)
         .writeTimeout(60, TimeUnit.SECONDS)    // 오디오 업로드(수 MB)
         .readTimeout(120, TimeUnit.SECONDS)    // STT + LLM (긴 통화 대비)
