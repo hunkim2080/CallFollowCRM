@@ -119,7 +119,7 @@ object CashFlowCalc {
             out += CashItem(
                 dayStartMs = day,
                 amount = jc.wage, isIncome = false,
-                isDone = todayStartMs > 0L && day <= todayStartMs,
+                isDone = todayStartMs > 0L && day < todayStartMs, // 시공 '당일'은 아직 일당 지급 전 → '예정(나갈)'. 지나간 날만 '확정(나간)'. (2026-07-30 버그감사)
                 title = jc.workerName, tag = "일당", refType = CashRefType.WORKER, refId = jc.workerId
             )
         }
