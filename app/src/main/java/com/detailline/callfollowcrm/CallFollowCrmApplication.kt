@@ -495,12 +495,21 @@ class CallFollowCrmApplication : Application() {
         val newMms = runCatching { container.smsRepository.queryInboxMmsSince(since, limit = 10) }
             .getOrDefault(emptyList())
         if (newMms.isEmpty()) return
+        // 같은 MMS 두 번 알림 방지(버그감사 2026-07-30): 삼성이 '받음표시(내용無)→다운로드완료(내용有, date 갱신)' 2단계로
+        //   저장해서 date 마커만으론 같은 문자를 새 문자로 재알림함. → ② 내용 없는 단계 skip + ① _id 로 1회 보장.
+        val notifiedIds = prefs.notifiedMmsIds
+        val freshIds = ArrayList<String>()
         var maxMs = since
         // 오래된→최신 순으로 띄워 최신이 위로.
         for (m in newMms.sortedBy { it.dateMs }) {
             if (m.dateMs <= since) continue
             maxMs = maxOf(maxMs, m.dateMs)
             if (com.detailline.callfollowcrm.util.SpamPrefix.isSpam(m.sender, prefs.spamPrefixes)) continue
+            // ② 아직 내용이 안 내려온 '받음표시' 단계 → 알림 skip(내용 오면 그때 1회). 그 사이 삼성 기본앱 알림이 공백 커버.
+            if (m.preview == "새 문자를 보냈어요") continue
+            // ① 이미 알린 MMS(_id) → skip. date 가 단계마다 바뀌어도 같은 문자는 한 번만.
+            val key = m.mmsId.toString()
+            if (key in notifiedIds || key in freshIds) continue
             val customer = runCatching { container.customerRepository.findByPhone(m.sender) }.getOrNull()
             val categoryLabel = customer?.categoryId?.let { cid ->
                 runCatching { container.categoryRepository.findById(cid)?.name }.getOrNull()
@@ -516,8 +525,10 @@ class CallFollowCrmApplication : Application() {
                     isNewCustomer = customer == null
                 )
             }
+            freshIds.add(key)
         }
         prefs.lastNotifiedMmsMs = maxMs
+        if (freshIds.isNotEmpty()) prefs.notifiedMmsIds = (notifiedIds + freshIds).toList().takeLast(80).toSet()
     }
 
     /** 시공 D-1 등 리마인더 — 주기 워커(~3시간) + 앱 켤 때 1회 즉시 점검. */

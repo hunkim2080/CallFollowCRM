@@ -324,6 +324,14 @@ class AppPreferences(context: Context) {
         set(value) = prefs.edit().putLong("last_notified_mms_ms", value).apply()
 
     /**
+     * 이미 '수신 MMS 알림'을 띄운 MMS _id 들(최근 80개만). 삼성이 MMS 를 2단계(받음표시=내용無 → 다운로드완료=내용有)로
+     *   저장하며 date 가 바뀌어도 같은 문자를 두 번 알리지 않게, date 마커와 별개로 _id 로 1회 보장. (2026-07-30 버그감사: 알림 두 번)
+     */
+    var notifiedMmsIds: Set<String>
+        get() = prefs.getStringSet("notified_mms_ids", emptySet()) ?: emptySet()
+        set(value) = prefs.edit().putStringSet("notified_mms_ids", value).apply()
+
+    /**
      * 기본 네비 앱 (카드 펼침 [📍 길찾기] 가 사용할 외부 앱).
      * NavApp.key 문자열 저장. null = 아직 미선택 (첫 길찾기 탭 시 다이얼로그 띄움).
      * 사장님 결정 2026-05-27: 사용자마다 손에 익은 네비가 달라서 선택 가능하게.
