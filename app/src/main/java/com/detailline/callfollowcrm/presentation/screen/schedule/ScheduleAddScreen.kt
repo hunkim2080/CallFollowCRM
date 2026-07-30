@@ -172,7 +172,7 @@ fun ScheduleAddScreen(
                     .fillMaxWidth()
                     .imePadding()
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp)
+                    .padding(horizontal = 18.dp)
                     .padding(top = 8.dp)
             ) {
                 // 프로토 시트 제목

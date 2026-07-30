@@ -74,7 +74,7 @@ fun StatsScreen(viewModel: StatsViewModel, onOpenVisited: () -> Unit = {}) {
     ) { inner ->
         LazyColumn(
             modifier = Modifier.padding(top = inner.calculateTopPadding()).fillMaxSize().background(TossGrayBg),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
         ) {
             item(key = "hero") { StatsHero(s); Spacer(Modifier.height(14.dp)) }
             item(key = "mascot") { StatsMascot(); Spacer(Modifier.height(14.dp)) }

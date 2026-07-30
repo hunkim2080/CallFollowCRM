@@ -161,7 +161,7 @@ fun TeamScreen(
                     .weight(1f)
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = 18.dp)
             ) {
             Spacer(Modifier.height(4.dp))
             // 프로토 .biz-banner — 보라 그라데이션

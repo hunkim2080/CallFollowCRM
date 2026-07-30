@@ -166,7 +166,7 @@ fun PricingItemsScreen(
                 modifier = Modifier
                     .padding(inner)
                     .fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // 프로토 renderPricing info-note — AI 안내 배너

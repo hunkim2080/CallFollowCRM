@@ -742,9 +742,9 @@ fun ChatScreen(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp),
+                    .padding(horizontal = 18.dp),
                 reverseLayout = true,
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(9.dp),
                 state = listState
             ) {
                 if (timelineItems.isEmpty()) {

@@ -259,7 +259,7 @@ fun ScheduleScreen(
                 .padding(top = inner.calculateTopPadding())
                 .fillMaxSize()
                 .background(TossGrayBg),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             // 캘린더 영역 (월 헤더 + 요일 + 6주 그리드 페이저). HorizontalPager = 손가락 1:1 따라옴.

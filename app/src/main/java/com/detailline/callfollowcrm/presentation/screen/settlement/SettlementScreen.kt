@@ -132,7 +132,7 @@ fun SettlementScreen(
                 .padding(top = inner.calculateTopPadding())
                 .fillMaxSize()
                 .background(TossGrayBg),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
         ) {
             // 1. settle-top
             item(key = "settle-top") {

@@ -281,7 +281,7 @@ fun CustomerDetailScreen(
                 .background(TossGrayBg)
                 .verticalScroll(scrollState)
                 // bottom 을 크게 둬서 키보드 위로 입력칸이 바짝 붙지 않고 숨 쉴 공간 확보.
-                .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 20.dp),
+                .padding(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // 1. 프로토 cd-card 헤더 — heat 점 + 이름(크게) + [변경] / 전화번호 + [분류 ›] + 📞.
