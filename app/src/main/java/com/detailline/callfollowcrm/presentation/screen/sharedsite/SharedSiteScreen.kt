@@ -821,7 +821,7 @@ private fun PendingInbox(
             if (expired) {
                 Spacer(Modifier.height(8.dp))
                 Text("⏰ 수락 시간이 지났어요 (12시간 경과) — 함께하려면 ${site.ownerName}께 다시 보내달라고 하세요.",
-                    fontSize = 11.5.sp, color = Color(0xFFC0392B), lineHeight = 16.sp)
+                    fontSize = 11.5.sp, color = com.detailline.callfollowcrm.presentation.theme.TossError, lineHeight = 16.sp)
             }
             Spacer(Modifier.height(11.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -833,7 +833,7 @@ private fun PendingInbox(
                 ) { Text(if (expired) "지우기" else "거절", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) }
                 Box(
                     Modifier.weight(1f).clip(RoundedCornerShape(11.dp))
-                        .background(if (expired) Color(0xFFE5E8EF) else CollabPurple)
+                        .background(if (expired) Color(0xFFE2E6EC) else CollabPurple)
                         .clickable { onAccept(site) }.padding(vertical = 12.dp),
                     contentAlignment = Alignment.Center
                 ) { Text("수락", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = if (expired) TossTextTertiary else Color.White) }
@@ -1168,7 +1168,7 @@ private fun DetailBody(
                         .background(Color(0xFFFFF1F1)).border(1.dp, Color(0xFFF6C9C9), RoundedCornerShape(10.dp))
                         .padding(horizontal = 12.dp, vertical = 11.dp)
                 ) {
-                    Text("⏰ 수락 시간이 지났어요", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFC0392B))
+                    Text("⏰ 수락 시간이 지났어요", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = com.detailline.callfollowcrm.presentation.theme.TossError)
                     Spacer(Modifier.height(4.dp))
                     Text(
                         "보낸 지 12시간이 지나 만료됐어요. 함께 하려면 ${site.ownerName}께 다시 보내달라고 하세요.",
@@ -1187,7 +1187,7 @@ private fun DetailBody(
                 ) { Text(if (acceptExpired) "지우기" else "거절", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) }
                 Box(
                     Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
-                        .background(if (acceptExpired) Color(0xFFE5E8EF) else CollabPurple)
+                        .background(if (acceptExpired) Color(0xFFE2E6EC) else CollabPurple)
                         .clickable {
                             if (acceptExpired) {
                                 android.widget.Toast.makeText(ctx, "수락 시간이 지났어요 — 12시간이 지나 만료됐어요", android.widget.Toast.LENGTH_LONG).show()
@@ -1216,7 +1216,7 @@ private fun DetailBody(
             val beforeDay = isBeforeScheduledDay(site.scheduledAtMs)
             StepActionButton(
                 if (beforeDay) "🚗 출발 알리기 (시공 당일부터)" else "🚗 출발 알리기",
-                if (beforeDay) Color(0xFFE5E8EF) else ProtoBlue,
+                if (beforeDay) Color(0xFFE2E6EC) else ProtoBlue,
                 if (beforeDay) TossTextTertiary else Color.White
             ) {
                 onProgress(SharedSiteRepository.Progress.DEPARTED)
@@ -1240,14 +1240,14 @@ private fun DetailBody(
         SharedSiteRepository.Progress.ARRIVED -> {
             StepActionButton(
                 if (hasAccount) "✅ 완료 알리기" else "계좌 등록 후 완료 알리기",
-                if (hasAccount) ProtoSuccess else Color(0xFFE5E8EF),
+                if (hasAccount) ProtoSuccess else Color(0xFFE2E6EC),
                 if (hasAccount) Color.White else TossTextSecondary
             ) { onProgress(SharedSiteRepository.Progress.COMPLETED) }
             Spacer(Modifier.height(7.dp))
             Text(
                 if (hasAccount) "완료를 누르면 주인 사장님께 '완료 + 내 입금 계좌'가 전달돼요."
                 else "⚠️ 입금받을 계좌가 없어요. 맨 아래 '일당 지급계좌'를 먼저 등록하면 완료 시 자동 전달돼요.",
-                fontSize = 11.5.sp, color = if (hasAccount) TossTextTertiary else Color(0xFFD9534F),
+                fontSize = 11.5.sp, color = if (hasAccount) TossTextTertiary else com.detailline.callfollowcrm.presentation.theme.TossError,
                 lineHeight = 16.sp, modifier = Modifier.padding(horizontal = 2.dp)
             )
         }
@@ -1288,7 +1288,7 @@ private fun DetailBody(
             Text(
                 if (hasAccount) "완료할 때 주인 사장님께 내 입금 계좌가 전달됐어요. 입금을 기다려요."
                 else "⚠️ 계좌가 없어 전달 못 했어요. 맨 아래 '일당 지급계좌'를 등록하고 완료를 다시 눌러주세요.",
-                fontSize = 11.5.sp, color = if (hasAccount) Color(0xFF3A8C63) else Color(0xFFD9534F), lineHeight = 16.sp
+                fontSize = 11.5.sp, color = if (hasAccount) Color(0xFF3A8C63) else com.detailline.callfollowcrm.presentation.theme.TossError, lineHeight = 16.sp
             )
         }
     }

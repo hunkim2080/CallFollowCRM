@@ -158,7 +158,7 @@ fun LoginScreen(onLoginPhone: (String) -> Unit, onProceed: () -> Unit) {
                 Modifier
                     .fillMaxWidth()
                     .height(53.dp)
-                    .background(if (phoneOk) LoginBlue else Color(0xFFCBD5E1), RoundedCornerShape(16.dp))
+                    .background(if (phoneOk) LoginBlue else Color(0xFFE2E6EC), RoundedCornerShape(16.dp))
                     .clickable(enabled = phoneOk) { onLoginPhone(phone) },
                 contentAlignment = Alignment.Center
             ) {
@@ -335,7 +335,7 @@ private fun BoxScope.BetaApplySheet(onClose: () -> Unit) {
         Spacer(Modifier.height(20.dp))
         Box(
             Modifier.fillMaxWidth().height(52.dp)
-                .background(if (canSend) LoginBlue else Color(0xFFCBD5E1), RoundedCornerShape(14.dp))
+                .background(if (canSend) LoginBlue else Color(0xFFE2E6EC), RoundedCornerShape(14.dp))
                 .clickable(enabled = canSend) { send() },
             contentAlignment = Alignment.Center
         ) { Text("💬 신청 문자 보내기", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Black) }

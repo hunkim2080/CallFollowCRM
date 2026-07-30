@@ -114,6 +114,8 @@ import com.detailline.callfollowcrm.presentation.theme.TossBlueDark
 import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
+import com.detailline.callfollowcrm.presentation.theme.TossError
+import com.detailline.callfollowcrm.presentation.theme.TossSuccess
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
@@ -453,7 +455,7 @@ fun CustomerDetailScreen(
                         val savedMemo = c.memo.orEmpty()
                         val (memoStatus, memoStatusColor) = when {
                             memoInput != savedMemo -> "저장 중…" to TossTextTertiary
-                            memoInput.isNotBlank() -> "저장됨 ✓" to Color(0xFF16A765)
+                            memoInput.isNotBlank() -> "저장됨 ✓" to TossSuccess
                             else -> "자동으로 저장돼요" to TossTextTertiary
                         }
                         Text(memoStatus, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = memoStatusColor)
@@ -981,7 +983,7 @@ fun CustomerDetailScreen(
                                             Spacer(Modifier.width(4.dp))
                                             androidx.compose.foundation.layout.Box(
                                                 Modifier.clip(RoundedCornerShape(9.dp))
-                                                    .background(if (reply.isBlank()) Color(0xFFB7C2D0) else TossBlue)
+                                                    .background(if (reply.isBlank()) Color(0xFFE2E6EC) else TossBlue)
                                                     .clickable(enabled = reply.isNotBlank()) {
                                                         viewModel.replyToTeamNote(note.eventId, reply.trim())
                                                         editing = false
@@ -1083,7 +1085,7 @@ fun CustomerDetailScreen(
                                     datePickerOpen = false
                                     android.widget.Toast.makeText(context, "시공 예약을 취소했어요", android.widget.Toast.LENGTH_SHORT).show()
                                 }) {
-                                    Text("예약 취소", color = Color(0xFFE5484D), fontWeight = FontWeight.SemiBold)
+                                    Text("예약 취소", color = TossError, fontWeight = FontWeight.SemiBold)
                                 }
                             } else {
                                 Spacer(Modifier.width(1.dp))

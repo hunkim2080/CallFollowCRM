@@ -36,7 +36,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 private val Bg = Color(0xFFFBFCFE)
 private val Ink = Color(0xFF0B0F19)
 private val Blue = Color(0xFF3182F6)
-private val Disabled = Color(0xFFCBD5E1)
+private val Disabled = Color(0xFFE2E6EC)
 private val Tag = Color(0xFF3A4250)
 private val Sub = TossTextSecondary
 private val LineBg = Color(0xFFF3F5F9)

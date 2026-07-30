@@ -50,7 +50,7 @@ import com.detailline.callfollowcrm.presentation.component.Mascot
 private val Bg = Color(0xFFFBFCFE)
 private val Ink = Color(0xFF0B0F19)
 private val Blue = Color(0xFF3182F6)
-private val Disabled = Color(0xFFCBD5E1)
+private val Disabled = Color(0xFFE2E6EC)
 private val Tag = Color(0xFF3A4250)
 private val Sub = Color(0xFF8A93A2)
 

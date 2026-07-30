@@ -1465,7 +1465,7 @@ private fun AssignTeamSheet(
                         when {
                             anySelected -> TossBlue
                             isCancelAll -> Color(0xFFFDECEC)   // 취소(빼기) — 연한 빨강
-                            else -> Color(0xFFE5E8EF)
+                            else -> Color(0xFFE2E6EC)
                         }
                     )
                     .clickable(enabled = canSubmit) {

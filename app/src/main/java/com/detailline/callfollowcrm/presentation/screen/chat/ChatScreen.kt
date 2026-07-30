@@ -140,6 +140,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossError
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
+import com.detailline.callfollowcrm.presentation.theme.TossSuccess
 import com.detailline.callfollowcrm.presentation.theme.TossWarning
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
@@ -2282,7 +2283,7 @@ private fun TimelineEventSegment(
     val (emoji, title, accent) = when (event.type) {
         "schedule" -> Triple("📅", if (event.oldValue == null) "시공일정 등록" else "시공일정 변경", Color(0xFF3182F6))
         "amount" -> Triple("💰", if (event.oldValue == null) "시공금액 등록" else "시공금액 변경", Color(0xFFF59E0B))
-        "balance_paid" -> Triple("💵", "잔금 받음 처리", Color(0xFF12B886))
+        "balance_paid" -> Triple("💵", "잔금 받음 처리", TossSuccess)
         else -> Triple("📝", "변경", TossTextSecondary)
     }
     val changeText = when {
@@ -2332,7 +2333,7 @@ private fun IssuedDocSegment(
     val isQuote = doc.kind == "quote"
     val emoji = if (isQuote) "📜" else "📋"
     val title = if (isQuote) "견적서 발행" else "시공접수서 발행"
-    val accent = if (isQuote) Color(0xFF3182F6) else Color(0xFF12B886)
+    val accent = if (isQuote) Color(0xFF3182F6) else TossSuccess
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -2730,7 +2731,7 @@ private fun SuggestionArea(
                 Spacer(Modifier.height(4.dp))
                 Text(
                     it,
-                    color = if (failed) Color(0xFFD9534F) else TossTextSecondary,
+                    color = if (failed) TossError else TossTextSecondary,
                     fontSize = 11.sp, fontWeight = FontWeight.Medium
                 )
             }
@@ -3339,7 +3340,7 @@ private fun SummaryFailedPlaceholder(
         ) {
             Text(
                 "⚠️ 요약을 못 만들었어요 · 다시",
-                color = Color(0xFFD9534F),
+                color = TossError,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.weight(1f)
@@ -3347,7 +3348,7 @@ private fun SummaryFailedPlaceholder(
             Icon(
                 Icons.Default.Refresh,
                 contentDescription = "다시 시도",
-                tint = Color(0xFFD9534F),
+                tint = TossError,
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -3754,7 +3755,7 @@ private fun TemplatePickerDialog(
                         .padding(horizontal = 12.dp, vertical = 11.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(if (flashing) "✓" else "＋", color = if (flashing) Color(0xFF12B886) else TossBlue, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(if (flashing) "✓" else "＋", color = if (flashing) TossSuccess else TossBlue, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
                     Spacer(Modifier.width(8.dp))
                     Text(
                         when {
@@ -3762,7 +3763,7 @@ private fun TemplatePickerDialog(
                             canSaveCurrent -> "지금 입력창에 쓴 글을 문구로 저장"
                             else -> "입력창에 글을 쓴 뒤 누르면 문구로 저장돼요"
                         },
-                        color = if (flashing) Color(0xFF12B886) else TossBlue, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                        color = if (flashing) TossSuccess else TossBlue, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                         maxLines = 1, overflow = TextOverflow.Ellipsis
                     )
                 }

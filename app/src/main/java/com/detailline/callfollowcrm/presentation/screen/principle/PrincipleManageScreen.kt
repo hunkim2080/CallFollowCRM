@@ -217,7 +217,7 @@ private fun PrincipleRow(
                 Icon(Icons.Default.Edit, "수정", tint = TossTextSecondary, modifier = Modifier.width(18.dp))
             }
             IconButton(onClick = onDelete, modifier = Modifier.height(30.dp)) {
-                Icon(Icons.Default.Delete, "삭제", tint = Color(0xFFD64545), modifier = Modifier.width(18.dp))
+                Icon(Icons.Default.Delete, "삭제", tint = com.detailline.callfollowcrm.presentation.theme.TossError, modifier = Modifier.width(18.dp))
             }
         }
     }

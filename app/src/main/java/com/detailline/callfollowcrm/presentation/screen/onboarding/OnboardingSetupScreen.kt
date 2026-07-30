@@ -246,7 +246,7 @@ private fun ReadyRow(mark: String, label: String, done: Boolean) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 5.dp)) {
         Box(
             Modifier.size(26.dp)
-                .background(if (done) Green else Color(0xFFE7EDF3), RoundedCornerShape(13.dp)),
+                .background(if (done) Green else Color(0xFFE2E6EC), RoundedCornerShape(13.dp)),
             contentAlignment = Alignment.Center
         ) {
             Text(

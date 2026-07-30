@@ -1665,7 +1665,7 @@ private fun AutoSmsSection(
         AutoDotLabel(TossBlue, "처음 연락한 고객 (신규)")
         AutoTextArea(missedNew) { missedNew = it; prefs.autoMissedNewText = it }
         Spacer(Modifier.height(10.dp))
-        AutoDotLabel(Color(0xFF12B886), "다시 연락한 고객 (단골·기존)")
+        AutoDotLabel(TossSuccess, "다시 연락한 고객 (단골·기존)")
         AutoTextArea(missedReturn) { missedReturn = it; prefs.autoMissedReturnText = it }
         AutoNote("신규·단골 모두 자동으로 나가요. 보내기 직전 10초 안에 취소할 수 있어요. 같은 번호엔 하루 1번만 — 최근 24시간 안에 보낸 문자(이미 답장했거나 방금 자동발송)가 있으면 건너뛰어요.")
     }
@@ -1967,9 +1967,9 @@ private fun AutoSmsSection(
                                 .padding(start = 13.dp, end = 10.dp, top = 7.dp, bottom = 7.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(p, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFD64545))
+                            Text(p, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossError)
                             Spacer(Modifier.width(6.dp))
-                            Text("✕", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFD64545).copy(alpha = 0.6f))
+                            Text("✕", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TossError.copy(alpha = 0.6f))
                         }
                     }
                 }
@@ -2112,7 +2112,7 @@ private fun AutoTextArea(value: String, onChange: (String) -> Unit) {
         )
         Box(Modifier.padding(top = 5.dp, start = 2.dp)) {
             if (showSaved) {
-                Text("✓ 저장됐어요", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF12B886))
+                Text("✓ 저장됐어요", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TossSuccess)
             } else {
                 Text("입력하면 자동으로 저장돼요", fontSize = 11.5.sp, color = TossTextTertiary)
             }
@@ -3266,7 +3266,7 @@ private fun SetupCheckCard(
 private fun CheckDot(done: Boolean) {
     Box(
         Modifier.size(20.dp).clip(RoundedCornerShape(50))
-            .background(if (done) TossSuccess else Color(0xFFE5E8EB)),
+            .background(if (done) TossSuccess else Color(0xFFE2E6EC)),
         contentAlignment = Alignment.Center
     ) {
         if (done) Icon(Icons.Filled.Check, null, tint = Color.White, modifier = Modifier.size(13.dp))
