@@ -445,6 +445,8 @@ class CustomerDetailViewModel(
             // 예약(일정) 취소 시 = 그 현장의 전문가 배정(팀원 + 협업 요청)도 전부 정리. 일정 없는데 배정만 남으면 안 됨. (2026-06-15 사장님)
             if (normalized == null) {
                 container.teamAssignmentRepository.deleteForCustomer(customerId)
+                // 일당(자동지출)도 정리 — 취소한 '없던 시공'의 −일당이 현금흐름에 계속 잡히던 것 방지. (2026-07-30 버그감사)
+                container.jobCrewRepository.deleteByCustomer(customerId)
                 val before = container.preferences.collabAssignments
                 val after = before.filterNot { it.split('|').getOrNull(0)?.toLongOrNull() == customerId }.toSet()
                 if (after.size != before.size) container.preferences.collabAssignments = after

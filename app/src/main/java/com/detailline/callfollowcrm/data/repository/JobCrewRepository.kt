@@ -50,4 +50,7 @@ class JobCrewRepository(private val dao: JobCrewDao) {
         dao.deleteAssignment(workerId, customerId, DateTimeUtils.startOfDay(dayMs))
 
     suspend fun remove(id: Long) = dao.deleteById(id)
+
+    /** 예약 취소 시 이 고객 현장의 일당 배정(자동지출) 전부 정리 — 없던 시공의 −일당이 현금흐름에 잔존 방지. (2026-07-30 버그감사) */
+    suspend fun deleteByCustomer(customerId: Long) = dao.deleteByCustomer(customerId)
 }

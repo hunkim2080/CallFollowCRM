@@ -38,6 +38,12 @@ class JobRepository(
         // "첫 시공 끝난 뒤 또" 패턴만 처리 — 완료됐고 실제 시공일이 있던 건.
         if (c.workCompletedAt == null || c.scheduledWorkDate == null) return false
 
+        // ⚠️ 미수(못 받은 돈)가 남은 완료 건은 아카이브 보류 — 아카이브하면 그 미수가 jobs(이력)로 옮겨져
+        //   정산·미수금 목록(CustomerEntity 만 읽음)에서 조용히 사라져 사장님이 못 받고 놓칠 수 있음(돈 사고).
+        //   완납(미수 0)일 때만 이력으로 정리. 미수 남으면 그대로 둬서 계속 미수금에 뜨게 함(받은 뒤 재방문 잡으면 정상 정리).
+        //   (2026-07-30 버그감사 — 재방문 Phase2 전 최소 가드. SoT=docs/PLAN_repeat_jobs.md)
+        if (com.detailline.callfollowcrm.domain.settlement.SettlementCalc.rowOf(c).outstanding > 0L) return false
+
         jobDao.insert(
             JobEntity(
                 customerId = c.id,

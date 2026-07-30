@@ -33,4 +33,7 @@ interface JobCrewDao {
 
     @Query("DELETE FROM job_crew WHERE workerId = :workerId AND customerId = :customerId AND dayStartMs = :dayStartMs")
     suspend fun deleteAssignment(workerId: Long, customerId: Long, dayStartMs: Long)
+
+    @Query("DELETE FROM job_crew WHERE customerId = :customerId")
+    suspend fun deleteByCustomer(customerId: Long)
 }
