@@ -770,7 +770,7 @@ private fun PostCallTemplateField(
         modifier = Modifier.fillMaxWidth(),
         minLines = 2,
         maxLines = 5,
-        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp),
+        textStyle = androidx.compose.ui.text.TextStyle(fontFamily = com.detailline.callfollowcrm.presentation.theme.Pretendard, fontSize = 13.sp),
         shape = RoundedCornerShape(12.dp)
     )
     Spacer(Modifier.height(6.dp))
@@ -1175,7 +1175,7 @@ private fun MirrorSection(container: AppContainer) {
                     value = label, onValueChange = { label = it },
                     label = { Text("이 폰 이름 (예: 디테일라인)", fontSize = 12.sp) },
                     singleLine = true, modifier = Modifier.fillMaxWidth(),
-                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontFamily = com.detailline.callfollowcrm.presentation.theme.Pretendard, fontSize = 13.sp),
                     shape = RoundedCornerShape(12.dp)
                 )
                 Spacer(Modifier.height(8.dp))
@@ -2108,7 +2108,7 @@ private fun AutoTextArea(value: String, onChange: (String) -> Unit) {
             value = value,
             onValueChange = { onChange(it); editTick++ },
             modifier = Modifier.fillMaxWidth().heightIn(min = 84.dp),
-            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.5.sp, color = TossTextPrimary)
+            textStyle = androidx.compose.ui.text.TextStyle(fontFamily = com.detailline.callfollowcrm.presentation.theme.Pretendard, fontSize = 13.5.sp, color = TossTextPrimary)
         )
         Box(Modifier.padding(top = 5.dp, start = 2.dp)) {
             if (showSaved) {

@@ -103,7 +103,7 @@ private val TossDarkColors = darkColorScheme(
  * 크기 영향: APK +7.5MB (1.5MB × 5). 사장님 결정 = 시각 품질 우선.
  * 2026-07-30 ExtraBold(800) 추가 — 프로토 시그니처 제목 굵기. 없을 땐 800/900 요청이 700으로 강등됐음(디자인 감사 #1).
  */
-private val Pretendard = FontFamily(
+val Pretendard = FontFamily(   // 입력칸(BasicTextField) 등에서 명시적으로 걸 수 있게 공개 (LocalTextStyle 안 타는 곳 대비)
     Font(R.font.pretendard_regular, FontWeight.Normal),
     Font(R.font.pretendard_medium, FontWeight.Medium),
     Font(R.font.pretendard_semibold, FontWeight.SemiBold),

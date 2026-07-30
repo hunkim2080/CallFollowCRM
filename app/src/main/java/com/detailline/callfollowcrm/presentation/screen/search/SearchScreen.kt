@@ -96,7 +96,7 @@ fun SearchScreen(
                     value = query,
                     onValueChange = { viewModel.setQuery(it) },
                     singleLine = true,
-                    textStyle = TextStyle(fontSize = 15.sp, color = TossTextPrimary),
+                    textStyle = TextStyle(fontFamily = com.detailline.callfollowcrm.presentation.theme.Pretendard, fontSize = 15.sp, color = TossTextPrimary),
                     cursorBrush = SolidColor(TossBlue),
                     modifier = Modifier.fillMaxWidth().focusRequester(focus)
                 )

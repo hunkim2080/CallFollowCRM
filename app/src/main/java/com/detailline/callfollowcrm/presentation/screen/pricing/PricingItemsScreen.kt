@@ -512,7 +512,7 @@ private fun InputBox(
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
-        textStyle = TextStyle(color = TossTextPrimary, fontSize = 14.sp),
+        textStyle = TextStyle(fontFamily = com.detailline.callfollowcrm.presentation.theme.Pretendard, color = TossTextPrimary, fontSize = 14.sp),
         cursorBrush = SolidColor(TossBlue),
         visualTransformation = visualTransformation,
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),

@@ -83,7 +83,7 @@ fun CollabCommentSection(
                     placeholder = { Text("한마디 입력…", color = CTextTertiary, fontSize = 13.sp) },
                     singleLine = false,
                     maxLines = 3,
-                    textStyle = TextStyle(fontSize = 13.5.sp, color = CTextPrimary),
+                    textStyle = TextStyle(fontFamily = com.detailline.callfollowcrm.presentation.theme.Pretendard, fontSize = 13.5.sp, color = CTextPrimary),
                     shape = RoundedCornerShape(11.dp),
                     modifier = Modifier.weight(1f)
                 )

@@ -960,7 +960,7 @@ fun CustomerDetailScreen(
                                             androidx.compose.foundation.text.BasicTextField(
                                                 value = reply,
                                                 onValueChange = { reply = it },
-                                                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, color = TossTextPrimary),
+                                                textStyle = androidx.compose.ui.text.TextStyle(fontFamily = com.detailline.callfollowcrm.presentation.theme.Pretendard, fontSize = 13.sp, color = TossTextPrimary),
                                                 cursorBrush = androidx.compose.ui.graphics.SolidColor(TossBlue),
                                                 modifier = Modifier.fillMaxWidth(),
                                                 decorationBox = { inner ->
@@ -2452,7 +2452,7 @@ private fun PaymentInlineEditor(
             visualTransformation = ThousandsSeparatorTransformation,
             modifier = Modifier.fillMaxWidth(),
             colors = tossFieldColors(),
-            textStyle = TextStyle(fontSize = 17.sp, color = TossTextPrimary, fontWeight = FontWeight.SemiBold)
+            textStyle = TextStyle(fontFamily = com.detailline.callfollowcrm.presentation.theme.Pretendard, fontSize = 17.sp, color = TossTextPrimary, fontWeight = FontWeight.SemiBold)
         )
         Spacer(Modifier.height(8.dp))
         androidx.compose.foundation.layout.Row(

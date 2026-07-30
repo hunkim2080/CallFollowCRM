@@ -491,7 +491,7 @@ private fun AddCashDialog(
                     value = amountText,
                     onValueChange = { amountText = it.filter { c -> c.isDigit() }.take(12) },
                     placeholder = { Text("0", fontSize = 22.sp, color = TossTextTertiary, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End) },
-                    textStyle = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.End, color = accent),
+                    textStyle = TextStyle(fontFamily = com.detailline.callfollowcrm.presentation.theme.Pretendard, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.End, color = accent),
                     suffix = { Text("원", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary) },
                     visualTransformation = com.detailline.callfollowcrm.presentation.component.ThousandsCommaTransformation,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),

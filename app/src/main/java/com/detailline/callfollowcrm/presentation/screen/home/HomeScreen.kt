@@ -2180,7 +2180,7 @@ private fun CompletionDialog(
                     androidx.compose.foundation.text.BasicTextField(
                         value = msg,
                         onValueChange = { msg = it },
-                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.5.sp, color = TossTextPrimary, lineHeight = 21.sp),
+                        textStyle = androidx.compose.ui.text.TextStyle(fontFamily = com.detailline.callfollowcrm.presentation.theme.Pretendard, fontSize = 13.5.sp, color = TossTextPrimary, lineHeight = 21.sp),
                         cursorBrush = androidx.compose.ui.graphics.SolidColor(TossBlue),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -2326,6 +2326,7 @@ private fun RemindCard(
                             value = draft,
                             onValueChange = { draft = it },
                             textStyle = androidx.compose.ui.text.TextStyle(
+                                fontFamily = com.detailline.callfollowcrm.presentation.theme.Pretendard,
                                 fontSize = 13.5.sp, color = TossTextPrimary, lineHeight = 21.sp
                             ),
                             cursorBrush = androidx.compose.ui.graphics.SolidColor(TossBlue),

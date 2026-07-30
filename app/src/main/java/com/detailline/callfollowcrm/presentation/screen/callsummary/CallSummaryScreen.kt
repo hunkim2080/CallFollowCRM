@@ -252,7 +252,7 @@ fun CallSummaryScreen(
                     BasicTextField(
                         value = raw,
                         onValueChange = { raw = it },
-                        textStyle = TextStyle(fontSize = 14.sp, color = TossTextPrimary, lineHeight = 20.sp),
+                        textStyle = TextStyle(fontFamily = com.detailline.callfollowcrm.presentation.theme.Pretendard, fontSize = 14.sp, color = TossTextPrimary, lineHeight = 20.sp),
                         modifier = Modifier.fillMaxWidth().focusRequester(rawFocus)
                     )
                 }
@@ -299,7 +299,7 @@ fun CallSummaryScreen(
                     BasicTextField(
                         value = draft,
                         onValueChange = { draft = it },
-                        textStyle = TextStyle(fontSize = 14.sp, color = TossTextPrimary, lineHeight = 20.sp),
+                        textStyle = TextStyle(fontFamily = com.detailline.callfollowcrm.presentation.theme.Pretendard, fontSize = 14.sp, color = TossTextPrimary, lineHeight = 20.sp),
                         modifier = Modifier.fillMaxWidth().focusRequester(draftFocus)
                     )
                 }

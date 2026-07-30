@@ -421,7 +421,7 @@ private fun ProfileStep(
                 value = name,
                 onValueChange = onName,
                 singleLine = true,
-                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 15.sp, color = TossTextPrimary),
+                textStyle = androidx.compose.ui.text.TextStyle(fontFamily = com.detailline.callfollowcrm.presentation.theme.Pretendard, fontSize = 15.sp, color = TossTextPrimary),
                 cursorBrush = androidx.compose.ui.graphics.SolidColor(TossBlue),
                 modifier = Modifier.fillMaxWidth()
             )

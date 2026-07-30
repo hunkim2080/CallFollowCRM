@@ -124,7 +124,7 @@ fun PrincipleManageScreen(
                 Box(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(horizontal = 14.dp, vertical = 13.dp)) {
                     BasicTextField(
                         value = newText, onValueChange = { newText = it },
-                        textStyle = TextStyle(color = TossTextPrimary, fontSize = 14.sp),
+                        textStyle = TextStyle(fontFamily = com.detailline.callfollowcrm.presentation.theme.Pretendard, color = TossTextPrimary, fontSize = 14.sp),
                         cursorBrush = androidx.compose.ui.graphics.SolidColor(TossBlue),
                         decorationBox = { inner ->
                             if (newText.isEmpty()) Text("원칙 직접 추가 (예: 신축은 방문견적 먼저)", color = TossTextTertiary, fontSize = 14.sp)
@@ -153,7 +153,7 @@ fun PrincipleManageScreen(
                 Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg).padding(12.dp)) {
                     BasicTextField(
                         value = draft, onValueChange = { draft = it },
-                        textStyle = TextStyle(color = TossTextPrimary, fontSize = 14.sp, lineHeight = 20.sp),
+                        textStyle = TextStyle(fontFamily = com.detailline.callfollowcrm.presentation.theme.Pretendard, color = TossTextPrimary, fontSize = 14.sp, lineHeight = 20.sp),
                         cursorBrush = androidx.compose.ui.graphics.SolidColor(TossBlue),
                         modifier = Modifier.fillMaxWidth()
                     )

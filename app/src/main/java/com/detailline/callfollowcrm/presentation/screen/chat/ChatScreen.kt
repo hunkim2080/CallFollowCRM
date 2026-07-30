@@ -1247,7 +1247,7 @@ fun ChatScreen(
                     Spacer(Modifier.height(8.dp))
                     BasicTextField(
                         value = pasteText, onValueChange = { pasteText = it },
-                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, color = TossTextPrimary),
+                        textStyle = androidx.compose.ui.text.TextStyle(fontFamily = com.detailline.callfollowcrm.presentation.theme.Pretendard, fontSize = 13.sp, color = TossTextPrimary),
                         modifier = Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(12.dp))
                             .background(TossGrayBg).padding(12.dp),
                         decorationBox = { inner ->
@@ -1921,7 +1921,7 @@ private fun CallSegment(
                     BasicTextField(
                         value = editText,
                         onValueChange = { editText = it },
-                        textStyle = TextStyle(fontSize = 12.5.sp, color = TossTextPrimary, lineHeight = 19.sp),
+                        textStyle = TextStyle(fontFamily = com.detailline.callfollowcrm.presentation.theme.Pretendard, fontSize = 12.5.sp, color = TossTextPrimary, lineHeight = 19.sp),
                         modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp)
                     )
                 }
@@ -3182,7 +3182,7 @@ private fun Composer(
                         onChange(v.text)
                         onSelectionChange(v.selection)
                     },
-                    textStyle = TextStyle(color = TossTextPrimary, fontSize = 14.sp, lineHeight = 21.sp),
+                    textStyle = TextStyle(fontFamily = com.detailline.callfollowcrm.presentation.theme.Pretendard, color = TossTextPrimary, fontSize = 14.sp, lineHeight = 21.sp),
                     cursorBrush = SolidColor(TossBlue),
                     maxLines = 5,
                     modifier = Modifier

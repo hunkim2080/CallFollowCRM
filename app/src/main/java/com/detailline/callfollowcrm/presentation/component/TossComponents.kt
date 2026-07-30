@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.detailline.callfollowcrm.presentation.theme.Pretendard
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
@@ -261,7 +262,7 @@ fun SheetTextField(
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
-        textStyle = TextStyle(fontSize = 15.sp, color = TossTextPrimary),
+        textStyle = TextStyle(fontFamily = Pretendard, fontSize = 15.sp, color = TossTextPrimary),
         cursorBrush = SolidColor(TossBlue),
         singleLine = singleLine,
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = imeAction),
@@ -337,7 +338,7 @@ fun SheetTextField(
         value = value,
         onValueChange = onValueChange,
         enabled = enabled,
-        textStyle = TextStyle(fontSize = 15.sp, color = TossTextPrimary),
+        textStyle = TextStyle(fontFamily = Pretendard, fontSize = 15.sp, color = TossTextPrimary),
         cursorBrush = SolidColor(TossBlue),
         singleLine = singleLine,
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),

@@ -287,7 +287,7 @@ private fun PricesBody(ui: PricingExtractViewModel.UiState, vm: PricingExtractVi
                                     else TextFieldValue(d.take(9), TextRange(d.take(9).length))
                                     vm.editPrice(row.key, priceField.text.toLongOrNull() ?: 0L)
                                 },
-                                textStyle = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary),
+                                textStyle = TextStyle(fontFamily = com.detailline.callfollowcrm.presentation.theme.Pretendard, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary),
                                 singleLine = true,
                                 cursorBrush = SolidColor(TossBlue),
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -374,6 +374,7 @@ private fun EditField(
             value = tfv,
             onValueChange = { tfv = it; onChange(it.text) },
             textStyle = TextStyle(
+                fontFamily = com.detailline.callfollowcrm.presentation.theme.Pretendard,
                 fontSize = if (bold) 15.sp else 14.sp,
                 fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
                 color = TossTextPrimary

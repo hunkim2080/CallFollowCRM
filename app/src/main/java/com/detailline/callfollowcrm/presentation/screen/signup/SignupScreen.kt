@@ -201,6 +201,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.CodePhase(vm: SignupV
                 value = s.code,
                 onValueChange = { vm.onCodeChange(it) },
                 textStyle = TextStyle(
+                    fontFamily = com.detailline.callfollowcrm.presentation.theme.Pretendard,
                     fontSize = 26.sp, fontWeight = FontWeight.Black, color = Ink,
                     textAlign = TextAlign.Center, letterSpacing = 8.sp
                 ),
