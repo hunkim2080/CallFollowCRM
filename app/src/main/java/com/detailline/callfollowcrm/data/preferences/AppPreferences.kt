@@ -613,6 +613,11 @@ class AppPreferences(context: Context) {
         get() = prefs.getLong("intake_sync_since_ms", 0L)
         set(value) = prefs.edit().putLong("intake_sync_since_ms", value).apply()
 
+    /** 마감 브리핑 알림을 탭한 순간 그 브리핑의 '날짜'(startOfDay). 자정 넘겨 열어도 그날 기준으로 보이게. VM 이 읽고 0 으로 지움(일회성). (2026-07-30 버그감사) */
+    var pendingBriefDayMs: Long
+        get() = prefs.getLong("pending_brief_day_ms", 0L)
+        set(value) = prefs.edit().putLong("pending_brief_day_ms", value).apply()
+
     // ── 시간 기반 알림(D-1·잔금·브리핑) 중복방지 — 이미 보낸 키(예 "d1:{id}:{dateMs}"). ──
     var reminderNotifiedKeys: Set<String>
         get() = prefs.getStringSet("reminder_notified_keys", emptySet()) ?: emptySet()

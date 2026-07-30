@@ -132,7 +132,7 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
                 val t = c.scheduledWorkMinutes?.let { DateTimeUtils.formatWorkMinutes(it) }
                 nm + (t?.let { " $it" } ?: "")
             }
-            NotificationHelper.showDailyBrief(context, newCustomers, deposits, tomorrowJobs.size, tomorrowLabel)
+            NotificationHelper.showDailyBrief(context, newCustomers, deposits, tomorrowJobs.size, tomorrowLabel, briefDayMs = todayStart)
             return true
         }
 

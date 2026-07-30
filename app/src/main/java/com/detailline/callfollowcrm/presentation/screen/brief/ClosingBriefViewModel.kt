@@ -20,8 +20,10 @@ import java.util.Calendar
  */
 class ClosingBriefViewModel(container: AppContainer) : ViewModel() {
 
-    private val now = System.currentTimeMillis()
-    private val todayStart = DateTimeUtils.startOfDay(now)
+    // 알림 탭으로 열 때 그 브리핑이 만들어진 날짜(자정 넘겨 열어도 '그날' 기준). 일회성 — 읽고 0 으로 지움. (2026-07-30 버그감사)
+    private val briefDay = container.preferences.pendingBriefDayMs.also { if (it > 0L) container.preferences.pendingBriefDayMs = 0L }
+    private val todayStart = DateTimeUtils.startOfDay(if (briefDay > 0L) briefDay else System.currentTimeMillis())
+    private val now = if (briefDay > 0L) todayStart + DateTimeUtils.DAY_MS - 1L else System.currentTimeMillis()
     private val todayEnd = todayStart + DateTimeUtils.DAY_MS
     private val tomorrowStart = todayEnd
     private val tomorrowEnd = tomorrowStart + DateTimeUtils.DAY_MS

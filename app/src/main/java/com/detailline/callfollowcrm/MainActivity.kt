@@ -147,6 +147,8 @@ class MainActivity : ComponentActivity() {
                 if (phone.isNotBlank()) pendingIntentState.value = IncomingIntent.CallSummary(phone, name)
             }
             ACTION_DAILY_BRIEF -> {
+                val bDay = intent.getLongExtra(EXTRA_BRIEF_DAY, 0L)
+                if (bDay > 0L) (application as CallFollowCrmApplication).container.preferences.pendingBriefDayMs = bDay // 자정 넘겨 탭해도 그날 브리핑 (VM 이 읽고 지움)
                 pendingIntentState.value = IncomingIntent.ClosingBrief
             }
             ACTION_COLLAB_MINE -> {
@@ -277,6 +279,7 @@ class MainActivity : ComponentActivity() {
         const val ACTION_CHAT = "com.detailline.callfollowcrm.ACTION_CHAT"
         const val ACTION_CALL_SUMMARY = "com.detailline.callfollowcrm.ACTION_CALL_SUMMARY"
         const val ACTION_DAILY_BRIEF = "com.detailline.callfollowcrm.ACTION_DAILY_BRIEF"
+        const val EXTRA_BRIEF_DAY = "brief_day_ms"
         const val ACTION_COLLAB_MINE = "com.detailline.callfollowcrm.ACTION_COLLAB_MINE"
         const val ACTION_COLLAB_ENDED = "com.detailline.callfollowcrm.ACTION_COLLAB_ENDED"
         /** 협업 현장 특정 shareId 로 바로 상세 열기(댓글 등). EXTRA_SHARE_ID 로 shareId 전달. (2026-07-02 사장님) */

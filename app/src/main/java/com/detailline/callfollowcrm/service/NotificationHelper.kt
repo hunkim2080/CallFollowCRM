@@ -893,7 +893,7 @@ object NotificationHelper {
     }
 
     /** 마감 브리핑 — 프로토 PUSH.brief 형식(파랑, 저녁 9시). 확실한 데이터만. */
-    fun showDailyBrief(context: Context, newCustomers: Int, deposits: Int, tomorrowJobs: Int, tomorrowLabel: String?) {
+    fun showDailyBrief(context: Context, newCustomers: Int, deposits: Int, tomorrowJobs: Int, tomorrowLabel: String?, briefDayMs: Long = 0L) {
         val parts = buildList {
             if (newCustomers > 0) add("새 고객 ${newCustomers}명")
             if (deposits > 0) add("입금 ${deposits}건")
@@ -906,6 +906,7 @@ object NotificationHelper {
         val briefIntent = Intent(context, MainActivity::class.java).apply {
             action = MainActivity.ACTION_DAILY_BRIEF
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            if (briefDayMs > 0L) putExtra(MainActivity.EXTRA_BRIEF_DAY, briefDayMs) // 자정 넘겨 탭해도 그날 브리핑 보이게
         }
         val pending = PendingIntent.getActivity(
             context, BRIEF_ID, briefIntent,
