@@ -8235,3 +8235,14 @@ SECURITY_HANDOFF_2026-07-30 §A — 무인증으로 새던 관리자 데이터�
 - ⚠️ 배포 후 사장님이 진단함 열 때: 주소 뒤 ?t=관리자토큰 (또는 인증 입력페이지에 토큰 입력). 대시보드(getToken sessionStorage)는 기존대로.
 - 남은 보안: §B/§D(세션토큰·SOLAPI·전 엔드포인트 인증) — 결정 필요(아래 사장님 질의). 미배포: bash server/deploy_phase1.sh
 - commit: (아래)
+
+## 2026-07-30 20:18 · cowork (🔒 보안 §B-1 세션토큰 발급)
+사장님 결정 "토큰 발급부터" → verify-code 가 세션토큰 발급. 계약: docs/SERVER_HANDOFF_session_token.md.
+- verify-code 성공(member/enrolled) 응답에 sessionToken + sessionTokenExpMs 추가(기존 필드 유지=하위호환). waitlisted 는 미발급.
+- 형식 "<phone>.<expMs>.<sig>"(서버 HMAC 서명), 만료 90일, 헤더 Authorization: Bearer. 앱은 저장만.
+- 서버 헬퍼 준비: _issue_session_token / _verify_session_token / _session_phone_from_header (§B-2 에서 재사용).
+- ⚠️ §B-2(전 엔드포인트 enforce)는 **앱이 토큰 부착 배포 완료 후** 켜야 안 깨짐(또는 AUTH_ENFORCE 스위치). 지금은 발급만(추가, 무해).
+- SOLAPI(§D-1)는 사장님 plist 키 필요 — 대기.
+- 검증 TestClient 토큰 라운드트립 ALL OK. 미배포: bash server/deploy_phase1.sh
+- android: verify-code 응답 sessionToken 저장 + 전 요청 Bearer 부착 착수 가능.
+- commit: (아래)

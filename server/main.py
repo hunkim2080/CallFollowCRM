@@ -20935,6 +20935,55 @@ async def auth_request_code(req: AuthCodeRequest) -> dict:
     return {"ok": True, "expiresInSec": AUTH_CODE_TTL_SEC}
 
 
+# ── 추가(보안 §B-1) — 세션 토큰 (phone-bound, 서명 opaque) ──
+# 계약(cowork↔android): verify-code 응답의 sessionToken 필드 / 요청 헤더 Authorization: Bearer <token>
+# / 형식 = "<phone>.<expMs>.<sig>" (서버 서명, 앱은 저장만) / 만료 90일, 재인증으로 갱신.
+def _session_secret() -> str:
+    import secrets
+    with db_conn() as con:
+        row = con.execute("SELECT v FROM server_kv WHERE k = 'session_secret'").fetchone()
+        if row:
+            return row[0]
+        val = secrets.token_urlsafe(48)
+        con.execute("INSERT OR REPLACE INTO server_kv (k, v) VALUES ('session_secret', ?)", (val,))
+        con.commit()
+    return val
+
+
+_SESSION_TTL_MS = 90 * 86_400_000   # 90일
+
+
+def _issue_session_token(phone: str, ttl_ms: int = _SESSION_TTL_MS):
+    import hmac as _hm
+    import hashlib as _hl
+    p = _norm_phone(phone)
+    exp = _now_ms() + ttl_ms
+    sig = _hm.new(_session_secret().encode(), f"{p}.{exp}".encode(), _hl.sha256).hexdigest()[:32]
+    return f"{p}.{exp}.{sig}", exp
+
+
+def _verify_session_token(token: Optional[str]) -> Optional[str]:
+    """유효하면 정규화된 phone, 아니면 None. (서명·만료 검증)"""
+    if not token or token.count(".") != 2:
+        return None
+    import hmac as _hm
+    import hashlib as _hl
+    phone, exp, sig = token.split(".")
+    if not exp.isdigit():
+        return None
+    if _now_ms() > int(exp):
+        return None
+    good = _hm.new(_session_secret().encode(), f"{phone}.{exp}".encode(), _hl.sha256).hexdigest()[:32]
+    return phone if _hm.compare_digest(sig, good) else None
+
+
+def _session_phone_from_header(authorization: Optional[str]) -> Optional[str]:
+    """Authorization: Bearer <sessionToken> → phone (또는 None). §B-2 인증에 재사용."""
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    return _verify_session_token(authorization[7:].strip())
+
+
 @app.post("/api/auth/verify-code")
 async def auth_verify_code(req: AuthVerifyRequest) -> dict:
     phone = _norm_phone(req.phone)
@@ -20969,7 +21018,9 @@ async def auth_verify_code(req: AuthVerifyRequest) -> dict:
         if wl:
             con.commit()
             print(f"[auth/verify] {phone} → member (기존)")
-            return {"ok": True, "status": "member", "freeUntilMs": wl[0]}
+            _tok, _exp = _issue_session_token(phone)
+            return {"ok": True, "status": "member", "freeUntilMs": wl[0],
+                    "sessionToken": _tok, "sessionTokenExpMs": _exp}
         current = con.execute("SELECT COUNT(*) FROM beta_whitelist").fetchone()[0]
         if current < AUTO_ENROLL_CAP:
             free_until = now + FREE_TRIAL_DAYS * 86_400_000
@@ -20981,8 +21032,10 @@ async def auth_verify_code(req: AuthVerifyRequest) -> dict:
             )
             con.commit()
             print(f"[auth/verify] {phone} → enrolled (자동 등업 {current + 1}/{AUTO_ENROLL_CAP})")
+            _tok, _exp = _issue_session_token(phone)
             return {"ok": True, "status": "enrolled", "freeUntilMs": free_until,
-                    "freeDays": FREE_TRIAL_DAYS}
+                    "freeDays": FREE_TRIAL_DAYS,
+                    "sessionToken": _tok, "sessionTokenExpMs": _exp}
         # cap 초과 → 대기열 (beta_signups). 이미 신청돼 있으면 그대로.
         existing_sg = con.execute(
             "SELECT status FROM beta_signups WHERE phone = ?", (phone,)).fetchone()
