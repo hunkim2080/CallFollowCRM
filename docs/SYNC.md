@@ -8246,3 +8246,10 @@ SECURITY_HANDOFF_2026-07-30 §A — 무인증으로 새던 관리자 데이터�
 - 검증 TestClient 토큰 라운드트립 ALL OK. 미배포: bash server/deploy_phase1.sh
 - android: verify-code 응답 sessionToken 저장 + 전 요청 Bearer 부착 착수 가능.
 - commit: (아래)
+
+## 2026-07-30 20:25 · cowork (🔒 보안 §B-2 미들웨어 + §B-4)
+- §B-2: AUTH_ENFORCE=1 일 때 작동하는 인증 미들웨어(기본 OFF=무변화). 소유주 전용 경로에 세션토큰 필수 + 요청 phone==토큰 phone(IDOR 차단). 공개/고객/뷰어(expo·mirror뷰어·공개폼·download·healthz) 무영향.
+- §B-4: /docs·/redoc·/openapi.json 비활성.
+- ★ 켜는 순서: 앱이 Bearer 부착 배포 완료 후 → plist AUTH_ENFORCE=1 재기동. 그 전 금지(전 기능 401).
+- 검증 OFF/ON TestClient 14 ALL OK. 미배포: bash server/deploy_phase1.sh
+- commit: (아래)

@@ -28,3 +28,14 @@
 ## 검증
 - TestClient: 토큰 발급/검증/변조거부/만료거부/Bearer파서/verify-code 응답 sessionToken 라운드트립 + 하위호환 ALL OK.
 - 미배포: bash server/deploy_phase1.sh
+
+---
+
+## 추가 (2026-07-30) — §B-2 인증 강제 미들웨어 + §B-4 (배포 완료·스위치 OFF)
+- **§B-2**: `AUTH_ENFORCE=1`(env) 일 때만 작동하는 인증 미들웨어. 소유주 전용 경로(감사 §B-2 목록: shared/team/quote/intake-form/site-photos/labor/mirror(shares·snapshot·mycode·respond·disconnect)/push·register/owner-tone + 경로 phone: suggestions·customer-persona)에:
+  - 유효 세션토큰 없으면 **401**, 요청 phone(쿼리/경로) ≠ 토큰 phone 이면 **403**(IDOR 차단).
+  - POST body phone 은 미들웨어에서 못 읽어 '유효토큰 보유'까지(익명 차단). 완전 소유권은 앱 성숙 후 엔드포인트별 보강.
+  - **공개/고객/뷰어(expo, mirror/data, intake 공개폼, download, healthz 등)는 목록에 없어 무영향.**
+- **§B-4**: /docs·/redoc·/openapi.json 비활성(엔드포인트 목록 노출 차단) — 무조건 적용.
+- **켜는 순서(중요)**: 앱이 `sessionToken` 저장 + 전 요청 Bearer 부착을 배포 완료 → 그 다음 서버 plist 에 `AUTH_ENFORCE=1` 넣고 재기동. 그 전에 켜면 전 기능 401.
+- 검증: OFF=기존 무변화 / ON=무토큰401·남의번호403·공개경로 통과. TestClient 14 ALL OK.

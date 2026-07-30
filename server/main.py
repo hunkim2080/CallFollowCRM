@@ -2647,7 +2647,9 @@ async def lifespan(app: FastAPI):
         blog_task.cancel()
 
 
-app = FastAPI(title="RING-GO Server (Claude Sonnet 4.6)", lifespan=lifespan)
+# 보안 §B-4 — API 문서(/docs·/redoc·/openapi.json) 비활성 (엔드포인트 목록 노출 차단)
+app = FastAPI(title="RING-GO Server (Claude Sonnet 4.6)", lifespan=lifespan,
+              docs_url=None, redoc_url=None, openapi_url=None)
 
 
 PREPARE_REPLY_DEFAULT_MODEL = os.environ.get("PREPARE_REPLY_MODEL", "gemini").lower()
@@ -5135,6 +5137,62 @@ async def _error_tracking_middleware(request: Request, call_next):
     if response.status_code >= 500:
         _record_system_error(request.url.path, response.status_code, "")
     return response
+
+
+# ── 보안 §B-2 — 세션 토큰 인증 강제 (미들웨어, 기본 OFF) ──
+# AUTH_ENFORCE=1 일 때만 작동. 앱이 Authorization: Bearer <sessionToken> 부착 배포 완료 후 켠다.
+# 켜기 전엔 아무 변화 없음(기존 앱 안 깨짐). 소유주 전용 데이터 경로만 보호(고객/뷰어/공개 제외).
+AUTH_ENFORCE = os.environ.get("AUTH_ENFORCE", "0") == "1"
+
+# 소유주(사장님) 본인 데이터 — 요청 phone == 토큰 phone 강제. (감사 §B-2 확정 목록)
+_AUTH_PROTECT_PREFIXES = (
+    "/api/shared/with-me", "/api/shared/by-me", "/api/shared/owner-events",
+    "/api/shared/partners", "/api/shared/history", "/api/shared/comments",
+    "/api/shared/invite", "/api/shared/progress", "/api/shared/paid",
+    "/api/shared/reschedule", "/api/shared/photo",
+    "/api/team/", "/api/quote/submissions", "/api/quote/issue",
+    "/api/intake-form/status", "/api/intake-form/list", "/api/intake-form/issue",
+    "/api/site-photos", "/api/labor/history",
+    "/api/mirror/shares", "/api/mirror/snapshot", "/api/mirror/mycode",
+    "/api/mirror/respond", "/api/mirror/disconnect",
+    "/api/push/register", "/api/owner-tone/",
+)
+# phone 이 경로에 박힌 것 (/suggestions/{phone}, /api/customer-persona/{phone})
+_AUTH_PATH_PHONE_PREFIXES = ("/suggestions/", "/api/customer-persona/")
+_AUTH_PHONE_KEYS = ("phone", "owner_phone", "ownerPhone", "devicePhone",
+                    "device_phone", "home_phone")
+
+
+def _req_phone_for_auth(request: Request) -> Optional[str]:
+    """요청에서 '주장하는 phone' 추출 — 쿼리 우선, 없으면 경로 꼬리."""
+    for k in _AUTH_PHONE_KEYS:
+        v = request.query_params.get(k)
+        if v:
+            return _norm_phone(v)
+    for pre in _AUTH_PATH_PHONE_PREFIXES:
+        if request.url.path.startswith(pre):
+            tail = request.url.path[len(pre):].split("/")[0]
+            if tail:
+                return _norm_phone(tail)
+    return None
+
+
+@app.middleware("http")
+async def _auth_enforce_middleware(request: Request, call_next):
+    if AUTH_ENFORCE:
+        path = request.url.path
+        prot = (any(path.startswith(p) for p in _AUTH_PROTECT_PREFIXES)
+                or any(path.startswith(p) for p in _AUTH_PATH_PHONE_PREFIXES))
+        if prot:
+            tok_phone = _session_phone_from_header(request.headers.get("authorization"))
+            if not tok_phone:
+                return JSONResponse({"detail": "로그인이 필요합니다"}, status_code=401)
+            rp = _req_phone_for_auth(request)
+            # GET 은 쿼리/경로 phone 이 토큰 phone 과 달라도 되면 IDOR → 차단.
+            # POST 는 body phone 을 미들웨어에서 못 읽으므로 '유효 토큰 보유'까지만(익명 차단).
+            if rp and rp != tok_phone:
+                return JSONResponse({"detail": "본인 데이터만 접근할 수 있습니다"}, status_code=403)
+    return await call_next(request)
 
 
 @app.get("/healthz")
