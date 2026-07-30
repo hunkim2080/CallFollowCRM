@@ -30,6 +30,7 @@ import java.util.concurrent.ConcurrentHashMap
 object AutoReplyScheduler {
 
     private val pending = ConcurrentHashMap<Long, Boolean>()
+    private val pendingPhones = ConcurrentHashMap.newKeySet<String>()  // 자동답장 대기 중인 번호(끝8자리) — 같은 번호 중복 발송 방지. (2026-07-30 버그감사)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     const val COUNTDOWN_MS: Long = 10_000L
 
@@ -65,6 +66,10 @@ object AutoReplyScheduler {
         // 수신(미부재중)인데 템플릿 미지정이면 발송 X. 부재중은 인라인 기본 문구가 있어 통과.
         if (!isMissed && container.preferences.firstReplyIncomingTemplateId <= 0) return
 
+        // 같은 번호로 이미 자동답장 대기 중이면 skip — 10초 카운트다운 중 2번째 통화가 들어와도 고객에게 문자 2통 안 나가게. (2026-07-30 버그감사)
+        val phoneKey = phoneNumber.filter { it.isDigit() }.takeLast(8)
+        if (phoneKey.isNotBlank() && !pendingPhones.add(phoneKey)) return
+
         pending[callRecordId] = false
         NotificationHelper.showAutoReplyPending(
             context = context,
@@ -74,6 +79,7 @@ object AutoReplyScheduler {
         )
 
         scope.launch {
+          try {
             delay(COUNTDOWN_MS)
 
             val cancelled = pending[callRecordId] == true
@@ -126,6 +132,9 @@ object AutoReplyScheduler {
             } else {
                 NotificationHelper.showAutoReplyFailed(context, callRecordId, phoneNumber)
             }
+          } finally {
+            if (phoneKey.isNotBlank()) pendingPhones.remove(phoneKey)
+          }
         }
     }
 
