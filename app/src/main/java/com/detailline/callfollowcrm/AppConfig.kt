@@ -16,10 +16,12 @@ object AppConfig {
 
     /**
      * 문자 인증 회원가입 사용 여부. false = 예전 간단 로그인(번호만) 으로 진입.
-     *   지금 false 인 이유: SOLAPI(문자 발송)가 서버에 아직 안 켜짐 → 문자 회원가입은 아무도 못 씀(심사자·테스터 막힘).
-     *   SOLAPI + 대표번호(발신번호) 준비되면 true 로 바꿔 정식 출시 때 문자 회원가입 활성화. (2026-07-05 사장님)
+     *   2026-07-31: SOLAPI 실측 통과(사장님 번호로 인증문자 실제 도착 확인) → true 전환. 새 유저 진입 = OTP SignupScreen.
+     *     기존 유저(bizPhone 저장돼 있음)는 무영향(OTP 안 거치고 그대로). 세션토큰 저장/부착은 이미 배선됨(보안 §D-4).
+     *   ⚠️ 서버 AUTH_ENFORCE(§B-2)는 **이 버전이 테스터 폰에 실제 설치·업데이트된 뒤에야** 켤 것.
+     *      그 전에 켜면 구버전(토큰 미부착) 폰이 전 기능 401 로 깨짐. (docs/SERVER_HANDOFF_session_token.md)
      */
-    const val SMS_SIGNUP_ENABLED: Boolean = false
+    const val SMS_SIGNUP_ENABLED: Boolean = true
 
     /**
      * 개인정보 동의 문서 버전 (서버 docVersion 과 동일). 이 값이 바뀌면 다음 진입 때 동의 게이트 재노출.

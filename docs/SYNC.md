@@ -8275,3 +8275,14 @@ docs/ 정리 — 끝난 핸드오프 50개를 docs/archive/ 로 이동 (삭제 �
 - fix: `latestMessageTimestampMs < firstInstallTime` 인 카드(=가입 전 backlog)는 자동 요약 스킵. 통화요약 connectedAt cutoff 와 동일 철학. 옛 카드는 챗 열면 on-demand 생성. 기존 사용자는 firstInstallTime 오래전이라 무영향.
 - 서버 영향: card-summary 호출량이 신규 설치 직후 급감(정상). 다른 인터페이스 변화 없음.
 - commit: 이 커밋
+
+## 2026-07-31 · android
+② SMS_SIGNUP_ENABLED=true 전환 — SOLAPI 실측 통과(사장님 010-8005-2080 로 인증문자 실제 도착 확인). 새 유저 진입=OTP SignupScreen. 기존 유저(bizPhone 저장돼 있음) 무영향. S9 검증=기존유저 홈 정상·크래시0.
+- commit: 이 커밋
+- ⚠️ **AUTH_ENFORCE(③)는 이 버전이 테스터 폰에 실제 설치·업데이트된 뒤에만** 켜세요. 그 전에 켜면 구버전(토큰 미부착) 폰이 전 기능 401.
+
+### 🔴 cowork 요청 — SOLAPI 발신번호(SENDER) 변경 (사장님 지시 2026-07-31)
+- 현재 발신번호 = **010-8005-6674** → **010-3969-0479 (시공인 메인 폰번호)** 로 변경 필요.
+- 할 일: 서버 plist 의 SOLAPI 발신번호 env(SOLAPI_SENDER 등) = `01039690479` 로 바꾸고 재기동.
+- ⚠️ **전제(중요)**: 010-3969-0479 이 SOLAPI 콘솔에 **발신번호로 사전등록·승인**돼 있어야 발송 가능(발신번호 사전등록제). 미등록/미승인이면 request-code 가 실패(502/503). → 사장님이 SOLAPI 콘솔 등록 확인 필요.
+- 참고: 이 번호(01039690479)는 앱 AppConfig.BETA_APPLY_PHONE(베타신청 수신번호)와 동일 = 사업 대표 라인.
