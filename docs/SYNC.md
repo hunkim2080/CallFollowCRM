@@ -8268,3 +8268,10 @@ docs/ 정리 — 끝난 핸드오프 50개를 docs/archive/ 로 이동 (삭제 �
 - commit: 이 커밋
 - ⚠️ **켜는 순서(반드시)**: ① 사장님 SOLAPI 실측(문자 실제 발송 확인) → ② 앱 `SMS_SIGNUP_ENABLED=true` 배포 → ③ **그 뒤에야** 서버 `AUTH_ENFORCE=1`. **②전에 ③ 켜면 전 기능 401.**
 - 코워크 액션: enforce(③)는 앱이 ② 배포 완료한 걸 SYNC로 확인한 뒤 켜주세요. **지금은 켜지 마세요.**
+
+## 2026-07-31 · android
+첫 접속 비용 폭주 fix — 카드요약(Haiku) 자동생성에 **설치시각(firstInstallTime) cutoff** 추가.
+- 증상: 신규 가입자가 첫 접속하면 홈에 기존 고객 수백 카드가 뜨는데 전부 stale → 스크롤마다 카드당 `POST /api/card-summary`(Haiku) 1콜 = 비용 훅. 제한장치 없었음(HomeViewModel.onVisiblePhones).
+- fix: `latestMessageTimestampMs < firstInstallTime` 인 카드(=가입 전 backlog)는 자동 요약 스킵. 통화요약 connectedAt cutoff 와 동일 철학. 옛 카드는 챗 열면 on-demand 생성. 기존 사용자는 firstInstallTime 오래전이라 무영향.
+- 서버 영향: card-summary 호출량이 신규 설치 직후 급감(정상). 다른 인터페이스 변화 없음.
+- commit: 이 커밋

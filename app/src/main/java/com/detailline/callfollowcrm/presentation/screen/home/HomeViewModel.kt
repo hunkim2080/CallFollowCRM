@@ -1213,6 +1213,22 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      */
     private var lastVisibleHash: Int = 0
     private var ensureJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * 카드요약(Haiku) 자동 생성 cutoff = 앱 설치 시각(firstInstallTime).
+     *   이 시각 **이전** 마지막 문자 = 가입 전부터 폰에 쌓여있던 backlog → 자동 요약하지 않는다.
+     *   이유: 첫 접속 때 홈에 뜨는 기존 고객 수백 명 카드가 전부 stale → 스크롤하는 족족 카드마다
+     *     Haiku 1콜씩 = 비용 폭주. 통화요약의 connectedAt cutoff 와 동일 철학. (2026-07-31 사장님)
+     *   설치 후 새 활동이 생긴 카드(latest >= cutoff)는 정상 자동 요약. 옛 카드는 챗을 열면(ensureFullSummary) 그때 생성.
+     *   기존 사용자는 firstInstallTime 이 오래전 → 모든 카드가 cutoff 이후라 무영향(신규 설치만 backlog 스킵).
+     */
+    private val cardSummaryCutoffMs: Long by lazy {
+        runCatching {
+            container.appContext.packageManager
+                .getPackageInfo(container.appContext.packageName, 0).firstInstallTime
+        }.getOrDefault(0L)
+    }
+
     fun onVisiblePhones(phoneNumbers: Collection<String>) {
         if (phoneNumbers.isEmpty()) return
         val hash = phoneNumbers.toSet().hashCode()
@@ -1225,6 +1241,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         ensureJob = viewModelScope.launch(Dispatchers.IO) {
             for (phone in phoneNumbers) {
                 val ctx = buildCardSummaryContext(phone) ?: continue
+                // 가입 전 옛 backlog(설치 이전 마지막 문자)는 자동 요약 스킵 — 첫 접속 Haiku 폭주 방지. (2026-07-31)
+                //   설치 후 새 활동 카드(latest >= cutoff)만 생성. 옛 카드는 열면 그때 생성.
+                if (ctx.latestMessageTimestampMs < cardSummaryCutoffMs) continue
                 runCatching { container.conversationAiRepository.ensureCardSummary(ctx) }
             }
         }
