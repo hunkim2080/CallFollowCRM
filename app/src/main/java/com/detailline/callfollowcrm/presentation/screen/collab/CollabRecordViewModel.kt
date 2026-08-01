@@ -129,8 +129,10 @@ class CollabRecordViewModel(private val container: AppContainer) : ViewModel() {
          *   ym=null → 데이터 있는 가장 최근 달.
          */
         fun buildLocalMonthly(withMe: List<SharedSite>, byMe: List<SharedSite>, ym: String?): MonthlyRecord {
-            val rcvSites = withMe.filter { it.status != "declined" }
-            val givSites = byMe.filter { it.status != "declined" }
+            // 기록엔 '실제로 한(수락된)' 협업만. 취소(ended)·거절(declined)·아직 수락 전(pending)은 제외.
+            //   (CollabSites 화면의 gone=setOf("declined","ended") 와 같은 정의 + pending 도 미확정이라 뺌.) (2026-08-01 사장님: 취소한 게 그대로 뜸)
+            val rcvSites = withMe.filter { it.status == "accepted" }
+            val givSites = byMe.filter { it.status == "accepted" }
 
             // 데이터 있는 달(양방향 합쳐) — 최신순.
             val months = (rcvSites + givSites)

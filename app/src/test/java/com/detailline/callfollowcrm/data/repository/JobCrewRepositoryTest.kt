@@ -48,6 +48,7 @@ class JobCrewRepositoryTest {
         override suspend fun deleteAssignment(workerId: Long, customerId: Long, dayStartMs: Long) {
             rows.removeAll { it.workerId == workerId && it.customerId == customerId && it.dayStartMs == dayStartMs }
         }
+        override suspend fun deleteByCustomer(customerId: Long) { rows.removeAll { it.customerId == customerId } }
     }
 
     private val dao = FakeDao()
