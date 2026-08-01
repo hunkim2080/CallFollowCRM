@@ -8350,3 +8350,8 @@ A/S 그날 아침 알림 추가 — '오늘 A/S 있어요 🔧'. (사장님 "필
 - 원인: DatePicker 기본 containerColor(테마 surfaceContainerHigh 회색) + Surface tonalElevation 회색톤.
 - 수정: 모든 날짜창에 colors(containerColor=White) + tonalElevation 0 + shadowElevation. 시공·A/S·입금·초회·제안날짜.
 - commit: 333ca0a. 서버/코워크 영향 없음.
+
+## 2026-08-02 12:30 · android
+앱 전체 카드 그림자 복원 — 밋밋/뿌옇 해결 (사장님 ㄱㄱ).
+- TossCard(공용 컴포넌트)에 Modifier.shadow(4dp) → 홈·일정·리스트·정산·통계 등 앱 전체 카드가 은은히 뜸. 프로토 box-shadow 복원.
+- 고객상세는 인라인+틴트 카드라 별도(대체로 틴트로 이미 구분됨). commit d669532. 서버 영향 없음.
