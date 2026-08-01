@@ -8303,3 +8303,9 @@ docs/ 정리 — 끝난 핸드오프 50개를 docs/archive/ 로 이동 (삭제 �
 - 🔴 **cowork 요청**: `GET /api/shared/monthly?phone=&ym=` = 월별 양방향 집계. 계약서 = **docs/SERVER_HANDOFF_collab_monthly.md** (필드·모양 상세). 지금 partners 는 전체기간·받은것만이라 부족.
 - android: 앱 화면 먼저 제작(서버 404면 withMe+byMe 로컬 폴백, paid만 "—"). 서버 나오면 자동 승격.
 - commit: 이 커밋
+
+## 2026-08-01 · android (협업 기록 앱 완료)
+협업 기록 화면 **앱쪽 완성·폰검증 OK** (더보기 → 협업 기록). 실데이터로 월선택·사장님별·현장별 정상 렌더, 크래시0.
+- 지금은 **로컬 폴백**(withMe/byMe 그룹핑, 입금여부 "—"). **cowork 가 `GET /api/shared/monthly`(docs/SERVER_HANDOFF_collab_monthly.md) 구현하면** 앱 수정 없이 자동 승격(입금표시+전체이력).
+- commit: e355f10. 내부트랙 자동배포됨.
+- + MMS 읽음-스킵 fix(caf9725): 이미 읽은 MMS는 뒤늦은 알림 skip("읽었는데 몇 초 뒤 딩동" 방지). queryInboxMmsSince 가 read 컬럼 조회.
