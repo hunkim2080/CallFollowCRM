@@ -176,6 +176,8 @@ fun CustomerDetailScreen(
     var pendingCelebrate by remember { mutableStateOf(false) }
     // 날짜 범위선택(항공권식)에서 정한 시공 기간(며칠) — 시간 다이얼로그로 넘겨 함께 저장. (2026-08-01 사장님)
     var pendingWorkDays by remember { mutableStateOf(1) }
+    // A/S 예약(시공과 별개, 무료) 범위선택 다이얼로그. (2026-08-01 사장님)
+    var asPickerOpen by remember { mutableStateOf(false) }
     // 현장 사진 삭제 확인 — null 이면 닫힘, 값 = 삭제 대상 photo id.
     var photoToDelete by remember { mutableStateOf<Long?>(null) }
     // 팀원(서버) 사진 삭제 확인 — 사장님이 퇴사한 팀원 사진도 지울 수 있게. (2026-06-07)
@@ -577,6 +579,15 @@ fun CustomerDetailScreen(
                                 if (scheduled != null) DateTimeUtils.formatKoreanDate(scheduled) + (c.scheduledWorkMinutes?.let { " " + DateTimeUtils.formatWorkMinutes(it) } ?: "") else "아직 예약 안 됨 · 탭해서 설정",
                                 valueColor = if (scheduled != null) TossBlue else TossTextTertiary,
                                 onClick = { datePickerOpen = true }
+                            )
+                            // A/S 예약 — 시공과 별개, 무료. (2026-08-01 사장님)
+                            CdKv(
+                                "🔧 A/S 예약",
+                                if (c.asScheduledDate != null)
+                                    DateTimeUtils.formatKoreanDate(c.asScheduledDate!!) + (if (c.asScheduledDays > 1) " · ${c.asScheduledDays}일" else "") + " · 무료"
+                                else "아직 없음 · 탭해서 잡기",
+                                valueColor = if (c.asScheduledDate != null) Color(0xFFF5920B) else TossTextTertiary,
+                                onClick = { asPickerOpen = true }
                             )
                             if (hasAmount) {
                                 Spacer(Modifier.height(12.dp))
@@ -1125,6 +1136,80 @@ fun CustomerDetailScreen(
                                         datePickerOpen = false
                                     }
                                 ) { Text("저장", color = TossBlue, fontWeight = FontWeight.SemiBold) }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // A/S 예약(시공과 별개, 무료) — 항공권식 기간 범위선택. 시간 없음(A/S 는 날짜/기간만). (2026-08-01 사장님)
+    if (asPickerOpen && customer != null) {
+        val toUtcMidnightAs = { ms: Long -> ms + java.util.TimeZone.getDefault().getOffset(ms) }
+        val asStart = customer?.asScheduledDate
+        val asDays = (customer?.asScheduledDays ?: 1).coerceAtLeast(1)
+        val asEnd = asStart?.takeIf { asDays > 1 }?.let { it + (asDays - 1) * DateTimeUtils.DAY_MS }
+        val asRangeState = androidx.compose.material3.rememberDateRangePickerState(
+            initialSelectedStartDateMillis = asStart?.let(toUtcMidnightAs),
+            initialSelectedEndDateMillis = asEnd?.let(toUtcMidnightAs)
+        )
+        Dialog(
+            onDismissRequest = { asPickerOpen = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 20.dp),
+                contentAlignment = androidx.compose.ui.Alignment.Center
+            ) {
+                Surface(
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
+                    color = Color.White, tonalElevation = 6.dp,
+                    modifier = Modifier.fillMaxHeight(0.92f)
+                ) {
+                    Column {
+                        androidx.compose.material3.DateRangePicker(
+                            state = asRangeState,
+                            modifier = Modifier.weight(1f),
+                            showModeToggle = false,
+                            title = {
+                                Text(
+                                    "🔧 A/S 예약 — 시작일 → 끝날 (하루면 시작일만) · 무료",
+                                    fontSize = 13.sp, color = Color(0xFFF5920B), fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(start = 20.dp, top = 16.dp, end = 12.dp)
+                                )
+                            }
+                        )
+                        androidx.compose.foundation.layout.Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            if (customer?.asScheduledDate != null) {
+                                TextButton(onClick = {
+                                    viewModel.updateAsSchedule(null, 1)
+                                    asPickerOpen = false
+                                    android.widget.Toast.makeText(context, "A/S 예약을 취소했어요", android.widget.Toast.LENGTH_SHORT).show()
+                                }) { Text("A/S 취소", color = TossError, fontWeight = FontWeight.SemiBold) }
+                            } else {
+                                Spacer(Modifier.width(1.dp))
+                            }
+                            androidx.compose.foundation.layout.Row(
+                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                            ) {
+                                TextButton(onClick = { asPickerOpen = false }) {
+                                    Text("취소", color = TossTextSecondary)
+                                }
+                                TextButton(onClick = {
+                                    val start = asRangeState.selectedStartDateMillis
+                                    if (start != null) {
+                                        val end = asRangeState.selectedEndDateMillis
+                                        val days = if (end != null && end > start)
+                                            ((end - start) / DateTimeUtils.DAY_MS).toInt() + 1 else 1
+                                        viewModel.updateAsSchedule(start, days.coerceAtLeast(1))
+                                    }
+                                    asPickerOpen = false
+                                }) { Text("저장", color = TossBlue, fontWeight = FontWeight.SemiBold) }
                             }
                         }
                     }

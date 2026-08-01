@@ -438,6 +438,13 @@ class CustomerDetailViewModel(
         }
     }
 
+    /** A/S 예약(시공과 별개, 무료) 설정/취소 — date=null 이면 A/S 지움. 기간(며칠) 함께. DB v43. (2026-08-01 사장님) */
+    fun updateAsSchedule(date: Long?, days: Int) = viewModelScope.launch {
+        withContext(NonCancellable) {
+            container.customerRepository.updateAsSchedule(customerId, date, days)
+        }
+    }
+
     /**
      * 시공 예약일 설정. epoch ms (자정으로 정규화). 취소는 null.
      * 2026-05-25: 자동 status RESERVATION_CONFIRMED 전환 제거 — 카테고리 시스템으로 이관.

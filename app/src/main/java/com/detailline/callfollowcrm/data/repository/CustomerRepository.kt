@@ -229,6 +229,17 @@ class CustomerRepository(
         ))
     }
 
+    /** A/S 예약(시공과 별개, 무료) 설정/변경/취소. date=null 이면 A/S 지움. 기간(며칠)도 함께. DB v43. (2026-08-01 사장님) */
+    suspend fun updateAsSchedule(id: Long, date: Long?, days: Int) {
+        val c = dao.findById(id) ?: return
+        val normalized = date?.let { com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(it) }
+        dao.update(c.copy(
+            asScheduledDate = normalized,
+            asScheduledDays = days.coerceAtLeast(1),
+            updatedAt = System.currentTimeMillis()
+        ))
+    }
+
     /**
      * 현장 주소 설정/변경/지움(null) — 사장님 수동 등록 (2026-05-28, DB v15).
      *   AddressExtractor 자동 추출보다 우선. 길찾기/§13 가 이 값을 1순위로 활용.
