@@ -8309,3 +8309,12 @@ docs/ 정리 — 끝난 핸드오프 50개를 docs/archive/ 로 이동 (삭제 �
 - 지금은 **로컬 폴백**(withMe/byMe 그룹핑, 입금여부 "—"). **cowork 가 `GET /api/shared/monthly`(docs/SERVER_HANDOFF_collab_monthly.md) 구현하면** 앱 수정 없이 자동 승격(입금표시+전체이력).
 - commit: e355f10. 내부트랙 자동배포됨.
 - + MMS 읽음-스킵 fix(caf9725): 이미 읽은 MMS는 뒤늦은 알림 skip("읽었는데 몇 초 뒤 딩동" 방지). queryInboxMmsSince 가 read 컬럼 조회.
+
+## 2026-08-01 21:49 · cowork
+협업 월별 집계 API + 인증문자 발신전용 문구. 회신: docs/SERVER_HANDOFF_collab_monthly_DONE.md.
+- GET /api/shared/monthly?phone=&ym= — 월별·양방향(received/given) 집계. accepted만, 달=scheduled_at_ms(없으면 created). available_months 최신순. 계약서 필드 그대로 → 앱 수정 없이 자동 승격.
+- 검증 TestClient 13 ALL OK(월필터·양방향·입금·거절제외·이름·빈응답).
+- 인증문자 본문에 "※ 발신전용" 추가(사장님) — 앱 자동읽기 호환(인증번호 키워드+코드 맨앞, 발신전용에 6자리 숫자 X). LMS 전환됨.
+- ⚠️ SOLAPI SENDER=01039690479 변경은 plist env(사장님/배포측). 코드 아님.
+- 미배포: bash server/deploy_phase1.sh
+- commit: (아래)

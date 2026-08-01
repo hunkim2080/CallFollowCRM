@@ -20984,10 +20984,14 @@ async def auth_request_code(req: AuthCodeRequest) -> dict:
             (phone, code, now + AUTH_CODE_TTL_SEC * 1000, now, sent_today + 1, today),
         )
         con.commit()
-    # 추가86c — 브랜딩 문구 포함 (사장님 요청). 90바이트 이내 = 단문 SMS 요금 유지.
+    # 추가86c — 브랜딩 + 발신전용 안내(사장님 2026-07-31). 앱 자동읽기 호환:
+    #   "인증번호" 키워드 유지 + 6자리 코드를 본문 맨 앞쪽(다른 6자리+숫자보다 앞)에 둠.
+    #   발신전용 문구엔 6자리 숫자 넣지 않음(자동입력 오인 방지).
     await _send_sms_solapi(
         phone,
-        f"[시공막내] 인증번호 [{code}]\n사장님의 막내 비서, 시공막내입니다. (5분 이내 입력)"
+        f"[시공막내] 인증번호 [{code}] (5분 이내 입력)\n"
+        f"사장님의 막내 비서, 시공막내입니다.\n"
+        f"※ 발신전용 — 통화·회신 불가. 문의는 앱에서."
     )
     print(f"[auth/request] {phone} 발송 ({sent_today + 1}/{AUTH_CODE_MAX_PER_DAY})")
     return {"ok": True, "expiresInSec": AUTH_CODE_TTL_SEC}
@@ -25627,3 +25631,85 @@ async def admin_diagnostics_image(rid: int, t: Optional[str] = None):
     if not (os.path.realpath(p).startswith(safe_dir) and os.path.isfile(p)):
         raise HTTPException(404, "파일 없음")
     return FileResponse(p, media_type="image/jpeg")
+
+
+# ── 협업 월별 양방향 집계 (협업 기록 화면, docs/SERVER_HANDOFF_collab_monthly.md) ──
+def _ym_kst(ms) -> str:
+    """epoch ms → 'YYYY-MM' (KST). 0/None 이면 ''."""
+    if not ms:
+        return ""
+    import datetime as _d
+    return _d.datetime.utcfromtimestamp(int(ms) / 1000 + 9 * 3600).strftime("%Y-%m")
+
+
+@app.get("/api/shared/monthly")
+async def shared_monthly(phone: str, ym: Optional[str] = None) -> dict:
+    """협업 월별·양방향 집계. received=내가 받은(수입) / given=내가 준(지출).
+    수락(accepted) 현장만. 달 기준 = scheduled_at_ms(없으면 created_at_ms)."""
+    me = _norm_phone(phone)
+    if not me:
+        raise HTTPException(400, "phone 필수")
+    with db_conn() as con:
+        rows = con.execute(
+            "SELECT share_id, owner_phone, partner_phone, title, scheduled_at_ms, "
+            "created_at_ms, daily_wage, paid_at_ms, owner_name_raw, partner_name_raw "
+            "FROM shared_sites "
+            "WHERE (partner_phone = ? OR owner_phone = ?) AND status = 'accepted'",
+            (me, me),
+        ).fetchall()
+
+    # 달 버킷 계산 + available_months
+    months = set()
+    enriched = []
+    for r in rows:
+        (sid, o_ph, p_ph, title, sched, created, wage, paid_at, o_name, p_name) = r
+        at = int(sched or 0) or int(created or 0)
+        ymv = _ym_kst(at)
+        if ymv:
+            months.add(ymv)
+        enriched.append((sid, _norm_phone(o_ph), _norm_phone(p_ph), title, at, ymv,
+                         int(wage or 0), bool(paid_at), o_name, p_name))
+    avail = sorted(months, reverse=True)
+    target = (ym or "").strip() or (avail[0] if avail else "")
+
+    def _agg(direction: str) -> dict:
+        # received: 내가 partner(B). 상대 = owner(A). 이름 = owner_name.
+        # given:    내가 owner(A).   상대 = partner(B). 이름 = partner_name.
+        groups = {}
+        for (sid, o_ph, p_ph, title, at, ymv, wage, paid, o_name, p_name) in enriched:
+            if ymv != target:
+                continue
+            if direction == "received":
+                if p_ph != me:
+                    continue
+                other = o_ph
+                other_name = (o_name or "").strip() or _is_registered_owner(o_ph) or "사장님"
+            else:  # given
+                if o_ph != me:
+                    continue
+                other = p_ph
+                other_name = (p_name or "").strip() or _is_registered_owner(p_ph) or "협업자"
+            g = groups.setdefault(other, {
+                "partner_phone": other, "partner_name": other_name,
+                "count": 0, "total_wage": 0, "paid_total": 0, "last_at_ms": 0, "sites": [],
+            })
+            g["count"] += 1
+            g["total_wage"] += wage
+            if paid:
+                g["paid_total"] += wage
+            g["last_at_ms"] = max(g["last_at_ms"], at)
+            g["sites"].append({"share_id": sid, "at_ms": at,
+                               "title": (title or "").strip() or "현장",
+                               "wage": wage, "paid": paid})
+        parts = sorted(groups.values(), key=lambda x: x["last_at_ms"], reverse=True)
+        for g in parts:
+            g["sites"].sort(key=lambda s: s["at_ms"])
+        return {
+            "count": sum(g["count"] for g in parts),
+            "total_wage": sum(g["total_wage"] for g in parts),
+            "paid_total": sum(g["paid_total"] for g in parts),
+            "partners": parts,
+        }
+
+    return {"ym": target, "available_months": avail,
+            "received": _agg("received"), "given": _agg("given")}
