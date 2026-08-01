@@ -37,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.presentation.theme.Pretendard
@@ -127,8 +128,16 @@ fun TossCard(
     onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
+    // 프로토 카드 box-shadow(0 2px 10px rgba(17,24,39,.05)) 복원 — 흰카드(#FFF)가 페이지(#F4F5F7)와
+    //   거의 같은 색이라 그림자 없으면 안 떠서 밋밋·뿌옇게 보임. 은은한 네이비 그림자로 카드가 뜸. (2026-08-02 사장님)
     val base = modifier
         .fillMaxWidth()
+        .shadow(
+            elevation = 4.dp,
+            shape = RoundedCornerShape(18.dp),
+            spotColor = Color(0xFF111827),
+            ambientColor = Color(0xFF111827)
+        )
         .background(Color.White, RoundedCornerShape(18.dp))
     val clickable = if (onClick != null) base.clickable(onClick = onClick) else base
     Box(modifier = clickable.padding(contentPadding)) {
