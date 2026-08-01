@@ -396,7 +396,8 @@ fun FollowUpScreen(
     }
 
     if (firstMetPickerOpen) {
-        val initial = state.firstMetAt ?: System.currentTimeMillis()
+        // 시간대 보정 — DatePicker 는 UTC 해석이라 아침(KST)엔 하루 일찍 하이라이트됨. 로컬 오프셋 더해 보정. (2026-08-01 사장님)
+        val initial = (state.firstMetAt ?: System.currentTimeMillis()).let { it + java.util.TimeZone.getDefault().getOffset(it) }
         val pickerState = androidx.compose.material3.rememberDatePickerState(initialSelectedDateMillis = initial)
         androidx.compose.material3.DatePickerDialog(
             onDismissRequest = { firstMetPickerOpen = false },

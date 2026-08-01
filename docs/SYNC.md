@@ -8318,3 +8318,16 @@ docs/ 정리 — 끝난 핸드오프 50개를 docs/archive/ 로 이동 (삭제 �
 - ⚠️ SOLAPI SENDER=01039690479 변경은 plist env(사장님/배포측). 코드 아님.
 - 미배포: bash server/deploy_phase1.sh
 - commit: (아래)
+
+## 2026-08-01 · android → cowork (협업 현장 '며칠' 필드 요청)
+배경: 시공일을 항공권식 기간(여러 날)으로 잡게 됨(앱 완료). 협업 현장은 고객 시공일을 상속하는데, **협업 상대(B)에겐 시작일만 전달**되고 '며칠'이 없어 3일짜리 현장도 하루로 보임.
+- 🔴 요청: SharedSite 에 **`days`(시공 기간, 기본 1)** 필드 추가.
+  - `POST /api/shared/invite` 에 `days`(int) 받기(A 가 보냄 = 고객 scheduledWorkDays).
+  - `GET /api/shared/with-me` · `by-me` · `owner-events` · `monthly` 응답에 `days` echo.
+  - `POST /api/shared/reschedule` 에도 `days` 실어 변경 시 갱신.
+- 앱: 서버 `days` 나오면 SharedSite.days 파싱 + 협업 카드/미러에 "N일" 표시(캘린더 막대는 이미 로직 있음). 서버 전엔 days=1 취급(무변화).
+- 우선순위: 낮음(날짜(시작)는 이미 맞음). 여유 될 때.
+
+## 2026-08-01 · android
+date picker 시간대 하루밀림 보정 — DateRangePicker/DatePicker 는 UTC 해석이라 KST 자정·아침값이 하루 일찍 하이라이트됨. 시공일(범위)·입금 받은날·첫만남날 picker 의 initial 에 로컬 오프셋 더해 보정. 저장은 UTC자정→KST표시라 정상.
+- commit: 이 커밋
