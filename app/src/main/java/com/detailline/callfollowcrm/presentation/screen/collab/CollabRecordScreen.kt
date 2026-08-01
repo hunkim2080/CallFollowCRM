@@ -34,6 +34,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,6 +45,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.detailline.callfollowcrm.ai.SharedSiteRepository.DirectionAgg
 import com.detailline.callfollowcrm.ai.SharedSiteRepository.PartnerMonth
 import com.detailline.callfollowcrm.presentation.screen.collab.CollabRecordViewModel.Companion.dayLabel
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
@@ -54,16 +58,16 @@ import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 
 private val GreenBg = Color(0xFFE7F8F0)
+private val GreenDeep = Color(0xFF0F9B5C)
 private val RedBg = Color(0xFFFDECF0)
+private val RedDeep = Color(0xFFD5325C)
 private val WaitBg = Color(0xFFFFF3E0)
 private val WaitFg = Color(0xFFE08600)
 
-/** 협업 사장님 한 명 + 방향(받은/준). */
-private data class PartnerLine(val p: PartnerMonth, val received: Boolean)
-
 /**
- * 협업 기록 — 협업 사장별·월별(받은/준). 기록·세금용. 승인 목업: design-preview/collab_record_mockup.html (2026-08-01 사장님).
+ * 협업 기록 — 협업 사장별·월별(받은/준). 기록·세금용. 승인 목업: design-preview/collab_record_mockup.html + 탭 버전(2026-08-01 사장님).
  *   §0: 프로토에 없던 새 화면(사장님 승인). 통계 화면(프로토 고정)엔 손 안 대고 더보기에서 진입.
+ *   받은/준을 **탭으로 분리**(토스식) — 한 번에 한 방향만 보여 처음 보는 사람도 안 헷갈리게. (사장님 피드백)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,9 +75,10 @@ fun CollabRecordScreen(viewModel: CollabRecordViewModel, onBack: () -> Unit) {
     val s by viewModel.state.collectAsState()
     val ctx = LocalContext.current
 
-    val lines: List<PartnerLine> =
-        (s.received.partners.map { PartnerLine(it, true) } + s.given.partners.map { PartnerLine(it, false) })
-            .sortedByDescending { it.p.lastAtMs }
+    // 탭 선택 — 사용자가 안 누른 동안은 데이터 많은 쪽 자동 선택(빈 탭 먼저 안 보이게).
+    var manualReceived by remember { mutableStateOf<Boolean?>(null) }
+    val showReceived = manualReceived ?: (s.received.count >= s.given.count)
+    val agg: DirectionAgg = if (showReceived) s.received else s.given
 
     Scaffold(
         containerColor = TossGrayBg,
@@ -98,34 +103,36 @@ fun CollabRecordScreen(viewModel: CollabRecordViewModel, onBack: () -> Unit) {
                 MonthSelector(s, viewModel)
                 Spacer(Modifier.height(14.dp))
             }
-            item(key = "summary") {
-                SummaryRow(s)
+            item(key = "tabs") {
+                DirectionTabs(
+                    received = s.received, given = s.given, showReceived = showReceived,
+                    onSelect = { manualReceived = it }
+                )
                 Spacer(Modifier.height(16.dp))
             }
 
-            if (!s.loading && lines.isEmpty()) {
-                item(key = "empty") { EmptyState(hasMonths = s.availableMonths.isNotEmpty()) }
+            if (!s.loading && agg.partners.isEmpty()) {
+                item(key = "empty") { EmptyState(showReceived = showReceived, hasMonths = s.availableMonths.isNotEmpty()) }
             } else {
                 item(key = "secttl") {
                     Text(
-                        "협업 사장님 (${lines.size}명)",
+                        (if (showReceived) "받은 협업 사장님" else "준 협업 사장님") + " (${agg.partners.size}명)",
                         fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
                         modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
                     )
                 }
-                items(lines, key = { it.p.partnerPhone + "|" + it.p.partnerName + "|" + it.received }) { line ->
-                    PartnerCard(line, s.paidUnknown)
+                items(agg.partners, key = { it.partnerPhone + "|" + it.partnerName }) { p ->
+                    PartnerCard(p, received = showReceived, paidUnknown = s.paidUnknown)
                     Spacer(Modifier.height(10.dp))
                 }
                 item(key = "export") {
                     Spacer(Modifier.height(4.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(Color.White)
+                            .clip(RoundedCornerShape(14.dp)).background(Color.White)
                             .border(1.dp, TossDivider, RoundedCornerShape(14.dp))
                             .clickable {
-                                val text = buildExportText(s, lines)
+                                val text = buildExportText(s, showReceived, agg)
                                 runCatching {
                                     ctx.startActivity(Intent.createChooser(
                                         Intent(Intent.ACTION_SEND).apply {
@@ -138,8 +145,8 @@ fun CollabRecordScreen(viewModel: CollabRecordViewModel, onBack: () -> Unit) {
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("⬇ 이 달 내역 저장하기", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossBlue)
-                        Text(" (기록·세금용)", fontSize = 13.sp, color = TossTextTertiary)
+                        Text("⬇ 이 달 '${if (showReceived) "받은" else "준"}' 내역 저장하기",
+                            fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossBlue)
                     }
                     Spacer(Modifier.height(20.dp))
                 }
@@ -184,49 +191,55 @@ private fun ArrowBtn(sym: String, enabled: Boolean, onClick: () -> Unit) {
     }
 }
 
-/* ─────────────── 받은/준 요약 ─────────────── */
+/* ─────────────── 받은/준 탭 ─────────────── */
 
 @Composable
-private fun SummaryRow(s: CollabRecordViewModel.UiState) {
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        SummaryCard(
-            dot = TossSuccess, label = "받은 협업 (내가 받음)",
-            amount = "+${s.received.totalWage}만원", amountColor = TossSuccess,
-            sub = "${s.received.count}건 · ${s.received.partners.size}명 사장님",
+private fun DirectionTabs(received: DirectionAgg, given: DirectionAgg, showReceived: Boolean, onSelect: (Boolean) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        DirTab(
+            selected = showReceived, isReceived = true,
+            amount = "+${received.totalWage}만원", count = received.count, people = received.partners.size,
             modifier = Modifier.weight(1f)
-        )
-        SummaryCard(
-            dot = TossError, label = "준 협업 (내가 줌)",
-            amount = "−${s.given.totalWage}만원", amountColor = TossError,
-            sub = "${s.given.count}건 · ${s.given.partners.size}명 사장님",
+        ) { onSelect(true) }
+        DirTab(
+            selected = !showReceived, isReceived = false,
+            amount = "−${given.totalWage}만원", count = given.count, people = given.partners.size,
             modifier = Modifier.weight(1f)
-        )
+        ) { onSelect(false) }
     }
 }
 
 @Composable
-private fun SummaryCard(dot: Color, label: String, amount: String, amountColor: Color, sub: String, modifier: Modifier) {
+private fun DirTab(selected: Boolean, isReceived: Boolean, amount: String, count: Int, people: Int, modifier: Modifier, onClick: () -> Unit) {
+    val accent = if (isReceived) TossSuccess else TossError
+    val accentDeep = if (isReceived) GreenDeep else RedDeep
+    val bg = if (selected) (if (isReceived) GreenBg else RedBg) else Color.White
+    val border = if (selected) accent else TossDivider
     Column(
-        modifier = modifier.clip(RoundedCornerShape(16.dp)).background(Color.White)
-            .border(1.dp, TossDivider, RoundedCornerShape(16.dp)).padding(14.dp)
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp)).background(bg)
+            .border(1.5.dp, border, RoundedCornerShape(14.dp))
+            .clickable { onClick() }
+            .padding(vertical = 12.dp, horizontal = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(7.dp).clip(RoundedCornerShape(999.dp)).background(dot))
+            Box(Modifier.size(7.dp).clip(RoundedCornerShape(999.dp)).background(accent))
             Spacer(Modifier.width(5.dp))
-            Text(label, fontSize = 11.5.sp, color = TossTextSecondary, fontWeight = FontWeight.SemiBold, maxLines = 2)
+            Text(if (isReceived) "받은 (수입)" else "준 (지출)",
+                fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
+                color = if (selected) accentDeep else TossTextSecondary)
         }
-        Text(amount, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, color = amountColor,
-            letterSpacing = (-0.5).sp, modifier = Modifier.padding(top = 8.dp))
-        Text(sub, fontSize = 12.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 1.dp))
+        Text(amount, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.3).sp,
+            color = if (selected) accent else TossTextTertiary, modifier = Modifier.padding(top = 5.dp))
+        Text("${count}건 · ${people}명", fontSize = 11.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 1.dp))
     }
 }
 
 /* ─────────────── 협업 사장님 카드 ─────────────── */
 
 @Composable
-private fun PartnerCard(line: PartnerLine, paidUnknown: Boolean) {
-    val p = line.p
-    val received = line.received
+private fun PartnerCard(p: PartnerMonth, received: Boolean, paidUnknown: Boolean) {
     val initial = p.partnerName.trim().take(1).ifBlank { "협" }
     val remaining = p.totalWage - p.paidTotal
     val subRight = when {
@@ -246,19 +259,15 @@ private fun PartnerCard(line: PartnerLine, paidUnknown: Boolean) {
         ) {
             Box(
                 Modifier.size(38.dp).clip(RoundedCornerShape(12.dp))
-                    .background(if (received) Color(0xFFEAF2FE) else RedBg),
+                    .background(if (received) GreenBg else RedBg),
                 contentAlignment = Alignment.Center
             ) {
                 Text(initial, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold,
-                    color = if (received) TossBlue else TossError)
+                    color = if (received) GreenDeep else RedDeep)
             }
             Spacer(Modifier.width(11.dp))
             Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(p.partnerName, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-                    Spacer(Modifier.width(6.dp))
-                    Badge(if (received) "받은" else "준", received)
-                }
+                Text(p.partnerName, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
                 Text("${p.count}건 · 최근 ${dayLabelShort(p.lastAtMs)}",
                     fontSize = 12.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 2.dp))
             }
@@ -271,10 +280,7 @@ private fun PartnerCard(line: PartnerLine, paidUnknown: Boolean) {
             }
         }
         // 현장별
-        Column(
-            modifier = Modifier.fillMaxWidth()
-                .padding(start = 62.dp, end = 14.dp)
-        ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(start = 62.dp, end = 14.dp)) {
             Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
             p.sites.forEach { site ->
                 Row(
@@ -295,17 +301,6 @@ private fun PartnerCard(line: PartnerLine, paidUnknown: Boolean) {
 }
 
 @Composable
-private fun Badge(text: String, received: Boolean) {
-    Box(
-        Modifier.clip(RoundedCornerShape(6.dp)).background(if (received) GreenBg else RedBg)
-            .padding(horizontal = 7.dp, vertical = 1.5.dp)
-    ) {
-        Text(text, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold,
-            color = if (received) TossSuccess else TossError)
-    }
-}
-
-@Composable
 private fun PayBadge(paid: Boolean, received: Boolean) {
     val (bg, fg, label) = when {
         paid && received -> Triple(GreenBg, TossSuccess, "입금완료")
@@ -321,19 +316,23 @@ private fun PayBadge(paid: Boolean, received: Boolean) {
 /* ─────────────── 빈 상태 ─────────────── */
 
 @Composable
-private fun EmptyState(hasMonths: Boolean) {
+private fun EmptyState(showReceived: Boolean, hasMonths: Boolean) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text("🤝", fontSize = 40.sp)
         Text(
-            if (hasMonths) "이 달은 협업 기록이 없어요" else "아직 협업 기록이 없어요",
+            when {
+                !hasMonths -> "아직 협업 기록이 없어요"
+                showReceived -> "이 달 받은 협업이 없어요"
+                else -> "이 달 준 협업이 없어요"
+            },
             fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
             modifier = Modifier.padding(top = 12.dp)
         )
         Text(
-            "협업 현장을 함께하면 여기에 사장님별·월별로 모여요.",
+            if (showReceived) "다른 사장님이 나를 부른 협업이 여기 모여요." else "내가 다른 사장님을 부른 협업이 여기 모여요.",
             fontSize = 13.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 6.dp)
         )
     }
@@ -342,20 +341,19 @@ private fun EmptyState(hasMonths: Boolean) {
 /* 최근 라벨은 "M/d" 만(요일 생략) — 좁은 카드용. */
 private fun dayLabelShort(ms: Long): String = dayLabel(ms).substringBefore("(")
 
-/* ─────────────── 텍스트 내보내기(저장/공유) ─────────────── */
+/* ─────────────── 텍스트 내보내기(저장/공유) — 선택 탭 기준 ─────────────── */
 
-private fun buildExportText(s: CollabRecordViewModel.UiState, lines: List<PartnerLine>): String {
+private fun buildExportText(s: CollabRecordViewModel.UiState, showReceived: Boolean, agg: DirectionAgg): String {
+    val dir = if (showReceived) "받은" else "준"
     val sb = StringBuilder()
-    sb.append("[협업 기록] ${s.monthLabel}\n")
-    sb.append("받은 협업 ${s.received.count}건 · ${s.received.totalWage}만원\n")
-    sb.append("준 협업 ${s.given.count}건 · ${s.given.totalWage}만원\n")
-    lines.forEach { line ->
-        val p = line.p
-        sb.append("\n▸ ${p.partnerName} (${if (line.received) "받은" else "준"}) ${p.count}건 ${p.totalWage}만원\n")
+    sb.append("[협업 기록 · $dir] ${s.monthLabel}\n")
+    sb.append("$dir 협업 ${agg.count}건 · ${agg.totalWage}만원\n")
+    agg.partners.forEach { p ->
+        sb.append("\n▸ ${p.partnerName} ${p.count}건 ${p.totalWage}만원\n")
         p.sites.forEach { site ->
             val pay = when (site.paid) {
-                true -> if (line.received) " (입금완료)" else " (지급완료)"
-                false -> if (line.received) " (받을 예정)" else " (지급 예정)"
+                true -> if (showReceived) " (입금완료)" else " (지급완료)"
+                false -> if (showReceived) " (받을 예정)" else " (지급 예정)"
                 null -> ""
             }
             sb.append("  · ${dayLabel(site.atMs)} ${site.title} ${site.wage}만$pay\n")
