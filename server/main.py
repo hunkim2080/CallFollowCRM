@@ -3340,7 +3340,11 @@ const fmtKRW2 = n => {  // 소수점 둘째 자리까지 (한 건당 평균 단�
 };
 
 async function fetchJSON(url, opts) {
-  const r = await fetch(url, Object.assign({ cache: 'no-store' }, opts || {}));
+  opts = Object.assign({ cache: 'no-store' }, opts || {});
+  // 보안 §A — 저장된 관리자 토큰이 있으면 Bearer 로 자동 부착 (/admin/usage 등 보호 엔드포인트).
+  var _tk = getAdminToken();
+  if (_tk) opts.headers = Object.assign({ 'Authorization': 'Bearer ' + _tk }, opts.headers || {});
+  const r = await fetch(url, opts);
   if (!r.ok) throw new Error(url + ' → HTTP ' + r.status);
   return r.json();
 }
@@ -3372,12 +3376,20 @@ async function loadAll() {
   btn.disabled = true;
   document.getElementById('err').style.display = 'none';
   try {
-    const [today, month, allp, ad] = await Promise.all([
+    const [today, month, allp] = await Promise.all([
       fetchJSON('/api/usage-stats?period=today'),
       fetchJSON('/api/usage-stats?period=month'),
       fetchJSON('/api/usage-stats?period=all'),
-      fetchJSON('/admin/usage'),
     ]);
+    // /admin/usage 는 관리자 토큰 필요(보안 §A) — 실패해도 위 카드는 유지, 하단 상세만 스킵.
+    let ad = null;
+    try { ad = await fetchJSON('/admin/usage'); }
+    catch (e) {
+      if (('' + e).indexOf('401') >= 0 || ('' + e).indexOf('403') >= 0) {
+        var _lc = document.getElementById('adminLockCard');
+        if (_lc) _lc.style.display = 'block';
+      }
+    }
 
     // ─── 오늘/이번달/전체 hero card ───
     document.getElementById('todayCost').textContent  = fmtKRW(today.total.cost_krw);
@@ -3617,7 +3629,8 @@ async function loadAll() {
       }).join('');
     }
 
-    // ─── 시스템 카드 ───
+    // ─── 시스템 카드 (ad = /admin/usage, 토큰 없으면 null → 스킵) ───
+    if (ad) {
     document.getElementById('rl24').textContent      = fmt(ad.calls);
     document.getElementById('rlMax').textContent     = fmt(ad.dailyTotalLimit);
     document.getElementById('perPhone').textContent  = fmt(ad.perPhoneDailyLimit) + ' 건/일';
@@ -3628,6 +3641,7 @@ async function loadAll() {
     bar.querySelector('span').style.width = Math.min(100, pct).toFixed(1) + '%';
     bar.classList.toggle('warn', pct >= 60 && pct < 85);
     bar.classList.toggle('hot',  pct >= 85);
+    }
 
     const now = new Date();
     document.getElementById('meta').textContent = '마지막 업데이트 ' +

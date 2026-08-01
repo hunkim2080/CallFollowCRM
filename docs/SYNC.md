@@ -8355,3 +8355,11 @@ A/S 그날 아침 알림 추가 — '오늘 A/S 있어요 🔧'. (사장님 "필
 앱 전체 카드 그림자 복원 — 밋밋/뿌옇 해결 (사장님 ㄱㄱ).
 - TossCard(공용 컴포넌트)에 Modifier.shadow(4dp) → 홈·일정·리스트·정산·통계 등 앱 전체 카드가 은은히 뜸. 프로토 box-shadow 복원.
 - 고객상세는 인라인+틴트 카드라 별도(대체로 틴트로 이미 구분됨). commit d669532. 서버 영향 없음.
+
+## 2026-08-02 00:56 · cowork (fix: 사용량 대시보드 401)
+§A 보안 후속 — /admin/usage-chart 가 '/admin/usage → HTTP 401' 뜨던 것 (사장님 신고).
+- 원인: §A 로 /admin/usage 에 인증 강제했는데, 이 페이지 fetchJSON 이 저장된 관리자 토큰을 안 붙였음.
+- fix: (1) fetchJSON 이 localStorage(ringgo_admin_token) 있으면 Authorization: Bearer 자동 부착. (2) /admin/usage 를 Promise.all 에서 분리 → 401 나도 상단 카드(usage-stats 공개)·모델카드는 그대로, 하단 레이트리밋 섹션만 스킵 + 토큰 입력칸 노출. (ad null 가드)
+- 사장님: 페이지에서 관리자 토큰(ADMIN_TOKEN) 한 번 입력하면 이 브라우저에 저장돼 이후 정상. (배포 후)
+- 검증 TestClient 5 OK. 미배포: bash server/deploy_phase1.sh
+- commit: (아래)
