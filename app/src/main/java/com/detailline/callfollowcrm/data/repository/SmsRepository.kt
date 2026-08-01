@@ -406,16 +406,16 @@ class SmsRepository(
      *   SmsReceiver 는 SMS 만 잡고 앱이 기본문자앱이 아니라 MMS WAP_PUSH 도 못 받음 → 이걸로 알림을 채운다.
      *   미리보기: 텍스트 있으면 텍스트, 사진만이면 "📷 사진 N장을 보냈어요".
      */
-    data class IncomingMms(val mmsId: Long, val sender: String, val preview: String, val dateMs: Long)
+    data class IncomingMms(val mmsId: Long, val sender: String, val preview: String, val dateMs: Long, val read: Boolean)
 
     fun queryInboxMmsSince(sinceMs: Long, limit: Int = 10): List<IncomingMms> {
         if (!hasReadPermission()) return emptyList()
         val sinceSec = sinceMs / 1000L
-        val ids = ArrayList<Pair<Long, Long>>()  // (mmsId, dateMs)
+        val ids = ArrayList<Triple<Long, Long, Boolean>>()  // (mmsId, dateMs, read)
         runCatching {
             context.contentResolver.query(
                 Uri.parse("content://mms"),
-                arrayOf(COL_ID, COL_DATE),
+                arrayOf(COL_ID, COL_DATE, "read"),
                 Bundle().apply {
                     putString(ContentResolver.QUERY_ARG_SQL_SELECTION, "msg_box=? AND $COL_DATE>?")
                     putStringArray(
@@ -430,11 +430,15 @@ class SmsRepository(
         }.getOrNull()?.use { c ->
             val idIdx = c.getColumnIndex(COL_ID)
             val dIdx = c.getColumnIndex(COL_DATE)
-            if (idIdx >= 0 && dIdx >= 0) while (c.moveToNext()) ids += c.getLong(idIdx) to (c.getLong(dIdx) * 1000L)
+            val rIdx = c.getColumnIndex("read")
+            if (idIdx >= 0 && dIdx >= 0) while (c.moveToNext()) {
+                val read = rIdx >= 0 && c.getInt(rIdx) == 1
+                ids += Triple(c.getLong(idIdx), c.getLong(dIdx) * 1000L, read)
+            }
         }
         if (ids.isEmpty()) return emptyList()
         val out = ArrayList<IncomingMms>()
-        for ((id, dateMs) in ids) {
+        for ((id, dateMs, read) in ids) {
             val sender = pickRelevantAddress(getMmsAddresses(id), MMS_BOX_INBOX) ?: continue
             val (text, images) = getMmsParts(id)
             val t = text.trim().replace("\n", " ")
@@ -444,7 +448,7 @@ class SmsRepository(
                 images.isNotEmpty() -> "📷 사진 ${images.size}장을 보냈어요"
                 else -> "새 문자를 보냈어요"
             }
-            out += IncomingMms(id, sender, preview, dateMs)
+            out += IncomingMms(id, sender, preview, dateMs, read)
         }
         return out
     }

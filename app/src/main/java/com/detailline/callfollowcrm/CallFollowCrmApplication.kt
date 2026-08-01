@@ -517,6 +517,9 @@ class CallFollowCrmApplication : Application() {
             // ① 이미 알린 MMS(_id) → skip. date 가 단계마다 바뀌어도 같은 문자는 한 번만.
             val key = m.mmsId.toString()
             if (key in notifiedIds || key in freshIds) continue
+            // ③ 이미 읽은 MMS(사장님이 삼성 기본앱 등에서 먼저 읽음)면 뒤늦은 알림 skip.
+            //   MMS 는 2단계(신호→다운로드 몇 초)라, 다운로드 감지 시점엔 이미 읽었을 수 있음 → "읽었는데 몇 초 뒤 딩동" 방지. (2026-08-01 사장님)
+            if (m.read) { freshIds.add(key); continue }
             val customer = runCatching { container.customerRepository.findByPhone(m.sender) }.getOrNull()
             val categoryLabel = customer?.categoryId?.let { cid ->
                 runCatching { container.categoryRepository.findById(cid)?.name }.getOrNull()
