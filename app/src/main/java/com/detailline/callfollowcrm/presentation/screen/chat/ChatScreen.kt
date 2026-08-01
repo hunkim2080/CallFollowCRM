@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -335,6 +336,8 @@ fun ChatScreen(
     //   templatePickerCategory = "" 이면 전체 템플릿, 카테고리 이름이면 그 카테고리만.
     var templatePickerCategory by remember { mutableStateOf<String?>(null) }
     var showDatePicker by remember { mutableStateOf(false) }
+    // 항공권식 날짜 범위선택에서 정한 시공 기간(며칠) — 시간 다이얼로그로 넘겨 함께 저장. (2026-08-01 사장님)
+    var pendingWorkDays by remember { mutableStateOf(1) }
     // 시공일 등록 직후 "시공 시간" 선택 다이얼로그를 띄울 날짜(ms). null=닫힘. (2026-06-23 사장님)
     var pendingScheduleTimeMs by remember { mutableStateOf<Long?>(null) }
     // confirm_schedule 액션 — 사장님이 고객에게 시공 가능 날짜 제안 흐름.
@@ -1411,27 +1414,63 @@ fun ChatScreen(
     // AI 제안 박스의 [시공일 등록] 액션 — DatePicker → CustomerEntity.scheduledWorkDate.
     // 등록 후 자동으로 "계약금 안내문도 만들어드릴까요?" 다이얼로그 표시 (P3 통합 흐름).
     if (showDatePicker) {
-        val datePickerState = rememberDatePickerState()
-        DatePickerDialog(
+        // 항공권식 기간 선택 — 시작일 → 끝날 탭하면 기간. 하루면 시작일만. (2026-08-01 사장님)
+        //   DateRangePicker 는 UTC 해석 → KST 자정을 로컬 오프셋만큼 보정해 하루 밀림 방지.
+        val rangeState = androidx.compose.material3.rememberDateRangePickerState(
+            initialSelectedStartDateMillis = customer?.scheduledWorkDate?.let { it + java.util.TimeZone.getDefault().getOffset(it) }
+        )
+        androidx.compose.ui.window.Dialog(
             onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    datePickerState.selectedDateMillis?.let { ts ->
-                        viewModel.setScheduledWorkDate(ts)
-                        pendingScheduleTimeMs = ts   // 날짜 등록 후 "시공 시간" 선택으로 이어감 (2026-06-23 사장님)
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 20.dp),
+                contentAlignment = androidx.compose.ui.Alignment.Center
+            ) {
+                Surface(
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
+                    color = Color.White, tonalElevation = 6.dp,
+                    modifier = Modifier.fillMaxHeight(0.92f)
+                ) {
+                    androidx.compose.foundation.layout.Column {
+                        androidx.compose.material3.DateRangePicker(
+                            state = rangeState,
+                            modifier = Modifier.weight(1f),
+                            showModeToggle = false,
+                            title = {
+                                Text(
+                                    "시공 기간 — 시작일 → 끝날 (하루면 시작일만)",
+                                    fontSize = 13.sp, color = TossTextSecondary, fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(start = 20.dp, top = 16.dp, end = 12.dp)
+                                )
+                            }
+                        )
+                        androidx.compose.foundation.layout.Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            TextButton(onClick = { showDatePicker = false }) {
+                                Text("취소", color = TossTextSecondary)
+                            }
+                            TextButton(onClick = {
+                                val start = rangeState.selectedStartDateMillis
+                                if (start != null) {
+                                    val end = rangeState.selectedEndDateMillis
+                                    val days = if (end != null && end > start)
+                                        ((end - start) / com.detailline.callfollowcrm.util.DateTimeUtils.DAY_MS).toInt() + 1 else 1
+                                    pendingWorkDays = days.coerceAtLeast(1)
+                                    viewModel.setScheduledWorkDate(start)
+                                    pendingScheduleTimeMs = start   // 날짜 등록 후 "시공 시간" 선택으로 이어감
+                                }
+                                showDatePicker = false
+                            }) {
+                                Text("등록", color = TossBlue, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
                     }
-                    showDatePicker = false
-                }) {
-                    Text("등록", color = TossBlue, fontWeight = FontWeight.SemiBold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) {
-                    Text("취소", color = TossTextSecondary)
                 }
             }
-        ) {
-            DatePicker(state = datePickerState)
         }
     }
 
@@ -1439,7 +1478,7 @@ fun ChatScreen(
     pendingScheduleTimeMs?.let { ts ->
         com.detailline.callfollowcrm.presentation.component.WorkTimePickerDialog(
             initialMinutes = customer?.scheduledWorkMinutes,
-            initialDays = customer?.scheduledWorkDays ?: 1,
+            initialDays = pendingWorkDays,
             onPick = { mins, days ->
                 viewModel.setScheduledWorkTiming(mins, days)
                 pendingScheduleTimeMs = null

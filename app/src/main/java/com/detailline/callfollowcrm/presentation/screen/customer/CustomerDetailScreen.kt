@@ -174,6 +174,8 @@ fun CustomerDetailScreen(
     // 날짜 저장 후 "시공 시간" 선택 + (첫 등록이면) 축하 보류 플래그. (2026-06-23 사장님)
     var workTimePickerOpen by remember { mutableStateOf(false) }
     var pendingCelebrate by remember { mutableStateOf(false) }
+    // 날짜 범위선택(항공권식)에서 정한 시공 기간(며칠) — 시간 다이얼로그로 넘겨 함께 저장. (2026-08-01 사장님)
+    var pendingWorkDays by remember { mutableStateOf(1) }
     // 현장 사진 삭제 확인 — null 이면 닫힘, 값 = 삭제 대상 photo id.
     var photoToDelete by remember { mutableStateOf<Long?>(null) }
     // 팀원(서버) 사진 삭제 확인 — 사장님이 퇴사한 팀원 사진도 지울 수 있게. (2026-06-07)
@@ -1045,31 +1047,42 @@ fun CustomerDetailScreen(
     }
 
     if (datePickerOpen && customer != null) {
-        val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = customer?.scheduledWorkDate ?: System.currentTimeMillis()
+        // 항공권식 기간 선택 — 시작일 → 끝날 탭하면 기간. 하루면 시작일만. (2026-08-01 사장님)
+        // DateRangePicker 는 밀리초를 UTC 로 해석 → 저장된 KST 자정을 그대로 주면 하루 일찍 보임. 로컬 오프셋 더해 보정. (2026-08-01)
+        val toUtcMidnight = { ms: Long -> ms + java.util.TimeZone.getDefault().getOffset(ms) }
+        val initStart = customer?.scheduledWorkDate
+        val initDays = (customer?.scheduledWorkDays ?: 1).coerceAtLeast(1)
+        val initEnd = initStart?.takeIf { initDays > 1 }?.let { it + (initDays - 1) * DateTimeUtils.DAY_MS }
+        val rangeState = androidx.compose.material3.rememberDateRangePickerState(
+            initialSelectedStartDateMillis = initStart?.let(toUtcMidnight),
+            initialSelectedEndDateMillis = initEnd?.let(toUtcMidnight)
         )
-        // DatePickerDialog 기본 동작이 화면 위쪽에 붙어 보이는 이슈가 있어
-        // Dialog 로 직접 감싸 vertical center 정렬. usePlatformDefaultWidth=false 로
-        // 시스템 dialog 마진을 무시하고 Box 안에서 중앙 정렬.
         Dialog(
             onDismissRequest = { datePickerOpen = false },
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
             androidx.compose.foundation.layout.Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
+                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 20.dp),
                 contentAlignment = androidx.compose.ui.Alignment.Center
             ) {
                 Surface(
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
                     color = Color.White,
-                    tonalElevation = 6.dp
+                    tonalElevation = 6.dp,
+                    modifier = Modifier.fillMaxHeight(0.92f)
                 ) {
                     Column {
-                        DatePicker(
-                            state = datePickerState,
-                            modifier = Modifier.padding(top = 8.dp)
+                        androidx.compose.material3.DateRangePicker(
+                            state = rangeState,
+                            modifier = Modifier.weight(1f),
+                            showModeToggle = false,
+                            title = {
+                                Text(
+                                    "시공 기간 — 시작일 → 끝날 (하루면 시작일만)",
+                                    fontSize = 13.sp, color = TossTextSecondary, fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(start = 20.dp, top = 16.dp, end = 12.dp)
+                                )
+                            }
                         )
                         androidx.compose.foundation.layout.Row(
                             modifier = Modifier
@@ -1098,11 +1111,15 @@ fun CustomerDetailScreen(
                                 }
                                 TextButton(
                                     onClick = {
-                                        val picked = datePickerState.selectedDateMillis
-                                        if (picked != null) {
-                                            // 날짜 저장 → "시공 시간" 선택 → (첫 등록이면) 축하. (2026-06-23 사장님)
+                                        val start = rangeState.selectedStartDateMillis
+                                        if (start != null) {
+                                            val end = rangeState.selectedEndDateMillis
+                                            val days = if (end != null && end > start)
+                                                ((end - start) / DateTimeUtils.DAY_MS).toInt() + 1 else 1
+                                            // 날짜(시작) + 기간(며칠) 저장 → "시공 시간" 선택 → (첫 등록이면) 축하. (2026-06-23 / 2026-08-01)
                                             pendingCelebrate = customer?.scheduledWorkDate == null
-                                            viewModel.updateScheduledWorkDate(picked)
+                                            pendingWorkDays = days.coerceAtLeast(1)
+                                            viewModel.updateScheduledWorkDate(start)
                                             workTimePickerOpen = true
                                         }
                                         datePickerOpen = false
@@ -1120,7 +1137,7 @@ fun CustomerDetailScreen(
     if (workTimePickerOpen && customer != null) {
         com.detailline.callfollowcrm.presentation.component.WorkTimePickerDialog(
             initialMinutes = customer?.scheduledWorkMinutes,
-            initialDays = customer?.scheduledWorkDays ?: 1,
+            initialDays = pendingWorkDays,
             onPick = { mins, days ->
                 viewModel.updateScheduledWorkTiming(mins, days)
                 workTimePickerOpen = false

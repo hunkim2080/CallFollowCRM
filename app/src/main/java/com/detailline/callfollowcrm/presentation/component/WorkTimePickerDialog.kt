@@ -44,13 +44,8 @@ private val WORK_TIME_CHIPS: List<Pair<String, Int>> = listOf(
     "오후 4시" to 16 * 60, "오후 5시" to 17 * 60, "오후 6시" to 18 * 60
 )
 
-/** 시공 기간(며칠) 빠른 선택. 프로토 schedDaysChips: 당일/2~6일/일주일. 7일 초과는 '일정 직접 추가'에서. (2026-08-01 사장님) */
-private val WORK_DAYS_CHIPS: List<Pair<String, Int>> = listOf(
-    "당일" to 1, "2일" to 2, "3일" to 3, "4일" to 4, "5일" to 5, "6일" to 6, "일주일" to 7
-)
-
 /**
- * "시공 시간 · 기간" 선택 다이얼로그.
+ * "시공 시간" 선택 다이얼로그.
  *   - 시공 기간(며칠): 칩 탭 = 위쪽에서 선택(강조). 기본 당일(1). 여러 날 현장이면 눌러서 바꿈.
  *   - 시공 시간: 칩 탭 = 선택된 기간과 함께 바로 저장+닫힘. "직접"=시:분 입력, "시간 미정"=null.
  *   날짜만 잡던 채팅·고객정보 흐름에 시간+기간을 더해 → 캘린더가 연속 막대로 그림. (2026-06-23 시간 / 2026-08-01 기간, 사장님)
@@ -64,7 +59,8 @@ fun WorkTimePickerDialog(
     onDismiss: () -> Unit
 ) {
     var showClock by remember { mutableStateOf(false) }
-    var days by remember { mutableStateOf(initialDays.coerceAtLeast(1)) }
+    // 기간(며칠)은 날짜 범위선택(DateRangePicker)에서 이미 정해져 넘어옴 — 여기선 그대로 실어보내기만.
+    val days = initialDays.coerceAtLeast(1)
 
     if (showClock) {
         val base = initialMinutes ?: 9 * 60
@@ -93,26 +89,7 @@ fun WorkTimePickerDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = RoundedCornerShape(24.dp), color = Color.White, tonalElevation = 6.dp) {
             Column(Modifier.fillMaxWidth().padding(20.dp)) {
-                // ── 시공 기간(며칠) ──
-                Text("시공 기간", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "며칠 동안 하나요? 여러 날이면 캘린더에 쭉 이어져요",
-                    fontSize = 12.5.sp, color = TossTextTertiary
-                )
-                Spacer(Modifier.height(12.dp))
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    WORK_DAYS_CHIPS.forEach { (label, d) ->
-                        PickChip(label, days == d) { days = d }
-                    }
-                }
-
-                Spacer(Modifier.height(20.dp))
-
-                // ── 시공 시간 ── (칩 탭 = 기간과 함께 저장+닫힘)
+                // ── 시공 시간 ── (기간은 날짜 범위선택에서 이미 정해져 옴. 칩 탭 = 기간과 함께 저장+닫힘)
                 Text("시공 시간", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
                 Spacer(Modifier.height(4.dp))
                 Text(
