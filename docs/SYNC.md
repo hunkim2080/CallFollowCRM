@@ -8331,3 +8331,11 @@ docs/ 정리 — 끝난 핸드오프 50개를 docs/archive/ 로 이동 (삭제 �
 ## 2026-08-01 · android
 date picker 시간대 하루밀림 보정 — DateRangePicker/DatePicker 는 UTC 해석이라 KST 자정·아침값이 하루 일찍 하이라이트됨. 시공일(범위)·입금 받은날·첫만남날 picker 의 initial 에 로컬 오프셋 더해 보정. 저장은 UTC자정→KST표시라 정상.
 - commit: 이 커밋
+
+## 2026-08-01 11:20 · android
+A/S 예약 기능 완성 — 시공과 별개로 A/S 기간을 따로 잡기(무료). 승인 목업(as_artifact) 1:1.
+- 변경: **DB v42→43** (customers.asScheduledDate/asScheduledDays 추가, 순수 ADD COLUMN·무손실). 서버/코워크 영향 없음(로컬 전용, 미러 스냅샷엔 아직 A/S 미포함 — 필요 시 추후).
+- 화면: 고객상세 '🔧 A/S 예약' 행(주황·무료·항공권식 범위선택) + 일정 캘린더 A/S 주황 점 + 선택일 '🔧 이 날 A/S N곳·무료' 카드. observeAsScheduled 는 시공 쿼리와 독립이라 'A/S만 있는 고객'도 캘린더에 뜸.
+- commit: 60f9093 (Phase 2a 입력·저장·상세), 63e04e0 (Phase 2b 캘린더 마커)
+- 폰검증: S9 마이그레이션 무손실 + A/S 8/20 저장→주황점·카드 확인.
+- 다음 액션(코워크, 선택): 팀원/미러 스냅샷에 A/S 일정도 넣을지 사장님 결정 후. 지금은 앱 로컬만으로 완결.
