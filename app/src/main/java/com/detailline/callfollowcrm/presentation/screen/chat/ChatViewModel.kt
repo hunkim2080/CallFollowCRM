@@ -1219,6 +1219,26 @@ class ChatViewModel(
     val aiReplyPrepEnabled: Boolean
         get() = container.preferences.aiReplyPrepEnabled && !container.preferences.isNonCustomer(phoneNumber)
 
+    /** 앱 설치 시각. 마지막 문자가 이 시각 **이전**인 대화 = 설치 전부터 폰에 쌓여있던 옛 대화(backlog).
+     *   backlog 는 '열어도' AI(추천·요약)를 자동 생성하지 않는다 — 신규 유입 시 옛 문자 대량 AI = 비용 폭탄 방지.
+     *   ↻(regenerateSuggestions)·요약 재시도(onRetry) 등 **사장님이 직접 누르는 건 가드 안 함**(원할 때만 생성).
+     *   새 문자가 오면 마지막 문자 시각이 설치 이후 → 자동 정상 동작. 기존 사용자는 설치가 오래전이라 무영향.
+     *   홈 카드요약 cardSummaryCutoffMs 와 동일 철학. (2026-08-02 사장님: 신규 설치서 옛 대화 열 때마다 자동 요약·추천=비용) */
+    private val installTimeMs: Long by lazy {
+        runCatching {
+            container.appContext.packageManager
+                .getPackageInfo(container.appContext.packageName, 0).firstInstallTime
+        }.getOrDefault(0L)
+    }
+    private suspend fun isBacklogConversation(): Boolean {
+        if (installTimeMs <= 0L) return false
+        val suffix = phoneNumber.filter { it.isDigit() }.takeLast(8)
+        if (suffix.length < 7) return false
+        val latest = runCatching { container.cachedMessageRepository.load(suffix, limit = 1) }
+            .getOrDefault(emptyList()).firstOrNull()?.dateMs ?: return false
+        return latest < installTimeMs
+    }
+
     fun loadSuggestions() = viewModelScope.launch {
         // 'AI 답변 준비' OFF 또는 '고객 아님' 번호 — 추천을 아예 안 만든다. (2026-07-16/18 사장님)
         if (!aiReplyPrepEnabled) {
@@ -1233,6 +1253,8 @@ class ChatViewModel(
         }
         // 통화로 끝난 대화면 답할 문자가 없음 → 추천 준비 안 함(스피너 X). (2026-06-17 사장님)
         if (lastActivityIsCall.value) return@launch
+        // 설치 전 옛 대화(backlog)는 자동 추천 생성 X — 신규 유입 시 비용 폭탄 방지. ↻ 누르면 그때 생성. (2026-08-02 사장님)
+        if (isBacklogConversation()) { _suggestionsLoading.value = false; return@launch }
         // (A 정책) 캐시가 옛 메시지 기준이면 자동으로 새 추천 생성 — 옛것은 화면에 흐리게 남고 스르륵 교체됨. (2026-06-27)
         if (refreshIfStale()) return@launch
         container.journeyEventRepository.track("llm_use", screen = "chat", target = "suggestions")
@@ -1286,6 +1308,9 @@ class ChatViewModel(
         val msgs = runCatching { container.cachedMessageRepository.load(suffix, limit = 20) }
             .getOrDefault(emptyList())
         if (msgs.isEmpty()) return@launch
+        // 설치 전 옛 대화(backlog: 마지막 문자가 설치 이전)는 요약 자동 생성 X — 신규 유입 시 비용 폭탄 방지.
+        //   사장님이 요약 영역을 직접 누르면(onRetry) 그때 생성. (2026-08-02 사장님)
+        if (installTimeMs > 0L && msgs.maxOf { it.dateMs } < installTimeMs) return@launch
 
         _isSummaryRefreshing.value = true
         _summaryFailed.value = false   // 새 시도 시작 — 실패 표시 초기화
