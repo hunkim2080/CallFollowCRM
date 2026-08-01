@@ -419,6 +419,25 @@ class CustomerDetailViewModel(
         }
     }
 
+    /** 시공 시간 + 기간(며칠) 동시 설정 — 날짜 선택 후 시간·기간 칩에서 호출. DB v24. (2026-08-01 사장님) */
+    fun updateScheduledWorkTiming(minutes: Int?, days: Int) = viewModelScope.launch {
+        withContext(NonCancellable) {
+            container.customerRepository.updateScheduledWorkTiming(customerId, minutes, days)
+        }
+        val suffix = customer.value?.phoneNumber?.filter { it.isDigit() }?.takeLast(8)
+        val date = customer.value?.scheduledWorkDate
+        if (suffix != null && suffix.length >= 7 && date != null) {
+            val full = scheduleLabel(date, minutes) ?: return@launch
+            withContext(NonCancellable) {
+                runCatching {
+                    container.timelineEventRepository.updateLatestScheduleNewValue(
+                        suffix, full, System.currentTimeMillis() - 5 * 60 * 1000
+                    )
+                }
+            }
+        }
+    }
+
     /**
      * 시공 예약일 설정. epoch ms (자정으로 정규화). 취소는 null.
      * 2026-05-25: 자동 status RESERVATION_CONFIRMED 전환 제거 — 카테고리 시스템으로 이관.

@@ -1439,8 +1439,9 @@ fun ChatScreen(
     pendingScheduleTimeMs?.let { ts ->
         com.detailline.callfollowcrm.presentation.component.WorkTimePickerDialog(
             initialMinutes = customer?.scheduledWorkMinutes,
-            onPick = { mins ->
-                viewModel.setScheduledWorkMinutes(mins)
+            initialDays = customer?.scheduledWorkDays ?: 1,
+            onPick = { mins, days ->
+                viewModel.setScheduledWorkTiming(mins, days)
                 pendingScheduleTimeMs = null
                 showDepositFollowupForMs = ts
             },

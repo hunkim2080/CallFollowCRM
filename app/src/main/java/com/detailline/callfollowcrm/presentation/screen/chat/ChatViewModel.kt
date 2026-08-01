@@ -1630,6 +1630,14 @@ class ChatViewModel(
         }
     }
 
+    /** 시공 시간 + 기간(며칠) 동시 설정 — 시공일 등록 후 시간·기간 칩에서 호출. DB v24. (2026-08-01 사장님) */
+    fun setScheduledWorkTiming(minutes: Int?, days: Int) = viewModelScope.launch {
+        val id = ensureCustomerId()
+        withContext(Dispatchers.IO + NonCancellable) {
+            runCatching { container.customerRepository.updateScheduledWorkTiming(id, minutes, days) }
+        }
+    }
+
     /**
      * 2026-05-29 킬러콘텐츠 3단계 — 화면 떠날 때 DISMISSED 시그널.
      *

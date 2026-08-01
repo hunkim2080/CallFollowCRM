@@ -1120,8 +1120,9 @@ fun CustomerDetailScreen(
     if (workTimePickerOpen && customer != null) {
         com.detailline.callfollowcrm.presentation.component.WorkTimePickerDialog(
             initialMinutes = customer?.scheduledWorkMinutes,
-            onPick = { mins ->
-                viewModel.updateScheduledWorkMinutes(mins)
+            initialDays = customer?.scheduledWorkDays ?: 1,
+            onPick = { mins, days ->
+                viewModel.updateScheduledWorkTiming(mins, days)
                 workTimePickerOpen = false
                 if (pendingCelebrate) { celebrationVisible = true; vibrateCelebration(context); pendingCelebrate = false }
             },
