@@ -106,6 +106,9 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import com.detailline.callfollowcrm.presentation.component.tossCardShadow
+import com.detailline.callfollowcrm.presentation.component.pressScale
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -1903,6 +1906,7 @@ private fun CallSegment(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp)
+            .tossCardShadow(RoundedCornerShape(14.dp))
             .clip(RoundedCornerShape(14.dp))
             .background(Color(0xFFEAF4F1))
             .border(1.dp, Color(0xFFCDE8E0), RoundedCornerShape(14.dp))
@@ -2276,6 +2280,7 @@ private fun IntakeSegment(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp)
+            .tossCardShadow(RoundedCornerShape(14.dp))
             .clip(RoundedCornerShape(14.dp))
             .background(TossBlueSoft)
             .border(1.dp, TossBlue.copy(alpha = 0.22f), RoundedCornerShape(14.dp))
@@ -2375,6 +2380,7 @@ private fun TimelineEventSegment(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
+            .tossCardShadow(RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
             .background(Color(0xFFF7F8FA))
             .border(1.dp, Color(0x14000000), RoundedCornerShape(12.dp))
@@ -2412,14 +2418,17 @@ private fun IssuedDocSegment(
     val emoji = if (isQuote) "📜" else "📋"
     val title = if (isQuote) "견적서 발행" else "시공접수서 발행"
     val accent = if (isQuote) Color(0xFF3182F6) else TossSuccess
+    val issuedInteraction = remember { MutableInteractionSource() }
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
+            .pressScale(issuedInteraction)
+            .tossCardShadow(RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
             .background(Color(0xFFF7F8FA))
             .border(1.dp, Color(0x14000000), RoundedCornerShape(12.dp))
-            .clickable { onOpen() }
+            .clickable(interactionSource = issuedInteraction, indication = null) { onOpen() }
             .padding(horizontal = 11.dp, vertical = 9.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2964,6 +2973,7 @@ private fun PrincipleDiscoveryCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 6.dp)
+                .tossCardShadow(RoundedCornerShape(18.dp))
                 .clip(RoundedCornerShape(18.dp))
                 .background(style.bg)
                 .border(1.dp, style.border, RoundedCornerShape(18.dp))
@@ -2985,6 +2995,7 @@ private fun PrincipleDiscoveryCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 6.dp)
+            .tossCardShadow(RoundedCornerShape(18.dp))
             .clip(RoundedCornerShape(18.dp))
             .background(Color.White)
             .border(1.5.dp, blueSoft, RoundedCornerShape(18.dp))
@@ -3529,6 +3540,7 @@ private fun UnifiedSummaryCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 14.dp, vertical = 6.dp)
+            .tossCardShadow(RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
             .background(Color.White)
             .padding(14.dp)

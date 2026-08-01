@@ -108,6 +108,9 @@ import com.detailline.callfollowcrm.data.AppContainer
 import com.detailline.callfollowcrm.presentation.component.Mascot
 import com.detailline.callfollowcrm.presentation.component.SectionLabel
 import com.detailline.callfollowcrm.presentation.component.TossCard
+import com.detailline.callfollowcrm.presentation.component.tossCardShadow
+import com.detailline.callfollowcrm.presentation.component.pressScale
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.detailline.callfollowcrm.presentation.component.TossChip
 import com.detailline.callfollowcrm.presentation.component.TossPrimaryButton
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
@@ -2976,11 +2979,14 @@ private val AGENT_EMBLEMS = listOf("🌱", "🐣", "🔧", "⭐", "🔥", "💪"
 private fun AgentMiniCard(card: AgentCardState, onClick: (() -> Unit)? = null) {
     // 프로토 agent-card — 그라데이션 카드 + mascot + 레벨칩 + 말투 진행바 + stats.
     //   2026-06-17 사장님: 카드를 누르면 '내 말투 학습'으로 들어가게(흐름 자연스럽게).
+    val agentInteraction = remember { MutableInteractionSource() }
     Column(
         Modifier
             .fillMaxWidth()
+            .then(if (onClick != null) Modifier.pressScale(agentInteraction) else Modifier)
+            .tossCardShadow(RoundedCornerShape(22.dp))
             .clip(RoundedCornerShape(22.dp))
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .then(if (onClick != null) Modifier.clickable(interactionSource = agentInteraction, indication = null, onClick = onClick) else Modifier)
             .background(Brush.linearGradient(listOf(Color(0xFFEAF2FF), Color(0xFFF1ECFF))))
             .border(1.dp, Color(0xFFE6EAFB), RoundedCornerShape(22.dp))
             .padding(horizontal = 18.dp, vertical = 15.dp)
@@ -3073,12 +3079,15 @@ private fun LockRow(
     locked: Boolean = false,
     onClick: () -> Unit
 ) {
+    val rowInteraction = remember { MutableInteractionSource() }
     Row(
         Modifier
             .fillMaxWidth()
+            .pressScale(rowInteraction)
             .graphicsLayer { alpha = if (locked) 0.6f else 1f }
+            .tossCardShadow(RoundedCornerShape(18.dp))
             .background(Color.White, RoundedCornerShape(18.dp))
-            .clickable(onClick = onClick)
+            .clickable(interactionSource = rowInteraction, indication = null, onClick = onClick)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -3219,9 +3228,13 @@ private fun SetupCheckCard(
     var collapsed by remember { mutableStateOf(true) }
 
     if (all && collapsed) {
+        val checkInteraction = remember { MutableInteractionSource() }
         Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFEAFBF2))
-                .clickable { collapsed = false }.padding(horizontal = 14.dp, vertical = 12.dp),
+            Modifier.fillMaxWidth()
+                .pressScale(checkInteraction)
+                .tossCardShadow(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(12.dp)).background(Color(0xFFEAFBF2))
+                .clickable(interactionSource = checkInteraction, indication = null) { collapsed = false }.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             CheckDot(true)
@@ -3308,7 +3321,7 @@ private fun ToneLearnProtoSection(
 
     // ── tone-hero (보라 그라데이션) ──
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
+        Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(22.dp)).clip(RoundedCornerShape(22.dp))
             .background(Brush.linearGradient(listOf(Color(0xFF7C5CFC), Color(0xFF5B3FE0))))
             .padding(18.dp)
     ) {
@@ -3538,7 +3551,7 @@ private fun ToneTraits(traits: List<com.detailline.callfollowcrm.ai.ToneTrait>) 
 // 프로토 .tone-ba — 질문 + [일반 AI] / [내 말투] 두 답 비교.
 @Composable
 private fun ToneBeforeAfter(ex: com.detailline.callfollowcrm.ai.ToneExample) {
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White)) {
+    Column(Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(18.dp)).clip(RoundedCornerShape(18.dp)).background(Color.White)) {
         // ba-q
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -3606,9 +3619,13 @@ private fun ToneSourceRow(icon: ImageVector, title: String, desc: String, count:
 
 @Composable
 private fun ToneTeachButton(icon: ImageVector, title: String, desc: String, onClick: () -> Unit) {
+    val teachInteraction = remember { MutableInteractionSource() }
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White)
-            .clickable(onClick = onClick).padding(14.dp),
+        Modifier.fillMaxWidth()
+            .pressScale(teachInteraction)
+            .tossCardShadow(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(14.dp)).background(Color.White)
+            .clickable(interactionSource = teachInteraction, indication = null, onClick = onClick).padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFFF1ECFF)),

@@ -43,6 +43,10 @@ import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossSuccess
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
+import com.detailline.callfollowcrm.presentation.component.tossCardShadow
+import com.detailline.callfollowcrm.presentation.component.pressScale
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.remember
 
 /**
  * 다녀온/다녀올 현장 — 프로토 `s-visited` 확장.
@@ -128,11 +132,14 @@ private fun SectionHead(label: String, color: Color) {
 
 @Composable
 private fun VisitedRowItem(v: VisitedRow, accent: Color, tag: String, onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
     Row(
         Modifier.fillMaxWidth().padding(bottom = 9.dp)
+            .pressScale(interaction)
+            .tossCardShadow(RoundedCornerShape(14.dp))
             .clip(RoundedCornerShape(14.dp)).background(Color.White)
             .border(1.dp, accent.copy(alpha = 0.22f), RoundedCornerShape(14.dp))
-            .clickable { onClick() }
+            .clickable(interactionSource = interaction, indication = null) { onClick() }
             .padding(horizontal = 14.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

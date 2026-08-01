@@ -38,6 +38,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.presentation.component.Mascot
+import com.detailline.callfollowcrm.presentation.component.tossCardShadow
+import com.detailline.callfollowcrm.presentation.component.pressScale
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.remember
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossBlueDark
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
@@ -106,6 +110,7 @@ private fun StatsHero(s: StatsUiState) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .tossCardShadow(RoundedCornerShape(22.dp))
             .clip(RoundedCornerShape(22.dp))
             .background(Brush.linearGradient(listOf(TossBlue, TossBlueDark)))
             .padding(22.dp)
@@ -145,6 +150,7 @@ private fun StatsMascot() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .tossCardShadow(RoundedCornerShape(18.dp))
             .clip(RoundedCornerShape(18.dp))
             .background(Color.White)
             .border(1.dp, TossDivider, RoundedCornerShape(18.dp))
@@ -180,9 +186,13 @@ private fun StatGrid(s: StatsUiState, onOpenVisited: () -> Unit) {
 
 @Composable
 private fun StatCell(label: String, value: String, unit: String, valueColor: Color, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
+    val interaction = remember { MutableInteractionSource() }
     Column(
-        modifier = modifier.clip(RoundedCornerShape(18.dp)).background(Color.White)
-            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
+        modifier = modifier
+            .then(if (onClick != null) Modifier.pressScale(interaction) else Modifier)
+            .tossCardShadow(RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(18.dp)).background(Color.White)
+            .then(if (onClick != null) Modifier.clickable(interactionSource = interaction, indication = null) { onClick() } else Modifier)
             .padding(18.dp)
     ) {
         Row(verticalAlignment = Alignment.Bottom) {
@@ -215,7 +225,7 @@ private fun TrendSection(t: StatsTrendState, onSelect: (StatPeriod) -> Unit) {
         }
         // panel
         Column(
-            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color.White).padding(18.dp)
+            modifier = Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(20.dp)).clip(RoundedCornerShape(20.dp)).background(Color.White).padding(18.dp)
         ) {
             Row(verticalAlignment = Alignment.Bottom) {
                 Text("${t.curTotal}건", fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.9).sp)
@@ -272,7 +282,7 @@ private fun TrendSection(t: StatsTrendState, onSelect: (StatPeriod) -> Unit) {
         }
         // 시장 비교 (전국 = 모이는 중)
         Column(
-            modifier = Modifier.fillMaxWidth().padding(top = 12.dp).clip(RoundedCornerShape(18.dp)).background(Color.White).padding(16.dp)
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp).tossCardShadow(RoundedCornerShape(18.dp)).clip(RoundedCornerShape(18.dp)).background(Color.White).padding(16.dp)
         ) {
             Text("📊 시장 비교", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary, modifier = Modifier.padding(bottom = 11.dp))
             MkRow("내 문의", "${if (t.deltaPct >= 0) "+" else ""}${t.deltaPct}%", if (t.deltaPct >= 0) TossSuccess else TossError)
@@ -327,7 +337,7 @@ private fun MkRow(label: String, value: String, valueColor: Color) {
 @Composable
 private fun StatTypes(s: StatsUiState) {
     Column(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color.White).padding(18.dp)
+        modifier = Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(20.dp)).clip(RoundedCornerShape(20.dp)).background(Color.White).padding(18.dp)
     ) {
         // early return@Column 은 빈→로드 전환 시 슬롯테이블 그룹 어긋나 AIOOBE 크래시(홈서 고친 패턴). if/else 로 감쌈. (2026-07-30 버그감사)
         if (s.types.isEmpty()) {
