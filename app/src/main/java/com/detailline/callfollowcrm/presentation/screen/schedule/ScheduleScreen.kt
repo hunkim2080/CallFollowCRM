@@ -83,6 +83,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
@@ -285,9 +286,17 @@ fun ScheduleScreen(
                         }
                     )
                     // cal-card — 흰 카드 안에 요일 헤더 + 6주 그리드 (프로토 .cal-card)
+                    //   프로토 box-shadow(0 2px 10px rgba(17,24,39,.05)) 복원 — 흰카드(#FFF)와 페이지(#F4F5F7)가
+                    //   거의 같은 색이라 그림자 없으면 카드가 안 떠서 달력 전체가 '회색 뿌옇게' 보임(사장님 지적 2026-08-01).
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .shadow(
+                                elevation = 7.dp,
+                                shape = RoundedCornerShape(20.dp),
+                                spotColor = Color(0xFF111827),
+                                ambientColor = Color(0xFF111827)
+                            )
                             .clip(RoundedCornerShape(20.dp))
                             .background(Color.White)
                             .padding(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 16.dp)
