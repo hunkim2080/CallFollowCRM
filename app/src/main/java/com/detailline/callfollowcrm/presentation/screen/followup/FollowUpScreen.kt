@@ -401,6 +401,7 @@ fun FollowUpScreen(
         val pickerState = androidx.compose.material3.rememberDatePickerState(initialSelectedDateMillis = initial)
         androidx.compose.material3.DatePickerDialog(
             onDismissRequest = { firstMetPickerOpen = false },
+            colors = androidx.compose.material3.DatePickerDefaults.colors(containerColor = Color.White),
             confirmButton = {
                 TextButton(onClick = {
                     pickerState.selectedDateMillis?.let { viewModel.setFirstMetAt(it) }
@@ -413,7 +414,17 @@ fun FollowUpScreen(
                 }
             }
         ) {
-            androidx.compose.material3.DatePicker(state = pickerState)
+            // 창 회색(테마 기본) → 흰색. (2026-08-02 사장님)
+            androidx.compose.material3.DatePicker(
+                state = pickerState,
+                colors = androidx.compose.material3.DatePickerDefaults.colors(
+                    containerColor = Color.White,
+                    selectedDayContainerColor = TossBlue,
+                    selectedDayContentColor = Color.White,
+                    todayDateBorderColor = TossBlue,
+                    todayContentColor = TossBlue
+                )
+            )
         }
     }
 

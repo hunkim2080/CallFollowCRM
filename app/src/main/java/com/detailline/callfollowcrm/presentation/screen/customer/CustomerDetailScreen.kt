@@ -1079,7 +1079,8 @@ fun CustomerDetailScreen(
                 Surface(
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
                     color = Color.White,
-                    tonalElevation = 6.dp,
+                    tonalElevation = 0.dp,   // 6dp 면 흰 배경에 회색 톤이 덧입혀져 창이 칙칙해짐 → 0. (2026-08-02 사장님 '회색')
+                    shadowElevation = 12.dp,
                     modifier = Modifier.fillMaxHeight(0.92f)
                 ) {
                     Column {
@@ -1087,6 +1088,16 @@ fun CustomerDetailScreen(
                             state = rangeState,
                             modifier = Modifier.weight(1f),
                             showModeToggle = false,
+                            // 기본 containerColor = 테마 surfaceContainerHigh(회색) → 창 전체가 회색으로 뜸. 흰색으로. (2026-08-02 사장님)
+                            colors = androidx.compose.material3.DatePickerDefaults.colors(
+                                containerColor = Color.White,
+                                selectedDayContainerColor = TossBlue,
+                                selectedDayContentColor = Color.White,
+                                todayDateBorderColor = TossBlue,
+                                todayContentColor = TossBlue,
+                                dayInSelectionRangeContainerColor = TossBlueSoft,
+                                dayInSelectionRangeContentColor = TossTextPrimary
+                            ),
                             title = {
                                 Text(
                                     "시공 기간 — 시작일 → 끝날 (하루면 시작일만)",
@@ -1164,7 +1175,7 @@ fun CustomerDetailScreen(
             ) {
                 Surface(
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
-                    color = Color.White, tonalElevation = 6.dp,
+                    color = Color.White, tonalElevation = 0.dp, shadowElevation = 12.dp,
                     modifier = Modifier.fillMaxHeight(0.92f)
                 ) {
                     Column {
@@ -1172,6 +1183,16 @@ fun CustomerDetailScreen(
                             state = asRangeState,
                             modifier = Modifier.weight(1f),
                             showModeToggle = false,
+                            // 창 회색 제거 + A/S 주황 강조. (2026-08-02 사장님)
+                            colors = androidx.compose.material3.DatePickerDefaults.colors(
+                                containerColor = Color.White,
+                                selectedDayContainerColor = Color(0xFFF5920B),
+                                selectedDayContentColor = Color.White,
+                                todayDateBorderColor = Color(0xFFF5920B),
+                                todayContentColor = Color(0xFFF5920B),
+                                dayInSelectionRangeContainerColor = Color(0xFFFEF0DC),
+                                dayInSelectionRangeContentColor = TossTextPrimary
+                            ),
                             title = {
                                 Text(
                                     "🔧 A/S 예약 — 시작일 → 끝날 (하루면 시작일만) · 무료",
@@ -2427,6 +2448,7 @@ private fun PaymentRow(
         val state = androidx.compose.material3.rememberDatePickerState(initialSelectedDateMillis = initial)
         androidx.compose.material3.DatePickerDialog(
             onDismissRequest = { datePickerOpen = false },
+            colors = androidx.compose.material3.DatePickerDefaults.colors(containerColor = Color.White),
             confirmButton = {
                 TextButton(onClick = {
                     state.selectedDateMillis?.let { onPaidAtChange(it) }
@@ -2439,7 +2461,17 @@ private fun PaymentRow(
                 }
             }
         ) {
-            androidx.compose.material3.DatePicker(state = state)
+            // 창 회색 제거(테마 surfaceContainerHigh 기본값) → 흰색. (2026-08-02 사장님)
+            androidx.compose.material3.DatePicker(
+                state = state,
+                colors = androidx.compose.material3.DatePickerDefaults.colors(
+                    containerColor = Color.White,
+                    selectedDayContainerColor = TossBlue,
+                    selectedDayContentColor = Color.White,
+                    todayDateBorderColor = TossBlue,
+                    todayContentColor = TossBlue
+                )
+            )
         }
     }
 }

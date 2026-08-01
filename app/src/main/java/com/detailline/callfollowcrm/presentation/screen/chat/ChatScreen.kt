@@ -1429,7 +1429,7 @@ fun ChatScreen(
             ) {
                 Surface(
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
-                    color = Color.White, tonalElevation = 6.dp,
+                    color = Color.White, tonalElevation = 0.dp, shadowElevation = 12.dp,
                     modifier = Modifier.fillMaxHeight(0.92f)
                 ) {
                     androidx.compose.foundation.layout.Column {
@@ -1437,6 +1437,16 @@ fun ChatScreen(
                             state = rangeState,
                             modifier = Modifier.weight(1f),
                             showModeToggle = false,
+                            // 기본 containerColor(테마 회색) → 흰색. 창 칙칙함 제거. (2026-08-02 사장님)
+                            colors = androidx.compose.material3.DatePickerDefaults.colors(
+                                containerColor = Color.White,
+                                selectedDayContainerColor = TossBlue,
+                                selectedDayContentColor = Color.White,
+                                todayDateBorderColor = TossBlue,
+                                todayContentColor = TossBlue,
+                                dayInSelectionRangeContainerColor = TossBlueSoft,
+                                dayInSelectionRangeContentColor = TossTextPrimary
+                            ),
                             title = {
                                 Text(
                                     "시공 기간 — 시작일 → 끝날 (하루면 시작일만)",
@@ -1555,7 +1565,17 @@ fun ChatScreen(
                             .weight(1f, fill = false)
                             .verticalScroll(rememberScrollState())
                     ) {
-                        DatePicker(state = datePickerState, showModeToggle = false)
+                        DatePicker(
+                            state = datePickerState, showModeToggle = false,
+                            // 창 회색(테마 containerColor 기본) → 흰색. (2026-08-02 사장님)
+                            colors = androidx.compose.material3.DatePickerDefaults.colors(
+                                containerColor = Color.White,
+                                selectedDayContainerColor = TossBlue,
+                                selectedDayContentColor = Color.White,
+                                todayDateBorderColor = TossBlue,
+                                todayContentColor = TossBlue
+                            )
+                        )
                     }
                     // 닫기 버튼 — fixed bottom. 화면 height 와 무관하게 항상 보임.
                     Row(
