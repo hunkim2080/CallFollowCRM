@@ -1,9 +1,14 @@
 package com.detailline.callfollowcrm.presentation.component
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.TextStyle
@@ -57,10 +62,12 @@ fun TossPrimaryButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true
 ) {
+    val interaction = remember { MutableInteractionSource() }
     Button(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.fillMaxWidth().height(56.dp),
+        modifier = modifier.fillMaxWidth().height(56.dp).pressScale(interaction),
+        interactionSource = interaction,
         shape = RoundedCornerShape(14.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = TossBlue,
@@ -85,10 +92,12 @@ fun TossSecondaryButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true
 ) {
+    val interaction = remember { MutableInteractionSource() }
     Button(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.fillMaxWidth().height(56.dp),
+        modifier = modifier.fillMaxWidth().height(56.dp).pressScale(interaction),
+        interactionSource = interaction,
         shape = RoundedCornerShape(14.dp),
         border = BorderStroke(1.dp, TossDivider),
         colors = ButtonDefaults.buttonColors(
@@ -120,7 +129,25 @@ fun TossTextButton(
     }
 }
 
-/** 흰색 카드 + 18dp 라운드 + 그림자 없음. 토스 시그니처 섹션. (프로토 .card = padding 16 / radius 18) */
+/**
+ * 눌림 반응 — 누르면 살짝 줄었다(pressedScale) 스프링으로 튀어 돌아옴(토스 "쏙" 느낌). (2026-08-02 사장님)
+ *   scale 과 clickable 이 같은 interactionSource 를 공유해야 눌림을 감지한다.
+ */
+@Composable
+fun Modifier.pressScale(
+    interactionSource: MutableInteractionSource,
+    pressedScale: Float = 0.97f
+): Modifier {
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) pressedScale else 1f,
+        animationSpec = spring(dampingRatio = 0.55f, stiffness = 620f),
+        label = "pressScale"
+    )
+    return this.graphicsLayer { scaleX = scale; scaleY = scale }
+}
+
+/** 흰색 카드 + 18dp 라운드 + 은은한 그림자 + 눌림 반응. 토스 시그니처 섹션. (프로토 .card = padding 16 / radius 18) */
 @Composable
 fun TossCard(
     modifier: Modifier = Modifier,
@@ -128,10 +155,13 @@ fun TossCard(
     onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
+    val interaction = remember { MutableInteractionSource() }
     // 프로토 카드 box-shadow(0 2px 10px rgba(17,24,39,.05)) 복원 — 흰카드(#FFF)가 페이지(#F4F5F7)와
     //   거의 같은 색이라 그림자 없으면 안 떠서 밋밋·뿌옇게 보임. 은은한 네이비 그림자로 카드가 뜸. (2026-08-02 사장님)
+    //   + 누르면 살짝 줄었다 튀어 돌아옴(쏙). 회색 물결(ripple) 대신 scale 로 깔끔하게. (2026-08-02 사장님)
     val base = modifier
         .fillMaxWidth()
+        .then(if (onClick != null) Modifier.pressScale(interaction) else Modifier)
         .shadow(
             elevation = 4.dp,
             shape = RoundedCornerShape(18.dp),
@@ -139,7 +169,9 @@ fun TossCard(
             ambientColor = Color(0xFF111827)
         )
         .background(Color.White, RoundedCornerShape(18.dp))
-    val clickable = if (onClick != null) base.clickable(onClick = onClick) else base
+    val clickable = if (onClick != null)
+        base.clickable(interactionSource = interaction, indication = null, onClick = onClick)
+    else base
     Box(modifier = clickable.padding(contentPadding)) {
         content()
     }
