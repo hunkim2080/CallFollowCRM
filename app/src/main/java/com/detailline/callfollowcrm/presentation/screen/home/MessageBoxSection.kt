@@ -117,14 +117,10 @@ fun MessageBoxSection(
 ) {
     if (threads.isEmpty()) {
         Box(modifier.fillMaxSize().background(Color.White), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
-                Text("🗂️", fontSize = 40.sp)
-                Spacer(Modifier.height(10.dp))
-                Text("문자함이 비어 있어요", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
-                Spacer(Modifier.height(4.dp))
-                Text("고객이 아닌 문자(광고·인증·알림)가 여기 모여요",
-                    fontSize = 12.5.sp, color = TossTextTertiary)
-            }
+            com.detailline.callfollowcrm.presentation.component.MascotEmptyState(
+                speech = "문자함이 비어 있어요",
+                sub = "고객이 아닌 문자(광고·인증·알림)가 여기 모여요"
+            )
         }
         return
     }

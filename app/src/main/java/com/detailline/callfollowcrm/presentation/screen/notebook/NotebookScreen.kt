@@ -231,12 +231,9 @@ fun NotebookContent(
                 modifier = Modifier.padding(horizontal = 18.dp))
             Spacer(Modifier.height(8.dp))
             if (shown.isEmpty()) {
-                Box(Modifier.fillMaxWidth().padding(vertical = 30.dp), contentAlignment = Alignment.Center) {
-                    Text(
-                        if (list.isEmpty()) "${tab.label}이 아직 없어요" else "이 분류엔 아직 없어요",
-                        color = TossTextTertiary, style = MaterialTheme.typography.bodyMedium
-                    )
-                }
+                com.detailline.callfollowcrm.presentation.component.MascotEmptyState(
+                    speech = if (list.isEmpty()) "${tab.label}이 아직 없어요" else "이 분류엔 아직 없어요"
+                )
             } else {
                 LazyColumn(
                     contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp),

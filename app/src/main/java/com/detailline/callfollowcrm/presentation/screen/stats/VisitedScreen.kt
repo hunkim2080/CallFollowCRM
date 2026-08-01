@@ -91,11 +91,14 @@ fun VisitedScreen(
 
             if (state.visitedRows.isEmpty() && state.upcomingRows.isEmpty()) {
                 item(key = "empty") {
-                    Box(Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
-                        Text(
-                            if (state.loaded) "이번 달 현장이 아직 없어요" else "불러오는 중…",
-                            color = TossTextTertiary, fontSize = 13.sp
+                    if (state.loaded) {
+                        com.detailline.callfollowcrm.presentation.component.MascotEmptyState(
+                            speech = "이번 달 현장이 아직 없어요"
                         )
+                    } else {
+                        Box(Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
+                            Text("불러오는 중…", color = TossTextTertiary, fontSize = 13.sp)
+                        }
                     }
                 }
             }

@@ -644,13 +644,7 @@ private fun EmptyMini(filter: SettleFilter) {
         SettleFilter.OUTSTANDING -> "못 받은 돈이 없어요 👍"
         SettleFilter.PAID_OFF -> "완납된 고객이 아직 없어요"
     }
-    Box(Modifier.fillMaxWidth().padding(vertical = 30.dp), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("💰", fontSize = 30.sp)
-            Spacer(Modifier.height(10.dp))
-            Text(msg, fontSize = 13.sp, color = TossTextTertiary, fontWeight = FontWeight.SemiBold)
-        }
-    }
+    com.detailline.callfollowcrm.presentation.component.MascotEmptyState(speech = msg)
 }
 
 /* ─────────────── 아바타 (프로토 AV_TINTS) ─────────────── */
