@@ -8344,3 +8344,9 @@ A/S 예약 기능 완성 — 시공과 별개로 A/S 기간을 따로 잡기(무
 A/S 그날 아침 알림 추가 — '오늘 A/S 있어요 🔧'. (사장님 "필요해 붙여줘")
 - ReminderWorker.checkAsToday(아침 8시+·고객/날짜별 1회) + NotificationHelper.showAsToday(주황, 기존 reminder 채널 재사용). 로컬 알림만(자동문자 X). 서버/코워크 영향 없음.
 - commit: b30d8a8. 폰검증 완료(알림 실제 표시).
+
+## 2026-08-02 12:20 · android
+날짜 선택창 '회색' → 흰색 (사장님 지적·검사완료).
+- 원인: DatePicker 기본 containerColor(테마 surfaceContainerHigh 회색) + Surface tonalElevation 회색톤.
+- 수정: 모든 날짜창에 colors(containerColor=White) + tonalElevation 0 + shadowElevation. 시공·A/S·입금·초회·제안날짜.
+- commit: 333ca0a. 서버/코워크 영향 없음.
