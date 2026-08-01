@@ -154,7 +154,14 @@ fun CallFollowCrmTheme(
     MaterialTheme(
         colorScheme = if (isDark) TossDarkColors else TossLightColors,
         typography = TossTypography,
-        shapes = TossShapes,
-        content = content
-    )
+        shapes = TossShapes
+    ) {
+        // 전역 기본 글꼴 = Pretendard. 이게 없으면 style=typography.X 를 안 쓴 raw Text(앱의 ~98%)가
+        //   폰 기본 글꼴로 그려짐 → 의도한 Pretendard(프로토 스펙)가 거의 안 먹었음. 한 줄로 앱 전체 통일. (2026-08-02 사장님)
+        androidx.compose.runtime.CompositionLocalProvider(
+            androidx.compose.material3.LocalTextStyle provides
+                androidx.compose.material3.LocalTextStyle.current.copy(fontFamily = Pretendard),
+            content = content
+        )
+    }
 }
