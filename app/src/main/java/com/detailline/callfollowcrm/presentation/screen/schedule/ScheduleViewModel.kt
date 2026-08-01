@@ -38,6 +38,23 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         .map { list -> buildState(list) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ScheduleUiState())
 
+    /** A/S 예약 잡힌 고객 — 시공 예약과 **별개** 흐름(시공 목록/막대와 안 섞임). 캘린더 주황 A/S 마커·A/S 목록용. (DB v43, 2026-08-01 사장님) */
+    val asScheduled: StateFlow<List<CustomerEntity>> = container.customerRepository.observeAsScheduled()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** A/S 기간이 덮는 모든 날(startOfDay) — 캘린더 A/S 주황 점. asScheduledDays 만큼 여러 날. */
+    val asDayStarts: StateFlow<Set<Long>> = asScheduled
+        .map { list ->
+            val set = HashSet<Long>()
+            for (c in list) {
+                val s = c.asScheduledDate?.let { DateTimeUtils.startOfDay(it) } ?: continue
+                val days = c.asScheduledDays.coerceAtLeast(1)
+                for (i in 0 until days) set.add(s + i * DateTimeUtils.DAY_MS)
+            }
+            set
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
     private val ownerPhone: String get() = container.preferences.bizPhone.trim()
 
     /** 팀원 목록 (배정 시트용). 비즈니스 미설정/미가입이면 빈 리스트 → 배정 줄 숨김. */

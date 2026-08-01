@@ -24,6 +24,9 @@ class CustomerRepository(
     /** 시공 예약일이 설정된 모든 고객을 예약일 오름차순으로. */
     fun observeScheduled(): Flow<List<CustomerEntity>> = dao.observeScheduled()
 
+    /** A/S 예약 잡힌 고객 — 캘린더 A/S 주황 마커·A/S 목록용. 시공 예약과 별개. (DB v43) */
+    fun observeAsScheduled(): Flow<List<CustomerEntity>> = dao.observeAsScheduled()
+
     /**
      * 이름이 비어있는 고객의 이름을 기기 연락처(삼성)에서 채운다 — "저장돼 있으면 그대로 반영". 2026-07-21 사장님.
      *   READ_CONTACTS 있을 때만. **자체 저장한 이름(비어있지 않음)은 절대 안 건드림**(수동 우선).

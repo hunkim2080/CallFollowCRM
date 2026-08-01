@@ -137,6 +137,8 @@ fun ScheduleScreen(
     initialSelectedDayMs: Long? = null
 ) {
     val state by viewModel.state.collectAsState()
+    val asList by viewModel.asScheduled.collectAsState()           // A/S 예약 고객(시공과 별개 흐름). (DB v43)
+    val asDays by viewModel.asDayStarts.collectAsState()           // 캘린더 A/S 주황 점
     val collabDays by viewModel.collabDayStarts.collectAsState()   // 캘린더 협업 보라점 (#7)
     val pendingCollabDays by viewModel.pendingCollabDayStarts.collectAsState()  // 응답 안 한 협업 요청 = 주황 마커 (2026-07-08 사장님)
     val pendingCollabSites by viewModel.pendingCollabSites.collectAsState()
@@ -249,6 +251,12 @@ fun ScheduleScreen(
             val day = selectedDayMs ?: return@remember emptyList()
             pendingCollabSites.filter { DateTimeUtils.startOfDay(it.scheduledAtMs) == day }
         }
+        // 이 날 A/S 예약(무료) — 시공과 별개. A/S만 있는 고객도 여기 뜬다(시공 목록엔 안 뜸). (DB v43)
+        val asForSelected = remember(selectedDayMs, asList) {
+            val day = selectedDayMs ?: return@remember emptyList<CustomerEntity>()
+            asList.filter { asCoversDay(it, day) }
+                .sortedBy { it.asScheduledDate ?: 0L }
+        }
 
         // 2026-06-08 사장님 통점(투명막 진범): LazyColumn 에 initialFirstVisibleItemIndex=1 을 주면 안 됨.
         //   index0(캘린더 블록)이 뷰포트보다 큰 단일 item 인데, 첫 컴포지션 땐 그 아래 데이터가 비어
@@ -300,6 +308,7 @@ fun ScheduleScreen(
                                         selectedDayMs = selectedDayMs,
                                         collabDays = collabDays,
                                         pendingCollabDays = pendingCollabDays,
+                                        asDays = asDays,
                                         onSelect = { dayMs -> selectedDayMs = dayMs },
                                         onLongSelect = { dayMs -> selectedDayMs = dayMs; onAddSchedule(dayMs) }
                                     )
@@ -330,6 +339,10 @@ fun ScheduleScreen(
                             Spacer(Modifier.width(3.dp))
                             Text(lbl, fontSize = 10.5.sp, color = TossTextSecondary, fontWeight = FontWeight.SemiBold)
                         }
+                        // A/S(무료) — 주황 점. '요청' 주황과 헷갈리지 않게 🔧 로 표시. (DB v43)
+                        Box(Modifier.padding(start = 9.dp).size(7.dp).clip(CircleShape).background(Color(0xFFF5920B)))
+                        Spacer(Modifier.width(3.dp))
+                        Text("🔧A/S", fontSize = 10.5.sp, color = TossTextSecondary, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -338,7 +351,7 @@ fun ScheduleScreen(
                 DayLabel(dayMs = selectedDayMs, isToday = selectedDayMs == todayStart)
             }
             if (schedulesForSelected.isEmpty()) {
-                if (collabForSelected.isEmpty()) {
+                if (collabForSelected.isEmpty() && asForSelected.isEmpty()) {
                     item(key = "no-schedules") { DayEmpty(onAdd = { onAddSchedule(selectedDayMs) }) }
                 }
             } else {
@@ -423,8 +436,21 @@ fun ScheduleScreen(
                     PendingCollabDayCard(site = site, onClick = { onOpenCollabSites(site.shareId) })
                 }
             }
-            // "더 추가"는 이미 일정/협업이 있을 때만. 아무것도 없으면 DayEmpty 의 "이 날 일정 등록"만 노출(중복 방지).
-            if (schedulesForSelected.isNotEmpty() || collabForSelected.isNotEmpty()) {
+            // 이 날 A/S(무료) — 시공과 별개. A/S만 있는 고객도 여기 뜬다(시공 목록엔 안 뜸). 탭 → 고객 상세. (DB v43)
+            if (asForSelected.isNotEmpty()) {
+                item(key = "as-label") {
+                    Text(
+                        "🔧 이 날 A/S ${asForSelected.size}곳 · 무료",
+                        fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB8780A),
+                        modifier = Modifier.padding(start = 2.dp, top = 6.dp, bottom = 11.dp)
+                    )
+                }
+                items(asForSelected, key = { "as-${it.id}" }) { c ->
+                    AsDayCard(customer = c, selectedDayMs = selectedDayMs, onClick = { onOpenCustomer(c.id) })
+                }
+            }
+            // "더 추가"는 이미 일정/협업/A-S 가 있을 때만. 아무것도 없으면 DayEmpty 의 "이 날 일정 등록"만 노출(중복 방지).
+            if (schedulesForSelected.isNotEmpty() || collabForSelected.isNotEmpty() || asForSelected.isNotEmpty()) {
                 item(key = "day-add") { DayAddButton("이 날 일정 더 추가", { onAddSchedule(selectedDayMs) }) }
             }
             item { Spacer(Modifier.height(12.dp)) }
@@ -560,6 +586,52 @@ private fun PendingCollabDayCard(
     }
 }
 
+/** A/S 예약 카드 — 무료. 시공과 별개(주황). 여러 날 A/S면 'N일 중 M일차'. 탭 → 고객 상세. (DB v43, 2026-08-01 사장님) */
+@Composable
+private fun AsDayCard(
+    customer: CustomerEntity,
+    selectedDayMs: Long?,
+    onClick: () -> Unit
+) {
+    val asStart = customer.asScheduledDate ?: return
+    val s = DateTimeUtils.startOfDay(asStart)
+    val totalDays = customer.asScheduledDays.coerceAtLeast(1)
+    val dayN = selectedDayMs?.let { ((it - s) / DateTimeUtils.DAY_MS).toInt() + 1 }?.coerceIn(1, totalDays) ?: 1
+    val orange = Color(0xFFF5920B); val orangeDeep = Color(0xFFB8780A); val orangeBg = Color(0xFFFEF0DC)
+    TossCard(onClick = onClick) {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(9.dp).clip(CircleShape).background(orange))
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    "🔧 " + (customer.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(customer.phoneNumber)),
+                    fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary,
+                    modifier = Modifier.weight(1f)
+                )
+                if (totalDays > 1) {
+                    Box(Modifier.clip(RoundedCornerShape(7.dp)).background(orangeBg).padding(horizontal = 8.dp, vertical = 3.dp)) {
+                        Text("${totalDays}일 중 ${dayN}일차", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = orangeDeep)
+                    }
+                    Spacer(Modifier.width(7.dp))
+                }
+                Box(Modifier.clip(RoundedCornerShape(8.dp)).background(orangeBg).padding(horizontal = 9.dp, vertical = 4.dp)) {
+                    Text("A/S · 무료", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = orangeDeep)
+                }
+            }
+            // 📍 주소 (있으면)
+            com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(customer.address).takeIf { it.isNotBlank() }?.let { addr ->
+                Spacer(Modifier.height(9.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.LocationOn, null, tint = TossTextTertiary, modifier = Modifier.size(13.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text(addr, fontSize = 13.sp, color = TossTextSecondary, maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
+            }
+        }
+    }
+}
+
 /**
  * 협업 카드 우→좌 swipe → 숨김. 빨강 "삭제" affordance.
  *   confirmValueChange=false 로 원위치 복귀(데이터 흐름이 카드를 제거) + 스낵바 "되돌리기" 로 복구.
@@ -646,6 +718,7 @@ private fun CalendarWeekRow(
     selectedDayMs: Long?,
     collabDays: Set<Long>,
     pendingCollabDays: Set<Long>,
+    asDays: Set<Long>,
     onSelect: (Long) -> Unit,
     onLongSelect: (Long) -> Unit
 ) {
@@ -656,6 +729,7 @@ private fun CalendarWeekRow(
                 isSelected = selectedDayMs == cell.dayStartMs,
                 isCollab = cell.dayStartMs in collabDays,
                 isPendingCollab = cell.dayStartMs in pendingCollabDays,
+                isAs = cell.dayStartMs in asDays,
                 onClick = { onSelect(cell.dayStartMs) },
                 onLongClick = { onLongSelect(cell.dayStartMs) },
                 modifier = Modifier.weight(1f)
@@ -671,6 +745,7 @@ private fun CalendarDay(
     isSelected: Boolean,
     isCollab: Boolean = false,
     isPendingCollab: Boolean = false,
+    isAs: Boolean = false,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -736,6 +811,13 @@ private fun CalendarDay(
                     }
                 }
             }
+        }
+        // A/S(무료) — 주황 점(칸 맨 아래). 시공 초록막대·협업 보라막대와 별개. 프로토 목업 adot. (DB v43)
+        if (isAs) {
+            Box(
+                Modifier.align(Alignment.BottomCenter).padding(bottom = 2.dp)
+                    .size(6.dp).clip(CircleShape).background(Color(0xFFF5920B))
+            )
         }
     }
 }
@@ -1065,6 +1147,15 @@ private fun jobCoversDay(c: CustomerEntity, dayStart: Long): Boolean {
     val start = c.scheduledWorkDate ?: return false
     val s = DateTimeUtils.startOfDay(start)
     val days = c.scheduledWorkDays.coerceAtLeast(1)
+    val end = s + (days - 1) * DateTimeUtils.DAY_MS
+    return dayStart in s..end
+}
+
+/** 이 A/S 예약이 dayStart 날을 포함하는가 — 여러 날 A/S(asScheduledDays) 고려. 시공과 별개. (DB v43) */
+private fun asCoversDay(c: CustomerEntity, dayStart: Long): Boolean {
+    val start = c.asScheduledDate ?: return false
+    val s = DateTimeUtils.startOfDay(start)
+    val days = c.asScheduledDays.coerceAtLeast(1)
     val end = s + (days - 1) * DateTimeUtils.DAY_MS
     return dayStart in s..end
 }

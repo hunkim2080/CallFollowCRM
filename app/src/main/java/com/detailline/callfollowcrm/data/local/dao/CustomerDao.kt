@@ -52,6 +52,10 @@ interface CustomerDao {
     @Query("SELECT * FROM customers WHERE scheduledWorkDate IS NOT NULL ORDER BY scheduledWorkDate ASC")
     fun observeScheduled(): Flow<List<CustomerEntity>>
 
+    /** A/S 예약이 잡힌 고객 — 시공 예약(scheduledWorkDate)과 **별개**. 캘린더 A/S 주황 마커용. (DB v43) */
+    @Query("SELECT * FROM customers WHERE asScheduledDate IS NOT NULL ORDER BY asScheduledDate ASC")
+    fun observeAsScheduled(): Flow<List<CustomerEntity>>
+
     /**
      * "고아 고객" 삭제: 메모 비어있고, 이름 없고, MessageHistory도 없는 고객.
      * 에이닷 자동 import로만 만들어진 미사용 고객 정리용.
