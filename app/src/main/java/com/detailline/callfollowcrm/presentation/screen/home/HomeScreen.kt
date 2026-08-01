@@ -136,6 +136,7 @@ import com.detailline.callfollowcrm.CallFollowCrmApplication
 import com.detailline.callfollowcrm.presentation.component.TossBadge
 import com.detailline.callfollowcrm.presentation.component.TossCard
 import com.detailline.callfollowcrm.presentation.component.TossChip
+import com.detailline.callfollowcrm.presentation.component.tossCardShadow
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossBlueDark
 import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
@@ -1094,7 +1095,7 @@ fun HomeScreen(
                                     }
                                     is List<*> -> {
                                         Column(
-                                            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White)
+                                            Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(16.dp)).clip(RoundedCornerShape(16.dp)).background(Color.White)
                                         ) {
                                             block.forEachIndexed { j, any ->
                                                 @Suppress("UNCHECKED_CAST")
@@ -1153,7 +1154,7 @@ fun HomeScreen(
                             }
                             if (recent.size > shownRecent.size) {
                                 Box(
-                                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White)
+                                    Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(16.dp)).clip(RoundedCornerShape(16.dp)).background(Color.White)
                                         .clickable { recentExpanded = true }.padding(vertical = 14.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -1536,6 +1537,7 @@ private fun TodayHeroJobCard(
     Column(
         Modifier
             .fillMaxWidth()
+            .tossCardShadow(RoundedCornerShape(24.dp))
             .clip(RoundedCornerShape(24.dp))
             .background(Brush.linearGradient(listOf(Color(0xFF272D3D), Color(0xFF14171F))))
             .drawWithContent {
@@ -1608,6 +1610,7 @@ private fun CompletedHeroJobCard(
     Row(
         Modifier
             .fillMaxWidth()
+            .tossCardShadow(RoundedCornerShape(16.dp))
             .clip(RoundedCornerShape(16.dp))
             .background(Color(0xFFF1F3F6))
             .clickable { onOpenCustomer(c.id) }
@@ -1674,6 +1677,7 @@ private fun CollabHeroJobCard(
     Column(
         Modifier
             .fillMaxWidth()
+            .tossCardShadow(RoundedCornerShape(24.dp))
             .clip(RoundedCornerShape(24.dp))
             .background(Brush.linearGradient(listOf(Color(0xFF1C1730), Color(0xFF14171F))))
             .drawWithContent {
@@ -1784,6 +1788,7 @@ private fun TodayHeroCard(
         Column(
             Modifier
                 .fillMaxWidth()
+                .tossCardShadow(RoundedCornerShape(24.dp))
                 .clip(RoundedCornerShape(24.dp))
                 .background(Color.White)
                 .border(1.dp, TossDivider, RoundedCornerShape(24.dp))
@@ -1922,6 +1927,7 @@ private fun CollabUpcomingCard(
     Column(
         Modifier
             .fillMaxWidth()
+            .tossCardShadow(RoundedCornerShape(18.dp))
             .clip(RoundedCornerShape(18.dp))
             .background(Color.White)
             .border(1.dp, Color(0xFFE7E0FB), RoundedCornerShape(18.dp))
@@ -1988,7 +1994,7 @@ private fun CollabSettleCard(
     onPaid: () -> Unit
 ) {
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White)
+        Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(18.dp)).clip(RoundedCornerShape(18.dp)).background(Color.White)
             .border(1.dp, Color(0xFFE7E0FB), RoundedCornerShape(18.dp))
             .padding(16.dp)
     ) {
@@ -2282,6 +2288,7 @@ private fun RemindCard(
         modifier = Modifier
             .fillMaxWidth()
             .height(IntrinsicSize.Min)
+            .tossCardShadow(RoundedCornerShape(18.dp))
             .clip(RoundedCornerShape(18.dp))
             .background(Color.White),
         verticalAlignment = Alignment.Top
@@ -2407,6 +2414,7 @@ private fun InboxAlert(
         modifier = Modifier
             .fillMaxWidth()
             .height(IntrinsicSize.Min)
+            .tossCardShadow(RoundedCornerShape(14.dp))
             .clip(RoundedCornerShape(14.dp))
             .background(Color.White)
             .border(1.dp, TossDivider, RoundedCornerShape(14.dp))
@@ -3192,6 +3200,7 @@ private fun TodayNewCard(todayNew: Int, yesterdayNew: Int, onClick: () -> Unit) 
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .tossCardShadow(RoundedCornerShape(14.dp))
             .clip(RoundedCornerShape(14.dp))
             .background(Color.White, RoundedCornerShape(14.dp))
             .border(1.dp, TossDivider, RoundedCornerShape(14.dp))
@@ -3340,6 +3349,7 @@ private fun WaitingCard(
     Column(
         Modifier
             .fillMaxWidth()
+            .tossCardShadow(RoundedCornerShape(18.dp))
             .clip(RoundedCornerShape(18.dp))
             .background(Color.White)
             .combinedClickable(onClick = { onOpenChat() }, onLongClick = { onLongPress() })

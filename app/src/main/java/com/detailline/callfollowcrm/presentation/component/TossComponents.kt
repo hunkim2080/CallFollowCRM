@@ -147,6 +147,20 @@ fun Modifier.pressScale(
     return this.graphicsLayer { scaleX = scale; scaleY = scale }
 }
 
+/**
+ * 카드 그림자 — 프로토 box-shadow(0 2px 10px rgba(17,24,39,.05)) 복원용 공용 모디파이어.
+ *   손으로 만든 카드(TossCard 아닌 것)를 토스 스타일로 통일할 때 `.tossCardShadow(shape)` 로 카드 틀에 붙임.
+ *   흰카드(#FFF)가 페이지(#F4F5F7)와 거의 같은 색이라 그림자 없으면 안 떠서 밋밋함. (2026-08-02 사장님)
+ */
+fun Modifier.tossCardShadow(
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(18.dp)
+): Modifier = this.shadow(
+    elevation = 4.dp,
+    shape = shape,
+    spotColor = Color(0xFF111827),
+    ambientColor = Color(0xFF111827)
+)
+
 /** 흰색 카드 + 18dp 라운드 + 은은한 그림자 + 눌림 반응. 토스 시그니처 섹션. (프로토 .card = padding 16 / radius 18) */
 @Composable
 fun TossCard(
