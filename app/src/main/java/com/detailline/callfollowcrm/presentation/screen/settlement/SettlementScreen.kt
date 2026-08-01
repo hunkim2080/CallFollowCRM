@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.text.KeyboardOptions
 import com.detailline.callfollowcrm.presentation.component.TossCard
+import com.detailline.callfollowcrm.presentation.component.tossCardShadow
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossError
@@ -261,6 +262,7 @@ private fun SettleTopCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .tossCardShadow(RoundedCornerShape(22.dp))
             .clip(RoundedCornerShape(22.dp))
             .background(Brush.linearGradient(listOf(SettleTopTop, SettleTopBottom)))
             .padding(20.dp)
@@ -609,6 +611,7 @@ private fun SettleDoneRow(item: SettleItem, index: Int) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .tossCardShadow(RoundedCornerShape(14.dp))
             .clip(RoundedCornerShape(14.dp))
             .background(Color.White)
             .padding(horizontal = 14.dp, vertical = 11.dp),

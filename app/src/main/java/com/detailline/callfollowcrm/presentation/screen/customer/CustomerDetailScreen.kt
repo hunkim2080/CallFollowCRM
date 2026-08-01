@@ -105,6 +105,9 @@ import com.detailline.callfollowcrm.data.local.entity.RecordingAttachmentEntity
 import com.detailline.callfollowcrm.presentation.component.CelebrationOverlay
 import com.detailline.callfollowcrm.presentation.component.SectionLabel
 import com.detailline.callfollowcrm.presentation.component.TossCard
+import com.detailline.callfollowcrm.presentation.component.tossCardShadow
+import com.detailline.callfollowcrm.presentation.component.pressScale
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.detailline.callfollowcrm.presentation.component.TossChip
 import com.detailline.callfollowcrm.presentation.component.TossPrimaryButton
 import com.detailline.callfollowcrm.presentation.component.TossSecondaryButton
@@ -296,7 +299,7 @@ fun CustomerDetailScreen(
             val headerName = c.name?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(c.phoneNumber)
             val headerCtx = androidx.compose.ui.platform.LocalContext.current
             Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).padding(17.dp)
+                Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(18.dp)).clip(RoundedCornerShape(18.dp)).background(Color.White).padding(17.dp)
             ) {
                 androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     // 고객온도 점 제거 (2026-06-14 사장님: 온도 더 안 씀 — 통화 후 카드에서 뺀 것과 일관).
@@ -370,11 +373,15 @@ fun CustomerDetailScreen(
 
             if (displayAddr != null) {
                 // 프로토 .addr-card — 그라데이션 + 주소 + [길찾기 시작] 큰 파란 버튼.
+                val addrInteraction = remember { MutableInteractionSource() }
                 Column(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                    Modifier.fillMaxWidth()
+                        .pressScale(addrInteraction)
+                        .tossCardShadow(RoundedCornerShape(18.dp))
+                        .clip(RoundedCornerShape(18.dp))
                         .background(Brush.linearGradient(listOf(Color(0xFFF5F9FF), Color.White)))
                         .border(1.5.dp, Color(0xFFE2EDFD), RoundedCornerShape(18.dp))
-                        .clickable { showAddressDialog = true }
+                        .clickable(interactionSource = addrInteraction, indication = null) { showAddressDialog = true }
                         .padding(17.dp)
                 ) {
                     androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
@@ -1017,7 +1024,7 @@ fun CustomerDetailScreen(
             // 7. 하단 — 블로그 후기 lockcard([블로그] 탭) + "지난 문자 보기" 링크(항상 표시). (2026-07-18 탭 재배치)
             val bottomCtx = androidx.compose.ui.platform.LocalContext.current
             if (detailTab == 3) androidx.compose.foundation.layout.Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White)
+                Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(18.dp)).clip(RoundedCornerShape(18.dp)).background(Color.White)
                     .clickable {
                         android.widget.Toast.makeText(bottomCtx, "블로그 후기 글 만들기는 비즈니스 요금제 기능이에요. 곧 제공돼요!", android.widget.Toast.LENGTH_SHORT).show()
                     }
@@ -1042,9 +1049,13 @@ fun CustomerDetailScreen(
                 )
             }
 
+            val lastMsgInteraction = remember { MutableInteractionSource() }
             androidx.compose.foundation.layout.Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White)
-                    .clickable { onOpenChat(c.phoneNumber, c.id) }.padding(15.dp),
+                Modifier.fillMaxWidth()
+                    .pressScale(lastMsgInteraction)
+                    .tossCardShadow(RoundedCornerShape(18.dp))
+                    .clip(RoundedCornerShape(18.dp)).background(Color.White)
+                    .clickable(interactionSource = lastMsgInteraction, indication = null) { onOpenChat(c.phoneNumber, c.id) }.padding(15.dp),
                 horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
             ) {
@@ -1710,6 +1721,7 @@ private fun PersonaCard(persona: com.detailline.callfollowcrm.ai.CustomerPersona
     // 프로토 .persona-card — 연한 파란 그라데이션 + 테두리 + ✨ 고객 페르소나 + [AI 분석] 칩.
     Column(
         Modifier.fillMaxWidth()
+            .tossCardShadow(RoundedCornerShape(18.dp))
             .clip(RoundedCornerShape(18.dp))
             .background(Brush.verticalGradient(listOf(Color(0xFFF5F9FF), Color.White)))
             .border(1.dp, Color(0xFFE6EEFB), RoundedCornerShape(18.dp))
@@ -3158,7 +3170,7 @@ private fun CollabAfterCard(
     val collabActive = status == "accepted" || curIdx > 0
     if (!collabActive) {
         Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White)
+            Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(16.dp)).clip(RoundedCornerShape(16.dp)).background(Color.White)
                 .border(1.dp, Color(0xFFF0E4C8), RoundedCornerShape(16.dp)).padding(15.dp)
         ) {
             androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
@@ -3198,7 +3210,7 @@ private fun CollabAfterCard(
     }
 
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White)
+        Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(16.dp)).clip(RoundedCornerShape(16.dp)).background(Color.White)
             .border(1.dp, Color(0xFFE2D8FB), RoundedCornerShape(16.dp)).padding(15.dp)
     ) {
         androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
