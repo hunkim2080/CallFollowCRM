@@ -37,6 +37,7 @@ object NotificationHelper {
     private const val CHANNEL_REMINDER = "reminder_2"
     private const val D1_ID_OFFSET = 9_000_000
     private const val SETTLE_ID_OFFSET = 9_500_000
+    private const val AS_ID_OFFSET = 9_250_000            // A/S 그날 알림 (DB v43)
     private const val BRIEF_ID = 9_700_000
     private const val RECUR_ID = 9_800_000
     private const val ARRIVAL_ID_OFFSET = 9_900_000
@@ -448,6 +449,39 @@ object NotificationHelper {
             note = "무음 자동발송 안 해요 · 사장님이 확인하면 보내요",
             contentIntent = pending,
             actions = listOf(PushAction("안내 보내기", pending))
+        )
+    }
+
+    /**
+     * A/S 그날 알림 (2026-08-01 사장님) — 오늘 A/S 예약이 있는 고객을 아침에 알림(주황).
+     *   A/S 는 무료라 깜빡 잊기 쉬운데 잊으면 신뢰가 크게 깎임 → 그날 아침에 짚어줌.
+     *   자동발송 없음(문자 안 나감). 탭 = 그 고객 채팅.
+     */
+    fun showAsToday(
+        context: Context,
+        customerId: Long,
+        phone: String,
+        name: String,
+        whenLabel: String,
+        address: String
+    ) {
+        val notifId = AS_ID_OFFSET + (customerId.toInt() and 0x7FFFFF)
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            action = MainActivity.ACTION_CHAT
+            putExtra(MainActivity.EXTRA_PHONE_NUMBER, phone)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pending = PendingIntent.getActivity(
+            context, notifId, openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        showProtoPush(
+            context, notifId, CHANNEL_REMINDER, ACCENT_AMBER,
+            title = "오늘 A/S 있어요 🔧",
+            msg = "${name}님 · $whenLabel · $address · 무료",
+            note = "시공과 별개인 A/S 예약이에요 (무료)",
+            contentIntent = pending,
+            actions = listOf(PushAction("고객 열기", pending))
         )
     }
 

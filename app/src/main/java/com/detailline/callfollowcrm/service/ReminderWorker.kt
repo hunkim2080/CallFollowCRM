@@ -35,6 +35,7 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
             return Result.success()
         }
         runCatching { checkInstallD1(app.container) }
+        runCatching { checkAsToday(app.container) }
         runCatching { checkBalanceDue(app.container) }
         runCatching { checkDailyBrief(app.container) }
         runCatching { checkRecurringDue(app.container) }
@@ -209,6 +210,42 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
         NotificationHelper.showRecurringDue(applicationContext, due, ruleNames.joinToString(" · "))
         keys.add(key)
         prefs.reminderNotifiedKeys = keys
+    }
+
+    /**
+     * 오늘 A/S 예약이 있는 고객 → '오늘 A/S 있어요' 알림 (아침 창, 고객·날짜별 1회). (2026-08-01 사장님)
+     *   A/S 는 무료라 깜빡 잊기 쉽고, 잊으면 신뢰가 크게 깎임 → 그날 아침에 짚어줌. 자동문자 없음(로컬 알림뿐).
+     *   여러 날 A/S(asScheduledDays)면 기간 중 매일 아침 알림(각 날 dedup). 시공(scheduledWorkDate)과 별개 필드.
+     */
+    private suspend fun checkAsToday(container: AppContainer) {
+        val now = System.currentTimeMillis()
+        val hour = Calendar.getInstance().apply { timeInMillis = now }.get(Calendar.HOUR_OF_DAY)
+        if (hour < 8) return // 아침 8시 이후. 상한 없음(놓친 날도 그날 안엔 구제) + 아래 날짜키로 하루 1회.
+
+        val todayStart = DateTimeUtils.startOfDay(now)
+        val prefs = container.preferences
+        val keys = prefs.reminderNotifiedKeys.toMutableSet()
+        var changed = false
+
+        val customers = runCatching { container.customerRepository.allOnce() }.getOrDefault(emptyList())
+        for (c in customers) {
+            val asStart = c.asScheduledDate ?: continue
+            val s = DateTimeUtils.startOfDay(asStart)
+            val days = c.asScheduledDays.coerceAtLeast(1)
+            val end = s + (days - 1) * DateTimeUtils.DAY_MS
+            if (todayStart < s || todayStart > end) continue // 오늘이 A/S 기간 밖
+            val key = "as:${c.id}:$todayStart"
+            if (key in keys) continue
+
+            val nm = c.name?.takeIf { it.isNotBlank() } ?: c.phoneNumber
+            val dayN = ((todayStart - s) / DateTimeUtils.DAY_MS).toInt() + 1
+            val whenLabel = if (days > 1) "A/S ${days}일 중 ${dayN}일차" else "오늘 A/S"
+            val address = c.address?.takeIf { it.isNotBlank() } ?: "주소 미입력"
+            NotificationHelper.showAsToday(applicationContext, c.id, c.phoneNumber, nm, whenLabel, address)
+            keys.add(key)
+            changed = true
+        }
+        if (changed) prefs.reminderNotifiedKeys = keys
     }
 
     /** 시공 완료 3일 지났는데 잔금 미입금 → 잔금 미수 알림 (오전 창, 고객별 1회). */
