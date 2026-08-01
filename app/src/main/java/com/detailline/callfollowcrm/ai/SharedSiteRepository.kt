@@ -96,6 +96,27 @@ class SharedSiteRepository(
         val lastAtMs: Long     // 최근 현장 시각
     )
 
+    /** 협업 월별 양방향 집계 — received=내가 받은(수입), given=내가 준(지출). docs/SERVER_HANDOFF_collab_monthly.md (2026-08-01) */
+    data class MonthlyRecord(
+        val ym: String,                    // "2026-07"
+        val availableMonths: List<String>, // 데이터 있는 달, 최신순
+        val received: DirectionAgg,
+        val given: DirectionAgg
+    )
+    data class DirectionAgg(
+        val count: Int, val totalWage: Int, val paidTotal: Int,
+        val partners: List<PartnerMonth>
+    )
+    data class PartnerMonth(
+        val partnerPhone: String, val partnerName: String,
+        val count: Int, val totalWage: Int, val paidTotal: Int, val lastAtMs: Long,
+        val sites: List<SiteRow>
+    )
+    data class SiteRow(
+        val shareId: String, val atMs: Long, val title: String, val wage: Int,
+        val paid: Boolean?   // null = 로컬 폴백(입금여부 서버만 알아서 모름)
+    )
+
     data class InviteResult(
         val shareId: String,
         val route: String,           // "inapp" (상대도 앱 사장) | "link" (웹링크)
@@ -316,6 +337,68 @@ class SharedSiteRepository(
                 }
             }
         }
+    }
+
+    /** 협업 월별 양방향 집계(§collab_monthly). 서버 미구현(404)/실패 시 Result 실패 → 호출부가 withMe+byMe 로컬 폴백. */
+    suspend fun monthly(phone: String, ym: String? = null): Result<MonthlyRecord> = withContext(Dispatchers.IO) {
+        runCatching {
+            val b = baseUrl.toHttpUrl().newBuilder()
+                .addPathSegments("api/shared/monthly")
+                .addQueryParameter("phone", phoneKey(phone))
+            ym?.takeIf { it.isNotBlank() }?.let { b.addQueryParameter("ym", it) }
+            val req = Request.Builder().url(b.build()).get().build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                parseMonthly(resp.body?.string().orEmpty())
+            }
+        }
+    }
+
+    private fun parseMonthly(body: String): MonthlyRecord {
+        val o = JSONObject(body.ifBlank { "{}" })
+        val months = o.optJSONArray("available_months")?.let { a ->
+            (0 until a.length()).mapNotNull { a.optString(it).takeIf { s -> s.isNotBlank() } }
+        } ?: emptyList()
+        return MonthlyRecord(
+            ym = o.optString("ym"),
+            availableMonths = months,
+            received = parseDirection(o.optJSONObject("received")),
+            given = parseDirection(o.optJSONObject("given"))
+        )
+    }
+
+    private fun parseDirection(o: JSONObject?): DirectionAgg {
+        if (o == null) return DirectionAgg(0, 0, 0, emptyList())
+        val parr = o.optJSONArray("partners") ?: JSONArray()
+        val partners = (0 until parr.length()).mapNotNull { i ->
+            val p = parr.optJSONObject(i) ?: return@mapNotNull null
+            val sarr = p.optJSONArray("sites") ?: JSONArray()
+            val sites = (0 until sarr.length()).mapNotNull { j ->
+                val s = sarr.optJSONObject(j) ?: return@mapNotNull null
+                SiteRow(
+                    shareId = s.optString("share_id"),
+                    atMs = s.optLong("at_ms"),
+                    title = s.optString("title").ifBlank { "협업 현장" },
+                    wage = s.optInt("wage"),
+                    paid = if (s.has("paid") && !s.isNull("paid")) s.optBoolean("paid") else null
+                )
+            }
+            PartnerMonth(
+                partnerPhone = p.optString("partner_phone"),
+                partnerName = p.optString("partner_name").ifBlank { "사장님" },
+                count = p.optInt("count"),
+                totalWage = p.optInt("total_wage"),
+                paidTotal = p.optInt("paid_total"),
+                lastAtMs = p.optLong("last_at_ms"),
+                sites = sites
+            )
+        }
+        return DirectionAgg(
+            count = o.optInt("count"),
+            totalWage = o.optInt("total_wage"),
+            paidTotal = o.optInt("paid_total"),
+            partners = partners
+        )
     }
 
     /** 증거 사진 업로드(§F) — 업로더(owner/partner) 본인 번호 + base64(raw). */

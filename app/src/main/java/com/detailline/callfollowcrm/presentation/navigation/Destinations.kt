@@ -82,6 +82,8 @@ object Destinations {
         val q = listOf(s, t).filter { it.isNotEmpty() }.joinToString("&")
         return if (q.isEmpty()) COLLAB_SITES else "collab_sites?$q"
     }
+    /** 더보기 → 협업 기록 — 협업 사장별·월별 집계(받은/준). 기록·세금용. (2026-08-01 사장님) */
+    const val COLLAB_RECORD = "collab_record"
     const val REPORT = "report"
     const val TRADE_SELECT = "trade_select"
     const val RECURRING = "recurring"

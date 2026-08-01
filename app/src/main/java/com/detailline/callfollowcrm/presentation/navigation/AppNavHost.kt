@@ -551,6 +551,7 @@ fun AppNavHost(
                 onOpenNotebook = { navController.navigate(Destinations.NOTEBOOK) },
                 onOpenTeam = { navController.navigate(Destinations.TEAM) },
                 onOpenCollabSites = { navController.navigate(Destinations.COLLAB_SITES) },
+                onOpenCollabRecord = { navController.navigate(Destinations.COLLAB_RECORD) },
                 onOpenReport = { navController.navigate(Destinations.REPORT) },
                 onOpenTradeSelect = { navController.navigate(Destinations.TRADE_SELECT) },
                 onOpenRecurring = { navController.navigate(Destinations.RECURRING) },
@@ -592,6 +593,7 @@ fun AppNavHost(
                 onOpenNotebook = { navController.navigate(Destinations.NOTEBOOK) },
                 onOpenTeam = { navController.navigate(Destinations.TEAM) },
                 onOpenCollabSites = { navController.navigate(Destinations.COLLAB_SITES) },
+                onOpenCollabRecord = { navController.navigate(Destinations.COLLAB_RECORD) },
                 onOpenReport = { navController.navigate(Destinations.REPORT) },
                 onOpenTradeSelect = { navController.navigate(Destinations.TRADE_SELECT) },
                 onOpenRecurring = { navController.navigate(Destinations.RECURRING) },
@@ -610,6 +612,16 @@ fun AppNavHost(
         composable(Destinations.PERSONAL_LIST) {
             com.detailline.callfollowcrm.presentation.screen.spam.SpamListScreen(
                 container = container, kind = "personal",
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        // 더보기 → 협업 기록 — 협업 사장별·월별 집계(받은/준). 기록·세금용. (2026-08-01 사장님)
+        composable(Destinations.COLLAB_RECORD) {
+            val vm: com.detailline.callfollowcrm.presentation.screen.collab.CollabRecordViewModel =
+                viewModel(factory = viewModelFactory { com.detailline.callfollowcrm.presentation.screen.collab.CollabRecordViewModel(container) })
+            com.detailline.callfollowcrm.presentation.screen.collab.CollabRecordScreen(
+                viewModel = vm,
                 onBack = { navController.popBackStack() }
             )
         }

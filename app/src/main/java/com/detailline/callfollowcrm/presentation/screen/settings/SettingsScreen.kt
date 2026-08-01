@@ -145,6 +145,7 @@ fun SettingsScreen(
     onOpenTeam: () -> Unit = {},
     onOpenExpo: () -> Unit = {},
     onOpenCollabSites: () -> Unit = {},
+    onOpenCollabRecord: () -> Unit = {},
     onOpenReport: () -> Unit = {},
     onOpenTradeSelect: () -> Unit = {},
     onOpenRecurring: () -> Unit = {},
@@ -298,6 +299,8 @@ fun SettingsScreen(
                         "거래처 — 자재·협력·장비 자주 거래하는 곳", onClick = onOpenNotebook)
                     LockRow(Icons.Filled.Group, Color(0xFFF1ECFE), Color(0xFF7C5CFC), "협업 현장",
                         "다른 사장님과 현장 하나만 같이 보기", tier = "비즈니스", onClick = onOpenCollabSites)
+                    LockRow(Icons.Filled.Payments, Color(0xFFE7F8F0), Color(0xFF16C172), "협업 기록",
+                        "협업 사장님별 · 월별로 얼마나 함께했나 (기록·세금용)", tier = "비즈니스", onClick = onOpenCollabRecord)
                     LockRow(Icons.Filled.PhoneAndroid, TossBlueSoft, TossBlue, "본폰에서 일정 보기",
                         "업무폰 일정을 본폰에서 읽기전용으로 · 수정 안 됨") { subPage = "mirror" }
                     // '비즈니스' 배지를 유료로 오해해 핵심 기능을 안 누르던 것 → 베타 무료 안내. 2026-07-30
