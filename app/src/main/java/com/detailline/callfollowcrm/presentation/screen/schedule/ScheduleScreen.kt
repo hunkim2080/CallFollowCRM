@@ -389,7 +389,10 @@ fun ScheduleScreen(
                             selectedDayMs = selectedDayMs,
                             todayStart = todayStart,
                             assignedMembers = assignmentsByCustomer[c.id].orEmpty(),
-                            collabPartnerNames = collabAssign[c.id].orEmpty().map { it.name to it.accepted },
+                            // 다일 공사: 이 협업자가 '일하는 날'에만 이름표 표시. days 비면=전체(하위호환). (2026-08-02 하루만 배정 버그 fix)
+                            collabPartnerNames = collabAssign[c.id].orEmpty()
+                                .filter { it.days.isEmpty() || selectedDayMs in it.days }
+                                .map { it.name to it.accepted },
                             teamAvailable = teamMembers.isNotEmpty() || collabPartners.isNotEmpty(),
                             // 주소가 없어도 시트는 연다 — '내가 부른 일당' 배정은 아무것도 안 보내니 주소가 필요 없다.
                             //   협업 요청(서버로 나가는 것)만 주소가 필수인데, 그건 시트 안에서 주소를 받아 막는다
@@ -476,6 +479,10 @@ fun ScheduleScreen(
         val assignSiteTitle = com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(c.address).takeIf { it.isNotBlank() }?.let { "$it 현장" }
             ?: c.name?.takeIf { it.isNotBlank() && it.count { ch -> ch.isDigit() } < 9 }?.let { "$it 현장" }
             ?: "이 현장"
+        // 다일 공사면 [시작일 … 시작일+(일수-1)] 각 날의 startOfDay 목록 → 시트 '일하는 날' 칩. 단일일이면 1개. (2026-08-02)
+        val assignJobDayStarts = c.scheduledWorkDate?.let { DateTimeUtils.startOfDay(it) }?.let { js ->
+            (0 until c.scheduledWorkDays.coerceAtLeast(1)).map { js + it * DateTimeUtils.DAY_MS }
+        } ?: emptyList()
         AssignTeamSheet(
             siteTitle = assignSiteTitle,
             siteAddress = c.address,
@@ -485,6 +492,7 @@ fun ScheduleScreen(
             initiallySelected = assignedIds,
             initialMemo = existingMemo,
             defaultStartHour = viewModel.lastCollabStartHour,
+            jobDayStarts = assignJobDayStarts,
             onAddTeamMember = { name, phone -> viewModel.addTeamMember(name, phone) },
             onAddWorker = { name, phone, wage -> viewModel.addCollabPartner(name, phone, wage) },
             onDismiss = { assignTarget = null },
@@ -493,8 +501,8 @@ fun ScheduleScreen(
                 viewModel.assignTeam(c, dayStart, selectedIds.toList(), memo)
                 assignTarget = null
             },
-            onInviteCollab = { phone, force, memo, wage, hour, address ->
-                viewModel.inviteCollabToSite(c, phone, force, memo, wage, hour, address) { partner, body ->
+            onInviteCollab = { phone, force, memo, wage, hour, address, days ->
+                viewModel.inviteCollabToSite(c, phone, force, memo, wage, hour, address, workDayStarts = days) { partner, body ->
                     com.detailline.callfollowcrm.util.SmsIntentHelper.openSmsCompose(assignCtxLocal, partner, body)
                 }
             },
@@ -1268,11 +1276,13 @@ private fun AssignTeamSheet(
     initiallySelected: Set<String>,
     initialMemo: String,
     defaultStartHour: Int,
+    /** 공사가 걸친 날들(startOfDay). 2개 이상이면 '일하는 날' 칩 노출. 협업자별로 오는 날 선택. (2026-08-02) */
+    jobDayStarts: List<Long> = emptyList(),
     onAddTeamMember: (name: String, phone: String) -> Unit,
     onAddWorker: (name: String, phone: String, wageManwon: Int?) -> Unit,
     onDismiss: () -> Unit,
     onSave: (Set<String>, String) -> Unit,
-    onInviteCollab: (phone: String, force: Boolean, memo: String, dailyWage: Int?, startHour: Int, address: String?) -> Unit,
+    onInviteCollab: (phone: String, force: Boolean, memo: String, dailyWage: Int?, startHour: Int, address: String?, days: List<Long>) -> Unit,
     onCancelCollab: (phone: String) -> Unit,
     /** 이 시공에 이미 배정된 '내가 부른 일당' (workerId → 일당 원). */
     crewWagesByWorkerId: Map<Long, Long> = emptyMap(),
@@ -1295,6 +1305,9 @@ private fun AssignTeamSheet(
     }
     var memo by remember { mutableStateOf(initialMemo) }
     var startHour by remember { mutableStateOf(defaultStartHour) }
+    // '일하는 날' — 협업자가 오는 날(startOfDay). 기본 전체 켜짐(기존 동작 유지). 다일 공사에서만 UI 노출. (2026-08-02)
+    var selectedDays by remember { mutableStateOf(jobDayStarts.toSet()) }
+    val multiDayJob = jobDayStarts.size > 1
     // 시트 안 "+추가" 인라인 폼 (한 번에 하나만 열림)
     var addTeamOpen by remember { mutableStateOf(false) }
     var addWorkerOpen by remember { mutableStateOf(false) }
@@ -1467,6 +1480,31 @@ private fun AssignTeamSheet(
                         fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 6.dp, start = 2.dp))
                     Spacer(Modifier.height(14.dp))
                 }
+                // '일하는 날' — 다일 공사에서만. 협업자가 오는 날만 켜기(기본 전체). 그 날에만 🤝 + 상대에게 그 날짜로. (2026-08-02)
+                if (multiDayJob) {
+                    SheetFieldLabel("일하는 날")
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        jobDayStarts.forEach { dayMs ->
+                            val on = dayMs in selectedDays
+                            val cal = java.util.Calendar.getInstance().apply { timeInMillis = dayMs }
+                            val md = "${cal.get(java.util.Calendar.MONTH) + 1}/${cal.get(java.util.Calendar.DAY_OF_MONTH)}"
+                            val dow = arrayOf("일", "월", "화", "수", "목", "금", "토")[cal.get(java.util.Calendar.DAY_OF_WEEK) - 1]
+                            Box(
+                                Modifier.clip(RoundedCornerShape(999.dp))
+                                    .background(if (on) purple else TossGrayBg)
+                                    // 마지막 1개는 못 끄게(최소 하루) — 0일 배정 방지.
+                                    .clickable { selectedDays = if (on) (selectedDays - dayMs).ifEmpty { selectedDays } else selectedDays + dayMs }
+                                    .padding(horizontal = 13.dp, vertical = 8.dp)
+                            ) {
+                                Text((if (on) "✓ " else "") + "$md($dow)", fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
+                                    color = if (on) Color.White else TossTextSecondary, maxLines = 1)
+                            }
+                        }
+                    }
+                    Text("이 사장님이 오는 날만 켜두세요. (기본은 전체)",
+                        fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 6.dp, start = 2.dp))
+                    Spacer(Modifier.height(14.dp))
+                }
                 SheetFieldLabel("출근 시간 (선택)")
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     listOf(7, 8, 9, 10, 11, 13, 14).forEach { h ->
@@ -1544,11 +1582,14 @@ private fun AssignTeamSheet(
                 if (selectedWorkers.isNotEmpty() || initiallySelected.isNotEmpty()) onSave(selectedWorkers, memo)
                 // 고른 사람은 전부 협업 요청(서버 초대, 상대 수락 필요). '내가 부른 일당'은 없앴다. (2026-07-17 사장님)
                 //   ⚠️ onSaveCrew 는 호출하지 않는다 — 기존 JobCrew(일당) 데이터를 건드리지 않고 그대로 보존.
+                // 일하는 날 — 전체 선택(또는 단일일 공사)이면 빈 리스트(=전체, 하위호환), 일부만이면 그 날들만. (2026-08-02)
+                val daysToSend = if (!multiDayJob || selectedDays.size >= jobDayStarts.size) emptyList()
+                                 else selectedDays.toList().sorted()
                 selectedPartners.forEach { k ->
                     if (k in reqKeys) return@forEach                       // 이미 보낸 요청은 그대로
                     val p = collabPartners.firstOrNull { key(it.phone) == k } ?: return@forEach
                     val manwon = partnerWages[k]?.toIntOrNull() ?: 0
-                    onInviteCollab(p.phone, false, memo, manwon.takeIf { it > 0 }, startHour, addrToSend)
+                    onInviteCollab(p.phone, false, memo, manwon.takeIf { it > 0 }, startHour, addrToSend, daysToSend)
                 }
                 // 보냈던 요청을 뺐으면 협업 요청 취소(서버에도 알림).
                 reqKeys.forEach { k ->

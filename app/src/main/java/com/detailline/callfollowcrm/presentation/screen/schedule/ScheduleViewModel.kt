@@ -122,7 +122,8 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
 
     /** 협업 사장 배정(요청) 1건 — 일정 카드 "🤝 이름" + 중복요청 가드(phone).
      *   accepted = 상대가 수락했나(아니면 아직 "요청 중"). 수락 안 된 협업을 파트너처럼 표시하던 버그 fix용. (2026-07-09) */
-    data class CollabAssign(val phone: String, val name: String, val accepted: Boolean = false)
+    /** days = 이 협업자가 일하는 날(startOfDay) 집합. 비면 = 공사 전체(하위호환·단일일). (2026-08-02 다일 공사 하루만 배정) */
+    data class CollabAssign(val phone: String, val name: String, val accepted: Boolean = false, val days: Set<Long> = emptySet())
     /** 협업 사장 배정 — customerId → 배정들. (로컬 기록, 서버 수락확정은 추후). (2026-06-13) */
     private val _collabAssignByCustomer = MutableStateFlow<Map<Long, List<CollabAssign>>>(emptyMap())
     val collabAssignByCustomer = _collabAssignByCustomer.asStateFlow()
@@ -199,6 +200,8 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             val phone = if (parts.size >= 3) parts[1].filter { it.isDigit() } else ""
             val name = if (parts.size >= 3) parts[2] else parts.getOrNull(1).orEmpty()
             if (name.isBlank()) continue
+            // 5번째 칸 = 일하는 날(startOfDay, 콤마). 없거나 비면 = 전체(구버전·단일일 호환). (2026-08-02)
+            val days = parts.getOrNull(4)?.split(',')?.mapNotNull { it.trim().toLongOrNull() }?.toSet().orEmpty()
             val list = map.getOrPut(id) { mutableListOf() }
             val dup = list.any {
                 if (phone.isNotBlank() && it.phone.isNotBlank()) it.phone.takeLast(8) == phone.takeLast(8)
@@ -206,7 +209,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             }
             // 구버전 기록(shareId 없음)=기존 표시 유지(accepted=true, 회귀 방지). 그 외엔 pending 인 것만 미수락. (2026-07-09)
             val accepted = shareId.isEmpty() || shareId !in pendingCollabShareIds
-            if (!dup) list.add(CollabAssign(phone, name, accepted))
+            if (!dup) list.add(CollabAssign(phone, name, accepted, days))
         }
         _collabAssignByCustomer.value = map
     }
@@ -315,6 +318,7 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         dailyWage: Int? = null,
         startHour: Int = -1, // 출근시간(24h). -1=미선택
         addressOverride: String? = null, // 시트에서 입력받은 현장 주소(고객에 주소 없을 때). 비면 customer.address. (2026-06-20 사장님)
+        workDayStarts: List<Long> = emptyList(), // 이 협업자가 일하는 날(startOfDay). 비면=공사 전체. (2026-08-02 다일 하루만)
         onLink: (String, String) -> Unit
     ) {
         val owner = ownerPhone.filter { it.isDigit() }
@@ -333,7 +337,8 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             ?.name?.takeIf { it.isNotBlank() } ?: "협업 사장님"
         val addr = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(effectiveAddress).takeIf { it.isNotBlank() }
         // 출근시간 선택 시: 일정 날짜에 그 정시 박아 scheduled_at_ms + time_label 도 함께.
-        val baseMs = customer.scheduledWorkDate ?: 0L
+        //   다일 공사에서 이 협업자가 오는 첫 날을 기준일로 → 상대(B)·캘린더가 그 날짜로. 비면 공사 시작일. (2026-08-02)
+        val baseMs = workDayStarts.minOrNull() ?: customer.scheduledWorkDate ?: 0L
         val effectiveMs = if (startHour in 0..23 && baseMs > 0L) {
             Calendar.getInstance().apply {
                 timeInMillis = baseMs
@@ -356,8 +361,9 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
                 dailyWage = dailyWage, timeLabel = timeLabel,
                 ownerName = container.preferences.bizName
             ).onSuccess { r ->
-                // 일정 카드 "🤝 이름" 표시용 로컬 배정 기록 (서버 수락 확정은 추후). 4번째=shareId(공유후카드 사진 조회용).
-                container.preferences.collabAssignments = container.preferences.collabAssignments + "${customer.id}|$partner|$partnerName|${r.shareId}"
+                // 일정 카드 "🤝 이름" 표시용 로컬 배정 기록 (서버 수락 확정은 추후). 4번째=shareId, 5번째=일하는 날(콤마, 비면 전체).
+                val daysCsv = workDayStarts.sorted().joinToString(",")
+                container.preferences.collabAssignments = container.preferences.collabAssignments + "${customer.id}|$partner|$partnerName|${r.shareId}|$daysCsv"
                 if (startHour in 0..23) container.preferences.lastCollabStartHour = startHour  // 다음 요청 때 미리 선택
                 loadCollabAssignments()
                 if (r.deduped) {
