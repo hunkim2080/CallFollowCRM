@@ -23,6 +23,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -686,6 +687,15 @@ fun ChatScreen(
                 val showCollapsed = composerFocused || summaryManualCollapsed
                 val isSummaryRefreshing by viewModel.isSummaryRefreshing.collectAsState()
                 val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+                // 펼침↔접힘 높이 변화를 부드럽게(순간 점프 X). (2026-08-02 프로 느낌)
+                Column(
+                    modifier = Modifier.animateContentSize(
+                        animationSpec = androidx.compose.animation.core.spring(
+                            dampingRatio = 0.9f,
+                            stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
+                        )
+                    )
+                ) {
                 if (showCollapsed) {
                     val collapsedLines = com.detailline.callfollowcrm.ai.parseConversationLines(s.conversationSummaryJson)
                     CollapsedSummaryHeader(
@@ -710,6 +720,7 @@ fun ChatScreen(
                         onCollapse = { summaryManualCollapsed = true }
                     )
                 }
+                }
             }
 
             // 메시지 채팅 영역 — 풀 카톡 스타일. reverseLayout=true 라 newest 가 아래에 표시.
@@ -719,10 +730,18 @@ fun ChatScreen(
             //   메시지 첫 로드 + 새 메시지 도착 (size 변경) 시 items[0] (=최신) 로 강제 스크롤.
             //   사장님이 위로 옛 메시지 보다가 새 메시지 와도 자동 점프 — 약간 거슬릴 수도 있지만
             //   "옛 메시지가 앞에 보이지 않게" 가 더 중요 (사장님 명시 우선순위).
+            var prevTimelineSize by remember { mutableStateOf(0) }
             LaunchedEffect(timelineItems.size) {
                 if (timelineItems.isNotEmpty()) {
-                    listState.scrollToItem(0)
+                    // 새 메시지 도착(첫 로드 아님)이고 이미 최신 근처면 부드럽게 스크롤, 아니면 즉시(기존 동작). (2026-08-02 프로 느낌)
+                    val grew = timelineItems.size > prevTimelineSize && prevTimelineSize > 0
+                    if (grew && listState.firstVisibleItemIndex <= 3) {
+                        listState.animateScrollToItem(0)
+                    } else {
+                        listState.scrollToItem(0)
+                    }
                 }
+                prevTimelineSize = timelineItems.size
             }
             // 스크롤 자동 숨김 (2026-06-29 사장님): 옛 메시지 보려 위로 올리면 칩+추천이 스르륵 숨고,
             //   최신 쪽(아래)으로 내리거나 맨 아래면 다시 나옴. reverseLayout=true → index 0 = 최신(맨 아래).
@@ -2570,13 +2589,18 @@ private fun ChatBubble(
             if (isStarred) { star(); Spacer(Modifier.width(4.dp)) }
             timeText(); Spacer(Modifier.width(6.dp))
         }
+        val bubbleInteraction = remember { MutableInteractionSource() }
         Surface(
             shape = bubbleShape,
             color = if (sent) TossBlue else Color.White,
-            shadowElevation = if (sent) 0.dp else 1.dp,
+            shadowElevation = 0.dp,   // 그림자는 아래 tossCardShadow(받은 버블)로 — M3 회색 1dp 대신 프로토 부드러운 그림자.
             modifier = Modifier
                 .widthIn(max = 280.dp)
+                .pressScale(bubbleInteraction)                                   // 눌림 '쏙' (다른 화면과 통일)
+                .then(if (sent) Modifier else Modifier.tossCardShadow(bubbleShape))  // 받은 버블 = 프로토 var(--shadow)
                 .combinedClickable(
+                    interactionSource = bubbleInteraction,
+                    indication = null,
                     onClick = { firstUrl?.let { runCatching { uriHandler.openUri(it) } } },
                     onLongClick = onLongPress
                 )
@@ -2902,13 +2926,17 @@ private fun SuggestionChip(index: Int, label: String?, text: String, onTap: () -
     //   sizeIn(minHeight=48dp) 으로 단일 라인 케이스도 최소 터치 보장.
     //   vertical padding 10dp → 12dp 로 시각적 여유.
     // 프로토 .sug-chip — 흰 카드(238px) + .cl(✨ 파란 라벨) + .ct(검은 본문).
+    val chipInteraction = remember { MutableInteractionSource() }
+    val chipShape = RoundedCornerShape(15.dp)
     Surface(
         modifier = Modifier
             .width(238.dp)
-            .clickable { onTap() },
-        shape = RoundedCornerShape(15.dp),
+            .pressScale(chipInteraction)                 // 눌림 '쏙'
+            .tossCardShadow(chipShape)                   // M3 2dp → 프로토 부드러운 그림자
+            .clickable(interactionSource = chipInteraction, indication = null) { onTap() },
+        shape = chipShape,
         color = Color.White,
-        shadowElevation = 2.dp
+        shadowElevation = 0.dp
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 13.dp, vertical = 12.dp)
@@ -3062,12 +3090,14 @@ private data class ResolvedStyle(
 /** 프로토 .act-chip — 흰 알약 + 파란 아이콘 + 라벨 (견적 작성 / 내 일정 확인 / 문구 넣기). */
 @Composable
 private fun ActChip(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onTap: () -> Unit) {
+    val actInteraction = remember { MutableInteractionSource() }
     Row(
         modifier = Modifier
+            .pressScale(actInteraction)
             .clip(RoundedCornerShape(999.dp))
             .background(Color.White)
             .border(1.dp, com.detailline.callfollowcrm.presentation.theme.TossDivider, RoundedCornerShape(999.dp))
-            .clickable { onTap() }
+            .clickable(interactionSource = actInteraction, indication = null) { onTap() }
             .padding(horizontal = 13.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -3294,12 +3324,15 @@ private fun Composer(
                 }
             }
             // 40px 파란 발송 원 — 프로토 .snd: 항상 파랑 + 흰 아이콘 + 파란 glow.
+            val sendInteraction = remember { MutableInteractionSource() }
             Surface(
                 modifier = Modifier
                     .size(40.dp)
+                    .pressScale(sendInteraction)   // 눌림 '쏙'
                     .shadow(8.dp, androidx.compose.foundation.shape.CircleShape, ambientColor = TossBlue, spotColor = TossBlue),
                 shape = androidx.compose.foundation.shape.CircleShape,
                 color = TossBlue,
+                interactionSource = sendInteraction,
                 onClick = { if (canSend && !isSending) onSend() }
             ) {
                 Box(contentAlignment = Alignment.Center) {
