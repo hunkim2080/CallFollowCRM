@@ -8415,3 +8415,8 @@ A/S 그날 아침 알림 추가 — '오늘 A/S 있어요 🔧'. (사장님 "필
 - Bug#1 다일공사 '하루만' 협업: 배정에 '일하는 날' 추가(collabAssignments 5칸), 시트 날짜 체크칩, 그 날에만 🤝+상대에게 그 날짜. **서버 무관.** commit b475caf.
 - Bug#2 주소 변경 전파: 앱은 CustomerDetail 주소 변경 시 협업 shareId들에 updateAddress 호출 배선 완료. **서버 엔드포인트 POST /api/shared/update-address 필요(cowork)** — 명세=docs/SERVER_HANDOFF_collab_update_address.md. 서버 생기면 자동. commit 4ac39ef.
 - 다음 액션(cowork): update-address 엔드포인트 구현(reschedule 형제) + B에게 FCM collab_address_change.
+
+## 2026-08-02 20:55 · android
+챗스크린 프로 느낌 패스 (사장님 요청 "일관성·애니·프로느낌"). 서버 무관.
+- 받은 버블·추천칩 그림자: M3 회색 → tossCardShadow(프로토 var(--shadow)). 눌림 pressScale(버블·칩·전송). 새 메시지 부드러운 스크롤. 요약 펼침/접힘 animateContentSize.
+- 버블 19dp·입력 22dp·색은 프로토대로 유지. commit f18dcf5. S9+ 실기 확인(받은 버블 그림자·크래시 없음).
