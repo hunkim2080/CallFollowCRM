@@ -155,6 +155,122 @@ class SmsRepository(
             .sortedByDescending { it.dateMs }
     }
 
+    /**
+     * 대화 **전체 본문** 검색 (돋보기) — 폰에 쌓인 모든 SMS/MMS 텍스트에서 키워드를 찾는다. 수신+발신 모두.
+     *   왜: 기존 검색은 각 대화의 '마지막 문자 한 줄'(lastBody 캐시)만 봐서, 옛 문자 속 단어를 못 찾았음.
+     *       (2026-08-02 사장님: AS 약속 고객을 대화 키워드로 검색했는데 안 나옴 — 그 단어가 마지막 문자가 아니라서.)
+     *   방식: 프로바이더 SQLite 의 `body LIKE '%q%'` 한 방 → 17,000건 폰에서도 수십 ms. MMS 텍스트는 part 테이블 별도.
+     *   반환: 매칭 메시지(date DESC), address 로 대화 식별. 검색어 2글자 이상만(1글자는 노이즈 폭발).
+     */
+    fun searchMessages(query: String, smsLimit: Int = 300, mmsLimit: Int = 150): List<SmsMessage> {
+        if (!hasReadPermission()) return emptyList()
+        val q = query.trim()
+        if (q.length < 2) return emptyList()
+        val sms = runCatching { searchSmsByBody(q, smsLimit) }.getOrDefault(emptyList())
+        val mms = runCatching { searchMmsByBody(q, mmsLimit) }.getOrDefault(emptyList())
+        return (sms + mms).sortedByDescending { it.dateMs }
+    }
+
+    /** content://sms 본문 LIKE 검색 (inbox+sent). 기존 파일 관례대로 ESCAPE 없이 plain LIKE. */
+    private fun searchSmsByBody(q: String, limit: Int): List<SmsMessage> {
+        val uri = Uri.parse("content://sms/")
+        val projection = arrayOf(COL_ID, COL_ADDRESS, COL_BODY, COL_DATE, COL_TYPE)
+        val queryArgs = Bundle().apply {
+            putString(ContentResolver.QUERY_ARG_SQL_SELECTION, "$COL_BODY LIKE ?")
+            putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, arrayOf("%$q%"))
+            putStringArray(ContentResolver.QUERY_ARG_SORT_COLUMNS, arrayOf(COL_DATE))
+            putInt(ContentResolver.QUERY_ARG_SORT_DIRECTION, ContentResolver.QUERY_SORT_DIRECTION_DESCENDING)
+            putInt(ContentResolver.QUERY_ARG_LIMIT, limit)
+        }
+        val cursor = runCatching {
+            context.contentResolver.query(uri, projection, queryArgs, null)
+        }.getOrNull() ?: return emptyList()
+        return cursor.use { c ->
+            val idIdx = c.getColumnIndex(COL_ID)
+            val addrIdx = c.getColumnIndex(COL_ADDRESS)
+            val bodyIdx = c.getColumnIndex(COL_BODY)
+            val dateIdx = c.getColumnIndex(COL_DATE)
+            val typeIdx = c.getColumnIndex(COL_TYPE)
+            if (idIdx < 0 || addrIdx < 0 || bodyIdx < 0 || dateIdx < 0 || typeIdx < 0) return@use emptyList()
+            val out = mutableListOf<SmsMessage>()
+            while (c.moveToNext()) {
+                val type = c.getInt(typeIdx)
+                if (type != TYPE_INBOX && type != TYPE_SENT) continue
+                val address = c.getString(addrIdx).orEmpty()
+                if (address.filter { it.isDigit() }.isEmpty()) continue
+                out += SmsMessage(
+                    id = c.getLong(idIdx),
+                    address = address,
+                    body = c.getString(bodyIdx).orEmpty(),
+                    dateMs = c.getLong(dateIdx),
+                    sent = type == TYPE_SENT
+                )
+            }
+            out
+        }
+    }
+
+    /**
+     * content://mms/part 의 text/plain 파트 LIKE 검색 → mid 수집 → mid 별 date/box/address 조립.
+     *   (한국어 ~67자 넘는 긴 문자는 MMS 로 변환돼 여기 들어옴 → 긴 상담 문자가 여기 있을 수 있음.)
+     */
+    private fun searchMmsByBody(q: String, limit: Int): List<SmsMessage> {
+        val partCursor = queryProviderWithRetry(
+            Uri.parse("content://mms/part"),
+            arrayOf("mid", "ct", "text"),
+            "ct=? AND text LIKE ?",
+            arrayOf("text/plain", "%$q%")
+        ) ?: return emptyList()
+        val textByMid = LinkedHashMap<Long, String>()
+        partCursor.use { c ->
+            val midIdx = c.getColumnIndex("mid")
+            val textIdx = c.getColumnIndex("text")
+            if (midIdx < 0 || textIdx < 0) return@use
+            while (c.moveToNext() && textByMid.size < limit) {
+                val mid = c.getLong(midIdx)
+                if (textByMid.containsKey(mid)) continue
+                val t = c.getString(textIdx).orEmpty()
+                if (t.isNotBlank()) textByMid[mid] = t
+            }
+        }
+        if (textByMid.isEmpty()) return emptyList()
+
+        // mid 들의 date/box 를 한 번의 IN 쿼리로. (mid = Long 이라 인젝션 안전)
+        val mids = textByMid.keys.toList()
+        data class MmsMeta(val dateMs: Long, val box: Int)
+        val metaById = HashMap<Long, MmsMeta>(mids.size)
+        runCatching {
+            context.contentResolver.query(
+                Uri.parse("content://mms"),
+                arrayOf("_id", "date", "msg_box"),
+                "_id IN (${mids.joinToString(",")})", null, null
+            )
+        }.getOrNull()?.use { c ->
+            val idIdx = c.getColumnIndex("_id")
+            val dIdx = c.getColumnIndex("date")
+            val bIdx = c.getColumnIndex("msg_box")
+            if (idIdx >= 0 && dIdx >= 0 && bIdx >= 0) while (c.moveToNext()) {
+                metaById[c.getLong(idIdx)] = MmsMeta(c.getLong(dIdx) * 1000L, c.getInt(bIdx))
+            }
+        }
+
+        val out = mutableListOf<SmsMessage>()
+        for ((mid, text) in textByMid) {
+            val meta = metaById[mid] ?: continue
+            if (meta.box != MMS_BOX_INBOX && meta.box != MMS_BOX_SENT) continue
+            val address = pickRelevantAddress(getMmsAddresses(mid), meta.box) ?: continue
+            if (address.filter { it.isDigit() }.isEmpty()) continue
+            out += SmsMessage(
+                id = mid,
+                address = address,
+                body = text,
+                dateMs = meta.dateMs,
+                sent = meta.box == MMS_BOX_SENT
+            )
+        }
+        return out
+    }
+
     private fun querySmsByPhone(targetSuffix: String, scanLimit: Int): List<SmsMessage> {
         val uri = Uri.parse("content://sms/")
         val projection = arrayOf(COL_ID, COL_ADDRESS, COL_BODY, COL_DATE, COL_TYPE)
