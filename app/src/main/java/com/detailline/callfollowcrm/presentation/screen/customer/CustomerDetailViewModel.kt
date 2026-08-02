@@ -543,6 +543,27 @@ class CustomerDetailViewModel(
         withContext(NonCancellable) {
             container.customerRepository.updateAddress(customerId, address)
         }
+        // 이 현장이 협업 중이면 상대 사장(B)들에게 새 주소 전파(+알림). 안 하면 B는 옛 주소 그대로. (2026-08-02 사장님 버그신고)
+        //   서버 미구현(update-address 404)이면 조용히 무시 — 로컬은 이미 바뀜. reschedule 와 같은 best-effort.
+        withContext(NonCancellable) { propagateAddressToCollab(address) }
+    }
+
+    /** 이 고객(현장)의 살아있는 협업 shareId 들에 새 주소를 전파. collabAssignments = "customerId|phone|name|shareId|days". */
+    private suspend fun propagateAddressToCollab(newAddress: String?) {
+        val addr = com.detailline.callfollowcrm.util.AddressExtractor.tidyAddress(newAddress.orEmpty())
+            .takeIf { it.isNotBlank() } ?: return
+        val owner = container.preferences.bizPhone.filter { it.isDigit() }
+        if (owner.length < 9) return
+        val shareIds = container.preferences.collabAssignments.mapNotNull { e ->
+            val p = e.split('|')
+            if (p.getOrNull(0)?.toLongOrNull() == customerId) p.getOrNull(3)?.trim()?.takeIf { it.isNotBlank() } else null
+        }.distinct()
+        if (shareIds.isEmpty()) return
+        val label = com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(addr)
+            .takeIf { it.isNotBlank() }?.let { "$it 현장" }
+        for (sid in shareIds) {
+            runCatching { container.sharedSiteRepository.updateAddress(sid, owner, addr, label) }
+        }
     }
 
     /**

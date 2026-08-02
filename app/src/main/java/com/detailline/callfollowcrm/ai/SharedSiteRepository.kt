@@ -279,6 +279,24 @@ class SharedSiteRepository(
         timeLabel?.takeIf { it.isNotBlank() }?.let { put("time_label", it) }
     })
 
+    /**
+     * A(현장 주인)가 현장 주소를 바꾸면 → 그 현장 협업 사장(B)에게 새 주소 전파 + "주소 변경" 알림. (2026-08-02 사장님 버그신고)
+     *   서버: shared_sites.addr(+customer_label) 갱신 + FCM(type=collab_address_change) 을 B(참여자)에게 push.
+     *   reschedule 와 같은 철학(A 변경 → B 동기화). 서버 미구현(404) 시 Result 실패 → 호출부가 조용히 무시(로컬은 이미 바뀜).
+     *   ⚠️ 서버 핸드오프: docs/SERVER_HANDOFF_collab_update_address.md
+     */
+    suspend fun updateAddress(
+        shareId: String,
+        ownerPhone: String,
+        addr: String,
+        customerLabel: String? = null
+    ): Result<Unit> = post("$baseUrl/api/shared/update-address", JSONObject().apply {
+        put("share_id", shareId)
+        put("owner_phone", phoneKey(ownerPhone))
+        put("addr", addr)
+        customerLabel?.takeIf { it.isNotBlank() }?.let { put("customer_label", it) }
+    })
+
     /** A(현장 주인)용 협업 진행 이벤트. 서버 미구현(404) 시 Result 실패 → 호출부가 조용히 무시. */
     suspend fun ownerEvents(ownerPhone: String, sinceMs: Long = 0L, limit: Int = 50): Result<List<OwnerEvent>> =
         withContext(Dispatchers.IO) {
