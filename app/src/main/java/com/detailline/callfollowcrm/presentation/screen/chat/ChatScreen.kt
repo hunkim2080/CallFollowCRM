@@ -3812,7 +3812,7 @@ private fun NextActionBox(json: String?, onAction: (NextAction) -> Unit) {
 @Composable
 private fun SheetGrabber() {
     Box(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 8.dp), contentAlignment = Alignment.Center) {
-        Box(Modifier.width(36.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(Color(0xFFD9DEE5)))
+        Box(Modifier.width(40.dp).height(4.dp).clip(RoundedCornerShape(999.dp)).background(com.detailline.callfollowcrm.presentation.theme.TossDivider))  // 프로토 .grip: 40×4 pill, var(--line)
     }
 }
 
@@ -3906,15 +3906,21 @@ private fun TemplatePickerDialog(
                     ) {
                         items(filtered, key = { it.id }) { tpl ->
                             val photoUri = photoByTemplate[tpl.id]
+                            val rowShape = RoundedCornerShape(14.dp)   // 프로토 템플릿 행: 흰색 + 테두리 + radius 14
+                            val pickInteraction = remember { MutableInteractionSource() }
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(TossGrayBg),
+                                    .pressScale(pickInteraction)
+                                    .clip(rowShape)
+                                    .background(Color.White)
+                                    .border(1.dp, com.detailline.callfollowcrm.presentation.theme.TossDivider, rowShape),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(
-                                    modifier = Modifier.weight(1f).clickable { onPick(tpl) }.padding(12.dp),
+                                    modifier = Modifier.weight(1f)
+                                        .clickable(interactionSource = pickInteraction, indication = null) { onPick(tpl) }
+                                        .padding(12.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     // 사진 붙은 문구면 썸네일 — 목록에서 바로 "사진 있는 문구"임을 알게. (2026-07-18 사장님)
@@ -3929,13 +3935,13 @@ private fun TemplatePickerDialog(
                                     }
                                     Column(Modifier.weight(1f)) {
                                         Text(
-                                            tpl.title, color = TossBlue,
-                                            fontWeight = FontWeight.SemiBold, fontSize = 14.sp
+                                            tpl.title, color = TossTextPrimary,   // 프로토 title: --t1 800
+                                            fontWeight = FontWeight.ExtraBold, fontSize = 14.sp
                                         )
-                                        Spacer(Modifier.height(4.dp))
+                                        Spacer(Modifier.height(3.dp))
                                         Text(
-                                            tpl.body.ifBlank { "📷 사진" }, color = TossTextSecondary, fontSize = 13.sp,
-                                            maxLines = 3, overflow = TextOverflow.Ellipsis
+                                            tpl.body.ifBlank { "📷 사진" }, color = TossTextTertiary, fontSize = 12.5.sp,  // 프로토 body: --t3 12.5
+                                            maxLines = 2, overflow = TextOverflow.Ellipsis
                                         )
                                     }
                                 }
@@ -4615,11 +4621,15 @@ private fun EstimateBuilderDialog(
 /** 프로토 .seg .sg — 보내는 방식 탭. */
 @Composable
 private fun EstSegTab(label: String, on: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
     Box(
         modifier
+            .pressScale(interaction)
+            // 프로토 .sg.on box-shadow:0 2px 6px — 선택 세그가 살짝 떠 보이게.
+            .then(if (on) Modifier.shadow(3.dp, RoundedCornerShape(9.dp), spotColor = Color(0xFF14171F), ambientColor = Color(0xFF14171F)) else Modifier)
             .clip(RoundedCornerShape(9.dp))
             .background(if (on) Color.White else Color.Transparent)
-            .clickable { onClick() }
+            .clickable(interactionSource = interaction, indication = null) { onClick() }
             .padding(vertical = 9.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -4633,9 +4643,14 @@ private fun EstSegTab(label: String, on: Boolean, modifier: Modifier = Modifier,
 private fun EstSheetCta(text: String, enabled: Boolean, filled: Boolean, onClick: () -> Unit) {
     val bg = if (filled) (if (enabled) TossBlue else TossDivider) else TossGrayBg
     val fg = if (filled) Color.White else TossBlue
+    val interaction = remember { MutableInteractionSource() }
     Box(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(bg)
-            .clickable { onClick() }
+        Modifier.fillMaxWidth()
+            .pressScale(interaction)
+            // 프로토 .sheet-cta box-shadow:0 8px 18px rgba(49,130,246,.3) — 활성 파란 CTA만 파란 그림자.
+            .then(if (filled && enabled) Modifier.shadow(10.dp, RoundedCornerShape(14.dp), spotColor = TossBlue, ambientColor = TossBlue) else Modifier)
+            .clip(RoundedCornerShape(14.dp)).background(bg)
+            .clickable(interactionSource = interaction, indication = null) { onClick() }
             .padding(vertical = 15.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -4829,9 +4844,15 @@ private fun StepperButton(label: String, onClick: () -> Unit) {
 
 @Composable
 private fun EstSmallChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    val shape = RoundedCornerShape(999.dp)
     Box(
-        Modifier.clip(RoundedCornerShape(999.dp)).background(if (selected) TossBlue else TossGrayBg)
-            .clickable { onClick() }.padding(horizontal = 13.dp, vertical = 7.dp)
+        Modifier
+            .pressScale(interaction)
+            .tossCardShadow(shape)                                             // 프로토 .fchip box-shadow:var(--shadow)
+            .clip(shape).background(if (selected) TossBlue else Color.White)   // 프로토 .fchip: 미선택 = 흰색(회색 아님)
+            .clickable(interactionSource = interaction, indication = null) { onClick() }
+            .padding(horizontal = 15.dp, vertical = 8.dp)                      // 프로토 .fchip padding:8px 15px
     ) {
         Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold,
             color = if (selected) Color.White else TossTextSecondary)

@@ -15,7 +15,12 @@ import com.detailline.callfollowcrm.presentation.util.bottomBarClearance
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.shadow
+import com.detailline.callfollowcrm.presentation.component.pressScale
+import com.detailline.callfollowcrm.presentation.component.tossCardShadow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
@@ -43,6 +48,7 @@ import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
+import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossError
 import com.detailline.callfollowcrm.presentation.theme.TossSuccess
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
@@ -111,9 +117,7 @@ fun MyScheduleSheet(
 
             // 월 헤더
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                IconButton(onClick = { pagerScope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) } }) {
-                    Icon(Icons.Default.ChevronLeft, "이전 달", tint = TossTextSecondary)
-                }
+                MiniNavBtn(Icons.Default.ChevronLeft, "이전 달") { pagerScope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) } }
                 Text(
                     DateTimeUtils.formatMonthHeader(viewedMonthAnchor),
                     modifier = Modifier.weight(1f),
@@ -121,9 +125,7 @@ fun MyScheduleSheet(
                     color = TossTextPrimary, fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center
                 )
-                IconButton(onClick = { pagerScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } }) {
-                    Icon(Icons.Default.ChevronRight, "다음 달", tint = TossTextSecondary)
-                }
+                MiniNavBtn(Icons.Default.ChevronRight, "다음 달") { pagerScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } }
             }
 
             // 요일 헤더
@@ -132,7 +134,7 @@ fun MyScheduleSheet(
                     Text(
                         label, modifier = Modifier.weight(1f).padding(vertical = 4.dp),
                         style = MaterialTheme.typography.labelSmall,
-                        color = when (i) { 0 -> TossError; 6 -> TossBlue; else -> TossTextSecondary },
+                        color = when (i) { 0 -> TossError; else -> TossTextTertiary },   // 프로토 .mc-wd: 일요일만 빨강, 나머지 t3
                         fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center
                     )
                 }
@@ -177,12 +179,16 @@ fun MyScheduleSheet(
             // 선택된 날 상세 — 깔끔한 카드 (2026-06-04 시각 정리). 기능/문구는 그대로.
             val day = selectedDayMs
             if (day != null) {
+                val detailInteraction = remember { MutableInteractionSource() }
+                val detailShape = RoundedCornerShape(14.dp)
                 Column(
                     Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Color(0xFFF5F7FA))
-                        .clickable { onPickDate(DateTimeUtils.formatKoreanDate(day)) }
+                        .pressScale(detailInteraction)
+                        .tossCardShadow(detailShape)                 // 탭 카드(날짜 넣기) — 떠 보이게
+                        .clip(detailShape)
+                        .background(TossGrayBg)                       // 하드코딩 #F5F7FA → 토큰
+                        .clickable(interactionSource = detailInteraction, indication = null) { onPickDate(DateTimeUtils.formatKoreanDate(day)) }
                         .padding(horizontal = 16.dp, vertical = 14.dp)
                 ) {
                     Text(
@@ -220,6 +226,18 @@ fun MyScheduleSheet(
     }
 }
 
+/** 월 이동 버튼 — 프로토 .mc-nav: 흰 30~34dp 둥근사각 + 부드러운 그림자. (바 IconButton 아님) */
+@Composable
+private fun MiniNavBtn(icon: androidx.compose.ui.graphics.vector.ImageVector, desc: String, onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    val shape = RoundedCornerShape(9.dp)
+    Box(
+        Modifier.size(34.dp).pressScale(interaction).tossCardShadow(shape).clip(shape).background(Color.White)
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) { Icon(icon, desc, tint = TossTextSecondary, modifier = Modifier.size(18.dp)) }
+}
+
 @Composable
 private fun MiniDay(
     cell: MiniCell,
@@ -239,13 +257,18 @@ private fun MiniDay(
         cell.dow == Calendar.SATURDAY -> TossBlue
         else -> TossTextPrimary
     }
+    val interaction = remember { MutableInteractionSource() }
+    val cellShape = RoundedCornerShape(10.dp)   // 프로토 .mc-cell border-radius:10px (원형 아님)
     Box(
         modifier = modifier
             .aspectRatio(1f)
             .padding(2.dp)
-            .clip(CircleShape)
+            .pressScale(interaction)
+            // 프로토 .mc-cell.sel box-shadow:0 5px 12px rgba(49,130,246,.38) — 선택 날 파란 글로우.
+            .then(if (isSelected) Modifier.shadow(6.dp, cellShape, spotColor = TossBlue, ambientColor = TossBlue) else Modifier)
+            .clip(cellShape)
             .background(bg)
-            .clickable { onClick() },
+            .clickable(interactionSource = interaction, indication = null) { onClick() },
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -290,9 +313,11 @@ private fun MiniJobRow(c: CustomerEntity) {
                 )
                 c.scheduledWorkMinutes?.let { mins ->
                     Spacer(Modifier.width(8.dp))
-                    Text("🕐 " + DateTimeUtils.formatWorkMinutes(mins),
-                        style = MaterialTheme.typography.bodySmall, color = TossBlue,
-                        fontWeight = FontWeight.Medium)
+                    // 프로토 .md-time: blue-tint pill 배지 (평문 텍스트 아님)
+                    Box(Modifier.clip(RoundedCornerShape(7.dp)).background(TossBlueSoft).padding(horizontal = 8.dp, vertical = 2.dp)) {
+                        Text(DateTimeUtils.formatWorkMinutes(mins),
+                            fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue)
+                    }
                 }
             }
         }
