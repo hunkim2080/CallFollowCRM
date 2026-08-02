@@ -122,7 +122,11 @@ fun SettlementScreen(
             TopAppBar(
                 windowInsets = WindowInsets.statusBars.add(WindowInsets(top = 10.dp)),
                 title = {
-                    Text("정산", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.6).sp)
+                    // 부제 = 보고 있는 달(달 이동하면 그 달). 헤더가 '구역'을 갖게 → 무거운 카드에 안 눌림. (2026-08-02 사장님 A안 승인)
+                    Column {
+                        Text("정산", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.6).sp)
+                        Text(top.monthLabel, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary, letterSpacing = (-0.1).sp)
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
             )
@@ -133,7 +137,7 @@ fun SettlementScreen(
                 .padding(top = inner.calculateTopPadding())
                 .fillMaxSize()
                 .background(TossGrayBg),
-            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
+            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 8.dp)  // top 14 = 헤더와 첫 카드 숨 쉬는 간격
         ) {
             // 1. settle-top
             item(key = "settle-top") {

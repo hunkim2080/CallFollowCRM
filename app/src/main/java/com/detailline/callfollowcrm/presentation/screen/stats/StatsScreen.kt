@@ -71,14 +71,20 @@ fun StatsScreen(viewModel: StatsViewModel, onOpenVisited: () -> Unit = {}) {
         topBar = {
             TopAppBar(
                 windowInsets = WindowInsets.statusBars.add(WindowInsets(top = 10.dp)),
-                title = { Text("통계", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.6).sp) },
+                title = {
+                    // 부제로 헤더에 무게 → 무거운 파란 카드에 제목이 안 눌림. (2026-08-02 사장님 A안 승인)
+                    Column {
+                        Text("통계", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.6).sp)
+                        Text("최근 성과", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary, letterSpacing = (-0.1).sp)
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
             )
         }
     ) { inner ->
         LazyColumn(
             modifier = Modifier.padding(top = inner.calculateTopPadding()).fillMaxSize().background(TossGrayBg),
-            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
+            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 8.dp)  // top 14 = 헤더와 첫 카드 숨 쉬는 간격
         ) {
             item(key = "hero") { StatsHero(s); Spacer(Modifier.height(14.dp)) }
             item(key = "mascot") { StatsMascot(); Spacer(Modifier.height(14.dp)) }
