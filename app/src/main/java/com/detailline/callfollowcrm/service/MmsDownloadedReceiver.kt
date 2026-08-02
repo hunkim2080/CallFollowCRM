@@ -139,6 +139,18 @@ class MmsDownloadedReceiver : BroadcastReceiver() {
         // 3) prepare-reply (fire-and-forget). 'AI 답변 준비' OFF 또는 '고객 아님' 번호면 스킵. (2026-07-16/18 사장님)
         //   문자·사진 캐시(위 2번 mergeMms)는 이미 끝났으니 여긴 AI 준비만 담당 → 통째로 return 안전. 통화요약은 별개라 유지.
         if (!container.preferences.aiReplyPrepEnabled || container.preferences.isNonCustomer(sender)) return
+        // SMS 경로(isSpam||isGeneral)와 동일하게 스팸 앞자리/문자함(GENERAL) MMS 엔 AI 준비 스킵 —
+        //   광고·대표번호 MMS 에 서버비(Sonnet prepare) 낭비 방지. (2026-08-02 비용감사 — SMS 트윈과 필터 일치)
+        run {
+            val isSpam = com.detailline.callfollowcrm.util.SpamPrefix.isSpam(sender, container.preferences.spamPrefixes)
+            val isGeneral = runCatching {
+                runBlocking {
+                    val cust = container.customerRepository.findByPhone(sender)
+                    container.threadBucketRepository.classifyLocal(sender, displayBody, cust != null, false)
+                } == com.detailline.callfollowcrm.domain.inbox.InboxClassifier.Verdict.GENERAL
+            }.getOrDefault(false)
+            if (isSpam || isGeneral) return
+        }
         runCatching {
             val customer = runBlocking { container.customerRepository.findByPhone(sender) }
             val history = runBlocking {

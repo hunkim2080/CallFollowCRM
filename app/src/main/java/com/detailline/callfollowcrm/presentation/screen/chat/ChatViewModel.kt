@@ -1225,10 +1225,11 @@ class ChatViewModel(
      *   새 문자가 오면 마지막 문자 시각이 설치 이후 → 자동 정상 동작. 기존 사용자는 설치가 오래전이라 무영향.
      *   홈 카드요약 cardSummaryCutoffMs 와 동일 철학. (2026-08-02 사장님: 신규 설치서 옛 대화 열 때마다 자동 요약·추천=비용) */
     private val installTimeMs: Long by lazy {
+        // firstInstallTime 조회 실패 시 now 로 fail-closed — 실패해도 옛 대화는 backlog 취급해 자동 AI 스킵(비용 안전). (2026-08-02 비용감사 하드닝)
         runCatching {
             container.appContext.packageManager
                 .getPackageInfo(container.appContext.packageName, 0).firstInstallTime
-        }.getOrDefault(0L)
+        }.getOrDefault(System.currentTimeMillis())
     }
     private suspend fun isBacklogConversation(): Boolean {
         if (installTimeMs <= 0L) return false

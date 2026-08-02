@@ -1223,10 +1223,12 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      *   기존 사용자는 firstInstallTime 이 오래전 → 모든 카드가 cutoff 이후라 무영향(신규 설치만 backlog 스킵).
      */
     private val cardSummaryCutoffMs: Long by lazy {
+        // firstInstallTime 조회 실패 시 0L 이면 컷오프가 무력화돼 backlog 전부 요약(비용) → fail-closed 로 now 사용
+        //   (실패 시엔 모든 옛 카드 스킵 = 비용 안전). 정상 기기에선 항상 firstInstallTime 있음. (2026-08-02 비용감사 하드닝)
         runCatching {
             container.appContext.packageManager
                 .getPackageInfo(container.appContext.packageName, 0).firstInstallTime
-        }.getOrDefault(0L)
+        }.getOrDefault(System.currentTimeMillis())
     }
 
     fun onVisiblePhones(phoneNumbers: Collection<String>) {
