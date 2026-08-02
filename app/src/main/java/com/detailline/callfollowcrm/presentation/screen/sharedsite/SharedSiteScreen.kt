@@ -298,13 +298,17 @@ fun SharedSiteScreen(
             )
         }
     ) { inner ->
+        // 목록/상세/휴지통/탭/업체드릴다운이 스크롤 상태 하나를 공유 → 뷰 바뀔 때 이전 위치가 남아 '중간부터' 보이던 버그.
+        //   뷰 정체성(아래 상태들)이 바뀌면 맨 위로. (2026-08-03 사장님 — 더보기 서브탭과 같은 부류)
+        val scrollState = rememberScrollState()
+        LaunchedEffect(selectedId, topMode, bizPartner, showTrash, listView) { scrollState.scrollTo(0) }
         Column(
             Modifier
                 .padding(inner)
                 .fillMaxSize()
                 .background(TossGrayBg)
                 .imePadding()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(horizontal = 18.dp, vertical = 6.dp)
         ) {
             if (showTrash && selected == null && selectedMine == null) {

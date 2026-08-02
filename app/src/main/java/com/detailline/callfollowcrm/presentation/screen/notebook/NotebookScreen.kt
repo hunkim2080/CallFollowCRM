@@ -235,7 +235,12 @@ fun NotebookContent(
                     speech = if (list.isEmpty()) "${tab.label}이 아직 없어요" else "이 분류엔 아직 없어요"
                 )
             } else {
+                // 탭(일당↔거래처)·필터가 리스트 스크롤을 공유 → 스크롤 내린 채 탭 바꾸면 새 목록이 중간부터 보이던 버그.
+                //   탭/필터 바뀌면 맨 위로. (2026-08-03 사장님 — 더보기 서브탭과 같은 부류)
+                val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+                androidx.compose.runtime.LaunchedEffect(tab, filter) { listState.scrollToItem(0) }
                 LazyColumn(
+                    state = listState,
                     contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
