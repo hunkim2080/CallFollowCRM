@@ -31,6 +31,7 @@ val TossTextPrimary = Color(0xFF0B0F19)
 val TossTextSecondary = Color(0xFF5A6472)
 val TossTextTertiary = Color(0xFF9AA3AF)   // 프로토 원본값(--t3). 2026-07-30 어르신용 #7A8494 로 올렸다가 사장님 지시로 프로토 복원.
 val TossDivider = Color(0xFFEEF0F3)
+val TossSegTrack = Color(0xFFE7EAEF)   // 세그먼트 스위치 트랙(회색). 활성 알약=흰색+그림자. (2026-08-02)
 val TossError = Color(0xFFF0436A)
 val TossWarning = Color(0xFFF6A609)
 val TossSuccess = Color(0xFF16C172)

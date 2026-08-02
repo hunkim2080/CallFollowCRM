@@ -2,6 +2,7 @@ package com.detailline.callfollowcrm.presentation.screen.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -36,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
+import com.detailline.callfollowcrm.presentation.theme.TossSegTrack
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
@@ -43,31 +46,46 @@ import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 
 /**
- * 상담함 / 문자함 전환 탭 — "크롬 탭 윗부분처럼" 위가 둥근 폴더 2개. (2026-07-11 사장님)
- *   활성 탭 = 흰색(본문에 붙은 느낌), 비활성 = 톤다운. 문자함엔 안 읽음 배지.
+ * 상담함 / 문자함 전환 — 토스식 세그먼트 스위치. (2026-08-02 사장님 승인, 목업 확정)
+ *   회색 트랙 안에 활성 알약(흰색+그림자)이 떠 있는 형태. 두 탭 다 안 읽음 배지.
+ *   ⚠️ 이전엔 '서류철 탭'(위만 둥근 흰 배경)이었는데, 아래에 붙을 흰 판이 없는 상담함(회색+카드)에선
+ *      탭 바닥이 회색으로 끊겨 경계가 뭉개짐(사장님 지적) → 아래 뭐가 오든 완결되는 세그먼트로 교체.
  */
 @Composable
 fun InboxFolderTabs(selected: Int, onSelect: (Int) -> Unit, consultBadge: Int, generalBadge: Int) {
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(start = 18.dp, end = 18.dp, top = 2.dp, bottom = 0.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+            .padding(start = 18.dp, end = 18.dp, top = 2.dp, bottom = 8.dp)  // bottom=8 → 아래 카드와 숨 쉬는 간격
+            .clip(RoundedCornerShape(14.dp))
+            .background(TossSegTrack)
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         // 두 탭 다 미확인/안읽음 숫자 배지 — 다른 탭에 쌓여도 안 놓치게. (2026-07-13 사장님)
-        FolderTab("상담함", selected == 0, badge = consultBadge, modifier = Modifier.weight(1f)) { onSelect(0) }
-        FolderTab("문자함", selected == 1, badge = generalBadge, modifier = Modifier.weight(1f)) { onSelect(1) }
+        SegItem("상담함", selected == 0, badge = consultBadge, modifier = Modifier.weight(1f)) { onSelect(0) }
+        SegItem("문자함", selected == 1, badge = generalBadge, modifier = Modifier.weight(1f)) { onSelect(1) }
     }
 }
 
 @Composable
-private fun FolderTab(label: String, active: Boolean, badge: Int, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun SegItem(label: String, active: Boolean, badge: Int, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    // ripple 없이(indication=null) 깔끔하게 — 선택 상태(알약 이동) 자체가 피드백.
+    val interaction = remember { MutableInteractionSource() }
     Box(
         modifier
-            .height(42.dp)
-            .clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))
-            .background(if (active) Color.White else TossGrayBg)
-            .clickable(onClick = onClick),
+            .height(38.dp)
+            .then(
+                if (active) Modifier.shadow(
+                    elevation = 3.dp,
+                    shape = RoundedCornerShape(10.dp),
+                    spotColor = Color(0xFF111827),
+                    ambientColor = Color(0xFF111827)
+                ) else Modifier
+            )
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (active) Color.White else Color.Transparent)
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
