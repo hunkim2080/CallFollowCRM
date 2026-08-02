@@ -8396,3 +8396,10 @@ A/S 그날 아침 알림 추가 — '오늘 A/S 있어요 🔧'. (사장님 "필
 - 수정: SmsRepository.searchMessages(content://sms body LIKE + mms/part text LIKE) 추가, SearchViewModel 이 본문 매칭 병합+스니펫. commit c482c42.
 - 서버 영향 없음(로컬 프로바이더 쿼리, 유료 AI 미사용). UI/카피/레이아웃 변경 없음.
 - 다음: 폰 연결 시 debug APK(app-debug.apk, 12:46) 설치 후 실기 검증(옛 문자 키워드로 검색→해당 대화 뜨는지).
+
+## 2026-08-02 13:46 · android
+상담함/문자함 탭 = 토스식 세그먼트 스위치로 교체. (사장님: 탭↔카드 경계 모호, 목업 승인)
+- 원인: '서류철 탭'은 아래 흰 판 있어야 자연스러운데 상담함(회색+카드)엔 판이 없어 붕 뜸.
+- 수정: FolderTab→SegItem, 회색 트랙(TossSegTrack)+활성 흰 알약(그림자 3dp)+트랙아래 8dp 간격. commit abbc145.
+- 목업(폰 확인용) https://claude.ai/code/artifact/dfb59c42-cda9-4538-b8b0-9b831938bc53
+- 서버/API 영향 없음. 폰 연결 시 app-debug.apk(13:45) 설치 후 실기 스샷 검증 남음.
