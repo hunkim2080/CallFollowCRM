@@ -8384,3 +8384,8 @@ A/S 그날 아침 알림 추가 — '오늘 A/S 있어요 🔧'. (사장님 "필
 비용 fix — 신규 설치 시 옛 대화 열 때 AI 자동생성 방지. (사장님 "신규 유입 시 AI 비용 폭탄")
 - ChatViewModel: 채팅 열기(loadSuggestions/loadFullSummary)에 설치시각 backlog 컷오프. ↻/재시도는 예외(직접 요청).
 - 문자함 자동분류=classifyLocal(무료), 비용 무관 확인. commit c998559. 서버 영향 없음(앱측 게이팅).
+
+## 2026-08-02 15:30 · android
+비용 감사 하드닝 + 문자함 타이밍. (사장님 "꼼꼼히 다 잡았나" / "문자함 왜 늦나")
+- 전체 유료 AI 감사=대량 백로그 누수 없음. 하드닝: MMS 스팸/GENERAL 스킵(SMS와 일치), 설치시각 fail-closed. commit bcc3beb.
+- 문자함: 풀스캔 직후 classifyLocal 1회 더 → 신규 설치 대기 단축. commit 13d3e1e. 서버 영향 없음.
