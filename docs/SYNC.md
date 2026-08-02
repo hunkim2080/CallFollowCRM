@@ -8437,3 +8437,9 @@ A/S 그날 아침 알림 추가 — '오늘 A/S 있어요 🔧'. (사장님 "필
 - assembleRelease → shigongmagne.apk(release 서명) scp 맥미니 /Users/hun/ringgo-server/apk/.
 - VERSION_CODE.txt=1290(업뎃 배너 뜸), release_notes.txt 오늘 작업으로 갱신. shasum 로컬=맥미니 일치.
 - 검증: api.si0in.kr/api/download/version → version_code 1290·새 노트·크기 일치. 다운로드 si0in.kr/download/shigongmagne.apk 200 OK.
+
+## 2026-08-03 00:40 · android
+Play 정식(production) 배포 (사장님 "PLAY에도 올리자 ㄱㄱㄱ").
+- 내부테스트: 오늘 app push마다 자동배포 성공(마지막 d6b498f=오늘 작업 전부).
+- 정식: whatsnew-ko-KR 오늘 것으로 갱신(0bc9358) 후 workflow_dispatch track=production 트리거 → run #62 success. AAB Play 정식 트랙 업로드 완료 → 구글 심사 대기.
+- 검증: play-deploy run 30754619238 completed/success.
