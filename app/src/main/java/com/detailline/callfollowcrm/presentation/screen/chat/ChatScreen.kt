@@ -3091,12 +3091,14 @@ private data class ResolvedStyle(
 @Composable
 private fun ActChip(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onTap: () -> Unit) {
     val actInteraction = remember { MutableInteractionSource() }
+    val actShape = RoundedCornerShape(999.dp)
     Row(
         modifier = Modifier
             .pressScale(actInteraction)
-            .clip(RoundedCornerShape(999.dp))
+            .tossCardShadow(actShape)                    // 프로토 .act-chip box-shadow:var(--shadow) — 테두리만 있고 빠졌던 그림자 복원
+            .clip(actShape)
             .background(Color.White)
-            .border(1.dp, com.detailline.callfollowcrm.presentation.theme.TossDivider, RoundedCornerShape(999.dp))
+            .border(1.dp, com.detailline.callfollowcrm.presentation.theme.TossDivider, actShape)
             .clickable(interactionSource = actInteraction, indication = null) { onTap() }
             .padding(horizontal = 13.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
