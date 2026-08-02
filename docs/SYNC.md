@@ -8389,3 +8389,10 @@ A/S 그날 아침 알림 추가 — '오늘 A/S 있어요 🔧'. (사장님 "필
 비용 감사 하드닝 + 문자함 타이밍. (사장님 "꼼꼼히 다 잡았나" / "문자함 왜 늦나")
 - 전체 유료 AI 감사=대량 백로그 누수 없음. 하드닝: MMS 스팸/GENERAL 스킵(SMS와 일치), 설치시각 fail-closed. commit bcc3beb.
 - 문자함: 풀스캔 직후 classifyLocal 1회 더 → 신규 설치 대기 단축. commit 13d3e1e. 서버 영향 없음.
+
+## 2026-08-02 12:48 · android
+돋보기(검색) = 대화 전체 본문 검색으로 확장. (사장님: AS 약속 고객을 대화 키워드로 검색했는데 안 나옴)
+- 원인: 기존 검색은 각 대화 '마지막 문자 한 줄'(smsContactCache.lastBody)만 봄 → 옛 문자 속 단어 못 잡음.
+- 수정: SmsRepository.searchMessages(content://sms body LIKE + mms/part text LIKE) 추가, SearchViewModel 이 본문 매칭 병합+스니펫. commit c482c42.
+- 서버 영향 없음(로컬 프로바이더 쿼리, 유료 AI 미사용). UI/카피/레이아웃 변경 없음.
+- 다음: 폰 연결 시 debug APK(app-debug.apk, 12:46) 설치 후 실기 검증(옛 문자 키워드로 검색→해당 대화 뜨는지).
