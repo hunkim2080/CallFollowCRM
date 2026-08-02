@@ -167,6 +167,15 @@ class CallFollowCrmApplication : Application() {
                     runCatching {
                         container.smsContactCacheRepository.rebuildFromFullScan(contacts)
                     }
+                    // 풀스캔이 위 '6초 분류'보다 늦게 끝나면(문자 많은 폰) 문자함이 '다음 앱 실행'까지 덜 채워짐 →
+                    //   스캔 직후 문자함 분류 1회 더(무료 로컬 규칙, classifyLocal 은 idempotent). 신규 설치 대기 단축. (2026-08-02 사장님 Q2)
+                    runCatching {
+                        val fresh = container.smsContactCacheRepository.observeAll(limit = 500).first()
+                        for (c in fresh) {
+                            val saved = runCatching { container.customerRepository.findByPhone(c.address) != null }.getOrDefault(false)
+                            runCatching { container.threadBucketRepository.classifyLocal(c.address, c.lastBody, saved, c.hasOwnerReply) }
+                        }
+                    }
                 }
             }
         }
