@@ -261,13 +261,20 @@ fun SettingsScreen(
             )
         }
     ) { inner ->
+        // 메뉴와 서브탭이 스크롤 상태를 공유하면, 메뉴를 중간까지 내려 서브탭을 열 때 그 위치가 남아
+        //   서브탭이 '중간부터' 보이는 버그(자동문자 등 모든 서브탭). → 메뉴/서브 스크롤 분리 + 서브 진입 시 맨 위로. (2026-08-02 사장님)
+        val menuScroll = rememberScrollState()
+        val subScroll = rememberScrollState()
+        LaunchedEffect(subPage) { if (subPage != null) subScroll.scrollTo(0) }
+        // 기본 문자 앱이면 '채팅+ 끄기' 안내는 불필요(기본앱 되면 채팅+가 꺼짐) → 그 항목 숨김. (2026-08-02 사장님)
+        val isDefaultSmsApp = remember { com.detailline.callfollowcrm.util.DefaultSmsAppHelper.isCurrentDefault(context) }
         Column(
             Modifier
                 .padding(top = inner.calculateTopPadding())
                 .fillMaxSize()
                 .background(TossGrayBg)
                 .imePadding()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(if (subPage == null) menuScroll else subScroll)
                 .padding(horizontal = 18.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -328,8 +335,11 @@ fun SettingsScreen(
                 SettingsGroup("알림·번호 관리") {
                     LockRow(Icons.Filled.Notifications, TossBlueSoft, TossBlue, "알림 소리",
                         "알림 종류별 소리 고르기 · 미리듣기", onClick = onOpenSoundSettings)
-                    LockRow(Icons.AutoMirrored.Filled.Chat, TossGrayBg, TossTextTertiary, "고객 사진(문자) 받기",
-                        "채팅+ 꺼서 고객 사진 놓치지 않기") { subPage = "noti" }
+                    // 기본 문자 앱이면 채팅+가 꺼져 있어 이 안내 불필요 → 숨김. 기본앱 아닌 사람만 노출(사진 놓침 방어). (2026-08-02 사장님)
+                    if (!isDefaultSmsApp) {
+                        LockRow(Icons.AutoMirrored.Filled.Chat, TossGrayBg, TossTextTertiary, "고객 사진(문자) 받기",
+                            "채팅+ 꺼서 고객 사진 놓치지 않기") { subPage = "noti" }
+                    }
                     LockRow(Icons.Filled.Block, Color(0xFFFFF1F3), Color(0xFFF0436A), "스팸 차단 번호",
                         "상담함에서 스팸 등록한 번호 · 잘못 넣었으면 여기서 풀기", onClick = onOpenSpamList)
                     LockRow(Icons.Filled.Person, Color(0xFFF1ECFE), Color(0xFF7C5CFC), "사생활 번호",
