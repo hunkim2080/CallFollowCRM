@@ -88,6 +88,12 @@ class SmsReceiver : BroadcastReceiver() {
                 // sms_contacts_cache (Room) 즉시 upsert → HomeScreen Room observe 자동 emit.
                 val digits = sender.filter { it.isDigit() }
                 val suffix = if (digits.length >= 8) digits.takeLast(8) else digits
+                // '신규 문의' 알림음은 **최초 1회만**. 이 번호가 캐시에 이미 있으면(전에도 문자 왕래) 신규음 대신 일반 문자음.
+                //   ⚠️ 반드시 아래 upsertOne **전에** 확인 — upsert 하면 방금 이 문자가 캐시에 들어가 항상 '있음'이 됨.
+                //   (2026-08-02 사장님: 신규 한 명이 문자를 여러 번 보냈는데 매번 신규음 → "오늘 신규가 여러 명인가" 착각.)
+                val seenBefore = runCatching {
+                    app.container.smsContactCacheRepository.findBySuffix(suffix) != null
+                }.getOrDefault(false)
                 val newContact = com.detailline.callfollowcrm.data.repository.SmsRepository.SmsContact(
                     address = sender,
                     normalizedSuffix = suffix,
@@ -144,7 +150,8 @@ class SmsReceiver : BroadcastReceiver() {
                                 body = combinedBody,
                                 receivedAtMs = receivedAtMs,
                                 categoryLabel = categoryLabel,
-                                isNewCustomer = customer == null
+                                // 신규음 = 미등록 고객 **AND** 이 번호 최초 문자일 때만. 그담 문자부턴 일반 문자음.
+                                isNewCustomer = customer == null && !seenBefore
                             )
                         }
                     }
