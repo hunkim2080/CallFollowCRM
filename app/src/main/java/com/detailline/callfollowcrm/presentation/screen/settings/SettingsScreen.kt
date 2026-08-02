@@ -288,10 +288,9 @@ fun SettingsScreen(
                     onOpenPricingItems = onOpenPricingItems
                 )
 
+                // ⭐ 2026-08-02 사장님 "더보기 뒤죽박죽 정리" — 항목/기능 그대로, 성격 맞는 그룹으로 재배치.
+                //   (프로토 5그룹에 앱 기능 13개가 아무 데나 섞였던 것 → 성격별 6그룹으로. 새 그룹=기록·분석 / 알림·번호 관리.)
                 SettingsGroup("함께 일하는 사람") {
-                    // 박람회 — 별세계(완전 분리) 진입. 카톡 스타일 전용 창구. (2026-07-21 사장님)
-                    LockRow(Icons.Filled.Storefront, Color(0xFFFFF3C4), Color(0xFFC9A200), "박람회",
-                        "박람회 팀 — 상담·계약·분배를 카톡처럼", onClick = onOpenExpo)
                     // '팀원' 숨김(2026-07-18 사장님) → 라벨에서 팀원 뺌. 부활 시 FeatureFlags.SHOW_TEAM_MEMBERS.
                     LockRow(Icons.Filled.Group, TossBlueSoft, TossBlue, "인원 관리",
                         if (com.detailline.callfollowcrm.presentation.FeatureFlags.SHOW_TEAM_MEMBERS)
@@ -302,20 +301,16 @@ fun SettingsScreen(
                         "거래처 — 자재·협력·장비 자주 거래하는 곳", onClick = onOpenNotebook)
                     LockRow(Icons.Filled.Group, Color(0xFFF1ECFE), Color(0xFF7C5CFC), "협업 현장",
                         "다른 사장님과 현장 하나만 같이 보기", tier = "비즈니스", onClick = onOpenCollabSites)
-                    LockRow(Icons.Filled.Payments, Color(0xFFE7F8F0), Color(0xFF16C172), "협업 기록",
-                        "협업 사장님별 · 월별로 얼마나 함께했나 (기록·세금용)", tier = "비즈니스", onClick = onOpenCollabRecord)
-                    LockRow(Icons.Filled.PhoneAndroid, TossBlueSoft, TossBlue, "본폰에서 일정 보기",
-                        "업무폰 일정을 본폰에서 읽기전용으로 · 수정 안 됨") { subPage = "mirror" }
-                    // '비즈니스' 배지를 유료로 오해해 핵심 기능을 안 누르던 것 → 베타 무료 안내. 2026-07-30
-                    Text(
-                        "'비즈니스' 표시가 있어도 베타 기간엔 모두 무료로 열려 있어요.",
-                        fontSize = 11.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 2.dp)
-                    )
+                    // 박람회 — 별세계(완전 분리) 진입. 카톡 스타일 전용 창구. (2026-07-21 사장님)
+                    LockRow(Icons.Filled.Storefront, Color(0xFFFFF3C4), Color(0xFFC9A200), "박람회",
+                        "박람회 팀 — 상담·계약·분배를 카톡처럼", onClick = onOpenExpo)
                 }
-                SettingsGroup("장사 분석") {
+                // 새 그룹 — 매출·협업을 '기록/세금' 성격으로 묶음(전엔 리포트=장사분석, 협업기록=사람그룹에 흩어짐).
+                SettingsGroup("기록·분석") {
                     LockRow(Icons.Filled.BarChart, TossBlueSoft, TossBlue, "상세 리포트",
                         "매출·전환율·추천 채택률 분석", tier = "비즈니스", onClick = onOpenReport)
+                    LockRow(Icons.Filled.Payments, Color(0xFFE7F8F0), Color(0xFF16C172), "협업 기록",
+                        "협업 사장님별 · 월별로 얼마나 함께했나 (기록·세금용)", tier = "비즈니스", onClick = onOpenCollabRecord)
                 }
                 SettingsGroup("내 답장 재료") {
                     LockRow(Icons.AutoMirrored.Filled.Chat, TossBlueSoft, TossBlue, "문자 템플릿",
@@ -326,26 +321,29 @@ fun SettingsScreen(
                         "상호·대표·사업자번호·직인 · 견적서에 자동 표시", onClick = onOpenBusinessInfo)
                     LockRow(Icons.AutoMirrored.Filled.Send, TossBlueSoft, TossBlue, "자동 문자",
                         "부재중 응답 · 시공 D-1 · 도착 안내 · 정기 문자") { subPage = "autosms" }
-                    LockRow(Icons.Filled.Notifications, TossBlueSoft, TossBlue, "알림 소리",
-                        "알림 종류별 소리 고르기 · 미리듣기", onClick = onOpenSoundSettings)
                     LockRow(Icons.Filled.AutoAwesome, Color(0xFFF1ECFF), Color(0xFF7C5CFC), "내 말투 학습",
                         "나처럼 답하는 AI", tier = "프로") { subPage = "tone" }
                 }
-                // 프로토 "앱 설정" = 기본 네비 앱 하나뿐 (사장님 결정 2026-06-03 — 프로토대로 정리).
-                //   기본 문자 앱 설정은 위 setup-check 가 커버. 내 업종/AI 서버 상태는 프로토에 없어 제거.
-                SettingsGroup("앱 설정") {
-                    val navLabel = com.detailline.callfollowcrm.util.NavApp.values()
-                        .find { it.key == state.defaultNavAppKey }?.label ?: "카카오내비"
-                    LockRow(Icons.Filled.Navigation, TossGrayBg, TossTextTertiary, "기본 네비 앱",
-                        navLabel) { subPage = "nav" }
+                // 새 그룹 — 흩어져 있던 알림/번호 설정 모음(알림소리=답장재료에서, 사진받기=도움말에서, 스팸·사생활=앱설정에서 이동).
+                SettingsGroup("알림·번호 관리") {
+                    LockRow(Icons.Filled.Notifications, TossBlueSoft, TossBlue, "알림 소리",
+                        "알림 종류별 소리 고르기 · 미리듣기", onClick = onOpenSoundSettings)
+                    LockRow(Icons.AutoMirrored.Filled.Chat, TossGrayBg, TossTextTertiary, "고객 사진(문자) 받기",
+                        "채팅+ 꺼서 고객 사진 놓치지 않기") { subPage = "noti" }
                     LockRow(Icons.Filled.Block, Color(0xFFFFF1F3), Color(0xFFF0436A), "스팸 차단 번호",
                         "상담함에서 스팸 등록한 번호 · 잘못 넣었으면 여기서 풀기", onClick = onOpenSpamList)
                     LockRow(Icons.Filled.Person, Color(0xFFF1ECFE), Color(0xFF7C5CFC), "사생활 번호",
                         "내 개인 연락처 · 시공막내가 안 잡음 · 풀려면 여기서", onClick = onOpenPersonalList)
                 }
+                SettingsGroup("앱 설정") {
+                    val navLabel = com.detailline.callfollowcrm.util.NavApp.values()
+                        .find { it.key == state.defaultNavAppKey }?.label ?: "카카오내비"
+                    LockRow(Icons.Filled.Navigation, TossGrayBg, TossTextTertiary, "기본 네비 앱",
+                        navLabel) { subPage = "nav" }
+                    LockRow(Icons.Filled.PhoneAndroid, TossBlueSoft, TossBlue, "본폰에서 일정 보기",
+                        "업무폰 일정을 본폰에서 읽기전용으로 · 수정 안 됨") { subPage = "mirror" }
+                }
                 SettingsGroup("도움말") {
-                    LockRow(Icons.AutoMirrored.Filled.Chat, TossGrayBg, TossTextTertiary, "고객 사진(문자) 받기",
-                        "채팅+ 꺼서 고객 사진 놓치지 않기") { subPage = "noti" }
                     LockRow(Icons.Filled.AutoAwesome, TossGrayBg, TossTextTertiary, "앱 소개 다시 보기",
                         null, onClick = onShowIntro)
                     // 문제 신고 / 진단 보내기 (2026-07-22 사장님) — 앱이 안 죽는 '이상 동작'을 직접 신고. Crashlytics(자동) 의 짝.
@@ -353,6 +351,12 @@ fun SettingsScreen(
                         "문자가 깨지는 등 이상하면 눌러서 알려주세요") { showDiagnostics = true }
                 }
 
+                // '비즈니스' 배지를 유료로 오해해 핵심 기능을 안 누르던 것 → 베타 무료 안내. 리스트 중간이 아니라 맨 아래 푸터로. (2026-08-02 정리)
+                Text(
+                    "'비즈니스'·'프로' 표시가 있어도 베타 기간엔 모두 무료로 열려 있어요.",
+                    fontSize = 11.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 2.dp)
+                )
                 AppFooter()
                 Spacer(Modifier.height(16.dp))
             } else when (subPage) {
