@@ -8431,3 +8431,9 @@ A/S 그날 아침 알림 추가 — '오늘 A/S 있어요 🔧'. (사장님 "필
 - 더보기: 서브탭 진입 시 스크롤 중간부터 뜨던 버그(메뉴/서브 스크롤 공유) → 분리+진입시 top. 고객사진받기=기본SMS앱이면 자동 숨김(채팅+ 자동꺼짐). commit 62434d1.
 - 같은 부류 스캔 2건 추가 수정: 협업현장(뷰 전환시 scrollTo0), 수첩(탭/필터시 scrollToItem0). commit d6b498f.
 - 오탐 걸러냄(견적드래프트 의도적 등). 실기: 자동문자 서브탭 top 확인.
+
+## 2026-08-03 00:25 · android
+베타 사이트 배포 (사장님 "지금까지 한거 올려줘"). 0.2.1290.
+- assembleRelease → shigongmagne.apk(release 서명) scp 맥미니 /Users/hun/ringgo-server/apk/.
+- VERSION_CODE.txt=1290(업뎃 배너 뜸), release_notes.txt 오늘 작업으로 갱신. shasum 로컬=맥미니 일치.
+- 검증: api.si0in.kr/api/download/version → version_code 1290·새 노트·크기 일치. 다운로드 si0in.kr/download/shigongmagne.apk 200 OK.
