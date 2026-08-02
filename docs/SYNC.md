@@ -8409,3 +8409,9 @@ A/S 그날 아침 알림 추가 — '오늘 A/S 있어요 🔧'. (사장님 "필
 - 원인: 제목이 바로 밑 무거운 블록(다크 돈카드/파란 배너)에 8dp만에 붙어 경계 뭉개짐.
 - 수정: 정산 부제=top.monthLabel("2026년 8월"), 통계 부제="최근 성과", top padding 8→14dp. commit eefa383.
 - 부제는 프로토 없던 요소 = 승인된 업그레이드. 서버/API 영향 없음.
+
+## 2026-08-02 15:05 · android
+협업 버그 2건 (사장님 신고). ⚠️ 2번은 cowork(서버) 액션 필요.
+- Bug#1 다일공사 '하루만' 협업: 배정에 '일하는 날' 추가(collabAssignments 5칸), 시트 날짜 체크칩, 그 날에만 🤝+상대에게 그 날짜. **서버 무관.** commit b475caf.
+- Bug#2 주소 변경 전파: 앱은 CustomerDetail 주소 변경 시 협업 shareId들에 updateAddress 호출 배선 완료. **서버 엔드포인트 POST /api/shared/update-address 필요(cowork)** — 명세=docs/SERVER_HANDOFF_collab_update_address.md. 서버 생기면 자동. commit 4ac39ef.
+- 다음 액션(cowork): update-address 엔드포인트 구현(reschedule 형제) + B에게 FCM collab_address_change.
