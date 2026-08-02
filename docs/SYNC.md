@@ -8403,3 +8403,9 @@ A/S 그날 아침 알림 추가 — '오늘 A/S 있어요 🔧'. (사장님 "필
 - 수정: FolderTab→SegItem, 회색 트랙(TossSegTrack)+활성 흰 알약(그림자 3dp)+트랙아래 8dp 간격. commit abbc145.
 - 목업(폰 확인용) https://claude.ai/code/artifact/dfb59c42-cda9-4538-b8b0-9b831938bc53
 - 서버/API 영향 없음. 폰 연결 시 app-debug.apk(13:45) 설치 후 실기 스샷 검증 남음.
+
+## 2026-08-02 14:10 · android
+정산·통계 헤더 정리 = 부제 + 여백 (사장님 A안 승인, 목업 확정, S9+ 실기 검증).
+- 원인: 제목이 바로 밑 무거운 블록(다크 돈카드/파란 배너)에 8dp만에 붙어 경계 뭉개짐.
+- 수정: 정산 부제=top.monthLabel("2026년 8월"), 통계 부제="최근 성과", top padding 8→14dp. commit eefa383.
+- 부제는 프로토 없던 요소 = 승인된 업그레이드. 서버/API 영향 없음.
