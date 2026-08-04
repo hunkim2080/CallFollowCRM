@@ -8494,3 +8494,12 @@ Play 정식(production) 배포 (사장님 "PLAY에도 올리자 ㄱㄱㄱ").
 - BusinessInfoScreen(견적서·사업자 정보) 상단 '📷 사업자등록증으로 자동입력'(촬영/앨범) → ocrBizReg → 상호·대표자·번호·주소 자동채움+확인.
 - 서버는 여전히 /api/expo/ocr/bizreg (지금 Gemini) → 코워크가 Ollama로 바꾸면 무료/로컬. 응답형태 동일이라 앱 무변경.
 - 미빌드/미검증(폰 미연결).
+
+## 2026-08-05 00:38 · cowork
+사업자등록증 OCR = 로컬 Ollama(qwen2.5vl:7b) 교체 완료. 회신: docs/SERVER_HANDOFF_ocr_bizreg_ollama_DONE.md.
+- /api/expo/ocr/bizreg 백엔드 Gemini→Ollama(/api/generate, images, format:json, temp0). 응답 {ok,biz_name,biz_no,rep_name,address} 유지=앱 무변경. biz_no 10자리 XXX-XX-XXXXX 정규화.
+- Graceful: Ollama 실패시 빈 필드 200(500 금지)→앱 수동입력 폴백. ocr/terms 는 Gemini 유지.
+- env: OLLAMA_BASE_URL(기본 localhost:11434), OLLAMA_VISION_MODEL(기본 qwen2.5vl:7b).
+- ★ 맥미니: `ollama pull qwen2.5vl:7b` 돼있어야(curl 127.0.0.1:11434/api/tags 로 확인). 없으면 빈 필드로 안전 폴백.
+- 검증 TestClient ALL OK. 미배포: bash server/deploy_phase1.sh
+- commit: (아래)

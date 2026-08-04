@@ -11792,6 +11792,7 @@ def build_context_user_message(ctx: "ConversationContext") -> str:
 
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
 DEFAULT_LOCAL_LLM = os.environ.get("LOCAL_LLM_MODEL", "qwen2.5:7b")
+OLLAMA_VISION_MODEL = os.environ.get("OLLAMA_VISION_MODEL", "qwen2.5vl:7b")  # 사업자등록증 OCR
 
 
 async def call_ollama_json(
@@ -25381,25 +25382,73 @@ async def expo_ocr_terms(req: ExpoOcr) -> dict:
     return {"ok": True, "text": (out.get("text") or "").strip()[:4000]}
 
 
+def _expo_fmt_bizno(s: str) -> str:
+    """사업자번호 정규화 — 숫자 10자리면 XXX-XX-XXXXX, 아니면 원본."""
+    d = "".join(ch for ch in (s or "") if ch.isdigit())
+    if len(d) == 10:
+        return f"{d[:3]}-{d[3:5]}-{d[5:]}"
+    return (s or "").strip()
+
+
+def _expo_extract_json(text: str) -> dict:
+    """LLM 응답에서 첫 {...} JSON 블록만 추출·파싱. 실패 시 {}."""
+    if not text:
+        return {}
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+    import re as _re
+    m = _re.search(r"\{.*\}", text, _re.S)
+    if m:
+        try:
+            return json.loads(m.group(0))
+        except Exception:
+            return {}
+    return {}
+
+
+async def _expo_ollama_bizreg(b64: str) -> dict:
+    """사업자등록증 base64 → 로컬 Ollama(qwen2.5vl) 로 필드 추출. 실패 시 {} (raise 안 함은 caller)."""
+    prompt = (
+        "이 사업자등록증 이미지에서 다음을 JSON으로만 출력하라(설명·군더더기 금지):\n"
+        '{"biz_name":"상호(법인/상호명)","biz_no":"사업자등록번호 XXX-XX-XXXXX 형식",'
+        '"rep_name":"대표자 성명","address":"사업장 소재지 전체"}\n'
+        "못 읽은 항목은 빈 문자열. 실제로 보이는 값만. JSON 외 다른 텍스트 출력 금지."
+    )
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        r = await client.post(
+            f"{OLLAMA_BASE_URL}/api/generate",
+            json={
+                "model": OLLAMA_VISION_MODEL,
+                "prompt": prompt,
+                "images": [b64],
+                "format": "json",
+                "stream": False,
+                "options": {"temperature": 0},
+            },
+        )
+        r.raise_for_status()
+        data = r.json()
+    return _expo_extract_json((data.get("response") or "").strip())
+
+
 @app.post("/api/expo/ocr/bizreg")
 async def expo_ocr_bizreg(req: ExpoOcr) -> dict:
-    """사업자등록증 사진 → OCR → 업체명·사업자번호·대표자·주소 추출."""
+    """사업자등록증 사진 → 로컬 Ollama(qwen2.5vl) OCR → 업체명·사업자번호·대표자·주소.
+    응답 형태 유지(앱 무변경). Ollama 실패 시 빈 필드 반환(500 안 던짐 — 앱이 수동입력 폴백)."""
     mime, b64 = _expo_ocr_strip_dataurl(req.image)
     if not b64:
         raise HTTPException(400, "이미지 필요")
-    prompt = ("이 이미지에서 사업자등록증 정보를 추출하세요. **이미지에 실제로 보이는 값만** "
-              "적고, 보이지 않거나 확실하지 않은 항목은 절대 지어내지 말고 빈 문자열('')로 두세요. "
-              "사업자번호가 보이면 000-00-00000 형식으로. 계약 관련 문서이므로 추측/생성 금지.")
-    schema = {"type": "OBJECT", "properties": {
-        "biz_name": {"type": "STRING"},   # 상호(법인명)
-        "biz_no": {"type": "STRING"},     # 등록번호
-        "rep_name": {"type": "STRING"},   # 대표자
-        "address": {"type": "STRING"},    # 사업장 소재지
-    }, "required": ["biz_name", "biz_no"]}
-    out = await _expo_gemini_vision(mime, b64, prompt, schema=schema, max_tokens=800)
+    out = {}
+    try:
+        out = await _expo_ollama_bizreg(b64)
+    except Exception as e:  # noqa: BLE001 — OCR 실패해도 앱이 수동입력으로 진행
+        print(f"[ocr/bizreg] Ollama 실패(빈 필드 반환): {type(e).__name__}: {e}")
+        out = {}
     return {"ok": True,
             "biz_name": (out.get("biz_name") or "").strip()[:60],
-            "biz_no": (out.get("biz_no") or "").strip()[:20],
+            "biz_no": _expo_fmt_bizno(out.get("biz_no") or "")[:20],
             "rep_name": (out.get("rep_name") or "").strip()[:30],
             "address": (out.get("address") or "").strip()[:120]}
 
