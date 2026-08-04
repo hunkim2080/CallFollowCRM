@@ -1143,6 +1143,14 @@ fun HomeScreen(
                                                             index = index,
                                                             unread = unread,
                                                             aiSummary = aiCardSummaries[suffix],
+                                                            // 그룹 태그 — 사장님이 만든 분류(일당 등)만. 자동 시스템 카테고리(시공 대기/완료)는
+                                                            //   상태 태그와 중복이라 태그로 안 띄움(그럼 모든 행에 붙어 '일당' 이 안 도드라짐). (2026-08-04)
+                                                            category = rItem.customer?.categoryId?.let { cid ->
+                                                                categoriesById.firstOrNull { it.id == cid }
+                                                            }?.takeUnless {
+                                                                it.name == com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_PENDING_WORK ||
+                                                                    it.name == com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_DONE_WORK
+                                                            },
                                                             onOpenChat = { onOpenChat(rItem.record.phoneNumber, rItem.customer?.id) }
                                                         )
                                                     }
@@ -3551,19 +3559,20 @@ private fun RecentRow(
     index: Int,
     unread: Boolean,
     aiSummary: String?,
+    category: com.detailline.callfollowcrm.data.local.entity.CategoryEntity? = null,
     onOpenChat: () -> Unit
 ) {
     val name = item.customer?.name?.takeIf { it.isNotBlank() }
     val title = name ?: PhoneNumberFormatter.format(item.record.phoneNumber)
     val tag = recentStatusTag(item.customer)   // 프로토 .tag — 시공 D-N/계약금/완료
-    // 안 A (2026-06-08): 안 읽음(고객이 마지막에 말함 + 아직 안 열어봄, 카톡식) = 파란 점 + 굵게 + "실제 한 말".
-    //   내가 답한/읽은 줄(또는 통화만) = 회색 + AI 요약(없으면 마지막 말, 내가 보냈으면 "나:" prefix).
-    val messageText = if (unread) {
-        item.lastBody?.takeIf { it.isNotBlank() } ?: aiSummary
-    } else {
-        aiSummary?.takeIf { it.isNotBlank() }
-            ?: item.lastBody?.takeIf { it.isNotBlank() }?.let { (if (item.lastSent == true) "나: " else "") + it }
-    }
+    // A안 (2026-08-04 사장님): "최근 무슨 말 했는지"가 먼저 보이게 — 마지막 실제 문자를 주(위)로,
+    //   ✨AI 요약은 보조(아래 회색)로. 문자 없이 통화만이면 요약을 주로.
+    //   (이전엔 읽은 줄에서 요약이 최근 문자를 덮어써 "최근에 뭐라 했는지" 안 보인다는 신고. 2026-08-04)
+    val lastMsg = item.lastBody?.takeIf { it.isNotBlank() }
+        ?.let { (if (item.lastSent == true) "나: " else "") + it }
+    val summaryLine = aiSummary?.takeIf { it.isNotBlank() }
+    val primaryText = lastMsg ?: summaryLine
+    val secondaryText = if (lastMsg != null) summaryLine else null
     Row(
         Modifier
             .fillMaxWidth()
@@ -3588,6 +3597,16 @@ private fun RecentRow(
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false)
                 )
+                // 그룹 태그 (사장님 분류: '일당' 등) — 한눈에 어떤 묶음인지. (2026-08-04 사장님) 보라색으로 상태태그와 구분.
+                category?.let { cat ->
+                    Spacer(Modifier.width(7.dp))
+                    Box(Modifier.clip(RoundedCornerShape(7.dp)).background(Color(0xFFEFEBFF)).padding(horizontal = 8.dp, vertical = 3.dp)) {
+                        Text(
+                            (cat.emoji?.takeIf { it.isNotBlank() }?.let { "$it " } ?: "") + cat.name,
+                            fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6D5AE6), maxLines = 1
+                        )
+                    }
+                }
                 if (tag != null) {
                     Spacer(Modifier.width(7.dp))
                     Box(Modifier.clip(RoundedCornerShape(7.dp)).background(tag.bg).padding(horizontal = 8.dp, vertical = 3.dp)) {
@@ -3597,12 +3616,21 @@ private fun RecentRow(
                 Spacer(Modifier.weight(1f))
                 Text(recentTimeLabel(item.lastActivityMs.takeIf { it > 0L } ?: item.record.endedAt), fontSize = 11.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
             }
-            if (!messageText.isNullOrBlank()) {
+            if (!primaryText.isNullOrBlank()) {
                 Spacer(Modifier.height(3.dp))
                 Text(
-                    messageText, fontSize = 13.sp,
+                    primaryText, fontSize = 13.sp,
                     color = if (unread) TossTextPrimary else TossTextSecondary,
                     fontWeight = if (unread) FontWeight.SemiBold else FontWeight.Normal,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
+            // ✨AI 요약 — 최근 문자 아래 회색 작게 (A안). 최근 문자가 있을 때만 보조로 노출.
+            if (!secondaryText.isNullOrBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "✨ $secondaryText", fontSize = 11.5.sp,
+                    color = TossTextTertiary, fontWeight = FontWeight.Normal,
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
             }
