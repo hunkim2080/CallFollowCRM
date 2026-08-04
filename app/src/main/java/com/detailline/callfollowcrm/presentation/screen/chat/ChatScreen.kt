@@ -816,7 +816,10 @@ fun ChatScreen(
                                         // 문자 속 전화/날짜 링크 탭 → 액션 시트. (2026-08-04 사장님)
                                         linkActionTarget = when (tag) {
                                             "PHONE" -> LinkTapAction.Phone(value)
-                                            "DATE" -> value.toLongOrNull()?.let { LinkTapAction.DateHit(it) }
+                                            "DATE" -> {
+                                                val parts = value.split("|", limit = 2)
+                                                parts[0].toLongOrNull()?.let { LinkTapAction.DateHit(it, parts.getOrNull(1).orEmpty()) }
+                                            }
                                             else -> null
                                         }
                                     }
@@ -1152,12 +1155,30 @@ fun ChatScreen(
                     }
                     is LinkTapAction.DateHit -> {
                         val label = java.text.SimpleDateFormat("M월 d일 (E)", java.util.Locale.KOREAN).format(java.util.Date(target.epochMs))
+                        // '화요일'·'내일' 같은 말은 여기서 이미 '진짜 날짜'로 바뀌어 제목에 뜬다 → 무엇으로 등록되는지 명확.
                         Text(
                             label, style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold, color = TossTextPrimary,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)
                         )
-                        Spacer(Modifier.height(4.dp))
+                        // "왜 이 날짜인지" — 문자에 쓰인 표현('화요일' 등)을 보여줘 애매함을 없앤다. (2026-08-05 사장님)
+                        if (target.raw.isNotBlank()) {
+                            Text(
+                                "문자의 ‘${target.raw}’ → 이 날짜",
+                                fontSize = 12.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 2.dp)
+                            )
+                        }
+                        // 옛 문자를 뒤늦게 등록하면 과거 날짜일 수 있음 → 사장님이 모르고 등록 안 하게 경고. (2026-08-05 사장님)
+                        val todayStart = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(System.currentTimeMillis())
+                        if (target.epochMs < todayStart) {
+                            Text(
+                                "⚠️ 이미 지난 날짜예요 — 확인하고 등록하세요",
+                                fontSize = 12.sp, color = TossError, fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 3.dp)
+                            )
+                        }
+                        Spacer(Modifier.height(10.dp))
                         BubbleActionRow(Icons.Default.DateRange, TossBlue, "🗓️ 시공일로 등록", "이 고객 시공 예약일로", onClick = {
                             viewModel.setScheduledWorkDate(target.epochMs); linkActionTarget = null
                         })
@@ -2804,7 +2825,8 @@ private fun playMmsVideo(context: android.content.Context, partUri: android.net.
 /** 문자 속 링크 탭 대상 — 전화(숫자) / 날짜(자정 epoch). (2026-08-04 사장님) */
 private sealed interface LinkTapAction {
     data class Phone(val digits: String) : LinkTapAction
-    data class DateHit(val epochMs: Long) : LinkTapAction
+    /** @param raw 문자에 실제로 쓰인 표현("화요일"·"내일" 등) — 시트에 "왜 이 날짜인지" 설명용. */
+    data class DateHit(val epochMs: Long, val raw: String) : LinkTapAction
 }
 
 /** 본문에서 첫 URL 추출 — 스킴 없으면 https:// 보정해 반환. 없으면 null. */
@@ -2833,7 +2855,7 @@ private fun linkifyBody(body: String, linkColor: Color, baseMs: Long): Annotated
             com.detailline.callfollowcrm.util.MessageEntities.Type.PHONE ->
                 spans.add(Span(h.start, h.end, "PHONE", h.phoneDigits ?: h.raw))
             com.detailline.callfollowcrm.util.MessageEntities.Type.DATE ->
-                spans.add(Span(h.start, h.end, "DATE", (h.epochMs ?: 0L).toString()))
+                spans.add(Span(h.start, h.end, "DATE", "${h.epochMs ?: 0L}|${h.raw}"))
         }
     }
     if (spans.isEmpty()) return AnnotatedString(body)
