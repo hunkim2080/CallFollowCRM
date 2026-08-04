@@ -8515,3 +8515,9 @@ Play 정식(production) 배포 (사장님 "PLAY에도 올리자 ㄱㄱㄱ").
 - 릴리스 APK 0.2.1310(정렬 픽스 포함) → macmini:~/ringgo-server/apk/shigongmagne.apk. VERSION_CODE.txt=1310, release_notes.txt 오늘 7줄로 갱신.
 - 검증: si0in.kr/api/download/version → version_code 1310, size 26268506, notes 반영. 다운로드 URL 200.
 - 오늘 배포 내용: 상담함 태그/최근문자 · 방해금지 · 문자링크(전화·날짜) · 사업자OCR(앱, 서버는 아직 Gemini) · 가격표 선택삭제 · 채팅여백 · 날짜정렬.
+
+## 2026-08-05 01:10 · android (확인)
+사업자등록증 OCR 로컬 Ollama 전환 — 코워크 완료·배포 확인.
+- main.py: _expo_ollama_bizreg() → Ollama qwen2.5vl:7b (127.0.0.1:11434, format=json, temp0). /api/expo/ocr/bizreg 이걸로 교체, 실패시 빈필드(500 X).
+- qwen2.5vl:7b 설치됨. 서버 00:46 재시작 반영(commit 00:38/deploy 00:46). 응답형태 유지=앱 무변경.
+- 결론: 사업자OCR 이제 무료·로컬. 앱 📷 버튼(BusinessInfoScreen)이 바로 사용. terms OCR은 아직 Gemini(무관).
