@@ -8451,3 +8451,11 @@ Play 정식(production) 배포 (사장님 "PLAY에도 올리자 ㄱㄱㄱ").
 - 앱 핸드오프는 안 함(사장님 결정: 서버쪽만). 근본은 앱이 owner_phone 항상 싣기지만 보류.
 - 검증 TestClient 5 OK. 미배포: bash server/deploy_phase1.sh
 - commit: (아래)
+
+## 2026-08-04 21:15 · android
+가격표 선택 삭제 (사장님: 항목 하나씩 삭제가 번거로움 → 여러 개 골라 한 번에).
+- 변경: 앱 전용(server 무관). 가격표 우상단 [선택] → 선택 모드(행 탭=체크 토글, 하단 [N개 삭제], 전체선택/해제). 평소 화면은 그대로(§0), 선택 모드만 additive.
+- DB: pricing_items DELETE ... WHERE id IN (:ids) 쿼리 추가(스키마 변경 없음, 마이그레이션 불필요).
+- 목업으로 시각 확정(scratchpad/pricing_select_mock.png), 폰 미연결이라 실기 스크린샷은 다음 연결 시.
+- commit: 87cfa69
+- 다음 액션: 없음(상대편 영향 없음).
