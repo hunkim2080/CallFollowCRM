@@ -293,8 +293,37 @@ object NotificationHelper {
 
     /** 넘어온 channelId 가 소리 슬롯의 base 면 → 현재 버전 채널로 치환. 아니면 그대로(비-슬롯 채널). */
     private fun resolveChannel(context: Context, channelId: String): String {
+        // 방해금지 시간대면 소리·진동 없는 야간 채널로 몰아준다(알림은 그대로 오되 조용히). (2026-08-04 사장님)
+        if (isQuietNow(context)) { ensureNightQuietChannel(context); return CHANNEL_NIGHT_QUIET }
         val slotKey = SLOT_CHANNEL.entries.firstOrNull { it.value == channelId }?.key ?: return channelId
         return channelForSlot(context, slotKey)
+    }
+
+    /** 지금이 사장님이 정한 방해금지 시간대인가. 꺼져있으면 false. 자정 넘김(예 22시~7시) 처리. */
+    fun isQuietNow(context: Context): Boolean {
+        val prefs = prefsOf(context) ?: return false
+        if (!prefs.quietHoursEnabled) return false
+        val start = prefs.quietStartHour
+        val end = prefs.quietEndHour
+        if (start == end) return false
+        val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        return if (start < end) h in start until end else (h >= start || h < end)
+    }
+
+    /** 야간 방해금지 채널(소리·진동·헤드업 없음, IMPORTANCE_LOW). 알림은 알림창엔 조용히 남는다. */
+    const val CHANNEL_NIGHT_QUIET = "night_quiet"
+    private fun ensureNightQuietChannel(context: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val m = context.getSystemService(NotificationManager::class.java) ?: return
+        if (m.getNotificationChannel(CHANNEL_NIGHT_QUIET) != null) return
+        m.createNotificationChannel(
+            NotificationChannel(CHANNEL_NIGHT_QUIET, "방해금지 시간(야간)", NotificationManager.IMPORTANCE_LOW).apply {
+                description = "방해금지 시간대에는 소리·진동 없이 조용히 알림이 와요."
+                setSound(null, null)
+                enableVibration(false)
+                setShowBadge(true)
+            }
+        )
     }
 
     /** slot 채널 하나를 (없을 때만) 현재 고른 소리로 생성. */

@@ -27,6 +27,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -74,6 +76,14 @@ fun SoundSettingsScreen(prefs: AppPreferences, onBack: () -> Unit) {
     }
     var picking by remember { mutableStateOf<NotificationHelper.SoundSlot?>(null) }
 
+    // 방해금지 시간대 (밤엔 소리·진동 없이 조용히). prefs 에 바로 저장. (2026-08-04 사장님)
+    var quietOn by remember { mutableStateOf(prefs.quietHoursEnabled) }
+    var quietStart by remember { mutableStateOf(prefs.quietStartHour) }
+    var quietEnd by remember { mutableStateOf(prefs.quietEndHour) }
+    fun pickHour(initial: Int, onPick: (Int) -> Unit) {
+        android.app.TimePickerDialog(context, { _, h, _ -> onPick(h) }, initial, 0, false).show()
+    }
+
     fun closePicker() { picking = null; NotificationHelper.stopPreview() }
     BackHandler(enabled = picking != null) { closePicker() }
 
@@ -100,6 +110,14 @@ fun SoundSettingsScreen(prefs: AppPreferences, onBack: () -> Unit) {
                 Modifier.fillMaxSize().padding(padding),
                 contentPadding = PaddingValues(vertical = 12.dp)
             ) {
+                item {
+                    QuietHoursSection(
+                        enabled = quietOn, startHour = quietStart, endHour = quietEnd,
+                        onToggle = { quietOn = it; prefs.quietHoursEnabled = it },
+                        onPickStart = { pickHour(quietStart) { h -> quietStart = h; prefs.quietStartHour = h } },
+                        onPickEnd = { pickHour(quietEnd) { h -> quietEnd = h; prefs.quietEndHour = h } }
+                    )
+                }
                 item {
                     Text(
                         "알림 종류를 눌러서 소리를 고르세요.",
@@ -159,6 +177,69 @@ fun SoundSettingsScreen(prefs: AppPreferences, onBack: () -> Unit) {
             }
         }
     }
+}
+
+/** 방해금지 시간대 카드 — 스위치 + 시작/끝 시각. 밤엔 소리·진동 없이 조용히. (2026-08-04 사장님) */
+@Composable
+private fun QuietHoursSection(
+    enabled: Boolean,
+    startHour: Int,
+    endHour: Int,
+    onToggle: (Boolean) -> Unit,
+    onPickStart: () -> Unit,
+    onPickEnd: () -> Unit
+) {
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)
+            .clip(RoundedCornerShape(16.dp)).background(Color.White).padding(16.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("🌙 방해금지 시간", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    "이 시간엔 소리·진동 없이 조용히 알림만 와요. (놓치지 않아요)",
+                    fontSize = 12.5.sp, color = TossTextTertiary, lineHeight = 17.sp
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Switch(
+                checked = enabled, onCheckedChange = onToggle,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White, checkedTrackColor = TossBlue,
+                    uncheckedThumbColor = Color.White, uncheckedTrackColor = TossTextTertiary
+                )
+            )
+        }
+        if (enabled) {
+            Spacer(Modifier.height(14.dp))
+            QuietTimeRow("시작", quietHourLabel(startHour), onPickStart)
+            Spacer(Modifier.height(8.dp))
+            QuietTimeRow("끝", quietHourLabel(endHour), onPickEnd)
+        }
+    }
+}
+
+@Composable
+private fun QuietTimeRow(label: String, value: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(11.dp)).background(TossGrayBg)
+            .clickable { onClick() }.padding(horizontal = 14.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, fontSize = 14.sp, color = TossTextSecondary, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.weight(1f))
+        Text(value, fontSize = 15.sp, color = TossBlue, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.width(4.dp))
+        Icon(Icons.Filled.ChevronRight, null, tint = TossTextTertiary, modifier = Modifier.size(18.dp))
+    }
+}
+
+/** 0~23시 → "오전/오후 N시". */
+private fun quietHourLabel(h: Int): String {
+    val ampm = if (h < 12) "오전" else "오후"
+    val hh = if (h % 12 == 0) 12 else h % 12
+    return "$ampm ${hh}시"
 }
 
 @Composable

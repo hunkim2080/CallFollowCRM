@@ -160,6 +160,20 @@ class AppPreferences(context: Context) {
     var d1SendHour: Int
         get() = prefs.getInt("d1_send_hour", 9)
         set(value) = prefs.edit().putInt("d1_send_hour", value).apply()
+
+    // ── 방해금지 시간대 (밤엔 소리·진동 없이 조용히) 2026-08-04 사장님 ──
+    /** 켜면 quietStartHour~quietEndHour 사이 알림은 소리·진동 없이 조용히 온다(놓치진 않음). */
+    var quietHoursEnabled: Boolean
+        get() = prefs.getBoolean("quiet_hours_enabled", false)
+        set(value) = prefs.edit().putBoolean("quiet_hours_enabled", value).apply()
+    /** 방해금지 시작 시각(시, 0~23). 기본 오후 10시. */
+    var quietStartHour: Int
+        get() = prefs.getInt("quiet_start_hour", 22)
+        set(value) = prefs.edit().putInt("quiet_start_hour", value).apply()
+    /** 방해금지 끝 시각(시, 0~23). 기본 오전 7시. */
+    var quietEndHour: Int
+        get() = prefs.getInt("quiet_end_hour", 7)
+        set(value) = prefs.edit().putInt("quiet_end_hour", value).apply()
     /** D-1 안내 문자 본문. */
     var d1AutoText: String
         get() = healedAutoText("d1_auto_text",
