@@ -51,4 +51,12 @@ class PricingItemsViewModel(private val container: AppContainer) : ViewModel() {
             container.pricingItemRepository.deleteById(item.id)
         }
     }
+
+    /** 선택한 여러 항목을 한 번에 삭제. (2026-08-04 사장님 — 하나씩 삭제가 번거로움) */
+    fun deleteMany(ids: List<Long>) {
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            container.pricingItemRepository.deleteByIds(ids)
+        }
+    }
 }

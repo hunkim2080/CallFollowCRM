@@ -3,7 +3,9 @@
 package com.detailline.callfollowcrm.presentation.screen.pricing
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -15,17 +17,21 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -42,6 +48,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -57,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.data.local.entity.PricingItemEntity
 import com.detailline.callfollowcrm.data.repository.PricingCategory
+import com.detailline.callfollowcrm.presentation.component.pressScale
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
@@ -87,6 +95,11 @@ fun PricingItemsScreen(
     var deleteTarget by remember { mutableStateOf<PricingItemEntity?>(null) }
     // 복사 = 이 항목을 새 항목으로 복제(예: 공통 → 구축). 다이얼로그 pre-fill 후 카테고리만 바꿔 저장. (2026-07-02 사장님)
     var copyTarget by remember { mutableStateOf<PricingItemEntity?>(null) }
+    // 선택 삭제 — 하나씩 지우기 번거로움. 선택 모드 진입 시 행 탭=선택 토글, 하단 [N개 삭제]. (2026-08-04 사장님)
+    var selectionMode by remember { mutableStateOf(false) }
+    val selectedIds = remember { mutableStateListOf<Long>() }
+    var showBulkDeleteConfirm by remember { mutableStateOf(false) }
+    val exitSelection: () -> Unit = { selectionMode = false; selectedIds.clear() }
 
     val grouped = remember(items) {
         items.groupBy { it.category }
@@ -98,29 +111,86 @@ fun PricingItemsScreen(
             TopAppBar(
                 title = {
                     Text(
-                        "가격표",
+                        if (selectionMode) "${selectedIds.size}개 선택" else "가격표",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = TossTextPrimary
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "뒤로", tint = TossTextPrimary)
+                    // 선택 모드에선 X = 선택 취소, 아니면 뒤로. (§back=나가기 전용이라 back 은 안 가로챔 — X 로 종료)
+                    IconButton(onClick = { if (selectionMode) exitSelection() else onBack() }) {
+                        Icon(
+                            if (selectionMode) Icons.Default.Close else Icons.Default.ArrowBack,
+                            if (selectionMode) "선택 취소" else "뒤로",
+                            tint = TossTextPrimary
+                        )
                     }
                 },
                 actions = {
-                    // 문자에서 가격 불러오기(2026-07-02 사장님 요청 — 프로토 외 추가 흐름).
-                    TextButton(onClick = onOpenExtract) {
-                        Text("✨ 불러오기", color = TossBlue, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    }
-                    // 프로토 s-pricing appbar 우상단 plus
-                    IconButton(onClick = { showAddDialog = true }) {
-                        Icon(Icons.Default.Add, "항목 추가", tint = TossTextPrimary)
+                    if (selectionMode) {
+                        val allSelected = items.isNotEmpty() && selectedIds.size == items.size
+                        TextButton(onClick = {
+                            if (allSelected) selectedIds.clear()
+                            else { selectedIds.clear(); selectedIds.addAll(items.map { it.id }) }
+                        }) {
+                            Text(
+                                if (allSelected) "전체 해제" else "전체 선택",
+                                color = TossBlue, fontWeight = FontWeight.Bold, fontSize = 14.sp
+                            )
+                        }
+                    } else {
+                        // 문자에서 가격 불러오기(2026-07-02 사장님 요청 — 프로토 외 추가 흐름).
+                        TextButton(onClick = onOpenExtract) {
+                            Text("✨ 불러오기", color = TossBlue, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        }
+                        // 선택 삭제 진입 (항목이 있을 때만)
+                        if (items.isNotEmpty()) {
+                            TextButton(onClick = { selectionMode = true }) {
+                                Text("선택", color = TossTextSecondary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            }
+                        }
+                        // 프로토 s-pricing appbar 우상단 plus
+                        IconButton(onClick = { showAddDialog = true }) {
+                            Icon(Icons.Default.Add, "항목 추가", tint = TossTextPrimary)
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
             )
+        },
+        bottomBar = {
+            if (selectionMode) {
+                Surface(color = Color.White, shadowElevation = 12.dp) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .padding(horizontal = 18.dp, vertical = 12.dp)
+                    ) {
+                        val src = remember { MutableInteractionSource() }
+                        val enabled = selectedIds.isNotEmpty()
+                        Surface(
+                            onClick = { if (enabled) showBulkDeleteConfirm = true },
+                            enabled = enabled,
+                            shape = RoundedCornerShape(14.dp),
+                            color = if (enabled) TossError else TossGrayBg,
+                            interactionSource = src,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .then(if (enabled) Modifier.pressScale(src) else Modifier)
+                        ) {
+                            Box(Modifier.padding(vertical = 15.dp), contentAlignment = Alignment.Center) {
+                                Text(
+                                    if (enabled) "${selectedIds.size}개 삭제" else "삭제할 항목을 선택하세요",
+                                    color = if (enabled) Color.White else TossTextTertiary,
+                                    fontWeight = FontWeight.Bold, fontSize = 15.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
     ) { inner ->
         if (items.isEmpty()) {
@@ -203,7 +273,14 @@ fun PricingItemsScreen(
                     items(group, key = { it.id }) { item ->
                         PricingItemRow(
                             item = item,
-                            onTap = { editTarget = item },
+                            selectionMode = selectionMode,
+                            selected = item.id in selectedIds,
+                            onTap = {
+                                if (selectionMode) {
+                                    if (item.id in selectedIds) selectedIds.remove(item.id)
+                                    else selectedIds.add(item.id)
+                                } else editTarget = item
+                            },
                             onToggleActive = { viewModel.toggleActive(item) }
                         )
                     }
@@ -286,11 +363,44 @@ fun PricingItemsScreen(
             containerColor = Color.White
         )
     }
+
+    // 선택 삭제 확인 — 여러 항목 한 번에.
+    if (showBulkDeleteConfirm) {
+        val n = selectedIds.size
+        AlertDialog(
+            onDismissRequest = { showBulkDeleteConfirm = false },
+            title = { Text("${n}개 항목을 삭제할까요?", color = TossTextPrimary, fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "삭제하면 복구할 수 없어요. 잠시 숨기려면 항목의 스위치를 끄세요.",
+                    color = TossTextSecondary,
+                    fontSize = 13.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deleteMany(selectedIds.toList())
+                    showBulkDeleteConfirm = false
+                    exitSelection()
+                }) {
+                    Text("삭제", color = TossError, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBulkDeleteConfirm = false }) {
+                    Text("취소", color = TossTextSecondary)
+                }
+            },
+            containerColor = Color.White
+        )
+    }
 }
 
 @Composable
 private fun PricingItemRow(
     item: PricingItemEntity,
+    selectionMode: Boolean,
+    selected: Boolean,
     onTap: () -> Unit,
     onToggleActive: () -> Unit
 ) {
@@ -300,12 +410,28 @@ private fun PricingItemRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onTap),
-        color = Color.White
+        color = if (selectionMode && selected) TossBlueSoft else Color.White
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // 선택 모드: 왼쪽 체크 동그라미 (선택=파랑 채움+체크, 미선택=회색 링)
+            if (selectionMode) {
+                Box(
+                    Modifier
+                        .size(22.dp)
+                        .clip(CircleShape)
+                        .then(
+                            if (selected) Modifier.background(TossBlue)
+                            else Modifier.border(2.dp, TossTextTertiary, CircleShape)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (selected) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                }
+                Spacer(Modifier.width(12.dp))
+            }
             // 프로토 price-row: 이름(+평당 태그) … 가격 우측 … 토글
             Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -336,17 +462,20 @@ private fun PricingItemRow(
                 fontWeight = FontWeight.Bold,
                 color = TossBlue.copy(alpha = alpha)
             )
-            Spacer(Modifier.width(10.dp))
-            Switch(
-                checked = item.isActive,
-                onCheckedChange = { onToggleActive() },
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = Color.White,
-                    checkedTrackColor = TossBlue,
-                    uncheckedThumbColor = Color.White,
-                    uncheckedTrackColor = TossTextTertiary
+            // 선택 모드에선 활성 토글 숨김 (행 전체가 선택 대상)
+            if (!selectionMode) {
+                Spacer(Modifier.width(10.dp))
+                Switch(
+                    checked = item.isActive,
+                    onCheckedChange = { onToggleActive() },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = TossBlue,
+                        uncheckedThumbColor = Color.White,
+                        uncheckedTrackColor = TossTextTertiary
+                    )
                 )
-            )
+            }
         }
     }
 }

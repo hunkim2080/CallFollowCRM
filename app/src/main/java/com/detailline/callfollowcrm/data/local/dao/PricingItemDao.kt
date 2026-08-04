@@ -35,4 +35,7 @@ interface PricingItemDao {
 
     @Query("DELETE FROM pricing_items WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    @Query("DELETE FROM pricing_items WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<Long>)
 }

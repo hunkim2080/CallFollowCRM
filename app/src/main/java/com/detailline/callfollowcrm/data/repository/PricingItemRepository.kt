@@ -116,6 +116,12 @@ class PricingItemRepository(private val dao: PricingItemDao) {
         dao.deleteById(id)
     }
 
+    /** 선택한 여러 항목을 한 번에 삭제(가격표 선택 삭제). 빈 목록이면 no-op. (2026-08-04 사장님) */
+    suspend fun deleteByIds(ids: List<Long>) {
+        if (ids.isEmpty()) return
+        dao.deleteByIds(ids)
+    }
+
     companion object {
         /**
          * 원 단위 가격 → 표시 문자열. 만원 배수면 "N만원", 아니면 "N,NNN원".
