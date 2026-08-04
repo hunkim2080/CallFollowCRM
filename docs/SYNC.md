@@ -8509,3 +8509,9 @@ Play 정식(production) 배포 (사장님 "PLAY에도 올리자 ㄱㄱㄱ").
 - ✅실기 확인: 상담함 A안(최근문자 위+✨요약 아래)·그룹 태그(일당) 정상.
 - 🐞발견+수정: 최근 대화 날짜(오늘/어제)가 이름 길이 따라 삐뚤 → 이름+태그 weight Row로 묶고 시각 우측 고정. commit c7b9d60. 실기 재확인 OK.
 - 나머지(방해금지·문자링크·OCR·채팅여백)는 사장님 폰 직접 테스트 대기.
+
+## 2026-08-05 01:05 · android
+베타 사이트 업로드(사장님 요청, Play는 아직 X).
+- 릴리스 APK 0.2.1310(정렬 픽스 포함) → macmini:~/ringgo-server/apk/shigongmagne.apk. VERSION_CODE.txt=1310, release_notes.txt 오늘 7줄로 갱신.
+- 검증: si0in.kr/api/download/version → version_code 1310, size 26268506, notes 반영. 다운로드 URL 200.
+- 오늘 배포 내용: 상담함 태그/최근문자 · 방해금지 · 문자링크(전화·날짜) · 사업자OCR(앱, 서버는 아직 Gemini) · 가격표 선택삭제 · 채팅여백 · 날짜정렬.
