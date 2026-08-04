@@ -8488,3 +8488,9 @@ Play 정식(production) 배포 (사장님 "PLAY에도 올리자 ㄱㄱㄱ").
 - 핸드오프 문서: docs/SERVER_HANDOFF_ocr_bizreg_ollama.md (엔드포인트 OCR 백엔드만 Gemini→Ollama, 응답형태 유지=앱 무변경).
 - 날짜 링크 시트 개선도 커밋(a1e4c5a).
 - **다음 액션(코워크/맥미니):** /api/expo/ocr/bizreg OCR을 Ollama로 교체(위 문서). 앱쪽 '사진 자동입력' 버튼은 android가 별도.
+
+## 2026-08-05 00:35 · android
+사업자등록증 OCR 자동입력 — 앱쪽 완성. commit 5754967
+- BusinessInfoScreen(견적서·사업자 정보) 상단 '📷 사업자등록증으로 자동입력'(촬영/앨범) → ocrBizReg → 상호·대표자·번호·주소 자동채움+확인.
+- 서버는 여전히 /api/expo/ocr/bizreg (지금 Gemini) → 코워크가 Ollama로 바꾸면 무료/로컬. 응답형태 동일이라 앱 무변경.
+- 미빌드/미검증(폰 미연결).
