@@ -76,6 +76,12 @@ fun BusinessInfoScreen(
     var accountNo by remember { mutableStateOf(prefs.bizAccountNo) }
     var accountHolder by remember { mutableStateOf(prefs.bizAccountHolder) }
 
+    // ── 사업자등록증 사진 → OCR 자동입력 (로컬 LLM, 서버 /api/expo/ocr/bizreg). (2026-08-05 사장님) ──
+    val ocrScope = androidx.compose.runtime.rememberCoroutineScope()
+    val bizOcrRepo = remember { com.detailline.callfollowcrm.ai.ExpoRepository() }
+    var ocrBusy by remember { mutableStateOf(false) }
+    var ocrCameraUri by remember { mutableStateOf<android.net.Uri?>(null) }
+
     // 전화번호 자동 채움 — 비어 있으면 유심에서 내 번호 읽기 시도(한국은 빈 값 자주 옴 → 실패해도 무해).
     LaunchedEffect(Unit) {
         if (phone.isBlank()) {
@@ -115,7 +121,72 @@ fun BusinessInfoScreen(
         Unit
     }
 
+    // 사업자등록증 OCR — 촬영/앨범 사진 → 서버 인식 → 상호·대표자·번호·주소 자동 채움(확인 후 저장).
+    fun runBizOcr(uri: android.net.Uri) {
+        val dataUrl = uriToDataUrl(context, uri)
+        if (dataUrl == null) { android.widget.Toast.makeText(context, "이미지를 읽지 못했어요", android.widget.Toast.LENGTH_SHORT).show(); return }
+        ocrBusy = true
+        ocrScope.launch {
+            bizOcrRepo.ocrBizReg(dataUrl)
+                .onSuccess { r ->
+                    ocrBusy = false
+                    if (r.bizName.isBlank() && r.bizNo.isBlank() && r.repName.isBlank() && r.address.isBlank()) {
+                        android.widget.Toast.makeText(context, "사업자등록증을 인식하지 못했어요 · 또렷하게 다시 찍어주세요", android.widget.Toast.LENGTH_LONG).show()
+                    } else {
+                        if (r.bizName.isNotBlank()) name = r.bizName
+                        if (r.repName.isNotBlank()) owner = r.repName
+                        if (r.bizNo.isNotBlank()) bizNo = formatBizNo(r.bizNo)
+                        if (r.address.isNotBlank()) addr = r.address
+                        android.widget.Toast.makeText(context, "사업자등록증에서 채웠어요 · 확인 후 저장하세요", android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }
+                .onFailure {
+                    ocrBusy = false
+                    android.widget.Toast.makeText(context, "인식 실패 — 잠시 후 다시 시도해주세요", android.widget.Toast.LENGTH_SHORT).show()
+                }
+        }
+    }
+    val ocrGalleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) runBizOcr(uri)
+    }
+    val ocrCameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        if (ok) ocrCameraUri?.let { runBizOcr(it) }
+    }
+    fun pickOcrGallery() {
+        ocrGalleryLauncher.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+    }
+    fun pickOcrCamera() {
+        runCatching {
+            val dir = java.io.File(context.cacheDir, "shared").apply { mkdirs() }
+            val f = java.io.File(dir, "bizreg_capture.jpg")
+            val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", f)
+            ocrCameraUri = uri
+            ocrCameraLauncher.launch(uri)
+        }.onFailure { android.widget.Toast.makeText(context, "카메라를 열지 못했어요", android.widget.Toast.LENGTH_SHORT).show() }
+    }
+
     BackHandler(enabled = true) { onBack() }
+
+    // OCR 인식 중 로딩 — 화면 정중앙. "멈춘 것 같다" 방지.
+    if (ocrBusy) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(
+                    Modifier.background(Color.White, RoundedCornerShape(20.dp)).padding(horizontal = 34.dp, vertical = 28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    androidx.compose.material3.CircularProgressIndicator(color = TossBlue)
+                    Spacer(Modifier.height(16.dp))
+                    Text("사업자등록증에서 글자를 읽고 있어요", fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                    Spacer(Modifier.height(3.dp))
+                    Text("보통 5~10초 걸려요 · 잠시만요 🙂", fontSize = 12.sp, color = TossTextTertiary)
+                }
+            }
+        }
+    }
 
     val sheetSwallow = remember { MutableInteractionSource() }
     Box(
@@ -161,6 +232,22 @@ fun BusinessInfoScreen(
                 Text("한 번 등록해두면 견적서·접수서에 자동으로 들어가요. 비워둔 칸은 견적서에 표시 안 돼요.",
                     fontSize = 12.5.sp, color = TossTextTertiary)
                 Spacer(Modifier.height(14.dp))
+
+                // 사업자등록증 사진으로 자동입력 — 직접 타이핑 줄이기(특히 어르신). (2026-08-05 사장님)
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFF3F7FF)).padding(14.dp)
+                ) {
+                    Text("📷 사업자등록증으로 자동입력", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                    Spacer(Modifier.height(3.dp))
+                    Text("사진 한 장이면 상호·대표자·번호·주소가 자동으로 채워져요. (채운 뒤 확인하고 저장하세요)",
+                        fontSize = 12.sp, color = TossTextTertiary, lineHeight = 16.sp)
+                    Spacer(Modifier.height(10.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                        OcrPickButton("📷 촬영", !ocrBusy, Modifier.weight(1f)) { pickOcrCamera() }
+                        OcrPickButton("🖼 앨범", !ocrBusy, Modifier.weight(1f)) { pickOcrGallery() }
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
 
                 Field("상호 (업체명)", name, placeholder = "예: ○○ 줄눈") { name = it }
                 Field("대표자 이름", owner, placeholder = "예: 정민수") { owner = it }
@@ -268,6 +355,36 @@ fun BusinessInfoScreen(
         }
     }
 }
+
+@Composable
+private fun OcrPickButton(label: String, enabled: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier.clip(RoundedCornerShape(10.dp)).background(Color(0xFFEAF0FF))
+            .clickable(enabled = enabled) { onClick() }.padding(vertical = 11.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+            color = if (enabled) Color(0xFF2F6FDB) else TossTextTertiary)
+    }
+}
+
+/** 이미지 URI → 축소(≤1600px) JPEG dataURL(base64). OCR 업로드용. (ExpoScreen 과 동일 로직) */
+private fun uriToDataUrl(ctx: android.content.Context, uri: android.net.Uri): String? = runCatching {
+    val cr = ctx.contentResolver
+    val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    cr.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it, null, bounds) }
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@runCatching null
+    val maxDim = 1600
+    var sample = 1
+    while (bounds.outWidth / sample > maxDim || bounds.outHeight / sample > maxDim) sample *= 2
+    val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
+    val bmp = cr.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it, null, opts) }
+        ?: return@runCatching null
+    val baos = java.io.ByteArrayOutputStream()
+    bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, baos)
+    bmp.recycle()
+    "data:image/jpeg;base64," + android.util.Base64.encodeToString(baos.toByteArray(), android.util.Base64.NO_WRAP)
+}.getOrNull()
 
 @Composable
 private fun FieldLabel(label: String) {
