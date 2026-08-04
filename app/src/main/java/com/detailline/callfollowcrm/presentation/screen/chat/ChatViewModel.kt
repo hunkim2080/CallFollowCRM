@@ -1648,6 +1648,15 @@ class ChatViewModel(
         _toast.value = "시공일을 등록했어요"
     }
 
+    /** 문자 속 날짜 링크 → A/S 예약일 등록(하루). Customer 없으면 upsert 후. (2026-08-04 사장님) */
+    fun setAsScheduleDate(timestampMs: Long) = viewModelScope.launch {
+        val id = ensureCustomerId()
+        withContext(Dispatchers.IO + NonCancellable) {
+            runCatching { container.customerRepository.updateAsSchedule(id, timestampMs, 1) }
+        }
+        _toast.value = "A/S 예약일을 등록했어요"
+    }
+
     /** 시공 시간(자정부터 분, null=미정) 설정 — 시공일 등록 후 시간 칩에서 호출. (2026-06-23 사장님) */
     fun setScheduledWorkMinutes(minutes: Int?) = viewModelScope.launch {
         val id = ensureCustomerId()

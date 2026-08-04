@@ -303,6 +303,8 @@ fun ChatScreen(
     var bubbleActionTarget by remember {
         mutableStateOf<com.detailline.callfollowcrm.data.repository.SmsRepository.SmsMessage?>(null)
     }
+    // 문자 속 전화/날짜 링크 탭 → 액션 시트 대상. (2026-08-04 사장님)
+    var linkActionTarget by remember { mutableStateOf<LinkTapAction?>(null) }
     // 대화 요약 카드 사장님 명시 접기 — composer focus 자동 접힘과는 별개.
     //   사장님 피드백 2026-05-25: 카드 4-5줄에 말풍선이 가려져서 접기 필요.
     //   2026-06-02 사장님 결정(프로토 1:1): 평소엔 프로토 chat-summary 한 줄 바(접힘),
@@ -809,6 +811,14 @@ fun ChatScreen(
                                     onLongPress = {
                                         // 2026-05-25: 직접 toggleStar 호출 X → BottomSheet 띄워서 저장/복사 선택.
                                         bubbleActionTarget = msg
+                                    },
+                                    onTapEntity = { tag, value ->
+                                        // 문자 속 전화/날짜 링크 탭 → 액션 시트. (2026-08-04 사장님)
+                                        linkActionTarget = when (tag) {
+                                            "PHONE" -> LinkTapAction.Phone(value)
+                                            "DATE" -> value.toLongOrNull()?.let { LinkTapAction.DateHit(it) }
+                                            else -> null
+                                        }
                                     }
                                 )
                             }
@@ -1110,6 +1120,57 @@ fun ChatScreen(
             },
             containerColor = Color.White
         )
+    }
+
+    // 문자 속 전화/날짜 링크 탭 → 액션 시트. (2026-08-04 사장님)
+    linkActionTarget?.let { target ->
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        val clipboard = LocalClipboardManager.current
+        ModalBottomSheet(
+            onDismissRequest = { linkActionTarget = null },
+            sheetState = sheetState,
+            containerColor = Color.White
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp).bottomBarClearance()
+            ) {
+                when (target) {
+                    is LinkTapAction.Phone -> {
+                        val pretty = com.detailline.callfollowcrm.util.PhoneNumberFormatter.format(target.digits)
+                        Text(
+                            pretty, style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold, color = TossTextPrimary,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        BubbleActionRow(Icons.Default.Phone, TossBlue, "📞 전화 걸기", "이 번호로 전화해요", onClick = {
+                            dialPhone(context, target.digits); linkActionTarget = null
+                        })
+                        BubbleActionRow(Icons.Default.Info, TossTextSecondary, "📋 번호 복사", "전화번호를 클립보드에", onClick = {
+                            clipboard.setText(AnnotatedString(pretty)); linkActionTarget = null
+                        })
+                    }
+                    is LinkTapAction.DateHit -> {
+                        val label = java.text.SimpleDateFormat("M월 d일 (E)", java.util.Locale.KOREAN).format(java.util.Date(target.epochMs))
+                        Text(
+                            label, style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold, color = TossTextPrimary,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        BubbleActionRow(Icons.Default.DateRange, TossBlue, "🗓️ 시공일로 등록", "이 고객 시공 예약일로", onClick = {
+                            viewModel.setScheduledWorkDate(target.epochMs); linkActionTarget = null
+                        })
+                        BubbleActionRow(Icons.Default.DateRange, Color(0xFFB8780A), "🔧 A/S일로 등록", "이 고객 A/S 예약일로", onClick = {
+                            viewModel.setAsScheduleDate(target.epochMs); linkActionTarget = null
+                        })
+                        BubbleActionRow(Icons.Default.Info, TossTextSecondary, "📋 날짜 복사", "날짜를 클립보드에", onClick = {
+                            clipboard.setText(AnnotatedString(label)); linkActionTarget = null
+                        })
+                    }
+                }
+            }
+        }
     }
 
     // 말풍선 꾹 누름 → [🔖 저장 / 📋 복사] BottomSheet.
@@ -2552,7 +2613,8 @@ private fun ChatBubble(
     isStarred: Boolean,
     onImageTap: (List<android.net.Uri>, Int) -> Unit,
     onLongPress: () -> Unit,
-    videoUris: List<android.net.Uri> = emptyList()
+    videoUris: List<android.net.Uri> = emptyList(),
+    onTapEntity: (tag: String, value: String) -> Unit = { _, _ -> }
 ) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     // 프로토 .brow/.bubble — 시각(btime)은 말풍선 밖(옆 아래), 별표는 바깥쪽.
@@ -2579,7 +2641,10 @@ private fun ChatBubble(
     val uriHandler = LocalUriHandler.current
     val firstUrl = remember(body) { firstUrlIn(body) }
     val linkColor = if (sent) Color.White else TossBlue
-    val styledBody = remember(body, sent) { linkifyBody(body, linkColor) }
+    val styledBody = remember(body, sent, timeMs) { linkifyBody(body, linkColor, timeMs) }
+    // 본문 텍스트 탭 지점 → annotation(전화/날짜/URL) 조회용. 롱프레스·pressScale 은 그대로 둔다.
+    var bubbleLayout by remember(styledBody) { mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null) }
+    var lastTextDown by remember(styledBody) { mutableStateOf<Offset?>(null) }
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.Bottom,
@@ -2602,7 +2667,19 @@ private fun ChatBubble(
                 .combinedClickable(
                     interactionSource = bubbleInteraction,
                     indication = null,
-                    onClick = { firstUrl?.let { runCatching { uriHandler.openUri(it) } } },
+                    onClick = {
+                        // 탭 지점의 annotation(전화/날짜/URL) 조회. 없으면 기존 동작(첫 URL 열기).
+                        val pos = lastTextDown; lastTextDown = null
+                        val ann = if (pos != null) bubbleLayout?.let { lr ->
+                            val off = lr.getOffsetForPosition(pos)
+                            styledBody.getStringAnnotations(off, off).firstOrNull()
+                        } else null
+                        when (ann?.tag) {
+                            "URL" -> runCatching { uriHandler.openUri(ann.item) }
+                            "PHONE", "DATE" -> onTapEntity(ann.tag, ann.item)
+                            else -> firstUrl?.let { runCatching { uriHandler.openUri(it) } }
+                        }
+                    },
                     onLongClick = onLongPress
                 )
         ) {
@@ -2673,7 +2750,15 @@ private fun ChatBubble(
                         styledBody,
                         color = if (sent) Color.White else TossTextPrimary,
                         fontSize = 14.sp,
-                        lineHeight = 20.sp
+                        lineHeight = 20.sp,
+                        onTextLayout = { bubbleLayout = it },
+                        // 탭 지점 기록(소비 안 함) → 말풍선 onClick 이 이 위치로 annotation 조회. 롱프레스는 건드리지 않음.
+                        modifier = Modifier.pointerInput(Unit) {
+                            awaitEachGesture {
+                                val d = awaitFirstDown(requireUnconsumed = false)
+                                lastTextDown = d.position
+                            }
+                        }
                     )
                 }
             }
@@ -2716,6 +2801,12 @@ private fun playMmsVideo(context: android.content.Context, partUri: android.net.
     }
 }
 
+/** 문자 속 링크 탭 대상 — 전화(숫자) / 날짜(자정 epoch). (2026-08-04 사장님) */
+private sealed interface LinkTapAction {
+    data class Phone(val digits: String) : LinkTapAction
+    data class DateHit(val epochMs: Long) : LinkTapAction
+}
+
 /** 본문에서 첫 URL 추출 — 스킴 없으면 https:// 보정해 반환. 없으면 null. */
 private fun firstUrlIn(body: String): String? {
     val m = android.util.Patterns.WEB_URL.matcher(body)
@@ -2724,20 +2815,42 @@ private fun firstUrlIn(body: String): String? {
     return if (raw.startsWith("http://", true) || raw.startsWith("https://", true)) raw else "https://$raw"
 }
 
-/** 본문 속 모든 URL 을 밑줄+색으로 표시한 AnnotatedString (탭 동작은 말풍선 onClick 이 처리). */
-private fun linkifyBody(body: String, linkColor: Color): AnnotatedString {
-    val m = android.util.Patterns.WEB_URL.matcher(body)
-    if (!m.find()) return AnnotatedString(body)
-    m.reset()
+/**
+ * 본문 속 URL·전화번호·날짜를 밑줄+색으로 표시하고 위치별 annotation(tag=URL/PHONE/DATE)을 단 AnnotatedString.
+ *   탭 동작은 말풍선 onClick 이 탭 지점 → annotation 조회로 처리. baseMs=문자 시각(상대 날짜 기준). (2026-08-04 사장님)
+ */
+private fun linkifyBody(body: String, linkColor: Color, baseMs: Long): AnnotatedString {
+    data class Span(val start: Int, val end: Int, val tag: String, val value: String)
+    val spans = ArrayList<Span>()
+    val um = android.util.Patterns.WEB_URL.matcher(body)
+    while (um.find()) {
+        val raw = um.group()
+        val url = if (raw.startsWith("http://", true) || raw.startsWith("https://", true)) raw else "https://$raw"
+        spans.add(Span(um.start(), um.end(), "URL", url))
+    }
+    com.detailline.callfollowcrm.util.MessageEntities.detect(body, baseMs).forEach { h ->
+        when (h.type) {
+            com.detailline.callfollowcrm.util.MessageEntities.Type.PHONE ->
+                spans.add(Span(h.start, h.end, "PHONE", h.phoneDigits ?: h.raw))
+            com.detailline.callfollowcrm.util.MessageEntities.Type.DATE ->
+                spans.add(Span(h.start, h.end, "DATE", (h.epochMs ?: 0L).toString()))
+        }
+    }
+    if (spans.isEmpty()) return AnnotatedString(body)
+    spans.sortBy { it.start }
+    val kept = ArrayList<Span>()
+    var lastEnd = -1
+    for (s in spans) if (s.start >= lastEnd) { kept.add(s); lastEnd = s.end }
     return buildAnnotatedString {
         var last = 0
-        while (m.find()) {
-            val s = m.start(); val e = m.end()
-            if (s > last) append(body.substring(last, s))
+        for (s in kept) {
+            if (s.start > last) append(body.substring(last, s.start))
+            pushStringAnnotation(s.tag, s.value)
             withStyle(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)) {
-                append(body.substring(s, e))
+                append(body.substring(s.start, s.end))
             }
-            last = e
+            pop()
+            last = s.end
         }
         if (last < body.length) append(body.substring(last))
     }
