@@ -3155,7 +3155,9 @@ _ADMIN_DASHBOARD_HTML = r"""<!DOCTYPE html>
 
   <!-- 👥 Top 사용자 (관리자만) -->
   <div class="card admin-only" id="topUsersCard" style="display:none;">
-    <h2>👥 Top 사용자 (이번 달, 호출수 내림차순)</h2>
+    <h2>👥 AI 처리 대화상대 TOP (이번 달·호출수순)</h2>
+    <div style="font-size:11px;color:var(--muted);margin:-4px 0 8px;">
+      ※ 사장님(등록) + 고객(미등록) 혼재. 고객 번호는 뒷4자리 가림. 호출에 사장님 번호 없이 오면 대화상대 번호로 집계됨.</div>
     <div style="overflow-x:auto;">
       <table id="topUsersTable" style="min-width:100%;font-size:12px;">
         <thead>
@@ -4863,8 +4865,14 @@ async def admin_business_stats(
                 user_margin = None
                 heavy = cost_k > 1000
             biz = _resolve_biz(r["phone"])
+            # 이 목록의 phone 은 owner_phone 없이 온 호출이면 '대화상대(고객)' 번호로 기록됨.
+            #   → 등록 사장님이 아니면(=고객) 뒷4자리 마스킹해 PII 노출·혼동 방지.
+            _is_owner = bool(r["plan_tier"]) or bool(biz["biz_name"]) or bool(
+                _is_registered_owner(r["phone"]))
+            _disp_phone = r["phone"] if _is_owner else _expo_mask_phone(r["phone"])
             top_users.append({
-                "phone":             r["phone"],
+                "phone":             _disp_phone,
+                "is_owner":          _is_owner,   # 등록 사장님 여부(앱/화면 구분용)
                 "name":              r["name"],
                 "biz_name":          biz["biz_name"],   # 추가113
                 "trade":             biz["trade"],      # 추가113

@@ -8443,3 +8443,11 @@ Play 정식(production) 배포 (사장님 "PLAY에도 올리자 ㄱㄱㄱ").
 - 내부테스트: 오늘 app push마다 자동배포 성공(마지막 d6b498f=오늘 작업 전부).
 - 정식: whatsnew-ko-KR 오늘 것으로 갱신(0bc9358) 후 workflow_dispatch track=production 트리거 → run #62 success. AAB Play 정식 트랙 업로드 완료 → 구글 심사 대기.
 - 검증: play-deploy run 30754619238 completed/success.
+
+## 2026-08-04 19:55 · cowork (fix: TOP 사용자 = 고객번호 노출)
+사장님 신고 — 'TOP 사용자'에 고객번호가 뜸(사장 번호인 줄).
+- 원인: business-stats top_users 는 api_usage.phone 기준인데, AI 요약 로그가 `log_usage(ctx.owner_phone or ctx.phone)` → **앱이 owner_phone 안 실으면 대화상대(고객) 번호로 기록**됨. 그래서 미등록=고객 번호가 다수.
+- fix(서버만, 사장님 결정): ①등록 사장님 아니면(=고객) **뒷4자리 마스킹**(010-1234-****) + is_owner 플래그. ②라벨 '👥 AI 처리 대화상대 TOP (사장님·고객 혼재, 고객 뒷4자리 가림)'로 정직화.
+- 앱 핸드오프는 안 함(사장님 결정: 서버쪽만). 근본은 앱이 owner_phone 항상 싣기지만 보류.
+- 검증 TestClient 5 OK. 미배포: bash server/deploy_phase1.sh
+- commit: (아래)
