@@ -8480,3 +8480,11 @@ Play 정식(production) 배포 (사장님 "PLAY에도 올리자 ㄱㄱㄱ").
 - ChatScreen linkifyBody+말풍선 탭(1.6.8 위치기록)→액션시트. ChatViewModel.setAsScheduleDate 추가. commit f396564
 - 주소 링크는 2단계(보수적) 대기. 미빌드/미검증(폰 미연결).
 - 다음: E(사업자등록증 OCR)=서버 OCR 필요 → 코워크 핸드오프 예정(approach 확정 후).
+
+## 2026-08-05 00:30 · android
+사업자등록증 OCR = 로컬 LLM(Ollama qwen2.5vl:7b)로 (사장님 결정). 서버 작업 = 코워크.
+- 조사: 앱에 이미 ocrBizReg → POST /api/expo/ocr/bizreg (현재 Gemini). 응답 {biz_name,biz_no,rep_name,address}. 앱 필드 bizName/bizOwner/bizNo/bizAddr 존재.
+- 레퍼런스: ~/Workspace/naver-blog-bot/src/ocr.js (Ollama 127.0.0.1:11434, qwen2.5vl:7b, /api/generate).
+- 핸드오프 문서: docs/SERVER_HANDOFF_ocr_bizreg_ollama.md (엔드포인트 OCR 백엔드만 Gemini→Ollama, 응답형태 유지=앱 무변경).
+- 날짜 링크 시트 개선도 커밋(a1e4c5a).
+- **다음 액션(코워크/맥미니):** /api/expo/ocr/bizreg OCR을 Ollama로 교체(위 문서). 앱쪽 '사진 자동입력' 버튼은 android가 별도.
