@@ -8466,3 +8466,10 @@ Play 정식(production) 배포 (사장님 "PLAY에도 올리자 ㄱㄱㄱ").
 - 상담함 목록: 행에 사장님 분류(카테고리) 태그 표시(자동 시공대기/완료는 제외), 프리뷰 2줄(최근문자 위+✨요약 아래). commit d5ded43
 - 미빌드/미검증(폰 미연결) — 다음 연결/Play 내부테스트 때 실기 확인.
 - 다음 액션: 없음(상대편 영향 없음).
+
+## 2026-08-04 23:55 · android
+방해금지 시간대(밤엔 소리·진동 없이 조용). 앱 전용, server 무관.
+- prefs quietHoursEnabled/quietStartHour(22)/quietEndHour(7). NotificationHelper.isQuietNow()+CHANNEL_NIGHT_QUIET(LOW). resolveChannel 한 곳 라우팅.
+- UI: 알림 소리 화면 상단 '🌙 방해금지 시간' 카드(스위치+시각). commit e258e8f
+- 미빌드/미검증(폰 미연결). 알림은 알림창엔 남아 안 놓침.
+- 다음 액션: 없음.
