@@ -3590,30 +3590,34 @@ private fun RecentRow(
         Spacer(Modifier.width(13.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    title, fontSize = 15.sp,
-                    fontWeight = if (unread) FontWeight.ExtraBold else FontWeight.Bold,
-                    color = TossTextPrimary,
-                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
-                // 그룹 태그 (사장님 분류: '일당' 등) — 한눈에 어떤 묶음인지. (2026-08-04 사장님) 보라색으로 상태태그와 구분.
-                category?.let { cat ->
-                    Spacer(Modifier.width(7.dp))
-                    Box(Modifier.clip(RoundedCornerShape(7.dp)).background(Color(0xFFEFEBFF)).padding(horizontal = 8.dp, vertical = 3.dp)) {
-                        Text(
-                            (cat.emoji?.takeIf { it.isNotBlank() }?.let { "$it " } ?: "") + cat.name,
-                            fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6D5AE6), maxLines = 1
-                        )
+                // 이름+태그는 한 덩어리(가변폭 weight)로 묶고 시각은 그 밖에 → 시각이 이름 길이와 무관하게
+                //   '항상 맨 오른쪽'에 정렬된다. (2026-08-05 사장님: 날짜가 이름 길이 따라 삐뚤어짐)
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        title, fontSize = 15.sp,
+                        fontWeight = if (unread) FontWeight.ExtraBold else FontWeight.Bold,
+                        color = TossTextPrimary,
+                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    // 그룹 태그 (사장님 분류: '일당' 등) — 한눈에 어떤 묶음인지. (2026-08-04 사장님) 보라색으로 상태태그와 구분.
+                    category?.let { cat ->
+                        Spacer(Modifier.width(7.dp))
+                        Box(Modifier.clip(RoundedCornerShape(7.dp)).background(Color(0xFFEFEBFF)).padding(horizontal = 8.dp, vertical = 3.dp)) {
+                            Text(
+                                (cat.emoji?.takeIf { it.isNotBlank() }?.let { "$it " } ?: "") + cat.name,
+                                fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6D5AE6), maxLines = 1
+                            )
+                        }
+                    }
+                    if (tag != null) {
+                        Spacer(Modifier.width(7.dp))
+                        Box(Modifier.clip(RoundedCornerShape(7.dp)).background(tag.bg).padding(horizontal = 8.dp, vertical = 3.dp)) {
+                            Text(tag.text, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = tag.fg)
+                        }
                     }
                 }
-                if (tag != null) {
-                    Spacer(Modifier.width(7.dp))
-                    Box(Modifier.clip(RoundedCornerShape(7.dp)).background(tag.bg).padding(horizontal = 8.dp, vertical = 3.dp)) {
-                        Text(tag.text, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = tag.fg)
-                    }
-                }
-                Spacer(Modifier.weight(1f))
+                Spacer(Modifier.width(6.dp))
                 Text(recentTimeLabel(item.lastActivityMs.takeIf { it > 0L } ?: item.record.endedAt), fontSize = 11.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
             }
             if (!primaryText.isNullOrBlank()) {
