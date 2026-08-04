@@ -883,7 +883,8 @@ fun ChatScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState())
-                        .padding(start = 14.dp, end = 14.dp, top = 10.dp),
+                        // 프로토는 bottom 0 이라 칩이 입력창에 붙어 아마추어 느낌 → 숨 쉴 틈 10dp. (2026-08-04 사장님)
+                        .padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 10.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     ActChip(Icons.Default.Description, "견적 작성") { triggerActionByType("send_estimate") }
