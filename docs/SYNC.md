@@ -8473,3 +8473,10 @@ Play 정식(production) 배포 (사장님 "PLAY에도 올리자 ㄱㄱㄱ").
 - UI: 알림 소리 화면 상단 '🌙 방해금지 시간' 카드(스위치+시각). commit e258e8f
 - 미빌드/미검증(폰 미연결). 알림은 알림창엔 남아 안 놓침.
 - 다음 액션: 없음.
+
+## 2026-08-05 00:10 · android
+문자 속 전화·날짜 링크화(F). 앱 전용, server 무관.
+- util/MessageEntities(순수+단위테스트 10케이스 통과): 전화·날짜(절대/오늘·내일/요일/다음주요일) 감지, 오탐0.
+- ChatScreen linkifyBody+말풍선 탭(1.6.8 위치기록)→액션시트. ChatViewModel.setAsScheduleDate 추가. commit f396564
+- 주소 링크는 2단계(보수적) 대기. 미빌드/미검증(폰 미연결).
+- 다음: E(사업자등록증 OCR)=서버 OCR 필요 → 코워크 핸드오프 예정(approach 확정 후).
