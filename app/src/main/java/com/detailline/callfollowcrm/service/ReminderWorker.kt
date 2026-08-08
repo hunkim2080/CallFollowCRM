@@ -270,7 +270,9 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
             val scheduled = c.scheduledWorkDate ?: continue
             if (DateTimeUtils.startOfDay(scheduled) > threshold) continue // 아직 3일 안 지남(또는 미래)
 
-            val key = "settle:${c.id}"
+            // dedup 키에 시공 날짜를 포함(D-1·A/S 와 동일 패턴). 고객 id 만 쓰면 재방문/추가 시공의 새 잔금이
+            //   영영 재알림 안 되던 버그(2026-08-08 stale 감사). 새 시공일 = 새 키 → 다시 알림.
+            val key = "settle:${c.id}:${DateTimeUtils.startOfDay(scheduled)}"
             if (key in keys) continue
             val nm = c.name?.takeIf { it.isNotBlank() } ?: c.phoneNumber
             val daysSince = ((now - scheduled) / DateTimeUtils.DAY_MS).toInt().coerceAtLeast(0)

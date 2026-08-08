@@ -18,6 +18,6 @@ class TimelineEventRepository(private val dao: TimelineEventDao) {
     suspend fun markNotified(id: Long, ts: Long) = dao.markNotified(id, ts)
 
     /** 날짜만 기록된 최근 일정 카드에 시간 채워넣기(날짜→시간 2단계). */
-    suspend fun updateLatestScheduleNewValue(suffix: String, newValue: String, since: Long) =
-        dao.updateLatestScheduleNewValue(suffix, newValue, since)
+    suspend fun updateLatestScheduleNewValue(suffix: String, newValue: String) =
+        dao.updateLatestScheduleNewValue(suffix, newValue)
 }

@@ -1150,8 +1150,13 @@ object NotificationHelper {
     }
 
     /** 같은 번호의 알림은 같은 ID 로 update — 새 메시지 도착 시 같은 자리 갱신. */
-    fun smsNotificationId(phone: String): Int =
-        SMS_ID_OFFSET + (phone.filter { it.isDigit() }.takeLast(8).hashCode() and 0x7FFFFFF)
+    fun smsNotificationId(phone: String): Int {
+        val digits = phone.filter { it.isDigit() }
+        // 숫자 4개 미만(영문 브랜드 발신자 등)이면 뒷8자리가 "" → "".hashCode()==0 로 전부 같은 id 가 되어
+        //   서로 다른 발신자 알림이 덮어써졌음 → 발신자 원문 전체로 유니크화. (2026-08-08 stale 감사)
+        val base = if (digits.length >= 4) digits.takeLast(8).hashCode() else phone.trim().hashCode()
+        return SMS_ID_OFFSET + (base and 0x7FFFFFF)
+    }
 
     /**
      * 갤메시지 대체 풍부한 SMS 수신 알림. Step 1 — 기본 표시.

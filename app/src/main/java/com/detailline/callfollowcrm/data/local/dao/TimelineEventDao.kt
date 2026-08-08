@@ -20,12 +20,14 @@ interface TimelineEventDao {
 
     /**
      * 방금 만든 일정 카드(날짜만)에 시간을 채워넣음 — 날짜→시간 2단계 UI라 시간은 나중에 옴.
-     *   since 이후 만들어진 가장 최근 schedule 카드의 newValue 를 "날짜 시간"으로 갱신. (2026-06-30)
+     *   이 고객(suffix)의 '가장 최근 schedule 카드'를 갱신. (2026-06-30)
+     *   ⚠️ 2026-08-08 stale 감사: 예전엔 createdAt >= since(5분) 창으로 제한해, 시간을 5분 넘겨/다시 넣으면
+     *      옛 카드만 남고 시간이 영영 안 붙었음 → 시간창 제거하고 늘 최신 카드를 갱신.
      */
     @Query(
         "UPDATE timeline_events SET newValue = :newValue WHERE id = " +
             "(SELECT id FROM timeline_events WHERE phoneSuffix = :suffix AND type = 'schedule' " +
-            "AND createdAt >= :since ORDER BY createdAt DESC LIMIT 1)"
+            "ORDER BY createdAt DESC LIMIT 1)"
     )
-    suspend fun updateLatestScheduleNewValue(suffix: String, newValue: String, since: Long)
+    suspend fun updateLatestScheduleNewValue(suffix: String, newValue: String)
 }

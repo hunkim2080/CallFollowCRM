@@ -408,15 +408,14 @@ class CustomerDetailViewModel(
         val suffix = customer.value?.phoneNumber?.filter { it.isDigit() }?.takeLast(8)
         val date = customer.value?.scheduledWorkDate
         if (suffix != null && suffix.length >= 7 && date != null) {
-            val full = scheduleLabel(date, minutes) ?: return@launch
-            withContext(NonCancellable) {
-                runCatching {
-                    container.timelineEventRepository.updateLatestScheduleNewValue(
-                        suffix, full, System.currentTimeMillis() - 5 * 60 * 1000
-                    )
-                }
+            val full = scheduleLabel(date, minutes)
+            if (full != null) withContext(NonCancellable) {
+                runCatching { container.timelineEventRepository.updateLatestScheduleNewValue(suffix, full) }
             }
         }
+        // 협업 사장(B)에게도 새 시간 전파 — 예전엔 '날짜' 변경 때만 보내서 시간만 바꾸면 B가 옛 시간대로 옴(2026-08-08 stale 감사).
+        //   날짜는 그대로라 old==new; minutes 를 명시해 stale 방지. 협업 없으면 notifyCollabReschedule 이 알아서 무시.
+        date?.let { d -> notifyCollabReschedule(d, d, minutes) }
     }
 
     /** 시공 시간 + 기간(며칠) 동시 설정 — 날짜 선택 후 시간·기간 칩에서 호출. DB v24. (2026-08-01 사장님) */
@@ -427,15 +426,12 @@ class CustomerDetailViewModel(
         val suffix = customer.value?.phoneNumber?.filter { it.isDigit() }?.takeLast(8)
         val date = customer.value?.scheduledWorkDate
         if (suffix != null && suffix.length >= 7 && date != null) {
-            val full = scheduleLabel(date, minutes) ?: return@launch
-            withContext(NonCancellable) {
-                runCatching {
-                    container.timelineEventRepository.updateLatestScheduleNewValue(
-                        suffix, full, System.currentTimeMillis() - 5 * 60 * 1000
-                    )
-                }
+            val full = scheduleLabel(date, minutes)
+            if (full != null) withContext(NonCancellable) {
+                runCatching { container.timelineEventRepository.updateLatestScheduleNewValue(suffix, full) }
             }
         }
+        date?.let { d -> notifyCollabReschedule(d, d, minutes) }   // 협업 사장에게 새 시간 전파 (2026-08-08 stale 감사)
     }
 
     /** A/S 예약(시공과 별개, 무료) 설정/취소 — date=null 이면 A/S 지움. 기간(며칠) 함께. DB v43. (2026-08-01 사장님) */
@@ -514,7 +510,11 @@ class CustomerDetailViewModel(
      *   서버가 shared_sites 갱신 + B 에게 FCM(type=collab_reschedule) push. 서버 미구현이면 조용히 무시.
      *   ⚠️ 서버는 accepted 협업에만 push (거절/종료/pending 은 서버가 skip) — docs/SERVER_HANDOFF_collab_reschedule.md
      */
-    private fun notifyCollabReschedule(oldAtMs: Long, newAtMs: Long) {
+    private fun notifyCollabReschedule(
+        oldAtMs: Long,
+        newAtMs: Long,
+        minutes: Int? = customer.value?.scheduledWorkMinutes   // 시간 변경 경로는 새 minutes 를 명시해 stale 방지
+    ) {
         val owner = container.preferences.bizPhone.filter { it.isDigit() }
         if (owner.length < 9) return
         val shareIds = container.preferences.collabAssignments.mapNotNull { e ->
@@ -522,7 +522,7 @@ class CustomerDetailViewModel(
             if (p.getOrNull(0)?.toLongOrNull() == customerId) p.getOrNull(3)?.trim()?.takeIf { it.isNotBlank() } else null
         }.distinct()
         if (shareIds.isEmpty()) return
-        val timeLabel = customer.value?.scheduledWorkMinutes?.let {
+        val timeLabel = minutes?.let {
             com.detailline.callfollowcrm.util.DateTimeUtils.formatWorkMinutes(it)
         }
         viewModelScope.launch {
