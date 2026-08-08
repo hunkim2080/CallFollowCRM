@@ -8521,3 +8521,12 @@ Play 정식(production) 배포 (사장님 "PLAY에도 올리자 ㄱㄱㄱ").
 - main.py: _expo_ollama_bizreg() → Ollama qwen2.5vl:7b (127.0.0.1:11434, format=json, temp0). /api/expo/ocr/bizreg 이걸로 교체, 실패시 빈필드(500 X).
 - qwen2.5vl:7b 설치됨. 서버 00:46 재시작 반영(commit 00:38/deploy 00:46). 응답형태 유지=앱 무변경.
 - 결론: 사업자OCR 이제 무료·로컬. 앱 📷 버튼(BusinessInfoScreen)이 바로 사용. terms OCR은 아직 Gemini(무관).
+
+## 2026-08-09 00:06 · android
+푸시 알림 '엉뚱한 대화' 버그 + 막내 카드 제거 + stale-state 감사 수정 4건. 앱 전용(대부분).
+- 🐞푸시: 다른 대화 보다 나갔다 알림 탭→보던 대화 열림(launchSingleTop 이 같은 목적지 재사용). popUpTo(WITH_ARG){inclusive} 로 chat/고객카드/통화요약/후속/협업 5개 딥링크 수정. 폰 검증(am start+uiautomator) 완료. commit 387de1a
+- 막내: '막내가 하나 배웠어요'(원칙 발견) 카드 사장님 지시로 OFF(ChatViewModel PRINCIPLE_DISCOVERY_ENABLED=false). 서버 /infer-principle 호출도 차단(미완성). commit 2da1fa5
+- stale 감사(리포트 claude.ai/code/artifact/fe3d5253 · 허브 b1d39996): 6각도 후보10→확정5중 4 수정. commit f0a2e36
+  · #1 잔금 재알림(dedup 키 settle:{id}:{date}) · #2 협업 시간전파 · #4 영문발신자 알림id · #5 변경이력 시간라벨(5분창 제거)
+- ⚠️다음 액션(cowork/server): #2 협업 '같은 날짜·새 시간' reschedule 을 서버가 반영(shared_sites time_label 갱신 + collab_reschedule push)하도록 확인. 앱은 old==new 로 sharedSiteRepository.reschedule 호출. docs/SERVER_HANDOFF_collab_reschedule.md 참조.
+- 남음(앱): #3 대화 섞임(번호 뒤8자리 매칭 여러 파일) — 신중히 별도(실기 대표번호+휴대폰 테스트).
