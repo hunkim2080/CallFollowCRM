@@ -87,6 +87,12 @@ fun AppRoot(container: AppContainer) {
                 //   기다린 뒤 수집 시작 — 버퍼(Channel.BUFFERED)된 이벤트는 그 직후 정상 전달됨.
                 navController.currentBackStackEntryFlow.first()
                 container.navEvents.events.collect { event ->
+                    // ⚠️ 2026-08-08 사장님 신고: "다른 대화(B) 보다 나간 뒤, A 문자 알림 누르면 A가 아니라 보던 B로 열림."
+                    //   원인: 아래 딥링크 navigate 들이 launchSingleTop=true 만 걸어둠. 인자만 다른 '같은 목적지'
+                    //         (chat?phone=A vs chat?phone=B)로 갈 때 Navigation 이 이를 같은 화면으로 보고 기존 백스택
+                    //         엔트리(+그 ViewModel, phone=B로 생성됨)를 재사용 → 새 번호가 안 먹고 옛 대화가 그대로 뜸.
+                    //   해결: 같은 종류 화면이 스택에 있으면 걷어내고(popUpTo inclusive) 새 인자로 새 엔트리 생성.
+                    //         스택에 없으면 popUpTo 는 무해한 no-op(콜드스타트·홈에서 진입 시 동작 그대로).
                     when (event) {
                         is NavEvent.OpenFollowUp -> {
                             navController.navigate(
@@ -95,26 +101,42 @@ fun AppRoot(container: AppContainer) {
                                     callRecordId = event.callRecordId,
                                     templateId = event.templateId
                                 )
-                            ) { launchSingleTop = true }
+                            ) {
+                                popUpTo(Destinations.FOLLOW_UP_WITH_ARG) { inclusive = true }
+                                launchSingleTop = true
+                            }
                         }
                         is NavEvent.OpenChat -> {
                             navController.navigate(
                                 Destinations.chat(event.phoneNumber, event.customerId)
-                            ) { launchSingleTop = true }
+                            ) {
+                                popUpTo(Destinations.CHAT_WITH_ARG) { inclusive = true }
+                                launchSingleTop = true
+                            }
                         }
                         is NavEvent.OpenCallSummary -> {
                             navController.navigate(
                                 Destinations.callSummary(event.phoneNumber, event.name)
-                            ) { launchSingleTop = true }
+                            ) {
+                                popUpTo(Destinations.CALL_SUMMARY_WITH_ARG) { inclusive = true }
+                                launchSingleTop = true
+                            }
                         }
                         is NavEvent.OpenClosingBrief -> {
+                            // 인자 없는 단일 화면 — launchSingleTop 만으로 충분(재사용해도 같은 화면).
                             navController.navigate(Destinations.CLOSING_BRIEF) { launchSingleTop = true }
                         }
                         is NavEvent.OpenCollabSites -> {
-                            navController.navigate(Destinations.collabSites(event.shareId, event.tab)) { launchSingleTop = true }
+                            navController.navigate(Destinations.collabSites(event.shareId, event.tab)) {
+                                popUpTo(Destinations.COLLAB_SITES_WITH_ARG) { inclusive = true }
+                                launchSingleTop = true
+                            }
                         }
                         is NavEvent.OpenCustomerDetail -> {
-                            navController.navigate(Destinations.customerDetail(event.customerId)) { launchSingleTop = true }
+                            navController.navigate(Destinations.customerDetail(event.customerId)) {
+                                popUpTo(Destinations.CUSTOMER_DETAIL_WITH_ARG) { inclusive = true }
+                                launchSingleTop = true
+                            }
                         }
                     }
                 }
