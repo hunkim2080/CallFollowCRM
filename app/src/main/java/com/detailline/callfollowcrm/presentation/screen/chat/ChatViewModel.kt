@@ -897,6 +897,7 @@ class ChatViewModel(
      *   호출 시점: sendMessage 성공 직후(captureSendSignal 다음) — picked/snapshot 아직 살아있음.
      */
     private fun maybeInferPrinciple(sentText: String) {
+        if (!PRINCIPLE_DISCOVERY_ENABLED) return   // '막내가 배웠어요' 카드 끔 (2026-08-08 사장님) — 서버 추론 호출도 함께 차단.
         val sugs = pickedSuggestionsSnapshot ?: _suggestions.value ?: return
         if (sugs.suggestions.isEmpty()) return
         val conf = sugs.scenarioConfidence ?: return                 // 확신 점수 없으면 패스
@@ -989,6 +990,7 @@ class ChatViewModel(
      *   constructor 파라미터(phoneNumber 기반 getter, container)만 읽음.
      */
     private fun computeInitialPendingPrinciple(): PrincipleDiscovery? {
+        if (!PRINCIPLE_DISCOVERY_ENABLED) return null   // 카드 끔 — 과거 저장된 미결정 발견도 다시 안 띄움. (2026-08-08 사장님)
         val key = principlePhoneKey
         if (key.length != 8) return null
         val entry = container.preferences.pendingPrincipleDiscoveries.firstOrNull { it.take(8) == key } ?: return null
@@ -1704,6 +1706,12 @@ class ChatViewModel(
     }
 
     companion object {
+        /**
+         * 2026-08-08 사장님 지시 — '💡 막내가 하나 배웠어요'(원칙 발견) 카드 비활성화.
+         *   이유: 쓸모없음(⭕/❌ 숙제만 늘고, 확인해도 답변이 나아지는 게 눈에 안 보임) + 서버 /infer-principle 미완성.
+         *   되살리려면 이 값을 true 로. (카드 UI·accept/reject 로직은 dead code 로 보존 — principleDiscovery 가 항상 null 이라 안 뜸.)
+         */
+        private val PRINCIPLE_DISCOVERY_ENABLED = false
         /** 원칙 추론 게이트 — 추천 확신(scenario_confidence)이 이 이상일 때만. 사례 적으면 자연히 안 물음. */
         private const val PRINCIPLE_MIN_CONFIDENCE = 0.6
         /** 추천과 사장님 답의 편집거리가 이 미만이면 "거의 같음"으로 보고 안 물음. */
