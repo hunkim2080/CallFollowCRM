@@ -1,10 +1,12 @@
 package com.detailline.callfollowcrm.presentation.screen.settings
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.detailline.callfollowcrm.data.AppContainer
 import com.detailline.callfollowcrm.data.local.entity.MessageTemplateEntity
 import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
+import com.detailline.callfollowcrm.util.DataBackup
 import com.detailline.callfollowcrm.util.DateTimeUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -332,6 +334,66 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
                    _state.value = _state.value.copy(quickActionTemplateId2 = id) }
             3 -> { container.preferences.quickActionTemplateId3 = id
                    _state.value = _state.value.copy(quickActionTemplateId3 = id) }
+        }
+    }
+
+    // ─────────── 내 데이터 내보내기 / 가져오기 (데이터 안전 1단계, 2026-08-10 사장님) ───────────
+    //   재설치·기기변경·데이터삭제 시 통째 소실을 사장님이 직접 방어(사본을 카톡/드라이브에 보관 → 새 폰서 복원).
+
+    private val _lastBackupAt = MutableStateFlow(DataBackup.lastBackupAt(container.appContext))
+    val lastBackupAt: StateFlow<Long> = _lastBackupAt.asStateFlow()
+
+    private val _backupBusy = MutableStateFlow(false)
+    val backupBusy: StateFlow<Boolean> = _backupBusy.asStateFlow()
+
+    /** 화면에서 토스트로 띄우고 consume. */
+    private val _backupMessage = MutableStateFlow<String?>(null)
+    val backupMessage: StateFlow<String?> = _backupMessage.asStateFlow()
+    fun consumeBackupMessage() { _backupMessage.value = null }
+
+    /** 내보내기 성공 → 화면이 안드로이드 공유 시트를 띄우도록 요청. consume 후 null. */
+    private val _shareRequest = MutableStateFlow<DataBackup.ExportResult?>(null)
+    val shareRequest: StateFlow<DataBackup.ExportResult?> = _shareRequest.asStateFlow()
+    fun consumeShareRequest() { _shareRequest.value = null }
+
+    /** 복원 완료 → "앱을 다시 켜세요" 안내를 띄우도록. consume 후 false. */
+    private val _restartNeeded = MutableStateFlow(false)
+    val restartNeeded: StateFlow<Boolean> = _restartNeeded.asStateFlow()
+    fun consumeRestartNeeded() { _restartNeeded.value = false }
+
+    fun exportData() {
+        if (_backupBusy.value) return
+        viewModelScope.launch(Dispatchers.IO) {
+            _backupBusy.value = true
+            try {
+                val result = DataBackup.export(container.appContext)
+                _lastBackupAt.value = System.currentTimeMillis()
+                _shareRequest.value = result
+            } catch (e: Exception) {
+                _backupMessage.value = "백업을 만들지 못했어요 — 잠시 후 다시 시도해주세요."
+            } finally {
+                _backupBusy.value = false
+            }
+        }
+    }
+
+    fun importData(uri: Uri) {
+        if (_backupBusy.value) return
+        viewModelScope.launch(Dispatchers.IO) {
+            _backupBusy.value = true
+            try {
+                val r = DataBackup.import(container.appContext, uri)
+                _backupMessage.value = "복원 완료! 고객 ${r.customers}명 · ${r.tables}종 · ${r.rows}건을 되살렸어요."
+                _restartNeeded.value = true
+            } catch (e: DataBackup.NewerBackupException) {
+                _backupMessage.value = "이 백업은 더 최신 버전에서 만들었어요. 앱을 업데이트한 뒤 가져와주세요."
+            } catch (e: DataBackup.EmptyBackupException) {
+                _backupMessage.value = "백업 파일을 읽지 못했어요 — 시공막내 백업(zip) 파일이 맞는지 확인해주세요."
+            } catch (e: Exception) {
+                _backupMessage.value = "가져오기에 실패했어요 — 파일을 확인하고 다시 시도해주세요."
+            } finally {
+                _backupBusy.value = false
+            }
         }
     }
 }

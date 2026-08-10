@@ -239,6 +239,75 @@ fun SettingsScreen(
         )
     }
 
+    // ─────────── 내 데이터 내보내기/가져오기 배선 (데이터 안전 1단계, 2026-08-10 사장님) ───────────
+    val backupBusy by viewModel.backupBusy.collectAsState()
+    val lastBackupAt by viewModel.lastBackupAt.collectAsState()
+    val backupMessage by viewModel.backupMessage.collectAsState()
+    val shareRequest by viewModel.shareRequest.collectAsState()
+    val restartNeeded by viewModel.restartNeeded.collectAsState()
+    var showImportConfirm by remember { mutableStateOf(false) }
+
+    val backupImportPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri -> uri?.let { viewModel.importData(it) } }
+
+    LaunchedEffect(backupMessage) {
+        backupMessage?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            viewModel.consumeBackupMessage()
+        }
+    }
+    LaunchedEffect(shareRequest) {
+        shareRequest?.let { r ->
+            runCatching {
+                val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                    type = "application/zip"
+                    putExtra(android.content.Intent.EXTRA_STREAM, r.uri)
+                    putExtra(android.content.Intent.EXTRA_SUBJECT, r.fileName)
+                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                context.startActivity(
+                    android.content.Intent.createChooser(send, "백업 파일 저장·보내기")
+                        .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                )
+                Toast.makeText(context, "백업을 만들었어요 · 저장할 곳을 골라주세요", Toast.LENGTH_SHORT).show()
+            }.onFailure {
+                Toast.makeText(context, "공유 앱을 열지 못했어요", Toast.LENGTH_SHORT).show()
+            }
+            viewModel.consumeShareRequest()
+        }
+    }
+
+    if (showImportConfirm) {
+        AlertDialog(
+            onDismissRequest = { showImportConfirm = false },
+            title = { Text("백업에서 가져오기", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "백업 파일 속 데이터를 지금 데이터에 합쳐요. 같은 고객은 백업 값으로 바뀌고, 지금 데이터가 지워지진 않아요.\n\n새 폰으로 옮길 때 쓰는 기능이에요.",
+                    fontSize = 13.5.sp, color = TossTextSecondary
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showImportConfirm = false
+                    runCatching {
+                        backupImportPicker.launch(arrayOf("application/zip", "application/json", "application/octet-stream", "*/*"))
+                    }.onFailure { Toast.makeText(context, "파일 선택을 열지 못했어요", Toast.LENGTH_SHORT).show() }
+                }) { Text("백업 고르기", color = TossBlue, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = { TextButton(onClick = { showImportConfirm = false }) { Text("취소", color = TossTextTertiary) } }
+        )
+    }
+    if (restartNeeded) {
+        AlertDialog(
+            onDismissRequest = { viewModel.consumeRestartNeeded() },
+            title = { Text("복원 완료!", fontWeight = FontWeight.Bold) },
+            text = { Text("앱을 완전히 껐다 다시 켜면 되살린 데이터가 모두 보여요.", fontSize = 13.5.sp, color = TossTextSecondary) },
+            confirmButton = { TextButton(onClick = { viewModel.consumeRestartNeeded() }) { Text("확인", color = TossBlue, fontWeight = FontWeight.Bold) } }
+        )
+    }
+
     Scaffold(
         containerColor = TossGrayBg,
         topBar = {
@@ -293,6 +362,14 @@ fun SettingsScreen(
                     pricingCount = pricingItemsForSetup.size,
                     onOpenTemplates = onOpenTemplates,
                     onOpenPricingItems = onOpenPricingItems
+                )
+
+                // ⭐ 내 데이터 지키기 (데이터 안전 1단계, 2026-08-10) — 재설치·기기변경 시 통째 소실 방어.
+                DataBackupSection(
+                    lastBackupAt = lastBackupAt,
+                    busy = backupBusy,
+                    onExport = { viewModel.exportData() },
+                    onImport = { showImportConfirm = true }
                 )
 
                 // ⭐ 2026-08-02 사장님 "더보기 뒤죽박죽 정리" — 항목/기능 그대로, 성격 맞는 그룹으로 재배치.
@@ -3075,6 +3152,92 @@ private fun SettingsGroup(label: String, content: @Composable () -> Unit) {
         SectionLabel(label)
         Spacer(Modifier.height(8.dp))
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { content() }
+    }
+}
+
+/** 내 데이터 지키기 — 내보내기(백업) + 가져오기(복원) 섹션. (데이터 안전 1단계, 2026-08-10 사장님) */
+@Composable
+private fun DataBackupSection(
+    lastBackupAt: Long,
+    busy: Boolean,
+    onExport: () -> Unit,
+    onImport: () -> Unit
+) {
+    val lastLabel = remember(lastBackupAt) {
+        if (lastBackupAt <= 0L) "아직 없음"
+        else {
+            val day = (System.currentTimeMillis() - lastBackupAt) / (24L * 60 * 60 * 1000)
+            when {
+                day <= 0L -> "오늘"
+                day == 1L -> "어제"
+                day < 30L -> "${day}일 전"
+                else -> java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.KOREA).format(java.util.Date(lastBackupAt))
+            }
+        }
+    }
+    val recent = lastBackupAt > 0L && System.currentTimeMillis() - lastBackupAt < 14L * 24 * 60 * 60 * 1000
+
+    Column {
+        SectionLabel("내 데이터 지키기")
+        Spacer(Modifier.height(8.dp))
+
+        // 경고(백업 없음/오래됨) 또는 안심(최근 백업) 배너
+        Row(
+            Modifier.fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(if (recent) Color(0xFFE7F8F0) else Color(0xFFFFF3DF))
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Text(if (recent) "✅" else "⚠️", fontSize = 15.sp)
+            Text(
+                if (recent) "최근에 백업했어요. 폰을 바꿔도 이 파일로 되살릴 수 있어요."
+                else "고객·돈 장부는 이 폰에만 저장돼요. 폰을 바꾸거나 앱을 지우면 되살릴 수 없어요. 가끔 백업해 두세요.",
+                color = if (recent) Color(0xFF0E9F56) else Color(0xFFB8780A),
+                fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, lineHeight = 18.sp,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Spacer(Modifier.height(9.dp))
+
+        Column(
+            Modifier.fillMaxWidth()
+                .tossCardShadow(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color.White)
+                .padding(15.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(13.dp))
+                    .background(TossBlue)
+                    .clickable(enabled = !busy) { onExport() }
+                    .padding(vertical = 15.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                if (busy) androidx.compose.material3.CircularProgressIndicator(
+                    color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(20.dp)
+                ) else Text("📤  내 데이터 내보내기 (백업)", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            }
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("마지막 백업: $lastLabel", fontSize = 12.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
+                Text(
+                    "백업에서 가져오기",
+                    fontSize = 13.sp, color = TossBlue, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable(enabled = !busy) { onImport() }
+                )
+            }
+            Text(
+                "고객·정산·시공·통화요약·가격표·문구를 파일 하나로 만들어 카톡·드라이브에 저장해요. (사진 제외)",
+                fontSize = 11.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium, lineHeight = 16.sp
+            )
+        }
     }
 }
 
