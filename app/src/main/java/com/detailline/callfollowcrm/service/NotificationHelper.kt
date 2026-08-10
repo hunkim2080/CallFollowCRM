@@ -335,9 +335,11 @@ object NotificationHelper {
         val audioAttrs = AudioAttributes.Builder()
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
             .setUsage(AudioAttributes.USAGE_NOTIFICATION).build()
-        m.createNotificationChannel(NotificationChannel(channelId, slot.channelName, NotificationManager.IMPORTANCE_HIGH).apply {
+        val u = chosenSound(context, slotKey, slot.defaultRes)
+        // 무음(소리 없음)을 고른 채널은 IMPORTANCE_LOW 로 만들어 헤드업 배너도 안 뜨게 — '무음=조용히' 기대와 일치. (2026-08-11 알림 감사)
+        val importance = if (u == null) NotificationManager.IMPORTANCE_LOW else NotificationManager.IMPORTANCE_HIGH
+        m.createNotificationChannel(NotificationChannel(channelId, slot.channelName, importance).apply {
             description = slot.channelDesc
-            val u = chosenSound(context, slotKey, slot.defaultRes)
             if (u != null) setSound(u, audioAttrs) else setSound(null, null)
             setShowBadge(true)
         })
@@ -1303,7 +1305,9 @@ object NotificationHelper {
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
         val who = displayName?.takeIf { it.isNotBlank() } ?: formatPhone(phone)
         val nid = POSTCALL_ID_BASE + (phone.hashCode() and 0xFFFF)
-        val builder = NotificationCompat.Builder(context, CHANNEL_POSTCALL)
+        // resolveChannel: 방해금지 시간엔 야간(무음) 채널로 몰아 야간에도 소리·헤드업으로 튀던 것 방지(다른 알림과 동일 게이트).
+        //   비-슬롯 채널이라 평소엔 CHANNEL_POSTCALL 그대로. (2026-08-11 알림 감사)
+        val builder = NotificationCompat.Builder(context, resolveChannel(context, CHANNEL_POSTCALL))
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("${who}님께 문자 보낼까요?")
             .setContentText("보낼 문자를 고르면 확인 후 보낼 수 있어요")

@@ -335,7 +335,7 @@ class AppPreferences(context: Context) {
      */
     var lastNotifiedMmsMs: Long
         get() = prefs.getLong("last_notified_mms_ms", 0L)
-        set(value) = prefs.edit().putLong("last_notified_mms_ms", value).apply()
+        set(value) { prefs.edit().putLong("last_notified_mms_ms", value).commit() }  // commit: 종료 시 유실→MMS 재알림 방지. (2026-08-11 알림 감사)
 
     /**
      * 이미 '수신 MMS 알림'을 띄운 MMS _id 들(최근 80개만). 삼성이 MMS 를 2단계(받음표시=내용無 → 다운로드완료=내용有)로
@@ -343,7 +343,7 @@ class AppPreferences(context: Context) {
      */
     var notifiedMmsIds: Set<String>
         get() = prefs.getStringSet("notified_mms_ids", emptySet()) ?: emptySet()
-        set(value) = prefs.edit().putStringSet("notified_mms_ids", value).apply()
+        set(value) { prefs.edit().putStringSet("notified_mms_ids", value).commit() }  // commit: 종료 시 유실→MMS 재알림 방지. (2026-08-11 알림 감사)
 
     /**
      * 기본 네비 앱 (카드 펼침 [📍 길찾기] 가 사용할 외부 앱).
@@ -635,7 +635,9 @@ class AppPreferences(context: Context) {
     // ── 시간 기반 알림(D-1·잔금·브리핑) 중복방지 — 이미 보낸 키(예 "d1:{id}:{dateMs}"). ──
     var reminderNotifiedKeys: Set<String>
         get() = prefs.getStringSet("reminder_notified_keys", emptySet()) ?: emptySet()
-        set(value) = prefs.edit().putStringSet("reminder_notified_keys", value).apply()
+        // commit(): 백그라운드 워커가 apply() 로 저장하면 flush 전 프로세스 종료 시 키가 유실돼 같은 알림이
+        //   재발사(특히 마감브리핑 2회)되던 것. 즉시 동기 저장(IO 스레드라 안전). (2026-08-11 알림 감사)
+        set(value) { prefs.edit().putStringSet("reminder_notified_keys", value).commit() }
 
     /**
      * 도착 안내 5km 진입 기록 — 지오펜스 ENTER 시 "arrival:{id}:{dayStart}" 적립.
@@ -656,7 +658,7 @@ class AppPreferences(context: Context) {
     // ── 팀원 진행 알림(2026-06-06) — 마지막으로 알림 보낸 이벤트 시각(출발/도착/완료 공통, 중복 방지). ──
     var teamEventLastSeenMs: Long
         get() = prefs.getLong("team_depart_last_seen_ms", 0L)
-        set(value) = prefs.edit().putLong("team_depart_last_seen_ms", value).apply()
+        set(value) { prefs.edit().putLong("team_depart_last_seen_ms", value).commit() }  // commit: 종료 시 유실→재알림 방지. (2026-08-11 알림 감사)
     /** 상담함 "팀원 진행" 배너 밀어서 정리한 event_id 들. commit() = 즉시 저장(백그라운드 종료에도 보존). */
     var dismissedTeamDepartIds: Set<String>
         get() = prefs.getStringSet("dismissed_team_depart_ids", emptySet()) ?: emptySet()
@@ -665,7 +667,7 @@ class AppPreferences(context: Context) {
     // ── 협업 진행 알림(2026-06-09) — 상대 사장 출발/도착/완료 owner-events 중복 방지. ──
     var collabEventLastSeenMs: Long
         get() = prefs.getLong("collab_event_last_seen_ms", 0L)
-        set(value) = prefs.edit().putLong("collab_event_last_seen_ms", value).apply()
+        set(value) { prefs.edit().putLong("collab_event_last_seen_ms", value).commit() }  // commit: 종료 시 유실→재알림 방지. (2026-08-11 알림 감사)
     /** 상담함 "협업 진행" 배너 밀어서 정리한 event_id 들. */
     var dismissedCollabEventIds: Set<String>
         get() = prefs.getStringSet("dismissed_collab_event_ids", emptySet()) ?: emptySet()

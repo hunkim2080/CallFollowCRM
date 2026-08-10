@@ -252,7 +252,10 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
     private suspend fun checkBalanceDue(container: AppContainer) {
         val now = System.currentTimeMillis()
         val hour = Calendar.getInstance().apply { timeInMillis = now }.get(Calendar.HOUR_OF_DAY)
-        if (hour < 9 || hour >= 12) return // 프로토 settle = 오전 10시경.
+        // 하한만(오전 9시부터). 상한(||hour>=12) 제거 — 3시간 주기 워커가 Doze로 9~12시 창을 건너뛰면
+        //   그날 잔금(돈) 미수 알림이 통째로 스킵되던 위상함정. 형제 알림(정기·D-1·A/S·브리핑)은 이미 하한만.
+        //   dedup 키(settle:{id}:{시공일})가 하루 1회를 보장하므로 상한 불필요. 프로토 '오전 10시경'은 목표시각. (2026-08-11 알림 감사)
+        if (hour < 9) return
 
         val threshold = DateTimeUtils.startOfDay(now) - 3 * DateTimeUtils.DAY_MS // 시공 후 3일 경과
         val prefs = container.preferences
