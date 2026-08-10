@@ -34,10 +34,14 @@ class ServerHealthMonitor(
     //   '서버 죽음'으로 오인시키지 않기 위함. 그 전엔 회색(확인 중)/직전 초록 유지. (2026-06-22 사장님 UX)
     @Volatile private var consecutiveFails = 0
 
-    fun start() {
+    /**
+     * @param isForeground 앱이 화면에 보이는 동안만 ping. ⚡ 홈 상단 상태점(●) 하나를 위한 30초 GET /health 를
+     *   백그라운드/화면 꺼짐엔 안 보내 배터리·라디오 낭비 제거. 복귀하면 다음 주기(≤30초)에 다시 확인. (2026-08-11 성능감사 rank4)
+     */
+    fun start(isForeground: () -> Boolean = { true }) {
         scope.launch {
             while (true) {
-                applyResult(phaseOneApiRepository.warmup().isSuccess)
+                if (isForeground()) applyResult(phaseOneApiRepository.warmup().isSuccess)
                 // 첫 실패(아직 빨강 아님) 직후엔 2초 뒤 빨리 재확인 — 켜자마자 네트워크 준비 전 삐끗을 흡수.
                 //   그 외(성공/빨강 확정)엔 30초 주기.
                 delay(if (consecutiveFails == 1) 2_000L else 30_000L)

@@ -215,8 +215,10 @@ class AppContainer(context: Context) {
     // 2026-06-08 맥미니 §26 — 무료 녹음(m4a) → 로컬 Whisper STT + Haiku 요약. CallAudioSummarizer 가 호출.
     val callAudioSummaryRepository = com.detailline.callfollowcrm.ai.CallAudioSummaryRepository(ownerPhone = { preferences.bizPhone })
 
-    // 서버 살아있음 모니터 — HomeScreen 상단 ● indicator 가 구독.
-    val serverHealth = ServerHealthMonitor(phaseOneApiRepository).also { it.start() }
+    // 서버 살아있음 모니터 — HomeScreen 상단 ● indicator 가 구독. 앱 포그라운드일 때만 ping(배터리). (2026-08-11 성능감사)
+    val serverHealth = ServerHealthMonitor(phaseOneApiRepository).also { m ->
+        m.start { com.detailline.callfollowcrm.CallFollowCrmApplication.isForeground }
+    }
 
     // SMS/MMS 캐시 백그라운드 prefetcher. Application.onCreate 에서 prefetchRecentContacts() 트리거.
     val smsCachePrefetcher = SmsCachePrefetcher(smsRepository, cachedMessageRepository)

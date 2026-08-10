@@ -1,8 +1,10 @@
 package com.detailline.callfollowcrm
 
 import android.Manifest
+import android.app.Activity
 import android.app.Application
 import android.content.pm.PackageManager
+import android.os.Bundle
 import android.os.Build
 import android.telephony.PhoneStateListener
 import android.telephony.TelephonyCallback
@@ -31,8 +33,28 @@ class CallFollowCrmApplication : Application() {
     /** 앱 수명 동안 도는 IO 스코프 — SmsSender 등 컴포넌트의 fire-and-forget 보존 작업용. */
     val applicationScope: CoroutineScope get() = appScope
 
+    companion object {
+        /** 앱이 포그라운드(화면에 보임)인지 — 백그라운드 폴링/헬스 ping 네트워크 낭비를 막는 게이트. (2026-08-11 성능감사 rank1·4) */
+        @Volatile @JvmStatic var isForeground: Boolean = false
+    }
+
+    /** 시작/정지된 액티비티 수로 포그라운드 여부 추적 — lifecycle-process 의존성 없이. */
+    private fun registerForegroundTracking() {
+        registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+            private var started = 0
+            override fun onActivityStarted(activity: Activity) { started++; isForeground = true }
+            override fun onActivityStopped(activity: Activity) { started--; if (started <= 0) { started = 0; isForeground = false } }
+            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
+            override fun onActivityResumed(activity: Activity) {}
+            override fun onActivityPaused(activity: Activity) {}
+            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+            override fun onActivityDestroyed(activity: Activity) {}
+        })
+    }
+
     override fun onCreate() {
         super.onCreate()
+        registerForegroundTracking()  // 앱 포그라운드 여부 추적(백그라운드 폴링/헬스 낭비 게이트). (2026-08-11 성능감사)
         installMainThreadHoverCrashGuard()  // 마우스 휠/hover 크래시(Compose) 안전망 — 다이얼로그·바텀시트 등 모든 윈도우 커버
         container = AppContainer(this)
         NotificationHelper.ensureChannels(this)
@@ -370,12 +392,15 @@ class CallFollowCrmApplication : Application() {
             }
         }
 
-        // 시공접수서 제출 폴링 — 앱이 켜져 있는 동안 60초마다 새 제출 동기화 → 고객 카드 반영 + 알림.
-        //   (완전 백그라운드(앱 종료 상태) 알림은 WorkManager/FCM 필요 — 추후.)
+        // 시공접수서 제출 폴링 — 앱이 '화면에 보이는 동안'만 60초마다 새 제출 동기화 → 고객 카드 반영 + 알림.
+        //   ⚡ 백그라운드/화면 꺼짐엔 스킵(배터리·발열): 그때 새 접수/팀/협업 전달은 FCM 즉시푸시 + ReminderWorker(~3h)가 커버.
+        //     예전엔 while(true) 가 앱 수명 내내 매분 서버 5번 GET → 종일 낭비였음. (2026-08-11 성능감사 rank1)
+        //   첫 동기화는 콜드스타트 즉시 1회.
         appScope.launch {
+            syncAllOnce()
             while (true) {
-                syncAllOnce()
                 delay(60_000)
+                if (isForeground) syncAllOnce()
             }
         }
 
@@ -392,10 +417,11 @@ class CallFollowCrmApplication : Application() {
         }
 
         // 사용자 여정 이벤트 — 30초마다 버퍼를 모아 서버로 배치 전송(admin 타임라인). (2026-06-23 사장님)
+        //   ⚡ 포그라운드일 때만 flush — 여정 이벤트는 UI 사용 중에만 쌓이므로 백그라운드 POST 는 낭비. (2026-08-11 성능감사)
         appScope.launch {
             while (true) {
                 delay(30_000)
-                runCatching { container.journeyEventRepository.flush(container.preferences.bizPhone) }
+                if (isForeground) runCatching { container.journeyEventRepository.flush(container.preferences.bizPhone) }
             }
         }
     }
