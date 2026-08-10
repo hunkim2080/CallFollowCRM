@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -74,7 +75,7 @@ private fun SegItem(label: String, active: Boolean, badge: Int, modifier: Modifi
     val interaction = remember { MutableInteractionSource() }
     Box(
         modifier
-            .height(38.dp)
+            .heightIn(min = 38.dp)  // height→heightIn: 신형폰 큰글씨서 세그(상담함/문자함) 라벨 세로 잘림 방지(1x 동일). (2026-08-11 접근성 감사)
             .then(
                 if (active) Modifier.shadow(
                     elevation = 3.dp,

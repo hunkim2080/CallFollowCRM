@@ -66,7 +66,7 @@ fun TossPrimaryButton(
     Button(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.fillMaxWidth().height(56.dp).pressScale(interaction),
+        modifier = modifier.fillMaxWidth().heightIn(min = 56.dp).pressScale(interaction),  // height→heightIn: 큰글씨서 라벨 2줄 잘림 방지(1x 외형 동일). (2026-08-11 접근성 감사)
         interactionSource = interaction,
         shape = RoundedCornerShape(14.dp),
         colors = ButtonDefaults.buttonColors(
@@ -96,7 +96,7 @@ fun TossSecondaryButton(
     Button(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.fillMaxWidth().height(56.dp).pressScale(interaction),
+        modifier = modifier.fillMaxWidth().heightIn(min = 56.dp).pressScale(interaction),  // height→heightIn: 큰글씨서 라벨 2줄 잘림 방지(1x 외형 동일). (2026-08-11 접근성 감사)
         interactionSource = interaction,
         shape = RoundedCornerShape(14.dp),
         border = BorderStroke(1.dp, TossDivider),
@@ -229,7 +229,7 @@ fun TossChip(
     val border = if (selected) TossBlue else TossDivider
     Surface(
         modifier = modifier
-            .height(38.dp)
+            .heightIn(min = 38.dp)  // height→heightIn: 큰글씨서 칩 라벨 세로 잘림 방지(1x 동일). (2026-08-11 접근성 감사)
             .clickable(onClick = onClick),
         shape = CircleShape,
         color = bg,

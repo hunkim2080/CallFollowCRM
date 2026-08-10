@@ -351,7 +351,8 @@ private fun CashDayCell(cell: CashCell, isSelected: Boolean, onClick: () -> Unit
 @Composable
 private fun CashAmt(text: String, color: Color) {
     Text(text, color = color, fontSize = 9.5.sp, fontWeight = FontWeight.Bold,
-        maxLines = 1, modifier = Modifier.padding(top = 1.dp))
+        maxLines = 1, overflow = TextOverflow.Ellipsis,  // 큰글씨서 달력 돈 하드클립(잘려서 안 보임) 방지. (2026-08-11 접근성 감사)
+        modifier = Modifier.padding(top = 1.dp))
 }
 
 /** 원 → 만원(반올림) 문자열 (달력 셀·순이익 단위 표시용). */

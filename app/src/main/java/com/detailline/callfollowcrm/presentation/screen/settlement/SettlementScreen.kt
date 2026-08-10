@@ -1,5 +1,8 @@
 package com.detailline.callfollowcrm.presentation.screen.settlement
 
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.withStyle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -384,12 +387,21 @@ private fun SettleTopCard(
         )
         // sout
         if (top.isLiveMonth) {
-            Row {
-                Text("전체 아직 받을 돈 ", fontSize = 13.sp, color = Color.White.copy(alpha = 0.82f))
-                Text("${top.outstandingManwon.toCommaString()}만원", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
-                Text(" · 미수 ", fontSize = 13.sp, color = Color.White.copy(alpha = 0.82f))
-                Text("${top.outstandingCount}건", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
-            }
+            // 4개 Text 를 가로 Row 로 두면 큰글씨서 '미수 N건'이 카드 폭을 넘어 가로로 잘렸음.
+            //   한 Text(AnnotatedString)로 합쳐 자연 줄바꿈되게 — 숫자 강조(ExtraBold)는 유지. (2026-08-11 접근성 감사)
+            Text(
+                buildAnnotatedString {
+                    append("전체 아직 받을 돈 ")
+                    withStyle(SpanStyle(fontWeight = FontWeight.ExtraBold, color = Color.White)) {
+                        append("${top.outstandingManwon.toCommaString()}만원")
+                    }
+                    append(" · 미수 ")
+                    withStyle(SpanStyle(fontWeight = FontWeight.ExtraBold, color = Color.White)) {
+                        append("${top.outstandingCount}건")
+                    }
+                },
+                fontSize = 13.sp, color = Color.White.copy(alpha = 0.82f)
+            )
         } else {
             Text("지난 달 정산 내역이에요", fontSize = 13.sp, color = Color.White.copy(alpha = 0.82f))
         }

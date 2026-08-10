@@ -3230,7 +3230,11 @@ private fun DataBackupSection(
                 Text(
                     "백업에서 가져오기",
                     fontSize = 13.sp, color = TossBlue, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clickable(enabled = !busy) { onImport() }
+                    // 데이터 복원 진입점 — 맨 텍스트라 터치영역이 얇던 것 확대(clip+padding). (2026-08-11 접근성 감사)
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(enabled = !busy) { onImport() }
+                        .padding(horizontal = 8.dp, vertical = 10.dp)
                 )
             }
             Text(
