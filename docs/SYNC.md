@@ -8530,3 +8530,10 @@ Play 정식(production) 배포 (사장님 "PLAY에도 올리자 ㄱㄱㄱ").
   · #1 잔금 재알림(dedup 키 settle:{id}:{date}) · #2 협업 시간전파 · #4 영문발신자 알림id · #5 변경이력 시간라벨(5분창 제거)
 - ⚠️다음 액션(cowork/server): #2 협업 '같은 날짜·새 시간' reschedule 을 서버가 반영(shared_sites time_label 갱신 + collab_reschedule push)하도록 확인. 앱은 old==new 로 sharedSiteRepository.reschedule 호출. docs/SERVER_HANDOFF_collab_reschedule.md 참조.
 - 남음(앱): #3 대화 섞임(번호 뒤8자리 매칭 여러 파일) — 신중히 별도(실기 대표번호+휴대폰 테스트).
+
+## 2026-08-10 23:22 · cowork
+랜딩/설치 페이지 '베타 N명 모집' 프레임 제거 → 'Play 스토어 정식 출시 · 지금 다운로드'
+- 변경: server/static/landing.html — 히어로 CTA·정책카드·폼·FAQ·title/footer 를 Play 다운로드 프레임으로. '남은 자리 N석' 카운터(liveCount/progCount/progBar) 및 loadCount fetch 제거(no-op). Play 링크: play.google.com/store/apps/details?id=com.detailline.callfollowcrm
+- 변경: server/static/install.html — '베타 50명 모집중이라 Play 등록 전' FAQ → 'Play 정식 출시, Play 권장·APK는 대체수단' 으로 수정
+- 앱 영향: 없음 (정적 웹만). /api/beta-signup, /api/beta-signup-count 는 그대로(폼은 '소식 받기'로 유지)
+- 사장님 확인要: 요금 FAQ의 '평생 50% 할인' 문구는 특정 숫자 대신 '초기 혜택 계속 유지'로 순화함 → 실제 정식 요금정책 확정 시 /pricing 과 함께 재확정 필요
