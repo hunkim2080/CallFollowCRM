@@ -1559,4 +1559,20 @@ object NotificationHelper {
             contentIntent = chatPending(context, phoneNumber, autoReplyIdFor(callRecordId))
         )
     }
+
+    private const val MMS_FAIL_ID_BASE = 970_000
+
+    /**
+     * MMS(사진) 직접 발송 실패 알림 — 지하·약신호 현장에서 사진이 실제론 못 나갔는데 '사진 보냈어요'로 뜨던
+     *   '거짓 성공'을 막는다. 사장님이 실패를 인지하고 신호 좋을 때 탭해서 다시 보내게. (2026-08-11 오프라인 감사 rank1)
+     */
+    fun showMmsSendFailed(context: Context, phoneNumber: String) {
+        val id = MMS_FAIL_ID_BASE + (phoneNumber.filter { it.isDigit() }.takeLast(8).hashCode() and 0x7FFFFFF)
+        showProtoPush(
+            context, id, CHANNEL_AUTO_REPLY, ACCENT_PINK,
+            title = "⚠️ 사진이 안 보내졌어요",
+            msg = "${formatPhone(phoneNumber)} — 신호 확인 후 탭해서 다시 보내주세요.",
+            contentIntent = chatPending(context, phoneNumber, id)
+        )
+    }
 }

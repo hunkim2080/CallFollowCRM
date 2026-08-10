@@ -25,6 +25,9 @@ class MmsSentReceiver : BroadcastReceiver() {
             Log.i(TAG, "MMS sent OK: to=${LogRedact.phone(phone)} images=$imageCount")
         } else {
             Log.e(TAG, "MMS sent FAILED: resultCode=$resultCode to=${LogRedact.phone(phone)} images=$imageCount error=$error")
+            // 거짓 성공 방지(2026-08-11 오프라인 감사 rank1): 실패를 사장님에게 알려 신호 좋을 때 다시 보내게.
+            //   예전엔 Log.e 만 찍어, 화면엔 '사진 보냈어요'로 뜨는데 고객은 못 받는 사고가 났음.
+            if (phone.isNotBlank()) runCatching { NotificationHelper.showMmsSendFailed(context, phone) }
         }
 
         // 공식 API 경로가 넘긴 임시 PDU 파일 정리(성공/실패 무관).
