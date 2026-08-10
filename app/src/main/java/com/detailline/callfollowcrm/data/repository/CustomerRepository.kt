@@ -261,6 +261,4 @@ class CustomerRepository(
         dao.update(c.copy(address = trimmed, updatedAt = System.currentTimeMillis()))
     }
 
-    /** 자동 생성된 미사용 고객만 정리 (이름/메모/문자기록 없음). */
-    suspend fun deleteOrphans(): Int = dao.deleteOrphans()
 }

@@ -65,7 +65,9 @@ class MirrorSyncManager(
 
         val now = System.currentTimeMillis()
         val todayStart = DateTimeUtils.startOfDay(now)
-        val customers = runCatching { customerRepository.allOnce() }.getOrDefault(emptyList())
+        // 고객 읽기가 '예외로' 실패하면(빈 결과가 진짜 0건이 아님) 빈 스냅샷을 밀지 않고 skip —
+        //   안 그러면 본폰 뷰어의 일정이 순간 텅 비는 착시가 생김. 진짜 0건(신규 사장님)이면 성공이라 그대로 진행. (2026-08-11 감사)
+        val customers = runCatching { customerRepository.allOnce() }.getOrNull() ?: return false
         val manual = runCatching { manualCashRepository.observeAll().first() }.getOrDefault(emptyList())
 
         // 일정 — 시공일이 잡힌 현장 전부(본폰은 사장님 본인 폰 → 전화·메모까지 포함, 처리방침 확정).

@@ -37,13 +37,16 @@ class IntakeSyncManager(private val container: AppContainer) {
             val processed = runCatching {
                 val c = container.customerRepository.upsertByPhone(phoneNumber = s.customerPhone)
                 val fullAddr = listOfNotNull(s.address, s.dong).joinToString(" ").trim()
-                if (fullAddr.isNotBlank()) container.customerRepository.updateAddress(c.id, fullAddr)
+                // 주소는 '기존 로컬 값이 비었을 때만' 채운다(총액·메모·계약금과 동일 가드). 예전엔 무조건 덮어써
+                //   사장님이 통화로 확정해둔 주소를 접수서 제출이 조용히 갈아치웠음(무음 소실). (2026-08-11 데이터안전 감사 rank6)
+                if (fullAddr.isNotBlank() && c.address.isNullOrBlank()) container.customerRepository.updateAddress(c.id, fullAddr)
                 val workMs = workMsOf(s)
                 android.util.Log.i(
                     "IntakeSync",
                     "tok=${s.token} cid=${c.id} y=${s.workYear} mo=${s.workMonth} d=${s.workDay} conf=${s.confirmedDateIso} => workMs=$workMs total=${s.total}"
                 )
-                workMs?.let { container.customerRepository.updateScheduledWorkDate(c.id, it) }
+                // 시공예약일도 '기존 로컬 값이 없을 때만' 채운다 — 사장님이 통화로 잡아둔 시공일을 접수서가 덮지 않게. (2026-08-11 데이터안전 감사 rank6)
+                if (c.scheduledWorkDate == null) workMs?.let { container.customerRepository.updateScheduledWorkDate(c.id, it) }
                 android.util.Log.i(
                     "IntakeSync",
                     "after setDate cid=${c.id} readBack=${container.customerRepository.findById(c.id)?.scheduledWorkDate}"

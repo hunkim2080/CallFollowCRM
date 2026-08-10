@@ -88,8 +88,9 @@ class CallFollowCrmApplication : Application() {
             }
             // 2026-06-07 — 견적 기록 버그 수정 전(6/6 이전) 잘못 쌓인 "견적 회신 챙기기" 데이터 1회 정리.
             if (!container.preferences.estimateSentLegacyCleaned) {
+                // DELETE 성공했을 때만 플래그 세우기 — 중간 실패 시 다음 실행에 재시도(영영 안 지워지는 것 방지). (2026-08-11 데이터안전 감사)
                 runCatching { container.messageHistoryRepository.deleteEstimateSentBefore(1780671600000L) }
-                container.preferences.estimateSentLegacyCleaned = true
+                    .onSuccess { container.preferences.estimateSentLegacyCleaned = true }
             }
             // 2026-06-07 — 발신 서명("직영팀만 시공 (외주/일당 절대 X)")이 분류 본문에 섞여 고객이 '일당'
             //   카테고리로 잘못 분류된 것 1회 해제(미분류로). '일당'은 수첩 개념이라 고객 카테고리에 있으면 안 됨.
@@ -104,8 +105,7 @@ class CallFollowCrmApplication : Application() {
                             }
                         }
                     }
-                }
-                container.preferences.dailyWageCategoryCleanedV1 = true
+                }.onSuccess { container.preferences.dailyWageCategoryCleanedV1 = true }  // 재분류 성공 시에만(중간 실패 재시도). (2026-08-11 데이터안전 감사)
             }
             // 2026-06-07 — 옛 '밀어서 정리=스팸' 버그로 잘못 스팸 처리된 번호들(답장 안 한 진짜 고객)을
             //   '정리됨'으로 이관(미확인에서만 숨김) + 스팸 해제. → 신규/목록에 정상 고객으로 복귀.

@@ -56,15 +56,6 @@ interface CustomerDao {
     @Query("SELECT * FROM customers WHERE asScheduledDate IS NOT NULL ORDER BY asScheduledDate ASC")
     fun observeAsScheduled(): Flow<List<CustomerEntity>>
 
-    /**
-     * "고아 고객" 삭제: 메모 비어있고, 이름 없고, MessageHistory도 없는 고객.
-     * 에이닷 자동 import로만 만들어진 미사용 고객 정리용.
-     */
-    @Query("""
-        DELETE FROM customers
-        WHERE (name IS NULL OR name = '')
-          AND memo = ''
-          AND id NOT IN (SELECT DISTINCT customerId FROM message_histories WHERE customerId IS NOT NULL)
-    """)
-    suspend fun deleteOrphans(): Int
+    // "고아 고객 삭제(deleteOrphans)" 쿼리 제거 (2026-08-11 데이터안전 감사): 호출부 0건 dead code 인데,
+    //   name/memo/문자기록만 보고 지워 '시공일·계약금 있는 고객'까지 삭제할 수 있는 위험 구조였음.
 }
