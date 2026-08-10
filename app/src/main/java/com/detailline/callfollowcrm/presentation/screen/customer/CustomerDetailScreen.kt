@@ -512,7 +512,7 @@ fun CustomerDetailScreen(
             //   (2026-06-11 사장님 요청) · [협업] 탭. (2026-07-18 탭 재배치)
             if (detailTab == 1) {
                 if (c.scheduledWorkDate == null) {
-                    DetailTabEmpty("시공일이 잡히면 이 현장을 다른 사장님과 협업할 수 있어요.\n일정 → 전문가 배정에서 협업 사장님을 부를 수 있어요.")
+                    DetailTabEmpty("시공일이 잡히면 이 현장을 다른 사장님과 협업할 수 있어요.\n먼저 ‘일정·정산’ 탭에서 시공일을 잡아주세요.")
                 } else {
                     val siteTitle = com.detailline.callfollowcrm.util.AddressExtractor.siteLabel(displayAddr).takeIf { it.isNotBlank() }?.let { "$it 현장" }
                         ?: c.name?.takeIf { it.isNotBlank() && it.count { ch -> ch.isDigit() } < 9 }?.let { "$it 현장" }
@@ -524,7 +524,24 @@ fun CustomerDetailScreen(
                             if (p.size >= 3 && p[0].toLongOrNull() == c.id) Triple(p[1], p[2], p.getOrNull(3).orEmpty()) else null
                         }.distinctBy { it.first.filter { ch -> ch.isDigit() }.takeLast(8) }
                     }
-                    // 협업 보내기는 일정 → 전문가 배정으로 이동(2026-06-13 사장님). 여기선 협업 중인 사장님 진행만 표시.
+                    // 협업 사장님 부르기 — 예전엔 일정→전문가배정으로만(2026-06-13). 사장님 요청(2026-08-09)으로 협업 탭에서도 바로.
+                    //   협업 사장 전용 간단 시트(CollabShareSheet, 이미 구현됨) 재연결. 팀원 배정은 일정에 그대로.
+                    val showCollabShare = remember(c.id) { mutableStateOf(false) }
+                    Box(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFF1ECFE))
+                            .clickable { showCollabShare.value = true }.padding(vertical = 13.dp),
+                        contentAlignment = androidx.compose.ui.Alignment.Center
+                    ) {
+                        Text("🤝 협업 사장님 부르기", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF6B4FD8))
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    if (showCollabShare.value) {
+                        CollabShareSheet(
+                            siteTitle = siteTitle, addr = displayAddr, scheduledAtMs = c.scheduledWorkDate,
+                            customerId = c.id, onShared = { collabRefresh++ }, onDismiss = { showCollabShare.value = false }
+                        )
+                    }
+                    // 여기선 협업 중인 사장님 진행 표시.
                     if (collabPartners.isNotEmpty()) {
                         Text("🤝 협업 중", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
                             modifier = Modifier.padding(start = 2.dp, bottom = 8.dp))
@@ -551,7 +568,7 @@ fun CustomerDetailScreen(
                             Spacer(Modifier.height(10.dp))
                         }
                     } else {
-                        DetailTabEmpty("아직 협업 중인 현장이 없어요.\n일정 → 전문가 배정에서 협업 사장님을 부르면 여기에 진행 상태가 떠요.")
+                        DetailTabEmpty("아직 협업 중인 현장이 없어요.\n위 ‘협업 사장님 부르기’로 불러보세요.")
                     }
                 }
             }
@@ -2155,7 +2172,12 @@ private fun AmountInputDialog(title: String, initialWon: Long, onSave: (Long) ->
             Spacer(Modifier.height(14.dp))
             androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TossSecondaryButton(text = "취소", onClick = onDismiss, modifier = Modifier.weight(1f))
-                TossPrimaryButton(text = "저장", onClick = { onSave((text.toLongOrNull() ?: 0L) * 10000L) }, modifier = Modifier.weight(1f))
+                TossPrimaryButton(text = "저장", onClick = {
+                    val enteredMan = text.toLongOrNull() ?: 0L
+                    // 표시 만원을 안 바꿨으면 원본 '원' 값 그대로 유지(만원 미만 절삭 방지: 375,000원을 안 건드려도 370,000 되던 것).
+                    //   바꿨을 때만 만원→원. (2026-08-11 돈 정확성 감사 rank2)
+                    onSave(if (enteredMan == initialWon / 10000L) initialWon else enteredMan * 10000L)
+                }, modifier = Modifier.weight(1f))
             }
         }
     }
@@ -3214,10 +3236,11 @@ private fun CollabAfterCard(
             .border(1.dp, Color(0xFFE2D8FB), RoundedCornerShape(16.dp)).padding(15.dp)
     ) {
         androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-            Text("🤝 협업 사장님", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary)
+            // 제목 = 업체명(협업 사장 이름) — 2명 이상일 때 한눈에 구분(사장님 2026-08-09). 상태는 오른쪽 알약에.
+            Text("🤝 $partnerName", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, maxLines = 1)
             Spacer(Modifier.weight(1f))
             Box(Modifier.clip(RoundedCornerShape(999.dp)).background(if (completed) Color(0xFFE5F8EE) else purpleSoft).padding(horizontal = 10.dp, vertical = 4.dp)) {
-                Text("$partnerName · ${if (completed) "협업 완료" else "협업 중"}", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = if (completed) Color(0xFF0E9F56) else Color(0xFF6B4FD8))
+                Text(if (completed) "협업 완료" else "협업 중", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = if (completed) Color(0xFF0E9F56) else Color(0xFF6B4FD8))
             }
         }
         wage?.let {

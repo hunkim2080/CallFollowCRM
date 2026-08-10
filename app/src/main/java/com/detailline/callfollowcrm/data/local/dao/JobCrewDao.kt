@@ -36,4 +36,8 @@ interface JobCrewDao {
 
     @Query("DELETE FROM job_crew WHERE customerId = :customerId")
     suspend fun deleteByCustomer(customerId: Long)
+
+    /** 이 고객의 '특정 시공일' 배정만 삭제 — 예약취소가 과거(다른 날) 일당 지출까지 지우지 않게. (2026-08-11 돈 감사 rank5) */
+    @Query("DELETE FROM job_crew WHERE customerId = :customerId AND dayStartMs = :dayStartMs")
+    suspend fun deleteByCustomerAndDay(customerId: Long, dayStartMs: Long)
 }

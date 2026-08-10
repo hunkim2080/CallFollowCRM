@@ -467,8 +467,9 @@ class CustomerDetailViewModel(
             // 예약(일정) 취소 시 = 그 현장의 전문가 배정(팀원 + 협업 요청)도 전부 정리. 일정 없는데 배정만 남으면 안 됨. (2026-06-15 사장님)
             if (normalized == null) {
                 container.teamAssignmentRepository.deleteForCustomer(customerId)
-                // 일당(자동지출)도 정리 — 취소한 '없던 시공'의 −일당이 현금흐름에 계속 잡히던 것 방지. (2026-07-30 버그감사)
-                container.jobCrewRepository.deleteByCustomer(customerId)
+                // 일당(자동지출)도 정리 — 단 '취소하는 그 시공일'의 일당만. 예전엔 deleteByCustomer 로 모든 날짜를 지워
+                //   재방문 고객의 과거(이미 지급한) 일당 지출까지 소거돼 그 달 순이익이 부풀던 것. (2026-08-11 돈 감사 rank5)
+                oldDate?.let { d -> container.jobCrewRepository.deleteByCustomerAndDay(customerId, d) }
                 val before = container.preferences.collabAssignments
                 val after = before.filterNot { it.split('|').getOrNull(0)?.toLongOrNull() == customerId }.toSet()
                 if (after.size != before.size) container.preferences.collabAssignments = after
@@ -485,7 +486,8 @@ class CustomerDetailViewModel(
                     container.customerRepository.updateBalanceAmount(customerId, row.balanceAmount)
                 }
                 container.customerRepository.updateTotalAmount(customerId, null)
-                if (!depositReceived) container.customerRepository.updateDepositAmount(customerId, null)
+                // 완납(잔금 받음) 고객이면 계약금도 이미 받은 돈이므로 금액 보존(안 지움) — depositPaidAt 미표시 옛 완납 데이터 대비. (2026-08-11 돈 감사)
+                if (!depositReceived && !balanceReceived) container.customerRepository.updateDepositAmount(customerId, null)
                 if (!balanceReceived) container.customerRepository.updateBalanceAmount(customerId, null)
             }
             // 날짜 등록(계약) = "시공 대기" 자동 분류. 날짜 해제 시 자격 재평가. (2026-06-07 카테고리 규칙)

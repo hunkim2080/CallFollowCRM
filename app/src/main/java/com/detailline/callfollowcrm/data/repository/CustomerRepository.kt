@@ -186,10 +186,18 @@ class CustomerRepository(
         //   안 그러면 완납인데도 계약금 몫이 '입금일 기준' 집계(현금흐름·이번 달 받은 돈·리포트·마감브리핑)에서
         //   누락돼 증발함(정산 목록만 30만, 나머지는 20만). 이미 받은 날짜가 있으면 존중(안 덮음). (2026-07-30 버그감사)
         val alsoDeposit = paidAt != null && c.depositPaidAt == null && (c.depositAmount ?: 0L) > 0L
+        // 완납 '되돌리기'(paidAt=null) 대칭 처리: 완납 때 잔금과 '함께 자동으로' 찍힌 계약금(두 입금시각이 동일)이면
+        //   계약금도 같이 '안 받음'으로 되돌린다. 안 그러면 안 받은 계약금이 매출·현금흐름에 '유령'으로 남아 과대 집계.
+        //   단 사장님이 계약금을 따로(다른 날) 받아 표시한 경우(두 시각 다름)는 존중해 안 건드림. (2026-08-11 돈 정확성 감사 rank4)
+        val undoAutoDeposit = paidAt == null && c.depositPaidAt != null && c.depositPaidAt == c.balancePaidAt
         dao.update(
             c.copy(
                 balancePaidAt = paidAt,
-                depositPaidAt = if (alsoDeposit) paidAt else c.depositPaidAt,
+                depositPaidAt = when {
+                    alsoDeposit -> paidAt
+                    undoAutoDeposit -> null
+                    else -> c.depositPaidAt
+                },
                 updatedAt = System.currentTimeMillis()
             )
         )

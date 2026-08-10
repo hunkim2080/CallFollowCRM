@@ -503,7 +503,11 @@ private fun PricingItemEditDialog(
             } ?: PricingCategory.NEW
         )
     }
-    val priceLong = (priceInput.toLongOrNull() ?: 0L) * 10_000L // 만원 입력 → 원 저장
+    // 표시 만원을 안 바꿨으면 원본 '원' 단가 그대로 유지(원 단위 절삭+이후 견적 과소청구 방지: 35,000/평이 30,000으로 잘리던 것).
+    //   바꿨을 때만 만원→원. (2026-08-11 돈 정확성 감사 rank3)
+    val enteredMan = priceInput.toLongOrNull() ?: 0L
+    val originalPrice = initial?.price ?: 0L
+    val priceLong = if (originalPrice > 0L && enteredMan == originalPrice / 10_000L) originalPrice else enteredMan * 10_000L
     val canSave = titleInput.isNotBlank() && priceLong > 0L
 
     AlertDialog(

@@ -57,4 +57,8 @@ class JobCrewRepository(private val dao: JobCrewDao) {
 
     /** 예약 취소 시 이 고객 현장의 일당 배정(자동지출) 전부 정리 — 없던 시공의 −일당이 현금흐름에 잔존 방지. (2026-07-30 버그감사) */
     suspend fun deleteByCustomer(customerId: Long) = dao.deleteByCustomer(customerId)
+
+    /** 예약 취소 시 '그 시공일'의 일당 배정만 정리 — 과거 이미 지급한 다른 날 일당 지출은 보존. (2026-08-11 돈 감사 rank5) */
+    suspend fun deleteByCustomerAndDay(customerId: Long, dayMs: Long) =
+        dao.deleteByCustomerAndDay(customerId, DateTimeUtils.startOfDay(dayMs))
 }
