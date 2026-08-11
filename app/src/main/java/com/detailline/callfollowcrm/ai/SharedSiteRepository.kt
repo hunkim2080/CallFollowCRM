@@ -527,15 +527,9 @@ class SharedSiteRepository(
             put("body", body)
         })
 
-    /** "data:image/jpeg;base64,XXXX" 또는 raw base64 → Bitmap. 실패 시 null. */
-    private fun decodeDataUrl(dataUrl: String?): android.graphics.Bitmap? {
-        if (dataUrl.isNullOrBlank()) return null
-        return runCatching {
-            val b64 = dataUrl.substringAfter(",", dataUrl)
-            val bytes = android.util.Base64.decode(b64, android.util.Base64.DEFAULT)
-            android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-        }.getOrNull()
-    }
+    /** "data:image/jpeg;base64,XXXX" 또는 raw base64 → 축소 Bitmap. 원본 해상도 통째 디코딩 시 OOM(오프라인 감사 rank5) → 다운샘플. */
+    private fun decodeDataUrl(dataUrl: String?): android.graphics.Bitmap? =
+        com.detailline.callfollowcrm.util.ImageDownsample.decodeDataUrl(dataUrl)
 
     /** 상대 번호가 가입 사장인지(인앱 vs 링크 분기). 서버 없으면 false(=링크 경로). */
     suspend fun ownerExists(phone: String): Result<Boolean> = withContext(Dispatchers.IO) {

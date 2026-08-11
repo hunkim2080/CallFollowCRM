@@ -132,13 +132,7 @@ class SitePhotoServerRepository(
             }
         }
 
-    /** "data:image/jpeg;base64,XXXX" → Bitmap. 실패 시 null. */
-    private fun decodeDataUrl(dataUrl: String?): Bitmap? {
-        if (dataUrl.isNullOrBlank()) return null
-        return runCatching {
-            val b64 = dataUrl.substringAfter(",", dataUrl)
-            val bytes = Base64.decode(b64, Base64.DEFAULT)
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-        }.getOrNull()
-    }
+    /** "data:image/jpeg;base64,XXXX" → 축소 Bitmap. 원본 해상도 통째 디코딩 시 OOM(오프라인 감사 rank5) → 다운샘플. */
+    private fun decodeDataUrl(dataUrl: String?): Bitmap? =
+        com.detailline.callfollowcrm.util.ImageDownsample.decodeDataUrl(dataUrl)
 }
