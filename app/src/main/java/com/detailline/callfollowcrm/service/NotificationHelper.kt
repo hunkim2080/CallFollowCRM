@@ -1174,13 +1174,17 @@ object NotificationHelper {
         body: String,
         receivedAtMs: Long,
         categoryLabel: String? = null,
-        isNewCustomer: Boolean = false
+        isNewCustomer: Boolean = false,
+        // 수신 처리에서 이미 찾은 고객 id. 있으면 실어 보내 채팅이 '번호 포맷 매칭' 대신 '그 고객'으로 정확히 열림
+        //   → 저장번호 포맷이 다를 때 '미등록'으로 잘못 열리거나 중복 고객이 생기던 것 방지. (2026-08-11 알림 감사)
+        customerId: Long? = null
     ) {
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
 
         val openIntent = Intent(context, MainActivity::class.java).apply {
             action = MainActivity.ACTION_CHAT
             putExtra(MainActivity.EXTRA_PHONE_NUMBER, phone)
+            customerId?.takeIf { it > 0 }?.let { putExtra(MainActivity.EXTRA_CUSTOMER_ID, it) }
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val openPending = PendingIntent.getActivity(
@@ -1261,12 +1265,14 @@ object NotificationHelper {
         phone: String,
         displayName: String?,
         body: String,
-        receivedAtMs: Long
+        receivedAtMs: Long,
+        customerId: Long? = null   // 있으면 그 고객으로 정확히 열기 (번호 포맷 매칭 우회). (2026-08-11 알림 감사)
     ) {
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
         val openIntent = Intent(context, MainActivity::class.java).apply {
             action = MainActivity.ACTION_CHAT
             putExtra(MainActivity.EXTRA_PHONE_NUMBER, phone)
+            customerId?.takeIf { it > 0 }?.let { putExtra(MainActivity.EXTRA_CUSTOMER_ID, it) }
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val openPending = PendingIntent.getActivity(

@@ -111,7 +111,8 @@ class MmsDownloadedReceiver : BroadcastReceiver() {
                 displayName = customerForNotif?.name,
                 body = displayBody,
                 receivedAtMs = receivedAtMs,
-                categoryLabel = categoryLabel
+                categoryLabel = categoryLabel,
+                customerId = customerForNotif?.id   // 탭 시 그 고객으로 정확히 열기. (2026-08-11 알림 감사)
             )
         }
 

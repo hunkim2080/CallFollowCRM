@@ -140,7 +140,8 @@ class SmsReceiver : BroadcastReceiver() {
                                 phone = sender,
                                 displayName = notifyName,
                                 body = combinedBody,
-                                receivedAtMs = receivedAtMs
+                                receivedAtMs = receivedAtMs,
+                                customerId = customer?.id
                             )
                         } else {
                             NotificationHelper.showIncomingSms(
@@ -151,7 +152,9 @@ class SmsReceiver : BroadcastReceiver() {
                                 receivedAtMs = receivedAtMs,
                                 categoryLabel = categoryLabel,
                                 // 신규음 = 미등록 고객 **AND** 이 번호 최초 문자일 때만. 그담 문자부턴 일반 문자음.
-                                isNewCustomer = customer == null && !seenBefore
+                                isNewCustomer = customer == null && !seenBefore,
+                                // 이미 찾은 고객 id 를 실어 보내 탭 시 '그 고객'으로 정확히 열기(번호 포맷 매칭 우회).
+                                customerId = customer?.id
                             )
                         }
                     }

@@ -567,7 +567,8 @@ class CallFollowCrmApplication : Application() {
                     body = m.preview,
                     receivedAtMs = m.dateMs,
                     categoryLabel = categoryLabel,
-                    isNewCustomer = customer == null
+                    isNewCustomer = customer == null,
+                    customerId = customer?.id   // 탭 시 그 고객으로 정확히 열기. (2026-08-11 알림 감사)
                 )
             }
             freshIds.add(key)
