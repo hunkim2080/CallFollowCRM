@@ -8561,3 +8561,9 @@ Play 정식(production) 배포 (사장님 "PLAY에도 올리자 ㄱㄱㄱ").
 - 변경: 앱 전용. ①협업/팀 서버사진 다운샘플(ImageDownsample.decodeDataUrl, inJustDecodeBounds→2배수 inSampleSize, 목표 512px) — SitePhotoServerRepository/SharedSiteRepository OOM 방지. ②문자 발송을 Dispatchers.IO 로(HomeScreen 3곳 sendDirect) — 발송 탭 시 화면 멈칫 제거. ③CustomerRepository/ManualCashRepository read-modify-write 를 Mutex 로 직렬화 — 백그라운드 동기화 vs 사용자 탭 동시 저장 시 lost update(계약금/완납 증발) 방지. 동작 불변.
 - commit: 741a7f3(사진), 4cdfdc4(발송IO), b5b7966(Mutex).
 - 다음 액션: 남은 신중 후속 = 딥링크 customerId(SmsReceiver→ACTION_CHAT)·협업 댓글 onSuccess·callTimeout per-client·접근성 잔여. server 대기=서버 백업 동기화(데이터안전 근본).
+
+## 2026-08-11 (6) · android
+알림 감사 rank2 — 문자 알림 딥링크에 customerId 추가.
+- 변경: 앱 전용. 수신 문자/MMS 알림 탭 딥링크가 번호만 실어 findByPhone 완전일치로 재조회하던 것 → 이미 찾은 customer.id 를 EXTRA_CUSTOMER_ID 로 실어 그 고객으로 정확히 열기. 저장번호 포맷 다를 때 '미등록' 오열림·중복 고객 생성 방지. 4곳(showIncomingSms/showGeneralSms + SmsReceiver/CallFollowCrmApplication MMS옵저버/MmsDownloadedReceiver).
+- commit: 989e86e.
+- 다음 액션: 남은 신중 후속 = 협업 댓글 onSuccess·callTimeout per-client·접근성 잔여. server 대기=서버 백업 동기화.
