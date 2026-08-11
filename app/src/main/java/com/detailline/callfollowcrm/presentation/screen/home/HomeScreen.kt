@@ -925,18 +925,18 @@ fun HomeScreen(
                             reminder = rem,
                             onSkip = { viewModel.dismissReminder(rem.item) },
                             onSend = { body ->
-                                val ok = com.detailline.callfollowcrm.util.SmsSender
-                                    .sendDirect(context, rem.item.phone, body)
-                                if (ok) {
-                                    viewModel.markReminderSent(rem.item)
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar("${rem.name} 님께 보냈어요 📩", duration = SnackbarDuration.Short)
+                                // 발송(교차프로세스 provider insert)을 IO 로 — 메인에서 직접 하면 provider 바쁠 때 화면 멈칫. (2026-08-11 성능/오프라인 감사)
+                                scope.launch {
+                                    val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                        com.detailline.callfollowcrm.util.SmsSender.sendDirect(context, rem.item.phone, body)
                                     }
-                                } else {
-                                    scope.launch {
+                                    if (ok) {
+                                        viewModel.markReminderSent(rem.item)
+                                        snackbarHostState.showSnackbar("${rem.name} 님께 보냈어요 📩", duration = SnackbarDuration.Short)
+                                    } else {
+                                        onOpenChat(rem.item.phone, rem.item.customerId)
                                         snackbarHostState.showSnackbar("문자 권한이 없어요 — 채팅에서 보내주세요", duration = SnackbarDuration.Short)
                                     }
-                                    onOpenChat(rem.item.phone, rem.item.customerId)
                                 }
                             }
                         )
@@ -1225,8 +1225,10 @@ fun HomeScreen(
                         val cid = c.id
                         completeTarget = null
                         viewModel.markJobCompleted(cid)   // 잔금/후기 발송도 = 시공 완료 → 히어로에서 빠짐
-                        val ok = com.detailline.callfollowcrm.util.SmsSender.sendDirect(context, phone, body)
                         scope.launch {
+                            val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                com.detailline.callfollowcrm.util.SmsSender.sendDirect(context, phone, body)   // 발송 IO — 메인 멈칫 방지
+                            }
                             if (ok) snackbarHostState.showSnackbar("$name 님께 $kind 발송 ✓ · 완료 처리", duration = SnackbarDuration.Short)
                             else snackbarHostState.showSnackbar("문자 권한이 없어요 — 채팅에서 보내주세요", duration = SnackbarDuration.Short)
                         }
@@ -1374,13 +1376,17 @@ fun HomeScreen(
                         if (!reply.isNullOrBlank()) {
                             androidx.compose.material3.TextButton(onClick = {
                                 waitingSendTarget = null
-                                val ok = com.detailline.callfollowcrm.util.SmsSender.sendDirect(context, phone, reply)
-                                if (ok) {
-                                    viewModel.onWaitingReplySent(phone, reply, target.customer?.id)
-                                    scope.launch { snackbarHostState.showSnackbar("$nm 님께 보냈어요 📩", duration = SnackbarDuration.Short) }
-                                } else {
-                                    scope.launch { snackbarHostState.showSnackbar("문자 권한이 없어요 — 채팅에서 보내주세요", duration = SnackbarDuration.Short) }
-                                    onOpenChat(phone, target.customer?.id)
+                                scope.launch {
+                                    val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                        com.detailline.callfollowcrm.util.SmsSender.sendDirect(context, phone, reply)   // 발송 IO — 메인 멈칫 방지
+                                    }
+                                    if (ok) {
+                                        viewModel.onWaitingReplySent(phone, reply, target.customer?.id)
+                                        snackbarHostState.showSnackbar("$nm 님께 보냈어요 📩", duration = SnackbarDuration.Short)
+                                    } else {
+                                        onOpenChat(phone, target.customer?.id)
+                                        snackbarHostState.showSnackbar("문자 권한이 없어요 — 채팅에서 보내주세요", duration = SnackbarDuration.Short)
+                                    }
                                 }
                             }) { Text("이대로 보내기", color = TossBlue, fontWeight = FontWeight.Bold) }
                         }
