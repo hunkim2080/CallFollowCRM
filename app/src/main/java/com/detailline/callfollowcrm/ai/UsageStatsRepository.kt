@@ -20,6 +20,7 @@ class UsageStatsRepository(
     private val client = Net.builder()
         .connectTimeout(3, TimeUnit.SECONDS)
         .readTimeout(8, TimeUnit.SECONDS)
+        .callTimeout(25, TimeUnit.SECONDS)   // 전체 호출 상한 — 재시도/route 누적 hang 방지 (2026-08-12 오프라인 감사)
         .build()
 
     enum class Period(val raw: String) {

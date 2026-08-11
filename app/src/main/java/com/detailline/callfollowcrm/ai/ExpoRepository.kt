@@ -27,6 +27,7 @@ class ExpoRepository(
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .writeTimeout(15, TimeUnit.SECONDS)
+        .callTimeout(50, TimeUnit.SECONDS)   // 전체 호출 상한 — 재시도/route 누적 hang 방지 (2026-08-12 오프라인 감사)
         .build()
 
     /** OCR(Vision) 는 응답이 느려 별도 긴 타임아웃. */
@@ -34,6 +35,7 @@ class ExpoRepository(
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
+        .callTimeout(115, TimeUnit.SECONDS)  // OCR 전체 상한 — 느린 Vision 응답은 안 자르되 무한 hang만 차단 (2026-08-12 오프라인 감사)
         .build()
 
     private val jsonMedia = "application/json; charset=utf-8".toMediaType()

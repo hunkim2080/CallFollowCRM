@@ -46,6 +46,8 @@ class PhaseOneApiRepository(
         .connectTimeout(3, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .writeTimeout(10, TimeUnit.SECONDS)
+        // 전체 호출 상한 — slowClient(readTimeout 45s)가 이 base 를 newBuilder 로 상속하므로 그보다 넉넉히. (2026-08-12 오프라인 감사)
+        .callTimeout(80, TimeUnit.SECONDS)
         .build()
 
     suspend fun warmup(): Result<Unit> = withContext(Dispatchers.IO) {

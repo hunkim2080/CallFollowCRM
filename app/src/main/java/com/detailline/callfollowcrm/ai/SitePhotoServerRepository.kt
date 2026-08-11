@@ -24,6 +24,7 @@ class SitePhotoServerRepository(
     private val client = Net.builder()
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
+        .callTimeout(45, TimeUnit.SECONDS)   // 전체 호출 상한 — 재시도/route 누적 hang 방지 (2026-08-12 오프라인 감사)
         .build()
 
     data class RemotePhoto(

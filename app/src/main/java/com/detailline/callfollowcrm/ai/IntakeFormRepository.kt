@@ -26,6 +26,7 @@ class IntakeFormRepository(
     private val client = Net.builder()
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
+        .callTimeout(40, TimeUnit.SECONDS)   // 전체 호출 상한 — 재시도/route 누적 hang 방지 (2026-08-12 오프라인 감사)
         .writeTimeout(15, TimeUnit.SECONDS)
         .build()
 

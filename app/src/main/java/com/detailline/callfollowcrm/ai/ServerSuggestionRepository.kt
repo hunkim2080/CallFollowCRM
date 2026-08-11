@@ -31,6 +31,7 @@ class ServerSuggestionRepository(
         .connectTimeout(3, TimeUnit.SECONDS)
         .readTimeout(5, TimeUnit.SECONDS)
         .writeTimeout(5, TimeUnit.SECONDS)
+        .callTimeout(20, TimeUnit.SECONDS)   // prepare/fetch 전체 상한 (inferClient 는 newBuilder 로 25s 로 덮어씀) (2026-08-12 오프라인 감사)
         .build()
 
     // 원칙 추론(infer-principle)은 LLM 응답을 동기로 기다리므로 read/call 타임아웃을 넉넉히. (Phase 2, 2026-06-17)

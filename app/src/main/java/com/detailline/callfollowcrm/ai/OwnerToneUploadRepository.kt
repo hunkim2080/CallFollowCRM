@@ -34,6 +34,7 @@ class OwnerToneUploadRepository(
     private val client: OkHttpClient = Net.builder()
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)   // 임베딩 chunk 처리에 시간 걸릴 수 있음
+        .callTimeout(90, TimeUnit.SECONDS)   // 전체 호출 상한 — 재시도/route 누적 hang 방지 (2026-08-12 오프라인 감사)
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 

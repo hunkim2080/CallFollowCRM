@@ -26,6 +26,7 @@ object UpdateChecker {
     private val client = OkHttpClient.Builder()
         .connectTimeout(8, TimeUnit.SECONDS)
         .readTimeout(8, TimeUnit.SECONDS)
+        .callTimeout(30, TimeUnit.SECONDS)   // 전체 호출 상한 — 재시도/route 누적 hang 방지 (2026-08-12 오프라인 감사)
         .build()
 
     /** version_code 가 있으면 반환 (없으면 0). notes = 이번(최신) 버전 변경 내역(서버가 주면). */

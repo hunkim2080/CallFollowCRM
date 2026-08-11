@@ -30,6 +30,7 @@ class CallAudioSummaryRepository(
         .connectTimeout(5, TimeUnit.SECONDS)
         .writeTimeout(60, TimeUnit.SECONDS)    // 오디오 업로드(수 MB)
         .readTimeout(120, TimeUnit.SECONDS)    // STT + LLM (긴 통화 대비)
+        .callTimeout(210, TimeUnit.SECONDS)    // 전체 상한(업로드60+STT/LLM120 여유) — 긴 통화 요약은 안 자르되 무한 hang만 차단 (2026-08-12 오프라인 감사)
         .build()
 
     data class Result(

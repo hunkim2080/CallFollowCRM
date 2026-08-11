@@ -24,6 +24,7 @@ class AuthRepository(
     private val client = OkHttpClient.Builder()
         .connectTimeout(6, TimeUnit.SECONDS)
         .readTimeout(12, TimeUnit.SECONDS)
+        .callTimeout(35, TimeUnit.SECONDS)   // 전체 호출 상한 — 재시도/route 누적 hang 방지 (2026-08-12 오프라인 감사)
         .writeTimeout(12, TimeUnit.SECONDS)
         .build()
     private val jsonMedia = "application/json; charset=utf-8".toMediaType()
