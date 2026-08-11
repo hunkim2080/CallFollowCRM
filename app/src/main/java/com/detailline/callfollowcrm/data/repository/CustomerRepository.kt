@@ -7,6 +7,8 @@ import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
 import com.detailline.callfollowcrm.domain.model.LeadHeat
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class CustomerRepository(
     private val dao: CustomerDao,
@@ -15,6 +17,25 @@ class CustomerRepository(
     private val recordingDao: RecordingAttachmentDao? = null,
     private val callSummaryDao: CallSummaryDao? = null
 ) {
+
+    // 한 고객 행의 읽기-수정-쓰기(findById→copy→update)를 직렬화하는 잠금. (2026-08-11 돈 정확성 감사)
+    //   배경: 백그라운드 동기화(접수서·미러 등)와 사용자 탭이 같은 고객을 각각 '옛 스냅샷'으로 읽어 서로 다른 필드를
+    //   고친 뒤 순서대로 저장하면, 나중 저장이 앞 저장을 통째로 덮어 한쪽 변경(예: 방금 찍은 계약금·완납)이 조용히
+    //   증발한다(lost update). 모든 단일 고객 수정을 아래 mutate 한 곳으로 모아 읽기부터 쓰기까지 원자화한다.
+    private val writeMutex = Mutex()
+
+    /**
+     * 단일 고객 읽기-수정-쓰기를 원자적으로. transform 이 받은 현재 값을 복사·수정해 반환하면 저장한다.
+     *   - 없는 id 면 아무 것도 안 함. transform 이 null 을 반환하면(=변경 없음) 저장 생략.
+     *   - updatedAt 은 여기서 일괄 스탬프하므로 transform 안에서는 건드리지 않는다.
+     */
+    private suspend fun mutate(id: Long, transform: (CustomerEntity) -> CustomerEntity?) {
+        writeMutex.withLock {
+            val c = dao.findById(id) ?: return@withLock
+            val updated = transform(c) ?: return@withLock
+            dao.update(updated.copy(updatedAt = System.currentTimeMillis()))
+        }
+    }
 
     fun observeAll(): Flow<List<CustomerEntity>> = dao.observeAll()
     fun observeById(id: Long): Flow<CustomerEntity?> = dao.observeById(id)
@@ -81,10 +102,10 @@ class CustomerRepository(
         name: String? = null,
         memo: String? = null,
         leadHeat: LeadHeat? = null
-    ): CustomerEntity {
+    ): CustomerEntity = writeMutex.withLock {
         val now = System.currentTimeMillis()
         val existing = dao.findByPhone(phoneNumber)
-        return if (existing == null) {
+        if (existing == null) {
             val entity = CustomerEntity(
                 phoneNumber = phoneNumber,
                 name = name,
@@ -124,30 +145,18 @@ class CustomerRepository(
 
     // 2026-05-25: updateStatus 제거 — 카테고리 시스템으로 통일.
 
-    suspend fun updateMemo(id: Long, memo: String) {
-        val c = dao.findById(id) ?: return
-        dao.update(c.copy(memo = memo, updatedAt = System.currentTimeMillis()))
-    }
+    suspend fun updateMemo(id: Long, memo: String) = mutate(id) { it.copy(memo = memo) }
 
-    suspend fun updateName(id: Long, name: String?) {
-        val c = dao.findById(id) ?: return
-        dao.update(c.copy(name = name, updatedAt = System.currentTimeMillis()))
-    }
+    suspend fun updateName(id: Long, name: String?) = mutate(id) { it.copy(name = name) }
 
     /** 리드 온도 설정/변경/해제(null). 통화 직후 카드에서 optimistic 저장 호출. */
-    suspend fun updateLeadHeat(id: Long, leadHeat: LeadHeat?) {
-        val c = dao.findById(id) ?: return
-        dao.update(c.copy(leadHeat = leadHeat?.name, updatedAt = System.currentTimeMillis()))
-    }
+    suspend fun updateLeadHeat(id: Long, leadHeat: LeadHeat?) = mutate(id) { it.copy(leadHeat = leadHeat?.name) }
 
     /**
      * 계약금 정보 갱신. amount 또는 paidAt 둘 중 하나만 변경하고 싶을 때 다른 인자에
      * `Unchanged` 를 넘기면 보존 (Kotlin 의 null 은 "값 지움" 으로 쓰이기 때문).
      */
-    suspend fun updateDepositAmount(id: Long, amount: Long?) {
-        val c = dao.findById(id) ?: return
-        dao.update(c.copy(depositAmount = amount, updatedAt = System.currentTimeMillis()))
-    }
+    suspend fun updateDepositAmount(id: Long, amount: Long?) = mutate(id) { it.copy(depositAmount = amount) }
 
     /**
      * 계약금 이중곱 오염 self-heal (2026-07-09) — 앱 시작 시 1회. 2026-07-04~ intake fixed 계약금이 서버왕복 후
@@ -170,18 +179,11 @@ class CustomerRepository(
     }
 
     /** paidAt = null 이면 "안 받음" 상태로 되돌리기. */
-    suspend fun updateDepositPaidAt(id: Long, paidAt: Long?) {
-        val c = dao.findById(id) ?: return
-        dao.update(c.copy(depositPaidAt = paidAt, updatedAt = System.currentTimeMillis()))
-    }
+    suspend fun updateDepositPaidAt(id: Long, paidAt: Long?) = mutate(id) { it.copy(depositPaidAt = paidAt) }
 
-    suspend fun updateBalanceAmount(id: Long, amount: Long?) {
-        val c = dao.findById(id) ?: return
-        dao.update(c.copy(balanceAmount = amount, updatedAt = System.currentTimeMillis()))
-    }
+    suspend fun updateBalanceAmount(id: Long, amount: Long?) = mutate(id) { it.copy(balanceAmount = amount) }
 
-    suspend fun updateBalancePaidAt(id: Long, paidAt: Long?) {
-        val c = dao.findById(id) ?: return
+    suspend fun updateBalancePaidAt(id: Long, paidAt: Long?) = mutate(id) { c ->
         // 완납(잔금 받음) 처리 시, 계약금이 아직 '받음' 미표시(depositPaidAt=null)면서 계약금이 있으면 같이 찍는다.
         //   안 그러면 완납인데도 계약금 몫이 '입금일 기준' 집계(현금흐름·이번 달 받은 돈·리포트·마감브리핑)에서
         //   누락돼 증발함(정산 목록만 30만, 나머지는 20만). 이미 받은 날짜가 있으면 존중(안 덮음). (2026-07-30 버그감사)
@@ -190,16 +192,13 @@ class CustomerRepository(
         //   계약금도 같이 '안 받음'으로 되돌린다. 안 그러면 안 받은 계약금이 매출·현금흐름에 '유령'으로 남아 과대 집계.
         //   단 사장님이 계약금을 따로(다른 날) 받아 표시한 경우(두 시각 다름)는 존중해 안 건드림. (2026-08-11 돈 정확성 감사 rank4)
         val undoAutoDeposit = paidAt == null && c.depositPaidAt != null && c.depositPaidAt == c.balancePaidAt
-        dao.update(
-            c.copy(
-                balancePaidAt = paidAt,
-                depositPaidAt = when {
-                    alsoDeposit -> paidAt
-                    undoAutoDeposit -> null
-                    else -> c.depositPaidAt
-                },
-                updatedAt = System.currentTimeMillis()
-            )
+        c.copy(
+            balancePaidAt = paidAt,
+            depositPaidAt = when {
+                alsoDeposit -> paidAt
+                undoAutoDeposit -> null
+                else -> c.depositPaidAt
+            }
         )
     }
 
@@ -207,58 +206,38 @@ class CustomerRepository(
      * 2026-05-30 사장님 #4 — 총금액 설정. null = 미입력.
      * 잔금 자동 계산 기준: balance = totalAmount - depositAmount.
      */
-    suspend fun updateTotalAmount(id: Long, amount: Long?) {
-        val c = dao.findById(id) ?: return
-        dao.update(c.copy(totalAmount = amount, updatedAt = System.currentTimeMillis()))
-    }
+    suspend fun updateTotalAmount(id: Long, amount: Long?) = mutate(id) { it.copy(totalAmount = amount) }
 
     /** 시공 예약일 설정/변경/취소(null). 자정 epoch ms 권장. */
-    suspend fun updateScheduledWorkDate(id: Long, scheduledWorkDate: Long?) {
-        val c = dao.findById(id) ?: return
-        dao.update(c.copy(scheduledWorkDate = scheduledWorkDate, updatedAt = System.currentTimeMillis()))
-    }
+    suspend fun updateScheduledWorkDate(id: Long, scheduledWorkDate: Long?) =
+        mutate(id) { it.copy(scheduledWorkDate = scheduledWorkDate) }
 
     /** 시공 완료 처리/취소 (2026-06-08 #2). null = 완료 취소(되돌리기). 오늘 시공 히어로에서 호출. */
-    suspend fun updateWorkCompletedAt(id: Long, completedAt: Long?) {
-        val c = dao.findById(id) ?: return
-        dao.update(c.copy(workCompletedAt = completedAt, updatedAt = System.currentTimeMillis()))
-    }
+    suspend fun updateWorkCompletedAt(id: Long, completedAt: Long?) =
+        mutate(id) { it.copy(workCompletedAt = completedAt) }
 
     /** 시공 시간만 설정/변경(자정부터 분, null=미정). 기간(days)은 그대로 보존. 채팅·고객정보 날짜선택 후 시간 칩에서 호출. (2026-06-23 사장님) */
-    suspend fun updateScheduledWorkMinutes(id: Long, minutes: Int?) {
-        val c = dao.findById(id) ?: return
-        dao.update(c.copy(scheduledWorkMinutes = minutes, updatedAt = System.currentTimeMillis()))
-    }
+    suspend fun updateScheduledWorkMinutes(id: Long, minutes: Int?) =
+        mutate(id) { it.copy(scheduledWorkMinutes = minutes) }
 
     /** 시공 시간(자정부터 분, null=미정) + 기간(일) 설정. 셀프 일정 등록/수정에서 호출. DB v24. */
-    suspend fun updateScheduledWorkTiming(id: Long, minutes: Int?, days: Int) {
-        val c = dao.findById(id) ?: return
-        dao.update(c.copy(
-            scheduledWorkMinutes = minutes,
-            scheduledWorkDays = days.coerceAtLeast(1),
-            updatedAt = System.currentTimeMillis()
-        ))
+    suspend fun updateScheduledWorkTiming(id: Long, minutes: Int?, days: Int) = mutate(id) {
+        it.copy(scheduledWorkMinutes = minutes, scheduledWorkDays = days.coerceAtLeast(1))
     }
 
     /** A/S 예약(시공과 별개, 무료) 설정/변경/취소. date=null 이면 A/S 지움. 기간(며칠)도 함께. DB v43. (2026-08-01 사장님) */
-    suspend fun updateAsSchedule(id: Long, date: Long?, days: Int) {
-        val c = dao.findById(id) ?: return
-        val normalized = date?.let { com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(it) }
-        dao.update(c.copy(
-            asScheduledDate = normalized,
-            asScheduledDays = days.coerceAtLeast(1),
-            updatedAt = System.currentTimeMillis()
-        ))
+    suspend fun updateAsSchedule(id: Long, date: Long?, days: Int) = mutate(id) {
+        it.copy(
+            asScheduledDate = date?.let { d -> com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(d) },
+            asScheduledDays = days.coerceAtLeast(1)
+        )
     }
 
     /**
      * 현장 주소 설정/변경/지움(null) — 사장님 수동 등록 (2026-05-28, DB v15).
      *   AddressExtractor 자동 추출보다 우선. 길찾기/§13 가 이 값을 1순위로 활용.
      */
-    suspend fun updateAddress(id: Long, address: String?) {
-        val c = dao.findById(id) ?: return
-        val trimmed = address?.trim()?.takeIf { it.isNotEmpty() }
-        dao.update(c.copy(address = trimmed, updatedAt = System.currentTimeMillis()))
-    }
+    suspend fun updateAddress(id: Long, address: String?) =
+        mutate(id) { it.copy(address = address?.trim()?.takeIf { s -> s.isNotEmpty() }) }
 
 }
