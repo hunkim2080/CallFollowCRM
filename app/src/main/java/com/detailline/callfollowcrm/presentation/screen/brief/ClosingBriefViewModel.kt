@@ -35,8 +35,11 @@ class ClosingBriefViewModel(container: AppContainer) : ViewModel() {
     private val goalWon = container.preferences.monthlyGoalManwon.toLong() * 10_000L
 
     val state: StateFlow<ClosingBriefState> =
-        container.customerRepository.observeAll()
-            .map { build(it) }
+        // 재방문으로 jobs(지난 시공)로 옮겨진 완료 건의 입금도 '오늘/이번 달 입금'에 포함(안 그러면 증발). (2026-08-11 돈감사 rank1)
+        kotlinx.coroutines.flow.combine(
+            container.customerRepository.observeAll(),
+            container.jobRepository.observeAll()
+        ) { cs, jobHistory -> build(cs, jobHistory) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ClosingBriefState())
 
     // 마감 브리핑 금액 = 정산 화면과 '같은 계산'(SettlementCalc). 옛날엔 자체 계산이라 정산에선 고쳐진 버그 2개가
@@ -48,26 +51,19 @@ class ClosingBriefViewModel(container: AppContainer) : ViewModel() {
     /** 이 고객이 내야 할 총액(정산 계산 기준). */
     private fun owedOf(c: CustomerEntity): Long = SettlementCalc.rowOf(c).total
 
-    /** [from, until) 안에 받은 금액(계약금/잔금 각각 받은 시각이 범위 안일 때). 정산 계산의 non-stale 금액 사용. */
-    private fun paidInRange(c: CustomerEntity, from: Long, until: Long): Long {
-        val row = SettlementCalc.rowOf(c)
-        var p = 0L
-        if (c.depositPaidAt?.let { it in from until until } == true) p += row.depositAmount
-        if (c.balancePaidAt?.let { it in from until until } == true) {
-            p += row.balanceAmount
-            // 완납인데 계약금 '받음' 미표시(옛 데이터)면 계약금도 '잔금 받은 날'에 귀속 — 안 그러면 그 몫이 증발. (버그감사 돈#1 과 짝)
-            if (c.depositPaidAt == null) p += row.depositAmount
-        }
-        return p
-    }
+    /** [from, until) 안에 받은 금액. 정산·리포트와 '같은 계산'(SettlementCalc.receivedInRange, 완납 계약금 보정 포함)으로 통일. */
+    private fun paidInRange(c: CustomerEntity, from: Long, until: Long): Long =
+        SettlementCalc.receivedInRange(c, from, until)
 
-    private fun build(cs: List<CustomerEntity>): ClosingBriefState {
+    private fun build(cs: List<CustomerEntity>, jobHistory: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>): ClosingBriefState {
         val newCount = cs.count { it.createdAt in todayStart until todayEnd }
         val completedCount = cs.count { it.workCompletedAt?.let { d -> d in todayStart until todayEnd } == true }
 
-        val paidSum = cs.sumOf { paidInRange(it, todayStart, todayEnd) }
+        val paidSum = cs.sumOf { paidInRange(it, todayStart, todayEnd) } +
+            jobHistory.sumOf { SettlementCalc.receivedInRange(it.totalAmount, it.depositAmount, it.depositPaidAt, it.balanceAmount, it.balancePaidAt, todayStart, todayEnd) }
         val depositCount = cs.count { paidInRange(it, todayStart, todayEnd) > 0L }
-        val monthPaidSum = cs.sumOf { paidInRange(it, monthStart, now + 1) }
+        val monthPaidSum = cs.sumOf { paidInRange(it, monthStart, now + 1) } +
+            jobHistory.sumOf { SettlementCalc.receivedInRange(it.totalAmount, it.depositAmount, it.depositPaidAt, it.balanceAmount, it.balancePaidAt, monthStart, now + 1) }
 
         // 오늘 성취 한 줄 (0 인 항목은 자연스럽게 빠짐).
         val parts = buildList {

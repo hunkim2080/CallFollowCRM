@@ -50,8 +50,10 @@ class ReportViewModel(private val container: AppContainer) : ViewModel() {
                 Act(customers, inbound, sentCount, estSends, unhandled)
             }
                 .combine(sugFlow) { act, sug -> act to sug }
-                .combine(container.categoryRepository.observeAll()) { (act, sug), cats ->
-                    buildState(p, from, to, prevFrom, prevTo, act, sug, cats.associate { it.id to it.name })
+                .combine(container.categoryRepository.observeAll()) { (act, sug), cats -> Triple(act, sug, cats) }
+                // 재방문으로 jobs 로 옮겨진 완료 건의 매출도 '번 돈'에 포함(안 그러면 증발). (2026-08-11 돈감사 rank1)
+                .combine(container.jobRepository.observeAll()) { (act, sug, cats), jobHistory ->
+                    buildState(p, from, to, prevFrom, prevTo, act, sug, cats.associate { it.id to it.name }, jobHistory)
                 }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReportUiState())
 
@@ -67,7 +69,8 @@ class ReportViewModel(private val container: AppContainer) : ViewModel() {
         p: ReportPeriod, from: Long, to: Long, prevFrom: Long, prevTo: Long,
         act: Act,
         sug: Pair<SuggestionEventRepository.Stats, List<SuggestionEventRepository.ScenarioBreakdown>>,
-        catNames: Map<Long, String>
+        catNames: Map<Long, String>,
+        jobHistory: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>
     ): ReportUiState {
         val customers = act.customers
         val todayStart = ReportCalc.todayStart()
@@ -93,6 +96,12 @@ class ReportViewModel(private val container: AppContainer) : ViewModel() {
                 if (row.total > 0L) moneyCust++
                 if (row.isPaidOff) paidOffNow++
             }
+        }
+        // 재방문 이력(jobs)의 매출도 '번 돈'에 합산 — 귀속 규칙 동일(SettlementCalc.receivedInRange). (2026-08-11 돈감사 rank1)
+        //   ※ jobs 는 카테고리/지역 정보가 없어 세부 분류(종류별·지역별)엔 안 들어감 — 헤드라인 '번 돈' 정확성 우선.
+        for (j in jobHistory) {
+            revenue += SettlementCalc.receivedInRange(j.totalAmount, j.depositAmount, j.depositPaidAt, j.balanceAmount, j.balancePaidAt, from, to)
+            prevRevenue += SettlementCalc.receivedInRange(j.totalAmount, j.depositAmount, j.depositPaidAt, j.balanceAmount, j.balancePaidAt, prevFrom, prevTo)
         }
         val revenueDeltaPct = if (prevRevenue > 0L) (((revenue - prevRevenue) * 100.0) / prevRevenue).roundToInt() else null
         val overdue = ReportCalc.overdueRows(customers, todayStart)

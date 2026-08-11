@@ -24,4 +24,9 @@ interface JobDao {
     /** 지난 시공 N건 카운트(구독). */
     @Query("SELECT COUNT(*) FROM jobs WHERE customerId = :customerId")
     fun observeCountByCustomer(customerId: Long): Flow<Int>
+
+    /** 모든 지난 시공(이력) — 매출 집계(정산·리포트·브리핑·현금흐름)가 CustomerEntity 와 함께 합산해야
+     *   재방문 이관된 완료 건의 매출이 증발하지 않음. (2026-08-11 돈 정확성 감사 rank1) */
+    @Query("SELECT * FROM jobs")
+    fun observeAll(): Flow<List<JobEntity>>
 }

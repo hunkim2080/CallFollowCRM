@@ -169,4 +169,40 @@ class SettlementCalcTest {
         )
         assertEquals(2, SettlementCalc.overdueDays(c, today))
     }
+
+    // ── receivedInRange: 재방문 매출 증발(rank1) 방지 — 계약금/잔금 각각 받은 날짜로 귀속 ──
+
+    @Test fun `receivedInRange - 계약금 잔금 각각 받은 날짜 구간에만 잡힘`() {
+        // 계약금 30만(paidAt=100), 잔금 70만(paidAt=200).
+        val t = 1_000_000L; val d = 300_000L; val b = 700_000L
+        assertEquals(300_000, SettlementCalc.receivedInRange(t, d, 100L, b, 200L, 50L, 150L))   // 계약금만
+        assertEquals(700_000, SettlementCalc.receivedInRange(t, d, 100L, b, 200L, 150L, 250L))  // 잔금만
+        assertEquals(1_000_000, SettlementCalc.receivedInRange(t, d, 100L, b, 200L, 50L, 250L)) // 둘 다
+        assertEquals(0, SettlementCalc.receivedInRange(t, d, 100L, b, 200L, 300L, 400L))        // 구간 밖
+    }
+
+    @Test fun `receivedInRange - 잔금 미입력이면 총액-계약금으로 귀속`() {
+        // 총액 100만, 계약금 40만(paidAt=100), balanceAmount=null·잔금 받음(paidAt=200) → 잔금 60만.
+        assertEquals(1_000_000, SettlementCalc.receivedInRange(1_000_000, 400_000, 100L, null, 200L, 50L, 250L))
+    }
+
+    @Test fun `receivedInRange - 안 받은 건(paidAt null)은 0`() {
+        assertEquals(0, SettlementCalc.receivedInRange(1_000_000, 300_000, null, 700_000, null, 0L, Long.MAX_VALUE))
+    }
+
+    @Test fun `receivedInRange - 완납인데 계약금 미표시(옛 완납) 계약금도 잔금날에 귀속`() {
+        // 총 130만·계약금 10만·계약금 depositPaidAt=null(원탭 완납이 잔금만 찍음)·잔금 받음(paidAt=200).
+        //   구간 [150,250) → 잔금 120만 + 미표시 계약금 10만 = 130만 (전액). 마감브리핑과 동일 규칙(rank7).
+        assertEquals(1_300_000, SettlementCalc.receivedInRange(1_300_000, 100_000, null, null, 200L, 150L, 250L))
+        // 계약금이 딴 달(paidAt=100)에 표시됐으면 잔금달엔 잔금만(보정 안 함).
+        assertEquals(1_200_000, SettlementCalc.receivedInRange(1_300_000, 100_000, 100L, null, 200L, 150L, 250L))
+    }
+
+    @Test fun `receivedInRange - CustomerEntity 오버로드는 raw 와 동일`() {
+        // 헬퍼 기본값: depositPaidAt=1000, balancePaidAt=2000.
+        val c = customer(total = 1_000_000, deposit = 300_000, depositPaid = true, balance = 700_000, balancePaid = true)
+        assertEquals(1_000_000, SettlementCalc.receivedInRange(c, 0L, 3_000L))
+        assertEquals(300_000, SettlementCalc.receivedInRange(c, 500L, 1_500L))    // 계약금(1000)만
+        assertEquals(700_000, SettlementCalc.receivedInRange(c, 1_500L, 2_500L))  // 잔금(2000)만
+    }
 }

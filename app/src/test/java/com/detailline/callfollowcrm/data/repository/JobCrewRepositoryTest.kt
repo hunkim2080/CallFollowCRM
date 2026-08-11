@@ -49,6 +49,9 @@ class JobCrewRepositoryTest {
             rows.removeAll { it.workerId == workerId && it.customerId == customerId && it.dayStartMs == dayStartMs }
         }
         override suspend fun deleteByCustomer(customerId: Long) { rows.removeAll { it.customerId == customerId } }
+        override suspend fun deleteByCustomerAndDay(customerId: Long, dayStartMs: Long) {
+            rows.removeAll { it.customerId == customerId && it.dayStartMs == dayStartMs }
+        }
     }
 
     private val dao = FakeDao()
@@ -60,6 +63,18 @@ class JobCrewRepositoryTest {
         repo.assign(workerId = 7, workerName = "하우스픽", customerId = 3, dayMs = day, wage = 250_000)
         assertEquals("배정이 두 번이면 그 날 일당이 두 배로 빠진다", 1, dao.rows.size)
         assertEquals(250_000L, dao.rows[0].wage)
+    }
+
+    @Test fun `예약취소 날짜한정 삭제 - 그 시공일 일당만 지우고 과거 지급 일당은 보존`() = runBlocking {
+        // 돈 정확성 감사 rank5: 재방문 고객의 6월(이미 지급)·7월(취소할) 일당이 같이 있을 때
+        //   deleteByCustomerAndDay(그 시공일)만 지워야 과거 지출이 안 사라진다.
+        val day1 = DateTimeUtils.startOfDay(1_781_000_000_000L)  // 과거(이미 지급)
+        val day2 = DateTimeUtils.startOfDay(1_784_000_000_000L)  // 취소할 시공일
+        repo.assign(workerId = 1, workerName = "6월일당", customerId = 5, dayMs = day1, wage = 250_000)
+        repo.assign(workerId = 2, workerName = "7월일당", customerId = 5, dayMs = day2, wage = 300_000)
+        repo.deleteByCustomerAndDay(customerId = 5, dayMs = day2)
+        assertEquals("취소한 시공일 일당만 삭제되어야", 1, dao.rows.size)
+        assertEquals("과거(day1) 지급 일당은 보존", day1, dao.rows[0].dayStartMs)
     }
 
     @Test fun `날짜에 시각이 섞여 들어와도 같은 날이면 한 건 - startOfDay 로 정규화`() = runBlocking {

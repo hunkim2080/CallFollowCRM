@@ -23,6 +23,9 @@ class JobRepository(
     /** 지난 시공 N건(구독). */
     fun observeCountByCustomer(customerId: Long): Flow<Int> = jobDao.observeCountByCustomer(customerId)
 
+    /** 모든 지난 시공(이력) 구독 — 매출 집계가 현재 건(CustomerEntity)과 함께 합산. (2026-08-11 돈감사 rank1) */
+    fun observeAll(): Flow<List<JobEntity>> = jobDao.observeAll()
+
     suspend fun byCustomerOnce(customerId: Long): List<JobEntity> = jobDao.byCustomerOnce(customerId)
 
     /**

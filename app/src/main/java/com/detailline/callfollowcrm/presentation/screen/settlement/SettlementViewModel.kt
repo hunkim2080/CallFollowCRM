@@ -38,6 +38,8 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
     fun consumeToast() { _toast.value = null }
 
     private val customersFlow = container.customerRepository.observeAll()
+    // 재방문으로 jobs(지난 시공 이력)로 옮겨진 완료 건도 '이번 달 받은 돈' 집계에 포함(안 그러면 그 매출 증발). (2026-08-11 돈감사 rank1)
+    private val jobsFlow = container.jobRepository.observeAll()
 
     /** 돈 정보 있는 고객만 → 미수 큰 순 정렬. */
     private val rows: StateFlow<List<SettleItem>> =
@@ -106,20 +108,21 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     val settleTop: StateFlow<SettleTopState> =
-        combine(customersFlow, monthAnchor, goalManwon, state) { customers, anchor, goal, st ->
-            buildSettleTop(customers, anchor, goal, st)
+        combine(customersFlow, jobsFlow, monthAnchor, goalManwon, state) { customers, jobs, anchor, goal, st ->
+            buildSettleTop(customers, jobs, anchor, goal, st)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettleTopState())
 
     private fun buildSettleTop(
         customers: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
+        jobs: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>,
         anchor: Long,
         goalManwon: Int,
         st: SettlementUiState
     ): SettleTopState {
         val monthEnd = shiftMonth(anchor, +1)
         val prevStart = shiftMonth(anchor, -1)
-        val received = receivedInMonth(customers, anchor, monthEnd)
-        val prevReceived = receivedInMonth(customers, prevStart, anchor)
+        val received = receivedInMonth(customers, jobs, anchor, monthEnd)
+        val prevReceived = receivedInMonth(customers, jobs, prevStart, anchor)
         val prevPct = when {
             prevReceived > 0L -> Math.round((received - prevReceived) * 100.0 / prevReceived).toInt()
             received > 0L -> 100
@@ -178,17 +181,18 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
         )
     }
 
-    /** 그 달에 받은 돈(원) = 계약금/잔금 중 paidAt 이 [start,end) 인 것 합. */
+    /** 그 달에 받은 돈(원) = 계약금/잔금 중 paidAt 이 [start,end) 인 것 합. 현재 건(customers) + 재방문 이력(jobs) 모두.
+     *   jobs 를 빼먹으면 재방문 시 이관된 완료 건의 매출이 증발한다(돈감사 rank1). 귀속 규칙은 SettlementCalc.receivedInRange 로 통일. */
     private fun receivedInMonth(
         customers: List<com.detailline.callfollowcrm.data.local.entity.CustomerEntity>,
+        jobs: List<com.detailline.callfollowcrm.data.local.entity.JobEntity>,
         start: Long,
         end: Long
     ): Long {
         var sum = 0L
-        customers.forEach { c ->
-            val row = SettlementCalc.rowOf(c)
-            c.depositPaidAt?.let { if (it in start until end) sum += row.depositAmount }
-            c.balancePaidAt?.let { if (it in start until end) sum += row.balanceAmount }
+        customers.forEach { c -> sum += SettlementCalc.receivedInRange(c, start, end) }
+        jobs.forEach { j ->
+            sum += SettlementCalc.receivedInRange(j.totalAmount, j.depositAmount, j.depositPaidAt, j.balanceAmount, j.balancePaidAt, start, end)
         }
         return sum
     }
@@ -199,10 +203,11 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
         combine(
             customersFlow,
             container.manualCashRepository.observeAll(),
-            container.jobCrewRepository.observeAll()
-        ) { cs, ms, crew ->
+            container.jobCrewRepository.observeAll(),
+            jobsFlow
+        ) { cs, ms, crew, jobs ->
             val today = com.detailline.callfollowcrm.util.DateTimeUtils.startOfDay(System.currentTimeMillis())
-            CashFlowCalc.buildItems(cs, ms, crew, today)
+            CashFlowCalc.buildItems(cs, ms, crew, today, jobs)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun addManualCash(dayMs: Long, amount: Long, isIncome: Boolean, isDone: Boolean, label: String) =

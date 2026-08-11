@@ -2,6 +2,7 @@ package com.detailline.callfollowcrm.domain.settlement
 
 import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
 import com.detailline.callfollowcrm.data.local.entity.JobCrewEntity
+import com.detailline.callfollowcrm.data.local.entity.JobEntity
 import com.detailline.callfollowcrm.data.local.entity.ManualCashEntity
 import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
@@ -64,7 +65,8 @@ object CashFlowCalc {
         customers: List<CustomerEntity>,
         manual: List<ManualCashEntity>,
         crew: List<JobCrewEntity> = emptyList(),
-        todayStartMs: Long = 0L
+        todayStartMs: Long = 0L,
+        jobs: List<JobEntity> = emptyList()   // 재방문으로 이관된 지난 시공 이력 — 그 입금도 확정 수입으로. (2026-08-11 돈감사 rank1)
     ): List<CashItem> {
         val out = ArrayList<CashItem>()
         for (c in customers) {
@@ -102,6 +104,29 @@ object CashFlowCalc {
                     amount = row.outstanding, isIncome = true, isDone = false,
                     title = title, tag = "받을 예정", subtitle = hint,
                     refType = CashRefType.CUSTOMER, refId = c.id
+                )
+            }
+        }
+        // 재방문 이력(jobs)의 입금도 확정 수입으로 — 재방문 시 완료 건이 jobs 로 옮겨지며 달력에서 그 매출이 증발하던 것 복원. (2026-08-11 돈감사 rank1)
+        //   jobs 는 이름이 없어 현재 customers 에서 이름을 찾아 붙인다(고객 레코드는 archive 후에도 남음).
+        val nameById = customers.associate {
+            it.id to (it.name?.takeIf { n -> n.isNotBlank() } ?: PhoneNumberFormatter.format(it.phoneNumber))
+        }
+        for (j in jobs) {
+            val jDeposit = (j.depositAmount ?: 0L).coerceAtLeast(0L)
+            val jBalance = if (j.totalAmount != null) (j.totalAmount - jDeposit).coerceAtLeast(0L)
+                           else (j.balanceAmount?.coerceAtLeast(0L) ?: 0L)
+            val jTitle = nameById[j.customerId] ?: "지난 시공"
+            j.depositPaidAt?.let { pa ->
+                if (jDeposit > 0L) out += CashItem(
+                    dayStartMs = DateTimeUtils.startOfDay(pa), amount = jDeposit, isIncome = true, isDone = true,
+                    title = jTitle, tag = "계약금", refType = CashRefType.CUSTOMER, refId = j.customerId
+                )
+            }
+            j.balancePaidAt?.let { pa ->
+                if (jBalance > 0L) out += CashItem(
+                    dayStartMs = DateTimeUtils.startOfDay(pa), amount = jBalance, isIncome = true, isDone = true,
+                    title = jTitle, tag = "잔금", refType = CashRefType.CUSTOMER, refId = j.customerId
                 )
             }
         }

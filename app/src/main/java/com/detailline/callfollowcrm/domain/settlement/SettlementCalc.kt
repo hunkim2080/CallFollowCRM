@@ -78,6 +78,39 @@ object SettlementCalc {
     }
 
     /**
+     * [fromMs, untilMs) 구간에 '받은 돈'(원) — 계약금은 depositPaidAt, 잔금은 balancePaidAt 기준으로 귀속해 합산.
+     *   ⭐ CustomerEntity(현재 건)와 JobEntity(재방문으로 jobs 로 옮겨진 지난 건) 양쪽에 **같은 규칙**을 적용하기 위한 순수 함수.
+     *   예전엔 매출 집계(정산 '이번 달 받은 돈'·리포트·마감브리핑·현금흐름)가 CustomerEntity 만 읽어, 재방문 시
+     *   완료 건이 jobs 로 이관되면 그 매출이 통째로 증발했다(돈 정확성 감사 rank1). 이 함수로 jobs 도 같이 더한다.
+     *   금액 규칙은 [rowOf] 와 동일: 잔금 = 총액 있으면 (총액−계약금), 없으면 저장된 balanceAmount.
+     */
+    fun receivedInRange(
+        totalAmount: Long?, depositAmount: Long?, depositPaidAt: Long?,
+        balanceAmount: Long?, balancePaidAt: Long?,
+        fromMs: Long, untilMs: Long
+    ): Long {
+        val deposit = (depositAmount ?: 0L).coerceAtLeast(0L)
+        val balance = if (totalAmount != null) {
+            (totalAmount - deposit).coerceAtLeast(0L)
+        } else {
+            balanceAmount?.coerceAtLeast(0L) ?: 0L
+        }
+        var sum = 0L
+        if (depositPaidAt != null && depositPaidAt in fromMs until untilMs) sum += deposit
+        if (balancePaidAt != null && balancePaidAt in fromMs until untilMs) {
+            sum += balance
+            // 완납(잔금 받음)인데 계약금 '받음' 미표시(옛 데이터)면 계약금도 '잔금 받은 날'에 귀속 — 그 몫 증발 방지.
+            //   rowOf 의 received(잔금받음=총액) 규칙과 일치 + 마감브리핑 paidInRange 와 통일 → 화면마다 매출 어긋나던 것 해소(돈감사 rank7).
+            if (depositPaidAt == null) sum += deposit
+        }
+        return sum
+    }
+
+    /** CustomerEntity 편의 오버로드. */
+    fun receivedInRange(c: CustomerEntity, fromMs: Long, untilMs: Long): Long =
+        receivedInRange(c.totalAmount, c.depositAmount, c.depositPaidAt, c.balanceAmount, c.balancePaidAt, fromMs, untilMs)
+
+    /**
      * 미수 경과일 — 받을 돈(미수)이 남아 있고 시공 후 N일 지났으면 N, 아니면 null.
      *   기준일 = 완료일(workCompletedAt) 우선, 없으면 시공 예약일(scheduledWorkDate). 둘 다 없으면 null(날짜 모름).
      *   N>=1 일 때만 값(=하루라도 지남) → "1일 경과한 미수만 상담함에" (사장님 결정 2026-06-23).
