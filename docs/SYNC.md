@@ -8549,3 +8549,9 @@ Play 정식(production) 배포 (사장님 "PLAY에도 올리자 ㄱㄱㄱ").
 - 변경: 앱 전용(server 무관). 돈 정확성(완납 되돌리기 대칭·수정창/가격표 만원절삭 제거·예약취소 일당 날짜한정·계약금 가드)·성능(광고 Regex top-level·60s폴링/30s헬스 포그라운드 게이팅)·데이터안전(접수서 주소/시공일 무음덮어쓰기 가드·deadcode 제거·1회정리 플래그 성공시만·미러 빈스냅샷 스킵)·오프라인(MMS 발송실패 알림=거짓성공 제거)·접근성(공용버튼/세그/칩 heightIn·현금흐름 overflow·정산 미수 잘림·복원버튼 터치)·알림(잔금 위상함정 상한제거·postcall 야간무음·dedup키/mms마커 apply→commit·무음채널 LOW)
 - commit: d3076b3(백업)·718b495(돈)·7003961(성능)·04cd277(데이터안전)·a19b1a8(오프라인)·7725a8a(접근성)·0ebc654(알림)
 - 다음 액션(신중 후속, 폰검증 후): 💰rank1 재방문 매출 증발(4화면 매출계산+단위테스트)·돈 저장 Mutex·발송 IO·협업 사진 다운샘플(OOM)·딥링크 customerId·협업 댓글 onSuccess·callTimeout(per-client). server 쪽 대기=데이터안전 근본(서버 백업 동기화).
+
+## 2026-08-11 (2) · android
+돈 정확성 감사 rank1(재방문 매출 증발) + rank7(화면간 매출 발산) 수정 — 신중 후속 착수.
+- 변경: 앱 전용. SettlementCalc.receivedInRange 공용 순수함수(계약금/잔금 귀속 + 완납 계약금 미표시 보정) + 단위테스트 6종. 정산·리포트·마감브리핑·현금흐름 4곳이 jobs(재방문 이관 이력)도 합산. JobDao/JobRepository.observeAll 추가.
+- commit: 481a5ca. 폰 검증(S23U): 정산 렌더·크래시0 확인(테스트데이터엔 8월 재방문입금 없어 70만원 그대로=정상 additive).
+- 다음 액션: 남은 신중 후속 = 돈 저장 Mutex·발송 IO·협업 사진 다운샘플(OOM)·딥링크 customerId·협업 댓글 onSuccess·callTimeout. server 대기=서버 백업 동기화.
