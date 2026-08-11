@@ -8567,3 +8567,9 @@ Play 정식(production) 배포 (사장님 "PLAY에도 올리자 ㄱㄱㄱ").
 - 변경: 앱 전용. 수신 문자/MMS 알림 탭 딥링크가 번호만 실어 findByPhone 완전일치로 재조회하던 것 → 이미 찾은 customer.id 를 EXTRA_CUSTOMER_ID 로 실어 그 고객으로 정확히 열기. 저장번호 포맷 다를 때 '미등록' 오열림·중복 고객 생성 방지. 4곳(showIncomingSms/showGeneralSms + SmsReceiver/CallFollowCrmApplication MMS옵저버/MmsDownloadedReceiver).
 - commit: 989e86e.
 - 다음 액션: 남은 신중 후속 = 협업 댓글 onSuccess·callTimeout per-client·접근성 잔여. server 대기=서버 백업 동기화.
+
+## 2026-08-11 (7) · android
+오프라인 감사 — 모든 서버 호출에 callTimeout(전체 상한) 부여.
+- 변경: 앱 전용. 24개 HTTP 클라이언트에 callTimeout=connect+read(+write)+여유. 터널 순단 시 OkHttp 재시도/route 누적으로 스피너가 100초씩 돌던 것 차단. 값이 '한 번의 정상 응답'보다 항상 커서 긴 통화요약(210s)·가격추출(120s)·OCR(115s) 등 진짜 응답은 안 자름. 오프라인은 기존대로 connectTimeout 빠른 실패. 동작 불변.
+- commit: 42b9c0c.
+- 다음 액션: 남은 신중 후속 = 협업 댓글 onSuccess·접근성 잔여(저가치). server 대기=서버 백업 동기화.
