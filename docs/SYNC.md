@@ -8555,3 +8555,9 @@ Play 정식(production) 배포 (사장님 "PLAY에도 올리자 ㄱㄱㄱ").
 - 변경: 앱 전용. SettlementCalc.receivedInRange 공용 순수함수(계약금/잔금 귀속 + 완납 계약금 미표시 보정) + 단위테스트 6종. 정산·리포트·마감브리핑·현금흐름 4곳이 jobs(재방문 이관 이력)도 합산. JobDao/JobRepository.observeAll 추가.
 - commit: 481a5ca. 폰 검증(S23U): 정산 렌더·크래시0 확인(테스트데이터엔 8월 재방문입금 없어 70만원 그대로=정상 additive).
 - 다음 액션: 남은 신중 후속 = 돈 저장 Mutex·발송 IO·협업 사진 다운샘플(OOM)·딥링크 customerId·협업 댓글 onSuccess·callTimeout. server 대기=서버 백업 동기화.
+
+## 2026-08-11 (5) · android
+성능/오프라인 신중 후속 3건 + 돈 정확성 rank2(Mutex) 완료.
+- 변경: 앱 전용. ①협업/팀 서버사진 다운샘플(ImageDownsample.decodeDataUrl, inJustDecodeBounds→2배수 inSampleSize, 목표 512px) — SitePhotoServerRepository/SharedSiteRepository OOM 방지. ②문자 발송을 Dispatchers.IO 로(HomeScreen 3곳 sendDirect) — 발송 탭 시 화면 멈칫 제거. ③CustomerRepository/ManualCashRepository read-modify-write 를 Mutex 로 직렬화 — 백그라운드 동기화 vs 사용자 탭 동시 저장 시 lost update(계약금/완납 증발) 방지. 동작 불변.
+- commit: 741a7f3(사진), 4cdfdc4(발송IO), b5b7966(Mutex).
+- 다음 액션: 남은 신중 후속 = 딥링크 customerId(SmsReceiver→ACTION_CHAT)·협업 댓글 onSuccess·callTimeout per-client·접근성 잔여. server 대기=서버 백업 동기화(데이터안전 근본).
