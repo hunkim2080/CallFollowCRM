@@ -2240,6 +2240,7 @@ private fun InputDialog(
     var text by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = Color.White,   // 다른 다이얼로그와 달리 이것만 빠져 안드로이드 기본 회색으로 뜨던 것 정정. (2026-08-12)
         title = { Text(title, fontWeight = FontWeight.ExtraBold) },
         text = {
             Column {
