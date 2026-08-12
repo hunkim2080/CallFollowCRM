@@ -8597,3 +8597,11 @@ Play 정식(production) 배포 (사장님 "PLAY에도 올리자 ㄱㄱㄱ").
 - 변경: 앱 전용. '별세계' 노랑 컨셉 유지. ①흰 카드 20곳 tossCardShadow(그림자0→elevation) ②FontWeight.Black 38곳→ExtraBold(Pretendard 800 한계, faux-bold 정정) ③유니코드 화살표(◀▶›▾▴−+)→Material 아이콘(월이동·펼침·스텝퍼·chevron) ④날것 예외 토스트 6곳→사람 말투('(곧)'·HTTP 노출 제거). 컴파일 OK.
 - commit: 5409e4e. 폰(S23U) 설치.
 - 다음(사장님 결정 대기): 🅱️ OutlinedTextField 18곳→SheetTextField·색 토큰화+방장배지 컴포넌트·9.5sp/28dp 크기. 🅲️ 빈화면·모서리·divider·폼 영업멘트.
+
+## 2026-08-12 (5) · android → cowork
+🖥️ 박람회 계약서 노트북 흐름 핸드오프 — docs/SERVER_HANDOFF_expo_contract_laptop.md
+- 요청(사장님): 어르신 고객 폰 작은글씨 → 사장님 노트북 웹에서 항목·금액 전부 체크 → 고객 번호로 계약서 전송 → 고객이 폰/태블릿으로 정보입력·서명. 스타일=현대 계약서(카톡 아님). 실시간 코뷰 제거·지금 QR 방식은 유지.
+- 재사용: 줄눈 템플릿·session·live/agent·finalize·/expo/c·/expo/r·_send_sms_solapi 전부 기존. 새건=/expo/write(노트북 체크 웹)+전송+/expo/c 재스킨(반응형·큰글씨).
+- ⚠️ **열린 결정(사장님)**: 문자 전송 방식 — 서버 정책이 '자동 SMS 금지·발송은 앱 ▶'. (A)노트북에 QR 표시→고객 스캔[추천·무료·무충돌] / (B)서버 SOLAPI 자동발송[정책예외+과금] / (C)폰앱 ▶ 브릿지. 목업은 B처럼 그렸으나 A 추천.
+- 목업(사장님 리뷰): artifact f97a5914. 방향 잡힘, 세부 미확정 → cowork는 검토·견적 먼저.
+- 다음 액션(cowork): 위 A/B/C 사장님 확정 대기 + /expo/write·/expo/c 재스킨 견적.
