@@ -8573,3 +8573,9 @@ Play 정식(production) 배포 (사장님 "PLAY에도 올리자 ㄱㄱㄱ").
 - 변경: 앱 전용. 24개 HTTP 클라이언트에 callTimeout=connect+read(+write)+여유. 터널 순단 시 OkHttp 재시도/route 누적으로 스피너가 100초씩 돌던 것 차단. 값이 '한 번의 정상 응답'보다 항상 커서 긴 통화요약(210s)·가격추출(120s)·OCR(115s) 등 진짜 응답은 안 자름. 오프라인은 기존대로 connectTimeout 빠른 실패. 동작 불변.
 - commit: 42b9c0c.
 - 다음 액션: 남은 신중 후속 = 협업 댓글 onSuccess·접근성 잔여(저가치). server 대기=서버 백업 동기화.
+
+## 2026-08-12 · android
+오프라인 감사 — 협업 '현장 한마디' 댓글 실패 시 쓴 글 유지.
+- 변경: 앱 전용. CollabCommentSection.onSend 계약을 (String, onResult:(Boolean)->Unit) 로 변경 → 전송 성공일 때만 입력칸 비움. 오프라인 실패 시 낙관적으로 미리 지워 글 유실되던 것 방지. 배선 4곳(CollabCommentSection·SharedSiteViewModel.postComment·SharedSiteScreen 2곳·CustomerDetailScreen 협업탭).
+- commit: e26cd11.
+- 다음 액션: 남은 저가치 = 접근성 잔여(삭제간격·48dp·TalkBack). server 대기=서버 백업 동기화.
