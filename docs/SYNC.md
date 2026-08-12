@@ -8585,3 +8585,9 @@ Play 정식(production) 배포 (사장님 "PLAY에도 올리자 ㄱㄱㄱ").
 - 변경: 앱 전용. ①TossTextInfo(#6B7280) 토큰 도입 → 정보성만 상향(MascotEmptyState 빈화면 전체 + StatsScreen 라벨/데이터 7). ②SheetFieldLabel t3→t2(placeholder 유지). ③홈 노랑배지 주황글씨 #8A5300. ④TossChip 선택/TossBadge 기본 → TossBlueDark. ⑤현금흐름 예정금액=유지(프로토100%). 색·크기=프로토 스펙이라 전부 사장님 결정분.
 - commit: 87695eb.
 - 다음: 정보성 확장(방문/리포트 라벨·카드 주소/시공일)은 사장님이 이 화면 보고 반응 뒤. server 대기=서버 백업 동기화.
+
+## 2026-08-12 (3) · android
+접근성 정보성 상향 확장 — 리포트·방문·일정·고객·홈 라벨.
+- 변경: 앱 전용. TossTextInfo(#6B7280) 를 승인 범위대로 확장: ReportScreen 7·VisitedScreen 2(요약·주소)·ScheduleScreen 2(시공시간·빈화면)·CustomersScreen 2(count·빈화면)·HomeScreen 1(오늘시공 라벨). 안내캡션·아이콘tint·필터라벨·달력셀색은 t3 유지. 카드 주소는 이미 secondary라 변경 불필요.
+- commit: 942304d. 폰(S23U) 설치·확인.
+- 다음: 정보성은 여기까지(승인범위 완료). server 대기=서버 백업 동기화.
