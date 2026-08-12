@@ -2240,7 +2240,10 @@ private fun InputDialog(
     var text by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,   // 다른 다이얼로그와 달리 이것만 빠져 안드로이드 기본 회색으로 뜨던 것 정정. (2026-08-12)
+        // M3 AlertDialog 는 containerColor 흰색이어도 tonalElevation(기본 6dp)이 회색 톤을 덧씌운다
+        //   → 둘 다 꺼야 진짜 흰색(날짜선택창 회색 버그와 동일한 M3 함정). (2026-08-12)
+        containerColor = Color.White,
+        tonalElevation = 0.dp,
         title = { Text(title, fontWeight = FontWeight.ExtraBold) },
         text = {
             Column {
