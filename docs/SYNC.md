@@ -8579,3 +8579,9 @@ Play 정식(production) 배포 (사장님 "PLAY에도 올리자 ㄱㄱㄱ").
 - 변경: 앱 전용. CollabCommentSection.onSend 계약을 (String, onResult:(Boolean)->Unit) 로 변경 → 전송 성공일 때만 입력칸 비움. 오프라인 실패 시 낙관적으로 미리 지워 글 유실되던 것 방지. 배선 4곳(CollabCommentSection·SharedSiteViewModel.postComment·SharedSiteScreen 2곳·CustomerDetailScreen 협업탭).
 - commit: e26cd11.
 - 다음 액션: 남은 저가치 = 접근성 잔여(삭제간격·48dp·TalkBack). server 대기=서버 백업 동기화.
+
+## 2026-08-12 (2) · android
+접근성 감사 — 어르신 가독 4건 반영(사장님 결정, 결정시트 artifact f68183ce '추천대로' 승인).
+- 변경: 앱 전용. ①TossTextInfo(#6B7280) 토큰 도입 → 정보성만 상향(MascotEmptyState 빈화면 전체 + StatsScreen 라벨/데이터 7). ②SheetFieldLabel t3→t2(placeholder 유지). ③홈 노랑배지 주황글씨 #8A5300. ④TossChip 선택/TossBadge 기본 → TossBlueDark. ⑤현금흐름 예정금액=유지(프로토100%). 색·크기=프로토 스펙이라 전부 사장님 결정분.
+- commit: 87695eb.
+- 다음: 정보성 확장(방문/리포트 라벨·카드 주소/시공일)은 사장님이 이 화면 보고 반응 뒤. server 대기=서버 백업 동기화.
