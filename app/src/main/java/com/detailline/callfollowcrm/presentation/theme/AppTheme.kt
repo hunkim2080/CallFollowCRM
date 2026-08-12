@@ -30,6 +30,9 @@ val TossSurface = Color.White
 val TossTextPrimary = Color(0xFF0B0F19)
 val TossTextSecondary = Color(0xFF5A6472)
 val TossTextTertiary = Color(0xFF9AA3AF)   // 프로토 원본값(--t3). 2026-07-30 어르신용 #7A8494 로 올렸다가 사장님 지시로 프로토 복원.
+// 어르신 접근성 — '꼭 읽혀야 하는 정보성' 글씨(빈 화면 안내·통계 라벨 등)만 t3 보다 진하게. 흰 배경 대비 ~4.6:1.
+//   순수 장식/보조는 t3(#9AA3AF) 그대로 둬 위계 유지(전부 진하게 하면 촌스러워 되돌린 이력 있음). (2026-08-12 접근성 감사 사장님 결정)
+val TossTextInfo = Color(0xFF6B7280)
 val TossDivider = Color(0xFFEEF0F3)
 val TossSegTrack = Color(0xFFE7EAEF)   // 세그먼트 스위치 트랙(회색). 활성 알약=흰색+그림자. (2026-08-02)
 val TossError = Color(0xFFF0436A)

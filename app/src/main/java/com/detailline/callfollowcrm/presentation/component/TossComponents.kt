@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.presentation.theme.Pretendard
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
+import com.detailline.callfollowcrm.presentation.theme.TossBlueDark
 import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
 import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
@@ -225,7 +226,7 @@ fun TossChip(
     modifier: Modifier = Modifier
 ) {
     val bg = if (selected) TossBlueSoft else Color.White
-    val fg = if (selected) TossBlue else TossTextSecondary
+    val fg = if (selected) TossBlueDark else TossTextSecondary  // 선택 칩: 연파랑 위 파랑 대비 부족 → 진파랑(프로토 --blue-dark). (2026-08-12 접근성 감사)
     val border = if (selected) TossBlue else TossDivider
     Surface(
         modifier = modifier
@@ -253,7 +254,7 @@ fun TossChip(
 @Composable
 fun TossBadge(
     text: String,
-    color: Color = TossBlue,
+    color: Color = TossBlueDark,   // 연파랑 배경 위 기본 파랑글씨 대비 부족 → 진파랑(프로토 --blue-dark). (2026-08-12 접근성 감사)
     background: Color = TossBlueSoft,
     modifier: Modifier = Modifier
 ) {
@@ -287,7 +288,8 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
 @Composable
 fun SheetFieldLabel(text: String) {
     Text(
-        text, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+        // 폼 라벨은 t3→t2(더 진하게) — 어르신 가독. placeholder(빈칸 안내)는 흐린 채로 유지. (2026-08-12 접근성 감사)
+        text, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary,
         modifier = Modifier.padding(start = 2.dp, top = 4.dp, bottom = 7.dp)
     )
 }

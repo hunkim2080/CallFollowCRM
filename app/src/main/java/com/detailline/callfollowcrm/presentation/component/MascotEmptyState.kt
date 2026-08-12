@@ -23,7 +23,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Text
 import com.detailline.callfollowcrm.presentation.theme.TossBlueDark
 import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
-import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
+import com.detailline.callfollowcrm.presentation.theme.TossTextInfo
 
 /**
  * 빈 화면 공용 — 막내 캐릭터 + 파란 말풍선(제목) + 회색 부제. (2026-08-02 사장님 "빈 화면 다정하게")
@@ -65,7 +65,7 @@ fun MascotEmptyState(
             Spacer(Modifier.height(12.dp))
             Text(
                 sub,
-                fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = TossTextTertiary,
+                fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = TossTextInfo,  // 빈 화면 안내는 정보성 → t3보다 진하게. (2026-08-12 접근성)
                 textAlign = TextAlign.Center
             )
         }

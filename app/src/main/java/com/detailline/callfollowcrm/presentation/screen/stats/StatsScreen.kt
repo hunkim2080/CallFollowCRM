@@ -50,6 +50,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossSuccess
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
+import com.detailline.callfollowcrm.presentation.theme.TossTextInfo
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 
 /**
@@ -75,7 +76,7 @@ fun StatsScreen(viewModel: StatsViewModel, onOpenVisited: () -> Unit = {}) {
                     // 부제로 헤더에 무게 → 무거운 파란 카드에 제목이 안 눌림. (2026-08-02 사장님 A안 승인)
                     Column {
                         Text("통계", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = TossTextPrimary, letterSpacing = (-0.6).sp)
-                        Text("최근 성과", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary, letterSpacing = (-0.1).sp)
+                        Text("최근 성과", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextInfo, letterSpacing = (-0.1).sp)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = TossGrayBg)
@@ -92,7 +93,7 @@ fun StatsScreen(viewModel: StatsViewModel, onOpenVisited: () -> Unit = {}) {
             item(key = "sec-sub") {
                 Text(
                     "문의 추이 · 전기간 비교",
-                    fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+                    fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextInfo,
                     modifier = Modifier.padding(start = 2.dp, top = 26.dp, bottom = 11.dp)
                 )
             }
@@ -245,7 +246,7 @@ private fun TrendSection(t: StatsTrendState, onSelect: (StatPeriod) -> Unit) {
             }
             Text(
                 "${t.prevLabel} ${t.prevTotal}건 → ${t.unitLabel} ${t.curTotal}건",
-                fontSize = 13.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 4.dp)
+                fontSize = 13.sp, color = TossTextInfo, modifier = Modifier.padding(top = 4.dp)
             )
             // gbars — 프로토 .gbars(height)+.pair(flex:1): 막대 영역이 위 숫자·아래 요일 빼고 남는 높이에 비례.
             val max = (t.bars.maxOfOrNull { maxOf(it.cur, it.prev) } ?: 1).coerceAtLeast(1)
@@ -272,7 +273,7 @@ private fun TrendSection(t: StatsTrendState, onSelect: (StatPeriod) -> Unit) {
                             GBar(b.cur, max, brush = Brush.verticalGradient(listOf(Color(0xFF5BA0FF), TossBlue)))
                         }
                         Spacer(Modifier.height(6.dp))
-                        Text(b.label, fontSize = 11.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium, maxLines = 1)
+                        Text(b.label, fontSize = 11.sp, color = TossTextInfo, fontWeight = FontWeight.Medium, maxLines = 1)
                     }
                 }
             }
@@ -290,7 +291,7 @@ private fun TrendSection(t: StatsTrendState, onSelect: (StatPeriod) -> Unit) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(top = 12.dp).tossCardShadow(RoundedCornerShape(18.dp)).clip(RoundedCornerShape(18.dp)).background(Color.White).padding(16.dp)
         ) {
-            Text("📊 시장 비교", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary, modifier = Modifier.padding(bottom = 11.dp))
+            Text("📊 시장 비교", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextInfo, modifier = Modifier.padding(bottom = 11.dp))
             MkRow("내 문의", "${if (t.deltaPct >= 0) "+" else ""}${t.deltaPct}%", if (t.deltaPct >= 0) TossSuccess else TossError)
             MkRow("시공막내 전국 평균", "모이는 중", TossTextTertiary)
             Box(
@@ -323,7 +324,7 @@ private fun LegendItem(color: Color, label: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(9.dp).clip(RoundedCornerShape(3.dp)).background(color))
         Spacer(Modifier.width(5.dp))
-        Text(label, fontSize = 11.sp, color = TossTextTertiary)
+        Text(label, fontSize = 11.sp, color = TossTextInfo)
     }
 }
 
@@ -348,7 +349,7 @@ private fun StatTypes(s: StatsUiState) {
         // early return@Column 은 빈→로드 전환 시 슬롯테이블 그룹 어긋나 AIOOBE 크래시(홈서 고친 패턴). if/else 로 감쌈. (2026-07-30 버그감사)
         if (s.types.isEmpty()) {
             Box(Modifier.fillMaxWidth().padding(vertical = 14.dp), contentAlignment = Alignment.Center) {
-                Text("이번 달 시공 기록이 아직 없어요", fontSize = 13.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
+                Text("이번 달 시공 기록이 아직 없어요", fontSize = 13.sp, color = TossTextInfo, fontWeight = FontWeight.Medium)
             }
         } else {
         // wt-hero

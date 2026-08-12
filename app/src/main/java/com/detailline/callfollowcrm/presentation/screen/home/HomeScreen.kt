@@ -753,7 +753,7 @@ fun HomeScreen(
                                 accent = Color(0xFF7C5CFC), accentTint = Color(0xFFF1ECFF),
                                 icon = Icons.Filled.Description,
                                 title = "견적 회신 챙기기",
-                                tagText = "미회신", tagBg = Color(0xFFFEF3E0), tagFg = Color(0xFFB8780A),
+                                tagText = "미회신", tagBg = Color(0xFFFEF3E0), tagFg = Color(0xFF8A5300),  // 노랑 위 주황 대비부족 → 진갈색. (2026-08-12 접근성)
                                 sub = "${estimateFollowupCount}곳 · 답 없는 견적",
                                 goLabel = "보기",
                                 onClick = onOpenEstimateFollowup
@@ -908,7 +908,7 @@ fun HomeScreen(
                                 accent = Color(0xFFF6A609), accentTint = Color(0xFFFFF3DF),
                                 icon = Icons.Filled.DateRange,
                                 title = "오늘 보낼 정기 문자 ${recurringDueCount}건",
-                                tagText = "확인 후 발송", tagBg = Color(0xFFFFF3DF), tagFg = Color(0xFFC9820B),
+                                tagText = "확인 후 발송", tagBg = Color(0xFFFFF3DF), tagFg = Color(0xFF8A5300),  // 노랑 위 주황 대비부족 → 진갈색. (2026-08-12 접근성)
                                 sub = "확인하고 한 명씩 보내기",
                                 goLabel = "보기",
                                 onClick = onOpenRecurringDue
