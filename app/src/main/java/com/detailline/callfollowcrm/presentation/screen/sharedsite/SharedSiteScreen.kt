@@ -382,7 +382,7 @@ fun SharedSiteScreen(
                     comments = comments,
                     commentBusy = commentBusy,
                     myPhone = viewModel.myPhoneDigits,
-                    onSendComment = { viewModel.postComment(selected.shareId, it) },
+                    onSendComment = { body, onResult -> viewModel.postComment(selected.shareId, body, onResult) },
                     onPickPhoto = {
                         pendingUploadShareId = selected.shareId
                         showPhotoPicker = true
@@ -438,7 +438,7 @@ fun SharedSiteScreen(
                     onPickPhoto = { pendingUploadShareId = mine.shareId; showPhotoPicker = true },
                     onViewPhoto = { fullscreenPhoto = it },
                     onDeletePhoto = { confirmDeletePhoto = mine.shareId to it },
-                    onSendComment = { viewModel.postComment(mine.shareId, it) },
+                    onSendComment = { body, onResult -> viewModel.postComment(mine.shareId, body, onResult) },
                     onCancel = { confirmCancelMine = mine }
                 )
             }
@@ -1095,7 +1095,7 @@ private fun DetailBody(
     comments: List<SharedSiteRepository.SiteComment>,
     commentBusy: Boolean,
     myPhone: String,
-    onSendComment: (String) -> Unit,
+    onSendComment: (String, onResult: (Boolean) -> Unit) -> Unit,
     onPickPhoto: () -> Unit,
     onViewPhoto: (android.graphics.Bitmap) -> Unit,
     onDeletePhoto: (SharedSiteRepository.SharedPhoto) -> Unit,
@@ -1374,7 +1374,7 @@ private fun OwnerSharedDetail(
     onPickPhoto: () -> Unit,
     onViewPhoto: (android.graphics.Bitmap) -> Unit,
     onDeletePhoto: (SharedSiteRepository.SharedPhoto) -> Unit,
-    onSendComment: (String) -> Unit,
+    onSendComment: (String, onResult: (Boolean) -> Unit) -> Unit,
     onCancel: () -> Unit
 ) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {

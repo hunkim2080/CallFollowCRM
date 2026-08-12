@@ -245,15 +245,16 @@ class SharedSiteViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     /** 한 줄 댓글 작성 → 목록 새로고침. 빈 글/미등록 번호면 무시. */
-    fun postComment(shareId: String, body: String) {
+    fun postComment(shareId: String, body: String, onResult: (Boolean) -> Unit = {}) {
         val text = body.trim()
-        if (shareId.isBlank() || noBizPhone || text.isBlank()) return
+        if (shareId.isBlank() || noBizPhone || text.isBlank()) { onResult(false); return }
         _commentBusy.value = true
         viewModelScope.launch {
-            repo.postComment(shareId, myPhone, myBizName(), text)
-                .onSuccess { _comments.value = repo.comments(shareId, myPhone).getOrDefault(_comments.value) }
+            val r = repo.postComment(shareId, myPhone, myBizName(), text)
+            r.onSuccess { _comments.value = repo.comments(shareId, myPhone).getOrDefault(_comments.value) }
                 .onFailure { _toast.value = "댓글을 못 보냈어요 — 잠시 후 다시" }
             _commentBusy.value = false
+            onResult(r.isSuccess)   // 성공했을 때만 입력칸이 비워지도록 결과 전달. (2026-08-12 오프라인 감사)
         }
     }
 

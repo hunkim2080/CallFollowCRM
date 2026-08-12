@@ -3326,22 +3326,23 @@ private fun CollabAfterCard(
             comments = comments,
             myPhone = container.preferences.bizPhone.filter { it.isDigit() },
             busy = commentBusy,
-            onSend = { body ->
+            onSend = { body, onResult ->
                 val sid = resolvedSid
                 val ownerP = container.preferences.bizPhone.filter { it.isDigit() }
                 if (sid.isNotBlank() && ownerP.length >= 9) {
                     val myName = container.preferences.bizName.takeIf { it.isNotBlank() } ?: container.preferences.bizOwner
                     commentBusy = true
                     commentScope.launch {
-                        container.sharedSiteRepository.postComment(sid, ownerP, myName, body)
-                            .onSuccess { container.sharedSiteRepository.comments(sid, ownerP).onSuccess { comments = it } }
+                        val r = container.sharedSiteRepository.postComment(sid, ownerP, myName, body)
+                        r.onSuccess { container.sharedSiteRepository.comments(sid, ownerP).onSuccess { comments = it } }
                             .onFailure {
                                 // 실패해도 조용히 넘어가 쓴 글이 사라지던 것 → 안내. (2026-07-30)
                                 android.widget.Toast.makeText(context, "한마디가 안 올라갔어요 — 잠시 후 다시 시도해주세요", android.widget.Toast.LENGTH_SHORT).show()
                             }
                         commentBusy = false
+                        onResult(r.isSuccess)   // 성공했을 때만 입력칸 비우기. (2026-08-12 오프라인 감사)
                     }
-                }
+                } else onResult(false)   // 못 보냈으면 쓴 글 유지
             }
         )
 

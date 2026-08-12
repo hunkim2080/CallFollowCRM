@@ -45,7 +45,9 @@ fun CollabCommentSection(
     comments: List<SharedSiteRepository.SiteComment>,
     myPhone: String,
     busy: Boolean,
-    onSend: (String) -> Unit,
+    // 전송 완료 콜백(성공=true)을 넘겨받아, '성공했을 때만' 입력칸을 비운다. 실패(오프라인 등)면 쓴 글을 남겨
+    //   그대로 다시 보낼 수 있게 함 — 낙관적으로 미리 지워 글이 유실되던 것 방지. (2026-08-12 오프라인 감사)
+    onSend: (String, onResult: (Boolean) -> Unit) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var input by remember { mutableStateOf("") }
@@ -92,7 +94,7 @@ fun CollabCommentSection(
                 Box(
                     Modifier.clip(RoundedCornerShape(11.dp))
                         .background(if (canSend) CommentPurple else Color(0xFFCBD1DA))
-                        .clickable(enabled = canSend) { onSend(input.trim()); input = "" }
+                        .clickable(enabled = canSend) { onSend(input.trim()) { ok -> if (ok) input = "" } }
                         .padding(horizontal = 16.dp, vertical = 14.dp),
                     contentAlignment = Alignment.Center
                 ) { Text("보내기", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
