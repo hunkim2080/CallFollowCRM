@@ -36,6 +36,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -78,6 +83,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.ai.ExpoRepository
 import com.detailline.callfollowcrm.data.AppContainer
+import com.detailline.callfollowcrm.presentation.component.tossCardShadow
 import com.detailline.callfollowcrm.util.QrGen
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -230,7 +236,7 @@ private fun ExpoTopBar(title: String, sub: String?, isRoot: Boolean, onNav: () -
                 Spacer(Modifier.width(2.dp))
             }
             Column(Modifier.weight(1f).padding(start = if (isRoot) 4.dp else 0.dp)) {
-                Text(title, fontSize = 20.sp, fontWeight = FontWeight.Black, color = KkInk,
+                Text(title, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = KkInk,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (sub != null) Text(sub, fontSize = 11.5.sp, color = Color(0xFF6B5A00), fontWeight = FontWeight.SemiBold)
             }
@@ -269,7 +275,7 @@ private fun ColumnScope.RoomListView(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(4) {
-                    Row(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(13.dp),
+                    Row(Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(16.dp)).background(Panel, RoundedCornerShape(16.dp)).padding(13.dp),
                         verticalAlignment = Alignment.CenterVertically) {
                         Skel(Modifier.size(46.dp), 16)
                         Spacer(Modifier.width(12.dp))
@@ -314,7 +320,7 @@ private fun ColumnScope.RoomListView(
             Modifier.weight(1f).background(Color.White, RoundedCornerShape(15.dp))
                 .clickable { showJoin = true }.padding(vertical = 15.dp),
             contentAlignment = Alignment.Center
-        ) { Text("초대코드로 합류", fontSize = 15.sp, fontWeight = FontWeight.Black, color = T1) }
+        ) { Text("초대코드로 합류", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = T1) }
         Row(
             Modifier.weight(1f).background(Kk, RoundedCornerShape(15.dp))
                 .clickable { showCreate = true }.padding(vertical = 15.dp),
@@ -322,7 +328,7 @@ private fun ColumnScope.RoomListView(
         ) {
             Icon(Icons.Filled.Add, null, tint = KkInk, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(4.dp))
-            Text("방 만들기", fontSize = 15.sp, fontWeight = FontWeight.Black, color = KkInk)
+            Text("방 만들기", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = KkInk)
         }
     }
 
@@ -361,11 +367,11 @@ private fun Skel(modifier: Modifier, corner: Int = 10) {
 @Composable
 private fun RoomRow(r: ExpoRepository.Room, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(13.dp),
+        Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(16.dp)).background(Panel, RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(Modifier.size(46.dp).background(AccentBlue, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
-            Text(r.name.take(1), fontSize = 18.sp, fontWeight = FontWeight.Black, color = Color.White)
+            Text(r.name.take(1), fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
@@ -425,12 +431,12 @@ private fun ColumnScope.RoomDetailView(
         } else {
             // ── ① 방 정보: 초대코드(방장) + 팀원(접기) ──
             item {
-                Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(18.dp)).padding(16.dp)) {
+                Column(Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(18.dp)).background(Panel, RoundedCornerShape(18.dp)).padding(16.dp)) {
                     if (d.myRole == "owner" && code != null) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text("팀원 초대코드", fontSize = 11.5.sp, color = T3, fontWeight = FontWeight.Bold)
-                                Text(code!!, fontSize = 26.sp, fontWeight = FontWeight.Black, color = T1, letterSpacing = 4.sp)
+                                Text(code!!, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = T1, letterSpacing = 4.sp)
                             }
                             Box(
                                 Modifier.background(Kk, RoundedCornerShape(10.dp)).clickable {
@@ -441,7 +447,7 @@ private fun ColumnScope.RoomDetailView(
                                     }
                                     ctx.startActivity(Intent.createChooser(share, "초대코드 공유").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                                 }.padding(horizontal = 14.dp, vertical = 8.dp)
-                            ) { Text("공유", fontSize = 13.sp, fontWeight = FontWeight.Black, color = KkInk) }
+                            ) { Text("공유", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = KkInk) }
                         }
                         Spacer(Modifier.height(12.dp))
                         Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFF0F1F3)))
@@ -450,7 +456,10 @@ private fun ColumnScope.RoomDetailView(
                     Row(Modifier.fillMaxWidth().clickable { memOpen = !memOpen }, verticalAlignment = Alignment.CenterVertically) {
                         Text("팀원 ${d.members.size}명", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = T1)
                         Spacer(Modifier.weight(1f))
-                        Text(if (memOpen) "접기 ▴" else "보기 ▾", fontSize = 12.sp, color = T3)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(if (memOpen) "접기" else "보기", fontSize = 12.sp, color = T3)
+                            Icon(if (memOpen) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, null, tint = T3, modifier = Modifier.size(16.dp))
+                        }
                     }
                     if (memOpen) {
                         Spacer(Modifier.height(4.dp))
@@ -459,7 +468,7 @@ private fun ColumnScope.RoomDetailView(
                                 Text(m.name.ifBlank { "이름없음" }, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
                                 if (m.role == "owner") {
                                     Spacer(Modifier.width(6.dp))
-                                    Text("방장", fontSize = 9.sp, fontWeight = FontWeight.Black, color = Color(0xFFB58A00),
+                                    Text("방장", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB58A00),
                                         modifier = Modifier.background(Color(0xFFFFF6D6), RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
                                 }
                                 Spacer(Modifier.weight(1f))
@@ -475,7 +484,7 @@ private fun ColumnScope.RoomDetailView(
                 val hasCatalog = d.catalog.isNotEmpty()
                 val isTplRoom = d.info?.templateId?.isNotBlank() == true   // 줄눈 등 템플릿 방 = 카탈로그 없이도 계약 가능
                 val canOpen = hasCatalog || isTplRoom
-                Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(18.dp)).padding(16.dp)) {
+                Column(Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(18.dp)).background(Panel, RoundedCornerShape(18.dp)).padding(16.dp)) {
                     Text("고객 계약서 받기", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = T1)
                     Spacer(Modifier.height(4.dp))
                     Text(
@@ -493,7 +502,7 @@ private fun ColumnScope.RoomDetailView(
                         scope.launch {
                             repo.createSession(n.roomId, myPhone)
                                 .onSuccess { opening = false; onQr(it) }
-                                .onFailure { opening = false; toast("계약서 열기 실패: ${it.message?.take(60)}") }
+                                .onFailure { opening = false; toast("계약서를 열지 못했어요 · 잠시 후 다시 시도해 주세요") }
                         }
                     }
                 }
@@ -540,7 +549,7 @@ private fun GroupRow(title: String, desc: String, onClick: () -> Unit) {
             Text(title, fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = T1)
             Text(desc, fontSize = 11.5.sp, color = T3)
         }
-        Text("›", fontSize = 20.sp, color = T3, fontWeight = FontWeight.Bold)
+        Icon(Icons.Default.KeyboardArrowRight, null, tint = T3, modifier = Modifier.size(22.dp))
     }
 }
 
@@ -582,7 +591,7 @@ private fun ColumnScope.ProductsEditorView(
             }
             items(rows.size) { i ->
                 val row = rows[i]
-                Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(14.dp)).padding(12.dp)) {
+                Column(Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(14.dp)).background(Panel, RoundedCornerShape(14.dp)).padding(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         KindChip("상품", row.kind == "product") { rows[i] = row.copy(kind = "product") }
                         Spacer(Modifier.width(6.dp))
@@ -637,7 +646,7 @@ private fun ColumnScope.ProductsEditorView(
                 scope.launch {
                     repo.setProducts(n.roomId, myPhone, drafts)
                         .onSuccess { saving = false; toast("저장했어요 (${it.size}개)"); onDone() }
-                        .onFailure { saving = false; toast("저장 실패: ${it.message?.take(60)}") }
+                        .onFailure { saving = false; toast("저장하지 못했어요 · 다시 시도해 주세요") }
                 }
             }
         }
@@ -740,7 +749,7 @@ private fun ColumnScope.QrView(repo: ExpoRepository, n: Nav.Qr, myPhone: String,
             Spacer(Modifier.height(36.dp))
             Text("🎉", fontSize = 52.sp)
             Spacer(Modifier.height(12.dp))
-            Text("계약이 정상적으로 체결되었어요!", fontSize = 19.sp, fontWeight = FontWeight.Black, color = T1, textAlign = TextAlign.Center)
+            Text("계약이 정상적으로 체결되었어요!", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = T1, textAlign = TextAlign.Center)
             Spacer(Modifier.height(6.dp))
             Text("${won(done.finalAmount)} · 계약서가 보관됐어요", fontSize = 13.sp, color = T2)
             Spacer(Modifier.height(24.dp))
@@ -756,7 +765,7 @@ private fun ColumnScope.QrView(repo: ExpoRepository, n: Nav.Qr, myPhone: String,
         ) {
             // QR + 고객 연결 상태
             item {
-                Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(18.dp)).padding(16.dp),
+                Column(Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(18.dp)).background(Panel, RoundedCornerShape(18.dp)).padding(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("고객이 이 QR을 찍으면 같은 화면을 봐요", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
                     Spacer(Modifier.height(10.dp))
@@ -797,7 +806,7 @@ private fun ColumnScope.QrView(repo: ExpoRepository, n: Nav.Qr, myPhone: String,
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(22.dp).background(if (sel) Kk else Field, RoundedCornerShape(6.dp)),
                             contentAlignment = Alignment.Center) {
-                            if (sel) Text("✓", fontSize = 13.sp, fontWeight = FontWeight.Black, color = KkInk)
+                            if (sel) Text("✓", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = KkInk)
                         }
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
@@ -812,7 +821,7 @@ private fun ColumnScope.QrView(repo: ExpoRepository, n: Nav.Qr, myPhone: String,
             }
             // 할인 · 계약금 · 최종금액
             item {
-                Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
+                Column(Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(16.dp)).background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
                     MoneyField("총액 할인", discountText) { discountText = it }
                     Spacer(Modifier.height(12.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -832,7 +841,7 @@ private fun ColumnScope.QrView(repo: ExpoRepository, n: Nav.Qr, myPhone: String,
                     Spacer(Modifier.height(14.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("최종 금액", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = T1, modifier = Modifier.weight(1f))
-                        Text(won(shownFinal), fontSize = 20.sp, fontWeight = FontWeight.Black, color = AccentBlue)
+                        Text(won(shownFinal), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = AccentBlue)
                     }
                 }
             }
@@ -881,7 +890,7 @@ private fun ColumnScope.QrView(repo: ExpoRepository, n: Nav.Qr, myPhone: String,
                     }
                 }
                 item {
-                    Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
+                    Column(Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(16.dp)).background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
                         t.priceGroups.forEach { g ->
                             Text(g.title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
                             Spacer(Modifier.height(6.dp))
@@ -904,7 +913,7 @@ private fun ColumnScope.QrView(repo: ExpoRepository, n: Nav.Qr, myPhone: String,
                         val tplGrand = t.priceGroups.sumOf { g -> priceSel["${g.key}::${g.fields.firstOrNull() ?: "total"}"]?.digitsToLong() ?: 0L }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("총 금액", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = T1, modifier = Modifier.weight(1f))
-                            Text(won(tplGrand), fontSize = 20.sp, fontWeight = FontWeight.Black, color = AccentBlue)
+                            Text(won(tplGrand), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = AccentBlue)
                         }
                     }
                 }
@@ -944,16 +953,16 @@ private fun priceFieldLabel(f: String): String = when (f) {
 @Composable
 private fun Stepper(q: Int, onMinus: () -> Unit, onPlus: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        StepBtn("−", onMinus)
+        StepBtn(Icons.Default.Remove, onMinus)
         Text("$q", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = T1, modifier = Modifier.padding(horizontal = 12.dp))
-        StepBtn("+", onPlus)
+        StepBtn(Icons.Default.Add, onPlus)
     }
 }
 
 @Composable
-private fun StepBtn(s: String, onClick: () -> Unit) {
+private fun StepBtn(icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
     Box(Modifier.size(28.dp).background(Field, RoundedCornerShape(8.dp)).clickable(onClick = onClick),
-        contentAlignment = Alignment.Center) { Text(s, fontSize = 16.sp, fontWeight = FontWeight.Black, color = T1) }
+        contentAlignment = Alignment.Center) { Icon(icon, null, tint = T1, modifier = Modifier.size(18.dp)) }
 }
 
 @Composable
@@ -1028,13 +1037,13 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
         Column(Modifier.weight(1f).fillMaxWidth()) {
             // 요약 카드 + 나눠 배정 (프로토 ①)
             Column(Modifier.fillMaxWidth().padding(14.dp)) {
-                Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp),
+                Column(Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(16.dp)).background(Panel, RoundedCornerShape(16.dp)).padding(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("이번 박람회 접수", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = T3)
                     Spacer(Modifier.height(4.dp))
                     Row(verticalAlignment = Alignment.Bottom) {
-                        Text("총 ${d.count}건 · ", fontSize = 21.sp, fontWeight = FontWeight.Black, color = T1)
-                        Text(won(d.totalAmount), fontSize = 21.sp, fontWeight = FontWeight.Black, color = AccentBlue)
+                        Text("총 ${d.count}건 · ", fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, color = T1)
+                        Text(won(d.totalAmount), fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, color = AccentBlue)
                     }
                     Spacer(Modifier.height(6.dp))
                     Row {
@@ -1054,7 +1063,7 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                             contentAlignment = Alignment.Center
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("미배정 ${unassigned.size}건, 시공자에게 나눠 배정", fontSize = 14.sp, fontWeight = FontWeight.Black, color = Color.White)
+                                Text("미배정 ${unassigned.size}건, 시공자에게 나눠 배정", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
                                 Text("랜덤 · 금액 비슷하게 자동 분배", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Color(0xCCFFFFFF))
                             }
                         }
@@ -1097,7 +1106,7 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                     val open = expanded == s.contractId
                     val site = listOf(s.apartment, s.dongHo).filter { it.isNotBlank() }.joinToString(" ")
                     Column(
-                        Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(14.dp))
+                        Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(14.dp)).background(Panel, RoundedCornerShape(14.dp))
                             .clickable { expanded = if (open) null else s.contractId }.padding(14.dp)
                     ) {
                         // 목록 = 이름 + 일정배지 + 계약자·시공자 + 금액 (상세는 클릭해서 펼침)
@@ -1108,7 +1117,7 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                                     Spacer(Modifier.width(6.dp))
                                     val scheduled = s.scheduledAtMs > 0L
                                     Text(if (scheduled) "일정 ${dateShort(s.scheduledAtMs)}" else "일정 미정",
-                                        fontSize = 9.5.sp, fontWeight = FontWeight.Black,
+                                        fontSize = 9.5.sp, fontWeight = FontWeight.ExtraBold,
                                         color = if (scheduled) Color(0xFF0E9B63) else Color(0xFFB58A00),
                                         modifier = Modifier.background(if (scheduled) Color(0xFFE9FBF2) else Color(0xFFFFF6D6), RoundedCornerShape(6.dp))
                                             .padding(horizontal = 6.dp, vertical = 2.dp))
@@ -1116,9 +1125,9 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                                 Text("계약자 ${s.agentName.ifBlank { "-" }}" + (s.assignedName?.let { " · 시공자 $it" } ?: " · 시공자 미배정"),
                                     fontSize = 11.5.sp, color = T3)
                             }
-                            Text(won(s.finalAmount), fontSize = 14.sp, fontWeight = FontWeight.Black, color = AccentBlue)
+                            Text(won(s.finalAmount), fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = AccentBlue)
                             Spacer(Modifier.width(6.dp))
-                            Text(if (open) "▴" else "▾", fontSize = 12.sp, color = T3)
+                            Icon(if (open) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, null, tint = T3, modifier = Modifier.size(18.dp))
                         }
                         if (open) {
                             Spacer(Modifier.height(12.dp))
@@ -1148,7 +1157,7 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                                                 scope.launch {
                                                     repo.schedule(s.contractId, myPhone, picked)
                                                         .onSuccess { toast("시공일 저장됐어요"); reloadTick++ }
-                                                        .onFailure { toast("실패: ${it.message?.take(40)}") }
+                                                        .onFailure { toast("시공일을 저장하지 못했어요 · 다시 시도해 주세요") }
                                                 }
                                             }
                                         }.padding(vertical = 11.dp),
@@ -1191,13 +1200,13 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                                 scope.launch {
                                     repo.assign(at.contractId, myPhone, m.phone)
                                         .onSuccess { toast("${m.name.ifBlank { "팀원" }} 배정됨"); assignTarget = null; reloadTick++ }
-                                        .onFailure { toast("배정 실패: ${it.message?.take(40)}") }
+                                        .onFailure { toast("배정하지 못했어요 · 다시 시도해 주세요") }
                                 }
                             }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text(m.name.ifBlank { "이름없음" }, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = T1)
                                 if (m.role == "owner") {
                                     Spacer(Modifier.width(6.dp))
-                                    Text("방장", fontSize = 9.sp, fontWeight = FontWeight.Black, color = Color(0xFFB58A00),
+                                    Text("방장", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB58A00),
                                         modifier = Modifier.background(Color(0xFFFFF6D6), RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
                                 }
                                 Spacer(Modifier.weight(1f))
@@ -1210,7 +1219,7 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                                 scope.launch {
                                     repo.assign(at.contractId, myPhone, "")
                                         .onSuccess { toast("배정 해제됨"); assignTarget = null; reloadTick++ }
-                                        .onFailure { toast("실패: ${it.message?.take(40)}") }
+                                        .onFailure { toast("배정을 해제하지 못했어요 · 다시 시도해 주세요") }
                                 }
                             }.padding(vertical = 10.dp)) { Text("배정 해제", fontSize = 13.sp, color = T3) }
                         }
@@ -1236,13 +1245,13 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                             Row(Modifier.fillMaxWidth().clickable { if (on) crewSel.remove(m.phone) else crewSel.add(m.phone) }.padding(vertical = 9.dp),
                                 verticalAlignment = Alignment.CenterVertically) {
                                 Box(Modifier.size(22.dp).background(if (on) AccentBlue else Field, RoundedCornerShape(6.dp)), contentAlignment = Alignment.Center) {
-                                    if (on) Text("✓", fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color.White)
+                                    if (on) Text("✓", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
                                 }
                                 Spacer(Modifier.width(10.dp))
                                 Text(m.name.ifBlank { "이름없음" }, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = T1)
                                 if (m.role == "owner") {
                                     Spacer(Modifier.width(6.dp))
-                                    Text("방장", fontSize = 9.sp, fontWeight = FontWeight.Black, color = Color(0xFFB58A00),
+                                    Text("방장", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB58A00),
                                         modifier = Modifier.background(Color(0xFFFFF6D6), RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
                                 }
                             }
@@ -1258,7 +1267,7 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                             animPlan = plan
                             scope.launch { plan.forEach { (sub, m) -> repo.assign(sub.contractId, myPhone, m.phone) } }
                         } else pickCrew = false
-                    }) { Text("${crewSel.size}명에게 나눠 배정", color = AccentBlue, fontWeight = FontWeight.Black) }
+                    }) { Text("${crewSel.size}명에게 나눠 배정", color = AccentBlue, fontWeight = FontWeight.ExtraBold) }
                 },
                 dismissButton = { TextButton(onClick = { pickCrew = false }) { Text("취소", color = T3) } },
                 containerColor = Color.White
@@ -1282,7 +1291,7 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                             d.items.forEach { repo.assign(it.contractId, myPhone, "") }
                             reloadTick++; toast("배정을 초기화했어요")
                         }
-                    }) { Text("초기화", color = Color(0xFFE1483B), fontWeight = FontWeight.Black) }
+                    }) { Text("초기화", color = Color(0xFFE1483B), fontWeight = FontWeight.ExtraBold) }
                 },
                 dismissButton = { TextButton(onClick = { confirmReset = false }) { Text("취소", color = T3) } },
                 containerColor = Color.White
@@ -1328,7 +1337,7 @@ private fun AssignAnimOverlay(
             // 제목 + 남은 장수
             Column(Modifier.align(Alignment.TopCenter).padding(top = 58.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(if (done) "✓ 배정 완료 · ${total}건" else "접수서 나눠 배정",
-                    fontSize = 20.sp, fontWeight = FontWeight.Black, color = if (done) Color(0xFF0CA678) else T1)
+                    fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = if (done) Color(0xFF0CA678) else T1)
                 Spacer(Modifier.height(6.dp))
                 Text(if (done) "${n}명에게 나눠드렸어요" else "$remain 장 남음 · 한 장씩",
                     fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (done) AccentBlue else T3)
@@ -1382,11 +1391,11 @@ private fun AssignAnimOverlay(
                         }
                         Spacer(Modifier.height(6.dp))
                         Box(Modifier.size(50.dp).background(Kk, RoundedCornerShape(25.dp)), contentAlignment = Alignment.Center) {
-                            Text(m.name.take(1).ifBlank { "?" }, fontSize = 20.sp, fontWeight = FontWeight.Black, color = KkInk)
+                            Text(m.name.take(1).ifBlank { "?" }, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = KkInk)
                         }
                         Spacer(Modifier.height(4.dp))
                         Text(m.name.ifBlank { "팀원" }, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = T1, maxLines = 1)
-                        Text("${c}건", fontSize = 12.5.sp, fontWeight = FontWeight.Black, color = Color(0xFF0E9B63))
+                        Text("${c}건", fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0E9B63))
                     }
                 }
             }
@@ -1424,7 +1433,7 @@ private fun PaperSheet(name: String, amount: String, modifier: Modifier = Modifi
         Spacer(Modifier.height(4.dp))
         Box(Modifier.fillMaxWidth(0.58f).height(4.dp).background(Color(0xFFEDF0F4), RoundedCornerShape(2.dp)))
         Spacer(Modifier.height(9.dp))
-        Text(amount, fontSize = 13.sp, fontWeight = FontWeight.Black, color = AccentBlue)
+        Text(amount, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = AccentBlue)
     }
 }
 
@@ -1457,12 +1466,12 @@ private fun ColumnScope.MyInboxView(repo: ExpoRepository, n: Nav.MyInbox, myPhon
         val scheduled = mine.count { it.scheduledAtMs > 0L }
         Column(Modifier.weight(1f).fillMaxWidth()) {
             Column(Modifier.fillMaxWidth().padding(14.dp)) {
-                Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(16.dp)).background(Panel, RoundedCornerShape(16.dp)).padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("나에게 배정된 시공", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = T3)
                     Spacer(Modifier.height(4.dp))
                     Row(verticalAlignment = Alignment.Bottom) {
-                        Text("${mine.size}건 · ", fontSize = 21.sp, fontWeight = FontWeight.Black, color = T1)
-                        Text(won(total), fontSize = 21.sp, fontWeight = FontWeight.Black, color = AccentBlue)
+                        Text("${mine.size}건 · ", fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, color = T1)
+                        Text(won(total), fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, color = AccentBlue)
                     }
                     if (mine.isNotEmpty()) {
                         Spacer(Modifier.height(6.dp))
@@ -1481,15 +1490,15 @@ private fun ColumnScope.MyInboxView(repo: ExpoRepository, n: Nav.MyInbox, myPhon
             ) {
                 items(mine) { s ->
                     val site = listOf(s.apartment, s.dongHo).filter { it.isNotBlank() }.joinToString(" ")
-                    Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(14.dp)).padding(14.dp)) {
+                    Column(Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(14.dp)).background(Panel, RoundedCornerShape(14.dp)).padding(14.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             val sch = s.scheduledAtMs > 0L
                             Text(if (sch) "${dateShort(s.scheduledAtMs)} 시공" else "일정 미정",
-                                fontSize = 9.5.sp, fontWeight = FontWeight.Black,
+                                fontSize = 9.5.sp, fontWeight = FontWeight.ExtraBold,
                                 color = if (sch) Color(0xFF0E9B63) else Color(0xFFB58A00),
                                 modifier = Modifier.background(if (sch) Color(0xFFE9FBF2) else Color(0xFFFFF6D6), RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
                             Spacer(Modifier.weight(1f))
-                            Text(won(s.finalAmount), fontSize = 14.sp, fontWeight = FontWeight.Black, color = AccentBlue)
+                            Text(won(s.finalAmount), fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = AccentBlue)
                         }
                         Spacer(Modifier.height(8.dp))
                         Text(site.ifBlank { s.customerName.ifBlank { "고객" } }, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = T1)
@@ -1716,11 +1725,11 @@ private fun ColumnScope.RoomFormView(
         }
         item {
             // 계약서 양식 — 이 방이 어떤 양식을 쓰는지 보여줌. 줄눈은 상품 미리등록 없이 계약서에서 항목·가격 입력.
-            Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
+            Column(Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(16.dp)).background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
                 Text("계약서 양식", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
                 Spacer(Modifier.height(9.dp))
                 Box(Modifier.background(T1, RoundedCornerShape(9.dp)).padding(horizontal = 12.dp, vertical = 7.dp)) {
-                    Text("✓ ${templateName(templateId)}", fontSize = 12.5.sp, fontWeight = FontWeight.Black, color = Color.White)
+                    Text("✓ ${templateName(templateId)}", fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
                 }
                 Spacer(Modifier.height(9.dp))
                 Text("이 방 계약서는 이 양식으로 만들어져요. 상품을 미리 등록하지 않고, 계약서를 열 때 줄눈 항목을 체크하고 시공·예약금·잔금 가격만 넣으면 돼요.",
@@ -1731,7 +1740,7 @@ private fun ColumnScope.RoomFormView(
             }
         }
         item {
-            Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
+            Column(Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(16.dp)).background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
                 Text("아파트(단지)명", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(value = apartment, onValueChange = { apartment = it },
@@ -1740,7 +1749,7 @@ private fun ColumnScope.RoomFormView(
             }
         }
         item {
-            Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
+            Column(Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(16.dp)).background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
                 Text("타입(평형) 목록", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
                 Text("자주 쓰는 평형은 눌러서 바로 추가 (A·B 포함). 여러 개는 쉼표로 한 번에.", fontSize = 11.5.sp, color = T3)
                 Spacer(Modifier.height(10.dp))
@@ -1784,7 +1793,7 @@ private fun ColumnScope.RoomFormView(
             }
         }
         item {
-            Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
+            Column(Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(16.dp)).background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
                 Text("시공업체 정보", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
                 Text("빈칸으로 두면 계약서에 표시되지 않아요 — 없는 항목은 비워두세요.", fontSize = 11.5.sp, color = T3, lineHeight = 16.sp)
                 Spacer(Modifier.height(8.dp))
@@ -1812,7 +1821,7 @@ private fun ColumnScope.RoomFormView(
             }
         }
         item {
-            Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
+            Column(Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(16.dp)).background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
                 Text("계약 약관", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T1)
                 Text("계약서 하단에 그대로 들어가요.", fontSize = 11.5.sp, color = T3)
                 Spacer(Modifier.height(8.dp))
@@ -1895,9 +1904,9 @@ private fun ColumnScope.ContractView(repo: ExpoRepository, n: Nav.Contract, myPh
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(18.dp)).padding(18.dp)) {
+                Column(Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(18.dp)).background(Panel, RoundedCornerShape(18.dp)).padding(18.dp)) {
                     Row(verticalAlignment = Alignment.Bottom) {
-                        Text("시공 계약서", fontSize = 17.sp, fontWeight = FontWeight.Black, color = T1, modifier = Modifier.weight(1f))
+                        Text("시공 계약서", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = T1, modifier = Modifier.weight(1f))
                         Text("No. ${s.contractId}", fontSize = 11.sp, color = T3, fontWeight = FontWeight.Bold)
                     }
                     info?.let { inf ->
@@ -1960,8 +1969,8 @@ private fun ColumnScope.ContractView(repo: ExpoRepository, n: Nav.Contract, myPh
                         Modifier.fillMaxWidth().background(Field, RoundedCornerShape(12.dp)).padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("최종 금액", fontSize = 14.sp, fontWeight = FontWeight.Black, color = T1, modifier = Modifier.weight(1f))
-                        Text(won(s.finalAmount), fontSize = 19.sp, fontWeight = FontWeight.Black, color = AccentBlue)
+                        Text("최종 금액", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = T1, modifier = Modifier.weight(1f))
+                        Text(won(s.finalAmount), fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = AccentBlue)
                     }
                     Spacer(Modifier.height(8.dp))
                     Text("계약자 ${s.agentName.ifBlank { "-" }} · 시공자 ${s.assignedName ?: "미배정"}", fontSize = 11.5.sp, color = T3)
@@ -1983,7 +1992,7 @@ private fun ColumnScope.ContractView(repo: ExpoRepository, n: Nav.Contract, myPh
             }
             // 메모 (편집 — 팀이 특이사항 적어두기)
             item {
-                Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(18.dp)).padding(16.dp)) {
+                Column(Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(18.dp)).background(Panel, RoundedCornerShape(18.dp)).padding(16.dp)) {
                     Text("메모 · 특이사항", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = T1)
                     Text("고객 특이사항이 생기면 여기 적어두세요. (팀 공유)", fontSize = 11.5.sp, color = T3)
                     Spacer(Modifier.height(10.dp))
@@ -2000,7 +2009,7 @@ private fun ColumnScope.ContractView(repo: ExpoRepository, n: Nav.Contract, myPh
                                 .onSuccess { savingMemo = false; toast("메모를 저장했어요") }
                                 .onFailure {
                                     savingMemo = false
-                                    toast(if ((it.message ?: "").contains("HTTP 404")) "메모 저장은 서버 업데이트 후 가능해요 (곧)" else "저장 실패 · 다시 시도해 주세요")
+                                    toast(if ((it.message ?: "").contains("HTTP 404")) "메모 저장은 아직 준비 중이에요" else "저장하지 못했어요 · 다시 시도해 주세요")
                                 }
                         }
                     }
@@ -2018,12 +2027,12 @@ private fun ColumnScope.ContractView(repo: ExpoRepository, n: Nav.Contract, myPh
                 Modifier.weight(1f).background(Kk, RoundedCornerShape(14.dp))
                     .clickable { shareUrl(ctx, repo.receiptUrl(s.contractId)) }.padding(vertical = 15.dp),
                 contentAlignment = Alignment.Center
-            ) { Text("카톡 공유", fontSize = 14.5.sp, fontWeight = FontWeight.Black, color = KkInk) }
+            ) { Text("카톡 공유", fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, color = KkInk) }
             Box(
                 Modifier.weight(1f).background(Field, RoundedCornerShape(14.dp))
                     .clickable { openUrl(ctx, repo.receiptUrl(s.contractId)) }.padding(vertical = 15.dp),
                 contentAlignment = Alignment.Center
-            ) { Text("PDF · 인쇄", fontSize = 14.5.sp, fontWeight = FontWeight.Black, color = T1) }
+            ) { Text("PDF · 인쇄", fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, color = T1) }
         }
     }
 }
@@ -2068,12 +2077,12 @@ private fun ColumnScope.CalendarView(repo: ExpoRepository, n: Nav.Calendar, myPh
             // 월 이동 헤더
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(34.dp).clickable { if (month == 0) { month = 11; year-- } else month-- },
-                    contentAlignment = Alignment.Center) { Text("◀", fontSize = 16.sp, color = T2) }
+                    contentAlignment = Alignment.Center) { Icon(Icons.Default.KeyboardArrowLeft, null, tint = T2, modifier = Modifier.size(24.dp)) }
                 Spacer(Modifier.weight(1f))
                 Text("${year}년 ${month + 1}월", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = T1)
                 Spacer(Modifier.weight(1f))
                 Box(Modifier.size(34.dp).clickable { if (month == 11) { month = 0; year++ } else month++ },
-                    contentAlignment = Alignment.Center) { Text("▶", fontSize = 16.sp, color = T2) }
+                    contentAlignment = Alignment.Center) { Icon(Icons.Default.KeyboardArrowRight, null, tint = T2, modifier = Modifier.size(24.dp)) }
             }
             // 요일 — 그리드와 좌우 패딩 0 으로 통일(요일 라벨이 날짜 열과 정확히 정렬되게). 4dp 차이로 그리드가 왼쪽 밀려 보이던 버그.
             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
@@ -2115,7 +2124,7 @@ private fun ColumnScope.CalendarView(repo: ExpoRepository, n: Nav.Calendar, myPh
                                     horizontalAlignment = Alignment.CenterHorizontally   // 날짜 숫자를 요일 라벨(가운데)과 정렬 (치우침 방지)
                                 ) {
                                     Text("$day", fontSize = 12.sp,
-                                        fontWeight = if (isToday) FontWeight.Black else FontWeight.Medium,
+                                        fontWeight = if (isToday) FontWeight.ExtraBold else FontWeight.Medium,
                                         color = if (isToday) KkInk else if (col == 0) Color(0xFFE1483B) else T1,
                                         modifier = if (isToday) Modifier.background(Kk, RoundedCornerShape(7.dp)).padding(horizontal = 6.dp, vertical = 1.dp) else Modifier)
                                     Spacer(Modifier.height(2.dp))
@@ -2206,20 +2215,20 @@ private fun BigButton(text: String, enabled: Boolean, bg: Color, fg: Color, onCl
         Modifier.fillMaxWidth().background(bg, RoundedCornerShape(15.dp))
             .clickable(enabled = enabled, onClick = onClick).padding(vertical = 15.dp),
         contentAlignment = Alignment.Center
-    ) { Text(text, fontSize = 15.sp, fontWeight = FontWeight.Black, color = fg) }
+    ) { Text(text, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = fg) }
 }
 
 @Composable
 private fun MenuCard(title: String, desc: String, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(18.dp)).clickable(onClick = onClick).padding(16.dp),
+        Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(18.dp)).background(Panel, RoundedCornerShape(18.dp)).clickable(onClick = onClick).padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
             Text(title, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = T1)
             Text(desc, fontSize = 12.sp, color = T3, fontWeight = FontWeight.Medium)
         }
-        Text("›", fontSize = 22.sp, color = T3, fontWeight = FontWeight.Bold)
+        Icon(Icons.Default.KeyboardArrowRight, null, tint = T3, modifier = Modifier.size(24.dp))
     }
 }
 
