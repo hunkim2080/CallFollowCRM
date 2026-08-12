@@ -8591,3 +8591,9 @@ Play 정식(production) 배포 (사장님 "PLAY에도 올리자 ㄱㄱㄱ").
 - 변경: 앱 전용. TossTextInfo(#6B7280) 를 승인 범위대로 확장: ReportScreen 7·VisitedScreen 2(요약·주소)·ScheduleScreen 2(시공시간·빈화면)·CustomersScreen 2(count·빈화면)·HomeScreen 1(오늘시공 라벨). 안내캡션·아이콘tint·필터라벨·달력셀색은 t3 유지. 카드 주소는 이미 secondary라 변경 불필요.
 - commit: 942304d. 폰(S23U) 설치·확인.
 - 다음: 정보성은 여기까지(승인범위 완료). server 대기=서버 백업 동기화.
+
+## 2026-08-12 (4) · android
+박람회(ExpoScreen) 아마추어 마감 4건 프로화 — 서브에이전트 감사 후 적용.
+- 변경: 앱 전용. '별세계' 노랑 컨셉 유지. ①흰 카드 20곳 tossCardShadow(그림자0→elevation) ②FontWeight.Black 38곳→ExtraBold(Pretendard 800 한계, faux-bold 정정) ③유니코드 화살표(◀▶›▾▴−+)→Material 아이콘(월이동·펼침·스텝퍼·chevron) ④날것 예외 토스트 6곳→사람 말투('(곧)'·HTTP 노출 제거). 컴파일 OK.
+- commit: 5409e4e. 폰(S23U) 설치.
+- 다음(사장님 결정 대기): 🅱️ OutlinedTextField 18곳→SheetTextField·색 토큰화+방장배지 컴포넌트·9.5sp/28dp 크기. 🅲️ 빈화면·모서리·divider·폼 영업멘트.
