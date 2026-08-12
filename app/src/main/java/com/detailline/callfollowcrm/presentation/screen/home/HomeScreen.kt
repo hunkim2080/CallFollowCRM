@@ -146,6 +146,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossSuccess
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
+import com.detailline.callfollowcrm.presentation.theme.TossTextInfo
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 import com.detailline.callfollowcrm.presentation.theme.TossWarning
 import androidx.compose.foundation.border
@@ -1812,7 +1813,7 @@ private fun TodayHeroCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.DateRange, null, tint = TossTextTertiary, modifier = Modifier.size(14.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("오늘 시공", color = TossTextTertiary, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+                Text("오늘 시공", color = TossTextInfo, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
             }
             // he-title (19px w800 t1)
             Text(

@@ -42,6 +42,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossSuccess
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
+import com.detailline.callfollowcrm.presentation.theme.TossTextInfo
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 import com.detailline.callfollowcrm.presentation.component.tossCardShadow
 import com.detailline.callfollowcrm.presentation.component.pressScale
@@ -85,7 +86,7 @@ fun VisitedScreen(
                     append("다녀온 ${state.visitedCount}곳 · 매출 합계 ${"%,d".format(state.revenueManwon)}만원")
                     if (state.upcomingCount > 0) append("  ·  다녀올 ${state.upcomingCount}곳")
                 }
-                Text(sub, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+                Text(sub, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextInfo,
                     modifier = Modifier.padding(top = 4.dp, bottom = 12.dp))
             }
 
@@ -159,7 +160,7 @@ private fun VisitedRowItem(v: VisitedRow, accent: Color, tag: String, onClick: (
                         .padding(horizontal = 7.dp, vertical = 2.dp)
                 ) { Text(tag, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, color = accent) }
             }
-            Text(v.addr, fontSize = 12.5.sp, color = TossTextTertiary, maxLines = 1,
+            Text(v.addr, fontSize = 12.5.sp, color = TossTextInfo, maxLines = 1,
                 overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
         }
         Icon(Icons.Default.ChevronRight, null, tint = TossDivider, modifier = Modifier.size(20.dp))

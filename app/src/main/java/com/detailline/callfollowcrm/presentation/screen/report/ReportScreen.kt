@@ -45,6 +45,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossSuccess
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
+import com.detailline.callfollowcrm.presentation.theme.TossTextInfo
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 
 private val Warn = Color(0xFFF6A609)
@@ -189,7 +190,7 @@ fun ReportScreen(
             item {
                 Panel {
                     if (s.inboundCount <= 0) {
-                        Text("이 기간엔 걸려온 문의가 없어요", fontSize = 13.sp, color = TossTextTertiary)
+                        Text("이 기간엔 걸려온 문의가 없어요", fontSize = 13.sp, color = TossTextInfo)
                     } else {
                         Column {
                             Text("문의 ${s.inboundCount}건 → 시공 ${s.jobs}건", fontSize = 13.sp, color = TossTextSecondary, fontWeight = FontWeight.Medium)
@@ -227,7 +228,7 @@ fun ReportScreen(
                 item { GroupBars(s.regionRows) }
                 item {
                     Text("주소는 문자에서 자동으로 읽어요. 빠진 곳이 있을 수 있어요.",
-                        fontSize = 11.sp, color = TossTextTertiary, modifier = Modifier.padding(horizontal = 4.dp))
+                        fontSize = 11.sp, color = TossTextInfo, modifier = Modifier.padding(horizontal = 4.dp))
                 }
             }
 
@@ -248,7 +249,7 @@ fun ReportScreen(
             item {
                 Spacer(Modifier.height(4.dp))
                 Text("이 리포트는 KPI가 아니라 '내 장사 이해' 도구예요. 매출은 받은 돈 기준, 미수금은 지금 기준.",
-                    fontSize = 11.5.sp, color = TossTextTertiary, modifier = Modifier.padding(horizontal = 4.dp))
+                    fontSize = 11.5.sp, color = TossTextInfo, modifier = Modifier.padding(horizontal = 4.dp))
                 Spacer(Modifier.height(16.dp))
             }
         }
@@ -273,7 +274,7 @@ private fun StatTile(label: String, value: String, sub: String, accent: Color, m
         Spacer(Modifier.height(5.dp))
         Text(value, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, color = accent)
         Spacer(Modifier.height(3.dp))
-        Text(sub, fontSize = 11.sp, color = TossTextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(sub, fontSize = 11.sp, color = TossTextInfo, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -289,10 +290,10 @@ private fun MiniTile(label: String, value: String, accent: Color, modifier: Modi
 @Composable
 private fun SectionSub(title: String, caption: String? = null) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp, top = 8.dp)) {
-        Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
+        Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextInfo)
         caption?.let {
             Spacer(Modifier.width(6.dp))
-            Text("· $it", fontSize = 11.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium)
+            Text("· $it", fontSize = 11.sp, color = TossTextInfo, fontWeight = FontWeight.Medium)
         }
     }
 }
@@ -339,7 +340,7 @@ private fun GroupBars(rows: List<GroupRow>) {
                         Box(Modifier.fillMaxWidth((g.amount.toFloat() / max).coerceIn(0.02f, 1f)).height(8.dp)
                             .clip(RoundedCornerShape(4.dp)).background(TossBlue))
                     }
-                    Text("${g.count}곳", fontSize = 10.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 3.dp))
+                    Text("${g.count}곳", fontSize = 10.5.sp, color = TossTextInfo, modifier = Modifier.padding(top = 3.dp))
                 }
             }
         }

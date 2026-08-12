@@ -49,6 +49,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
+import com.detailline.callfollowcrm.presentation.theme.TossTextInfo
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
 import java.text.SimpleDateFormat
@@ -121,7 +122,7 @@ fun CustomersScreen(
             // .sec-sub — "고객 N명"
             Text(
                 "고객 ${list.size}명",
-                fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+                fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TossTextInfo,
                 modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 8.dp)
             )
             if (note != null) {
@@ -139,7 +140,7 @@ fun CustomersScreen(
                         Spacer(Modifier.height(12.dp))
                         Text(
                             if (customers.isEmpty()) "아직 등록된 고객이 없어요" else "해당 고객이 없어요",
-                            fontSize = 14.sp, color = TossTextTertiary
+                            fontSize = 14.sp, color = TossTextInfo
                         )
                     }
                 }

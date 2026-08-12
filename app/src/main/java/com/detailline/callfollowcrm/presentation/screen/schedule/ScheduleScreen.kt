@@ -102,6 +102,7 @@ import com.detailline.callfollowcrm.presentation.theme.TossSuccess
 import com.detailline.callfollowcrm.presentation.theme.TossWarning
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
 import com.detailline.callfollowcrm.presentation.theme.TossTextSecondary
+import com.detailline.callfollowcrm.presentation.theme.TossTextInfo
 import com.detailline.callfollowcrm.presentation.theme.TossTextTertiary
 import com.detailline.callfollowcrm.util.DateTimeUtils
 import com.detailline.callfollowcrm.util.PhoneNumberFormatter
@@ -902,7 +903,7 @@ private fun DayEmpty(onAdd: () -> Unit) {
         modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("이 날은 시공 예약이 없어요", fontSize = 13.sp, color = TossTextTertiary)
+        Text("이 날은 시공 예약이 없어요", fontSize = 13.sp, color = TossTextInfo)
         Spacer(Modifier.height(14.dp))
         DayAddButton("이 날 일정 등록", onAdd)
     }
@@ -974,7 +975,7 @@ private fun DayJobCard(
                     Spacer(Modifier.width(7.dp))
                 }
                 customer.scheduledWorkMinutes?.let {
-                    Text(DateTimeUtils.formatWorkMinutes(it), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextTertiary,
+                    Text(DateTimeUtils.formatWorkMinutes(it), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = TossTextInfo,
                         modifier = Modifier.padding(end = 8.dp))
                 }
                 // 태그 (완료 / D-day)
