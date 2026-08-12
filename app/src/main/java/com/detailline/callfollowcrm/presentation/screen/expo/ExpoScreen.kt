@@ -1226,7 +1226,8 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                     }
                 },
                 confirmButton = { TextButton(onClick = { assignTarget = null }) { Text("닫기", color = AccentBlue, fontWeight = FontWeight.Bold) } },
-                containerColor = Color.White
+                containerColor = Color.White,
+                tonalElevation = 0.dp   // M3 tonalElevation 회색 톤 제거 → 진짜 흰색. (2026-08-12)
             )
         }
 
@@ -1270,7 +1271,8 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                     }) { Text("${crewSel.size}명에게 나눠 배정", color = AccentBlue, fontWeight = FontWeight.ExtraBold) }
                 },
                 dismissButton = { TextButton(onClick = { pickCrew = false }) { Text("취소", color = T3) } },
-                containerColor = Color.White
+                containerColor = Color.White,
+                tonalElevation = 0.dp   // M3 tonalElevation 회색 톤 제거 → 진짜 흰색. (2026-08-12)
             )
         }
         // ── 배정 초기화 확인 (방장) ──
@@ -1294,7 +1296,8 @@ private fun ColumnScope.SubmissionsView(repo: ExpoRepository, n: Nav.Subs, myPho
                     }) { Text("초기화", color = Color(0xFFE1483B), fontWeight = FontWeight.ExtraBold) }
                 },
                 dismissButton = { TextButton(onClick = { confirmReset = false }) { Text("취소", color = T3) } },
-                containerColor = Color.White
+                containerColor = Color.White,
+                tonalElevation = 0.dp   // M3 tonalElevation 회색 톤 제거 → 진짜 흰색. (2026-08-12)
             )
         }
 
@@ -2185,7 +2188,8 @@ private fun ColumnScope.CalendarView(repo: ExpoRepository, n: Nav.Calendar, myPh
                     }
                 },
                 confirmButton = { TextButton(onClick = { dialogDay = null }) { Text("닫기", color = AccentBlue, fontWeight = FontWeight.Bold) } },
-                containerColor = Color.White
+                containerColor = Color.White,
+                tonalElevation = 0.dp   // M3 tonalElevation 회색 톤 제거 → 진짜 흰색. (2026-08-12)
             )
         }
     }
