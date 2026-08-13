@@ -155,9 +155,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         combine(spamSuffixes, generalSuffixes) { spam, general -> spam + general }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
-    /** 오늘 이전에 통화 기록이 있는 phone suffix set. "오늘 신규" 판정 negative side. */
-    private val phonesWithCallsBeforeToday: StateFlow<Set<String>> = container.callRecordRepository
-        .observeDistinctPhonesBefore(todayStart)
+    /** 오늘 이전에 통화 기록이 있는 phone suffix set. "오늘 신규" 판정 negative side. 기준일은 _todayTick 로 매번 갱신. */
+    private val phonesWithCallsBeforeToday: StateFlow<Set<String>> = _todayTick
+        .flatMapLatest { now -> container.callRecordRepository.observeDistinctPhonesBefore(DateTimeUtils.startOfDay(now)) }
         .map { list -> list.map { phoneSuffix(it) }.toHashSet() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
@@ -216,15 +216,20 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      *   2026-06-02 fix: 통화 측을 부재중→들어온 통화 전체로 확장(받은 전화도 신규 문의로 집계).
      *   주의: "신규"=처음 연락온 번호. 전에 연락온 적 있는 번호는 제외(설계 = 부제 "새 번호 기준").
      */
-    val todayNewInquiryCount: StateFlow<Int> = combine(
-        smsContactsState, inboundRecent, phonesWithCallsBeforeToday, hiddenForConsult, spamPrefixesFlow
-    ) { smsContacts, inbound, callsBefore, spam, _ ->
-        newTodaySuffixes(smsContacts, inbound, callsBefore, spam).size
+    //   ⚠️ '오늘' 경계는 _todayTick(ON_RESUME 마다 갱신)로 매번 다시 잡는다. 전엔 todayStart 가 앱 생성 시점 val 이라
+    //   앱을 며칠 켜두면 옛 날짜의 신규를 계속 세는 버그(홈=4, 실제=1)가 있었음. (2026-08-13 fix)
+    val todayNewInquiryCount: StateFlow<Int> = _todayTick.flatMapLatest { now ->
+        val (ts, te) = DateTimeUtils.todayBounds(now)
+        combine(
+            smsContactsState, inboundRecent, phonesWithCallsBeforeToday, hiddenForConsult, spamPrefixesFlow
+        ) { smsContacts, inbound, callsBefore, spam, _ ->
+            newTodaySuffixes(smsContacts, inbound, callsBefore, spam, ts, te).size
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
-    /** 어제 이전에 통화 기록이 있는 phone suffix set — "어제 신규" 판정용. */
-    private val phonesWithCallsBeforeYesterday: StateFlow<Set<String>> = container.callRecordRepository
-        .observeDistinctPhonesBefore(yesterdayStart)
+    /** 어제 이전에 통화 기록이 있는 phone suffix set — "어제 신규" 판정용. 기준일은 _todayTick 로 매번 갱신. */
+    private val phonesWithCallsBeforeYesterday: StateFlow<Set<String>> = _todayTick
+        .flatMapLatest { now -> container.callRecordRepository.observeDistinctPhonesBefore(DateTimeUtils.startOfDay(now) - 24L * 60 * 60 * 1000) }
         .map { list -> list.map { phoneSuffix(it) }.toHashSet() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
@@ -232,28 +237,32 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      * 어제 신규 문의 수 (프로토 today-new 카드의 "어제 M통" + ▲▼ 비교용).
      *   판정: 스캔 안 첫 등장(firstDateMsInScan)이 어제 [yesterdayStart, todayStart) AND 어제 이전 통화 기록 없음.
      */
-    val yesterdayNewInquiryCount: StateFlow<Int> = combine(
-        smsContactsState, inboundRecent, phonesWithCallsBeforeYesterday, spamSuffixes, spamPrefixesFlow
-    ) { smsContacts, inbound, callsBefore, spam, _ ->
-        val bySuffix = smsContacts.associateBy { it.normalizedSuffix }
-        val result = HashSet<String>()
-        for (c in smsContacts) {
-            if (c.normalizedSuffix in spam) continue
-            if (com.detailline.callfollowcrm.util.SpamPrefix.isSpam(c.address, spamPrefixesFlow.value)) continue
-            if (c.firstDateMsInScan in yesterdayStart until todayStart && c.normalizedSuffix !in callsBefore) {
-                result += c.normalizedSuffix
+    val yesterdayNewInquiryCount: StateFlow<Int> = _todayTick.flatMapLatest { now ->
+        val ts = DateTimeUtils.startOfDay(now)      // 오늘 0시 (매번 갱신)
+        val ys = ts - 24L * 60 * 60 * 1000          // 어제 0시
+        combine(
+            smsContactsState, inboundRecent, phonesWithCallsBeforeYesterday, spamSuffixes, spamPrefixesFlow
+        ) { smsContacts, inbound, callsBefore, spam, _ ->
+            val bySuffix = smsContacts.associateBy { it.normalizedSuffix }
+            val result = HashSet<String>()
+            for (c in smsContacts) {
+                if (c.normalizedSuffix in spam) continue
+                if (com.detailline.callfollowcrm.util.SpamPrefix.isSpam(c.address, spamPrefixesFlow.value)) continue
+                if (c.firstDateMsInScan in ys until ts && c.normalizedSuffix !in callsBefore) {
+                    result += c.normalizedSuffix
+                }
             }
+            for (m in inbound) {
+                if (m.endedAt !in ys until ts) continue
+                val suffix = phoneSuffix(m.phoneNumber)
+                if (suffix in spam) continue
+                if (com.detailline.callfollowcrm.util.SpamPrefix.isSpam(m.phoneNumber, spamPrefixesFlow.value)) continue
+                if (suffix in callsBefore) continue
+                val sms = bySuffix[suffix]
+                if (sms == null || sms.firstDateMsInScan >= ys) result += suffix
+            }
+            result.size
         }
-        for (m in inbound) {
-            if (m.endedAt !in yesterdayStart until todayStart) continue
-            val suffix = phoneSuffix(m.phoneNumber)
-            if (suffix in spam) continue
-            if (com.detailline.callfollowcrm.util.SpamPrefix.isSpam(m.phoneNumber, spamPrefixesFlow.value)) continue
-            if (suffix in callsBefore) continue
-            val sms = bySuffix[suffix]
-            if (sms == null || sms.firstDateMsInScan >= yesterdayStart) result += suffix
-        }
-        result.size
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     /**
@@ -765,28 +774,32 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         smsContacts: List<SmsRepository.SmsContact>,
         inbound: List<CallRecordEntity>,
         callsBefore: Set<String>,
-        spam: Set<String> = emptySet()
+        spam: Set<String> = emptySet(),
+        // '오늘' 경계는 호출부에서 현재시각으로 넘긴다(_todayTick). 정적 todayStart 를 쓰면 앱을 며칠 켜뒀을 때
+        //   옛 날짜의 신규를 계속 세는 버그가 있었음. (2026-08-13 stale-day fix)
+        ts: Long = todayStart,
+        te: Long = todayEnd
     ): Set<String> {
         val bySuffix = smsContacts.associateBy { it.normalizedSuffix }
         val result = HashSet<String>()
         for (c in smsContacts) {
             if (c.normalizedSuffix in spam) continue
             if (com.detailline.callfollowcrm.util.SpamPrefix.isSpam(c.address, spamPrefixesFlow.value)) continue  // 스팸 앞자리(070 등)
-            if (c.lastDateMs in todayStart..todayEnd &&
-                c.firstDateMsInScan >= todayStart &&
+            if (c.lastDateMs in ts..te &&
+                c.firstDateMsInScan >= ts &&
                 c.normalizedSuffix !in callsBefore
             ) {
                 result += c.normalizedSuffix
             }
         }
         for (m in inbound) {
-            if (m.endedAt !in todayStart..todayEnd) continue
+            if (m.endedAt !in ts..te) continue
             val suffix = phoneSuffix(m.phoneNumber)
             if (suffix in spam) continue
             if (com.detailline.callfollowcrm.util.SpamPrefix.isSpam(m.phoneNumber, spamPrefixesFlow.value)) continue  // 스팸 앞자리(070 등)
             if (suffix in callsBefore) continue
             val sms = bySuffix[suffix]
-            if (sms == null || sms.firstDateMsInScan >= todayStart) result += suffix
+            if (sms == null || sms.firstDateMsInScan >= ts) result += suffix
         }
         return result
     }
@@ -875,14 +888,17 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     // callsForFlags(missed·inbound·handledMs 묶음)는 위(inboundRecent 아래)에서 선언 — KPI(unhandledCount)와
     //   여기 timelineFlags 둘 다 쓰므로 앞으로 올림.
 
-    private val timelineFlags: StateFlow<TimelineFlags> = combine(
-        smsContactsState, callsForFlags, phonesWithCallsBeforeToday, excludedForUnconfirmed, scheduledCustomerSuffixes
-    ) { smsContacts, calls, callsBefore, spam, scheduled ->
-        val (missed, inbound, handledMs) = calls
-        TimelineFlags(
-            unconfirmedSuffixes = unconfirmedSuffixes(smsContacts, missed, spam, scheduled, handledMs),
-            newTodaySuffixes = newTodaySuffixes(smsContacts, inbound, callsBefore, spam)
-        )
+    private val timelineFlags: StateFlow<TimelineFlags> = _todayTick.flatMapLatest { now ->
+        val (ts, te) = DateTimeUtils.todayBounds(now)   // '오늘 신규' 리스트 플래그도 현재 날짜로 (stale-day fix)
+        combine(
+            smsContactsState, callsForFlags, phonesWithCallsBeforeToday, excludedForUnconfirmed, scheduledCustomerSuffixes
+        ) { smsContacts, calls, callsBefore, spam, scheduled ->
+            val (missed, inbound, handledMs) = calls
+            TimelineFlags(
+                unconfirmedSuffixes = unconfirmedSuffixes(smsContacts, missed, spam, scheduled, handledMs),
+                newTodaySuffixes = newTodaySuffixes(smsContacts, inbound, callsBefore, spam, ts, te)
+            )
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TimelineFlags(emptySet(), emptySet()))
 
     /** timelineFlags + 스팸 게이트 + 문자함(GENERAL) — combine 5개 한도 안에서 목록 필터를 함께 적용. (2026-06-17 / 2026-07-11) */
