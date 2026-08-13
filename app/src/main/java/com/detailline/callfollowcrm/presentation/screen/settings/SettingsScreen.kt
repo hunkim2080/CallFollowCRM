@@ -74,6 +74,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.Computer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -113,6 +114,7 @@ import com.detailline.callfollowcrm.presentation.component.pressScale
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.detailline.callfollowcrm.presentation.component.TossChip
 import com.detailline.callfollowcrm.presentation.component.TossPrimaryButton
+import com.detailline.callfollowcrm.presentation.component.TossSecondaryButton
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
@@ -210,6 +212,7 @@ fun SettingsScreen(
         "noti" -> "고객 사진(문자) 받기"
         "server" -> "AI 서버 상태"
         "mirror" -> "본폰에서 일정 보기"
+        "web" -> "시공막내 웹 (PC)"
         else -> "더보기"
     }
     BackHandler(enabled = subPage != null) { subPage = null }
@@ -429,6 +432,8 @@ fun SettingsScreen(
                         navLabel) { subPage = "nav" }
                     LockRow(Icons.Filled.PhoneAndroid, TossBlueSoft, TossBlue, "본폰에서 일정 보기",
                         "업무폰 일정을 본폰에서 읽기전용으로 · 수정 안 됨") { subPage = "mirror" }
+                    LockRow(Icons.Filled.Computer, TossBlueSoft, TossBlue, "시공막내 웹 (PC 사진)",
+                        "PC 브라우저서 시공 사진 보기·블로그용 다운 · QR 로그인 · 보기 전용") { subPage = "web" }
                 }
                 SettingsGroup("도움말") {
                     LockRow(Icons.Filled.AutoAwesome, TossGrayBg, TossTextTertiary, "앱 소개 다시 보기",
@@ -554,6 +559,11 @@ fun SettingsScreen(
                 // ══════════════ 본폰에서 일정 보기 (미러 링크) ══════════════
                 "mirror" -> {
                     MirrorSection(container = container)
+                    Spacer(Modifier.height(16.dp))
+                }
+                // ══════════════ 시공막내 웹 (PC 사진 캘린더) ══════════════
+                "web" -> {
+                    WebViewerSection(container = container)
                     Spacer(Modifier.height(16.dp))
                 }
                 // ══════════════ AI 서버 상태 + 토큰 ══════════════
@@ -1059,6 +1069,61 @@ private fun DefaultSmsAppCard(
                     }
                 )
             }
+        }
+    }
+}
+
+/**
+ * 시공막내 웹 (PC 사진 캘린더, 2026-08-13) — docs/SERVER_HANDOFF_web_photo_calendar_SERVER_DONE.md.
+ *   PC 브라우저서 si0in.kr/web 접속 → 뜬 QR을 이 폰으로 찍으면 로그인(폰=열쇠). 시공 사진을 큰 화면서 보고 블로그용 다운.
+ *   웹은 보기 전용. 여기선 안내 + "이 계정 웹 로그아웃"(폰 원격 로그아웃)만.
+ */
+@Composable
+private fun WebViewerSection(container: AppContainer) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val prefs = container.preferences
+    val ownerPhone = prefs.bizPhone.trim()
+    var active by remember { mutableStateOf(prefs.webViewerActive) }
+    var busy by remember { mutableStateOf(false) }
+    fun toast(msg: String) = Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+
+    TossCard {
+        Column(Modifier.padding(4.dp)) {
+            Text(
+                "시공막내 웹 (PC 사진 캘린더)",
+                fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "PC 브라우저에서 si0in.kr/web 에 접속하면 QR이 떠요. 이 폰으로 그 QR을 찍으면 로그인돼요(폰이 열쇠). " +
+                    "시공 사진을 큰 화면에서 날짜별로 보고, 블로그용으로 골라 내려받을 수 있어요. 웹은 보기 전용이에요.",
+                fontSize = 13.sp, color = TossTextSecondary, lineHeight = 19.sp
+            )
+            Spacer(Modifier.height(14.dp))
+            Text(
+                if (active) "현재 이 계정으로 웹에 로그인돼 있어요." else "아직 웹에 로그인한 적 없어요.",
+                fontSize = 12.sp, fontWeight = FontWeight.Medium,
+                color = if (active) TossBlue else TossTextTertiary
+            )
+            Spacer(Modifier.height(10.dp))
+            TossSecondaryButton(
+                text = if (busy) "처리 중…" else "이 계정 웹 로그아웃",
+                enabled = !busy,
+                onClick = {
+                    if (ownerPhone.filter { it.isDigit() }.length < 9) {
+                        toast("먼저 내 번호(로그인)가 필요해요")
+                    } else {
+                        busy = true
+                        scope.launch {
+                            val r = container.webFeedRepository.logoutAll(ownerPhone)
+                            prefs.webViewerActive = false; active = false
+                            busy = false
+                            toast(if (r.isSuccess) "PC 웹에서 로그아웃했어요" else "로그아웃 요청 실패 — 잠시 후 다시")
+                        }
+                    }
+                }
+            )
         }
     }
 }

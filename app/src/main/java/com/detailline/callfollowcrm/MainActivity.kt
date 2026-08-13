@@ -67,6 +67,25 @@ class MainActivity : ComponentActivity() {
                         is IncomingIntent.CollabMine -> container.navEvents.requestCollabSites(tab = "shared")
                         is IncomingIntent.OpenTeam -> container.navEvents.requestTeam()
                         is IncomingIntent.OpenRecurringDue -> container.navEvents.requestRecurringDue()
+                        is IncomingIntent.WebAuthorize -> {
+                            // 노트북 웹 QR 승인 — 화면 이동 없이 서버에 owner 증명 후 토스트로 결과. 성공 시 웹 뷰어 켜고 피드 즉시 push.
+                            val phone = container.preferences.bizPhone
+                            val msg = if (phone.filter { it.isDigit() }.length < 9) {
+                                "먼저 앱에 로그인한 뒤 다시 QR을 찍어주세요."
+                            } else when (container.webFeedRepository.authorize(incoming.ticket, phone)) {
+                                com.detailline.callfollowcrm.ai.WebFeedRepository.AuthResult.OK -> {
+                                    container.preferences.webViewerActive = true
+                                    runCatching { container.webFeedSyncManager.pushNow(force = true) }
+                                    "PC 웹에 로그인됐어요 ✅ 이제 브라우저에서 시공 사진을 보세요."
+                                }
+                                com.detailline.callfollowcrm.ai.WebFeedRepository.AuthResult.EXPIRED ->
+                                    "QR이 만료됐어요. 웹에서 새 QR을 띄워 다시 찍어주세요."
+                                else -> "웹 로그인에 실패했어요. 잠시 후 다시 시도해주세요."
+                            }
+                            android.widget.Toast.makeText(
+                                this@MainActivity, msg, android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        }
                         is IncomingIntent.CollabEnded -> {
                             // 무엇이 해제됐는지 명확히 — 해제된 현장은 목록서 빠지므로 토스트로 알려줌 + 협업 현장 목록 열기. (2026-06-21 사장님)
                             val site = incoming.title.takeIf { it.isNotBlank() } ?: "협업 현장"
@@ -217,6 +236,16 @@ class MainActivity : ComponentActivity() {
                     pendingIntentState.value = IncomingIntent.SharedSite(shareId)
                     return
                 }
+                // 시공막내 웹 QR 로그인: https://api.si0in.kr/web/authorize?t={ticket} (노트북 웹이 QR 표시 → 폰이 스캔).
+                //   → 화면 이동 없이 authorize 호출로 승인(폰=열쇠). 결과는 토스트. (2026-08-13)
+                if (intent.action == Intent.ACTION_VIEW && scheme == "https" &&
+                    (uri.host == "api.si0in.kr" || uri.host == "si0in.kr") &&
+                    uri.path?.startsWith("/web/authorize") == true
+                ) {
+                    val ticket = uri.getQueryParameter("t")?.takeIf { it.isNotBlank() }
+                    if (ticket != null) pendingIntentState.value = IncomingIntent.WebAuthorize(ticket)
+                    return
+                }
                 // 협업 링크 HTML fallback: shigongmagne://shared/{share_id}
                 if (intent.action == Intent.ACTION_VIEW && scheme == "shigongmagne" && uri.host == "shared") {
                     val shareId = uri.lastPathSegment?.takeIf { it.isNotBlank() }
@@ -270,6 +299,8 @@ class MainActivity : ComponentActivity() {
         object OpenTeam : IncomingIntent
         /** 정기문자 due 알림 탭 → 정기문자 검토. (2026-08-13) */
         object OpenRecurringDue : IncomingIntent
+        /** 시공막내 웹 QR 로그인 — 노트북 웹의 QR(/web/authorize?t=)을 폰이 찍음 → authorize 승인. (2026-08-13) */
+        data class WebAuthorize(val ticket: String) : IncomingIntent
     }
 
     /** shareId → 내 고객 id. collabAssignments("customerId|phone|name|shareId")에 있으면 내가 주인 → 그 고객 반환. 없으면 null(=협업자 B → 협업현장). */

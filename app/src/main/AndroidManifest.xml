@@ -175,6 +175,9 @@
                 <data android:host="api.si0in.kr" />
                 <data android:host="si0in.kr" />
                 <data android:pathPrefix="/shared/" />
+                <!-- 2026-08-13 시공막내 웹 QR 로그인: 노트북 웹이 띄운 https://api.si0in.kr/web/authorize?t=…
+                     QR 을 폰 카메라로 찍으면 브라우저 대신 앱이 받아 authorize 호출(폰=열쇠). -->
+                <data android:pathPrefix="/web/" />
             </intent-filter>
 
             <!--

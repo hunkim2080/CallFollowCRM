@@ -188,6 +188,16 @@ class AppContainer(context: Context) {
         )
     }
 
+    // 2026-08-13 시공막내 웹 사진 캘린더(읽기전용 뷰어) — 앱측: 스케줄 피드 push + QR authorize + 웹 로그아웃.
+    //   서버 완료(docs/SERVER_HANDOFF_web_photo_calendar_SERVER_DONE.md). 미러와 독립(웹 로그인하면 켜짐).
+    val webFeedRepository = com.detailline.callfollowcrm.ai.WebFeedRepository()
+    /** 뷰어용 스케줄 피드 자동 전송(30초 디바운스 + 해시). Application.onCreate 에서 start(). 웹 로그인 상태일 때만. */
+    val webFeedSyncManager by lazy {
+        com.detailline.callfollowcrm.ai.WebFeedSyncManager(
+            webFeedRepository, preferences, customerRepository, categoryRepository
+        )
+    }
+
     // 2026-06-21 cowork 요청 — 앱 진입(onResume)마다 /api/beta/check 핑 → admin 대시보드 사용 수/최근 실행 실시간.
     val betaCheckRepository = com.detailline.callfollowcrm.ai.BetaCheckRepository()
     // 2026-07-04 회원가입(폰 인증번호) — docs/ANDROID_HANDOFF_signup_auth.md.

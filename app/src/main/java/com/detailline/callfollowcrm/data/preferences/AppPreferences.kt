@@ -812,6 +812,16 @@ class AppPreferences(context: Context) {
     var mirrorLastHash: String?
         get() = prefs.getString("mirror_last_hash", null)
         set(value) { prefs.edit().putString("mirror_last_hash", value).apply() }
+
+    // ── 시공막내 웹 사진 캘린더 뷰어 (2026-08-13) — 미러와 독립. 웹 로그인(QR 승인)하면 켜짐. ──
+    /** 웹 뷰어 사용 중 여부. QR 승인 시 true, '웹 로그아웃' 시 false. true 일 때만 스케줄 피드 자동 전송(개인정보·비용 절약). */
+    var webViewerActive: Boolean
+        get() = prefs.getBoolean("web_viewer_active", false)
+        set(value) { prefs.edit().putBoolean("web_viewer_active", value).apply() }
+    /** 마지막으로 전송한 스케줄 피드 해시 — 안 바뀌면 다시 안 보냄. */
+    var webFeedLastHash: String?
+        get() = prefs.getString("web_feed_last_hash", null)
+        set(value) { prefs.edit().putString("web_feed_last_hash", value).apply() }
     /** v2: 이 업무폰의 고정 공유 코드(서버 부여, 표시용 캐시). 본폰이 이 코드로 공유 신청. */
     var mirrorCode: String?
         get() = prefs.getString("mirror_code", null)?.takeIf { it.isNotBlank() }

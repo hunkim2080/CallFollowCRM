@@ -8645,3 +8645,13 @@ stale-day/month 버그 전수 검사·수정 (사장님 "이런 버그 전체 �
 - 검증: TestClient 전 엔드포인트 통과(feed/login/cal/sites/site/photo/zip/단건/401/redirect/logout). ast OK. python3.9 Optional 준수.
 - 🔴 앱(android) 담당: ①POST /api/web/schedule-feed push(덮어쓰기) ②QR스캔→POST /api/web/authorize{ticket,owner_phone} ③설정'웹 로그아웃'→POST /api/web/logout-all. 계약 상세=docs/SERVER_HANDOFF_web_photo_calendar_SERVER_DONE.md
 - 남음(cowork): 부위 목록형(현재 자유입력)·프로토 7c06efeb 시각 대조·저장전략§7(base64→파일/썸네일)은 미적용(사용자 증가 후). 디스크97%는 REPO_SLIMMING.md 로 우선.
+
+## 2026-08-13 (5) · android
+웹 사진 캘린더 뷰어 — 앱측 3가지 배선 완료(코워크 SERVER_DONE 계약 그대로). 컴파일 OK(:app:compileDebugKotlin BUILD SUCCESSFUL).
+- ①스케줄 피드 push: WebFeedRepository.pushFeed + WebFeedSyncManager(미러와 독립, webViewerActive 게이트, 고객 observeAll→30초 디바운스+해시). 항목=시공일 잡힌 고객만: customer_digits(전화 숫자), name, apartment(=주소·앱엔 아파트/동호 분리필드 없음), dong_ho="", work_date(yyyy-MM-dd), category(categoryId→카테고리명), completed(workCompletedAt!=null). Application.onCreate 에서 start().
+- ②QR 스캔→authorize: **인앱 스캐너 안 만듦** — 딥링크로. 매니페스트 App Link 에 host api.si0in.kr 이미 있어 pathPrefix "/web/" 만 추가. MainActivity.handleIncoming 이 https .../web/authorize?t= 받아 IncomingIntent.WebAuthorize→webFeedRepository.authorize{ticket,bizPhone}. OK시 webViewerActive=true+피드 즉시 push+토스트. 410=만료 안내. 화면이동 없음. (폰 기본카메라가 URL 열면 앱이 받음=폰=열쇠)
+- ③웹 로그아웃: 더보기>앱설정>"시공막내 웹(PC 사진)" 섹션(WebViewerSection) → logout-all + webViewerActive=false.
+- 신규파일 2(WebFeedRepository/WebFeedSyncManager) + 수정6(AppContainer·AppPreferences·Application·Manifest·MainActivity·SettingsScreen). owner_phone 인증으로 시작(계약대로).
+- ⚠️폰 실기검증 대기: 딥링크 수신(am start https .../web/authorize?t=)·피드 push 200·zip 다운. assetlinks.json 은 host 이미 검증중(/shared/ App Link 동작) → /web/ 도 자동 커버 예상.
+- 💬**코워크에 답(부위 목록)**: 프로토 결정 = **칩 목록형**(사장님이 브라우저서 추가·삭제·순서). 서버·앱 저장 X = 브라우저 localStorage 로(리소스 최소, 미러 안 함). 자유입력칸 → 관리형 칩으로 보강 부탁. 기본칩 예시(줄눈)=거실화장실·안방화장실·거실타일·베란다·다용도실·현관·기타 지만 업종무관 편집 가능해야.
+- commit: (아래) . 앱 전용(서버 변경 없음).

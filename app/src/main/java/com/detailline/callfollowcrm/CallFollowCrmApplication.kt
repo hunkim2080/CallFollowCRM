@@ -411,6 +411,10 @@ class CallFollowCrmApplication : Application() {
         //   ReminderWorker(~3h) 가 앱 종료 상태 백업. 꺼져 있으면 조용히 skip.
         container.mirrorSyncManager.start(appScope)
 
+        // 시공막내 웹 사진 캘린더 뷰어 (2026-08-13) — 웹 로그인 상태면 일정 변경을 30초 디바운스로 서버 피드 전송.
+        //   웹 안 쓰면(webViewerActive=false) 조용히 skip. 미러와 독립.
+        container.webFeedSyncManager.start(appScope)
+
         // 현장 도착 지오펜스 — 다가오는 시공 현장 5km 등록(권한·토글 있을 때만).
         appScope.launch {
             runCatching { com.detailline.callfollowcrm.service.GeofenceManager.refresh(this@CallFollowCrmApplication) }
