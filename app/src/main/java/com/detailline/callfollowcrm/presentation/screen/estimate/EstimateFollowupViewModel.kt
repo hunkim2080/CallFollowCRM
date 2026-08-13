@@ -22,7 +22,6 @@ data class FollowupRow(val item: EstimateFollowupItem, val body: String)
 /** 견적 회신 리마인드 (2026-06-01). 자동발송 X — 확인 후 발송. */
 class EstimateFollowupViewModel(private val container: AppContainer) : ViewModel() {
 
-    private val todayStart = DateTimeUtils.startOfDay(System.currentTimeMillis())
     private val bizName = container.preferences.bizName
 
     val rows: StateFlow<List<FollowupRow>> = combine(
@@ -30,6 +29,7 @@ class EstimateFollowupViewModel(private val container: AppContainer) : ViewModel
         container.customerRepository.observeAll(),
         container.recurringMessageRepository.observeLogs()
     ) { sends, customers, logs ->
+        val todayStart = DateTimeUtils.startOfDay(System.currentTimeMillis())  // 매번 현재 기준 (stale-day fix)
         val estDays = sends.filter { it.customerId != null }
             .groupBy { it.customerId!! }
             .mapValues { (_, list) -> DateTimeUtils.startOfDay(list.maxOf { it.createdAt }) }

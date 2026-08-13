@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.stateIn
 import java.util.Calendar
 
@@ -23,23 +25,22 @@ import java.util.Calendar
  *   - 히어로/그리드/시공종류 = **이번 달** 고정 (프로토와 동일).
  *   - 문의 추이만 7일/30일 토글 (프로토 period-toggle).
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class StatsViewModel(container: AppContainer) : ViewModel() {
 
-    private val nowMs = System.currentTimeMillis()
-    private val monthStart = monthStartOf(nowMs)
-    private val monthEnd = shiftMonth(monthStart, +1)
-    private val lastMonthStart = shiftMonth(monthStart, -1)
-    private val lastYearStart = shiftMonth(monthStart, -12)
-    private val lastYearEnd = shiftMonth(monthEnd, -12)
-
+    // ⚠️ '이번 달/이번 주' 경계를 필드로 굳히지 않는다 — 앱을 달/주 넘겨 켜두면 지난 달/주를 보여주던 버그.
+    //   buildState/buildTrend 에서 매번 현재 기준으로 계산하고, 월 집계 쿼리도 반응형으로. (2026-08-13 stale fix)
     private val customers = container.customerRepository.observeAll()
     private val categories = container.categoryRepository.observeAll()
-    private val sentThisMonth = container.messageHistoryRepository.observeSentCountBetween(monthStart, monthEnd)
+    private val sentThisMonth = customers.flatMapLatest {
+        val ms = monthStartOf(System.currentTimeMillis())
+        container.messageHistoryRepository.observeSentCountBetween(ms, shiftMonth(ms, +1))
+    }
 
     // 문의 추이용 실제 문의 소스 — 받은 문자/MMS 캐시 + 받은 전화. (고객 카드 createdAt 아님)
     private val smsContacts = container.smsContactCacheRepository.observeAll(limit = 500)
     private val inbound = container.callRecordRepository
-        .observeInboundSince(nowMs - 365L * DateTimeUtils.DAY_MS)
+        .observeInboundSince(System.currentTimeMillis() - 365L * DateTimeUtils.DAY_MS)
 
     private val period = MutableStateFlow(StatPeriod.D7)
     val periodState: StateFlow<StatPeriod> = period
@@ -56,6 +57,12 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
 
     // ── 이번 달 고정 집계 ────────────────────────────────────────────
     private fun buildState(cs: List<CustomerEntity>, cats: List<CategoryEntity>, sent: Int): StatsUiState {
+        val now = System.currentTimeMillis()   // 매번 현재 기준 (stale-month fix)
+        val monthStart = monthStartOf(now)
+        val monthEnd = shiftMonth(monthStart, +1)
+        val lastMonthStart = shiftMonth(monthStart, -1)
+        val lastYearStart = shiftMonth(monthStart, -12)
+        val lastYearEnd = shiftMonth(monthEnd, -12)
         val jobs = cs.count { it.scheduledWorkDate?.let { d -> d in monthStart until monthEnd } == true }
         val inquiries = cs.count { it.createdAt in monthStart until monthEnd }
         val conversion = if (inquiries > 0) Math.round(jobs * 100.0 / inquiries).toInt() else 0
@@ -79,7 +86,7 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
         val topType = types.firstOrNull()
 
         return StatsUiState(
-            greeting = greetingOf(nowMs),
+            greeting = greetingOf(now),
             monthLabel = "${monthOf(monthStart)}월",
             jobs = jobs,
             jobsVsLastYear = jobsVsLastYear,
@@ -100,6 +107,7 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
         calls: List<CallRecordEntity>,
         p: StatPeriod
     ): StatsTrendState {
+        val now = System.currentTimeMillis()   // 매번 현재 기준 (stale-week fix)
         val firstDayBySuffix = HashMap<String, Long>()
         fun mark(suffix: String, ms: Long) {
             if (suffix.isBlank() || ms <= 0L) return
@@ -112,7 +120,7 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
         val createdDays = firstDayBySuffix.values.toList()
         val bars = when (p) {
             StatPeriod.D7 -> {
-                val monday = mondayOfWeek(nowMs)
+                val monday = mondayOfWeek(now)
                 (0..6).map { i ->
                     val day = monday + i * DateTimeUtils.DAY_MS
                     val prevDay = day - 7 * DateTimeUtils.DAY_MS
@@ -124,7 +132,7 @@ class StatsViewModel(container: AppContainer) : ViewModel() {
                 }
             }
             StatPeriod.D30 -> {
-                val thisWeekMon = mondayOfWeek(nowMs)
+                val thisWeekMon = mondayOfWeek(now)
                 // 4주전~이번주 (각 1주 버킷), prev = 그 4주 앞 동일 버킷
                 listOf(3, 2, 1, 0).mapIndexed { idx, weeksAgo ->
                     val wkStart = thisWeekMon - weeksAgo * 7 * DateTimeUtils.DAY_MS

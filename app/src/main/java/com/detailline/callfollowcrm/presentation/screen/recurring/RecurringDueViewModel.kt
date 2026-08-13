@@ -19,13 +19,12 @@ import kotlinx.coroutines.withContext
 /** "정기문자 보낼 때 됐어요" 목록 (2026-06-01). 자동발송 X — 사장님 확인 후 보냄/넘김. */
 class RecurringDueViewModel(private val container: AppContainer) : ViewModel() {
 
-    private val todayStart = DateTimeUtils.startOfDay(System.currentTimeMillis())
-
     val dueItems: StateFlow<List<DueItem>> = combine(
         container.recurringMessageRepository.observeEnabledRules(),
         container.customerRepository.observeAll(),
         container.recurringMessageRepository.observeLogs()
     ) { rules, customers, logs ->
+        val todayStart = DateTimeUtils.startOfDay(System.currentTimeMillis())  // 매번 현재 기준 (stale-day fix)
         val keys = logs.map { Triple(it.ruleId, it.customerId, it.occurrenceDayStartMs) }.toSet()
         RecurringDueCalc.computeDue(rules, customers, keys, todayStart)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())

@@ -47,6 +47,15 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     /** 어제 0시 — 프로토 today-new 카드의 "어제 M통" 비교용. */
     private val yesterdayStart = todayStart - 24L * 60 * 60 * 1000
 
+    /**
+     * '오늘 0시'를 _todayTick(ON_RESUME 마다 갱신)에서 파생 — 자정 넘어도·앱을 며칠 켜둬도 갱신된다.
+     *   정적 todayStart 를 쓰던 홈 카드(리마인드·정기문자·견적회신·잔금·다음시공·collab·dismiss)들이 이걸 combine 해서 stale 방지.
+     *   (2026-08-13 stale-day 전면수정 — todayNew KPI 에 이어 나머지 홈 카드도 반응형으로.)
+     */
+    private val todayStartFlow: StateFlow<Long> = _todayTick
+        .map { DateTimeUtils.startOfDay(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), todayStart)
+
     private val filter = MutableStateFlow<HomeFilter>(HomeFilter.All)
     val filterState = filter
 
@@ -323,23 +332,25 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
     // 카운트 배너(견적 회신·정기문자) 밀어서 정리 = 오늘 하루 숨김(다음날 다시).
     private val estimateFollowupDismissedDay = MutableStateFlow(container.preferences.estimateFollowupDismissedDay)
-    val estimateFollowupDismissed: StateFlow<Boolean> = estimateFollowupDismissedDay
-        .map { it == todayStart }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000),
-            container.preferences.estimateFollowupDismissedDay == todayStart)
+    val estimateFollowupDismissed: StateFlow<Boolean> =
+        combine(estimateFollowupDismissedDay, todayStartFlow) { day, ts -> day == ts }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000),
+                container.preferences.estimateFollowupDismissedDay == todayStart)
     fun dismissEstimateFollowup() {
-        estimateFollowupDismissedDay.value = todayStart
-        container.preferences.estimateFollowupDismissedDay = todayStart
+        val ts = DateTimeUtils.startOfDay(System.currentTimeMillis())
+        estimateFollowupDismissedDay.value = ts
+        container.preferences.estimateFollowupDismissedDay = ts
     }
 
     private val recurringDueDismissedDay = MutableStateFlow(container.preferences.recurringDueDismissedDay)
-    val recurringDueDismissed: StateFlow<Boolean> = recurringDueDismissedDay
-        .map { it == todayStart }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000),
-            container.preferences.recurringDueDismissedDay == todayStart)
+    val recurringDueDismissed: StateFlow<Boolean> =
+        combine(recurringDueDismissedDay, todayStartFlow) { day, ts -> day == ts }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000),
+                container.preferences.recurringDueDismissedDay == todayStart)
     fun dismissRecurringDue() {
-        recurringDueDismissedDay.value = todayStart
-        container.preferences.recurringDueDismissedDay = todayStart
+        val ts = DateTimeUtils.startOfDay(System.currentTimeMillis())
+        recurringDueDismissedDay.value = ts
+        container.preferences.recurringDueDismissedDay = ts
     }
 
     val autoReplies: StateFlow<List<AutoReplyItem>> = combine(
@@ -438,9 +449,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      *   (2026-06-21 사장님: 모레·먼 날짜까지 홈에 계속 떠서 "이게 왜 떠있지" 혼란 → D-1 안내처럼 임박한 것만.)
      */
     val collabUpcoming: StateFlow<List<com.detailline.callfollowcrm.ai.SharedSiteRepository.SharedSite>> =
-        container.collabEventCenter.acceptedUpcoming
-            .map { list ->
-                val until = todayStart + 2L * 24 * 60 * 60 * 1000  // 모레 0시 = 오늘·내일까지만
+        combine(container.collabEventCenter.acceptedUpcoming, todayStartFlow) { list, ts ->
+                val until = ts + 2L * 24 * 60 * 60 * 1000  // 모레 0시 = 오늘·내일까지만
                 list.filter { it.scheduledAtMs <= 0L || it.scheduledAtMs < until }
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -498,11 +508,12 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     val recurringDueCount: StateFlow<Int> = combine(
         container.recurringMessageRepository.observeEnabledRules(),
         customers,
-        container.recurringMessageRepository.observeLogs()
-    ) { rules, custs, logs ->
+        container.recurringMessageRepository.observeLogs(),
+        todayStartFlow
+    ) { rules, custs, logs, ts ->
         val keys = logs.map { Triple(it.ruleId, it.customerId, it.occurrenceDayStartMs) }.toSet()
         com.detailline.callfollowcrm.domain.recurring.RecurringDueCalc
-            .computeDue(rules, custs, keys, todayStart).size
+            .computeDue(rules, custs, keys, ts).size
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     /**
@@ -519,14 +530,15 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     val scheduleReminderCount: StateFlow<Int> = combine(
         customers,
         container.recurringMessageRepository.observeLogs(),
-        d1EnabledFlow
-    ) { custs, logs, d1On ->
+        d1EnabledFlow,
+        todayStartFlow
+    ) { custs, logs, d1On, ts ->
         val keys = logs.map { Triple(it.ruleId, it.customerId, it.occurrenceDayStartMs) }.toSet()
         com.detailline.callfollowcrm.domain.reminder.ScheduleReminderCalc
             .compute(
-                custs, keys, todayStart,
+                custs, keys, ts,
                 arrivalEnabled = container.preferences.arrivalAutoEnabled,
-                arrivalEnteredCustomerIds = arrivalEnteredIdsToday(),
+                arrivalEnteredCustomerIds = arrivalEnteredIdsToday(ts),
                 d1Enabled = d1On,
                 d1TimeReached = d1TimeReachedNow()
             ).size
@@ -539,15 +551,16 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     val scheduleReminders: StateFlow<List<HomeReminderUi>> = combine(
         customers,
         container.recurringMessageRepository.observeLogs(),
-        d1EnabledFlow
-    ) { custs, logs, d1On ->
+        d1EnabledFlow,
+        todayStartFlow
+    ) { custs, logs, d1On, ts ->
         val keys = logs.map { Triple(it.ruleId, it.customerId, it.occurrenceDayStartMs) }.toSet()
         val byId = custs.associateBy { it.id }
         com.detailline.callfollowcrm.domain.reminder.ScheduleReminderCalc
             .compute(
-                custs, keys, todayStart,
+                custs, keys, ts,
                 arrivalEnabled = container.preferences.arrivalAutoEnabled,
-                arrivalEnteredCustomerIds = arrivalEnteredIdsToday(),
+                arrivalEnteredCustomerIds = arrivalEnteredIdsToday(ts),
                 d1Enabled = d1On,
                 d1TimeReached = d1TimeReachedNow()
             ).map { item ->
@@ -570,10 +583,10 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      * 안 들어온 잔금(미수) — 받을 돈 남았고 시공 후 1일+ 지난 고객. 상담함에 고객마다 카드. (사장님 2026-06-23)
      *   기준/경과일 = [SettlementCalc.overdueDays]. 오래 지난 것부터 위로. "받았어요" 하면 미수 0 → 사라짐.
      */
-    val balanceDues: StateFlow<List<HomeBalanceDueUi>> = customers.map { list ->
+    val balanceDues: StateFlow<List<HomeBalanceDueUi>> = combine(customers, todayStartFlow) { list, ts ->
         list.filter { SettlementCalc.hasMoney(it) }
             .mapNotNull { c ->
-                val days = SettlementCalc.overdueDays(c, todayStart) ?: return@mapNotNull null
+                val days = SettlementCalc.overdueDays(c, ts) ?: return@mapNotNull null
                 val won = SettlementCalc.rowOf(c).outstanding
                 val realName = c.name?.takeIf { it.isNotBlank() }
                 // 카드엔 번호 대신 아주 짧은 현장("수원 대동아파트"). 없으면 이름, 그것도 없으면 잔금만. (사장님 2026-06-23)
@@ -598,9 +611,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         return "${who}님 안녕하세요 😊 지난 시공 잔금 ${"%,d".format(outstandingWon)}원 입금 부탁드립니다. 감사합니다!"
     }
 
-    /** 오늘 5km 진입한 고객 ID — 지오펜스가 적립한 "arrival:{id}:{오늘자정}" 키에서 파싱. */
-    private fun arrivalEnteredIdsToday(): Set<Long> {
-        val suffix = ":$todayStart"
+    /** 오늘 5km 진입한 고객 ID — 지오펜스가 적립한 "arrival:{id}:{오늘자정}" 키에서 파싱. ts=현재 '오늘 0시'(반응형). */
+    private fun arrivalEnteredIdsToday(ts: Long): Set<Long> {
+        val suffix = ":$ts"
         return container.preferences.arrivalEnteredKeys.mapNotNull { k ->
             if (!k.startsWith("arrival:") || !k.endsWith(suffix)) return@mapNotNull null
             k.removePrefix("arrival:").removeSuffix(suffix).toLongOrNull()
@@ -655,14 +668,15 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     val estimateFollowupCount: StateFlow<Int> = combine(
         container.messageHistoryRepository.observeEstimateSends(),
         customers,
-        container.recurringMessageRepository.observeLogs()
-    ) { sends, custs, logs ->
+        container.recurringMessageRepository.observeLogs(),
+        todayStartFlow
+    ) { sends, custs, logs, ts ->
         val estDays = sends.filter { it.customerId != null }
             .groupBy { it.customerId!! }
             .mapValues { (_, list) -> DateTimeUtils.startOfDay(list.maxOf { it.createdAt }) }
         val keys = logs.map { Triple(it.ruleId, it.customerId, it.occurrenceDayStartMs) }.toSet()
         com.detailline.callfollowcrm.domain.estimate.EstimateFollowupCalc
-            .compute(estDays, custs, keys, todayStart).size
+            .compute(estDays, custs, keys, ts).size
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     // ────────────────────────────────────────────────────────
@@ -708,10 +722,11 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     /** 다음 시공 = 오늘 이후 가장 가까운 날의 시공들 (1~3곳). 오늘 시공 없을 때 미리보기. */
-    val nextJobs: StateFlow<List<CustomerEntity>> = customers.map { list ->
+    val nextJobs: StateFlow<List<CustomerEntity>> = combine(customers, todayStartFlow) { list, ts ->
+        val todayEnd = ts + 24L * 60 * 60 * 1000 - 1   // 반응형 오늘 끝
         val future = list.filter { (it.scheduledWorkDate ?: 0L) > todayEnd }
         val minDay = future.mapNotNull { it.scheduledWorkDate }
-            .map { DateTimeUtils.startOfDay(it) }.minOrNull() ?: return@map emptyList()
+            .map { DateTimeUtils.startOfDay(it) }.minOrNull() ?: return@combine emptyList()
         future.filter { DateTimeUtils.startOfDay(it.scheduledWorkDate ?: 0L) == minDay }
             .sortedBy { it.scheduledWorkMinutes ?: Int.MAX_VALUE }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -734,7 +749,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         missed: List<CallRecordEntity>,
         spam: Set<String> = emptySet(),
         scheduled: Set<String> = emptySet(),
-        handledCallMs: Map<String, Long> = emptyMap()
+        handledCallMs: Map<String, Long> = emptyMap(),
+        // 7일 윈도우 시작점도 호출부에서 현재 기준으로 넘김(반응형). 정적이면 앱 오래 켜둘 때 창이 7+N일로 늘어남. (2026-08-13)
+        sevenStart: Long = sevenDayWindowStart
     ): Set<String> {
         val bySuffix = smsContacts.associateBy { it.normalizedSuffix }
         val result = HashSet<String>()
@@ -744,14 +761,14 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             // 시공일정 잡힌 고객도 '새 메시지가 오면' 답장 기다려요에 다시 뜨게. (2026-07-01 사장님 — 새 문의가 묻히지 않게)
             //   일정만 있고 새 메시지 없으면 아래 freshIncoming 조건이 false 라 자동 제외(= 일정 카드로만 관리). 옛 #scheduled 무조건 제외 제거.
             // 사장님 의도: 마지막 메시지가 고객 수신이면 미확인. 이전에 답장 보낸 적은 무관.
-            if (!c.lastSent && c.lastDateMs >= sevenDayWindowStart) {
+            if (!c.lastSent && c.lastDateMs >= sevenStart) {
                 // 그 문자 이후 전화로 응대(받은전화 응답/내가 콜백)했으면 처리된 것 → 제외. (2026-07-02 사장님)
                 if ((handledCallMs[c.normalizedSuffix] ?: 0L) >= c.lastDateMs) continue
                 result += c.normalizedSuffix
             }
         }
         for (m in missed) {
-            if (m.endedAt < sevenDayWindowStart) continue
+            if (m.endedAt < sevenStart) continue
             val suffix = phoneSuffix(m.phoneNumber)
             if (suffix in spam) continue
             if (com.detailline.callfollowcrm.util.SpamPrefix.isSpam(m.phoneNumber, spamPrefixesFlow.value)) continue  // 스팸 앞자리
@@ -895,7 +912,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         ) { smsContacts, calls, callsBefore, spam, scheduled ->
             val (missed, inbound, handledMs) = calls
             TimelineFlags(
-                unconfirmedSuffixes = unconfirmedSuffixes(smsContacts, missed, spam, scheduled, handledMs),
+                unconfirmedSuffixes = unconfirmedSuffixes(smsContacts, missed, spam, scheduled, handledMs, ts - 6L * 24 * 60 * 60 * 1000),
                 newTodaySuffixes = newTodaySuffixes(smsContacts, inbound, callsBefore, spam, ts, te)
             )
         }

@@ -23,13 +23,13 @@ data class ReminderRow(val item: ReminderItem, val body: String)
 /** 시공 D-1 / 도착 안내 리마인드 (2026-06-01). 자동발송 X — 확인 후 발송. */
 class ScheduleReminderViewModel(private val container: AppContainer) : ViewModel() {
 
-    private val todayStart = DateTimeUtils.startOfDay(System.currentTimeMillis())
     private val bizName = container.preferences.bizName
 
     val rows: StateFlow<List<ReminderRow>> = combine(
         container.customerRepository.observeAll(),
         container.recurringMessageRepository.observeLogs()
     ) { customers, logs ->
+        val todayStart = DateTimeUtils.startOfDay(System.currentTimeMillis())  // 매번 현재 기준 (stale-day fix)
         val keys = logs.map { Triple(it.ruleId, it.customerId, it.occurrenceDayStartMs) }.toSet()
         // D-1 토글 OFF 면 이 리마인드 화면에도 D-1 안 띄움(토글 일관성). arrival 은 기존대로(여기선 미노출). (2026-06-18 사장님)
         // + 설정 시각(d1SendHour) 전엔 D-1 숨김 — 홈 카드와 동일 기준(자정 갑툭 방지). (2026-06-18 사장님)

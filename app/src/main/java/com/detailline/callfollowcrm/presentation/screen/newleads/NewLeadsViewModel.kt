@@ -275,18 +275,19 @@ class NewLeadsViewModel(container: AppContainer) : ViewModel() {
 
     /** createdAt → 프로토 nl-t 시각 라벨 ("방금"/"N분 전"/"N시간 전"/날짜+시각). */
     private fun relativeTime(ms: Long): String {
-        val diff = System.currentTimeMillis() - ms
-        val min = diff / 60_000
+        val now = System.currentTimeMillis()
+        val min = (now - ms) / 60_000
         return when {
             min < 1 -> "방금"
             min < 60 -> "${min}분 전"
-            DateTimeUtils.startOfDay(ms) == todayStart -> "${min / 60}시간 전"
+            DateTimeUtils.startOfDay(ms) == DateTimeUtils.startOfDay(now) -> "${min / 60}시간 전"  // 매번 현재 기준 (stale-day fix)
             else -> DateTimeUtils.formatShort(ms)
         }
     }
 
     /** dayStart → 프로토 nl-date 라벨 (오늘/어제/N일 전/M월 D일). */
     private fun dateLabel(dayStart: Long): String {
+        val todayStart = DateTimeUtils.startOfDay(System.currentTimeMillis())  // 매번 현재 기준 (stale-day fix)
         val days = ((todayStart - dayStart) / DateTimeUtils.DAY_MS).toInt()
         return when {
             days <= 0 -> "오늘"

@@ -29,10 +29,7 @@ import java.util.Calendar
  */
 class VisitedViewModel(container: AppContainer) : ViewModel() {
 
-    private val nowMs = System.currentTimeMillis()
-    private val todayStart = DateTimeUtils.startOfDay(nowMs)
-    private val monthStart = monthStartOf(nowMs)
-    private val monthEnd = shiftMonth(monthStart, +1)
+    // '이번 달/오늘' 경계는 필드로 굳히지 않고 monthJobs/build 에서 매번 계산 — 달/자정 넘겨 켜둬도 정확. (2026-08-13 stale fix)
     private val smsRepository = container.smsRepository
     private val customers = container.customerRepository.observeAll()
 
@@ -65,10 +62,16 @@ class VisitedViewModel(container: AppContainer) : ViewModel() {
         }
     }
 
-    private fun monthJobs(cs: List<CustomerEntity>): List<CustomerEntity> =
-        cs.filter { it.scheduledWorkDate?.let { d -> d in monthStart until monthEnd } == true }
+    private fun monthJobs(cs: List<CustomerEntity>): List<CustomerEntity> {
+        val ms = monthStartOf(System.currentTimeMillis())
+        val me = shiftMonth(ms, +1)
+        return cs.filter { it.scheduledWorkDate?.let { d -> d in ms until me } == true }
+    }
 
     private fun build(cs: List<CustomerEntity>, extra: Map<Long, String>): VisitedState {
+        val now = System.currentTimeMillis()   // 매번 현재 기준 (stale fix)
+        val todayStart = DateTimeUtils.startOfDay(now)
+        val monthStart = monthStartOf(now)
         val jobs = monthJobs(cs)
 
         fun toRow(c: CustomerEntity): VisitedRow {

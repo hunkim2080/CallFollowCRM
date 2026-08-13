@@ -101,10 +101,13 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
         goalManwon.value = manwon
     }
 
+    /** 현재 달(월초 epoch)을 매번 다시 계산 — 앱을 달 넘겨 켜둬도 정확. currentMonthAnchor(생성시점 고정)는 초기 seed 로만. (2026-08-13 stale-month fix) */
+    private fun liveMonthAnchor(): Long = monthStartOf(System.currentTimeMillis())
+
     fun prevMonth() { monthAnchor.value = shiftMonth(monthAnchor.value, -1) }
     fun nextMonth() {
         val next = shiftMonth(monthAnchor.value, +1)
-        if (next <= currentMonthAnchor) monthAnchor.value = next   // 미래 달로는 못 감
+        if (next <= liveMonthAnchor()) monthAnchor.value = next   // 미래 달로는 못 감
     }
 
     val settleTop: StateFlow<SettleTopState> =
@@ -128,7 +131,8 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
             received > 0L -> 100
             else -> 0
         }
-        val isLive = anchor == currentMonthAnchor
+        val liveAnchor = liveMonthAnchor()   // '이번 달' 판정은 매번 현재 달로 (stale-month fix)
+        val isLive = anchor == liveAnchor
         val goalWon = goalManwon.toLong() * 10_000L
         val fillPct = if (goalWon > 0L) ((received * 100.0 / goalWon).toInt()).coerceIn(0, 100) else 0
         val reached = received >= goalWon && goalWon > 0L
@@ -177,7 +181,7 @@ class SettlementViewModel(private val container: AppContainer) : ViewModel() {
             daysLeft = daysLeft,
             outstandingManwon = manwon(st.outstandingTotal),
             outstandingCount = st.outstandingCount,
-            canGoNext = anchor < currentMonthAnchor
+            canGoNext = anchor < liveAnchor
         )
     }
 
