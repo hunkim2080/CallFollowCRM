@@ -26557,7 +26557,7 @@ function renderCal(days){
   for(var dd=1;dd<=last;dd++){
     var ds=ym+'-'+pad(dd), info=map[ds];
     if(ds===selDay){h+='<div class="cell sel">'+dd+'<span class="dot"></span>'+(info&&info.hasPhoto?'<span class="cam">📷</span>':'')+'</div>';}
-    else if(info){h+='<div class="cell job" onclick="jumpDay(\''+ds+'\')">'+dd+'<span class="dot"></span>'+(info.hasPhoto?'<span class="cam">📷</span>':'')+'</div>';}
+    else if(info){h+='<div class="cell job" onclick="jumpDay(\\''+ds+'\\')">'+dd+'<span class="dot"></span>'+(info.hasPhoto?'<span class="cam">📷</span>':'')+'</div>';}
     else{h+='<div class="cell">'+dd+'</div>';}
   }
   document.getElementById('cells').innerHTML=h;
@@ -26572,7 +26572,7 @@ function renderDayList(){
     var mo=(s.work_date||'').slice(5,7), dy=(s.work_date||'').slice(8,10);
     var st=s.completed?'<span class="st-ok">완료</span>':'<span class="st-go">진행중</span>';
     var cam=s.photo_count?'<span class="cam2">📷 '+s.photo_count+'</span>':'';
-    h+='<div class="drow'+(s.customer_digits===curCd?' on':'')+'" onclick="openSite(\''+s.customer_digits+'\')">'
+    h+='<div class="drow'+(s.customer_digits===curCd?' on':'')+'" onclick="openSite(\\''+s.customer_digits+'\\')">'
       +'<div class="dd"><div class="m">'+(mo?(+mo)+'월':'')+'</div><div class="n">'+(dy?(+dy):'-')+'</div></div>'
       +'<div class="info"><div class="apt">'+esc(s.apartment||s.name||'현장')+'</div><div class="sub">'+esc((s.name||'')+(s.category?' · '+s.category:''))+'</div></div>'
       +'<div class="rt">'+cam+st+'</div></div>';
@@ -26600,10 +26600,10 @@ function renderDetail(){
    +'</div>'+((mo&&dy)?'<span class="datechip">📅 '+(+mo)+'/'+(+dy)+'</span>':'')+'</div>'
    +'<div class="viewerbar">👁️ <b>보기 전용</b> — 보고·다운로드만. 사진 수정·삭제는 폰 앱에서만. (부위 태그는 <b>다운로드 이름표</b>일 뿐 서버 사진은 안 건드려요 🤙)</div>'
    +'<div class="toolbar">'
-   +'<span class="chipf'+(filter==='all'?' on':'')+'" onclick="setFilter(\'all\')">전체 '+cc.all+'</span>'
-   +'<span class="chipf'+(filter==='owner'?' on':'')+'" onclick="setFilter(\'owner\')"><i class="owner"></i>사장님 '+(cc.owner||0)+'</span>'
-   +'<span class="chipf'+(filter==='team'?' on':'')+'" onclick="setFilter(\'team\')"><i class="team"></i>팀원 '+(cc.team||0)+'</span>'
-   +'<span class="chipf'+(filter==='partner'?' on':'')+'" onclick="setFilter(\'partner\')"><i class="partner"></i>협업 사장 '+(cc.partner||0)+'</span>'
+   +'<span class="chipf'+(filter==='all'?' on':'')+'" onclick="setFilter(\\'all\\')">전체 '+cc.all+'</span>'
+   +'<span class="chipf'+(filter==='owner'?' on':'')+'" onclick="setFilter(\\'owner\\')"><i class="owner"></i>사장님 '+(cc.owner||0)+'</span>'
+   +'<span class="chipf'+(filter==='team'?' on':'')+'" onclick="setFilter(\\'team\\')"><i class="team"></i>팀원 '+(cc.team||0)+'</span>'
+   +'<span class="chipf'+(filter==='partner'?' on':'')+'" onclick="setFilter(\\'partner\\')"><i class="partner"></i>협업 사장 '+(cc.partner||0)+'</span>'
    +'</div>'
    +'<div class="beforeafter"><span class="lab before">시공 전</span> · <span class="lab after">시공 후</span> = <b style="color:var(--ink)">&nbsp;올린 시간순으로 자동 구분</b> (앞=전 · 뒤=후)</div>'
    +'<div class="photos" id="photos"></div>'

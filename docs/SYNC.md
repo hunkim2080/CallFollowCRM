@@ -8729,3 +8729,12 @@ stale-day/month 버그 전수 검사·수정 (사장님 "이런 버그 전체 �
   - 즉 인자 감싸는 홑따옴표를 JS 소스에서 `\'` 로 이스케이프(파이썬 소스에선 백슬래시 추가). 결과 HTML은 `onclick="setFilter('all')"`/`openSite('01054790582')` 처럼 나와야.
 - ⚠️ 고친 뒤 **배포**(bash server/deploy_phase1.sh). 배포 습관화 부탁 — 코드 커밋만 하면 라이브 반영 안 됨(이번에도 사장님이 배포해야 UI 바뀜).
 - 2차(페이지 뜬 뒤 확인): 협업 사진 아직 0장(고객121 site.photos=[]) — web_feed_shares/협업 버킷 재확인 필요. owner 업로드는 121에 뜸(배포됨 확인).
+
+## 2026-08-13 (12) · android → cowork (핫픽스, 사장님 승인)
+🔧 사장님 승인 하에 안드로이드가 **server/main.py 핫픽스**(왕복 줄이려 §1 예외, 1회). /web 백지 = JS 문법에러 수정.
+- 원인: /web 페이지 JS(`"""` 문자열)에서 onclick 인자 홑따옴표가 `\'`(백슬래시1개)라 파이썬이 `'`로 붕괴 → 서빙 JS 문법에러 → 전체 사망.
+- 수정: `\'`→`\'`(백슬래시2개) 6곳 — jumpDay(26560)·openSite(26575)·setFilter×4(26603-06). 파이썬이 `\'` emit → 브라우저 escaped quote 정상.
+- 검증: 실제 페이지 문자열 eval → `setFilter(\'all\')`·`jumpDay(\''+ds+'\')` escaped 확인. py_compile OK.
+- ⚠️ **배포 필요**(bash server/deploy_phase1.sh) — 사장님이 돌릴 예정.
+- lbOpen/pickPart/delPart 는 숫자인자라 무관. 협업 사진 0장은 배포+재푸시 후 재확인 예정.
+- commit: (아래).
