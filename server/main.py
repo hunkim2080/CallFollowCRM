@@ -403,6 +403,17 @@ def db_init() -> None:
             "CREATE INDEX IF NOT EXISTS idx_web_feed_owner_date "
             "ON web_schedule_feed(owner_phone, work_date)"
         )
+        # 협업 share → 고객 매핑 (앱 피드 push 시 함께 저장) — 협업 사장(직원) 사진을 그 고객에 붙임
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS web_feed_shares (
+                owner_phone     TEXT NOT NULL,
+                share_id        TEXT NOT NULL,
+                customer_digits TEXT NOT NULL,
+                PRIMARY KEY (owner_phone, share_id)
+            )
+            """
+        )
         # QR 로그인 티켓 (60초 만료, 폰 스캔 authorize 후 1회용 소멸)
         con.execute(
             """
@@ -25875,25 +25886,60 @@ def _web_owner_from_request(request: Request) -> Optional[str]:
     return owner
 
 
+_WEB_OWNER_NORM = ("REPLACE(REPLACE(REPLACE(REPLACE(IFNULL(owner_phone,''),'-',''),"
+                   "' ',''),'+',''),'_','')")
+
+
 def _web_photo_bucket(owner: str) -> dict:
-    """owner 의 team_site_photos 를 고객키(끝8)로 묶어 반환 (시간 오름차순)."""
+    """owner 의 사진을 고객키(끝8)로 묶어 반환 (시간 오름차순).
+    (A) customer_phone 사진 + (B) 협업 share 사진(web_feed_shares 로 고객 매핑)."""
     out: dict = {}
+    seen: dict = {}   # pkey -> set(photo_id) 중복 방지
+
+    def _add(k, rec):
+        if not k:
+            return
+        s = seen.setdefault(k, set())
+        if rec["photo_id"] in s:
+            return
+        s.add(rec["photo_id"])
+        out.setdefault(k, []).append(rec)
+
     with db_conn() as con:
+        # (A) 고객번호로 묶인 사진
         rows = con.execute(
             "SELECT photo_id, customer_phone, member_id, label, uploaded_at_ms "
-            "FROM team_site_photos "
-            "WHERE REPLACE(REPLACE(REPLACE(REPLACE(IFNULL(owner_phone,''),'-',''),' ',''),'+',''),'_','') = ? "
-            "AND customer_phone IS NOT NULL ORDER BY uploaded_at_ms ASC",
+            "FROM team_site_photos WHERE " + _WEB_OWNER_NORM + " = ? "
+            "AND customer_phone IS NOT NULL",
             (owner,),
         ).fetchall()
-    for r in rows:
-        k = _web_pkey(r[1])
-        if not k:
-            continue
-        out.setdefault(k, []).append({
-            "photo_id": r[0], "member_id": r[2] or "", "label": r[3] or "",
-            "uploaded_at_ms": r[4], "customer_phone": r[1],
-        })
+        for r in rows:
+            _add(_web_pkey(r[1]), {
+                "photo_id": r[0], "member_id": r[2] or "", "label": r[3] or "",
+                "uploaded_at_ms": r[4], "customer_phone": r[1],
+            })
+        # (B) 협업 share 사진 — share_id → 고객(customer_digits) 매핑으로 같은 버킷에 합침
+        shmap = {}
+        for sr in con.execute(
+            "SELECT share_id, customer_digits FROM web_feed_shares WHERE owner_phone = ?",
+            (owner,),
+        ).fetchall():
+            shmap[sr[0]] = sr[1]
+        share_ids = [s for s in shmap.keys() if s]
+        if share_ids:
+            q = ("SELECT photo_id, share_id, member_id, label, uploaded_at_ms "
+                 "FROM team_site_photos WHERE share_id IN (%s)"
+                 % ",".join("?" * len(share_ids)))
+            for r in con.execute(q, share_ids).fetchall():
+                cd = shmap.get(r[1])
+                if not cd:
+                    continue
+                _add(_web_pkey(cd), {
+                    "photo_id": r[0], "member_id": r[2] or "", "label": r[3] or "",
+                    "uploaded_at_ms": r[4], "customer_phone": cd,
+                })
+    for k in out:
+        out[k].sort(key=lambda x: x["uploaded_at_ms"])
     return out
 
 
@@ -25902,14 +25948,21 @@ def _web_photo_bytes(photo_id: int, owner: str):
     import base64 as _b64
     with db_conn() as con:
         row = con.execute(
-            "SELECT image_data_url, image_path FROM team_site_photos "
-            "WHERE photo_id = ? AND "
-            "REPLACE(REPLACE(REPLACE(REPLACE(IFNULL(owner_phone,''),'-',''),' ',''),'+',''),'_','') = ?",
-            (photo_id, owner),
+            "SELECT image_data_url, image_path, " + _WEB_OWNER_NORM + ", share_id "
+            "FROM team_site_photos WHERE photo_id = ?",
+            (photo_id,),
         ).fetchone()
-    if not row:
+        if not row:
+            return None, None
+        data_url, path, own_norm, sid = row
+        allowed = (own_norm == owner)
+        if not allowed and sid:
+            allowed = bool(con.execute(
+                "SELECT 1 FROM web_feed_shares WHERE owner_phone = ? AND share_id = ?",
+                (owner, sid),
+            ).fetchone())
+    if not allowed:
         return None, None
-    data_url, path = row
     if data_url:
         s = data_url
         mime = "image/jpeg"
@@ -25946,6 +25999,7 @@ async def web_schedule_feed_push(req: WebFeedPush) -> dict:
     items = req.items or []
     with db_conn() as con:
         con.execute("DELETE FROM web_schedule_feed WHERE owner_phone = ?", (owner,))
+        con.execute("DELETE FROM web_feed_shares WHERE owner_phone = ?", (owner,))
         n = 0
         for it in items:
             if not isinstance(it, dict):
@@ -25953,6 +26007,12 @@ async def web_schedule_feed_push(req: WebFeedPush) -> dict:
             cd = _webre.sub(r"[^0-9]", "", str(it.get("customer_digits") or ""))
             if not cd:
                 continue
+            for sid in (it.get("share_ids") or []):
+                sid = str(sid or "").strip()
+                if sid:
+                    con.execute(
+                        "INSERT OR REPLACE INTO web_feed_shares (owner_phone, share_id, customer_digits) "
+                        "VALUES (?,?,?)", (owner, sid, cd))
             con.execute(
                 "INSERT OR REPLACE INTO web_schedule_feed "
                 "(owner_phone, customer_digits, name, apartment, dong_ho, work_date, category, completed, updated_at_ms) "

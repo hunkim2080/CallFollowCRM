@@ -8696,3 +8696,10 @@ stale-day/month 버그 전수 검사·수정 (사장님 "이런 버그 전체 �
 - 🔴 cowork: docs/SERVER_HANDOFF_web_collab_photos.md — ①web_feed_shares 테이블(share_id→customer_digits) 저장 ②_web_photo_bucket 에 share_id 경로 추가(협업 사진을 그 고객 버킷에) ③uploader_kind=partner ④photo_count/hasPhoto 포함. owner 정규화(fdc3815) 덕에 협업 owner 매칭은 이미 됨.
 - 검증: 피드 push 후 /api/web/site/{121} 에 협업 10장 uploader_kind:"partner" 로 떠야.
 - commit: (아래). 앱 전용.
+
+## 2026-08-13 14:52 · cowork
+웹 뷰어 협업(직원=협업사장) 사진 포함 — SERVER_HANDOFF_web_collab_photos (android (9)).
+- 변경(server/main.py): ①web_feed_shares 테이블 신설 ②피드 push 가 item.share_ids[] → (owner,share_id,customer_digits) 저장(덮어쓰기) ③_web_photo_bucket 에 협업경로 추가: share_id IN(owner의 shares) 사진을 web_feed_shares 로 고객 매핑해 같은 버킷에 합침(중복 photo_id 제거·시간순 정렬) ④_web_photo_bytes 가 협업사진(다른 owner)도 owner의 share 소속이면 서빙 허용.
+- uploader_kind=partner 는 기존 member_id 파싱으로 이미 처리. photo_count·hasPhoto 자동 포함(버킷 공유).
+- 검증: TestClient — customer_phone=NULL·share_id·PARTNER·타 owner 사진 3장 → site.photos=3(partner)·photo 200·zip 200·sites.photo_count=3·calendar hasPhoto=true. ast OK.
+- ⚠️ 배포 필요: bash server/deploy_phase1.sh (웹뷰어 전체 + fdc3815 + 이번 협업건 함께 반영).
