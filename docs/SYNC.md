@@ -8638,3 +8638,10 @@ stale-day/month 버그 전수 검사·수정 (사장님 "이런 버그 전체 �
 - 앱쪽(내 담당·미착수): web_schedule_feed push · 설정 '웹 로그아웃' · QR 스캔→/api/web/authorize.
 - commit: 6460379. 프로토(시각 SoT): claude.ai/code/artifact/7c06efeb.
 - 다음 액션(cowork): 문서 §3~§5 착수. owner_phone 인증으로 시작(AUTH_ENFORCE 시 토큰승격). 막히면 SYNC '의문' append.
+
+## 2026-08-13 12:43 · cowork
+웹 사진 캘린더(읽기전용 뷰어) 서버측 완료 — SERVER_HANDOFF_web_photo_calendar B안.
+- 변경(server/main.py): DB 3종(web_schedule_feed·web_login_tickets·web_sessions) + 엔드포인트 11종. QR 웹로그인(티켓60초→폰 authorize→status 쿠키), 30분 idle·logout-all 보안, calendar/sites/site/photo/download(zip·파일명 YYYYMMDD_아파트_부위_NN), /web·/web/login·/web/authorize 페이지. 전부 읽기전용. 사진=team_site_photos 재사용(끝8 정규화 조인), uploader 3-way(owner/member/partner), 전후=업로드 시간순 자동추정.
+- 검증: TestClient 전 엔드포인트 통과(feed/login/cal/sites/site/photo/zip/단건/401/redirect/logout). ast OK. python3.9 Optional 준수.
+- 🔴 앱(android) 담당: ①POST /api/web/schedule-feed push(덮어쓰기) ②QR스캔→POST /api/web/authorize{ticket,owner_phone} ③설정'웹 로그아웃'→POST /api/web/logout-all. 계약 상세=docs/SERVER_HANDOFF_web_photo_calendar_SERVER_DONE.md
+- 남음(cowork): 부위 목록형(현재 자유입력)·프로토 7c06efeb 시각 대조·저장전략§7(base64→파일/썸네일)은 미적용(사용자 증가 후). 디스크97%는 REPO_SLIMMING.md 로 우선.

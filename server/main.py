@@ -381,6 +381,54 @@ def db_init() -> None:
             )
             """
         )
+        # ── 웹 사진 캘린더 (읽기전용 뷰어) — SERVER_HANDOFF_web_photo_calendar.md (2026-08-13) ──
+        # B안: 앱이 web_schedule_feed push → 서버가 캘린더/목록 렌더 (미러 무관).
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS web_schedule_feed (
+                owner_phone     TEXT NOT NULL,
+                customer_digits TEXT NOT NULL,   -- 숫자만 (team_site_photos.customer_phone 와 끝8 정규화 매칭)
+                name            TEXT,
+                apartment       TEXT,
+                dong_ho         TEXT,
+                work_date       TEXT,            -- 'YYYY-MM-DD'
+                category        TEXT,            -- 시공종류
+                completed       INTEGER DEFAULT 0,
+                updated_at_ms   INTEGER NOT NULL,
+                PRIMARY KEY (owner_phone, customer_digits)
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_web_feed_owner_date "
+            "ON web_schedule_feed(owner_phone, work_date)"
+        )
+        # QR 로그인 티켓 (60초 만료, 폰 스캔 authorize 후 1회용 소멸)
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS web_login_tickets (
+                ticket        TEXT PRIMARY KEY,
+                owner_phone   TEXT,
+                authorized    INTEGER DEFAULT 0,
+                created_at_ms INTEGER NOT NULL
+            )
+            """
+        )
+        # 웹 세션 (30분 idle 자동 로그아웃 · 폰 원격 로그아웃 = owner 로 일괄 삭제)
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS web_sessions (
+                sid            TEXT PRIMARY KEY,
+                owner_phone    TEXT NOT NULL,
+                created_at_ms  INTEGER NOT NULL,
+                last_active_ms INTEGER NOT NULL
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_web_sessions_owner "
+            "ON web_sessions(owner_phone)"
+        )
         # ── 추가142 (2026-07-22) — 박람회 팀 시공 Phase 1 (docs/EXPO_DECISIONS.md) ──
         # 사장님 확정: ①정산 완전격리(expo_* 테이블에만 저장, 기존 정산/고객에 안 섞음)
         # ②분배=팀별 ③계약서=상품카탈로그 체크형+서명+동의 ④방장이 방개설·계약서준비
@@ -25784,3 +25832,629 @@ async def shared_monthly(phone: str, ym: Optional[str] = None) -> dict:
 
     return {"ym": target, "available_months": avail,
             "received": _agg("received"), "given": _agg("given")}
+
+
+# ============================================================================
+# 웹 사진 캘린더 (읽기전용 뷰어) — SERVER_HANDOFF_web_photo_calendar.md
+# PC 웹에서 시공 캘린더→현장→사진 보고 블로그용 다운로드. QR 폰스캔 로그인(폰=열쇠).
+# 철저히 읽기전용: 수정/삭제/업로드 엔드포인트 없음. (2026-08-13 cowork)
+# ============================================================================
+import re as _webre  # noqa: E402
+
+_WEB_TICKET_TTL_MS = 60_000        # QR 로그인 티켓 60초
+_WEB_IDLE_MS = 30 * 60_000         # 30분 무동작 자동 로그아웃
+_WEB_COOKIE = "wsid"
+_WEB_BASE = INTAKE_PUBLIC_BASE_URL  # https://api.si0in.kr
+
+
+def _web_pkey(p) -> str:
+    """전화번호 → 조인키(끝 8자리 숫자). 정확/suffix 매칭 손실 방지."""
+    d = _webre.sub(r"[^0-9]", "", p or "")
+    return d[-8:] if len(d) >= 8 else d
+
+
+def _web_owner_from_request(request: Request) -> Optional[str]:
+    """유효 세션이면 owner_phone, 아니면 None. 30분 idle 초과 시 세션 삭제."""
+    sid = request.cookies.get(_WEB_COOKIE) or ""
+    if not sid:
+        return None
+    now = _now_ms()
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT owner_phone, last_active_ms FROM web_sessions WHERE sid = ?", (sid,)
+        ).fetchone()
+        if not row:
+            return None
+        owner, last = row[0], int(row[1])
+        if now - last > _WEB_IDLE_MS:
+            con.execute("DELETE FROM web_sessions WHERE sid = ?", (sid,))
+            con.commit()
+            return None
+        con.execute("UPDATE web_sessions SET last_active_ms = ? WHERE sid = ?", (now, sid))
+        con.commit()
+    return owner
+
+
+def _web_photo_bucket(owner: str) -> dict:
+    """owner 의 team_site_photos 를 고객키(끝8)로 묶어 반환 (시간 오름차순)."""
+    out: dict = {}
+    with db_conn() as con:
+        rows = con.execute(
+            "SELECT photo_id, customer_phone, member_id, label, uploaded_at_ms "
+            "FROM team_site_photos WHERE owner_phone = ? AND customer_phone IS NOT NULL "
+            "ORDER BY uploaded_at_ms ASC",
+            (owner,),
+        ).fetchall()
+    for r in rows:
+        k = _web_pkey(r[1])
+        if not k:
+            continue
+        out.setdefault(k, []).append({
+            "photo_id": r[0], "member_id": r[2] or "", "label": r[3] or "",
+            "uploaded_at_ms": r[4], "customer_phone": r[1],
+        })
+    return out
+
+
+def _web_photo_bytes(photo_id: int, owner: str):
+    """owner 소유 사진의 (bytes, mime). 없으면 (None, None)."""
+    import base64 as _b64
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT image_data_url, image_path FROM team_site_photos "
+            "WHERE photo_id = ? AND owner_phone = ?",
+            (photo_id, owner),
+        ).fetchone()
+    if not row:
+        return None, None
+    data_url, path = row
+    if data_url:
+        s = data_url
+        mime = "image/jpeg"
+        if s.startswith("data:"):
+            head, _, b64 = s.partition(",")
+            if ":" in head and ";" in head:
+                mime = head[head.index(":") + 1:head.index(";")] or mime
+            s = b64
+        try:
+            return _b64.b64decode(s), mime
+        except Exception:
+            pass
+    if path:
+        try:
+            with open(path, "rb") as f:
+                return f.read(), "image/jpeg"
+        except Exception:
+            return None, None
+    return None, None
+
+
+# ── 앱 → 서버 스케줄 피드 push (B안) ──
+class WebFeedPush(BaseModel):
+    owner_phone: str
+    items: list = []
+
+
+@app.post("/api/web/schedule-feed")
+async def web_schedule_feed_push(req: WebFeedPush) -> dict:
+    owner = _norm_phone(req.owner_phone)
+    if not owner:
+        raise HTTPException(400, "owner_phone 필수")
+    now = _now_ms()
+    items = req.items or []
+    with db_conn() as con:
+        con.execute("DELETE FROM web_schedule_feed WHERE owner_phone = ?", (owner,))
+        n = 0
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            cd = _webre.sub(r"[^0-9]", "", str(it.get("customer_digits") or ""))
+            if not cd:
+                continue
+            con.execute(
+                "INSERT OR REPLACE INTO web_schedule_feed "
+                "(owner_phone, customer_digits, name, apartment, dong_ho, work_date, category, completed, updated_at_ms) "
+                "VALUES (?,?,?,?,?,?,?,?,?)",
+                (owner, cd,
+                 (str(it.get("name") or "").strip() or None),
+                 (str(it.get("apartment") or "").strip() or None),
+                 (str(it.get("dong_ho") or "").strip() or None),
+                 (str(it.get("work_date") or "").strip() or None),
+                 (str(it.get("category") or "").strip() or None),
+                 1 if it.get("completed") else 0,
+                 now),
+            )
+            n += 1
+        con.commit()
+    return {"ok": True, "count": n}
+
+
+# ── QR 로그인 (§3): 티켓 → 폰 authorize → 노트북 status 폴링 → 쿠키 발급 ──
+@app.get("/api/web/login/ticket")
+async def web_login_ticket() -> dict:
+    import secrets
+    tok = secrets.token_urlsafe(18)
+    now = _now_ms()
+    with db_conn() as con:
+        # 오래된 티켓 청소(60초 지난 것)
+        con.execute("DELETE FROM web_login_tickets WHERE created_at_ms < ?",
+                    (now - _WEB_TICKET_TTL_MS,))
+        con.execute(
+            "INSERT INTO web_login_tickets (ticket, owner_phone, authorized, created_at_ms) "
+            "VALUES (?, NULL, 0, ?)", (tok, now))
+        con.commit()
+    return {"ticket": tok, "authorizeUrl": _WEB_BASE + "/web/authorize?t=" + tok,
+            "ttlSec": _WEB_TICKET_TTL_MS // 1000}
+
+
+class WebAuthorize(BaseModel):
+    ticket: str
+    owner_phone: str
+    session_token: Optional[str] = None
+
+
+@app.post("/api/web/authorize")
+async def web_authorize(req: WebAuthorize) -> dict:
+    """폰(시공막내 앱)이 QR 스캔 후 호출 → 티켓을 owner_phone 에 바인딩+승인."""
+    tok = (req.ticket or "").strip()
+    owner = _norm_phone(req.owner_phone)
+    if not tok or not owner:
+        raise HTTPException(400, "ticket/owner_phone 필수")
+    now = _now_ms()
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT created_at_ms FROM web_login_tickets WHERE ticket = ?", (tok,)).fetchone()
+        if not row:
+            raise HTTPException(404, "티켓 없음 또는 만료")
+        if now - int(row[0]) > _WEB_TICKET_TTL_MS:
+            con.execute("DELETE FROM web_login_tickets WHERE ticket = ?", (tok,))
+            con.commit()
+            raise HTTPException(410, "티켓 만료(60초). 웹에서 새 QR 을 받아주세요")
+        con.execute(
+            "UPDATE web_login_tickets SET authorized = 1, owner_phone = ? WHERE ticket = ?",
+            (owner, tok))
+        con.commit()
+    return {"ok": True}
+
+
+@app.get("/api/web/login/status")
+async def web_login_status(t: str):
+    from fastapi.responses import JSONResponse
+    tok = (t or "").strip()
+    now = _now_ms()
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT owner_phone, authorized, created_at_ms FROM web_login_tickets WHERE ticket = ?",
+            (tok,)).fetchone()
+        if not row:
+            return JSONResponse({"status": "expired"})
+        owner, authorized, created = row[0], int(row[1]), int(row[2])
+        if not authorized:
+            if now - created > _WEB_TICKET_TTL_MS:
+                con.execute("DELETE FROM web_login_tickets WHERE ticket = ?", (tok,))
+                con.commit()
+                return JSONResponse({"status": "expired"})
+            return JSONResponse({"status": "pending"})
+        # 승인됨 → 세션 발급 + 티켓 1회용 소멸
+        import secrets
+        sid = secrets.token_urlsafe(24)
+        con.execute(
+            "INSERT INTO web_sessions (sid, owner_phone, created_at_ms, last_active_ms) "
+            "VALUES (?,?,?,?)", (sid, _norm_phone(owner), now, now))
+        con.execute("DELETE FROM web_login_tickets WHERE ticket = ?", (tok,))
+        con.commit()
+    resp = JSONResponse({"status": "authorized"})
+    resp.set_cookie(_WEB_COOKIE, sid, max_age=_WEB_IDLE_MS // 1000,
+                    httponly=True, samesite="lax", path="/")
+    return resp
+
+
+@app.post("/api/web/logout-all")
+async def web_logout_all(owner_phone: str) -> dict:
+    """폰 원격 로그아웃 — 그 owner 의 웹 세션 전부 무효."""
+    owner = _norm_phone(owner_phone)
+    with db_conn() as con:
+        cur = con.execute("DELETE FROM web_sessions WHERE owner_phone = ?", (owner,))
+        con.commit()
+    return {"ok": True, "removed": cur.rowcount}
+
+
+# ── 조회 (§4) — 전부 쿠키(세션) 필요 · 읽기전용 ──
+@app.get("/api/web/calendar")
+async def web_calendar(request: Request, month: str):
+    from fastapi.responses import JSONResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    m = (month or "").strip()
+    bucket = _web_photo_bucket(owner)
+    with db_conn() as con:
+        rows = con.execute(
+            "SELECT customer_digits, work_date FROM web_schedule_feed "
+            "WHERE owner_phone = ? AND work_date LIKE ?", (owner, m + "%")).fetchall()
+    days: dict = {}
+    for cd, wd in rows:
+        if not wd:
+            continue
+        d = days.setdefault(wd, {"date": wd, "jobCount": 0, "hasPhoto": False})
+        d["jobCount"] += 1
+        if _web_pkey(cd) in bucket:
+            d["hasPhoto"] = True
+    return {"month": m, "days": sorted(days.values(), key=lambda x: x["date"])}
+
+
+@app.get("/api/web/sites")
+async def web_sites(request: Request, month: str):
+    from fastapi.responses import JSONResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    m = (month or "").strip()
+    bucket = _web_photo_bucket(owner)
+    with db_conn() as con:
+        rows = con.execute(
+            "SELECT customer_digits, name, apartment, dong_ho, work_date, category, completed "
+            "FROM web_schedule_feed WHERE owner_phone = ? AND work_date LIKE ? "
+            "ORDER BY work_date DESC", (owner, m + "%")).fetchall()
+    sites = []
+    for cd, name, apt, dh, wd, cat, comp in rows:
+        sites.append({
+            "customer_digits": cd, "name": name or "", "apartment": apt or "",
+            "dong_ho": dh or "", "work_date": wd or "", "category": cat or "",
+            "completed": bool(comp), "photo_count": len(bucket.get(_web_pkey(cd), [])),
+        })
+    return {"month": m, "sites": sites}
+
+
+@app.get("/api/web/site/{customer_digits}")
+async def web_site(request: Request, customer_digits: str):
+    from fastapi.responses import JSONResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    key = _web_pkey(customer_digits)
+    crow = None
+    with db_conn() as con:
+        for r in con.execute(
+            "SELECT customer_digits, name, apartment, dong_ho, work_date, category, completed "
+            "FROM web_schedule_feed WHERE owner_phone = ?", (owner,)).fetchall():
+            if _web_pkey(r[0]) == key:
+                crow = r[1:]
+                break
+    photos_raw = _web_photo_bucket(owner).get(key, [])
+    n = len(photos_raw)
+    photos = []
+    for i, p in enumerate(photos_raw):
+        ba = "before" if i < (n + 1) // 2 else "after"
+        mid = p["member_id"] or ""
+        if mid == "OWNER":
+            uk, un = "owner", "사장님"
+        elif mid.startswith("PARTNER:"):
+            uk = "partner"
+            un = _is_registered_owner(_webre.sub(r"[^0-9]", "", mid.split(":", 1)[1])) or "협업 사장"
+        else:
+            uk, un = "member", "팀원"
+        photos.append({
+            "photo_id": p["photo_id"],
+            "url": "/api/web/photo/" + str(p["photo_id"]),
+            "thumb_url": "/api/web/photo/" + str(p["photo_id"]),
+            "uploader_kind": uk, "uploader_name": un,
+            "uploaded_at_ms": p["uploaded_at_ms"], "ba_guess": ba,
+        })
+    cust = {
+        "name": (crow[0] if crow else "") or "",
+        "apartment": (crow[1] if crow else "") or "",
+        "dong_ho": (crow[2] if crow else "") or "",
+        "work_date": (crow[3] if crow else "") or "",
+        "category": (crow[4] if crow else "") or "",
+        "completed": bool(crow[5]) if crow else False,
+    }
+    return {"customer": cust, "photos": photos}
+
+
+@app.get("/api/web/photo/{photo_id}")
+async def web_photo(request: Request, photo_id: int):
+    from fastapi.responses import Response as _Resp, JSONResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    data, mime = _web_photo_bytes(photo_id, owner)
+    if not data:
+        raise HTTPException(404, "사진 없음")
+    return _Resp(content=data, media_type=mime or "image/jpeg")
+
+
+@app.get("/api/web/download")
+async def web_download(request: Request, ids: str, part: Optional[str] = None):
+    from fastapi.responses import Response as _Resp, JSONResponse
+    from urllib.parse import quote as _q
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    id_list = [int(x) for x in _webre.findall(r"\d+", ids or "")]
+    if not id_list:
+        raise HTTPException(400, "ids 필수")
+    part_clean = _webre.sub(r'[\\/:*?"<>|]', "", (part or "").strip())
+    bucket = _web_photo_bucket(owner)
+    pid2key: dict = {}
+    for k, lst in bucket.items():
+        for p in lst:
+            pid2key[p["photo_id"]] = k
+    feed: dict = {}
+    with db_conn() as con:
+        for r in con.execute(
+            "SELECT customer_digits, apartment, work_date FROM web_schedule_feed "
+            "WHERE owner_phone = ?", (owner,)).fetchall():
+            feed[_web_pkey(r[0])] = {"apartment": r[1] or "", "work_date": r[2] or ""}
+
+    def _fname(pid, idx):
+        info = feed.get(pid2key.get(pid, ""), {})
+        ymd = _webre.sub(r"[^0-9]", "", info.get("work_date") or "")[:8] or "00000000"
+        apt = _webre.sub(r'[\\/:*?"<>|]', "", info.get("apartment") or "현장")
+        parts = [ymd, apt]
+        if part_clean:
+            parts.append(part_clean)
+        parts.append("%02d" % idx)
+        return "_".join(parts) + ".jpg"
+
+    if len(id_list) == 1:
+        data, mime = _web_photo_bytes(id_list[0], owner)
+        if not data:
+            raise HTTPException(404, "사진 없음")
+        fn = _fname(id_list[0], 1)
+        return _Resp(content=data, media_type="image/jpeg",
+                     headers={"Content-Disposition": "attachment; filename*=UTF-8''" + _q(fn)})
+    import io as _io
+    import zipfile as _zip
+    buf = _io.BytesIO()
+    with _zip.ZipFile(buf, "w", _zip.ZIP_STORED) as zf:
+        for idx, pid in enumerate(id_list, 1):
+            data, mime = _web_photo_bytes(pid, owner)
+            if not data:
+                continue
+            zf.writestr(_fname(pid, idx), data)
+    first = feed.get(pid2key.get(id_list[0], ""), {})
+    zymd = _webre.sub(r"[^0-9]", "", first.get("work_date") or "")[:8] or "00000000"
+    zapt = _webre.sub(r'[\\/:*?"<>|]', "", first.get("apartment") or "현장")
+    zipname = zymd + "_" + zapt + ".zip"
+    return _Resp(content=buf.getvalue(), media_type="application/zip",
+                 headers={"Content-Disposition": "attachment; filename*=UTF-8''" + _q(zipname)})
+
+
+@app.get("/web/authorize", response_class=HTMLResponse, include_in_schema=False)
+async def web_authorize_page(t: Optional[str] = None):
+    return HTMLResponse(
+        "<!doctype html><meta charset=utf-8>"
+        "<meta name=viewport content='width=device-width,initial-scale=1'>"
+        "<body style='font-family:Pretendard,-apple-system,sans-serif;text-align:center;"
+        "padding:48px 22px;color:#333D4B;background:#FAFBFC'>"
+        "<div style='font-size:44px'>📷</div>"
+        "<h2 style='margin:14px 0 8px'>시공막내 웹 로그인</h2>"
+        "<p style='color:#5A6472;line-height:1.6'>이 QR은 <b>시공막내 앱</b>으로 스캔하면<br>"
+        "자동으로 로그인 처리돼요.<br>앱에서 열리지 않았다면, 폰에 설치된<br>"
+        "시공막내 앱 카메라로 다시 스캔해주세요.</p></body>")
+
+
+_WEB_LOGIN_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<title>시공막내 · 사진 뷰어 로그인</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Pretendard,-apple-system,system-ui,sans-serif;background:#FAFBFC;color:#0B0F19;
+ min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.card{background:#fff;border:1px solid #EEF0F3;border-radius:22px;padding:34px 30px;
+ max-width:380px;width:100%;text-align:center;box-shadow:0 2px 12px rgba(0,0,0,.05)}
+.logo{font-weight:900;font-size:20px;letter-spacing:-.04em;margin-bottom:6px}
+.logo .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#3182F6;margin-right:6px}
+h1{font-size:20px;font-weight:800;margin:14px 0 6px;letter-spacing:-.02em}
+p.sub{color:#5A6472;font-size:14px;line-height:1.6;margin-bottom:22px}
+#qr{display:inline-block;padding:14px;background:#fff;border:1px solid #EEF0F3;border-radius:16px;min-height:220px}
+#qr img{display:block}
+#status{margin-top:18px;font-weight:800;font-size:15px;color:#1B64DA}
+.hint{margin-top:8px;color:#9AA3AF;font-size:12.5px}
+</style></head><body>
+<div class="card">
+  <div class="logo"><span class="dot"></span>시공막내</div>
+  <h1>사진 캘린더 · 웹 로그인</h1>
+  <p class="sub">시공막내 앱으로 아래 QR을 스캔하면<br>바로 로그인돼요. (폰 = 열쇠)</p>
+  <div id="qr"></div>
+  <div id="status">QR 준비 중…</div>
+  <div class="hint">보안을 위해 QR은 60초마다 새로 만들어져요.</div>
+</div>
+<script>
+var ticket=null, ttlTimer=null;
+function newTicket(){
+  var st=document.getElementById('status'); st.textContent='QR 준비 중…';
+  fetch('/api/web/login/ticket').then(function(r){return r.json();}).then(function(d){
+    ticket=d.ticket;
+    var box=document.getElementById('qr'); box.innerHTML='';
+    new QRCode(box,{text:d.authorizeUrl,width:220,height:220,correctLevel:QRCode.CorrectLevel.M});
+    st.textContent='폰으로 스캔해주세요';
+    if(ttlTimer)clearTimeout(ttlTimer);
+    ttlTimer=setTimeout(newTicket,55000);
+  }).catch(function(){st.textContent='연결 오류 — 새로고침 해주세요';});
+}
+function poll(){
+  if(!ticket)return;
+  fetch('/api/web/login/status?t='+encodeURIComponent(ticket)).then(function(r){return r.json();}).then(function(d){
+    if(d.status==='authorized'){document.getElementById('status').textContent='로그인 완료! 이동 중…';location.href='/web';}
+    else if(d.status==='expired'){newTicket();}
+  }).catch(function(){});
+}
+newTicket(); setInterval(poll,2000);
+</script></body></html>"""
+
+
+@app.get("/web/login", response_class=HTMLResponse, include_in_schema=False)
+async def web_login_page():
+    return HTMLResponse(_WEB_LOGIN_HTML)
+
+
+_WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<title>시공막내 · 사진 캘린더</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Pretendard,-apple-system,system-ui,sans-serif;background:#FAFBFC;color:#0B0F19}
+.top{position:sticky;top:0;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);
+ border-bottom:1px solid #EEF0F3;z-index:20}
+.top-in{max-width:1040px;margin:0 auto;display:flex;align-items:center;gap:14px;padding:13px 18px}
+.logo{font-weight:900;font-size:17px;letter-spacing:-.04em;margin-right:auto}
+.logo .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#3182F6;margin-right:6px}
+.mnav{display:flex;align-items:center;gap:10px;font-weight:800}
+.mnav button{border:1px solid #E7EDF5;background:#fff;border-radius:9px;width:34px;height:34px;font-size:16px;cursor:pointer;color:#1B64DA}
+.mnav .ym{min-width:96px;text-align:center;font-size:15px}
+.wrap{max-width:1040px;margin:0 auto;padding:20px 18px 70px}
+.grid2{display:grid;grid-template-columns:340px 1fr;gap:22px;align-items:start}
+@media(max-width:820px){.grid2{grid-template-columns:1fr}}
+.cal{background:#fff;border:1px solid #EEF0F3;border-radius:18px;padding:16px}
+.cal .dow{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;color:#9AA3AF;font-size:11.5px;font-weight:800;margin-bottom:6px}
+.cal .cells{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.cell{aspect-ratio:1;border-radius:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12.5px;color:#333D4B;position:relative}
+.cell.has{background:#EEF4FF;color:#1B64DA;font-weight:800;cursor:default}
+.cell .pdot{position:absolute;bottom:5px;width:5px;height:5px;border-radius:50%;background:#16C172}
+.cell.empty{color:#CFD6DF}
+h3.sec{font-size:14px;font-weight:900;color:#5A6472;margin:2px 0 12px}
+.site{background:#fff;border:1px solid #EEF0F3;border-radius:14px;padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:border-color .12s}
+.site:hover{border-color:#B9D3FF}
+.site .r1{display:flex;align-items:center;gap:8px}
+.site .apt{font-weight:800;font-size:15px}
+.site .cat{font-size:11.5px;font-weight:800;color:#1B64DA;background:#EEF4FF;padding:3px 9px;border-radius:999px}
+.site .done{font-size:11.5px;font-weight:800;color:#0B7A45;background:#E7F8EF;padding:3px 9px;border-radius:999px}
+.site .r2{color:#5A6472;font-size:13px;margin-top:5px;display:flex;gap:12px;flex-wrap:wrap}
+.empty-b{background:#fff;border:1px dashed #E7EDF5;border-radius:14px;padding:40px 16px;text-align:center;color:#9AA3AF;font-size:14px}
+/* modal */
+.mask{position:fixed;inset:0;background:rgba(11,15,25,.55);z-index:40;display:none;align-items:flex-end;justify-content:center}
+.mask.on{display:flex}
+.sheet{background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:1040px;max-height:92vh;overflow:auto;padding:18px 18px 26px}
+@media(min-width:820px){.mask{align-items:center}.sheet{border-radius:20px;max-height:88vh}}
+.sh-h{display:flex;align-items:center;gap:10px;position:sticky;top:0;background:#fff;padding-bottom:12px}
+.sh-h .t{font-weight:900;font-size:17px;margin-right:auto}
+.sh-h .x{border:none;background:#F2F4F6;border-radius:9px;width:34px;height:34px;font-size:16px;cursor:pointer}
+.tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 14px}
+.tools input{border:1.5px solid #E7EDF5;border-radius:10px;padding:9px 12px;font-size:14px;font-family:inherit;width:150px}
+.btn{border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer}
+.btn.pri{background:#3182F6;color:#fff}.btn.gh{background:#EEF4FF;color:#1B64DA}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.ph{position:relative;border-radius:12px;overflow:hidden;border:2px solid transparent;cursor:pointer;background:#F4F5F7}
+.ph.sel{border-color:#3182F6}
+.ph img{width:100%;height:150px;object-fit:cover;display:block}
+.ph .ba{position:absolute;top:6px;left:6px;font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:999px;color:#fff}
+.ph .ba.before{background:#8A5300}.ph .ba.after{background:#0B7A45}
+.ph .up{position:absolute;bottom:6px;left:6px;font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;background:rgba(0,0,0,.6);color:#fff}
+.ph .ck{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#3182F6}
+.ph.sel .ck{background:#3182F6;color:#fff}
+</style></head><body>
+<div class="top"><div class="top-in">
+  <div class="logo"><span class="dot"></span>시공막내 · 사진</div>
+  <div class="mnav">
+    <button onclick="moveMonth(-1)">‹</button>
+    <div class="ym" id="ym"></div>
+    <button onclick="moveMonth(1)">›</button>
+  </div>
+</div></div>
+<div class="wrap"><div class="grid2">
+  <div class="cal"><div class="dow"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
+    <div class="cells" id="cells"></div></div>
+  <div><h3 class="sec">이 달 시공 현장</h3><div id="sites"></div></div>
+</div></div>
+
+<div class="mask" id="mask"><div class="sheet">
+  <div class="sh-h"><div class="t" id="shTitle">현장</div><button class="x" onclick="closeSheet()">✕</button></div>
+  <div class="tools">
+    <input id="part" placeholder="부위 (예: 거실화장실)" maxlength="20">
+    <button class="btn gh" onclick="selectAll()">전체선택</button>
+    <button class="btn pri" onclick="download()">선택 다운로드</button>
+    <span id="selcnt" style="color:#5A6472;font-size:13px;font-weight:700"></span>
+  </div>
+  <div class="pgrid" id="pgrid"></div>
+</div></div>
+
+<script>
+var ym = new Date().toISOString().slice(0,7);
+var sel = {};
+function pad(n){return (n<10?'0':'')+n;}
+function moveMonth(d){
+  var p=ym.split('-'); var y=+p[0], m=+p[1]-1+d;
+  var dt=new Date(y,m,1); ym=dt.getFullYear()+'-'+pad(dt.getMonth()+1); load();
+}
+function load(){
+  document.getElementById('ym').textContent=ym;
+  fetch('/api/web/calendar?month='+ym).then(function(r){
+    if(r.status===401){location.href='/web/login';throw 0;} return r.json();
+  }).then(function(cal){
+    fetch('/api/web/sites?month='+ym).then(function(r){return r.json();}).then(function(s){
+      renderCal(cal.days||[]); renderSites(s.sites||[]);
+    });
+  }).catch(function(){});
+}
+function renderCal(days){
+  var map={}; days.forEach(function(d){map[d.date]=d;});
+  var p=ym.split('-'); var y=+p[0], m=+p[1];
+  var first=new Date(y,m-1,1).getDay();
+  var last=new Date(y,m,0).getDate();
+  var h=''; for(var i=0;i<first;i++)h+='<div class="cell empty"></div>';
+  for(var dd=1;dd<=last;dd++){
+    var ds=ym+'-'+pad(dd); var info=map[ds];
+    if(info){h+='<div class="cell has">'+dd+(info.hasPhoto?'<span class="pdot"></span>':'')+'</div>';}
+    else{h+='<div class="cell">'+dd+'</div>';}
+  }
+  document.getElementById('cells').innerHTML=h;
+}
+function renderSites(sites){
+  if(!sites.length){document.getElementById('sites').innerHTML='<div class="empty-b">이 달에는 시공 현장이 없어요.</div>';return;}
+  var h='';
+  sites.forEach(function(s){
+    var title=s.apartment||s.name||'현장';
+    var sub=[]; if(s.work_date)sub.push('🗓 '+s.work_date); if(s.name)sub.push('👤 '+s.name);
+    if(s.dong_ho)sub.push(s.dong_ho); sub.push('📷 '+s.photo_count+'장');
+    h+='<div class="site" onclick="openSite(\\''+s.customer_digits+'\\')">'
+      +'<div class="r1"><span class="apt">'+esc(title)+'</span>'
+      +(s.category?'<span class="cat">'+esc(s.category)+'</span>':'')
+      +(s.completed?'<span class="done">완료</span>':'')+'</div>'
+      +'<div class="r2">'+sub.map(esc).join('<span></span>')+'</div></div>';
+  });
+  document.getElementById('sites').innerHTML=h;
+}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function openSite(cd){
+  sel={};
+  fetch('/api/web/site/'+encodeURIComponent(cd)).then(function(r){
+    if(r.status===401){location.href='/web/login';throw 0;} return r.json();
+  }).then(function(d){
+    var c=d.customer||{};
+    document.getElementById('shTitle').textContent=(c.apartment||c.name||'현장')+(c.dong_ho?' · '+c.dong_ho:'');
+    var g=''; (d.photos||[]).forEach(function(p){
+      g+='<div class="ph" data-id="'+p.photo_id+'" onclick="tog(this)">'
+        +'<img loading="lazy" src="'+p.thumb_url+'">'
+        +'<span class="ba '+p.ba_guess+'">'+(p.ba_guess==='before'?'전':'후')+'</span>'
+        +'<span class="up">'+esc(p.uploader_name)+'</span>'
+        +'<span class="ck">✓</span></div>';
+    });
+    document.getElementById('pgrid').innerHTML=g||'<div class="empty-b" style="grid-column:1/-1">사진이 아직 없어요.</div>';
+    document.getElementById('part').value=''; updSel();
+    document.getElementById('mask').classList.add('on');
+  }).catch(function(){});
+}
+function tog(el){var id=el.getAttribute('data-id'); if(sel[id]){delete sel[id];el.classList.remove('sel');}else{sel[id]=1;el.classList.add('sel');} updSel();}
+function selectAll(){document.querySelectorAll('.ph').forEach(function(el){sel[el.getAttribute('data-id')]=1;el.classList.add('sel');});updSel();}
+function updSel(){var n=Object.keys(sel).length;document.getElementById('selcnt').textContent=n?(n+'장 선택'):'';}
+function download(){
+  var ids=Object.keys(sel); if(!ids.length){alert('내려받을 사진을 골라주세요.');return;}
+  var part=document.getElementById('part').value.trim();
+  location.href='/api/web/download?ids='+ids.join(',')+(part?'&part='+encodeURIComponent(part):'');
+}
+function closeSheet(){document.getElementById('mask').classList.remove('on');}
+document.getElementById('mask').addEventListener('click',function(e){if(e.target.id==='mask')closeSheet();});
+load();
+</script></body></html>"""
+
+
+@app.get("/web", response_class=HTMLResponse, include_in_schema=False)
+async def web_viewer(request: Request):
+    from fastapi.responses import RedirectResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return RedirectResponse("/web/login", status_code=302)
+    return HTMLResponse(_WEB_VIEWER_HTML)
