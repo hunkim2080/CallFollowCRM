@@ -26345,6 +26345,12 @@ h3.sec{font-size:14px;font-weight:900;color:#5A6472;margin:2px 0 12px}
 .ph .up{position:absolute;bottom:6px;left:6px;font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;background:rgba(0,0,0,.6);color:#fff}
 .ph .ck{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#3182F6}
 .ph.sel .ck{background:#3182F6;color:#fff}
+.parts{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin:2px 0 12px}
+.parts .pl{font-size:12.5px;font-weight:800;color:#9AA3AF;margin-right:2px}
+.chip{border:1.5px solid #E7EDF5;background:#fff;border-radius:999px;padding:7px 13px;font-size:13px;font-weight:800;color:#5A6472;cursor:pointer;position:relative;font-family:inherit}
+.chip.on{border-color:#3182F6;background:#EEF4FF;color:#1B64DA}
+.chip .del{margin-left:6px;color:#F0436A;font-weight:900}
+.chip.add{color:#1B64DA;border-style:dashed}
 </style></head><body>
 <div class="top"><div class="top-in">
   <div class="logo"><span class="dot"></span>시공막내 · 사진</div>
@@ -26362,11 +26368,12 @@ h3.sec{font-size:14px;font-weight:900;color:#5A6472;margin:2px 0 12px}
 
 <div class="mask" id="mask"><div class="sheet">
   <div class="sh-h"><div class="t" id="shTitle">현장</div><button class="x" onclick="closeSheet()">✕</button></div>
+  <div class="parts" id="parts"><span class="pl">부위</span></div>
   <div class="tools">
-    <input id="part" placeholder="부위 (예: 거실화장실)" maxlength="20">
     <button class="btn gh" onclick="selectAll()">전체선택</button>
     <button class="btn pri" onclick="download()">선택 다운로드</button>
     <span id="selcnt" style="color:#5A6472;font-size:13px;font-weight:700"></span>
+    <label style="margin-left:auto;font-size:12.5px;color:#9AA3AF;font-weight:700;cursor:pointer"><input type="checkbox" id="editParts" onchange="renderParts()"> 부위 편집</label>
   </div>
   <div class="pgrid" id="pgrid"></div>
 </div></div>
@@ -26440,14 +26447,33 @@ function openSite(cd){
 function tog(el){var id=el.getAttribute('data-id'); if(sel[id]){delete sel[id];el.classList.remove('sel');}else{sel[id]=1;el.classList.add('sel');} updSel();}
 function selectAll(){document.querySelectorAll('.ph').forEach(function(el){sel[el.getAttribute('data-id')]=1;el.classList.add('sel');});updSel();}
 function updSel(){var n=Object.keys(sel).length;document.getElementById('selcnt').textContent=n?(n+'장 선택'):'';}
+var PARTS_KEY='web_parts_v1', SELPART_KEY='web_sel_part';
+var DEFAULT_PARTS=['거실화장실','안방화장실','거실타일','베란다','다용도실','현관','기타'];
+function getParts(){try{var v=JSON.parse(localStorage.getItem(PARTS_KEY));if(Array.isArray(v)&&v.length)return v;}catch(e){}return DEFAULT_PARTS.slice();}
+function setParts(a){localStorage.setItem(PARTS_KEY,JSON.stringify(a));}
+function selectedPart(){return localStorage.getItem(SELPART_KEY)||'';}
+function renderParts(){
+  var wrap=document.getElementById('parts'); var edit=document.getElementById('editParts').checked;
+  var parts=getParts(); var sp=selectedPart();
+  var h='<span class="pl">부위</span>';
+  parts.forEach(function(p,i){
+    h+='<span class="chip'+(p===sp?' on':'')+'" onclick="pickPart('+i+')">'+esc(p)
+      +(edit?'<span class="del" onclick="delPart(event,'+i+')">✕</span>':'')+'</span>';
+  });
+  h+='<span class="chip add" onclick="addPart()">＋ 부위 추가</span>';
+  wrap.innerHTML=h;
+}
+function pickPart(i){var parts=getParts();var sp=selectedPart();var v=parts[i];localStorage.setItem(SELPART_KEY, v===sp?'':v);renderParts();}
+function addPart(){var n=(prompt('추가할 부위 이름을 적어주세요')||'').trim();if(!n)return;var p=getParts();if(p.indexOf(n)<0){p.push(n);setParts(p);}renderParts();}
+function delPart(e,i){e.stopPropagation();var p=getParts();var v=p[i];if(!confirm('"'+v+'" 부위를 지울까요?'))return;p.splice(i,1);setParts(p);if(selectedPart()===v)localStorage.removeItem(SELPART_KEY);renderParts();}
 function download(){
   var ids=Object.keys(sel); if(!ids.length){alert('내려받을 사진을 골라주세요.');return;}
-  var part=document.getElementById('part').value.trim();
+  var part=selectedPart();
   location.href='/api/web/download?ids='+ids.join(',')+(part?'&part='+encodeURIComponent(part):'');
 }
 function closeSheet(){document.getElementById('mask').classList.remove('on');}
 document.getElementById('mask').addEventListener('click',function(e){if(e.target.id==='mask')closeSheet();});
-load();
+renderParts(); load();
 </script></body></html>"""
 
 

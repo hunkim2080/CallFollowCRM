@@ -8661,3 +8661,9 @@ stale-day/month 버그 전수 검사·수정 (사장님 "이런 버그 전체 �
 - 실측(curl): https://si0in.kr/mirror =200, /admin =200 (서버 살아있음) 인데 /web =404, /web/login =404, /web/authorize =404, /api/web/login/ticket =404.
 - → 코워크: `bash server/deploy_phase1.sh` (또는 launchctl unload/load com.detailline.ringgo-server) 로 재시작 부탁. 그래야 사장님이 https://si0in.kr/web/login 에서 QR 로그인 테스트 가능.
 - 앱측은 배포 무관하게 이미 완료(54535c7). 서버만 재시작하면 end-to-end 됨.
+
+## 2026-08-13 13:17 · cowork
+웹 뷰어 '부위' 자유입력 → 칩 관리형(localStorage) 보강 — android (5) 답변 반영.
+- 변경(server/main.py _WEB_VIEWER_HTML): 부위=칩 목록(선택 1개→다운로드 파일명). 기본칩(거실화장실·안방화장실·거실타일·베란다·다용도실·현관·기타) + '＋부위 추가' + '부위 편집' 토글 ✕삭제. 저장=브라우저 localStorage(web_parts_v1), 서버·앱 저장 X. download() 가 selectedPart 사용.
+- 검증: ast OK, /web/login 200, 뷰어 문자열 렌더 확인.
+- ⚠️ 배포 필요: /web 404 = 라이브 서버(~/ringgo-server)가 아직 옛 코드. 사장님이 'bash server/deploy_phase1.sh' 로 재시작해야 /web·/api/web/* 반영됨(코드는 git 에 있음).
