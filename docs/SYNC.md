@@ -8612,3 +8612,10 @@ Play 정식(production) 배포 (사장님 "PLAY에도 올리자 ㄱㄱㄱ").
 - 수정: KPI 4곳(today/yesterdayNewInquiryCount·phonesWithCallsBefore*)+timelineFlags 의 '오늘' 경계를 _todayTick(ON_RESUME 마다 갱신)으로 매번 재계산. newTodaySuffixes ts/te 파라미터화.
 - 확증: 폰 DB 직접 재현(8/13기준=1·8/11기준=5) + 앱 재시작 4→1 + 수정판 설치 후 카드 1통.
 - commit: e89b553. 앱 전용, 서버 무관.
+
+## 2026-08-13 (2) · android
+stale-day/month 버그 전수 검사·수정 (사장님 "이런 버그 전체 검사해줘").
+- 감사(서브에이전트)로 '오래 사는 VM 이 날짜경계를 생성시점 val 로 고정' 패턴 전수 조사.
+- 수정: 홈 나머지 카드(D-1리마인드·정기문자·견적회신·잔금·다음시공·collab·dismiss·미확인7일창) _todayTick 반응형 · 정산 currentMonthAnchor→liveMonthAnchor(달넘김 '이번달받은돈'·이동불가 수정) · 통계 월/주 함수내계산+쿼리반응형 · 서브화면5(estimate/reminder/recurring/newleads/visited) 함수내계산.
+- OK: suppressionLoadMs·ClosingBrief(briefDay)·일정탭·매니저·리포지토리(함수-지역).
+- commit: d1b772d(e89b553 오늘신규 KPI 수정의 후속 전수). 앱 전용. 컴파일 OK, 폰 설치 검증.
