@@ -65,6 +65,8 @@ class MainActivity : ComponentActivity() {
                         is IncomingIntent.SharedSite -> container.navEvents.requestCollabSites(incoming.shareId)
                         is IncomingIntent.OpenCustomer -> container.navEvents.requestCustomerDetail(incoming.customerId)
                         is IncomingIntent.CollabMine -> container.navEvents.requestCollabSites(tab = "shared")
+                        is IncomingIntent.OpenTeam -> container.navEvents.requestTeam()
+                        is IncomingIntent.OpenRecurringDue -> container.navEvents.requestRecurringDue()
                         is IncomingIntent.CollabEnded -> {
                             // 무엇이 해제됐는지 명확히 — 해제된 현장은 목록서 빠지므로 토스트로 알려줌 + 협업 현장 목록 열기. (2026-06-21 사장님)
                             val site = incoming.title.takeIf { it.isNotBlank() } ?: "협업 현장"
@@ -151,6 +153,8 @@ class MainActivity : ComponentActivity() {
                 if (bDay > 0L) (application as CallFollowCrmApplication).container.preferences.pendingBriefDayMs = bDay // 자정 넘겨 탭해도 그날 브리핑 (VM 이 읽고 지움)
                 pendingIntentState.value = IncomingIntent.ClosingBrief
             }
+            ACTION_TEAM -> { pendingIntentState.value = IncomingIntent.OpenTeam }
+            ACTION_RECURRING_DUE -> { pendingIntentState.value = IncomingIntent.OpenRecurringDue }
             ACTION_COLLAB_MINE -> {
                 // 협업 수락/진행 알림(주인 A가 받음) 탭 → 협업 현장 "내가 공유한 현장" 탭. (2026-06-20 사장님)
                 pendingIntentState.value = IncomingIntent.CollabMine
@@ -262,6 +266,10 @@ class MainActivity : ComponentActivity() {
         object CollabMine : IncomingIntent
         /** 협업 해제 알림 탭 → 무엇이/누가 해제했는지 안내 + 목록. (2026-06-21 사장님) */
         data class CollabEnded(val title: String, val byName: String) : IncomingIntent
+        /** 팀원 진행 알림 탭 → 팀 관리(현황). (2026-08-13) */
+        object OpenTeam : IncomingIntent
+        /** 정기문자 due 알림 탭 → 정기문자 검토. (2026-08-13) */
+        object OpenRecurringDue : IncomingIntent
     }
 
     /** shareId → 내 고객 id. collabAssignments("customerId|phone|name|shareId")에 있으면 내가 주인 → 그 고객 반환. 없으면 null(=협업자 B → 협업현장). */
@@ -278,6 +286,10 @@ class MainActivity : ComponentActivity() {
         const val ACTION_FOLLOW_UP = "com.detailline.callfollowcrm.ACTION_FOLLOW_UP"
         const val ACTION_CHAT = "com.detailline.callfollowcrm.ACTION_CHAT"
         const val ACTION_CALL_SUMMARY = "com.detailline.callfollowcrm.ACTION_CALL_SUMMARY"
+        /** 팀원 진행 알림 탭 → 팀 관리(현황). (2026-08-13 알림 위치점검) */
+        const val ACTION_TEAM = "com.detailline.callfollowcrm.ACTION_TEAM"
+        /** 정기문자 due 알림 탭 → 정기문자 검토. (2026-08-13 알림 위치점검) */
+        const val ACTION_RECURRING_DUE = "com.detailline.callfollowcrm.ACTION_RECURRING_DUE"
         const val ACTION_DAILY_BRIEF = "com.detailline.callfollowcrm.ACTION_DAILY_BRIEF"
         const val EXTRA_BRIEF_DAY = "brief_day_ms"
         const val ACTION_COLLAB_MINE = "com.detailline.callfollowcrm.ACTION_COLLAB_MINE"

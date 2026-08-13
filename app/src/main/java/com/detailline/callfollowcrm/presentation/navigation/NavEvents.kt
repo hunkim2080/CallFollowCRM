@@ -37,6 +37,12 @@ class NavEvents {
     fun requestCustomerDetail(customerId: Long) {
         channel.trySend(NavEvent.OpenCustomerDetail(customerId))
     }
+
+    /** 팀원 진행 알림(출발/도착/완료) 탭 → 팀 관리(현황) 화면. (2026-08-13 알림 위치점검) */
+    fun requestTeam() { channel.trySend(NavEvent.OpenTeam) }
+
+    /** '정기문자 보낼 때 됐어요' 알림 탭 → 정기문자 검토 화면. (2026-08-13 알림 위치점검) */
+    fun requestRecurringDue() { channel.trySend(NavEvent.OpenRecurringDue) }
 }
 
 sealed interface NavEvent {
@@ -61,4 +67,8 @@ sealed interface NavEvent {
     data class OpenCollabSites(val shareId: String? = null, val tab: String? = null) : NavEvent
     /** 특정 고객 상세로 바로. (협업 댓글/사진 알림 탭 → 고객정보 협업 탭) */
     data class OpenCustomerDetail(val customerId: Long) : NavEvent
+    /** 팀원 진행 알림 탭 → 팀 관리(현황). */
+    object OpenTeam : NavEvent
+    /** 정기문자 due 알림 탭 → 정기문자 검토. */
+    object OpenRecurringDue : NavEvent
 }

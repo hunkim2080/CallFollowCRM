@@ -138,6 +138,12 @@ fun AppRoot(container: AppContainer) {
                                 launchSingleTop = true
                             }
                         }
+                        is NavEvent.OpenTeam -> {
+                            navController.navigate(Destinations.TEAM) { launchSingleTop = true }
+                        }
+                        is NavEvent.OpenRecurringDue -> {
+                            navController.navigate(Destinations.RECURRING_DUE) { launchSingleTop = true }
+                        }
                     }
                 }
             }

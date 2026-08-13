@@ -466,6 +466,7 @@ object NotificationHelper {
         val openIntent = Intent(context, MainActivity::class.java).apply {
             action = MainActivity.ACTION_CHAT
             putExtra(MainActivity.EXTRA_PHONE_NUMBER, phone)
+            if (customerId > 0) putExtra(MainActivity.EXTRA_CUSTOMER_ID, customerId)  // 그 고객으로 정확히 열기 (번호 포맷 매칭 우회). (2026-08-13)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val pending = PendingIntent.getActivity(
@@ -500,6 +501,7 @@ object NotificationHelper {
         val openIntent = Intent(context, MainActivity::class.java).apply {
             action = MainActivity.ACTION_CHAT
             putExtra(MainActivity.EXTRA_PHONE_NUMBER, phone)
+            if (customerId > 0) putExtra(MainActivity.EXTRA_CUSTOMER_ID, customerId)  // 그 고객으로 정확히 열기. (2026-08-13)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val pending = PendingIntent.getActivity(
@@ -532,6 +534,7 @@ object NotificationHelper {
         val openIntent = Intent(context, MainActivity::class.java).apply {
             action = MainActivity.ACTION_CHAT
             putExtra(MainActivity.EXTRA_PHONE_NUMBER, phone)
+            if (customerId > 0) putExtra(MainActivity.EXTRA_CUSTOMER_ID, customerId)  // 그 고객으로 정확히 열기. (2026-08-13)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val pending = PendingIntent.getActivity(
@@ -547,8 +550,9 @@ object NotificationHelper {
         )
     }
 
-    private fun appOpenPending(context: Context, id: Int): PendingIntent {
+    private fun appOpenPending(context: Context, id: Int, action: String? = null): PendingIntent {
         val intent = Intent(context, MainActivity::class.java).apply {
+            action?.let { this.action = it }   // 있으면 그 딥링크 화면으로 (없으면 앱 홈). (2026-08-13)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         return PendingIntent.getActivity(
@@ -562,6 +566,7 @@ object NotificationHelper {
         val openIntent = Intent(context, MainActivity::class.java).apply {
             action = MainActivity.ACTION_CHAT
             putExtra(MainActivity.EXTRA_PHONE_NUMBER, phone)
+            if (customerId > 0) putExtra(MainActivity.EXTRA_CUSTOMER_ID, customerId)  // 그 고객으로 정확히 열기. (2026-08-13)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val pending = PendingIntent.getActivity(
@@ -592,7 +597,7 @@ object NotificationHelper {
         text: String? = null
     ) {
         val notifId = DEPART_ID_OFFSET + (eventId.toInt() and 0x7FFFFF)
-        val pending = appOpenPending(context, notifId)
+        val pending = appOpenPending(context, notifId, MainActivity.ACTION_TEAM)  // 팀 현황으로 (HOME 아님). (2026-08-13)
         val (title, msg, accent) = when (kind) {
             "arrived" -> Triple(
                 "팀원 현장 도착 📍",
@@ -988,7 +993,7 @@ object NotificationHelper {
 
     /** 정기 문자 발송 전 확인 — 프로토 PUSH.recur 형식(청록, 오전 9시). */
     fun showRecurringDue(context: Context, count: Int, ruleNames: String) {
-        val pending = appOpenPending(context, RECUR_ID)
+        val pending = appOpenPending(context, RECUR_ID, MainActivity.ACTION_RECURRING_DUE)  // 정기문자 검토 화면으로 (HOME 아님). (2026-08-13)
         val prefix = if (ruleNames.isNotBlank()) "$ruleNames · " else ""
         showProtoPush(
             context, RECUR_ID, CHANNEL_RECURRING, ACCENT_TEAL,
