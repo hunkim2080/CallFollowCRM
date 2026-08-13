@@ -8626,3 +8626,15 @@ stale-day/month 버그 전수 검사·수정 (사장님 "이런 버그 전체 �
 - 수정: 리마인드 4종(D-1·A/S·잔금·도착) EXTRA_CUSTOMER_ID 추가(번호포맷 다를 때 중복고객 방지, SMS 989e86e 후속) · 팀원진행 알림→ACTION_TEAM(팀관리) · 정기문자 due→ACTION_RECURRING_DUE(검토화면). appOpenPending action 옵션. NavEvents/AppRoot/MainActivity 배선.
 - 정상확인: SMS/MMS/통화후/요약/브리핑/협업 딥링크·launchSingleTop·콜드스타트 가드. 의도적 HOME: 미러/박람회 안내. 범위밖: 오늘현장·접수서제출(caller가 customerId 안 넘김).
 - commit: 6689a8b. 앱 전용. 컴파일 OK.
+
+## 2026-08-13 (4) · android
+시공막내 웹 사진 캘린더(읽기전용 뷰어) 코워크 핸드오프 문서 작성 → `docs/SERVER_HANDOFF_web_photo_calendar.md`.
+- 목적: PC 웹에서 시공 캘린더→현장 클릭→사진(사장님·팀원·협업사장) 보고 블로그용 다운로드. QR 폰 스캔 로그인(폰=열쇠). 철저히 읽기전용(수정/삭제 API 안 만듦).
+- 실제 소스 grounded(서브에이전트): 미러 v1/v2가 QR페어·읽기전용 PWA·PIN게이트·일정 스냅샷 이미 보유 → 대부분 재사용. team_site_photos/site-photos/shared/photos 매핑 file:line 명시.
+- ⭐구멍 6건 명시: ①서버에 고객/일정 테이블 없음(고객 meta는 앱 Room에만·미러snapshot·shared_sites만) ②사진있는고객 enumerate 엔드포인트 없음 ③사진↔고객 조인=전화문자열 손실 ④시공종류/아파트명/동호수 서버 없음 ⑤/api/site-photos가 PARTNER를 '팀원'으로 오분류(shared/photos 써라) ⑥미러 세션=180일·idle없음(사장님 원한 60초QR·30분로그아웃은 신규).
+- ✅결정(사장님): 캘린더 데이터 = **B안** — 앱이 `web_schedule_feed`(customer_digits·아파트명·동호수·시공일·시공종류·완료) push, 서버가 이걸로 캘린더 그림(미러 무관). 테이블 DDL+`POST /api/web/schedule-feed` 문서에 명시.
+- 변경(코워크 착수 대상): 신규 QR웹로그인(GET /web/login·POST /api/web/authorize·GET /api/web/login/status, 방향 미러와 반대) + GET /api/web/calendar·sites·site·download(zip, 파일명 YYYYMMDD_아파트명_부위_NN, 1280 통일) + 보안(60초·30분·폰 원격로그아웃) + web PWA. §7 저장전략(base64→파일→썸네일→R2)은 코워크 판단.
+- ⚠️맥미니 디스크 97% 참(실측 df: 460GB중 421GB사용·14GB뿐, 사진 아닌 다른 데이터). 사진 여유 ~2.5만장.
+- 앱쪽(내 담당·미착수): web_schedule_feed push · 설정 '웹 로그아웃' · QR 스캔→/api/web/authorize.
+- commit: 6460379. 프로토(시각 SoT): claude.ai/code/artifact/7c06efeb.
+- 다음 액션(cowork): 문서 §3~§5 착수. owner_phone 인증으로 시작(AUTH_ENFORCE 시 토큰승격). 막히면 SYNC '의문' append.
