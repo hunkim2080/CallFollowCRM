@@ -26677,7 +26677,7 @@ function renderParts(){
   }
 }
 function toggleEdit(){var ed=document.getElementById('partsed'),note=document.getElementById('editnote');var on=ed.style.display==='none';ed.style.display=on?'flex':'none';note.style.display=on?'block':'none';renderParts();}
-function pickPart(i){var ids=Object.keys(sel),v=getParts()[i];if(!ids.length){toast('먼저 사진을 골라주세요 — 사진을 클릭하면 선택돼요');return;}var m=getPt(),same=ids.every(function(id){return m[id]===v;});ids.forEach(function(id){if(same)delete m[id];else m[id]=v;});localStorage.setItem(PT_KEY,JSON.stringify(m));renderParts();renderPhotos();updBar();toast(same?('「'+v+'」 부위 해제 ('+ids.length+'장)'):('선택한 '+ids.length+'장에 「'+v+'」 부위 찍음 ✓ · 체크 풀어도 남아요'));}
+function pickPart(i){var ids=Object.keys(sel),v=getParts()[i];if(!ids.length){toast('먼저 사진을 골라주세요 — 사진을 클릭하면 선택돼요');return;}var m=getPt(),same=ids.every(function(id){return m[id]===v;});ids.forEach(function(id){if(same)delete m[id];else m[id]=v;});localStorage.setItem(PT_KEY,JSON.stringify(m));sel={};renderParts();renderPhotos();updBar();toast(same?('「'+v+'」 부위 해제 ('+ids.length+'장)'):('선택한 '+ids.length+'장에 「'+v+'」 부위 찍음 ✓ · 다음 사진 골라서 계속'));}
 function addPart(){var n=(prompt('추가할 부위 이름')||'').trim();if(!n)return;var p=getParts();if(p.indexOf(n)<0){p.push(n);setParts(p);}renderParts();}
 function delPart(i){var p=getParts(),v=p[i];if(!confirm('"'+v+'" 부위를 지울까요?'))return;p.splice(i,1);setParts(p);if(selPart()===v)localStorage.removeItem(SELPART_KEY);renderParts();renderPhotos();updBar();}
 function dlUrl(ids){var ps=ids.map(function(id){return partFor(id);});return '/api/web/download?ids='+ids.join(',')+'&parts='+encodeURIComponent(ps.join('|'));}
