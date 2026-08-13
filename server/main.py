@@ -414,6 +414,19 @@ def db_init() -> None:
             )
             """
         )
+        # 웹 뷰어 사진 태그(부위·시공전후) 서버 저장 — 어느 PC서 로그인해도 유지 (2026-08-13 사장님)
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS web_photo_tags (
+                owner_phone   TEXT NOT NULL,
+                photo_id      INTEGER NOT NULL,
+                part          TEXT,
+                ba            TEXT,
+                updated_at_ms INTEGER NOT NULL,
+                PRIMARY KEY (owner_phone, photo_id)
+            )
+            """
+        )
         # QR 로그인 티켓 (60초 만료, 폰 스캔 authorize 후 1회용 소멸)
         con.execute(
             """
@@ -26185,6 +26198,13 @@ async def web_site(request: Request, customer_digits: str):
                 break
     photos_raw = _web_photo_bucket(owner).get(key, [])
     n = len(photos_raw)
+    # 서버에 저장된 사진 태그(부위·시공전후) — 어느 PC서든 유지
+    tagmap: dict = {}
+    with db_conn() as con:
+        for r in con.execute(
+            "SELECT photo_id, part, ba FROM web_photo_tags WHERE owner_phone = ?", (owner,)
+        ).fetchall():
+            tagmap[r[0]] = (r[1] or "", r[2] or "")
     photos = []
     for i, p in enumerate(photos_raw):
         ba = "before" if i < (n + 1) // 2 else "after"
@@ -26196,12 +26216,14 @@ async def web_site(request: Request, customer_digits: str):
             un = _is_registered_owner(_webre.sub(r"[^0-9]", "", mid.split(":", 1)[1])) or "협업 사장"
         else:
             uk, un = "member", "팀원"
+        _tg = tagmap.get(p["photo_id"])
         photos.append({
             "photo_id": p["photo_id"],
             "url": "/api/web/photo/" + str(p["photo_id"]),
             "thumb_url": "/api/web/photo/" + str(p["photo_id"]),
             "uploader_kind": uk, "uploader_name": un,
             "uploaded_at_ms": p["uploaded_at_ms"], "ba_guess": ba,
+            "part": (_tg[0] if _tg else ""), "ba": (_tg[1] if _tg else ""),
         })
     cust = {
         "name": (crow[0] if crow else "") or "",
@@ -26224,6 +26246,36 @@ async def web_photo(request: Request, photo_id: int):
     if not data:
         raise HTTPException(404, "사진 없음")
     return _Resp(content=data, media_type=mime or "image/jpeg")
+
+
+@app.post("/api/web/tag")
+async def web_tag(request: Request):
+    """웹 뷰어 사진 태그(부위·시공전후) 서버 저장 — 어느 PC서 로그인해도 유지. (2026-08-13)"""
+    from fastapi.responses import JSONResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "body 필수")
+    pid = int(body.get("photo_id") or 0)
+    if not pid:
+        raise HTTPException(400, "photo_id 필수")
+    part = _webre.sub(r'[\\/:*?"<>|]', "", str(body.get("part") or "").strip())[:40]
+    ba = str(body.get("ba") or "").strip()
+    ba = ba if ba in ("before", "after") else ""
+    with db_conn() as con:
+        if not part and not ba:
+            con.execute("DELETE FROM web_photo_tags WHERE owner_phone = ? AND photo_id = ?", (owner, pid))
+        else:
+            con.execute(
+                "INSERT OR REPLACE INTO web_photo_tags (owner_phone, photo_id, part, ba, updated_at_ms) "
+                "VALUES (?,?,?,?,?)",
+                (owner, pid, part or None, ba or None, _now_ms()),
+            )
+        con.commit()
+    return {"ok": True}
 
 
 @app.get("/api/web/download")
@@ -26553,9 +26605,10 @@ function setParts(a){localStorage.setItem(PARTS_KEY,JSON.stringify(a));}
 function selPart(){return localStorage.getItem(SELPART_KEY)||'';}
 function getPt(){try{return JSON.parse(localStorage.getItem(PT_KEY))||{};}catch(e){return {};}}
 function partFor(id){return getPt()[id]||'';}
+function saveTag(id){var p=getPt()[id]||'',b=getBa()[id]||'';fetch('/api/web/tag',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({photo_id:parseInt(id,10),part:p,ba:b})}).catch(function(){});}
 function getBa(){try{return JSON.parse(localStorage.getItem(BA_KEY))||{};}catch(e){return {};}}
 function baFor(p){var m=getBa();return m[p.photo_id]||p.ba_guess;}
-function flipBa(id){var m=getBa(),cur=m[id];if(!cur){var f=photos.filter(function(x){return x.photo_id===id;})[0];cur=f?f.ba_guess:'before';}m[id]=(cur==='before'?'after':'before');localStorage.setItem(BA_KEY,JSON.stringify(m));}
+function flipBa(id){var m=getBa(),cur=m[id];if(!cur){var f=photos.filter(function(x){return x.photo_id===id;})[0];cur=f?f.ba_guess:'before';}m[id]=(cur==='before'?'after':'before');localStorage.setItem(BA_KEY,JSON.stringify(m));saveTag(id);}
 function toast(msg){var t=document.getElementById('wtoast');if(!t){t=document.createElement('div');t.id='wtoast';t.style.cssText='position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:rgba(11,15,25,.92);color:#fff;padding:11px 18px;border-radius:11px;font-size:13px;font-weight:700;z-index:99999;opacity:0;transition:opacity .2s;box-shadow:0 8px 24px rgba(0,0,0,.3)';document.body.appendChild(t);}t.textContent=msg;t.style.opacity='1';clearTimeout(t._h);t._h=setTimeout(function(){t.style.opacity='0';},1900);}
 
 function moveMonth(d){var p=ym.split('-');var dt=new Date(+p[0],+p[1]-1+d,1);ym=dt.getFullYear()+'-'+pad(dt.getMonth()+1);load();}
@@ -26604,6 +26657,7 @@ function openSite(cd){
   curCd=cd; sel={}; filter='all';
   fetch('/api/web/site/'+encodeURIComponent(cd)).then(function(r){if(r.status===401){location.href='/web/login';throw 0;}return r.json();}).then(function(d){
     curCust=d.customer||{}; photos=d.photos||[];
+    var _m=getPt(),_b=getBa(),_ch=false;photos.forEach(function(p){if(p.part){_m[p.photo_id]=p.part;_ch=true;}if(p.ba){_b[p.photo_id]=p.ba;_ch=true;}});if(_ch){localStorage.setItem(PT_KEY,JSON.stringify(_m));localStorage.setItem(BA_KEY,JSON.stringify(_b));}
     renderDetail(); renderDayList();
     renderCal_fromCurrent();
   }).catch(function(){});
@@ -26684,7 +26738,7 @@ function renderParts(){
   }
 }
 function toggleEdit(){var ed=document.getElementById('partsed'),note=document.getElementById('editnote');var on=ed.style.display==='none';ed.style.display=on?'flex':'none';note.style.display=on?'block':'none';renderParts();}
-function pickPart(i){var ids=Object.keys(sel),v=getParts()[i];if(!ids.length){toast('먼저 사진을 골라주세요 — 사진을 클릭하면 선택돼요');return;}var m=getPt(),same=ids.every(function(id){return m[id]===v;});ids.forEach(function(id){if(same)delete m[id];else m[id]=v;});localStorage.setItem(PT_KEY,JSON.stringify(m));sel={};renderParts();renderPhotos();updBar();toast(same?('「'+v+'」 부위 해제 ('+ids.length+'장)'):('선택한 '+ids.length+'장에 「'+v+'」 부위 찍음 ✓ · 다음 사진 골라서 계속'));}
+function pickPart(i){var ids=Object.keys(sel),v=getParts()[i];if(!ids.length){toast('먼저 사진을 골라주세요 — 사진을 클릭하면 선택돼요');return;}var m=getPt(),same=ids.every(function(id){return m[id]===v;});ids.forEach(function(id){if(same)delete m[id];else m[id]=v;});localStorage.setItem(PT_KEY,JSON.stringify(m));ids.forEach(saveTag);sel={};renderParts();renderPhotos();updBar();toast(same?('「'+v+'」 부위 해제 ('+ids.length+'장)'):('선택한 '+ids.length+'장에 「'+v+'」 부위 찍음 ✓ · 다음 사진 골라서 계속'));}
 function addPart(){var n=(prompt('추가할 부위 이름')||'').trim();if(!n)return;var p=getParts();if(p.indexOf(n)<0){p.push(n);setParts(p);}renderParts();}
 function delPart(i){var p=getParts(),v=p[i];if(!confirm('"'+v+'" 부위를 지울까요?'))return;p.splice(i,1);setParts(p);if(selPart()===v)localStorage.removeItem(SELPART_KEY);renderParts();renderPhotos();updBar();}
 function dlUrl(ids){var ps=ids.map(function(id){return partFor(id);});return '/api/web/download?ids='+ids.join(',')+'&parts='+encodeURIComponent(ps.join('|'));}
