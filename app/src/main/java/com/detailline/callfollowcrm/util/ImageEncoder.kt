@@ -36,6 +36,45 @@ object ImageEncoder {
             Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
         }.getOrNull()
 
+    /**
+     * 로컬 파일(내부 저장소 현장사진) → 압축 JPEG base64. 웹 뷰어 백필 업로드용(2026-08-13).
+     *   URI 경로와 동일: API28+ ImageDecoder(EXIF 자동회전)·이하 수동 EXIF · maxDim 다운스케일 · JPEG 압축.
+     */
+    fun fileToJpegBase64(file: java.io.File, maxDim: Int = 1280, quality: Int = 72): String? =
+        runCatching {
+            val src: Bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val decoded = ImageDecoder.decodeBitmap(ImageDecoder.createSource(file)) { decoder, info, _ ->
+                    decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                    decoder.isMutableRequired = false
+                    val longest = maxOf(info.size.width, info.size.height).coerceAtLeast(1)
+                    var sample = 1
+                    while (longest / (sample * 2) >= maxDim) sample *= 2
+                    if (sample > 1) decoder.setTargetSampleSize(sample)
+                }
+                downscaleIfNeeded(decoded, maxDim)
+            } else {
+                val bytes = file.readBytes()
+                val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
+                val orientation = runCatching {
+                    ExifInterface(file.absolutePath).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+                }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
+                downscaleIfNeeded(applyExifOrientation(decoded, orientation), maxDim)
+            }
+            val out = ByteArrayOutputStream()
+            src.compress(Bitmap.CompressFormat.JPEG, quality, out)
+            Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+        }.getOrNull()
+
+    /** 최장변이 maxDim 초과면 비율 유지 축소, 아니면 그대로. */
+    private fun downscaleIfNeeded(bm: Bitmap, maxDim: Int): Bitmap {
+        val longest = maxOf(bm.width, bm.height).coerceAtLeast(1)
+        if (longest <= maxDim) return bm
+        val s = maxDim.toFloat() / longest
+        return Bitmap.createScaledBitmap(
+            bm, (bm.width * s).toInt().coerceAtLeast(1), (bm.height * s).toInt().coerceAtLeast(1), true
+        )
+    }
+
     /** API 28+: ImageDecoder — EXIF 회전 OS 자동 적용 + 다운스케일 + 소프트웨어 비트맵(압축 가능). */
     @androidx.annotation.RequiresApi(Build.VERSION_CODES.P)
     private fun decodeUprightWithImageDecoder(context: Context, uri: Uri, maxDim: Int): Bitmap {

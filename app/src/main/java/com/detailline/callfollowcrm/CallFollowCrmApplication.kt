@@ -415,6 +415,9 @@ class CallFollowCrmApplication : Application() {
         //   웹 안 쓰면(webViewerActive=false) 조용히 skip. 미러와 독립.
         container.webFeedSyncManager.start(appScope)
 
+        // 웹 로그인 상태면 폰에 쌓인 현장사진을 서버로 백필 업로드(전부 웹서 보이게). 안 켜졌으면 즉시 skip.
+        container.ownerPhotoUploadManager.kick(appScope)
+
         // 현장 도착 지오펜스 — 다가오는 시공 현장 5km 등록(권한·토글 있을 때만).
         appScope.launch {
             runCatching { com.detailline.callfollowcrm.service.GeofenceManager.refresh(this@CallFollowCrmApplication) }

@@ -76,6 +76,7 @@ class MainActivity : ComponentActivity() {
                                 com.detailline.callfollowcrm.ai.WebFeedRepository.AuthResult.OK -> {
                                     container.preferences.webViewerActive = true
                                     runCatching { container.webFeedSyncManager.pushNow(force = true) }
+                                    container.ownerPhotoUploadManager.kick(lifecycleScope)   // 폰 사진 서버로 백필
                                     "PC 웹에 로그인됐어요 ✅ 이제 브라우저에서 시공 사진을 보세요."
                                 }
                                 com.detailline.callfollowcrm.ai.WebFeedRepository.AuthResult.EXPIRED ->

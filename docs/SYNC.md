@@ -8672,3 +8672,13 @@ stale-day/month 버그 전수 검사·수정 (사장님 "이런 버그 전체 �
 - 더보기>앱설정>"시공막내 웹(PC 사진)" 섹션에 [PC 웹 로그인 (QR 찍기)] 버튼 → zxing-android-embedded 스캐너 → 찍은 URL의 t 추출 → authorize(동일 로직 재사용). 딥링크 경로도 그대로 유지(둘 다 됨).
 - 의존성 추가: com.journeyapps:zxing-android-embedded:4.3.0 (CAMERA 권한은 이 AAR 이 병합 — Play 등록정보에 카메라 권한 뜸, QR 로그인 용도).
 - compileDebugKotlin BUILD SUCCESSFUL. 앱 전용. commit: (아래). ⚠️폰 실기검증 대기(서버 재시작 후).
+
+## 2026-08-13 (8) · android
+웹뷰어 — 사장님 본인 현장사진을 서버로 **백필 업로드**(사장님: "폰 서랍 사진 전부 사무실=서버서 보이게"). DB v43→v44.
+- 변경: SitePhotoEntity+serverUploadedAt(마이그레이션 43_44) · SitePhotoDao(pendingUpload/markUploaded) · ImageEncoder.fileToJpegBase64(1280 압축) · SitePhotoServerRepository.uploadOwnerPhoto(POST /api/site-photo/owner-upload) · OwnerPhotoUploadManager(webViewerActive 게이트·createdAt순·중복방지) · 트리거(앱시작·QR로그인·사진추가) · CustomerDetailVM: 서버 fetch서 isOwner 필터(로컬+서버 중복표시 방지).
+- 실기검증(S9): 마이그레이션 OK(컬럼 생김) · owner-upload 게이트(_check_team_tier) 통과 200(photo_id=129, 테스트후 삭제) · 근데 이 폰은 로컬사진 0장(테스트폰).
+- 🔴🔴 **cowork 확인/수정 필요 — owner_phone 정규화 불일치로 owner 업로드 사진이 웹에 안 뜸(photos:[]):**
+  - `_web_photo_bucket`(main.py:25878)은 `WHERE owner_phone = ?` 에 세션 owner(**정규화=숫자만**, 피드 25940 _norm_phone 과 동일)로 정확일치.
+  - 근데 owner-upload(19422)는 owner_phone 을 **하이픈 그대로 저장**(_norm_phone 안 함) → team_site_photos.owner_phone="010-6461-0131" vs 조회키 "01064610131" → **안 맞아 photos 빈 배열.** (실측: 129 업로드 후 /api/web/site 가 photos:[] 반환.)
+  - 추천 fix(한 곳): `_web_photo_bucket` 의 owner 비교를 정규화(19552 의 REPLACE 패턴처럼) — 또는 owner-upload 저장 시 `_norm_phone(owner_phone)`. 앱은 하이픈 유지(fetch/delete 등 전부 하이픈이라 일관). 전자 추천(기존 데이터도 커버).
+- commit: (아래). 앱 전용. compile OK.

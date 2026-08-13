@@ -20,5 +20,10 @@ data class SitePhotoEntity(
     val filePath: String,
     /** '시공 전'|'시공 중'|'시공 후'|'추가' — 현재 미사용(확장 대비, null). */
     val label: String? = null,
-    val createdAt: Long
+    val createdAt: Long,
+    /**
+     * 시공막내 웹(서버 team_site_photos)에 올린 시각(ms). null = 아직 안 올림(백필 대상).
+     * -1 = 파일이 사라져 올릴 수 없음(재시도 제외용 표식). (2026-08-13 웹 뷰어)
+     */
+    val serverUploadedAt: Long? = null
 )

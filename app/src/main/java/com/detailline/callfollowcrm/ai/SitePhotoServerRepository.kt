@@ -107,6 +107,31 @@ class SitePhotoServerRepository(
             }
         }
 
+    /**
+     * 사장님 본인 현장사진을 서버로 업로드 (POST /api/site-photo/owner-upload, member_id='OWNER').
+     *   시공막내 웹 뷰어가 이 사진을 고객별로 보여줌. imageDataUrl = "data:image/jpeg;base64,…" (≤1MB). (2026-08-13)
+     */
+    suspend fun uploadOwnerPhoto(
+        ownerPhone: String,
+        customerPhone: String,
+        imageDataUrl: String,
+        label: String = "시공 사진"
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val body = JSONObject().apply {
+                put("owner_phone", ownerPhone)
+                put("customer_phone", customerPhone)
+                put("image_data_url", imageDataUrl)
+                put("label", label)
+            }.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+            val req = Request.Builder().url("$baseUrl/api/site-photo/owner-upload").post(body).build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                Unit
+            }
+        }
+    }
+
     suspend fun fetch(ownerPhone: String, customerPhone: String): Result<List<RemotePhoto>> =
         withContext(Dispatchers.IO) {
             runCatching {

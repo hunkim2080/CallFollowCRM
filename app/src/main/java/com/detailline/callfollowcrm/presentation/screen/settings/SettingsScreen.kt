@@ -1101,7 +1101,8 @@ private fun WebViewerSection(container: AppContainer) {
                 com.detailline.callfollowcrm.ai.WebFeedRepository.AuthResult.OK -> {
                     prefs.webViewerActive = true; active = true
                     runCatching { container.webFeedSyncManager.pushNow(force = true) }
-                    toast("PC 웹에 로그인됐어요 ✅")
+                    container.ownerPhotoUploadManager.kick(scope)   // 폰 사진 서버로 백필
+                    toast("PC 웹에 로그인됐어요 ✅ 사진도 웹으로 올라가요")
                 }
                 com.detailline.callfollowcrm.ai.WebFeedRepository.AuthResult.EXPIRED ->
                     toast("QR이 만료됐어요. 웹에서 새 QR을 띄워 다시 찍어주세요.")

@@ -86,7 +86,11 @@ class CustomerDetailViewModel(
         val owner = container.preferences.bizPhone.trim()
         val cust = customer.value?.phoneNumber?.trim().orEmpty()
         if (owner.isBlank() || cust.isBlank()) return@launch
-        container.sitePhotoServerRepository.fetch(owner, cust).onSuccess { _teamPhotos.value = it }
+        // 사장님 본인 사진(isOwner)은 이미 로컬(sitePhotos)로 보여줌 → 웹 백필로 서버에도 올라가면 여기서 중복 표시·중복 카운트됨.
+        //   그래서 서버 목록에선 '남이 올린 것'(팀원·협업 사장)만 남긴다. (2026-08-13 웹 백필 도입)
+        container.sitePhotoServerRepository.fetch(owner, cust).onSuccess { list ->
+            _teamPhotos.value = list.filter { !it.isOwner }
+        }
     }
 
     /** 팀원이 이 고객(현장)에 남긴 현장 메모(특이사항). 고객 상세 열 때 가져옴. */
@@ -124,6 +128,8 @@ class CustomerDetailViewModel(
         withContext(NonCancellable) {
             toAdd.forEach { if (container.sitePhotoRepository.addFromUri(customerId, it)) ok++ }
         }
+        // 웹 로그인 상태면 방금 추가한 사진을 서버로도 바로 올림(PC 웹에 즉시 반영). 아니면 매니저가 조용히 skip.
+        if (ok > 0) container.ownerPhotoUploadManager.kick(viewModelScope)
         _toast.value = when {
             ok == 0 -> "사진을 추가하지 못했어요"
             uris.size > room -> "${sitePhotoMax}장까지만 — ${ok}장 추가했어요"
