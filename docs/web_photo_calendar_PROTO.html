@@ -1,0 +1,323 @@
+<title>시공막내 웹 — 시공 캘린더 · 사진 다운로드 (프로토 v2)</title>
+<style>
+  :root{
+    --blue:#3182F6; --blue-dark:#1B64DA; --blue-soft:#EEF4FF;
+    --page:#EAEDF1; --card:#FFFFFF; --ink:#0B0F19; --t2:#5A6472; --t3:#9AA3AF;
+    --line:#EDEFF2; --line2:#F4F6F8; --ok:#16A34A; --ok-soft:#E7F6EC; --purple:#7C5CFC; --amber:#B7791F;
+    --shadow:0 1px 2px rgba(17,24,39,.05),0 16px 44px -14px rgba(17,24,39,.22);
+    --sans:-apple-system,"Apple SD Gothic Neo","Malgun Gothic","Segoe UI",system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--page:#111317;--card:#1B1E24;--ink:#F2F4F6;--t2:#AEB6C0;--t3:#79828E;--line:#2A2E35;--line2:#22262c;--blue-soft:#17263f;--ok-soft:#132a1b;--shadow:0 1px 2px rgba(0,0,0,.4),0 18px 48px -14px rgba(0,0,0,.6);}}
+  :root[data-theme="dark"]{--page:#111317;--card:#1B1E24;--ink:#F2F4F6;--t2:#AEB6C0;--t3:#79828E;--line:#2A2E35;--line2:#22262c;--blue-soft:#17263f;--ok-soft:#132a1b;--shadow:0 1px 2px rgba(0,0,0,.4),0 18px 48px -14px rgba(0,0,0,.6);}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--page);color:var(--ink);font-family:var(--sans);line-height:1.5;padding:0 0 64px}
+  .wrap{max-width:1160px;margin:0 auto;padding:0 20px}
+  header{padding:38px 0 8px}
+  .kick{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:800;color:var(--blue);background:var(--blue-soft);padding:6px 13px;border-radius:999px}
+  h1{font-size:26px;font-weight:800;letter-spacing:-.02em;margin:13px 0 5px;text-wrap:balance}
+  .lede{color:var(--t2);font-size:15px;max-width:66ch}.lede b{color:var(--ink)}
+  .steplabel{font-size:12px;font-weight:800;color:var(--t3);letter-spacing:.06em;margin:30px 0 10px;text-transform:uppercase}
+
+  /* 로그인 */
+  .login{background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);padding:24px;display:flex;gap:24px;align-items:center;max-width:680px}
+  @media (max-width:560px){.login{flex-direction:column;text-align:center}}
+  .qr{width:140px;height:140px;flex:none;border-radius:16px;background:#fff;border:1px solid var(--line);padding:11px;position:relative}
+  .qr .exp{position:absolute;left:50%;bottom:-11px;transform:translateX(-50%);white-space:nowrap;font-size:9.5px;font-weight:800;color:var(--blue);background:var(--blue-soft);padding:3px 8px;border-radius:999px}
+  .login .lg{font-size:19px;font-weight:800}
+  .login .ls{font-size:13.5px;color:var(--t2);margin-top:6px;line-height:1.6}
+  .secrow{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:800;padding:5px 10px;border-radius:999px;background:var(--line2);color:var(--t2);border:1px solid var(--line)}
+  .pill.blue{background:var(--blue-soft);color:var(--blue);border-color:transparent}
+
+  /* 브라우저 */
+  .browser{background:var(--card);border-radius:16px;box-shadow:var(--shadow);overflow:hidden;border:1px solid var(--line)}
+  .chrome{display:flex;align-items:center;gap:10px;padding:11px 15px;background:var(--line2);border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .dots{display:flex;gap:6px}.dots i{width:11px;height:11px;border-radius:50%;background:#cfd5db;display:block}.dots i:nth-child(1){background:#F06A5B}.dots i:nth-child(2){background:#F5BE4F}.dots i:nth-child(3){background:#5FC77E}
+  .url{flex:1;min-width:120px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-size:12.5px;color:var(--t3)}.url b{color:var(--t2);font-weight:600}
+  .vpill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:800;color:var(--t2);background:var(--card);border:1px solid var(--line);padding:5px 10px;border-radius:999px}
+  .who{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--t2);font-weight:700}
+  .who .av{width:22px;height:22px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center;font-size:10px;font-weight:800}
+  .logout{font-size:11.5px;font-weight:800;color:var(--blue);cursor:default}
+
+  .app{display:grid;grid-template-columns:360px 1fr;gap:0}
+  @media (max-width:860px){.app{grid-template-columns:1fr}}
+  .cal{padding:18px;border-right:1px solid var(--line)}
+  @media (max-width:860px){.cal{border-right:none;border-bottom:1px solid var(--line)}}
+  .search{display:flex;align-items:center;gap:8px;background:var(--line2);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:13px;color:var(--t3);margin-bottom:14px}
+  .calhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .calhead .m{font-size:16px;font-weight:800}
+  .calhead .nav{display:flex;gap:6px}.calhead .nav span{width:26px;height:26px;border-radius:8px;background:var(--line2);display:grid;place-items:center;color:var(--t2);font-weight:800;font-size:13px}
+  .dow{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px}
+  .dow div{text-align:center;font-size:10.5px;font-weight:800;color:var(--t3);padding:3px 0}
+  .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+  .cell{aspect-ratio:1;border-radius:9px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:5px;font-size:12px;color:var(--ink);position:relative}
+  .cell.out{color:var(--t3);opacity:.45}
+  .cell.job{background:var(--blue-soft);font-weight:800}
+  .cell.job .dot{width:5px;height:5px;border-radius:50%;background:var(--blue);position:absolute;bottom:16px}
+  .cell.job .cam{position:absolute;bottom:5px;font-size:9px}
+  .cell.sel{background:var(--blue);color:#fff;box-shadow:0 4px 12px -3px rgba(49,130,246,.55)}
+  .cell.sel .dot{background:#fff}
+  .legend{display:flex;gap:12px;margin-top:12px;font-size:11px;color:var(--t2);flex-wrap:wrap}
+  .legend .d{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--blue);margin-right:4px;vertical-align:middle}
+
+  /* 이 달 시공 현장 목록 */
+  .daylist{margin-top:18px;border-top:1px solid var(--line);padding-top:15px}
+  .dl-h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px}
+  .dl-h b{font-size:13px;font-weight:800;color:var(--ink)}
+  .dl-h .cnt{font-size:11px;font-weight:800;color:var(--t3)}
+  .dl-rows{display:flex;flex-direction:column;gap:7px}
+  .drow{display:flex;align-items:center;gap:11px;padding:9px 11px;border:1px solid var(--line);border-radius:12px;background:var(--card);cursor:pointer;transition:border-color .12s,background .12s}
+  .drow:hover{border-color:var(--blue)}
+  .drow.on{border-color:var(--blue);background:var(--blue-soft);box-shadow:0 3px 10px -4px rgba(49,130,246,.4)}
+  .drow .dd{flex:none;width:40px;text-align:center;line-height:1.05}
+  .drow .dd .m{font-size:9px;font-weight:800;color:var(--t3);letter-spacing:.02em}
+  .drow .dd .n{font-size:16px;font-weight:900;color:var(--blue)}
+  .drow.on .dd .n{color:var(--blue-dark)}
+  .drow .info{flex:1;min-width:0}
+  .drow .apt{font-size:12.5px;font-weight:800;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .drow .sub{font-size:10.5px;font-weight:600;color:var(--t3);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .drow .rt{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:3px;font-size:10px;font-weight:800}
+  .drow .cam2{color:var(--t2)}
+  .drow .st-ok{color:var(--ok)}
+  .drow .st-go{color:var(--amber)}
+
+  /* 상세 */
+  .detail{padding:20px 22px}
+  .dtop{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+  .cust h2{margin:0;font-size:18px;font-weight:800}
+  .cust .meta{font-size:12.5px;color:var(--t2);margin-top:6px;line-height:1.7}.cust .meta b{color:var(--ink);font-weight:700}
+  .spec{display:inline-flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .spec span{font-size:11px;font-weight:700;color:var(--t2);background:var(--line2);border:1px solid var(--line);padding:3px 8px;border-radius:7px}
+  .datechip{font-size:12px;font-weight:800;color:var(--blue);background:var(--blue-soft);padding:6px 12px;border-radius:10px;white-space:nowrap}
+
+  .viewerbar{display:flex;align-items:center;gap:9px;margin-top:14px;background:var(--blue-soft);border:1px solid color-mix(in srgb,var(--blue) 22%,transparent);border-radius:11px;padding:10px 13px;font-size:12px;color:var(--ink)}.viewerbar b{color:var(--blue)}
+
+  .toolbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:14px}
+  .chipf{font-size:11.5px;font-weight:700;color:var(--t2);background:var(--line2);border:1px solid var(--line);padding:6px 11px;border-radius:999px;display:inline-flex;align-items:center;gap:6px}
+  .chipf.on{background:var(--blue-soft);color:var(--blue);border-color:transparent}
+  .chipf i{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .chipf i.owner{background:#3182F6}.chipf i.team{background:#16A34A}.chipf i.partner{background:#7C5CFC}
+  .sort{margin-left:auto;font-size:11.5px;font-weight:700;color:var(--t2);background:var(--line2);border:1px solid var(--line);padding:6px 11px;border-radius:999px}
+
+  .beforeafter{display:flex;align-items:center;gap:8px;margin:16px 0 4px;font-size:12px;color:var(--t2)}
+  .beforeafter .lab{font-size:11px;font-weight:800;padding:3px 9px;border-radius:7px}
+  .lab.before{background:#EEF1F5;color:#5A6472}.lab.after{background:var(--ok-soft);color:var(--ok)}
+
+  .photos{display:grid;grid-template-columns:repeat(3,1fr);gap:12px 10px;margin-top:10px}
+  @media (max-width:560px){.photos{grid-template-columns:repeat(2,1fr)}}
+  .pcell{}
+  .ph{aspect-ratio:4/3;border-radius:12px;position:relative;overflow:hidden;border:1px solid var(--line);background:linear-gradient(135deg,#dfe6ee,#c9d3dd);cursor:default}
+  .ph.g2{background:linear-gradient(135deg,#e7ded3,#d6c6b2)} .ph.g3{background:linear-gradient(135deg,#d8e4dd,#bcd0c6)}
+  .ph.g4{background:linear-gradient(135deg,#e3dae6,#cbbcd6)} .ph.g5{background:linear-gradient(135deg,#dde3ee,#bfccdf)} .ph.g6{background:linear-gradient(135deg,#e9e2d4,#d3c7a9)}
+  .ph.on{outline:3px solid var(--blue);outline-offset:-3px}
+  .pick{position:absolute;left:8px;top:8px;width:22px;height:22px;border-radius:7px;background:rgba(255,255,255,.85);border:1.5px solid rgba(11,15,25,.28);display:grid;place-items:center;font-size:12px;font-weight:900;color:transparent}
+  .pick.on{background:var(--blue);border-color:var(--blue);color:#fff}
+  .up{position:absolute;right:8px;top:8px;font-size:9.5px;font-weight:800;padding:3px 7px;border-radius:6px;color:#fff}
+  .up.owner{background:rgba(49,130,246,.94)}.up.team{background:rgba(22,163,74,.94)}.up.partner{background:rgba(124,92,252,.95)}
+  .baBadge{position:absolute;left:8px;bottom:8px;font-size:9.5px;font-weight:800;padding:3px 7px;border-radius:6px;color:#20303f;background:rgba(255,255,255,.86)}
+  .dl{position:absolute;right:8px;bottom:8px;width:26px;height:26px;border-radius:8px;background:rgba(11,15,25,.6);color:#fff;display:grid;place-items:center;font-size:12px}
+  .cap{margin-top:6px;display:flex;align-items:center;gap:6px;font-size:10.5px}
+  .cap .part{font-weight:800;color:var(--amber);background:#FBF3E2;padding:2px 7px;border-radius:6px}
+  .cap .fn{color:var(--t3)}
+
+  /* 부위 태그 */
+  .partpick{margin-top:16px;background:var(--line2);border:1px solid var(--line);border-radius:13px;padding:13px 14px}
+  .partpick .h{font-size:12px;font-weight:800;color:var(--ink);margin-bottom:9px}
+  .partpick .h b{color:var(--blue)}
+  .parts{display:flex;flex-wrap:wrap;gap:7px}
+  .pchip{font-size:12px;font-weight:800;color:var(--t2);background:var(--card);border:1.5px solid var(--line);padding:7px 12px;border-radius:9px}
+  .pchip.on{background:var(--amber);color:#fff;border-color:transparent}
+  .pchip.add{background:transparent;color:var(--t3);border-style:dashed}
+  .editnote{font-size:11px;color:var(--t3);font-weight:700;margin:12px 0 7px}
+  .editnote b{color:var(--ink)}
+  .pchip.ed{display:inline-flex;align-items:center;gap:7px;color:var(--ink);background:var(--card)}
+  .pchip.ed .g{color:var(--t3);cursor:grab}
+  .pchip.ed .x{font-style:normal;color:#EF4444;font-weight:900;cursor:pointer}
+
+  .dlbar{margin-top:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:13px 14px;box-shadow:0 1px 2px rgba(17,24,39,.04)}
+  .dlbar .fname{font-size:12.5px;color:var(--t2)}.dlbar .fname b{color:var(--ink);font-weight:800;font-variant-numeric:tabular-nums}
+  .res{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .res span{font-size:11px;font-weight:800;padding:6px 10px;color:var(--t2)}.res span.on{background:var(--blue);color:#fff}
+  .dlbtn{background:var(--blue);color:#fff;font-weight:800;font-size:13px;padding:11px 15px;border-radius:11px;display:inline-flex;align-items:center;gap:7px;box-shadow:0 3px 10px -3px rgba(49,130,246,.5)}
+  .dlbtn.ghost2{background:var(--line2);color:var(--t2);box-shadow:none;border:1px solid var(--line)}
+  .dlmore{font-size:11.5px;color:var(--t3);margin-top:8px}
+
+  /* 라이트박스 */
+  .lbwrap{margin-top:16px;background:#0e1218;border-radius:16px;padding:20px;display:grid;grid-template-columns:1fr 220px;gap:18px;box-shadow:var(--shadow)}
+  @media (max-width:640px){.lbwrap{grid-template-columns:1fr}}
+  .lbimg{aspect-ratio:4/3;border-radius:12px;background:linear-gradient(135deg,#dfe6ee,#c9d3dd);position:relative}
+  .lbimg .arrow{position:absolute;top:50%;transform:translateY(-50%);width:38px;height:38px;border-radius:50%;background:rgba(0,0,0,.5);color:#fff;display:grid;place-items:center;font-size:18px}
+  .lbimg .arrow.l{left:12px}.lbimg .arrow.r{right:12px}
+  .lbimg .cnt{position:absolute;top:12px;left:14px;font-size:11px;font-weight:800;color:#fff;background:rgba(0,0,0,.45);padding:4px 9px;border-radius:999px}
+  .lbside{color:#e7ebf0}
+  .lbside h4{margin:0 0 8px;font-size:14px;font-weight:800;color:#fff}
+  .lbside .r{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.08);color:#b7c0cb}.lbside .r b{color:#fff}
+  .lbdl{margin-top:14px;background:var(--blue);color:#fff;font-weight:800;font-size:13px;padding:11px;border-radius:11px;text-align:center}
+  .lbhint{color:#8792a0;font-size:11px;margin-top:8px;text-align:center}
+
+  .foot{margin-top:30px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 20px;box-shadow:0 1px 2px rgba(17,24,39,.05)}
+  .foot h3{margin:0 0 9px;font-size:15px}.foot ul{margin:0;padding-left:18px;color:var(--t2);font-size:13.5px;line-height:1.8}.foot b{color:var(--ink)}
+  .tag2{font-size:11.5px;font-weight:800;padding:3px 9px;border-radius:999px}
+  .tag2.real{background:var(--ok-soft);color:var(--ok)}.tag2.srv{background:var(--blue-soft);color:var(--blue)}.tag2.app{background:#FBF3E2;color:var(--amber)}
+</style>
+
+<div class="wrap">
+<header>
+  <span class="kick">🖥️ 시공막내 웹 · 프로토 v2 (디테일)</span>
+  <h1>PC에서 시공 사진 골라 블로그용으로 다운로드</h1>
+  <p class="lede"><b>추가된 디테일:</b> 시공 전/후 <b>자동 구분(시간순)</b> · 부위 <b>원클릭</b>해서 파일명에 넣기 · 크게 보기(←→) · 올린사람/부위 필터 · 캘린더 사진 표시·검색 · QR 만료·자동 로그아웃. <b>여전히 보기 전용</b>(수정 X).</p>
+</header>
+
+<!-- 로그인 -->
+<div class="steplabel">1 · 로그인 (폰으로 QR 스캔 · 폰 = 열쇠)</div>
+<div class="login">
+  <div class="qr">
+    <svg viewBox="0 0 100 100" width="100%" height="100%" shape-rendering="crispEdges"><rect width="100" height="100" fill="#fff"/><g fill="#0B0F19">
+      <rect x="6" y="6" width="24" height="24"/><rect x="12" y="12" width="12" height="12" fill="#fff"/><rect x="15" y="15" width="6" height="6"/>
+      <rect x="70" y="6" width="24" height="24"/><rect x="76" y="12" width="12" height="12" fill="#fff"/><rect x="79" y="15" width="6" height="6"/>
+      <rect x="6" y="70" width="24" height="24"/><rect x="12" y="76" width="12" height="12" fill="#fff"/><rect x="15" y="79" width="6" height="6"/>
+      <rect x="40" y="8" width="5" height="5"/><rect x="52" y="8" width="5" height="5"/><rect x="46" y="14" width="5" height="5"/><rect x="58" y="14" width="5" height="5"/>
+      <rect x="40" y="40" width="5" height="5"/><rect x="46" y="46" width="5" height="5"/><rect x="52" y="40" width="5" height="5"/><rect x="58" y="52" width="5" height="5"/><rect x="64" y="46" width="5" height="5"/>
+      <rect x="72" y="40" width="5" height="5"/><rect x="84" y="46" width="5" height="5"/><rect x="78" y="52" width="5" height="5"/><rect x="90" y="40" width="5" height="5"/>
+      <rect x="40" y="70" width="5" height="5"/><rect x="46" y="82" width="5" height="5"/><rect x="52" y="76" width="5" height="5"/><rect x="58" y="88" width="5" height="5"/>
+      <rect x="70" y="72" width="5" height="5"/><rect x="82" y="78" width="5" height="5"/><rect x="88" y="70" width="5" height="5"/><rect x="76" y="88" width="5" height="5"/><rect x="90" y="90" width="5" height="5"/></g></svg>
+    <span class="exp">🔄 60초 후 자동 갱신</span>
+  </div>
+  <div>
+    <div class="lg">시공막내 웹 로그인</div>
+    <div class="ls">폰의 <b>시공막내 앱</b>으로 이 QR을 스캔하면 바로 로그인돼요. 비밀번호 없이 <b>폰 하나로 인증</b>.</div>
+    <div class="secrow">
+      <span class="pill blue">🔒 폰 없으면 로그인 X</span>
+      <span class="pill">⏱ QR 60초 만료</span>
+      <span class="pill">😴 30분 무동작 → 자동 로그아웃</span>
+      <span class="pill">📱 폰에서 원격 로그아웃</span>
+    </div>
+  </div>
+</div>
+
+<!-- 메인 -->
+<div class="steplabel">2 · 시공 캘린더 → 현장 클릭 → 사진</div>
+<div class="browser">
+  <div class="chrome">
+    <div class="dots"><i></i><i></i><i></i></div>
+    <div class="url">🔒 <b>si0in.kr</b>/web/calendar</div>
+    <span class="vpill">👁️ 보기 전용</span>
+    <div class="who"><span class="av">홍</span> 홍준표 · 이 PC 로그인됨 · <span class="logout">폰에서 로그아웃</span></div>
+  </div>
+  <div class="app">
+    <!-- 캘린더 -->
+    <div class="cal">
+      <div class="search">🔎 아파트명·고객명으로 검색…</div>
+      <div class="calhead"><div class="m">2026년 8월</div><div class="nav"><span>‹</span><span>›</span></div></div>
+      <div class="dow"><div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div></div>
+      <div class="grid">
+        <div class="cell out">27</div><div class="cell out">28</div><div class="cell out">29</div><div class="cell out">30</div><div class="cell out">31</div><div class="cell">1</div><div class="cell">2</div>
+        <div class="cell">3</div><div class="cell job">4<span class="dot"></span><span class="cam">📷</span></div><div class="cell">5</div><div class="cell">6</div><div class="cell job">7<span class="dot"></span></div><div class="cell">8</div><div class="cell">9</div>
+        <div class="cell">10</div><div class="cell">11</div><div class="cell job">12<span class="dot"></span><span class="cam">📷</span></div><div class="cell">13</div><div class="cell">14</div><div class="cell sel">15<span class="dot"></span><span class="cam">📷</span></div><div class="cell">16</div>
+        <div class="cell">17</div><div class="cell">18</div><div class="cell job">19<span class="dot"></span><span class="cam">📷</span></div><div class="cell">20</div><div class="cell job">21<span class="dot"></span></div><div class="cell">22</div><div class="cell">23</div>
+        <div class="cell">24</div><div class="cell">25</div><div class="cell">26</div><div class="cell job">27<span class="dot"></span><span class="cam">📷</span></div><div class="cell">28</div><div class="cell">29</div><div class="cell">30</div>
+        <div class="cell">31</div><div class="cell out">1</div><div class="cell out">2</div><div class="cell out">3</div><div class="cell out">4</div><div class="cell out">5</div><div class="cell out">6</div>
+      </div>
+      <div class="legend"><span><span class="d"></span>시공 있는 날</span><span>📷 사진 올라온 날</span></div>
+
+      <!-- 이 달 시공 현장 목록 -->
+      <div class="daylist">
+        <div class="dl-h"><b>이 달 시공 현장</b><span class="cnt">7곳 · 최근순</span></div>
+        <div class="dl-rows">
+          <div class="drow"><div class="dd"><div class="m">8월</div><div class="n">27</div></div><div class="info"><div class="apt">힐스테이트동탄 205동 1103호</div><div class="sub">박지훈 · 줄눈</div></div><div class="rt"><span class="cam2">📷 8</span><span class="st-ok">완료</span></div></div>
+          <div class="drow"><div class="dd"><div class="m">8월</div><div class="n">21</div></div><div class="info"><div class="apt">동탄린스트라우스 512동 2402호</div><div class="sub">이수정 · 청소</div></div><div class="rt"><span class="st-go">진행중</span></div></div>
+          <div class="drow"><div class="dd"><div class="m">8월</div><div class="n">19</div></div><div class="info"><div class="apt">반도유보라 108동 704호</div><div class="sub">최민호 · 줄눈</div></div><div class="rt"><span class="cam2">📷 12</span><span class="st-ok">완료</span></div></div>
+          <div class="drow on"><div class="dd"><div class="m">8월</div><div class="n">15</div></div><div class="info"><div class="apt">동탄에스알골드 103동 1502호</div><div class="sub">김서연 · 줄눈</div></div><div class="rt"><span class="cam2">📷 6</span><span class="st-ok">완료</span></div></div>
+          <div class="drow"><div class="dd"><div class="m">8월</div><div class="n">12</div></div><div class="info"><div class="apt">우미린스트라우스 302동 1801호</div><div class="sub">정하늘 · 줄눈</div></div><div class="rt"><span class="cam2">📷 5</span><span class="st-ok">완료</span></div></div>
+          <div class="drow"><div class="dd"><div class="m">8월</div><div class="n">7</div></div><div class="info"><div class="apt">시범다은마을 401동 302호</div><div class="sub">강도영 · 필름</div></div><div class="rt"><span class="st-go">진행중</span></div></div>
+          <div class="drow"><div class="dd"><div class="m">8월</div><div class="n">4</div></div><div class="info"><div class="apt">메타폴리스 88층 8801호</div><div class="sub">윤서아 · 줄눈</div></div><div class="rt"><span class="cam2">📷 9</span><span class="st-ok">완료</span></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 상세 -->
+    <div class="detail">
+      <div class="dtop">
+        <div class="cust">
+          <h2>동탄에스알골드 · 줄눈 시공</h2>
+          <div class="meta">고객 <b>김서연</b> · 010-2222-3333 · 현장 <b>동탄에스알골드 103동 1502호</b></div>
+          <div class="spec"><span>📅 시공일 2026-08-15 (금)</span><span>✅ 시공 완료</span><span>🏷️ 줄눈</span></div>
+        </div>
+        <span class="datechip">📅 8/15</span>
+      </div>
+
+      <div class="viewerbar">👁️ <b>보기 전용</b> — 보고·다운로드만. 사진 수정·삭제는 폰 앱에서만. (부위 태그는 <b>다운로드 이름표</b>일 뿐 서버 사진은 안 건드려요 🤙)</div>
+
+      <!-- 필터/정렬 -->
+      <div class="toolbar">
+        <span class="chipf on">전체 6</span>
+        <span class="chipf"><i class="owner"></i>사장님 2</span>
+        <span class="chipf"><i class="team"></i>팀원 3</span>
+        <span class="chipf"><i class="partner"></i>협업 사장 1</span>
+        <span class="sort">↕ 시간순 ▾</span>
+      </div>
+
+      <div class="beforeafter"><span class="lab before">시공 전</span> · <span class="lab after">시공 후</span> = <b style="color:var(--ink)">&nbsp;올린 시간순으로 자동 구분</b> (앞=전 · 뒤=후)</div>
+
+      <!-- 사진 -->
+      <div class="photos">
+        <div class="pcell"><div class="ph on"><span class="pick on">✓</span><span class="up owner">👤 사장님</span><span class="baBadge">시공 전</span><span class="dl">↓</span></div><div class="cap"><span class="part">거실화장실</span><span class="fn">…_거실화장실_01.jpg</span></div></div>
+        <div class="pcell"><div class="ph g2"><span class="pick"></span><span class="up team">👤 막내</span><span class="baBadge">시공 전</span><span class="dl">↓</span></div><div class="cap"><span class="part">안방화장실</span><span class="fn">…_안방화장실_02.jpg</span></div></div>
+        <div class="pcell"><div class="ph on g3"><span class="pick on">✓</span><span class="up partner">🤝 협업·박사장</span><span class="baBadge">시공 후</span><span class="dl">↓</span></div><div class="cap"><span class="part">거실타일</span><span class="fn">…_거실타일_03.jpg</span></div></div>
+        <div class="pcell"><div class="ph on g4"><span class="pick on">✓</span><span class="up team">👤 막내</span><span class="baBadge">시공 후</span><span class="dl">↓</span></div><div class="cap"><span class="part">거실타일</span><span class="fn">…_거실타일_04.jpg</span></div></div>
+        <div class="pcell"><div class="ph g5"><span class="pick"></span><span class="up owner">👤 사장님</span><span class="baBadge">시공 후</span><span class="dl">↓</span></div><div class="cap"><span class="part">베란다</span><span class="fn">…_베란다_05.jpg</span></div></div>
+        <div class="pcell"><div class="ph g6"><span class="pick"></span><span class="up team">👤 막내</span><span class="baBadge">시공 후</span><span class="dl">↓</span></div><div class="cap"><span class="part">현관</span><span class="fn">…_현관_06.jpg</span></div></div>
+      </div>
+
+      <!-- 부위 원클릭 -->
+      <div class="partpick">
+        <div class="h">📌 선택한 사진에 <b>부위 찍기</b> → 파일명에 들어가요 · <b>부위 목록은 사장님이 직접 정해요</b> (줄눈·청소·필름… 업종·현장마다 다르니까)</div>
+        <div class="parts">
+          <span class="pchip on">거실화장실</span><span class="pchip">안방화장실</span><span class="pchip">거실타일</span><span class="pchip">베란다</span><span class="pchip">다용도실</span><span class="pchip">현관</span><span class="pchip">기타</span>
+          <span class="pchip add">＋ 부위 추가</span><span class="pchip add">✏️ 편집</span>
+        </div>
+        <div class="editnote">✏️ <b>편집</b>을 누르면 → 부위마다 <b>삭제(✕)</b>·<b>순서(≡ 끌기)</b> 가 떠요 (사장님이 직접 넣고 빼기):</div>
+        <div class="parts">
+          <span class="pchip ed"><span class="g">≡</span> 거실화장실 <span class="x">✕</span></span><span class="pchip ed"><span class="g">≡</span> 거실타일 <span class="x">✕</span></span><span class="pchip ed"><span class="g">≡</span> 베란다 <span class="x">✕</span></span><span class="pchip add">＋ 추가</span>
+        </div>
+      </div>
+
+      <!-- 다운로드 -->
+      <div class="dlbar">
+        <div class="fname">☑ <b>3장 선택</b> · <b>20260815_동탄에스알골드_거실화장실_01.jpg</b> 처럼 · 약 1.2MB (장당 ~400KB, 1280px)</div>
+        <span class="dlbtn ghost2">전체 선택</span>
+        <span class="dlbtn">📥 선택 3장 다운로드</span>
+      </div>
+      <div class="dlmore">여러 장 = zip · 한 장은 바로 · 전체 6장 한 번에도 · 파일명 = <b>시공일자_아파트명_부위_번호</b></div>
+    </div>
+  </div>
+</div>
+
+<!-- 라이트박스 -->
+<div class="steplabel">3 · 크게 보기 (사진 클릭 → ← → 로 넘기기)</div>
+<div class="lbwrap">
+  <div class="lbimg">
+    <span class="cnt">3 / 6</span>
+    <span class="arrow l">‹</span><span class="arrow r">›</span>
+  </div>
+  <div class="lbside">
+    <h4>거실타일 · 시공 후</h4>
+    <div class="r"><span>올린 사람</span><b>🤝 협업 · 박사장</b></div>
+    <div class="r"><span>올린 시각</span><b>8/15 15:20</b></div>
+    <div class="r"><span>부위</span><b>거실타일</b></div>
+    <div class="r"><span>파일명</span><b style="font-size:11px">…_거실타일_03.jpg</b></div>
+    <div class="lbdl">📥 이 사진 다운로드</div>
+    <div class="lbhint">← → 키로 넘기기 · Esc 닫기</div>
+  </div>
+</div>
+
+<div class="foot">
+  <h3>확정 반영 · 실제 데이터 기준 (지어내기 X)</h3>
+  <ul>
+    <li><span class="tag2 real">이미 있음</span> 사진(서버 site-photos, <b>사장님·팀원·협업 사장</b> uploader 구분) · 캘린더/현장(고객 <b>시공일·아파트명(주소)·동호수·이름·시공종류(카테고리)·완료여부</b>) · QR 로그인(미러 방식). <b>⚠️ 평형(84A)·재질(폴리우레아/케라폭시)은 박람회 계약서 전용 필드 → 일반 시공엔 없음(넣지 않음).</b></li>
+    <li><span class="tag2 srv">웹/서버 · 코워크</span> <b>전/후 = 올린 시간순 자동</b>(앞=전·뒤=후) · <b>라이트박스·필터·정렬·검색·캘린더 📷</b> · 다운로드(선택/전체/한장·zip, <b>1280px 통일·선택 없이 바로</b>) · 파일명 <b>시공일_아파트명_부위_번호</b> · 보안(QR 60초·30분 자동 로그아웃·폰 원격 로그아웃). <b>👁️ 읽기 전용</b>(수정/삭제 API 없음).</li>
+    <li><span class="tag2 app">부위 태그</span> 웹에서 <b>원클릭</b>으로 사진에 부위 찍기 → <b>다운로드 파일명에만</b> 반영(서버 사진 안 건드림=뷰어 유지). <b>부위 목록은 고정 X — 사장님이 직접 관리</b>(추가·삭제·순서·직접입력). 앱의 카테고리·가격표처럼 user-defined → 줄눈·청소·필름 등 업종 무관. (예시 목록은 줄눈용일 뿐)</li>
+  </ul>
+  <p style="margin:12px 0 0;color:var(--t3);font-size:12.5px">⏸️ 워터마크는 보류. · 사진은 예시 타일이에요. 이 방향 확정되면 코워크 핸드오프 스펙으로 정리할게요.</p>
+</div>
+</div>

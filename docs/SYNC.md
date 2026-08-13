@@ -8703,3 +8703,10 @@ stale-day/month 버그 전수 검사·수정 (사장님 "이런 버그 전체 �
 - uploader_kind=partner 는 기존 member_id 파싱으로 이미 처리. photo_count·hasPhoto 자동 포함(버킷 공유).
 - 검증: TestClient — customer_phone=NULL·share_id·PARTNER·타 owner 사진 3장 → site.photos=3(partner)·photo 200·zip 200·sites.photo_count=3·calendar hasPhoto=true. ast OK.
 - ⚠️ 배포 필요: bash server/deploy_phase1.sh (웹뷰어 전체 + fdc3815 + 이번 협업건 함께 반영).
+
+## 2026-08-13 (10) · android → cowork
+사장님이 웹 뷰어 직접 봄 → 두 가지 지적:
+1. 🎨 **화면이 프로토랑 다름(배치·디자인)** = §0 위반. 코워크가 프로토(7c06efeb) 못 열어 기능만 만듦. → **프로토 HTML을 repo에 넣음: `docs/web_photo_calendar_PROTO.html`.** 핸드오프 `docs/SERVER_HANDOFF_web_viewer_match_proto.md` — 색토큰·캘린더·"이 달 시공 현장" 목록 row·사진그리드(협업=보라 뱃지)·부위칩·다운로드바·문구 verbatim 으로 1:1. (크롬목업·로그인데모는 장식이라 제외)
+2. 📷 **협업 사진 전부 0장** = 아직 라이브 아님. **배포 필요: `bash server/deploy_phase1.sh`**(929c2fa 코드). 배포 後 앱이 share_ids 재푸시(폰 재로그인)해야 뜸.
+- android 쪽 앱은 완료(share_ids 푸시 배포됨). 폰 USB 방금 빠져 재검증은 재연결 후.
+- commit: (아래).
