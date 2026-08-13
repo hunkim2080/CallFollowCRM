@@ -26434,6 +26434,7 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .beforeafter .lab{font-size:11px;font-weight:800;padding:3px 9px;border-radius:7px}
   .lab.before{background:#EEF1F5;color:#5A6472}.lab.after{background:var(--ok-soft);color:var(--ok)}
   .photos{display:grid;grid-template-columns:repeat(3,1fr);gap:12px 10px;margin-top:10px}
+  .pcell{min-width:0}
   @media (max-width:560px){.photos{grid-template-columns:repeat(2,1fr)}}
   .ph{aspect-ratio:4/3;border-radius:12px;position:relative;overflow:hidden;border:1px solid var(--line);background:var(--line2);cursor:pointer}
   .ph img{width:100%;height:100%;object-fit:cover;display:block}
@@ -26444,9 +26445,9 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .up.owner{background:rgba(49,130,246,.94)}.up.team{background:rgba(22,163,74,.94)}.up.partner{background:rgba(124,92,252,.95)}
   .baBadge{position:absolute;left:8px;bottom:8px;font-size:9.5px;font-weight:800;padding:3px 7px;border-radius:6px;color:#20303f;background:rgba(255,255,255,.86)}
   .dl{position:absolute;right:8px;bottom:8px;width:26px;height:26px;border-radius:8px;background:rgba(11,15,25,.6);color:#fff;display:grid;place-items:center;font-size:12px;cursor:pointer;z-index:2}
-  .cap{margin-top:6px;display:flex;align-items:center;gap:6px;font-size:10.5px}
-  .cap .part{font-weight:800;color:var(--amber);background:#FBF3E2;padding:2px 7px;border-radius:6px}
-  .cap .fn{color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cap{margin-top:6px;display:flex;align-items:center;gap:6px;font-size:10.5px;min-width:0}
+  .cap .part{font-weight:800;color:var(--amber);background:#FBF3E2;padding:2px 7px;border-radius:6px;flex:none}
+  .cap .fn{color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
   .partpick{margin-top:16px;background:var(--line2);border:1px solid var(--line);border-radius:13px;padding:13px 14px}
   .partpick .h{font-size:12px;font-weight:800;color:var(--ink);margin-bottom:9px}
   .partpick .h b{color:var(--blue)}
@@ -26616,7 +26617,9 @@ function renderDetail(){
    +'<button class="dlbtn" onclick="download()" id="dlbtn">📥 다운로드</button></div>'
    +'<div class="dlmore">여러 장 = zip · 한 장은 바로 · 전체 한 번에도 · 파일명 = <b>시공일자_아파트명_부위_번호</b></div>';
   document.getElementById('detail').innerHTML=h;
-  renderPhotos(); renderParts(); updBar();
+  renderPhotos();
+  if(photos.length){renderParts();updBar();}
+  else{['.toolbar','.beforeafter','.partpick','.dlbar','.dlmore'].forEach(function(s){var e=document.querySelector('#detail '+s);if(e)e.style.display='none';});}
 }
 function setFilter(f){filter=f;renderDetail();}
 function renderPhotos(){
@@ -26631,21 +26634,21 @@ function renderPhotos(){
       +'<span class="up '+upc+'">'+uptxt+'</span>'
       +'<span class="baBadge">'+ba+'</span>'
       +'<span class="dl" onclick="event.stopPropagation();dl1('+p.photo_id+')">↓</span></div>'
-      +'<div class="cap">'+(selPart()?'<span class="part">'+esc(selPart())+'</span>':'')+'<span class="fn">'+esc(fnPreview(p,0))+'</span></div></div>';
+      +'<div class="cap">'+((sel[p.photo_id]&&selPart())?'<span class="part">'+esc(selPart())+'</span>':'')+'<span class="fn">'+esc(fnPreview(p,0))+'</span></div></div>';
   });
   document.getElementById('photos').innerHTML=g||'<div class="empty" style="grid-column:1/-1">사진이 아직 없어요.</div>';
 }
 function fnPreview(p,idx){
   var ymd=digits(curCust.work_date).slice(0,8)||'00000000';
   var apt=(curCust.apartment||'현장').replace(/[\\/:*?"<>|]/g,'');
-  var part=selPart();
+  var part=(p&&sel[p.photo_id]&&selPart())?selPart():'';
   return ymd+'_'+apt+(part?'_'+part:'')+'_'+pad(idx||1)+'.jpg';
 }
 function tog(id){if(sel[id])delete sel[id];else sel[id]=1;renderPhotos();updBar();}
 function selectAll(){var list=photos.filter(function(p){return filter==='all'||p.uploader_kind===filter;});var allsel=list.every(function(p){return sel[p.photo_id];});list.forEach(function(p){if(allsel)delete sel[p.photo_id];else sel[p.photo_id]=1;});renderPhotos();updBar();}
 function updBar(){
   var ids=Object.keys(sel), n=ids.length;
-  var ex=fnPreview({},1), mb=(n*0.4).toFixed(1);
+  var _pt=selPart(), _apt=(curCust.apartment||'현장').replace(/[\\/:*?"<>|]/g,''), ex=(digits(curCust.work_date).slice(0,8)||'00000000')+'_'+_apt+(_pt?'_'+_pt:'')+'_01.jpg', mb=(n*0.4).toFixed(1);
   document.getElementById('fname').innerHTML='☑ <b>'+n+'장 선택</b> · <b>'+esc(ex)+'</b> 처럼 · 약 '+mb+'MB (장당 ~400KB, 1280px)';
   document.getElementById('dlbtn').textContent=n>1?('📥 선택 '+n+'장 다운로드'):'📥 다운로드';
 }
