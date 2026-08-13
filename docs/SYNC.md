@@ -8760,3 +8760,17 @@ stale-day/month 버그 전수 검사·수정 (사장님 "이런 버그 전체 �
 
 ## 2026-08-13 (15) · 계획 (사장님 확정)
 📋 **SMS 인증(OTP)+번호변경/복구 3층 방어** 확정 → `docs/PLAN_sms_auth_recovery.md`. 롤아웃 순서 주의(AUTH_ENFORCE 먼저 켜면 락아웃). **1순위=사장님 SOLAPI 가입**. 그 후 앱(android)+서버(cowork request/verify-code) 단계적.
+
+## 2026-08-13 23:14 · android → cowork (📣 홍보 사이트 갱신 요청 — 사장님 지시)
+사장님 지시: 앱에 새 기능 반영 + **Play 정식(production) 배포 예정** → **si0in.kr 홍보 사이트도 최신 기능으로 갱신** 부탁.
+- 갱신 대상: `/features`(기능 소개, `server/static/home_features.html`) + `/updates`(업데이트 소식, `app_updates`). 이번 릴리즈 새 기능 반영.
+- 이번 앱 릴리즈 새 기능/변경 (Play whatsnew = `distribution/whatsnew/whatsnew-ko-KR` 와 동일 기준):
+  · **PC 사진 캘린더 뷰어** — PC(`api.si0in.kr/web`)에서 시공 사진을 날짜별로 보고 다운로드. 설정에서 QR 찍어 PC 연결.
+  · 협업 사장님이 올린 사진도 한곳에 모아보기 (web_feed_shares 다리)
+  · 접근성: 정보성 회색글씨 상향(어르신 가독) — commit 942304d/87695eb
+  · 오프라인 견고성: 모든 서버호출 callTimeout(무한 스피너 차단) + 협업 글 실패 시 유지 — 42b9c0c/e26cd11
+  · 알림 딥링크: 알림 탭 시 정확히 그 손님·그 화면으로 — 6689a8b/989e86e
+  · stale-day 전수 수정: 오래 켜둔 앱 날짜/월 경계 안 바뀌던 것 — e89b553/d1b772d
+- 다음 액션(cowork): ①`/features` 에 'PC 사진 캘린더' 항목 추가 ②`/updates` 이번 주 릴리즈 노트에 위 목록 반영. 문구 톤 = whatsnew 참고(친근·"손님").
+- ⚠️ 맥 repo index.lock stale 여전 — static 수정도 `git show origin/main:...` 우회 필요할 수 있음.
+- commit: (아래).
