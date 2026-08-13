@@ -42,7 +42,12 @@ class WebFeedRepository(
         val dongHo: String,           // 분리 필드 없어 "" (지어내지 않음)
         val workDate: String,         // "YYYY-MM-DD" 시공일
         val category: String,         // 시공종류(카테고리명), 없으면 ""
-        val completed: Boolean
+        val completed: Boolean,
+        /**
+         * 이 고객(현장)에 연결된 협업 share_id 목록. 직원(협업 사장)이 올린 사진은 team_site_photos 에
+         * customer_phone=NULL·share_id=X 로 저장되어 웹 뷰어가 못 잇는다 → 이 지도로 그 고객 현장에 붙임. (2026-08-13)
+         */
+        val shareIds: List<String> = emptyList()
     )
 
     /** authorize 결과 — 만료(410)와 일반 실패를 구분해 안내 문구를 다르게. */
@@ -62,6 +67,9 @@ class WebFeedRepository(
                         put("work_date", item.workDate)
                         put("category", item.category)
                         put("completed", item.completed)
+                        if (item.shareIds.isNotEmpty()) {
+                            put("share_ids", JSONArray().apply { item.shareIds.forEach { put(it) } })
+                        }
                     })
                 }
                 val body = JSONObject().apply {

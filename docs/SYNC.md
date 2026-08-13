@@ -8689,3 +8689,10 @@ stale-day/month 버그 전수 검사·수정 (사장님 "이런 버그 전체 �
 - 수정(server/main.py): 두 조회의 owner_phone 비교를 REPLACE 정규화(하이픈·공백·+·_ 제거)로 변경 → 기존 데이터·저장형식 무관 매칭. 앱은 하이픈 유지 그대로 OK.
 - 검증: TestClient 재현(하이픈 owner 사진 삽입)→ site.photos=1·photo 200·sites.photo_count=1 확인. ast OK.
 - ⚠️ 배포 필요(이전 웹뷰어 코드와 함께): bash server/deploy_phase1.sh 로 라이브 반영.
+
+## 2026-08-13 (9) · android → cowork
+웹뷰어 — **협업(직원=협업 사장) 사진을 웹에 포함**. 사장님 실워크플로우=본인 안올리고 직원을 협업사장 등록→직원이 올림. 그 사진(customer_phone=NULL·share_id·PARTNER)이 웹 뷰어서 제외돼 안 뜸(실측: 고객121 share sh_R6alteLqqo 10장 있는데 웹 photos:[]).
+- 앱 완료(배포): POST /api/web/schedule-feed item 에 **share_ids[]** 추가(collabAssignments "customerId|폰|이름|shareId" → 고객별 share 목록). 없으면 생략.
+- 🔴 cowork: docs/SERVER_HANDOFF_web_collab_photos.md — ①web_feed_shares 테이블(share_id→customer_digits) 저장 ②_web_photo_bucket 에 share_id 경로 추가(협업 사진을 그 고객 버킷에) ③uploader_kind=partner ④photo_count/hasPhoto 포함. owner 정규화(fdc3815) 덕에 협업 owner 매칭은 이미 됨.
+- 검증: 피드 push 후 /api/web/site/{121} 에 협업 10장 uploader_kind:"partner" 로 떠야.
+- commit: (아래). 앱 전용.

@@ -55,6 +55,17 @@ class WebFeedSyncManager(
             categoryRepository.observeAll().first().associate { it.id to it.name }
         }.getOrDefault(emptyMap())
 
+        // 협업번호 지도 — collabAssignments("customerId|파트너폰|파트너이름|shareId") → 고객별 share_id 목록.
+        //   직원(협업 사장)이 올린 사진(customer_phone=NULL·share_id=X)을 그 고객 현장에 잇도록 서버에 알려줌.
+        val shareIdsByCustomer: Map<Long, List<String>> = runCatching {
+            prefs.collabAssignments.mapNotNull { e ->
+                val parts = e.split("|")
+                val cid = parts.getOrNull(0)?.toLongOrNull()
+                val sid = parts.getOrNull(3)?.trim()?.takeIf { it.isNotBlank() }
+                if (cid != null && sid != null) cid to sid else null
+            }.groupBy({ it.first }, { it.second })
+        }.getOrDefault(emptyMap())
+
         val items = customers
             .filter { (it.scheduledWorkDate ?: 0L) > 0L }
             .mapNotNull { c ->
@@ -68,12 +79,13 @@ class WebFeedSyncManager(
                     dongHo = "",   // 앱엔 동/호 분리 필드 없음 — 주소에 포함(§0: 지어내지 않음)
                     workDate = dateFmt.format(Date(day)),
                     category = c.categoryId?.let { catNames[it] } ?: "",
-                    completed = c.workCompletedAt != null
+                    completed = c.workCompletedAt != null,
+                    shareIds = shareIdsByCustomer[c.id]?.distinct() ?: emptyList()
                 )
             }
 
         val hash = items.joinToString("|") {
-            "${it.customerDigits},${it.workDate},${it.completed},${it.category},${it.apartment},${it.name}"
+            "${it.customerDigits},${it.workDate},${it.completed},${it.category},${it.apartment},${it.name},${it.shareIds.sorted().joinToString(":")}"
         }.hashCode().toString()
         if (!force && hash == prefs.webFeedLastHash) return false
 
