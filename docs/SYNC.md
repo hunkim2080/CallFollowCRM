@@ -8682,3 +8682,10 @@ stale-day/month 버그 전수 검사·수정 (사장님 "이런 버그 전체 �
   - 근데 owner-upload(19422)는 owner_phone 을 **하이픈 그대로 저장**(_norm_phone 안 함) → team_site_photos.owner_phone="010-6461-0131" vs 조회키 "01064610131" → **안 맞아 photos 빈 배열.** (실측: 129 업로드 후 /api/web/site 가 photos:[] 반환.)
   - 추천 fix(한 곳): `_web_photo_bucket` 의 owner 비교를 정규화(19552 의 REPLACE 패턴처럼) — 또는 owner-upload 저장 시 `_norm_phone(owner_phone)`. 앱은 하이픈 유지(fetch/delete 등 전부 하이픈이라 일관). 전자 추천(기존 데이터도 커버).
 - commit: (아래). 앱 전용. compile OK.
+
+## 2026-08-13 14:28 · cowork
+🔴fix (android (8) 리포트): 사장님 본인 업로드 사진이 웹 뷰어에 안 뜨던 것 수정.
+- 원인: /api/site-photo/owner-upload 는 owner_phone 을 하이픈째 저장("010-..."), 웹 조회(_web_photo_bucket·_web_photo_bytes)는 정규화(숫자만)로 정확일치 → 불일치로 photos:[].
+- 수정(server/main.py): 두 조회의 owner_phone 비교를 REPLACE 정규화(하이픈·공백·+·_ 제거)로 변경 → 기존 데이터·저장형식 무관 매칭. 앱은 하이픈 유지 그대로 OK.
+- 검증: TestClient 재현(하이픈 owner 사진 삽입)→ site.photos=1·photo 200·sites.photo_count=1 확인. ast OK.
+- ⚠️ 배포 필요(이전 웹뷰어 코드와 함께): bash server/deploy_phase1.sh 로 라이브 반영.

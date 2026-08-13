@@ -25881,8 +25881,9 @@ def _web_photo_bucket(owner: str) -> dict:
     with db_conn() as con:
         rows = con.execute(
             "SELECT photo_id, customer_phone, member_id, label, uploaded_at_ms "
-            "FROM team_site_photos WHERE owner_phone = ? AND customer_phone IS NOT NULL "
-            "ORDER BY uploaded_at_ms ASC",
+            "FROM team_site_photos "
+            "WHERE REPLACE(REPLACE(REPLACE(REPLACE(IFNULL(owner_phone,''),'-',''),' ',''),'+',''),'_','') = ? "
+            "AND customer_phone IS NOT NULL ORDER BY uploaded_at_ms ASC",
             (owner,),
         ).fetchall()
     for r in rows:
@@ -25902,7 +25903,8 @@ def _web_photo_bytes(photo_id: int, owner: str):
     with db_conn() as con:
         row = con.execute(
             "SELECT image_data_url, image_path FROM team_site_photos "
-            "WHERE photo_id = ? AND owner_phone = ?",
+            "WHERE photo_id = ? AND "
+            "REPLACE(REPLACE(REPLACE(REPLACE(IFNULL(owner_phone,''),'-',''),' ',''),'+',''),'_','') = ?",
             (photo_id, owner),
         ).fetchone()
     if not row:
