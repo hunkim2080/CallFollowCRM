@@ -8619,3 +8619,10 @@ stale-day/month 버그 전수 검사·수정 (사장님 "이런 버그 전체 �
 - 수정: 홈 나머지 카드(D-1리마인드·정기문자·견적회신·잔금·다음시공·collab·dismiss·미확인7일창) _todayTick 반응형 · 정산 currentMonthAnchor→liveMonthAnchor(달넘김 '이번달받은돈'·이동불가 수정) · 통계 월/주 함수내계산+쿼리반응형 · 서브화면5(estimate/reminder/recurring/newleads/visited) 함수내계산.
 - OK: suppressionLoadMs·ClosingBrief(briefDay)·일정탭·매니저·리포지토리(함수-지역).
 - commit: d1b772d(e89b553 오늘신규 KPI 수정의 후속 전수). 앱 전용. 컴파일 OK, 폰 설치 검증.
+
+## 2026-08-13 (3) · android
+푸시 알림 탭 딥링크 전수 점검·수정 (사장님 "다 맞는 위치로 가는지").
+- 서브에이전트로 모든 알림 tap→MainActivity→목적지 추적.
+- 수정: 리마인드 4종(D-1·A/S·잔금·도착) EXTRA_CUSTOMER_ID 추가(번호포맷 다를 때 중복고객 방지, SMS 989e86e 후속) · 팀원진행 알림→ACTION_TEAM(팀관리) · 정기문자 due→ACTION_RECURRING_DUE(검토화면). appOpenPending action 옵션. NavEvents/AppRoot/MainActivity 배선.
+- 정상확인: SMS/MMS/통화후/요약/브리핑/협업 딥링크·launchSingleTop·콜드스타트 가드. 의도적 HOME: 미러/박람회 안내. 범위밖: 오늘현장·접수서제출(caller가 customerId 안 넘김).
+- commit: 6689a8b. 앱 전용. 컴파일 OK.
