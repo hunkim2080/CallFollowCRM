@@ -34,8 +34,13 @@
 - 지금은 **스위치 OFF**(SMS_SIGNUP=false)라 동작만 안 함(무해).
 - 서버: `_send_sms_solapi` 존재(자동 SMS 금지 정책의 **예외 = 인증 코드**).
 
-### 🔲 남은 것
-1. **SOLAPI 실계정** — 문자 발송 업체. **⚠️ 사장님이 가입·결제·API키 발급** (외부, 나·코워크 대행 불가). 발송 단가 실측(건당 10~20원).
+### ✅ 추가 확인(2026-08-13) — 서버 인증 전체가 이미 완성·실측 통과
+- SOLAPI env(KEY/SECRET/SENDER) plist 에 이미 박힘. `/api/auth/request-code`·`/api/auth/verify-code`·`_auth_enforce_middleware`·AUTH_CODE_TTL 다 존재.
+- **실측 성공(라이브)**: request-code → 사장님 폰에 문자 도착(코드 095503) → verify-code → `sessionToken` 발급(status=member, 만료 ~3개월). **SOLAPI 배송·검증·토큰 전 과정 정상.**
+- ⇒ 서버·SOLAPI = 완료. 남은 건 **앱 스위치 + 단계적 롤아웃**뿐.
+
+### 🔲 남은 것 (거의 "켜기")
+1. ~~SOLAPI 실계정~~ ✅ 완료(위 실측).
 2. **서버(코워크)**: `POST /auth/request-code`(번호→6자리 생성+SOLAPI 발송+임시저장 3분) · `POST /auth/verify-code`(번호+코드→토큰 발급). `AUTH_ENFORCE` 플래그.
 3. **앱(android)**: 로그인 화면에 번호→코드 입력 흐름 · SMS_SIGNUP=true. (토큰 배선은 이미 됨)
 4. **방법 A**: 앱 "번호 변경"(설정) + 서버 이전 엔드포인트(옛→새 번호로 owner 데이터 이관).
