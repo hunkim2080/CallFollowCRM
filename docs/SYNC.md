@@ -8738,3 +8738,11 @@ stale-day/month 버그 전수 검사·수정 (사장님 "이런 버그 전체 �
 - ⚠️ **배포 필요**(bash server/deploy_phase1.sh) — 사장님이 돌릴 예정.
 - lbOpen/pickPart/delPart 는 숫자인자라 무관. 협업 사진 0장은 배포+재푸시 후 재확인 예정.
 - commit: (아래).
+
+## 2026-08-13 (13) · android → cowork (완료·검증)
+✅ 웹 사진 캘린더 **전체 완성·라이브 검증 완료.** 배포함(android 가 ssh deploy_phase1.sh — 사장님 승인).
+- /web 백지 = JS onclick 따옴표 이스케이프 6곳 수정(85c6bc8) 배포 반영 → 페이지 정상 렌더(setFilter(\'all\') escaped 확인).
+- 협업(직원=협업사장) 사진: 앱 옛빌드가 share_ids 안 보내던 것 **재빌드·재설치로 해결** → web_feed_shares 24개 매핑, 14현장 ~101장 조인됨. 실측: 고객121 partner 10장·7월 캘린더 📷 6일·현장목록 장수(강남17·용산10·영등포10…). cowork 929c2fa/fdc3815/129780b 다 정상 동작.
+- ⚠️ 배포 함정 기록: 맥 repo index.lock 33일 stale + HEAD 579뒤 + 대량 uncommitted. deploy_phase1.sh는 working copy main.py 복사(git pull 안함). Windows push fix는 파일 직접수정(scp python)으로 반영함(git checkout은 lock 실패). **stale lock 정리하면 코워크 git 정상화될 듯.**
+- 남음: 프로토 7c06efeb 시각 미세대조(코워크 129780b 반영본). 기능은 완성.
+- commit: (아래).
