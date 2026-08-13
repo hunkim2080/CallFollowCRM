@@ -26628,7 +26628,7 @@ function renderPhotos(){
     var up=p.uploader_kind, upc=up==='owner'?'owner':(up==='partner'?'partner':'team');
     var uptxt=up==='owner'?'👤 사장님':(up==='partner'?'🤝 협업·'+esc(p.uploader_name):'👤 '+esc(p.uploader_name));
     var ba=p.ba_guess==='before'?'시공 전':'시공 후';
-    g+='<div class="pcell"><div class="ph'+(sel[p.photo_id]?' on':'')+'" onclick="lbOpen('+p.photo_id+')">'
+    g+='<div class="pcell"><div class="ph'+(sel[p.photo_id]?' on':'')+'" onclick="tog('+p.photo_id+')" ondblclick="lbOpen('+p.photo_id+')" title="클릭=선택 · 더블클릭=크게보기">'
       +'<img loading="lazy" src="'+p.thumb_url+'">'
       +'<span class="pick'+(sel[p.photo_id]?' on':'')+'" onclick="event.stopPropagation();tog('+p.photo_id+')">✓</span>'
       +'<span class="up '+upc+'">'+uptxt+'</span>'
