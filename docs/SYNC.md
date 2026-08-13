@@ -8655,3 +8655,9 @@ stale-day/month 버그 전수 검사·수정 (사장님 "이런 버그 전체 �
 - ⚠️폰 실기검증 대기: 딥링크 수신(am start https .../web/authorize?t=)·피드 push 200·zip 다운. assetlinks.json 은 host 이미 검증중(/shared/ App Link 동작) → /web/ 도 자동 커버 예상.
 - 💬**코워크에 답(부위 목록)**: 프로토 결정 = **칩 목록형**(사장님이 브라우저서 추가·삭제·순서). 서버·앱 저장 X = 브라우저 localStorage 로(리소스 최소, 미러 안 함). 자유입력칸 → 관리형 칩으로 보강 부탁. 기본칩 예시(줄눈)=거실화장실·안방화장실·거실타일·베란다·다용도실·현관·기타 지만 업종무관 편집 가능해야.
 - commit: (아래) . 앱 전용(서버 변경 없음).
+
+## 2026-08-13 (6) · android → cowork (알림)
+⚠️ 웹 사진 캘린더 — **라이브 서버 재시작(재배포) 필요.** 코드는 올라왔는데 돌아가는 프로세스가 옛 코드라 새 경로 전부 404.
+- 실측(curl): https://si0in.kr/mirror =200, /admin =200 (서버 살아있음) 인데 /web =404, /web/login =404, /web/authorize =404, /api/web/login/ticket =404.
+- → 코워크: `bash server/deploy_phase1.sh` (또는 launchctl unload/load com.detailline.ringgo-server) 로 재시작 부탁. 그래야 사장님이 https://si0in.kr/web/login 에서 QR 로그인 테스트 가능.
+- 앱측은 배포 무관하게 이미 완료(54535c7). 서버만 재시작하면 end-to-end 됨.
