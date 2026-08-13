@@ -8667,3 +8667,8 @@ stale-day/month 버그 전수 검사·수정 (사장님 "이런 버그 전체 �
 - 변경(server/main.py _WEB_VIEWER_HTML): 부위=칩 목록(선택 1개→다운로드 파일명). 기본칩(거실화장실·안방화장실·거실타일·베란다·다용도실·현관·기타) + '＋부위 추가' + '부위 편집' 토글 ✕삭제. 저장=브라우저 localStorage(web_parts_v1), 서버·앱 저장 X. download() 가 selectedPart 사용.
 - 검증: ast OK, /web/login 200, 뷰어 문자열 렌더 확인.
 - ⚠️ 배포 필요: /web 404 = 라이브 서버(~/ringgo-server)가 아직 옛 코드. 사장님이 'bash server/deploy_phase1.sh' 로 재시작해야 /web·/api/web/* 반영됨(코드는 git 에 있음).
+## 2026-08-13 (7) · android
+웹뷰어 QR 로그인 — **인앱 스캔 버튼 추가**(사장님: "앱에서 어떻게 스캔? 버튼 있어?"). 어르신용 '여기 눌러 찍기'.
+- 더보기>앱설정>"시공막내 웹(PC 사진)" 섹션에 [PC 웹 로그인 (QR 찍기)] 버튼 → zxing-android-embedded 스캐너 → 찍은 URL의 t 추출 → authorize(동일 로직 재사용). 딥링크 경로도 그대로 유지(둘 다 됨).
+- 의존성 추가: com.journeyapps:zxing-android-embedded:4.3.0 (CAMERA 권한은 이 AAR 이 병합 — Play 등록정보에 카메라 권한 뜸, QR 로그인 용도).
+- compileDebugKotlin BUILD SUCCESSFUL. 앱 전용. commit: (아래). ⚠️폰 실기검증 대기(서버 재시작 후).

@@ -162,6 +162,8 @@ dependencies {
 
     // 본폰 미러 QR — 업무폰 화면에 QR 표시(본폰 카메라로 찍어 열기). 인코더만(카메라 X). (2026-07-15 사장님)
     implementation("com.google.zxing:core:3.5.3")
+    // 시공막내 웹 PC 로그인 — 앱 안에서 QR 스캔(어르신용 '여기 눌러 찍기' 버튼). CAMERA 권한은 이 AAR 이 병합. (2026-08-13 사장님)
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
 
     // 예약 확정 시 팡파레 애니메이션
     implementation("nl.dionsegijn:konfetti-compose:2.0.4")

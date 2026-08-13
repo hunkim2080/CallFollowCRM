@@ -115,6 +115,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.detailline.callfollowcrm.presentation.component.TossChip
 import com.detailline.callfollowcrm.presentation.component.TossPrimaryButton
 import com.detailline.callfollowcrm.presentation.component.TossSecondaryButton
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
@@ -1088,6 +1090,36 @@ private fun WebViewerSection(container: AppContainer) {
     var busy by remember { mutableStateOf(false) }
     fun toast(msg: String) = Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
 
+    // QR 로그인 승인 — ticket 으로 서버에 owner 증명. OK시 뷰어 켜고 피드 즉시 push. (딥링크 경로와 동일 로직)
+    fun approve(ticket: String) {
+        if (ownerPhone.filter { it.isDigit() }.length < 9) { toast("먼저 내 번호(로그인)가 필요해요"); return }
+        busy = true
+        scope.launch {
+            val r = container.webFeedRepository.authorize(ticket, ownerPhone)
+            busy = false
+            when (r) {
+                com.detailline.callfollowcrm.ai.WebFeedRepository.AuthResult.OK -> {
+                    prefs.webViewerActive = true; active = true
+                    runCatching { container.webFeedSyncManager.pushNow(force = true) }
+                    toast("PC 웹에 로그인됐어요 ✅")
+                }
+                com.detailline.callfollowcrm.ai.WebFeedRepository.AuthResult.EXPIRED ->
+                    toast("QR이 만료됐어요. 웹에서 새 QR을 띄워 다시 찍어주세요.")
+                else -> toast("웹 로그인에 실패했어요. 잠시 후 다시 시도해주세요.")
+            }
+        }
+    }
+
+    // 인앱 QR 스캐너(zxing-android-embedded). 결과 = 찍은 URL → t(티켓) 뽑아 승인. 취소면 contents=null.
+    val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
+        val contents = result.contents
+        if (!contents.isNullOrBlank()) {
+            val ticket = runCatching { android.net.Uri.parse(contents).getQueryParameter("t") }
+                .getOrNull()?.takeIf { it.isNotBlank() }
+            if (ticket == null) toast("시공막내 웹 로그인 QR이 아니에요") else approve(ticket)
+        }
+    }
+
     TossCard {
         Column(Modifier.padding(4.dp)) {
             Text(
@@ -1096,19 +1128,37 @@ private fun WebViewerSection(container: AppContainer) {
             )
             Spacer(Modifier.height(10.dp))
             Text(
-                "PC 브라우저에서 si0in.kr/web 에 접속하면 QR이 떠요. 이 폰으로 그 QR을 찍으면 로그인돼요(폰이 열쇠). " +
+                "PC 브라우저에서 si0in.kr/web/login 에 접속하면 QR이 떠요. 아래 「PC 웹 로그인」을 눌러 그 QR을 찍으면 로그인돼요(폰이 열쇠). " +
                     "시공 사진을 큰 화면에서 날짜별로 보고, 블로그용으로 골라 내려받을 수 있어요. 웹은 보기 전용이에요.",
                 fontSize = 13.sp, color = TossTextSecondary, lineHeight = 19.sp
             )
             Spacer(Modifier.height(14.dp))
+            TossPrimaryButton(
+                text = if (busy) "로그인 중…" else "PC 웹 로그인 (QR 찍기)",
+                enabled = !busy,
+                onClick = {
+                    if (ownerPhone.filter { it.isDigit() }.length < 9) {
+                        toast("먼저 내 번호(로그인)가 필요해요")
+                    } else {
+                        scanLauncher.launch(
+                            ScanOptions()
+                                .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                                .setPrompt("PC 화면의 QR을 비춰주세요")
+                                .setBeepEnabled(false)
+                                .setOrientationLocked(false)
+                        )
+                    }
+                }
+            )
+            Spacer(Modifier.height(12.dp))
             Text(
                 if (active) "현재 이 계정으로 웹에 로그인돼 있어요." else "아직 웹에 로그인한 적 없어요.",
                 fontSize = 12.sp, fontWeight = FontWeight.Medium,
                 color = if (active) TossBlue else TossTextTertiary
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
             TossSecondaryButton(
-                text = if (busy) "처리 중…" else "이 계정 웹 로그아웃",
+                text = "이 계정 웹 로그아웃",
                 enabled = !busy,
                 onClick = {
                     if (ownerPhone.filter { it.isDigit() }.length < 9) {
