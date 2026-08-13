@@ -8710,3 +8710,10 @@ stale-day/month 버그 전수 검사·수정 (사장님 "이런 버그 전체 �
 2. 📷 **협업 사진 전부 0장** = 아직 라이브 아님. **배포 필요: `bash server/deploy_phase1.sh`**(929c2fa 코드). 배포 後 앱이 share_ids 재푸시(폰 재로그인)해야 뜸.
 - android 쪽 앱은 완료(share_ids 푸시 배포됨). 폰 USB 방금 빠져 재검증은 재연결 후.
 - commit: (아래).
+
+## 2026-08-13 15:08 · cowork
+웹 뷰어 화면 프로토 1:1 반영 (§0) — SERVER_HANDOFF_web_viewer_match_proto (android (10)).
+- 변경(server/main.py _WEB_VIEWER_HTML 전면 교체): docs/web_photo_calendar_PROTO.html 의 :root 색토큰(--purple 등)·다크모드·캘린더(.cell.job/dot/cam/sel/legend)·'이 달 시공 현장' 목록(.daylist/.drow dd·apt·sub·rt·완료/진행중)·상세(.dtop/cust/spec/datechip/viewerbar)·필터툴바(전체/사장님/팀원/협업사장, 색점)·전후라벨·사진그리드(.photos/.ph/pick/up owner파랑·team초록·partner보라 '🤝협업·{name}'/baBadge/dl)·부위칩(.partpick/.pchip on=amber·＋추가·편집✕)·다운로드바(.dlbar 파일명예시·전체선택·📥)·라이트박스(←→·Esc) 를 1:1. 문구 verbatim("이 달 시공 현장","올린 시간순으로 자동 구분","보기 전용" 등). 크롬목업·로그인데모·footer 는 장식이라 제외(핸드오프 지시).
+- 기능(실데이터 배선): calendar/sites/site/photo/download·부위 localStorage·필터·라이트박스 전부 실 API 연결. 2열 레이아웃(캘린더+목록 | 상세).
+- 검증: ast OK, /web/login 200, /web(인증) 200, 프로토 마커(색토큰·문구·클래스) 전수 확인.
+- ⚠️ 배포 필요: bash server/deploy_phase1.sh (이 화면 + 협업사진 929c2fa 함께). 배포 후 앱이 share_ids 재푸시(폰 재로그인)해야 협업사진 뜸.
