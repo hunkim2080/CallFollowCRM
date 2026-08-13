@@ -26227,7 +26227,7 @@ async def web_photo(request: Request, photo_id: int):
 
 
 @app.get("/api/web/download")
-async def web_download(request: Request, ids: str, part: Optional[str] = None):
+async def web_download(request: Request, ids: str, part: Optional[str] = None, parts: Optional[str] = None):
     from fastapi.responses import Response as _Resp, JSONResponse
     from urllib.parse import quote as _q
     owner = _web_owner_from_request(request)
@@ -26237,6 +26237,12 @@ async def web_download(request: Request, ids: str, part: Optional[str] = None):
     if not id_list:
         raise HTTPException(400, "ids 필수")
     part_clean = _webre.sub(r'[\\/:*?"<>|]', "", (part or "").strip())
+    # 사진별 부위(per-photo) — parts=거실|안방|… 를 id_list 순서로 매핑. 없으면 legacy part 하나. (2026-08-13)
+    pp_map = {}
+    if parts:
+        _pvs = [_webre.sub(r'[\\/:*?"<>|]', "", (x or "").strip()) for x in parts.split("|")]
+        for _pid, _pv in zip(id_list, _pvs):
+            pp_map[_pid] = _pv
     bucket = _web_photo_bucket(owner)
     pid2key: dict = {}
     for k, lst in bucket.items():
@@ -26253,11 +26259,12 @@ async def web_download(request: Request, ids: str, part: Optional[str] = None):
         info = feed.get(pid2key.get(pid, ""), {})
         ymd = _webre.sub(r"[^0-9]", "", info.get("work_date") or "")[:8] or "00000000"
         apt = _webre.sub(r'[\\/:*?"<>|]', "", info.get("apartment") or "현장")
-        parts = [ymd, apt]
-        if part_clean:
-            parts.append(part_clean)
-        parts.append("%02d" % idx)
-        return "_".join(parts) + ".jpg"
+        segs = [ymd, apt]
+        pv = pp_map.get(pid, "") if parts else part_clean
+        if pv:
+            segs.append(pv)
+        segs.append("%02d" % idx)
+        return "_".join(segs) + ".jpg"
 
     if len(id_list) == 1:
         data, mime = _web_photo_bytes(id_list[0], owner)
@@ -26529,7 +26536,7 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
 <script>
 var ym=new Date().toISOString().slice(0,7);
 var sites=[], curCd=null, curCust=null, photos=[], sel={}, filter='all', lbi=0;
-var PARTS_KEY='web_parts_v1', SELPART_KEY='web_sel_part';
+var PARTS_KEY='web_parts_v1', SELPART_KEY='web_sel_part', PT_KEY='web_partof_v1', BA_KEY='web_ba_v1';
 var DEFAULT_PARTS=['거실화장실','안방화장실','거실타일','베란다','다용도실','현관','기타'];
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function pad(n){return (n<10?'0':'')+n;}
@@ -26537,6 +26544,12 @@ function digits(s){return String(s||'').replace(/[^0-9]/g,'');}
 function getParts(){try{var v=JSON.parse(localStorage.getItem(PARTS_KEY));if(Array.isArray(v)&&v.length)return v;}catch(e){}return DEFAULT_PARTS.slice();}
 function setParts(a){localStorage.setItem(PARTS_KEY,JSON.stringify(a));}
 function selPart(){return localStorage.getItem(SELPART_KEY)||'';}
+function getPt(){try{return JSON.parse(localStorage.getItem(PT_KEY))||{};}catch(e){return {};}}
+function partFor(id){return getPt()[id]||'';}
+function getBa(){try{return JSON.parse(localStorage.getItem(BA_KEY))||{};}catch(e){return {};}}
+function baFor(p){var m=getBa();return m[p.photo_id]||p.ba_guess;}
+function flipBa(id){var m=getBa(),cur=m[id];if(!cur){var f=photos.filter(function(x){return x.photo_id===id;})[0];cur=f?f.ba_guess:'before';}m[id]=(cur==='before'?'after':'before');localStorage.setItem(BA_KEY,JSON.stringify(m));}
+function toast(msg){var t=document.getElementById('wtoast');if(!t){t=document.createElement('div');t.id='wtoast';t.style.cssText='position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:rgba(11,15,25,.92);color:#fff;padding:11px 18px;border-radius:11px;font-size:13px;font-weight:700;z-index:99999;opacity:0;transition:opacity .2s;box-shadow:0 8px 24px rgba(0,0,0,.3)';document.body.appendChild(t);}t.textContent=msg;t.style.opacity='1';clearTimeout(t._h);t._h=setTimeout(function(){t.style.opacity='0';},1900);}
 
 function moveMonth(d){var p=ym.split('-');var dt=new Date(+p[0],+p[1]-1+d,1);ym=dt.getFullYear()+'-'+pad(dt.getMonth()+1);load();}
 function load(){
@@ -26627,33 +26640,33 @@ function renderPhotos(){
   list.forEach(function(p){
     var up=p.uploader_kind, upc=up==='owner'?'owner':(up==='partner'?'partner':'team');
     var uptxt=up==='owner'?'👤 사장님':(up==='partner'?'🤝 협업·'+esc(p.uploader_name):'👤 '+esc(p.uploader_name));
-    var ba=p.ba_guess==='before'?'시공 전':'시공 후';
+    var ba=baFor(p)==='before'?'시공 전':'시공 후';
     g+='<div class="pcell"><div class="ph'+(sel[p.photo_id]?' on':'')+'" onclick="tog('+p.photo_id+')" ondblclick="lbOpen('+p.photo_id+')" title="클릭=선택 · 더블클릭=크게보기">'
       +'<img loading="lazy" src="'+p.thumb_url+'">'
       +'<span class="pick'+(sel[p.photo_id]?' on':'')+'" onclick="event.stopPropagation();tog('+p.photo_id+')">✓</span>'
       +'<span class="up '+upc+'">'+uptxt+'</span>'
       +'<span class="baBadge">'+ba+'</span>'
       +'<span class="dl" onclick="event.stopPropagation();dl1('+p.photo_id+')">↓</span></div>'
-      +'<div class="cap">'+((sel[p.photo_id]&&selPart())?'<span class="part">'+esc(selPart())+'</span>':'')+'<span class="fn">'+esc(fnPreview(p,0))+'</span></div></div>';
+      +'<div class="cap">'+(partFor(p.photo_id)?'<span class="part">'+esc(partFor(p.photo_id))+'</span>':'')+'<span class="fn">'+esc(fnPreview(p,0))+'</span></div></div>';
   });
   document.getElementById('photos').innerHTML=g||'<div class="empty" style="grid-column:1/-1">사진이 아직 없어요.</div>';
 }
 function fnPreview(p,idx){
   var ymd=digits(curCust.work_date).slice(0,8)||'00000000';
   var apt=(curCust.apartment||'현장').replace(/[\\/:*?"<>|]/g,'');
-  var part=(p&&sel[p.photo_id]&&selPart())?selPart():'';
+  var part=(p&&p.photo_id)?partFor(p.photo_id):'';
   return ymd+'_'+apt+(part?'_'+part:'')+'_'+pad(idx||1)+'.jpg';
 }
 function tog(id){if(sel[id])delete sel[id];else sel[id]=1;renderPhotos();updBar();}
 function selectAll(){var list=photos.filter(function(p){return filter==='all'||p.uploader_kind===filter;});var allsel=list.every(function(p){return sel[p.photo_id];});list.forEach(function(p){if(allsel)delete sel[p.photo_id];else sel[p.photo_id]=1;});renderPhotos();updBar();}
 function updBar(){
   var ids=Object.keys(sel), n=ids.length;
-  var _pt=selPart(), _apt=(curCust.apartment||'현장').replace(/[\\/:*?"<>|]/g,''), ex=(digits(curCust.work_date).slice(0,8)||'00000000')+'_'+_apt+(_pt?'_'+_pt:'')+'_01.jpg', mb=(n*0.4).toFixed(1);
+  var _pp=ids.map(partFor).filter(Boolean), _pt=(_pp.length&&_pp.every(function(x){return x===_pp[0];}))?_pp[0]:'', _apt=(curCust.apartment||'현장').replace(/[\\/:*?"<>|]/g,''), ex=(digits(curCust.work_date).slice(0,8)||'00000000')+'_'+_apt+(_pt?'_'+_pt:'')+'_01.jpg', mb=(n*0.4).toFixed(1);
   document.getElementById('fname').innerHTML='☑ <b>'+n+'장 선택</b> · <b>'+esc(ex)+'</b> 처럼 · 약 '+mb+'MB (장당 ~400KB, 1280px)';
   document.getElementById('dlbtn').textContent=n>1?('📥 선택 '+n+'장 다운로드'):'📥 다운로드';
 }
 function renderParts(){
-  var parts=getParts(), sp=selPart(), h='';
+  var _sids=Object.keys(sel), _sp=_sids.map(partFor), sp=(_sids.length&&_sp.every(function(x){return x&&x===_sp[0];}))?_sp[0]:'', parts=getParts(), h='';
   parts.forEach(function(p,i){h+='<span class="pchip'+(p===sp?' on':'')+'" onclick="pickPart('+i+')">'+esc(p)+'</span>';});
   h+='<span class="pchip add" onclick="addPart()">＋ 부위 추가</span><span class="pchip add" onclick="toggleEdit()">✏️ 편집</span>';
   document.getElementById('parts').innerHTML=h;
@@ -26664,10 +26677,10 @@ function renderParts(){
   }
 }
 function toggleEdit(){var ed=document.getElementById('partsed'),note=document.getElementById('editnote');var on=ed.style.display==='none';ed.style.display=on?'flex':'none';note.style.display=on?'block':'none';renderParts();}
-function pickPart(i){var p=getParts(),sp=selPart(),v=p[i];localStorage.setItem(SELPART_KEY,v===sp?'':v);renderParts();renderPhotos();updBar();}
+function pickPart(i){var ids=Object.keys(sel),v=getParts()[i];if(!ids.length){toast('먼저 사진을 골라주세요 — 사진을 클릭하면 선택돼요');return;}var m=getPt(),same=ids.every(function(id){return m[id]===v;});ids.forEach(function(id){if(same)delete m[id];else m[id]=v;});localStorage.setItem(PT_KEY,JSON.stringify(m));renderParts();renderPhotos();updBar();toast(same?('「'+v+'」 부위 해제 ('+ids.length+'장)'):('선택한 '+ids.length+'장에 「'+v+'」 부위 찍음 ✓ · 체크 풀어도 남아요'));}
 function addPart(){var n=(prompt('추가할 부위 이름')||'').trim();if(!n)return;var p=getParts();if(p.indexOf(n)<0){p.push(n);setParts(p);}renderParts();}
 function delPart(i){var p=getParts(),v=p[i];if(!confirm('"'+v+'" 부위를 지울까요?'))return;p.splice(i,1);setParts(p);if(selPart()===v)localStorage.removeItem(SELPART_KEY);renderParts();renderPhotos();updBar();}
-function dlUrl(ids){var part=selPart();return '/api/web/download?ids='+ids.join(',')+(part?'&part='+encodeURIComponent(part):'');}
+function dlUrl(ids){var ps=ids.map(function(id){return partFor(id);});return '/api/web/download?ids='+ids.join(',')+'&parts='+encodeURIComponent(ps.join('|'));}
 function dl1(id){location.href=dlUrl([id]);}
 function download(){var ids=Object.keys(sel);if(!ids.length){alert('내려받을 사진을 골라주세요.');return;}location.href=dlUrl(ids);}
 /* 라이트박스 */
@@ -26677,10 +26690,10 @@ function lbShow(){var l=lbList();if(!l.length)return;var p=l[lbi];
   document.getElementById('lbimg').src=p.url;
   document.getElementById('lbcnt').textContent=(lbi+1)+' / '+l.length;
   var up=p.uploader_kind;var uptxt=up==='owner'?'👤 사장님':(up==='partner'?'🤝 협업 · '+p.uploader_name:'👤 '+p.uploader_name);
-  document.getElementById('lbtitle').textContent=(selPart()||(curCust.category||'사진'))+' · '+(p.ba_guess==='before'?'시공 전':'시공 후');
+  document.getElementById('lbtitle').textContent=(partFor(p.photo_id)||curCust.category||'사진')+' · '+(baFor(p)==='before'?'시공 전':'시공 후');
   document.getElementById('lbup').textContent=uptxt;
   var dt=new Date(p.uploaded_at_ms); document.getElementById('lbtime').textContent=(dt.getMonth()+1)+'/'+dt.getDate()+' '+pad(dt.getHours())+':'+pad(dt.getMinutes());
-  document.getElementById('lbba').textContent=(p.ba_guess==='before'?'시공 전':'시공 후');
+  document.getElementById('lbba').innerHTML=(baFor(p)==='before'?'시공 전':'시공 후')+' <span onclick="flipBa('+p.photo_id+');lbShow();renderPhotos();" style="color:var(--blue);font-weight:700;cursor:pointer;margin-left:8px">🔄 전/후 바꾸기</span>';
   document.getElementById('lbdl').onclick=function(){dl1(p.photo_id);};
 }
 function lbNav(d){var l=lbList();lbi=(lbi+d+l.length)%l.length;lbShow();}
