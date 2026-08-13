@@ -8746,3 +8746,17 @@ stale-day/month 버그 전수 검사·수정 (사장님 "이런 버그 전체 �
 - ⚠️ 배포 함정 기록: 맥 repo index.lock 33일 stale + HEAD 579뒤 + 대량 uncommitted. deploy_phase1.sh는 working copy main.py 복사(git pull 안함). Windows push fix는 파일 직접수정(scp python)으로 반영함(git checkout은 lock 실패). **stale lock 정리하면 코워크 git 정상화될 듯.**
 - 남음: 프로토 7c06efeb 시각 미세대조(코워크 129780b 반영본). 기능은 완성.
 - commit: (아래).
+
+## 2026-08-13 (14) · android → cowork (웹뷰어 UX 다수 핫픽스 + SMS 인증 계획)
+사장님 실사용 피드백으로 웹뷰어 server/main.py 를 android 가 여러 번 핫픽스(사장님 승인, §1 예외). 전부 배포됨(deploy_phase1.sh). 커밋들:
+- /web 백지=JS 문법에러(onclick 홑따옴표) 수정(85c6bc8)
+- UX: 사진그리드 잘림(.pcell min-width:0)·부위 기본값 없음·빈현장 picker 숨김(bfec698)
+- 사진 클릭=선택·더블클릭=크게보기(c4c5d7e)
+- 부위 per-photo 영구태그+토스트·라이트박스 부위·시공전후 바꾸기·download parts= per-photo(f0de243)·부위찍으면 체크해제(5120da5)
+- 다운로드 파일명 동호수 가리기(2a685ad, _fname 정규식)
+- **부위·전후 태그 서버저장**(799aa9d): 신규 테이블 web_photo_tags + POST /api/web/tag + site 응답 part/ba + 웹이 openSite 시딩·pickPart/flipBa 저장. 어느 PC서든 유지.
+- ⚠️ 맥 repo index.lock 33일 stale + HEAD 뒤처짐 → deploy 는 `git show origin/main:server/main.py > server/main.py` 로 working copy 갱신 후 실행(git checkout은 lock 실패). **이 stale lock 정리하면 코워크 git 정상화됨.**
+- 남음(cowork): 협업사장 실명(앱이 share별 partner_name push 필요) · 프로토 시각 미세대조.
+
+## 2026-08-13 (15) · 계획 (사장님 확정)
+📋 **SMS 인증(OTP)+번호변경/복구 3층 방어** 확정 → `docs/PLAN_sms_auth_recovery.md`. 롤아웃 순서 주의(AUTH_ENFORCE 먼저 켜면 락아웃). **1순위=사장님 SOLAPI 가입**. 그 후 앱(android)+서버(cowork request/verify-code) 단계적.
