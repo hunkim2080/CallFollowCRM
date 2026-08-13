@@ -26259,6 +26259,13 @@ async def web_download(request: Request, ids: str, part: Optional[str] = None, p
         info = feed.get(pid2key.get(pid, ""), {})
         ymd = _webre.sub(r"[^0-9]", "", info.get("work_date") or "")[:8] or "00000000"
         apt = _webre.sub(r'[\\/:*?"<>|]', "", info.get("apartment") or "현장")
+        # 동호수 가리기 — 블로그 등 외부 노출 시 개인 집 특정 방지(사장님 2026-08-13). 아파트/도로명은 유지.
+        apt = _webre.sub(r'[0-9A-Za-z]+\s*동\s*[0-9]+\s*호', '', apt)   # 103동 501호 / A동 1호
+        apt = _webre.sub(r'[0-9]+\s*층\s*[0-9]+\s*호', '', apt)         # 88층 8801호
+        apt = _webre.sub(r'[0-9]+\s*[-/]\s*[0-9]+\s*호', '', apt)       # 2-1008호
+        apt = _webre.sub(r'[0-9]+\s*동(?!\s*로)', '', apt)              # 103동 (‘…동로’ 도로명은 보존)
+        apt = _webre.sub(r'[0-9]+\s*호', '', apt)                       # 501호
+        apt = _webre.sub(r'\s{2,}', ' ', apt).strip() or '현장'
         segs = [ymd, apt]
         pv = pp_map.get(pid, "") if parts else part_clean
         if pv:
