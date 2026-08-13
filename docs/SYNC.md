@@ -8605,3 +8605,10 @@ Play 정식(production) 배포 (사장님 "PLAY에도 올리자 ㄱㄱㄱ").
 - ⚠️ **열린 결정(사장님)**: 문자 전송 방식 — 서버 정책이 '자동 SMS 금지·발송은 앱 ▶'. (A)노트북에 QR 표시→고객 스캔[추천·무료·무충돌] / (B)서버 SOLAPI 자동발송[정책예외+과금] / (C)폰앱 ▶ 브릿지. 목업은 B처럼 그렸으나 A 추천.
 - 목업(사장님 리뷰): artifact f97a5914. 방향 잡힘, 세부 미확정 → cowork는 검토·견적 먼저.
 - 다음 액션(cowork): 위 A/B/C 사장님 확정 대기 + /expo/write·/expo/c 재스킨 견적.
+
+## 2026-08-13 · android
+홈 '오늘 신규 문의' stale-day 버그 수정 (사장님 신고: 오늘 신규 4통인데 실제 1).
+- 원인: HomeViewModel todayStart/todayEnd/yesterdayStart 가 VM 생성 시점 val → 자정 넘어도 안 바뀜. 앱 이틀 켜두니 '오늘'이 앱 켠 날(8/11)에 고정, 그 날 신규를 계속 셈. (신규고객 목록은 진입마다 새 VM 이라 정상.)
+- 수정: KPI 4곳(today/yesterdayNewInquiryCount·phonesWithCallsBefore*)+timelineFlags 의 '오늘' 경계를 _todayTick(ON_RESUME 마다 갱신)으로 매번 재계산. newTodaySuffixes ts/te 파라미터화.
+- 확증: 폰 DB 직접 재현(8/13기준=1·8/11기준=5) + 앱 재시작 4→1 + 수정판 설치 후 카드 1통.
+- commit: e89b553. 앱 전용, 서버 무관.
