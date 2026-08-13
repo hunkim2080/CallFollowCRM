@@ -8717,3 +8717,15 @@ stale-day/month 버그 전수 검사·수정 (사장님 "이런 버그 전체 �
 - 기능(실데이터 배선): calendar/sites/site/photo/download·부위 localStorage·필터·라이트박스 전부 실 API 연결. 2열 레이아웃(캘린더+목록 | 상세).
 - 검증: ast OK, /web/login 200, /web(인증) 200, 프로토 마커(색토큰·문구·클래스) 전수 확인.
 - ⚠️ 배포 필요: bash server/deploy_phase1.sh (이 화면 + 협업사진 929c2fa 함께). 배포 후 앱이 share_ids 재푸시(폰 재로그인)해야 협업사진 뜸.
+
+## 2026-08-13 (11) · android → cowork (긴급 버그)
+🐞 **/web 페이지가 "내용 아무것도 안 나옴" = JS 문법 에러로 <script> 전체 사망.** (129780b 새 UI). API는 정상(calendar/sites 데이터 반환 확인) — 순수 프론트 버그.
+- 원인: onclick 문자열 인자의 홑따옴표가 안 이스케이프돼 JS 문자열이 거기서 끊김 → SyntaxError → load() 등 함수 자체가 정의 안 됨 → 백지.
+- 깨진 6곳(서빙된 HTML 기준) → 고칠 결과:
+  - `onclick="jumpDay(''+ds+'')"` → `onclick="jumpDay(\''+ds+'\')"`
+  - `onclick="openSite(''+s.customer_digits+'')"` → `onclick="openSite(\''+s.customer_digits+'\')"`
+  - `onclick="setFilter('all')"` → `onclick="setFilter(\'all\')"` (owner/team/partner 4곳 동일)
+  - (lbOpen/pickPart/delPart 는 숫자 인자라 OK)
+  - 즉 인자 감싸는 홑따옴표를 JS 소스에서 `\'` 로 이스케이프(파이썬 소스에선 백슬래시 추가). 결과 HTML은 `onclick="setFilter('all')"`/`openSite('01054790582')` 처럼 나와야.
+- ⚠️ 고친 뒤 **배포**(bash server/deploy_phase1.sh). 배포 습관화 부탁 — 코드 커밋만 하면 라이브 반영 안 됨(이번에도 사장님이 배포해야 UI 바뀜).
+- 2차(페이지 뜬 뒤 확인): 협업 사진 아직 0장(고객121 site.photos=[]) — web_feed_shares/협업 버킷 재확인 필요. owner 업로드는 121에 뜸(배포됨 확인).
