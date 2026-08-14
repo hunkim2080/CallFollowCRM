@@ -2117,18 +2117,52 @@ private fun CallSegment(
                 Text("이 통화 내용으로 후속 문자 쓰기", color = Color(0xFF0A7D72), fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold)
             }
         }
-        // 🗣️ 통화 전문 (숨겨져 있던 것 살림). 1단계=텍스트 블록. 카톡식 말풍선·탭재생은 2단계(코워크 세그먼트 저장 후). (2026-08-14)
-        if (transcript != null) {
+        // 🗣️ 통화 전문. 서버 화자분리(transcript_segments) 있으면 카톡식 말풍선(손님=좌·나=우), 없으면 평문 폴백. (2026-08-14)
+        val callSegments = remember(summary?.id, summary?.transcriptSegmentsJson) {
+            parseTranscriptSegments(summary?.transcriptSegmentsJson)
+        }
+        if (transcript != null || callSegments.isNotEmpty()) {
             Column(Modifier.padding(top = 12.dp)) {
                 Text("🗣️ 통화 전문", color = teal, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
-                Spacer(Modifier.height(5.dp))
-                Box(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color.White)
-                        .border(1.dp, tealLine, RoundedCornerShape(10.dp)).padding(11.dp)
-                ) {
-                    Text(transcript, fontSize = 12.sp, color = TossTextSecondary, lineHeight = 18.sp)
+                Spacer(Modifier.height(6.dp))
+                if (callSegments.isNotEmpty()) {
+                    // 카톡식 말풍선 — 손님=좌(흰), 나=우(teal). 탭 재생(시각)은 Phase 3.
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        callSegments.forEach { (speaker, text) ->
+                            val mine = speaker == "나"
+                            val bubbleShape = RoundedCornerShape(
+                                topStart = 12.dp, topEnd = 12.dp,
+                                bottomStart = if (mine) 12.dp else 3.dp,
+                                bottomEnd = if (mine) 3.dp else 12.dp
+                            )
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start
+                            ) {
+                                Box(
+                                    Modifier.widthIn(max = 264.dp)
+                                        .clip(bubbleShape)
+                                        .background(if (mine) teal else Color.White)
+                                        .then(if (mine) Modifier else Modifier.border(1.dp, tealLine, bubbleShape))
+                                        .padding(horizontal = 11.dp, vertical = 8.dp)
+                                ) {
+                                    Text(
+                                        text, fontSize = 12.5.sp,
+                                        color = if (mine) Color.White else TossTextSecondary, lineHeight = 18.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else if (transcript != null) {
+                    Box(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color.White)
+                            .border(1.dp, tealLine, RoundedCornerShape(10.dp)).padding(11.dp)
+                    ) {
+                        Text(transcript, fontSize = 12.sp, color = TossTextSecondary, lineHeight = 18.sp)
+                    }
                 }
-                Text("※ 받아쓰기라 오타·구분이 정확하지 않을 수 있어요", fontSize = 9.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 4.dp))
+                Text("※ 받아쓰기라 오타·구분이 정확하지 않을 수 있어요", fontSize = 9.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 5.dp))
             }
         }
         // 녹음 재생 플레이어 — 녹음 파일 있으면 표시. (2026-06-16 사장님)
@@ -2138,6 +2172,22 @@ private fun CallSegment(
         }
         }
     }
+}
+
+/** 통화 전문 화자분리 세그먼트 JSON → (speaker, text) 리스트. 실패/빈=빈 리스트. (2026-08-14) */
+private fun parseTranscriptSegments(json: String?): List<Pair<String, String>> {
+    val s = json?.trim()
+    if (s.isNullOrBlank()) return emptyList()
+    return runCatching {
+        val arr = org.json.JSONArray(s)
+        (0 until arr.length()).mapNotNull { i ->
+            val o = arr.optJSONObject(i) ?: return@mapNotNull null
+            val text = o.optString("text").trim()
+            if (text.isBlank()) return@mapNotNull null
+            val spk = o.optString("speaker").trim().ifBlank { "?" }
+            spk to text
+        }
+    }.getOrDefault(emptyList())
 }
 
 /**

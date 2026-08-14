@@ -66,7 +66,7 @@ import com.detailline.callfollowcrm.data.local.entity.TemplateAttachmentEntity
         com.detailline.callfollowcrm.data.local.entity.ThreadBucketEntity::class,
         com.detailline.callfollowcrm.data.local.entity.JobEntity::class
     ],
-    version = 44,
+    version = 45,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -817,6 +817,12 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE site_photos ADD COLUMN serverUploadedAt INTEGER")
             }
         }
+        // 통화 전문 '카톡 말풍선'용 화자분리 세그먼트(JSON) — 서버 transcript_segments 저장. (2026-08-14)
+        private val MIGRATION_44_45 = object : Migration(44, 45) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE call_summaries ADD COLUMN transcriptSegmentsJson TEXT")
+            }
+        }
 
         fun getInstance(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
@@ -835,7 +841,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34,
                     MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38,
                     MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42,
-                    MIGRATION_42_43, MIGRATION_43_44
+                    MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45
                 )
                 // 2026-07-19 데이터 전멸 지뢰 제거 (프로덕션 감사 by Fable 5).
                 //   기존 .fallbackToDestructiveMigration() 은 "어떤 migration 이든 실패하면 DB 전체를 조용히 삭제"였다.

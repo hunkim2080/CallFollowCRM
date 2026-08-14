@@ -38,6 +38,8 @@ class CallAudioSummaryRepository(
         val bullets: List<String>,
         val followupSms: String?,
         val transcript: String?,
+        /** 화자분리 세그먼트 JSON 배열 문자열 = [{"speaker","text"}]. 서버 exaone 화자추정. null/빈=앱이 평문 폴백. (2026-08-14) */
+        val transcriptSegmentsJson: String? = null,
         /** 한눈에 보는 짧은 제목(서버 LLM). 없으면 앱이 oneLine 으로 폴백. (2026-06-28 사장님) */
         val title: String? = null,
         /** 서버가 DB 캐시에서 즉시 응답했는지(=이미 처리된 통화). force_refresh 로 재처리 가능. */
@@ -93,6 +95,8 @@ class CallAudioSummaryRepository(
                     bullets = bullets,
                     followupSms = obj.optString("suggested_followup_sms").takeIf { it.isNotBlank() && it != "null" },
                     transcript = obj.optString("transcript").takeIf { it.isNotBlank() },
+                    transcriptSegmentsJson = obj.optJSONArray("transcript_segments")
+                        ?.takeIf { it.length() > 0 }?.toString(),
                     title = obj.optString("title").takeIf { it.isNotBlank() && it != "null" },
                     cached = obj.optBoolean("cached", false)
                 )

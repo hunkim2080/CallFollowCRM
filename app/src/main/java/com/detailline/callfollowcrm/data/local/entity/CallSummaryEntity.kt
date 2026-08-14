@@ -23,6 +23,8 @@ data class CallSummaryEntity(
     val recordedAt: Long? = null,
     val title: String? = null,
     val transcriptText: String? = null,
+    // 통화 전문 '카톡 말풍선'용 화자분리 세그먼트 JSON = [{"speaker":"나"|"손님"|"?","text":"..."}]. null=평문 폴백. (2026-08-14)
+    val transcriptSegmentsJson: String? = null,
     val summaryText: String? = null,
     val customerNeed: String? = null,
     val space: String? = null,

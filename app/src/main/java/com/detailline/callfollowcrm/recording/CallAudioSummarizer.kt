@@ -114,6 +114,7 @@ object CallAudioSummarizer {
                 summaryText = summaryText ?: existing?.summaryText,
                 recommendedMessage = res.followupSms ?: existing?.recommendedMessage,
                 transcriptText = res.transcript ?: existing?.transcriptText,
+                transcriptSegmentsJson = res.transcriptSegmentsJson ?: existing?.transcriptSegmentsJson,
                 rawText = res.transcript ?: existing?.rawText,
                 sourceType = SummarySourceType.AI_SERVER.name,
                 updatedAt = now
