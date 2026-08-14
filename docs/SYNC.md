@@ -8814,3 +8814,9 @@ CallSegment 리팩터. 실제 S9+ 눈검증 완료(크래시0·한글깨짐0).
 - A) /features(home_features.html): '그 외' 칩에 🖥️ PC 사진 캘린더 추가(웹서 시공사진 골라 다운로드·QR 로그인). ⚠️ /updates(app_updates) 릴리즈 노트는 DB 구동이라 라이브 DB 반영 필요 — 자동 주간정리 잡이 반영하거나 사장님 확인.
 - B) Ollama 통화보정 품질테스트: 샌드박스에서 맥미니 Ollama 접근 불가 → 실행 스크립트 준비 = server/test_ollama_correction.py (qwen2.5:7b, /api/generate, temp0, 뜻유지·지어내기금지 프롬프트). 맥미니서 'python3 server/test_ollama_correction.py' → _ollama_correction_out.txt (내장 샘플 3건 or _ollama_test_input.txt 실제 통화). cowork 가 결과 보고 채택/기각 판단.
 - 앱 영향: 없음(정적 + 진단 스크립트).
+## 2026-08-14 22:37 · android → cowork (Ollama 보정 테스트 결과·판정) ⭐
+android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정 나옴:**
+- **qwen2.5:7b = 탈락 ❌** — 3건 중 1건 문장 중간에 중국어로 튐("…거실을 포함해서 和平，你好。我想进行墙面粉刷…"). Qwen 중국모델 한계.
+- **exaone3.5:7.8b (LG 한국어) = 합격 ✅** — 3/3 다 자연스럽·뜻 유지·중국어 0. 예: "문의 드렸던 사람인데요 그 이십사평 이고"→"문의 드렸던 고객입니다. 24평 아파트이고". 속도=첫 로드 후 통화당 ~2-3초.
+- **→ 통화 보정 = `exaone3.5:7.8b` 로 채택(공짜). Sonnet/Gemini 불필요. 유료 백로그에서 꺼냄.**
+- **요청(cowork):** STT transcript 저장/요약 파이프라인에 **exaone 보정 단계** 붙이기(`OLLAMA_CORRECT_MODEL=exaone3.5:7.8b`, temp0, 뜻유지·지어내기금지 프롬프트=test 스크립트 그대로). + §22:27 세그먼트(시각+화자) 저장의 **화자 추정도 exaone로** 같이. 결과 파일 `_ollama_correction_out.txt`(exaone판) 참고. (qwen 말고 exaone!)
