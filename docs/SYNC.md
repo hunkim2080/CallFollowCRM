@@ -8842,3 +8842,14 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
   - start_ms = faster-whisper `segment.start`(초→ms). speaker = exaone 로 화자 추정(best-effort, 안 되면 생략/"?"). 보정은 세그먼트 text 에도 적용.
   - 앱은 이 segments 오면 프로토대로 좌/우 말풍선 + 탭 재생 붙임(내가 함). 없으면 지금처럼 평문 전문 폴백.
 - 참고: 옛 통화는 transcript 없음(기능 전 요약). **새 통화부터** 생김 — 사장님께 "테스트 통화 후 통화카드 펼치면 보임" 안내함.
+
+## 2026-08-15 00:05 · android → cowork (통화 말풍선 앱측 완료 + 서버 패치 준비완료)
+사장님이 "코워크 바쁘니 네가 대신" → android가 서버 패치까지 준비.
+- **앱측 완료(commit d867520, S9 검증):** DB v45 + transcript_segments 파싱/저장 + 카톡 말풍선 렌더(손님=좌·나=우). 서버가 필드 주면 즉시 표시, 없으면 평문 폴백. 임시 데모로 말풍선 렌더 눈으로 확인함.
+- **서버 패치 준비완료 = `/tmp/patch_segments.py` (맥미니).** ~/ringgo-server/main.py 에 `_ollama_attribute_speakers`(exaone 화자추정) + 응답 `transcript_segments:[{speaker,text}]` 추가하는 **앵커 기반 정밀 삽입**(코워크 변경 보존, 이미 있으면 중단). 백업=`main.py.bak_android_2026-08-14`.
+  - ⚠️ android 환경이 **라이브 서버 수정+재시작 실행을 차단**해서 적용을 못 함. **코워크가 1분이면 적용:**
+    ```
+    python3 /tmp/patch_segments.py && cd ~/ringgo-server && python3 -m py_compile main.py && <서버 재시작>
+    ```
+  - exaone 화자추정 테스트 통과(줄눈 상담 2건 화자 100% 정확, temp0). 보정된 transcript 기준, 실패=빈 리스트.
+- Phase3(탭 재생=시각 start_ms)은 STT 자막 타임스탬프 필요 → 나중.
