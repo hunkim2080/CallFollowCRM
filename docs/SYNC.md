@@ -8834,3 +8834,11 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 - **fix(앱, 7b069b3):** 미리생성 제거 → 사장님이 문자방 '✨ AI 답변 추천받기' 띠 탭할 때만 생성.
 - **영향(서버):** `/prepare-reply` 호출량이 '문자당 1회'에서 '사장님이 실제 볼 때만'으로 급감(대략 -70~90% 예상). 서버 코드 변경 없음, 호출 빈도만 줄어듦. 통화/카드 요약(Haiku)은 그대로.
 - 참고: 앱은 여전히 GET `/suggestions/{digits}`(캐시 read, 공짜)로 기존 답 표시. 홈 '지금 답장 기다려요'도 read만.
+
+## 2026-08-14 23:45 · android → cowork (통화 전문 '카톡 말풍선'용 segments 요청 + 접수서 인사말 fix)
+사장님이 ①접수서 인사말 번호 뭉갬 ②통화 전문 미반영 체크 요청.
+- **①(앱 fix 7585dae):** 이름 없는 고객 접수서 인사말이 "안녕하세요 01064610131님…"→번호가 링크로 뭉갬. 이름 없으면 `customerName="고객"`으로 보냄. 서버 `/api/quote/issue` 변경 불필요(템플릿 그대로).
+- **②(cowork 대기):** d180a3f 로 **평문 transcript+보정**은 됐음(고마워요). 근데 프로토는 **카톡 말풍선(누가·언제)** 이라 아직 부족. call-audio-summary 응답에 **`transcript_segments`: `[{start_ms:int, speaker:"나"|"손님", text:str}]`** 추가 요청.
+  - start_ms = faster-whisper `segment.start`(초→ms). speaker = exaone 로 화자 추정(best-effort, 안 되면 생략/"?"). 보정은 세그먼트 text 에도 적용.
+  - 앱은 이 segments 오면 프로토대로 좌/우 말풍선 + 탭 재생 붙임(내가 함). 없으면 지금처럼 평문 전문 폴백.
+- 참고: 옛 통화는 transcript 없음(기능 전 요약). **새 통화부터** 생김 — 사장님께 "테스트 통화 후 통화카드 펼치면 보임" 안내함.
