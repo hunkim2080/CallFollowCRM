@@ -8828,3 +8828,9 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 - 검증: ast OK + 헬퍼 단위테스트(정상/빈/실패/긴통화 폴백 전부 통과). ⚠️실제 exaone 품질은 맥미니 배포후 확인(샌드박스는 Ollama 접근불가·android 이미 3/3 합격 판정).
 - 🔴 남은 [2단계](다음): 세그먼트(시각 start_ms + 화자 나/손님) 저장 = whisper_worker.py 를 세그먼트 JSON 출력으로 개조 + exaone 로 화자 추정 → transcriptSegments 반환(카톡식 말풍선). whisper 실행이 맥미니 전용이라 실검증 필요 → 별도 진행.
 - ⚠️ 배포 필요: bash server/deploy_phase1.sh (OLLAMA_CORRECT_MODEL 은 plist env 없어도 기본값 exaone).
+## 2026-08-14 23:20 · android → (공유) 답변 추천 '볼 때만 생성' — 서버 prepare-reply 부하 급감
+사장님이 Claude API 이번 달 $15 초과 알림 받음 → android가 llm_usage_log 까봄.
+- **8월 $14.5 중 prepare-reply(Sonnet) 484콜 = 68%**. 원인=문자 올 때마다 앱이 미리 생성.
+- **fix(앱, 7b069b3):** 미리생성 제거 → 사장님이 문자방 '✨ AI 답변 추천받기' 띠 탭할 때만 생성.
+- **영향(서버):** `/prepare-reply` 호출량이 '문자당 1회'에서 '사장님이 실제 볼 때만'으로 급감(대략 -70~90% 예상). 서버 코드 변경 없음, 호출 빈도만 줄어듦. 통화/카드 요약(Haiku)은 그대로.
+- 참고: 앱은 여전히 GET `/suggestions/{digits}`(캐시 read, 공짜)로 기존 답 표시. 홈 '지금 답장 기다려요'도 read만.
