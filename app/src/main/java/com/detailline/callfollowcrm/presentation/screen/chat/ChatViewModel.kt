@@ -1259,43 +1259,14 @@ class ChatViewModel(
         }
         // 통화로 끝난 대화면 답할 문자가 없음 → 추천 준비 안 함(스피너 X). (2026-06-17 사장님)
         if (lastActivityIsCall.value) return@launch
-        // 설치 전 옛 대화(backlog)는 자동 추천 생성 X — 신규 유입 시 비용 폭탄 방지. ↻ 누르면 그때 생성. (2026-08-02 사장님)
-        if (isBacklogConversation()) { _suggestionsLoading.value = false; return@launch }
-        // (A 정책) 캐시가 옛 메시지 기준이면 자동으로 새 추천 생성 — 옛것은 화면에 흐리게 남고 스르륵 교체됨. (2026-06-27)
-        if (refreshIfStale()) return@launch
-        container.journeyEventRepository.track("llm_use", screen = "chat", target = "suggestions")
-        // 2026-05-28 사장님 통점: "알림엔 2개, ChatScreen 들어가면 3개" = LLM 점진 생성 race.
-        //   첫 fetch 가 size >= 3 면 그대로. 부족하면 polling 으로 더 기다림. 알림 정책과 일관.
-        val first = container.suggestionRepository.fetch(phoneNumber).getOrNull()
-        if (first?.status == SuggestionStatus.READY && (first.suggestions?.suggestions?.size ?: 0) >= 3) {
-            _suggestions.value = first.suggestions
-            return@launch
-        }
-        // 부족 (0/1/2개) 또는 GENERATING / MISSING — polling 으로 3개 채워질 때까지 대기.
-        _suggestionsLoading.value = true
-        // 마지막 fallback: 5번 polling 후에도 3개 못 받으면 부분이라도 사용.
-        var lastPartial: com.detailline.callfollowcrm.ai.ReplySuggestions? =
-            first?.suggestions?.takeIf { (it.suggestions?.size ?: 0) > 0 }
-        try {
-            repeat(5) {
-                delay(2_000)
-                val fetch = container.suggestionRepository.fetch(phoneNumber).getOrNull()
-                if (fetch?.status == SuggestionStatus.READY && fetch.suggestions != null) {
-                    val size = fetch.suggestions.suggestions?.size ?: 0
-                    if (size >= 3) {
-                        _suggestions.value = fetch.suggestions
-                        return@launch
-                    }
-                    // 부분 결과 기억 — fallback 용
-                    if (size > 0) lastPartial = fetch.suggestions
-                }
-            }
-            // 10초 안에 3개 못 받음 → 부분이라도 있으면 표시 (없는 것보단 나음).
-            if (lastPartial != null) {
-                _suggestions.value = lastPartial
-            }
-        } finally {
-            _suggestionsLoading.value = false
+        // ⚠️ (2026-08-14 사장님) '볼 때만 생성' — 진입 시 자동 생성/폴링 제거.
+        //   이번 달 Claude API 비용의 68%(prepare-reply 484콜)가 '문자마다 미리 Sonnet 생성 + 진입 시 stale 재생성'이었음.
+        //   이제 여기선 서버 캐시만 한 번 읽어(공짜 GET) 이미 만들어둔 답이 있으면 보여줌. 없으면 사장님이
+        //   문자방 '✨ AI 답변 추천받기' 띠를 탭할 때 regenerateSuggestions 로 생성. refreshIfStale(자동)·폴링 제거.
+        _suggestionsLoading.value = false
+        val cached = container.suggestionRepository.fetch(phoneNumber).getOrNull()
+        if (cached?.status == SuggestionStatus.READY && (cached.suggestions?.suggestions?.size ?: 0) > 0) {
+            _suggestions.value = cached.suggestions
         }
     }
 

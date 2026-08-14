@@ -164,70 +164,12 @@ class SmsReceiver : BroadcastReceiver() {
                 // 스팸이거나 문자함(고객 아님)이면 AI 답변 준비·프리페치 스킵(서버비 절감). (2026-07-11 사장님)
                 if (isSpam || isGeneral) return@launch
 
-                // 2) 무거운 작업 (히스토리·톤·prepare·prefetch) — broadcast 종료 후 계속.
-                val canReadSms = container.smsRepository.hasReadPermission()
-                val history = if (canReadSms) {
-                    container.smsRepository.queryByPhone(sender, scanLimit = 100)
-                        .take(20)
-                        .map { sms ->
-                            HistoryMessage(
-                                role = if (sms.sent) "owner" else "customer",
-                                body = sms.body,
-                                timestampMs = sms.dateMs
-                            )
-                        }
-                        .reversed()
-                } else {
-                    emptyList()
-                }
-                // 사장님 톤 코퍼스 — 다른 고객에게 보낸 최근 메시지 50건.
-                val ownerToneSamples = if (canReadSms) {
-                    container.smsRepository.querySentMessages(limit = 50)
-                } else {
-                    emptyList()
-                }
-
-                val customerHint = customer?.let {
-                    CustomerHint(
-                        name = it.name,
-                        memo = it.memo.takeIf { m -> m.isNotBlank() },
-                        leadHeat = it.leadHeat,
-                        depositPaid = (it.depositAmount ?: 0L) > 0L,
-                        scheduledWorkDateMs = it.scheduledWorkDate
-                    )
-                }
-
-                // P3 — 사장님의 다른 시공 일정 (현재 sender 제외, 14일 내).
-                val otherSchedules = runCatching {
-                    container.customerRepository.getOtherUpcomingScheduleDates(sender)
-                }.getOrDefault(emptyList())
-
-                // MMS 분할 / 짧은 SMS 다발 → "마지막 사장님 발신 이후 모든 고객 수신 메시지" 묶음.
-                val mergedLatest = com.detailline.callfollowcrm.ai.PrepareContextHelpers
-                    .joinCustomerStreakAfterLastOwner(history, newIncomingBody = combinedBody)
-                val ctx = PrepareContext(
-                    phone = sender,
-                    latestMessage = mergedLatest,
-                    latestMessageReceivedAtMs = receivedAtMs,
-                    recentHistory = history,
-                    customer = customerHint,
-                    ownerToneSamples = ownerToneSamples,
-                    otherUpcomingSchedulesMs = otherSchedules,
-                    deviceId = container.preferences.deviceId,
-                    ownerTrade = container.preferences.ownerTrades.firstOrNull(),
-                    priceList = runCatching { container.pricingItemRepository.priceListText() }
-                        .getOrDefault("").takeIf { it.isNotBlank() },
-                    principles = runCatching { container.principleRepository.enabledTexts() }
-                        .getOrDefault(emptyList()).takeIf { it.isNotEmpty() }
-                )
-
-                // 추천 답변은 미리 준비만 해둔다(문자방 진입 시 바로 보이게). fire-and-forget.
-                //   'AI 답변 준비' OFF 면 미리 안 만듦 — 마스코트 로딩·서버 호출 없음. (2026-07-16 사장님)
-                //   '고객 아님'(협업사장·거래처 등) 번호도 고객상담 추천 안 만듦. (2026-07-18 사장님) 통화요약은 별개라 유지.
-                //   prefetch(문자·사진 캐시 데우기)는 AI 와 무관 → 위 OFF 여도 그대로(문자방 빨리 뜨게).
-                if (container.preferences.aiReplyPrepEnabled && !container.preferences.isNonCustomer(sender)) {
-                    container.suggestionRepository.requestPrepare(ctx)
-                }
+                // 2) prefetch (문자·사진 캐시 데우기) — 문자방 빨리 뜨게. AI 와 무관.
+                //   ⚠️ (2026-08-14 사장님) 답변 추천 '미리 생성(requestPrepare)' 제거 → '볼 때만 생성' 전환.
+                //     이전엔 문자 올 때마다 서버에 미리 Sonnet 으로 답을 만들어뒀는데, 사장님이 답변 추천을
+                //     '접어두고 볼 때만' 쓰면서 이 미리생성이 이번 달 Claude API 비용의 68%(prepare-reply 484콜)를 먹었음.
+                //     이제 문자방에서 '✨ AI 답변 추천받기' 띠를 탭할 때만 생성(ChatViewModel.regenerateSuggestions).
+                //     통화 요약·카드 요약 등 다른 AI(Haiku)는 그대로.
                 container.smsCachePrefetcher.prefetchForNumber(sender)
             } catch (e: Throwable) {
                 Log.e(TAG, "onReceive async failed", e)

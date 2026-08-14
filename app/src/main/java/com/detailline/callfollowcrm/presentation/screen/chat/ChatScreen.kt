@@ -286,8 +286,9 @@ fun ChatScreen(
     val suggestionsLoading by viewModel.suggestionsLoading.collectAsState()
     val suggestionsFailed by viewModel.suggestionsFailed.collectAsState()
     val unreflectedCount by viewModel.unreflectedCustomerCount.collectAsState()
-    // (A 정책) 추천이 옛 메시지 기준(stale)이면 자동으로 새 추천 생성 — 채팅 보던 중 새 문자 와도 반영. 중복은 VM 가드. (2026-06-27)
-    LaunchedEffect(suggestionsStale) { if (suggestionsStale) viewModel.refreshIfStale() }
+    // ⚠️ (2026-08-14 사장님) stale 자동 재생성 제거 — '볼 때만 생성'(비용 68% 절감).
+    //   채팅 보던 중 새 문자가 와도 자동으로 Sonnet 을 부르지 않음. 옛 답은 stale 로 숨겨지고,
+    //   '✨ AI 답변 추천받기' 띠가 떠서 사장님이 원할 때 탭 → 생성.
     // 통화로 끝난 대화면 추천 준비 X — "준비 중" 대신 "문자 오면 준비" 안내. (2026-06-17 사장님)
     val endedWithCall by viewModel.lastActivityIsCall.collectAsState()
     // (Phase 2) 원칙 발견 카드 — 추천과 다르게 보냈을 때 막내가 "이게 원칙이에요?" 물음. (2026-06-17 사장님)
@@ -861,7 +862,11 @@ fun ChatScreen(
                         // 탭 → 입력칸 커서 끝 + 키보드 올림 (확인·수정 후 발송). (2026-08-14 사장님)
                         runCatching { composerFocusRequester.requestFocus() }
                     },
-                    onRegenerate = { viewModel.regenerateSuggestions() }
+                    onRegenerate = {
+                        // '✨ AI 답변 추천받기' 탭 → 생성 시작 + 끝나면 자동 펼쳐 보여주기. (2026-08-14 '볼 때만 생성')
+                        suggestionsExpanded = true
+                        viewModel.regenerateSuggestions()
+                    }
                 )
                 }
             }
@@ -2865,11 +2870,14 @@ private fun SuggestionArea(
     onPickChoice: (com.detailline.callfollowcrm.ai.ReplyChoice) -> Unit,
     onRegenerate: () -> Unit
 ) {
-    // 띠는 "신선한 답안" 또는 "생성 중" 일 때만 뜸. 실패·stale·통화끝남·빈 → 통째 숨김. 재생성·3개 없음. (2026-08-14 사장님)
+    // 띠 상태 3가지 (통화로 끝난 대화면 통째 숨김): (2026-08-14 사장님 '볼 때만 생성')
+    //   (1) 신선한 답안 있음 → "AI 답안 N개 보기"(탭 펼침)  (2) 생성 중 → "작성 중"  (3) 없음 → "AI 답변 추천받기"(탭 생성)
     val choices = suggestion?.suggestions?.filter { it.text.isNotBlank() }?.take(2) ?: emptyList()
     val hasFresh = choices.isNotEmpty() && !isStale && !failed && !endedWithCall
     val showLoading = loading && !endedWithCall && !hasFresh
-    if (hasFresh || showLoading) {
+    // 신선한 답 없고 생성중도 아니면 '받기' 띠 — 탭해야 생성(미리 안 만들어 비용 68% 절감). 실패 후에도 여기로 와 재시도 가능.
+    val showGenerate = !hasFresh && !showLoading && !endedWithCall
+    if (hasFresh || showLoading || showGenerate) {
         val open = expanded && hasFresh
         val arrowRot by androidx.compose.animation.core.animateFloatAsState(
             targetValue = if (open) 180f else 0f, label = "sugArw"
@@ -2902,6 +2910,22 @@ private fun SuggestionArea(
                         modifier = Modifier.weight(1f)
                     )
                     CircularProgressIndicator(color = TossBlue, strokeWidth = 2.dp, modifier = Modifier.size(15.dp))
+                }
+            } else if (showGenerate) {
+                // '받기' 띠 — 탭하면 생성 시작(onRegenerate). 미리 안 만들어 비용 절감. 끝나면 자동 펼침(호출부 expanded=true). (2026-08-14 사장님)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onRegenerate)
+                        .padding(horizontal = 15.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "✨ AI 답변 추천받기",
+                        color = TossBlue, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Text("›", color = TossTextTertiary, fontSize = 16.sp, fontWeight = FontWeight.Black)
                 }
             } else {
                 // 손잡이 바 (펼쳤을 때만)

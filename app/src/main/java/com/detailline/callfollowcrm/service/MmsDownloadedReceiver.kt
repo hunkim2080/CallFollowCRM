@@ -152,57 +152,12 @@ class MmsDownloadedReceiver : BroadcastReceiver() {
             }.getOrDefault(false)
             if (isSpam || isGeneral) return
         }
+        // ⚠️ (2026-08-14 사장님) 답변 추천 '미리 생성(requestPrepare)' 제거 → '볼 때만 생성' 전환(비용 68% 절감).
+        //   사진(MMS) 수신 시에도 미리 만들지 않음. 문자방에서 '✨ AI 답변 추천받기' 탭 시 생성.
+        //   prefetch(문자·사진 캐시 데우기)만 유지 — AI 와 무관, 문자방 빨리 뜨게.
         runCatching {
-            val customer = runBlocking { container.customerRepository.findByPhone(sender) }
-            val history = runBlocking {
-                runCatching {
-                    container.smsRepository.queryByPhone(sender, scanLimit = 100)
-                        .take(20)
-                        .map { sms ->
-                            HistoryMessage(
-                                role = if (sms.sent) "owner" else "customer",
-                                body = sms.body,
-                                timestampMs = sms.dateMs
-                            )
-                        }
-                        .reversed()
-                }.getOrDefault(emptyList())
-            }
-            val ownerToneSamples = runCatching { container.smsRepository.querySentMessages(limit = 50) }.getOrDefault(emptyList())
-            val otherSchedules = runBlocking {
-                runCatching { container.customerRepository.getOtherUpcomingScheduleDates(sender) }.getOrDefault(emptyList())
-            }
-            val customerHint = customer?.let {
-                CustomerHint(
-                    name = it.name,
-                    memo = it.memo.takeIf { m -> m.isNotBlank() },
-                    leadHeat = it.leadHeat,
-                    depositPaid = (it.depositAmount ?: 0L) > 0L,
-                    scheduledWorkDateMs = it.scheduledWorkDate
-                )
-            }
-            val mergedLatest = com.detailline.callfollowcrm.ai.PrepareContextHelpers
-                .joinCustomerStreakAfterLastOwner(history, newIncomingBody = displayBody)
-            val ctx = PrepareContext(
-                phone = sender,
-                latestMessage = mergedLatest,
-                latestMessageReceivedAtMs = receivedAtMs,
-                recentHistory = history,
-                customer = customerHint,
-                ownerToneSamples = ownerToneSamples,
-                otherUpcomingSchedulesMs = otherSchedules,
-                deviceId = container.preferences.deviceId,
-                ownerTrade = container.preferences.ownerTrades.firstOrNull(),
-                priceList = runBlocking {
-                    runCatching { container.pricingItemRepository.priceListText() }.getOrDefault("")
-                }.takeIf { it.isNotBlank() },
-                principles = runBlocking {
-                    runCatching { container.principleRepository.enabledTexts() }.getOrDefault(emptyList())
-                }.takeIf { it.isNotEmpty() }
-            )
-            runBlocking { container.suggestionRepository.requestPrepare(ctx) }
             container.smsCachePrefetcher.prefetchForNumber(sender)
-        }.onFailure { e -> Log.e(TAG, "prepare-reply hook failed", e) }
+        }.onFailure { e -> Log.e(TAG, "prefetch hook failed", e) }
     }
 
     private fun notifyFail(app: CallFollowCrmApplication?) {
