@@ -1526,7 +1526,9 @@ class ChatViewModel(
         onResult: (Result<Pair<String, Boolean>>) -> Unit   // (smsDraft, reused=기존 링크 갱신)
     ) = viewModelScope.launch {
         val prefs = container.preferences
-        val name = customer.value?.name?.takeIf { it.isNotBlank() } ?: phoneNumber
+        // 이름 없으면 전화번호 대신 "고객" — 안 그러면 서버 인사말이 "안녕하세요 01012345678님…"이 되고
+        //   앱이 그 번호를 링크(파란 밑줄)로 잡아 문장과 뭉개짐(사장님 지적 2026-08-14). D-1 알림 관례(renderReminderBody)와 통일.
+        val name = customer.value?.name?.takeIf { it.isNotBlank() } ?: "고객"
         // 서버 /api/quote/issue 계약: depositValue 는 fixed=원, ratio=%. 앱 depVal 은 만원 단위라
         //   fixed 는 원으로 환산해 보낸다. 안 하면 서버가 계약금 10(만원)을 '10원'으로 렌더 → 고객 접수서 오표기. (2026-07-04 사장님 보고)
         val depositValueForServer = if (depositMode == "fixed") depositValue * 10000 else depositValue
