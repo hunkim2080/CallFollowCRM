@@ -11936,6 +11936,50 @@ async def _ollama_correct_transcript(text: str) -> str:
     return fixed or text
 
 
+async def _ollama_attribute_speakers(text: str) -> list:
+    """보정된 통화 transcript → 발화 순서대로 나누고 화자(나/손님) 추정 (로컬 exaone·best-effort).
+
+    카톡식 말풍선(손님=좌·나=우)용. 지어내기 금지·뜻 유지. 실패/빈/긴통화 → [] (앱이 평문 폴백).
+    android 판정(2026-08-14): exaone 화자추정 줄눈상담 2건 100% 정확(temp0).
+    """
+    text = (text or "").strip()
+    if not text or len(text) > 4000:
+        return []
+    sys_p = (
+        "너는 한국어 통화 텍스트를 대화 순서대로 나누고 화자를 붙이는 도구다. "
+        "통화는 '나'(업체 사장님)와 '손님'(고객) 둘 사이의 대화다. "
+        "각 발화를 순서대로 나누고 speaker 를 정확히 '나' 또는 '손님' 으로만 붙여라. "
+        "없는 말을 지어내지 말고 있는 문장만 나눠라. 뜻·표현을 바꾸지 마라. "
+        "JSON {\"segments\":[{\"speaker\":\"나\",\"text\":\"...\"}]} 만 출력."
+    )
+    try:
+        out = await call_ollama_json(
+            system_prompt=sys_p,
+            user_msg="다음 통화를 화자별로 나눠줘:\n\n" + text,
+            model=OLLAMA_CORRECT_MODEL,
+            temperature=0.0,
+            max_tokens=4096,
+            timeout=120.0,
+        )
+    except Exception:
+        return []
+    segs = out.get("segments") if isinstance(out, dict) else None
+    if not isinstance(segs, list):
+        return []
+    result = []
+    for s in segs:
+        if not isinstance(s, dict):
+            continue
+        tx = str(s.get("text") or "").strip()
+        if not tx:
+            continue
+        sp = str(s.get("speaker") or "").strip()
+        if sp not in ("나", "손님"):
+            sp = "?"
+        result.append({"speaker": sp, "text": tx})
+    return result
+
+
 async def call_claude_json(
     *, system_prompt: str, user_msg: str, max_tokens: int = 600,
     model: str = CLAUDE_MODEL,
@@ -13554,6 +13598,14 @@ async def call_audio_summary_endpoint(
         transcript = transcript_raw
         print(f"[call-audio-summary] exaone 보정 skip: {type(e).__name__}: {e}")
 
+    # 3-ter) 화자 분리 세그먼트 (카톡 말풍선용) — best-effort, 실패=[] (앱 평문 폴백).
+    try:
+        transcript_segments = await _ollama_attribute_speakers(transcript)
+    except Exception:
+        transcript_segments = []
+    if transcript_segments:
+        print(f"[call-audio-summary] {phone_digits} 화자분리 {len(transcript_segments)}발화")
+
     print(
         f"[call-audio-summary] {phone_digits} STT 완료 "
         f"(audio={len(audio_data)//1024}KB transcript={len(transcript)}자)"
@@ -13657,6 +13709,7 @@ async def call_audio_summary_endpoint(
         **coerced,
         "transcript": transcript,
         "transcript_raw": transcript_raw,   # exaone 보정 전 원문(앱 참고·감사용)
+        "transcript_segments": transcript_segments,  # 카톡 말풍선용 [{speaker,text}] (best-effort·없으면 [])
         "phone": phone_digits,
         "direction": direction,
         "duration_sec": duration_sec,

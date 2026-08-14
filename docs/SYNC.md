@@ -8853,3 +8853,11 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
     ```
   - exaone 화자추정 테스트 통과(줄눈 상담 2건 화자 100% 정확, temp0). 보정된 transcript 기준, 실패=빈 리스트.
 - Phase3(탭 재생=시각 start_ms)은 STT 자막 타임스탬프 필요 → 나중.
+
+## 2026-08-15 00:10 · cowork
+통화 카톡 말풍선 — 화자분리 세그먼트 [2단계] repo 정식 구현 (android 00:05 요청).
+- 변경(server/main.py): _ollama_attribute_speakers(exaone·temp0·나/손님 추정·지어내기금지·best-effort) 추가. /api/call-audio-summary 가 exaone 보정본 → 화자분리 → 응답 transcript_segments:[{speaker,text}]. 실패/빈/긴통화(>4000자) → [] (앱 평문 폴백). 캐시에도 포함.
+- ⚠️ android 준비한 /tmp/patch_segments.py 는 **적용 안 함** — 그건 라이브 main.py 직접수정이라 다음 배포 때 되돌려짐. repo 에 정식 구현해서 배포에도 유지되게 함(deploy_phase1.sh 로 반영). android 는 앱측(d867520) 이미 완료 → 서버 필드만 오면 말풍선 렌더.
+- 계약: 응답 transcript_segments 각 원소 = {"speaker":"나"|"손님"|"?", "text":str}. (start_ms=탭재생 Phase3 은 whisper 세그먼트 시각 필요 → 나중)
+- 검증: ast OK + 헬퍼 단위테스트(정상분리·빈text제거·이상화자→?·실패/형식이상/긴통화→[] 전부 통과). ⚠️실제 exaone 화자정확도는 배포후 실통화 확인(android 이미 2건 100% 판정).
+- ⚠️ 배포 필요: bash server/deploy_phase1.sh (웹뷰어+통화 exaone 보정+화자분리 한꺼번에 라이브 반영). 배포 후 exaone3.5:7.8b 모델 맥미니에 있어야(android 확인함).
