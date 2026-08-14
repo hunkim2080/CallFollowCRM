@@ -2009,15 +2009,29 @@ private fun CallSegment(
     val type = runCatching {
         com.detailline.callfollowcrm.domain.model.CallType.valueOf(record.callType)
     }.getOrNull()
-    val (label, accent) = when (type) {
-        com.detailline.callfollowcrm.domain.model.CallType.INCOMING -> "수신 통화" to Color(0xFF0E9E90)
-        com.detailline.callfollowcrm.domain.model.CallType.OUTGOING -> "발신 통화" to Color(0xFF0E9E90)
-        com.detailline.callfollowcrm.domain.model.CallType.MISSED -> "부재중 전화" to TossError
-        com.detailline.callfollowcrm.domain.model.CallType.REJECTED -> "거절한 전화" to TossTextSecondary
-        com.detailline.callfollowcrm.domain.model.CallType.MANUAL -> "수동 기록 통화" to Color(0xFF0E9E90)
-        else -> "통화" to Color(0xFF0E9E90)
+    // 통화 = 딥 티얼(답한통화)/코랄(부재중), 메시지 파랑과 색 구분. 컴팩트 기본·탭하면 상세 펼침. (2026-08-14 사장님·Gemini)
+    val teal = Color(0xFF1E6E6A); val tealDark = Color(0xFF154D4A)
+    val tealBg = Color(0xFFF0F6F5); val tealLine = Color(0xFFD6E6E4); val tealChip = Color(0xFFE7F1F0)
+    val coral = Color(0xFFC0574B)
+    val label = when (type) {
+        com.detailline.callfollowcrm.domain.model.CallType.INCOMING -> "수신 통화"
+        com.detailline.callfollowcrm.domain.model.CallType.OUTGOING -> "발신 통화"
+        com.detailline.callfollowcrm.domain.model.CallType.MISSED -> "부재중 전화"
+        com.detailline.callfollowcrm.domain.model.CallType.REJECTED -> "거절한 전화"
+        com.detailline.callfollowcrm.domain.model.CallType.MANUAL -> "수동 기록 통화"
+        else -> "통화"
     }
+    val isMissed = type == com.detailline.callfollowcrm.domain.model.CallType.MISSED ||
+        type == com.detailline.callfollowcrm.domain.model.CallType.REJECTED
+    val hasDetail = !isMissed
+    val accent = if (isMissed) coral else teal
     val durLabel = formatCallDuration(record.duration)
+    // 태그(요약의 평수·부위·일정) · 통화 전문(숨겨져 있던 것) · 펼침 상태
+    val tags = listOfNotNull(summary?.space, summary?.problem, summary?.schedule)
+        .map { it.trim() }.filter { it.isNotBlank() }.take(3)
+    val transcript = summary?.transcriptText?.trim()?.takeIf { it.isNotBlank() }
+    var expanded by remember(record.id, summary?.id) { mutableStateOf(false) }
+    val arrowRot by androidx.compose.animation.core.animateFloatAsState(if (expanded) 180f else 0f, label = "callArw")
     // 프로토 .chat-call — 전체폭 teal 카드 + cc-ch(아이콘·유형·시각) + 에이닷 요약 버튼.
     Column(
         modifier = Modifier
@@ -2025,8 +2039,9 @@ private fun CallSegment(
             .padding(vertical = 6.dp)
             .tossCardShadow(RoundedCornerShape(14.dp))
             .clip(RoundedCornerShape(14.dp))
-            .background(Color(0xFFEAF4F1))
-            .border(1.dp, Color(0xFFCDE8E0), RoundedCornerShape(14.dp))
+            .background(if (isMissed) Color(0xFFFCF3F1) else tealBg)
+            .border(1.dp, if (isMissed) Color(0xFFF0D6D1) else tealLine, RoundedCornerShape(14.dp))
+            .then(if (hasDetail) Modifier.clickable { expanded = !expanded } else Modifier)
             .padding(horizontal = 12.dp, vertical = 11.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2040,15 +2055,35 @@ private fun CallSegment(
             Column(Modifier.weight(1f)) {
                 Text(
                     buildString { append(label); if (durLabel != null) { append(" · "); append(durLabel) } },
-                    fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0A7D72)
+                    fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = if (isMissed) coral else tealDark
                 )
                 Text(
-                    // 프로토 callCardHtml: 요약되면 "· AI 요약됨", 아니면 "· 문자하다 통화함".
-                    DateTimeUtils.formatShort(record.endedAt) + if (summary != null) " · AI 요약됨" else " · 문자하다 통화함",
+                    DateTimeUtils.formatShort(record.endedAt) + when { summary != null -> " · AI 요약됨"; isMissed -> " · 놓친 전화"; else -> " · 문자하다 통화함" },
                     fontSize = 11.sp, color = TossTextTertiary, fontWeight = FontWeight.Bold
                 )
             }
+            if (hasDetail) {
+                Text("▲", color = Color(0xFF9EC0BE), fontSize = 10.sp, fontWeight = FontWeight.Black,
+                    modifier = Modifier.padding(start = 4.dp).rotate(arrowRot))
+            }
         }
+        // 태그(평수·부위·일정) — 접혔을 때 이정표. 펼치면 상세에 다 나오니 숨김. (2026-08-14)
+        if (tags.isNotEmpty() && !expanded) {
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                tags.forEach { t ->
+                    Text(t, color = teal, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1,
+                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(tealChip).padding(horizontal = 9.dp, vertical = 3.dp))
+                }
+            }
+        }
+        // 탭하면 상세 펼침 — 요약·전문·재생·후속 (부재중은 hasDetail=false 라 안 뜸). (2026-08-14 사장님)
+        androidx.compose.animation.AnimatedVisibility(
+            visible = expanded && hasDetail,
+            enter = androidx.compose.animation.expandVertically(animationSpec = androidx.compose.animation.core.tween(280)) + androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(180)),
+            exit = androidx.compose.animation.shrinkVertically(animationSpec = androidx.compose.animation.core.tween(200)) + androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(140))
+        ) {
+        Column {
 
         // 프로토 callCardHtml(m,i): m.summarized 여부로 분기.
         val bullets = summary?.summaryText
@@ -2179,9 +2214,25 @@ private fun CallSegment(
                 Text("이 통화 내용으로 후속 문자 쓰기", color = Color(0xFF0A7D72), fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold)
             }
         }
-        // 녹음 재생 플레이어 — 이 통화의 녹음 파일이 있으면 카드 맨 아래에 표시(에이닷 안 들어가고 바로 듣기). (2026-06-16 사장님)
+        // 🗣️ 통화 전문 (숨겨져 있던 것 살림). 1단계=텍스트 블록. 카톡식 말풍선·탭재생은 2단계(코워크 세그먼트 저장 후). (2026-08-14)
+        if (transcript != null) {
+            Column(Modifier.padding(top = 12.dp)) {
+                Text("🗣️ 통화 전문", color = teal, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
+                Spacer(Modifier.height(5.dp))
+                Box(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color.White)
+                        .border(1.dp, tealLine, RoundedCornerShape(10.dp)).padding(11.dp)
+                ) {
+                    Text(transcript, fontSize = 12.sp, color = TossTextSecondary, lineHeight = 18.sp)
+                }
+                Text("※ 받아쓰기라 오타·구분이 정확하지 않을 수 있어요", fontSize = 9.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 4.dp))
+            }
+        }
+        // 녹음 재생 플레이어 — 녹음 파일 있으면 표시. (2026-06-16 사장님)
         if (audioUri != null) {
             CallRecordingPlayer(audioUri = audioUri, durationHintMs = audioDurationMs)
+        }
+        }
         }
     }
 }
