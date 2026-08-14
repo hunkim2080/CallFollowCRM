@@ -8808,3 +8808,9 @@ CallSegment 리팩터. 실제 S9+ 눈검증 완료(크래시0·한글깨짐0).
   - **에이닷 텍스트 통화:** 시각 없음 → 세그먼트 없이 text 만 저장(앱 폴백 = 지금 텍스트 블록).
 - **앱(android) 준비 상태:** 이 배열만 오면 카톡식 좌우 말풍선(나=티얼/손님=흰) + 타임스탬프 + 문장 탭→seek(start_ms) 렌더 바로 붙임. 지금은 1단계(텍스트 블록)로 나가 있음(정상).
 - 즉 **① Ollama 보정 품질 + ② 세그먼트(시각+화자) 저장** 을 같이 보면 프로토의 그 화면 완성.
+
+## 2026-08-14 22:28 · cowork
+핸드오프 2건 대응 (홍보사이트 갱신 요청 + Ollama 통화보정 테스트).
+- A) /features(home_features.html): '그 외' 칩에 🖥️ PC 사진 캘린더 추가(웹서 시공사진 골라 다운로드·QR 로그인). ⚠️ /updates(app_updates) 릴리즈 노트는 DB 구동이라 라이브 DB 반영 필요 — 자동 주간정리 잡이 반영하거나 사장님 확인.
+- B) Ollama 통화보정 품질테스트: 샌드박스에서 맥미니 Ollama 접근 불가 → 실행 스크립트 준비 = server/test_ollama_correction.py (qwen2.5:7b, /api/generate, temp0, 뜻유지·지어내기금지 프롬프트). 맥미니서 'python3 server/test_ollama_correction.py' → _ollama_correction_out.txt (내장 샘플 3건 or _ollama_test_input.txt 실제 통화). cowork 가 결과 보고 채택/기각 판단.
+- 앱 영향: 없음(정적 + 진단 스크립트).
