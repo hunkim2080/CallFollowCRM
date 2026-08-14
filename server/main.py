@@ -11905,6 +11905,37 @@ async def call_ollama_json(
     return json.loads(raw)
 
 
+# 통화 받아쓰기(STT) 보정 — android 판정(2026-08-14): exaone3.5:7.8b 합격(공짜·한국어),
+# qwen2.5 탈락(중국어로 튐). Sonnet/Gemini 대신 로컬 exaone 채택.
+OLLAMA_CORRECT_MODEL = os.environ.get("OLLAMA_CORRECT_MODEL", "exaone3.5:7.8b")
+
+
+async def _ollama_correct_transcript(text: str) -> str:
+    """STT 받아쓰기 오타·띄어쓰기 보정 (로컬 exaone·공짜). 뜻유지·지어내기 금지.
+
+    긴 통화(>4000자)는 num_predict 초과로 뒷부분 잘릴 위험 → 원문 유지(보정 skip).
+    실패 시 caller 가 원문 유지.
+    """
+    text = (text or "").strip()
+    if not text or len(text) > 4000:
+        return text
+    sys_p = (
+        "너는 한국어 통화 받아쓰기(STT) 교정기다. 오타·띄어쓰기·'들리는 대로' 적힌 부분만 "
+        "자연스러운 한국어로 고친다. 뜻을 절대 바꾸지 말고, 없는 내용을 지어내지 마라. "
+        "요약·화자구분·해설 금지. JSON {\"corrected\": \"...\"} 만 출력."
+    )
+    out = await call_ollama_json(
+        system_prompt=sys_p,
+        user_msg="다음 통화 텍스트를 교정해줘:\n\n" + text,
+        model=OLLAMA_CORRECT_MODEL,
+        temperature=0.0,
+        max_tokens=4096,
+        timeout=120.0,
+    )
+    fixed = (out.get("corrected") or "").strip()
+    return fixed or text
+
+
 async def call_claude_json(
     *, system_prompt: str, user_msg: str, max_tokens: int = 600,
     model: str = CLAUDE_MODEL,
@@ -13510,6 +13541,19 @@ async def call_audio_summary_endpoint(
     if not transcript:
         raise HTTPException(422, "받아쓰기 결과 비어있음 (무음 또는 인식 불가)")
 
+    # 3-bis) 통화 보정 — 로컬 exaone3.5(공짜)로 STT 오타·띄어쓰기 정리(뜻유지·지어내기금지).
+    # 실패/긴통화 시 원문 유지(graceful). transcript_raw 는 응답에 함께 반환.
+    transcript_raw = transcript
+    try:
+        corrected = await _ollama_correct_transcript(transcript)
+        if corrected and corrected != transcript:
+            transcript = corrected
+            print(f"[call-audio-summary] {phone_digits} exaone 보정 완료 "
+                  f"({len(transcript_raw)}→{len(transcript)}자)")
+    except Exception as e:
+        transcript = transcript_raw
+        print(f"[call-audio-summary] exaone 보정 skip: {type(e).__name__}: {e}")
+
     print(
         f"[call-audio-summary] {phone_digits} STT 완료 "
         f"(audio={len(audio_data)//1024}KB transcript={len(transcript)}자)"
@@ -13612,6 +13656,7 @@ async def call_audio_summary_endpoint(
     response_payload = {
         **coerced,
         "transcript": transcript,
+        "transcript_raw": transcript_raw,   # exaone 보정 전 원문(앱 참고·감사용)
         "phone": phone_digits,
         "direction": direction,
         "duration_sec": duration_sec,

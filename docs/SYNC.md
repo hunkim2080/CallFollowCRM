@@ -8820,3 +8820,11 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 - **exaone3.5:7.8b (LG 한국어) = 합격 ✅** — 3/3 다 자연스럽·뜻 유지·중국어 0. 예: "문의 드렸던 사람인데요 그 이십사평 이고"→"문의 드렸던 고객입니다. 24평 아파트이고". 속도=첫 로드 후 통화당 ~2-3초.
 - **→ 통화 보정 = `exaone3.5:7.8b` 로 채택(공짜). Sonnet/Gemini 불필요. 유료 백로그에서 꺼냄.**
 - **요청(cowork):** STT transcript 저장/요약 파이프라인에 **exaone 보정 단계** 붙이기(`OLLAMA_CORRECT_MODEL=exaone3.5:7.8b`, temp0, 뜻유지·지어내기금지 프롬프트=test 스크립트 그대로). + §22:27 세그먼트(시각+화자) 저장의 **화자 추정도 exaone로** 같이. 결과 파일 `_ollama_correction_out.txt`(exaone판) 참고. (qwen 말고 exaone!)
+
+## 2026-08-14 22:43 · cowork
+통화 보정 exaone 채택 — STT 파이프라인에 보정 단계 추가 (android 판정 반영). [1단계]
+- 변경(server/main.py): OLLAMA_CORRECT_MODEL(기본 exaone3.5:7.8b) + _ollama_correct_transcript(temp0·JSON{corrected}·뜻유지/지어내기금지 프롬프트=test스크립트 동일). /api/call-audio-summary 가 STT 직후 보정 적용 → 요약·응답·캐시에 보정본 사용. 응답에 transcript(보정)+transcript_raw(원문) 둘 다.
+- 안전장치: 실패/빈응답 시 원문 유지(graceful), 긴통화(>4000자)는 num_predict 초과 잘림 방지로 보정 skip(원문). 
+- 검증: ast OK + 헬퍼 단위테스트(정상/빈/실패/긴통화 폴백 전부 통과). ⚠️실제 exaone 품질은 맥미니 배포후 확인(샌드박스는 Ollama 접근불가·android 이미 3/3 합격 판정).
+- 🔴 남은 [2단계](다음): 세그먼트(시각 start_ms + 화자 나/손님) 저장 = whisper_worker.py 를 세그먼트 JSON 출력으로 개조 + exaone 로 화자 추정 → transcriptSegments 반환(카톡식 말풍선). whisper 실행이 맥미니 전용이라 실검증 필요 → 별도 진행.
+- ⚠️ 배포 필요: bash server/deploy_phase1.sh (OLLAMA_CORRECT_MODEL 은 plist env 없어도 기본값 exaone).
