@@ -68,6 +68,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FileDownload
@@ -130,6 +131,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
@@ -322,6 +324,8 @@ fun ChatScreen(
     var inputSelection by remember { mutableStateOf(TextRange(input.length)) }
     // 본문을 통째로 바꾸는 프로그램적 채우기(템플릿·다듬기·발송클리어 등)는 커서를 항상 끝으로.
     val setInput: (String) -> Unit = { s -> input = s; inputSelection = TextRange(s.length) }
+    // 추천 답변/다음답변 탭 시 입력칸 포커스(커서 끝 + 키보드 올림). (2026-08-14 사장님)
+    val composerFocusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
     var fullscreenImages by remember { mutableStateOf<List<android.net.Uri>?>(null) }
     var fullscreenStart by remember { mutableStateOf(0) }
     // 권한 요청 직후 자동 재시도용 — 입력 본문을 기억.
@@ -887,24 +891,9 @@ fun ChatScreen(
             //   답변 추천 칩 / 템플릿 알약 둘 다 둥근 칩이라 인접 시 사장님 시선 혼란.
             //   답변 추천 = 사장님 톤 학습 기반 우선. 답변 추천 없을 때만 (서버 X 또는 stale) 템플릿 노출.
             //
-            // 프로토 chat-actions — 항상 보이는 고정 3칩 [견적 작성][내 일정 확인][문구 넣기].
-            //   (사장님 2026-06-02 결정: 무조건 프로토 1:1 → ⚡토글/템플릿 인라인 제거)
-            // 스크롤 자동 숨김 — 위로 올려 옛 메시지 보면 칩 숨고, 최신으로 내리면 다시 나옴.
-            // 문자함(고객 아님)은 상담용 액션칩(견적·일정·문구) 숨김 — 순수 문자만. (2026-07-12 사장님)
-            androidx.compose.animation.AnimatedVisibility(visible = controlsVisible && !isPlainThread) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        // 프로토는 bottom 0 이라 칩이 입력창에 붙어 아마추어 느낌 → 숨 쉴 틈 10dp. (2026-08-04 사장님)
-                        .padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    ActChip(Icons.Default.Description, "견적 작성") { triggerActionByType("send_estimate") }
-                    ActChip(Icons.Default.DateRange, "내 일정 확인") { myScheduleOpen = true }
-                    ActChip(Icons.AutoMirrored.Filled.Chat, "문구 넣기") { tplPickerOpen = true }
-                }
-            }
+            // chat-actions 3칩 [견적 작성][내 일정 확인][문구 넣기] → 입력줄 ⊕ 메뉴로 이동. (2026-08-14 사장님)
+            //   인스타식 풍선 팝업. 상시로 한 줄 차지하던 것 제거 → 대화 공간 확보(표면엔 덜, 조용한 자신감).
+            //   견적/일정/문구 액션은 Composer(onOpenEstimate/Schedule/Template) 콜백으로 그대로 연결.
 
             // '이 사람 고객인가요?' 조용한 줄 (2026-07-18 사장님) — 모르는 새 번호에만, 방해 안 되게 작은 줄로.
             //   "고객 아님"(협업사장·거래처·지인) → 페르소나·추천 같은 고객상담 AI 안 만듦(통화요약은 유지).
@@ -939,10 +928,10 @@ fun ChatScreen(
             val showSuggestionArea = messages.firstOrNull()?.sent == false && !isPlainThread &&
                 viewModel.aiReplyPrepEnabled
             if (showSuggestionArea) {
-                var suggestionsExpanded by remember { mutableStateOf(true) }
+                var suggestionsExpanded by remember { mutableStateOf(false) }   // 기본 닫힘 = 얇은 띠. (2026-08-14 사장님)
                 val inputNonBlank = input.isNotBlank()
                 LaunchedEffect(inputNonBlank) {
-                    suggestionsExpanded = !inputNonBlank
+                    if (inputNonBlank) suggestionsExpanded = false   // 타이핑 시작하면 접힘(자동 펼침 X)
                 }
                 // 스크롤 자동 숨김 — 추천도 칩과 함께 숨고/나타남.
                 androidx.compose.animation.AnimatedVisibility(visible = controlsVisible) {
@@ -962,6 +951,8 @@ fun ChatScreen(
                         setInput(picked.text)
                         // 답변 추천 사용 직후 = 자동 접힘 (사장님이 보낼 본문에 집중)
                         suggestionsExpanded = false
+                        // 탭 → 입력칸 커서 끝 + 키보드 올림 (확인·수정 후 발송). (2026-08-14 사장님)
+                        runCatching { composerFocusRequester.requestFocus() }
                     },
                     onRegenerate = { viewModel.regenerateSuggestions() }
                 )
@@ -980,6 +971,20 @@ fun ChatScreen(
                 )
             }
 
+            // ⊕ "다음 답변 AI 추천" — 생성 트리거 후 결과 도착 시 입력칸에 1개 삽입(커서+키보드). 재생성 없음. (2026-08-14 사장님)
+            var awaitingManualReply by remember { mutableStateOf(false) }
+            LaunchedEffect(suggestion, suggestionsLoading) {
+                if (awaitingManualReply && !suggestionsLoading) {
+                    val first = suggestion?.suggestions?.firstOrNull { it.text.isNotBlank() }
+                    awaitingManualReply = false
+                    if (first != null) {
+                        setInput(first.text)
+                        runCatching { composerFocusRequester.requestFocus() }
+                    } else {
+                        android.widget.Toast.makeText(context, "답변을 못 만들었어요", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
             // composer pill — 인스타 DM 스타일 ([✨][📷][입력][▶]) + 사진 첨부 미리보기
             Composer(
                 input = input,
@@ -1007,7 +1012,17 @@ fun ChatScreen(
                 },
                 isSending = isSending,
                 onFocusChange = { focused -> composerFocused = focused },
-                showAiPolish = !isPlainThread   // 문자함(고객 아님)은 ✨ AI 다듬기 숨김. (2026-07-12 사장님)
+                showAiPolish = !isPlainThread,   // 문자함(고객 아님)은 ✨ AI 다듬기 숨김. (2026-07-12 사장님)
+                showActions = !isPlainThread,    // ⊕ 액션 메뉴(견적/일정/문구)도 문자함이면 숨김. (2026-08-14)
+                onOpenEstimate = { triggerActionByType("send_estimate") },
+                onOpenSchedule = { myScheduleOpen = true },
+                onOpenTemplate = { tplPickerOpen = true },
+                focusRequester = composerFocusRequester,
+                onGenerateReply = {
+                    awaitingManualReply = true
+                    viewModel.regenerateSuggestions()
+                    android.widget.Toast.makeText(context, "✨ 답변 만드는 중…", android.widget.Toast.LENGTH_SHORT).show()
+                }
             )
         }
     }
@@ -2901,141 +2916,113 @@ private fun SuggestionArea(
     onPickChoice: (com.detailline.callfollowcrm.ai.ReplyChoice) -> Unit,
     onRegenerate: () -> Unit
 ) {
-    // 통화로 끝난 대화면 추천/스피너 숨기고 "문자 오면 준비" 안내만. (2026-06-17 사장님)
-    val hasSuggestions = suggestion != null && suggestion.suggestions.isNotEmpty() && !endedWithCall
-    val effectiveLoading = loading && !endedWithCall
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 6.dp)
-    ) {
-        Row(
+    // 띠는 "신선한 답안" 또는 "생성 중" 일 때만 뜸. 실패·stale·통화끝남·빈 → 통째 숨김. 재생성·3개 없음. (2026-08-14 사장님)
+    val choices = suggestion?.suggestions?.filter { it.text.isNotBlank() }?.take(2) ?: emptyList()
+    val hasFresh = choices.isNotEmpty() && !isStale && !failed && !endedWithCall
+    val showLoading = loading && !endedWithCall && !hasFresh
+    if (hasFresh || showLoading) {
+        val open = expanded && hasFresh
+        val arrowRot by androidx.compose.animation.core.animateFloatAsState(
+            targetValue = if (open) 180f else 0f, label = "sugArw"
+        )
+        val corner by androidx.compose.animation.core.animateDpAsState(
+            targetValue = if (open) 20.dp else 0.dp, label = "sugCorner"
+        )
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onToggleExpand),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 10.dp)
+                .clip(RoundedCornerShape(topStart = corner, topEnd = corner))
+                .background(if (open) Color.White else Color(0xFFF1F3FE))   // 닫힘=연한 AI톤 · 열림=흰 시트
+                .drawBehind {
+                    if (!open) {
+                        val s = 1.dp.toPx()
+                        drawLine(Color(0xFFE1E5FA), androidx.compose.ui.geometry.Offset(0f, s / 2), androidx.compose.ui.geometry.Offset(size.width, s / 2), s)
+                    }
+                }
         ) {
-            Text(
-                "✨ 이렇게 답해보세요",
-                color = TossBlue,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.ExtraBold
-            )
-            Spacer(Modifier.weight(1f))
-            // 접기/펼치기 — 글자 라벨 pill 로 키워서 ↻(새로고침)과 헷갈리지 않게. (2026-06-11 사장님: 접으려다 새로고침 눌림)
-            if (hasSuggestions) {
-                Text(
-                    if (expanded) "접기 ▾" else "펼치기 ▸",
-                    color = TossTextSecondary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable(onClick = onToggleExpand)
-                        .padding(horizontal = 10.dp, vertical = 5.dp)
-                )
-            }
-            // 새로고침은 펼친 상태에서만 노출 — 접힌 상태에선 누를 일이 없고, 접기 버튼과 충분히 떨어뜨림.
-            if (expanded) {
-                Spacer(Modifier.width(8.dp))
-                // 2026-05-30 사장님 디자인 보강 #4 — 시공 사장님 손가락 배려: 28dp → 40dp.
-                IconButton(
-                    onClick = onRegenerate,
-                    enabled = !effectiveLoading,
-                    modifier = Modifier.size(40.dp)
+            if (showLoading) {
+                // 생성 중 띠 — 스피너 + "작성 중이에요…". (탭 없음)
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 13.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (effectiveLoading) {
-                        CircularProgressIndicator(
-                            color = TossBlue,
-                            strokeWidth = 2.dp,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    } else {
-                        Icon(
-                            Icons.Default.Refresh,
-                            contentDescription = "재생성",
-                            tint = TossTextSecondary,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                }
-            }
-        }
-        // (A 정책, 2026-06-27) stale/실패 상태 안내 + 칩.
-        //   stale 이면 옛 칩을 흐리게(탭하면 복사) + "고객 새 문자 N개" + 자동으로 새 답변 생성 중.
-        //   실패면 "못 만들었어요 — 다시 시도"(옛것만 계속 보이지 않게).
-        if (expanded) {
-            val dim = (isStale || failed) && hasSuggestions
-            val cntText = if (unreflectedCount > 0) "고객 새 문자 ${unreflectedCount}개" else "새 메시지"
-            val header = when {
-                failed -> "⚠️ 추천을 못 만들었어요 — ↻ 다시 시도해주세요"
-                isStale && effectiveLoading -> "📨 ${cntText} 안 반영 — 새 답변 만드는 중…"
-                effectiveLoading && hasSuggestions -> "✨ 새 답변 만드는 중… 기존 답변은 그대로 써도 돼요"
-                isStale && hasSuggestions -> "📨 ${cntText} 왔어요 — ↻ 새 답변 받기"
-                else -> null
-            }
-            header?.let {
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    it,
-                    color = if (failed) TossError else TossTextSecondary,
-                    fontSize = 11.sp, fontWeight = FontWeight.Medium
-                )
-            }
-            when {
-                endedWithCall -> {
-                    // 통화로 끝난 대화 — 답할 문자가 없으니 준비 안 함. 문자 오면 그때 준비. (2026-06-17 사장님)
                     Text(
-                        "📞 통화로 끝난 대화예요 — 고객이 문자를 보내면 막내가 추천 답변을 준비할게요",
-                        color = TossTextTertiary,
-                        fontSize = 12.sp,
-                        lineHeight = 17.sp,
-                        modifier = Modifier.padding(vertical = 4.dp)
+                        "✨ AI가 맞춤 답변을 작성 중이에요…",
+                        color = TossBlue, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold,
+                        modifier = Modifier.weight(1f)
                     )
+                    CircularProgressIndicator(color = TossBlue, strokeWidth = 2.dp, modifier = Modifier.size(15.dp))
                 }
-                hasSuggestions -> {
-                    if (dim) {
-                        Spacer(Modifier.height(3.dp))
-                        Text(
-                            "이전 추천 (옛 메시지 기준) · 탭하면 복사돼요",
-                            color = TossTextTertiary, fontSize = 10.5.sp, fontWeight = FontWeight.Medium
-                        )
+            } else {
+                // 손잡이 바 (펼쳤을 때만)
+                androidx.compose.animation.AnimatedVisibility(visible = open) {
+                    Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.Center) {
+                        Box(Modifier.width(38.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(Color(0xFFDCE0E5)))
                     }
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp)
-                            .graphicsLayer { alpha = if (dim) 0.5f else 1f }   // stale/실패면 옛 칩 흐리게
-                    ) {
-                        itemsIndexed(suggestion!!.suggestions) { idx, choice ->
-                            SuggestionChip(
-                                index = idx + 1,
-                                label = choice.label,
-                                text = choice.text,
-                                onTap = { onPickChoice(choice) }
-                            )
+                }
+                // 헤더 탭 = 열림/닫힘. 닫힘 "AI 답안 N개 보기 ▲" · 열림 "AI 답안 선택 ▼"(화살표 회전).
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onToggleExpand)
+                        .padding(horizontal = 15.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        if (open) "✨ AI 답안 선택" else "✨ AI 답안 ${choices.size}개 보기",
+                        color = TossBlue, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Text("▲", color = TossTextTertiary, fontSize = 10.sp, fontWeight = FontWeight.Black, modifier = Modifier.rotate(arrowRot))
+                }
+                // 답안 2개 — 펼치면 스르륵. 골라 탭하면 입력칸에(커서+키보드). 법적 면책 원문 유지.
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = open,
+                    enter = androidx.compose.animation.expandVertically(animationSpec = androidx.compose.animation.core.tween(300)) + androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(200)),
+                    exit = androidx.compose.animation.shrinkVertically(animationSpec = androidx.compose.animation.core.tween(220)) + androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(150))
+                ) {
+                    Column(modifier = Modifier.padding(start = 13.dp, end = 13.dp, bottom = 12.dp)) {
+                        choices.forEach { choice ->
+                            SuggestionCardWide(label = choice.label, text = choice.text, onTap = { onPickChoice(choice) })
+                            Spacer(Modifier.height(8.dp))
                         }
+                        AiDisclaimer()
                     }
-                    AiDisclaimer(Modifier.padding(top = 6.dp))
-                }
-                effectiveLoading -> {
-                    // 프로토 design-preview/ringgo-redesign.html :2810 (.think-row) 1:1.
-                    //   [막내 마스코트 44dp] [회색 말풍선 안에 파란 점 3개 통통] "막내가 답변을 준비 중이에요!"
-                    com.detailline.callfollowcrm.presentation.component.MascotThinkingRow(
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
-                else -> {
-                    Text(
-                        "↻ 눌러서 답변 추천 받기",
-                        color = TossTextTertiary,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    )
                 }
             }
         }
+    }
+}
+
+/** 이렇게 답해보세요 — 풀폭 답안 카드(세로 2개, 한눈에). 탭하면 입력칸에. (2026-08-14 사장님) */
+@Composable
+private fun SuggestionCardWide(label: String?, text: String, onTap: () -> Unit) {
+    val ci = remember { MutableInteractionSource() }
+    val shape = RoundedCornerShape(14.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .pressScale(ci)
+            .clip(shape)
+            .background(Color(0xFFF7F9FC))
+            .border(1.dp, Color(0xFFECEFF3), shape)
+            .clickable(interactionSource = ci, indication = null) { onTap() }
+            .padding(horizontal = 13.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            if (!label.isNullOrBlank()) {
+                Text(label, color = TossBlue, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold)
+                Spacer(Modifier.height(4.dp))
+            }
+            Text(
+                text, color = TossTextSecondary, fontSize = 12.5.sp, lineHeight = 18.sp,
+                maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Text("›", color = Color(0xFFCED8E6), fontSize = 18.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -3245,6 +3232,113 @@ private fun ActChip(icon: androidx.compose.ui.graphics.vector.ImageVector, label
     }
 }
 
+/**
+ * ⊕ 액션 메뉴 (2026-08-14 사장님) — 입력줄 왼쪽 ⊕ + 누르면 풍선처럼 뜨는 팝업.
+ *   견적 작성 / 내 일정 확인 / 문구 넣기. ⊕ 바로 위에서 scaleIn(좌하단 기준, spring 오버슈트) 으로 톡.
+ *   Popup 이라 화면 안 덮음. 구 chat-actions 상시 3칩 대체 → 대화 공간 확보(표면엔 덜).
+ *   focusable Popup 이 포커스를 가져가 키보드도 내려가 팝업이 안 가림.
+ */
+@Composable
+private fun ComposerActionMenu(
+    onEstimate: () -> Unit,
+    onSchedule: () -> Unit,
+    onTemplate: () -> Unit,
+    onGenerateReply: () -> Unit
+) {
+    var open by remember { mutableStateOf(false) }
+    val rot by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (open) 135f else 0f, label = "plusRot"
+    )
+    Box {
+        // ⊕ 버튼 — 44dp 터치(거친 손가락도). 열리면 × 로 회전.
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .background(TossGrayBg)
+                .clickable { open = !open },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Default.Add, "더보기", tint = TossBlue, modifier = Modifier.size(24.dp).rotate(rot))
+        }
+        if (open) {
+            val positioner = remember {
+                object : androidx.compose.ui.window.PopupPositionProvider {
+                    override fun calculatePosition(
+                        anchorBounds: androidx.compose.ui.unit.IntRect,
+                        windowSize: androidx.compose.ui.unit.IntSize,
+                        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+                        popupContentSize: androidx.compose.ui.unit.IntSize
+                    ): androidx.compose.ui.unit.IntOffset {
+                        // 앵커(⊕) 바로 위 · 좌측 정렬 · 8px 틈
+                        val x = anchorBounds.left
+                        val y = anchorBounds.top - popupContentSize.height - 8
+                        return androidx.compose.ui.unit.IntOffset(x, y.coerceAtLeast(8))
+                    }
+                }
+            }
+            androidx.compose.ui.window.Popup(
+                popupPositionProvider = positioner,
+                onDismissRequest = { open = false },
+                properties = androidx.compose.ui.window.PopupProperties(focusable = true)
+            ) {
+                val vis = remember { androidx.compose.animation.core.MutableTransitionState(false) }
+                vis.targetState = true
+                androidx.compose.animation.AnimatedVisibility(
+                    visibleState = vis,
+                    enter = androidx.compose.animation.scaleIn(
+                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 1f),
+                        animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.62f, stiffness = 420f)
+                    ) + androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(120)),
+                    exit = androidx.compose.animation.scaleOut(
+                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 1f),
+                        animationSpec = androidx.compose.animation.core.tween(110)
+                    ) + androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(90))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .width(202.dp)
+                            .tossCardShadow(RoundedCornerShape(18.dp))
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(Color.White)
+                            .padding(6.dp)
+                    ) {
+                        ActionMenuRow(Icons.Default.Description, "견적 작성") { open = false; onEstimate() }
+                        ActionMenuRow(Icons.Default.DateRange, "내 일정 확인") { open = false; onSchedule() }
+                        ActionMenuRow(Icons.AutoMirrored.Filled.Chat, "문구 넣기") { open = false; onTemplate() }
+                        ActionMenuRow(Icons.Default.AutoAwesome, "다음 답변 AI 추천") { open = false; onGenerateReply() }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActionMenuRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onTap: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onTap() }
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier.size(32.dp).clip(RoundedCornerShape(9.dp)).background(TossBlueSoft),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, null, tint = TossBlue, modifier = Modifier.size(17.dp))
+        }
+        Spacer(Modifier.width(12.dp))
+        Text(label, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+    }
+}
+
 @Composable
 private fun TemplatePill(template: MessageTemplateEntity, onTap: () -> Unit) {
     Surface(
@@ -3337,7 +3431,13 @@ private fun Composer(
     onSend: () -> Unit,
     isSending: Boolean = false,
     onFocusChange: (Boolean) -> Unit = {},
-    showAiPolish: Boolean = true   // 문자함(고객 아님)이면 false → ✨ AI 다듬기 숨김. (2026-07-12 사장님)
+    showAiPolish: Boolean = true,   // 문자함(고객 아님)이면 false → ✨ AI 다듬기 숨김. (2026-07-12 사장님)
+    showActions: Boolean = true,    // ⊕ 액션 메뉴(견적/일정/문구). 문자함이면 false. (2026-08-14)
+    onOpenEstimate: () -> Unit = {},
+    onOpenSchedule: () -> Unit = {},
+    onOpenTemplate: () -> Unit = {},
+    onGenerateReply: () -> Unit = {},   // ⊕ "다음 답변 AI 추천" — 1개 만들어 입력칸에. (2026-08-14)
+    focusRequester: androidx.compose.ui.focus.FocusRequester? = null
 ) {
     // 프로토 .composer — 흰 바 + 상단 테두리 + padding 9/14/16.
     Column(
@@ -3391,34 +3491,38 @@ private fun Composer(
                 }
             }
         }
-        // 프로토 .composer — 회색 알약 field [✨ 왼쪽][textarea][📷 오른쪽] + 40px 파란 발송 원(항상 파랑).
+        // 프로토 .composer — [⊕ 액션][ 📷 입력 ✨ ][✈ 보내기]. ⊕ 왼쪽(카톡식)·보내기 오른쪽. ✨/보내기는 글 있을 때 톡. (2026-08-14 사장님)
         val canSend = input.isNotBlank() || attachments.isNotEmpty()
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(9.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // field — 회색 알약(radius22)
+            // ⊕ 액션 메뉴 (왼쪽) — 견적/일정/문구 풍선 팝업. 문자함이면 숨김.
+            if (showActions) {
+                ComposerActionMenu(
+                    onEstimate = onOpenEstimate,
+                    onSchedule = onOpenSchedule,
+                    onTemplate = onOpenTemplate,
+                    onGenerateReply = onGenerateReply
+                )
+            }
+            // field — 회색 알약(radius22) : [📷 왼쪽][textarea][✨ 오른쪽·글 있을 때만]
             Row(
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(22.dp))
                     .background(TossGrayBg)
-                    .padding(horizontal = 15.dp, vertical = 7.dp),
+                    .padding(horizontal = 8.dp, vertical = 5.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(9.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                // ✨ AI 다듬기 (왼쪽) — 탭 영역 넉넉히(작아서 잘 안 눌리던 것) + 다듬는 중에도 탭(취소용). (2026-07-08 사장님)
-                //   문자함(고객 아님)이면 AI 기능이라 숨김. (2026-07-12 사장님)
-                if (showAiPolish) Box(
-                    modifier = Modifier.size(34.dp).clip(androidx.compose.foundation.shape.CircleShape).clickable { onAiPolish() },
-                    contentAlignment = Alignment.Center
+                // 📷 사진 첨부 (왼쪽) — 터치영역 44dp (거친 손가락).
+                androidx.compose.foundation.layout.Box(
+                    Modifier.size(44.dp).clickable { onAttachPhoto() },
+                    contentAlignment = androidx.compose.ui.Alignment.Center
                 ) {
-                    if (isPolishing) {
-                        CircularProgressIndicator(color = TossBlue, strokeWidth = 2.dp, modifier = Modifier.size(19.dp))
-                    } else {
-                        Icon(Icons.Default.AutoAwesome, "AI 다듬기", tint = TossBlue, modifier = Modifier.size(19.dp))
-                    }
+                    Icon(Icons.Default.Image, "사진 첨부", tint = TossTextTertiary, modifier = Modifier.size(22.dp))
                 }
                 // 한글 조합(composition) 보존 — value 를 매 입력마다 새 TextFieldValue 로 만들면 조합영역이 끊겨
                 //   "ㄱㅣㄷㅏㄹㅕ"처럼 자모가 분리됨. IME 가 준 TextFieldValue 를 그대로 들고 있어야 합쳐진다. (2026-06-17 사장님 버그)
@@ -3445,6 +3549,7 @@ private fun Composer(
                     maxLines = 5,
                     modifier = Modifier
                         .weight(1f)
+                        .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
                         .onFocusChanged { state -> onFocusChange(state.isFocused) },
                     decorationBox = { inner ->
                         if (input.isEmpty()) {
@@ -3453,35 +3558,51 @@ private fun Composer(
                         inner()
                     }
                 )
-                // 📷 사진 첨부 (오른쪽) — 터치영역 44dp 로(19dp는 거친 손가락이 못 누름). 2026-07-30
-                androidx.compose.foundation.layout.Box(
-                    Modifier.size(44.dp).clickable { onAttachPhoto() },
-                    contentAlignment = androidx.compose.ui.Alignment.Center
+                // ✨ AI 다듬기 (오른쪽) — 글 있을 때만 톡 등장(⊕에 안 묻음, 킬러기능). 44dp + 다듬는 중 로딩·탭취소. (2026-08-14 사장님)
+                if (showAiPolish) androidx.compose.animation.AnimatedVisibility(
+                    visible = input.isNotBlank(),
+                    enter = androidx.compose.animation.scaleIn(animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.6f, stiffness = 480f)) + androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(110)),
+                    exit = androidx.compose.animation.scaleOut(animationSpec = androidx.compose.animation.core.tween(110)) + androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(90))
                 ) {
-                    Icon(Icons.Default.Image, "사진 첨부", tint = TossTextTertiary, modifier = Modifier.size(22.dp))
+                    Box(
+                        modifier = Modifier.size(44.dp).clip(androidx.compose.foundation.shape.CircleShape).clickable { onAiPolish() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isPolishing) {
+                            CircularProgressIndicator(color = TossBlue, strokeWidth = 2.dp, modifier = Modifier.size(19.dp))
+                        } else {
+                            Icon(Icons.Default.AutoAwesome, "AI 다듬기", tint = TossBlue, modifier = Modifier.size(19.dp))
+                        }
+                    }
                 }
             }
-            // 40px 파란 발송 원 — 프로토 .snd: 항상 파랑 + 흰 아이콘 + 파란 glow.
-            val sendInteraction = remember { MutableInteractionSource() }
-            Surface(
-                modifier = Modifier
-                    .size(40.dp)
-                    .pressScale(sendInteraction)   // 눌림 '쏙'
-                    .shadow(8.dp, androidx.compose.foundation.shape.CircleShape, ambientColor = TossBlue, spotColor = TossBlue),
-                shape = androidx.compose.foundation.shape.CircleShape,
-                color = TossBlue,
-                interactionSource = sendInteraction,
-                onClick = { if (canSend && !isSending) onSend() }
+            // ✈ 보내기 (오른쪽) — canSend(글 OR 사진)일 때만 톡. 종이비행기 + 파란 glow. (2026-08-14 사장님)
+            androidx.compose.animation.AnimatedVisibility(
+                visible = canSend,
+                enter = androidx.compose.animation.scaleIn(animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.55f, stiffness = 520f)) + androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(110)),
+                exit = androidx.compose.animation.scaleOut(animationSpec = androidx.compose.animation.core.tween(120)) + androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(90))
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    if (isSending) {
-                        CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
-                    } else {
-                        Icon(
-                            Icons.AutoMirrored.Filled.Send, "보내기",
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
+                val sendInteraction = remember { MutableInteractionSource() }
+                Surface(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .pressScale(sendInteraction)   // 눌림 '쏙'
+                        .shadow(8.dp, androidx.compose.foundation.shape.CircleShape, ambientColor = TossBlue, spotColor = TossBlue),
+                    shape = androidx.compose.foundation.shape.CircleShape,
+                    color = TossBlue,
+                    interactionSource = sendInteraction,
+                    onClick = { if (canSend && !isSending) onSend() }
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        if (isSending) {
+                            CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                        } else {
+                            Icon(
+                                Icons.AutoMirrored.Filled.Send, "보내기",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
             }
