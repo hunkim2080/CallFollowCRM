@@ -611,42 +611,8 @@ fun ChatScreen(
                 .background(TossGrayBg)
             // imePadding() 제거 — Scaffold.contentWindowInsets 가 ime 처리 (inner 에 포함).
         ) {
-            // P0/P1/P2 — 상단 AI 요약 박스 + AI 제안 박스 (서버 응답 있을 때만 표시).
-            // 2026-05-24: composer focus (ime 떠있음) 시 두 박스를 한 줄 헤더로 축소.
-            //   사장님이 입력 시작 = 위쪽 정보보다 메시지/composer 영역 확보가 우선.
-            //   ime 풀리면 자동으로 풀 박스 복귀.
-            val aiSummary by viewModel.aiSummary.collectAsState()
-            // 2026-05-26 사장님 보고 fix:
-            //   요약 안 된 채로 진입하면 카드 자체가 안 보여서 "그냥 비어있다" 느낌.
-            //   → aiSummary == null 이고 메시지가 2건 이상 (요약할 거리 있음) 이면 진행 placeholder 표시.
-            //   메시지 1건 이하는 요약할 게 없어 표시 안 함.
-            // 2026-05-30 사장님 #8 통점 fix:
-            //   sentinel 처리 — ConversationAiRepository 가 빈 응답이면 cache 에 빈 sentinel ("/[]/{}") 저장.
-            //   aiSummary != null + 본문 모두 비어있음 = "시도했으나 응답 없음" → placeholder X + UnifiedSummaryCard X.
-            //   기존엔 aiSummary 영영 null → SummaryLoadingPlaceholder 무한 표시 (114 광고 메시지).
-            val hasEnoughForSummary = messages.size >= 2
-            val isEmptySentinel = aiSummary?.let {
-                com.detailline.callfollowcrm.ai.parseConversationLines(it.conversationSummaryJson).isEmpty() &&
-                    it.cardSummary.isNullOrBlank() &&
-                    NextAction.parse(it.nextActionJson) == null
-            } ?: false
-            // 요약이 아직 null 일 때: 진짜 생성 중이면 shimmer, 실패면 "다시" 버튼.
-            //   (추천 영역 failed UX 와 동일 — 옛 무한 shimmer 버그 fix, 2026-06-30)
-            val summaryFailed by viewModel.summaryFailed.collectAsState()
-            val summaryRefreshingTop by viewModel.isSummaryRefreshing.collectAsState()
-            // 문자함(고객 아님)은 AI 대화요약 바도 숨김. (2026-07-12 사장님)
-            if (!isPlainThread && aiSummary == null && hasEnoughForSummary) {
-                if (summaryFailed && !summaryRefreshingTop) {
-                    SummaryFailedPlaceholder(
-                        onRetry = { viewModel.loadFullSummary() }
-                    )
-                } else {
-                    SummaryLoadingPlaceholder(
-                        collapsed = composerFocused || summaryManualCollapsed,
-                        onToggleCollapsed = { summaryManualCollapsed = !summaryManualCollapsed }
-                    )
-                }
-            }
+            // 상단 대화 요약 바(로딩 placeholder 포함) 제거 (2026-08-14 사장님: "안 보게 됨").
+            //   aiSummary/summaryFailed 등 파싱은 미사용이 됨 — 관련 composable 정의는 보존(재활성 대비).
             // 2026-05-27 사장님 결정: 템플릿 chip row 의 [액션] 토글 칩과 공유.
             //   action_type 별 분기 — RINGGO_SERVER_P0P1P2_UPGRADE.md §4 매칭 시나리오.
             //   AI 자동 추천 (next-action-suggest) + 사장님 수동 [액션] 토글 둘 다 같은 trigger 사용.
@@ -667,67 +633,8 @@ fun ChatScreen(
                     else -> { /* unknown action_type — no-op */ }
                 }
             }
-            // 2026-05-30 #8 통점 fix: 빈 sentinel = 표시 X (114 같은 광고 메시지에서 빈 카드 방지).
-            // 문자함(고객 아님)은 요약 카드 숨김. (2026-07-12 사장님)
-            if (!isPlainThread) aiSummary?.takeUnless { isEmptySentinel }?.let { s ->
-                // 2026-05-30 사장님 #3 통점 — 시공일정 등록된 고객 = "상황 종료" → NextActionBox 표시 X.
-                //   사장님 결정: 일정 잡혔으니 다음 액션 권유 불필요.
-                // 2026-06-06 사장님 통점 — 잔금 입금까지 끝났는데 "일정 답장하기" 가 계속 뜨던 버그.
-                //   상황 종료 판정 확장: ① 시공일 등록  ② 잔금 입금 체크(balancePaidAt)
-                //   ③ 고객이 "입금/잔금/완납/송금 했다" 는 문자를 보냄(본문 감지). 셋 중 하나면 액션 숨김.
-                val balancePaidByMsg = remember(messages) {
-                    fun paidLike(b: String): Boolean {
-                        val done = b.contains("했") || b.contains("완료") || b.contains("됐") ||
-                            b.contains("보냈") || b.contains("드렸") || b.contains("이체")
-                        return b.contains("완납") || ((b.contains("입금") || b.contains("잔금") || b.contains("송금")) && done)
-                    }
-                    messages.any { !it.sent && paidLike(it.body) }
-                }
-                val settled = (customer?.scheduledWorkDate ?: 0L) > 0L ||
-                    customer?.balancePaidAt != null ||
-                    balancePaidByMsg
-                // 2026-07-06 사장님: "다음 액션 하나도 안 쓴다 → 없애자". 요약만 보여주고 액션 권유는 숨김.
-                //   (파싱/카드 코드는 보존 — 향후 재활성 대비. 여기서 null 로 꺼 UI 에 안 뜨게.) settled 판정도 이제 미사용.
-                val action: NextAction? = null
-                val onActionHandler: (NextAction) -> Unit = { a -> triggerActionByType(a.actionType) }
-                val showCollapsed = composerFocused || summaryManualCollapsed
-                val isSummaryRefreshing by viewModel.isSummaryRefreshing.collectAsState()
-                val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
-                // 펼침↔접힘 높이 변화를 부드럽게(순간 점프 X). (2026-08-02 프로 느낌)
-                Column(
-                    modifier = Modifier.animateContentSize(
-                        animationSpec = androidx.compose.animation.core.spring(
-                            dampingRatio = 0.9f,
-                            stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
-                        )
-                    )
-                ) {
-                if (showCollapsed) {
-                    val collapsedLines = com.detailline.callfollowcrm.ai.parseConversationLines(s.conversationSummaryJson)
-                    CollapsedSummaryHeader(
-                        summaryLine = s.cardSummary?.takeIf { it.isNotBlank() } ?: collapsedLines.firstOrNull().orEmpty(),
-                        summaryLineCount = collapsedLines.size,
-                        nextActionTitle = action?.title,
-                        isRefreshing = isSummaryRefreshing,
-                        onExpand = {
-                            // 2026-05-27 사장님 보고 fix: composer focus 일 때 헤더 탭해도 안 펼쳤음.
-                            //   명시적으로 focus 해제 → showCollapsed = false → 펼침.
-                            focusManager.clearFocus()
-                            summaryManualCollapsed = false
-                        }
-                    )
-                } else {
-                    // 옵션 A — 대화 요약 + AI 제안 한 카드로 통합. 수직 공간 절반 절약.
-                    UnifiedSummaryCard(
-                        entity = s,
-                        action = action,
-                        isRefreshing = isSummaryRefreshing,
-                        onAction = onActionHandler,
-                        onCollapse = { summaryManualCollapsed = true }
-                    )
-                }
-                }
-            }
+            // 상단 대화 요약 카드 렌더 제거 (2026-08-14 사장님: "안 보게 됨" → 삭제, 대화 공간 확보).
+            //   목록 미리보기의 요약은 그대로. UnifiedSummaryCard/CollapsedSummaryHeader 정의는 보존(재활성 대비).
 
             // 메시지 채팅 영역 — 풀 카톡 스타일. reverseLayout=true 라 newest 가 아래에 표시.
             // 그래서 messages 도 dateMs DESC 그대로 넘기면 됨 (LazyColumn 이 뒤집어 렌더).
@@ -959,17 +866,8 @@ fun ChatScreen(
                 }
             }
 
-            // (Phase 2) 원칙 발견 카드 — 추천과 다르게 보냈을 때 막내가 "이게 원칙이에요?" ⭕/❌/나중에. (2026-06-17 사장님)
-            //   문자함(고객 아님)은 학습/원칙 기능 없음. (2026-07-12 사장님)
-            if (!isPlainThread) principleDiscovery?.let { disc ->
-                PrincipleDiscoveryCard(
-                    discovery = disc,
-                    onAccept = { viewModel.acceptPrinciple() },
-                    onReject = { viewModel.rejectPrinciple() },
-                    onLater = { viewModel.laterPrinciple() },
-                    onDismiss = { viewModel.clearPrincipleDiscovery() }
-                )
-            }
+            // 원칙 발견 카드 제거 (2026-08-14 사장님: "이상한 타이밍에만 떠서 차라리 없는 게 낫다").
+            //   PrincipleDiscoveryCard 정의·ViewModel 로직은 보존(재활성 대비).
 
             // ⊕ "다음 답변 AI 추천" — 생성 트리거 후 결과 도착 시 입력칸에 1개 삽입(커서+키보드). 재생성 없음. (2026-08-14 사장님)
             var awaitingManualReply by remember { mutableStateOf(false) }
