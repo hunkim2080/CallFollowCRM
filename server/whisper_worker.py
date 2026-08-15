@@ -49,12 +49,21 @@ def main() -> int:
             vad_filter=False,
             condition_on_previous_text=False,
         )
-        parts = []
+        # 세그먼트별 시각(start)+텍스트를 JSON 으로 출력 (탭재생 start_ms 용).
+        # main.py 가 JSON 파싱; 실패 시 flat 텍스트로 폴백(하위호환).
+        import json as _json
+        segs_out = []
         for seg in segments:
             t = (seg.text or "").strip()
             if t:
-                parts.append(t)
-        print("\n".join(parts).strip(), flush=True)
+                segs_out.append({
+                    "start": round(float(getattr(seg, "start", 0) or 0), 2),
+                    "text": t,
+                })
+        try:
+            print(_json.dumps(segs_out, ensure_ascii=False), flush=True)
+        except Exception:
+            print("\n".join(s["text"] for s in segs_out).strip(), flush=True)
         return 0
     except Exception as e:
         print(f"STT 실패: {type(e).__name__}: {e}", file=sys.stderr)

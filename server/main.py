@@ -11936,6 +11936,70 @@ async def _ollama_correct_transcript(text: str) -> str:
     return fixed or text
 
 
+def _parse_stt_json(raw: str, offset_ms: int = 0):
+    """STT 워커 stdout(JSON [{start,text}]) → (flat_text, [{start_ms,text}]).
+
+    옛 워커(flat 텍스트) 또는 JSON 파싱 실패 → (raw, []) 로 하위호환 폴백.
+    offset_ms = 청크 시작 오프셋(ms). 청크별 seg.start(초) + offset.
+    """
+    raw = (raw or "").strip()
+    if not raw:
+        return "", []
+    try:
+        arr = json.loads(raw)
+    except Exception:
+        return raw, []
+    if not isinstance(arr, list):
+        return raw, []
+    segs = []
+    for s in arr:
+        if not isinstance(s, dict):
+            continue
+        t = str(s.get("text") or "").strip()
+        if not t:
+            continue
+        try:
+            start_ms = int(float(s.get("start") or 0) * 1000) + offset_ms
+        except Exception:
+            start_ms = offset_ms
+        segs.append({"start_ms": start_ms, "text": t})
+    flat = " ".join(s["text"] for s in segs).strip()
+    return flat, segs
+
+
+async def _ollama_label_speakers(texts: list) -> list:
+    """Whisper 세그먼트 텍스트 목록 → 각 화자(나/손님) 라벨 (exaone·best-effort).
+
+    turn 재분할이 아니라 세그먼트 순서 유지 = 탭재생 start_ms 정렬과 맞음.
+    실패/길이초과 → 전부 '?' (길이는 입력과 동일 보장).
+    """
+    n = len(texts or [])
+    if n == 0:
+        return []
+    joined = "\n".join("%d. %s" % (i + 1, t) for i, t in enumerate(texts))
+    if len(joined) > 4000:
+        return ["?"] * n
+    sys_p = (
+        "통화 자막 각 줄의 화자를 붙여라. '나'(업체 사장님)와 '손님'(고객) 둘뿐이다. "
+        "입력 줄 수와 정확히 같은 개수로, 각 줄 화자를 순서대로 '나' 또는 '손님' 으로만. "
+        "지어내지 말고 라벨만. JSON {\"speakers\":[\"나\",\"손님\"]} 형식만 출력."
+    )
+    try:
+        out = await call_ollama_json(
+            system_prompt=sys_p, user_msg=joined,
+            model=OLLAMA_CORRECT_MODEL, temperature=0.0, max_tokens=1024, timeout=120.0)
+    except Exception:
+        return ["?"] * n
+    sp = out.get("speakers") if isinstance(out, dict) else None
+    if not isinstance(sp, list):
+        return ["?"] * n
+    res = []
+    for i in range(n):
+        v = str(sp[i]).strip() if i < len(sp) else ""
+        res.append(v if v in ("나", "손님") else "?")
+    return res
+
+
 async def _ollama_attribute_speakers(text: str) -> list:
     """보정된 통화 transcript → 발화 순서대로 나누고 화자(나/손님) 추정 (로컬 exaone·best-effort).
 
@@ -13459,16 +13523,22 @@ def _fmt_chunk_label(start: int, end: int) -> str:
     return f"{fmt(start)}-{fmt(end)}"
 
 
-async def _run_stt_with_chunking(audio_path: str) -> str:
+async def _run_stt_with_chunking(audio_path: str):
     """audio 길이 기반 자동 분기. 5분 미만 → 단일, 5분+ → 청크 병렬.
 
-    응답 transcript 에 [1/N start-end] 라벨 박힘.
+    반환 = (flat_transcript, segments[{start_ms,text}]).
+    flat 은 기존과 동일(요약/보정용, 청크는 [1/N] 라벨 박힘). segments 는 탭재생/화자용
+    (없으면 [] — 옛 워커 flat 폴백).
     """
     chunks = await _split_audio_to_chunks(audio_path)
     if not chunks:
         # 단일 처리
         print("[chunk] 단일 처리 (5분 미만 또는 split 실패)")
-        return await _run_stt_one_subprocess(audio_path, label="single")
+        raw = await _run_stt_one_subprocess(audio_path, label="single")
+        flat, segs = _parse_stt_json(raw, offset_ms=0)
+        if not flat and raw:      # 옛 워커(flat) 폴백
+            flat = raw
+        return flat, segs
 
     # 병렬 STT
     n = len(chunks)
@@ -13486,14 +13556,19 @@ async def _run_stt_with_chunking(audio_path: str) -> str:
             try: os.unlink(cp)
             except Exception: pass
 
-    # 청크 라벨 박힌 전체 transcript 조립
+    # 청크 라벨 박힌 전체 transcript 조립 + 세그먼트(청크 시작 오프셋 반영) 수집
     parts = []
-    for i, ((_, start, end), txt) in enumerate(zip(chunks, transcripts)):
+    all_segs = []
+    for i, ((_, start, end), raw) in enumerate(zip(chunks, transcripts)):
+        flat_i, segs_i = _parse_stt_json(raw, offset_ms=int(start) * 1000)
+        if not flat_i and raw:
+            flat_i = raw
         label = f"[{i+1}/{n} {_fmt_chunk_label(start, end)}]"
-        parts.append(f"{label}\n{txt}")
+        parts.append(f"{label}\n{flat_i}")
+        all_segs.extend(segs_i)
     full = "\n\n".join(parts).strip()
-    print(f"[chunk] 병렬 STT 완료 {n}개 청크 → 합친 transcript {len(full)}자")
-    return full
+    print(f"[chunk] 병렬 STT 완료 {n}개 청크 → 합친 transcript {len(full)}자, seg {len(all_segs)}")
+    return full, all_segs
 
 
 @app.post("/api/call-audio-summary")
@@ -13559,6 +13634,7 @@ async def call_audio_summary_endpoint(
         tmp_path = tmp.name
 
     transcript = ""
+    whisper_segs: list = []   # [{start_ms, text}] — 탭재생/화자용 (옛 워커면 [])
     try:
         # 3) Whisper STT — §26 Option A (2026-06-10):
         # 5분 미만 = 단일 subprocess, 5분 이상 = chunk 병렬 (Cloudflare 100s timeout 우회).
@@ -13567,7 +13643,7 @@ async def call_audio_summary_endpoint(
         async with lock:  # 메모리 보호 위해 동시 요청 1건만 (각 요청 안의 청크는 병렬)
             try:
                 print(f"[call-audio-summary] {phone_digits} STT 시작 audio={len(audio_data)//1024}KB")
-                transcript = await _run_stt_with_chunking(tmp_path)
+                transcript, whisper_segs = await _run_stt_with_chunking(tmp_path)
                 print(f"[call-audio-summary] {phone_digits} STT 완료 transcript={len(transcript)}자")
             except HTTPException:
                 raise
@@ -13598,9 +13674,23 @@ async def call_audio_summary_endpoint(
         transcript = transcript_raw
         print(f"[call-audio-summary] exaone 보정 skip: {type(e).__name__}: {e}")
 
-    # 3-ter) 화자 분리 세그먼트 (카톡 말풍선용) — best-effort, 실패=[] (앱 평문 폴백).
+    # 3-ter) 카톡 말풍선용 세그먼트 — Whisper 세그먼트(시각 start_ms)에 exaone 로 화자만 라벨링.
+    # Whisper 세그먼트 있으면 [{start_ms,speaker,text}] (탭재생 가능), 없으면(옛워커) exaone turn
+    # 재분할 폴백 [{speaker,text}] (start_ms 없음). 전부 실패 = [] (앱 평문 폴백).
+    transcript_segments = []
     try:
-        transcript_segments = await _ollama_attribute_speakers(transcript)
+        if whisper_segs:
+            _labels = await _ollama_label_speakers([s["text"] for s in whisper_segs])
+            transcript_segments = [
+                {
+                    "start_ms": whisper_segs[i]["start_ms"],
+                    "speaker": _labels[i] if i < len(_labels) else "?",
+                    "text": whisper_segs[i]["text"],
+                }
+                for i in range(len(whisper_segs))
+            ]
+        else:
+            transcript_segments = await _ollama_attribute_speakers(transcript)
     except Exception:
         transcript_segments = []
     if transcript_segments:

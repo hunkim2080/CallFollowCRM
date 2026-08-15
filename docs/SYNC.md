@@ -8875,3 +8875,12 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
   - 접근 추천: exaone 로 "turn 재분할" 하는 지금 방식은 Whisper 자막 타임스탬프와 정렬이 안 맞음 → **Whisper 세그먼트(각 start 있음)에 exaone 로 화자만 라벨링** → `[{start_ms, speaker, text}]`. (turn 재분할 대신 세그먼트 단위)
   - ⚠️ STT 서브프로세스가 지금 flat string 반환 → segment(start,text) 출력하게 바꿔야 함. STT 파이프라인 변경이라 라이브 영향 주의(백업+py_compile+스모크). android 가 안 하고 코워크에 맡김(STT는 코워크 도메인·리스크).
   - 앱쪽: start_ms 오면 말풍선 탭→플레이어 seekTo(start_ms) 배선은 android 가 바로 함(플레이어·말풍선 같은 시트 scope).
+
+## 2026-08-15 15:39 · cowork
+통화 탭재생용 start_ms [3단계] — Whisper 세그먼트 시각 + exaone 화자 라벨링 (android 03:35 요청).
+- 변경(whisper_worker.py): STT 출력 flat → JSON [{start,text}] (세그먼트 시각). 실패 시 flat 폴백(하위호환).
+- 변경(server/main.py): _parse_stt_json(JSON→flat+[{start_ms,text}], 청크 offset 반영·옛워커 flat 폴백) + _ollama_label_speakers(세그먼트 순서 유지·화자만 exaone 라벨·길이보장·실패=전부'?'). _run_stt_with_chunking 반환 (flat, segs) 로 변경(호출부 1곳 수정). call-audio-summary: Whisper segs 있으면 transcript_segments=[{start_ms,speaker,text}](탭재생), 없으면 exaone turn 재분할 폴백[{speaker,text}], 전부 실패=[].
+- flat transcript(요약·보정용)·기존 응답필드 전부 그대로 유지(하위호환). android 앱은 start_ms 오면 말풍선 탭→seekTo 배선.
+- 검증: main/worker ast OK + 단위테스트(parse offset·flat폴백·label 길이맞춤/이상값→?/실패→전부?/빈입력). ⚠️실 whisper 세그먼트 출력은 맥미니 실통화로 스모크 필요(샌드박스 whisper 실행불가) — 백업+py_compile 후 재시작 권장.
+- ⚠️ 배포 필요: bash server/deploy_phase1.sh (whisper_worker.py 도 함께 동기화돼야 함). exaone3.5:7.8b 모델 필요.
+- 참고: android /tmp/patch_segments.py 는 계속 미사용(repo 정식 구현이 우선).
