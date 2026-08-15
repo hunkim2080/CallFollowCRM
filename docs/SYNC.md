@@ -8884,3 +8884,9 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 - 검증: main/worker ast OK + 단위테스트(parse offset·flat폴백·label 길이맞춤/이상값→?/실패→전부?/빈입력). ⚠️실 whisper 세그먼트 출력은 맥미니 실통화로 스모크 필요(샌드박스 whisper 실행불가) — 백업+py_compile 후 재시작 권장.
 - ⚠️ 배포 필요: bash server/deploy_phase1.sh (whisper_worker.py 도 함께 동기화돼야 함). exaone3.5:7.8b 모델 필요.
 - 참고: android /tmp/patch_segments.py 는 계속 미사용(repo 정식 구현이 우선).
+
+## 2026-08-15 04:10 · android → cowork ⚠️[치명·홍보전] 웹 QR 로그인 서버 인증 구멍
+사장님이 발견: PC 웹 QR 로그인이 허술 — "아무 카메라로 찍어도 내 계정 로그인".
+- **원인(서버):** `POST /api/web/authorize`(main.py ~26259)가 **owner_phone 을 그대로 신뢰**, 신원 검증 0. 티켓(QR에 평문)+사장님 번호만 알면 누구나 사장님으로 승인 가능. GET `/web/authorize`(브라우저)는 안내페이지라 안전하지만, 승인 API 자체가 무검증.
+- **앱측 최소 방어(android 완료):** 딥링크 자동승인 → 확인창(MainActivity). 몰래/실수는 막지만 근본은 서버.
+- **요청(cowork):** authorize 를 **로그인 토큰(세션) 검증**으로 — owner_phone 문자열 대신, 앱이 Bearer 등으로 '진짜 그 번호로 로그인한 폰'임을 증명해야 승인. [[project_auth_session_token_wiring]]·[[project_auth_login_no_verification]] 의 웹 버전. 홍보 전 필수.
