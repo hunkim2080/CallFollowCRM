@@ -1,0 +1,219 @@
+<title>시공막내 웹 — 마이페이지 (PC · 로그인·보안·내 Gemini 키·블로그 톤)</title>
+<style>
+  :root{
+    --bg:#EEF1F4; --surface:#FFFFFF; --sunken:#F5F7F9; --ink:#181D27; --ink2:#4E5968; --ink3:#8B95A1; --line:#E5E9EE;
+    --blue:#3182F6; --blue-bg:#EDF3FF; --blue-line:#D3E2FB;
+    --green:#12B886; --green-bg:#E6F9F1; --red:#F0436A; --red-bg:#FDECEF;
+    --violet:#6E5FC7; --violet-bg:#F0EDFB;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic","Apple SD Gothic Neo",Roboto,sans-serif;
+    --mono:"SFMono-Regular",ui-monospace,Consolas,monospace;
+    --shadow:0 1px 2px rgba(16,24,40,.04),0 4px 16px rgba(16,24,40,.05);
+  }
+  @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0C0F14;--surface:#161A21;--sunken:#11151B;--ink:#F0F2F5;--ink2:#AEB6C1;--ink3:#79828D;--line:#242A33;
+    --blue-bg:#121E30;--blue-line:#22344d;--green-bg:#0e241d;--red-bg:#2a1720;--violet-bg:#191633;--shadow:0 4px 18px rgba(0,0,0,.4);
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0C0F14;--surface:#161A21;--sunken:#11151B;--ink:#F0F2F5;--ink2:#AEB6C1;--ink3:#79828D;--line:#242A33;
+    --blue-bg:#121E30;--blue-line:#22344d;--green-bg:#0e241d;--red-bg:#2a1720;--violet-bg:#191633;--shadow:0 4px 18px rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.6;-webkit-font-smoothing:antialiased}
+  /* PC 상단 바 (웹 앱 크롬) */
+  .topbar{background:var(--surface);border-bottom:1px solid var(--line);padding:12px 26px;display:flex;align-items:center;gap:10px}
+  .topbar .logo{font-weight:900;font-size:16px;letter-spacing:-.03em}
+  .topbar .logo .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--blue);margin-right:6px;vertical-align:1px}
+  .topbar .who{margin-left:auto;font-size:12.5px;color:var(--ink2);font-weight:700;display:flex;align-items:center;gap:8px}
+  .topbar .who .av{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,#3182F6,#6E5FC7);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px}
+
+  .page{max-width:1000px;margin:0 auto;padding:26px 26px 70px}
+  .crumb{font-size:12.5px;color:var(--ink3);font-weight:700;margin-bottom:6px}
+  h1{font-size:24px;font-weight:850;letter-spacing:-.02em;margin:0 0 20px}
+
+  .layout{display:grid;grid-template-columns:236px 1fr;gap:26px;align-items:start}
+  @media(max-width:820px){.layout{grid-template-columns:1fr}}
+
+  /* 좌측 네비 (데스크탑) */
+  .side{position:sticky;top:20px;display:flex;flex-direction:column;gap:14px}
+  .pcard{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:var(--shadow);text-align:center}
+  .pcard .av{width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,#3182F6,#6E5FC7);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:850;font-size:23px;margin:0 auto 10px}
+  .pcard .nm{font-size:15.5px;font-weight:850}
+  .pcard .beta{font-size:10px;font-weight:800;color:var(--violet);background:var(--violet-bg);border-radius:6px;padding:2px 7px;margin-top:5px;display:inline-block}
+  .pcard .ph{font-size:12px;color:var(--ink2);font-weight:600;margin-top:7px;font-variant-numeric:tabular-nums}
+  .pcard .phclick{cursor:pointer;display:inline-block;padding:4px 8px;border-radius:8px}
+  .pcard .phclick:hover{background:var(--blue-bg)}
+  .nav{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:7px;box-shadow:var(--shadow)}
+  .nav a{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:9px;font-size:13.5px;font-weight:700;color:var(--ink2);text-decoration:none;cursor:pointer}
+  .nav a.on,.nav a:hover{background:var(--blue-bg);color:var(--blue)}
+  .nav a .i{font-size:15px;width:18px;text-align:center}
+
+  /* 우측 컨텐츠 */
+  .content{display:flex;flex-direction:column;gap:18px;min-width:0}
+  .sec{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
+  .sh{display:flex;align-items:center;gap:10px;padding:17px 22px 13px}
+  .sh .ic{font-size:17px}.sh .t{font-size:15.5px;font-weight:850;letter-spacing:-.01em}
+  .sh .badge{margin-left:auto;font-size:11px;font-weight:800;border-radius:7px;padding:4px 10px}
+  .badge.on{color:var(--green);background:var(--green-bg)} .badge.off{color:var(--ink3);background:var(--sunken)}
+  .badge.warn{color:var(--amber);background:var(--amber-bg)}
+  .dev.unknown{background:var(--amber-bg);margin:0 -22px;padding-left:22px;padding-right:22px;border-radius:10px}
+  .body{padding:0 22px 20px}
+  .desc{font-size:13px;color:var(--ink2);line-height:1.65;margin:0 0 14px}
+  .flabel{font-size:11px;font-weight:800;color:var(--ink3);letter-spacing:.03em;margin:0 0 7px;text-transform:uppercase}
+
+  /* 로그인 기기 (넓은 테이블 느낌) */
+  .dev{display:flex;align-items:center;gap:13px;padding:13px 0;border-top:1px solid var(--line)}
+  .dev:first-child{border-top:none}
+  .dev .dic{width:38px;height:38px;border-radius:11px;background:var(--sunken);display:flex;align-items:center;justify-content:center;font-size:18px;flex:none}
+  .dev .dm{flex:1;min-width:0}
+  .dev .dt{font-size:14px;font-weight:700}
+  .dev .dt .cur{font-size:10.5px;font-weight:800;color:var(--green);background:var(--green-bg);border-radius:5px;padding:1px 7px;margin-left:7px}
+  .dev .dd{font-size:12px;color:var(--ink3);margin-top:2px}
+  .dev .out{font-size:12px;font-weight:800;color:var(--red);background:var(--red-bg);border:none;border-radius:8px;padding:7px 13px;cursor:pointer;flex:none}
+  .hist{max-height:0;overflow:hidden;transition:max-height .4s ease}.hist.open{max-height:440px}
+  .linkbtn{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:800;color:var(--blue);cursor:pointer;background:none;border:none;padding:8px 0}
+  .rowbtns{display:flex;gap:10px;margin-top:15px}
+  .btn{text-align:center;font-size:12.5px;font-weight:800;border-radius:10px;padding:10px 16px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink2)}
+  .btn.danger{color:var(--red);border-color:var(--red-bg)}
+
+  .keyrow{display:flex;gap:9px;align-items:center}
+  .keyin{flex:1;font-family:var(--mono);font-size:13.5px;background:var(--sunken);border:1px solid var(--line);border-radius:10px;padding:12px 14px;color:var(--ink)}
+  .keyin.txt{font-family:var(--font)}
+  .keyin::placeholder{color:var(--ink3);font-family:var(--font)}
+  .kbtn{font-size:13px;font-weight:800;border:none;border-radius:10px;padding:12px 18px;cursor:pointer;background:var(--blue);color:#fff;white-space:nowrap}
+  .kbtn.v{background:var(--violet)}
+  .keystate{display:flex;align-items:center;gap:9px;margin-top:12px;padding:12px 14px;border-radius:10px;background:var(--green-bg)}
+  .keystate .dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
+  .keystate .s{font-size:13px;font-weight:800;color:var(--green)}
+  .keystate .k{font-family:var(--mono);font-size:12.5px;color:var(--ink2)}
+  .keystate .mini{margin-left:auto;display:flex;gap:7px}
+  .keystate .mini span{font-size:11.5px;font-weight:700;color:var(--ink3);cursor:pointer;padding:4px 9px;border-radius:7px;background:var(--surface)}
+  .howto{background:var(--sunken);border-radius:10px;padding:13px 15px;margin-top:12px;font-size:12.5px;color:var(--ink2);line-height:1.75}
+  .howto b{color:var(--ink)}.howto a{color:var(--blue);text-decoration:none;font-weight:700}
+  .note{font-size:12px;color:var(--ink3);margin-top:11px;display:flex;gap:6px;line-height:1.6}
+  .costcard{background:var(--blue-bg);border:1px solid var(--blue-line);border-radius:11px;padding:12px 14px;margin-bottom:14px;font-size:12.5px;color:var(--ink);line-height:1.6}
+  .costcard b{color:var(--blue)}
+
+  .urlitem{display:flex;align-items:center;gap:10px;background:var(--sunken);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px}
+  .urlitem .u{flex:1;font-size:13px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .urlitem .ok{font-size:11px;font-weight:800;color:var(--violet);background:var(--violet-bg);border-radius:6px;padding:3px 8px}
+  .urlitem .x{font-size:15px;color:var(--ink3);cursor:pointer}
+  .addurl{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:800;color:var(--violet);cursor:pointer;padding:6px 0}
+  .tonebadge{display:inline-block;font-size:12px;font-weight:800;color:var(--violet);background:var(--violet-bg);border-radius:8px;padding:5px 11px;margin:2px 5px 2px 0}
+
+  .end{background:var(--surface);border:2px solid var(--blue);border-radius:14px;padding:16px 18px;margin-top:20px;font-size:13px;line-height:1.65}
+</style>
+
+<div class="topbar">
+  <div class="logo"><span class="dot"></span>시공막내 웹</div>
+  <div class="who"><span class="av">디</span>디테일라인 · 마이페이지</div>
+</div>
+
+<div class="page">
+  <div class="crumb">시공막내 웹 · PC 전용</div>
+  <h1>내 계정 · 보안 · AI 설정</h1>
+
+  <div class="layout">
+    <!-- 좌측 네비 (데스크탑 마이페이지) -->
+    <aside class="side">
+      <div class="pcard">
+        <div class="av">디</div>
+        <div class="nm">디테일라인</div>
+        <div class="beta">베타 · 무료</div>
+        <div class="ph phclick" onclick="showHist()" title="누르면 최근 로그인 이력">📱 010-8181-5397 <span style="color:var(--blue);font-weight:800">이력 ›</span></div>
+      </div>
+      <nav class="nav">
+        <a class="on" onclick="go(this,'s1')"><span class="i">🔐</span>로그인 & 보안</a>
+        <a onclick="go(this,'s2')"><span class="i">✨</span>AI 키 (내 비용)</a>
+        <a onclick="go(this,'s3')"><span class="i">📝</span>블로그 톤</a>
+        <a onclick="go(this,'s4')"><span class="i">🔗</span>앱 연결</a>
+        <a onclick="toast('이 PC 로그아웃')" style="color:var(--red)"><span class="i">⏻</span>로그아웃</a>
+      </nav>
+    </aside>
+
+    <!-- 우측 컨텐츠 -->
+    <div class="content">
+      <!-- 1. 로그인 & 보안 -->
+      <div class="sec" id="s1">
+        <div class="sh"><span class="ic">🔐</span><span class="t">로그인 & 보안</span><span class="badge warn">⚠️ 확인 필요 · 모르는 기기 1</span></div>
+        <div class="body">
+          <p class="desc">이 계정으로 <b>어느 기기</b>가 로그인돼 있는지 보여줘요. 모르는 기기가 있으면 <b>바로 로그아웃</b>하세요. (QR 보안 대응)</p>
+          <div class="flabel">현재 로그인 기기</div>
+          <div class="dev">
+            <div class="dic">💻</div>
+            <div class="dm"><div class="dt">이 PC · Chrome (Windows)<span class="cur">지금</span></div><div class="dd">서울 · 방금 전 · QR 로그인</div></div>
+          </div>
+          <div class="hist" id="hist">
+            <div class="dev"><div class="dic">📱</div><div class="dm"><div class="dt">갤럭시 S23 · 시공막내 앱</div><div class="dd">서울 · 2시간 전 · 이 폰이 열쇠</div></div></div>
+            <div class="dev"><div class="dic">💻</div><div class="dm"><div class="dt">노트북 · Safari (Mac)</div><div class="dd">서울 · 어제 14:20</div></div><button class="out" onclick="toast('로그아웃했어요')">로그아웃</button></div>
+            <div class="dev unknown"><div class="dic">❓</div><div class="dm"><div class="dt">알 수 없는 기기 · Chrome</div><div class="dd">경기 성남 · 3일 전 · 내가 아니라면 로그아웃하세요</div></div><button class="out" onclick="toast('로그아웃했어요')">로그아웃</button></div>
+          </div>
+          <button class="linkbtn" onclick="toggleHist()" id="histbtn">최근 로그인 이력 더 보기 ▾</button>
+          <div class="rowbtns">
+            <div class="btn" onclick="toast('이 PC 로그아웃')">이 PC 로그아웃</div>
+            <div class="btn danger" onclick="toast('모든 기기 로그아웃')">모든 기기 로그아웃</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. AI 키 -->
+      <div class="sec" id="s2">
+        <div class="sh"><span class="ic">✨</span><span class="t">AI 키 — 내 Gemini 키 (내 비용)</span><span class="badge on">연결됨</span></div>
+        <div class="body">
+          <div class="costcard">💡 <b>PC 웹 시공막내의 AI(블로그 글 등)는 사장님 본인 Gemini 키로 돌아가요.</b> 무료 한도가 넉넉해 대부분 공짜고, 비용도 데이터도 본인 것. <br><span style="color:var(--ink3)">※ 폰 앱의 상담 답변·통화 요약은 그대로 시공막내가 처리해요 (그건 핵심이라 무료).</span></div>
+          <div class="flabel">내 Gemini API 키</div>
+          <div class="keyrow">
+            <input class="keyin" placeholder="AIzaSy… 여기에 붙여넣기">
+            <button class="kbtn" onclick="toast('키 저장됨 · 테스트 통과 ✓')">연결</button>
+          </div>
+          <div class="keystate">
+            <span class="dot"></span><span class="s">연결됨</span><span class="k">AIzaSy••••••••••••4f2a</span>
+            <span class="mini"><span onclick="toast('테스트 통과 ✓ 응답 0.8초')">테스트</span><span onclick="toast('키 삭제됨')" style="color:var(--red)">삭제</span></span>
+          </div>
+          <div class="howto"><b>키 받는 법 (30초 · 무료)</b><br>① <a href="#">aistudio.google.com/apikey</a> 접속 (구글 로그인) &nbsp; ② <b>[Create API key]</b> → 키 복사 &nbsp; ③ 위에 붙여넣고 <b>[연결]</b></div>
+          <div class="note">🔒 키는 <b>암호화되어 안전하게 보관</b>되고 블로그 생성에만 써요. 화면엔 뒤 4자리만. 언제든 삭제 가능.</div>
+        </div>
+      </div>
+
+      <!-- 3. 블로그 톤 -->
+      <div class="sec" id="s3">
+        <div class="sh"><span class="ic">📝</span><span class="t">블로그 톤 — 따라할 글 지정</span><span class="badge on">학습됨</span></div>
+        <div class="body">
+          <p class="desc"><b>따라하고 싶은 “글(포스트) 주소”</b>를 넣으세요. 블로그 대문이 아니라 <b>특정 글</b>을 지목하는 이유는 — <b>글마다 말투가 다를 수 있어서</b>, 딱 그 스타일을 배우게 하려는 거예요. (여러 개 넣으면 평균 톤)</p>
+          <div class="flabel">따라할 글 주소</div>
+          <div class="urlitem"><span class="u">blog.naver.com/detailline_zzulnun/223011234567</span><span class="ok">학습됨 ✓</span><span class="x" onclick="toast('삭제')">✕</span></div>
+          <div class="urlitem"><span class="u">blog.naver.com/detailline_zzulnun/223019876543</span><span class="ok">학습됨 ✓</span><span class="x" onclick="toast('삭제')">✕</span></div>
+          <div class="keyrow" style="margin-top:4px">
+            <input class="keyin txt" placeholder="따라할 글 주소 붙여넣기 (예: blog.naver.com/…/22301…)">
+            <button class="kbtn v" onclick="toast('이 글 분석 중… ✓')">추가·학습</button>
+          </div>
+          <div class="flabel" style="margin-top:15px">배운 톤 (이 글들 기준)</div>
+          <div>
+            <span class="tonebadge">존댓말 · 친근</span>
+            <span class="tonebadge">정직·과장 없음</span>
+            <span class="tonebadge">현장 사진 설명 위주</span>
+            <span class="tonebadge">이모지 적게</span>
+            <span class="tonebadge">문단 짧게</span>
+          </div>
+          <div class="note">✨ 지정한 글의 톤으로 블로그 초안이 나와서, 사장님이 직접 쓴 것처럼 일관돼요.</div>
+        </div>
+      </div>
+
+      <!-- 4. 앱 연결 -->
+      <div class="sec" id="s4">
+        <div class="sh"><span class="ic">🔗</span><span class="t">앱 연결 & 동기화</span><span class="badge on">연결됨</span></div>
+        <div class="body">
+          <p class="desc" style="margin:0">시공막내 앱과 연결돼서 <b>현장·사진·메모가 자동으로</b> 이 웹에 들어와요. 마지막 동기화 <b>2분 전</b>. (수정은 폰 앱에서만 — 웹은 보기·다운로드·블로그 전용)</p>
+        </div>
+      </div>
+
+      <div class="end"><b>이 방향 맞아요?</b> PC 전용 넓은 레이아웃 · 좌측 메뉴 · 따라할 “글 주소” 지정 · 본인 Gemini 키(내 비용) 다 반영했어요. 괜찮으면 <b>코워크(웹뷰어 서버)</b> 에 넘길게요. (로그인 이력·세션·키 암호화·톤 학습 = 서버 / 앱은 메모→서버 전달만)</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function go(a,id){document.querySelectorAll('.nav a').forEach(function(x){x.classList.remove('on')});a.classList.add('on');var e=document.getElementById(id);if(e)e.scrollIntoView({behavior:'smooth',block:'start'});}
+  function toggleHist(){var h=document.getElementById('hist'),b=document.getElementById('histbtn');h.classList.toggle('open');b.textContent=h.classList.contains('open')?'접기 ▴':'최근 로그인 이력 더 보기 ▾';}
+  function showHist(){go(document.querySelector('.nav a'),'s1');var h=document.getElementById('hist');if(!h.classList.contains('open'))toggleHist();}
+  var tt;function toast(m){var el=document.createElement('div');el.textContent=m;el.style.cssText='position:fixed;left:50%;bottom:34px;transform:translateX(-50%);background:rgba(24,29,39,.94);color:#fff;font-size:13px;font-weight:700;padding:11px 20px;border-radius:999px;z-index:99';document.body.appendChild(el);clearTimeout(tt);tt=setTimeout(function(){el.remove();},1400);}
+</script>

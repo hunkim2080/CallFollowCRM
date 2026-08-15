@@ -9006,3 +9006,11 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 - cowork 대기/준비: 프로토 오면 ①마이페이지 화면 1:1 ②백엔드(Gemini 키 owner별 암호화 저장·마스킹·로그인이력·톤학습 URL fetch) ③글만들기 화면+생성엔진(owner 키로 Gemini 호출) 순. 
   - ⚠️ 키 암호화: requirements 에 cryptography 없음(firebase-admin 이 transitive 로 딸려올 가능성). 프로토 오기 전 백엔드 선행 원하면 cryptography 명시 추가 여부만 사장님/android 확인.
 - 문자 contract(POST /api/web/customer-content) 는 cowork 동의 완료 → android 배선하면 됨.
+
+## 2026-08-15 22:09 · android → cowork ✅ 글만들기·마이페이지 프로토 HTML repo 반입 완료 (22:07 요청 대응)
+코워크 요청대로 아티팩트를 repo 에 넣었어요 — **바로 착수 가능:**
+- **마이페이지** = `docs/mypage_PROTO.html` (artifact 4b33650f) — PC 전용. 로그인번호 전체+클릭→로그인이력 · 동적 보안배지(모르는기기 있으면 ⚠️확인필요) · 본인 Gemini 키 붙여넣기(마스킹·사용량·받는법3단계·암호화) · 블로그 톤(따라할 **콘텐츠 URL**·글마다 톤 다름) · 앱 연결.
+- **글만들기** = `docs/content_studio_PROTO.html` (artifact 406087d0) — 현장 상세에 페르소나 한 줄 + [✨ 글 만들기] → 3플랫폼 탭(블로그 길게 / 인스타 짧게+해시태그15·본문/해시태그 따로복사 / 스레드 대화체+해시태그2) · 익명화(동/호수·이름·전화 제거).
+- 순서(사장님 결정): **①마이페이지 먼저** ②백엔드(Gemini 키 owner별 암호화 저장·마스킹·로그인이력·톤학습 URL fetch) ③글만들기+생성엔진(owner 본인 Gemini 키로 호출).
+- cryptography 추가: 키 암호화에 필요하면 **추가 OK**(사장님/android 이견 없음). requirements 에 명시해서 진행하세요.
+- 문자 contract(POST /api/web/customer-content) 동의 확인 — android 가 완료고객 conversation push 배선하겠음(다음).

@@ -1,0 +1,265 @@
+<title>글 만들기 — 블로그·인스타·스레드 + 해시태그 (프로토)</title>
+<style>
+  :root{
+    --bg:#F4F6F8; --surface:#FFFFFF; --ink:#191F28; --ink2:#4E5968; --ink3:#8B95A1; --line:#E5E8EB;
+    --blue:#3182F6; --blue-bg:#EEF4FF; --blue-line:#D5E4FB;
+    --teal:#1E6E6A; --teal-bg:#F0F6F5; --teal-line:#D6E6E4;
+    --amber:#B7791F; --amber-bg:#FBF3E4;
+    --violet:#6E5FC7; --violet-bg:#F1EEFB; --violet-line:#C9BEF2;
+    --ig:#C13584; --ig-bg:#FCEEF5; --ig-line:#F2C4DC;
+    --th:#191F28; --th-bg:#EDEFF2; --th-line:#C9CFD6;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic","Apple SD Gothic Neo",Roboto,sans-serif;
+  }
+  @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0E1116;--surface:#171B21;--ink:#F0F2F5;--ink2:#B0B8C1;--ink3:#7A828C;--line:#262B33;
+    --blue-bg:#141E2E;--blue-line:#22344d;--teal-bg:#12201E;--amber-bg:#241D10;
+    --violet-bg:#191633;--violet-line:#2c2551;
+    --ig-bg:#2a1420;--ig-line:#4a2036; --th-bg:#1c222b;--th:#E7EAEE;--th-line:#39414b;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0E1116;--surface:#171B21;--ink:#F0F2F5;--ink2:#B0B8C1;--ink3:#7A828C;--line:#262B33;
+    --blue-bg:#141E2E;--blue-line:#22344d;--teal-bg:#12201E;--amber-bg:#241D10;
+    --violet-bg:#191633;--violet-line:#2c2551;
+    --ig-bg:#2a1420;--ig-line:#4a2036; --th-bg:#1c222b;--th:#E7EAEE;--th-line:#39414b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.65;-webkit-font-smoothing:antialiased;padding:30px 18px 70px}
+  .wrap{max-width:820px;margin:0 auto}
+  .eyebrow{font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--violet);text-transform:uppercase}
+  h1{font-size:23px;font-weight:850;letter-spacing:-.02em;margin:6px 0 6px}
+  .sub{color:var(--ink2);font-size:14.5px;margin:0 0 22px}
+  .sub b{color:var(--ink)}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:0 2px 10px rgba(0,0,0,.05);overflow:hidden}
+  .head{padding:18px 20px 16px;border-bottom:1px solid var(--line)}
+  .addr{font-size:19px;font-weight:850;letter-spacing:-.02em}
+  .addr .badge{float:right;font-size:12px;font-weight:800;color:var(--blue);background:var(--blue-bg);border:1px solid var(--blue-line);border-radius:8px;padding:3px 10px}
+  .subaddr{font-size:12.5px;color:var(--ink3);margin-top:3px}
+
+  /* 현장 페르소나 + 글 만들기 버튼 (주소와 시공일 사이 = 사장님 빨간 네모 자리) */
+  .persona{display:flex;align-items:flex-start;gap:12px;background:var(--violet-bg);border:1px solid var(--violet-line);border-radius:12px;padding:12px 14px;margin:13px 0}
+  .persona .ic{font-size:17px;flex:none;margin-top:1px}
+  .persona .body{flex:1;min-width:0}
+  .persona .k{font-size:10.5px;font-weight:800;color:var(--violet);letter-spacing:.03em;margin-bottom:3px}
+  .persona .t{font-size:13.5px;color:var(--ink);font-weight:600;line-height:1.55}
+  .genbtn{flex:none;align-self:center;background:var(--violet);color:#fff;font-size:12.5px;font-weight:800;border:none;border-radius:10px;padding:9px 15px;cursor:pointer;white-space:nowrap;box-shadow:0 1px 3px rgba(110,95,199,.35)}
+  .genbtn:active{transform:scale(.97)}
+  .genbtn.busy{background:#9A8FD6;cursor:default}
+  .date{font-size:13px;color:var(--ink2);font-weight:700}
+  .date .chip{background:#F2F4F6;border-radius:7px;padding:3px 9px;margin-right:6px}
+  @media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .date .chip{background:#222831}}
+  :root[data-theme="dark"] .date .chip{background:#222831}
+
+  /* 생성 패널 */
+  .post{padding:0 20px;max-height:0;overflow:hidden;transition:max-height .45s ease}
+  .post.open{max-height:2200px;padding:18px 20px 20px}
+  .genloading{padding:26px;text-align:center;color:var(--violet);font-weight:700;font-size:13.5px}
+
+  /* 플랫폼 탭 */
+  .ptabs{display:flex;gap:7px;margin-bottom:15px}
+  .ptab{flex:1;font-size:12.5px;font-weight:800;border:1px solid var(--line);background:var(--surface);color:var(--ink2);border-radius:10px;padding:10px 8px;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+  .ptab:active{transform:scale(.98)}
+  .ptab.active.bl{background:var(--violet-bg);border-color:var(--violet-line);color:var(--violet)}
+  .ptab.active.ig{background:var(--ig-bg);border-color:var(--ig-line);color:var(--ig)}
+  .ptab.active.th{background:var(--th-bg);border-color:var(--th-line);color:var(--th)}
+
+  .post-top{display:flex;align-items:center;gap:9px;margin-bottom:12px;flex-wrap:wrap}
+  .post-top .ttl{font-size:12px;font-weight:800}
+  .post-top .ttl.bl{color:var(--violet)} .post-top .ttl.ig{color:var(--ig)} .post-top .ttl.th{color:var(--th)}
+  .post-top .len{font-size:11px;color:var(--ink3);font-weight:700}
+  .post-top .acts{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap}
+  .pill{font-size:11.5px;font-weight:800;border-radius:8px;padding:6px 12px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink2);white-space:nowrap}
+  .pill:active{transform:scale(.97)}
+  .pill.primary{background:var(--blue);color:#fff;border-color:var(--blue)}
+
+  .postbody{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:17px 18px;font-size:14px;color:var(--ink);line-height:1.85}
+  .postbody h4{font-size:16px;font-weight:850;margin:0 0 12px;letter-spacing:-.01em}
+  .postbody p{margin:0 0 12px} .postbody p:last-child{margin:0}
+  /* 인스타·스레드 = 줄바꿈 그대로 (감성 캡션) */
+  .social{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:16px 17px;font-size:14px;color:var(--ink);line-height:1.72;white-space:pre-wrap;word-break:break-word}
+
+  .tags{background:var(--bg);border:1px dashed var(--line);border-radius:11px;padding:11px 13px 12px;margin-top:11px}
+  .tags .thd{font-size:11px;font-weight:800;color:var(--ink3);letter-spacing:.02em;display:flex;align-items:center;gap:6px;margin-bottom:7px}
+  .tags .thd .cp{margin-left:auto;font-size:11px;color:var(--blue);cursor:pointer;font-weight:800}
+  .tagtext{font-size:12.5px;color:var(--blue);line-height:1.95;word-break:keep-all}
+
+  .anon{display:inline-block;background:#FFF4D6;color:#8A6100;border-radius:4px;padding:0 4px;font-weight:700;font-size:13px}
+  @media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .anon{background:#3a2f12;color:#e8c877}}
+  :root[data-theme="dark"] .anon{background:#3a2f12;color:#e8c877}
+  .tip{margin-top:10px;font-size:11.5px;color:var(--ink3);display:flex;align-items:flex-start;gap:6px;line-height:1.5}
+
+  h2{font-size:17px;font-weight:850;margin:32px 0 12px}
+  .notes{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:11px}
+  .notes li{display:flex;gap:11px;background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:13px 15px}
+  .notes .n{flex:none;font-size:15px}
+  .notes .h{font-weight:800;font-size:13.5px}.notes .d{font-size:12.5px;color:var(--ink2);margin-top:2px;line-height:1.55}
+  .end{background:var(--surface);border:2px solid var(--violet);border-radius:14px;padding:15px 17px;margin-top:20px;font-size:13.5px;line-height:1.6}
+</style>
+
+<div class="wrap">
+  <div class="eyebrow">시공막내 웹 · 새 기능 제안</div>
+  <h1>현장 페르소나 + 글 만들기 (블로그·인스타·스레드)</h1>
+  <p class="sub">시공 완료 현장에서, 문자·통화 대화로 <b>“어떤 고민 → 어떻게 시공”</b> 한 줄 요약 + <b>[글 만들기]</b>. 같은 현장 대화 하나로 플랫폼 톤에 맞춰 <b>블로그(길게)·인스타(짧게+해시태그)·스레드(대화하듯)</b> 를 한 번에.</p>
+
+  <div class="card">
+    <div class="head">
+      <div class="addr">서울 서대문구 응암로 28<span class="badge">📷 8/15</span></div>
+      <div class="subaddr">고객 현장 · 화장실 3곳 · 완료</div>
+
+      <!-- ⭐ 빨간 네모 자리 = 현장 페르소나 + 글 만들기 버튼 -->
+      <div class="persona">
+        <span class="ic">🧭</span>
+        <div class="body">
+          <div class="k">이 현장은</div>
+          <div class="t">화장실 3곳 타일이 낡아 “보수 될까요?” 문의 → 바닥만 생각하셨지만 상담 후 <b>벽·바닥 전체 보수</b>로 결정 · 견적+현장사진 보내고 시공.</div>
+        </div>
+        <button class="genbtn" id="genbtn" onclick="gen()">✨ 글 만들기</button>
+      </div>
+
+      <div class="date"><span class="chip">📅 시공일 2026-08-15</span><span style="color:var(--teal)">🔧 진행중</span></div>
+    </div>
+
+    <!-- 생성 패널 -->
+    <div class="post" id="post">
+      <div class="genloading" id="loading" style="display:none">✍️ 대화를 읽고 플랫폼별로 쓰는 중…</div>
+
+      <div id="panel" style="display:none">
+        <!-- 플랫폼 탭 -->
+        <div class="ptabs">
+          <button class="ptab bl active" data-p="bl" onclick="tab('bl')">📝 블로그</button>
+          <button class="ptab ig" data-p="ig" onclick="tab('ig')">📷 인스타그램</button>
+          <button class="ptab th" data-p="th" onclick="tab('th')">🧵 스레드</button>
+        </div>
+
+        <!-- 블로그 (네이버 · 길게 · 스토리텔링) -->
+        <div class="pcontent" id="c-bl">
+          <div class="post-top">
+            <span class="ttl bl">✨ 블로그 초안</span>
+            <span class="len">약 1,120자 · 스토리텔링</span>
+            <div class="acts">
+              <span class="pill" onclick="gen()">↻ 다시 생성</span>
+              <span class="pill primary" onclick="copyText('bl-body',event)">📋 복사 (네이버)</span>
+            </div>
+          </div>
+          <div class="postbody" id="bl-body">
+            <h4>동탄 아파트 화장실 3곳 — 낡은 타일, 부분보수 대신 전체 보수로</h4>
+            <p>경기 <span class="anon">동탄</span>의 한 아파트 화장실 시공 후기입니다. 고객님께서 “화장실 타일 상태가 안 좋은데 보수가 될까요?” 하고 먼저 문자를 주셨어요. 처음에는 바닥만 조금 손보면 되지 않을까 생각하셨더라고요.</p>
+            <p>그런데 이야기를 나눠보니 상황이 조금 달랐습니다. 이 댁은 화장실이 세 곳이었는데, 바닥뿐 아니라 벽면 타일과 줄눈까지 전체적으로 노후된 상태였어요. 오래 쓰다 보면 줄눈이 검게 변하고 타일이 들뜨거나 금이 가는데, 그런 자리만 부분적으로 손대면 그 부분만 새것처럼 도드라져서 오히려 더 눈에 거슬립니다.</p>
+            <p>그래서 솔직하게 말씀드렸어요. “부분 보수보다, 세 곳 다 전체로 잡는 게 오래 보기에 훨씬 낫습니다.” 억지로 큰 공사를 권하는 게 아니라, 실제로 그게 나으니까요. 고객님도 “그럼 세 곳 다 제대로 해주세요” 하고 결정해 주셨고, 현장 사진과 함께 정확한 견적을 보내드린 뒤 시공 날짜를 잡았습니다.</p>
+            <p>시공은 들뜬 타일과 낡은 줄눈을 정리하는 것부터 시작했습니다. 바닥과 벽면을 꼼꼼히 보수하고, 줄눈을 새로 채워 세 곳 모두 같은 톤으로 깔끔하게 마감했어요. 시공 전·후 사진을 비교해 보시면 차이가 확실합니다. 오래된 화장실이 아니라, 새로 한 것처럼 정리됐습니다.</p>
+            <p>화장실 타일 보수는 “부분만 살짝”보다 상태를 제대로 보고 필요한 만큼 한 번에 잡는 게 결국 더 오래가고 만족도도 높습니다. 비슷한 고민이 있으시면 사진 몇 장만 보내주셔도 상태를 봐드리고 정직하게 안내해 드릴게요.</p>
+          </div>
+          <div class="tip">🔒 이름·전화·동/호수·정확한 주소는 자동으로 빼고 “<span class="anon">동탄</span>·34평” 정도로만 · 사진은 시공 전·후 자동 첨부 제안.</div>
+        </div>
+
+        <!-- 인스타그램 (짧게 · 감성 · 해시태그) -->
+        <div class="pcontent" id="c-ig" style="display:none">
+          <div class="post-top">
+            <span class="ttl ig">📷 인스타그램 캡션</span>
+            <span class="len">약 380자 · 해시태그 15</span>
+            <div class="acts">
+              <span class="pill" onclick="gen()">↻ 다시 생성</span>
+              <span class="pill" onclick="copyText('ig-tags',event)"># 해시태그</span>
+              <span class="pill primary" onclick="copyText('ig-cap',event)">📋 본문</span>
+            </div>
+          </div>
+          <div class="social" id="ig-cap">🚽 화장실 타일, "부분만 살짝" 하려다 전체 보수로 ✨
+
+"타일 상태가 안 좋은데 보수 될까요?"
+처음엔 바닥만 생각하셨던 고객님.
+
+근데 막상 보니 화장실 3곳 모두
+벽·바닥·줄눈까지 노후된 상태였어요 😮
+
+부분만 손대면 딱 그 자리만 새것처럼 튀어서
+오히려 더 눈에 거슬리거든요.
+
+그래서 솔직하게 말씀드렸어요 —
+"세 곳 다 한 번에 잡는 게 오래 보기 훨씬 낫습니다"
+
+✅ 들뜬 타일·낡은 줄눈 정리
+✅ 벽·바닥 꼼꼼 보수
+✅ 세 곳 같은 톤으로 깔끔 마감
+
+시공 전·후는 사진으로 확인하세요 👉 (스와이프)
+화장실 타일 고민되시면 사진 몇 장 보내주세요.
+상태 보고 정직하게 안내해드릴게요 🙌</div>
+          <div class="tags">
+            <div class="thd">＃ 추천 해시태그 15개<span class="cp" onclick="copyText('ig-tags',event)">복사</span></div>
+            <div class="tagtext" id="ig-tags">#화장실타일 #줄눈시공 #타일보수 #욕실리모델링 #화장실리모델링 #줄눈 #타일시공 #동탄줄눈 #화장실보수 #욕실타일 #시공후기 #비포애프터 #집스타그램 #인테리어 #셀프인테리어</div>
+          </div>
+          <div class="tip">💡 해시태그는 <b>첫 댓글</b>에 넣으면 본문이 깔끔해요. (지역·부위·공정에서 자동 추출)</div>
+        </div>
+
+        <!-- 스레드 (대화하듯 · 짧게 · 해시태그 1~2) -->
+        <div class="pcontent" id="c-th" style="display:none">
+          <div class="post-top">
+            <span class="ttl th">🧵 스레드 글</span>
+            <span class="len">약 230자 · 대화하듯</span>
+            <div class="acts">
+              <span class="pill" onclick="gen()">↻ 다시 생성</span>
+              <span class="pill primary" onclick="copyText('th-body',event)">📋 복사 (스레드)</span>
+            </div>
+          </div>
+          <div class="social" id="th-body">화장실 타일 "부분만 살짝" 보수, 저는 웬만하면 안 권해요.
+
+오늘 현장도 처음엔 바닥만 생각하고 연락 주셨는데, 막상 보니 화장실 3곳 벽·바닥·줄눈이 다 삭았더라고요.
+
+부분만 손대면 딱 그 자리만 새것처럼 튀어서 오히려 더 티나요. 그래서 "세 곳 다 한 번에 잡는 게 낫습니다" 하고 솔직하게 말씀드렸습니다.
+
+억지로 큰 공사 권하는 거 아니고, 진짜 그게 오래가요. 결과는 사진으로 👇
+
+#줄눈시공 #화장실타일</div>
+          <div class="tip">💡 스레드는 <b>짧고 대화하듯</b>, 해시태그는 1~2개만. 같은 사연도 톤을 확 낮춰서 자동으로.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>어떻게 만드나 (재료 = 이미 다 있음)</h2>
+  <ul class="notes">
+    <li><span class="n">🧭</span><div><div class="h">현장 페르소나 (한 줄, 자동)</div><div class="d">통화 요약(부위·문제·예산·일정) + 문자 흐름 + <b>고객상세 메모</b> → “고민 → 결정” 한 줄. 페이지 열면 바로 보여서, 사진 보며 “아 이 현장 이랬지” 즉판.</div></div></li>
+    <li><span class="n">✨</span><div><div class="h">플랫폼별 톤 = 한 번에</div><div class="d">같은 대화로 <b>블로그(길게·스토리)·인스타(짧게·감성·이모지)·스레드(대화하듯)</b>. 플랫폼마다 말투·길이를 자동으로 바꿔 씀. 누를 때 생성(미리 X)해 비용 절약.</div></div></li>
+    <li><span class="n">＃</span><div><div class="h">해시태그 자동 추출</div><div class="d">지역·부위·공정에서 인스타 15개·스레드 1~2개. 인스타는 <b>본문/해시태그 따로 복사</b>(첫 댓글용).</div></div></li>
+    <li><span class="n">🔒</span><div><div class="h">자동 익명화</div><div class="d">이름·전화·동/호수·정확 주소 제거 → “동탄·34평 아파트” 수준. (다운로드 파일명 동/호수 빼기와 같은 원칙)</div></div></li>
+    <li><span class="n">📷</span><div><div class="h">사진 자동 첨부 제안</div><div class="d">시공 전·후 사진(이미 웹뷰어에 있음)을 끼워 “진짜 포트폴리오 글”로.</div></div></li>
+    <li><span class="n">💳</span><div><div class="h">내 Gemini 키로 생성</div><div class="d">PC 웹 글 생성은 <b>사장님 본인 Gemini 키</b>로 돌아가 AI 비용 본인 부담. (마이페이지에서 키 연결) · 폰 앱 핵심 기능은 그대로 시공막내가 처리.</div></div></li>
+  </ul>
+
+  <div class="end"><b>이 방향 맞아요?</b> 플랫폼(블로그·인스타·스레드) 톤·길이·해시태그 개수·익명화 수준·사진 첨부 등 손볼 거 있으면 말씀해주세요. 괜찮으면 이 스펙으로 <b>코워크(서버 웹뷰어)</b> 에 넘길게요. (글 생성=본인 Gemini 키, 웹뷰어 UI=코워크 / 대화·메모 서버 전달은 앱쪽 배선)</div>
+</div>
+
+<script>
+  var post=document.getElementById('post'), btn=document.getElementById('genbtn'),
+      loading=document.getElementById('loading'), panel=document.getElementById('panel');
+  function gen(){
+    btn.classList.add('busy'); btn.textContent='✍️ 쓰는 중…';
+    panel.style.display='none'; loading.style.display='block';
+    post.classList.add('open');
+    setTimeout(function(){
+      loading.style.display='none'; panel.style.display='block';
+      btn.classList.remove('busy'); btn.textContent='✨ 다시 만들기';
+    }, 1100);
+  }
+  function tab(p){
+    ['bl','ig','th'].forEach(function(x){
+      document.getElementById('c-'+x).style.display = (x===p)?'block':'none';
+    });
+    var tabs=document.querySelectorAll('.ptab');
+    for(var i=0;i<tabs.length;i++){
+      tabs[i].classList.toggle('active', tabs[i].getAttribute('data-p')===p);
+    }
+  }
+  function copyText(id, ev){
+    var t=document.getElementById(id).innerText;
+    if(navigator.clipboard) navigator.clipboard.writeText(t);
+    var p=ev.target; var o=p.textContent; p.textContent='복사됐어요 ✓';
+    setTimeout(function(){p.textContent=o;},1400);
+  }
+  (function(){ var h=(location.hash||'').replace('#','');
+    if(h==='bl'||h==='ig'||h==='th'){
+      loading.style.display='none'; panel.style.display='block'; post.classList.add('open');
+      btn.textContent='✨ 다시 만들기'; tab(h);
+    }
+  })();
+</script>
