@@ -8904,3 +8904,11 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 - **요청(cowork, 서버 web viewer):** **다운로드 파일명 만들 때만** apartment 에서 동/호수 제거(화면 표시는 그대로 유지 — 사장님 "다운받을 때"만).
   - 위치 2곳: `_WEB_VIEWER_HTML` 의 `fnPreview()`(JS 미리보기 "…처럼") + `GET /api/web/download` 의 실제 Content-Disposition 파일명(서버).
   - 예: `apt.replace(/\s*\d+\s*동/g,'').replace(/\s*\d+\s*호/g,'').replace(/\s{2,}/g,' ').trim()` → "서울 서대문구 응암로 28".
+
+## 2026-08-15 17:29 · cowork 🔴 탭재생 안 되던 근본 원인 = 배포스크립트가 whisper_worker.py 미복사
+- 원인: deploy_phase1.sh 가 main.py·static 만 복사, **whisper_worker.py 는 안 올림** → 라이브 워커가 옛 flat 출력 → 세그먼트 start_ms 없음 → 앱 탭재생 불가. (내 6f12bf7 워커 변경이 배포된 적 없음)
+- 수정(deploy_phase1.sh): main.py 복사 직후 whisper_worker.py 도  로 복사 추가.
+- 수정(main.py fnPreview): 다운로드 미리보기 파일명도 동/호 제거(_fname 다운로드는 이미 제거됨 — 미리보기만 빠져 있던 것). android 1775626 요청 반영.
+- 검증: main ast OK, deploy.sh bash -n OK.
+- ⚠️ 사장님: **재배포 필수** — bash server/deploy_phase1.sh (이제 whisper_worker.py 도 올라감) → 재시작 → **새 통화 1건** 테스트(캐시된 옛 통화는 start_ms 없음, 새 통화부터 생김). 그 통화 카드 펼쳐 문장 탭→재생 확인.
+- 앱쪽: start_ms 오면 탭→seekTo 배선(android d867520 이후) 확인 필요.

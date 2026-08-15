@@ -26919,7 +26919,13 @@ function renderPhotos(){
 }
 function fnPreview(p,idx){
   var ymd=digits(curCust.work_date).slice(0,8)||'00000000';
-  var apt=(curCust.apartment||'현장').replace(/[\\/:*?"<>|]/g,'');
+  var apt=(curCust.apartment||'현장').replace(/[\\/:*?"<>|]/g,'')
+    .replace(/[0-9A-Za-z]+\s*동\s*[0-9]+\s*호/g,'')
+    .replace(/[0-9]+\s*층\s*[0-9]+\s*호/g,'')
+    .replace(/[0-9]+\s*[-/]\s*[0-9]+\s*호/g,'')
+    .replace(/[0-9]+\s*동(?!\s*로)/g,'')
+    .replace(/[0-9]+\s*호/g,'')
+    .replace(/\s{2,}/g,' ').trim()||'현장';
   var part=(p&&p.photo_id)?partFor(p.photo_id):'';
   return ymd+'_'+apt+(part?'_'+part:'')+'_'+pad(idx||1)+'.jpg';
 }

@@ -67,7 +67,13 @@ step "1. main.py / requirements.txt 갱신"
 # -----------------------------------------------------------------------------
 cp "$SRC/main.py"          "$TARGET/main.py"
 cp "$SRC/requirements.txt" "$TARGET/requirements.txt"
-ok "main.py + requirements.txt 복사"
+# 통화 STT 서브프로세스 워커 — 이걸 안 올리면 세그먼트 시각(start_ms) 못 나와 탭재생 X (2026-08-15)
+if [ -f "$SRC/whisper_worker.py" ]; then
+    cp "$SRC/whisper_worker.py" "$TARGET/whisper_worker.py"
+    ok "main.py + requirements.txt + whisper_worker.py 복사"
+else
+    ok "main.py + requirements.txt 복사 (whisper_worker.py 없음)"
+fi
 # 2026-07-02 (추가82) — static (랜딩/설치/개인정보 페이지) 도 같이 배포
 if [ -d "$SRC/static" ]; then
     mkdir -p "$TARGET/static"
