@@ -27308,8 +27308,14 @@ _MYPAGE_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .topbar .logo .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--blue);margin-right:6px;vertical-align:1px}
   .topbar .who{margin-left:auto;font-size:12.5px;color:var(--ink2);font-weight:700;display:flex;align-items:center;gap:8px}
   .topbar .who .av{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,#3182F6,#6E5FC7);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px}
+  .topbar .back{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:800;color:var(--ink2);text-decoration:none;cursor:pointer;padding:7px 12px;border-radius:9px}
+  .topbar .back:hover{background:var(--sunken);color:var(--blue)}
+  .topbar .back .ar{font-size:15px;line-height:1}
+  .topbar .sep{color:var(--ink3);font-weight:700}
+  .topbar .here{font-size:13.5px;font-weight:800}
   .page{max-width:1000px;margin:0 auto;padding:26px 26px 70px}
-  .crumb{font-size:12.5px;color:var(--ink3);font-weight:700;margin-bottom:6px}
+  .crumb{font-size:13px;color:var(--blue);font-weight:800;margin-bottom:10px;text-decoration:none;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+  .crumb:hover{text-decoration:underline}
   h1{font-size:24px;font-weight:850;letter-spacing:-.02em;margin:0 0 20px}
   .layout{display:grid;grid-template-columns:236px 1fr;gap:26px;align-items:start}
   @media(max-width:820px){.layout{grid-template-columns:1fr}}
@@ -27372,11 +27378,13 @@ _MYPAGE_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .urlitem .x{font-size:15px;color:var(--ink3);cursor:pointer}
 </style></head><body>
 <div class="topbar">
-  <div class="logo"><span class="dot"></span>시공막내 웹</div>
+  <a class="back" onclick="location.href='/web'"><span class="ar">←</span> 시공막내 웹</a>
+  <span class="sep">›</span>
+  <span class="here">마이페이지</span>
   <div class="who"><span class="av" id="topAv">·</span><span id="topWho">마이페이지</span></div>
 </div>
 <div class="page">
-  <div class="crumb">시공막내 웹 · PC 전용</div>
+  <a class="crumb" onclick="location.href='/web'">← 사진 캘린더로 돌아가기</a>
   <h1>내 계정 · 보안 · AI 설정</h1>
   <div class="layout">
     <aside class="side">

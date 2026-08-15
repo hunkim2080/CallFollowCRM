@@ -9041,3 +9041,8 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 - 검증: ast OK + TestClient(문자 push 200·전화번호 (번호) 마스킹·프롬프트 포함·생성 200).
 - 🔴 android: 완료 고객 변경 시 POST /api/web/customer-content 로 conversation push + 기존 완료고객 1회 백필(계약대로). 서버는 준비 완료.
 - ⚠️ 배포: 이 커밋 + 앞선 마이페이지/글만들기와 함께 (cryptography 설치 + deploy_phase1.sh).
+
+## 2026-08-15 23:46 · cowork 마이페이지 뒤로가기 반영 (프로토 다듬음 05a3322)
+- 변경(_MYPAGE_HTML): 상단바 '← 시공막내 웹 › 마이페이지' + 본문 상단 '← 사진 캘린더로 돌아가기' 크럼(둘 다 /web 이동). --amber 토큰은 이미 정의돼 있어 보안배지 정상. 프로토 05a3322 1:1.
+- 검증: ast OK.
+- ⚠️ 배포 대기분에 포함(cryptography + deploy_phase1.sh).
