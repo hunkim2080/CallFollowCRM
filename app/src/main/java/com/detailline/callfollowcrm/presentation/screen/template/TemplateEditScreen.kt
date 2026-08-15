@@ -41,6 +41,10 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -72,6 +76,27 @@ fun TemplateEditScreen(
     val context = LocalContext.current
     val canSave = state.title.isNotBlank() && state.body.isNotBlank()
 
+    // 문구 이탈 확인 — 뒤로/저장없이 나가면 편집이 날아가던 것. 로드 후 첫 스냅샷과 비교. (2026-08-15 UX감사#2)
+    val initialTpl = remember { mutableStateOf<Pair<String, String>?>(null) }
+    LaunchedEffect(state.title, state.body) {
+        if (initialTpl.value == null && (state.title.isNotEmpty() || state.body.isNotEmpty())) {
+            initialTpl.value = state.title to state.body
+        }
+    }
+    val tplDirty = initialTpl.value?.let { (state.title to state.body) != it } ?: false
+    var confirmTplExit by remember { mutableStateOf(false) }
+    fun tryTplExit() { if (tplDirty) confirmTplExit = true else onDone() }
+    androidx.activity.compose.BackHandler { tryTplExit() }
+    if (confirmTplExit) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmTplExit = false },
+            title = { Text("저장 안 하고 나갈까요?") },
+            text = { Text("고친 문구가 사라져요.") },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { confirmTplExit = false; onDone() }) { Text("나가기") } },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { confirmTplExit = false }) { Text("계속 작성") } }
+        )
+    }
+
     // 갤러리 바로 열기(PickVisualMedia). 예전 OpenDocument 는 '파일 탐색기'라 갤러리를 못 찾던 문제. (2026-07-17 사장님)
     val pickImage = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
@@ -92,7 +117,7 @@ fun TemplateEditScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onDone) {
+                    IconButton(onClick = { tryTplExit() }) {
                         Icon(Icons.Default.ArrowBack, "뒤로", tint = TossTextPrimary)
                     }
                 },
