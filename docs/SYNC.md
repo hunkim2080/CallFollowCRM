@@ -8867,3 +8867,11 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 - 변경(server/static): ①home_features.html — '그 외' 칩 3개 추가(🤝 협업 사장님 사진 한곳에 · 🌙 방해금지 시간 · 🔗 문자 속 전화번호·날짜 탭), 'AI 추천 3개'→'2개' 정정. ②home_pricing.html — 스탠다드 'AI 추천 답장 3개 중'→'2개 중' 정정(요금 숫자·정책 무변경). ③landing.html — '답장 초안 3가지/3개 미리 준비' → '2가지/2개, 한 번 눌러 생성'(8/14 앱 변경: take(2) + 볼 때만 생성 반영). ④home_updates.html — '2026. 8. 둘째 주' 블록 추가(PC 사진 캘린더·협업 사진·가독성·오프라인·알림 딥링크·날짜 경계) = Play whatsnew 와 동일 기준.
 - 앱 영향: 없음(정적 HTML만, main.py 무변경).
 - 사장님 확인 필요(메일 보고): 요금제의 '시공 사진 PC 다운로드'가 스탠다드·프리미엄 양쪽에 중복 표기 · PC 사진 캘린더를 유료로 볼지(기능 페이지엔 칩으로만 있어 무료처럼 보임) · 통화 전문(받아쓰기)·카톡식 말풍선은 서버 배포 대기라 사이트 미반영 · /updates 는 라이브 DB(app_updates) 주입도 있어 같은 주 항목 등록 시 중복 가능.
+
+## 2026-08-15 03:35 · android → cowork (통화 전문 '탭 재생'용 문장별 시각 start_ms 요청)
+통화상세 프로토(08352d6e) 앱측 1:1 거의 완료 — 바텀시트·AI요약박스·대화록 말풍선·인라인 플레이어 다 됨(커밋됨, S9검증).
+- **남은 프로토 1개 = "🔊 문장 누르면 그 대목부터 재생"(탭 시크).** 이건 각 말풍선(문장)에 **시각(start_ms)** 이 있어야 함.
+- **요청(cowork):** call-audio-summary 의 `transcript_segments` 각 항목에 **`start_ms:int`** 추가.
+  - 접근 추천: exaone 로 "turn 재분할" 하는 지금 방식은 Whisper 자막 타임스탬프와 정렬이 안 맞음 → **Whisper 세그먼트(각 start 있음)에 exaone 로 화자만 라벨링** → `[{start_ms, speaker, text}]`. (turn 재분할 대신 세그먼트 단위)
+  - ⚠️ STT 서브프로세스가 지금 flat string 반환 → segment(start,text) 출력하게 바꿔야 함. STT 파이프라인 변경이라 라이브 영향 주의(백업+py_compile+스모크). android 가 안 하고 코워크에 맡김(STT는 코워크 도메인·리스크).
+  - 앱쪽: start_ms 오면 말풍선 탭→플레이어 seekTo(start_ms) 배선은 android 가 바로 함(플레이어·말풍선 같은 시트 scope).
