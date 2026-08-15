@@ -19,3 +19,5 @@ faster-whisper
 # Firebase service account JSON 경로 = ENV FCM_SERVICE_ACCOUNT_JSON.
 firebase-admin
 pillow>=10.0
+# 웹 마이페이지 — owner 본인 Gemini API 키 암호화 저장(Fernet). (2026-08-15)
+cryptography

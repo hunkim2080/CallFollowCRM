@@ -459,6 +459,38 @@ def db_init() -> None:
             "CREATE INDEX IF NOT EXISTS idx_web_sessions_owner "
             "ON web_sessions(owner_phone)"
         )
+        # 마이페이지 — 로그인 이력용 기기(user_agent) 캡처 (기존 세션 호환 위해 ALTER)
+        try:
+            con.execute("ALTER TABLE web_sessions ADD COLUMN user_agent TEXT")
+        except sqlite3.OperationalError:
+            pass
+        # 마이페이지 — owner 본인 Gemini API 키(Fernet 암호화 저장). 글생성 시 이 키로 호출.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS web_owner_keys (
+                owner_phone   TEXT PRIMARY KEY,
+                enc_key       TEXT NOT NULL,      -- Fernet 암호문 (평문 절대 저장 안 함)
+                last4         TEXT,               -- 화면 마스킹용 뒤 4자리
+                updated_at_ms INTEGER NOT NULL
+            )
+            """
+        )
+        # 마이페이지 — 블로그 톤 학습용 '따라할 글 주소'(특정 포스트 URL) + 학습 결과
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS web_tone_urls (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                owner_phone  TEXT NOT NULL,
+                url          TEXT NOT NULL,
+                learned_json TEXT,               -- 배운 톤 뱃지/요약(JSON)
+                added_at_ms  INTEGER NOT NULL
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_web_tone_owner "
+            "ON web_tone_urls(owner_phone, added_at_ms)"
+        )
         # ── 추가142 (2026-07-22) — 박람회 팀 시공 Phase 1 (docs/EXPO_DECISIONS.md) ──
         # 사장님 확정: ①정산 완전격리(expo_* 테이블에만 저장, 기존 정산/고객에 안 섞음)
         # ②분배=팀별 ③계약서=상품카탈로그 체크형+서명+동의 ④방장이 방개설·계약서준비
@@ -26305,10 +26337,11 @@ async def web_authorize(req: WebAuthorize) -> dict:
 
 
 @app.get("/api/web/login/status")
-async def web_login_status(t: str):
+async def web_login_status(request: Request, t: str):
     from fastapi.responses import JSONResponse
     tok = (t or "").strip()
     now = _now_ms()
+    ua = (request.headers.get("user-agent") or "")[:300]   # 로그인 이력 기기 표시용
     with db_conn() as con:
         row = con.execute(
             "SELECT owner_phone, authorized, created_at_ms FROM web_login_tickets WHERE ticket = ?",
@@ -26326,8 +26359,8 @@ async def web_login_status(t: str):
         import secrets
         sid = secrets.token_urlsafe(24)
         con.execute(
-            "INSERT INTO web_sessions (sid, owner_phone, created_at_ms, last_active_ms) "
-            "VALUES (?,?,?,?)", (sid, _norm_phone(owner), now, now))
+            "INSERT INTO web_sessions (sid, owner_phone, created_at_ms, last_active_ms, user_agent) "
+            "VALUES (?,?,?,?,?)", (sid, _norm_phone(owner), now, now, ua))
         con.execute("DELETE FROM web_login_tickets WHERE ticket = ?", (tok,))
         con.commit()
     resp = JSONResponse({"status": "authorized"})
@@ -26770,7 +26803,7 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
 <div class="browser">
   <div class="topbar">
     <span class="vpill">👁️ 보기 전용</span>
-    <div class="who"><span class="av">막</span> 이 PC 로그인됨</div>
+    <div class="who" style="cursor:pointer" onclick="location.href='/mypage'" title="마이페이지"><span class="av">막</span> 이 PC 로그인됨 · 마이페이지 ›</div>
   </div>
   <div class="app">
     <div class="cal">
@@ -26991,3 +27024,448 @@ async def web_viewer(request: Request):
     if not owner:
         return RedirectResponse("/web/login", status_code=302)
     return HTMLResponse(_WEB_VIEWER_HTML)
+
+
+# ============================================================================
+# 마이페이지 (PC 전용) — 로그인·보안 / 내 Gemini 키(암호화) / 블로그 톤 / 앱 연결
+# 프로토: docs/mypage_PROTO.html (4b33650f). owner 본인 Gemini 키로 글생성(본인 과금).
+# ============================================================================
+def _web_fernet():
+    """owner Gemini 키 암호화용 Fernet. 키는 server_kv 에 1회 생성 보관."""
+    from cryptography.fernet import Fernet
+    with db_conn() as con:
+        row = con.execute("SELECT v FROM server_kv WHERE k='web_fernet_key'").fetchone()
+        if row:
+            k = row[0]
+        else:
+            k = Fernet.generate_key().decode()
+            con.execute("INSERT OR REPLACE INTO server_kv (k,v) VALUES ('web_fernet_key',?)", (k,))
+            con.commit()
+    return Fernet(k.encode())
+
+
+def _web_device_from_ua(ua: str) -> str:
+    """user-agent → '기기 · 브라우저(OS)' 사람이 읽는 한 줄."""
+    ua = ua or ""
+    if "시공막내" in ua or "okhttp" in ua.lower() or "CallFollow" in ua:
+        return "시공막내 앱 (폰)"
+    os_ = ("Windows" if "Windows" in ua else "Mac" if ("Macintosh" in ua or "Mac OS" in ua)
+           else "Android" if "Android" in ua else "iPhone" if "iPhone" in ua else "기기")
+    br = ("Chrome" if "Chrome" in ua and "Edg" not in ua else "Edge" if "Edg" in ua
+          else "Safari" if "Safari" in ua else "브라우저")
+    return f"{br} ({os_})"
+
+
+def _web_owner_gemini_key(owner: str):
+    """owner 의 저장된 Gemini 키 평문 복호화 (없으면 None). 글생성 엔진이 씀."""
+    with db_conn() as con:
+        row = con.execute("SELECT enc_key FROM web_owner_keys WHERE owner_phone = ?", (owner,)).fetchone()
+    if not row:
+        return None
+    try:
+        return _web_fernet().decrypt(row[0].encode()).decode()
+    except Exception:
+        return None
+
+
+class WebGeminiKey(BaseModel):
+    key: str
+
+
+@app.post("/api/web/gemini-key")
+async def web_gemini_key_save(request: Request, req: WebGeminiKey):
+    from fastapi.responses import JSONResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    key = (req.key or "").strip()
+    if len(key) < 20:
+        raise HTTPException(400, "키 형식이 올바르지 않아요 (AIza… 로 시작하는 키)")
+    enc = _web_fernet().encrypt(key.encode()).decode()
+    last4 = key[-4:]
+    with db_conn() as con:
+        con.execute(
+            "INSERT OR REPLACE INTO web_owner_keys (owner_phone, enc_key, last4, updated_at_ms) "
+            "VALUES (?,?,?,?)", (owner, enc, last4, _now_ms()))
+        con.commit()
+    return {"ok": True, "last4": last4}
+
+
+@app.delete("/api/web/gemini-key")
+async def web_gemini_key_delete(request: Request):
+    from fastapi.responses import JSONResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    with db_conn() as con:
+        con.execute("DELETE FROM web_owner_keys WHERE owner_phone = ?", (owner,))
+        con.commit()
+    return {"ok": True}
+
+
+@app.get("/api/web/gemini-key/test")
+async def web_gemini_key_test(request: Request):
+    from fastapi.responses import JSONResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    key = _web_owner_gemini_key(owner)
+    if not key:
+        raise HTTPException(400, "저장된 키가 없어요")
+    t0 = _now_ms()
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            r = await client.get(
+                "https://generativelanguage.googleapis.com/v1beta/models",
+                params={"key": key})
+        ok = r.status_code == 200
+    except Exception as e:
+        return {"ok": False, "error": str(e)[:120]}
+    return {"ok": ok, "ms": _now_ms() - t0, "status": r.status_code}
+
+
+class WebToneUrl(BaseModel):
+    url: str
+
+
+@app.post("/api/web/tone-url")
+async def web_tone_url_add(request: Request, req: WebToneUrl):
+    from fastapi.responses import JSONResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    url = (req.url or "").strip()
+    if not (url.startswith("http://") or url.startswith("https://")):
+        if "." in url:
+            url = "https://" + url
+        else:
+            raise HTTPException(400, "글 주소(URL)를 확인해주세요")
+    # 도달 확인(best-effort) — 톤 실제 학습은 글생성 단계(owner Gemini)에서.
+    learned = {"fetched": False}
+    try:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+            r = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+        learned = {"fetched": r.status_code == 200, "len": len(r.text or "")}
+    except Exception:
+        pass
+    with db_conn() as con:
+        con.execute(
+            "INSERT INTO web_tone_urls (owner_phone, url, learned_json, added_at_ms) VALUES (?,?,?,?)",
+            (owner, url, json.dumps(learned, ensure_ascii=False), _now_ms()))
+        con.commit()
+    return {"ok": True, "learned": learned}
+
+
+@app.delete("/api/web/tone-url")
+async def web_tone_url_delete(request: Request, id: int):
+    from fastapi.responses import JSONResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    with db_conn() as con:
+        con.execute("DELETE FROM web_tone_urls WHERE id = ? AND owner_phone = ?", (id, owner))
+        con.commit()
+    return {"ok": True}
+
+
+@app.post("/api/web/logout-session")
+async def web_logout_session(request: Request, sid: str):
+    """마이페이지에서 특정 기기(세션) 로그아웃. 본인 세션만."""
+    from fastapi.responses import JSONResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    with db_conn() as con:
+        con.execute("DELETE FROM web_sessions WHERE sid = ? AND owner_phone = ?", (sid, owner))
+        con.commit()
+    return {"ok": True}
+
+
+@app.get("/api/web/me")
+async def web_me(request: Request):
+    """마이페이지 데이터 — 번호·로그인 기기 이력·키 상태·톤 URL."""
+    from fastapi.responses import JSONResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    cur_sid = request.cookies.get(_WEB_COOKIE) or ""
+    now = _now_ms()
+    with db_conn() as con:
+        srows = con.execute(
+            "SELECT sid, created_at_ms, last_active_ms, user_agent FROM web_sessions "
+            "WHERE owner_phone = ? ORDER BY last_active_ms DESC", (owner,)).fetchall()
+        krow = con.execute(
+            "SELECT last4, updated_at_ms FROM web_owner_keys WHERE owner_phone = ?", (owner,)).fetchone()
+        trows = con.execute(
+            "SELECT id, url, learned_json, added_at_ms FROM web_tone_urls "
+            "WHERE owner_phone = ? ORDER BY added_at_ms DESC", (owner,)).fetchall()
+        biz = con.execute(
+            "SELECT biz_name FROM business_info WHERE phone = ?", (owner,)).fetchone() \
+            if _table_exists("business_info") else None
+    sessions = []
+    for s in srows:
+        sessions.append({
+            "sid": s[0], "is_current": (s[0] == cur_sid),
+            "device": _web_device_from_ua(s[3] or ""),
+            "created_at_ms": s[1], "last_active_ms": s[2],
+        })
+    tone = []
+    for t in trows:
+        try:
+            lj = json.loads(t[2] or "{}")
+        except Exception:
+            lj = {}
+        tone.append({"id": t[0], "url": t[1], "learned": bool(lj.get("fetched"))})
+    name = (biz[0] if biz and biz[0] else "") or ""
+    return {
+        "owner_phone": owner,
+        "name": name,
+        "sessions": sessions,
+        "key": {"connected": bool(krow), "last4": (krow[0] if krow else "")},
+        "tone_urls": tone,
+    }
+
+
+def _table_exists(name: str) -> bool:
+    try:
+        with db_conn() as con:
+            return bool(con.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)).fetchone())
+    except Exception:
+        return False
+
+
+_MYPAGE_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<title>시공막내 웹 — 마이페이지</title>
+<style>
+  :root{
+    --bg:#EEF1F4; --surface:#FFFFFF; --sunken:#F5F7F9; --ink:#181D27; --ink2:#4E5968; --ink3:#8B95A1; --line:#E5E9EE;
+    --blue:#3182F6; --blue-bg:#EDF3FF; --blue-line:#D3E2FB;
+    --green:#12B886; --green-bg:#E6F9F1; --red:#F0436A; --red-bg:#FDECEF;
+    --violet:#6E5FC7; --violet-bg:#F0EDFB; --amber:#B7791F; --amber-bg:#FBF3E2;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic","Apple SD Gothic Neo",Roboto,sans-serif;
+    --mono:"SFMono-Regular",ui-monospace,Consolas,monospace;
+    --shadow:0 1px 2px rgba(16,24,40,.04),0 4px 16px rgba(16,24,40,.05);
+  }
+  @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0C0F14;--surface:#161A21;--sunken:#11151B;--ink:#F0F2F5;--ink2:#AEB6C1;--ink3:#79828D;--line:#242A33;
+    --blue-bg:#121E30;--blue-line:#22344d;--green-bg:#0e241d;--red-bg:#2a1720;--violet-bg:#191633;--amber-bg:#2a2410;--shadow:0 4px 18px rgba(0,0,0,.4);
+  }}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.6;-webkit-font-smoothing:antialiased}
+  .topbar{background:var(--surface);border-bottom:1px solid var(--line);padding:12px 26px;display:flex;align-items:center;gap:10px}
+  .topbar .logo{font-weight:900;font-size:16px;letter-spacing:-.03em}
+  .topbar .logo .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--blue);margin-right:6px;vertical-align:1px}
+  .topbar .who{margin-left:auto;font-size:12.5px;color:var(--ink2);font-weight:700;display:flex;align-items:center;gap:8px}
+  .topbar .who .av{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,#3182F6,#6E5FC7);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px}
+  .page{max-width:1000px;margin:0 auto;padding:26px 26px 70px}
+  .crumb{font-size:12.5px;color:var(--ink3);font-weight:700;margin-bottom:6px}
+  h1{font-size:24px;font-weight:850;letter-spacing:-.02em;margin:0 0 20px}
+  .layout{display:grid;grid-template-columns:236px 1fr;gap:26px;align-items:start}
+  @media(max-width:820px){.layout{grid-template-columns:1fr}}
+  .side{position:sticky;top:20px;display:flex;flex-direction:column;gap:14px}
+  .pcard{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:var(--shadow);text-align:center}
+  .pcard .av{width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,#3182F6,#6E5FC7);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:850;font-size:23px;margin:0 auto 10px}
+  .pcard .nm{font-size:15.5px;font-weight:850}
+  .pcard .beta{font-size:10px;font-weight:800;color:var(--violet);background:var(--violet-bg);border-radius:6px;padding:2px 7px;margin-top:5px;display:inline-block}
+  .pcard .ph{font-size:12px;color:var(--ink2);font-weight:600;margin-top:7px;font-variant-numeric:tabular-nums}
+  .pcard .phclick{cursor:pointer;display:inline-block;padding:4px 8px;border-radius:8px}
+  .pcard .phclick:hover{background:var(--blue-bg)}
+  .nav{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:7px;box-shadow:var(--shadow)}
+  .nav a{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:9px;font-size:13.5px;font-weight:700;color:var(--ink2);text-decoration:none;cursor:pointer}
+  .nav a.on,.nav a:hover{background:var(--blue-bg);color:var(--blue)}
+  .nav a .i{font-size:15px;width:18px;text-align:center}
+  .content{display:flex;flex-direction:column;gap:18px;min-width:0}
+  .sec{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
+  .sh{display:flex;align-items:center;gap:10px;padding:17px 22px 13px}
+  .sh .ic{font-size:17px}.sh .t{font-size:15.5px;font-weight:850;letter-spacing:-.01em}
+  .sh .badge{margin-left:auto;font-size:11px;font-weight:800;border-radius:7px;padding:4px 10px}
+  .badge.on{color:var(--green);background:var(--green-bg)} .badge.off{color:var(--ink3);background:var(--sunken)}
+  .badge.warn{color:var(--amber);background:var(--amber-bg)}
+  .dev.unknown{background:var(--amber-bg);margin:0 -22px;padding-left:22px;padding-right:22px;border-radius:10px}
+  .body{padding:0 22px 20px}
+  .desc{font-size:13px;color:var(--ink2);line-height:1.65;margin:0 0 14px}
+  .flabel{font-size:11px;font-weight:800;color:var(--ink3);letter-spacing:.03em;margin:0 0 7px;text-transform:uppercase}
+  .dev{display:flex;align-items:center;gap:13px;padding:13px 0;border-top:1px solid var(--line)}
+  .dev:first-child{border-top:none}
+  .dev .dic{width:38px;height:38px;border-radius:11px;background:var(--sunken);display:flex;align-items:center;justify-content:center;font-size:18px;flex:none}
+  .dev .dm{flex:1;min-width:0}
+  .dev .dt{font-size:14px;font-weight:700}
+  .dev .dt .cur{font-size:10.5px;font-weight:800;color:var(--green);background:var(--green-bg);border-radius:5px;padding:1px 7px;margin-left:7px}
+  .dev .dd{font-size:12px;color:var(--ink3);margin-top:2px}
+  .dev .out{font-size:12px;font-weight:800;color:var(--red);background:var(--red-bg);border:none;border-radius:8px;padding:7px 13px;cursor:pointer;flex:none}
+  .hist{max-height:0;overflow:hidden;transition:max-height .4s ease}.hist.open{max-height:600px}
+  .linkbtn{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:800;color:var(--blue);cursor:pointer;background:none;border:none;padding:8px 0}
+  .rowbtns{display:flex;gap:10px;margin-top:15px}
+  .btn{text-align:center;font-size:12.5px;font-weight:800;border-radius:10px;padding:10px 16px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink2)}
+  .btn.danger{color:var(--red);border-color:var(--red-bg)}
+  .keyrow{display:flex;gap:9px;align-items:center}
+  .keyin{flex:1;font-family:var(--mono);font-size:13.5px;background:var(--sunken);border:1px solid var(--line);border-radius:10px;padding:12px 14px;color:var(--ink)}
+  .keyin.txt{font-family:var(--font)}
+  .keyin::placeholder{color:var(--ink3);font-family:var(--font)}
+  .kbtn{font-size:13px;font-weight:800;border:none;border-radius:10px;padding:12px 18px;cursor:pointer;background:var(--blue);color:#fff;white-space:nowrap}
+  .kbtn.v{background:var(--violet)}
+  .keystate{display:flex;align-items:center;gap:9px;margin-top:12px;padding:12px 14px;border-radius:10px;background:var(--green-bg)}
+  .keystate .dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
+  .keystate .s{font-size:13px;font-weight:800;color:var(--green)}
+  .keystate .k{font-family:var(--mono);font-size:12.5px;color:var(--ink2)}
+  .keystate .mini{margin-left:auto;display:flex;gap:7px}
+  .keystate .mini span{font-size:11.5px;font-weight:700;color:var(--ink3);cursor:pointer;padding:4px 9px;border-radius:7px;background:var(--surface)}
+  .howto{background:var(--sunken);border-radius:10px;padding:13px 15px;margin-top:12px;font-size:12.5px;color:var(--ink2);line-height:1.75}
+  .howto b{color:var(--ink)}.howto a{color:var(--blue);text-decoration:none;font-weight:700}
+  .note{font-size:12px;color:var(--ink3);margin-top:11px;display:flex;gap:6px;line-height:1.6}
+  .costcard{background:var(--blue-bg);border:1px solid var(--blue-line);border-radius:11px;padding:12px 14px;margin-bottom:14px;font-size:12.5px;color:var(--ink);line-height:1.6}
+  .costcard b{color:var(--blue)}
+  .urlitem{display:flex;align-items:center;gap:10px;background:var(--sunken);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px}
+  .urlitem .u{flex:1;font-size:13px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .urlitem .ok{font-size:11px;font-weight:800;color:var(--violet);background:var(--violet-bg);border-radius:6px;padding:3px 8px}
+  .urlitem .x{font-size:15px;color:var(--ink3);cursor:pointer}
+</style></head><body>
+<div class="topbar">
+  <div class="logo"><span class="dot"></span>시공막내 웹</div>
+  <div class="who"><span class="av" id="topAv">·</span><span id="topWho">마이페이지</span></div>
+</div>
+<div class="page">
+  <div class="crumb">시공막내 웹 · PC 전용</div>
+  <h1>내 계정 · 보안 · AI 설정</h1>
+  <div class="layout">
+    <aside class="side">
+      <div class="pcard">
+        <div class="av" id="pcAv">·</div>
+        <div class="nm" id="pcName">사장님</div>
+        <div class="beta">베타 · 무료</div>
+        <div class="ph phclick" onclick="location.hash='#s1'" title="로그인 이력"><span id="pcPhone">—</span> <span style="color:var(--blue);font-weight:800">이력 ›</span></div>
+      </div>
+      <nav class="nav">
+        <a class="on" href="#s1"><span class="i">🔐</span>로그인 & 보안</a>
+        <a href="#s2"><span class="i">✨</span>AI 키 (내 비용)</a>
+        <a href="#s3"><span class="i">📝</span>블로그 톤</a>
+        <a href="#s4"><span class="i">🔗</span>앱 연결</a>
+        <a onclick="thisLogout()" style="color:var(--red)"><span class="i">⏻</span>로그아웃</a>
+      </nav>
+    </aside>
+    <div class="content">
+      <div class="sec" id="s1">
+        <div class="sh"><span class="ic">🔐</span><span class="t">로그인 & 보안</span><span class="badge on" id="secBadge">이 기기 안전</span></div>
+        <div class="body">
+          <p class="desc">이 계정으로 <b>어느 기기</b>가 로그인돼 있는지 보여줘요. 모르는 기기가 있으면 <b>바로 로그아웃</b>하세요. (QR 보안 대응)</p>
+          <div class="flabel">로그인된 기기</div>
+          <div id="devList"></div>
+          <div class="rowbtns">
+            <div class="btn danger" onclick="logoutAll()">모든 기기 로그아웃</div>
+          </div>
+        </div>
+      </div>
+      <div class="sec" id="s2">
+        <div class="sh"><span class="ic">✨</span><span class="t">AI 키 — 내 Gemini 키 (내 비용)</span><span class="badge off" id="keyBadge">미연결</span></div>
+        <div class="body">
+          <div class="costcard">💡 <b>PC 웹 시공막내의 AI(블로그 글 등)는 사장님 본인 Gemini 키로 돌아가요.</b> 무료 한도가 넉넉해 대부분 공짜고, 비용도 데이터도 본인 것. <br><span style="color:var(--ink3)">※ 폰 앱의 상담 답변·통화 요약은 그대로 시공막내가 처리해요 (그건 핵심이라 무료).</span></div>
+          <div class="flabel">내 Gemini API 키</div>
+          <div class="keyrow">
+            <input class="keyin" id="keyIn" placeholder="AIzaSy… 여기에 붙여넣기">
+            <button class="kbtn" onclick="saveKey()">연결</button>
+          </div>
+          <div class="keystate" id="keyState" style="display:none">
+            <span class="dot"></span><span class="s">연결됨</span><span class="k" id="keyMask"></span>
+            <span class="mini"><span onclick="testKey()">테스트</span><span onclick="delKey()" style="color:var(--red)">삭제</span></span>
+          </div>
+          <div class="howto"><b>키 받는 법 (30초 · 무료)</b><br>① <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> 접속 (구글 로그인) &nbsp; ② <b>[Create API key]</b> → 키 복사 &nbsp; ③ 위에 붙여넣고 <b>[연결]</b></div>
+          <div class="note">🔒 키는 <b>암호화되어 안전하게 보관</b>되고 블로그 생성에만 써요. 화면엔 뒤 4자리만. 언제든 삭제 가능.</div>
+        </div>
+      </div>
+      <div class="sec" id="s3">
+        <div class="sh"><span class="ic">📝</span><span class="t">블로그 톤 — 따라할 글 지정</span><span class="badge off" id="toneBadge">미설정</span></div>
+        <div class="body">
+          <p class="desc"><b>따라하고 싶은 “글(포스트) 주소”</b>를 넣으세요. 블로그 대문이 아니라 <b>특정 글</b>을 지목하는 이유는 — <b>글마다 말투가 다를 수 있어서</b>, 딱 그 스타일을 배우게 하려는 거예요. (여러 개 넣으면 평균 톤)</p>
+          <div class="flabel">따라할 글 주소</div>
+          <div id="toneList"></div>
+          <div class="keyrow" style="margin-top:4px">
+            <input class="keyin txt" id="toneIn" placeholder="따라할 글 주소 붙여넣기 (예: blog.naver.com/…/22301…)">
+            <button class="kbtn v" onclick="addTone()">추가·학습</button>
+          </div>
+          <div class="note">✨ 지정한 글의 톤으로 블로그 초안이 나와서, 사장님이 직접 쓴 것처럼 일관돼요. (톤 반영은 글 만들 때 사장님 Gemini 키로 적용)</div>
+        </div>
+      </div>
+      <div class="sec" id="s4">
+        <div class="sh"><span class="ic">🔗</span><span class="t">앱 연결 & 동기화</span><span class="badge on">연결됨</span></div>
+        <div class="body">
+          <p class="desc" style="margin:0">시공막내 앱과 연결돼서 <b>현장·사진·메모가 자동으로</b> 이 웹에 들어와요. (수정은 폰 앱에서만 — 웹은 보기·다운로드·블로그 전용)</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function ago(ms){var d=Date.now()-ms;var m=Math.floor(d/60000);if(m<1)return '방금 전';if(m<60)return m+'분 전';var h=Math.floor(m/60);if(h<24)return h+'시간 전';return Math.floor(h/24)+'일 전';}
+function fmtPhone(p){p=(p||'').replace(/[^0-9]/g,'');if(p.length===11)return p.slice(0,3)+'-'+p.slice(3,7)+'-'+p.slice(7);return p;}
+var ME=null;
+function load(){
+  fetch('/api/web/me').then(function(r){if(r.status===401){location.href='/web/login';throw 0;}return r.json();}).then(function(d){
+    ME=d; render();
+  }).catch(function(){});
+}
+function render(){
+  var nm=ME.name||'사장님', ini=(nm[0]||'·');
+  document.getElementById('pcName').textContent=nm;
+  document.getElementById('pcAv').textContent=ini;
+  document.getElementById('topAv').textContent=ini;
+  document.getElementById('topWho').textContent=nm+' · 마이페이지';
+  document.getElementById('pcPhone').textContent='📱 '+fmtPhone(ME.owner_phone);
+  // 기기
+  var h=''; (ME.sessions||[]).forEach(function(s){
+    var isPhone=s.device.indexOf('앱')>=0;
+    h+='<div class="dev"><div class="dic">'+(isPhone?'📱':'💻')+'</div>'
+      +'<div class="dm"><div class="dt">'+esc(s.device)+(s.is_current?'<span class="cur">지금</span>':'')+'</div>'
+      +'<div class="dd">'+(s.is_current?'이 기기 · ':'')+ago(s.last_active_ms)+(isPhone?' · 이 폰이 열쇠':'')+'</div></div>'
+      +(s.is_current?'':'<button class="out" onclick="logoutSid(\''+s.sid+'\')">로그아웃</button>')+'</div>';
+  });
+  document.getElementById('devList').innerHTML=h||'<div class="dd" style="padding:12px 0">로그인된 기기가 없어요.</div>';
+  var n=(ME.sessions||[]).length;
+  document.getElementById('secBadge').textContent = n>1 ? ('기기 '+n+'대 로그인') : '이 기기 안전';
+  document.getElementById('secBadge').className = n>1 ? 'badge warn' : 'badge on';
+  // 키
+  if(ME.key&&ME.key.connected){
+    document.getElementById('keyBadge').textContent='연결됨'; document.getElementById('keyBadge').className='badge on';
+    document.getElementById('keyState').style.display='flex';
+    document.getElementById('keyMask').textContent='AIzaSy••••••••••••'+(ME.key.last4||'');
+    document.getElementById('keyIn').value='';
+  } else {
+    document.getElementById('keyBadge').textContent='미연결'; document.getElementById('keyBadge').className='badge off';
+    document.getElementById('keyState').style.display='none';
+  }
+  // 톤
+  var t=''; (ME.tone_urls||[]).forEach(function(u){
+    t+='<div class="urlitem"><span class="u">'+esc(u.url)+'</span>'+(u.learned?'<span class="ok">학습됨 ✓</span>':'<span class="ok" style="color:var(--ink3);background:var(--sunken)">확인중</span>')+'<span class="x" onclick="delTone('+u.id+')">✕</span></div>';
+  });
+  document.getElementById('toneList').innerHTML=t;
+  var tn=(ME.tone_urls||[]).length;
+  document.getElementById('toneBadge').textContent = tn?('글 '+tn+'개 학습'):'미설정';
+  document.getElementById('toneBadge').className = tn?'badge on':'badge off';
+}
+function saveKey(){var k=document.getElementById('keyIn').value.trim();if(!k){alert('키를 붙여넣어 주세요');return;}
+  fetch('/api/web/gemini-key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:k})})
+  .then(function(r){return r.json();}).then(function(d){if(d.ok){toast('키 저장됨 ✓');load();}else{alert(d.detail||'저장 실패');}});}
+function testKey(){toast('테스트 중…');fetch('/api/web/gemini-key/test').then(function(r){return r.json();}).then(function(d){toast(d.ok?('통과 ✓ '+(d.ms||0)+'ms'):'실패 — 키 확인');});}
+function delKey(){if(!confirm('저장된 Gemini 키를 삭제할까요?'))return;fetch('/api/web/gemini-key',{method:'DELETE'}).then(function(){toast('키 삭제됨');load();});}
+function addTone(){var u=document.getElementById('toneIn').value.trim();if(!u){alert('글 주소를 넣어주세요');return;}toast('분석 중…');
+  fetch('/api/web/tone-url',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:u})})
+  .then(function(r){return r.json();}).then(function(d){document.getElementById('toneIn').value='';toast('추가됨 ✓');load();});}
+function delTone(id){fetch('/api/web/tone-url?id='+id,{method:'DELETE'}).then(function(){toast('삭제됨');load();});}
+function logoutSid(sid){if(!confirm('이 기기를 로그아웃할까요?'))return;fetch('/api/web/logout-session?sid='+encodeURIComponent(sid),{method:'POST'}).then(function(){toast('로그아웃했어요');load();});}
+function logoutAll(){if(!confirm('모든 기기에서 로그아웃할까요? (이 PC 포함)'))return;fetch('/api/web/logout-all?owner_phone='+encodeURIComponent(ME.owner_phone),{method:'POST'}).then(function(){location.href='/web/login';});}
+function thisLogout(){var cur=(ME&&ME.sessions||[]).filter(function(s){return s.is_current;})[0];if(cur){fetch('/api/web/logout-session?sid='+encodeURIComponent(cur.sid),{method:'POST'}).then(function(){location.href='/web/login';});}else{location.href='/web/login';}}
+document.querySelectorAll('.nav a[href]').forEach(function(a){a.onclick=function(){document.querySelectorAll('.nav a').forEach(function(x){x.classList.remove('on')});a.classList.add('on');};});
+var tt;function toast(m){var el=document.createElement('div');el.textContent=m;el.style.cssText='position:fixed;left:50%;bottom:34px;transform:translateX(-50%);background:rgba(24,29,39,.94);color:#fff;font-size:13px;font-weight:700;padding:11px 20px;border-radius:999px;z-index:99';document.body.appendChild(el);clearTimeout(tt);tt=setTimeout(function(){el.remove();},1500);}
+load();
+</script></body></html>"""
+
+
+@app.get("/mypage", response_class=HTMLResponse, include_in_schema=False)
+async def web_mypage(request: Request):
+    from fastapi.responses import RedirectResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return RedirectResponse("/web/login", status_code=302)
+    return HTMLResponse(_MYPAGE_HTML)

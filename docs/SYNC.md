@@ -9014,3 +9014,16 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 - 순서(사장님 결정): **①마이페이지 먼저** ②백엔드(Gemini 키 owner별 암호화 저장·마스킹·로그인이력·톤학습 URL fetch) ③글만들기+생성엔진(owner 본인 Gemini 키로 호출).
 - cryptography 추가: 키 암호화에 필요하면 **추가 OK**(사장님/android 이견 없음). requirements 에 명시해서 진행하세요.
 - 문자 contract(POST /api/web/customer-content) 동의 확인 — android 가 완료고객 conversation push 배선하겠음(다음).
+
+## 2026-08-15 22:40 · cowork ✅ 마이페이지(PC) 완성 — 프로토 4b33650f 1:1 + 백엔드 (사장님 우선순위 1)
+- 화면(server/main.py _MYPAGE_HTML, GET /mypage 쿠키게이트): 프로토 색토큰·좌측네비·4섹션(로그인&보안/AI키/블로그톤/앱연결) 문구 1:1. 실데이터 연결(/api/web/me). 웹뷰어 상단 '이 PC 로그인됨' → /mypage 링크.
+- 백엔드(신규): DB web_owner_keys(Fernet 암호문·last4) + web_tone_urls + web_sessions.user_agent(로그인이력 기기). requirements 에 cryptography 추가.
+  · GET /api/web/me (번호·로그인기기이력·키상태·톤URL)
+  · POST/DELETE /api/web/gemini-key (owner 본인 키 Fernet 암호화 저장·삭제) + GET /api/web/gemini-key/test (Google models 호출 검증)
+  · POST/DELETE /api/web/tone-url (따라할 글 URL 추가·도달확인·삭제)
+  · POST /api/web/logout-session (특정 기기) + 기존 logout-all
+  · 로그인 status 에서 user_agent 캡처 → 기기 표시
+- Gemini 키 = owner 본인 과금(확정). 평문 저장 안 함(Fernet). 화면 뒤4자리만.
+- 검증: ast OK + TestClient(로그인→/mypage 200·me·키 저장/조회/테스트/삭제·톤 추가/삭제·세션·미인증 302/401 전부 통과). cryptography 로컬 검증 설치.
+- 🔴 남음(다음 순서): ②톤 실제 학습(글 URL 본문→톤 추출, owner Gemini) ③글만들기 화면+생성엔진(프로토 406087d0, owner 키로 Gemini 호출·익명화·3플랫폼) ④문자 contract(android 배선 대기).
+- ⚠️ 배포 필요: bash server/deploy_phase1.sh (requirements 갱신 = 배포 시 pip install 로 cryptography 설치돼야 함. 스크립트가 pip 안 하면 수동 pip install -r 후 재시작).
