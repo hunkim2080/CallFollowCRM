@@ -767,7 +767,8 @@ fun ChatScreen(
                                     onSummarizeCall = { viewModel.summarizeCall(ti.record, context) },
                                     onEditSummary = { newText -> matched?.let { viewModel.updateCallSummary(it, newText) } },
                                     recordingConnected = recordingConnected,
-                                    onConnectRecording = onOpenRecordingSettings
+                                    onConnectRecording = onOpenRecordingSettings,
+                                    onMessageTap = { runCatching { composerFocusRequester.requestFocus() } }   // 부재중 문자하기 → 입력칸 (2026-08-15)
                                 )
                             }
                             is ChatTimelineItem.Intake -> IntakeSegment(ti.event, onConfirm = { intakeConfirm = ti.event })
@@ -1905,7 +1906,8 @@ private fun CallSegment(
     onSummarizeCall: () -> Unit = {},
     onEditSummary: (String) -> Unit = {},
     recordingConnected: Boolean = true,
-    onConnectRecording: () -> Unit = {}
+    onConnectRecording: () -> Unit = {},
+    onMessageTap: () -> Unit = {}   // 부재중 '문자하기' — 놓친 전화에 바로 문자 (프로토). (2026-08-15)
 ) {
     // 사장님이 잘못된 통화 요약을 직접 고치는 인라인 편집 상태. (2026-06-23 사장님)
     var editing by remember(summary?.id) { mutableStateOf(false) }
@@ -1970,6 +1972,15 @@ private fun CallSegment(
                 // 프로토 .chev = '›' (새 시트 열림 신호). 인라인 펼침 아님.
                 Text("›", color = Color(0xFFB6C9C9), fontSize = 20.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(start = 4.dp))
+            } else if (isMissed) {
+                // 프로토: 부재중 = '문자하기' 코랄 pill (녹음·요약 없음 → 놓친 전화에 바로 문자). (2026-08-15)
+                Box(
+                    Modifier.clip(RoundedCornerShape(999.dp)).background(Color(0xFFFCEBE8))
+                        .border(1.dp, Color(0xFFF0CFC9), RoundedCornerShape(999.dp))
+                        .clickable { onMessageTap() }.padding(horizontal = 13.dp, vertical = 5.dp)
+                ) {
+                    Text("문자하기", color = coral, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold)
+                }
             }
         }
         // 태그(평수·부위·일정) — 프로토 .callchip .tags: 카드에 항상 표시(이정표). (2026-08-15)
