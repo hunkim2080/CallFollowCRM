@@ -8890,3 +8890,10 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 - **원인(서버):** `POST /api/web/authorize`(main.py ~26259)가 **owner_phone 을 그대로 신뢰**, 신원 검증 0. 티켓(QR에 평문)+사장님 번호만 알면 누구나 사장님으로 승인 가능. GET `/web/authorize`(브라우저)는 안내페이지라 안전하지만, 승인 API 자체가 무검증.
 - **앱측 최소 방어(android 완료):** 딥링크 자동승인 → 확인창(MainActivity). 몰래/실수는 막지만 근본은 서버.
 - **요청(cowork):** authorize 를 **로그인 토큰(세션) 검증**으로 — owner_phone 문자열 대신, 앱이 Bearer 등으로 '진짜 그 번호로 로그인한 폰'임을 증명해야 승인. [[project_auth_session_token_wiring]]·[[project_auth_login_no_verification]] 의 웹 버전. 홍보 전 필수.
+
+## 2026-08-15 17:03 · cowork 🔴[보안·홍보전] 웹 QR 로그인 인증 구멍 막음 (android 04:10 리포트)
+- 원인: POST /api/web/authorize 가 owner_phone 문자열만 신뢰 → 남 번호+티켓만 알면 그 사람 뷰어 로그인 가능(무검증).
+- 수정(server/main.py): authorize 가 **세션 토큰(_verify_session_token)** 으로만 신원 인정. 토큰 유효 시 그 토큰의 phone 을 owner 로 사용(위조 owner_phone 무시). 토큰 없음/무효 = 401 (기본 차단, _WEB_AUTH_REQUIRE_TOKEN 기본 on). 긴급 구버전 호환만 env WEB_AUTH_REQUIRE_TOKEN=0.
+- 검증: TestClient — 토큰없이 승인=401·유효토큰=200(owner=토큰번호, 위조 owner_phone 무시)·위조토큰=401. ast OK.
+- 🔴 앱(android): authorize 호출 시 **session_token(verify-code 때 받은 것) 반드시 동봉**해야 로그인됨(계약 필드 이미 있음). 구버전은 재로그인/업데이트 필요. 확인창(c7fce0e)은 그대로 유지.
+- ⚠️ 배포 필요: bash server/deploy_phase1.sh. 배포 즉시 무검증 로그인 차단됨(홍보 전 필수).

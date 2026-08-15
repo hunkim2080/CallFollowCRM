@@ -26056,6 +26056,10 @@ import re as _webre  # noqa: E402
 _WEB_TICKET_TTL_MS = 60_000        # QR 로그인 티켓 60초
 _WEB_IDLE_MS = 30 * 60_000         # 30분 무동작 자동 로그아웃
 _WEB_COOKIE = "wsid"
+# 보안(android 04:10 핸드오프): authorize 는 세션토큰(진짜 그 번호로 로그인한 폰)만 신뢰.
+# owner_phone 문자열 단독 승인 = 무검증 구멍(남 번호만 알면 로그인) → 기본 차단.
+# 긴급 완화(구버전 앱 호환)만 env WEB_AUTH_REQUIRE_TOKEN=0.
+_WEB_AUTH_REQUIRE_TOKEN = os.environ.get("WEB_AUTH_REQUIRE_TOKEN", "1") == "1"
 _WEB_BASE = INTAKE_PUBLIC_BASE_URL  # https://api.si0in.kr
 
 
@@ -26258,11 +26262,24 @@ class WebAuthorize(BaseModel):
 
 @app.post("/api/web/authorize")
 async def web_authorize(req: WebAuthorize) -> dict:
-    """폰(시공막내 앱)이 QR 스캔 후 호출 → 티켓을 owner_phone 에 바인딩+승인."""
+    """폰(시공막내 앱)이 QR 스캔 후 호출 → 티켓을 owner_phone 에 바인딩+승인.
+
+    보안: 신원은 **세션 토큰**(진짜 그 번호로 로그인한 폰)으로만 증명. owner_phone 문자열
+    단독은 신뢰하지 않음(무검증 구멍 차단). 토큰 유효 시 그 토큰의 phone 을 owner 로 사용.
+    """
     tok = (req.ticket or "").strip()
-    owner = _norm_phone(req.owner_phone)
-    if not tok or not owner:
-        raise HTTPException(400, "ticket/owner_phone 필수")
+    if not tok:
+        raise HTTPException(400, "ticket 필수")
+    verified = _verify_session_token(req.session_token) if req.session_token else None
+    if verified:
+        owner = verified                      # 토큰이 증명한 진짜 번호만 신뢰
+    elif _WEB_AUTH_REQUIRE_TOKEN:
+        raise HTTPException(401, "로그인 인증이 필요해요. 앱을 최신 버전으로 업데이트해 주세요.")
+    else:
+        owner = _norm_phone(req.owner_phone)  # 하위호환(임시·비권장) — env 로만 열림
+        print(f"[web/authorize] ⚠️ 토큰없이 승인(하위호환): {owner}")
+    if not owner:
+        raise HTTPException(400, "owner 확인 불가 (토큰/번호 없음)")
     now = _now_ms()
     with db_conn() as con:
         row = con.execute(
