@@ -491,6 +491,18 @@ def db_init() -> None:
             "CREATE INDEX IF NOT EXISTS idx_web_tone_owner "
             "ON web_tone_urls(owner_phone, added_at_ms)"
         )
+        # 글만들기 재료 3 — 문자 대화(완료 고객만, 앱이 별도 push). 피드 폭증 방지 위해 분리 테이블.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS web_customer_content (
+                owner_phone      TEXT NOT NULL,
+                customer_digits  TEXT NOT NULL,
+                conversation_text TEXT,
+                updated_at_ms    INTEGER NOT NULL,
+                PRIMARY KEY (owner_phone, customer_digits)
+            )
+            """
+        )
         # ── 추가142 (2026-07-22) — 박람회 팀 시공 Phase 1 (docs/EXPO_DECISIONS.md) ──
         # 사장님 확정: ①정산 완전격리(expo_* 테이블에만 저장, 기존 정산/고객에 안 섞음)
         # ②분배=팀별 ③계약서=상품카탈로그 체크형+서명+동의 ④방장이 방개설·계약서준비
@@ -27559,10 +27571,18 @@ def _web_gather_materials(owner: str, cd: str) -> dict:
         tones = [t[0] for t in con.execute(
             "SELECT url FROM web_tone_urls WHERE owner_phone = ? ORDER BY added_at_ms DESC LIMIT 5",
             (owner,)).fetchall()]
+        # 문자 대화 (앱이 완료고객만 push — 없을 수 있음)
+        convo = ""
+        cvr = con.execute(
+            "SELECT conversation_text FROM web_customer_content WHERE owner_phone = ? AND customer_digits = ?",
+            (owner, _webre.sub(r"[^0-9]", "", cd))).fetchone()
+        if cvr and cvr[0]:
+            # 전화번호 등 PII 마스킹(익명화 1차 — 최종 익명화는 프롬프트 규칙)
+            convo = _webre.sub(r"01[0-9]-?[0-9]{3,4}-?[0-9]{4}", "(번호)", cvr[0])[:4000]
     return {"region": _web_region_only(site.get("apartment", "")),
             "category": site.get("category", ""), "work_date": site.get("work_date", ""),
             "completed": site.get("completed", False), "memo": memo, "call": call,
-            "tone_urls": tones}
+            "convo": convo, "tone_urls": tones}
 
 
 async def _web_gemini_generate(api_key: str, prompt: str) -> dict:
@@ -27622,7 +27642,8 @@ async def web_generate_content(request: Request, req: WebGenReq):
         "시공종류: " + (m["category"] or "-") + "\n"
         "시공일: " + (m["work_date"] or "-") + "\n"
         "메모: " + (m["memo"] or "(없음)") + "\n"
-        "통화요약: " + (m["call"] or "(없음)") + "\n\n"
+        "통화요약: " + (m["call"] or "(없음)") + "\n"
+        "문자대화: " + (m["convo"] or "(없음)") + "\n\n"
         "반드시 아래 JSON 형식만 출력:\n"
         '{"persona":"한 줄","blog":{"title":"제목","body":"본문(문단은 \\n\\n 로 구분)"},'
         '"instagram":{"caption":"캡션","hashtags":["#태그", "... 15개"]},'
@@ -27647,3 +27668,27 @@ async def web_generate_content(request: Request, req: WebGenReq):
                     "hashtags": [str(h) for h in (th.get("hashtags") or [])][:2],
                     "chars": _len(th.get("body"))},
     }
+
+
+class WebCustomerContent(BaseModel):
+    owner_phone: str
+    customer_digits: str
+    conversation_text: Optional[str] = None
+
+
+@app.post("/api/web/customer-content")
+async def web_customer_content_push(req: WebCustomerContent) -> dict:
+    """앱 → 서버: 완료 고객의 문자 대화(글만들기 재료). owner_phone 인증(앱 전용, 스케줄피드와 동일).
+    피드에 안 싣고 분리 push(완료고객만·변경시 debounce·백필). android 배선."""
+    owner = _norm_phone(req.owner_phone)
+    cd = _webre.sub(r"[^0-9]", "", req.customer_digits or "")
+    if not owner or not cd:
+        raise HTTPException(400, "owner_phone/customer_digits 필수")
+    txt = (req.conversation_text or "").strip()
+    with db_conn() as con:
+        con.execute(
+            "INSERT OR REPLACE INTO web_customer_content "
+            "(owner_phone, customer_digits, conversation_text, updated_at_ms) VALUES (?,?,?,?)",
+            (owner, cd, txt or None, _now_ms()))
+        con.commit()
+    return {"ok": True, "len": len(txt)}

@@ -9034,3 +9034,10 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 - 검증: ast OK + TestClient(익명화=동/호 프롬프트 유출 없음·키없음 400·정상 생성 persona/blog/ig15/th2 shape). Gemini 는 mock(샌드박스 실호출 불가).
 - ⚠️ 배포 후 실제 확인: 마이페이지에서 사장님 Gemini 키 등록 → 완료 현장 [글 만들기] → 실 생성. (requirements cryptography + 이 커밋 함께 배포)
 - 이로써 웹 글만들기 세트 = 마이페이지(7ffa97e) + 글생성엔진(이 커밋) 완료. 남음: 문자대화 재료(android customer-content push 배선)·톤 실학습(글 URL 본문 반영 고도화).
+
+## 2026-08-15 23:42 · cowork ✅ 문자 대화 재료 — 서버 수신 엔드포인트 완성 (contract 이행)
+- 신규: web_customer_content 테이블 + POST /api/web/customer-content {owner_phone, customer_digits, conversation_text} (앱→서버, owner_phone 인증, upsert). 계약대로 피드와 분리(완료고객만·debounce·백필은 android).
+- 글생성 반영: _web_gather_materials 가 문자대화도 수집(전화번호 마스킹 1차) → generate-content 프롬프트에 '문자대화' 재료 추가. 이제 재료 3종(통화·메모·문자) 완비.
+- 검증: ast OK + TestClient(문자 push 200·전화번호 (번호) 마스킹·프롬프트 포함·생성 200).
+- 🔴 android: 완료 고객 변경 시 POST /api/web/customer-content 로 conversation push + 기존 완료고객 1회 백필(계약대로). 서버는 준비 완료.
+- ⚠️ 배포: 이 커밋 + 앞선 마이페이지/글만들기와 함께 (cryptography 설치 + deploy_phase1.sh).
