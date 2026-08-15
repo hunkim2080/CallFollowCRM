@@ -2080,20 +2080,25 @@ private fun CallSegment(
                 }
             }
         } else {
-            // 요약됨 → 제목(굵게) + cc-bul(불릿) + ✏️ 수정 + ghost 버튼 "이 통화 내용으로 후속 문자 쓰기"
+            // 프로토(08352d6e): ✨ AI 요약 라벨 + 티얼 박스 안 불릿. (2026-08-15 1:1)
             Column(Modifier.padding(top = 10.dp)) {
-                if (summaryTitle != null) {
-                    Text(
-                        summaryTitle,
-                        fontSize = 14.sp, fontWeight = FontWeight.ExtraBold,
-                        color = TossTextPrimary, lineHeight = 20.sp,
-                        modifier = Modifier.padding(bottom = 6.dp)
-                    )
-                }
-                displayBullets.forEach { line ->
-                    Row(Modifier.padding(bottom = 4.dp)) {
-                        Text("• ", fontSize = 12.5.sp, color = Color(0xFF0A7D72), fontWeight = FontWeight.Bold)
-                        Text(line, fontSize = 12.5.sp, color = TossTextSecondary, lineHeight = 19.sp, modifier = Modifier.weight(1f))
+                Text("✨ AI 요약", color = teal, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.2.sp)
+                Spacer(Modifier.height(6.dp))
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(11.dp)).background(tealBg)
+                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                ) {
+                    if (summaryTitle != null) {
+                        Text(
+                            summaryTitle, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold,
+                            color = tealDark, lineHeight = 18.sp, modifier = Modifier.padding(bottom = 3.dp)
+                        )
+                    }
+                    displayBullets.forEach { line ->
+                        Row(Modifier.padding(vertical = 1.dp)) {
+                            Text("• ", fontSize = 12.sp, color = Color(0xFF3A5252), fontWeight = FontWeight.Bold)
+                            Text(line, fontSize = 12.sp, color = Color(0xFF3A5252), lineHeight = 18.sp, modifier = Modifier.weight(1f))
+                        }
                     }
                 }
             }
@@ -2107,67 +2112,75 @@ private fun CallSegment(
                     Text("✏️ 요약 수정", color = Color(0xFF0A7D72), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
-            val draft = summary?.recommendedMessage?.takeIf { it.isNotBlank() }
-            Box(
-                Modifier.fillMaxWidth().padding(top = 12.dp).clip(RoundedCornerShape(10.dp))
-                    .background(Color.White).border(1.dp, Color(0xFFBCE0D8), RoundedCornerShape(10.dp))
-                    .clickable { if (draft != null) onUseAsDraft(draft) }.padding(vertical = 10.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("이 통화 내용으로 후속 문자 쓰기", color = Color(0xFF0A7D72), fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold)
-            }
         }
-        // 🗣️ 통화 전문. 서버 화자분리(transcript_segments) 있으면 카톡식 말풍선(손님=좌·나=우), 없으면 평문 폴백. (2026-08-14)
+        // 🗣️ 통화 전문 — 프로토(08352d6e): 녹음 대화록 느낌. trans박스(#FAFCFC)+나/손님 범례+작은 말풍선(나=티얼bg·손님=흰).
+        //   탭 재생(문장별 시각)은 서버가 start_ms 붙이면 Phase 3. (2026-08-15 1:1)
         val callSegments = remember(summary?.id, summary?.transcriptSegmentsJson) {
             parseTranscriptSegments(summary?.transcriptSegmentsJson)
         }
         if (transcript != null || callSegments.isNotEmpty()) {
             Column(Modifier.padding(top = 12.dp)) {
-                Text("🗣️ 통화 전문", color = teal, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
+                Text("🗣️ 통화 전문", color = teal, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.2.sp)
                 Spacer(Modifier.height(6.dp))
                 if (callSegments.isNotEmpty()) {
-                    // 카톡식 말풍선 — 손님=좌(흰), 나=우(teal). 탭 재생(시각)은 Phase 3.
-                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        callSegments.forEach { (speaker, text) ->
-                            val mine = speaker == "나"
-                            val bubbleShape = RoundedCornerShape(
-                                topStart = 12.dp, topEnd = 12.dp,
-                                bottomStart = if (mine) 12.dp else 3.dp,
-                                bottomEnd = if (mine) 3.dp else 12.dp
-                            )
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start
-                            ) {
-                                Box(
-                                    Modifier.widthIn(max = 264.dp)
-                                        .clip(bubbleShape)
-                                        .background(if (mine) teal else Color.White)
-                                        .then(if (mine) Modifier else Modifier.border(1.dp, tealLine, bubbleShape))
-                                        .padding(horizontal = 11.dp, vertical = 8.dp)
-                                ) {
-                                    Text(
-                                        text, fontSize = 12.5.sp,
-                                        color = if (mine) Color.White else TossTextSecondary, lineHeight = 18.sp
-                                    )
+                    Column(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFFAFCFC))
+                            .border(1.dp, Color(0xFFE6EFEF), RoundedCornerShape(12.dp)).padding(9.dp)
+                    ) {
+                        // 범례 — 나(티얼) / 손님(흰)
+                        Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(8.dp).clip(RoundedCornerShape(3.dp)).background(tealBg).border(1.dp, Color(0xFFD6E6E6), RoundedCornerShape(3.dp)))
+                            Spacer(Modifier.width(4.dp)); Text("나", fontSize = 9.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.width(13.dp))
+                            Box(Modifier.size(8.dp).clip(RoundedCornerShape(3.dp)).background(Color.White).border(1.dp, Color(0xFFE6EFEF), RoundedCornerShape(3.dp)))
+                            Spacer(Modifier.width(4.dp)); Text("손님", fontSize = 9.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Bold)
+                        }
+                        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            callSegments.forEach { (speaker, text) ->
+                                val mine = speaker == "나"
+                                val shape = RoundedCornerShape(
+                                    topStart = 10.dp, topEnd = 10.dp,
+                                    bottomStart = if (mine) 10.dp else 3.dp,
+                                    bottomEnd = if (mine) 3.dp else 10.dp
+                                )
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
+                                    Box(
+                                        Modifier.widthIn(max = 250.dp).clip(shape)
+                                            .background(if (mine) tealBg else Color.White)
+                                            .border(1.dp, if (mine) tealLine else Color(0xFFE6EFEF), shape)
+                                            .padding(start = 9.dp, end = 9.dp, top = 5.dp, bottom = 4.dp)
+                                    ) {
+                                        Text(text, fontSize = 11.sp, lineHeight = 15.sp,
+                                            color = if (mine) tealDark else Color(0xFF3A4A4A))
+                                    }
                                 }
                             }
                         }
                     }
                 } else if (transcript != null) {
                     Box(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color.White)
-                            .border(1.dp, tealLine, RoundedCornerShape(10.dp)).padding(11.dp)
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFFAFCFC))
+                            .border(1.dp, Color(0xFFE6EFEF), RoundedCornerShape(12.dp)).padding(11.dp)
                     ) {
-                        Text(transcript, fontSize = 12.sp, color = TossTextSecondary, lineHeight = 18.sp)
+                        Text(transcript, fontSize = 11.5.sp, color = Color(0xFF3A4A4A), lineHeight = 17.sp)
                     }
                 }
-                Text("※ 받아쓰기라 오타·구분이 정확하지 않을 수 있어요", fontSize = 9.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 5.dp))
+                Text("※ 받아쓰기라 오타·구분이 정확하지 않을 수 있어요", fontSize = 9.5.sp, color = TossTextTertiary, modifier = Modifier.padding(top = 6.dp))
             }
         }
         // 녹음 재생 플레이어 — 녹음 파일 있으면 표시. (2026-06-16 사장님)
         if (audioUri != null) {
             CallRecordingPlayer(audioUri = audioUri, durationHintMs = audioDurationMs)
+        }
+        // 프로토(08352d6e): 후속문자 = 큰 버튼 → 작은 링크(플레이어 뒤). 통화 요약 있을 때만.
+        summary?.recommendedMessage?.takeIf { it.isNotBlank() }?.let { draft ->
+            Box(
+                Modifier.fillMaxWidth().padding(top = 12.dp).clip(RoundedCornerShape(8.dp))
+                    .clickable { onUseAsDraft(draft) }.padding(vertical = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("✍️ 이 통화로 후속 문자 쓰기", color = teal, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
         }
         }
         }
