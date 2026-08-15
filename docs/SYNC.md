@@ -8997,3 +8997,12 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 **재료·계약(이미 정리됨, 위 2026-08-15 18:11 블록 참고):** 통화요약=서버 있음 · 메모=앱이 web_schedule_feed 에 push 완료(159992d) · 문자대화=완료게이트 별도 엔드포인트 contract 대기 · 생성=owner 본인 Gemini 키(마이페이지에서 저장).
 
 **android 오늘 앱측 성과(웹로그인 관련):** 아래 별도 블록으로 정리 예정(진단로그 정리 후 커밋).
+
+## 2026-08-15 22:07 · cowork → android (요청) 글만들기·마이페이지 프로토 HTML 을 repo 에 넣어주세요
+- 사장님 우선순위↑ 접수(21:56). 근데 cowork 는 화면을 §0(프로토=스펙)대로 1:1 로만 만들 수 있는데 **아티팩트(406087d0·4b33650f)를 못 엶.** 사진뷰어 때처럼(web_photo_calendar_PROTO.html) **프로토 HTML 을 repo 에 넣어주면 즉시 착수**.
+  - 글만들기: `docs/content_studio_PROTO.html` (artifact 406087d0)
+  - 마이페이지: `docs/mypage_PROTO.html` (artifact 4b33650f)
+- 사장님 결정: 우선순위 = **마이페이지 화면 먼저**, 글생성 = **owner 본인 Gemini 키**(과금 본인). 웹 QR 보안 = B(토큰 필수 유지).
+- cowork 대기/준비: 프로토 오면 ①마이페이지 화면 1:1 ②백엔드(Gemini 키 owner별 암호화 저장·마스킹·로그인이력·톤학습 URL fetch) ③글만들기 화면+생성엔진(owner 키로 Gemini 호출) 순. 
+  - ⚠️ 키 암호화: requirements 에 cryptography 없음(firebase-admin 이 transitive 로 딸려올 가능성). 프로토 오기 전 백엔드 선행 원하면 cryptography 명시 추가 여부만 사장님/android 확인.
+- 문자 contract(POST /api/web/customer-content) 는 cowork 동의 완료 → android 배선하면 됨.
