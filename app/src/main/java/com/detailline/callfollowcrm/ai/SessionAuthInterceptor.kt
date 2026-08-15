@@ -24,8 +24,9 @@ object SessionAuthInterceptor : Interceptor {
         val original = chain.request()
         val isOurApi = original.url.host == API_HOST
         val token = SessionTokenStore.current?.token
+        val hadToken = !token.isNullOrBlank()   // 이번 요청에 우리가 실제로 토큰을 붙였는가
 
-        val request = if (isOurApi && !token.isNullOrBlank() && original.header("Authorization") == null) {
+        val request = if (isOurApi && hadToken && original.header("Authorization") == null) {
             original.newBuilder().header("Authorization", "Bearer $token").build()
         } else {
             original
@@ -34,16 +35,19 @@ object SessionAuthInterceptor : Interceptor {
         val response = chain.proceed(request)
 
         // 웹 뷰어(QR 로그인/스케줄 피드/로그아웃) 엔드포인트는 별도 인증 체계 → 여기서의 401 로 앱 세션을
-        // 무효화하면 안 된다. 실제 사고(2026-08-15): 세션토큰 없는 기존 유저가 QR 스캔 → /api/web/authorize
-        // 401(서버가 토큰 요구, 90121cd) → 이 인터셉터가 invalidate() → 앱이 재로그인으로 튕김
-        // ("스캔하자마자 시공막내 로그인이 풀림"). 진짜 세션 만료는 핵심 API(추천/요약 등)의 401 로 잡힌다.
+        // 무효화하면 안 된다.
         val isWebViewerEndpoint = original.url.encodedPath.startsWith("/api/web/")
 
+        // ⭐ 핵심 규칙: **우리가 토큰을 붙였는데도** 401 이면 = 진짜 만료/무효 → 폐기 + 재로그인.
+        //   토큰이 아예 없던 기존 유저는 '잃을 세션'이 없으므로 어떤 401 도 로그아웃을 유발하면 안 된다.
+        //   실제 사고(2026-08-15): 토큰 없는 사장님이 QR 로그인 → authorize OK(owner_phone 신뢰) →
+        //   이어지는 사진 백필 POST /api/site-photo/owner-upload 가 401 → 예전엔 여기서 invalidate() →
+        //   앱이 재로그인으로 튕김("QR 찍으면 시공막내 로그인이 풀림"). hadToken 가드로 차단.
         if (isOurApi && !isWebViewerEndpoint &&
             response.code == 401 &&
-            com.detailline.callfollowcrm.AppConfig.SMS_SIGNUP_ENABLED
+            com.detailline.callfollowcrm.AppConfig.SMS_SIGNUP_ENABLED &&
+            hadToken
         ) {
-            // 유효토큰을 부착했는데도(또는 로그인했어야 하는데) 401 = 만료/무효 → 폐기 + 재로그인 유도.
             SessionTokenStore.current?.invalidate()
         }
         return response
