@@ -281,12 +281,14 @@ private fun RuleEditorDialog(
                 }
 
                 Spacer(Modifier.height(16.dp))
+                val canSaveRecur = name.isNotBlank()   // 이름 비면 저장 막기 — 수첩(NotebookScreen) 패턴과 통일. (2026-08-15 UX감사#13)
                 Box(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(TossBlue)
-                        .clickable { onSave(name, categoryId, interval, minutes, body) }
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                        .background(if (canSaveRecur) TossBlue else Color(0xFFB8C0CC))
+                        .then(if (canSaveRecur) Modifier.clickable { onSave(name, categoryId, interval, minutes, body) } else Modifier)
                         .padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center
-                ) { Text("예약하기", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp) }
+                ) { Text(if (canSaveRecur) "예약하기" else "이름을 먼저 입력하세요", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp) }
 
                 if (onDelete != null) {
                     Spacer(Modifier.height(6.dp))

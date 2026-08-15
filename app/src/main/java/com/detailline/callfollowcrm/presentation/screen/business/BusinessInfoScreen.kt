@@ -170,7 +170,7 @@ fun BusinessInfoScreen(
     // OCR 인식 중 로딩 — 화면 정중앙. "멈춘 것 같다" 방지.
     if (ocrBusy) {
         androidx.compose.ui.window.Dialog(
-            onDismissRequest = { },
+            onDismissRequest = { ocrBusy = false },   // 갇힘 방지 — OCR이 오래 걸려도 빠져나감 (UX감사#5)
             properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
         ) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -183,6 +183,10 @@ fun BusinessInfoScreen(
                     Text("사업자등록증에서 글자를 읽고 있어요", fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
                     Spacer(Modifier.height(3.dp))
                     Text("보통 5~10초 걸려요 · 잠시만요 🙂", fontSize = 12.sp, color = TossTextTertiary)
+                    Spacer(Modifier.height(16.dp))
+                    // 취소 — 오래 걸리거나 멈춘 것 같으면 빠져나갈 수 있게. (2026-08-15 UX감사#5)
+                    Text("취소", color = TossTextSecondary, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { ocrBusy = false }.padding(horizontal = 16.dp, vertical = 7.dp))
                 }
             }
         }
