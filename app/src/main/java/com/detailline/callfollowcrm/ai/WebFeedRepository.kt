@@ -98,6 +98,10 @@ class WebFeedRepository(
                 val body = JSONObject().apply {
                     put("ticket", ticket)
                     put("owner_phone", ownerPhone)
+                    // 세션토큰을 body 에도 동봉 — 서버 계약(90121cd): authorize 는 session_token 필드로 신원 검증.
+                    //   인터셉터가 Authorization: Bearer 로도 붙이지만, 서버는 body 의 session_token 을 읽음 → 없으면 401.
+                    com.detailline.callfollowcrm.data.SessionTokenStore.current?.token
+                        ?.takeIf { it.isNotBlank() }?.let { put("session_token", it); put("sessionToken", it) }
                 }.toString().toRequestBody(jsonMedia)
                 val req = Request.Builder().url("$baseUrl/api/web/authorize").post(body).build()
                 client.newCall(req).execute().use { resp ->

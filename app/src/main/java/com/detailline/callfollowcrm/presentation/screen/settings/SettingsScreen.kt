@@ -1088,6 +1088,13 @@ private fun WebViewerSection(container: AppContainer) {
     val ownerPhone = prefs.bizPhone.trim()
     var active by remember { mutableStateOf(prefs.webViewerActive) }
     var busy by remember { mutableStateOf(false) }
+    // 웹 로그인 인증(세션토큰) — 서버(90121cd)가 /api/web/authorize 에 토큰을 요구하는데 기존 유저는 토큰이 없어 401.
+    //   여기서 한 번 문자 인증 → 토큰 저장 → 이후 QR 로그인 통과. (2026-08-15)
+    var authed by remember { mutableStateOf(container.sessionTokenStore.hasValidToken(System.currentTimeMillis())) }
+    var reauthOpen by remember { mutableStateOf(false) }
+    var reauthCode by remember { mutableStateOf("") }
+    var reauthBusy by remember { mutableStateOf(false) }
+    var reauthSent by remember { mutableStateOf(false) }
     fun toast(msg: String) = Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
 
     // QR 로그인 승인 — ticket 으로 서버에 owner 증명. OK시 뷰어 켜고 피드 즉시 push. (딥링크 경로와 동일 로직)
@@ -1108,6 +1115,53 @@ private fun WebViewerSection(container: AppContainer) {
                     toast("QR이 만료됐어요. 웹에서 새 QR을 띄워 다시 찍어주세요.")
                 else -> toast("웹 로그인에 실패했어요. 잠시 후 다시 시도해주세요.")
             }
+        }
+    }
+
+    // 웹 로그인 인증(문자 OTP) — 토큰 없는 기존 유저용. 성공하면 sessionTokenStore 에 토큰 저장 → QR 로그인 통과.
+    fun sendReauthCode() {
+        if (ownerPhone.filter { it.isDigit() }.length < 9) { toast("먼저 내 번호(로그인)가 필요해요"); return }
+        reauthBusy = true
+        scope.launch {
+            val since = System.currentTimeMillis() - 5000
+            val r = container.authRepository.requestCode(ownerPhone)
+            reauthBusy = false
+            if (!r.isSuccess) {
+                toast((r.exceptionOrNull() as? com.detailline.callfollowcrm.ai.AuthException)?.message ?: "발송 실패 — 잠시 후 다시")
+                return@launch
+            }
+            reauthSent = true
+            toast("인증문자 왔어요 — 자동으로 확인 중…")
+            // 문자 자동 읽기 + 검증 (2초 x 25 = 50초). 못 읽으면 수동 입력 가능(다이얼로그 열려있음).
+            for (i in 0 until 25) {
+                kotlinx.coroutines.delay(2000)
+                if (authed || !reauthOpen) return@launch
+                val code = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { readOtpFromInbox(context, since) } ?: continue
+                reauthCode = code
+                val vr = container.authRepository.verifyCode(ownerPhone, code)
+                val v = vr.getOrNull()
+                if (v != null && !v.sessionToken.isNullOrBlank()) {
+                    container.sessionTokenStore.save(v.sessionToken, v.sessionTokenExpMs)
+                    authed = true; reauthOpen = false; reauthSent = false
+                    toast("인증 완료! 이제 QR로 로그인돼요 ✅")
+                    return@launch
+                }
+            }
+        }
+    }
+    fun verifyReauth() {
+        if (reauthCode.length != 6) { toast("인증번호 6자리를 입력해주세요"); return }
+        reauthBusy = true
+        scope.launch {
+            val r = container.authRepository.verifyCode(ownerPhone, reauthCode)
+            reauthBusy = false
+            r.onSuccess { v ->
+                if (!v.sessionToken.isNullOrBlank()) {
+                    container.sessionTokenStore.save(v.sessionToken, v.sessionTokenExpMs)
+                    authed = true; reauthOpen = false; reauthSent = false; reauthCode = ""
+                    toast("인증 완료! 이제 아래 QR로 로그인돼요 ✅")
+                } else toast("인증은 됐는데 열쇠(토큰)가 안 왔어요. 관리자에게 알려주세요")
+            }.onFailure { toast((it as? com.detailline.callfollowcrm.ai.AuthException)?.message ?: "인증 실패 — 다시 시도") }
         }
     }
 
@@ -1159,6 +1213,29 @@ private fun WebViewerSection(container: AppContainer) {
             Text("②  아래 버튼으로 그 QR을 찍으면 로그인돼요 (폰이 열쇠). 웹은 보기 전용이에요.",
                 fontSize = 13.sp, color = TossTextSecondary, lineHeight = 19.sp)
             Spacer(Modifier.height(14.dp))
+            // 웹 로그인 인증(세션토큰) 게이트 — 없으면 QR 로그인이 401로 거절되므로 먼저 인증. (2026-08-15)
+            if (!authed) {
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFFFFF7E6)).border(1.dp, Color(0xFFFFE2A8), RoundedCornerShape(12.dp))
+                        .padding(14.dp)
+                ) {
+                    Text("🔑  먼저 웹 로그인 인증 (한 번만)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8A6100))
+                    Spacer(Modifier.height(4.dp))
+                    Text("보안 강화로 웹 로그인엔 인증이 한 번 필요해요. 인증 후 QR을 찍으면 로그인돼요.",
+                        fontSize = 12.sp, color = TossTextSecondary, lineHeight = 18.sp)
+                    Spacer(Modifier.height(10.dp))
+                    TossPrimaryButton(
+                        text = if (reauthBusy) "인증 중…" else "웹 로그인 인증하기",
+                        enabled = !reauthBusy,
+                        onClick = { reauthCode = ""; reauthSent = false; reauthOpen = true; sendReauthCode() }
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+            } else {
+                Text("🔑 웹 로그인 인증됨 ✓", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossBlue)
+                Spacer(Modifier.height(10.dp))
+            }
             TossPrimaryButton(
                 text = if (busy) "로그인 중…" else "PC 웹 로그인 (QR 찍기)",
                 enabled = !busy,
@@ -1200,9 +1277,71 @@ private fun WebViewerSection(container: AppContainer) {
                     }
                 }
             )
+
+            // 웹 로그인 인증 다이얼로그 (문자 6자리 OTP)
+            if (reauthOpen) {
+                AlertDialog(
+                    onDismissRequest = { if (!reauthBusy) reauthOpen = false },
+                    containerColor = Color.White,
+                    tonalElevation = 0.dp,
+                    title = { Text("웹 로그인 인증", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
+                    text = {
+                        Column {
+                            Text(
+                                if (reauthSent) "문자로 온 6자리 인증번호를 입력하세요." else "인증문자를 보내는 중…",
+                                fontSize = 13.sp, color = TossTextSecondary
+                            )
+                            Spacer(Modifier.height(10.dp))
+                            OutlinedTextField(
+                                value = reauthCode,
+                                onValueChange = { v -> reauthCode = v.filter { it.isDigit() }.take(6) },
+                                placeholder = { Text("6자리") },
+                                singleLine = true,
+                                enabled = reauthSent && !reauthBusy,
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                    keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword
+                                )
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = { verifyReauth() },
+                            enabled = reauthSent && !reauthBusy && reauthCode.length == 6
+                        ) { Text("인증 확인", color = TossBlue, fontWeight = FontWeight.Bold) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { if (!reauthBusy) reauthOpen = false }) {
+                            Text("취소", color = TossTextTertiary)
+                        }
+                    }
+                )
+            }
         }
     }
 }
+
+/** 수신함에서 최근(sinceMs 이후) '인증번호'가 든 문자의 6자리 코드. READ_SMS 없으면/실패면 null. (웹 로그인 재인증 자동읽기) */
+private fun readOtpFromInbox(ctx: android.content.Context, sinceMs: Long): String? = runCatching {
+    ctx.contentResolver.query(
+        android.provider.Telephony.Sms.Inbox.CONTENT_URI,
+        arrayOf(android.provider.Telephony.Sms.BODY, android.provider.Telephony.Sms.DATE),
+        "${android.provider.Telephony.Sms.DATE} >= ?",
+        arrayOf(sinceMs.toString()),
+        "${android.provider.Telephony.Sms.DATE} DESC"
+    )?.use { c ->
+        val bodyIdx = c.getColumnIndex(android.provider.Telephony.Sms.BODY)
+        var scanned = 0
+        while (c.moveToNext() && scanned < 8) {
+            scanned++
+            val body = if (bodyIdx >= 0) c.getString(bodyIdx) ?: "" else ""
+            if (body.contains("인증번호") || body.contains("시공막내")) {
+                Regex("(\\d{6})").find(body)?.groupValues?.get(1)?.let { return@use it }
+            }
+        }
+        null
+    }
+}.getOrNull()
 
 /**
  * 본폰에서 일정 보기 (미러 v2 "공유 신청/수락", 2026-07-14) — docs/SERVER_HANDOFF_mirror_v2.md.
