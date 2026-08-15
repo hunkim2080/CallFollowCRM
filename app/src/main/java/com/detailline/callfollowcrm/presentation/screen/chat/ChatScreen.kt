@@ -866,7 +866,8 @@ fun ChatScreen(
                         // '✨ AI 답변 추천받기' 탭 → 생성 시작 + 끝나면 자동 펼쳐 보여주기. (2026-08-14 '볼 때만 생성')
                         suggestionsExpanded = true
                         viewModel.regenerateSuggestions()
-                    }
+                    },
+                    onCancel = { viewModel.cancelSuggestions() }   // '작성 중' 탭 → 취소 (2026-08-15 UX감사#1)
                 )
                 }
             }
@@ -2931,7 +2932,8 @@ private fun SuggestionArea(
     isStale: Boolean,
     onToggleExpand: () -> Unit,
     onPickChoice: (com.detailline.callfollowcrm.ai.ReplyChoice) -> Unit,
-    onRegenerate: () -> Unit
+    onRegenerate: () -> Unit,
+    onCancel: () -> Unit = {}
 ) {
     // 띠 상태 3가지 (통화로 끝난 대화면 통째 숨김): (2026-08-14 사장님 '볼 때만 생성')
     //   (1) 신선한 답안 있음 → "AI 답안 N개 보기"(탭 펼침)  (2) 생성 중 → "작성 중"  (3) 없음 → "AI 답변 추천받기"(탭 생성)
@@ -2962,9 +2964,9 @@ private fun SuggestionArea(
                 }
         ) {
             if (showLoading) {
-                // 생성 중 띠 — 스피너 + "작성 중이에요…". (탭 없음)
+                // 생성 중 띠 — 스피너 + "작성 중…" + [✕ 중지]. 탭하면 취소(✨다듬기 취소와 동일 UX). (2026-08-15 UX감사#1)
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 13.dp),
+                    modifier = Modifier.fillMaxWidth().clickable(onClick = onCancel).padding(horizontal = 15.dp, vertical = 13.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
@@ -2973,6 +2975,8 @@ private fun SuggestionArea(
                         modifier = Modifier.weight(1f)
                     )
                     CircularProgressIndicator(color = TossBlue, strokeWidth = 2.dp, modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(9.dp))
+                    Text("✕ 중지", color = TossTextTertiary, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold)
                 }
             } else if (showGenerate) {
                 // '받기' 띠 — 탭하면 생성 시작(onRegenerate). 미리 안 만들어 비용 절감. 끝나면 자동 펼침(호출부 expanded=true). (2026-08-14 사장님)

@@ -511,6 +511,14 @@ class ChatViewModel(
     // ↻ 재생성 진행 중. ChatScreen 이 ↻ 버튼 자리 로딩 인디케이터에 사용.
     private val _suggestionsLoading = MutableStateFlow(false)
     val suggestionsLoading = _suggestionsLoading.asStateFlow()
+    // 추천 생성 취소용 Job — '작성 중' 띠 탭 시 멈춤. 다듬기(polishJob·cancelPolish)와 동일 UX. (2026-08-15 UX감사#1)
+    private var suggestionJob: kotlinx.coroutines.Job? = null
+    /** '작성 중' 띠 탭 → 추천 생성 취소(스피너 멈춤). 서버는 이미 시작했을 수 있어 그 비용은 나감 — 화면 취소만. */
+    fun cancelSuggestions() {
+        suggestionJob?.cancel()
+        suggestionJob = null
+        _suggestionsLoading.value = false
+    }
 
     // 추천 생성 실패 — 서버 장애/타임아웃/크레딧 등. true 면 "못 만들었어요 — 다시 시도" 표시(옛것만 계속 보이지 않게). (2026-06-27 추천 정합성 개선)
     private val _suggestionsFailed = MutableStateFlow(false)
@@ -1387,7 +1395,7 @@ class ChatViewModel(
         if (_suggestionsLoading.value) return
         _suggestionsLoading.value = true
         _suggestionsFailed.value = false   // 새 시도 시작 — 실패 표시 초기화
-        viewModelScope.launch {
+        suggestionJob = viewModelScope.launch {
             try {
                 val history = _messages.value
                     .take(20)
