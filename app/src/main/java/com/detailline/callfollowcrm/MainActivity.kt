@@ -90,7 +90,11 @@ class MainActivity : ComponentActivity() {
                                                 }
                                                 com.detailline.callfollowcrm.ai.WebFeedRepository.AuthResult.EXPIRED ->
                                                     "QR이 만료됐어요. 웹에서 새 QR을 띄워 다시 찍어주세요."
-                                                else -> "웹 로그인에 실패했어요. 잠시 후 다시 시도해주세요."
+                                                // 토큰 없는 기존 유저 → 서버가 401(보안 강화, 90121cd). 재시도해도 안 되므로 정직하게 안내.
+                                                else -> if (container.sessionTokenStore.hasValidToken(System.currentTimeMillis()))
+                                                    "웹 로그인에 실패했어요. 잠시 후 다시 시도해주세요."
+                                                else
+                                                    "보안 강화로 웹 로그인이 잠시 제한됐어요. 처리 중이라 곧 열어드릴게요."
                                             }
                                             android.widget.Toast.makeText(this@MainActivity, msg, android.widget.Toast.LENGTH_LONG).show()
                                         }
