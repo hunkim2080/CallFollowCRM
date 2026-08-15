@@ -167,14 +167,18 @@ object IncomingCallOverlay {
 
             // 벨이 이미 끝났으면(카드 사라짐) 무시.
             if (currentNumber != number) return@launch
+            // 잠금화면 위에선 돈·문자 숨김 — 옆 사람 노출 방지. 누가 전화왔는지(이름)만, 폰 열면 다 보임. (2026-08-15 사장님 #11)
+            val locked = runCatching {
+                (container.appContext.getSystemService(android.content.Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager)?.isKeyguardLocked == true
+            }.getOrDefault(false)
             _state.update {
                 it?.copy(
                     displayName = name,
                     isKnown = known,
                     scheduleLabel = schedule,
                     address = addr,
-                    moneyLabel = money,
-                    messages = msgs,
+                    moneyLabel = if (locked) null else money,
+                    messages = if (locked) emptyList() else msgs,
                     customerId = customer?.id,
                     loading = false,
                     status = status
