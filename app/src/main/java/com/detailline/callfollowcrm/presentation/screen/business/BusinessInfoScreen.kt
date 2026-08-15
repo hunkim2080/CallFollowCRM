@@ -165,7 +165,21 @@ fun BusinessInfoScreen(
         }.onFailure { android.widget.Toast.makeText(context, "카메라를 열지 못했어요", android.widget.Toast.LENGTH_SHORT).show() }
     }
 
-    BackHandler(enabled = true) { onBack() }
+    // 폼 이탈 확인 — 입력/OCR 자동입력값이 딤·뒤로 한 번에 날아가던 것 방지. (2026-08-15 UX감사#2)
+    val initialBizForm = remember { listOf(name, owner, bizNo, addr, phone, seal, validDays, bank, accountNo, accountHolder) }
+    val isBizDirty = listOf(name, owner, bizNo, addr, phone, seal, validDays, bank, accountNo, accountHolder) != initialBizForm
+    var confirmBizExit by remember { mutableStateOf(false) }
+    fun tryBizExit() { if (isBizDirty) confirmBizExit = true else onBack() }
+    BackHandler(enabled = true) { tryBizExit() }
+    if (confirmBizExit) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmBizExit = false },
+            title = { Text("저장 안 하고 나갈까요?") },
+            text = { Text("고친 사업자 정보가 사라져요.") },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { confirmBizExit = false; onBack() }) { Text("나가기") } },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { confirmBizExit = false }) { Text("계속 작성") } }
+        )
+    }
 
     // OCR 인식 중 로딩 — 화면 정중앙. "멈춘 것 같다" 방지.
     if (ocrBusy) {
@@ -202,7 +216,7 @@ fun BusinessInfoScreen(
         Box(
             Modifier
                 .fillMaxSize()
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onBack() }
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { tryBizExit() }
         )
         Column(
             Modifier
