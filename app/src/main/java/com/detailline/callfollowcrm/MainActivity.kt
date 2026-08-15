@@ -68,24 +68,36 @@ class MainActivity : ComponentActivity() {
                         is IncomingIntent.OpenTeam -> container.navEvents.requestTeam()
                         is IncomingIntent.OpenRecurringDue -> container.navEvents.requestRecurringDue()
                         is IncomingIntent.WebAuthorize -> {
-                            // 노트북 웹 QR 승인 — 화면 이동 없이 서버에 owner 증명 후 토스트로 결과. 성공 시 웹 뷰어 켜고 피드 즉시 push.
+                            // 딥링크 QR 로그인 — 예전엔 묻지도 않고 자동 승인이라 '아무 카메라로 찍어도 로그인'됐음. → 확인 창. (2026-08-15 사장님 보안 지적)
+                            //   ⚠️ 이건 최소 방어(몰래/실수 차단)일 뿐. 진짜 인증(번호가 아니라 로그인 토큰 검증)은 서버 작업 대기(홍보 전 필수).
                             val phone = container.preferences.bizPhone
-                            val msg = if (phone.filter { it.isDigit() }.length < 9) {
-                                "먼저 앱에 로그인한 뒤 다시 QR을 찍어주세요."
-                            } else when (container.webFeedRepository.authorize(incoming.ticket, phone)) {
-                                com.detailline.callfollowcrm.ai.WebFeedRepository.AuthResult.OK -> {
-                                    container.preferences.webViewerActive = true
-                                    runCatching { container.webFeedSyncManager.pushNow(force = true) }
-                                    container.ownerPhotoUploadManager.kick(lifecycleScope)   // 폰 사진 서버로 백필
-                                    "PC 웹에 로그인됐어요 ✅ 이제 브라우저에서 시공 사진을 보세요."
-                                }
-                                com.detailline.callfollowcrm.ai.WebFeedRepository.AuthResult.EXPIRED ->
-                                    "QR이 만료됐어요. 웹에서 새 QR을 띄워 다시 찍어주세요."
-                                else -> "웹 로그인에 실패했어요. 잠시 후 다시 시도해주세요."
+                            val ticket = incoming.ticket
+                            if (phone.filter { it.isDigit() }.length < 9) {
+                                android.widget.Toast.makeText(this@MainActivity,
+                                    "먼저 앱에 로그인한 뒤 다시 QR을 찍어주세요.", android.widget.Toast.LENGTH_LONG).show()
+                            } else {
+                                android.app.AlertDialog.Builder(this@MainActivity)
+                                    .setTitle("이 PC를 내 계정으로 로그인할까요?")
+                                    .setMessage("방금 스캔한 QR의 PC에서 내 시공 사진을 볼 수 있게 돼요.\n내가 스캔한 게 아니면 '취소'를 눌러주세요.")
+                                    .setPositiveButton("로그인") { _, _ ->
+                                        lifecycleScope.launch {
+                                            val msg = when (container.webFeedRepository.authorize(ticket, phone)) {
+                                                com.detailline.callfollowcrm.ai.WebFeedRepository.AuthResult.OK -> {
+                                                    container.preferences.webViewerActive = true
+                                                    runCatching { container.webFeedSyncManager.pushNow(force = true) }
+                                                    container.ownerPhotoUploadManager.kick(lifecycleScope)   // 폰 사진 서버로 백필
+                                                    "PC 웹에 로그인됐어요 ✅ 이제 브라우저에서 시공 사진을 보세요."
+                                                }
+                                                com.detailline.callfollowcrm.ai.WebFeedRepository.AuthResult.EXPIRED ->
+                                                    "QR이 만료됐어요. 웹에서 새 QR을 띄워 다시 찍어주세요."
+                                                else -> "웹 로그인에 실패했어요. 잠시 후 다시 시도해주세요."
+                                            }
+                                            android.widget.Toast.makeText(this@MainActivity, msg, android.widget.Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                    .setNegativeButton("취소", null)
+                                    .show()
                             }
-                            android.widget.Toast.makeText(
-                                this@MainActivity, msg, android.widget.Toast.LENGTH_LONG
-                            ).show()
                         }
                         is IncomingIntent.CollabEnded -> {
                             // 무엇이 해제됐는지 명확히 — 해제된 현장은 목록서 빠지므로 토스트로 알려줌 + 협업 현장 목록 열기. (2026-06-21 사장님)
