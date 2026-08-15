@@ -2280,8 +2280,8 @@ private fun CallRecordingPlayer(audioUri: String, durationHintMs: Long? = null) 
             }
         }
     }
-    fun setFast(on: Boolean) {
-        speed = if (on) 1.5f else 1.0f
+    fun cycleSpeed() {   // 프로토 .sp 칩 — 탭하면 1×→1.5×→2× 순환. 통화는 빨리듣기가 유용. (2026-06-16 사장님)
+        speed = when { speed < 1.25f -> 1.5f; speed < 1.75f -> 2.0f; else -> 1.0f }
         val p = player
         if (p != null && p.isPlaying) applySpeed(p)
     }
@@ -2298,62 +2298,49 @@ private fun CallRecordingPlayer(audioUri: String, durationHintMs: Long? = null) 
     }
 
     val shownPos = dragMs ?: positionMs
-    Column(
-        Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(10.dp))
-            .background(Color.White).border(1.dp, Color(0xFFCDE8E0), RoundedCornerShape(10.dp))
-            .padding(horizontal = 12.dp, vertical = 10.dp)
+    val pteal = Color(0xFF1E6E6A)
+    // 프로토 08352d6e .player — 한 줄: ▶ + 진행바 + 1:05/3:12 + [1.5×] 칩. (2026-08-15 1:1)
+    Row(
+        Modifier.fillMaxWidth().padding(top = 13.dp).clip(RoundedCornerShape(11.dp))
+            .background(Color(0xFFF0F6F5)).padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         if (error) {
             Text("녹음을 재생할 수 없어요", color = TossTextTertiary, fontSize = 12.sp)
         } else {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier.size(36.dp).clip(RoundedCornerShape(50)).background(Color(0xFF0E9E90))
-                        .clickable { togglePlay() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (loading) CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
-                    else Text(if (isPlaying) "⏸" else "▶", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                }
-                Spacer(Modifier.width(10.dp))
-                androidx.compose.material3.Slider(
-                    value = if (durationMs > 0) (shownPos.toFloat() / durationMs).coerceIn(0f, 1f) else 0f,
-                    onValueChange = { frac -> dragMs = (frac * durationMs).toInt() },
-                    onValueChangeFinished = {
-                        val d = dragMs
-                        if (d != null) { runCatching { player?.seekTo(d) }; positionMs = d }
-                        dragMs = null
-                    },
-                    colors = androidx.compose.material3.SliderDefaults.colors(
-                        thumbColor = Color(0xFF0E9E90),
-                        activeTrackColor = Color(0xFF0E9E90)
-                    ),
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(Modifier.width(8.dp))
-                Text("${playerClock(shownPos)} / ${playerClock(durationMs)}",
-                    fontSize = 11.sp, color = TossTextTertiary, fontWeight = FontWeight.Bold)
-            }
-            // 5초 점프 대신 1.5배속 빨리듣기 토글 (2026-06-16 사장님: 통화는 빨리듣기가 더 유용).
-            val fast = speed >= 1.5f
-            Row(
-                Modifier.fillMaxWidth().padding(top = 6.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
+            Box(
+                Modifier.size(30.dp).clip(RoundedCornerShape(50)).background(pteal)
+                    .clickable { togglePlay() },
+                contentAlignment = Alignment.Center
             ) {
-                Box(
-                    Modifier.clip(RoundedCornerShape(999.dp))
-                        .background(if (fast) Color(0xFF0E9E90) else Color(0xFFEAF4F1))
-                        .clickable { setFast(!fast) }
-                        .padding(horizontal = 16.dp, vertical = 7.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        if (fast) "⚡ 1.5배속으로 빨리 듣는 중" else "⚡ 1.5배속으로 빨리 듣기",
-                        fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold,
-                        color = if (fast) Color.White else Color(0xFF0A7D72)
-                    )
-                }
+                if (loading) CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(14.dp))
+                else Text(if (isPlaying) "⏸" else "▶", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.width(8.dp))
+            androidx.compose.material3.Slider(
+                value = if (durationMs > 0) (shownPos.toFloat() / durationMs).coerceIn(0f, 1f) else 0f,
+                onValueChange = { frac -> dragMs = (frac * durationMs).toInt() },
+                onValueChangeFinished = {
+                    val d = dragMs
+                    if (d != null) { runCatching { player?.seekTo(d) }; positionMs = d }
+                    dragMs = null
+                },
+                colors = androidx.compose.material3.SliderDefaults.colors(
+                    thumbColor = pteal, activeTrackColor = pteal, inactiveTrackColor = Color(0xFFCFDBDA)
+                ),
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(Modifier.width(6.dp))
+            Text("${playerClock(shownPos)}/${playerClock(durationMs)}",
+                fontSize = 10.sp, color = Color(0xFF5E7C7C), fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(7.dp))
+            val spLabel = when { speed >= 1.9f -> "2×"; speed >= 1.4f -> "1.5×"; else -> "1×" }
+            Box(
+                Modifier.clip(RoundedCornerShape(7.dp)).background(Color.White)
+                    .clickable { cycleSpeed() }.padding(horizontal = 8.dp, vertical = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(spLabel, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF154D4A))
             }
         }
     }
