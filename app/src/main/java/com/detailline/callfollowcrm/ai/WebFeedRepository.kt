@@ -47,7 +47,13 @@ class WebFeedRepository(
          * 이 고객(현장)에 연결된 협업 share_id 목록. 직원(협업 사장)이 올린 사진은 team_site_photos 에
          * customer_phone=NULL·share_id=X 로 저장되어 웹 뷰어가 못 잇는다 → 이 지도로 그 고객 현장에 붙임. (2026-08-13)
          */
-        val shareIds: List<String> = emptyList()
+        val shareIds: List<String> = emptyList(),
+        /**
+         * 고객상세 메모(사장님이 시공 후 "이 현장/고객 어땠는지" 적는 칸). 웹 '글 만들기'(블로그·인스타·스레드)가
+         * 통화요약·문자와 함께 재료로 씀 — 통화로 안 나온 현장 뒷얘기를 메모가 채운다. (2026-08-15)
+         *   저장 시점: 메모도 고객 필드라 observeAll 이 발화 → 30초 뒤 자동 push(별도 트리거 불필요).
+         */
+        val memo: String = ""
     )
 
     /** authorize 결과 — 만료(410)와 일반 실패를 구분해 안내 문구를 다르게. */
@@ -70,6 +76,7 @@ class WebFeedRepository(
                         if (item.shareIds.isNotEmpty()) {
                             put("share_ids", JSONArray().apply { item.shareIds.forEach { put(it) } })
                         }
+                        if (item.memo.isNotBlank()) put("memo", item.memo)   // 웹 '글 만들기' 재료(2026-08-15)
                     })
                 }
                 val body = JSONObject().apply {

@@ -80,12 +80,13 @@ class WebFeedSyncManager(
                     workDate = dateFmt.format(Date(day)),
                     category = c.categoryId?.let { catNames[it] } ?: "",
                     completed = c.workCompletedAt != null,
-                    shareIds = shareIdsByCustomer[c.id]?.distinct() ?: emptyList()
+                    shareIds = shareIdsByCustomer[c.id]?.distinct() ?: emptyList(),
+                    memo = c.memo   // 웹 '글 만들기' 재료 — 메모 저장 시 observeAll→자동 push (2026-08-15)
                 )
             }
 
         val hash = items.joinToString("|") {
-            "${it.customerDigits},${it.workDate},${it.completed},${it.category},${it.apartment},${it.name},${it.shareIds.sorted().joinToString(":")}"
+            "${it.customerDigits},${it.workDate},${it.completed},${it.category},${it.apartment},${it.name},${it.shareIds.sorted().joinToString(":")},${it.memo}"
         }.hashCode().toString()
         if (!force && hash == prefs.webFeedLastHash) return false
 
