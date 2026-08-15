@@ -1129,10 +1129,35 @@ private fun WebViewerSection(container: AppContainer) {
             )
             Spacer(Modifier.height(10.dp))
             Text(
-                "PC 브라우저에서 si0in.kr/web/login 에 접속하면 QR이 떠요. 아래 「PC 웹 로그인」을 눌러 그 QR을 찍으면 로그인돼요(폰이 열쇠). " +
-                    "시공 사진을 큰 화면에서 날짜별로 보고, 블로그용으로 골라 내려받을 수 있어요. 웹은 보기 전용이에요.",
+                "PC 큰 화면에서 시공 사진을 날짜별로 보고 블로그용으로 내려받아요. 딱 2단계예요:",
                 fontSize = 13.sp, color = TossTextSecondary, lineHeight = 19.sp
             )
+            Spacer(Modifier.height(12.dp))
+            // ① 주소 — 크게 + 복사 (사장님이 PC 주소를 몰라 시작을 못 하던 문제. 2026-08-15)
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFFEEF4FF)).border(1.dp, Color(0xFFD5E4FB), RoundedCornerShape(12.dp))
+                    .padding(14.dp)
+            ) {
+                Text("①  PC 브라우저 주소창에 이렇게 치세요", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextSecondary)
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("si0in.kr/web", fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, color = TossBlue, modifier = Modifier.weight(1f))
+                    Box(
+                        Modifier.clip(RoundedCornerShape(9.dp)).background(TossBlue)
+                            .clickable {
+                                val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                cm.setPrimaryClip(android.content.ClipData.newPlainText("시공막내 웹 주소", "si0in.kr/web"))
+                                toast("주소 복사했어요 — PC 주소창에 붙여넣기 하세요")
+                            }.padding(horizontal = 12.dp, vertical = 7.dp)
+                    ) { Text("📋 복사", color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold) }
+                }
+                Spacer(Modifier.height(4.dp))
+                Text("주소를 치면 화면에 QR이 떠요.", fontSize = 11.5.sp, color = TossTextTertiary)
+            }
+            Spacer(Modifier.height(10.dp))
+            Text("②  아래 버튼으로 그 QR을 찍으면 로그인돼요 (폰이 열쇠). 웹은 보기 전용이에요.",
+                fontSize = 13.sp, color = TossTextSecondary, lineHeight = 19.sp)
             Spacer(Modifier.height(14.dp))
             TossPrimaryButton(
                 text = if (busy) "로그인 중…" else "PC 웹 로그인 (QR 찍기)",
