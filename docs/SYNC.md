@@ -8936,7 +8936,7 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 
 **C. 재료(3개) 서버 도달 경로 — ★ 여기가 코워크 작업**
 1. **통화요약**: 이미 서버에 있음(cache.db, call-audio-summary, phone digits 키). 그대로 조인해서 씀.
-2. **메모**: ✅ **앱 완료(commit b50bbce)** — web_schedule_feed FeedItem 에 `memo` 필드 추가 push(비어있지 않을 때). 메모 저장 시 observeAll→30초 debounce 자동 push.
+2. **메모**: ✅ **앱 완료(commit 159992d)** — web_schedule_feed FeedItem 에 `memo` 필드 추가 push(비어있지 않을 때). 메모 저장 시 observeAll→30초 debounce 자동 push.
    - 코워크: **web_schedule_feed 에 memo 컬럼 저장** + 글생성/페르소나 재료로.
 3. **문자 대화**: ⚠️ **아직 서버에 없음 = 결정 필요.** 문자는 폰 Room DB 에만 있음.
    - 피드에 통째로 넣으면 안 됨(완료 고객 수백 × 전체 대화 = 30초 피드 폭증).
@@ -8954,4 +8954,4 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
   4. **앱 연결**: 폰 앱과 연결 상태.
 
 **요약**: 앱쪽 = memo push(완료). 나머지(web viewer 글생성 UI·Gemini 키 저장/호출·문자 contract·마이페이지·톤학습 fetch)는 코워크(서버 웹뷰어 도메인). 문자 contract 만 확정해주면 android 가 conversation push 붙임.
-- commit: b50bbce (app memo)
+- commit: 159992d (app memo)
