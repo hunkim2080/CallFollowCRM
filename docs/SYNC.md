@@ -8955,3 +8955,10 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 
 **요약**: 앱쪽 = memo push(완료). 나머지(web viewer 글생성 UI·Gemini 키 저장/호출·문자 contract·마이페이지·톤학습 fetch)는 코워크(서버 웹뷰어 도메인). 문자 contract 만 확정해주면 android 가 conversation push 붙임.
 - commit: 159992d (app memo)
+
+## 2026-08-15 19:03 · cowork
+웹 글만들기 [1단계] — web_schedule_feed memo 컬럼 저장 (android 159992d 대응).
+- 변경(server/main.py): web_schedule_feed 에 memo TEXT 컬럼(+기존 DB ALTER 마이그레이션). 피드 push 가 item.memo 저장. (글만들기·페르소나 재료로 쓸 준비)
+- 검증: ast OK + TestClient(memo push→저장 확인).
+- ✅ 문자 contract 결정(코워크): android 제안대로 진행 — POST /api/web/customer-content {owner_phone, customer_digits, conversation_text}, 완료고객만 debounce push + 백필 1회. 별도 엔드포인트 방식 동의(피드 폭증 방지). android 배선 ㄱㄱ.
+- 🔴 남은 대형작업(코워크 서버, 순서 확정 대기): ①글생성 엔진(owner 본인 Gemini 키·암호화 저장·호출) ②마이페이지 PC UI(로그인보안·AI키·톤학습·앱연결, 프로토 4b33650f) ③글만들기 UI(현장카드 페르소나+[✨글만들기]→블로그/인스타/스레드+해시태그·익명화, 프로토 406087d0) ④톤학습(URL fetch). Gemini 키 저장·owner과금 모델은 사장님 확정 필요 + 프로토(406087d0/4b33650f) 못 여니 시각 스펙 필요.

@@ -394,11 +394,17 @@ def db_init() -> None:
                 work_date       TEXT,            -- 'YYYY-MM-DD'
                 category        TEXT,            -- 시공종류
                 completed       INTEGER DEFAULT 0,
+                memo            TEXT,            -- 고객 메모(글만들기·페르소나 재료) — android 159992d
                 updated_at_ms   INTEGER NOT NULL,
                 PRIMARY KEY (owner_phone, customer_digits)
             )
             """
         )
+        # 기존 DB 마이그레이션 — memo 컬럼 없으면 추가
+        try:
+            con.execute("ALTER TABLE web_schedule_feed ADD COLUMN memo TEXT")
+        except sqlite3.OperationalError:
+            pass  # already exists
         con.execute(
             "CREATE INDEX IF NOT EXISTS idx_web_feed_owner_date "
             "ON web_schedule_feed(owner_phone, work_date)"
@@ -26220,8 +26226,8 @@ async def web_schedule_feed_push(req: WebFeedPush) -> dict:
                         "VALUES (?,?,?)", (owner, sid, cd))
             con.execute(
                 "INSERT OR REPLACE INTO web_schedule_feed "
-                "(owner_phone, customer_digits, name, apartment, dong_ho, work_date, category, completed, updated_at_ms) "
-                "VALUES (?,?,?,?,?,?,?,?,?)",
+                "(owner_phone, customer_digits, name, apartment, dong_ho, work_date, category, completed, memo, updated_at_ms) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (owner, cd,
                  (str(it.get("name") or "").strip() or None),
                  (str(it.get("apartment") or "").strip() or None),
@@ -26229,6 +26235,7 @@ async def web_schedule_feed_push(req: WebFeedPush) -> dict:
                  (str(it.get("work_date") or "").strip() or None),
                  (str(it.get("category") or "").strip() or None),
                  1 if it.get("completed") else 0,
+                 (str(it.get("memo") or "").strip() or None),
                  now),
             )
             n += 1
