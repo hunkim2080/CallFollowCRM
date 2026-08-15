@@ -27316,6 +27316,11 @@ _MYPAGE_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .page{max-width:1000px;margin:0 auto;padding:26px 26px 70px}
   .crumb{font-size:13px;color:var(--blue);font-weight:800;margin-bottom:10px;text-decoration:none;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
   .crumb:hover{text-decoration:underline}
+  .pilltop{display:flex;align-items:center;gap:13px;margin-bottom:14px;flex-wrap:wrap}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:800;color:var(--blue);background:var(--blue-bg);border:1px solid var(--blue-line);border-radius:999px;padding:6px 14px}
+  .backlink{font-size:13px;font-weight:800;color:var(--ink3);cursor:pointer;text-decoration:none}
+  .backlink:hover{color:var(--blue);text-decoration:underline}
+  .subtitle{font-size:13.5px;color:var(--ink2);margin:0 0 22px;line-height:1.6}
   h1{font-size:24px;font-weight:850;letter-spacing:-.02em;margin:0 0 20px}
   .layout{display:grid;grid-template-columns:236px 1fr;gap:26px;align-items:start}
   @media(max-width:820px){.layout{grid-template-columns:1fr}}
@@ -27377,15 +27382,13 @@ _MYPAGE_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .urlitem .ok{font-size:11px;font-weight:800;color:var(--violet);background:var(--violet-bg);border-radius:6px;padding:3px 8px}
   .urlitem .x{font-size:15px;color:var(--ink3);cursor:pointer}
 </style></head><body>
-<div class="topbar">
-  <a class="back" onclick="location.href='/web'"><span class="ar">←</span> 시공막내 웹</a>
-  <span class="sep">›</span>
-  <span class="here">마이페이지</span>
-  <div class="who"><span class="av" id="topAv">·</span><span id="topWho">마이페이지</span></div>
-</div>
 <div class="page">
-  <a class="crumb" onclick="location.href='/web'">← 사진 캘린더로 돌아가기</a>
+  <div class="pilltop">
+    <span class="pill">🖥️ 시공막내 웹 · 마이페이지</span>
+    <a class="backlink" onclick="location.href='/web'">← 사진 캘린더로 돌아가기</a>
+  </div>
   <h1>내 계정 · 보안 · AI 설정</h1>
+  <p class="subtitle">로그인·보안 · 내 Gemini 키(내 비용) · 블로그 톤을 여기서 관리해요.</p>
   <div class="layout">
     <aside class="side">
       <div class="pcard">
@@ -27467,8 +27470,6 @@ function render(){
   var nm=ME.name||'사장님', ini=(nm[0]||'·');
   document.getElementById('pcName').textContent=nm;
   document.getElementById('pcAv').textContent=ini;
-  document.getElementById('topAv').textContent=ini;
-  document.getElementById('topWho').textContent=nm+' · 마이페이지';
   document.getElementById('pcPhone').textContent='📱 '+fmtPhone(ME.owner_phone);
   // 기기
   var h=''; (ME.sessions||[]).forEach(function(s){
