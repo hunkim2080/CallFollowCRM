@@ -128,20 +128,22 @@ object PostCallTemplateOverlay {
         }
         val phone = st.phone
         ioScope.launch {
-            val ok = if (tpl.photos.isEmpty()) {
-                com.detailline.callfollowcrm.util.SmsSender.sendDirect(ctx, phone, tpl.text)
-            } else {
+            val hadPhotos = tpl.photos.isNotEmpty()
+            val mmsOk = if (hadPhotos) {
                 val uris = tpl.photos.mapNotNull { runCatching { android.net.Uri.parse(it) }.getOrNull() }
-                val mmsOk = runCatching { com.detailline.callfollowcrm.util.SmsSender.sendMms(ctx, phone, tpl.text, uris) }.getOrDefault(false)
-                // 사진(MMS) 못 보냈고(기본 문자앱 아님 등) 글이라도 있으면 글만이라도 보냄.
-                if (!mmsOk && tpl.text.isNotBlank()) com.detailline.callfollowcrm.util.SmsSender.sendDirect(ctx, phone, tpl.text) else mmsOk
+                runCatching { com.detailline.callfollowcrm.util.SmsSender.sendMms(ctx, phone, tpl.text, uris) }.getOrDefault(false)
+            } else false
+            // 사진 없거나(SMS) 사진(MMS) 실패 시 → 글이라도 발송.
+            val textOk = if ((!hadPhotos || !mmsOk) && tpl.text.isNotBlank())
+                com.detailline.callfollowcrm.util.SmsSender.sendDirect(ctx, phone, tpl.text) else false
+            // 정직한 결과 — 사진 실패를 '보냈어요 ✓'로 숨기지 않음. (2026-08-15 UX감사)
+            val msg = when {
+                mmsOk || (!hadPhotos && textOk) -> "문자를 보냈어요 ✓"
+                hadPhotos && textOk -> "글은 보냈어요 · 사진은 못 갔어요 — 채팅에서 사진 다시 보내주세요"
+                else -> "발송 실패 — 잠시 후 다시 시도하거나 채팅에서 보내주세요"
             }
             main.post {
-                android.widget.Toast.makeText(
-                    ctx,
-                    if (ok) "문자를 보냈어요 ✓" else "발송 실패 — 잠시 후 다시 시도하거나 채팅에서 보내주세요",
-                    android.widget.Toast.LENGTH_SHORT
-                ).show()
+                android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_LONG).show()
             }
         }
         main.post { actuallyHide() }

@@ -819,7 +819,7 @@ private fun PostCallTemplateCard(prefs: com.detailline.callfollowcrm.data.prefer
                 Column(Modifier.weight(1f)) {
                     Text("📞 통화 후 문자 보내기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
                     Spacer(Modifier.height(2.dp))
-                    Text("새 번호와 통화가 끝나면 ‘문자 보낼까요?’ 알림 → 3개 중 골라 확인 후 발송",
+                    Text("새 번호와 통화가 끝나면 ‘문자 보낼까요?’ 알림 → 3개 중 하나 누르면 바로 보내져요",
                         fontSize = 12.sp, color = TossTextTertiary, lineHeight = 16.sp)
                 }
                 androidx.compose.material3.Switch(

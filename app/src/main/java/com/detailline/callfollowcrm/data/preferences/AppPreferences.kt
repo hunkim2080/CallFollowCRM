@@ -38,7 +38,7 @@ class AppPreferences(context: Context) {
         set(value) = prefs.edit().putBoolean(KEY_AUTO_FIRST_REPLY, value).apply()
 
     // 통화 후 문자 보내기 — 새 번호와 통화 끝나면 "문자 보낼까요?" + 템플릿 3개 선택. (2026-07-12 사장님)
-    //   자동발송 아님(선택 후 채팅에서 확인 발송). 업체 소개 등 매번 보내는 문자를 한 번에.
+    //   템플릿 탭 = 바로 발송(2026-07-12 사장님 "복붙 말고 바로 전송"). 업체 소개 등 매번 보내는 문자를 한 번에.
     var postCallPickerEnabled: Boolean
         get() = prefs.getBoolean("postcall_picker_on", false)
         set(value) = prefs.edit().putBoolean("postcall_picker_on", value).apply()
