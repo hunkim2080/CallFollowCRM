@@ -589,10 +589,23 @@ private fun PayBlock(
         Spacer(Modifier.width(12.dp))
         // 버튼 / 완납 취소
         when {
-            c.isPaidOff -> Text(
-                "완납 취소", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
-                modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onUndoPaid() }.padding(horizontal = 6.dp, vertical = 6.dp)
-            )
+            c.isPaidOff -> {
+                // 완납 취소도 확인 — '받음' 처리엔 확인 있는데 취소(장부 뒤집기)엔 없어서 오탭에 조용히 뒤집힘. (2026-08-15 UX감사#7)
+                val confirmUndo = remember { mutableStateOf(false) }
+                Text(
+                    "완납 취소", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { confirmUndo.value = true }.padding(horizontal = 6.dp, vertical = 6.dp)
+                )
+                if (confirmUndo.value) {
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { confirmUndo.value = false },
+                        title = { Text("완납 취소할까요?") },
+                        text = { Text("이 고객을 '완납'에서 되돌려요. 실수로 누른 거면 그대로 두세요.") },
+                        confirmButton = { androidx.compose.material3.TextButton(onClick = { confirmUndo.value = false; onUndoPaid() }) { Text("완납 취소") } },
+                        dismissButton = { androidx.compose.material3.TextButton(onClick = { confirmUndo.value = false }) { Text("그대로 두기") } }
+                    )
+                }
+            }
             hasDeposit && !c.depositPaid -> PayAct("계약금 확인", onConfirmDeposit)
             hasDeposit -> PayAct("잔금 확인", onConfirmBalance)
             else -> PayAct("전액 확인", onConfirmBalance)

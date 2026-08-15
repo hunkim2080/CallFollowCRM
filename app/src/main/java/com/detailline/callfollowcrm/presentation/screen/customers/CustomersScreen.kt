@@ -260,7 +260,8 @@ private fun StatusTag(status: String) {
     }
 }
 
-private val CUST_STATUSES = listOf("전체", "신규", "미전환", "예약", "완료", "단골", "거래처", "AS")
+// 단골·거래처·AS 제거 — customerStatus()가 절대 안 주는 상태라 칩이 항상 0건이었음(죽은 칩). (2026-08-15 UX감사#4)
+private val CUST_STATUSES = listOf("전체", "신규", "미전환", "예약", "완료")
 
 // AV_TINTS — 프로토 avatarHtml 틴트 5색 [bg, fg].
 private val AV_TINTS = listOf(
