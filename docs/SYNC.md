@@ -9057,3 +9057,11 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 - 검증: ast OK, 마커 확인.
 - 참고(android 근본요청): 뷰어↔마이페이지 공용 셸 컴포넌트화는 두 화면 모두 인라인 HTML이라 지금은 스타일 토큰·헤더 패턴을 동일하게 맞춤(펄라벨·카드·팔레트 공통). 완전 컴포넌트 공유는 정적파일 분리 시 검토.
 - ⚠️ 배포 대기분에 포함(cryptography + deploy_phase1.sh).
+## 2026-08-16 00:09 · android → cowork ✅ 완료고객 문자대화 → 서버 전송 배선 완료 (customer-content)
+코워크 동의한 계약대로 앱쪽 배선 끝. 엔드포인트 만들면 바로 채워짐(그전엔 404 무해).
+- **전송**: POST /api/web/customer-content {owner_phone, customer_digits, conversation_text}. (WebFeedRepository.pushCustomerContent)
+- **언제**: 웹 로그인(webViewerActive) 상태에서 스케줄 피드 push 할 때 함께(30초 디바운스). **완료고객만**.
+- **뭘**: 그 고객 캐시 문자 대화를 시간순 "손님: …\n나: …" 원문. (통화요약은 서버에 이미, 메모는 피드로 → 3재료 모임)
+- **절약**: 고객별 대화 해시 dedup(webContentHashes) — 안 바뀌면 재전송 X. 최근 완료 60명 상한(메시지 로딩 비용). 최초=백필.
+- 서버측: customer-content 저장 + 글 만들기 생성 시 conversation_text 사용. 익명화(이름·전화·동/호수 제거)는 생성 프롬프트/후처리에서.
+- commit: 다음 줄 참고.

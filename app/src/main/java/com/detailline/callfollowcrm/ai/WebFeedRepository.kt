@@ -91,6 +91,26 @@ class WebFeedRepository(
             }
         }
 
+    /**
+     * 완료 고객의 문자 대화(원문)를 웹 '글 만들기' 재료로 전송. (완료게이트 별도 엔드포인트 — 코워크 동의)
+     *   피드가 무거워지지 않게 스케줄 피드와 분리. conversationText = "손님: …\n나: …" 시간순.
+     */
+    suspend fun pushCustomerContent(ownerPhone: String, customerDigits: String, conversationText: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val body = JSONObject().apply {
+                    put("owner_phone", ownerPhone)
+                    put("customer_digits", customerDigits)
+                    put("conversation_text", conversationText)
+                }.toString().toRequestBody(jsonMedia)
+                val req = Request.Builder().url("$baseUrl/api/web/customer-content").post(body).build()
+                client.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                    Unit
+                }
+            }
+        }
+
     /** QR 티켓 승인 — 폰이 로그인된 owner 임을 서버에 증명. 410=티켓 만료(60초 초과). */
     suspend fun authorize(ticket: String, ownerPhone: String): AuthResult =
         withContext(Dispatchers.IO) {

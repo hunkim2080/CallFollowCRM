@@ -1,6 +1,8 @@
 package com.detailline.callfollowcrm.ai
 
+import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
 import com.detailline.callfollowcrm.data.preferences.AppPreferences
+import com.detailline.callfollowcrm.data.repository.CachedMessageRepository
 import com.detailline.callfollowcrm.data.repository.CategoryRepository
 import com.detailline.callfollowcrm.data.repository.CustomerRepository
 import com.detailline.callfollowcrm.util.DateTimeUtils
@@ -23,7 +25,8 @@ class WebFeedSyncManager(
     private val repo: WebFeedRepository,
     private val prefs: AppPreferences,
     private val customerRepository: CustomerRepository,
-    private val categoryRepository: CategoryRepository
+    private val categoryRepository: CategoryRepository,
+    private val cachedMessageRepository: CachedMessageRepository
 ) {
     private val dateFmt = SimpleDateFormat("yyyy-MM-dd", Locale.KOREA)
 
@@ -93,9 +96,44 @@ class WebFeedSyncManager(
         val res = repo.pushFeed(ownerPhone, items)
         return if (res.isSuccess) {
             prefs.webFeedLastHash = hash
+            runCatching { pushConversationsForCompleted(customers, ownerPhone) }   // 완료고객 문자대화(변경분만) — 글 만들기 재료
             true
         } else {
             false
         }
+    }
+
+    /**
+     * 완료 고객의 문자 대화(원문)를 웹 '글 만들기' 재료로 전송. (완료게이트 별도 엔드포인트 — 코워크 동의)
+     *   변경분만: 고객별 대화 해시가 바뀐 것만 push([AppPreferences.webContentHashes]). 최초엔 백필.
+     *   최근 완료 60명 상한 — 메시지 로딩 비용 제한(나머지는 이미 전송됨). conversation_text = "손님: …\n나: …" 시간순.
+     */
+    private suspend fun pushConversationsForCompleted(customers: List<CustomerEntity>, ownerPhone: String) {
+        val completed = customers
+            .filter { it.workCompletedAt != null && it.phoneNumber.filter { ch -> ch.isDigit() }.length >= 9 }
+            .sortedByDescending { it.workCompletedAt ?: 0L }
+            .take(60)
+        if (completed.isEmpty()) return
+
+        val stored = prefs.webContentHashes.split(";").mapNotNull { e ->
+            val kv = e.split("=", limit = 2)
+            if (kv.size == 2 && kv[0].isNotBlank()) kv[0] to kv[1] else null
+        }.toMap().toMutableMap()
+
+        for (c in completed) {
+            val digits = c.phoneNumber.filter { it.isDigit() }
+            val suffix = digits.takeLast(8)
+            val msgs = runCatching { cachedMessageRepository.load(suffix, 500) }.getOrNull().orEmpty()
+            if (msgs.isEmpty()) continue
+            val text = msgs
+                .sortedBy { it.dateMs }
+                .mapNotNull { m -> m.body.trim().takeIf { it.isNotBlank() }?.let { (if (m.sent) "나: " else "손님: ") + it } }
+                .joinToString("\n")
+            if (text.isBlank()) continue
+            val h = "${text.length}:${text.hashCode()}"
+            if (stored[digits] == h) continue        // 대화 안 바뀌면 재전송 X
+            if (repo.pushCustomerContent(ownerPhone, digits, text).isSuccess) stored[digits] = h
+        }
+        prefs.webContentHashes = stored.entries.joinToString(";") { "${it.key}=${it.value}" }
     }
 }

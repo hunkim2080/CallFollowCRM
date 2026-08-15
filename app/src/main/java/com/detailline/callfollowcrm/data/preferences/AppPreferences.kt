@@ -822,6 +822,10 @@ class AppPreferences(context: Context) {
     var webFeedLastHash: String?
         get() = prefs.getString("web_feed_last_hash", null)
         set(value) { prefs.edit().putString("web_feed_last_hash", value).apply() }
+    /** 완료고객 문자대화(customer-content) dedup — "digits=hash;digits=hash" 직렬화. 안 바뀌면 재전송 X. */
+    var webContentHashes: String
+        get() = prefs.getString("web_content_hashes", "") ?: ""
+        set(value) { prefs.edit().putString("web_content_hashes", value).apply() }
     /** v2: 이 업무폰의 고정 공유 코드(서버 부여, 표시용 캐시). 본폰이 이 코드로 공유 신청. */
     var mirrorCode: String?
         get() = prefs.getString("mirror_code", null)?.takeIf { it.isNotBlank() }
