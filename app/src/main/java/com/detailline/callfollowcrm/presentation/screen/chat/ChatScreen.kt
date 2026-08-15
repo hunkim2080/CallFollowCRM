@@ -1934,8 +1934,8 @@ private fun CallSegment(
     val tags = listOfNotNull(summary?.space, summary?.problem, summary?.schedule)
         .map { it.trim() }.filter { it.isNotBlank() }.take(3)
     val transcript = summary?.transcriptText?.trim()?.takeIf { it.isNotBlank() }
-    var expanded by remember(record.id, summary?.id) { mutableStateOf(false) }
-    val arrowRot by androidx.compose.animation.core.animateFloatAsState(if (expanded) 180f else 0f, label = "callArw")
+    // 프로토 08352d6e: 통화카드 탭 → 아래에서 통화상세 '시트'가 올라옴(인라인 펼침 X). (2026-08-15 사장님 지적 재수정)
+    var sheetOpen by remember(record.id, summary?.id) { mutableStateOf(false) }
     // 프로토 .chat-call — 전체폭 teal 카드 + cc-ch(아이콘·유형·시각) + 에이닷 요약 버튼.
     Column(
         modifier = Modifier
@@ -1945,7 +1945,7 @@ private fun CallSegment(
             .clip(RoundedCornerShape(14.dp))
             .background(if (isMissed) Color(0xFFFCF3F1) else tealBg)
             .border(1.dp, if (isMissed) Color(0xFFF0D6D1) else tealLine, RoundedCornerShape(14.dp))
-            .then(if (hasDetail) Modifier.clickable { expanded = !expanded } else Modifier)
+            .then(if (hasDetail) Modifier.clickable { sheetOpen = true } else Modifier)
             .padding(horizontal = 12.dp, vertical = 11.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1967,12 +1967,13 @@ private fun CallSegment(
                 )
             }
             if (hasDetail) {
-                Text("▲", color = Color(0xFF9EC0BE), fontSize = 10.sp, fontWeight = FontWeight.Black,
-                    modifier = Modifier.padding(start = 4.dp).rotate(arrowRot))
+                // 프로토 .chev = '›' (새 시트 열림 신호). 인라인 펼침 아님.
+                Text("›", color = Color(0xFFB6C9C9), fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 4.dp))
             }
         }
-        // 태그(평수·부위·일정) — 접혔을 때 이정표. 펼치면 상세에 다 나오니 숨김. (2026-08-14)
-        if (tags.isNotEmpty() && !expanded) {
+        // 태그(평수·부위·일정) — 프로토 .callchip .tags: 카드에 항상 표시(이정표). (2026-08-15)
+        if (tags.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 tags.forEach { t ->
@@ -1981,13 +1982,34 @@ private fun CallSegment(
                 }
             }
         }
-        // 탭하면 상세 펼침 — 요약·전문·재생·후속 (부재중은 hasDetail=false 라 안 뜸). (2026-08-14 사장님)
-        androidx.compose.animation.AnimatedVisibility(
-            visible = expanded && hasDetail,
-            enter = androidx.compose.animation.expandVertically(animationSpec = androidx.compose.animation.core.tween(280)) + androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(180)),
-            exit = androidx.compose.animation.shrinkVertically(animationSpec = androidx.compose.animation.core.tween(200)) + androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(140))
+        // 탭하면 아래에서 통화상세 '시트'가 올라옴 — 프로토 08352d6e .sheet(bottom sheet). (2026-08-15 재수정)
+        if (sheetOpen && hasDetail) {
+            ModalBottomSheet(
+                onDismissRequest = { sheetOpen = false },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = Color.White,
+                tonalElevation = 0.dp
+            ) {
+        Column(
+            Modifier.fillMaxWidth()
+                .verticalScroll(androidx.compose.foundation.rememberScrollState())
+                .padding(horizontal = 16.dp)
+                .bottomBarClearance(extra = 20.dp)
         ) {
-        Column {
+            // shead — 📞 통화 · 길이 · 시각 (프로토 .shead)
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
+                Box(Modifier.size(32.dp).clip(RoundedCornerShape(50)).background(tealBg), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.Phone, contentDescription = null, tint = teal, modifier = Modifier.size(15.dp))
+                }
+                Spacer(Modifier.width(9.dp))
+                Column {
+                    Text(label, fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, color = if (isMissed) coral else tealDark)
+                    Text(
+                        buildString { durLabel?.let { append(it); append(" · ") }; append(DateTimeUtils.formatShort(record.endedAt)) },
+                        fontSize = 11.sp, color = Color(0xFF7B9A9A), fontWeight = FontWeight.Medium
+                    )
+                }
+            }
 
         // 프로토 callCardHtml(m,i): m.summarized 여부로 분기.
         val bullets = summary?.summaryText
@@ -2182,6 +2204,7 @@ private fun CallSegment(
             ) {
                 Text("✍️ 이 통화로 후속 문자 쓰기", color = teal, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
+        }
         }
         }
         }
