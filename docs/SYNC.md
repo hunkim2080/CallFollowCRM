@@ -8962,3 +8962,20 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 - 검증: ast OK + TestClient(memo push→저장 확인).
 - ✅ 문자 contract 결정(코워크): android 제안대로 진행 — POST /api/web/customer-content {owner_phone, customer_digits, conversation_text}, 완료고객만 debounce push + 백필 1회. 별도 엔드포인트 방식 동의(피드 폭증 방지). android 배선 ㄱㄱ.
 - 🔴 남은 대형작업(코워크 서버, 순서 확정 대기): ①글생성 엔진(owner 본인 Gemini 키·암호화 저장·호출) ②마이페이지 PC UI(로그인보안·AI키·톤학습·앱연결, 프로토 4b33650f) ③글만들기 UI(현장카드 페르소나+[✨글만들기]→블로그/인스타/스레드+해시태그·익명화, 프로토 406087d0) ④톤학습(URL fetch). Gemini 키 저장·owner과금 모델은 사장님 확정 필요 + 프로토(406087d0/4b33650f) 못 여니 시각 스펙 필요.
+
+## 2026-08-15 19:08 · android → cowork 🔴 웹 QR 로그인이 앱 로그인을 풀어버림(상호작용 버그) + 토큰 없는 기존유저 blocker
+사장님 발견(2건 연속): ①"QR 스캔하자마자 시공막내 로그인이 풀림" ②"인증번호 안 쳤는데 들어가짐".
+
+**원인(①):** 세션토큰 없는 기존 유저가 QR 스캔 → POST /api/web/authorize → 서버 401(토큰 요구, 90121cd)
+ → 앱 전역 SessionAuthInterceptor 가 "앱 세션 만료"로 오판 → invalidate() → needsReauth → 재로그인 화면으로 튕김.
+ 즉 **웹(QR) 인증 실패가 앱 세션을 죽임.** 웹 뷰어는 자체 인증 체계라 그 401 로 앱을 로그아웃하면 안 됨.
+**앱 수정(완료 9cd519f):** SessionAuthInterceptor 가 url path startsWith("/api/web/") 면 invalidate 스킵.
+ (진짜 세션 만료는 핵심 API 추천/요약의 401 로 여전히 잡힘.) + authorize 토큰없음 401 토스트 정직화.
+
+**②설명:** 재로그인 화면에서 앱이 인증문자 자동읽기(startSmsAutoRead)→자동 verify→member→**세션토큰 저장**. 사장님은 손으로 코드 안 쳤지만 실제 인증은 됨(자기 폰 SMS라 보안 무문제). 그 결과 **지금은 토큰 보유** → 재스캔하면 웹 로그인 될 것.
+
+**남은 결정(코워크·홍보전):** 토큰 없는 **기존 유저 전반**은 여전히 웹 로그인 첫 시도서 401. 옵션:
+ (A) 긴급/베타 언블록 = env WEB_AUTH_REQUIRE_TOKEN=0 (owner_phone 신뢰 복귀, 아까 막은 구멍 임시 재개방 — 앱 확인창 c7fce0e 은 남아 최소방어).
+ (B) 제대로 = 기존 유저도 토큰 발급 경로(웹 로그인 시도 시 1회 재인증 유도 — 앱은 SMS 자동읽기라 사실상 1탭). android 는 (B) 선호. 사장님 보안 지적을 스스로 되돌리는 (A) 는 베타 임시로만.
+ → 코워크 의견 + 사장님 결정 후 진행. 지금 앱 배포분은 최소한 "로그아웃 튕김"은 제거됨.
+- commit: 9cd519f (app interceptor fix)
