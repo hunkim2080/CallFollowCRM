@@ -238,6 +238,7 @@ fun SettlementScreen(
 
     // 목표 수정 — 인라인 바텀 오버레이(액티비티 윈도우라 키보드가 안 가림). 2026-06-07
     if (showGoalEditor) {
+        androidx.activity.compose.BackHandler { showGoalEditor = false }   // 뒤로가기=시트만 닫기(정산화면 pop 방지). (2026-08-15 UX감사#9)
         GoalEditSheet(
             initialManwon = goalManwonHint(top),
             onConfirm = { viewModel.setMonthlyGoal(it); showGoalEditor = false },

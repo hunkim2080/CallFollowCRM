@@ -135,6 +135,22 @@ fun ScheduleAddScreen(
         viewModel.consumeToast()
     }
 
+    // 폼 이탈 확인 — 입력이 있는데 딤/뒤로 한 번에 다 날아가던 것 방지. (2026-08-15 UX감사#2)
+    var confirmExit by remember { mutableStateOf(false) }
+    val isDirty = name.isNotBlank() || phoneField.text.isNotBlank() || address.isNotBlank() ||
+        addrDetail.isNotBlank() || totalManwon.isNotBlank() || depositManwon.isNotBlank() || crewWageText.isNotBlank()
+    fun tryExit() { if (isDirty) confirmExit = true else onBack() }
+    androidx.activity.compose.BackHandler { tryExit() }
+    if (confirmExit) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmExit = false },
+            title = { Text("저장 안 하고 나갈까요?") },
+            text = { Text("작성 중인 일정이 사라져요.") },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { confirmExit = false; onBack() }) { Text("나가기") } },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { confirmExit = false }) { Text("계속 작성") } }
+        )
+    }
+
     // 프로토 바텀시트 — "일정" 목록 위로 올라오는 시트(손잡이+둥근 상단+제목 "일정 직접 등록").
     //   2026-06-03: 전체화면 앱바 → 시트 모양으로 교체 (프로토 1:1). 위 빈 영역(scrim) 탭하면 닫힘.
     val sheetSwallow = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
@@ -149,7 +165,7 @@ fun ScheduleAddScreen(
                 .clickable(
                     interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                     indication = null
-                ) { onBack() }
+                ) { tryExit() }
         )
         Column(
             Modifier

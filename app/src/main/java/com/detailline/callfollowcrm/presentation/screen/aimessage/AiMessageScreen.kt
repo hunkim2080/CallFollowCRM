@@ -138,7 +138,7 @@ fun AiMessageScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Column {
                     Text(
-                        text = if (state.selectedPrice.isBlank()) "가격 선택" else state.selectedPrice,
+                        text = (if (state.selectedPrice.isBlank()) "가격 선택" else state.selectedPrice) + " ▾",   // ▾=드롭다운 표식 (UX감사#8)
                         color = TossBlue,
                         modifier = Modifier.clickable { priceExpanded = true }
                     )
@@ -156,7 +156,7 @@ fun AiMessageScreen(
                 }
                 Column {
                     Text(
-                        text = if (state.selectedDate.isBlank()) "날짜 선택" else state.selectedDate,
+                        text = (if (state.selectedDate.isBlank()) "날짜 선택" else state.selectedDate) + " ▾",
                         color = TossBlue,
                         modifier = Modifier.clickable { dateExpanded = true }
                     )
