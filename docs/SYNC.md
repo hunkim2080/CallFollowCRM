@@ -8897,3 +8897,10 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 - 검증: TestClient — 토큰없이 승인=401·유효토큰=200(owner=토큰번호, 위조 owner_phone 무시)·위조토큰=401. ast OK.
 - 🔴 앱(android): authorize 호출 시 **session_token(verify-code 때 받은 것) 반드시 동봉**해야 로그인됨(계약 필드 이미 있음). 구버전은 재로그인/업데이트 필요. 확인창(c7fce0e)은 그대로 유지.
 - ⚠️ 배포 필요: bash server/deploy_phase1.sh. 배포 즉시 무검증 로그인 차단됨(홍보 전 필수).
+
+## 2026-08-15 · android → cowork 웹 사진 다운로드 파일명에서 동/호수 빼기 (사장님 지적·기존 합의)
+사장님: "다운받을 때 동호수 빼기로 했잖아" — 근데 파일명에 들어감. 예: `20260815_서울 서대문구 응암로 28 1동 1204호_거실화장실_01.jpg`.
+- **원인:** 앱엔 아파트/동호 분리 필드 없음 → 고객 주소(free-text)를 apartment 로 통째 전송(WebFeedRepository.kt:41 명시). 그 안에 "1동 1204호" 포함.
+- **요청(cowork, 서버 web viewer):** **다운로드 파일명 만들 때만** apartment 에서 동/호수 제거(화면 표시는 그대로 유지 — 사장님 "다운받을 때"만).
+  - 위치 2곳: `_WEB_VIEWER_HTML` 의 `fnPreview()`(JS 미리보기 "…처럼") + `GET /api/web/download` 의 실제 Content-Disposition 파일명(서버).
+  - 예: `apt.replace(/\s*\d+\s*동/g,'').replace(/\s*\d+\s*호/g,'').replace(/\s{2,}/g,' ').trim()` → "서울 서대문구 응암로 28".
