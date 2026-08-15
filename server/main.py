@@ -26918,6 +26918,12 @@ function renderDetail(){
    +'<div class="meta">고객 <b>'+esc(c.name||'-')+'</b>'+(c.dong_ho?' · '+esc(c.dong_ho):'')+' · 현장 <b>'+esc(c.apartment||'-')+'</b></div>'
    +'<div class="spec">'+(c.work_date?'<span>📅 시공일 '+esc(c.work_date)+'</span>':'')+'<span>'+(c.completed?'✅ 시공 완료':'⏳ 진행중')+'</span>'+(c.category?'<span>🏷️ '+esc(c.category)+'</span>':'')+'</div>'
    +'</div>'+((mo&&dy)?'<span class="datechip">📅 '+(+mo)+'/'+(+dy)+'</span>':'')+'</div>'
+   +'<div style="display:flex;align-items:flex-start;gap:11px;background:#F1EEFB;border:1px solid #C9BEF2;border-radius:12px;padding:12px 14px;margin:12px 0">'
+   +'<span style="font-size:17px">🧭</span><div style="flex:1;min-width:0">'
+   +'<div style="font-size:10.5px;font-weight:800;color:#6E5FC7;letter-spacing:.03em;margin-bottom:3px">글 만들기 · 블로그·인스타·스레드</div>'
+   +'<div style="font-size:13px;color:var(--t2);font-weight:600" id="personaLine">통화·메모로 이 현장 마케팅 글을 자동으로 만들어요. (내 Gemini 키)</div></div>'
+   +'<button class="dlbtn" style="align-self:center;background:#6E5FC7;box-shadow:none" onclick="genContent()" id="genBtn">✨ 글 만들기</button></div>'
+   +'<div id="genPanel"></div>'
    +'<div class="viewerbar">👁️ <b>보기 전용</b> — 보고·다운로드만. 사진 수정·삭제는 폰 앱에서만. (부위 태그는 <b>다운로드 이름표</b>일 뿐 서버 사진은 안 건드려요 🤙)</div>'
    +'<div class="toolbar">'
    +'<span class="chipf'+(filter==='all'?' on':'')+'" onclick="setFilter(\\'all\\')">전체 '+cc.all+'</span>'
@@ -26995,6 +27001,37 @@ function delPart(i){var p=getParts(),v=p[i];if(!confirm('"'+v+'" 부위를 지�
 function dlUrl(ids){var ps=ids.map(function(id){return partFor(id);});return '/api/web/download?ids='+ids.join(',')+'&parts='+encodeURIComponent(ps.join('|'));}
 function dl1(id){location.href=dlUrl([id]);}
 function download(){var ids=Object.keys(sel);if(!ids.length){alert('내려받을 사진을 골라주세요.');return;}location.href=dlUrl(ids);}
+var GEN=null, genP='bl';
+function genContent(){
+  if(!curCd)return; var b=document.getElementById('genBtn');
+  b.textContent='✍️ 쓰는 중…'; b.style.opacity='.7';
+  document.getElementById('genPanel').innerHTML='<div style="padding:20px;text-align:center;color:#6E5FC7;font-weight:700;font-size:13px">✍️ 대화를 읽고 플랫폼별로 쓰는 중…</div>';
+  fetch('/api/web/generate-content',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer_digits:curCd})})
+  .then(function(r){return r.json().then(function(j){return {s:r.status,j:j};});}).then(function(o){
+    b.textContent='✨ 다시 만들기'; b.style.opacity='1';
+    if(o.s!==200){document.getElementById('genPanel').innerHTML='<div style="padding:14px;color:#F0436A;font-size:13px">'+esc(o.j.detail||'생성 실패')+'</div>';return;}
+    GEN=o.j; if(GEN.persona)document.getElementById('personaLine').textContent=GEN.persona; genP='bl'; renderGen();
+  }).catch(function(){b.textContent='✨ 글 만들기';b.style.opacity='1';});
+}
+function renderGen(){
+  if(!GEN)return; var g=GEN;
+  function tabBtn(p,t){return '<button onclick="genTab(\\''+p+'\\')" style="flex:1;font-size:12.5px;font-weight:800;border:1px solid '+(genP===p?'#C9BEF2':'var(--line)')+';background:'+(genP===p?'#F1EEFB':'#fff')+';color:'+(genP===p?'#6E5FC7':'var(--t2)')+';border-radius:10px;padding:9px 6px;cursor:pointer">'+t+'</button>';}
+  var body='';
+  if(genP==='bl'){
+    body='<div style="display:flex;align-items:center;gap:8px;margin-bottom:9px"><b style="color:#6E5FC7;font-size:12px">✨ 블로그 초안</b><span style="font-size:11px;color:var(--t3)">약 '+(g.blog.chars||0)+'자</span><span style="margin-left:auto"><button onclick="copyGen(\\'gblog\\',this)" style="background:#3182F6;color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:11.5px;font-weight:800;cursor:pointer">📋 복사(네이버)</button></span></div>'
+      +'<div id="gblog" style="background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:16px;font-size:14px;line-height:1.85;white-space:pre-wrap"><b style="font-size:15px">'+esc(g.blog.title)+'</b>\\n\\n'+esc(g.blog.body)+'</div>';
+  } else if(genP==='ig'){
+    body='<div style="display:flex;align-items:center;gap:8px;margin-bottom:9px"><b style="color:#C13584;font-size:12px">📷 인스타 캡션</b><span style="font-size:11px;color:var(--t3)">약 '+(g.instagram.chars||0)+'자·태그 '+g.instagram.hashtags.length+'</span><span style="margin-left:auto;display:flex;gap:6px"><button onclick="copyGen(\\'gigtags\\',this)" style="background:#fff;color:var(--t2);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:11.5px;font-weight:800;cursor:pointer"># 해시태그</button><button onclick="copyGen(\\'gigcap\\',this)" style="background:#3182F6;color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:11.5px;font-weight:800;cursor:pointer">📋 본문</button></span></div>'
+      +'<div id="gigcap" style="background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:15px;font-size:14px;line-height:1.72;white-space:pre-wrap">'+esc(g.instagram.caption)+'</div>'
+      +'<div style="background:var(--bg);border:1px dashed var(--line);border-radius:11px;padding:11px;margin-top:10px"><div style="font-size:11px;font-weight:800;color:var(--t3);margin-bottom:6px">＃ 해시태그 (첫 댓글용)</div><div id="gigtags" style="font-size:12.5px;color:#3182F6;line-height:1.9">'+esc(g.instagram.hashtags.join(' '))+'</div></div>';
+  } else {
+    body='<div style="display:flex;align-items:center;gap:8px;margin-bottom:9px"><b style="font-size:12px">🧵 스레드</b><span style="font-size:11px;color:var(--t3)">약 '+(g.threads.chars||0)+'자</span><span style="margin-left:auto"><button onclick="copyGen(\\'gth\\',this)" style="background:#3182F6;color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:11.5px;font-weight:800;cursor:pointer">📋 복사</button></span></div>'
+      +'<div id="gth" style="background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:15px;font-size:14px;line-height:1.72;white-space:pre-wrap">'+esc(g.threads.body)+(g.threads.hashtags.length?('\\n\\n'+esc(g.threads.hashtags.join(' '))):'')+'</div>';
+  }
+  document.getElementById('genPanel').innerHTML='<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;margin:0 0 12px"><div style="display:flex;gap:7px;margin-bottom:13px">'+tabBtn('bl','📝 블로그')+tabBtn('ig','📷 인스타')+tabBtn('th','🧵 스레드')+'</div>'+body+'<div style="font-size:11px;color:var(--t3);margin-top:9px">🔒 이름·전화·동/호·정확주소는 자동 제거("'+esc(g.region||'지역')+'" 수준). 사진은 위에서 골라 첨부.</div></div>';
+}
+function genTab(p){genP=p;renderGen();}
+function copyGen(id,btn){var t=document.getElementById(id).innerText;if(navigator.clipboard)navigator.clipboard.writeText(t);var o=btn.textContent;btn.textContent='복사됐어요 ✓';setTimeout(function(){btn.textContent=o;},1400);}
 /* 라이트박스 */
 function lbList(){return photos.filter(function(p){return filter==='all'||p.uploader_kind===filter;});}
 function lbOpen(id){var l=lbList();lbi=l.findIndex(function(p){return p.photo_id===id;});if(lbi<0)lbi=0;lbShow();document.getElementById('lb').classList.add('on');}
@@ -27469,3 +27506,144 @@ async def web_mypage(request: Request):
     if not owner:
         return RedirectResponse("/web/login", status_code=302)
     return HTMLResponse(_MYPAGE_HTML)
+
+
+# ============================================================================
+# 글 만들기 (블로그·인스타·스레드 + 해시태그) — owner 본인 Gemini 키로 생성
+# 프로토: docs/content_studio_PROTO.html (406087d0). 재료=통화요약+메모+(문자)+현장.
+# 익명화 필수(이름·전화·동/호·정확주소 제거). (2026-08-15)
+# ============================================================================
+def _web_region_only(apartment: str) -> str:
+    """아파트/주소 → 지역 수준만(동/호·상세 제거). '서울 서대문구 응암로 28 1동 1204호'→'서울 서대문구'."""
+    s = apartment or ""
+    s = _webre.sub(r"[0-9A-Za-z]+\s*동\s*[0-9]+\s*호", "", s)
+    s = _webre.sub(r"[0-9]+\s*동", "", s)
+    s = _webre.sub(r"[0-9]+\s*호", "", s)
+    s = _webre.sub(r"[0-9]+\s*층", "", s)
+    toks = [t for t in s.split() if t]
+    # 앞 2토큰(시/구) 정도만 — 번지·상세 컷
+    return " ".join(toks[:2]) if toks else "현장"
+
+
+def _web_gather_materials(owner: str, cd: str) -> dict:
+    """글 생성 재료 수집(익명화 전 원본, owner 소유만). 통화요약+메모+현장."""
+    key8 = _web_pkey(cd)
+    site = {}
+    memo = ""
+    with db_conn() as con:
+        for r in con.execute(
+            "SELECT customer_digits, apartment, dong_ho, work_date, category, completed, memo "
+            "FROM web_schedule_feed WHERE owner_phone = ?", (owner,)).fetchall():
+            if _web_pkey(r[0]) == key8:
+                site = {"apartment": r[1] or "", "dong_ho": r[2] or "",
+                        "work_date": r[3] or "", "category": r[4] or "",
+                        "completed": bool(r[5])}
+                memo = r[6] or ""
+                break
+        # 통화요약 (summary_cache, call-audio-summary, phone digits 매칭)
+        call = ""
+        crow = con.execute(
+            "SELECT response_json FROM summary_cache WHERE endpoint='call-audio-summary' "
+            "AND (phone = ? OR phone LIKE ?) ORDER BY generated_at_ms DESC LIMIT 1",
+            (_webre.sub(r"[^0-9]", "", cd), "%" + key8)).fetchone()
+        if crow:
+            try:
+                cj = json.loads(crow[0])
+                bits = [cj.get("one_line") or ""]
+                for b in (cj.get("bullets") or [])[:6]:
+                    bits.append("- " + str(b))
+                call = "\n".join([x for x in bits if x]).strip()
+            except Exception:
+                call = ""
+        # 톤 URL
+        tones = [t[0] for t in con.execute(
+            "SELECT url FROM web_tone_urls WHERE owner_phone = ? ORDER BY added_at_ms DESC LIMIT 5",
+            (owner,)).fetchall()]
+    return {"region": _web_region_only(site.get("apartment", "")),
+            "category": site.get("category", ""), "work_date": site.get("work_date", ""),
+            "completed": site.get("completed", False), "memo": memo, "call": call,
+            "tone_urls": tones}
+
+
+async def _web_gemini_generate(api_key: str, prompt: str) -> dict:
+    """owner Gemini 키로 JSON 생성. 실패 시 raise."""
+    url = ("https://generativelanguage.googleapis.com/v1beta/models/"
+           "gemini-2.0-flash:generateContent")
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        r = await client.post(
+            url, params={"key": api_key},
+            json={
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"temperature": 0.75, "responseMimeType": "application/json"},
+            })
+    if r.status_code != 200:
+        raise HTTPException(502, f"Gemini 오류 {r.status_code}: {r.text[:160]}")
+    data = r.json()
+    try:
+        txt = data["candidates"][0]["content"]["parts"][0]["text"]
+    except Exception:
+        raise HTTPException(502, "Gemini 응답 형식 오류")
+    return json.loads(txt)
+
+
+class WebGenReq(BaseModel):
+    customer_digits: str
+
+
+@app.post("/api/web/generate-content")
+async def web_generate_content(request: Request, req: WebGenReq):
+    from fastapi.responses import JSONResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    cd = _webre.sub(r"[^0-9]", "", req.customer_digits or "")
+    if not cd:
+        raise HTTPException(400, "customer_digits 필수")
+    api_key = _web_owner_gemini_key(owner)
+    if not api_key:
+        raise HTTPException(400, "먼저 마이페이지에서 내 Gemini 키를 등록해 주세요")
+    m = _web_gather_materials(owner, cd)
+    tone_hint = ""
+    if m["tone_urls"]:
+        tone_hint = ("\n\n[따라할 글 톤] 아래 URL 글들의 말투·문장 길이·이모지 사용을 참고해 "
+                     "비슷한 톤으로 써라(내용은 이 현장 것만): " + ", ".join(m["tone_urls"]))
+    prompt = (
+        "너는 시공(인테리어) 사장님의 마케팅 글을 대신 써주는 카피라이터다. "
+        "아래 '현장 재료'만으로 블로그·인스타그램·스레드 글을 각 플랫폼 톤에 맞게 쓴다.\n"
+        "규칙(엄수): (1) 재료에 없는 사실을 지어내지 마라. (2) 익명화 — 고객 이름·전화번호·동/호수·정확한 "
+        "번지 주소는 절대 쓰지 마라. 지역은 '" + (m["region"] or "해당 지역") + "' 수준까지만. "
+        "(3) 과장·허위 없이 정직하게. (4) 존댓말·친근.\n"
+        "플랫폼별: 블로그=1000~1300자 스토리텔링(고민→상담→시공→결과, 제목 포함). "
+        "인스타=~380자 감성 캡션(줄바꿈·이모지 적당) + 해시태그 15개(지역·부위·공정 기반). "
+        "스레드=~230자 대화하듯 톤 확 낮춤 + 해시태그 1~2개.\n"
+        "그리고 이 현장 '페르소나 한 줄'(어떤 고민 → 어떻게 시공)도.\n" + tone_hint + "\n\n"
+        "[현장 재료]\n"
+        "지역: " + (m["region"] or "-") + "\n"
+        "시공종류: " + (m["category"] or "-") + "\n"
+        "시공일: " + (m["work_date"] or "-") + "\n"
+        "메모: " + (m["memo"] or "(없음)") + "\n"
+        "통화요약: " + (m["call"] or "(없음)") + "\n\n"
+        "반드시 아래 JSON 형식만 출력:\n"
+        '{"persona":"한 줄","blog":{"title":"제목","body":"본문(문단은 \\n\\n 로 구분)"},'
+        '"instagram":{"caption":"캡션","hashtags":["#태그", "... 15개"]},'
+        '"threads":{"body":"본문","hashtags":["#태그1","#태그2"]}}'
+    )
+    out = await _web_gemini_generate(api_key, prompt)
+    # 정규화(길이 계산 등)
+    def _len(s):
+        return len(str(s or ""))
+    blog = out.get("blog") or {}
+    ig = out.get("instagram") or {}
+    th = out.get("threads") or {}
+    return {
+        "persona": out.get("persona") or "",
+        "region": m["region"],
+        "blog": {"title": blog.get("title") or "", "body": blog.get("body") or "",
+                 "chars": _len(blog.get("body"))},
+        "instagram": {"caption": ig.get("caption") or "",
+                      "hashtags": [str(h) for h in (ig.get("hashtags") or [])][:15],
+                      "chars": _len(ig.get("caption"))},
+        "threads": {"body": th.get("body") or "",
+                    "hashtags": [str(h) for h in (th.get("hashtags") or [])][:2],
+                    "chars": _len(th.get("body"))},
+    }

@@ -9027,3 +9027,10 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 - 검증: ast OK + TestClient(로그인→/mypage 200·me·키 저장/조회/테스트/삭제·톤 추가/삭제·세션·미인증 302/401 전부 통과). cryptography 로컬 검증 설치.
 - 🔴 남음(다음 순서): ②톤 실제 학습(글 URL 본문→톤 추출, owner Gemini) ③글만들기 화면+생성엔진(프로토 406087d0, owner 키로 Gemini 호출·익명화·3플랫폼) ④문자 contract(android 배선 대기).
 - ⚠️ 배포 필요: bash server/deploy_phase1.sh (requirements 갱신 = 배포 시 pip install 로 cryptography 설치돼야 함. 스크립트가 pip 안 하면 수동 pip install -r 후 재시작).
+
+## 2026-08-15 23:32 · cowork ✅ 글 만들기(블로그·인스타·스레드) — 프로토 406087d0, owner Gemini 생성엔진
+- 백엔드(server/main.py): POST /api/web/generate-content {customer_digits} — 재료(통화요약 summary_cache + 메모 web_schedule_feed + 현장) 수집 → 익명화(_web_region_only: 동/호·상세주소 제거, 지역만) → owner 본인 Gemini(gemini-2.0-flash, 마이페이지 저장 키 복호화)로 JSON 생성 → {persona, blog{title,body,chars}, instagram{caption,hashtags[15]}, threads{body,hashtags[1-2]}}. 톤 URL 있으면 프롬프트에 참고. 키 없으면 400(마이페이지 안내). 지어내기·PII 금지 지시.
+- 프론트(_WEB_VIEWER_HTML 현장 상세): 주소↔시공일 사이 페르소나 한 줄 + [✨ 글 만들기] → 3플랫폼 탭(블로그/인스타/스레드), 복사(네이버·본문·해시태그 따로), 익명화 안내.
+- 검증: ast OK + TestClient(익명화=동/호 프롬프트 유출 없음·키없음 400·정상 생성 persona/blog/ig15/th2 shape). Gemini 는 mock(샌드박스 실호출 불가).
+- ⚠️ 배포 후 실제 확인: 마이페이지에서 사장님 Gemini 키 등록 → 완료 현장 [글 만들기] → 실 생성. (requirements cryptography + 이 커밋 함께 배포)
+- 이로써 웹 글만들기 세트 = 마이페이지(7ffa97e) + 글생성엔진(이 커밋) 완료. 남음: 문자대화 재료(android customer-content push 배선)·톤 실학습(글 URL 본문 반영 고도화).
