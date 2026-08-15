@@ -63,14 +63,29 @@ class SignupViewModel(private val container: AppContainer) : ViewModel() {
     fun consumeError() { _state.update { it.copy(error = null) } }
     fun consumeInfo() { _state.update { it.copy(info = null) } }
 
-    val phoneOk: Boolean get() = _state.value.phone.filter { it.isDigit() }.length >= 10
+    val phoneOk: Boolean get() = isValidKoreanMobile(_state.value.phone)
+
+    /**
+     * 한국 휴대폰 형식 검증 — 010=정확히 11자리, 011/016/017/018/019(구번호)=10~11자리. 그 외 무효.
+     *   자릿수 안 맞는 오타(예: "010-1922-244" 10자리)로 인증문자 발송 → SMS 비용 낭비를 차단. (2026-08-15 사장님)
+     */
+    private fun isValidKoreanMobile(raw: String): Boolean {
+        val d = raw.filter { it.isDigit() }
+        return when {
+            d.startsWith("010") -> d.length == 11
+            d.startsWith("011") || d.startsWith("016") || d.startsWith("017") ||
+                d.startsWith("018") || d.startsWith("019") -> d.length in 10..11
+            else -> false
+        }
+    }
 
     /** ① 인증번호 발송. */
     fun requestCode() {
         val s = _state.value
         if (s.loading) return
-        val digits = s.phone.filter { it.isDigit() }
-        if (digits.length < 10) { _state.update { it.copy(error = "전화번호를 정확히 입력해주세요") }; return }
+        if (!isValidKoreanMobile(s.phone)) {
+            _state.update { it.copy(error = "010으로 시작하는 휴대폰 번호 11자리를 정확히 입력해주세요") }; return
+        }
         _state.update { it.copy(loading = true) }
         viewModelScope.launch {
             container.authRepository.requestCode(s.phone)

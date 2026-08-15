@@ -23,12 +23,17 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -113,6 +118,7 @@ fun SignupScreen(
 
 @Composable
 private fun androidx.compose.foundation.layout.ColumnScope.PhonePhase(vm: SignupViewModel, s: SignupViewModel.UiState) {
+    var showConfirm by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier.weight(1f).fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -146,8 +152,35 @@ private fun androidx.compose.foundation.layout.ColumnScope.PhonePhase(vm: Signup
         keyboardType = KeyboardType.Phone
     )
     Spacer(Modifier.height(10.dp))
-    PrimaryButton(label = "인증번호 받기", enabled = vm.phoneOk && !s.loading, loading = s.loading) { vm.requestCode() }
+    PrimaryButton(label = "인증번호 받기", enabled = vm.phoneOk && !s.loading, loading = s.loading) { showConfirm = true }
     Spacer(Modifier.height(18.dp))
+
+    // 발송 전 "맞습니까?" 확인 — 형식은 맞아도 오타(예: 자리 하나 틀림)로 SMS 비용 낭비 방지. (2026-08-15 사장님)
+    if (showConfirm) {
+        AlertDialog(
+            onDismissRequest = { showConfirm = false },
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
+            title = { Text("이 번호가 맞나요?", fontSize = 17.sp, fontWeight = FontWeight.Black, color = Ink) },
+            text = {
+                Column {
+                    Text(s.phone, fontSize = 20.sp, fontWeight = FontWeight.Black, color = Ink)
+                    Spacer(Modifier.height(4.dp))
+                    Text("이 번호로 인증문자를 보낼게요.", fontSize = 13.sp, color = Sub, fontWeight = FontWeight.Medium)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showConfirm = false; vm.requestCode() }) {
+                    Text("네, 보내기", color = Blue, fontWeight = FontWeight.ExtraBold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirm = false }) {
+                    Text("다시 볼게요", color = Sub, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
     // 수집·이용 동의 / 처리방침 — 탭하면 앱 내 웹뷰로 열림(브라우저 없어도). '이용약관' 문서는 없어 실제 문서명으로 표기. (2026-07-13 사장님)
     val linkCtx = LocalContext.current
     val openDoc: (String) -> Unit = { url ->
