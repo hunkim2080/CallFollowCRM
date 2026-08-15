@@ -35,6 +35,12 @@
   .page{max-width:1000px;margin:0 auto;padding:26px 26px 70px}
   .crumb{font-size:13px;color:var(--blue);font-weight:800;margin-bottom:10px;text-decoration:none}
   .crumb:hover{text-decoration:underline}
+  /* 뷰어(si0in.kr/web)와 일관 — 펄 라벨 + 큰 제목 + 부제 (상단 바 대신) */
+  .pilltop{display:flex;align-items:center;gap:13px;margin-bottom:14px;flex-wrap:wrap}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:800;color:var(--blue);background:var(--blue-bg);border:1px solid var(--blue-line);border-radius:999px;padding:6px 14px}
+  .backlink{font-size:13px;font-weight:800;color:var(--ink3);cursor:pointer;text-decoration:none}
+  .backlink:hover{color:var(--blue);text-decoration:underline}
+  .subtitle{font-size:13.5px;color:var(--ink2);margin:0 0 22px;line-height:1.6}
   h1{font-size:24px;font-weight:850;letter-spacing:-.02em;margin:0 0 20px}
 
   .layout{display:grid;grid-template-columns:236px 1fr;gap:26px;align-items:start}
@@ -110,16 +116,13 @@
   .end{background:var(--surface);border:2px solid var(--blue);border-radius:14px;padding:16px 18px;margin-top:20px;font-size:13px;line-height:1.65}
 </style>
 
-<div class="topbar">
-  <a class="back" onclick="toast('← 사진 캘린더로 돌아가요')"><span class="ar">←</span> 시공막내 웹</a>
-  <span class="sep">›</span>
-  <span class="here">마이페이지</span>
-  <div class="who"><span class="av">디</span>디테일라인</div>
-</div>
-
 <div class="page">
-  <a class="crumb" onclick="toast('← 사진 캘린더로 돌아가요')" style="cursor:pointer;display:inline-flex;align-items:center;gap:5px">← 사진 캘린더로 돌아가기</a>
+  <div class="pilltop">
+    <span class="pill">🖥️ 시공막내 웹 · 마이페이지</span>
+    <a class="backlink" onclick="toast('← 사진 캘린더로 돌아가요')">← 사진 캘린더로 돌아가기</a>
+  </div>
   <h1>내 계정 · 보안 · AI 설정</h1>
+  <p class="subtitle">로그인·보안 · 내 Gemini 키(내 비용) · 블로그 톤을 여기서 관리해요.</p>
 
   <div class="layout">
     <!-- 좌측 네비 (데스크탑 마이페이지) -->
