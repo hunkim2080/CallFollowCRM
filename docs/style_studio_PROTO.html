@@ -1,0 +1,266 @@
+<title>내 스타일 학습 — 따라할 톤을 AI가 분석 (블로그·인스타·스레드)</title>
+<style>
+  :root{
+    --bg:#F4F6F8; --surface:#FFFFFF; --sunken:#F2F4F6; --ink:#191F28; --ink2:#4E5968; --ink3:#8B95A1; --line:#E5E8EB;
+    --blue:#3182F6; --blue-bg:#EEF4FF; --blue-line:#D5E4FB;
+    --green:#12B886; --green-bg:#E7F8F1;
+    --violet:#6E5FC7; --violet-bg:#F1EEFB; --violet-line:#C9BEF2;
+    --ig:#C13584; --ig-bg:#FCEEF5; --ig-line:#F2C4DC;
+    --th:#191F28; --th-bg:#EDEFF2; --th-line:#C9CFD6;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic","Apple SD Gothic Neo",Roboto,sans-serif;
+  }
+  @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0E1116;--surface:#171B21;--sunken:#1c222b;--ink:#F0F2F5;--ink2:#B0B8C1;--ink3:#7A828C;--line:#262B33;
+    --blue-bg:#141E2E;--blue-line:#22344d;--green-bg:#0f2620;--violet-bg:#191633;--violet-line:#2c2551;
+    --ig-bg:#2a1420;--ig-line:#4a2036;--th-bg:#1c222b;--th:#E7EAEE;--th-line:#39414b;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0E1116;--surface:#171B21;--sunken:#1c222b;--ink:#F0F2F5;--ink2:#B0B8C1;--ink3:#7A828C;--line:#262B33;
+    --blue-bg:#141E2E;--blue-line:#22344d;--green-bg:#0f2620;--violet-bg:#191633;--violet-line:#2c2551;
+    --ig-bg:#2a1420;--ig-line:#4a2036;--th-bg:#1c222b;--th:#E7EAEE;--th-line:#39414b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.65;-webkit-font-smoothing:antialiased;padding:30px 18px 70px}
+  .wrap{max-width:760px;margin:0 auto}
+  .eyebrow{font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--violet);text-transform:uppercase}
+  h1{font-size:23px;font-weight:850;letter-spacing:-.02em;margin:6px 0 6px}
+  .sub{color:var(--ink2);font-size:14.5px;margin:0 0 22px} .sub b{color:var(--ink)}
+
+  .ptabs{display:flex;gap:8px;margin-bottom:16px}
+  .ptab{flex:1;font-size:13px;font-weight:800;border:1px solid var(--line);background:var(--surface);color:var(--ink2);border-radius:11px;padding:11px 8px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+  .ptab .st{font-size:10.5px;font-weight:800;border-radius:6px;padding:1px 6px;background:var(--sunken);color:var(--ink3)}
+  .ptab.done .st{background:var(--green-bg);color:var(--green)}
+  .ptab.active.bl{background:var(--violet-bg);border-color:var(--violet-line);color:var(--violet)}
+  .ptab.active.ig{background:var(--ig-bg);border-color:var(--ig-line);color:var(--ig)}
+  .ptab.active.th{background:var(--th-bg);border-color:var(--th-line);color:var(--th)}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:0 2px 10px rgba(0,0,0,.05);padding:20px}
+  .step{font-size:11px;font-weight:800;color:var(--ink3);letter-spacing:.03em;text-transform:uppercase;margin-bottom:8px}
+  .reftitle{font-size:16px;font-weight:850;margin:0 0 5px}
+  .refdesc{font-size:13px;color:var(--ink2);margin:0 0 14px;line-height:1.6}
+  .refrow{display:flex;gap:9px;align-items:center}
+  .refin{flex:1;font-size:13.5px;background:var(--sunken);border:1px solid var(--line);border-radius:11px;padding:13px 14px;color:var(--ink);font-family:inherit}
+  .refin::placeholder{color:var(--ink3)}
+  .anzbtn{flex:none;font-size:13px;font-weight:800;color:#fff;border:none;border-radius:11px;padding:13px 20px;cursor:pointer;white-space:nowrap}
+  .bl .anzbtn{background:var(--violet)} .ig .anzbtn{background:var(--ig)} .th .anzbtn{background:var(--th);color:#fff}
+  :root[data-theme="dark"] .th .anzbtn{color:#191F28}
+  .refnote{font-size:11.5px;color:var(--ink3);margin-top:10px;line-height:1.55;display:flex;gap:6px}
+  .paste{width:100%;min-height:90px;font-size:13px;background:var(--sunken);border:1px solid var(--line);border-radius:11px;padding:12px 14px;color:var(--ink);font-family:inherit;line-height:1.6;resize:vertical;margin-bottom:2px}
+
+  /* 분석 진행(로딩) — PandaRank식 단계 */
+  .analyzing{display:none;text-align:center;padding:14px 0 4px}
+  .analyzing.on{display:block}
+  .blob{width:72px;height:72px;margin:6px auto 16px;border-radius:42% 58% 55% 45%/50% 45% 55% 50%;background:conic-gradient(from 120deg,#9ff3d8,#bcd4ff,#e7c9ff,#ffe0bd,#9ff3d8);animation:spin 5s linear infinite,morph 4s ease-in-out infinite;filter:blur(.3px)}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes morph{50%{border-radius:55% 45% 48% 52%/45% 55% 45% 55%}}
+  .antitle{font-size:15.5px;font-weight:850;margin-bottom:16px;line-height:1.5}
+  .steps{max-width:340px;margin:0 auto;text-align:left;display:flex;flex-direction:column;gap:11px}
+  .stp{display:flex;align-items:center;gap:10px;font-size:13.5px;font-weight:700;color:var(--ink3)}
+  .stp .rc{width:18px;height:18px;border-radius:50%;border:2px solid var(--line);flex:none}
+  .stp.doing{color:var(--green)} .stp.doing .rc{border-color:var(--green);border-right-color:transparent;animation:spin 1s linear infinite}
+  .stp.ok{color:var(--ink)} .stp.ok .rc{border:none;background:var(--green);position:relative}
+  .stp.ok .rc::after{content:"✓";position:absolute;inset:0;color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center;font-weight:900}
+
+  /* 분석 리포트 (수정 가능) */
+  .report{display:none} .report.on{display:block}
+  .rhead{display:flex;align-items:center;gap:9px;margin:18px 0 10px}
+  .rhead .ic{font-size:16px}.rhead .t{font-size:15px;font-weight:850}
+  .rhead .edit{margin-left:auto;font-size:11.5px;font-weight:800;color:var(--blue);cursor:pointer}
+  .rbox{background:var(--sunken);border:1px solid var(--line);border-radius:13px;padding:15px 16px}
+  .rbanner{font-size:12px;color:var(--ink3);font-weight:700;text-align:center;padding:8px;border-bottom:1px dashed var(--line);margin:-15px -16px 13px;background:var(--surface);border-radius:13px 13px 0 0}
+  .persona-r{font-size:14px;font-weight:800;color:var(--ink);line-height:1.6;margin-bottom:10px}
+  .persona-r .pin{color:var(--violet)}
+  .rtext{font-size:13px;color:var(--ink2);line-height:1.75}
+  .rtext b{color:var(--ink)}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0 2px}
+  .chip{font-size:12px;font-weight:800;color:var(--violet);background:var(--violet-bg);border:1px solid var(--violet-line);border-radius:8px;padding:5px 10px}
+  .ig .chip{color:var(--ig);background:var(--ig-bg);border-color:var(--ig-line)}
+  .th .chip{color:var(--th);background:var(--th-bg);border-color:var(--th-line)}
+  .editable{outline:none;border-radius:6px} .editable:focus{background:var(--surface);box-shadow:0 0 0 2px var(--blue-line)}
+  .savebar{display:flex;gap:10px;align-items:center;margin-top:18px}
+  .savebtn{flex:1;text-align:center;font-size:13.5px;font-weight:850;color:#fff;background:var(--green);border:none;border-radius:12px;padding:14px;cursor:pointer}
+  .redo{font-size:12.5px;font-weight:800;color:var(--ink3);cursor:pointer;padding:10px}
+
+  h2{font-size:16px;font-weight:850;margin:30px 0 11px}
+  .notes{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:10px}
+  .notes li{display:flex;gap:11px;background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:13px 15px}
+  .notes .n{flex:none;font-size:15px}.notes .h{font-weight:800;font-size:13.5px}.notes .d{font-size:12.5px;color:var(--ink2);margin-top:2px;line-height:1.55}
+  .end{background:var(--surface);border:2px solid var(--violet);border-radius:14px;padding:15px 17px;margin-top:20px;font-size:13.5px;line-height:1.6}
+</style>
+
+<div class="wrap">
+  <div class="eyebrow">시공막내 웹 · 마이페이지 › 스타일 학습 (고도화 제안)</div>
+  <h1>내 스타일 학습 — 따라할 톤을 AI가 분석해서 그대로 써요</h1>
+  <p class="sub">플랫폼마다 <b>따라하고 싶은 글/계정</b>을 넣으면, AI가 <b>페르소나·어미·어투·구조·리액션</b>까지 뜯어봐요. 그 분석대로 [글 만들기]가 <b>사장님처럼</b> 써요. <b>블로그·인스타·스레드 각각 따로</b> 학습.</p>
+
+  <!-- 플랫폼 -->
+  <div class="ptabs">
+    <button class="ptab bl active done" data-p="bl" onclick="tab('bl')">📝 블로그 <span class="st">학습됨</span></button>
+    <button class="ptab ig" data-p="ig" onclick="tab('ig')">📷 인스타 <span class="st">미설정</span></button>
+    <button class="ptab th" data-p="th" onclick="tab('th')">🧵 스레드 <span class="st">미설정</span></button>
+  </div>
+
+  <!-- ===== 블로그 (학습된 예시) ===== -->
+  <div class="pane bl" id="pane-bl">
+    <div class="card">
+      <div class="step">① 따라할 글 지정</div>
+      <div class="reftitle">따라할 블로그 <b>글 주소</b></div>
+      <p class="refdesc">블로그 대문 말고 <b>특정 글(포스트) 주소</b>를 넣으세요 — 글마다 말투가 달라서 딱 그 스타일을 배우게. (여러 개 넣으면 평균 톤)</p>
+      <div class="refrow">
+        <input class="refin" value="blog.naver.com/detailline_zzulnun/223011234567" readonly>
+        <button class="anzbtn" onclick="analyze('bl')">✨ 다시 분석</button>
+      </div>
+      <div class="refnote">🔒 글 내용만 읽고 톤을 배워요 · 분석은 사장님 본인 Gemini 키로.</div>
+
+      <!-- 분석중 -->
+      <div class="analyzing" id="anz-bl">
+        <div class="blob"></div>
+        <div class="antitle">‘detailline_zzulnun’ 블로그를<br>꼼꼼하게 분석하고 있어요</div>
+        <div class="steps" id="steps-bl">
+          <div class="stp"><span class="rc"></span>글 카테고리 분석</div>
+          <div class="stp"><span class="rc"></span>평균 글자 수·어미 분석</div>
+          <div class="stp"><span class="rc"></span>글 구조·흐름 파악</div>
+          <div class="stp"><span class="rc"></span>어투·리액션 학습</div>
+          <div class="stp"><span class="rc"></span>스타일 리포트 생성</div>
+        </div>
+      </div>
+
+      <!-- 리포트 -->
+      <div class="report on" id="rep-bl">
+        <div class="rhead"><span class="ic">🧬</span><span class="t">블로그 스타일을 분석했어요</span><span class="edit" onclick="toast('필요한 부분만 눌러서 고치세요')">✎ 수정 가능</span></div>
+        <div class="rbox">
+          <div class="rbanner">전체 구성은 유지하고 필요한 내용만 수정하세요</div>
+          <div class="persona-r"><span class="pin">📍</span> <span class="editable" contenteditable="true">줄눈·화장실 타일 시공 현장을 “어떤 고민 → 어떻게 해결”로 정직하게 기록하는 현실형 후기 채널</span></div>
+          <div class="rtext editable" contenteditable="true">분석 결과, 이 블로그는 <b>줄눈·타일·욕실 보수</b>를 직접 시공한 현장을 사진과 함께 풀어주는 <b>실용형 후기 채널</b>이에요. “보수 될까요?”, “부분만 vs 전체”, “재방문 의사” 같은 표현이 자주 나오고, 과장 없이 <b>시공 전/후를 사진으로 보여주며 정직하게 조언</b>하는 톤이 강합니다. 독자는 이 글로 “내 집도 이렇게 하면 되겠다”는 현실 가이드를 얻어요.</div>
+          <div class="chips"><span class="chip">존댓말·친근</span><span class="chip">과장 없이 정직</span><span class="chip">현장 사진 설명 위주</span><span class="chip">이모지 절제</span><span class="chip">문단 짧게</span></div>
+        </div>
+
+        <div class="rhead"><span class="ic">〰️</span><span class="t">글 구성·어미·어투</span><span class="edit" onclick="toast('필요한 부분만 고치세요')">✎ 수정 가능</span></div>
+        <div class="rbox">
+          <div class="rtext editable" contenteditable="true"><b>· 글 흐름</b> — [고객 고민 → 현장 진단 → 상담·결정 → 시공 과정 → 시공 전/후 → 정직한 마무리] 순서. 문제 상황을 먼저 꺼내 공감을 만들고, 마지막은 “비슷한 고민이면 사진 보내주세요”로 맺어요.<br><br><b>· 종결 어미</b> — ~어요 / ~습니다(정보 전달) 섞어 쓰고, 권유는 ~드릴게요 / ~해요.<br><br><b>· 어투</b> — “부분만 살짝보다 전체가 낫다”처럼 <b>정직한 직설 조언</b>. 억지 영업 X, 실제로 나은 걸 말하는 신뢰형.<br><br><b>· 리액션·이모지</b> — 이모지는 절제(🚽✅ 정도), 강조는 문장으로. 문단은 짧게 끊어 모바일에서 읽기 쉽게.</div>
+        </div>
+
+        <div class="savebar">
+          <div class="redo" onclick="toast('처음부터 다시')">↻ 다시 분석</div>
+          <button class="savebtn" onclick="toast('이 스타일 저장 · 이제 블로그 글이 이 톤으로 나와요 ✅')">이 스타일로 저장</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 인스타 (미설정 예시) ===== -->
+  <div class="pane ig" id="pane-ig" style="display:none">
+    <div class="card">
+      <div class="step">① 따라할 인스타 지정</div>
+      <div class="reftitle">따라할 인스타 <b>계정 또는 게시물</b></div>
+      <p class="refdesc">인스타는 글 주소가 없어서 <b>둘 중 하나</b>로 톤을 배워요 — 계정 주소를 넣거나, 마음에 드는 <b>캡션 몇 개를 그대로 붙여넣기</b>.</p>
+      <div class="refrow" style="margin-bottom:9px">
+        <input class="refin" placeholder="instagram.com/내가_따라할_계정  (또는 아래에 캡션 붙여넣기)">
+      </div>
+      <textarea class="paste" placeholder="따라하고 싶은 인스타 캡션을 그대로 붙여넣기 (여러 개면 줄 띄우고 이어서)…"></textarea>
+      <div class="refrow" style="margin-top:9px">
+        <span style="flex:1"></span>
+        <button class="anzbtn" onclick="analyze('ig')">✨ 분석하기</button>
+      </div>
+      <div class="refnote">💡 인스타는 <b>이모지·해시태그·줄바꿈 습관·후킹 첫 줄</b>까지 배워요. 분석=본인 Gemini 키.</div>
+
+      <div class="analyzing" id="anz-ig">
+        <div class="blob"></div>
+        <div class="antitle">붙여넣은 인스타 톤을<br>분석하고 있어요</div>
+        <div class="steps" id="steps-ig">
+          <div class="stp"><span class="rc"></span>첫 줄(후킹) 패턴</div>
+          <div class="stp"><span class="rc"></span>이모지·줄바꿈 습관</div>
+          <div class="stp"><span class="rc"></span>해시태그 스타일</div>
+          <div class="stp"><span class="rc"></span>어투·리액션</div>
+          <div class="stp"><span class="rc"></span>스타일 리포트 생성</div>
+        </div>
+      </div>
+
+      <div class="report" id="rep-ig">
+        <div class="rhead"><span class="ic">🧬</span><span class="t">인스타 스타일을 분석했어요</span><span class="edit" onclick="toast('필요한 부분만 고치세요')">✎ 수정 가능</span></div>
+        <div class="rbox">
+          <div class="rbanner">전체 구성은 유지하고 필요한 내용만 수정하세요</div>
+          <div class="persona-r"><span class="pin">📍</span> <span class="editable" contenteditable="true">첫 줄로 확 잡고, 짧은 줄바꿈으로 리듬 타는 감성 후기형</span></div>
+          <div class="rtext editable" contenteditable="true"><b>· 첫 줄</b> — 이모지 + 반전 후킹(“부분만 하려다 전체로 😮”)으로 시작.<br><b>· 줄바꿈</b> — 2~3줄마다 띄워 모바일 리듬. 문장 짧게.<br><b>· 해시태그</b> — 15개 내외, 지역+부위+공정. 본문 끝 or 첫 댓글.<br><b>· 어투</b> — 친근 반말 섞인 감성 + ✅ 체크로 핵심 정리.</div>
+          <div class="chips"><span class="chip">이모지 적극</span><span class="chip">후킹 첫 줄</span><span class="chip">✅ 체크 정리</span><span class="chip">해시태그 15</span></div>
+        </div>
+        <div class="savebar">
+          <div class="redo" onclick="toast('다시')">↻ 다시</div>
+          <button class="savebtn" onclick="toast('인스타 스타일 저장 ✅')">이 스타일로 저장</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 스레드 (미설정 예시) ===== -->
+  <div class="pane th" id="pane-th" style="display:none">
+    <div class="card">
+      <div class="step">① 따라할 스레드 지정</div>
+      <div class="reftitle">따라할 스레드 <b>글 붙여넣기</b></div>
+      <p class="refdesc">스레드도 마음에 드는 <b>글 몇 개를 그대로 붙여넣으면</b> 그 대화체 톤을 배워요.</p>
+      <textarea class="paste" placeholder="따라하고 싶은 스레드 글을 그대로 붙여넣기…"></textarea>
+      <div class="refrow" style="margin-top:9px">
+        <span style="flex:1"></span>
+        <button class="anzbtn" onclick="analyze('th')">✨ 분석하기</button>
+      </div>
+      <div class="refnote">💡 스레드는 <b>대화체·말 걸기·짧은 단문·해시태그 1~2개</b> 습관을 배워요.</div>
+
+      <div class="analyzing" id="anz-th">
+        <div class="blob"></div>
+        <div class="antitle">붙여넣은 스레드 톤을<br>분석하고 있어요</div>
+        <div class="steps" id="steps-th">
+          <div class="stp"><span class="rc"></span>말 걸기·훅 패턴</div>
+          <div class="stp"><span class="rc"></span>문장 길이·단문 습관</div>
+          <div class="stp"><span class="rc"></span>어투·솔직함 정도</div>
+          <div class="stp"><span class="rc"></span>해시태그 습관</div>
+          <div class="stp"><span class="rc"></span>스타일 리포트 생성</div>
+        </div>
+      </div>
+
+      <div class="report" id="rep-th">
+        <div class="rhead"><span class="ic">🧬</span><span class="t">스레드 스타일을 분석했어요</span><span class="edit" onclick="toast('필요한 부분만 고치세요')">✎ 수정 가능</span></div>
+        <div class="rbox">
+          <div class="rbanner">전체 구성은 유지하고 필요한 내용만 수정하세요</div>
+          <div class="persona-r"><span class="pin">📍</span> <span class="editable" contenteditable="true">의견을 툭 던지고 경험담으로 풀어주는 솔직 대화체</span></div>
+          <div class="rtext editable" contenteditable="true"><b>· 첫 줄</b> — 소신 발언으로 훅(“저는 부분보수 잘 안 권해요”).<br><b>· 문장</b> — 짧은 단문, 말하듯. 정보 몰아넣지 않기.<br><b>· 어투</b> — 솔직·담백, 영업 티 X. “진짜 그게 오래가요”처럼 경험 근거.<br><b>· 해시태그</b> — 1~2개만.</div>
+          <div class="chips"><span class="chip">소신 훅</span><span class="chip">짧은 단문</span><span class="chip">담백·솔직</span><span class="chip">해시태그 1~2</span></div>
+        </div>
+        <div class="savebar">
+          <div class="redo" onclick="toast('다시')">↻ 다시</div>
+          <button class="savebtn" onclick="toast('스레드 스타일 저장 ✅')">이 스타일로 저장</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>PandaRank 벤치마킹 → 우리식으로</h2>
+  <ul class="notes">
+    <li><span class="n">🎯</span><div><div class="h">플랫폼마다 따로 학습 (사장님 요청)</div><div class="d">블로그=글 주소 / 인스타·스레드=계정 or 캡션 붙여넣기. 플랫폼마다 톤이 다르니 각각.</div></div></li>
+    <li><span class="n">🧬</span><div><div class="h">깊게 분석 → 수정 가능한 리포트</div><div class="d">페르소나·글 흐름·종결어미·어투·리액션·이모지·해시태그 습관까지. 리포트는 사장님이 직접 고칠 수 있어요(맘에 안 드는 줄만 수정).</div></div></li>
+    <li><span class="n">✨</span><div><div class="h">저장하면 [글 만들기]에 자동 반영</div><div class="d">저장한 스타일대로 그 플랫폼 글이 나와요. “사장님이 직접 쓴 것처럼” 일관.</div></div></li>
+    <li><span class="n">💳</span><div><div class="h">분석·생성 모두 본인 Gemini 키</div><div class="d">분석도 owner 키로 → 비용 본인. 원문은 톤 학습에만 쓰고 저장은 요약된 스타일만.</div></div></li>
+  </ul>
+
+  <div class="end"><b>이 방향이면 될까요?</b> PandaRank 처럼 “연결→깊게 분석→수정 가능한 리포트→그 톤으로 생성” 흐름을, <b>우리 3플랫폼 + 시공 맥락</b>으로. 좋으면 마이페이지 ‘블로그 톤’ 자리를 이 <b>‘스타일 학습’</b>으로 키워서 코워크에 넘길게요.</div>
+</div>
+
+<script>
+  function tab(p){
+    ['bl','ig','th'].forEach(function(x){ document.getElementById('pane-'+x).style.display = (x===p)?'block':'none'; });
+    document.querySelectorAll('.ptab').forEach(function(t){ t.classList.toggle('active', t.getAttribute('data-p')===p); });
+  }
+  function analyze(p){
+    var anz=document.getElementById('anz-'+p), rep=document.getElementById('rep-'+p),
+        steps=document.getElementById('steps-'+p).querySelectorAll('.stp');
+    rep.classList.remove('on'); anz.classList.add('on');
+    steps.forEach(function(s){ s.className='stp'; });
+    var i=0;
+    (function next(){
+      if(i>0) steps[i-1].className='stp ok';
+      if(i<steps.length){ steps[i].className='stp doing'; i++; setTimeout(next, 620); }
+      else { anz.classList.remove('on'); rep.classList.add('on');
+        var t=document.querySelector('.ptab[data-p="'+p+'"]'); t.classList.add('done'); t.querySelector('.st').textContent='학습됨'; }
+    })();
+  }
+  var tt;function toast(m){var el=document.createElement('div');el.textContent=m;el.style.cssText='position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:rgba(24,29,39,.94);color:#fff;font-size:13px;font-weight:700;padding:11px 20px;border-radius:999px;z-index:99;max-width:90%;text-align:center';document.body.appendChild(el);clearTimeout(tt);tt=setTimeout(function(){el.remove();},1600);}
+</script>
