@@ -27,6 +27,11 @@
   .btn:disabled{background:#C9D0D8;cursor:default;transform:none}
   .out{font-size:12px;font-weight:700;margin-top:9px;min-height:16px;line-height:1.5;color:var(--ink2)}
   .out.ok{color:var(--naver)} .out.err{color:var(--red)}
+  pre#diag{white-space:pre-wrap;word-break:break-all;font-size:10.5px;line-height:1.5;color:var(--ink2);
+    background:var(--sunken);border:1px solid var(--line);border-radius:9px;padding:9px 10px;margin:0;max-height:160px;overflow:auto}
+  .copy{margin-top:6px;border:1px solid var(--line);background:#fff;border-radius:9px;font-family:var(--font);
+    font-size:11.5px;font-weight:800;color:var(--ink2);padding:7px 12px;cursor:pointer}
+  .copy:active{transform:scale(.98)}
   .steps{margin-top:11px;padding-top:11px;border-top:1px solid var(--line);font-size:11px;color:var(--ink3);line-height:1.65}
   .steps b{color:var(--ink2)}
 </style>
@@ -42,6 +47,11 @@
 
   <button id="btn" class="btn">네이버 글쓰기 창에 넣기</button>
   <div id="out" class="out"></div>
+
+  <div id="diagWrap" style="display:none;margin-top:9px">
+    <pre id="diag"></pre>
+    <button id="copy" class="copy">진단 복사</button>
+  </div>
 
   <div class="steps">
     <b>순서</b> ① 네이버 블로그 <b>글쓰기</b> 창을 연다 → ② 본문을 한 번 <b>클릭</b> → ③ 위 <b>[넣기]</b> 버튼.
