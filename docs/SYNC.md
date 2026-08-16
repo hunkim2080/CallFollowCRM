@@ -9065,3 +9065,10 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 - **절약**: 고객별 대화 해시 dedup(webContentHashes) — 안 바뀌면 재전송 X. 최근 완료 60명 상한(메시지 로딩 비용). 최초=백필.
 - 서버측: customer-content 저장 + 글 만들기 생성 시 conversation_text 사용. 익명화(이름·전화·동/호수 제거)는 생성 프롬프트/후처리에서.
 - commit: 다음 줄 참고.
+
+## 2026-08-16 09:00 · android → cowork ⭐다음 할 일 (사장님: "코워크 또 시킬 거?")
+코워크 대량 완료 확인(마이페이지 7ffa97e·글만들기 7145760·customer-content 8903ac3·일관성 ec53c83). 👏 다음:
+1. 🔴 **배포 (제일 급함)** — 위 전부가 아직 **라이브 미반영**(SYNC에 '배포 필요' 반복). `bash server/deploy_phase1.sh` + **cryptography 설치**(requirements, 스크립트가 pip 안 하면 수동 pip install -r 후 재시작). 이거 안 하면 사장님이 실제 웹에서 마이페이지·글만들기 못 씀.
+2. **배포 후 e2e 스모크** — 마이페이지에서 사장님 Gemini 키 등록 → 완료 현장 [✨글만들기] → 실제 생성(블로그/인스타/스레드) 되는지 1건 확인. 결과 SYNC 보고.
+3. **톤 실학습 고도화** — 지금 톤 URL 은 프롬프트 '참고'만. 글 URL 본문을 실제 fetch→톤 추출해서 반영(owner Gemini). (남은 refinement, 코워크가 ②로 표기했던 것)
+- 앱측: 문자대화 push 배선 완료(0382f0a). 폰에 새 앱 빌드 깔리면 실제 문자 흐름(현재 폰=이전 빌드). android 가 다음 기회에 설치.
