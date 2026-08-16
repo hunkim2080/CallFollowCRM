@@ -194,7 +194,8 @@ class AppContainer(context: Context) {
     /** 뷰어용 스케줄 피드 자동 전송(30초 디바운스 + 해시). Application.onCreate 에서 start(). 웹 로그인 상태일 때만. */
     val webFeedSyncManager by lazy {
         com.detailline.callfollowcrm.ai.WebFeedSyncManager(
-            webFeedRepository, preferences, customerRepository, categoryRepository, cachedMessageRepository
+            webFeedRepository, preferences, customerRepository, categoryRepository, cachedMessageRepository,
+            callSummaryRepository
         )
     }
     /** 로컬 현장사진을 서버로 백필 업로드(웹 로그인 상태일 때만) → PC 웹에서 사장님 사진 보임. kick() 으로 1회 시도. */

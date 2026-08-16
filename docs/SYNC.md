@@ -9258,3 +9258,11 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 - 참고: [테스트]→"연결 확인" 이미 반영된 것 확인함(main.py testKey) 👍
 - commit: 이 SYNC 커밋
 - 다음 액션 (cowork): 위 3개 + 배포.
+
+## 2026-08-17 · android ✅ 통화요약 글재료 '앱측' 완료 + 보안토큰 3종 동봉 (빌드 OK)
+위 핸드오프 앱측 이행. `:app:assembleDebug` BUILD SUCCESSFUL.
+- `WebFeedRepository.pushCustomerContent` 에 `call_summary` 추가 전송. `WebFeedSyncManager` 가 완료고객마다 통화요약(`CallSummaryDao.listByCustomer`, 최근5·title+요약본문·3000자 상한) 수집해 실어보냄.
+- ⭐ **문자 없는(통화만) 고객도 push** 되게 고침 — 기존 `if(msgs.isEmpty()) continue` 라 통화 많은 고객(사장님 지적 사례)이 아예 유실됐음. 이제 문자·통화 중 하나만 있어도 감.
+- 보안(감사#2): schedule-feed·customer-content·logout-all 3종에 `session_token` 동봉(SessionTokenStore). 토큰 없으면 미동봉(현행 유지) → 준비되면 `WEB_PUSH_REQUIRE_TOKEN=1` 로 잠가도 앱 안 깨짐.
+- ⚠️ **배포 순서 주의**: 앱 push 는 (conversation,call_summary) dedup 해시로 안 바뀌면 재전송 X. 이 앱버전은 해시포맷이 바뀌어 첫 sync 때 전원 1회 재푸시됨 → **서버(call_summary 저장) 먼저 배포된 뒤 앱 설치**해야 기존 고객 통화요약이 서버에 담김. (앱을 먼저 깔면 그 1회 재푸시를 서버가 흘려버려 이후 dedup 로 안 옴)
+- commit: 이 커밋

@@ -1,8 +1,10 @@
 package com.detailline.callfollowcrm.ai
 
+import com.detailline.callfollowcrm.data.local.entity.CallSummaryEntity
 import com.detailline.callfollowcrm.data.local.entity.CustomerEntity
 import com.detailline.callfollowcrm.data.preferences.AppPreferences
 import com.detailline.callfollowcrm.data.repository.CachedMessageRepository
+import com.detailline.callfollowcrm.data.repository.CallSummaryRepository
 import com.detailline.callfollowcrm.data.repository.CategoryRepository
 import com.detailline.callfollowcrm.data.repository.CustomerRepository
 import com.detailline.callfollowcrm.util.DateTimeUtils
@@ -26,7 +28,8 @@ class WebFeedSyncManager(
     private val prefs: AppPreferences,
     private val customerRepository: CustomerRepository,
     private val categoryRepository: CategoryRepository,
-    private val cachedMessageRepository: CachedMessageRepository
+    private val cachedMessageRepository: CachedMessageRepository,
+    private val callSummaryRepository: CallSummaryRepository
 ) {
     private val dateFmt = SimpleDateFormat("yyyy-MM-dd", Locale.KOREA)
 
@@ -124,16 +127,31 @@ class WebFeedSyncManager(
             val digits = c.phoneNumber.filter { it.isDigit() }
             val suffix = digits.takeLast(8)
             val msgs = runCatching { cachedMessageRepository.load(suffix, 500) }.getOrNull().orEmpty()
-            if (msgs.isEmpty()) continue
             val text = msgs
                 .sortedBy { it.dateMs }
                 .mapNotNull { m -> m.body.trim().takeIf { it.isNotBlank() }?.let { (if (m.sent) "나: " else "손님: ") + it } }
                 .joinToString("\n")
-            if (text.isBlank()) continue
-            val h = "${text.length}:${text.hashCode()}"
-            if (stored[digits] == h) continue        // 대화 안 바뀌면 재전송 X
-            if (repo.pushCustomerContent(ownerPhone, digits, text).isSuccess) stored[digits] = h
+            // 통화요약도 글 재료로 — 통화 많은 고객은 문자가 아예 없을 수 있어(문자 유무로 skip 안 함). owner-scoped push.
+            val callSummary = runCatching { buildCallSummaryText(callSummaryRepository.listByCustomer(c.id)) }.getOrDefault("")
+            if (text.isBlank() && callSummary.isBlank()) continue   // 문자·통화 둘 다 없으면 skip
+            val h = "${text.length}:${text.hashCode()}:${callSummary.length}:${callSummary.hashCode()}"
+            if (stored[digits] == h) continue        // 문자·통화 둘 다 안 바뀌면 재전송 X
+            val ok = repo.pushCustomerContent(ownerPhone, digits, text, callSummary.takeIf { it.isNotBlank() }).isSuccess
+            if (ok) stored[digits] = h
         }
         prefs.webContentHashes = stored.entries.joinToString(";") { "${it.key}=${it.value}" }
+    }
+
+    /** 통화요약들을 글 재료용 한 덩어리 텍스트로. 최근 5건 · title+요약본문 · 총 3000자 상한. */
+    private fun buildCallSummaryText(summaries: List<CallSummaryEntity>): String {
+        if (summaries.isEmpty()) return ""
+        return summaries.take(5).mapNotNull { s ->
+            val bodyText = s.summaryText?.takeIf { it.isNotBlank() }
+                ?: s.customerNeed?.takeIf { it.isNotBlank() }
+                ?: return@mapNotNull null
+            val date = s.recordedAt?.let { dateFmt.format(Date(it)) }
+            val head = listOfNotNull(date?.let { "[통화 $it]" }, s.title?.takeIf { it.isNotBlank() }).joinToString(" ")
+            (if (head.isNotBlank()) "$head\n" else "") + bodyText.trim()
+        }.joinToString("\n\n").take(3000)
     }
 }

@@ -34,6 +34,14 @@ class WebFeedRepository(
 
     private val jsonMedia = "application/json; charset=utf-8".toMediaType()
 
+    /**
+     * 로그인 세션토큰(있으면). 서버 push 3종(schedule-feed·customer-content·logout-all)은
+     * body/query 의 session_token 으로 owner 를 검증한다(감사#2 하드닝, a53a7db). 인터셉터가 Bearer 로도
+     * 붙이지만 이 엔드포인트들은 body/query 를 읽으므로 여기서 명시 동봉. 없으면 미동봉(서버 기본 허용=구버전 호환).
+     */
+    private fun sessionToken(): String? =
+        com.detailline.callfollowcrm.data.SessionTokenStore.current?.token?.takeIf { it.isNotBlank() }
+
     /** 뷰어 캘린더용 현장 1건. 서버 web_schedule_feed 계약(customer_digits 끝8 정규화로 team_site_photos 조인). */
     data class FeedItem(
         val customerDigits: String,   // 숫자만
@@ -82,6 +90,7 @@ class WebFeedRepository(
                 val body = JSONObject().apply {
                     put("owner_phone", ownerPhone)
                     put("items", arr)
+                    sessionToken()?.let { put("session_token", it) }   // 감사#2 하드닝(전량삭제 보호)
                 }.toString().toRequestBody(jsonMedia)
                 val req = Request.Builder().url("$baseUrl/api/web/schedule-feed").post(body).build()
                 client.newCall(req).execute().use { resp ->
@@ -92,16 +101,24 @@ class WebFeedRepository(
         }
 
     /**
-     * 완료 고객의 문자 대화(원문)를 웹 '글 만들기' 재료로 전송. (완료게이트 별도 엔드포인트 — 코워크 동의)
+     * 완료 고객의 문자 대화(원문) + 통화요약을 웹 '글 만들기' 재료로 전송. (완료게이트 별도 엔드포인트 — 코워크 동의)
      *   피드가 무거워지지 않게 스케줄 피드와 분리. conversationText = "손님: …\n나: …" 시간순.
+     *   callSummary = 그 고객 통화요약(owner-scoped). 통화 많은 고객은 문자가 없어도 이게 재료가 됨. (2026-08-17 SYNC 핸드오프)
      */
-    suspend fun pushCustomerContent(ownerPhone: String, customerDigits: String, conversationText: String): Result<Unit> =
+    suspend fun pushCustomerContent(
+        ownerPhone: String,
+        customerDigits: String,
+        conversationText: String,
+        callSummary: String? = null
+    ): Result<Unit> =
         withContext(Dispatchers.IO) {
             runCatching {
                 val body = JSONObject().apply {
                     put("owner_phone", ownerPhone)
                     put("customer_digits", customerDigits)
                     put("conversation_text", conversationText)
+                    callSummary?.takeIf { it.isNotBlank() }?.let { put("call_summary", it) }   // 통화요약=글 재료(owner-scoped)
+                    sessionToken()?.let { put("session_token", it) }   // 감사#2 하드닝
                 }.toString().toRequestBody(jsonMedia)
                 val req = Request.Builder().url("$baseUrl/api/web/customer-content").post(body).build()
                 client.newCall(req).execute().use { resp ->
@@ -139,8 +156,10 @@ class WebFeedRepository(
         withContext(Dispatchers.IO) {
             runCatching {
                 val op = java.net.URLEncoder.encode(ownerPhone, "UTF-8")
+                var url = "$baseUrl/api/web/logout-all?owner_phone=$op"
+                sessionToken()?.let { url += "&session_token=" + java.net.URLEncoder.encode(it, "UTF-8") }   // 감사#2 하드닝
                 val req = Request.Builder()
-                    .url("$baseUrl/api/web/logout-all?owner_phone=$op")
+                    .url(url)
                     .post("".toRequestBody(jsonMedia))
                     .build()
                 client.newCall(req).execute().use { resp ->
