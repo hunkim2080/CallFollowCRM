@@ -9284,3 +9284,19 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 3. 🟡 **기기 24대 중복 세션**(재플래그 — 164bef6 에서 넘긴 것, 사장님 "이것도 해결하자") = `web_authorize` 로그인마다 새 sid, 같은 브라우저 dedup 없음.
 - 권장: **`bash server/deploy_phase1.sh` 재배포** 후 3개 다시 확인. android(통화요약·해시태그·보안토큰)은 다 커밋됨(44c1b3a). 이건 순수 웹/서버.
 - commit: 이 커밋
+
+## 2026-08-17 · cowork(server) → 🔴🔴 웹 3중 블로킹 회신 + 🧪 앱 보안 감사(핸드오프)
+### 웹 3중 블로킹(0341ca3)
+- **공통 진단 = 라이브 서버가 stale 배포**. 사장님이 보는 증상(글만들기 네트워크오류·마이페이지 버튼死·24세션)은 **최신 소스엔 이미 다 고쳐져 있음**(c79faae mypage escape, 34d83ad 세션 dedup+연결확인 문구). → **재배포가 근본**.
+- 1. 🔴 글만들기 "네트워크 오류": 원인은 무거운 POST 가 **비-JSON 500** 을 뱉어 뷰어 `.catch` 가 '네트워크 오류'로 오인. → **전역 예외 핸들러 추가**: 이제 어떤 미처리 예외도 **JSON 500**(`{"detail":...}`)으로 응답 + stderr 트레이스백. 뷰어가 진짜 메시지를 보여줌. (TestClient 로 검증: 강제크래시 → 500·application/json·detail)
+  - 추가로 재배포하면 call_summary 컬럼 마이그레이션도 적용돼 gather 의 `SELECT ... call_summary` 정상. (stale 배포면 그 SELECT 가 no-such-column 500 → 네트워크오류였을 수 있음 — 이번 핸들러로도 방어됨.)
+- 2. 🔴 마이페이지 버튼死: 최신 소스 mypage `<script>` node --check 통과(깨끗). = **stale 배포/브라우저 캐시**. 재배포 + Ctrl+Shift+R.
+- 3. 🟡 24세션: 34d83ad 에서 `web_login_status` 가 같은 user_agent 면 기존 세션 UPDATE 재사용 + 30일 정리로 이미 해결. 재배포 필요.
+- ✅ **cowork 액션**: 위 전역 핸들러 커밋. **사장님: `bash server/deploy_phase1.sh` 재배포가 필수**(3개 다 최신소스에 반영돼 있음). 재배포 후에도 1번 재현되면 그때 stderr 트레이스백 붙여주세요 — 진짜 원인 즉시 잡음.
+
+### 🧪 앱 보안 감사 (읽기전용, android 반영)
+- 산출물: `docs/APP_SECURITY_AUDIT.md` (🔴/🟡/🟢 등급별).
+- 잘 돼있음: 세션토큰 EncryptedSharedPreferences+Bearer+401재로그인, allowBackup=false, cleartext=Tailnet 1곳, exported 게이트, 업로드 무한재시도 없음.
+- 우선 손볼 것: 🔴 FCM data 무검증(스푸핑/잠금화면PII), 🔴 인증서 피닝 없음, 🟡 앱락 없음, 🟡 알림 VISIBILITY_PRIVATE, 🟡 민감화면 FLAG_SECURE, 🟡 release R8 off, 🟡 SEND 텍스트 무확인 저장, 🟡 통화 중복 업로드 레이스. 상세·파일·권장수정은 리포트 참고.
+- (참고) 초기 스캔이 stale 워킹트리라 '세션토큰 없음' 오탐이 있었는데 origin 재확인 후 정정함 — 리포트는 origin 기준.
+- commit: __C__
