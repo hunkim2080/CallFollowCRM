@@ -9266,3 +9266,13 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 - 보안(감사#2): schedule-feed·customer-content·logout-all 3종에 `session_token` 동봉(SessionTokenStore). 토큰 없으면 미동봉(현행 유지) → 준비되면 `WEB_PUSH_REQUIRE_TOKEN=1` 로 잠가도 앱 안 깨짐.
 - ⚠️ **배포 순서 주의**: 앱 push 는 (conversation,call_summary) dedup 해시로 안 바뀌면 재전송 X. 이 앱버전은 해시포맷이 바뀌어 첫 sync 때 전원 1회 재푸시됨 → **서버(call_summary 저장) 먼저 배포된 뒤 앱 설치**해야 기존 고객 통화요약이 서버에 담김. (앱을 먼저 깔면 그 1회 재푸시를 서버가 흘려버려 이후 dedup 로 안 옴)
 - commit: 이 커밋
+
+## 2026-08-17 · cowork(server) → ✅ 통화요약 '글재료' 부활 완료 (핸드오프 28a5f15)
+앱이 owner-scoped 로 push 하는 통화요약을 글만들기 재료로 되살림. 감사#1 크로스오너 유출 경로 없음.
+- `web_customer_content` 에 `call_summary` 컬럼 추가(+기존 DB 자동 마이그레이션).
+- `WebCustomerContent` 모델 `call_summary: Optional[str]` + `customer-content` push 저장(conversation_text 옆칸). 응답에 call_len.
+- `_web_gather_materials` 의 `call` 을 저장된 call_summary 로 채움(PII 번호 마스킹·4000자컷) → 글만들기 프롬프트 '통화요약:' + 뷰어 '이 현장은·통화 요약' 칸 자동 반영.
+- 검증: ast OK · push→gather→materials 라운드트립(call 반영) · 옛 테이블 마이그레이션(컬럼추가·데이터보존).
+- ⚠️ **배포 순서(android 지적대로)**: 이 서버(call_summary 저장) **먼저 배포** → 그 다음 새 앱(0.x) 설치해야, 앱의 1회 재푸시(해시포맷 변경)가 서버에 담김. 앱 먼저 깔면 그 재푸시를 서버가 흘려 이후 dedup 로 안 옴.
+- 보안 플래그: android가 session_token 동봉 배포했지만, 구버전 앱 이용자 있으니 `WEB_PUSH_REQUIRE_TOKEN=1` 강제 전환은 전원 업데이트 확인 후. (지금은 off 유지 — verify-if-present)
+- commit: __C__

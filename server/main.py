@@ -516,11 +516,19 @@ def db_init() -> None:
                 owner_phone      TEXT NOT NULL,
                 customer_digits  TEXT NOT NULL,
                 conversation_text TEXT,
+                call_summary     TEXT,          -- owner-scoped 통화요약(글재료). 앱이 push. 감사#1 우회 안전.
                 updated_at_ms    INTEGER NOT NULL,
                 PRIMARY KEY (owner_phone, customer_digits)
             )
             """
         )
+        # 통화요약 글재료 부활(2026-08-17) — 기존 테이블에 call_summary 컬럼 없으면 추가.
+        try:
+            _cc_cols = [r[1] for r in con.execute("PRAGMA table_info(web_customer_content)").fetchall()]
+            if "call_summary" not in _cc_cols:
+                con.execute("ALTER TABLE web_customer_content ADD COLUMN call_summary TEXT")
+        except Exception as _e:
+            print(f"[db_init] web_customer_content call_summary 마이그레이션 skip: {_e}")
         # 크롬 확장 '네이버 글 불러오기(pull)' — 최근 생성 블로그 글(마커 규약) + 사진 index 매핑
         con.execute(
             """
@@ -27848,22 +27856,24 @@ def _web_gather_materials(owner: str, cd: str) -> dict:
                         "completed": bool(r[5])}
                 memo = r[6] or ""
                 break
-        # 통화요약 재료: 감사#1 — summary_cache 에 owner 컬럼이 없어 고객번호로만 조회하면
-        # 다른 사장의 통화가 새어들 수 있음(크로스오너 유출). owner 스코프 불가 → 글만들기
-        # 재료에서 제외. (추후 앱이 owner 스코프로 통화요약도 customer-content 처럼 push 하면 부활)
-        call = ""
+        # 통화요약 재료(2026-08-17 부활): 감사#1 로 summary_cache(owner 컬럼 없음) 직접조회는 금지.
+        # 대신 앱이 owner-scoped 로 push 한 web_customer_content.call_summary 를 사용 → 크로스오너 안전.
         # 톤 URL
         tones = [t[0] for t in con.execute(
             "SELECT url FROM web_tone_urls WHERE owner_phone = ? ORDER BY added_at_ms DESC LIMIT 5",
             (owner,)).fetchall()]
-        # 문자 대화 (앱이 완료고객만 push — 없을 수 있음)
+        # 문자 대화 + 통화요약 (앱이 완료고객만 push — 없을 수 있음)
         convo = ""
+        call = ""
         cvr = con.execute(
-            "SELECT conversation_text FROM web_customer_content WHERE owner_phone = ? AND customer_digits = ?",
+            "SELECT conversation_text, call_summary FROM web_customer_content "
+            "WHERE owner_phone = ? AND customer_digits = ?",
             (owner, _webre.sub(r"[^0-9]", "", cd))).fetchone()
         if cvr and cvr[0]:
             # 전화번호 등 PII 마스킹(익명화 1차 — 최종 익명화는 프롬프트 규칙)
             convo = _webre.sub(r"01[0-9]-?[0-9]{3,4}-?[0-9]{4}", "(번호)", cvr[0])[:4000]
+        if cvr and cvr[1]:
+            call = _webre.sub(r"01[0-9]-?[0-9]{3,4}-?[0-9]{4}", "(번호)", cvr[1])[:4000]
     return {"region": _web_region_only(site.get("apartment", "")),
             "category": site.get("category", ""), "work_date": site.get("work_date", ""),
             "completed": site.get("completed", False), "memo": memo, "call": call,
@@ -28045,6 +28055,7 @@ class WebCustomerContent(BaseModel):
     owner_phone: str
     customer_digits: str
     conversation_text: Optional[str] = None
+    call_summary: Optional[str] = None       # owner-scoped 통화요약(글재료 부활, 2026-08-17)
     session_token: Optional[str] = None
 
 
@@ -28058,10 +28069,12 @@ async def web_customer_content_push(req: WebCustomerContent) -> dict:
         raise HTTPException(400, "owner_phone/customer_digits 필수")
     _web_push_auth(owner, req.session_token)  # 감사#2 하드닝
     txt = (req.conversation_text or "").strip()
+    calls = (req.call_summary or "").strip()  # owner-scoped 통화요약(글재료 부활)
     with db_conn() as con:
         con.execute(
             "INSERT OR REPLACE INTO web_customer_content "
-            "(owner_phone, customer_digits, conversation_text, updated_at_ms) VALUES (?,?,?,?)",
-            (owner, cd, txt or None, _now_ms()))
+            "(owner_phone, customer_digits, conversation_text, call_summary, updated_at_ms) "
+            "VALUES (?,?,?,?,?)",
+            (owner, cd, txt or None, calls or None, _now_ms()))
         con.commit()
-    return {"ok": True, "len": len(txt)}
+    return {"ok": True, "len": len(txt), "call_len": len(calls)}
