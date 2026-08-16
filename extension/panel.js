@@ -179,39 +179,66 @@
   }
   $("#go").addEventListener("click", doAuto);
 
-  // 이미지 → PNG Blob (클립보드는 image/png 가 가장 안전)
-  function toPng(file) {
-    return new Promise((resolve, reject) => {
-      const img = new Image(); const url = URL.createObjectURL(file);
-      img.onload = () => {
-        try { const c = document.createElement("canvas"); c.width = img.naturalWidth; c.height = img.naturalHeight; c.getContext("2d").drawImage(img, 0, 0); URL.revokeObjectURL(url); c.toBlob((b) => b ? resolve(b) : reject(new Error("png변환실패")), "image/png"); }
-        catch (e) { reject(e); }
-      };
-      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("이미지 로드 실패")); };
-      img.src = url;
+  // 원고에서 자리표 묶음 파싱: 한 줄에 붙은 '[1] [2]' = 한 묶음(나란히), 줄 나뉘면 따로(위아래)
+  function parseGroups(draft) {
+    const groups = [];
+    (draft || "").split("\n").forEach((line) => {
+      const runRe = /\[\d+\](?:\s*\[\d+\])*/g; let m;
+      while ((m = runRe.exec(line)) !== null) {
+        const marker = m[0];
+        const indices = (marker.match(/\d+/g) || []).map(Number);
+        if (indices.length) groups.push({ marker, indices });
+      }
     });
+    return groups;
+  }
+  function loadImg(blob) {
+    return new Promise((res, rej) => { const img = new Image(); const url = URL.createObjectURL(blob); img.onload = () => { URL.revokeObjectURL(url); res(img); }; img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("이미지 로드 실패")); }; img.src = url; });
+  }
+  // 여러 장이면 같은 높이로 맞춰 가로로 이어붙여 한 장 PNG (한 장이면 그대로 PNG)
+  async function toGroupPng(blobs, gap) {
+    const imgs = await Promise.all(blobs.map(loadImg));
+    const targetH = Math.min.apply(null, imgs.map((i) => i.naturalHeight || 1000));
+    const g = imgs.length > 1 ? (gap == null ? 8 : gap) : 0;
+    const widths = imgs.map((i) => Math.max(1, Math.round(i.naturalWidth * (targetH / (i.naturalHeight || targetH)))));
+    const totalW = widths.reduce((a, b) => a + b, 0) + g * (imgs.length - 1);
+    const c = document.createElement("canvas"); c.width = totalW; c.height = targetH;
+    const ctx = c.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, totalW, targetH);
+    let x = 0;
+    imgs.forEach((im, idx) => { ctx.drawImage(im, 0, 0, im.naturalWidth, im.naturalHeight, x, 0, widths[idx], targetH); x += widths[idx] + g; });
+    return await new Promise((res, rej) => c.toBlob((b) => b ? res(b) : rej(new Error("합치기 실패")), "image/png"));
   }
 
   // ── 사진 넣기 (클립보드 이미지 + 진짜 Ctrl+V) ──
   async function doPhotos() {
-    if (!photos.length) { setOut("먼저 [사진 고르기]로 사진을 선택하세요.", "err"); return; }
+    if (!photos.length) { setOut("먼저 사진을 선택하거나 [불러오기] 하세요.", "err"); return; }
+    // 자리표 묶음(나란히) 단위로 작업 만들기. 묶음에 안 든 사진은 맨 끝에 순서대로.
+    const groups = parseGroups($("#text").value);
+    const covered = new Set(); groups.forEach((g) => g.indices.forEach((i) => covered.add(i)));
+    const leftovers = photos.filter((p) => !covered.has(p.index)).sort((a, b) => a.index - b.index);
+    const jobs = groups
+      .map((g) => ({ marker: g.marker, blobs: g.indices.map((i) => (photos.find((p) => p.index === i) || {}).blob).filter(Boolean) }))
+      .filter((j) => j.blobs.length)
+      .concat(leftovers.map((p) => ({ marker: null, blobs: [p.blob] })));
+    if (!jobs.length) { setOut("사진을 넣을 자리가 없어요.", "err"); return; }
+
     const btn = $("#goPhoto"); btn.disabled = true;
     let done = 0, placed = 0;
-    for (let i = 0; i < photos.length; i++) {
-      setOut(`⏳ 사진 ${i + 1}/${photos.length} 넣는 중 — 건드리지 마세요!`, "work");
+    for (let i = 0; i < jobs.length; i++) {
+      setOut(`⏳ 사진 ${i + 1}/${jobs.length} 넣는 중 — 건드리지 마세요!`, "work");
       let png;
-      try { png = await toPng(photos[i].blob); } catch (e) { setOut(`사진 ${i + 1} 변환 실패: ${String(e.message || e).slice(0, 50)}`, "err"); break; }
+      try { png = await toGroupPng(jobs[i].blobs); } catch (e) { setOut(`사진 ${i + 1} 준비 실패: ${String(e.message || e).slice(0, 40)}`, "err"); break; }
       try { await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]); }
-      catch (e) { setOut(`사진 ${i + 1} 클립보드 실패(브라우저 제한): ${String(e.message || e).slice(0, 50)}`, "err"); break; }
-      const resp = await send({ type: "SGM_PHOTO", index: photos[i].index });
+      catch (e) { setOut(`사진 ${i + 1} 클립보드 실패: ${String(e.message || e).slice(0, 40)}`, "err"); break; }
+      const resp = await send({ type: "SGM_PHOTO", marker: jobs[i].marker });
       if (!resp || !resp.ok) { setOut(`사진 ${i + 1} 넣기 실패: ${(resp && resp.error) || "오류"}`, "err"); break; }
       done++;
       if (resp.placed) placed++;
       await new Promise((r) => setTimeout(r, 500));
     }
     btn.disabled = false;
-    if (done === photos.length) setOut(`✓ 사진 ${done}장! (${placed}장은 [번호] 자리에, ${done - placed}장은 끝에)`, "ok");
-    else if (done > 0) setOut(`사진 ${done}/${photos.length}장 넣음 — 나머지 실패(알려주세요)`, "err");
+    if (done === jobs.length) setOut(`✓ 사진 완료! ${jobs.length}묶음 (${placed}묶음 자리에 · 나란히 포함)`, "ok");
+    else if (done > 0) setOut(`${done}/${jobs.length}묶음 넣음 — 나머지 실패(알려주세요)`, "err");
   }
   $("#goPhoto").addEventListener("click", doPhotos);
 

@@ -19,7 +19,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
   if (msg && msg.type === "SGM_PHOTO") {
-    pastePhoto(tabId, msg.index).then(sendResponse)
+    pastePhoto(tabId, msg.marker).then(sendResponse)
       .catch((e) => sendResponse({ ok: false, error: String((e && e.message) || e).slice(0, 160) }));
     return true;
   }
@@ -164,10 +164,10 @@ const HEAD_OPTION_EXPR = `(function(){ ${PRELUDE}
   return null;
 })()`;
 
-// 본문에서 '[n]' 자리표를 찾아 그 오른쪽 끝 클릭좌표 + 마커 길이 반환
-function POSITION_MARKER_EXPR(index) {
+// 본문에서 자리표 묶음(예 '[1] [2]')을 찾아 그 오른쪽 끝 클릭좌표 + 길이 반환
+function POSITION_MARKER_EXPR(markerStr) {
   return `(function(){ ${PRELUDE}
-    var mk=${JSON.stringify("[" + index + "]")};
+    var mk=${JSON.stringify(String(markerStr))};
     var scope=__doc.querySelector('.se-main-container, .se-content, .se-container')||__doc.body;
     var w=__doc.createTreeWalker(scope, NodeFilter.SHOW_TEXT, null, false); var node;
     while(node=w.nextNode()){
@@ -277,10 +277,9 @@ async function autoPaste(tabId, draft, title) {
   }
 }
 
-// ── 사진 넣기: 클립보드의 이미지(패널이 담아둠)를 진짜 Ctrl+V 로 붙여넣기 ──
-// index 번 사진 → 본문의 '[index]' 자리표를 찾아 그 자리에 (마커 지우고) 붙여넣음.
-//   자리표 없으면 편집영역 맨 끝에 붙임(fallback).
-async function pastePhoto(tabId, index) {
+// ── 사진 넣기: 클립보드의 이미지(패널이 담아둠, 나란히면 이미 합쳐진 한 장)를 진짜 Ctrl+V ──
+// marker(예 '[1] [2]') 자리표 묶음을 찾아 그 자리에 (묶음 지우고) 붙여넣음. 없으면 맨 끝(fallback).
+async function pastePhoto(tabId, marker) {
   if (!tabId) return { ok: false, error: "탭을 못 찾았어요" };
   const target = { tabId };
   try {
@@ -292,12 +291,12 @@ async function pastePhoto(tabId, index) {
   }
   try {
     let placed = false;
-    if (index) {
-      const pos = await evalVal(target, POSITION_MARKER_EXPR(index));
+    if (marker) {
+      const pos = await evalVal(target, POSITION_MARKER_EXPR(marker));
       if (pos) {
-        await clickAt(target, pos.x, pos.y);      // 자리표 오른쪽 끝에 커서
+        await clickAt(target, pos.x, pos.y);      // 자리표 묶음 오른쪽 끝에 커서
         await sleep(220);
-        for (let k = 0; k < pos.len; k++) { await pressBackspace(target); await sleep(40); } // '[n]' 지움
+        for (let k = 0; k < pos.len; k++) { await pressBackspace(target); await sleep(40); } // '[1] [2]' 통째로 지움
         await sleep(150);
         placed = true;
       }
@@ -307,7 +306,7 @@ async function pastePhoto(tabId, index) {
       if (focus === "NO_EDITOR") return { ok: false, error: "글쓰기 본문 편집영역을 못 찾았어요." };
       await sleep(120);
     }
-    await pressCtrlV(target);   // 그 자리에 이미지 붙여넣기
+    await pressCtrlV(target);   // 그 자리에 (합친) 이미지 붙여넣기
     await sleep(1600);          // 업로드 반영 대기
     return { ok: true, placed };
   } finally {
