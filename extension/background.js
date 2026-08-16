@@ -176,23 +176,14 @@ async function autoPaste(tabId, draft, title) {
   }
   let titleOk = false;
   try {
-    // 제목 먼저 (있으면): 진짜 클릭으로 활성화 후 입력
-    if (title) {
-      const tc = await evalVal(target, TITLE_COORD_EXPR);
-      if (tc) {
-        await clickAt(target, tc.x, tc.y);
-        await sleep(240);
-        await cdp(target, "Input.insertText", { text: title });
-        await sleep(220);
-        titleOk = true;
-      }
-    }
+    // 1) 본문 먼저 (fresh 상태라 FOCUS_EXPR 로 잘 들어감)
     const focus = await evalVal(target, FOCUS_EXPR);
     if (focus === "NO_EDITOR") return { ok: false, error: "글쓰기 본문 편집영역을 못 찾았어요." };
     await sleep(120);
     await pressCtrlV(target);
     await sleep(950);
 
+    // 2) 소제목 (본문 안 문단 클릭 → 문단서식 → 소제목)
     let headApplied = 0, headTotal = 0, diag = "";
     try {
       const heads = extractHeadings(draft);
@@ -204,6 +195,18 @@ async function autoPaste(tabId, draft, title) {
         await sleep(250);
       }
     } catch (e) { if (!diag) diag = "err:" + String(e.message || e).slice(0, 40); }
+
+    // 3) 제목 마지막 (진짜 클릭이 포커스를 제목으로 옮김 → 본문 오염 방지)
+    if (title) {
+      const tc = await evalVal(target, TITLE_COORD_EXPR);
+      if (tc) {
+        await clickAt(target, tc.x, tc.y);
+        await sleep(260);
+        await cdp(target, "Input.insertText", { text: title });
+        await sleep(220);
+        titleOk = true;
+      }
+    }
 
     return { ok: true, headApplied, headTotal, diag, title: title ? (titleOk ? "ok" : "fail") : "" };
   } finally {
