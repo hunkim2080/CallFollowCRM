@@ -12776,6 +12776,10 @@ async def _call_gemini_json_for_summary(
                         "items": {"type": "STRING"},
                     },
                     "suggested_followup_sms": {"type": "STRING"},
+                    "tags": {  # 통화 카드용 해시태그(부위·문제·일정 등 ≤3)
+                        "type": "ARRAY",
+                        "items": {"type": "STRING"},
+                    },
                 },
                 "required": ["title", "one_line", "bullets"],
             },
@@ -13256,6 +13260,7 @@ CALL_SUMMARY_SYSTEM = """너는 1인 시공자(줄눈/타일) 사장님의 비�
 
 - 통화 방향(direction): missed 면 one_line 에 "부재중" 명시.
 - 원문에 명시된 가격·일정·약속만 답에 박아라. 추측·창작 일절 금지.
+- tags: 통화 카드용 짧은 키워드 최대 3개(각 2~7자). 부위·문제·일정 위주 (예: ["화장실","줄눈","다음주"]). 통화에 나온 것만. '#' 없이 단어만.
 
 ────── 가격표 (참고용) ──────
 __PRICING__
@@ -13265,7 +13270,7 @@ __OWNER_TONE_SAMPLES__
 
 답 형식 — 반드시:
 - 응답 첫 글자는 '{' 로. 다른 텍스트 X.
-- {"title":"...","one_line":"...","bullets":["🙋 ...","🏢 ..."],"suggested_followup_sms":"..."}
+- {"title":"...","one_line":"...","bullets":["🙋 ...","🏢 ..."],"suggested_followup_sms":"...","tags":["화장실","줄눈","다음주"]}
 """
 
 
@@ -13312,11 +13317,23 @@ def _coerce_call_summary(parsed: dict) -> dict:
     else:
         fup = None
 
+    # 통화 카드용 태그(부위·문제·일정 등 ≤3, 각 짧게). '#' 붙어오면 떼고.
+    tags: list[str] = []
+    raw_tags = parsed.get("tags")
+    if isinstance(raw_tags, list):
+        for t in raw_tags:
+            s = str(t).strip().lstrip("#").strip()
+            if s and len(s) <= 12 and s not in tags:
+                tags.append(s)
+            if len(tags) >= 3:
+                break
+
     return {
         "title": title,  # 추가61 — 6~12자 짧은 제목
         "one_line": one_line,
         "bullets": bullets,
         "suggested_followup_sms": fup,
+        "tags": tags,   # 통화 카드 해시태그 (프로토)
     }
 
 

@@ -9143,3 +9143,10 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 - 검증: 206발화 mock → '?' 0개(7배치). ast OK. (실 exaone 은 배포후 재요약으로 확인)
 - 진단 확인분: 전문 3396자 온전 ✓, start_ms 206개 전부 ✓ (탭재생 데이터는 서버 준비완료 — seekTo 는 앱 배선).
 - ⚠️ 사장님: 배포(deploy_phase1.sh) → 그 통화 캐시 삭제 후 재요약(또는 새 통화)해야 화자 반영. 캐시삭제: sqlite3 ~/ringgo-server/cache.db "DELETE FROM summary_cache WHERE endpoint='call-audio-summary' AND phone LIKE '%90361119';"
+
+## 2026-08-16 21:28 · cowork 통화 카드 해시태그(프로토) — 요약이 tags 생성·통과 (사장님: 태그 안 뜸)
+- 원인: _coerce_call_summary 가 title/one_line/bullets/followup 만 통과, 태그필드 버림 + 프롬프트도 안 만듦.
+- 수정(server/main.py): ①Gemini responseSchema 에 tags(ARRAY<STRING>) 추가 ②call 요약 프롬프트에 'tags: 부위·문제·일정 키워드 ≤3, # 없이' 지시+예시 ③_coerce_call_summary 가 tags 통과(‘#’제거·중복제거·≤3·각 ≤12자). 응답에 "tags":[...] 나감.
+- 검증: ast OK + coerce(‘#화장실’→화장실·≤3컷·없을때[]).
+- 🔴 android 확인: 통화 카드/상세가 요약 응답의 **tags[]** 를 해시태그로 렌더하는지 확인 부탁(프로토처럼). 08-13 핸드오프엔 space/problem/schedule 로 적혀 있었는데, 서버는 범용 tags[] 로 냄 — 앱이 다른 필드명 읽으면 알려주면 맞춤(간단).
+- ⚠️ 배포+새 통화(또는 캐시삭제 재요약)해야 tags 생김. exaone/gemini 실제 태그 품질은 배포후 확인.
