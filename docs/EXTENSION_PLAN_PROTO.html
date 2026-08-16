@@ -1,0 +1,116 @@
+<title>시공막내 블로그 발행 확장프로그램 — 기획</title>
+<style>
+  :root{
+    --bg:#EEF1F4; --surface:#FFFFFF; --sunken:#F5F7F9; --ink:#181D27; --ink2:#4E5968; --ink3:#8B95A1; --line:#E5E9EE;
+    --blue:#3182F6; --blue-bg:#EDF3FF; --blue-line:#D3E2FB; --green:#12B886; --green-bg:#E6F9F1;
+    --amber:#B7791F; --amber-bg:#FBF3E4; --violet:#6E5FC7; --violet-bg:#F0EDFB; --violet-line:#C9BEF2; --naver:#03C75A;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic","Apple SD Gothic Neo",Roboto,sans-serif;
+    --shadow:0 1px 2px rgba(16,24,40,.04),0 6px 22px rgba(16,24,40,.06);
+  }
+  @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0C0F14;--surface:#161A21;--sunken:#11151B;--ink:#F0F2F5;--ink2:#AEB6C1;--ink3:#79828D;--line:#242A33;--blue-bg:#121E30;--blue-line:#22344d;--green-bg:#0f2620;--amber-bg:#241D10;--violet-bg:#191633;--violet-line:#2c2551;--shadow:0 6px 24px rgba(0,0,0,.5);
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0C0F14;--surface:#161A21;--sunken:#11151B;--ink:#F0F2F5;--ink2:#AEB6C1;--ink3:#79828D;--line:#242A33;--blue-bg:#121E30;--blue-line:#22344d;--green-bg:#0f2620;--amber-bg:#241D10;--violet-bg:#191633;--violet-line:#2c2551;--shadow:0 6px 24px rgba(0,0,0,.5);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.7;-webkit-font-smoothing:antialiased;padding:30px 18px 70px}
+  .wrap{max-width:800px;margin:0 auto}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:800;color:var(--naver);background:var(--green-bg);border:1px solid var(--naver);border-radius:999px;padding:6px 14px}
+  h1{font-size:25px;font-weight:850;letter-spacing:-.02em;margin:11px 0 6px}
+  .sub{color:var(--ink2);font-size:14.5px;margin:0 0 24px} .sub b{color:var(--ink)}
+  .sec{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:20px 22px;margin-bottom:16px}
+  .sh{display:flex;align-items:center;gap:9px;margin:0 0 13px}
+  .sh .no{width:26px;height:26px;border-radius:8px;background:var(--violet-bg);color:var(--violet);font-weight:850;font-size:13px;display:flex;align-items:center;justify-content:center;flex:none}
+  .sh .t{font-size:17px;font-weight:850;letter-spacing:-.01em}
+  p{margin:0 0 12px;font-size:14px;color:var(--ink);line-height:1.75} p b{font-weight:800}
+  .lead{font-size:15px;font-weight:700;color:var(--ink);background:var(--amber-bg);border-radius:11px;padding:13px 15px;margin:0 0 14px;line-height:1.6}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin:6px 0 4px}
+  @media(max-width:620px){.grid2{grid-template-columns:1fr}}
+  .cant,.can{border-radius:12px;padding:13px 15px;font-size:13px;line-height:1.6}
+  .cant{background:#FDECEF;border:1px solid #F6C6D0}.cant .h{font-weight:850;color:#C2334E;margin-bottom:6px}
+  .can{background:var(--green-bg);border:1px solid #B6E8D5}.can .h{font-weight:850;color:var(--green);margin-bottom:6px}
+  @media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .cant{background:#2a1720;border-color:#4a2030}}
+  .flow{display:flex;flex-direction:column;gap:9px;margin:6px 0}
+  .step{display:flex;gap:12px;align-items:flex-start;background:var(--sunken);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .step .n{width:24px;height:24px;border-radius:50%;background:var(--naver);color:#fff;font-weight:850;font-size:12px;display:flex;align-items:center;justify-content:center;flex:none;margin-top:1px}
+  .step .x{font-size:13.5px;color:var(--ink)}.step .x b{font-weight:800}
+  ul.list{margin:4px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px}
+  ul.list li{display:flex;gap:10px;font-size:13.5px;color:var(--ink2);line-height:1.6}ul.list li b{color:var(--ink)}.li e{flex:none}
+  ul.list .e{flex:none;font-size:15px}
+  .tech{font-family:"SFMono-Regular",Consolas,monospace;font-size:12.5px;background:var(--sunken);border:1px solid var(--line);border-radius:8px;padding:2px 7px;color:var(--ink)}
+  .risk{display:flex;gap:10px;font-size:13.5px;color:var(--ink2);line-height:1.6;margin-bottom:9px}.risk .lv{flex:none;font-size:11px;font-weight:850;border-radius:6px;padding:2px 8px;height:fit-content}
+  .risk .lv.h{color:#C2334E;background:#FDECEF}.risk .lv.m{color:var(--amber);background:var(--amber-bg)}
+  .phase{border-left:3px solid var(--violet);padding:2px 0 2px 14px;margin-bottom:14px}
+  .phase .pt{font-size:14px;font-weight:850;margin-bottom:3px}.phase .pd{font-size:13px;color:var(--ink2);line-height:1.6}
+  .phase .tag{font-size:11px;font-weight:800;color:var(--violet);background:var(--violet-bg);border-radius:6px;padding:2px 8px;margin-left:6px}
+  .end{background:var(--surface);border:2px solid var(--naver);border-radius:14px;padding:16px 18px;margin-top:18px;font-size:14px;line-height:1.65}
+</style>
+
+<div class="wrap">
+  <span class="pill">🧩 시공막내 · 크롬 확장프로그램 기획</span>
+  <h1>글+사진을 네이버 블로그에 원클릭 자동 발행</h1>
+  <p class="sub">시공막내 웹에서 만든 <b>글(사진 자리 포함) + 사진</b>을, 네이버 블로그 글쓰기 창에 <b>버튼 한 번으로</b> 그대로 꽂아주는 확장프로그램. (PandaRank 가 쓰는 그 방식)</p>
+
+  <!-- 1. 왜 -->
+  <div class="sec">
+    <div class="sh"><span class="no">1</span><span class="t">왜 확장프로그램이어야 하나 (핵심)</span></div>
+    <div class="lead">웹사이트는 보안상 <b>“남의 사이트(네이버)”</b>랑 <b>“내 PC 파일”</b>을 못 만져요. 그 벽을 넘는 건 확장프로그램뿐이라, 자동 발행엔 확장이 <b>반드시</b> 필요해요.</div>
+    <div class="grid2">
+      <div class="cant"><div class="h">🚫 웹사이트(우리 si0in.kr)가 못 하는 것</div>• 네이버 글쓰기 화면을 조작(글·사진 넣기)<br>• 내 PC에 다운받은 파일 읽기<br>• 다른 사이트(네이버)에 사진 업로드<br><span style="color:var(--ink3)">→ 브라우저가 보안으로 막아둠</span></div>
+      <div class="can"><div class="h">✅ 확장프로그램은 할 수 있는 것</div>• 네이버 에디터 페이지에 <b>코드 주입</b> → 글·사진 자동 입력<br>• 우리 서버에서 사진 받아 <b>네이버에 자동 업로드</b><br>• 정한 순서/위치에 정확히 삽입<br><span style="color:var(--ink3)">→ 그래서 PandaRank도 “확장 설치”</span></div>
+    </div>
+  </div>
+
+  <!-- 2. 없으면 -->
+  <div class="sec">
+    <div class="sh"><span class="no">2</span><span class="t">확장이 없으면? (지금 = 전부 수동)</span></div>
+    <p>사진 9장짜리 후기 하나 올리려면 사용자가 직접:</p>
+    <ul class="list">
+      <li><span class="e">😮‍💨</span><div>글 <b>복사</b> → 사진 <b>9장 다운로드</b> → 네이버 글쓰기 열고 → 글 <b>붙여넣기</b> → 사진 <b>하나하나 업로드</b>하고 → [1][2] 자리에 <b>일일이 배치</b>.</div></li>
+    </ul>
+    <p style="margin-top:10px"><b>확장 = 이 모든 걸 [네이버에 넣기] 버튼 한 번으로.</b> 이게 “진짜 자동화”이자 우리만의 킬러 기능.</p>
+  </div>
+
+  <!-- 3. 뭘/어떻게 -->
+  <div class="sec">
+    <div class="sh"><span class="no">3</span><span class="t">동작 흐름 (사용자가 보는 것)</span></div>
+    <div class="flow">
+      <div class="step"><span class="n">1</span><div class="x">시공막내 웹에서 <b>글 생성 + 사진 배치</b>(부위 매칭·드래그·수정) — 지금 프로토 그대로.</div></div>
+      <div class="step"><span class="n">2</span><div class="x">네이버 블로그 <b>글쓰기 창</b>을 연다 (확장이 자동으로 열거나, 사용자가 열면 확장이 감지).</div></div>
+      <div class="step"><span class="n">3</span><div class="x"><b>[네이버에 넣기]</b> 클릭 → 확장이 글을 입력하고, 사진을 <b>[1][2] 자리에 업로드·삽입.</b></div></div>
+      <div class="step"><span class="n">4</span><div class="x">사용자는 훑어보고 <b>발행</b> 버튼만. 끝.</div></div>
+    </div>
+  </div>
+
+  <!-- 4. 기술 뼈대 -->
+  <div class="sec">
+    <div class="sh"><span class="no">4</span><span class="t">기술 뼈대 (개발용)</span></div>
+    <ul class="list">
+      <li><span class="e">🧩</span><div><b>확장 구성</b> — <span class="tech">content script</span>(네이버 에디터 페이지 주입) + <span class="tech">background</span> + <span class="tech">popup</span>. Manifest V3.</div></li>
+      <li><span class="e">🔗</span><div><b>웹↔확장 통신</b> — 우리 웹 [넣기] → 확장으로 데이터 전달(<span class="tech">window.postMessage</span> or <span class="tech">externally_connectable</span>). 데이터 = 글(서식·사진 마커) + 사진 목록.</div></li>
+      <li><span class="e">🖼️</span><div><b>사진</b> — 확장이 우리 서버(owner 인증 토큰)에서 사진을 <span class="tech">fetch</span> → 네이버 에디터의 이미지 업로드 흐름에 주입(파일 input / 드래그 / 클립보드 중 되는 방식).</div></li>
+      <li><span class="e">✍️</span><div><b>네이버 SmartEditor 자동화</b> — 에디터 DOM에 텍스트(볼드·인용구 서식 포함) 입력 + 사진을 마커 위치에 삽입.</div></li>
+      <li><span class="e">🔐</span><div><b>인증</b> — 확장 ↔ 우리 웹 세션 연동(사진 받으려면 로그인된 owner 확인).</div></li>
+    </ul>
+  </div>
+
+  <!-- 5. 난이도·리스크 -->
+  <div class="sec">
+    <div class="sh"><span class="no">5</span><span class="t">난이도 · 리스크 (솔직히)</span></div>
+    <div class="risk"><span class="lv h">높음</span><div><b>네이버 SmartEditor 자동화</b> — 구조가 복잡하고 <b>수시로 바뀜</b>. 네이버가 에디터 바꾸면 확장이 깨질 수 있어 <b>유지보수가 계속</b> 필요. (가장 큰 리스크)</div></div>
+    <div class="risk"><span class="lv m">중간</span><div><b>사진 정확한 위치 삽입</b> — [1][2] 자리에 정밀히 넣으려면 에디터 커서/DOM 조작 필요.</div></div>
+    <div class="risk"><span class="lv m">중간</span><div><b>네이버 정책</b> — 자동화 감지 주의(과도한 자동 발행은 위험). “초안까지만, 발행은 사람이” 로 안전하게.</div></div>
+    <div class="risk"><span class="lv m">중간</span><div><b>크롬 웹스토어 심사 + 배포</b> — 등록·검수 절차 + 설치 안내(사장님 스샷의 PandaRank처럼).</div></div>
+  </div>
+
+  <!-- 6. 단계 -->
+  <div class="sec">
+    <div class="sh"><span class="no">6</span><span class="t">단계별 개발 (작게 시작해서 키우기)</span></div>
+    <div class="phase"><div class="pt">MVP <span class="tag">가장 빠름</span></div><div class="pd">글 <b>텍스트만</b> 네이버 에디터에 자동 입력(볼드·인용구 포함). 사진은 <b>번호순 다운로드</b>로 사용자가 넣기. — 확장의 절반 가치를 빠르게.</div></div>
+    <div class="phase"><div class="pt">2단계 <span class="tag">사진 자동</span></div><div class="pd">사진을 확장이 <b>네이버에 자동 업로드</b> + 대략 위치에 삽입.</div></div>
+    <div class="phase"><div class="pt">3단계 <span class="tag">정밀</span></div><div class="pd">[1][2] <b>정확한 위치</b> 매칭 + 서식 완성도 + 인스타/스레드는 복사만(자동 발행 API 없음).</div></div>
+  </div>
+
+  <div class="end"><b>결론:</b> 확장은 <b>“우리 웹에서 만든 글+사진을 네이버에 원클릭으로 꽂는 마지막 구간”</b>을 위해 필요해요(웹만으론 물리적으로 불가). 리스크는 네이버 에디터가 자주 바뀌는 것 → <b>MVP(글만 자동)로 작게 시작</b>해서 반응 보고 사진 자동까지. <br><br>이 방향·단계 괜찮으면 → 다음은 <b>MVP 확장 실제 개발</b>로 들어가면 돼요. (별도 프로젝트로 잡아서)</div>
+</div>
