@@ -28,6 +28,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       .catch((e) => sendResponse({ ok: false, error: String((e && e.message) || e).slice(0, 160) }));
     return true;
   }
+  if (msg && msg.type === "SGM_GROUP_IMAGES") {
+    dragGroups(tabId, msg.groups || []).then(sendResponse)
+      .catch((e) => sendResponse({ ok: false, error: String((e && e.message) || e).slice(0, 160) }));
+    return true;
+  }
   if (msg && msg.type === "SGM_SAVE") {
     saveTemp(tabId).then(sendResponse)
       .catch((e) => sendResponse({ ok: false, error: String((e && e.message) || e).slice(0, 160) }));
@@ -443,6 +448,60 @@ async function uploadGroup(tabId, marker, images) {
     await dbgDetach(target);
     cleanupDownloads(staged); // 임시 파일/다운로드기록 정리
   }
+}
+
+// ── 나란히: 이미 들어간 이미지를 드래그해서 옆에 붙이기(네이버 그룹) ──
+// 사장님 확인: 네이버에선 한 장을 다른 사진 '옆으로 드래그'하면 나란히 묶임.
+function IMG_COORD_EXPR(n) {
+  return `(function(){ ${PRELUDE}
+    var imgs=__doc.querySelectorAll('.se-module-image, figure.se-image, .se-image, .se-section-image');
+    if(!imgs.length) imgs=__doc.querySelectorAll('.se-main-container img, .se-content img, .se-container img');
+    var el=imgs[${n}]; if(!el) return null;
+    try{ el.scrollIntoView({block:'center'}); }catch(e){}
+    var r=el.getBoundingClientRect();
+    return {cx:Math.round(__off.x+r.left+r.width/2), cy:Math.round(__off.y+r.top+r.height/2), right:Math.round(__off.x+r.right), left:Math.round(__off.x+r.left), count:imgs.length};
+  })()`;
+}
+async function dragTo(target, mover, anchor) {
+  const dropX = anchor.right - 8, dropY = anchor.cy;
+  await cdp(target, "Input.dispatchMouseEvent", { type: "mouseMoved", x: mover.cx, y: mover.cy });
+  await cdp(target, "Input.dispatchMouseEvent", { type: "mousePressed", x: mover.cx, y: mover.cy, button: "left", clickCount: 1 });
+  await sleep(140);
+  const steps = 14;
+  for (let s = 1; s <= steps; s++) {
+    const x = Math.round(mover.cx + (dropX - mover.cx) * s / steps);
+    const y = Math.round(mover.cy + (dropY - mover.cy) * s / steps);
+    await cdp(target, "Input.dispatchMouseEvent", { type: "mouseMoved", x, y, button: "left" });
+    await sleep(35);
+  }
+  await sleep(160);
+  await cdp(target, "Input.dispatchMouseEvent", { type: "mouseReleased", x: dropX, y: dropY, button: "left", clickCount: 1 });
+}
+async function dragGroups(tabId, groups) {
+  if (!tabId) return { ok: false, error: "탭을 못 찾았어요" };
+  const target = { tabId };
+  try { await dbgAttach(target); }
+  catch (e) {
+    const m = String(e.message || e);
+    return { ok: false, error: (m.includes("Another debugger") || m.includes("attached"))
+      ? "개발자도구(F12)가 열려 있으면 닫고 다시 시도해 주세요." : ("디버거 연결 실패: " + m.slice(0, 100)) };
+  }
+  let dragged = 0;
+  try {
+    for (const g of groups) {
+      if (!g || g.length < 2) continue;
+      // g[0] 을 앵커로, 나머지를 그 오른쪽으로 드래그 (매번 좌표 새로 조회 — 병합되며 위치 바뀜)
+      for (let t = 1; t < g.length; t++) {
+        const anchor = await evalVal(target, IMG_COORD_EXPR(g[0]));
+        const mover = await evalVal(target, IMG_COORD_EXPR(g[t]));
+        if (!anchor || !mover) continue;
+        await dragTo(target, mover, anchor);
+        await sleep(600);
+        dragged++;
+      }
+    }
+    return { ok: true, dragged };
+  } finally { await dbgDetach(target); }
 }
 
 chrome.runtime.onInstalled.addListener(() => console.log("[시공막내] 확장 설치/갱신됨"));

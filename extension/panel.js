@@ -232,9 +232,25 @@
       if (resp.placed) placed++;
       await new Promise((r) => setTimeout(r, 500));
     }
+    if (done !== sorted.length) {
+      btn.disabled = false;
+      if (done > 0) setOut(`사진 ${done}/${sorted.length}장 — 나머지 실패(알려주세요)`, "err");
+      return;
+    }
+    // 나란히(실험): 한 줄 '[1] [2]' 처럼 여러장 묶음을 드래그로 그룹핑
+    const mgroups = parseGroups($("#text").value).filter((g) => g.indices.length > 1);
+    if (mgroups.length) {
+      setOut("⏳ 나란히 묶는 중 — 건드리지 마세요!", "work");
+      // 사진 index → 문서 이미지 순번(0기반): 순서대로 넣었으니 index-1
+      const imgGroups = mgroups.map((g) => g.indices.map((idx) => idx - 1));
+      const gr = await send({ type: "SGM_GROUP_IMAGES", groups: imgGroups });
+      btn.disabled = false;
+      if (gr && gr.ok) setOut(`✓ 사진 ${done}장 · 나란히 ${gr.dragged || 0}번 시도 — 네이버에서 확인!`, "ok");
+      else setOut(`사진 ${done}장 넣음 (나란히 실패: ${(gr && gr.error) || "오류"})`, "err");
+      return;
+    }
     btn.disabled = false;
-    if (done === sorted.length) setOut(`✓ 사진 ${done}장 (개별=SEO안전 · ${placed}장 자리에 · 다운로드 없음)`, "ok");
-    else if (done > 0) setOut(`사진 ${done}/${sorted.length}장 — 나머지 실패(알려주세요)`, "err");
+    setOut(`✓ 사진 ${done}장 (개별=SEO안전 · ${placed}장 자리에 · 다운로드 없음)`, "ok");
   }
   $("#goPhoto").addEventListener("click", doPhotos);
 
