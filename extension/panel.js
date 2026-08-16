@@ -126,8 +126,9 @@
     btn.disabled = false;
     if (!resp || !resp.ok) { setOut("자동 넣기 실패: " + ((resp && resp.error) || "오류"), "err"); return; }
     const h = resp.headApplied || 0, ht = resp.headTotal || 0;
-    const tail = ht ? ` · 소제목 ${h}/${ht}` + (h < ht ? ` (${resp.diag || "실패"} — 알려주세요)` : "") : "";
-    setOut("✓ 넣었어요! 본문·굵게·인용구·구분선" + tail, "ok");
+    const head = ht ? ` · 소제목 ${h}/${ht}` + (h < ht ? ` (${resp.diag || "실패"})` : "") : "";
+    const titleTxt = resp.title === "ok" ? "제목✓ · " : resp.title === "fail" ? "제목✗(알려주세요) · " : "";
+    setOut("✓ " + titleTxt + "본문·굵게·인용구·구분선" + head, "ok");
   }
   $("#go").addEventListener("click", doAuto);
 

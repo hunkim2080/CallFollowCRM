@@ -64,21 +64,25 @@ const FOCUS_EXPR = `(function(){
   return 'OK';
 })()`;
 
-// 제목란 포커스 + 커서
-const FOCUS_TITLE_EXPR = `(function(){
-  function find(doc){ try{ return doc.querySelector('.se-section-documentTitle [contenteditable="true"], .se-documentTitle [contenteditable="true"], .se-title-text [contenteditable="true"], .se-placeholder + [contenteditable="true"]'); }catch(e){ return null; } }
-  var el=find(document);
-  if(!el){ var f=document.querySelector('#mainFrame'); if(f&&f.contentDocument) el=find(f.contentDocument); }
-  if(!el) return 'NO_TITLE';
-  try{ el.focus(); var win=el.ownerDocument.defaultView||window; var r=el.ownerDocument.createRange(); r.selectNodeContents(el); r.collapse(false); var s=win.getSelection(); s.removeAllRanges(); s.addRange(r); }catch(e){}
-  return 'OK';
-})()`;
 
 // iframe 오프셋 + 문서 얻기 (좌표 계산)
 const PRELUDE = `
   var __if=document.querySelector('#mainFrame'); var __off={x:0,y:0}; var __doc=document;
   if(__if){ var __r=__if.getBoundingClientRect(); __off={x:__r.left,y:__r.top}; if(__if.contentDocument) __doc=__if.contentDocument; }
 `;
+
+// 제목란 클릭 좌표 (진짜 클릭으로 활성화해야 입력됨)
+const TITLE_COORD_EXPR = `(function(){ ${PRELUDE}
+  function vis(e){var r=e.getBoundingClientRect();return r.width>0&&r.height>0;}
+  var sec=__doc.querySelector('.se-section-documentTitle, .se-documentTitle, .se-title, [class*="documentTitle" i], [class*="section-title" i]');
+  var el=null;
+  if(sec){ el=sec.querySelector('[contenteditable]')||sec; }
+  if(!el){ el=__doc.querySelector('.se-title-text [contenteditable], [contenteditable][aria-label*="제목"]'); }
+  if(!el||!vis(el)) return null;
+  try{ el.scrollIntoView({block:'center'}); }catch(e){}
+  var r=el.getBoundingClientRect();
+  return {x:Math.round(__off.x+r.left+Math.min(60,Math.max(20,r.width/2))), y:Math.round(__off.y+r.top+r.height/2)};
+})()`;
 
 // 소제목 텍스트를 가진 문단의 클릭 좌표
 function PARA_COORD_EXPR(text) {
@@ -170,11 +174,18 @@ async function autoPaste(tabId, draft, title) {
     return { ok: false, error: (m.includes("Another debugger") || m.includes("attached"))
       ? "개발자도구(F12)가 열려 있으면 닫고 다시 시도해 주세요." : ("디버거 연결 실패: " + m.slice(0, 100)) };
   }
+  let titleOk = false;
   try {
-    // 제목 먼저 (있으면)
+    // 제목 먼저 (있으면): 진짜 클릭으로 활성화 후 입력
     if (title) {
-      const ft = await evalVal(target, FOCUS_TITLE_EXPR);
-      if (ft === "OK") { await sleep(120); await cdp(target, "Input.insertText", { text: title }); await sleep(200); }
+      const tc = await evalVal(target, TITLE_COORD_EXPR);
+      if (tc) {
+        await clickAt(target, tc.x, tc.y);
+        await sleep(240);
+        await cdp(target, "Input.insertText", { text: title });
+        await sleep(220);
+        titleOk = true;
+      }
     }
     const focus = await evalVal(target, FOCUS_EXPR);
     if (focus === "NO_EDITOR") return { ok: false, error: "글쓰기 본문 편집영역을 못 찾았어요." };
@@ -194,7 +205,7 @@ async function autoPaste(tabId, draft, title) {
       }
     } catch (e) { if (!diag) diag = "err:" + String(e.message || e).slice(0, 40); }
 
-    return { ok: true, headApplied, headTotal, diag };
+    return { ok: true, headApplied, headTotal, diag, title: title ? (titleOk ? "ok" : "fail") : "" };
   } finally {
     await dbgDetach(target);
   }
