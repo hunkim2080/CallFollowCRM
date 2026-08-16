@@ -85,15 +85,11 @@
         <input type="text" id="title" class="titleInput" placeholder="블로그 글 제목 (선택)">
         <div class="row"><span class="lbl">네이버에 넣을 글</span><button class="mini" id="sample">예시 넣기</button></div>
         <textarea id="text" placeholder="시공막내에서 만든 블로그 글을 여기에 붙여넣으세요."></textarea>
-        <div class="hint"><b>##</b> 소제목 · <b>&gt;</b> 인용구 · <b>**굵게**</b> · <b>---</b> 구분선 — 서식 그대로</div>
-        <button class="btn" id="go">✨ 자동으로 넣기</button>
-
-        <div class="sep"></div>
-        <div class="row"><span class="lbl">사진 — 글의 <b style="color:#03C75A">[번호]</b> 자리로</span><button class="mini" id="pick">🖼 사진 고르기</button></div>
+        <div class="hint"><b>##</b> 소제목 · <b>&gt;</b> 인용구 · <b>**굵게**</b> · <b>---</b> 구분선 · 사진자리 <b style="color:#03C75A">[번호]</b></div>
+        <div class="row" style="margin-top:12px"><span class="lbl">사진 — 글의 <b style="color:#03C75A">[번호]</b> 자리로</span><button class="mini" id="pick">🖼 사진 고르기</button></div>
         <input type="file" id="file" accept="image/*" multiple>
         <div class="thumbs" id="thumbs"></div>
-        <button class="btn sub" id="goPhoto">📷 사진 넣기</button>
-
+        <button class="btn" id="go">✨ 글 + 사진 한번에 넣기</button>
         <button class="btn save" id="goSave">💾 임시저장</button>
 
         <div class="out" id="out"></div>
@@ -157,27 +153,56 @@
     await savePhone(p); $("#phoneRow").style.display = "none"; doLoad();
   });
 
-  // ── 글 자동 넣기 ──
-  async function doAuto() {
+  // ── 글 + 사진 한번에 넣기 ──
+  async function doAll() {
     const draft = $("#text").value.trim();
-    if (!draft) { setOut("넣을 글을 먼저 붙여넣어 주세요.", "err"); return; }
     const title = $("#title").value.trim();
-    const html = toEditorHtml(draft), plain = toPlainText(draft);
-    try {
-      await navigator.clipboard.write([new ClipboardItem({ "text/html": new Blob([html], { type: "text/html" }), "text/plain": new Blob([plain], { type: "text/plain" }) })]);
-    } catch (e) { try { await navigator.clipboard.writeText(plain); } catch (e2) {} }
-
+    if (!draft && !photos.length) { setOut("글이나 사진을 먼저 넣으세요.", "err"); return; }
     const btn = $("#go"); btn.disabled = true;
-    setOut("⏳ 넣는 중 — 끝날 때까지 브라우저를 건드리지 마세요!", "work");
-    const resp = await send({ type: "SGM_AUTO", draft, title });
+
+    // 1) 글(제목·본문·서식·소제목)
+    if (draft) {
+      const html = toEditorHtml(draft), plain = toPlainText(draft);
+      try { await navigator.clipboard.write([new ClipboardItem({ "text/html": new Blob([html], { type: "text/html" }), "text/plain": new Blob([plain], { type: "text/plain" }) })]); }
+      catch (e) { try { await navigator.clipboard.writeText(plain); } catch (e2) {} }
+      setOut("⏳ 글 넣는 중 — 건드리지 마세요!", "work");
+      const resp = await send({ type: "SGM_AUTO", draft, title });
+      if (!resp || !resp.ok) { btn.disabled = false; setOut("글 넣기 실패: " + ((resp && resp.error) || "오류"), "err"); return; }
+    }
+
+    // 2) 사진(개별, [n] 자리 · SEO안전)
+    let pdone = 0; const ptotal = photos.length;
+    if (ptotal) {
+      const sorted = photos.slice().sort((a, b) => a.index - b.index);
+      for (let i = 0; i < sorted.length; i++) {
+        const p = sorted[i];
+        setOut(`⏳ 사진 ${i + 1}/${ptotal} 넣는 중 — 건드리지 마세요!`, "work");
+        let png;
+        try { png = await toGroupPng([p.blob]); } catch (e) { setOut(`사진 ${p.index} 준비 실패: ${String(e.message || e).slice(0, 40)}`, "err"); btn.disabled = false; return; }
+        try { await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]); }
+        catch (e) { setOut(`사진 ${p.index} 클립보드 실패: ${String(e.message || e).slice(0, 40)}`, "err"); btn.disabled = false; return; }
+        const r = await send({ type: "SGM_PHOTO", marker: "[" + p.index + "]" });
+        if (!r || !r.ok) { setOut(`사진 ${p.index} 실패: ${(r && r.error) || "오류"}`, "err"); btn.disabled = false; return; }
+        pdone++;
+        await new Promise((rr) => setTimeout(rr, 500));
+      }
+      // 3) 나란히(실험): 여러장 묶음 드래그
+      if (pdone === ptotal) {
+        const mg = parseGroups($("#text").value).filter((g) => g.indices.length > 1);
+        if (mg.length) {
+          setOut("⏳ 나란히 묶는 중 — 건드리지 마세요!", "work");
+          await send({ type: "SGM_GROUP_IMAGES", groups: mg.map((g) => g.indices.map((idx) => idx - 1)) });
+        }
+      }
+    }
+
     btn.disabled = false;
-    if (!resp || !resp.ok) { setOut("자동 넣기 실패: " + ((resp && resp.error) || "오류"), "err"); return; }
-    const h = resp.headApplied || 0, ht = resp.headTotal || 0;
-    const head = ht ? ` · 소제목 ${h}/${ht}` + (h < ht ? ` (${resp.diag || "실패"})` : "") : "";
-    const titleTxt = resp.title === "ok" ? "제목✓ · " : resp.title === "fail" ? "제목✗(알려주세요) · " : "";
-    setOut("✓ " + titleTxt + "본문·굵게·인용구·구분선" + head, "ok");
+    const parts = [];
+    if (draft) parts.push("글·서식");
+    if (ptotal) parts.push(`사진 ${pdone}/${ptotal}`);
+    setOut("✓ 다 넣었어요! " + parts.join(" · ") + " — 네이버 확인 후 저장/발행", "ok");
   }
-  $("#go").addEventListener("click", doAuto);
+  $("#go").addEventListener("click", doAll);
 
   // 원고에서 자리표 묶음 파싱: 한 줄에 붙은 '[1] [2]' = 한 묶음(나란히), 줄 나뉘면 따로(위아래)
   function parseGroups(draft) {
@@ -208,51 +233,6 @@
     imgs.forEach((im, idx) => { ctx.drawImage(im, 0, 0, im.naturalWidth, im.naturalHeight, x, 0, widths[idx], targetH); x += widths[idx] + g; });
     return await new Promise((res, rej) => c.toBlob((b) => b ? res(b) : rej(new Error("합치기 실패")), "image/png"));
   }
-
-  // ── 사진 넣기 (클립보드 이미지 + 진짜 Ctrl+V) ──
-  function blobToDataUrl(blob) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error("읽기 실패")); r.readAsDataURL(blob); }); }
-
-  async function doPhotos() {
-    if (!photos.length) { setOut("먼저 사진을 선택하거나 [불러오기] 하세요.", "err"); return; }
-    // 각 사진을 개별 이미지로(=SEO안전) [n] 자리에 클립보드 붙여넣기. 다운로드 없음.
-    // (나란히=별도 '묶기' 동작으로 추후 — 다운로드 업로드 방식은 이득 없어 롤백)
-    const sorted = photos.slice().sort((a, b) => a.index - b.index);
-    const btn = $("#goPhoto"); btn.disabled = true;
-    let done = 0, placed = 0;
-    for (let i = 0; i < sorted.length; i++) {
-      const p = sorted[i];
-      setOut(`⏳ 사진 ${i + 1}/${sorted.length} 넣는 중 — 건드리지 마세요!`, "work");
-      let png;
-      try { png = await toGroupPng([p.blob]); } catch (e) { setOut(`사진 ${p.index} 준비 실패: ${String(e.message || e).slice(0, 40)}`, "err"); break; }
-      try { await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]); }
-      catch (e) { setOut(`사진 ${p.index} 클립보드 실패: ${String(e.message || e).slice(0, 40)}`, "err"); break; }
-      const resp = await send({ type: "SGM_PHOTO", marker: "[" + p.index + "]" });
-      if (!resp || !resp.ok) { setOut(`사진 ${p.index} 넣기 실패: ${(resp && resp.error) || "오류"}`, "err"); break; }
-      done++;
-      if (resp.placed) placed++;
-      await new Promise((r) => setTimeout(r, 500));
-    }
-    if (done !== sorted.length) {
-      btn.disabled = false;
-      if (done > 0) setOut(`사진 ${done}/${sorted.length}장 — 나머지 실패(알려주세요)`, "err");
-      return;
-    }
-    // 나란히(실험): 한 줄 '[1] [2]' 처럼 여러장 묶음을 드래그로 그룹핑
-    const mgroups = parseGroups($("#text").value).filter((g) => g.indices.length > 1);
-    if (mgroups.length) {
-      setOut("⏳ 나란히 묶는 중 — 건드리지 마세요!", "work");
-      // 사진 index → 문서 이미지 순번(0기반): 순서대로 넣었으니 index-1
-      const imgGroups = mgroups.map((g) => g.indices.map((idx) => idx - 1));
-      const gr = await send({ type: "SGM_GROUP_IMAGES", groups: imgGroups });
-      btn.disabled = false;
-      if (gr && gr.ok) setOut(`✓ 사진 ${done}장 · 나란히 ${gr.dragged || 0}번 시도 — 네이버에서 확인!`, "ok");
-      else setOut(`사진 ${done}장 넣음 (나란히 실패: ${(gr && gr.error) || "오류"})`, "err");
-      return;
-    }
-    btn.disabled = false;
-    setOut(`✓ 사진 ${done}장 (개별=SEO안전 · ${placed}장 자리에 · 다운로드 없음)`, "ok");
-  }
-  $("#goPhoto").addEventListener("click", doPhotos);
 
   // ── 임시저장 (Ctrl+Shift+S) ──
   async function doSave() {
