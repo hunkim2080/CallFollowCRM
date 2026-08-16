@@ -525,15 +525,36 @@ def db_init() -> None:
         con.execute(
             """
             CREATE TABLE IF NOT EXISTS web_generated_posts (
-                owner_phone   TEXT PRIMARY KEY,     -- owner당 '최근 생성 글' 1개 유지
-                customer_digits TEXT,
+                owner_phone   TEXT NOT NULL,
+                customer_digits TEXT NOT NULL DEFAULT '',
                 title         TEXT,
                 draft         TEXT,                 -- 본문(마커 규약 ## / ** / > / --- / [n])
                 photos_json   TEXT,                 -- [{index, photo_id}]
-                created_at_ms INTEGER NOT NULL
+                created_at_ms INTEGER NOT NULL,
+                PRIMARY KEY (owner_phone, customer_digits)  -- 감사#4: 고객별 글 분리(다른고객 사진 발행 방지)
             )
             """
         )
+        # 감사#4 마이그레이션 — 기존 owner단독 PK 테이블(고객별 1개만 유지되던 것)을 복합 PK로 재생성.
+        try:
+            _pk_cols = [r[1] for r in con.execute(
+                "PRAGMA table_info(web_generated_posts)").fetchall() if r[5]]
+            if _pk_cols == ["owner_phone"]:
+                con.execute("ALTER TABLE web_generated_posts RENAME TO web_generated_posts_old")
+                con.execute(
+                    "CREATE TABLE web_generated_posts ("
+                    "owner_phone TEXT NOT NULL, customer_digits TEXT NOT NULL DEFAULT '', "
+                    "title TEXT, draft TEXT, photos_json TEXT, created_at_ms INTEGER NOT NULL, "
+                    "PRIMARY KEY (owner_phone, customer_digits))")
+                con.execute(
+                    "INSERT OR REPLACE INTO web_generated_posts "
+                    "(owner_phone, customer_digits, title, draft, photos_json, created_at_ms) "
+                    "SELECT owner_phone, COALESCE(customer_digits,''), title, draft, photos_json, created_at_ms "
+                    "FROM web_generated_posts_old")
+                con.execute("DROP TABLE web_generated_posts_old")
+                print("[db_init] web_generated_posts → 복합 PK(owner,customer_digits) 마이그레이션 완료")
+        except Exception as _e:
+            print(f"[db_init] web_generated_posts 마이그레이션 skip: {_e}")
         # ── 추가142 (2026-07-22) — 박람회 팀 시공 Phase 1 (docs/EXPO_DECISIONS.md) ──
         # 사장님 확정: ①정산 완전격리(expo_* 테이블에만 저장, 기존 정산/고객에 안 섞음)
         # ②분배=팀별 ③계약서=상품카탈로그 체크형+서명+동의 ④방장이 방개설·계약서준비
@@ -26604,7 +26625,7 @@ async def web_photo(request: Request, photo_id: int, t: Optional[str] = None):
     from fastapi.responses import Response as _Resp, JSONResponse
     # 크롬 확장(쿠키 없음)용 서명 토큰(?t=) 허용 — 그 사진 1장만 스코프. 없으면 세션 쿠키.
     owner = None
-    if t and _hmac.compare_digest(t, _web_photo_token(photo_id)):
+    if _web_verify_photo_token(photo_id, t):
         with db_conn() as con:
             row = con.execute(
                 "SELECT " + _WEB_OWNER_NORM + " FROM team_site_photos WHERE photo_id = ?",
@@ -26620,9 +26641,29 @@ async def web_photo(request: Request, photo_id: int, t: Optional[str] = None):
     return _Resp(content=data, media_type=mime or "image/jpeg")
 
 
-def _web_photo_token(pid: int) -> str:
-    return _hmac.new(_web_fernet_secret().encode(), ("naverphoto|%d" % pid).encode(),
+def _web_photo_token(pid: int, ttl_ms: int = 24 * 3600 * 1000) -> str:
+    """감사#3: 사진 서명토큰에 만료(exp) 추가. 형식 'exp.sig'. 확장은 pull 직후 fetch → 24h면 충분."""
+    exp = _now_ms() + ttl_ms
+    sig = _hmac.new(_web_fernet_secret().encode(),
+                    ("naverphoto|%d|%d" % (pid, exp)).encode(),
+                    hashlib.sha256).hexdigest()[:24]
+    return "%d.%s" % (exp, sig)
+
+
+def _web_verify_photo_token(pid: int, tok: Optional[str]) -> bool:
+    if not tok or "." not in tok:
+        return False
+    try:
+        exp_s, sig = tok.split(".", 1)
+        exp = int(exp_s)
+    except Exception:
+        return False
+    if _now_ms() > exp:
+        return False
+    good = _hmac.new(_web_fernet_secret().encode(),
+                     ("naverphoto|%d|%d" % (pid, exp)).encode(),
                      hashlib.sha256).hexdigest()[:24]
+    return _hmac.compare_digest(sig, good)
 
 
 def _web_fernet_secret() -> str:
@@ -27942,17 +27983,27 @@ async def web_materials(request: Request, customer_digits: str):
 
 
 @app.get("/api/web/naver-draft")
-async def web_naver_draft(phone: str):
-    """크롬 확장 '⬇ 시공막내 글 불러오기'(pull). 그 owner 의 최근 생성 블로그 글 반환.
-    인증=MVP phone(⚠️IDOR, 추후 세션토큰 하드닝). 사진 url 은 서명 토큰(?t=)으로 확장이 쿠키없이 fetch.
+async def web_naver_draft(phone: str, customer_digits: Optional[str] = None,
+                          session_token: Optional[str] = None):
+    """크롬 확장 '⬇ 시공막내 글 불러오기'(pull). owner 의 생성 글 반환.
+    감사#3/#4: customer_digits 주면 그 고객 글, 없으면 최근 1개. session_token 오면 검증(IDOR 완화).
+    사진 url 은 서명+만료 토큰(?t=)으로 확장이 쿠키없이 fetch.
     """
     digits = _webre.sub(r"[^0-9]", "", phone or "")
     if not digits:
         raise HTTPException(400, "phone 필수")
+    owner = _norm_phone(phone)
+    _web_push_auth(owner, session_token)  # 감사#3: 토큰 있으면 검증(없으면 현행 허용, 확장 협조 대기)
+    cd = _webre.sub(r"[^0-9]", "", customer_digits or "")
     with db_conn() as con:
-        row = con.execute(
-            "SELECT title, draft, photos_json FROM web_generated_posts WHERE owner_phone = ?",
-            (_norm_phone(phone),)).fetchone()
+        if cd:
+            row = con.execute(
+                "SELECT title, draft, photos_json FROM web_generated_posts "
+                "WHERE owner_phone = ? AND customer_digits = ?", (owner, cd)).fetchone()
+        else:
+            row = con.execute(
+                "SELECT title, draft, photos_json FROM web_generated_posts "
+                "WHERE owner_phone = ? ORDER BY created_at_ms DESC LIMIT 1", (owner,)).fetchone()
     if not row:
         return {"ok": False, "reason": "생성된 글이 없어요. 웹에서 [✨ 글 만들기] 먼저 하세요."}
     title, draft, pj = row

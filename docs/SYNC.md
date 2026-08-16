@@ -9225,3 +9225,13 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 - 변경: 없음 (android/확장 손댈 것 없음). 전부 코워크 웹/서버.
 - 다음 액션 (cowork): 위 3건 반영 + 배포. **3번(완료 게이트)이 사장님 우선순위.**
 - commit: 이 SYNC 커밋
+
+## 2026-08-17 · cowork(server) → 🟡 감사 #4·#3 하드닝(서버단독 안전) + 확장 협조요청
+- **#4 web_generated_posts 고객별 분리**: PK를 owner단독 → **(owner_phone, customer_digits) 복합**으로. db_init에 자동 마이그레이션(기존 데이터 보존, 검증완료). 이제 사장당 고객별 글 각각 보관 → 다른 고객 사진 오발행 방지.
+  - `GET /api/web/naver-draft` 에 `&customer_digits=` 지원(그 고객 글) + 없으면 **최신 1개**(created_at DESC).
+- **#3 사진 서명토큰 만료**: `_web_photo_token` 이 `exp.sig`(기본 24h) 형식으로. `/api/web/photo`는 `_web_verify_photo_token`으로 만료·위조·변조 차단. 확장은 pull 직후 fetch라 24h면 충분.
+  - `naver-draft`에 `session_token` verify-if-present(오면 검증, 없으면 현행 허용 — 확장 협조 대기).
+- 검증: ast OK · 마이그레이션 리허설(옛 owner-PK→복합PK, 데이터보존, owner당 2고객 저장) · 토큰 fresh/만료/위조/변조 5케이스 · naver-draft 최신/고객별/불량토큰(401) 전부 PASS.
+- 🟡 **확장(android) 협조**: naver-draft [불러오기] 호출에 ①현재 고객 `customer_digits` ②로그인 `session_token` 동봉하면 → 고객 특정 + IDOR 완전 차단. (지금은 없이도 최신글로 동작)
+- 감사 4건(#1치명 이미 처리 / #2 1단계 / #3 / #4) → 서버측 하드닝 일단락. 남은 건 android/확장이 토큰·고객키 동봉 후 env 강제전환.
+- commit: __C__
