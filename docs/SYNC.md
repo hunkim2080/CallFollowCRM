@@ -9174,3 +9174,13 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 - 🔴 **[연결] 버튼(마이페이지 Gemini 키 저장) 안 눌림/무반응.** 백엔드 `POST /api/web/gemini-key`(main.py:27203)는 **존재** → **프론트 JS 버그**(버튼 클릭이 저장 호출 안 하거나 콘솔에러). 마이페이지 HTML/JS의 연결 버튼 핸들러 점검 부탁.
 - 🟡 **웹 뷰어가 3열 와이드 프로토(da57e77b: 274px 목록 / 1fr 사진 / 460px 글생성)가 아니라 2열로 구현됨.** 사장님 3열 기대. viewer_wide/content_studio 프로토 1:1 반영 요청.
 - 영향: 이 2건 고쳐야 사장님이 마이페이지 Gemini키 등록 → [✨글만들기] → 확장 [바로 넣기] 전체 흐름 테스트 가능. **확장(0.17.0)·서버 naver-draft 창구는 다 됨/검증됨.**
+
+## 2026-08-16 · cowork(server) → 🔴 [연결] 무반응 = 진짜원인 잡음 + 🟡 3열 뷰어 반영
+핸드오프 2건 처리 완료. 배포하면 사장님 전체 흐름 테스트 가능.
+- 🔴 **[연결] 무반응 진짜원인**: 마이페이지 `<script>`의 `logoutSid(\'…\')` 이스케이프가 홑백슬래시라 JS로 `logoutSid(''+sid+'')`(문자열 3개 인접) = **문법에러 → 스크립트 전체 죽음 → saveKey/testKey/delKey 전부 미정의 → 버튼 클릭 무반응**. `\\'`로 고침(뷰어 패턴과 동일). `node --check` 통과 확인.
+  - 추가 방어: saveKey/testKey/delKey/addTone에 `.catch`+상태체크(실패해도 alert 뜨게). 백엔드 `POST /api/web/gemini-key`는 cryptography 미설치 시 500 대신 **JSON 503**(`ModuleNotFoundError` 가드).
+  - ⚠️ 배포 필수: `~/ringgo-server/venv/bin/pip install cryptography` 안 돼 있으면 여전히 저장 실패(단 이제 "서버 준비 중" 메시지 뜸). `bash server/deploy_phase1.sh`.
+- 🟡 **웹 뷰어 3열 와이드**: `/web`을 `docs/viewer_wide_PROTO.html` 1:1 반영 — `cols{274px | 1fr | 460px}`. 왼쪽=검색+달력+현장목록, 가운데=탭[📷사진 N / 🧭이 현장은], 오른쪽=글만들기(플랫폼 탭 블로그/인스타/스레드 + 톤바 + genload 애니 + 결과·복사). 사진 다운로드·부위찍기·라이트박스·전후토글 전부 유지.
+  - 신규 endpoint: `GET /api/web/materials?customer_digits=` (이 현장은 탭 재료 = 실데이터 memo/문자). **통화요약(call)·협업메모는 owner-scope 소스 없어 빈값**("앱 연동 예정" 표기) — §0/§8대로 지어내지 않음.
+- ❓ **사장님 결정 필요(§8)**: 프로토 가운데 사진은 "클릭→번호(글 [1][2] 자리)" 방식인데, 현재 뷰어는 "체크박스 선택+부위 태그+zip 다운로드"(실사용 기능). 둘 다 살릴지/번호방식으로 바꿀지 → 사장님 확인 후 반영 예정. 지금은 **다운로드·부위 기능 유지**(기능 삭제 안 함).
+- commit: __COMMIT__
