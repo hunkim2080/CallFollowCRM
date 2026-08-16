@@ -12,9 +12,14 @@ chrome.action.onClicked.addListener((tab) => {
 });
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  const tabId = sender.tab && sender.tab.id;
   if (msg && msg.type === "SGM_AUTO") {
-    const tabId = sender.tab && sender.tab.id;
     autoPaste(tabId, msg.draft || "").then(sendResponse)
+      .catch((e) => sendResponse({ ok: false, error: String((e && e.message) || e).slice(0, 160) }));
+    return true;
+  }
+  if (msg && msg.type === "SGM_PHOTO") {
+    pastePhoto(tabId).then(sendResponse)
       .catch((e) => sendResponse({ ok: false, error: String((e && e.message) || e).slice(0, 160) }));
     return true;
   }
@@ -170,6 +175,30 @@ async function autoPaste(tabId, draft) {
     } catch (e) { if (!diag) diag = "err:" + String(e.message || e).slice(0, 40); }
 
     return { ok: true, headApplied, headTotal, diag };
+  } finally {
+    await dbgDetach(target);
+  }
+}
+
+// ── 사진 넣기: 클립보드의 이미지(패널이 담아둠)를 진짜 Ctrl+V 로 붙여넣기 ──
+// 1차 컷: 편집영역 맨 끝에 붙여넣음(위치 [1][2] 매칭은 다음 컷).
+async function pastePhoto(tabId) {
+  if (!tabId) return { ok: false, error: "탭을 못 찾았어요" };
+  const target = { tabId };
+  try {
+    await dbgAttach(target);
+  } catch (e) {
+    const m = String(e.message || e);
+    return { ok: false, error: (m.includes("Another debugger") || m.includes("attached"))
+      ? "개발자도구(F12)가 열려 있으면 닫고 다시 시도해 주세요." : ("디버거 연결 실패: " + m.slice(0, 100)) };
+  }
+  try {
+    const focus = await evalVal(target, FOCUS_EXPR);
+    if (focus === "NO_EDITOR") return { ok: false, error: "글쓰기 본문 편집영역을 못 찾았어요." };
+    await sleep(120);
+    await pressCtrlV(target);   // 클립보드 이미지 붙여넣기
+    await sleep(1600);          // 업로드 반영 대기
+    return { ok: true };
   } finally {
     await dbgDetach(target);
   }
