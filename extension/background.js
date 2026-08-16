@@ -450,29 +450,32 @@ async function uploadGroup(tabId, marker, images) {
   }
 }
 
-// ── 나란히: 이미 들어간 이미지를 드래그해서 옆에 붙이기(네이버 그룹) ──
-// 사장님 확인: 네이버에선 한 장을 다른 사진 '옆으로 드래그'하면 나란히 묶임.
-function IMG_COORD_EXPR(n) {
+// ── 나란히: 이미 들어간 이미지를 드래그해 네이버 se-imageStrip(콜라주)로 묶기 ──
+// CDP 실측 확정 레시피: 스크롤 컨테이너(.se-content __se-scroll-target)로 앵커를 위로 올려
+//   앵커·무버 둘 다 보이게 → 무버 중앙 잡아 → 앵커 오른쪽 가장자리 안쪽(-30px)으로 드래그.
+//   (앵커=바로 앞 이미지 g[t-1], 무버=g[t] → 스트립이 오른쪽으로 계속 확장)
+function SCROLL_PAIR_EXPR(ai, bj) {
   return `(function(){ ${PRELUDE}
-    var imgs=__doc.querySelectorAll('.se-module-image, figure.se-image, .se-image, .se-section-image');
-    if(!imgs.length) imgs=__doc.querySelectorAll('.se-main-container img, .se-content img, .se-container img');
-    var el=imgs[${n}]; if(!el) return null;
-    try{ el.scrollIntoView({block:'center'}); }catch(e){}
-    var r=el.getBoundingClientRect();
-    return {cx:Math.round(__off.x+r.left+r.width/2), cy:Math.round(__off.y+r.top+r.height/2), right:Math.round(__off.x+r.right), left:Math.round(__off.x+r.left), count:imgs.length};
+    var imgs=__doc.querySelectorAll('.se-image-resource');
+    if(!imgs.length) imgs=__doc.querySelectorAll('figure.se-image img, .se-module-image img, .se-main-container img');
+    var A=imgs[${ai}], B=imgs[${bj}];
+    if(!A||!B) return null;
+    try{ A.scrollIntoView({block:'start'}); }catch(e){}
+    var sc=__doc.querySelector('[class*=se-scroll-target]')||__doc.querySelector('.se-content');
+    if(sc){ sc.scrollTop -= 50; }
+    var ra=A.getBoundingClientRect(), rb=B.getBoundingClientRect();
+    return { aRight:Math.round(__off.x+ra.right), aCy:Math.round(__off.y+ra.top+ra.height/2), bCx:Math.round(__off.x+rb.left+rb.width/2), bCy:Math.round(__off.y+rb.top+rb.height/2) };
   })()`;
 }
-async function dragTo(target, mover, anchor) {
-  const dropX = anchor.right - 8, dropY = anchor.cy;
-  await cdp(target, "Input.dispatchMouseEvent", { type: "mouseMoved", x: mover.cx, y: mover.cy });
-  await cdp(target, "Input.dispatchMouseEvent", { type: "mousePressed", x: mover.cx, y: mover.cy, button: "left", clickCount: 1 });
-  await sleep(140);
-  const steps = 14;
+async function dragImageBeside(target, c) {
+  const dropX = c.aRight - 30, dropY = c.aCy;
+  await cdp(target, "Input.dispatchMouseEvent", { type: "mouseMoved", x: c.bCx, y: c.bCy });
+  await cdp(target, "Input.dispatchMouseEvent", { type: "mousePressed", x: c.bCx, y: c.bCy, button: "left", clickCount: 1 });
+  await sleep(150);
+  const steps = 22;
   for (let s = 1; s <= steps; s++) {
-    const x = Math.round(mover.cx + (dropX - mover.cx) * s / steps);
-    const y = Math.round(mover.cy + (dropY - mover.cy) * s / steps);
-    await cdp(target, "Input.dispatchMouseEvent", { type: "mouseMoved", x, y, button: "left" });
-    await sleep(35);
+    await cdp(target, "Input.dispatchMouseEvent", { type: "mouseMoved", x: Math.round(c.bCx + (dropX - c.bCx) * s / steps), y: Math.round(c.bCy + (dropY - c.bCy) * s / steps), button: "left" });
+    await sleep(40);
   }
   await sleep(160);
   await cdp(target, "Input.dispatchMouseEvent", { type: "mouseReleased", x: dropX, y: dropY, button: "left", clickCount: 1 });
@@ -490,13 +493,12 @@ async function dragGroups(tabId, groups) {
   try {
     for (const g of groups) {
       if (!g || g.length < 2) continue;
-      // g[0] 을 앵커로, 나머지를 그 오른쪽으로 드래그 (매번 좌표 새로 조회 — 병합되며 위치 바뀜)
       for (let t = 1; t < g.length; t++) {
-        const anchor = await evalVal(target, IMG_COORD_EXPR(g[0]));
-        const mover = await evalVal(target, IMG_COORD_EXPR(g[t]));
-        if (!anchor || !mover) continue;
-        await dragTo(target, mover, anchor);
-        await sleep(600);
+        const c = await evalVal(target, SCROLL_PAIR_EXPR(g[t - 1], g[t])); // 앞 이미지 옆으로
+        if (!c) continue;
+        await sleep(250);
+        await dragImageBeside(target, c);
+        await sleep(850);
         dragged++;
       }
     }
