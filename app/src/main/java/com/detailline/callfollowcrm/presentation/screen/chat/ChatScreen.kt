@@ -1933,8 +1933,12 @@ private fun CallSegment(
     val accent = if (isMissed) coral else teal
     val durLabel = formatCallDuration(record.duration)
     // 태그(요약의 평수·부위·일정) · 통화 전문(숨겨져 있던 것) · 펼침 상태
-    val tags = listOfNotNull(summary?.space, summary?.problem, summary?.schedule)
-        .map { it.trim() }.filter { it.isNotBlank() }.take(3)
+    // 통화 태그(부위·문제·일정) — 서버 tags[](tagsJson). 옛 요약은 space/problem/schedule 로 폴백. (2026-08-17)
+    val tags = remember(summary?.id, summary?.tagsJson) {
+        parseCallTags(summary?.tagsJson).ifEmpty {
+            listOfNotNull(summary?.space, summary?.problem, summary?.schedule)
+        }.map { it.trim() }.filter { it.isNotBlank() }.take(3)
+    }
     val transcript = summary?.transcriptText?.trim()?.takeIf { it.isNotBlank() }
     // 프로토 08352d6e: 통화카드 탭 → 아래에서 통화상세 '시트'가 올라옴(인라인 펼침 X). (2026-08-15 사장님 지적 재수정)
     var sheetOpen by remember(record.id, summary?.id) { mutableStateOf(false) }
@@ -2223,6 +2227,18 @@ private fun CallSegment(
 }
 
 /** 통화 전문 화자분리 세그먼트 JSON → (speaker, text) 리스트. 실패/빈=빈 리스트. (2026-08-14) */
+/** 통화 태그 JSON 배열 문자열 → List. 서버 tags[](# 없이) 저장분. (2026-08-17) */
+private fun parseCallTags(json: String?): List<String> {
+    val s = json?.trim()
+    if (s.isNullOrBlank()) return emptyList()
+    return runCatching {
+        val arr = org.json.JSONArray(s)
+        (0 until arr.length()).mapNotNull {
+            arr.optString(it).trim().removePrefix("#").trim().takeIf { t -> t.isNotBlank() }
+        }
+    }.getOrDefault(emptyList())
+}
+
 private fun parseTranscriptSegments(json: String?): List<Pair<String, String>> {
     val s = json?.trim()
     if (s.isNullOrBlank()) return emptyList()

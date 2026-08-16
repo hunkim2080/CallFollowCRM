@@ -43,7 +43,9 @@ class CallAudioSummaryRepository(
         /** 한눈에 보는 짧은 제목(서버 LLM). 없으면 앱이 oneLine 으로 폴백. (2026-06-28 사장님) */
         val title: String? = null,
         /** 서버가 DB 캐시에서 즉시 응답했는지(=이미 처리된 통화). force_refresh 로 재처리 가능. */
-        val cached: Boolean = false
+        val cached: Boolean = false,
+        /** 통화 키워드 태그(부위·문제·일정 ≤3, # 없이). 통화카드 해시태그용. 서버 tags[]. (2026-08-17) */
+        val tags: List<String> = emptyList()
     )
 
     suspend fun summarize(
@@ -90,6 +92,11 @@ class CallAudioSummaryRepository(
                 val bullets = obj.optJSONArray("bullets")?.let { arr ->
                     (0 until arr.length()).mapNotNull { arr.optString(it).takeIf { s -> s.isNotBlank() } }
                 } ?: emptyList()
+                val tags = obj.optJSONArray("tags")?.let { arr ->
+                    (0 until arr.length()).mapNotNull {
+                        arr.optString(it).trim().removePrefix("#").trim().takeIf { s -> s.isNotBlank() }
+                    }
+                } ?: emptyList()
                 Result(
                     oneLine = obj.optString("one_line").takeIf { it.isNotBlank() },
                     bullets = bullets,
@@ -98,7 +105,8 @@ class CallAudioSummaryRepository(
                     transcriptSegmentsJson = obj.optJSONArray("transcript_segments")
                         ?.takeIf { it.length() > 0 }?.toString(),
                     title = obj.optString("title").takeIf { it.isNotBlank() && it != "null" },
-                    cached = obj.optBoolean("cached", false)
+                    cached = obj.optBoolean("cached", false),
+                    tags = tags
                 )
             }
         }
