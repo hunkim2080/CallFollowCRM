@@ -55,9 +55,14 @@
   .pcard .ph{font-size:12px;color:var(--ink2);font-weight:600;margin-top:7px;font-variant-numeric:tabular-nums}
   .pcard .phclick{cursor:pointer;display:inline-block;padding:4px 8px;border-radius:8px}
   .pcard .phclick:hover{background:var(--blue-bg)}
-  .nav{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:7px;box-shadow:var(--shadow)}
-  .nav a{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:9px;font-size:13.5px;font-weight:700;color:var(--ink2);text-decoration:none;cursor:pointer}
-  .nav a.on,.nav a:hover{background:var(--blue-bg);color:var(--blue)}
+  /* 좌측 메뉴 — '버튼'이 아니라 '지금 어디' 알려주는 네비게이션(활성 항목 좌측 강조바). */
+  .nav{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:6px;box-shadow:var(--shadow)}
+  .nav .navlabel{font-size:10.5px;font-weight:800;color:var(--ink3);letter-spacing:.04em;text-transform:uppercase;padding:8px 12px 5px}
+  .nav a{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:10px;font-size:13.5px;font-weight:700;color:var(--ink2);text-decoration:none;cursor:pointer;position:relative}
+  .nav a:hover{background:var(--sunken)}
+  .nav a.on{background:var(--blue-bg);color:var(--blue);font-weight:800}
+  .nav a.on::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:0 3px 3px 0;background:var(--blue)}
+  .nav .divline{height:1px;background:var(--line);margin:6px 10px}
   .nav a .i{font-size:15px;width:18px;text-align:center}
 
   /* 우측 컨텐츠 */
@@ -134,10 +139,12 @@
         <div class="ph phclick" onclick="showHist()" title="누르면 최근 로그인 이력">📱 010-8181-5397 <span style="color:var(--blue);font-weight:800">이력 ›</span></div>
       </div>
       <nav class="nav">
+        <div class="navlabel">메뉴</div>
         <a class="on" onclick="go(this,'s1')"><span class="i">🔐</span>로그인 & 보안</a>
         <a onclick="go(this,'s2')"><span class="i">✨</span>AI 키 (내 비용)</a>
         <a onclick="go(this,'s3')"><span class="i">📝</span>블로그 톤</a>
         <a onclick="go(this,'s4')"><span class="i">🔗</span>앱 연결</a>
+        <div class="divline"></div>
         <a onclick="toast('이 PC 로그아웃')" style="color:var(--red)"><span class="i">⏻</span>로그아웃</a>
       </nav>
     </aside>
