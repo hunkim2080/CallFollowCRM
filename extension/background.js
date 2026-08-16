@@ -359,7 +359,7 @@ function stageFile(dataUrl, name) {
           if (delta.id !== id || !delta.state) return;
           if (delta.state.current === "complete") {
             chrome.downloads.onChanged.removeListener(onChanged);
-            chrome.downloads.search({ id }, (items) => resolve(items && items[0] ? items[0].filename : null));
+            chrome.downloads.search({ id }, (items) => resolve(items && items[0] ? { path: items[0].filename, id } : null));
           } else if (delta.state.current === "interrupted") {
             chrome.downloads.onChanged.removeListener(onChanged); resolve(null);
           }
@@ -367,6 +367,14 @@ function stageFile(dataUrl, name) {
         chrome.downloads.onChanged.addListener(onChanged);
       });
     } catch (e) { resolve(null); }
+  });
+}
+// 업로드 끝난 임시 파일 정리 — 디스크에서 삭제 + 다운로드 목록에서도 제거(지저분함 방지)
+function cleanupDownloads(staged) {
+  (staged || []).forEach((s) => {
+    if (!s || s.id == null) return;
+    try { chrome.downloads.removeFile(s.id, () => { void chrome.runtime.lastError; }); } catch (e) {}
+    try { chrome.downloads.erase({ id: s.id }, () => { void chrome.runtime.lastError; }); } catch (e) {}
   });
 }
 function waitFileChooser(tabId, ms) {
@@ -393,13 +401,14 @@ async function pressPhotoShortcut(target) {
 async function uploadGroup(tabId, marker, images) {
   if (!tabId) return { ok: false, error: "탭을 못 찾았어요" };
   if (!images.length) return { ok: false, error: "사진이 없어요" };
-  // 1) 사진들을 파일로 저장(경로 얻기)
-  const paths = [];
+  // 1) 사진들을 파일로 잠깐 저장(경로 얻기 — 업로드 후 자동 삭제)
+  const staged = [];
   for (let i = 0; i < images.length; i++) {
-    const p = await stageFile(images[i], "g" + (++stageSeq) + "_" + i + ".png");
-    if (p) paths.push(p);
+    const s = await stageFile(images[i], "g" + (++stageSeq) + "_" + i + ".png");
+    if (s) staged.push(s);
   }
-  if (!paths.length) return { ok: false, error: "사진 파일 저장 실패(다운로드 권한?)" };
+  if (!staged.length) return { ok: false, error: "사진 파일 저장 실패(다운로드 권한?)" };
+  const paths = staged.map((s) => s.path);
 
   const target = { tabId };
   try { await dbgAttach(target); }
@@ -432,6 +441,7 @@ async function uploadGroup(tabId, marker, images) {
     return { ok: true, placed, count: paths.length };
   } finally {
     await dbgDetach(target);
+    cleanupDownloads(staged); // 임시 파일/다운로드기록 정리
   }
 }
 

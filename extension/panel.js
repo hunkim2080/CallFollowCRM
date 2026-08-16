@@ -237,8 +237,12 @@
         catch (e) { setOut(`사진 ${i + 1} 클립보드 실패: ${String(e.message || e).slice(0, 40)}`, "err"); break; }
         resp = await send({ type: "SGM_PHOTO", marker: job.marker });
       } else {
+        // 네이버가 .jfif 거부 → PNG 로 변환해 image/png dataURL 로 보냄(저장 시 .png 유지)
         let images;
-        try { images = await Promise.all(blobs.map(blobToDataUrl)); } catch (e) { setOut(`사진 ${i + 1} 준비 실패: ${String(e.message || e).slice(0, 40)}`, "err"); break; }
+        try {
+          const pngs = await Promise.all(blobs.map((b) => toGroupPng([b])));
+          images = await Promise.all(pngs.map(blobToDataUrl));
+        } catch (e) { setOut(`사진 ${i + 1} 준비 실패: ${String(e.message || e).slice(0, 40)}`, "err"); break; }
         resp = await send({ type: "SGM_PHOTO_GROUP", marker: job.marker, images });
       }
       if (!resp || !resp.ok) { setOut(`사진 ${i + 1} 실패: ${(resp && resp.error) || "오류"}`, "err"); break; }
