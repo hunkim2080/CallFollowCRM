@@ -47,6 +47,9 @@
       .btn{width:100%;margin-top:10px;border:0;border-radius:12px;background:#03C75A;color:#fff;font-size:14px;font-weight:850;padding:12px;cursor:pointer}
       .btn:active{transform:scale(.98)} .btn:disabled{background:#C9D0D8;cursor:default;transform:none}
       .btn.sub{background:#fff;color:#03C75A;border:1.5px solid #03C75A;font-size:13px;padding:10px}
+      .btn.save{background:#F0F3F7;color:#4E5968;font-size:13px;padding:10px;margin-top:8px}
+      .titleInput{width:100%;border:1px solid #E5E9EE;border-radius:11px;padding:9px 11px;font-size:13px;font-weight:700;color:#181D27;background:#F5F7F9;outline:none;margin-bottom:9px}
+      .titleInput:focus{border-color:#03C75A;background:#fff}
       .sep{height:1px;background:#EEF1F4;margin:13px -13px}
       .thumbs{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
       .thumb{position:relative;width:52px;height:52px;border-radius:9px;overflow:hidden;border:1px solid #E5E9EE;background:#F5F7F9}
@@ -62,6 +65,8 @@
     <div class="wrap">
       <div class="hd"><span class="t">🧩 시공막내 · <b>네이버 넣기</b></span><button class="x" id="min" title="접기">—</button></div>
       <div class="body">
+        <div class="row" style="margin-bottom:5px"><span class="lbl">제목</span></div>
+        <input type="text" id="title" class="titleInput" placeholder="블로그 글 제목 (선택)">
         <div class="row"><span class="lbl">네이버에 넣을 글</span><button class="mini" id="sample">예시 넣기</button></div>
         <textarea id="text" placeholder="시공막내에서 만든 블로그 글을 여기에 붙여넣으세요."></textarea>
         <div class="hint"><b>##</b> 소제목 · <b>&gt;</b> 인용구 · <b>**굵게**</b> · <b>---</b> 구분선 — 서식 그대로</div>
@@ -72,6 +77,8 @@
         <input type="file" id="file" accept="image/*" multiple>
         <div class="thumbs" id="thumbs"></div>
         <button class="btn sub" id="goPhoto">📷 사진 넣기</button>
+
+        <button class="btn save" id="goSave">💾 임시저장</button>
 
         <div class="out" id="out"></div>
         <div class="foot">자동 발행은 안 해요 · 임시저장/발행은 직접</div>
@@ -107,6 +114,7 @@
   async function doAuto() {
     const draft = $("#text").value.trim();
     if (!draft) { setOut("넣을 글을 먼저 붙여넣어 주세요.", "err"); return; }
+    const title = $("#title").value.trim();
     const html = toEditorHtml(draft), plain = toPlainText(draft);
     try {
       await navigator.clipboard.write([new ClipboardItem({ "text/html": new Blob([html], { type: "text/html" }), "text/plain": new Blob([plain], { type: "text/plain" }) })]);
@@ -114,7 +122,7 @@
 
     const btn = $("#go"); btn.disabled = true;
     setOut("자동으로 넣는 중… (상단 '디버깅 중' 띠는 잠깐)");
-    const resp = await send({ type: "SGM_AUTO", draft });
+    const resp = await send({ type: "SGM_AUTO", draft, title });
     btn.disabled = false;
     if (!resp || !resp.ok) { setOut("자동 넣기 실패: " + ((resp && resp.error) || "오류"), "err"); return; }
     const h = resp.headApplied || 0, ht = resp.headTotal || 0;
@@ -157,6 +165,17 @@
     else if (done > 0) setOut(`사진 ${done}/${photos.length}장 넣음 — 나머지 실패(알려주세요)`, "err");
   }
   $("#goPhoto").addEventListener("click", doPhotos);
+
+  // ── 임시저장 (Ctrl+Shift+S) ──
+  async function doSave() {
+    const btn = $("#goSave"); btn.disabled = true;
+    setOut("임시저장 중…");
+    const resp = await send({ type: "SGM_SAVE" });
+    btn.disabled = false;
+    if (!resp || !resp.ok) { setOut("임시저장 실패: " + ((resp && resp.error) || "오류"), "err"); return; }
+    setOut("✓ 임시저장 완료! (발행은 직접)", "ok");
+  }
+  $("#goSave").addEventListener("click", doSave);
 
   chrome.runtime.onMessage.addListener((msg) => { if (msg && msg.type === "SGM_TOGGLE") host.classList.toggle("min"); });
 })();

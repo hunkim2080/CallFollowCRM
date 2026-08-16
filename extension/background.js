@@ -14,12 +14,17 @@ chrome.action.onClicked.addListener((tab) => {
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   const tabId = sender.tab && sender.tab.id;
   if (msg && msg.type === "SGM_AUTO") {
-    autoPaste(tabId, msg.draft || "").then(sendResponse)
+    autoPaste(tabId, msg.draft || "", msg.title || "").then(sendResponse)
       .catch((e) => sendResponse({ ok: false, error: String((e && e.message) || e).slice(0, 160) }));
     return true;
   }
   if (msg && msg.type === "SGM_PHOTO") {
     pastePhoto(tabId).then(sendResponse)
+      .catch((e) => sendResponse({ ok: false, error: String((e && e.message) || e).slice(0, 160) }));
+    return true;
+  }
+  if (msg && msg.type === "SGM_SAVE") {
+    saveTemp(tabId).then(sendResponse)
       .catch((e) => sendResponse({ ok: false, error: String((e && e.message) || e).slice(0, 160) }));
     return true;
   }
@@ -56,6 +61,16 @@ const FOCUS_EXPR = `(function(){
   if(!ed){ var f=document.querySelector('#mainFrame'); if(f&&f.contentDocument) ed=findEd(f.contentDocument); }
   if(!ed) return 'NO_EDITOR';
   try{ ed.focus(); var win=ed.ownerDocument.defaultView||window; var r=ed.ownerDocument.createRange(); r.selectNodeContents(ed); r.collapse(false); var s=win.getSelection(); s.removeAllRanges(); s.addRange(r); }catch(e){}
+  return 'OK';
+})()`;
+
+// 제목란 포커스 + 커서
+const FOCUS_TITLE_EXPR = `(function(){
+  function find(doc){ try{ return doc.querySelector('.se-section-documentTitle [contenteditable="true"], .se-documentTitle [contenteditable="true"], .se-title-text [contenteditable="true"], .se-placeholder + [contenteditable="true"]'); }catch(e){ return null; } }
+  var el=find(document);
+  if(!el){ var f=document.querySelector('#mainFrame'); if(f&&f.contentDocument) el=find(f.contentDocument); }
+  if(!el) return 'NO_TITLE';
+  try{ el.focus(); var win=el.ownerDocument.defaultView||window; var r=el.ownerDocument.createRange(); r.selectNodeContents(el); r.collapse(false); var s=win.getSelection(); s.removeAllRanges(); s.addRange(r); }catch(e){}
   return 'OK';
 })()`;
 
@@ -145,7 +160,7 @@ async function applyOneHeading(target, text) {
   return "ok";
 }
 
-async function autoPaste(tabId, draft) {
+async function autoPaste(tabId, draft, title) {
   if (!tabId) return { ok: false, error: "탭을 못 찾았어요" };
   const target = { tabId };
   try {
@@ -156,6 +171,11 @@ async function autoPaste(tabId, draft) {
       ? "개발자도구(F12)가 열려 있으면 닫고 다시 시도해 주세요." : ("디버거 연결 실패: " + m.slice(0, 100)) };
   }
   try {
+    // 제목 먼저 (있으면)
+    if (title) {
+      const ft = await evalVal(target, FOCUS_TITLE_EXPR);
+      if (ft === "OK") { await sleep(120); await cdp(target, "Input.insertText", { text: title }); await sleep(200); }
+    }
     const focus = await evalVal(target, FOCUS_EXPR);
     if (focus === "NO_EDITOR") return { ok: false, error: "글쓰기 본문 편집영역을 못 찾았어요." };
     await sleep(120);
@@ -202,6 +222,34 @@ async function pastePhoto(tabId) {
   } finally {
     await dbgDetach(target);
   }
+}
+
+// ── 임시저장 (Ctrl+Shift+S) ── 발행 아님. 편집영역 포커스 후 단축키.
+async function pressCtrlShiftS(target) {
+  await cdp(target, "Input.dispatchKeyEvent", { type: "rawKeyDown", modifiers: 2, key: "Control", code: "ControlLeft", windowsVirtualKeyCode: 17, nativeVirtualKeyCode: 17 });
+  await cdp(target, "Input.dispatchKeyEvent", { type: "rawKeyDown", modifiers: 10, key: "Shift", code: "ShiftLeft", windowsVirtualKeyCode: 16, nativeVirtualKeyCode: 16 });
+  await cdp(target, "Input.dispatchKeyEvent", { type: "keyDown", modifiers: 10, key: "s", code: "KeyS", windowsVirtualKeyCode: 83, nativeVirtualKeyCode: 83 });
+  await cdp(target, "Input.dispatchKeyEvent", { type: "keyUp", modifiers: 10, key: "s", code: "KeyS", windowsVirtualKeyCode: 83, nativeVirtualKeyCode: 83 });
+  await cdp(target, "Input.dispatchKeyEvent", { type: "keyUp", modifiers: 2, key: "Shift", code: "ShiftLeft", windowsVirtualKeyCode: 16, nativeVirtualKeyCode: 16 });
+  await cdp(target, "Input.dispatchKeyEvent", { type: "keyUp", modifiers: 0, key: "Control", code: "ControlLeft", windowsVirtualKeyCode: 17, nativeVirtualKeyCode: 17 });
+}
+async function saveTemp(tabId) {
+  if (!tabId) return { ok: false, error: "탭을 못 찾았어요" };
+  const target = { tabId };
+  try { await dbgAttach(target); }
+  catch (e) {
+    const m = String(e.message || e);
+    return { ok: false, error: (m.includes("Another debugger") || m.includes("attached"))
+      ? "개발자도구(F12)가 열려 있으면 닫고 다시 시도해 주세요." : ("디버거 연결 실패: " + m.slice(0, 100)) };
+  }
+  try {
+    const focus = await evalVal(target, FOCUS_EXPR); // 편집영역에 포커스 둬야 단축키가 먹음
+    if (focus === "NO_EDITOR") return { ok: false, error: "글쓰기 화면을 못 찾았어요." };
+    await sleep(120);
+    await pressCtrlShiftS(target);
+    await sleep(800);
+    return { ok: true };
+  } finally { await dbgDetach(target); }
 }
 
 chrome.runtime.onInstalled.addListener(() => console.log("[시공막내] 확장 설치/갱신됨"));
