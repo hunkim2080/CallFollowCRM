@@ -23,6 +23,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       .catch((e) => sendResponse({ ok: false, error: String((e && e.message) || e).slice(0, 160) }));
     return true;
   }
+  if (msg && msg.type === "SGM_PHOTO_GROUP") {
+    uploadGroup(tabId, msg.marker, msg.images || []).then(sendResponse)
+      .catch((e) => sendResponse({ ok: false, error: String((e && e.message) || e).slice(0, 160) }));
+    return true;
+  }
   if (msg && msg.type === "SGM_SAVE") {
     saveTemp(tabId).then(sendResponse)
       .catch((e) => sendResponse({ ok: false, error: String((e && e.message) || e).slice(0, 160) }));
@@ -340,6 +345,94 @@ async function saveTemp(tabId) {
     await sleep(800);
     return { ok: true };
   } finally { await dbgDetach(target); }
+}
+
+// ── 여러 장 나란히(네이버 native 묶기): 파일로 저장 → 업로드창에 한 번에 꽂기 ──
+// SEO 위해 사진은 개별 유지 + 네이버가 콜라주로 나란히 배치.
+let stageSeq = 0;
+function stageFile(dataUrl, name) {
+  return new Promise((resolve) => {
+    try {
+      chrome.downloads.download({ url: dataUrl, filename: "sgm_naver/" + name, conflictAction: "overwrite", saveAs: false }, (id) => {
+        if (chrome.runtime.lastError || id == null) { resolve(null); return; }
+        function onChanged(delta) {
+          if (delta.id !== id || !delta.state) return;
+          if (delta.state.current === "complete") {
+            chrome.downloads.onChanged.removeListener(onChanged);
+            chrome.downloads.search({ id }, (items) => resolve(items && items[0] ? items[0].filename : null));
+          } else if (delta.state.current === "interrupted") {
+            chrome.downloads.onChanged.removeListener(onChanged); resolve(null);
+          }
+        }
+        chrome.downloads.onChanged.addListener(onChanged);
+      });
+    } catch (e) { resolve(null); }
+  });
+}
+function waitFileChooser(tabId, ms) {
+  return new Promise((resolve) => {
+    let done = false;
+    function handler(source, method, params) {
+      if (done || !source || source.tabId !== tabId || method !== "Page.fileChooserOpened") return;
+      done = true; chrome.debugger.onEvent.removeListener(handler); resolve(params);
+    }
+    chrome.debugger.onEvent.addListener(handler);
+    setTimeout(() => { if (!done) { done = true; chrome.debugger.onEvent.removeListener(handler); resolve(null); } }, ms || 6000);
+  });
+}
+// 사진첨부 단축키 Ctrl+Alt+I (modifiers: Ctrl2+Alt1=3)
+async function pressPhotoShortcut(target) {
+  await cdp(target, "Input.dispatchKeyEvent", { type: "rawKeyDown", modifiers: 2, key: "Control", code: "ControlLeft", windowsVirtualKeyCode: 17, nativeVirtualKeyCode: 17 });
+  await cdp(target, "Input.dispatchKeyEvent", { type: "rawKeyDown", modifiers: 3, key: "Alt", code: "AltLeft", windowsVirtualKeyCode: 18, nativeVirtualKeyCode: 18 });
+  await cdp(target, "Input.dispatchKeyEvent", { type: "keyDown", modifiers: 3, key: "i", code: "KeyI", windowsVirtualKeyCode: 73, nativeVirtualKeyCode: 73 });
+  await cdp(target, "Input.dispatchKeyEvent", { type: "keyUp", modifiers: 3, key: "i", code: "KeyI", windowsVirtualKeyCode: 73, nativeVirtualKeyCode: 73 });
+  await cdp(target, "Input.dispatchKeyEvent", { type: "keyUp", modifiers: 2, key: "Alt", code: "AltLeft", windowsVirtualKeyCode: 18, nativeVirtualKeyCode: 18 });
+  await cdp(target, "Input.dispatchKeyEvent", { type: "keyUp", modifiers: 0, key: "Control", code: "ControlLeft", windowsVirtualKeyCode: 17, nativeVirtualKeyCode: 17 });
+}
+
+async function uploadGroup(tabId, marker, images) {
+  if (!tabId) return { ok: false, error: "탭을 못 찾았어요" };
+  if (!images.length) return { ok: false, error: "사진이 없어요" };
+  // 1) 사진들을 파일로 저장(경로 얻기)
+  const paths = [];
+  for (let i = 0; i < images.length; i++) {
+    const p = await stageFile(images[i], "g" + (++stageSeq) + "_" + i + ".png");
+    if (p) paths.push(p);
+  }
+  if (!paths.length) return { ok: false, error: "사진 파일 저장 실패(다운로드 권한?)" };
+
+  const target = { tabId };
+  try { await dbgAttach(target); }
+  catch (e) {
+    const m = String(e.message || e);
+    return { ok: false, error: (m.includes("Another debugger") || m.includes("attached"))
+      ? "개발자도구(F12)가 열려 있으면 닫고 다시 시도해 주세요." : ("디버거 연결 실패: " + m.slice(0, 100)) };
+  }
+  try {
+    await cdp(target, "Page.enable");
+    // 2) 자리표 위치로 커서
+    let placed = false;
+    if (marker) {
+      const pos = await evalVal(target, POSITION_MARKER_EXPR(marker));
+      if (pos) { await clickAt(target, pos.x, pos.y); await sleep(220); for (let k = 0; k < pos.len; k++) { await pressBackspace(target); await sleep(40); } await sleep(150); placed = true; }
+    }
+    if (!placed) { await evalVal(target, FOCUS_EXPR); await sleep(120); }
+    // 3) 업로드창 가로채기 + 사진첨부(Ctrl+Alt+I) → 파일 여러 개 한 번에
+    await cdp(target, "Page.setInterceptFileChooserDialog", { enabled: true });
+    const chooserP = waitFileChooser(tabId, 6000);
+    await pressPhotoShortcut(target);
+    const ev = await chooserP;
+    if (!ev || ev.backendNodeId == null) {
+      await cdp(target, "Page.setInterceptFileChooserDialog", { enabled: false }).catch(() => {});
+      return { ok: false, error: "사진 업로드창을 못 잡았어요(Ctrl+Alt+I 방식). 방식 조정 필요." };
+    }
+    await cdp(target, "DOM.setFileInputFiles", { files: paths, backendNodeId: ev.backendNodeId });
+    await sleep(3000); // 업로드+콜라주 반영
+    await cdp(target, "Page.setInterceptFileChooserDialog", { enabled: false }).catch(() => {});
+    return { ok: true, placed, count: paths.length };
+  } finally {
+    await dbgDetach(target);
+  }
 }
 
 chrome.runtime.onInstalled.addListener(() => console.log("[시공막내] 확장 설치/갱신됨"));

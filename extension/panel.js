@@ -210,28 +210,44 @@
   }
 
   // ── 사진 넣기 (클립보드 이미지 + 진짜 Ctrl+V) ──
+  function blobToDataUrl(blob) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error("읽기 실패")); r.readAsDataURL(blob); }); }
+
   async function doPhotos() {
     if (!photos.length) { setOut("먼저 사진을 선택하거나 [불러오기] 하세요.", "err"); return; }
-    // SEO: 사진은 '각각 개별' 이미지로 넣는다(합치지 않음). index 순서대로 [n] 자리에.
-    const sorted = photos.slice().sort((a, b) => a.index - b.index);
+    // 한 줄 '[1] [2]'=여러장 묶음(나란히=네이버 업로드 묶기), 단독 '[1]'=한 장(클립보드). 둘 다 개별 이미지=SEO안전.
+    const groups = parseGroups($("#text").value);
+    const covered = new Set(); groups.forEach((g) => g.indices.forEach((i) => covered.add(i)));
+    const leftovers = photos.filter((p) => !covered.has(p.index)).sort((a, b) => a.index - b.index);
+    const jobs = groups.map((g) => ({ marker: g.marker, indices: g.indices }))
+      .concat(leftovers.map((p) => ({ marker: null, indices: [p.index] })));
+    if (!jobs.length) { setOut("사진을 넣을 자리가 없어요.", "err"); return; }
+
     const btn = $("#goPhoto"); btn.disabled = true;
-    let done = 0, placed = 0;
-    for (let i = 0; i < sorted.length; i++) {
-      const p = sorted[i];
-      setOut(`⏳ 사진 ${i + 1}/${sorted.length} 넣는 중 — 건드리지 마세요!`, "work");
-      let png;
-      try { png = await toGroupPng([p.blob]); } catch (e) { setOut(`사진 ${p.index} 준비 실패: ${String(e.message || e).slice(0, 40)}`, "err"); break; }
-      try { await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]); }
-      catch (e) { setOut(`사진 ${p.index} 클립보드 실패: ${String(e.message || e).slice(0, 40)}`, "err"); break; }
-      const resp = await send({ type: "SGM_PHOTO", marker: "[" + p.index + "]" });
-      if (!resp || !resp.ok) { setOut(`사진 ${p.index} 넣기 실패: ${(resp && resp.error) || "오류"}`, "err"); break; }
+    let done = 0;
+    for (let i = 0; i < jobs.length; i++) {
+      const job = jobs[i];
+      const blobs = job.indices.map((idx) => (photos.find((p) => p.index === idx) || {}).blob).filter(Boolean);
+      if (!blobs.length) continue;
+      setOut(`⏳ 사진 ${i + 1}/${jobs.length} 넣는 중 — 건드리지 마세요!`, "work");
+      let resp;
+      if (blobs.length === 1) {
+        let png;
+        try { png = await toGroupPng(blobs); } catch (e) { setOut(`사진 ${i + 1} 준비 실패: ${String(e.message || e).slice(0, 40)}`, "err"); break; }
+        try { await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]); }
+        catch (e) { setOut(`사진 ${i + 1} 클립보드 실패: ${String(e.message || e).slice(0, 40)}`, "err"); break; }
+        resp = await send({ type: "SGM_PHOTO", marker: job.marker });
+      } else {
+        let images;
+        try { images = await Promise.all(blobs.map(blobToDataUrl)); } catch (e) { setOut(`사진 ${i + 1} 준비 실패: ${String(e.message || e).slice(0, 40)}`, "err"); break; }
+        resp = await send({ type: "SGM_PHOTO_GROUP", marker: job.marker, images });
+      }
+      if (!resp || !resp.ok) { setOut(`사진 ${i + 1} 실패: ${(resp && resp.error) || "오류"}`, "err"); break; }
       done++;
-      if (resp.placed) placed++;
-      await new Promise((r) => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 700));
     }
     btn.disabled = false;
-    if (done === sorted.length) setOut(`✓ 사진 ${done}장 (각각 개별=SEO안전 · ${placed}장 자리에)`, "ok");
-    else if (done > 0) setOut(`사진 ${done}/${sorted.length}장 넣음 — 나머지 실패(알려주세요)`, "err");
+    if (done === jobs.length) setOut(`✓ 사진 완료! ${jobs.length}묶음 (개별 유지=SEO · 여러장=나란히)`, "ok");
+    else if (done > 0) setOut(`${done}/${jobs.length}묶음 넣음 — 나머지 실패(알려주세요)`, "err");
   }
   $("#goPhoto").addEventListener("click", doPhotos);
 
