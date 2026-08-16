@@ -13712,6 +13712,10 @@ async def call_audio_summary_endpoint(
             cached_with_flag = dict(cached)
             cached_with_flag["cached"] = True
             cached_with_flag["_cache_hit"] = True
+            # 감사#5 — 옛 캐시(신규 필드 없이 저장된 것) 안전 기본값 보정
+            cached_with_flag.setdefault("tags", [])
+            cached_with_flag.setdefault("transcript_segments", [])
+            cached_with_flag.setdefault("transcript_raw", cached_with_flag.get("transcript", ""))
             return cached_with_flag
     else:
         print(f"[call-audio-summary] {phone_digits} → force_refresh=true (캐시 무시)")
@@ -26425,7 +26429,7 @@ async def web_login_status(request: Request, t: str):
         con.commit()
     resp = JSONResponse({"status": "authorized"})
     resp.set_cookie(_WEB_COOKIE, sid, max_age=_WEB_IDLE_MS // 1000,
-                    httponly=True, samesite="lax", path="/")
+                    httponly=True, samesite="lax", path="/", secure=True)  # 감사#8 Secure
     return resp
 
 
@@ -27636,21 +27640,10 @@ def _web_gather_materials(owner: str, cd: str) -> dict:
                         "completed": bool(r[5])}
                 memo = r[6] or ""
                 break
-        # 통화요약 (summary_cache, call-audio-summary, phone digits 매칭)
+        # 통화요약 재료: 감사#1 — summary_cache 에 owner 컬럼이 없어 고객번호로만 조회하면
+        # 다른 사장의 통화가 새어들 수 있음(크로스오너 유출). owner 스코프 불가 → 글만들기
+        # 재료에서 제외. (추후 앱이 owner 스코프로 통화요약도 customer-content 처럼 push 하면 부활)
         call = ""
-        crow = con.execute(
-            "SELECT response_json FROM summary_cache WHERE endpoint='call-audio-summary' "
-            "AND (phone = ? OR phone LIKE ?) ORDER BY generated_at_ms DESC LIMIT 1",
-            (_webre.sub(r"[^0-9]", "", cd), "%" + key8)).fetchone()
-        if crow:
-            try:
-                cj = json.loads(crow[0])
-                bits = [cj.get("one_line") or ""]
-                for b in (cj.get("bullets") or [])[:6]:
-                    bits.append("- " + str(b))
-                call = "\n".join([x for x in bits if x]).strip()
-            except Exception:
-                call = ""
         # 톤 URL
         tones = [t[0] for t in con.execute(
             "SELECT url FROM web_tone_urls WHERE owner_phone = ? ORDER BY added_at_ms DESC LIMIT 5",
@@ -27685,9 +27678,9 @@ async def _web_gemini_generate(api_key: str, prompt: str) -> dict:
     data = r.json()
     try:
         txt = data["candidates"][0]["content"]["parts"][0]["text"]
+        return json.loads(txt)   # 감사#6 — 파싱 실패도 502 로(500 방지)
     except Exception:
-        raise HTTPException(502, "Gemini 응답 형식 오류")
-    return json.loads(txt)
+        raise HTTPException(502, "Gemini 응답 형식 오류(JSON 파싱 실패)")
 
 
 class WebGenReq(BaseModel):

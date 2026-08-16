@@ -9156,3 +9156,15 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 - 슬라이드(SEO '1장→10장 쪼개기' 트릭)만 **수동** — 네이버 최신 파일선택창을 프로그램이 못 띄움(setFileInputFiles가 '사진 첨부 방식' 창 우회). → 확장 나머지 자동 + 슬라이드만 손수 15초.
 - 🔴 남은 1개 = **코워크 서버 GET /api/web/naver-draft**(패널 [불러오기]용). 그전엔 붙여넣기로 씀. 계약 위 SYNC 블록 참고.
 - CDP 스샷 튜닝 도구/방법 = 기억 reference_cdp_screenshot_drive_chrome.
+
+## 2026-08-16 21:37 · cowork 🔎 버그 감사(서브에이전트) + 안전건 즉시 수정 4개
+서브에이전트로 웹/통화 신규코드 전수 감사. 안전한 서버측만 지금 수정, 앱협조 필요건은 아래 🔴로 남김.
+- ✅fix #1[치명] 통화요약 크로스오너 유출: _web_gather_materials 가 summary_cache(=owner 컬럼 없음)를 고객번호로만 조회 → 남 사장 통화 새어들 수 있음. 글만들기 재료에서 통화요약 **제외**(memo·문자·현장만 사용). 추후 앱이 owner스코프로 통화요약 push 하면 부활.
+- ✅fix #6 _web_gemini_generate: json.loads 미가드 → 깨진 JSON 시 500. try로 감싸 502.
+- ✅fix #8 웹세션 쿠키 secure=True 추가(https 평문유출 방지).
+- ✅fix #5 옛 call-audio-summary 캐시 HIT 시 신규필드(tags·transcript_segments·transcript_raw) 기본값 보정(앱 KeyError 방지).
+- 🔴[치명·앱협조] #2 무인증 push 3종 — /api/web/schedule-feed(맨앞 DELETE 전량), /logout-all, /customer-content 가 owner_phone 문자열만 신뢰. 피해자 번호만 알면 캘린더/공유 삭제·강제로그아웃·재료오염 가능. authorize 처럼 세션토큰 검증 필요 → **android 가 이 3개 호출에 session_token 동봉** 해주면 서버에서 _verify_session_token 게이트 켬(현재 켜면 앱 깨져서 대기). auth 하드닝 트랙.
+- 🟡 #4 web_generated_posts PK=owner 단독 → 사장당 글 1개(최근 것만). 확장 pull=최근글이라 MVP OK이나, PK를 (owner,customer_digits)+naver-draft에 &customer_digits 로 특정글 지정 권장(다른고객 사진 발행 방지).
+- 🟡 #7 _ollama_label_speakers 배치 순차 await(긴통화 시 느림) → 향후 병렬+상한.
+- 🔴 #3 naver-draft IDOR + 사진토큰 무만료: 세션토큰/exp 하드닝(기존 항목).
+- 🟢 #9 끝8 조인충돌 · #11 티켓 첫폴러 바인딩 · #13 전후 시간순 추정 — 저위험 관찰.
