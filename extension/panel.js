@@ -13,11 +13,19 @@
     "",
     "경기 동탄의 한 아파트 화장실 시공 후기입니다. 처음엔 바닥만 손보려다 **세 곳 전체**를 새로 하기로 했어요.",
     "",
+    "[1] [2]",
+    "",
     "> 부분 보수보다, 세 곳 다 전체로 잡는 게 오래 보기에 훨씬 낫습니다.",
     "",
     "## 시공 과정",
     "",
-    "낡은 타일과 줄눈을 걷어내고 방수부터 다시 잡았습니다. 마무리 줄눈은 오염에 강한 제품으로 시공했어요.",
+    "낡은 타일과 줄눈을 걷어내고 방수부터 다시 잡았습니다.",
+    "",
+    "[3] [4] [5]",
+    "",
+    "마무리 줄눈은 오염에 강한 제품으로 시공했어요.",
+    "",
+    "[6] [7]",
     "",
     "---",
     "",
@@ -73,7 +81,7 @@
         <button class="btn" id="go">✨ 자동으로 넣기</button>
 
         <div class="sep"></div>
-        <div class="row"><span class="lbl">사진 (골라서 넣기)</span><button class="mini" id="pick">🖼 사진 고르기</button></div>
+        <div class="row"><span class="lbl">사진 — 글의 <b style="color:#03C75A">[번호]</b> 자리로</span><button class="mini" id="pick">🖼 사진 고르기</button></div>
         <input type="file" id="file" accept="image/*" multiple>
         <div class="thumbs" id="thumbs"></div>
         <button class="btn sub" id="goPhoto">📷 사진 넣기</button>
@@ -149,7 +157,7 @@
   async function doPhotos() {
     if (!photos.length) { setOut("먼저 [사진 고르기]로 사진을 선택하세요.", "err"); return; }
     const btn = $("#goPhoto"); btn.disabled = true;
-    let done = 0;
+    let done = 0, placed = 0;
     for (let i = 0; i < photos.length; i++) {
       setOut(`사진 넣는 중… (${i + 1}/${photos.length})`);
       let png;
@@ -159,10 +167,11 @@
       const resp = await send({ type: "SGM_PHOTO", index: i + 1 });
       if (!resp || !resp.ok) { setOut(`사진 ${i + 1} 넣기 실패: ${(resp && resp.error) || "오류"}`, "err"); break; }
       done++;
+      if (resp.placed) placed++;
       await new Promise((r) => setTimeout(r, 500));
     }
     btn.disabled = false;
-    if (done === photos.length) setOut(`✓ 사진 ${done}장 넣었어요!`, "ok");
+    if (done === photos.length) setOut(`✓ 사진 ${done}장! (${placed}장은 [번호] 자리에, ${done - placed}장은 끝에)`, "ok");
     else if (done > 0) setOut(`사진 ${done}/${photos.length}장 넣음 — 나머지 실패(알려주세요)`, "err");
   }
   $("#goPhoto").addEventListener("click", doPhotos);

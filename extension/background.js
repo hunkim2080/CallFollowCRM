@@ -19,7 +19,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
   if (msg && msg.type === "SGM_PHOTO") {
-    pastePhoto(tabId).then(sendResponse)
+    pastePhoto(tabId, msg.index).then(sendResponse)
       .catch((e) => sendResponse({ ok: false, error: String((e && e.message) || e).slice(0, 160) }));
     return true;
   }
@@ -124,7 +124,30 @@ const HEAD_OPTION_EXPR = `(function(){ ${PRELUDE}
   return null;
 })()`;
 
+// 본문에서 '[n]' 자리표를 찾아 그 오른쪽 끝 클릭좌표 + 마커 길이 반환
+function POSITION_MARKER_EXPR(index) {
+  return `(function(){ ${PRELUDE}
+    var mk=${JSON.stringify("[" + index + "]")};
+    var scope=__doc.querySelector('.se-main-container, .se-content, .se-container')||__doc.body;
+    var w=__doc.createTreeWalker(scope, NodeFilter.SHOW_TEXT, null, false); var node;
+    while(node=w.nextNode()){
+      var i=node.nodeValue.indexOf(mk);
+      if(i!==-1){
+        try{ if(node.parentElement) node.parentElement.scrollIntoView({block:'center'}); }catch(e){}
+        var range=__doc.createRange(); range.setStart(node,i); range.setEnd(node,i+mk.length);
+        var rects=range.getClientRects();
+        if(rects.length){ var last=rects[rects.length-1]; return {x:Math.round(__off.x+last.right-1), y:Math.round(__off.y+last.top+last.height/2), len:mk.length}; }
+      }
+    }
+    return null;
+  })()`;
+}
+
 // ── 입력 이벤트 ──
+async function pressBackspace(target) {
+  await cdp(target, "Input.dispatchKeyEvent", { type: "keyDown", key: "Backspace", code: "Backspace", windowsVirtualKeyCode: 8, nativeVirtualKeyCode: 8 });
+  await cdp(target, "Input.dispatchKeyEvent", { type: "keyUp", key: "Backspace", code: "Backspace", windowsVirtualKeyCode: 8, nativeVirtualKeyCode: 8 });
+}
 async function pressCtrlV(target) {
   await cdp(target, "Input.dispatchKeyEvent", { type: "rawKeyDown", modifiers: 2, key: "Control", code: "ControlLeft", windowsVirtualKeyCode: 17, nativeVirtualKeyCode: 17 });
   await cdp(target, "Input.dispatchKeyEvent", { type: "keyDown", modifiers: 2, key: "v", code: "KeyV", windowsVirtualKeyCode: 86, nativeVirtualKeyCode: 86 });
@@ -215,8 +238,9 @@ async function autoPaste(tabId, draft, title) {
 }
 
 // ── 사진 넣기: 클립보드의 이미지(패널이 담아둠)를 진짜 Ctrl+V 로 붙여넣기 ──
-// 1차 컷: 편집영역 맨 끝에 붙여넣음(위치 [1][2] 매칭은 다음 컷).
-async function pastePhoto(tabId) {
+// index 번 사진 → 본문의 '[index]' 자리표를 찾아 그 자리에 (마커 지우고) 붙여넣음.
+//   자리표 없으면 편집영역 맨 끝에 붙임(fallback).
+async function pastePhoto(tabId, index) {
   if (!tabId) return { ok: false, error: "탭을 못 찾았어요" };
   const target = { tabId };
   try {
@@ -227,12 +251,25 @@ async function pastePhoto(tabId) {
       ? "개발자도구(F12)가 열려 있으면 닫고 다시 시도해 주세요." : ("디버거 연결 실패: " + m.slice(0, 100)) };
   }
   try {
-    const focus = await evalVal(target, FOCUS_EXPR);
-    if (focus === "NO_EDITOR") return { ok: false, error: "글쓰기 본문 편집영역을 못 찾았어요." };
-    await sleep(120);
-    await pressCtrlV(target);   // 클립보드 이미지 붙여넣기
+    let placed = false;
+    if (index) {
+      const pos = await evalVal(target, POSITION_MARKER_EXPR(index));
+      if (pos) {
+        await clickAt(target, pos.x, pos.y);      // 자리표 오른쪽 끝에 커서
+        await sleep(220);
+        for (let k = 0; k < pos.len; k++) { await pressBackspace(target); await sleep(40); } // '[n]' 지움
+        await sleep(150);
+        placed = true;
+      }
+    }
+    if (!placed) {
+      const focus = await evalVal(target, FOCUS_EXPR);  // 자리표 없으면 맨 끝
+      if (focus === "NO_EDITOR") return { ok: false, error: "글쓰기 본문 편집영역을 못 찾았어요." };
+      await sleep(120);
+    }
+    await pressCtrlV(target);   // 그 자리에 이미지 붙여넣기
     await sleep(1600);          // 업로드 반영 대기
-    return { ok: true };
+    return { ok: true, placed };
   } finally {
     await dbgDetach(target);
   }
