@@ -62,7 +62,7 @@ async function loadDraft(phone) {
   } catch (e) {
     return { ok: false, error: "서버 연결 실패(준비 중일 수 있어요): " + String((e && e.message) || e).slice(0, 60) };
   }
-  if (!data || !data.ok) return { ok: false, error: (data && data.error) || "불러올 글이 없어요." };
+  if (!data || !data.ok) return { ok: false, error: (data && (data.reason || data.error)) || "불러올 글이 없어요." };
   // 사진 URL → dataURL (background 가 받아서 패널로 전달)
   const photos = [];
   if (Array.isArray(data.photos)) {
