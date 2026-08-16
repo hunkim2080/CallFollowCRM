@@ -56,7 +56,10 @@
       .btn:active{transform:scale(.98)} .btn:disabled{background:#C9D0D8;cursor:default;transform:none}
       .btn.sub{background:#fff;color:#03C75A;border:1.5px solid #03C75A;font-size:13px;padding:10px}
       .btn.save{background:#F0F3F7;color:#4E5968;font-size:13px;padding:10px;margin-top:8px}
-      .btn.load{background:#EDF3FF;color:#3182F6;font-size:13px;padding:11px;margin-top:0}
+      .btn.load{background:#3182F6;color:#fff;font-size:14px;font-weight:850;padding:13px;margin-top:0}
+      .loadhint{font-size:10.5px;color:#8B95A1;text-align:center;margin-top:7px}
+      .loadhint a{color:#3182F6;cursor:pointer;text-decoration:underline;font-weight:800}
+      .dim{color:#B0B8C1;font-weight:600;font-size:9.5px}
       .titleInput{width:100%;border:1px solid #E5E9EE;border-radius:11px;padding:9px 11px;font-size:13px;font-weight:700;color:#181D27;background:#F5F7F9;outline:none;margin-bottom:9px}
       .titleInput:focus{border-color:#03C75A;background:#fff}
       .sep{height:1px;background:#EEF1F4;margin:13px -13px}
@@ -75,21 +78,25 @@
     <div class="wrap">
       <div class="hd"><span class="t">🧩 시공막내 · <b>네이버 넣기</b></span><button class="x" id="min" title="접기">—</button></div>
       <div class="body">
-        <button class="btn load" id="loadBtn">⬇ 시공막내에서 생성한 글 불러오기</button>
-        <div id="phoneRow" style="display:none;margin-top:7px">
+        <button class="btn load" id="loadGo">⬇✨ 시공막내 글 → 네이버에 바로 넣기</button>
+        <div class="loadhint">서버에서 불러와 제목·글·사진까지 한 번에 · <a id="loadOnly">불러오기만</a></div>
+        <div id="phoneRow" style="display:none;margin-top:8px">
           <input type="text" id="phone" class="titleInput" placeholder="내 전화번호 (한 번만 · 예 01012345678)">
           <button class="mini" id="phoneSave" style="width:100%;padding:7px">저장하고 불러오기</button>
         </div>
+
         <div class="sep"></div>
-        <div class="row" style="margin-bottom:5px"><span class="lbl">제목</span></div>
-        <input type="text" id="title" class="titleInput" placeholder="블로그 글 제목 (선택)">
-        <div class="row"><span class="lbl">네이버에 넣을 글</span><button class="mini" id="sample">예시 넣기</button></div>
-        <textarea id="text" placeholder="시공막내에서 만든 블로그 글을 여기에 붙여넣으세요."></textarea>
-        <div class="hint"><b>##</b> 소제목 · <b>&gt;</b> 인용구 · <b>**굵게**</b> · <b>---</b> 구분선 · 사진자리 <b style="color:#03C75A">[번호]</b></div>
-        <div class="row" style="margin-top:12px"><span class="lbl">사진 — 글의 <b style="color:#03C75A">[번호]</b> 자리로</span><button class="mini" id="pick">🖼 사진 고르기</button></div>
-        <input type="file" id="file" accept="image/*" multiple>
+
+        <div class="row" style="margin-bottom:5px"><span class="lbl">제목 <span class="dim">불러온 내용 · 수정 가능</span></span></div>
+        <input type="text" id="title" class="titleInput" placeholder="불러오면 자동으로 채워져요">
+        <div class="row"><span class="lbl">글</span><button class="mini" id="sample">예시</button></div>
+        <textarea id="text" placeholder="불러오면 자동으로 채워져요 (직접 붙여넣어도 돼요)"></textarea>
+        <div class="hint"><b>##</b> 소제목 · <b>&gt;</b> 인용구 · <b>**굵게**</b> · <b>---</b> 구분선 · 사진 <b style="color:#03C75A">[번호]</b> 자리</div>
+        <div class="row" style="margin-top:11px"><span class="lbl">사진 <span class="dim">불러오면 자동</span></span><button class="mini" id="pick">직접 고르기</button></div>
         <div class="thumbs" id="thumbs"></div>
-        <button class="btn" id="go">✨ 글 + 사진 한번에 넣기</button>
+        <input type="file" id="file" accept="image/*" multiple>
+
+        <button class="btn" id="go">✨ 네이버에 넣기 (지금 내용)</button>
         <button class="btn save" id="goSave">💾 임시저장</button>
 
         <div class="out" id="out"></div>
@@ -133,10 +140,10 @@
 
   async function doLoad() {
     const phone = await getPhone();
-    if (!phone) { $("#phoneRow").style.display = "block"; setOut("내 전화번호를 한 번만 입력해 주세요(생성 글 찾기용).", ""); return; }
+    if (!phone) { $("#phoneRow").style.display = "block"; setOut("내 전화번호를 한 번만 입력해 주세요(생성 글 찾기용).", ""); return false; }
     setOut("⏳ 불러오는 중…", "work");
     const resp = await send({ type: "SGM_LOAD", phone });
-    if (!resp || !resp.ok) { setOut("아직 못 불러와요: " + ((resp && resp.error) || "오류") + " (웹 글만들기 배포 후 돼요)", "err"); return; }
+    if (!resp || !resp.ok) { setOut("아직 못 불러와요: " + ((resp && resp.error) || "오류"), "err"); return false; }
     if (resp.title) $("#title").value = resp.title;
     if (resp.draft) $("#text").value = resp.draft;
     photos = [];
@@ -144,9 +151,13 @@
       for (const ph of resp.photos) { try { const b = await dataUrlToBlob(ph.dataUrl); photos.push({ index: ph.index, blob: b, name: "photo" + ph.index }); } catch (e) {} }
       renderThumbs();
     }
-    setOut(`✓ 불러왔어요! 제목·글${photos.length ? ` · 사진 ${photos.length}장` : ""} — 확인 후 [자동으로 넣기]`, "ok");
+    setOut(`✓ 불러왔어요! 제목·글${photos.length ? ` · 사진 ${photos.length}장` : ""}`, "ok");
+    return true;
   }
-  $("#loadBtn").addEventListener("click", doLoad);
+  // 바로 넣기 = 불러오기 + 네이버에 넣기 한 방
+  async function doLoadAndGo() { const ok = await doLoad(); if (ok) await doAll(); }
+  $("#loadGo").addEventListener("click", doLoadAndGo);
+  $("#loadOnly").addEventListener("click", doLoad);
   $("#phoneSave").addEventListener("click", async () => {
     const p = ($("#phone").value || "").replace(/\D/g, "");
     if (p.length < 9) { setOut("전화번호를 확인해 주세요.", "err"); return; }
