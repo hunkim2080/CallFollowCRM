@@ -65,6 +65,7 @@
       .thumb .n{position:absolute;left:3px;top:3px;background:#03C75A;color:#fff;font-size:10px;font-weight:850;border-radius:6px;padding:0 5px;line-height:15px}
       .out{font-size:11.5px;font-weight:700;margin-top:8px;min-height:15px;line-height:1.5;color:#4E5968}
       .out.ok{color:#03C75A} .out.err{color:#E03131}
+      .out.work{color:#B7791F;background:#FBF3E4;border:1px solid #F0E0BC;border-radius:9px;padding:8px 10px;font-weight:850;text-align:center}
       .foot{font-size:10px;color:#B0B8C1;margin-top:9px;line-height:1.5;text-align:center}
       .pill{display:none;align-items:center;gap:6px;background:#03C75A;color:#fff;border-radius:999px;padding:9px 14px;font-size:12.5px;font-weight:850;cursor:pointer;box-shadow:0 6px 18px rgba(3,199,90,.35)}
       :host(.min) .wrap{display:none} :host(.min) .pill{display:inline-flex}
@@ -129,7 +130,7 @@
     } catch (e) { try { await navigator.clipboard.writeText(plain); } catch (e2) {} }
 
     const btn = $("#go"); btn.disabled = true;
-    setOut("자동으로 넣는 중… (상단 '디버깅 중' 띠는 잠깐)");
+    setOut("⏳ 넣는 중 — 끝날 때까지 브라우저를 건드리지 마세요!", "work");
     const resp = await send({ type: "SGM_AUTO", draft, title });
     btn.disabled = false;
     if (!resp || !resp.ok) { setOut("자동 넣기 실패: " + ((resp && resp.error) || "오류"), "err"); return; }
@@ -159,7 +160,7 @@
     const btn = $("#goPhoto"); btn.disabled = true;
     let done = 0, placed = 0;
     for (let i = 0; i < photos.length; i++) {
-      setOut(`사진 넣는 중… (${i + 1}/${photos.length})`);
+      setOut(`⏳ 사진 ${i + 1}/${photos.length} 넣는 중 — 건드리지 마세요!`, "work");
       let png;
       try { png = await toPng(photos[i]); } catch (e) { setOut(`사진 ${i + 1} 변환 실패: ${String(e.message || e).slice(0, 50)}`, "err"); break; }
       try { await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]); }
