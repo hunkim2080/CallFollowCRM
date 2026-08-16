@@ -9192,3 +9192,17 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 - 참고: 단일 요약이 여전히 오래 걸리면 그건 exaone 화자라벨 비용(별개). 이번 fix는 "여러 번 반복"만 끊음.
 - 검증: ast OK · 락 헬퍼 동작(같은키=같은락, 다른ts=다른락) · 라우트 유지.
 - commit: __C__
+
+## 2026-08-17 · cowork(server) → 🔴 감사#2 보안 하드닝 1단계(서버 준비) + 🔴 android 협조요청
+무인증 push 3종을 **단계적**으로 잠금(라이브 앱 안 깨지게). 지금은 준비만, android 반영 후 env 한 줄로 강제 전환.
+- 서버: `POST /api/web/schedule-feed`(맨앞 전량삭제) · `POST /api/web/logout-all` · `POST /api/web/customer-content` 에 `session_token` 받아 검증하는 `_web_push_auth(owner, token)` 추가.
+  - **토큰 있으면 반드시 owner와 일치**(불일치/위조 → 401). **토큰 없으면 현행 허용**(구버전 앱 호환, 기본 `WEB_PUSH_REQUIRE_TOKEN=0`).
+  - logout-all은 추가로 본인 웹세션 쿠키(마이페이지 본인 실행)면 통과.
+- 검증: TestClient 9케이스 PASS(무토큰 200·위조 401·정상 200·owner불일치 401·enforce시 무토큰 401·정상 200·logout-all 쿠키無 200/위조 401). ast OK.
+- 🔴 **android 협조요청**: 아래 3개 호출에 로그인 세션토큰을 body(또는 logout-all은 query) `session_token` 으로 **동봉**해 주세요(앱이 authorize 때 받은 그 토큰).
+  ① `/api/web/schedule-feed` (캘린더 동기화 push) — body에 `session_token`
+  ② `/api/web/customer-content` (문자 재료 push) — body에 `session_token`
+  ③ `/api/web/logout-all` (원격 로그아웃, 앱이 호출한다면) — query `?session_token=`
+  → android 반영·배포 확인되면 cowork가 서버 env `WEB_PUSH_REQUIRE_TOKEN=1` 로 전환 → 무인증 구멍 완전 차단. (그 전까지는 앱 안 깨지고 그대로 동작)
+- 남은(별도): #3 naver-draft IDOR+사진토큰 만료(확장 협조), #4 web_generated_posts PK(owner,customer_digits) 서버단독 — 다음 차례.
+- commit: __C__

@@ -26192,7 +26192,23 @@ _WEB_COOKIE = "wsid"
 # owner_phone 문자열 단독 승인 = 무검증 구멍(남 번호만 알면 로그인) → 기본 차단.
 # 긴급 완화(구버전 앱 호환)만 env WEB_AUTH_REQUIRE_TOKEN=0.
 _WEB_AUTH_REQUIRE_TOKEN = os.environ.get("WEB_AUTH_REQUIRE_TOKEN", "1") == "1"
+# 감사#2 하드닝 트랙: 앱→서버 push 3종(schedule-feed 전량삭제/logout-all/customer-content)이
+# owner_phone 문자열만 신뢰 → 번호만 알면 캘린더삭제·강제로그아웃·재료오염 가능.
+# 단계적 전환: 기본 OFF(토큰 없으면 현행 허용=구버전 앱 안 깨짐), 토큰 오면 반드시 검증.
+# android 가 이 3개 호출에 session_token 동봉 배포하면 env WEB_PUSH_REQUIRE_TOKEN=1 로 강제 → 구멍 닫힘.
+_WEB_PUSH_REQUIRE_TOKEN = os.environ.get("WEB_PUSH_REQUIRE_TOKEN", "0") == "1"
 _WEB_BASE = INTAKE_PUBLIC_BASE_URL  # https://api.si0in.kr
+
+
+def _web_push_auth(owner: str, session_token: Optional[str]) -> None:
+    """앱→서버 push 3종 인증(하드닝). 토큰 있으면 반드시 owner 와 일치. REQUIRE=1 이면 유효토큰 필수."""
+    if session_token:
+        v = _verify_session_token(session_token)
+        if not v or _norm_phone(v) != owner:
+            raise HTTPException(401, "세션 토큰이 이 번호와 일치하지 않아요")
+        return
+    if _WEB_PUSH_REQUIRE_TOKEN:
+        raise HTTPException(401, "세션 토큰이 필요해요 (앱 업데이트/재로그인 후 다시 시도)")
 
 
 def _web_pkey(p) -> str:
@@ -26325,6 +26341,7 @@ def _web_photo_bytes(photo_id: int, owner: str):
 class WebFeedPush(BaseModel):
     owner_phone: str
     items: list = []
+    session_token: Optional[str] = None
 
 
 @app.post("/api/web/schedule-feed")
@@ -26332,6 +26349,7 @@ async def web_schedule_feed_push(req: WebFeedPush) -> dict:
     owner = _norm_phone(req.owner_phone)
     if not owner:
         raise HTTPException(400, "owner_phone 필수")
+    _web_push_auth(owner, req.session_token)  # 감사#2 하드닝(전량삭제 보호)
     now = _now_ms()
     items = req.items or []
     with db_conn() as con:
@@ -26464,9 +26482,15 @@ async def web_login_status(request: Request, t: str):
 
 
 @app.post("/api/web/logout-all")
-async def web_logout_all(owner_phone: str) -> dict:
-    """폰 원격 로그아웃 — 그 owner 의 웹 세션 전부 무효."""
+async def web_logout_all(request: Request, owner_phone: str, session_token: Optional[str] = None) -> dict:
+    """폰 원격 로그아웃 — 그 owner 의 웹 세션 전부 무효.
+    감사#2: 무검증이면 남 번호만 알면 강제 로그아웃 가능 → 토큰 있으면 검증, 또는 본인 웹세션 소유자면 허용."""
     owner = _norm_phone(owner_phone)
+    if not owner:
+        raise HTTPException(400, "owner_phone 필수")
+    # 본인 웹세션(이 PC 쿠키)이 그 owner 면 허용(마이페이지에서 본인 실행). 아니면 토큰 검증.
+    if _web_owner_from_request(request) != owner:
+        _web_push_auth(owner, session_token)
     with db_conn() as con:
         cur = con.execute("DELETE FROM web_sessions WHERE owner_phone = ?", (owner,))
         con.commit()
@@ -27950,6 +27974,7 @@ class WebCustomerContent(BaseModel):
     owner_phone: str
     customer_digits: str
     conversation_text: Optional[str] = None
+    session_token: Optional[str] = None
 
 
 @app.post("/api/web/customer-content")
@@ -27960,6 +27985,7 @@ async def web_customer_content_push(req: WebCustomerContent) -> dict:
     cd = _webre.sub(r"[^0-9]", "", req.customer_digits or "")
     if not owner or not cd:
         raise HTTPException(400, "owner_phone/customer_digits 필수")
+    _web_push_auth(owner, req.session_token)  # 감사#2 하드닝
     txt = (req.conversation_text or "").strip()
     with db_conn() as con:
         con.execute(
