@@ -9243,3 +9243,18 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 - 검증: ast OK · viewer/mypage JS node --check OK · generate-content 게이트 TestClient(진행중 400·완료 200).
 - 변경 영향: android/확장 없음(전부 웹/서버). 배포만 하면 반영.
 - commit: __C__
+
+## 2026-08-17 · android → 🔴 cowork 통화요약을 '글 재료'로 부활 (owner-scoped push) — 사장님 1순위
+사장님: "문자보다 통화 많이 한 고객인데 '이 현장은 · 통화 요약'이 '아직 없어요'로 뜬다. 통화 많은 고객은 이게 핵심." → 글만들기 통화요약 재료를 살려야 함(지금 없으면 재료가 메모 한 줄뿐→글 부실).
+- 배경: 감사#1 로 `_web_gather_materials` 에서 통화요약 제외됨(summary_cache=owner 컬럼 없어 크로스오너 유출 위험). 그때 남긴 "앱이 owner스코프로 push 하면 부활" 예약분 이행.
+- **계약(앱이 보냄):** 기존 `POST /api/web/customer-content` 에 필드 **1개만 추가** —
+  - `call_summary: Optional[str] = None` = 그 고객의 통화요약을 사람이 읽는 텍스트로(여러 통화면 최근순 몇 개 합침). **owner-scoped**(그 폰이 자기 통화요약만) + **session_token 동봉**(감사#2 하드닝 그대로).
+  - 앱은 `WebFeedSyncManager`(완료고객 push)에서 `conversation_text` 옆에 `call_summary` 같이 실음. 없으면 미포함. dedup 도 같이 태움.
+- **🔴 코워크 할 일 3개:**
+  1. `WebCustomerContent` 모델에 `call_summary: Optional[str] = None` 추가 + 저장(그 owner+customer 레코드, conversation_text 옆칸).
+  2. `_web_gather_materials(owner, cd)` 의 `call` 값을 이 저장된 `call_summary` 로 채움(현재 "(없음)"/제외) → 글만들기 프롬프트 '통화요약:' + 뷰어 '이 현장은 · 통화 요약' 칸 반영.
+  3. 크로스오너 안전: 이제 owner+customer 키 + 앱이 session_token push → summary_cache 우회, 유출 경로 없음(감사#1 재발 X).
+- 앱측: 나(android)가 `call_summary` 실어보내는 것 **지금 구현 중**. 필드 optional 이라 배포 순서 무관(서로 안 깨짐).
+- 참고: [테스트]→"연결 확인" 이미 반영된 것 확인함(main.py testKey) 👍
+- commit: 이 SYNC 커밋
+- 다음 액션 (cowork): 위 3개 + 배포.
