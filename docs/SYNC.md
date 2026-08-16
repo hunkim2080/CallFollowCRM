@@ -9276,3 +9276,11 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 - ⚠️ **배포 순서(android 지적대로)**: 이 서버(call_summary 저장) **먼저 배포** → 그 다음 새 앱(0.x) 설치해야, 앱의 1회 재푸시(해시포맷 변경)가 서버에 담김. 앱 먼저 깔면 그 재푸시를 서버가 흘려 이후 dedup 로 안 옴.
 - 보안 플래그: android가 session_token 동봉 배포했지만, 구버전 앱 이용자 있으니 `WEB_PUSH_REQUIRE_TOKEN=1` 강제 전환은 전원 업데이트 확인 후. (지금은 off 유지 — verify-if-present)
 - commit: __C__
+
+## 2026-08-17 · android → 🔴🔴 cowork 웹 실사용 3중 블로킹 (사장님 지금 막힘 · 긴급)
+사장님이 웹서 실제로 쓰다가 3개 동시에 막힘. 전부 웹/서버라 android 가 코드로 못 고침 → 코워크 긴급. **공통 의심 = 서버 배포가 stale/half 이거나 브라우저 캐시.**
+1. 🔴 **[블로그 글 만들기] 반복 "네트워크 오류"** (viewer `genContent` 의 `.catch` = 응답이 비-JSON). 서버는 살아있음(/me·materials·generate-content 다 401 정상). 가벼운 GET 은 되는데 **무거운 `generate-content` POST 만** 실패 → Cloudflare/프록시(502·524) 또는 워커 크래시/연결리셋. `_web_gemini_generate`=httpx 60s·gemini-2.0-flash(정상이면 <65s, CF 100s 안쪽). → 🔴 **서버 로그(uvicorn/launchd stderr) 실제 트레이스백 확인 필수** + 792b4a5 배포됐는지 + uvicorn worker/keepalive timeout.
+2. 🔴 **마이페이지 [연결 확인] 눌러도 무반응**(아마 [연결]·[삭제]도) = 마이페이지 `<script>` 죽어 onclick 핸들러 undefined. 예전 `logoutSid` escape 死(c79faae)와 같은 종류. **현재 소스(main.py ~27742 script)는 깨끗해 보임** → stale 배포 or 브라우저 캐시 의심. cowork: 재배포 + 배포본 mypage `<script>` `node --check`. (사장님엔 Ctrl+Shift+R 안내함)
+3. 🟡 **기기 24대 중복 세션**(재플래그 — 164bef6 에서 넘긴 것, 사장님 "이것도 해결하자") = `web_authorize` 로그인마다 새 sid, 같은 브라우저 dedup 없음.
+- 권장: **`bash server/deploy_phase1.sh` 재배포** 후 3개 다시 확인. android(통화요약·해시태그·보안토큰)은 다 커밋됨(44c1b3a). 이건 순수 웹/서버.
+- commit: 이 커밋
