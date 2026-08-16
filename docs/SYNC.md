@@ -9137,3 +9137,9 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 - 인증: MVP=phone (⚠️IDOR, android도 명시 — 추후 세션토큰 하드닝). 사진은 서명토큰이라 URL 알아도 그 사진만.
 - 검증: TestClient — generate→저장→naver-draft(제목·마커·[1]자리)·사진 토큰 쿠키無 fetch 200·위조토큰 401·글없음 안내. ast OK. Gemini mock.
 - ⚠️ 배포 후 실동작: 마이페이지 Gemini 키 등록 → [✨글만들기] → 확장 [⬇ 불러오기]. EXTENSION_ID/host_permissions 는 android 확장쪽. 실 Gemini 마커 출력 품질은 배포후 확인.
+
+## 2026-08-16 21:03 · cowork 🔴fix 화자라벨 절반 '?' (실캐시 진단: ?130·나38·손님38 / 206발화)
+- 원인: 화자 배치가 ~3000자(≈100줄)라 exaone 이 뒷줄 못 붙이고 '?' 흘림. → 배치를 **최대 30줄(또는 2000자)** 로 축소.
+- 검증: 206발화 mock → '?' 0개(7배치). ast OK. (실 exaone 은 배포후 재요약으로 확인)
+- 진단 확인분: 전문 3396자 온전 ✓, start_ms 206개 전부 ✓ (탭재생 데이터는 서버 준비완료 — seekTo 는 앱 배선).
+- ⚠️ 사장님: 배포(deploy_phase1.sh) → 그 통화 캐시 삭제 후 재요약(또는 새 통화)해야 화자 반영. 캐시삭제: sqlite3 ~/ringgo-server/cache.db "DELETE FROM summary_cache WHERE endpoint='call-audio-summary' AND phone LIKE '%90361119';"

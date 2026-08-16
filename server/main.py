@@ -12050,11 +12050,12 @@ async def _ollama_label_speakers(texts: list) -> list:
         "지어내지 말고 라벨만. JSON {\"speakers\":[\"나\",\"손님\"]} 형식만 출력."
     )
     # 긴 통화(발화 많음) 대비 — ~3000자 단위로 나눠 배치별 라벨링(전부 '?' 폴백 방지).
+    # 배치 = 최대 30줄 또는 ~2000자 (너무 크면 exaone 이 뒷줄을 못 붙이고 '?' 흘림)
     batches = []
     cur, curlen = [], 0
     for t in texts:
         tl = len(str(t)) + 8
-        if cur and curlen + tl > 3000:
+        if cur and (curlen + tl > 2000 or len(cur) >= 30):
             batches.append(cur)
             cur, curlen = [], 0
         cur.append(t)
