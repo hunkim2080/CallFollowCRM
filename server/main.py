@@ -133,6 +133,24 @@ claude_client = anthropic.AsyncAnthropic(api_key=CLAUDE_API_KEY)
 # 진행 중인 LLM 백그라운드 태스크: phone -> asyncio.Task
 _inflight_tasks: dict[str, asyncio.Task] = {}
 
+# 통화요약 중복 방지: (phone,started_at_ms) 별 asyncio.Lock.
+# 앱/Cloudflare 타임아웃 재시도로 같은 통화가 여러 번 들어와도, 락 안에서 캐시 재확인 →
+# 앞선 요청이 끝내 캐시에 넣었으면 즉시 반환(중복 STT+요약 큐잉으로 "계속 요약중" 되던 버그).
+_call_summary_locks: dict[str, "asyncio.Lock"] = {}
+
+
+def _call_summary_lock(phone_digits: str, cache_ts: int) -> "asyncio.Lock":
+    key = f"{phone_digits}:{cache_ts}"
+    lk = _call_summary_locks.get(key)
+    if lk is None:
+        # dict 무한증가 방지: 잠겨있지 않은 오래된 락은 가끔 청소
+        if len(_call_summary_locks) > 256:
+            for k in [k for k, v in list(_call_summary_locks.items()) if not v.locked()]:
+                _call_summary_locks.pop(k, None)
+        lk = asyncio.Lock()
+        _call_summary_locks[key] = lk
+    return lk
+
 
 # ============================================================================
 # pricing.md 자동 reload (mtime 캐시)
@@ -13720,199 +13738,211 @@ async def call_audio_summary_endpoint(
     else:
         print(f"[call-audio-summary] {phone_digits} → force_refresh=true (캐시 무시)")
 
-    check_rate_limit(phone_digits)
+    # 중복 요약 방지 락 (같은 통화 재시도 storm → 중복 STT+요약 큐잉 차단, "계속 요약중" 버그)
+    _summary_lock = _call_summary_lock(phone_digits, cache_ts)
+    async with _summary_lock:
+        if not force_refresh:
+            _c2 = summary_cache_get(phone_digits, "call-audio-summary", cache_ts)
+            if _c2 is not None:
+                print(f"[call-audio-summary] {phone_digits} → cache HIT(락내부 재확인·중복요약 차단)")
+                _cf = dict(_c2); _cf["cached"] = True; _cf["_cache_hit"] = True
+                _cf.setdefault("tags", [])
+                _cf.setdefault("transcript_segments", [])
+                _cf.setdefault("transcript_raw", _cf.get("transcript", ""))
+                return _cf
+        check_rate_limit(phone_digits)
 
-    # 2) 오디오 파일 → tempfile
-    audio_data = await file.read()
-    if not audio_data:
-        raise HTTPException(400, "오디오 파일 비어있음")
-    if len(audio_data) > 50 * 1024 * 1024:  # 50MB cap (긴 통화 보호)
-        raise HTTPException(413, "오디오 파일 너무 큼 (50MB 이하)")
+        # 2) 오디오 파일 → tempfile
+        audio_data = await file.read()
+        if not audio_data:
+            raise HTTPException(400, "오디오 파일 비어있음")
+        if len(audio_data) > 50 * 1024 * 1024:  # 50MB cap (긴 통화 보호)
+            raise HTTPException(413, "오디오 파일 너무 큼 (50MB 이하)")
 
-    import tempfile
-    suffix = _audio_suffix(file.filename)
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        tmp.write(audio_data)
-        tmp_path = tmp.name
+        import tempfile
+        suffix = _audio_suffix(file.filename)
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            tmp.write(audio_data)
+            tmp_path = tmp.name
 
-    transcript = ""
-    whisper_segs: list = []   # [{start_ms, text}] — 탭재생/화자용 (옛 워커면 [])
-    try:
-        # 3) Whisper STT — §26 Option A (2026-06-10):
-        # 5분 미만 = 단일 subprocess, 5분 이상 = chunk 병렬 (Cloudflare 100s timeout 우회).
-        # subprocess 격리 유지 (uvicorn worker 보호).
-        lock = _whisper_lock()
-        async with lock:  # 메모리 보호 위해 동시 요청 1건만 (각 요청 안의 청크는 병렬)
+        transcript = ""
+        whisper_segs: list = []   # [{start_ms, text}] — 탭재생/화자용 (옛 워커면 [])
+        try:
+            # 3) Whisper STT — §26 Option A (2026-06-10):
+            # 5분 미만 = 단일 subprocess, 5분 이상 = chunk 병렬 (Cloudflare 100s timeout 우회).
+            # subprocess 격리 유지 (uvicorn worker 보호).
+            lock = _whisper_lock()
+            async with lock:  # 메모리 보호 위해 동시 요청 1건만 (각 요청 안의 청크는 병렬)
+                try:
+                    print(f"[call-audio-summary] {phone_digits} STT 시작 audio={len(audio_data)//1024}KB")
+                    transcript, whisper_segs = await _run_stt_with_chunking(tmp_path)
+                    print(f"[call-audio-summary] {phone_digits} STT 완료 transcript={len(transcript)}자")
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    import traceback as _tb
+                    print(f"[call-audio-summary] STT 실패: {type(e).__name__}: {e}")
+                    print(_tb.format_exc())
+                    raise HTTPException(502, f"STT 실패: {type(e).__name__}: {e}")
+        finally:
             try:
-                print(f"[call-audio-summary] {phone_digits} STT 시작 audio={len(audio_data)//1024}KB")
-                transcript, whisper_segs = await _run_stt_with_chunking(tmp_path)
-                print(f"[call-audio-summary] {phone_digits} STT 완료 transcript={len(transcript)}자")
-            except HTTPException:
-                raise
-            except Exception as e:
-                import traceback as _tb
-                print(f"[call-audio-summary] STT 실패: {type(e).__name__}: {e}")
-                print(_tb.format_exc())
-                raise HTTPException(502, f"STT 실패: {type(e).__name__}: {e}")
-    finally:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+
+        if not transcript:
+            raise HTTPException(422, "받아쓰기 결과 비어있음 (무음 또는 인식 불가)")
+
+        # 3-bis) 통화 보정 — 로컬 exaone3.5(공짜)로 STT 오타·띄어쓰기 정리(뜻유지·지어내기금지).
+        # 실패/긴통화 시 원문 유지(graceful). transcript_raw 는 응답에 함께 반환.
+        transcript_raw = transcript
         try:
-            os.unlink(tmp_path)
-        except Exception:
-            pass
+            corrected = await _ollama_correct_transcript(transcript)
+            if corrected and corrected != transcript:
+                transcript = corrected
+                print(f"[call-audio-summary] {phone_digits} exaone 보정 완료 "
+                      f"({len(transcript_raw)}→{len(transcript)}자)")
+        except Exception as e:
+            transcript = transcript_raw
+            print(f"[call-audio-summary] exaone 보정 skip: {type(e).__name__}: {e}")
 
-    if not transcript:
-        raise HTTPException(422, "받아쓰기 결과 비어있음 (무음 또는 인식 불가)")
-
-    # 3-bis) 통화 보정 — 로컬 exaone3.5(공짜)로 STT 오타·띄어쓰기 정리(뜻유지·지어내기금지).
-    # 실패/긴통화 시 원문 유지(graceful). transcript_raw 는 응답에 함께 반환.
-    transcript_raw = transcript
-    try:
-        corrected = await _ollama_correct_transcript(transcript)
-        if corrected and corrected != transcript:
-            transcript = corrected
-            print(f"[call-audio-summary] {phone_digits} exaone 보정 완료 "
-                  f"({len(transcript_raw)}→{len(transcript)}자)")
-    except Exception as e:
-        transcript = transcript_raw
-        print(f"[call-audio-summary] exaone 보정 skip: {type(e).__name__}: {e}")
-
-    # 3-ter) 카톡 말풍선용 세그먼트 — Whisper 세그먼트(시각 start_ms)에 exaone 로 화자만 라벨링.
-    # Whisper 세그먼트 있으면 [{start_ms,speaker,text}] (탭재생 가능), 없으면(옛워커) exaone turn
-    # 재분할 폴백 [{speaker,text}] (start_ms 없음). 전부 실패 = [] (앱 평문 폴백).
-    transcript_segments = []
-    try:
-        if whisper_segs:
-            _labels = await _ollama_label_speakers([s["text"] for s in whisper_segs])
-            transcript_segments = [
-                {
-                    "start_ms": whisper_segs[i]["start_ms"],
-                    "speaker": _labels[i] if i < len(_labels) else "?",
-                    "text": whisper_segs[i]["text"],
-                }
-                for i in range(len(whisper_segs))
-            ]
-        else:
-            transcript_segments = await _ollama_attribute_speakers(transcript)
-    except Exception:
+        # 3-ter) 카톡 말풍선용 세그먼트 — Whisper 세그먼트(시각 start_ms)에 exaone 로 화자만 라벨링.
+        # Whisper 세그먼트 있으면 [{start_ms,speaker,text}] (탭재생 가능), 없으면(옛워커) exaone turn
+        # 재분할 폴백 [{speaker,text}] (start_ms 없음). 전부 실패 = [] (앱 평문 폴백).
         transcript_segments = []
-    if transcript_segments:
-        print(f"[call-audio-summary] {phone_digits} 화자분리 {len(transcript_segments)}발화")
-
-    print(
-        f"[call-audio-summary] {phone_digits} STT 완료 "
-        f"(audio={len(audio_data)//1024}KB transcript={len(transcript)}자)"
-    )
-
-    # 4) owner_tone_samples JSON 파싱 (실패 시 빈 list)
-    samples_list: list[str] = []
-    if owner_tone_samples:
         try:
-            parsed_samples = json.loads(owner_tone_samples)
-            if isinstance(parsed_samples, list):
-                samples_list = [str(s) for s in parsed_samples if s][:10]
+            if whisper_segs:
+                _labels = await _ollama_label_speakers([s["text"] for s in whisper_segs])
+                transcript_segments = [
+                    {
+                        "start_ms": whisper_segs[i]["start_ms"],
+                        "speaker": _labels[i] if i < len(_labels) else "?",
+                        "text": whisper_segs[i]["text"],
+                    }
+                    for i in range(len(whisper_segs))
+                ]
+            else:
+                transcript_segments = await _ollama_attribute_speakers(transcript)
         except Exception:
-            samples_list = []
+            transcript_segments = []
+        if transcript_segments:
+            print(f"[call-audio-summary] {phone_digits} 화자분리 {len(transcript_segments)}발화")
 
-    # 5) 기존 /api/call-summary 와 같은 패턴으로 user message 빌드
-    user_lines: list[str] = []
-    user_lines.append("[고객 정보]")
-    user_lines.append(f"전화번호: {phone_digits}")
-    user_lines.append(f"이름: {customer_name or '미등록'}")
-    if customer_memo:
-        user_lines.append(f"메모: {customer_memo}")
-    user_lines.append("")
-    user_lines.append("[통화 메타]")
-    user_lines.append(f"방향: {direction}")
-    user_lines.append(f"길이(초): {duration_sec}")
-    user_lines.append(f"시작 시각(epoch ms): {started_at_ms}")
-    user_lines.append("")
-    user_lines.append("[통화 받아쓰기 — Whisper STT]")
-    raw = transcript
-    if len(raw) > 8000:
-        raw = raw[:8000] + "\n…(truncated)"
-    user_lines.append(raw)
-    user_msg = "\n".join(user_lines)
-
-    system_prompt = _build_summary_system_prompt(CALL_SUMMARY_SYSTEM, samples_list)
-
-    # §26 (2026-06-10) — 사장님 결정: 1차 Gemini 2.5 Flash + 2차 Haiku fallback
-    # Gemini Flash = Haiku 의 ~1/10 비용 + 정확도 동급/우수 + Paid tier 데이터 학습 X
-    # ollama (Qwen 7B) 는 화자 구분 부족으로 정확도 떨어져서 제외 (코드는 유지 — env 토글로 재활성 가능)
-    parsed = None
-    response = None  # Haiku Anthropic 응답 객체 (Gemini 일 땐 None)
-    used_llm = ""
-    gemini_usage: dict = {}
-    try:
-        # §26 fix (2026-06-10): 긴 통화 (4000+ 자 transcript) → 응답 풍부
-        # → 800 token 모자라서 응답 잘림 (JSONDecodeError: Unterminated string).
-        # 2000 token 으로 늘림 (Gemini 비용은 output token 기준 무시할 수준).
-        parsed, gemini_usage = await _call_gemini_json_for_summary(
-            system_prompt, user_msg, max_output_tokens=2000
-        )
-        used_llm = "gemini-2.5-flash"
         print(
-            f"[call-audio-summary] {phone_digits} → gemini OK "
-            f"(in={gemini_usage.get('promptTokenCount','?')} "
-            f"out={gemini_usage.get('candidatesTokenCount','?')})"
+            f"[call-audio-summary] {phone_digits} STT 완료 "
+            f"(audio={len(audio_data)//1024}KB transcript={len(transcript)}자)"
         )
-    except Exception as gemini_err:
-        print(
-            f"[call-audio-summary] {phone_digits} gemini 실패, Haiku fallback: "
-            f"{type(gemini_err).__name__}: {gemini_err}"
-        )
+
+        # 4) owner_tone_samples JSON 파싱 (실패 시 빈 list)
+        samples_list: list[str] = []
+        if owner_tone_samples:
+            try:
+                parsed_samples = json.loads(owner_tone_samples)
+                if isinstance(parsed_samples, list):
+                    samples_list = [str(s) for s in parsed_samples if s][:10]
+            except Exception:
+                samples_list = []
+
+        # 5) 기존 /api/call-summary 와 같은 패턴으로 user message 빌드
+        user_lines: list[str] = []
+        user_lines.append("[고객 정보]")
+        user_lines.append(f"전화번호: {phone_digits}")
+        user_lines.append(f"이름: {customer_name or '미등록'}")
+        if customer_memo:
+            user_lines.append(f"메모: {customer_memo}")
+        user_lines.append("")
+        user_lines.append("[통화 메타]")
+        user_lines.append(f"방향: {direction}")
+        user_lines.append(f"길이(초): {duration_sec}")
+        user_lines.append(f"시작 시각(epoch ms): {started_at_ms}")
+        user_lines.append("")
+        user_lines.append("[통화 받아쓰기 — Whisper STT]")
+        raw = transcript
+        if len(raw) > 8000:
+            raw = raw[:8000] + "\n…(truncated)"
+        user_lines.append(raw)
+        user_msg = "\n".join(user_lines)
+
+        system_prompt = _build_summary_system_prompt(CALL_SUMMARY_SYSTEM, samples_list)
+
+        # §26 (2026-06-10) — 사장님 결정: 1차 Gemini 2.5 Flash + 2차 Haiku fallback
+        # Gemini Flash = Haiku 의 ~1/10 비용 + 정확도 동급/우수 + Paid tier 데이터 학습 X
+        # ollama (Qwen 7B) 는 화자 구분 부족으로 정확도 떨어져서 제외 (코드는 유지 — env 토글로 재활성 가능)
+        parsed = None
+        response = None  # Haiku Anthropic 응답 객체 (Gemini 일 땐 None)
+        used_llm = ""
+        gemini_usage: dict = {}
         try:
-            # §26 fix (2026-06-10): 600 token 짧음 (Bad JSON 자름) → 1500 token.
-            parsed, response = await call_claude_json(
-                system_prompt=system_prompt,
-                user_msg=user_msg,
-                max_tokens=1500,
-                model=HAIKU_MODEL,
+            # §26 fix (2026-06-10): 긴 통화 (4000+ 자 transcript) → 응답 풍부
+            # → 800 token 모자라서 응답 잘림 (JSONDecodeError: Unterminated string).
+            # 2000 token 으로 늘림 (Gemini 비용은 output token 기준 무시할 수준).
+            parsed, gemini_usage = await _call_gemini_json_for_summary(
+                system_prompt, user_msg, max_output_tokens=2000
             )
-            used_llm = HAIKU_MODEL
-        except Exception as claude_err:
-            # §26 (2026-06-11) — Anthropic 4xx 명확화 (사장님 즉시 진단)
-            code, msg = _classify_llm_error(claude_err)
+            used_llm = "gemini-2.5-flash"
             print(
-                f"[call-audio-summary] {phone_digits} Haiku 도 실패: "
-                f"{type(claude_err).__name__}: {claude_err} → {code} '{msg}'"
+                f"[call-audio-summary] {phone_digits} → gemini OK "
+                f"(in={gemini_usage.get('promptTokenCount','?')} "
+                f"out={gemini_usage.get('candidatesTokenCount','?')})"
             )
-            raise HTTPException(code, msg)
+        except Exception as gemini_err:
+            print(
+                f"[call-audio-summary] {phone_digits} gemini 실패, Haiku fallback: "
+                f"{type(gemini_err).__name__}: {gemini_err}"
+            )
+            try:
+                # §26 fix (2026-06-10): 600 token 짧음 (Bad JSON 자름) → 1500 token.
+                parsed, response = await call_claude_json(
+                    system_prompt=system_prompt,
+                    user_msg=user_msg,
+                    max_tokens=1500,
+                    model=HAIKU_MODEL,
+                )
+                used_llm = HAIKU_MODEL
+            except Exception as claude_err:
+                # §26 (2026-06-11) — Anthropic 4xx 명확화 (사장님 즉시 진단)
+                code, msg = _classify_llm_error(claude_err)
+                print(
+                    f"[call-audio-summary] {phone_digits} Haiku 도 실패: "
+                    f"{type(claude_err).__name__}: {claude_err} → {code} '{msg}'"
+                )
+                raise HTTPException(code, msg)
 
-    # 비용 로깅: Haiku 일 때만 (Gemini Paid 비용은 별도 추적 안 함 — 매우 저렴)
-    if response is not None:
-        log_usage(phone_digits, "call-audio-summary", response)
-        _log_llm_usage_from_response("call-audio-summary", response)
-        usage = response.usage
-        print(
-            f"[call-audio-summary] {phone_digits} → ready haiku "
-            f"(in={getattr(usage,'input_tokens',0)} "
-            f"cache_read={getattr(usage,'cache_read_input_tokens',0)} "
-            f"out={getattr(usage,'output_tokens',0)})"
-        )
-    else:
-        print(f"[call-audio-summary] {phone_digits} → ready gemini")
+        # 비용 로깅: Haiku 일 때만 (Gemini Paid 비용은 별도 추적 안 함 — 매우 저렴)
+        if response is not None:
+            log_usage(phone_digits, "call-audio-summary", response)
+            _log_llm_usage_from_response("call-audio-summary", response)
+            usage = response.usage
+            print(
+                f"[call-audio-summary] {phone_digits} → ready haiku "
+                f"(in={getattr(usage,'input_tokens',0)} "
+                f"cache_read={getattr(usage,'cache_read_input_tokens',0)} "
+                f"out={getattr(usage,'output_tokens',0)})"
+            )
+        else:
+            print(f"[call-audio-summary] {phone_digits} → ready gemini")
 
-    try:
-        coerced = _coerce_call_summary(parsed)
-    except ValueError as e:
-        raise HTTPException(502, f"LLM 응답 형식 오류: {e}")
+        try:
+            coerced = _coerce_call_summary(parsed)
+        except ValueError as e:
+            raise HTTPException(502, f"LLM 응답 형식 오류: {e}")
 
-    response_payload = {
-        **coerced,
-        "transcript": transcript,
-        "transcript_raw": transcript_raw,   # exaone 보정 전 원문(앱 참고·감사용)
-        "transcript_segments": transcript_segments,  # 카톡 말풍선용 [{speaker,text}] (best-effort·없으면 [])
-        "phone": phone_digits,
-        "direction": direction,
-        "duration_sec": duration_sec,
-        "started_at_ms": started_at_ms,
-        "generated_at_ms": _now_ms(),
-    }
-    # 캐시 저장 (transcript 포함 — 같은 통화 재호출 시 STT+LLM 둘 다 0원)
-    summary_cache_set(phone_digits, "call-audio-summary", cache_ts, response_payload)
-    response_payload["_cache_hit"] = False
-    response_payload["cached"] = False  # §26 (2026-06-10) — 안드로이드 UX 분기용
-    return response_payload
+        response_payload = {
+            **coerced,
+            "transcript": transcript,
+            "transcript_raw": transcript_raw,   # exaone 보정 전 원문(앱 참고·감사용)
+            "transcript_segments": transcript_segments,  # 카톡 말풍선용 [{speaker,text}] (best-effort·없으면 [])
+            "phone": phone_digits,
+            "direction": direction,
+            "duration_sec": duration_sec,
+            "started_at_ms": started_at_ms,
+            "generated_at_ms": _now_ms(),
+        }
+        # 캐시 저장 (transcript 포함 — 같은 통화 재호출 시 STT+LLM 둘 다 0원)
+        summary_cache_set(phone_digits, "call-audio-summary", cache_ts, response_payload)
+        response_payload["_cache_hit"] = False
+        response_payload["cached"] = False  # §26 (2026-06-10) — 안드로이드 UX 분기용
+        return response_payload
 
 
 # ============================================================================
