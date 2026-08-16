@@ -25,7 +25,7 @@
 
   const host = document.createElement("div");
   host.id = "sgm-panel-host";
-  host.style.cssText = "position:fixed;right:18px;bottom:18px;z-index:2147483000;";
+  host.style.cssText = "position:fixed;left:18px;bottom:18px;z-index:2147483000;";
   const shadow = host.attachShadow({ mode: "open" });
   shadow.innerHTML = `
     <style>
@@ -115,7 +115,7 @@
         setOut("자동 넣기 실패: " + msg, "err");
         return;
       }
-      setOut("✓ 넣었어요! 네이버 본문 확인하세요. (소제목·인용구 자동은 다음 단계)", "ok");
+      setOut("✓ 넣었어요! 본문·굵게·인용구·구분선까지. (소제목은 다음 단계)", "ok");
     });
   }
   $("#go").addEventListener("click", doAuto);
