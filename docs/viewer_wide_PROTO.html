@@ -1,0 +1,220 @@
+<title>시공막내 웹 — 와이드 3열 (사진 + 글 생성 나란히, PC 전용)</title>
+<style>
+  :root{
+    --bg:#EEF1F4; --surface:#FFFFFF; --sunken:#F5F7F9; --ink:#181D27; --ink2:#4E5968; --ink3:#8B95A1; --line:#E5E9EE;
+    --blue:#3182F6; --blue-bg:#EDF3FF; --blue-line:#D3E2FB;
+    --green:#12B886; --green-bg:#E6F9F1;
+    --violet:#6E5FC7; --violet-bg:#F0EDFB; --violet-line:#C9BEF2;
+    --ig:#C13584; --ig-bg:#FCEEF5; --th:#181D27; --th-bg:#EDEFF2;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic","Apple SD Gothic Neo",Roboto,sans-serif;
+    --shadow:0 1px 2px rgba(16,24,40,.04),0 6px 22px rgba(16,24,40,.06);
+  }
+  @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0C0F14;--surface:#161A21;--sunken:#11151B;--ink:#F0F2F5;--ink2:#AEB6C1;--ink3:#79828D;--line:#242A33;
+    --blue-bg:#121E30;--blue-line:#22344d;--green-bg:#0f2620;--violet-bg:#191633;--violet-line:#2c2551;--ig-bg:#2a1420;--th-bg:#1c222b;--shadow:0 6px 24px rgba(0,0,0,.5);
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0C0F14;--surface:#161A21;--sunken:#11151B;--ink:#F0F2F5;--ink2:#AEB6C1;--ink3:#79828D;--line:#242A33;
+    --blue-bg:#121E30;--blue-line:#22344d;--green-bg:#0f2620;--violet-bg:#191633;--violet-line:#2c2551;--ig-bg:#2a1420;--th-bg:#1c222b;--shadow:0 6px 24px rgba(0,0,0,.5);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.55;-webkit-font-smoothing:antialiased}
+  .top{max-width:1720px;margin:0 auto;padding:22px 30px 0}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:800;color:var(--blue);background:var(--blue-bg);border:1px solid var(--blue-line);border-radius:999px;padding:6px 14px}
+  h1{font-size:23px;font-weight:850;letter-spacing:-.02em;margin:11px 0 5px}
+  .subtitle{font-size:13.5px;color:var(--ink2);margin:0 0 16px;line-height:1.55}
+
+  .workspace{max-width:1720px;margin:0 auto;padding:0 30px 44px}
+  .wcard{background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);overflow:hidden}
+  .wtop{display:flex;align-items:center;gap:10px;padding:13px 22px;border-bottom:1px solid var(--line)}
+  .vchip{font-size:12px;font-weight:800;color:var(--ink2);background:var(--sunken);border-radius:999px;padding:6px 13px;display:inline-flex;align-items:center;gap:6px}
+  .who{margin-left:auto;font-size:12.5px;font-weight:800;color:var(--ink2);display:flex;align-items:center;gap:8px;cursor:pointer}
+  .who .av{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,#3182F6,#6E5FC7);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px}
+
+  .cols{display:grid;grid-template-columns:274px minmax(0,1fr) 452px;min-height:660px}
+  .col-l{border-right:1px solid var(--line);padding:16px 15px;overflow:auto}
+  .col-m{border-right:1px solid var(--line);padding:20px 22px;overflow:auto;min-width:0}
+  .col-r{padding:0;background:var(--sunken);display:flex;flex-direction:column;min-width:0}
+
+  /* 좌: 검색·달력·목록 */
+  .search{width:100%;font-size:13px;background:var(--sunken);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--ink);margin-bottom:14px}
+  .calh{display:flex;align-items:center;margin:2px 2px 8px}
+  .calh .m{font-size:14.5px;font-weight:850}.calh .nav{margin-left:auto;display:flex;gap:4px}
+  .calh .nav span{width:24px;height:24px;border-radius:7px;background:var(--sunken);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--ink2);cursor:pointer}
+  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;font-size:11.5px}
+  .cal .dow{text-align:center;color:var(--ink3);font-weight:700;padding:3px 0}
+  .cal .d{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:8px;color:var(--ink2);font-weight:700;position:relative;cursor:pointer}
+  .cal .d.has{color:var(--ink)} .cal .d.today{background:var(--blue);color:#fff}
+  .cal .d .dt{position:absolute;bottom:3px;width:4px;height:4px;border-radius:50%;background:var(--blue)}
+  .cal .d.pic .dt{background:var(--ink3);width:9px;height:6px;border-radius:2px}
+  .calleg{font-size:10.5px;color:var(--ink3);margin:9px 2px 4px;display:flex;gap:12px}
+  .listh{font-size:12.5px;font-weight:850;margin:16px 2px 8px;display:flex}.listh .c{margin-left:auto;font-size:11px;color:var(--ink3);font-weight:700}
+  .site{border:1px solid var(--line);border-radius:11px;padding:10px 12px;margin-bottom:7px;cursor:pointer;display:flex;gap:11px;align-items:center}
+  .site.on{border-color:var(--blue-line);background:var(--blue-bg)}
+  .site .dd{flex:none;text-align:center;width:30px}.site .dd .mm{font-size:9px;color:var(--ink3);font-weight:700}.site .dd .n{font-size:15px;font-weight:850}
+  .site .mid{flex:1;min-width:0}.site .nm{font-size:12.5px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.site .sub{font-size:11px;color:var(--ink3);margin-top:1px}
+  .site .st{font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:6px}
+  .site .st.done{color:var(--green);background:var(--green-bg)} .site .st.go{color:var(--blue);background:var(--blue-bg)}
+
+  /* 가운데: 현장 헤더 + 사진 */
+  .mh{font-size:19px;font-weight:850;letter-spacing:-.02em}
+  .msub{font-size:12.5px;color:var(--ink3);margin-top:3px}
+  .mchips{display:flex;gap:6px;margin:11px 0 4px;flex-wrap:wrap}
+  .mchips .c{font-size:12px;font-weight:800;background:var(--sunken);color:var(--ink2);border-radius:8px;padding:4px 10px}
+  .mchips .c.g{color:var(--green)}
+  .viewonly{background:var(--blue-bg);border:1px solid var(--blue-line);border-radius:11px;padding:11px 14px;font-size:12px;color:var(--ink2);line-height:1.6;margin:14px 0 6px}
+  .viewonly b{color:var(--blue)}
+  .seg{display:flex;gap:8px;margin:16px 0 12px;font-size:12.5px;font-weight:800;color:var(--ink3)}
+  .seg .s.on{color:var(--ink)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+  .ph{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface)}
+  .ph .im{aspect-ratio:4/3;background:linear-gradient(135deg,#c9d3de,#e6ecf2);position:relative}
+  .ph .im.a{background:linear-gradient(135deg,#b9c6d3,#d6dee7)} .ph .im.b{background:linear-gradient(135deg,#cdd7e0,#eef2f6)}
+  .ph .tag{position:absolute;left:8px;top:8px;font-size:10.5px;font-weight:800;color:#fff;background:rgba(24,29,39,.62);border-radius:6px;padding:2px 8px}
+  .ph .tag.post{background:rgba(18,110,106,.75)}
+  .ph .dl{position:absolute;right:8px;bottom:8px;width:26px;height:26px;border-radius:8px;background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer}
+  .ph .cap{padding:8px 10px;font-size:11px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* 오른쪽: 글 생성 (컨텐츠 영역) */
+  .rh{padding:16px 20px 12px;border-bottom:1px solid var(--line)}
+  .rh .t{font-size:15px;font-weight:850;display:flex;align-items:center;gap:7px}
+  .rh .d{font-size:12px;color:var(--ink3);margin-top:4px;line-height:1.5}
+  .rbody{padding:14px 18px 22px;overflow:auto;flex:1}
+  .persona{display:flex;gap:10px;background:var(--violet-bg);border:1px solid var(--violet-line);border-radius:12px;padding:11px 13px;margin-bottom:14px}
+  .persona .ic{font-size:15px;flex:none;margin-top:1px}.persona .k{font-size:10px;font-weight:800;color:var(--violet);margin-bottom:3px}.persona .tx{font-size:12.5px;color:var(--ink);font-weight:600;line-height:1.5}
+  .plat{background:var(--surface);border:1px solid var(--line);border-radius:13px;margin-bottom:11px;overflow:hidden}
+  .plathead{display:flex;align-items:center;gap:11px;padding:13px 14px}
+  .plathead .pic{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex:none}
+  .plat.bl .pic{background:var(--violet-bg)}.plat.ig .pic{background:var(--ig-bg)}.plat.th .pic{background:var(--th-bg)}
+  .plathead .pi{flex:1;min-width:0}.plathead .pn{font-size:13.5px;font-weight:850}.plathead .ph2{font-size:11px;color:var(--ink3);font-weight:600;margin-top:1px}
+  .plathead .ph2 .set{color:var(--green);font-weight:800}
+  .tbtn{flex:none;font-size:11px;font-weight:800;border:1px solid var(--line);background:var(--surface);color:var(--ink2);border-radius:8px;padding:7px 9px;cursor:pointer}
+  .mbtn{flex:none;font-size:12px;font-weight:800;color:#fff;border:none;border-radius:9px;padding:8px 13px;cursor:pointer}
+  .plat.bl .mbtn{background:var(--violet)}.plat.ig .mbtn{background:var(--ig)}.plat.th .mbtn{background:var(--th);color:#fff}
+  :root[data-theme="dark"] .plat.th .mbtn{color:#181D27}
+  .fold{max-height:0;overflow:hidden;transition:max-height .38s ease;background:var(--sunken);border-top:1px solid var(--line)}
+  .fold.open{max-height:900px}
+  .foldin{padding:12px 14px}
+  .tphint{font-size:11.5px;color:var(--ink2);line-height:1.55;margin-bottom:9px}
+  .rin{width:100%;font-size:12.5px;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:10px 11px;color:var(--ink);font-family:inherit;margin-bottom:8px}
+  .anz{font-size:11.5px;font-weight:800;color:#fff;background:var(--violet);border:none;border-radius:9px;padding:9px 13px;cursor:pointer}
+  .plat.ig .anz{background:var(--ig)}.plat.th .anz{background:var(--th);color:#fff}
+  :root[data-theme="dark"] .plat.th .anz{color:#181D27}
+  .lchips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.lchip{font-size:11px;font-weight:800;color:var(--ink2);background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:3px 8px}
+  .gen{font-size:12.5px;color:var(--ink);line-height:1.7;white-space:pre-wrap;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 13px}
+  .gen h4{font-size:14px;font-weight:850;margin:0 0 8px}
+  .genacts{display:flex;gap:6px;margin-top:9px}.gpill{font-size:11px;font-weight:800;border:1px solid var(--line);background:var(--surface);color:var(--ink2);border-radius:7px;padding:6px 10px;cursor:pointer}.gpill.p{background:var(--blue);color:#fff;border-color:var(--blue)}
+
+  .wnote{max-width:1720px;margin:16px auto 0;padding:0 30px}
+  .end{background:var(--surface);border:2px solid var(--violet);border-radius:14px;padding:14px 17px;font-size:13px;line-height:1.6}
+</style>
+
+<div class="top">
+  <span class="pill">🖥️ 시공막내 웹 · 시공 사진</span>
+  <h1>PC에서 시공 사진 골라 블로그용으로 다운로드 <span style="font-size:13px;color:var(--ink3);font-weight:700">· 와이드(PC 전용)</span></h1>
+  <p class="subtitle">넓은 화면을 꽉 써서 — <b>왼쪽 현장 목록 · 가운데 사진 · 오른쪽 글 생성</b>을 한눈에. 사진 보면서 옆에서 바로 글 만들어요.</p>
+</div>
+
+<div class="workspace">
+  <div class="wcard">
+    <div class="wtop">
+      <span class="vchip">👁️ 보기 전용</span>
+      <span class="vchip">📅 2026년 8월</span>
+      <span class="who"><span class="av">막</span> 이 PC 로그인됨 · 마이페이지 ›</span>
+    </div>
+
+    <div class="cols">
+      <!-- 왼쪽: 현장 목록 -->
+      <div class="col-l">
+        <input class="search" placeholder="🔍 아파트명·고객명으로 검색…">
+        <div class="calh"><span class="m">2026년 8월</span><span class="nav"><span>‹</span><span>›</span></span></div>
+        <div class="cal">
+          <div class="dow">일</div><div class="dow">월</div><div class="dow">화</div><div class="dow">수</div><div class="dow">목</div><div class="dow">금</div><div class="dow">토</div>
+          <div class="d"></div><div class="d"></div><div class="d has">1</div><div class="d has pic">2</div><div class="d has pic">3</div><div class="d has pic">4</div><div class="d has">5</div>
+          <div class="d has">6</div><div class="d has">7</div><div class="d has">8</div><div class="d has pic">9</div><div class="d has pic">10</div><div class="d has pic">11</div><div class="d has">12</div>
+          <div class="d">13</div><div class="d">14</div><div class="d has pic">15</div><div class="d">16</div><div class="d today">17</div><div class="d">18</div><div class="d">19</div>
+          <div class="d">20</div><div class="d">21</div><div class="d">22</div><div class="d">23</div><div class="d">24</div><div class="d">25</div><div class="d">26</div>
+          <div class="d">27</div><div class="d">28</div><div class="d">29</div><div class="d">30</div><div class="d">31</div>
+        </div>
+        <div class="calleg"><span>🔵 시공 있는 날</span><span>⬛ 사진 올라온 날</span></div>
+        <div class="listh">이 달 시공 현장 <span class="c">7곳 · 최근순</span></div>
+        <div class="site on"><div class="dd"><div class="mm">8월</div><div class="n">15</div></div><div class="mid"><div class="nm">서울 서대문구 응암로 28…</div><div class="sub">현장 · 시공 완료 · 📷 9</div></div><span class="st done">완료</span></div>
+        <div class="site"><div class="dd"><div class="mm">8월</div><div class="n">17</div></div><div class="mid"><div class="nm">자기</div><div class="sub">자기 · 시공 대기</div></div><span class="st go">진행중</span></div>
+        <div class="site"><div class="dd"><div class="mm">8월</div><div class="n">11</div></div><div class="mid"><div class="nm">경기 화성시 병점구 병점로 31…</div><div class="sub">현장 · 시공 대기 · 📷 9</div></div><span class="st done">완료</span></div>
+        <div class="site"><div class="dd"><div class="mm">8월</div><div class="n">10</div></div><div class="mid"><div class="nm">경기 과천시 과천대로 112…</div><div class="sub">현장 · 시공 대기 · 📷 9</div></div><span class="st go">진행중</span></div>
+        <div class="site"><div class="dd"><div class="mm">8월</div><div class="n">5</div></div><div class="mid"><div class="nm">경기 시흥시 도일로124번길 2…</div><div class="sub">시흥 거모동 목욕탕</div></div><span class="st go">진행중</span></div>
+      </div>
+
+      <!-- 가운데: 사진 -->
+      <div class="col-m">
+        <div class="mh">서울 서대문구 응암로 28 · 화장실 3곳</div>
+        <div class="msub">고객 현장 · 시공 완료</div>
+        <div class="mchips"><span class="c">📅 시공일 2026-08-15</span><span class="c g">✅ 시공 완료</span><span class="c">📷 9장 (협업 사장)</span></div>
+        <div class="viewonly">👁️ <b>보기 전용</b> — 보고·다운로드만. 사진 수정·삭제는 폰 앱에서만. 부위 태그는 다운로드 이름에만, 서버 사진은 안 건드려요 👍</div>
+        <div class="seg"><span class="s">시공 전</span>·<span class="s on">시공 후</span> — 올린 시간순 자동 구분</div>
+        <div class="grid">
+          <div class="ph"><div class="im"><span class="tag">시공 전</span><span class="dl">⬇</span></div><div class="cap">거실화장실 · 01.jpg</div></div>
+          <div class="ph"><div class="im a"><span class="tag">시공 전</span><span class="dl">⬇</span></div><div class="cap">거실화장실 · 02.jpg</div></div>
+          <div class="ph"><div class="im b"><span class="tag">시공 전</span><span class="dl">⬇</span></div><div class="cap">안방화장실 · 03.jpg</div></div>
+          <div class="ph"><div class="im b"><span class="tag post">시공 후</span><span class="dl">⬇</span></div><div class="cap">거실화장실 · 04.jpg</div></div>
+          <div class="ph"><div class="im"><span class="tag post">시공 후</span><span class="dl">⬇</span></div><div class="cap">거실화장실 · 05.jpg</div></div>
+          <div class="ph"><div class="im a"><span class="tag post">시공 후</span><span class="dl">⬇</span></div><div class="cap">안방화장실 · 06.jpg</div></div>
+          <div class="ph"><div class="im a"><span class="tag post">시공 후</span><span class="dl">⬇</span></div><div class="cap">현관 · 07.jpg</div></div>
+          <div class="ph"><div class="im b"><span class="tag post">시공 후</span><span class="dl">⬇</span></div><div class="cap">베란다 · 08.jpg</div></div>
+          <div class="ph"><div class="im"><span class="tag post">시공 후</span><span class="dl">⬇</span></div><div class="cap">거실화장실 · 09.jpg</div></div>
+        </div>
+      </div>
+
+      <!-- 오른쪽: 글 생성 -->
+      <div class="col-r">
+        <div class="rh">
+          <div class="t">✨ 글 만들기 <span style="font-size:11px;font-weight:800;color:var(--ink3)">· 블로그·인스타·스레드</span></div>
+          <div class="d">통화·메모·문자로 이 현장 마케팅 글을 자동으로. 플랫폼마다 🎯 톤 눌러 따라할 스타일 지정. (내 Gemini 키)</div>
+        </div>
+        <div class="rbody">
+          <div class="persona"><span class="ic">🧭</span><div><div class="k">이 현장은</div><div class="tx">화장실 3곳 타일이 낡아 “보수 될까요?” 문의 → 상담 후 벽·바닥 전체 보수로 결정.</div></div></div>
+
+          <div class="plat bl">
+            <div class="plathead"><span class="pic">📝</span><span class="pi"><span class="pn">블로그</span><span class="ph2">~1,120자 · 톤 <span class="set">내 스타일 ✓</span></span></span><button class="tbtn" onclick="tf('bl')">🎯 톤</button><button class="mbtn" onclick="gf('bl')">✨ 만들기</button></div>
+            <div class="fold" id="t-bl"><div class="foldin"><div class="tphint">따라할 <b>블로그 글 주소</b> 넣고 분석 → 그 톤 반영.</div><input class="rin" value="blog.naver.com/detailline_zzulnun/223011234567"><button class="anz" onclick="toast('톤 분석 완료 · 반영됨 ✓')">✨ 분석</button><div class="lchips"><span class="lchip">존댓말·친근</span><span class="lchip">과장 없이 정직</span><span class="lchip">현장 사진 위주</span></div></div></div>
+            <div class="fold" id="g-bl"><div class="foldin"><div class="gen"><h4>동탄 아파트 화장실 3곳 — 부분보수 대신 전체 보수로</h4>경기 동탄의 한 아파트 화장실 시공 후기입니다. “타일 상태가 안 좋은데 보수 될까요?” 문의를 주셨고, 처음엔 바닥만 생각하셨어요. 그런데 벽·줄눈까지 노후돼 세 곳 전체로 잡는 게 낫다고 정직하게 말씀드렸고… (약 1,120자)</div><div class="genacts"><span class="gpill" onclick="gf('bl',1)">↻ 다시</span><span class="gpill p" onclick="toast('복사됨 ✓')">📋 복사</span></div></div></div>
+          </div>
+
+          <div class="plat ig">
+            <div class="plathead"><span class="pic">📷</span><span class="pi"><span class="pn">인스타그램</span><span class="ph2">짧게+해시태그15 · 톤 기본</span></span><button class="tbtn" onclick="tf('ig')">🎯 톤</button><button class="mbtn" onclick="gf('ig')">✨ 만들기</button></div>
+            <div class="fold" id="t-ig"><div class="foldin"><div class="tphint">계정 주소 or 마음에 드는 <b>캡션 붙여넣기</b>.</div><input class="rin" placeholder="instagram.com/따라할_계정 (또는 캡션)"><button class="anz" onclick="toast('인스타 톤 분석 완료 ✓')">✨ 분석</button></div></div>
+            <div class="fold" id="g-ig"><div class="foldin"><div class="gen">🚽 화장실 타일, "부분만 살짝" 하려다 전체 보수로 ✨
+
+처음엔 바닥만 생각하셨던 고객님.
+근데 3곳 다 벽·바닥·줄눈까지 노후 😮
+
+✅ 들뜬 타일·낡은 줄눈 정리
+✅ 세 곳 같은 톤으로 마감
+
+#화장실타일 #줄눈시공 #동탄줄눈 …(15개)</div><div class="genacts"><span class="gpill" onclick="gf('ig',1)">↻ 다시</span><span class="gpill p" onclick="toast('복사됨 ✓')">📋 본문</span></div></div></div>
+          </div>
+
+          <div class="plat th">
+            <div class="plathead"><span class="pic">🧵</span><span class="pi"><span class="pn">스레드</span><span class="ph2">대화체+해시태그2 · 톤 기본</span></span><button class="tbtn" onclick="tf('th')">🎯 톤</button><button class="mbtn" onclick="gf('th')">✨ 만들기</button></div>
+            <div class="fold" id="t-th"><div class="foldin"><div class="tphint">마음에 드는 <b>스레드 글 붙여넣기</b>.</div><input class="rin" placeholder="따라할 스레드 글 붙여넣기"><button class="anz" onclick="toast('스레드 톤 분석 완료 ✓')">✨ 분석</button></div></div>
+            <div class="fold" id="g-th"><div class="foldin"><div class="gen">화장실 타일 "부분만 살짝" 보수, 저는 웬만하면 안 권해요.
+
+부분만 손대면 그 자리만 튀어서 오히려 더 티나요. 그래서 세 곳 다 한 번에 잡는 게 낫다고 말씀드렸습니다. 진짜 그게 오래가요.
+
+#줄눈시공 #화장실타일</div><div class="genacts"><span class="gpill" onclick="gf('th',1)">↻ 다시</span><span class="gpill p" onclick="toast('복사됨 ✓')">📋 복사</span></div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="wnote">
+  <div class="end"><b>와이드 3열 (PC 전용) 제안:</b> 지금은 가운데 ~1100px 정렬이라 양옆이 놀아요. 넓은 화면을 써서 — <b>현장 목록(좌) · 사진(중) · 글 생성(우)</b>을 한 화면에. 사진 보면서 <b>옆에서 바로</b> 플랫폼별 톤 지정+글 생성. 왔다갔다 없이. (좁은 화면에선 자동으로 접혀 위아래로)</div>
+</div>
+
+<script>
+  function tf(p){document.getElementById('t-'+p).classList.toggle('open');}
+  function gf(p,re){var g=document.getElementById('g-'+p);if(g.classList.contains('open')&&!re){g.classList.remove('open');return;}g.classList.add('open');}
+  var tt;function toast(m){var el=document.createElement('div');el.textContent=m;el.style.cssText='position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:rgba(24,29,39,.94);color:#fff;font-size:13px;font-weight:700;padding:11px 20px;border-radius:999px;z-index:99';document.body.appendChild(el);clearTimeout(tt);tt=setTimeout(function(){el.remove();},1400);}
+</script>
