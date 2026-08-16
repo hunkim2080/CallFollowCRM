@@ -56,6 +56,7 @@
       .btn:active{transform:scale(.98)} .btn:disabled{background:#C9D0D8;cursor:default;transform:none}
       .btn.sub{background:#fff;color:#03C75A;border:1.5px solid #03C75A;font-size:13px;padding:10px}
       .btn.save{background:#F0F3F7;color:#4E5968;font-size:13px;padding:10px;margin-top:8px}
+      .btn.load{background:#EDF3FF;color:#3182F6;font-size:13px;padding:11px;margin-top:0}
       .titleInput{width:100%;border:1px solid #E5E9EE;border-radius:11px;padding:9px 11px;font-size:13px;font-weight:700;color:#181D27;background:#F5F7F9;outline:none;margin-bottom:9px}
       .titleInput:focus{border-color:#03C75A;background:#fff}
       .sep{height:1px;background:#EEF1F4;margin:13px -13px}
@@ -74,6 +75,12 @@
     <div class="wrap">
       <div class="hd"><span class="t">🧩 시공막내 · <b>네이버 넣기</b></span><button class="x" id="min" title="접기">—</button></div>
       <div class="body">
+        <button class="btn load" id="loadBtn">⬇ 시공막내에서 생성한 글 불러오기</button>
+        <div id="phoneRow" style="display:none;margin-top:7px">
+          <input type="text" id="phone" class="titleInput" placeholder="내 전화번호 (한 번만 · 예 01012345678)">
+          <button class="mini" id="phoneSave" style="width:100%;padding:7px">저장하고 불러오기</button>
+        </div>
+        <div class="sep"></div>
         <div class="row" style="margin-bottom:5px"><span class="lbl">제목</span></div>
         <input type="text" id="title" class="titleInput" placeholder="블로그 글 제목 (선택)">
         <div class="row"><span class="lbl">네이버에 넣을 글</span><button class="mini" id="sample">예시 넣기</button></div>
@@ -101,22 +108,53 @@
   const setOut = (m, k) => { const o = $("#out"); o.textContent = m || ""; o.className = "out" + (k ? " " + k : ""); };
   const send = (msg) => new Promise((res) => chrome.runtime.sendMessage(msg, (r) => res(chrome.runtime.lastError ? null : r)));
 
-  let photos = []; // File[]
+  let photos = []; // [{index, blob, name}]
+  function renderThumbs() {
+    const t = $("#thumbs"); t.innerHTML = "";
+    photos.forEach((p) => {
+      const d = document.createElement("div"); d.className = "thumb";
+      const img = document.createElement("img"); img.src = URL.createObjectURL(p.blob);
+      const n = document.createElement("span"); n.className = "n"; n.textContent = String(p.index);
+      d.appendChild(img); d.appendChild(n); t.appendChild(d);
+    });
+  }
 
   $("#sample").addEventListener("click", () => { $("#text").value = SAMPLE; setOut("", ""); });
   $("#min").addEventListener("click", () => host.classList.add("min"));
   $("#pill").addEventListener("click", () => host.classList.remove("min"));
   $("#pick").addEventListener("click", () => $("#file").click());
   $("#file").addEventListener("change", (e) => {
-    photos = Array.prototype.slice.call(e.target.files || []);
-    const t = $("#thumbs"); t.innerHTML = "";
-    photos.forEach((f, i) => {
-      const d = document.createElement("div"); d.className = "thumb";
-      const img = document.createElement("img"); img.src = URL.createObjectURL(f);
-      const n = document.createElement("span"); n.className = "n"; n.textContent = String(i + 1);
-      d.appendChild(img); d.appendChild(n); t.appendChild(d);
-    });
+    const files = Array.prototype.slice.call(e.target.files || []);
+    photos = files.map((f, i) => ({ index: i + 1, blob: f, name: f.name }));
+    renderThumbs();
     setOut(photos.length ? `사진 ${photos.length}장 준비됨` : "", "");
+  });
+
+  // ── 시공막내 글 불러오기 (서버에서 제목·글·사진 당겨오기) ──
+  function getPhone() { return new Promise((res) => { try { chrome.storage.local.get("sgmPhone", (o) => res((o && o.sgmPhone) || "")); } catch (e) { res(""); } }); }
+  function savePhone(p) { return new Promise((res) => { try { chrome.storage.local.set({ sgmPhone: p }, () => res()); } catch (e) { res(); } }); }
+  const dataUrlToBlob = (u) => fetch(u).then((r) => r.blob());
+
+  async function doLoad() {
+    const phone = await getPhone();
+    if (!phone) { $("#phoneRow").style.display = "block"; setOut("내 전화번호를 한 번만 입력해 주세요(생성 글 찾기용).", ""); return; }
+    setOut("⏳ 불러오는 중…", "work");
+    const resp = await send({ type: "SGM_LOAD", phone });
+    if (!resp || !resp.ok) { setOut("아직 못 불러와요: " + ((resp && resp.error) || "오류") + " (웹 글만들기 배포 후 돼요)", "err"); return; }
+    if (resp.title) $("#title").value = resp.title;
+    if (resp.draft) $("#text").value = resp.draft;
+    photos = [];
+    if (Array.isArray(resp.photos) && resp.photos.length) {
+      for (const ph of resp.photos) { try { const b = await dataUrlToBlob(ph.dataUrl); photos.push({ index: ph.index, blob: b, name: "photo" + ph.index }); } catch (e) {} }
+      renderThumbs();
+    }
+    setOut(`✓ 불러왔어요! 제목·글${photos.length ? ` · 사진 ${photos.length}장` : ""} — 확인 후 [자동으로 넣기]`, "ok");
+  }
+  $("#loadBtn").addEventListener("click", doLoad);
+  $("#phoneSave").addEventListener("click", async () => {
+    const p = ($("#phone").value || "").replace(/\D/g, "");
+    if (p.length < 9) { setOut("전화번호를 확인해 주세요.", "err"); return; }
+    await savePhone(p); $("#phoneRow").style.display = "none"; doLoad();
   });
 
   // ── 글 자동 넣기 ──
@@ -162,10 +200,10 @@
     for (let i = 0; i < photos.length; i++) {
       setOut(`⏳ 사진 ${i + 1}/${photos.length} 넣는 중 — 건드리지 마세요!`, "work");
       let png;
-      try { png = await toPng(photos[i]); } catch (e) { setOut(`사진 ${i + 1} 변환 실패: ${String(e.message || e).slice(0, 50)}`, "err"); break; }
+      try { png = await toPng(photos[i].blob); } catch (e) { setOut(`사진 ${i + 1} 변환 실패: ${String(e.message || e).slice(0, 50)}`, "err"); break; }
       try { await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]); }
       catch (e) { setOut(`사진 ${i + 1} 클립보드 실패(브라우저 제한): ${String(e.message || e).slice(0, 50)}`, "err"); break; }
-      const resp = await send({ type: "SGM_PHOTO", index: i + 1 });
+      const resp = await send({ type: "SGM_PHOTO", index: photos[i].index });
       if (!resp || !resp.ok) { setOut(`사진 ${i + 1} 넣기 실패: ${(resp && resp.error) || "오류"}`, "err"); break; }
       done++;
       if (resp.placed) placed++;

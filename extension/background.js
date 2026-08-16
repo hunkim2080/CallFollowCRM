@@ -28,7 +28,47 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       .catch((e) => sendResponse({ ok: false, error: String((e && e.message) || e).slice(0, 160) }));
     return true;
   }
+  if (msg && msg.type === "SGM_LOAD") {
+    loadDraft(msg.phone).then(sendResponse)
+      .catch((e) => sendResponse({ ok: false, error: String((e && e.message) || e).slice(0, 160) }));
+    return true;
+  }
 });
+
+// ── 시공막내(si0in.kr)에서 생성 글 불러오기 ── CORS 안전하게 background 에서 fetch.
+function bufToB64(buf) {
+  const b = new Uint8Array(buf); let s = ""; const chunk = 0x8000;
+  for (let i = 0; i < b.length; i += chunk) s += String.fromCharCode.apply(null, b.subarray(i, i + chunk));
+  return btoa(s);
+}
+async function loadDraft(phone) {
+  const digits = String(phone || "").replace(/\D/g, "");
+  if (digits.length < 9) return { ok: false, error: "내 전화번호를 확인해 주세요." };
+  let data;
+  try {
+    const res = await fetch(`https://api.si0in.kr/api/web/naver-draft?phone=${encodeURIComponent(digits)}`, { headers: { Accept: "application/json" } });
+    if (!res.ok) return { ok: false, error: "서버 응답 " + res.status + " (아직 준비 안 됐을 수 있어요)" };
+    data = await res.json();
+  } catch (e) {
+    return { ok: false, error: "서버 연결 실패(준비 중일 수 있어요): " + String((e && e.message) || e).slice(0, 60) };
+  }
+  if (!data || !data.ok) return { ok: false, error: (data && data.error) || "불러올 글이 없어요." };
+  // 사진 URL → dataURL (background 가 받아서 패널로 전달)
+  const photos = [];
+  if (Array.isArray(data.photos)) {
+    for (const ph of data.photos) {
+      if (!ph || !ph.url) continue;
+      try {
+        const r = await fetch(ph.url);
+        if (!r.ok) continue;
+        const buf = await r.arrayBuffer();
+        const type = r.headers.get("content-type") || "image/jpeg";
+        photos.push({ index: ph.index, dataUrl: "data:" + type + ";base64," + bufToB64(buf) });
+      } catch (e) { /* 개별 사진 실패는 건너뜀 */ }
+    }
+  }
+  return { ok: true, title: data.title || "", draft: data.draft || "", photos };
+}
 
 // ── CDP 헬퍼 ──
 function dbgAttach(target) {

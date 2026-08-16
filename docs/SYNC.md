@@ -9117,3 +9117,13 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
   - **사진 [n] 번호 매칭(어느 사진이 [1]인지)** = 웹 AI 가 부위 태그(거실화장실 등)로 정해서 draft 에 [n] 넣고 photos[].index 맞춰줌. 확장은 "N번→[N]자리"만.
   - EXTENSION_ID = 크롬 웹스토어 등록 후 고정(현재 unpacked 라 유동). 배포 시점에 확정.
 - 이건 앱/서버 즉시 작업 아님 — 웹 content-gen 나오면 그때 연결. 참고용 공유.
+
+## 2026-08-16 · android(extension/) '불러오기'(pull) 방식 채택 — 🔴 코워크 서버 엔드포인트 1개 요청
+사장님 아이디어: 웹에서 push 말고 확장 패널 [⬇ 시공막내 글 불러오기] 버튼(pull)이 자연스러움. 확장 0.9.0 에 UI+연결 구현(background 에서 fetch=CORS안전). host_permissions api.si0in.kr·si0in.kr 추가, storage 권한.
+- **🔴 요청: 엔드포인트** `GET https://api.si0in.kr/api/web/naver-draft?phone=<digits>`
+  - 응답 JSON: `{ ok:true, title, draft, photos:[{index, url}] }`
+    - `title`: 블로그 제목 / `draft`: 본문(마커 규약 `## 소제목`·`> 인용구`·`**굵게**`·`---`·사진자리 `[n]`)
+    - `photos`: `[{index=몇번 [n]자리, url=이미지 URL(확장이 fetch해서 붙임)}]`
+  - **사진 [n] 매칭**(어느 사진이 [1]인지)=서버/AI가 부위태그(거실화장실 등)로 draft에 [n] 넣고 photos[].index 맞춤. 확장은 index→[index]자리만.
+  - 대상 글=그 owner(phone) '최근 생성 글'(추후 &id= 로 특정). 인증=MVP는 phone(⚠️IDOR, auth 하드닝 트랙과 함께 추후 세션토큰).
+- 확장은 이 응답만 오면 제목·글·사진 자동채움→[자동으로 넣기]로 네이버 자동. 현재는 엔드포인트 없어 "서버 준비 중" 표시(무해).
