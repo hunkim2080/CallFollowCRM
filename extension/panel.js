@@ -6,6 +6,20 @@
 
 (function () {
   if (window.__sgmPanelMounted) return;
+
+  // 글쓰기 에디터에서만 패널 노출 — 블로그 홈/글읽기 등 다른 페이지에선 안 뜸.
+  // (2026-08-17 사장님 지적: "블로그만 들어가면 나오네". 네이버 글쓰기 = ?Redirect=Write 또는 PostWriteForm)
+  function isWritePage() {
+    try {
+      var u = location.href;
+      if (/[?&]Redirect=Write/i.test(u) || /PostWriteForm/i.test(u) || /\/postwrite\b/i.test(location.pathname)) return true;
+      var mf = document.querySelector("#mainFrame");
+      if (mf && /Write|PostWriteForm/i.test(mf.getAttribute("src") || "")) return true;
+    } catch (e) {}
+    return false;
+  }
+  if (!isWritePage()) return; // 에디터 아니면 아무것도 mount 안 함
+
   window.__sgmPanelMounted = true;
 
   const SAMPLE = [
