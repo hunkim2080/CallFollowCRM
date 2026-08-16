@@ -1,0 +1,150 @@
+<title>시공막내 웹 — 블로그 글 편집 (수정·드래그·서식·부위 매칭)</title>
+<style>
+  :root{
+    --bg:#EEF1F4; --surface:#FFFFFF; --sunken:#F5F7F9; --ink:#181D27; --ink2:#4E5968; --ink3:#8B95A1; --line:#E5E9EE;
+    --blue:#3182F6; --blue-bg:#EDF3FF; --blue-line:#D3E2FB; --green:#12B886; --green-bg:#E6F9F1;
+    --violet:#6E5FC7; --violet-bg:#F0EDFB; --violet-line:#C9BEF2;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic","Apple SD Gothic Neo",Roboto,sans-serif;
+    --shadow:0 1px 2px rgba(16,24,40,.04),0 6px 22px rgba(16,24,40,.06);
+  }
+  @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0C0F14;--surface:#161A21;--sunken:#11151B;--ink:#F0F2F5;--ink2:#AEB6C1;--ink3:#79828D;--line:#242A33;--blue-bg:#121E30;--blue-line:#22344d;--green-bg:#0f2620;--violet-bg:#191633;--violet-line:#2c2551;--shadow:0 6px 24px rgba(0,0,0,.5);
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0C0F14;--surface:#161A21;--sunken:#11151B;--ink:#F0F2F5;--ink2:#AEB6C1;--ink3:#79828D;--line:#242A33;--blue-bg:#121E30;--blue-line:#22344d;--green-bg:#0f2620;--violet-bg:#191633;--violet-line:#2c2551;--shadow:0 6px 24px rgba(0,0,0,.5);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.6;-webkit-font-smoothing:antialiased;padding:24px 18px 70px}
+  .wrap{max-width:820px;margin:0 auto}
+  .pilltop{display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:800;color:var(--blue);background:var(--blue-bg);border:1px solid var(--blue-line);border-radius:999px;padding:6px 14px}
+  .backlink{font-size:13px;font-weight:800;color:var(--ink3);cursor:pointer}.backlink:hover{color:var(--blue)}
+  h1{font-size:22px;font-weight:850;letter-spacing:-.02em;margin:0 0 5px}
+  .sub{color:var(--ink2);font-size:13.5px;margin:0 0 16px} .sub b{color:var(--ink)}
+
+  /* 툴바 */
+  .bar{position:sticky;top:12px;z-index:5;display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:8px 10px;margin-bottom:14px;flex-wrap:wrap}
+  .tb{font-size:13px;font-weight:800;color:var(--ink2);background:none;border:none;border-radius:8px;padding:8px 11px;cursor:pointer}
+  .tb:hover{background:var(--sunken)}
+  .tb.b{font-weight:900}
+  .tsep{width:1px;height:20px;background:var(--line);margin:0 4px}
+  .bar .right{margin-left:auto;display:flex;gap:7px}
+  .save{font-size:12.5px;font-weight:800;border-radius:9px;padding:9px 13px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink2)}
+  .pubbtn{font-size:12.5px;font-weight:850;color:#fff;background:#03C75A;border:none;border-radius:9px;padding:9px 15px;cursor:pointer}
+
+  /* 편집 문서 */
+  .doc{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:26px 30px 30px}
+  .doc .t{font-size:20px;font-weight:850;letter-spacing:-.01em;outline:none;margin-bottom:14px}
+  .doc p{font-size:14.5px;color:var(--ink);line-height:1.9;margin:0 0 14px;outline:none}
+  .doc p:focus,.doc .t:focus{background:var(--blue-bg);border-radius:6px;box-shadow:0 0 0 3px var(--blue-line)}
+  .doc .quote{border-left:4px solid var(--violet);background:var(--violet-bg);padding:12px 16px;border-radius:0 8px 8px 0;font-size:14.5px;color:var(--ink);font-weight:600;margin:0 0 14px;outline:none}
+  .doc b{font-weight:850}
+  .anon{display:inline-block;background:#FFF4D6;color:#8A6100;border-radius:4px;padding:0 4px;font-weight:700}
+  @media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .anon{background:#3a2f12;color:#e8c877}}
+
+  /* 사진 블록 (드래그) */
+  .prow{display:flex;gap:8px;margin:4px 0 16px;padding:8px;border:1.5px dashed var(--line);border-radius:12px;position:relative;background:var(--sunken)}
+  .prow.drag{opacity:.4}
+  .prow.over{border-color:var(--violet);border-style:solid;box-shadow:0 0 0 3px var(--violet-line)}
+  .prow .grip{position:absolute;left:50%;top:-9px;transform:translateX(-50%);font-size:11px;font-weight:800;color:#fff;background:var(--violet);border-radius:6px;padding:2px 10px;cursor:grab}
+  .pimg{flex:1;min-width:0}
+  .pimg .im{aspect-ratio:4/3;border-radius:8px;position:relative;background:linear-gradient(135deg,#c9d3de,#e6ecf2)}
+  .pimg .im.a{background:linear-gradient(135deg,#b9c6d3,#d6dee7)}.pimg .im.b{background:linear-gradient(135deg,#cdd7e0,#eef2f6)}
+  .pimg .n{position:absolute;left:7px;top:7px;font-size:11px;font-weight:900;color:#fff;background:var(--violet);border-radius:6px;width:20px;height:20px;display:flex;align-items:center;justify-content:center}
+  .pimg .part{position:absolute;right:7px;bottom:7px;font-size:10.5px;font-weight:800;color:#fff;background:rgba(24,29,39,.68);border-radius:6px;padding:2px 8px}
+  .pcap{font-size:11px;color:var(--ink3);margin-top:5px;text-align:center;font-weight:700}
+  .matchtip{position:absolute;right:8px;top:-9px;font-size:10px;font-weight:800;color:var(--green);background:var(--green-bg);border:1px solid var(--green);border-radius:6px;padding:1px 8px}
+
+  .note{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:14px 16px;margin-top:18px}
+  .note h3{font-size:13.5px;font-weight:850;margin:0 0 9px}
+  .note ul{margin:0;padding-left:2px;list-style:none;display:flex;flex-direction:column;gap:8px}
+  .note li{font-size:12.5px;color:var(--ink2);line-height:1.55;display:flex;gap:9px}.note li b{color:var(--ink)}.note .e{flex:none}
+</style>
+
+<div class="wrap">
+  <div class="pilltop"><span class="pill">🖥️ 시공막내 웹 · 블로그 글 편집</span><span class="backlink" onclick="toast('← 현장으로')">← 현장으로</span></div>
+  <h1>블로그 글 편집</h1>
+  <p class="sub"><b>바로 수정</b> · 사진 <b>드래그로 위치 변경</b> · <b>볼드·인용구</b> · 사진 <b>부위 태그를 AI가 읽어 글과 매칭</b>. 다 맞춰지면 네이버에 넣어요.</p>
+
+  <div class="bar">
+    <button class="tb b" onclick="fmt('bold')">B 볼드</button>
+    <button class="tb" onclick="fmt('quote')">❝ 인용구</button>
+    <button class="tb" onclick="fmt('h')">H 소제목</button>
+    <div class="tsep"></div>
+    <span style="font-size:11.5px;color:var(--ink3);font-weight:700">✏️ 글 클릭하면 바로 수정 · 사진은 ⠿ 잡고 드래그</span>
+    <div class="right"><span class="save" onclick="toast('임시저장됨')">💾 임시저장</span><span class="pubbtn" onclick="toast('네이버 에디터에 넣기 (확장)')">📝 네이버에 넣기</span></div>
+  </div>
+
+  <div class="doc" id="doc">
+    <div class="t" contenteditable="true">동탄 아파트 화장실 3곳 — 낡은 타일, 부분보수 대신 전체 보수로</div>
+
+    <!-- 사진 2장 (시공 전, 부위 매칭) -->
+    <div class="prow" draggable="true"><span class="grip">⠿ 드래그</span><span class="matchtip">🎯 '거실 화장실' 문단과 매칭</span>
+      <div class="pimg"><div class="im"><span class="n">1</span><span class="part">거실화장실</span></div><div class="pcap">시공 전 · 01.jpg</div></div>
+      <div class="pimg"><div class="im a"><span class="n">2</span><span class="part">거실화장실</span></div><div class="pcap">시공 전 · 02.jpg</div></div>
+    </div>
+
+    <p contenteditable="true">경기 <span class="anon">동탄</span>의 한 아파트 화장실 시공 후기입니다. 고객님께서 “화장실 타일 상태가 안 좋은데 보수가 될까요?” 하고 먼저 문자를 주셨어요. 처음에는 <b>바닥만 조금</b> 손보면 되지 않을까 생각하셨더라고요.</p>
+
+    <p contenteditable="true">그런데 이야기를 나눠보니 상황이 조금 달랐습니다. 이 댁은 화장실이 <b>세 곳</b>이었는데, 바닥뿐 아니라 벽면 타일과 줄눈까지 전체적으로 노후된 상태였어요.</p>
+
+    <!-- 인용구 -->
+    <div class="quote" contenteditable="true">“부분 보수보다, 세 곳 다 전체로 잡는 게 오래 보기에 훨씬 낫습니다.”</div>
+
+    <p contenteditable="true">억지로 큰 공사를 권하는 게 아니라, 실제로 그게 나으니까요. 고객님도 “그럼 세 곳 다 제대로 해주세요” 하고 결정해 주셨습니다.</p>
+
+    <!-- 사진 4장 (안방·시공 후 — 다른 패턴) -->
+    <div class="prow" draggable="true"><span class="grip">⠿ 드래그</span><span class="matchtip">🎯 '안방 화장실' 매칭</span>
+      <div class="pimg"><div class="im b"><span class="n">3</span><span class="part">안방화장실</span></div><div class="pcap">시공 전 · 03.jpg</div></div>
+      <div class="pimg"><div class="im"><span class="n">4</span><span class="part">안방화장실</span></div><div class="pcap">시공 후 · 06.jpg</div></div>
+    </div>
+
+    <p contenteditable="true">시공은 들뜬 타일과 낡은 줄눈을 정리하는 것부터 시작했습니다. 바닥과 벽면을 꼼꼼히 보수하고, 줄눈을 새로 채워 세 곳 모두 같은 톤으로 <b>깔끔하게 마감</b>했어요.</p>
+
+    <!-- 사진 2장 (시공 후 결과) -->
+    <div class="prow" draggable="true"><span class="grip">⠿ 드래그</span><span class="matchtip">🎯 '마감' 문단과 매칭</span>
+      <div class="pimg"><div class="im"><span class="n">5</span><span class="part">거실화장실</span></div><div class="pcap">시공 후 · 04.jpg</div></div>
+      <div class="pimg"><div class="im b"><span class="n">6</span><span class="part">현관</span></div><div class="pcap">시공 후 · 07.jpg</div></div>
+    </div>
+
+    <p contenteditable="true">시공 전·후 사진을 비교해 보시면 차이가 확실합니다. 비슷한 고민이 있으시면 사진 몇 장만 보내주셔도 상태를 봐드리고 정직하게 안내해 드릴게요.</p>
+  </div>
+
+  <div class="note">
+    <h3>이 편집기가 하는 것 (사장님 요청 5가지)</h3>
+    <ul>
+      <li><span class="e">🧩</span><div><b>사진 배치 자유</b> — 12·34 고정 아님. 2장·4장 붙이거나 문단 사이 아무 데나. 드래그로 재배치.</div></li>
+      <li><span class="e">✏️</span><div><b>글 바로 수정</b> — 어느 글이든 클릭하면 그 자리에서 고쳐요(제목·본문·인용구 다).</div></li>
+      <li><span class="e">↕️</span><div><b>사진 드래그앤드롭</b> — ⠿ 잡고 위아래로 옮겨 위치 변경.</div></li>
+      <li><span class="e">❝</span><div><b>볼드·인용구·소제목</b> — 네이버 서식 그대로 넣어 글 퀄리티 ↑.</div></li>
+      <li><span class="e">🎯</span><div><b>부위 자동 매칭</b> — 사진에 사용자가 넣은 <b>부위 태그(거실화장실·안방화장실…)를 AI가 읽어</b>, 그 부위 얘기하는 문단 옆에 맞춰 배치. 의미 없이 붙이는 게 아니라 <b>원고↔사진이 매칭</b>.</div></li>
+    </ul>
+  </div>
+</div>
+
+<script>
+  // 서식 (볼드/인용구/소제목)
+  function fmt(k){
+    if(k==='bold'){ document.execCommand('bold'); return; }
+    var sel=window.getSelection(); if(!sel.rangeCount){ toast('먼저 바꿀 글을 선택하세요'); return; }
+    var node=sel.anchorNode; while(node && node.nodeType===3) node=node.parentNode;
+    var p=node; while(p && p.parentNode && p.parentNode.id!=='doc') p=p.parentNode;
+    if(!p||p.parentNode.id!=='doc'){ toast('본문 문단을 선택하세요'); return; }
+    if(k==='quote'){ p.className = (p.className==='quote')?'':'quote'; }
+    if(k==='h'){ p.style.fontSize = p.style.fontSize==='17px'?'':'17px'; p.style.fontWeight = p.style.fontWeight==='850'?'':'850'; }
+  }
+  // 드래그 재배치
+  var dragEl=null;
+  document.querySelectorAll('.prow').forEach(function(el){
+    el.addEventListener('dragstart',function(){dragEl=el;el.classList.add('drag');});
+    el.addEventListener('dragend',function(){el.classList.remove('drag');document.querySelectorAll('.prow').forEach(function(x){x.classList.remove('over');});});
+  });
+  var doc=document.getElementById('doc');
+  doc.addEventListener('dragover',function(e){
+    e.preventDefault();
+    var after=[].slice.call(doc.children).filter(function(c){return c!==dragEl;}).find(function(c){var r=c.getBoundingClientRect();return e.clientY < r.top + r.height/2;});
+    doc.querySelectorAll('.prow').forEach(function(x){x.classList.remove('over');});
+    if(dragEl){ if(after) doc.insertBefore(dragEl, after); else doc.appendChild(dragEl); }
+  });
+  var tt;function toast(m){var el=document.createElement('div');el.textContent=m;el.style.cssText='position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:rgba(24,29,39,.94);color:#fff;font-size:13px;font-weight:700;padding:11px 20px;border-radius:999px;z-index:99';document.body.appendChild(el);clearTimeout(tt);tt=setTimeout(function(){el.remove();},1400);}
+</script>
