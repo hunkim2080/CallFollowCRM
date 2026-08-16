@@ -90,8 +90,20 @@
   .genbig{width:100%;font-size:13.5px;font-weight:850;color:#fff;border:none;border-radius:11px;padding:13px;cursor:pointer;margin-bottom:14px}
   .genbig.bl{background:var(--violet)}.genbig.ig{background:var(--ig)}.genbig.th{background:var(--th);color:#fff}
   :root[data-theme="dark"] .genbig.th{color:#181D27}
-  .gen{font-size:12.5px;color:var(--ink);line-height:1.7;white-space:pre-wrap;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:13px 14px}
-  .gen h4{font-size:14px;font-weight:850;margin:0 0 8px}
+  .gen{font-size:12.5px;color:var(--ink);line-height:1.75;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:14px 15px}
+  .gen.raw{white-space:pre-wrap}
+  .gen h4{font-size:14px;font-weight:850;margin:0 0 10px;line-height:1.4}
+  .gen p{margin:0 0 10px}.gen p:last-of-type{margin:0}
+  .genload{display:none;text-align:center;padding:22px 0 10px}.genload.on{display:block}
+  .gblob{width:52px;height:52px;margin:0 auto 13px;border-radius:42% 58% 55% 45%/50% 45% 55% 50%;background:conic-gradient(from 120deg,#c9bef2,#bcd4ff,#e7c9ff,#ffe0bd,#c9bef2);animation:gspin 4s linear infinite,gmorph 3.5s ease-in-out infinite}
+  @keyframes gspin{to{transform:rotate(360deg)}}@keyframes gmorph{50%{border-radius:55% 45% 48% 52%/45% 55% 45% 55%}}
+  .gt{font-size:13px;font-weight:800;margin-bottom:14px}
+  .gsteps{max-width:220px;margin:0 auto;text-align:left;display:flex;flex-direction:column;gap:9px}
+  .gstep{display:flex;align-items:center;gap:9px;font-size:12px;font-weight:700;color:var(--ink3)}
+  .gstep .rc{width:15px;height:15px;border-radius:50%;border:2px solid var(--line);flex:none}
+  .gstep.doing{color:var(--violet)}.gstep.doing .rc{border-color:var(--violet);border-right-color:transparent;animation:gspin .9s linear infinite}
+  .gstep.ok{color:var(--ink)}.gstep.ok .rc{border:none;background:var(--green);position:relative}
+  .gstep.ok .rc::after{content:"✓";position:absolute;inset:0;color:#fff;font-size:9px;display:flex;align-items:center;justify-content:center;font-weight:900}
   .genacts{display:flex;gap:6px;margin-top:10px}.gpill{font-size:11px;font-weight:800;border:1px solid var(--line);background:var(--surface);color:var(--ink2);border-radius:7px;padding:6px 10px;cursor:pointer}.gpill.p{background:var(--blue);color:#fff;border-color:var(--blue)}
   .lchips{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}.lchip{font-size:11px;font-weight:800;color:var(--ink2);background:var(--sunken);border:1px solid var(--line);border-radius:7px;padding:3px 8px}
 
@@ -180,7 +192,16 @@
             <div class="fold" id="t-bl"><div class="foldin"><div class="tphint">따라할 <b>블로그 글 주소</b> 넣고 분석 → 그 톤 반영.</div><input class="rin" value="blog.naver.com/detailline_zzulnun/223011234567"><button class="anz" onclick="toast('블로그 톤 분석 완료 ✓')">✨ 분석</button><div class="lchips"><span class="lchip">존댓말·친근</span><span class="lchip">과장 없이 정직</span><span class="lchip">현장 사진 위주</span></div></div></div>
             <div class="metaline">📝 블로그 · 네이버 · 길게 (~1,120자)</div>
             <button class="genbig bl" onclick="gf('bl')">✨ 블로그 글 만들기</button>
-            <div class="gen" id="g-bl" style="display:none"><h4>동탄 아파트 화장실 3곳 — 부분보수 대신 전체 보수로</h4>경기 동탄의 한 아파트 화장실 시공 후기입니다. “타일 상태가 안 좋은데 보수 될까요?” 문의를 주셨고, 처음엔 바닥만 생각하셨어요. 그런데 벽·줄눈까지 노후돼, 세 곳 전체로 잡는 게 낫다고 정직하게 말씀드렸습니다… (약 1,120자)<div class="genacts"><span class="gpill" onclick="gf('bl',1)">↻ 다시</span><span class="gpill p" onclick="toast('복사됨 ✓')">📋 복사 (네이버)</span></div></div>
+            <div class="genload" id="gl-bl"><div class="gblob"></div><div class="gt">✍️ 블로그 글 쓰는 중…</div><div class="gsteps"><div class="gstep"><span class="rc"></span>재료 읽는 중 (통화·메모·문자·협업)</div><div class="gstep"><span class="rc"></span>내 톤에 맞추는 중</div><div class="gstep"><span class="rc"></span>초안 쓰는 중</div></div></div>
+            <div class="gen" id="g-bl" style="display:none">
+              <h4>동탄 아파트 화장실 3곳 — 낡은 타일, 부분보수 대신 전체 보수로</h4>
+              <p>경기 <span class="anon">동탄</span>의 한 아파트 화장실 시공 후기입니다. 고객님께서 “화장실 타일 상태가 안 좋은데 보수가 될까요?” 하고 먼저 문자를 주셨어요. 처음에는 바닥만 조금 손보면 되지 않을까 생각하셨더라고요.</p>
+              <p>그런데 이야기를 나눠보니 상황이 조금 달랐습니다. 이 댁은 화장실이 세 곳이었는데, 바닥뿐 아니라 벽면 타일과 줄눈까지 전체적으로 노후된 상태였어요. 오래 쓰다 보면 줄눈이 검게 변하고 타일이 들뜨거나 금이 가는데, 그런 자리만 부분적으로 손대면 그 부분만 새것처럼 도드라져서 오히려 더 눈에 거슬립니다.</p>
+              <p>그래서 솔직하게 말씀드렸어요. “부분 보수보다, 세 곳 다 전체로 잡는 게 오래 보기에 훨씬 낫습니다.” 억지로 큰 공사를 권하는 게 아니라, 실제로 그게 나으니까요. 고객님도 “그럼 세 곳 다 제대로 해주세요” 하고 결정해 주셨고, 현장 사진과 함께 정확한 견적을 보내드린 뒤 시공 날짜를 잡았습니다.</p>
+              <p>시공은 들뜬 타일과 낡은 줄눈을 정리하는 것부터 시작했습니다. 바닥과 벽면을 꼼꼼히 보수하고, 줄눈을 새로 채워 세 곳 모두 같은 톤으로 깔끔하게 마감했어요. 시공 전·후 사진을 비교해 보시면 차이가 확실합니다. 오래된 화장실이 아니라, 새로 한 것처럼 정리됐습니다.</p>
+              <p>화장실 타일 보수는 “부분만 살짝”보다 상태를 제대로 보고 필요한 만큼 한 번에 잡는 게 결국 더 오래가고 만족도도 높습니다. 비슷한 고민이 있으시면 사진 몇 장만 보내주셔도 상태를 봐드리고 정직하게 안내해 드릴게요.</p>
+              <div class="genacts"><span class="gpill" onclick="gf('bl',1)">↻ 다시</span><span class="gpill p" onclick="toast('복사됨 ✓')">📋 복사 (네이버)</span></div>
+            </div>
           </div>
           <!-- 인스타 -->
           <div class="rpane" id="rp-ig" style="display:none">
@@ -188,15 +209,29 @@
             <div class="fold" id="t-ig"><div class="foldin"><div class="tphint">계정 주소 or 마음에 드는 <b>캡션 붙여넣기</b>.</div><input class="rin" placeholder="instagram.com/따라할_계정 (또는 캡션)"><button class="anz" onclick="toast('인스타 톤 분석 완료 ✓')">✨ 분석</button></div></div>
             <div class="metaline">📷 인스타그램 · 짧게 + 해시태그 15</div>
             <button class="genbig ig" onclick="gf('ig')">✨ 인스타 캡션 만들기</button>
-            <div class="gen" id="g-ig" style="display:none">🚽 화장실 타일, "부분만 살짝" 하려다 전체 보수로 ✨
+            <div class="genload" id="gl-ig"><div class="gblob"></div><div class="gt">✍️ 인스타 캡션 쓰는 중…</div><div class="gsteps"><div class="gstep"><span class="rc"></span>재료 읽는 중</div><div class="gstep"><span class="rc"></span>감성 톤·이모지 맞추는 중</div><div class="gstep"><span class="rc"></span>해시태그 뽑는 중</div></div></div>
+            <div class="gen raw" id="g-ig" style="display:none">🚽 화장실 타일, "부분만 살짝" 하려다 전체 보수로 ✨
 
+"타일 상태가 안 좋은데 보수 될까요?"
 처음엔 바닥만 생각하셨던 고객님.
-근데 3곳 다 벽·바닥·줄눈까지 노후 😮
+
+근데 막상 보니 화장실 3곳 모두
+벽·바닥·줄눈까지 노후된 상태였어요 😮
+
+부분만 손대면 딱 그 자리만 튀어서
+오히려 더 눈에 거슬리거든요.
+
+그래서 솔직하게 —
+"세 곳 다 한 번에 잡는 게 오래 보기 훨씬 낫습니다"
 
 ✅ 들뜬 타일·낡은 줄눈 정리
-✅ 세 곳 같은 톤으로 마감
+✅ 벽·바닥 꼼꼼 보수
+✅ 세 곳 같은 톤으로 깔끔 마감
 
-#화장실타일 #줄눈시공 #동탄줄눈 …(15개)<div class="genacts"><span class="gpill" onclick="gf('ig',1)">↻ 다시</span><span class="gpill" onclick="toast('해시태그 복사 ✓')"># 태그</span><span class="gpill p" onclick="toast('복사됨 ✓')">📋 본문</span></div></div>
+시공 전·후는 사진으로 👉 (스와이프)
+화장실 타일 고민되면 사진 몇 장 보내주세요 🙌
+
+#화장실타일 #줄눈시공 #타일보수 #욕실리모델링 #화장실리모델링 #줄눈 #타일시공 #동탄줄눈 #화장실보수 #욕실타일 #시공후기 #비포애프터 #집스타그램 #인테리어 #셀프인테리어<div class="genacts"><span class="gpill" onclick="gf('ig',1)">↻ 다시</span><span class="gpill" onclick="toast('해시태그 복사 ✓')"># 태그</span><span class="gpill p" onclick="toast('복사됨 ✓')">📋 본문</span></div></div>
           </div>
           <!-- 스레드 -->
           <div class="rpane" id="rp-th" style="display:none">
@@ -204,7 +239,8 @@
             <div class="fold" id="t-th"><div class="foldin"><div class="tphint">마음에 드는 <b>스레드 글 붙여넣기</b>.</div><input class="rin" placeholder="따라할 스레드 글"><button class="anz" onclick="toast('스레드 톤 분석 완료 ✓')">✨ 분석</button></div></div>
             <div class="metaline">🧵 스레드 · 대화체 + 해시태그 1~2</div>
             <button class="genbig th" onclick="gf('th')">✨ 스레드 글 만들기</button>
-            <div class="gen" id="g-th" style="display:none">화장실 타일 "부분만 살짝" 보수, 저는 웬만하면 안 권해요.
+            <div class="genload" id="gl-th"><div class="gblob"></div><div class="gt">✍️ 스레드 글 쓰는 중…</div><div class="gsteps"><div class="gstep"><span class="rc"></span>재료 읽는 중</div><div class="gstep"><span class="rc"></span>대화체 톤 맞추는 중</div><div class="gstep"><span class="rc"></span>초안 쓰는 중</div></div></div>
+            <div class="gen raw" id="g-th" style="display:none">화장실 타일 "부분만 살짝" 보수, 저는 웬만하면 안 권해요.
 
 부분만 손대면 그 자리만 튀어서 오히려 더 티나요. 그래서 세 곳 다 한 번에 잡는 게 낫다고 말씀드렸습니다. 진짜 그게 오래가요.
 
@@ -232,6 +268,12 @@
     });
   }
   function tf(p){document.getElementById('t-'+p).classList.toggle('open');}
-  function gf(p,re){var g=document.getElementById('g-'+p);if(g.style.display==='block'&&!re){g.style.display='none';return;}g.style.display='block';}
+  function gf(p,re){
+    var g=document.getElementById('g-'+p), gl=document.getElementById('gl-'+p);
+    if(g.style.display==='block'&&!re){ g.style.display='none'; return; }
+    g.style.display='none';
+    var steps=gl.querySelectorAll('.gstep'); gl.classList.add('on'); steps.forEach(function(s){s.className='gstep';});
+    var i=0;(function nx(){ if(i>0)steps[i-1].className='gstep ok'; if(i<steps.length){steps[i].className='gstep doing';i++;setTimeout(nx,520);} else {gl.classList.remove('on'); g.style.display='block';} })();
+  }
   var tt;function toast(m){var el=document.createElement('div');el.textContent=m;el.style.cssText='position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:rgba(24,29,39,.94);color:#fff;font-size:13px;font-weight:700;padding:11px 20px;border-radius:999px;z-index:99';document.body.appendChild(el);clearTimeout(tt);tt=setTimeout(function(){el.remove();},1400);}
 </script>
