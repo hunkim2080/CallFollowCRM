@@ -212,33 +212,26 @@
   // ── 사진 넣기 (클립보드 이미지 + 진짜 Ctrl+V) ──
   async function doPhotos() {
     if (!photos.length) { setOut("먼저 사진을 선택하거나 [불러오기] 하세요.", "err"); return; }
-    // 자리표 묶음(나란히) 단위로 작업 만들기. 묶음에 안 든 사진은 맨 끝에 순서대로.
-    const groups = parseGroups($("#text").value);
-    const covered = new Set(); groups.forEach((g) => g.indices.forEach((i) => covered.add(i)));
-    const leftovers = photos.filter((p) => !covered.has(p.index)).sort((a, b) => a.index - b.index);
-    const jobs = groups
-      .map((g) => ({ marker: g.marker, blobs: g.indices.map((i) => (photos.find((p) => p.index === i) || {}).blob).filter(Boolean) }))
-      .filter((j) => j.blobs.length)
-      .concat(leftovers.map((p) => ({ marker: null, blobs: [p.blob] })));
-    if (!jobs.length) { setOut("사진을 넣을 자리가 없어요.", "err"); return; }
-
+    // SEO: 사진은 '각각 개별' 이미지로 넣는다(합치지 않음). index 순서대로 [n] 자리에.
+    const sorted = photos.slice().sort((a, b) => a.index - b.index);
     const btn = $("#goPhoto"); btn.disabled = true;
     let done = 0, placed = 0;
-    for (let i = 0; i < jobs.length; i++) {
-      setOut(`⏳ 사진 ${i + 1}/${jobs.length} 넣는 중 — 건드리지 마세요!`, "work");
+    for (let i = 0; i < sorted.length; i++) {
+      const p = sorted[i];
+      setOut(`⏳ 사진 ${i + 1}/${sorted.length} 넣는 중 — 건드리지 마세요!`, "work");
       let png;
-      try { png = await toGroupPng(jobs[i].blobs); } catch (e) { setOut(`사진 ${i + 1} 준비 실패: ${String(e.message || e).slice(0, 40)}`, "err"); break; }
+      try { png = await toGroupPng([p.blob]); } catch (e) { setOut(`사진 ${p.index} 준비 실패: ${String(e.message || e).slice(0, 40)}`, "err"); break; }
       try { await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]); }
-      catch (e) { setOut(`사진 ${i + 1} 클립보드 실패: ${String(e.message || e).slice(0, 40)}`, "err"); break; }
-      const resp = await send({ type: "SGM_PHOTO", marker: jobs[i].marker });
-      if (!resp || !resp.ok) { setOut(`사진 ${i + 1} 넣기 실패: ${(resp && resp.error) || "오류"}`, "err"); break; }
+      catch (e) { setOut(`사진 ${p.index} 클립보드 실패: ${String(e.message || e).slice(0, 40)}`, "err"); break; }
+      const resp = await send({ type: "SGM_PHOTO", marker: "[" + p.index + "]" });
+      if (!resp || !resp.ok) { setOut(`사진 ${p.index} 넣기 실패: ${(resp && resp.error) || "오류"}`, "err"); break; }
       done++;
       if (resp.placed) placed++;
       await new Promise((r) => setTimeout(r, 500));
     }
     btn.disabled = false;
-    if (done === jobs.length) setOut(`✓ 사진 완료! ${jobs.length}묶음 (${placed}묶음 자리에 · 나란히 포함)`, "ok");
-    else if (done > 0) setOut(`${done}/${jobs.length}묶음 넣음 — 나머지 실패(알려주세요)`, "err");
+    if (done === sorted.length) setOut(`✓ 사진 ${done}장 (각각 개별=SEO안전 · ${placed}장 자리에)`, "ok");
+    else if (done > 0) setOut(`사진 ${done}/${sorted.length}장 넣음 — 나머지 실패(알려주세요)`, "err");
   }
   $("#goPhoto").addEventListener("click", doPhotos);
 
