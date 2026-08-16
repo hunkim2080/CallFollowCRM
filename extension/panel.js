@@ -108,14 +108,16 @@
     const btn = $("#go");
     btn.disabled = true;
     setOut("자동으로 넣는 중… (잠깐 상단에 '디버깅 중' 띠가 떴다 사라져요)");
-    chrome.runtime.sendMessage({ type: "SGM_AUTO" }, (resp) => {
+    chrome.runtime.sendMessage({ type: "SGM_AUTO", draft }, (resp) => {
       btn.disabled = false;
       if (chrome.runtime.lastError || !resp || !resp.ok) {
         const msg = (resp && resp.error) || (chrome.runtime.lastError && chrome.runtime.lastError.message) || "알 수 없는 오류";
         setOut("자동 넣기 실패: " + msg, "err");
         return;
       }
-      setOut("✓ 넣었어요! 본문·굵게·인용구·구분선까지. (소제목은 다음 단계)", "ok");
+      const h = resp.headApplied || 0, ht = resp.headTotal || 0;
+      const tail = ht ? ` · 소제목 ${h}/${ht}` + (h < ht ? " (일부 실패 — 알려주세요)" : "") : "";
+      setOut("✓ 넣었어요! 본문·굵게·인용구·구분선" + tail, "ok");
     });
   }
   $("#go").addEventListener("click", doAuto);
