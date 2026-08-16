@@ -463,8 +463,12 @@ function SCROLL_PAIR_EXPR(ai, bj) {
     try{ A.scrollIntoView({block:'start'}); }catch(e){}
     var sc=__doc.querySelector('[class*=se-scroll-target]')||__doc.querySelector('.se-content');
     if(sc){ sc.scrollTop -= 50; }
+    var vh=(window.innerHeight)||1000;
     var ra=A.getBoundingClientRect(), rb=B.getBoundingClientRect();
-    return { aRight:Math.round(__off.x+ra.right), aCy:Math.round(__off.y+ra.top+ra.height/2), bCx:Math.round(__off.x+rb.left+rb.width/2), bCy:Math.round(__off.y+rb.top+rb.height/2) };
+    // 🔑 무버 잡기점은 '보이는 윗부분'(중앙은 화면 밖일 수 있어 헛손질). 드롭점도 화면 안으로 clamp.
+    var bGrabY=Math.min(Math.round(__off.y+rb.top+70), vh-45);
+    var aDropY=Math.min(Math.max(Math.round(__off.y+ra.top+ra.height/2), 70), vh-45);
+    return { aRight:Math.round(__off.x+ra.right), aCy:aDropY, bCx:Math.round(__off.x+rb.left+rb.width/2), bCy:bGrabY };
   })()`;
 }
 async function dragImageBeside(target, c) {
