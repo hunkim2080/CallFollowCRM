@@ -503,6 +503,19 @@ def db_init() -> None:
             )
             """
         )
+        # 크롬 확장 '네이버 글 불러오기(pull)' — 최근 생성 블로그 글(마커 규약) + 사진 index 매핑
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS web_generated_posts (
+                owner_phone   TEXT PRIMARY KEY,     -- owner당 '최근 생성 글' 1개 유지
+                customer_digits TEXT,
+                title         TEXT,
+                draft         TEXT,                 -- 본문(마커 규약 ## / ** / > / --- / [n])
+                photos_json   TEXT,                 -- [{index, photo_id}]
+                created_at_ms INTEGER NOT NULL
+            )
+            """
+        )
         # ── 추가142 (2026-07-22) — 박람회 팀 시공 Phase 1 (docs/EXPO_DECISIONS.md) ──
         # 사장님 확정: ①정산 완전격리(expo_* 테이블에만 저장, 기존 정산/고객에 안 섞음)
         # ②분배=팀별 ③계약서=상품카탈로그 체크형+서명+동의 ④방장이 방개설·계약서준비
@@ -26511,15 +26524,42 @@ async def web_site(request: Request, customer_digits: str):
 
 
 @app.get("/api/web/photo/{photo_id}")
-async def web_photo(request: Request, photo_id: int):
+async def web_photo(request: Request, photo_id: int, t: Optional[str] = None):
     from fastapi.responses import Response as _Resp, JSONResponse
-    owner = _web_owner_from_request(request)
+    # 크롬 확장(쿠키 없음)용 서명 토큰(?t=) 허용 — 그 사진 1장만 스코프. 없으면 세션 쿠키.
+    owner = None
+    if t and _hmac.compare_digest(t, _web_photo_token(photo_id)):
+        with db_conn() as con:
+            row = con.execute(
+                "SELECT " + _WEB_OWNER_NORM + " FROM team_site_photos WHERE photo_id = ?",
+                (photo_id,)).fetchone()
+        owner = row[0] if row else None
+    if not owner:
+        owner = _web_owner_from_request(request)
     if not owner:
         return JSONResponse({"error": "unauthorized"}, status_code=401)
     data, mime = _web_photo_bytes(photo_id, owner)
     if not data:
         raise HTTPException(404, "사진 없음")
     return _Resp(content=data, media_type=mime or "image/jpeg")
+
+
+def _web_photo_token(pid: int) -> str:
+    return _hmac.new(_web_fernet_secret().encode(), ("naverphoto|%d" % pid).encode(),
+                     hashlib.sha256).hexdigest()[:24]
+
+
+def _web_fernet_secret() -> str:
+    """토큰 서명용 서버 시크릿(server_kv). Fernet 키와 별개."""
+    import secrets
+    with db_conn() as con:
+        row = con.execute("SELECT v FROM server_kv WHERE k='web_photo_tok_secret'").fetchone()
+        if row:
+            return row[0]
+        val = secrets.token_urlsafe(32)
+        con.execute("INSERT OR REPLACE INTO server_kv (k,v) VALUES ('web_photo_tok_secret',?)", (val,))
+        con.commit()
+    return val
 
 
 @app.post("/api/web/tag")
@@ -27649,6 +27689,15 @@ async def web_generate_content(request: Request, req: WebGenReq):
     if not api_key:
         raise HTTPException(400, "먼저 마이페이지에서 내 Gemini 키를 등록해 주세요")
     m = _web_gather_materials(owner, cd)
+    # 사진 수집(네이버 글 [n] 자리 매핑용) — 이 현장 사진 최대 6장
+    _bucket = _web_photo_bucket(owner)
+    _pics = _bucket.get(_web_pkey(cd), [])[:6]
+    n_pics = len(_pics)
+    photo_hint = ""
+    if n_pics:
+        photo_hint = ("\n블로그 본문 중 사진이 들어가면 좋은 자리에 [1]"
+                      + "".join("[%d]" % i for i in range(2, n_pics + 1))
+                      + " 처럼 번호 마커를 순서대로 넣어라(총 %d개, 각 한 번씩)." % n_pics)
     tone_hint = ""
     if m["tone_urls"]:
         tone_hint = ("\n\n[따라할 글 톤] 아래 URL 글들의 말투·문장 길이·이모지 사용을 참고해 "
@@ -27659,7 +27708,8 @@ async def web_generate_content(request: Request, req: WebGenReq):
         "규칙(엄수): (1) 재료에 없는 사실을 지어내지 마라. (2) 익명화 — 고객 이름·전화번호·동/호수·정확한 "
         "번지 주소는 절대 쓰지 마라. 지역은 '" + (m["region"] or "해당 지역") + "' 수준까지만. "
         "(3) 과장·허위 없이 정직하게. (4) 존댓말·친근.\n"
-        "플랫폼별: 블로그=1000~1300자 스토리텔링(고민→상담→시공→결과, 제목 포함). "
+        "플랫폼별: 블로그=1000~1300자 스토리텔링(고민→상담→시공→결과). "
+        "블로그 본문은 마커 규약으로: 소제목 '## 제목', 강조 '**굵게**', 인용 '> ', 구분선 '---'." + photo_hint + " "
         "인스타=~380자 감성 캡션(줄바꿈·이모지 적당) + 해시태그 15개(지역·부위·공정 기반). "
         "스레드=~230자 대화하듯 톤 확 낮춤 + 해시태그 1~2개.\n"
         "그리고 이 현장 '페르소나 한 줄'(어떤 고민 → 어떻게 시공)도.\n" + tone_hint + "\n\n"
@@ -27682,6 +27732,19 @@ async def web_generate_content(request: Request, req: WebGenReq):
     blog = out.get("blog") or {}
     ig = out.get("instagram") or {}
     th = out.get("threads") or {}
+    # 크롬 확장 '불러오기'용 — 최근 생성 글 저장(마커 본문 + 사진 index 매핑)
+    photos_map = [{"index": i + 1, "photo_id": _pics[i]["photo_id"]} for i in range(n_pics)]
+    try:
+        with db_conn() as con:
+            con.execute(
+                "INSERT OR REPLACE INTO web_generated_posts "
+                "(owner_phone, customer_digits, title, draft, photos_json, created_at_ms) "
+                "VALUES (?,?,?,?,?,?)",
+                (owner, cd, blog.get("title") or "", blog.get("body") or "",
+                 json.dumps(photos_map, ensure_ascii=False), _now_ms()))
+            con.commit()
+    except Exception:
+        pass
     return {
         "persona": out.get("persona") or "",
         "region": m["region"],
@@ -27694,6 +27757,35 @@ async def web_generate_content(request: Request, req: WebGenReq):
                     "hashtags": [str(h) for h in (th.get("hashtags") or [])][:2],
                     "chars": _len(th.get("body"))},
     }
+
+
+@app.get("/api/web/naver-draft")
+async def web_naver_draft(phone: str):
+    """크롬 확장 '⬇ 시공막내 글 불러오기'(pull). 그 owner 의 최근 생성 블로그 글 반환.
+    인증=MVP phone(⚠️IDOR, 추후 세션토큰 하드닝). 사진 url 은 서명 토큰(?t=)으로 확장이 쿠키없이 fetch.
+    """
+    digits = _webre.sub(r"[^0-9]", "", phone or "")
+    if not digits:
+        raise HTTPException(400, "phone 필수")
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT title, draft, photos_json FROM web_generated_posts WHERE owner_phone = ?",
+            (_norm_phone(phone),)).fetchone()
+    if not row:
+        return {"ok": False, "reason": "생성된 글이 없어요. 웹에서 [✨ 글 만들기] 먼저 하세요."}
+    title, draft, pj = row
+    photos = []
+    try:
+        for it in json.loads(pj or "[]"):
+            pid = it.get("photo_id")
+            photos.append({
+                "index": it.get("index"),
+                "url": INTAKE_PUBLIC_BASE_URL + "/api/web/photo/" + str(pid)
+                       + "?t=" + _web_photo_token(int(pid)),
+            })
+    except Exception:
+        photos = []
+    return {"ok": True, "title": title or "", "draft": draft or "", "photos": photos}
 
 
 class WebCustomerContent(BaseModel):

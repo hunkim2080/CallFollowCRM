@@ -9127,3 +9127,13 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
   - **사진 [n] 매칭**(어느 사진이 [1]인지)=서버/AI가 부위태그(거실화장실 등)로 draft에 [n] 넣고 photos[].index 맞춤. 확장은 index→[index]자리만.
   - 대상 글=그 owner(phone) '최근 생성 글'(추후 &id= 로 특정). 인증=MVP는 phone(⚠️IDOR, auth 하드닝 트랙과 함께 추후 세션토큰).
 - 확장은 이 응답만 오면 제목·글·사진 자동채움→[자동으로 넣기]로 네이버 자동. 현재는 엔드포인트 없어 "서버 준비 중" 표시(무해).
+
+## 2026-08-16 16:10 · cowork ✅ 크롬 확장 '네이버 글 불러오기' 엔드포인트 (android 요청 GET /api/web/naver-draft)
+- 신규(server/main.py): GET /api/web/naver-draft?phone=<digits> → 그 owner 최근 생성 글 {ok,title,draft,photos:[{index,url}]}. 계약대로.
+  - draft = 마커 규약(## 소제목·**굵게**·> 인용·---·사진자리 [n]). 글생성 프롬프트를 마커+[n] 출력으로 갱신.
+  - photos url = INTAKE_PUBLIC_BASE/api/web/photo/{id}?t=<HMAC토큰> → 확장이 **쿠키 없이 background fetch 가능**(그 사진 1장 스코프). web_photo 에 ?t= 허용 추가.
+  - 저장: generate-content 성공 시 web_generated_posts(owner PK=최근1개)에 title/draft/photos_json 저장.
+  - 사진 [n] 매칭: 프롬프트가 draft에 [1..k] 넣고 photos[].index=1..k(업로드순). k=이 현장 사진 최대 6.
+- 인증: MVP=phone (⚠️IDOR, android도 명시 — 추후 세션토큰 하드닝). 사진은 서명토큰이라 URL 알아도 그 사진만.
+- 검증: TestClient — generate→저장→naver-draft(제목·마커·[1]자리)·사진 토큰 쿠키無 fetch 200·위조토큰 401·글없음 안내. ast OK. Gemini mock.
+- ⚠️ 배포 후 실동작: 마이페이지 Gemini 키 등록 → [✨글만들기] → 확장 [⬇ 불러오기]. EXTENSION_ID/host_permissions 는 android 확장쪽. 실 Gemini 마커 출력 품질은 배포후 확인.
