@@ -11983,7 +11983,12 @@ async def _ollama_correct_transcript(text: str) -> str:
         timeout=120.0,
     )
     fixed = (out.get("corrected") or "").strip()
-    return fixed or text
+    if not fixed:
+        return text
+    # 안전장치: 보정이 내용을 크게 줄이면(exaone 이 긴 통화를 '요약'해버린 사고) 원문 유지.
+    if len(fixed) < len(text) * 0.7:
+        return text
+    return fixed
 
 
 def _parse_stt_json(raw: str, offset_ms: int = 0):
@@ -12026,27 +12031,39 @@ async def _ollama_label_speakers(texts: list) -> list:
     n = len(texts or [])
     if n == 0:
         return []
-    joined = "\n".join("%d. %s" % (i + 1, t) for i, t in enumerate(texts))
-    if len(joined) > 4000:
-        return ["?"] * n
     sys_p = (
         "통화 자막 각 줄의 화자를 붙여라. '나'(업체 사장님)와 '손님'(고객) 둘뿐이다. "
         "입력 줄 수와 정확히 같은 개수로, 각 줄 화자를 순서대로 '나' 또는 '손님' 으로만. "
         "지어내지 말고 라벨만. JSON {\"speakers\":[\"나\",\"손님\"]} 형식만 출력."
     )
-    try:
-        out = await call_ollama_json(
-            system_prompt=sys_p, user_msg=joined,
-            model=OLLAMA_CORRECT_MODEL, temperature=0.0, max_tokens=1024, timeout=120.0)
-    except Exception:
-        return ["?"] * n
-    sp = out.get("speakers") if isinstance(out, dict) else None
-    if not isinstance(sp, list):
-        return ["?"] * n
+    # 긴 통화(발화 많음) 대비 — ~3000자 단위로 나눠 배치별 라벨링(전부 '?' 폴백 방지).
+    batches = []
+    cur, curlen = [], 0
+    for t in texts:
+        tl = len(str(t)) + 8
+        if cur and curlen + tl > 3000:
+            batches.append(cur)
+            cur, curlen = [], 0
+        cur.append(t)
+        curlen += tl
+    if cur:
+        batches.append(cur)
     res = []
-    for i in range(n):
-        v = str(sp[i]).strip() if i < len(sp) else ""
-        res.append(v if v in ("나", "손님") else "?")
+    for batch in batches:
+        joined = "\n".join("%d. %s" % (j + 1, t) for j, t in enumerate(batch))
+        labels = None
+        try:
+            out = await call_ollama_json(
+                system_prompt=sys_p, user_msg=joined,
+                model=OLLAMA_CORRECT_MODEL, temperature=0.0, max_tokens=1024, timeout=120.0)
+            sp = out.get("speakers") if isinstance(out, dict) else None
+            if isinstance(sp, list):
+                labels = sp
+        except Exception:
+            labels = None
+        for k in range(len(batch)):
+            v = str(labels[k]).strip() if (labels and k < len(labels)) else ""
+            res.append(v if v in ("나", "손님") else "?")
     return res
 
 
