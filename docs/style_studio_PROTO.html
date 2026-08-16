@@ -1,10 +1,10 @@
 <title>내 스타일 학습 — 따라할 톤을 AI가 분석 (블로그·인스타·스레드)</title>
 <style>
   :root{
-    --bg:#F4F6F8; --surface:#FFFFFF; --sunken:#F2F4F6; --ink:#191F28; --ink2:#4E5968; --ink3:#8B95A1; --line:#E5E8EB;
-    --blue:#3182F6; --blue-bg:#EEF4FF; --blue-line:#D5E4FB;
-    --green:#12B886; --green-bg:#E7F8F1;
-    --violet:#6E5FC7; --violet-bg:#F1EEFB; --violet-line:#C9BEF2;
+    --bg:#EEF1F4; --surface:#FFFFFF; --sunken:#F5F7F9; --ink:#181D27; --ink2:#4E5968; --ink3:#8B95A1; --line:#E5E9EE;
+    --blue:#3182F6; --blue-bg:#EDF3FF; --blue-line:#D3E2FB;
+    --green:#12B886; --green-bg:#E6F9F1;
+    --violet:#6E5FC7; --violet-bg:#F0EDFB; --violet-line:#C9BEF2;
     --ig:#C13584; --ig-bg:#FCEEF5; --ig-line:#F2C4DC;
     --th:#191F28; --th-bg:#EDEFF2; --th-line:#C9CFD6;
     --font:-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic","Apple SD Gothic Neo",Roboto,sans-serif;
@@ -22,9 +22,13 @@
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.65;-webkit-font-smoothing:antialiased;padding:30px 18px 70px}
   .wrap{max-width:760px;margin:0 auto}
-  .eyebrow{font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--violet);text-transform:uppercase}
-  h1{font-size:23px;font-weight:850;letter-spacing:-.02em;margin:6px 0 6px}
-  .sub{color:var(--ink2);font-size:14.5px;margin:0 0 22px} .sub b{color:var(--ink)}
+  /* 뷰어(si0in.kr/web)와 같은 결 — 펄 라벨 + 큰 제목 + 부제 */
+  .pilltop{display:flex;align-items:center;gap:13px;margin-bottom:14px;flex-wrap:wrap}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:800;color:var(--blue);background:var(--blue-bg);border:1px solid var(--blue-line);border-radius:999px;padding:6px 14px}
+  .backlink{font-size:13px;font-weight:800;color:var(--ink3);cursor:pointer;text-decoration:none}
+  .backlink:hover{color:var(--blue);text-decoration:underline}
+  h1{font-size:24px;font-weight:850;letter-spacing:-.02em;margin:0 0 7px}
+  .sub{color:var(--ink2);font-size:14px;margin:0 0 22px;line-height:1.6} .sub b{color:var(--ink)}
 
   .ptabs{display:flex;gap:8px;margin-bottom:16px}
   .ptab{flex:1;font-size:13px;font-weight:800;border:1px solid var(--line);background:var(--surface);color:var(--ink2);border-radius:11px;padding:11px 8px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
@@ -89,9 +93,12 @@
 </style>
 
 <div class="wrap">
-  <div class="eyebrow">시공막내 웹 · 마이페이지 › 스타일 학습 (고도화 제안)</div>
-  <h1>내 스타일 학습 — 따라할 톤을 AI가 분석해서 그대로 써요</h1>
-  <p class="sub">플랫폼마다 <b>따라하고 싶은 글/계정</b>을 넣으면, AI가 <b>페르소나·어미·어투·구조·리액션</b>까지 뜯어봐요. 그 분석대로 [글 만들기]가 <b>사장님처럼</b> 써요. <b>블로그·인스타·스레드 각각 따로</b> 학습.</p>
+  <div class="pilltop">
+    <span class="pill">🖥️ 시공막내 웹 · 마이페이지</span>
+    <a class="backlink" onclick="toast('← 마이페이지로 돌아가요')">← 마이페이지로 돌아가기</a>
+  </div>
+  <h1>내 스타일 학습</h1>
+  <p class="sub">플랫폼마다 <b>따라하고 싶은 글/계정</b>을 넣으면, AI가 <b>페르소나·어미·어투·구조·리액션</b>까지 뜯어봐요. 그 분석대로 [글 만들기]가 <b>사장님처럼</b> 써요 — <b>블로그·인스타·스레드 각각 따로</b> 학습.</p>
 
   <!-- 플랫폼 -->
   <div class="ptabs">
