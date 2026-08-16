@@ -26489,11 +26489,23 @@ async def web_login_status(request: Request, t: str):
                 return JSONResponse({"status": "expired"})
             return JSONResponse({"status": "pending"})
         # 승인됨 → 세션 발급 + 티켓 1회용 소멸
-        import secrets
-        sid = secrets.token_urlsafe(24)
-        con.execute(
-            "INSERT INTO web_sessions (sid, owner_phone, created_at_ms, last_active_ms, user_agent) "
-            "VALUES (?,?,?,?,?)", (sid, _norm_phone(owner), now, now, ua))
+        # 지적: 같은 PC서 연결확인 몇 번에 '기기 24대'로 쌓임 → 같은 기기(user_agent)면 기존 세션 재사용.
+        onorm = _norm_phone(owner)
+        existing = con.execute(
+            "SELECT sid FROM web_sessions WHERE owner_phone = ? AND user_agent = ? "
+            "ORDER BY last_active_ms DESC LIMIT 1", (onorm, ua)).fetchone()
+        if existing:
+            sid = existing[0]
+            con.execute("UPDATE web_sessions SET last_active_ms = ? WHERE sid = ?", (now, sid))
+        else:
+            import secrets
+            sid = secrets.token_urlsafe(24)
+            con.execute(
+                "INSERT INTO web_sessions (sid, owner_phone, created_at_ms, last_active_ms, user_agent) "
+                "VALUES (?,?,?,?,?)", (sid, onorm, now, now, ua))
+        # 오래된 세션 정리(30일 초과) — 유령 기기 누적 방지
+        con.execute("DELETE FROM web_sessions WHERE owner_phone = ? AND last_active_ms < ?",
+                    (onorm, now - 30 * 24 * 3600 * 1000))
         con.execute("DELETE FROM web_login_tickets WHERE ticket = ?", (tok,))
         con.commit()
     resp = JSONResponse({"status": "authorized"})
@@ -27269,13 +27281,18 @@ function renderRight(){
   if(!curCd){rb.innerHTML='<div class="empty">왼쪽에서 현장을 먼저 골라주세요.</div>';return;}
   var pm=PMETA[genP];
   var tone=(genP==='bl')?'<span class="tl">🎯 따라할 톤: <b>내 블로그 스타일 ✓</b></span>':'<span class="tl">🎯 따라할 톤: <span style="color:var(--ink3)">기본 (미설정)</span></span>';
+  var done=!!(curCust&&curCust.completed);
+  var btn = done
+    ? '<button class="genbig '+pm.cls+'" onclick="genContent()">'+(GEN?'↻ 다시 만들기':pm.btn)+'</button>'
+    : '<button class="genbig '+pm.cls+'" style="opacity:.5;cursor:not-allowed" disabled>'+pm.btn+'</button>'
+      +'<div class="viewonly" style="margin-bottom:12px">✅ <b>시공 완료 후</b> 글을 만들 수 있어요. 진행중 현장은 아직 시공후 사진·후기 재료가 없어요.</div>';
   var h='<div class="tonebar">'+tone+'<span class="te" onclick="location.href=\\'/mypage\\'">바꾸기</span></div>'
    +'<div class="metaline">'+pm.meta+'</div>'
-   +'<button class="genbig '+pm.cls+'" onclick="genContent()">'+(GEN?'↻ 다시 만들기':pm.btn)+'</button>'
+   +btn
    +'<div class="genload" id="genload"><div class="gblob"></div><div class="gt">'+pm.load+'</div><div class="gsteps">'+pm.steps.map(function(s){return '<div class="gstep"><span class="rc"></span>'+s+'</div>';}).join('')+'</div></div>'
    +'<div id="genOut"></div>';
   rb.innerHTML=h;
-  if(GEN)drawGen();
+  if(GEN&&done)drawGen();
 }
 function genContent(){
   if(!curCd)return;
@@ -27694,7 +27711,7 @@ _MYPAGE_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
           </div>
           <div class="keystate" id="keyState" style="display:none">
             <span class="dot"></span><span class="s">연결됨</span><span class="k" id="keyMask"></span>
-            <span class="mini"><span onclick="testKey()">테스트</span><span onclick="delKey()" style="color:var(--red)">삭제</span></span>
+            <span class="mini"><span onclick="testKey()">연결 확인</span><span onclick="delKey()" style="color:var(--red)">삭제</span></span>
           </div>
           <div class="howto"><b>키 받는 법 (30초 · 무료)</b><br>① <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> 접속 (구글 로그인) &nbsp; ② <b>[Create API key]</b> → 키 복사 &nbsp; ③ 위에 붙여넣고 <b>[연결]</b></div>
           <div class="note">🔒 키는 <b>암호화되어 안전하게 보관</b>되고 블로그 생성에만 써요. 화면엔 뒤 4자리만. 언제든 삭제 가능.</div>
@@ -27775,7 +27792,7 @@ function saveKey(){var k=document.getElementById('keyIn').value.trim();if(!k){al
   .then(_rjson).then(function(d){if(d.ok){toast('키 저장됨 ✓');load();}else{alert(d.detail||'저장 실패');}})
   .catch(function(){alert('네트워크 오류 · 연결 상태를 확인해 주세요');})
   .then(function(){if(b){b.textContent='연결';b.style.opacity=1;}});}
-function testKey(){toast('테스트 중…');fetch('/api/web/gemini-key/test').then(_rjson).then(function(d){toast(d.ok?('통과 ✓ '+(d.ms||0)+'ms'):('실패 — '+(d.detail||'키 확인')));}).catch(function(){toast('네트워크 오류');});}
+function testKey(){toast('연결 확인 중…');fetch('/api/web/gemini-key/test').then(_rjson).then(function(d){toast(d.ok?'잘 돼요 ✓':('안 돼요 · '+(d.detail||'키 다시 확인')));}).catch(function(){toast('네트워크 오류');});}
 function delKey(){if(!confirm('저장된 Gemini 키를 삭제할까요?'))return;fetch('/api/web/gemini-key',{method:'DELETE'}).then(_rjson).then(function(){toast('키 삭제됨');load();}).catch(function(){toast('네트워크 오류');});}
 function addTone(){var u=document.getElementById('toneIn').value.trim();if(!u){alert('글 주소를 넣어주세요');return;}toast('분석 중…');
   fetch('/api/web/tone-url',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:u})})
@@ -27891,6 +27908,9 @@ async def web_generate_content(request: Request, req: WebGenReq):
     if not api_key:
         raise HTTPException(400, "먼저 마이페이지에서 내 Gemini 키를 등록해 주세요")
     m = _web_gather_materials(owner, cd)
+    # 사장님 핵심 규칙: 시공 완료건만 글 생성(진행중은 시공후 사진·후기 없어 글 못 씀). 웹 우회 방지 서버 게이트.
+    if not m.get("completed"):
+        raise HTTPException(400, "시공 완료 후 글을 만들 수 있어요 (진행중 현장은 아직 후기 재료가 없어요)")
     # 사진 수집(네이버 글 [n] 자리 매핑용) — 이 현장 사진 최대 6장
     _bucket = _web_photo_bucket(owner)
     _pics = _bucket.get(_web_pkey(cd), [])[:6]
