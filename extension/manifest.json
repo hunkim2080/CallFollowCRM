@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "시공막내 — 네이버 블로그 넣기",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "시공막내에서 만든 글을 네이버 블로그 글쓰기 창에 자동으로 넣어줍니다.",
-  "permissions": ["activeTab", "scripting"],
+  "permissions": ["activeTab", "scripting", "clipboardWrite"],
   "host_permissions": ["https://blog.naver.com/*"],
   "action": {
     "default_popup": "popup.html",

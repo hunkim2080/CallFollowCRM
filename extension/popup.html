@@ -6,57 +6,71 @@
   :root{
     --ink:#181D27; --ink2:#4E5968; --ink3:#8B95A1; --line:#E5E9EE;
     --surface:#fff; --sunken:#F5F7F9; --green:#12B886; --green-bg:#E6F9F1;
-    --naver:#03C75A; --amber-bg:#FBF3E4; --amber:#B7791F; --red:#E03131; --red-bg:#FDECEF;
+    --naver:#03C75A; --amber-bg:#FBF3E4; --amber:#B7791F; --red:#E03131;
+    --blue:#3182F6; --blue-bg:#EDF3FF;
     --font:-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic","Apple SD Gothic Neo",sans-serif;
   }
   *{box-sizing:border-box}
-  body{width:340px;margin:0;font-family:var(--font);background:var(--surface);color:var(--ink);padding:14px 14px 16px}
+  body{width:344px;margin:0;font-family:var(--font);background:var(--surface);color:var(--ink);padding:14px 14px 16px}
   .hd{display:flex;align-items:center;gap:7px;font-size:14.5px;font-weight:850;letter-spacing:-.01em;margin-bottom:3px}
   .hd .b{color:var(--naver)}
-  .desc{font-size:11.5px;color:var(--ink3);margin-bottom:11px;line-height:1.5}
-  .chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:800;border-radius:999px;padding:5px 11px;margin-bottom:11px}
+  .desc{font-size:11.5px;color:var(--ink3);margin-bottom:10px;line-height:1.5}
+  .chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:800;border-radius:999px;padding:5px 11px;margin-bottom:10px}
   .chip.ok{color:var(--naver);background:var(--green-bg)}
   .chip.off{color:var(--amber);background:var(--amber-bg)}
-  .lbl{font-size:11.5px;font-weight:800;color:var(--ink2);margin-bottom:5px}
-  textarea{width:100%;height:150px;resize:vertical;border:1px solid var(--line);border-radius:11px;
+  .lblrow{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
+  .lbl{font-size:11.5px;font-weight:800;color:var(--ink2)}
+  .mini{border:1px solid var(--line);background:#fff;border-radius:8px;font-family:var(--font);font-size:10.5px;font-weight:800;color:var(--ink2);padding:4px 9px;cursor:pointer}
+  .mini:active{transform:scale(.97)}
+  textarea{width:100%;height:132px;resize:vertical;border:1px solid var(--line);border-radius:11px;
     padding:10px 11px;font-family:var(--font);font-size:12.5px;line-height:1.6;color:var(--ink);background:var(--sunken);outline:none}
   textarea:focus{border-color:var(--naver);background:#fff}
+  .hint{font-size:10.5px;color:var(--ink3);margin-top:6px;line-height:1.55}
+  .hint b{color:var(--ink2)}
   .btn{width:100%;margin-top:10px;border:0;border-radius:12px;background:var(--naver);color:#fff;
     font-family:var(--font);font-size:14px;font-weight:850;padding:12px;cursor:pointer;letter-spacing:-.01em}
   .btn:active{transform:scale(.98)}
   .btn:disabled{background:#C9D0D8;cursor:default;transform:none}
-  .out{font-size:12px;font-weight:700;margin-top:9px;min-height:16px;line-height:1.5;color:var(--ink2)}
+  .paste{margin-top:9px;display:none;background:var(--blue-bg);border:1px solid #cfe0ff;border-radius:11px;padding:11px 12px}
+  .paste .big{font-size:13px;font-weight:850;color:var(--blue);line-height:1.5}
+  .paste .kbd{display:inline-block;border:1px solid #b9cdf2;background:#fff;border-radius:6px;padding:1px 7px;font-weight:850;font-size:12px;margin:0 1px}
+  .paste .sm{font-size:11px;color:var(--ink2);margin-top:5px;line-height:1.5}
+  .out{font-size:12px;font-weight:700;margin-top:9px;min-height:15px;line-height:1.5;color:var(--ink2)}
   .out.ok{color:var(--naver)} .out.err{color:var(--red)}
-  pre#diag{white-space:pre-wrap;word-break:break-all;font-size:10.5px;line-height:1.5;color:var(--ink2);
-    background:var(--sunken);border:1px solid var(--line);border-radius:9px;padding:9px 10px;margin:0;max-height:160px;overflow:auto}
-  .copy{margin-top:6px;border:1px solid var(--line);background:#fff;border-radius:9px;font-family:var(--font);
-    font-size:11.5px;font-weight:800;color:var(--ink2);padding:7px 12px;cursor:pointer}
-  .copy:active{transform:scale(.98)}
-  .steps{margin-top:11px;padding-top:11px;border-top:1px solid var(--line);font-size:11px;color:var(--ink3);line-height:1.65}
+  .auto{margin-top:10px;text-align:center}
+  .auto button{border:0;background:none;color:var(--ink3);font-family:var(--font);font-size:11px;font-weight:800;text-decoration:underline;cursor:pointer}
+  .steps{margin-top:11px;padding-top:11px;border-top:1px solid var(--line);font-size:10.5px;color:var(--ink3);line-height:1.65}
   .steps b{color:var(--ink2)}
 </style>
 </head>
 <body>
   <div class="hd">🧩 <span>시공막내</span> · <span class="b">네이버 블로그 넣기</span></div>
-  <div class="desc">시공막내에서 만든 글을 네이버 블로그 글쓰기 창에 자동으로 넣어줍니다.</div>
+  <div class="desc">시공막내에서 만든 글을 <b>서식(소제목·인용구·굵게)까지</b> 네이버 블로그에 넣어줍니다.</div>
 
   <div id="chip" class="chip off">○ 상태 확인 중…</div>
 
-  <div class="lbl">네이버에 넣을 글 (붙여넣기)</div>
+  <div class="lblrow">
+    <span class="lbl">네이버에 넣을 글</span>
+    <button id="sample" class="mini">예시 넣기</button>
+  </div>
   <textarea id="text" placeholder="시공막내에서 만든 블로그 글을 여기에 붙여넣으세요."></textarea>
+  <div class="hint"><b>서식 마커</b> — <b>## </b>소제목 · <b>&gt; </b>인용구 · <b>**굵게**</b> · <b>---</b> 구분선. 그대로 네이버 서식으로 들어가요.</div>
 
-  <button id="btn" class="btn">네이버 글쓰기 창에 넣기</button>
+  <button id="btn" class="btn">네이버용으로 복사</button>
+
+  <div id="paste" class="paste">
+    <div class="big">복사됐어요! 이제 네이버 본문 클릭 → <span class="kbd">Ctrl</span>+<span class="kbd">V</span></div>
+    <div class="sm">사람이 붙여넣는 것과 똑같아서 소제목·인용구·굵게·구분선까지 그대로 들어가요.</div>
+  </div>
   <div id="out" class="out"></div>
 
-  <div id="diagWrap" style="display:none;margin-top:9px">
-    <pre id="diag"></pre>
-    <button id="copy" class="copy">진단 복사</button>
-  </div>
+  <div class="auto"><button id="autoBtn">⚡ 자동으로 넣어보기 (실험)</button></div>
 
   <div class="steps">
-    <b>순서</b> ① 네이버 블로그 <b>글쓰기</b> 창을 연다 → ② 본문을 한 번 <b>클릭</b> → ③ 위 <b>[넣기]</b> 버튼.
+    <b>순서</b> ① 네이버 블로그 <b>글쓰기</b> 열기 → ② <b>[네이버용으로 복사]</b> → ③ 본문 클릭하고 <b>Ctrl+V</b>.
   </div>
 
+  <script src="format.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>
