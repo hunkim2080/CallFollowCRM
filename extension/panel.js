@@ -116,7 +116,7 @@
         return;
       }
       const h = resp.headApplied || 0, ht = resp.headTotal || 0;
-      const tail = ht ? ` · 소제목 ${h}/${ht}` + (h < ht ? " (일부 실패 — 알려주세요)" : "") : "";
+      const tail = ht ? ` · 소제목 ${h}/${ht}` + (h < ht ? ` (${resp.diag || "실패"} — 알려주세요)` : "") : "";
       setOut("✓ 넣었어요! 본문·굵게·인용구·구분선" + tail, "ok");
     });
   }

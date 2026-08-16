@@ -1,12 +1,11 @@
 // 시공막내 — 네이버 블로그 넣기 (service worker · chrome.debugger 자동엔진)
 // 확장은 '진짜 키/클릭'을 content script 로는 못 냄 → chrome.debugger(CDP)로
 // 사람과 동일한 신뢰된(trusted) Ctrl+V / 마우스 클릭을 보내 네이버가 인정하게 한다.
-// (사장님 publisher.js 의 page.keyboard/mouse 를 확장 안에서 재현)
 //
 // 흐름: ①에디터 포커스 → ②진짜 Ctrl+V(본문+굵게+인용구+구분선) → ③소제목만 툴바 자동클릭
-//   - 소제목은 단축키가 없어 '본문▾' 문단서식 드롭다운 → '소제목' 옵션을 좌표로 진짜 클릭.
+//   - 소제목은 단축키가 없어 '본문▾ 문단 서식' 드롭다운 → '소제목' 옵션을 좌표로 진짜 클릭.
+//   - 문단서식 버튼 실제 텍스트 = "본문문단 서식 변경" (publisher.js 확인).
 
-// 아이콘 클릭 → 패널 열기/닫기
 chrome.action.onClicked.addListener((tab) => {
   if (!tab || !/^https:\/\/blog\.naver\.com\//.test(tab.url || "")) return;
   chrome.tabs.sendMessage(tab.id, { type: "SGM_TOGGLE" }).catch(() => {});
@@ -17,7 +16,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const tabId = sender.tab && sender.tab.id;
     autoPaste(tabId, msg.draft || "").then(sendResponse)
       .catch((e) => sendResponse({ ok: false, error: String((e && e.message) || e).slice(0, 160) }));
-    return true; // async
+    return true;
   }
 });
 
@@ -39,73 +38,65 @@ async function evalVal(target, expression) {
   return r && r.result ? r.result.value : null;
 }
 
-// ── 편집영역 포커스(상단/‪#mainFrame‬ iframe 동일출처 둘 다 탐색) + 커서 맨 끝 ──
+// 편집영역 포커스 + 커서 맨 끝
 const FOCUS_EXPR = `(function(){
   function findEd(doc){
     try{
-      var e = doc.querySelector('.se-main-container [contenteditable="true"]');
-      if(e) return e;
-      var eds = [].slice.call(doc.querySelectorAll('[contenteditable="true"]'))
-        .filter(function(x){ return !x.closest('.se-section-documentTitle'); });
-      eds.sort(function(a,b){ return (b.innerText||'').length - (a.innerText||'').length; });
-      return eds[0] || null;
-    }catch(e){ return null; }
+      var e=doc.querySelector('.se-main-container [contenteditable="true"]'); if(e) return e;
+      var eds=[].slice.call(doc.querySelectorAll('[contenteditable="true"]')).filter(function(x){return !x.closest('.se-section-documentTitle');});
+      eds.sort(function(a,b){return (b.innerText||'').length-(a.innerText||'').length;}); return eds[0]||null;
+    }catch(e){return null;}
   }
-  var ed = findEd(document);
+  var ed=findEd(document);
   if(!ed){ var f=document.querySelector('#mainFrame'); if(f&&f.contentDocument) ed=findEd(f.contentDocument); }
   if(!ed) return 'NO_EDITOR';
-  try{
-    ed.focus();
-    var win=ed.ownerDocument.defaultView||window;
-    var r=ed.ownerDocument.createRange(); r.selectNodeContents(ed); r.collapse(false);
-    var s=win.getSelection(); s.removeAllRanges(); s.addRange(r);
-  }catch(e){}
+  try{ ed.focus(); var win=ed.ownerDocument.defaultView||window; var r=ed.ownerDocument.createRange(); r.selectNodeContents(ed); r.collapse(false); var s=win.getSelection(); s.removeAllRanges(); s.addRange(r); }catch(e){}
   return 'OK';
 })()`;
 
-// iframe 오프셋 + 문서 얻는 prelude (좌표 계산용)
+// iframe 오프셋 + 문서 얻기 (좌표 계산)
 const PRELUDE = `
   var __if=document.querySelector('#mainFrame'); var __off={x:0,y:0}; var __doc=document;
   if(__if){ var __r=__if.getBoundingClientRect(); __off={x:__r.left,y:__r.top}; if(__if.contentDocument) __doc=__if.contentDocument; }
 `;
 
-// 특정 소제목 텍스트를 가진 문단의 클릭 좌표(문단 왼쪽 근처 = 커서 두기 좋음)
+// 소제목 텍스트를 가진 문단의 클릭 좌표
 function PARA_COORD_EXPR(text) {
   return `(function(){ ${PRELUDE}
     var want=${JSON.stringify(String(text).replace(/\s/g, ""))};
+    function coord(el){ try{el.scrollIntoView({block:'center'});}catch(e){} var r=el.getBoundingClientRect(); return {x:Math.round(__off.x+r.left+Math.min(35,r.width/2)), y:Math.round(__off.y+r.top+r.height/2)}; }
     var ps=[].slice.call(__doc.querySelectorAll('.se-text-paragraph'));
-    for(var i=0;i<ps.length;i++){
-      var t=(ps[i].innerText||'').replace(/\\s/g,'');
-      if(t===want){
-        try{ ps[i].scrollIntoView({block:'center'}); }catch(e){}
-        var r=ps[i].getBoundingClientRect();
-        return {x:Math.round(__off.x+r.left+Math.min(35,r.width/2)), y:Math.round(__off.y+r.top+r.height/2)};
-      }
-    }
+    for(var i=0;i<ps.length;i++){ if((ps[i].innerText||'').replace(/\\s/g,'')===want) return coord(ps[i]); }
+    // 폴백: 편집영역 내 innerText 가 정확히 일치하는 '가장 작은' 요소
+    var scope=__doc.querySelector('.se-main-container, .se-content, .se-container')||__doc.body;
+    var all=[].slice.call(scope.querySelectorAll('*')); var best=null, bestLen=1e9;
+    for(var j=0;j<all.length;j++){ var t=(all[j].innerText||'').replace(/\\s/g,''); if(t===want){ var len=(all[j].textContent||'').length; if(len<bestLen){bestLen=len;best=all[j];} } }
+    if(best) return coord(best);
     return null;
   })()`;
 }
 
-// 문단서식('본문▾') 드롭다운 버튼 좌표
+// 문단서식('본문문단 서식 변경') 드롭다운 버튼 좌표
 const PARAFMT_BTN_EXPR = `(function(){ ${PRELUDE}
   function vis(e){var r=e.getBoundingClientRect();return r.width>0&&r.height>0;}
-  var btns=[].slice.call(__doc.querySelectorAll('button'));
+  var btns=[].slice.call(__doc.querySelectorAll('button, [role="button"]'));
   var cand=null;
-  for(var i=0;i<btns.length;i++){ var b=btns[i]; if(!vis(b))continue; var al=(b.getAttribute('aria-label')||''); if(al.indexOf('문단 서식')>=0){cand=b;break;} }
-  if(!cand){ for(var j=0;j<btns.length;j++){ var b2=btns[j]; if(!vis(b2))continue; var tx=(b2.textContent||'').replace(/\\s/g,''); if((tx==='본문'||tx==='소제목'||tx==='대제목')&&tx.length<=4){cand=b2;break;} } }
+  for(var i=0;i<btns.length;i++){ var b=btns[i]; if(!vis(b))continue;
+    var al=(b.getAttribute('aria-label')||'').replace(/\\s/g,''); var tx=(b.textContent||'').replace(/\\s/g,'');
+    if(al.indexOf('문단서식')>=0 || tx.indexOf('문단서식')>=0){ cand=b; break; } }
+  if(!cand){ for(var j=0;j<btns.length;j++){ var b2=btns[j]; if(!vis(b2))continue; var t2=(b2.textContent||'').replace(/\\s/g,''); if(t2.indexOf('본문')===0 && t2.length<=8){cand=b2;break;} } }
   if(!cand) return null;
   var r=cand.getBoundingClientRect();
   return {x:Math.round(__off.x+r.left+r.width/2), y:Math.round(__off.y+r.top+r.height/2)};
 })()`;
 
-// 열린 드롭다운에서 '소제목' 옵션 좌표
+// 열린 드롭다운의 '소제목' 옵션 좌표
 const HEAD_OPTION_EXPR = `(function(){ ${PRELUDE}
   function vis(e){var r=e.getBoundingClientRect();return r.width>0&&r.height>0;}
-  var sels=['.se-toolbar-option-text-button','.se-toolbar-option-label','[role="option"]','button','li','span'];
-  for(var s=0;s<sels.length;s++){
-    var els=[].slice.call(__doc.querySelectorAll(sels[s]));
-    for(var i=0;i<els.length;i++){ var e=els[i]; if(!vis(e))continue; var tx=(e.textContent||'').replace(/\\s/g,''); if(tx==='소제목'){ var r=e.getBoundingClientRect(); return {x:Math.round(__off.x+r.left+r.width/2), y:Math.round(__off.y+r.top+r.height/2)}; } }
-  }
+  var sels=['.se-toolbar-option-text-button','.se-toolbar-option-label','[role="option"]','button','li','a','span'];
+  for(var s=0;s<sels.length;s++){ var els=[].slice.call(__doc.querySelectorAll(sels[s]));
+    for(var i=0;i<els.length;i++){ var e=els[i]; if(!vis(e))continue; var tx=(e.textContent||'').replace(/\\s/g,'');
+      if(tx==='소제목'||(tx.indexOf('소제목')>=0&&tx.length<=6)){ var r=e.getBoundingClientRect(); return {x:Math.round(__off.x+r.left+r.width/2), y:Math.round(__off.y+r.top+r.height/2)}; } } }
   return null;
 })()`;
 
@@ -126,28 +117,27 @@ async function clickAt(target, x, y) {
   await cdp(target, "Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "left", clickCount: 1 });
 }
 
-// 원고에서 소제목 텍스트(## …) 추출
 function extractHeadings(draft) {
   return String(draft).replace(/\r\n/g, "\n").split("\n")
     .map((l) => { const m = l.match(/^\s*#{1,3}\s+(.*)$/); return m ? m[1].replace(/\*\*(.+?)\*\*/g, "$1").trim() : null; })
     .filter(Boolean);
 }
 
-// 소제목 한 개: 문단 클릭(커서) → 문단서식 드롭다운 → '소제목'
+// 소제목 한 개: 문단 클릭 → 문단서식 드롭다운 → '소제목'. 실패 단계 코드 반환.
 async function applyOneHeading(target, text) {
   const pc = await evalVal(target, PARA_COORD_EXPR(text));
-  if (!pc) return false;
+  if (!pc) return "no_para";
   await clickAt(target, pc.x, pc.y);
-  await sleep(260);
+  await sleep(300);
   const dc = await evalVal(target, PARAFMT_BTN_EXPR);
-  if (!dc) return false;
+  if (!dc) return "no_btn";
   await clickAt(target, dc.x, dc.y);
-  await sleep(420);
+  await sleep(520);
   const oc = await evalVal(target, HEAD_OPTION_EXPR);
-  if (!oc) { await pressEsc(target); return false; }
+  if (!oc) { await pressEsc(target); return "no_opt"; }
   await clickAt(target, oc.x, oc.y);
-  await sleep(340);
-  return true;
+  await sleep(360);
+  return "ok";
 }
 
 async function autoPaste(tabId, draft) {
@@ -162,24 +152,24 @@ async function autoPaste(tabId, draft) {
   }
   try {
     const focus = await evalVal(target, FOCUS_EXPR);
-    if (focus === "NO_EDITOR") return { ok: false, error: "글쓰기 본문 편집영역을 못 찾았어요(글쓰기 화면인지 확인)." };
+    if (focus === "NO_EDITOR") return { ok: false, error: "글쓰기 본문 편집영역을 못 찾았어요." };
     await sleep(120);
     await pressCtrlV(target);
-    await sleep(900); // 붙여넣기 반영 대기
+    await sleep(950);
 
-    // 소제목 자동 적용 (실패해도 붙여넣기는 성공 처리)
-    let headApplied = 0, headTotal = 0;
+    let headApplied = 0, headTotal = 0, diag = "";
     try {
       const heads = extractHeadings(draft);
       headTotal = heads.length;
-      for (const h of heads) {
-        const ok = await applyOneHeading(target, h);
-        if (ok) headApplied++;
+      for (let i = 0; i < heads.length; i++) {
+        const st = await applyOneHeading(target, heads[i]);
+        if (st === "ok") headApplied++;
+        else if (!diag) diag = st + "「" + heads[i].slice(0, 8) + "」";
         await sleep(250);
       }
-    } catch (e) { /* 무시 — 본문은 이미 들어감 */ }
+    } catch (e) { if (!diag) diag = "err:" + String(e.message || e).slice(0, 40); }
 
-    return { ok: true, headApplied, headTotal };
+    return { ok: true, headApplied, headTotal, diag };
   } finally {
     await dbgDetach(target);
   }
@@ -187,7 +177,6 @@ async function autoPaste(tabId, draft) {
 
 chrome.runtime.onInstalled.addListener(() => console.log("[시공막내] 확장 설치/갱신됨"));
 
-// (예약) si0in.kr 웹 → 확장 직접 연결
 if (chrome.runtime.onMessageExternal) {
   chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
     console.log("[시공막내] 웹에서 메시지", sender && sender.origin);
