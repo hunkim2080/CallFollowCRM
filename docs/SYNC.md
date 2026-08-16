@@ -9107,3 +9107,13 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 - **왜 붙여넣기부터**: 우리 웹(si0in.kr) 글만들기가 아직 미배포라, 리스크 큰 '네이버 주입'을 웹 의존 없이 먼저 검증. 사장님 실기 로드+테스트 대기.
 - **다음(코워크 관련·나중)**: 웹 글만들기 완성되면 [네이버에 넣기] 버튼 → 확장으로 직접 전달(manifest.externally_connectable = si0in.kr 이미 열어둠, background.onMessageExternal 예약). 그때 서버/웹 쪽 훅 필요할 수 있음 — 지금은 앱/서버 작업 없음.
 - 변경: 없음(다른 쪽 인터페이스 영향 없음). 순수 신규 확장.
+
+## 2026-08-16 · android(extension/) 크롬 확장 사실상 완성 (0.8.0 · 5dd95a7)
+네이버 블로그 자동 발행 확장이 **제목·본문·굵게·인용구·구분선·소제목·사진([n]자리)·임시저장** 전부 자동(사장님 실기 검증, 사진 7/7 자리매칭). 엔진=chrome.debugger(진짜 Ctrl+V·클릭), 상주패널(판다랭크식). 사장님 publisher.js/노하우/단축키 이식.
+- **자동발행 안 함**(임시저장까지만, 원칙 유지).
+- **마지막 1개 = 웹↔확장 직접연결**(현재는 패널에 붙여넣기로 씀). 코워크 웹 글만들기 배포 후:
+  - 확장 manifest `externally_connectable` 에 `si0in.kr` 이미 열어둠 → 웹에서 `chrome.runtime.sendMessage(EXTENSION_ID, payload)` 로 전달.
+  - **payload 계약(안)**: `{ title, draft, photos:[{index, dataUrl|url}] }`. draft 는 마커 규약(`## 소제목`·`> 인용구`·`**굵게**`·`---`·`[n]` 사진자리). 확장이 나머지 자동.
+  - **사진 [n] 번호 매칭(어느 사진이 [1]인지)** = 웹 AI 가 부위 태그(거실화장실 등)로 정해서 draft 에 [n] 넣고 photos[].index 맞춰줌. 확장은 "N번→[N]자리"만.
+  - EXTENSION_ID = 크롬 웹스토어 등록 후 고정(현재 unpacked 라 유동). 배포 시점에 확정.
+- 이건 앱/서버 즉시 작업 아님 — 웹 content-gen 나오면 그때 연결. 참고용 공유.
