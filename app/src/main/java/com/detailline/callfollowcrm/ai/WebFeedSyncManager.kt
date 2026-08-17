@@ -94,16 +94,16 @@ class WebFeedSyncManager(
         val hash = items.joinToString("|") {
             "${it.customerDigits},${it.workDate},${it.completed},${it.category},${it.apartment},${it.name},${it.shareIds.sorted().joinToString(":")},${it.memo}"
         }.hashCode().toString()
-        if (!force && hash == prefs.webFeedLastHash) return false
-
-        val res = repo.pushFeed(ownerPhone, items)
-        return if (res.isSuccess) {
+        // 달력(feed)은 변경 시에만 push. 하지만 문자대화·통화요약 재료는 feed 와 무관하게 바뀔 수 있음
+        //   (시공 후 '감사 문자' 등 = 최고의 블로그 재료) → feed 해시 그대로여도 항상 시도한다(F-4 유실 방지).
+        val feedChanged = force || hash != prefs.webFeedLastHash
+        if (feedChanged) {
+            if (!repo.pushFeed(ownerPhone, items).isSuccess) return false
             prefs.webFeedLastHash = hash
-            runCatching { pushConversationsForCompleted(customers, ownerPhone) }   // 완료고객 문자대화(변경분만) — 글 만들기 재료
-            true
-        } else {
-            false
         }
+        // 자체 webContentHashes dedup 으로 안 바뀐 고객은 skip → 네트워크 낭비 없음.
+        runCatching { pushConversationsForCompleted(customers, ownerPhone) }
+        return true
     }
 
     /**
@@ -129,6 +129,9 @@ class WebFeedSyncManager(
             val msgs = runCatching { cachedMessageRepository.load(suffix, 500) }.getOrNull().orEmpty()
             val text = msgs
                 .sortedBy { it.dateMs }
+                // 발신이 로컬보존(systemId<0)+provider 로 이중 캐시돼 재료가 2배 되던 것 제거(2026-08-17 사장님 지적).
+                //   같은 (보낸사람, 본문) 은 한 번만 — 블로그 재료엔 반복 문구가 정보값 없음.
+                .distinctBy { it.sent to it.body.trim() }
                 .mapNotNull { m -> m.body.trim().takeIf { it.isNotBlank() }?.let { (if (m.sent) "나: " else "손님: ") + it } }
                 .joinToString("\n")
             // 통화요약도 글 재료로 — 통화 많은 고객은 문자가 아예 없을 수 있어(문자 유무로 skip 안 함). owner-scoped push.
