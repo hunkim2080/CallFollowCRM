@@ -28425,6 +28425,7 @@ async def _web_gemini_generate(api_key: str, prompt: str, timeout: float = 75.0)
 #   동기 await 는 Gemini 가 75s+ 걸리면 CF/서버 타임아웃 → 뷰어 '네트워크 오류'. 대신
 #   즉시 job_id 반환 → 백그라운드 태스크가 완주 → 클라가 /api/web/generate-status 폴링.
 _WEB_GEN_JOBS = {}   # job_id -> {"status": "pending"|"done"|"error", "result": {...}, "detail": str, "ts": ms}
+_WEB_GEN_TASKS = set()   # 실행 중 태스크 강한참조 — create_task 결과를 안 붙들면 GC로 중간에 사라짐(잡이 영영 pending)
 
 async def _web_gen_finish(job_id, api_key, prompt, owner, cd, _sel, n_pics, m):
     """백그라운드 생성 — 결과를 _WEB_GEN_JOBS[job_id] 에 저장(폴링용)."""
@@ -28570,7 +28571,9 @@ async def web_generate_content(request: Request, req: WebGenReq):
     for _k in [k for k, v in list(_WEB_GEN_JOBS.items())
                if v.get("status") != "pending" and v.get("ts", 0) < _cut]:
         _WEB_GEN_JOBS.pop(_k, None)
-    asyncio.create_task(_web_gen_finish(job_id, api_key, prompt, owner, cd, list(_sel), n_pics, dict(m)))
+    _t = asyncio.create_task(_web_gen_finish(job_id, api_key, prompt, owner, cd, list(_sel), n_pics, dict(m)))
+    _WEB_GEN_TASKS.add(_t)
+    _t.add_done_callback(_WEB_GEN_TASKS.discard)
     return {"job_id": job_id}
 
 
