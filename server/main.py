@@ -27623,7 +27623,33 @@ function ordNumClose(){document.getElementById('ordNumber').classList.remove('on
 function orderGo(){
   var total=selIds().length;
   if(total===0||genOrder.length<total){var go=document.getElementById('ordGo');go.classList.remove('shake');void go.offsetWidth;go.classList.add('shake');toast('아직 번호 안 매긴 사진이 있어요 — 남은 사진도 눌러주세요');return;}
-  ordNumClose(); doGenerate();
+  ordNumClose(); openKwStep();   /* 순서 확정 → SEO 키워드 스텝 → 거기서 doGenerate */
+}
+/* ═══ SEO 키워드 스텝 (순서 확정 후 미니 오버레이 · 최대 3개 칩) — 제목 필수+본문 4회 반복 ═══ */
+var KW=[];
+function kwRender(){
+  var c=document.getElementById('kwChips'); if(!c)return;
+  c.innerHTML=KW.map(function(k,i){return '<span class="kwChip">'+esc(k)+'<button onclick="kwDel('+i+')" title="빼기">✕</button></span>';}).join('');
+  var inp=document.getElementById('kwInput'), cnt=document.getElementById('kwCnt'), mx=document.getElementById('kwMax'), go=document.getElementById('kwGo');
+  if(cnt)cnt.textContent=KW.length+'/3';
+  var full=KW.length>=3;
+  if(inp){inp.readOnly=full; inp.placeholder=full?'3개 모두 채웠어요 · 빼려면 ✕':'예: 수원 줄눈시공 — 입력 후 Enter';}
+  if(mx)mx.hidden=!full;
+  if(go){var has=KW.length>0; go.classList.toggle('dim',!has); go.textContent=has?'✨ 원고 작성 시작하기':'키워드를 1개 이상 넣어주세요';}
+}
+function kwAdd(raw){var t=(raw||'').trim().replace(/,+$/,'').replace(/\\s+/g,' ');if(!t||KW.indexOf(t)>=0||KW.length>=3)return false;KW.push(t);kwRender();return true;}
+function kwDel(i){KW.splice(i,1);kwRender();}
+function getKws(){return KW.slice();}
+function kwKey(e){var inp=e.target;
+  if(e.key==='Enter'||e.key===','){e.preventDefault();if(kwAdd(inp.value))inp.value='';}
+  else if(e.key==='Backspace'&&!inp.value&&KW.length){kwDel(KW.length-1);}
+}
+function openKwStep(){document.getElementById('ordKw').classList.add('on');KW=[];kwRender();setTimeout(function(){var i=document.getElementById('kwInput');if(i)i.focus();},60);}
+function kwClose(){document.getElementById('ordKw').classList.remove('on');document.getElementById('ordNumber').classList.add('on');}
+function startWrite(){
+  var inp=document.getElementById('kwInput'); if(inp&&inp.value.trim()){kwAdd(inp.value);inp.value='';}
+  if(KW.length===0){var g=document.getElementById('kwGo');g.classList.remove('shake');void g.offsetWidth;g.classList.add('shake');return;}
+  document.getElementById('ordKw').classList.remove('on'); doGenerate();
 }
 /* ═══ 로딩 씬 — 사진 읽기 → 본문 짜기 → 글·사진 맞추기 (긴 대기를 살아있게) ═══ */
 function loadStages(){
@@ -27631,13 +27657,14 @@ function loadStages(){
   if(genP==='th')return {st:['사진을 읽고 있어요','대화하듯 풀어내는 중','짧게 다듬는 중'],sb:[['현장 사진을 살펴보는 중…'],['말투를 낮추는 중…','핵심만 남기는 중…'],['해시태그를 고르는 중…']]};
   return {st:['사진을 읽고 있어요','본문을 짜고 있어요','글과 사진을 맞추고 있어요'],sb:[['현장 사진을 살펴보는 중…','시공 전·후를 알아보는 중…'],['고민 → 상담 → 시공 흐름을 잡는 중…','사장님 말투를 입히는 중…','문장을 자연스럽게 다듬는 중…','제목을 고르는 중…'],['사진 자리를 맞추는 중…','마지막으로 다듬는 중…']]};
 }
-function startGenLoad(){
+function startGenLoad(intro){
   var stg=document.getElementById('gStage'),sub=document.getElementById('gSub'),bar=document.getElementById('gBarFill'),elx=document.getElementById('gElapsed');
   var S=loadStages(), STG=S.st, SUB=S.sb;
   var t0=Date.now(), stage=-1, si=0, prog=6, tick=0, done=false;
   function swapSub(txt){ if(!sub)return; sub.style.opacity=0; setTimeout(function(){sub.textContent=txt;sub.style.opacity=1;},160); }
   function setStage(s){ stage=s; si=0; if(stg)stg.textContent=STG[s]; swapSub(SUB[s][0]); }
   setStage(0);
+  if(intro&&stg){ stg.textContent=intro; }   // 키워드 확인 멘트로 시작(6초 뒤 다음 단계로 교체)
   var iv=setInterval(function(){
     if(done)return;
     var e=(Date.now()-t0)/1000;
@@ -27659,11 +27686,13 @@ function doGenerate(){
   var jobCd=curCd;   // 생성 시작 현장 — 도중 딴 현장 가면 그쪽 화면엔 안 그림(서버엔 저장됨, 돌아와 다시 만들기)
   var gl=document.getElementById('genload'); var out=document.getElementById('genOut'); out.innerHTML='';
   gl.classList.add('on');
-  var L=startGenLoad();
+  var _kws=getKws();
+  var _intro=_kws.length?('알겠어요! '+_kws.map(function(k){return '‘'+k+'’';}).join(' · ')+' 검색에 잘 노출되게 원고 작성해볼게요! ✍️'):null;
+  var L=startGenLoad(_intro);
   function fail(msg){L.fail();if(curCd!==jobCd)return;gl.classList.remove('on');out.innerHTML='<div style="padding:14px;color:#F0436A;font-size:13px">'+esc(msg)+'</div>';}
   function done(j){if(curCd!==jobCd){L.fail();return;}L.finish(function(){gl.classList.remove('on');GEN=j;MAT=null;if(mTab==='story')renderStory();var b=document.querySelector('#rbody .genbig');if(b)b.textContent='↻ 다시 만들기';drawGen();});}
   var chosen=genOrder.map(function(id){var p=gPhoto(id);return {photo_id:id, part:partFor(id), ba:p?baFor(p):'before'};});
-  fetch('/api/web/generate-content',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer_digits:curCd, photos:chosen})})
+  fetch('/api/web/generate-content',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer_digits:curCd, photos:chosen, keywords:_kws})})
   .then(function(r){return r.json().then(function(j){return {s:r.status,j:j};});}).then(function(o){
     if(o.s!==200||!o.j.job_id){ fail((o.j&&o.j.detail)||'생성 실패'); return; }
     pollGen(o.j.job_id, fail, done);
@@ -27914,6 +27943,13 @@ load();
   <div class="ordtraybar"><div class="ordtray" id="ordTray"></div></div>
   <div class="ordfoot"><button class="ordbtn ghost" onclick="ordNumClose()">← 닫기</button><button class="ordbtn ghost" onclick="resetOrder()">⟲ 순서 초기화</button><span class="ordcnt" id="ordCnt"><b>0</b> / 0 순서 정함</span><button class="ordbtn go dim" id="ordGo" onclick="orderGo()">✨ 이 순서로 글 만들기</button></div>
 </div></div>
+<div class="ordov" id="ordKw"><div class="ordcard" style="text-align:left">
+  <div class="kwT">🔍 메인 키워드는 뭘로 할까요?</div>
+  <div class="kwS">어떤 검색어로 노출되었으면 좋겠어요? 2~3개면 충분해요.<br>넣은 키워드는 <b>제목에 꼭 넣고, 본문에도 4번 이상</b> 자연스럽게 반복해요.</div>
+  <div class="kwBox" onclick="document.getElementById('kwInput').focus()"><span id="kwChips"></span><input id="kwInput" class="kwIn" maxlength="20" onkeydown="kwKey(event)" placeholder="예: 수원 줄눈시공 — 입력 후 Enter"></div>
+  <div class="kwMeta"><span id="kwCnt">0/3</span><span id="kwMax" hidden>키워드는 3개까지가 검색 노출에 딱 좋아요</span></div>
+  <div class="ordfoot"><button class="ordbtn ghost" onclick="kwClose()">← 순서로 돌아가기</button><button class="ordbtn go dim" id="kwGo" onclick="startWrite()">키워드를 1개 이상 넣어주세요</button></div>
+</div></div>
 <style>
   .ordov{position:fixed;inset:0;background:rgba(12,15,20,.5);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:80;padding:20px}
   .ordov.on{display:flex}
@@ -27953,6 +27989,15 @@ load();
   .ordfoot{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:14px}
   .ordcnt{font-size:13px;font-weight:700;color:var(--ink2)}.ordcnt b{color:var(--ink);font-size:15px;font-weight:900}
   .ordfoot .ordbtn.go{margin-left:auto}
+  .kwT{font-size:17px;font-weight:850;color:var(--ink)}
+  .kwS{font-size:13px;color:var(--ink3);line-height:1.55;margin:6px 0 14px}.kwS b{color:var(--ink2);font-weight:800}
+  .kwBox{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:52px;padding:10px 12px;background:var(--surface);border:1.5px solid var(--line);border-radius:12px;cursor:text}
+  .kwBox:focus-within{border-color:var(--blue)}
+  .kwChip{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;background:var(--blue-bg);border:1px solid var(--blue-line);border-radius:10px;color:var(--blue);font-size:13.5px;font-weight:800;animation:kwPop .15s ease}
+  .kwChip button{border:0;background:none;color:var(--blue);opacity:.55;cursor:pointer;font:inherit;padding:0;line-height:1}.kwChip button:hover{opacity:1}
+  @keyframes kwPop{from{transform:scale(.8);opacity:0}}
+  .kwIn{flex:1;min-width:150px;border:0;outline:0;background:none;font:inherit;font-size:13.5px;color:var(--ink)}.kwIn::placeholder{color:var(--ink3)}
+  .kwMeta{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink3);margin:6px 2px 14px}#kwMax{color:var(--blue);font-weight:800}
   @media(prefers-reduced-motion:reduce){.ordcard,.ordnum{animation:none}}
 </style>
 <!-- 네이버 넣기 3단계 안내 시트 -->
@@ -28913,6 +28958,7 @@ async def _web_gen_finish(job_id, api_key, prompt, owner, cd, _sel, n_pics, m):
 class WebGenReq(BaseModel):
     customer_digits: str
     photos: Optional[list] = None   # 뷰어에서 고른 사진 [{photo_id, part, ba}] 순서대로 (없으면 자동 6장)
+    keywords: Optional[list] = None   # SEO 노출 키워드 2~3개 (제목 필수 포함 + 본문 각 4회+ 반복)
 
 
 @app.post("/api/web/generate-content")
@@ -28990,6 +29036,15 @@ async def web_generate_content(request: Request, req: WebGenReq):
     elif m["tone_urls"]:
         tone_hint = ("\n\n[따라할 글 톤] 아래 URL 글들의 말투·문장 길이·이모지 사용을 참고해 "
                      "비슷한 톤으로 써라(내용은 이 현장 것만): " + ", ".join(m["tone_urls"]))
+    # SEO 노출 키워드 — 제목 필수 포함 + 본문 각 4회+ 반복 (사장님: 검색에 잘 걸리게)
+    kw_hint = ""
+    _kws = [str(k).strip() for k in (req.keywords or []) if str(k).strip()][:3]
+    if _kws:
+        kw_hint = ("\n\n[★ 검색 노출 키워드(SEO) — 아주 중요]\n"
+                   "다음 키워드가 네이버·구글 검색에 잘 걸리도록 써라: " + ", ".join("'%s'" % k for k in _kws) + "\n"
+                   "- 각 키워드를 **블로그 제목(title)에 반드시** 자연스럽게 포함하라(가능하면 앞쪽).\n"
+                   "- **블로그 본문(body)에 각 키워드를 최소 4번 이상** 문맥에 녹여 반복하라(억지 나열·도배 금지, 자연스럽게).\n"
+                   "- 인스타·스레드에도 가능한 자연스럽게 반영.")
     prompt = (
         "너는 시공(인테리어) 사장님의 마케팅 글을 대신 써주는 카피라이터다. "
         "아래 '현장 재료'만으로 블로그·인스타그램·스레드 글을 각 플랫폼 톤에 맞게 쓴다.\n"
@@ -29004,7 +29059,7 @@ async def web_generate_content(request: Request, req: WebGenReq):
         "블로그 본문은 마커 규약으로: 소제목 '## 제목', 강조 '**굵게**', 인용 '> ', 구분선 '---'." + photo_hint + " "
         "인스타=~380자 감성 캡션(줄바꿈·이모지 적당) + 해시태그 15개(지역·부위·공정 기반). "
         "스레드=~230자 대화하듯 톤 확 낮춤 + 해시태그 1~2개.\n"
-        "그리고 이 현장 '페르소나 한 줄'(어떤 고민 → 어떻게 시공)도.\n" + tone_hint + "\n\n"
+        "그리고 이 현장 '페르소나 한 줄'(어떤 고민 → 어떻게 시공)도.\n" + tone_hint + kw_hint + "\n\n"
         "[현장 재료]\n"
         "현장(아파트명·지역 — 동/호수·번지 없이): " + (m.get("addr") or m["region"] or "-") + "\n"
         "시공종류: " + (m["category"] or "-") + "\n"
