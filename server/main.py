@@ -27417,13 +27417,85 @@ function renderRight(){
   rb.innerHTML=h;
   if(GEN&&done)drawGen();
 }
+var genOrder=[];   /* 번호매기기: 클릭한 순서대로 photo_id (genOrder[0]=글의 [1]) */
+function gPhoto(id){for(var i=0;i<photos.length;i++)if(photos[i].photo_id===id)return photos[i];return null;}
+function selIds(){return photos.filter(function(p){return sel[p.photo_id];}).map(function(p){return p.photo_id;});}
+/* 진입점 — '글 만들기' 버튼. 처음/사진 바뀜 → 확인 오버레이. 재생성(같은 순서)이면 바로. */
 function genContent(){
+  if(!curCd)return;
+  var ids=selIds();
+  var ordOk=genOrder.length>0 && genOrder.every(function(id){return sel[id];}) && ids.length===genOrder.length;
+  if(GEN && ordOk){ doGenerate(); return; }   /* ↻ 다시 만들기 = 같은 사진·순서로 재생성 */
+  openOrderConfirm(ids);
+}
+/* ② 확인 오버레이 */
+function openOrderConfirm(ids){
+  var fan=document.getElementById('ordFan'), t=document.getElementById('ordConfN'),
+      z=document.getElementById('ordConf0'), y=document.getElementById('ordConfY');
+  if(!ids.length){                    /* 0장 — 더는 조용히 자동6장 X, 명시적 선택 */
+    z.style.display='block'; y.style.display='none'; fan.innerHTML=''; t.textContent='고른 사진이 없어요';
+  }else{
+    z.style.display='none'; y.style.display='block';
+    t.innerHTML='사진 <b>'+ids.length+'장</b>을 선택하셨어요!';
+    fan.innerHTML=''; var shown=0;
+    ids.forEach(function(id){ if(shown>=5)return; var p=gPhoto(id); if(!p)return;
+      var d=document.createElement('div'); d.className='ordfanit'; d.style.backgroundImage='url('+p.thumb_url+')';
+      d.style.transform='rotate('+((shown-2)*7)+'deg) translateY('+(Math.abs(shown-2)*3)+'px)'; fan.appendChild(d); shown++; });
+    if(ids.length>5){ var m=document.createElement('span'); m.className='ordfanmore'; m.textContent='+'+(ids.length-5); fan.appendChild(m); }
+  }
+  document.getElementById('ordConfirm').classList.add('on');
+}
+function ordConfClose(){document.getElementById('ordConfirm').classList.remove('on');}
+function ordAuto(){ordConfClose();genOrder=[];doGenerate();}                 /* 사진 없이/자동 */
+function ordPick(){ordConfClose();toast('가운데 사진에서 쓸 사진을 눌러 골라주세요 ☑');}
+/* ③ 번호 매기기 오버레이 */
+function startOrder(){
+  ordConfClose();
+  genOrder=genOrder.filter(function(id){return sel[id];});   /* 이전 순서 유지(선택된 것만) */
+  buildOrderGrid(); document.getElementById('ordNumber').classList.add('on'); renderOrder(null);
+}
+function buildOrderGrid(){
+  var g=document.getElementById('ordGrid'), h='';
+  photos.filter(function(p){return sel[p.photo_id];}).forEach(function(p){
+    var isaft=baFor(p)!=='before', batx=isaft?'시공 후':'시공 전', part=partFor(p.photo_id);
+    h+='<div class="ordph" id="ordph'+p.photo_id+'" onclick="toggleOrder('+p.photo_id+')">'
+      +'<div class="ordim" style="background-image:url('+p.thumb_url+')"></div>'
+      +'<span class="ordnum" hidden></span>'
+      +'<span class="ordba'+(isaft?' post':'')+'">'+batx+'</span>'
+      +(part?'<span class="ordpart">'+esc(part)+'</span>':'')+'</div>';
+  });
+  g.innerHTML=h;
+}
+function toggleOrder(id){var i=genOrder.indexOf(id);if(i>=0)genOrder.splice(i,1);else genOrder.push(id);renderOrder(i<0?id:null);}
+function resetOrder(){if(!genOrder.length)return;genOrder=[];renderOrder(null);toast('순서를 초기화했어요 — 처음부터 다시 눌러주세요');}
+function renderOrder(added){
+  photos.filter(function(p){return sel[p.photo_id];}).forEach(function(p){
+    var el=document.getElementById('ordph'+p.photo_id); if(!el)return;
+    var num=el.querySelector('.ordnum'), idx=genOrder.indexOf(p.photo_id);
+    if(idx<0){num.hidden=true;el.classList.remove('on');}
+    else{num.hidden=false;num.textContent=idx+1;el.classList.add('on');
+      if(p.photo_id===added){num.classList.remove('pop');void num.offsetWidth;num.classList.add('pop');}}
+  });
+  var total=selIds().length, done=genOrder.length, s='';
+  for(var i=0;i<total;i++){ if(i<done){var p=gPhoto(genOrder[i]);s+='<div class="ordslot f" style="background-image:url('+(p?p.thumb_url:'')+')"><span>'+(i+1)+'</span></div>';}
+    else s+='<div class="ordslot"><span>'+(i+1)+'</span></div>'; }
+  document.getElementById('ordTray').innerHTML=s;
+  document.getElementById('ordCnt').innerHTML='<b>'+done+'</b> / '+total+' 순서 정함';
+  document.getElementById('ordGo').classList.toggle('dim',!(done===total&&total>0));
+}
+function ordNumClose(){document.getElementById('ordNumber').classList.remove('on');}
+function orderGo(){
+  var total=selIds().length;
+  if(total===0||genOrder.length<total){var go=document.getElementById('ordGo');go.classList.remove('shake');void go.offsetWidth;go.classList.add('shake');toast('아직 번호 안 매긴 사진이 있어요 — 남은 사진도 눌러주세요');return;}
+  ordNumClose(); doGenerate();
+}
+/* 실제 생성 — genOrder(클릭순)대로 photos[] 전송 → 서버가 [1][2][3] 매칭 */
+function doGenerate(){
   if(!curCd)return;
   var gl=document.getElementById('genload'); var out=document.getElementById('genOut'); out.innerHTML='';
   var steps=gl.querySelectorAll('.gstep'); gl.classList.add('on'); steps.forEach(function(s){s.className='gstep';});
   var i=0,anim=setInterval(function(){if(i>0)steps[i-1].className='gstep ok';if(i<steps.length){steps[i].className='gstep doing';i++;}else{clearInterval(anim);}},520);
-  // 사장님이 고른 사진(체크)만 표시순서대로 + 부위·전후 실어보냄. 없으면 서버가 자동 6장.
-  var chosen=photos.filter(function(p){return sel[p.photo_id];}).map(function(p){return {photo_id:p.photo_id, part:partFor(p.photo_id), ba:baFor(p)};});
+  var chosen=genOrder.map(function(id){var p=gPhoto(id);return {photo_id:id, part:partFor(id), ba:p?baFor(p):'before'};});
   fetch('/api/web/generate-content',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer_digits:curCd, photos:chosen})})
   .then(function(r){return r.json().then(function(j){return {s:r.status,j:j};});}).then(function(o){
     clearInterval(anim); gl.classList.remove('on');
@@ -27468,7 +27540,69 @@ document.getElementById('lb').addEventListener('click',function(e){if(e.target.i
 document.addEventListener('keydown',function(e){if(!document.getElementById('lb').classList.contains('on'))return;if(e.key==='ArrowLeft')lbNav(-1);else if(e.key==='ArrowRight')lbNav(1);else if(e.key==='Escape')lbClose();});
 document.getElementById('q').addEventListener('input',renderDayList);
 load();
-</script></body></html>"""
+</script>
+<!-- ② 확인 · ③ 번호매기기 오버레이 (블로그 사진 고르기·순서) -->
+<div class="ordov" id="ordConfirm"><div class="ordcard">
+  <div class="ordfan" id="ordFan"></div>
+  <h3 id="ordConfN">사진을 선택하셨어요!</h3>
+  <div id="ordConfY">
+    <p class="ordq">이 사진들로 갈까요?</p>
+    <p class="ordnote">다음 화면에서 <b>누르는 순서대로 ①②③ 번호</b>가 붙어요 — 그게 블로그에 실리는 순서예요.</p>
+    <div class="ordbtns"><button class="ordbtn ghost" onclick="ordConfClose()">더 고를게요</button><button class="ordbtn go" onclick="startOrder()">네, 번호 매기기</button></div>
+  </div>
+  <div id="ordConf0" style="display:none">
+    <p class="ordnote">블로그에 넣을 사진을 가운데에서 먼저 골라주세요. 사진 없이 글만 만들 수도 있어요.</p>
+    <div class="ordbtns"><button class="ordbtn go" onclick="ordPick()">사진 고를게요</button><button class="ordbtn ghost" onclick="ordAuto()">사진 없이 글만</button></div>
+  </div>
+</div></div>
+<div class="ordov" id="ordNumber"><div class="ordcard wide">
+  <div class="ordh"><b>📌 블로그에 실릴 순서대로 사진을 눌러주세요</b><span>다시 누르면 취소 · 뒤 번호가 자동으로 당겨져요</span></div>
+  <div class="ordgrid" id="ordGrid"></div>
+  <div class="ordtraybar"><div class="ordtray" id="ordTray"></div></div>
+  <div class="ordfoot"><button class="ordbtn ghost" onclick="ordNumClose()">← 닫기</button><button class="ordbtn ghost" onclick="resetOrder()">⟲ 순서 초기화</button><span class="ordcnt" id="ordCnt"><b>0</b> / 0 순서 정함</span><button class="ordbtn go dim" id="ordGo" onclick="orderGo()">✨ 이 순서로 글 만들기</button></div>
+</div></div>
+<style>
+  .ordov{position:fixed;inset:0;background:rgba(12,15,20,.5);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:80;padding:20px}
+  .ordov.on{display:flex}
+  .ordcard{background:var(--surface);border:1px solid var(--line);border-radius:20px;box-shadow:0 24px 60px -20px rgba(0,0,0,.45);max-width:440px;width:100%;padding:24px 24px 20px;text-align:center;animation:ordin .3s cubic-bezier(.3,1.3,.6,1)}
+  .ordcard.wide{max-width:780px;text-align:left}
+  @keyframes ordin{0%{transform:scale(.93) translateY(12px);opacity:0}100%{transform:scale(1);opacity:1}}
+  .ordfan{display:flex;justify-content:center;align-items:center;height:80px;margin:0 0 14px}
+  .ordfanit{width:88px;height:66px;border-radius:10px;border:2.5px solid var(--surface);box-shadow:0 6px 16px -6px rgba(16,24,40,.35);margin:0 -13px;background-size:cover;background-position:center}
+  .ordfanmore{margin-left:18px;font-size:12px;font-weight:900;color:var(--violet);background:var(--violet-bg);border:1px solid var(--violet-line);border-radius:999px;padding:5px 11px}
+  .ordcard h3{margin:0 0 5px;font-size:18px;font-weight:850}.ordcard h3 b{color:var(--violet)}
+  .ordq{font-size:14px;color:var(--ink2);font-weight:700;margin:0 0 9px}
+  .ordnote{font-size:12.5px;color:var(--ink3);line-height:1.6;margin:0 auto 16px;max-width:34ch}.ordnote b{color:var(--violet)}
+  .ordbtns{display:flex;gap:9px;justify-content:center}
+  .ordbtn{font-size:13px;font-weight:800;border:none;border-radius:11px;padding:11px 20px;cursor:pointer;font-family:inherit;transition:transform .12s}
+  .ordbtn:active{transform:scale(.97)}
+  .ordbtn.go{background:var(--violet);color:#fff}.ordbtn.ghost{background:var(--sunken);color:var(--ink2);border:1px solid var(--line)}
+  .ordbtn.dim{opacity:.45}
+  @keyframes ordshake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}55%{transform:translateX(4px)}80%{transform:translateX(-2px)}}
+  .ordbtn.shake{animation:ordshake .35s ease}
+  .ordh{margin-bottom:13px}.ordh b{font-size:14.5px;font-weight:850}.ordh span{display:block;font-size:12px;color:var(--ink3);font-weight:600;margin-top:3px}
+  .ordgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:11px;max-height:46vh;overflow:auto;padding:2px}
+  .ordph{position:relative;border-radius:11px;overflow:hidden;border:1px solid var(--line);cursor:pointer;transition:transform .2s,box-shadow .2s}
+  .ordim{aspect-ratio:4/3;background:var(--sunken) center/cover no-repeat}
+  .ordph.on{outline:3px solid var(--violet);outline-offset:-3px;transform:translateY(-3px);box-shadow:0 14px 28px -14px rgba(110,95,199,.6)}
+  .ordnum{position:absolute;left:7px;top:7px;width:33px;height:33px;border-radius:50%;background:var(--violet);color:#fff;font-size:15px;font-weight:900;font-variant-numeric:tabular-nums;display:flex;align-items:center;justify-content:center;box-shadow:0 5px 14px -4px rgba(110,95,199,.7),0 0 0 3px rgba(255,255,255,.9)}
+  .ordnum[hidden]{display:none}
+  @keyframes ordpop{0%{transform:scale(.2);opacity:0}55%{transform:scale(1.25)}100%{transform:scale(1);opacity:1}}
+  .ordnum.pop{animation:ordpop .36s cubic-bezier(.34,1.56,.64,1)}
+  .ordba{position:absolute;right:7px;bottom:7px;font-size:10px;font-weight:800;color:#fff;background:rgba(24,29,39,.62);border-radius:6px;padding:2px 7px}.ordba.post{background:rgba(18,110,106,.82)}
+  .ordpart{position:absolute;left:7px;bottom:7px;font-size:10px;font-weight:800;color:var(--amber);background:#FBF3E2;border-radius:6px;padding:2px 7px}
+  .ordtraybar{margin:13px 0 4px;background:var(--sunken);border:1px solid var(--line);border-radius:12px;padding:11px 12px}
+  .ordtray{display:flex;gap:7px;flex-wrap:wrap}
+  .ordslot{width:52px;height:40px;border-radius:8px;border:1.5px dashed var(--line);background:var(--surface) center/cover no-repeat;position:relative;flex:none}
+  .ordslot.f{border:1.5px solid var(--violet)}
+  .ordslot span{position:absolute;left:3px;top:2px;font-size:9.5px;font-weight:900;color:var(--ink3);font-variant-numeric:tabular-nums}
+  .ordslot.f span{color:#fff;background:var(--violet);border-radius:4px;padding:0 4px;line-height:14px}
+  .ordfoot{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:14px}
+  .ordcnt{font-size:13px;font-weight:700;color:var(--ink2)}.ordcnt b{color:var(--ink);font-size:15px;font-weight:900}
+  .ordfoot .ordbtn.go{margin-left:auto}
+  @media(prefers-reduced-motion:reduce){.ordcard,.ordnum{animation:none}}
+</style>
+</body></html>"""
 
 
 @app.get("/web", response_class=HTMLResponse, include_in_schema=False)
