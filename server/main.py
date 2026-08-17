@@ -27616,11 +27616,25 @@ function renderBlogDoc(g){
 /* ═══ 네이버 넣기 — 새 탭 + 3단계 안내 시트 ═══ */
 var NAVER_WRITE='https://blog.naver.com/GoBlogWrite.naver';
 function openNaverTab(){var w=null;try{w=window.open(NAVER_WRITE,'_blank');}catch(_e){}return !!w;}
+function sgmExt(){try{return document.documentElement.getAttribute('data-sgm-ext')==='1';}catch(_e){return false;}}
 function goNaver(){
+  var ext=sgmExt();
+  if(ext){try{window.postMessage({__sgm:'naver-insert'},'*');}catch(_e){}}   // 확장에 자동삽입 예약
   var ok=openNaverTab();
-  var t=document.getElementById('shTitle'),s=document.getElementById('shSub'),s1=document.getElementById('step1'),sn1=document.getElementById('sn1'),ob=document.getElementById('openBtn');
-  if(ok){t.textContent='네이버 글쓰기를 새 탭으로 열었어요';s.textContent='이제 딱 한 번만 누르면 돼요.';s1.classList.add('done');sn1.textContent='✓';ob.style.display='none';}
-  else{t.textContent='네이버 글쓰기 창을 열어주세요';s.textContent='새 탭이 차단됐어요 — 아래 버튼으로 여세요.';s1.classList.remove('done');sn1.textContent='1';ob.style.display='inline-block';}
+  var t=document.getElementById('shTitle'),s=document.getElementById('shSub'),s1=document.getElementById('step1'),sn1=document.getElementById('sn1'),ob=document.getElementById('openBtn'),st2=document.getElementById('step2'),nud=document.getElementById('shNudge');
+  if(ok){s1.classList.add('done');sn1.textContent='✓';ob.style.display='none';}
+  else{s1.classList.remove('done');sn1.textContent='1';ob.style.display='inline-block';}
+  if(ext){
+    t.textContent = ok?'네이버 창을 열었어요 — 자동으로 넣는 중! ✨':'네이버 글쓰기 창을 열어주세요';
+    s.textContent = ok?'제목·글·사진이 알아서 들어가요. 확인하고 발행만 직접!':'열리면 자동으로 글·사진이 들어가요.';
+    if(st2)st2.style.display='none';
+    if(nud)nud.style.display='none';
+  } else {
+    t.textContent = ok?'네이버 글쓰기를 새 탭으로 열었어요':'네이버 글쓰기 창을 열어주세요';
+    s.textContent = ok?'이제 딱 한 번만 누르면 돼요.':'새 탭이 차단됐어요 — 아래 버튼으로 여세요.';
+    if(st2)st2.style.display='';
+    if(nud)nud.style.display='block';
+  }
   document.getElementById('naverSheet').classList.add('on');
 }
 function closeSheet(){document.getElementById('naverSheet').classList.remove('on');}
@@ -27740,12 +27754,13 @@ load();
       <div><div class="sht" id="shTitle">네이버 글쓰기를 새 탭으로 열었어요</div>
       <div class="shs" id="shSub">이제 딱 한 번만 누르면 돼요.</div></div>
     </div>
+    <div id="shNudge" style="display:none;background:var(--sunken);border:1px solid var(--line);border-radius:12px;padding:11px 13px;margin-bottom:13px;font-size:12px;color:var(--ink2);line-height:1.55;font-weight:600">🧩 <b>시공막내 확장</b>이 깔려 있으면 <b>버튼 하나로 자동</b>이에요. 없으면 크롬 웹스토어에서 "시공막내" 설치 후 네이버 탭 새로고침(F5).</div>
     <ol class="steps">
       <li class="done" id="step1"><span class="sn" id="sn1">✓</span>
         <div class="sc"><b>네이버 글쓰기 새 탭</b>이 열려 있어요 · <span class="reopen" onclick="openNaverTab()">다시 열기</span>
           <button class="naverbtn" id="openBtn" style="display:none;margin-top:8px;flex:none;padding:10px 14px;font-size:13px" onclick="openNaverTab()">🌐 네이버 글쓰기 열기</button></div>
       </li>
-      <li><span class="sn">2</span>
+      <li id="step2"><span class="sn">2</span>
         <div class="sc">왼쪽 아래 <b>🧩 시공막내 패널</b>에서 파란 버튼을 누르세요
           <div class="np"><div class="nph"><span>🧩 시공막내 · <b>네이버 넣기</b></span><span class="mm">—</span></div>
             <div class="npb"><div class="npbtn"><span class="ring"></span>⬇✨ 시공막내 글 → 네이버에 바로 넣기</div>

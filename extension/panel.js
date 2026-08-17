@@ -271,4 +271,18 @@
   $("#goSave").addEventListener("click", doSave);
 
   chrome.runtime.onMessage.addListener((msg) => { if (msg && msg.type === "SGM_TOGGLE") host.classList.toggle("min"); });
+
+  // ── 뷰어 [네이버에 넣기]에서 넘어온 자동삽입 예약이면 바로 실행 (완전 원클릭) ──
+  //   bridge.js 가 si0in.kr 에서 심어둔 sgmAutoInsert(2분 유효) 를 보고, 패널 뜨자마자 pull+paste.
+  try {
+    chrome.storage.local.get("sgmAutoInsert", (o) => {
+      const ts = o && o.sgmAutoInsert;
+      if (ts && Date.now() - ts < 120000) {
+        try { chrome.storage.local.remove("sgmAutoInsert"); } catch (e) {}
+        host.classList.remove("min");
+        setOut("⏳ 시공막내에서 넘어왔어요 — 자동으로 넣는 중…", "work");
+        doLoadAndGo();
+      }
+    });
+  } catch (e) {}
 })();
