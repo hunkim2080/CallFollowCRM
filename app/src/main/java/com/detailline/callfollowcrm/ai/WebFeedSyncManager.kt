@@ -85,7 +85,7 @@ class WebFeedSyncManager(
                     dongHo = "",   // 앱엔 동/호 분리 필드 없음 — 주소에 포함(§0: 지어내지 않음)
                     workDate = dateFmt.format(Date(day)),
                     category = c.categoryId?.let { catNames[it] } ?: "",
-                    completed = c.workCompletedAt != null,
+                    completed = c.isWorkDone,   // 잔금 받으면=완료 (사장님 통일 2026-08-18) — 웹 '진행중' 오표기 + 블로그 재료 미전송 해결
                     shareIds = shareIdsByCustomer[c.id]?.distinct() ?: emptyList(),
                     memo = c.memo   // 웹 '글 만들기' 재료 — 메모 저장 시 observeAll→자동 push (2026-08-15)
                 )
@@ -113,8 +113,8 @@ class WebFeedSyncManager(
      */
     private suspend fun pushConversationsForCompleted(customers: List<CustomerEntity>, ownerPhone: String) {
         val completed = customers
-            .filter { it.workCompletedAt != null && it.phoneNumber.filter { ch -> ch.isDigit() }.length >= 9 }
-            .sortedByDescending { it.workCompletedAt ?: 0L }
+            .filter { it.isWorkDone && it.phoneNumber.filter { ch -> ch.isDigit() }.length >= 9 }
+            .sortedByDescending { it.doneAtMs ?: 0L }
             .take(60)
         if (completed.isEmpty()) return
 

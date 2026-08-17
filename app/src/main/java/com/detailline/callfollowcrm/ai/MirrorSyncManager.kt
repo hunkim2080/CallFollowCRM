@@ -84,7 +84,7 @@ class MirrorSyncManager(
                     // 고객 전화 = 하이픈 포함으로(사장님 요청). tel: 링크는 하이픈 있어도 동작.
                     phone = c.phoneNumber.takeIf { it.isNotBlank() }?.let { PhoneNumberFormatter.format(it) },
                     memo = c.memo.takeIf { it.isNotBlank() },
-                    completed = c.workCompletedAt != null,
+                    completed = c.isWorkDone,   // 잔금 받으면=완료 통일 (2026-08-18)
                     // 총금액 = 정산과 같은 계산(총액 없으면 계약금+잔금). 0=미입력 → 뷰어가 숨김.
                     total = SettlementCalc.rowOf(c).total
                 )
