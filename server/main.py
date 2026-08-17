@@ -27017,8 +27017,8 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .who{margin-left:auto;font-size:12.5px;font-weight:800;color:var(--ink2);display:flex;align-items:center;gap:8px;cursor:pointer}
   .who .av{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,#3182F6,#6E5FC7);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px}
 
-  .cols{display:grid;grid-template-columns:274px minmax(0,1fr) 460px;min-height:680px}
-  @media(max-width:1180px){.cols{grid-template-columns:1fr}}
+  .cols{display:grid;grid-template-columns:274px minmax(0,1fr) 460px;height:calc(100vh - 210px);min-height:520px}
+  @media(max-width:1180px){.cols{grid-template-columns:1fr;height:auto}}
   .col-l{border-right:1px solid var(--line);padding:16px 15px;overflow:auto}
   .col-m{border-right:1px solid var(--line);padding:20px 22px;overflow:auto;min-width:0}
   .col-r{padding:0;background:var(--sunken);display:flex;flex-direction:column;min-width:0}
@@ -27096,7 +27096,7 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .ptab.on.ig{background:var(--ig-bg);color:var(--ig);border-color:var(--ig-line)}
   .ptab.on.th{background:var(--th-bg);color:var(--th);border-color:var(--th-line)}
   .rbody{padding:16px 18px 22px;overflow:auto;flex:1;border-top:1px solid var(--line);margin-top:-1px}
-  #genOut{max-height:62vh;overflow-y:auto;overflow-x:hidden;padding-right:3px}
+  #genOut{overflow-x:hidden;padding-right:3px}
   .tonebar{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:10px 13px;margin-bottom:12px}
   .tonebar .tl{font-size:12px;color:var(--ink2);font-weight:700}.tonebar .tl b{color:var(--green)}
   .tonebar .te{margin-left:auto;font-size:11.5px;font-weight:800;color:var(--blue);cursor:pointer}
@@ -27181,6 +27181,12 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .pimg.drag{opacity:.35}
   .pimg .pg{position:absolute;right:5px;top:5px;z-index:4;font-size:10px;font-weight:900;color:#fff;background:var(--violet);border-radius:6px;padding:1px 7px;opacity:0;transition:opacity .15s;pointer-events:none}
   .pimg:hover .pg{opacity:.95}
+  .pimg .im{transition:box-shadow .12s,transform .1s}
+  .pimg:hover{z-index:3}
+  .pimg:hover .im{box-shadow:0 0 0 2px var(--violet-line)}
+  .pimg.press{z-index:6}
+  .pimg.press .im{box-shadow:0 0 0 3px var(--violet),0 10px 24px rgba(124,92,246,.4);transform:scale(1.02)}
+  .pimg.drag .im{box-shadow:0 0 0 3px var(--violet)}
   .dropline{position:absolute;left:14px;right:14px;height:3px;border-radius:3px;background:var(--violet);box-shadow:0 0 0 3px var(--violet-line);display:none;z-index:8;pointer-events:none}
   .privnote{font-size:11.5px;color:var(--ink3);font-weight:700;text-align:center;padding:8px 0 4px}
   .gfoot{display:flex;gap:8px;margin-top:14px}
@@ -27717,8 +27723,11 @@ function bindGenDrag(){
     el.addEventListener('dragend',function(){ el.classList.remove('drag'); endGenDrag(); });
   });
   doc.querySelectorAll('.pimg').forEach(function(el){ if(el.__b)return; el.__b=1;
-    el.addEventListener('dragstart',function(e){ e.stopPropagation();genDragKind='photo';genDragEl=el;el.classList.add('drag'); try{e.dataTransfer.setData('text/plain','photo');}catch(_e){} });
-    el.addEventListener('dragend',function(){ el.classList.remove('drag'); endGenDrag(); });
+    var unpress=function(){ el.classList.remove('press'); };
+    el.addEventListener('pointerdown',function(){ el.classList.add('press'); });
+    el.addEventListener('pointerup',unpress); el.addEventListener('pointercancel',unpress); el.addEventListener('mouseleave',unpress);
+    el.addEventListener('dragstart',function(e){ e.stopPropagation();genDragKind='photo';genDragEl=el;el.classList.remove('press');el.classList.add('drag'); try{e.dataTransfer.setData('text/plain','photo');}catch(_e){} });
+    el.addEventListener('dragend',function(){ el.classList.remove('drag');el.classList.remove('press'); endGenDrag(); });
   });
   if(doc.__dragBound)return; doc.__dragBound=1;
   doc.addEventListener('input', saveDraftSoon);
@@ -28146,6 +28155,61 @@ def _tone_strip_html(html: str) -> str:
     return s
 
 
+async def _web_fetch_article_text(url: str) -> str:
+    """따라할 글 주소 → 본문 텍스트. 네이버 PC/모바일/PostView/naver.me 단축 다 모바일 본문으로 정규화.
+    실패해도 예외 대신 '' 반환(호출측이 친절 안내) — 502 로 안 터진다.
+    (PC 주소는 본문이 #mainFrame iframe 안이라 겉주소는 껍데기 → m.blog.naver.com/{id}/{logNo} 로 직접.)"""
+    url = (url or "").strip()
+    if not url:
+        return ""
+    if not url.startswith("http"):
+        url = "https://" + url
+    MUA = ("Mozilla/5.0 (Linux; Android 14; SM-S928N) AppleWebKit/537.36 "
+           "(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36")
+
+    def _ids(u):
+        # 여러 네이버 주소형태에서 (blogId, logNo) 추출
+        pm = _webre.search(r'(?:m\.)?blog\.naver\.com/([A-Za-z0-9_-]+)/(\d{6,})', u)
+        if pm:
+            return (pm.group(1), pm.group(2))
+        bid = _webre.search(r'blogId=([A-Za-z0-9_-]+)', u)
+        lno = _webre.search(r'logNo=(\d{6,})', u)
+        if bid and lno:
+            return (bid.group(1), lno.group(1))
+        pid = _webre.search(r'blog\.naver\.com/([A-Za-z0-9_-]+)', u)  # 경로 id + logNo 쿼리
+        if pid and lno:
+            return (pid.group(1), lno.group(1))
+        return None
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0, follow_redirects=True,
+                                     headers={"User-Agent": MUA,
+                                              "Accept-Language": "ko-KR,ko;q=0.9"}) as client:
+            if "naver.me/" in url:                       # 단축주소 → 최종 주소로 풀기
+                try:
+                    rr = await client.get(url)
+                    url = str(rr.url) or url
+                except Exception:
+                    pass
+            ids = _ids(url)
+            fetch_url = ("https://m.blog.naver.com/%s/%s" % ids) if ids else url
+            r = await client.get(fetch_url)
+            body = _tone_strip_html(r.text)
+            if len(body) < 200 and ids:                  # 껍데기/로그인벽 → PC PostView 본문 재시도
+                pv = ("https://blog.naver.com/PostView.naver?blogId=%s&logNo=%s"
+                      "&redirect=Dlog&widgetTypeCall=true&directAccess=false" % ids)
+                try:
+                    r2 = await client.get(pv)
+                    b2 = _tone_strip_html(r2.text)
+                    if len(b2) > len(body):
+                        body = b2
+                except Exception:
+                    pass
+            return body[:8000]
+    except Exception:
+        return ""
+
+
 class WebToneAnalyze(BaseModel):
     platform: str            # bl | ig | th
     url: Optional[str] = None
@@ -28168,22 +28232,16 @@ async def web_tone_analyze(request: Request, req: WebToneAnalyze):
         raise HTTPException(400, "먼저 마이페이지에서 내 Gemini 키를 등록해 주세요")
     body = (req.text or "").strip()
     if not body and (req.url or "").strip():
-        url = req.url.strip()
-        if not url.startswith("http"):
-            url = "https://" + url
-        # 네이버 블로그: 본문이 #mainFrame(PostView.naver) iframe 안이라 겉주소는 껍데기 →
-        #   모바일 주소(m.blog.naver.com/{id}/{logNo})는 본문 직접 → 그걸로 긁는다.
-        #   (android 확장서 겪은 네이버 iframe 함정 그대로. 2026-08-17 android 인수 fix)
-        _nv = _webre.search(r'(?:m\.)?blog\.naver\.com/([A-Za-z0-9_-]+)/(\d+)', url) or \
-              _webre.search(r'blogId=([A-Za-z0-9_-]+).*?logNo=(\d+)', url)
-        if _nv:
-            url = "https://m.blog.naver.com/%s/%s" % (_nv.group(1), _nv.group(2))
-        try:
-            async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
-                r = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
-            body = _tone_strip_html(r.text)[:8000]
-        except Exception:
-            raise HTTPException(502, "글 주소를 여는 데 실패했어요. 주소를 확인하거나 본문을 붙여넣어 주세요.")
+        # 네이버 PC 주소는 본문이 iframe 안 → 모바일 본문으로 정규화해서 긁는다(_web_fetch_article_text).
+        # 실패해도 502 로 안 터뜨리고 '본문 붙여넣기'로 안내(사용자가 막히지 않게 · 클플이 에러페이지로 안 덮음).
+        body = await _web_fetch_article_text(req.url)
+        if len(body) < 40:
+            return JSONResponse({"ok": False, "need_paste": True,
+                "detail": ("이 주소는 본문을 자동으로 못 읽었어요 😢\n"
+                           "네이버 PC 주소는 글이 화면 안(iframe)에 있어서 그래요.\n\n"
+                           "· 글을 연 뒤 '휴대폰용 주소(m.blog.naver.com…)'를 넣거나\n"
+                           "· 글 본문을 복사해서 아래 칸에 붙여넣고 다시 분석해 주세요.")},
+                status_code=200)
     if len(body) < 40:
         raise HTTPException(400, "분석할 본문이 너무 짧아요. 글 주소나 캡션을 넣어주세요.")
     pname = {"bl": "블로그", "ig": "인스타그램", "th": "스레드"}[platform]
@@ -28621,11 +28679,14 @@ function spAnalyze(){
   if(SP_CUR==='bl'&&!url){alert('따라할 글 주소를 넣어주세요');return;}
   if(SP_CUR!=='bl'&&!text){alert('따라할 캡션·글을 붙여넣어 주세요');return;}
   var ld=document.getElementById('spLoad');ld.style.display='block';document.getElementById('spReport').style.display='none';
-  var steps=['글 카테고리 분석','글자수·어미 분석','글 구조·흐름 분석','어투·리액션 학습','리포트 생성'];var i=0;
-  var iv=setInterval(function(){document.getElementById('spLoadT').textContent=steps[i%steps.length]+'…';i++;},700);
+  var steps=['따라할 글을 꼼꼼히 읽는 중','문장을 한 줄씩 뜯어보는 중','글이 흘러가는 순서를 파악하는 중','말투·어미 습관을 배우는 중','사장님 스타일로 정리하는 중'];var i=0;
+  document.getElementById('spLoadT').textContent=steps[0]+'…';
+  var iv=setInterval(function(){i++;document.getElementById('spLoadT').textContent=steps[i%steps.length]+'…';},900);
   fetch('/api/web/tone-analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({platform:SP_CUR,url:url,text:text})})
   .then(_rjson).then(function(d){clearInterval(iv);ld.style.display='none';
-    if(!d||d.ok!==true){alert((d&&d.detail)||'분석 실패');return;}
+    if(!d||d.ok!==true){alert((d&&d.detail)||'분석 실패');
+      if(d&&d.need_paste){var tx=document.getElementById('spText');if(tx){tx.style.display='block';tx.focus();}var lb=document.getElementById('spRefLabel');if(lb)lb.textContent='또는 글 본문을 복사해 붙여넣기';}
+      return;}
     fillReport(d.report||{});document.getElementById('spReport').style.display='block';toast('분석 완료 ✓ 필요한 부분만 고치고 저장하세요');
   }).catch(function(){clearInterval(iv);ld.style.display='none';alert('네트워크 오류 · 잠시 후 다시 시도해 주세요');});
 }
