@@ -27165,7 +27165,7 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .prow .matchtip{position:absolute;right:8px;top:-9px;font-size:10px;font-weight:800;color:var(--green);background:var(--green-bg);border:1px solid var(--green);border-radius:6px;padding:1px 8px;white-space:nowrap}
   .pimg{flex:1;min-width:0;position:relative}
   .pimg .im{aspect-ratio:4/3;border-radius:8px;position:relative;overflow:hidden;background:var(--sunken)}
-  .pimg .im img{width:100%;height:100%;object-fit:cover;display:block}
+  .pimg .im img{width:100%;height:100%;object-fit:cover;display:block;-webkit-user-drag:none;user-select:none;pointer-events:none}
   .pimg .n{position:absolute;left:7px;top:7px;font-size:11px;font-weight:900;color:#fff;background:var(--violet);border-radius:6px;width:20px;height:20px;display:flex;align-items:center;justify-content:center;z-index:2}
   .pimg .part{position:absolute;right:7px;bottom:7px;font-size:10px;font-weight:800;color:#fff;background:rgba(24,29,39,.68);border-radius:6px;padding:2px 7px;z-index:2}
   .pcap{font-size:10.5px;color:var(--ink3);margin-top:5px;text-align:center;font-weight:700}
@@ -27350,7 +27350,7 @@ function openSite(cd){
   fetch('/api/web/site/'+encodeURIComponent(cd)).then(function(r){if(r.status===401){location.href='/web/login';throw 0;}return r.json();}).then(function(d){
     curCust=d.customer||{}; photos=d.photos||[];
     var _m=getPt(),_b=getBa(),_ch=false;photos.forEach(function(p){if(p.part){_m[p.photo_id]=p.part;_ch=true;}if(p.ba){_b[p.photo_id]=p.ba;_ch=true;}});if(_ch){localStorage.setItem(PT_KEY,JSON.stringify(_m));localStorage.setItem(BA_KEY,JSON.stringify(_b));}
-    renderMid(); renderDayList(); renderRight(); loadONote();
+    GEN=null; genOrder=[]; renderMid(); renderDayList(); renderRight(); loadONote(); loadLastPost();
     renderCal_fromCurrent();
   }).catch(function(){});
 }
@@ -27499,6 +27499,17 @@ function saveONoteSoon(){ clearTimeout(_onoteT); _onoteT=setTimeout(saveONoteNow
 function saveONoteNow(){ if(!curCd)return; fetch('/api/web/owner-note',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer_digits:curCd, note:ONOTE})}).catch(function(){}); }
 function loadONote(){ ONOTE=''; var ta=document.getElementById('onoteTa'); if(ta)ta.value=''; if(!curCd)return;
   fetch('/api/web/owner-note?customer_digits='+encodeURIComponent(curCd)).then(function(r){return r.json();}).then(function(j){ ONOTE=(j&&j.note)||''; var t=document.getElementById('onoteTa'); if(t)t.value=ONOTE; }).catch(function(){}); }
+/* 현장 열 때 '최근 만든 블로그 글' 복원(실수로 닫아도 다시 안 만들게) */
+function loadLastPost(){
+  if(!curCd)return; var jobCd=curCd;
+  fetch('/api/web/last-post?customer_digits='+encodeURIComponent(curCd)).then(function(r){return r.json();}).then(function(j){
+    if(curCd!==jobCd||!j||!j.has)return;
+    GEN={restored:true, persona:'', region:'', blog:{title:j.title||'', body:j.draft||'', chars:(j.draft||'').length}, photos:j.photos||[], instagram:null, threads:null};
+    genOrder=(j.photos||[]).map(function(p){return p.photo_id;}).filter(Boolean);
+    var b=document.querySelector('#rbody .genbig'); if(b)b.textContent='↻ 다시 만들기';
+    if(genP==='bl')drawGen();
+  }).catch(function(){});
+}
 function updateGenHint(){
   var el=document.getElementById('genHint'); if(!el)return;
   var done=!!(curCust&&curCust.completed);
@@ -27633,11 +27644,12 @@ function startGenLoad(){
 /* 실제 생성 — job_id 받고 폴링 + 로딩 씬 연동(게이트웨이 타임아웃 없음) */
 function doGenerate(){
   if(!curCd)return;
+  var jobCd=curCd;   // 생성 시작 현장 — 도중 딴 현장 가면 그쪽 화면엔 안 그림(서버엔 저장됨, 돌아와 다시 만들기)
   var gl=document.getElementById('genload'); var out=document.getElementById('genOut'); out.innerHTML='';
   gl.classList.add('on');
   var L=startGenLoad();
-  function fail(msg){L.fail();gl.classList.remove('on');out.innerHTML='<div style="padding:14px;color:#F0436A;font-size:13px">'+esc(msg)+'</div>';}
-  function done(j){L.finish(function(){gl.classList.remove('on');GEN=j;MAT=null;if(mTab==='story')renderStory();var b=document.querySelector('#rbody .genbig');if(b)b.textContent='↻ 다시 만들기';drawGen();});}
+  function fail(msg){L.fail();if(curCd!==jobCd)return;gl.classList.remove('on');out.innerHTML='<div style="padding:14px;color:#F0436A;font-size:13px">'+esc(msg)+'</div>';}
+  function done(j){if(curCd!==jobCd){L.fail();return;}L.finish(function(){gl.classList.remove('on');GEN=j;MAT=null;if(mTab==='story')renderStory();var b=document.querySelector('#rbody .genbig');if(b)b.textContent='↻ 다시 만들기';drawGen();});}
   var chosen=genOrder.map(function(id){var p=gPhoto(id);return {photo_id:id, part:partFor(id), ba:p?baFor(p):'before'};});
   fetch('/api/web/generate-content',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer_digits:curCd, photos:chosen})})
   .then(function(r){return r.json().then(function(j){return {s:r.status,j:j};});}).then(function(o){
@@ -27667,7 +27679,7 @@ function renderBlogDoc(g){
   function pimg(pm){
     var p=gPhoto(pm.photo_id), thumb=p?p.thumb_url:'', isaft=(pm.ba==='after'), batx=isaft?'시공 후':'시공 전', part=pm.part||'';
     return '<div class="pimg" draggable="true" data-idx="'+pm.index+'" data-part="'+esc(part)+'" data-ba="'+(isaft?'after':'before')+'"><div class="im">'
-      +(thumb?'<img loading="lazy" src="'+thumb+'">':'')+'<span class="n">'+pm.index+'</span>'
+      +(thumb?'<img loading="lazy" draggable="false" src="'+thumb+'">':'')+'<span class="n">'+pm.index+'</span>'
       +(part?'<span class="part">'+esc(part)+'</span>':'')+'</div><div class="pcap">'+batx+' · '+pm.index+'번</div><span class="pg">⠿</span></div>';
   }
   function prow(nums){
@@ -27827,6 +27839,8 @@ function copyPlainBlog(){
 }
 function drawGen(){
   var out=document.getElementById('genOut'); if(!out||!GEN)return; var g=GEN, body='';
+  var _pd=(genP==='bl')?g.blog:(genP==='ig')?g.instagram:g.threads;
+  if(!_pd){ out.innerHTML='<div style="padding:34px 14px;text-align:center;color:var(--ink3);font-size:13px;line-height:1.7">이 플랫폼 글은 아직이에요.<br>위 버튼을 눌러 만들어요.</div>'; return; }
   if(genP==='bl'){
     body=renderBlogDoc(g)
       +'<div class="privnote">🔒 고객 이름·연락처·동/호수는 자동으로 뺐어요</div>'
@@ -29042,6 +29056,31 @@ async def web_owner_note_get(request: Request, customer_digits: str):
     except Exception:
         note = ""
     return {"ok": True, "note": note}
+
+
+@app.get("/api/web/last-post")
+async def web_last_post(request: Request, customer_digits: str):
+    """뷰어가 현장 열 때 '최근 만든 블로그 글'을 복원(실수로 닫아도 재생성 안 하게).
+    blog(제목·본문) + 사진배치만. 인스타/스레드는 저장 안 하므로 [다시 만들기] 필요."""
+    from fastapi.responses import JSONResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    cd = _webre.sub(r"[^0-9]", "", customer_digits or "")
+    if not cd:
+        return {"ok": True, "has": False}
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT title, draft, photos_json, created_at_ms FROM web_generated_posts "
+            "WHERE owner_phone=? AND customer_digits=?", (owner, cd)).fetchone()
+    if not row or not (str(row[1] or "").strip()):
+        return {"ok": True, "has": False}
+    try:
+        photos = json.loads(row[2] or "[]")
+    except Exception:
+        photos = []
+    return {"ok": True, "has": True, "title": row[0] or "", "draft": row[1] or "",
+            "photos": photos, "created_at_ms": row[3] or 0}
 
 
 @app.get("/api/web/materials")
