@@ -9316,3 +9316,12 @@ cowork 앱 보안감사 10건 검토. 안전·무해건 즉시 반영(빌드OK),
 - 🟢 **#13 전후 시간순 — 검토 후 수용**: 사진 버킷은 이미 `uploaded_at_ms` 정렬(_web_photo_bucket). 전/후 50:50 분할은 "올린 시간순 자동 구분" **의도된 기본값**이고 사용자가 사진별로 뒤집기 가능(flipBa)+서버 태그 override. 알고리즘 교체는 버그수정이 아니라 동작변경이라 현행 유지.
 - 이로써 서버 버그감사 항목(#1~#9, #11, #13) 전부 처리/검토 완료. 남은 건 배포 + 앱측(FCM·피닝 등, docs/APP_SECURITY_AUDIT.md) + push 토큰 강제전환.
 - commit: __C__
+
+## 2026-08-17 · android → 🔴 cowork 긴급 재배포 (글만들기 계속 "네트워크 오류") + FCM 서명(사장님 승인)
+사장님이 재배포 "시켰다"는데도 글만들기 여전히 "네트워크 오류" 계속. → **87fbffa(전역 500핸들러) 가 아직 실서버에 반영 안 된 정황.**
+1. 🔴 **재배포가 끝까지 돌았는지 확인 필수** — 배포됐으면 앱은 "네트워크 오류"(비-JSON)가 아니라 **구체 detail 메시지**를 떠야 함(genContent 는 500이면 JSON detail 표시, .catch=비-JSON 일 때만 "네트워크 오류"). 여전히 "네트워크 오류" = ①87fbffa 미배포 or ②Cloudflare 레벨(524 타임아웃/tunnel). 
+   - `bash server/deploy_phase1.sh` 완료 여부 + **직전 server 디렉토리 rename 커밋이 launchd 실행경로/작업디렉토리 깨뜨리지 않았는지** 점검(재시작 실패면 502→"네트워크 오류").
+   - 배포 후에도 그대로면 generate-content stderr 트레이스백(87fbffa 로깅) + gemini-2.0-flash 응답시간(CF 100s) 확인.
+2. 🔴 **FCM data 서명 (사장님 승인, 감사#1)** — 서버가 FCM payload 에 짧은만료 서명토큰(기존 HMAC 재사용) 실어주면 앱이 검증. **서명 스킴(필드명·서명대상·만료) 제안 부탁** → 나오면 android 가 RingGoFcmService 에 검증 배선.
+- android 안전건(FLAG_SECURE 릴리스전용·알림 VISIBILITY_PRIVATE 4종) 반영완료(35da1f7). 인증서피닝=보류(사장님 결정), R8=출시직전.
+- commit: 이 커밋
