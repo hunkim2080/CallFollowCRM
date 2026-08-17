@@ -509,6 +509,19 @@ def db_init() -> None:
             "CREATE INDEX IF NOT EXISTS idx_web_tone_owner "
             "ON web_tone_urls(owner_phone, added_at_ms)"
         )
+        # F-7 '내 스타일 학습' — 플랫폼별 스타일 리포트(추상화 요약만 저장·원문/경쟁사명 X, PII안전).
+        # 글만들기 프롬프트에 이 요약(글 흐름·어미·어투)을 주입해 사장님 톤으로.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS web_tone_styles (
+                owner_phone  TEXT NOT NULL,
+                platform     TEXT NOT NULL,       -- bl | ig | th
+                report_json  TEXT NOT NULL,       -- {persona, summary, flow, endings, tone, reactions}
+                updated_at_ms INTEGER NOT NULL,
+                PRIMARY KEY (owner_phone, platform)
+            )
+            """
+        )
         # 글만들기 재료 3 — 문자 대화(완료 고객만, 앱이 별도 push). 피드 폭증 방지 위해 분리 테이블.
         con.execute(
             """
@@ -27610,6 +27623,123 @@ async def web_tone_url_delete(request: Request, id: int):
     return {"ok": True}
 
 
+# ── F-7 '내 스타일 학습' — 실제 본문 분석 → 추상 스타일 리포트(요약만 저장) ──
+def _tone_strip_html(html: str) -> str:
+    """HTML → 본문 텍스트(태그·스크립트 제거). 네이버 블로그 iframe 은 best-effort."""
+    s = _webre.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", html or "")
+    s = _webre.sub(r"(?s)<[^>]+>", " ", s)
+    s = s.replace("&nbsp;", " ").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+    s = _webre.sub(r"\s+", " ", s).strip()
+    return s
+
+
+class WebToneAnalyze(BaseModel):
+    platform: str            # bl | ig | th
+    url: Optional[str] = None
+    text: Optional[str] = None
+
+
+@app.post("/api/web/tone-analyze")
+async def web_tone_analyze(request: Request, req: WebToneAnalyze):
+    """따라할 글/캡션을 owner Gemini 로 분석 → 스타일 리포트(저장 안 함, 수정용 반환).
+    🔒 PII 안전: 원문·경쟁사 상호·고객정보는 저장 대상 아님. 구조·어미·어투만 추상화."""
+    from fastapi.responses import JSONResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    platform = (req.platform or "bl").strip()
+    if platform not in ("bl", "ig", "th"):
+        platform = "bl"
+    api_key = _web_owner_gemini_key(owner)
+    if not api_key:
+        raise HTTPException(400, "먼저 마이페이지에서 내 Gemini 키를 등록해 주세요")
+    body = (req.text or "").strip()
+    if not body and (req.url or "").strip():
+        url = req.url.strip()
+        if not url.startswith("http"):
+            url = "https://" + url
+        try:
+            async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
+                r = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+            body = _tone_strip_html(r.text)[:8000]
+        except Exception:
+            raise HTTPException(502, "글 주소를 여는 데 실패했어요. 주소를 확인하거나 본문을 붙여넣어 주세요.")
+    if len(body) < 40:
+        raise HTTPException(400, "분석할 본문이 너무 짧아요. 글 주소나 캡션을 넣어주세요.")
+    pname = {"bl": "블로그", "ig": "인스타그램", "th": "스레드"}[platform]
+    prompt = (
+        "너는 글쓰기 스타일 분석가다. 아래 " + pname + " 글을 읽고 **글쓴이의 스타일만 추상화**해라.\n"
+        "🔒 절대 규칙: 원문 문장·경쟁사 상호·상표·고객 개인정보는 결과에 담지 마라. "
+        "구체 내용이 아니라 '어떻게 썼는지'(구조·어미·어투)만 뽑아라.\n"
+        "특히 사장님 핵심 = **글 전개 구조(글 흐름)** 를 정확히: 어떤 순서로 풀어내는지 단계로.\n"
+        "반드시 아래 JSON 만 출력:\n"
+        '{"persona":"한 줄 페르소나","summary":"이 채널/글 성격 2~3문장",'
+        '"flow":"글 흐름 — [단계1 → 단계2 → …] 형식으로 전개 구조",'
+        '"endings":"자주 쓰는 종결어미(예: ~어요/~습니다 섞음)",'
+        '"tone":"어투(예: 정직한 직설 조언, 감성 후킹 등)",'
+        '"reactions":"리액션·이모지·줄바꿈 습관"}\n\n'
+        "[분석할 " + pname + " 글]\n" + body[:8000]
+    )
+    out = await _web_gemini_generate(api_key, prompt)
+    def _s(k):
+        return str(out.get(k) or "").strip()
+    report = {"persona": _s("persona"), "summary": _s("summary"), "flow": _s("flow"),
+              "endings": _s("endings"), "tone": _s("tone"), "reactions": _s("reactions")}
+    return {"ok": True, "platform": platform, "report": report}
+
+
+class WebToneSave(BaseModel):
+    platform: str
+    report: dict
+
+
+@app.post("/api/web/tone-save")
+async def web_tone_save(request: Request, req: WebToneSave):
+    """수정한 스타일 리포트를 플랫폼별로 저장(요약만). 글만들기가 이걸 프롬프트에 주입."""
+    from fastapi.responses import JSONResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    platform = (req.platform or "bl").strip()
+    if platform not in ("bl", "ig", "th"):
+        platform = "bl"
+    rep = req.report or {}
+    keep = {k: str(rep.get(k) or "")[:2000] for k in
+            ("persona", "summary", "flow", "endings", "tone", "reactions")}
+    with db_conn() as con:
+        con.execute(
+            "INSERT OR REPLACE INTO web_tone_styles (owner_phone, platform, report_json, updated_at_ms) "
+            "VALUES (?,?,?,?)", (owner, platform, json.dumps(keep, ensure_ascii=False), _now_ms()))
+        con.commit()
+    return {"ok": True, "platform": platform}
+
+
+@app.delete("/api/web/tone-style")
+async def web_tone_style_delete(request: Request, platform: str):
+    from fastapi.responses import JSONResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    with db_conn() as con:
+        con.execute("DELETE FROM web_tone_styles WHERE owner_phone = ? AND platform = ?",
+                    (owner, (platform or "").strip()))
+        con.commit()
+    return {"ok": True}
+
+
+def _web_tone_styles(owner: str) -> dict:
+    """owner 의 플랫폼별 저장된 스타일 리포트 {platform: report}."""
+    out = {}
+    with db_conn() as con:
+        for r in con.execute(
+            "SELECT platform, report_json FROM web_tone_styles WHERE owner_phone = ?", (owner,)).fetchall():
+            try:
+                out[r[0]] = json.loads(r[1])
+            except Exception:
+                pass
+    return out
+
+
 @app.post("/api/web/logout-session")
 async def web_logout_session(request: Request, sid: str):
     """마이페이지에서 특정 기기(세션) 로그아웃. 본인 세션만."""
@@ -27665,6 +27795,7 @@ async def web_me(request: Request):
         "sessions": sessions,
         "key": {"connected": bool(krow), "last4": (krow[0] if krow else "")},
         "tone_urls": tone,
+        "tone_styles": _web_tone_styles(owner),   # F-7: {bl/ig/th: report} — 실제 학습된 플랫폼만
     }
 
 
@@ -27754,6 +27885,17 @@ _MYPAGE_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .acttoggle{display:flex;align-items:center;justify-content:space-between;background:var(--sunken);border:1px solid var(--line);border-radius:11px;padding:12px 14px;font-size:13px;font-weight:800;color:var(--ink);cursor:pointer}
   .acttoggle .arw{color:var(--ink3);font-size:16px;transition:transform .2s}
   .actbody{margin-top:6px}
+  /* F-7 스타일 학습 */
+  .sptabs{display:flex;gap:6px;margin:4px 0 12px}
+  .sptab{flex:1;font-size:12.5px;font-weight:800;border:1px solid var(--line);background:var(--surface);color:var(--ink2);border-radius:10px;padding:9px 4px;cursor:pointer;font-family:inherit}
+  .sptab.on{background:var(--violet-bg);color:var(--violet);border-color:var(--violet-line)}
+  .sptab .stb{display:block;font-size:10px;font-weight:800;margin-top:2px;color:var(--ink3)}
+  .mat{border:1px solid var(--line);border-radius:11px;padding:11px 13px;margin-bottom:8px;background:var(--surface)}
+  .mat .mt{font-size:12px;font-weight:850;margin-bottom:5px}
+  .mat .mb{font-size:12.5px;color:var(--ink2);line-height:1.6}
+  .editable{outline:none;border-radius:6px;padding:4px 6px;margin:3px 0 8px;background:var(--sunken);border:1px solid var(--line);min-height:20px}
+  .editable:focus{box-shadow:0 0 0 2px var(--violet-line);background:var(--surface)}
+  @keyframes spspin{to{transform:rotate(360deg)}}
   .btn{text-align:center;font-size:12.5px;font-weight:800;border-radius:10px;padding:10px 16px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink2)}
   .btn.danger{color:var(--red);border-color:var(--red-bg)}
   .keyrow{display:flex;gap:9px;align-items:center}
@@ -27834,16 +27976,32 @@ _MYPAGE_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
         </div>
       </div>
       <div class="sec" id="s3">
-        <div class="sh"><span class="ic">📝</span><span class="t">블로그 톤 — 따라할 글 지정</span><span class="badge off" id="toneBadge">미설정</span></div>
+        <div class="sh"><span class="ic">🧬</span><span class="t">내 스타일 학습 — 따라할 톤을 AI가 분석</span><span class="badge off" id="toneBadge">미설정</span></div>
         <div class="body">
-          <p class="desc"><b>따라하고 싶은 “글(포스트) 주소”</b>를 넣으세요. 블로그 대문이 아니라 <b>특정 글</b>을 지목하는 이유는 — <b>글마다 말투가 다를 수 있어서</b>, 딱 그 스타일을 배우게 하려는 거예요. (여러 개 넣으면 평균 톤)</p>
-          <div class="flabel">따라할 글 주소</div>
-          <div id="toneList"></div>
-          <div class="keyrow" style="margin-top:4px">
-            <input class="keyin txt" id="toneIn" placeholder="따라할 글 주소 붙여넣기 (예: blog.naver.com/…/22301…)">
-            <button class="kbtn v" onclick="addTone()">추가·학습</button>
+          <p class="desc">플랫폼마다 <b>따라하고 싶은 글/계정</b>을 넣으면, AI가 <b>페르소나·어미·어투·구조·리액션</b>까지 뜯어봐요. 특히 <b>글 전개 구조(글 흐름)</b>가 핵심 — 그대로 [글 만들기]가 사장님처럼 써요. <b>블로그·인스타·스레드 각각 따로</b> 학습.</p>
+          <div class="sptabs">
+            <button class="sptab on" id="spt-bl" onclick="spTab('bl')">📝 블로그 <span class="stb" id="stb-bl">미설정</span></button>
+            <button class="sptab" id="spt-ig" onclick="spTab('ig')">📷 인스타 <span class="stb" id="stb-ig">미설정</span></button>
+            <button class="sptab" id="spt-th" onclick="spTab('th')">🧵 스레드 <span class="stb" id="stb-th">미설정</span></button>
           </div>
-          <div class="note">✨ 지정한 글의 톤으로 블로그 초안이 나와서, 사장님이 직접 쓴 것처럼 일관돼요. (톤 반영은 글 만들 때 사장님 Gemini 키로 적용)</div>
+          <div class="flabel" id="spRefLabel">따라할 블로그 글 주소</div>
+          <input class="keyin txt" id="spUrl" placeholder="따라할 블로그 글 주소 (예: blog.naver.com/…/22301…)">
+          <textarea class="keyin txt" id="spText" placeholder="또는 따라할 캡션·글을 그대로 붙여넣기 (여러 개면 줄 띄우고)…" style="display:none;min-height:84px;margin-top:6px;font-family:inherit"></textarea>
+          <button class="genbig" id="spAnalyze" style="width:100%;margin-top:8px;background:var(--violet);color:#fff;border:none;border-radius:11px;padding:12px;font-weight:850;cursor:pointer" onclick="spAnalyze()">✨ 분석하기</button>
+          <div class="genload" id="spLoad" style="display:none;text-align:center;padding:16px 0"><div class="gblob" style="width:44px;height:44px;margin:0 auto 10px;border-radius:46%;background:conic-gradient(from 120deg,#c9bef2,#bcd4ff,#e7c9ff,#ffe0bd,#c9bef2);animation:spspin 3.5s linear infinite"></div><div id="spLoadT" style="font-size:12.5px;font-weight:800;color:var(--violet)">분석하고 있어요…</div></div>
+          <div id="spReport" style="display:none;margin-top:12px">
+            <div class="flabel">🧬 분석 결과 <span style="color:var(--ink3);font-weight:700">· 필요한 부분만 눌러서 고치세요</span></div>
+            <div class="mat"><div class="mt">📍 페르소나</div><div class="mb editable" id="rp-persona" contenteditable="true"></div></div>
+            <div class="mat"><div class="mb editable" id="rp-summary" contenteditable="true"></div></div>
+            <div class="mat"><div class="mt">〰️ 글 구성·어미·어투</div>
+              <div class="mb"><b>· 글 흐름</b>(가장 중요)<div class="editable" id="rp-flow" contenteditable="true"></div>
+              <b>· 종결 어미</b><div class="editable" id="rp-endings" contenteditable="true"></div>
+              <b>· 어투</b><div class="editable" id="rp-tone" contenteditable="true"></div>
+              <b>· 리액션·이모지</b><div class="editable" id="rp-reactions" contenteditable="true"></div></div>
+            </div>
+            <button class="genbig" style="width:100%;background:var(--green);color:#fff;border:none;border-radius:11px;padding:12px;font-weight:850;cursor:pointer" onclick="spSave()">이 스타일로 저장</button>
+          </div>
+          <div class="note">🔒 원문은 학습에만 쓰고, <b>저장은 요약된 스타일만</b> — 경쟁사 상호·내용은 저장 안 해요. 분석·생성은 사장님 Gemini 키로.</div>
         </div>
       </div>
       <div class="sec" id="s4">
@@ -27894,14 +28052,15 @@ function render(){
     document.getElementById('keyBadge').textContent='미연결'; document.getElementById('keyBadge').className='badge off';
     document.getElementById('keyState').style.display='none';
   }
-  // 톤
-  var t=''; (ME.tone_urls||[]).forEach(function(u){
-    t+='<div class="urlitem"><span class="u">'+esc(u.url)+'</span>'+(u.learned?'<span class="ok">학습됨 ✓</span>':'<span class="ok" style="color:var(--ink3);background:var(--sunken)">확인중</span>')+'<span class="x" onclick="delTone('+u.id+')">✕</span></div>';
+  // F-7 스타일 학습 — 플랫폼별 실제 학습 여부(tone_styles)로 뱃지
+  var st=ME.tone_styles||{}; var learned=0;
+  ['bl','ig','th'].forEach(function(p){
+    var on=!!st[p]; if(on)learned++;
+    var e=document.getElementById('stb-'+p); if(e){e.textContent=on?'학습됨 ✓':'미설정';e.style.color=on?'var(--green)':'var(--ink3)';}
   });
-  document.getElementById('toneList').innerHTML=t;
-  var tn=(ME.tone_urls||[]).length;
-  document.getElementById('toneBadge').textContent = tn?('글 '+tn+'개 학습'):'미설정';
-  document.getElementById('toneBadge').className = tn?'badge on':'badge off';
+  document.getElementById('toneBadge').textContent = learned?('플랫폼 '+learned+'개 학습'):'미설정';
+  document.getElementById('toneBadge').className = learned?'badge on':'badge off';
+  spTab(SP_CUR);
 }
 function _rjson(r){return r.json().catch(function(){return {ok:false,detail:'서버 오류 ('+r.status+') · 잠시 후 다시 시도해 주세요'};});}
 function saveKey(){var k=document.getElementById('keyIn').value.trim();if(!k){alert('키를 붙여넣어 주세요');return;}
@@ -27912,10 +28071,50 @@ function saveKey(){var k=document.getElementById('keyIn').value.trim();if(!k){al
   .then(function(){if(b){b.textContent='연결';b.style.opacity=1;}});}
 function testKey(){toast('연결 확인 중…');fetch('/api/web/gemini-key/test').then(_rjson).then(function(d){toast(d.ok?'잘 돼요 ✓':('안 돼요 · '+(d.detail||'키 다시 확인')));}).catch(function(){toast('네트워크 오류');});}
 function delKey(){if(!confirm('저장된 Gemini 키를 삭제할까요?'))return;fetch('/api/web/gemini-key',{method:'DELETE'}).then(_rjson).then(function(){toast('키 삭제됨');load();}).catch(function(){toast('네트워크 오류');});}
-function addTone(){var u=document.getElementById('toneIn').value.trim();if(!u){alert('글 주소를 넣어주세요');return;}toast('분석 중…');
-  fetch('/api/web/tone-url',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:u})})
-  .then(_rjson).then(function(d){if(d&&d.ok===false){alert(d.detail||'추가 실패');return;}document.getElementById('toneIn').value='';toast('추가됨 ✓');load();}).catch(function(){alert('네트워크 오류 · 연결 상태를 확인해 주세요');});}
-function delTone(id){fetch('/api/web/tone-url?id='+id,{method:'DELETE'}).then(function(){toast('삭제됨');load();});}
+/* ===== F-7 내 스타일 학습 ===== */
+var SP_CUR='bl';
+function spTab(p){SP_CUR=p;
+  ['bl','ig','th'].forEach(function(x){var t=document.getElementById('spt-'+x);if(t)t.classList.toggle('on',x===p);});
+  var isBl=(p==='bl');
+  document.getElementById('spRefLabel').textContent = isBl?'따라할 블로그 글 주소':(p==='ig'?'따라할 인스타 계정 또는 캡션':'따라할 스레드 글');
+  document.getElementById('spUrl').style.display=isBl?'block':'none';
+  document.getElementById('spText').style.display=isBl?'none':'block';
+  document.getElementById('spUrl').placeholder=isBl?'따라할 블로그 글 주소 (예: blog.naver.com/…/22301…)':'';
+  document.getElementById('spText').placeholder=(p==='ig'?'따라하고 싶은 인스타 캡션을 그대로 붙여넣기…':'따라하고 싶은 스레드 글을 붙여넣기…');
+  // 저장된 리포트 있으면 프리필 + 리포트 열기
+  var st=(ME&&ME.tone_styles)||{}; var r=st[p];
+  if(r){ fillReport(r); document.getElementById('spReport').style.display='block'; }
+  else { document.getElementById('spReport').style.display='none'; }
+  document.getElementById('spLoad').style.display='none';
+}
+function fillReport(r){
+  document.getElementById('rp-persona').textContent=r.persona||'';
+  document.getElementById('rp-summary').textContent=r.summary||'';
+  document.getElementById('rp-flow').textContent=r.flow||'';
+  document.getElementById('rp-endings').textContent=r.endings||'';
+  document.getElementById('rp-tone').textContent=r.tone||'';
+  document.getElementById('rp-reactions').textContent=r.reactions||'';
+}
+function spAnalyze(){
+  var url=document.getElementById('spUrl').value.trim();
+  var text=document.getElementById('spText').value.trim();
+  if(SP_CUR==='bl'&&!url){alert('따라할 글 주소를 넣어주세요');return;}
+  if(SP_CUR!=='bl'&&!text){alert('따라할 캡션·글을 붙여넣어 주세요');return;}
+  var ld=document.getElementById('spLoad');ld.style.display='block';document.getElementById('spReport').style.display='none';
+  var steps=['글 카테고리 분석','글자수·어미 분석','글 구조·흐름 분석','어투·리액션 학습','리포트 생성'];var i=0;
+  var iv=setInterval(function(){document.getElementById('spLoadT').textContent=steps[i%steps.length]+'…';i++;},700);
+  fetch('/api/web/tone-analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({platform:SP_CUR,url:url,text:text})})
+  .then(_rjson).then(function(d){clearInterval(iv);ld.style.display='none';
+    if(!d||d.ok!==true){alert((d&&d.detail)||'분석 실패');return;}
+    fillReport(d.report||{});document.getElementById('spReport').style.display='block';toast('분석 완료 ✓ 필요한 부분만 고치고 저장하세요');
+  }).catch(function(){clearInterval(iv);ld.style.display='none';alert('네트워크 오류 · 잠시 후 다시 시도해 주세요');});
+}
+function spSave(){
+  var rep={persona:document.getElementById('rp-persona').innerText,summary:document.getElementById('rp-summary').innerText,
+    flow:document.getElementById('rp-flow').innerText,endings:document.getElementById('rp-endings').innerText,
+    tone:document.getElementById('rp-tone').innerText,reactions:document.getElementById('rp-reactions').innerText};
+  fetch('/api/web/tone-save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({platform:SP_CUR,report:rep})})
+  .then(_rjson).then(function(d){if(d&&d.ok){toast('이 스타일로 저장 ✓ 이제 글이 이 톤으로 나와요');load();}else{alert((d&&d.detail)||'저장 실패');}}).catch(function(){alert('네트워크 오류');});}
 function toggleAct(){var b=document.getElementById('actBody'),a=document.getElementById('actArw');var on=b.style.display==='none';b.style.display=on?'block':'none';if(a)a.style.transform=on?'rotate(90deg)':'';}
 function logoutSid(sid){if(!confirm('이 기기를 로그아웃할까요?'))return;fetch('/api/web/logout-session?sid='+encodeURIComponent(sid),{method:'POST'}).then(function(){toast('로그아웃했어요');load();});}
 function logoutAll(){if(!confirm('모든 기기에서 로그아웃할까요? (이 PC 포함)'))return;fetch('/api/web/logout-all?owner_phone='+encodeURIComponent(ME.owner_phone),{method:'POST'}).then(function(){location.href='/web/login';});}
@@ -28059,8 +28258,17 @@ async def web_generate_content(request: Request, req: WebGenReq):
         photo_hint = ("\n블로그 본문 중 사진이 들어가면 좋은 자리에 [1]"
                       + "".join("[%d]" % i for i in range(2, n_pics + 1))
                       + " 처럼 번호 마커를 순서대로 넣어라(총 %d개, 각 한 번씩)." % n_pics)
+    # F-7 실학습: 저장된 블로그 스타일 리포트(글 흐름·어미·어투)를 프롬프트에 주입 (URL X).
     tone_hint = ""
-    if m["tone_urls"]:
+    _bl_style = _web_tone_styles(owner).get("bl")
+    if _bl_style:
+        tone_hint = (
+            "\n\n[따라할 내 스타일 — 이 흐름·어미·어투로 써라(내용은 이 현장 것만)]\n"
+            "· 글 흐름(가장 중요): " + str(_bl_style.get("flow") or "") + "\n"
+            "· 종결어미: " + str(_bl_style.get("endings") or "") + "\n"
+            "· 어투: " + str(_bl_style.get("tone") or "") + "\n"
+            "· 리액션·이모지: " + str(_bl_style.get("reactions") or ""))
+    elif m["tone_urls"]:
         tone_hint = ("\n\n[따라할 글 톤] 아래 URL 글들의 말투·문장 길이·이모지 사용을 참고해 "
                      "비슷한 톤으로 써라(내용은 이 현장 것만): " + ", ".join(m["tone_urls"]))
     prompt = (

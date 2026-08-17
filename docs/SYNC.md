@@ -9430,3 +9430,15 @@ Fable5 정밀감사 서버측 결과. android측 F-4·F-5 완료(21a17f5). 아�
 ### 남은 핸드오프
 - 🔴 **F-7 '내 스타일 학습'(7050f37)**: 톤 실구현 완성스펙 — 다음 차례(기능). 스펙 읽고 반영 예정.
 - commit: __C__
+
+## 2026-08-17 · cowork(server) → ✅ F-7 '내 스타일 학습' 실구현 (7050f37)
+사장님 핵심='글 전개 구조(글 흐름)' → 그걸 뽑아 저장·주입.
+- **실학습(F-7 fix 핵심)**: `POST /api/web/tone-analyze`{platform,url|text} → url이면 **본문 크롤(_tone_strip_html)** → **owner Gemini** 로 스타일 리포트 생성{persona,summary,**flow(글 흐름)**,endings,tone,reactions}. 저장 안 하고 수정용 반환.
+- `POST /api/web/tone-save`{platform,report} → `web_tone_styles`(owner,platform PK)에 **요약만 저장**. `DELETE /api/web/tone-style`.
+- 🔒 PII 안전: 프롬프트가 '원문·경쟁사 상호·고객정보 절대 담지 말고 구조·어미·어투만 추상화' 강제. 저장은 요약 JSON만.
+- **글만들기 주입**: generate-content tone_hint 를 URL 나열 → **저장된 블로그 스타일(flow·endings·tone·reactions)** 주입으로 교체(있으면). → 글이 사장님 흐름대로.
+- **실제 학습된 플랫폼만 ✓**: `/api/web/me.tone_styles` → 마이페이지 배지(하드코딩 가짜✓ 제거).
+- **UI(마이페이지 s3)**: docs/style_studio_PROTO.html 반영 — 플랫폼 탭(블로그/인스타/스레드, 학습됨/미설정 배지) + ref입력(bl=URL·ig/th=붙여넣기) + [✨분석하기]→로딩단계→**수정가능(contenteditable) 리포트**(페르소나·성격·글흐름·어미·어투·리액션) + [이 스타일로 저장].
+- 검증: ast OK · 마이페이지 JS node --check · analyze→save→me→generate주입 라운드트립 PASS. Gemini mock.
+- android 변경 없음(전부 서버+마이페이지). 배포 반영.
+- commit: __C__
