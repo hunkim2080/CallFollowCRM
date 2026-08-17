@@ -27098,6 +27098,11 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .tonebar .tl{font-size:12px;color:var(--ink2);font-weight:700}.tonebar .tl b{color:var(--green)}
   .tonebar .te{margin-left:auto;font-size:11.5px;font-weight:800;color:var(--blue);cursor:pointer}
   .metaline{font-size:12px;color:var(--ink3);font-weight:700;margin-bottom:10px}
+  .genhint{font-size:12px;font-weight:700;line-height:1.55;border-radius:11px;padding:10px 13px;margin-bottom:11px;display:none}
+  .genhint.pick{color:var(--blue);background:var(--blue-bg);border:1px solid var(--blue-line)}
+  .genhint.ok{color:var(--green);background:var(--green-bg)}
+  .genhint b{font-weight:850}
+  .genhint .gh2{color:var(--ink3);font-weight:600;font-size:11px}
   .genbig{width:100%;font-size:13.5px;font-weight:850;color:#fff;border:none;border-radius:11px;padding:13px;cursor:pointer;margin-bottom:14px;font-family:inherit}
   .genbig.bl{background:var(--violet)}.genbig.ig{background:var(--ig)}.genbig.th{background:var(--th);color:#fff}
   :root[data-theme="dark"] .genbig.th{color:#181D27}
@@ -27428,6 +27433,7 @@ function updBar(){
   var _pp=ids.map(partFor).filter(Boolean), _pt=(_pp.length&&_pp.every(function(x){return x===_pp[0];}))?_pp[0]:'', _apt=(curCust.apartment||'현장').replace(/[\\/:*?"<>|]/g,''), ex=(digits(curCust.work_date).slice(0,8)||'00000000')+'_'+_apt+(_pt?'_'+_pt:'')+'_01.jpg', mb=(n*0.4).toFixed(1);
   var fn=document.getElementById('fname'); if(fn)fn.innerHTML='☑ <b>'+n+'장 선택</b> · <b>'+esc(ex)+'</b> 처럼 · 약 '+mb+'MB';
   var db=document.getElementById('dlbtn'); if(db)db.textContent=n>1?('📥 선택 '+n+'장 다운로드'):'📥 다운로드';
+  updateGenHint();
 }
 function renderParts(){
   var _sids=Object.keys(sel), _sp=_sids.map(partFor), sp=(_sids.length&&_sp.every(function(x){return x&&x===_sp[0];}))?_sp[0]:'', parts=getParts(), h='';
@@ -27477,6 +27483,15 @@ var PMETA={bl:{cls:'bl',name:'블로그',meta:'📝 블로그 · 네이버 · �
   ig:{cls:'ig',name:'인스타',meta:'📷 인스타그램 · 짧게 + 해시태그 15',btn:'✨ 인스타 캡션 만들기',load:'✍️ 인스타 캡션 쓰는 중…',steps:['재료 읽는 중','감성 톤·이모지 맞추는 중','해시태그 뽑는 중']},
   th:{cls:'th',name:'스레드',meta:'🧵 스레드 · 대화체 + 해시태그 1~2',btn:'✨ 스레드 글 만들기',load:'✍️ 스레드 글 쓰는 중…',steps:['재료 읽는 중','대화체 톤 맞추는 중','초안 쓰는 중']}};
 function ptab(p){genP=p;['bl','ig','th'].forEach(function(x){document.getElementById('pt-'+x).classList.toggle('on',x===p);});renderRight();}
+function updateGenHint(){
+  var el=document.getElementById('genHint'); if(!el)return;
+  var done=!!(curCust&&curCust.completed);
+  if(GEN||!done){ el.style.display='none'; return; }
+  var n=Object.keys(sel).length;
+  if(n===0){ el.className='genhint pick'; el.innerHTML='☑ <b>블로그에 넣을 사진</b>을 가운데에서 먼저 골라주세요 <span class="gh2">(사진을 눌러 체크 · 안 고르면 물어봐요)</span>'; }
+  else { el.className='genhint ok'; el.innerHTML='☑ 사진 <b>'+n+'장</b> 골랐어요 — 아래 <b>[블로그 글 만들기]</b> 누르면 순서 정하고 만들어요'; }
+  el.style.display='block';
+}
 function renderRight(){
   var rb=document.getElementById('rbody'); if(!rb)return;
   if(!curCd){rb.innerHTML='<div class="empty">왼쪽에서 현장을 먼저 골라주세요.</div>';return;}
@@ -27489,10 +27504,12 @@ function renderRight(){
       +'<div class="viewonly" style="margin-bottom:12px">✅ <b>시공 완료 후</b> 글을 만들 수 있어요. 진행중 현장은 아직 시공후 사진·후기 재료가 없어요.</div>';
   var h='<div class="tonebar">'+tone+'<span class="te" onclick="location.href=\\'/mypage\\'">바꾸기</span></div>'
    +'<div class="metaline">'+pm.meta+'</div>'
+   +'<div class="genhint" id="genHint"></div>'
    +btn
    +'<div class="genload" id="genload"><div class="gblob"></div><div class="gStage" id="gStage">사진을 읽고 있어요</div><div class="gSub" id="gSub"></div><div class="gbar"><span id="gBarFill"></span></div><div class="gElapsed" id="gElapsed"></div></div>'
    +'<div id="genOut"></div>';
   rb.innerHTML=h;
+  updateGenHint();
   if(GEN&&done)drawGen();
 }
 var genOrder=[];   /* 번호매기기: 클릭한 순서대로 photo_id (genOrder[0]=글의 [1]) */
