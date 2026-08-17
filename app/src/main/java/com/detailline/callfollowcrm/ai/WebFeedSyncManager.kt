@@ -130,8 +130,8 @@ class WebFeedSyncManager(
             val text = msgs
                 .sortedBy { it.dateMs }
                 // 발신이 로컬보존(systemId<0)+provider 로 이중 캐시돼 재료가 2배 되던 것 제거(2026-08-17 사장님 지적).
-                //   같은 (보낸사람, 본문) 은 한 번만 — 블로그 재료엔 반복 문구가 정보값 없음.
-                .distinctBy { it.sent to it.body.trim() }
+                //   두 복사본이 개행/공백만 달라도(near-dup) 잡도록 공백 전부 정규화한 키로 비교(표시는 원문 유지).
+                .distinctBy { it.sent to it.body.replace(Regex("\\s+"), " ").trim() }
                 .mapNotNull { m -> m.body.trim().takeIf { it.isNotBlank() }?.let { (if (m.sent) "나: " else "손님: ") + it } }
                 .joinToString("\n")
             // 통화요약도 글 재료로 — 통화 많은 고객은 문자가 아예 없을 수 있어(문자 유무로 skip 안 함). owner-scoped push.
