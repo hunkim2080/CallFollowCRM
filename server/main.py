@@ -27402,7 +27402,8 @@ function renderPhotos(){
   var g=''; var list=photos.filter(function(p){return filter==='all'||p.uploader_kind===filter;});
   list.forEach(function(p){
     var up=p.uploader_kind, upc=up==='owner'?'owner':(up==='partner'?'partner':'team');
-    var uptxt=up==='owner'?'👤 사장님':(up==='partner'?'🤝 협업·'+esc(p.uploader_name):'👤 '+esc(p.uploader_name));
+    var _un=(p.uploader_name||'').trim();
+    var uptxt=up==='owner'?'👤 사장님':(up==='partner'?(!_un||/협업/.test(_un)?'🤝 협업 사장':'🤝 협업·'+esc(_un)):'👤 '+esc(_un));
     var isaft=baFor(p)!=='before', ba=isaft?'시공 후':'시공 전';
     g+='<div class="ph'+(sel[p.photo_id]?' on':'')+'" onclick="tog('+p.photo_id+')" ondblclick="lbOpen('+p.photo_id+')" title="클릭=선택 · 더블클릭=크게보기">'
       +'<div class="im"><img loading="lazy" src="'+p.thumb_url+'">'
@@ -27832,7 +27833,7 @@ function lbOpen(id){var l=lbList();lbi=l.findIndex(function(p){return p.photo_id
 function lbShow(){var l=lbList();if(!l.length)return;var p=l[lbi];
   document.getElementById('lbimg').src=p.url;
   document.getElementById('lbcnt').textContent=(lbi+1)+' / '+l.length;
-  var up=p.uploader_kind;var uptxt=up==='owner'?'👤 사장님':(up==='partner'?'🤝 협업 · '+p.uploader_name:'👤 '+p.uploader_name);
+  var up=p.uploader_kind;var _un=(p.uploader_name||'').trim();var uptxt=up==='owner'?'👤 사장님':(up==='partner'?(!_un||/협업/.test(_un)?'🤝 협업 사장':'🤝 협업 · '+_un):'👤 '+_un);
   document.getElementById('lbtitle').textContent=(partFor(p.photo_id)||curCust.category||'사진')+' · '+(baFor(p)==='before'?'시공 전':'시공 후');
   document.getElementById('lbup').textContent=uptxt;
   var dt=new Date(p.uploaded_at_ms); document.getElementById('lbtime').textContent=(dt.getMonth()+1)+'/'+dt.getDate()+' '+pad(dt.getHours())+':'+pad(dt.getMinutes());
