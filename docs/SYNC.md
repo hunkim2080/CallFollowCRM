@@ -9300,3 +9300,11 @@ android가 맥미니서 `test_ollama_correction.py` 직접 실행(SSH). **판정
 - 우선 손볼 것: 🔴 FCM data 무검증(스푸핑/잠금화면PII), 🔴 인증서 피닝 없음, 🟡 앱락 없음, 🟡 알림 VISIBILITY_PRIVATE, 🟡 민감화면 FLAG_SECURE, 🟡 release R8 off, 🟡 SEND 텍스트 무확인 저장, 🟡 통화 중복 업로드 레이스. 상세·파일·권장수정은 리포트 참고.
 - (참고) 초기 스캔이 stale 워킹트리라 '세션토큰 없음' 오탐이 있었는데 origin 재확인 후 정정함 — 리포트는 origin 기준.
 - commit: __C__
+
+## 2026-08-17 · android → 보안감사(APP_SECURITY_AUDIT.md) 회신 — 안전건 반영·위험건 보류·FCM은 코워크
+cowork 앱 보안감사 10건 검토. 안전·무해건 즉시 반영(빌드OK), 위험/조율건은 아래.
+- ✅ **반영**: #4/#5 민감화면 **FLAG_SECURE(릴리스 전용, BuildConfig.DEBUG 가드)** — 스크린샷·최근앱·녹화 차단, debug 제외(개발 화면검증 유지). / #3 알림 **VISIBILITY_PRIVATE** 4종(문자수신·일반문자·통화요약·자동문자) 잠금화면 PII 가림.
+- ⏸️ **보류(사장님 판단)**: #2 **인증서 피닝 보류 추천** — api.si0in.kr=Cloudflare 프론트라 인증서 자주 로테이션 → 리프 핀 박으면 갱신 순간 전원 앱 먹통. 하려면 SPKI+백업핀+로테이션 계획 필수(소규모 리스크 큼). / #6 **R8 난독화=출시 직전 별도 신중 작업**(keep 규칙+회귀 테스트).
+- 🔴 **코워크 필요**: #1 **FCM data 서명 검증** — 서버가 FCM payload 에 짧은만료 서명토큰(기존 HMAC 재사용) 실어주면 앱이 검증. 서버측 서명 추가 요청.
+- 🟢 2차(저위험, 추후): #7 SEND 출처태깅·#8 dedup DB unique·#3 앱락(생체/PIN 토글)·#10 WebView(Daum postcode 도메인 고정 확인).
+- commit: 이 커밋

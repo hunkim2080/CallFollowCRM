@@ -1239,6 +1239,7 @@ object NotificationHelper {
         val smsChannel = if (isNewCustomer) CHANNEL_INCOMING_SMS_NEW else CHANNEL_INCOMING_SMS
         val builder = NotificationCompat.Builder(context, resolveChannel(context, smsChannel))
             .setSmallIcon(R.drawable.ic_notification)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)  // 보안감사(cowork): 잠금화면 PII(번호·문자) 가림
             .setContentTitle(title)
             .setContentText(body.take(60))
             .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
@@ -1287,6 +1288,7 @@ object NotificationHelper {
         val title = (displayName?.takeIf { it.isNotBlank() } ?: formatPhone(phone)) + " · 문자함"
         val builder = NotificationCompat.Builder(context, CHANNEL_GENERAL_SMS)
             .setSmallIcon(R.drawable.ic_notification)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)  // 보안감사(cowork): 잠금화면 PII 가림
             .setContentTitle(title)
             .setContentText(body.take(60))
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
@@ -1464,6 +1466,7 @@ object NotificationHelper {
                    else "${who}님 통화 요약이 준비됐어요 · 탭해서 확인"
         val builder = NotificationCompat.Builder(context, resolveChannel(context, CHANNEL_CALL_SUMMARY))
             .setSmallIcon(R.drawable.ic_notification)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)  // 보안감사(cowork): 잠금화면 통화요약 가림
             .setColor(NOTIFICATION_BG_COLOR)
             .setContentTitle(title)
             .setContentText(body)
@@ -1525,6 +1528,7 @@ object NotificationHelper {
 
         val builder = NotificationCompat.Builder(context, resolveChannel(context, CHANNEL_AUTO_REPLY))
             .setSmallIcon(R.drawable.ic_notification)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)  // 보안감사(cowork): 잠금화면 PII 가림
             .setColor(NOTIFICATION_BG_COLOR)
             .setColorized(true)
             .setContentTitle("10초 뒤 자동문자 보낼게요")

@@ -21,6 +21,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 보안감사(2026-08-17 cowork): 릴리스에서만 민감화면(고객 PII·통화요약·키) 스크린샷·화면녹화·최근앱 미리보기 차단.
+        //   debug 는 제외 → 개발 중 adb screencap/화면검증 그대로 유지(내 테스트·사장님 개발폰 영향 없음).
+        if (!BuildConfig.DEBUG) {
+            window.setFlags(
+                android.view.WindowManager.LayoutParams.FLAG_SECURE,
+                android.view.WindowManager.LayoutParams.FLAG_SECURE
+            )
+        }
         // 2026-05-24: setDecorFitsSystemWindows(false) 박았다가 다른 화면들의 bottomBar 가
         // nav bar 영역에 잘리는 문제 발생 → 롤백. manifest 의 adjustResize 가 시스템 측에서
         // 키보드 처리. 각 화면은 Scaffold inner padding + 필요 시 imePadding 으로 대응.
