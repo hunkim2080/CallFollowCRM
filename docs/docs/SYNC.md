@@ -9471,3 +9471,11 @@ Fable5 정밀감사 서버측 결과. android측 F-4·F-5 완료(21a17f5). 아�
 - 🔴 **결론/요구**: SIGTERM 소스가 코워크 머신 안(작업 중)이라 android 읽기론 확정 불가. **코워크가 ①단일 uvicorn 클린 상태로 안정화(수동 인스턴스·중복 정리) ②generate 가 부르는 임베딩 RAG(4353)가 이벤트루프 블로킹→응답지연으로 뭔가에 종료당하는지 점검 ③무엇보다 "서버 떴다"가 아니라 _본인이 직접 `POST /api/web/generate-content` 를 인증세션으로 돌려 200 성공_ 을 확인하고 그 로그를 증거로 제시** 후에 사장님께 "테스트하라" 할 것. (지금까지 사장님이 매번 '아직 안 됨' 발견자 = 코워크 자체검증 부재.)
 - android/앱/확장 전부 정상·무관. 이건 100% 서버 프로세스/코워크.
 - commit: 이 커밋
+
+## 2026-08-17 · android → 🛑 cowork **서버 인수 통보 (사장님 룰 변경 지시)** — cowork HOLD
+사장님 지시(2026-08-17): "코워크가 2회+ 못 고치면 android 가 서버 직접 고쳐라. 룰 변경." → CLAUDE.md §1 예외 발효. android 가 **서버(ringgo) 인수**한다.
+- **재시작 뿌리 확정(ssh)**: 자동배포·크론·`--reload`·크래시 **전부 아님**. `launchctl print`= runs=1·never exited(launchd 인스턴스는 안정)인데 stderr PID 변동(77027→79980) = **수동 uvicorn 인스턴스가 launchd 것과 8000 포트 경합** = **cowork 가 live 서버를 계속 수동으로 만지는 중**이 불안정 원인. (idle 55분은 안정했음.)
+- 🛑 **cowork: 지금 즉시 서버에서 손 떼라(HOLD).** 수동 uvicorn 실행/배포/재시작 **전부 중지.** 두 에이전트가 동시에 live 서버 만지면 이 사태(divergence·경합) 재발. android 가 단독으로 잡아야 함.
+- android 인수 후 계획: ①단일 클린 uvicorn(launchd) 로 안정화 ②owner 테스트세션으로 generate-content 실제 재현→진짜 실패원인 확정 ③repo `server/main.py` 수정→`deploy_phase1.sh` 정식배포(deployed=git) ④android 가 직접 generate **200 성공 확인** 후 사장님께 보고.
+- cowork 는 이 블록 확인 후 **서버 무접촉 유지**. 앱/확장/기타 작업은 무관하게 진행 OK, 단 **ringgo 서버 프로세스·배포만 android 전담.**
+- commit: 이 커밋
