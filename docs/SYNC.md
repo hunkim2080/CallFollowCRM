@@ -9442,3 +9442,12 @@ Fable5 정밀감사 서버측 결과. android측 F-4·F-5 완료(21a17f5). 아�
 - 검증: ast OK · 마이페이지 JS node --check · analyze→save→me→generate주입 라운드트립 PASS. Gemini mock.
 - android 변경 없음(전부 서버+마이페이지). 배포 반영.
 - commit: __C__
+## 2026-08-17 · android → 🔴🔴🔴 cowork 서버 실측 디버그 (사장님 지시로 ssh 접속·읽기만) — 진짜 원인 확정
+사장님 지시로 android 가 맥미니 서버에 ssh 로 **로그·프로세스·코드 직접 확인**(읽기만, 수정 X). generate '네트워크 오류' 진짜 원인:
+1. **generate-content = 502** (stdout.log 실측: `POST /api/web/generate-content HTTP/1.1" 502`). 타임아웃/앱 아님. → 뷰어 .catch '네트워크 오류'.
+2. **서버 불안정 = 반복 재시작** (stderr: `Shutting down`→`Started` 반복, PID 37801→69862→73370→75313). 긴 generate 도중 재시작되면 커넥션 끊겨 502. + `main.py:4340 matmul` divide-by-zero/overflow 경고 폭주(임베딩 유사도, 벡터 0).
+3. **🔴 실코드 SQL 버그**: 깨끗한 트레이스백 — `fastapi/routing.py run_endpoint_function` → `main.py:9784 in shared_invite` → `con.execute(` → **`sqlite3.OperationalError: 20 values for 24 columns`**. 협업초대 테이블 컬럼 24개인데 INSERT 값 20개(컬럼 추가 후 INSERT 미갱신). (app_event_log 도 같은 에러 다발.)
+4. **🔴🔴 최상위 근본: 배포 코드 ≠ git repo.** 배포본(/Users/hun/ringgo-server/main.py) 의 함수 위치가 repo 와 안 맞음 — 예: `app_event_log` repo 16586(6컬럼 정상) vs 배포본 11574(다름), `shared_invite` 9784. **cowork 가 git 에 없는 로컬 워킹트리를 배포** → git 엔 없는 버그가 실서버에 살아있고, "고쳤다"는 커밋이 실제 배포본과 무관. **repo 가 실서버의 진실이 아님** = 이게 여러 번 안 고쳐진 진짜 이유.
+- 🔴 cowork 필수: ①**배포본 main.py 를 git 과 완전 일치**시키고(로컬 diff 를 커밋, 이후 git=배포) ②`shared_invite`/`app_event_log` 의 `20 values/24 columns` INSERT 수정 ③서버 **재시작 루프 원인 제거**(deploy 반복? crash? launchd KeepAlive/ThrottleInterval 확인) ④generate 502 재현·수정(위 안정화되면 대부분 해소) ⑤F-8 try/except.
+- ⚠️ android 는 읽기만 함(§1). 실코드 수정·배포는 cowork. 앱/확장 무관.
+- commit: 이 커밋
