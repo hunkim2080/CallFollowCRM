@@ -27472,7 +27472,7 @@ function drawStory(m){
 }
 /* ===== 오른쪽: 글 생성 (플랫폼 탭) ===== */
 var GEN=null, genP='bl';
-var PMETA={bl:{cls:'bl',name:'블로그',meta:'📝 블로그 · 네이버 · 길게 (~1,120자)',btn:'✨ 블로그 글 만들기',load:'✍️ 블로그 글 쓰는 중…',steps:['재료 읽는 중 (메모·문자)','내 톤에 맞추는 중','초안 쓰는 중']},
+var PMETA={bl:{cls:'bl',name:'블로그',meta:'📝 블로그 · 네이버 · 길게',btn:'✨ 블로그 글 만들기',load:'✍️ 블로그 글 쓰는 중…',steps:['재료 읽는 중 (메모·문자)','내 톤에 맞추는 중','초안 쓰는 중']},
   ig:{cls:'ig',name:'인스타',meta:'📷 인스타그램 · 짧게 + 해시태그 15',btn:'✨ 인스타 캡션 만들기',load:'✍️ 인스타 캡션 쓰는 중…',steps:['재료 읽는 중','감성 톤·이모지 맞추는 중','해시태그 뽑는 중']},
   th:{cls:'th',name:'스레드',meta:'🧵 스레드 · 대화체 + 해시태그 1~2',btn:'✨ 스레드 글 만들기',load:'✍️ 스레드 글 쓰는 중…',steps:['재료 읽는 중','대화체 톤 맞추는 중','초안 쓰는 중']}};
 function ptab(p){genP=p;['bl','ig','th'].forEach(function(x){document.getElementById('pt-'+x).classList.toggle('on',x===p);});renderRight();}
