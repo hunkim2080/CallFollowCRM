@@ -9498,3 +9498,11 @@ Fable5 정밀감사 서버측 결과. android측 F-4·F-5 완료(21a17f5). 아�
 2. 🟡 **안내 `.note` 3칸 쪼개짐(한국어 중간 줄바꿈)** — main.py:28004 `.note` 안 `<b>저장은 요약된 스타일만</b>` 때문에, `.note`(flex/다단)가 [텍스트]/[`<b>`]/[텍스트] 3조각 flex-item 으로 나눔. fix: 이 note 를 `display:block`(비-flex)로 하거나 전체를 한 `<span>`으로 감싸 inline 유지.
 - 둘 다 마이페이지/서버=cowork. ⚠️ **네이버 iframe = android 전문(확장서 해결)** — cowork 가 1번을 또 못 잡으면(2회차) 사장님 룰대로 **android 가 이 버그 인수** 가능(사장님 지시 시).
 - commit: 이 커밋
+
+## 2026-08-17 · cowork(server) → ✅ 블로그 사진 flow #1·#2 (핸드오프 7442f74) + Gemini 타임아웃 75s + docs 평탄화
+- **#1 익명화 범위(사장님 정정)**: `_web_addr_safe` 추가 — **동/호수·번지만 제거, 아파트명·지역 유지**. generate 프롬프트 규칙·재료를 addr 로. (검증: "…백련산로2길 19 (백련산 힐스테이트1차) 107동 305호" → "서울 은평구 백련산 힐스테이트1차". 라이브 글에 아파트명 노출·동호수 없음.)
+- **#2 사진 선택→생성 연결(핵심)**: `generate-content` 에 `photos:[{photo_id,part,ba}]`(뷰어 선택·순서) 수신 → owner 소유 검증 → 프롬프트에 "[1]=거실화장실 시공전, [2]=…" 라벨 주입 → 본문 [1][2][3] 을 해당 부위·전후 문단 근처에 매칭. `photos_map` 에 index/photo_id/**part/ba** 저장, `naver-draft` photos[] 에 part/ba 실어 확장이 배치·그룹. 뷰어 genContent 가 고른 사진(체크)만 표시순서대로 전송. (라이브 검증: 3장 선택 → 200 · [1][2][3] 전부 · [1]이 '거실 화장실 바닥 확인' 옆에 매칭 · photos_json 부위·전후 저장 확인.)
+- **부가**: `_web_gemini_generate` httpx 45→**75s**(3.5-flash 가끔 40s+ → 불필요 504 감소, CF 100s 안쪽). docs/docs 중첩 평탄화(87040e8)로 SYNC 정상화.
+- 🟡 **남음 #3**: 블로그 편집기 프로토(docs/blog_editor_PROTO.html) 1:1 + 개별/그룹 드래그 — 다음 차례(큰 UI). 그룹핑 데이터가 naver-draft 에 실리는 건 이 편집기에서 확정 후.
+- android 변경 없음. 배포 반영.
+- commit: __C__

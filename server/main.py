@@ -27422,7 +27422,9 @@ function genContent(){
   var gl=document.getElementById('genload'); var out=document.getElementById('genOut'); out.innerHTML='';
   var steps=gl.querySelectorAll('.gstep'); gl.classList.add('on'); steps.forEach(function(s){s.className='gstep';});
   var i=0,anim=setInterval(function(){if(i>0)steps[i-1].className='gstep ok';if(i<steps.length){steps[i].className='gstep doing';i++;}else{clearInterval(anim);}},520);
-  fetch('/api/web/generate-content',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer_digits:curCd})})
+  // 사장님이 고른 사진(체크)만 표시순서대로 + 부위·전후 실어보냄. 없으면 서버가 자동 6장.
+  var chosen=photos.filter(function(p){return sel[p.photo_id];}).map(function(p){return {photo_id:p.photo_id, part:partFor(p.photo_id), ba:baFor(p)};});
+  fetch('/api/web/generate-content',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer_digits:curCd, photos:chosen})})
   .then(function(r){return r.json().then(function(j){return {s:r.status,j:j};});}).then(function(o){
     clearInterval(anim); gl.classList.remove('on');
     if(o.s!==200){out.innerHTML='<div style="padding:14px;color:#F0436A;font-size:13px">'+esc(o.j.detail||'생성 실패')+'</div>';return;}
@@ -28151,6 +28153,39 @@ def _web_region_only(apartment: str) -> str:
     return " ".join(toks[:2]) if toks else "현장"
 
 
+_APT_KEYWORDS = ("아파트", "힐스테이트", "캐슬", "자이", "푸르지오", "래미안", "파크", "타워",
+                 "마을", "맨션", "빌라", "리버", "시티", "팰리스", "스테이트", "센트럴",
+                 "위브", "e편한", "이편한", "더샵", "sk뷰", "SK뷰", "하늘채", "베르디움", "블레스", "카운티")
+
+
+def _web_addr_safe(apartment: str) -> str:
+    """사장님 정정 익명화: 아파트명·지역(시/구)은 남기고 **동/호수·번지만** 제거.
+    '서울 은평구 백련산로2길 19 (백련산 힐스테이트1차) 107동 305호' → '서울 은평구 백련산 힐스테이트1차'."""
+    s = apartment or ""
+    # 동/호수/층 제거
+    s = _webre.sub(r"[0-9A-Za-z]+\s*동\s*[0-9]+\s*호", "", s)
+    s = _webre.sub(r"[0-9]+\s*동", "", s)
+    s = _webre.sub(r"[0-9]+\s*호", "", s)
+    s = _webre.sub(r"[0-9]+\s*층", "", s)
+    # 괄호 안 아파트명 우선 추출
+    apt = ""
+    mpar = _webre.search(r"\(([^)]+)\)", s)
+    if mpar:
+        apt = mpar.group(1).strip()
+    s2 = _webre.sub(r"\([^)]*\)", "", s)
+    toks = [t for t in s2.split() if t]
+    region = " ".join(toks[:2])  # 시/구
+    if not apt:
+        for t in toks[2:]:
+            if any(k in t for k in _APT_KEYWORDS):
+                apt = t
+                break
+    # 아파트명에서도 동/호 잔재 제거
+    apt = _webre.sub(r"[0-9]+\s*동.*", "", apt).strip()
+    out = (region + (" " + apt if apt else "")).strip()
+    return out or "현장"
+
+
 def _web_gather_materials(owner: str, cd: str) -> dict:
     """글 생성 재료 수집(익명화 전 원본, owner 소유만). 통화요약+메모+현장."""
     key8 = _web_pkey(cd)
@@ -28196,6 +28231,7 @@ def _web_gather_materials(owner: str, cd: str) -> dict:
         if cvr and cvr[1]:
             call = _webre.sub(r"01[0-9]-?[0-9]{3,4}-?[0-9]{4}", "(번호)", cvr[1])[:4000]
     return {"region": _web_region_only(site.get("apartment", "")),
+            "addr": _web_addr_safe(site.get("apartment", "")),   # 아파트명+지역(동/호수·번지만 제거)
             "category": site.get("category", ""), "work_date": site.get("work_date", ""),
             "completed": site.get("completed", False), "memo": memo, "call": call,
             "convo": convo, "tone_urls": tones}
@@ -28209,7 +28245,7 @@ async def _web_gemini_generate(api_key: str, prompt: str) -> dict:
     url = ("https://generativelanguage.googleapis.com/v1beta/models/"
            + GEMINI_MODEL + ":generateContent")
     try:
-        async with httpx.AsyncClient(timeout=45.0) as client:
+        async with httpx.AsyncClient(timeout=75.0) as client:   # CF 100s 안쪽 여유(3.5-flash 가끔 40s+)
             r = await client.post(
                 url, params={"key": api_key},
                 json={
@@ -28232,6 +28268,7 @@ async def _web_gemini_generate(api_key: str, prompt: str) -> dict:
 
 class WebGenReq(BaseModel):
     customer_digits: str
+    photos: Optional[list] = None   # 뷰어에서 고른 사진 [{photo_id, part, ba}] 순서대로 (없으면 자동 6장)
 
 
 @app.post("/api/web/generate-content")
@@ -28250,15 +28287,38 @@ async def web_generate_content(request: Request, req: WebGenReq):
     # 사장님 핵심 규칙: 시공 완료건만 글 생성(진행중은 시공후 사진·후기 없어 글 못 씀). 웹 우회 방지 서버 게이트.
     if not m.get("completed"):
         raise HTTPException(400, "시공 완료 후 글을 만들 수 있어요 (진행중 현장은 아직 후기 재료가 없어요)")
-    # 사진 수집(네이버 글 [n] 자리 매핑용) — 이 현장 사진 최대 6장
+    # 사진 수집 — 뷰어에서 고른 선택(순서·부위·전후)이 오면 그걸, 없으면 자동 6장.
     _bucket = _web_photo_bucket(owner)
-    _pics = _bucket.get(_web_pkey(cd), [])[:6]
-    n_pics = len(_pics)
+    _valid_ids = {p["photo_id"] for p in _bucket.get(_web_pkey(cd), [])}
+    _sel = []
+    if req.photos:
+        for it in req.photos:
+            if not isinstance(it, dict):
+                continue
+            try:
+                pid = int(it.get("photo_id"))
+            except Exception:
+                continue
+            if pid in _valid_ids:   # owner 소유 이 현장 사진만(위조 방지)
+                _sel.append({"photo_id": pid,
+                             "part": (str(it.get("part") or "").strip())[:20],
+                             "ba": ("after" if str(it.get("ba")) == "after" else "before")})
+        _sel = _sel[:12]
+    if not _sel:  # 선택 없으면 자동(업로드순 6장, 부위/전후 미상)
+        _sel = [{"photo_id": p["photo_id"], "part": "", "ba": ""}
+                for p in _bucket.get(_web_pkey(cd), [])[:6]]
+    n_pics = len(_sel)
     photo_hint = ""
     if n_pics:
-        photo_hint = ("\n블로그 본문 중 사진이 들어가면 좋은 자리에 [1]"
-                      + "".join("[%d]" % i for i in range(2, n_pics + 1))
-                      + " 처럼 번호 마커를 순서대로 넣어라(총 %d개, 각 한 번씩)." % n_pics)
+        # 각 번호가 어떤 부위·전후인지 라벨링 → 본문 해당 문단 근처에 그 번호를 넣게.
+        _lbls = []
+        for i, s in enumerate(_sel):
+            tag = " ".join(t for t in [s.get("part") or "",
+                                       ("시공후" if s.get("ba") == "after" else "시공전" if s.get("ba") == "before" else "")] if t)
+            _lbls.append("[%d]=%s" % (i + 1, tag or "현장사진"))
+        photo_hint = ("\n블로그 본문에 사진 자리 번호를 넣어라 — 각 번호의 부위·전후: "
+                      + ", ".join(_lbls) + ". 해당 부위·전후를 설명하는 문단 **바로 근처**에 그 번호 마커([1][2]…)를 "
+                      "순서대로 각 한 번씩 넣어라(총 %d개). 시공전 사진은 '전' 설명, 시공후는 '후·결과' 설명 옆에." % n_pics)
     # F-7 실학습: 저장된 블로그 스타일 리포트(글 흐름·어미·어투)를 프롬프트에 주입 (URL X).
     tone_hint = ""
     _bl_style = _web_tone_styles(owner).get("bl")
@@ -28275,8 +28335,9 @@ async def web_generate_content(request: Request, req: WebGenReq):
     prompt = (
         "너는 시공(인테리어) 사장님의 마케팅 글을 대신 써주는 카피라이터다. "
         "아래 '현장 재료'만으로 블로그·인스타그램·스레드 글을 각 플랫폼 톤에 맞게 쓴다.\n"
-        "규칙(엄수): (1) 재료에 없는 사실을 지어내지 마라. (2) 익명화 — 고객 이름·전화번호·동/호수·정확한 "
-        "번지 주소는 절대 쓰지 마라. 지역은 '" + (m["region"] or "해당 지역") + "' 수준까지만. "
+        "규칙(엄수): (1) 재료에 없는 사실을 지어내지 마라. (2) 익명화(사장님 결정) — 고객 이름·전화번호와 "
+        "**동/호수·번지만** 빼라. **아파트명·지역명은 써도 된다**(예: '" + (m.get("addr") or m["region"] or "해당 지역") + "'). "
+        "단 'N동 N호'·정확한 번지수는 절대 쓰지 마라. "
         "(2-1) 금액 미노출(사장님 결정) — 예약금·계약금·잔금·견적가·평단가 등 **구체 금액/단가는 절대 쓰지 마라**"
         "(재료에 금액이 있어도 글엔 넣지 말고 '합리적으로 견적' 정도로만). 계좌·링크도 금지. "
         "(3) 과장·허위 없이 정직하게. (4) 존댓말·친근.\n"
@@ -28286,7 +28347,7 @@ async def web_generate_content(request: Request, req: WebGenReq):
         "스레드=~230자 대화하듯 톤 확 낮춤 + 해시태그 1~2개.\n"
         "그리고 이 현장 '페르소나 한 줄'(어떤 고민 → 어떻게 시공)도.\n" + tone_hint + "\n\n"
         "[현장 재료]\n"
-        "지역: " + (m["region"] or "-") + "\n"
+        "현장(아파트명·지역 — 동/호수·번지 없이): " + (m.get("addr") or m["region"] or "-") + "\n"
         "시공종류: " + (m["category"] or "-") + "\n"
         "시공일: " + (m["work_date"] or "-") + "\n"
         "메모: " + (m["memo"] or "(없음)") + "\n"
@@ -28304,8 +28365,10 @@ async def web_generate_content(request: Request, req: WebGenReq):
     blog = out.get("blog") or {}
     ig = out.get("instagram") or {}
     th = out.get("threads") or {}
-    # 크롬 확장 '불러오기'용 — 최근 생성 글 저장(마커 본문 + 사진 index 매핑)
-    photos_map = [{"index": i + 1, "photo_id": _pics[i]["photo_id"]} for i in range(n_pics)]
+    # 크롬 확장 '불러오기'용 — 최근 생성 글 저장(마커 본문 + 사진 index·부위·전후 매핑, 선택 순서대로)
+    photos_map = [{"index": i + 1, "photo_id": _sel[i]["photo_id"],
+                   "part": _sel[i].get("part") or "", "ba": _sel[i].get("ba") or ""}
+                  for i in range(n_pics)]
     try:
         with db_conn() as con:
             con.execute(
@@ -28383,6 +28446,8 @@ async def web_naver_draft(phone: str, customer_digits: Optional[str] = None,
             pid = it.get("photo_id")
             photos.append({
                 "index": it.get("index"),
+                "part": it.get("part") or "",   # 부위(거실화장실 등) — 확장 배치/그룹용
+                "ba": it.get("ba") or "",        # 전후(before/after)
                 "url": INTAKE_PUBLIC_BASE_URL + "/api/web/photo/" + str(pid)
                        + "?t=" + _web_photo_token(int(pid)),
             })
