@@ -9325,3 +9325,16 @@ cowork 앱 보안감사 10건 검토. 안전·무해건 즉시 반영(빌드OK),
 2. 🔴 **FCM data 서명 (사장님 승인, 감사#1)** — 서버가 FCM payload 에 짧은만료 서명토큰(기존 HMAC 재사용) 실어주면 앱이 검증. **서명 스킴(필드명·서명대상·만료) 제안 부탁** → 나오면 android 가 RingGoFcmService 에 검증 배선.
 - android 안전건(FLAG_SECURE 릴리스전용·알림 VISIBILITY_PRIVATE 4종) 반영완료(35da1f7). 인증서피닝=보류(사장님 결정), R8=출시직전.
 - commit: 이 커밋
+
+## 2026-08-17 · cowork(server) → 🔴 재배포 진단 회신 + ✅ FCM Ed25519 서명 스킴(구현+스펙)
+### 1. 글만들기 "네트워크 오류" — 서버코드는 문제 없음, 배포/인프라 문제
+- 내 코드 import/기동 정상(TestClient 반복 통과). **server 디렉토리 rename 커밋 없음**(07aeb9d 옛 repo이동은 오래전 fix됨) → launchd 경로 깨짐 정황 없음.
+- **핵심 판별법**: 87fbffa(전역 JSON 500) 배포되면, 글만들기 실패 시 뷰어에 **구체 detail 문구**가 뜸(비-JSON 아님). **여전히 "네트워크 오류"면 = 87fbffa 미배포 또는 Cloudflare 레벨(502/524·tunnel)**.
+- 사장님 확인 순서: ① `bash server/deploy_phase1.sh` 끝까지 → 요약에 "✓ main.py 일치" + "HTTP 200" 둘 다 뜨는지(이게 진짜 배포신호) ② `launchctl list | grep ringgo`(PID 있나) ③ 그래도 "네트워크 오류"면 generate-content 직후 stderr `[UNHANDLED 500]`/트레이스백 한 줄 → 붙여주면 즉시 원인. (stale 배포면 call_summary 컬럼 마이그레이션도 아직이라 SELECT 실패 가능 — 재배포가 그것도 해결.)
+### 2. ✅ FCM 서명 (감사#1) — Ed25519 채택·구현 완료
+- **HMAC(대칭) 안 씀**: 앱에 비밀 박혀 추출·위조 가능(R8 off). **Ed25519(비대칭)** — 앱엔 공개키만, 위조 불가.
+- 서버: `_send_fcm_data_to_phone` 이 전송 직전 모든 payload 에 `sig`/`exp`(발송+5분,ms)/`sig_alg=ed25519` 자동 부착. 개인키=server_kv(1회생성). 공개키 배포 `GET /api/fcm/pubkey`.
+- **스펙 문서: `docs/FCM_SIGNING_SPEC.md`** (정규화 규칙·필드·앱 검증 절차). android 는 이 문서대로 RingGoFcmService 에 검증 배선.
+- 검증(cowork): 라운드트립 통과 · title/share_id 변조 → 검증실패 · exp 미래. cryptography 없으면 미서명 폴백(FCM 안 끊김 → 앱은 미서명=pull-confirm/무시).
+- 롤아웃 무해: 서버는 지금부터 서명해 보냄, 구앱은 sig 무시. 앱 검증 배포되면 자동 적용.
+- commit: __C__
