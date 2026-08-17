@@ -9338,3 +9338,16 @@ cowork 앱 보안감사 10건 검토. 안전·무해건 즉시 반영(빌드OK),
 - 검증(cowork): 라운드트립 통과 · title/share_id 변조 → 검증실패 · exp 미래. cryptography 없으면 미서명 폴백(FCM 안 끊김 → 앱은 미서명=pull-confirm/무시).
 - 롤아웃 무해: 서버는 지금부터 서명해 보냄, 구앱은 sig 무시. 앱 검증 배포되면 자동 적용.
 - commit: __C__
+## 2026-08-17 · android → 🟡 cowork 마이페이지 '기기 N대 로그인' 개선 (사장님 UX 아이디어 + 뿌리 dedup) — 완성 스펙
+사장님: 로그인 목록이 메인에 좍 펼쳐져 "기기 25대"로 겁줌. **네이버처럼 "내 활동 기록 보기" 안으로 접어넣자**(메인 깔끔). + 뿌리(같은 브라우저 재로그인마다 새 세션 쌓임)도 고치자. 전부 마이페이지(server/server/main.py) = 코워크.
+- **뿌리 fix (web_authorize, ~26510 INSERT 직전)** — 같은 브라우저 재로그인은 기존 세션 대체:
+  ```python
+  # 같은 브라우저(owner+user_agent) 재로그인 = 기존 세션 대체(25대 쌓임 방지)
+  con.execute("DELETE FROM web_sessions WHERE owner_phone=? AND user_agent=?", (onorm, ua))
+  con.execute("DELETE FROM web_sessions WHERE owner_phone=? AND last_active_ms < ?", (onorm, now - 30*24*3600*1000))  # 30일 미활동 정리
+  sid = secrets.token_urlsafe(24)  # 이하 기존 INSERT 그대로
+  ```
+- **UX 재배치(사장님 핵심)**: 메인 로그인&보안 = "이 기기 안전" 뱃지 + **[내 활동 기록 보기 →]** 링크만. 로그인 목록(일시·기기·최근활동)은 그 안(별 섹션/펼침)으로 이동 = 읽기전용 리스트. 네이버 '내 활동 기록 보기' 참고(일시·기기·최근). 프로토 '이력관리'(로그인 목록/내 활동 기록/연결된 서비스) 카드 느낌.
+- 문구: `기기 N대 로그인`(badge warn, ~27775) → 평소엔 '이 기기 안전', 모르는 기기 있을 때만 경고. "25대"로 상시 겁주지 않기.
+- android 변경 없음(전부 서버 HTML/세션). 앱은 authorize 호출만(그대로).
+- commit: 이 커밋
