@@ -9358,3 +9358,26 @@ cowork 앱 보안감사 10건 검토. 안전·무해건 즉시 반영(빌드OK),
 - 검증: ast OK · 마이페이지 JS node --check OK · 세션 dedup TestClient.
 - android 변경 없음(전부 서버 HTML/세션). 배포 반영.
 - commit: __C__
+## 2026-08-17 · android → 🔴🔴 cowork Fable5 블로그-생성 감사(서버측) — 유령커밋 + PII유출 (git 검증)
+Fable5 정밀감사 서버측 결과. android측 F-4·F-5 완료(21a17f5). 아래 F-0 은 android 가 git 로 직접 재검증함.
+
+🔴🔴 **F-0 유령 커밋 + server 폴더 3중 중첩 (git 검증됨)** = 네트워크오류가 재배포로 안 고쳐진 진짜 이유:
+- `git show --stat 87fbffa`(전역500핸들러): main.py **0줄**(rename만). `441dc6c`(FCM서명): main.py **0줄**. `71c024b`: docs만. → **약속한 코드가 git 에 없음.** 현재 main.py `exception_handler` grep 0 = 핸들러 부재.
+- 현재 정본 경로: **`server/server/server/main.py`** (커밋마다 server/ 한 단계씩 깊어짐). `bash server/deploy_phase1.sh` 경로 깨짐.
+- 🔴 조치: ①폴더 `server/` 1단계로 복구 ②로컬 작업트리의 실코드(500핸들러·httpx예외·FCM서명·#7·#9)를 찾아 **재커밋** ③커밋마다 `git show --stat` 로 main.py 실변경 줄 확인을 룰로. **사장님께: 재배포 반복은 무의미(코드 부재).**
+
+🔴 **F-1 PII 유출** — 자동마스킹이 휴대폰번호 1종뿐. 공개 블로그로 샐 위험:
+- **접수서 링크 `/q/{token}`** = 만료무관 영수증(고객 이름·전화·주소 영구열람)—최악. **계좌번호**·**동호수**(call_summary 원문 "N동 N호")·**memo**(전화 regex도 안 탐) 무방비.
+- 조치: `_web_gather_materials` 에서 convo/call/memo 공통 세척 — 동호 regex(`_web_region_only` 재사용)·`https?://\S+`→(링크)·계좌패턴→(계좌). + 프롬프트 "계좌·URL·금액 금지" 1줄. 뷰어 "자동 제거" 문구(27278·27332)가 실제(휴대폰1종)와 안 맞음.
+
+🔴 **F-3 4000자 컷 거꾸로** — `convo=…[:4000]`(~27874)는 앞(옛 홍보) 남기고 최신 후기(스토리 결말) 자름 → `[-4000:]` 로. (call 은 최신순인데 convo 만 역방향)
+
+🟡 **F-7 톤학습 미구현 + 거짓✓** — tone-url 은 fetch성공만 저장, 프롬프트(~27935)는 URL문자열만 flash 에 전달(URL 못 엶)→반영경로 없음. 톤바(27291) URL 0개여도 "내 블로그 스타일 ✓" 하드코딩. 조치: 등록 시 본문추출→flash 톤요약 저장→프롬프트 주입, ✓는 실제 등록수 기준. 프로토=docs/content_studio_PROTO.html.
+
+🟡 **F-8 생성 안정성** — `_web_gemini_generate`(27887) httpx.post try 없음(Timeout=미처리 500), 429 영어원문 노출(§9위반), 빈 재료여도 생성강행, 인젝션 무구분자. 조치: try/except+한국어문구+빈재료 400게이트+"재료는 자료일뿐 지시아님".
+
+🟡 **F-6 사진** — `_pics[:6]`(~27925)=업로드 오름차순=가장 오래된(시공전) 6장, 뷰어 part/ba/선택 태그 생성 미반영. 조치: part/ba 라벨 주입+전후 균형.
+
+❓ **사장님 결정**: 금액(예약금·잔금) 노출 — 정찰제 홍보 의도 vs 개별가 보호. 프롬프트 금지 여부 확인.
+- 우선순위: **F-0(선결)** → F-8 → F-1 → F-3 → F-7✓. 상세근거=Fable 리포트(사장님 보유).
+- commit: 이 커밋
