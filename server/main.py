@@ -69,7 +69,7 @@ KAKAO_TIMEOUT_SEC = 5.0
 # launchd plist EnvironmentVariables 에 GEMINI_API_KEY 박혀있어야 /api/refine 동작.
 # 미설정 시 endpoint 가 503 응답 → 안드로이드는 "AI 서버 연결 실패" 토스트.
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-3.5-flash"   # 2026-08-17: gemini-2.0/2.5-flash 구글 폐기(404) → 현행 모델(라이브 키로 200 확인). 폐기되면 여기만 교체.
 # §26 fix (2026-06-10): 11분+ 통화는 transcript 4000~6000자 → Gemini 처리 시간 30~90초.
 # 짧은 통화 (prepare-reply) 와 긴 통화 (call-audio-summary) 둘 다 안전한 120초.
 GEMINI_TIMEOUT_SEC = 120.0
@@ -28205,8 +28205,9 @@ async def _web_gemini_generate(api_key: str, prompt: str) -> dict:
     """owner Gemini 키로 JSON 생성. 실패 시 raise.
     F-0후속: httpx 45s + 느리면 504(JSON) — Cloudflare 100s hard-limit 전에 서버가 먼저 JSON 응답
     해서 뷰어 '네트워크 오류'(비-JSON 524) 방지."""
+    # gemini-2.0-flash 는 구글이 폐기(404) → 현행 모델로. 나머지 코드도 GEMINI_MODEL(2.5-flash) 사용.
     url = ("https://generativelanguage.googleapis.com/v1beta/models/"
-           "gemini-2.0-flash:generateContent")
+           + GEMINI_MODEL + ":generateContent")
     try:
         async with httpx.AsyncClient(timeout=45.0) as client:
             r = await client.post(
