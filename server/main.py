@@ -27017,8 +27017,8 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .who{margin-left:auto;font-size:12.5px;font-weight:800;color:var(--ink2);display:flex;align-items:center;gap:8px;cursor:pointer}
   .who .av{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,#3182F6,#6E5FC7);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px}
 
-  .cols{display:grid;grid-template-columns:274px minmax(0,1fr) 460px;height:calc(100vh - 150px);min-height:520px}
-  @media(max-width:1180px){.cols{grid-template-columns:1fr;height:auto}}
+  .cols{display:grid;grid-template-columns:274px minmax(0,1fr) 460px;min-height:680px}
+  @media(max-width:1180px){.cols{grid-template-columns:1fr}}
   .col-l{border-right:1px solid var(--line);padding:16px 15px;overflow:auto}
   .col-m{border-right:1px solid var(--line);padding:20px 22px;overflow:auto;min-width:0}
   .col-r{padding:0;background:var(--sunken);display:flex;flex-direction:column;min-width:0}
@@ -27069,6 +27069,8 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .pchip{font-size:12px;font-weight:800;color:var(--ink2);background:var(--surface);border:1.5px solid var(--line);padding:7px 12px;border-radius:9px;cursor:pointer}
   .pchip.on{background:var(--amber);color:#fff;border-color:transparent}
   .pchip.add{background:transparent;color:var(--ink3);border-style:dashed}
+  .pchip.done{background:var(--green);color:#fff;border-color:transparent}
+  .pchip .x{font-style:normal;color:#EF4444;font-weight:900;cursor:pointer;margin-left:2px}
   .pchip.ed{display:inline-flex;align-items:center;gap:7px;color:var(--ink);background:var(--surface)}
   .pchip.ed .x{font-style:normal;color:#EF4444;font-weight:900;cursor:pointer}
   .editnote{font-size:11px;color:var(--ink3);font-weight:700;margin:12px 0 7px}.editnote b{color:var(--ink)}
@@ -27094,6 +27096,7 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .ptab.on.ig{background:var(--ig-bg);color:var(--ig);border-color:var(--ig-line)}
   .ptab.on.th{background:var(--th-bg);color:var(--th);border-color:var(--th-line)}
   .rbody{padding:16px 18px 22px;overflow:auto;flex:1;border-top:1px solid var(--line);margin-top:-1px}
+  #genOut{max-height:62vh;overflow-y:auto;overflow-x:hidden;padding-right:3px}
   .tonebar{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:10px 13px;margin-bottom:12px}
   .tonebar .tl{font-size:12px;color:var(--ink2);font-weight:700}.tonebar .tl b{color:var(--green)}
   .tonebar .te{margin-left:auto;font-size:11.5px;font-weight:800;color:var(--blue);cursor:pointer}
@@ -27273,7 +27276,7 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
 
 <script>
 var ym=new Date().toISOString().slice(0,7);
-var sites=[], curCd=null, curCust=null, photos=[], sel={}, filter='all', lbi=0, mTab='photos', MAT=null;
+var sites=[], curCd=null, curCust=null, photos=[], sel={}, filter='all', lbi=0, mTab='photos', MAT=null, partsEditMode=false;
 var PARTS_KEY='web_parts_v1', SELPART_KEY='web_sel_part', PT_KEY='web_partof_v1', BA_KEY='web_ba_v1';
 var DEFAULT_PARTS=['거실화장실','안방화장실','거실타일','베란다','다용도실','현관','기타'];
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
@@ -27385,9 +27388,8 @@ function renderPhotosPane(){
    +'<div class="grid" id="photos"></div>';
   if(photos.length){
     h+='<div class="partpick"><div class="h">📌 선택한 사진에 <b>부위 찍기</b> → 파일명에 들어가요 · <b>부위 목록은 사장님이 직접 정해요</b></div>'
-      +'<div class="parts" id="parts"></div>'
-      +'<div class="editnote" id="editnote" style="display:none">✏️ <b>편집</b> — 부위마다 <b>삭제(✕)</b> 로 빼기:</div>'
-      +'<div class="parts" id="partsed" style="display:none"></div></div>'
+      +'<div class="editnote" id="editnote" style="display:none">✏️ <b>편집 중</b> — 부위마다 <b>✕</b> 로 빼기 · <b>[✓ 완료]</b> 누르면 끝</div>'
+      +'<div class="parts" id="parts"></div></div>'
       +'<div class="dlbar"><div class="fname" id="fname"></div>'
       +'<button class="dlbtn ghost2" onclick="selectAll()">전체 선택</button>'
       +'<button class="dlbtn" onclick="download()" id="dlbtn">📥 다운로드</button></div>'
@@ -27438,16 +27440,16 @@ function updBar(){
 }
 function renderParts(){
   var _sids=Object.keys(sel), _sp=_sids.map(partFor), sp=(_sids.length&&_sp.every(function(x){return x&&x===_sp[0];}))?_sp[0]:'', parts=getParts(), h='';
-  parts.forEach(function(p,i){h+='<span class="pchip'+(p===sp?' on':'')+'" onclick="pickPart('+i+')">'+esc(p)+'</span>';});
-  h+='<span class="pchip add" onclick="addPart()">＋ 부위 추가</span><span class="pchip add" onclick="toggleEdit()">✏️ 편집</span>';
-  document.getElementById('parts').innerHTML=h;
-  var ed=document.getElementById('partsed');
-  if(ed&&ed.style.display!=='none'){
-    var e=''; parts.forEach(function(p,i){e+='<span class="pchip ed">'+esc(p)+' <span class="x" onclick="delPart('+i+')">✕</span></span>';});
-    e+='<span class="pchip add" onclick="addPart()">＋ 추가</span>'; ed.innerHTML=e;
+  if(partsEditMode){
+    parts.forEach(function(p,i){h+='<span class="pchip ed">'+esc(p)+'<span class="x" onclick="delPart('+i+')" title="빼기">✕</span></span>';});
+    h+='<span class="pchip add" onclick="addPart()">＋ 추가</span><span class="pchip done" onclick="toggleEdit()">✓ 완료</span>';
+  } else {
+    parts.forEach(function(p,i){h+='<span class="pchip'+(p===sp?' on':'')+'" onclick="pickPart('+i+')">'+esc(p)+'</span>';});
+    h+='<span class="pchip add" onclick="addPart()">＋ 부위 추가</span><span class="pchip add" onclick="toggleEdit()">✏️ 편집</span>';
   }
+  document.getElementById('parts').innerHTML=h;
 }
-function toggleEdit(){var ed=document.getElementById('partsed'),note=document.getElementById('editnote');var on=ed.style.display==='none';ed.style.display=on?'flex':'none';note.style.display=on?'block':'none';renderParts();}
+function toggleEdit(){ partsEditMode=!partsEditMode; var note=document.getElementById('editnote'); if(note)note.style.display=partsEditMode?'block':'none'; renderParts(); }
 function pickPart(i){var ids=Object.keys(sel),v=getParts()[i];if(!ids.length){toast('먼저 사진을 골라주세요 — 사진을 클릭하면 선택돼요');return;}var m=getPt(),same=ids.every(function(id){return m[id]===v;});ids.forEach(function(id){if(same)delete m[id];else m[id]=v;});localStorage.setItem(PT_KEY,JSON.stringify(m));ids.forEach(saveTag);sel={};renderParts();renderPhotos();updBar();toast(same?('「'+v+'」 부위 해제 ('+ids.length+'장)'):('선택한 '+ids.length+'장에 「'+v+'」 부위 찍음 ✓'));}
 function addPart(){var n=(prompt('추가할 부위 이름')||'').trim();if(!n)return;var p=getParts();if(p.indexOf(n)<0){p.push(n);setParts(p);}renderParts();}
 function delPart(i){var p=getParts(),v=p[i];if(!confirm('"'+v+'" 부위를 지울까요?'))return;p.splice(i,1);setParts(p);if(selPart()===v)localStorage.removeItem(SELPART_KEY);renderParts();renderPhotos();updBar();}
