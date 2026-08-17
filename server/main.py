@@ -27158,6 +27158,9 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .doc p{font-size:14px;color:var(--ink);line-height:1.9;margin:0 0 13px}
   .doc p.h{font-size:16.5px;font-weight:850;margin:20px 0 10px}
   .doc b{font-weight:850}
+  .doc [contenteditable]{cursor:text}
+  .doc [contenteditable]:hover{background:var(--sunken);border-radius:6px}
+  .doc [contenteditable]:focus{outline:none;background:var(--blue-bg);border-radius:6px;box-shadow:0 0 0 3px var(--blue-line)}
   .doc .quote{border-left:4px solid var(--violet);background:var(--violet-bg);padding:12px 15px;border-radius:0 8px 8px 0;font-size:14px;font-weight:600;margin:0 0 13px}
   .doc .hr{height:1px;background:var(--line);margin:18px 6px}
   .doc p.tags{font-size:13px;color:var(--green);font-weight:700;word-break:keep-all}
@@ -27689,16 +27692,16 @@ function renderBlogDoc(g){
     return '<div class="prow" draggable="true"><span class="grip">⠿ 드래그</span>'+(part?'<span class="matchtip">🎯 '+esc(part)+' 매칭</span>':'')+cells+'</div>';
   }
   function inl(s){return esc(s).replace(/\\*\\*([^*]+)\\*\\*/g,'<b>$1</b>');}
-  var h='<div class="doc" id="genText"><div class="dropline" id="dropline"></div><div class="t">'+esc(g.blog.title||'')+'</div>';
+  var h='<div class="doc" id="genText"><div class="dropline" id="dropline"></div><div class="t" contenteditable="true">'+esc(g.blog.title||'')+'</div>';
   (g.blog.body||'').split(/\\n\\n+/).forEach(function(blk){
     blk=(blk||'').replace(/\\r/g,'').trim(); if(!blk)return;
     var nums=[]; var tx=blk.replace(/\\[(\\d+)\\]/g,function(_m,d){nums.push(parseInt(d,10));return ' ';}).replace(/\\s+/g,' ').trim();
     if(tx){
       if(/^---+$/.test(tx)) h+='<div class="hr"></div>';
-      else if(tx.slice(0,3)==='## ') h+='<p class="h">'+inl(tx.slice(3).trim())+'</p>';
-      else if(tx.slice(0,2)==='> ') h+='<div class="quote">'+inl(tx.slice(2).trim())+'</div>';
-      else if(tx.charAt(0)==='#'&&tx.charAt(1)!=='#') h+='<p class="tags">'+esc(tx)+'</p>';
-      else h+='<p>'+inl(tx)+'</p>';
+      else if(tx.slice(0,3)==='## ') h+='<p class="h" contenteditable="true">'+inl(tx.slice(3).trim())+'</p>';
+      else if(tx.slice(0,2)==='> ') h+='<div class="quote" contenteditable="true">'+inl(tx.slice(2).trim())+'</div>';
+      else if(tx.charAt(0)==='#'&&tx.charAt(1)!=='#') h+='<p class="tags" contenteditable="true">'+esc(tx)+'</p>';
+      else h+='<p contenteditable="true">'+inl(tx)+'</p>';
     }
     if(nums.length) h+=prow(nums);
   });
@@ -27718,6 +27721,7 @@ function bindGenDrag(){
     el.addEventListener('dragend',function(){ el.classList.remove('drag'); endGenDrag(); });
   });
   if(doc.__dragBound)return; doc.__dragBound=1;
+  doc.addEventListener('input', saveDraftSoon);
   doc.addEventListener('dragover',function(e){
     e.preventDefault();
     if(genDragKind==='row'&&genDragEl){
@@ -27843,7 +27847,7 @@ function drawGen(){
   if(!_pd){ out.innerHTML='<div style="padding:34px 14px;text-align:center;color:var(--ink3);font-size:13px;line-height:1.7">이 플랫폼 글은 아직이에요.<br>위 버튼을 눌러 만들어요.</div>'; return; }
   if(genP==='bl'){
     body=renderBlogDoc(g)
-      +'<div class="privnote">🔒 고객 이름·연락처·동/호수는 자동으로 뺐어요</div>'
+      +'<div class="privnote">✏️ 글·제목 클릭하면 바로 수정돼요 · 🔒 이름·연락처·동/호수는 자동 제거</div>'
       +'<div class="gfoot"><button class="ghostbtn" onclick="genContent()">↻ 다시 만들기</button>'
       +'<button class="naverbtn" onclick="goNaver()">📝 네이버에 넣기</button></div>';
   } else if(genP==='ig'){
