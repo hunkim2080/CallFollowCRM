@@ -27625,7 +27625,10 @@ async def web_viewer(request: Request):
     owner = _web_owner_from_request(request)
     if not owner:
         return RedirectResponse("/web/login", status_code=302)
-    return HTMLResponse(_WEB_VIEWER_HTML)
+    # no-store: 브라우저가 옛 JS 를 캐시로 쓰는 것 방지 — 구버전(폴링코드 없음)이 새 서버의 {job_id} 를
+    #   블로그로 렌더하려다 터져 '네트워크 오류' 나던 재발 차단. 뷰어는 매번 최신 코드로.
+    return HTMLResponse(_WEB_VIEWER_HTML, headers={
+        "Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"})
 
 
 # ============================================================================
