@@ -26831,7 +26831,7 @@ async def web_tag(request: Request):
         raise HTTPException(400, "photo_id 필수")
     part = _webre.sub(r'[\\/:*?"<>|]', "", str(body.get("part") or "").strip())[:40]
     ba = str(body.get("ba") or "").strip()
-    ba = ba if ba in ("before", "after") else ""
+    ba = ba if ba in ("before", "mid", "after") else ""
     with db_conn() as con:
         if not part and not ba:
             con.execute("DELETE FROM web_photo_tags WHERE owner_phone = ? AND photo_id = ?", (owner, pid))
@@ -27058,7 +27058,7 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .ph .pick.on{background:var(--blue);border-color:var(--blue);color:#fff}
   .ph .up{position:absolute;right:8px;top:8px;font-size:9.5px;font-weight:800;padding:3px 7px;border-radius:6px;color:#fff}
   .ph .up.owner{background:rgba(49,130,246,.94)}.ph .up.team{background:rgba(18,184,134,.94)}.ph .up.partner{background:rgba(110,95,199,.95)}
-  .ph .tag{position:absolute;left:8px;bottom:8px;font-size:10.5px;font-weight:800;color:#fff;background:rgba(24,29,39,.62);border-radius:6px;padding:2px 8px;cursor:pointer;transition:filter .12s;z-index:2}.ph .tag:hover{filter:brightness(1.4)}.ph .tag.post{background:rgba(18,110,106,.78)}
+  .ph .tag{position:absolute;left:8px;bottom:8px;font-size:10.5px;font-weight:800;color:#fff;background:rgba(24,29,39,.62);border-radius:6px;padding:2px 8px;cursor:pointer;transition:filter .12s;z-index:2}.ph .tag:hover{filter:brightness(1.4)}.ph .tag.post{background:rgba(18,110,106,.78)}.ph .tag.mid{background:rgba(176,122,18,.85)}
   .ph .dl{position:absolute;right:8px;bottom:8px;width:26px;height:26px;border-radius:8px;background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;z-index:2;color:var(--ink)}
   .ph .cap{padding:8px 10px;font-size:11px;color:var(--ink3);display:flex;align-items:center;gap:6px;min-width:0}
   .ph .cap .part{font-weight:800;color:var(--amber);background:#FBF3E2;padding:2px 7px;border-radius:6px;flex:none}
@@ -27305,7 +27305,10 @@ function partFor(id){return getPt()[id]||'';}
 function saveTag(id){var p=getPt()[id]||'',b=getBa()[id]||'';fetch('/api/web/tag',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({photo_id:parseInt(id,10),part:p,ba:b})}).catch(function(){});}
 function getBa(){try{return JSON.parse(localStorage.getItem(BA_KEY))||{};}catch(e){return {};}}
 function baFor(p){var m=getBa();return m[p.photo_id]||p.ba_guess;}
-function flipBa(id){var m=getBa(),cur=m[id];if(!cur){var f=photos.filter(function(x){return x.photo_id===id;})[0];cur=f?f.ba_guess:'before';}m[id]=(cur==='before'?'after':'before');localStorage.setItem(BA_KEY,JSON.stringify(m));saveTag(id);}
+function baLabel(v){return v==='mid'?'밑작업':(v==='after'?'시공 후':'시공 전');}
+function baNext(v){return v==='before'?'mid':(v==='mid'?'after':'before');}   // 시공전 → 밑작업 → 시공후 → …
+function baCls(v){return v==='after'?'post':(v==='mid'?'mid':'');}
+function flipBa(id){var m=getBa(),cur=m[id];if(!cur){var f=photos.filter(function(x){return x.photo_id===id;})[0];cur=f?f.ba_guess:'before';}m[id]=baNext(cur);localStorage.setItem(BA_KEY,JSON.stringify(m));saveTag(id);}
 function toast(msg){var t=document.getElementById('wtoast');if(!t){t=document.createElement('div');t.id='wtoast';t.style.cssText='position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:rgba(11,15,25,.92);color:#fff;padding:11px 18px;border-radius:11px;font-size:13px;font-weight:700;z-index:99999;opacity:0;transition:opacity .2s;box-shadow:0 8px 24px rgba(0,0,0,.3)';document.body.appendChild(t);}t.textContent=msg;t.style.opacity='1';clearTimeout(t._h);t._h=setTimeout(function(){t.style.opacity='0';},1900);}
 
 function moveMonth(d){var p=ym.split('-');var dt=new Date(+p[0],+p[1]-1+d,1);ym=dt.getFullYear()+'-'+pad(dt.getMonth()+1);load();}
@@ -27399,7 +27402,7 @@ function renderPhotosPane(){
    +'<span class="chipf'+(filter==='team'?' on':'')+'" onclick="setFilter(\\'team\\')"><i class="team"></i>팀원 '+(cc.team||0)+'</span>'
    +'<span class="chipf'+(filter==='partner'?' on':'')+'" onclick="setFilter(\\'partner\\')"><i class="partner"></i>협업 사장 '+(cc.partner||0)+'</span>'
    +'</div>'
-   +'<div class="seg"><span>시공 전</span> · <span class="on">시공 후</span> — 올린 시간순 자동 구분</div>'
+   +'<div class="seg"><span>시공 전</span> · <span>밑작업</span> · <span class="on">시공 후</span> — 자동 구분, 태그 탭으로 바꿔요</div>'
    +'<div class="grid" id="photos"></div>';
   if(photos.length){
     h+='<div class="partpick"><div class="h">📌 선택한 사진에 <b>부위 찍기</b> → 파일명에 들어가요 · <b>부위 목록은 사장님이 직접 정해요</b></div>'
@@ -27421,12 +27424,12 @@ function renderPhotos(){
     var up=p.uploader_kind, upc=up==='owner'?'owner':(up==='partner'?'partner':'team');
     var _un=(p.uploader_name||'').trim();
     var uptxt=up==='owner'?'👤 사장님':(up==='partner'?(!_un||/협업/.test(_un)?'🤝 협업 사장':'🤝 협업·'+esc(_un)):'👤 '+esc(_un));
-    var isaft=baFor(p)!=='before', ba=isaft?'시공 후':'시공 전';
+    var _v=baFor(p), ba=baLabel(_v);
     g+='<div class="ph'+(sel[p.photo_id]?' on':'')+'" onclick="tog('+p.photo_id+')" ondblclick="lbOpen('+p.photo_id+')" title="클릭=선택 · 더블클릭=크게보기">'
       +'<div class="im"><img loading="lazy" src="'+p.thumb_url+'">'
       +'<span class="pick'+(sel[p.photo_id]?' on':'')+'" onclick="event.stopPropagation();tog('+p.photo_id+')">✓</span>'
       +'<span class="up '+upc+'">'+uptxt+'</span>'
-      +'<span class="tag'+(isaft?' post':'')+'" onclick="event.stopPropagation();flipBa('+p.photo_id+');renderPhotos();updBar();" title="탭 = 시공 전↔후 바꾸기">'+ba+' 🔄</span>'
+      +'<span class="tag '+baCls(_v)+'" onclick="event.stopPropagation();flipBa('+p.photo_id+');renderPhotos();updBar();" title="탭 = 시공전 → 밑작업 → 시공후">'+ba+' 🔄</span>'
       +'<span class="dl" onclick="event.stopPropagation();dl1('+p.photo_id+')">⬇</span></div>'
       +'<div class="cap">'+(partFor(p.photo_id)?'<span class="part">'+esc(partFor(p.photo_id))+'</span>':'')+'<span class="fn">'+esc(fnPreview(p,0))+'</span></div></div>';
   });
@@ -27590,11 +27593,11 @@ function startOrder(){
 function buildOrderGrid(){
   var g=document.getElementById('ordGrid'), h='';
   photos.filter(function(p){return sel[p.photo_id];}).forEach(function(p){
-    var isaft=baFor(p)!=='before', batx=isaft?'시공 후':'시공 전', part=partFor(p.photo_id);
+    var _v=baFor(p), batx=baLabel(_v), part=partFor(p.photo_id);
     h+='<div class="ordph" id="ordph'+p.photo_id+'" onclick="toggleOrder('+p.photo_id+')">'
       +'<div class="ordim" style="background-image:url('+p.thumb_url+')"></div>'
       +'<span class="ordnum" hidden></span>'
-      +'<span class="ordba'+(isaft?' post':'')+'">'+batx+'</span>'
+      +'<span class="ordba '+baCls(_v)+'">'+batx+'</span>'
       +(part?'<span class="ordpart">'+esc(part)+'</span>':'')+'</div>';
   });
   g.innerHTML=h;
@@ -27686,8 +27689,8 @@ function renderBlogDoc(g){
   var photos=(g.photos||[]);
   function pByIdx(n){for(var i=0;i<photos.length;i++)if(photos[i].index===n)return photos[i];return null;}
   function pimg(pm){
-    var p=gPhoto(pm.photo_id), thumb=p?p.thumb_url:'', isaft=(pm.ba==='after'), batx=isaft?'시공 후':'시공 전', part=pm.part||'';
-    return '<div class="pimg" draggable="true" data-idx="'+pm.index+'" data-part="'+esc(part)+'" data-ba="'+(isaft?'after':'before')+'"><div class="im">'
+    var p=gPhoto(pm.photo_id), thumb=p?p.thumb_url:'', _v=(pm.ba||'before'), batx=baLabel(_v), part=pm.part||'';
+    return '<div class="pimg" draggable="true" data-idx="'+pm.index+'" data-part="'+esc(part)+'" data-ba="'+esc(_v)+'"><div class="im">'
       +(thumb?'<img loading="lazy" draggable="false" src="'+thumb+'">':'')+'<span class="n">'+pm.index+'</span>'
       +(part?'<span class="part">'+esc(part)+'</span>':'')+'</div><div class="pcap">'+batx+' · '+pm.index+'번</div><span class="pg">⠿</span></div>';
   }
@@ -27878,10 +27881,10 @@ function lbShow(){var l=lbList();if(!l.length)return;var p=l[lbi];
   document.getElementById('lbimg').src=p.url;
   document.getElementById('lbcnt').textContent=(lbi+1)+' / '+l.length;
   var up=p.uploader_kind;var _un=(p.uploader_name||'').trim();var uptxt=up==='owner'?'👤 사장님':(up==='partner'?(!_un||/협업/.test(_un)?'🤝 협업 사장':'🤝 협업 · '+_un):'👤 '+_un);
-  document.getElementById('lbtitle').textContent=(partFor(p.photo_id)||curCust.category||'사진')+' · '+(baFor(p)==='before'?'시공 전':'시공 후');
+  document.getElementById('lbtitle').textContent=(partFor(p.photo_id)||curCust.category||'사진')+' · '+baLabel(baFor(p));
   document.getElementById('lbup').textContent=uptxt;
   var dt=new Date(p.uploaded_at_ms); document.getElementById('lbtime').textContent=(dt.getMonth()+1)+'/'+dt.getDate()+' '+pad(dt.getHours())+':'+pad(dt.getMinutes());
-  document.getElementById('lbba').innerHTML=(baFor(p)==='before'?'시공 전':'시공 후')+' <span onclick="flipBa('+p.photo_id+');lbShow();renderPhotos();" style="color:var(--blue);font-weight:700;cursor:pointer;margin-left:8px">🔄 전/후 바꾸기</span>';
+  document.getElementById('lbba').innerHTML=baLabel(baFor(p))+' <span onclick="flipBa('+p.photo_id+');lbShow();renderPhotos();" style="color:var(--blue);font-weight:700;cursor:pointer;margin-left:8px">🔄 단계 바꾸기</span>';
   document.getElementById('lbdl').onclick=function(){dl1(p.photo_id);};
 }
 function lbNav(d){var l=lbList();lbi=(lbi+d+l.length)%l.length;lbShow();}
@@ -27939,7 +27942,7 @@ load();
   .ordnum[hidden]{display:none}
   @keyframes ordpop{0%{transform:scale(.2);opacity:0}55%{transform:scale(1.25)}100%{transform:scale(1);opacity:1}}
   .ordnum.pop{animation:ordpop .36s cubic-bezier(.34,1.56,.64,1)}
-  .ordba{position:absolute;right:7px;bottom:7px;font-size:10px;font-weight:800;color:#fff;background:rgba(24,29,39,.62);border-radius:6px;padding:2px 7px}.ordba.post{background:rgba(18,110,106,.82)}
+  .ordba{position:absolute;right:7px;bottom:7px;font-size:10px;font-weight:800;color:#fff;background:rgba(24,29,39,.62);border-radius:6px;padding:2px 7px}.ordba.post{background:rgba(18,110,106,.82)}.ordba.mid{background:rgba(176,122,18,.85)}
   .ordpart{position:absolute;left:7px;bottom:7px;font-size:10px;font-weight:800;color:var(--amber);background:#FBF3E2;border-radius:6px;padding:2px 7px}
   .ordtraybar{margin:13px 0 4px;background:var(--sunken);border:1px solid var(--line);border-radius:12px;padding:11px 12px}
   .ordtray{display:flex;gap:7px;flex-wrap:wrap}
@@ -28147,11 +28150,17 @@ async def web_tone_url_delete(request: Request, id: int):
 
 # ── F-7 '내 스타일 학습' — 실제 본문 분석 → 추상 스타일 리포트(요약만 저장) ──
 def _tone_strip_html(html: str) -> str:
-    """HTML → 본문 텍스트(태그·스크립트 제거). 네이버 블로그 iframe 은 best-effort."""
-    s = _webre.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", html or "")
-    s = _webre.sub(r"(?s)<[^>]+>", " ", s)
+    """HTML → 본문 텍스트. **문단 나눔·인용구·글 띄움 구조를 살려서** 반환 —
+    스타일 학습이 '겉모습 형식'까지 보게 하려면 줄바꿈을 뭉개면 안 된다. 네이버 iframe best-effort."""
+    s = html or ""
+    s = _webre.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", s)
+    s = _webre.sub(r"(?is)<blockquote[^>]*>", "\n> ", s)                     # 인용구 → '> ' 접두(인용 습관 보존)
+    s = _webre.sub(r"(?is)<br\s*/?>", "\n", s)                              # 줄바꿈 태그 → 개행
+    s = _webre.sub(r"(?is)</(p|div|li|h[1-6]|blockquote|section|article)\s*>", "\n\n", s)  # 블록 끝 → 문단 나눔
+    s = _webre.sub(r"(?s)<[^>]+>", " ", s)                                  # 나머지 태그 제거
     s = s.replace("&nbsp;", " ").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
-    s = _webre.sub(r"\s+", " ", s).strip()
+    s = "\n".join(_webre.sub(r"[ \t]+", " ", ln).strip() for ln in s.split("\n"))  # 줄 안 공백만 접고 개행은 유지
+    s = _webre.sub(r"\n{3,}", "\n\n", s).strip()                           # 과한 빈 줄만 정리
     return s
 
 
@@ -28248,21 +28257,25 @@ async def web_tone_analyze(request: Request, req: WebToneAnalyze):
     prompt = (
         "너는 글쓰기 스타일 분석가다. 아래 " + pname + " 글을 읽고 **글쓴이의 스타일만 추상화**해라.\n"
         "🔒 절대 규칙: 원문 문장·경쟁사 상호·상표·고객 개인정보는 결과에 담지 마라. "
-        "구체 내용이 아니라 '어떻게 썼는지'(구조·어미·어투)만 뽑아라.\n"
+        "구체 내용이 아니라 '어떻게 썼는지'(구조·어미·어투·형식)만 뽑아라.\n"
         "특히 사장님 핵심 = **글 전개 구조(글 흐름)** 를 정확히: 어떤 순서로 풀어내는지 단계로.\n"
+        "그리고 **겉모습(형식)** 도 구체적으로 관찰해라(입력 글의 줄바꿈·빈 줄이 그대로 보인다): "
+        "한 문단이 몇 문장쯤인지(짧게 끊나 길게 쓰나), 문단 사이 빈 줄 띄움 습관, 인용구(> 로 문장을 따로 빼는)를 쓰는지·얼마나, 이모지·소제목 사용 정도.\n"
         "반드시 아래 JSON 만 출력:\n"
         '{"persona":"한 줄 페르소나","summary":"이 채널/글 성격 2~3문장",'
         '"flow":"글 흐름 — [단계1 → 단계2 → …] 형식으로 전개 구조",'
         '"endings":"자주 쓰는 종결어미(예: ~어요/~습니다 섞음)",'
         '"tone":"어투(예: 정직한 직설 조언, 감성 후킹 등)",'
-        '"reactions":"리액션·이모지·줄바꿈 습관"}\n\n'
+        '"reactions":"리액션·이모지·줄바꿈 습관",'
+        '"format":"겉모습 형식 — 문단 길이(짧게 끊음/길게)·문단 사이 빈 줄 띄움·인용구(>) 사용 여부와 빈도·이모지·소제목 사용 정도"}\n\n'
         "[분석할 " + pname + " 글]\n" + body[:8000]
     )
     out = await _web_gemini_generate(api_key, prompt)
     def _s(k):
         return str(out.get(k) or "").strip()
     report = {"persona": _s("persona"), "summary": _s("summary"), "flow": _s("flow"),
-              "endings": _s("endings"), "tone": _s("tone"), "reactions": _s("reactions")}
+              "endings": _s("endings"), "tone": _s("tone"), "reactions": _s("reactions"),
+              "format": _s("format")}
     return {"ok": True, "platform": platform, "report": report}
 
 
@@ -28283,7 +28296,7 @@ async def web_tone_save(request: Request, req: WebToneSave):
         platform = "bl"
     rep = req.report or {}
     keep = {k: str(rep.get(k) or "")[:2000] for k in
-            ("persona", "summary", "flow", "endings", "tone", "reactions")}
+            ("persona", "summary", "flow", "endings", "tone", "reactions", "format")}
     with db_conn() as con:
         con.execute(
             "INSERT OR REPLACE INTO web_tone_styles (owner_phone, platform, report_json, updated_at_ms) "
@@ -28575,7 +28588,8 @@ _MYPAGE_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
               <div class="mb"><b>· 글 흐름</b>(가장 중요)<div class="editable" id="rp-flow" contenteditable="true"></div>
               <b>· 종결 어미</b><div class="editable" id="rp-endings" contenteditable="true"></div>
               <b>· 어투</b><div class="editable" id="rp-tone" contenteditable="true"></div>
-              <b>· 리액션·이모지</b><div class="editable" id="rp-reactions" contenteditable="true"></div></div>
+              <b>· 리액션·이모지</b><div class="editable" id="rp-reactions" contenteditable="true"></div>
+              <b>· ✍️ 문단·인용구·글 띄움 형식</b><div class="editable" id="rp-format" contenteditable="true"></div></div>
             </div>
             <button class="genbig" style="width:100%;background:var(--green);color:#fff;border:none;border-radius:11px;padding:12px;font-weight:850;cursor:pointer" onclick="spSave()">이 스타일로 저장</button>
           </div>
@@ -28672,6 +28686,7 @@ function fillReport(r){
   document.getElementById('rp-endings').textContent=r.endings||'';
   document.getElementById('rp-tone').textContent=r.tone||'';
   document.getElementById('rp-reactions').textContent=r.reactions||'';
+  var _rf=document.getElementById('rp-format');if(_rf)_rf.textContent=r.format||'';
 }
 function spAnalyze(){
   var url=document.getElementById('spUrl').value.trim();
@@ -28693,7 +28708,8 @@ function spAnalyze(){
 function spSave(){
   var rep={persona:document.getElementById('rp-persona').innerText,summary:document.getElementById('rp-summary').innerText,
     flow:document.getElementById('rp-flow').innerText,endings:document.getElementById('rp-endings').innerText,
-    tone:document.getElementById('rp-tone').innerText,reactions:document.getElementById('rp-reactions').innerText};
+    tone:document.getElementById('rp-tone').innerText,reactions:document.getElementById('rp-reactions').innerText,
+    format:(document.getElementById('rp-format')||{}).innerText||''};
   fetch('/api/web/tone-save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({platform:SP_CUR,report:rep})})
   .then(_rjson).then(function(d){if(d&&d.ok){toast('이 스타일로 저장 ✓ 이제 글이 이 톤으로 나와요');load();}else{alert((d&&d.detail)||'저장 실패');}}).catch(function(){alert('네트워크 오류');});}
 function toggleAct(){var b=document.getElementById('actBody'),a=document.getElementById('actArw');var on=b.style.display==='none';b.style.display=on?'block':'none';if(a)a.style.transform=on?'rotate(90deg)':'';}
@@ -28940,7 +28956,7 @@ async def web_generate_content(request: Request, req: WebGenReq):
             if pid in _valid_ids:   # owner 소유 이 현장 사진만(위조 방지)
                 _sel.append({"photo_id": pid,
                              "part": (str(it.get("part") or "").strip())[:20],
-                             "ba": ("after" if str(it.get("ba")) == "after" else "before")})
+                             "ba": (str(it.get("ba")) if str(it.get("ba")) in ("before", "mid", "after") else "before")})
         _sel = _sel[:12]
     if not _sel:  # 선택 없으면 자동(업로드순 6장, 부위/전후 미상)
         _sel = [{"photo_id": p["photo_id"], "part": "", "ba": ""}
@@ -28952,21 +28968,25 @@ async def web_generate_content(request: Request, req: WebGenReq):
         _lbls = []
         for i, s in enumerate(_sel):
             tag = " ".join(t for t in [s.get("part") or "",
-                                       ("시공후" if s.get("ba") == "after" else "시공전" if s.get("ba") == "before" else "")] if t)
+                                       ("시공후" if s.get("ba") == "after" else "밑작업" if s.get("ba") == "mid" else "시공전" if s.get("ba") == "before" else "")] if t)
             _lbls.append("[%d]=%s" % (i + 1, tag or "현장사진"))
         photo_hint = ("\n블로그 본문에 사진 자리 번호를 넣어라 — 각 번호의 부위·전후: "
                       + ", ".join(_lbls) + ". 해당 부위·전후를 설명하는 문단 **바로 근처**에 그 번호 마커([1][2]…)를 "
-                      "순서대로 각 한 번씩 넣어라(총 %d개). 시공전 사진은 '전' 설명, 시공후는 '후·결과' 설명 옆에." % n_pics)
+                      "순서대로 각 한 번씩 넣어라(총 %d개). 시공전 사진은 '전' 설명, 밑작업 사진은 '작업 과정' 설명, 시공후는 '후·결과' 설명 옆에." % n_pics)
     # F-7 실학습: 저장된 블로그 스타일 리포트(글 흐름·어미·어투)를 프롬프트에 주입 (URL X).
     tone_hint = ""
     _bl_style = _web_tone_styles(owner).get("bl")
     if _bl_style:
         tone_hint = (
-            "\n\n[따라할 내 스타일 — '글 쓰는 방식'만 빌린다. 아래 흐름/어미/어투는 문장 스타일 참고용일 뿐, 거기 나오는 주장·수치·업체 특징(A/S 기간·자격·'본사 직영'·보장 등)을 이 글에 옮기지 마라. 구체 내용·주장은 오직 이 현장 재료에 있는 것만. 흐름 단계 중 재료에 근거 없는 것(신뢰도 지표·자격·보장 등)은 건너뛴다.]\n"
-            "· 글 흐름(스타일 참고): " + str(_bl_style.get("flow") or "") + "\n"
-            "· 종결어미: " + str(_bl_style.get("endings") or "") + "\n"
-            "· 어투: " + str(_bl_style.get("tone") or "") + "\n"
-            "· 리액션·이모지: " + str(_bl_style.get("reactions") or ""))
+            "\n\n[★★ 따라할 내 스타일 — '글 쓰는 방식·겉모습'을 최대한 똑같이 흉내내라(이게 이 글의 핵심 요구다). "
+            "단, 아래 흐름/어미/어투에 배어있는 주장·수치·업체 특징(A/S 기간·자격·'본사 직영'·보장 등)은 옮기지 마라 — 구체 내용·주장은 오직 이 현장 재료에 있는 것만, 재료에 근거 없는 흐름 단계는 건너뛴다.]\n"
+            "· 글 흐름(이 전개 순서를 따라라): " + str(_bl_style.get("flow") or "") + "\n"
+            "· 종결어미(이대로 써라): " + str(_bl_style.get("endings") or "") + "\n"
+            "· 어투(이대로): " + str(_bl_style.get("tone") or "") + "\n"
+            "· 리액션·이모지: " + str(_bl_style.get("reactions") or "") + "\n"
+            "· ✍️ 겉모습 형식: " + str(_bl_style.get("format") or "") + "\n"
+            "  → **문단 나눔·문단 사이 빈 줄 띄움·인용구(> ) 사용 빈도**를 위 스타일과 똑같이 맞춰라. "
+            "짧은 문단 스타일이면 짧게 끊고, 인용구를 자주 쓰면 핵심 문장을 '> '로 따로 빼라. 밋밋하게 문단만 나열하지 마라.")
     elif m["tone_urls"]:
         tone_hint = ("\n\n[따라할 글 톤] 아래 URL 글들의 말투·문장 길이·이모지 사용을 참고해 "
                      "비슷한 톤으로 써라(내용은 이 현장 것만): " + ", ".join(m["tone_urls"]))
