@@ -27660,6 +27660,13 @@ async def web_tone_analyze(request: Request, req: WebToneAnalyze):
         url = req.url.strip()
         if not url.startswith("http"):
             url = "https://" + url
+        # 네이버 블로그: 본문이 #mainFrame(PostView.naver) iframe 안이라 겉주소는 껍데기 →
+        #   모바일 주소(m.blog.naver.com/{id}/{logNo})는 본문 직접 → 그걸로 긁는다.
+        #   (android 확장서 겪은 네이버 iframe 함정 그대로. 2026-08-17 android 인수 fix)
+        _nv = _webre.search(r'(?:m\.)?blog\.naver\.com/([A-Za-z0-9_-]+)/(\d+)', url) or \
+              _webre.search(r'blogId=([A-Za-z0-9_-]+).*?logNo=(\d+)', url)
+        if _nv:
+            url = "https://m.blog.naver.com/%s/%s" % (_nv.group(1), _nv.group(2))
         try:
             async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
                 r = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
@@ -28003,7 +28010,7 @@ _MYPAGE_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
             </div>
             <button class="genbig" style="width:100%;background:var(--green);color:#fff;border:none;border-radius:11px;padding:12px;font-weight:850;cursor:pointer" onclick="spSave()">이 스타일로 저장</button>
           </div>
-          <div class="note">🔒 원문은 학습에만 쓰고, <b>저장은 요약된 스타일만</b> — 경쟁사 상호·내용은 저장 안 해요. 분석·생성은 사장님 Gemini 키로.</div>
+          <div class="note" style="display:block">🔒 원문은 학습에만 쓰고, <b>저장은 요약된 스타일만</b> — 경쟁사 상호·내용은 저장 안 해요. 분석·생성은 사장님 Gemini 키로.</div>
         </div>
       </div>
       <div class="sec" id="s4">

@@ -9506,3 +9506,10 @@ Fable5 정밀감사 서버측 결과. android측 F-4·F-5 완료(21a17f5). 아�
 - 🟡 **남음 #3**: 블로그 편집기 프로토(docs/blog_editor_PROTO.html) 1:1 + 개별/그룹 드래그 — 다음 차례(큰 UI). 그룹핑 데이터가 naver-draft 에 실리는 건 이 편집기에서 확정 후.
 - android 변경 없음. 배포 반영.
 - commit: __C__
+
+## 2026-08-17 · android → 🛠️ 스타일학습 2버그 **android 직접 수정·배포** (사장님 지시 인수)
+사장님 지시: "남은거 + 네이버 iframe 함정(android 전문) android 가 맡아 해라." → android 가 이 2버그 인수. **server/main.py 직접 수정** (repo→deploy_phase1.sh 정식경로, deployed=git 유지). **cowork: tone-analyze / 이 note 무접촉.**
+- ✅ **네이버 iframe fix** (`web_tone_analyze` ~27662): 네이버 블로그 본문은 `#mainFrame`(PostView.naver) iframe 안 → 겉주소는 껍데기('본문 너무 짧음'). → URL 을 **`m.blog.naver.com/{id}/{logNo}` 로 변환**해 크롤(모바일=본문 직접). `blog.naver.com/{id}/{logNo}` 및 `?blogId=&logNo=` 둘 다 파싱. ⚠️ 이 서버는 `import re as _webre` 라 `_webre.search` 사용(re 아님 — IDE 로 잡음).
+- ✅ **.note 3칸 쪼개짐 fix** (28004): 안 `<b>` 때문에 `.note`(flex)가 텍스트/`<b>`/텍스트 3 flex-item 으로 나눠 한국어 중간 줄바꿈("쓰/고") → `style="display:block"` 로 inline 복귀.
+- 검증: `ast.parse` OK(문법). android 가 맥미니 `deploy_phase1.sh` 배포 후 **tone-analyze 실 URL(blog.naver.com/ttobagihc/224369717321)로 200·본문확보 직접 검증** 예정.
+- commit: 이 커밋
