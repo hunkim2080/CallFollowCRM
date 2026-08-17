@@ -9490,3 +9490,11 @@ Fable5 정밀감사 서버측 결과. android측 F-4·F-5 완료(21a17f5). 아�
 - ⚠️ 최종 배치(그룹/순서/부위)가 **naver-draft 응답에 그룹핑·순서 포함**돼야 확장이 나란히·자리 배치함(확장은 이미 구현). 
 - 톤 학습(0b889340)은 별건(f83ac9f 반영됨). 이건 사진 flow 편.
 - commit: 이 커밋
+
+## 2026-08-17 · android → 🔴 cowork '내 스타일 학습' 실사용 2버그 (정확 fix 첨부)
+사장님이 tone-analyze 에 `blog.naver.com/ttobagihc/224369717321` 넣음 → 2버그:
+1. 🔴 **"분석할 본문이 너무 짧아요"** — `web_tone_analyze`(main.py:27663) 가 네이버 블로그 **겉 주소를 그대로 `client.get`** → 본문은 iframe(`#mainFrame`→`PostView.naver`) 안이라 껍데기만 옴 → `len(body)<40`. **android 가 확장에서 씨름한 네이버 iframe 함정 그대로.**
+   - **fix**: 네이버 블로그면 **모바일 주소로 변환해 긁기**(모바일은 본문 직접). `blog.naver.com/{id}/{logNo}` → `m.blog.naver.com/{id}/{logNo}`. `?blogId=&logNo=` 형태도 파싱: `m=re.search(r'blog\.naver\.com/(?:PostView\.naver\?[^#]*?blogId=)?([\w-]+)(?:/|[?&]logNo=)(\d+)', url); if m: url=f"https://m.blog.naver.com/{m.group(1)}/{m.group(2)}"`. UA 는 지금대로. 그래도 짧으면 캡션 붙여넣기 유도(현행).
+2. 🟡 **안내 `.note` 3칸 쪼개짐(한국어 중간 줄바꿈)** — main.py:28004 `.note` 안 `<b>저장은 요약된 스타일만</b>` 때문에, `.note`(flex/다단)가 [텍스트]/[`<b>`]/[텍스트] 3조각 flex-item 으로 나눔. fix: 이 note 를 `display:block`(비-flex)로 하거나 전체를 한 `<span>`으로 감싸 inline 유지.
+- 둘 다 마이페이지/서버=cowork. ⚠️ **네이버 iframe = android 전문(확장서 해결)** — cowork 가 1번을 또 못 잡으면(2회차) 사장님 룰대로 **android 가 이 버그 인수** 가능(사장님 지시 시).
+- commit: 이 커밋
