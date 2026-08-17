@@ -27016,8 +27016,8 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .who{margin-left:auto;font-size:12.5px;font-weight:800;color:var(--ink2);display:flex;align-items:center;gap:8px;cursor:pointer}
   .who .av{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,#3182F6,#6E5FC7);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px}
 
-  .cols{display:grid;grid-template-columns:274px minmax(0,1fr) 460px;min-height:680px}
-  @media(max-width:1180px){.cols{grid-template-columns:1fr}}
+  .cols{display:grid;grid-template-columns:274px minmax(0,1fr) 460px;height:calc(100vh - 150px);min-height:520px}
+  @media(max-width:1180px){.cols{grid-template-columns:1fr;height:auto}}
   .col-l{border-right:1px solid var(--line);padding:16px 15px;overflow:auto}
   .col-m{border-right:1px solid var(--line);padding:20px 22px;overflow:auto;min-width:0}
   .col-r{padding:0;background:var(--sunken);display:flex;flex-direction:column;min-width:0}
@@ -27103,6 +27103,11 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .gen{font-size:12.5px;color:var(--ink);line-height:1.75;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:14px 15px;white-space:pre-wrap}
   .gen h4{font-size:14px;font-weight:850;margin:0 0 10px;line-height:1.4}
   .genload{display:none;text-align:center;padding:22px 0 10px}.genload.on{display:block}
+  .gStage{font-size:15px;font-weight:850;margin-bottom:6px;color:var(--ink)}
+  .gSub{font-size:12.5px;color:var(--ink3);font-weight:700;min-height:16px;transition:opacity .3s}
+  .gbar{width:210px;max-width:82%;height:5px;border-radius:3px;background:var(--sunken);margin:14px auto 9px;overflow:hidden}
+  .gbar span{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--violet),var(--blue));border-radius:3px;transition:width .5s ease}
+  .gElapsed{font-size:11px;color:var(--ink3);font-weight:600;min-height:14px}
   .gblob{width:52px;height:52px;margin:0 auto 13px;border-radius:42% 58% 55% 45%/50% 45% 55% 50%;background:conic-gradient(from 120deg,#c9bef2,#bcd4ff,#e7c9ff,#ffe0bd,#c9bef2);animation:gspin 4s linear infinite,gmorph 3.5s ease-in-out infinite}
   @keyframes gspin{to{transform:rotate(360deg)}}@keyframes gmorph{50%{border-radius:55% 45% 48% 52%/45% 55% 45% 55%}}
   .gt{font-size:13px;font-weight:800;margin-bottom:14px}
@@ -27484,7 +27489,7 @@ function renderRight(){
   var h='<div class="tonebar">'+tone+'<span class="te" onclick="location.href=\\'/mypage\\'">바꾸기</span></div>'
    +'<div class="metaline">'+pm.meta+'</div>'
    +btn
-   +'<div class="genload" id="genload"><div class="gblob"></div><div class="gt">'+pm.load+'</div><div class="gsteps">'+pm.steps.map(function(s){return '<div class="gstep"><span class="rc"></span>'+s+'</div>';}).join('')+'</div></div>'
+   +'<div class="genload" id="genload"><div class="gblob"></div><div class="gStage" id="gStage">사진을 읽고 있어요</div><div class="gSub" id="gSub"></div><div class="gbar"><span id="gBarFill"></span></div><div class="gElapsed" id="gElapsed"></div></div>'
    +'<div id="genOut"></div>';
   rb.innerHTML=h;
   if(GEN&&done)drawGen();
@@ -27561,14 +27566,42 @@ function orderGo(){
   if(total===0||genOrder.length<total){var go=document.getElementById('ordGo');go.classList.remove('shake');void go.offsetWidth;go.classList.add('shake');toast('아직 번호 안 매긴 사진이 있어요 — 남은 사진도 눌러주세요');return;}
   ordNumClose(); doGenerate();
 }
-/* 실제 생성 — genOrder(클릭순)대로 photos[] 전송 → job_id 받고 폴링(게이트웨이 타임아웃 없음) */
+/* ═══ 로딩 씬 — 사진 읽기 → 본문 짜기 → 글·사진 맞추기 (긴 대기를 살아있게) ═══ */
+function loadStages(){
+  if(genP==='ig')return {st:['사진을 읽고 있어요','감성 캡션을 짓고 있어요','해시태그를 고르고 있어요'],sb:[['현장 사진을 살펴보는 중…','시공 전·후를 알아보는 중…'],['첫 줄로 마음 잡는 중…','이모지를 얹는 중…','문장을 다듬는 중…'],['지역·부위 태그를 뽑는 중…']]};
+  if(genP==='th')return {st:['사진을 읽고 있어요','대화하듯 풀어내는 중','짧게 다듬는 중'],sb:[['현장 사진을 살펴보는 중…'],['말투를 낮추는 중…','핵심만 남기는 중…'],['해시태그를 고르는 중…']]};
+  return {st:['사진을 읽고 있어요','본문을 짜고 있어요','글과 사진을 맞추고 있어요'],sb:[['현장 사진을 살펴보는 중…','시공 전·후를 알아보는 중…'],['고민 → 상담 → 시공 흐름을 잡는 중…','사장님 말투를 입히는 중…','문장을 자연스럽게 다듬는 중…','제목을 고르는 중…'],['사진 자리를 맞추는 중…','마지막으로 다듬는 중…']]};
+}
+function startGenLoad(){
+  var stg=document.getElementById('gStage'),sub=document.getElementById('gSub'),bar=document.getElementById('gBarFill'),elx=document.getElementById('gElapsed');
+  var S=loadStages(), STG=S.st, SUB=S.sb;
+  var t0=Date.now(), stage=-1, si=0, prog=6, tick=0, done=false;
+  function swapSub(txt){ if(!sub)return; sub.style.opacity=0; setTimeout(function(){sub.textContent=txt;sub.style.opacity=1;},160); }
+  function setStage(s){ stage=s; si=0; if(stg)stg.textContent=STG[s]; swapSub(SUB[s][0]); }
+  setStage(0);
+  var iv=setInterval(function(){
+    if(done)return;
+    var e=(Date.now()-t0)/1000;
+    var want=e<6?0:1; if(want!==stage)setStage(want);
+    var target=stage===0?18:88; prog+=(target-prog)*0.06; if(prog>90)prog=90; if(bar)bar.style.width=prog.toFixed(1)+'%';
+    tick+=0.7; if(tick>=2.6){ tick=0; si=(si+1)%SUB[stage].length; swapSub(SUB[stage][si]); }
+    if(elx)elx.textContent = e>9 ? ('정성껏 '+Math.floor(e)+'초째 · 조금만요') : '';
+  },700);
+  return {
+    fail:function(){ done=true; clearInterval(iv); },
+    finish:function(cb){ done=true; clearInterval(iv); if(stg)stg.textContent=STG[2]; swapSub('다 됐어요! ✨'); if(elx)elx.textContent='';
+      var p=prog, fv=setInterval(function(){ p+=(100-p)*0.3; if(p>=99.5){p=100;clearInterval(fv);} if(bar)bar.style.width=p.toFixed(1)+'%'; },50);
+      setTimeout(cb,900); }
+  };
+}
+/* 실제 생성 — job_id 받고 폴링 + 로딩 씬 연동(게이트웨이 타임아웃 없음) */
 function doGenerate(){
   if(!curCd)return;
   var gl=document.getElementById('genload'); var out=document.getElementById('genOut'); out.innerHTML='';
-  var steps=gl.querySelectorAll('.gstep'); gl.classList.add('on'); steps.forEach(function(s){s.className='gstep';});
-  var i=0,anim=setInterval(function(){if(i>0)steps[i-1].className='gstep ok';if(i<steps.length){steps[i].className='gstep doing';i++;}else{clearInterval(anim);}},520);
-  function fail(msg){clearInterval(anim);gl.classList.remove('on');out.innerHTML='<div style="padding:14px;color:#F0436A;font-size:13px">'+esc(msg)+'</div>';}
-  function done(j){clearInterval(anim);gl.classList.remove('on');GEN=j;MAT=null;if(mTab==='story')renderStory();var b=document.querySelector('#rbody .genbig');if(b)b.textContent='↻ 다시 만들기';drawGen();}
+  gl.classList.add('on');
+  var L=startGenLoad();
+  function fail(msg){L.fail();gl.classList.remove('on');out.innerHTML='<div style="padding:14px;color:#F0436A;font-size:13px">'+esc(msg)+'</div>';}
+  function done(j){L.finish(function(){gl.classList.remove('on');GEN=j;MAT=null;if(mTab==='story')renderStory();var b=document.querySelector('#rbody .genbig');if(b)b.textContent='↻ 다시 만들기';drawGen();});}
   var chosen=genOrder.map(function(id){var p=gPhoto(id);return {photo_id:id, part:partFor(id), ba:p?baFor(p):'before'};});
   fetch('/api/web/generate-content',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer_digits:curCd, photos:chosen})})
   .then(function(r){return r.json().then(function(j){return {s:r.status,j:j};});}).then(function(o){
