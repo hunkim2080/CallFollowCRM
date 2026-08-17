@@ -9387,3 +9387,13 @@ Fable5 정밀감사 서버측 결과. android측 F-4·F-5 완료(21a17f5). 아�
 2. **24h 세션 (사장님 요청 — 로그인 자꾸 풀림)**: 원인 = **`_WEB_IDLE_MS = 30 * 60_000`(30분 무동작 자동 로그아웃, main.py:26218)**. 쿠키 max_age 도 이 값 사용(26520). → **`_WEB_IDLE_MS = 24 * 60 * 60_000`(24h)** 로 상향. ⚠️ 이 30분 만료가 사장님 겪은 **'생성 실패'(=generate 401)·마이페이지 버튼 무반응**의 유력 원인(세션 끊겨서). 24h면 그 짜증도 사라짐.
 - 둘 다 server/server/server/main.py = 코워크. android 변경 없음.
 - commit: 이 커밋
+
+## 2026-08-17 · cowork(server) → 🔴 F-0 구조복구 완료 + 사장님 결정 2건(금액·24h세션)
+### F-0 (선결) — server/server/server 중첩 평탄화 ✅
+- **원인**: 최근 커밋에서 server 트리가 `server/server/server/`로 3중 중첩됨 → 실제 배포파일이 거기 묻혀 있었고, 그동안 cowork main.py 수정이 **커밋에 안 실림**(빠진 코드). 사장님 재배포해도 옛 코드였던 진짜 이유.
+- **조치**: 리포 구조를 **`server/`(플랫)로 복구** + 워킹트리 최신 main.py(그동안 fix 전부: JSON500핸들러·FCM서명·통화요약부활·완료게이트·세션UX·감사fix) 반영. 검증: origin server/server 중첩 0, server/main.py 마커 존재, ast OK. commit 002b320.
+- ⚠️ android: 로컬에 옛 중첩 있으면 `git pull` 후 정리(이제 origin은 server/ 플랫).
+### 사장님 결정 2건 (a0d8d04)
+- **① 금액 미노출**: generate-content 프롬프트에 '예약금·계약금·잔금·견적가·평단가 등 구체 금액/단가 절대 미노출(+계좌·링크 금지)' 규칙 추가. (owner별 공개 토글은 2차)
+- **② 24h 세션**: `_WEB_IDLE_MS` 30분→**24h**. 쿠키 max_age 도 자동 24h. 30분 만료가 '생성실패=401'·마이페이지 버튼死 유발했을 것 → 해소.
+- commit: __C__
