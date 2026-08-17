@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>사진 골라 번호 매기기 — 블로그 실릴 순서 (시공막내 웹)</title>
+<style>
+  :root{
+    --bg:#EEF1F4; --surface:#FFFFFF; --sunken:#F5F7F9; --ink:#181D27; --ink2:#4E5968; --ink3:#8B95A1; --line:#E5E9EE;
+    --blue:#3182F6; --blue-bg:#EDF3FF; --blue-line:#D3E2FB;
+    --green:#12B886; --green-bg:#E6F9F1;
+    --violet:#6E5FC7; --violet-bg:#F0EDFB; --violet-line:#C9BEF2;
+    --amber:#B7791F; --amber-bg:#FBF3E2; --amber-tx:#8A6100;
+    --font:Pretendard,-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic","Apple SD Gothic Neo",Roboto,sans-serif;
+    --shadow:0 1px 2px rgba(16,24,40,.04),0 4px 16px rgba(16,24,40,.05);
+  }
+  @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0C0F14;--surface:#161A21;--sunken:#1c222b;--ink:#F0F2F5;--ink2:#AEB6C1;--ink3:#79828D;--line:#242A33;
+    --blue-bg:#121E30;--blue-line:#22344d;--green-bg:#0f2620;--violet-bg:#191633;--violet-line:#2c2551;
+    --amber-bg:#3a2f12;--amber-tx:#e8c877;--shadow:0 4px 18px rgba(0,0,0,.4);
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0C0F14;--surface:#161A21;--sunken:#1c222b;--ink:#F0F2F5;--ink2:#AEB6C1;--ink3:#79828D;--line:#242A33;
+    --blue-bg:#121E30;--blue-line:#22344d;--green-bg:#0f2620;--violet-bg:#191633;--violet-line:#2c2551;
+    --amber-bg:#3a2f12;--amber-tx:#e8c877;--shadow:0 4px 18px rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.6;-webkit-font-smoothing:antialiased;padding:26px 18px 80px}
+  .wrap{max-width:1120px;margin:0 auto}
+
+  /* ── 헤더 ── */
+  .pilltop{display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:800;color:var(--violet);background:var(--violet-bg);border:1px solid var(--violet-line);border-radius:999px;padding:6px 14px}
+  h1{font-size:23px;font-weight:850;letter-spacing:-.02em;margin:0 0 6px;text-wrap:balance}
+  .sub{color:var(--ink2);font-size:13.5px;margin:0 0 20px;line-height:1.65;max-width:70ch}
+  .sub b{color:var(--ink)}
+  .sub .m1{color:var(--blue);font-weight:800}.sub .m3{color:var(--violet);font-weight:800}
+
+  /* ── 브라우저 프레임 ── */
+  .browser{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
+  .chrome{display:flex;align-items:center;gap:10px;padding:11px 15px;background:var(--sunken);border-bottom:1px solid var(--line);border-radius:15px 15px 0 0;flex-wrap:wrap}
+  .dots{display:flex;gap:6px}.dots i{width:11px;height:11px;border-radius:50%;display:block}
+  .dots i:nth-child(1){background:#F06A5B}.dots i:nth-child(2){background:#F5BE4F}.dots i:nth-child(3){background:#5FC77E}
+  .url{flex:1;min-width:150px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-size:12.5px;color:var(--ink3)}
+  .url b{color:var(--ink2);font-weight:600}
+  .who{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink2);font-weight:700}
+  .who .av{width:22px;height:22px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center;font-size:10px;font-weight:800}
+
+  /* ── 스텝퍼 ── */
+  .steps{display:flex;align-items:center;gap:12px;padding:15px 22px;border-bottom:1px solid var(--line)}
+  .st{display:flex;align-items:center;gap:8px;flex:none}
+  .st i{width:26px;height:26px;border-radius:50%;background:var(--sunken);border:1.5px solid var(--line);color:var(--ink3);font-weight:900;font-size:13px;font-style:normal;display:grid;place-items:center;transition:background .3s,color .3s,border-color .3s}
+  .st b{font-size:12.5px;font-weight:800;color:var(--ink3);white-space:nowrap;transition:color .3s}
+  .st.cur i{background:var(--violet);border-color:var(--violet);color:#fff;box-shadow:0 4px 12px -4px rgba(110,95,199,.55)}
+  .st.cur b{color:var(--ink)}
+  .st.done i{background:var(--green);border-color:var(--green);color:#fff}
+  .st.done b{color:var(--ink2)}
+  .sbar{flex:1;height:3px;background:var(--line);border-radius:2px;overflow:hidden;min-width:20px}
+  .sbar span{display:block;height:100%;width:0;background:var(--violet);transition:width .5s ease}
+  @media(max-width:560px){.st b{display:none}.st.cur b{display:block}}
+
+  /* ── 현장 헤드 ── */
+  .sitehead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:16px 22px 0}
+  .sitehead h2{margin:0;font-size:16.5px;font-weight:850;letter-spacing:-.01em}
+  .sitehead .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chp{font-size:11.5px;font-weight:800;border-radius:8px;padding:4px 10px;background:var(--sunken);color:var(--ink2)}
+  .chp.ok{color:var(--green);background:var(--green-bg)}
+
+  .stage{padding:14px 22px 0}
+  .hintline{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:13px}
+  .hintline .h{font-size:13px;font-weight:800;color:var(--ink)}
+  .hintline .s{font-size:12px;color:var(--ink3);font-weight:600}
+  .hintline .sp{flex:1}
+  .chipbtn{font-size:11.5px;font-weight:800;color:var(--ink2);background:var(--sunken);border:1px solid var(--line);padding:6px 12px;border-radius:999px;cursor:pointer;transition:border-color .15s,color .15s}
+  .chipbtn:hover{border-color:var(--blue);color:var(--blue)}
+
+  /* ── 사진 그리드 ── */
+  .photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(212px,1fr));gap:16px 13px;padding-bottom:20px}
+  .pcell{min-width:0}
+  .ph,.ph3{aspect-ratio:4/3;border-radius:12px;position:relative;overflow:hidden;border:1px solid var(--line);cursor:pointer;
+    transition:transform .22s ease,box-shadow .22s ease,outline-color .15s;
+    background:
+      radial-gradient(130% 100% at 18% -10%,rgba(255,255,255,.30),transparent 55%),
+      repeating-linear-gradient(0deg,var(--gr) 0 2px,transparent 2px var(--ts)),
+      repeating-linear-gradient(90deg,var(--gr) 0 2px,transparent 2px var(--ts)),
+      linear-gradient(135deg,var(--ta),var(--tb));}
+  .ph::before,.ph3::before{content:"";position:absolute;inset:0;pointer-events:none}
+  .ph.before::before,.ph3.before::before{background:
+      radial-gradient(50% 40% at 68% 78%,rgba(96,74,45,.20),transparent 70%),
+      radial-gradient(35% 30% at 25% 30%,rgba(96,74,45,.12),transparent 70%)}
+  .ph.after::before,.ph3.after::before{background:linear-gradient(115deg,transparent 32%,rgba(255,255,255,.28) 45%,transparent 58%)}
+  .ph:hover{transform:translateY(-2px)}
+  .ph:focus-visible,.ph3:focus-visible{outline:none;box-shadow:0 0 0 3px var(--bg),0 0 0 6px var(--violet)}
+  .ph.on{outline:3px solid var(--blue);outline-offset:-3px;box-shadow:0 10px 24px -12px rgba(49,130,246,.5)}
+
+  .pick{position:absolute;left:9px;top:9px;width:24px;height:24px;border-radius:8px;background:rgba(255,255,255,.87);border:1.5px solid rgba(24,29,39,.28);display:grid;place-items:center;font-size:13px;font-weight:900;color:transparent;transition:background .15s,border-color .15s}
+  .pick.on{background:var(--blue);border-color:var(--blue);color:#fff}
+  .bab{position:absolute;left:9px;bottom:9px;font-size:10px;font-weight:800;padding:3px 8px;border-radius:6px}
+  .bab.b{background:rgba(255,255,255,.88);color:#5A6472}
+  .bab.a{background:rgba(18,184,134,.94);color:#fff}
+  .cap{margin-top:6px;display:flex;align-items:center;gap:6px;font-size:10.5px;min-width:0}
+  .cap .part{flex:none;font-weight:800;color:var(--amber-tx);background:var(--amber-bg);padding:2px 8px;border-radius:6px}
+  .cap .fn{color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* ── 3단계: 번호 매기기 ── */
+  .ph3.on{outline:3px solid var(--violet);outline-offset:-3px;transform:translateY(-4px);box-shadow:0 16px 32px -14px rgba(110,95,199,.6)}
+  .num{position:absolute;left:9px;top:9px;width:36px;height:36px;border-radius:50%;background:var(--violet);color:#fff;font-size:16.5px;font-weight:900;font-variant-numeric:tabular-nums;display:grid;place-items:center;box-shadow:0 6px 16px -4px rgba(110,95,199,.65),0 0 0 3px rgba(255,255,255,.9)}
+  .num[hidden]{display:none}
+  .ghost{position:absolute;left:9px;top:9px;width:36px;height:36px;border-radius:50%;background:rgba(110,95,199,.5);border:2px dashed rgba(255,255,255,.85);color:#fff;font-size:15px;font-weight:900;display:none;place-items:center}
+  .ph3.gh:not(.on) .ghost{display:grid}
+  @keyframes pop{0%{transform:scale(.2);opacity:0}55%{transform:scale(1.24)}100%{transform:scale(1);opacity:1}}
+  .num.pop{animation:pop .38s cubic-bezier(.34,1.56,.64,1)}
+  @keyframes bump{0%{transform:scale(1)}45%{transform:scale(1.22)}100%{transform:scale(1)}}
+  .num.bump{animation:bump .3s ease}
+
+  /* 실리는 순서 트레이 */
+  .tray{margin:2px 0 18px;background:var(--sunken);border:1px solid var(--line);border-radius:13px;padding:12px 14px}
+  .tray .th{display:flex;align-items:baseline;gap:8px;margin-bottom:9px}
+  .tray .th b{font-size:12px;font-weight:800;color:var(--ink)}
+  .tray .th .cnt{font-size:11.5px;font-weight:800;color:var(--violet);font-variant-numeric:tabular-nums}
+  .tray .th .tip2{margin-left:auto;font-size:11px;color:var(--ink3);font-weight:600}
+  .slots{display:flex;gap:7px;flex-wrap:wrap}
+  .slot{width:56px;height:44px;border-radius:9px;border:1.5px dashed var(--line);background:var(--surface);position:relative;flex:none}
+  .slot .sn{position:absolute;left:4px;top:3px;font-size:9.5px;font-weight:900;color:var(--ink3);font-variant-numeric:tabular-nums;z-index:2}
+  .slot.filled{border:1.5px solid var(--violet);cursor:pointer;overflow:hidden}
+  .slot.filled .sn{color:#fff;background:var(--violet);border-radius:5px;padding:0 4px;left:3px;top:3px;line-height:14px}
+  .slot .mini{position:absolute;inset:0;background:
+      repeating-linear-gradient(0deg,var(--gr) 0 1px,transparent 1px calc(var(--ts)/2.6)),
+      repeating-linear-gradient(90deg,var(--gr) 0 1px,transparent 1px calc(var(--ts)/2.6)),
+      linear-gradient(135deg,var(--ta),var(--tb))}
+  .slot.filled:hover{box-shadow:0 4px 10px -4px rgba(110,95,199,.55)}
+
+  /* ── 하단 액션 바 ── */
+  .abar{position:sticky;bottom:0;z-index:20;display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface);border-top:1px solid var(--line);padding:13px 22px;border-radius:0 0 15px 15px;box-shadow:0 -10px 26px -22px rgba(16,24,40,.4)}
+  .abar .cntline{font-size:13.5px;font-weight:700;color:var(--ink2)}
+  .abar .cntline b{color:var(--ink);font-size:15px;font-weight:900;font-variant-numeric:tabular-nums;display:inline-block}
+  .abar .cntline b.pop{animation:bump .28s ease}
+  .abar .hint{font-size:12px;color:var(--amber-tx);font-weight:700}
+  .abar .sp{flex:1}
+  .btn{font-size:13px;font-weight:800;border:none;border-radius:11px;padding:11px 18px;cursor:pointer;font-family:inherit;transition:transform .12s,box-shadow .2s,opacity .2s;white-space:nowrap}
+  .btn:active{transform:scale(.97)}
+  .btn.primary{background:var(--violet);color:#fff;box-shadow:0 4px 12px -4px rgba(110,95,199,.6)}
+  .btn.primary:hover{box-shadow:0 6px 18px -5px rgba(110,95,199,.75)}
+  .btn.ghost{background:var(--surface);color:var(--ink2);border:1px solid var(--line)}
+  .btn.ghost:hover{border-color:var(--ink3)}
+  .btn.dim{opacity:.45;box-shadow:none}
+  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}55%{transform:translateX(4px)}80%{transform:translateX(-2px)}}
+  .btn.shake{animation:shake .35s ease}
+  @keyframes glowpulse{0%,100%{box-shadow:0 4px 12px -4px rgba(110,95,199,.6)}50%{box-shadow:0 4px 22px 0 rgba(110,95,199,.55)}}
+  .btn.ready{animation:glowpulse 1.6s ease infinite}
+
+  /* ── 오버레이 (확인 · 완료) ── */
+  .ov{position:fixed;inset:0;background:rgba(12,15,20,.5);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
+  .ov.open{display:flex}
+  .ovcard{background:var(--surface);border:1px solid var(--line);border-radius:20px;box-shadow:0 24px 60px -20px rgba(0,0,0,.45);max-width:470px;width:100%;padding:26px 26px 22px;text-align:center;animation:cardin .34s cubic-bezier(.3,1.3,.6,1)}
+  @keyframes cardin{0%{transform:scale(.92) translateY(14px);opacity:0}100%{transform:scale(1) translateY(0);opacity:1}}
+  .fan{display:flex;justify-content:center;align-items:center;height:88px;margin:2px 0 16px}
+  .fanit{width:92px;height:70px;border-radius:10px;border:2.5px solid var(--surface);box-shadow:0 6px 16px -6px rgba(16,24,40,.35);margin:0 -14px;background:
+      repeating-linear-gradient(0deg,var(--gr) 0 1.5px,transparent 1.5px calc(var(--ts)/1.6)),
+      repeating-linear-gradient(90deg,var(--gr) 0 1.5px,transparent 1.5px calc(var(--ts)/1.6)),
+      linear-gradient(135deg,var(--ta),var(--tb))}
+  .fanmore{margin-left:20px;font-size:12px;font-weight:900;color:var(--violet);background:var(--violet-bg);border:1px solid var(--violet-line);border-radius:999px;padding:5px 11px;flex:none}
+  .ovcard h3{margin:0 0 5px;font-size:19px;font-weight:850;letter-spacing:-.01em}
+  .ovcard h3 b{color:var(--violet)}
+  .ovcard .q{font-size:14.5px;color:var(--ink2);font-weight:700;margin:0 0 10px}
+  .ovcard .note{font-size:12.5px;color:var(--ink3);line-height:1.65;margin:0 auto 18px;max-width:36ch}
+  .ovcard .note b{color:var(--violet)}
+  .ovbtns{display:flex;gap:9px;justify-content:center;flex-wrap:wrap}
+  .ovbtns .btn{padding:12px 22px}
+
+  /* 완료 오버레이 — 글 미리보기 */
+  .draft{background:var(--sunken);border:1px solid var(--line);border-radius:13px;padding:15px 16px;text-align:left;margin:4px 0 16px}
+  .draft .dh{font-size:13px;font-weight:850;margin-bottom:10px;letter-spacing:-.01em}
+  .sk{height:9px;border-radius:5px;background:var(--line);margin:7px 0}
+  .dph{display:flex;align-items:center;gap:9px;margin:10px 0}
+  .dph .tagn{font-size:12px;font-weight:900;color:var(--violet);background:var(--violet-bg);border:1px solid var(--violet-line);border-radius:7px;padding:3px 8px;flex:none;font-variant-numeric:tabular-nums}
+  .dph .dthumb{width:44px;height:33px;border-radius:7px;flex:none;border:1px solid var(--line);background:
+      repeating-linear-gradient(0deg,var(--gr) 0 1px,transparent 1px calc(var(--ts)/2.4)),
+      repeating-linear-gradient(90deg,var(--gr) 0 1px,transparent 1px calc(var(--ts)/2.4)),
+      linear-gradient(135deg,var(--ta),var(--tb))}
+  .dph .dlab{font-size:11.5px;color:var(--ink2);font-weight:700;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dmore{font-size:11.5px;color:var(--ink3);font-weight:700;margin-top:9px}
+  .dmore b{color:var(--violet)}
+
+  /* ── 풋 카드 ── */
+  .foot{margin-top:22px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:17px 20px;box-shadow:var(--shadow)}
+  .foot h3{margin:0 0 8px;font-size:14.5px}
+  .foot ul{margin:0;padding-left:18px;color:var(--ink2);font-size:13px;line-height:1.8}
+  .foot b{color:var(--ink)}
+  .foot a{color:var(--blue);font-weight:700;text-decoration:none}
+  .foot a:hover{text-decoration:underline}
+
+  /* 토스트 */
+  #toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%) translateY(16px);background:rgba(24,29,39,.94);color:#fff;font-size:13px;font-weight:700;padding:11px 20px;border-radius:999px;z-index:99;max-width:90%;text-align:center;opacity:0;pointer-events:none;transition:opacity .22s,transform .22s}
+  #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  [hidden]{display:none!important}
+  @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="pilltop"><span class="pill">🖥️ 시공막내 웹 · 글 만들기 — 사진 고르기</span></div>
+  <h1>블로그에 실을 사진, 고르고 순서까지 한 번에</h1>
+  <p class="sub">뷰어에서 보던 현장 사진 그대로예요. <span class="m1">① 체크로 고르고</span> → ② 확인하면 → <span class="m3">③ 누르는 순서대로 번호</span>가 붙어요. 그 번호가 곧 글에 들어가는 <b>[1][2][3] 사진 자리</b>예요.</p>
+
+  <div class="browser">
+    <div class="chrome">
+      <div class="dots"><i></i><i></i><i></i></div>
+      <div class="url">🔒 <b>si0in.kr</b>/web/content — 사진 고르기</div>
+      <div class="who"><span class="av">홍</span> 홍준표 · 이 PC 로그인됨</div>
+    </div>
+
+    <!-- 스텝퍼 -->
+    <div class="steps" aria-label="진행 단계">
+      <div class="st cur" id="st1"><i>1</i><b>사진 선택</b></div>
+      <div class="sbar"><span id="f1"></span></div>
+      <div class="st" id="st2"><i>2</i><b>확인</b></div>
+      <div class="sbar"><span id="f2"></span></div>
+      <div class="st" id="st3"><i>3</i><b>순서 매기기</b></div>
+    </div>
+
+    <div class="sitehead">
+      <h2>동탄에스알골드 · 줄눈 시공</h2>
+      <div class="chips"><span class="chp">고객 김서연</span><span class="chp">📅 2026-08-15 (금)</span><span class="chp ok">✅ 시공 완료</span><span class="chp">📷 12장</span></div>
+    </div>
+
+    <!-- ① 선택 패널 -->
+    <section id="panel1">
+      <div class="stage">
+        <div class="hintline">
+          <span class="h">☑️ 포스팅에 쓸 사진을 골라주세요</span>
+          <span class="s">최소 3장 · 사진을 누르면 체크돼요</span>
+          <span class="sp"></span>
+          <button class="chipbtn" onclick="selectAll()">전체 선택</button>
+          <button class="chipbtn" onclick="clearAll()">전체 해제</button>
+        </div>
+        <div class="photos" id="grid1" role="group" aria-label="현장 사진 선택"></div>
+      </div>
+      <div class="abar">
+        <span class="cntline" id="cnt1">포스팅에 쓸 사진을 골라주세요</span>
+        <span class="hint" id="hint1" hidden>최소 3장 이상 골라주세요</span>
+        <span class="sp"></span>
+        <button class="btn primary dim" id="nextBtn" onclick="openConfirm()">다음 →</button>
+      </div>
+    </section>
+
+    <!-- ③ 번호 매기기 패널 -->
+    <section id="panel3" hidden>
+      <div class="stage">
+        <div class="hintline">
+          <span class="h">📌 블로그에 실릴 <span style="color:var(--violet)">순서대로</span> 사진을 눌러주세요</span>
+          <span class="s">다시 누르면 취소되고, 뒤 번호가 자동으로 당겨져요</span>
+        </div>
+        <div class="photos" id="grid3" role="group" aria-label="사진 순서 매기기"></div>
+        <div class="tray">
+          <div class="th"><b>실리는 순서</b><span class="cnt" id="trayCnt">0/0</span><span class="tip2">아래 칸을 눌러도 빠져요 · 이 순서 = 글의 [1][2][3]</span></div>
+          <div class="slots" id="slots"></div>
+        </div>
+      </div>
+      <div class="abar">
+        <button class="btn ghost" onclick="backToSelect()">← 다시 고르기</button>
+        <button class="btn ghost" onclick="resetOrder()">⟲ 순서 초기화</button>
+        <span class="cntline" id="cnt3"><b>0</b>/0 순서 정함</span>
+        <span class="sp"></span>
+        <button class="btn primary dim" id="makeBtn" onclick="tryMake()">✨ 이 순서로 블로그 글 만들기</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="foot">
+    <h3>이 화면은 어디에 끼나요?</h3>
+    <ul>
+      <li><b>흐름:</b> 뷰어(시공 캘린더 → 현장 사진) → <b>이 화면(고르고 순서)</b> → <a href="https://claude.ai/code/artifact/406087d0-01c2-49ec-95b9-f3bcb2fdce42">✨ 글 만들기</a>가 문단 사이 <b>[1][2][3] 자리</b>에 번호 순서 그대로 사진 매칭 → <a href="https://claude.ai/code/artifact/e049d59b-1b6e-491c-a456-a17d80edfc90">✍️ 편집기</a>에서 드래그로 재조정.</li>
+      <li><b>규칙:</b> 최소 3장 · 번호 다시 누르면 취소 + 뒤 번호 자동 당김 · <b>순서 초기화</b>로 처음부터 · 뒤로 가서 사진을 더 골라도 이미 매긴 순서는 유지돼요.</li>
+      <li><b>배지:</b> 부위 태그(노랑) · 시공 전(회색)/후(초록) = 뷰어와 동일. 사진은 예시 타일이에요.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ② 확인 오버레이 -->
+<div class="ov" id="ovConfirm" role="dialog" aria-modal="true" aria-label="선택 확인">
+  <div class="ovcard">
+    <div class="fan" id="fan"></div>
+    <h3>사진 <b id="confN">8장</b>을 선택하셨어요!</h3>
+    <p class="q">이 사진들로 갈까요?</p>
+    <p class="note">다음 화면에서 <b>누르는 순서대로 ①②③ 번호</b>가 붙어요 — 그게 블로그에 실리는 순서예요.</p>
+    <div class="ovbtns">
+      <button class="btn ghost" onclick="closeConfirm()">더 고를게요</button>
+      <button class="btn primary" onclick="startNumbering()">네, 번호 매기기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 완료 오버레이 -->
+<div class="ov" id="ovDone" role="dialog" aria-modal="true" aria-label="순서 완료">
+  <div class="ovcard">
+    <h3>순서 완료! 이대로 글에 들어가요</h3>
+    <p class="note" style="margin-bottom:12px"><b>✨ 글 만들기</b>가 문단 사이 <b>[번호] 자리</b>에 이 사진들을 순서 그대로 매칭해요. 순서는 편집기에서 <b>드래그</b>로도 바꿀 수 있어요.</p>
+    <div class="draft">
+      <div class="dh">동탄 아파트 화장실 3곳 — 낡은 줄눈, 전체 보수 후기</div>
+      <div class="sk" style="width:92%"></div><div class="sk" style="width:78%"></div>
+      <div class="dph" id="dph0"></div>
+      <div class="sk" style="width:86%"></div><div class="sk" style="width:64%"></div>
+      <div class="dph" id="dph1"></div>
+      <div class="sk" style="width:90%"></div>
+      <div class="dph" id="dph2"></div>
+      <div class="dmore" id="dmore"></div>
+    </div>
+    <div class="ovbtns">
+      <button class="btn ghost" onclick="closeDone()">순서 더 만질게요</button>
+      <button class="btn primary" onclick="toGenerate()">✨ 글 만들기로</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" role="status"></div>
+
+<script>
+  /* ── 데이터: 부위별 타일 팔레트 (전=때 낀 줄눈 · 후=하얀 줄눈) ── */
+  var PARTS={
+    '거실화장실':{ta:'#d3dce4',tb:'#b9c6d1',ts:'26px',grB:'#75675a',grA:'#f1f5f7'},
+    '안방화장실':{ta:'#d8d3de',tb:'#c0bac9',ts:'22px',grB:'#6f6355',grA:'#f3f1f6'},
+    '거실타일':{ta:'#dcd2c3',tb:'#c8baa6',ts:'58px',grB:'#6e5e4a',grA:'#f2ede3'},
+    '베란다':{ta:'#cfdad2',tb:'#b5c6bb',ts:'30px',grB:'#63604e',grA:'#eef4ef'},
+    '현관':{ta:'#a7b1ba',tb:'#8b97a1',ts:'44px',grB:'#524a3d',grA:'#e9eef2'},
+    '다용도실':{ta:'#d9e0e7',tb:'#c2ccd5',ts:'28px',grB:'#6c6154',grA:'#f2f6f8'}
+  };
+  var PHOTOS=[
+    {id:1, part:'거실화장실', ba:'b'},
+    {id:2, part:'거실화장실', ba:'b', ta:'#cbd5de', tb:'#b1becb'},
+    {id:3, part:'거실화장실', ba:'a'},
+    {id:4, part:'안방화장실', ba:'b'},
+    {id:5, part:'안방화장실', ba:'a'},
+    {id:6, part:'거실타일', ba:'b'},
+    {id:7, part:'거실타일', ba:'a'},
+    {id:8, part:'베란다', ba:'b'},
+    {id:9, part:'베란다', ba:'a'},
+    {id:10,part:'현관', ba:'b'},
+    {id:11,part:'현관', ba:'a'},
+    {id:12,part:'다용도실', ba:'a'}
+  ];
+  function tileStyle(p){
+    var c=PARTS[p.part], gr=(p.ba==='b')?c.grB:c.grA;
+    return '--ta:'+(p.ta||c.ta)+';--tb:'+(p.tb||c.tb)+';--ts:'+c.ts+';--gr:'+gr;
+  }
+  function byId(id){ for(var i=0;i<PHOTOS.length;i++) if(PHOTOS[i].id===id) return PHOTOS[i]; return null; }
+
+  var sel=new Set();      /* 선택된 사진 id */
+  var order=[];           /* 번호 순서: order[0] = 1번 */
+  var cells1={}, cells3={};
+
+  /* ── ① 선택 그리드 ── */
+  var g1=document.getElementById('grid1');
+  PHOTOS.forEach(function(p,i){
+    var cell=document.createElement('div'); cell.className='pcell';
+    var baCls=(p.ba==='b')?'before':'after', baTx=(p.ba==='b')?'시공 전':'시공 후', baTag=(p.ba==='b')?'b':'a';
+    cell.innerHTML=
+      '<div class="ph '+baCls+'" style="'+tileStyle(p)+'" tabindex="0" role="checkbox" aria-checked="false" aria-label="'+p.part+' '+baTx+' 사진">'+
+        '<span class="pick"></span>'+
+        '<span class="bab '+baTag+'">'+baTx+'</span>'+
+      '</div>'+
+      '<div class="cap"><span class="part">'+p.part+'</span><span class="fn">…_'+p.part+'_'+String(i+1).padStart(2,'0')+'.jpg</span></div>';
+    var ph=cell.firstElementChild;
+    ph.addEventListener('click',function(){ toggleSel(p.id); });
+    ph.addEventListener('keydown',function(e){ if(e.key===' '||e.key==='Enter'){ e.preventDefault(); toggleSel(p.id); } });
+    cells1[p.id]=ph;
+    g1.appendChild(cell);
+  });
+
+  function toggleSel(id){
+    if(sel.has(id)) sel.delete(id); else sel.add(id);
+    syncSelCell(id); updateBar1();
+  }
+  function syncSelCell(id){
+    var ph=cells1[id], on=sel.has(id);
+    ph.classList.toggle('on',on);
+    ph.querySelector('.pick').classList.toggle('on',on);
+    ph.querySelector('.pick').textContent=on?'✓':'';
+    ph.setAttribute('aria-checked',on?'true':'false');
+  }
+  function selectAll(){ PHOTOS.forEach(function(p){ sel.add(p.id); syncSelCell(p.id); }); updateBar1(); }
+  function clearAll(){ sel.clear(); PHOTOS.forEach(function(p){ syncSelCell(p.id); }); updateBar1(); }
+
+  function updateBar1(){
+    var n=sel.size, c=document.getElementById('cnt1'), h=document.getElementById('hint1'), b=document.getElementById('nextBtn');
+    if(n===0){ c.textContent='포스팅에 쓸 사진을 골라주세요'; }
+    else { c.innerHTML='<b>'+n+'</b>장 선택됨'; var bb=c.querySelector('b'); bb.classList.remove('pop'); void bb.offsetWidth; bb.classList.add('pop'); }
+    h.hidden=!(n>0&&n<3);
+    b.classList.toggle('dim',n<3);
+  }
+
+  /* ── ② 확인 ── */
+  function openConfirm(){
+    var n=sel.size, b=document.getElementById('nextBtn');
+    if(n<3){
+      b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake');
+      toast(n===0?'아직 고른 사진이 없어요 — 사진을 눌러 체크해 주세요':'최소 3장 이상 골라주세요 — 지금 '+n+'장이에요');
+      return;
+    }
+    document.getElementById('confN').textContent=n+'장';
+    var fan=document.getElementById('fan'); fan.innerHTML='';
+    var shown=0;
+    PHOTOS.forEach(function(p){
+      if(!sel.has(p.id)||shown>=5) return;
+      var d=document.createElement('div'); d.className='fanit';
+      d.style.cssText=tileStyle(p);
+      d.style.transform='rotate('+((shown-2)*7)+'deg) translateY('+(Math.abs(shown-2)*2)+'px)';
+      fan.appendChild(d); shown++;
+    });
+    if(n>5){ var m=document.createElement('span'); m.className='fanmore'; m.textContent='+'+(n-5); fan.appendChild(m); }
+    document.getElementById('ovConfirm').classList.add('open');
+    setStepper(2);
+  }
+  function closeConfirm(){ document.getElementById('ovConfirm').classList.remove('open'); setStepper(1); }
+
+  /* ── ③ 번호 매기기 ── */
+  function startNumbering(){
+    order=order.filter(function(id){ return sel.has(id); });
+    buildGrid3();
+    document.getElementById('ovConfirm').classList.remove('open');
+    document.getElementById('panel1').hidden=true;
+    document.getElementById('panel3').hidden=false;
+    setStepper(3);
+    updateNumUI(null);
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+  function backToSelect(){
+    document.getElementById('panel3').hidden=true;
+    document.getElementById('panel1').hidden=false;
+    setStepper(1);
+  }
+  function buildGrid3(){
+    var g3=document.getElementById('grid3'); g3.innerHTML=''; cells3={};
+    PHOTOS.forEach(function(p){
+      if(!sel.has(p.id)) return;
+      var cell=document.createElement('div'); cell.className='pcell';
+      var baCls=(p.ba==='b')?'before':'after', baTx=(p.ba==='b')?'시공 전':'시공 후', baTag=(p.ba==='b')?'b':'a';
+      cell.innerHTML=
+        '<div class="ph3 '+baCls+'" style="'+tileStyle(p)+'" tabindex="0" role="button" aria-pressed="false" aria-label="'+p.part+' '+baTx+' — 눌러서 순서 매기기">'+
+          '<span class="num" hidden></span>'+
+          '<span class="ghost" aria-hidden="true"></span>'+
+          '<span class="bab '+baTag+'">'+baTx+'</span>'+
+        '</div>'+
+        '<div class="cap"><span class="part">'+p.part+'</span></div>';
+      var ph=cell.firstElementChild;
+      ph.addEventListener('click',function(){ toggleNum(p.id); });
+      ph.addEventListener('keydown',function(e){ if(e.key===' '||e.key==='Enter'){ e.preventDefault(); toggleNum(p.id); } });
+      ph.addEventListener('mouseenter',function(){
+        if(order.indexOf(p.id)<0){ ph.querySelector('.ghost').textContent=order.length+1; ph.classList.add('gh'); }
+      });
+      ph.addEventListener('mouseleave',function(){ ph.classList.remove('gh'); });
+      cells3[p.id]=ph;
+      g3.appendChild(cell);
+    });
+  }
+  function toggleNum(id){
+    var i=order.indexOf(id), added=null;
+    if(i>=0){ order.splice(i,1); } else { order.push(id); added=id; }
+    var ph=cells3[id]; if(ph) ph.classList.remove('gh');
+    updateNumUI(added);
+  }
+  function resetOrder(){
+    if(order.length===0) return;
+    order=[]; updateNumUI(null);
+    toast('순서를 초기화했어요 — 처음부터 다시 눌러주세요');
+  }
+  function updateNumUI(addedId){
+    Object.keys(cells3).forEach(function(k){
+      var id=+k, ph=cells3[id], num=ph.querySelector('.num');
+      var idx=order.indexOf(id), prev=ph.dataset.n||'';
+      if(idx<0){
+        num.hidden=true; ph.classList.remove('on'); ph.dataset.n='';
+        ph.setAttribute('aria-pressed','false');
+      }else{
+        var n=idx+1;
+        num.hidden=false; num.textContent=n; ph.classList.add('on');
+        ph.setAttribute('aria-pressed','true');
+        if(prev===''||+prev!==n){
+          num.classList.remove('pop','bump'); void num.offsetWidth;
+          num.classList.add(id===addedId?'pop':'bump');
+        }
+        ph.dataset.n=String(n);
+      }
+    });
+    /* 트레이 */
+    var total=sel.size, done=order.length;
+    var slots=document.getElementById('slots'); slots.innerHTML='';
+    for(var i=0;i<total;i++){
+      var s=document.createElement('div');
+      if(i<order.length){
+        var p=byId(order[i]);
+        s.className='slot filled'; s.title=p.part+' — 누르면 순서에서 빠져요';
+        s.innerHTML='<span class="mini" style="'+tileStyle(p)+'"></span><span class="sn">'+(i+1)+'</span>';
+        (function(pid){ s.addEventListener('click',function(){ toggleNum(pid); }); })(order[i]);
+      }else{
+        s.className='slot'; s.innerHTML='<span class="sn">'+(i+1)+'</span>';
+      }
+      slots.appendChild(s);
+    }
+    document.getElementById('trayCnt').textContent=done+'/'+total;
+    document.getElementById('cnt3').innerHTML='<b>'+done+'</b>/'+total+' 순서 정함';
+    var mb=document.getElementById('makeBtn'), ready=(done===total&&total>0);
+    mb.classList.toggle('dim',!ready);
+    mb.classList.toggle('ready',ready);
+  }
+  function tryMake(){
+    var total=sel.size, done=order.length;
+    if(done<total){
+      var mb=document.getElementById('makeBtn');
+      mb.classList.remove('shake'); void mb.offsetWidth; mb.classList.add('shake');
+      toast('아직 '+(total-done)+'장 번호가 안 붙었어요 — 남은 사진도 눌러주세요');
+      return;
+    }
+    /* 완료 미리보기 채우기 */
+    for(var i=0;i<3;i++){
+      var row=document.getElementById('dph'+i); row.innerHTML='';
+      if(i<order.length){
+        var p=byId(order[i]), baTx=(p.ba==='b')?'시공 전':'시공 후';
+        row.hidden=false;
+        row.innerHTML='<span class="tagn">['+(i+1)+']</span><span class="dthumb" style="'+tileStyle(p)+'"></span><span class="dlab">'+(i+1)+'번 사진 · '+p.part+' ('+baTx+')</span>';
+      }else row.hidden=true;
+    }
+    var dm=document.getElementById('dmore');
+    dm.innerHTML=(order.length>3)?('… <b>['+order.length+']</b>까지, 매긴 순서 그대로 들어가요'):'매긴 순서 그대로 들어가요';
+    document.getElementById('ovDone').classList.add('open');
+  }
+  function closeDone(){ document.getElementById('ovDone').classList.remove('open'); }
+  function toGenerate(){
+    closeDone();
+    toast('실제 서비스에선 여기서 ✨ 글 만들기로 넘어가요 — 프로토는 여기까지!');
+  }
+
+  /* ── 스텝퍼 ── */
+  function setStepper(s){
+    var st=[null,document.getElementById('st1'),document.getElementById('st2'),document.getElementById('st3')];
+    for(var k=1;k<=3;k++){ st[k].classList.remove('cur','done'); st[k].querySelector('i').textContent=k; }
+    document.getElementById('f1').style.width=(s>=2)?'100%':'0';
+    document.getElementById('f2').style.width=(s>=3)?'100%':'0';
+    if(s>=2){ st[1].classList.add('done'); st[1].querySelector('i').textContent='✓'; }
+    if(s>=3){ st[2].classList.add('done'); st[2].querySelector('i').textContent='✓'; }
+    st[s].classList.add('cur');
+  }
+
+  /* ── 공통 ── */
+  var tt;
+  function toast(m){
+    var el=document.getElementById('toast');
+    el.textContent=m; el.classList.add('on');
+    clearTimeout(tt); tt=setTimeout(function(){ el.classList.remove('on'); },2200);
+  }
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='Escape') return;
+    if(document.getElementById('ovDone').classList.contains('open')) closeDone();
+    else if(document.getElementById('ovConfirm').classList.contains('open')) closeConfirm();
+  });
+  updateBar1();
+</script>
+</body>
+</html>
