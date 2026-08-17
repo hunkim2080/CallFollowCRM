@@ -27149,6 +27149,16 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .pimg .n{position:absolute;left:7px;top:7px;font-size:11px;font-weight:900;color:#fff;background:var(--violet);border-radius:6px;width:20px;height:20px;display:flex;align-items:center;justify-content:center;z-index:2}
   .pimg .part{position:absolute;right:7px;bottom:7px;font-size:10px;font-weight:800;color:#fff;background:rgba(24,29,39,.68);border-radius:6px;padding:2px 7px;z-index:2}
   .pcap{font-size:10.5px;color:var(--ink3);margin-top:5px;text-align:center;font-weight:700}
+  #genText{position:relative}
+  .prow.drag{opacity:.4}
+  .prow.over{border-color:var(--violet);border-style:solid;box-shadow:0 0 0 3px var(--violet-line)}
+  .prow .grip{position:absolute;left:50%;top:-9px;transform:translateX(-50%);font-size:11px;font-weight:800;color:#fff;background:var(--violet);border-radius:6px;padding:2px 10px;cursor:grab;user-select:none;z-index:4}
+  .prow .matchtip.free{color:var(--ink3);background:var(--surface);border-color:var(--line)}
+  .pimg{cursor:grab}
+  .pimg.drag{opacity:.35}
+  .pimg .pg{position:absolute;right:5px;top:5px;z-index:4;font-size:10px;font-weight:900;color:#fff;background:var(--violet);border-radius:6px;padding:1px 7px;opacity:0;transition:opacity .15s;pointer-events:none}
+  .pimg:hover .pg{opacity:.95}
+  .dropline{position:absolute;left:14px;right:14px;height:3px;border-radius:3px;background:var(--violet);box-shadow:0 0 0 3px var(--violet-line);display:none;z-index:8;pointer-events:none}
   .privnote{font-size:11.5px;color:var(--ink3);font-weight:700;text-align:center;padding:8px 0 4px}
   .gfoot{display:flex;gap:8px;margin-top:14px}
   .ghostbtn{flex:none;font-size:13.5px;font-weight:800;color:var(--ink2);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 15px;cursor:pointer}
@@ -27587,18 +27597,18 @@ function renderBlogDoc(g){
   function pByIdx(n){for(var i=0;i<photos.length;i++)if(photos[i].index===n)return photos[i];return null;}
   function pimg(pm){
     var p=gPhoto(pm.photo_id), thumb=p?p.thumb_url:'', isaft=(pm.ba==='after'), batx=isaft?'시공 후':'시공 전', part=pm.part||'';
-    return '<div class="pimg" data-ba="'+(isaft?'after':'before')+'"><div class="im">'
+    return '<div class="pimg" draggable="true" data-idx="'+pm.index+'" data-part="'+esc(part)+'" data-ba="'+(isaft?'after':'before')+'"><div class="im">'
       +(thumb?'<img loading="lazy" src="'+thumb+'">':'')+'<span class="n">'+pm.index+'</span>'
-      +(part?'<span class="part">'+esc(part)+'</span>':'')+'</div><div class="pcap">'+batx+' · '+pm.index+'번</div></div>';
+      +(part?'<span class="part">'+esc(part)+'</span>':'')+'</div><div class="pcap">'+batx+' · '+pm.index+'번</div><span class="pg">⠿</span></div>';
   }
   function prow(nums){
     var cells='',part='';
     nums.forEach(function(n){var pm=pByIdx(n);if(pm){cells+=pimg(pm);if(!part)part=pm.part||'';}});
     if(!cells)return '';
-    return '<div class="prow">'+(part?'<span class="matchtip">🎯 '+esc(part)+' 매칭</span>':'')+cells+'</div>';
+    return '<div class="prow" draggable="true"><span class="grip">⠿ 드래그</span>'+(part?'<span class="matchtip">🎯 '+esc(part)+' 매칭</span>':'')+cells+'</div>';
   }
   function inl(s){return esc(s).replace(/\\*\\*([^*]+)\\*\\*/g,'<b>$1</b>');}
-  var h='<div class="doc" id="genText"><div class="t">'+esc(g.blog.title||'')+'</div>';
+  var h='<div class="doc" id="genText"><div class="dropline" id="dropline"></div><div class="t">'+esc(g.blog.title||'')+'</div>';
   (g.blog.body||'').split(/\\n\\n+/).forEach(function(blk){
     blk=(blk||'').replace(/\\r/g,'').trim(); if(!blk)return;
     var nums=[]; var tx=blk.replace(/\\[(\\d+)\\]/g,function(_m,d){nums.push(parseInt(d,10));return ' ';}).replace(/\\s+/g,' ').trim();
@@ -27612,6 +27622,101 @@ function renderBlogDoc(g){
     if(nums.length) h+=prow(nums);
   });
   return h+'</div>';
+}
+/* ═══ 사진 드래그 재배치 (줄 통째 + 개별) → 바뀐 [n] 배치 저장 ═══ */
+var genDragEl=null, genDragKind=null;
+function bindGenDrag(){
+  var doc=document.getElementById('genText'); if(!doc)return;
+  var dl=document.getElementById('dropline');
+  doc.querySelectorAll('.prow').forEach(function(el){ if(el.__b)return; el.__b=1;
+    el.addEventListener('dragstart',function(e){ if(genDragKind==='photo'){e.preventDefault();return;} genDragKind='row';genDragEl=el;el.classList.add('drag'); try{e.dataTransfer.setData('text/plain','row');}catch(_e){} });
+    el.addEventListener('dragend',function(){ el.classList.remove('drag'); endGenDrag(); });
+  });
+  doc.querySelectorAll('.pimg').forEach(function(el){ if(el.__b)return; el.__b=1;
+    el.addEventListener('dragstart',function(e){ e.stopPropagation();genDragKind='photo';genDragEl=el;el.classList.add('drag'); try{e.dataTransfer.setData('text/plain','photo');}catch(_e){} });
+    el.addEventListener('dragend',function(){ el.classList.remove('drag'); endGenDrag(); });
+  });
+  if(doc.__dragBound)return; doc.__dragBound=1;
+  doc.addEventListener('dragover',function(e){
+    e.preventDefault();
+    if(genDragKind==='row'&&genDragEl){
+      var after=[].slice.call(doc.children).filter(function(c){return c!==genDragEl&&c.id!=='dropline';}).find(function(c){var r=c.getBoundingClientRect();return e.clientY<r.top+r.height/2;});
+      if(after)doc.insertBefore(genDragEl,after);else doc.appendChild(genDragEl); return;
+    }
+    if(genDragKind==='photo'&&genDragEl){
+      var row=e.target.closest?e.target.closest('.prow'):null;
+      doc.querySelectorAll('.prow').forEach(function(x){x.classList.remove('over');});
+      if(row){ var cnt=row.querySelectorAll('.pimg').length, same=row===genDragEl.parentNode; if(same||cnt<4){row.classList.add('over');dl.style.display='none';return;} }
+      var blocks=[].slice.call(doc.children).filter(function(c){return c.id!=='dropline';});
+      var before=blocks.find(function(c){var r=c.getBoundingClientRect();return e.clientY<r.top+r.height/2;});
+      var y, dr=doc.getBoundingClientRect();
+      if(before){y=before.getBoundingClientRect().top-dr.top-8;} else {var last=blocks[blocks.length-1];y=last?last.getBoundingClientRect().bottom-dr.top+4:0;}
+      dl.style.top=y+'px';dl.style.display='block';dl.dataset.beforeIdx=before?blocks.indexOf(before):-1;
+    }
+  });
+  doc.addEventListener('drop',function(e){
+    e.preventDefault(); if(genDragKind!=='photo'||!genDragEl)return;
+    var src=genDragEl.parentNode, row=e.target.closest?e.target.closest('.prow'):null;
+    if(row&&(row===src||row.querySelectorAll('.pimg').length<4)){
+      var kids=[].slice.call(row.querySelectorAll('.pimg')).filter(function(k){return k!==genDragEl;});
+      var beforeK=kids.find(function(k){var r=k.getBoundingClientRect();return e.clientX<r.left+r.width/2;});
+      if(beforeK)row.insertBefore(genDragEl,beforeK);else row.appendChild(genDragEl);
+    }else if(row){ genToast('한 줄엔 4장까지 나란히 놓을 수 있어요'); genCleanup(src); return; }
+    else{
+      var blocks=[].slice.call(doc.children).filter(function(c){return c.id!=='dropline';});
+      var idx=parseInt(dl.dataset.beforeIdx,10);
+      var nr=document.createElement('div');nr.className='prow';nr.setAttribute('draggable','true');
+      nr.innerHTML='<span class="grip">⠿ 드래그</span><span class="matchtip"></span>';
+      nr.appendChild(genDragEl);
+      if(idx>=0)doc.insertBefore(nr,blocks[idx]);else doc.appendChild(nr);
+      bindGenDrag();
+    }
+    genCleanup(src);
+  });
+}
+function genCleanup(src){ if(src&&src.classList&&src.classList.contains('prow')&&!src.querySelector('.pimg'))src.remove(); }
+function endGenDrag(){ genDragEl=null;genDragKind=null; var dl=document.getElementById('dropline'); if(dl)dl.style.display='none';
+  document.querySelectorAll('#genText .prow').forEach(function(x){x.classList.remove('over');}); refreshGenTips(); saveDraftSoon(); }
+function refreshGenTips(){
+  document.querySelectorAll('#genText .prow').forEach(function(row){
+    var tip=row.querySelector('.matchtip'); if(!tip)return;
+    var parts=[].slice.call(row.querySelectorAll('.pimg')).map(function(p){return p.getAttribute('data-part');}).filter(Boolean);
+    var uniq=parts.filter(function(v,i){return parts.indexOf(v)===i;});
+    if(uniq.length===1&&uniq[0]) tip.textContent='🎯 '+uniq[0]+' 매칭';
+    else if(uniq.length>1) tip.textContent='📷 '+uniq.join(' · ');
+    else tip.textContent='📷 사진';
+  });
+}
+function genToast(m){ if(typeof toast==='function')toast(m); }
+function domToDraft(){
+  var doc=document.getElementById('genText'); if(!doc)return null;
+  var title='', out=[];
+  [].slice.call(doc.children).forEach(function(el){
+    if(el.id==='dropline')return;
+    if(el.classList.contains('t')){ title=el.textContent.trim(); return; }
+    if(el.classList.contains('prow')){
+      var nums=[].slice.call(el.querySelectorAll('.pimg')).map(function(p){return p.getAttribute('data-idx');}).filter(Boolean);
+      if(nums.length)out.push(nums.map(function(n){return '['+n+']';}).join(' ')); return;
+    }
+    if(el.classList.contains('hr')){ out.push('---'); return; }
+    var t=genBlockText(el);
+    if(el.classList.contains('h')) out.push('## '+t);
+    else if(el.classList.contains('quote')) out.push('> '+t);
+    else if(t) out.push(t);
+  });
+  return {title:title, draft:out.join('\\n\\n')};
+}
+function genBlockText(el){
+  var x=el.innerHTML.replace(/<b>(.*?)<\\/b>/gi,'**$1**');
+  var tmp=document.createElement('div'); tmp.innerHTML=x;
+  return (tmp.textContent||'').replace(/\\s+/g,' ').trim();
+}
+var _saveDraftT;
+function saveDraftSoon(){ clearTimeout(_saveDraftT); _saveDraftT=setTimeout(saveDraftNow,800); }
+function saveDraftNow(){
+  var d=domToDraft(); if(!d||!curCd)return;
+  fetch('/api/web/save-draft',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer_digits:curCd, draft:d.draft, title:d.title})})
+  .then(function(r){return r.json();}).then(function(j){ if(j&&j.ok)genToast('배치 저장됨 ✓'); }).catch(function(){});
 }
 /* ═══ 네이버 넣기 — 새 탭 + 3단계 안내 시트 ═══ */
 var NAVER_WRITE='https://blog.naver.com/GoBlogWrite.naver';
@@ -27667,6 +27772,7 @@ function drawGen(){
       +'<div class="genacts"><span class="gpill" onclick="genContent()">↻ 다시</span><span class="gpill p" onclick="copyGen(\\'genText\\',this)">📋 복사</span></div>';
   }
   out.innerHTML=body+(genP==='bl'?'':'<div class="rnote">🔒 이름·전화·동/호·정확주소는 자동 제거("'+esc(g.region||'지역')+'" 수준). 사진은 가운데서 골라 첨부.</div>');
+  if(genP==='bl'){bindGenDrag();refreshGenTips();}
 }
 function copyGen(id,btn){var t=document.getElementById(id).innerText;if(navigator.clipboard)navigator.clipboard.writeText(t);var o=btn.textContent;btn.textContent='복사됨 ✓';setTimeout(function(){btn.textContent=o;},1400);}
 /* ===== 라이트박스 ===== */
@@ -28777,6 +28883,38 @@ async def web_whoami(request: Request):
     if not owner:
         return JSONResponse({"ok": False}, status_code=401)
     return {"ok": True, "phone": owner}
+
+
+@app.post("/api/web/save-draft")
+async def web_save_draft(request: Request):
+    """뷰어에서 사진을 드래그로 재배치하면 바뀐 [n] 배열이 담긴 draft 를 저장.
+    photos_json(사진 메타)은 그대로 두고 draft(마커 위치·묶음)만 갱신 → naver-draft 가 새 배치로 반환 → 확장이 그대로 넣음."""
+    from fastapi.responses import JSONResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    cd = _webre.sub(r"[^0-9]", "", str(body.get("customer_digits") or ""))
+    if not cd:
+        raise HTTPException(400, "customer_digits 필수")
+    draft = str(body.get("draft") or "")
+    title_in = body.get("title")
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT title FROM web_generated_posts WHERE owner_phone=? AND customer_digits=?",
+            (owner, cd)).fetchone()
+        if not row:
+            raise HTTPException(404, "생성된 글이 없어요")
+        title = (str(title_in) if title_in is not None else row[0]) or ""
+        con.execute(
+            "UPDATE web_generated_posts SET draft=?, title=?, created_at_ms=? "
+            "WHERE owner_phone=? AND customer_digits=?",
+            (draft, title, _now_ms(), owner, cd))
+        con.commit()
+    return {"ok": True, "len": len(draft)}
 
 
 @app.get("/api/web/materials")
