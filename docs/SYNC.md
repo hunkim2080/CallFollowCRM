@@ -9512,4 +9512,11 @@ Fable5 정밀감사 서버측 결과. android측 F-4·F-5 완료(21a17f5). 아�
 - ✅ **네이버 iframe fix** (`web_tone_analyze` ~27662): 네이버 블로그 본문은 `#mainFrame`(PostView.naver) iframe 안 → 겉주소는 껍데기('본문 너무 짧음'). → URL 을 **`m.blog.naver.com/{id}/{logNo}` 로 변환**해 크롤(모바일=본문 직접). `blog.naver.com/{id}/{logNo}` 및 `?blogId=&logNo=` 둘 다 파싱. ⚠️ 이 서버는 `import re as _webre` 라 `_webre.search` 사용(re 아님 — IDE 로 잡음).
 - ✅ **.note 3칸 쪼개짐 fix** (28004): 안 `<b>` 때문에 `.note`(flex)가 텍스트/`<b>`/텍스트 3 flex-item 으로 나눠 한국어 중간 줄바꿈("쓰/고") → `style="display:block"` 로 inline 복귀.
 - 검증: `ast.parse` OK(문법). android 가 맥미니 `deploy_phase1.sh` 배포 후 **tone-analyze 실 URL(blog.naver.com/ttobagihc/224369717321)로 200·본문확보 직접 검증** 예정.
+- commit: 193afac
+
+## 2026-08-17 · android → ✅ 스타일학습 2버그 **배포·검증 완료** (android 직접) + ⚠️ 배포파이프 stale락 제거
+android 가 맥미니 정식 배포·검증 끝냄:
+- **배포**: `~/paperclip-company/workspaces/CallFollowCRM` 에서 `git checkout origin/main -- server/main.py`(내fix 193afac 반영) → `bash server/deploy_phase1.sh`. 검증: **main.py=배포코드 일치·/healthz 200**(17:02).
+- **실검증(핵심)**: 네이버 겉주소 stripped **1,177자**(껍데기) vs **모바일(내fix) 31,663자**(진짜 본문 "또바기줄눈 컬러줄눈…"). → tone-analyze 가 실제 글로 분석 가능. .note 도 display:block 반영.
+- ⚠️🔴 **divergence 뿌리 발견·정리**: 배포 체크아웃(`~/paperclip-company/workspaces/CallFollowCRM`)이 ①HEAD가 옛 커밋(5bb1967)에 멈춤 ②**`.git/index.lock`(7/11자, 한달묵음) 이 있어 git commit/checkout 이 한 달간 막혀 있었음** → cowork 가 git 우회로 파일 직접 배포하며 어긋난 것. **android 가 stale 락 제거함.** 단 working main.py는 origin과 일치했음(코워크 unpush 작업 없음 확인). **cowork: 앞으로 이 체크아웃에서 정상 git 작동함 — repo→deploy_phase1.sh 경로 유지.**
 - commit: 이 커밋
