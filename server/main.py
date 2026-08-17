@@ -27106,6 +27106,12 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .genhint.ok{color:var(--green);background:var(--green-bg)}
   .genhint b{font-weight:850}
   .genhint .gh2{color:var(--ink3);font-weight:600;font-size:11px}
+  .onote{margin-bottom:11px}
+  .onote-l{font-size:12px;font-weight:800;color:var(--ink2);margin-bottom:6px}
+  .onote-l span{color:var(--ink3);font-weight:600;font-size:11px}
+  .onote-ta{width:100%;min-height:52px;max-height:120px;resize:vertical;font-size:12.5px;line-height:1.5;background:var(--sunken);border:1px solid var(--line);border-radius:10px;padding:9px 11px;color:var(--ink);font-family:inherit;outline:none}
+  .onote-ta:focus{border-color:var(--violet);background:var(--surface)}
+  .onote-ta::placeholder{color:var(--ink3)}
   .genbig{width:100%;font-size:13.5px;font-weight:850;color:#fff;border:none;border-radius:11px;padding:13px;cursor:pointer;margin-bottom:14px;font-family:inherit}
   .genbig.bl{background:var(--violet)}.genbig.ig{background:var(--ig)}.genbig.th{background:var(--th);color:#fff}
   :root[data-theme="dark"] .genbig.th{color:#181D27}
@@ -27344,7 +27350,7 @@ function openSite(cd){
   fetch('/api/web/site/'+encodeURIComponent(cd)).then(function(r){if(r.status===401){location.href='/web/login';throw 0;}return r.json();}).then(function(d){
     curCust=d.customer||{}; photos=d.photos||[];
     var _m=getPt(),_b=getBa(),_ch=false;photos.forEach(function(p){if(p.part){_m[p.photo_id]=p.part;_ch=true;}if(p.ba){_b[p.photo_id]=p.ba;_ch=true;}});if(_ch){localStorage.setItem(PT_KEY,JSON.stringify(_m));localStorage.setItem(BA_KEY,JSON.stringify(_b));}
-    renderMid(); renderDayList(); renderRight();
+    renderMid(); renderDayList(); renderRight(); loadONote();
     renderCal_fromCurrent();
   }).catch(function(){});
 }
@@ -27486,6 +27492,13 @@ var PMETA={bl:{cls:'bl',name:'블로그',meta:'📝 블로그 · 네이버 · �
   ig:{cls:'ig',name:'인스타',meta:'📷 인스타그램 · 짧게 + 해시태그 15',btn:'✨ 인스타 캡션 만들기',load:'✍️ 인스타 캡션 쓰는 중…',steps:['재료 읽는 중','감성 톤·이모지 맞추는 중','해시태그 뽑는 중']},
   th:{cls:'th',name:'스레드',meta:'🧵 스레드 · 대화체 + 해시태그 1~2',btn:'✨ 스레드 글 만들기',load:'✍️ 스레드 글 쓰는 중…',steps:['재료 읽는 중','대화체 톤 맞추는 중','초안 쓰는 중']}};
 function ptab(p){genP=p;['bl','ig','th'].forEach(function(x){document.getElementById('pt-'+x).classList.toggle('on',x===p);});renderRight();}
+var ONOTE='';
+function onoteChanged(){ var ta=document.getElementById('onoteTa'); if(ta)ONOTE=ta.value; saveONoteSoon(); }
+var _onoteT;
+function saveONoteSoon(){ clearTimeout(_onoteT); _onoteT=setTimeout(saveONoteNow,900); }
+function saveONoteNow(){ if(!curCd)return; fetch('/api/web/owner-note',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer_digits:curCd, note:ONOTE})}).catch(function(){}); }
+function loadONote(){ ONOTE=''; var ta=document.getElementById('onoteTa'); if(ta)ta.value=''; if(!curCd)return;
+  fetch('/api/web/owner-note?customer_digits='+encodeURIComponent(curCd)).then(function(r){return r.json();}).then(function(j){ ONOTE=(j&&j.note)||''; var t=document.getElementById('onoteTa'); if(t)t.value=ONOTE; }).catch(function(){}); }
 function updateGenHint(){
   var el=document.getElementById('genHint'); if(!el)return;
   var done=!!(curCust&&curCust.completed);
@@ -27507,12 +27520,14 @@ function renderRight(){
       +'<div class="viewonly" style="margin-bottom:12px">✅ <b>시공 완료 후</b> 글을 만들 수 있어요. 진행중 현장은 아직 시공후 사진·후기 재료가 없어요.</div>';
   var h='<div class="tonebar">'+tone+'<span class="te" onclick="location.href=\\'/mypage\\'">바꾸기</span></div>'
    +'<div class="metaline">'+pm.meta+'</div>'
+   +(done?'<div class="onote"><div class="onote-l">✍️ 이 글에 넣고 싶은 것 <span>(선택 · 사진 보다 떠오른 것)</span></div><textarea class="onote-ta" id="onoteTa" placeholder="예: 고객이 아기 있어 무독성 강조 · 이 집 뷰 좋았음 · 재방문 고객" oninput="onoteChanged()"></textarea></div>':'')
    +'<div class="genhint" id="genHint"></div>'
    +btn
    +'<div class="genload" id="genload"><div class="gblob"></div><div class="gStage" id="gStage">사진을 읽고 있어요</div><div class="gSub" id="gSub"></div><div class="gbar"><span id="gBarFill"></span></div><div class="gElapsed" id="gElapsed"></div></div>'
    +'<div id="genOut"></div>';
   rb.innerHTML=h;
   updateGenHint();
+  var _ot=document.getElementById('onoteTa'); if(_ot)_ot.value=ONOTE;
   if(GEN&&done)drawGen();
 }
 var genOrder=[];   /* 번호매기기: 클릭한 순서대로 photo_id (genOrder[0]=글의 [1]) */
@@ -28818,6 +28833,16 @@ async def web_generate_content(request: Request, req: WebGenReq):
     if not api_key:
         raise HTTPException(400, "먼저 마이페이지에서 내 Gemini 키를 등록해 주세요")
     m = _web_gather_materials(owner, cd)
+    _onote = ""   # 사장님이 웹에서 적은 '이 글에 넣고 싶은 것'(현장별) — 생성 재료로 최우선 반영
+    try:
+        with db_conn() as con:
+            _r = con.execute(
+                "SELECT note FROM web_owner_notes WHERE owner_phone=? AND customer_digits=?",
+                (owner, cd)).fetchone()
+            if _r:
+                _onote = (_r[0] or "").strip()
+    except Exception:
+        _onote = ""
     # 사장님 핵심 규칙: 시공 완료건만 글 생성(진행중은 시공후 사진·후기 없어 글 못 씀). 웹 우회 방지 서버 게이트.
     if not m.get("completed"):
         raise HTTPException(400, "시공 완료 후 글을 만들 수 있어요 (진행중 현장은 아직 후기 재료가 없어요)")
@@ -28887,7 +28912,9 @@ async def web_generate_content(request: Request, req: WebGenReq):
         "시공일: " + (m["work_date"] or "-") + "\n"
         "메모: " + (m["memo"] or "(없음)") + "\n"
         "통화요약: " + (m["call"] or "(없음)") + "\n"
-        "문자대화: " + (m["convo"] or "(없음)") + "\n\n"
+        "문자대화: " + (m["convo"] or "(없음)") + "\n"
+        + (("★ 사장님이 이 글에 꼭 넣고 싶은 것(최우선으로 자연스럽게 녹여라): " + _onote + "\n") if _onote else "")
+        + "\n"
         "반드시 아래 JSON 형식만 출력:\n"
         '{"persona":"한 줄","blog":{"title":"제목","body":"본문(문단은 \\n\\n 로 구분)"},'
         '"instagram":{"caption":"캡션","hashtags":["#태그", "... 15개"]},'
@@ -28969,6 +28996,52 @@ async def web_save_draft(request: Request):
             (draft, title, _now_ms(), owner, cd))
         con.commit()
     return {"ok": True, "len": len(draft)}
+
+
+@app.post("/api/web/owner-note")
+async def web_owner_note_save(request: Request):
+    """사장님이 '이 글에 넣고 싶은 것' 메모 저장(현장별). 생성 시 재료로 주입."""
+    from fastapi.responses import JSONResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    cd = _webre.sub(r"[^0-9]", "", str(body.get("customer_digits") or ""))
+    if not cd:
+        raise HTTPException(400, "customer_digits 필수")
+    note = str(body.get("note") or "")[:1500]
+    with db_conn() as con:
+        con.execute("CREATE TABLE IF NOT EXISTS web_owner_notes "
+                    "(owner_phone TEXT NOT NULL, customer_digits TEXT NOT NULL, note TEXT, "
+                    "updated_at_ms INTEGER, PRIMARY KEY(owner_phone, customer_digits))")
+        con.execute("INSERT OR REPLACE INTO web_owner_notes "
+                    "(owner_phone, customer_digits, note, updated_at_ms) VALUES (?,?,?,?)",
+                    (owner, cd, note, _now_ms()))
+        con.commit()
+    return {"ok": True}
+
+
+@app.get("/api/web/owner-note")
+async def web_owner_note_get(request: Request, customer_digits: str):
+    from fastapi.responses import JSONResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    cd = _webre.sub(r"[^0-9]", "", customer_digits or "")
+    note = ""
+    try:
+        with db_conn() as con:
+            row = con.execute(
+                "SELECT note FROM web_owner_notes WHERE owner_phone=? AND customer_digits=?",
+                (owner, cd)).fetchone()
+            if row:
+                note = row[0] or ""
+    except Exception:
+        note = ""
+    return {"ok": True, "note": note}
 
 
 @app.get("/api/web/materials")
