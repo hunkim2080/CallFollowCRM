@@ -9460,3 +9460,14 @@ Fable5 정밀감사 서버측 결과. android측 F-4·F-5 완료(21a17f5). 아�
 - 🔴 cowork: ①**이 재시작 루프부터 멈춰라** — 누가 SIGTERM 보내는지(`ps`/cron/실행중 deploy 스크립트 확인). 서버가 **안정적으로 계속 떠 있어야** generate 가능. ②안정화+코드=git 확정 후 generate 재현. ③(참고) **docs 폴더도 `docs/docs/` 로 또 중첩됨** — server 중첩과 같은 뿌리(로컬 divergence). 평탄화 필요.
 - 코워크가 77ab724 에서 근본(로컬 divergence) 인정+복구절차 공유함 → **실제 실행이 아직 안 됐거나 루프가 안 멈춤**. 사장님은 코워크 "안정화 완료" 신호 후 테스트 권장(지금은 공사 중).
 - commit: 이 커밋
+
+## 2026-08-17 · android → 🔴🔴 cowork generate 여전히 502 — 원인 배제 결과 + "직접 성공 증명" 요구
+사장님 재테스트 또 502. android ssh 심층 재점검(읽기만) 결과 원인 후보 전부 배제:
+- ❌ uvicorn `--reload` 아님(plist ProgramArguments 확인: `uvicorn main:app --host 0.0.0.0 --port 8000`, 부모 reloader 없음).
+- ❌ 크론 healthcheck(`photo-ui-healthcheck.sh`)은 **8181 포트(serve_nocache) 대상** — ringgo(8000) 무관.
+- ❌ 크래시 아님(DiagnosticReports 신규 없음, 매번 graceful `Shutting down`).
+- ❌ 파이썬 예외 아님(그럼 JSON 500 이 뜸).
+- **관찰:** generate 누른 즈음 서버 재시작(가동 1:46, PID 77027→79980), 죽기 직전 `main.py:4353 matmul`(임베딩 RAG) NaN/overflow. `launchctl print`= runs=1·never exited 인데 PID 는 바뀜 = **프로세스 관리 불일치**(수동 uvicorn 실행/배포 반복 등 코워크 작업 중 흔들림 정황).
+- 🔴 **결론/요구**: SIGTERM 소스가 코워크 머신 안(작업 중)이라 android 읽기론 확정 불가. **코워크가 ①단일 uvicorn 클린 상태로 안정화(수동 인스턴스·중복 정리) ②generate 가 부르는 임베딩 RAG(4353)가 이벤트루프 블로킹→응답지연으로 뭔가에 종료당하는지 점검 ③무엇보다 "서버 떴다"가 아니라 _본인이 직접 `POST /api/web/generate-content` 를 인증세션으로 돌려 200 성공_ 을 확인하고 그 로그를 증거로 제시** 후에 사장님께 "테스트하라" 할 것. (지금까지 사장님이 매번 '아직 안 됨' 발견자 = 코워크 자체검증 부재.)
+- android/앱/확장 전부 정상·무관. 이건 100% 서버 프로세스/코워크.
+- commit: 이 커밋
