@@ -27619,7 +27619,11 @@ function openNaverTab(){var w=null;try{w=window.open(NAVER_WRITE,'_blank');}catc
 function sgmExt(){try{return document.documentElement.getAttribute('data-sgm-ext')==='1';}catch(_e){return false;}}
 function goNaver(){
   var ext=sgmExt();
-  if(ext){try{window.postMessage({__sgm:'naver-insert'},'*');}catch(_e){}}   // 확장에 자동삽입 예약
+  if(ext){   // 자동삽입 예약 — 로그인된 '검증 번호'(whoami)를 실어보내 오타·허위 차단
+    fetch('/api/web/whoami').then(function(r){return r.json();}).then(function(j){
+      try{window.postMessage({__sgm:'naver-insert', phone:(j&&j.phone)||''},'*');}catch(_e){}
+    }).catch(function(){try{window.postMessage({__sgm:'naver-insert'},'*');}catch(_e){}});
+  }
   var ok=openNaverTab();
   var t=document.getElementById('shTitle'),s=document.getElementById('shSub'),s1=document.getElementById('step1'),sn1=document.getElementById('sn1'),ob=document.getElementById('openBtn'),st2=document.getElementById('step2'),nud=document.getElementById('shNudge');
   if(ok){s1.classList.add('done');sn1.textContent='✓';ob.style.display='none';}
@@ -28762,6 +28766,17 @@ async def web_generate_status(request: Request, job: str):
     if st == "error":
         return {"status": "error", "detail": j.get("detail") or "생성 실패"}
     return {"status": "pending"}
+
+
+@app.get("/api/web/whoami")
+async def web_whoami(request: Request):
+    """로그인된 owner 신원 — 확장 원클릭이 전화번호 타이핑 없이 '검증된' 번호를 쓰게 해서
+    오타·허위 입력을 원천 차단(뷰어는 쿠키로 이미 인증됨). session_token 도 함께 줘서 확장이 소지."""
+    from fastapi.responses import JSONResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return JSONResponse({"ok": False}, status_code=401)
+    return {"ok": True, "phone": owner}
 
 
 @app.get("/api/web/materials")

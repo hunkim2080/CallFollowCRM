@@ -17,7 +17,11 @@
     var kind = ev.data.__sgm;
     if (kind === "naver-insert") {
       // 뷰어가 '네이버에 넣기' 누름 → 예약(2분 안에 네이버 글쓰기 뜨면 자동 실행)
-      try { chrome.storage.local.set({ sgmAutoInsert: Date.now() }); } catch (e) {}
+      var upd = { sgmAutoInsert: Date.now() };
+      // 로그인된 '검증 번호'가 실려오면 그걸 저장(사장님이 직접 타이핑 안 함 → 오타·허위 원천 차단)
+      var digits = String((ev.data && ev.data.phone) || "").replace(/\D/g, "");
+      if (digits.length >= 9) upd.sgmPhone = digits;
+      try { chrome.storage.local.set(upd); } catch (e) {}
     } else if (kind === "ping") {
       // 뷰어가 설치 여부 물음 → 마커 재확인 + 응답
       mark();
