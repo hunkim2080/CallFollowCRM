@@ -28003,16 +28003,23 @@ def _web_gather_materials(owner: str, cd: str) -> dict:
 
 
 async def _web_gemini_generate(api_key: str, prompt: str) -> dict:
-    """owner Gemini 키로 JSON 생성. 실패 시 raise."""
+    """owner Gemini 키로 JSON 생성. 실패 시 raise.
+    F-0후속: httpx 45s + 느리면 504(JSON) — Cloudflare 100s hard-limit 전에 서버가 먼저 JSON 응답
+    해서 뷰어 '네트워크 오류'(비-JSON 524) 방지."""
     url = ("https://generativelanguage.googleapis.com/v1beta/models/"
            "gemini-2.0-flash:generateContent")
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        r = await client.post(
-            url, params={"key": api_key},
-            json={
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": 0.75, "responseMimeType": "application/json"},
-            })
+    try:
+        async with httpx.AsyncClient(timeout=45.0) as client:
+            r = await client.post(
+                url, params={"key": api_key},
+                json={
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {"temperature": 0.75, "responseMimeType": "application/json"},
+                })
+    except (httpx.TimeoutException, httpx.ReadTimeout):
+        raise HTTPException(504, "AI 글 생성이 오래 걸려요. 잠시 후 다시 눌러 주세요.")
+    except httpx.HTTPError as e:
+        raise HTTPException(502, f"AI 연결 오류 — 잠시 후 다시 시도해 주세요 ({type(e).__name__})")
     if r.status_code != 200:
         raise HTTPException(502, f"Gemini 오류 {r.status_code}: {r.text[:160]}")
     data = r.json()

@@ -9420,3 +9420,13 @@ Fable5 정밀감사 서버측 결과. android측 F-4·F-5 완료(21a17f5). 아�
 - 🔴 확인/조치: ①`stderr.log`(/Users/hun/ringgo-server/) 에서 generate 시각 트레이스백 / `WORKER TIMEOUT`·`Killed` 로그 ②launchd 실행 커맨드의 **worker/keepalive timeout 을 120s+** 로(Gemini httpx 60s+여유) ③CF 프록시 100s hard limit 도 염두.
 - 결론: **배포(코드)로는 안 풀림 — 프로세스/타임아웃 설정** 이슈. android/앱 무관. + F-8(httpx try/except·한국어문구)도 아직이면 같이.
 - commit: 이 커밋
+
+## 2026-08-17 · cowork(server) → 🔴 generate '네트워크 오류' 회신(타임아웃 가드) + 남은 핸드오프
+### 227346d 회신 — 원인 좁힘 + 코드 가드
+- **launchd 는 순수 `uvicorn main:app`**(gunicorn 아님) → **워커 --timeout 없음**. 즉 "워커 타임아웃 kill"은 성립 안 함. 비-JSON('네트워크 오류')은 **Cloudflare 100s hard-limit(524)** 이 제일 유력.
+- **코드 가드(F-8 포함)**: `_web_gemini_generate` httpx 60→**45s** + `httpx.TimeoutException/HTTPError` → **JSON 504/502 한국어 문구**("AI 글 생성이 오래 걸려요…"). 이제 서버가 CF 100s 전에 **반드시 JSON** 응답 → 뷰어가 '네트워크 오류' 대신 구체 메시지 표시. (검증: 타임아웃 시뮬 → 504)
+- **사장님 확인(진짜 원인 특정)**: 재배포 후에도 그러면 `tail -50 /Users/hun/ringgo-server/stderr.log` 의 generate 시각 로그 한 줄. `[UNHANDLED 500]`/트레이스백 있으면 파이썬 예외(내가 잡음), 없고 CF 524면 순수 시간초과.
+- **동시성 옵션(선택)**: 단일 uvicorn 워커라 STT(통화요약) 진행 중 generate 가 뒤에서 대기하면 느려질 수 있음. plist ProgramArguments 에 `--workers 2` 추가 고려(사장님/android 결정).
+### 남은 핸드오프
+- 🔴 **F-7 '내 스타일 학습'(7050f37)**: 톤 실구현 완성스펙 — 다음 차례(기능). 스펙 읽고 반영 예정.
+- commit: __C__
