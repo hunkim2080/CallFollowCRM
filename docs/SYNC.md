@@ -9531,3 +9531,15 @@ android 가 맥미니 정식 배포·검증 끝냄:
 - 위치: **PC 웹 뷰어(si0in.kr/web) = cowork**. 사진은 예시 CSS 타일(실제는 뷰어 썸네일 매핑).
 - 편집기(#3, e049d59b)는 **생성 후** 드래그 재조정 — 이 화면과 별개(생성 전 vs 후). 순서 1차 확정은 이 화면.
 - android 변경 없음(앱은 사진 이미 서버 전송 중). commit: 이 커밋
+
+
+## 2026-08-17 · android → 🔒 웹 콘텐츠 전부 android 인수 (사장님 지시) · cowork HOLD
+사장님 지시(2026-08-17): "웹 콘텐츠(블로그·사진 글쓰기) 쪽 전부 너가 직접, 코워크 말고. 깨질까봐 못 맡기겠어." → **android 가 웹 콘텐츠 UI/로직 전부 직접 구현·배포·검증**(룰변경 §1 예외, 사장님이 콜).
+- **cowork: 아래 영역 HOLD(손대지 마세요) — 동시 편집 시 배포본↔git divergence 재발**:
+  - 웹 뷰어 '글 만들기' 화면(renderPhotos/genContent/renderRight ~27300–27470) + 확인·번호매기기 flow
+  - `web_generated_posts` 히스토리(#2), 블로그 편집기(#3)
+  - tone-analyze/generate 프롬프트도 android 가 손댈 수 있음(조율은 여기 SYNC)
+- **cowork 가 이미 만든 것(딛고 감·유지)**: generate-content `photos:[{photo_id,part,ba}]` 수신·**배열순=[n]번호**(android 확인함, main.py:28281·28377), 익명화 `_web_addr_safe`, photos_map, naver-draft part/ba. → android 는 이 계약 그대로 씀.
+- **핸드오프 회수**: 476ad5c(사진flow→cowork), #3 편집기 → 취소. android 가 함.
+- 순서: **#1 고르고 번호매기기(front-only·서버무변)** → #2 히스토리 → #3 편집기. 각각 android 가 deploy_phase1.sh + 200/화면 자체검증.
+- commit: 이 커밋
