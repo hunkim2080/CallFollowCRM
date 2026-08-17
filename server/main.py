@@ -27132,6 +27132,68 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .lbside .r{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.08);color:#b7c0cb}.lbside .r b{color:#fff}
   .lbdl{margin-top:14px;background:var(--blue);color:#fff;font-weight:800;font-size:13px;padding:11px;border-radius:11px;text-align:center;cursor:pointer}
   .lbhint{color:#8792a0;font-size:11px;margin-top:8px;text-align:center}
+  /* ═══ 생성 글 렌더(사진배치+서식) + 네이버 넣기 — 프로토 e049d59b/naver-handoff ═══ */
+  #genOut .doc{padding:2px 0}
+  .doc .t{font-size:19px;font-weight:850;letter-spacing:-.01em;margin-bottom:14px;line-height:1.45;color:var(--ink)}
+  .doc p{font-size:14px;color:var(--ink);line-height:1.9;margin:0 0 13px}
+  .doc p.h{font-size:16.5px;font-weight:850;margin:20px 0 10px}
+  .doc b{font-weight:850}
+  .doc .quote{border-left:4px solid var(--violet);background:var(--violet-bg);padding:12px 15px;border-radius:0 8px 8px 0;font-size:14px;font-weight:600;margin:0 0 13px}
+  .doc .hr{height:1px;background:var(--line);margin:18px 6px}
+  .doc p.tags{font-size:13px;color:var(--green);font-weight:700;word-break:keep-all}
+  .prow{display:flex;gap:8px;margin:6px 0 16px;padding:8px;border:1.5px dashed var(--line);border-radius:12px;position:relative;background:var(--sunken)}
+  .prow .matchtip{position:absolute;right:8px;top:-9px;font-size:10px;font-weight:800;color:var(--green);background:var(--green-bg);border:1px solid var(--green);border-radius:6px;padding:1px 8px;white-space:nowrap}
+  .pimg{flex:1;min-width:0;position:relative}
+  .pimg .im{aspect-ratio:4/3;border-radius:8px;position:relative;overflow:hidden;background:var(--sunken)}
+  .pimg .im img{width:100%;height:100%;object-fit:cover;display:block}
+  .pimg .n{position:absolute;left:7px;top:7px;font-size:11px;font-weight:900;color:#fff;background:var(--violet);border-radius:6px;width:20px;height:20px;display:flex;align-items:center;justify-content:center;z-index:2}
+  .pimg .part{position:absolute;right:7px;bottom:7px;font-size:10px;font-weight:800;color:#fff;background:rgba(24,29,39,.68);border-radius:6px;padding:2px 7px;z-index:2}
+  .pcap{font-size:10.5px;color:var(--ink3);margin-top:5px;text-align:center;font-weight:700}
+  .privnote{font-size:11.5px;color:var(--ink3);font-weight:700;text-align:center;padding:8px 0 4px}
+  .gfoot{display:flex;gap:8px;margin-top:14px}
+  .ghostbtn{flex:none;font-size:13.5px;font-weight:800;color:var(--ink2);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 15px;cursor:pointer}
+  .ghostbtn:hover{background:var(--sunken)}
+  .naverbtn{flex:1;font-size:14.5px;font-weight:850;color:#fff;background:#03C75A;border:none;border-radius:12px;padding:12px 15px;cursor:pointer;box-shadow:0 4px 14px rgba(3,199,90,.28)}
+  .naverbtn:hover{filter:brightness(1.05)}
+  .naverbtn:active,.ghostbtn:active{transform:scale(.98)}
+  .rpop{position:fixed;z-index:60;width:262px;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:14px 15px;display:none}
+  .rpop.on{display:block}
+  .rpop b{display:block;font-size:13.5px;margin-bottom:4px;color:var(--ink)}
+  .rpop .d{font-size:12px;color:var(--ink3);line-height:1.55;font-weight:600}
+  .rpop .btns{display:flex;gap:7px;margin-top:11px}
+  .rpop .btns button{flex:1;font-size:12.5px;font-weight:800;border-radius:10px;padding:9px 0;cursor:pointer;font-family:inherit}
+  .rpop .no{background:var(--surface);border:1px solid var(--line);color:var(--ink2)}
+  .rpop .yes{background:var(--violet);border:none;color:#fff}
+  .shv{position:fixed;inset:0;background:rgba(12,15,20,.5);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;z-index:70;padding:18px}
+  .shv.on{display:flex}
+  @media(min-width:560px){.shv{align-items:center}}
+  .shc{width:100%;max-width:432px;background:var(--surface);border:1px solid var(--line);border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.28);padding:22px 22px 16px;position:relative}
+  .shx{position:absolute;right:12px;top:12px;border:none;background:none;font-size:15px;font-weight:800;color:var(--ink3);cursor:pointer;padding:4px 8px;border-radius:8px;font-family:inherit}
+  .shhead{display:flex;gap:12px;align-items:flex-start;margin-bottom:14px}
+  .shck{flex:none;width:38px;height:38px;border-radius:99px;background:#03C75A;color:#fff;font-size:18px;font-weight:900;display:flex;align-items:center;justify-content:center}
+  .sht{font-size:17px;font-weight:850;letter-spacing:-.01em;line-height:1.4;color:var(--ink)}
+  .shs{font-size:12.5px;color:var(--ink3);font-weight:700;margin-top:2px}
+  .steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:13px}
+  .steps li{display:flex;gap:11px;align-items:flex-start}
+  .sn{flex:none;width:23px;height:23px;border-radius:99px;background:var(--sunken);border:1px solid var(--line);color:var(--ink2);font-size:12px;font-weight:900;display:flex;align-items:center;justify-content:center;margin-top:1px}
+  .steps li.done .sn{background:#03C75A;border-color:#03C75A;color:#fff}
+  .steps .sc{font-size:13.5px;color:var(--ink2);line-height:1.6;min-width:0}
+  .steps .sc b{color:var(--ink)}
+  .steps .dim1{font-size:11.5px;color:var(--ink3);font-weight:600;margin-top:3px;line-height:1.55}
+  .reopen{color:var(--blue);font-weight:800;cursor:pointer}
+  .np{width:min(276px,100%);background:#fff;border:1px solid #E5E9EE;border-radius:13px;box-shadow:0 8px 24px rgba(16,24,40,.18);overflow:hidden;margin:9px 0 4px}
+  .nph{display:flex;align-items:center;gap:6px;padding:8px 11px;background:#F5F7F9;border-bottom:1px solid #E5E9EE;font-size:11px;font-weight:850;color:#181D27;white-space:nowrap}
+  .nph b{color:#03C75A}.nph .mm{margin-left:auto;color:#8B95A1;font-weight:800}
+  .npb{padding:10px 11px 11px}
+  .npbtn{position:relative;font-size:11px;font-weight:850;color:#fff;background:#3182F6;border-radius:9px;padding:9px 8px;text-align:center;line-height:1.35;word-break:keep-all}
+  .npbtn .ring{position:absolute;inset:-5px;border:2px solid #03C75A;border-radius:12px;animation:npulse 1.6s ease-out infinite}
+  @keyframes npulse{0%{transform:scale(.96);opacity:.9}70%{transform:scale(1.05);opacity:0}100%{opacity:0}}
+  .nphint{font-size:9.5px;color:#8B95A1;text-align:center;margin-top:6px;font-weight:700}
+  .repcap{font-size:11.5px;color:var(--ink3);font-weight:700;margin-top:2px}
+  .shfoot{font-size:11.5px;color:var(--ink3);font-weight:700;text-align:center;margin:14px 0 10px}
+  .shfoot a{color:var(--blue);font-weight:800;cursor:pointer}
+  .shok{width:100%;font-size:14px;font-weight:850;color:var(--ink2);background:var(--sunken);border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer;font-family:inherit}
+  @media(prefers-reduced-motion:reduce){.npbtn .ring{animation:none;opacity:.6}}
 </style></head><body>
 
 <div class="top">
@@ -27519,11 +27581,65 @@ function pollGen(job, fail, done){
     }).catch(function(){});
   }, 2000);
 }
+/* ═══ 생성 블로그 → 사진 배치 + 서식 렌더 (프로토 e049d59b) ═══ */
+function renderBlogDoc(g){
+  var photos=(g.photos||[]);
+  function pByIdx(n){for(var i=0;i<photos.length;i++)if(photos[i].index===n)return photos[i];return null;}
+  function pimg(pm){
+    var p=gPhoto(pm.photo_id), thumb=p?p.thumb_url:'', isaft=(pm.ba==='after'), batx=isaft?'시공 후':'시공 전', part=pm.part||'';
+    return '<div class="pimg" data-ba="'+(isaft?'after':'before')+'"><div class="im">'
+      +(thumb?'<img loading="lazy" src="'+thumb+'">':'')+'<span class="n">'+pm.index+'</span>'
+      +(part?'<span class="part">'+esc(part)+'</span>':'')+'</div><div class="pcap">'+batx+' · '+pm.index+'번</div></div>';
+  }
+  function prow(nums){
+    var cells='',part='';
+    nums.forEach(function(n){var pm=pByIdx(n);if(pm){cells+=pimg(pm);if(!part)part=pm.part||'';}});
+    if(!cells)return '';
+    return '<div class="prow">'+(part?'<span class="matchtip">🎯 '+esc(part)+' 매칭</span>':'')+cells+'</div>';
+  }
+  function inl(s){return esc(s).replace(/\\*\\*([^*]+)\\*\\*/g,'<b>$1</b>');}
+  var h='<div class="doc" id="genText"><div class="t">'+esc(g.blog.title||'')+'</div>';
+  (g.blog.body||'').split(/\\n\\n+/).forEach(function(blk){
+    blk=(blk||'').replace(/\\r/g,'').trim(); if(!blk)return;
+    var nums=[]; var tx=blk.replace(/\\[(\\d+)\\]/g,function(_m,d){nums.push(parseInt(d,10));return ' ';}).replace(/\\s+/g,' ').trim();
+    if(tx){
+      if(/^---+$/.test(tx)) h+='<div class="hr"></div>';
+      else if(tx.slice(0,3)==='## ') h+='<p class="h">'+inl(tx.slice(3).trim())+'</p>';
+      else if(tx.slice(0,2)==='> ') h+='<div class="quote">'+inl(tx.slice(2).trim())+'</div>';
+      else if(tx.charAt(0)==='#'&&tx.charAt(1)!=='#') h+='<p class="tags">'+esc(tx)+'</p>';
+      else h+='<p>'+inl(tx)+'</p>';
+    }
+    if(nums.length) h+=prow(nums);
+  });
+  return h+'</div>';
+}
+/* ═══ 네이버 넣기 — 새 탭 + 3단계 안내 시트 ═══ */
+var NAVER_WRITE='https://blog.naver.com/GoBlogWrite.naver';
+function openNaverTab(){var w=null;try{w=window.open(NAVER_WRITE,'_blank');}catch(_e){}return !!w;}
+function goNaver(){
+  var ok=openNaverTab();
+  var t=document.getElementById('shTitle'),s=document.getElementById('shSub'),s1=document.getElementById('step1'),sn1=document.getElementById('sn1'),ob=document.getElementById('openBtn');
+  if(ok){t.textContent='네이버 글쓰기를 새 탭으로 열었어요';s.textContent='이제 딱 한 번만 누르면 돼요.';s1.classList.add('done');sn1.textContent='✓';ob.style.display='none';}
+  else{t.textContent='네이버 글쓰기 창을 열어주세요';s.textContent='새 탭이 차단됐어요 — 아래 버튼으로 여세요.';s1.classList.remove('done');sn1.textContent='1';ob.style.display='inline-block';}
+  document.getElementById('naverSheet').classList.add('on');
+}
+function closeSheet(){document.getElementById('naverSheet').classList.remove('on');}
+function copyPlainBlog(){
+  if(!GEN)return; var out=[GEN.blog.title||''];
+  (GEN.blog.body||'').split(/\\n\\n+/).forEach(function(b){
+    var t=b.replace(/\\[(\\d+)\\]/g,'').replace(/\\*\\*/g,'').replace(/^#+\\s*/,'').replace(/^>\\s*/,'').replace(/^---+$/,'').replace(/\\s+/g,' ').trim();
+    if(t)out.push(t);
+  });
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(out.join('\\n\\n'));
+  toast('본문만 복사했어요 (서식·사진은 확장으로 넣어야 들어가요)');
+}
 function drawGen(){
   var out=document.getElementById('genOut'); if(!out||!GEN)return; var g=GEN, body='';
   if(genP==='bl'){
-    body='<div id="genText" class="gen"><h4>'+esc(g.blog.title)+'</h4>'+esc(g.blog.body)+'</div>'
-      +'<div class="genacts"><span class="gpill" onclick="genContent()">↻ 다시</span><span class="gpill p" onclick="copyGen(\\'genText\\',this)">📋 복사 (네이버)</span></div>';
+    body=renderBlogDoc(g)
+      +'<div class="privnote">🔒 고객 이름·연락처·동/호수는 자동으로 뺐어요</div>'
+      +'<div class="gfoot"><button class="ghostbtn" onclick="genContent()">↻ 다시 만들기</button>'
+      +'<button class="naverbtn" onclick="goNaver()">📝 네이버에 넣기</button></div>';
   } else if(genP==='ig'){
     body='<div id="genText" class="gen">'+esc(g.instagram.caption)+'</div>'
       +'<div class="lchips" id="igtags">'+g.instagram.hashtags.map(function(t){return '<span class="lchip">'+esc(t)+'</span>';}).join('')+'</div>'
@@ -27532,7 +27648,7 @@ function drawGen(){
     body='<div id="genText" class="gen">'+esc(g.threads.body)+(g.threads.hashtags.length?('\\n\\n'+esc(g.threads.hashtags.join(' '))):'')+'</div>'
       +'<div class="genacts"><span class="gpill" onclick="genContent()">↻ 다시</span><span class="gpill p" onclick="copyGen(\\'genText\\',this)">📋 복사</span></div>';
   }
-  out.innerHTML=body+'<div class="rnote">🔒 이름·전화·동/호·정확주소는 자동 제거("'+esc(g.region||'지역')+'" 수준). 사진은 가운데서 골라 첨부.</div>';
+  out.innerHTML=body+(genP==='bl'?'':'<div class="rnote">🔒 이름·전화·동/호·정확주소는 자동 제거("'+esc(g.region||'지역')+'" 수준). 사진은 가운데서 골라 첨부.</div>');
 }
 function copyGen(id,btn){var t=document.getElementById(id).innerText;if(navigator.clipboard)navigator.clipboard.writeText(t);var o=btn.textContent;btn.textContent='복사됨 ✓';setTimeout(function(){btn.textContent=o;},1400);}
 /* ===== 라이트박스 ===== */
@@ -27616,6 +27732,38 @@ load();
   .ordfoot .ordbtn.go{margin-left:auto}
   @media(prefers-reduced-motion:reduce){.ordcard,.ordnum{animation:none}}
 </style>
+<!-- 네이버 넣기 3단계 안내 시트 -->
+<div class="shv" id="naverSheet" role="dialog" aria-modal="true">
+  <div class="shc">
+    <button class="shx" onclick="closeSheet()" aria-label="닫기">✕</button>
+    <div class="shhead"><span class="shck">✓</span>
+      <div><div class="sht" id="shTitle">네이버 글쓰기를 새 탭으로 열었어요</div>
+      <div class="shs" id="shSub">이제 딱 한 번만 누르면 돼요.</div></div>
+    </div>
+    <ol class="steps">
+      <li class="done" id="step1"><span class="sn" id="sn1">✓</span>
+        <div class="sc"><b>네이버 글쓰기 새 탭</b>이 열려 있어요 · <span class="reopen" onclick="openNaverTab()">다시 열기</span>
+          <button class="naverbtn" id="openBtn" style="display:none;margin-top:8px;flex:none;padding:10px 14px;font-size:13px" onclick="openNaverTab()">🌐 네이버 글쓰기 열기</button></div>
+      </li>
+      <li><span class="sn">2</span>
+        <div class="sc">왼쪽 아래 <b>🧩 시공막내 패널</b>에서 파란 버튼을 누르세요
+          <div class="np"><div class="nph"><span>🧩 시공막내 · <b>네이버 넣기</b></span><span class="mm">—</span></div>
+            <div class="npb"><div class="npbtn"><span class="ring"></span>⬇✨ 시공막내 글 → 네이버에 바로 넣기</div>
+            <div class="nphint">서버에서 불러와 제목·글·사진까지 한 번에</div></div></div>
+          <div class="repcap">네이버 화면 왼쪽 아래에 이렇게 떠 있어요</div>
+          <div class="dim1">처음 한 번은 전화번호를 물어봐요 — 내 글을 찾는 용도예요.</div>
+        </div>
+      </li>
+      <li><span class="sn">3</span>
+        <div class="sc"><b>제목·글·사진이 자동으로</b> 들어가요 — 확인하고 <b>발행만 직접</b> 누르면 끝!
+          <div class="dim1">자동 발행은 안 해요</div>
+        </div>
+      </li>
+    </ol>
+    <div class="shfoot">패널이 안 보이면 네이버 탭 새로고침(F5) · 확장 없으면 <a onclick="copyPlainBlog()">본문만 복사</a></div>
+    <button class="shok" onclick="closeSheet()">확인했어요</button>
+  </div>
+</div>
 </body></html>"""
 
 
@@ -28464,6 +28612,7 @@ async def _web_gen_finish(job_id, api_key, prompt, owner, cd, _sel, n_pics, m):
             "threads": {"body": th.get("body") or "",
                         "hashtags": [str(h) for h in (th.get("hashtags") or [])][:2],
                         "chars": _len(th.get("body"))},
+            "photos": photos_map,   # 뷰어 미리보기가 [n] 자리에 사진 배치용(선택·자동 둘 다). {index,photo_id,part,ba}
         }
         _WEB_GEN_JOBS[job_id] = {"status": "done", "result": result, "ts": _now_ms()}
     except HTTPException as e:
