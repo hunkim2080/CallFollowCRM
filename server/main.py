@@ -5343,6 +5343,22 @@ async def _error_tracking_middleware(request: Request, call_next):
     return response
 
 
+@app.exception_handler(Exception)
+async def _json_500_handler(request: Request, exc: Exception):
+    """미처리 예외를 항상 JSON 500 으로 응답. (웹 뷰어가 비-JSON 500 을 '네트워크 오류'로 오인하던 것 차단)
+    실제 원인은 stderr 트레이스백으로 남겨 배포 로그에서 추적."""
+    import traceback
+    from fastapi.responses import JSONResponse
+    print(f"[UNHANDLED 500] {request.method} {request.url.path}: {type(exc).__name__}: {exc}")
+    traceback.print_exc()
+    try:
+        _record_system_error(request.url.path, 500, f"{type(exc).__name__}: {exc}")
+    except Exception:
+        pass
+    return JSONResponse(status_code=500,
+                        content={"detail": f"서버 오류({type(exc).__name__}) — 잠시 후 다시 시도해 주세요"})
+
+
 # ── 보안 §B-2 — 세션 토큰 인증 강제 (미들웨어, 기본 OFF) ──
 # AUTH_ENFORCE=1 일 때만 작동. 앱이 Authorization: Bearer <sessionToken> 부착 배포 완료 후 켠다.
 # 켜기 전엔 아무 변화 없음(기존 앱 안 깨짐). 소유주 전용 데이터 경로만 보호(고객/뷰어/공개 제외).
@@ -12109,21 +12125,33 @@ async def _ollama_label_speakers(texts: list) -> list:
         curlen += tl
     if cur:
         batches.append(cur)
-    res = []
-    for batch in batches:
+
+    # 감사#7: 배치 순차 await → 병렬(동시 3개 상한)로. 긴 통화 라벨링 지연 대폭 단축.
+    # gather 는 입력 순서 보존 → 세그먼트 순서(탭재생 start_ms 정렬) 그대로 유지.
+    _sem = asyncio.Semaphore(3)
+
+    async def _label_batch(batch):
         joined = "\n".join("%d. %s" % (j + 1, t) for j, t in enumerate(batch))
         labels = None
         try:
-            out = await call_ollama_json(
-                system_prompt=sys_p, user_msg=joined,
-                model=OLLAMA_CORRECT_MODEL, temperature=0.0, max_tokens=1024, timeout=120.0)
+            async with _sem:
+                out = await call_ollama_json(
+                    system_prompt=sys_p, user_msg=joined,
+                    model=OLLAMA_CORRECT_MODEL, temperature=0.0, max_tokens=1024, timeout=120.0)
             sp = out.get("speakers") if isinstance(out, dict) else None
             if isinstance(sp, list):
                 labels = sp
         except Exception:
             labels = None
-        for k in range(len(batch)):
-            v = str(labels[k]).strip() if (labels and k < len(labels)) else ""
+        return [
+            (str(labels[k]).strip() if (labels and k < len(labels)) else "")
+            for k in range(len(batch))
+        ]
+
+    batch_results = await asyncio.gather(*[_label_batch(b) for b in batches])
+    res = []
+    for br in batch_results:
+        for v in br:
             res.append(v if v in ("나", "손님") else "?")
     return res
 
@@ -16432,6 +16460,60 @@ def _delete_invalid_token(token: str) -> None:
         print(f"[fcm] token 삭제 실패: {type(e).__name__}: {e}")
 
 
+def _fcm_sign_private():
+    """FCM 서명용 Ed25519 개인키(server_kv 에 1회 생성·보관). 강한 비대칭 서명 —
+    앱엔 공개키만 실려서(비밀 없음) 난독화 off 여도 위조 불가. cryptography 없으면 None(미서명 폴백)."""
+    try:
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+        from cryptography.hazmat.primitives import serialization
+    except Exception:
+        return None
+    import base64 as _b64
+    with db_conn() as con:
+        row = con.execute("SELECT v FROM server_kv WHERE k='fcm_ed25519_priv'").fetchone()
+        if row:
+            raw = _b64.b64decode(row[0])
+            return Ed25519PrivateKey.from_private_bytes(raw)
+        pk = Ed25519PrivateKey.generate()
+        raw = pk.private_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PrivateFormat.Raw,
+            encryption_algorithm=serialization.NoEncryption())
+        con.execute("INSERT OR REPLACE INTO server_kv (k,v) VALUES ('fcm_ed25519_priv',?)",
+                    (_b64.b64encode(raw).decode(),))
+        con.commit()
+    return pk
+
+
+def _fcm_canonical(data: dict, exp_ms: int) -> bytes:
+    """서명 대상 정규화 문자열. sig/exp/sig_alg 제외한 키를 정렬해 'k=v\\n...' + 'exp=<ms>'.
+    앱은 받은 data 에서 동일 규칙으로 재구성해 검증."""
+    items = sorted((k, str(v)) for k, v in data.items()
+                   if k not in ("sig", "exp", "sig_alg") and v is not None)
+    body = "\n".join("%s=%s" % (k, v) for k, v in items)
+    return (body + "\nexp=%d" % exp_ms).encode("utf-8")
+
+
+def _fcm_sign_payload(data_str: dict) -> dict:
+    """data_str(모두 string) 에 exp/sig/sig_alg 부착. 실패해도 원본 반환(미서명 → 앱은 pull-confirm)."""
+    try:
+        pk = _fcm_sign_private()
+        if pk is None:
+            return data_str
+        import base64 as _b64
+        exp_ms = _now_ms() + 300000  # 5분 만료
+        msg = _fcm_canonical(data_str, exp_ms)
+        sig = pk.sign(msg)
+        out = dict(data_str)
+        out["exp"] = str(exp_ms)
+        out["sig"] = _b64.b64encode(sig).decode()
+        out["sig_alg"] = "ed25519"
+        return out
+    except Exception as e:
+        print(f"[fcm] 서명 skip: {type(e).__name__}: {e}")
+        return data_str
+
+
 def _send_fcm_data_to_phone(phone_digits: str, data: dict) -> dict:
     """phone 의 모든 토큰으로 FCM data-only 메시지 전송.
 
@@ -16449,6 +16531,7 @@ def _send_fcm_data_to_phone(phone_digits: str, data: dict) -> dict:
         return result
     # data payload 는 모두 string (FCM 요구사항)
     data_str = {k: str(v) for k, v in data.items() if v is not None}
+    data_str = _fcm_sign_payload(data_str)   # 감사#1: Ed25519 서명 부착(위조 방지)
     for tok in tokens:
         try:
             message = messaging.Message(
@@ -16557,6 +16640,24 @@ class PushRegisterRequest(BaseModel):
     phone: str
     token: str
     platform: Optional[str] = "android"
+
+
+@app.get("/api/fcm/pubkey")
+async def fcm_pubkey() -> dict:
+    """FCM 서명 검증용 Ed25519 공개키(base64 raw 32B). 앱이 1회 받아 캐시(또는 빌드에 임베드).
+    비밀 없음 — 공개키로 검증만 가능, 위조 불가."""
+    try:
+        from cryptography.hazmat.primitives import serialization
+        import base64 as _b64
+        pk = _fcm_sign_private()
+        if pk is None:
+            return {"ok": False, "reason": "서명 비활성(cryptography 미설치)"}
+        pub = pk.public_key().public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw)
+        return {"ok": True, "alg": "ed25519", "pubkey_b64": _b64.b64encode(pub).decode()}
+    except Exception as e:
+        return {"ok": False, "reason": f"{type(e).__name__}: {e}"}
 
 
 @app.post("/api/push/register")
@@ -26496,24 +26597,18 @@ async def web_login_status(request: Request, t: str):
                 con.commit()
                 return JSONResponse({"status": "expired"})
             return JSONResponse({"status": "pending"})
-        # 승인됨 → 세션 발급 + 티켓 1회용 소멸
-        # 지적: 같은 PC서 연결확인 몇 번에 '기기 24대'로 쌓임 → 같은 기기(user_agent)면 기존 세션 재사용.
+        # 승인됨 → 세션 발급 + 티켓 1회용 소멸 (핸드오프 3cca79d 스펙)
+        # 같은 브라우저(owner+user_agent) 재로그인 = 기존 세션 대체(25대 쌓임 방지) + 30일 미활동 정리.
+        # 옛 sid 는 폐기(대체) → 남아있던 옛 쿠키 무효 = 더 안전.
         onorm = _norm_phone(owner)
-        existing = con.execute(
-            "SELECT sid FROM web_sessions WHERE owner_phone = ? AND user_agent = ? "
-            "ORDER BY last_active_ms DESC LIMIT 1", (onorm, ua)).fetchone()
-        if existing:
-            sid = existing[0]
-            con.execute("UPDATE web_sessions SET last_active_ms = ? WHERE sid = ?", (now, sid))
-        else:
-            import secrets
-            sid = secrets.token_urlsafe(24)
-            con.execute(
-                "INSERT INTO web_sessions (sid, owner_phone, created_at_ms, last_active_ms, user_agent) "
-                "VALUES (?,?,?,?,?)", (sid, onorm, now, now, ua))
-        # 오래된 세션 정리(30일 초과) — 유령 기기 누적 방지
+        import secrets
+        con.execute("DELETE FROM web_sessions WHERE owner_phone = ? AND user_agent = ?", (onorm, ua))
         con.execute("DELETE FROM web_sessions WHERE owner_phone = ? AND last_active_ms < ?",
                     (onorm, now - 30 * 24 * 3600 * 1000))
+        sid = secrets.token_urlsafe(24)
+        con.execute(
+            "INSERT INTO web_sessions (sid, owner_phone, created_at_ms, last_active_ms, user_agent) "
+            "VALUES (?,?,?,?,?)", (sid, onorm, now, now, ua))
         con.execute("DELETE FROM web_login_tickets WHERE ticket = ?", (tok,))
         con.commit()
     resp = JSONResponse({"status": "authorized"})
@@ -26592,14 +26687,21 @@ async def web_site(request: Request, customer_digits: str):
     if not owner:
         return JSONResponse({"error": "unauthorized"}, status_code=401)
     key = _web_pkey(customer_digits)
+    req_d = _webre.sub(r"[^0-9]", "", customer_digits or "")
     crow = None
+    crow_suffix = None  # 감사#9: 끝8 충돌 대비 — 전체번호 정확일치 우선, 없으면 suffix 폴백
     with db_conn() as con:
         for r in con.execute(
             "SELECT customer_digits, name, apartment, dong_ho, work_date, category, completed "
             "FROM web_schedule_feed WHERE owner_phone = ?", (owner,)).fetchall():
-            if _web_pkey(r[0]) == key:
+            rd = _webre.sub(r"[^0-9]", "", r[0] or "")
+            if rd == req_d:
                 crow = r[1:]
                 break
+            if crow_suffix is None and _web_pkey(r[0]) == key:
+                crow_suffix = r[1:]
+    if crow is None:
+        crow = crow_suffix
     photos_raw = _web_photo_bucket(owner).get(key, [])
     n = len(photos_raw)
     # 서버에 저장된 사진 태그(부위·시공전후) — 어느 PC서든 유지
@@ -27649,6 +27751,9 @@ _MYPAGE_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .hist{max-height:0;overflow:hidden;transition:max-height .4s ease}.hist.open{max-height:600px}
   .linkbtn{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:800;color:var(--blue);cursor:pointer;background:none;border:none;padding:8px 0}
   .rowbtns{display:flex;gap:10px;margin-top:15px}
+  .acttoggle{display:flex;align-items:center;justify-content:space-between;background:var(--sunken);border:1px solid var(--line);border-radius:11px;padding:12px 14px;font-size:13px;font-weight:800;color:var(--ink);cursor:pointer}
+  .acttoggle .arw{color:var(--ink3);font-size:16px;transition:transform .2s}
+  .actbody{margin-top:6px}
   .btn{text-align:center;font-size:12.5px;font-weight:800;border-radius:10px;padding:10px 16px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink2)}
   .btn.danger{color:var(--red);border-color:var(--red-bg)}
   .keyrow{display:flex;gap:9px;align-items:center}
@@ -27700,11 +27805,14 @@ _MYPAGE_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
       <div class="sec" id="s1">
         <div class="sh"><span class="ic">🔐</span><span class="t">로그인 & 보안</span><span class="badge on" id="secBadge">이 기기 안전</span></div>
         <div class="body">
-          <p class="desc">이 계정으로 <b>어느 기기</b>가 로그인돼 있는지 보여줘요. 모르는 기기가 있으면 <b>바로 로그아웃</b>하세요. (QR 보안 대응)</p>
-          <div class="flabel">로그인된 기기</div>
-          <div id="devList"></div>
-          <div class="rowbtns">
-            <div class="btn danger" onclick="logoutAll()">모든 기기 로그아웃</div>
+          <p class="desc">이 계정은 <b id="secLine">이 기기에서 안전하게</b> 쓰고 있어요. 로그인 이력이 궁금하거나 모르는 기기를 정리하려면 아래를 열어보세요.</p>
+          <div class="acttoggle" onclick="toggleAct()"><span>🖥️ 내 활동 기록 보기 <span id="actCnt" style="color:var(--ink3);font-weight:700"></span></span><span class="arw" id="actArw">›</span></div>
+          <div class="actbody" id="actBody" style="display:none">
+            <div class="flabel">로그인된 기기 · 최근활동</div>
+            <div id="devList"></div>
+            <div class="rowbtns">
+              <div class="btn danger" onclick="logoutAll()">모르는 기기 있어요 · 모든 기기 로그아웃</div>
+            </div>
           </div>
         </div>
       </div>
@@ -27772,8 +27880,10 @@ function render(){
   });
   document.getElementById('devList').innerHTML=h||'<div class="dd" style="padding:12px 0">로그인된 기기가 없어요.</div>';
   var n=(ME.sessions||[]).length;
-  document.getElementById('secBadge').textContent = n>1 ? ('기기 '+n+'대 로그인') : '이 기기 안전';
-  document.getElementById('secBadge').className = n>1 ? 'badge warn' : 'badge on';
+  // 평소엔 겁주지 않기 — 배지는 항상 '이 기기 안전'. 실제 기기 목록은 [내 활동 기록 보기]에서 확인.
+  document.getElementById('secBadge').textContent='이 기기 안전';
+  document.getElementById('secBadge').className='badge on';
+  var _ac=document.getElementById('actCnt'); if(_ac)_ac.textContent = n>1 ? ('· 기기 '+n) : '';
   // 키
   if(ME.key&&ME.key.connected){
     document.getElementById('keyBadge').textContent='연결됨'; document.getElementById('keyBadge').className='badge on';
@@ -27806,6 +27916,7 @@ function addTone(){var u=document.getElementById('toneIn').value.trim();if(!u){a
   fetch('/api/web/tone-url',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:u})})
   .then(_rjson).then(function(d){if(d&&d.ok===false){alert(d.detail||'추가 실패');return;}document.getElementById('toneIn').value='';toast('추가됨 ✓');load();}).catch(function(){alert('네트워크 오류 · 연결 상태를 확인해 주세요');});}
 function delTone(id){fetch('/api/web/tone-url?id='+id,{method:'DELETE'}).then(function(){toast('삭제됨');load();});}
+function toggleAct(){var b=document.getElementById('actBody'),a=document.getElementById('actArw');var on=b.style.display==='none';b.style.display=on?'block':'none';if(a)a.style.transform=on?'rotate(90deg)':'';}
 function logoutSid(sid){if(!confirm('이 기기를 로그아웃할까요?'))return;fetch('/api/web/logout-session?sid='+encodeURIComponent(sid),{method:'POST'}).then(function(){toast('로그아웃했어요');load();});}
 function logoutAll(){if(!confirm('모든 기기에서 로그아웃할까요? (이 PC 포함)'))return;fetch('/api/web/logout-all?owner_phone='+encodeURIComponent(ME.owner_phone),{method:'POST'}).then(function(){location.href='/web/login';});}
 function thisLogout(){var cur=(ME&&ME.sessions||[]).filter(function(s){return s.is_current;})[0];if(cur){fetch('/api/web/logout-session?sid='+encodeURIComponent(cur.sid),{method:'POST'}).then(function(){location.href='/web/login';});}else{location.href='/web/login';}}
@@ -27844,18 +27955,29 @@ def _web_region_only(apartment: str) -> str:
 def _web_gather_materials(owner: str, cd: str) -> dict:
     """글 생성 재료 수집(익명화 전 원본, owner 소유만). 통화요약+메모+현장."""
     key8 = _web_pkey(cd)
+    req_d = _webre.sub(r"[^0-9]", "", cd or "")
     site = {}
+    site_suffix = {}   # 감사#9: 전체번호 정확일치 우선, 없으면 끝8 suffix 폴백
     memo = ""
+    memo_suffix = ""
     with db_conn() as con:
         for r in con.execute(
             "SELECT customer_digits, apartment, dong_ho, work_date, category, completed, memo "
             "FROM web_schedule_feed WHERE owner_phone = ?", (owner,)).fetchall():
-            if _web_pkey(r[0]) == key8:
-                site = {"apartment": r[1] or "", "dong_ho": r[2] or "",
-                        "work_date": r[3] or "", "category": r[4] or "",
-                        "completed": bool(r[5])}
+            rd = _webre.sub(r"[^0-9]", "", r[0] or "")
+            _rec = {"apartment": r[1] or "", "dong_ho": r[2] or "",
+                    "work_date": r[3] or "", "category": r[4] or "",
+                    "completed": bool(r[5])}
+            if rd == req_d:            # 전체번호 정확일치 → 확정
+                site = _rec
                 memo = r[6] or ""
                 break
+            if not site_suffix and _web_pkey(r[0]) == key8:   # 끝8 suffix 폴백(첫 건만)
+                site_suffix = _rec
+                memo_suffix = r[6] or ""
+        if not site:                   # 정확일치 없으면 suffix 폴백 사용
+            site = site_suffix
+            memo = memo_suffix
         # 통화요약 재료(2026-08-17 부활): 감사#1 로 summary_cache(owner 컬럼 없음) 직접조회는 금지.
         # 대신 앱이 owner-scoped 로 push 한 web_customer_content.call_summary 를 사용 → 크로스오너 안전.
         # 톤 URL
