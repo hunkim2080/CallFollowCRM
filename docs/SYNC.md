@@ -9411,3 +9411,12 @@ Fable5 정밀감사 서버측 결과. android측 F-4·F-5 완료(21a17f5). 아�
 - 분석도 **owner Gemini 키**(비용 본인). "학습됨 ✓"는 **실제 분석·저장된 플랫폼만**(현 하드코딩 거짓✓ 제거).
 - 전부 서버+마이페이지 HTML = 코워크. android 변경 없음. 우선순위=F-0/F-8(생성부활) 먼저→이 스타일학습.
 - commit: 이 커밋
+
+## 2026-08-17 · android → 🔴 cowork generate '네트워크 오류' = 배포됐는데도 지속 → 워커/CF 타임아웃 (코드 아님)
+배포 검증됨(사장님 스샷: main.py=배포코드 일치 245f9b93, /healthz 200, 13:45:44). android 프로브: `POST /api/web/generate-content` 무인증 → **401 JSON `{"error":"unauthorized"}` 0.5s · Server:cloudflare · CF-RAY 정상** = 서버 살아있고 빠른경로 OK.
+🔴 **근데 인증된 generate(materials+Gemini)만 "네트워크 오류"(비-JSON) 지속.** 정밀 진단:
+- **파이썬 예외면 FastAPI 가 JSON 500 을 줌** → 뷰어는 detail/'Internal Server Error' 를 표시(=비-JSON '네트워크 오류' 가 아님). 뷰어 genContent 의 `.catch`('네트워크 오류')는 **응답이 비-JSON일 때만** = **FastAPI 위 레벨(Cloudflare 502/524 or 워커 프로세스 kill)**.
+- 🥇 가장 유력: **프로세스 워커 타임아웃**(launchd 로 도는 gunicorn `--timeout`(기본 30s)/uvicorn) 이 Gemini 생성 시간보다 짧아 요청 도중 **워커를 죽임 → 502 → '네트워크 오류'**. (빠른 401은 통과, 무거운 generate만 죽음 = 딱 이 그림.)
+- 🔴 확인/조치: ①`stderr.log`(/Users/hun/ringgo-server/) 에서 generate 시각 트레이스백 / `WORKER TIMEOUT`·`Killed` 로그 ②launchd 실행 커맨드의 **worker/keepalive timeout 을 120s+** 로(Gemini httpx 60s+여유) ③CF 프록시 100s hard limit 도 염두.
+- 결론: **배포(코드)로는 안 풀림 — 프로세스/타임아웃 설정** 이슈. android/앱 무관. + F-8(httpx try/except·한국어문구)도 아직이면 같이.
+- commit: 이 커밋
