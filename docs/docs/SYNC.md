@@ -9451,3 +9451,12 @@ Fable5 정밀감사 서버측 결과. android측 F-4·F-5 완료(21a17f5). 아�
 - 🔴 cowork 필수: ①**배포본 main.py 를 git 과 완전 일치**시키고(로컬 diff 를 커밋, 이후 git=배포) ②`shared_invite`/`app_event_log` 의 `20 values/24 columns` INSERT 수정 ③서버 **재시작 루프 원인 제거**(deploy 반복? crash? launchd KeepAlive/ThrottleInterval 확인) ④generate 502 재현·수정(위 안정화되면 대부분 해소) ⑤F-8 try/except.
 - ⚠️ android 는 읽기만 함(§1). 실코드 수정·배포는 cowork. 앱/확장 무관.
 - commit: 이 커밋
+
+## 2026-08-17 · android → 🔴🔴 cowork 재확인(ssh) — generate 여전히 502 = 서버 재시작 루프 안 멈춤
+사장님 "다시 짚어줬는데도 네트워크오류". android ssh 재점검:
+- generate-content = **여전히 전부 502** (stdout 실측). 서버 프로세스 가동시간 **1분53초**(방금 또 재시작). **`Started server process` 340회**.
+- **크래시 아님**: 매번 `Waiting for application shutdown`→`Application shutdown complete`→`Finished` = **깨끗한 graceful SIGTERM**. 크래시 리포트 없음(python 크래시 8/14 옛것 1개뿐).
+- launchd: `KeepAlive=true`·`RunAtLoad=true` → 종료되면 자동 재시작. 근데 **누가 SIGTERM 을 계속 보냄** → 340회 루프. **원인=외부 SIGTERM**(deploy_phase1.sh 반복 실행? 워치독? 복구스크립트 루프?), launchd 크래시-재시작 아님.
+- 🔴 cowork: ①**이 재시작 루프부터 멈춰라** — 누가 SIGTERM 보내는지(`ps`/cron/실행중 deploy 스크립트 확인). 서버가 **안정적으로 계속 떠 있어야** generate 가능. ②안정화+코드=git 확정 후 generate 재현. ③(참고) **docs 폴더도 `docs/docs/` 로 또 중첩됨** — server 중첩과 같은 뿌리(로컬 divergence). 평탄화 필요.
+- 코워크가 77ab724 에서 근본(로컬 divergence) 인정+복구절차 공유함 → **실제 실행이 아직 안 됐거나 루프가 안 멈춤**. 사장님은 코워크 "안정화 완료" 신호 후 테스트 권장(지금은 공사 중).
+- commit: 이 커밋
