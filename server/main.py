@@ -27489,21 +27489,35 @@ function orderGo(){
   if(total===0||genOrder.length<total){var go=document.getElementById('ordGo');go.classList.remove('shake');void go.offsetWidth;go.classList.add('shake');toast('아직 번호 안 매긴 사진이 있어요 — 남은 사진도 눌러주세요');return;}
   ordNumClose(); doGenerate();
 }
-/* 실제 생성 — genOrder(클릭순)대로 photos[] 전송 → 서버가 [1][2][3] 매칭 */
+/* 실제 생성 — genOrder(클릭순)대로 photos[] 전송 → job_id 받고 폴링(게이트웨이 타임아웃 없음) */
 function doGenerate(){
   if(!curCd)return;
   var gl=document.getElementById('genload'); var out=document.getElementById('genOut'); out.innerHTML='';
   var steps=gl.querySelectorAll('.gstep'); gl.classList.add('on'); steps.forEach(function(s){s.className='gstep';});
   var i=0,anim=setInterval(function(){if(i>0)steps[i-1].className='gstep ok';if(i<steps.length){steps[i].className='gstep doing';i++;}else{clearInterval(anim);}},520);
+  function fail(msg){clearInterval(anim);gl.classList.remove('on');out.innerHTML='<div style="padding:14px;color:#F0436A;font-size:13px">'+esc(msg)+'</div>';}
+  function done(j){clearInterval(anim);gl.classList.remove('on');GEN=j;MAT=null;if(mTab==='story')renderStory();var b=document.querySelector('#rbody .genbig');if(b)b.textContent='↻ 다시 만들기';drawGen();}
   var chosen=genOrder.map(function(id){var p=gPhoto(id);return {photo_id:id, part:partFor(id), ba:p?baFor(p):'before'};});
   fetch('/api/web/generate-content',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer_digits:curCd, photos:chosen})})
   .then(function(r){return r.json().then(function(j){return {s:r.status,j:j};});}).then(function(o){
-    clearInterval(anim); gl.classList.remove('on');
-    if(o.s!==200){out.innerHTML='<div style="padding:14px;color:#F0436A;font-size:13px">'+esc(o.j.detail||'생성 실패')+'</div>';return;}
-    GEN=o.j; MAT=null; if(mTab==='story')renderStory();
-    document.querySelector('#rbody .genbig').textContent='↻ 다시 만들기';
-    drawGen();
-  }).catch(function(){clearInterval(anim);gl.classList.remove('on');out.innerHTML='<div style="padding:14px;color:#F0436A;font-size:13px">네트워크 오류 · 다시 시도해 주세요</div>';});
+    if(o.s!==200||!o.j.job_id){ fail((o.j&&o.j.detail)||'생성 실패'); return; }
+    pollGen(o.j.job_id, fail, done);
+  }).catch(function(){ fail('네트워크 오류 · 다시 시도해 주세요'); });
+}
+/* 2초마다 상태 폴링 — done/error 까지(최대 ~200초). 폴링은 즉답이라 게이트웨이 타임아웃 안 남. */
+function pollGen(job, fail, done){
+  var tries=0;
+  var iv=setInterval(function(){
+    tries++;
+    if(tries>100){ clearInterval(iv); fail('생성이 너무 오래 걸려요 · 다시 시도해 주세요'); return; }
+    fetch('/api/web/generate-status?job='+encodeURIComponent(job))
+    .then(function(r){return r.json();}).then(function(j){
+      if(!j||j.status==='pending') return;
+      if(j.status==='unknown'){ clearInterval(iv); fail('생성 작업을 찾지 못했어요 · 다시 시도해 주세요'); return; }
+      clearInterval(iv);
+      if(j.status==='done') done(j); else fail(j.detail||'생성 실패');
+    }).catch(function(){});
+  }, 2000);
 }
 function drawGen(){
   var out=document.getElementById('genOut'); if(!out||!GEN)return; var g=GEN, body='';
@@ -28378,15 +28392,15 @@ def _web_gather_materials(owner: str, cd: str) -> dict:
             "convo": convo, "tone_urls": tones}
 
 
-async def _web_gemini_generate(api_key: str, prompt: str) -> dict:
+async def _web_gemini_generate(api_key: str, prompt: str, timeout: float = 75.0) -> dict:
     """owner Gemini 키로 JSON 생성. 실패 시 raise.
-    F-0후속: httpx 45s + 느리면 504(JSON) — Cloudflare 100s hard-limit 전에 서버가 먼저 JSON 응답
-    해서 뷰어 '네트워크 오류'(비-JSON 524) 방지."""
+    동기 호출은 75s(CF 100s 안쪽). 백그라운드 잡(_web_gen_finish)은 폴링이라 게이트웨이를
+    안 붙잡으므로 넉넉히(150s) 줘서 3.5-flash 가 오래 걸려도 완주."""
     # gemini-2.0-flash 는 구글이 폐기(404) → 현행 모델로. 나머지 코드도 GEMINI_MODEL(2.5-flash) 사용.
     url = ("https://generativelanguage.googleapis.com/v1beta/models/"
            + GEMINI_MODEL + ":generateContent")
     try:
-        async with httpx.AsyncClient(timeout=75.0) as client:   # CF 100s 안쪽 여유(3.5-flash 가끔 40s+)
+        async with httpx.AsyncClient(timeout=timeout) as client:   # 동기=75s / 백그라운드 잡=150s
             r = await client.post(
                 url, params={"key": api_key},
                 json={
@@ -28405,6 +28419,53 @@ async def _web_gemini_generate(api_key: str, prompt: str) -> dict:
         return json.loads(txt)   # 감사#6 — 파싱 실패도 502 로(500 방지)
     except Exception:
         raise HTTPException(502, "Gemini 응답 형식 오류(JSON 파싱 실패)")
+
+
+# ── 웹 블로그 생성 = 백그라운드 잡 + 폴링 (게이트웨이 504/524 원천 차단) ──
+#   동기 await 는 Gemini 가 75s+ 걸리면 CF/서버 타임아웃 → 뷰어 '네트워크 오류'. 대신
+#   즉시 job_id 반환 → 백그라운드 태스크가 완주 → 클라가 /api/web/generate-status 폴링.
+_WEB_GEN_JOBS = {}   # job_id -> {"status": "pending"|"done"|"error", "result": {...}, "detail": str, "ts": ms}
+
+async def _web_gen_finish(job_id, api_key, prompt, owner, cd, _sel, n_pics, m):
+    """백그라운드 생성 — 결과를 _WEB_GEN_JOBS[job_id] 에 저장(폴링용)."""
+    try:
+        out = await _web_gemini_generate(api_key, prompt, timeout=150.0)
+        def _len(s):
+            return len(str(s or ""))
+        blog = out.get("blog") or {}
+        ig = out.get("instagram") or {}
+        th = out.get("threads") or {}
+        photos_map = [{"index": i + 1, "photo_id": _sel[i]["photo_id"],
+                       "part": _sel[i].get("part") or "", "ba": _sel[i].get("ba") or ""}
+                      for i in range(n_pics)]
+        try:
+            with db_conn() as con:
+                con.execute(
+                    "INSERT OR REPLACE INTO web_generated_posts "
+                    "(owner_phone, customer_digits, title, draft, photos_json, created_at_ms) "
+                    "VALUES (?,?,?,?,?,?)",
+                    (owner, cd, blog.get("title") or "", blog.get("body") or "",
+                     json.dumps(photos_map, ensure_ascii=False), _now_ms()))
+                con.commit()
+        except Exception:
+            pass
+        result = {
+            "persona": out.get("persona") or "",
+            "region": m["region"],
+            "blog": {"title": blog.get("title") or "", "body": blog.get("body") or "",
+                     "chars": _len(blog.get("body"))},
+            "instagram": {"caption": ig.get("caption") or "",
+                          "hashtags": [str(h) for h in (ig.get("hashtags") or [])][:15],
+                          "chars": _len(ig.get("caption"))},
+            "threads": {"body": th.get("body") or "",
+                        "hashtags": [str(h) for h in (th.get("hashtags") or [])][:2],
+                        "chars": _len(th.get("body"))},
+        }
+        _WEB_GEN_JOBS[job_id] = {"status": "done", "result": result, "ts": _now_ms()}
+    except HTTPException as e:
+        _WEB_GEN_JOBS[job_id] = {"status": "error", "detail": str(e.detail), "ts": _now_ms()}
+    except Exception:
+        _WEB_GEN_JOBS[job_id] = {"status": "error", "detail": "생성 중 오류가 났어요. 잠시 후 다시 눌러 주세요.", "ts": _now_ms()}
 
 
 class WebGenReq(BaseModel):
@@ -28500,40 +28561,37 @@ async def web_generate_content(request: Request, req: WebGenReq):
         '"instagram":{"caption":"캡션","hashtags":["#태그", "... 15개"]},'
         '"threads":{"body":"본문","hashtags":["#태그1","#태그2"]}}'
     )
-    out = await _web_gemini_generate(api_key, prompt)
-    # 정규화(길이 계산 등)
-    def _len(s):
-        return len(str(s or ""))
-    blog = out.get("blog") or {}
-    ig = out.get("instagram") or {}
-    th = out.get("threads") or {}
-    # 크롬 확장 '불러오기'용 — 최근 생성 글 저장(마커 본문 + 사진 index·부위·전후 매핑, 선택 순서대로)
-    photos_map = [{"index": i + 1, "photo_id": _sel[i]["photo_id"],
-                   "part": _sel[i].get("part") or "", "ba": _sel[i].get("ba") or ""}
-                  for i in range(n_pics)]
-    try:
-        with db_conn() as con:
-            con.execute(
-                "INSERT OR REPLACE INTO web_generated_posts "
-                "(owner_phone, customer_digits, title, draft, photos_json, created_at_ms) "
-                "VALUES (?,?,?,?,?,?)",
-                (owner, cd, blog.get("title") or "", blog.get("body") or "",
-                 json.dumps(photos_map, ensure_ascii=False), _now_ms()))
-            con.commit()
-    except Exception:
-        pass
-    return {
-        "persona": out.get("persona") or "",
-        "region": m["region"],
-        "blog": {"title": blog.get("title") or "", "body": blog.get("body") or "",
-                 "chars": _len(blog.get("body"))},
-        "instagram": {"caption": ig.get("caption") or "",
-                      "hashtags": [str(h) for h in (ig.get("hashtags") or [])][:15],
-                      "chars": _len(ig.get("caption"))},
-        "threads": {"body": th.get("body") or "",
-                    "hashtags": [str(h) for h in (th.get("hashtags") or [])][:2],
-                    "chars": _len(th.get("body"))},
-    }
+    # 즉시 job_id 반환 → 백그라운드가 완주 → 클라 폴링(/api/web/generate-status). 게이트웨이 타임아웃 없음.
+    import uuid
+    job_id = uuid.uuid4().hex
+    _WEB_GEN_JOBS[job_id] = {"status": "pending", "ts": _now_ms()}
+    # 오래된 완료/에러 잡 청소(30분 경과분만)
+    _cut = _now_ms() - 30 * 60 * 1000
+    for _k in [k for k, v in list(_WEB_GEN_JOBS.items())
+               if v.get("status") != "pending" and v.get("ts", 0) < _cut]:
+        _WEB_GEN_JOBS.pop(_k, None)
+    asyncio.create_task(_web_gen_finish(job_id, api_key, prompt, owner, cd, list(_sel), n_pics, dict(m)))
+    return {"job_id": job_id}
+
+
+@app.get("/api/web/generate-status")
+async def web_generate_status(request: Request, job: str):
+    """블로그 생성 폴링 — pending / done(+결과) / error(+detail) / unknown."""
+    from fastapi.responses import JSONResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    j = _WEB_GEN_JOBS.get(job)
+    if not j:
+        return {"status": "unknown"}
+    st = j.get("status")
+    if st == "done":
+        r = dict(j.get("result") or {})
+        r["status"] = "done"
+        return r
+    if st == "error":
+        return {"status": "error", "detail": j.get("detail") or "생성 실패"}
+    return {"status": "pending"}
 
 
 @app.get("/api/web/materials")
