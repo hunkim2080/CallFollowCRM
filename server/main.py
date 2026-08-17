@@ -27058,7 +27058,7 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .ph .pick.on{background:var(--blue);border-color:var(--blue);color:#fff}
   .ph .up{position:absolute;right:8px;top:8px;font-size:9.5px;font-weight:800;padding:3px 7px;border-radius:6px;color:#fff}
   .ph .up.owner{background:rgba(49,130,246,.94)}.ph .up.team{background:rgba(18,184,134,.94)}.ph .up.partner{background:rgba(110,95,199,.95)}
-  .ph .tag{position:absolute;left:8px;bottom:8px;font-size:10.5px;font-weight:800;color:#fff;background:rgba(24,29,39,.62);border-radius:6px;padding:2px 8px}.ph .tag.post{background:rgba(18,110,106,.78)}
+  .ph .tag{position:absolute;left:8px;bottom:8px;font-size:10.5px;font-weight:800;color:#fff;background:rgba(24,29,39,.62);border-radius:6px;padding:2px 8px;cursor:pointer;transition:filter .12s;z-index:2}.ph .tag:hover{filter:brightness(1.4)}.ph .tag.post{background:rgba(18,110,106,.78)}
   .ph .dl{position:absolute;right:8px;bottom:8px;width:26px;height:26px;border-radius:8px;background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;z-index:2;color:var(--ink)}
   .ph .cap{padding:8px 10px;font-size:11px;color:var(--ink3);display:flex;align-items:center;gap:6px;min-width:0}
   .ph .cap .part{font-weight:800;color:var(--amber);background:#FBF3E2;padding:2px 7px;border-radius:6px;flex:none}
@@ -27408,7 +27408,7 @@ function renderPhotos(){
       +'<div class="im"><img loading="lazy" src="'+p.thumb_url+'">'
       +'<span class="pick'+(sel[p.photo_id]?' on':'')+'" onclick="event.stopPropagation();tog('+p.photo_id+')">✓</span>'
       +'<span class="up '+upc+'">'+uptxt+'</span>'
-      +'<span class="tag'+(isaft?' post':'')+'">'+ba+'</span>'
+      +'<span class="tag'+(isaft?' post':'')+'" onclick="event.stopPropagation();flipBa('+p.photo_id+');renderPhotos();updBar();" title="탭 = 시공 전↔후 바꾸기">'+ba+' 🔄</span>'
       +'<span class="dl" onclick="event.stopPropagation();dl1('+p.photo_id+')">⬇</span></div>'
       +'<div class="cap">'+(partFor(p.photo_id)?'<span class="part">'+esc(partFor(p.photo_id))+'</span>':'')+'<span class="fn">'+esc(fnPreview(p,0))+'</span></div></div>';
   });
