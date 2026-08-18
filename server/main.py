@@ -27215,9 +27215,9 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .doc [contenteditable]{cursor:text}
   .doc [contenteditable]:hover{background:var(--sunken);border-radius:6px}
   .doc [contenteditable]:focus{outline:none;background:var(--blue-bg);border-radius:6px;box-shadow:0 0 0 3px var(--blue-line)}
-  .doc .quote{text-align:center;margin:24px 0;padding:2px 18px;font-size:15px;font-weight:600;color:var(--ink);line-height:1.75;background:none;border:none;border-radius:0}
-  .doc .quote::before{content:'“';display:block;font-family:Georgia,'Times New Roman',serif;font-size:36px;color:#c0c4cc;line-height:1;margin-bottom:4px}
-  .doc .quote::after{content:'”';display:block;font-family:Georgia,'Times New Roman',serif;font-size:36px;color:#c0c4cc;line-height:.1;margin-top:6px}
+  .doc .quote{text-align:center;margin:26px 0;padding:16px 18px;font-size:15px;font-weight:600;color:var(--ink);line-height:1.85;background:none;border-top:1px solid var(--line);border-bottom:1px solid var(--line);border-left:none;border-radius:0}
+  .doc .quote::before{content:'“';display:block;font-family:Georgia,'Times New Roman',serif;font-size:30px;color:#c0c4cc;line-height:1;margin:0 0 12px}
+  .doc .quote::after{content:'”';display:block;font-family:Georgia,'Times New Roman',serif;font-size:30px;color:#c0c4cc;line-height:1;margin:12px 0 0}
   .doc .hr{height:1px;background:var(--line);margin:18px 6px}
   .doc p.tags{font-size:13px;color:var(--green);font-weight:700;word-break:keep-all}
   .prow{display:flex;gap:8px;margin:6px 0 16px;padding:8px;border:1.5px dashed var(--line);border-radius:12px;position:relative;background:var(--sunken)}
