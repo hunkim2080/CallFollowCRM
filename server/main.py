@@ -28034,7 +28034,10 @@ load(); loadToneLib();
     <div class="smk">어투</div><div class="sme" id="sm-tone" contenteditable="true"></div>
     <div class="smk">리액션·이모지</div><div class="sme" id="sm-reactions" contenteditable="true"></div>
     <div class="smk">✍️ 문단·인용구·글 띄움 형식</div><div class="sme" id="sm-format" contenteditable="true"></div>
-    <input class="search" id="smName" maxlength="40" placeholder="이 스타일 이름 (예: 또바기 스타일)" style="margin:14px 0 8px">
+    <div class="smname-wrap">
+      <div class="smname-k">📝 이 스타일 이름을 정해주세요 <span>· 나중에 골라 쓸 때 이걸로 구분해요</span></div>
+      <input class="smname-in" id="smName" maxlength="40" placeholder="예: 또바기 스타일 · 감성 후기체 · 정보성 큐레이터">
+    </div>
     <button class="genbig" onclick="smSave()" style="width:100%;background:var(--green)">💾 이 스타일 라이브러리에 추가</button>
   </div>
 </div></div>
@@ -28094,6 +28097,11 @@ load(); loadToneLib();
   .sme:focus{border-color:var(--violet);box-shadow:0 0 0 3px var(--violet-line)}
   #smReport.slidein{animation:smslide .38s cubic-bezier(.3,1,.5,1)}
   @keyframes smslide{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+  .smname-wrap{margin:18px 0 12px;padding:14px 15px;background:var(--violet-bg);border:1px solid var(--violet-line);border-radius:13px}
+  .smname-k{font-size:12.5px;font-weight:850;color:var(--violet);margin-bottom:8px}.smname-k span{color:var(--ink3);font-weight:700;font-size:11.5px}
+  .smname-in{width:100%;box-sizing:border-box;font-size:15px;font-weight:800;color:var(--ink);background:var(--surface);border:2px solid var(--violet-line);border-radius:10px;padding:12px 14px;font-family:inherit}
+  .smname-in::placeholder{color:var(--ink3);font-weight:600;font-size:13px}
+  .smname-in:focus{outline:none;border-color:var(--violet);box-shadow:0 0 0 3px var(--violet-line)}
   @media(prefers-reduced-motion:reduce){.ordcard,.ordnum{animation:none}}
 </style>
 <!-- 네이버 넣기 3단계 안내 시트 -->
