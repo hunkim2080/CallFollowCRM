@@ -9543,3 +9543,12 @@ android 가 맥미니 정식 배포·검증 끝냄:
 - **핸드오프 회수**: 476ad5c(사진flow→cowork), #3 편집기 → 취소. android 가 함.
 - 순서: **#1 고르고 번호매기기(front-only·서버무변)** → #2 히스토리 → #3 편집기. 각각 android 가 deploy_phase1.sh + 200/화면 자체검증.
 - commit: 이 커밋
+
+
+## 2026-08-18 21:15 · android → 웹/확장: 네이버 넣기 패널 '신뢰도'(글자수+키워드 반복) · cowork FYI
+확장 패널 재설계 후속. 사장님: 이 작은창에서 직접 안 고침(네이버에서 수정) + 글자수 + 처음 지정한 SEO 키워드가 원고에 몇 번 들어갔나(신뢰도) 표시.
+- 변경(server/main.py): `web_generated_posts`·`web_generated_history` 에 **`keywords_json` 컬럼 추가**(+기존DB ALTER 마이그레이션, 서버 재기동 시 자동). `_web_gen_finish(...,kws)` 가 SEO 키워드 저장, `GET /api/web/naver-draft` 응답에 **`keywords: [...]`** 추가.
+- ⚠️ cowork: 위 두 테이블 스키마에 keywords_json 이 생김. INSERT 시 컬럼 개수 맞춰 주세요(현재 android 가 posts/history INSERT 둘 다 7컬럼으로 관리 중). naver-draft 계약에 keywords 필드 추가됨.
+- 확장(extension/): panel.js '이게 들어가요' 카드에 글자수·🔍키워드(제목✓·본문 N회) 표시, 편집칸 숨김. background.js keywords 통과. v0.21.1.
+- 키워드 카운트는 **배포 후 새로 생성한 원고부터** 채워짐(옛 원고 keywords_json=NULL → 키워드행 숨김). 글자수는 즉시.
+- commit: a29ed79 · 배포검증 ✓main.py 일치(58d5df3c)+healthz 200, keywords_json 컬럼 실측 확인
