@@ -451,6 +451,11 @@ def db_init() -> None:
             )
             """
         )
+        # 사진 회전각(시계방향 0/90/180/270) — 서버가 실제 사진을 돌려서 서빙(다운로드·확장까지). 사장님 2026-08-18.
+        try:
+            con.execute("ALTER TABLE web_photo_tags ADD COLUMN rot INTEGER")
+        except Exception:
+            pass
         # QR 로그인 티켓 (60초 만료, 폰 스캔 authorize 후 1회용 소멸)
         con.execute(
             """
@@ -26760,9 +26765,9 @@ async def web_site(request: Request, customer_digits: str):
     tagmap: dict = {}
     with db_conn() as con:
         for r in con.execute(
-            "SELECT photo_id, part, ba FROM web_photo_tags WHERE owner_phone = ?", (owner,)
+            "SELECT photo_id, part, ba, rot FROM web_photo_tags WHERE owner_phone = ?", (owner,)
         ).fetchall():
-            tagmap[r[0]] = (r[1] or "", r[2] or "")
+            tagmap[r[0]] = (r[1] or "", r[2] or "", r[3] or 0)
     photos = []
     for i, p in enumerate(photos_raw):
         ba = "before" if i < (n + 1) // 2 else "after"
@@ -26781,7 +26786,7 @@ async def web_site(request: Request, customer_digits: str):
             "thumb_url": "/api/web/photo/" + str(p["photo_id"]),
             "uploader_kind": uk, "uploader_name": un,
             "uploaded_at_ms": p["uploaded_at_ms"], "ba_guess": ba,
-            "part": (_tg[0] if _tg else ""), "ba": (_tg[1] if _tg else ""),
+            "part": (_tg[0] if _tg else ""), "ba": (_tg[1] if _tg else ""), "rot": (_tg[2] if _tg else 0),
         })
     cust = {
         "name": (crow[0] if crow else "") or "",
@@ -26795,7 +26800,7 @@ async def web_site(request: Request, customer_digits: str):
 
 
 @app.get("/api/web/photo/{photo_id}")
-async def web_photo(request: Request, photo_id: int, t: Optional[str] = None):
+async def web_photo(request: Request, photo_id: int, t: Optional[str] = None, rot: Optional[int] = None):
     from fastapi.responses import Response as _Resp, JSONResponse
     # 크롬 확장(쿠키 없음)용 서명 토큰(?t=) 허용 — 그 사진 1장만 스코프. 없으면 세션 쿠키.
     owner = None
@@ -26812,6 +26817,8 @@ async def web_photo(request: Request, photo_id: int, t: Optional[str] = None):
     data, mime = _web_photo_bytes(photo_id, owner)
     if not data:
         raise HTTPException(404, "사진 없음")
+    _r = (rot % 360) if (rot is not None) else _web_photo_rot(photo_id, owner)
+    data, mime = _web_rot_bytes(data, mime, _r)
     return _Resp(content=data, media_type=mime or "image/jpeg")
 
 
@@ -26853,6 +26860,37 @@ def _web_fernet_secret() -> str:
     return val
 
 
+def _web_photo_rot(pid: int, owner: str) -> int:
+    """저장된 사진 회전각(0/90/180/270 시계방향). web_photo_tags.rot."""
+    try:
+        with db_conn() as con:
+            row = con.execute(
+                "SELECT rot FROM web_photo_tags WHERE owner_phone = ? AND photo_id = ?",
+                (owner, pid)).fetchone()
+        return (int(row[0]) % 360) if (row and row[0]) else 0
+    except Exception:
+        return 0
+
+
+def _web_rot_bytes(data, mime, rot):
+    """사진 바이트를 시계방향 rot(90/180/270)만큼 실제 회전. 0/실패면 원본 그대로."""
+    if not data or rot not in (90, 180, 270):
+        return data, mime
+    try:
+        from io import BytesIO
+        im = _PILImage.open(BytesIO(data))
+        _tr = {90: _PILImage.ROTATE_270, 180: _PILImage.ROTATE_180, 270: _PILImage.ROTATE_90}[rot]
+        im = im.transpose(_tr)
+        is_png = bool(mime and "png" in mime)
+        if not is_png and im.mode in ("RGBA", "P", "LA"):
+            im = im.convert("RGB")
+        buf = BytesIO()
+        im.save(buf, "PNG" if is_png else "JPEG", quality=92)
+        return buf.getvalue(), ("image/png" if is_png else "image/jpeg")
+    except Exception:
+        return data, mime
+
+
 @app.post("/api/web/tag")
 async def web_tag(request: Request):
     """웹 뷰어 사진 태그(부위·시공전후) 서버 저장 — 어느 PC서 로그인해도 유지. (2026-08-13)"""
@@ -26870,14 +26908,20 @@ async def web_tag(request: Request):
     part = _webre.sub(r'[\\/:*?"<>|]', "", str(body.get("part") or "").strip())[:40]
     ba = str(body.get("ba") or "").strip()
     ba = ba if ba in ("before", "mid", "after") else ""
+    try:
+        rot = int(body.get("rot") or 0) % 360
+    except Exception:
+        rot = 0
+    if rot not in (90, 180, 270):
+        rot = 0
     with db_conn() as con:
-        if not part and not ba:
+        if not part and not ba and not rot:
             con.execute("DELETE FROM web_photo_tags WHERE owner_phone = ? AND photo_id = ?", (owner, pid))
         else:
             con.execute(
-                "INSERT OR REPLACE INTO web_photo_tags (owner_phone, photo_id, part, ba, updated_at_ms) "
-                "VALUES (?,?,?,?,?)",
-                (owner, pid, part or None, ba or None, _now_ms()),
+                "INSERT OR REPLACE INTO web_photo_tags (owner_phone, photo_id, part, ba, rot, updated_at_ms) "
+                "VALUES (?,?,?,?,?,?)",
+                (owner, pid, part or None, ba or None, rot or None, _now_ms()),
             )
         con.commit()
     return {"ok": True}
@@ -26934,6 +26978,7 @@ async def web_download(request: Request, ids: str, part: Optional[str] = None, p
         data, mime = _web_photo_bytes(id_list[0], owner)
         if not data:
             raise HTTPException(404, "사진 없음")
+        data, mime = _web_rot_bytes(data, mime, _web_photo_rot(id_list[0], owner))
         fn = _fname(id_list[0], 1)
         return _Resp(content=data, media_type="image/jpeg",
                      headers={"Content-Disposition": "attachment; filename*=UTF-8''" + _q(fn)})
@@ -26945,6 +26990,7 @@ async def web_download(request: Request, ids: str, part: Optional[str] = None, p
             data, mime = _web_photo_bytes(pid, owner)
             if not data:
                 continue
+            data, mime = _web_rot_bytes(data, mime, _web_photo_rot(pid, owner))
             zf.writestr(_fname(pid, idx), data)
     first = feed.get(pid2key.get(id_list[0], ""), {})
     zymd = _webre.sub(r"[^0-9]", "", first.get("work_date") or "")[:8] or "00000000"
@@ -27358,7 +27404,12 @@ function setParts(a){localStorage.setItem(PARTS_KEY,JSON.stringify(a));}
 function selPart(){return localStorage.getItem(SELPART_KEY)||'';}
 function getPt(){try{return JSON.parse(localStorage.getItem(PT_KEY))||{};}catch(e){return {};}}
 function partFor(id){return getPt()[id]||'';}
-function saveTag(id){var p=getPt()[id]||'',b=getBa()[id]||'';fetch('/api/web/tag',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({photo_id:parseInt(id,10),part:p,ba:b})}).catch(function(){});}
+function saveTag(id){var p=getPt()[id]||'',b=getBa()[id]||'',r=getRot()[id]||0;fetch('/api/web/tag',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({photo_id:parseInt(id,10),part:p,ba:b,rot:r})}).catch(function(){});}
+var ROT_KEY='web_rot_v1';
+function getRot(){try{return JSON.parse(localStorage.getItem(ROT_KEY))||{};}catch(e){return {};}}
+function rotFor(p){var m=getRot(),id=p.photo_id;return (m[id]!=null?m[id]:(p.rot||0));}
+function photoSrc(p,base){var r=rotFor(p);base=base||p.thumb_url;return r?(base+(base.indexOf('?')<0?'?':'&')+'rot='+r):base;}
+function rotatePhoto(id){var pp=photos.filter(function(x){return x.photo_id===id;})[0];var cur=pp?rotFor(pp):(getRot()[id]||0);var nw=(cur+90)%360;var m=getRot();if(nw)m[id]=nw;else delete m[id];localStorage.setItem(ROT_KEY,JSON.stringify(m));saveTag(id);try{lbShow();}catch(e){}renderPhotos();if(GEN&&genP==='bl')drawGen();}
 function getBa(){try{return JSON.parse(localStorage.getItem(BA_KEY))||{};}catch(e){return {};}}
 function baFor(p){var m=getBa();return m[p.photo_id]||p.ba_guess;}
 function baLabel(v){return v==='mid'?'밑작업':(v==='after'?'시공 후':'시공 전');}
@@ -27482,7 +27533,7 @@ function renderPhotos(){
     var uptxt=up==='owner'?'👤 사장님':(up==='partner'?(!_un||/협업/.test(_un)?'🤝 협업 사장':'🤝 협업·'+esc(_un)):'👤 '+esc(_un));
     var _v=baFor(p), ba=baLabel(_v);
     g+='<div class="ph'+(sel[p.photo_id]?' on':'')+'" onclick="tog('+p.photo_id+')" ondblclick="lbOpen('+p.photo_id+')" title="클릭=선택 · 더블클릭=크게보기">'
-      +'<div class="im"><img loading="lazy" src="'+p.thumb_url+'">'
+      +'<div class="im"><img loading="lazy" src="'+photoSrc(p,p.thumb_url)+'">'
       +'<span class="pick'+(sel[p.photo_id]?' on':'')+'" onclick="event.stopPropagation();tog('+p.photo_id+')">✓</span>'
       +'<span class="up '+upc+'">'+uptxt+'</span>'
       +'<span class="tag '+baCls(_v)+'" onclick="event.stopPropagation();flipBa('+p.photo_id+');renderPhotos();updBar();" title="탭 = 시공전 → 밑작업 → 시공후">'+ba+' 🔄</span>'
@@ -27827,7 +27878,7 @@ function renderBlogDoc(g){
   var photos=(g.photos||[]);
   function pByIdx(n){for(var i=0;i<photos.length;i++)if(photos[i].index===n)return photos[i];return null;}
   function pimg(pm){
-    var p=gPhoto(pm.photo_id), thumb=p?p.thumb_url:'', _v=(pm.ba||'before'), batx=baLabel(_v), part=pm.part||'';
+    var p=gPhoto(pm.photo_id), thumb=p?photoSrc(p,p.thumb_url):'', _v=(pm.ba||'before'), batx=baLabel(_v), part=pm.part||'';
     return '<div class="pimg" draggable="true" data-idx="'+pm.index+'" data-part="'+esc(part)+'" data-ba="'+esc(_v)+'"><div class="im">'
       +(thumb?'<img loading="lazy" draggable="false" src="'+thumb+'">':'')+'<span class="n">'+pm.index+'</span>'
       +(part?'<span class="part">'+esc(part)+'</span>':'')+'</div><div class="pcap">'+batx+' · '+pm.index+'번</div><span class="pg">⠿</span></div>';
@@ -28016,13 +28067,13 @@ function copyGen(id,btn){var t=document.getElementById(id).innerText;if(navigato
 function lbList(){return photos.filter(function(p){return filter==='all'||p.uploader_kind===filter;});}
 function lbOpen(id){var l=lbList();lbi=l.findIndex(function(p){return p.photo_id===id;});if(lbi<0)lbi=0;lbShow();document.getElementById('lb').classList.add('on');}
 function lbShow(){var l=lbList();if(!l.length)return;var p=l[lbi];
-  document.getElementById('lbimg').src=p.url;
+  document.getElementById('lbimg').src=photoSrc(p,p.url);
   document.getElementById('lbcnt').textContent=(lbi+1)+' / '+l.length;
   var up=p.uploader_kind;var _un=(p.uploader_name||'').trim();var uptxt=up==='owner'?'👤 사장님':(up==='partner'?(!_un||/협업/.test(_un)?'🤝 협업 사장':'🤝 협업 · '+_un):'👤 '+_un);
   document.getElementById('lbtitle').textContent=(partFor(p.photo_id)||curCust.category||'사진')+' · '+baLabel(baFor(p));
   document.getElementById('lbup').textContent=uptxt;
   var dt=new Date(p.uploaded_at_ms); document.getElementById('lbtime').textContent=(dt.getMonth()+1)+'/'+dt.getDate()+' '+pad(dt.getHours())+':'+pad(dt.getMinutes());
-  document.getElementById('lbba').innerHTML=baLabel(baFor(p))+' <span onclick="flipBa('+p.photo_id+');lbShow();renderPhotos();" style="color:var(--blue);font-weight:700;cursor:pointer;margin-left:8px">🔄 단계 바꾸기</span>';
+  document.getElementById('lbba').innerHTML=baLabel(baFor(p))+' <span onclick="flipBa('+p.photo_id+');lbShow();renderPhotos();" style="color:var(--blue);font-weight:700;cursor:pointer;margin-left:8px">🔄 단계</span> <span onclick="rotatePhoto('+p.photo_id+')" title="90°씩 회전 — 다운로드·블로그까지 반영" style="color:var(--violet);font-weight:700;cursor:pointer;margin-left:8px">🔃 회전</span>';
   document.getElementById('lbdl').onclick=function(){dl1(p.photo_id);};
 }
 function lbNav(d){var l=lbList();lbi=(lbi+d+l.length)%l.length;lbShow();}
