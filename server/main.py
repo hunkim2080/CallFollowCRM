@@ -27218,6 +27218,7 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .gen{font-size:12.5px;color:var(--ink);line-height:1.75;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:14px 15px;white-space:pre-wrap}
   .gen h4{font-size:14px;font-weight:850;margin:0 0 10px;line-height:1.4}
   .genload{display:none;text-align:center;padding:22px 0 10px}.genload.on{display:block}
+  .gWho{font-size:12.5px;font-weight:800;color:var(--ink2);margin-bottom:7px}.gWho b{color:var(--violet)}
   .gStage{font-size:15px;font-weight:850;margin-bottom:6px;color:var(--ink)}
   .gSub{font-size:12.5px;color:var(--ink3);font-weight:700;min-height:16px;transition:opacity .3s}
   .gbar{width:210px;max-width:82%;height:5px;border-radius:3px;background:var(--sunken);margin:14px auto 9px;overflow:hidden}
@@ -27706,7 +27707,7 @@ function renderRight(){
    +'<div class="genhint" id="genHint"></div>'
    +btn
    +((genP==='bl'&&POSTHIST.length)?'<div class="histbar"><span class="histe" onclick="toggleHistPop(event)">📚 이전에 만든 원고 '+POSTHIST.length+'개 ▾</span><div class="histpop" id="histPop"></div></div>':'')
-   +'<div class="genload" id="genload"><div class="gblob"></div><div class="gStage" id="gStage">사진을 읽고 있어요</div><div class="gSub" id="gSub"></div><div class="gbar"><span id="gBarFill"></span></div><div class="gElapsed" id="gElapsed"></div></div>'
+   +'<div class="genload" id="genload"><div class="gblob"></div><div class="gWho">🧑‍🔧 <b>시공막내</b>가 정성껏 쓰는 중이에요</div><div class="gStage" id="gStage">현장 사진 살펴보는 중…</div><div class="gSub" id="gSub"></div><div class="gbar"><span id="gBarFill"></span></div><div class="gElapsed" id="gElapsed"></div></div>'
    +'<div id="genOut"></div>';
   rb.innerHTML=h;
   updateGenHint();
@@ -27813,9 +27814,9 @@ function startWrite(){
 }
 /* ═══ 로딩 씬 — 사진 읽기 → 본문 짜기 → 글·사진 맞추기 (긴 대기를 살아있게) ═══ */
 function loadStages(){
-  if(genP==='ig')return {st:['사진을 읽고 있어요','감성 캡션을 짓고 있어요','해시태그를 고르고 있어요'],sb:[['현장 사진을 살펴보는 중…','시공 전·후를 알아보는 중…'],['첫 줄로 마음 잡는 중…','이모지를 얹는 중…','문장을 다듬는 중…'],['지역·부위 태그를 뽑는 중…']]};
-  if(genP==='th')return {st:['사진을 읽고 있어요','대화하듯 풀어내는 중','짧게 다듬는 중'],sb:[['현장 사진을 살펴보는 중…'],['말투를 낮추는 중…','핵심만 남기는 중…'],['해시태그를 고르는 중…']]};
-  return {st:['사진을 읽고 있어요','본문을 짜고 있어요','글과 사진을 맞추고 있어요'],sb:[['현장 사진을 살펴보는 중…','시공 전·후를 알아보는 중…'],['고민 → 상담 → 시공 흐름을 잡는 중…','사장님 말투를 입히는 중…','문장을 자연스럽게 다듬는 중…','제목을 고르는 중…'],['사진 자리를 맞추는 중…','마지막으로 다듬는 중…']]};
+  if(genP==='ig')return {st:['현장 사진 살펴보는 중…','감성 캡션 짓는 중…','해시태그 고르는 중…'],sb:[['어떤 현장인지 보는 중…','시공 전·후를 알아보는 중…'],['첫 줄로 마음 잡는 중…','이모지를 얹는 중…','문장을 다듬는 중…'],['지역·부위 태그를 뽑는 중…']]};
+  if(genP==='th')return {st:['현장 사진 살펴보는 중…','대화하듯 풀어내는 중…','짧게 다듬는 중…'],sb:[['어떤 현장인지 보는 중…'],['말투를 낮추는 중…','핵심만 남기는 중…'],['해시태그를 고르는 중…']]};
+  return {st:['현장 사진 살펴보는 중…','글 쓰는 중…','사진 자리 맞추는 중…'],sb:[['어떤 현장인지 보는 중…','시공 전·후를 알아보는 중…'],['고민 → 상담 → 시공 흐름을 잡는 중…','사장님 말투를 입히는 중…','문장을 자연스럽게 다듬는 중…','제목을 고르는 중…'],['사진 자리를 맞추는 중…','마지막으로 다듬는 중…']]};
 }
 function startGenLoad(intro){
   var stg=document.getElementById('gStage'),sub=document.getElementById('gSub'),bar=document.getElementById('gBarFill'),elx=document.getElementById('gElapsed');
@@ -27831,7 +27832,7 @@ function startGenLoad(intro){
     var want=e<6?0:1; if(want!==stage)setStage(want);
     var target=stage===0?18:88; prog+=(target-prog)*0.06; if(prog>90)prog=90; if(bar)bar.style.width=prog.toFixed(1)+'%';
     tick+=0.7; if(tick>=2.6){ tick=0; si=(si+1)%SUB[stage].length; swapSub(SUB[stage][si]); }
-    if(elx)elx.textContent = e>9 ? ('정성껏 '+Math.floor(e)+'초째 · 조금만요') : '';
+    if(elx)elx.textContent = e>9 ? ('시공막내가 정성껏 '+Math.floor(e)+'초째… 조금만요!') : '';
   },700);
   return {
     fail:function(){ done=true; clearInterval(iv); },
