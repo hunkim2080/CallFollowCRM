@@ -115,6 +115,40 @@ const FOCUS_EXPR = `(function(){
 })()`;
 
 
+// '작성 중인 글이 있습니다' 팝업 → [취소](새로 작성) 버튼 좌표. 없으면 null. (top 문서·iframe 둘 다 탐색)
+const DRAFT_POPUP_CANCEL_EXPR = `(function(){
+  function scan(doc, offx, offy){
+    try{
+      var vis=function(e){var r=e.getBoundingClientRect();return r.width>4&&r.height>4;};
+      var has=false, els=[].slice.call(doc.querySelectorAll('div,p,span,strong,h1,h2,h3'));
+      for(var i=0;i<els.length;i++){ var t=(els[i].textContent||''); if(t.indexOf('작성 중')>=0 && t.length<90 && vis(els[i])){ has=true; break; } }
+      if(!has) return null;
+      var btns=[].slice.call(doc.querySelectorAll('button,[role="button"],a'));
+      for(var j=0;j<btns.length;j++){ var b=btns[j]; if(!vis(b))continue; var bt=(b.textContent||'').replace(/\\s/g,''); if(bt==='취소'||bt==='아니오'||bt==='새로작성'){ var r=b.getBoundingClientRect(); return {x:Math.round(offx+r.left+r.width/2), y:Math.round(offy+r.top+r.height/2)}; } }
+    }catch(e){}
+    return null;
+  }
+  var top=scan(document,0,0); if(top) return top;
+  var f=document.querySelector('#mainFrame'); if(f&&f.contentDocument){ var rr=f.getBoundingClientRect(); var inn=scan(f.contentDocument,rr.left,rr.top); if(inn) return inn; }
+  return null;
+})()`;
+
+// 툴바 '저장'(임시저장) 버튼 좌표 — 단축키보다 확실. (top 문서·iframe 둘 다)
+const SAVE_BTN_EXPR = `(function(){
+  function scan(doc, offx, offy){
+    try{
+      var vis=function(e){var r=e.getBoundingClientRect();return r.width>4&&r.height>4;};
+      var btns=[].slice.call(doc.querySelectorAll('button,[role="button"],a'));
+      for(var j=0;j<btns.length;j++){ var b=btns[j]; if(!vis(b))continue; var bt=(b.textContent||'').replace(/\\s/g,''); if(bt==='저장'||bt==='임시저장'){ var r=b.getBoundingClientRect(); return {x:Math.round(offx+r.left+r.width/2), y:Math.round(offy+r.top+r.height/2)}; } }
+    }catch(e){}
+    return null;
+  }
+  var top=scan(document,0,0); if(top) return top;
+  var f=document.querySelector('#mainFrame'); if(f&&f.contentDocument){ var rr=f.getBoundingClientRect(); var inn=scan(f.contentDocument,rr.left,rr.top); if(inn) return inn; }
+  return null;
+})()`;
+
+
 // iframe 오프셋 + 문서 얻기 (좌표 계산)
 const PRELUDE = `
   var __if=document.querySelector('#mainFrame'); var __off={x:0,y:0}; var __doc=document;
@@ -249,6 +283,8 @@ async function autoPaste(tabId, draft, title) {
   }
   let titleOk = false;
   try {
+    // 0) '작성 중인 글이 있습니다' 팝업 뜨면 [취소](새로 작성)로 닫아야 붙여넣기가 먹음 (사장님 버그 2026-08-18)
+    try { const _pc = await evalVal(target, DRAFT_POPUP_CANCEL_EXPR); if (_pc) { await clickAt(target, _pc.x, _pc.y); await sleep(550); } } catch (e) {}
     // 1) 본문 먼저 (fresh 상태라 FOCUS_EXPR 로 잘 들어감)
     const focus = await evalVal(target, FOCUS_EXPR);
     if (focus === "NO_EDITOR") return { ok: false, error: "글쓰기 본문 편집영역을 못 찾았어요." };
@@ -345,9 +381,13 @@ async function saveTemp(tabId) {
   try {
     const focus = await evalVal(target, FOCUS_EXPR); // 편집영역에 포커스 둬야 단축키가 먹음
     if (focus === "NO_EDITOR") return { ok: false, error: "글쓰기 화면을 못 찾았어요." };
-    await sleep(120);
+    await sleep(150);
+    // 1순위: 툴바 '저장'(임시저장) 버튼 진짜 클릭 — 단축키보다 확실 (사장님 버그: 임시저장 안 먹음)
+    const _sb = await evalVal(target, SAVE_BTN_EXPR);
+    if (_sb) { await clickAt(target, _sb.x, _sb.y); await sleep(900); return { ok: true }; }
+    // 폴백: Ctrl+Shift+S
     await pressCtrlShiftS(target);
-    await sleep(800);
+    await sleep(900);
     return { ok: true };
   } finally { await dbgDetach(target); }
 }
