@@ -123,7 +123,13 @@
 
   const $ = (s) => shadow.querySelector(s);
   const setOut = (m, k) => { const o = $("#out"); o.textContent = m || ""; o.className = "out" + (k ? " " + k : ""); };
-  const send = (msg) => new Promise((res) => chrome.runtime.sendMessage(msg, (r) => res(chrome.runtime.lastError ? null : r)));
+  // 확장 리로드/업데이트 후 옛 content script 가 살아있으면 chrome.runtime 이 무효(context invalidated).
+  // → API 호출을 감싸 오류(콘솔·오류탭) 안 나게 하고, 페이지 새로고침 안내.
+  const ctxOk = () => { try { return !!(chrome.runtime && chrome.runtime.id); } catch (e) { return false; } };
+  const send = (msg) => new Promise((res) => {
+    if (!ctxOk()) { setOut("🔄 확장이 업데이트됐어요 — 이 페이지를 새로고침(F5) 후 다시 눌러주세요.", "err"); res(null); return; }
+    try { chrome.runtime.sendMessage(msg, (r) => res((chrome.runtime && chrome.runtime.lastError) ? null : r)); } catch (e) { res(null); }
+  });
 
   let photos = []; // [{index, blob, name}]
   function renderThumbs() {
@@ -270,7 +276,7 @@
   }
   $("#goSave").addEventListener("click", doSave);
 
-  chrome.runtime.onMessage.addListener((msg) => { if (msg && msg.type === "SGM_TOGGLE") host.classList.toggle("min"); });
+  try { chrome.runtime.onMessage.addListener((msg) => { if (msg && msg.type === "SGM_TOGGLE") host.classList.toggle("min"); }); } catch (e) {}
 
   // ── 뷰어 [네이버에 넣기]에서 넘어온 자동삽입 예약이면 바로 실행 (완전 원클릭) ──
   //   bridge.js 가 si0in.kr 에서 심어둔 sgmAutoInsert(2분 유효) 를 보고, 패널 뜨자마자 pull+paste.
