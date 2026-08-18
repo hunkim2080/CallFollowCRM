@@ -190,6 +190,7 @@
     const title = $("#title").value.trim();
     if (!draft && !photos.length) { setOut("글이나 사진을 먼저 넣으세요.", "err"); return; }
     const btn = $("#go"); btn.disabled = true;
+    setOut("⏳ 시작할게요 — 이 창 건드리지 마세요!", "work");
 
     // 1) 글(제목·본문·서식·소제목)
     if (draft) {
@@ -276,7 +277,13 @@
   }
   $("#goSave").addEventListener("click", doSave);
 
-  try { chrome.runtime.onMessage.addListener((msg) => { if (msg && msg.type === "SGM_TOGGLE") host.classList.toggle("min"); }); } catch (e) {}
+  try {
+    chrome.runtime.onMessage.addListener((msg) => {
+      if (!msg) return;
+      if (msg.type === "SGM_TOGGLE") host.classList.toggle("min");
+      else if (msg.type === "SGM_PROGRESS") setOut(msg.msg || "", "work");  // background 실시간 진행상황
+    });
+  } catch (e) {}
 
   // ── 뷰어 [네이버에 넣기]에서 넘어온 자동삽입 예약이면 바로 실행 (완전 원클릭) ──
   //   bridge.js 가 si0in.kr 에서 심어둔 sgmAutoInsert(2분 유효) 를 보고, 패널 뜨자마자 pull+paste.

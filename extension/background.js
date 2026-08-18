@@ -93,6 +93,8 @@ function cdp(target, method, params) {
     chrome.runtime.lastError ? rej(new Error(chrome.runtime.lastError.message)) : res(r)));
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// 진행상황을 패널(content script)로 실시간 전송 → 사장님이 뭐 하는 중인지 봄 (2026-08-18)
+const prog = (tabId, m) => { try { if (tabId) chrome.tabs.sendMessage(tabId, { type: "SGM_PROGRESS", msg: m }); } catch (e) {} };
 async function evalVal(target, expression) {
   const r = await cdp(target, "Runtime.evaluate", { expression, returnByValue: true });
   return r && r.result ? r.result.value : null;
@@ -283,9 +285,11 @@ async function autoPaste(tabId, draft, title) {
   }
   let titleOk = false;
   try {
-    // 0) '작성 중인 글이 있습니다' 팝업 뜨면 [취소](새로 작성)로 닫아야 붙여넣기가 먹음 (사장님 버그 2026-08-18)
+    prog(tabId, "① 에디터 연결됨 · 팝업 확인 중…");
+    // 0) 팝업 폴백 닫기 (content script 가 먼저 닫지만 혹시 남았으면 좌표로도)
     try { const _pc = await evalVal(target, DRAFT_POPUP_CANCEL_EXPR); if (_pc) { await clickAt(target, _pc.x, _pc.y); await sleep(550); } } catch (e) {}
     // 1) 본문 먼저 (fresh 상태라 FOCUS_EXPR 로 잘 들어감)
+    prog(tabId, "② 제목·본문 붙이는 중…");
     const focus = await evalVal(target, FOCUS_EXPR);
     if (focus === "NO_EDITOR") return { ok: false, error: "글쓰기 본문 편집영역을 못 찾았어요." };
     await sleep(120);
@@ -298,6 +302,7 @@ async function autoPaste(tabId, draft, title) {
       const heads = extractHeadings(draft);
       headTotal = heads.length;
       for (let i = 0; i < heads.length; i++) {
+        prog(tabId, "③ 소제목 " + (i + 1) + "/" + heads.length + " 만드는 중…");
         const st = await applyOneHeading(target, heads[i]);
         if (st === "ok") headApplied++;
         else if (!diag) diag = st + "「" + heads[i].slice(0, 8) + "」";
