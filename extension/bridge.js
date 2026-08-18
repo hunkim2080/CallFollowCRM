@@ -28,4 +28,13 @@
       try { window.postMessage({ __sgm: "pong" }, "*"); } catch (e) {}
     }
   });
+  // 확장(네이버 탭)이 삽입 완료하면 sgmInsertDone 저장 → 뷰어로 완료신호 중계(친근한 완료 멘트용). 2026-08-18.
+  try {
+    chrome.storage.onChanged.addListener(function (changes, area) {
+      if (area === "local" && changes.sgmInsertDone && changes.sgmInsertDone.newValue) {
+        var d = changes.sgmInsertDone.newValue || {};
+        try { window.postMessage({ __sgm: "insert-done", parts: d.parts || "" }, "*"); } catch (e) {}
+      }
+    });
+  } catch (e) {}
 })();

@@ -28033,6 +28033,18 @@ function goNaver(){
   document.getElementById('naverSheet').classList.add('on');
 }
 function closeSheet(){document.getElementById('naverSheet').classList.remove('on');}
+/* 확장이 네이버 삽입 완료하면(bridge.js 중계) 안내 시트를 친근한 완료로 갱신 + 다시 띄움(다른 탭 갔다 와도 보이게) */
+window.addEventListener('message',function(ev){
+  if(ev.source!==window||!ev.data||ev.data.__sgm!=='insert-done')return;
+  var t=document.getElementById('shTitle'),s=document.getElementById('shSub');
+  if(t)t.textContent='다 넣었어요! 😎 저 시공막내, 일 좀 하죠?';
+  if(s)s.textContent='제목·글·사진까지 싹 들어갔어요 — 네이버에서 확인하고 발행만 누르면 끝이에요!';
+  var st2=document.getElementById('step2'),nud=document.getElementById('shNudge'),s1=document.getElementById('step1'),sn1=document.getElementById('sn1');
+  if(st2)st2.style.display='none'; if(nud)nud.style.display='none';
+  if(s1)s1.classList.add('done'); if(sn1)sn1.textContent='✓';
+  var sh=document.getElementById('naverSheet'); if(sh)sh.classList.add('on');
+  try{toast('네이버에 다 넣었어요! ✅ 확인하고 발행만 하세요');}catch(_e){}
+});
 function copyPlainBlog(){
   if(!GEN)return; var out=[GEN.blog.title||''];
   (GEN.blog.body||'').split(/\\n\\n+/).forEach(function(b){

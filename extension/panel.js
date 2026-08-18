@@ -184,6 +184,27 @@
     await savePhone(p); $("#phoneRow").style.display = "none"; doLoad();
   });
 
+  // ── 넣는 중 전체화면 안내 (첫 사용자가 건드려서 깨지는 것 방지) ──
+  //   pointer-events:none 라 CDP 진짜클릭/키입력엔 영향 없음(안 깨짐). 크게 보이는 시각 경고 + 진행표시.
+  let _busy = null;
+  function showBusy(msg) {
+    try {
+      if (!_busy) {
+        _busy = document.createElement("div");
+        _busy.style.cssText = "position:fixed;inset:0;z-index:2147483646;pointer-events:none;display:flex;align-items:center;justify-content:center;background:rgba(12,17,26,.34);font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif";
+        _busy.innerHTML = '<div style="background:#fff;border:2px solid #03C75A;border-radius:22px;box-shadow:0 26px 74px rgba(0,0,0,.42);padding:32px 36px;text-align:center;max-width:400px"><div style="font-size:44px;margin-bottom:4px">✨</div><div style="font-size:20px;font-weight:850;color:#03C75A;margin-bottom:10px">네이버에 넣는 중이에요!</div><div style="font-size:15.5px;font-weight:850;color:#E03131;margin-bottom:6px">🙏 잠깐만요 — 마우스·키보드 건드리지 마세요</div><div id="sgm-busy-msg" style="font-size:13px;font-weight:700;color:#4E5968;line-height:1.6;margin-top:8px;min-height:18px"></div><div style="margin-top:15px;height:7px;background:#EEF1F4;border-radius:4px;overflow:hidden;position:relative"><div style="position:absolute;height:100%;width:40%;background:#03C75A;border-radius:4px;animation:sgmBusy 1.1s ease-in-out infinite"></div></div></div>';
+        var stl = document.createElement("style");
+        stl.textContent = "@keyframes sgmBusy{0%{left:-40%}100%{left:100%}}";
+        _busy.appendChild(stl);
+        (document.documentElement || document.body).appendChild(_busy);
+      }
+      _busy.style.display = "flex";
+      var m = _busy.querySelector("#sgm-busy-msg"); if (m) m.textContent = msg || "";
+    } catch (e) {}
+  }
+  function updateBusy(msg) { try { if (_busy && _busy.style.display !== "none") { var m = _busy.querySelector("#sgm-busy-msg"); if (m) m.textContent = msg || ""; } } catch (e) {} }
+  function hideBusy() { try { if (_busy) _busy.style.display = "none"; } catch (e) {} }
+
   // ── 글 + 사진 한번에 넣기 ──
   async function doAll() {
     const draft = $("#text").value.trim();
@@ -191,48 +212,49 @@
     if (!draft && !photos.length) { setOut("글이나 사진을 먼저 넣으세요.", "err"); return; }
     const btn = $("#go"); btn.disabled = true;
     setOut("⏳ 시작할게요 — 이 창 건드리지 마세요!", "work");
-
-    // 1) 글(제목·본문·서식·소제목)
-    if (draft) {
-      const html = toEditorHtml(draft), plain = toPlainText(draft);
-      try { await navigator.clipboard.write([new ClipboardItem({ "text/html": new Blob([html], { type: "text/html" }), "text/plain": new Blob([plain], { type: "text/plain" }) })]); }
-      catch (e) { try { await navigator.clipboard.writeText(plain); } catch (e2) {} }
-      setOut("⏳ 글 넣는 중 — 건드리지 마세요!", "work");
-      const resp = await send({ type: "SGM_AUTO", draft, title });
-      if (!resp || !resp.ok) { btn.disabled = false; setOut("글 넣기 실패: " + ((resp && resp.error) || "오류"), "err"); return; }
-    }
-
-    // 2) 사진(개별, [n] 자리 · SEO안전)
-    let pdone = 0; const ptotal = photos.length;
-    if (ptotal) {
-      const sorted = photos.slice().sort((a, b) => a.index - b.index);
-      for (let i = 0; i < sorted.length; i++) {
-        const p = sorted[i];
-        setOut(`⏳ 사진 ${i + 1}/${ptotal} 넣는 중 — 건드리지 마세요!`, "work");
-        let png;
-        try { png = await toGroupPng([p.blob]); } catch (e) { setOut(`사진 ${p.index} 준비 실패: ${String(e.message || e).slice(0, 40)}`, "err"); btn.disabled = false; return; }
-        try { await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]); }
-        catch (e) { setOut(`사진 ${p.index} 클립보드 실패: ${String(e.message || e).slice(0, 40)}`, "err"); btn.disabled = false; return; }
-        const r = await send({ type: "SGM_PHOTO", marker: "[" + p.index + "]" });
-        if (!r || !r.ok) { setOut(`사진 ${p.index} 실패: ${(r && r.error) || "오류"}`, "err"); btn.disabled = false; return; }
-        pdone++;
-        await new Promise((rr) => setTimeout(rr, 500));
+    showBusy("네이버 에디터 준비 중…");
+    try {
+      // 1) 글(제목·본문·서식·소제목)
+      if (draft) {
+        const html = toEditorHtml(draft), plain = toPlainText(draft);
+        try { await navigator.clipboard.write([new ClipboardItem({ "text/html": new Blob([html], { type: "text/html" }), "text/plain": new Blob([plain], { type: "text/plain" }) })]); }
+        catch (e) { try { await navigator.clipboard.writeText(plain); } catch (e2) {} }
+        setOut("⏳ 글 넣는 중 — 건드리지 마세요!", "work");
+        const resp = await send({ type: "SGM_AUTO", draft, title });
+        if (!resp || !resp.ok) { setOut("글 넣기 실패: " + ((resp && resp.error) || "오류"), "err"); return; }
       }
-      // 3) 나란히(실험): 여러장 묶음 드래그
-      if (pdone === ptotal) {
-        const mg = parseGroups($("#text").value).filter((g) => g.indices.length > 1);
-        if (mg.length) {
-          setOut("⏳ 나란히 묶는 중 — 건드리지 마세요!", "work");
-          await send({ type: "SGM_GROUP_IMAGES", groups: mg.map((g) => g.indices.map((idx) => idx - 1)) });
+      // 2) 사진(개별, [n] 자리 · SEO안전)
+      let pdone = 0; const ptotal = photos.length;
+      if (ptotal) {
+        const sorted = photos.slice().sort((a, b) => a.index - b.index);
+        for (let i = 0; i < sorted.length; i++) {
+          const p = sorted[i];
+          const pmsg = `사진 ${i + 1}/${ptotal} 넣는 중…`;
+          setOut("⏳ " + pmsg + " — 건드리지 마세요!", "work"); updateBusy("④ " + pmsg);
+          let png;
+          try { png = await toGroupPng([p.blob]); } catch (e) { setOut(`사진 ${p.index} 준비 실패: ${String(e.message || e).slice(0, 40)}`, "err"); return; }
+          try { await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]); }
+          catch (e) { setOut(`사진 ${p.index} 클립보드 실패: ${String(e.message || e).slice(0, 40)}`, "err"); return; }
+          const r = await send({ type: "SGM_PHOTO", marker: "[" + p.index + "]" });
+          if (!r || !r.ok) { setOut(`사진 ${p.index} 실패: ${(r && r.error) || "오류"}`, "err"); return; }
+          pdone++;
+          await new Promise((rr) => setTimeout(rr, 500));
+        }
+        if (pdone === ptotal) {  // 여러장 나란히 묶기(실험)
+          const mg = parseGroups($("#text").value).filter((g) => g.indices.length > 1);
+          if (mg.length) { setOut("⏳ 나란히 묶는 중 — 건드리지 마세요!", "work"); updateBusy("⑤ 사진 나란히 묶는 중…"); await send({ type: "SGM_GROUP_IMAGES", groups: mg.map((g) => g.indices.map((idx) => idx - 1)) }); }
         }
       }
+      // 완료 — 패널 + 전체화면 완료 + 뷰어(si0in.kr)로 완료신호(sgmInsertDone)
+      const parts = [];
+      if (draft) parts.push("글·서식");
+      if (ptotal) parts.push(`사진 ${pdone}/${ptotal}`);
+      setOut("✓ 다 넣었어요! " + parts.join(" · ") + " — 네이버 확인 후 저장/발행", "ok");
+      try { chrome.storage.local.set({ sgmInsertDone: { ts: Date.now(), parts: parts.join(" · ") } }); } catch (e) {}
+    } finally {
+      btn.disabled = false;
+      hideBusy();
     }
-
-    btn.disabled = false;
-    const parts = [];
-    if (draft) parts.push("글·서식");
-    if (ptotal) parts.push(`사진 ${pdone}/${ptotal}`);
-    setOut("✓ 다 넣었어요! " + parts.join(" · ") + " — 네이버 확인 후 저장/발행", "ok");
   }
   $("#go").addEventListener("click", doAll);
 
@@ -281,7 +303,7 @@
     chrome.runtime.onMessage.addListener((msg) => {
       if (!msg) return;
       if (msg.type === "SGM_TOGGLE") host.classList.toggle("min");
-      else if (msg.type === "SGM_PROGRESS") setOut(msg.msg || "", "work");  // background 실시간 진행상황
+      else if (msg.type === "SGM_PROGRESS") { setOut(msg.msg || "", "work"); updateBusy(msg.msg || ""); }  // background 실시간 진행상황
     });
   } catch (e) {}
 
