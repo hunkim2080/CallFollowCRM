@@ -27215,7 +27215,9 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .doc [contenteditable]{cursor:text}
   .doc [contenteditable]:hover{background:var(--sunken);border-radius:6px}
   .doc [contenteditable]:focus{outline:none;background:var(--blue-bg);border-radius:6px;box-shadow:0 0 0 3px var(--blue-line)}
-  .doc .quote{border-left:4px solid var(--violet);background:var(--violet-bg);padding:12px 15px;border-radius:0 8px 8px 0;font-size:14px;font-weight:600;margin:0 0 13px}
+  .doc .quote{text-align:center;margin:24px 0;padding:2px 18px;font-size:15px;font-weight:600;color:var(--ink);line-height:1.75;background:none;border:none;border-radius:0}
+  .doc .quote::before{content:'“';display:block;font-family:Georgia,'Times New Roman',serif;font-size:36px;color:#c0c4cc;line-height:1;margin-bottom:4px}
+  .doc .quote::after{content:'”';display:block;font-family:Georgia,'Times New Roman',serif;font-size:36px;color:#c0c4cc;line-height:.1;margin-top:6px}
   .doc .hr{height:1px;background:var(--line);margin:18px 6px}
   .doc p.tags{font-size:13px;color:var(--green);font-weight:700;word-break:keep-all}
   .prow{display:flex;gap:8px;margin:6px 0 16px;padding:8px;border:1.5px dashed var(--line);border-radius:12px;position:relative;background:var(--sunken)}
@@ -27844,7 +27846,7 @@ function renderBlogDoc(g){
     if(tx){
       if(/^---+$/.test(tx)) h+='<div class="hr"></div>';
       else if(tx.slice(0,3)==='## ') h+='<p class="h" contenteditable="true">'+inl(tx.slice(3).trim())+'</p>';
-      else if(tx.slice(0,2)==='> ') h+='<div class="quote" contenteditable="true">'+inl(tx.slice(2).trim())+'</div>';
+      else if(tx.slice(0,2)==='> '){var _q=tx.slice(2).trim().replace(/^['"‘’“”]+|['"‘’“”]+$/g,'').trim();h+='<div class="quote" contenteditable="true">'+inl(_q)+'</div>';}
       else if(tx.charAt(0)==='#'&&tx.charAt(1)!=='#') h+='<p class="tags" contenteditable="true">'+esc(tx)+'</p>';
       else h+='<p contenteditable="true">'+inl(tx)+'</p>';
     }
