@@ -27121,6 +27121,14 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .tonebar{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:10px 13px;margin-bottom:12px}
   .tonebar .tl{font-size:12px;color:var(--ink2);font-weight:700}.tonebar .tl b{color:var(--green)}
   .tonebar .te{margin-left:auto;font-size:11.5px;font-weight:800;color:var(--blue);cursor:pointer}
+  .tonepop{position:absolute;top:100%;right:0;margin-top:6px;min-width:210px;background:var(--surface);border:1px solid var(--line);border-radius:11px;box-shadow:0 12px 32px -10px rgba(16,24,40,.4);padding:6px;z-index:30;display:none}
+  .tonepop.on{display:block}
+  .tprow{font-size:13px;font-weight:700;color:var(--ink);padding:9px 11px;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:6px}
+  .tprow:hover{background:var(--sunken)}
+  .tprow.on{color:var(--violet);font-weight:800}
+  .tprow .tpb{margin-left:auto;font-size:10px;font-weight:800;color:var(--violet);background:var(--violet-bg);border:1px solid var(--violet-line);border-radius:6px;padding:2px 7px}
+  .tpempty{font-size:12px;color:var(--ink3);padding:10px 11px;line-height:1.5}
+  .tpmng{font-size:11.5px;font-weight:800;color:var(--blue);padding:9px 11px;border-top:1px solid var(--line);margin-top:4px;cursor:pointer;border-radius:8px}.tpmng:hover{background:var(--sunken)}
   .metaline{font-size:12px;color:var(--ink3);font-weight:700;margin-bottom:10px}
   .genhint{font-size:12px;font-weight:700;line-height:1.55;border-radius:11px;padding:10px 13px;margin-bottom:11px;display:none}
   .genhint.pick{color:var(--blue);background:var(--blue-bg);border:1px solid var(--blue-line)}
@@ -27525,6 +27533,17 @@ var PMETA={bl:{cls:'bl',name:'블로그',meta:'📝 블로그 · 네이버 · �
   ig:{cls:'ig',name:'인스타',meta:'📷 인스타그램 · 짧게 + 해시태그 15',btn:'✨ 인스타 캡션 만들기',load:'✍️ 인스타 캡션 쓰는 중…',steps:['재료 읽는 중','감성 톤·이모지 맞추는 중','해시태그 뽑는 중']},
   th:{cls:'th',name:'스레드',meta:'🧵 스레드 · 대화체 + 해시태그 1~2',btn:'✨ 스레드 글 만들기',load:'✍️ 스레드 글 쓰는 중…',steps:['재료 읽는 중','대화체 톤 맞추는 중','초안 쓰는 중']}};
 function ptab(p){genP=p;['bl','ig','th'].forEach(function(x){document.getElementById('pt-'+x).classList.toggle('on',x===p);});renderRight();}
+/* ═══ 뷰어에서 바로 스타일(톤) 골라 바꾸기 — 마이페이지 라이브러리 재활용 ═══ */
+var TONELIB={};
+function loadToneLib(){fetch('/api/web/tone-list').then(function(r){return r.json();}).then(function(j){TONELIB=(j&&!j.error)?j:{};if(curCd)renderRight();}).catch(function(){});}
+function toneActiveName(p){var a=(TONELIB[p]||[]).filter(function(s){return s.active;})[0];return a?a.name:'';}
+function toggleTonePop(e){e.stopPropagation();var pop=document.getElementById('tonePop');if(!pop)return;if(pop.classList.contains('on')){pop.classList.remove('on');return;}renderTonePop();pop.classList.add('on');}
+function renderTonePop(){var pop=document.getElementById('tonePop');if(!pop)return;
+  var list=TONELIB[genP]||[];
+  var rows=list.map(function(s){return '<div class="tprow'+(s.active?' on':'')+'" onclick="pickTone('+s.id+')">'+(s.active?'✓ ':'')+esc(s.name)+(s.active?'<span class="tpb">사용중</span>':'')+'</div>';}).join('')||'<div class="tpempty">저장된 스타일이 없어요<br>마이페이지에서 학습해요</div>';
+  pop.innerHTML=rows+'<div class="tpmng" onclick="location.href=\\'/mypage\\'">✏️ 스타일 학습·관리</div>';}
+function pickTone(id){fetch('/api/web/tone-activate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({platform:genP,id:id})}).then(function(r){return r.json();}).then(function(j){if(j&&j.ok){(TONELIB[genP]||[]).forEach(function(s){s.active=(s.id===id);});renderRight();toast('이 스타일로 바꿨어요 ✓ 이제 이 톤으로 나와요');}}).catch(function(){});}
+document.addEventListener('click',function(e){var pop=document.getElementById('tonePop');if(pop&&pop.classList.contains('on')&&!pop.contains(e.target))pop.classList.remove('on');});
 var ONOTE='';
 function onoteChanged(){ var ta=document.getElementById('onoteTa'); if(ta)ONOTE=ta.value; saveONoteSoon(); }
 var _onoteT;
@@ -27556,13 +27575,14 @@ function renderRight(){
   var rb=document.getElementById('rbody'); if(!rb)return;
   if(!curCd){rb.innerHTML='<div class="empty">왼쪽에서 현장을 먼저 골라주세요.</div>';return;}
   var pm=PMETA[genP];
-  var tone=(genP==='bl')?'<span class="tl">🎯 따라할 톤: <b>내 블로그 스타일 ✓</b></span>':'<span class="tl">🎯 따라할 톤: <span style="color:var(--ink3)">기본 (미설정)</span></span>';
+  var _tn=toneActiveName(genP);
+  var tone=_tn?('<span class="tl">🎯 따라할 톤: <b>'+esc(_tn)+' ✓</b></span>'):'<span class="tl">🎯 따라할 톤: <span style="color:var(--ink3)">기본 (미설정)</span></span>';
   var done=!!(curCust&&curCust.completed);
   var btn = done
     ? '<button class="genbig '+pm.cls+'" onclick="genContent()">'+(GEN?'↻ 다시 만들기':pm.btn)+'</button>'
     : '<button class="genbig '+pm.cls+'" style="opacity:.5;cursor:not-allowed" disabled>'+pm.btn+'</button>'
       +'<div class="viewonly" style="margin-bottom:12px">✅ <b>시공 완료 후</b> 글을 만들 수 있어요. 진행중 현장은 아직 시공후 사진·후기 재료가 없어요.</div>';
-  var h='<div class="tonebar">'+tone+'<span class="te" onclick="location.href=\\'/mypage\\'">바꾸기</span></div>'
+  var h='<div class="tonebar" style="position:relative">'+tone+'<span class="te" onclick="toggleTonePop(event)">바꾸기 ▾</span><div class="tonepop" id="tonePop"></div></div>'
    +'<div class="metaline">'+pm.meta+'</div>'
    +(done?'<div class="onote"><div class="onote-l">✍️ 이 글에 넣고 싶은 것 <span>(선택 · 사진 보다 떠오른 것)</span></div><textarea class="onote-ta" id="onoteTa" placeholder="예: 고객이 아기 있어 무독성 강조 · 이 집 뷰 좋았음 · 재방문 고객" oninput="onoteChanged()"></textarea></div>':'')
    +'<div class="genhint" id="genHint"></div>'
@@ -27942,7 +27962,7 @@ function lbClose(){document.getElementById('lb').classList.remove('on');}
 document.getElementById('lb').addEventListener('click',function(e){if(e.target.id==='lb')lbClose();});
 document.addEventListener('keydown',function(e){if(!document.getElementById('lb').classList.contains('on'))return;if(e.key==='ArrowLeft')lbNav(-1);else if(e.key==='ArrowRight')lbNav(1);else if(e.key==='Escape')lbClose();});
 document.getElementById('q').addEventListener('input',renderDayList);
-load();
+load(); loadToneLib();
 </script>
 <!-- ② 확인 · ③ 번호매기기 오버레이 (블로그 사진 고르기·순서) -->
 <div class="ordov" id="ordConfirm"><div class="ordcard">
@@ -28480,6 +28500,16 @@ async def web_tone_lib_delete(request: Request, id: int):
                 con.execute("DELETE FROM web_tone_styles WHERE owner_phone = ? AND platform = ?", (owner, platform))
         con.commit()
     return {"ok": True}
+
+
+@app.get("/api/web/tone-list")
+async def web_tone_list(request: Request):
+    """뷰어에서 바로 스타일 바꾸기용 — 저장된 스타일 라이브러리 {platform: [{id,name,active}]}."""
+    from fastapi.responses import JSONResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    return _web_tone_library(owner)
 
 
 @app.post("/api/web/logout-session")
