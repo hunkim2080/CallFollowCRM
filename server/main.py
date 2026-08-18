@@ -27040,9 +27040,9 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
 
   .cols{display:grid;grid-template-columns:274px minmax(0,1fr) 460px;height:calc(100vh - 210px);min-height:520px}
   @media(max-width:1180px){.cols{grid-template-columns:1fr;height:auto}}
-  .col-l{border-right:1px solid var(--line);padding:16px 15px;overflow:auto}
-  .col-m{border-right:1px solid var(--line);padding:20px 22px;overflow:auto;min-width:0}
-  .col-r{padding:0;background:var(--sunken);display:flex;flex-direction:column;min-width:0}
+  .col-l{border-right:1px solid var(--line);padding:16px 15px;overflow:auto;min-height:0}
+  .col-m{border-right:1px solid var(--line);padding:20px 22px;overflow:auto;min-width:0;min-height:0}
+  .col-r{padding:0;background:var(--sunken);display:flex;flex-direction:column;min-width:0;min-height:0}
 
   .search{width:100%;font-size:13px;background:var(--sunken);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--ink);margin-bottom:14px;font-family:inherit}
   .calh{display:flex;align-items:center;margin:2px 2px 8px}.calh .m{font-size:14.5px;font-weight:850}.calh .nav{margin-left:auto;display:flex;gap:4px}.calh .nav span{width:24px;height:24px;border-radius:7px;background:var(--sunken);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--ink2);cursor:pointer}
@@ -27116,7 +27116,7 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .ptab.on.bl{background:var(--violet-bg);color:var(--violet);border-color:var(--violet-line)}
   .ptab.on.ig{background:var(--ig-bg);color:var(--ig);border-color:var(--ig-line)}
   .ptab.on.th{background:var(--th-bg);color:var(--th);border-color:var(--th-line)}
-  .rbody{padding:16px 18px 22px;overflow:auto;flex:1;border-top:1px solid var(--line);margin-top:-1px}
+  .rbody{padding:16px 18px 22px;overflow:auto;flex:1;min-height:0;border-top:1px solid var(--line);margin-top:-1px}
   #genOut{overflow-x:hidden;padding-right:3px}
   .tonebar{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:10px 13px;margin-bottom:12px}
   .tonebar .tl{font-size:12px;color:var(--ink2);font-weight:700}.tonebar .tl b{color:var(--green)}
