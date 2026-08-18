@@ -522,6 +522,27 @@ def db_init() -> None:
             )
             """
         )
+        # F-7 스타일 '라이브러리' — 여러 개 저장해두고 골라 쓰기(2026-08-18 사장님). name 으로 구분.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS web_tone_library (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                owner_phone   TEXT NOT NULL,
+                platform      TEXT NOT NULL,       -- bl | ig | th
+                name          TEXT NOT NULL,
+                report_json   TEXT NOT NULL,
+                created_at_ms INTEGER NOT NULL
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_web_tone_lib_owner "
+            "ON web_tone_library(owner_phone, platform, created_at_ms DESC)")
+        # 활성(생성이 읽는) 스타일이 라이브러리 어느 항목인지 — '사용중' 표시용. 구버전 web_tone_styles 에 컬럼 추가.
+        try:
+            con.execute("ALTER TABLE web_tone_styles ADD COLUMN active_lib_id INTEGER")
+        except Exception:
+            pass
         # 글만들기 재료 3 — 문자 대화(완료 고객만, 앱이 별도 push). 피드 폭증 방지 위해 분리 테이블.
         con.execute(
             """
@@ -28327,6 +28348,7 @@ async def web_tone_analyze(request: Request, req: WebToneAnalyze):
 class WebToneSave(BaseModel):
     platform: str
     report: dict
+    name: Optional[str] = None   # 라이브러리 이름 (골라쓰기용). 없으면 '내 스타일'
 
 
 @app.post("/api/web/tone-save")
@@ -28342,12 +28364,20 @@ async def web_tone_save(request: Request, req: WebToneSave):
     rep = req.report or {}
     keep = {k: str(rep.get(k) or "")[:2000] for k in
             ("persona", "summary", "flow", "endings", "tone", "reactions", "format")}
+    name = (req.name or "").strip()[:40] or "내 스타일"
+    rj = json.dumps(keep, ensure_ascii=False)
+    now = _now_ms()
     with db_conn() as con:
+        cur = con.execute(
+            "INSERT INTO web_tone_library (owner_phone, platform, name, report_json, created_at_ms) "
+            "VALUES (?,?,?,?,?)", (owner, platform, name, rj, now))
+        lib_id = cur.lastrowid
+        # 저장하면 바로 활성(생성이 이걸 씀) — web_tone_styles = 이 리포트 + active_lib_id
         con.execute(
-            "INSERT OR REPLACE INTO web_tone_styles (owner_phone, platform, report_json, updated_at_ms) "
-            "VALUES (?,?,?,?)", (owner, platform, json.dumps(keep, ensure_ascii=False), _now_ms()))
+            "INSERT OR REPLACE INTO web_tone_styles (owner_phone, platform, report_json, updated_at_ms, active_lib_id) "
+            "VALUES (?,?,?,?,?)", (owner, platform, rj, now, lib_id))
         con.commit()
-    return {"ok": True, "platform": platform}
+    return {"ok": True, "platform": platform, "id": lib_id, "name": name}
 
 
 @app.delete("/api/web/tone-style")
@@ -28374,6 +28404,82 @@ def _web_tone_styles(owner: str) -> dict:
             except Exception:
                 pass
     return out
+
+
+def _web_tone_library(owner: str) -> dict:
+    """owner 의 저장된 스타일 라이브러리 {platform: [{id, name, created_at_ms, active}]}. 최신순."""
+    out = {}
+    with db_conn() as con:
+        active = {}
+        try:
+            for r in con.execute(
+                "SELECT platform, active_lib_id FROM web_tone_styles WHERE owner_phone = ?", (owner,)).fetchall():
+                active[r[0]] = r[1]
+        except Exception:
+            pass
+        for r in con.execute(
+            "SELECT id, platform, name, created_at_ms FROM web_tone_library WHERE owner_phone = ? "
+            "ORDER BY created_at_ms DESC", (owner,)).fetchall():
+            out.setdefault(r[1], []).append(
+                {"id": r[0], "name": r[2], "created_at_ms": r[3], "active": (active.get(r[1]) == r[0])})
+    return out
+
+
+class WebToneActivate(BaseModel):
+    platform: str
+    id: int
+
+
+@app.post("/api/web/tone-activate")
+async def web_tone_activate(request: Request, req: WebToneActivate):
+    """라이브러리의 다른 스타일을 활성으로(생성이 이걸 씀). '골라 쓰기'."""
+    from fastapi.responses import JSONResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    platform = (req.platform or "bl").strip()
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT report_json FROM web_tone_library WHERE id = ? AND owner_phone = ? AND platform = ?",
+            (req.id, owner, platform)).fetchone()
+        if not row:
+            raise HTTPException(404, "스타일을 찾을 수 없어요")
+        con.execute(
+            "INSERT OR REPLACE INTO web_tone_styles (owner_phone, platform, report_json, updated_at_ms, active_lib_id) "
+            "VALUES (?,?,?,?,?)", (owner, platform, row[0], _now_ms(), req.id))
+        con.commit()
+    return {"ok": True}
+
+
+@app.delete("/api/web/tone-lib")
+async def web_tone_lib_delete(request: Request, id: int):
+    """라이브러리 스타일 삭제. 지운 게 활성이면 남은 것 중 최신을 활성으로(없으면 비활성)."""
+    from fastapi.responses import JSONResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT platform FROM web_tone_library WHERE id = ? AND owner_phone = ?", (id, owner)).fetchone()
+        if not row:
+            return {"ok": True}
+        platform = row[0]
+        con.execute("DELETE FROM web_tone_library WHERE id = ? AND owner_phone = ?", (id, owner))
+        act = con.execute(
+            "SELECT active_lib_id FROM web_tone_styles WHERE owner_phone = ? AND platform = ?",
+            (owner, platform)).fetchone()
+        if act and act[0] == id:
+            nxt = con.execute(
+                "SELECT id, report_json FROM web_tone_library WHERE owner_phone = ? AND platform = ? "
+                "ORDER BY created_at_ms DESC LIMIT 1", (owner, platform)).fetchone()
+            if nxt:
+                con.execute(
+                    "INSERT OR REPLACE INTO web_tone_styles (owner_phone, platform, report_json, updated_at_ms, active_lib_id) "
+                    "VALUES (?,?,?,?,?)", (owner, platform, nxt[1], _now_ms(), nxt[0]))
+            else:
+                con.execute("DELETE FROM web_tone_styles WHERE owner_phone = ? AND platform = ?", (owner, platform))
+        con.commit()
+    return {"ok": True}
 
 
 @app.post("/api/web/logout-session")
@@ -28431,7 +28537,8 @@ async def web_me(request: Request):
         "sessions": sessions,
         "key": {"connected": bool(krow), "last4": (krow[0] if krow else "")},
         "tone_urls": tone,
-        "tone_styles": _web_tone_styles(owner),   # F-7: {bl/ig/th: report} — 실제 학습된 플랫폼만
+        "tone_styles": _web_tone_styles(owner),   # F-7: {bl/ig/th: report} — 실제 학습된 플랫폼만(활성)
+        "tone_library": _web_tone_library(owner),   # F-7 라이브러리: {platform: [{id,name,active}]} 골라쓰기
     }
 
 
@@ -28620,6 +28727,7 @@ _MYPAGE_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
             <button class="sptab" id="spt-ig" onclick="spTab('ig')">📷 인스타 <span class="stb" id="stb-ig">미설정</span></button>
             <button class="sptab" id="spt-th" onclick="spTab('th')">🧵 스레드 <span class="stb" id="stb-th">미설정</span></button>
           </div>
+          <div id="spLib"></div>
           <div class="flabel" id="spRefLabel">따라할 블로그 글 주소</div>
           <input class="keyin txt" id="spUrl" placeholder="따라할 블로그 글 주소 (예: blog.naver.com/…/22301…)">
           <textarea class="keyin txt" id="spText" placeholder="또는 따라할 캡션·글을 그대로 붙여넣기 (여러 개면 줄 띄우고)…" style="display:none;min-height:84px;margin-top:6px;font-family:inherit"></textarea>
@@ -28636,7 +28744,8 @@ _MYPAGE_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
               <b>· 리액션·이모지</b><div class="editable" id="rp-reactions" contenteditable="true"></div>
               <b>· ✍️ 문단·인용구·글 띄움 형식</b><div class="editable" id="rp-format" contenteditable="true"></div></div>
             </div>
-            <button class="genbig" style="width:100%;background:var(--green);color:#fff;border:none;border-radius:11px;padding:12px;font-weight:850;cursor:pointer" onclick="spSave()">이 스타일로 저장</button>
+            <input class="keyin txt" id="spName" maxlength="40" placeholder="이 스타일 이름 (예: 또바기 스타일)" style="margin-bottom:8px">
+            <button class="genbig" style="width:100%;background:var(--green);color:#fff;border:none;border-radius:11px;padding:12px;font-weight:850;cursor:pointer" onclick="spSave()">💾 이 스타일 저장 (라이브러리에 추가)</button>
           </div>
           <div class="note" style="display:block">🔒 원문은 학습에만 쓰고, <b>저장은 요약된 스타일만</b> — 경쟁사 상호·내용은 저장 안 해요. 분석·생성은 사장님 Gemini 키로.</div>
         </div>
@@ -28723,6 +28832,8 @@ function spTab(p){SP_CUR=p;
   if(r){ fillReport(r); document.getElementById('spReport').style.display='block'; }
   else { document.getElementById('spReport').style.display='none'; }
   document.getElementById('spLoad').style.display='none';
+  var sn=document.getElementById('spName');if(sn)sn.value='';
+  renderToneLib(p);
 }
 function fillReport(r){
   document.getElementById('rp-persona').textContent=r.persona||'';
@@ -28755,8 +28866,26 @@ function spSave(){
     flow:document.getElementById('rp-flow').innerText,endings:document.getElementById('rp-endings').innerText,
     tone:document.getElementById('rp-tone').innerText,reactions:document.getElementById('rp-reactions').innerText,
     format:(document.getElementById('rp-format')||{}).innerText||''};
-  fetch('/api/web/tone-save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({platform:SP_CUR,report:rep})})
-  .then(_rjson).then(function(d){if(d&&d.ok){toast('이 스타일로 저장 ✓ 이제 글이 이 톤으로 나와요');load();}else{alert((d&&d.detail)||'저장 실패');}}).catch(function(){alert('네트워크 오류');});}
+  var nm=((document.getElementById('spName')||{}).value||'').trim();
+  fetch('/api/web/tone-save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({platform:SP_CUR,report:rep,name:nm})})
+  .then(_rjson).then(function(d){if(d&&d.ok){var sn=document.getElementById('spName');if(sn)sn.value='';toast('저장했어요 ✓ 라이브러리에 추가·바로 사용중');load();}else{alert((d&&d.detail)||'저장 실패');}}).catch(function(){alert('네트워크 오류');});}
+function renderToneLib(p){
+  var box=document.getElementById('spLib'); if(!box)return;
+  var lib=((ME&&ME.tone_library)||{})[p]||[];
+  if(!lib.length){box.innerHTML='';return;}
+  var rows=lib.map(function(s){
+    var rb=s.active?'border:1px solid var(--violet);background:rgba(110,95,199,.07)':'border:1px solid var(--line)';
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:11px;margin-bottom:7px;'+rb+'">'
+      +'<div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:800;color:'+(s.active?'var(--violet)':'var(--ink)')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(s.active?'✓ ':'')+esc(s.name)+'</div><div style="font-size:11px;color:var(--ink3);margin-top:1px">'+ago(s.created_at_ms)+'</div></div>'
+      +(s.active?'<span style="font-size:11px;font-weight:800;color:var(--violet);background:rgba(110,95,199,.12);border:1px solid var(--violet);border-radius:7px;padding:3px 9px;flex:none">사용중</span>':'<button onclick="spActivate('+s.id+')" style="font-size:12px;font-weight:800;color:#fff;background:var(--violet);border:none;border-radius:8px;padding:6px 12px;cursor:pointer;flex:none">사용하기</button>')
+      +'<button onclick="spDelLib('+s.id+')" title="삭제" style="font-size:13px;background:none;border:none;cursor:pointer;opacity:.5;flex:none;padding:2px">🗑</button></div>';
+  }).join('');
+  box.innerHTML='<div class="flabel" style="margin-top:14px">📚 저장된 내 스타일 <span style="color:var(--ink3);font-weight:700">· 눌러서 골라 쓰기</span></div>'+rows;
+}
+function spActivate(id){fetch('/api/web/tone-activate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({platform:SP_CUR,id:id})})
+  .then(_rjson).then(function(d){if(d&&d.ok){toast('이 스타일로 바꿨어요 ✓ 이제 글이 이 톤으로 나와요');load();}else{alert((d&&d.detail)||'실패');}}).catch(function(){alert('네트워크 오류');});}
+function spDelLib(id){if(!confirm('이 스타일을 삭제할까요?'))return;fetch('/api/web/tone-lib?id='+id,{method:'DELETE'})
+  .then(_rjson).then(function(d){if(d&&d.ok){toast('삭제했어요');load();}else{alert('실패');}}).catch(function(){alert('네트워크 오류');});}
 function toggleAct(){var b=document.getElementById('actBody'),a=document.getElementById('actArw');var on=b.style.display==='none';b.style.display=on?'block':'none';if(a)a.style.transform=on?'rotate(90deg)':'';}
 function logoutSid(sid){if(!confirm('이 기기를 로그아웃할까요?'))return;fetch('/api/web/logout-session?sid='+encodeURIComponent(sid),{method:'POST'}).then(function(){toast('로그아웃했어요');load();});}
 function logoutAll(){if(!confirm('모든 기기에서 로그아웃할까요? (이 PC 포함)'))return;fetch('/api/web/logout-all?owner_phone='+encodeURIComponent(ME.owner_phone),{method:'POST'}).then(function(){location.href='/web/login';});}
