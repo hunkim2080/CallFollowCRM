@@ -45,6 +45,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 });
 
+// ── 확장 리로드/업데이트 시, 열려있는 si0in.kr 탭에 bridge.js 재주입 ──
+// 안 하면 옛 bridge.js(context invalidated)라 [네이버에 넣기] 신호가 확장으로 안 감 → 자동삽입 안 됨.
+// 재주입하면 새 bridge.js 가 붙어 신호 정상 전달(사장님이 si0in.kr 새로고침 안 해도 됨). 2026-08-18.
+chrome.runtime.onInstalled.addListener(reinjectBridge);
+function reinjectBridge() {
+  try {
+    chrome.tabs.query({ url: ["https://si0in.kr/*", "https://*.si0in.kr/*"] }, (tabs) => {
+      for (const t of (tabs || [])) {
+        if (t && t.id != null) chrome.scripting.executeScript({ target: { tabId: t.id }, files: ["bridge.js"] }).catch(() => {});
+      }
+    });
+  } catch (e) {}
+}
+
 // ── 시공막내(si0in.kr)에서 생성 글 불러오기 ── CORS 안전하게 background 에서 fetch.
 function bufToB64(buf) {
   const b = new Uint8Array(buf); let s = ""; const chunk = 0x8000;
