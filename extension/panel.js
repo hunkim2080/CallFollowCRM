@@ -55,69 +55,93 @@
       *{box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"Malgun Gothic","Apple SD Gothic Neo",sans-serif}
       .wrap{width:322px;background:#fff;border:1px solid #E5E9EE;border-radius:16px;box-shadow:0 8px 30px rgba(16,24,40,.18);overflow:hidden}
       .hd{display:flex;align-items:center;gap:7px;padding:11px 13px;background:#F5F7F9;border-bottom:1px solid #E5E9EE}
-      .hd .t{font-size:13.5px;font-weight:850;color:#181D27;flex:1} .hd .t b{color:#03C75A}
+      .hd .t{font-size:13.5px;font-weight:850;color:#181D27;flex:1}.hd .t b{color:#03C75A}
       .hd .x{border:0;background:none;font-size:15px;font-weight:800;color:#8B95A1;cursor:pointer;padding:2px 6px;border-radius:7px}
       .hd .x:hover{background:#E9EDF1}
-      .body{padding:12px 13px 13px;max-height:76vh;overflow:auto}
-      .row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
-      .lbl{font-size:11.5px;font-weight:800;color:#4E5968}
+      .body{padding:13px;max-height:76vh;overflow:auto}
+      .say{font-size:11px;font-weight:700;color:#4E5968;background:#F5F7F9;border-radius:9px;padding:7px 10px;margin-bottom:10px;line-height:1.5}
+      .btn{width:100%;border:0;border-radius:12px;cursor:pointer;font-weight:850}
+      .btn:active{transform:scale(.98)}.btn:disabled{background:#C9D0D8;cursor:default;transform:none}
+      .hero{background:#03C75A;color:#fff;font-size:15.5px;padding:14px 12px;box-shadow:0 6px 16px rgba(3,199,90,.28)}
+      .hero small{display:block;font-size:10.5px;font-weight:700;opacity:.92;margin-top:3px}
+      .hero .em{display:inline-block;transition:transform .18s}
+      .hero:hover .em{transform:rotate(-14deg)}
+      .out{font-size:11.5px;font-weight:700;margin-top:9px;min-height:15px;line-height:1.5;color:#4E5968}
+      .out.ok{color:#03C75A}.out.err{color:#E03131}
+      .out.work{color:#B7791F;background:#FBF3E4;border:1px solid #F0E0BC;border-radius:9px;padding:8px 10px;font-weight:850;text-align:center}
+      .pv{border:1px solid #E5E9EE;border-radius:13px;padding:10px 11px;margin-top:10px}
+      .pvHd{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+      .pvT{font-size:11.5px;font-weight:850;color:#181D27;flex:1}
+      .pvLink{font-size:10px;font-weight:800;color:#3182F6;cursor:pointer;text-decoration:underline}
       .mini{border:1px solid #E5E9EE;background:#fff;border-radius:8px;font-size:10.5px;font-weight:800;color:#4E5968;padding:4px 9px;cursor:pointer}
       .mini:active{transform:scale(.97)}
-      textarea{width:100%;height:112px;resize:vertical;border:1px solid #E5E9EE;border-radius:11px;padding:10px 11px;font-size:12.5px;line-height:1.6;color:#181D27;background:#F5F7F9;outline:none}
-      textarea:focus{border-color:#03C75A;background:#fff}
-      .hint{font-size:10px;color:#8B95A1;margin-top:6px;line-height:1.5} .hint b{color:#4E5968}
-      .btn{width:100%;margin-top:10px;border:0;border-radius:12px;background:#03C75A;color:#fff;font-size:14px;font-weight:850;padding:12px;cursor:pointer}
-      .btn:active{transform:scale(.98)} .btn:disabled{background:#C9D0D8;cursor:default;transform:none}
-      .btn.sub{background:#fff;color:#03C75A;border:1.5px solid #03C75A;font-size:13px;padding:10px}
-      .btn.save{background:#F0F3F7;color:#4E5968;font-size:13px;padding:10px;margin-top:8px}
-      .btn.load{background:#3182F6;color:#fff;font-size:14px;font-weight:850;padding:13px;margin-top:0}
-      .loadhint{font-size:10.5px;color:#8B95A1;text-align:center;margin-top:7px}
-      .loadhint a{color:#3182F6;cursor:pointer;text-decoration:underline;font-weight:800}
-      .dim{color:#B0B8C1;font-weight:600;font-size:9.5px}
-      .titleInput{width:100%;border:1px solid #E5E9EE;border-radius:11px;padding:9px 11px;font-size:13px;font-weight:700;color:#181D27;background:#F5F7F9;outline:none;margin-bottom:9px}
-      .titleInput:focus{border-color:#03C75A;background:#fff}
-      .sep{height:1px;background:#EEF1F4;margin:13px -13px}
-      .thumbs{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-      .thumb{position:relative;width:52px;height:52px;border-radius:9px;overflow:hidden;border:1px solid #E5E9EE;background:#F5F7F9}
+      .pvRow{display:flex;align-items:center;gap:7px;padding:4px 0;font-size:11.5px}
+      .pvRow .k{font-weight:800;color:#8B95A1;flex:none;width:26px}
+      .pvRow .v{font-weight:700;color:#181D27;flex:1;min-width:0}
+      .pvRow .v.one{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .ck{width:16px;height:16px;border-radius:6px;background:#E5E9EE;color:#fff;font-size:10px;font-weight:850;display:inline-flex;align-items:center;justify-content:center;flex:none}
+      .pv.loaded .ck{background:#03C75A;animation:ckPop .35s cubic-bezier(.3,1.6,.5,1) backwards}
+      .pv.loaded .pvRow:nth-of-type(2) .ck{animation-delay:.08s}
+      .pv.loaded .pvRow:nth-of-type(3) .ck{animation-delay:.16s}
+      @keyframes ckPop{from{transform:scale(.3);opacity:0}to{transform:scale(1);opacity:1}}
+      .thumbs{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+      .thumb{position:relative;width:44px;height:44px;border-radius:9px;overflow:hidden;border:1px solid #E5E9EE;background:#F5F7F9}
       .thumb img{width:100%;height:100%;object-fit:cover;display:block}
       .thumb .n{position:absolute;left:3px;top:3px;background:#03C75A;color:#fff;font-size:10px;font-weight:850;border-radius:6px;padding:0 5px;line-height:15px}
-      .out{font-size:11.5px;font-weight:700;margin-top:8px;min-height:15px;line-height:1.5;color:#4E5968}
-      .out.ok{color:#03C75A} .out.err{color:#E03131}
-      .out.work{color:#B7791F;background:#FBF3E4;border:1px solid #F0E0BC;border-radius:9px;padding:8px 10px;font-weight:850;text-align:center}
+      .pvFull{display:none;margin-top:8px;border-top:1px solid #EEF1F4;padding-top:8px;font-size:11.5px;line-height:1.6;color:#4E5968;white-space:pre-wrap;max-height:180px;overflow:auto}
+      .pv.open .pvFull{display:block}
+      .util{display:flex;gap:6px;margin-top:10px}
+      .util .mini{flex:1;padding:7px 0;text-align:center}
+      #editBox{display:none;margin-top:10px;border-top:1px dashed #E5E9EE;padding-top:10px}
+      .row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+      .lbl{font-size:11.5px;font-weight:800;color:#4E5968}
+      .titleInput{width:100%;border:1px solid #E5E9EE;border-radius:11px;padding:9px 11px;font-size:13px;font-weight:700;color:#181D27;background:#F5F7F9;outline:none;margin-bottom:9px}
+      .titleInput:focus{border-color:#03C75A;background:#fff}
+      textarea{width:100%;height:112px;resize:vertical;border:1px solid #E5E9EE;border-radius:11px;padding:10px 11px;font-size:12.5px;line-height:1.6;color:#181D27;background:#F5F7F9;outline:none}
+      textarea:focus{border-color:#03C75A;background:#fff}
+      .hint{font-size:10px;color:#8B95A1;margin-top:6px;line-height:1.5}.hint b{color:#4E5968}
+      .btn.sub{background:#fff;color:#03C75A;border:1.5px solid #03C75A;font-size:13px;padding:10px;margin-top:10px}
       .foot{font-size:10px;color:#B0B8C1;margin-top:9px;line-height:1.5;text-align:center}
       .pill{display:none;align-items:center;gap:6px;background:#03C75A;color:#fff;border-radius:999px;padding:9px 14px;font-size:12.5px;font-weight:850;cursor:pointer;box-shadow:0 6px 18px rgba(3,199,90,.35)}
-      :host(.min) .wrap{display:none} :host(.min) .pill{display:inline-flex}
+      :host(.min) .wrap{display:none}:host(.min) .pill{display:inline-flex}
       input[type=file]{display:none}
     </style>
     <div class="wrap">
-      <div class="hd"><span class="t">🧩 시공막내 · <b>네이버 넣기</b></span><button class="x" id="min" title="접기">—</button></div>
+      <div class="hd"><span class="t">🧑‍🔧 시공막내 · <b>네이버 넣기</b></span><button class="x" id="min" title="접기">—</button></div>
       <div class="body">
-        <button class="btn load" id="loadGo">⬇✨ 시공막내 글 → 네이버에 바로 넣기</button>
-        <div class="loadhint">서버에서 불러와 제목·글·사진까지 한 번에 · <a id="loadOnly">불러오기만</a></div>
+        <div class="say" id="say">사장님이 만든 글, 제가 그대로 옮겨 넣을게요!</div>
+        <button class="btn hero" id="loadGo"><span class="em">🧑‍🔧</span> 네이버에 넣기<small>제목·글·사진 — 제가 알아서 다 넣어요</small></button>
         <div id="phoneRow" style="display:none;margin-top:8px">
           <input type="text" id="phone" class="titleInput" placeholder="내 전화번호 (한 번만 · 예 01012345678)">
           <button class="mini" id="phoneSave" style="width:100%;padding:7px">저장하고 불러오기</button>
         </div>
-
-        <div class="sep"></div>
-
-        <div class="row" style="margin-bottom:5px"><span class="lbl">제목 <span class="dim">불러온 내용 · 수정 가능</span></span></div>
-        <input type="text" id="title" class="titleInput" placeholder="불러오면 자동으로 채워져요">
-        <div class="row"><span class="lbl">글</span><button class="mini" id="sample">예시</button></div>
-        <textarea id="text" placeholder="불러오면 자동으로 채워져요 (직접 붙여넣어도 돼요)"></textarea>
-        <div class="hint"><b>##</b> 소제목 · <b>&gt;</b> 인용구 · <b>**굵게**</b> · <b>---</b> 구분선 · 사진 <b style="color:#03C75A">[번호]</b> 자리</div>
-        <div class="row" style="margin-top:11px"><span class="lbl">사진 <span class="dim">불러오면 자동</span></span><button class="mini" id="pick">직접 고르기</button></div>
-        <div class="thumbs" id="thumbs"></div>
-        <input type="file" id="file" accept="image/*" multiple>
-
-        <button class="btn" id="go">✨ 네이버에 넣기 (지금 내용)</button>
-        <button class="btn save" id="goSave">💾 임시저장</button>
-
         <div class="out" id="out"></div>
-        <div class="foot">자동 발행은 안 해요 · 임시저장/발행은 직접</div>
+        <div class="pv" id="pv">
+          <div class="pvHd"><span class="pvT">이게 들어가요</span><a class="pvLink" id="loadOnly">다시 불러오기</a><button class="mini" id="pvToggle">펼쳐보기</button></div>
+          <div class="pvRow"><span class="ck">✓</span><span class="k">제목</span><span class="v one" id="pvTitle">확인 중이에요…</span></div>
+          <div class="pvRow"><span class="ck">✓</span><span class="k">글</span><span class="v" id="pvMeta">—</span></div>
+          <div class="pvRow"><span class="ck">✓</span><span class="k">사진</span><span class="v" id="pvPhoto">—</span></div>
+          <div class="thumbs" id="thumbs"></div>
+          <div class="pvFull" id="pvFull"></div>
+        </div>
+        <div class="util">
+          <button class="mini" id="editToggle">✏️ 직접 고치기</button>
+          <button class="mini" id="goSave">💾 임시저장</button>
+        </div>
+        <div id="editBox">
+          <div class="row" style="margin-bottom:5px"><span class="lbl">제목</span></div>
+          <input type="text" id="title" class="titleInput" placeholder="불러오면 자동으로 채워져요">
+          <div class="row"><span class="lbl">글</span><button class="mini" id="sample">예시</button></div>
+          <textarea id="text" placeholder="불러오면 자동으로 채워져요 (직접 붙여넣어도 돼요)"></textarea>
+          <div class="hint"><b>##</b> 소제목 · <b>&gt;</b> 인용구 · <b>**굵게**</b> · <b>---</b> 구분선 · 사진 <b style="color:#03C75A">[번호]</b> 자리</div>
+          <div class="row" style="margin-top:11px"><span class="lbl">사진</span><button class="mini" id="pick">직접 고르기</button></div>
+          <input type="file" id="file" accept="image/*" multiple>
+          <button class="btn sub" id="go">✨ 이 내용으로 넣기</button>
+        </div>
+        <div class="foot">자동 발행은 안 해요 · 확인하고 발행은 사장님이 직접</div>
       </div>
     </div>
-    <div class="pill" id="pill">🧩 네이버 넣기</div>
+    <div class="pill" id="pill">🧑‍🔧 네이버 넣기</div>
   `;
   document.documentElement.appendChild(host);
 
@@ -143,6 +167,8 @@
   }
 
   $("#sample").addEventListener("click", () => { $("#text").value = SAMPLE; setOut("", ""); });
+  $("#pvToggle").addEventListener("click", () => { const o = $("#pv").classList.toggle("open"); $("#pvToggle").textContent = o ? "접기" : "펼쳐보기"; });
+  $("#editToggle").addEventListener("click", () => { const b = $("#editBox"); b.style.display = (b.style.display === "block") ? "none" : "block"; });
   $("#min").addEventListener("click", () => host.classList.add("min"));
   $("#pill").addEventListener("click", () => host.classList.remove("min"));
   $("#pick").addEventListener("click", () => $("#file").click());
@@ -171,6 +197,12 @@
       for (const ph of resp.photos) { try { const b = await dataUrlToBlob(ph.dataUrl); photos.push({ index: ph.index, blob: b, name: "photo" + ph.index }); } catch (e) {} }
       renderThumbs();
     }
+    // 읽기전용 미리보기 카드 채우기 ('이게 들어가요')
+    $("#pvTitle").textContent = resp.title || "(제목 없음)";
+    $("#pvMeta").textContent = ((resp.draft || "").split("\n").filter(Boolean).length) + "줄 · 소제목 " + (((resp.draft || "").match(/^## /gm) || []).length) + " · 서식 자동";
+    $("#pvPhoto").textContent = photos.length ? (photos.length + "장 · 글 속 [번호] 자리에") : "없음";
+    $("#pvFull").textContent = (resp.title ? resp.title + "\n\n" : "") + (resp.draft || "");
+    $("#pv").classList.add("loaded");
     setOut(`✓ 불러왔어요! 제목·글${photos.length ? ` · 사진 ${photos.length}장` : ""}`, "ok");
     return true;
   }
@@ -249,7 +281,7 @@
       const parts = [];
       if (draft) parts.push("글·서식");
       if (ptotal) parts.push(`사진 ${pdone}/${ptotal}`);
-      setOut("✓ 다 넣었어요! " + parts.join(" · ") + " — 네이버 확인 후 저장/발행", "ok");
+      setOut("✓ 다 넣었어요! " + parts.join(" · ") + " — 저 시공막내, 일 좀 하죠? 😎 확인 후 발행만 눌러 주세요", "ok");
       try { chrome.storage.local.set({ sgmInsertDone: { ts: Date.now(), parts: parts.join(" · ") } }); } catch (e) {}
     } finally {
       btn.disabled = false;
@@ -317,9 +349,11 @@
         host.classList.remove("min");
         setOut("⏳ 시공막내에서 넘어왔어요 — 자동으로 넣는 중…", "work");
         doLoadAndGo();
+      } else {
+        doLoad();  // 자동삽입 아니면 미리보기만 조용히 채움 (편집 아님)
       }
     });
-  } catch (e) {}
+  } catch (e) { doLoad(); }
 
   // ── '작성 중인 글이 있습니다' 팝업 자동 닫기 ([취소]=새로 작성) ──
   // content script 는 같은-오리진 iframe(#mainFrame) DOM 에 접근 가능 → 합성 click 으로 닫는다.
