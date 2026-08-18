@@ -27541,9 +27541,35 @@ function toggleTonePop(e){e.stopPropagation();var pop=document.getElementById('t
 function renderTonePop(){var pop=document.getElementById('tonePop');if(!pop)return;
   var list=TONELIB[genP]||[];
   var rows=list.map(function(s){return '<div class="tprow'+(s.active?' on':'')+'" onclick="pickTone('+s.id+')">'+(s.active?'✓ ':'')+esc(s.name)+(s.active?'<span class="tpb">사용중</span>':'')+'</div>';}).join('')||'<div class="tpempty">저장된 스타일이 없어요<br>마이페이지에서 학습해요</div>';
-  pop.innerHTML=rows+'<div class="tpmng" onclick="location.href=\\'/mypage\\'">✏️ 스타일 학습·관리</div>';}
+  pop.innerHTML=rows+'<div class="tpmng" onclick="openStyleModal()">✏️ 새 스타일 학습 · 관리</div>';}
 function pickTone(id){fetch('/api/web/tone-activate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({platform:genP,id:id})}).then(function(r){return r.json();}).then(function(j){if(j&&j.ok){(TONELIB[genP]||[]).forEach(function(s){s.active=(s.id===id);});renderRight();toast('이 스타일로 바꿨어요 ✓ 이제 이 톤으로 나와요');}}).catch(function(){});}
 document.addEventListener('click',function(e){var pop=document.getElementById('tonePop');if(pop&&pop.classList.contains('on')&&!pop.contains(e.target))pop.classList.remove('on');});
+/* ═══ 새 스타일 학습 모달 (뷰어 안에서 · 마이페이지 안 가도 됨) ═══ */
+function openStyleModal(){var pp=document.getElementById('tonePop');if(pp)pp.classList.remove('on');
+  document.getElementById('smUrl').value='';document.getElementById('smText').value='';document.getElementById('smText').style.display='none';
+  var nm=document.getElementById('smName');if(nm)nm.value='';
+  document.getElementById('smReport').style.display='none';document.getElementById('smLoad').style.display='none';
+  var pl=document.getElementById('smPlat');if(pl)pl.textContent=(genP==='ig'?'인스타':genP==='th'?'스레드':'블로그');
+  document.getElementById('styleModal').classList.add('on');setTimeout(function(){var u=document.getElementById('smUrl');if(u)u.focus();},60);}
+function closeStyleModal(){document.getElementById('styleModal').classList.remove('on');}
+function smFill(r){['persona','summary','flow','endings','tone','reactions','format'].forEach(function(k){var el=document.getElementById('sm-'+k);if(el)el.textContent=r[k]||'';});}
+function smAnalyze(){
+  var url=document.getElementById('smUrl').value.trim(),text=document.getElementById('smText').value.trim();
+  if(!url&&!text){alert('따라할 글 주소를 넣어주세요');return;}
+  var ld=document.getElementById('smLoad');ld.style.display='block';document.getElementById('smReport').style.display='none';
+  var steps=['따라할 글을 꼼꼼히 읽는 중','문장을 한 줄씩 뜯어보는 중','글 흐름을 파악하는 중','말투·형식을 배우는 중','정리하는 중'],i=0;
+  document.getElementById('smLoadT').textContent=steps[0]+'…';
+  var iv=setInterval(function(){i++;document.getElementById('smLoadT').textContent=steps[i%steps.length]+'…';},900);
+  fetch('/api/web/tone-analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({platform:genP,url:url,text:text})})
+  .then(function(r){return r.json();}).then(function(d){clearInterval(iv);ld.style.display='none';
+    if(!d||d.ok!==true){alert((d&&d.detail)||'분석 실패');if(d&&d.need_paste){var tx=document.getElementById('smText');if(tx){tx.style.display='block';tx.focus();}}return;}
+    smFill(d.report||{});var rp=document.getElementById('smReport');rp.style.display='block';rp.classList.remove('slidein');void rp.offsetWidth;rp.classList.add('slidein');
+  }).catch(function(){clearInterval(iv);ld.style.display='none';alert('네트워크 오류 · 잠시 후 다시');});}
+function smSave(){
+  var rep={};['persona','summary','flow','endings','tone','reactions','format'].forEach(function(k){var el=document.getElementById('sm-'+k);rep[k]=el?el.innerText:'';});
+  var nm=(document.getElementById('smName').value||'').trim();
+  fetch('/api/web/tone-save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({platform:genP,report:rep,name:nm})})
+  .then(function(r){return r.json();}).then(function(d){if(d&&d.ok){closeStyleModal();loadToneLib();toast('스타일 저장 ✓ 바로 사용중이에요');}else{alert((d&&d.detail)||'저장 실패');}}).catch(function(){alert('네트워크 오류');});}
 var ONOTE='';
 function onoteChanged(){ var ta=document.getElementById('onoteTa'); if(ta)ONOTE=ta.value; saveONoteSoon(); }
 var _onoteT;
@@ -27991,6 +28017,27 @@ load(); loadToneLib();
   <div class="kwMeta"><span id="kwCnt">0/3</span><span id="kwMax" hidden>키워드는 3개까지가 검색 노출에 딱 좋아요</span></div>
   <div class="ordfoot"><button class="ordbtn ghost" onclick="kwClose()">← 순서로 돌아가기</button><button class="ordbtn go dim" id="kwGo" onclick="startWrite()">키워드를 1개 이상 넣어주세요</button></div>
 </div></div>
+<div class="ordov" id="styleModal"><div class="ordcard wide" style="text-align:left;max-height:88vh;overflow-y:auto">
+  <div class="smhead"><b>🎨 새 스타일 학습</b><span class="smx" onclick="closeStyleModal()">✕</span></div>
+  <div class="smsub">따라하고 싶은 <b id="smPlat">블로그</b> 글 하나를 넣으면, AI가 페르소나·어미·어투·글 흐름·형식을 뜯어봐요.</div>
+  <div class="flabel" style="margin-bottom:5px">학습할 블로그 본문글의 주소</div>
+  <input class="search" id="smUrl" placeholder="예: blog.naver.com/…/22301…  (휴대폰용 m. 주소 추천)" style="margin-bottom:0">
+  <textarea class="search" id="smText" placeholder="또는 글 본문을 복사해 붙여넣기…" style="display:none;min-height:90px;margin-top:8px;font-family:inherit"></textarea>
+  <button class="genbig bl" id="smAnalyzeBtn" onclick="smAnalyze()" style="width:100%;margin-top:10px">✨ 분석하기</button>
+  <div id="smLoad" style="display:none;text-align:center;padding:20px 0"><div class="gblob"></div><div id="smLoadT" style="font-size:12.5px;font-weight:800;color:var(--violet);margin-top:10px">분석하고 있어요…</div></div>
+  <div id="smReport" style="display:none;margin-top:6px">
+    <div class="flabel" style="margin-bottom:8px">🧬 분석 결과 <span style="color:var(--ink3);font-weight:700">· 필요한 부분만 눌러서 고치세요</span></div>
+    <div class="smk">📍 페르소나</div><div class="sme" id="sm-persona" contenteditable="true"></div>
+    <div class="sme" id="sm-summary" contenteditable="true" style="margin-top:8px"></div>
+    <div class="smk">〰️ 글 흐름 <span style="color:var(--ink3);font-weight:700">(가장 중요)</span></div><div class="sme" id="sm-flow" contenteditable="true"></div>
+    <div class="smk">종결 어미</div><div class="sme" id="sm-endings" contenteditable="true"></div>
+    <div class="smk">어투</div><div class="sme" id="sm-tone" contenteditable="true"></div>
+    <div class="smk">리액션·이모지</div><div class="sme" id="sm-reactions" contenteditable="true"></div>
+    <div class="smk">✍️ 문단·인용구·글 띄움 형식</div><div class="sme" id="sm-format" contenteditable="true"></div>
+    <input class="search" id="smName" maxlength="40" placeholder="이 스타일 이름 (예: 또바기 스타일)" style="margin:14px 0 8px">
+    <button class="genbig" onclick="smSave()" style="width:100%;background:var(--green)">💾 이 스타일 라이브러리에 추가</button>
+  </div>
+</div></div>
 <style>
   .ordov{position:fixed;inset:0;background:rgba(12,15,20,.5);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:80;padding:20px}
   .ordov.on{display:flex}
@@ -28039,6 +28086,14 @@ load(); loadToneLib();
   @keyframes kwPop{from{transform:scale(.8);opacity:0}}
   .kwIn{flex:1;min-width:150px;border:0;outline:0;background:none;font:inherit;font-size:13.5px;color:var(--ink)}.kwIn::placeholder{color:var(--ink3)}
   .kwMeta{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink3);margin:6px 2px 14px}#kwMax{color:var(--blue);font-weight:800}
+  .smhead{display:flex;align-items:center;margin-bottom:8px}.smhead b{font-size:17px;font-weight:850}
+  .smx{margin-left:auto;font-size:16px;color:var(--ink3);cursor:pointer;font-weight:800;line-height:1}
+  .smsub{font-size:12.5px;color:var(--ink3);line-height:1.55;margin-bottom:14px}.smsub b{color:var(--ink2);font-weight:800}
+  .smk{font-size:11.5px;font-weight:800;color:var(--ink2);margin:12px 0 4px}
+  .sme{font-size:13px;color:var(--ink);line-height:1.55;border:1px solid var(--line);border-radius:9px;padding:9px 11px;background:var(--surface);min-height:20px;outline:none}
+  .sme:focus{border-color:var(--violet);box-shadow:0 0 0 3px var(--violet-line)}
+  #smReport.slidein{animation:smslide .38s cubic-bezier(.3,1,.5,1)}
+  @keyframes smslide{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
   @media(prefers-reduced-motion:reduce){.ordcard,.ordnum{animation:none}}
 </style>
 <!-- 네이버 넣기 3단계 안내 시트 -->
@@ -28696,7 +28751,7 @@ _MYPAGE_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
 <div class="page">
   <div class="pilltop">
     <span class="pill">🖥️ 시공막내 웹 · 마이페이지</span>
-    <a class="backlink" onclick="location.href='/web'">← 사진 캘린더로 돌아가기</a>
+    <a class="backlink" style="margin-left:auto" onclick="location.href='/web'">← 사진·글쓰기로</a>
   </div>
   <h1>내 계정 · 보안 · AI 설정</h1>
   <p class="subtitle">로그인·보안 · 내 Gemini 키(내 비용) · 블로그 톤을 여기서 관리해요.</p>
