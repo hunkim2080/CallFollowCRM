@@ -90,6 +90,14 @@
       .thumb .n{position:absolute;left:3px;top:3px;background:#03C75A;color:#fff;font-size:10px;font-weight:850;border-radius:6px;padding:0 5px;line-height:15px}
       .pvFull{display:none;margin-top:8px;border-top:1px solid #EEF1F4;padding-top:8px;font-size:11.5px;line-height:1.6;color:#4E5968;white-space:pre-wrap;max-height:180px;overflow:auto}
       .pv.open .pvFull{display:block}
+      .kwRow{margin:8px 0 2px;padding:8px 9px;background:#F5F7F9;border-radius:10px;flex-direction:column;gap:5px}
+      .kwHd{font-size:10px;font-weight:850;color:#8B95A1;letter-spacing:.02em;margin-bottom:1px}
+      .kwItem{display:flex;align-items:center;gap:6px;font-size:11px}
+      .kwItem .w{font-weight:850;color:#181D27;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .kwItem .tag{flex:none;border-radius:6px;padding:1px 6px;font-size:9.5px;font-weight:850}
+      .kwItem .tag.t{background:#E7F0FF;color:#3182F6}.kwItem .tag.tno{background:#F1F3F5;color:#B0B8C1}
+      .kwItem .n{flex:none;font-size:11px;font-weight:850}
+      .kwItem .n.ok{color:#03C75A}.kwItem .n.low{color:#B7791F}
       .util{display:flex;gap:6px;margin-top:10px}
       .util .mini{flex:1;padding:7px 0;text-align:center}
       #editBox{display:none;margin-top:10px;border-top:1px dashed #E5E9EE;padding-top:10px}
@@ -121,11 +129,11 @@
           <div class="pvRow"><span class="ck">✓</span><span class="k">제목</span><span class="v one" id="pvTitle">확인 중이에요…</span></div>
           <div class="pvRow"><span class="ck">✓</span><span class="k">글</span><span class="v" id="pvMeta">—</span></div>
           <div class="pvRow"><span class="ck">✓</span><span class="k">사진</span><span class="v" id="pvPhoto">—</span></div>
+          <div class="kwRow" id="pvKw" style="display:none"></div>
           <div class="thumbs" id="thumbs"></div>
           <div class="pvFull" id="pvFull"></div>
         </div>
         <div class="util">
-          <button class="mini" id="editToggle">✏️ 직접 고치기</button>
           <button class="mini" id="goSave">💾 임시저장</button>
         </div>
         <div id="editBox">
@@ -138,7 +146,7 @@
           <input type="file" id="file" accept="image/*" multiple>
           <button class="btn sub" id="go">✨ 이 내용으로 넣기</button>
         </div>
-        <div class="foot">자동 발행은 안 해요 · 확인하고 발행은 사장님이 직접</div>
+        <div class="foot">자동 발행은 안 해요 · 확인하고 발행은 사장님이 직접 · 세부 수정은 네이버 글쓰기창에서<br><a id="editToggle" style="color:#B0B8C1;text-decoration:underline;cursor:pointer;font-weight:700">글이 안 불러와지면 직접 붙여넣기</a></div>
       </div>
     </div>
     <div class="pill" id="pill">🧑‍🔧 네이버 넣기</div>
@@ -189,7 +197,7 @@
     if (!phone) { $("#phoneRow").style.display = "block"; setOut("내 전화번호를 한 번만 입력해 주세요(생성 글 찾기용).", ""); return false; }
     setOut("⏳ 불러오는 중…", "work");
     const resp = await send({ type: "SGM_LOAD", phone });
-    if (!resp || !resp.ok) { setOut("아직 못 불러와요: " + ((resp && resp.error) || "오류"), "err"); return false; }
+    if (!resp || !resp.ok) { setOut("아직 못 불러와요: " + ((resp && resp.error) || "오류"), "err"); $("#editBox").style.display = "block"; return false; }
     if (resp.title) $("#title").value = resp.title;
     if (resp.draft) $("#text").value = resp.draft;
     photos = [];
@@ -198,10 +206,35 @@
       renderThumbs();
     }
     // 읽기전용 미리보기 카드 채우기 ('이게 들어가요')
+    const _draft = resp.draft || "";
+    const _lines = _draft.split("\n").filter((s) => s.trim()).length;
+    const _heads = (_draft.match(/^\s*##\s/gm) || []).length;
+    // 글자수 — 마커(##·**·>·---·[n]) 빼고 줄바꿈은 공백 1칸으로(네이버 글자수와 비슷하게)
+    const _chars = _draft
+      .replace(/\[\d+\]/g, "").replace(/^\s*#{1,6}\s*/gm, "").replace(/^\s*>\s?/gm, "")
+      .replace(/\*\*/g, "").replace(/^\s*---\s*$/gm, "").replace(/\s+/g, " ").trim().length;
     $("#pvTitle").textContent = resp.title || "(제목 없음)";
-    $("#pvMeta").textContent = ((resp.draft || "").split("\n").filter(Boolean).length) + "줄 · 소제목 " + (((resp.draft || "").match(/^## /gm) || []).length) + " · 서식 자동";
+    $("#pvMeta").textContent = _chars.toLocaleString() + "자 · " + _lines + "줄 · 소제목 " + _heads + "개";
     $("#pvPhoto").textContent = photos.length ? (photos.length + "장 · 글 속 [번호] 자리에") : "없음";
-    $("#pvFull").textContent = (resp.title ? resp.title + "\n\n" : "") + (resp.draft || "");
+    // 검색 키워드 반영(신뢰도) — 처음 지정한 키워드가 제목/본문에 몇 번 들어갔나
+    const _kws = Array.isArray(resp.keywords) ? resp.keywords.filter((k) => k && String(k).trim()) : [];
+    const _kwBox = $("#pvKw");
+    if (_kws.length) {
+      const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const _title = resp.title || "";
+      let h = '<div class="kwHd">🔍 검색 키워드, 이만큼 넣었어요</div>';
+      for (const kw of _kws) {
+        const k = String(kw).trim();
+        const titleHit = _title.indexOf(k) >= 0;
+        const bodyN = k ? (_draft.split(k).length - 1) : 0;
+        const nCls = bodyN >= 4 ? "ok" : "low";
+        const tTag = titleHit ? '<span class="tag t">제목 ✓</span>' : '<span class="tag tno">제목 ✗</span>';
+        h += '<div class="kwItem"><span class="w">' + esc(k) + '</span>' + tTag +
+             '<span class="n ' + nCls + '">본문 ' + bodyN + '회</span></div>';
+      }
+      _kwBox.innerHTML = h; _kwBox.style.display = "flex";
+    } else { _kwBox.style.display = "none"; _kwBox.innerHTML = ""; }
+    $("#pvFull").textContent = (resp.title ? resp.title + "\n\n" : "") + _draft;
     $("#pv").classList.add("loaded");
     setOut(`✓ 불러왔어요! 제목·글${photos.length ? ` · 사진 ${photos.length}장` : ""}`, "ok");
     return true;

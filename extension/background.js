@@ -91,7 +91,7 @@ async function loadDraft(phone) {
       } catch (e) { /* 개별 사진 실패는 건너뜀 */ }
     }
   }
-  return { ok: true, title: data.title || "", draft: data.draft || "", photos };
+  return { ok: true, title: data.title || "", draft: data.draft || "", photos, keywords: Array.isArray(data.keywords) ? data.keywords : [] };
 }
 
 // ── CDP 헬퍼 ──

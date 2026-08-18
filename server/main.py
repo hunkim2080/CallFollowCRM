@@ -577,6 +577,7 @@ def db_init() -> None:
                 title         TEXT,
                 draft         TEXT,                 -- 본문(마커 규약 ## / ** / > / --- / [n])
                 photos_json   TEXT,                 -- [{index, photo_id}]
+                keywords_json TEXT,                 -- SEO 키워드 ["줄눈시공",...] (확장 '신뢰도' 표시용)
                 created_at_ms INTEGER NOT NULL,
                 PRIMARY KEY (owner_phone, customer_digits)  -- 감사#4: 고객별 글 분리(다른고객 사진 발행 방지)
             )
@@ -612,6 +613,7 @@ def db_init() -> None:
                 title         TEXT,
                 draft         TEXT,
                 photos_json   TEXT,
+                keywords_json TEXT,
                 created_at_ms INTEGER NOT NULL
             )
             """
@@ -619,6 +621,14 @@ def db_init() -> None:
         con.execute(
             "CREATE INDEX IF NOT EXISTS idx_web_gen_hist "
             "ON web_generated_history(owner_phone, customer_digits, created_at_ms DESC)")
+        # keywords_json 컬럼(기존 DB 마이그레이션) — SEO 키워드 저장 → 확장이 '제목/본문에 몇 회' 신뢰도 표시. 2026-08-18.
+        for _tbl in ("web_generated_posts", "web_generated_history"):
+            try:
+                _cols = [r[1] for r in con.execute("PRAGMA table_info(%s)" % _tbl).fetchall()]
+                if "keywords_json" not in _cols:
+                    con.execute("ALTER TABLE %s ADD COLUMN keywords_json TEXT" % _tbl)
+            except Exception:
+                pass
         # ── 추가142 (2026-07-22) — 박람회 팀 시공 Phase 1 (docs/EXPO_DECISIONS.md) ──
         # 사장님 확정: ①정산 완전격리(expo_* 테이블에만 저장, 기존 정산/고객에 안 섞음)
         # ②분배=팀별 ③계약서=상품카탈로그 체크형+서명+동의 ④방장이 방개설·계약서준비
@@ -29240,7 +29250,7 @@ async def _web_gemini_generate(api_key: str, prompt: str, timeout: float = 75.0)
 _WEB_GEN_JOBS = {}   # job_id -> {"status": "pending"|"done"|"error", "result": {...}, "detail": str, "ts": ms}
 _WEB_GEN_TASKS = set()   # 실행 중 태스크 강한참조 — create_task 결과를 안 붙들면 GC로 중간에 사라짐(잡이 영영 pending)
 
-async def _web_gen_finish(job_id, api_key, prompt, owner, cd, _sel, n_pics, m):
+async def _web_gen_finish(job_id, api_key, prompt, owner, cd, _sel, n_pics, m, kws=None):
     """백그라운드 생성 — 결과를 _WEB_GEN_JOBS[job_id] 에 저장(폴링용)."""
     try:
         out = await _web_gemini_generate(api_key, prompt, timeout=150.0)
@@ -29254,19 +29264,20 @@ async def _web_gen_finish(job_id, api_key, prompt, owner, cd, _sel, n_pics, m):
                       for i in range(n_pics)]
         try:
             _pj = json.dumps(photos_map, ensure_ascii=False)
+            _kj = json.dumps([str(k).strip() for k in (kws or []) if str(k).strip()][:3], ensure_ascii=False)
             _ts = _now_ms()
             _ttl = blog.get("title") or ""
             _bdy = blog.get("body") or ""
             with db_conn() as con:
                 con.execute(
                     "INSERT OR REPLACE INTO web_generated_posts "
-                    "(owner_phone, customer_digits, title, draft, photos_json, created_at_ms) "
-                    "VALUES (?,?,?,?,?,?)", (owner, cd, _ttl, _bdy, _pj, _ts))
+                    "(owner_phone, customer_digits, title, draft, photos_json, keywords_json, created_at_ms) "
+                    "VALUES (?,?,?,?,?,?,?)", (owner, cd, _ttl, _bdy, _pj, _kj, _ts))
                 # 히스토리에도 쌓기(재생성해도 이전 원고 보존) — 고객별 최근 20개만
                 con.execute(
                     "INSERT INTO web_generated_history "
-                    "(owner_phone, customer_digits, title, draft, photos_json, created_at_ms) "
-                    "VALUES (?,?,?,?,?,?)", (owner, cd, _ttl, _bdy, _pj, _ts))
+                    "(owner_phone, customer_digits, title, draft, photos_json, keywords_json, created_at_ms) "
+                    "VALUES (?,?,?,?,?,?,?)", (owner, cd, _ttl, _bdy, _pj, _kj, _ts))
                 con.execute(
                     "DELETE FROM web_generated_history WHERE owner_phone=? AND customer_digits=? AND id NOT IN "
                     "(SELECT id FROM web_generated_history WHERE owner_phone=? AND customer_digits=? "
@@ -29422,7 +29433,7 @@ async def web_generate_content(request: Request, req: WebGenReq):
     for _k in [k for k, v in list(_WEB_GEN_JOBS.items())
                if v.get("status") != "pending" and v.get("ts", 0) < _cut]:
         _WEB_GEN_JOBS.pop(_k, None)
-    _t = asyncio.create_task(_web_gen_finish(job_id, api_key, prompt, owner, cd, list(_sel), n_pics, dict(m)))
+    _t = asyncio.create_task(_web_gen_finish(job_id, api_key, prompt, owner, cd, list(_sel), n_pics, dict(m), list(_kws)))
     _WEB_GEN_TASKS.add(_t)
     _t.add_done_callback(_WEB_GEN_TASKS.discard)
     return {"job_id": job_id}
@@ -29624,15 +29635,20 @@ async def web_naver_draft(phone: str, customer_digits: Optional[str] = None,
     with db_conn() as con:
         if cd:
             row = con.execute(
-                "SELECT title, draft, photos_json FROM web_generated_posts "
+                "SELECT title, draft, photos_json, keywords_json FROM web_generated_posts "
                 "WHERE owner_phone = ? AND customer_digits = ?", (owner, cd)).fetchone()
         else:
             row = con.execute(
-                "SELECT title, draft, photos_json FROM web_generated_posts "
+                "SELECT title, draft, photos_json, keywords_json FROM web_generated_posts "
                 "WHERE owner_phone = ? ORDER BY created_at_ms DESC LIMIT 1", (owner,)).fetchone()
     if not row:
         return {"ok": False, "reason": "생성된 글이 없어요. 웹에서 [✨ 글 만들기] 먼저 하세요."}
-    title, draft, pj = row
+    title, draft, pj, kj = row
+    kws = []
+    try:
+        kws = [str(k) for k in json.loads(kj or "[]") if str(k).strip()]
+    except Exception:
+        kws = []
     photos = []
     try:
         for it in json.loads(pj or "[]"):
@@ -29646,7 +29662,7 @@ async def web_naver_draft(phone: str, customer_digits: Optional[str] = None,
             })
     except Exception:
         photos = []
-    return {"ok": True, "title": title or "", "draft": draft or "", "photos": photos}
+    return {"ok": True, "title": title or "", "draft": draft or "", "photos": photos, "keywords": kws}
 
 
 class WebCustomerContent(BaseModel):
