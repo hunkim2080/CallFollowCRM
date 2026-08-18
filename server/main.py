@@ -597,6 +597,23 @@ def db_init() -> None:
                 print("[db_init] web_generated_posts → 복합 PK(owner,customer_digits) 마이그레이션 완료")
         except Exception as _e:
             print(f"[db_init] web_generated_posts 마이그레이션 skip: {_e}")
+        # 원고 '라이브러리' — 재생성해도 이전 원고가 쌓이게(고객별 히스토리, 최근 20). 사장님 2026-08-18.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS web_generated_history (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                owner_phone   TEXT NOT NULL,
+                customer_digits TEXT NOT NULL DEFAULT '',
+                title         TEXT,
+                draft         TEXT,
+                photos_json   TEXT,
+                created_at_ms INTEGER NOT NULL
+            )
+            """
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_web_gen_hist "
+            "ON web_generated_history(owner_phone, customer_digits, created_at_ms DESC)")
         # ── 추가142 (2026-07-22) — 박람회 팀 시공 Phase 1 (docs/EXPO_DECISIONS.md) ──
         # 사장님 확정: ①정산 완전격리(expo_* 테이블에만 저장, 기존 정산/고객에 안 섞음)
         # ②분배=팀별 ③계약서=상품카탈로그 체크형+서명+동의 ④방장이 방개설·계약서준비
@@ -27129,6 +27146,14 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .tprow .tpb{margin-left:auto;font-size:10px;font-weight:800;color:var(--violet);background:var(--violet-bg);border:1px solid var(--violet-line);border-radius:6px;padding:2px 7px}
   .tpempty{font-size:12px;color:var(--ink3);padding:10px 11px;line-height:1.5}
   .tpmng{font-size:11.5px;font-weight:800;color:var(--blue);padding:9px 11px;border-top:1px solid var(--line);margin-top:4px;cursor:pointer;border-radius:8px}.tpmng:hover{background:var(--sunken)}
+  .histbar{position:relative;margin:2px 0 10px}
+  .histe{display:inline-flex;font-size:12px;font-weight:800;color:var(--violet);cursor:pointer;padding:6px 11px;border:1px solid var(--violet-line);border-radius:9px;background:var(--violet-bg)}
+  .histpop{position:absolute;top:100%;left:0;margin-top:6px;min-width:280px;max-width:340px;max-height:320px;overflow-y:auto;background:var(--surface);border:1px solid var(--line);border-radius:11px;box-shadow:0 12px 32px -10px rgba(16,24,40,.4);padding:6px;z-index:30;display:none}
+  .histpop.on{display:block}
+  .histrow{padding:9px 11px;border-radius:8px;cursor:pointer}.histrow:hover{background:var(--sunken)}
+  .histt{font-size:13px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .histm{font-size:11px;color:var(--ink3);margin-top:2px}
+  .histempty{font-size:12px;color:var(--ink3);padding:10px}
   .metaline{font-size:12px;color:var(--ink3);font-weight:700;margin-bottom:10px}
   .genhint{font-size:12px;font-weight:700;line-height:1.55;border-radius:11px;padding:10px 13px;margin-bottom:11px;display:none}
   .genhint.pick{color:var(--blue);background:var(--blue-bg);border:1px solid var(--blue-line)}
@@ -27391,7 +27416,7 @@ function openSite(cd){
   fetch('/api/web/site/'+encodeURIComponent(cd)).then(function(r){if(r.status===401){location.href='/web/login';throw 0;}return r.json();}).then(function(d){
     curCust=d.customer||{}; photos=d.photos||[];
     var _m=getPt(),_b=getBa(),_ch=false;photos.forEach(function(p){if(p.part){_m[p.photo_id]=p.part;_ch=true;}if(p.ba){_b[p.photo_id]=p.ba;_ch=true;}});if(_ch){localStorage.setItem(PT_KEY,JSON.stringify(_m));localStorage.setItem(BA_KEY,JSON.stringify(_b));}
-    GEN=null; genOrder=[]; renderMid(); renderDayList(); renderRight(); loadONote(); loadLastPost();
+    GEN=null; genOrder=[]; renderMid(); renderDayList(); renderRight(); loadONote(); loadLastPost(); loadPostHist(cd);
     renderCal_fromCurrent();
   }).catch(function(){});
 }
@@ -27544,6 +27569,20 @@ function renderTonePop(){var pop=document.getElementById('tonePop');if(!pop)retu
   pop.innerHTML=rows+'<div class="tpmng" onclick="openStyleModal()">✏️ 새 스타일 학습 · 관리</div>';}
 function pickTone(id){fetch('/api/web/tone-activate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({platform:genP,id:id})}).then(function(r){return r.json();}).then(function(j){if(j&&j.ok){(TONELIB[genP]||[]).forEach(function(s){s.active=(s.id===id);});renderRight();toast('이 스타일로 바꿨어요 ✓ 이제 이 톤으로 나와요');}}).catch(function(){});}
 document.addEventListener('click',function(e){var pop=document.getElementById('tonePop');if(pop&&pop.classList.contains('on')&&!pop.contains(e.target))pop.classList.remove('on');});
+/* ═══ 이전 원고 히스토리 (재생성해도 쌓임 · 최근 20) ═══ */
+var POSTHIST=[];
+function loadPostHist(cd){if(!cd)return;var jc=cd;fetch('/api/web/post-history?customer_digits='+encodeURIComponent(cd)).then(function(r){return r.json();}).then(function(j){POSTHIST=(j&&j.items)||[];if(curCd===jc)renderRight();}).catch(function(){});}
+function toggleHistPop(e){e.stopPropagation();var p=document.getElementById('histPop');if(!p)return;if(p.classList.contains('on')){p.classList.remove('on');return;}
+  p.innerHTML=POSTHIST.map(function(h,i){return '<div class="histrow" onclick="loadPostItem('+i+')"><div class="histt">'+esc(h.title||'(제목 없음)')+'</div><div class="histm">'+ago(h.created_at_ms)+' · '+(h.chars||0)+'자</div></div>';}).join('')||'<div class="histempty">아직 없어요</div>';
+  p.classList.add('on');}
+function loadPostItem(i){var h=POSTHIST[i];if(!h)return;
+  GEN={restored:true,persona:'',region:'',blog:{title:h.title||'',body:h.draft||'',chars:(h.draft||'').length},photos:h.photos||[],instagram:null,threads:null};
+  genOrder=(h.photos||[]).map(function(p){return p.photo_id;}).filter(Boolean);
+  var pp=document.getElementById('histPop');if(pp)pp.classList.remove('on');
+  drawGen();var b=document.querySelector('#rbody .genbig');if(b)b.textContent='↻ 다시 만들기';
+  fetch('/api/web/save-draft',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer_digits:curCd,draft:h.draft||'',title:h.title||''})}).catch(function(){});
+  toast('이전 원고를 불러왔어요');}
+document.addEventListener('click',function(e){var p=document.getElementById('histPop');if(p&&p.classList.contains('on')&&!p.contains(e.target))p.classList.remove('on');});
 /* ═══ 새 스타일 학습 모달 (뷰어 안에서 · 마이페이지 안 가도 됨) ═══ */
 function openStyleModal(){var pp=document.getElementById('tonePop');if(pp)pp.classList.remove('on');
   document.getElementById('smUrl').value='';document.getElementById('smText').value='';document.getElementById('smText').style.display='none';
@@ -27613,6 +27652,7 @@ function renderRight(){
    +(done?'<div class="onote"><div class="onote-l">✍️ 이 글에 넣고 싶은 것 <span>(선택 · 사진 보다 떠오른 것)</span></div><textarea class="onote-ta" id="onoteTa" placeholder="예: 고객이 아기 있어 무독성 강조 · 이 집 뷰 좋았음 · 재방문 고객" oninput="onoteChanged()"></textarea></div>':'')
    +'<div class="genhint" id="genHint"></div>'
    +btn
+   +((genP==='bl'&&POSTHIST.length)?'<div class="histbar"><span class="histe" onclick="toggleHistPop(event)">📚 이전에 만든 원고 '+POSTHIST.length+'개 ▾</span><div class="histpop" id="histPop"></div></div>':'')
    +'<div class="genload" id="genload"><div class="gblob"></div><div class="gStage" id="gStage">사진을 읽고 있어요</div><div class="gSub" id="gSub"></div><div class="gbar"><span id="gBarFill"></span></div><div class="gElapsed" id="gElapsed"></div></div>'
    +'<div id="genOut"></div>';
   rb.innerHTML=h;
@@ -27757,7 +27797,7 @@ function doGenerate(){
   var _intro=_kws.length?('알겠어요! '+_kws.map(function(k){return '‘'+k+'’';}).join(' · ')+' 검색에 잘 노출되게 원고 작성해볼게요! ✍️'):null;
   var L=startGenLoad(_intro);
   function fail(msg){L.fail();if(curCd!==jobCd)return;gl.classList.remove('on');out.innerHTML='<div style="padding:14px;color:#F0436A;font-size:13px">'+esc(msg)+'</div>';}
-  function done(j){if(curCd!==jobCd){L.fail();return;}L.finish(function(){gl.classList.remove('on');GEN=j;MAT=null;if(mTab==='story')renderStory();var b=document.querySelector('#rbody .genbig');if(b)b.textContent='↻ 다시 만들기';drawGen();});}
+  function done(j){if(curCd!==jobCd){L.fail();return;}L.finish(function(){gl.classList.remove('on');GEN=j;MAT=null;if(mTab==='story')renderStory();var b=document.querySelector('#rbody .genbig');if(b)b.textContent='↻ 다시 만들기';drawGen();loadPostHist(jobCd);});}
   var chosen=genOrder.map(function(id){var p=gPhoto(id);return {photo_id:id, part:partFor(id), ba:p?baFor(p):'before'};});
   fetch('/api/web/generate-content',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer_digits:curCd, photos:chosen, keywords:_kws})})
   .then(function(r){return r.json().then(function(j){return {s:r.status,j:j};});}).then(function(o){
@@ -29147,13 +29187,24 @@ async def _web_gen_finish(job_id, api_key, prompt, owner, cd, _sel, n_pics, m):
                        "part": _sel[i].get("part") or "", "ba": _sel[i].get("ba") or ""}
                       for i in range(n_pics)]
         try:
+            _pj = json.dumps(photos_map, ensure_ascii=False)
+            _ts = _now_ms()
+            _ttl = blog.get("title") or ""
+            _bdy = blog.get("body") or ""
             with db_conn() as con:
                 con.execute(
                     "INSERT OR REPLACE INTO web_generated_posts "
                     "(owner_phone, customer_digits, title, draft, photos_json, created_at_ms) "
-                    "VALUES (?,?,?,?,?,?)",
-                    (owner, cd, blog.get("title") or "", blog.get("body") or "",
-                     json.dumps(photos_map, ensure_ascii=False), _now_ms()))
+                    "VALUES (?,?,?,?,?,?)", (owner, cd, _ttl, _bdy, _pj, _ts))
+                # 히스토리에도 쌓기(재생성해도 이전 원고 보존) — 고객별 최근 20개만
+                con.execute(
+                    "INSERT INTO web_generated_history "
+                    "(owner_phone, customer_digits, title, draft, photos_json, created_at_ms) "
+                    "VALUES (?,?,?,?,?,?)", (owner, cd, _ttl, _bdy, _pj, _ts))
+                con.execute(
+                    "DELETE FROM web_generated_history WHERE owner_phone=? AND customer_digits=? AND id NOT IN "
+                    "(SELECT id FROM web_generated_history WHERE owner_phone=? AND customer_digits=? "
+                    "ORDER BY created_at_ms DESC LIMIT 20)", (owner, cd, owner, cd))
                 con.commit()
         except Exception:
             pass
@@ -29443,6 +29494,31 @@ async def web_last_post(request: Request, customer_digits: str):
         photos = []
     return {"ok": True, "has": True, "title": row[0] or "", "draft": row[1] or "",
             "photos": photos, "created_at_ms": row[3] or 0}
+
+
+@app.get("/api/web/post-history")
+async def web_post_history(request: Request, customer_digits: str):
+    """이 현장에서 지금까지 만든 원고들(재생성 히스토리, 최근 20). 클릭하면 그 버전으로 되돌림."""
+    from fastapi.responses import JSONResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    cd = _webre.sub(r"[^0-9]", "", customer_digits or "")
+    if not cd:
+        return {"ok": True, "items": []}
+    items = []
+    with db_conn() as con:
+        for r in con.execute(
+            "SELECT id, title, draft, photos_json, created_at_ms FROM web_generated_history "
+            "WHERE owner_phone=? AND customer_digits=? ORDER BY created_at_ms DESC LIMIT 20",
+            (owner, cd)).fetchall():
+            try:
+                _ph = json.loads(r[3] or "[]")
+            except Exception:
+                _ph = []
+            items.append({"id": r[0], "title": r[1] or "", "draft": r[2] or "",
+                          "photos": _ph, "chars": len(str(r[2] or "")), "created_at_ms": r[4] or 0})
+    return {"ok": True, "items": items}
 
 
 @app.get("/api/web/materials")
