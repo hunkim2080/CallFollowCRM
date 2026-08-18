@@ -291,4 +291,28 @@
       }
     });
   } catch (e) {}
+
+  // ── '작성 중인 글이 있습니다' 팝업 자동 닫기 ([취소]=새로 작성) ──
+  // content script 는 같은-오리진 iframe(#mainFrame) DOM 에 접근 가능 → 합성 click 으로 닫는다.
+  // (2026-08-18 CDP 로 실제 네이버 팝업에 합성 click 먹는 것 검증. 디버거·좌표 불필요.)
+  function sgmDismissDraftPopup() {
+    try {
+      var docs = [document];
+      var f = document.querySelector("#mainFrame");
+      if (f && f.contentDocument) docs.push(f.contentDocument);
+      for (var di = 0; di < docs.length; di++) {
+        var doc = docs[di], hasPop = false, els = doc.querySelectorAll("div,p,span,strong,h1,h2,h3");
+        for (var i = 0; i < els.length; i++) { var t = els[i].textContent || ""; if (t.indexOf("작성 중") >= 0 && t.length < 90) { hasPop = true; break; } }
+        if (!hasPop) continue;
+        var btns = doc.querySelectorAll('button,[role="button"],a');
+        for (var j = 0; j < btns.length; j++) {
+          var b = btns[j], bt = (b.textContent || "").replace(/\s/g, ""), c = (b.className || "") + "";
+          if ((bt === "취소" || c.indexOf("cancel") >= 0) && c.indexOf("confirm") < 0) { b.click(); return true; }
+        }
+      }
+    } catch (e) {}
+    return false;
+  }
+  var _sgmPopTries = 0;
+  var _sgmPopIv = setInterval(function () { _sgmPopTries++; if (sgmDismissDraftPopup() || _sgmPopTries > 16) clearInterval(_sgmPopIv); }, 400);
 })();
