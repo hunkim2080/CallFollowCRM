@@ -28269,6 +28269,214 @@ async def web_viewer(request: Request):
 
 
 # ============================================================================
+#  크롬 확장(시공막내 '네이버 넣기') — 베타 자가배포: 설치 가이드 + 로그인 게이트 다운로드
+#  프로토 e796bc35 그대로. 웹스토어 X(자가배포) → debugger 심사·경고바 회피 + 회원만.
+#  - GET /web/extension          : 설치 가이드(공개). 로그인 상태면 다운로드 버튼, 아니면 로그인 버튼.
+#  - GET /web/extension/download : zip 다운로드(로그인 필수, 쿠키 세션 게이트).
+#  zip = server/static/sigongmagne.zip  (⚠️ 확장 소스 수정 시 재빌드 필요: scripts/build_ext_zip)
+# ============================================================================
+_EXT_GUIDE_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width, initial-scale=1">
+<title>시공막내 크롬 확장 설치 가이드</title>
+<style>
+  :root{
+    --bg:#F7F9FB; --card:#FFFFFF; --ink:#191F28; --ink2:#4E5968; --ink3:#8B95A1;
+    --line:#E5E9EE; --line2:#EEF1F4;
+    --brand:#03C75A; --brand-ink:#02A94D; --brand-bg:#EAFBF1;
+    --warn:#B7791F; --warn-bg:#FBF3E4; --warn-line:#F0E0BC;
+    --blue:#3182F6; --blue-bg:#E7F0FF;
+    --shadow:0 6px 22px rgba(16,24,40,.08); --shadow-lg:0 14px 40px rgba(3,199,90,.22);
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0E1217; --card:#171C22; --ink:#F2F4F6; --ink2:#C2CAD2; --ink3:#8B95A1;
+      --line:#262D36; --line2:#20262E;
+      --brand:#05D866; --brand-ink:#0BC961; --brand-bg:#12241A;
+      --warn:#E8B45E; --warn-bg:#2A2216; --warn-line:#4A3B1E;
+      --blue:#5A9BFF; --blue-bg:#16233A;
+      --shadow:0 6px 22px rgba(0,0,0,.4); --shadow-lg:0 14px 40px rgba(0,0,0,.5);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0E1217; --card:#171C22; --ink:#F2F4F6; --ink2:#C2CAD2; --ink3:#8B95A1;
+    --line:#262D36; --line2:#20262E;
+    --brand:#05D866; --brand-ink:#0BC961; --brand-bg:#12241A;
+    --warn:#E8B45E; --warn-bg:#2A2216; --warn-line:#4A3B1E;
+    --blue:#5A9BFF; --blue-bg:#16233A;
+    --shadow:0 6px 22px rgba(0,0,0,.4); --shadow-lg:0 14px 40px rgba(0,0,0,.5);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Pretendard",-apple-system,BlinkMacSystemFont,"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",sans-serif;
+    line-height:1.6;-webkit-font-smoothing:antialiased}
+  .page{max-width:680px;margin:0 auto;padding:26px 20px 60px}
+  .hero{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:30px 26px;text-align:center;box-shadow:var(--shadow)}
+  .hero .who{font-size:44px;line-height:1;margin-bottom:12px}
+  .hero h1{font-size:25px;font-weight:850;letter-spacing:-.02em;margin:0 0 8px;text-wrap:balance}
+  .hero .sub{font-size:15px;color:var(--ink2);font-weight:600;margin:0 0 6px}
+  .hero .meta{display:inline-flex;gap:7px;align-items:center;font-size:13px;font-weight:800;color:var(--brand-ink);background:var(--brand-bg);border-radius:999px;padding:6px 13px;margin-top:12px}
+  .dlbtn{display:inline-flex;align-items:center;gap:9px;margin-top:20px;background:var(--brand);color:#fff;font-size:17px;font-weight:850;border:0;border-radius:15px;padding:15px 26px;cursor:pointer;box-shadow:var(--shadow-lg);text-decoration:none}
+  .dlbtn:active{transform:scale(.98)}
+  .dlbtn .em{font-size:20px}
+  .dlnote{font-size:12px;color:var(--ink3);font-weight:600;margin-top:10px}
+  .dlnote b{color:var(--ink2)}
+  .steps{margin-top:26px;display:flex;flex-direction:column;gap:14px}
+  .step{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px 20px 20px 18px;display:grid;grid-template-columns:46px 1fr;gap:15px;box-shadow:var(--shadow)}
+  .num{width:46px;height:46px;border-radius:14px;background:var(--brand);color:#fff;font-size:22px;font-weight:850;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(3,199,90,.32)}
+  .step .body{min-width:0}
+  .step h2{font-size:18px;font-weight:850;margin:3px 0 6px;letter-spacing:-.01em}
+  .step p{font-size:15px;color:var(--ink2);font-weight:550;margin:0 0 4px}
+  .step p b{color:var(--ink);font-weight:800}
+  .kbd{display:inline-block;background:var(--line2);border:1px solid var(--line);border-radius:7px;padding:1px 8px;font-size:13.5px;font-weight:800;color:var(--ink)}
+  .hl{background:var(--brand-bg);color:var(--brand-ink);border-radius:6px;padding:1px 6px;font-weight:850}
+  .mock{margin-top:11px;border:1px solid var(--line);border-radius:12px;background:var(--bg);padding:12px 13px}
+  .mock .cap{font-size:11.5px;font-weight:800;color:var(--ink3);margin-bottom:8px}
+  .addrbar{display:flex;align-items:center;gap:8px;background:var(--card);border:1.5px solid var(--line);border-radius:999px;padding:8px 14px;font-size:14px;font-weight:700;color:var(--ink2)}
+  .addrbar .lock{color:var(--ink3);font-size:13px}
+  .addrbar .u{color:var(--ink);font-weight:800}
+  .extbar{display:flex;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 13px}
+  .extbar .ttl{font-size:14px;font-weight:850}
+  .devwrap{display:flex;align-items:center;gap:9px}
+  .devwrap .lb{font-size:13px;font-weight:800;color:var(--ink2)}
+  .toggle{width:42px;height:24px;border-radius:999px;background:var(--brand);position:relative;flex:none}
+  .toggle::after{content:"";position:absolute;top:3px;right:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+  .loadrow{display:flex;gap:9px;flex-wrap:wrap}
+  .loadbtn{display:inline-flex;align-items:center;gap:7px;background:var(--card);border:1.5px solid var(--brand);color:var(--brand-ink);font-size:13.5px;font-weight:850;border-radius:10px;padding:9px 14px}
+  .loadbtn.ghost{border-color:var(--line);color:var(--ink3)}
+  .zipflow{display:flex;align-items:center;gap:12px;justify-content:center}
+  .zipbox{text-align:center}
+  .zipbox .ic{font-size:30px;line-height:1}
+  .zipbox .nm{font-size:11.5px;font-weight:800;color:var(--ink2);margin-top:3px}
+  .arrow{font-size:22px;color:var(--brand);font-weight:900}
+  .warn{background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:14px;padding:15px 17px;margin-top:8px}
+  .warn .wh{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:850;color:var(--warn);margin-bottom:9px}
+  .warn ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}
+  .warn li{font-size:14.5px;font-weight:650;color:var(--ink);display:flex;gap:9px;align-items:flex-start}
+  .warn li .n{flex:none;width:20px;height:20px;border-radius:7px;background:var(--warn);color:#fff;font-size:12px;font-weight:850;display:flex;align-items:center;justify-content:center;margin-top:2px}
+  .warn li b{font-weight:850}
+  .done{background:linear-gradient(135deg,var(--brand),var(--brand-ink));color:#fff;border-radius:20px;padding:26px 24px;text-align:center;margin-top:22px;box-shadow:var(--shadow-lg)}
+  .done .ic{font-size:38px}
+  .done h2{font-size:21px;font-weight:850;margin:8px 0 6px}
+  .done p{font-size:15px;font-weight:600;opacity:.95;margin:0}
+  .done .arrow-note{display:inline-block;margin-top:12px;background:rgba(255,255,255,.18);border-radius:999px;padding:7px 15px;font-size:13.5px;font-weight:800}
+  .foot{text-align:center;margin-top:28px;font-size:13px;color:var(--ink3);font-weight:600;line-height:1.7}
+  .foot b{color:var(--ink2)}
+  .help{margin-top:16px;background:var(--card);border:1px dashed var(--line);border-radius:14px;padding:15px 17px}
+  .help .hh{font-size:14px;font-weight:850;color:var(--ink);margin-bottom:7px;display:flex;gap:7px;align-items:center}
+  .help p{font-size:13.5px;color:var(--ink2);font-weight:600;margin:0 0 5px}
+  .help p b{color:var(--ink)}
+</style></head><body>
+<div class="page">
+  <div class="hero">
+    <div class="who">\U0001F9D1‍\U0001F527</div>
+    <h1>시공막내 크롬 확장 설치하기</h1>
+    <p class="sub">이거 한 번만 깔면, 만든 글을 네이버 블로그에<br>제목·글·사진까지 <b>자동으로 쏙</b> 넣어드려요.</p>
+    <div class="meta">⏱️ 딱 5단계 · 2분이면 끝 · 한 번만 하면 돼요</div>
+    <!--CTA-->
+  </div>
+  <div class="steps">
+    <div class="step"><div class="num">1</div><div class="body">
+      <h2>확장 파일 받기</h2>
+      <p>위 <span class="hl">\U0001F9E9 다운로드</span> 버튼을 누르면 <b>sigongmagne.zip</b> 파일이 <b>다운로드 폴더</b>에 저장돼요.</p>
+    </div></div>
+    <div class="step"><div class="num">2</div><div class="body">
+      <h2>압축 풀기 <span style="font-size:13px;color:var(--warn);font-weight:850">· 제일 중요!</span></h2>
+      <p>받은 <b>sigongmagne.zip</b>에 <b>마우스 오른쪽 클릭 → "압축 풀기"</b>. 그러면 <b>sigongmagne 폴더</b>가 생겨요.</p>
+      <div class="mock"><div class="cap">이렇게 폴더가 만들어져요</div>
+        <div class="zipflow">
+          <div class="zipbox"><div class="ic">\U0001F5DC️</div><div class="nm">sigongmagne.zip</div></div>
+          <div class="arrow">→</div>
+          <div class="zipbox"><div class="ic">\U0001F4C1</div><div class="nm">sigongmagne 폴더</div></div>
+        </div>
+      </div>
+      <p style="margin-top:10px;color:var(--warn);font-weight:750">⚠️ 압축을 꼭 풀어야 해요. zip 파일 그대로는 안 돼요.</p>
+    </div></div>
+    <div class="step"><div class="num">3</div><div class="body">
+      <h2>크롬 확장 관리 화면 열기</h2>
+      <p>크롬 <b>주소창</b>에 아래 주소를 치고 <span class="kbd">Enter</span> 눌러요.</p>
+      <div class="mock"><div class="cap">주소창에 그대로 입력</div>
+        <div class="addrbar"><span class="lock">\U0001F512</span> <span class="u">chrome://extensions</span></div>
+      </div>
+    </div></div>
+    <div class="step"><div class="num">4</div><div class="body">
+      <h2>개발자 모드 켜기</h2>
+      <p>화면 <b>오른쪽 위</b>에 있는 <b>[개발자 모드]</b> 스위치를 <span class="hl">눌러서 켜요</span> (파란색/초록색 되게).</p>
+      <div class="mock"><div class="cap">오른쪽 위 — 이 스위치를 켜요</div>
+        <div class="extbar"><span class="ttl">확장 프로그램</span>
+          <div class="devwrap"><span class="lb">개발자 모드</span><span class="toggle"></span></div>
+        </div>
+      </div>
+    </div></div>
+    <div class="step"><div class="num">5</div><div class="body">
+      <h2>폴더 불러오기</h2>
+      <p>개발자 모드를 켜면 <b>왼쪽 위</b>에 버튼들이 생겨요. <b>[압축해제된 확장 프로그램을 로드합니다]</b>를 누르고, <b>2번에서 압축 푼 폴더</b>를 골라요.</p>
+      <div class="mock"><div class="cap">왼쪽 위 — 이 버튼을 눌러요</div>
+        <div class="loadrow">
+          <span class="loadbtn">\U0001F4C2 압축해제된 확장 프로그램을 로드합니다</span>
+          <span class="loadbtn ghost">확장 프로그램 압축</span>
+          <span class="loadbtn ghost">업데이트</span>
+        </div>
+      </div>
+    </div></div>
+  </div>
+  <div class="done">
+    <div class="ic">\U0001F389</div>
+    <h2>끝났어요!</h2>
+    <p>목록에 <b>시공막내</b>가 뜨면 설치 완료예요.</p>
+    <div class="arrow-note">이제 네이버 블로그 <b>글쓰기</b> 창을 열면 오른쪽에 시공막내가 나타나요 \U0001F9D1‍\U0001F527</div>
+  </div>
+  <div class="warn">
+    <div class="wh">⚠️ 딱 3가지만 기억해요</div>
+    <ul>
+      <li><span class="n">1</span><span><b>압축 푼 폴더를 지우거나 옮기지 마세요.</b> 시공막내가 그 폴더를 계속 보고 있어요. (지우면 꺼져요)</span></li>
+      <li><span class="n">2</span><span><b>개발자 모드는 계속 켜두세요.</b> 끄면 시공막내도 같이 쉬어요.</span></li>
+      <li><span class="n">3</span><span>크롬을 켤 때 <b>"개발자 모드 확장을 사용 중지할까요?"</b> 물어보면 → <b>[취소]</b>를 누르세요.</span></li>
+    </ul>
+  </div>
+  <div class="help">
+    <div class="hh">\U0001F914 시공막내가 안 보여요</div>
+    <p>· 네이버 <b>글쓰기</b> 창인지 확인해요 (글 목록 말고, 새 글 쓰는 화면).</p>
+    <p>· 그 페이지를 <b>새로고침(F5)</b> 한 번 해요.</p>
+    <p>· <span class="kbd">chrome://extensions</span> 에서 시공막내가 <b>켜짐</b> 상태인지 봐요.</p>
+  </div>
+  <div class="foot">
+    설치는 <b>한 번만</b> 하면 됩니다 · 이 확장은 <b>시공막내 회원</b>만 받을 수 있어요<br>
+    시공막내는 네이버에 <b>자동으로 발행하지 않아요</b> — 넣어드리면, 확인하고 발행은 사장님이 직접 \U0001F64C
+  </div>
+</div>
+</body></html>"""
+
+
+@app.get("/web/extension", response_class=HTMLResponse, include_in_schema=False)
+async def web_extension_guide(request: Request):
+    """크롬 확장 설치 가이드(프로토 e796bc35). 공개 페이지지만 로그인 상태에 따라 CTA 가 바뀜."""
+    owner = _web_owner_from_request(request)
+    if owner:
+        cta = ('<div><a class="dlbtn" href="/web/extension/download"><span class="em">\U0001F9E9</span> '
+               '시공막내 확장 다운로드</a></div>'
+               '<div class="dlnote">눌러도 컴퓨터 안 망가져요 — 그냥 파일 하나 받는 거예요 :)</div>')
+    else:
+        cta = ('<div><a class="dlbtn" href="/web/login"><span class="em">\U0001F511</span> '
+               '로그인하고 다운로드</a></div>'
+               '<div class="dlnote">확장은 로그인한 <b>시공막내 회원</b>만 받을 수 있어요</div>')
+    return HTMLResponse(_EXT_GUIDE_HTML.replace("<!--CTA-->", cta),
+                        headers={"Cache-Control": "no-store"})
+
+
+@app.get("/web/extension/download", include_in_schema=False)
+async def web_extension_download(request: Request):
+    """확장 zip 다운로드 — 로그인(쿠키 세션) 필수. 자가배포라 회원만 받게."""
+    from fastapi.responses import RedirectResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return RedirectResponse("/web/extension", status_code=302)
+    p = BASE_DIR / "static" / "sigongmagne.zip"
+    if not p.exists():
+        raise HTTPException(500, "확장 파일이 아직 준비 안 됐어요 (sigongmagne.zip 없음)")
+    return FileResponse(str(p), media_type="application/zip", filename="sigongmagne.zip")
+
+
+# ============================================================================
 # 마이페이지 (PC 전용) — 로그인·보안 / 내 Gemini 키(암호화) / 블로그 톤 / 앱 연결
 # 프로토: docs/mypage_PROTO.html (4b33650f). owner 본인 Gemini 키로 글생성(본인 과금).
 # ============================================================================
