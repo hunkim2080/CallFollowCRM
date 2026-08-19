@@ -28472,22 +28472,23 @@ _EXT_GUIDE_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   <div class="done">
     <div class="ic">\U0001F389</div>
     <h2>끝났어요!</h2>
-    <p>목록에 <b>시공막내</b>가 뜨면 설치 완료예요.</p>
-    <div class="arrow-note">이제 네이버 블로그 <b>글쓰기</b> 창을 열면 오른쪽에 시공막내가 나타나요 \U0001F9D1‍\U0001F527</div>
+    <p>목록에 <b>시공막내</b>가 뜨면 설치 완료 — 진짜 되는지 확인해요!</p>
+    <a href="https://blog.naver.com/GoBlogWrite.naver" target="_blank" rel="noopener" style="display:inline-block;margin-top:14px;background:#fff;color:var(--brand-ink);font-size:14.5px;font-weight:850;padding:12px 20px;border-radius:12px;text-decoration:none;box-shadow:0 6px 16px rgba(0,0,0,.18)">🔗 네이버 글쓰기 열어서 확인하기</a>
+    <div class="arrow-note">글쓰기 창이 열리면 <b>화면 왼쪽 아래 구석</b>에 시공막내가 뜨면 성공! · 안 뜨면 아래 확인\U0001F9D1‍\U0001F527</div>
   </div>
   <div class="warn">
     <div class="wh">⚠️ 딱 3가지만 기억해요</div>
     <ul>
       <li><span class="n">1</span><span><b>압축 푼 폴더를 지우거나 옮기지 마세요.</b> 시공막내가 그 폴더를 계속 보고 있어요. (지우면 꺼져요)</span></li>
       <li><span class="n">2</span><span><b>개발자 모드는 계속 켜두세요.</b> 끄면 시공막내도 같이 쉬어요.</span></li>
-      <li><span class="n">3</span><span>크롬을 켤 때 <b>"개발자 모드 확장을 사용 중지할까요?"</b> 물어보면 → <b>[취소]</b>를 누르세요.</span></li>
+      <li><span class="n">3</span><span>크롬이 <b>"안전하지 않을 수 있는 확장"</b>이라며 시공막내를 <b>꺼놓거나</b>(회색 토글) 삭제하라고 할 수 있어요. 웹스토어 밖 배포라 그런 거고 <b>안전해요</b> — <b>삭제 말고, 토글만 다시 켜세요</b>(파란색).</span></li>
     </ul>
   </div>
   <div class="help">
     <div class="hh">\U0001F914 시공막내가 안 보여요</div>
-    <p>· 네이버 <b>글쓰기</b> 창인지 확인해요 (글 목록 말고, 새 글 쓰는 화면).</p>
-    <p>· 그 페이지를 <b>새로고침(F5)</b> 한 번 해요.</p>
-    <p>· <span class="kbd">chrome://extensions</span> 에서 시공막내가 <b>켜짐</b> 상태인지 봐요.</p>
+    <p><b>1) 확장이 꺼져 있나 봐요 (제일 흔해요)</b> — <span class="kbd">chrome://extensions</span> 에서 시공막내 토글이 <b>회색이면 켜세요</b>(파란색). 크롬이 "안전하지 않을 수 있는 확장"이라며 <b>자동으로 꺼놓을 수 있어요</b> — 삭제 말고 켜기만.</p>
+    <p><b>2) 글쓰기 창인지 확인</b> — 글 목록 말고 <b>새 글 쓰는 화면</b>이라야 떠요. <a href="https://blog.naver.com/GoBlogWrite.naver" target="_blank" rel="noopener" style="color:var(--brand-ink);font-weight:800">여기로 열기 →</a></p>
+    <p><b>3) 새로고침(F5)</b> 한 번 — 그래도 안 되면 크롬을 껐다 켜요.</p>
   </div>
   <div class="foot">
     설치는 <b>한 번만</b> 하면 됩니다 · 이 확장은 <b>시공막내 회원</b>만 받을 수 있어요<br>
@@ -29181,7 +29182,7 @@ _MYPAGE_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
             <span class="dot"></span><span class="s">연결됨</span><span class="k" id="keyMask"></span>
             <span class="mini"><span onclick="testKey()">연결 확인</span><span onclick="delKey()" style="color:var(--red)">삭제</span></span>
           </div>
-          <div class="howto"><b>키 받는 법 (30초 · 무료)</b><br>① <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> 접속 (구글 로그인) &nbsp; ② <b>[Create API key]</b> → 키 복사 &nbsp; ③ 위에 붙여넣고 <b>[연결]</b></div>
+          <div class="howto"><b>키 받는 법 (1분 · 무료)</b><br>① <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> 접속 (구글 로그인) &nbsp; ② <b>[API 키 만들기]</b> 클릭 → <b style="color:var(--violet,#6E5FC7)">처음이면 "+ 프로젝트 만들기"부터 누르세요</b> (이걸 안 하면 키가 안 만들어져요!) &nbsp; ③ 프로젝트 만든 뒤 키 생성 → 복사 → 위에 붙여넣고 <b>[연결]</b></div>
           <div class="note">🔒 키는 <b>암호화되어 안전하게 보관</b>되고 블로그 생성에만 써요. 화면엔 뒤 4자리만. 언제든 삭제 가능.</div>
         </div>
       </div>
