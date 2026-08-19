@@ -27429,6 +27429,7 @@ var ym=new Date().toISOString().slice(0,7);
 var sites=[], curCd=null, curCust=null, photos=[], sel={}, filter='all', lbi=0, mTab='photos', MAT=null, partsEditMode=false;
 var HAS_KEY=("__SGM_HASKEY__"==="true");   /* serve 시점 주입(web_viewer). 키 없으면 글쓰기 대신 등록 카드 */
 var PARTS_KEY='web_parts_v1', SELPART_KEY='web_sel_part', PT_KEY='web_partof_v1', BA_KEY='web_ba_v1';
+var photoSort='work';   /* 사진 정렬: work=시공순(시공전-밑작업-시공후) / upload=올린순 */
 var DEFAULT_PARTS=['거실화장실','안방화장실','거실타일','베란다','다용도실','현관','기타'];
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function pad(n){return (n<10?'0':'')+n;}
@@ -27544,9 +27545,10 @@ function renderPhotosPane(){
    +'<span class="chipf'+(filter==='partner'?' on':'')+'" onclick="setFilter(\\'partner\\')"><i class="partner"></i>협업 사장 '+(cc.partner||0)+'</span>'
    +'</div>'
    +'<div class="seg"><span>시공 전</span> · <span>밑작업</span> · <span class="on">시공 후</span> — 자동 구분, 태그 탭으로 바꿔요</div>'
+   +'<div class="chips" style="margin-top:8px;align-items:center"><span class="chipf'+(photoSort==='work'?' on':'')+'" onclick="setSort(\\'work\\')">🔀 시공순</span><span class="chipf'+(photoSort==='upload'?' on':'')+'" onclick="setSort(\\'upload\\')">올린순</span><span style="font-size:11px;color:var(--ink3);margin-left:2px">시공전→밑작업→시공후 순으로</span></div>'
    +'<div class="grid" id="photos"></div>';
   if(photos.length){
-    h+='<div class="partpick"><div class="h">📌 선택한 사진에 <b>부위 찍기</b> → 파일명에 들어가요 · <b>부위 목록은 사장님이 직접 정해요</b></div>'
+    h+='<div class="partpick"><div class="h">📌 <b>부위 찍는 법</b> — ① 위에서 <b>사진을 클릭</b>해 고르고 → ② 아래 <b>부위를 클릭</b>하면 찍혀요 (다운로드 파일명에 들어가요)<br>💡 부위가 <b>자세할수록 원고 퀄이 올라가요</b> (예: "안방 화장실 바닥 케라폭시") · 목록은 사장님이 직접 정해요</div>'
       +'<div class="editnote" id="editnote" style="display:none">✏️ <b>편집 중</b> — 부위마다 <b>✕</b> 로 빼기 · <b>[✓ 완료]</b> 누르면 끝</div>'
       +'<div class="parts" id="parts"></div></div>'
       +'<div class="dlbar"><div class="fname" id="fname"></div>'
@@ -27559,8 +27561,10 @@ function renderPhotosPane(){
   if(photos.length){renderParts();updBar();}
 }
 function setFilter(f){filter=f;renderPhotosPane();}
+function setSort(s){photoSort=s;renderPhotosPane();}
 function renderPhotos(){
   var g=''; var list=photos.filter(function(p){return filter==='all'||p.uploader_kind===filter;});
+  if(photoSort==='work'){var _bo={before:0,mid:1,after:2};list=list.slice().sort(function(a,b){var da=(_bo[baFor(a)]==null?9:_bo[baFor(a)]),db=(_bo[baFor(b)]==null?9:_bo[baFor(b)]);return da!==db?da-db:(photos.indexOf(a)-photos.indexOf(b));});}
   list.forEach(function(p){
     var up=p.uploader_kind, upc=up==='owner'?'owner':(up==='partner'?'partner':'team');
     var _un=(p.uploader_name||'').trim();
@@ -29474,6 +29478,21 @@ def _web_gather_materials(owner: str, cd: str) -> dict:
             "convo": convo, "tone_urls": tones}
 
 
+def _web_gemini_friendly_error(status: int, body: str = "") -> str:
+    """Gemini API 에러 → 사용자용 한국어(영어 raw 노출 금지). 사장님 지적 2026-08-19."""
+    b = (body or "").lower()
+    if status == 429 or "quota" in b or "resource_exhausted" in b or "rate limit" in b or "rate_limit" in b:
+        return ("오늘 Gemini 무료 한도를 다 쓴 것 같아요 🙏 내일이면 다시 채워져요. "
+                "지금 꼭 써야 하면 구글 AI Studio에서 결제(유료)를 켜면 계속 만들 수 있어요.")
+    if status == 503 or "overloaded" in b or "high demand" in b or "unavailable" in b:
+        return "지금 Gemini AI가 많이 붐벼요 😥 잠깐 기다렸다가 [다시 만들기]를 눌러 주세요. (구글 쪽 일시 혼잡이라 곧 풀려요)"
+    if status in (400, 401, 403) or "api key" in b or "api_key" in b or "permission" in b or "invalid" in b:
+        return "AI 키에 문제가 있는 것 같아요. 마이페이지에서 Gemini 키를 다시 확인·연결해 주세요."
+    if status == 404:
+        return "AI 모델을 잠깐 못 찾았어요. 잠시 후 다시 시도해 주세요. (계속되면 알려 주세요)"
+    return "글 만들기에 실패했어요. 잠깐 뒤에 [다시 만들기]를 눌러 주세요. (오류 %d)" % status
+
+
 async def _web_gemini_generate(api_key: str, prompt: str, timeout: float = 75.0) -> dict:
     """owner Gemini 키로 JSON 생성. 실패 시 raise.
     동기 호출은 75s(CF 100s 안쪽). 백그라운드 잡(_web_gen_finish)은 폴링이라 게이트웨이를
@@ -29491,16 +29510,16 @@ async def _web_gemini_generate(api_key: str, prompt: str, timeout: float = 75.0)
                 })
     except (httpx.TimeoutException, httpx.ReadTimeout):
         raise HTTPException(504, "AI 글 생성이 오래 걸려요. 잠시 후 다시 눌러 주세요.")
-    except httpx.HTTPError as e:
-        raise HTTPException(502, f"AI 연결 오류 — 잠시 후 다시 시도해 주세요 ({type(e).__name__})")
+    except httpx.HTTPError:
+        raise HTTPException(502, "인터넷·AI 연결이 잠깐 불안정해요. 잠시 후 [다시 만들기]를 눌러 주세요.")
     if r.status_code != 200:
-        raise HTTPException(502, f"Gemini 오류 {r.status_code}: {r.text[:160]}")
+        raise HTTPException(502, _web_gemini_friendly_error(r.status_code, r.text))
     data = r.json()
     try:
         txt = data["candidates"][0]["content"]["parts"][0]["text"]
         return json.loads(txt)   # 감사#6 — 파싱 실패도 502 로(500 방지)
     except Exception:
-        raise HTTPException(502, "Gemini 응답 형식 오류(JSON 파싱 실패)")
+        raise HTTPException(502, "AI가 글을 이상한 형식으로 줬어요. [다시 만들기]를 한 번 눌러 주세요.")
 
 
 # ── 웹 블로그 생성 = 백그라운드 잡 + 폴링 (게이트웨이 504/524 원천 차단) ──
