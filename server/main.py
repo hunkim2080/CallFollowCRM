@@ -27503,6 +27503,7 @@ function openSite(cd){
   curCd=cd; sel={}; filter='all'; mTab='photos'; MAT=null; GEN=null; genP='bl';
   fetch('/api/web/site/'+encodeURIComponent(cd)).then(function(r){if(r.status===401){location.href='/web/login';throw 0;}return r.json();}).then(function(d){
     curCust=d.customer||{}; photos=d.photos||[];
+    sel={}; photos.forEach(function(p){sel[p.photo_id]=1;});   /* 기본 전체선택 — 어차피 다 넣으니 뺄 것만 빼기(사장님 2026-08-19) */
     var _m=getPt(),_b=getBa(),_ch=false;photos.forEach(function(p){if(p.part){_m[p.photo_id]=p.part;_ch=true;}if(p.ba){_b[p.photo_id]=p.ba;_ch=true;}});if(_ch){localStorage.setItem(PT_KEY,JSON.stringify(_m));localStorage.setItem(BA_KEY,JSON.stringify(_b));}
     GEN=null; genOrder=[]; renderMid(); renderDayList(); renderRight(); loadONote(); loadLastPost(); loadPostHist(cd);
     renderCal_fromCurrent();
@@ -27723,8 +27724,8 @@ function updateGenHint(){
   var done=!!(curCust&&curCust.completed);
   if(GEN||!done){ el.style.display='none'; return; }
   var n=Object.keys(sel).length;
-  if(n===0){ el.className='genhint pick'; el.innerHTML='☑ <b>블로그에 넣을 사진</b>을 가운데에서 먼저 골라주세요 <span class="gh2">(사진을 눌러 체크 · 안 고르면 물어봐요)</span>'; }
-  else { el.className='genhint ok'; el.innerHTML='☑ 사진 <b>'+n+'장</b> 골랐어요 — 아래 <b>[블로그 글 만들기]</b> 누르면 순서 정하고 만들어요'; }
+  if(n===0){ el.className='genhint pick'; el.innerHTML='☑ 사진을 다 뺐어요 <span class="gh2">(사진을 눌러 다시 넣거나 · 사진 없이 글만 만들 수 있어요)</span>'; }
+  else { el.className='genhint ok'; el.innerHTML='☑ 사진 <b>'+n+'장</b> 다 넣을 거예요 · <b>뺄 사진은 눌러서 빼세요</b> — 아래 <b>[블로그 글 만들기]</b>'; }
   el.style.display='block';
 }
 function goMypage(){location.href='/mypage';}
@@ -27787,7 +27788,7 @@ function openOrderConfirm(ids){
   var fan=document.getElementById('ordFan'), t=document.getElementById('ordConfN'),
       z=document.getElementById('ordConf0'), y=document.getElementById('ordConfY');
   if(!ids.length){                    /* 0장 — 더는 조용히 자동6장 X, 명시적 선택 */
-    z.style.display='block'; y.style.display='none'; fan.innerHTML=''; t.textContent='고른 사진이 없어요';
+    z.style.display='block'; y.style.display='none'; fan.innerHTML=''; t.textContent='넣을 사진이 없어요';
   }else{
     z.style.display='none'; y.style.display='block';
     t.innerHTML='사진 <b>'+ids.length+'장</b>을 선택하셨어요!';
@@ -28163,7 +28164,7 @@ load(); loadToneLib();
     <div class="ordbtns"><button class="ordbtn ghost" onclick="ordConfClose()">더 고를게요</button><button class="ordbtn go" onclick="startOrder()">네, 번호 매기기</button></div>
   </div>
   <div id="ordConf0" style="display:none">
-    <p class="ordnote">블로그에 넣을 사진을 가운데에서 먼저 골라주세요. 사진 없이 글만 만들 수도 있어요.</p>
+    <p class="ordnote">사진을 다 빼셨네요. 넣을 사진을 다시 고르거나, 사진 없이 글만 만들 수도 있어요.</p>
     <div class="ordbtns"><button class="ordbtn go" onclick="ordPick()">사진 고를게요</button><button class="ordbtn ghost" onclick="ordAuto()">사진 없이 글만</button></div>
   </div>
 </div></div>
