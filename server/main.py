@@ -27242,6 +27242,8 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .lk-teaser-l{font-size:11px;font-weight:800;color:var(--ink3);margin-bottom:7px}
   .lk-teaser-row{display:flex;gap:6px;opacity:.4}
   .lk-teaser-row .lk-tt{flex:1;text-align:center;font-size:12px;font-weight:800;padding:8px 0;border-radius:9px;background:var(--surface);color:var(--ink3);border:1px solid var(--line)}
+  .lk-cta{display:block;width:100%;text-align:center;font-size:14px;font-weight:850;padding:13px;border-radius:12px;background:var(--violet);color:#fff;border:0;cursor:pointer;box-shadow:0 4px 14px rgba(110,95,199,.35);font-family:inherit}
+  .lk-cta:active{transform:scale(.98)}
   .genbig{width:100%;font-size:13.5px;font-weight:850;color:#fff;border:none;border-radius:11px;padding:13px;cursor:pointer;margin-bottom:14px;font-family:inherit}
   .genbig.bl{background:var(--violet)}.genbig.ig{background:var(--ig)}.genbig.th{background:var(--th);color:#fff}
   :root[data-theme="dark"] .genbig.th{color:#181D27}
@@ -27425,6 +27427,7 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
 <script>
 var ym=new Date().toISOString().slice(0,7);
 var sites=[], curCd=null, curCust=null, photos=[], sel={}, filter='all', lbi=0, mTab='photos', MAT=null, partsEditMode=false;
+var HAS_KEY=("__SGM_HASKEY__"==="true");   /* serve 시점 주입(web_viewer). 키 없으면 글쓰기 대신 등록 카드 */
 var PARTS_KEY='web_parts_v1', SELPART_KEY='web_sel_part', PT_KEY='web_partof_v1', BA_KEY='web_ba_v1';
 var DEFAULT_PARTS=['거실화장실','안방화장실','거실타일','베란다','다용도실','현관','기타'];
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
@@ -27720,6 +27723,7 @@ function updateGenHint(){
   else { el.className='genhint ok'; el.innerHTML='☑ 사진 <b>'+n+'장</b> 골랐어요 — 아래 <b>[블로그 글 만들기]</b> 누르면 순서 정하고 만들어요'; }
   el.style.display='block';
 }
+function goMypage(){location.href='/mypage';}
 function renderRight(){
   var rb=document.getElementById('rbody'); if(!rb)return;
   if(!curCd){rb.innerHTML='<div class="empty">왼쪽에서 현장을 먼저 골라주세요.</div>';return;}
@@ -27735,6 +27739,15 @@ function renderRight(){
       +'<div class="lk-why">💡 <b>왜 완료 후에요?</b> 완성된 시공 사진·후기가 있어야 진짜 글이 나오거든요.</div>'
       +'</div>'
       +'<div class="lk-teaser"><div class="lk-teaser-l">완료되면 만들 수 있어요</div><div class="lk-teaser-row"><div class="lk-tt">📝 블로그</div><div class="lk-tt">📷 인스타</div><div class="lk-tt">🧵 스레드</div></div></div>';
+    return;
+  }
+  if(!HAS_KEY){
+    rb.innerHTML='<div class="lockcard">'
+      +'<div class="lk-hd"><div class="lk-ic">🔑</div><div class="lk-t">글을 만들려면 "AI 키"를 먼저 등록하세요<small>한 번만 하면 계속 써요</small></div></div>'
+      +'<div class="lk-body">시공막내가 글 쓸 때 사장님의 <b>Gemini AI 키</b>를 써요. 무료로 발급받아 마이페이지에 붙여넣으면 끝이에요.</div>'
+      +'<button class="lk-cta" onclick="goMypage()">🔑 마이페이지에서 키 등록하기 →</button>'
+      +'<div class="lk-why" style="margin-top:12px">💡 <b>왜 내 키가 필요해요?</b> 사장님 이름으로 글이 만들어져서, 품질도 사용량도 온전히 사장님 거예요.</div>'
+      +'</div>';
     return;
   }
   var btn = done
@@ -28292,10 +28305,17 @@ async def web_viewer(request: Request):
     owner = _web_owner_from_request(request)
     if not owner:
         return RedirectResponse("/web/login", status_code=302)
+    # 글쓰기 게이트 안내용 — Gemini 키 없으면 뷰어가 '등록 카드'를 띄움(조용한 실패 대신).
+    #   조회 실패 시 fail-open(True)=막지 않음(기존 생성 에러 경로가 잡아줌).
+    try:
+        has_key = bool(_web_owner_gemini_key(owner))
+    except Exception:
+        has_key = True
     # no-store: 브라우저가 옛 JS 를 캐시로 쓰는 것 방지 — 구버전(폴링코드 없음)이 새 서버의 {job_id} 를
     #   블로그로 렌더하려다 터져 '네트워크 오류' 나던 재발 차단. 뷰어는 매번 최신 코드로.
-    return HTMLResponse(_WEB_VIEWER_HTML, headers={
-        "Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"})
+    return HTMLResponse(
+        _WEB_VIEWER_HTML.replace("__SGM_HASKEY__", "true" if has_key else "false"),
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"})
 
 
 # ============================================================================
