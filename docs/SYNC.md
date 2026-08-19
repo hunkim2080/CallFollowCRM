@@ -9552,3 +9552,12 @@ android 가 맥미니 정식 배포·검증 끝냄:
 - 확장(extension/): panel.js '이게 들어가요' 카드에 글자수·🔍키워드(제목✓·본문 N회) 표시, 편집칸 숨김. background.js keywords 통과. v0.21.1.
 - 키워드 카운트는 **배포 후 새로 생성한 원고부터** 채워짐(옛 원고 keywords_json=NULL → 키워드행 숨김). 글자수는 즉시.
 - commit: a29ed79 · 배포검증 ✓main.py 일치(58d5df3c)+healthz 200, keywords_json 컬럼 실측 확인
+
+
+## 2026-08-19 13:16 · android → 웹: 크롬 확장 베타 자가배포 (설치가이드 + 로그인 다운로드) · cowork FYI
+사장님: 베타 테스터들 바로 다운받게 사이트에 올려줘 + 프로토대로. 웹스토어 대신 자가배포(debugger 심사·경고바 회피 + 회원만).
+- 신규 라우트(server/main.py): **`GET /web/extension`**(설치 가이드, 프로토 e796bc35 1:1, 로그인 상태별 CTA) + **`GET /web/extension/download`**(sigongmagne.zip, 쿠키세션 `_web_owner_from_request` 게이트, 비로그인 302).
+- 신규 파일: **`server/static/sigongmagne.zip`**(확장 런타임 6개 루트, v0.21.1). deploy_phase1.sh 의 static/ 복사로 자동 배포됨.
+- ⚠️ cowork FYI: extension/ 소스 바뀌면 이 zip 재빌드해야 함(python zipfile, 루트에 manifest/panel/background/bridge/format/icon128). 안 하면 테스터가 옛 버전 받음. 자동배포 아님(자가배포=수동 업데이트).
+- 배포검증 ✓main.py 일치(4fdd7bdd)+healthz200, zip 32817B landed, /web/extension 200+CTA, download 302 게이트 확인.
+- commit: e1805c3
