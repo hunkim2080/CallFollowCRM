@@ -9561,3 +9561,11 @@ android 가 맥미니 정식 배포·검증 끝냄:
 - ⚠️ cowork FYI: extension/ 소스 바뀌면 이 zip 재빌드해야 함(python zipfile, 루트에 manifest/panel/background/bridge/format/icon128). 안 하면 테스터가 옛 버전 받음. 자동배포 아님(자가배포=수동 업데이트).
 - 배포검증 ✓main.py 일치(4fdd7bdd)+healthz200, zip 32817B landed, /web/extension 200+CTA, download 302 게이트 확인.
 - commit: e1805c3
+
+
+## 2026-08-19 21:30 · android → 웹: UX '조용한 잠금' 2건 수정 + 감사 해야할일 · cowork FYI
+사장님 "uiux부재" 지적(진행중 현장 글쓰기가 조용히 잠겨 헷갈림) → 안티패턴 감사.
+- 변경(server/main.py 뷰어): ①진행중 현장 **글쓰기 잠금카드**(왜/어떻게 크게, renderRight early-return, ed035a72) ②**Gemini 키 미등록 등록카드**(빨간글씨 실패 대신 [마이페이지] 링크, web_viewer has_key 주입 + renderRight, 02922fd). 둘 다 잠금카드 CSS `.lk-*` 공용.
+- ⚠️ cowork: web_viewer 가 `_WEB_VIEWER_HTML.replace("__SGM_HASKEY__", ...)` 함 — 이 뷰어 HTML 손댈 때 `__SGM_HASKEY__` 플레이스홀더/`var HAS_KEY` 유지하세요(안 그럼 화이트페이지 아님, fail-open false).
+- 나머지 감사 항목(앱 상2·중4·하5 + 웹 마이너2) = **docs/UX_GATING_TODO_2026-08-19.md** (android 착수 예정, 서버 무관).
+- commit: 02922fd (+ ed035a72)
