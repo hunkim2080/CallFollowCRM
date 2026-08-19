@@ -27222,6 +27222,26 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .onote-ta{width:100%;min-height:52px;max-height:120px;resize:vertical;font-size:12.5px;line-height:1.5;background:var(--sunken);border:1px solid var(--line);border-radius:10px;padding:9px 11px;color:var(--ink);font-family:inherit;outline:none}
   .onote-ta:focus{border-color:var(--violet);background:var(--surface)}
   .onote-ta::placeholder{color:var(--ink3)}
+  /* 잠금(진행중) 안내 — 조용히 숨기지 말고 왜/어떻게를 크게 */
+  .lockcard{background:var(--surface);border:1px solid var(--violet-line);border-radius:16px;padding:17px 16px;box-shadow:var(--shadow)}
+  .lk-hd{display:flex;align-items:center;gap:11px;margin-bottom:12px}
+  .lk-ic{width:42px;height:42px;flex:none;border-radius:12px;background:var(--violet-bg);border:1px solid var(--violet-line);display:flex;align-items:center;justify-content:center;font-size:20px}
+  .lk-t{font-size:15px;font-weight:850;color:var(--ink);line-height:1.25}
+  .lk-t small{display:block;font-size:11.5px;font-weight:700;color:var(--violet);margin-top:2px}
+  .lk-body{font-size:12.5px;color:var(--ink2);line-height:1.65;margin-bottom:13px}
+  .lk-body b{color:var(--ink);font-weight:800}
+  .lk-how{background:var(--sunken);border:1px solid var(--line);border-radius:12px;padding:12px 13px}
+  .lk-how-l{font-size:11px;font-weight:850;color:var(--ink3);margin-bottom:7px;letter-spacing:.02em}
+  .lk-step{font-size:12.5px;color:var(--ink);line-height:1.6;font-weight:600}
+  .lk-step b{color:var(--violet);font-weight:850}
+  .lk-chip{display:inline-block;background:var(--violet-bg);border:1px solid var(--violet-line);color:var(--ink);border-radius:7px;padding:1px 7px;font-size:11.5px;font-weight:800;margin:0 1px}
+  .lk-note{font-size:11px;color:var(--ink3);margin-top:7px;line-height:1.5}
+  .lk-why{font-size:11.5px;color:var(--ink3);line-height:1.6;margin-top:12px;padding-left:2px}
+  .lk-why b{color:var(--ink2)}
+  .lk-teaser{margin-top:15px}
+  .lk-teaser-l{font-size:11px;font-weight:800;color:var(--ink3);margin-bottom:7px}
+  .lk-teaser-row{display:flex;gap:6px;opacity:.4}
+  .lk-teaser-row .lk-tt{flex:1;text-align:center;font-size:12px;font-weight:800;padding:8px 0;border-radius:9px;background:var(--surface);color:var(--ink3);border:1px solid var(--line)}
   .genbig{width:100%;font-size:13.5px;font-weight:850;color:#fff;border:none;border-radius:11px;padding:13px;cursor:pointer;margin-bottom:14px;font-family:inherit}
   .genbig.bl{background:var(--violet)}.genbig.ig{background:var(--ig)}.genbig.th{background:var(--th);color:#fff}
   :root[data-theme="dark"] .genbig.th{color:#181D27}
@@ -27707,6 +27727,16 @@ function renderRight(){
   var _tn=toneActiveName(genP);
   var tone=_tn?('<span class="tl">🎯 따라할 톤: <b>'+esc(_tn)+' ✓</b></span>'):'<span class="tl">🎯 따라할 톤: <span style="color:var(--ink3)">기본 (미설정)</span></span>';
   var done=!!(curCust&&curCust.completed);
+  if(!done){
+    rb.innerHTML='<div class="lockcard">'
+      +'<div class="lk-hd"><div class="lk-ic">🔒</div><div class="lk-t">완료하면 글쓰기가 열려요<small>이 현장은 아직 진행중이에요</small></div></div>'
+      +'<div class="lk-body">시공을 <b>완료</b>하면 이 현장의 사진·후기로 <b>블로그·인스타·스레드</b> 글이 여기서 바로 만들어져요.</div>'
+      +'<div class="lk-how"><div class="lk-how-l">📱 여는 법</div><div class="lk-step">앱에서 이 고객을 <span class="lk-chip">잔금 받음</span> 또는 <span class="lk-chip">시공 완료</span>로 처리하면 → <b>자동으로 열려요</b></div><div class="lk-note">앱을 한 번 열면 웹에 반영돼요 · 이 화면은 새로고침</div></div>'
+      +'<div class="lk-why">💡 <b>왜 완료 후에요?</b> 완성된 시공 사진·후기가 있어야 진짜 글이 나오거든요.</div>'
+      +'</div>'
+      +'<div class="lk-teaser"><div class="lk-teaser-l">완료되면 만들 수 있어요</div><div class="lk-teaser-row"><div class="lk-tt">📝 블로그</div><div class="lk-tt">📷 인스타</div><div class="lk-tt">🧵 스레드</div></div></div>';
+    return;
+  }
   var btn = done
     ? '<button class="genbig '+pm.cls+'" onclick="genContent()">'+(GEN?'↻ 다시 만들기':pm.btn)+'</button>'
     : '<button class="genbig '+pm.cls+'" style="opacity:.5;cursor:not-allowed" disabled>'+pm.btn+'</button>'
