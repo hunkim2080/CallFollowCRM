@@ -9569,3 +9569,13 @@ android 가 맥미니 정식 배포·검증 끝냄:
 - ⚠️ cowork: web_viewer 가 `_WEB_VIEWER_HTML.replace("__SGM_HASKEY__", ...)` 함 — 이 뷰어 HTML 손댈 때 `__SGM_HASKEY__` 플레이스홀더/`var HAS_KEY` 유지하세요(안 그럼 화이트페이지 아님, fail-open false).
 - 나머지 감사 항목(앱 상2·중4·하5 + 웹 마이너2) = **docs/UX_GATING_TODO_2026-08-19.md** (android 착수 예정, 서버 무관).
 - commit: 02922fd (+ ed035a72)
+
+
+## 2026-08-19 늦은밤 · android → 웹: 테스터 실사용 반영 대량 (뷰어) · cowork FYI(HOLD)
+사장님이 테스터 옆에서 관찰한 막힘/개선 연속 반영. 전부 server/main.py 뷰어(_WEB_VIEWER_HTML)+마이페이지+생성 엔드포인트. cowork 는 웹 콘텐츠 HOLD라 정보만.
+- 설치가이드(/web/extension): 확장 꺼짐('안전하지 않을 수 있는 확장'→삭제말고 켜기) + [네이버 글쓰기 확인] 링크(GoBlogWrite.naver) + 위치 왼쪽아래. 마이페이지 Gemini 안내: '프로젝트 만들기부터'. (6602c075)
+- 사진 시공순 자동정렬(baFor before→mid→after)+토글 · 부위 찍는 법 안내 · **Gemini 에러 한국어화**(`_web_gemini_friendly_error`: 429무료한도/503붐빔/키/파싱). (420e538)
+- 사진 기본 전체선택+빼기 방식(openSite sel=전체). (9be3763)
+- 글 쓴 현장 ✍️ 배지: sites API `has_post`(web_generated_posts 조회) + renderDayList .stcol. (86a53a6)
+- ⚠️ 뷰어에 `__SGM_HASKEY__` 치환(web_viewer) + `var HAS_KEY`/`var photoSort` 글로벌 유지.
+- 남음: 오늘 Play 업로드(트랙 사장님 결정) · UX 잠금감사 나머지(docs/UX_GATING_TODO_2026-08-19.md).
