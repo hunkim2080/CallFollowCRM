@@ -26737,12 +26737,19 @@ async def web_sites(request: Request, month: str):
             "SELECT customer_digits, name, apartment, dong_ho, work_date, category, completed "
             "FROM web_schedule_feed WHERE owner_phone = ? AND work_date LIKE ? "
             "ORDER BY work_date DESC", (owner, m + "%")).fetchall()
+        # 이미 블로그 글을 만든 현장(✍️ 표식용) — web_generated_posts 에 그 고객 글이 있으면.
+        posted = set()
+        for (pcd,) in con.execute(
+                "SELECT DISTINCT customer_digits FROM web_generated_posts WHERE owner_phone = ?",
+                (owner,)).fetchall():
+            posted.add(_webre.sub(r"[^0-9]", "", pcd or ""))
     sites = []
     for cd, name, apt, dh, wd, cat, comp in rows:
         sites.append({
             "customer_digits": cd, "name": name or "", "apartment": apt or "",
             "dong_ho": dh or "", "work_date": wd or "", "category": cat or "",
             "completed": bool(comp), "photo_count": len(bucket.get(_web_pkey(cd), [])),
+            "has_post": _webre.sub(r"[^0-9]", "", cd or "") in posted,
         })
     return {"month": m, "sites": sites}
 
@@ -27128,6 +27135,7 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .site .dd{flex:none;text-align:center;width:30px}.site .dd .mm{font-size:9px;color:var(--ink3);font-weight:700}.site .dd .n{font-size:15px;font-weight:850}
   .site .mid{flex:1;min-width:0}.site .nm{font-size:12.5px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.site .sub{font-size:11px;color:var(--ink3);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .site .st{font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:6px;flex:none}.site .st.done{color:var(--green);background:var(--green-bg)}.site .st.go{color:var(--blue);background:var(--blue-bg)}
+  .site .st.wrote{color:var(--violet);background:var(--violet-bg)}.site .stcol{display:flex;flex-direction:column;gap:3px;align-items:flex-end;flex:none}
 
   .mh{font-size:19px;font-weight:850;letter-spacing:-.02em}
   .msub{font-size:12.5px;color:var(--ink3);margin-top:3px}
@@ -27492,10 +27500,11 @@ function renderDayList(){
     var mo=(s.work_date||'').slice(5,7), dy=(s.work_date||'').slice(8,10);
     var st=s.completed?'<span class="st done">완료</span>':'<span class="st go">진행중</span>';
     var cam=s.photo_count?('📷 '+s.photo_count):'';
+    var pb=s.has_post?'<span class="st wrote">✍️ 글씀</span>':'';
     h+='<div class="site'+(s.customer_digits===curCd?' on':'')+'" onclick="openSite(\\''+s.customer_digits+'\\')">'
       +'<div class="dd"><div class="mm">'+(mo?(+mo)+'월':'')+'</div><div class="n">'+(dy?(+dy):'-')+'</div></div>'
       +'<div class="mid"><div class="nm">'+esc(s.apartment||s.name||'현장')+'</div><div class="sub">'+esc((s.name||'')+(s.category?' · '+s.category:'')+(cam?' · '+cam:''))+'</div></div>'
-      +st+'</div>';
+      +'<div class="stcol">'+pb+st+'</div></div>';
   });
   document.getElementById('drows').innerHTML=h||'<div style="color:var(--ink3);font-size:12px;padding:8px 2px">현장이 없어요.</div>';
 }
