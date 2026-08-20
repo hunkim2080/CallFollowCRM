@@ -2159,6 +2159,9 @@ private fun CallSegment(
         val callSegments = remember(summary?.id, summary?.transcriptSegmentsJson) {
             parseTranscriptSegments(summary?.transcriptSegmentsJson)
         }
+        // 탭재생 — 말풍선 누르면 그 시각으로 재생. tick 은 같은 말풍선 재탭도 다시 트리거되게. (2026-08-20 사장님)
+        var seekReqMs by remember(summary?.id) { mutableStateOf<Int?>(null) }
+        var seekReqTick by remember(summary?.id) { mutableStateOf(0) }
         if (transcript != null || callSegments.isNotEmpty()) {
             Column(Modifier.padding(top = 12.dp)) {
                 Text("🗣️ 통화 전문", color = teal, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.2.sp)
@@ -2176,8 +2179,12 @@ private fun CallSegment(
                             Box(Modifier.size(8.dp).clip(RoundedCornerShape(3.dp)).background(Color.White).border(1.dp, Color(0xFFE6EFEF), RoundedCornerShape(3.dp)))
                             Spacer(Modifier.width(4.dp)); Text("손님", fontSize = 9.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Bold)
                         }
+                        if (callSegments.any { it.third != null }) {
+                            Text("💡 말풍선을 누르면 그 부분부터 들려요", fontSize = 9.sp, color = TossTextTertiary,
+                                modifier = Modifier.padding(bottom = 5.dp))
+                        }
                         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                            callSegments.forEach { (speaker, text) ->
+                            callSegments.forEach { (speaker, text, startMs) ->
                                 val mine = speaker == "나"
                                 val shape = RoundedCornerShape(
                                     topStart = 10.dp, topEnd = 10.dp,
@@ -2189,6 +2196,7 @@ private fun CallSegment(
                                         Modifier.widthIn(max = 250.dp).clip(shape)
                                             .background(if (mine) tealBg else Color.White)
                                             .border(1.dp, if (mine) tealLine else Color(0xFFE6EFEF), shape)
+                                            .let { m -> if (startMs != null) m.clickable { seekReqMs = startMs.toInt(); seekReqTick++ } else m }
                                             .padding(start = 9.dp, end = 9.dp, top = 5.dp, bottom = 4.dp)
                                     ) {
                                         Text(text, fontSize = 11.sp, lineHeight = 15.sp,
@@ -2211,7 +2219,8 @@ private fun CallSegment(
         }
         // 녹음 재생 플레이어 — 녹음 파일 있으면 표시. (2026-06-16 사장님)
         if (audioUri != null) {
-            CallRecordingPlayer(audioUri = audioUri, durationHintMs = audioDurationMs)
+            CallRecordingPlayer(audioUri = audioUri, durationHintMs = audioDurationMs,
+                seekReqMs = seekReqMs, seekReqTick = seekReqTick)
         }
         // 프로토(08352d6e): 후속문자 = 큰 버튼 → 작은 링크(플레이어 뒤). 통화 요약 있을 때만.
         summary?.recommendedMessage?.takeIf { it.isNotBlank() }?.let { draft ->
@@ -2242,7 +2251,8 @@ private fun parseCallTags(json: String?): List<String> {
     }.getOrDefault(emptyList())
 }
 
-private fun parseTranscriptSegments(json: String?): List<Pair<String, String>> {
+// (speaker, text, startMs?) — startMs 는 Whisper 세그먼트일 때만(탭재생용). 옛 워커/폴백은 null.
+private fun parseTranscriptSegments(json: String?): List<Triple<String, String, Long?>> {
     val s = json?.trim()
     if (s.isNullOrBlank()) return emptyList()
     return runCatching {
@@ -2252,7 +2262,8 @@ private fun parseTranscriptSegments(json: String?): List<Pair<String, String>> {
             val text = o.optString("text").trim()
             if (text.isBlank()) return@mapNotNull null
             val spk = o.optString("speaker").trim().ifBlank { "?" }
-            spk to text
+            val startMs = if (o.has("start_ms")) o.optLong("start_ms", -1L).takeIf { it >= 0 } else null
+            Triple(spk, text, startMs)
         }
     }.getOrDefault(emptyList())
 }
@@ -2263,13 +2274,14 @@ private fun parseTranscriptSegments(json: String?): List<Pair<String, String>> {
  *   재생 누를 때 lazy 로 준비(prepareAsync), 카드 사라지면 release. content:// (SAF 녹음 폴더) 재생.
  */
 @Composable
-private fun CallRecordingPlayer(audioUri: String, durationHintMs: Long? = null) {
+private fun CallRecordingPlayer(audioUri: String, durationHintMs: Long? = null, seekReqMs: Int? = null, seekReqTick: Int = 0) {
     val context = LocalContext.current
     var player by remember(audioUri) { mutableStateOf<android.media.MediaPlayer?>(null) }
     var prepared by remember(audioUri) { mutableStateOf(false) }
     var loading by remember(audioUri) { mutableStateOf(false) }
     var isPlaying by remember(audioUri) { mutableStateOf(false) }
     var pendingPlay by remember(audioUri) { mutableStateOf(false) }
+    var pendingSeekMs by remember(audioUri) { mutableStateOf<Int?>(null) }   // 탭재생: 준비 완료 후 이 시각으로 seek
     var durationMs by remember(audioUri) { mutableStateOf((durationHintMs ?: 0L).toInt()) }
     var positionMs by remember(audioUri) { mutableStateOf(0) }
     var dragMs by remember(audioUri) { mutableStateOf<Int?>(null) }
@@ -2287,6 +2299,7 @@ private fun CallRecordingPlayer(audioUri: String, durationHintMs: Long? = null) 
                 setOnPreparedListener { mp ->
                     prepared = true; loading = false; durationMs = mp.duration
                     if (pendingPlay) {
+                        pendingSeekMs?.let { runCatching { mp.seekTo(it) }; positionMs = it; pendingSeekMs = null }
                         applySpeed(mp); runCatching { mp.start() }
                         isPlaying = mp.isPlaying; pendingPlay = false
                     }
@@ -2310,6 +2323,18 @@ private fun CallRecordingPlayer(audioUri: String, durationHintMs: Long? = null) 
             }
         }
     }
+    fun seekAndPlay(ms: Int) {   // 탭재생 — 말풍선 시각으로 이동+재생. 준비 전이면 준비 후 seek(pendingSeekMs).
+        if (error) return
+        val p = player
+        when {
+            p == null -> { pendingSeekMs = ms; pendingPlay = true; create() }
+            !prepared -> { pendingSeekMs = ms; pendingPlay = true }
+            else -> {
+                applySpeed(p); runCatching { p.seekTo(ms); p.start() }
+                positionMs = ms; isPlaying = p.isPlaying
+            }
+        }
+    }
     fun cycleSpeed() {   // 프로토 .sp 칩 — 탭하면 1×→1.5×→2× 순환. 통화는 빨리듣기가 유용. (2026-06-16 사장님)
         speed = when { speed < 1.25f -> 1.5f; speed < 1.75f -> 2.0f; else -> 1.0f }
         val p = player
@@ -2322,6 +2347,10 @@ private fun CallRecordingPlayer(audioUri: String, durationHintMs: Long? = null) 
             if (p != null && dragMs == null) runCatching { positionMs = p.currentPosition }
             kotlinx.coroutines.delay(250)
         }
+    }
+    // 말풍선 탭 → 그 시각으로 재생 (tick 변할 때마다 = 같은 말풍선 재탭도 트리거)
+    LaunchedEffect(seekReqTick) {
+        if (seekReqTick > 0) seekReqMs?.let { seekAndPlay(it) }
     }
     androidx.compose.runtime.DisposableEffect(audioUri) {
         onDispose { runCatching { player?.release() }; player = null }
