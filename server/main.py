@@ -629,6 +629,20 @@ def db_init() -> None:
                     con.execute("ALTER TABLE %s ADD COLUMN keywords_json TEXT" % _tbl)
             except Exception:
                 pass
+        # 앱 데이터 서버 백업(데이터 안전 2단계, 2026-08-21 사장님) — owner별 최신 백업 1개.
+        #   재설치·기기변경·Play전환 시 서버에서 복원 → 로컬-only 데이터 영구소실 방어.
+        #   ⚠️ 사진 제외 '텍스트코어'만(맥미니 디스크 방어). 사진은 별도 웹 동기화.
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS app_backups (
+                owner_phone   TEXT PRIMARY KEY,
+                blob          BLOB,
+                size_bytes    INTEGER,
+                fmt           INTEGER,
+                updated_at_ms INTEGER NOT NULL
+            )
+            """
+        )
         # ── 추가142 (2026-07-22) — 박람회 팀 시공 Phase 1 (docs/EXPO_DECISIONS.md) ──
         # 사장님 확정: ①정산 완전격리(expo_* 테이블에만 저장, 기존 정산/고객에 안 섞음)
         # ②분배=팀별 ③계약서=상품카탈로그 체크형+서명+동의 ④방장이 방개설·계약서준비
@@ -29980,3 +29994,68 @@ async def web_customer_content_push(req: WebCustomerContent) -> dict:
             (owner, cd, txt or None, calls or None, _now_ms()))
         con.commit()
     return {"ok": True, "len": len(txt), "call_len": len(calls)}
+
+
+# ── 앱 데이터 서버 백업(데이터 안전 2단계, 2026-08-21 사장님) ────────────────────
+#   앱이 DataBackup 텍스트코어(사진 제외) 덤프를 owner별로 올려둠 → 재설치·기변·Play전환 시 복원.
+#   인증: _web_push_auth(토큰 있으면 검증 — 현행 앱 auth 정합). ⚠️공개출시 전 강제토큰(IDOR)로 승격 예정.
+class AppBackupPush(BaseModel):
+    owner_phone: str
+    session_token: Optional[str] = None
+    blob_b64: str
+    fmt: Optional[int] = 1
+
+
+_APP_BACKUP_MAX = 25 * 1024 * 1024   # 25MB 상한 — 텍스트코어(사진 제외)용. 맥미니 디스크 방어.
+
+
+@app.post("/api/app-backup")
+async def app_backup_push(req: AppBackupPush) -> dict:
+    owner = _norm_phone(req.owner_phone)
+    if not owner:
+        raise HTTPException(400, "owner_phone 필수")
+    _web_push_auth(owner, req.session_token)
+    import base64 as _b64
+    try:
+        data = _b64.b64decode(req.blob_b64 or "", validate=True)
+    except Exception:
+        raise HTTPException(400, "blob_b64 디코드 실패")
+    if not data:
+        raise HTTPException(400, "빈 백업")
+    if len(data) > _APP_BACKUP_MAX:
+        raise HTTPException(413, "백업이 너무 커요 — 사진 제외(텍스트코어)로 보내세요")
+    with db_conn() as con:
+        con.execute(
+            "INSERT OR REPLACE INTO app_backups (owner_phone, blob, size_bytes, fmt, updated_at_ms) "
+            "VALUES (?,?,?,?,?)", (owner, data, len(data), int(req.fmt or 1), _now_ms()))
+        con.commit()
+    return {"ok": True, "size": len(data)}
+
+
+@app.get("/api/app-backup/status")
+async def app_backup_status(owner_phone: str, session_token: Optional[str] = None) -> dict:
+    owner = _norm_phone(owner_phone)
+    if not owner:
+        raise HTTPException(400, "owner_phone 필수")
+    _web_push_auth(owner, session_token)
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT size_bytes, updated_at_ms FROM app_backups WHERE owner_phone=?", (owner,)).fetchone()
+    return {"ok": True, "has": bool(row), "size": (row[0] if row else 0),
+            "updated_at_ms": (row[1] if row else 0)}
+
+
+@app.get("/api/app-backup")
+async def app_backup_pull(owner_phone: str, session_token: Optional[str] = None) -> dict:
+    owner = _norm_phone(owner_phone)
+    if not owner:
+        raise HTTPException(400, "owner_phone 필수")
+    _web_push_auth(owner, session_token)
+    with db_conn() as con:
+        row = con.execute(
+            "SELECT blob, size_bytes, fmt, updated_at_ms FROM app_backups WHERE owner_phone=?", (owner,)).fetchone()
+    if not row or not row[0]:
+        return {"ok": True, "has": False}
+    import base64 as _b64
+    return {"ok": True, "has": True, "blob_b64": _b64.b64encode(row[0]).decode("ascii"),
+            "size": row[1], "fmt": row[2], "updated_at_ms": row[3]}
