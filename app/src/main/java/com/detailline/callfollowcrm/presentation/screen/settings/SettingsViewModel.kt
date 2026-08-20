@@ -396,6 +396,54 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
             }
         }
     }
+
+    /** 서버에 백업(데이터 안전 2단계) — 텍스트 덤프를 서버에 저장. 지워도/폰 바꿔도 복원 가능. (2026-08-21 사장님) */
+    fun serverBackup() {
+        if (_backupBusy.value) return
+        viewModelScope.launch(Dispatchers.IO) {
+            _backupBusy.value = true
+            try {
+                val bytes = DataBackup.serverBlobBytes(container.appContext)
+                val b64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                val ok = container.backupRepository.push(b64)
+                if (ok) {
+                    _lastBackupAt.value = System.currentTimeMillis()
+                    _backupMessage.value = "☁️ 서버에 백업했어요! (${bytes.size / 1024}KB) 이제 폰을 바꿔도 안전해요."
+                } else {
+                    _backupMessage.value = "서버 백업에 실패했어요 — 인터넷을 확인하고 다시 시도해주세요."
+                }
+            } catch (e: Exception) {
+                _backupMessage.value = "서버 백업 중 문제가 생겼어요 — 잠시 후 다시 시도해주세요."
+            } finally {
+                _backupBusy.value = false
+            }
+        }
+    }
+
+    /** 서버에서 복원 — 서버 최신 백업을 내려받아 되살림(안전 upsert, 안 지움). */
+    fun serverRestore() {
+        if (_backupBusy.value) return
+        viewModelScope.launch(Dispatchers.IO) {
+            _backupBusy.value = true
+            try {
+                val b64 = container.backupRepository.pull()
+                if (b64.isNullOrBlank()) {
+                    _backupMessage.value = "서버에 백업이 없어요. 먼저 '서버에 백업'을 눌러주세요."
+                } else {
+                    val bytes = android.util.Base64.decode(b64, android.util.Base64.NO_WRAP)
+                    val r = DataBackup.importBytes(container.appContext, bytes)
+                    _backupMessage.value = "☁️ 서버에서 복원 완료! 고객 ${r.customers}명 · ${r.rows}건을 되살렸어요."
+                    _restartNeeded.value = true
+                }
+            } catch (e: DataBackup.NewerBackupException) {
+                _backupMessage.value = "서버 백업이 더 최신 버전이에요. 앱을 업데이트한 뒤 복원해주세요."
+            } catch (e: Exception) {
+                _backupMessage.value = "서버 복원에 실패했어요 — 잠시 후 다시 시도해주세요."
+            } finally {
+                _backupBusy.value = false
+            }
+        }
+    }
 }
 
 /** 더보기 막내 비서 카드 (프로토 agent-card). */

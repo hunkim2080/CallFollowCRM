@@ -251,6 +251,7 @@ fun SettingsScreen(
     val shareRequest by viewModel.shareRequest.collectAsState()
     val restartNeeded by viewModel.restartNeeded.collectAsState()
     var showImportConfirm by remember { mutableStateOf(false) }
+    var showServerRestoreConfirm by remember { mutableStateOf(false) }
 
     val backupImportPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -302,6 +303,25 @@ fun SettingsScreen(
                 }) { Text("백업 고르기", color = TossBlue, fontWeight = FontWeight.Bold) }
             },
             dismissButton = { TextButton(onClick = { showImportConfirm = false }) { Text("취소", color = TossTextTertiary) } }
+        )
+    }
+    if (showServerRestoreConfirm) {
+        AlertDialog(
+            onDismissRequest = { showServerRestoreConfirm = false },
+            title = { Text("서버에서 복원", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "서버에 저장된 최신 백업을 지금 데이터에 합쳐요. 같은 고객은 백업 값으로 바뀌고, 지금 데이터가 지워지진 않아요.\n\n새 폰·재설치 후 되살릴 때 쓰는 기능이에요.",
+                    fontSize = 13.5.sp, color = TossTextSecondary
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showServerRestoreConfirm = false
+                    viewModel.serverRestore()
+                }) { Text("서버에서 복원", color = TossBlue, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = { TextButton(onClick = { showServerRestoreConfirm = false }) { Text("취소", color = TossTextTertiary) } }
         )
     }
     if (restartNeeded) {
@@ -374,7 +394,9 @@ fun SettingsScreen(
                     lastBackupAt = lastBackupAt,
                     busy = backupBusy,
                     onExport = { viewModel.exportData() },
-                    onImport = { showImportConfirm = true }
+                    onImport = { showImportConfirm = true },
+                    onServerBackup = { viewModel.serverBackup() },
+                    onServerRestore = { showServerRestoreConfirm = true }
                 )
 
                 // ⭐ 2026-08-02 사장님 "더보기 뒤죽박죽 정리" — 항목/기능 그대로, 성격 맞는 그룹으로 재배치.
@@ -3468,7 +3490,9 @@ private fun DataBackupSection(
     lastBackupAt: Long,
     busy: Boolean,
     onExport: () -> Unit,
-    onImport: () -> Unit
+    onImport: () -> Unit,
+    onServerBackup: () -> Unit,
+    onServerRestore: () -> Unit
 ) {
     val lastLabel = remember(lastBackupAt) {
         if (lastBackupAt <= 0L) "아직 없음"
@@ -3546,6 +3570,42 @@ private fun DataBackupSection(
             }
             Text(
                 "고객·정산·시공·통화요약·가격표·문구를 파일 하나로 만들어 카톡·드라이브에 저장해요. (사진 제외)",
+                fontSize = 11.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium, lineHeight = 16.sp
+            )
+        }
+
+        Spacer(Modifier.height(10.dp))
+        // ☁️ 서버에 자동 보관(데이터 안전 2단계, 2026-08-21 사장님) — 파일 없이 서버에 → 폰 바꿔도/지워도 복원.
+        Column(
+            Modifier.fillMaxWidth()
+                .tossCardShadow(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color.White)
+                .padding(15.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(13.dp))
+                    .background(Color(0xFF1E6E6A))
+                    .clickable(enabled = !busy) { onServerBackup() }
+                    .padding(vertical = 15.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                if (busy) androidx.compose.material3.CircularProgressIndicator(
+                    color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(20.dp)
+                ) else Text("☁️  서버에 백업하기", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            }
+            Text(
+                "서버에서 복원하기",
+                fontSize = 13.sp, color = Color(0xFF1E6E6A), fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(enabled = !busy) { onServerRestore() }
+                    .padding(horizontal = 8.dp, vertical = 10.dp)
+            )
+            Text(
+                "파일 없이 서버에 안전하게 보관해요. 폰을 바꾸거나 앱을 지워도, 새 폰에서 '서버에서 복원'으로 되살려요. (사진 제외)",
                 fontSize = 11.5.sp, color = TossTextTertiary, fontWeight = FontWeight.Medium, lineHeight = 16.sp
             )
         }

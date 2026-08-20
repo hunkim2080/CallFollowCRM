@@ -124,12 +124,54 @@ object DataBackup {
         return ExportResult(uri, fileName, totalRows, tablesObj.length(), customerCount)
     }
 
+    /**
+     * 서버 백업용 — 전 테이블 덤프 JSON(raw, zip 아님) 바이트. (사진은 filePath=텍스트라 작음.)
+     * 복원은 importBytes 가 raw json 도 읽음. (데이터 안전 2단계, 2026-08-21 사장님)
+     */
+    fun serverBlobBytes(context: Context): ByteArray {
+        val db = AppDatabase.getInstance(context.applicationContext).openHelper.writableDatabase
+        val tablesObj = JSONObject()
+        for (table in userTables(db)) {
+            val arr = JSONArray()
+            db.query("SELECT * FROM `$table`").use { c ->
+                val cols = c.columnNames
+                while (c.moveToNext()) {
+                    val row = JSONObject()
+                    for (i in cols.indices) {
+                        when (c.getType(i)) {
+                            Cursor.FIELD_TYPE_NULL -> row.put(cols[i], JSONObject.NULL)
+                            Cursor.FIELD_TYPE_INTEGER -> row.put(cols[i], c.getLong(i))
+                            Cursor.FIELD_TYPE_FLOAT -> row.put(cols[i], c.getDouble(i))
+                            Cursor.FIELD_TYPE_STRING -> row.put(cols[i], c.getString(i))
+                            Cursor.FIELD_TYPE_BLOB -> row.put(
+                                cols[i],
+                                JSONObject().put("__blob_b64", Base64.encodeToString(c.getBlob(i), Base64.NO_WRAP))
+                            )
+                        }
+                    }
+                    arr.put(row)
+                }
+            }
+            tablesObj.put(table, arr)
+        }
+        val root = JSONObject().apply {
+            put("format", FORMAT); put("dbVersion", db.version); put("app", "시공막내")
+            put("exportedAt", System.currentTimeMillis()); put("tables", tablesObj)
+        }
+        return root.toString().toByteArray(Charsets.UTF_8)
+    }
+
     // ─────────────────────────── 가져오기(복원) ───────────────────────────
 
     /** IO 스레드에서 호출. uri = 사용자가 고른 백업 파일(zip 또는 json). */
     fun import(context: Context, uri: Uri): ImportResult {
         val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
             ?: throw EmptyBackupException()
+        return importBytes(context, bytes)
+    }
+
+    /** 서버 복원용 — 바이트(zip 또는 raw json) 직접 가져오기. import(uri) 와 같은 안전 upsert(안 지움). */
+    fun importBytes(context: Context, bytes: ByteArray): ImportResult {
         val jsonText = extractBackupJson(bytes) ?: throw EmptyBackupException()
         val root = JSONObject(jsonText)
 
