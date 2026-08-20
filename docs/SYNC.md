@@ -9579,3 +9579,11 @@ android 가 맥미니 정식 배포·검증 끝냄:
 - 글 쓴 현장 ✍️ 배지: sites API `has_post`(web_generated_posts 조회) + renderDayList .stcol. (86a53a6)
 - ⚠️ 뷰어에 `__SGM_HASKEY__` 치환(web_viewer) + `var HAS_KEY`/`var photoSort` 글로벌 유지.
 - 남음: 오늘 Play 업로드(트랙 사장님 결정) · UX 잠금감사 나머지(docs/UX_GATING_TODO_2026-08-19.md).
+
+
+## 2026-08-21 새벽 · android → 웹: '이전에 만든 원고' 팝오버 안 열림 픽스 · cowork FYI
+사장님 "사이트에서 이전 원고 클릭하면 리스트 안 나와" → 뷰어 JS 버그.
+- 원인: 뷰어 블록(_WEB_VIEWER_HTML)에 `ago()` 미정의 → toggleHistPop 의 POSTHIST.map() 이 `ago(created_at_ms)` 에서 ReferenceError → `.on` 클래스 못 붙어 팝오버 안 뜸. (파일 전체 `function ago(` 는 23498·24045·29260 줄뿐, 뷰어 블록엔 없었음)
+- 수정: 뷰어 `var POSTHIST` 위에 `ago()` 정의 1줄 추가.
+- 배포: macmini deploy(worktree=origin 확인→cp→py_compile→md5 일치+healthz 200 검증). commit 9b485e2.
+- ⚠️ cowork: 뷰어 손댈 때 `ago()` 는 뷰어 블록 안에 있어야 함(23498/24045/29260 의 ago 는 각기 다른 서빙 페이지 스코프라 뷰어에서 안 보임).
