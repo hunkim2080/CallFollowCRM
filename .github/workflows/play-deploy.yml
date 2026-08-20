@@ -65,9 +65,18 @@ jobs:
             echo "keyAlias=$KS_ALIAS"
             echo "keyPassword=$KS_KEY_PW"
           } > keystore.properties
-          # 복원 확인(값은 안 찍음)
-          test -s ringgo-release.jks && echo "keystore OK ($(wc -c < ringgo-release.jks) bytes)"
-          test -s app/google-services.json && echo "google-services OK"
+          # ── 복원 검증 — base64 손상/공백/원본직접입력 시 '어느 시크릿'인지 명확히 실패 ──
+          if ! test -s ringgo-release.jks; then echo "::error::KEYSTORE_BASE64 시크릿이 비었거나 복원 실패"; exit 1; fi
+          if ! test -s app/google-services.json; then echo "::error::GOOGLE_SERVICES_JSON 시크릿이 비었거나 복원 실패"; exit 1; fi
+          if ! python3 -c "import json;json.load(open('app/google-services.json'))" 2>/dev/null; then
+            echo "::error::GOOGLE_SERVICES_JSON 이 유효한 JSON 이 아님 — 원본을 그대로 넣지 말고 base64 로 저장하세요."
+            echo "복원된 앞 60바이트:"; head -c 60 app/google-services.json; echo; exit 1
+          fi
+          if ! keytool -list -keystore ringgo-release.jks -storepass "$KS_PW" >/dev/null 2>&1; then
+            echo "::error::keystore 를 못 엶 — KEYSTORE_BASE64(파일) 또는 KEYSTORE_PASSWORD(비번)가 틀림."
+            exit 1
+          fi
+          echo "✓ keystore OK ($(wc -c < ringgo-release.jks) bytes) · google-services OK — 둘 다 검증 통과"
 
       - name: AAB 빌드 (서명·versionCode 자동)
         run: ./gradlew bundleRelease --no-daemon --stacktrace
