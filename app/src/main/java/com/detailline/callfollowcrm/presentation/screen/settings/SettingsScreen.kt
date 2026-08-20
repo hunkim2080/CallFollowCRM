@@ -2091,6 +2091,33 @@ private fun AutoSmsSection(
     }
     Spacer(Modifier.height(8.dp))
 
+    // ④-b 화면 캡처 막기 (2026-08-20 사장님) — 기본 OFF(베타 버그 캡처 위해). 켜면 릴리스에서 스샷/녹화 차단. live-apply.
+    val capCtx = LocalContext.current
+    var blockCapOn by remember { mutableStateOf(prefs.blockScreenCapture) }
+    TossCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFFFDE8E8)),
+                contentAlignment = Alignment.Center) { Text("🔒", fontSize = 16.sp) }
+            Spacer(Modifier.width(11.dp))
+            Column(Modifier.weight(1f)) {
+                Text("화면 캡처 막기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+                Text("켜면 고객 정보·통화·돈 화면의 스크린샷·화면 녹화를 막아요 (보안). 지금은 버그 캡처를 위해 꺼둠",
+                    fontSize = 12.sp, color = TossTextTertiary, lineHeight = 17.sp)
+            }
+            Spacer(Modifier.width(8.dp))
+            Switch(checked = blockCapOn, onCheckedChange = { want ->
+                blockCapOn = want; prefs.blockScreenCapture = want
+                (capCtx as? android.app.Activity)?.window?.let { w ->
+                    if (want) w.setFlags(
+                        android.view.WindowManager.LayoutParams.FLAG_SECURE,
+                        android.view.WindowManager.LayoutParams.FLAG_SECURE
+                    ) else w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+                }
+            })
+        }
+    }
+    Spacer(Modifier.height(8.dp))
+
     // ④-2 전화 오는 사람 미리보기 (2026-07-01 사장님) — 벨 울릴 때 상대 정보 카드를 통화화면 위에 띄움.
     //   실제로 뜨려면 "다른 앱 위에 표시"(SYSTEM_ALERT_WINDOW) 특수 권한 필요 → 켰는데 없으면 안내+허용 버튼.
     var callerCardOn by remember { mutableStateOf(prefs.incomingCallerCardEnabled) }

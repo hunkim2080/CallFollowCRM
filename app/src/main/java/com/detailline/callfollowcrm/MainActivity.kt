@@ -21,9 +21,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // 보안감사(2026-08-17 cowork): 릴리스에서만 민감화면(고객 PII·통화요약·키) 스크린샷·화면녹화·최근앱 미리보기 차단.
-        //   debug 는 제외 → 개발 중 adb screencap/화면검증 그대로 유지(내 테스트·사장님 개발폰 영향 없음).
-        if (!BuildConfig.DEBUG) {
+        // 보안감사(2026-08-17): 릴리스에서 민감화면 스크린샷·화면녹화·최근앱 미리보기 차단.
+        //   ⚠️ 베타 중엔 버그 캡처가 필요 → 기본 OFF(캡처 허용). 설정 '화면 캡처 막기' 켠 사람만 차단. (2026-08-20 사장님)
+        //   debug 는 항상 제외 → adb screencap/화면검증 유지.
+        if (!BuildConfig.DEBUG &&
+            (application as CallFollowCrmApplication).container.preferences.blockScreenCapture) {
             window.setFlags(
                 android.view.WindowManager.LayoutParams.FLAG_SECURE,
                 android.view.WindowManager.LayoutParams.FLAG_SECURE

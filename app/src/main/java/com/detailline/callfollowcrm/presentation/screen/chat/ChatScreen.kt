@@ -763,6 +763,9 @@ fun ChatScreen(
                                     audioDurationMs = callRec?.duration,
                                     onUseAsDraft = { msg ->
                                         setInput(if (input.isBlank()) msg else input + "\n" + msg)
+                                        // 넣어도 입력칸(맨 아래)이 안 보여 '안 눌린 것처럼' 느껴지던 것 → 포커스+토스트로 확실히 (2026-08-20 사장님 신고)
+                                        runCatching { composerFocusRequester.requestFocus() }
+                                        android.widget.Toast.makeText(context, "✍️ 후속 문자에 넣었어요 — 아래 입력칸에서 확인하고 보내세요", android.widget.Toast.LENGTH_SHORT).show()
                                     },
                                     onSummarizeCall = { viewModel.summarizeCall(ti.record, context) },
                                     onEditSummary = { newText -> matched?.let { viewModel.updateCallSummary(it, newText) } },
