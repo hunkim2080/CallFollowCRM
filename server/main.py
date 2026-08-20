@@ -27686,6 +27686,7 @@ function pickTone(id){fetch('/api/web/tone-activate',{method:'POST',headers:{'Co
 document.addEventListener('click',function(e){var pop=document.getElementById('tonePop');if(pop&&pop.classList.contains('on')&&!pop.contains(e.target))pop.classList.remove('on');});
 /* ═══ 이전 원고 히스토리 (재생성해도 쌓임 · 최근 20) ═══ */
 var POSTHIST=[];
+function ago(ms){if(!ms)return '방금 전';var d=Date.now()-ms;var m=Math.floor(d/60000);if(m<1)return '방금 전';if(m<60)return m+'분 전';var h=Math.floor(m/60);if(h<24)return h+'시간 전';return Math.floor(h/24)+'일 전';}
 function loadPostHist(cd){if(!cd)return;var jc=cd;fetch('/api/web/post-history?customer_digits='+encodeURIComponent(cd)).then(function(r){return r.json();}).then(function(j){POSTHIST=(j&&j.items)||[];if(curCd===jc)renderRight();}).catch(function(){});}
 function toggleHistPop(e){e.stopPropagation();var p=document.getElementById('histPop');if(!p)return;if(p.classList.contains('on')){p.classList.remove('on');return;}
   p.innerHTML=POSTHIST.map(function(h,i){return '<div class="histrow" onclick="loadPostItem('+i+')"><div class="histt">'+esc(h.title||'(제목 없음)')+'</div><div class="histm">'+ago(h.created_at_ms)+' · '+(h.chars||0)+'자</div></div>';}).join('')||'<div class="histempty">아직 없어요</div>';
