@@ -498,6 +498,16 @@ def db_init() -> None:
             )
             """
         )
+        # 마이페이지 — 글에 쓸 업체명(owner 지정). 없으면 앱 '업체정보'/발행상호 추천을 기본값으로. (2026-08-23 사장님)
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS web_owner_profile (
+                owner_phone   TEXT PRIMARY KEY,
+                biz_name      TEXT,               -- 글에 쓸 업체명 override ('' = 안 넣음/익명, 행 없음 = 미설정→추천 사용)
+                updated_at_ms INTEGER NOT NULL
+            )
+            """
+        )
         # 마이페이지 — 블로그 톤 학습용 '따라할 글 주소'(특정 포스트 URL) + 학습 결과
         con.execute(
             """
@@ -28598,6 +28608,58 @@ def _web_owner_gemini_key(owner: str):
         return None
 
 
+def _web_owner_biz_suggested(owner: str) -> str:
+    """서버가 이미 아는 사장님 상호명(추천 기본값): 앱 '업체 정보' → 발행 상호 → 베타 신청 업체명."""
+    if not owner:
+        return ""
+    try:
+        with db_conn() as con:
+            if _table_exists("business_info"):
+                r = con.execute(
+                    "SELECT biz_name FROM business_info WHERE phone=? "
+                    "AND biz_name IS NOT NULL AND TRIM(biz_name)!=''", (owner,)).fetchone()
+                if r and (r[0] or "").strip():
+                    return (r[0] or "").strip()[:40]
+            r = con.execute(
+                "SELECT biz_name FROM intake_forms WHERE owner_phone=? "
+                "AND biz_name IS NOT NULL AND TRIM(biz_name)!='' "
+                "ORDER BY created_at_ms DESC LIMIT 1", (owner,)).fetchone()
+            if r and (r[0] or "").strip():
+                return (r[0] or "").strip()[:40]
+            r = con.execute(
+                "SELECT business_name FROM beta_signups WHERE phone=? "
+                "AND business_name IS NOT NULL AND TRIM(business_name)!='' "
+                "ORDER BY created_at_ms DESC LIMIT 1", (owner,)).fetchone()
+            if r and (r[0] or "").strip():
+                return (r[0] or "").strip()[:40]
+    except Exception:
+        pass
+    return ""
+
+
+def _web_owner_biz_override(owner: str):
+    """owner 가 마이페이지에서 지정한 업체명. 행 없으면 None(미설정), '' 이면 '안 넣음'(익명) 선택."""
+    if not owner:
+        return None
+    try:
+        with db_conn() as con:
+            r = con.execute(
+                "SELECT biz_name FROM web_owner_profile WHERE owner_phone=?", (owner,)).fetchone()
+            if r is None:
+                return None
+            return (r[0] or "").strip()
+    except Exception:
+        return None
+
+
+def _web_owner_biz_effective(owner: str) -> str:
+    """글 생성에 실제로 쓸 업체명. override 있으면 그것(''=익명), 없으면 추천 기본값."""
+    ov = _web_owner_biz_override(owner)
+    if ov is not None:
+        return ov
+    return _web_owner_biz_suggested(owner)
+
+
 class WebGeminiKey(BaseModel):
     key: str
 
@@ -28655,6 +28717,27 @@ async def web_gemini_key_test(request: Request):
     except Exception as e:
         return {"ok": False, "error": str(e)[:120]}
     return {"ok": ok, "ms": _now_ms() - t0, "status": r.status_code}
+
+
+class WebBizName(BaseModel):
+    biz_name: str = ""
+
+
+@app.post("/api/web/biz-name")
+async def web_biz_name_save(request: Request, req: WebBizName):
+    """마이페이지 '글에 쓸 업체명' 저장. 빈 문자열 = '안 넣음'(익명) 선택으로 저장(행 생김)."""
+    from fastapi.responses import JSONResponse
+    owner = _web_owner_from_request(request)
+    if not owner:
+        return JSONResponse({"ok": False, "detail": "unauthorized"}, status_code=401)
+    name = (req.biz_name or "").strip()[:40]
+    with db_conn() as con:
+        con.execute(
+            "INSERT INTO web_owner_profile (owner_phone, biz_name, updated_at_ms) VALUES (?,?,?) "
+            "ON CONFLICT(owner_phone) DO UPDATE SET biz_name=excluded.biz_name, updated_at_ms=excluded.updated_at_ms",
+            (owner, name, _now_ms()))
+        con.commit()
+    return {"ok": True, "biz_name": name}
 
 
 class WebToneUrl(BaseModel):
@@ -29028,9 +29111,13 @@ async def web_me(request: Request):
             lj = {}
         tone.append({"id": t[0], "url": t[1], "learned": bool(lj.get("fetched"))})
     name = (biz[0] if biz and biz[0] else "") or ""
+    _biz_ov = _web_owner_biz_override(owner)          # None=미설정, ''=안 넣음(익명), str=지정
+    _biz_sug = _web_owner_biz_suggested(owner)
+    _biz_eff = _biz_ov if _biz_ov is not None else _biz_sug
     return {
         "owner_phone": owner,
         "name": name,
+        "biz": {"value": _biz_ov, "suggested": _biz_sug, "effective": _biz_eff},
         "sessions": sessions,
         "key": {"connected": bool(krow), "last4": (krow[0] if krow else "")},
         "tone_urls": tone,
@@ -29178,6 +29265,7 @@ _MYPAGE_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
       <nav class="nav">
         <a class="on" href="#s1"><span class="i">🔐</span>로그인 & 보안</a>
         <a href="#s2"><span class="i">✨</span>AI 키 (내 비용)</a>
+        <a href="#s-biz"><span class="i">🏷️</span>업체명</a>
         <a href="#s3"><span class="i">📝</span>블로그 톤</a>
         <a href="#s4"><span class="i">🔗</span>앱 연결</a>
         <a onclick="thisLogout()" style="color:var(--red)"><span class="i">⏻</span>로그아웃</a>
@@ -29213,6 +29301,19 @@ _MYPAGE_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
           </div>
           <div class="howto"><b>키 받는 법 (1분 · 무료)</b><br>① <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> 접속 (구글 로그인) &nbsp; ② <b>[API 키 만들기]</b> 클릭 → <b style="color:var(--violet,#6E5FC7)">처음이면 "+ 프로젝트 만들기"부터 누르세요</b> (이걸 안 하면 키가 안 만들어져요!) &nbsp; ③ 프로젝트 만든 뒤 키 생성 → 복사 → 위에 붙여넣고 <b>[연결]</b></div>
           <div class="note">🔒 키는 <b>암호화되어 안전하게 보관</b>되고 블로그 생성에만 써요. 화면엔 뒤 4자리만. 언제든 삭제 가능.</div>
+        </div>
+      </div>
+      <div class="sec" id="s-biz">
+        <div class="sh"><span class="ic">🏷️</span><span class="t">글에 쓸 업체명</span><span class="badge off" id="bizBadge">미설정</span></div>
+        <div class="body">
+          <p class="desc">블로그·인스타 글에 <b>이 업체명</b>이 들어가요 (인사·마무리에 자연스럽게). 앱에 등록한 상호가 자동으로 채워져요 — <b>따로 쓰는 업체명이 있으면 여기서 바꾸세요.</b></p>
+          <div class="flabel">업체명</div>
+          <div class="keyrow">
+            <input class="keyin" id="bizIn" maxlength="40" placeholder="예: 디테일라인 줄눈">
+            <button class="kbtn" onclick="saveBiz()">저장</button>
+          </div>
+          <div class="note" id="bizHint" style="display:none"></div>
+          <div class="note">💡 <b>비워두고 저장</b>하면 업체명 없이(익명) 글이 나가요. 금액·동/호수는 어차피 글에 안 나와요.</div>
         </div>
       </div>
       <div class="sec" id="s3">
@@ -29295,6 +29396,20 @@ function render(){
     document.getElementById('keyBadge').textContent='미연결'; document.getElementById('keyBadge').className='badge off';
     document.getElementById('keyState').style.display='none';
   }
+  // 업체명 (글에 쓸)
+  (function(){
+    var bz=ME.biz||{}, inp=document.getElementById('bizIn'); if(!inp)return;
+    var configured=(bz.value!=null);
+    inp.value = configured ? bz.value : (bz.suggested||'');
+    var badge=document.getElementById('bizBadge'), hint=document.getElementById('bizHint');
+    if(bz.effective){ badge.textContent='설정됨 ✓'; badge.className='badge on'; }
+    else { badge.textContent = configured ? '안 넣음' : '미설정'; badge.className='badge off'; }
+    if(hint){
+      if(!configured && bz.suggested){ hint.style.display='block'; hint.innerHTML='💡 <b>앱에 등록한 상호</b>예요. 맞으면 <b>[저장]</b>으로 확정, 다르면 고쳐서 저장하세요.'; }
+      else if(bz.effective){ hint.style.display='block'; hint.innerHTML='✍️ 글에 <b>'+esc(bz.effective)+'</b> 이(가) 들어가요.'; }
+      else { hint.style.display='none'; }
+    }
+  })();
   // F-7 스타일 학습 — 플랫폼별 실제 학습 여부(tone_styles)로 뱃지
   var st=ME.tone_styles||{}; var learned=0;
   ['bl','ig','th'].forEach(function(p){
@@ -29314,6 +29429,14 @@ function saveKey(){var k=document.getElementById('keyIn').value.trim();if(!k){al
   .then(function(){if(b){b.textContent='연결';b.style.opacity=1;}});}
 function testKey(){toast('연결 확인 중…');fetch('/api/web/gemini-key/test').then(_rjson).then(function(d){toast(d.ok?'잘 돼요 ✓':('안 돼요 · '+(d.detail||'키 다시 확인')));}).catch(function(){toast('네트워크 오류');});}
 function delKey(){if(!confirm('저장된 Gemini 키를 삭제할까요?'))return;fetch('/api/web/gemini-key',{method:'DELETE'}).then(_rjson).then(function(){toast('키 삭제됨');load();}).catch(function(){toast('네트워크 오류');});}
+function saveBiz(){
+  var v=document.getElementById('bizIn').value.trim();
+  var b=document.querySelector('#s-biz .kbtn'); if(b){b.textContent='저장 중…';b.style.opacity=.6;}
+  fetch('/api/web/biz-name',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({biz_name:v})})
+  .then(_rjson).then(function(d){if(d.ok){toast(v?'업체명 저장됨 ✓':'업체명 안 넣기로 저장됨');load();}else{alert(d.detail||'저장 실패');}})
+  .catch(function(){alert('네트워크 오류 · 연결 상태를 확인해 주세요');})
+  .then(function(){if(b){b.textContent='저장';b.style.opacity=1;}});
+}
 /* ===== F-7 내 스타일 학습 ===== */
 var SP_CUR='bl';
 function spTab(p){SP_CUR=p;
@@ -29698,6 +29821,14 @@ async def web_generate_content(request: Request, req: WebGenReq):
                    "- 각 키워드를 **블로그 제목(title)에 반드시** 자연스럽게 포함하라(가능하면 앞쪽).\n"
                    "- **블로그 본문(body)에 각 키워드를 최소 4번 이상** 문맥에 녹여 반복하라(억지 나열·도배 금지, 자연스럽게).\n"
                    "- 인스타·스레드에도 가능한 자연스럽게 반영.")
+    # 글에 쓸 업체명 — owner 지정(없으면 앱/발행 상호 추천값). 있으면 글에 자연스럽게 넣게 지시. (2026-08-23 사장님)
+    _biz_name = _web_owner_biz_effective(owner)
+    biz_hint = ""
+    if _biz_name:
+        biz_hint = ("\n\n[✅ 내 업체명 — 이 글은 '" + _biz_name + "'(사장님 본인 업체)가 쓴 글이다.]\n"
+                    "- 블로그 도입 인사·마무리에 '" + _biz_name + "'을 1~2번 자연스럽게 넣어라(예: '안녕하세요, " + _biz_name + "입니다'). 억지 도배는 금지.\n"
+                    "- 위 (2-2)의 '참고 글 업체 상호 금지'는 경쟁사 얘기다 — 이 '" + _biz_name + "'은 사장님 본인 것이니 반드시 넣어도 된다.\n"
+                    "- 인스타·스레드엔 과하지 않게 최대 1번.")
     prompt = (
         "너는 시공(인테리어) 사장님의 마케팅 글을 대신 써주는 카피라이터다. "
         "아래 '현장 재료'만으로 블로그·인스타그램·스레드 글을 각 플랫폼 톤에 맞게 쓴다.\n"
@@ -29712,7 +29843,7 @@ async def web_generate_content(request: Request, req: WebGenReq):
         "블로그 본문은 마커 규약으로: 소제목 '## 제목', 강조 '**굵게**', 인용 '> ', 구분선 '---'." + photo_hint + " "
         "인스타=~380자 감성 캡션(줄바꿈·이모지 적당) + 해시태그 15개(지역·부위·공정 기반). "
         "스레드=~230자 대화하듯 톤 확 낮춤 + 해시태그 1~2개.\n"
-        "그리고 이 현장 '페르소나 한 줄'(어떤 고민 → 어떻게 시공)도.\n" + tone_hint + kw_hint + "\n\n"
+        "그리고 이 현장 '페르소나 한 줄'(어떤 고민 → 어떻게 시공)도.\n" + tone_hint + kw_hint + biz_hint + "\n\n"
         "[현장 재료]\n"
         "현장(아파트명·지역 — 동/호수·번지 없이): " + (m.get("addr") or m["region"] or "-") + "\n"
         "시공종류: " + (m["category"] or "-") + "\n"
