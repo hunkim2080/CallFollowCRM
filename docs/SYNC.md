@@ -9587,3 +9587,13 @@ android 가 맥미니 정식 배포·검증 끝냄:
 - 수정: 뷰어 `var POSTHIST` 위에 `ago()` 정의 1줄 추가.
 - 배포: macmini deploy(worktree=origin 확인→cp→py_compile→md5 일치+healthz 200 검증). commit 9b485e2.
 - ⚠️ cowork: 뷰어 손댈 때 `ago()` 는 뷰어 블록 안에 있어야 함(23498/24045/29260 의 ago 는 각기 다른 서빙 페이지 스코프라 뷰어에서 안 보임).
+
+
+## 2026-08-23 · android → 웹: 마이페이지 '글에 쓸 업체명' + 블로그 생성 주입 · cowork FYI(HOLD)
+사장님 "마이페이지에 앱 등록 상호명 나오고 그 업체명으로 글쓰게" → 블로그 생성 프롬프트에 업체명이 전혀 안 들어가 익명으로 나오던 것 채움.
+- `web_owner_profile`(owner_phone PK, biz_name, updated_at_ms) — owner override 전용(앱 동기화가 안 덮게 web 전용).
+- 리졸버(`_web_owner_biz_suggested`): business_info.biz_name(앱 업체정보) → intake_forms.biz_name(발행상호) → beta_signups.business_name. `_web_owner_biz_effective`=override(''=익명)??추천.
+- `/api/web/me` 에 `biz{value,suggested,effective}` · `POST /api/web/biz-name` 저장(빈문자=안넣음). 마이페이지 '🏷️ 글에 쓸 업체명' 카드+nav 링크.
+- 생성(`web_generate_content`) 프롬프트에 `biz_hint` 주입 — 인사·마무리 1~2번, "(2-2) 참고글 상호금지=경쟁사"라 명시 분리.
+- 배포검증: worktree=origin·md5일치·healthz200·biz-name 엔드포인트401(등록)·web_owner_profile 생성·리졸버 '디테일라인' 반환. commit 1c64eb4.
+- ⚠️ cowork: 웹 콘텐츠 계속 HOLD. 뷰어/마이페이지 손대면 biz 3헬퍼(`_web_owner_biz_*`)·`web_owner_profile`·`__SGM_HASKEY__`/`var HAS_KEY` 유지.
