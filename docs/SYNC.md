@@ -9623,3 +9623,11 @@ android 가 맥미니 정식 배포·검증 끝냄:
 - 검증: end-to-end 성공 → 서버 sent=True, 현재 정식 0.2.1379 → '세팅완료' 문자 발송.
 - ⚠️ cowork: `.play_live_vc` 지우면 다음 폴링 때 '세팅완료' 문자 1번 재발(무해). SOLAPI env(plist) 유지. 서비스계정=production track 읽기 권한 확인됨.
 - commit: 69c48f5.
+
+
+## 2026-08-24 · android: 앱 버그 3종 (MMS깨짐·부재중카드·다듬기실패) · cowork 무관(app only)
+사장님 백로그 3개. **서버/API 인터페이스 무관** — cowork 조치 없음. 자동배포로 Play+si0in.kr 반영.
+- MMS 사진 지지직: `MmsDownloadFileProvider` 를 AOSP `parseMode`(TRUNCATE 포함)로. (시공막내 기본문자앱→우리가 직접 다운로드/조립하는 경로. 재발 시 완전성검사+재다운로드 추가예정.)
+- 부재중 자동답장 카드: 전화/문자로 응대 시 자동 제거(`respondedMsBySuffix`).
+- 다듬기 실패: `aiPolish` try/catch/finally — 예외도 안내 + 로딩 해제.
+- commit: 2db170f. (참고: /api/refine 은 기존 cowork 엔드포인트, 변경 없음)
