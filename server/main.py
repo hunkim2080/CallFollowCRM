@@ -27268,7 +27268,7 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
   .calh{display:flex;align-items:center;margin:2px 2px 8px}.calh .m{font-size:14.5px;font-weight:850}.calh .nav{margin-left:auto;display:flex;gap:4px}.calh .nav span{width:24px;height:24px;border-radius:7px;background:var(--sunken);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--ink2);cursor:pointer}
   .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;font-size:11.5px}.cal .dowc{text-align:center;color:var(--ink3);font-weight:700;padding:3px 0}
   .cal .d{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--ink2);font-weight:700;position:relative}
-  .cal .d.has{color:var(--ink);cursor:pointer}.cal .d.today{background:var(--blue);color:#fff}.cal .d.sel{background:var(--blue);color:#fff}.cal .d .dt{position:absolute;bottom:3px;width:4px;height:4px;border-radius:50%;background:var(--blue)}.cal .d.sel .dt,.cal .d.today .dt{background:#fff}.cal .d.pic .dt{background:var(--ink3);width:9px;height:6px;border-radius:2px}
+  .cal .d.has{color:var(--ink);cursor:pointer}.cal .d.today{color:var(--blue);box-shadow:inset 0 0 0 2px var(--blue)}.cal .d.sel{background:var(--blue);color:#fff}.cal .d .dt{position:absolute;bottom:3px;width:4px;height:4px;border-radius:50%;background:var(--blue)}.cal .d.sel .dt{background:#fff}.cal .d.pic .dt{background:var(--ink3);width:9px;height:6px;border-radius:2px}
   .calleg{font-size:10.5px;color:var(--ink3);margin:9px 2px 4px;display:flex;gap:12px}
   .listh{font-size:12.5px;font-weight:850;margin:16px 2px 8px;display:flex}.listh .c{margin-left:auto;font-size:11px;color:var(--ink3);font-weight:700}
   .site{border:1px solid var(--line);border-radius:11px;padding:10px 12px;margin-bottom:7px;cursor:pointer;display:flex;gap:11px;align-items:center}.site.on{border-color:var(--blue-line);background:var(--blue-bg)}
@@ -27573,7 +27573,7 @@ _WEB_VIEWER_HTML = """<!doctype html><html lang=ko><head><meta charset=utf-8>
 </div></div>
 
 <script>
-var ym=new Date().toISOString().slice(0,7);
+var _ndm=new Date(); var ym=_ndm.getFullYear()+'-'+(_ndm.getMonth()<9?'0':'')+(_ndm.getMonth()+1);   /* 로컬(KST) 현재 월 — toISOString(UTC)은 월초 새벽에 지난달이 떠서. (2026-08-24 사장님) */
 var sites=[], curCd=null, curCust=null, photos=[], sel={}, filter='all', lbi=0, mTab='photos', MAT=null, partsEditMode=false;
 var HAS_KEY=("__SGM_HASKEY__"==="true");   /* serve 시점 주입(web_viewer). 키 없으면 글쓰기 대신 등록 카드 */
 var PARTS_KEY='web_parts_v1', SELPART_KEY='web_sel_part', PT_KEY='web_partof_v1', BA_KEY='web_ba_v1';
@@ -27581,6 +27581,7 @@ var photoSort='work';   /* 사진 정렬: work=시공순(시공전-밑작업-시
 var DEFAULT_PARTS=['거실화장실','안방화장실','거실타일','베란다','다용도실','현관','기타'];
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function pad(n){return (n<10?'0':'')+n;}
+var _TODAY=(function(){var d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());})();   /* 로컬 오늘 'YYYY-MM-DD' — 접속 시 오늘로 시작. (2026-08-24 사장님) */
 function digits(s){return String(s||'').replace(/[^0-9]/g,'');}
 function getParts(){try{var v=JSON.parse(localStorage.getItem(PARTS_KEY));if(Array.isArray(v)&&v.length)return v;}catch(e){}return DEFAULT_PARTS.slice();}
 function setParts(a){localStorage.setItem(PARTS_KEY,JSON.stringify(a));}
@@ -27609,7 +27610,7 @@ function load(){
   fetch('/api/web/calendar?month='+ym).then(function(r){if(r.status===401){location.href='/web/login';throw 0;}return r.json();}).then(function(cal){
     fetch('/api/web/sites?month='+ym).then(function(r){return r.json();}).then(function(s){
       sites=s.sites||[]; renderCal(cal.days||[]); renderDayList();
-      if(sites.length){openSite(sites[0].customer_digits);} else {curCd=null;curCust=null;photos=[];document.getElementById('colM').innerHTML='<div class="empty">이 달에는 시공 현장이 없어요.</div>';renderRight();}
+      if(sites.length){var _ts=sites.filter(function(x){return x.work_date===_TODAY;})[0];openSite((_ts||sites[0]).customer_digits);} else {curCd=null;curCust=null;photos=[];document.getElementById('colM').innerHTML='<div class="empty">이 달에는 시공 현장이 없어요.</div>';renderRight();}
     });
   }).catch(function(){});
 }
@@ -27622,7 +27623,7 @@ function renderCal(days){
   for(var i=0;i<first;i++)h+='<div class="d"></div>';
   for(var dd=1;dd<=last;dd++){
     var ds=ym+'-'+pad(dd), info=map[ds];
-    var cls='d'+(info?' has':'')+(info&&info.hasPhoto?' pic':'')+(ds===selDay?' sel':'');
+    var cls='d'+(info?' has':'')+(info&&info.hasPhoto?' pic':'')+(ds===selDay?' sel':'')+(ds===_TODAY?' today':'');
     var oc=info?(' onclick="jumpDay(\\''+ds+'\\')"'):'';
     h+='<div class="'+cls+'"'+oc+'>'+dd+(info?'<span class="dt"></span>':'')+'</div>';
   }
