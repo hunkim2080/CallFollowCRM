@@ -1,0 +1,73 @@
+# 구글플레이 '정식' 게시 완료 → 사장님 폰에 문자 (2026-08-24 사장님)
+#   Play 정식 배포는 심사가 소리없이 끝나고 올라감 → 언제 라이브됐는지 알기 어려움.
+#   로봇이 2시간마다 정식 트랙의 '완료(completed)' 버전을 확인 → 새 버전이면 서버로 통보 →
+#   서버가 SOLAPI 문자 발송(멱등 — 같은 버전 중복 문자 안 감).
+#   * 내부테스트는 이 알림 대상 아님(즉시 뜨니까). 정식만.
+name: Play 정식 게시 알림 (문자)
+
+on:
+  schedule:
+    - cron: "17 */2 * * *"   # 2시간마다 (분 17 — 정각 혼잡 회피)
+  workflow_dispatch:          # 수동 테스트용
+
+concurrency:
+  group: play-live-notify
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 서비스계정 JSON 복원 (Play API 읽기용 · plain JSON)
+        env:
+          PLAY_SA: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          printf '%s' "$PLAY_SA" > sa.json
+          python3 -c "import json;json.load(open('sa.json'))" || { echo '::error::PLAY_SERVICE_ACCOUNT_JSON 이 유효 JSON 아님'; exit 1; }
+
+      - name: 파이썬 라이브러리
+        run: pip install --quiet google-api-python-client google-auth
+
+      - name: 정식 라이브 버전 조회 + 서버 통보
+        env:
+          UPLOAD_TOKEN: ${{ secrets.SI0IN_UPLOAD_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request
+          from google.oauth2 import service_account
+          from googleapiclient.discovery import build
+          PKG = "com.detailline.callfollowcrm"
+          creds = service_account.Credentials.from_service_account_file(
+              "sa.json", scopes=["https://www.googleapis.com/auth/androidpublisher"])
+          svc = build("androidpublisher", "v3", credentials=creds, cache_discovery=False)
+          edit = svc.edits().insert(packageName=PKG, body={}).execute()
+          eid = edit["id"]
+          try:
+              tr = svc.edits().tracks().get(packageName=PKG, editId=eid, track="production").execute()
+          finally:
+              try:
+                  svc.edits().delete(packageName=PKG, editId=eid).execute()
+              except Exception:
+                  pass
+          print("=== production track ===")
+          print(json.dumps(tr, ensure_ascii=False, indent=2))
+          live_vc, live_vn = 0, ""
+          for rel in tr.get("releases", []):
+              if rel.get("status") == "completed":
+                  for vc in (rel.get("versionCodes") or []):
+                      if int(vc) > live_vc:
+                          live_vc = int(vc)
+                          live_vn = rel.get("name", "") or ""
+          print("live_vc=", live_vc, "live_vn=", live_vn)
+          if live_vc <= 0:
+              print("완료된 정식 릴리스 없음 → 스킵")
+              raise SystemExit(0)
+          req = urllib.request.Request(
+              "https://api.si0in.kr/internal/play-live",
+              data=json.dumps({"version_code": live_vc, "version_name": live_vn}).encode(),
+              headers={"Authorization": "Bearer " + os.environ["UPLOAD_TOKEN"],
+                       "Content-Type": "application/json"},
+              method="POST")
+          with urllib.request.urlopen(req, timeout=30) as r:
+              print("server:", r.status, r.read().decode())
+          PY

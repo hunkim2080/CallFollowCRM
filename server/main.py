@@ -11540,6 +11540,56 @@ async def internal_upload_apk(request: Request):
     return {"ok": True, "bytes": len(data), "version_code": vc, "version_name": vn}
 
 
+_PLAY_LIVE_STATE = _APK_DIR.parent / ".play_live_vc"   # 마지막으로 문자 보낸 정식 versionCode
+
+
+@app.post("/internal/play-live", include_in_schema=False)
+async def internal_play_live(request: Request):
+    """CI 스케줄 워크플로가 '현재 구글플레이 정식 라이브 버전'을 보고 → 새 버전이면 사장님께 문자.
+    인증: Bearer SI0IN_UPLOAD_TOKEN. 멱등(같은/낮은 버전 중복 문자 안 보냄). (2026-08-24 사장님 — 정식게시 알림)
+    """
+    import hmac as _hmac
+    import os as _os
+    tok = _upload_token()
+    auth = request.headers.get("authorization", "")
+    provided = auth[7:].strip() if auth[:7].lower() == "bearer " else ""
+    if not tok or not provided or not _hmac.compare_digest(provided, tok):
+        raise HTTPException(status_code=401, detail="unauthorized")
+    body = await request.json()
+    vc = int(body.get("version_code") or 0)
+    vn = str(body.get("version_name") or "").strip()[:40]
+    if vc <= 0:
+        raise HTTPException(status_code=400, detail="version_code 필요")
+    try:
+        last = int((_PLAY_LIVE_STATE.read_text(encoding="utf-8").strip() or "0"))
+    except Exception:
+        last = 0
+    if vc <= last:
+        return {"ok": True, "notified": False, "reason": "not newer", "last": last, "current": vc}
+    first_time = (last == 0)
+    admin = (_os.environ.get("ADMIN_ALERT_PHONE") or "01064610131").strip()
+    label = vn or str(vc)
+    if first_time:
+        text = ("[시공막내] 정식배포 알림 세팅 완료 ✅ 앞으로 구글플레이에 정식 버전이 "
+                f"게시되면 이렇게 문자로 알려드려요. (현재 정식 {label})")
+    else:
+        text = (f"[시공막내] 구글플레이 정식 버전 {label} 심사 통과·게시 완료 ✅ "
+                "이제 사용자들이 업데이트를 받을 수 있어요.")
+    sent = False
+    try:
+        await _send_sms_solapi(admin, text)
+        sent = True
+    except Exception as e:  # noqa: BLE001
+        print(f"[play-live] SMS 실패(다음 폴링 때 재시도): {e}")
+    if sent:
+        try:
+            _PLAY_LIVE_STATE.write_text(str(vc), encoding="utf-8")
+        except Exception:
+            pass
+    print(f"[play-live] vc={vc} vn={vn} first={first_time} sent={sent}")
+    return {"ok": True, "notified": sent, "version_code": vc, "first_time": first_time}
+
+
 _APK_VC_CACHE: dict = {}      # {mtime_ns: (version_code, version_name)} — 재파싱 방지
 
 
