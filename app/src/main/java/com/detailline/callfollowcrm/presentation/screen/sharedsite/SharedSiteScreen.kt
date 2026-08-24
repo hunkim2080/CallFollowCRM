@@ -113,7 +113,8 @@ fun SharedSiteScreen(
     // 증거사진 선택 → base64 변환(IO) → 업로드. 여러 장 한 번에.
     //   2026-07-06 사장님: 시스템 Photo Picker 전환 때 여기만 단일(PickVisualMedia)로 들어가 "한 장씩" 회귀 → 다중으로 복구.
     val photoPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickMultipleVisualMedia(10)
+        // 2026-08-24 사장님: 협업 사장님이 한 번에 올리는 증거사진 10 → 20장.
+        ActivityResultContracts.PickMultipleVisualMedia(20)
     ) { uris ->
         val sid = pendingUploadShareId
         if (uris.isNotEmpty() && sid.isNotBlank()) {
