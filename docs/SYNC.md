@@ -9604,3 +9604,13 @@ android 가 맥미니 정식 배포·검증 끝냄:
 - 변경: **app/ 만**. `SharedSiteScreen`·`CustomerDetailScreen` 사진 피커 `PickMultipleVisualMedia(10→20)`. 서버 인터페이스·API 무관. (본인측 총량은 `sitePhotoMax=20` 그대로, `addSitePhotos` 가 take(room) 로 잘라 안전. 협업측은 총량 캡 없음 — 그대로.)
 - 배포: **si0in.kr APK 0.2.1593** (`~/ringgo-server/apk/shigongmagne.apk` 덮음, 로컬=리모트 md5 e357880… 일치·공개 content-length 26428586 확인) + **Play 내부 CI 자동**(`app/**` push 트리거, 협업 run 성공·본인 run 진행중).
 - commit: 9f23763(협업)·eb5e6e0(본인).
+
+
+## 2026-08-24 · android → 서버/CI: si0in.kr APK 자동배포 파이프라인 · cowork ⚠️필독
+사장님 "자동으로 올라가게 + 내부테스터 바로 받게" → CI 가 release APK 를 si0in.kr 로 자동 업로드(이제 손 scp 불필요).
+- **서버(main.py)**: `POST /internal/upload-apk` (Bearer 시크릿·`hmac.compare_digest` 상수시간·ZIP매직 `PK\x03\x04`·크기 1~60MB·원자적 os.replace) + `_upload_token()` (env `SI0IN_UPLOAD_TOKEN` → `~/ringgo-server/.upload_token` 파일 폴백). 교체 즉시 `/api/download/version` 이 새 versionCode 읽음(mtime 캐시라 자동) → 앱 UpdateChecker 배너.
+- **CI(play-deploy.yml)**: Play 업로드 뒤 `assembleRelease` + `curl POST https://api.si0in.kr/internal/upload-apk`(X-Release-Notes=커밋제목). 키스토어 재사용(서명됨).
+- **시크릿 `SI0IN_UPLOAD_TOKEN`**: GitHub Actions + macmini `~/ringgo-server/.upload_token`(600). android 가 gh(사장님 저장 credential)로 양쪽 동일값 설정.
+- 검증: 엔드포인트 200/401(틀린토큰)·workflow_dispatch end-to-end 성공 → 서버 version **1593→1596**.
+- ⚠️ **cowork**: `~/ringgo-server/.upload_token` 파일 **지우지 마세요**(지우면 자동배포 401). 이 엔드포인트/CI 스텝 손대면 시크릿 동기화 깨짐. Play App Signing 과 별개(ringgo-release.jks 직접 서명 → Play 폰과 교차설치 불가).
+- commit: 819d87e.
