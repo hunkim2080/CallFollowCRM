@@ -11490,6 +11490,56 @@ async def download_apk():
     )
 
 
+def _upload_token() -> str:
+    """CI 자동배포용 업로드 시크릿 — env(SI0IN_UPLOAD_TOKEN) 우선, 없으면 ~/ringgo-server/.upload_token 파일."""
+    import os as _os
+    v = (_os.environ.get("SI0IN_UPLOAD_TOKEN") or "").strip()
+    if v:
+        return v
+    try:
+        return (_APK_DIR.parent / ".upload_token").read_text(encoding="utf-8").strip()
+    except Exception:
+        return ""
+
+
+@app.post("/internal/upload-apk", include_in_schema=False)
+async def internal_upload_apk(request: Request):
+    """CI(GitHub Actions)가 새로 빌드한 release APK 를 올리면 서빙 APK 를 즉시 교체(자동배포).
+    인증: Authorization: Bearer <SI0IN_UPLOAD_TOKEN>. 검증: 시크릿(상수시간)·ZIP 매직·크기. 원자적 교체.
+    교체 즉시 /api/download/version 이 새 versionCode 를 읽어 앱 '새 버전' 배너가 뜬다. (2026-08-24 사장님 — 자동배포)
+    """
+    import hmac as _hmac
+    import os as _os
+    tok = _upload_token()
+    auth = request.headers.get("authorization", "")
+    provided = auth[7:].strip() if auth[:7].lower() == "bearer " else ""
+    if not tok or not provided or not _hmac.compare_digest(provided, tok):
+        raise HTTPException(status_code=401, detail="unauthorized")
+    data = await request.body()
+    if not (1_000_000 <= len(data) <= 60_000_000):
+        raise HTTPException(status_code=400, detail=f"size out of range: {len(data)} bytes")
+    if data[:4] != b"PK\x03\x04":
+        raise HTTPException(status_code=400, detail="not an APK (zip magic missing)")
+    _APK_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = _APK_DIR / "shigongmagne.apk.upload.tmp"
+    tmp.write_bytes(data)
+    _os.replace(str(tmp), str(_APK_PATH))   # 원자적 교체 — 다운로드 중 반쪽파일 없음
+    try:
+        vc, vn = _apk_version_from_binary(_APK_PATH)
+    except Exception:
+        vc, vn = 0, "?"
+    # 변경내역(선택) — X-Release-Notes 헤더로 오면 APK 옆에 저장 → 업데이트 배너에 표시
+    notes = request.headers.get("x-release-notes", "")
+    if notes.strip():
+        try:
+            (_APK_DIR / "release_notes.txt").write_text(
+                notes.replace("\\n", "\n").strip(), encoding="utf-8")
+        except Exception:
+            pass
+    print(f"[upload-apk] OK {len(data)} bytes -> versionCode={vc} versionName={vn}")
+    return {"ok": True, "bytes": len(data), "version_code": vc, "version_name": vn}
+
+
 _APK_VC_CACHE: dict = {}      # {mtime_ns: (version_code, version_name)} — 재파싱 방지
 
 

@@ -68,3 +68,4 @@ server/cache.db
 server/venv/
 __pycache__/
 *.pyc
+.upload_token

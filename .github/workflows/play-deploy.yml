@@ -98,6 +98,31 @@ jobs:
           #   배포 전에 그 파일에 이번 변경 한 줄 적으면 됨(빈칸이면 문구 없이 올라감).
           whatsNewDirectory: distribution/whatsnew
 
+      # si0in.kr 자동 배포 — release APK 를 빌드해 서버로 올리면 즉시 서빙 교체.
+      #   서버 /api/download/version 이 새 versionCode 를 읽어 앱 '새 버전' 배너가 떠서
+      #   si0in.kr 로 설치한 테스터는 인앱에서 바로 업데이트 가능. (2026-08-24 사장님 — 자동배포)
+      #   ⚠️ Play 서명과 별개(ringgo-release.jks 직접 서명) — Play 로 깐 폰과는 서명 달라 교차설치 불가.
+      - name: si0in.kr APK 빌드 + 자동 업로드
+        env:
+          SI0IN_UPLOAD_TOKEN: ${{ secrets.SI0IN_UPLOAD_TOKEN }}
+        run: |
+          set -e
+          if [ -z "$SI0IN_UPLOAD_TOKEN" ]; then
+            echo "::error::SI0IN_UPLOAD_TOKEN 시크릿이 없음 — si0in.kr 자동배포 스킵 불가"; exit 1
+          fi
+          ./gradlew assembleRelease --no-daemon --stacktrace
+          apk=$(ls app/build/outputs/apk/release/*.apk | head -1)
+          echo "APK = $apk ($(wc -c < "$apk") bytes)"
+          notes=$(git log -1 --pretty=%s)
+          code=$(curl -sS -o /tmp/upl.json -w '%{http_code}' -X POST https://api.si0in.kr/internal/upload-apk \
+            -H "Authorization: Bearer $SI0IN_UPLOAD_TOKEN" \
+            -H "X-Release-Notes: $notes" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary @"$apk")
+          echo "upload http=$code"; cat /tmp/upl.json 2>/dev/null; echo
+          if [ "$code" != "200" ]; then echo "::error::si0in.kr APK 업로드 실패 (http $code)"; exit 1; fi
+          echo "✓ si0in.kr 자동 배포 완료"
+
       - name: AAB 아티팩트 보관 (Actions 에서 다운로드 가능)
         if: always()
         uses: actions/upload-artifact@v4
