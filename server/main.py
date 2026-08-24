@@ -29771,7 +29771,7 @@ async def _web_gemini_generate(api_key: str, prompt: str, timeout: float = 75.0)
                 url, params={"key": api_key},
                 json={
                     "contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {"temperature": 0.75, "responseMimeType": "application/json"},
+                    "generationConfig": {"temperature": 0.9, "responseMimeType": "application/json"},  # 0.75→0.9: 글마다 다양성↑ (사장님 "매번 달라야", 2026-08-24)
                 })
     except (httpx.TimeoutException, httpx.ReadTimeout):
         raise HTTPException(504, "AI 글 생성이 오래 걸려요. 잠시 후 다시 눌러 주세요.")
@@ -29785,6 +29785,26 @@ async def _web_gemini_generate(api_key: str, prompt: str, timeout: float = 75.0)
         return json.loads(txt)   # 감사#6 — 파싱 실패도 502 로(500 방지)
     except Exception:
         raise HTTPException(502, "AI가 글을 이상한 형식으로 줬어요. [다시 만들기]를 한 번 눌러 주세요.")
+
+
+def _web_recent_openings(owner: str, exclude_cd: str, n: int = 4) -> str:
+    """이 사장님이 최근 쓴 블로그 도입부들(현재 고객 제외) — 새 글이 '겹치지 마라' 주입용. (2026-08-24 사장님 '매번 달라야')"""
+    if not owner:
+        return ""
+    try:
+        with db_conn() as con:
+            rows = con.execute(
+                "SELECT draft FROM web_generated_history "
+                "WHERE owner_phone=? AND customer_digits != ? AND draft IS NOT NULL AND TRIM(draft)!='' "
+                "ORDER BY created_at_ms DESC LIMIT ?", (owner, exclude_cd or "", n)).fetchall()
+    except Exception:
+        return ""
+    out = []
+    for r in rows:
+        head = (r[0] or "").replace("#", "").replace("*", "").strip()[:140]
+        if head:
+            out.append("· " + head + "…")
+    return "\n".join(out)
 
 
 # ── 웹 블로그 생성 = 백그라운드 잡 + 폴링 (게이트웨이 504/524 원천 차단) ──
@@ -29946,6 +29966,12 @@ async def web_generate_content(request: Request, req: WebGenReq):
                     "- 블로그 도입 인사·마무리에 '" + _biz_name + "'을 1~2번 자연스럽게 넣어라(예: '안녕하세요, " + _biz_name + "입니다'). 억지 도배는 금지.\n"
                     "- 위 (2-2)의 '참고 글 업체 상호 금지'는 경쟁사 얘기다 — 이 '" + _biz_name + "'은 사장님 본인 것이니 반드시 넣어도 된다.\n"
                     "- 인스타·스레드엔 과하지 않게 최대 1번.")
+    # 매번 다르게 — 이 사장님이 최근 쓴 글 도입부를 보여주고 '겹치지 마라'. (2026-08-24 사장님 '매번 달라야')
+    _recent_op = _web_recent_openings(owner, cd, 4)
+    antirep_hint = ""
+    if _recent_op:
+        antirep_hint = ("\n\n[🔁 매번 다르게 — 아주 중요] 아래는 이 사장님이 **최근 쓴 블로그 도입부들**이다. "
+                        "새 글은 이것들과 **절대 같은 도입·같은 첫 문장·같은 표현·같은 문장 구조**로 시작하지 마라 — 완전히 다른 각도로 열어라:\n" + _recent_op)
     prompt = (
         "너는 시공(인테리어) 사장님의 마케팅 글을 대신 써주는 카피라이터다. "
         "아래 '현장 재료'만으로 블로그·인스타그램·스레드 글을 각 플랫폼 톤에 맞게 쓴다.\n"
@@ -29961,7 +29987,7 @@ async def web_generate_content(request: Request, req: WebGenReq):
         "블로그 본문은 마커 규약으로: 소제목 '## 제목', 강조 '**굵게**', 인용 '> ', 구분선 '---'." + photo_hint + " "
         "인스타=~380자 감성 캡션(줄바꿈·이모지 적당) + 해시태그 15개(지역·부위·공정 기반). "
         "스레드=~230자 대화하듯 톤 확 낮춤 + 해시태그 1~2개.\n"
-        "그리고 이 현장 '페르소나 한 줄'(어떤 고민 → 어떻게 시공)도.\n" + tone_hint + kw_hint + biz_hint + "\n\n"
+        "그리고 이 현장 '페르소나 한 줄'(어떤 고민 → 어떻게 시공)도.\n" + tone_hint + kw_hint + biz_hint + antirep_hint + "\n\n"
         "[현장 재료]\n"
         "현장(아파트명·지역 — 동/호수·번지 없이): " + (m.get("addr") or m["region"] or "-") + "\n"
         "시공종류: " + (m["category"] or "-") + "\n"
