@@ -29808,6 +29808,26 @@ def _web_recent_openings(owner: str, exclude_cd: str, n: int = 4) -> str:
     return "\n".join(out)
 
 
+_OPENING_STYLES = [
+    "스토리형 — 이 고객의 상황·고민(왜 이 시공을 원했나)을 이야기로 풀며 시작하라. 첫 문장은 고객의 마음/상황.",
+    "질문형 — 독자에게 공감 질문을 던지며 시작하라(예: '오래된 화장실 줄눈, 곰팡이 때문에 고민이신가요?'). 그 질문이 이 현장 고민과 맞닿게.",
+    "현장 묘사형 — 현장 도착·첫인상·시공 전 상태를 생생히 묘사하며 시작하라(예: '문을 열고 들어서니 …').",
+    "정보·팁형 — 이 시공과 관련한 유용한 정보/기준으로 시작하라(예: '줄눈은 … 상태면 재시공 시점입니다') 후 자연스럽게 이 현장으로.",
+]
+
+
+def _web_opening_style(owner: str) -> str:
+    """도입 방식을 글마다 번갈아 강제(스토리/질문/현장묘사/정보형 로테이션). owner 지난 글 수로 인덱스 → 새 글마다 다음 방식. (2026-08-24 사장님)"""
+    idx = 0
+    try:
+        with db_conn() as con:
+            n = con.execute("SELECT COUNT(*) FROM web_generated_history WHERE owner_phone=?", (owner,)).fetchone()
+            idx = int(n[0] if n else 0) % len(_OPENING_STYLES)
+    except Exception:
+        idx = 0
+    return _OPENING_STYLES[idx]
+
+
 # ── 웹 블로그 생성 = 백그라운드 잡 + 폴링 (게이트웨이 504/524 원천 차단) ──
 #   동기 await 는 Gemini 가 75s+ 걸리면 CF/서버 타임아웃 → 뷰어 '네트워크 오류'. 대신
 #   즉시 job_id 반환 → 백그라운드 태스크가 완주 → 클라가 /api/web/generate-status 폴링.
@@ -29973,6 +29993,8 @@ async def web_generate_content(request: Request, req: WebGenReq):
     if _recent_op:
         antirep_hint = ("\n\n[🔁 매번 다르게 — 아주 중요] 아래는 이 사장님이 **최근 쓴 블로그 도입부들**이다. "
                         "새 글은 이것들과 **절대 같은 도입·같은 첫 문장·같은 표현·같은 문장 구조**로 시작하지 마라 — 완전히 다른 각도로 열어라:\n" + _recent_op)
+    style_hint = ("\n\n[✍️ 이번 글의 도입 방식 — 반드시 이 방식으로 열어라(글마다 번갈아 강제)] " + _web_opening_style(owner)
+                  + " ※ 도입 방식을 글마다 돌려가며 강제하는 중이니 위 방식을 지켜라(단 뻔하지 않게, 이 현장의 구체로).")
     prompt = (
         "너는 시공(인테리어) 사장님의 마케팅 글을 대신 써주는 카피라이터다. "
         "아래 '현장 재료'만으로 블로그·인스타그램·스레드 글을 각 플랫폼 톤에 맞게 쓴다.\n"
@@ -29988,7 +30010,7 @@ async def web_generate_content(request: Request, req: WebGenReq):
         "블로그 본문은 마커 규약으로: 소제목 '## 제목', 강조 '**굵게**', 인용 '> ', 구분선 '---'." + photo_hint + " "
         "인스타=~380자 감성 캡션(줄바꿈·이모지 적당) + 해시태그 15개(지역·부위·공정 기반). "
         "스레드=~230자 대화하듯 톤 확 낮춤 + 해시태그 1~2개.\n"
-        "그리고 이 현장 '페르소나 한 줄'(어떤 고민 → 어떻게 시공)도.\n" + tone_hint + kw_hint + biz_hint + antirep_hint + "\n\n"
+        "그리고 이 현장 '페르소나 한 줄'(어떤 고민 → 어떻게 시공)도.\n" + tone_hint + kw_hint + biz_hint + antirep_hint + style_hint + "\n\n"
         "[현장 재료]\n"
         "현장(아파트명·지역 — 동/호수·번지 없이): " + (m.get("addr") or m["region"] or "-") + "\n"
         "시공종류: " + (m["category"] or "-") + "\n"
