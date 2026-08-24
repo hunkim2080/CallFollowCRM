@@ -332,6 +332,33 @@ class AppPreferences(context: Context) {
         customerAskedSuffixes = customerAskedSuffixes + s
     }
 
+    /** 사장님이 '맨 위에 고정'한 거래처 번호(끝 8자리) 집합 — 카톡식 상단 고정. (2026-08-24 사장님)
+     *   commit: 직접 큐레이션한 목록이라 유실 방지. 키명이 백업 denylist(token/fcm/folder) 밖이라 설정칸 백업에 자동 포함 → 재설치해도 살아남. */
+    var pinnedSuffixes: Set<String>
+        get() = prefs.getStringSet("pinned_suffixes", emptySet()) ?: emptySet()
+        set(value) { prefs.edit().putStringSet("pinned_suffixes", value).commit() }
+
+    /** 이 번호가 상단 고정인가. */
+    fun isPinned(phone: String): Boolean {
+        val s = suffixOf(phone)
+        return s.length >= 7 && s in pinnedSuffixes
+    }
+
+    /** 고정 토글. 반환 = 토글 후 상태(true=고정됨 / false=해제됨). */
+    fun togglePinned(phone: String): Boolean {
+        val s = suffixOf(phone); if (s.length < 7) return false
+        val now = pinnedSuffixes
+        val pinned = s !in now
+        pinnedSuffixes = if (pinned) now + s else now - s
+        return pinned
+    }
+
+    /** 스팸/사생활 등으로 목록에서 뺄 때 고정도 함께 해제(좀비 핀 방지). */
+    fun unpin(phone: String) {
+        val s = suffixOf(phone); if (s.length < 7) return
+        if (s in pinnedSuffixes) pinnedSuffixes = pinnedSuffixes - s
+    }
+
     /**
      * 마지막으로 '수신 MMS 알림'을 띄운 시각(ms). 이 이후 도착한 inbox MMS 만 새로 알림.
      *   MMS(사진)는 SmsReceiver·WAP_PUSH 로 못 잡아 ContentObserver 로 감지→알림하는데, 중복/과거분 방지용 마커.

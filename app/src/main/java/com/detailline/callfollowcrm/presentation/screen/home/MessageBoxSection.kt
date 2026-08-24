@@ -19,8 +19,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -38,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.detailline.callfollowcrm.presentation.theme.TossBlue
 import com.detailline.callfollowcrm.presentation.theme.TossBlueSoft
+import com.detailline.callfollowcrm.presentation.theme.TossDivider
 import com.detailline.callfollowcrm.presentation.theme.TossGrayBg
 import com.detailline.callfollowcrm.presentation.theme.TossSegTrack
 import com.detailline.callfollowcrm.presentation.theme.TossTextPrimary
@@ -129,9 +133,11 @@ private fun SegItem(label: String, active: Boolean, badge: Int, modifier: Modifi
 @Composable
 fun MessageBoxSection(
     threads: List<GeneralThread>,
+    pinnedSuffixes: Set<String>,
     onOpen: (String) -> Unit,
     onMoveToConsult: (String) -> Unit,
     onMoveToSpam: (String, String?) -> Unit,
+    onTogglePin: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     if (threads.isEmpty()) {
@@ -143,14 +149,29 @@ fun MessageBoxSection(
         }
         return
     }
+    // 고정한 거래처는 맨 위로 모으고 아래 구분선, 그 밑에 나머지 전체. (2026-08-24 사장님)
+    val pinnedThreads = threads.filter { it.suffix in pinnedSuffixes }
+    val rest = threads.filter { it.suffix !in pinnedSuffixes }
     LazyColumn(
         modifier = modifier.fillMaxSize().background(Color.White),
         contentPadding = PaddingValues(bottom = 24.dp)
     ) {
-        items(threads, key = { it.suffix }) { t ->
-            GeneralRow(t, onOpen = { onOpen(t.phone) },
+        items(pinnedThreads, key = { "pin-${it.suffix}" }) { t ->
+            GeneralRow(t, pinned = true, onOpen = { onOpen(t.phone) },
                 onMoveToConsult = { onMoveToConsult(t.phone) },
-                onMoveToSpam = { onMoveToSpam(t.phone, t.displayName) })
+                onMoveToSpam = { onMoveToSpam(t.phone, t.displayName) },
+                onTogglePin = { onTogglePin(t.phone) })
+        }
+        if (pinnedThreads.isNotEmpty()) {
+            item(key = "pinned-divider") {
+                Box(Modifier.fillMaxWidth().height(1.dp).background(TossDivider))
+            }
+        }
+        items(rest, key = { it.suffix }) { t ->
+            GeneralRow(t, pinned = false, onOpen = { onOpen(t.phone) },
+                onMoveToConsult = { onMoveToConsult(t.phone) },
+                onMoveToSpam = { onMoveToSpam(t.phone, t.displayName) },
+                onTogglePin = { onTogglePin(t.phone) })
         }
     }
 }
@@ -158,9 +179,11 @@ fun MessageBoxSection(
 @Composable
 private fun GeneralRow(
     t: GeneralThread,
+    pinned: Boolean,
     onOpen: () -> Unit,
     onMoveToConsult: () -> Unit,
-    onMoveToSpam: () -> Unit
+    onMoveToSpam: () -> Unit,
+    onTogglePin: () -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
     val title = t.displayName?.takeIf { it.isNotBlank() } ?: PhoneNumberFormatter.format(t.phone)
@@ -201,7 +224,19 @@ private fun GeneralRow(
             }
             Spacer(Modifier.size(8.dp))
             Column(horizontalAlignment = Alignment.End) {
-                Text(DateTimeUtils.formatShort(t.lastDateMs), fontSize = 11.sp, color = TossTextTertiary)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // 고정된 문자함 스레드 — 시각 옆 작은 압정. (2026-08-24 사장님)
+                    if (pinned) {
+                        Icon(
+                            Icons.Filled.PushPin,
+                            contentDescription = "고정됨",
+                            tint = TossTextTertiary,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(Modifier.size(3.dp))
+                    }
+                    Text(DateTimeUtils.formatShort(t.lastDateMs), fontSize = 11.sp, color = TossTextTertiary)
+                }
                 if (t.unread) {
                     Spacer(Modifier.size(6.dp))
                     Box(Modifier.size(8.dp).clip(CircleShape).background(TossBlue))
@@ -215,6 +250,7 @@ private fun GeneralRow(
             ) {
                 Text("⋮", fontSize = 18.sp, color = TossTextTertiary)
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    DropdownMenuItem(text = { Text(if (pinned) "고정 해제" else "맨 위에 고정") }, onClick = { menu = false; onTogglePin() })
                     DropdownMenuItem(text = { Text("상담함으로 옮기기") }, onClick = { menu = false; onMoveToConsult() })
                     DropdownMenuItem(text = { Text("스팸으로") }, onClick = { menu = false; onMoveToSpam() })
                 }

@@ -228,6 +228,8 @@ fun HomeScreen(
     onOpenRoute: (String) -> Unit = {}
 ) {
     val timeline by viewModel.timeline.collectAsState()
+    // 상단 고정(핀) 거래처 suffix — 상담함 '고정' 칸 분리 + '답장 기다려요' 제외. (2026-08-24 사장님)
+    val pinnedSuffixes by viewModel.pinnedSuffixes.collectAsState()
     val filter by viewModel.filterState.collectAsState()
     // 광고 자동감지 — "이건 광고 아냐" 예외 목록 + 광고함 펼침 상태. (2026-07-08 사장님)
     val adAllowlist by viewModel.adAllowlist.collectAsState()
@@ -335,6 +337,8 @@ fun HomeScreen(
     var payTarget by remember { mutableStateOf<com.detailline.callfollowcrm.ai.CollabEventCenter.CollabUpdate?>(null) }
     // 대기 카드 꾹 누르면 뜨는 '스팸 등록 / 정리' 선택. null=닫힘. (2026-06-23 사장님)
     var spamTarget by remember { mutableStateOf<HomeItem?>(null) }
+    // 방(최근 대화·고정) 꾹 누르면 뜨는 '맨 위에 고정 / 해제' 선택. null=닫힘. (2026-08-24 사장님)
+    var pinTarget by remember { mutableStateOf<com.detailline.callfollowcrm.presentation.screen.home.HomeItem?>(null) }
     // 대기카드 비행기 → '확인 후 발송' 다이얼로그 대상 + 카드에서 고른 답변. (2026-07-02 사장님)
     var waitingSendTarget by remember { mutableStateOf<HomeItem?>(null) }
     var waitingSendReply by remember { mutableStateOf<String?>(null) }
@@ -991,7 +995,9 @@ fun HomeScreen(
                 val waiting = dedupItems.filter { it.isUnconfirmed && notAd(it) }
                 // 최근 대화 = 시간순 그대로(카톡식). 안 읽음은 순서 안 바꾸고 파란 점+굵게로만 표시.
                 //   (사장님 2026-06-08 결정: "맨 위로 모으기" 빼고 시간순 유지 → 카톡과 더 동일.)
-                val recent = dedupItems.filter { !it.isUnconfirmed && notAd(it) }
+                // 고정 거래처는 최근 대화에서 빼서 '고정' 칸으로만 보여준다. 나머지는 그대로. (2026-08-24 사장님)
+                val recent = dedupItems.filter { !it.isUnconfirmed && notAd(it) && it.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8) !in pinnedSuffixes }
+                val pinned = dedupItems.filter { notAd(it) && it.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8) in pinnedSuffixes }
 
                 // 지금 답장 기다려요 — waiting-head(제목+카운트+밀어서 정리) + 카드(왼쪽 밀기=정리). 비면 막내.
                 item(key = "waiting-head") { WaitingHeader(count = waiting.size) }
@@ -1060,6 +1066,44 @@ fun HomeScreen(
                                 )
                             }
                         )
+                    }
+                }
+
+                // 📌 고정 — 사장님이 맨 위에 고정한 거래처. 팁 없이 방들만, 밀기(스팸) 없이 꾹 눌러 해제. (2026-08-24 사장님)
+                if (pinned.isNotEmpty()) {
+                    item(key = "pinned-head") { SecSub("📌 고정") }
+                    item(key = "pinned-card") {
+                        Column(
+                            Modifier.fillMaxWidth().tossCardShadow(RoundedCornerShape(16.dp)).clip(RoundedCornerShape(16.dp)).background(Color.White)
+                        ) {
+                            pinned.forEachIndexed { j, rItem ->
+                                if (j > 0) {
+                                    Box(
+                                        Modifier.fillMaxWidth().padding(start = 16.dp)
+                                            .height(1.dp).background(TossDivider)
+                                    )
+                                }
+                                val suffix = rItem.record.phoneNumber.filter { c -> c.isDigit() }.takeLast(8)
+                                val custMsgMs = rItem.lastActivityMs.takeIf { it > 0L } ?: rItem.record.endedAt
+                                val unread = rItem.lastSent == false && (readStates[suffix] ?: 0L) < custMsgMs
+                                Box(Modifier.fillMaxWidth().background(Color.White)) {
+                                    RecentRow(
+                                        item = rItem,
+                                        index = j,
+                                        unread = unread,
+                                        aiSummary = aiCardSummaries[suffix],
+                                        category = rItem.customer?.categoryId?.let { cid ->
+                                            categoriesById.firstOrNull { it.id == cid }
+                                        }?.takeUnless {
+                                            it.name == com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_PENDING_WORK ||
+                                                it.name == com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_DONE_WORK
+                                        },
+                                        onOpenChat = { onOpenChat(rItem.record.phoneNumber, rItem.customer?.id) },
+                                        onLongClick = { pinTarget = rItem }
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -1152,7 +1196,8 @@ fun HomeScreen(
                                                                 it.name == com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_PENDING_WORK ||
                                                                     it.name == com.detailline.callfollowcrm.data.local.seed.DefaultCategories.NAME_DONE_WORK
                                                             },
-                                                            onOpenChat = { onOpenChat(rItem.record.phoneNumber, rItem.customer?.id) }
+                                                            onOpenChat = { onOpenChat(rItem.record.phoneNumber, rItem.customer?.id) },
+                                                            onLongClick = { pinTarget = rItem }
                                                         )
                                                     }
                                                 }
@@ -1340,6 +1385,53 @@ fun HomeScreen(
                 )
             }
 
+            // 방 꾹 누름 → 맨 위에 고정 / 해제. (2026-08-24 사장님)
+            pinTarget?.let { target ->
+                val phone = target.record.phoneNumber
+                val nm = target.customer?.name?.takeIf { n -> n.isNotBlank() } ?: PhoneNumberFormatter.format(phone)
+                val isPinnedNow = phone.filter { it.isDigit() }.takeLast(8) in pinnedSuffixes
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { pinTarget = null },
+                    title = { Text(nm, fontWeight = FontWeight.Bold, color = TossTextPrimary) },
+                    text = {
+                        Column {
+                            Box(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(TossGrayBg)
+                                    .clickable {
+                                        pinTarget = null
+                                        val nowPinned = viewModel.togglePin(phone)
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(
+                                                if (nowPinned) "맨 위에 고정했어요" else "고정을 해제했어요",
+                                                duration = SnackbarDuration.Short
+                                            )
+                                        }
+                                    }
+                                    .padding(14.dp)
+                            ) {
+                                Column {
+                                    Text(
+                                        if (isPinnedNow) "📌 고정 해제" else "📌 맨 위에 고정",
+                                        fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary
+                                    )
+                                    Text(
+                                        if (isPinnedNow) "고정 칸에서 빼요 (대화는 그대로)" else "상담함 맨 위 '고정' 칸에 둬요",
+                                        fontSize = 12.sp, color = TossTextTertiary
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {},
+                    dismissButton = {
+                        androidx.compose.material3.TextButton(onClick = { pinTarget = null }) {
+                            Text("취소", color = TossTextSecondary)
+                        }
+                    },
+                    containerColor = Color.White
+                )
+            }
+
             // '확인 후 발송' — 받은 문자 원문 + (카드에서 고른) 답변 전문 확인 후 발송/고쳐서/취소. (2026-07-02 사장님)
             waitingSendTarget?.let { target ->
                 val phone = target.record.phoneNumber
@@ -1412,6 +1504,7 @@ fun HomeScreen(
                 // 문자함(고객 아님) — 삼성 기본 메시지식 단순 목록.
                 MessageBoxSection(
                     threads = generalThreads,
+                    pinnedSuffixes = pinnedSuffixes,
                     onOpen = { phone -> onOpenChat(phone, null) },
                     onMoveToConsult = { phone ->
                         viewModel.moveToConsult(phone)
@@ -1420,6 +1513,10 @@ fun HomeScreen(
                     onMoveToSpam = { phone, name ->
                         viewModel.markSpam(phone, name)
                         scope.launch { snackbarHostState.showSnackbar("스팸으로 옮겼어요") }
+                    },
+                    onTogglePin = { phone ->
+                        val nowPinned = viewModel.togglePin(phone)
+                        scope.launch { snackbarHostState.showSnackbar(if (nowPinned) "맨 위에 고정했어요" else "고정을 해제했어요") }
                     },
                     modifier = Modifier.weight(1f)
                 )
@@ -3560,6 +3657,7 @@ private fun Avatar(name: String?, index: Int) {
  * 프로토 recentRowHtml — 최근 대화 행. 아바타 + 이름 + 태그 + 시간 + 요약 한 줄.
  *   (LazyColumn 간격상 흰 카드 형태로 — 프로토는 한 카드 안 연속행, 시각적으로 동등.)
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun RecentRow(
     item: HomeItem,
@@ -3567,7 +3665,8 @@ private fun RecentRow(
     unread: Boolean,
     aiSummary: String?,
     category: com.detailline.callfollowcrm.data.local.entity.CategoryEntity? = null,
-    onOpenChat: () -> Unit
+    onOpenChat: () -> Unit,
+    onLongClick: (() -> Unit)? = null
 ) {
     val name = item.customer?.name?.takeIf { it.isNotBlank() }
     val title = name ?: PhoneNumberFormatter.format(item.record.phoneNumber)
@@ -3583,7 +3682,7 @@ private fun RecentRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable { onOpenChat() }
+            .combinedClickable(onClick = { onOpenChat() }, onLongClick = { onLongClick?.invoke() })
             .padding(horizontal = 16.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

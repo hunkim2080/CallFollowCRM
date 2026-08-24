@@ -140,6 +140,18 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         _adAllowlist.value = next
     }
 
+    // 상단 고정(핀) 거래처 — 카톡식. prefs 비반응형 → StateFlow 로 들고 토글 시 갱신. (2026-08-24 사장님)
+    //   고정 목록은 UI(상담함 '고정' 칸 / 문자함 상단)에서 목록을 갈라 쓰고, '답장 기다려요'에선 제외한다.
+    private val _pinnedSuffixes = MutableStateFlow(container.preferences.pinnedSuffixes)
+    val pinnedSuffixes: StateFlow<Set<String>> = _pinnedSuffixes
+
+    /** 방 꾹 눌러 상단 고정/해제 토글. 반환 = 토글 후 고정 여부(true=고정됨). */
+    fun togglePin(phone: String): Boolean {
+        val nowPinned = container.preferences.togglePinned(phone)
+        _pinnedSuffixes.value = container.preferences.pinnedSuffixes
+        return nowPinned
+    }
+
     /**
      * 스팸 판정 = swipe 마킹(suffix) ∪ 앞자리 등록(prefix). 둘 중 하나라도 걸리면 상담함 목록·집계에서 제외.
      *   2026-06-17 사장님: "스팸 등록되면 상담함에 들어오지 못함" — 들어오지 못하니 추천도 준비 안 함.
@@ -909,9 +921,10 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
      *   → 새 메시지 오면 자동으로 다시 "답장 기다려요"에 뜬다.
      */
     private val excludedForUnconfirmed: StateFlow<Set<String>> =
-        combine(hiddenForConsult, _repliedAt, _dismissedAt, smsContactsState) { spam, replied, dismissed, contacts ->
+        combine(hiddenForConsult, _repliedAt, _dismissedAt, smsContactsState, _pinnedSuffixes) { spam, replied, dismissed, contacts, pinned ->
             val lastBySuffix = contacts.associate { it.normalizedSuffix to it.lastDateMs }
             val out = HashSet<String>(spam)
+            out += pinned   // 2026-08-24 사장님: 고정 거래처는 '답장 기다려요'에서 제외(영업 대기줄 아님·AI 준비도 안 함).
             fun addStillHandled(m: Map<String, Long>) {
                 for ((suf, handledMs) in m) if ((lastBySuffix[suf] ?: 0L) <= handledMs) out += suf
             }
@@ -1153,6 +1166,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             // 전체 번호+이름도 저장 → 더보기 '스팸/사생활 목록'에서 알아보고 복구(해제) 가능. kind=spam/personal. (2026-06-23 사장님)
             container.spamPhoneRepository.mark(phoneSuffix(phoneNumber), phoneNumber, displayName, kind)
+            // 스팸/사생활로 빼면 상단 고정도 함께 해제(좀비 핀 방지). (2026-08-24 사장님)
+            container.preferences.unpin(phoneNumber)
+            _pinnedSuffixes.value = container.preferences.pinnedSuffixes
         }
     }
 
