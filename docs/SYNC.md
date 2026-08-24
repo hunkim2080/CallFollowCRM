@@ -9631,3 +9631,11 @@ android 가 맥미니 정식 배포·검증 끝냄:
 - 부재중 자동답장 카드: 전화/문자로 응대 시 자동 제거(`respondedMsBySuffix`).
 - 다듬기 실패: `aiPolish` try/catch/finally — 예외도 안내 + 로딩 해제.
 - commit: 2db170f. (참고: /api/refine 은 기존 cowork 엔드포인트, 변경 없음)
+
+
+## 2026-08-24 · android → 서버: si0in.kr APK CDN 가속 (Cloudflare 엣지캐시) · cowork FYI
+사장님 "다운 느림" → 버전별 URL 로 Cloudflare 영구 캐시.
+- `download_apk`: `?v` 없으면 현재 versionCode 로 **302** → `/download/shigongmagne.apk?v=<vc>` 는 `Cache-Control: public, max-age=1yr, immutable` → CF 가 버전별 캐시. redirect 는 `no-store`(항상 현재 버전). 기존 `no-cache,no-store` 제거.
+- 검증(공개 URL): MISS 3.74s → **HIT 1.24s**(CF edge). 새 배포=새 vc=새 URL=자동 fresh(**캐시 purge/CF토큰/앱변경 불필요**).
+- ⚠️ cowork: `/api/download/version` 은 그대로 no-cache(버전 감지 즉시성 유지). APK 파일 교체(`/internal/upload-apk`) 로직 무관.
+- commit: f6b3eba.
