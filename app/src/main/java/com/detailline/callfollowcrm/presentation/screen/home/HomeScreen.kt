@@ -267,6 +267,7 @@ fun HomeScreen(
     val recurringDueDismissed by viewModel.recurringDueDismissed.collectAsState()
     val isInitialSmsLoading by viewModel.isInitialSmsLoading.collectAsState()
     val updateAvailable by viewModel.updateAvailable.collectAsState()
+    val updateDateLabel by viewModel.updateDateLabel.collectAsState()   // "8월 24일" — 배너 신뢰용. (2026-08-24 사장님)
     // '새로워졌어요' 시트 제거 (2026-07-29 사장님 — Play 배포로 이관, 앱 팝업 불필요). 배너([지금 받기])만 유지.
 
     // 서버 상태 indicator — AppContainer 의 ServerHealthMonitor 를 직접 구독.
@@ -433,7 +434,9 @@ fun HomeScreen(
                         .padding(horizontal = 16.dp, vertical = 13.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("✨ 새 버전이 나왔어요!", color = Color.White, fontWeight = FontWeight.ExtraBold,
+                    Text(
+                        if (updateDateLabel.isNotBlank()) "✨ ${updateDateLabel} 새 버전이 나왔어요!" else "✨ 새 버전이 나왔어요!",
+                        color = Color.White, fontWeight = FontWeight.ExtraBold,
                         fontSize = 14.sp, maxLines = 1, modifier = Modifier.weight(1f))
                     Box(
                         Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White)

@@ -264,6 +264,10 @@ class AppPreferences(context: Context) {
     var latestReleaseNotes: List<String>
         get() = prefs.getString("latest_release_notes", "")?.split("\n")?.filter { it.isNotBlank() } ?: emptyList()
         set(value) = prefs.edit().putString("latest_release_notes", value.joinToString("\n")).apply()
+    /** 최신 버전 서버 업로드(빌드) 시각(ms) — 배너에 "8월 24일 새 버전" 날짜 표시용. (2026-08-24 사장님) */
+    var latestVersionMtimeMs: Long
+        get() = prefs.getLong("latest_version_mtime_ms", 0L)
+        set(value) = prefs.edit().putLong("latest_version_mtime_ms", value).apply()
     /** '새로워졌어요' 시트를 이미 띄운 versionCode — 같은 버전엔 다시 안 뜨게(한 번만 짠). 0 = 아직 없음. (2026-07-18 사장님) */
     var updateSheetShownForCode: Int
         get() = prefs.getInt("update_sheet_shown_code", 0)

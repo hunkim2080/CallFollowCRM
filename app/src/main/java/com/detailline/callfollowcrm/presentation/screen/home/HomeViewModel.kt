@@ -1415,6 +1415,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     /** 최신 버전 변경 내역 — 배너에서 "무엇이 바뀌었나" 표시. 서버 notes 없으면 빈 목록. (2026-07-18 사장님) */
     private val _latestReleaseNotes = MutableStateFlow<List<String>>(emptyList())
     val latestReleaseNotes: StateFlow<List<String>> = _latestReleaseNotes
+    /** 최신 버전 배포 날짜 라벨 ("8월 24일") — 배너에 "오늘 고친 거구나" 신뢰감 주려고. (2026-08-24 사장님) */
+    private val _updateDateLabel = MutableStateFlow("")
+    val updateDateLabel: StateFlow<String> = _updateDateLabel
 
     /** '새로워졌어요' 시트를 이 버전에 대해 아직 안 띄웠으면 true. (한 버전당 한 번만 '짠'). (2026-07-18 사장님) */
     fun shouldShowUpdateSheet(latestCode: Int): Boolean =
@@ -1478,6 +1481,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 prefs.updateAvailable = info.available
                 if (info.latestCode > 0) prefs.latestVersionCode = info.latestCode
                 prefs.latestReleaseNotes = info.notes   // 변경 내역 저장(서버가 주면). 없으면 빈 목록.
+                if (info.mtimeMs > 0) prefs.latestVersionMtimeMs = info.mtimeMs   // 배포 날짜 저장(배너 표시용). (2026-08-24)
             }
             // 배너 판단은 '캐시된 boolean' 이 아니라 항상 최신코드 vs 내 버전으로 다시 계산 (UpdateChecker.shouldShowBanner 주석 참고).
             val latest = prefs.latestVersionCode
@@ -1490,6 +1494,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             _updateAvailable.value = stillOld
             _latestVersionCode.value = latest
             _latestReleaseNotes.value = if (stillOld) prefs.latestReleaseNotes else emptyList()
+            _updateDateLabel.value = if (stillOld && prefs.latestVersionMtimeMs > 0)
+                java.text.SimpleDateFormat("M월 d일", java.util.Locale.KOREA).format(java.util.Date(prefs.latestVersionMtimeMs))
+            else ""
         }
     }
 

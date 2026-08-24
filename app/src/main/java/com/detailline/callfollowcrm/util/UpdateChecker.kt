@@ -37,12 +37,12 @@ object UpdateChecker {
                 if (!resp.isSuccessful) return@use UpdateInfo(false, 0)
                 val json = JSONObject(resp.body?.string().orEmpty())
                 val notes = parseNotes(json)   // 서버가 notes 를 주면 변경 내역, 없으면 빈 목록
+                val mtimeMs = json.optLong("mtime_ms", 0L)   // 서버 APK 업로드 시각 = 배포 날짜(배너 '몇월며칠' 표시용, 2026-08-24 사장님)
                 val serverCode = json.optInt("version_code", 0)
                 if (serverCode > 0) {
-                    return@use UpdateInfo(serverCode > BuildConfig.VERSION_CODE, serverCode, notes)
+                    return@use UpdateInfo(serverCode > BuildConfig.VERSION_CODE, serverCode, notes, mtimeMs)
                 }
-                val mtime = json.optLong("mtime_ms", 0L)
-                UpdateInfo(mtime > BuildConfig.BUILD_TIMESTAMP + MARGIN_MS, 0, notes)
+                UpdateInfo(mtimeMs > BuildConfig.BUILD_TIMESTAMP + MARGIN_MS, 0, notes, mtimeMs)
             }
         }.getOrDefault(UpdateInfo(false, 0))
     }
@@ -77,5 +77,5 @@ object UpdateChecker {
     fun shouldShowBanner(latestCode: Int, myCode: Int, cachedAvailable: Boolean): Boolean =
         if (latestCode > 0) latestCode > myCode else cachedAvailable
 
-    data class UpdateInfo(val available: Boolean, val latestCode: Int, val notes: List<String> = emptyList())
+    data class UpdateInfo(val available: Boolean, val latestCode: Int, val notes: List<String> = emptyList(), val mtimeMs: Long = 0L)
 }
