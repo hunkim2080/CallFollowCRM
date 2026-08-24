@@ -353,13 +353,31 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         container.preferences.recurringDueDismissedDay = ts
     }
 
+    /** 부재중 자동답장 카드용 — 그 번호에 사장님이 '전화(콜백/받은전화 응답) 또는 보낸문자'로 응대한 최신 시각(끝8→ms).
+     *   이 시각이 자동답장 발송(createdAt) 이후면 사장님이 이미 연락한 것 → 카드 자동 제거. (2026-08-24 사장님) */
+    private val respondedMsBySuffix: StateFlow<Map<String, Long>> =
+        combine(callsForFlags, smsContactsState) { calls, contacts ->
+            val out = HashMap<String, Long>(calls.third)   // 통화 응대(콜백/받은전화 응답) 시각
+            for (c in contacts) {
+                if (c.lastSent && c.lastDateMs > (out[c.normalizedSuffix] ?: 0L)) {
+                    out[c.normalizedSuffix] = c.lastDateMs   // 사장님이 보낸 문자가 마지막이면 그 시각
+                }
+            }
+            out as Map<String, Long>
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
     val autoReplies: StateFlow<List<AutoReplyItem>> = combine(
         container.messageHistoryRepository.observeRecentAutoReplies(autoReplySinceMs, limit = 5),
         customers,
-        dismissedAutoReplyIds
-    ) { histories, custs, dismissed ->
+        dismissedAutoReplyIds,
+        respondedMsBySuffix
+    ) { histories, custs, dismissed, respondedMs ->
         val bySuffix = custs.associateBy { phoneSuffix(it.phoneNumber) }
-        histories.filter { it.id !in dismissed }.map { h ->
+        histories.filter { it.id !in dismissed }
+            // 2026-08-24 사장님: 그 고객에게 내가 전화/문자로 응대했으면(자동답장 발송 이후) 카드 자동 제거 — 헷갈림 방지.
+            //   +15초 margin = 자동답장 문자 자체(sent·createdAt 무렵)를 '내 응대'로 오인 안 하게.
+            .filter { (respondedMs[phoneSuffix(it.phoneNumber)] ?: 0L) <= it.createdAt + 15_000L }
+            .map { h ->
             val c = h.customerId?.let { id -> custs.firstOrNull { it.id == id } }
                 ?: bySuffix[phoneSuffix(h.phoneNumber)]
             AutoReplyItem(

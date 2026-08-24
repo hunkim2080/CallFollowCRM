@@ -1179,37 +1179,47 @@ class ChatViewModel(
         if (pickedChoice != null) pickedRefined = true
         _aiPolishing.value = true
         polishJob = viewModelScope.launch {
-            // 2026-05-28 사장님 결정: ✨ 다듬기에도 컨텍스트 전송 → "사장님 톤 + 흐름 맞춤".
-            //   - recent_messages: 최근 20건 (AI chips 와 동일 규모)
-            //   - owner_tone_samples: 다른 고객들에게 보낸 SMS 50건 (톤 학습 코퍼스)
-            //   - customer: 이름 + 메모 (호칭 + 맥락)
-            //   서버 endpoint (/api/refine, cowork 작업) 가 Gemini 2.5 Flash 로 처리.
-            val history = _messages.value
-                .take(20)
-                .map { sms ->
-                    com.detailline.callfollowcrm.ai.HistoryMessage(
-                        role = if (sms.sent) "owner" else "customer",
-                        body = sms.body,
-                        timestampMs = sms.dateMs
-                    )
-                }
-                .reversed()
-            val tone = runCatching {
-                container.smsRepository.querySentMessages(limit = 50)
-            }.getOrDefault(emptyList())
-            val c = customer.value
-            val ctx = com.detailline.callfollowcrm.ai.RefineContext(
-                recentMessages = history,
-                ownerToneSamples = tone,
-                customerName = c?.name,
-                customerMemo = c?.memo?.takeIf { it.isNotBlank() }
-            )
-            val result = container.refineRepository.refine(rawBody, ctx)
-            _aiPolishing.value = false
-            result.fold(
-                onSuccess = { polished -> onPolished(polished) },
-                onFailure = { _toast.value = "AI 서버에 잠깐 연결이 안 돼요 — 인터넷 확인 후 잠시 뒤 다시 해보세요" }
-            )
+            // 2026-08-24 사장님: 다듬기 실패 시 '그냥 꺼짐' 신고 → 어떤 실패(예외 포함)든 반드시 안내 뜨고
+            //   로딩(_aiPolishing)이 항상 풀리게 try/catch/finally 로 감쌈. (전엔 refine 이 던지면 토스트 없이 로딩만 멈춤)
+            try {
+                // 2026-05-28 사장님 결정: ✨ 다듬기에도 컨텍스트 전송 → "사장님 톤 + 흐름 맞춤".
+                //   - recent_messages: 최근 20건 (AI chips 와 동일 규모)
+                //   - owner_tone_samples: 다른 고객들에게 보낸 SMS 50건 (톤 학습 코퍼스)
+                //   - customer: 이름 + 메모 (호칭 + 맥락)
+                //   서버 endpoint (/api/refine, cowork 작업) 가 Gemini 2.5 Flash 로 처리.
+                val history = _messages.value
+                    .take(20)
+                    .map { sms ->
+                        com.detailline.callfollowcrm.ai.HistoryMessage(
+                            role = if (sms.sent) "owner" else "customer",
+                            body = sms.body,
+                            timestampMs = sms.dateMs
+                        )
+                    }
+                    .reversed()
+                val tone = runCatching {
+                    container.smsRepository.querySentMessages(limit = 50)
+                }.getOrDefault(emptyList())
+                val c = customer.value
+                val ctx = com.detailline.callfollowcrm.ai.RefineContext(
+                    recentMessages = history,
+                    ownerToneSamples = tone,
+                    customerName = c?.name,
+                    customerMemo = c?.memo?.takeIf { it.isNotBlank() }
+                )
+                val result = container.refineRepository.refine(rawBody, ctx)
+                result.fold(
+                    onSuccess = { polished -> onPolished(polished) },
+                    onFailure = { _toast.value = "AI 서버에 잠깐 연결이 안 돼요 — 인터넷 확인 후 잠시 뒤 다시 해보세요" }
+                )
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e   // 사장님이 취소한 거면 조용히(실패 아님)
+            } catch (e: Exception) {
+                android.util.Log.e("ChatVM", "aiPolish failed", e)
+                _toast.value = "다듬기에 실패했어요 — 잠시 후 다시 해보세요"
+            } finally {
+                _aiPolishing.value = false   // 성공·실패·예외 어떤 경우든 로딩 항상 해제
+            }
         }
     }
 

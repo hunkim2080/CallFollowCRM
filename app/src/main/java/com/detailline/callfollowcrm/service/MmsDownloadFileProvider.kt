@@ -26,10 +26,15 @@ class MmsDownloadFileProvider : ContentProvider() {
         val name = uri.lastPathSegment ?: throw FileNotFoundException("no file in $uri")
         val safe = File(name).name // path-traversal 방지: 파일명만
         val file = File(ctx.cacheDir, safe)
-        val flags = if (mode.contains("w"))
-            ParcelFileDescriptor.MODE_READ_WRITE or ParcelFileDescriptor.MODE_CREATE
-        else
-            ParcelFileDescriptor.MODE_READ_ONLY
+        // AOSP MmsFileProvider 패턴: parseMode("w") = WRITE_ONLY|CREATE|TRUNCATE.
+        //   기존 MODE_READ_WRITE|MODE_CREATE 는 TRUNCATE 누락 → 다운로드 PDU 에 잔여 tail 이 남아
+        //   사진이 '앞부분만 + 지지직'으로 손상될 수 있었음. (2026-08-24 사장님 · 표준과 일치)
+        val flags = runCatching { ParcelFileDescriptor.parseMode(mode) }.getOrElse {
+            if (mode.contains("w"))
+                ParcelFileDescriptor.MODE_READ_WRITE or ParcelFileDescriptor.MODE_CREATE or ParcelFileDescriptor.MODE_TRUNCATE
+            else
+                ParcelFileDescriptor.MODE_READ_ONLY
+        }
         return ParcelFileDescriptor.open(file, flags)
     }
 
