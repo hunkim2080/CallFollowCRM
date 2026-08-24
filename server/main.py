@@ -11468,8 +11468,10 @@ _PRIVACY_HTML_PATH = BASE_DIR / "static" / "privacy.html"
 
 
 @app.get("/download/shigongmagne.apk", include_in_schema=False)
-async def download_apk():
-    """APK 다운로드 (직접 서빙). 사장님이 cp 한 후에만 활성."""
+async def download_apk(v: Optional[str] = None):
+    """APK 다운로드. CDN 가속(2026-08-24 사장님): ?v 없으면 현재 versionCode 로 302 → 버전별 URL 을
+    Cloudflare 가 영구 캐시(가까운 엣지서 빠르게). 새 APK 올라오면 versionCode 가 바뀌어 redirect 타겟이
+    새 URL → 자동 fresh(캐시 purge/토큰 불필요). 버전 엔드포인트(/api/download/version)는 그대로 no-cache."""
     if not _APK_PATH.exists():
         raise HTTPException(
             status_code=404,
@@ -11478,14 +11480,28 @@ async def download_apk():
                 "사장님이 /Users/hun/ringgo-server/apk/shigongmagne.apk 에 빌드한 APK 를 cp 하면 활성."
             ),
         )
+    if not v:
+        # ?v 없는 최초 요청 → 현재 버전으로 302 (redirect 자체는 캐시 안 함 = 항상 현재 버전 가리킴).
+        try:
+            cur_vc, _vn = _apk_version_from_binary(_APK_PATH)
+        except Exception:
+            cur_vc = 0
+        if not cur_vc:
+            cur_vc = int(_APK_PATH.stat().st_mtime)   # 폴백: 파일 mtime
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(
+            f"/download/shigongmagne.apk?v={cur_vc}",
+            status_code=302,
+            headers={"Cache-Control": "no-store"},
+        )
+    # 버전 지정 URL — Cloudflare 가 이 키로 영구 캐시(불변). 새 버전은 다른 v → 다른 키 → 자동 fresh.
     return FileResponse(
         _APK_PATH,
         media_type="application/vnd.android.package-archive",
         filename="shigongmagne.apk",
         headers={
             "Content-Disposition": 'attachment; filename="shigongmagne.apk"',
-            # 캐시 제어 — APK 업데이트 시 즉시 반영
-            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Cache-Control": "public, max-age=31536000, immutable",
         },
     )
 
