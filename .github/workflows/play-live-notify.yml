@@ -3,6 +3,7 @@
 #   로봇이 2시간마다 정식 트랙의 '완료(completed)' 버전을 확인 → 새 버전이면 서버로 통보 →
 #   서버가 SOLAPI 문자 발송(멱등 — 같은 버전 중복 문자 안 감).
 #   * 내부테스트는 이 알림 대상 아님(즉시 뜨니까). 정식만.
+#   * 서버 통보는 curl 로 — Python urllib 기본 UA 는 Cloudflare 가 403 차단.
 name: Play 정식 게시 알림 (문자)
 
 on:
@@ -28,12 +29,10 @@ jobs:
       - name: 파이썬 라이브러리
         run: pip install --quiet google-api-python-client google-auth
 
-      - name: 정식 라이브 버전 조회 + 서버 통보
-        env:
-          UPLOAD_TOKEN: ${{ secrets.SI0IN_UPLOAD_TOKEN }}
+      - name: 정식 라이브 버전 조회 (Play API → GITHUB_ENV)
         run: |
           python3 - <<'PY'
-          import json, os, urllib.request
+          import json, os
           from google.oauth2 import service_account
           from googleapiclient.discovery import build
           PKG = "com.detailline.callfollowcrm"
@@ -59,15 +58,21 @@ jobs:
                           live_vc = int(vc)
                           live_vn = rel.get("name", "") or ""
           print("live_vc=", live_vc, "live_vn=", live_vn)
-          if live_vc <= 0:
-              print("완료된 정식 릴리스 없음 → 스킵")
-              raise SystemExit(0)
-          req = urllib.request.Request(
-              "https://api.si0in.kr/internal/play-live",
-              data=json.dumps({"version_code": live_vc, "version_name": live_vn}).encode(),
-              headers={"Authorization": "Bearer " + os.environ["UPLOAD_TOKEN"],
-                       "Content-Type": "application/json"},
-              method="POST")
-          with urllib.request.urlopen(req, timeout=30) as r:
-              print("server:", r.status, r.read().decode())
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as f:
+              f.write("LIVE_VC=%d\n" % live_vc)
+              f.write("LIVE_VN=%s\n" % live_vn)
           PY
+
+      - name: 서버 통보 → 문자 (새 정식 버전이면 · curl)
+        env:
+          UPLOAD_TOKEN: ${{ secrets.SI0IN_UPLOAD_TOKEN }}
+        run: |
+          set -e
+          if [ "${LIVE_VC:-0}" -le 0 ]; then echo "완료된 정식 릴리스 없음 → 스킵"; exit 0; fi
+          echo "정식 라이브 = $LIVE_VN (vc $LIVE_VC) → 서버 통보"
+          code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' -X POST https://api.si0in.kr/internal/play-live \
+            -H "Authorization: Bearer $UPLOAD_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"version_code\":$LIVE_VC,\"version_name\":\"$LIVE_VN\"}")
+          echo "http=$code"; cat /tmp/resp.json 2>/dev/null; echo
+          if [ "$code" != "200" ]; then echo "::error::서버 통보 실패 (http $code)"; exit 1; fi
