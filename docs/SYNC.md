@@ -9597,3 +9597,10 @@ android 가 맥미니 정식 배포·검증 끝냄:
 - 생성(`web_generate_content`) 프롬프트에 `biz_hint` 주입 — 인사·마무리 1~2번, "(2-2) 참고글 상호금지=경쟁사"라 명시 분리.
 - 배포검증: worktree=origin·md5일치·healthz200·biz-name 엔드포인트401(등록)·web_owner_profile 생성·리졸버 '디테일라인' 반환. commit 1c64eb4.
 - ⚠️ cowork: 웹 콘텐츠 계속 HOLD. 뷰어/마이페이지 손대면 biz 3헬퍼(`_web_owner_biz_*`)·`web_owner_profile`·`__SGM_HASKEY__`/`var HAS_KEY` 유지.
+
+
+## 2026-08-24 · android: 협업/본인 현장사진 한 번에 20장 + 빌드 배포 · cowork FYI
+사장님 요청 — 협업 사장(B측) 증거사진이 한 번에 10장 제한이라 20장으로. + 본인 현장사진도 통일(10→20).
+- 변경: **app/ 만**. `SharedSiteScreen`·`CustomerDetailScreen` 사진 피커 `PickMultipleVisualMedia(10→20)`. 서버 인터페이스·API 무관. (본인측 총량은 `sitePhotoMax=20` 그대로, `addSitePhotos` 가 take(room) 로 잘라 안전. 협업측은 총량 캡 없음 — 그대로.)
+- 배포: **si0in.kr APK 0.2.1593** (`~/ringgo-server/apk/shigongmagne.apk` 덮음, 로컬=리모트 md5 e357880… 일치·공개 content-length 26428586 확인) + **Play 내부 CI 자동**(`app/**` push 트리거, 협업 run 성공·본인 run 진행중).
+- commit: 9f23763(협업)·eb5e6e0(본인).
