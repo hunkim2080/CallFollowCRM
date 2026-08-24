@@ -9614,3 +9614,12 @@ android 가 맥미니 정식 배포·검증 끝냄:
 - 검증: 엔드포인트 200/401(틀린토큰)·workflow_dispatch end-to-end 성공 → 서버 version **1593→1596**.
 - ⚠️ **cowork**: `~/ringgo-server/.upload_token` 파일 **지우지 마세요**(지우면 자동배포 401). 이 엔드포인트/CI 스텝 손대면 시크릿 동기화 깨짐. Play App Signing 과 별개(ringgo-release.jks 직접 서명 → Play 폰과 교차설치 불가).
 - commit: 819d87e.
+
+
+## 2026-08-24 · android → 서버/CI: 구글플레이 정식 게시 → 사장님 문자 알림 · cowork ⚠️
+사장님 "정식 심사 소리없이 끝나고 올라감 → 문자로 알려줘".
+- 서버(main.py): `POST /internal/play-live` (Bearer SI0IN_UPLOAD_TOKEN, 멱등 — `~/ringgo-server/.play_live_vc` 파일에 마지막 알림 vc). 새 정식 vc 면 `_send_sms_solapi` → `ADMIN_ALERT_PHONE`(기본 01064610131) 문자.
+- CI(`play-live-notify.yml`, schedule 2h + dispatch): 서비스계정으로 production track(status=completed) 최고 versionCode 조회 → curl POST 서버. ⚠️ Python urllib UA 는 Cloudflare 403 → **curl 필수**.
+- 검증: end-to-end 성공 → 서버 sent=True, 현재 정식 0.2.1379 → '세팅완료' 문자 발송.
+- ⚠️ cowork: `.play_live_vc` 지우면 다음 폴링 때 '세팅완료' 문자 1번 재발(무해). SOLAPI env(plist) 유지. 서비스계정=production track 읽기 권한 확인됨.
+- commit: 69c48f5.
