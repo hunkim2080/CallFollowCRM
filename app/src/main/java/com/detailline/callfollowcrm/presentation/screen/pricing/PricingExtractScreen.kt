@@ -14,6 +14,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -85,6 +89,9 @@ fun PricingExtractScreen(
 
     Scaffold(
         containerColor = TossGrayBg,
+        // 2026-08-24 사장님: 하단 입력칸(줄눈 평당 등) 고치려 터치하면 키보드가 가리던 버그 —
+        //   nav+ime union 으로 콘텐츠(리스트+담기버튼)를 키보드 위로 밀어 포커스 칸이 보이게. (ChatScreen 패턴)
+        contentWindowInsets = WindowInsets.ime.union(WindowInsets.navigationBars),
         topBar = {
             TopAppBar(
                 title = { Text(title, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
