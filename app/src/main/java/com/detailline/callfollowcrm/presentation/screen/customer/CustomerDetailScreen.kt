@@ -700,7 +700,8 @@ fun CustomerDetailScreen(
             //   기존 GetMultipleContents(ACTION_GET_CONTENT)는 삼성 "항목 선택" 폴더 탐색기라 연세 있으신 분들이 헤맴
             //   → PickMultipleVisualMedia(깔끔한 사진 그리드)로 교체. (2026-07-06 사장님)
             val photoPicker = rememberLauncherForActivityResult(
-                ActivityResultContracts.PickMultipleVisualMedia(10)
+                // 2026-08-24 사장님: 본인 현장 사진도 한 번에 10 → 20장 (협업과 통일, 총량 sitePhotoMax=20).
+                ActivityResultContracts.PickMultipleVisualMedia(20)
             ) { uris -> if (uris.isNotEmpty()) viewModel.addSitePhotos(uris) }
             val launchPhotoPicker = { showPhotoPicker = true }
             val photoMax = viewModel.sitePhotoMax
