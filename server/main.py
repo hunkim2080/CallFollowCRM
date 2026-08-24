@@ -28383,8 +28383,9 @@ load(); loadToneLib();
   .ordnum[hidden]{display:none}
   @keyframes ordpop{0%{transform:scale(.2);opacity:0}55%{transform:scale(1.25)}100%{transform:scale(1);opacity:1}}
   .ordnum.pop{animation:ordpop .36s cubic-bezier(.34,1.56,.64,1)}
-  .ordba{position:absolute;right:7px;bottom:7px;font-size:10px;font-weight:800;color:#fff;background:rgba(24,29,39,.62);border-radius:6px;padding:2px 7px}.ordba.post{background:rgba(18,110,106,.82)}.ordba.mid{background:rgba(176,122,18,.85)}
-  .ordpart{position:absolute;left:7px;bottom:7px;font-size:10px;font-weight:800;color:var(--amber);background:#FBF3E2;border-radius:6px;padding:2px 7px}
+  .ordba{position:absolute;right:7px;top:7px;font-size:10px;font-weight:800;color:#fff;background:rgba(24,29,39,.62);border-radius:6px;padding:2px 7px}.ordba.post{background:rgba(18,110,106,.82)}.ordba.mid{background:rgba(176,122,18,.85)}
+  /* 2026-08-24 사장님: 부위명(아래)+시공전후(아래) 겹침 버그 → 시공전후는 오른쪽 위로, 부위명은 폭 안에서 줄바꿈(둘 다 안 가려짐). */
+  .ordpart{position:absolute;left:7px;bottom:7px;max-width:calc(100% - 14px);font-size:10px;font-weight:800;line-height:1.3;color:var(--amber);background:#FBF3E2;border-radius:6px;padding:2px 7px}
   .ordtraybar{margin:13px 0 4px;background:var(--sunken);border:1px solid var(--line);border-radius:12px;padding:11px 12px}
   .ordtray{display:flex;gap:7px;flex-wrap:wrap}
   .ordslot{width:52px;height:40px;border-radius:8px;border:1.5px dashed var(--line);background:var(--surface) center/cover no-repeat;position:relative;flex:none}
