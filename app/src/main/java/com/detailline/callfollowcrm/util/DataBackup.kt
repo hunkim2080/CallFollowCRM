@@ -104,6 +104,7 @@ object DataBackup {
             put("app", "시공막내")
             put("exportedAt", System.currentTimeMillis())
             put("tables", tablesObj)
+            put("prefs", dumpPrefs(context))   // 설정칸(협업 연결 등) 포함. (2026-08-24 사장님)
         }
 
         val dir = File(context.cacheDir, "shared").apply { mkdirs() }
@@ -157,6 +158,7 @@ object DataBackup {
         val root = JSONObject().apply {
             put("format", FORMAT); put("dbVersion", db.version); put("app", "시공막내")
             put("exportedAt", System.currentTimeMillis()); put("tables", tablesObj)
+            put("prefs", dumpPrefs(context))   // 설정칸(협업 연결·스팸·자동문자·업체정보) 포함. (2026-08-24 사장님)
         }
         return root.toString().toByteArray(Charsets.UTF_8)
     }
@@ -219,6 +221,9 @@ object DataBackup {
             db.endTransaction()
             db.setForeignKeyConstraintsEnabled(true)
         }
+        // 설정칸(협업 연결·스팸목록·자동문자·업체정보·설정 토글) 복원 — DB 밖(SharedPreferences)이라 트랜잭션 후.
+        //   고객은 원래 id 그대로 복원되므로 collab_assignments 의 customerId 참조가 그대로 유효. (2026-08-24 사장님)
+        restorePrefs(context, root.optJSONObject("prefs"))
         return ImportResult(totalRows, tableCount, customerCount)
     }
 
@@ -322,4 +327,69 @@ object DataBackup {
     }
 
     private fun csv(s: String): String = "\"" + s.replace("\"", "\"\"") + "\""
+
+    // ─────────────────────────── 설정칸(SharedPreferences) 백업/복원 ───────────────────────────
+    // 협업 연결(collab_assignments)·스팸목록·자동문자 문구·업체정보·설정 토글은 DB 가 아니라 이 설정칸에 산다.
+    //   재설치 시 함께 지워지는데 예전 백업은 DB 만 담아 복원해도 안 살아났음 → 여기에 포함. (2026-08-24 사장님)
+    //   ⚠️ 기기/인증/권한 종속 키(token·fcm·폴더 URI)는 제외 — 새 기기서 재발급·재선택 대상.
+    private const val APP_PREFS = "call_follow_crm"
+
+    private fun skipPrefKey(k: String): Boolean {
+        val lk = k.lowercase(Locale.ROOT)
+        return lk.contains("token") || lk.contains("fcm") || lk.contains("gcm") || lk.contains("folder")
+    }
+
+    /** 설정칸을 타입 보존해 JSON 으로. (복원 때 같은 타입으로 되돌림) */
+    private fun dumpPrefs(context: Context): JSONObject {
+        val out = JSONObject()
+        try {
+            val sp = context.getSharedPreferences(APP_PREFS, Context.MODE_PRIVATE)
+            for ((k, v) in sp.all) {
+                if (v == null || skipPrefKey(k)) continue
+                val e = JSONObject()
+                when (v) {
+                    is Boolean -> { e.put("t", "b"); e.put("v", v) }
+                    is Int -> { e.put("t", "i"); e.put("v", v) }
+                    is Long -> { e.put("t", "l"); e.put("v", v) }
+                    is Float -> { e.put("t", "f"); e.put("v", v.toDouble()) }
+                    is String -> { e.put("t", "s"); e.put("v", v) }
+                    is Set<*> -> {
+                        val a = JSONArray(); for (x in v) if (x is String) a.put(x)
+                        e.put("t", "ss"); e.put("v", a)
+                    }
+                    else -> continue
+                }
+                out.put(k, e)
+            }
+        } catch (_: Exception) {}
+        return out
+    }
+
+    /** JSON 설정칸을 SharedPreferences 로 되돌림(덮어쓰기). 없으면(옛 백업) 조용히 스킵. */
+    private fun restorePrefs(context: Context, prefs: JSONObject?) {
+        if (prefs == null || prefs.length() == 0) return
+        try {
+            val ed = context.getSharedPreferences(APP_PREFS, Context.MODE_PRIVATE).edit()
+            val keys = prefs.keys()
+            while (keys.hasNext()) {
+                val k = keys.next()
+                if (skipPrefKey(k)) continue
+                val e = prefs.optJSONObject(k) ?: continue
+                when (e.optString("t")) {
+                    "b" -> ed.putBoolean(k, e.optBoolean("v"))
+                    "i" -> ed.putInt(k, e.optInt("v"))
+                    "l" -> ed.putLong(k, e.optLong("v"))
+                    "f" -> ed.putFloat(k, e.optDouble("v").toFloat())
+                    "s" -> ed.putString(k, e.optString("v"))
+                    "ss" -> {
+                        val a = e.optJSONArray("v") ?: JSONArray()
+                        val set = HashSet<String>()
+                        for (i in 0 until a.length()) set.add(a.optString(i))
+                        ed.putStringSet(k, set)
+                    }
+                }
+            }
+            ed.apply()
+        } catch (_: Exception) {}
+    }
 }
