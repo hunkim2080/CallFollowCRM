@@ -3678,7 +3678,25 @@ private fun Composer(
                         contentAlignment = Alignment.Center
                     ) {
                         if (isPolishing) {
-                            CircularProgressIndicator(color = TossBlue, strokeWidth = 2.dp, modifier = Modifier.size(19.dp))
+                            // 2026-08-24 사장님: 무한 스피너(모래시계) → '보통 걸리는 시간(≈4.5s)'만큼 차오르는 링.
+                            //   진짜 %는 AI 서버가 안 줘서 시간기반 추정 — ease-out 으로 92%까지만(느려도 거짓 100% X).
+                            //   다 되면 결과가 입력칸에 떠서 완료가 명확. 자리·크기는 스피너와 동일(UI 안 해침).
+                            val prog = remember { androidx.compose.animation.core.Animatable(0f) }
+                            LaunchedEffect(Unit) {
+                                prog.animateTo(
+                                    targetValue = 0.92f,
+                                    animationSpec = androidx.compose.animation.core.tween(
+                                        durationMillis = 4500,
+                                        easing = androidx.compose.animation.core.EaseOutCubic
+                                    )
+                                )
+                            }
+                            CircularProgressIndicator(
+                                progress = prog.value,
+                                color = TossBlue,
+                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(19.dp)
+                            )
                         } else {
                             Icon(Icons.Default.AutoAwesome, "AI 다듬기", tint = TossBlue, modifier = Modifier.size(19.dp))
                         }
