@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -72,6 +73,8 @@ fun StyleLearningScreen(
     }
     var exampleOpen by remember { mutableStateOf(false) }
     var signatureOpen by remember { mutableStateOf(false) }
+    var examplesListOpen by remember { mutableStateOf(false) }
+    var editingExample by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
         containerColor = TossGrayBg,
@@ -183,7 +186,7 @@ fun StyleLearningScreen(
             SecSub("무엇으로 배우나요")
             SourceRow("📩", "내가 보낸 문자", "실제 고객에게 보낸 답장에서 말투를 배워요", state.sampleCount)
             Spacer(Modifier.height(8.dp))
-            SourceRow("✨", "직접 가르친 예문", "“이렇게 답해줘” 하고 알려준 문장", state.examplesCount)
+            SourceRow("✨", "직접 가르친 예문", "눌러서 확인·수정 · “이렇게 답해줘” 한 문장", state.examplesCount) { examplesListOpen = true }
 
             // ── 직접 가르치기 (teach) ──
             SecSub("직접 가르치기")
@@ -259,6 +262,70 @@ fun StyleLearningScreen(
             containerColor = Color.White
         )
     }
+
+    // ── 가르친 예문 목록 (확인·수정·삭제) — 2026-08-26 신고: "예문 확인/수정 클릭 안됨" ──
+    if (examplesListOpen) {
+        AlertDialog(
+            onDismissRequest = { examplesListOpen = false },
+            title = { Text("가르친 예문 ${state.examples.size}개", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
+            text = {
+                Column {
+                    com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
+                    if (state.examples.isEmpty()) {
+                        Text("아직 가르친 예문이 없어요.\n닫고 아래 ‘예문 추가하기’로 알려주세요.",
+                            fontSize = 12.5.sp, color = TossTextTertiary, lineHeight = 18.sp)
+                    } else {
+                        Text("눌러서 수정 · ✕ 로 삭제", fontSize = 11.5.sp, color = TossTextTertiary)
+                        Spacer(Modifier.height(8.dp))
+                        Column(
+                            Modifier.heightIn(max = 340.dp).verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            state.examples.forEach { ex ->
+                                Row(
+                                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                                        .background(TossGrayBg).padding(horizontal = 11.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(ex, fontSize = 13.sp, color = TossTextPrimary, lineHeight = 18.sp,
+                                        modifier = Modifier.weight(1f).clickable { editingExample = ex })
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("✕", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary,
+                                        modifier = Modifier.clickable { viewModel.removeExample(ex) }.padding(4.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { examplesListOpen = false }) { Text("닫기", color = Purple, fontWeight = FontWeight.Bold) } },
+            containerColor = Color.White
+        )
+    }
+
+    editingExample?.let { orig ->
+        var etxt by remember(orig) { mutableStateOf(orig) }
+        AlertDialog(
+            onDismissRequest = { editingExample = null },
+            title = { Text("예문 수정", fontWeight = FontWeight.Bold, color = TossTextPrimary) },
+            text = {
+                Column {
+                    com.detailline.callfollowcrm.presentation.util.ForceDialogResize()
+                    Text("고쳐서 저장하면 막내가 새로 배워요.", fontSize = 12.5.sp, color = TossTextTertiary)
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(value = etxt, onValueChange = { etxt = it },
+                        modifier = Modifier.fillMaxWidth().height(110.dp))
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.updateExample(orig, etxt); editingExample = null }, enabled = etxt.isNotBlank()) {
+                    Text("저장", color = if (etxt.isNotBlank()) Purple else TossTextTertiary, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = { TextButton(onClick = { editingExample = null }) { Text("취소", color = TossTextSecondary) } },
+            containerColor = Color.White
+        )
+    }
 }
 
 @Composable
@@ -286,17 +353,25 @@ private fun PlaceholderCard(text: String) {
 }
 
 @Composable
-private fun SourceRow(emoji: String, title: String, sub: String, count: Int) {
-    TossCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(PurpleSoft),
-                contentAlignment = Alignment.Center) { Text(emoji, fontSize = 15.sp) }
-            Spacer(Modifier.width(11.dp))
-            Column(Modifier.weight(1f)) {
-                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
-                Text(sub, fontSize = 11.5.sp, color = TossTextTertiary)
-            }
-            Text("$count", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Purple)
+private fun SourceRow(emoji: String, title: String, sub: String, count: Int, onClick: (() -> Unit)? = null) {
+    if (onClick != null) TossCard(onClick = onClick) { SourceRowInner(emoji, title, sub, count, true) }
+    else TossCard { SourceRowInner(emoji, title, sub, count, false) }
+}
+
+@Composable
+private fun SourceRowInner(emoji: String, title: String, sub: String, count: Int, chevron: Boolean) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(PurpleSoft),
+            contentAlignment = Alignment.Center) { Text(emoji, fontSize = 15.sp) }
+        Spacer(Modifier.width(11.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TossTextPrimary)
+            Text(sub, fontSize = 11.5.sp, color = TossTextTertiary)
+        }
+        Text("$count", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Purple)
+        if (chevron) {
+            Spacer(Modifier.width(6.dp))
+            Text("›", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TossTextTertiary)
         }
     }
 }

@@ -19,6 +19,7 @@ data class StyleLearningUiState(
     val loading: Boolean = false,
     val enabled: Boolean = true,
     val examplesCount: Int = 0,
+    val examples: List<String> = emptyList(),
     val signature: String = "",
     val analyzed: Boolean = false,
     val toast: String? = null
@@ -31,6 +32,7 @@ class StyleLearningViewModel(
         StyleLearningUiState(
             enabled = container.preferences.toneLearnEnabled,
             examplesCount = container.preferences.toneExamples.size,
+            examples = container.preferences.toneExamples.sorted(),
             signature = container.preferences.toneSignature
         )
     )
@@ -53,7 +55,31 @@ class StyleLearningViewModel(
         container.preferences.toneExamples = container.preferences.toneExamples + t
         _state.value = _state.value.copy(
             examplesCount = container.preferences.toneExamples.size,
+            examples = container.preferences.toneExamples.sorted(),
             toast = "새 예문을 배웠어요! ✨"
+        )
+    }
+
+    /** 가르친 예문 삭제. */
+    fun removeExample(text: String) {
+        container.preferences.toneExamples = container.preferences.toneExamples - text
+        _state.value = _state.value.copy(
+            examplesCount = container.preferences.toneExamples.size,
+            examples = container.preferences.toneExamples.sorted(),
+            toast = "예문을 지웠어요"
+        )
+    }
+
+    /** 가르친 예문 수정(옛 문장 → 새 문장). 빈 문장이면 삭제. */
+    fun updateExample(oldText: String, newText: String) {
+        val t = newText.trim()
+        if (t.isBlank()) { removeExample(oldText); return }
+        if (t == oldText) return
+        container.preferences.toneExamples = container.preferences.toneExamples - oldText + t
+        _state.value = _state.value.copy(
+            examplesCount = container.preferences.toneExamples.size,
+            examples = container.preferences.toneExamples.sorted(),
+            toast = "예문을 고쳤어요 ✨"
         )
     }
 
