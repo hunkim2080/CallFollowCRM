@@ -18,6 +18,10 @@ interface TimelineEventDao {
     @Query("UPDATE timeline_events SET notifiedAt = :ts WHERE id = :id")
     suspend fun markNotified(id: Long, ts: Long)
 
+    /** 특정 타입 이벤트 삭제 — 예: 잔금 '받음 처리' 취소 시 그 카드 제거(잔상 방지). (2026-08-28 사장님) */
+    @Query("DELETE FROM timeline_events WHERE phoneSuffix = :suffix AND type = :type")
+    suspend fun deleteByType(suffix: String, type: String)
+
     /**
      * 방금 만든 일정 카드(날짜만)에 시간을 채워넣음 — 날짜→시간 2단계 UI라 시간은 나중에 옴.
      *   이 고객(suffix)의 '가장 최근 schedule 카드'를 갱신. (2026-06-30)

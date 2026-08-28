@@ -17,6 +17,9 @@ class TimelineEventRepository(private val dao: TimelineEventDao) {
     /** 사장님이 변경 이력을 고객에게 알린 시각 기록. */
     suspend fun markNotified(id: Long, ts: Long) = dao.markNotified(id, ts)
 
+    /** 특정 타입 이벤트 삭제 — 잔금 '받음 처리' 취소 시 카드 제거. (2026-08-28 사장님) */
+    suspend fun deleteByType(suffix: String, type: String) = dao.deleteByType(suffix, type)
+
     /** 날짜만 기록된 최근 일정 카드에 시간 채워넣기(날짜→시간 2단계). */
     suspend fun updateLatestScheduleNewValue(suffix: String, newValue: String) =
         dao.updateLatestScheduleNewValue(suffix, newValue)

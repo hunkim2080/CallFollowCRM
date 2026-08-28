@@ -323,11 +323,13 @@ class CustomerDetailViewModel(
             )
             container.autoCategoryClassifier.reclassify(customerId)
         }
-        // 잔금 받음 처리 = 그 시점을 챗 타임라인에 카드로. (2026-06-30 사장님)
+        // 잔금 받음 처리 = 그 시점을 챗 타임라인에 카드로. 취소(false)면 그 카드도 삭제 — 실수 처리 후 '받음' 잔상 방지. (2026-06-30 / 2026-08-28 사장님)
         if (paid) {
             val c = customer.value
             val balanceWon = c?.balanceAmount ?: ((c?.totalAmount ?: 0L) - (c?.depositAmount ?: 0L))
             recordTimelineEvent(type = "balance_paid", oldValue = null, newValue = wonLabel(balanceWon))
+        } else {
+            deleteTimelineEventsOfType("balance_paid")
         }
     }
 
@@ -365,6 +367,17 @@ class CustomerDetailViewModel(
                         )
                     )
                 }
+            }
+        }
+    }
+
+    /** 특정 타입 타임라인 카드 삭제 — 잔금 '받음 처리' 취소 시 그 카드 제거(잔상 방지). (2026-08-28 사장님) */
+    private fun deleteTimelineEventsOfType(type: String) {
+        val suffix = customer.value?.phoneNumber?.filter { it.isDigit() }?.takeLast(8) ?: return
+        if (suffix.length < 7) return
+        viewModelScope.launch {
+            withContext(NonCancellable) {
+                runCatching { container.timelineEventRepository.deleteByType(suffix, type) }
             }
         }
     }
